@@ -1725,8 +1725,9 @@ sessions:
     # sull'albero unito. **Quattro sedute** condividono ora `L_DevSandbox` illuminato, ed e' un argomento
     # per aprirle nella stessa apertura invece che in quattro.
     # ➕ `U94` dal 2026-10-29 (#3939): stesso allestimento, per le voci del mode Hex Map che nessuna delle
-    # altre tre sapeva ospitare. `U39` cita queste quattro e nessuna di loro cita `U39`: asimmetria
-    # preesistente, non toccata qui.
+    # altre tre sapeva ospitare. L'elenco aggiornato e' la riga qui sotto, non la frase qui sopra sul numero
+    # di sedute. `U39` dichiara lo stesso allestimento e nessuna di queste sedute cita `U39`, `U94` compresa:
+    # asimmetria preesistente, non toccata qui.
     shares_setup_with: [U22, U25, U26, U94]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
@@ -6335,7 +6336,7 @@ sessions:
     issues: [3939, 1186, 1768, 1864, 1869, 3322]
     done_when: >-
       ogni voce elencata in `verifies` ha un esito reale nel registro, e `git status` non mostra modifiche
-      sotto `Content/RT/Maps/Dev/L_DevSandbox/`
+      sotto `Content/RT/Maps/Dev/`
     unblocks: []
     notes: |
       ➕ **Convocata il 2026-10-29 da #3939**, che rilancia l'invariante di #2188 (aperte − convocate −
@@ -6358,7 +6359,14 @@ sessions:
       anche una regione con un muro interno, un arco verso una cella fuori dalla regione, una porta e un
       binding: muro e arco si posano coi tool, **porta e binding no** — nessun tool del pannello posa porte,
       e il 2026-10-29 sono stati scritti nei dati dell'asset in memoria. Si chiude l'Editor con
-      «Don't Save». La seduta pilotata di quel giorno e' in `docs/technical/evidence/3931/`.
+      «Don't Save». La seduta pilotata di quel giorno, che usava `DA_HexMap_Scratch_Basin` in
+      `Content/RT/Maps/Dev/_Scratch/`, e' in `docs/technical/evidence/3931/`.
+
+      ⚠️ **Ordine rispetto a `PIE-MAPED-GRID-RESIDUI` di `U26`.** Quella voce chiede il livello SALVATO
+      prima di entrare nel mode e osserva se, uscendo, l'editor chiede di salvare; questa seduta lascia livello
+      e mappa sporchi in memoria. Nella stessa apertura `U26` va prima, o l'osservazione e' confusa. Dentro
+      questa seduta, `PIE-MAPED-DICHIARA` svuota `MapAsset` sull'attore (criterio (c)): va ricollegato prima di
+      passare alle altre voci.
 
       ⚠️ **Una seduta per volta su `Content/RT/Maps/Dev/L_DevSandbox/`**: `U21`, `U22`, `U25`, `U26`,
       `U39` e questa dichiarano lo stesso livello, e due aperte insieme sullo stesso `.umap` producono due
@@ -6389,23 +6397,20 @@ sessions:
       ➕ **Convocata il 2026-10-29 da #3939.** Le tre erano nate aperte con la loro feature (#3747, #3750) e
       fuori da ogni `verifies`.
 
-      🔑 **Un gesto solo, tre letture**: il cursore fermo su qualcosa. `PIE-HUD-SGUARDO` guarda cosa dice il
-      riquadro su un'unita' o su una cella, `PIE-HUD-FUOCO-AREE` cosa mostra la mappa dopo un `LMB` su un
-      nemico in vista, `PIE-HUD-SKILL-PORTATA` cosa mostra il cursore su uno slot. Si giudicano nella stessa
-      partita perche' si pestano: con un nemico a fuoco, la portata dello slot prende il posto delle sue aree,
-      e all'uscita tornano senza un nuovo click.
+      🔑 **Un gesto solo, tre letture**: il cursore fermo su qualcosa. `PIE-HUD-SGUARDO` guarda l'unita' o la
+      cella sotto il cursore, `PIE-HUD-FUOCO-AREE` il nemico a fuoco dopo un `LMB`, `PIE-HUD-SKILL-PORTATA`
+      uno slot della barra. Si giudicano nella stessa partita perche' agiscono sulla stessa mappa e si
+      sovrappongono.
 
       **Allestimento**: partita hex in pianificazione, una propria unita' selezionata con una skill che chiede
       un bersaglio con linea richiesta, un muro in vista, una zona fuori vista fra l'unita' e le celle in
-      portata, e un nemico in vista. Il banco con cui l'assistente ha raccolto le tavole del 2026-10-29
-      (finestra `-game`, non la PIE) e' riportato in
-      `docs/technical/evidence/3750/seduta-pilotata-2026-10-29.md`.
+      portata, un nemico in vista e, per `PIE-HUD-SGUARDO`, lo stesso nemico anche fuori vista.
 
-      ⚠️ **Cosa quella seduta NON ha visto, e quindi resta da vedere**: un nemico **fuori vista** in PIE (e'
-      meta' di `PIE-HUD-SGUARDO`: il riquadro di un nemico non osservato deve dire quanto una cella vuota),
-      un nemico `Slow` e `Unbalanced` (lo scenario non applica stati), una skill su se stessi, una reazione o
-      una senza portata, e uno slot distrutto senza evento di uscita. Le tavole non sono un verdetto: le tre
-      voci restano aperte finche' l'autore non le giudica.
+      ⚠️ **Il banco non e' versionato**: sta in `Saved/RTLab`, e' stato rimosso a fine seduta ed e' riportato
+      in fondo a `docs/technical/evidence/3750/seduta-pilotata-2026-10-29.md` (finestra `-game`, non la PIE).
+      Chi esegue deve ricostruirlo dal Lab. Quella seduta copre `PIE-HUD-FUOCO-AREE` e `PIE-HUD-SKILL-PORTATA`
+      e non `PIE-HUD-SGUARDO`; le tavole non sono un verdetto, e cosa resta da vedere lo dicono le celle delle
+      voci nel registro.
 
       ⚠️ **`PIE-HUD-SCHEDA` non e' qui, ed e' di proposito**: il pannello non esiste ancora, e la voce e'
       dichiarata in `not_schedulable`. Quando #3748 lo monta, la voce entra in questa seduta — stessa
@@ -6425,9 +6430,7 @@ sessions:
     shares_setup_with: []
     verifies: [PIE-VELO-PANNELLI]
     issues: [3939, 3687]
-    done_when: >-
-      la voce `PIE-VELO-PANNELLI` ha un esito reale nel registro, oppure la sua cella dice quale parte
-      dell'allestimento non si e' potuta fare
+    done_when: la voce `PIE-VELO-PANNELLI` ha un esito reale nel registro
     unblocks: []
     notes: |
       ➕ **Convocata il 2026-10-29 da #3939.** La voce e' nata aperta con #3687 (2026-10-12) e nessuna seduta
@@ -6438,12 +6441,19 @@ sessions:
 
       **Allestimento**: partita hex su `L_DevSandbox` in vista tattica, con i tre cambi della mappa che la
       voce chiede. ⚠️ **Nessuno scenario spedito li produce tutti**, misurato il 2026-10-29. Per la copertura
-      e per la porta esistono scenari che usano `Action.CreateCover` (`Spec.Cover.TemporaryCoverExpires`) e
-      `Action.Interact` (`Spec.Map.InteractOpensDoor`, `Spec.Map.InteractClosesOpenDoor`), che si caricano
-      dalla console con `rt.Test.Scenario <Id>`. Per il **muro abbattuto** no:
-      `grep -rliE "breach|StructureDamage" Scenarios` non trova nessun file. Serve uno scenario del Lab con
-      un'unita' che porti un equipaggiamento che danneggia le strutture — il catalogo ha
-      `Gadget.BreachCharge`, 35 danni a una struttura — dichiarato nel `loadout` dell'unita'.
+      e per la porta esistono scenari che le producono: `Spec.Cover.TemporaryCoverExpires` erige il pannello
+      con `Hero.Branth.KineticPanel`, e `Spec.Map.InteractOpensDoor` e `Spec.Map.InteractClosesOpenDoor` usano
+      `Action.Interact`; si caricano dalla console con `rt.Test.Scenario <Id>`. Per il **muro abbattuto** no:
+      `grep -rlE "BreachCharge|HeavyAttack|DamageStructure" Scenarios` trova solo
+      `Scenarios/Visual/Map/HighCoverBlocks.json`, che li nomina in una nota (`_nota_abbattimento`) e non nei
+      suoi intenti. Serve uno scenario del Lab, non versionato, con un'unita' che porti un equipaggiamento che
+      danneggia le strutture — il catalogo ha `Gadget.BreachCharge`, 35 danni a una struttura — dichiarato
+      nel `loadout` dell'unita'.
+
+      ⚠️ **Due cose non sono state verificate**: che la carica da breccia, con portata 0, agisca su un muro; e
+      che uno scenario caricato cosi' offra la vista tattica e il `Tab` che la voce nomina, perche' uno scenario
+      non e' la partita normale. La via per caricarlo e le sue avvertenze stanno nel §1 di
+      `docs/technical/runbooks/guida-seduta-u42-corpus-visual.md` (`rt.Test.Run` non e' la via).
 
       Il criterio del muro visto solo dal davanti, mai da dietro, chiede uno stato di conoscenza parziale: se
       l'allestimento non lo permette, quel criterio si dichiara `NOT RUN` con la ragione e non si forza. La
@@ -6615,24 +6625,33 @@ not_schedulable:
       richiede authoring nel clone principale. La voce chiede cosa compare al click su un nemico osservato:
       finche' non c'e' dove comparire, non c'e' niente da guardare.
     oracle: >-
-      gh issue view 3748 --json state   ·  e la misura: git grep -c URTInspectCardWidget -- Source →
-      nessuna corrispondenza, e git ls-files Content | grep -ci inspect → 0 (2026-10-29)
+      gh issue view 3748 --json state → OPEN (2026-10-29)   ·  e la misura: git grep -c
+      URTInspectCardWidget -- Source → nessuna corrispondenza, e git ls-files Content | grep -ci inspect
+      → 0. ⚠️ Il nome della classe viene da #3748 e dal piano della feature: se il pannello nascesse con
+      un altro nome le due misure resterebbero a zero, e vale lo stato di #3748
     revisit_when: "#3748 monta il pannello: allora la voce entra in `U95` e questa riga sparisce"
 
   - check: PIE-V01-ARCAIM
     reason: >-
       Chiede un'unita' che porti un'azione che scalfisce l'arco (`Gadget.BreachCharge` o `Action.ModifyArc`)
-      e un bersaglio a distanza 1 oltre il ponte. Nessun dato spedito lo da': nessun eroe porta quelle
-      azioni, e la carica da breccia ha portata 0. L'autore ha scelto di non dare il dato prima del freeze:
-      D-541 dichiara la raggiungibilita' in partita della mira lungo un arco un limite noto della v0.1. Il
-      meccanismo e' provato headless (`Combat.Aim.ABridgeCanBeAimedAtFromThePlanAndOnlyTheBridgeIsHit` e
+      e un bersaglio a distanza 1 oltre il ponte. Con i dati spediti nessuna unita' porta `Action.HeavyAttack`,
+      `Action.ModifyArc` o `Gadget.BreachCharge`, e la carica da breccia ha portata 0. L'autore ha scelto di
+      non dare il dato prima del freeze: D-541 (5) dichiara la raggiungibilita' in partita della mira lungo un
+      arco un limite noto della v0.1. ⚠️ D-541 (6) lascia **non deciso** se la voce debba eseguirsi con uno
+      scenario che dichiari il `Loadout` e la portata: uno scenario in `Scenarios/` entra nel pacchetto, quindi
+      non e' neutrale per la finestra del freeze. Non e' la stessa situazione di `PIE-VELO-PANNELLI` (`U96`),
+      che chiede uno scenario del Lab e non versionato: qui manca un dato (la portata, o l'azione a un eroe)
+      che solo l'autore puo' dare. Il meccanismo e' provato headless
+      (`Combat.Aim.ABridgeCanBeAimedAtFromThePlanAndOnlyTheBridgeIsHit` e
       `Combat.Aim.ModifyArcCanBeAimedAcrossLayersAndThrowsTheArc`); a mancare e' un'unita' in partita che lo
       raggiunga.
     oracle: >-
-      grep -n "^| [*][*]D-541[*][*]" docs/decisions/RT_PDR_00_Decision_Log.md   ·  e la misura:
-      grep -rl BreachCharge Scenarios → nessun file, e `ModifyArc` compare solo nelle note di
-      Scenarios/Spec/Map/BridgeBreaksThePath.json (2026-10-29)
-    revisit_when: "D-541 e' superata: un eroe o uno scenario spedito porta l'azione con portata >= 1"
+      grep -n "^| [*][*]D-541[*][*]" docs/decisions/RT_PDR_00_Decision_Log.md → una riga, il cui titolo
+      dice che la raggiungibilita' della mira lungo un arco resta un limite noto della v0.1   ·  e la
+      misura: grep -rlE "BreachCharge|HeavyAttack|ModifyArc" Scenarios → solo
+      Scenarios/Spec/Map/BridgeBreaksThePath.json e Scenarios/Visual/Map/HighCoverBlocks.json, che li
+      nominano in note (`_nota*`) e non in un `loadout` o in un intento (2026-10-29)
+    revisit_when: "D-541 e' superata, o il suo punto (6) decide lo scenario: un eroe o uno scenario spedito porta l'azione con portata >= 1"
 
   # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
   # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
