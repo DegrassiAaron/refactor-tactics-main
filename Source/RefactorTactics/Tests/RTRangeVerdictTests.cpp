@@ -12,6 +12,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTTeamKnowledge.h"
+#include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -115,6 +116,13 @@ namespace
 	{
 		TArray<FRTCellId> Cells;
 		for (const FRTRangeCellVerdict& Entry : List) { Cells.Add(Entry.Cell); }
+		return Cells;
+	}
+
+	/** Le celle in ordine stabile: il confronto fra due insiemi non deve dipendere da come ciascuno li ha prodotti. */
+	TArray<FRTCellId> RvSorted(TArray<FRTCellId> Cells)
+	{
+		Cells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
 		return Cells;
 	}
 }
@@ -436,6 +444,73 @@ bool FRTRangeVerdictObliqueLineTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: guardando tutto, il muro accanto alla linea non la blocca"),
 		RvIs(RvClassify(WallOff, Everything), Target, ERTRangeVerdict::Free));
 
+	return true;
+}
+
+// 🔴 LA DIVERGENZA DICHIARATA DEL FUMO ESPLORATO (scelta d'autore del 2026-10-29: §11 ha un'eccezione). L'insieme in hover si
+// calcola sulla mappa neutra, che non legge il Fumo di una cella esplorata e non piu' in vista; l'azione armata lo legge, perche'
+// la mappa di pianificazione del giocatore tiene le celle esplorate (D-534, punto 3). Il test fissa COSA differisce, cosi' che
+// l'eccezione dichiarata non diventi larga di nascosto: l'insieme in hover contiene tutto l'armato, e le celle in piu' sono TUTTE
+// senza verdetto (la loro linea attraversa la cella non in vista), mai «libere» o «bloccate».
+//
+// I due controlli dicono che la divergenza e' solo questa: con il Fumo IN VISTA, o MAI VISTO, l'insieme coincide con l'armato.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRangeVerdictExploredSmokeTest,
+	"RefactorTactics.RangeVerdict.AnExploredSmokeWidensTheSetOnlyWithCellsThatHaveNoVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRangeVerdictExploredSmokeTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = RvArena();
+	if (!TestNotNull(TEXT("l'arena esiste"), Map)) { return false; }
+	const FRTCellId SmokeCell(2, 0, 0);
+	RvSmoke(Map, SmokeCell);
+
+	// ESPLORATA e non piu' in vista: la squadra l'ha vista, adesso no.
+	FRTTeamKnowledge Remembered = RvAllVisibleBut(Map, { SmokeCell });
+	Remembered.ExploredCells.Add(SmokeCell);
+	// MAI VISTA: ne' visibile ne' esplorata.
+	const FRTTeamKnowledge NeverSeen = RvAllVisibleBut(Map, { SmokeCell });
+	// IN VISTA.
+	const FRTTeamKnowledge InSight = RvAllVisible(Map);
+
+	// L'insieme che il giocatore ha armando: sulla sua mappa di pianificazione (D-534), la stessa funzione del controller.
+	const auto Armed = [&Map](const FRTTeamKnowledge& Knowledge)
+	{
+		const URTHexMapAsset* Planning = URTHexSimLibrary::MakeOptimisticPlanningMap(GetTransientPackage(), Map, Knowledge);
+		return URTCombatLibrary::TargetableRangeCells(Planning, RvFrom(), RvRange, ERTLineOfSightPolicy::Required);
+	};
+
+	const TArray<FRTRangeCellVerdict> Hover = RvClassify(Map, Remembered);
+	const TArray<FRTCellId> HoverCells = RvCells(Hover);
+	const TArray<FRTCellId> ArmedCells = Armed(Remembered);
+
+	// Premessa: il Fumo esplorato restringe davvero l'armato, e l'hover no. Senza, il confronto sarebbe fra due insiemi uguali.
+	const FRTCellId Beyond(3, 0, 0);
+	TestTrue(TEXT("premessa: l'azione armata, che legge il Fumo esplorato, non arriva oltre la nube"), !ArmedCells.Contains(Beyond));
+	TestTrue(TEXT("premessa: l'insieme in hover, che non lo legge, ci arriva"), HoverCells.Contains(Beyond));
+
+	// L'insieme in hover CONTIENE tutto l'armato...
+	int32 NotInHover = 0;
+	for (const FRTCellId& Cell : ArmedCells) { NotInHover += HoverCells.Contains(Cell) ? 0 : 1; }
+	TestEqual(TEXT("ogni cella dell'insieme armato e' anche nell'insieme in hover"), NotInHover, 0);
+
+	// ...e le celle in piu' sono TUTTE senza verdetto: la loro linea attraversa la cella non in vista.
+	int32 Extra = 0;
+	int32 ExtraWithVerdict = 0;
+	for (const FRTRangeCellVerdict& Entry : Hover)
+	{
+		if (ArmedCells.Contains(Entry.Cell)) { continue; }
+		++Extra;
+		ExtraWithVerdict += Entry.Verdict == ERTRangeVerdict::Unverdicted ? 0 : 1;
+	}
+	TestTrue(TEXT("premessa: c'e' almeno una cella in piu', altrimenti il controllo qui sotto sarebbe vuoto"), Extra > 0);
+	TestEqual(TEXT("nessuna delle celle in piu' ha un verdetto: sono tutte «senza verdetto»"), ExtraWithVerdict, 0);
+
+	// Controllo 1: con il Fumo IN VISTA l'insieme in hover e' quello armato, cella per cella.
+	TestTrue(TEXT("con il Fumo in vista l'insieme in hover coincide con l'armato"),
+		RvSorted(RvCells(RvClassify(Map, InSight))) == RvSorted(Armed(InSight)));
+	// Controllo 2: con il Fumo MAI VISTO nemmeno l'armato lo legge (la mappa di pianificazione svuota le celle ignote).
+	TestTrue(TEXT("con il Fumo mai visto l'insieme in hover coincide con l'armato"),
+		RvSorted(RvCells(RvClassify(Map, NeverSeen))) == RvSorted(Armed(NeverSeen)));
 	return true;
 }
 
