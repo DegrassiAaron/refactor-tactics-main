@@ -6416,6 +6416,10 @@ sessions:
       dichiarata in `not_schedulable`. Quando #3748 lo monta, la voce entra in questa seduta — stessa
       partita, stesso nemico in vista — e la sua riga di `not_schedulable` sparisce invece di cambiare.
 
+      🟡 **Parzialmente eseguita il 2026-10-29**: l'autore ha giudicato sulle tavole `PIE-HUD-FUOCO-AREE` e
+      `PIE-HUD-SKILL-PORTATA` (nessuna obiezione; entrambe 🟡 perche' restano criteri `NOT RUN`, che dicono le loro
+      celle). `PIE-HUD-SGUARDO` non e' stata guardata: la seduta resta aperta per quella e per i criteri che mancano.
+
       Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6).
 
   - id: U96
