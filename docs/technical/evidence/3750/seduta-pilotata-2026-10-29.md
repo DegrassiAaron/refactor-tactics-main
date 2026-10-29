@@ -22,7 +22,7 @@
 
 1. **`NativeOnMouseEnter` arriva su un `WBP_RT_ActionSlot` vero.** Passando sullo slot 1 compare la portata (T1 B). Provato sullo slot 1 di Aevik e su quello di Muiren; gli altri slot non sono stati provati uno per uno.
 2. **Il ventaglio proprio cede mentre il cursore è sullo slot e torna all'uscita** (T1 A, B, C).
-3. **I tre stati sono presenti** in T1 B: contorno pieno grande sulle celle libere intorno ad Aevik, contorno pieno più piccolo sulle celle dietro il muro fino a Muiren, contorno tratteggiato sulle celle al buio. La differenza di dimensione fra libero e bloccato è a occhio, non misurata.
+3. ⌫ **Corretto il 2026-10-29: i tre stati NON sono presenti in T1 B.** Il contorno pieno grande sulle celle libere intorno ad Aevik e il tratteggio sulle celle al buio ci sono; le celle dietro il muro fino a Muiren, che questa riga chiamava «bloccate», erano *libere* e solo più lontane dalla camera (vedi la seconda tornata, sotto). *La stesura precedente diceva: «contorno pieno più piccolo sulle celle dietro il muro fino a Muiren»*. La differenza di dimensione fra libero e bloccato è a occhio, non misurata.
 4. **Il fuoco**: `LMB` su Branth toglie il ventaglio di Aevik e mostra l'area del nemico con contorno spezzato (T2 B); un waypoint di Aevik la toglie e riporta il ventaglio con la rotta (T2 C). Il log dice `Piano: ... -> 1 waypoint`.
 5. **Fuoco e hover insieme**: la portata della skill prende il posto delle aree di Branth, e all'uscita tornano senza un nuovo click (T3).
 6. **`N` a cursore fermo**: il dock si ricostruisce con il kit di Muiren, Slate manda un ingresso al nuovo slot e l'hover passa alla portata di Muiren senza che il cursore si muova (T4 B). Non resta nessuna portata di Aevik. **Questo smentisce la scelta 20 del piano**, che diceva che per rivedere la portata il cursore dovesse rientrare: corretta insieme a questa nota.
@@ -155,3 +155,25 @@
   ]
 }
 ```
+
+## Seconda tornata: il codice colore in gioco (2026-10-29, [D-561](../../../decisions/RT_PDR_00_Decision_Log.md))
+
+`main` = `584af02f8` (con il codice colore di [PR #3943](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3943)), clone principale pulito, build dell'Editor verde, `UnrealEditor-RefactorTactics.dll` md5 `1CED9FD658BE54705C21298273EFF8F6`. Stesso banco, stessa finestra `-game`, stesso apparato; un solo processo Unreal, mio, chiuso a fine seduta. Tavola: `T5-PIE-HUD-SKILL-PORTATA-codice-colore.png`.
+
+### Una correzione alla prima tornata
+
+**In `T1` l'etichetta «2 = bloccato» era sbagliata.** Le celle dietro il muro, fino a Muiren, erano *libere*: «Impulso ad arco» è un attacco base e ha la politica di tiro `BlindAimDirect` (D-490), per cui in pianificazione la linea non si chiede e ogni cella in vista è libera. Sembravano «più piccole» perché sono più lontane dalla camera, non perché fossero nello stato bloccato (che allora si disegnava a scala 0,7). Lo stato bloccato in `T1` non c'era: la tavola mostrava **due stati su tre**, libero e senza verdetto. La differenza di dimensione che l'autore ha giudicato poco leggibile (`non molto`) era in parte la prospettiva. Lo stato bloccato vero compare con una skill a linea di tiro richiesta, come «Scarica lineare» (slot 2 di Aevik). Ho verificato sul dato (la politica di `MakeBasicAttack`) e a schermo, a occhio: «Impulso ad arco» (Aevik) e «Getto in pressione» (Muiren), le due azioni base, non mostrano mai rosa; «Scarica lineare» (Aevik) e «Marea circolare» (Muiren) sì. ⚠️ Un contatore di pixel che avevo scritto per cercare il rosa dava zero anche su «Scarica lineare», dove il rosa si vede benissimo: non vale come prova, e gli altri slot non li ho guardati uno per uno. La scelta del codice colore ([D-561](../../../decisions/RT_PDR_00_Decision_Log.md)) non dipende da quell'etichetta, ma la tavola su cui è stata presa non mostrava i tre stati: `T5` li mostra.
+
+### Che cosa si vede in `T5`
+
+1. **I tre colori compaiono.** Su «Scarica lineare»: viola sulle celle libere intorno ad Aevik, **rosa sulla colonna dietro il muro** (la linea di Aevik è fermata dal muro, e le celle sono in vista grazie a Muiren), ambra tratteggiato sulle celle al buio.
+2. **Il rosa spedito a schermo si legge come un rosso vivo**, non come un rosa. È il rischio dichiarato in D-561 (5): oggi non convivono con l'`Attack` perché la portata armata non ha il bloccato. È il punto da giudicare.
+3. **Con l'attacco base il bloccato non compare mai** (`T5` C; visto su «Impulso ad arco» e su «Getto in pressione»). È coerente con D-490 (mira cieca in pianificazione), ma vuol dire che per il giocatore il bloccato si vede con certe skill e non con altre. Gli altri slot non sono stati guardati uno per uno.
+4. **La dimensione è la stessa per tutti e tre**: la differenza passa solo dal colore.
+
+### Che cosa NON si è visto
+
+* Il colore sui fondi scuri, a 1440p e a 4K, e con altri banchi (una sola mappa, un solo muro).
+* Il ritorno del ventaglio all'uscita e la resa su un nemico a fuoco con i colori nuovi: dalla prima tornata (`T1`-`T4`) la logica non è cambiata, ma i colori sì.
+* Un banco in cui il bloccato è il caso comune: qui è una colonna di due celle.
+* Il giudizio d'autore: resta suo, e la voce resta ⏳.
