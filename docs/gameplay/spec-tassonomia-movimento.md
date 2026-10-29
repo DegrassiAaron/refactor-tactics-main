@@ -29,7 +29,7 @@ TRAVERSAL — produce una sequenza di celle percorse, e ogni cella è un fatto
   Forced     spostamento subito: push, pull, knockback, correnti
 
 TRANSFER — esistono un'origine e una destinazione, e nient'altro
-  Leap       `ERTMovementStyle::LinearLeap`   (esiste, dormiente fino a E39: nessun eroe ce l'ha, per scelta — D-560)
+  Leap       `ERTMovementStyle::LinearLeap`   (esiste; fuori dalla v0.1 per decisione, nessun eroe lo dichiara — D-560)
   Blink      destinazione libera entro range   (v0.2, E39)
   Swap       scambio atomico di due posizioni  (v0.2, E39)
   Recall     ritorno a un punto dichiarato     (v0.2, E39)
