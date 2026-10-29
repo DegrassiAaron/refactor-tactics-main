@@ -2075,6 +2075,8 @@ void ARTUnit::ClearReactionPlan()
 {
 	PlannedReactionAbility = INDEX_NONE;
 	PlannedReactionCondition = FRTDeclaredCondition();
+	// Il segno dei waypoint di UNA reazione non sopravvive alla reazione (`#3927`).
+	WaypointsAllaReazione = INDEX_NONE;
 }
 
 bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)

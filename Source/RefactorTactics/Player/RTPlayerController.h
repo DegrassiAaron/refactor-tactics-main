@@ -1058,14 +1058,14 @@ private:
 	 * su un'azione gia' nel piano (`#3501`). Fino a `#3501` il Back chiamava il solo `SelectAbility(INDEX_NONE)`,
 	 * cioe' la riga che [D-444] nomina come difetto, e il tetto `Withdraw` restava dopo «Annulla».
 	 *
-	 * 🔴 **Se lo slot che si disarma e' una REAZIONE, la toglie dal piano con la sua condizione** (`#3896`, [D-555]):
-	 * `PlannedReactionAbility` e' un campo proprio e il disarmo non lo azzerava. Solo se e' LEI lo slot —
-	 * `SelectedAbilityIndex == PlannedReactionAbility`, letto prima che `SelectAbility` lo spenga —: una reazione armata
-	 * prima di un'azione principale resta nel piano quando si disarma la principale.
+	 * 🔴 **Se lo slot che si disarma e' una REAZIONE, escono solo lei e la sua condizione** (`#3896`, `#3927`, [D-555],
+	 * [D-557]): `PlannedReactionAbility` e' un campo proprio e il disarmo non lo azzerava. Vale nei due sensi — la reazione
+	 * si toglie solo se e' LEI lo slot (`SelectedAbilityIndex == PlannedReactionAbility`, letto prima che `SelectAbility` lo
+	 * spenga), e quando e' lei NON si tocca la principale gia' pianificata: ne' l'azione, ne' il tetto riservato, ne' i
+	 * waypoint troncati. Reazione e principale sono due cose chieste separatamente.
 	 *
-	 * ⚠️ **Due punti sono APERTI e non decisi** (`#3927`): il Back su una reazione armata non passa di qui (`ApplyBack`
-	 * guarda `PlannedAbilityIndex`, che una reazione non scrive), e disarmare lo slot di una reazione azzera ancora la
-	 * principale gia' pianificata, perche' questa funzione non distingue che cosa disarma.
+	 * 🔑 Il Back passa di qui per una reazione armata quanto per una principale (`ApplyBack`, `bReazioneNelPiano`), dopo aver
+	 * tolto i waypoint posati dopo l'armo (`WaypointsAllaReazione`).
 	 */
 	FString DisarmPlannedAction();
 

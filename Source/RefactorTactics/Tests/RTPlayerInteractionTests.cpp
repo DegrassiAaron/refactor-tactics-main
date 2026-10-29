@@ -4004,6 +4004,396 @@ bool FRTBackRemovesTheLaterWaypointFirstTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3927` — il Back su una REAZIONE armata la toglie dal piano ([D-557], seguito di [D-555]).
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Una reazione nel kit di `Unit`, in una posizione che NON sia quella indicata (l'`Overwatch`): SOSTITUISCE lo slot
+	 * invece di accodare, perche' un'abilita' appesa sta a un indice che `AbilityCooldowns` non copre. Torna l'indice.
+	 */
+	int32 AggiungiReazione(ARTUnit* Unit, int32 Escluso)
+	{
+		for (int32 Posizione = 0; Posizione < Unit->NumAbilities(); ++Posizione)
+		{
+			if (Posizione != Escluso)
+			{
+				return RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Counter"), Posizione);
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/**
+	 * Una `Action.Guard` nel kit di `Unit`, in una posizione che non sia nessuna delle due escluse (l'`Overwatch` e la
+	 * reazione): SOSTITUISCE lo slot. Una principale su se stessi che NON riserva il movimento, a differenza dell'`Overwatch`:
+	 * niente troncamento a sporcare i conteggi, e un segno che vale esattamente quanti waypoint c'erano all'armo.
+	 */
+	int32 AggiungiGuardia(ARTUnit* Unit, int32 Escluso1, int32 Escluso2)
+	{
+		for (int32 Posizione = 0; Posizione < Unit->NumAbilities(); ++Posizione)
+		{
+			if (Posizione == Escluso1 || Posizione == Escluso2)
+			{
+				continue;
+			}
+			const int32 Indice = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), Posizione);
+			if (Indice != INDEX_NONE)
+			{
+				return Indice;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/** Le premesse comuni: la reazione e' entrata nel kit, e' davvero una reazione, ed e' pronta. */
+	bool ReazioneValida(FAutomationTestBase& Test, const FRTBancoTetto& B, int32 Reazione)
+	{
+		const URTActionData* Counter = B.Unit->GetAbility(Reazione);
+		return Test.TestTrue(TEXT("premessa: la reazione e' entrata nel kit"), Reazione != INDEX_NONE && Counter != nullptr)
+			&& Test.TestEqual(TEXT("premessa: e' davvero uno slot di reazione"),
+				static_cast<int32>(Counter->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction))
+			&& Test.TestTrue(TEXT("premessa: la reazione e' pronta"), B.Unit->CanUseAbility(Reazione));
+	}
+}
+
+/**
+ * 🔴 **IL BACK SU UNA REAZIONE ARMATA LA TOGLIE DAL PIANO** (`#3927`, decisione d'autore).
+ *
+ * Una reazione scrive il piano nel momento in cui la si arma, a differenza di un attacco in targeting, che non scrive
+ * niente finche' non si clicca il bersaglio: quindi l'ultimo gesto ha scritto il piano, e il Back che lo disfa lo toglie.
+ * ⏱️ *Fino a `#3927` `ApplyBack` guardava `PlannedAbilityIndex`, che una reazione non scrive*: il Back spegneva lo slot e
+ * lasciava la reazione nel piano, il dock la mostrava come pianificata e a turno risolto scattava.
+ *
+ * ⚠️ **L'oracolo e' il piano, non lo slot**: lo slot si spegneva gia'. La condizione dichiarata esce con la reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackOnAnArmedReactionRemovesItTest,
+	"RefactorTactics.PlayerInput.BackOnAnArmedReactionRemovesItFromThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackOnAnArmedReactionRemovesItTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(Reazione);
+	// L'id e' quello che il validator ammette: la condizione si dichiara DOPO l'armo, che le da' una reazione a cui applicarsi.
+	const bool bCondizione = B.Unit->SetPlannedReactionCondition(
+		FRTDeclaredCondition(TEXT("TargetHealthAtOrBelowPercent"), 50));
+	if (!TestEqual(TEXT("premessa: la reazione e' armata"), B.Unit->SelectedAbilityIndex, Reazione)
+		|| !TestEqual(TEXT("premessa: ed e' nel piano"), B.Unit->PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: la principale NON e' nel piano (e' la ragione del difetto)"),
+			B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: la condizione dichiarata entra nel piano"),
+			bCondizione && B.Unit->PlannedReactionCondition.IsDeclared()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("lo slot si spegne"), B.Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e il Back toglie la reazione dal PIANO, non solo dalla selezione"),
+		B.Unit->PlannedReactionAbility, (int32)INDEX_NONE);
+	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Unit->PlannedReactionCondition.IsDeclared());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **IL BACK TOGLIE PRIMA I WAYPOINT POSATI DOPO LA REAZIONE** ([D-461] punto 3, esteso alle reazioni).
+ *
+ * Una reazione non riserva il movimento, quindi dopo averla armata il giocatore puo' posare waypoint: con una reazione
+ * armata il contesto del puntatore e' `Targeting`, ma per un'azione senza bersaglio un click sulla mappa ricade sul
+ * waypoint. Il Back disfa l'ultimo gesto: toglie quelli, uno per volta, e disarma la reazione al Back in cui non ne restano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackTakesTheWaypointsAfterAReactionFirstTest,
+	"RefactorTactics.PlayerInput.BackTakesTheWaypointsPlacedAfterAReactionFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackTakesTheWaypointsAfterAReactionFirstTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));      // un waypoint PRIMA dell'armo
+	B.PC->SelectAbilityForCurrentForTest(Reazione);
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));      // e uno DOPO
+	if (!TestEqual(TEXT("premessa: la reazione e' nel piano"), B.Unit->PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: i due waypoint ci sono (il click a reazione armata ricade sul waypoint)"),
+			B.Unit->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il primo Back toglie il waypoint posato dopo"), B.PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("e resta quello di prima"), B.Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("la reazione resta nel piano"), B.Unit->PlannedReactionAbility, Reazione);
+	TestEqual(TEXT("e resta armata"), B.Unit->SelectedAbilityIndex, Reazione);
+
+	TestEqual(TEXT("il secondo Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("e toglie la reazione dal piano"), B.Unit->PlannedReactionAbility, (int32)INDEX_NONE);
+	TestEqual(TEXT("senza toccare il waypoint di prima"), B.Unit->PlannedWaypoints.Num(), 1);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **IL BACK SU UNA REAZIONE NON TOCCA UN'AZIONE PRINCIPALE PIANIFICATA** ([D-555] (2), [D-557]).
+ *
+ * `Reaction` ha il proprio slot e il proprio campo: l'`Overwatch` pianificato impone il tetto `Withdraw`, ha troncato
+ * i waypoint e resta nel piano quando il giocatore arma e poi annulla una reazione. Il caso piu' forte e' proprio questo,
+ * non una guardia qualunque: se il disarmo della reazione scivolasse nel ramo della principale, rilascerebbe il tetto e
+ * restituirebbe i waypoint ([D-444]) di un'azione che nessuno ha annullato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackOnAReactionKeepsAPlannedOverwatchTest,
+	"RefactorTactics.PlayerInput.BackOnAReactionKeepsAPlannedOverwatchAndItsCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackOnAReactionKeepsAPlannedOverwatchTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	const int32 Dichiarati = B.Unit->PlannedWaypoints.Num();
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	const int32 Troncati = B.Unit->PlannedWaypoints.Num();
+	B.PC->SelectAbilityForCurrentForTest(Reazione);
+	if (!TestEqual(TEXT("premessa: l'Overwatch e' nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch)
+		|| !TestTrue(*FString::Printf(TEXT("premessa: la riserva ha troncato (%d -> %d)"), Dichiarati, Troncati),
+			Troncati < Dichiarati)
+		|| !TestEqual(TEXT("premessa: ci sono due cose nel piano, la reazione e' quella armata"),
+			B.Unit->SelectedAbilityIndex, Reazione)
+		|| !TestEqual(TEXT("premessa: la reazione e' nel piano"), B.Unit->PlannedReactionAbility, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("toglie la reazione dal piano"), B.Unit->PlannedReactionAbility, (int32)INDEX_NONE);
+	TestEqual(TEXT("e l'Overwatch RESTA nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch);
+	TestFalse(TEXT("col suo tetto di movimento ancora imposto"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
+	TestEqual(TEXT("e i waypoint troncati NON tornano"), B.Unit->PlannedWaypoints.Num(), Troncati);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **L'ALTRO VERSO: il Back su un'azione principale non toglie una reazione indipendente** ([D-555] (2)).
+ *
+ * Controllo, verde prima e dopo: armata la reazione e poi l'`Overwatch`, lo slot acceso e' l'`Overwatch` e il Back lo
+ * disarma, con il suo tetto, lasciando la reazione.
+ *
+ * ⚠️ **E' un controllo del COMPORTAMENTO, non il pinning dei predicati**, e la distinzione conta (dalla review di `#3933`):
+ * qui la reazione si salva perche' il ramo di `DisarmPlannedAction` per le reazioni NON scatta
+ * (`SelectedAbilityIndex != PlannedReactionAbility`), e il Back parte a zero waypoint con i due segni a zero. Un
+ * `bReazioneNelPiano` che contasse ogni reazione nel piano, o che unisse i due predicati, lascerebbe questo test verde:
+ * a ucciderlo sono `BackUsesTheWaypointMarkOfTheActionBeingDisarmed` e `BackUsesTheReactionMarkWithAMainActionAlreadyPlanned`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackOnAMainActionKeepsAnIndependentReactionTest,
+	"RefactorTactics.PlayerInput.BackOnAMainActionKeepsAnIndependentReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackOnAMainActionKeepsAnIndependentReactionTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(Reazione);
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' l'Overwatch"), B.Unit->SelectedAbilityIndex, B.IdxOverwatch)
+		|| !TestEqual(TEXT("premessa: l'Overwatch e' nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch)
+		|| !TestEqual(TEXT("premessa: la reazione e' ancora nel piano"), B.Unit->PlannedReactionAbility, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("disarma l'Overwatch"), B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestTrue(TEXT("e il suo tetto cade"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
+	TestEqual(TEXT("ma la reazione indipendente RESTA nel piano"), B.Unit->PlannedReactionAbility, Reazione);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **OGNI AZIONE HA IL SUO SEGNO DEI WAYPOINT, E IL BACK USA QUELLO DI CHI DISARMA** ([D-557] (4)).
+ *
+ * Reazione e principale possono stare nel piano insieme, ciascuna entrata con un conteggio di waypoint diverso. Il caso:
+ * la reazione entra a zero waypoint, se ne posa uno, entra la guardia (segno 1), se ne posa un altro (due in tutto).
+ * Il primo Back toglie il waypoint posato dopo la guardia (restano uno); il secondo trova zero waypoint DOPO la guardia
+ * e la disarma. Con il segno della reazione (0) al posto di quello della guardia (1) il secondo Back toglierebbe anche
+ * l'ultimo waypoint, e la guardia resterebbe nel piano: i due segni valgono 0 e 1 proprio perche' un test che li
+ * confondesse non passerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackUsesTheWaypointMarkOfTheActionBeingDisarmedTest,
+	"RefactorTactics.PlayerInput.BackUsesTheWaypointMarkOfTheActionBeingDisarmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackUsesTheWaypointMarkOfTheActionBeingDisarmedTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Guardia = AggiungiGuardia(B.Unit, B.IdxOverwatch, Reazione);
+	if (!TestTrue(TEXT("premessa: la guardia e' entrata nel kit, in una posizione libera"),
+			Guardia != INDEX_NONE && Guardia != Reazione && Guardia != B.IdxOverwatch && B.Unit->CanUseAbility(Guardia)))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(Reazione);      // segno della reazione: 0 waypoint
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));          // un waypoint fra le due
+	B.PC->SelectAbilityForCurrentForTest(Guardia);       // segno della guardia: 1 waypoint
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));          // e uno dopo la guardia
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' la guardia"), B.Unit->SelectedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Unit->PlannedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: la reazione e' ancora nel piano"), B.Unit->PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: il segno della reazione e' 0"), B.Unit->WaypointsAllaReazione, 0)
+		|| !TestEqual(TEXT("premessa: il segno della guardia e' 1"), B.Unit->WaypointsAllaDichiarazione, 1)
+		|| !TestEqual(TEXT("premessa: i waypoint sono due"), B.Unit->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il primo Back toglie il waypoint posato dopo la guardia"),
+		B.PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("ne resta uno"), B.Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("la guardia e' ancora nel piano"), B.Unit->PlannedAbilityIndex, Guardia);
+
+	// Il segno DELLA GUARDIA e' 1 e i waypoint sono 1: nessuno posato dopo di lei. Col segno della reazione (0) ne
+	// risulterebbe uno "posato dopo", e il Back lo toglierebbe invece di disarmare.
+	TestEqual(TEXT("il secondo Back disarma la guardia, non toglie un altro waypoint"),
+		B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("la guardia esce dal piano"), B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("il waypoint di prima resta"), B.Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("e la reazione indipendente resta nel piano"), B.Unit->PlannedReactionAbility, Reazione);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔑 **IL BACK USA IL SEGNO DELLA REAZIONE ANCHE CON UNA PRINCIPALE GIA' NEL PIANO** ([D-557] (4), dalla review di `#3933`).
+ *
+ * `BackUsesTheWaypointMarkOfTheActionBeingDisarmed` copre l'ordine «reazione prima, principale dopo», dove lo slot acceso e'
+ * la principale. Qui l'inverso, che e' quello che il difetto di `#3927` (b) descrive: la guardia entra a ZERO waypoint
+ * (segno 0), se ne posa uno, entra la reazione (segno 1), se ne posa un altro. Lo slot acceso e' la REAZIONE, e il Back deve
+ * disfare l'ultimo gesto con il SUO segno.
+ *
+ * ⚠️ **Perche' serve, e quale mutante lo rende necessario:** scegliere il segno della principale quando una principale e' nel
+ * piano — `(bReazioneNelPiano && PlannedAbilityIndex == INDEX_NONE) ? Reazione : Dichiarazione` — sopravviveva a tutti gli
+ * altri test: dove la reazione ha una principale sotto (`BackOnAReactionKeepsAPlannedOverwatchAndItsCap`) i due segni valgono
+ * lo stesso numero, perche' la reazione e' armata subito dopo il troncamento. Qui valgono 0 e 1 apposta. Col segno della
+ * guardia (0) il secondo Back troverebbe un waypoint "posato dopo" e lo toglierebbe invece di disarmare la reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackUsesTheReactionMarkWithAMainActionAlreadyPlannedTest,
+	"RefactorTactics.PlayerInput.BackUsesTheReactionMarkWithAMainActionAlreadyPlanned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackUsesTheReactionMarkWithAMainActionAlreadyPlannedTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Reazione = AggiungiReazione(B.Unit, B.IdxOverwatch);
+	if (!ReazioneValida(*this, B, Reazione))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const int32 Guardia = AggiungiGuardia(B.Unit, B.IdxOverwatch, Reazione);
+	if (!TestTrue(TEXT("premessa: la guardia e' entrata nel kit, in una posizione libera"),
+			Guardia != INDEX_NONE && Guardia != Reazione && Guardia != B.IdxOverwatch && B.Unit->CanUseAbility(Guardia)))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(Guardia);        // segno della guardia: 0 waypoint
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));          // un waypoint fra le due
+	B.PC->SelectAbilityForCurrentForTest(Reazione);       // segno della reazione: 1 waypoint
+	if (!TestEqual(TEXT("premessa: lo slot acceso e' la REAZIONE"), B.Unit->SelectedAbilityIndex, Reazione)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Unit->PlannedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: e la reazione pure"), B.Unit->PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: il segno della guardia e' 0"), B.Unit->WaypointsAllaDichiarazione, 0)
+		|| !TestEqual(TEXT("premessa: il segno della reazione e' 1"), B.Unit->WaypointsAllaReazione, 1)
+		|| !TestEqual(TEXT("premessa: il waypoint c'e'"), B.Unit->PlannedWaypoints.Num(), 1))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));          // e uno DOPO la reazione
+	if (!TestEqual(TEXT("premessa: i waypoint sono due"), B.Unit->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il primo Back toglie il waypoint posato dopo la reazione"),
+		B.PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("ne resta uno"), B.Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("la reazione e' ancora nel piano"), B.Unit->PlannedReactionAbility, Reazione);
+
+	// Il segno DELLA REAZIONE e' 1 e il waypoint e' 1: nessuno posato dopo di lei. Col segno della guardia (0) ne
+	// risulterebbe uno "posato dopo", e il Back lo toglierebbe invece di disarmare.
+	TestEqual(TEXT("il secondo Back disarma la REAZIONE, non toglie un altro waypoint"),
+		B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("la reazione esce dal piano"), B.Unit->PlannedReactionAbility, (int32)INDEX_NONE);
+	TestEqual(TEXT("la guardia RESTA nel piano"), B.Unit->PlannedAbilityIndex, Guardia);
+	TestEqual(TEXT("col suo segno intatto"), B.Unit->WaypointsAllaDichiarazione, 0);
+	TestEqual(TEXT("e il waypoint di prima resta"), B.Unit->PlannedWaypoints.Num(), 1);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
 /**
  * IL BACK SU UN'AZIONE ARMATA MA NON NEL PIANO NON TOCCA QUELLA PIANIFICATA - `#3501`, guardia.
  *
