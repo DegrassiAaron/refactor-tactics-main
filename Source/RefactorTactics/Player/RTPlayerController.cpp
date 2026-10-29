@@ -4888,8 +4888,10 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 	{
 		if (SkillHoverUnit.Get() != Unit)
 		{
-			// La selezione e' cambiata con il cursore fermo sulla barra (`N`): Slate non manda ne' l'uscita ne' un nuovo ingresso, e
-			// l'hover di una skill dell'unita' di prima riapparirebbe alla prossima selezione di quella unita'. Si scarta qui.
+			// La selezione e' cambiata con il cursore fermo sulla barra (`N`). Se il dock ricostruisce gli slot con il kit dell'unita'
+			// nuova, Slate manda un ingresso al nuovo slot e `SetSkillHover` riscrive l'hover (visto in PIE il 2026-10-29, evidenza
+			// `docs/technical/evidence/3750`); se riassegna lo stesso slot l'ingresso puo' non arrivare, e l'hover di una skill
+			// dell'unita' di prima riapparirebbe alla prossima selezione di quella unita'. Si scarta qui in ogni caso.
 			SkillHoverUnit = nullptr;
 			SkillHoverIndex = INDEX_NONE;
 		}
