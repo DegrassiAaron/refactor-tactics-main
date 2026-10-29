@@ -3042,6 +3042,11 @@ namespace
 		B.HexMap->SetPreviewPath({ Origine, Vicino });
 		B.HexMap->SetPreviewHitCells({ Vicino }, { Origine });
 		B.HexMap->SetPreviewRangeCells({ Vicino });
+		// `#3750`: le due aree di movimento del fuoco e i tre stati della portata in hover, che sono un significato ciascuno
+		// ([D-561]). Senza queste righe `AllMeanings` conta significati che nessuno accende, e il controllo positivo di chi usa
+		// questo helper cade — oppure, peggio, passa senza provare che un'uscita li spegne.
+		B.HexMap->SetPreviewFocusAreas({ Origine, Vicino }, { Origine });
+		B.HexMap->SetPreviewSkillRange({ Vicino }, { Origine }, { Vicino });
 		B.HexMap->SetPreviewAttack(Origine, Vicino, /*bValid=*/ true, /*bOriginPredicted=*/ false);
 		B.HexMap->SetPreviewSightBlock(/*bBlocked=*/ true, Origine, Vicino);
 		FRTPlanPreview Timeline;
