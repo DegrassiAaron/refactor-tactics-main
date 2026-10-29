@@ -727,10 +727,9 @@ public:
 	bool RemoveCell(const FRTCellId& Id);
 
 	/**
-	 * Svuota celle, transizioni, **muri interni e binding**, incrementando la revisione **una volta sola**; vero se
-	 * c'era qualcosa da togliere ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-556`:
-	 * senza celle ogni muro e ogni binding e' un orfano, e uno stato di soli orfani e' uno stato da svuotare).
-	 * `NoWalkAreas` e `BoxVolumes` restano come erano: non fanno parte di quella decisione.
+	 * Svuota celle, transizioni, **muri interni, binding, regioni No-Walk e volumi a scatola**, incrementando la
+	 * revisione **una volta sola**; vero se c'era qualcosa da togliere ([#3918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3918), `D-556`; [#3929](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3929), `D-558`): senza celle tutto cio' che si ancora a una
+	 * cella e' un orfano, e uno stato di soli orfani e' uno stato da svuotare.
 	 *
 	 * Esiste perche' `ARTHexMapActor::ClearAsset` scriveva sui due array direttamente, ed era l'unica
 	 * modifica strutturale dell'asset a non muovere `Revision` — proprio la piu' grande possibile. Un
