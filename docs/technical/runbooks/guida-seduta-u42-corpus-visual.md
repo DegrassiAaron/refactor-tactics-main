@@ -102,6 +102,7 @@ un fenomeno per turno, da riconoscere mentre passa — quindi vanno fatti quando
 | 10 | `Visual.Map.MultiLevel` | TestArena | 1 | `PIE-VIS-LEVEL` |
 | 11 | `Visual.Map.HighCoverBlocks` | CoverYard | 1 | `PIE-VIS-HIGHCOVER` |
 | 12 | `Visual.Combat.GuardVsBraceFromBehind` | r5 | 1 | `PIE-ACC-GUARDBRACE` |
+| 13 | `Visual.Movement.ShorterRouteStopsOnArrival` | r5 | 1 | `PIE-VIS-ARRIVE` |
 
 🔑 **Dopo i compositi l'ordine segue la FIXTURE, non il tema**: i Play 4-6 restano su `r5`, i 7-9 su `r4`,
 poi si cambia due volte in coda. Una fixture che non cambia è una scena che l'occhio riconosce già, e la
@@ -115,7 +116,7 @@ colpo sia arrivato — se lo guardi stanco, quel mezzo secondo non lo vedi.
 scenari successivi non sono confrontabili, ed è la ragione per cui questa guida parla di un *ciclo* invece
 che di una lista.
 
-## 3. Le ventuno voci, con ciò che le falsifica
+## 3. Le voci, con ciò che le falsifica
 
 L'ordine raggruppa per affinità di scena. La colonna che conta è l'ultima: **un criterio scritto prima è ciò
 che distingue un verdetto da un «sembra ok»**.
@@ -170,6 +171,7 @@ giudicabile, l'altra metà aspetta `StatusChanged` (§8.1 di `scenari-validazion
 |---|---|---|---|
 | 9 | `Visual.Movement.Charge` | `PIE-VIS-CHARGE` | si vede uguale a `Movement.LongWalk`: la differenza fra **Dash** e **Move** non arriva |
 | 10 | `Visual.Movement.RoughRefusesCharge` | `PIE-VIS-ROUGH` | il rifiuto sembra un'**animazione interrotta** — suggerisce un bug dove c'è una regola |
+| 20 | `Visual.Movement.ShorterRouteStopsOnArrival` | `PIE-VIS-ARRIVE` | B1 corre sul posto, o resta inclinato, finché A1 non arriva ([#3519](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3519)): chi arriva prima deve **fermarsi e ruotare sul posto** mentre l'altro corre ancora. ⚠️ Il comportamento l'ha già giudicato l'autore il 2026-10-07 in una partita normale; qui si guarda se lo scenario rende la prova ripetibile |
 
 ### Mappa
 
