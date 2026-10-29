@@ -1145,6 +1145,30 @@ public:
 	 * vuole il cammino di produzione e non il solo soggetto di `SetInspectedUnitForTest` (#3750).
 	 */
 	void PinInspectionForTest(class ARTUnit* Unit) { PinInspection(Unit); }
+
+	/**
+	 * **IL SEGNALE DELL'HOVER SU UNA SKILL** (`#3750`, fetta D): lo slot della barra lo manda quando il cursore ci entra.
+	 * Dice solo QUALE skill di QUALE unita'; non scrive la mappa, non calcola niente: lo fa l'arbitro, al tick, dagli
+	 * ingressi (`FRTPlanningOverlayInputs::ActiveSource`).
+	 *
+	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
+	 * `ClearSkillHover`, e allora torna la sorgente di prima.
+	 *
+	 * ⚠️ **L'unita' dev'essere quella comandata**: la barra e' di chi si comanda (spec §3 regola 7). Il filtro e' del
+	 * risolutore degli ingressi, che la confronta con la selezione di adesso, non di questa porta: l'hover di un'altra unita' non
+	 * tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
+	 */
+	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
+
+	/**
+	 * Il cursore e' uscito dalla skill. **Spegne solo se l'hover registrato e' proprio quello** (stessa unita', stesso indice):
+	 * l'uscita dallo slot A puo' arrivare dopo l'ingresso nello slot B, e non deve cancellare B.
+	 */
+	void ClearSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
+
+	/** Per i test e la diagnostica: l'hover registrato. `INDEX_NONE` se nessuno. */
+	int32 GetSkillHoverIndex() const { return SkillHoverIndex; }
+	const class ARTUnit* GetSkillHoverUnit() const; // nel .cpp: il puntatore debole vuole il tipo completo
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/** Un fotogramma di `PlayerTick`, che e' protetto: `#3511` prova che il confronto delle aree di pianificazione vi e' cablato. */
@@ -1753,6 +1777,23 @@ private:
 	 * Costa una ricerca di unita' e la costruzione della vista, e solo quando c'e' un'unita' ispezionata.
 	 */
 	void GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const;
+
+	/**
+	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
+	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda), viva, se chiede un
+	 * bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da cui mira e' una cella che la squadra vede adesso.
+	 * Non tocca niente altrimenti.
+	 *
+	 * 🔴 **L'origine e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con quello dell'azione
+	 * armata. Per l'unita' comandata e' un dato PROPRIO (il suo scatto pianificato). Il giorno in cui la scheda di un nemico a fuoco
+	 * avra' le sue skill, l'origine dovra' essere la cella della VOCE DELLA VISTA, mai il piano: questa porta non lo permette,
+	 * perche' accetta solo l'unita' comandata.
+	 */
+	void GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const;
+
+	/** L'hover registrato dallo slot: quale unita' e quale posizione di kit. Vedi `SetSkillHover`. */
+	TWeakObjectPtr<const ARTUnit> SkillHoverUnit;
+	int32 SkillHoverIndex = INDEX_NONE;
 
 	/**
 	 * Gli ingressi, pronti per il confronto: raccolti, con il fuoco passato dal cancello e dal latch (`FocusLatch`), e

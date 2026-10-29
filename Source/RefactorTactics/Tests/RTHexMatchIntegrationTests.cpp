@@ -4707,4 +4707,683 @@ bool FRTFocusWiringModalTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3750`, fetta D di F5 — la portata di una skill sotto il cursore, sul controller vero.
+//
+// Il banco e' quello del fuoco (`FRTLockInPreviewBench`, partita reale in pianificazione). Il produttore (lo slot) ha i suoi test
+// in `RTActionDockPortTests.cpp`; qui si guarda cio' che la MAPPA mostra dopo `SetSkillHover` e `UpdatePlanningOverlay`.
+// L'unita' e' la prima propria del banco; la skill e' una che chiede un bersaglio, con portata 4 e linea richiesta dichiarate
+// sulla PROPRIA copia dei dati (`MakeIvrin` crea azioni nuove a ogni chiamata): senza `Required`, ogni cella sarebbe libera.
+// =====================================================================================================
+
+namespace
+{
+	/** I sei versi esagonali (assiali): le linee dritte, dove `HexLine` e' senza ambiguita'. */
+	const FRTCellId HvDirs[6] = {
+		FRTCellId(1, 0, 0), FRTCellId(1, -1, 0), FRTCellId(0, -1, 0), FRTCellId(-1, 0, 0), FRTCellId(-1, 1, 0), FRTCellId(0, 1, 0) };
+
+	FRTCellId HvStep(const FRTCellId& From, const FRTCellId& Dir, int32 N)
+	{
+		return FRTCellId(From.X + Dir.X * N, From.Y + Dir.Y * N, From.Layer);
+	}
+
+	/**
+	 * La posizione di kit di una skill che chiede un bersaglio, dichiarata con portata 4 e linea richiesta sulla copia dell'unita'.
+	 * `INDEX_NONE` se il kit non ne ha una. `Subject` e' l'unita' del kit (la prima propria del banco se nulla; per un'altra il
+	 * chiamante la seleziona PRIMA, perche' il genere di bersaglio lo dice il controller sulla selezione) e `Exclude` una posizione
+	 * da non scegliere (lo scatto, quando si vuole una skill distinta).
+	 */
+	int32 HvPrepareTargetedSkill(FRTLockInPreviewBench& B, ARTUnit* Subject = nullptr, int32 Exclude = INDEX_NONE)
+	{
+		ARTUnit* Owner = Subject != nullptr ? Subject : B.Mine;
+		for (int32 I = 0; I < Owner->NumAbilities(); ++I)
+		{
+			URTActionData* A = const_cast<URTActionData*>(Owner->GetAbility(I));
+			if (A == nullptr || I == Exclude) { continue; }
+			const int32 PrimaRange = A->RangeCells;
+			A->RangeCells = 4;
+			Owner->SelectAbility(I);
+			const bool bTargets = Owner->SelectedAbilityIndex == I && B.PC->GetPointerTargetKind() != ERTPointerTargetKind::None;
+			Owner->SelectAbility(INDEX_NONE);
+			if (bTargets)
+			{
+				A->Def.LineOfSightPolicy = ERTLineOfSightPolicy::Required;
+				A->Def.MinRangeCells = 0;
+				return I;
+			}
+			A->RangeCells = PrimaRange;
+		}
+		return INDEX_NONE;
+	}
+
+	struct FHvResult
+	{
+		bool bOk = false;
+		TArray<FRTCellId> Free;
+		TArray<FRTCellId> Blocked;
+		TArray<FRTCellId> Unverdicted;
+		int32 Lit = 0;
+		FRTCellId Origin;
+	};
+
+	/**
+	 * Allestisce il banco, applica il caso, mette il cursore sulla skill e fa un tick delle aree. L'unita' propria e' selezionata e
+	 * senza piano (`Planning`): a tenere la mappa puo' essere solo il piano o la portata della skill.
+	 */
+	FHvResult HvRun(FAutomationTestBase& Test, TFunctionRef<void(FRTLockInPreviewBench&)> Edit,
+		TFunctionRef<void(FRTTeamKnowledge&, const FRTCellId& Origin)> Knowledge)
+	{
+		FHvResult Out;
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(Test, B)) { DestroyHexMatchWorld(B.World); return Out; }
+		const int32 Skill = HvPrepareTargetedSkill(B);
+		if (!Test.TestTrue(TEXT("hover: l'unita' ha una skill che chiede un bersaglio"), Skill != INDEX_NONE))
+		{
+			DestroyHexMatchWorld(B.World);
+			return Out;
+		}
+		Edit(B);
+		FRTTeamKnowledge K = FwAllSeen(B.HexMap->MapAsset);
+		Knowledge(K, B.Mine->Cell);
+		B.TM->SetTeamKnowledgeForTest(K);
+
+		B.Mine->PlannedWaypoints.Reset();
+		B.PC->RefreshPlanningOverlay(B.Mine);
+		B.PC->SetSkillHover(B.Mine, Skill);
+		B.PC->UpdatePlanningOverlay();
+
+		Out.Free = B.HexMap->GetPreviewSkillFreeCells();
+		Out.Blocked = B.HexMap->GetPreviewSkillBlockedCells();
+		Out.Unverdicted = B.HexMap->GetPreviewSkillUnverdictedCells();
+		Out.Lit = PreviewCellsLit(B.HexMap);
+		Out.Origin = B.Mine->Cell;
+		Out.bOk = true;
+		DestroyHexMatchWorld(B.World);
+		return Out;
+	}
+
+	const auto HvNoEdit = [](FRTLockInPreviewBench&) {};
+	const auto HvAllSeen = [](FRTTeamKnowledge&, const FRTCellId&) {};
+
+	bool HvContains(const TArray<FRTCellId>& Cells, const FRTCellId& Cell) { return Cells.Contains(Cell); }
+}
+
+/**
+ * **`#3750` — una skill sotto il cursore mostra la sua portata a TRE stati, e l'insieme e' quello dell'azione armata.**
+ *
+ * Nella mappa del banco: un muro IN VISTA accanto all'unita' (le celle dietro: bloccate), una cella NON IN VISTA su una linea dritta
+ * (la cella stessa e quelle dietro: senza verdetto), e il resto libero. L'oracolo dell'insieme e' `TargetableRangeCells`, la funzione
+ * dell'azione armata: Free + Blocked + Unverdicted deve coincidere, cella per cella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverThreeStatesTest,
+	"RefactorTactics.SkillHover.ASkillUnderTheCursorShowsItsRangeInThreeStates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverThreeStatesTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 Skill = HvPrepareTargetedSkill(B);
+	if (!TestTrue(TEXT("premessa: l'unita' ha una skill che chiede un bersaglio"), Skill != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTCellId M = B.Mine->Cell;
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+
+	// Due versi distinti: uno con una cella nascosta a 2 passi (e una dietro, a 3), uno con un muro adiacente (e una cella dietro).
+	int32 HiddenDir = INDEX_NONE;
+	int32 WallDir = INDEX_NONE;
+	for (int32 D = 0; D < 6 && HiddenDir == INDEX_NONE; ++D)
+	{
+		if (Map->ContainsCell(HvStep(M, HvDirs[D], 3))) { HiddenDir = D; }
+	}
+	for (int32 D = 0; D < 6 && WallDir == INDEX_NONE; ++D)
+	{
+		if (D != HiddenDir && Map->ContainsCell(HvStep(M, HvDirs[D], 2))) { WallDir = D; }
+	}
+	if (!TestTrue(TEXT("premessa: due versi dritti dentro la mappa"), HiddenDir != INDEX_NONE && WallDir != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTCellId Adjacent = HvStep(M, HvDirs[HiddenDir], 1);
+	const FRTCellId Hidden = HvStep(M, HvDirs[HiddenDir], 2);
+	const FRTCellId BehindHidden = HvStep(M, HvDirs[HiddenDir], 3);
+	const FRTCellId Wall = HvStep(M, HvDirs[WallDir], 1);
+	const FRTCellId BehindWall = HvStep(M, HvDirs[WallDir], 2);
+
+	for (FRTHexCellData& Cell : B.HexMap->MapAsset->Cells)
+	{
+		if (Cell.Id == Wall) { Cell.bBlocksLineOfSight = true; }
+	}
+	FRTTeamKnowledge K = FwAllSeen(Map);
+	K.VisibleCells.Remove(Hidden);
+	K.ExploredCells.Remove(Hidden);
+	B.TM->SetTeamKnowledgeForTest(K);
+
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("premessa: prima dell'hover il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0);
+
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+
+	const TArray<FRTCellId> Free = B.HexMap->GetPreviewSkillFreeCells();
+	const TArray<FRTCellId> Blocked = B.HexMap->GetPreviewSkillBlockedCells();
+	const TArray<FRTCellId> Unverdicted = B.HexMap->GetPreviewSkillUnverdictedCells();
+
+	TestTrue(TEXT("la cella accanto, in vista e sgombra: libera"), HvContains(Free, Adjacent));
+	TestTrue(TEXT("la cella dietro il muro in vista: bloccata"), HvContains(Blocked, BehindWall));
+	TestTrue(TEXT("la cella non in vista: in portata, senza verdetto"), HvContains(Unverdicted, Hidden));
+	TestTrue(TEXT("e quella dietro di lei, la cui linea la attraversa: senza verdetto"), HvContains(Unverdicted, BehindHidden));
+	TestFalse(TEXT("nessuna delle due e' libera ne' bloccata"),
+		HvContains(Free, Hidden) || HvContains(Blocked, Hidden) || HvContains(Free, BehindHidden) || HvContains(Blocked, BehindHidden));
+
+	// L'INSIEME e' quello dell'azione armata, cella per cella (nessun effetto nascosto in questa mappa).
+	TArray<FRTCellId> Union = Free;
+	Union.Append(Blocked);
+	Union.Append(Unverdicted);
+	const TArray<FRTCellId> Armed = URTCombatLibrary::TargetableRangeCells(Map, M, 4, ERTLineOfSightPolicy::Required, 0);
+	TestTrue(TEXT("premessa: l'insieme armato non e' vuoto"), Armed.Num() > 3);
+	TestTrue(TEXT("Free + Blocked + Unverdicted coincide con l'insieme dell'azione armata, cella per cella"),
+		FwSorted(Union) == FwSorted(Armed));
+	TestEqual(TEXT("nessuna cella e' in due stati"), TSet<FRTCellId>(Union).Num(), Union.Num());
+
+	// La mappa mostra la sola portata: il piano ha ceduto.
+	TestEqual(TEXT("il ventaglio dell'unita' comandata ha ceduto la mappa"), B.HexMap->NumPreviewReachableCells(), 0);
+	TestEqual(TEXT("e la mappa non mostra altro"), PreviewCellsLit(B.HexMap), Union.Num());
+
+	// USCITO IL CURSORE torna il piano.
+	B.PC->ClearSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("uscito il cursore la portata in hover e' spenta"),
+		B.HexMap->GetPreviewSkillFreeCells().Num() + B.HexMap->GetPreviewSkillBlockedCells().Num()
+			+ B.HexMap->GetPreviewSkillUnverdictedCells().Num(), 0);
+	TestTrue(TEXT("e il ventaglio del piano e' tornato"), B.HexMap->NumPreviewReachableCells() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — MONDI GEMELLI sulla geometria che la squadra non vede, per la portata in hover.** Un muro e un Fumo su celle non in vista
+ * (mai viste, o solo esplorate) non cambiano ne' l'insieme ne' i verdetti; sulle stesse celle IN VISTA li cambiano. Il Fumo e' il
+ * canale sull'INSIEME (cappa la portata efficace); il muro e' quello sui verdetti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverHiddenGeometryTest,
+	"RefactorTactics.SkillHover.TheRangeIsTheSameWhenOnlyWhatIsHiddenDiffers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverHiddenGeometryTest::RunTest(const FString&)
+{
+	// Il buio: l'anello a 3 e 4 passi dall'unita'. Mai visto, o esplorato e non piu' in vista.
+	const auto InTheDark = [](const FRTCellId& Cell, const FRTCellId& Origin) { return URTHexLibrary::HexDistance(Origin, Cell) >= 3; };
+	const auto DarkNeverSeen = [InTheDark](FRTTeamKnowledge& K, const FRTCellId& Origin)
+	{
+		K.VisibleCells.RemoveAll([&](const FRTCellId& Cell) { return InTheDark(Cell, Origin); });
+		K.ExploredCells.RemoveAll([&](const FRTCellId& Cell) { return InTheDark(Cell, Origin); });
+	};
+	const auto DarkExplored = [InTheDark](FRTTeamKnowledge& K, const FRTCellId& Origin)
+	{
+		K.VisibleCells.RemoveAll([&](const FRTCellId& Cell) { return InTheDark(Cell, Origin); });
+	};
+	// Muri sulla linea di vista E Fumo, sulle celle del buio: i due canali insieme.
+	const auto HazardInTheDark = [InTheDark](FRTLockInPreviewBench& B)
+	{
+		for (FRTHexCellData& Cell : B.HexMap->MapAsset->Cells)
+		{
+			if (InTheDark(Cell.Id, B.Mine->Cell))
+			{
+				Cell.bBlocksLineOfSight = true;
+				Cell.Surface = ERTHexSurface::Smoke;
+			}
+		}
+	};
+
+	const FHvResult Open = HvRun(*this, HvNoEdit, DarkNeverSeen);
+	const FHvResult Hazard = HvRun(*this, HazardInTheDark, DarkNeverSeen);
+	const FHvResult ExploredHazard = HvRun(*this, HazardInTheDark, DarkExplored);
+	const FHvResult ExploredOpen = HvRun(*this, HvNoEdit, DarkExplored);
+	if (!TestTrue(TEXT("banco"), Open.bOk && Hazard.bOk && ExploredHazard.bOk && ExploredOpen.bOk)) { return false; }
+	TestTrue(TEXT("premessa: c'e' una portata da confrontare"), Open.Free.Num() > 1);
+
+	const auto Same = [](const FHvResult& A, const FHvResult& B)
+	{
+		return FwSorted(A.Free) == FwSorted(B.Free) && FwSorted(A.Blocked) == FwSorted(B.Blocked)
+			&& FwSorted(A.Unverdicted) == FwSorted(B.Unverdicted);
+	};
+	TestTrue(TEXT("muri e Fumo su celle mai viste non cambiano ne' l'insieme ne' i verdetti"), Same(Open, Hazard));
+	TestTrue(TEXT("e su celle esplorate e non piu' in vista, con muri e Fumo o senza: la stessa uscita"),
+		Same(ExploredHazard, ExploredOpen) && Same(ExploredOpen, Open));
+
+	// CONTROLLO POSITIVO 1: guardando tutto, quel buio con muri e Fumo cambierebbe la portata (il Fumo cappa a 2 celle).
+	const FHvResult SeenOpen = HvRun(*this, HvNoEdit, HvAllSeen);
+	const FHvResult SeenHazard = HvRun(*this, HazardInTheDark, HvAllSeen);
+	TestTrue(TEXT("premessa: se si vedesse tutto, muri e Fumo in quell'anello cambierebbero la portata"),
+		SeenOpen.bOk && SeenHazard.bOk && !Same(SeenOpen, SeenHazard));
+	TestTrue(TEXT("...e l'insieme si restringerebbe: il Fumo cappa la portata efficace"),
+		SeenHazard.Free.Num() + SeenHazard.Blocked.Num() + SeenHazard.Unverdicted.Num()
+			< SeenOpen.Free.Num() + SeenOpen.Blocked.Num() + SeenOpen.Unverdicted.Num());
+	return true;
+}
+
+/**
+ * **`#3750` — la sorgente di prima torna, e non ogni skill tiene la mappa.** Con il fuoco sulla mappa, la skill lo sostituisce e
+ * l'uscita del cursore lo riporta (senza una nuova fissazione). Una skill di un'altra unita', una skill senza portata, una cella di
+ * partenza che la squadra non vede e un hover rimasto di un'unita' non piu' selezionata non toccano niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverSourcesTest,
+	"RefactorTactics.SkillHover.TheCursorLeavingBringsBackTheSourceBeforeAndOnlyTheRightSkillsTakeTheMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverSourcesTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	ARTUnit* Ally = FwOtherOwn(B.World, B.Mine);
+	const int32 Skill = HvPrepareTargetedSkill(B);
+	if (!TestTrue(TEXT("premessa: nemico, compagno e una skill che chiede un bersaglio"), Enemy && Ally && Skill != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTTeamKnowledge All = FwAllSeen(B.HexMap->MapAsset);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	const auto SkillCells = [&B]()
+	{
+		return B.HexMap->GetPreviewSkillFreeCells().Num() + B.HexMap->GetPreviewSkillBlockedCells().Num()
+			+ B.HexMap->GetPreviewSkillUnverdictedCells().Num();
+	};
+
+	// 1. IL FUOCO sulla mappa; la skill lo sostituisce; l'uscita del cursore lo riporta, senza una nuova fissazione.
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->UpdatePlanningOverlay();
+	const TArray<FRTCellId> FocusBefore = B.HexMap->GetPreviewFocusNormalCells();
+	if (!TestTrue(TEXT("1: premessa, l'area del fuoco e' sulla mappa"), FocusBefore.Num() > 1)) { DestroyHexMatchWorld(B.World); return false; }
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("1: la portata della skill tiene la mappa"), SkillCells() > 0);
+	TestEqual(TEXT("1: e l'area del fuoco ha ceduto"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
+	TestTrue(TEXT("1: la scheda resta fissata"), B.PC->GetInspectedUnit() == Enemy);
+	B.PC->ClearSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("1: uscito il cursore la portata e' spenta"), SkillCells(), 0);
+	TestTrue(TEXT("1: e TORNA l'area del fuoco (la sorgente di prima), senza una nuova fissazione"),
+		FwSorted(B.HexMap->GetPreviewFocusNormalCells()) == FwSorted(FocusBefore));
+	B.PC->ApplyBack(); // chiude l'ispezione: da qui in poi la sorgente di prima e' il piano
+	B.PC->UpdatePlanningOverlay();
+
+	// 2. LA SKILL DI UN'ALTRA UNITA' non tiene la mappa: il risolutore degli ingressi la confronta con la selezione di adesso e la scarta.
+	B.PC->SetSkillHover(Ally, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("2: una skill di un'altra unita' non tiene la mappa"), SkillCells(), 0);
+	TestTrue(TEXT("2: e il ventaglio del piano resta"), B.HexMap->NumPreviewReachableCells() > 0);
+	TestEqual(TEXT("2: ed e' scartata, non lasciata in attesa"), B.PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+
+	// 3. UNA SKILL SENZA PORTATA non ha niente da mostrare, e il piano non cede la mappa per niente.
+	URTActionData* Ability = const_cast<URTActionData*>(B.Mine->GetAbility(Skill));
+	const int32 Range = Ability->RangeCells;
+	Ability->RangeCells = 0;
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("3: una skill senza portata non tiene la mappa"), SkillCells(), 0);
+	TestTrue(TEXT("3: e il ventaglio del piano resta"), B.HexMap->NumPreviewReachableCells() > 0);
+	Ability->RangeCells = Range;
+
+	// 3b. UNA SKILL CHE NON CHIEDE UN BERSAGLIO, anche con una portata positiva: un supporto su se stessi, o una reazione. E' il
+	// cancello `MostraLaPortata` (la stessa condizione della portata armata); la portata positiva da sola non lo copre.
+	const bool bSelf = Ability->bSelfTarget;
+	Ability->bSelfTarget = true;
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("3b: una skill su se stessi, pur con portata, non tiene la mappa"), SkillCells(), 0);
+	TestTrue(TEXT("3b: e il ventaglio del piano resta"), B.HexMap->NumPreviewReachableCells() > 0);
+	Ability->bSelfTarget = bSelf;
+	const ERTActionSlot SlotBefore = Ability->Def.Slot;
+	Ability->Def.Slot = ERTActionSlot::Reaction;
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("3b: una reazione non ha un punto in cui mirare: non tiene la mappa"), SkillCells(), 0);
+	Ability->Def.Slot = SlotBefore;
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("3b: controllo positivo: ripristinata, la portata torna"), SkillCells() > 0);
+
+	// 4. LA CELLA DI PARTENZA CHE LA SQUADRA NON VEDE: nessuna portata (la precondizione della libreria).
+	FRTTeamKnowledge Blind = All;
+	Blind.VisibleCells.Remove(B.Mine->Cell);
+	B.TM->SetTeamKnowledgeForTest(Blind);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("4: da una cella non in vista non c'e' una portata da mostrare"), SkillCells(), 0);
+	// 🔴 E il piano NON cede la mappa per niente. `URTRangeVerdictLibrary` rifiuta gia' una partenza non in vista, quindi «nessuna
+	// cella» da solo non distingue il cancello del controller da una sorgente `SkillHover` che ha preso la mappa e l'ha lasciata
+	// vuota: la mutazione che toglie il cancello (H10) sopravviveva. Il ventaglio del piano e' cio' che lo distingue.
+	TestTrue(TEXT("4: e il ventaglio del piano resta: la skill non ha preso la mappa"), B.HexMap->NumPreviewReachableCells() > 0);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("controllo positivo: rimessa in vista, la portata torna"), SkillCells() > 0);
+
+	// 5. LA SELEZIONE CAMBIA con il cursore fermo sulla barra: l'hover di prima si scarta e non riappare alla riselezione.
+	B.PC->SelectActorForTest(Ally);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("5: cambiata la selezione l'hover di prima e' scartato"), B.PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+	B.PC->SelectActorForTest(B.Mine);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("5: e non riappare quando si riseleziona l'unita'"), SkillCells(), 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — l'hover non e' un gesto di pianificazione, e non ricalcola a ingressi fermi.** Dieci tick con il cursore sullo slot e il
+ * cursore sulla mappa non rifanno la portata; una vista diversa si'; la selezione, il piano e l'azione armata non cambiano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverCountersTest,
+	"RefactorTactics.SkillHover.TheRangeIsRedoneOnlyWhenItsInputsChangeAndHoveringChangesNothingElse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverCountersTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 Skill = HvPrepareTargetedSkill(B);
+	if (!TestTrue(TEXT("premessa: una skill che chiede un bersaglio"), Skill != INDEX_NONE)) { DestroyHexMatchWorld(B.World); return false; }
+	const FRTTeamKnowledge All = FwAllSeen(B.HexMap->MapAsset);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	const int32 SelectedBefore = B.Mine->SelectedAbilityIndex;
+	const int32 WaypointsBefore = B.Mine->PlannedWaypoints.Num();
+	const int32 RevisionBefore = B.PC->GetPlanningOverlayPlanComputations();
+
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	const TArray<FRTCellId> Shown = B.HexMap->GetPreviewSkillFreeCells();
+	if (!TestTrue(TEXT("premessa: la portata e' sulla mappa"), Shown.Num() > 1)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 P = B.PC->GetPlanningOverlayPlanComputations();
+	TestEqual(TEXT("mettere il cursore sulla skill fa UN calcolo del piano"), P, RevisionBefore + 1);
+
+	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
+	TestEqual(TEXT("dieci tick a cursore fermo sullo slot non rifanno la portata"), B.PC->GetPlanningOverlayPlanComputations(), P);
+
+	B.HexMap->SetHoveredCell(Shown[0], /*bValid=*/ true);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("il cursore sulla mappa non rifa' la portata (criterio di #711)"), B.PC->GetPlanningOverlayPlanComputations(), P);
+
+	// La vista cambia: una cella della portata non si vede piu' -> la portata si rifa', e quella cella passa a «senza verdetto».
+	FRTCellId Lost = Shown[0];
+	for (const FRTCellId& Cell : Shown) { if (!(Cell == B.Mine->Cell)) { Lost = Cell; break; } }
+	FRTTeamKnowledge Narrower = All;
+	Narrower.VisibleCells.Remove(Lost);
+	B.TM->SetTeamKnowledgeForTest(Narrower);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("una vista diversa rifa' la portata"), B.PC->GetPlanningOverlayPlanComputations(), P + 1);
+	TestTrue(TEXT("la cella non piu' in vista e' in portata ma senza verdetto"),
+		HvContains(B.HexMap->GetPreviewSkillUnverdictedCells(), Lost) && !HvContains(B.HexMap->GetPreviewSkillFreeCells(), Lost));
+
+	// L'hover non e' un gesto: niente cambia nel piano.
+	TestEqual(TEXT("l'azione armata e' la stessa"), B.Mine->SelectedAbilityIndex, SelectedBefore);
+	TestEqual(TEXT("e i waypoint"), B.Mine->PlannedWaypoints.Num(), WaypointsBefore);
+	TestTrue(TEXT("e la selezione"), B.PC->GetSelectedUnit() == B.Mine);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — la portata in hover parte da DOVE l'unita' agira', come quella armata, e vuole quella cella in vista.**
+ *
+ * Con uno scatto pianificato una skill del Blast (`Attack`) mira dall'ARRIVO dello scatto (`AimOriginFor`, D-464): la portata in
+ * hover deve coincidere, cella per cella, con quella che la stessa azione avrebbe da armata. Se l'arrivo non e' una cella che la
+ * squadra vede non c'e' una portata da mostrare, e il piano non cede la mappa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverDashOriginTest,
+	"RefactorTactics.SkillHover.TheRangeStartsWhereAPlannedDashLandsAndNeedsThatCellInSight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverDashOriginTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 Dash = B.Mine->FindDashAbilityIndex();
+	const int32 Skill = HvPrepareTargetedSkill(B, B.Mine, Dash);
+	if (!TestTrue(TEXT("premessa: uno scatto e una skill che chiede un bersaglio, distinti"), Dash != INDEX_NONE && Skill != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	// Sulla PROPRIA copia dei dati: la portata armata si mira dallo scatto solo per le azioni che cadono nel Blast.
+	URTActionData* Ability = const_cast<URTActionData*>(B.Mine->GetAbility(Skill));
+	Ability->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+
+	const FRTCellId M = B.Mine->Cell;
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+	FRTCellId DashCell = M;
+	for (int32 D = 0; D < 6 && DashCell == M; ++D)
+	{
+		const FRTCellId Candidate = HvStep(M, HvDirs[D], 2);
+		if (Map->ContainsCell(Candidate)) { DashCell = Candidate; }
+	}
+	B.Mine->PlannedDashAbility = Dash;
+	B.Mine->PlannedDashCell = DashCell;
+	if (!TestTrue(TEXT("premessa: lo scatto pianificato si applica, non e' una carica, e l'origine di mira e' il suo arrivo"),
+			!(DashCell == M) && B.Mine->PlannedDashApplies() && !B.Mine->PlannedDashIsCharge()
+			&& B.Mine->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const FRTTeamKnowledge All = FwAllSeen(Map);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	if (!TestTrue(TEXT("premessa: prima dell'hover il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const auto SkillCells = [&B]()
+	{
+		return B.HexMap->GetPreviewSkillFreeCells().Num() + B.HexMap->GetPreviewSkillBlockedCells().Num()
+			+ B.HexMap->GetPreviewSkillUnverdictedCells().Num();
+	};
+
+	// 1. L'INSIEME e' quello dell'azione armata dallo scatto, non quello dalla cella di adesso.
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TArray<FRTCellId> Union = B.HexMap->GetPreviewSkillFreeCells();
+	Union.Append(B.HexMap->GetPreviewSkillBlockedCells());
+	Union.Append(B.HexMap->GetPreviewSkillUnverdictedCells());
+	const TArray<FRTCellId> FromTheDash = URTCombatLibrary::TargetableRangeCells(Map, DashCell, 4, ERTLineOfSightPolicy::Required, 0);
+	const TArray<FRTCellId> FromHere = URTCombatLibrary::TargetableRangeCells(Map, M, 4, ERTLineOfSightPolicy::Required, 0);
+	TestTrue(TEXT("premessa: i due insiemi differiscono (altrimenti l'origine non si distingue)"),
+		FwSorted(FromTheDash) != FwSorted(FromHere));
+	TestTrue(TEXT("1: la portata in hover coincide con quella armata dall'arrivo dello scatto, cella per cella"),
+		FwSorted(Union) == FwSorted(FromTheDash));
+
+	// 2. L'ARRIVO NON IN VISTA: nessuna portata, e il piano non cede la mappa per niente.
+	FRTTeamKnowledge Dark = All;
+	Dark.VisibleCells.Remove(DashCell);
+	B.TM->SetTeamKnowledgeForTest(Dark);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("2: dall'arrivo non in vista non c'e' una portata da mostrare"), SkillCells(), 0);
+	TestTrue(TEXT("2: e il ventaglio del piano resta (la partenza di adesso e' in vista: contare su di lei mostrerebbe una portata)"),
+		B.HexMap->NumPreviewReachableCells() > 0);
+	B.TM->SetTeamKnowledgeForTest(All);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("controllo positivo: rimesso in vista l'arrivo, la portata torna"), SkillCells() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — con un'azione ARMATA e una rotta, la portata in hover prende tutta la mappa, e uscendo tornano entrambe.**
+ *
+ * Il contesto e' `Targeting`: la mappa mostra la portata armata e la rotta. Sotto il cursore sulla skill restano le sole celle della
+ * portata a tre stati (nessuna portata armata sotto, nessuna rotta); uscito il cursore tornano la portata armata e la rotta di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverArmedTest,
+	"RefactorTactics.SkillHover.AnArmedSkillAndItsRouteGiveWayToTheHoveredRangeAndComeBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverArmedTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 Skill = HvPrepareTargetedSkill(B);
+	if (!TestTrue(TEXT("premessa: una skill che chiede un bersaglio"), Skill != INDEX_NONE)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	// Armata, con la rotta che `MakeLockInPreviewBench` ha tracciato.
+	B.Mine->SelectAbility(Skill);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	const int32 ArmedBefore = B.HexMap->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange);
+	const int32 RouteBefore = B.HexMap->NumPreviewPathCells();
+	if (!TestTrue(TEXT("premessa: il contesto e' Targeting, la portata armata e la rotta sono sulla mappa"),
+			B.PC->GetPointerContext() == ERTPointerContext::Targeting && ArmedBefore > 1 && RouteBefore > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TArray<FRTCellId> Union = B.HexMap->GetPreviewSkillFreeCells();
+	Union.Append(B.HexMap->GetPreviewSkillBlockedCells());
+	Union.Append(B.HexMap->GetPreviewSkillUnverdictedCells());
+	TestTrue(TEXT("sotto il cursore la portata a tre stati e' sulla mappa"), Union.Num() > 1);
+	TestEqual(TEXT("e la mappa mostra solo quella: la portata armata ha ceduto"), PreviewCellsLit(B.HexMap), Union.Num());
+	TestEqual(TEXT("la rotta ha ceduto"), B.HexMap->NumPreviewPathCells(), 0);
+	TestEqual(TEXT("l'hover non disarma l'azione"), B.Mine->SelectedAbilityIndex, Skill);
+
+	B.PC->ClearSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("uscito il cursore la portata armata e' tornata, la stessa"),
+		B.HexMap->NumPlanningPreviewCells(ERTOverlayMeaning::AbilityRange), ArmedBefore);
+	TestEqual(TEXT("e la rotta"), B.HexMap->NumPreviewPathCells(), RouteBefore);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — l'impronta della vista guarda il CONTENUTO, non il conto.** Due viste con lo stesso numero di celle in vista, di cui
+ * una scambiata (una della portata sparisce, una lontana ricompare), fanno rifare la portata: e la cella persa passa a «senza verdetto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverStampTest,
+	"RefactorTactics.SkillHover.TheRangeIsRedoneWhenTheViewSwapsACellAtTheSameCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverStampTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const int32 Skill = HvPrepareTargetedSkill(B);
+	if (!TestTrue(TEXT("premessa: una skill che chiede un bersaglio"), Skill != INDEX_NONE)) { DestroyHexMatchWorld(B.World); return false; }
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+	const FRTCellId M = B.Mine->Cell;
+	const FRTTeamKnowledge All = FwAllSeen(Map);
+	B.Mine->PlannedWaypoints.Reset();
+
+	// Una cella FUORI dalla portata (la prima della mappa a piu' di 5 passi) e una DENTRO (la prima a distanza 2 e in mappa).
+	FRTCellId Far = M;
+	FRTCellId Near = M;
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		if (Far == M && URTHexLibrary::HexDistance(M, Cell.Id) > 5) { Far = Cell.Id; }
+		if (Near == M && URTHexLibrary::HexDistance(M, Cell.Id) == 2) { Near = Cell.Id; }
+	}
+	if (!TestTrue(TEXT("premessa: una cella fuori portata e una dentro, distinte dalla partenza"), !(Far == M) && !(Near == M)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	FRTTeamKnowledge WithoutFar = All;
+	WithoutFar.VisibleCells.Remove(Far);
+	FRTTeamKnowledge WithoutNear = All;
+	WithoutNear.VisibleCells.Remove(Near);
+	if (!TestEqual(TEXT("premessa: le due viste hanno lo stesso numero di celle in vista"),
+			WithoutFar.VisibleCells.Num(), WithoutNear.VisibleCells.Num()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.TM->SetTeamKnowledgeForTest(WithoutFar);
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	B.PC->SetSkillHover(B.Mine, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("premessa: nella prima vista la cella vicina e' libera"), HvContains(B.HexMap->GetPreviewSkillFreeCells(), Near));
+	const int32 Before = B.PC->GetPlanningOverlayPlanComputations();
+
+	B.TM->SetTeamKnowledgeForTest(WithoutNear);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("scambiata una cella, a pari conto, la portata si rifa'"), B.PC->GetPlanningOverlayPlanComputations(), Before + 1);
+	TestTrue(TEXT("e la cella persa passa a «senza verdetto»"),
+		HvContains(B.HexMap->GetPreviewSkillUnverdictedCells(), Near) && !HvContains(B.HexMap->GetPreviewSkillFreeCells(), Near));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3750` — la barra e' della squadra di chi guarda: la skill di un'unita' nemica non tiene mai la mappa.** Il cancello di squadra
+ * del controller non ha altri guardiani (il risolutore confronta solo con la selezione): con un nemico selezionato la sua skill,
+ * pur a bersaglio, con portata e di un'unita' in vista, non mostra niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverTeamGateTest,
+	"RefactorTactics.SkillHover.ASkillOfAnEnemyUnitNeverTakesTheMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverTeamGateTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("premessa: un'unita' nemica"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	// Il controllo positivo prima: la stessa preparazione su un'unita' PROPRIA mostra la portata. Senza, «niente sul nemico» potrebbe
+	// voler dire «la preparazione non funziona».
+	const int32 OwnSkill = HvPrepareTargetedSkill(B);
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	B.PC->SetSkillHover(B.Mine, OwnSkill);
+	B.PC->UpdatePlanningOverlay();
+	const auto SkillCells = [&B]()
+	{
+		return B.HexMap->GetPreviewSkillFreeCells().Num() + B.HexMap->GetPreviewSkillBlockedCells().Num()
+			+ B.HexMap->GetPreviewSkillUnverdictedCells().Num();
+	};
+	if (!TestTrue(TEXT("controllo positivo: una skill propria sotto il cursore mostra la portata"), OwnSkill != INDEX_NONE && SkillCells() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->ClearSkillHover(B.Mine, OwnSkill);
+
+	// Il nemico selezionato (il percorso di gioco rifiuta di selezionarlo: qui lo si forza, perche' e' l'unico modo di arrivare al
+	// cancello), con una skill a bersaglio dichiarata sulla sua copia dei dati.
+	B.PC->SelectActorForTest(Enemy);
+	const int32 EnemySkill = HvPrepareTargetedSkill(B, Enemy);
+	if (!TestTrue(TEXT("premessa: il nemico ha una skill che chiede un bersaglio"), EnemySkill != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->SetSkillHover(Enemy, EnemySkill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("la skill di un'unita' nemica non tiene la mappa"), SkillCells(), 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

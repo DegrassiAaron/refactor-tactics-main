@@ -89,7 +89,9 @@
 
 ## Stato in numeri — 2026-10-18
 
-**286 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **129 aperte**.
+**287 voci**: ✅ **116 verdi** · 🟡 **34 parziali** · ❌ **7 fallite** · ⏳ **130 aperte**.
+
+➕ **Rimisurato il 2026-10-28 ([#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750), `PIE-HUD-SKILL-PORTATA` aperta)**: il ricalcolo di `doc-coherence` A1 dava `286 · 116/34/7/129` **prima** e `287 · 116/34/7/130` **dopo**. Delta: una voce nuova ⏳, la portata a tre stati all'hover su una skill, perché la resa a schermo non la vede nessun test.
 
 ➕ **Rimisurato il 2026-10-28 ([#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750), `PIE-HUD-FUOCO-AREE` aperta)**: il ricalcolo di `doc-coherence` A1 dava `285 · 116/34/7/128` **prima** e `286 · 116/34/7/129` **dopo**. Delta: una voce nuova ⏳, le aree di movimento di un nemico a fuoco, perché la resa a schermo non la vede nessun test.
 
@@ -1927,6 +1929,14 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-HUD-FUOCO-AREE** | `LMB` su un nemico in vista, senza armare: la mappa mostra **le sue due aree di movimento**, e il piano le cede il posto; il primo gesto di pianificazione le toglie e non tornano da sole | partita hex in pianificazione con una propria unità selezionata e un nemico in vista; poi lo stesso nemico fuori vista; poi il nemico `Slow` e `Unbalanced` | compaiono due aree attorno al nemico, con il contorno spezzato: la normale e, più piccola e dentro, quella raggiunta solo correndo; sparisce il ventaglio della propria unità. Armare un'azione, posare un waypoint o dichiarare un verso toglie le aree e torna il ventaglio; disarmare non le riporta; un nuovo `LMB` sul nemico sì. `RMB` chiude la scheda e le aree. Un nemico fuori vista non mostra nessuna area, nemmeno cliccando la sua cella. `Slow` restringe l'area; con `Unbalanced` resta la sola area normale. **Giudizio d'autore**: le due bande si leggono come due cose diverse? la banda di corsa si distingue dal ventaglio dell'unità comandata, che ha lo stesso colore? | ⏳ |
+
+### La portata all'hover su una skill (`#3750`, F5, fetta D)
+
+> ⚠️ **Mai eseguita da un autore.** La resa è provvisoria — libero = contorno pieno, bloccato = pieno e più piccolo, senza verdetto = spezzato, tutti nel colore della portata — e nessun test headless vede ciò che si disegna. Aspetta anche tre scelte della sessione: il piano che **cede del tutto** mentre il cursore è sullo slot, la portata che parte dalla cella d'arrivo di uno scatto pianificato (come la portata armata), e l'hover scartato se la selezione cambia a cursore fermo.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HUD-SKILL-PORTATA** | Il cursore su uno slot della barra mostra **la portata di quella skill**, in tre stati; uscendo, torna la vista di prima. Tutto senza armare, senza cliccare, senza toccare il piano | partita hex in pianificazione con una propria unità selezionata, una skill che chiede un bersaglio con linea richiesta, un muro in vista e una zona non in vista fra l'unità e le celle in portata; poi con un nemico a fuoco (`LMB` su un nemico in vista) | passando su uno slot compaiono le celle in portata: **libere** (contorno pieno), **bloccate** dietro il muro in vista (pieno e più piccolo) e **senza verdetto** dove la linea attraversa celle non in vista (spezzato); lo stesso insieme che si vede armando quell'azione. Mentre il cursore è sullo slot il ventaglio e la rotta dell'unità spariscono; uscendo tornano. Con un nemico a fuoco, la portata sostituisce la sua area di movimento e **uscendo torna l'area**, senza un nuovo click. Una skill su se stessi, una reazione o una senza portata non mostrano niente. Cambiando unità con `N` a cursore fermo non resta una portata della precedente. **Giudizio d'autore**: i tre stati si leggono come tre cose diverse? il piano che sparisce a ogni slot attraversato disturba, o va tenuto? il tooltip dello slot e la portata si pestano? | ⏳ |
 
 ### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
 
