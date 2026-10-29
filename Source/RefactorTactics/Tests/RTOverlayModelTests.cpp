@@ -271,3 +271,110 @@ bool FRTOverlayPaletteIsDistinguishableTest::RunTest(const FString&)
 	// non ha quasi mai, ed e' quella che lo tiene onesto.
 	return true;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+// I tre stati della portata in hover si distinguono per COLORE, non per dimensione ([D-560], #3750)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	/**
+	 * Il colore come lo vede chi non distingue una tinta: modello di Machado 2009, severita' 1,0, applicato a RGB lineare.
+	 * `Kind`: 0 protanopia, 1 deuteranopia, 2 tritanopia. Serve a UNA domanda: libero e bloccato restano due cose diverse anche
+	 * per un daltonico? Non e' una misura di percezione: e' la stessa formula che l'autore ha visto nella tavola dei candidati.
+	 */
+	FColor OvRangeSimulateColourBlind(const FColor& Color, const int32 Kind)
+	{
+		static const double Matrix[3][3][3] = {
+			{ { 0.152286, 1.052583, -0.204868 }, { 0.114503, 0.786281, 0.099216 }, { -0.003882, -0.048116, 1.051998 } },
+			{ { 0.367322, 0.860646, -0.227968 }, { 0.280085, 0.672501, 0.047413 }, { -0.011820, 0.042940, 0.968881 } },
+			{ { 1.255528, -0.076749, -0.178779 }, { -0.078411, 0.930809, 0.147602 }, { 0.004733, 0.691367, 0.303900 } } };
+		const auto ToLinear = [](const uint8 V)
+		{
+			const double X = V / 255.0;
+			return X <= 0.04045 ? X / 12.92 : FMath::Pow((X + 0.055) / 1.055, 2.4);
+		};
+		const auto ToSrgb = [](const double V)
+		{
+			const double X = FMath::Clamp(V, 0.0, 1.0);
+			const double S = X <= 0.0031308 ? X * 12.92 : 1.055 * FMath::Pow(X, 1.0 / 2.4) - 0.055;
+			return static_cast<uint8>(FMath::RoundToInt(S * 255.0));
+		};
+		const double Lin[3] = { ToLinear(Color.R), ToLinear(Color.G), ToLinear(Color.B) };
+		uint8 Out[3];
+		for (int32 Row = 0; Row < 3; ++Row)
+		{
+			Out[Row] = ToSrgb(Matrix[Kind][Row][0] * Lin[0] + Matrix[Kind][Row][1] * Lin[1] + Matrix[Kind][Row][2] * Lin[2]);
+		}
+		return FColor(Out[0], Out[1], Out[2]);
+	}
+
+	int32 OvRangeManhattan(const FColor& A, const FColor& B)
+	{
+		return FMath::Abs(A.R - B.R) + FMath::Abs(A.G - B.G) + FMath::Abs(A.B - B.B);
+	}
+}
+
+/**
+ * **`#3750`, fetta D — il codice colore dei tre stati ([D-560]).** Il 2026-10-29 l'autore ha giudicato poco leggibile la prima resa, che
+ * distingueva libero e bloccato per la sola SCALA del contorno, e ha scelto un codice colore: viola (libero), rosa (bloccato), ambra
+ * tratteggiata (senza verdetto). Questo test fissa le tre cose che la scelta promette:
+ *
+ * 1. le tre tinte sono distinguibili fra loro (la stessa soglia di `PaletteIsDistinguishable`);
+ * 2. la dimensione NON porta piu' la differenza: stessa scala per tutti e tre, e stesso strato di disegno;
+ * 3. libero-bloccato e libero-senza verdetto restano distinguibili sotto protanopia, deuteranopia e tritanopia.
+ *
+ * ⚠️ **Bloccato contro senza verdetto NON e' asserito sotto daltonismo**, ed e' dichiarato: sotto deuteranopia il rosa e l'ambra si
+ * avvicinano. Li separa il TRATTEGGIO (il terzo stato si disegna spezzato), che e' il canale non cromatico: un test sulla tinta non
+ * potrebbe provarlo, e un test che lo pretendesse sarebbe rosso per una ragione che il progetto ha gia' scelto di non risolvere col colore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayRangeStatesByColourTest,
+	"RefactorTactics.AreaOverlay.TheThreeRangeStatesAreToldApartByColourAndNotBySize",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverlayRangeStatesByColourTest::RunTest(const FString&)
+{
+	constexpr int32 Threshold = 60; // la soglia di `PaletteIsDistinguishable`, non un secondo numero
+	const ERTOverlayMeaning Free = ERTOverlayMeaning::AbilityRange;
+	const ERTOverlayMeaning Blocked = ERTOverlayMeaning::AbilityRangeBlocked;
+	const ERTOverlayMeaning Unverdicted = ERTOverlayMeaning::AbilityRangeUnverdicted;
+	const FColor CFree = URTOverlayPalette::ColorFor(Free);
+	const FColor CBlocked = URTOverlayPalette::ColorFor(Blocked);
+	const FColor CUnverdicted = URTOverlayPalette::ColorFor(Unverdicted);
+
+	// 1. Tre tinte.
+	TestTrue(*FString::Printf(TEXT("libero e bloccato sono due tinte (distanza %d)"), OvRangeManhattan(CFree, CBlocked)),
+		OvRangeManhattan(CFree, CBlocked) >= Threshold);
+	TestTrue(*FString::Printf(TEXT("libero e senza verdetto sono due tinte (distanza %d)"), OvRangeManhattan(CFree, CUnverdicted)),
+		OvRangeManhattan(CFree, CUnverdicted) >= Threshold);
+	TestTrue(*FString::Printf(TEXT("bloccato e senza verdetto sono due tinte (distanza %d)"), OvRangeManhattan(CBlocked, CUnverdicted)),
+		OvRangeManhattan(CBlocked, CUnverdicted) >= Threshold);
+
+	// 2. La dimensione non porta la differenza: la prima resa l'aveva (0,7 per il bloccato), e l'autore l'ha scartata.
+	TestEqual(TEXT("libero e bloccato hanno la stessa scala"),
+		URTOverlayPalette::ScaleFor(Free), URTOverlayPalette::ScaleFor(Blocked), 0.0001f);
+	TestEqual(TEXT("libero e senza verdetto hanno la stessa scala"),
+		URTOverlayPalette::ScaleFor(Free), URTOverlayPalette::ScaleFor(Unverdicted), 0.0001f);
+	TestEqual(TEXT("e si disegnano allo stesso modo rispetto alle unita'"),
+		URTOverlayPalette::DrawsThroughUnits(Blocked) && URTOverlayPalette::DrawsThroughUnits(Unverdicted),
+		URTOverlayPalette::DrawsThroughUnits(Free));
+	TestEqual(TEXT("e allo stesso livello di disegno: non condividono mai una cella"),
+		URTOverlayPalette::PriorityFor(Blocked), URTOverlayPalette::PriorityFor(Free));
+
+	// 3. Sotto daltonismo. CONTROLLO PRIMA: la simulazione non e' l'identita'. Senza, ogni «distinguibile» qui sotto
+	//    sarebbe la distanza normale ripetuta tre volte, e il test non direbbe niente sui daltonici.
+	const FColor SimFree = OvRangeSimulateColourBlind(CFree, /*Kind=*/ 1);
+	TestTrue(TEXT("controllo: la simulazione cambia davvero il colore"), OvRangeManhattan(CFree, SimFree) > 40);
+
+	const TCHAR* Names[3] = { TEXT("protanopia"), TEXT("deuteranopia"), TEXT("tritanopia") };
+	for (int32 Kind = 0; Kind < 3; ++Kind)
+	{
+		const FColor SFree = OvRangeSimulateColourBlind(CFree, Kind);
+		const FColor SBlocked = OvRangeSimulateColourBlind(CBlocked, Kind);
+		const FColor SUnverdicted = OvRangeSimulateColourBlind(CUnverdicted, Kind);
+		TestTrue(*FString::Printf(TEXT("%s: libero e bloccato restano due tinte (distanza %d)"), Names[Kind], OvRangeManhattan(SFree, SBlocked)),
+			OvRangeManhattan(SFree, SBlocked) >= Threshold);
+		TestTrue(*FString::Printf(TEXT("%s: libero e senza verdetto restano due tinte (distanza %d)"), Names[Kind], OvRangeManhattan(SFree, SUnverdicted)),
+			OvRangeManhattan(SFree, SUnverdicted) >= Threshold);
+	}
+	return true;
+}

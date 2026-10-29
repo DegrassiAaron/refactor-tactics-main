@@ -976,8 +976,10 @@ public:
 	 * squadra non vede adesso). Vuoti = nessuna portata in hover.
 	 *
 	 * 🔑 **Un canale a parte e non `SetPreviewRangeCells`**: quello e' la portata dell'azione ARMATA (`#3507`), a due stati, e
-	 * i due non si mostrano insieme (l'arbitro, `FRTPlanningOverlayInputs::ActiveSource`). Stesso significato (`AbilityRange`),
-	 * sede diversa. Le celle arrivano gia' classificate da `URTRangeVerdictLibrary`: qui non si ricalcola niente.
+	 * i due non si mostrano insieme (l'arbitro, `FRTPlanningOverlayInputs::ActiveSource`). Le libere hanno lo stesso significato
+	 * (`AbilityRange`) e il viola della portata armata; le bloccate e quelle senza verdetto hanno un significato e una tinta
+	 * propri (`AbilityRangeBlocked` rosa, `AbilityRangeUnverdicted` ambra, [D-560]). Le celle arrivano gia' classificate da
+	 * `URTRangeVerdictLibrary`: qui non si ricalcola niente.
 	 */
 	void SetPreviewSkillRange(const TArray<FRTCellId>& FreeCells, const TArray<FRTCellId>& BlockedCells,
 		const TArray<FRTCellId>& UnverdictedCells);
@@ -1360,7 +1362,8 @@ protected:
 	FRTOverlayArea PreviewFocusRunArea;
 	/**
 	 * La portata di una skill in hover, a tre stati (`#3750`, fetta D): tiro libero, tiro bloccato, in portata senza verdetto.
-	 * Significato `AbilityRange`; la certezza distingue il terzo (`Uncertain`). Non si mostrano insieme alla portata armata.
+	 * Tre significati ([D-560]): `AbilityRange` (libero), `AbilityRangeBlocked`, `AbilityRangeUnverdicted` (certezza `Uncertain`).
+	 * Non si mostrano insieme alla portata armata.
 	 */
 	FRTOverlayArea PreviewSkillFreeArea;
 	FRTOverlayArea PreviewSkillBlockedArea;
