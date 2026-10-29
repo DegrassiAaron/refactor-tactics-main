@@ -1479,7 +1479,8 @@ public:
 	 *
 	 * 🔑 **Le stesse guardie di `Activate()`**: uno slot mai assegnato (`INDEX_NONE`, o gli slot della struttura senza unita') non
 	 * segnala niente, e uno slot costruito per un'unita' che non e' piu' quella selezionata nemmeno — la posizione di kit di
-	 * un'altra unita' e' un'altra azione. `HoverEnd` spegne solo il PROPRIO hover (il controller confronta unita' e indice).
+	 * un'altra unita' e' un'altra azione. `HoverEnd` spegne solo il PROPRIO hover — quello che `HoverBegin` ha registrato, unita' e
+	 * indice di quell'istante (il controller li confronta) — e uno slot che non ha registrato niente non spegne niente.
 	 *
 	 * ⚠️ **Sono `UFUNCTION` per la stessa ragione di `Activate()`**: il Blueprint puo' legarle a un evento di hover del proprio
 	 * pulsante. Ma non e' necessario: `NativeOnMouseEnter` / `NativeOnMouseLeave` le chiamano gia', e il `.uasset` non va toccato.
@@ -1799,6 +1800,18 @@ public:
 	 * confronto vede il cambio, non nomina un secondo proprietario.
 	 */
 	TWeakObjectPtr<const ARTUnit> BuiltForUnit;
+
+	/**
+	 * Cio' che `HoverBegin` ha REGISTRATO sul controller (`#3750`, fetta D): l'unita' e la posizione di kit di quell'istante, o
+	 * `INDEX_NONE` se questo slot non ha registrato niente. `HoverEnd` spegne QUELLA registrazione, non lo stato di adesso.
+	 *
+	 * 🔴 **Il dock richiama `SetAction` a ogni frame, anche a cursore fermo.** Se `HoverEnd` leggesse `Action.AbilityIndex` e
+	 * `BuiltForUnit` correnti, uno slot riassegnato fra l'ingresso e l'uscita — una skill che cambia posizione, una selezione che
+	 * cambia unita' — spegnerebbe un hover che non e' il suo e lascerebbe appeso quello vero: la mappa resterebbe sulla portata
+	 * di una skill che il cursore ha lasciato. Non e' una `UPROPERTY` per la stessa ragione di `BuiltForUnit`.
+	 */
+	TWeakObjectPtr<const ARTUnit> HoverRegisteredUnit;
+	int32 HoverRegisteredIndex = INDEX_NONE;
 
 	/**
 	 * Il controller a cui inoltrare: l'iniezione dei test PRIMA, il proprietario poi.

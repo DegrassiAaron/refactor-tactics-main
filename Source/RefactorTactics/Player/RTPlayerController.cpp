@@ -4775,7 +4775,8 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	const ARTUnit* SkillOwner = SkillHoverUnit.Get();
 	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(this);
 	// La barra e' di chi si comanda (spec §3 regola 7): la skill in hover dev'essere di QUELL'unita', viva e della squadra di chi
-	// guarda. Una skill di un'altra unita' resta registrata e non tiene la mappa.
+	// guarda. Il confronto con `Unit` e' gia' del risolutore (che scarta l'hover di un'altra unita' prima di arrivare qui): qui e'
+	// la precondizione propria della funzione. Il cancello di squadra invece non ha altri guardiani.
 	if (SkillOwner == nullptr || SkillOwner != Unit || !SkillOwner->IsAlive() || SkillOwner->TeamId != ObserverTeamId)
 	{
 		return;

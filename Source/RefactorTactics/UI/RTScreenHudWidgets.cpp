@@ -1676,20 +1676,28 @@ void URTActionSlotWidget::HoverBegin()
 		if (Selezionata != nullptr && BuiltForUnit.Get() == Selezionata)
 		{
 			PC->SetSkillHover(Selezionata, Action.AbilityIndex);
+			HoverRegisteredUnit = Selezionata;
+			HoverRegisteredIndex = Action.AbilityIndex;
 		}
 	}
 }
 
 void URTActionSlotWidget::HoverEnd()
 {
-	if (Action.AbilityIndex < 0)
+	// Uno slot che non ha registrato niente non ha niente da spegnere: nemmeno l'hover di un altro slot.
+	if (HoverRegisteredIndex == INDEX_NONE)
 	{
 		return;
 	}
+	const ARTUnit* RegisteredUnit = HoverRegisteredUnit.Get();
+	const int32 RegisteredIndex = HoverRegisteredIndex;
+	HoverRegisteredUnit.Reset();
+	HoverRegisteredIndex = INDEX_NONE;
 	if (ARTPlayerController* PC = ResolveArmingController())
 	{
-		// Spegne solo il PROPRIO hover: l'uscita da questo slot puo' arrivare dopo l'ingresso nel successivo.
-		PC->ClearSkillHover(BuiltForUnit.Get(), Action.AbilityIndex);
+		// Spegne solo il PROPRIO hover, quello registrato all'ingresso: l'uscita da questo slot puo' arrivare dopo l'ingresso nel
+		// successivo, e lo slot puo' essere stato riassegnato dal dock nel frattempo.
+		PC->ClearSkillHover(RegisteredUnit, RegisteredIndex);
 	}
 }
 

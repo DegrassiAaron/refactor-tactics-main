@@ -1146,8 +1146,8 @@ public:
 	 * `ClearSkillHover`, e allora torna la sorgente di prima.
 	 *
 	 * ⚠️ **L'unita' dev'essere quella comandata**: la barra e' di chi si comanda (spec §3 regola 7). Il filtro e' del
-	 * risolutore degli ingressi, che la confronta con la selezione di adesso, non di questa porta: una skill di un'altra unita'
-	 * resta registrata ma non tiene la mappa.
+	 * risolutore degli ingressi, che la confronta con la selezione di adesso, non di questa porta: l'hover di un'altra unita' non
+	 * tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
 	 */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
