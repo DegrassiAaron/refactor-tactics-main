@@ -822,7 +822,7 @@ asset: si progetta in `39.3` con compatibilità e validator, non si improvvisa.
 
 **Non fa**: assegnare il Blink a un eroe del roster (è contenuto, e ricade sul kit del suo owner) ·
 [#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645), che è **prima** e altrove — un
-ramo del motore irraggiungibile dal roster resta tale in qualunque release.
+ramo del motore irraggiungibile dal roster resta tale in qualunque release. ⏱️ Chiusa da [D-560](../decisions/RT_PDR_00_Decision_Log.md) (2026-10-29): il `Leap` resta nel motore, dormiente fino a E39.
 
 Referto d'origine:
 [`plans/spatial-transfer-epic-2026-08-12.md`](../archive/roadmap-plans/spatial-transfer-epic-2026-08-12.md), che consolida il

@@ -29,7 +29,7 @@ TRAVERSAL — produce una sequenza di celle percorse, e ogni cella è un fatto
   Forced     spostamento subito: push, pull, knockback, correnti
 
 TRANSFER — esistono un'origine e una destinazione, e nient'altro
-  Leap       `ERTMovementStyle::LinearLeap`   (esiste, ma nessun eroe ce l'ha — #645)
+  Leap       `ERTMovementStyle::LinearLeap`   (esiste, dormiente fino a E39: nessun eroe ce l'ha, per scelta — D-560)
   Blink      destinazione libera entro range   (v0.2, E39)
   Swap       scambio atomico di due posizioni  (v0.2, E39)
   Recall     ritorno a un punto dichiarato     (v0.2, E39)
@@ -84,7 +84,7 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | rumore | profilo | profilo | partenza e arrivo, **nessun passo** | evento di impatto |
 | auto-reroute | **mai** | mai | n/a | mai |
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
-| **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
+| **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster per scelta ([D-560](../decisions/RT_PDR_00_Decision_Log.md)) | implementato |
 
 ### 2.0-zero La destinazione occupata si dichiara nel movimento a budget, e si rifiuta nella mobilità lineare — [`D-451`](../decisions/RT_PDR_00_Decision_Log.md)
 
@@ -449,7 +449,7 @@ veloce**: è un trasferimento, archiviato sotto Dash perché ne condivide **fase
 Questa distinzione è [D-118](../decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ **Due righe della colonna `Transfer` sono regola preventiva, non descrizione.** `facing` e `rumore`
-> non hanno oggi un consumatore: `LinearLeap` è irraggiungibile dal roster, quindi nessuno le esercita.
+> non hanno oggi un consumatore: `LinearLeap` è irraggiungibile dal roster **per scelta** ([D-560](../decisions/RT_PDR_00_Decision_Log.md)), quindi nessuno le esercita.
 > Sono scritte perché sono i due punti in cui la scorciatoia è più tentante — un trasferimento **non ha un
 > ultimo passo**, quindi `FacingFromPath(...)` su di esso produce un orientamento inventato, e un rumore
 > «lungo il percorso» descriverebbe celle che non sono state attraversate.
