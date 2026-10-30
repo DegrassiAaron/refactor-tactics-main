@@ -1847,6 +1847,28 @@ public:
 	static TArray<FRTAbilityCooldownView> BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits);
 
 	/**
+	 * La barra di un'unita' che si OSSERVA e non si comanda (#3748): una riga per posizione di kit, nell'ordine del
+	 * kit, come `BuildAbilityCooldowns` — e con la stessa regola sulla posizione vuota (`#2987`): una riga con
+	 * l'indice e senza `ActionId`, che si legge `Empty`, non un salto. `Subject` nullo da' un elenco vuoto.
+	 *
+	 * 🔑 **Solo catalogo.** Ogni riga parte da `BuildCatalogActionRow` e porta quello che `URTActionData` dice:
+	 * identita', icone, fase, gruppo, portata, forma, area, danno, ricarica di catalogo, frase e variante attiva. Il
+	 * kit e l'equipaggiamento di un'unita' osservata sono pubblici (decisione d'autore del 2026-10-20).
+	 *
+	 * ⛔ **Nient'altro, ed e' un elenco POSITIVO**, come quello di `BuildIdleBar`: cio' che non e' scritto qui resta
+	 * al default, quindi non c'e' un campo da dimenticare di spegnere. Nessun piano (`bPlanned`, `bPlanInvalid`,
+	 * `bPlanDegraded`), nessuna ricarica vera (`TurnsRemaining`, `ChargeFraction`), nessun bersaglio rifiutato,
+	 * nessun tasto (`HotkeyLabel` vuoto: i tasti sono di chi comanda), e niente dell'azione armata —
+	 * `SelectedAbilityIndex` non si legge, e `ResolveSlotState` ne riceve l'esito da fuori (`bArmed`), che per questa
+	 * barra deve restare falso. Sono le cose private di un nemico osservato.
+	 *
+	 * ⚠️ **`bUsableNow = true` vuol dire «niente stato», NON «pronta».** E' il valore che porta `ResolveSlotState`
+	 * a `Available` invece che a `Unavailable`: lo slot non dice se l'azione si potrebbe usare adesso, perche' chi
+	 * guarda non lo sa e non deve saperlo. Non va letto come permesso: la barra e' in sola lettura.
+	 */
+	static TArray<FRTAbilityCooldownView> BuildPublicBar(const ARTUnit* Subject);
+
+	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).
 	 *
 	 * 🔑 **La precedenza vive qui e in nessun altro posto.** Senza questa funzione ogni `WBP_` che voglia

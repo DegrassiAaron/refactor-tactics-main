@@ -193,6 +193,123 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **LA BARRA DI CHI SI OSSERVA PORTA IL CATALOGO E NIENTE DELLA PARTITA** (#3748).
+ *
+ * 🔑 **Il soggetto ha TUTTO cio' che la partita sa di un'unita'**: un'azione armata, un piano sulla posizione 1 e
+ * una ricarica vera sulla posizione 2, e una posizione di kit vuota. Il kit e l'equipaggiamento di un nemico
+ * osservato sono pubblici; piano, azione armata e ricariche vere no — e una barra che li portasse direbbe a
+ * chi guarda cio' che l'avversario ha deciso o speso.
+ *
+ * ⚠️ **Il controllo positivo e' la meta' del test**: la STESSA unita', letta da `BuildAbilityCooldowns`, porta il
+ * piano, la ricarica e il tasto. Senza queste tre premesse le asserzioni sulla barra pubblica sarebbero vere
+ * anche per una funzione che copia ogni campo dalla partita, perche' non ci sarebbe niente da copiare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPublicBarCarriesNoMatchTest,
+	"RefactorTactics.HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ARTUnit* Soggetto = SpawnIdleBarUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0, 0));
+	if (!TestNotNull(TEXT("l'unita' osservata esiste"), Soggetto)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	// --- il soggetto: kit con una posizione 1 e una 2 piene, la 2 con una ricarica; l'ultima posizione svuotata ---
+	const int32 Ultima = Soggetto->NumAbilities() - 1;
+	if (!TestTrue(TEXT("premessa: le posizioni 1 e 2 portano un'azione, e la 2 ha una ricarica di catalogo"),
+			Soggetto->GetAbility(1) != nullptr && Soggetto->GetAbility(2) != nullptr
+			&& Soggetto->GetAbility(2)->CooldownTurns > 0)
+		|| !TestTrue(TEXT("premessa: l'ultima posizione e' oltre la 2, cosi' lo svuotarla non tocca le altre"), Ultima > 2))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Soggetto->Abilities[Ultima] = nullptr;
+	Soggetto->SelectedAbilityIndex = 0;   // l'azione armata
+	Soggetto->PlannedAbilityIndex = 1;    // il piano
+	Soggetto->ConsumeAbility(2);          // la ricarica vera
+
+	// --- CONTROLLO POSITIVO: la barra della partita le porta tutte e tre ---------------------------------------
+	const TArray<FRTAbilityCooldownView> Partita = URTHudViewModel::BuildAbilityCooldowns(Soggetto);
+	if (!TestEqual(TEXT("premessa: la barra della partita ha una riga per posizione"), Partita.Num(), Soggetto->NumAbilities())
+		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 1 e' pianificata"), Partita[1].bPlanned)
+		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 2 e' in ricarica vera, e non usabile"),
+			Partita[2].TurnsRemaining > 0 && !Partita[2].bUsableNow && Partita[2].ChargeFraction < 1.f)
+		|| !TestFalse(TEXT("premessa: nella barra della partita la posizione 0 porta il tasto"), Partita[0].HotkeyLabel.IsEmpty())
+		|| !TestTrue(TEXT("premessa: l'ultima posizione e' una riga vuota"), Partita[Ultima].ActionId.IsNone()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- LA BARRA PUBBLICA ------------------------------------------------------------------------------------
+	const TArray<FRTAbilityCooldownView> Pubblica = URTHudViewModel::BuildPublicBar(Soggetto);
+	if (!TestEqual(TEXT("una riga per posizione di kit, la vuota compresa"), Pubblica.Num(), Partita.Num()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	for (int32 i = 0; i < Pubblica.Num(); ++i)
+	{
+		const FRTAbilityCooldownView& R = Pubblica[i];
+		const FRTAbilityCooldownView& P = Partita[i];
+		const FString Dove = FString::Printf(TEXT("posizione %d"), i);
+
+		TestEqual(*FString::Printf(TEXT("%s: l'indice e' quello del kit"), *Dove), R.AbilityIndex, i);
+
+		// Il CATALOGO: uguale a quello che la barra della partita dice della stessa azione.
+		TestEqual(*FString::Printf(TEXT("%s: l'azione"), *Dove), R.ActionId, P.ActionId);
+		TestEqual(*FString::Printf(TEXT("%s: l'icona"), *Dove), R.IconId, P.IconId);
+		TestEqual(*FString::Printf(TEXT("%s: il ripiego dell'icona"), *Dove), R.FallbackIconId, P.FallbackIconId);
+		TestTrue(*FString::Printf(TEXT("%s: il nome"), *Dove), R.DisplayName.EqualTo(P.DisplayName));
+		TestTrue(*FString::Printf(TEXT("%s: la frase"), *Dove), R.Description.EqualTo(P.Description));
+		TestEqual(*FString::Printf(TEXT("%s: la portata"), *Dove), R.RangeCells, P.RangeCells);
+		TestEqual(*FString::Printf(TEXT("%s: l'azione su di se'"), *Dove), R.bSelfTarget, P.bSelfTarget);
+		TestEqual(*FString::Printf(TEXT("%s: il danno"), *Dove), R.Damage, P.Damage);
+		TestEqual(*FString::Printf(TEXT("%s: lo slot del turno"), *Dove), R.Slot, P.Slot);
+		TestEqual(*FString::Printf(TEXT("%s: la macro-fase"), *Dove), R.Phase, P.Phase);
+		TestEqual(*FString::Printf(TEXT("%s: il segno di fase"), *Dove), R.PhaseMark, P.PhaseMark);
+		TestTrue(*FString::Printf(TEXT("%s: l'etichetta di fase"), *Dove), R.PhaseLabel.EqualTo(P.PhaseLabel));
+		TestEqual(*FString::Printf(TEXT("%s: il gruppo"), *Dove), R.Group, P.Group);
+		TestEqual(*FString::Printf(TEXT("%s: la forma"), *Dove), R.Shape, P.Shape);
+		TestEqual(*FString::Printf(TEXT("%s: il raggio dell'area"), *Dove), R.AreaRadius, P.AreaRadius);
+		TestEqual(*FString::Printf(TEXT("%s: la ricarica di catalogo"), *Dove), R.CooldownTurns, P.CooldownTurns);
+		TestTrue(*FString::Printf(TEXT("%s: la variante"), *Dove),
+			R.VariantName.EqualTo(P.VariantName) && R.VariantTradeoff.EqualTo(P.VariantTradeoff));
+
+		// ⛔ La PARTITA: niente, in ogni riga.
+		TestTrue(*FString::Printf(TEXT("%s: nessun tasto"), *Dove), R.HotkeyLabel.IsEmpty());
+		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica vera"), *Dove), R.TurnsRemaining, 0);
+		TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Dove), R.ChargeFraction, 1.f);
+		TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), R.bPlanInvalid);
+		TestFalse(*FString::Printf(TEXT("%s: nessun piano degradato"), *Dove), R.bPlanDegraded);
+		TestFalse(*FString::Printf(TEXT("%s: nessun bersaglio rifiutato"), *Dove), R.bTargetRefused);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna portata di ripiego"), *Dove), R.PlanDegradedRange, (int32)INDEX_NONE);
+
+		if (!R.ActionId.IsNone())
+		{
+			// `bUsableNow` vero vuol dire «niente stato», non «pronta»: e' cio' che porta lo slot a `Available`
+			// invece che a `Unavailable`. Anche per la posizione che la partita dice in ricarica.
+			TestTrue(*FString::Printf(TEXT("%s: usabile = nessuno stato"), *Dove), R.bUsableNow);
+			TestEqual(*FString::Printf(TEXT("%s: lo slot si legge Available, anche senza essere armato"), *Dove),
+				URTHudViewModel::ResolveSlotState(R, /*bArmed=*/ false), ERTActionSlotState::Available);
+		}
+	}
+
+	// La posizione vuota resta una RIGA al suo posto (#2987), e si legge Empty.
+	TestTrue(TEXT("l'ultima posizione e' un segnaposto senza azione"), Pubblica[Ultima].ActionId.IsNone());
+	TestEqual(TEXT("e il segnaposto si legge Empty"),
+		URTHudViewModel::ResolveSlotState(Pubblica[Ultima], /*bArmed=*/ false), ERTActionSlotState::Empty);
+
+	TestTrue(TEXT("senza unita' la barra pubblica e' vuota"), URTHudViewModel::BuildPublicBar(nullptr).IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * 🔴 **LA DOCK CONSEGNA LA STRUTTURA SOLO SENZA UN'UNITA' COMANDATA, E LA CONTA SULLA PROPRIA SQUADRA** ([D-460]).
  *
  * ⛔ **Il controllo B e' quello di privacy**: in campo c'e' un avversario con un kit PIU' LUNGO del proprio. Se

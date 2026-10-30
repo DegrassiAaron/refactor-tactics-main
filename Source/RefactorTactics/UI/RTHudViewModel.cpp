@@ -1332,6 +1332,42 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildIdleBar(const TArray<const 
 	return OrderForReading(Struttura);
 }
 
+TArray<FRTAbilityCooldownView> URTHudViewModel::BuildPublicBar(const ARTUnit* Subject)
+{
+	TArray<FRTAbilityCooldownView> Righe;
+	if (!Subject)
+	{
+		return Righe;
+	}
+
+	for (int32 Index = 0; Index < Subject->NumAbilities(); ++Index)
+	{
+		const URTActionData* Action = Subject->GetAbility(Index);
+
+		// Una posizione vuota produce una RIGA, non un salto (`#2987`), come in `BuildAbilityCooldowns`: la posizione
+		// visiva resta quella di kit. Il segnaposto porta l'indice e basta — niente tasto, che di questa barra non
+		// ne ha — e `ActionId` resta `None`, da cui lo slot si legge `Empty`.
+		if (!Action)
+		{
+			FRTAbilityCooldownView Vuota;
+			Vuota.AbilityIndex = Index;
+			Righe.Add(Vuota);
+			continue;
+		}
+
+		// 🔑 Elenco POSITIVO dei campi: la riga e' quella di CATALOGO e basta. ⛔ Qui non si legge `Subject->Planned*`,
+		// `GetAbilityCooldown`, `CanUseAbility` ne' `HotkeyLabelFor`: sono la partita, e di un'unita' osservata sono
+		// private. Chi aggiunge un campo a questa riga lo fa dal catalogo, o non lo fa.
+		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Subject->ActiveVariantId);
+		View.HotkeyLabel = FText::GetEmpty(); // nessun tasto: e' di chi comanda
+		// ⚠️ `true` vuol dire «niente stato», non «pronta»: con il default (`false`) lo slot si leggerebbe
+		// `Unavailable`, cioe' direbbe «non si puo'» di un'azione di cui chi guarda non sa niente.
+		View.bUsableNow = true;
+		Righe.Add(View);
+	}
+	return Righe;
+}
+
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
 {
 	TArray<FRTUnitCardView> Roster;
