@@ -134,6 +134,8 @@ Scelte di chi scrive. Quelle marcate **(A)** chiedono la parola dell'autore *pri
 >
 > **Non misurato, e dichiarato:** il caso peggiore delle righe che vanno a capo (`TenantsFitTheirBands` conta ogni riga su una riga sola); che Slate consegni la rotella e il tasto sinistro al pannello prima del gioco; un contenitore con l'ordine invertito o lo slot non `Fill` (servirebbe riaprire l'Editor per produrlo); il costo della ricomposizione a 5 Hz, perché `FindEquipment` costruisce i cataloghi a ogni chiamata (Q13). La ricomposizione resta a 5 Hz: va misurata in PIE prima di metterci una cache.
 >
+> **Cambio di rotta (2026-10-30, decisione d'autore dopo le tavole).** La barra delle skill segue l'unità cliccata, in sola lettura, e **sostituisce le righe di kit della scheda**: il verdetto su `PIE-HUD-SCHEDA` non vale più per l'interfaccia di queste righe. Il piano è [`2026-10-30-barra-in-sola-lettura.md`](2026-10-30-barra-in-sola-lettura.md).
+>
 > **Scarto da Q9, e perché.** La decisione «zoomare il mondo?» non è una funzione pura `ShouldZoomWorld(bCursorInsideScene)`: sarebbe un'identità su un bool e il suo test non direbbe niente. È `ARTPlayerController::ApplyZoom(Axis, bCursorInsideScene)`, chiamata da `OnZoom`, e il test inietta il cursore e prova i due versi. Resta dichiarato che **Slate consegni la rotella al pannello prima del gioco** non si misura in headless: è di PIE.
 >
 > **Due scelte nuove del widget.** Il pannello consuma il tasto sinistro e la rotella e **non** il destro, perché è il destro che chiude la scheda anche col cursore sopra. E una riga della scheda porta la posizione di kit della sua skill (`FRTInspectView::LineAbilityIndices`), così l'hover si aggancia alla riga e non a un indice calcolato dal widget.
