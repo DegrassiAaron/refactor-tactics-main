@@ -755,14 +755,18 @@ namespace
 
 	/**
 	 * La scheda PIENA (#3748) per il gate delle fasce: il compositore VERO alimentato con il soggetto piu' lungo che una scheda
-	 * reale puo' avere, cosi' che la finestra di `MaxRighe` righe sia piena e le righe lunghe vadano a capo come in partita.
+	 * reale puo' avere, cosi' che la finestra di `MaxRighe` righe sia piena.
 	 *
 	 * Il kit non e' piu' sulla scheda (lo mostra la barra delle skill, in sola lettura): una scheda piena e' nome, PV, verso, gli stati con il
 	 * loro effetto, l'equipaggiamento e le ricariche dedotte. Il soggetto dell'unita' propria dello scenario, da solo, ne da' tre righe
 	 * (nessun registro, nessuno stato, e meta' del roster ha un loadout vuoto): il gate non misurerebbe niente. Quindi il soggetto e'
-	 * costruito a mano con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con l'effetto piu' lungo (righe da
-	 * piu' di cento caratteri, che vanno a capo), i pezzi del loadout di un eroe vero (nome, vantaggio, svantaggio) e una ricarica dedotta
-	 * per ogni azione dell'unita'. E' il caso peggiore, non il caso medio.
+	 * costruito a mano con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con l'effetto piu' lungo, i pezzi del
+	 * loadout di un eroe vero (nome, vantaggio, svantaggio) e una ricarica dedotta per ogni azione dell'unita'. E' il caso peggiore, non il
+	 * caso medio.
+	 *
+	 * ⚠️ **L'andare a capo non si misura qui.** Le righe lunghe sono realistiche, ma la misura desiderata di `SlatePrepass` non le vede
+	 * spezzarsi: provato con una fixture di prova (sedici righe corte al posto di queste), la scheda misura lo stesso. L'altezza di una
+	 * scheda con righe a capo resta di PIE; questo gate misura `MaxRighe` righe per l'altezza di una riga.
 	 *
 	 * Vuota se una premessa manca (meno di due stati, nessun loadout nel roster, un'unita' senza azioni): il chiamante la dichiara.
 	 */
