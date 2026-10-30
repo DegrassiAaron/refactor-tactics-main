@@ -1217,10 +1217,14 @@ che legge l'unità sotto il cursore non è raggiungibile headless: lo copre solt
 ## 18.1 La scheda dell'ispezione (`#3748`, F3)
 
 Il pannello fissato dal click su un'unità non comandata e osservata, nella zona `MiddleRight`. Mostra: nome, PV e
-scudo, stati col nome e l'effetto del glossario, verso (spento in `ResolutionPlayback`, come la targa), **kit dal
-catalogo** ed **equipaggiamento**. Kit ed equipaggiamento di un nemico osservato sono **pubblici** (decisione d'autore
-del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e le ricariche vere. Una funzione sola,
-`ARTHUD::BuildInspectSubject`, legge l'attore; il compositore (`URTInspectLibrary::Compose`) riceve solo valori.
+scudo, stati col nome e l'effetto del glossario, verso (spento in `ResolutionPlayback`, come la targa),
+**equipaggiamento** e, se la squadra ha visto usare un'azione, le **ricariche dedotte** (una stima, dichiarata tale
+nell'intestazione della sezione). ⌫ *Fino al 2026-10-30 mostrava anche il **kit dal catalogo**, a righe di testo e con
+la portata all'hover sulla riga*: ora il kit lo mostra la barra delle skill dell'unità cliccata, in sola lettura (qui
+sotto, [D-562](../../decisions/RT_PDR_00_Decision_Log.md)). Kit ed equipaggiamento di un nemico osservato restano
+**pubblici** (decisione d'autore del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e le
+ricariche vere. Una funzione sola, `ARTHUD::BuildInspectSubject`, legge l'attore; il compositore
+(`URTInspectLibrary::Compose`) riceve solo valori, e non ha un campo per il kit.
 
 La scheda **segue la conoscenza**: senza una voce `Live` non c'è scheda (uscita identica a una cella vuota), e se il
 soggetto esce di vista o cade si chiude.
@@ -1238,13 +1242,44 @@ com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la
   scorre la scheda; il destro resta del controller perché è quello che chiude, anche col cursore sopra. Sopra una
   fascia dell'HUD la rotella non zooma più il mondo (`ARTPlayerController::ApplyZoom`): vale per ogni fascia, non solo
   per la scheda.
-* **Passare sulla riga di una skill ne mostra la portata**, come dalla barra (spec dell'ispettore §3 regola 7). Per un
-  nemico a fuoco l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche
-  senza selezione, e non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.
+* **Le righe della scheda sono testo e basta** (`URTInspectLineWidget`, `SelfHitTestInvisible`): non hanno hover né
+  una posizione di kit. ⌫ *Fino al 2026-10-30 «passare sulla riga di una skill ne mostrava la portata»*: il produttore
+  dell'hover di un'unità a fuoco è ora lo slot della barra (qui sotto), e l'ingresso dell'arbitro che lo ammette si
+  chiama `bSkillHoverOfInspected` (era `bSkillHoverFromCard`).
 
-⚠️ **Limiti dichiarati**: il caso peggiore delle righe che vanno a capo non è misurato (`TenantsFitTheirBands` conta
-ogni riga su una riga sola), e che Slate consegni la rotella e il tasto sinistro al pannello prima del gioco non si
-misura in headless. Il fatto resta di `PIE-HUD-SCHEDA`, che il verdetto d'autore non ha ancora giudicato.
+### La barra delle skill di chi è a fuoco e non si comanda (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Dopo il click che fissa la scheda di un'unità **che non si comanda**, l'Action Dock mostra le skill di *quell'unità*,
+in **sola lettura**, finché non si riseleziona una propria unità (spec dell'ispettore §3 regole 7, 13 e 14). Il soggetto è
+`ARTPlayerController::GetDockUnit()`, derivato da `IsDockReadOnly()`: l'unità fissata se è viva, osservata e non
+comandata, altrimenti la selezione. La barra non porta **né il piano, né le ricariche vere, né l'azione armata, né i
+tasti**: le righe sono di `URTHudViewModel::BuildPublicBar`, dal solo catalogo, e ogni slot con un'azione si legge
+«disponibile», cioè *niente stato*, non *pronta*. In sola lettura `GetArmedActionIndex()` vale `INDEX_NONE`, il
+movimento è non autorizzato e nessuna riga porta il rifiuto sotto il puntatore.
+
+* **Torna alla selezione** con `RMB` (passo `Inspector`), con un click su una propria unità — anche quella già
+  selezionata —, con `N` quando la sola unità comandabile è la selezionata, e quando il soggetto cade o esce di vista
+  (il dock applica il cancello `Live` a ogni lettura, mentre il controller dice «sola lettura»). Un nemico non osservato
+  non ha scheda **né barra**.
+* **Il piano non si scrive**: `ARTPlayerController::IsPlanningWriteBlocked()` ferma dichiarazione con `Invio`, click su
+  unità e su cella, armo da tasti, generiche e slot, `Sneak` e selettore del verso, e `WhyPlanningWriteIsBlocked()` nomina
+  l'unità mostrata e il rimedio nel log. Restano vivi selezione, ispezione, `RMB` e camera. Il rifiuto sta solo nel
+  controller: lo slot confronta per chi è stato costruito con il soggetto della barra e non ne ha uno suo.
+* **Passare su uno slot ne mostra la portata**, da `SetSkillHover` come per la barra propria. Per un nemico a fuoco
+  l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche senza selezione, e
+  non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.
+
+**Nessun `.uasset` nuovo**: il grafo di `WBP_RT_ActionDock` costruisce gli slot da `GetActionsInReadingOrder()` e
+`SetAction`, e `GetArmedActionIndex()` accende lo slot, quindi la barra cambia da sola; lo si è letto dalle stringhe
+dell'asset, non eseguito, e lo prova il giro in finestra (`PIE-HUD-SCHEDA`, criterio (i)).
+
+⚠️ **Limiti dichiarati**: il grafo del dock calcola la riga di stato (`UpdateTargetPrompt`) dalla selezione, quindi con
+la barra su un nemico può dire «Scegli un'azione» (non è un dato privato, ma invita a una scrittura che il controller
+rifiuta); non c'è un'etichetta «sola lettura», e il segnale è l'assenza dei tasti. Il caso peggiore delle righe che vanno
+a capo non è misurato: `TenantsFitTheirBands` accende una scheda piena di `MaxRighe` righe, ma una riga che va a capo non
+risulta più alta in quella misura. Il costo di `BuildPublicBar` a ogni tick del dock, e che Slate consegni la rotella e il
+tasto sinistro al pannello prima del gioco, non sono misurati. Il fatto resta di `PIE-HUD-SCHEDA`, che il verdetto
+d'autore non ha ancora giudicato sull'interfaccia di adesso.
 
 ---
 

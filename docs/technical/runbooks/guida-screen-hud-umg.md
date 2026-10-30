@@ -886,18 +886,55 @@ della classe C++. Senza `LinesBox` o senza `LineClass` la scheda non costruisce 
 
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
-| `LineText` | `TextBlock` | la riga di testo (kit, equipaggiamento, stati, ricariche dedotte, e i marcatori di taglio) |
+| `LineText` | `TextBlock` | la riga di testo (nome, PV, stati, verso, equipaggiamento, ricariche dedotte, e i marcatori di taglio) |
 
-La riga di una skill porta la sua posizione di kit e chiede la portata al controller passandoci sopra col cursore
-(`SetSkillHover` / `ClearSkillHover`). ⚠️ Per vedere il cursore la riga deve essere `Visible`: lo imposta il C++ solo per
-le righe di una skill, e lascia le altre `SelfHitTestInvisible`, così i gesti arrivano al pannello che li consuma.
+Una riga è **testo e basta**: il C++ la imposta `SelfHitTestInvisible`, così i gesti arrivano al pannello che li consuma, e
+non ha hover né una posizione di kit. ⌫ *Fino al 2026-10-30 la riga di una skill portava la sua posizione di kit e chiedeva
+la portata al controller passandoci sopra col cursore (`SetSkillHover` / `ClearSkillHover`), e per vedere il cursore era
+`Visible`*: il kit non è più sulla scheda. Lo mostra la barra, e la portata all'hover la chiede lo slot (qui sotto).
 
 ⛔ **Il pannello consuma il tasto sinistro e la rotella, non il destro**: non va messo nel WBP un widget che consumi
 anche quello, perché il destro è il passo `Inspector` del Back e deve chiudere la scheda col cursore sopra.
 
 Lo misurano `ScreenHud.InspectCardWearsItsLineClass`, `ScreenHud.MiddleRightStackKeepsTheLogUnderTheCard`, la tabella delle porte
-di `ScreenHud.ActionBarDeclaresTheNamedPorts` e `ScreenHud.TenantsFitTheirBands`, che accende la scheda con la più lunga
-che lo scenario sa comporre.
+di `ScreenHud.ActionBarDeclaresTheNamedPorts` e `ScreenHud.TenantsFitTheirBands`, che accende la scheda piena che lo scenario
+sa comporre (nome, stati, equipaggiamento, ricariche dedotte: `MaxRighe` righe). ⚠️ Il gate **non vede le righe che vanno a
+capo**: con righe di una parola la misura è la stessa, e l'altezza di una scheda con righe a capo si guarda in PIE
+(`PIE-HUD-SCHEDA`).
+
+### La barra delle skill con un soggetto in sola lettura: `WBP_RT_ActionDock` e `WBP_RT_ActionSlot` (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
+
+⛔ **Nessun authoring**: non c'è un `.uasset` nuovo né una porta nuova nel dock. Quando si clicca un'unità che non si comanda,
+la barra mostra le skill di quell'unità **da sola**, perché i due widget leggono già le funzioni che ora seguono il
+soggetto della barra. Lo si è letto dalle stringhe dei due asset (`WBP_RT_ActionDock` chiama `GetActionsInReadingOrder`,
+`GetArmedActionIndex`, `GetIconCatalog` e `SetAction` sugli slot; `WBP_RT_ActionSlot` chiama `Activate`, e `HoverBegin` e
+`HoverEnd` vengono dal C++ nativo), **non eseguito**: lo prova il giro in finestra. Se non fosse così si ferma e si dice,
+non si edita un asset da un worktree.
+
+| Chi | Che cosa legge, con la barra in sola lettura |
+|---|---|
+| `URTActionDockWidget::GetActionsInReadingOrder()` e `GetActions()` | `URTHudViewModel::BuildPublicBar(GetDockUnit())`: il catalogo e niente della partita. Il ramo si sceglie **prima** di costruire qualsiasi riga, e prima del ramo «nessuna unità comandata» |
+| `GetArmedActionIndex()` | `INDEX_NONE`: nessuno slot è acceso, e l'azione armata dell'unità propria non si è persa, la ritrova la barra propria |
+| `GetMovementReadout()` | la vista non autorizzata: il movimento è un piano, e quello di un'unità osservata è privato |
+| `URTActionSlotWidget` | `BuiltForUnit` è il soggetto della barra; `Activate()` e `HoverBegin()` lo confrontano con il soggetto di adesso. **Non ha un rifiuto suo**: a rifiutare l'armo è il controller (`IsPlanningWriteBlocked`), con la sua riga di log |
+
+Il soggetto lo decide `ARTPlayerController::GetDockUnit()` (e `IsDockReadOnly()`); il dock ci aggiunge il cancello `Live` a ogni
+lettura, solo mentre il controller dice «sola lettura». Lo slot non lo applica (non conosce il manager): lo scarto dura al più
+un fotogramma ed è sicuro. Una barra in sola lettura non porta **né tasti, né anello di ricarica, né stato, né azione
+armata**: se un widget disegna uno di questi quattro per un soggetto in sola lettura, è un difetto, e `BuildPublicBar` è il
+posto dove guardare.
+
+⚠️ **Buco dichiarato**: `UpdateTargetPrompt`, una funzione del grafo del dock, calcola la riga di stato da
+`GetPointerContext()` e `GetPointerTargetKind()` del controller, che seguono la **selezione**. Con la barra su un nemico la
+riga può dire «Scegli un'azione», e invita a una scrittura che il controller rifiuta. Non è un dato privato. Il rimedio è
+authoring del grafo nel clone principale (tacere la riga a barra in sola lettura: oggi nessuna funzione del C++ lo espone al
+grafo) o una modifica a `GetPointerContext`, e non è fatto. Non c'è nemmeno un'etichetta «sola lettura»: il segnale è
+l'assenza dei tasti sugli slot, e il giudizio è dell'autore.
+
+Lo misurano `ScreenHud.DockShowsTheBarOfAReadOnlySubject`, `ScreenHud.AReadOnlySlotNeitherArmsNorHoversTheWrongUnit`,
+`ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead`, `HexMatch.TheSlotHoverOfAReadOnlyBarShowsTheRangeFromTheViewCell`,
+`HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch` e, per il blocco del piano,
+`PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan`.
 
 ## 8. Verifica
 
