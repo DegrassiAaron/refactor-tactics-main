@@ -905,8 +905,8 @@ capo**: con righe di una parola la misura è la stessa, e l'altezza di una sched
 ### La barra delle skill con un soggetto in sola lettura: `WBP_RT_ActionDock` e `WBP_RT_ActionSlot` (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
 
 ⛔ **Nessun authoring**: non c'è un `.uasset` nuovo né una porta nuova nel dock. Quando si clicca un'unità che non si comanda,
-la barra mostra le skill di quell'unità **da sola**, perché i due widget leggono già le funzioni che ora seguono il
-soggetto della barra. Lo si è letto dalle stringhe dei due asset (`WBP_RT_ActionDock` chiama `GetActionsInReadingOrder`,
+la barra mostra le skill di quell'unità **da sola**, perché dock e slot leggono già le funzioni che ora seguono il
+soggetto della barra. Lo si è letto dalle stringhe degli asset (`WBP_RT_ActionDock` chiama `GetActionsInReadingOrder`,
 `GetArmedActionIndex`, `GetIconCatalog` e `SetAction` sugli slot; `WBP_RT_ActionSlot` chiama `Activate`, e `HoverBegin` e
 `HoverEnd` vengono dal C++ nativo), **non eseguito**: lo prova il giro in finestra. Se non fosse così si ferma e si dice,
 non si edita un asset da un worktree.
@@ -921,7 +921,7 @@ non si edita un asset da un worktree.
 Il soggetto lo decide `ARTPlayerController::GetDockUnit()` (e `IsDockReadOnly()`); il dock ci aggiunge il cancello `Live` a ogni
 lettura, solo mentre il controller dice «sola lettura». Lo slot non lo applica (non conosce il manager): lo scarto dura al più
 un fotogramma ed è sicuro. Una barra in sola lettura non porta **né tasti, né anello di ricarica, né stato, né azione
-armata**: se un widget disegna uno di questi quattro per un soggetto in sola lettura, è un difetto, e `BuildPublicBar` è il
+armata**: se un widget disegna una di queste cose per un soggetto in sola lettura, è un difetto, e `BuildPublicBar` è il
 posto dove guardare.
 
 ⚠️ **Buco dichiarato**: `UpdateTargetPrompt`, una funzione del grafo del dock, calcola la riga di stato da
