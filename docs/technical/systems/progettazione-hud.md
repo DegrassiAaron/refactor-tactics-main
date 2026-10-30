@@ -1251,8 +1251,10 @@ com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la
 
 Dopo il click che fissa la scheda di un'unità **che non si comanda**, l'Action Dock mostra le skill di *quell'unità*,
 in **sola lettura**, finché non si riseleziona una propria unità (spec dell'ispettore §3 regole 7, 13 e 14). Il soggetto è
-`ARTPlayerController::GetDockUnit()`, derivato da `IsDockReadOnly()`: l'unità fissata se è viva, osservata e non
-comandata, altrimenti la selezione. La barra non porta **né il piano, né le ricariche vere, né l'azione armata, né i
+`ARTPlayerController::GetDockUnit()`, derivato da `IsDockReadOnly()`: l'unità fissata se è viva e non comandata,
+altrimenti la selezione. **Quel predicato non è un cancello `Live`** (il suo header lo dice): il cancello lo applica il
+dock a ogni lettura, con `URTScreenHudWidgetBase::GetDockUnit()` e `IsDockReadOnly()`, e senza una voce `Live` per il
+soggetto la barra mostrata è la selezione. La barra non porta **né il piano, né le ricariche vere, né l'azione armata, né i
 tasti**: le righe sono di `URTHudViewModel::BuildPublicBar`, dal solo catalogo, e ogni slot con un'azione si legge
 «disponibile», cioè *niente stato*, non *pronta*. In sola lettura `GetArmedActionIndex()` vale `INDEX_NONE`, il
 movimento è non autorizzato e nessuna riga porta il rifiuto sotto il puntatore.
@@ -1262,9 +1264,11 @@ movimento è non autorizzato e nessuna riga porta il rifiuto sotto il puntatore.
   (il dock applica il cancello `Live` a ogni lettura, mentre il controller dice «sola lettura»). Un nemico non osservato
   non ha scheda **né barra**.
 * **Il piano non si scrive**: `ARTPlayerController::IsPlanningWriteBlocked()` ferma dichiarazione con `Invio`, click su
-  unità e su cella, armo da tasti, generiche e slot, `Sneak` e selettore del verso, e `WhyPlanningWriteIsBlocked()` nomina
-  l'unità mostrata e il rimedio nel log. Restano vivi selezione, ispezione, `RMB` e camera. Il rifiuto sta solo nel
-  controller: lo slot confronta per chi è stato costruito con il soggetto della barra e non ne ha uno suo.
+  unità, armo da tasti, generiche e slot, `Sneak` e selettore del verso, e `WhyPlanningWriteIsBlocked()` nomina
+  l'unità mostrata e il rimedio nel log. Il click su una cella tiene le due cause separate (`IsWorldReadOnly()` in cima,
+  muto, e `IsDockReadOnly()` più sotto, dopo il ramo D-528 che ispeziona). Restano vivi selezione, ispezione, `RMB` e
+  camera. Il rifiuto sta solo nel controller: lo slot confronta per chi è stato costruito con il soggetto della barra e
+  non ne ha uno suo. `Conferma` è spento mentre la barra è in sola lettura (`Invio` resta bloccato dal controller).
 * **Passare su uno slot ne mostra la portata**, da `SetSkillHover` come per la barra propria. Per un nemico a fuoco
   l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche senza selezione, e
   non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.

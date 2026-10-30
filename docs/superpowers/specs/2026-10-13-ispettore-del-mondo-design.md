@@ -285,8 +285,11 @@ Regole:
     autobattle, spettatore — l'ispettore è inerte (R14): lì «comandata» e «non comandata» non esistono, e questa
     spec non le inventa.
 13. ➕ rev3. **Il soggetto della barra è derivato, e finisce con il gesto che dice «torna alla mia unità».** È
-    l'unità fissata dall'ultima ispezione **se** è viva, ha una voce `Live` nella vista di conoscenza e non si
-    comanda; altrimenti è la selezione. L'ispezione che lo porta sulla barra è `LMB` con esito `Inspect` e, per lo
+    l'unità fissata dall'ultima ispezione **se** è viva e non si comanda (`ARTPlayerController::GetDockUnit` e
+    `IsDockReadOnly`, il cui header dice che **non** sono un cancello `Live`); altrimenti è la selezione. Il dock la
+    mostra solo se ha anche una voce `Live` nella vista di conoscenza, e lo verifica a ogni lettura
+    (`URTScreenHudWidgetBase::GetDockUnit` e `IsDockReadOnly`): senza, la barra mostrata è la selezione. L'ispezione
+    che lo porta sulla barra è `LMB` con esito `Inspect` e, per lo
     stesso gesto, il click sul pavimento dell'esagono del bersaglio di una carica già pianificata
     ([D-528](../../decisions/RT_PDR_00_Decision_Log.md)). Lo riportano alla selezione: ogni `SelectUnit`, **anche
     sull'unità già selezionata** (il click sulla propria unità non cambia la selezione e non chiude la scheda, ma
@@ -298,8 +301,11 @@ Regole:
     hanno dichiarato) `N` non riporta la barra; restano il click e `RMB`.
 14. ➕ rev3. **Con la barra in sola lettura il piano non si scrive, e il log dice perché.** Un solo predicato,
     `IsPlanningWriteBlocked` (mondo in sola lettura **o** barra in sola lettura, [D-468](../../decisions/RT_PDR_00_Decision_Log.md)),
-    guarda i punti che scrivono il piano: la dichiarazione con `Invio`, il click su un'unità e su una cella, l'armo
-    da tasti, generiche e slot, `Sneak` (`M`) e il selettore del verso (apertura, scelta, hover). Restano vivi
+    guarda i punti che scrivono il piano: la dichiarazione con `Invio`, il click su un'unità, l'armo da tasti,
+    generiche e slot, `Sneak` (`M`) e il selettore del verso (apertura, scelta, hover). **Il click su una cella è
+    l'eccezione, e per costruzione**: per lasciar vivo il click D-528 sul pavimento che ispeziona tiene le due cause
+    separate, `IsWorldReadOnly()` in cima (muto, com'era) e `IsDockReadOnly()` più sotto, dopo il ramo che ispeziona,
+    con la sua riga di log. Restano vivi
     selezione, ispezione — compreso il click D-528 sul pavimento —, `RMB` e camera. La causa della barra nomina
     l'unità mostrata e il rimedio (chiudere la scheda con il tasto destro o selezionare una propria unità); con le
     due cause insieme dice quella del mondo. Il rifiuto sta nel controller, in un posto solo: lo slot confronta per
