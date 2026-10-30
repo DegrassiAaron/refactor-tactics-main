@@ -726,6 +726,23 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 	return Subject;
 }
 
+FRTInspectView ARTHUD::BuildInspectCard(const ARTTurnManager* TurnManager, const ARTUnit* Unit,
+	const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
+{
+	if (TurnManager == nullptr || Unit == nullptr)
+	{
+		return FRTInspectView();
+	}
+	// Il cancello prima del soggetto: un nemico senza voce `Live` non ha scheda, e il suo attore non si legge.
+	const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TurnManager, Units, PlayerTeamId);
+	if (!URTInspectLibrary::IsInspectable(View, Unit->StableUnitId))
+	{
+		return FRTInspectView();
+	}
+	return URTInspectLibrary::Compose(
+		BuildInspectSubject(Unit, PlayerTeamId, !TurnManager->IsResolving(), &TurnManager->GetSeenUses()));
+}
+
 FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)
 {
 	FRTGlanceUnitSubject Subject;

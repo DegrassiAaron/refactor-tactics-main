@@ -675,6 +675,19 @@ public:
 	 */
 	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
 		const FRTSeenUseLedger* SeenUses = nullptr);
+
+	/**
+	 * LA SCHEDA di un'unita' ispezionata, gia' composta (#3748): il pannello la chiede e la disegna, non ricalcola.
+	 *
+	 * 🔑 **Il cancello viene PRIMA del soggetto.** La vista e' quella del velo (`BuildObserverKnowledgeView`) e il cancello e' una
+	 * voce `Live` (P2): se non c'e', l'attore del nemico non viene nemmeno letto e la scheda e' vuota, uguale a quella di una cella
+	 * vuota. Senza manager o senza unita' e' vuota allo stesso modo. Il verso segue la targa (`!IsResolving()`, P12) e le ricariche
+	 * dedotte vengono dal registro di quella squadra.
+	 *
+	 * @param Units  le unita' in campo, da cui si costruisce la vista di conoscenza (ordine stabile, come nel resto dell'HUD).
+	 */
+	static FRTInspectView BuildInspectCard(const class ARTTurnManager* TurnManager, const class ARTUnit* Unit,
+		const TArray<class ARTUnit*>& Units, int32 PlayerTeamId);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 
 	/**
