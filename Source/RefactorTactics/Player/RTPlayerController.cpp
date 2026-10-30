@@ -2302,6 +2302,11 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// il giocatore, non impostando `SelectedActor` di nascosto. Il primo tentativo passava da
 	// `HandleClickOnUnit`, che NON seleziona — presuppone una selezione e tratta l'argomento come BERSAGLIO —
 	// quindi usciva subito senza fare nulla, e a schermo non compariva niente.
+	//
+	// 🔴 **La barra torna alla selezione QUI, come prima istruzione e PRIMA dell'uscita sotto** (`#3748`): il click sull'unita' propria
+	// gia' selezionata non cambia la selezione e esce subito, ma e' il gesto con cui si dice «torna alla mia unita'». Con questa riga sotto
+	// l'uscita la barra resterebbe sul nemico fissato, perche' il click non chiude la scheda.
+	bDockFollowsInspection = false;
 	if (Actor == SelectedActor.Get())
 	{
 		return;
@@ -2529,9 +2534,7 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// legge — e la fissazione dura al piu' fino al tick dell'HUD: `ReleaseInspectionUnlessLive` la rilascia.
 	//
 	// @return vero se il click e' stato consumato: chi chiama esce.
-	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
-		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
-		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	const bool bClickedCommandable = IsUnitCommandedByThisPlayer(ClickedUnit);
 	// [D-516] / [D-528]: «questa carica punta quel nemico?» ha una sede sola, `ArmedChargeTargets`, che l'hover legge uguale.
 	const bool bArmedChargeTargetsClicked = ArmedChargeTargets(SelectedUnit, ClickedUnit);
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
@@ -3547,6 +3550,29 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 ARTUnit* ARTPlayerController::GetInspectedUnit() const
 {
 	return InspectedUnit.Get();
+}
+
+bool ARTPlayerController::IsUnitCommandedByThisPlayer(const ARTUnit* Unit) const
+{
+	return Unit != nullptr && URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup,
+		ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this), Unit->bIsBotControlled);
+}
+
+bool ARTPlayerController::IsDockReadOnly() const
+{
+	// 🔑 **Derivata**: nessun campo dice «la barra e' in sola lettura». `InspectedUnit` e' debole (`#2988`), quindi un'unita' distrutta
+	// risponde nulla, e `IsAlive()` copre l'attore ancora in campo ma caduto — la scheda lo rilascia al tick dell'HUD, la barra non aspetta.
+	const ARTUnit* Subject = InspectedUnit.Get();
+	return bDockFollowsInspection
+		&& bInspectorPinned
+		&& Subject != nullptr
+		&& Subject->IsAlive()
+		&& !IsUnitCommandedByThisPlayer(Subject);
+}
+
+const ARTUnit* ARTPlayerController::GetDockUnit() const
+{
+	return IsDockReadOnly() ? InspectedUnit.Get() : GetSelectedUnit();
 }
 
 FString ARTPlayerController::DisarmPlannedAction()
@@ -5099,6 +5125,10 @@ void ARTPlayerController::PinInspection(ARTUnit* Unit)
 	if (Unit != nullptr)
 	{
 		++InspectionPinSerial;
+		// #3748: l'ultimo click su un'unita' e' stato una fissazione, e la barra la segue se non e' un'unita' che si comanda
+		// (`IsDockReadOnly`). Lo accendono entrambi i click di produzione — l'esito `Inspect` e il bersaglio della carica pianificata —
+		// perche' passano tutti di qui; lo spegne il primo `SelectUnit`.
+		bDockFollowsInspection = true;
 	}
 }
 

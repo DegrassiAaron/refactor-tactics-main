@@ -27,6 +27,7 @@
 #include "Ability/RTMovementProfileLibrary.h" // ProfileSneak: `Sneak` durante il playback non si dichiara (#3510)
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"      // `#3748`: TeamIdOf / ControlGroupOf, per misurare chi il giocatore comanda
 #include "UI/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Tests/RTLockInCommittedProbeForTest.h"
 #include "Map/RTOverlayPalette.h" // `#3511`: AllMeanings, l'oracolo del reset
@@ -5759,6 +5760,157 @@ bool FRTSkillHoverFromTheCardRememberedEnemyTest::RunTest(const FString&)
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
 	B.PC->UpdatePlanningOverlay();
 	TestTrue(TEXT("controllo positivo: visto di nuovo (`Live`), la stessa riga mostra la portata"), HvShownSkillCells(B.HexMap).Num() > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3748` — IL SOGGETTO DELLA BARRA: l'ultima unita' cliccata, se non si comanda.
+//
+// Decisione d'autore del 2026-10-30: la barra delle skill mostra le skill dell'unita' selezionata, anche quando e' un nemico; in
+// sola lettura. Qui si prova SOLO la domanda del controller («di chi e' il kit che la barra mostra?»): `GetDockUnit` e
+// `IsDockReadOnly`. Che la barra del soggetto in sola lettura non porti niente di privato e' di `BuildPublicBar`; che i gesti di
+// pianificazione si fermino e' dei Task che seguono.
+// =====================================================================================================
+
+/**
+ * **`#3748` — la barra segue l'ULTIMO click su un'unita' che non si comanda, e torna alla selezione al primo gesto che la riguarda.**
+ *
+ * La prima propria del banco (`B.Mine`) e' selezionata; un nemico e' `Live`; l'altra propria (`Ally`) e' comandabile e non selezionata. Il
+ * soggetto e' un fatto del controller, non dell'HUD, e **si legge senza HUD**: il banco non ha un dock da guardare.
+ *
+ * 🔴 **(c) e' il caso che il piano chiama con il suo nome** (Review Focus 1): il click sull'unita' propria GIA' selezionata. `SelectUnit`
+ * esce subito se l'attore non cambia, e se lo spegnimento stesse sotto quell'uscita la barra resterebbe sul nemico per sempre.
+ *
+ * ⚠️ **(e) e (j) provano due guardie che nessun cammino di produzione separa** — fissare un'unita' propria non e' un'ispezione di
+ * un'altra, e il pin spento da solo non lascia la barra su una scheda che non c'e' — e perche' (j) cada serve il setter pubblico, perche'
+ * `ApplyBack` e `ReleaseInspectionUnlessLive` azzerano soggetto e pin insieme.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDockSubjectFollowsTheLastClickTest,
+	"RefactorTactics.HexMatch.TheDockFollowsTheLastClickOnAnUnitThatIsNotCommanded",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDockSubjectFollowsTheLastClickTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	ARTUnit* Ally = FwOtherOwn(B.World, B.Mine);
+	// Il banco ha UN solo nemico: il secondo (caso (h)) si fa nascere, vicino al primo e dentro la mappa.
+	ARTUnit* OtherEnemy = SpawnHexMatchUnit(B.World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -2));
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy) || !TestNotNull(TEXT("premessa: un secondo nemico"), OtherEnemy)
+		|| !TestNotNull(TEXT("premessa: un'altra unita' propria"), Ally))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La premessa di ogni caso si MISURA: chi e' comandabile lo dice la regola di produzione, non il nome del banco. Senza, un banco in
+	// cui il «nemico» fosse comandabile renderebbe verdi i casi (b) e (h) per la ragione sbagliata.
+	const int32 MyTeam = ARTPlayerState::TeamIdOf(B.PC);
+	const int32 MyGroup = ARTPlayerState::ControlGroupOf(B.PC);
+	const auto Commands = [&](const ARTUnit* Unit)
+	{
+		return URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup, MyTeam, MyGroup, Unit->bIsBotControlled);
+	};
+	if (!TestTrue(TEXT("premessa: la selezione e l'altra propria si comandano; i due nemici no"),
+		Commands(B.Mine) && Commands(Ally) && !Commands(Enemy) && !Commands(OtherEnemy))
+		|| !TestTrue(TEXT("premessa: la selezione e' `B.Mine` e il nemico e' vivo"), B.PC->GetSelectedUnit() == B.Mine && Enemy->IsAlive()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La vista di chi guarda, quella da cui decide il cancello `Live` (`ReleaseInspectionUnlessLive`): una voce `Live` per il nemico.
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(B.World); It; ++It) { Units.Add(*It); }
+	const FRTKnowledgeView LiveView = URTHudViewModel::BuildObserverKnowledgeView(B.TM, Units, /*PlayerTeamId=*/ 0);
+	const FRTKnowledgeEntry* EnemyEntry = URTKnowledgeViewLibrary::FindEntry(LiveView, Enemy->StableUnitId);
+	if (!TestTrue(TEXT("premessa: il nemico ha una voce `Live` nella vista"),
+		EnemyEntry != nullptr && EnemyEntry->Visibility == ERTKnowledgeVisibility::Live))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Il soggetto e il suo stato di sola lettura, con il nome dei due nel messaggio: un rosso deve dire chi guarda la barra.
+	const auto ExpectDock = [&](const TCHAR* Case, const ARTUnit* Expected, bool bReadOnly)
+	{
+		const ARTUnit* Dock = B.PC->GetDockUnit();
+		TestTrue(*FString::Printf(TEXT("%s: la barra dovrebbe essere di %s, ed e' di %s"), Case,
+			Expected ? *Expected->GetName() : TEXT("nessuno"), Dock ? *Dock->GetName() : TEXT("nessuno")), Dock == Expected);
+		TestTrue(*FString::Printf(TEXT("%s: la sola lettura dovrebbe essere %s"), Case, bReadOnly ? TEXT("accesa") : TEXT("spenta")),
+			B.PC->IsDockReadOnly() == bReadOnly);
+	};
+
+	// (a) Senza fissazione la barra e' della selezione.
+	ExpectDock(TEXT("(a) senza fissazione"), B.Mine, /*bReadOnly=*/ false);
+
+	// (b) Il click su un nemico lo fissa: la barra e' sua, in sola lettura, e la selezione non si e' mossa.
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(b) nemico fissato"), Enemy, /*bReadOnly=*/ true);
+	TestTrue(TEXT("(b) la selezione non si e' mossa"), B.PC->GetSelectedUnit() == B.Mine);
+
+	// (c) 🔴 Il click sull'unita' propria GIA' selezionata: la barra torna alla selezione, e la scheda resta.
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	ExpectDock(TEXT("(c) click sull'unita' gia' selezionata"), B.Mine, /*bReadOnly=*/ false);
+	TestTrue(TEXT("(c) la scheda resta fissata sul nemico"), B.PC->IsInspectorPinned() && B.PC->GetInspectedUnit() == Enemy);
+
+	// (c2) Anche selezionare un'ALTRA unita' propria la riporta (il ciclo `N` passa di qui): lo spegnimento non e' solo nell'uscita anticipata.
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(c2) premessa: di nuovo sul nemico"), Enemy, /*bReadOnly=*/ true);
+	B.PC->SelectUnit(Ally, /*bRecordAsPlayerInput=*/ false);
+	ExpectDock(TEXT("(c2) selezionata un'altra propria"), Ally, /*bReadOnly=*/ false);
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+
+	// (d) Il tasto destro (passo `Inspector` del Back) chiude la scheda, e con lei la sola lettura.
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(d) premessa: di nuovo sul nemico"), Enemy, /*bReadOnly=*/ true);
+	TestTrue(TEXT("(d) il Back e' il passo `Inspector`"), B.PC->ApplyBack() == ERTPointerBackStep::Inspector);
+	ExpectDock(TEXT("(d) dopo il Back"), B.Mine, /*bReadOnly=*/ false);
+
+	// (e) Fissare un'unita' PROPRIA (comandabile) non e' un'ispezione di un'altra: la barra resta della selezione.
+	B.PC->PinInspectionForTest(Ally);
+	TestTrue(TEXT("(e) premessa: la scheda e' fissata sull'altra propria"), B.PC->IsInspectorPinned() && B.PC->GetInspectedUnit() == Ally);
+	ExpectDock(TEXT("(e) un'unita' propria fissata"), B.Mine, /*bReadOnly=*/ false);
+
+	// (f) Il nemico fissato cade: la barra torna alla selezione, anche se la fissazione c'e' ancora (la rilascia il tick dell'HUD).
+	const int32 EnemyHealth = Enemy->Health;
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(f) premessa: di nuovo sul nemico"), Enemy, /*bReadOnly=*/ true);
+	Enemy->Health = 0;
+	TestTrue(TEXT("(f) premessa: il nemico e' caduto, la fissazione no"), !Enemy->IsAlive() && B.PC->GetInspectedUnit() == Enemy);
+	ExpectDock(TEXT("(f) il nemico fissato e' caduto"), B.Mine, /*bReadOnly=*/ false);
+	Enemy->Health = EnemyHealth;
+	ExpectDock(TEXT("(f) controllo positivo: lo stesso nemico, vivo, tiene la barra"), Enemy, /*bReadOnly=*/ true);
+
+	// (g) La scheda segue la conoscenza: una vista senza la voce del nemico la rilascia, e la barra torna. Con la voce `Live` no.
+	TestFalse(TEXT("(g) controllo positivo: con la voce `Live` il rilascio non scatta"), B.PC->ReleaseInspectionUnlessLive(LiveView));
+	ExpectDock(TEXT("(g) con la voce `Live`"), Enemy, /*bReadOnly=*/ true);
+	TestTrue(TEXT("(g) senza la voce del nemico il rilascio scatta"), B.PC->ReleaseInspectionUnlessLive(FRTKnowledgeView()));
+	ExpectDock(TEXT("(g) senza la voce del nemico"), B.Mine, /*bReadOnly=*/ false);
+
+	// (h) Due nemici in fila: la barra e' dell'ultimo (Review Focus 5).
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(h) il primo nemico"), Enemy, /*bReadOnly=*/ true);
+	B.PC->PinInspectionForTest(OtherEnemy);
+	ExpectDock(TEXT("(h) il secondo nemico"), OtherEnemy, /*bReadOnly=*/ true);
+
+	// (i) Il click VERO su un nemico (`DispatchUnitClick`, l'esito `Inspect`) fissa la barra come la fissa il seam: passa dalla stessa `PinInspection`.
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	ExpectDock(TEXT("(i) premessa: tornata alla selezione"), B.Mine, /*bReadOnly=*/ false);
+	TestTrue(TEXT("(i) il click su un nemico e' consumato"), B.PC->DispatchUnitClickForTest(Enemy, B.Mine));
+	ExpectDock(TEXT("(i) dopo il click vero sul nemico"), Enemy, /*bReadOnly=*/ true);
+
+	// (j) Il pin spento DA SOLO (nessun cammino di produzione lo fa, ma il setter e' pubblico): la barra non resta su una scheda che non e' fissata.
+	TestTrue(TEXT("(j) premessa: soggetto e pin sul nemico"), B.PC->IsInspectorPinned() && B.PC->GetInspectedUnit() == Enemy);
+	B.PC->SetInspectorPinned(false);
+	TestTrue(TEXT("(j) premessa: il soggetto c'e' ancora"), B.PC->GetInspectedUnit() == Enemy);
+	ExpectDock(TEXT("(j) pin spento, soggetto ancora li'"), B.Mine, /*bReadOnly=*/ false);
+	B.PC->SetInspectorPinned(true);
+	ExpectDock(TEXT("(j) controllo positivo: pin riacceso"), Enemy, /*bReadOnly=*/ true);
 
 	DestroyHexMatchWorld(B.World);
 	return true;

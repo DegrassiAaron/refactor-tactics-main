@@ -1116,6 +1116,33 @@ public:
 	class ARTUnit* GetInspectedUnit() const;
 
 	/**
+	 * **Di CHI e' il kit che la barra delle skill mostra** (`#3748`, decisione d'autore del 2026-10-30): l'unita' ispezionata e fissata se
+	 * non la si comanda e l'ultimo click su un'unita' l'ha fissata (`IsDockReadOnly`); altrimenti la selezione.
+	 *
+	 * ⚠️ **Puo' essere un NEMICO**, ed e' il punto: il kit di un'unita' osservata e' pubblico (decisione d'autore del 2026-10-20), il resto no.
+	 * ⛔ **Chi la legge per costruire le righe della barra deve leggere il CATALOGO** (`URTHudViewModel::BuildPublicBar`), mai
+	 * `BuildAbilityCooldowns`: quella mescola catalogo e partita — ricariche vere, piano, azione armata — e puntata su un'avversaria li
+	 * mostrerebbe a chi guarda. Il discrimine fra le due letture e' `IsDockReadOnly()`.
+	 *
+	 * 🔑 **Non e' `GetSelectedUnit()`, che resta il soggetto del PIANO** (slot, azione armata, tasti): cliccare un nemico non sposta la
+	 * selezione e non fa perdere l'azione armata. E il puntatore e' `const`: la barra di un soggetto in sola lettura non scrive niente su di lui.
+	 */
+	const class ARTUnit* GetDockUnit() const;
+
+	/**
+	 * La barra mostra un'unita' che NON si comanda, e quindi non scrive niente: ne' tasti, ne' armare, ne' piano (`#3748`).
+	 *
+	 * 🔑 **E' DERIVATA, non un secondo stato**: vale quando l'ultimo click su un'unita' e' stato una fissazione (`bDockFollowsInspection`),
+	 * la scheda e' fissata, il soggetto e' vivo e il giocatore non lo comanda. Soggetto e pin hanno gia' chi li azzera — il tasto destro
+	 * (passo `Inspector` del Back), il rilascio alla perdita della conoscenza (`ReleaseInspectionUnlessLive`), la caduta — e con loro la sola
+	 * lettura finisce senza che nessuno debba spegnerla.
+	 *
+	 * ⚠️ **Un'unita' propria fissata non la accende**: il compagno si comanda, e se se ne vuole il kit si seleziona. Fissarlo non sposta la
+	 * barra dalla selezione.
+	 */
+	bool IsDockReadOnly() const;
+
+	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
 	 *
 	 * Separata dal raycast (`OnSelect` fa solo punto-mondo -> cella) perche' la decisione e' verificabile
@@ -1764,6 +1791,28 @@ public:
 private:
 
 	bool bPhaseFocusPinned = false;
+
+	/**
+	 * «L'ultimo click su un'unita' e' stato una fissazione» (`#3748`): si accende in `PinInspection` per un'unita' vera e si spegne al primo
+	 * `SelectUnit`. Da solo non dice niente — la barra e' in sola lettura solo se anche scheda e soggetto la tengono (`IsDockReadOnly`).
+	 *
+	 * 🔴 **Si spegne come PRIMA istruzione di `SelectUnit`, PRIMA dell'uscita per `Actor == SelectedActor`**, ed e' il punto: cliccare l'unita'
+	 * propria gia' selezionata non cambia la selezione e `SelectUnit` esce subito, ma e' il gesto con cui si dice «torna alla mia unita'». Con lo
+	 * spegnimento sotto quell'uscita la barra resterebbe sul nemico. Il click vero (`OnSelect`) passa da `SelectUnit` anche per l'unita' gia'
+	 * selezionata; il ciclo `N` solo se cambia unita' (con una sola comandabile esce prima, e non spegne).
+	 *
+	 * ⚠️ **Non lo spegne cio' che non passa da `SelectUnit`**: il click con `Ctrl` (un gesto di camera), il click che il selettore del verso
+	 * consuma prima della selezione (`TryHandleFacingClickUnderCursor`), `N` con una sola unita' comandabile. ⚠️ E non si azzera col soggetto:
+	 * `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente.
+	 */
+	bool bDockFollowsInspection = false;
+
+	/**
+	 * Il giocatore di questo controller comanda `Unit`? E' la domanda che fanno il click (`DispatchUnitClick`) e la barra (`IsDockReadOnly`), scritta
+	 * una volta per i due: la regola ha un solo produttore, `URTCombatLibrary::CanPlayerControlUnitInGroup`, e un click e una barra che la
+	 * rispondessero in due modi mostrerebbero in sola lettura un'unita' che il click ha appena selezionato. `nullptr` non si comanda.
+	 */
+	bool IsUnitCommandedByThisPlayer(const class ARTUnit* Unit) const;
 
 	/** Gli ingressi dell'ultimo calcolo delle aree di pianificazione (`#3511`), e se ce n'e' stato uno. */
 	FRTPlanningOverlayInputs LastPlanningOverlayInputs;
