@@ -5783,6 +5783,8 @@ bool FRTSkillHoverFromTheCardRememberedEnemyTest::RunTest(const FString&)
  * 🔴 **(c) e' il caso che il piano chiama con il suo nome** (Review Focus 1): il click sull'unita' propria GIA' selezionata. `SelectUnit`
  * esce subito se l'attore non cambia, e se lo spegnimento stesse sotto quell'uscita la barra resterebbe sul nemico per sempre.
  *
+ * 🔴 **(k) e' il gemello di (c) per `N`**: con una sola unita' comandabile il ciclo esce prima di `SelectUnit`, e lo spegnimento sta nell'uscita.
+ *
  * ⚠️ **(e) e (j) provano due guardie che nessun cammino di produzione separa** — fissare un'unita' propria non e' un'ispezione di
  * un'altra, e il pin spento da solo non lascia la barra su una scheda che non c'e' — e perche' (j) cada serve il setter pubblico, perche'
  * `ApplyBack` e `ReleaseInspectionUnlessLive` azzerano soggetto e pin insieme.
@@ -5911,6 +5913,25 @@ bool FRTDockSubjectFollowsTheLastClickTest::RunTest(const FString&)
 	ExpectDock(TEXT("(j) pin spento, soggetto ancora li'"), B.Mine, /*bReadOnly=*/ false);
 	B.PC->SetInspectorPinned(true);
 	ExpectDock(TEXT("(j) controllo positivo: pin riacceso"), Enemy, /*bReadOnly=*/ true);
+
+	// (k) 🔴 `N` con UNA sola unita' comandabile (l'altra ha dichiarato il piano e lascia il ciclo): `CycleSelection` esce prima di `SelectUnit`,
+	// perche' la risposta e' la selezione che c'e' gia'. «`N` = seleziona una mia unita'»: la barra torna alla selezione, e la scheda resta.
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("(k) premessa: l'altra propria dichiara il piano e lascia il ciclo"), Ally->SetTurnPlanDeclared(true) && Ally->bTurnPlanDeclared);
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(k) premessa: la barra e' sul nemico"), Enemy, /*bReadOnly=*/ true);
+	TestFalse(TEXT("(k) premessa: `N` non cambia unita' (una sola comandabile)"), B.PC->CycleSelectionForTest());
+	TestTrue(TEXT("(k) la selezione e' ancora quella di prima"), B.PC->GetSelectedUnit() == B.Mine);
+	ExpectDock(TEXT("(k) dopo `N` con una sola comandabile"), B.Mine, /*bReadOnly=*/ false);
+	TestTrue(TEXT("(k) la scheda resta fissata sul nemico"), B.PC->IsInspectorPinned() && B.PC->GetInspectedUnit() == Enemy);
+
+	// (k) controllo positivo: con due comandabili `N` cambia unita' (passa da `SelectUnit`), e la barra e' quella nuova.
+	TestTrue(TEXT("(k) premessa: l'altra propria ritratta e rientra nel ciclo"), Ally->SetTurnPlanDeclared(false) && !Ally->bTurnPlanDeclared);
+	B.PC->PinInspectionForTest(Enemy);
+	ExpectDock(TEXT("(k) premessa: di nuovo sul nemico"), Enemy, /*bReadOnly=*/ true);
+	TestTrue(TEXT("(k) con due comandabili `N` cambia unita'"), B.PC->CycleSelectionForTest());
+	ExpectDock(TEXT("(k) dopo `N` che cambia unita'"), B.PC->GetSelectedUnit(), /*bReadOnly=*/ false);
+	TestTrue(TEXT("(k) e la selezione e' l'altra propria"), B.PC->GetSelectedUnit() == Ally);
 
 	DestroyHexMatchWorld(B.World);
 	return true;

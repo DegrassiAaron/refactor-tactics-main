@@ -1704,6 +1704,10 @@ bool ARTPlayerController::CycleSelection()
 	ARTUnit* Scelta = Comandabili[Prossimo];
 	if (Scelta == Corrente)
 	{
+		// 🔴 **Qui la barra torna alla selezione, perche' l'uscita non passa da `SelectUnit`** (`#3748`): `N` vuol dire «seleziona
+		// una mia unita'», e con una sola comandabile la risposta e' quella che c'e' gia'. Senza questa riga la barra resterebbe sul nemico
+		// fissato, e `N` non farebbe niente proprio quando la regola dell'autore dice che si torna alla propria unita'. La scheda resta.
+		bDockFollowsInspection = false;
 		// Una sola unita' comandabile: il ciclo torna su se stesso, e non e' un fallimento da tacere.
 		UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
 		return false;

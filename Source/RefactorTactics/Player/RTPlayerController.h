@@ -1799,11 +1799,11 @@ private:
 	 * 🔴 **Si spegne come PRIMA istruzione di `SelectUnit`, PRIMA dell'uscita per `Actor == SelectedActor`**, ed e' il punto: cliccare l'unita'
 	 * propria gia' selezionata non cambia la selezione e `SelectUnit` esce subito, ma e' il gesto con cui si dice «torna alla mia unita'». Con lo
 	 * spegnimento sotto quell'uscita la barra resterebbe sul nemico. Il click vero (`OnSelect`) passa da `SelectUnit` anche per l'unita' gia'
-	 * selezionata; il ciclo `N` solo se cambia unita' (con una sola comandabile esce prima, e non spegne).
+	 * selezionata; il ciclo `N` con una sola comandabile esce prima di `SelectUnit` e lo spegne da se' (`CycleSelection`).
 	 *
-	 * ⚠️ **Non lo spegne cio' che non passa da `SelectUnit`**: il click con `Ctrl` (un gesto di camera), il click che il selettore del verso
-	 * consuma prima della selezione (`TryHandleFacingClickUnderCursor`), `N` con una sola unita' comandabile. ⚠️ E non si azzera col soggetto:
-	 * `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente.
+	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera) e il click che il selettore del verso consuma
+	 * prima della selezione (`TryHandleFacingClickUnderCursor`). ⚠️ E non si
+	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente.
 	 */
 	bool bDockFollowsInspection = false;
 
