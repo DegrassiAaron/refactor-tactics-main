@@ -1794,14 +1794,15 @@ private:
 
 	/**
 	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
-	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda), viva, se chiede un
-	 * bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da cui mira e' una cella che la squadra vede adesso.
-	 * Non tocca niente altrimenti.
+	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda) o di quella a FUOCO
+	 * (ispezionata e fissata, `#3748`), viva, se chiede un bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da
+	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di una riga della scheda scrive
+	 * anche `bSkillHoverFromCard`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
 	 *
-	 * 🔴 **L'origine e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con quello dell'azione
-	 * armata. Per l'unita' comandata e' un dato PROPRIO (il suo scatto pianificato). Il giorno in cui la scheda di un nemico a fuoco
-	 * avra' le sue skill, l'origine dovra' essere la cella della VOCE DELLA VISTA, mai il piano: questa porta non lo permette,
-	 * perche' accetta solo l'unita' comandata.
+	 * 🔴 **L'origine di un'unita' propria e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con
+	 * quello dell'azione armata: e' un dato PROPRIO (il suo scatto pianificato). **Per un nemico a fuoco e' la cella della VOCE DELLA
+	 * VISTA, mai il piano**: `AimOriginFor` leggerebbe lo scatto pianificato del nemico e la portata mostrerebbe da dove mirera'. Il
+	 * cancello e' quello del fuoco: una voce `Live` nella vista di chi guarda.
 	 */
 	void GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const;
 

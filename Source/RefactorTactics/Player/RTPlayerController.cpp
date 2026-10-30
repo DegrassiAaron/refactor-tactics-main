@@ -4815,10 +4815,17 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 {
 	const ARTUnit* SkillOwner = SkillHoverUnit.Get();
 	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(this);
-	// La barra e' di chi si comanda (spec §3 regola 7): la skill in hover dev'essere di QUELL'unita', viva e della squadra di chi
-	// guarda. Il confronto con `Unit` e' gia' del risolutore (che scarta l'hover di un'altra unita' prima di arrivare qui): qui e'
-	// la precondizione propria della funzione. Il cancello di squadra invece non ha altri guardiani.
-	if (SkillOwner == nullptr || SkillOwner != Unit || !SkillOwner->IsAlive() || SkillOwner->TeamId != ObserverTeamId)
+	if (SkillOwner == nullptr || !SkillOwner->IsAlive())
+	{
+		return;
+	}
+	// Di chi puo' essere la skill sotto il cursore (spec §3 regola 7): della BARRA, cioe' dell'unita' comandata e della squadra di chi
+	// guarda; o della SCHEDA (`#3748`), cioe' dell'unita' ispezionata e fissata, propria o nemica. Il confronto con `Unit` e' gia' del
+	// risolutore (che scarta l'hover di chi non e' ne' l'una ne' l'altra prima di arrivare qui): qui e' la precondizione propria della
+	// funzione. Il cancello di squadra e quello della fissazione non hanno altri guardiani.
+	const bool bCommanded = SkillOwner == Unit && SkillOwner->TeamId == ObserverTeamId;
+	const bool bFocused = bInspectorPinned && SkillOwner == InspectedUnit.Get();
+	if (!bCommanded && !bFocused)
 	{
 		return;
 	}
@@ -4834,8 +4841,33 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	{
 		return;
 	}
-	// Stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello dell'azione armata.
-	const FRTCellId Origin = OrigineDiMira(SkillOwner, *Ability);
+
+	FRTCellId Origin;
+	if (SkillOwner->TeamId == ObserverTeamId)
+	{
+		// Un'unita' propria: stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello
+		// dell'azione armata. Il suo scatto pianificato e' un dato PROPRIO.
+		Origin = OrigineDiMira(SkillOwner, *Ability);
+	}
+	else
+	{
+		// 🔴 **Un nemico a fuoco: la cella della VOCE DELLA VISTA, mai il piano** (P3, D-552). `AimOriginFor` leggerebbe lo scatto
+		// pianificato del nemico, e la portata mostrerebbe da dove mirera': il suo piano. Il cancello e' lo stesso del fuoco: una voce
+		// `Live` nella vista di chi guarda, e `ARTUnit::IsKnownToObserver()` non decide niente. La vista costa una ricerca di unita' a
+		// ogni tick, ma solo mentre il cursore e' su una riga della scheda.
+		TArray<ARTUnit*> Units;
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			Units.Add(*It);
+		}
+		const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
+		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, SkillOwner->StableUnitId);
+		if (Entry == nullptr || !URTInspectLibrary::IsInspectable(View, SkillOwner->StableUnitId))
+		{
+			return;
+		}
+		Origin = Entry->Cell;
+	}
 	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
 	// La precondizione di `URTRangeVerdictLibrary`: chi tira dev'essere su una cella che la squadra vede. Se non lo e' (uno
 	// scatto pianificato verso una cella mai vista), non c'e' una portata da mostrare e il piano resta com'e'.
@@ -4850,6 +4882,8 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	Inputs.SkillRange.MinRangeCells = Ability->Def.MinRangeCells;
 	Inputs.SkillRange.Policy = Ability->Def.LineOfSightPolicy;
 	Inputs.SkillKnowledgeStamp = VisibleCellsStamp(Visible);
+	// La barra (unita' comandata) e la scheda (unita' a fuoco) sono due produttori della stessa sorgente: l'arbitro li distingue da qui.
+	Inputs.bSkillHoverFromCard = !bCommanded;
 }
 
 void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const
@@ -4911,7 +4945,11 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 	// gesto di pianificazione, e quando finisce torna la sorgente di prima.
 	if (SkillHoverIndex != INDEX_NONE)
 	{
-		if (SkillHoverUnit.Get() != Unit)
+		// L'hover e' di chi si comanda (la barra) o di chi e' a fuoco (la scheda, `#3748`): chiusa la scheda, o fissata un'altra unita',
+		// l'hover di una riga che non c'e' piu' si scarta qui, senza aspettare l'uscita del cursore che Slate puo' non mandare.
+		const ARTUnit* HoverOwner = SkillHoverUnit.Get();
+		const bool bOwnedByCard = bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
+		if (HoverOwner != Unit && !bOwnedByCard)
 		{
 			// La selezione e' cambiata con il cursore fermo sulla barra (`N`). Se il dock ricostruisce gli slot con il kit dell'unita'
 			// nuova, Slate manda un ingresso al nuovo slot e `SetSkillHover` riscrive l'hover (visto in PIE il 2026-10-29, evidenza
@@ -4942,6 +4980,7 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 		Inputs.HoverSkillUnit = nullptr;
 		Inputs.SkillRange = FRTRangeSubject();
 		Inputs.SkillKnowledgeStamp = 0;
+		Inputs.bSkillHoverFromCard = false;
 	}
 	return Inputs;
 }

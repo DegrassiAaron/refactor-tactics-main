@@ -141,6 +141,16 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** Un'impronta di `VisibleCells`: la portata a tre stati dipende da cio' che la squadra vede adesso. */
 	uint32 SkillKnowledgeStamp = 0;
 
+	/**
+	 * La skill sotto il cursore e' quella della SCHEDA di chi e' a fuoco, non della barra (`#3748`, spec §3 regola 7): il proprietario
+	 * puo' non essere l'unita' comandata, e puo' non esserci nessuna selezione.
+	 *
+	 * ⛔ **Lo scrive il solo risolutore del controller, e solo quando il proprietario e' l'unita' ispezionata e fissata** e ha passato i
+	 * cancelli (viva, e per un nemico una voce `Live` nella vista di chi guarda). Senza questo flag la skill di un'altra unita' non tiene
+	 * la mappa da qui: l'arbitro non si apre con un `HoverSkillUnit` qualunque, come non si apriva prima della scheda.
+	 */
+	bool bSkillHoverFromCard = false;
+
 	bool operator==(const FRTPlanningOverlayInputs& Other) const;
 	bool operator!=(const FRTPlanningOverlayInputs& Other) const { return !(*this == Other); }
 
@@ -172,8 +182,19 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	 * SUA (`HoverSkillUnit == Unit`: la barra e' di chi si comanda), una portata positiva, e un contesto in cui le aree di
 	 * pianificazione si mostrano (`ShowsAreas()`): dove la barra e' attiva e il mondo e' scrivibile. In `Targeting` vale
 	 * anch'essa: sostituisce la portata dell'azione armata finche' il cursore e' sullo slot, e poi torna.
+	 *
+	 * ➕ `#3748`: vera anche per la skill di chi e' a fuoco, quando il risolutore l'ha ammessa (`bSkillHoverFromCard`), in un contesto
+	 * che lo consente (`ContextAllowsCardHover`) e a partita in corso. Non chiede un'unita' comandata: si ispeziona anche senza selezione.
 	 */
 	bool ShowsSkillHover() const;
+
+	/**
+	 * **L'hover su una riga della scheda puo' stare sulla mappa in questo contesto?** (`#3748`) Dove la scheda si vede e il mondo si
+	 * guarda per pianificare: `IdleSelection` (si ispeziona anche senza selezione) e i quattro contesti di pianificazione. Non in
+	 * `ResolutionPlayback`, dove le aree di pianificazione sono spente e il fuoco lo e' per scelta della sessione (da giudicare in PIE),
+	 * ne' in `ReactionWindow` e `Modal`, dove la scheda e' nascosta. Nessun `default:`, come le sorelle.
+	 */
+	static bool ContextAllowsCardHover(ERTPointerContext Context);
 
 	/**
 	 * **Il fuoco puo' stare sulla mappa in questo contesto?** Solo `IdleSelection` e `Planning`: il resto e' o un gesto di

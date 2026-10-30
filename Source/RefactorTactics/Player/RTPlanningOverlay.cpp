@@ -24,7 +24,8 @@ bool FRTPlanningOverlayInputs::SamePlanLevel(const FRTPlanningOverlayInputs& Oth
 		// Anche l'hover su una skill cambia COSA si calcola (la portata di una skill), non dove sta il cursore sulla mappa.
 		&& HoverSkillUnit == Other.HoverSkillUnit
 		&& SkillRange == Other.SkillRange
-		&& SkillKnowledgeStamp == Other.SkillKnowledgeStamp;
+		&& SkillKnowledgeStamp == Other.SkillKnowledgeStamp
+		&& bSkillHoverFromCard == Other.bSkillHoverFromCard;
 }
 
 bool FRTPlanningOverlayInputs::operator==(const FRTPlanningOverlayInputs& Other) const
@@ -112,11 +113,42 @@ bool FRTPlanningOverlayInputs::ShowsFocus() const
 	return FocusSubject.IsValid() && bFocusOnMap && !bMatchEnded && ContextAllowsFocus(Context);
 }
 
+bool FRTPlanningOverlayInputs::ContextAllowsCardHover(ERTPointerContext InContext)
+{
+	switch (InContext)
+	{
+	case ERTPointerContext::IdleSelection:
+	case ERTPointerContext::Planning:
+	case ERTPointerContext::Pathing:
+	case ERTPointerContext::Targeting:
+	case ERTPointerContext::Facing:
+		return true;
+
+	// Le aree di pianificazione sono spente in playback (e il fuoco lo e' per scelta della sessione); in finestra di reazione e in
+	// modale la scheda e' nascosta, quindi nessuna riga puo' stare sotto il cursore.
+	case ERTPointerContext::ResolutionPlayback:
+	case ERTPointerContext::ReactionWindow:
+	case ERTPointerContext::Modal:
+		return false;
+	}
+	return false;
+}
+
 bool FRTPlanningOverlayInputs::ShowsSkillHover() const
 {
-	// `HoverSkillUnit == Unit`: la barra appartiene a chi si comanda (spec §3 regola 7). Una skill di un'altra unita' non
-	// tiene la mappa da qui; la scheda di chi e' a fuoco avra' la propria sorgente quando il pannello esistera' (F3).
-	return HoverSkillUnit.IsValid() && HoverSkillUnit == Unit && SkillRange.RangeCells > 0 && ShowsAreas();
+	if (!HoverSkillUnit.IsValid() || SkillRange.RangeCells <= 0)
+	{
+		return false;
+	}
+	// `HoverSkillUnit == Unit`: la barra appartiene a chi si comanda (spec §3 regola 7), e vale dove le aree di pianificazione si
+	// mostrano.
+	if (HoverSkillUnit == Unit)
+	{
+		return ShowsAreas();
+	}
+	// La skill di un'altra unita' tiene la mappa solo come riga della SCHEDA di chi e' a fuoco (`#3748`), e solo se il risolutore l'ha
+	// ammessa: senza il flag un `HoverSkillUnit` qualunque non apre l'arbitro.
+	return bSkillHoverFromCard && !bMatchEnded && ContextAllowsCardHover(Context);
 }
 
 ERTPreviewSource FRTPlanningOverlayInputs::ActiveSource() const
