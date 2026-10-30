@@ -2209,6 +2209,51 @@ bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La rotella zooma il mondo solo con il cursore nella scena (`#3748`, spec dell'ispettore §3 regola 6): sopra una fascia
+ * dell'HUD e' dell'HUD, come il click ([D-497] (1), `#3661`).
+ *
+ * Due versi, perche' «non zooma» da solo passerebbe anche con lo zoom rotto del tutto: la stessa rotella con il cursore
+ * dentro la scena deve muovere il braccio. E il gestore vero, in headless, non ha un viewport: il cursore non e' nella scena
+ * e non zooma, quindi un `OnZoom` che passasse `true` fisso fa cadere questo test.
+ *
+ * ⚠️ Che Slate non consegni la rotella al gioco quando un widget della scheda la consuma non si misura qui: e' di PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWheelZoomsTheWorldOnlyInsideTheSceneTest,
+	"RefactorTactics.PlayerInput.WheelZoomsTheWorldOnlyInsideTheScene",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWheelZoomsTheWorldOnlyInsideTheSceneTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnEdgePanTestMap(World);
+	ARTCameraPawn* Cam = SpawnEdgePanCamera(World);
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+
+	// A meta' corsa: da li' la rotella ha spazio in entrambe le direzioni, e il controllo positivo non finisce contro un limite.
+	Cam->SetZoomAlpha(0.5f);
+	const float Before = Cam->GetZoomAlpha();
+
+	PC->ApplyZoomForTest(1.f, /*bCursorInsideScene=*/ false);
+	TestEqual(TEXT("con il cursore su una fascia la rotella non zooma"), Cam->GetZoomAlpha(), Before);
+
+	PC->ZoomForTest(1.f);
+	TestEqual(TEXT("dal gestore vero, senza viewport, non zooma"), Cam->GetZoomAlpha(), Before);
+
+	PC->ApplyZoomForTest(1.f, /*bCursorInsideScene=*/ true);
+	TestTrue(*FString::Printf(TEXT("controllo positivo: con il cursore nella scena la stessa rotella muove il braccio (%.3f -> %.3f)"),
+		Before, Cam->GetZoomAlpha()), Cam->GetZoomAlpha() > Before);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
 // --- #1770 · il pivot e' uno stato, e il peek non lo tocca -------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPeekDoesNotMoveThePivotTest,

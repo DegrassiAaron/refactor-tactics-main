@@ -1884,6 +1884,24 @@ void ARTPlayerController::ApplyKeyPan(const FVector2D& Axis, float DeltaTime)
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
+	ApplyZoom(Value.Get<float>(), IsCursorInsideScene());
+}
+
+void ARTPlayerController::ZoomForTest(float Axis)
+{
+	OnZoom(FInputActionValue(Axis));
+}
+
+void ARTPlayerController::ApplyZoom(float Axis, bool bCursorInsideScene)
+{
+	// Sopra una fascia dell'HUD la rotella e' dell'HUD (spec dell'ispettore §3 regola 6): la scheda scorre, il mondo resta.
+	// ⚠️ `false` anche senza viewport o con la proiezione fallita (headless, primi fotogrammi): da li' lo zoom non parte.
+	// `ZoomAction` e' legata alla sola rotella, quindi non c'e' uno zoom da tastiera che questo ramo spenga.
+	if (!bCursorInsideScene)
+	{
+		return;
+	}
+
 	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
 	if (!Cam)
 	{
@@ -1907,15 +1925,15 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 		{
 			FVector Origin; float HexSize; float LayerHeight;
 			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
-			Cam->ZoomTowards(Value.Get<float>(),
+			Cam->ZoomTowards(Axis,
 				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
 			return;
 		}
 	}
 
-	// Il cursore non e' su una cella valida (fuori mappa, o nessun viewport): si zooma sul centro, com'e'
+	// Il cursore e' nella scena ma non su una cella valida (fuori mappa): si zooma sul centro, com'e'
 	// sempre stato. Meglio di non zoomare.
-	Cam->AddZoom(Value.Get<float>());
+	Cam->AddZoom(Axis);
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)

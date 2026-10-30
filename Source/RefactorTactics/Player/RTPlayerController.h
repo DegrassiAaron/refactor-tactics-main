@@ -450,6 +450,11 @@ protected:
 	/** Il corpo di `OnPan` con il tempo passato (#3792): `WASD` e' un ingresso a velocita'. */
 	void ApplyKeyPan(const FVector2D& Axis, float DeltaTime);
 	void OnZoom(const FInputActionValue& Value);
+	/**
+	 * Il corpo di `OnZoom` con la domanda «il cursore e' nella scena?» gia' risolta (`#3748`). Sopra una fascia l'HUD ha il
+	 * puntatore e la rotella non zooma il mondo, come un click sulla fascia non diventa una cella ([D-497] (1), `#3661`).
+	 */
+	void ApplyZoom(float Axis, bool bCursorInsideScene);
 	void OnRotate(const FInputActionValue& Value);
 
 	/** #863 — orbita continua. `bOrbiting` distingue «il mouse si muove» da «il giocatore sta orbitando». */
@@ -599,6 +604,15 @@ public:
 
 	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
 	void PanForTest(const FVector2D& Axis, float DeltaTime = 1.f / 60.f);
+
+	/**
+	 * `#3748`: la rotella dal gestore vero, che chiede al viewport dov'e' il cursore. Headless un viewport non c'e', quindi il
+	 * cursore non e' nella scena e non zooma: prova che `OnZoom` passa dalla domanda e non da una costante.
+	 */
+	void ZoomForTest(float Axis);
+
+	/** `#3748`: lo zoom con la posizione del cursore iniettata, il solo modo di provare il ramo «dentro la scena» senza un viewport. */
+	void ApplyZoomForTest(float Axis, bool bCursorInsideScene) { ApplyZoom(Axis, bCursorInsideScene); }
 
 	/**
 	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
