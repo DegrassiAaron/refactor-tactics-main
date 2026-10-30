@@ -156,6 +156,10 @@ FRTInspectView URTInspectLibrary::VisibleWindow(const FRTInspectView& View, int3
 	FRTInspectView Out;
 	auto AddRow = [&View, &Out](int32 Source)
 	{
+		// Totale per costruzione: coi parametri di questa funzione `Source` sta sempre dentro `Lines`, ma un errore di conto non deve
+		// fermare il motore. Una finestra sbagliata cade nel test; un indice fuori dall'array cadrebbe sul processo intero, e una suite
+		// con un test che non completa esce comunque con zero.
+		if (!View.Lines.IsValidIndex(Source)) { return; }
 		Out.Lines.Add(View.Lines[Source]);
 		Out.LineAbilityIndices.Add(View.LineAbilityIndices.IsValidIndex(Source) ? View.LineAbilityIndices[Source] : INDEX_NONE);
 	};
