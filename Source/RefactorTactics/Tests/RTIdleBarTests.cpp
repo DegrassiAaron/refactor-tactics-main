@@ -9,6 +9,7 @@
 #include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "Player/RTPlayerController.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo di un piano illegale (#3748)
 #include "UI/RTHudViewModel.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "Unit/RTUnit.h"
@@ -203,6 +204,11 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
  * ⚠️ **Il controllo positivo e' la meta' del test**: la STESSA unita', letta da `BuildAbilityCooldowns`, porta il
  * piano, la ricarica e il tasto. Senza queste tre premesse le asserzioni sulla barra pubblica sarebbero vere
  * anche per una funzione che copia ogni campo dalla partita, perche' non ci sarebbe niente da copiare.
+ *
+ * ⛔ **Un secondo stato per il piano illegale**: `bPlanInvalid` dice di un avversario che il suo piano e' illegale e
+ * quale azione e' la colpevole, cioe' dice il piano. Nel primo stato il piano e' legale, e `false` letto da `false`
+ * non prova niente: nel secondo il piano va sulla posizione in ricarica, la barra della partita accende
+ * `bPlanInvalid` (premessa) e la pubblica no.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPublicBarCarriesNoMatchTest,
 	"RefactorTactics.HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch",
@@ -283,8 +289,15 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica vera"), *Dove), R.TurnsRemaining, 0);
 		TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Dove), R.ChargeFraction, 1.f);
+		// `bPlanInvalid` ha il suo controllo positivo nel secondo stato, piu' sotto: qui il piano e' legale.
 		TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), R.bPlanInvalid);
+		// ⚠️ `bPlanDegraded` e `PlanDegradedRange` NON hanno un controllo positivo a questo livello: la barra della
+		// partita li accende solo con una mappa (`ARTHexMapActor`), un bersaglio pianificato e un rifiuto che il click
+		// darebbe, e quel banco esiste solo in `RTActionSlotRefusalTests.cpp` (`FSlotRefusalBench`). Qui provano che
+		// restano al default, non che un leak del rifiuto sarebbe visto.
 		TestFalse(*FString::Printf(TEXT("%s: nessun piano degradato"), *Dove), R.bPlanDegraded);
+		// `bTargetRefused` lo scrive la dock, non `BuildAbilityCooldowns`: a questo livello non si puo' accendere,
+		// ne' controllare. Chi costruisce la dock in sola lettura (Task 4) deve tenerlo falso per questa barra.
 		TestFalse(*FString::Printf(TEXT("%s: nessun bersaglio rifiutato"), *Dove), R.bTargetRefused);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna portata di ripiego"), *Dove), R.PlanDegradedRange, (int32)INDEX_NONE);
 
@@ -304,6 +317,40 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		URTHudViewModel::ResolveSlotState(Pubblica[Ultima], /*bArmed=*/ false), ERTActionSlotState::Empty);
 
 	TestTrue(TEXT("senza unita' la barra pubblica e' vuota"), URTHudViewModel::BuildPublicBar(nullptr).IsEmpty());
+
+	// --- SECONDO STATO: un piano che il validatore RIFIUTA ---------------------------------------------------------
+	// ⛔ Il piano va sulla posizione 2, che e' in ricarica vera: `ValidatePlan` lo rifiuta (`OnCooldown`) e la barra
+	// della partita accende `bPlanInvalid` con il suo motivo. E' il controllo positivo che il primo stato non ha:
+	// un `BuildPublicBar` che rieseguisse il validatore lo copierebbe da qui.
+	Soggetto->PlannedAbilityIndex = 2;
+	const TArray<FRTAbilityCooldownView> PartitaIllegale = URTHudViewModel::BuildAbilityCooldowns(Soggetto);
+	if (!TestTrue(TEXT("premessa: nella barra della partita la posizione 2 e' la colpevole di un piano illegale, col suo motivo"),
+		PartitaIllegale.IsValidIndex(2) && PartitaIllegale[2].bPlanInvalid
+			&& PartitaIllegale[2].PlanInvalidReason != ERTActionInvalidReason::None))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const TArray<FRTAbilityCooldownView> PubblicaIllegale = URTHudViewModel::BuildPublicBar(Soggetto);
+	if (!TestEqual(TEXT("piano illegale: una riga per posizione di kit"), PubblicaIllegale.Num(), PartitaIllegale.Num()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	for (int32 i = 0; i < PubblicaIllegale.Num(); ++i)
+	{
+		const FRTAbilityCooldownView& R = PubblicaIllegale[i];
+		const FString Dove = FString::Printf(TEXT("piano illegale, posizione %d"), i);
+		TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), R.bPlanInvalid);
+		TestTrue(*FString::Printf(TEXT("%s: nessun motivo del validatore"), *Dove),
+			R.PlanInvalidReason == ERTActionInvalidReason::None);
+		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);
+		if (!R.ActionId.IsNone())
+		{
+			TestEqual(*FString::Printf(TEXT("%s: lo slot si legge Available"), *Dove),
+				URTHudViewModel::ResolveSlotState(R, /*bArmed=*/ false), ERTActionSlotState::Available);
+		}
+	}
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
