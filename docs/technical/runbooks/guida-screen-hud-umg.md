@@ -169,7 +169,7 @@ tattico è montato**; proiezione, deproiezione e `ProjectWorldLocationToScreen` 
 | `Zone_TopCenter` | fra le colonne, alta `Top` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `Zone_TopRight` | angolo in alto a destra, `Right` × `Top` | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
 | `Zone_MiddleLeft` | colonna sinistra, da `LeftTop` alla fascia bassa | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `MiddleRightStack` (un `Overlay`, [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)) con `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 — sotto, e `WBP_RT_InspectCardRight`, istanza di `WBP_RT_InspectCard_C`, sopra ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md); in coda alla riga del dock, l'indicatore del piano «Piano N di M» con ▲/▼ ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), §7-septies) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *la scena* | il rettangolo fra le fasce | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — la 3D si rende solo qui, con il Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
@@ -861,6 +861,43 @@ riempirebbe come quelle della lettura del movimento.
 Lo misurano `ScreenHud.LayerIndicatorCountsTheLayersTheMapHas`, `ScreenHud.LayerIndicatorFollowsTheControllerAndItsButtonsStep`,
 `ScreenHud.LayerIndicatorHidesOnASingleLayerMap`, `ScreenHud.DockMountsTheLayerIndicatorBesideTheMovementReadout` e,
 per la fascia, `ScreenHud.TenantsFitTheirBands`.
+
+## 7-octies. La scheda dell'ispezione: le porte e il contenitore ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748))
+
+La scheda del nemico a fuoco sta in `MiddleRight` **insieme al registro**, perché la zona ha un solo `NamedSlot Content`. Il
+contenuto è un `Overlay`, `MiddleRightStack`: il registro per primo (sotto), la scheda dopo (sopra), **entrambi con
+slot `Fill`**. ⚠️ È lo slot a decidere se un widget riempie, e uno slot di `Overlay` nasce `Left/Top`: senza `Fill` il
+registro si rimpicciolirebbe al suo contenuto. L'ordine dei figli è lo z-order: una scheda fissata copre il registro.
+
+Il disegno della scheda è quello del registro (`LogPad` → `LogRoot` → `LogFrame` → `LogColumn`, titolo, `LinesBox`), con
+gli stessi valori: padding, cornice `RoundedBox`, larghezza di 340, font e colori.
+
+### `WBP_RT_InspectCard` → `URTInspectCardWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `CardRoot` | qualunque widget | `Visible` quando la scheda si vede, `Collapsed` quando non c'è niente da mostrare o un modale / una finestra di reazione la nasconde |
+| `LinesBox` | un pannello | una riga per riga della finestra visibile (`MaxRighe`), riusate da un tick all'altro |
+
+Nei default, `LineClass` = `WBP_RT_InspectLine_C`; `MaxRighe` (minimo 3) e `LinesPerWheelStep` stanno nei default
+della classe C++. Senza `LinesBox` o senza `LineClass` la scheda non costruisce niente.
+
+### `WBP_RT_InspectLine` → `URTInspectLineWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LineText` | `TextBlock` | la riga di testo (kit, equipaggiamento, stati, ricariche dedotte, e i marcatori di taglio) |
+
+La riga di una skill porta la sua posizione di kit e chiede la portata al controller passandoci sopra col cursore
+(`SetSkillHover` / `ClearSkillHover`). ⚠️ Per vedere il cursore la riga deve essere `Visible`: lo imposta il C++ solo per
+le righe di una skill, e lascia le altre `SelfHitTestInvisible`, così i gesti arrivano al pannello che li consuma.
+
+⛔ **Il pannello consuma il tasto sinistro e la rotella, non il destro**: non va messo nel WBP un widget che consumi
+anche quello, perché il destro è il passo `Inspector` del Back e deve chiudere la scheda col cursore sopra.
+
+Lo misurano `ScreenHud.InspectCardWearsItsLineClass`, `ScreenHud.MiddleRightStackKeepsTheLogUnderTheCard`, la tabella delle porte
+di `ScreenHud.ActionBarDeclaresTheNamedPorts` e `ScreenHud.TenantsFitTheirBands`, che accende la scheda con la più lunga
+che lo scenario sa comporre.
 
 ## 8. Verifica
 

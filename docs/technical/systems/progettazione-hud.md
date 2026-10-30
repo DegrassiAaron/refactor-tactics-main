@@ -1225,10 +1225,26 @@ del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e
 La scheda **segue la conoscenza**: senza una voce `Live` non c'è scheda (uscita identica a una cella vuota), e se il
 soggetto esce di vista o cade si chiude.
 
-🔴 **Stato**: soggetto, compositore, cancello e chiusura sono in C++ e testati. Il **pannello** in `MiddleRight` non è
-ancora montato: la zona ha uno slot e un inquilino (il registro, costruito dal `WBP_EventLog`), e montare la scheda
-richiede authoring nel clone principale ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)).
-Il fatto resta `DEFERRED` finché quell'asset non c'è.
+**Il pannello** (`URTInspectCardWidget`, `WBP_RT_InspectCard`, con la riga `WBP_RT_InspectLine`) sta in `MiddleRight`
+insieme al registro: la zona ha un solo `NamedSlot Content`, che ora ospita un `Overlay` (`MiddleRightStack`) con il
+registro sotto e la scheda sopra, entrambi con slot `Fill`. Una scheda fissata copre il registro, e chiusa lo lascia
+com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la colonna (`FRTHudBands::Right`).
+
+* **Si nasconde senza chiudersi** in `ReactionWindow` e `Modal` (`URTInspectLibrary::ShouldShowCard`): il soggetto resta
+  fissato e la scheda torna alla chiusura. Chiudono il tasto destro (passo `Inspector` del Back) e la conoscenza.
+* **Scorre, e il taglio non è muto**: le righe che non entrano (`MaxRighe`) si scorrono con la rotella, e la prima e
+  l'ultima riga visibile dicono quante ne restano sopra e sotto (`URTInspectLibrary::VisibleWindow`).
+* **Consuma il tasto sinistro e la rotella, non il destro**: il click sul pannello non raggiunge la mappa e la rotella
+  scorre la scheda; il destro resta del controller perché è quello che chiude, anche col cursore sopra. Sopra una
+  fascia dell'HUD la rotella non zooma più il mondo (`ARTPlayerController::ApplyZoom`): vale per ogni fascia, non solo
+  per la scheda.
+* **Passare sulla riga di una skill ne mostra la portata**, come dalla barra (spec dell'ispettore §3 regola 7). Per un
+  nemico a fuoco l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche
+  senza selezione, e non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.
+
+⚠️ **Limiti dichiarati**: il caso peggiore delle righe che vanno a capo non è misurato (`TenantsFitTheirBands` conta
+ogni riga su una riga sola), e che Slate consegni la rotella e il tasto sinistro al pannello prima del gioco non si
+misura in headless. Il fatto resta di `PIE-HUD-SCHEDA`, che il verdetto d'autore non ha ancora giudicato.
 
 ---
 
