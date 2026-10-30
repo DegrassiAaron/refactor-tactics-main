@@ -1205,10 +1205,12 @@ public:
 	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
 	 * `ClearSkillHover`, e allora torna la sorgente di prima.
 	 *
-	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata** (`#3748`): la barra propria e' di chi si comanda, la
-	 * barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del risolutore degli
-	 * ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata, non di questa porta: l'hover di un'altra unita'
-	 * non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
+	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata mentre la barra la segue** (`#3748`): la barra propria e' di
+	 * chi si comanda, la barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del
+	 * risolutore degli ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata (`bDockFollowsInspection` e pin), non di
+	 * questa porta: l'hover di un'altra unita' non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione
+	 * di quella unita'). Anche l'hover dell'unita' ispezionata cade quando la barra torna alla selezione (`SelectUnit`), benche' la scheda resti
+	 * fissata: la barra non e' piu' sua, e Slate non manda l'uscita a uno slot che il dock ricostruisce.
 	 */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
@@ -1849,9 +1851,13 @@ private:
 	bool bDockFollowsInspection = false;
 
 	/**
-	 * Il giocatore di questo controller comanda `Unit`? E' la domanda che fanno il click (`DispatchUnitClick`) e la barra (`IsDockReadOnly`), scritta
-	 * una volta per i due: la regola ha un solo produttore, `URTCombatLibrary::CanPlayerControlUnitInGroup`, e un click e una barra che la
-	 * rispondessero in due modi mostrerebbero in sola lettura un'unita' che il click ha appena selezionato. `nullptr` non si comanda.
+	 * Il giocatore di questo controller comanda `Unit`? E' la domanda che fanno il click (`DispatchUnitClick`) e la barra (`IsDockReadOnly`), e i due la
+	 * chiedono a questo helper: un click e una barra che la rispondessero in due modi mostrerebbero in sola lettura un'unita' che il click ha appena
+	 * selezionato. `nullptr` non si comanda.
+	 *
+	 * ⚠️ **Non e' l'unica copia del predicato.** La regola ha un solo produttore, `URTCombatLibrary::CanPlayerControlUnitInGroup`, ma questo helper
+	 * serve solo il click e la barra: `OnSelect` e `CycleSelection` (nel controller) e i widget in `RTScreenHudWidgets.cpp` chiamano ancora quella
+	 * funzione per conto loro, con gli stessi argomenti scritti per esteso.
 	 */
 	bool IsUnitCommandedByThisPlayer(const class ARTUnit* Unit) const;
 

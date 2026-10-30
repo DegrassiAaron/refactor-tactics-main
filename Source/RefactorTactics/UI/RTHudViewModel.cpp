@@ -1358,7 +1358,12 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildPublicBar(const ARTUnit* Su
 		// 🔑 Elenco POSITIVO dei campi: la riga e' quella di CATALOGO e basta. ⛔ Qui non si legge `Subject->Planned*`,
 		// `GetAbilityCooldown`, `CanUseAbility` ne' `HotkeyLabelFor`: sono la partita, e di un'unita' osservata sono
 		// private. Chi aggiunge un campo a questa riga lo fa dal catalogo, o non lo fa.
-		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Subject->ActiveVariantId);
+		//
+		// 🔴 **Nessuna variante: `NAME_None`, non `Subject->ActiveVariantId`.** La variante attiva e' STATO DI PARTITA (`ARTUnit::ActiveVariantId`, una
+		// scelta per unita'), non catalogo: la decisione d'autore del 2026-10-20 rende pubblici kit ed equipaggiamento, e non nomina la variante
+		// ([D-562]). Passarla mostrerebbe, sulla barra di un nemico osservato, il nome e il compromesso della variante che ha scelto in partita, cioe'
+		// renderebbe pubblico uno stato privato senza che nessuno l'abbia deciso. `BuildAbilityCooldowns` la passa, perche' li' l'unita' e' di chi guarda.
+		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, NAME_None);
 		View.HotkeyLabel = FText::GetEmpty(); // nessun tasto: e' di chi comanda
 		// 🔴 `TotalTurns` e' il DENOMINATORE dell'anello di carica, e `BuildCatalogActionRow` lo scrive dal catalogo. Qui `ChargeFraction` resta 1 e
 		// `TurnsRemaining` 0: un anello disegnato da `TotalTurns > 0` direbbe «carica» di una skill nemica la cui ricarica VERA e' privata. Al default,

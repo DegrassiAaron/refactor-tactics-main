@@ -5027,8 +5027,14 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 		// L'hover e' di chi si comanda (la barra propria) o di chi e' a fuoco (la barra in sola lettura, `#3748`): chiusa la scheda, o
 		// fissata un'altra unita', l'hover di uno slot che non c'e' piu' si scarta qui, senza aspettare l'uscita del cursore che Slate puo'
 		// non mandare.
+		//
+		// 🔴 **L'hover dell'unita' ispezionata vale finche' la BARRA segue l'ispezione** (`bDockFollowsInspection`), non finche' la scheda e'
+		// fissata: `SelectUnit` spegne il flag ma non chiude la scheda, e la barra torna all'unita' propria mentre il cursore e' ancora su uno
+		// slot che Slate non ricostruisce. Con il solo `bInspectorPinned` la portata del nemico resterebbe sulla mappa sotto una barra che non e'
+		// piu' sua. ⚠️ `PinInspection` accende il flag per OGNI fissazione, anche quella di un'unita' propria: per lei l'hover resta ammesso come
+		// prima, e `IsDockReadOnly` (che guarda chi non si comanda) decide da solo se la barra e' in sola lettura.
 		const ARTUnit* HoverOwner = SkillHoverUnit.Get();
-		const bool bOwnedByInspected = bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
+		const bool bOwnedByInspected = bDockFollowsInspection && bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
 		if (HoverOwner != Unit && !bOwnedByInspected)
 		{
 			// La selezione e' cambiata con il cursore fermo sulla barra (`N`). Se il dock ricostruisce gli slot con il kit dell'unita'

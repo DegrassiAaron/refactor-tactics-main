@@ -209,6 +209,9 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
  * quale azione e' la colpevole, cioe' dice il piano. Nel primo stato il piano e' legale, e `false` letto da `false`
  * non prova niente: nel secondo il piano va sulla posizione in ricarica, la barra della partita accende
  * `bPlanInvalid` (premessa) e la pubblica no.
+ *
+ * ⛔ **La variante attiva e' partita, non catalogo** ([D-562]): il soggetto ne ha una vera (`ActiveVariantId`), la barra della partita la porta sulla
+ * riga della sua azione (premessa), e la barra pubblica ha `VariantName` e `VariantTradeoff` vuoti su OGNI riga.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPublicBarCarriesNoMatchTest,
 	"RefactorTactics.HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch",
@@ -235,6 +238,25 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 	Soggetto->PlannedAbilityIndex = 1;    // il piano
 	Soggetto->ConsumeAbility(2);          // la ricarica vera
 
+	// La variante ATTIVA e' stato di partita (`ARTUnit::ActiveVariantId`, una scelta per unita'), non catalogo: la decisione d'autore del 2026-10-20
+	// rende pubblici kit ed equipaggiamento e non nomina la variante ([D-562]). Si sceglie una variante vera di un'azione del kit che
+	// `BuildCatalogActionRow` risolve in un nome e in un compromesso non vuoti: senza, «vuoto» sulla barra pubblica non direbbe niente.
+	int32 ConVariante = INDEX_NONE;
+	for (int32 i = 0; i < Soggetto->NumAbilities() && ConVariante == INDEX_NONE; ++i)
+	{
+		const URTActionData* A = Soggetto->GetAbility(i);
+		if (A && A->Variants.Num() > 0 && !A->Variants[0].DisplayName.IsEmpty() && !A->Variants[0].Tradeoff.IsEmpty())
+		{
+			ConVariante = i;
+		}
+	}
+	if (!TestNotEqual(TEXT("premessa: un'azione del kit dichiara una variante con nome e compromesso"), ConVariante, (int32)INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Soggetto->ActiveVariantId = Soggetto->GetAbility(ConVariante)->Variants[0].VariantId; // la scelta della partita
+
 	// --- CONTROLLO POSITIVO: la barra della partita le porta tutte e tre ---------------------------------------
 	const TArray<FRTAbilityCooldownView> Partita = URTHudViewModel::BuildAbilityCooldowns(Soggetto);
 	if (!TestEqual(TEXT("premessa: la barra della partita ha una riga per posizione"), Partita.Num(), Soggetto->NumAbilities())
@@ -244,6 +266,9 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 2 porta il totale di ricarica, il denominatore dell'anello"),
 			Partita[2].TotalTurns > 0)
 		|| !TestFalse(TEXT("premessa: nella barra della partita la posizione 0 porta il tasto"), Partita[0].HotkeyLabel.IsEmpty())
+		|| !TestTrue(TEXT("premessa: nella barra della partita la variante attiva porta il nome e il compromesso, sulla riga della sua azione"),
+			Partita[ConVariante].VariantName.EqualTo(Soggetto->GetAbility(ConVariante)->Variants[0].DisplayName)
+			&& Partita[ConVariante].VariantTradeoff.EqualTo(Soggetto->GetAbility(ConVariante)->Variants[0].Tradeoff))
 		|| !TestTrue(TEXT("premessa: l'ultima posizione e' una riga vuota"), Partita[Ultima].ActionId.IsNone()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -283,8 +308,10 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: la forma"), *Dove), R.Shape, P.Shape);
 		TestEqual(*FString::Printf(TEXT("%s: il raggio dell'area"), *Dove), R.AreaRadius, P.AreaRadius);
 		TestEqual(*FString::Printf(TEXT("%s: la ricarica di catalogo"), *Dove), R.CooldownTurns, P.CooldownTurns);
-		TestTrue(*FString::Printf(TEXT("%s: la variante"), *Dove),
-			R.VariantName.EqualTo(P.VariantName) && R.VariantTradeoff.EqualTo(P.VariantTradeoff));
+		// ⛔ La variante NON e' catalogo: la scelta della partita (`ActiveVariantId`) e' privata di un'unita' osservata. Sulla riga della sua azione
+		// la barra della partita la porta (controllo positivo, nelle premesse); quella pubblica no, su NESSUNA riga.
+		TestTrue(*FString::Printf(TEXT("%s: nessun nome di variante"), *Dove), R.VariantName.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("%s: nessun compromesso di variante"), *Dove), R.VariantTradeoff.IsEmpty());
 
 		// ⛔ La PARTITA: niente, in ogni riga.
 		TestTrue(*FString::Printf(TEXT("%s: nessun tasto"), *Dove), R.HotkeyLabel.IsEmpty());

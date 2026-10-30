@@ -686,8 +686,9 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 	//
 	// Le ricariche DEDOTTE (#3751) non leggono questa unita': si chiede al registro di cio' che la squadra ha visto. Solo per
 	// un'unita' di un'altra squadra — della propria si leggono le ricariche vere — e solo per le azioni che hanno una ricarica di
-	// catalogo (`CooldownTurns` e' lo specchio che `ConsumeAbility` legge). La variante d'arma montata e' del catalogo, come per la
-	// barra; nessun piano, nessuna variante attiva.
+	// catalogo (`CooldownTurns` e' lo specchio che `ConsumeAbility` legge). Nessuna variante, come per la barra (`NAME_None`): la variante
+	// attiva e' stato di partita (`ARTUnit::ActiveVariantId`, una scelta per unita'), non catalogo, e la decisione d'autore del 2026-10-20
+	// nomina kit ed equipaggiamento, non la variante ([D-562]); nessun piano.
 	if (SeenUses != nullptr && Unit->TeamId != PlayerTeamId)
 	{
 		for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
