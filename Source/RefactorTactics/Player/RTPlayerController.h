@@ -1497,7 +1497,9 @@ public:
 	 *
 	 * ⛔ **Non e' `IsWorldReadOnly()` con un'altra causa, e non va usata dove si legge e basta**: la telemetria di ritmo di `OnSelect`, la
 	 * selezione (`SelectUnit`), l'ispezione (`DispatchUnitClick`) e il Back (`ApplyBack`) restano vivi con la barra in sola lettura, perche' non
-	 * scrivono il piano — sono il modo di uscirne.
+	 * scrivono il piano — sono il modo di uscirne. ⚠️ Per lo stesso motivo `HandleClickOnCell` ne esclude il click sul pavimento del bersaglio di
+	 * una carica pianificata ([D-528] (3)): ispeziona, non scrive, e a barra in sola lettura deve funzionare come il click sulla mesh. Il rifiuto
+	 * della barra sta in quella funzione DOPO quel ramo; quello del mondo in cima, com'era.
 	 */
 	bool IsPlanningWriteBlocked() const;
 

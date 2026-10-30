@@ -4914,6 +4914,39 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Secondo->Cell);
 	TestTrue(TEXT("e non lo ispeziona"), PC->GetInspectedUnit() == Primo);
 
+	// ➕ `#3748` (revisione del Task 3): **ispezionare non e' scrivere il piano, e il click sul pavimento del bersaglio della carica funziona anche a
+	// barra in sola lettura.** La carica e' ora pianificata su `Secondo`; l'ispezione e' su `Primo`, un altro nemico, e la barra e' in sola lettura su
+	// di lui. Il click sul pavimento dell'esagono di `Secondo` — il raggio colpisce la mappa, quindi passa da `HandleClickOnCell` — deve spostare
+	// l'ispezione su `Secondo`, come fa lo stesso click sulla sua mesh (`DispatchUnitClick`): due gesti dello stesso significato non possono dire due cose.
+	PC->PinInspectionForTest(Primo);
+	if (!TestTrue(TEXT("premessa: la barra e' in sola lettura su `Primo`, e la carica e' pianificata su `Secondo`"),
+		PC->IsDockReadOnly() && PC->IsPlanningWriteBlocked() && PC->GetDockUnit() == Primo
+			&& PC->PlannedChargeTargetAt(Charger, Secondo->Cell) == Secondo && PC->PlannedChargeTargetAt(Charger, Primo->Cell) == nullptr))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->HandleClickOnCellForTest(Secondo->Cell);
+	TestTrue(TEXT("a barra in sola lettura il pavimento del bersaglio della carica sposta l'ispezione su di lui"), PC->GetInspectedUnit() == Secondo);
+	TestTrue(TEXT("e la barra segue la nuova fissazione, ancora in sola lettura"), PC->IsDockReadOnly() && PC->GetDockUnit() == Secondo);
+	TestTrue(TEXT("senza toccare il piano: la carica e' ancora su `Secondo` e resta armata"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Secondo->Cell && Charger->SelectedAbilityIndex == ChargeIdx);
+
+	// Ogni altra strada di `HandleClickOnCell` resta rifiutata: il pavimento di `Primo`, che ora NON e' il bersaglio, ripianificherebbe la carica
+	// su di lui, e a barra in sola lettura non deve — e lo dice, una volta.
+	AddExpectedMessagePlain(TEXT("chiudi la scheda con il tasto destro"), ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+	PC->HandleClickOnCellForTest(Primo->Cell);
+	TestTrue(TEXT("un click su una cella che non e' il bersaglio della carica e' rifiutato: la carica resta su `Secondo`"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Secondo->Cell);
+	TestTrue(TEXT("e l'ispezione non si e' mossa"), PC->GetInspectedUnit() == Secondo);
+
+	// Il controllo positivo: chiusa la fissazione, lo STESSO click ripianifica la carica su `Primo`. Senza, il rifiuto di sopra potrebbe valere perche'
+	// quel click non pianifica mai.
+	PC->SetInspectorPinned(false);
+	PC->HandleClickOnCellForTest(Primo->Cell);
+	TestTrue(TEXT("controllo: a fissazione chiusa lo stesso click ripianifica la carica su `Primo`"),
+		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
+
 	DestroyInteractionWorld(World);
 	return true;
 }

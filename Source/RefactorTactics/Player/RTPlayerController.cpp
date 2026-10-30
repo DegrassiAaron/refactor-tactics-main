@@ -2908,14 +2908,9 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
 	// rimasta aperta dopo la prima stesura del fix: un clic sulla mappa durante il playback non solo
 	// riportava il piano a schermo, ma piantava waypoint che sopravvivevano al turno successivo.
-	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`): un waypoint posato mentre la barra mostra
-	// un nemico sarebbe un ordine dato a un'unita' che lo schermo non sta mostrando. ⚠️ Il mondo in sola lettura tace, com'era; la barra lo dice.
-	if (IsPlanningWriteBlocked())
+	// ⚠️ `#3748`: **qui resta il solo mondo**, e tace com'era. Il rifiuto della barra in sola lettura sta PIU' SOTTO, dopo il ramo che ispeziona.
+	if (IsWorldReadOnly())
 	{
-		if (IsDockReadOnly() && !IsWorldReadOnly())
-		{
-			UE_LOG(LogRT, Display, TEXT("[RT] Click sulla mappa ignorato: %s"), *WhyPlanningWriteIsBlocked());
-		}
 		return;
 	}
 
@@ -2935,6 +2930,34 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	if (!Map->ContainsCell(Cell))
 	{
 		return; // click fuori dalla mappa: nessun piano, nessun rumore nel log
+	}
+
+	const ERTPointerContext Context = GetPointerContext();
+
+	// 🔑 **[D-528] (3) Un click sulla cella del nemico su cui la carica e' GIA' pianificata lo ispeziona**, come lo stesso click sulla
+	// sua mesh (`DispatchUnitClick`, `ArmedChargeTargets`). Con il puntatore sul pavimento dell'esagono il raggio colpisce la mappa e
+	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
+	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
+	// selettore aperto il click e' una direzione.
+	// ⚠️ **Sta sopra il rifiuto della barra e sopra `Targeting` (`#3748`)**: i due contesti sono esclusivi (qui `Planning`/`Pathing`, li' `Targeting`),
+	// quindi lo spostamento non cambia l'ordine di niente, e ispezionare non scrive il piano — a barra in sola lettura il click deve funzionare, come
+	// quello sulla mesh. La fissazione nuova porta la barra sul nuovo nemico, ancora in sola lettura.
+	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
+	{
+		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
+		{
+			PinInspection(const_cast<ARTUnit*>(Puntato));
+			return;
+		}
+	}
+
+	// ➕ `#3748`: da qui in giu' il click SCRIVE il piano (bersaglio, verso, scatto, waypoint), e con la barra su un'unita' che non si comanda non passa:
+	// un waypoint posato mentre la barra mostra un nemico sarebbe un ordine dato a un'unita' che lo schermo non sta mostrando. Il mondo in sola
+	// lettura e' gia' uscito in cima, muto; la barra lo dice.
+	if (IsDockReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Click sulla mappa ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		return;
 	}
 
 	// ➕ **IL DISPATCH MONDO→BERSAGLIO: da qui il click del giocatore raggiunge `HandleTargetCell`** (`#3063`).
@@ -2960,7 +2983,6 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// ⛔ Si esce comunque, anche se `HandleTargetCell` rifiuta: un rifiuto e' un esito DICHIARATO (lo logga), e
 	// ricadere sul waypoint dopo un bersaglio rifiutato farebbe muovere un'unita' a cui si era chiesto di
 	// mirare.
-	const ERTPointerContext Context = GetPointerContext();
 	if (Context == ERTPointerContext::Targeting)
 	{
 		FRTPointerCandidates Candidates;
@@ -2973,20 +2995,6 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		if (Target.Kind == ERTPointerTargetKind::Cell)
 		{
 			HandleTargetCell(Target.Cell);
-			return;
-		}
-	}
-
-	// 🔑 **[D-528] (3) Un click sulla cella del nemico su cui la carica e' GIA' pianificata lo ispeziona**, come lo stesso click sulla
-	// sua mesh (`DispatchUnitClick`, `ArmedChargeTargets`). Con il puntatore sul pavimento dell'esagono il raggio colpisce la mappa e
-	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
-	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
-	// selettore aperto il click e' una direzione.
-	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
-	{
-		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
-		{
-			PinInspection(const_cast<ARTUnit*>(Puntato));
 			return;
 		}
 	}
