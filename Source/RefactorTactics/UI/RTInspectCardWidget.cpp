@@ -5,6 +5,8 @@
 #include "Components/Widget.h"
 #include "Input/Events.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"          // la squadra di chi guarda si rilegge dal controller, non da una cache del widget
+#include "UI/RTReactionWindowViewModel.h"  // IsWindowOpen: la finestra di reazione nasconde la scheda (spec §3 regola 11)
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
 
@@ -44,12 +46,15 @@ void URTInspectLineWidget::SetLine(const FString& InText, const ARTUnit* InHover
 		HoverEnd();
 	}
 
+	const bool bTextChanged = Text != InText;
 	Text = InText;
 	HoverUnit = InHoverUnit;
 	AbilityIndex = InAbilityIndex;
-	if (LineText)
+	// Il testo si riscrive solo se cambia: la scheda ricompone a 5 Hz, e un `FText` nuovo per riga a ogni giro invaliderebbe Slate per niente.
+	if (LineText && (bTextChanged || !bTextWritten))
 	{
 		LineText->SetText(FText::FromString(Text));
+		bTextWritten = true;
 	}
 
 	if (bRetarget)
@@ -120,6 +125,12 @@ void URTInspectLineWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 	HoverEnd();
 }
 
+void URTInspectLineWidget::NativeDestruct()
+{
+	HoverEnd();
+	Super::NativeDestruct();
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // URTInspectCardWidget
 // ---------------------------------------------------------------------------------------------------------------------
@@ -134,9 +145,15 @@ void URTInspectCardWidget::RefreshLook(bool bRecompose)
 	const ARTPlayerController* PC = ResolveCommandController();
 	const ARTUnit* Subject = GetInspectedUnit();
 	const bool bPinned = PC != nullptr && PC->IsInspectorPinned() && Subject != nullptr;
-	// Senza controller il contesto non e' un modale ne' una finestra di reazione: la scheda non ha motivo di nascondersi.
+	// 🔴 **`GetPointerContext` non produce `ReactionWindow`**: nessuno lo scrive ancora (E14), e una risoluzione sospesa su una finestra
+	// vale `ResolutionPlayback`, in cui la scheda resterebbe a schermo e continuerebbe a consumare i gesti. La finestra si legge quindi dal
+	// suo view model, che e' il solo a saperla aperta. Senza controller il contesto non e' un modale ne' una finestra: la scheda non ha
+	// motivo di nascondersi.
+	const URTReactionWindowViewModel* Window = GetReactionWindow();
+	const bool bReactionWindowOpen = Window != nullptr && Window->IsWindowOpen();
 	const ERTPointerContext Context = ContextForTest.IsSet() ? ContextForTest.GetValue()
-		: (PC != nullptr ? PC->GetPointerContext() : ERTPointerContext::Planning);
+		: (bReactionWindowOpen ? ERTPointerContext::ReactionWindow
+			: (PC != nullptr ? PC->GetPointerContext() : ERTPointerContext::Planning));
 
 	// Chiusa davvero (tasto destro, conoscenza): lo stato di scorrimento e la scheda composta non devono sopravvivere, o la stessa unita'
 	// fissata di nuovo riaprirebbe a meta' di una scheda vecchia. Nascosta da un modale e' un'altra cosa: lo stato resta.
@@ -161,8 +178,12 @@ void URTInspectCardWidget::RefreshLook(bool bRecompose)
 	}
 	if (bRecompose)
 	{
+		// La squadra del cancello e' quella del controller, riletta a ogni composizione come fanno il velo e il fuoco: `GetPlayerTeamId()` e'
+		// una cache scritta all'acquisizione del contesto, e un client che acquisisce prima che il PlayerState abbia la squadra lascerebbe
+		// il cancello su quella sbagliata (`TeamIdOf` ripiega su 0, e un nemico di squadra 0 diventerebbe «proprio», sempre `Live`).
+		const int32 ObserverTeam = PC != nullptr ? ARTPlayerState::TeamIdOf(PC) : GetPlayerTeamId();
 		CachedView = ViewForTest.IsSet() ? ViewForTest.GetValue()
-			: ARTHUD::BuildInspectCard(GetTurnManager(), Subject, GatherUnitsInWorld(), GetPlayerTeamId());
+			: ARTHUD::BuildInspectCard(GetTurnManager(), Subject, GatherUnitsInWorld(), ObserverTeam);
 	}
 
 	// Una scheda senza righe e' un nemico che la squadra non osserva: come una cella vuota, niente da mostrare.
@@ -192,6 +213,15 @@ void URTInspectCardWidget::ScrollBy(int32 Lines)
 
 void URTInspectCardWidget::SetCardShown(bool bInShown)
 {
+	// Nascosta: una riga collassata non riceve l'uscita del cursore, e l'hover che aveva registrato resterebbe appeso al controller
+	// (la mappa continuerebbe a mostrare la portata di una skill che nessuna riga mostra piu').
+	if (bShown && !bInShown)
+	{
+		for (URTInspectLineWidget* Row : LineWidgets)
+		{
+			if (Row) { Row->HoverEnd(); }
+		}
+	}
 	bShown = bInShown;
 	if (CardRoot)
 	{
@@ -217,6 +247,7 @@ void URTInspectCardWidget::RebuildLines(const FRTInspectView& Window)
 	{
 		if (URTInspectLineWidget* Last = LineWidgets.Last())
 		{
+			Last->HoverEnd(); // una riga tolta dall'albero non riceve l'uscita del cursore
 			Last->RemoveFromParent();
 		}
 		LineWidgets.Pop();
@@ -262,8 +293,15 @@ bool URTInspectCardWidget::IsPrimaryButton(const FPointerEvent& Event)
 FReply URTInspectCardWidget::NativeOnMouseWheel(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	// La rotella sopra il pannello e' del pannello (spec §3 regola 6): scorre la scheda e non arriva allo zoom del mondo. Si consuma
-	// anche quando tutto entra e non c'e' niente da scorrere, perche' il gesto e' comunque sul pannello.
-	ScrollBy(InMouseEvent.GetWheelDelta() > 0.f ? -LinesPerWheelStep : LinesPerWheelStep);
+	// anche quando tutto entra e non c'e' niente da scorrere, perche' il gesto e' comunque sul pannello. Il delta e' proporzionale come
+	// quello dello zoom: le tacche intere scorrono, la frazione resta per l'evento dopo.
+	WheelRemainder += InMouseEvent.GetWheelDelta();
+	const int32 Ticks = FMath::TruncToInt(WheelRemainder);
+	WheelRemainder -= static_cast<float>(Ticks);
+	if (Ticks != 0)
+	{
+		ScrollBy(-Ticks * LinesPerWheelStep);
+	}
 	return FReply::Handled();
 }
 

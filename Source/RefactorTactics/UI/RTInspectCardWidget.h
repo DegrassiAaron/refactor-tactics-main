@@ -58,10 +58,19 @@ public:
 	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
+	/**
+	 * Una riga che sparisce non riceve l'uscita del cursore, e l'hover che aveva registrato resterebbe appeso al controller: alla
+	 * distruzione si ritira. Pubblico per lo stesso motivo dei due gestori qui sopra.
+	 */
+	virtual void NativeDestruct() override;
+
 private:
 	ARTPlayerController* ResolveHoverController() const;
 
 	FString Text;
+
+	/** `LineText` ha ricevuto almeno una volta il testo: la prima scrittura non si salta anche se la stringa e' vuota. */
+	bool bTextWritten = false;
 
 	/** Non e' una `UPROPERTY`, come `BuiltForUnit` dello slot: e' un confronto, non un secondo proprietario. */
 	TWeakObjectPtr<const ARTUnit> HoverUnit;
@@ -189,6 +198,13 @@ private:
 	TWeakObjectPtr<const ARTUnit> CachedSubject;
 
 	int32 FirstLine = 0;
+
+	/**
+	 * Il delta di rotella non ancora speso in tacche intere. Una rotella ad alta risoluzione o un touchpad mandano molti eventi
+	 * frazionari: contare il solo segno di ciascuno scorrerebbe una tacca intera per evento. Come lo zoom del mondo, e' proporzionale.
+	 */
+	float WheelRemainder = 0.f;
+
 	float SecondsSinceCompose = 1.f; // il primo tick compone subito
 	bool bShown = false;
 

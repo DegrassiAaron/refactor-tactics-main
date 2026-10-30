@@ -4829,6 +4829,35 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	{
 		return;
 	}
+	const ARTTurnManager* TM = PacingTurnManager(this);
+	if (TM == nullptr)
+	{
+		return;
+	}
+
+	// 🔴 **Un nemico a fuoco: il cancello PRIMA di leggere la sua skill, e l'origine e' la cella della VOCE DELLA VISTA, mai il piano**
+	// (P3, D-552). `AimOriginFor` leggerebbe lo scatto pianificato del nemico, e la portata mostrerebbe da dove mirera': il suo piano.
+	// Il cancello e' lo stesso del fuoco, e un'unica funzione lo decide (`URTInspectLibrary::LiveEntry`): una voce `Live` nella vista di
+	// chi guarda. Una voce `Remembered` ha la cella del RICORDO, che puo' essere una cella che oggi si vede: e' li' che il cancello conta.
+	// `ARTUnit::IsKnownToObserver()` non decide niente. La vista costa una ricerca di unita' a ogni tick, ma solo mentre il cursore e'
+	// su una riga della scheda.
+	FRTKnowledgeView EnemyView;
+	const FRTKnowledgeEntry* EnemyEntry = nullptr;
+	if (SkillOwner->TeamId != ObserverTeamId)
+	{
+		TArray<ARTUnit*> Units;
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			Units.Add(*It);
+		}
+		EnemyView = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
+		EnemyEntry = URTInspectLibrary::LiveEntry(EnemyView, SkillOwner->StableUnitId);
+		if (EnemyEntry == nullptr)
+		{
+			return;
+		}
+	}
+
 	const URTActionData* Ability = SkillOwner->GetAbility(SkillHoverIndex);
 	// Le stesse due condizioni della portata armata: l'azione chiede un bersaglio e ha una portata positiva. Una skill senza
 	// portata non ha niente da mostrare, e il piano non deve cedere la mappa per niente.
@@ -4836,38 +4865,10 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	{
 		return;
 	}
-	const ARTTurnManager* TM = PacingTurnManager(this);
-	if (TM == nullptr)
-	{
-		return;
-	}
 
-	FRTCellId Origin;
-	if (SkillOwner->TeamId == ObserverTeamId)
-	{
-		// Un'unita' propria: stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello
-		// dell'azione armata. Il suo scatto pianificato e' un dato PROPRIO.
-		Origin = OrigineDiMira(SkillOwner, *Ability);
-	}
-	else
-	{
-		// 🔴 **Un nemico a fuoco: la cella della VOCE DELLA VISTA, mai il piano** (P3, D-552). `AimOriginFor` leggerebbe lo scatto
-		// pianificato del nemico, e la portata mostrerebbe da dove mirera': il suo piano. Il cancello e' lo stesso del fuoco: una voce
-		// `Live` nella vista di chi guarda, e `ARTUnit::IsKnownToObserver()` non decide niente. La vista costa una ricerca di unita' a
-		// ogni tick, ma solo mentre il cursore e' su una riga della scheda.
-		TArray<ARTUnit*> Units;
-		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
-		{
-			Units.Add(*It);
-		}
-		const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
-		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, SkillOwner->StableUnitId);
-		if (Entry == nullptr || !URTInspectLibrary::IsInspectable(View, SkillOwner->StableUnitId))
-		{
-			return;
-		}
-		Origin = Entry->Cell;
-	}
+	// Un'unita' propria: stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello
+	// dell'azione armata. Il suo scatto pianificato e' un dato PROPRIO.
+	const FRTCellId Origin = EnemyEntry != nullptr ? EnemyEntry->Cell : OrigineDiMira(SkillOwner, *Ability);
 	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
 	// La precondizione di `URTRangeVerdictLibrary`: chi tira dev'essere su una cella che la squadra vede. Se non lo e' (uno
 	// scatto pianificato verso una cella mai vista), non c'e' una portata da mostrare e il piano resta com'e'.
@@ -4915,8 +4916,8 @@ void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) co
 	// 🔑 La stessa vista del velo. Il cancello e' UNO: una voce `Live` (P2). `ARTUnit::IsKnownToObserver()` nasce vero e qui
 	// non decide niente.
 	const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
-	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Subject->StableUnitId);
-	if (Entry == nullptr || !URTInspectLibrary::IsInspectable(View, Subject->StableUnitId))
+	const FRTKnowledgeEntry* Entry = URTInspectLibrary::LiveEntry(View, Subject->StableUnitId);
+	if (Entry == nullptr)
 	{
 		return;
 	}

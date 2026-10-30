@@ -20,6 +20,7 @@
 #include "EngineUtils.h"
 #include "Input/Events.h"
 #include "Kismet/GameplayStatics.h"
+#include "Perception/RTTeamKnowledge.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "UI/RTHUD.h"
@@ -291,6 +292,14 @@ bool FRTInspectCardConsumesClicksAndWheelTest::RunTest(const FString&)
 	Rig.Card->NativeOnMouseWheel(Geometry, CardTestMouse(FKey(), 1.f));
 	TestEqual(TEXT("in cima non va sotto zero"), Rig.Card->GetFirstLine(), 0);
 
+	// Una rotella a delta frazionari (un touchpad, una rotella ad alta risoluzione) e' proporzionale come lo zoom del mondo: sotto la
+	// tacca intera non scorre, e la frazione resta per l'evento dopo. Contare il solo segno farebbe scorrere una tacca intera per evento.
+	Rig.Card->NativeOnMouseWheel(Geometry, CardTestMouse(FKey(), -0.4f));
+	Rig.Card->NativeOnMouseWheel(Geometry, CardTestMouse(FKey(), -0.4f));
+	TestEqual(TEXT("due eventi da 0,4 non fanno una tacca"), Rig.Card->GetFirstLine(), 0);
+	Rig.Card->NativeOnMouseWheel(Geometry, CardTestMouse(FKey(), -0.4f));
+	TestEqual(TEXT("il terzo la completa: una tacca, non tre"), Rig.Card->GetFirstLine(), Step);
+
 	// Anche quando non c'e' niente da scorrere la rotella e' consumata: il gesto e' comunque sul pannello, e non deve zoomare il mondo.
 	Rig.Card->MaxRighe = 50;
 	Rig.Card->ScrollBy(0);
@@ -361,6 +370,132 @@ bool FRTInspectLineHoverAsksTheRangeTest::RunTest(const FString&)
 	RowA->SetLine(TEXT("nome"), Unit, INDEX_NONE);
 	TestTrue(TEXT("e se diventa una riga senza skill l'hover si spegne"), PC->GetSkillHoverUnit() == nullptr);
 	RowA->NativeOnMouseLeave(Pointer);
+	return true;
+}
+
+/**
+ * Una riga che sparisce, una scheda che si nasconde e una riga distrutta ritirano l'hover che avevano registrato (`#3748`): nessuna delle
+ * tre riceve l'uscita del cursore da Slate, e senza questo la mappa resterebbe sulla portata di una skill che nessuna riga mostra piu'.
+ * Tre casi, tre asserti: ciascuno e' la sola guardia di una delle tre uscite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardRetiresItsHoverTest,
+	"RefactorTactics.PlayerInput.InspectCardRetiresTheHoverOfARowThatGoesAway",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectCardRetiresItsHoverTest::RunTest(const FString&)
+{
+	FCardTestRig Rig;
+	if (!CardTestMakeRig(*this, Rig, 12, 20)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(Rig.World); };
+	Rig.Card->RefreshLook(true);
+	const TArray<TObjectPtr<URTInspectLineWidget>>& Rows = Rig.Card->GetLineWidgets();
+	if (!TestEqual(TEXT("premessa: dodici righe"), Rows.Num(), 12)) { return false; }
+
+	const FGeometry Geometry;
+	const FPointerEvent Pointer = CardTestMouse(FKey());
+	// Le righe di skill sono la 1, la 5 e la 9, e portano il proprio numero come posizione di kit.
+	const auto HoverRow = [&](int32 RowIndex)
+	{
+		Rows[RowIndex]->SetHoverControllerForTest(Rig.PC);
+		Rows[RowIndex]->NativeOnMouseEnter(Geometry, Pointer);
+	};
+
+	// 1. La finestra si accorcia con il cursore sull'ultima riga di skill: la riga e' tolta dall'albero.
+	HoverRow(9);
+	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 9"), Rig.PC->GetSkillHoverIndex(), 9)) { return false; }
+	Rig.Card->SetViewForTest(CardTestView(5));
+	Rig.Card->RefreshLook(true);
+	TestEqual(TEXT("la finestra e' di cinque righe"), Rows.Num(), 5);
+	TestTrue(TEXT("la riga tolta ha ritirato il suo hover"), Rig.PC->GetSkillHoverUnit() == nullptr);
+
+	// 2. La scheda si nasconde (un modale) con il cursore su una riga: una riga collassata non riceve l'uscita.
+	Rig.Card->SetViewForTest(CardTestView(12));
+	Rig.Card->RefreshLook(true);
+	if (!TestEqual(TEXT("premessa: tornano dodici righe"), Rows.Num(), 12)) { return false; }
+	HoverRow(5);
+	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 5"), Rig.PC->GetSkillHoverIndex(), 5)) { return false; }
+	Rig.Card->SetContextForTest(ERTPointerContext::Modal);
+	Rig.Card->RefreshLook(false);
+	TestFalse(TEXT("premessa: la scheda e' nascosta"), Rig.Card->IsCardShown());
+	TestTrue(TEXT("nascosta, ha ritirato l'hover della riga"), Rig.PC->GetSkillHoverUnit() == nullptr);
+	Rig.Card->SetContextForTest(ERTPointerContext::Planning);
+	Rig.Card->RefreshLook(false);
+
+	// 3. Una riga distrutta con l'hover registrato.
+	HoverRow(1);
+	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 1"), Rig.PC->GetSkillHoverIndex(), 1)) { return false; }
+	Rows[1]->NativeDestruct();
+	TestTrue(TEXT("la riga distrutta ha ritirato il suo hover"), Rig.PC->GetSkillHoverUnit() == nullptr);
+	return true;
+}
+
+/**
+ * Il cancello della scheda si chiude sulla squadra del CONTROLLER, non su una cache del widget (`#3748`), e il raccordo widget ->
+ * `ARTHUD::BuildInspectCard` e' provato sul percorso vero: nessuna scheda iniettata, manager e unita' di uno scenario.
+ *
+ * Due schede nello stesso mondo, sulla stessa unita' (di squadra 0), con la cache del widget a 0 in entrambe: quella del controller di
+ * squadra 0 la vede, quella del controller di un'altra squadra no, perche' per lei e' un'unita' che non conosce. Una scheda che
+ * leggesse la cache avrebbe mostrato la scheda a entrambe: e' il difetto di un client che acquisisce il contesto prima che il
+ * PlayerState abbia la squadra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardGatesOnTheControllersTeamTest,
+	"RefactorTactics.ScreenHud.InspectCardGatesOnTheControllersTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectCardGatesOnTheControllersTeamTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("Spec.Hud.MatchWithTwoAllies"), ReportDir);
+	if (!TestEqual(TEXT("lo scenario gira"), static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass))) { return false; }
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	ARTUnit* Unit = RTWorldFixtures::FirstUnitOfTeam(World, 0);
+	// Il rivale e' di una squadra che lo scenario non conosce: senza unita' ne' fotografia, il suo ripiego e' una conoscenza vuota col
+	// proprio `TeamId`. ⚠️ Non la squadra 1: lo scenario ha unita' sue, e `PlaybackKnowledgeForTeam` legge prima lo stato di playback
+	// seminato dalla run, quindi la squadra 1 puo' vedere davvero l'unita' di squadra 0 e una conoscenza «cieca» impostata a mano non conta.
+	constexpr int32 RivalTeam = 2;
+	ARTPlayerController* Own = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	ARTPlayerController* Rival = RTWorldFixtures::MakePlayerOnTeam(World, RivalTeam);
+	if (!TestTrue(TEXT("manager, unita' di squadra 0 e due controllori esistono"), TM && Unit && Own && Rival)) { return false; }
+
+	// La premessa si MISURA: dalla vista della squadra 0 l'unita' e' `Live`, da quella del rivale non c'e' nessuna voce `Live`.
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(World); It; ++It) { Units.Add(*It); }
+	if (!TestTrue(TEXT("premessa: la squadra 0 vede la sua unita', il rivale no"),
+		URTInspectLibrary::IsInspectable(URTHudViewModel::BuildObserverKnowledgeView(TM, Units, 0), Unit->StableUnitId)
+		&& !URTInspectLibrary::IsInspectable(URTHudViewModel::BuildObserverKnowledgeView(TM, Units, RivalTeam), Unit->StableUnitId)))
+	{
+		return false;
+	}
+
+	const auto MakeCard = [&](ARTPlayerController* PC) -> URTInspectCardWidget*
+	{
+		URTInspectCardWidget* Card = CreateWidget<URTInspectCardWidget>(World, URTInspectCardWidget::StaticClass());
+		if (Card == nullptr) { return nullptr; }
+		Card->CardRoot = NewObject<UBorder>(Card);
+		Card->LinesBox = NewObject<UVerticalBox>(Card);
+		Card->LineClass = URTInspectLineWidget::StaticClass();
+		Card->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0); // la cache del widget dice 0, per entrambe
+		Card->SetCommandControllerForTest(PC);
+		Card->SetInspectedUnitForTest(Unit);
+		Card->SetContextForTest(ERTPointerContext::Planning);
+		PC->PinInspectionForTest(Unit);
+		return Card;
+	};
+	URTInspectCardWidget* OwnCard = MakeCard(Own);
+	URTInspectCardWidget* RivalCard = MakeCard(Rival);
+	if (!TestTrue(TEXT("le due schede esistono"), OwnCard && RivalCard)) { return false; }
+
+	OwnCard->RefreshLook(true);
+	TestTrue(TEXT("il controller di squadra 0 vede la scheda della sua unita' (percorso vero, nessuna scheda iniettata)"), OwnCard->IsCardShown());
+	TestTrue(TEXT("e le sue righe sono costruite"), OwnCard->GetLineWidgets().Num() > 0);
+
+	RivalCard->RefreshLook(true);
+	TestFalse(TEXT("il controller del rivale non conosce quell'unita': nessuna scheda, anche con la cache del widget a 0"), RivalCard->IsCardShown());
+	TestEqual(TEXT("e nessuna riga costruita"), RivalCard->GetLineWidgets().Num(), 0);
 	return true;
 }
 

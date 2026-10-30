@@ -167,6 +167,17 @@ public:
 	 */
 	static bool IsInspectable(const FRTKnowledgeView& View, int32 StableUnitId);
 
+	/**
+	 * LA VOCE `Live` di un'unita', o `nullptr` (`#3748`): il cancello di `IsInspectable` che restituisce anche la voce, cosi' chi ha
+	 * bisogno della CELLA con cui la squadra la vede (il fuoco, l'hover di una riga della scheda) non rifa' il confronto da se'. Una voce
+	 * `Remembered` NON e' una voce `Live`: la sua cella e' quella del ricordo, e puo' essere una cella che oggi si vede.
+	 *
+	 * 🔑 **E' il solo punto in cui si decide**: le tre copie che c'erano (`GatherFocusInputs`, il ramo nemico di
+	 * `GatherSkillHoverInputs`, `IsInspectable`) possono divergere, e una sola di esse coperta da un test lascia le altre a un
+	 * rifacimento. `Entry->Cell` di una voce non `Live` non si legge mai.
+	 */
+	static const FRTKnowledgeEntry* LiveEntry(const FRTKnowledgeView& View, int32 StableUnitId);
+
 	/** Il cancello e il compositore insieme: vuota se l'unita' non e' `Live`. Il soggetto arriva comunque gia' costruito. */
 	static FRTInspectView ResolveInspect(const FRTKnowledgeView& View, int32 StableUnitId, const FRTInspectSubject& Subject);
 

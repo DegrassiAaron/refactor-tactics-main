@@ -14,6 +14,8 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLogLibrary.h" // DescribeEntry: il perche' di una finestra che non si apre (#3667)
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTInspectCardWidget.h" // `#3748`: la scheda dell'ispezione si nasconde con una finestra di reazione vera
+#include "Components/VerticalBox.h"
 #include "UI/RTScreenHudWidgets.h" // URTFastDecisionWidget: la meta' UI delle voci 2 · 3 · 4 di CP 14.6
 #include "UI/RTReactionResponseText.h" // nome e frase delle risposte (#3615)
 #include "Ability/RTCatalogLibrary.h"   // BraceExecutableResponses: le risposte offribili si chiedono a chi le produce
@@ -2584,6 +2586,84 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 		StessoTesto(FinestraBrace->GetSubtitleText(), TEXT("Ivrin ti spinge")));
 
 	RTWorldFixtures::DestroyWorld(MondoBrace);
+	return true;
+}
+
+/**
+ * **`#3748` — la scheda dell'ispezione si nasconde con una finestra di reazione VERA, e non resta a schermo.**
+ *
+ * `GetPointerContext` non produce `ReactionWindow` (nessuno lo scrive, E14): una risoluzione sospesa su una finestra vale
+ * `ResolutionPlayback`, e la scheda, che in playback si vede, resterebbe a schermo e continuerebbe a consumare i gesti della fascia. La
+ * finestra si legge dal suo view model. Il test apre la finestra dell'Overwatch come `SubmitClosesAndResumesOverwatch`, con un
+ * osservatore che ha fissato il nemico che muove; l'iniezione del contesto (`SetContextForTest`) qui NON si usa, perche' nasconderebbe
+ * proprio il cablaggio.
+ *
+ * L'asserto dopo la risposta e' un'equivalenza, non «torna visibile»: la ripresa puo' aprire subito un'altra finestra (vedi il test
+ * gemello), e allora la scheda deve restare nascosta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardHidesWithAWindowTest,
+	"RefactorTactics.Reactions.ViewModel.InspectCardHidesWhileAWindowIsOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectCardHidesWithAWindowTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("PlayerController"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
+
+	// La scheda: l'osservatore (squadra 1) ha fissato il nemico che muove. La scheda e' iniettata (la composizione non e' di questo test)
+	// ma il CONTESTO no: viene dal controller e dal view model, com'e' in partita.
+	URTInspectCardWidget* Card = CreateWidget<URTInspectCardWidget>(World, URTInspectCardWidget::StaticClass());
+	if (!TestNotNull(TEXT("la scheda esiste"), Card)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	Card->CardRoot = NewObject<UBorder>(Card);
+	Card->LinesBox = NewObject<UVerticalBox>(Card);
+	Card->LineClass = URTInspectLineWidget::StaticClass();
+	Card->SetReactionWindowForTest(ViewModel);
+	Card->SetCommandControllerForTest(PC);
+	Card->SetInspectedUnitForTest(Mover);
+	PC->PinInspectionForTest(Mover);
+	FRTInspectView View;
+	for (int32 I = 0; I < 10; ++I) { View.Lines.Add(FString::Printf(TEXT("riga %02d"), I)); View.LineAbilityIndices.Add(INDEX_NONE); }
+	Card->SetViewForTest(View);
+
+	Card->RefreshLook(true);
+	TestTrue(TEXT("controllo positivo: senza una finestra la scheda fissata si vede"), Card->IsCardShown());
+	TestFalse(TEXT("premessa: nessuna finestra aperta"), ViewModel->IsWindowOpen());
+
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+	if (!TestTrue(TEXT("premessa: una finestra dell'Overwatch attende"), ViewModel->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: il contesto del puntatore, in una risoluzione sospesa, e' il playback (non la finestra)"),
+		PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
+
+	Card->RefreshLook(false);
+	TestFalse(TEXT("con la finestra aperta la scheda e' nascosta, anche se il contesto del puntatore la mostrerebbe"), Card->IsCardShown());
+	TestTrue(TEXT("ma non e' chiusa: il pin resta"), PC->IsInspectorPinned());
+
+	// Risposta: la scheda segue la finestra, in entrambi i versi.
+	ViewModel->SubmitResponse(ViewModel->GetWindow().SafeResponse);
+	Card->RefreshLook(false);
+	TestEqual(TEXT("chiusa la finestra la scheda torna; se ne e' aperta un'altra, resta nascosta"), Card->IsCardShown(), !ViewModel->IsWindowOpen());
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 

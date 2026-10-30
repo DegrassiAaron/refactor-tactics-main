@@ -493,7 +493,10 @@ bool FRTInspectShowCardOutsideDialogsTest::RunTest(const FString&)
 			URTInspectLibrary::ShouldShowCard(Riga.Contesto, /*bPinned=*/ false));
 		(Riga.bVisibileSeFissata ? Visible : Hidden) += 1;
 	}
-	TestEqual(TEXT("la tabella copre ogni contesto"), Visible + Hidden, static_cast<int32>(ERTPointerContext::Modal) + 1);
+	// Il conto viene dall'enum e non da `Modal`: un contesto aggiunto dopo di lui deve far cadere la tabella, non restarne fuori.
+	const UEnum* ContextEnum = StaticEnum<ERTPointerContext>();
+	if (!TestNotNull(TEXT("l'enum dei contesti e' riflesso"), ContextEnum)) { return false; }
+	TestEqual(TEXT("la tabella copre ogni contesto dell'enum"), Visible + Hidden, ContextEnum->NumEnums() - 1);
 	TestTrue(TEXT("anti-vacuita': la tabella ha sia contesti che mostrano sia contesti che nascondono"), Visible > 0 && Hidden > 0);
 	return true;
 }

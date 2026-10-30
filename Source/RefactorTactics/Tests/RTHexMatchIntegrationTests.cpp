@@ -36,6 +36,8 @@
 #include "Perception/RTTeamKnowledge.h" // `#3750`: la conoscenza di squadra si dichiara nel banco
 #include "Player/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
 #include "EngineUtils.h"               // TActorIterator: la seconda unita' propria del banco
+#include "Perception/RTKnowledgeView.h" // `#3748`: la voce `Remembered` di un nemico solo ricordato
+#include "UI/RTHudViewModel.h"         // `#3748`: BuildObserverKnowledgeView, la vista da cui decide il cancello
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -5688,6 +5690,75 @@ bool FRTSkillHoverFromTheCardOwnUnitTest::RunTest(const FString&)
 	B.PC->UpdatePlanningOverlay();
 	TestTrue(TEXT("ispezionata, la riga della scheda di un'unita' propria mostra la portata dell'azione armata"),
 		FwSorted(HvShownSkillCells(B.HexMap)) == Expected);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — la riga della scheda di un nemico solo RICORDATO non mostra la portata, nemmeno da una cella che oggi si vede.**
+ *
+ * Il cancello e' una voce `Live`. Una voce `Remembered` porta la cella del RICORDO, che puo' essere una cella in vista: li' il controllo
+ * «l'origine e' una cella che la squadra vede» non ferma niente, e a fermare la portata e' il solo cancello. Il test costruisce quel caso
+ * (la cella del nemico esce dall'insieme in vista, la squadra ne ricorda una vicina che si vede) e lo dichiara per misura come
+ * premessa. Il controllo positivo e' lo stesso nemico, visto di nuovo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverFromTheCardRememberedEnemyTest,
+	"RefactorTactics.SkillHover.ARowOfTheCardOfARememberedEnemyShowsNoRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillHoverFromTheCardRememberedEnemyTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("premessa: un'unita' nemica"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+
+	B.PC->SelectActorForTest(Enemy);
+	const int32 Skill = HvPrepareTargetedSkill(B, Enemy);
+	B.PC->SelectActorForTest(B.Mine);
+	if (!TestTrue(TEXT("premessa: il nemico ha una skill che chiede un bersaglio"), Skill != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La cella del ricordo: una vicina a quella del nemico, dentro la mappa, che la squadra continua a vedere.
+	FRTCellId RememberedCell = Enemy->Cell;
+	for (int32 D = 0; D < 6 && RememberedCell == Enemy->Cell; ++D)
+	{
+		const FRTCellId Step = HvStep(Enemy->Cell, HvDirs[D], 1);
+		if (Map->ContainsCell(Step)) { RememberedCell = Step; }
+	}
+	FRTTeamKnowledge Remembering = FwAllSeen(Map);
+	Remembering.VisibleCells.Remove(Enemy->Cell); // l'unita' non si vede piu'...
+	Remembering.Contacts.Add(FRTLastKnownContact(Enemy->StableUnitId, RememberedCell, Remembering.TurnNumber)); // ...ma se ne ha un ricordo
+	B.TM->SetTeamKnowledgeForTest(Remembering);
+
+	// La premessa si MISURA: la vista dichiara una voce `Remembered`, e la sua cella e' una cella in vista.
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(B.World); It; ++It) { Units.Add(*It); }
+	const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(B.TM, Units, /*PlayerTeamId=*/ 0);
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Enemy->StableUnitId);
+	if (!TestTrue(TEXT("premessa: la voce del nemico e' `Remembered`, con una cella che la squadra vede"),
+		Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Remembered
+		&& Remembering.VisibleCells.Contains(Entry->Cell) && !(Entry->Cell == Enemy->Cell)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->SetSkillHover(Enemy, Skill);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("un nemico solo ricordato non tiene la mappa, nemmeno da una cella che si vede"), HvShownSkillCells(B.HexMap).Num(), 0);
+
+	// Il controllo positivo: lo stesso nemico, visto di nuovo, mostra la portata dalla sua cella.
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
+	B.PC->UpdatePlanningOverlay();
+	TestTrue(TEXT("controllo positivo: visto di nuovo (`Live`), la stessa riga mostra la portata"), HvShownSkillCells(B.HexMap).Num() > 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;

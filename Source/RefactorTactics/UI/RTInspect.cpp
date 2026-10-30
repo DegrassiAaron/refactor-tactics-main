@@ -114,10 +114,15 @@ bool URTInspectLibrary::MakeDeducedCooldown(FName ActionId, const FText& Title, 
 	return true;
 }
 
-bool URTInspectLibrary::IsInspectable(const FRTKnowledgeView& View, int32 StableUnitId)
+const FRTKnowledgeEntry* URTInspectLibrary::LiveEntry(const FRTKnowledgeView& View, int32 StableUnitId)
 {
 	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, StableUnitId);
-	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
+	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live ? Entry : nullptr;
+}
+
+bool URTInspectLibrary::IsInspectable(const FRTKnowledgeView& View, int32 StableUnitId)
+{
+	return LiveEntry(View, StableUnitId) != nullptr;
 }
 
 FRTInspectView URTInspectLibrary::ResolveInspect(const FRTKnowledgeView& View, int32 StableUnitId, const FRTInspectSubject& Subject)
@@ -127,8 +132,28 @@ FRTInspectView URTInspectLibrary::ResolveInspect(const FRTKnowledgeView& View, i
 
 bool URTInspectLibrary::ShouldShowCard(ERTPointerContext Context, bool bPinned)
 {
+	if (!bPinned)
+	{
+		return false;
+	}
+	switch (Context)
+	{
 	// In `ReactionWindow` e in `Modal` il Back e' di quei passi (`ResolveBack` li mette prima di `Inspector`): la scheda aspetta.
-	return bPinned && Context != ERTPointerContext::ReactionWindow && Context != ERTPointerContext::Modal;
+	case ERTPointerContext::ReactionWindow:
+	case ERTPointerContext::Modal:
+		return false;
+
+	// Nessun `default:`, come `ContextAllowsFocus` e `ContextAllowsCardHover`: un contesto nuovo deve dire QUI se nasconde la scheda,
+	// e il compilatore lo chiede. Una lista negativa renderebbe visibile, per omissione, ogni contesto che nessuno ha guardato.
+	case ERTPointerContext::IdleSelection:
+	case ERTPointerContext::Planning:
+	case ERTPointerContext::Pathing:
+	case ERTPointerContext::Targeting:
+	case ERTPointerContext::Facing:
+	case ERTPointerContext::ResolutionPlayback:
+		return true;
+	}
+	return false;
 }
 
 int32 URTInspectLibrary::ClampFirstLine(int32 TotalLines, int32 MaxLines, int32 FirstLine)
