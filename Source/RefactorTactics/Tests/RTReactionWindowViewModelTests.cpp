@@ -2637,7 +2637,7 @@ bool FRTInspectCardHidesWithAWindowTest::RunTest(const FString&)
 	Card->SetInspectedUnitForTest(Mover);
 	PC->PinInspectionForTest(Mover);
 	FRTInspectView View;
-	for (int32 I = 0; I < 10; ++I) { View.Lines.Add(FString::Printf(TEXT("riga %02d"), I)); View.LineAbilityIndices.Add(INDEX_NONE); }
+	for (int32 I = 0; I < 10; ++I) { View.Lines.Add(FString::Printf(TEXT("riga %02d"), I)); }
 	Card->SetViewForTest(View);
 
 	Card->RefreshLook(true);

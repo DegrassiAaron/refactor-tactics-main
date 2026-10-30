@@ -681,27 +681,21 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 	Subject.Facing = Unit->Facing;
 	Subject.bShowFacing = bShowFacing;
 
-	// Il kit dal solo catalogo: le azioni dell'unita' (con la variante d'arma montata, che cambia la portata vera),
-	// riga di catalogo -> tooltip di catalogo. Nessuna ricarica, nessun piano, nessuna variante attiva.
+	// ⛔ Il kit non entra nel soggetto: lo mostra la barra delle skill dell'unita' cliccata, in sola lettura (`#3748`), dal solo
+	// catalogo (`URTHudViewModel::BuildPublicBar`). Qui di un'azione si legge soltanto il titolo, e solo per la riga dedotta.
 	//
-	// Le ricariche DEDOTTE (#3751) sono la sola eccezione, e non leggono questa unita': si chiede al registro di cio'
-	// che la squadra ha visto. Solo per un'unita' di un'altra squadra — della propria si leggono le ricariche vere — e
-	// solo per le azioni che hanno una ricarica di catalogo (`CooldownTurns` e' lo specchio che `ConsumeAbility` legge).
-	const bool bDeduce = SeenUses != nullptr && Unit->TeamId != PlayerTeamId;
-	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
+	// Le ricariche DEDOTTE (#3751) non leggono questa unita': si chiede al registro di cio' che la squadra ha visto. Solo per
+	// un'unita' di un'altra squadra — della propria si leggono le ricariche vere — e solo per le azioni che hanno una ricarica di
+	// catalogo (`CooldownTurns` e' lo specchio che `ConsumeAbility` legge). La variante d'arma montata e' del catalogo, come per la
+	// barra; nessun piano, nessuna variante attiva.
+	if (SeenUses != nullptr && Unit->TeamId != PlayerTeamId)
 	{
-		const URTActionData* Action = Unit->GetAbility(Index);
-		if (Action == nullptr) { continue; }
-		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
-			URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
-		if (Tooltip.IsValid())
+		for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 		{
-			Subject.Kit.Add(Tooltip);
-			Subject.KitAbilityIndices.Add(Index); // la posizione di kit, non l'indice di `Kit`: le voci non valide sono saltate
-		}
-
-		if (bDeduce)
-		{
+			const URTActionData* Action = Unit->GetAbility(Index);
+			if (Action == nullptr) { continue; }
+			const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
+				URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
 			FRTInspectDeducedCooldown Row;
 			if (URTInspectLibrary::MakeDeducedCooldown(Action->Def.ActionId, Tooltip.Title, Action->CooldownTurns,
 				SeenUses->LastSeenTurn(PlayerTeamId, Unit->StableUnitId, Action->Def.ActionId), Row))

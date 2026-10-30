@@ -35,100 +35,16 @@ namespace
 // URTInspectLineWidget
 // ---------------------------------------------------------------------------------------------------------------------
 
-void URTInspectLineWidget::SetLine(const FString& InText, const ARTUnit* InHoverUnit, int32 InAbilityIndex)
+void URTInspectLineWidget::SetLine(const FString& InText)
 {
-	// La riga ha un hover registrato solo se il cursore e' entrato e non e' ancora uscito: e' il suo modo di sapere di essere sotto il
-	// cursore, senza chiederlo a Slate. Se in quel momento cambia skill, quello vecchio si spegne e il nuovo si accende.
-	const bool bSameTarget = HoverUnit.Get() == InHoverUnit && AbilityIndex == InAbilityIndex;
-	const bool bRetarget = !bSameTarget && HoverRegisteredIndex != INDEX_NONE;
-	if (bRetarget)
-	{
-		HoverEnd();
-	}
-
 	const bool bTextChanged = Text != InText;
 	Text = InText;
-	HoverUnit = InHoverUnit;
-	AbilityIndex = InAbilityIndex;
 	// Il testo si riscrive solo se cambia: la scheda ricompone a 5 Hz, e un `FText` nuovo per riga a ogni giro invaliderebbe Slate per niente.
 	if (LineText && (bTextChanged || !bTextWritten))
 	{
 		LineText->SetText(FText::FromString(Text));
 		bTextWritten = true;
 	}
-
-	if (bRetarget)
-	{
-		HoverBegin();
-	}
-}
-
-void URTInspectLineWidget::HoverBegin()
-{
-	// Una riga che non e' di una skill non chiede niente: ne' la portata, ne' un log. Il passaggio del cursore non e' un gesto.
-	const ARTUnit* Unit = HoverUnit.Get();
-	if (Unit == nullptr || AbilityIndex < 0)
-	{
-		return;
-	}
-	if (ARTPlayerController* PC = ResolveHoverController())
-	{
-		PC->SetSkillHover(Unit, AbilityIndex);
-		HoverRegisteredUnit = Unit;
-		HoverRegisteredIndex = AbilityIndex;
-	}
-}
-
-void URTInspectLineWidget::HoverEnd()
-{
-	// Una riga che non ha registrato niente non ha niente da spegnere: nemmeno l'hover di un'altra riga o della barra.
-	if (HoverRegisteredIndex == INDEX_NONE)
-	{
-		return;
-	}
-	const ARTUnit* RegisteredUnit = HoverRegisteredUnit.Get();
-	const int32 RegisteredIndex = HoverRegisteredIndex;
-	HoverRegisteredUnit.Reset();
-	HoverRegisteredIndex = INDEX_NONE;
-	if (ARTPlayerController* PC = ResolveHoverController())
-	{
-		// Solo il PROPRIO hover: `ClearSkillHover` confronta unita' e posizione, quindi non cancella quello che nel frattempo e' entrato altrove.
-		PC->ClearSkillHover(RegisteredUnit, RegisteredIndex);
-	}
-}
-
-void URTInspectLineWidget::SetHoverControllerForTest(ARTPlayerController* InController)
-{
-	HoverControllerForTest = InController;
-}
-
-ARTPlayerController* URTInspectLineWidget::ResolveHoverController() const
-{
-	// L'iniezione dei test viene prima, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer` una run headless non ha un
-	// proprietario (vedi `URTActionSlotWidget::ResolveArmingController`).
-	if (ARTPlayerController* Iniettato = HoverControllerForTest.Get())
-	{
-		return Iniettato;
-	}
-	return Cast<ARTPlayerController>(GetOwningPlayer());
-}
-
-void URTInspectLineWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
-{
-	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
-	HoverBegin();
-}
-
-void URTInspectLineWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
-{
-	Super::NativeOnMouseLeave(InMouseEvent);
-	HoverEnd();
-}
-
-void URTInspectLineWidget::NativeDestruct()
-{
-	HoverEnd();
-	Super::NativeDestruct();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -213,15 +129,6 @@ void URTInspectCardWidget::ScrollBy(int32 Lines)
 
 void URTInspectCardWidget::SetCardShown(bool bInShown)
 {
-	// Nascosta: una riga collassata non riceve l'uscita del cursore, e l'hover che aveva registrato resterebbe appeso al controller
-	// (la mappa continuerebbe a mostrare la portata di una skill che nessuna riga mostra piu').
-	if (bShown && !bInShown)
-	{
-		for (URTInspectLineWidget* Row : LineWidgets)
-		{
-			if (Row) { Row->HoverEnd(); }
-		}
-	}
 	bShown = bInShown;
 	if (CardRoot)
 	{
@@ -247,7 +154,6 @@ void URTInspectCardWidget::RebuildLines(const FRTInspectView& Window)
 	{
 		if (URTInspectLineWidget* Last = LineWidgets.Last())
 		{
-			Last->HoverEnd(); // una riga tolta dall'albero non riceve l'uscita del cursore
 			Last->RemoveFromParent();
 		}
 		LineWidgets.Pop();
@@ -263,13 +169,11 @@ void URTInspectCardWidget::RebuildLines(const FRTInspectView& Window)
 		LineWidgets.Add(Row);
 	}
 
-	const ARTUnit* Subject = CachedSubject.Get();
 	for (int32 I = 0; I < Window.Lines.Num(); ++I)
 	{
-		const int32 AbilityIndex = Window.LineAbilityIndices.IsValidIndex(I) ? Window.LineAbilityIndices[I] : INDEX_NONE;
-		LineWidgets[I]->SetLine(Window.Lines[I], Subject, AbilityIndex);
-		// Una riga di skill deve vedere il cursore, per l'hover; le altre lasciano passare i gesti al pannello, che li consuma.
-		LineWidgets[I]->SetVisibility(AbilityIndex >= 0 ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible);
+		LineWidgets[I]->SetLine(Window.Lines[I]);
+		// Nessuna riga vede il cursore (non c'e' piu' un hover sulla riga): lasciano passare i gesti al pannello, che li consuma.
+		LineWidgets[I]->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	}
 }
 

@@ -121,8 +121,8 @@ namespace
 			{ TEXT("SkillRange.MinRangeCells"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.MinRangeCells = 0; } },
 			{ TEXT("SkillRange.Policy"), true, [](FRTPlanningOverlayInputs& I) { I.SkillRange.Policy = ERTLineOfSightPolicy::Required; } },
 			{ TEXT("SkillKnowledgeStamp"), true, [](FRTPlanningOverlayInputs& I) { I.SkillKnowledgeStamp += 1; } },
-			// #3748: la riga della scheda e' un secondo produttore della stessa sorgente, e cambia COSA si calcola.
-			{ TEXT("bSkillHoverFromCard"), true, [](FRTPlanningOverlayInputs& I) { I.bSkillHoverFromCard = true; } },
+			// #3748: lo slot della barra in sola lettura e' un secondo produttore della stessa sorgente, e cambia COSA si calcola.
+			{ TEXT("bSkillHoverOfInspected"), true, [](FRTPlanningOverlayInputs& I) { I.bSkillHoverOfInspected = true; } },
 		};
 	}
 }
@@ -392,20 +392,21 @@ bool FRTPlanningOverlayActiveSourceTest::RunTest(const FString&)
 }
 
 /**
- * **`#3748` — la riga di una skill nella SCHEDA tiene la mappa per l'unita' a fuoco, anche se non e' la selezione.**
+ * **`#3748` — la skill sotto il cursore di un'unita' ispezionata tiene la mappa, anche se non e' la selezione.**
  *
- * Il proprietario non e' `Unit` (o non c'e' nessuna selezione): a farlo passare e' `bSkillHoverFromCard`, che scrive il solo risolutore del
- * controller dopo i suoi cancelli. L'arbitro non si apre con un `HoverSkillUnit` qualunque, e non si apre in playback, in finestra di
- * reazione e in modale. Sta sopra il fuoco e sopra il piano, come l'hover della barra.
+ * Il proprietario non e' `Unit` (o non c'e' nessuna selezione): a farlo passare e' `bSkillHoverOfInspected`, che scrive il solo risolutore del
+ * controller dopo i suoi cancelli (il produttore e' lo slot della barra in sola lettura, non la scheda). L'arbitro non si apre con un
+ * `HoverSkillUnit` qualunque, e non si apre in playback, in finestra di reazione e in modale. Sta sopra il fuoco e sopra il piano, come
+ * l'hover della barra propria.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayCardHoverTest,
-	"RefactorTactics.PlanningOverlay.ACardRowHoverTakesTheMapForTheInspectedUnit",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningOverlayInspectedHoverTest,
+	"RefactorTactics.PlanningOverlay.ASkillHoverTakesTheMapForTheInspectedUnit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlanningOverlayCardHoverTest::RunTest(const FString&)
+bool FRTPlanningOverlayInspectedHoverTest::RunTest(const FString&)
 {
 	struct FCase { ERTPointerContext Context; ERTPreviewSource Expected; };
 	const FCase Cases[] = {
-		// Dove la scheda si vede e il mondo si guarda per pianificare: la riga sta sopra il fuoco (dove c'e') e sopra il piano.
+		// Dove la scheda si vede e il mondo si guarda per pianificare: la skill sta sopra il fuoco (dove c'e') e sopra il piano.
 		{ ERTPointerContext::IdleSelection,      ERTPreviewSource::SkillHover },
 		{ ERTPointerContext::Planning,           ERTPreviewSource::SkillHover },
 		{ ERTPointerContext::Pathing,            ERTPreviewSource::SkillHover },
@@ -429,16 +430,16 @@ bool FRTPlanningOverlayCardHoverTest::RunTest(const FString&)
 		const FString Name = ContextEnum->GetNameStringByValue(static_cast<int64>(Case.Context));
 
 		// Un'unita' a fuoco che non e' la selezione (`HoverSkillUnit` e' un'altra da `Unit`), ammessa dal risolutore.
-		FRTPlanningOverlayInputs FromCard = PlanOverlayFocused();
-		FromCard.Context = Case.Context;
-		FromCard.bSkillHoverFromCard = true;
-		TestEqual(*FString::Printf(TEXT("%s: con una riga della scheda sotto il cursore"), *Name),
-			FString(PlanOverlaySourceName(FromCard.ActiveSource())), FString(PlanOverlaySourceName(Case.Expected)));
+		FRTPlanningOverlayInputs OfInspected = PlanOverlayFocused();
+		OfInspected.Context = Case.Context;
+		OfInspected.bSkillHoverOfInspected = true;
+		TestEqual(*FString::Printf(TEXT("%s: con la skill di un'unita' ispezionata sotto il cursore"), *Name),
+			FString(PlanOverlaySourceName(OfInspected.ActiveSource())), FString(PlanOverlaySourceName(Case.Expected)));
 		(Case.Expected == ERTPreviewSource::SkillHover ? Hovering : Silent) += 1;
 
 		// Lo stesso hover senza l'ammissione del risolutore non apre niente: resta la sorgente di prima.
-		FRTPlanningOverlayInputs NotAdmitted = FromCard;
-		NotAdmitted.bSkillHoverFromCard = false;
+		FRTPlanningOverlayInputs NotAdmitted = OfInspected;
+		NotAdmitted.bSkillHoverOfInspected = false;
 		FRTPlanningOverlayInputs Before = PlanOverlayFocused();
 		Before.Context = Case.Context;
 		Before.HoverSkillUnit = nullptr;
@@ -449,21 +450,21 @@ bool FRTPlanningOverlayCardHoverTest::RunTest(const FString&)
 
 	// Le uscite: l'ammissione non e' un lasciapassare.
 	FRTPlanningOverlayInputs NoRange = PlanOverlayFocused();
-	NoRange.bSkillHoverFromCard = true;
+	NoRange.bSkillHoverOfInspected = true;
 	NoRange.SkillRange.RangeCells = 0;
 	TestEqual(TEXT("una skill senza portata non tiene la mappa: resta il fuoco"),
 		FString(PlanOverlaySourceName(NoRange.ActiveSource())), FString(TEXT("Focus")));
 
 	FRTPlanningOverlayInputs NoOwner = PlanOverlayFocused();
-	NoOwner.bSkillHoverFromCard = true;
+	NoOwner.bSkillHoverOfInspected = true;
 	NoOwner.HoverSkillUnit = nullptr;
 	TestEqual(TEXT("senza proprietario della skill non tiene la mappa: resta il fuoco"),
 		FString(PlanOverlaySourceName(NoOwner.ActiveSource())), FString(TEXT("Focus")));
 
 	FRTPlanningOverlayInputs Ended = PlanOverlayFocused();
-	Ended.bSkillHoverFromCard = true;
+	Ended.bSkillHoverOfInspected = true;
 	Ended.bMatchEnded = true;
-	TestEqual(TEXT("a partita finita non si mostra niente, riga della scheda compresa"),
+	TestEqual(TEXT("a partita finita non si mostra niente, la skill di un'unita' ispezionata compresa"),
 		FString(PlanOverlaySourceName(Ended.ActiveSource())), FString(TEXT("None")));
 
 	// Non chiede un'unita' comandata: si ispeziona, e si guarda una skill, anche senza selezione.
@@ -471,10 +472,10 @@ bool FRTPlanningOverlayCardHoverTest::RunTest(const FString&)
 	NoSelection.Context = ERTPointerContext::IdleSelection;
 	NoSelection.Unit = nullptr;
 	NoSelection.bUnitAlive = false;
-	NoSelection.bSkillHoverFromCard = true;
-	TestEqual(TEXT("senza unita' selezionata la riga della scheda tiene la mappa"),
+	NoSelection.bSkillHoverOfInspected = true;
+	TestEqual(TEXT("senza unita' selezionata la skill di un'unita' ispezionata tiene la mappa"),
 		FString(PlanOverlaySourceName(NoSelection.ActiveSource())), FString(TEXT("SkillHover")));
-	NoSelection.bSkillHoverFromCard = false;
+	NoSelection.bSkillHoverOfInspected = false;
 	TestEqual(TEXT("controllo positivo: senza l'ammissione, senza selezione, resta il fuoco"),
 		FString(PlanOverlaySourceName(NoSelection.ActiveSource())), FString(TEXT("Focus")));
 	return true;

@@ -4896,8 +4896,8 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	{
 		return;
 	}
-	// Di chi puo' essere la skill sotto il cursore (spec §3 regola 7): della BARRA, cioe' dell'unita' comandata e della squadra di chi
-	// guarda; o della SCHEDA (`#3748`), cioe' dell'unita' ispezionata e fissata, propria o nemica. Il confronto con `Unit` e' gia' del
+	// Di chi puo' essere la skill sotto il cursore: della BARRA propria, cioe' dell'unita' comandata e della squadra di chi guarda; o
+	// della barra in sola lettura (`#3748`), cioe' dell'unita' ispezionata e fissata, propria o nemica. Il confronto con `Unit` e' gia' del
 	// risolutore (che scarta l'hover di chi non e' ne' l'una ne' l'altra prima di arrivare qui): qui e' la precondizione propria della
 	// funzione. Il cancello di squadra e quello della fissazione non hanno altri guardiani.
 	const bool bCommanded = SkillOwner == Unit && SkillOwner->TeamId == ObserverTeamId;
@@ -4917,7 +4917,7 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	// Il cancello e' lo stesso del fuoco, e un'unica funzione lo decide (`URTInspectLibrary::LiveEntry`): una voce `Live` nella vista di
 	// chi guarda. Una voce `Remembered` ha la cella del RICORDO, che puo' essere una cella che oggi si vede: e' li' che il cancello conta.
 	// `ARTUnit::IsKnownToObserver()` non decide niente. La vista costa una ricerca di unita' a ogni tick, ma solo mentre il cursore e'
-	// su una riga della scheda.
+	// su uno slot della barra in sola lettura.
 	FRTKnowledgeView EnemyView;
 	const FRTKnowledgeEntry* EnemyEntry = nullptr;
 	if (SkillOwner->TeamId != ObserverTeamId)
@@ -4960,8 +4960,9 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	Inputs.SkillRange.MinRangeCells = Ability->Def.MinRangeCells;
 	Inputs.SkillRange.Policy = Ability->Def.LineOfSightPolicy;
 	Inputs.SkillKnowledgeStamp = VisibleCellsStamp(Visible);
-	// La barra (unita' comandata) e la scheda (unita' a fuoco) sono due produttori della stessa sorgente: l'arbitro li distingue da qui.
-	Inputs.bSkillHoverFromCard = !bCommanded;
+	// Lo slot della barra propria (unita' comandata) e quello della barra in sola lettura (unita' ispezionata) sono due produttori della
+	// stessa sorgente: l'arbitro li distingue da qui.
+	Inputs.bSkillHoverOfInspected = !bCommanded;
 }
 
 void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const
@@ -5023,11 +5024,12 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 	// gesto di pianificazione, e quando finisce torna la sorgente di prima.
 	if (SkillHoverIndex != INDEX_NONE)
 	{
-		// L'hover e' di chi si comanda (la barra) o di chi e' a fuoco (la scheda, `#3748`): chiusa la scheda, o fissata un'altra unita',
-		// l'hover di una riga che non c'e' piu' si scarta qui, senza aspettare l'uscita del cursore che Slate puo' non mandare.
+		// L'hover e' di chi si comanda (la barra propria) o di chi e' a fuoco (la barra in sola lettura, `#3748`): chiusa la scheda, o
+		// fissata un'altra unita', l'hover di uno slot che non c'e' piu' si scarta qui, senza aspettare l'uscita del cursore che Slate puo'
+		// non mandare.
 		const ARTUnit* HoverOwner = SkillHoverUnit.Get();
-		const bool bOwnedByCard = bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
-		if (HoverOwner != Unit && !bOwnedByCard)
+		const bool bOwnedByInspected = bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
+		if (HoverOwner != Unit && !bOwnedByInspected)
 		{
 			// La selezione e' cambiata con il cursore fermo sulla barra (`N`). Se il dock ricostruisce gli slot con il kit dell'unita'
 			// nuova, Slate manda un ingresso al nuovo slot e `SetSkillHover` riscrive l'hover (visto in PIE il 2026-10-29, evidenza
@@ -5058,7 +5060,7 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 		Inputs.HoverSkillUnit = nullptr;
 		Inputs.SkillRange = FRTRangeSubject();
 		Inputs.SkillKnowledgeStamp = 0;
-		Inputs.bSkillHoverFromCard = false;
+		Inputs.bSkillHoverOfInspected = false;
 	}
 	return Inputs;
 }

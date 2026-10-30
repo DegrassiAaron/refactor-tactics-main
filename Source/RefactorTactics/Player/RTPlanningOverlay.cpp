@@ -25,7 +25,7 @@ bool FRTPlanningOverlayInputs::SamePlanLevel(const FRTPlanningOverlayInputs& Oth
 		&& HoverSkillUnit == Other.HoverSkillUnit
 		&& SkillRange == Other.SkillRange
 		&& SkillKnowledgeStamp == Other.SkillKnowledgeStamp
-		&& bSkillHoverFromCard == Other.bSkillHoverFromCard;
+		&& bSkillHoverOfInspected == Other.bSkillHoverOfInspected;
 }
 
 bool FRTPlanningOverlayInputs::operator==(const FRTPlanningOverlayInputs& Other) const
@@ -113,7 +113,7 @@ bool FRTPlanningOverlayInputs::ShowsFocus() const
 	return FocusSubject.IsValid() && bFocusOnMap && !bMatchEnded && ContextAllowsFocus(Context);
 }
 
-bool FRTPlanningOverlayInputs::ContextAllowsCardHover(ERTPointerContext InContext)
+bool FRTPlanningOverlayInputs::ContextAllowsInspectedHover(ERTPointerContext InContext)
 {
 	switch (InContext)
 	{
@@ -125,7 +125,7 @@ bool FRTPlanningOverlayInputs::ContextAllowsCardHover(ERTPointerContext InContex
 		return true;
 
 	// Le aree di pianificazione sono spente in playback (e il fuoco lo e' per scelta della sessione); in finestra di reazione e in
-	// modale la scheda e' nascosta, quindi nessuna riga puo' stare sotto il cursore.
+	// modale la scheda e' nascosta, quindi nessuno slot della barra in sola lettura puo' avere il cursore sopra.
 	case ERTPointerContext::ResolutionPlayback:
 	case ERTPointerContext::ReactionWindow:
 	case ERTPointerContext::Modal:
@@ -146,9 +146,9 @@ bool FRTPlanningOverlayInputs::ShowsSkillHover() const
 	{
 		return ShowsAreas();
 	}
-	// La skill di un'altra unita' tiene la mappa solo come riga della SCHEDA di chi e' a fuoco (`#3748`), e solo se il risolutore l'ha
-	// ammessa: senza il flag un `HoverSkillUnit` qualunque non apre l'arbitro.
-	return bSkillHoverFromCard && !bMatchEnded && ContextAllowsCardHover(Context);
+	// La skill di un'altra unita' tiene la mappa solo come slot della barra in sola lettura di chi e' a fuoco (`#3748`), e solo se il
+	// risolutore l'ha ammessa: senza il flag un `HoverSkillUnit` qualunque non apre l'arbitro.
+	return bSkillHoverOfInspected && !bMatchEnded && ContextAllowsInspectedHover(Context);
 }
 
 ERTPreviewSource FRTPlanningOverlayInputs::ActiveSource() const

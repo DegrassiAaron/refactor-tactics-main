@@ -6,18 +6,17 @@
 #include "UI/RTScreenHudWidgets.h"
 #include "RTInspectCardWidget.generated.h"
 
-class ARTPlayerController;
 class ARTUnit;
 class UPanelWidget;
 class UTextBlock;
 
 /**
- * `WBP_RT_InspectLine` - UNA riga della scheda dell'ispezione (`#3748`). Come `URTPlayerEventLineWidget` RICEVE cio' che deve
+ * `WBP_RT_InspectLine` - UNA riga di testo della scheda dell'ispezione (`#3748`). Come `URTPlayerEventLineWidget` RICEVE cio' che deve
  * scrivere e non va a prenderlo: la costruisce e la riscrive `URTInspectCardWidget`.
  *
- * Una riga di skill porta la posizione di kit di quella skill e, passandoci sopra col cursore, ne chiede la portata al controller
- * (`SetSkillHover` / `ClearSkillHover`), come lo slot della barra (`URTActionSlotWidget`): la spec vuole lo stesso gesto «nella
- * barra o nella scheda». Le altre righe non chiedono niente.
+ * ⛔ **Non ha hover.** La scheda non ha piu' righe di skill (il kit di chi e' a fuoco lo mostra la barra, in sola lettura), e il
+ * produttore dell'hover su una skill di un'unita' ispezionata e' lo slot di quella barra (`URTActionSlotWidget::HoverBegin`, che passa
+ * da `ARTPlayerController::SetSkillHover`). Una riga non chiede niente al controller.
  */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTInspectLineWidget : public UUserWidget
@@ -30,67 +29,25 @@ public:
 	TObjectPtr<UTextBlock> LineText;
 
 	/**
-	 * Scrive la riga. `InHoverUnit` e `InAbilityIndex` dicono di chi e' la skill: nulla e `INDEX_NONE` per una riga che non lo e'.
+	 * Scrive la riga.
 	 *
 	 * ⛔ **Non e' una `UFUNCTION`**, come `SetCard` e `SetLine` dell'evento: la riga la costruisce e la riscrive la scheda, e una
 	 * porta Blueprint ne farebbe rientrare un secondo produttore.
-	 *
-	 * ⚠️ **Se la riga e' sotto il cursore mentre cambia skill**, l'hover vecchio si spegne e quello nuovo si accende: Slate non manda un
-	 * nuovo ingresso a un widget che il cursore non ha lasciato, e la mappa resterebbe sulla portata di una skill che la riga non
-	 * mostra piu'.
 	 */
-	void SetLine(const FString& InText, const ARTUnit* InHoverUnit, int32 InAbilityIndex);
+	void SetLine(const FString& InText);
 
 	const FString& GetLineString() const { return Text; }
-	int32 GetAbilityIndex() const { return AbilityIndex; }
-
-	/** Le due meta' dell'hover, chiamate da `NativeOnMouseEnter` / `NativeOnMouseLeave` e dai test. */
-	void HoverBegin();
-	void HoverEnd();
-
-	/**
-	 * Inietta il controller a cui l'hover inoltra, senza un `ULocalPlayer`: la stessa forma e la stessa ragione di
-	 * `URTActionSlotWidget::SetArmingControllerForTest`. Nullo in gioco: il proprietario vero resta `GetOwningPlayer()`.
-	 */
-	void SetHoverControllerForTest(ARTPlayerController* InController);
-
-	/** Pubblici e non protetti, come in `URTActionSlotWidget`: i test provano che il passaggio del cursore arriva a `HoverBegin` / `HoverEnd`. */
-	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
-
-	/**
-	 * Una riga che sparisce non riceve l'uscita del cursore, e l'hover che aveva registrato resterebbe appeso al controller: alla
-	 * distruzione si ritira. Pubblico per lo stesso motivo dei due gestori qui sopra.
-	 */
-	virtual void NativeDestruct() override;
 
 private:
-	ARTPlayerController* ResolveHoverController() const;
-
 	FString Text;
 
 	/** `LineText` ha ricevuto almeno una volta il testo: la prima scrittura non si salta anche se la stringa e' vuota. */
 	bool bTextWritten = false;
-
-	/** Non e' una `UPROPERTY`, come `BuiltForUnit` dello slot: e' un confronto, non un secondo proprietario. */
-	TWeakObjectPtr<const ARTUnit> HoverUnit;
-	int32 AbilityIndex = INDEX_NONE;
-
-	/**
-	 * Cio' che QUESTA riga ha registrato all'ingresso. L'uscita spegne solo quello: la riga puo' essere stata riscritta fra
-	 * l'ingresso e l'uscita, e leggere i campi correnti spegnerebbe un hover che non e' suo (lo stesso difetto che
-	 * `URTActionSlotWidget` ha gia' pagato).
-	 */
-	TWeakObjectPtr<const ARTUnit> HoverRegisteredUnit;
-	int32 HoverRegisteredIndex = INDEX_NONE;
-
-	UPROPERTY(Transient)
-	TWeakObjectPtr<ARTPlayerController> HoverControllerForTest;
 };
 
 /**
  * `WBP_RT_InspectCard` - la SCHEDA dell'ispezione (`#3748`, fetta F3 di `#705`): il pannello della zona `MiddleRight` che mostra
- * carta, stati, verso, kit ed equipaggiamento di un'unita' ispezionata.
+ * carta, stati, verso ed equipaggiamento di un'unita' ispezionata. ⛔ Non il kit: lo mostra la barra delle skill, in sola lettura.
  *
  * 🔑 **Disegna e non decide.** La scheda arriva composta da `ARTHUD::BuildInspectCard` (cancello di conoscenza, soggetto pubblico,
  * compositore); `URTInspectLibrary::ShouldShowCard` dice se si vede; `URTInspectLibrary::VisibleWindow` dice quali righe entrano. Qui

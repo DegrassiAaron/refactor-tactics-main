@@ -2066,7 +2066,7 @@ bool FRTInspectCardWearsItsLineClassTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	TestTrue(TEXT("la riga deriva da URTInspectLineWidget, che porta l'hover"), Riga->IsChildOf(URTInspectLineWidget::StaticClass()));
+	TestTrue(TEXT("la riga deriva da URTInspectLineWidget"), Riga->IsChildOf(URTInspectLineWidget::StaticClass()));
 	TestTrue(TEXT("la scheda deriva da URTInspectCardWidget"), Scheda->IsChildOf(URTInspectCardWidget::StaticClass()));
 	TestTrue(TEXT("i default di WBP_RT_InspectCard puntano a WBP_RT_InspectLine"),
 		Scheda->GetDefaultObject<URTInspectCardWidget>()->LineClass.Get() == Riga);

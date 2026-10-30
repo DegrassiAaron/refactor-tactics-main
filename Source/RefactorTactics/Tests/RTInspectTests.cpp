@@ -70,8 +70,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectSubjectCarriesNoRawTypesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTInspectSubjectCarriesNoRawTypesTest::RunTest(const FString&)
 {
-	const TSet<FName> Allowed = { FName(TEXT("RTUnitCardView")), FName(TEXT("RTStatusBadgeView")),
-		FName(TEXT("RTActionTooltipView")), FName(TEXT("RTActionTooltipLine")), FName(TEXT("RTInspectEquipmentLine")),
+	const TSet<FName> Allowed = { FName(TEXT("RTUnitCardView")), FName(TEXT("RTStatusBadgeView")), FName(TEXT("RTInspectEquipmentLine")),
 		FName(TEXT("RTInspectDeducedCooldown")) };
 
 	int32 Examined = 0;
@@ -122,20 +121,20 @@ bool FRTInspectTwinsReadTheSameTest::RunTest(const FString&)
 	B->PlannedDashAbility = 3;
 	B->bAttackTargetsCell = true;
 
-	const FString TextA = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(A, 0, true)));
+	// La premessa si MISURA: B ha davvero una ricarica vera in corso, e A no. Senza, «stessa scheda» potrebbe voler dire «nessuna differenza».
+	int32 TrueCooldownsA = 0;
+	int32 TrueCooldownsB = 0;
+	for (int32 I = 0; I < A->NumAbilities(); ++I) { TrueCooldownsA += A->GetAbilityCooldown(I); }
+	for (int32 I = 0; I < B->NumAbilities(); ++I) { TrueCooldownsB += B->GetAbilityCooldown(I); }
+	TestTrue(TEXT("premessa: B ha una ricarica vera in corso e A no"), TrueCooldownsB > 0 && TrueCooldownsA == 0);
+
+	const FRTInspectView ViewA = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(A, 0, true));
+	const FString TextA = InspectText(ViewA);
 	const FString TextB = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(B, 0, true)));
 	TestEqual(TEXT("due nemici che differiscono nel piano danno la stessa scheda"), TextA, TextB);
-	TestTrue(TEXT("e la scheda ha un kit (non e' vuota per costruzione)"), TextA.Contains(TEXT("Kit")));
-
-	// `Compose` scarta `State` e `Reason`: il testo non vede un canale di partita che il soggetto portasse. Si guarda
-	// quindi il SOGGETTO, dove una ricarica vera o un piano illegale scriverebbero stato e motivo.
-	const FRTInspectSubject SoggettoB = ARTHUD::BuildInspectSubject(B, 0, true);
-	TestTrue(TEXT("il kit del soggetto non e' vuoto"), SoggettoB.Kit.Num() > 0);
-	for (const FRTActionTooltipView& Voce : SoggettoB.Kit)
-	{
-		TestTrue(TEXT("nessun motivo di partita nel kit"), Voce.Reason.IsEmpty());
-		TestTrue(TEXT("nessuno stato di partita nel kit"), Voce.State == ERTActionSlotState::Empty);
-	}
+	// La scheda non e' vuota per costruzione: nome, PV e verso ci sono (il kit non c'e' piu': lo mostra la barra, `BuildPublicBar`).
+	TestTrue(TEXT("e la scheda non e' vuota: nome, PV e verso"),
+		ViewA.Lines.Num() >= 3 && ViewA.Lines[1].StartsWith(TEXT("PV ")) && ViewA.Lines[2].StartsWith(TEXT("Guarda verso")));
 
 	// Controllo positivo: un altro eroe cambia la scheda.
 	const FString TextD = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(D, 0, true)));
@@ -350,7 +349,7 @@ bool FRTInspectReleaseTest::RunTest(const FString&)
 
 /**
  * LA RIGA DI CATALOGO COINCIDE CON QUELLA DEL DOCK (`#3748`). `BuildAbilityCooldowns` parte da `BuildCatalogActionRow`:
- * il tooltip che ne esce, senza lo stato di partita, e' quello che la scheda mostra per la stessa azione.
+ * il tooltip che ne esce, senza lo stato di partita, e' quello che la barra in sola lettura (`BuildPublicBar`) mostra per la stessa azione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRowMatchesDockRowTest,
 	"RefactorTactics.UI.InspectCatalogRowMatchesTheDockRow",
@@ -386,74 +385,110 @@ bool FRTCatalogRowMatchesDockRowTest::RunTest(const FString&)
 }
 
 /**
- * Ogni riga di una skill porta la sua posizione di kit (`#3748`): e' cio' che l'hover sulla scheda chiede al controller.
+ * LA SCHEDA NON HA RIGHE DI KIT (`#3748`, decisione d'autore del 2026-10-30): il kit di chi e' a fuoco lo mostra la barra delle skill, in
+ * sola lettura, e la scheda non lo ripete. Restano nome, PV, verso, stati ed equipaggiamento.
  *
- * L'oracolo e' l'ordine del kit dell'unita', non `Subject.KitAbilityIndices`: la posizione attesa di ogni titolo e' quella in cui
- * `GetAbility` lo restituisce. Un compositore che perdesse le posizioni, o un soggetto che le scrivesse spostate, cade qui.
+ * L'oracolo e' il kit dell'unita' (`GetAbility`, titolo dalla riga di catalogo), non il testo della scheda: una riga di kit era il titolo da
+ * solo o «Titolo - frase», e la sezione apriva con la riga «Kit». Due unita' per eroe, con lo stesso soggetto di produzione
+ * (`BuildInspectSubject`): una nuda, in cui NESSUNA riga contiene un titolo; una armata, in cui l'equipaggiamento c'e' e nessuna riga e' di
+ * kit. Il rivelatore ha il suo controllo positivo, su una vista scritta a mano.
+ *
+ * ⚠️ Non c'e' un registro di «usate viste»: la sezione delle ricariche dedotte (`#3751`) nomina un'azione solo se la squadra l'ha vista
+ * usare, e vive nei suoi test (`InspectSubjectDeducesCooldownsOnlyForAnEnemy`). Qui il soggetto e' costruito senza registro.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectLinesCarryAbilityIndexTest,
-	"RefactorTactics.UI.InspectLinesCarryTheirAbilityIndex",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardHasNoKitRowsTest,
+	"RefactorTactics.UI.InspectCardHasNoKitRows",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTInspectLinesCarryAbilityIndexTest::RunTest(const FString&)
+bool FRTInspectCardHasNoKitRowsTest::RunTest(const FString&)
 {
+	// La riga di kit com'era composta: il titolo da solo, o «Titolo - frase».
+	const auto KitLineOf = [](const FRTInspectView& View, const FString& Title) -> int32
+	{
+		for (int32 Line = 0; Line < View.Lines.Num(); ++Line)
+		{
+			if (View.Lines[Line] == Title || View.Lines[Line].StartsWith(Title + TEXT(" - "))) { return Line; }
+		}
+		return INDEX_NONE;
+	};
+	const auto TitleOf = [](const ARTUnit* Unit, int32 Position) -> FString
+	{
+		const URTActionData* Action = Unit->GetAbility(Position);
+		return Action != nullptr
+			? URTHudViewModel::BuildCatalogTooltip(URTHudViewModel::BuildCatalogActionRow(Action, Position, NAME_None)).Title.ToString()
+			: FString();
+	};
+
+	// Controllo positivo del rivelatore: su una vista col kit, scritta a mano, vede il titolo e la riga «Kit»; e non inventa un titolo.
+	{
+		FRTInspectView WithKit;
+		WithKit.Lines = { TEXT("Nome"), TEXT("PV 10/10"), TEXT("Kit"), TEXT("Colpo - una frase"), TEXT("  Portata 4"), TEXT("Scatto") };
+		TestEqual(TEXT("controllo positivo: il rivelatore trova «Titolo - frase»"), KitLineOf(WithKit, TEXT("Colpo")), 3);
+		TestEqual(TEXT("controllo positivo: e il titolo da solo"), KitLineOf(WithKit, TEXT("Scatto")), 5);
+		TestEqual(TEXT("controllo positivo: e non un titolo che non c'e'"), KitLineOf(WithKit, TEXT("Altro")), static_cast<int32>(INDEX_NONE));
+		TestTrue(TEXT("controllo positivo: la riga «Kit» si riconosce per uguaglianza"), WithKit.Lines.Contains(TEXT("Kit")));
+	}
+
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	const URTHeroData* Hero = InspectHero(0);
-	FRTCellId Cell; Cell.X = 0; Cell.Y = 0;
-	ARTUnit* Unit = InspectSpawn(World, 1, Hero, Cell);
-	if (!TestTrue(TEXT("l'unita' esiste"), Unit != nullptr && Hero != nullptr))
+	int32 Eroi = 0;
+	int32 Armati = 0;
+	int32 Titoli = 0;
+	int32 Pezzi = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		RTWorldFixtures::DestroyWorld(World);
-		return false;
-	}
+		++Eroi;
+		FRTCellId C; C.X = 0; C.Y = 0;
+		ARTUnit* Bare = InspectSpawn(World, 1, Hero, C);
+		if (!TestNotNull(TEXT("l'unita' esiste"), Bare)) { continue; }
 
-	const FRTInspectView View = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Unit, 0, true));
-	TestEqual(TEXT("un indice per riga"), View.LineAbilityIndices.Num(), View.Lines.Num());
-
-	int32 SkillsChecked = 0;
-	for (int32 Position = 0; Position < Unit->NumAbilities(); ++Position)
-	{
-		const URTActionData* Action = Unit->GetAbility(Position);
-		if (Action == nullptr) { continue; }
-		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
-			URTHudViewModel::BuildCatalogActionRow(Action, Position, NAME_None));
-		if (!Tooltip.IsValid()) { continue; }
-
-		// Il titolo e' la riga intera o la riga fino a « - »: un titolo che ne e' il prefisso non la scambia con un'altra skill.
-		const FString Title = Tooltip.Title.ToString();
-		int32 TitleLine = INDEX_NONE;
-		for (int32 Line = 0; Line < View.Lines.Num(); ++Line)
+		// La unita' nuda: nessuna riga contiene il titolo di una sua skill, e non c'e' la riga «Kit».
+		const FRTInspectView BareView = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Bare, 0, true));
+		TestFalse(*FString::Printf(TEXT("%s: nessuna riga «Kit»"), *Hero->HeroId.ToString()), BareView.Lines.Contains(TEXT("Kit")));
+		TestEqual(*FString::Printf(TEXT("%s: la prima riga e' il nome"), *Hero->HeroId.ToString()),
+			BareView.Lines.Num() > 0 ? BareView.Lines[0] : FString(), ARTUnit::DisplayLabel(Bare->HeroDisplayName, Bare->HeroId, Bare->GetName()));
+		for (int32 Position = 0; Position < Bare->NumAbilities(); ++Position)
 		{
-			if (View.Lines[Line] == Title || View.Lines[Line].StartsWith(Title + TEXT(" - ")))
+			const FString Title = TitleOf(Bare, Position);
+			if (Title.IsEmpty()) { continue; }
+			++Titoli;
+			for (const FString& Line : BareView.Lines)
 			{
-				TitleLine = Line;
-				break;
+				TestFalse(*FString::Printf(TEXT("%s: la scheda non nomina `%s` (riga `%s`)"), *Hero->HeroId.ToString(), *Title, *Line),
+					Line.Contains(Title));
 			}
 		}
-		if (!TestTrue(*FString::Printf(TEXT("la riga di `%s` c'e'"), *Title), TitleLine != INDEX_NONE)) { continue; }
-		++SkillsChecked;
-		TestEqual(*FString::Printf(TEXT("`%s` porta la sua posizione di kit"), *Title), View.LineAbilityIndices[TitleLine], Position);
 
-		// La riga dei numeri, se c'e', e' della stessa skill: passarci sopra mostra la stessa portata.
-		const int32 NumbersLine = TitleLine + 1;
-		if (View.Lines.IsValidIndex(NumbersLine) && View.Lines[NumbersLine].StartsWith(TEXT("  ")))
+		// La unita' armata: l'equipaggiamento c'e', e nessuna riga e' una riga di kit.
+		const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId);
+		if (Loadout.Num() == 0) { continue; }
+		ARTUnit* Armed = InspectSpawn(World, 1, Hero, C);
+		if (!TestNotNull(TEXT("l'unita' armata esiste"), Armed)) { continue; }
+		Armed->EquipLoadout(Loadout);
+		++Armati;
+		const FRTInspectView ArmedView = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Armed, 0, true));
+		const FString ArmedText = InspectText(ArmedView);
+		TestTrue(*FString::Printf(TEXT("%s: la sezione dell'equipaggiamento c'e'"), *Hero->HeroId.ToString()),
+			ArmedView.Lines.Contains(TEXT("Equipaggiamento")));
+		for (const FName& Id : Armed->EquippedItemIds)
 		{
-			TestEqual(*FString::Printf(TEXT("i numeri di `%s` portano la stessa posizione"), *Title),
-				View.LineAbilityIndices[NumbersLine], Position);
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(Id);
+			if (!TestNotNull(TEXT("il pezzo registrato esiste nel catalogo"), Piece)) { continue; }
+			++Pezzi;
+			TestTrue(*FString::Printf(TEXT("%s: `%s` e' nominato"), *Hero->HeroId.ToString(), *Piece->DisplayName.ToString()),
+				ArmedText.Contains(Piece->DisplayName.ToString()));
+		}
+		TestFalse(*FString::Printf(TEXT("%s armata: nessuna riga «Kit»"), *Hero->HeroId.ToString()), ArmedView.Lines.Contains(TEXT("Kit")));
+		for (int32 Position = 0; Position < Armed->NumAbilities(); ++Position)
+		{
+			const FString Title = TitleOf(Armed, Position);
+			if (Title.IsEmpty()) { continue; }
+			TestEqual(*FString::Printf(TEXT("%s armata: nessuna riga di kit per `%s`"), *Hero->HeroId.ToString(), *Title),
+				KitLineOf(ArmedView, Title), static_cast<int32>(INDEX_NONE));
 		}
 	}
-	TestTrue(TEXT("anti-vacuita': almeno una skill con la sua riga"), SkillsChecked > 0);
-
-	// Cio' che non e' di una skill non indica nessuna skill: il nome e i PV in cima, e ogni riga di equipaggiamento e di ricarica.
-	TestEqual(TEXT("il nome non e' di una skill"), View.LineAbilityIndices[0], static_cast<int32>(INDEX_NONE));
-	TestEqual(TEXT("i PV non sono di una skill"), View.LineAbilityIndices[1], static_cast<int32>(INDEX_NONE));
-	int32 NotSkillLines = 0;
-	for (int32 Line = 0; Line < View.Lines.Num(); ++Line)
-	{
-		if (View.LineAbilityIndices[Line] == INDEX_NONE) { ++NotSkillLines; }
-	}
-	TestTrue(TEXT("anti-vacuita': ci sono righe che non sono di una skill"), NotSkillLines > 0);
+	TestTrue(TEXT("anti-vacuita': ha esaminato degli eroi, dei titoli di skill, e degli eroi armati con dei pezzi"),
+		Eroi > 0 && Titoli > 0 && Armati > 0 && Pezzi > 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -519,7 +554,6 @@ bool FRTInspectWindowNeverTruncatesSilentlyTest::RunTest(const FString&)
 	for (int32 I = 0; I < Total; ++I)
 	{
 		View.Lines.Add(FString::Printf(TEXT("riga %02d"), I));
-		View.LineAbilityIndices.Add(I % 3 == 0 ? I : INDEX_NONE);
 	}
 
 	auto DigitsOf = [](const FString& Text)
@@ -537,7 +571,6 @@ bool FRTInspectWindowNeverTruncatesSilentlyTest::RunTest(const FString&)
 		const FRTInspectView Window = URTInspectLibrary::VisibleWindow(View, First, Max);
 		const FString Where = FString::Printf(TEXT("da %d"), First);
 		TestEqual(*FString::Printf(TEXT("%s: la finestra riempie le righe che ha"), *Where), Window.Lines.Num(), Max);
-		TestEqual(*FString::Printf(TEXT("%s: un indice per riga"), *Where), Window.LineAbilityIndices.Num(), Window.Lines.Num());
 
 		TArray<int32> Body;
 		int32 TopMarker = INDEX_NONE;
@@ -549,15 +582,14 @@ bool FRTInspectWindowNeverTruncatesSilentlyTest::RunTest(const FString&)
 			{
 				if (Text.EndsWith(TEXT("righe sopra"))) { TopMarker = DigitsOf(Text); }
 				else { BottomMarker = DigitsOf(Text); }
-				TestEqual(*FString::Printf(TEXT("%s: un marcatore non e' di una skill"), *Where),
-					Window.LineAbilityIndices[Row], static_cast<int32>(INDEX_NONE));
 			}
 			else
 			{
 				const int32 Source = DigitsOf(Text);
 				Body.Add(Source);
-				TestEqual(*FString::Printf(TEXT("%s: la riga %d porta il suo indice"), *Where, Source),
-					Window.LineAbilityIndices[Row], View.LineAbilityIndices[Source]);
+				// La riga del corpo e' la riga di scheda di quel numero: la finestra non riscrive il testo.
+				TestEqual(*FString::Printf(TEXT("%s: la riga %d e' quella della scheda"), *Where, Source),
+					Text, View.Lines.IsValidIndex(Source) ? View.Lines[Source] : FString());
 			}
 		}
 		if (!TestTrue(*FString::Printf(TEXT("%s: c'e' del corpo"), *Where), Body.Num() > 0)) { continue; }

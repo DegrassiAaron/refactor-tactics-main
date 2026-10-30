@@ -1205,9 +1205,10 @@ public:
 	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
 	 * `ClearSkillHover`, e allora torna la sorgente di prima.
 	 *
-	 * ⚠️ **L'unita' dev'essere quella comandata**: la barra e' di chi si comanda (spec §3 regola 7). Il filtro e' del
-	 * risolutore degli ingressi, che la confronta con la selezione di adesso, non di questa porta: l'hover di un'altra unita' non
-	 * tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
+	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata** (`#3748`): la barra propria e' di chi si comanda, la
+	 * barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del risolutore degli
+	 * ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata, non di questa porta: l'hover di un'altra unita'
+	 * non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
 	 */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
@@ -1885,8 +1886,8 @@ private:
 	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
 	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda) o di quella a FUOCO
 	 * (ispezionata e fissata, `#3748`), viva, se chiede un bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da
-	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di una riga della scheda scrive
-	 * anche `bSkillHoverFromCard`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
+	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di un'unita' ispezionata (lo slot della
+	 * barra in sola lettura) scrive anche `bSkillHoverOfInspected`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
 	 *
 	 * 🔴 **L'origine di un'unita' propria e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con
 	 * quello dell'azione armata: e' un dato PROPRIO (il suo scatto pianificato). **Per un nemico a fuoco e' la cella della VOCE DELLA

@@ -13,9 +13,13 @@
  * `docs/superpowers/specs/2026-10-13-ispettore-del-mondo-design.md`).
  *
  * 🔑 **Il compositore non vede mai l'attore.** Riceve un soggetto di VALORI, ricavato da una sola funzione che legge
- * l'attore (`ARTHUD::BuildInspectSubject`), e restituisce righe di testo. Del nemico entrano nome, carta, stati, verso,
- * kit dal catalogo ed equipaggiamento (pubblici per decisione d'autore del 2026-10-20); NON entrano il piano, gli slot
- * del turno, l'azione armata, le ricariche vere: il soggetto non ha un campo in cui metterli.
+ * l'attore (`ARTHUD::BuildInspectSubject`), e restituisce righe di testo. Del nemico entrano nome, carta, stati, verso
+ * ed equipaggiamento (pubblici per decisione d'autore del 2026-10-20); NON entrano il piano, gli slot del turno,
+ * l'azione armata, le ricariche vere: il soggetto non ha un campo in cui metterli.
+ *
+ * ⛔ **Il kit non e' sulla scheda.** Lo mostra la barra delle skill dell'unita' cliccata, in sola lettura
+ * (`URTHudViewModel::BuildPublicBar`, decisione d'autore del 2026-10-30): il soggetto non ha un campo per il kit, e `Compose`
+ * non ha righe di skill.
  */
 
 /** Un pezzo di equipaggiamento: nome, slot, vantaggio e svantaggio d'autore. */
@@ -92,18 +96,6 @@ struct REFACTORTACTICS_API FRTInspectSubject
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	bool bShowFacing = false;
 
-	/** Il kit, dal SOLO catalogo: titolo, frase, righe, variante. Mai stato ne' motivo. */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
-	TArray<FRTActionTooltipView> Kit;
-
-	/**
-	 * La posizione di kit (`ARTUnit::GetAbility`) di ogni voce di `Kit`, nello STESSO ordine: serve all'hover sulla riga di una
-	 * skill, che chiede la portata di quella posizione al controller. Una voce di catalogo non valida e' saltata da `Kit`, quindi
-	 * la posizione non e' l'indice dell'array.
-	 */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
-	TArray<int32> KitAbilityIndices;
-
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FRTInspectEquipmentLine> Equipment;
 
@@ -123,14 +115,6 @@ struct REFACTORTACTICS_API FRTInspectView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FString> Lines;
-
-	/**
-	 * Per ogni riga di `Lines`, la posizione di kit della skill a cui appartiene, o `INDEX_NONE`: stessa lunghezza, stesso ordine.
-	 * Il titolo di una skill e la sua riga di numeri portano la stessa posizione, cosi' passarci sopra col cursore vale per
-	 * entrambe. I marcatori di taglio e ogni riga che non e' di una skill sono `INDEX_NONE`.
-	 */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
-	TArray<int32> LineAbilityIndices;
 };
 
 UCLASS()
@@ -140,8 +124,8 @@ class REFACTORTACTICS_API URTInspectLibrary : public UObject
 
 public:
 	/**
-	 * Nome, PV e scudo, verso (se acceso), stati col nome e l'effetto del glossario, kit, equipaggiamento, e le
-	 * ricariche dedotte (dichiarate stima).
+	 * Nome, PV e scudo, verso (se acceso), stati col nome e l'effetto del glossario, equipaggiamento, e le ricariche
+	 * dedotte (dichiarate stima). ⛔ Non il kit: lo mostra la barra delle skill dell'unita' cliccata.
 	 */
 	static FRTInspectView Compose(const FRTInspectSubject& Subject);
 
@@ -169,7 +153,7 @@ public:
 
 	/**
 	 * LA VOCE `Live` di un'unita', o `nullptr` (`#3748`): il cancello di `IsInspectable` che restituisce anche la voce, cosi' chi ha
-	 * bisogno della CELLA con cui la squadra la vede (il fuoco, l'hover di una riga della scheda) non rifa' il confronto da se'. Una voce
+	 * bisogno della CELLA con cui la squadra la vede (il fuoco, l'hover di uno slot della barra in sola lettura) non rifa' il confronto da se'. Una voce
 	 * `Remembered` NON e' una voce `Live`: la sua cella e' quella del ricordo, e puo' essere una cella che oggi si vede.
 	 *
 	 * 🔑 **E' il solo punto in cui si decide**: le tre copie che c'erano (`GatherFocusInputs`, il ramo nemico di

@@ -26,12 +26,7 @@ namespace
 FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 {
 	FRTInspectView View;
-	// Riga e posizione di kit insieme, cosi' i due array hanno sempre la stessa lunghezza: `INDEX_NONE` se la riga non e' di una skill.
-	auto AddLine = [&View](const FString& Line, int32 AbilityIndex = INDEX_NONE)
-	{
-		View.Lines.Add(Line);
-		View.LineAbilityIndices.Add(AbilityIndex);
-	};
+	auto AddLine = [&View](const FString& Line) { View.Lines.Add(Line); };
 	AddLine(Subject.DisplayName.ToString());
 
 	FString Vita = FString::Printf(TEXT("PV %d/%d"), Subject.Card.Health, Subject.Card.MaxHealth);
@@ -54,26 +49,7 @@ FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 		AddLine(Effect.IsEmpty() ? Name : FString::Printf(TEXT("%s - %s"), *Name, *Effect));
 	}
 
-	if (Subject.Kit.Num() > 0)
-	{
-		AddLine(TEXT("Kit"));
-		for (int32 KitIndex = 0; KitIndex < Subject.Kit.Num(); ++KitIndex)
-		{
-			const FRTActionTooltipView& Action = Subject.Kit[KitIndex];
-			// Un soggetto costruito senza posizioni (un test, un chiamante vecchio) non ha una skill da indicare: nessun hover.
-			const int32 AbilityIndex = Subject.KitAbilityIndices.IsValidIndex(KitIndex) ? Subject.KitAbilityIndices[KitIndex] : INDEX_NONE;
-			const FString Description = Action.Description.ToString();
-			AddLine(Description.IsEmpty() ? Action.Title.ToString()
-				: FString::Printf(TEXT("%s - %s"), *Action.Title.ToString(), *Description), AbilityIndex);
-			TArray<FString> Numbers;
-			for (const FRTActionTooltipLine& Line : Action.Lines)
-			{
-				Numbers.Add(FString::Printf(TEXT("%s %s"), *Line.Label.ToString(), *Line.Value.ToString()));
-			}
-			if (!Action.Variant.IsEmpty()) { Numbers.Add(Action.Variant.ToString()); }
-			if (Numbers.Num() > 0) { AddLine(TEXT("  ") + FString::Join(Numbers, TEXT(", ")), AbilityIndex); }
-		}
-	}
+	// ⛔ Nessuna sezione «Kit»: il kit di chi e' a fuoco lo mostra la barra delle skill, in sola lettura (`#3748`).
 
 	if (Subject.Equipment.Num() > 0)
 	{
@@ -143,7 +119,7 @@ bool URTInspectLibrary::ShouldShowCard(ERTPointerContext Context, bool bPinned)
 	case ERTPointerContext::Modal:
 		return false;
 
-	// Nessun `default:`, come `ContextAllowsFocus` e `ContextAllowsCardHover`: un contesto nuovo deve dire QUI se nasconde la scheda,
+	// Nessun `default:`, come `ContextAllowsFocus` e `ContextAllowsInspectedHover`: un contesto nuovo deve dire QUI se nasconde la scheda,
 	// e il compilatore lo chiede. Una lista negativa renderebbe visibile, per omissione, ogni contesto che nessuno ha guardato.
 	case ERTPointerContext::IdleSelection:
 	case ERTPointerContext::Planning:
@@ -186,7 +162,6 @@ FRTInspectView URTInspectLibrary::VisibleWindow(const FRTInspectView& View, int3
 		// con un test che non completa esce comunque con zero.
 		if (!View.Lines.IsValidIndex(Source)) { return; }
 		Out.Lines.Add(View.Lines[Source]);
-		Out.LineAbilityIndices.Add(View.LineAbilityIndices.IsValidIndex(Source) ? View.LineAbilityIndices[Source] : INDEX_NONE);
 	};
 
 	// Sotto le tre righe nemmeno i marcatori entrano: taglio secco dalle prime, dichiarato nel commento della funzione.
@@ -205,13 +180,11 @@ FRTInspectView URTInspectLibrary::VisibleWindow(const FRTInspectView& View, int3
 	if (bTopMarker)
 	{
 		Out.Lines.Add(FString::Printf(TEXT("… %d righe sopra"), First));
-		Out.LineAbilityIndices.Add(INDEX_NONE);
 	}
 	for (int32 Source = First; Source < First + Body; ++Source) { AddRow(Source); }
 	if (bBottomMarker)
 	{
 		Out.Lines.Add(FString::Printf(TEXT("… e altre %d righe"), Total - (First + Body)));
-		Out.LineAbilityIndices.Add(INDEX_NONE);
 	}
 	return Out;
 }

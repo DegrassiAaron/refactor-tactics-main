@@ -5477,11 +5477,13 @@ bool FRTSkillHoverTeamGateTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
-// `#3748` — l'hover su una RIGA DELLA SCHEDA: la stessa sorgente della barra, con un altro produttore.
+// `#3748` — l'hover su una SKILL DI UN'UNITA' ISPEZIONATA: la stessa sorgente della barra propria, con un altro soggetto.
 //
-// La barra e' di chi si comanda; la scheda e' di chi e' a fuoco (spec §3 regola 7), e chi e' a fuoco puo' essere un nemico, o un'unita'
+// La barra propria e' di chi si comanda; la barra in sola lettura e' di chi e' a fuoco, e chi e' a fuoco puo' essere un nemico, o un'unita'
 // propria che non e' la selezione, o puo' non esserci nessuna selezione. Il banco e' quello della barra; qui l'unita' dell'hover si
-// ispeziona (`PinInspectionForTest`) invece di selezionarsi. Il produttore (la riga) ha i suoi test in `RTInspectCardWidgetTests.cpp`.
+// ispeziona (`PinInspectionForTest`) invece di selezionarsi, e l'hover si registra a mano sul controller (`SetSkillHover`). Il produttore
+// (lo slot della barra in sola lettura) ha i suoi test piu' sotto: `TheSlotHoverOfAReadOnlyBarShowsTheRangeFromTheViewCell` e
+// `AReadOnlySlotNeitherArmsNorHoversTheWrongUnit`.
 // =====================================================================================================
 
 namespace
@@ -5495,91 +5497,113 @@ namespace
 		return All;
 	}
 
+	/** Il risultato di `HvFindShiftedDashEnemy`: il nemico, la sua skill, e le due portate che distinguono la cella della vista dal piano. */
+	struct FHvShiftedDashEnemy
+	{
+		ARTUnit* Enemy = nullptr;
+		int32 Skill = INDEX_NONE;
+		FRTCellId PlannedOrigin;
+		TArray<FRTCellId> FromView;
+		TArray<FRTCellId> FromPlan;
+		TArray<FString> Why; // perche' ogni candidato e' stato scartato: la premessa e' osservata, e quando manca deve dire quale condizione
+	};
+
+	/**
+	 * Il PIANO del nemico: uno scatto pianificato a due passi. `AimOriginFor` lo segue solo se la fase della skill cade nel Blast, lo scatto
+	 * si applica e non e' una carica: non tutti gli eroi hanno uno scatto cosi', quindi la premessa si OSSERVA su ogni nemico e non si assume.
+	 * Le due origini devono dare due portate diverse, o un asserto sulla portata non distingue la cella della vista dal piano. La ricetta e'
+	 * quella del test della barra (`TheRangeStartsWhereAPlannedDashLands...`): la fase si forza a `Attack` sulla PROPRIA copia dei dati.
+	 *
+	 * Una sola copia per i due test che ne hanno bisogno (la skill di un nemico ispezionato, e lo slot della barra in sola lettura): la
+	 * ricerca dei candidati non deve divergere fra l'uno e l'altro. Un nemico non trovato lascia `Enemy` nullo e `Why` pieno.
+	 */
+	FHvShiftedDashEnemy HvFindShiftedDashEnemy(FRTLockInPreviewBench& B, const URTHexMapAsset* Map)
+	{
+		FHvShiftedDashEnemy Found;
+		for (TActorIterator<ARTUnit> It(B.World); It && Found.Enemy == nullptr; ++It)
+		{
+			ARTUnit* Candidate = *It;
+			if (Candidate->TeamId != 1) { continue; }
+			const FString Who = Candidate->HeroId.ToString();
+			const int32 Dash = Candidate->FindDashAbilityIndex();
+			if (Dash == INDEX_NONE) { Found.Why.Add(FString::Printf(TEXT("%s: nessuno scatto"), *Who)); continue; }
+
+			// La skill del nemico: il genere di bersaglio lo dice il controller sulla selezione, quindi si seleziona prima e si torna alla propria.
+			B.PC->SelectActorForTest(Candidate);
+			const int32 CandidateSkill = HvPrepareTargetedSkill(B, Candidate, Dash);
+			B.PC->SelectActorForTest(B.Mine);
+			if (CandidateSkill == INDEX_NONE) { Found.Why.Add(FString::Printf(TEXT("%s: scatto %d, nessuna skill a bersaglio"), *Who, Dash)); continue; }
+			URTActionData* Ability = const_cast<URTActionData*>(Candidate->GetAbility(CandidateSkill));
+			Ability->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+
+			FRTCellId DashCell = Candidate->Cell;
+			for (int32 D = 0; D < 6 && DashCell == Candidate->Cell; ++D)
+			{
+				const FRTCellId Step = HvStep(Candidate->Cell, HvDirs[D], 2);
+				if (Map->ContainsCell(Step)) { DashCell = Step; }
+			}
+			// Lo scatto di un'eroe puo' essere una carica (quello di Branth lo e'), e una carica non sposta l'origine di mira: sulla PROPRIA copia dei
+			// dati diventa uno scatto lineare. Cio' che si prova qui e' la regola dell'origine, non il catalogo.
+			const_cast<URTActionData*>(Candidate->GetAbility(Dash))->Def.MovementStyle = ERTMovementStyle::LinearDash;
+			Candidate->PlannedDashAbility = Dash;
+			Candidate->PlannedDashCell = DashCell;
+			const bool bShifts = !(DashCell == Candidate->Cell) && Candidate->PlannedDashApplies() && !Candidate->PlannedDashIsCharge()
+				&& Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell;
+			const TArray<FRTCellId> View = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Candidate->Cell, 4, ERTLineOfSightPolicy::Required, 0));
+			const TArray<FRTCellId> Plan = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, DashCell, 4, ERTLineOfSightPolicy::Required, 0));
+			Found.Why.Add(FString::Printf(TEXT("%s: scatto %d, skill %d, arrivo %s su %s, si applica %d, carica %d, origine=arrivo %d, vista %d celle, uguali %d"),
+				*Who, Dash, CandidateSkill, *DashCell.ToString(), *Candidate->Cell.ToString(), Candidate->PlannedDashApplies() ? 1 : 0,
+				Candidate->PlannedDashIsCharge() ? 1 : 0, Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell ? 1 : 0,
+				View.Num(), View == Plan ? 1 : 0));
+			if (bShifts && View.Num() > 3 && View != Plan)
+			{
+				Found.Enemy = Candidate;
+				Found.Skill = CandidateSkill;
+				Found.PlannedOrigin = DashCell;
+				Found.FromView = View;
+				Found.FromPlan = Plan;
+			}
+			else
+			{
+				Candidate->PlannedDashAbility = INDEX_NONE; // questo nemico non serve a questa prova
+			}
+		}
+		return Found;
+	}
 }
 
 /**
- * **`#3748` — la riga della scheda di un NEMICO a fuoco mostra la portata dalla cella della VOCE DELLA VISTA, mai dal piano.**
+ * **`#3748` — la skill di un NEMICO a fuoco mostra la portata dalla cella della VOCE DELLA VISTA, mai dal piano.**
  *
  * Il nemico ha uno scatto pianificato a due passi: `AimOriginFor` lo seguirebbe, e la portata mostrerebbe da dove mirera', cioe' il suo piano
  * (P3, D-552). La premessa dimostra che le due origini danno insiemi diversi, e che quindi l'asserto distingue. Chiusa la scheda, l'hover
- * della sua riga si scarta senza aspettare l'uscita del cursore.
+ * della sua skill si scarta senza aspettare l'uscita del cursore. L'hover si registra a mano sul controller: il produttore (lo slot della
+ * barra in sola lettura) ha il suo test piu' sotto, che usa la stessa ricerca del nemico.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverFromTheCardEnemyTest,
-	"RefactorTactics.SkillHover.ARowOfTheCardShowsTheRangeOfAnInspectedEnemyFromItsViewCell",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfInspectedEnemyTest,
+	"RefactorTactics.SkillHover.TheSkillOfAnInspectedEnemyShowsItsRangeFromItsViewCell",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillHoverFromTheCardEnemyTest::RunTest(const FString&)
+bool FRTSkillHoverOfInspectedEnemyTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
 	const URTHexMapAsset* Map = B.HexMap->MapAsset;
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
 
-	// Il PIANO del nemico: uno scatto pianificato a due passi. `AimOriginFor` lo segue solo se la fase della skill cade nel Blast, lo scatto
-	// si applica e non e' una carica: non tutti gli eroi hanno uno scatto cosi', quindi la premessa si OSSERVA su ogni nemico e non si assume.
-	// Le due origini devono dare due portate diverse, o l'asserto non distingue la cella della vista dal piano. La ricetta e' quella del test
-	// della barra (`TheRangeStartsWhereAPlannedDashLands...`): la fase si forza a `Attack` sulla PROPRIA copia dei dati.
-	ARTUnit* Enemy = nullptr;
-	int32 Skill = INDEX_NONE;
-	FRTCellId PlannedOrigin;
-	TArray<FRTCellId> FromView;
-	TArray<FRTCellId> FromPlan;
-	TArray<FString> Why; // perche' ogni candidato e' stato scartato: la premessa e' osservata, e quando manca deve dire quale condizione
-	for (TActorIterator<ARTUnit> It(B.World); It && Enemy == nullptr; ++It)
-	{
-		ARTUnit* Candidate = *It;
-		if (Candidate->TeamId != 1) { continue; }
-		const FString Who = Candidate->HeroId.ToString();
-		const int32 Dash = Candidate->FindDashAbilityIndex();
-		if (Dash == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: nessuno scatto"), *Who)); continue; }
-
-		// La skill del nemico: il genere di bersaglio lo dice il controller sulla selezione, quindi si seleziona prima e si torna alla propria.
-		B.PC->SelectActorForTest(Candidate);
-		const int32 CandidateSkill = HvPrepareTargetedSkill(B, Candidate, Dash);
-		B.PC->SelectActorForTest(B.Mine);
-		if (CandidateSkill == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: scatto %d, nessuna skill a bersaglio"), *Who, Dash)); continue; }
-		URTActionData* Ability = const_cast<URTActionData*>(Candidate->GetAbility(CandidateSkill));
-		Ability->Def.ResolutionPhase = ERTResolutionPhase::Attack;
-
-		FRTCellId DashCell = Candidate->Cell;
-		for (int32 D = 0; D < 6 && DashCell == Candidate->Cell; ++D)
-		{
-			const FRTCellId Step = HvStep(Candidate->Cell, HvDirs[D], 2);
-			if (Map->ContainsCell(Step)) { DashCell = Step; }
-		}
-		// Lo scatto di un'eroe puo' essere una carica (quello di Branth lo e'), e una carica non sposta l'origine di mira: sulla PROPRIA copia dei
-		// dati diventa uno scatto lineare. Cio' che si prova qui e' la regola dell'origine della scheda, non il catalogo.
-		const_cast<URTActionData*>(Candidate->GetAbility(Dash))->Def.MovementStyle = ERTMovementStyle::LinearDash;
-		Candidate->PlannedDashAbility = Dash;
-		Candidate->PlannedDashCell = DashCell;
-		const bool bShifts =!(DashCell == Candidate->Cell) && Candidate->PlannedDashApplies() && !Candidate->PlannedDashIsCharge()
-			&& Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell;
-		const TArray<FRTCellId> View = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Candidate->Cell, 4, ERTLineOfSightPolicy::Required, 0));
-		const TArray<FRTCellId> Plan = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, DashCell, 4, ERTLineOfSightPolicy::Required, 0));
-		Why.Add(FString::Printf(TEXT("%s: scatto %d, skill %d, arrivo %s su %s, si applica %d, carica %d, origine=arrivo %d, vista %d celle, uguali %d"),
-			*Who, Dash, CandidateSkill, *DashCell.ToString(), *Candidate->Cell.ToString(), Candidate->PlannedDashApplies() ? 1 : 0,
-			Candidate->PlannedDashIsCharge() ? 1 : 0, Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell ? 1 : 0,
-			View.Num(), View == Plan ? 1 : 0));
-		if (bShifts && View.Num() > 3 && View != Plan)
-		{
-			Enemy = Candidate;
-			Skill = CandidateSkill;
-			PlannedOrigin = DashCell;
-			FromView = View;
-			FromPlan = Plan;
-		}
-		else
-		{
-			Candidate->PlannedDashAbility = INDEX_NONE; // questo nemico non serve a questa prova
-		}
-	}
+	// Il nemico col piano che sposta l'origine di mira: la ricerca e' di `HvFindShiftedDashEnemy`, la stessa del test dello slot.
+	const FHvShiftedDashEnemy Found = HvFindShiftedDashEnemy(B, Map);
+	ARTUnit* Enemy = Found.Enemy;
+	const int32 Skill = Found.Skill;
+	const TArray<FRTCellId>& FromView = Found.FromView;
+	const TArray<FRTCellId>& FromPlan = Found.FromPlan;
 	if (!TestNotNull(TEXT("premessa: un nemico con una skill a bersaglio e uno scatto non-carica che sposta l'origine di mira, con due portate diverse"), Enemy))
 	{
-		AddInfo(FString::Printf(TEXT("candidati scartati: %s"), Why.Num() > 0 ? *FString::Join(Why, TEXT(" | ")) : TEXT("nessun nemico nel banco")));
+		AddInfo(FString::Printf(TEXT("candidati scartati: %s"), Found.Why.Num() > 0 ? *FString::Join(Found.Why, TEXT(" | ")) : TEXT("nessun nemico nel banco")));
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
 	AddInfo(FString::Printf(TEXT("il nemico e' %s, la skill %d, l'origine del piano %s, quella della vista %s"),
-		*Enemy->HeroId.ToString(), Skill, *PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
+		*Enemy->HeroId.ToString(), Skill, *Found.PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
 
 	B.Mine->PlannedWaypoints.Reset();
 	B.PC->RefreshPlanningOverlay(B.Mine);
@@ -5590,14 +5614,14 @@ bool FRTSkillHoverFromTheCardEnemyTest::RunTest(const FString&)
 	B.PC->SetSkillHover(Enemy, Skill);
 	B.PC->UpdatePlanningOverlay();
 	const TArray<FRTCellId> Shown = FwSorted(HvShownSkillCells(B.HexMap));
-	TestTrue(TEXT("la riga della scheda di un nemico a fuoco mostra la portata"), Shown.Num() > 0);
+	TestTrue(TEXT("la skill di un nemico a fuoco mostra la portata"), Shown.Num() > 0);
 	TestTrue(TEXT("e l'insieme parte dalla cella della voce della vista"), Shown == FromView);
 	TestFalse(TEXT("e non dal piano del nemico"), Shown == FromPlan);
 
-	// Chiusa la scheda (il tasto destro azzera soggetto e pin), l'hover della sua riga non resta appeso.
+	// Chiusa la scheda (il tasto destro azzera soggetto e pin), l'hover della sua skill non resta appeso.
 	B.PC->PinInspectionForTest(nullptr);
 	B.PC->UpdatePlanningOverlay();
-	TestEqual(TEXT("chiusa la scheda, l'hover della sua riga e' scartato"), B.PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("chiusa la scheda, l'hover della sua skill e' scartato"), B.PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
 	TestEqual(TEXT("e la mappa torna senza portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);
 
 	DestroyHexMatchWorld(B.World);
@@ -5605,14 +5629,14 @@ bool FRTSkillHoverFromTheCardEnemyTest::RunTest(const FString&)
 }
 
 /**
- * **`#3748` — senza nessuna selezione la riga della scheda mostra la portata lo stesso.** `IdleSelection` e' il contesto in cui un click su
- * un nemico lo ispeziona: l'arbitro non chiede un'unita' comandata per l'hover della scheda, e `RefreshPlanningPreview` disegna la portata
- * anche con `Unit == nullptr`.
+ * **`#3748` — senza nessuna selezione la skill di un'unita' ispezionata mostra la portata lo stesso.** `IdleSelection` e' il contesto in cui
+ * un click su un nemico lo ispeziona: l'arbitro non chiede un'unita' comandata per l'hover di un'unita' ispezionata, e
+ * `RefreshPlanningPreview` disegna la portata anche con `Unit == nullptr`.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverFromTheCardNoSelectionTest,
-	"RefactorTactics.SkillHover.ARowOfTheCardShowsItsRangeWithoutAnySelection",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfInspectedNoSelectionTest,
+	"RefactorTactics.SkillHover.TheSkillOfAnInspectedUnitShowsItsRangeWithoutAnySelection",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillHoverFromTheCardNoSelectionTest::RunTest(const FString&)
+bool FRTSkillHoverOfInspectedNoSelectionTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
@@ -5643,7 +5667,7 @@ bool FRTSkillHoverFromTheCardNoSelectionTest::RunTest(const FString&)
 	B.PC->UpdatePlanningOverlay();
 	const TArray<FRTCellId> FromView = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Enemy->Cell, 4, ERTLineOfSightPolicy::Required, 0));
 	TestTrue(TEXT("anti-vacuita': l'insieme atteso non e' vuoto"), FromView.Num() > 3);
-	TestTrue(TEXT("senza selezione, la riga della scheda mostra la portata dalla cella della voce della vista"),
+	TestTrue(TEXT("senza selezione, la skill di un'unita' ispezionata mostra la portata dalla cella della voce della vista"),
 		FwSorted(HvShownSkillCells(B.HexMap)) == FromView);
 
 	DestroyHexMatchWorld(B.World);
@@ -5651,14 +5675,14 @@ bool FRTSkillHoverFromTheCardNoSelectionTest::RunTest(const FString&)
 }
 
 /**
- * **`#3748` — la riga della scheda di un'unita' PROPRIA a fuoco che non e' la selezione mostra la portata, e solo se e' a fuoco.** L'origine
+ * **`#3748` — la skill di un'unita' PROPRIA a fuoco che non e' la selezione mostra la portata, e solo se e' a fuoco.** L'origine
  * e' quella della portata armata (`AimOriginFor`): il piano di un'unita' propria e' un dato proprio. Una propria che non e' ne' selezionata ne'
  * ispezionata resta fuori: e' il cancello della fissazione, e nessun altro lo tiene.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverFromTheCardOwnUnitTest,
-	"RefactorTactics.SkillHover.ARowOfTheCardOfAnOwnUnitShowsItsRangeOnlyWhileItIsInspected",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfInspectedOwnUnitTest,
+	"RefactorTactics.SkillHover.TheSkillOfAnOwnUnitShowsItsRangeOnlyWhileItIsInspected",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillHoverFromTheCardOwnUnitTest::RunTest(const FString&)
+bool FRTSkillHoverOfInspectedOwnUnitTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
@@ -5693,7 +5717,7 @@ bool FRTSkillHoverFromTheCardOwnUnitTest::RunTest(const FString&)
 	B.PC->PinInspectionForTest(Ally);
 	B.PC->SetSkillHover(Ally, Skill);
 	B.PC->UpdatePlanningOverlay();
-	TestTrue(TEXT("ispezionata, la riga della scheda di un'unita' propria mostra la portata dell'azione armata"),
+	TestTrue(TEXT("ispezionata, la skill di un'unita' propria mostra la portata dell'azione armata"),
 		FwSorted(HvShownSkillCells(B.HexMap)) == Expected);
 
 	DestroyHexMatchWorld(B.World);
@@ -5701,17 +5725,17 @@ bool FRTSkillHoverFromTheCardOwnUnitTest::RunTest(const FString&)
 }
 
 /**
- * **`#3748` — la riga della scheda di un nemico solo RICORDATO non mostra la portata, nemmeno da una cella che oggi si vede.**
+ * **`#3748` — la skill di un nemico solo RICORDATO non mostra la portata, nemmeno da una cella che oggi si vede.**
  *
  * Il cancello e' una voce `Live`. Una voce `Remembered` porta la cella del RICORDO, che puo' essere una cella in vista: li' il controllo
  * «l'origine e' una cella che la squadra vede» non ferma niente, e a fermare la portata e' il solo cancello. Il test costruisce quel caso
  * (la cella del nemico esce dall'insieme in vista, la squadra ne ricorda una vicina che si vede) e lo dichiara per misura come
  * premessa. Il controllo positivo e' lo stesso nemico, visto di nuovo.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverFromTheCardRememberedEnemyTest,
-	"RefactorTactics.SkillHover.ARowOfTheCardOfARememberedEnemyShowsNoRange",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfRememberedEnemyTest,
+	"RefactorTactics.SkillHover.TheSkillOfARememberedEnemyShowsNoRange",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillHoverFromTheCardRememberedEnemyTest::RunTest(const FString&)
+bool FRTSkillHoverOfRememberedEnemyTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
@@ -5763,7 +5787,7 @@ bool FRTSkillHoverFromTheCardRememberedEnemyTest::RunTest(const FString&)
 	// Il controllo positivo: lo stesso nemico, visto di nuovo, mostra la portata dalla sua cella.
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
 	B.PC->UpdatePlanningOverlay();
-	TestTrue(TEXT("controllo positivo: visto di nuovo (`Live`), la stessa riga mostra la portata"), HvShownSkillCells(B.HexMap).Num() > 0);
+	TestTrue(TEXT("controllo positivo: visto di nuovo (`Live`), la stessa skill mostra la portata"), HvShownSkillCells(B.HexMap).Num() > 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
@@ -6694,7 +6718,7 @@ bool FRTReadOnlyBarLiveGateTest::RunTest(const FString&)
 /**
  * **`#3748` — lo slot della barra in sola lettura mostra la portata dalla cella della VOCE DELLA VISTA, mai dal piano.**
  *
- * Lo scenario di `ARowOfTheCardShowsTheRangeOfAnInspectedEnemyFromItsViewCell`, con il PRODUTTORE cambiato: l'hover non si scrive a mano sul controller
+ * Lo scenario di `TheSkillOfAnInspectedEnemyShowsItsRangeFromItsViewCell`, con il PRODUTTORE cambiato: l'hover non si scrive a mano sul controller
  * (`SetSkillHover`) ma lo registra lo slot (`HoverBegin`) costruito per l'unita' fissata. La portata, il cancello `Live` e l'origine non cambiano: li
  * decide il controller, e questo test dice che lo slot arriva alla stessa sorgente. Stesse asserzioni; l'esito si legge sulla mappa, non su un campo del
  * risolutore.
@@ -6712,64 +6736,20 @@ bool FRTSlotHoverOfReadOnlyBarTest::RunTest(const FString&)
 	const URTHexMapAsset* Map = B.HexMap->MapAsset;
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
 
-	// Il PIANO del nemico: uno scatto pianificato a due passi (la ricetta di `ARowOfTheCardShowsTheRangeOfAnInspectedEnemyFromItsViewCell`).
-	ARTUnit* Enemy = nullptr;
-	int32 Skill = INDEX_NONE;
-	FRTCellId PlannedOrigin;
-	TArray<FRTCellId> FromView;
-	TArray<FRTCellId> FromPlan;
-	TArray<FString> Why;
-	for (TActorIterator<ARTUnit> It(B.World); It && Enemy == nullptr; ++It)
-	{
-		ARTUnit* Candidate = *It;
-		if (Candidate->TeamId != 1) { continue; }
-		const FString Who = Candidate->HeroId.ToString();
-		const int32 Dash = Candidate->FindDashAbilityIndex();
-		if (Dash == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: nessuno scatto"), *Who)); continue; }
-
-		B.PC->SelectActorForTest(Candidate);
-		const int32 CandidateSkill = HvPrepareTargetedSkill(B, Candidate, Dash);
-		B.PC->SelectActorForTest(B.Mine);
-		if (CandidateSkill == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: scatto %d, nessuna skill a bersaglio"), *Who, Dash)); continue; }
-		URTActionData* Ability = const_cast<URTActionData*>(Candidate->GetAbility(CandidateSkill));
-		Ability->Def.ResolutionPhase = ERTResolutionPhase::Attack;
-
-		FRTCellId DashCell = Candidate->Cell;
-		for (int32 D = 0; D < 6 && DashCell == Candidate->Cell; ++D)
-		{
-			const FRTCellId Step = HvStep(Candidate->Cell, HvDirs[D], 2);
-			if (Map->ContainsCell(Step)) { DashCell = Step; }
-		}
-		const_cast<URTActionData*>(Candidate->GetAbility(Dash))->Def.MovementStyle = ERTMovementStyle::LinearDash;
-		Candidate->PlannedDashAbility = Dash;
-		Candidate->PlannedDashCell = DashCell;
-		const bool bShifts = !(DashCell == Candidate->Cell) && Candidate->PlannedDashApplies() && !Candidate->PlannedDashIsCharge()
-			&& Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell;
-		const TArray<FRTCellId> View = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Candidate->Cell, 4, ERTLineOfSightPolicy::Required, 0));
-		const TArray<FRTCellId> Plan = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, DashCell, 4, ERTLineOfSightPolicy::Required, 0));
-		Why.Add(FString::Printf(TEXT("%s: scatto %d, skill %d, arrivo %s su %s, vista %d celle, uguali %d"),
-			*Who, Dash, CandidateSkill, *DashCell.ToString(), *Candidate->Cell.ToString(), View.Num(), View == Plan ? 1 : 0));
-		if (bShifts && View.Num() > 3 && View != Plan)
-		{
-			Enemy = Candidate;
-			Skill = CandidateSkill;
-			PlannedOrigin = DashCell;
-			FromView = View;
-			FromPlan = Plan;
-		}
-		else
-		{
-			Candidate->PlannedDashAbility = INDEX_NONE; // questo nemico non serve a questa prova
-		}
-	}
+	// Il PIANO del nemico: uno scatto pianificato a due passi (`HvFindShiftedDashEnemy`, la stessa ricerca del test della skill di un nemico ispezionato).
+	const FHvShiftedDashEnemy Found = HvFindShiftedDashEnemy(B, Map);
+	ARTUnit* Enemy = Found.Enemy;
+	const int32 Skill = Found.Skill;
+	const TArray<FRTCellId>& FromView = Found.FromView;
+	const TArray<FRTCellId>& FromPlan = Found.FromPlan;
 	if (!TestNotNull(TEXT("premessa: un nemico con una skill a bersaglio e uno scatto non-carica che sposta l'origine di mira, con due portate diverse"), Enemy))
 	{
-		AddInfo(FString::Printf(TEXT("candidati scartati: %s"), Why.Num() > 0 ? *FString::Join(Why, TEXT(" | ")) : TEXT("nessun nemico nel banco")));
+		AddInfo(FString::Printf(TEXT("candidati scartati: %s"), Found.Why.Num() > 0 ? *FString::Join(Found.Why, TEXT(" | ")) : TEXT("nessun nemico nel banco")));
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
 	AddInfo(FString::Printf(TEXT("il nemico e' %s, la skill %d, l'origine del piano %s, quella della vista %s"),
-		*Enemy->HeroId.ToString(), Skill, *PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
+		*Enemy->HeroId.ToString(), Skill, *Found.PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
 
 	B.Mine->PlannedWaypoints.Reset();
 	B.PC->RefreshPlanningOverlay(B.Mine);

@@ -665,9 +665,9 @@ public:
 	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
 	/**
 	 * L'UNICA funzione che legge l'attore di un'unita' per la scheda (#3748, P1). Del nemico ricava solo cio' che e'
-	 * pubblico: carta e stati (quelli della targa), verso, kit dal CATALOGO, equipaggiamento. Il kit passa da
-	 * `BuildCatalogActionRow`, che non prende un'unita': piano, slot, azione armata e ricariche vere non hanno
-	 * un percorso per arrivare qui. `NAME_None` come variante: la variante attiva e' stato di partita.
+	 * pubblico: carta e stati (quelli della targa), verso, equipaggiamento. Piano, slot, azione armata e ricariche vere non
+	 * hanno un percorso per arrivare qui. ⛔ Il kit non c'e': lo mostra la barra delle skill dell'unita' cliccata, in sola
+	 * lettura (`URTHudViewModel::BuildPublicBar`), non la scheda.
 	 *
 	 * `SeenUses` (#3751, F6): cio' che la squadra `PlayerTeamId` ha visto usare, da `ARTTurnManager::GetSeenUses()`.
 	 * Con un'unita' di un'ALTRA squadra riempie `DeducedCooldowns`; senza (`nullptr`) o per un'unita' della propria

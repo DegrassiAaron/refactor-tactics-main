@@ -51,14 +51,13 @@ namespace
 		return Unit;
 	}
 
-	/** Una scheda di `NumLines` righe: una riga ogni quattro, dalla seconda, e' di una skill che porta il proprio numero di riga. */
+	/** Una scheda di `NumLines` righe, ognuna col proprio numero («riga 07»). */
 	FRTInspectView CardTestView(int32 NumLines)
 	{
 		FRTInspectView View;
 		for (int32 I = 0; I < NumLines; ++I)
 		{
 			View.Lines.Add(FString::Printf(TEXT("riga %02d"), I));
-			View.LineAbilityIndices.Add(I % 4 == 1 ? I : INDEX_NONE);
 		}
 		return View;
 	}
@@ -222,38 +221,6 @@ bool FRTInspectCardNeverTruncatesSilentlyTest::RunTest(const FString&)
 }
 
 /**
- * Le righe del pannello portano la skill a cui appartengono (`#3748`): e' l'anello fra il modello e l'hover. Una riga di skill e'
- * `Visible` e vede il cursore; le altre lasciano passare i gesti al pannello, che li consuma.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardRowsCarryTheirSkillTest,
-	"RefactorTactics.ScreenHud.InspectCardRowsCarryTheirSkill",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTInspectCardRowsCarryTheirSkillTest::RunTest(const FString&)
-{
-	FCardTestRig Rig;
-	if (!CardTestMakeRig(*this, Rig, 12, 20)) { return false; }
-	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(Rig.World); };
-
-	Rig.Card->RefreshLook(true);
-	const FRTInspectView View = CardTestView(12);
-	const TArray<TObjectPtr<URTInspectLineWidget>>& Rows = Rig.Card->GetLineWidgets();
-	if (!TestEqual(TEXT("una riga di pannello per riga di scheda"), Rows.Num(), View.Lines.Num())) { return false; }
-
-	int32 SkillRows = 0;
-	for (int32 I = 0; I < Rows.Num(); ++I)
-	{
-		TestEqual(*FString::Printf(TEXT("riga %d: il testo"), I), Rows[I]->GetLineString(), View.Lines[I]);
-		TestEqual(*FString::Printf(TEXT("riga %d: la skill a cui appartiene"), I), Rows[I]->GetAbilityIndex(), View.LineAbilityIndices[I]);
-		const bool bSkill = View.LineAbilityIndices[I] != INDEX_NONE;
-		SkillRows += bSkill ? 1 : 0;
-		TestTrue(*FString::Printf(TEXT("riga %d: vede il cursore solo se e' di una skill"), I),
-			Rows[I]->GetVisibility() == (bSkill ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible));
-	}
-	TestTrue(TEXT("anti-vacuita': ci sono righe di skill e righe che non lo sono"), SkillRows > 0 && SkillRows < Rows.Num());
-	return true;
-}
-
-/**
  * Il pannello consuma il tasto sinistro e la rotella, e NON il destro (`#3748`, spec §3 regola 6): il click sul pannello non raggiunge
  * la mappa, la rotella scorre la scheda, e il tasto destro resta del controller, che e' quello che chiude la scheda.
  */
@@ -306,125 +273,21 @@ bool FRTInspectCardConsumesClicksAndWheelTest::RunTest(const FString&)
 	TestTrue(TEXT("se entra tutto, la rotella e' consumata lo stesso"),
 		Rig.Card->NativeOnMouseWheel(Geometry, CardTestMouse(FKey(), -1.f)).IsEventHandled());
 	TestEqual(TEXT("e non scorre"), Rig.Card->GetFirstLine(), 0);
-	return true;
-}
 
-/**
- * Passare sulla riga di una skill ne chiede la portata al controller, e uscire la toglie (`#3748`, spec §3 regola 7): lo stesso gesto
- * dello slot della barra. Una riga che non e' di una skill non chiede niente, e l'uscita di una riga non cancella l'hover di un'altra.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectLineHoverAsksTheRangeTest,
-	"RefactorTactics.PlayerInput.InspectLineHoverAsksTheRangeOfItsSkill",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTInspectLineHoverAsksTheRangeTest::RunTest(const FString&)
-{
-	UWorld* World = RTWorldFixtures::MakeWorld();
-	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
-	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
-
-	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
-	FRTCellId Cell; Cell.X = 1; Cell.Y = 0;
-	ARTUnit* Unit = CardTestSpawnUnit(World, 1, 1, Cell);
-	URTInspectLineWidget* RowA = CreateWidget<URTInspectLineWidget>(World, URTInspectLineWidget::StaticClass());
-	URTInspectLineWidget* RowB = CreateWidget<URTInspectLineWidget>(World, URTInspectLineWidget::StaticClass());
-	if (!TestTrue(TEXT("controller, unita' e righe esistono"), PC && Unit && RowA && RowB)) { return false; }
-	RowA->SetHoverControllerForTest(PC);
-	RowB->SetHoverControllerForTest(PC);
-
-	const FGeometry Geometry;
-	const FPointerEvent Pointer = CardTestMouse(FKey());
-
-	RowA->SetLine(TEXT("skill A"), Unit, 1);
-	RowA->NativeOnMouseEnter(Geometry, Pointer);
-	TestTrue(TEXT("entrando su una riga di skill il controller riceve l'unita'"), PC->GetSkillHoverUnit() == Unit);
-	TestEqual(TEXT("e la posizione di kit"), PC->GetSkillHoverIndex(), 1);
-	RowA->NativeOnMouseLeave(Pointer);
-	TestTrue(TEXT("uscendo l'hover si spegne"), PC->GetSkillHoverUnit() == nullptr);
-	TestEqual(TEXT("e la posizione torna nulla"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
-
-	// Una riga che non e' di una skill, o che non ha un'unita', non chiede niente.
-	RowA->SetLine(TEXT("nome"), Unit, INDEX_NONE);
-	RowA->NativeOnMouseEnter(Geometry, Pointer);
-	TestTrue(TEXT("una riga senza skill non chiede niente"), PC->GetSkillHoverUnit() == nullptr);
-	RowA->NativeOnMouseLeave(Pointer);
-	RowA->SetLine(TEXT("skill senza unita'"), nullptr, 2);
-	RowA->NativeOnMouseEnter(Geometry, Pointer);
-	TestTrue(TEXT("una skill senza unita' non chiede niente"), PC->GetSkillHoverUnit() == nullptr);
-	RowA->NativeOnMouseLeave(Pointer);
-
-	// L'uscita di una riga spegne solo il PROPRIO hover: A esce dopo che B e' entrata, e B resta.
-	RowA->SetLine(TEXT("skill A"), Unit, 1);
-	RowB->SetLine(TEXT("skill B"), Unit, 2);
-	RowA->NativeOnMouseEnter(Geometry, Pointer);
-	RowB->NativeOnMouseEnter(Geometry, Pointer);
-	RowA->NativeOnMouseLeave(Pointer);
-	TestEqual(TEXT("l'uscita di A non cancella l'hover di B"), PC->GetSkillHoverIndex(), 2);
-	RowB->NativeOnMouseLeave(Pointer);
-	TestEqual(TEXT("e quella di B lo spegne"), PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
-
-	// Riscritta mentre il cursore e' sopra: Slate non manda un nuovo ingresso, quindi l'hover segue la riga.
-	RowA->SetLine(TEXT("skill A"), Unit, 1);
-	RowA->NativeOnMouseEnter(Geometry, Pointer);
-	RowA->SetLine(TEXT("skill C"), Unit, 3);
-	TestEqual(TEXT("una riga riscritta sotto il cursore sposta l'hover sulla nuova skill"), PC->GetSkillHoverIndex(), 3);
-	RowA->SetLine(TEXT("nome"), Unit, INDEX_NONE);
-	TestTrue(TEXT("e se diventa una riga senza skill l'hover si spegne"), PC->GetSkillHoverUnit() == nullptr);
-	RowA->NativeOnMouseLeave(Pointer);
-	return true;
-}
-
-/**
- * Una riga che sparisce, una scheda che si nasconde e una riga distrutta ritirano l'hover che avevano registrato (`#3748`): nessuna delle
- * tre riceve l'uscita del cursore da Slate, e senza questo la mappa resterebbe sulla portata di una skill che nessuna riga mostra piu'.
- * Tre casi, tre asserti: ciascuno e' la sola guardia di una delle tre uscite.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardRetiresItsHoverTest,
-	"RefactorTactics.PlayerInput.InspectCardRetiresTheHoverOfARowThatGoesAway",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTInspectCardRetiresItsHoverTest::RunTest(const FString&)
-{
-	FCardTestRig Rig;
-	if (!CardTestMakeRig(*this, Rig, 12, 20)) { return false; }
-	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(Rig.World); };
-	Rig.Card->RefreshLook(true);
+	// Le righe sono testo e basta (la scheda non ha piu' righe di skill, quindi nessun hover): ognuna scrive la riga della scheda che le
+	// spetta, e nessuna vede il cursore, cosi' i gesti sopra una riga arrivano al pannello che li consuma. Con tutto in finestra il conto e'
+	// quello della scheda, riga per riga.
 	const TArray<TObjectPtr<URTInspectLineWidget>>& Rows = Rig.Card->GetLineWidgets();
-	if (!TestEqual(TEXT("premessa: dodici righe"), Rows.Num(), 12)) { return false; }
-
-	const FGeometry Geometry;
-	const FPointerEvent Pointer = CardTestMouse(FKey());
-	// Le righe di skill sono la 1, la 5 e la 9, e portano il proprio numero come posizione di kit.
-	const auto HoverRow = [&](int32 RowIndex)
+	const FRTInspectView Whole = CardTestView(40);
+	if (TestEqual(TEXT("con tutto in finestra una riga di pannello per riga di scheda"), Rows.Num(), Whole.Lines.Num()))
 	{
-		Rows[RowIndex]->SetHoverControllerForTest(Rig.PC);
-		Rows[RowIndex]->NativeOnMouseEnter(Geometry, Pointer);
-	};
-
-	// 1. La finestra si accorcia con il cursore sull'ultima riga di skill: la riga e' tolta dall'albero.
-	HoverRow(9);
-	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 9"), Rig.PC->GetSkillHoverIndex(), 9)) { return false; }
-	Rig.Card->SetViewForTest(CardTestView(5));
-	Rig.Card->RefreshLook(true);
-	TestEqual(TEXT("la finestra e' di cinque righe"), Rows.Num(), 5);
-	TestTrue(TEXT("la riga tolta ha ritirato il suo hover"), Rig.PC->GetSkillHoverUnit() == nullptr);
-
-	// 2. La scheda si nasconde (un modale) con il cursore su una riga: una riga collassata non riceve l'uscita.
-	Rig.Card->SetViewForTest(CardTestView(12));
-	Rig.Card->RefreshLook(true);
-	if (!TestEqual(TEXT("premessa: tornano dodici righe"), Rows.Num(), 12)) { return false; }
-	HoverRow(5);
-	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 5"), Rig.PC->GetSkillHoverIndex(), 5)) { return false; }
-	Rig.Card->SetContextForTest(ERTPointerContext::Modal);
-	Rig.Card->RefreshLook(false);
-	TestFalse(TEXT("premessa: la scheda e' nascosta"), Rig.Card->IsCardShown());
-	TestTrue(TEXT("nascosta, ha ritirato l'hover della riga"), Rig.PC->GetSkillHoverUnit() == nullptr);
-	Rig.Card->SetContextForTest(ERTPointerContext::Planning);
-	Rig.Card->RefreshLook(false);
-
-	// 3. Una riga distrutta con l'hover registrato.
-	HoverRow(1);
-	if (!TestEqual(TEXT("premessa: il controller ha l'hover della riga 1"), Rig.PC->GetSkillHoverIndex(), 1)) { return false; }
-	Rows[1]->NativeDestruct();
-	TestTrue(TEXT("la riga distrutta ha ritirato il suo hover"), Rig.PC->GetSkillHoverUnit() == nullptr);
+		for (int32 I = 0; I < Rows.Num(); ++I)
+		{
+			TestEqual(*FString::Printf(TEXT("riga %d: il testo"), I), Rows[I]->GetLineString(), Whole.Lines[I]);
+			TestTrue(*FString::Printf(TEXT("riga %d: non vede il cursore, i gesti passano al pannello"), I),
+				Rows[I]->GetVisibility() == ESlateVisibility::SelfHitTestInvisible);
+		}
+	}
 	return true;
 }
 
