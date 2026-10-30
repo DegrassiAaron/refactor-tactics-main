@@ -2087,6 +2087,11 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 	TestEqual(TEXT("ne' pianificata"), Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	// In `Targeting` il comportamento NON cambia: lo stesso click bersaglia, come prima della decisione.
+	// ➕ `#3748`: la barra segue l'ispezione e, sull'avversaria, e' in sola lettura — nemmeno il click che bersaglia scrive il piano. Per bersagliare si
+	// torna alla propria unita' con il gesto di sempre (il click sulla selezione, `SelectUnit`): la scheda resta sull'avversaria, e questo click e'
+	// quello che questo test provava, bersagliamento in `Targeting` con un soggetto ispezionato.
+	PC->SelectUnit(Mine, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("la scheda resta sull'avversaria mentre la barra torna alla propria unita'"), PC->GetInspectedUnit() == Enemy && !PC->IsPlanningWriteBlocked());
 	const int32 Attack = 0;
 	Mine->SelectAbility(Attack);
 	TestEqual(TEXT("armata -> contesto Targeting"), PC->GetPointerContext(), ERTPointerContext::Targeting);

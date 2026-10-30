@@ -1486,6 +1486,30 @@ public:
 	 */
 	bool IsWorldReadOnly() const;
 
+	/**
+	 * **Il piano non si puo' scrivere** (`#3748`): il mondo e' in sola lettura (`IsWorldReadOnly`) oppure la barra delle skill mostra
+	 * un'unita' che non si comanda (`IsDockReadOnly`). E' la domanda che fanno i punti che SCRIVONO il piano, e solo loro.
+	 *
+	 * 🔑 **E' l'UNICA porta del rifiuto, ed e' qui e non nello slot ne' nella scheda**: tasti numerici, generiche (`Z G B C X`), slot del dock
+	 * (`ArmKitAbility`), click sulla mappa e su un'unita', `Sneak`, `Invio` e i tre punti del verso passano tutti da un sito che la chiede. Il
+	 * piano e' di `GetSelectedUnit()` — l'unita' che si comanda — e con la barra su un nemico scriverlo vorrebbe dire dare un ordine a un'unita'
+	 * che lo schermo non sta mostrando. Il rimedio e' sempre lo stesso: il tasto destro chiude la scheda, selezionare un'unita' propria riporta la barra.
+	 *
+	 * ⛔ **Non e' `IsWorldReadOnly()` con un'altra causa, e non va usata dove si legge e basta**: la telemetria di ritmo di `OnSelect`, la
+	 * selezione (`SelectUnit`), l'ispezione (`DispatchUnitClick`) e il Back (`ApplyBack`) restano vivi con la barra in sola lettura, perche' non
+	 * scrivono il piano — sono il modo di uscirne.
+	 */
+	bool IsPlanningWriteBlocked() const;
+
+	/**
+	 * Perche' il piano non si scrive, detto a chi gioca e non a chi programma: vuota se `IsPlanningWriteBlocked()` e' falso.
+	 *
+	 * Per il mondo in sola lettura e' la frase di `[D-468]` (`#3510`), invariata. Per la barra nomina l'unita' MOSTRATA — che non e' la
+	 * selezione — e dice come uscirne. ⚠️ Con le due cause insieme dice quella del mondo: e' la piu' larga, e chiudere la scheda non
+	 * sbloccherebbe niente.
+	 */
+	FString WhyPlanningWriteIsBlocked() const;
+
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
@@ -1699,6 +1723,9 @@ public:
 	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
 	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
 	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
+	 *
+	 * ➕ `#3748`: falsa anche con il piano non scrivibile (`IsPlanningWriteBlocked`). Con la barra su un nemico il click sull'unita' propria
+	 * selezionata non va al selettore ma alla selezione, che riporta la barra.
 	 */
 	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
 
@@ -1801,8 +1828,9 @@ private:
 	 * spegnimento sotto quell'uscita la barra resterebbe sul nemico. Il click vero (`OnSelect`) passa da `SelectUnit` anche per l'unita' gia'
 	 * selezionata; il ciclo `N` con una sola comandabile esce prima di `SelectUnit` e lo spegne da se' (`CycleSelection`).
 	 *
-	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera) e il click che il selettore del verso consuma
-	 * prima della selezione (`TryHandleFacingClickUnderCursor`). ⚠️ E non si
+	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera). ⚠️ Non e' piu' un caso il click che il selettore
+	 * del verso consumava prima della selezione (`TryHandleFacingClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
+	 * risponde no (`IsPlanningWriteBlocked`), e il click cade nella selezione. ⚠️ E non si
 	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente.
 	 */
 	bool bDockFollowsInspection = false;

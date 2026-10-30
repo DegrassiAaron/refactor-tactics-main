@@ -1565,9 +1565,10 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `N` la saltava.
 	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
 	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: lo stesso rifiuto vale con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`), e la riga dice quale delle due cause.
+	if (IsPlanningWriteBlocked())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), *WhyPlanningWriteIsBlocked());
 		return false;
 	}
 
@@ -2579,8 +2580,14 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 	// `#2518` — scrive `PlannedAbilityIndex` e `PlannedAttackTarget`: e' mutazione del piano, e durante la
 	// risoluzione non deve avvenire. La regola sta in `IsWorldReadOnly()`; qui si applica al proprio punto
 	// di mutazione, che e' anche l'unico raggiungibile da un test headless.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`). ⚠️ **Il mondo in sola lettura tace, com'era
+	// (`#2518`); la barra lo dice**: un click che non fa niente senza una riga e' indistinguibile da un click che non e' arrivato.
+	if (IsPlanningWriteBlocked())
 	{
+		if (IsDockReadOnly() && !IsWorldReadOnly())
+		{
+			UE_LOG(LogRT, Display, TEXT("[RT] Click sul bersaglio ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		}
 		return;
 	}
 
@@ -2901,8 +2908,14 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
 	// rimasta aperta dopo la prima stesura del fix: un clic sulla mappa durante il playback non solo
 	// riportava il piano a schermo, ma piantava waypoint che sopravvivevano al turno successivo.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`): un waypoint posato mentre la barra mostra
+	// un nemico sarebbe un ordine dato a un'unita' che lo schermo non sta mostrando. ⚠️ Il mondo in sola lettura tace, com'era; la barra lo dice.
+	if (IsPlanningWriteBlocked())
 	{
+		if (IsDockReadOnly() && !IsWorldReadOnly())
+		{
+			UE_LOG(LogRT, Display, TEXT("[RT] Click sulla mappa ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		}
 		return;
 	}
 
@@ -3696,10 +3709,13 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	//
 	// ⚠️ Vale anche per il DISARMO, che passa di qui (`ArmKitAbility`): non ha niente da togliere, perche' il
 	// Cleanup ha gia' disarmato, e lasciarlo passare sarebbe un secondo canale con regole proprie.
-	if (IsWorldReadOnly())
+	//
+	// ➕ **`#3748`: e vale con la barra su un'unita' che non si comanda** (`IsPlanningWriteBlocked`), ed e' QUI e non nello slot: i dieci tasti, le
+	// cinque generiche e lo slot del dock (`ArmKitAbility`) passano tutti da questa funzione, e il piano che scriverebbero e' quello dell'unita'
+	// SELEZIONATA, non di quella che la barra mostra. Anche il disarmo: l'azione armata prima della fissazione resta armata.
+	if (IsPlanningWriteBlocked())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"),
-			*Richiesta, PercheIlMondoESoloLettura(GetPointerContext()));
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"), *Richiesta, *WhyPlanningWriteIsBlocked());
 		return;
 	}
 
@@ -4211,9 +4227,10 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
 	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
 	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`), e la riga dice quale delle due cause.
+	if (IsPlanningWriteBlocked())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), *WhyPlanningWriteIsBlocked());
 		return;
 	}
 
@@ -4449,6 +4466,28 @@ bool ARTPlayerController::IsWorldReadOnly() const
 	return Context == ERTPointerContext::ResolutionPlayback
 		|| Context == ERTPointerContext::ReactionWindow
 		|| Context == ERTPointerContext::Modal;
+}
+
+bool ARTPlayerController::IsPlanningWriteBlocked() const
+{
+	return IsWorldReadOnly() || IsDockReadOnly();
+}
+
+FString ARTPlayerController::WhyPlanningWriteIsBlocked() const
+{
+	// 🔑 **Il mondo per primo**: e' la causa piu' larga, e con la barra su un nemico durante il playback «chiudi la scheda» non
+	// sbloccherebbe niente. La frase e' quella di `PercheIlMondoESoloLettura`, non una copia: la regola di [D-468] ha una sede sola.
+	if (IsWorldReadOnly())
+	{
+		return PercheIlMondoESoloLettura(GetPointerContext());
+	}
+	if (IsDockReadOnly())
+	{
+		// Il nome e' quello dell'unita' MOSTRATA, non della selezione: sono le due che il giocatore rischia di confondere.
+		return FString::Printf(TEXT("la barra mostra %s, che non comandi: chiudi la scheda con il tasto destro o seleziona una tua unita'"),
+			*GetDockUnit()->GetName());
+	}
+	return FString();
 }
 
 bool ARTPlayerController::IsGameplayInputBlocked() const
@@ -5629,7 +5668,8 @@ void ARTPlayerController::UpdateFacingHoverFromRay(bool bHasRay, const FVector& 
 	}
 	ARTUnit* Unit = GetSelectedUnit();
 	TOptional<ERTHexDirection> Sotto;
-	if (Unit && bDeclaringFacing && bHasRay && !IsWorldReadOnly() && !IsPlanningInputInert())
+	// `#3748`: con la barra in sola lettura il lato non si anticipa, nemmeno con un selettore rimasto aperto prima della fissazione.
+	if (Unit && bDeclaringFacing && bHasRay && !IsPlanningWriteBlocked() && !IsPlanningInputInert())
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		ERTHexDirection Settore = ERTHexDirection::E;
@@ -5837,7 +5877,8 @@ void ARTPlayerController::CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perch
 
 bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 {
-	if (IsWorldReadOnly() || IsPlanningInputInert())
+	// `#3748`: aprire il selettore chiude il movimento dell'unita' selezionata, quindi con la barra in sola lettura e' una scrittura del piano.
+	if (IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}
@@ -5869,7 +5910,8 @@ bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 
 bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector)
 {
-	if (IsWorldReadOnly() || IsPlanningInputInert())
+	// `#3748`: un selettore rimasto aperto prima della fissazione non dichiara un verso mentre la barra e' in sola lettura.
+	if (IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}
@@ -5914,7 +5956,10 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 
 bool ARTPlayerController::FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const
 {
-	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
+	// 🔴 `#3748`: con la barra in sola lettura il selettore NON reclama il click, ed e' il punto — un click sull'unita' propria selezionata, che ha
+	// una destinazione pianificata, cadrebbe sul pavimento dell'esagono finale e verrebbe consumato come scelta del verso PRIMA della selezione.
+	// Senza questa riga la barra resterebbe sul nemico: il click deve arrivare a `SelectUnit`, che la riporta.
+	if (!Unit || IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}

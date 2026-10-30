@@ -5937,4 +5937,308 @@ bool FRTDockSubjectFollowsTheLastClickTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3748` — CON LA BARRA IN SOLA LETTURA IL PIANO NON SI SCRIVE, E IL LOG DICE PERCHE'.
+//
+// Decisione d'autore del 2026-10-30: la barra che mostra un nemico non da' tasti ne' arma, «finche' non riselezioni una tua unita'». Il
+// soggetto del PIANO resta la selezione (`GetSelectedUnit`): senza questo rifiuto, un tasto premuto o un click sulla mappa con la barra su un
+// nemico scriverebbe un ordine sull'unita' propria mentre lo schermo mostra le skill di un'altra. Il rifiuto sta in UN posto, il controller
+// (`IsPlanningWriteBlocked`): ne' lo slot ne' la scheda ne aggiungono uno proprio.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Un modo di scrivere il piano: come si prepara il piano, il gesto, e la SONDA che quel gesto cambierebbe.
+	 * `bLogsWhy`: il sito che rifiuta dice anche perche' (`Display`, con la frase di `WhyPlanningWriteIsBlocked`); i tre siti del verso e
+	 * `FacingHandlesClickOnFinalCell` restano muti com'erano nel caso del mondo in sola lettura.
+	 */
+	struct FRoBarRow
+	{
+		const TCHAR* Name;
+		TFunction<void()> Prepare;
+		TFunction<void()> Gesture;
+		TFunction<FString()> Probe;
+		bool bLogsWhy;
+	};
+}
+
+/**
+ * **`#3748` — con la barra in sola lettura nessun gesto scrive il piano, e ognuno e' provato col suo controllo positivo.**
+ *
+ * Ogni riga della tabella gira DUE volte sullo stesso piano e con lo stesso gesto, e cambia soltanto la fissazione: (1) il nemico e'
+ * fissato e la barra e' in sola lettura, la sonda non deve cambiare; (2) la fissazione si chiude (`SetInspectorPinned(false)`, la sola
+ * causa isolata: `ApplyBack` smonterebbe prima un'azione armata o un selettore aperto) e la STESSA chiamata deve cambiarla. Senza la
+ * seconda meta' una riga che non puo' mai scrivere — un'unita' senza la portata, una cella che il piano rifiuta — resterebbe verde per
+ * costruzione, ed e' il modo piu' comune di scrivere un verde che non misura niente.
+ *
+ * 🔑 **La sonda e' presa DOPO la fissazione e PRIMA del gesto.** E' la differenza che serve a `FacingHandlesClickOnFinalCell`, che non e' un
+ * gesto: e' la domanda che decide se il click sull'esagono finale va al selettore del verso. Con la barra in sola lettura risponde no, e il
+ * click su un'unita' propria cade nella selezione normale — `SelectUnit`, che e' cio' che riporta la barra (Review Focus 1, ruling R6a).
+ * Con la fissazione chiusa risponde si': e' il controllo positivo.
+ *
+ * ⚠️ **I siti del verso si provano con il selettore aperto PRIMA della fissazione** (`bDeclaringFacing` vero): con la barra in sola lettura
+ * il click che lo aprirebbe e' gia' rifiutato, e i due siti che lavorano a selettore aperto (`HandleFacingClick`, `UpdateFacingHoverFromRay`)
+ * non si raggiungerebbero altrimenti.
+ *
+ * ⚠️ **L'ultima riga sposta il nemico** (a distanza due, dentro la portata dell'attacco base): il click su un'unita' con l'azione armata
+ * vuole un bersaglio che la regola di portata accetti. Sta in fondo perche' gli altri gesti non dipendano da dove sta.
+ *
+ * Il log: otto righe di rifiuto dicono la causa della barra. Le due che prima tacevano (`HandleClickOnCell`, `HandleClickOnUnit`) la dicono
+ * solo per la barra, mai per il mondo in sola lettura — e che per il mondo restino mute si misura in `TheReasonNamesTheReadOnlyBar`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadOnlyBarRefusesPlanWritesTest,
+	"RefactorTactics.PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	ARTUnit* Ally = FwOtherOwn(B.World, B.Mine);
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy) || !TestNotNull(TEXT("premessa: un'altra propria"), Ally)
+		|| !TestTrue(TEXT("premessa: il banco ha lasciato un waypoint da riusare"), B.Mine->PlannedWaypoints.Num() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTCellId Step = B.Mine->PlannedWaypoints[0];
+
+	// L'azione armata si cerca per NOME: e' l'attacco base, che punta un'unita' (indice 0 del kit di Ivrin, che e' `B.Mine`).
+	const int32 Attack = KitIndexOf(B.Mine, TEXT("Hero.Ivrin.PulseShot"));
+	if (!TestNotEqual(TEXT("premessa: il kit ha l'attacco base"), Attack, (int32)INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Una generica che arma: si prova per posizione di `GenericHotkeys()` e si prende la prima che porta davvero l'unita' a `SelectedAbilityIndex`.
+	int32 GenericSlot = INDEX_NONE;
+	for (int32 Slot = 0; Slot < ARTPlayerController::GenericHotkeys().Num() && GenericSlot == INDEX_NONE; ++Slot)
+	{
+		B.PC->PressGenericHotkeyForTest(Slot);
+		if (B.Mine->SelectedAbilityIndex != INDEX_NONE) { GenericSlot = Slot; }
+		B.Mine->SelectAbility(INDEX_NONE);
+	}
+	if (!TestNotEqual(TEXT("premessa: un tasto generico arma"), GenericSlot, (int32)INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Dove sta il nemico quando lo si clicca con l'attacco armato: a distanza due da `B.Mine`, su una cella della mappa e libera.
+	FRTCellId EnemyCell;
+	bool bEnemyCell = false;
+	for (const FRTCellId& Near : URTHexLibrary::Neighbors(B.Mine->Cell))
+	{
+		for (const FRTCellId& Candidate : URTHexLibrary::Neighbors(Near))
+		{
+			bool bFree = !bEnemyCell && URTHexLibrary::HexDistance(Candidate, B.Mine->Cell) == 2 && B.HexMap->MapAsset->ContainsCell(Candidate);
+			for (TActorIterator<ARTUnit> It(B.World); bFree && It; ++It)
+			{
+				bFree = !(It->Cell == Candidate);
+			}
+			if (bFree) { EnemyCell = Candidate; bEnemyCell = true; }
+		}
+	}
+	if (!TestTrue(TEXT("premessa: c'e' una cella libera a distanza due da `B.Mine`"), bEnemyCell))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	FVector Origin; float HexSize; float LayerH;
+	B.HexMap->GetHexContext(Origin, HexSize, LayerH);
+	const ERTHexDirection Side = B.Mine->Facing == ERTHexDirection::W ? ERTHexDirection::E : ERTHexDirection::W;
+	const FVector HoverRayOrigin = URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(B.Mine->Cell, Side), Origin, HexSize, LayerH) + FVector(0.f, 0.f, 500.f);
+
+	// Il piano di partenza di ogni riga: vuoto, selettore chiuso, fissazione chiusa. Scritto sui campi e non con i gesti, che sono cio' che si misura.
+	const auto ResetPlan = [&]()
+	{
+		B.PC->SetInspectorPinned(false);
+		B.PC->EndFacingDeclaration();
+		B.Mine->SelectAbility(INDEX_NONE);
+		B.Mine->PlannedAbilityIndex = INDEX_NONE;
+		B.Mine->ClearPlannedAttack();
+		B.Mine->bHasPlannedCoverEdge = false;
+		B.Mine->WaypointsAllaDichiarazione = INDEX_NONE;
+		B.Mine->PlannedMovementProfileId = NAME_None;
+		B.Mine->bDeclaresPlannedFacing = false;
+		B.Mine->SetTurnPlanDeclared(false);
+		B.Mine->PlannedWaypoints.Reset();
+		B.PC->RebuildPlannedPathForTest();
+	};
+	const auto Nothing = []() {};
+	const auto Num = [](int32 Value) { return FString::FromInt(Value); };
+	const auto Flag = [](bool bValue) { return FString(bValue ? TEXT("si") : TEXT("no")); };
+	const auto ArmedIndex = [&]() { return Num(B.Mine->SelectedAbilityIndex); };
+
+	TArray<FRoBarRow> Rows;
+	Rows.Add({ TEXT("tasto di kit (SelectAbilityForCurrent)"), Nothing,
+		[&]() { B.PC->PressKitHotkeyForTest(Attack); }, ArmedIndex, true });
+	Rows.Add({ TEXT("porta dello slot (ArmKitAbility)"), Nothing,
+		[&]() { B.PC->ArmKitAbility(Attack); }, ArmedIndex, true });
+	// Il DISARMO e' la stessa porta e va rifiutato come l'armo: l'azione armata PRIMA della fissazione resta armata.
+	Rows.Add({ TEXT("disarmo dallo slot (ArmKitAbility su uno slot armato)"),
+		[&]() { B.PC->SelectAbilityForCurrentForTest(Attack); TestEqual(TEXT("premessa del disarmo: l'attacco e' armato"), B.Mine->SelectedAbilityIndex, Attack); },
+		[&]() { B.PC->ArmKitAbility(Attack); }, ArmedIndex, true });
+	Rows.Add({ TEXT("tasto generico (SelectGenericSlot)"), Nothing,
+		[&]() { B.PC->PressGenericHotkeyForTest(GenericSlot); }, ArmedIndex, true });
+	Rows.Add({ TEXT("click su una cella (HandleClickOnCell)"), Nothing,
+		[&]() { B.PC->HandleClickOnCellForTest(Step); }, [&]() { return Num(B.Mine->PlannedWaypoints.Num()); }, true });
+	Rows.Add({ TEXT("Sneak (ToggleSneakDeclaration)"), Nothing,
+		[&]() { B.PC->ToggleSneakForTest(); }, [&]() { return B.Mine->PlannedMovementProfileId.ToString(); }, true });
+	Rows.Add({ TEXT("Invio (ToggleTurnPlanDeclared)"), Nothing,
+		[&]() { B.PC->ToggleTurnPlanDeclaredForTest(); }, [&]() { return Flag(B.Mine->bTurnPlanDeclared); }, true });
+	Rows.Add({ TEXT("apertura del selettore del verso (TryOpenFacingSelector)"), Nothing,
+		[&]() { B.PC->TryOpenFacingSelector(B.Mine->Cell); }, [&]() { return Flag(B.PC->IsDeclaringFacing()); }, false });
+	Rows.Add({ TEXT("scelta del verso (HandleFacingClick)"),
+		[&]() { B.PC->BeginFacingDeclaration(); TestTrue(TEXT("premessa del verso: il selettore e' aperto"), B.PC->IsDeclaringFacing()); },
+		[&]() { B.PC->HandleFacingClick(B.Mine->Cell, Side); }, [&]() { return Flag(B.Mine->bDeclaresPlannedFacing); }, false });
+	Rows.Add({ TEXT("hover del verso (UpdateFacingHoverFromRay)"),
+		[&]() { B.PC->BeginFacingDeclaration(); TestTrue(TEXT("premessa dell'hover: il selettore e' aperto"), B.PC->IsDeclaringFacing()); },
+		[&]() { B.PC->UpdateFacingHoverFromRay(true, HoverRayOrigin, FVector(0.f, 0.f, -1.f)); },
+		[&]() { return Flag(B.PC->GetFacingHoverSector().IsSet()); }, false });
+	// Non e' un gesto, e' la decisione del click sull'esagono finale: con una destinazione pianificata il selettore del verso lo reclamerebbe,
+	// ed e' cio' che il click sull'unita' propria non deve trovare mentre la barra e' in sola lettura (ruling R6a).
+	Rows.Add({ TEXT("click sull'esagono finale (FacingHandlesClickOnFinalCell)"),
+		[&]()
+		{
+			B.Mine->PlannedWaypoints.Reset();
+			B.Mine->PlannedWaypoints.Add(Step);
+			B.PC->RebuildPlannedPathForTest();
+			TestTrue(TEXT("premessa dell'esagono finale: l'unita' ha una destinazione e non e' ferma"), B.PC->FacingCellFor(B.Mine) == Step);
+		},
+		Nothing, [&]() { return Flag(B.PC->FacingHandlesClickOnFinalCell(B.Mine)); }, false });
+	Rows.Add({ TEXT("click su un'unita' con l'azione armata (HandleClickOnUnit)"),
+		[&]()
+		{
+			Enemy->PlaceOnCell(EnemyCell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+			B.PC->SelectAbilityForCurrentForTest(Attack);
+			TestEqual(TEXT("premessa del bersaglio: l'attacco e' armato PRIMA della fissazione"), B.Mine->SelectedAbilityIndex, Attack);
+		},
+		[&]() { B.PC->HandleClickOnUnitForTest(Enemy); },
+		[&]() { return B.Mine->PlannedAttackTarget ? B.Mine->PlannedAttackTarget->GetName() : FString(TEXT("nessuno")); }, true });
+
+	// Le righe di rifiuto che dicono la causa della barra: una per riga che lo dichiara, e tutte con la stessa frase.
+	int32 WhyLines = 0;
+	for (const FRoBarRow& Row : Rows) { WhyLines += Row.bLogsWhy ? 1 : 0; }
+	AddExpectedMessagePlain(TEXT("chiudi la scheda con il tasto destro"), ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, WhyLines);
+
+	for (const FRoBarRow& Row : Rows)
+	{
+		ResetPlan();
+		Row.Prepare();
+		B.PC->PinInspectionForTest(Enemy);
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa, la barra e' in sola lettura sul nemico"), Row.Name),
+			B.PC->IsDockReadOnly() && B.PC->IsPlanningWriteBlocked() && B.PC->GetDockUnit() == Enemy))
+		{
+			continue;
+		}
+
+		const FString Before = Row.Probe();
+		Row.Gesture();
+		const FString Blocked = Row.Probe();
+		TestTrue(*FString::Printf(TEXT("%s: con la barra in sola lettura la sonda non deve cambiare (prima `%s`, dopo `%s`)"), Row.Name, *Before, *Blocked),
+			Blocked.Equals(Before, ESearchCase::CaseSensitive));
+
+		// Il controllo positivo: stessa unita', stesso piano, stesso gesto — cambia solo la fissazione.
+		B.PC->SetInspectorPinned(false);
+		if (!TestFalse(*FString::Printf(TEXT("%s: premessa, a fissazione chiusa la scrittura del piano non e' piu' bloccata"), Row.Name), B.PC->IsPlanningWriteBlocked()))
+		{
+			continue;
+		}
+		Row.Gesture();
+		const FString Open = Row.Probe();
+		TestFalse(*FString::Printf(TEXT("%s: controllo positivo, a fissazione chiusa lo stesso gesto deve cambiare la sonda, e invece resta `%s`"), Row.Name, *Open),
+			Open.Equals(Before, ESearchCase::CaseSensitive));
+	}
+
+	// Cio' che NON si ferma: il tasto destro chiude la scheda (e con lei il blocco), e selezionare un'unita' propria riporta la barra.
+	ResetPlan();
+	B.PC->PinInspectionForTest(Enemy);
+	TestTrue(TEXT("premessa: la barra e' in sola lettura"), B.PC->IsPlanningWriteBlocked());
+	TestTrue(TEXT("il tasto destro non e' fermato: smonta la scheda"), B.PC->ApplyBack() == ERTPointerBackStep::Inspector);
+	TestFalse(TEXT("e con la scheda chiusa il piano si puo' scrivere"), B.PC->IsPlanningWriteBlocked());
+	B.PC->PinInspectionForTest(Enemy);
+	B.PC->SelectUnit(Ally, /*bRecordAsPlayerInput=*/ false);
+	TestFalse(TEXT("la selezione di un'unita' propria non e' fermata, e riporta la barra"), B.PC->IsPlanningWriteBlocked());
+	TestTrue(TEXT("e la selezione e' quella nuova"), B.PC->GetSelectedUnit() == Ally);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — la causa del rifiuto nomina chi mostra la barra e dice come uscirne.**
+ *
+ * `WhyPlanningWriteIsBlocked` e' vuota quando il piano si puo' scrivere; per la barra in sola lettura nomina l'unita' MOSTRATA (non la selezione:
+ * sono due unita' diverse, ed e' per questo che il nome di entrambe e' nel banco) e il rimedio; per il mondo in sola lettura e' la frase che
+ * `IsWorldReadOnly` dava gia' ([D-468]), invariata. Se le due cause valgono insieme (la barra su un nemico durante il playback) dice quella del
+ * mondo: e' la piu' larga, e «chiudi la scheda» non sbloccherebbe niente.
+ *
+ * 🔑 **Le due righe che tacevano restano mute per il mondo.** `HandleClickOnCell` e `HandleClickOnUnit` ora dicono la causa solo per la barra: con
+ * il mondo in sola lettura e la barra su un nemico una riga in piu' avrebbe cambiato il comportamento di [D-468], e il conteggio esatto qui sotto
+ * (una sola riga di causa del playback, quella di `Sneak`) lo misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReasonNamesReadOnlyBarTest,
+	"RefactorTactics.PlayerInput.TheReasonNamesTheReadOnlyBar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReasonNamesReadOnlyBarTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy)
+		|| !TestTrue(TEXT("premessa: i nomi delle due unita' non si contengono, o l'assenza di un nome non vorrebbe dire niente"),
+			!Enemy->GetName().Contains(B.Mine->GetName()) && !B.Mine->GetName().Contains(Enemy->GetName())))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// (a) Senza fissazione il piano si scrive e non c'e' niente da dire.
+	TestFalse(TEXT("(a) senza fissazione il piano non e' bloccato"), B.PC->IsPlanningWriteBlocked());
+	TestTrue(TEXT("(a) e la causa e' vuota"), B.PC->WhyPlanningWriteIsBlocked().IsEmpty());
+
+	// (b) La barra sul nemico: la causa nomina il nemico, non la selezione, e dice come uscirne.
+	B.PC->PinInspectionForTest(Enemy);
+	const FString Why = B.PC->WhyPlanningWriteIsBlocked();
+	TestTrue(TEXT("(b) premessa: il piano e' bloccato dalla sola barra"), B.PC->IsPlanningWriteBlocked() && B.PC->IsDockReadOnly() && !B.PC->IsWorldReadOnly());
+	TestTrue(*FString::Printf(TEXT("(b) la causa nomina l'unita' mostrata `%s`: `%s`"), *Enemy->GetName(), *Why), Why.Contains(Enemy->GetName()));
+	TestFalse(*FString::Printf(TEXT("(b) e non nomina la selezione `%s`: `%s`"), *B.Mine->GetName(), *Why), Why.Contains(B.Mine->GetName()));
+	TestTrue(*FString::Printf(TEXT("(b) e dice come uscirne, il tasto destro: `%s`"), *Why), Why.Contains(TEXT("tasto destro")));
+
+	// (c) Chiusa la scheda, la causa torna vuota.
+	TestTrue(TEXT("(c) premessa: il tasto destro smonta la scheda"), B.PC->ApplyBack() == ERTPointerBackStep::Inspector);
+	TestTrue(TEXT("(c) la causa torna vuota"), B.PC->WhyPlanningWriteIsBlocked().IsEmpty());
+
+	// (d) Il mondo in sola lettura: la frase di prima, anche con la barra su un nemico.
+	CommitFromTimeout(B);
+	if (!AssertInPlayback(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FString WorldWhy = B.PC->WhyPlanningWriteIsBlocked();
+	TestTrue(*FString::Printf(TEXT("(d) durante il playback la causa e' quella del mondo: `%s`"), *WorldWhy), WorldWhy.Contains(CausaPlayback));
+	B.PC->PinInspectionForTest(Enemy);
+	const FString BothWhy = B.PC->WhyPlanningWriteIsBlocked();
+	TestTrue(TEXT("(d) premessa: ora valgono entrambe le cause"), B.PC->IsWorldReadOnly() && B.PC->IsDockReadOnly());
+	TestTrue(*FString::Printf(TEXT("(d) con tutte e due dice quella del mondo: `%s`"), *BothWhy), BothWhy.Contains(CausaPlayback));
+	TestFalse(*FString::Printf(TEXT("(d) e non il rimedio della barra, che non sbloccherebbe niente: `%s`"), *BothWhy), BothWhy.Contains(TEXT("tasto destro")));
+
+	// (e) Con il mondo in sola lettura e la barra sul nemico, i due click che prima tacevano tacciono ancora: una sola riga di causa, quella di `Sneak`.
+	AddExpectedMessagePlain(CausaPlayback, ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+	B.PC->HandleClickOnCellForTest(B.Mine->Cell);
+	B.PC->HandleClickOnUnitForTest(Enemy);
+	B.PC->ToggleSneakForTest();
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

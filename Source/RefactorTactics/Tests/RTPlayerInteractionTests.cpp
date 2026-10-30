@@ -4879,6 +4879,13 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("e il contesto non e' il verso"), PC->GetPointerContext() != ERTPointerContext::Facing);
 	TestTrue(TEXT("il piano non cambia"), Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Primo->Cell);
 
+	// ➕ `#3748`: l'ispezione ha portato la barra sul nemico, e in sola lettura il piano non si scrive e il selettore del verso non reclama nessun click
+	// (`FacingHandlesClickOnFinalCell` risponde no per quella causa). Le righe che seguono provano due altre cause — la carica gia' pianificata sul
+	// nemico, e il click su un altro nemico che ripianifica — e con la barra in sola lettura passerebbero, o fallirebbero, per la ragione sbagliata.
+	// Si torna alla propria unita' con il gesto di sempre (`SelectUnit`): la scheda resta sul nemico, che e' cio' che l'ultimo asserto di sotto misura.
+	PC->SelectUnit(Charger, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("la scheda resta sul nemico mentre la barra torna alla propria unita'"), PC->GetInspectedUnit() == Primo && !PC->IsPlanningWriteBlocked());
+
 	// Il click VERO passa da `OnSelect`, che manda un click sull'esagono finale al selettore PRIMA della matrice delle unita'
 	// (`TryHandleFacingClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
 	// non gira headless, ma chiede alla stessa funzione di `TryOpenFacingSelector`, che qui si prova direttamente. ⚠️ Questa riga e'
