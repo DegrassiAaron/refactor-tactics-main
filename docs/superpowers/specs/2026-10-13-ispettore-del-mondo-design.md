@@ -228,7 +228,7 @@ Regole:
 2. **Il fuoco non tocca selezione né piano.** Vale la riga di `spec-tactical-camera.md`: il click col modificatore
    è un comando che chi stava pianificando ritrova tutto com'era. ➕ rev3. Vale anche per la barra delle skill: mostra
    un'altra unità (regola 7), ma selezione, azione armata e piano di chi si comanda restano com'erano, e li ritrova
-   chi riseleziona una propria unità.
+   la barra quando torna a quell'unità (regola 13).
 3. **Un gesto, una operazione**: `Ctrl` + `LMB` è click oppure trascinamento, mai entrambi. La soglia è quella
    esistente (`ClickDragThreshold`).
 4. ➕ rev. **La scheda resta, l'area sulla mappa cede.** ⌫ *La prima stesura diceva «il fuoco finisce con `RMB` o

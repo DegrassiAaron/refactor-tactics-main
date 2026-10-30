@@ -6437,6 +6437,11 @@ sessions:
       reazione o un modale aperti con la scheda fissata. Il caso peggiore delle righe che vanno a capo non e'
       misurato in headless, e che Slate consegni la rotella al pannello prima del gioco nemmeno.
 
+      ➕ **Cosa serve in piu' ai criteri (j) e (k) di `PIE-HUD-SCHEDA`** (2026-10-30, D-562): uno **scatto**
+      armato (un'azione della macro-fase Dash) prima del click sul nemico. Con ogni altra azione armata il
+      click sul nemico bersaglia e non ispeziona, quindi la barra non cambia e il criterio non si vede. Senza
+      azione armata i due criteri si leggono senza la clausola sull'azione armata.
+
       🟡 **Parzialmente eseguita il 2026-10-29**: l'autore ha giudicato sulle tavole `PIE-HUD-FUOCO-AREE` e
       `PIE-HUD-SKILL-PORTATA` (nessuna obiezione; entrambe 🟡 perche' restano criteri `NOT RUN`, che dicono le loro
       celle). `PIE-HUD-SGUARDO` non e' stata guardata: la seduta resta aperta per quella e per i criteri che mancano.
