@@ -31,6 +31,9 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTInspectCardWidget.h" // #3748: la scheda e' un inquilino di MiddleRight
+#include "UI/RTInspect.h"           // #3748: la scheda piu' lunga che lo scenario sa comporre
+#include "UI/RTHUD.h"               // #3748: BuildInspectSubject, l'unica funzione che legge l'attore
 #include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
 #include "Tests/RTTargetPromptTestHelpers.h" // #3869: i testi del prompt, che il grafo del dock scrive a runtime
 #include "UI/RTHudZoneWidget.h"
@@ -866,6 +869,18 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 			if (URTSelectedUnitPanelWidget* Pannello = Cast<URTSelectedUnitPanelWidget>(W)) { Pannello->RefreshLook(); }
 			if (URTTurnHeaderWidget* Testata = Cast<URTTurnHeaderWidget>(W)) { Testata->RefreshLook(); }
 			if (URTPlayerEventLogWidget* Registro = Cast<URTPlayerEventLogWidget>(W)) { Registro->RefreshLook(); }
+			// La scheda (#3748) e' un inquilino solo se a schermo, e a schermo e' solo con un soggetto fissato: `Collapsed` misura zero e
+			// il ciclo la salterebbe, quindi qui la si accende con la scheda piu' lunga che lo scenario sa comporre (kit e equipaggiamento
+			// veri dell'unita' propria), cosi' la finestra di `MaxRighe` righe e' piena.
+			if (URTInspectCardWidget* Scheda = Cast<URTInspectCardWidget>(W))
+			{
+				Scheda->SetCommandControllerForTest(Comandante);
+				Scheda->SetInspectedUnitForTest(Mia);
+				Comandante->PinInspectionForTest(Mia);
+				Scheda->SetContextForTest(ERTPointerContext::Planning);
+				Scheda->SetViewForTest(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Mia, 0, true)));
+				Scheda->RefreshLook();
+			}
 			if (URTPlanCommitWidget* Conferma = Cast<URTPlanCommitWidget>(W)) { Conferma->RefreshButtons(); }
 			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W)) { Dock->RefreshMovementReadout(); }
 		}
