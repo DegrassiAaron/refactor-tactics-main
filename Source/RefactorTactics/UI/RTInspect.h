@@ -4,6 +4,7 @@
 #include "Ability/RTEquipmentData.h"
 #include "Map/RTCellId.h"
 #include "Perception/RTKnowledgeView.h"
+#include "Player/RTPointerInteraction.h" // ERTPointerContext: quando la scheda si nasconde (#3748)
 #include "UI/RTHudViewModel.h"
 #include "RTInspect.generated.h"
 
@@ -95,6 +96,14 @@ struct REFACTORTACTICS_API FRTInspectSubject
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FRTActionTooltipView> Kit;
 
+	/**
+	 * La posizione di kit (`ARTUnit::GetAbility`) di ogni voce di `Kit`, nello STESSO ordine: serve all'hover sulla riga di una
+	 * skill, che chiede la portata di quella posizione al controller. Una voce di catalogo non valida e' saltata da `Kit`, quindi
+	 * la posizione non e' l'indice dell'array.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	TArray<int32> KitAbilityIndices;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FRTInspectEquipmentLine> Equipment;
 
@@ -114,6 +123,14 @@ struct REFACTORTACTICS_API FRTInspectView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
 	TArray<FString> Lines;
+
+	/**
+	 * Per ogni riga di `Lines`, la posizione di kit della skill a cui appartiene, o `INDEX_NONE`: stessa lunghezza, stesso ordine.
+	 * Il titolo di una skill e la sua riga di numeri portano la stessa posizione, cosi' passarci sopra col cursore vale per
+	 * entrambe. I marcatori di taglio e ogni riga che non e' di una skill sono `INDEX_NONE`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Inspect")
+	TArray<int32> LineAbilityIndices;
 };
 
 UCLASS()
@@ -152,4 +169,33 @@ public:
 
 	/** Il cancello e il compositore insieme: vuota se l'unita' non e' `Live`. Il soggetto arriva comunque gia' costruito. */
 	static FRTInspectView ResolveInspect(const FRTKnowledgeView& View, int32 StableUnitId, const FRTInspectSubject& Subject);
+
+	/**
+	 * LA SCHEDA SI VEDE? (`#3748`, spec dell'ispettore §3 regola 11). Una finestra di reazione o un modale la nascondono **senza
+	 * chiuderla**: il soggetto resta fissato, e la scheda torna quando si chiudono. Chiuderla e' del tasto destro (passo `Inspector`
+	 * del Back) e della conoscenza (`ARTPlayerController::ReleaseInspectionUnlessLive`), mai del contesto.
+	 *
+	 * ⚠️ Non ha un parametro per la sessione non presidiata: li' `OnSelect` esce gia' su `IsPlanningInputInert`, quindi nessuna
+	 * scheda viene fissata e `bPinned` e' falso.
+	 */
+	static bool ShouldShowCard(ERTPointerContext Context, bool bPinned);
+
+	/**
+	 * La prima riga che si puo' mostrare quando le righe sono `TotalLines` e ne entrano `MaxLines`: `FirstLine` riportata nel
+	 * campo. A fondo corsa il marcatore in basso non serve e il suo posto lo prende quello in alto, quindi l'ultima finestra parte da
+	 * `TotalLines - (MaxLines - 1)`.
+	 */
+	static int32 ClampFirstLine(int32 TotalLines, int32 MaxLines, int32 FirstLine);
+
+	/**
+	 * La finestra di `MaxLines` righe da `FirstLine`, e **un taglio non e' mai muto** (spec §7: la lezione di
+	 * `URTContextInspectorLibrary::VisibleLines`, #3320). Se non entrano tutte, la prima riga dice quante ne restano sopra
+	 * (`… N righe sopra`, dal secondo giro in poi) e l'ultima quante ne restano sotto (`… e altre K righe`): i marcatori occupano uno
+	 * slot ciascuno, e il corpo e' cio' che avanza. Mostrate piu' nascoste sopra e sotto fanno sempre il totale.
+	 *
+	 * ⛔ Sotto le tre righe non c'e' posto per dichiarare niente: si degrada al taglio secco dalle prime righe, come
+	 * `VisibleLines`. Un pannello che usasse gli ultimi slot per parlare del proprio troncamento direbbe meno di uno che mostra
+	 * le prime righe e basta. `MaxRighe` del widget ha un minimo che lo evita.
+	 */
+	static FRTInspectView VisibleWindow(const FRTInspectView& View, int32 FirstLine, int32 MaxLines);
 };

@@ -694,7 +694,11 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 		if (Action == nullptr) { continue; }
 		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
 			URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None));
-		if (Tooltip.IsValid()) { Subject.Kit.Add(Tooltip); }
+		if (Tooltip.IsValid())
+		{
+			Subject.Kit.Add(Tooltip);
+			Subject.KitAbilityIndices.Add(Index); // la posizione di kit, non l'indice di `Kit`: le voci non valide sono saltate
+		}
 
 		if (bDeduce)
 		{

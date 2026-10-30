@@ -385,4 +385,212 @@ bool FRTCatalogRowMatchesDockRowTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni riga di una skill porta la sua posizione di kit (`#3748`): e' cio' che l'hover sulla scheda chiede al controller.
+ *
+ * L'oracolo e' l'ordine del kit dell'unita', non `Subject.KitAbilityIndices`: la posizione attesa di ogni titolo e' quella in cui
+ * `GetAbility` lo restituisce. Un compositore che perdesse le posizioni, o un soggetto che le scrivesse spostate, cade qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectLinesCarryAbilityIndexTest,
+	"RefactorTactics.UI.InspectLinesCarryTheirAbilityIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectLinesCarryAbilityIndexTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	const URTHeroData* Hero = InspectHero(0);
+	FRTCellId Cell; Cell.X = 0; Cell.Y = 0;
+	ARTUnit* Unit = InspectSpawn(World, 1, Hero, Cell);
+	if (!TestTrue(TEXT("l'unita' esiste"), Unit != nullptr && Hero != nullptr))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTInspectView View = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Unit, 0, true));
+	TestEqual(TEXT("un indice per riga"), View.LineAbilityIndices.Num(), View.Lines.Num());
+
+	int32 SkillsChecked = 0;
+	for (int32 Position = 0; Position < Unit->NumAbilities(); ++Position)
+	{
+		const URTActionData* Action = Unit->GetAbility(Position);
+		if (Action == nullptr) { continue; }
+		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(
+			URTHudViewModel::BuildCatalogActionRow(Action, Position, NAME_None));
+		if (!Tooltip.IsValid()) { continue; }
+
+		// Il titolo e' la riga intera o la riga fino a « - »: un titolo che ne e' il prefisso non la scambia con un'altra skill.
+		const FString Title = Tooltip.Title.ToString();
+		int32 TitleLine = INDEX_NONE;
+		for (int32 Line = 0; Line < View.Lines.Num(); ++Line)
+		{
+			if (View.Lines[Line] == Title || View.Lines[Line].StartsWith(Title + TEXT(" - ")))
+			{
+				TitleLine = Line;
+				break;
+			}
+		}
+		if (!TestTrue(*FString::Printf(TEXT("la riga di `%s` c'e'"), *Title), TitleLine != INDEX_NONE)) { continue; }
+		++SkillsChecked;
+		TestEqual(*FString::Printf(TEXT("`%s` porta la sua posizione di kit"), *Title), View.LineAbilityIndices[TitleLine], Position);
+
+		// La riga dei numeri, se c'e', e' della stessa skill: passarci sopra mostra la stessa portata.
+		const int32 NumbersLine = TitleLine + 1;
+		if (View.Lines.IsValidIndex(NumbersLine) && View.Lines[NumbersLine].StartsWith(TEXT("  ")))
+		{
+			TestEqual(*FString::Printf(TEXT("i numeri di `%s` portano la stessa posizione"), *Title),
+				View.LineAbilityIndices[NumbersLine], Position);
+		}
+	}
+	TestTrue(TEXT("anti-vacuita': almeno una skill con la sua riga"), SkillsChecked > 0);
+
+	// Cio' che non e' di una skill non indica nessuna skill: il nome e i PV in cima, e ogni riga di equipaggiamento e di ricarica.
+	TestEqual(TEXT("il nome non e' di una skill"), View.LineAbilityIndices[0], static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("i PV non sono di una skill"), View.LineAbilityIndices[1], static_cast<int32>(INDEX_NONE));
+	int32 NotSkillLines = 0;
+	for (int32 Line = 0; Line < View.Lines.Num(); ++Line)
+	{
+		if (View.LineAbilityIndices[Line] == INDEX_NONE) { ++NotSkillLines; }
+	}
+	TestTrue(TEXT("anti-vacuita': ci sono righe che non sono di una skill"), NotSkillLines > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * La scheda si nasconde in una finestra di reazione e in un modale, e mai senza una fissazione (`#3748`, spec §3 regola 11).
+ *
+ * Tabella scritta a mano, contesto per contesto: la regola e' un elenco chiuso, e una funzione che confrontasse un insieme
+ * calcolato con se stessa non direbbe niente. Questo e' il lato puro; che il widget resti fissato mentre e' nascosto lo prova il
+ * test del widget.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectShowCardOutsideDialogsTest,
+	"RefactorTactics.UI.InspectShouldShowCardOnlyOutsideDialogs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectShowCardOutsideDialogsTest::RunTest(const FString&)
+{
+	struct FRiga { ERTPointerContext Contesto; const TCHAR* Nome; bool bVisibileSeFissata; };
+	const FRiga Tabella[] = {
+		{ ERTPointerContext::IdleSelection,     TEXT("IdleSelection"),     true },
+		{ ERTPointerContext::Planning,          TEXT("Planning"),          true },
+		{ ERTPointerContext::Pathing,           TEXT("Pathing"),           true },
+		{ ERTPointerContext::Targeting,         TEXT("Targeting"),         true },
+		{ ERTPointerContext::Facing,            TEXT("Facing"),            true },
+		{ ERTPointerContext::ResolutionPlayback, TEXT("ResolutionPlayback"), true },
+		{ ERTPointerContext::ReactionWindow,    TEXT("ReactionWindow"),    false },
+		{ ERTPointerContext::Modal,             TEXT("Modal"),             false },
+	};
+
+	int32 Visible = 0;
+	int32 Hidden = 0;
+	for (const FRiga& Riga : Tabella)
+	{
+		TestEqual(*FString::Printf(TEXT("%s, fissata"), Riga.Nome),
+			URTInspectLibrary::ShouldShowCard(Riga.Contesto, /*bPinned=*/ true), Riga.bVisibileSeFissata);
+		TestFalse(*FString::Printf(TEXT("%s, senza fissazione non c'e' niente da mostrare"), Riga.Nome),
+			URTInspectLibrary::ShouldShowCard(Riga.Contesto, /*bPinned=*/ false));
+		(Riga.bVisibileSeFissata ? Visible : Hidden) += 1;
+	}
+	TestEqual(TEXT("la tabella copre ogni contesto"), Visible + Hidden, static_cast<int32>(ERTPointerContext::Modal) + 1);
+	TestTrue(TEXT("anti-vacuita': la tabella ha sia contesti che mostrano sia contesti che nascondono"), Visible > 0 && Hidden > 0);
+	return true;
+}
+
+/**
+ * Un taglio della scheda non e' mai muto (`#3748`, spec §7): mostrate piu' nascoste sopra e sotto fanno sempre il totale, e
+ * l'ultima riga visibile dice quante ne restano. La lezione e' quella di `URTContextInspectorLibrary::VisibleLines` (#3320).
+ *
+ * Il corpo si riconosce dal testo («riga NN»), non dal calcolo che lo produce: i marcatori si leggono contando le righe vere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectWindowNeverTruncatesSilentlyTest,
+	"RefactorTactics.UI.InspectWindowNeverTruncatesSilently",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectWindowNeverTruncatesSilentlyTest::RunTest(const FString&)
+{
+	constexpr int32 Total = 12;
+	constexpr int32 Max = 5;
+
+	FRTInspectView View;
+	for (int32 I = 0; I < Total; ++I)
+	{
+		View.Lines.Add(FString::Printf(TEXT("riga %02d"), I));
+		View.LineAbilityIndices.Add(I % 3 == 0 ? I : INDEX_NONE);
+	}
+
+	auto DigitsOf = [](const FString& Text)
+	{
+		FString Digits;
+		for (const TCHAR C : Text) { if (FChar::IsDigit(C)) { Digits.AppendChar(C); } }
+		return Digits.IsEmpty() ? -1 : FCString::Atoi(*Digits);
+	};
+
+	TSet<int32> EverShown;
+	bool bSawTop = false;
+	bool bSawBottom = false;
+	for (int32 First = -3; First <= Total + 3; ++First)
+	{
+		const FRTInspectView Window = URTInspectLibrary::VisibleWindow(View, First, Max);
+		const FString Where = FString::Printf(TEXT("da %d"), First);
+		TestEqual(*FString::Printf(TEXT("%s: la finestra riempie le righe che ha"), *Where), Window.Lines.Num(), Max);
+		TestEqual(*FString::Printf(TEXT("%s: un indice per riga"), *Where), Window.LineAbilityIndices.Num(), Window.Lines.Num());
+
+		TArray<int32> Body;
+		int32 TopMarker = INDEX_NONE;
+		int32 BottomMarker = INDEX_NONE;
+		for (int32 Row = 0; Row < Window.Lines.Num(); ++Row)
+		{
+			const FString& Text = Window.Lines[Row];
+			if (Text.StartsWith(TEXT("…")))
+			{
+				if (Text.EndsWith(TEXT("righe sopra"))) { TopMarker = DigitsOf(Text); }
+				else { BottomMarker = DigitsOf(Text); }
+				TestEqual(*FString::Printf(TEXT("%s: un marcatore non e' di una skill"), *Where),
+					Window.LineAbilityIndices[Row], static_cast<int32>(INDEX_NONE));
+			}
+			else
+			{
+				const int32 Source = DigitsOf(Text);
+				Body.Add(Source);
+				TestEqual(*FString::Printf(TEXT("%s: la riga %d porta il suo indice"), *Where, Source),
+					Window.LineAbilityIndices[Row], View.LineAbilityIndices[Source]);
+			}
+		}
+		if (!TestTrue(*FString::Printf(TEXT("%s: c'e' del corpo"), *Where), Body.Num() > 0)) { continue; }
+
+		for (int32 I = 1; I < Body.Num(); ++I)
+		{
+			TestEqual(*FString::Printf(TEXT("%s: il corpo e' contiguo"), *Where), Body[I], Body[I - 1] + 1);
+		}
+		const int32 HiddenAbove = Body[0];
+		const int32 HiddenBelow = Total - (Body.Last() + 1);
+		TestEqual(*FString::Printf(TEXT("%s: il marcatore in alto dice quante restano sopra"), *Where),
+			TopMarker, HiddenAbove > 0 ? HiddenAbove : static_cast<int32>(INDEX_NONE));
+		TestEqual(*FString::Printf(TEXT("%s: il marcatore in basso dice quante restano sotto"), *Where),
+			BottomMarker, HiddenBelow > 0 ? HiddenBelow : static_cast<int32>(INDEX_NONE));
+		TestEqual(*FString::Printf(TEXT("%s: mostrate e nascoste fanno il totale"), *Where),
+			Body.Num() + HiddenAbove + HiddenBelow, Total);
+
+		for (const int32 Source : Body) { EverShown.Add(Source); }
+		bSawTop |= HiddenAbove > 0;
+		bSawBottom |= HiddenBelow > 0;
+	}
+	TestEqual(TEXT("scorrendo si arriva a ogni riga"), EverShown.Num(), Total);
+	TestTrue(TEXT("anti-vacuita': si e' visto un taglio in alto e uno in basso"), bSawTop && bSawBottom);
+	TestEqual(TEXT("l'ultima finestra parte da Total - (Max - 1)"), URTInspectLibrary::ClampFirstLine(Total, Max, 1000), Total - (Max - 1));
+
+	// Che entri tutto: nessun marcatore, e le righe sono le stesse.
+	const FRTInspectView Whole = URTInspectLibrary::VisibleWindow(View, 4, Total);
+	TestEqual(TEXT("se entra tutto, non si taglia"), Whole.Lines.Num(), Total);
+	TestEqual(TEXT("se entra tutto, la prima riga e' la prima"), Whole.Lines[0], View.Lines[0]);
+
+	// Sotto le tre righe i marcatori non entrano: taglio secco dalle prime, e vuoto per un budget nullo.
+	const FRTInspectView Tiny = URTInspectLibrary::VisibleWindow(View, 6, 2);
+	TestEqual(TEXT("con due righe: due righe"), Tiny.Lines.Num(), 2);
+	TestEqual(TEXT("con due righe: dalle prime"), Tiny.Lines[0], View.Lines[0]);
+	TestEqual(TEXT("con un budget nullo: niente"), URTInspectLibrary::VisibleWindow(View, 0, 0).Lines.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
