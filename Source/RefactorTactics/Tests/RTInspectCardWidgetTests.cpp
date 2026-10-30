@@ -424,6 +424,12 @@ bool FRTInspectCardComposedFromTheObserverViewTest::RunTest(const FString&)
 	ARTUnit* Unknown = CardTestSpawnUnit(World, 1, 1, UnknownCell);
 	if (TestNotNull(TEXT("l'unita' ignota alla vista esiste"), Unknown))
 	{
+		// ⚠️ `StableUnitId` nasce a 0 e lo scenario ne assegna dallo 0: un'unita' spawnata a mano senza un id suo prende quello di un'altra,
+		// che ha una voce Live, e il cancello (che chiude per id) le darebbe la scheda di un'altra. Un id che nessuna voce possiede.
+		int32 FreshId = 1000;
+		for (const ARTUnit* Unit : Units) { FreshId = FMath::Max(FreshId, Unit->StableUnitId + 1000); }
+		Unknown->StableUnitId = FreshId;
+		TestTrue(TEXT("premessa: la vista non ha nessuna voce per quell'id"), URTKnowledgeViewLibrary::FindEntry(View, FreshId) == nullptr);
 		TestEqual(TEXT("un'unita' senza voce nella vista non ha scheda"),
 			ARTHUD::BuildInspectCard(TM, Unknown, Units, ObserverTeam).Lines.Num(), 0);
 	}
