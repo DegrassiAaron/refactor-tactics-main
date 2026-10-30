@@ -1360,6 +1360,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildPublicBar(const ARTUnit* Su
 		// private. Chi aggiunge un campo a questa riga lo fa dal catalogo, o non lo fa.
 		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Subject->ActiveVariantId);
 		View.HotkeyLabel = FText::GetEmpty(); // nessun tasto: e' di chi comanda
+		// 🔴 `TotalTurns` e' il DENOMINATORE dell'anello di carica, e `BuildCatalogActionRow` lo scrive dal catalogo. Qui `ChargeFraction` resta 1 e
+		// `TurnsRemaining` 0: un anello disegnato da `TotalTurns > 0` direbbe «carica» di una skill nemica la cui ricarica VERA e' privata. Al default,
+		// come `BuildIdleBar` ([D-460]). Il tooltip non ne risente: la riga «Ricarica» legge `CooldownTurns`, di catalogo, che resta.
+		View.TotalTurns = 0;
 		// ⚠️ `true` vuol dire «niente stato», non «pronta»: con il default (`false`) lo slot si leggerebbe
 		// `Unavailable`, cioe' direbbe «non si puo'» di un'azione di cui chi guarda non sa niente.
 		View.bUsableNow = true;

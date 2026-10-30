@@ -39,6 +39,10 @@
 #include "EngineUtils.h"               // TActorIterator: la seconda unita' propria del banco
 #include "Perception/RTKnowledgeView.h" // `#3748`: la voce `Remembered` di un nemico solo ricordato
 #include "UI/RTHudViewModel.h"         // `#3748`: BuildObserverKnowledgeView, la vista da cui decide il cancello
+#include "UI/RTInspect.h"              // `#3748`: URTInspectLibrary::LiveEntry, il cancello `Live` che il dock applica a ogni lettura
+#include "Misc/OutputDevice.h"
+#include "Misc/OutputDeviceRedirector.h" // `#3748`: GLog, per contare le righe con cui un click rifiutato dice perche'
+#include "Misc/ScopeLock.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -6236,6 +6240,565 @@ bool FRTReasonNamesReadOnlyBarTest::RunTest(const FString&)
 	B.PC->HandleClickOnCellForTest(B.Mine->Cell);
 	B.PC->HandleClickOnUnitForTest(Enemy);
 	B.PC->ToggleSneakForTest();
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3748` — IL DOCK E LO SLOT LEGGONO IL SOGGETTO DELLA BARRA.
+//
+// Il controller dice di chi e' la barra (`GetDockUnit`, `IsDockReadOnly`) e rifiuta ogni scrittura del piano mentre e' in sola lettura. Qui si
+// prova l'altra meta': che il dock mostri le righe del CATALOGO di quel soggetto, che lo slot non armi ne' registri hover per un'altra unita', e
+// che il cancello `Live` si applichi a ogni lettura. Il banco e' quello della barra (`FRTLockInPreviewBench`): un dock vero, con il contesto di
+// partita e il controller iniettati, perche' in headless `GetOwningPlayer()` e' nullo.
+//
+// ⚠️ **Cio' che qui NON si prova**: il grafo di `WBP_RT_ActionDock` e `WBP_RT_ActionSlot` (che funzioni del C++ chiama e che cosa ne fa) e il
+// disegno a schermo. La prima e' una lettura delle stringhe del `.uasset`, nel rapporto del Task; la seconda e' PIE.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Conta le righe di log che contengono un ago, finche' vive. Serve a distinguere CHI ha rifiutato un click su uno slot: la riga dello slot
+	 * («click sullo slot ... ignorato») o quella del controller («... chiudi la scheda con il tasto destro»). Con la barra in sola lettura il
+	 * controller rifiuta comunque, quindi lo stato del piano non distingue i due rifiuti: la riga si'. Senza buffer
+	 * (`CanBeUsedOnMultipleThreads`), per la ragione di `FRTScopedLogLines` in RTHeroSpawnTests.cpp.
+	 */
+	struct FDockRoLineCounter : public FOutputDevice
+	{
+		FDockRoLineCounter() { GLog->AddOutputDevice(this); }
+		virtual ~FDockRoLineCounter() override { GLog->RemoveOutputDevice(this); }
+
+		virtual bool CanBeUsedOnAnyThread() const override { return true; }
+		virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type, const FName&) override
+		{
+			if (V != nullptr)
+			{
+				FScopeLock Lock(&Guard);
+				Lines.Add(V);
+			}
+		}
+
+		int32 Count(const TCHAR* Needle) const
+		{
+			FScopeLock Lock(&Guard);
+			int32 Found = 0;
+			for (const FString& Line : Lines)
+			{
+				Found += Line.Contains(Needle) ? 1 : 0;
+			}
+			return Found;
+		}
+
+	private:
+		TArray<FString> Lines;
+		mutable FCriticalSection Guard;
+	};
+
+	/** La riga con cui lo SLOT rifiuta un click costruito per un'altra unita' (`URTActionSlotWidget::Activate`). */
+	const TCHAR* const GDockRoSlotRefusal = TEXT("click sullo slot");
+	/** La frase con cui il CONTROLLER rifiuta di scrivere il piano mentre la barra e' in sola lettura (`WhyPlanningWriteIsBlocked`). */
+	const TCHAR* const GDockRoControllerRefusal = TEXT("chiudi la scheda con il tasto destro");
+
+	/** L'identita' di una barra: `ActionId@AbilityIndex` per riga, e `|` dove comincia un gruppo nuovo. Due barre uguali danno la stessa stringa. */
+	FString DockRoDescribe(const TArray<FRTAbilityCooldownView>& Rows)
+	{
+		TArray<FString> Parts;
+		for (const FRTAbilityCooldownView& Row : Rows)
+		{
+			Parts.Add(FString::Printf(TEXT("%s%s@%d"), Row.bGroupBreakBefore ? TEXT("|") : TEXT(""), *Row.ActionId.ToString(), Row.AbilityIndex));
+		}
+		return FString::Join(Parts, TEXT(" "));
+	}
+
+	/** Un dock con il contesto di partita, il controller e la selezione del banco: gli stessi tre che in gioco vengono dal proprietario. */
+	URTActionDockWidget* DockRoMakeDock(const FRTLockInPreviewBench& B)
+	{
+		URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(B.World);
+		Dock->SetMatchContextForTest(B.TM, /*InPlayerTeamId=*/ 0);
+		Dock->SetCommandControllerForTest(B.PC);
+		Dock->SetSelectedUnitForTest(B.Mine);
+		return Dock;
+	}
+
+	/** Uno slot costruito ORA per `Row`, come lo costruisce il dock: `BuiltForUnit` e' il soggetto della barra di questo momento. */
+	URTActionSlotWidget* DockRoMakeSlot(const FRTLockInPreviewBench& B, const FRTAbilityCooldownView& Row)
+	{
+		URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>(B.World);
+		Slot->SetArmingControllerForTest(B.PC);
+		Slot->SetAction(Row, /*bInArmed=*/ false);
+		return Slot;
+	}
+}
+
+/**
+ * **`#3748` — il dock mostra la barra del CATALOGO dell'unita' fissata, e nessuno stato del piano di chi comanda.**
+ *
+ * L'unita' propria (`B.Mine`) ha un'azione armata, e il puntatore e' su un nemico noto fuori portata: il click sarebbe rifiutato, e il dock lo
+ * stampa sull'azione armata (lettura A di D-459). **Fissato il nemico**, nessuna di queste cose deve passare alla barra del nemico: l'azione armata
+ * e' di chi comanda, il rifiuto sotto il puntatore e' dell'azione armata, e il movimento e' un piano.
+ *
+ * ⚠️ **Il controllo positivo e' la meta' del test**: prima della fissazione le stesse letture dicono l'azione armata, il rifiuto sull'azione armata,
+ * il tasto e il movimento. Senza, «INDEX_NONE» e «nessun rifiuto» sarebbero veri anche per un dock che non legge mai niente. Chiusa la fissazione
+ * tutto torna com'era: l'azione armata non si e' persa (la barra non toccava il piano).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDockShowsReadOnlyBarTest,
+	"RefactorTactics.ScreenHud.DockShowsTheBarOfAReadOnlySubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	const int32 Attack = KitIndexOf(B.Mine, TEXT("Hero.Ivrin.PulseShot"));
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy) || !TestNotEqual(TEXT("premessa: il kit ha l'attacco base"), Attack, (int32)INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	// Il nemico sta a distanza sei: con portata uno il click sulla sua cella e' rifiutato (fuori portata), sulla PROPRIA copia dei dati.
+	const_cast<URTActionData*>(B.Mine->GetAbility(Attack))->RangeCells = 1;
+	URTActionDockWidget* Dock = DockRoMakeDock(B);
+
+	// --- PRIMA della fissazione: le letture di chi comanda, che sono il controllo positivo ---------------------------------------
+	B.PC->ArmKitAbility(Attack);
+	B.HexMap->SetHoveredCell(Enemy->Cell, /*bValid=*/ true);
+	const ERTTargetRefusal Refusal = B.PC->RefusalUnderPointerForArmed();
+	if (!TestEqual(TEXT("premessa: l'attacco e' armato"), B.Mine->SelectedAbilityIndex, Attack)
+		|| !TestTrue(TEXT("premessa: il click sul nemico noto sotto il puntatore sarebbe rifiutato"),
+			Refusal != ERTTargetRefusal::None && Refusal != ERTTargetRefusal::Nothing))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const TArray<FRTAbilityCooldownView> OwnExpected = URTHudViewModel::OrderForReading(URTHudViewModel::BuildAbilityCooldowns(B.Mine));
+	const TArray<FRTAbilityCooldownView> OwnActions = Dock->GetActions();
+	bool bOwnHotkey = false;
+	for (const FRTAbilityCooldownView& Row : OwnActions) { bOwnHotkey |= !Row.HotkeyLabel.IsEmpty(); }
+	TestEqual(TEXT("controllo positivo: la barra e' quella dell'unita' propria"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(OwnExpected));
+	TestEqual(TEXT("controllo positivo: l'azione armata e' quella dell'unita' propria"), Dock->GetArmedActionIndex(), Attack);
+	TestTrue(TEXT("controllo positivo: il movimento e' autorizzato"), Dock->GetMovementReadout().bAuthorized);
+	TestTrue(TEXT("controllo positivo: le righe portano il tasto"), bOwnHotkey);
+	TestTrue(TEXT("controllo positivo: il rifiuto sotto il puntatore e' stampato sull'azione armata"),
+		OwnActions.IsValidIndex(Attack) && OwnActions[Attack].bTargetRefused);
+
+	// --- FISSATO il nemico ----------------------------------------------------------------------------------------------------
+	B.PC->PinInspectionForTest(Enemy);
+	if (!TestTrue(TEXT("premessa: il controller e il dock dicono sola lettura sul nemico"),
+		B.PC->IsDockReadOnly() && Dock->IsDockReadOnlyForTest() && Dock->GetDockUnitForTest() == Enemy))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const TArray<FRTAbilityCooldownView> PublicExpected = URTHudViewModel::OrderForReading(URTHudViewModel::BuildPublicBar(Enemy));
+	if (!TestNotEqual(TEXT("premessa: il kit del nemico non e' quello dell'unita' propria, o l'uguaglianza non distinguerebbe"),
+		DockRoDescribe(PublicExpected), DockRoDescribe(OwnExpected)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestEqual(TEXT("in lettura la barra ha gli ActionId, e l'ordine di lettura, della barra pubblica del nemico"),
+		DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(PublicExpected));
+	TestEqual(TEXT("e `GetActions` e' la stessa barra, nell'ordine del kit"),
+		DockRoDescribe(Dock->GetActions()), DockRoDescribe(URTHudViewModel::BuildPublicBar(Enemy)));
+
+	for (const FRTAbilityCooldownView& Row : Dock->GetActionsInReadingOrder())
+	{
+		const FString Dove = FString::Printf(TEXT("riga %d (%s)"), Row.AbilityIndex, *Row.ActionId.ToString());
+		TestTrue(*FString::Printf(TEXT("%s: nessun tasto, e' di chi comanda"), *Dove), Row.HotkeyLabel.IsEmpty());
+		TestFalse(*FString::Printf(TEXT("%s: nessun rifiuto sotto il puntatore, che e' dell'azione armata di chi comanda"), *Dove), Row.bTargetRefused);
+		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), Row.bPlanned);
+		// R7: il denominatore dell'anello di carica. Con una carica a 1 e un totale > 0 l'anello direbbe «carica» di una skill nemica la cui ricarica vera e' privata.
+		TestEqual(*FString::Printf(TEXT("%s: nessun totale di ricarica"), *Dove), Row.TotalTurns, 0);
+		const ERTActionSlotState State = URTHudViewModel::ResolveSlotState(Row, /*bArmed=*/ Dock->GetArmedActionIndex() == Row.AbilityIndex);
+		TestTrue(*FString::Printf(TEXT("%s: lo slot si legge Available o Empty, mai armato, pianificato ne' rifiutato"), *Dove),
+			State == ERTActionSlotState::Available || State == ERTActionSlotState::Empty);
+	}
+	TestEqual(TEXT("nessuna azione armata sulla barra del nemico"), Dock->GetArmedActionIndex(), (int32)INDEX_NONE);
+	TestEqual(TEXT("...e quella di chi comanda non si e' persa"), B.Mine->SelectedAbilityIndex, Attack);
+	TestFalse(TEXT("nessun movimento: e' un piano"), Dock->GetMovementReadout().bAuthorized);
+
+	// --- CHIUSA la fissazione: tutto com'era ------------------------------------------------------------------------------------
+	B.PC->PinInspectionForTest(nullptr);
+	if (!TestFalse(TEXT("premessa: chiusa la scheda la barra non e' piu' in sola lettura"), Dock->IsDockReadOnlyForTest() || B.PC->IsDockReadOnly()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("chiusa: la barra e' di nuovo quella dell'unita' propria"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(OwnExpected));
+	TestEqual(TEXT("chiusa: l'azione armata c'e' ancora"), Dock->GetArmedActionIndex(), Attack);
+	TestTrue(TEXT("chiusa: il movimento e' di nuovo autorizzato"), Dock->GetMovementReadout().bAuthorized);
+	const TArray<FRTAbilityCooldownView> Reopened = Dock->GetActions();
+	TestTrue(TEXT("chiusa: il rifiuto sotto il puntatore e' di nuovo sull'azione armata"), Reopened.IsValidIndex(Attack) && Reopened[Attack].bTargetRefused);
+
+	// --- SENZA SELEZIONE: il primo click del giocatore e' su un nemico -----------------------------------------------------------
+	// La sola lettura PRECEDE la struttura della barra senza un'unita' comandata ([D-460]): con la selezione ancora vuota il click su un nemico mostra
+	// la barra del nemico, non gli slot spenti. Il controllo positivo e' la stessa barra senza fissazione: la struttura, con gli indici che non sono
+	// posizioni di kit.
+	B.PC->SelectActorForTest(nullptr);
+	Dock->SetSelectedUnitForTest(nullptr);
+	const TArray<FRTAbilityCooldownView> Structure = Dock->GetActionsInReadingOrder();
+	bool bAllStructure = Structure.Num() > 0;
+	for (const FRTAbilityCooldownView& Row : Structure) { bAllStructure &= Row.AbilityIndex == URTHudViewModel::IdleSlotIndex; }
+	TestTrue(TEXT("controllo positivo: senza selezione ne' fissazione la barra e' la struttura"), bAllStructure);
+	B.PC->PinInspectionForTest(Enemy);
+	if (TestTrue(TEXT("premessa: senza selezione, fissato il nemico, il dock e' in sola lettura sul nemico"),
+		B.PC->GetSelectedUnit() == nullptr && Dock->IsDockReadOnlyForTest() && Dock->GetDockUnitForTest() == Enemy))
+	{
+		TestEqual(TEXT("senza selezione la barra del nemico precede la struttura"),
+			DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(PublicExpected));
+	}
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — uno slot costruito per un'altra unita' non arma e non registra hover, e uno slot del soggetto in sola lettura registra il SUO.**
+ *
+ * Lo slot confronta `BuiltForUnit` con il soggetto della barra di adesso (`GetDockUnit`), non con la selezione. Il rifiuto di scrivere il piano e' del
+ * controller (R3 del piano), quindi per uno slot il cui soggetto e' il nemico fissato lo stato del piano non distingue «lo slot ha confrontato» da «il
+ * controller ha rifiutato»: a distinguerli sono le due righe di log, contate qui. Cio' che lo stato del piano distingue e' il caso inverso — il
+ * soggetto che torna alla selezione mentre lo slot e' ancora del nemico — dove il controller NON rifiuterebbe piu', e ad armare l'unita' propria con
+ * l'indice di un'altra sarebbe proprio il confronto mancante.
+ *
+ * Il controllo positivo: uno slot costruito per l'unita' propria, con nessuno fissato, arma e registra hover.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadOnlySlotWrongUnitTest,
+	"RefactorTactics.ScreenHud.AReadOnlySlotNeitherArmsNorHoversTheWrongUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadOnlySlotWrongUnitTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
+
+	ARTUnit* EnemyA = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	// Il banco ha UN solo nemico: il secondo si fa nascere, vicino al primo e dentro la mappa, come nel test del soggetto della barra.
+	ARTUnit* EnemyB = SpawnHexMatchUnit(B.World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -2));
+	const int32 Attack = KitIndexOf(B.Mine, TEXT("Hero.Ivrin.PulseShot"));
+	if (!TestNotNull(TEXT("premessa: un nemico"), EnemyA) || !TestNotNull(TEXT("premessa: un secondo nemico"), EnemyB)
+		|| !TestNotEqual(TEXT("premessa: il kit ha l'attacco base"), Attack, (int32)INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Una riga di kit PIENA e la stessa su entrambi i nemici: la prima posizione con un'azione, che non e' quella armata.
+	const auto FirstFilledRow = [](const ARTUnit* Subject) -> FRTAbilityCooldownView
+	{
+		for (const FRTAbilityCooldownView& Row : URTHudViewModel::BuildPublicBar(Subject))
+		{
+			if (!Row.ActionId.IsNone()) { return Row; }
+		}
+		return FRTAbilityCooldownView();
+	};
+	const FRTAbilityCooldownView RowA = FirstFilledRow(EnemyA);
+	const FRTAbilityCooldownView RowB = FirstFilledRow(EnemyB);
+	if (!TestTrue(TEXT("premessa: i due nemici hanno una posizione di kit piena"), !RowA.ActionId.IsNone() && !RowB.ActionId.IsNone()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTAbilityCooldownView OwnRow = URTHudViewModel::BuildAbilityCooldowns(B.Mine)[Attack];
+
+	FDockRoLineCounter Log;
+
+	// --- CONTROLLO POSITIVO: lo slot dell'unita' propria, nessuno fissato ---------------------------------------------------------
+	TestFalse(TEXT("premessa: nessuno e' fissato"), B.PC->IsDockReadOnly());
+	URTActionSlotWidget* OwnSlot = DockRoMakeSlot(B, OwnRow);
+	OwnSlot->Activate();
+	TestEqual(TEXT("controllo positivo: lo slot dell'unita' propria arma"), B.Mine->SelectedAbilityIndex, Attack);
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	OwnSlot->HoverBegin();
+	TestTrue(TEXT("controllo positivo: lo slot dell'unita' propria registra l'hover per lei"), B.PC->GetSkillHoverUnit() == B.Mine);
+	TestEqual(TEXT("controllo positivo: ...con la posizione di kit dello slot"), B.PC->GetSkillHoverIndex(), Attack);
+	OwnSlot->HoverEnd();
+	TestEqual(TEXT("controllo positivo: l'uscita spegne"), B.PC->GetSkillHoverIndex(), (int32)INDEX_NONE);
+	TestEqual(TEXT("controllo positivo: nessun rifiuto, ne' dello slot ne' del controller"), Log.Count(GDockRoSlotRefusal) + Log.Count(GDockRoControllerRefusal), 0);
+
+	// --- (1) LO SLOT DEL NEMICO FISSATO: il confronto passa, e a rifiutare e' il controller --------------------------------------
+	B.PC->PinInspectionForTest(EnemyA);
+	if (!TestTrue(TEXT("(1) premessa: la barra e' del nemico A, in sola lettura"), B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == EnemyA))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	URTActionSlotWidget* SlotA = DockRoMakeSlot(B, RowA);
+	SlotA->Activate();
+	TestEqual(TEXT("(1) il click sullo slot del nemico non arma l'unita' propria"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("(1) il confronto dello slot e' passato: nessuna riga dello slot"), Log.Count(GDockRoSlotRefusal), 0);
+	TestEqual(TEXT("(1) e a dire il perche' e' il controller, una volta"), Log.Count(GDockRoControllerRefusal), 1);
+
+	// L'azione armata PRIMA della fissazione resta armata: lo stesso click non la disarma (la porta fa toggle).
+	B.PC->PinInspectionForTest(nullptr);
+	B.PC->ArmKitAbility(Attack);
+	B.PC->PinInspectionForTest(EnemyA);
+	TestTrue(TEXT("(1) premessa: l'attacco e' armato e la barra e' del nemico"), B.Mine->SelectedAbilityIndex == Attack && B.PC->GetDockUnit() == EnemyA);
+	SlotA = DockRoMakeSlot(B, RowA);
+	SlotA->Activate();
+	TestEqual(TEXT("(1) il click sullo slot del nemico non disarma l'azione armata"), B.Mine->SelectedAbilityIndex, Attack);
+
+	// L'hover dello slot del soggetto in sola lettura: l'unita' e la posizione sono le SUE.
+	SlotA->HoverBegin();
+	TestTrue(TEXT("(1) lo slot del nemico registra l'hover per il nemico"), B.PC->GetSkillHoverUnit() == EnemyA);
+	TestEqual(TEXT("(1) ...con la posizione di kit dello slot"), B.PC->GetSkillHoverIndex(), RowA.AbilityIndex);
+	SlotA->HoverEnd();
+	TestEqual(TEXT("(1) l'uscita lo spegne"), B.PC->GetSkillHoverIndex(), (int32)INDEX_NONE);
+	TestTrue(TEXT("(1) e non lascia l'unita'"), B.PC->GetSkillHoverUnit() == nullptr);
+	// Il disarmo si chiede a fissazione CHIUSA: con la barra in sola lettura anche il disarmo e' rifiutato (e' la stessa porta).
+	B.PC->PinInspectionForTest(nullptr);
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	TestEqual(TEXT("(1) premessa: l'unita' propria e' di nuovo disarmata"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+
+	// --- (2) DUE NEMICI IN FILA: lo slot costruito per A, fissato B (Review Focus 5) ----------------------------------------------
+	B.PC->PinInspectionForTest(EnemyA);
+	URTActionSlotWidget* StaleSlot = DockRoMakeSlot(B, RowA);
+	B.PC->PinInspectionForTest(EnemyB);
+	if (!TestTrue(TEXT("(2) premessa: la barra e' passata al nemico B"), B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == EnemyB))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const int32 SlotRefusalsBefore = Log.Count(GDockRoSlotRefusal);
+	const int32 ControllerRefusalsBefore = Log.Count(GDockRoControllerRefusal);
+	StaleSlot->Activate();
+	TestEqual(TEXT("(2) lo slot costruito per A non arma mentre la barra e' di B"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("(2) a rifiutare e' lo slot, che dice la riga del click ignorato"), Log.Count(GDockRoSlotRefusal) - SlotRefusalsBefore, 1);
+	TestEqual(TEXT("(2) e il controller non e' nemmeno raggiunto"), Log.Count(GDockRoControllerRefusal) - ControllerRefusalsBefore, 0);
+	StaleSlot->HoverBegin();
+	TestEqual(TEXT("(2) lo slot costruito per A non registra hover mentre la barra e' di B"), B.PC->GetSkillHoverIndex(), (int32)INDEX_NONE);
+	TestTrue(TEXT("(2) e non lascia un'unita'"), B.PC->GetSkillHoverUnit() == nullptr);
+
+	// Il controllo positivo dei due nemici: uno slot costruito per B, mentre la barra e' di B, registra per B.
+	URTActionSlotWidget* SlotB = DockRoMakeSlot(B, RowB);
+	SlotB->HoverBegin();
+	TestTrue(TEXT("(2) controllo positivo: lo slot costruito per B registra l'hover per B"), B.PC->GetSkillHoverUnit() == EnemyB);
+	TestEqual(TEXT("(2) controllo positivo: ...con la sua posizione"), B.PC->GetSkillHoverIndex(), RowB.AbilityIndex);
+	SlotB->HoverEnd();
+
+	// --- (3) LA FISSAZIONE SI CHIUDE mentre lo slot e' ancora del nemico: il controller non rifiuta piu', lo slot deve ---------------
+	// La premessa che rende il rifiuto dello slot l'unica ragione per cui non si arma: la STESSA posizione di kit, dalla stessa porta, arma l'unita'
+	// propria. Senza, «non arma» potrebbe venire da un rifiuto del core (una posizione vuota, una reazione non pronta).
+	B.PC->PinInspectionForTest(nullptr);
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE); // neutro: la porta fa toggle, e una posizione gia' armata si disarmerebbe
+	B.PC->ArmKitAbility(RowA.AbilityIndex);
+	const bool bPositionArms = B.Mine->SelectedAbilityIndex == RowA.AbilityIndex;
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	if (!TestTrue(TEXT("(3) premessa: la posizione di kit del nemico arma, dalla stessa porta, l'unita' propria"), bPositionArms))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->PinInspectionForTest(EnemyA);
+	URTActionSlotWidget* OrphanSlot = DockRoMakeSlot(B, RowA);
+	B.PC->PinInspectionForTest(nullptr);
+	TestTrue(TEXT("(3) premessa: la barra e' tornata alla selezione, e il piano si scrive"), B.PC->GetDockUnit() == B.Mine && !B.PC->IsPlanningWriteBlocked());
+	const int32 SlotRefusalsOrphanBefore = Log.Count(GDockRoSlotRefusal);
+	OrphanSlot->Activate();
+	TestEqual(TEXT("(3) lo slot costruito per il nemico non arma l'unita' propria con la posizione del nemico"),
+		B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("(3) lo dice la riga dello slot"), Log.Count(GDockRoSlotRefusal) - SlotRefusalsOrphanBefore, 1);
+	OrphanSlot->HoverBegin();
+	TestEqual(TEXT("(3) e non registra hover"), B.PC->GetSkillHoverIndex(), (int32)INDEX_NONE);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — il cancello `Live` si applica a OGNI lettura della barra, non solo quando la scheda si rilascia.**
+ *
+ * `ARTPlayerController::IsDockReadOnly` non e' un cancello `Live`: la scheda si rilascia al tick dell'HUD, e fino a quel tick un nemico uscito di vista
+ * tiene il soggetto della barra. La barra di un nemico non osservato non esiste (spec §3), quindi il dock chiede una vista fresca a ogni lettura e,
+ * senza una voce `Live` per il soggetto, torna alla selezione **senza aspettare il rilascio**.
+ *
+ * 🔑 **Il rilascio NON si chiama**: `ReleaseInspectionUnlessLive` azzererebbe soggetto e fissazione, e il test misurerebbe il rilascio invece del
+ * cancello. Il controller dice ancora «sola lettura» (premessa misurata), e a dire il contrario e' il dock. Il controllo positivo e' lo stesso nemico,
+ * visto di nuovo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadOnlyBarLiveGateTest,
+	"RefactorTactics.ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadOnlyBarLiveGateTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+	URTActionDockWidget* Dock = DockRoMakeDock(B);
+
+	const TArray<FRTAbilityCooldownView> OwnExpected = URTHudViewModel::OrderForReading(URTHudViewModel::BuildAbilityCooldowns(B.Mine));
+	const TArray<FRTAbilityCooldownView> PublicExpected = URTHudViewModel::OrderForReading(URTHudViewModel::BuildPublicBar(Enemy));
+	if (!TestNotEqual(TEXT("premessa: la barra del nemico non e' quella dell'unita' propria"), DockRoDescribe(PublicExpected), DockRoDescribe(OwnExpected)))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// --- il nemico e' `Live`: la barra e' sua ------------------------------------------------------------------------------------
+	B.PC->PinInspectionForTest(Enemy);
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(B.World); It; ++It) { Units.Add(*It); }
+	if (!TestTrue(TEXT("premessa: il nemico ha una voce `Live` nella vista di chi guarda"),
+			URTInspectLibrary::LiveEntry(URTHudViewModel::BuildObserverKnowledgeView(B.TM, Units, /*PlayerTeamId=*/ 0), Enemy->StableUnitId) != nullptr)
+		|| !TestTrue(TEXT("premessa: il controller e il dock dicono sola lettura sul nemico"),
+			B.PC->IsDockReadOnly() && Dock->IsDockReadOnlyForTest() && Dock->GetDockUnitForTest() == Enemy))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("`Live`: le righe sono quelle pubbliche del nemico"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(PublicExpected));
+
+	// --- il nemico esce di vista: nessuna voce `Live`, e il rilascio NON viene chiamato ------------------------------------------
+	FRTTeamKnowledge Blind = FwAllSeen(Map);
+	Blind.VisibleCells.Remove(Enemy->Cell);
+	B.TM->SetTeamKnowledgeForTest(Blind);
+	if (!TestTrue(TEXT("premessa: la vista di chi guarda non ha piu' una voce `Live` per il nemico"),
+			URTInspectLibrary::LiveEntry(URTHudViewModel::BuildObserverKnowledgeView(B.TM, Units, /*PlayerTeamId=*/ 0), Enemy->StableUnitId) == nullptr)
+		|| !TestTrue(TEXT("premessa: il controller non ha rilasciato niente, e dice ancora sola lettura sul nemico"),
+			B.PC->IsInspectorPinned() && B.PC->GetInspectedUnit() == Enemy && B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == Enemy))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestFalse(TEXT("senza voce `Live` il dock non e' in sola lettura"), Dock->IsDockReadOnlyForTest());
+	TestTrue(TEXT("senza voce `Live` il soggetto e' la selezione"), Dock->GetDockUnitForTest() == B.Mine);
+	TestEqual(TEXT("senza voce `Live` le righe sono quelle dell'unita' propria"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(OwnExpected));
+	TestEqual(TEXT("senza voce `Live` `GetActions` e' quella dell'unita' propria"), DockRoDescribe(Dock->GetActions()),
+		DockRoDescribe(URTHudViewModel::BuildAbilityCooldowns(B.Mine)));
+	TestTrue(TEXT("senza voce `Live` il movimento e' quello dell'unita' propria"), Dock->GetMovementReadout().bAuthorized);
+
+	// --- visto di nuovo: la barra e' di nuovo sua --------------------------------------------------------------------------------
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
+	TestTrue(TEXT("controllo positivo: visto di nuovo il dock e' di nuovo in sola lettura"), Dock->IsDockReadOnlyForTest());
+	TestTrue(TEXT("controllo positivo: ...sul nemico"), Dock->GetDockUnitForTest() == Enemy);
+	TestEqual(TEXT("controllo positivo: ...con le sue righe"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(PublicExpected));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — lo slot della barra in sola lettura mostra la portata dalla cella della VOCE DELLA VISTA, mai dal piano.**
+ *
+ * Lo scenario di `ARowOfTheCardShowsTheRangeOfAnInspectedEnemyFromItsViewCell`, con il PRODUTTORE cambiato: l'hover non si scrive a mano sul controller
+ * (`SetSkillHover`) ma lo registra lo slot (`HoverBegin`) costruito per l'unita' fissata. La portata, il cancello `Live` e l'origine non cambiano: li
+ * decide il controller, e questo test dice che lo slot arriva alla stessa sorgente. Stesse asserzioni; l'esito si legge sulla mappa, non su un campo del
+ * risolutore.
+ *
+ * Il nemico ha uno scatto pianificato a due passi: `AimOriginFor` lo seguirebbe, e la portata mostrerebbe da dove mirera', cioe' il suo piano. La premessa
+ * dimostra che le due origini danno insiemi diversi, e che quindi l'asserto distingue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSlotHoverOfReadOnlyBarTest,
+	"RefactorTactics.HexMatch.TheSlotHoverOfAReadOnlyBarShowsTheRangeFromTheViewCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSlotHoverOfReadOnlyBarTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+	const URTHexMapAsset* Map = B.HexMap->MapAsset;
+	B.TM->SetTeamKnowledgeForTest(FwAllSeen(Map));
+
+	// Il PIANO del nemico: uno scatto pianificato a due passi (la ricetta di `ARowOfTheCardShowsTheRangeOfAnInspectedEnemyFromItsViewCell`).
+	ARTUnit* Enemy = nullptr;
+	int32 Skill = INDEX_NONE;
+	FRTCellId PlannedOrigin;
+	TArray<FRTCellId> FromView;
+	TArray<FRTCellId> FromPlan;
+	TArray<FString> Why;
+	for (TActorIterator<ARTUnit> It(B.World); It && Enemy == nullptr; ++It)
+	{
+		ARTUnit* Candidate = *It;
+		if (Candidate->TeamId != 1) { continue; }
+		const FString Who = Candidate->HeroId.ToString();
+		const int32 Dash = Candidate->FindDashAbilityIndex();
+		if (Dash == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: nessuno scatto"), *Who)); continue; }
+
+		B.PC->SelectActorForTest(Candidate);
+		const int32 CandidateSkill = HvPrepareTargetedSkill(B, Candidate, Dash);
+		B.PC->SelectActorForTest(B.Mine);
+		if (CandidateSkill == INDEX_NONE) { Why.Add(FString::Printf(TEXT("%s: scatto %d, nessuna skill a bersaglio"), *Who, Dash)); continue; }
+		URTActionData* Ability = const_cast<URTActionData*>(Candidate->GetAbility(CandidateSkill));
+		Ability->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+
+		FRTCellId DashCell = Candidate->Cell;
+		for (int32 D = 0; D < 6 && DashCell == Candidate->Cell; ++D)
+		{
+			const FRTCellId Step = HvStep(Candidate->Cell, HvDirs[D], 2);
+			if (Map->ContainsCell(Step)) { DashCell = Step; }
+		}
+		const_cast<URTActionData*>(Candidate->GetAbility(Dash))->Def.MovementStyle = ERTMovementStyle::LinearDash;
+		Candidate->PlannedDashAbility = Dash;
+		Candidate->PlannedDashCell = DashCell;
+		const bool bShifts = !(DashCell == Candidate->Cell) && Candidate->PlannedDashApplies() && !Candidate->PlannedDashIsCharge()
+			&& Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell;
+		const TArray<FRTCellId> View = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Candidate->Cell, 4, ERTLineOfSightPolicy::Required, 0));
+		const TArray<FRTCellId> Plan = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, DashCell, 4, ERTLineOfSightPolicy::Required, 0));
+		Why.Add(FString::Printf(TEXT("%s: scatto %d, skill %d, arrivo %s su %s, vista %d celle, uguali %d"),
+			*Who, Dash, CandidateSkill, *DashCell.ToString(), *Candidate->Cell.ToString(), View.Num(), View == Plan ? 1 : 0));
+		if (bShifts && View.Num() > 3 && View != Plan)
+		{
+			Enemy = Candidate;
+			Skill = CandidateSkill;
+			PlannedOrigin = DashCell;
+			FromView = View;
+			FromPlan = Plan;
+		}
+		else
+		{
+			Candidate->PlannedDashAbility = INDEX_NONE; // questo nemico non serve a questa prova
+		}
+	}
+	if (!TestNotNull(TEXT("premessa: un nemico con una skill a bersaglio e uno scatto non-carica che sposta l'origine di mira, con due portate diverse"), Enemy))
+	{
+		AddInfo(FString::Printf(TEXT("candidati scartati: %s"), Why.Num() > 0 ? *FString::Join(Why, TEXT(" | ")) : TEXT("nessun nemico nel banco")));
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("il nemico e' %s, la skill %d, l'origine del piano %s, quella della vista %s"),
+		*Enemy->HeroId.ToString(), Skill, *PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
+
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RefreshPlanningOverlay(B.Mine);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("controllo positivo: senza hover la mappa non mostra nessuna portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);
+
+	// Il PRODUTTORE: uno slot costruito per il soggetto in sola lettura, con la riga di kit della barra pubblica del nemico.
+	B.PC->PinInspectionForTest(Enemy);
+	const TArray<FRTAbilityCooldownView> Bar = URTHudViewModel::BuildPublicBar(Enemy);
+	if (!TestTrue(TEXT("premessa: la barra e' del nemico in sola lettura, e la sua riga di kit c'e'"),
+		B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == Enemy && Bar.IsValidIndex(Skill) && Bar[Skill].AbilityIndex == Skill))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	URTActionSlotWidget* Slot = DockRoMakeSlot(B, Bar[Skill]);
+	Slot->HoverBegin();
+	TestTrue(TEXT("lo slot ha registrato l'hover per il nemico"), B.PC->GetSkillHoverUnit() == Enemy && B.PC->GetSkillHoverIndex() == Skill);
+	B.PC->UpdatePlanningOverlay();
+	const TArray<FRTCellId> Shown = FwSorted(HvShownSkillCells(B.HexMap));
+	TestTrue(TEXT("lo slot della barra di un nemico a fuoco mostra la portata"), Shown.Num() > 0);
+	TestTrue(TEXT("e l'insieme parte dalla cella della voce della vista"), Shown == FromView);
+	TestFalse(TEXT("e non dal piano del nemico"), Shown == FromPlan);
+
+	// Chiusa la scheda (il tasto destro azzera soggetto e fissazione), l'hover del suo slot non resta appeso, senza aspettare l'uscita del cursore.
+	B.PC->PinInspectionForTest(nullptr);
+	B.PC->UpdatePlanningOverlay();
+	TestEqual(TEXT("chiusa la scheda, l'hover del suo slot e' scartato"), B.PC->GetSkillHoverIndex(), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("e la mappa torna senza portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;

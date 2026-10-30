@@ -241,6 +241,8 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 1 e' pianificata"), Partita[1].bPlanned)
 		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 2 e' in ricarica vera, e non usabile"),
 			Partita[2].TurnsRemaining > 0 && !Partita[2].bUsableNow && Partita[2].ChargeFraction < 1.f)
+		|| !TestTrue(TEXT("premessa: nella barra della partita la posizione 2 porta il totale di ricarica, il denominatore dell'anello"),
+			Partita[2].TotalTurns > 0)
 		|| !TestFalse(TEXT("premessa: nella barra della partita la posizione 0 porta il tasto"), Partita[0].HotkeyLabel.IsEmpty())
 		|| !TestTrue(TEXT("premessa: l'ultima posizione e' una riga vuota"), Partita[Ultima].ActionId.IsNone()))
 	{
@@ -289,6 +291,10 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica vera"), *Dove), R.TurnsRemaining, 0);
 		TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Dove), R.ChargeFraction, 1.f);
+		// R7: `TotalTurns` e' il denominatore dell'anello di carica, e senza questa riga resterebbe quello di catalogo. Un anello disegnato da
+		// `TotalTurns > 0` con `ChargeFraction` a 1 direbbe «carica» di una skill nemica la cui ricarica vera e' privata. Al default, come in
+		// `BuildIdleBar` ([D-460]): il tooltip legge `CooldownTurns` (catalogo, sopra), non questo campo. Il controllo positivo e' la premessa.
+		TestEqual(*FString::Printf(TEXT("%s: nessun totale di ricarica"), *Dove), R.TotalTurns, 0);
 		// `bPlanInvalid` ha il suo controllo positivo nel secondo stato, piu' sotto: qui il piano e' legale.
 		TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), R.bPlanInvalid);
 		// ⚠️ `bPlanDegraded` e `PlanDegradedRange` NON hanno un controllo positivo a questo livello: la barra della
@@ -297,7 +303,7 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		// restano al default, non che un leak del rifiuto sarebbe visto.
 		TestFalse(*FString::Printf(TEXT("%s: nessun piano degradato"), *Dove), R.bPlanDegraded);
 		// `bTargetRefused` lo scrive la dock, non `BuildAbilityCooldowns`: a questo livello non si puo' accendere,
-		// ne' controllare. Chi costruisce la dock in sola lettura (Task 4) deve tenerlo falso per questa barra.
+		// ne' controllare. Che la dock in sola lettura lo tenga falso lo prova `ScreenHud.DockShowsTheBarOfAReadOnlySubject`, con un rifiuto vero sotto il puntatore.
 		TestFalse(*FString::Printf(TEXT("%s: nessun bersaglio rifiutato"), *Dove), R.bTargetRefused);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna portata di ripiego"), *Dove), R.PlanDegradedRange, (int32)INDEX_NONE);
 

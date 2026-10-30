@@ -1857,7 +1857,9 @@ public:
 	 *
 	 * ⛔ **Nient'altro, ed e' un elenco POSITIVO**, come quello di `BuildIdleBar`: cio' che non e' scritto qui resta
 	 * al default, quindi non c'e' un campo da dimenticare di spegnere. Nessun piano (`bPlanned`, `bPlanInvalid`,
-	 * `bPlanDegraded`), nessuna ricarica vera (`TurnsRemaining`, `ChargeFraction`), nessun bersaglio rifiutato,
+	 * `bPlanDegraded`), nessuna ricarica vera (`TurnsRemaining`, `ChargeFraction`) e nessun totale di ricarica (`TotalTurns` a 0, come
+	 * `BuildIdleBar`: l'anello di carica non ha un denominatore da disegnare; la ricarica di CATALOGO resta in `CooldownTurns`, ed e' quella che
+	 * legge il tooltip), nessun bersaglio rifiutato (`bTargetRefused` lo scrive il dock, e per questa barra non lo scrive),
 	 * nessun tasto (`HotkeyLabel` vuoto: i tasti sono di chi comanda), e niente dell'azione armata —
 	 * `SelectedAbilityIndex` non si legge, e `ResolveSlotState` ne riceve l'esito da fuori (`bArmed`), che per questa
 	 * barra deve restare falso. Sono le cose private di un nemico osservato.

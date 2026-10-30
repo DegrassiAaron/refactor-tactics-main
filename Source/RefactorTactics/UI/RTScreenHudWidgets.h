@@ -158,6 +158,13 @@ public:
 	/** Il gruppo di controllo di chi guarda, senza un `PlayerController` (#3618). In gioco viene dal controller. */
 	void SetControlGroupForTest(int32 InControlGroup) { PlayerControlGroup = InControlGroup; }
 
+	/**
+	 * I due soggetti della barra (`GetDockUnit`, `IsDockReadOnly`), per i test (`#3748`). Protetti come `GetSelectedUnit`: restituiscono un'unita',
+	 * e nessun grafo deve poterla chiedere. Non aggiungono niente: **sono** le due funzioni, non una copia.
+	 */
+	const ARTUnit* GetDockUnitForTest() const { return GetDockUnit(); }
+	bool IsDockReadOnlyForTest() const { return IsDockReadOnly(); }
+
 protected:
 	virtual void NativeConstruct() override;
 
@@ -227,6 +234,34 @@ protected:
 	const ARTUnit* GetInspectedUnit() const;
 
 	/**
+	 * **Di CHI e' il kit che la barra delle skill mostra** (`#3748`, decisione d'autore del 2026-10-30): l'unita' ispezionata e fissata se la
+	 * barra e' in sola lettura (`IsDockReadOnly`), altrimenti la selezione (`GetSelectedUnit`).
+	 *
+	 * 🔴 **Il dock legge la barra da qui e da `IsDockReadOnly`, e da nessun'altra parte** (lo slot, che e' uno `UUserWidget` senza il manager, legge
+	 * `ARTPlayerController::GetDockUnit` e ne eredita un divario di un fotogramma, sicuro: vedi `SetAction`). `ARTPlayerController::GetDockUnit` NON e'
+	 * un cancello `Live`: dice a chi appartiene la barra, non se chi guarda vede ancora quell'unita'. Il cancello e' di questa funzione, **a ogni
+	 * lettura** e solo mentre il controller dice «sola lettura»: una vista di conoscenza fresca (`BuildObserverKnowledgeView`) e una voce `Live`
+	 * per il soggetto (`URTInspectLibrary::LiveEntry`, lo stesso cancello del fuoco e dell'hover). Senza voce — l'unita' e' uscita di vista, e la
+	 * scheda la rilascia solo al tick dell'HUD — la barra e' gia' tornata alla selezione. Col controller che non dice «sola lettura» non si
+	 * costruisce nessuna vista: il percorso normale non paga niente.
+	 *
+	 * ⚠️ **Il costo e' una vista per chiamata, e solo nello stato di sola lettura**: accettato (R8 del piano). Chi aggiunge una lettura della
+	 * barra non la memorizza in un campo — un secondo stato che divergerebbe dal controller — ne' la salta.
+	 *
+	 * ⛔ **Il soggetto puo' essere un NEMICO, e un puntatore `const`**: le righe di un soggetto in sola lettura si costruiscono dal CATALOGO
+	 * (`URTHudViewModel::BuildPublicBar`), mai da `BuildAbilityCooldowns`, che mescola catalogo e partita. Protetta come le sorelle: i Blueprint
+	 * vedono le viste, mai le unita'.
+	 */
+	const ARTUnit* GetDockUnit() const;
+
+	/**
+	 * La barra mostra un'unita' che NON si comanda, e quindi non scrive niente (`#3748`): vale quando il controller lo dice
+	 * (`ARTPlayerController::IsDockReadOnly`) **e** il soggetto ha una voce `Live` nella vista di chi guarda. Vedi `GetDockUnit`: sono la stessa
+	 * domanda, e un lettore che le chiedesse a due fonti potrebbe mostrare le righe di un'unita' e trattarle come quelle di un'altra.
+	 */
+	bool IsDockReadOnly() const;
+
+	/**
 	 * Il view model della finestra di reazione di questo client, o `nullptr` (CP 14.6, `#166`).
 	 *
 	 * 🔴 **`protected`, e la differenza NON e' stilistica.** `URTReactionWindowViewModel::SubmitResponse` e'
@@ -271,6 +306,12 @@ public:
 	const URTIconCatalogData* GetIconCatalog() const;
 
 private:
+	/**
+	 * Il soggetto della sola lettura, o `nullptr`: il controller la dice (`IsDockReadOnly`) e il soggetto ha una voce `Live` nella vista di chi
+	 * guarda. `IsDockReadOnly` e `GetDockUnit` sono questa funzione, una volta sola: due copie del cancello possono divergere.
+	 */
+	const ARTUnit* FindLiveReadOnlyDockSubject() const;
+
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTTurnManager> TurnManager;
 
@@ -1042,7 +1083,13 @@ class REFACTORTACTICS_API URTActionDockWidget : public URTScreenHudWidgetBase
 	GENERATED_BODY()
 
 public:
-	/** Una riga per azione del kit, nell'ordine del kit: l'indice e' quello che l'hotkey arma. */
+	/**
+	 * Una riga per azione del kit, nell'ordine del kit: l'indice e' quello che l'hotkey arma.
+	 *
+	 * ➕ `#3748`: **con la barra in sola lettura (`IsDockReadOnly`) le righe sono quelle del CATALOGO dell'unita' fissata** (`BuildPublicBar`), non
+	 * quelle di `BuildAbilityCooldowns`: niente tasto, niente piano, niente ricarica vera, niente rifiuto sotto il puntatore — e `TotalTurns` a zero.
+	 * Gli slot si leggono `Available` o `Empty`, e `Available` vuol dire «niente stato», non «pronta».
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTAbilityCooldownView> GetActions() const;
 
@@ -1054,6 +1101,9 @@ public:
 	 * ➕ **Senza un'unita' comandata consegna la STRUTTURA della barra** ([D-460], #3494): le Comuni spente e i
 	 * vuoti di Base e Kit, da `URTHudViewModel::BuildIdleBar` sulle unita' della propria squadra. ⚠️ Solo
 	 * questa porta: `GetActions()` resta l'identita', vuota senza unita'.
+	 *
+	 * ➕ `#3748`: **la sola lettura precede la struttura.** Un primo click su un nemico con la selezione ancora vuota mostra la barra del nemico,
+	 * non la struttura; la lista e' quella di `GetActions()`, ordinata.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTAbilityCooldownView> GetActionsInReadingOrder() const;
@@ -1061,7 +1111,8 @@ public:
 	/**
 	 * La lettura del movimento per l'estremita' destra della barra (`#3470`, [D-456] punto 3).
 	 * ⛔ **Dall'unita' comandata soltanto**, come le azioni: un soggetto ispezionato da' il default non
-	 * autorizzato, e chi disegna nasconde l'indicatore.
+	 * autorizzato, e chi disegna nasconde l'indicatore. ➕ `#3748`: lo stesso con la barra in sola lettura, anche se la selezione c'e' ancora —
+	 * il movimento e' un piano, e la barra non sta mostrando l'unita' che lo ha.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTMovementReadoutView GetMovementReadout() const;
@@ -1080,6 +1131,9 @@ public:
 	 * `INDEX_NONE` non e' un caso limite: e' lo stato NEUTRO di [D-128], quello in cui il giocatore non ha
 	 * armato nulla e un click su un nemico ispeziona. Il dock deve poterlo mostrare — nessuno slot acceso —
 	 * altrimenti a schermo sembra sempre esserci un'azione pronta a partire.
+	 *
+	 * ➕ `#3748`: **`INDEX_NONE` anche con la barra in sola lettura**, benche' l'unita' selezionata possa avere un'azione armata: e' una posizione del
+	 * suo kit, e la barra sta mostrando il kit di un'altra. L'azione armata non si perde, la ritrova la barra propria.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	int32 GetArmedActionIndex() const;
@@ -1468,6 +1522,10 @@ public:
 	 * ⚠️ **Non e' un controllo di disponibilita', e la differenza e' misurabile**: una posizione di kit
 	 * **vuota** porta comunque il proprio indice — `Cooldowns[i].AbilityIndex == i` vale per costruzione
 	 * (`#2987`) — quindi passa di qui e a rifiutarla e' il core.
+	 *
+	 * ➕ `#3748`: **nessun rifiuto proprio per la barra in sola lettura**, perche' il codice dice «nessuna regola qui». Lo slot di un soggetto in sola
+	 * lettura passa il confronto (`BuiltForUnit` e' il soggetto della barra, `GetDockUnit`) e l'armo lo rifiuta il controller, in un posto solo, col
+	 * suo perche' (`IsPlanningWriteBlocked`). Il confronto serve all'altro verso: uno slot costruito per un'altra unita' non arma.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
 	void Activate();
@@ -1478,8 +1536,10 @@ public:
 	 * l'unita' per cui lo slot e' stato costruito, e nient'altro: la portata la mostra l'arbitro, al tick, dagli ingressi.
 	 *
 	 * 🔑 **Le stesse guardie di `Activate()`**: uno slot mai assegnato (`INDEX_NONE`, o gli slot della struttura senza unita') non
-	 * segnala niente, e uno slot costruito per un'unita' che non e' piu' quella selezionata nemmeno — la posizione di kit di
-	 * un'altra unita' e' un'altra azione. `HoverEnd` spegne solo il PROPRIO hover — quello che `HoverBegin` ha registrato, unita' e
+	 * segnala niente, e uno slot costruito per un'unita' che non e' piu' il soggetto della barra nemmeno — la posizione di kit di
+	 * un'altra unita' e' un'altra azione. ➕ `#3748`: il soggetto e' `GetDockUnit` del controller, che con la barra in sola lettura e' il nemico
+	 * fissato, e l'hover registrato e' il SUO: e' cosi' che la portata di una skill nemica arriva alla mappa. `HoverEnd` spegne solo il PROPRIO
+	 * hover — quello che `HoverBegin` ha registrato, unita' e
 	 * indice di quell'istante (il controller li confronta) — e uno slot che non ha registrato niente non spegne niente.
 	 *
 	 * ⚠️ **Sono `UFUNCTION` per la stessa ragione di `Activate()`**: il Blueprint puo' legarle a un evento di hover del proprio
@@ -1785,8 +1845,8 @@ public:
 	TWeakObjectPtr<ARTPlayerController> ArmingControllerForTest;
 
 	/**
-	 * L'unita' SELEZIONATA nel momento in cui il dock ha assegnato questa azione allo slot (`#2989`): e'
-	 * cio' che lo slot dichiara come «la propria unita'».
+	 * L'unita' di cui la barra era (`GetDockUnit`) nel momento in cui il dock ha assegnato questa azione allo slot (`#2989`, `#3748`): e'
+	 * cio' che lo slot dichiara come «la propria unita'». Era la selezione; con la barra in sola lettura e' l'unita' fissata.
 	 *
 	 * 🔴 **Senza, un click arma su CHI E' SELEZIONATO ADESSO l'indice che lo slot mostrava per un'altra.**
 	 * `Activate()` inoltra `Action.AbilityIndex`, e l'indice e' una posizione di kit: la terza di Aevik e la

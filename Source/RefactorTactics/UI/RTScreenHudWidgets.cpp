@@ -23,6 +23,7 @@
 #include "UI/RTIconLibrary.h"
 #include "UI/RTUIPalette.h" // i colori dello slot vengono dai token di §32 (#3610)
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
+#include "UI/RTInspect.h" // URTInspectLibrary::LiveEntry: il cancello `Live` che il dock applica a ogni lettura della barra (#3748)
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "UI/RTReactionResponseText.h"    // nome e frase delle opzioni della finestra (#3615)
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
@@ -251,6 +252,48 @@ const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 
 	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
 	return PC ? PC->GetSelectedUnit() : nullptr;
+}
+
+const ARTUnit* URTScreenHudWidgetBase::FindLiveReadOnlyDockSubject() const
+{
+	// 🔑 **Il controller dice SE la barra e' in sola lettura, il dock dice se lo e' ANCORA.** `ARTPlayerController::IsDockReadOnly` non e' un
+	// cancello `Live` (la scheda si rilascia al tick dell'HUD, e fino ad allora un nemico uscito di vista tiene il soggetto), e un nemico non
+	// osservato non ha una barra: il cancello e' di chi la legge, a ogni lettura.
+	const ARTPlayerController* PC = ResolveCommandController();
+	if (PC == nullptr || !PC->IsDockReadOnly())
+	{
+		return nullptr; // il percorso normale: nessuna vista, nessun costo
+	}
+
+	const ARTUnit* Subject = PC->GetDockUnit();
+	const ARTTurnManager* TM = GetTurnManager();
+	if (Subject == nullptr || TM == nullptr)
+	{
+		return nullptr; // senza una partita non c'e' una vista che dica `Live`: chiuso, la barra e' della selezione
+	}
+
+	// La squadra del cancello e' quella del CONTROLLER, riletta a ogni lettura come fanno la scheda, il velo e il fuoco: `GetPlayerTeamId()` e' una
+	// cache scritta all'acquisizione del contesto, e un client che acquisisce prima che il PlayerState abbia la squadra lascerebbe il cancello su
+	// quella sbagliata. ⚠️ Una vista FRESCA e non una tenuta in un campo: un campo sarebbe un secondo stato, che diverge dalla conoscenza.
+	// `ARTUnit::IsKnownToObserver()` nasce vero e non decide niente: il cancello e' una voce `Live`, e `LiveEntry` lo decide in un posto solo.
+	const FRTKnowledgeView View =
+		URTHudViewModel::BuildObserverKnowledgeView(TM, GatherUnitsInWorld(), ARTPlayerState::TeamIdOf(PC));
+	return URTInspectLibrary::LiveEntry(View, Subject->StableUnitId) != nullptr ? Subject : nullptr;
+}
+
+const ARTUnit* URTScreenHudWidgetBase::GetDockUnit() const
+{
+	// Il soggetto in sola lettura se c'e' e si vede; altrimenti la selezione, che ha anche l'iniezione dei test (`SetSelectedUnitForTest`).
+	if (const ARTUnit* Subject = FindLiveReadOnlyDockSubject())
+	{
+		return Subject;
+	}
+	return GetSelectedUnit();
+}
+
+bool URTScreenHudWidgetBase::IsDockReadOnly() const
+{
+	return FindLiveReadOnlyDockSubject() != nullptr;
 }
 
 const ARTUnit* URTScreenHudWidgetBase::GetInspectedUnit() const
@@ -527,6 +570,19 @@ FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 {
+	// 🔴 **La barra di un'unita' che si osserva e non si comanda e' il CATALOGO, e il ramo si sceglie PRIMA di costruire qualsiasi riga** (`#3748`).
+	// `BuildAbilityCooldowns` mescola catalogo e partita — ricariche vere, piano, azione armata, tasti — e puntata su un nemico li consegnerebbe a chi
+	// guarda. `BuildPublicBar` non li ha: non c'e' un campo da dimenticare di spegnere. Il soggetto e il discrimine vengono dalle due letture della
+	// base (`GetDockUnit`, `IsDockReadOnly`), le sole che applicano il cancello `Live`.
+	//
+	// ⛔ **Ritorna QUI, prima della lettura A di D-459 qui sotto**: il rifiuto sotto il puntatore e' dell'azione ARMATA di chi comanda, e una barra
+	// che non porta nessuna azione armata non ha a chi appartenere. `GetArmedActionIndex` vale `INDEX_NONE` in sola lettura, quindi la lettura
+	// sarebbe comunque un no-op: ma lo sarebbe per il valore di un'altra funzione, e il ramo non dipende da quello.
+	if (IsDockReadOnly())
+	{
+		return URTHudViewModel::BuildPublicBar(GetDockUnit());
+	}
+
 	TArray<FRTAbilityCooldownView> Azioni = URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
 
 	// [D-459] lettura A: il rifiuto sotto il puntatore va sull'azione ARMATA. Lo scrive la dock perche' dipende
@@ -549,7 +605,10 @@ TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() c
 	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente. Con un'unita' comandata e' la
 	// stessa di `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
 	// Senza, e' la struttura di [D-460], che `GetActions()` non conosce.
-	if (GetSelectedUnit() == nullptr)
+	//
+	// ➕ `#3748`: **la sola lettura PRECEDE il ramo «nessuna unita' comandata»**. Il primo click del giocatore puo' essere su un nemico, con la
+	// selezione ancora vuota, e la barra e' allora quella del nemico — non la struttura. La lista resta quella di `GetActions()`.
+	if (!IsDockReadOnly() && GetSelectedUnit() == nullptr)
 	{
 		// ➕ [D-460], #3494: senza un'unita' comandata, la STRUTTURA dalle unita' della PROPRIA squadra.
 		// ⛔ Il filtro sta qui e non nel ViewModel perche' e' qui che si sa chi guarda: un avversario
@@ -571,6 +630,14 @@ FRTMovementReadoutView URTActionDockWidget::GetMovementReadout() const
 {
 	// `GetSelectedUnit()` e NON `GetSubject()`: la barra comanda, non ispeziona. E' la stessa sorgente di
 	// `GetActions()`, quindi azioni e movimento parlano sempre della stessa unita'.
+	//
+	// ➕ `#3748`: **con la barra in sola lettura il default, non autorizzato.** Il movimento e' un PIANO (`PlannedMovementProfileId`, il profilo
+	// scelto), e quello di un'unita' osservata e' privato: l'indicatore si nasconde, come per un soggetto ispezionato senza barra. Non e' la
+	// lettura dell'unita' che si comanda, che resta la selezione ma che la barra non sta mostrando.
+	if (IsDockReadOnly())
+	{
+		return FRTMovementReadoutView();
+	}
 	return URTHudViewModel::BuildMovementReadout(GetSelectedUnit());
 }
 
@@ -1191,6 +1258,14 @@ void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
 {
+	// ➕ `#3748`: **l'azione armata e' di chi comanda, e la barra in sola lettura non e' sua.** `SelectedAbilityIndex` dell'unita' selezionata e' una
+	// posizione del SUO kit: su una barra che mostra il kit di un altro accenderebbe lo slot con quell'indice, cioe' un'azione di un'altra unita'. Con
+	// `INDEX_NONE` nessuno slot e' acceso, e l'azione armata non si e' persa: la ritrova la barra propria.
+	if (IsDockReadOnly())
+	{
+		return INDEX_NONE;
+	}
+
 	const ARTUnit* Unit = GetSelectedUnit();
 
 	// `INDEX_NONE` anche senza selezione, e le due cose coincidono di proposito: «nessuna unita'» e «nessuna
@@ -1212,6 +1287,14 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// `#2989`: lo slot dichiara per quale unita' e' stato costruito — quella selezionata ORA, mentre il dock
 	// gli assegna l'azione. `Activate()` la confronta con la selezione del momento del click.
 	//
+	// ➕ `#3748`: **quella di cui la barra e' ORA, che non e' sempre la selezione** (`GetDockUnit`): con la barra in sola lettura e' il nemico
+	// fissato, e la posizione di kit che lo slot porta e' del SUO kit. `Activate()` e `HoverBegin()` confrontano con lo stesso soggetto.
+	//
+	// ⚠️ **Il controller e non la base del dock**: lo slot e' uno `UUserWidget` e non conosce il manager, quindi non puo' applicare il cancello
+	// `Live` che il dock applica (`URTScreenHudWidgetBase::GetDockUnit`). Il divario dura al piu' un fotogramma — la scheda si rilascia al tick
+	// dell'HUD e il dock riassegna lo slot a ogni frame — ed e' sicuro: nel frattempo il controller rifiuta di scrivere il piano, e l'hover di
+	// un nemico senza voce `Live` lo scarta il suo stesso cancello (`GatherSkillHoverInputs`).
+	//
 	// ⛔ **Vincolo per chi cambia l'innesco del dock** (review di `#2989`): questa e' l'UNICA scrittura di
 	// `BuiltForUnit`, quindi il dock deve richiamare `SetAction` dopo OGNI cambio di selezione. Oggi lo fa
 	// a ogni frame. Un innesco a evento che scattasse solo quando cambia la VISTA non basterebbe: due unita'
@@ -1219,7 +1302,7 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// resterebbe rifiutato — con la sola riga di log a dirlo. Lo guardano `PIE-V01-DOCKTICK` e
 	// `PIE-V01-DOCKREBUILD`.
 	const ARTPlayerController* Proprietario = ResolveArmingController();
-	BuiltForUnit = Proprietario ? Proprietario->GetSelectedUnit() : nullptr;
+	BuiltForUnit = Proprietario ? Proprietario->GetDockUnit() : nullptr;
 
 	// ⚠️ L'evento va per ULTIMO: e' il Blueprint che disegna, e disegna leggendo i tre campi qui sopra. Se
 	// partisse prima, un'implementazione che chiama `GetResolvedIcon()` leggerebbe il catalogo del turno
@@ -1647,7 +1730,13 @@ void URTActionSlotWidget::Activate()
 		// riassegna lo slot, e il click torna a valere.
 		//
 		// ⚠️ **Si dice, non si tace** (`#2986`): «ho cliccato e non e' successo niente» deve avere una riga.
-		const ARTUnit* Selezionata = PC->GetSelectedUnit();
+		//
+		// ➕ `#3748`: si confronta con il soggetto della BARRA, non con la selezione (`GetDockUnit`). Per lo slot del nemico fissato il confronto
+		// passa, e a rifiutare l'armo e' il controller, con la sua riga e il suo perche' (`IsPlanningWriteBlocked`): **nessun rifiuto qui**, la
+		// stessa porta del tasto e non una seconda. Il confronto serve all'altro verso: lo slot costruito per un nemico, con la barra tornata alla
+		// selezione, cade qui e non arma l'unita' propria con una posizione di kit che non e' sua. ⚠️ Il testo della riga dice «la selezione»
+		// anche quando l'unita' confrontata e' il soggetto della barra: e' la riga di `#2989`, invariata, e il nome fra apici e' quello vero.
+		const ARTUnit* Selezionata = PC->GetDockUnit();
 		if (BuiltForUnit.Get() != Selezionata)
 		{
 			UE_LOG(LogRT, Display,
@@ -1672,11 +1761,14 @@ void URTActionSlotWidget::HoverBegin()
 		// Uno slot costruito per un'altra unita' non e' lo slot di chi si comanda: la posizione di kit di un'altra unita' e'
 		// un'altra azione. Qui si TACE (a differenza del click): l'hover e' un passaggio del cursore, non un gesto, e una riga
 		// di log a ogni slot attraversato sarebbe rumore.
-		const ARTUnit* Selezionata = PC->GetSelectedUnit();
-		if (Selezionata != nullptr && BuiltForUnit.Get() == Selezionata)
+		//
+		// ➕ `#3748`: l'unita' dell'hover e' il soggetto della BARRA (`GetDockUnit`), che con la barra in sola lettura e' il nemico fissato. La
+		// portata e il cancello `Live` li decide il controller (`GatherSkillHoverInputs`): lo slot dice quale skill di quale unita', e basta.
+		const ARTUnit* Soggetto = PC->GetDockUnit();
+		if (Soggetto != nullptr && BuiltForUnit.Get() == Soggetto)
 		{
-			PC->SetSkillHover(Selezionata, Action.AbilityIndex);
-			HoverRegisteredUnit = Selezionata;
+			PC->SetSkillHover(Soggetto, Action.AbilityIndex);
+			HoverRegisteredUnit = Soggetto;
 			HoverRegisteredIndex = Action.AbilityIndex;
 		}
 	}

@@ -1126,6 +1126,12 @@ public:
 	 *
 	 * 🔑 **Non e' `GetSelectedUnit()`, che resta il soggetto del PIANO** (slot, azione armata, tasti): cliccare un nemico non sposta la
 	 * selezione e non fa perdere l'azione armata. E il puntatore e' `const`: la barra di un soggetto in sola lettura non scrive niente su di lui.
+	 *
+	 * 🔴 **NON e' un cancello `Live`.** Dice a chi appartiene la barra, non se chi guarda vede ancora quell'unita': la scheda si rilascia al tick
+	 * dell'HUD (`ReleaseInspectionUnlessLive`), e fino ad allora un nemico uscito di vista resta il soggetto. Il cancello lo applica il CONSUMATORE,
+	 * a ogni lettura, con una voce `Live` nella vista di chi guarda (`URTInspectLibrary::LiveEntry`): lo fa `URTScreenHudWidgetBase::GetDockUnit`,
+	 * da cui il dock deve leggere. Lo slot non conosce il manager e legge da qui: il suo divario dura al piu' un fotogramma ed e' sicuro (il
+	 * controller rifiuta di scrivere, e il cancello dell'hover in `GatherSkillHoverInputs` scarta un nemico senza voce `Live`).
 	 */
 	const class ARTUnit* GetDockUnit() const;
 
@@ -1139,6 +1145,10 @@ public:
 	 *
 	 * ⚠️ **Un'unita' propria fissata non la accende**: il compagno si comanda, e se se ne vuole il kit si seleziona. Fissarlo non sposta la
 	 * barra dalla selezione.
+	 *
+	 * 🔴 **NON e' un cancello `Live`**, come `GetDockUnit`: vale anche per il tratto fra l'uscita di vista del soggetto e il rilascio della scheda.
+	 * Chi legge la barra applica il cancello da se' (`URTScreenHudWidgetBase::IsDockReadOnly`); il controller lo usa solo per rifiutare di scrivere
+	 * il piano, e li' un falso positivo di un fotogramma costa un click ignorato con la sua riga, mai un piano scritto per un'altra unita'.
 	 */
 	bool IsDockReadOnly() const;
 
