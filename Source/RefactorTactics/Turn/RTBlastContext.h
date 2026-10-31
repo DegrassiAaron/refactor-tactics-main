@@ -370,6 +370,38 @@ struct FRTBlastContext
 		SpentAbilityIndex.Add(AbilityIndex);
 	}
 
+	// --- «Se si usa una abilita' si paga» (decisione d'autore del 2026-10-31, [D-414], `#3134`) --------------
+	//
+	// Un'azione d'attacco USATA paga la ricarica anche se la risoluzione non produce nessun colpo, per le cause
+	// che si conoscono SOLO a risoluzione. Cio' che il click rifiuta (fuori portata dichiarata, distanza minima)
+	// resta gratis. La tabella delle cause e' una sola, in `RTTurnManager_Blast.cpp` (`PagaSeParteSenzaColpo`).
+	//
+	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive
+	// `SpendStartedAbilities`. Spostarla al piano definitivo e' il punto 3 di [D-414], non deciso.
+
+	/**
+	 * Gli intenti d'attacco che, se la geometria li lascia PARTIRE e non producono un colpo, pagano comunque.
+	 * Li riempie `CollectAttackIntents` con la causa con cui l'intento e' nato; li legge
+	 * `MarkAttackerAbilitiesSpent` (e il predicato di `ApplyInterrupts`) incrociandoli con l'esito del piano.
+	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.
+	 */
+	TSet<int32> UnhitPayableIntents;
+
+	/**
+	 * Azioni d'attacco partite che NON hanno un intento (`R6`: bersaglio-unita' gia' morto, annullato dal fallback
+	 * prima della raccolta), con la guardia di vita di chi attacca: si pagano solo se vive a FASE FINITA
+	 * ([D-209]). Array paralleli, come `SpentActors`.
+	 */
+	TArray<ARTUnit*> UnhitActors;
+	TArray<int32> UnhitAbilityIndex;
+
+	/** Annota un'azione partita che non lascia un intento. La paga `MarkAttackerAbilitiesSpent`, se chi attacca sopravvive. */
+	void MarkStartedWithoutHit(ARTUnit* Actor, int32 AbilityIndex)
+	{
+		UnhitActors.Add(Actor);
+		UnhitAbilityIndex.Add(AbilityIndex);
+	}
+
 	/**
 	 * Un'attivazione di supporto ACCETTATA nel suo pass e rimandata all'ordine canonico del Blast — `#3683`.
 	 *

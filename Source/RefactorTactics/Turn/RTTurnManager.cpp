@@ -3621,9 +3621,18 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// ⚠️ **Dopo il consumo del piano e prima del cooldown**: l'azione si perde per il turno — come ogni
 		// principale che non parte — ma `ConsumeAbility` non viene chiamato piu' in basso, quindi la ricarica
 		// non paga per un'azione che non e' avvenuta.
+		// ⌫ **Ritrattato il 2026-10-31** («se si usa una abilita' si paga»; lo stordito paga): la ricarica PARTE anche per
+		// l'azione negata, e la scrive il blocco qui sotto.
 		if (RefuseMainActionIfStunned(Caster, Ability->Def, ERTMatchPhase::Cleanup,
 			Mira))
 		{
+			// `CanUseAbility`: `ConsumeAbility` scrive un valore FISSO, quindi su un'abilita' gia' in ricarica la
+			// riporterebbe al valore pieno. `IsAlive()`: questo ciclo non filtra i morti, e un cadavere col piano
+			// addosso non ha tentato niente.
+			if (Caster->IsAlive() && Caster->CanUseAbility(AbilityIndex))
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+			}
 			continue;
 		}
 
@@ -4629,9 +4638,16 @@ void ARTTurnManager::ResolvePrep()
 		// ⚠️ **Il piano si perde, la RICARICA no**, ed e' cosi' in tutti e tre i siti: il rifiuto precede
 		// `ConsumeAbility`, quindi il cooldown non parte per una scommessa che non e' stata piazzata. Cio'
 		// che cambia fra i siti e' solo CHI azzera il piano — qui la riga sotto, nel Blast la cima del ciclo.
+		// ⌫ **Ritrattato il 2026-10-31** dalla decisione d'autore «se si usa una abilita' si paga» («Lo stordito
+		// (D-416) paga?» «si»; [D-414] alla lettera): il piano si perde e la RICARICA PARTE, in tutti e tre i siti. Il
+		// testo qui sopra resta perche' dice come e' nato il rifiuto, non cosa vale oggi.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{
+			// Si paga qui, DOPO il rifiuto: `Unit` e' vivo e `CanUseAbility(Index)` era vero (le due guardie in cima al
+			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
+			// di sempre per il Prep: scrittura immediata, come per l'Overwatch e la predittiva che armano.
+			Unit->ConsumeAbility(Index);
 			Unit->PlannedAbilityIndex = INDEX_NONE;
 			Unit->ClearPlannedAttack();
 			continue;

@@ -253,6 +253,81 @@ namespace
 		Entry.Priority = Def.Priority;
 		return Entry;
 	}
+
+	/**
+	 * 🔴 **LA TABELLA DELLE CAUSE di «se si usa una abilita' si paga»** — decisione d'autore del 2026-10-31 su
+	 * [D-414] (`#3134`): l'UNICO punto in cui si decide quale causa e' gia' una causa di PAGAMENTO. Togliere una
+	 * causa dalla regola e' togliere una riga da qui.
+	 *
+	 * Le etichette `R1`..`R10` che questo file, i suoi commenti e i test citano sono quelle di [D-563], clausole
+	 * (2) e (3): PAGANO `R1` area in portata che non trova nessuno, `R2` azione principale negata dallo stordimento,
+	 * `R3` bersaglio-unita' scattato altrove, `R4` linea di tiro bloccata a risoluzione, `R5` mira su un altro piano,
+	 * `R6` bersaglio-unita' gia' morto, `R7` tiro a cella cappato dal Fumo non osservato, `R8` azione in portata
+	 * annullata da `Action.Interrupt` senza colpi; restano GRATIS `R9` tiro a cella oltre la portata dichiarata o
+	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
+	 * `R3`..`R8` sono conseguenze scelte dall'assistente, DA CONFERMARE.
+	 *
+	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
+	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
+	 *
+	 * - `None` — l'azione e' valida e la geometria della raccolta decide il resto: area che non trova nessuno (`R1`),
+	 *   bersaglio-unita' scattato altrove (`R3`), tiro a cella cappato dal Fumo non osservato (`R7`);
+	 * - `NoLineOfSight` — linea di tiro bloccata a risoluzione (`R4`): chiude l'asimmetria con la cura, [D-504] punto 3;
+	 * - `OtherLayer` — mira su un altro piano (`R5`): corregge [D-509] punto 7h;
+	 * - `TargetDead` — bersaglio-unita' gia' morto prima del Blast (`R6`): come la cura su un alleato caduto.
+	 *
+	 * ⛔ **NON DECISO, e quindi gratis come prima**: `OutOfRange` di un bersaglio-UNITA' (a risoluzione), `TargetUnknown`,
+	 * `TargetFriendly`, `TargetGone`, `NoMap`, e tutto cio' che non passa di qui (porta senza varco, commutazione
+	 * rifiutata, mappa assente). Il `default` e' `false` APPOSTA: una causa nuova non paga finche' qualcuno non la
+	 * mette in tabella.
+	 *
+	 * ⚠️ **Il tiro a CELLA fuori portata dichiarata e la distanza minima non sono qui**: li giudica
+	 * `CollectHexAttacks`, in silenzio, e non lasciano ne' impronta ne' canale — il click li rifiuta, quindi
+	 * restano gratis ([D-200], [D-414] punto 2). `R10`, la guardia di vita di [D-209], sta nel pagamento.
+	 */
+	bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo)
+	{
+		switch (Motivo)
+		{
+		case ERTActionInvalidReason::None:
+		case ERTActionInvalidReason::NoLineOfSight:
+		case ERTActionInvalidReason::OtherLayer:
+		case ERTActionInvalidReason::TargetDead:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	/**
+	 * L'intento `k` e' PARTITO e non ha prodotto un colpo? — il lato «esito» della stessa regola.
+	 *
+	 * Partito vuol dire: nato con una causa di pagamento (`UnhitPayableIntents`), dichiarato aggressione
+	 * (`bCountsAsAttack`: un'azione che non e' un colpo ha le proprie regole) e arrivato a uno dei quattro esiti che
+	 * la geometria registra per un intento che HA superato portata e distanza minima — l'impronta (area vuota,
+	 * bersaglio scattato), la linea bloccata, il piano diverso, il tiro cappato dal Fumo. Un intento scartato in
+	 * silenzio dalla portata o dalla distanza minima non ha nessuno dei quattro, ed e' per questo che il click lo
+	 * rifiuta e la regola lo lascia gratis.
+	 *
+	 * ⚠️ Va chiamato PRIMA dei `RemoveAll` finali di `ApplyInterrupts`, che tolgono impronte e canali degli intenti
+	 * cancellati: dopo, un'azione interrotta non avrebbe piu' niente da cui risultare partita.
+	 */
+	bool IntentoPartitoSenzaColpo(const FRTBlastContext& Ctx, int32 IntentIdx)
+	{
+		if (!Ctx.UnhitPayableIntents.Contains(IntentIdx) || !Ctx.Intents.IsValidIndex(IntentIdx)
+			|| !Ctx.Intents[IntentIdx].bCountsAsAttack)
+		{
+			return false;
+		}
+		const FRTHexBlastPlan& Piano = Ctx.Plan;
+		return Piano.OtherLayerIntents.Contains(IntentIdx)
+			|| Piano.BlockedIntents.Contains(IntentIdx)
+			|| Piano.TerrainCappedIntents.Contains(IntentIdx)
+			|| Piano.Footprints.ContainsByPredicate([IntentIdx](const FRTAttackFootprint& Impronta)
+			{
+				return Impronta.IntentIndex == IntentIdx;
+			});
+	}
 }
 
 void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
@@ -600,6 +675,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// e un muro comparso dopo il lock-in e' un esito — il cooldown si paga e il gesto si vede. ⚠️ Un ATTACCO fermato dalla
 		// linea di tiro invece non paga, perche' il suo criterio e' il colpo prodotto (`MarkAttackerAbilitiesSpent`):
 		// l'asimmetria e' dichiarata in D-504, non risolta.
+		// ⌫ *Chiusa il 2026-10-31 dalla decisione d'autore «se si usa una abilita' si paga»: anche l'attacco fermato dalla
+		// linea di tiro a risoluzione paga (`R4`, `PagaSeParteSenzaColpo`), come la cura qui sopra.*
 		// ⌫ *Fino a #3598 la cura controllava solo la portata, e un muro fermava un colpo ma non una cura.*
 		if (URTCombatLibrary::TravelsDirect(Heal->Def.LineOfSightPolicy)
 			&& !URTHexVisionLibrary::HasLineOfSight(Ctx.Map, Unit->Cell, Centro))
@@ -741,6 +818,20 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		if (PlannedNow && RefuseMainActionIfStunned(Unit, PlannedNow->Def, ERTMatchPhase::Blast,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{
+			// 🔴 **Lo stordito PAGA l'azione che gli viene negata** (decisione d'autore del 2026-10-31, «Lo stordito
+			// (D-416) paga?» «si»; [D-414] alla lettera). ⌫ *Fino ad allora il rifiuto precedeva il pagamento e la
+			// ricarica NON partiva per un'azione negata.* La SEDE non cambia: si annota e a scrivere e'
+			// `SpendStartedAbilities`, come per la cura.
+			//
+			// ⚠️ **`CanUseAbility` e' la guardia**: `ConsumeAbility` scrive un valore FISSO, quindi su un'abilita' GIA' in
+			// ricarica la riporterebbe al valore pieno — un'azione pianificata a mano e non disponibile non si ripaga.
+			// ⚠️ **Vivo**: un cadavere che arriva al Blast col piano addosso non ha tentato niente. ⚠️ **Non lo scatto**:
+			// lo rifiuta `ResolveDash`, prima del consumo, e il Dash rifiutato e' una causa NON DECISA.
+			if (Unit->IsAlive() && !URTCatalogLibrary::IsFastMovement(PlannedNow->Def)
+				&& Unit->CanUseAbility(Unit->PlannedAbilityIndex))
+			{
+				Ctx.MarkAbilitySpent(Unit, Unit->PlannedAbilityIndex);
+			}
 			Unit->ClearPlannedAttack();
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, come ogni principale che non parte
 			continue;
@@ -1062,6 +1153,21 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// derivata porta ora il nome, e le due righe erano lo stesso annullamento detto due volte.
 			AppendLogEntry(FallbackEntry, Unit);
 
+			// ➕ **2026-10-31, «se si usa una abilita' si paga»**: un bersaglio-unita' GIA' MORTO prima del Blast (`R6`) e'
+			// un'azione dichiarata, valida in pianificazione e andata a vuoto per un fatto di risoluzione — come la cura
+			// su un alleato caduto. Qui non nasce un intento da cui risultare partita (il fallback `Cancel` lo toglie), quindi
+			// si annota ORA, e si paga solo se chi attacca sopravvive alla fase ([D-209]). Le altre cause di questo ramo
+			// (`TargetGone`, `TargetUnknown`, `TargetFriendly`, `OutOfRange` a risoluzione) restano NON DECISE: gratis.
+			//
+			// ⚠️ **Solo se l'azione si dichiara aggressione** (`bCountsAsAttack`), la STESSA clausola di
+			// `IntentoPartitoSenzaColpo`: la regola e' «se si usa un attacco si paga», e un'azione che non e' un colpo ha le
+			// proprie regole (la cura paga per conto suo, in `CollectHealActions`). Senza la clausola `R6` pagava anche
+			// un'azione non aggressiva su un bersaglio-unita' caduto, che su `main` e' gratis.
+			if (Instance.Def.bCountsAsAttack && PagaSeParteSenzaColpo(Reason))
+			{
+				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
+			}
+
 			if (!Fallback.bProducesEffects)
 			{
 				continue; // Cancel (e cio' che vi degrada): l'azione non avviene
@@ -1178,6 +1284,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				Intent.DeclaredDoorEdge = Unit->PlannedCoverEdge;
 			}
 			break;
+		}
+		// ➕ **2026-10-31**: l'intento paga anche senza colpi se e' nato con una causa di pagamento. `Reason` e' quello
+		// ORIGINALE — anche dopo un ripiego `AttackCell`, che tiene la cella e perde il bersaglio — cosi' un ripiego
+		// per una causa NON DECISA non diventa pagante per il solo fatto di avere un'impronta.
+		if (PagaSeParteSenzaColpo(Reason))
+		{
+			Ctx.UnhitPayableIntents.Add(Intents.Num());
 		}
 		Intents.Add(Intent);
 		IntentAbilityIndex.Add(AbilityIndex);
@@ -1532,9 +1645,17 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// e per chi viene interrotto: due copie dello stesso criterio potevano divergere, e la prima stesura del
 	// ciclo degli interrotti lo ha fatto — un Interrupt su cella annullato da un altro Interrupt restava
 	// gratuito, cioe' l'Interrupt altrui rendeva gratuito cio' che senza di lui avrebbe pagato.
-	const auto AzionePartita = [&IntentiConColpo, &Intents, &IntentDefs](int32 k)
+	//
+	// ⌫ **2026-10-31, «se si usa una abilita' si paga»**: «partita» non vuol piu' dire solo «ha prodotto un colpo».
+	// Un'azione IN portata che non trova nessuno (o che la linea di tiro, il piano o il Fumo fermano a risoluzione)
+	// e' partita lo stesso, e annullarla non le restituisce la ricarica (`R8`). Il predicato e' quello del pagamento
+	// dei non interrotti (`IntentoPartitoSenzaColpo`), non una copia: l'Interrupt altrui non rende gratuito cio' che
+	// senza di lui avrebbe pagato. ⛔ Resta fuori cio' che il click rifiuta (portata, distanza minima): non ha impronta
+	// ne' canale, quindi `R9` non cambia — le righe `cella fuori portata` di `InterruptedActionPaysIfItStarted`.
+	const auto AzionePartita = [&Ctx, &IntentiConColpo, &Intents, &IntentDefs](int32 k)
 	{
 		if (IntentiConColpo.Contains(k)) { return true; }
+		if (IntentoPartitoSenzaColpo(Ctx, k)) { return true; }
 		return IntentDefs.IsValidIndex(k) && Intents.IsValidIndex(k)
 			&& IsCoreAction(IntentDefs[k], ActionInterrupt) && Intents[k].TargetId == INDEX_NONE;
 	};
@@ -1551,6 +1672,15 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// pagare avrebbe dato all'Interrupt una regola sua, contraddicendo il commento venticinque righe piu'
 	// su — «un Interrupt senza linea di tiro non cancella nulla, esattamente come un attacco bloccato dalla
 	// copertura». Si paga il colpo che c'e' stato, oppure l'intento che mirava a una cella.
+	// ⌫ *2026-10-31: «senza linea di tiro» e «su un altro piano» non sono piu' gratuiti, ne' per l'Interrupt ne' per
+	// un attacco qualunque (`R4`, `R5`: vedi `AzionePartita`), e nemmeno «bersaglio scattato» o «cappato dal Fumo»
+	// (`R3`, `R7`): l'Interrupt non e' piu' un caso a parte, e «si paga il colpo che c'e' stato, oppure l'intento che
+	// mirava a una cella» qui sopra non e' piu' completo. Restano gratuiti fuori portata, senza mappa autorevole e su
+	// un alleato: portata e distanza minima le rifiuta il click, gli altri due sono cause NON DECISE.
+	// ⚠️ **L'Interrupt come ATTORE rientra nella regola perche' e' un'azione d'attacco (`bCountsAsAttack`)**: e' una
+	// conseguenza del principio, DA CONFERMARE ([D-563], clausola (2)). Le sue guardie di vita non sono uguali
+	// (`R3`, `R4`, `R5`, `R7` pagano se e' vivo all'annotazione; `R6` solo se sopravvive alla fase) e una sola riga di
+	// test lo pinna (`R4`).*
 	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
@@ -1606,7 +1736,12 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// qui sopra — quindi l'Interrupt altrui non rende gratuito cio' che senza di lui avrebbe pagato, ne' a
 	// pagamento cio' che sarebbe stato gratuito. Per un'azione qualunque vuol dire «ha prodotto un colpo»: un
 	// intento a CELLA oltre la portata nasce valido e un Interrupt lo annulla, ma la geometria non ha
-	// prodotto nessun colpo, non e' partita, e qui [D-200] e [D-414] coincidono. Per un Interrupt vuol dire
+	// prodotto nessun colpo, non e' partita, e qui [D-200] e [D-414] coincidono.
+	// ⌫ *Ritrattato il 2026-10-31: «per un'azione qualunque vuol dire "ha prodotto un colpo"» non vale piu'. Partita e'
+	// anche un'azione in portata che non ha prodotto nessun colpo perche' l'area era vuota, il bersaglio e' scattato, la
+	// linea era bloccata, il piano era un altro o il Fumo ha cappato il tiro (`AzionePartita` qui sopra e
+	// `IntentoPartitoSenzaColpo`). Resta valido solo il confine che regge il paragone: l'intento a CELLA oltre la
+	// portata, o sotto la distanza minima, non ha ne' impronta ne' canale e non e' partito.* Per un Interrupt vuol dire
 	// anche «mirato a una cella» (`#1449`): un Interrupt su cella vuota annullato da un altro Interrupt paga
 	// come pagherebbe senza di lui (`CancelledCellAimedInterrupterPays`). Un bersaglio-unita' fuori portata
 	// non arriva nemmeno qui, perche' `ValidateInstance` ne ferma l'intento in raccolta.
@@ -3424,6 +3559,55 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 			continue;
 		}
 		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
+	}
+
+	// ➕ **2026-10-31, «se si usa una abilita' si paga»** ([D-414], `#3134`): chi ha USATO un'azione d'attacco paga
+	// anche se non ha lasciato un colpo, per le cause che si conoscono solo a risoluzione (la tabella e'
+	// `PagaSeParteSenzaColpo`). ⌫ *Fino ad allora «spesa» voleva dire «ha colpito e sopravvive»: l'area vuota, il
+	// bersaglio scattato, il muro comparso dopo il lock-in e il Fumo non osservato erano gratuiti.*
+	//
+	// ⚠️ **La guardia `IsAlive()` e' la stessa e resta QUI** ([D-209], `R10`): per chi attacca «spesa» vuol dire
+	// SOPRAVVISSUTO alla fase, anche a vuoto. ⚠️ **Gli interrotti e gli Interrupt non passano di qui**: li ha gia'
+	// annotati `ApplyInterrupts` (con la guardia «vivo quando annota»), e i loro canali sono stati svuotati da
+	// quella funzione. ⚠️ Un'annotazione gia' fatta non si ripete: `ConsumeAbility` e' idempotente, ma l'array e' lo
+	// stato che `SpendStartedAbilities` legge, e due righe uguali direbbero che i pagamenti sono due.
+	const auto GiaAnnotata = [&Ctx](ARTUnit* Attore, int32 Indice)
+	{
+		for (int32 s = 0; s < Ctx.SpentActors.Num(); ++s)
+		{
+			if (Ctx.SpentActors[s] == Attore && Ctx.SpentAbilityIndex[s] == Indice) { return true; }
+		}
+		return false;
+	};
+
+	for (int32 k = 0; k < Ctx.Intents.Num(); ++k)
+	{
+		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE
+			|| !Ctx.IntentDefs.IsValidIndex(k) || Ctx.InterruptedIntents.Contains(k)
+			|| IsCoreAction(Ctx.IntentDefs[k], ActionInterrupt))
+		{
+			continue; // impatto di carica, intento cancellato, oppure l'Interrupt stesso: li ha annotati `ApplyInterrupts`
+		}
+		if (!IntentoPartitoSenzaColpo(Ctx, k))
+		{
+			continue;
+		}
+		ARTUnit* Attore = Ctx.Units.IsValidIndex(Ctx.Intents[k].AttackerId) ? Ctx.Units[Ctx.Intents[k].AttackerId] : nullptr;
+		if (IsValid(Attore) && Attore->IsAlive() && !GiaAnnotata(Attore, Ctx.IntentAbilityIndex[k]))
+		{
+			Ctx.MarkAbilitySpent(Attore, Ctx.IntentAbilityIndex[k]);
+		}
+	}
+
+	// `R6`: nessun intento da cui risultare partiti, ma la guardia di vita e' la stessa.
+	check(Ctx.UnhitActors.Num() == Ctx.UnhitAbilityIndex.Num());
+	for (int32 u = 0; u < Ctx.UnhitActors.Num(); ++u)
+	{
+		ARTUnit* Attore = Ctx.UnhitActors[u];
+		if (IsValid(Attore) && Attore->IsAlive() && !GiaAnnotata(Attore, Ctx.UnhitAbilityIndex[u]))
+		{
+			Ctx.MarkAbilitySpent(Attore, Ctx.UnhitAbilityIndex[u]);
+		}
 	}
 }
 
