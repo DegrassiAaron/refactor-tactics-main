@@ -1073,6 +1073,7 @@ namespace
 		UnitaInPortata,     //< l'attacco base su `Victim`, a una cella: produce un colpo
 		UnitaFuoriPortata,  //< `Victim` oltre la portata: `ValidateInstance` risponde `OutOfRange`, l'intento non nasce
 		CellaFuoriPortata,  //< una CELLA oltre la portata: l'intento nasce valido, la geometria non produce un colpo
+		CellaInPortataVuota, //< una CELLA in portata e vuota: l'intento nasce valido, parte, e non trova nessuno (R1/R8, 2026-10-31)
 	};
 
 	struct FInterrottaCase
@@ -1144,6 +1145,11 @@ namespace
 		{
 			Agente->DeclareAttackOnCell(FRTCellId(-1, 0)); // a cinque celle: oltre la portata di quattro
 		}
+		else if (C.Mira == EMiraInterrotta::CellaInPortataVuota)
+		{
+			// A UNA cella da chi agisce e fuori dall'asse (x, 0) dove stanno interruttore e vittima: nessuno la occupa.
+			Agente->DeclareAttackOnCell(FRTCellId(4, 1));
+		}
 		else
 		{
 			Agente->DeclareAttackOnUnit(Victim);
@@ -1182,6 +1188,11 @@ namespace
  * - **mai partita** (fuori portata): NON paga, con o senza Interrupt. E' il caso in cui [D-200] e [D-414]
  *   COINCIDONO — «un piano fuori portata non diventa un piano valido definitivo» — e va reso esplicito.
  *
+ * ⌫ *Fino al 2026-10-31 il criterio di «partita» era «ha prodotto un colpo» (piu' l'Interrupt a cella), e
+ * un'azione in portata annullata che non avrebbe prodotto colpi era gratuita. La decisione d'autore «se si usa
+ * una abilita' si paga» lo ha superato: la geometria nota in pianificazione (portata, distanza minima) resta
+ * l'unico confine, e le due righe `cella in portata vuota` lo dichiarano.*
+ *
  * 🔴 **La riga a CELLA fuori portata e' quella che distingue «ogni intento cancellato paga» da «paga
  * l'intento che aveva un colpo»**: l'intento nasce valido (una cella e' un bersaglio legittimo), l'Interrupt
  * lo coglie e il TurnLog porta la voce `Interrupted`, ma la geometria non ha prodotto nessun colpo — quindi
@@ -1218,6 +1229,15 @@ bool FRTInterruptedActionPaysIfItStartedTest::RunTest(const FString&)
 		{ TEXT("cella fuori portata, nessun Interrupt"), EMiraInterrotta::CellaFuoriPortata, false, false,
 		  false, false, false,
 		  TEXT("controllo: senza l'Interrupt la stessa azione non paga, e l'Interrupt non deve cambiarlo") },
+		// ➕ **2026-10-31, «se si usa una abilita' si paga»**: l'azione IN portata che non trova nessuno e' PARTITA
+		// anche senza colpi, e un Interrupt che la annulla non le restituisce la ricarica. Sono le righe «in portata
+		// annullata senza colpi»: prima del 2026-10-31 la tabella le dava per gratuite (il criterio era il colpo).
+		{ TEXT("cella in portata vuota, annullata da un Interrupt"), EMiraInterrotta::CellaInPortataVuota, true, false,
+		  true, false, true,
+		  TEXT("[D-414] punto 1 e decisione 2026-10-31: in portata, valida, annullata da un avversario — paga anche senza colpi") },
+		{ TEXT("cella in portata vuota, nessun Interrupt"), EMiraInterrotta::CellaInPortataVuota, false, false,
+		  false, false, true,
+		  TEXT("controllo: l'attacco a vuoto in portata paga anche senza l'Interrupt, e l'Interrupt non deve cambiarlo") },
 	};
 
 	TArray<FEsitoInterrotta> Esiti;
@@ -2312,6 +2332,10 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
  * cambia il gioco: `curatore che cade nel Blast` (annota da vivo, paga comunque) e `attaccante che
  * colpisce e cade` (per un attaccante «spesa» vuol dire sopravvissuto, e non paga).
  *
+ * ⌫ *Fino al 2026-10-31 questa tabella non aveva una riga «attacco senza colpo», e il criterio dell'attaccante era
+ * il colpo prodotto: l'attacco a vuoto in portata non pagava. Le tre righe `attacco a vuoto` lo ritrattano; la
+ * tabella per CAUSA (R1-R10) sta in `Actions.Blast.StartedActionPaysWithoutAHit`.*
+ *
  * ⚠️ **Fuori da questa tabella, e dichiarato**: le REAZIONI (`ResolveInterceptions`, `RunReactionPass`) non
  * sono azioni pianificate ma inneschi condizionali, e a governarle e' [D-092] col proprio contatore di
  * attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
@@ -2326,6 +2350,7 @@ namespace
 		Alleato,           //< `Action.Heal`, `Action.ModifyArc`
 		NemicoCheAttacca,  //< `Action.Interrupt`: serve anche chi incassa il colpo cancellato
 		NemicoDaColpire,   //< l'attacco base dell'eroe, cioe' `MarkAttackerAbilitiesSpent`
+		CellaVuotaInPortata, //< l'attacco base su una CELLA in portata e vuota: parte, e non trova nessuno (2026-10-31)
 	};
 
 	/**
@@ -2398,6 +2423,19 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		{ TEXT("attaccante che colpisce e cade"), nullptr, ESpesaMontaggio::NemicoDaColpire,
 		  1, true, true, false, false,
 		  TEXT("[D-209]: per un attaccante «spesa» vuol dire SOPRAVVISSUTO alla fase, e questo non lo e'") },
+		// ➕ **2026-10-31, «se si usa una abilita' si paga»**: l'attacco a vuoto in portata e' PARTITO, e paga. Le tre
+		// righe sono lo stesso piano — una cella in portata che nessuno occupa — con i tre destini dell'attaccante:
+		// vivo (paga), caduto nello stesso Blast ([D-209]: «spesa» e' SOPRAVVISSUTO alla fase, anche a vuoto), gia'
+		// caduto prima (un cadavere non paga). ⌫ *Prima il criterio era il colpo: l'attacco a vuoto era gratuito.*
+		{ TEXT("attacco a vuoto in portata"), nullptr, ESpesaMontaggio::CellaVuotaInPortata,
+		  3, true, false, false, true,
+		  TEXT("2026-10-31: l'attacco e' partito e non ha trovato nessuno — e' un esito, e un esito si paga") },
+		{ TEXT("attaccante a vuoto che cade nel Blast"), nullptr, ESpesaMontaggio::CellaVuotaInPortata,
+		  3, true, true, false, false,
+		  TEXT("[D-209]: anche a vuoto «spesa» vuol dire SOPRAVVISSUTO alla fase") },
+		{ TEXT("attaccante a vuoto gia' caduto"), nullptr, ESpesaMontaggio::CellaVuotaInPortata,
+		  3, false, false, false, false,
+		  TEXT("un cadavere non paga un'azione che non ha mai eseguito, nemmeno a vuoto") },
 		// ⛔ Qui stava `attacco base senza costo`, la riga che teneva coperto il ramo `GainEnergy` di
 		// `MarkAttackerAbilitiesSpent`. `D-324` ha rimosso quel ramo, e senza `bAbilitaACosto` la riga sarebbe
 		// stata identica ad `attacco che colpisce`: rimossa invece di adattata.
@@ -2491,6 +2529,21 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			Attaccante->PlannedAbilityIndex = 0; // attacco base, interrompibile
 			Attaccante->PlannedAttackTarget = Vittima;
 			Attaccante->PlannedCell = Attaccante->Cell;
+			break;
+		}
+
+		case ESpesaMontaggio::CellaVuotaInPortata:
+		{
+			// Un nemico c'e' (la squadra avversa non e' vuota), ma lontano dalla cella mirata e dal carnefice.
+			ARTUnit* Lontano = SpawnControlUnit(World, 1, FRTCellId(-4, 0));
+			if (!TestNotNull(*FString::Printf(TEXT("%s: nemico lontano"), C.Nome), Lontano))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			Attore->PlannedAbilityIndex = Idx;
+			Attore->DeclareAttackOnCell(FRTCellId(C.Distanza, 0));
+			Attore->PlannedCell = Attore->Cell;
 			break;
 		}
 

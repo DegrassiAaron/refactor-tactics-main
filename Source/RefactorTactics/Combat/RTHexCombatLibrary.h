@@ -389,7 +389,15 @@ struct FRTHexBlastPlan
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<FRTHexAttackHit> Hits;
 
-	/** Indici degli intenti scartati per linea di tiro bloccata (reason code NoLineOfSight nel TurnLog). */
+	/**
+	 * Indici degli intenti scartati per linea di tiro bloccata (reason code NoLineOfSight nel TurnLog).
+	 *
+	 * ⚠️ **Un intento d'ATTACCO qui dentro e' un'azione PARTITA, e paga la ricarica** (decisione d'autore del
+	 * 2026-10-31, «se si usa una abilita' si paga», [D-414]): l'intento ha superato portata e distanza minima, e il
+	 * muro e' un esito noto solo a risoluzione. ⌫ *Fino ad allora il suo criterio era il colpo prodotto, e un attacco
+	 * fermato dalla linea di tiro non pagava (asimmetria dichiarata in [D-504]).* Lo legge
+	 * `IntentoPartitoSenzaColpo` in `RTTurnManager_Blast.cpp`; un intento NON d'attacco qui dentro resta com'era.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> BlockedIntents;
 
@@ -446,6 +454,10 @@ struct FRTHexBlastPlan
 	 * ⛔ **Non un riuso di `BlockedIntents`**, per la disciplina che separa gli altri canali: li' il motivo
 	 * e' una linea di tiro bloccata, e scriverlo nel TurnLog per un bersaglio che sta un piano sopra direbbe
 	 * una cosa falsa — e manderebbe chi legge a cercare un muro che non c'e'.
+	 *
+	 * ⚠️ **Un intento qui dentro e' un'azione PARTITA, e paga la ricarica** (decisione d'autore del 2026-10-31, [D-414]):
+	 * il piano si giudica a risoluzione. ⌫ *Fino ad allora non pagava ([D-509] punto 7h: «scelta
+	 * dell'implementazione, da confermare o correggere»).*
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> OtherLayerIntents;
@@ -463,6 +475,10 @@ struct FRTHexBlastPlan
 	 * ⛔ **Solo il tiro a CELLA.** Un bersaglio-unita' fuori portata e' gia' una voce `Fallback` della validazione al
 	 * lock-in: aggiungerlo qui lo scriverebbe due volte. ⚠️ Non un riuso di `BlockedIntents`: nessuna linea di tiro e'
 	 * bloccata, e dirlo manderebbe a cercare un muro che non c'e'.
+	 *
+	 * ⚠️ **Un intento qui dentro e' un'azione PARTITA, e paga la ricarica** (decisione d'autore del 2026-10-31, [D-414]):
+	 * il click l'ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga. Il tiro a cella OLTRE la
+	 * portata dichiarata (e la distanza minima) NON e' qui dentro: il click lo rifiuta, e resta gratis.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> TerrainCappedIntents;
