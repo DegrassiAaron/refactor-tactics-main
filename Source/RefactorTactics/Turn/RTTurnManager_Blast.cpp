@@ -1659,6 +1659,9 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// pagare avrebbe dato all'Interrupt una regola sua, contraddicendo il commento venticinque righe piu'
 	// su — «un Interrupt senza linea di tiro non cancella nulla, esattamente come un attacco bloccato dalla
 	// copertura». Si paga il colpo che c'e' stato, oppure l'intento che mirava a una cella.
+	// ⌫ *2026-10-31: «senza linea di tiro» e «su un altro piano» non sono piu' gratuiti, ne' per l'Interrupt ne' per
+	// un attacco qualunque (`R4`, `R5`: vedi `AzionePartita`). Restano gratuiti fuori portata, senza mappa autorevole
+	// e su un alleato: portata e distanza minima le rifiuta il click, gli altri due sono cause NON DECISE.*
 	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
