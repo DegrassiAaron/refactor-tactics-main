@@ -1107,16 +1107,14 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 	}
 
 	const bool bUnita = HasCommandedUnit();
-	// ➕ `#3748`: **`Conferma` e' spenta mentre la BARRA e' in sola lettura.** Dichiarare e' un gesto di scrittura del piano, e con la barra su un'altra
-	// unita' il controller lo rifiuta (`IsPlanningWriteBlocked`): un pulsante acceso accetterebbe un click che non fa niente, e non direbbe perche'. Il
-	// discrimine e' `IsDockReadOnly()` della BASE (quella col cancello `Live`), NON la causa del mondo in sola lettura: durante il playback il pulsante
-	// non cambia qui. `Annulla` resta com'e' — e' il Back, e chiude la scheda. `Invio` resta bloccato dal controller: e' un toggle, e un'esenzione
-	// potrebbe ritrattare il piano di un'unita' mentre se ne guarda un'altra. Una sola condizione per il pulsante e per la sua resa: «accesa» e
-	// «abilitata» non si separano (testo, cornice e spunta leggono la stessa).
-	const bool bAttivo = bUnita && !IsDockReadOnly();
+	// 🔴 **`#3748` (decisione d'autore del 2026-10-31): `Conferma` NON dipende dalla barra.** Dichiarare il piano non lo scrive, e con la barra su un
+	// nemico il controller lascia passare la dichiarazione dell'unita' selezionata (`ToggleTurnPlanDeclared` guarda solo il mondo). Un pulsante spento
+	// qui nasconderebbe un gesto che funziona. Rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`. Durante la risoluzione il riquadro
+	// e' chiuso (sopra), ed e' li' che il mondo in sola lettura si vede. ⛔ Rimettere `&& !IsDockReadOnly()` fa cadere
+	// `ConfirmStaysEnabledWhileTheBarIsReadOnly`.
 	if (ConfirmButton)
 	{
-		ConfirmButton->SetIsEnabled(bAttivo);
+		ConfirmButton->SetIsEnabled(bUnita);
 	}
 	const FText Verbo = IsPlanDeclared()
 		? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
@@ -1128,7 +1126,7 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 	{
 		ConfirmText->SetText(ConfirmKeyText ? Verbo
 			: FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"), Verbo, GetConfirmKeyLabel()));
-		ConfirmText->SetColorAndOpacity(FSlateColor(C(bAttivo ? T::White : T::Text_Disabled)));
+		ConfirmText->SetColorAndOpacity(FSlateColor(C(bUnita ? T::White : T::Text_Disabled)));
 	}
 	if (ConfirmKeyText)
 	{
@@ -1149,11 +1147,11 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 
 	// La tavola: `Conferma` accesa ha il fondo della lettura attiva e il contorno ciano; spenta torna neutra. Il
 	// contorno e' di 1 px in entrambi i casi, come nel sorgente della tavola: a distinguerle sono fondo e colore.
-	RTPaintFrame(ConfirmFrame, C(bAttivo ? T::BG_ProfileActive : T::BG_Panel), C(bAttivo ? T::Cyan : T::Frame_Off), 1.f);
+	RTPaintFrame(ConfirmFrame, C(bUnita ? T::BG_ProfileActive : T::BG_Panel), C(bUnita ? T::Cyan : T::Frame_Off), 1.f);
 	RTPaintFrame(UndoFrame, C(T::BG_Panel), C(T::Frame_Mid), 1.f);
 	if (ConfirmIcon)
 	{
-		ConfirmIcon->SetColorAndOpacity(FSlateColor(C(bAttivo ? T::Cyan : T::Text_Disabled)));
+		ConfirmIcon->SetColorAndOpacity(FSlateColor(C(bUnita ? T::Cyan : T::Text_Disabled)));
 	}
 
 	// Il contatore ([D-494]): un numero per livello, e un livello a zero non occupa posto.

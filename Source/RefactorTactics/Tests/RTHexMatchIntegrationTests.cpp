@@ -30,6 +30,9 @@
 #include "Player/RTPlayerState.h"      // `#3748`: TeamIdOf / ControlGroupOf, per misurare chi il giocatore comanda
 #include "UI/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Components/Button.h"     // `#3748`: i pulsanti di Conferma e Annulla, per leggerne l'abilitazione
+#include "Components/Border.h"     // `#3748`: la cornice di Conferma, per leggerne fondo e contorno
+#include "Components/TextBlock.h"  // `#3748`: il verbo e la spunta di Conferma, per leggerne testo e colore
+#include "UI/RTUIPalette.h"        // `#3748`: la resa di Conferma si confronta coi token
 #include "Tests/RTLockInCommittedProbeForTest.h"
 #include "Map/RTOverlayPalette.h" // `#3511`: AllMeanings, l'oracolo del reset
 #include "Frontend/RTFrontendNavigator.h" // `#3511`: la pausa e' l'uscita `Modal`
@@ -6013,8 +6016,12 @@ namespace
  * ⚠️ **L'ultima riga sposta il nemico** (a distanza due, dentro la portata dell'attacco base): il click su un'unita' con l'azione armata
  * vuole un bersaglio che la regola di portata accetti. Sta in fondo perche' gli altri gesti non dipendano da dove sta.
  *
- * Il log: otto righe di rifiuto dicono la causa della barra. Le due che prima tacevano (`HandleClickOnCell`, `HandleClickOnUnit`) la dicono
- * solo per la barra, mai per il mondo in sola lettura — e che per il mondo restino mute si misura in `TheReasonNamesTheReadOnlyBar`.
+ * Il log: ogni riga con `bLogsWhy` dice la causa della barra, e l'attesa si conta dalla tabella. Le due che prima tacevano (`HandleClickOnCell`,
+ * `HandleClickOnUnit`) la dicono solo per la barra, mai per il mondo in sola lettura — e che per il mondo restino mute si misura in
+ * `TheReasonNamesTheReadOnlyBar`.
+ *
+ * ⛔ **`Invio` (`ToggleTurnPlanDeclared`) NON e' una riga**: la decisione d'autore del 2026-10-31 lo toglie dal blocco della barra, perche'
+ * dichiarare il piano non lo scrive. Lo prova `DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`, accanto al suo controllo del mondo in sola lettura.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadOnlyBarRefusesPlanWritesTest,
 	"RefactorTactics.PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan",
@@ -6118,8 +6125,8 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 		[&]() { B.PC->HandleClickOnCellForTest(Step); }, [&]() { return Num(B.Mine->PlannedWaypoints.Num()); }, true });
 	Rows.Add({ TEXT("Sneak (ToggleSneakDeclaration)"), Nothing,
 		[&]() { B.PC->ToggleSneakForTest(); }, [&]() { return B.Mine->PlannedMovementProfileId.ToString(); }, true });
-	Rows.Add({ TEXT("Invio (ToggleTurnPlanDeclared)"), Nothing,
-		[&]() { B.PC->ToggleTurnPlanDeclaredForTest(); }, [&]() { return Flag(B.Mine->bTurnPlanDeclared); }, true });
+	// ⛔ **Qui non c'e' `Invio`, ed e' una decisione d'autore (2026-10-31), non una dimenticanza**: dichiarare il piano non lo scrive, e con la barra
+	// in sola lettura resta vivo. Lo prova `DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`, che e' il suo contrario di questa tabella.
 	Rows.Add({ TEXT("apertura del selettore del verso (TryOpenFacingSelector)"), Nothing,
 		[&]() { B.PC->TryOpenFacingSelector(B.Mine->Cell); }, [&]() { return Flag(B.PC->IsDeclaringFacing()); }, false });
 	Rows.Add({ TEXT("scelta del verso (HandleFacingClick)"),
@@ -6195,6 +6202,84 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 	B.PC->SelectUnit(Ally, /*bRecordAsPlayerInput=*/ false);
 	TestFalse(TEXT("la selezione di un'unita' propria non e' fermata, e riporta la barra"), B.PC->IsPlanningWriteBlocked());
 	TestTrue(TEXT("e la selezione e' quella nuova"), B.PC->GetSelectedUnit() == Ally);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **`#3748` — la dichiarazione del piano (`Invio`, `Conferma`) resta viva con la barra in sola lettura, e il mondo in sola lettura la ferma ancora.**
+ *
+ * Decisione d'autore del 2026-10-31, che rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`: dichiarare che le mosse sono decise
+ * non scrive il piano — non aggiunge un waypoint, non arma, non sceglie un bersaglio —, e con la barra sul nemico il giocatore deve poterlo fare per
+ * la SUA unita' selezionata. Il rifiuto resta solo per il mondo in sola lettura ([D-468]): playback, finestra di reazione, modale.
+ *
+ * Tre parti, e la prima e' il controllo positivo delle altre due: (1) senza fissazione `ToggleTurnPlanDeclared` dichiara e una seconda chiamata
+ * ritratta; (2) con il nemico fissato — barra in sola lettura, `IsPlanningWriteBlocked` vero — fa lo stesso sulla stessa unita', e non tocca ne' la
+ * fissazione ne' il nemico; (3) con il MONDO in sola lettura (playback, e la barra ancora sul nemico) il rifiuto c'e' ancora e dice la causa del
+ * mondo. La (3) e' la meta' che impedisce di «sbloccare» la dichiarazione togliendo la guardia del mondo insieme a quella della barra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeclaringThePlanStaysAliveWhileBarReadOnlyTest,
+	"RefactorTactics.PlayerInput.DeclaringThePlanStaysAliveWhileTheBarIsReadOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeclaringThePlanStaysAliveWhileBarReadOnlyTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy)
+		|| !TestFalse(TEXT("premessa: l'unita' propria parte senza dichiarazione"), B.Mine->bTurnPlanDeclared)
+		|| !TestFalse(TEXT("premessa: il nemico parte senza dichiarazione"), Enemy->bTurnPlanDeclared)
+		|| !TestTrue(TEXT("premessa: la selezione e' l'unita' propria"), B.PC->GetSelectedUnit() == B.Mine))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// --- (1) CONTROLLO POSITIVO: nessuna fissazione ---------------------------------------------------------------------------------
+	TestFalse(TEXT("(1) premessa: senza fissazione la barra non e' in sola lettura"), B.PC->IsDockReadOnly());
+	TestTrue(TEXT("(1) senza fissazione Invio dichiara"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestTrue(TEXT("(1) e la dichiarazione e' sull'unita' propria"), B.Mine->bTurnPlanDeclared);
+	TestTrue(TEXT("(1) una seconda chiamata ritratta"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestFalse(TEXT("(1) e la dichiarazione non c'e' piu'"), B.Mine->bTurnPlanDeclared);
+
+	// --- (2) IL NEMICO FISSATO: la barra e' in sola lettura, e la dichiarazione passa ------------------------------------------------
+	B.PC->PinInspectionForTest(Enemy);
+	if (!TestTrue(TEXT("(2) premessa: la barra e' in sola lettura sul nemico, gli altri gesti del piano sono fermati e il mondo non e' in sola lettura"),
+		B.PC->IsDockReadOnly() && B.PC->IsPlanningWriteBlocked() && !B.PC->IsWorldReadOnly() && B.PC->GetDockUnit() == Enemy))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestTrue(TEXT("(2) la selezione e' ancora l'unita' propria"), B.PC->GetSelectedUnit() == B.Mine);
+	TestTrue(TEXT("(2) con la barra in sola lettura Invio dichiara"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestTrue(TEXT("(2) e la dichiarazione e' sull'unita' PROPRIA, la selezione"), B.Mine->bTurnPlanDeclared);
+	TestFalse(TEXT("(2) non su quella mostrata dalla barra"), Enemy->bTurnPlanDeclared);
+	TestTrue(TEXT("(2) la barra e' ancora sul nemico: dichiarare non chiude la fissazione"), B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == Enemy);
+	TestTrue(TEXT("(2) una seconda chiamata ritratta, sempre con la barra in sola lettura"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestFalse(TEXT("(2) e la dichiarazione non c'e' piu'"), B.Mine->bTurnPlanDeclared);
+	TestFalse(TEXT("(2) il nemico non l'ha mai avuta"), Enemy->bTurnPlanDeclared);
+
+	// --- (3) IL MONDO IN SOLA LETTURA: playback, con la barra ancora sul nemico ----------------------------------------------------
+	CommitFromTimeout(B);
+	if (!AssertInPlayback(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	B.PC->PinInspectionForTest(Enemy);
+	if (!TestTrue(TEXT("(3) premessa: valgono tutte e due le cause, il mondo e la barra"), B.PC->IsWorldReadOnly() && B.PC->IsDockReadOnly()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestFalse(TEXT("(3) premessa: l'unita' propria non ha una dichiarazione da difendere"), B.Mine->bTurnPlanDeclared);
+	// La riga di rifiuto e' quella di [D-468], e UNA: la causa del mondo, non quella della barra.
+	AddExpectedMessagePlain(CausaPlayback, ELogVerbosity::Display, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+	TestFalse(TEXT("(3) con il mondo in sola lettura Invio rifiuta, anche con la barra sul nemico"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestFalse(TEXT("(3) e non dichiara il piano dell'unita' propria"), B.Mine->bTurnPlanDeclared);
+	TestFalse(TEXT("(3) ne' quello del nemico"), Enemy->bTurnPlanDeclared);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
@@ -6555,21 +6640,24 @@ bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
 }
 
 /**
- * **`#3748` — `Conferma` e' spento mentre la BARRA e' in sola lettura: un pulsante acceso che il controller rifiuta non e' un pulsante.**
+ * **`#3748` — `Conferma` resta ACCESA mentre la BARRA e' in sola lettura: dichiarare il piano non lo scrive.**
  *
- * Con la barra sul nemico il piano non si scrive (Task 3), e `TogglePlanDeclaration` e' un gesto di scrittura del piano: il pulsante acceso
- * accetterebbe un click che il controller rifiuta, senza dire niente a chi lo preme. `Annulla` resta com'e' — e' il Back, e chiude la scheda.
- * Il discrimine e' `IsDockReadOnly()` della BASE del widget (quella col cancello `Live`), non la causa del MONDO in sola lettura: durante il
- * playback il pulsante non cambia in questo giro.
+ * Decisione d'autore del 2026-10-31 (rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`, e sostituisce il test
+ * `ConfirmIsDisabledWhileTheBarIsReadOnly`, che provava il contrario): con la barra sul nemico il giocatore deve poter dichiarare il piano
+ * della SUA unita' selezionata, e il controller lo lascia passare (`DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`). Un pulsante spento
+ * qui nascondeva un gesto che funziona. `Annulla` non cambia in nessuna delle tre letture — e' il Back, e chiude la scheda.
  *
- * ⚠️ **Il controllo positivo e' la prima e la terza lettura**: l'unita' propria selezionata, nessuna fissazione, `Conferma` acceso. Senza, «spento»
- * sarebbe vero anche per un pulsante che non si accende mai. La terza lettura (chiusa la fissazione col Back) dice che lo spegnimento e' della sola
- * lettura e non uno stato che resta.
+ * Il pulsante e la sua resa sono UNA condizione («accesa» e «abilitata» non si separano): abilitazione, testo, cornice, spunta e verbo si
+ * leggono insieme, nelle tre letture — prima della fissazione, con il nemico fissato, dopo `ApplyBack`. Con la barra in sola lettura il
+ * piano dichiarato cambia il verbo in «Ritira», e un click sul pulsante (`Confirm`) arriva fino alla dichiarazione dell'unita' propria.
+ *
+ * ⚠️ **Il controllo positivo e' la prima lettura**, e vale la resa intera: senza di lei «accesa con la barra in sola lettura» sarebbe vero anche per
+ * un widget che su questo banco non ha mai la resa dell'accesa. Lo spegnimento (senza unita' comandata) lo prova `PlanCommitLookFollowsTheBoard`.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTConfirmDisabledWhileBarReadOnlyTest,
-	"RefactorTactics.ScreenHud.ConfirmIsDisabledWhileTheBarIsReadOnly",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTConfirmStaysEnabledWhileBarReadOnlyTest,
+	"RefactorTactics.ScreenHud.ConfirmStaysEnabledWhileTheBarIsReadOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTConfirmDisabledWhileBarReadOnlyTest::RunTest(const FString&)
+bool FRTConfirmStaysEnabledWhileBarReadOnlyTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
@@ -6585,17 +6673,44 @@ bool FRTConfirmDisabledWhileBarReadOnlyTest::RunTest(const FString&)
 	W->SetSelectedUnitForTest(B.Mine);
 	W->ConfirmButton = NewObject<UButton>(W);
 	W->UndoButton = NewObject<UButton>(W);
+	// La resa: verbo, spunta e cornice. La cornice ha il pennello arrotondato, o `RTPaintFrame` non scriverebbe il contorno (come in `PlanCommitLookFollowsTheBoard`).
+	W->ConfirmText = NewObject<UTextBlock>(W);
+	W->ConfirmIcon = NewObject<UTextBlock>(W);
+	W->ConfirmFrame = NewObject<UBorder>(W);
+	FSlateBrush Rounded = W->ConfirmFrame->Background;
+	Rounded.DrawAs = ESlateBrushDrawType::RoundedBox;
+	W->ConfirmFrame->SetBrush(Rounded);
+
+	const auto Token = [](ERTUIToken T) { return URTUIPalette::ColorFor(T); };
+	// Legge TUTTA la resa di `Conferma` e dice se e' quella dell'ACCESA: abilitazione, verbo, colore del verbo, fondo, contorno e spunta insieme.
+	// `&=` e non `&&`: ogni lettura si misura e si dice, anche dopo una che e' fallita.
+	const auto ReadsAsLit = [&](const TCHAR* Where, const TCHAR* Verb) -> bool
+	{
+		bool bOk = true;
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: `Conferma` e' abilitata"), Where), W->ConfirmButton->GetIsEnabled());
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: il testo dice `%s`, e e' `%s`"), Where, Verb, *W->ConfirmText->GetText().ToString()),
+			W->ConfirmText->GetText().ToString().Contains(Verb, ESearchCase::CaseSensitive));
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: il verbo e' White"), Where),
+			W->ConfirmText->GetColorAndOpacity().GetSpecifiedColor().Equals(Token(ERTUIToken::White)));
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: il fondo della cornice e' BG_ProfileActive"), Where),
+			W->ConfirmFrame->GetBrushColor().Equals(Token(ERTUIToken::BG_ProfileActive)));
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: il contorno e' Cyan"), Where),
+			W->ConfirmFrame->Background.OutlineSettings.Color.GetSpecifiedColor().Equals(Token(ERTUIToken::Cyan)));
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: la spunta e' Cyan"), Where),
+			W->ConfirmIcon->GetColorAndOpacity().GetSpecifiedColor().Equals(Token(ERTUIToken::Cyan)));
+		bOk &= TestTrue(*FString::Printf(TEXT("%s: `Annulla` e' accesa"), Where), W->UndoButton->GetIsEnabled());
+		return bOk;
+	};
 
 	// --- (1) CONTROLLO POSITIVO: l'unita' propria selezionata, nessuna fissazione ------------------------------------------------
 	W->RefreshButtons();
-	if (!TestTrue(TEXT("(1) controllo positivo: con l'unita' propria e nessuna fissazione `Conferma` e' accesa"), W->ConfirmButton->GetIsEnabled()))
+	if (!ReadsAsLit(TEXT("(1) controllo positivo, nessuna fissazione"), TEXT("Conferma")))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
-	TestTrue(TEXT("(1) `Annulla` e' accesa"), W->UndoButton->GetIsEnabled());
 
-	// --- (2) FISSATO il nemico: la barra e' in sola lettura ---------------------------------------------------------------------
+	// --- (2) FISSATO il nemico: la barra e' in sola lettura, e `Conferma` e' accesa lo stesso -------------------------------------
 	B.PC->PinInspectionForTest(Enemy);
 	if (!TestTrue(TEXT("(2) premessa: il controller e il widget dicono sola lettura sul nemico, e un'unita' propria e' ancora selezionata"),
 		B.PC->IsDockReadOnly() && W->IsDockReadOnlyForTest() && W->GetDockUnitForTest() == Enemy && W->HasCommandedUnit()))
@@ -6604,10 +6719,20 @@ bool FRTConfirmDisabledWhileBarReadOnlyTest::RunTest(const FString&)
 		return false;
 	}
 	W->RefreshButtons();
-	TestFalse(TEXT("(2) con la barra in sola lettura `Conferma` e' spenta, anche se c'e' un'unita' propria selezionata"), W->ConfirmButton->GetIsEnabled());
-	TestTrue(TEXT("(2) `Annulla` resta accesa: e' il Back, e chiude la scheda"), W->UndoButton->GetIsEnabled());
+	ReadsAsLit(TEXT("(2) barra in sola lettura"), TEXT("Conferma"));
 
-	// --- (3) CHIUSA la fissazione col Back: `Conferma` torna accesa ---------------------------------------------------------------
+	// Il click arriva fino al controller, che dichiara il piano dell'unita' PROPRIA; il verbo diventa «Ritira», e un secondo click ritratta.
+	W->Confirm();
+	TestTrue(TEXT("(2) il click su `Conferma` dichiara il piano dell'unita' propria"), B.Mine->bTurnPlanDeclared);
+	TestFalse(TEXT("(2) e non quello del nemico mostrato dalla barra"), Enemy->bTurnPlanDeclared);
+	W->RefreshButtons();
+	ReadsAsLit(TEXT("(2) piano dichiarato, barra in sola lettura"), TEXT("Ritira"));
+	W->Confirm();
+	TestFalse(TEXT("(2) un secondo click ritratta"), B.Mine->bTurnPlanDeclared);
+	W->RefreshButtons();
+	ReadsAsLit(TEXT("(2) piano ritrattato, barra in sola lettura"), TEXT("Conferma"));
+
+	// --- (3) CHIUSA la fissazione col Back: la resa e' la stessa, non uno stato che resta ------------------------------------------
 	TestTrue(TEXT("(3) premessa: il tasto destro smonta la scheda"), B.PC->ApplyBack() == ERTPointerBackStep::Inspector);
 	if (!TestFalse(TEXT("(3) premessa: la barra non e' piu' in sola lettura"), B.PC->IsDockReadOnly() || W->IsDockReadOnlyForTest()))
 	{
@@ -6615,8 +6740,7 @@ bool FRTConfirmDisabledWhileBarReadOnlyTest::RunTest(const FString&)
 		return false;
 	}
 	W->RefreshButtons();
-	TestTrue(TEXT("(3) chiusa la fissazione `Conferma` e' di nuovo accesa"), W->ConfirmButton->GetIsEnabled());
-	TestTrue(TEXT("(3) `Annulla` e' accesa"), W->UndoButton->GetIsEnabled());
+	ReadsAsLit(TEXT("(3) dopo il Back"), TEXT("Conferma"));
 
 	DestroyHexMatchWorld(B.World);
 	return true;

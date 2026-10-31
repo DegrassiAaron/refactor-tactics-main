@@ -1565,10 +1565,14 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `N` la saltava.
 	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
 	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
-	// ➕ `#3748`: lo stesso rifiuto vale con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`), e la riga dice quale delle due cause.
-	if (IsPlanningWriteBlocked())
+	// 🔴 **`#3748` (decisione d'autore del 2026-10-31): qui NON `IsPlanningWriteBlocked()`, e non e' una dimenticanza.** Dichiarare che le mosse sono
+	// decise non scrive il piano — nessun waypoint, nessun armo, nessun bersaglio —, e con la barra su un nemico il giocatore deve poterlo fare per la
+	// SUA unita' selezionata: la dichiarazione e' di `GetSelectedUnit()`, e la barra non la sposta. Rovescia il ruling R10 del piano
+	// `2026-10-30-barra-in-sola-lettura` (la barra in sola lettura fermava anche `Invio` e `Conferma`). Il rifiuto resta SOLO per il mondo in sola lettura
+	// ([D-468]), con la causa del mondo. ⛔ Rimetterci `IsPlanningWriteBlocked()` fa cadere `DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`.
+	if (IsWorldReadOnly())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
 		return false;
 	}
 

@@ -1466,7 +1466,8 @@ public:
 
 	/**
 	 * 🔴 **La porta del pulsante `Conferma`: dichiara o ritratta il piano dell'unita' selezionata** ([D-458]).
-	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione.
+	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione. ➕ `#3748`: la barra in sola lettura NON la
+	 * ferma (vedi `IsPlanningWriteBlocked`), il mondo in sola lettura si'.
 	 * ⛔ Non e' il `LockIn` di `Spazio`, che chiude il turno per tutti.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
@@ -1504,9 +1505,15 @@ public:
 	 * un'unita' che non si comanda (`IsDockReadOnly`). E' la domanda che fanno i punti che SCRIVONO il piano, e solo loro.
 	 *
 	 * 🔑 **E' l'UNICA porta del rifiuto, ed e' qui e non nello slot ne' nella scheda**: tasti numerici, generiche (`Z G B C X`), slot del dock
-	 * (`ArmKitAbility`), click sulla mappa e su un'unita', `Sneak`, `Invio` e i tre punti del verso passano tutti da un sito che la chiede. Il
+	 * (`ArmKitAbility`), click sulla mappa e su un'unita', `Sneak` e i tre punti del verso passano tutti da un sito che la chiede. Il
 	 * piano e' di `GetSelectedUnit()` — l'unita' che si comanda — e con la barra su un nemico scriverlo vorrebbe dire dare un ordine a un'unita'
 	 * che lo schermo non sta mostrando. Il rimedio e' sempre lo stesso: il tasto destro chiude la scheda, selezionare un'unita' propria riporta la barra.
+	 *
+	 * ⛔ **`Invio` e il pulsante `Conferma` (`ToggleTurnPlanDeclared`) NON la chiedono, ed e' una decisione d'autore (2026-10-31), non una svista**:
+	 * dichiarare che le mosse sono decise non scrive il piano — nessun waypoint, nessun armo, nessun bersaglio —, e con la barra su un nemico il
+	 * giocatore deve poterlo fare per la SUA unita' selezionata. Quel sito guarda solo `IsWorldReadOnly()` (playback, finestra di reazione, modale),
+	 * come prima di `#3748`. Rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`; lo fissa
+	 * `PlayerInput.DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`. Chi aggiunge un gesto: scrive il piano? allora chiede questa funzione; dichiara e basta? no.
 	 *
 	 * ⛔ **Non e' `IsWorldReadOnly()` con un'altra causa, e non va usata dove si legge e basta**: la telemetria di ritmo di `OnSelect`, la
 	 * selezione (`SelectUnit`), l'ispezione (`DispatchUnitClick`) e il Back (`ApplyBack`) restano vivi con la barra in sola lettura, perche' non
