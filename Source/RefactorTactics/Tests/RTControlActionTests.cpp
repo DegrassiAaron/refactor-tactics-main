@@ -807,12 +807,30 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	Attacker->PlannedAttackTarget = Victim;
 	Attacker->PlannedCell = Attacker->Cell;
 
+	// 🔴 **L'attacco base dell'eroe non dichiara un cooldown**, e senza questa riga il cooldown non e'
+	// OSSERVABILE: fino a `D-414` l'asserto qui sotto diceva «non e' scattato» e passava per assenza di
+	// misura, non per la regola — era verde anche con un'azione interrotta che pagava. Lo specchio legacy
+	// e' quello che `ConsumeAbility` legge (vedi `UseControlAbilityInSlot0`).
+	URTActionData* AttaccoBase = Attacker->Abilities[0];
+	AttaccoBase->CooldownTurns = MinCooldownTurns;
+	if (!TestTrue(TEXT("premessa: il cooldown dell'attacco base e' osservabile e non ancora pagato"),
+		AttaccoBase->CooldownTurns > 0 && Attacker->GetAbilityCooldown(0) == 0))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
 	RunControlTurn(TM);
 
 	TestEqual(TEXT("l'attacco interrotto non fa danno"), Victim->Health, HealthBefore);
 
-	// L'abilita' interrotta NON si consuma: e' come se non fosse mai partita, non come se avesse fallito.
-	TestFalse(TEXT("il cooldown dell'attacco base non e' scattato"), Attacker->GetAbilityCooldown(0) > 0);
+	// 🔴 **L'abilita' interrotta PAGA** ([D-414], `#3134`, che supera [D-200] sul caso «azione interrotta»):
+	// e' stata dichiarata e il suo piano era valido, e il fatto che un avversario l'abbia annullata e' un
+	// esito, non un'azione mai partita. Fino al 2026-10-31 questa riga asseriva l'opposto — «non e'
+	// scattato» — ed e' la regola che D-414 sostituisce.
+	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"), Attacker->GetAbilityCooldown(0)));
+	TestTrue(TEXT("il cooldown dell'attacco base annullato da un Interrupt e' scattato"),
+		Attacker->GetAbilityCooldown(0) > 0);
 
 	// 🔴 **E l'interruzione esiste nel record autoritativo** ([D-196], `#1412` punto 4). Fino al 2026-08-26
 	// viveva SOLO nel combat log: il piano dell'attaccante spariva dal turno e nessuna traccia diceva
@@ -1044,6 +1062,411 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 	// che sopravvive all'Interrupt — sta in `Actions.Charge.ImpactSurvivesInterrupt`.
 
 	DestroyControlWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Che cosa pianifica chi SUBISCE l'interruzione. */
+	enum class EMiraInterrotta : uint8
+	{
+		UnitaInPortata,     //< l'attacco base su `Victim`, a una cella: produce un colpo
+		UnitaFuoriPortata,  //< `Victim` oltre la portata: `ValidateInstance` risponde `OutOfRange`, l'intento non nasce
+		CellaFuoriPortata,  //< una CELLA oltre la portata: l'intento nasce valido, la geometria non produce un colpo
+	};
+
+	struct FInterrottaCase
+	{
+		const TCHAR* Nome;
+		EMiraInterrotta Mira;
+		bool bInterrompe;           //< un Interrupt efficace coglie chi agisce
+		bool bSuppressSecondary;    //< l'azione di chi agisce dichiara `SuppressSecondary` invece del default
+		bool bAzioneCancellata;     //< premessa: il TurnLog porta la voce `Interrupted`
+		bool bColpoArriva;          //< premessa: la vittima incassa danno
+		bool bDevePagare;
+		const TCHAR* Perche;
+	};
+
+	struct FEsitoInterrotta
+	{
+		bool bValido = false;
+		int32 Cooldown = 0;           //< `GetAbilityCooldown(0)` di chi agisce a turno finito
+		int32 DannoAllaVittima = 0;
+		int32 VociInterrotte = 0;
+	};
+
+	/** Gira UN turno della riga e ne riporta cio' che le asserzioni leggono. */
+	FEsitoInterrotta GiraAzioneInterrotta(FAutomationTestBase& Test, const FInterrottaCase& C)
+	{
+		FEsitoInterrotta Esito;
+		UWorld* World = MakeControlWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return Esito; }
+		SpawnControlMap(World, 6);
+
+		// ⚠️ La vittima sta a UNA cella da chi agisce (dentro la portata dell'attacco base, che e' 4) tranne
+		// nella riga «fuori portata», dove sta a cinque. `Action.Interrupt` ha portata 1 e coglie chi agisce
+		// da `(3,0)`.
+		const FRTCellId CellaVittima = C.Mira == EMiraInterrotta::UnitaFuoriPortata
+			? FRTCellId(-1, 0) : FRTCellId(5, 0);
+		ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+		ARTUnit* Agente = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+		ARTUnit* Victim = SpawnControlUnit(World, 0, CellaVittima);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: interruttore"), C.Nome), Interrupter)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: agente"), C.Nome), Agente)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: vittima"), C.Nome), Victim)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), C.Nome), TM))
+		{
+			DestroyControlWorld(World);
+			return Esito;
+		}
+
+		if (C.bInterrompe)
+		{
+			const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+			Interrupter->PlannedAbilityIndex = InterruptIdx;
+			Interrupter->PlannedAttackTarget = Agente;
+			Interrupter->PlannedCell = Interrupter->Cell;
+		}
+
+		// Il cooldown dell'attacco base va reso OSSERVABILE: l'eroe non ne dichiara uno (vedi
+		// `UseControlAbilityInSlot0`), e senza questa riga ogni asserto «non paga» sarebbe verde per assenza.
+		URTActionData* Attacco = Agente->Abilities[0];
+		Attacco->CooldownTurns = MinCooldownTurns;
+		if (C.bSuppressSecondary)
+		{
+			Attacco->Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+		}
+
+		Agente->PlannedAbilityIndex = 0;
+		Agente->PlannedCell = Agente->Cell;
+		if (C.Mira == EMiraInterrotta::CellaFuoriPortata)
+		{
+			Agente->DeclareAttackOnCell(FRTCellId(-1, 0)); // a cinque celle: oltre la portata di quattro
+		}
+		else
+		{
+			Agente->DeclareAttackOnUnit(Victim);
+		}
+
+		const int32 SaluteVittima = Victim->Health;
+		RunControlTurn(TM);
+
+		Esito.Cooldown = Agente->GetAbilityCooldown(0);
+		Esito.DannoAllaVittima = SaluteVittima - Victim->Health;
+		Esito.VociInterrotte = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num();
+		Esito.bValido = true;
+
+		DestroyControlWorld(World);
+		return Esito;
+	}
+}
+
+/**
+ * **Un'azione annullata da `Action.Interrupt` PAGA il cooldown, e solo se era partita** ([D-414], `#3134`).
+ *
+ * [D-414] supera [D-200] sul caso «azione interrotta»: prima l'azione annullata era gratuita («e' come se
+ * non fosse mai partita»), ora e' un esito e un esito si paga. La **sede** della scrittura non cambia:
+ * `ApplyInterrupts` annota con `MarkAbilitySpent` e a pagare e' `SpendStartedAbilities` ([D-209]).
+ *
+ * ⚠️ **A tabella perche' la regola ha tre confini, e ognuno ha la sua riga**:
+ *
+ * - **annullata** (non degradata): paga;
+ * - **degradata** (`SuppressSecondary`): l'azione E' avvenuta, monca, e paga UNA volta — la stessa del
+ *   riferimento non interrotto, perche' il pagamento e' quello dei sopravvissuti e `ApplyInterrupts` non
+ *   deve aggiungerne un secondo;
+ * - **mai partita** (fuori portata): NON paga, con o senza Interrupt. E' il caso in cui [D-200] e [D-414]
+ *   COINCIDONO — «un piano fuori portata non diventa un piano valido definitivo» — e va reso esplicito.
+ *
+ * 🔴 **La riga a CELLA fuori portata e' quella che distingue «ogni intento cancellato paga» da «paga
+ * l'intento che aveva un colpo»**: l'intento nasce valido (una cella e' un bersaglio legittimo), l'Interrupt
+ * lo coglie e il TurnLog porta la voce `Interrupted`, ma la geometria non ha prodotto nessun colpo — quindi
+ * non e' partita, e senza il criterio del colpo pagherebbe. Il bersaglio-unita' fuori portata, invece, non
+ * raggiunge nemmeno l'insieme degli interrotti: l'intento non nasce (`ValidateInstance` → `OutOfRange`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedActionPaysIfItStartedTest,
+	"RefactorTactics.Actions.Interrupt.InterruptedActionPaysIfItStarted",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedActionPaysIfItStartedTest::RunTest(const FString&)
+{
+	const FInterrottaCase Casi[] = {
+		{ TEXT("annullata da un Interrupt"), EMiraInterrotta::UnitaInPortata, true, false,
+		  true, false, true,
+		  TEXT("[D-414]: l'azione dichiarata e valida paga anche se un avversario la annulla") },
+		{ TEXT("degradata (SuppressSecondary)"), EMiraInterrotta::UnitaInPortata, true, true,
+		  false, true, true,
+		  TEXT("[D-300]: il colpo resta, l'azione e' avvenuta, e paga") },
+		{ TEXT("riferimento non interrotto (SuppressSecondary)"), EMiraInterrotta::UnitaInPortata, false, true,
+		  false, true, true,
+		  TEXT("controllo positivo: chi colpisce paga, e fissa il valore che il degradato deve eguagliare") },
+		{ TEXT("riferimento non interrotto"), EMiraInterrotta::UnitaInPortata, false, false,
+		  false, true, true,
+		  TEXT("controllo positivo: senza Interrupt l'attacco base paga") },
+		{ TEXT("bersaglio fuori portata, nessun Interrupt"), EMiraInterrotta::UnitaFuoriPortata, false, false,
+		  false, false, false,
+		  TEXT("[D-200] e [D-414] COINCIDONO: un piano fuori portata non diventa un piano valido definitivo") },
+		{ TEXT("bersaglio fuori portata, con Interrupt"), EMiraInterrotta::UnitaFuoriPortata, true, false,
+		  false, false, false,
+		  TEXT("l'intento non nasce affatto: non c'e' niente da annullare, e niente da pagare") },
+		{ TEXT("cella fuori portata, annullata da un Interrupt"), EMiraInterrotta::CellaFuoriPortata, true, false,
+		  true, false, false,
+		  TEXT("l'intento e' stato cancellato ma non aveva un colpo: non era partita, quindi non paga") },
+		{ TEXT("cella fuori portata, nessun Interrupt"), EMiraInterrotta::CellaFuoriPortata, false, false,
+		  false, false, false,
+		  TEXT("controllo: senza l'Interrupt la stessa azione non paga, e l'Interrupt non deve cambiarlo") },
+	};
+
+	TArray<FEsitoInterrotta> Esiti;
+	for (const FInterrottaCase& C : Casi)
+	{
+		const FEsitoInterrotta Esito = GiraAzioneInterrotta(*this, C);
+		Esiti.Add(Esito);
+		if (!Esito.bValido) { return false; }
+
+		AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d, danno %d, voci Interrupted %d"),
+			C.Nome, Esito.Cooldown, Esito.DannoAllaVittima, Esito.VociInterrotte));
+
+		// Le premesse della riga: senza di esse il verde potrebbe misurare uno scenario diverso da quello dichiarato.
+		TestEqual(*FString::Printf(TEXT("%s: premessa: azione cancellata?"), C.Nome),
+			Esito.VociInterrotte, C.bAzioneCancellata ? 1 : 0);
+		TestEqual(*FString::Printf(TEXT("%s: premessa: il colpo arriva?"), C.Nome),
+			Esito.DannoAllaVittima > 0, C.bColpoArriva);
+
+		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.Perche), Esito.Cooldown > 0, C.bDevePagare);
+	}
+
+	// 🔴 **UNA volta sola**: il degradato eguaglia il riferimento non interrotto con la stessa policy. I due
+	// pagamenti possibili scrivono lo stesso numero, quindi il doppio addebito non cambierebbe il valore — ma
+	// un `ApplyInterrupts` che spostasse la scrittura o la rifacesse con un'altra durata si vedrebbe qui.
+	TestEqual(TEXT("l'azione degradata paga come quella non interrotta, non di piu'"),
+		Esiti[1].Cooldown, Esiti[2].Cooldown);
+
+	return true;
+}
+
+/**
+ * **Chi e' stato interrotto paga se era VIVO quando l'Interrupt lo ha annotato, anche se cade nella stessa fase**
+ * ([D-414], [D-209]).
+ *
+ * E' lo stesso confine dell'Interrupter: `ApplyInterrupts` gira PRIMA del danno, quindi `IsAlive()` vuol dire
+ * «vivo quando annota». Un attaccante che colpisce e cade non paga (per lui «spesa» e' *sopravvissuto alla
+ * fase*, `MarkAttackerAbilitiesSpent`), ma un attaccante la cui azione e' stata ANNULLATA non e' arrivato a
+ * colpire: per lui il criterio dei sopravvissuti non esiste, e il pagamento e' quello dell'annotazione.
+ *
+ * L'attaccante interrotto cade nello stesso Blast per mano di un terzo; si legge da distrutto, come le righe
+ * di `PlannedActionPaysOnlyIfItStarted`: `DestroyDefeatedUnits` gira in `ConcludeTurn`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedActionPaysEvenIfItFallsTest,
+	"RefactorTactics.Actions.Interrupt.InterruptedActionPaysEvenIfItFalls",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedActionPaysEvenIfItFallsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* Agente = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
+	ARTUnit* Carnefice = SpawnControlUnit(World, 0, FRTCellId(4, -1)); // adiacente a `Agente`, non all'Interrupt
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("interruttore"), Interrupter) || !TestNotNull(TEXT("agente"), Agente)
+		|| !TestNotNull(TEXT("vittima"), Victim) || !TestNotNull(TEXT("carnefice"), Carnefice)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+	Interrupter->PlannedAbilityIndex = InterruptIdx;
+	Interrupter->PlannedAttackTarget = Agente;
+	Interrupter->PlannedCell = Interrupter->Cell;
+
+	Agente->Abilities[0]->CooldownTurns = MinCooldownTurns;
+	Agente->PlannedAbilityIndex = 0;
+	Agente->DeclareAttackOnUnit(Victim);
+	Agente->PlannedCell = Agente->Cell;
+	Agente->Health = 1;
+
+	Carnefice->PlannedAbilityIndex = 0;
+	Carnefice->DeclareAttackOnUnit(Agente);
+	Carnefice->PlannedCell = Carnefice->Cell;
+
+	const int32 SaluteVittima = Victim->Health;
+	const TWeakObjectPtr<ARTUnit> AgenteDebole(Agente);
+	RunControlTurn(TM);
+
+	// Il cadavere si legge da distrutto: `IsValid()` risponde falso ma l'oggetto e' `PendingKill`, non raccolto.
+	ARTUnit* AgenteDopo = AgenteDebole.Get(/*bEvenIfPendingKill*/ true);
+	if (!TestNotNull(TEXT("l'agente e' ancora leggibile"), AgenteDopo))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	TestFalse(TEXT("premessa: l'agente e' caduto nello stesso Blast"), AgenteDopo->IsAlive());
+	TestEqual(TEXT("premessa: la sua azione e' stata annullata, la vittima non incassa"),
+		Victim->Health, SaluteVittima);
+
+	AddInfo(FString::Printf(TEXT("cooldown residuo dell'agente caduto: %d"), AgenteDopo->GetAbilityCooldown(0)));
+	TestTrue(TEXT("[D-209]: era vivo quando l'Interrupt lo ha annotato, e paga anche se cade piu' tardi"),
+		AgenteDopo->GetAbilityCooldown(0) > 0);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Anche un Interrupt annullato a sua volta paga** ([D-414]).
+ *
+ * Nella catena A→B→C→V l'Interrupt di A cancella quello di B, che quindi non cancella l'azione di C. Fino a
+ * `D-414` `ApplyInterrupts` lo escludeva dal pagamento («annullato a sua volta: non paga»); ora e' un'azione
+ * annullata come tutte le altre. Il suo colpo c'e' stato (`Hit(B→C)`) prima del filtro, quindi vale il
+ * criterio del colpo che regge le altre azioni interrotte.
+ *
+ * ⚠️ **Non e' il ciclo**: in due Interrupt reciproci nessuno dei due e' annullato e pagano per la regola di
+ * `#1449` (`MutualInterruptsNeutralise`). Qui B e' davvero in `InterruptedIntents`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCancelledInterrupterPaysTooTest,
+	"RefactorTactics.Actions.Interrupt.CancelledInterrupterPaysToo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCancelledInterrupterPaysTooTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// Stessa catena di `ChainDoesNotDependOnSpawnOrder`, nel verso «dritto»: A interrompe B, B interrompe C,
+	// C attacca V. I team alternano perche' ogni anello punta a un nemico.
+	ARTUnit* A = SpawnControlUnit(World, 0, FRTCellId(1, 0));
+	ARTUnit* B = SpawnControlUnit(World, 1, FRTCellId(2, 0));
+	ARTUnit* C = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* V = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("C"), C)
+		|| !TestNotNull(TEXT("V"), V) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	// L'Interrupt nello SLOT 0, o il cooldown non e' osservabile (vedi `UseControlAbilityInSlot0`).
+	const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
+	A->PlannedAbilityIndex = IdxA;
+	A->PlannedAttackTarget = B;
+	A->PlannedCell = A->Cell;
+
+	const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
+	B->PlannedAbilityIndex = IdxB;
+	B->PlannedAttackTarget = C;
+	B->PlannedCell = B->Cell;
+
+	C->Abilities[0]->CooldownTurns = MinCooldownTurns;
+	C->PlannedAbilityIndex = 0;
+	C->PlannedAttackTarget = V;
+	C->PlannedCell = C->Cell;
+
+	const int32 SaluteV = V->Health;
+	RunControlTurn(TM);
+
+	// Le premesse: la catena si e' risolta come dichiara — l'Interrupt di B e' caduto, quindi C colpisce.
+	TestTrue(TEXT("premessa: l'azione di C non e' stata interrotta e colpisce V"), V->Health < SaluteV);
+
+	AddInfo(FString::Printf(TEXT("cooldown: A=%d B=%d C=%d"),
+		A->GetAbilityCooldown(IdxA), B->GetAbilityCooldown(IdxB), C->GetAbilityCooldown(0)));
+	TestTrue(TEXT("A ha speso l'Interrupt che ha cancellato B"), A->GetAbilityCooldown(IdxA) > 0);
+	TestTrue(TEXT("C ha colpito: paga come ogni attacco che arriva"), C->GetAbilityCooldown(0) > 0);
+	TestTrue(TEXT("[D-414]: l'Interrupt di B e' stato annullato da A, ed e' un'azione annullata che paga"),
+		B->GetAbilityCooldown(IdxB) > 0);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Un Interrupt mirato a una CELLA e annullato da un altro Interrupt paga, come pagherebbe senza di lui**
+ * ([D-414], `#1449`).
+ *
+ * Per un Interrupt la regola dell'azione NON interrotta non e' «ha un colpo» ma «ha un colpo, OPPURE e'
+ * mirato a una cella» (`MissedInterruptStillPays`): l'intento nasce valido e non c'e' nessuno da colpire.
+ * Il pagamento degli intenti annullati deve usare lo STESSO predicato, altrimenti l'Interrupt altrui rende
+ * gratuito cio' che senza di lui avrebbe pagato — l'inverso di [D-414].
+ *
+ * A (squadra 0) interrompe B; B (squadra 1) ha un Interrupt su una cella vuota adiacente, quindi senza
+ * colpo e senza archi in uscita: A lo cancella senza ostacoli. La riga di riferimento toglie A e fissa il
+ * valore che B deve eguagliare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCancelledCellAimedInterrupterPaysTest,
+	"RefactorTactics.Actions.Interrupt.CancelledCellAimedInterrupterPays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCancelledCellAimedInterrupterPaysTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Cooldown = 0; int32 VociInterrotte = 0; };
+
+	auto Gira = [this](bool bConA) -> FEsito
+	{
+		FEsito Esito;
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return Esito; }
+		SpawnControlMap(World, 6);
+
+		ARTUnit* A = SpawnControlUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* B = SpawnControlUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return Esito;
+		}
+
+		if (bConA)
+		{
+			const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
+			A->PlannedAbilityIndex = IdxA;
+			A->PlannedAttackTarget = B;
+			A->PlannedCell = A->Cell;
+		}
+
+		// L'Interrupt di B nello SLOT 0 (o il cooldown non e' osservabile), su una cella VUOTA adiacente.
+		const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
+		B->PlannedAbilityIndex = IdxB;
+		B->PlannedCell = B->Cell;
+		B->DeclareAttackOnCell(FRTCellId(3, 0));
+
+		RunControlTurn(TM);
+
+		Esito.Cooldown = B->GetAbilityCooldown(IdxB);
+		Esito.VociInterrotte = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num();
+		Esito.bValido = true;
+		DestroyControlWorld(World);
+		return Esito;
+	};
+
+	const FEsito Riferimento = Gira(/*bConA*/ false);
+	if (!Riferimento.bValido) { return false; }
+	const FEsito Annullato = Gira(/*bConA*/ true);
+	if (!Annullato.bValido) { return false; }
+
+	AddInfo(FString::Printf(TEXT("cooldown di B: senza A %d, con A %d; voci Interrupted: senza A %d, con A %d"),
+		Riferimento.Cooldown, Annullato.Cooldown, Riferimento.VociInterrotte, Annullato.VociInterrotte));
+
+	TestEqual(TEXT("premessa: senza A nessuno cancella B"), Riferimento.VociInterrotte, 0);
+	TestEqual(TEXT("premessa: con A l'Interrupt di B e' annullato"), Annullato.VociInterrotte, 1);
+	TestTrue(TEXT("controllo positivo: senza A l'Interrupt su cella vuota paga (#1449)"),
+		Riferimento.Cooldown > 0);
+	TestTrue(TEXT("[D-414]: annullato da A paga ancora: l'Interrupt altrui non lo rende gratuito"),
+		Annullato.Cooldown > 0);
+	TestEqual(TEXT("paga quanto pagherebbe senza A"), Annullato.Cooldown, Riferimento.Cooldown);
+
 	return true;
 }
 
@@ -1282,8 +1705,9 @@ bool FRTChargeStandingUnitStaysPutUntilTheBlastTest::RunTest(const FString&)
  * - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
  *   si scopre che B era a sua volta interrotto. ❌
  *
- * E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione per
- * un Interrupt annullato **e** gratuito.
+ * E da `#1449` c'era un secondo verso: B non pagava (e' cancellato), quindi C perdeva la propria azione per
+ * un Interrupt annullato **e** gratuito. ⌫ Da [D-414] l'Interrupt annullato paga comunque
+ * (`CancelledInterrupterPaysToo`): resta annullato, ma non e' piu' gratuito.
  *
  * ⚠️ **Il test costruisce la catena DUE volte, invertendo l'ordine di spawn**, ed e' l'unica forma che
  * cade sul difetto: una sola direzione sarebbe passata anche prima. `StableUnitId` si assegna per ordine
