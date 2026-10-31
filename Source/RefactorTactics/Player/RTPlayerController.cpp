@@ -3369,6 +3369,11 @@ void ARTPlayerController::EnsureTurnPresentationSubscriptions(ARTTurnManager* Tu
 	// arrivera' nessun altro commit: senza questa riga l'ultima riaccensione resterebbe a schermo per il
 	// resto della sessione.
 	TurnManager->OnMatchEnded.AddUniqueDynamic(this, &ARTPlayerController::HandleMatchEndedPresentation);
+
+	// ➕ **Il quarto non riguarda l'anteprima: fa cadere la fissazione dell'ispezione a ogni turno nuovo** (`#3748`, decisione d'autore del
+	// 2026-10-31). Sta nella stessa funzione perche' chi puo' avere una fissazione da far cadere — la selezione o `PinInspection` — passa gia'
+	// di qui, e un secondo punto di iscrizione sarebbe un secondo posto da cui dimenticarla.
+	TurnManager->OnTeamKnowledgeRefreshed.AddUniqueDynamic(this, &ARTPlayerController::HandleTeamKnowledgeRefreshed);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
@@ -5192,7 +5197,43 @@ void ARTPlayerController::PinInspection(ARTUnit* Unit)
 		// (`IsDockReadOnly`). Lo accendono entrambi i click di produzione — l'esito `Inspect` e il bersaglio della carica pianificata —
 		// perche' passano tutti di qui; lo spegne il primo `SelectUnit`.
 		bDockFollowsInspection = true;
+
+		// #3748, decisione d'autore del 2026-10-31: la fissazione e' di UN turno. Si stampiglia il turno di adesso — `HandleTeamKnowledgeRefreshed`
+		// la fa cadere al primo rinfresco che ne porta un altro — e ci si assicura di ascoltarlo.
+		//
+		// 🔴 **L'iscrizione sta QUI e non solo in `SelectUnit`**: un nemico si puo' fissare prima di aver selezionato qualcosa, e in quel caso il
+		// controller non ha mai incontrato `SelectUnit` — niente iscrizione, e la fissazione sopravviverebbe a ogni turno. `AddUniqueDynamic` rende
+		// innocua la ripetizione. Senza `TurnManager` nel livello non c'e' nemmeno un turno nuovo da attendere.
+		if (ARTTurnManager* TM = PacingTurnManager(this))
+		{
+			InspectionTurn = TM->GetTurnNumber();
+			EnsureTurnPresentationSubscriptions(TM);
+		}
 	}
+}
+
+void ARTPlayerController::ReleaseInspectionForNewTurn()
+{
+	// Lo stesso stato finale del passo `Inspector` del Back (soggetto e pin), piu' la fissazione della barra: vedi la dichiarazione.
+	// ⚠️ Selezione e azione armata non si toccano: l'ispezione convive con loro, e la barra torna alla selezione da sola
+	// (`GetDockUnit` risponde `GetSelectedUnit()` quando `IsDockReadOnly` e' falso).
+	InspectedUnit = nullptr;
+	bInspectorPinned = false;
+	bDockFollowsInspection = false;
+}
+
+void ARTPlayerController::HandleTeamKnowledgeRefreshed(int32 TurnNumber)
+{
+	// Lo stesso turno: un rinfresco dentro la risoluzione (Blast, Move), o un secondo dello stesso inizio di turno. La fissazione resta —
+	// l'ispezione durante il playback funziona (spec §3, regola 5) — e non c'e' niente da riconciliare.
+	if (TurnNumber == InspectionTurn)
+	{
+		return;
+	}
+	// Un turno diverso e' un turno nuovo di pianificazione: `ConcludeTurn` incrementa il numero e `StartPlanningTimer` rinfresca la conoscenza,
+	// su ogni percorso. Si registra il turno PRIMA di rilasciare: il rilascio scatta una volta sola per numero, non a ogni rinfresco che segue.
+	InspectionTurn = TurnNumber;
+	ReleaseInspectionForNewTurn();
 }
 
 bool ARTPlayerController::ReleaseInspectionUnlessLive(const FRTKnowledgeView& View)

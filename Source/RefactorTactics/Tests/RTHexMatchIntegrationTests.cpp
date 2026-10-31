@@ -6356,6 +6356,242 @@ bool FRTReasonNamesReadOnlyBarTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
+// `#3748` — LA FISSAZIONE CADE A OGNI TURNO NUOVO (decisione d'autore del 2026-10-31).
+//
+// Un nemico fissato (scheda e barra in sola lettura) che attraversa un turno lascia, all'apertura della pianificazione, una barra coi tasti spenti e
+// nessuna spiegazione: cio' che si sapeva del nemico puo' essere cambiato nella risoluzione. Cade quindi quando comincia un turno nuovo di
+// pianificazione, e non prima: l'ispezione durante il playback resta (spec §3, regola 5), e una fissazione fatta dopo l'inizio del turno nuovo resta.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Il banco della fissazione senza selezione: come `MakeLockInPreviewBench`, ma il controller NON seleziona niente e non ha un piano.
+	 *
+	 * 🔴 **Il banco di `#2390` e' cieco al buco dell'iscrizione**: seleziona l'unita' propria, e `SelectUnit` iscrive il controller al
+	 * turno nuovo. Un nemico fissato prima di ogni selezione non incontra mai `SelectUnit`, e la fissazione cadrebbe solo se l'iscrizione la
+	 * facesse `PinInspection`.
+	 */
+	bool MakeUnselectedPinBench(FAutomationTestBase& Test, FRTLockInPreviewBench& B)
+	{
+		B.World = MakeHexMatchWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), B.World)) { return false; }
+		B.World->InitializeActorsForPlay(FURL());
+		B.TM = MakeCountdownMatch(B.World);
+		if (!Test.TestNotNull(TEXT("turn manager"), B.TM)) { return false; }
+		B.HexMap = ARTHexMapActor::FindInWorld(B.World);
+		B.Mine = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 0);
+		B.PC = RTWorldFixtures::MakePlayerOnTeam(B.World, /*TeamId=*/ 0);
+		return Test.TestNotNull(TEXT("mappa esagonale"), B.HexMap)
+			&& Test.TestNotNull(TEXT("unita' del giocatore"), B.Mine)
+			&& Test.TestNotNull(TEXT("player controller"), B.PC);
+	}
+
+	/** Il controller ascolta il rinfresco della conoscenza che gli annuncia un turno nuovo? Col SOGGETTO nominato, come `OnLockInCommitted` in #2390. */
+	bool ListensForTheNewTurn(const FRTLockInPreviewBench& B)
+	{
+		return B.TM->OnTeamKnowledgeRefreshed.Contains(B.PC, FName(TEXT("HandleTeamKnowledgeRefreshed")));
+	}
+
+	/** La fissazione c'e' ancora: soggetto, pin, barra in sola lettura e barra sul nemico. Tutte, o una sola cosa non le terrebbe insieme. */
+	bool PinStandsOn(const FRTLockInPreviewBench& B, const ARTUnit* Enemy)
+	{
+		return B.PC->GetInspectedUnit() == Enemy && B.PC->IsInspectorPinned() && B.PC->IsDockReadOnly() && B.PC->GetDockUnit() == Enemy;
+	}
+
+	/** La fissazione e' caduta: nessun soggetto, nessun pin, barra non in sola lettura e di nuovo sulla selezione. */
+	bool PinHasFallen(const FRTLockInPreviewBench& B)
+	{
+		return B.PC->GetInspectedUnit() == nullptr && !B.PC->IsInspectorPinned() && !B.PC->IsDockReadOnly()
+			&& B.PC->GetDockUnit() == B.PC->GetSelectedUnit();
+	}
+}
+
+/**
+ * **`#3748` — la fissazione cade a ogni turno nuovo di pianificazione, e non prima.**
+ *
+ * Tre mondi, e ogni caso della meta' «resta» ((2), (3), (4)) e' il controllo positivo della meta' «cade» ((1), (5), (6), (7)):
+ *
+ * **Mondo 1 — con selezione, playback acceso.** (2) A META' TURNO un rinfresco della conoscenza con lo stesso numero di turno non la fa cadere
+ * (`RefreshTeamKnowledgeNow` ne produce uno). (3) DURANTE LA RISOLUZIONE resta: al commit, a playback in corso, e l'ispezione funziona (il tasto
+ * destro la chiude e il click di produzione la riapre). (1) A PLAYBACK FINITO, col turno nuovo, e' caduta: e la selezione e' la stessa. (4) Una
+ * fissazione fatta DOPO l'inizio del turno nuovo resta, anche dopo un rinfresco dello stesso turno. (7) La selezione e l'AZIONE ARMATA non si toccano.
+ * (8) Anche la fissazione della barra e' caduta: soggetto e pin ricostruiti a mano non la riaccendono.
+ *
+ * **Mondo 2 — NESSUNA selezione.** (5) Il nemico si fissa prima di ogni `SelectUnit`: il controller dev'essere comunque iscritto, e la fissazione cade.
+ *
+ * **Mondo 3 — senza playback.** (6) Il turno si conclude in linea dentro il commit, e `OnResolvePlaybackFinished` non scatta: la fissazione cade lo stesso.
+ *
+ * ⚠️ **L'azione armata si prova con un rinfresco iniettato** (la (7)): il Cleanup di un turno vero riporta ogni armamento al neutro, quindi attraverso un
+ * turno vero non resterebbe niente da confrontare. Il numero di turno iniettato e' quello che `ConcludeTurn` produrrebbe; cio' che il caso isola e' la
+ * reazione del controller, non il turno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTThePinFallsWhenANewPlanningTurnStartsTest,
+	"RefactorTactics.HexMatch.ThePinFallsWhenANewPlanningTurnStarts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTThePinFallsWhenANewPlanningTurnStartsTest::RunTest(const FString&)
+{
+	// ===== MONDO 1: con selezione, playback acceso =============================================================================
+	{
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+		ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+		if (!TestNotNull(TEXT("premessa: un nemico"), Enemy)
+			|| !TestTrue(TEXT("premessa: la selezione e' l'unita' propria"), B.PC->GetSelectedUnit() == B.Mine)
+			|| !TestTrue(TEXT("premessa: il controller ascolta il turno nuovo (la selezione lo ha iscritto)"), ListensForTheNewTurn(B)))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+		B.PC->PinInspectionForTest(Enemy);
+		if (!TestTrue(TEXT("premessa: il nemico e' fissato, la barra e' in sola lettura sul nemico"), PinStandsOn(B, Enemy)))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+
+		// (2) A META' TURNO: un rinfresco della conoscenza con lo STESSO numero di turno non fa cadere niente.
+		B.TM->RefreshTeamKnowledgeNow();
+		TestEqual(TEXT("(2) premessa: il rinfresco non ha aperto un turno"), B.TM->GetTurnNumber(), TurnoPrima);
+		TestTrue(TEXT("(2) a meta' turno la fissazione resta, anche dopo un rinfresco della conoscenza"), PinStandsOn(B, Enemy));
+
+		// (3) DURANTE LA RISOLUZIONE: il commit e il playback non la toccano.
+		CommitFromTimeout(B);
+		if (!AssertInPlayback(*this, B))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		TestTrue(TEXT("(3) al commit, a playback in corso, la fissazione resta (il rinfresco del Blast e' dello stesso turno)"), PinStandsOn(B, Enemy));
+		for (int32 Passo = 0; Passo < 2 && B.TM->IsResolving(); ++Passo)
+		{
+			B.TM->Tick(0.05f);
+			TestTrue(TEXT("(3) e resta MENTRE il playback scorre"), PinStandsOn(B, Enemy));
+		}
+		if (!TestTrue(TEXT("(3) anti-vacuita': il playback scorre ancora, quindi nessun turno nuovo e' cominciato"),
+			B.TM->IsResolving() && B.TM->GetTurnNumber() == TurnoPrima))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		// L'ispezione in playback funziona (spec §3, regola 5): si chiude, e il click di produzione la riapre.
+		TestTrue(TEXT("(3) in playback il tasto destro chiude la fissazione"), B.PC->ApplyBack() == ERTPointerBackStep::Inspector);
+		TestTrue(TEXT("(3) premessa: chiusa, la fissazione non c'e'"), PinHasFallen(B));
+		TestTrue(TEXT("(3) in playback il click sul nemico osservato e' consumato"), B.PC->DispatchUnitClickForTest(Enemy, B.Mine));
+		TestTrue(TEXT("(3) e rifissa il nemico: l'ispezione in playback funziona"), PinStandsOn(B, Enemy));
+
+		// (1) A PLAYBACK FINITO il turno e' nuovo, e la fissazione e' caduta.
+		DrainPlayback(B.TM);
+		if (!TestTrue(TEXT("(1) premessa: il turno e' avanzato e la risoluzione e' finita"), B.TM->GetTurnNumber() > TurnoPrima && !B.TM->IsResolving()))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		TestTrue(TEXT("(1) col turno nuovo la fissazione e' caduta: nessun soggetto, nessun pin, la barra torna alla selezione"), PinHasFallen(B));
+		TestTrue(TEXT("(1) la selezione e' la stessa"), B.PC->GetSelectedUnit() == B.Mine);
+		TestFalse(TEXT("(1) senza fissazione il piano non e' bloccato"), B.PC->IsPlanningWriteBlocked());
+		// (8) E la fissazione della BARRA e' caduta anch'essa, non solo soggetto e pin: ricostruiti a mano (senza `PinInspection`, che la riaccenderebbe) la barra
+		// NON torna in sola lettura. Per la produzione il flag acceso senza fissazione non vale niente, ma e' il terzo dei tre campi che il rilascio azzera.
+		B.PC->SetInspectedUnitForTest(Enemy);
+		B.PC->SetInspectorPinned(true);
+		TestFalse(TEXT("(8) soggetto e pin ricostruiti a mano: la barra non e' in sola lettura, perche' la sua fissazione e' caduta col turno"), B.PC->IsDockReadOnly());
+
+		// (4) Una fissazione fatta DOPO l'inizio del turno nuovo resta, anche dopo un rinfresco dello stesso turno.
+		B.PC->PinInspectionForTest(Enemy);
+		TestTrue(TEXT("(4) premessa: fissato nel turno nuovo"), PinStandsOn(B, Enemy));
+		B.TM->RefreshTeamKnowledgeNow();
+		TestTrue(TEXT("(4) una fissazione fatta dopo l'inizio del turno nuovo resta, anche dopo un rinfresco dello stesso turno"), PinStandsOn(B, Enemy));
+
+		// (7) La selezione e l'AZIONE ARMATA non si toccano: l'ispezione convive con loro. Rinfresco iniettato, perche' il Cleanup di un turno vero
+		// riporta l'armamento al neutro e non resterebbe niente da confrontare.
+		int32 Armed = INDEX_NONE;
+		for (int32 I = 0; I < B.Mine->NumAbilities() && Armed == INDEX_NONE; ++I)
+		{
+			B.Mine->SelectAbility(I);
+			if (B.Mine->SelectedAbilityIndex == I) { Armed = I; }
+		}
+		if (!TestTrue(TEXT("(7) premessa: si puo' armare un'azione"), Armed != INDEX_NONE))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		B.TM->OnTeamKnowledgeRefreshed.Broadcast(B.TM->GetTurnNumber() + 1);
+		TestTrue(TEXT("(7) il turno iniettato fa cadere la fissazione"), PinHasFallen(B));
+		TestTrue(TEXT("(7) la selezione e' la stessa"), B.PC->GetSelectedUnit() == B.Mine);
+		TestEqual(TEXT("(7) e l'azione armata e' la stessa"), B.Mine->SelectedAbilityIndex, Armed);
+
+		DestroyHexMatchWorld(B.World);
+	}
+
+	// ===== MONDO 2: NESSUNA selezione ===========================================================================================
+	{
+		FRTLockInPreviewBench B;
+		if (!MakeUnselectedPinBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+		ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+		if (!TestNotNull(TEXT("(5) premessa: un nemico"), Enemy)
+			|| !TestTrue(TEXT("(5) premessa: nessuna unita' selezionata"), B.PC->GetSelectedUnit() == nullptr)
+			|| !TestFalse(TEXT("(5) premessa: il controller non e' iscritto al turno nuovo, perche' non ha mai selezionato niente"), ListensForTheNewTurn(B)))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+		B.PC->PinInspectionForTest(Enemy);
+		TestTrue(TEXT("(5) la fissazione iscrive il controller al turno nuovo: e' l'unico punto che lo puo' fare, qui"), ListensForTheNewTurn(B));
+		if (!TestTrue(TEXT("(5) premessa: senza selezione la barra e' sul nemico, in sola lettura"), PinStandsOn(B, Enemy)))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+
+		CommitFromTimeout(B);
+		DrainPlayback(B.TM);
+		if (!TestTrue(TEXT("(5) premessa: il turno e' avanzato e la risoluzione e' finita"), B.TM->GetTurnNumber() > TurnoPrima && !B.TM->IsResolving()))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		TestTrue(TEXT("(5) senza alcuna selezione la fissazione cade lo stesso col turno nuovo"), PinHasFallen(B));
+		TestTrue(TEXT("(5) e la selezione e' ancora vuota"), B.PC->GetSelectedUnit() == nullptr);
+
+		DestroyHexMatchWorld(B.World);
+	}
+
+	// ===== MONDO 3: senza playback, il turno si conclude in linea ===============================================================
+	{
+		FRTLockInPreviewBench B;
+		if (!MakeLockInPreviewBench(*this, B)) { DestroyHexMatchWorld(B.World); return false; }
+
+		ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
+		if (!TestNotNull(TEXT("(6) premessa: un nemico"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
+		B.TM->bEnablePlayback = false;
+		const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+		B.PC->PinInspectionForTest(Enemy);
+		TestTrue(TEXT("(6) premessa: il nemico e' fissato"), PinStandsOn(B, Enemy));
+
+		CommitFromTimeout(B);
+		// Senza playback `ConcludeTurn` gira dentro il commit: nessun `OnResolvePlaybackFinished`, e il turno e' gia' nuovo.
+		if (!TestTrue(TEXT("(6) premessa: il turno si e' concluso in linea, senza playback"), B.TM->GetTurnNumber() > TurnoPrima && !B.TM->IsResolving()))
+		{
+			DestroyHexMatchWorld(B.World);
+			return false;
+		}
+		TestTrue(TEXT("(6) anche senza playback la fissazione cade col turno nuovo"), PinHasFallen(B));
+		TestTrue(TEXT("(6) e la selezione e' la stessa"), B.PC->GetSelectedUnit() == B.Mine);
+
+		DestroyHexMatchWorld(B.World);
+	}
+
+	return true;
+}
+
+// =====================================================================================================
 // `#3748` — IL DOCK E LO SLOT LEGGONO IL SOGGETTO DELLA BARRA.
 //
 // Il controller dice di chi e' la barra (`GetDockUnit`, `IsDockReadOnly`) e rifiuta ogni scrittura del piano mentre e' in sola lettura. Qui si

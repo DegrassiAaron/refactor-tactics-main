@@ -890,6 +890,11 @@ private:
 	 *
 	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
 	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
+	 *
+	 * ➕ **A questi tre si aggiunge un quarto che non riguarda l'anteprima** (`#3748`): `OnTeamKnowledgeRefreshed` fa cadere la fissazione
+	 * dell'ispezione a ogni turno nuovo (`HandleTeamKnowledgeRefreshed`). Lo accende chiunque abbia di che farlo cadere, e quindi anche
+	 * `PinInspection`: un nemico fissato prima di aver selezionato qualcosa non ha mai incontrato `SelectUnit`, e senza l'iscrizione la
+	 * fissazione non cadrebbe mai.
 	 */
 	void EnsureTurnPresentationSubscriptions(class ARTTurnManager* TurnManager);
 
@@ -918,6 +923,23 @@ private:
 	 */
 	UFUNCTION()
 	void HandleMatchEndedPresentation(const struct FRTMatchResult& Result, const struct FRTMatchState& State);
+
+	/**
+	 * Un rinfresco della conoscenza di squadra: se porta un turno diverso da quello a cui appartiene l'ispezione, e' cominciato un turno nuovo
+	 * di pianificazione e la fissazione cade (`#3748`, decisione d'autore del 2026-10-31).
+	 *
+	 * 🔑 **E' l'aggancio che scatta su OGNI percorso che apre un turno**, ed e' il motivo per cui non e' `OnResolvePlaybackFinished`: quello non
+	 * scatta quando il turno si conclude in linea — senza playback (`bEnablePlayback` spento: headless, automation) o con una risoluzione che non ha niente
+	 * da mostrare (nessuna fase da riprodurre, anche in partita vera) —, e la fissazione sopravviverebbe proprio al turno che non si vede. `ConcludeTurn` riapre sempre la
+	 * pianificazione con `StartPlanningTimer`, che rinfresca la conoscenza (`PlanBots`) col numero di turno GIA' incrementato.
+	 *
+	 * 🔴 **Non scatta solo all'apertura di un turno**: la conoscenza si rinfresca anche dentro la risoluzione (Blast, Move) e al setup, e sono
+	 * rinfreschi dello STESSO turno. Cadere a ogni rinfresco farebbe sparire la fissazione a risoluzione in corso, dove l'ispezione deve restare
+	 * (spec §3, regola 5). Per questo il confronto e' sul numero di turno (`InspectionTurn`) e non sull'evento: stesso turno, la fissazione resta.
+	 */
+	UFUNCTION()
+	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
+
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
@@ -1140,7 +1162,8 @@ public:
 	 *
 	 * 🔑 **E' DERIVATA, non un secondo stato**: vale quando l'ultimo click su un'unita' e' stato una fissazione (`bDockFollowsInspection`),
 	 * la scheda e' fissata, il soggetto e' vivo e il giocatore non lo comanda. Soggetto e pin hanno gia' chi li azzera — il tasto destro
-	 * (passo `Inspector` del Back), il rilascio alla perdita della conoscenza (`ReleaseInspectionUnlessLive`), la caduta — e con loro la sola
+	 * (passo `Inspector` del Back), il rilascio alla perdita della conoscenza (`ReleaseInspectionUnlessLive`), la caduta, il turno nuovo
+	 * (`ReleaseInspectionForNewTurn`, #3748) — e con loro la sola
 	 * lettura finisce senza che nessuno debba spegnerla.
 	 *
 	 * ⚠️ **Un'unita' propria fissata non la accende**: il compagno si comanda, e se se ne vuole il kit si seleziona. Fissarlo non sposta la
@@ -1825,7 +1848,10 @@ protected:
 
 	bool bInspectorPinned = false;
 
-	/** Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). */
+	/**
+	 * Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). Per un'unita' vera stampiglia anche il turno
+	 * (`InspectionTurn`) e si assicura che il controller ascolti il turno nuovo (`EnsureTurnPresentationSubscriptions`).
+	 */
 	void PinInspection(ARTUnit* Unit);
 
 public:
@@ -1853,9 +1879,32 @@ private:
 	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera). ⚠️ Non e' piu' un caso il click che il selettore
 	 * del verso consumava prima della selezione (`TryHandleFacingClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
 	 * risponde no (`IsPlanningWriteBlocked`), e il click cade nella selezione. ⚠️ E non si
-	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente.
+	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente. L'unica
+	 * eccezione e' la caduta al turno nuovo (`ReleaseInspectionForNewTurn`), che azzera tutto e tre insieme.
 	 */
 	bool bDockFollowsInspection = false;
+
+	/**
+	 * La fissazione cade al turno nuovo: soggetto, pin e fissazione della barra si azzerano, come il passo `Inspector` del Back (#3748, decisione
+	 * d'autore del 2026-10-31). Selezione e azione armata NON si toccano — l'ispezione convive con loro.
+	 *
+	 * 🔴 **Perche' cade, e perche' proprio qui**: una fissazione che attraversa un turno e' una barra coi tasti spenti e nessuna spiegazione di
+	 * perche', al momento in cui il giocatore riapre la pianificazione; e cio' che si sapeva del nemico puo' essere cambiato nella risoluzione —
+	 * un nemico fissato era osservato prima, e dopo puo' non esserlo piu'. Lo chiama `HandleTeamKnowledgeRefreshed`, UNA volta per turno nuovo.
+	 *
+	 * ⚠️ **Azzera anche `bDockFollowsInspection`**, che il passo `Inspector` del Back lascia com'e': li' basta (senza soggetto o senza pin non vale
+	 * niente), qui non c'e' un click che lo spenga dopo, e un flag acceso senza fissazione sarebbe uno stato che il prossimo `PinInspection` eredita.
+	 */
+	void ReleaseInspectionForNewTurn();
+
+	/**
+	 * Il turno a cui appartiene l'ispezione: `PinInspection` lo scrive col turno di adesso, `HandleTeamKnowledgeRefreshed` lo aggiorna quando
+	 * ne arriva uno diverso. `INDEX_NONE` finche' non c'e' stato ne' l'uno ne' l'altro.
+	 *
+	 * ⚠️ **E' cio' che distingue «turno nuovo» da «rinfresco della conoscenza»**: la conoscenza si rinfresca anche a risoluzione in corso, con
+	 * lo stesso numero di turno. Non e' stato canonico: vive nel controller, e nessuno snapshot, hash o TurnLog lo legge.
+	 */
+	int32 InspectionTurn = INDEX_NONE;
 
 	/**
 	 * Il giocatore di questo controller comanda `Unit`? E' la domanda che fanno il click (`DispatchUnitClick`) e la barra (`IsDockReadOnly`), e i due la
