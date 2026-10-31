@@ -1389,6 +1389,88 @@ bool FRTCancelledInterrupterPaysTooTest::RunTest(const FString&)
 }
 
 /**
+ * **Un Interrupt mirato a una CELLA e annullato da un altro Interrupt paga, come pagherebbe senza di lui**
+ * ([D-414], `#1449`).
+ *
+ * Per un Interrupt la regola dell'azione NON interrotta non e' «ha un colpo» ma «ha un colpo, OPPURE e'
+ * mirato a una cella» (`MissedInterruptStillPays`): l'intento nasce valido e non c'e' nessuno da colpire.
+ * Il pagamento degli intenti annullati deve usare lo STESSO predicato, altrimenti l'Interrupt altrui rende
+ * gratuito cio' che senza di lui avrebbe pagato — l'inverso di [D-414].
+ *
+ * A (squadra 0) interrompe B; B (squadra 1) ha un Interrupt su una cella vuota adiacente, quindi senza
+ * colpo e senza archi in uscita: A lo cancella senza ostacoli. La riga di riferimento toglie A e fissa il
+ * valore che B deve eguagliare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCancelledCellAimedInterrupterPaysTest,
+	"RefactorTactics.Actions.Interrupt.CancelledCellAimedInterrupterPays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCancelledCellAimedInterrupterPaysTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Cooldown = 0; int32 VociInterrotte = 0; };
+
+	auto Gira = [this](bool bConA) -> FEsito
+	{
+		FEsito Esito;
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return Esito; }
+		SpawnControlMap(World, 6);
+
+		ARTUnit* A = SpawnControlUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* B = SpawnControlUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return Esito;
+		}
+
+		if (bConA)
+		{
+			const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
+			A->PlannedAbilityIndex = IdxA;
+			A->PlannedAttackTarget = B;
+			A->PlannedCell = A->Cell;
+		}
+
+		// L'Interrupt di B nello SLOT 0 (o il cooldown non e' osservabile), su una cella VUOTA adiacente.
+		const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
+		B->PlannedAbilityIndex = IdxB;
+		B->PlannedCell = B->Cell;
+		B->DeclareAttackOnCell(FRTCellId(3, 0));
+
+		RunControlTurn(TM);
+
+		Esito.Cooldown = B->GetAbilityCooldown(IdxB);
+		Esito.VociInterrotte = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num();
+		Esito.bValido = true;
+		DestroyControlWorld(World);
+		return Esito;
+	};
+
+	const FEsito Riferimento = Gira(/*bConA*/ false);
+	if (!Riferimento.bValido) { return false; }
+	const FEsito Annullato = Gira(/*bConA*/ true);
+	if (!Annullato.bValido) { return false; }
+
+	AddInfo(FString::Printf(TEXT("cooldown di B: senza A %d, con A %d; voci Interrupted: senza A %d, con A %d"),
+		Riferimento.Cooldown, Annullato.Cooldown, Riferimento.VociInterrotte, Annullato.VociInterrotte));
+
+	TestEqual(TEXT("premessa: senza A nessuno cancella B"), Riferimento.VociInterrotte, 0);
+	TestEqual(TEXT("premessa: con A l'Interrupt di B e' annullato"), Annullato.VociInterrotte, 1);
+	TestTrue(TEXT("controllo positivo: senza A l'Interrupt su cella vuota paga (#1449)"),
+		Riferimento.Cooldown > 0);
+	TestTrue(TEXT("[D-414]: annullato da A paga ancora: l'Interrupt altrui non lo rende gratuito"),
+		Annullato.Cooldown > 0);
+	TestEqual(TEXT("paga quanto pagherebbe senza A"), Annullato.Cooldown, Riferimento.Cooldown);
+
+	return true;
+}
+
+/**
  * **Chi carica e usa un'ultimate nello stesso turno la PAGA, esattamente come chi non ha caricato**
  * (`#1451` punto 2).
  *

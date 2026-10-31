@@ -1523,6 +1523,21 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		IntentiConColpo.Add(Hit.IntentIndex);
 	}
 
+	// 🔴 **«L'azione e' partita»: UN predicato solo, per i due cicli di pagamento qui sotto** (`#1449`, [D-414]).
+	//
+	// Un'azione paga se ha prodotto un colpo. Un Interrupt paga anche se e' mirato a una CELLA
+	// (`TargetId == INDEX_NONE`): l'intento nasce valido e non c'e' nessuno da colpire
+	// (`MissedInterruptStillPays`). E' la regola dell'azione NON interrotta, e vale uguale per chi interrompe
+	// e per chi viene interrotto: due copie dello stesso criterio potevano divergere, e la prima stesura del
+	// ciclo degli interrotti lo ha fatto — un Interrupt su cella annullato da un altro Interrupt restava
+	// gratuito, cioe' l'Interrupt altrui rendeva gratuito cio' che senza di lui avrebbe pagato.
+	const auto AzionePartita = [&IntentiConColpo, &Intents, &IntentDefs](int32 k)
+	{
+		if (IntentiConColpo.Contains(k)) { return true; }
+		return IntentDefs.IsValidIndex(k) && Intents.IsValidIndex(k)
+			&& IsCoreAction(IntentDefs[k], ActionInterrupt) && Intents[k].TargetId == INDEX_NONE;
+	};
+
 	// 🔴 **Chi ha interrotto paga l'azione che ha speso** (`#1444`, `#1449`).
 	//
 	// Si scorrono gli INTENTI e non i colpi perche' un Interrupt puo' non produrne nessuno pur essendo stato
@@ -1542,8 +1557,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		{
 			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: lo paga il ciclo sotto
 		}
-		const bool bMirataACella = Intents[k].TargetId == INDEX_NONE;
-		if (!IntentiConColpo.Contains(k) && !bMirataACella)
+		if (!AzionePartita(k))
 		{
 			continue; // niente colpo e nessuna cella mirata: e' un'azione non avvenuta come le altre
 		}
@@ -1586,12 +1600,15 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// nello stesso Blast paga comunque (`InterruptedActionPaysEvenIfItFalls`); un cadavere che arriva al
 	// Blast col piano ancora addosso no.
 	//
-	// ⚠️ **Paga solo cio' che AVEVA un colpo** (`IntentiConColpo`, calcolato PRIMA del `RemoveAll`): e' lo
-	// stesso criterio con cui un'azione non interrotta paga, quindi l'Interrupt non rende a pagamento cio' che
-	// senza di lui sarebbe gratuito. Un intento a CELLA oltre la portata nasce valido e un Interrupt lo
-	// annulla, ma la geometria non ha prodotto nessun colpo: non e' partita, e qui [D-200] e [D-414]
-	// coincidono. Un bersaglio-unita' fuori portata non arriva nemmeno qui, perche' `ValidateInstance` ne
-	// ferma l'intento in raccolta.
+	// ⚠️ **Paga solo cio' che era PARTITO** (`AzionePartita`, calcolato sui colpi PRIMA del `RemoveAll`): e'
+	// lo STESSO predicato con cui paga un'azione non interrotta — e con cui paga il ciclo dell'Interrupter
+	// qui sopra — quindi l'Interrupt altrui non rende gratuito cio' che senza di lui avrebbe pagato, ne' a
+	// pagamento cio' che sarebbe stato gratuito. Per un'azione qualunque vuol dire «ha prodotto un colpo»: un
+	// intento a CELLA oltre la portata nasce valido e un Interrupt lo annulla, ma la geometria non ha
+	// prodotto nessun colpo, non e' partita, e qui [D-200] e [D-414] coincidono. Per un Interrupt vuol dire
+	// anche «mirato a una cella» (`#1449`): un Interrupt su cella vuota annullato da un altro Interrupt paga
+	// come pagherebbe senza di lui (`CancelledCellAimedInterrupterPays`). Un bersaglio-unita' fuori portata
+	// non arriva nemmeno qui, perche' `ValidateInstance` ne ferma l'intento in raccolta.
 	//
 	// ⚠️ **Gli impatti di carica non pagano** (`IntentAbilityIndex == INDEX_NONE`: lo scatto l'ha gia' fatto
 	// nel Dash), e un intento DEGRADATO ([D-300], `SuppressSecondary`) non e' in `InterruptedIntents`: la sua
@@ -1599,7 +1616,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// colpisce. `Cancellati` e' ordinato: l'ordine di annotazione non decide niente, ma non lo si lascia a un `TSet`.
 	for (int32 k : Cancellati)
 	{
-		if (!Intents.IsValidIndex(k) || !IntentiConColpo.Contains(k))
+		if (!Intents.IsValidIndex(k) || !AzionePartita(k))
 		{
 			continue;
 		}
