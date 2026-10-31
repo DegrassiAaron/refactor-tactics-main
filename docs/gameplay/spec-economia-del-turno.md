@@ -170,6 +170,9 @@ Il cooldown risponde a *«ogni quanto posso ripeterlo?»*, e quel «ripeterlo» 
 | bersaglio caduto nella simultaneità (`TargetDead`) | alla risoluzione | **sì**: era valida quando è partita |
 | la def non porta un effetto utile (`NoEffect`) | mai — è un difetto del **dato** | **sì**: un catalogo rotto non è una leva di bilanciamento |
 | nulla da purificare (`Cleanse` a vuoto) | alla risoluzione | **sì**: l'azione ha guardato, ed è un esito |
+| attacco senza nessun colpo: area su cella vuota, bersaglio scattato, linea di tiro bloccata a risoluzione, mira su un altro piano, bersaglio già morto, tiro cappato dal Fumo non osservato | alla risoluzione | **sì** dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)): era valida quando è partita. ⌫ *Prima no: per l'attacco il criterio era il colpo prodotto.* |
+| stordimento (`Status.Stunned`): l'azione principale è negata | in pianificazione e alla risoluzione | **sì** dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)): chi la dichiara l'ha usata |
+| tiro a cella oltre la portata dichiarata, distanza minima | in **pianificazione**: il click li rifiuta | **no**: come «fuori portata», invariato |
 
 ⚠️ **Lo slot si spende comunque**, e i due assi non si confondono: l'unità che ha dichiarato una cura ha speso
 il suo turno e non può riagire, anche quando la cura non parte. È l'**abilità** che non si paga.
@@ -182,6 +185,8 @@ azioni di supporto, due regole, nessuna dichiarata. Ora è una sola, ed è qui.
 scelta gratuita e dominante — la purificazione «assicurativa» ogni turno. La portata non apre quel varco
 perché è nota in pianificazione: sbagliarla è un errore, non una sonda, e non compra nessuna informazione
 nascosta.
+
+⌫ **Dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)) la regola vale anche per l'attacco.** Fino ad allora per gli attacchi il criterio era il colpo prodotto ([D-504](../decisions/RT_PDR_00_Decision_Log.md) (3): *«Asimmetria dichiarata, non risolta»*), e un'area su una cella vuota era gratis: l'argomento qui sopra, *«un'azione ripetibile a vuoto diventa una scelta gratuita e dominante»*, valeva per la cura e non per l'attacco. Restano fuori, e non decise, le cause elencate in `D-563` (4).
 
 ### 3.1 I profili del movimento normale
 
