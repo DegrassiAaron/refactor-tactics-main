@@ -132,6 +132,9 @@ bool FRTSeenUseOnlyTheActorCountsTest::RunTest(const FString&)
 	}
 
 	// Un attacco fermato dalla copertura: la ricarica non e' detto che sia stata pagata, e la deduzione tace.
+	// ⌫ Ritrattato il 2026-10-31 (`#3134`, [D-414]): da `R4` un attacco bloccato dal muro PAGA la ricarica, quindi la prima
+	// meta' non e' piu' vera. La deduzione tace perche' il registro conta solo danno e cura e non distingue l'uso, non
+	// perche' la ricarica non sia pagata. L'asserto qui sotto non cambia.
 	{
 		FRTTurnLogEntry Stopped = SeenHit();
 		Stopped.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);

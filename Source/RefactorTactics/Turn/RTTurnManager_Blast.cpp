@@ -1722,7 +1722,12 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// qui sopra — quindi l'Interrupt altrui non rende gratuito cio' che senza di lui avrebbe pagato, ne' a
 	// pagamento cio' che sarebbe stato gratuito. Per un'azione qualunque vuol dire «ha prodotto un colpo»: un
 	// intento a CELLA oltre la portata nasce valido e un Interrupt lo annulla, ma la geometria non ha
-	// prodotto nessun colpo, non e' partita, e qui [D-200] e [D-414] coincidono. Per un Interrupt vuol dire
+	// prodotto nessun colpo, non e' partita, e qui [D-200] e [D-414] coincidono.
+	// ⌫ *Ritrattato il 2026-10-31: «per un'azione qualunque vuol dire "ha prodotto un colpo"» non vale piu'. Partita e'
+	// anche un'azione in portata che non ha prodotto nessun colpo perche' l'area era vuota, il bersaglio e' scattato, la
+	// linea era bloccata, il piano era un altro o il Fumo ha cappato il tiro (`AzionePartita` qui sopra e
+	// `IntentoPartitoSenzaColpo`). Resta valido solo il confine che regge il paragone: l'intento a CELLA oltre la
+	// portata, o sotto la distanza minima, non ha ne' impronta ne' canale e non e' partito.* Per un Interrupt vuol dire
 	// anche «mirato a una cella» (`#1449`): un Interrupt su cella vuota annullato da un altro Interrupt paga
 	// come pagherebbe senza di lui (`CancelledCellAimedInterrupterPays`). Un bersaglio-unita' fuori portata
 	// non arriva nemmeno qui, perche' `ValidateInstance` ne ferma l'intento in raccolta.

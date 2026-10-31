@@ -40,6 +40,11 @@ struct REFACTORTACTICS_API FRTSeenUseLedger
 	 * fermato dalla copertura (`NoLineOfSight`: la ricarica non e' detto che sia stata pagata), una cura su se
 	 * stessi (`IsSubjectTheSufferer` la legge come ambientale). Per quelle azioni la scheda non ha riga: la
 	 * deduzione tace, non indovina.
+	 *
+	 * ⌫ *Ritrattato il 2026-10-31 (`#3134`, [D-414]): «la ricarica non e' detto che sia stata pagata» non e' piu' vero per
+	 * l'attacco fermato dalla copertura, che da `R4` PAGA anche senza colpo. La deduzione tace per un'altra ragione: il
+	 * registro conta solo danno e cura e non distingue l'USO, quindi un attacco bloccato non lascia nessuna voce da cui
+	 * dedurre chi ha agito. Il silenzio non dice piu' niente sulla ricarica.*
 	 */
 	static bool IsUseByItsSubject(const FRTTurnLogEntry& Entry);
 
