@@ -910,7 +910,7 @@ che il C++ ci scrive.
 | Con | `LinesBox` mostra |
 |---|---|
 | nessun cursore su uno slot dell'unità della scheda | la **testata**: nome, PV e scudo, verso (se acceso), stati col glossario, **una sola riga** «Equipaggiamento: A · B · C» coi nomi dei pezzi, e la riga di invito «Passa su una skill della barra per i dettagli» |
-| il cursore su uno slot della barra in sola lettura dell'unità della scheda | la testata e, al posto dell'invito, i **dettagli di quella skill**: il titolo, le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno), le righe `+` e `-` del pezzo che la riguarda e, solo se la squadra ha visto usare l'azione, la riga «Stima da cio' che hai visto: …» |
+| il cursore su uno slot della barra in sola lettura dell'unità della scheda | la testata e, al posto dell'invito, i **dettagli di quella skill**: il titolo, le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno), la riga «Stima da cio' che hai visto: …» (solo se la squadra ha visto usare l'azione) e le righe `+` e `-` del pezzo che la riguarda, **in questo ordine**: la finestra taglia la coda, e cadono i pezzi prima della stima |
 | il cursore su uno slot della barra della **propria** unità | la testata e l'invito, com'era: l'hover vale solo per il soggetto della scheda |
 
 La sezione «Ricariche (stima da cio' che hai visto)» e le righe `+` e `-` in testata non ci sono più (⌫ *c'erano fino al 2026-10-31*).

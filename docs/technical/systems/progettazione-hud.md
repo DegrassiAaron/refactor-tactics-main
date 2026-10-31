@@ -1256,10 +1256,13 @@ com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la
   chiama `bSkillHoverOfInspected` (era `bSkillHoverFromCard`).
 * **Col cursore su uno slot della barra, i dettagli di quella skill** (`FRTInspectSkillDetail`, `FRTInspectSubject::HoveredSkill`;
   [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11)): il titolo; le righe del tooltip dello stesso slot, dalla stessa riga di catalogo
-  (`BuildCatalogActionRow`, `BuildCatalogTooltip`: descrizione, fase, slot, portata, forma, ricarica di catalogo, danno); le righe
-  `+` e `-` del pezzo che la riguarda (quello con `EquipmentId == ActionId` e, per l'attacco base, la variante d'arma); e, solo se
+  (`BuildCatalogActionRow`, `BuildCatalogTooltip`: descrizione, fase, slot, portata, forma, ricarica di catalogo, danno); e, solo se
   la squadra ha visto usare l'azione e il catalogo le dà una ricarica, la riga «Stima da cio' che hai visto: …», mai un conto dei
-  turni che restano. Il widget legge l'hover del controller (`GetSkillHoverUnit()`, `GetSkillHoverIndex()`) a ogni `RefreshLook` e
+  turni che restano; poi le righe `+` e `-` del pezzo che la riguarda (quello con `EquipmentId == ActionId` e, per l'attacco base,
+  la variante d'arma). ➕ **L'ordine è quello del taglio**: la finestra taglia la coda (`MaxRighe`), e la stima è l'informazione che
+  viene dall'osservazione mentre le righe dei pezzi sono catalogo, quindi se una riga deve cadere cadono i pezzi. ⌫ *La prima
+  stesura metteva la stima dopo i pezzi*, e sulla scheda più lunga con due stati la riga tagliata era la stima
+  (`UI.InspectCardKeepsTheEstimateInTheVisibleWindow`). Il widget legge l'hover del controller (`GetSkillHoverUnit()`, `GetSkillHoverIndex()`) a ogni `RefreshLook` e
   lo usa solo se l'unità dello slot è il soggetto della scheda, quindi un hover sulla barra della propria unità non lo cambia;
   ricompone subito al cambio e riporta la prima riga visibile a zero. Uno slot vuoto o un indice fuori kit non dà dettagli, e resta
   l'invito. ⛔ **I dettagli oltre `MaxRighe` non si scorrono**: lasciare lo slot azzera l'hover, quindi non c'è modo di portare il

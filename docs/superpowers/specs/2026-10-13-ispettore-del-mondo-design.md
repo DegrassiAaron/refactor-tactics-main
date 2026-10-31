@@ -347,9 +347,12 @@ Regole:
     sempre visibile: nome, PV e scudo, verso (se acceso), stati col glossario e **una sola riga** «Equipaggiamento: A · B · C» coi
     soli nomi dei pezzi. Con il cursore su uno slot della barra dell'unità della scheda il box aggiunge il titolo della skill,
     le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno: la stessa
-    riga di catalogo, `BuildCatalogActionRow` e `BuildCatalogTooltip`, nessuna seconda fonte), le righe `+` e `-` del pezzo che
-    la riguarda e, solo se la squadra ha visto usare l'azione e il catalogo le dà una ricarica, la riga della stima («Stima da
-    cio' che hai visto: …»), mai un conto dei turni che restano. Senza cursore, una riga di invito: «Passa su una skill della
+    riga di catalogo, `BuildCatalogActionRow` e `BuildCatalogTooltip`, nessuna seconda fonte), poi, solo se la squadra ha visto
+    usare l'azione e il catalogo le dà una ricarica, la riga della stima («Stima da cio' che hai visto: …»), mai un conto dei
+    turni che restano, e infine le righe `+` e `-` del pezzo che la riguarda. **L'ordine è quello del taglio**: la finestra taglia
+    la coda, e la stima è l'informazione che viene dall'osservazione mentre le righe dei pezzi sono catalogo, quindi se una riga
+    deve cadere cadono i pezzi. ⌫ *La prima stesura metteva la stima dopo i pezzi*: sulla scheda più lunga (l'attacco base di
+    Muiren) con due stati la riga tagliata era proprio la stima, e non si raggiunge con la rotella. Senza cursore, una riga di invito: «Passa su una skill della
     barra per i dettagli». L'hover vale solo se l'unità dello slot è il soggetto della scheda: un hover sulla barra della propria
     unità non cambia il box. Uno slot vuoto o un indice fuori kit non dà dettagli, e la riga di invito resta. I pezzi che
     riguardano la skill sono quello con `EquipmentId == ActionId` e, per un'azione del gruppo `Base`, la variante d'arma
