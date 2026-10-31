@@ -95,6 +95,31 @@ public:
 	FRTWorkbenchVariant WorkbenchVariant;
 
 	/**
+	 * **Richiesta esplicita** di lasciare un archivio replay (`#3035`): la cartella in cui scriverlo. Vuota = nessuna
+	 * registrazione, ed e' il default.
+	 *
+	 * 🔑 **E' il ponte fra le tracce dello scenario e il Replay Player.** Valorizzata, `Start` apre la registrazione
+	 * del turn manager (`ARTTurnManager::BeginReplayRecording`, la stessa che chiama `ARTGameMode`): da li' in poi
+	 * ogni turno risolto lo scrive il TurnManager stesso (`RecordTurnToReplay`) e la partita che si decide lo chiude
+	 * (`CloseReplayArchive`) - la sessione non scrive nessuna voce a mano e non conosce il formato dell'archivio.
+	 * `FRTTestResult::ReplayMatchId` dice con quale id riaprirlo da questa radice.
+	 *
+	 * ⛔ **Non c'e' una radice di default, e non e' una dimenticanza**: `Saved/Replays` e' la lista delle partite vere,
+	 * e una run di scenario che ci scrivesse senza averlo chiesto la sporcherebbe. Chi vuole l'archivio dice DOVE.
+	 *
+	 * ⚠️ **Registrare non cambia la partita** ([ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md)):
+	 * `StateHash` e `TurnTraces` sono identici a registrazione accesa e spenta, pinnati da
+	 * `Replay.ScenarioBridge.RecordingDoesNotChangeTheScenarioResult`.
+	 *
+	 * ⚠️ **L'archivio e' completo solo se la PARTITA si decide**: un turn manager chiude l'archivio all'esito, e uno
+	 * scenario di otto turni che non elimina nessuno finisce con un archivio non chiuso (`bComplete = false`), che
+	 * il Player apre e riproduce fino a dove arriva. E' un archivio parziale e non un archivio rotto.
+	 *
+	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`.
+	 */
+	FString ReplayArchiveRoot;
+
+	/**
 	 * Allestisce il mondo: arena, unita' dal catalogo, turn manager.
 	 *
 	 * @return false se lo scenario non e' eseguibile — l'esito e' gia' un `Error` con il motivo in
@@ -249,6 +274,22 @@ private:
 
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
+
+	/**
+	 * Spegne la registrazione che QUESTA sessione ha aperto (`#3035`). Idempotente, e non fa nulla se non l'ha aperta.
+	 *
+	 * 🔴 **Serve perche' il turn manager sopravvive alla sessione**: `RunSingle` non lo distrugge (`bTearDownAfter =
+	 * false`) e uno scenario successivo nello stesso mondo lo riusa. Con la registrazione ancora accesa, i turni del
+	 * secondo scenario finirebbero in coda all'archivio del primo - misurato: `TurnCount` 2 dove lo scenario giocava
+	 * 1 turno. Un archivio dichiara una partita sola, e una run che non l'ha chiesto non deve scriverci dentro.
+	 *
+	 * Si spegne `bRecordReplay`, la leva che il turn manager espone per questo: a registrazione spenta
+	 * `RecordTurnToReplay` e `CloseReplayArchive` non fanno nulla. L'archivio gia' scritto non si tocca.
+	 */
+	void StopReplayRecording();
+
+	/** Vero se la registrazione l'ha aperta questa sessione: l'unico testimone di chi deve spegnerla. */
+	bool bStartedReplayRecording = false;
 
 	/**
 	 * Valuta UNA assertion sullo stato del mondo **in questo istante**.

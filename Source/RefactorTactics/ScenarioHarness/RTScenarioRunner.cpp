@@ -447,7 +447,7 @@ namespace
 }
 
 FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario& Scenario,
-	bool bTearDownAfter, const FRTWorkbenchVariant& Variant)
+	bool bTearDownAfter, const FRTWorkbenchVariant& Variant, const FString& ReplayArchiveRoot)
 {
 	// Ciclo stretto sopra la STESSA sessione che il gioco fa avanzare un passo per frame. Non e' una seconda
 	// implementazione: se lo fosse, un test verde non direbbe piu' niente su quel che si vede a schermo.
@@ -455,6 +455,8 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 	Session.TurnPauseSeconds = 0.f; // headless non c'e' nessuno a guardare: nessuna pausa da rispettare
 	// La variante prima di `Start`, che e' dove la sessione la applica: passarla dopo sarebbe un'ora tardi.
 	Session.WorkbenchVariant = Variant;
+	// L'archivio replay solo se chiesto (`#3035`): vuota = la sessione non registra, ed e' lo stato di sempre.
+	Session.ReplayArchiveRoot = ReplayArchiveRoot;
 
 	// Il tempo di parete parte da QUI e non dal primo step: `Start` allestisce mondo, unita' e mappa, e su
 	// uno scenario grande e' una fetta reale del costo. Escluderlo darebbe una durata che non corrisponde a
@@ -513,8 +515,19 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 	return Result;
 }
 
-FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scenario)
+FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scenario,
+	const FString& ReplayArchiveRoot)
 {
+	// ⛔ Un archivio racconta UNA partita. `repeatCount` e varianti ne giocano piu' d'una nello stesso mondo, e un
+	// solo `MatchId` nel risultato non le descriverebbe: registrarne una sola nasconderebbe le altre, registrarle
+	// tutte vorrebbe un risultato con piu' id che nessuno ha chiesto. Si rifiuta, dichiarandolo, PRIMA di giocare e
+	// di scrivere qualunque cosa.
+	if (!ReplayArchiveRoot.IsEmpty() && (Scenario.RepeatCount > 1 || Scenario.Variants.Num() > 0))
+	{
+		return MakeErrorResult(Scenario, TEXT("registrazione replay richiesta, ma lo scenario gioca piu' partite ")
+			TEXT("(repeatCount o varianti): un archivio ne racconta una sola. Registra una esecuzione singola."));
+	}
+
 	// `repeatCount` viene PRIMA delle varianti e non ci si combina: il loader rifiuta i due insieme, e questa
 	// riga e' il lato eseguibile di quel rifiuto. Le due domande sono opposte — le varianti cambiano un
 	// ingresso per vedere se l'esito si muove, le ripetizioni non cambiano niente per vedere se sta fermo — e
@@ -527,7 +540,7 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 
 	if (Scenario.Variants.Num() == 0)
 	{
-		return RunSingle(World, Scenario, /*bTearDownAfter=*/ false);
+		return RunSingle(World, Scenario, /*bTearDownAfter=*/ false, FRTWorkbenchVariant(), ReplayArchiveRoot);
 	}
 
 	FRTTestResult Aggregate;
@@ -653,7 +666,8 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 	return Aggregate;
 }
 
-FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory)
+FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory,
+	const FString& ReplayArchiveRoot)
 {
 	OutReportDirectory.Reset();
 
@@ -676,7 +690,7 @@ FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioI
 		return Result;
 	}
 
-	FRTTestResult Result = Run(World, Scenario);
+	FRTTestResult Result = Run(World, Scenario, ReplayArchiveRoot);
 
 	FString WriteError;
 	if (!URTTestReportWriter::Write(Result, FString(), OutReportDirectory, WriteError))

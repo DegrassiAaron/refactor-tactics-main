@@ -3,6 +3,7 @@
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
+#include "Turn/RTMatchFormatLibrary.h" // il formato GIA' registrato con cui si dichiara l'archivio (#3035)
 
 namespace RTScenarioStateDiff
 {
@@ -1134,6 +1135,56 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		return true;
 	}
 
+	// --- IL PONTE scenario -> archivio replay (`#3035`) -----------------------------------------------------
+	//
+	// Solo su richiesta ESPLICITA, e DOPO le uscite anticipate sopra: uno scenario che non gioca nemmeno il primo
+	// turno (requisito mancante, zero turni) non lascia un archivio da zero turni.
+	if (!ReplayArchiveRoot.IsEmpty())
+	{
+		// ⛔ Un turn manager che registra gia' - il GameMode di una partita in corso, in PIE - non si riavvia: un
+		// secondo `BeginReplayRecording` genererebbe un altro `MatchId` e lascerebbe l'archivio della partita vera
+		// senza il suo seguito. Meglio dichiararlo che sovrascrivere.
+		if (TM->GetReplayMatchId().IsValid())
+		{
+			ErroredBy = TEXT("registrazione replay richiesta, ma il turn manager di questo mondo sta gia' registrando ")
+				TEXT("una partita: non si apre un secondo archivio sopra il primo");
+			Finish();
+			return true;
+		}
+
+		// La radice e' CONFIGURAZIONE del turn manager (`ReplaysRootOverride`), la stessa leva che usano i test del
+		// recorder: nessun ramo "se test" nel gameplay.
+		TM->ReplaysRootOverride = ReplayArchiveRoot;
+
+		// Il formato: `BeginReplayRecording` si rifiuta senza, perche' un archivio con `FormatId = None` non
+		// dichiara con quale formato e' stato prodotto. Uno scenario non ha un formato di partita suo, quindi si
+		// dichiara uno di quelli GIA' registrati - `Skirmish2v2`, lo stesso di `RTReplayRecordingIntegrationTests` -
+		// e NIENTE altro: si parte dalle regole correnti del turn manager e si cambia il solo `FormatId`.
+		//
+		// ⚠️ `FormatId` non e' un'unita' di scenario e nessuno lo confronta con le unita' dello scenario: i suoi
+		// lettori sono il bootstrapper (non coinvolto qui), `ValidateRules`, l'intestazione dell'archivio e la
+		// riga "Partita finita" del log di testo. Non entra in `StateHash`, nelle tracce ne' nel TurnLog.
+		FRTMatchRules Rules = TM->GetMatchRules();
+		Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+		TM->SetMatchRules(Rules);
+
+		// Dopo lo spawn del roster, perche' `BeginReplayRecording` raccoglie le squadre in campo: qui le unita'
+		// ci sono gia'.
+		TM->BeginReplayRecording();
+
+		Result.ReplayMatchId = TM->GetReplayMatchId();
+		bStartedReplayRecording = Result.ReplayMatchId.IsValid();
+		if (!Result.ReplayMatchId.IsValid())
+		{
+			// Il testimone si legge dal turn manager e non si deduce dalla chiamata: `BeginReplayRecording` si
+			// rifiuta (e lo dichiara nel log) se `bRecordReplay` e' spento.
+			ErroredBy = TEXT("registrazione replay richiesta, ma il turn manager non l'ha avviata: vedi la riga ")
+				TEXT("\"[RT] Replay: registrazione NON avviata\" nel log");
+			Finish();
+			return true;
+		}
+	}
+
 	State = EState::PauseBeforeTurn;
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
@@ -1874,6 +1925,7 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			Result.ErrorMessage = FString::Printf(
 				TEXT("il turno %d non ha finito di risolvere entro %d passi"),
 				TurnIndex + 1, URTScenarioRunner::MaxResolveTicks);
+			StopReplayRecording();
 			State = EState::Finished;
 		}
 		break;
@@ -2541,8 +2593,25 @@ FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectat
 	return A;
 }
 
+void FRTScenarioSession::StopReplayRecording()
+{
+	if (!bStartedReplayRecording)
+	{
+		return;
+	}
+	bStartedReplayRecording = false;
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		TM->bRecordReplay = false;
+	}
+}
+
 void FRTScenarioSession::Finish()
 {
+	// Il turno che ha chiuso lo scenario e' gia' stato scritto dal turn manager (`RecordTurnToReplay` gira dentro la
+	// risoluzione, prima che la sessione la veda finita): da qui in poi l'archivio e' quello che e'.
+	StopReplayRecording();
+
 	// Piani AZZERATI: se restassero appesi, qualunque cosa risolvesse un turno dopo lo scenario li
 	// ri-eseguirebbe. E' successo davvero, e in PIE sembrava lo scenario stesso.
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)

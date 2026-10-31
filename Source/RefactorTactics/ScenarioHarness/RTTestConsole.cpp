@@ -11,7 +11,9 @@
  * Comandi console dell'RT Scenario Test Harness. Stesso namespace di `rt.Debug.DrawCells`.
  *
  *   rt.Test.List                  elenca gli scenari versionati
- *   rt.Test.Run <ScenarioId>      esegue uno scenario nel mondo corrente e scrive il report
+ *   rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>]
+ *                                 esegue uno scenario nel mondo corrente e scrive il report. Con `-ReplayRoot` lascia
+ *                                 ANCHE un archivio replay in <dir> (`#3035`): senza il flag, nessun archivio.
  *   rt.Test.DumpResult [Id]       stampa l'ultimo result.json
  *   rt.Test.Scenario <Id>         (variabile) scenario da eseguire AUTOMATICAMENTE all'avvio della partita
  *
@@ -156,11 +158,42 @@ namespace
 		}
 	}
 
+	/** Il prefisso del flag che chiede l'archivio replay. Il confronto ignora le maiuscole, come i flag di UE. */
+	const TCHAR* const ReplayRootFlag = TEXT("-ReplayRoot=");
+
 	void RTTestRunCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
 	{
-		if (Args.Num() == 0)
+		// Il primo argomento che non e' un flag e' l'ID, come prima. Il flag puo' stare in qualunque posizione.
+		FString ScenarioId;
+		FString ReplayRoot;
+		bool bReplayRequested = false;
+		for (const FString& Arg : Args)
 		{
-			Ar.Log(TEXT("[RT-Test] uso: rt.Test.Run <ScenarioId>   (rt.Test.List per l'elenco)"));
+			if (Arg.StartsWith(ReplayRootFlag, ESearchCase::IgnoreCase))
+			{
+				bReplayRequested = true;
+				ReplayRoot = Arg.Mid(FCString::Strlen(ReplayRootFlag));
+				ReplayRoot.TrimStartAndEndInline();
+				ReplayRoot.TrimQuotesInline();
+			}
+			else if (ScenarioId.IsEmpty())
+			{
+				ScenarioId = Arg;
+			}
+		}
+
+		if (ScenarioId.IsEmpty())
+		{
+			Ar.Log(TEXT("[RT-Test] uso: rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>]   (rt.Test.List per l'elenco)"));
+			return;
+		}
+		// ⛔ Un flag senza valore NON ripiega su una radice "di comodo": la radice e' l'unica cosa che rende
+		// esplicita la richiesta, e `Saved/Replays` e' la lista delle partite vere. Si rifiuta PRIMA di eseguire,
+		// perche' una run lanciata senza l'archivio che si voleva si scopre quando serve.
+		if (bReplayRequested && ReplayRoot.IsEmpty())
+		{
+			Ar.Log(TEXT("[RT-Test] -ReplayRoot= senza valore: indica la cartella in cui scrivere l'archivio, ad esempio "
+				"-ReplayRoot=D:/Temp/Archivi. Scenario NON eseguito."));
 			return;
 		}
 		if (!World)
@@ -169,9 +202,8 @@ namespace
 			return;
 		}
 
-		const FString ScenarioId = Args[0];
 		FString ReportDir;
-		const FRTTestResult Result = URTScenarioRunner::RunById(World, ScenarioId, ReportDir);
+		const FRTTestResult Result = URTScenarioRunner::RunById(World, ScenarioId, ReportDir, ReplayRoot);
 		GLastScenarioId = ScenarioId;
 
 		Ar.Logf(TEXT("[RT-Test] %s -> %s (%d/%d assertion, %d turni)"),
@@ -194,6 +226,21 @@ namespace
 		if (!ReportDir.IsEmpty())
 		{
 			Ar.Logf(TEXT("[RT-Test]   report: %s"), *FPaths::Combine(ReportDir, TEXT("result.json")));
+		}
+		// L'archivio si dichiara SEMPRE quando e' stato chiesto, anche se non c'e': una richiesta che si perde in
+		// silenzio e' esattamente il difetto che questo flag esiste per non avere.
+		if (bReplayRequested)
+		{
+			if (Result.ReplayMatchId.IsValid())
+			{
+				Ar.Logf(TEXT("[RT-Test]   replay: MatchId=%s radice=%s"),
+					*Result.ReplayMatchId.ToString(EGuidFormats::Digits), *ReplayRoot);
+			}
+			else
+			{
+				Ar.Logf(TEXT("[RT-Test]   replay: richiesto, ma nessun archivio scritto (esito %s)"),
+					*Result.OutcomeString());
+			}
 		}
 	}
 
@@ -232,7 +279,7 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestList(
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestRun(
 	TEXT("rt.Test.Run"),
-	TEXT("rt.Test.Run <ScenarioId> — esegue lo scenario nel mondo corrente e scrive Saved/RTTests/<Id>/<Run>/result.json."),
+	TEXT("rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>] — esegue lo scenario nel mondo corrente e scrive Saved/RTTests/<Id>/<Run>/result.json. Con -ReplayRoot lascia anche un archivio replay in <dir>."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTTestRunCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestDumpResult(
