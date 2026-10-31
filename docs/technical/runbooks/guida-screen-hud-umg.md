@@ -886,7 +886,7 @@ della classe C++. Senza `LinesBox` o senza `LineClass` la scheda non costruisce 
 
 | Porta | Tipo | Che cosa ci scrive il C++ |
 |---|---|---|
-| `LineText` | `TextBlock` | la riga di testo (nome, PV, stati, verso, equipaggiamento, ricariche dedotte, e i marcatori di taglio) |
+| `LineText` | `TextBlock` | la riga di testo (nome, PV, stati, verso, la riga coi nomi dell'equipaggiamento, l'invito o i dettagli della skill sotto il cursore, e i marcatori di taglio) |
 
 Una riga è **testo e basta**: il C++ la imposta `SelfHitTestInvisible`, così i gesti arrivano al pannello che li consuma, e
 non ha hover né una posizione di kit. ⌫ *Fino al 2026-10-30 la riga di una skill portava la sua posizione di kit e chiedeva
@@ -898,9 +898,30 @@ anche quello, perché il destro è il passo `Inspector` del Back e deve chiudere
 
 Lo misurano `ScreenHud.InspectCardWearsItsLineClass`, `ScreenHud.MiddleRightStackKeepsTheLogUnderTheCard`, la tabella delle porte
 di `ScreenHud.ActionBarDeclaresTheNamedPorts` e `ScreenHud.TenantsFitTheirBands`, che accende la scheda piena che lo scenario
-sa comporre (nome, stati, equipaggiamento, ricariche dedotte: `MaxRighe` righe). ⚠️ Il gate **non vede le righe che vanno a
-capo**: con righe di una parola la misura è la stessa, e l'altezza di una scheda con righe a capo si guarda in PIE
-(`PIE-HUD-SCHEDA`).
+sa comporre (nome, stati, equipaggiamento e i dettagli di una skill con un pezzo e una stima: `MaxRighe` righe). ⚠️ Il gate **non
+vede le righe che vanno a capo**: con righe di una parola la misura è la stessa, e l'altezza di una scheda con righe a capo si
+guarda in PIE (`PIE-HUD-SCHEDA`).
+
+### Che cosa mostra il box, con e senza cursore (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11))
+
+⛔ **Nessuna porta nuova e nessun authoring**: il box è sempre `URTInspectCardWidget`, con `CardRoot` e `LinesBox`; cambia solo ciò
+che il C++ ci scrive.
+
+| Con | `LinesBox` mostra |
+|---|---|
+| nessun cursore su uno slot dell'unità della scheda | la **testata**: nome, PV e scudo, verso (se acceso), stati col glossario, **una sola riga** «Equipaggiamento: A · B · C» coi nomi dei pezzi, e la riga di invito «Passa su una skill della barra per i dettagli» |
+| il cursore su uno slot della barra in sola lettura dell'unità della scheda | la testata e, al posto dell'invito, i **dettagli di quella skill**: il titolo, le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno), le righe `+` e `-` del pezzo che la riguarda e, solo se la squadra ha visto usare l'azione, la riga «Stima da cio' che hai visto: …» |
+| il cursore su uno slot della barra della **propria** unità | la testata e l'invito, com'era: l'hover vale solo per il soggetto della scheda |
+
+La sezione «Ricariche (stima da cio' che hai visto)» e le righe `+` e `-` in testata non ci sono più (⌫ *c'erano fino al 2026-10-31*).
+Il widget legge l'hover a ogni `RefreshLook` (`GetSkillHoverUnit()`, `GetSkillHoverIndex()`), ricompone subito al cambio e riporta la
+prima riga visibile a zero; uno slot vuoto o un indice fuori kit lascia la testata e l'invito. ⚠️ I dettagli oltre `MaxRighe` non si
+scorrono: lasciare lo slot azzera l'hover, quindi non si può portare il cursore sul box e girare la rotella. `MaxRighe` sta nei
+default della classe C++ (16) e la stringa non compare nell'asset `WBP_RT_InspectCard`; alzarlo è una scelta d'autore, e
+`ScreenHud.TenantsFitTheirBands` lo misura contro la fascia di `MiddleRight`.
+
+Lo misurano `UI.InspectCardHeaderIsCompact`, `UI.InspectCardShowsTheHoveredSkill`,
+`UI.InspectCardHoveredSkillShowsTheDeducedCooldownOnlyIfSeen` e `UI.InspectCardFollowsTheSkillHover`.
 
 ### La barra delle skill con un soggetto in sola lettura: `WBP_RT_ActionDock` e `WBP_RT_ActionSlot` (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
 
@@ -922,7 +943,8 @@ Il soggetto lo decide `ARTPlayerController::GetDockUnit()` (e `IsDockReadOnly()`
 lettura, solo mentre il controller dice «sola lettura». Lo slot non lo applica (non conosce il manager): lo scarto dura al più
 un fotogramma ed è sicuro. Una barra in sola lettura non porta **né tasti, né anello di ricarica, né stato, né azione
 armata**: se un widget disegna una di queste cose per un soggetto in sola lettura, è un difetto, e `BuildPublicBar` è il
-posto dove guardare.
+posto dove guardare. La fissazione che lo porta cade anche a ogni turno nuovo di pianificazione (il controller la rilascia:
+[D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.3)), e la barra torna alla selezione senza che il dock faccia niente.
 
 ⚠️ **Buco dichiarato**: `UpdateTargetPrompt`, una funzione del grafo del dock, calcola la riga di stato da
 `GetPointerContext()` e `GetPointerTargetKind()` del controller, che seguono la **selezione**. Con la barra su un nemico la
@@ -931,10 +953,17 @@ authoring del grafo nel clone principale (tacere la riga a barra in sola lettura
 grafo) o una modifica a `GetPointerContext`, e non è fatto. Non c'è nemmeno un'etichetta «sola lettura»: il segnale è
 l'assenza dei tasti sugli slot, e il giudizio è dell'autore.
 
+⛔ **`Conferma` e `Invio` non dipendono dalla barra** ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.2)). `URTPlanCommitWidget::RefreshButtons` non la
+legge: `Conferma` è accesa quando c'è un'unità selezionata, come prima di #3748, e in risoluzione il riquadro è chiuso;
+`ARTPlayerController::ToggleTurnPlanDeclared` guarda solo il mondo in sola lettura. Chi rimettesse `IsDockReadOnly()` nel pulsante
+lo spegnerebbe con la barra sul nemico: lo prova `ScreenHud.ConfirmStaysEnabledWhileTheBarIsReadOnly`. Rischio noto: `Invio` è un
+toggle, e premuto mentre si guarda un nemico può ritrattare la dichiarazione della propria unità.
+
 Lo misurano `ScreenHud.DockShowsTheBarOfAReadOnlySubject`, `ScreenHud.AReadOnlySlotNeitherArmsNorHoversTheWrongUnit`,
 `ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead`, `HexMatch.TheSlotHoverOfAReadOnlyBarShowsTheRangeFromTheViewCell`,
 `HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch` e, per il blocco del piano,
-`PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan`.
+`PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan` (senza la riga `Invio`), con
+`PlayerInput.DeclaringThePlanStaysAliveWhileTheBarIsReadOnly` e `ScreenHud.ConfirmStaysEnabledWhileTheBarIsReadOnly` per la dichiarazione.
 
 ## 8. Verifica
 
