@@ -259,6 +259,14 @@ namespace
 	 * [D-414] (`#3134`): l'UNICO punto in cui si decide quale causa e' gia' una causa di PAGAMENTO. Togliere una
 	 * causa dalla regola e' togliere una riga da qui.
 	 *
+	 * Le etichette `R1`..`R10` che questo file, i suoi commenti e i test citano sono quelle di [D-563], clausole
+	 * (2) e (3): PAGANO `R1` area in portata che non trova nessuno, `R2` azione principale negata dallo stordimento,
+	 * `R3` bersaglio-unita' scattato altrove, `R4` linea di tiro bloccata a risoluzione, `R5` mira su un altro piano,
+	 * `R6` bersaglio-unita' gia' morto, `R7` tiro a cella cappato dal Fumo non osservato, `R8` azione in portata
+	 * annullata da `Action.Interrupt` senza colpi; restano GRATIS `R9` tiro a cella oltre la portata dichiarata o
+	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
+	 * `R3`..`R8` sono conseguenze scelte dall'assistente, DA CONFERMARE.
+	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
 	 *
@@ -1665,8 +1673,14 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// su — «un Interrupt senza linea di tiro non cancella nulla, esattamente come un attacco bloccato dalla
 	// copertura». Si paga il colpo che c'e' stato, oppure l'intento che mirava a una cella.
 	// ⌫ *2026-10-31: «senza linea di tiro» e «su un altro piano» non sono piu' gratuiti, ne' per l'Interrupt ne' per
-	// un attacco qualunque (`R4`, `R5`: vedi `AzionePartita`). Restano gratuiti fuori portata, senza mappa autorevole
-	// e su un alleato: portata e distanza minima le rifiuta il click, gli altri due sono cause NON DECISE.*
+	// un attacco qualunque (`R4`, `R5`: vedi `AzionePartita`), e nemmeno «bersaglio scattato» o «cappato dal Fumo»
+	// (`R3`, `R7`): l'Interrupt non e' piu' un caso a parte, e «si paga il colpo che c'e' stato, oppure l'intento che
+	// mirava a una cella» qui sopra non e' piu' completo. Restano gratuiti fuori portata, senza mappa autorevole e su
+	// un alleato: portata e distanza minima le rifiuta il click, gli altri due sono cause NON DECISE.
+	// ⚠️ **L'Interrupt come ATTORE rientra nella regola perche' e' un'azione d'attacco (`bCountsAsAttack`)**: e' una
+	// conseguenza del principio, DA CONFERMARE ([D-563], clausola (2)). Le sue guardie di vita non sono uguali
+	// (`R3`, `R4`, `R5`, `R7` pagano se e' vivo all'annotazione; `R6` solo se sopravvive alla fase) e una sola riga di
+	// test lo pinna (`R4`).*
 	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
