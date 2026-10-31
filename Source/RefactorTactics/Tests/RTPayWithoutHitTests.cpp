@@ -128,6 +128,9 @@ namespace
 		BersaglioMorto,         //< R6  bersaglio-unita' gia' morto prima del Blast (TargetDead)
 		TiroCappatoDalFumo,     //< R7  tiro a cella cappato dal Fumo non osservato (TerrainCappedIntents)
 		InterrottaSenzaColpi,   //< R8  azione in portata annullata da Action.Interrupt, senza colpi
+		InterruptBloccato,      //< R4  l'INTERRUPT come attore: il bersaglio-unita' sta dietro un muro (DA CONFERMARE dall'autore)
+		NonAggressivaBloccata,  //< la clausola `bCountsAsAttack` di `IntentoPartitoSenzaColpo`: bloccata dal muro, NON paga
+		NonAggressivaBersaglioMorto, //< la guardia `bCountsAsAttack` di R6: bersaglio morto, NON paga
 		CellaOltrePortata,      //< R9  tiro a CELLA fuori portata dichiarata: il click lo rifiuta
 		TroppoVicino,           //< R9  sotto la distanza minima (mortaio): il click lo rifiuta
 		MortaioAlMinimo,        //< controllo di R9: alla distanza minima esatta lo STESSO mortaio paga
@@ -162,6 +165,9 @@ namespace
 		{
 		case EPagaCausa::Colpisce:              A.bDanno = true; break;
 		case EPagaCausa::LineaBloccata:         A.NoLos = 1; break;
+		case EPagaCausa::InterruptBloccato:     A.NoLos = 1; break;
+		case EPagaCausa::NonAggressivaBloccata: A.NoLos = 1; break;
+		case EPagaCausa::NonAggressivaBersaglioMorto: A.BersaglioMorto = 1; break;
 		case EPagaCausa::AltroPiano:            A.AltroPiano = 1; break;
 		case EPagaCausa::BersaglioMorto:        A.BersaglioMorto = 1; break;
 		case EPagaCausa::TiroCappatoDalFumo:    A.FuoriPortata = 1; break;
@@ -203,7 +209,11 @@ namespace
 		TArray<FRTCellId> Muri;
 		TArray<FRTCellId> Fumo;
 		TArray<FRTCellId> InPiu;
-		if (C.Causa == EPagaCausa::LineaBloccata) { Muri = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) }; }
+		if (C.Causa == EPagaCausa::LineaBloccata || C.Causa == EPagaCausa::InterruptBloccato
+			|| C.Causa == EPagaCausa::NonAggressivaBloccata)
+		{
+			Muri = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
+		}
 		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Fumo = { CellaDelFumo }; }
 		if (C.Causa == EPagaCausa::AltroPiano) { InPiu = { CellaSuAltroPiano }; }
 		PagaSpawnMap(World, /*Radius=*/ 9, Muri, Fumo, InPiu);
@@ -246,8 +256,27 @@ namespace
 				return Esito;
 			}
 		}
+		if (C.Causa == EPagaCausa::InterruptBloccato)
+		{
+			// L'Interrupt prende lo SLOT 0 (l'array dei cooldown lo copre) e la portata sale a 3: a portata 1 fra
+			// attore e bersaglio non c'e' una cella dove mettere il muro. Sono DUE campi, `Def` e lo specchio legacy
+			// che `ARTTurnManager` legge ancora.
+			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attaccante, TEXT("Action.Interrupt"), 0);
+			if (!Test.TestEqual(*FString::Printf(TEXT("%s: l'Interrupt e' installato nello slot 0"), C.Nome), Idx, 0))
+			{
+				PagaDestroyWorld(World);
+				return Esito;
+			}
+			Attaccante->Abilities[Idx]->Def.RangeCells = 3;
+			Attaccante->Abilities[Idx]->RangeCells = 3;
+		}
 		URTActionData* Azione = Attaccante->Abilities[Idx];
 		Azione->CooldownTurns = PagaCooldown;
+		if (C.Causa == EPagaCausa::NonAggressivaBloccata || C.Causa == EPagaCausa::NonAggressivaBersaglioMorto)
+		{
+			// L'attacco base di Ivrin resta com'e', tranne la dichiarazione: non si conta come aggressione.
+			Azione->Def.bCountsAsAttack = false;
+		}
 		const int32 Portata = Azione->RangeCells;
 		if (!bMortaio && !Test.TestTrue(*FString::Printf(TEXT("%s: premessa: portata fra 3 e 7 (la mappa ha raggio 9)"), C.Nome),
 			Portata >= 3 && Portata <= 7))
@@ -266,9 +295,15 @@ namespace
 		case EPagaCausa::Colpisce:
 		case EPagaCausa::LineaBloccata:
 		case EPagaCausa::BersaglioMorto:
+		case EPagaCausa::InterruptBloccato:
+		case EPagaCausa::NonAggressivaBloccata:
+		case EPagaCausa::NonAggressivaBersaglioMorto:
 			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaAlBersaglio);
 			if (Bersaglio) { Attaccante->DeclareAttackOnUnit(Bersaglio); }
-			if (Bersaglio && C.Causa == EPagaCausa::BersaglioMorto) { Bersaglio->Health = 0; }
+			if (Bersaglio && (C.Causa == EPagaCausa::BersaglioMorto || C.Causa == EPagaCausa::NonAggressivaBersaglioMorto))
+			{
+				Bersaglio->Health = 0;
+			}
 			break;
 
 		case EPagaCausa::BersaglioScattato:
@@ -349,7 +384,8 @@ namespace
 
 		const bool bServeBersaglio = C.Causa == EPagaCausa::Colpisce || C.Causa == EPagaCausa::LineaBloccata
 			|| C.Causa == EPagaCausa::BersaglioMorto || C.Causa == EPagaCausa::BersaglioScattato
-			|| C.Causa == EPagaCausa::AltroPiano;
+			|| C.Causa == EPagaCausa::AltroPiano || C.Causa == EPagaCausa::InterruptBloccato
+			|| C.Causa == EPagaCausa::NonAggressivaBloccata || C.Causa == EPagaCausa::NonAggressivaBersaglioMorto;
 		const bool bServeAiutante = C.Causa == EPagaCausa::InterrottaSenzaColpi
 			|| C.Causa == EPagaCausa::AttaccanteCadeNelBlast;
 		if ((bServeBersaglio && !Bersaglio) || (bServeAiutante && !Aiutante))
@@ -461,6 +497,13 @@ bool FRTStartedActionPaysWithoutAHitTest::RunTest(const FString&)
 		  TEXT("il click leggeva la mappa ottimistica e lo ha accettato: il costo dell'ottimismo si paga qui") },
 		{ TEXT("R8 annullata da un Interrupt, senza colpi"), EPagaCausa::InterrottaSenzaColpi, true,
 		  TEXT("[D-414] punto 1: un controllo che impedisce l'abilita' non restituisce la ricarica") },
+		// ➕ **Fix wave di `#3134`**: tre righe che difendono tre clausole che nessun test copriva.
+		{ TEXT("R4 l'Interrupt come attore, bersaglio dietro un muro"), EPagaCausa::InterruptBloccato, true,
+		  TEXT("DA CONFERMARE dall'autore: `bCountsAsAttack` e' vero per `Action.Interrupt`, quindi R4 vale anche per chi interrompe") },
+		{ TEXT("azione non aggressiva bloccata dal muro"), EPagaCausa::NonAggressivaBloccata, false,
+		  TEXT("la clausola `!bCountsAsAttack` di `IntentoPartitoSenzaColpo`: l'intento e' in `BlockedIntents` ma non e' un'aggressione") },
+		{ TEXT("azione non aggressiva, bersaglio-unita' gia' morto"), EPagaCausa::NonAggressivaBersaglioMorto, false,
+		  TEXT("la guardia `bCountsAsAttack` di R6: come su `main`, un'azione che non e' un colpo ha le proprie regole") },
 		{ TEXT("R9 cella oltre la portata dichiarata"), EPagaCausa::CellaOltrePortata, false,
 		  TEXT("[D-200] e [D-414] COINCIDONO: geometria nota in pianificazione, il click la rifiuta") },
 		{ TEXT("R9 sotto la distanza minima"), EPagaCausa::TroppoVicino, false,

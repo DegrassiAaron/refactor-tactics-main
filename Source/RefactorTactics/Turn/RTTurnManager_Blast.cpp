@@ -1150,7 +1150,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// su un alleato caduto. Qui non nasce un intento da cui risultare partita (il fallback `Cancel` lo toglie), quindi
 			// si annota ORA, e si paga solo se chi attacca sopravvive alla fase ([D-209]). Le altre cause di questo ramo
 			// (`TargetGone`, `TargetUnknown`, `TargetFriendly`, `OutOfRange` a risoluzione) restano NON DECISE: gratis.
-			if (PagaSeParteSenzaColpo(Reason))
+			//
+			// ⚠️ **Solo se l'azione si dichiara aggressione** (`bCountsAsAttack`), la STESSA clausola di
+			// `IntentoPartitoSenzaColpo`: la regola e' «se si usa un attacco si paga», e un'azione che non e' un colpo ha le
+			// proprie regole (la cura paga per conto suo, in `CollectHealActions`). Senza la clausola `R6` pagava anche
+			// un'azione non aggressiva su un bersaglio-unita' caduto, che su `main` e' gratis.
+			if (Instance.Def.bCountsAsAttack && PagaSeParteSenzaColpo(Reason))
 			{
 				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
 			}
