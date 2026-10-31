@@ -18,8 +18,8 @@
  * l'azione armata, le ricariche vere: il soggetto non ha un campo in cui metterli.
  *
  * ⛔ **Il kit non e' sulla scheda.** Lo mostra la barra delle skill dell'unita' cliccata, in sola lettura
- * (`URTHudViewModel::BuildPublicBar`, decisione d'autore del 2026-10-30): il soggetto non ha un campo per il kit, e `Compose`
- * non ha righe di skill.
+ * (`URTHudViewModel::BuildPublicBar`, decisione d'autore del 2026-10-30): il soggetto non ha un campo per il kit. La scheda mostra i
+ * dettagli di UNA skill, quella sotto il cursore (qui sotto), e mai l'elenco del kit.
  *
  * 🔑 **La scheda e' una TESTATA e, col cursore su uno slot della barra, i DETTAGLI di quella skill** (decisione d'autore del
  * 2026-10-31): `FRTInspectSubject::HoveredSkill` porta cio' che il tooltip dello stesso slot dice, piu' i pezzi di equipaggiamento che

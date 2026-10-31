@@ -895,6 +895,9 @@ private:
 	 * dell'ispezione a ogni turno nuovo (`HandleTeamKnowledgeRefreshed`). Lo accende chiunque abbia di che farlo cadere, e quindi anche
 	 * `PinInspection`: un nemico fissato prima di aver selezionato qualcosa non ha mai incontrato `SelectUnit`, e senza l'iscrizione la
 	 * fissazione non cadrebbe mai.
+	 *
+	 * ⚠️ **Per quel controller i primi tre gestori si iscrivono anch'essi, e sono no-op senza selezione**: spengono o ridipingono un'anteprima
+	 * che non c'e'. E' voluto, non una svista da correggere: separare il quarto in un'iscrizione sua darebbe due sedi dove ce n'e' una.
 	 */
 	void EnsureTurnPresentationSubscriptions(class ARTTurnManager* TurnManager);
 
@@ -930,8 +933,9 @@ private:
 	 *
 	 * 🔑 **E' l'aggancio che scatta su OGNI percorso che apre un turno**, ed e' il motivo per cui non e' `OnResolvePlaybackFinished`: quello non
 	 * scatta quando il turno si conclude in linea — senza playback (`bEnablePlayback` spento: headless, automation) o con una risoluzione che non ha niente
-	 * da mostrare (nessuna fase da riprodurre, anche in partita vera) —, e la fissazione sopravviverebbe proprio al turno che non si vede. `ConcludeTurn` riapre sempre la
-	 * pianificazione con `StartPlanningTimer`, che rinfresca la conoscenza (`PlanBots`) col numero di turno GIA' incrementato.
+	 * da mostrare (nessuna fase da riprodurre, anche in partita vera) —, e la fissazione sopravviverebbe proprio al turno che non si vede. Su ogni percorso che apre un turno,
+	 * `ConcludeTurn` riapre la pianificazione con `StartPlanningTimer`, che rinfresca la conoscenza (`PlanBots`) col numero di turno GIA'
+	 * incrementato. ⚠️ A fine partita nessun turno si apre e questo aggancio non scatta: la fissazione resta sulla schermata dei risultati.
 	 *
 	 * 🔴 **Non scatta solo all'apertura di un turno**: la conoscenza si rinfresca anche dentro la risoluzione (Blast, Move) e al setup, e sono
 	 * rinfreschi dello STESSO turno. Cadere a ogni rinfresco farebbe sparire la fissazione a risoluzione in corso, dove l'ispezione deve restare
@@ -1211,6 +1215,10 @@ public:
 	/**
 	 * Per i test dell'arco del nemico (#3762): l'unita' ispezionata senza passare dal click, che porta con se' le
 	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
+	 *
+	 * ⚠️ **Non scrive `InspectionTurn`** (e non iscrive il controller al turno): resta `INDEX_NONE`, quindi una fissazione fatta a mano cade al primo
+	 * `OnTeamKnowledgeRefreshed` che porta un turno diverso da `INDEX_NONE`, cioe' al primo rinfresco (`HandleTeamKnowledgeRefreshed`). Chi vuole una
+	 * fissazione che regge un rinfresco dello stesso turno usa `PinInspectionForTest`.
 	 */
 	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
 
@@ -1784,6 +1792,9 @@ public:
 	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
 	 * soggetto; qui c'e' il setter perche' l'ORDINE del Back e' di questo contratto e senza il livello l'elenco
 	 * sarebbe incompleto.
+	 *
+	 * ⚠️ **Non scrive `InspectionTurn`**, come `SetInspectedUnitForTest`: una fissazione fatta a mano cade al primo `OnTeamKnowledgeRefreshed` che porta
+	 * un turno diverso da `INDEX_NONE`, cioe' al primo rinfresco. Per una fissazione che regge un rinfresco dello stesso turno: `PinInspectionForTest`.
 	 */
 	void SetInspectorPinned(bool bPinned) { bInspectorPinned = bPinned; }
 	bool IsInspectorPinned() const { return bInspectorPinned; }
@@ -1851,6 +1862,10 @@ protected:
 	/**
 	 * Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). Per un'unita' vera stampiglia anche il turno
 	 * (`InspectionTurn`) e si assicura che il controller ascolti il turno nuovo (`EnsureTurnPresentationSubscriptions`).
+	 *
+	 * ⚠️ **L'iscrizione non e' solo quella del turno**: `EnsureTurnPresentationSubscriptions` iscrive anche i tre gestori di presentazione
+	 * (`HandleLockInCommitted`, `HandlePlaybackFinished`, `HandleMatchEndedPresentation`) per un controller che non ha mai selezionato niente, e
+	 * senza selezione sono no-op. Non sono da «correggere»: la sede delle quattro e' una sola.
 	 */
 	void PinInspection(ARTUnit* Unit);
 

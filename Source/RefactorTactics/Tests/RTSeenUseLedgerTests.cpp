@@ -635,7 +635,7 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		&& SeenEstimate.Contains(FString::Printf(TEXT("dal turno %d"), Hit->TurnNumber + RealCooldown)));
 
 	// Il mondo gemello: la stessa partita senza nessun attacco. E' fermo: la sua ricarica VERA e' a zero. Quella del mondo
-	// dell'attacco e' in corso, ed e' il canale che P4 vieta: se la scheda la leggesse, le due sezioni differirebbero.
+	// dell'attacco e' in corso, ed e' il canale che P4 vieta: se la scheda la leggesse, le due righe di stima differirebbero.
 	FBoard Quiet;
 	if (!Build(Quiet)) { RTWorldFixtures::DestroyWorld(Attack.World); RTWorldFixtures::DestroyWorld(Quiet.World); return false; }
 	GiveShotACooldown(Quiet);

@@ -144,7 +144,8 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/**
 	 * La skill sotto il cursore e' quella di un'unita' ISPEZIONATA e non comandata (`#3748`): il proprietario non e' l'unita'
 	 * comandata, e puo' non esserci nessuna selezione. Il produttore e' lo slot della barra in sola lettura
-	 * (`URTActionSlotWidget::HoverBegin`, che passa da `ARTPlayerController::SetSkillHover`), non la scheda: la scheda non ha righe di skill.
+	 * (`URTActionSlotWidget::HoverBegin`, che passa da `ARTPlayerController::SetSkillHover`), non la scheda: le righe della scheda sono testo e
+	 * non producono nessun hover (la scheda mostra i dettagli della skill che lo slot ha sotto il cursore, e non l'elenco del kit).
 	 *
 	 * ⛔ **Lo scrive il solo risolutore del controller, e solo quando il proprietario e' l'unita' ispezionata e fissata** e ha passato i
 	 * cancelli (viva, e per un nemico una voce `Live` nella vista di chi guarda). Senza questo flag la skill di un'altra unita' non tiene

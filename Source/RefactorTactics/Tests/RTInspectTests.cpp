@@ -237,8 +237,8 @@ bool FRTInspectEquipmentTest::RunTest(const FString&)
 
 		const FString TextBare = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Bare, 0, true)));
 		const FString TextArmed = InspectText(URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Armed, 0, true)));
-		TestFalse(TEXT("senza equipaggiamento la sezione non c'e'"), TextBare.Contains(TEXT("Equipaggiamento")));
-		TestTrue(TEXT("con equipaggiamento la sezione c'e'"), TextArmed.Contains(TEXT("Equipaggiamento")));
+		TestFalse(TEXT("senza equipaggiamento la riga dei nomi non c'e'"), TextBare.Contains(TEXT("Equipaggiamento")));
+		TestTrue(TEXT("con equipaggiamento la riga dei nomi c'e'"), TextArmed.Contains(TEXT("Equipaggiamento")));
 		for (const FName& Id : Armed->EquippedItemIds)
 		{
 			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(Id);

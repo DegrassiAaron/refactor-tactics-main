@@ -1110,7 +1110,8 @@ void URTPlanCommitWidget::RefreshButtons(bool bRecountWarnings)
 	// 🔴 **`#3748` (decisione d'autore del 2026-10-31): `Conferma` NON dipende dalla barra.** Dichiarare il piano non lo scrive, e con la barra su un
 	// nemico il controller lascia passare la dichiarazione dell'unita' selezionata (`ToggleTurnPlanDeclared` guarda solo il mondo). Un pulsante spento
 	// qui nasconderebbe un gesto che funziona. Rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`. Durante la risoluzione il riquadro
-	// e' chiuso (sopra), ed e' li' che il mondo in sola lettura si vede. ⛔ Rimettere `&& !IsDockReadOnly()` fa cadere
+	// e' chiuso (sopra): li' il pulsante non si vede e non c'e' niente da spegnere. ⚠️ Non e' cosi' in una finestra di reazione e in un modale: il
+	// pulsante resta acceso e il rifiuto, se c'e', e' del controller, non di questa riga. ⛔ Rimettere `&& !IsDockReadOnly()` fa cadere
 	// `ConfirmStaysEnabledWhileTheBarIsReadOnly`.
 	if (ConfirmButton)
 	{

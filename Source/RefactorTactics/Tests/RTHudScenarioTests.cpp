@@ -759,8 +759,8 @@ namespace
 	 *
 	 * Dal 2026-10-31 il box e' una testata compatta piu' i dettagli della skill sotto il cursore: la scheda piena e' la testata (nome, PV, verso,
 	 * gli stati con il loro effetto, UNA riga coi nomi dell'equipaggiamento) piu' i dettagli di una skill (titolo, frase, le righe del tooltip, le
-	 * righe `+`/`-` di un pezzo che la riguarda e la stima della ricarica). Senza cursore la scheda e' di cinque righe e il gate non
-	 * misurerebbe niente. Quindi il soggetto e' costruito con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con
+	 * righe `+`/`-` di un pezzo che la riguarda e la stima della ricarica). Senza cursore la scheda dell'unita' propria dello scenario e' di
+	 * quattro righe (nome, PV, verso, invito) e il gate non misurerebbe niente. Quindi il soggetto e' costruito con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con
 	 * l'effetto piu' lungo, i pezzi del loadout di un eroe vero, e i dettagli della skill dell'unita' che ha piu' righe di tooltip (dal costruttore
 	 * di produzione, `BuildInspectSubject` col cursore su quella posizione) con un pezzo e una stima iniettati. E' il caso peggiore, non il caso medio.
 	 *
