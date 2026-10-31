@@ -117,6 +117,14 @@ public:
 	 * lista compare come «interrotta» (nessun esito di partita) e NON come «registrazione incompleta». Un archivio non
 	 * chiuso resta quello di una run che non e' arrivata in fondo (crash, uscita).
 	 *
+	 * ⛔ **Si registra solo su un turn manager che non ha ancora giocato** (`GetTurnNumber() == 1`). Un archivio numera i
+	 * turni come li numera il turn manager - nei file, nel manifest e nelle voci del TurnLog, che portano il
+	 * `TurnNumber` assoluto - e il turn manager sopravvive alla sessione senza tornare a 1: una seconda run registrata
+	 * nello stesso mondo avrebbe i file dall'1 e le voci dal 2, e il Player non troverebbe i turni dove li dichiara.
+	 * `Start` la rifiuta con un `Error` che dice quanti turni il turn manager ha gia' giocato, PRIMA di toccare radice,
+	 * formato o identita' di registrazione: per registrare serve un mondo nuovo. Lo stesso rifiuto, con un'altra
+	 * ragione, vale per un turn manager che ha gia' un archivio vivo.
+	 *
 	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`.
 	 */
 	FString ReplayArchiveRoot;
@@ -284,8 +292,8 @@ private:
 	 * 🔴 **Serve perche' il turn manager sopravvive alla sessione**: `RunSingle` non lo distrugge (`bTearDownAfter =
 	 * false`) e uno scenario successivo nello stesso mondo - o un GameMode - lo riusa. Tre cose da non lasciargli:
 	 *  1. l'**identita'** della registrazione (`MatchId`): con quella valida i turni del secondo scenario finirebbero in
-	 *     coda all'archivio del primo, e la run registrata successiva si vedrebbe rifiutare come «sta gia' registrando».
-	 *     `ARTTurnManager::EndReplayRecording` la azzera;
+	 *     coda all'archivio del primo, e la run registrata successiva si vedrebbe rifiutare come «sta gia' registrando»
+	 *     invece che per la ragione vera (il turn manager ha gia' giocato). `ARTTurnManager::EndReplayRecording` la azzera;
 	 *  2. l'archivio **aperto**: il turn manager lo chiude solo se la partita si decide, e uno scenario a turni esauriti
 	 *     lo lascerebbe `bClosed = false` («registrazione incompleta»). `EndReplayRecording` lo chiude con l'esito che c'e';
 	 *  3. la **configurazione** che la sessione ha cambiato per registrare: `ReplaysRootOverride` e `MatchRules.FormatId`.

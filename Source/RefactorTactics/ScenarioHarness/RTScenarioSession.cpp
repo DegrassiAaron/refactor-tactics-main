@@ -1159,6 +1159,24 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 			return true;
 		}
 
+		// ⛔ Si registra solo su un turn manager che NON ha ancora giocato. Un archivio numera i turni come li numera il
+		// turn manager - nel nome dei file, nel manifest e, soprattutto, nelle VOCI del TurnLog, che portano il
+		// `TurnNumber` assoluto e che `SeekToTurn` del Player legge per trovare un turno. `ConcludeTurn` incrementa
+		// `TurnNumber` e nessuno lo riporta a 1: su un turn manager riusato dopo una partita l'archivio avrebbe i file
+		// dall'1 e le voci dal 2, e il Player risponderebbe `TurnNotFound` per un turno che c'e' e `Found` per uno
+		// che non c'e'. Non si promette cio' che non si sa fare: si rifiuta, dichiarandolo, PRIMA di toccare radice,
+		// formato o identita' di registrazione - niente archivio, niente effetti collaterali.
+		if (TM->GetTurnNumber() != 1)
+		{
+			ErroredBy = FString::Printf(
+				TEXT("registrazione replay richiesta, ma il turn manager di questo mondo ha gia' giocato %d turni: ")
+				TEXT("per registrare serve un mondo nuovo, perche' le voci del TurnLog portano il TurnNumber assoluto ")
+				TEXT("e l'archivio non sarebbe coerente"),
+				TM->GetTurnNumber() - 1);
+			Finish();
+			return true;
+		}
+
 		// ⚠️ Cio' che si sta per cambiare sul turn manager si ricorda PRIMA, perche' il turn manager sopravvive alla
 		// sessione (`RunSingle`, `bTearDownAfter = false`) e un GameMode che arrivasse dopo lo troverebbe con la radice
 		// e il formato di una run di scenario. `StopReplayRecording` rimette tutto com'era. Il testimone si alza qui,

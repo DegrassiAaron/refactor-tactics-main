@@ -180,6 +180,10 @@ struct FRTTestResult
 	 * un'esecuzione che si ferma prima del primo turno (`Error`, `Blocked`, zero turni): nessun turno,
 	 * nessun archivio.
 	 *
+	 * **Non valido anche** quando la richiesta e' stata rifiutata con un `Error`: repeatCount o varianti (piu' partite,
+	 * un solo id non le descriverebbe), un turn manager che ha gia' un archivio vivo, o che ha gia' giocato dei turni
+	 * (l'archivio non sarebbe coerente: serve un mondo nuovo). Niente archivio, niente effetti collaterali.
+	 *
 	 * ⛔ **Non entra in `StateHash`, nel digest delle `TurnTraces` ne' nel TurnLog**: e' identita'
 	 * dell'archivio, generata a ogni registrazione, e due run identiche ne hanno due diverse
 	 * (`Replay.ScenarioBridge.MatchIdDoesNotEnterTheScenarioHashes`). E' una lettura, come `StateDiff`.

@@ -19,6 +19,7 @@
 #include "Misc/Paths.h"
 #include "Misc/StringOutputDevice.h"
 #include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
 
 // La guardia: il codice di test non deve finire nel binario Shipping.
 #if WITH_DEV_AUTOMATION_TESTS
@@ -454,55 +455,209 @@ bool FRTScenarioBridgeConsoleTest::RunTest(const FString&)
 }
 
 /**
- * 9. **Due run registrate di fila nello STESSO mondo** lasciano due archivi distinti, ciascuno col suo numero di turni.
+ * 9. **Una seconda run registrata nello STESSO mondo si rifiuta**, e non lascia niente.
  *
- * E' la seduta PIE: la console due volte, un solo turn manager. Il turn manager sopravvive alla sessione, e se la
- * prima run gli lasciasse l'identita' della registrazione, la seconda verrebbe rifiutata come «sta gia' registrando»
- * (`#3035`, rilievo di review). Le due run hanno un numero di turni diverso, cosi' un archivio che inghiottisse i
- * turni dell'altro avrebbe un `TurnCount` sbagliato invece di coincidere per caso.
+ * Il turn manager sopravvive alla sessione (`RunSingle`, `bTearDownAfter = false`) e `ConcludeTurn` ne incrementa il
+ * `TurnNumber` senza mai riportarlo a 1. Le voci del TurnLog portano il `TurnNumber` ASSOLUTO del turn manager: un
+ * archivio aperto su un turn manager gia' avanzato avrebbe i file numerati dall'1 e le voci dichiarate dal 2, e
+ * `SeekToTurn` del Player risponderebbe `TurnNotFound` per il turno 1 e `Found` per un turno che non esiste
+ * (`#3035`, rilievo di review). Il ponte non promette cio' che non sa fare: registra solo su un turn manager che non
+ * ha ancora giocato, e altrimenti lo dichiara PRIMA di toccare radice, formato o identita'.
+ *
+ * Il primo archivio, intanto, resta quello di una run completa: aperto e chiuso.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeTwoRecordedRunsTest,
-	"RefactorTactics.Replay.ScenarioBridge.TwoRecordedRunsInOneWorldLeaveTwoArchives",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeSecondRunRefusedTest,
+	"RefactorTactics.Replay.ScenarioBridge.ASecondRecordedRunInTheSameWorldIsRefused",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTScenarioBridgeTwoRecordedRunsTest::RunTest(const FString&)
+bool FRTScenarioBridgeSecondRunRefusedTest::RunTest(const FString&)
 {
 	FRTTestScenario Breve;
 	FRTTestScenario Showcase;
 	if (!ScenarioBridgeLoad(*this, TEXT("Movement.Basic"), Breve)) { return false; }
 	if (!ScenarioBridgeLoad(*this, TEXT("RT_Showcase_Relay_v01"), Showcase)) { return false; }
 
-	const FScenarioBridgeRoot Root(TEXT("TwoRuns"));
+	const FScenarioBridgeRoot Root(TEXT("SecondRefused"));
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
 	const FRTTestResult Prima = URTScenarioRunner::Run(World, Breve, Root.Path);
 	const FRTTestResult Seconda = URTScenarioRunner::Run(World, Showcase, Root.Path); // stesso mondo, stesso turn manager
+
+	const ARTTurnManager* TM = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	const bool bTurnManagerAvanzato = TM && TM->GetTurnNumber() > 1;
+	const bool bIdentitaAppesa = TM && TM->GetReplayMatchId().IsValid();
+	const FString RadiceRimasta = TM ? TM->ReplaysRootOverride : FString();
 	RTWorldFixtures::DestroyWorld(World);
 
-	if (!ScenarioBridgeExpectPass(*this, Prima) || !ScenarioBridgeExpectPass(*this, Seconda)) { return false; }
+	if (!ScenarioBridgeExpectPass(*this, Prima)) { return false; }
 	if (!TestTrue(TEXT("la prima run ha registrato"), Prima.ReplayMatchId.IsValid())) { return false; }
-	if (!TestTrue(TEXT("e anche la seconda: non e' rifiutata come «sta gia' registrando»"),
-		Seconda.ReplayMatchId.IsValid()))
+	TestTrue(TEXT("e il turn manager ha giocato (altrimenti il rifiuto sotto non avrebbe una ragione)"),
+		bTurnManagerAvanzato);
+
+	TestEqual(TEXT("la seconda richiesta e' un errore dichiarato"),
+		static_cast<int32>(Seconda.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(TEXT("che dice che il turn manager ha gia' giocato"),
+		Seconda.ErrorMessage.Contains(TEXT("ha gia' giocato")));
+	TestTrue(TEXT("e che serve un mondo nuovo"), Seconda.ErrorMessage.Contains(TEXT("mondo nuovo")));
+	TestFalse(TEXT("nessun MatchId"), Seconda.ReplayMatchId.IsValid());
+	TestEqual(TEXT("nessun turno giocato"), Seconda.TurnsPlayed, 0);
+	TestFalse(TEXT("il turn manager non resta con un'identita' di registrazione"), bIdentitaAppesa);
+	TestTrue(TEXT("ne' con la radice di prova"), RadiceRimasta.IsEmpty());
+
+	// Nessun secondo archivio: la radice ha ancora SOLO quello della prima run, e si apre completo.
+	TestEqual(TEXT("una sola cartella di archivio nella radice"), Root.MatchDirectories().Num(), 1);
+	FRTReplaySession Session;
+	if (TestTrue(TEXT("l'archivio della prima run si apre"),
+		URTReplayPlayerLibrary::OpenArchive(Root.Path, Prima.ReplayMatchId, Session) == ERTReplayOpenResult::Opened))
+	{
+		TestTrue(TEXT("ed e' chiuso"), Session.Manifest.bClosed);
+		TestEqual(TEXT("coi turni della prima run"), Session.Manifest.TurnCount, Prima.TurnsPlayed);
+	}
+	return true;
+}
+
+/**
+ * 9b. **Un turn manager che ha gia' un archivio vivo non se ne vede aprire un secondo sopra** (`#3035`).
+ *
+ * E' il GameMode di una partita vera, in corso: un secondo `BeginReplayRecording` genererebbe un altro `MatchId` e
+ * lascerebbe l'archivio della partita senza il suo seguito. Il ponte rifiuta, e la registrazione preesistente - la
+ * sua identita', la sua radice, il suo formato - resta com'era.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeLiveArchiveKeptTest,
+	"RefactorTactics.Replay.ScenarioBridge.ALiveArchiveOnTheTurnManagerIsNotReplaced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeLiveArchiveKeptTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!ScenarioBridgeLoad(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	const FScenarioBridgeRoot RootScenario(TEXT("LiveScenario"));
+	const FScenarioBridgeRoot RootGame(TEXT("LiveGame"));
+	const FName FormatoProprio(TEXT("ScenarioBridgeLiveFormat"));
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	// Il turn manager di una partita che sta gia' registrando, PRIMA della run: e' la sua registrazione.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TM->ReplaysRootOverride = RootGame.Path;
+	FRTMatchRules Regole = TM->GetMatchRules();
+	Regole.FormatId = FormatoProprio;
+	TM->SetMatchRules(Regole);
+	TM->BeginReplayRecording();
+	const FGuid IdPreesistente = TM->GetReplayMatchId();
+	if (!TestTrue(TEXT("la registrazione preesistente e' partita (altrimenti il test non prova la guardia)"),
+		IdPreesistente.IsValid()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("e il turn manager non ha giocato: e' la guardia dell'archivio vivo, non quella dei turni"),
+		TM->GetTurnNumber(), 1);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario, RootScenario.Path);
+
+	TestEqual(TEXT("la richiesta e' un errore dichiarato"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(TEXT("che nomina l'archivio"), Result.ErrorMessage.Contains(TEXT("archivio")));
+	TestFalse(TEXT("nessun MatchId nel risultato"), Result.ReplayMatchId.IsValid());
+	TestEqual(TEXT("nessun turno giocato"), Result.TurnsPlayed, 0);
+	TestFalse(TEXT("la radice dello scenario non e' stata creata"), RootScenario.Exists());
+
+	TestEqual(TEXT("la registrazione preesistente e' intatta"), TM->GetReplayMatchId(), IdPreesistente);
+	TestEqual(TEXT("con la sua radice"), TM->ReplaysRootOverride, RootGame.Path);
+	TestEqual(TEXT("e il suo formato"), TM->GetMatchRules().FormatId, FormatoProprio);
+
+	TM->EndReplayRecording();
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 9c. Le **varianti** giocano piu' partite quanto le ripetizioni: stesso rifiuto, stessa promessa di non scrivere
+ * niente. Il test 6 copre `repeatCount`; qui l'altra meta' della condizione (`#3035`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeRefusesVariantsTest,
+	"RefactorTactics.Replay.ScenarioBridge.RefusesToRecordVariants",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeRefusesVariantsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!ScenarioBridgeLoad(*this, TEXT("RT_Showcase_Relay_v01"), Scenario)) { return false; }
+	Scenario.RepeatCount = 1;
+	Scenario.Variants.AddDefaulted();
+	if (!TestEqual(TEXT("una variante sola, senza ripetizioni: e' la sola ragione del rifiuto"),
+		Scenario.Variants.Num(), 1))
 	{
 		return false;
 	}
-	TestNotEqual(TEXT("con due identita' diverse"), Prima.ReplayMatchId, Seconda.ReplayMatchId);
-	TestNotEqual(TEXT("e due numeri di turni diversi (altrimenti il confronto sotto non distingue)"),
-		Prima.TurnsPlayed, Seconda.TurnsPlayed);
-	TestEqual(TEXT("due cartelle di archivio nella radice"), Root.MatchDirectories().Num(), 2);
 
-	const TPair<const FRTTestResult*, const TCHAR*> Run[] = { { &Prima, TEXT("prima") }, { &Seconda, TEXT("seconda") } };
-	for (const TPair<const FRTTestResult*, const TCHAR*>& R : Run)
+	const FScenarioBridgeRoot Root(TEXT("Variants"));
+	const FRTTestResult Result = ScenarioBridgeRun(Scenario, Root.Path);
+
+	TestEqual(TEXT("la richiesta e' un errore dichiarato"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(TEXT("e il motivo nomina le varianti"), Result.ErrorMessage.Contains(TEXT("varianti")));
+	TestFalse(TEXT("nessun MatchId"), Result.ReplayMatchId.IsValid());
+	TestFalse(TEXT("nessuna cartella scritta"), Root.Exists());
+	return true;
+}
+
+/**
+ * 9d. **Le voci dell'archivio dichiarano gli stessi turni dei file che le contengono** (`#3035`).
+ *
+ * E' la proprieta' che il Player usa e che il manifest non prova: `SeekToTurn` e la posizione del viewer leggono il
+ * turno dalla PRIMA voce di ogni traccia, non dal nome del file. Il rilievo di review l'ha trovata violata nel caso
+ * che il ponte ora rifiuta (un turn manager gia' avanzato): file dall'1, voci dal 2.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeVoicesAgreeTest,
+	"RefactorTactics.Replay.ScenarioBridge.TheArchiveVoicesAgreeWithTheArchiveTurnNumbers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeVoicesAgreeTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!ScenarioBridgeLoad(*this, TEXT("RT_Showcase_Relay_v01"), Scenario)) { return false; }
+
+	const FScenarioBridgeRoot Root(TEXT("VoicesAgree"));
+	const FRTTestResult Result = ScenarioBridgeRun(Scenario, Root.Path);
+	if (!ScenarioBridgeExpectPass(*this, Result)) { return false; }
+	if (!TestTrue(TEXT("c'e' un MatchId"), Result.ReplayMatchId.IsValid())) { return false; }
+
+	FRTReplaySession Session;
+	if (!TestTrue(TEXT("l'archivio si apre"),
+		URTReplayPlayerLibrary::OpenArchive(Root.Path, Result.ReplayMatchId, Session) == ERTReplayOpenResult::Opened))
 	{
-		FRTReplaySession Session;
-		if (!TestTrue(FString::Printf(TEXT("l'archivio della %s run si apre"), R.Value),
-			URTReplayPlayerLibrary::OpenArchive(Root.Path, R.Key->ReplayMatchId, Session) == ERTReplayOpenResult::Opened))
-		{
-			continue;
-		}
-		TestEqual(FString::Printf(TEXT("l'archivio della %s run ha i turni di QUELLA run"), R.Value),
-			Session.Manifest.TurnCount, R.Key->TurnsPlayed);
+		return false;
 	}
+	const int32 TurnCount = Session.Manifest.TurnCount;
+	if (!TestTrue(TEXT("piu' di un turno (con uno solo, 1 e TurnCount coincidono e il confronto non distingue)"),
+		TurnCount > 1))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("una traccia per turno"), Session.Traces.Num(), TurnCount)) { return false; }
+
+	for (int32 Index = 0; Index < Session.Traces.Num(); ++Index)
+	{
+		const TArray<FRTTurnLogEntry>& Trace = Session.Traces[Index];
+		if (!TestTrue(FString::Printf(TEXT("la traccia %d ha delle voci"), Index + 1), Trace.Num() > 0)) { continue; }
+		TestEqual(FString::Printf(TEXT("la prima voce del file turn-%03d dichiara il turno %d"), Index + 1, Index + 1),
+			Trace[0].TurnNumber, Index + 1);
+	}
+
+	// Cio' che il Player ne fa: il turno 1 c'e', l'ultimo c'e', quello dopo l'ultimo no.
+	TestEqual(TEXT("SeekToTurn(1) trova il primo turno"),
+		static_cast<int32>(URTReplayPlayerLibrary::SeekToTurn(Session, 1)), static_cast<int32>(ERTReplaySeekResult::Found));
+	TestEqual(TEXT("SeekToTurn(TurnCount) trova l'ultimo"),
+		static_cast<int32>(URTReplayPlayerLibrary::SeekToTurn(Session, TurnCount)), static_cast<int32>(ERTReplaySeekResult::Found));
+	TestEqual(TEXT("SeekToTurn(TurnCount + 1) non trova niente"),
+		static_cast<int32>(URTReplayPlayerLibrary::SeekToTurn(Session, TurnCount + 1)),
+		static_cast<int32>(ERTReplaySeekResult::TurnNotFound));
 	return true;
 }
 

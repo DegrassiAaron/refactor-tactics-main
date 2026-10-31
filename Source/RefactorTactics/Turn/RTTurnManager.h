@@ -1140,6 +1140,11 @@ public:
 	 *
 	 * Non fa nulla se non si sta registrando. Non tocca `bRecordReplay` ne' `ReplaysRootOverride`: sono configurazione
 	 * di chi possiede il turn manager, non stato della registrazione.
+	 *
+	 * ⚠️ **Non azzera `TurnNumber`**, e un archivio numera i turni col `TurnNumber` del turn manager (nel nome dei file,
+	 * nel manifest e nelle voci del TurnLog): una registrazione aperta su un turn manager che ha gia' giocato parte da
+	 * un turno che il registratore non accetta come primo, ed e' per questo che il ponte degli scenari
+	 * (`FRTScenarioSession::ReplayArchiveRoot`) rifiuta di aprirla su un turn manager con `GetTurnNumber() != 1`.
 	 */
 	void EndReplayRecording();
 
@@ -2976,18 +2981,6 @@ protected:
 	 * la sequenza e lo stato vivono in `FRTReplayRecording`, che non conosce ne' il mondo ne' il TurnLog.
 	 */
 	FRTReplayRecording ReplayRecording;
-
-	/**
-	 * Il `TurnNumber` del turn manager nell'istante in cui la registrazione e' cominciata (`#3035`). `1` in una
-	 * partita vera, dove `BeginReplayRecording` gira prima di qualunque turno e la sottrazione non cambia niente.
-	 *
-	 * 🔴 **Un archivio numera i suoi turni dall'1, il turn manager no se sopravvive a una partita precedente.**
-	 * `ConcludeTurn` incrementa `TurnNumber` e nessuno lo riporta a 1: una seconda run di scenario nello stesso mondo
-	 * riusa il turn manager e parte dal turno 2, e il registratore rifiuta un turno che non sia il successivo di quelli
-	 * scritti - il risultato era un archivio con zero turni e un `Error` nel TurnLog a ogni turno. L'archivio conta
-	 * quindi i turni **dall'inizio della sua registrazione**; il `TurnNumber` della partita non si tocca.
-	 */
-	int32 ReplayFirstTurnNumber = 1;
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
