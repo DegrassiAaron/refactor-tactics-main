@@ -666,8 +666,85 @@ FRTCellId ARTHUD::GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCe
 	return bHasAnimated ? Animated : UnitCell;
 }
 
+namespace
+{
+	/** Nomi distinti per file: il progetto usa unity build. Un pezzo di equipaggiamento come lo scrive la scheda: nome, slot, vantaggio, svantaggio. */
+	FRTInspectEquipmentLine InspectEquipmentLineOf(const URTEquipmentData& Piece)
+	{
+		FRTInspectEquipmentLine Line;
+		Line.Name = Piece.DisplayName;
+		Line.Slot = Piece.Slot;
+		Line.Advantage = Piece.Advantage;
+		Line.Drawback = Piece.Drawback;
+		return Line;
+	}
+
+	/**
+	 * I dettagli della skill alla posizione `Index` di `Unit` (`#3748`, 2026-10-31), o un dettaglio VUOTO.
+	 *
+	 * Vuoto per un indice negativo o fuori kit e per una posizione senza azione (`ARTUnit::GetAbility` controlla l'indice e da' `nullptr`), e
+	 * per un'azione senza identita' (`BuildCatalogTooltip` non ha niente da dire: titolo vuoto). L'indice non si legge mai a occhi chiusi.
+	 *
+	 * 🔑 **Una sola fonte per il testo**: la riga di catalogo con `NAME_None` (la variante attiva e' partita, [D-562]), il suo tooltip, e il testo
+	 * semplice che `ComposeTooltipText` ne ricava. La prima riga di quel testo e' il titolo, le altre sono `Lines`: descrizione, fase, slot,
+	 * portata, forma, ricarica di catalogo e danno non hanno qui un secondo formattatore.
+	 *
+	 * 🔑 **I pezzi che la riguardano**: quello che la CONCEDE — l'azione di un gadget o di un modulo porta l'id del pezzo (`MakeEquipmentAction`:
+	 * `Def.ActionId = EquipmentId`, mentre `GrantedActionId` e' l'azione CORE da cui e' costruita, condivisa da piu' pezzi: `Action.Counter` per
+	 * Contrattacco e Scudo reattivo) — e, per un'azione del gruppo `Base`, la variante d'arma, che modifica proprio l'attacco base. Nessun altro.
+	 */
+	FRTInspectSkillDetail InspectBuildSkillDetail(const ARTUnit& Unit, int32 Index,
+		const TArray<FRTInspectDeducedCooldown>& DeducedCooldowns)
+	{
+		FRTInspectSkillDetail Detail;
+		const URTActionData* Action = Unit.GetAbility(Index);
+		if (Action == nullptr)
+		{
+			return Detail;
+		}
+		const FRTAbilityCooldownView Row = URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None);
+		const FRTActionTooltipView Tooltip = URTHudViewModel::BuildCatalogTooltip(Row);
+		if (!Tooltip.IsValid())
+		{
+			return Detail;
+		}
+
+		Detail.ActionId = Row.ActionId;
+		Detail.Title = Tooltip.Title;
+		TArray<FString> TooltipLines;
+		URTHudViewModel::ComposeTooltipText(Tooltip).ToString().ParseIntoArrayLines(TooltipLines, /*bCullEmpty=*/ false);
+		for (int32 Line = 1; Line < TooltipLines.Num(); ++Line) // la riga 0 e' il titolo
+		{
+			Detail.Lines.Add(FText::FromString(TooltipLines[Line]));
+		}
+
+		for (const FName& PieceId : Unit.EquippedItemIds)
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (Piece == nullptr) { continue; }
+			const bool bGrantsThisAction = !Piece->GrantedActionId.IsNone() && Piece->EquipmentId == Row.ActionId;
+			const bool bModifiesTheBaseAttack = Row.Group == ERTActionGroup::Base && Piece->Slot == ERTEquipmentSlot::WeaponVariant;
+			if (bGrantsThisAction || bModifiesTheBaseAttack)
+			{
+				Detail.Equipment.Add(InspectEquipmentLineOf(*Piece));
+			}
+		}
+
+		// La stima e' la riga che il soggetto gia' ha per questa azione, se la squadra l'ha vista usare: la regola e' di `MakeDeducedCooldown`.
+		for (const FRTInspectDeducedCooldown& Deduced : DeducedCooldowns)
+		{
+			if (Deduced.ActionId == Detail.ActionId)
+			{
+				Detail.Deduced.Add(Deduced);
+				break;
+			}
+		}
+		return Detail;
+	}
+}
+
 FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
-	const FRTSeenUseLedger* SeenUses)
+	const FRTSeenUseLedger* SeenUses, int32 HoverAbilityIndex)
 {
 	FRTInspectSubject Subject;
 	if (Unit == nullptr)
@@ -682,7 +759,8 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 	Subject.bShowFacing = bShowFacing;
 
 	// ⛔ Il kit non entra nel soggetto: lo mostra la barra delle skill dell'unita' cliccata, in sola lettura (`#3748`), dal solo
-	// catalogo (`URTHudViewModel::BuildPublicBar`). Qui di un'azione si legge soltanto il titolo, e solo per la riga dedotta.
+	// catalogo (`URTHudViewModel::BuildPublicBar`). Qui di un'azione si legge soltanto il titolo, per la riga dedotta, e i dettagli di UNA
+	// posizione, quella sotto il cursore (`HoveredSkill`, in fondo).
 	//
 	// Le ricariche DEDOTTE (#3751) non leggono questa unita': si chiede al registro di cio' che la squadra ha visto. Solo per
 	// un'unita' di un'altra squadra — della propria si leggono le ricariche vere — e solo per le azioni che hanno una ricarica di
@@ -710,19 +788,18 @@ FRTInspectSubject ARTHUD::BuildInspectSubject(const ARTUnit* Unit, int32 PlayerT
 	{
 		if (const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId))
 		{
-			FRTInspectEquipmentLine Line;
-			Line.Name = Piece->DisplayName;
-			Line.Slot = Piece->Slot;
-			Line.Advantage = Piece->Advantage;
-			Line.Drawback = Piece->Drawback;
-			Subject.Equipment.Add(Line);
+			Subject.Equipment.Add(InspectEquipmentLineOf(*Piece));
 		}
 	}
+
+	// I dettagli della skill sotto il cursore (decisione d'autore del 2026-10-31): dopo le ricariche dedotte, di cui copiano la riga di UNA azione.
+	// `INDEX_NONE` (nessun cursore) e un indice che non porta un'azione danno un dettaglio vuoto: il controllo e' di `InspectBuildSkillDetail`.
+	Subject.HoveredSkill = InspectBuildSkillDetail(*Unit, HoverAbilityIndex, Subject.DeducedCooldowns);
 	return Subject;
 }
 
 FRTInspectView ARTHUD::BuildInspectCard(const ARTTurnManager* TurnManager, const ARTUnit* Unit,
-	const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
+	const TArray<ARTUnit*>& Units, int32 PlayerTeamId, int32 HoverAbilityIndex)
 {
 	if (TurnManager == nullptr || Unit == nullptr)
 	{
@@ -735,7 +812,7 @@ FRTInspectView ARTHUD::BuildInspectCard(const ARTTurnManager* TurnManager, const
 		return FRTInspectView();
 	}
 	return URTInspectLibrary::Compose(
-		BuildInspectSubject(Unit, PlayerTeamId, !TurnManager->IsResolving(), &TurnManager->GetSeenUses()));
+		BuildInspectSubject(Unit, PlayerTeamId, !TurnManager->IsResolving(), &TurnManager->GetSeenUses(), HoverAbilityIndex));
 }
 
 FRTGlanceUnitSubject ARTHUD::BuildGlanceUnitSubject(const ARTUnit* Unit, bool bShowFacing)

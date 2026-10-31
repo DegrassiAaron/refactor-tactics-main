@@ -757,12 +757,12 @@ namespace
 	 * La scheda PIENA (#3748) per il gate delle fasce: il compositore VERO alimentato con il soggetto piu' lungo che una scheda
 	 * reale puo' avere, cosi' che la finestra di `MaxRighe` righe sia piena.
 	 *
-	 * Il kit non e' piu' sulla scheda (lo mostra la barra delle skill, in sola lettura): una scheda piena e' nome, PV, verso, gli stati con il
-	 * loro effetto, l'equipaggiamento e le ricariche dedotte. Il soggetto dell'unita' propria dello scenario, da solo, ne da' tre righe
-	 * (nessun registro, nessuno stato, e meta' del roster ha un loadout vuoto): il gate non misurerebbe niente. Quindi il soggetto e'
-	 * costruito a mano con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con l'effetto piu' lungo, i pezzi del
-	 * loadout di un eroe vero (nome, vantaggio, svantaggio) e una ricarica dedotta per ogni azione dell'unita'. E' il caso peggiore, non il
-	 * caso medio.
+	 * Dal 2026-10-31 il box e' una testata compatta piu' i dettagli della skill sotto il cursore: la scheda piena e' la testata (nome, PV, verso,
+	 * gli stati con il loro effetto, UNA riga coi nomi dell'equipaggiamento) piu' i dettagli di una skill (titolo, frase, le righe del tooltip, le
+	 * righe `+`/`-` di un pezzo che la riguarda e la stima della ricarica). Senza cursore la scheda e' di cinque righe e il gate non
+	 * misurerebbe niente. Quindi il soggetto e' costruito con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con
+	 * l'effetto piu' lungo, i pezzi del loadout di un eroe vero, e i dettagli della skill dell'unita' che ha piu' righe di tooltip (dal costruttore
+	 * di produzione, `BuildInspectSubject` col cursore su quella posizione) con un pezzo e una stima iniettati. E' il caso peggiore, non il caso medio.
 	 *
 	 * ⚠️ **L'andare a capo non si misura qui.** Le righe lunghe sono realistiche, ma la misura desiderata di `SlatePrepass` non le vede
 	 * spezzarsi: provato con una fixture di prova (sedici righe corte al posto di queste), la scheda misura lo stesso. L'altezza di una
@@ -817,21 +817,30 @@ namespace
 			break;
 		}
 
-		// Una ricarica dedotta per ogni azione dell'unita' (vista usare al turno 2, con la ricarica di catalogo dichiarata a 3).
+		// I dettagli della skill con piu' righe di tooltip fra quelle dell'unita': li costruisce il percorso di produzione, col cursore su quella
+		// posizione. Un pezzo che la riguarda (il primo del loadout, con vantaggio e svantaggio) e una stima (vista usare al turno 2, ricarica di
+		// catalogo dichiarata a 3) si iniettano: l'unita' propria dello scenario non ha ne' pezzi ne' un registro delle azioni viste.
+		int32 PosizionePiena = INDEX_NONE;
+		int32 RighePiene = -1;
 		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
 		{
-			const URTActionData* Azione = Unit->GetAbility(I);
-			if (Azione == nullptr) { continue; }
-			FRTInspectDeducedCooldown Riga;
-			if (URTInspectLibrary::MakeDeducedCooldown(Azione->Def.ActionId,
-				URTHudViewModel::BuildCatalogTooltip(URTHudViewModel::BuildCatalogActionRow(Azione, I, NAME_None)).Title,
-				/*CooldownTurns=*/ 3, /*LastSeenTurn=*/ 2, Riga))
-			{
-				Soggetto.DeducedCooldowns.Add(Riga);
-			}
+			const int32 Righe = ARTHUD::BuildInspectSubject(Unit, 0, true, nullptr, I).HoveredSkill.Lines.Num();
+			if (Unit->GetAbility(I) != nullptr && Righe > RighePiene) { RighePiene = Righe; PosizionePiena = I; }
 		}
-		return Soggetto.Statuses.Num() >= 2 && Soggetto.Equipment.Num() >= 3 && Soggetto.DeducedCooldowns.Num() >= 1
-			? URTInspectLibrary::Compose(Soggetto) : FRTInspectView();
+		if (PosizionePiena == INDEX_NONE || Soggetto.Statuses.Num() < 2 || Soggetto.Equipment.Num() < 3)
+		{
+			return FRTInspectView();
+		}
+		Soggetto.HoveredSkill = ARTHUD::BuildInspectSubject(Unit, 0, true, nullptr, PosizionePiena).HoveredSkill;
+		Soggetto.HoveredSkill.Equipment.Add(Soggetto.Equipment[0]);
+		FRTInspectDeducedCooldown Stima;
+		if (!URTInspectLibrary::MakeDeducedCooldown(Soggetto.HoveredSkill.ActionId, Soggetto.HoveredSkill.Title,
+			/*CooldownTurns=*/ 3, /*LastSeenTurn=*/ 2, Stima))
+		{
+			return FRTInspectView();
+		}
+		Soggetto.HoveredSkill.Deduced.Add(Stima);
+		return URTInspectLibrary::Compose(Soggetto);
 	}
 }
 
@@ -953,10 +962,10 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 			if (URTPlayerEventLogWidget* Registro = Cast<URTPlayerEventLogWidget>(W)) { Registro->RefreshLook(); }
 			// La scheda (#3748) e' un inquilino solo se a schermo, e a schermo e' solo con un soggetto fissato: `Collapsed` misura zero e
 			// il ciclo la salterebbe, quindi qui la si accende con una scheda PIENA: il caso peggiore che la finestra di `MaxRighe` righe
-			// puo' mostrare (nome, PV, verso, due stati con l'effetto lungo, equipaggiamento e ricariche dedotte: `RTSchedaPiena`), iniettata
-			// con `SetViewForTest`. Il kit non e' piu' sulla scheda, quindi non e' piu' cio' che la riempie: senza questa fixture la scheda
-			// dell'unita' propria, composta da `BuildInspectSubject`, e' di tre righe e il gate smette di misurare il caso che esiste per
-			// misurare (a schermo, una scheda con stati e un loadout arriva a riempire la finestra).
+			// puo' mostrare (la testata con due stati dall'effetto lungo e i nomi dell'equipaggiamento, piu' i dettagli di una skill col suo
+			// pezzo e la sua stima: `RTSchedaPiena`), iniettata con `SetViewForTest`. Senza cursore la scheda dell'unita' propria, composta da
+			// `BuildInspectSubject`, e' di quattro righe (nome, PV, verso, invito) e il gate smette di misurare il caso che esiste per misurare
+			// (a schermo, col cursore su una skill, una scheda con stati e un loadout arriva a riempire la finestra).
 			if (URTInspectCardWidget* Scheda = Cast<URTInspectCardWidget>(W))
 			{
 				Scheda->SetCommandControllerForTest(Comandante);

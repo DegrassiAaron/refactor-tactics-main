@@ -76,6 +76,7 @@ void URTInspectCardWidget::RefreshLook(bool bRecompose)
 	if (!bPinned)
 	{
 		CachedSubject.Reset();
+		CachedHoverIndex = INDEX_NONE;
 		CachedView = FRTInspectView();
 		FirstLine = 0;
 	}
@@ -92,6 +93,18 @@ void URTInspectCardWidget::RefreshLook(bool bRecompose)
 		FirstLine = 0;
 		bRecompose = true;
 	}
+
+	// 🔑 **L'hover vale solo se e' dello STESSO soggetto** (decisione d'autore del 2026-10-31): `SetSkillHover` registra l'unita' dello slot, che e'
+	// quella della barra propria o di quella in sola lettura, e il box del nemico non deve cambiare perche' il cursore e' sulla tua barra. Si
+	// riconosce dall'identita' dell'unita', non dall'indice. Un indice fuori kit passa comunque: lo scarta `BuildInspectSubject`, e la riga di invito resta.
+	const int32 HoverIndex = (PC != nullptr && PC->GetSkillHoverUnit() == Subject) ? PC->GetSkillHoverIndex() : INDEX_NONE;
+	if (CachedHoverIndex != HoverIndex)
+	{
+		// Entrare, cambiare o togliere l'hover cambia il contenuto e la sua lunghezza: si ricompone SUBITO (non a 5 Hz) e si riparte dalla testata.
+		CachedHoverIndex = HoverIndex;
+		FirstLine = 0;
+		bRecompose = true;
+	}
 	if (bRecompose)
 	{
 		// La squadra del cancello e' quella del controller, riletta a ogni composizione come fanno il velo e il fuoco: `GetPlayerTeamId()` e'
@@ -99,7 +112,7 @@ void URTInspectCardWidget::RefreshLook(bool bRecompose)
 		// il cancello su quella sbagliata (`TeamIdOf` ripiega su 0, e un nemico di squadra 0 diventerebbe «proprio», sempre `Live`).
 		const int32 ObserverTeam = PC != nullptr ? ARTPlayerState::TeamIdOf(PC) : GetPlayerTeamId();
 		CachedView = ViewForTest.IsSet() ? ViewForTest.GetValue()
-			: ARTHUD::BuildInspectCard(GetTurnManager(), Subject, GatherUnitsInWorld(), ObserverTeam);
+			: ARTHUD::BuildInspectCard(GetTurnManager(), Subject, GatherUnitsInWorld(), ObserverTeam, HoverIndex);
 	}
 
 	// Una scheda senza righe e' un nemico che la squadra non osserva: come una cella vuota, niente da mostrare.

@@ -363,6 +363,188 @@ bool FRTInspectCardGatesOnTheControllersTeamTest::RunTest(const FString&)
 }
 
 /**
+ * IL BOX SEGUE LA SKILL SOTTO IL CURSORE (`#3748`, decisione d'autore del 2026-10-31), sul percorso vero: nessuna scheda iniettata, un manager e
+ * i nemici di uno scenario, il controller che registra l'hover (`SetSkillHover`).
+ *
+ *  - `SetSkillHover(Nemico, k)` cambia le righe: dalla testata con l'invito ai dettagli della skill `k`, **senza ricomporre a 5 Hz** (`RefreshLook(false)`:
+ *    la chiave della cache include l'hover);
+ *  - `ClearSkillHover` le riporta alla testata, e cambiare slot passa da una skill all'altra;
+ *  - **`SetSkillHover(UnitaPropria, k)` non le cambia**: l'hover vale solo se l'unita' dello slot e' il soggetto della scheda. Il controllo positivo e' il
+ *    primo passo, con lo STESSO indice sul nemico; un indice che non porta un'azione lascia la testata e l'invito;
+ *  - la prima riga visibile torna a 0 a ogni cambio dell'hover (entrare, cambiare, togliere), e la testata (nome, PV) sta in cima alla finestra
+ *    anche quando i dettagli sono piu' lunghi di `MaxRighe`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardFollowsTheSkillHoverTest,
+	"RefactorTactics.UI.InspectCardFollowsTheSkillHover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectCardFollowsTheSkillHoverTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("Spec.Hud.MatchWithTwoAllies"), ReportDir);
+	if (!TestEqual(TEXT("lo scenario gira"), static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass))) { return false; }
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	ARTUnit* Own = RTWorldFixtures::FirstUnitOfTeam(World, 0);
+	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(World, 1);
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 0);
+	if (!TestTrue(TEXT("manager, unita' propria, nemico e controller esistono"), TM && Own && Enemy && PC)) { return false; }
+	TArray<ARTUnit*> Units;
+	for (TActorIterator<ARTUnit> It(World); It; ++It) { Units.Add(*It); }
+	if (!TestTrue(TEXT("premessa: la squadra 0 vede il nemico (voce Live): ha una scheda"),
+		URTInspectLibrary::IsInspectable(URTHudViewModel::BuildObserverKnowledgeView(TM, Units, 0), Enemy->StableUnitId)))
+	{
+		return false;
+	}
+
+	// Due posizioni di kit del nemico con un'azione e un titolo ciascuna, e diversi fra loro.
+	const auto TitleAt = [](const ARTUnit* Unit, int32 Position) -> FString
+	{
+		const URTActionData* Action = Unit->GetAbility(Position);
+		return Action != nullptr
+			? URTHudViewModel::BuildCatalogTooltip(URTHudViewModel::BuildCatalogActionRow(Action, Position, NAME_None)).Title.ToString()
+			: FString();
+	};
+	constexpr int32 FirstSkill = 0;
+	constexpr int32 SecondSkill = 1;
+	const FString FirstTitle = TitleAt(Enemy, FirstSkill);
+	const FString SecondTitle = TitleAt(Enemy, SecondSkill);
+	if (!TestTrue(TEXT("premessa: le posizioni 0 e 1 del nemico hanno un'azione ciascuna, con titoli diversi"),
+		!FirstTitle.IsEmpty() && !SecondTitle.IsEmpty() && FirstTitle != SecondTitle))
+	{
+		return false;
+	}
+	const FString OwnTitle = TitleAt(Own, FirstSkill);
+	if (!TestTrue(TEXT("premessa: l'unita' propria ha un'azione alla posizione 0, con un titolo diverso da quelli del nemico"),
+		!OwnTitle.IsEmpty() && OwnTitle != FirstTitle && OwnTitle != SecondTitle))
+	{
+		return false;
+	}
+
+	URTInspectCardWidget* Card = CreateWidget<URTInspectCardWidget>(World, URTInspectCardWidget::StaticClass());
+	if (!TestNotNull(TEXT("il pannello esiste"), Card)) { return false; }
+	Card->CardRoot = NewObject<UBorder>(Card);
+	Card->LinesBox = NewObject<UVerticalBox>(Card);
+	Card->LineClass = URTInspectLineWidget::StaticClass();
+	Card->MaxRighe = 64; // tutto in finestra: qui si confrontano le righe intere
+	Card->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	Card->SetCommandControllerForTest(PC);
+	Card->SetInspectedUnitForTest(Enemy);
+	Card->SetContextForTest(ERTPointerContext::Planning);
+	PC->PinInspectionForTest(Enemy);
+
+	const auto CardLines = [&Card]()
+	{
+		TArray<FString> Out;
+		for (const URTInspectLineWidget* Row : Card->GetLineWidgets()) { Out.Add(Row->GetLineString()); }
+		return Out;
+	};
+	const auto ExpectedLines = [&](int32 Hover) { return ARTHUD::BuildInspectCard(TM, Enemy, Units, 0, Hover).Lines; };
+	const auto Mentions = [](const TArray<FString>& Lines, const FString& Text)
+	{
+		for (const FString& Line : Lines) { if (Line == Text) { return true; } }
+		return false;
+	};
+	const FString Invitation = TEXT("Passa su una skill della barra per i dettagli");
+
+	// --- senza cursore: la testata e l'invito ---------------------------------------------------------------
+	Card->RefreshLook(true);
+	TestTrue(TEXT("fissato il nemico, la scheda si vede"), Card->IsCardShown());
+	const TArray<FString> Header = CardLines();
+	TestEqual(TEXT("senza cursore il pannello mostra la scheda del percorso vero"), Header, ExpectedLines(INDEX_NONE));
+	TestTrue(TEXT("e chiude con l'invito"), Header.Num() > 0 && Header.Last() == Invitation);
+	TestFalse(TEXT("senza il titolo di nessuna skill"), Mentions(Header, FirstTitle) || Mentions(Header, SecondTitle));
+
+	// --- il cursore entra nello slot del nemico: i dettagli, subito (nessuna ricomposizione a 5 Hz) ------------------------------
+	PC->SetSkillHover(Enemy, FirstSkill);
+	Card->RefreshLook(/*bRecompose=*/ false);
+	const TArray<FString> OnFirst = CardLines();
+	TestNotEqual(TEXT("`SetSkillHover(Nemico, 0)` cambia le righe, senza aspettare il tick di ricomposizione"), OnFirst, Header);
+	TestEqual(TEXT("sono i dettagli della skill 0 del percorso vero"), OnFirst, ExpectedLines(FirstSkill));
+	TestTrue(TEXT("col titolo della skill"), Mentions(OnFirst, FirstTitle));
+	TestFalse(TEXT("e senza piu' l'invito"), Mentions(OnFirst, Invitation));
+	TestTrue(TEXT("e la testata e' in cima, com'era (nome e PV)"),
+		OnFirst.Num() > 2 && Header.Num() > 2 && OnFirst[0] == Header[0] && OnFirst[1] == Header[1]);
+
+	// --- il cursore passa su un'altra skill ----------------------------------------------------------------------------
+	PC->SetSkillHover(Enemy, SecondSkill);
+	Card->RefreshLook(false);
+	const TArray<FString> OnSecond = CardLines();
+	TestEqual(TEXT("cambiando slot si passa ai dettagli dell'altra skill"), OnSecond, ExpectedLines(SecondSkill));
+	TestTrue(TEXT("col titolo di quella"), Mentions(OnSecond, SecondTitle));
+	TestFalse(TEXT("e non piu' quello di prima"), Mentions(OnSecond, FirstTitle));
+
+	// --- il cursore esce: torna la testata -------------------------------------------------------------------------------
+	PC->ClearSkillHover(Enemy, SecondSkill);
+	Card->RefreshLook(false);
+	TestEqual(TEXT("`ClearSkillHover` riporta le righe alla testata"), CardLines(), Header);
+
+	// --- l'hover sullo slot della TUA barra non cambia il box del nemico ----------------------------------------------------
+	// Il controllo positivo e' sopra: lo stesso indice sul nemico lo cambia. Qui l'hover e' sull'unita' propria.
+	PC->SetSkillHover(Own, FirstSkill);
+	TestTrue(TEXT("premessa: il controller ha registrato l'hover sull'unita' propria"), PC->GetSkillHoverUnit() == Own && PC->GetSkillHoverIndex() == FirstSkill);
+	Card->RefreshLook(false);
+	TestEqual(TEXT("`SetSkillHover(UnitaPropria, 0)` non cambia le righe"), CardLines(), Header);
+	TestFalse(TEXT("e il titolo della skill propria non compare nel box del nemico"), Mentions(CardLines(), OwnTitle));
+	// Entra sul nemico e poi passa alla propria barra: il box torna alla testata.
+	PC->SetSkillHover(Enemy, FirstSkill);
+	Card->RefreshLook(false);
+	TestNotEqual(TEXT("controllo positivo: sul nemico torna a cambiare"), CardLines(), Header);
+	PC->SetSkillHover(Own, SecondSkill);
+	Card->RefreshLook(false);
+	TestEqual(TEXT("e passando alla propria barra il box torna alla testata"), CardLines(), Header);
+	PC->ClearSkillHover(Own, SecondSkill);
+
+	// --- un indice che non porta un'azione: la testata e l'invito restano ---------------------------------------------------
+	for (const int32 Bad : { 999, -5, Enemy->NumAbilities() })
+	{
+		PC->SetSkillHover(Enemy, Bad);
+		Card->RefreshLook(false);
+		TestEqual(*FString::Printf(TEXT("l'indice %d non porta un'azione: la testata e l'invito restano"), Bad), CardLines(), Header);
+	}
+	PC->SetSkillHover(nullptr, INDEX_NONE);
+
+	// --- la prima riga visibile torna a 0 a ogni cambio dell'hover, e la testata sta in cima ----------------------------------
+	// Finestra di 3 righe: sia i dettagli sia la testata con l'invito sono piu' lunghi, quindi si scorre.
+	Card->MaxRighe = 3;
+	PC->SetSkillHover(Enemy, FirstSkill);
+	Card->RefreshLook(false);
+	const int32 DetailsLines = ExpectedLines(FirstSkill).Num();
+	if (TestTrue(TEXT("premessa: i dettagli sono piu' lunghi della finestra, e della testata con l'invito"),
+		DetailsLines > Card->MaxRighe + 3 && Header.Num() > Card->MaxRighe))
+	{
+		TestEqual(TEXT("entrando nello slot la finestra parte dalla testata"), Card->GetFirstLine(), 0);
+		TestEqual(TEXT("con i dettagli lunghi la prima riga e' ancora il nome"),
+			Card->GetLineWidgets().Num() > 0 ? Card->GetLineWidgets()[0]->GetLineString() : FString(), Header[0]);
+		TestEqual(TEXT("e la seconda i PV"),
+			Card->GetLineWidgets().Num() > 1 ? Card->GetLineWidgets()[1]->GetLineString() : FString(), Header[1]);
+
+		Card->ScrollBy(3);
+		TestEqual(TEXT("premessa: la rotella ha scorso di tre righe"), Card->GetFirstLine(), 3);
+		PC->SetSkillHover(Enemy, SecondSkill);
+		Card->RefreshLook(false);
+		TestEqual(TEXT("cambiando slot la prima riga visibile torna a 0"), Card->GetFirstLine(), 0);
+
+		Card->ScrollBy(2);
+		TestEqual(TEXT("premessa: ha scorso di due righe"), Card->GetFirstLine(), 2);
+		PC->ClearSkillHover(Enemy, SecondSkill);
+		Card->RefreshLook(false);
+		TestEqual(TEXT("togliendo l'hover la prima riga visibile torna a 0"), Card->GetFirstLine(), 0);
+
+		Card->ScrollBy(1);
+		TestEqual(TEXT("premessa: la testata si scorre"), Card->GetFirstLine(), 1);
+		PC->SetSkillHover(Enemy, FirstSkill);
+		Card->RefreshLook(false);
+		TestEqual(TEXT("entrando nello slot la prima riga visibile torna a 0"), Card->GetFirstLine(), 0);
+	}
+	return true;
+}
+
+/**
  * La scheda arriva composta dal percorso vero (`ARTHUD::BuildInspectCard`): il cancello di conoscenza, il soggetto pubblico, il verso che
  * segue la targa. Su uno scenario con un manager vero, per ogni unita' la scheda c'e' se e solo se la vista del velo la dichiara `Live`.
  *

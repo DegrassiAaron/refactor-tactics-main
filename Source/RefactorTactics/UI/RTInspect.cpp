@@ -51,27 +51,47 @@ FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 
 	// ⛔ Nessuna sezione «Kit»: il kit di chi e' a fuoco lo mostra la barra delle skill, in sola lettura (`#3748`).
 
-	if (Subject.Equipment.Num() > 0)
+	// L'equipaggiamento in TESTATA e' una riga sola, coi soli nomi: le righe `+`/`-` di un pezzo stanno fra i dettagli della skill che lo
+	// riguarda (decisione d'autore del 2026-10-31). Un pezzo senza nome non ha niente da dire e non entra.
 	{
-		AddLine(TEXT("Equipaggiamento"));
+		TArray<FString> PieceNames;
 		for (const FRTInspectEquipmentLine& Piece : Subject.Equipment)
 		{
-			AddLine(FString::Printf(TEXT("%s (%s)"), *Piece.Name.ToString(), InspectSlotName(Piece.Slot)));
-			if (!Piece.Advantage.IsEmpty()) { AddLine(TEXT("  + ") + Piece.Advantage.ToString()); }
-			if (!Piece.Drawback.IsEmpty()) { AddLine(TEXT("  - ") + Piece.Drawback.ToString()); }
+			const FString Name = Piece.Name.ToString();
+			if (!Name.IsEmpty()) { PieceNames.Add(Name); }
+		}
+		if (PieceNames.Num() > 0)
+		{
+			AddLine(TEXT("Equipaggiamento: ") + FString::Join(PieceNames, TEXT(" · ")));
 		}
 	}
 
-	if (Subject.DeducedCooldowns.Num() > 0)
+	// ⛔ Nessuna sezione «Ricariche»: la stima di UNA azione e' la riga dei dettagli della sua skill, e solo li' (decisione d'autore del
+	// 2026-10-31). `Subject.DeducedCooldowns` non si disegna da sola.
+	const FRTInspectSkillDetail& Skill = Subject.HoveredSkill;
+	if (!Skill.IsSet())
 	{
-		// L'intestazione dichiara che e' una STIMA (#3751): le ricariche vere dell'avversario non si leggono, e questa e'
-		// ricavata da cio' che la squadra ha visto. Un effetto non visto che allunghi o accorci la ricarica la sbaglia.
-		AddLine(TEXT("Ricariche (stima da cio' che hai visto)"));
-		for (const FRTInspectDeducedCooldown& Row : Subject.DeducedCooldowns)
-		{
-			AddLine(FString::Printf(TEXT("  %s - vista usare al turno %d, di nuovo disponibile dal turno %d"),
-				*Row.Title.ToString(), Row.LastSeenTurn, Row.AvailableFromTurn));
-		}
+		AddLine(TEXT("Passa su una skill della barra per i dettagli"));
+		return View;
+	}
+
+	AddLine(Skill.Title.ToString());
+	for (const FText& Line : Skill.Lines)
+	{
+		AddLine(Line.ToString());
+	}
+	for (const FRTInspectEquipmentLine& Piece : Skill.Equipment)
+	{
+		AddLine(FString::Printf(TEXT("%s (%s)"), *Piece.Name.ToString(), InspectSlotName(Piece.Slot)));
+		if (!Piece.Advantage.IsEmpty()) { AddLine(TEXT("  + ") + Piece.Advantage.ToString()); }
+		if (!Piece.Drawback.IsEmpty()) { AddLine(TEXT("  - ") + Piece.Drawback.ToString()); }
+	}
+	for (const FRTInspectDeducedCooldown& Row : Skill.Deduced)
+	{
+		// La riga dichiara che e' una STIMA (#3751): le ricariche vere dell'avversario non si leggono, e questa e' ricavata da cio' che la
+		// squadra ha visto. Un effetto non visto che allunghi o accorci la ricarica la sbaglia. ⛔ Mai un conto dei turni che restano.
+		AddLine(FString::Printf(TEXT("Stima da cio' che hai visto: vista usare al turno %d, di nuovo disponibile dal turno %d"),
+			Row.LastSeenTurn, Row.AvailableFromTurn));
 	}
 	return View;
 }

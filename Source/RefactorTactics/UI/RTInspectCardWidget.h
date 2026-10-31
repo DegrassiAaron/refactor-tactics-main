@@ -47,11 +47,17 @@ private:
 
 /**
  * `WBP_RT_InspectCard` - la SCHEDA dell'ispezione (`#3748`, fetta F3 di `#705`): il pannello della zona `MiddleRight` che mostra
- * carta, stati, verso ed equipaggiamento di un'unita' ispezionata. ⛔ Non il kit: lo mostra la barra delle skill, in sola lettura.
+ * una TESTATA compatta (nome, PV e scudo, verso, stati, i nomi dell'equipaggiamento) di un'unita' ispezionata e, col cursore su uno
+ * slot della sua barra, i DETTAGLI di quella skill (decisione d'autore del 2026-10-31). ⛔ Non il kit: lo mostra la barra delle skill,
+ * in sola lettura.
  *
  * 🔑 **Disegna e non decide.** La scheda arriva composta da `ARTHUD::BuildInspectCard` (cancello di conoscenza, soggetto pubblico,
  * compositore); `URTInspectLibrary::ShouldShowCard` dice se si vede; `URTInspectLibrary::VisibleWindow` dice quali righe entrano. Qui
  * restano la tavola dei widget e lo stato di scorrimento.
+ *
+ * 🔑 **L'hover si LEGGE dal controller a ogni giro** (`GetSkillHoverUnit`, `GetSkillHoverIndex`) e vale solo se l'unita' dello slot e'
+ * il soggetto della scheda: l'hover su una skill della TUA barra non cambia il box del nemico. Cambiarlo (o toglierlo) ricompone subito,
+ * senza aspettare i 5 Hz, e riporta la prima riga visibile a 0.
  *
  * 🔑 **Nascondere non e' chiudere.** In una finestra di reazione o in un modale il pannello e' `Collapsed` e il soggetto resta
  * fissato; chiude il tasto destro (passo `Inspector` del Back) o la conoscenza (`ReleaseInspectionUnlessLive`), mai il contesto.
@@ -153,6 +159,13 @@ private:
 	 * slot: e' un confronto di identita', non un secondo proprietario.
 	 */
 	TWeakObjectPtr<const ARTUnit> CachedSubject;
+
+	/**
+	 * La posizione di kit sotto il cursore con cui `CachedView` e' stata composta: `INDEX_NONE` senza hover, o con l'hover di un'altra unita'.
+	 * E' la chiave dell'hover nella cache: l'unita' dello slot e' il soggetto per costruzione (se no l'indice e' `INDEX_NONE`), e un soggetto
+	 * nuovo ricompone gia' da se'. Cambiarla ricompone subito e riporta `FirstLine` a 0.
+	 */
+	int32 CachedHoverIndex = INDEX_NONE;
 
 	int32 FirstLine = 0;
 

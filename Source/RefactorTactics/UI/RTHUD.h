@@ -672,9 +672,14 @@ public:
 	 * `SeenUses` (#3751, F6): cio' che la squadra `PlayerTeamId` ha visto usare, da `ARTTurnManager::GetSeenUses()`.
 	 * Con un'unita' di un'ALTRA squadra riempie `DeducedCooldowns`; senza (`nullptr`) o per un'unita' della propria
 	 * squadra il campo resta vuoto. Le ricariche vere dell'avversario (`AbilityCooldowns`) non vengono lette.
+	 *
+	 * `HoverAbilityIndex` (#3748, decisione d'autore del 2026-10-31): la posizione di kit sotto il cursore, o `INDEX_NONE`. Riempie
+	 * `HoveredSkill` dalla riga di catalogo di quella posizione (`BuildCatalogActionRow` con `NAME_None`, `BuildCatalogTooltip`), con i
+	 * pezzi che la riguardano e la stima se la squadra l'ha vista usare. ⛔ Un indice negativo, fuori kit o su una posizione senza azione
+	 * da' un `HoveredSkill` VUOTO: l'indice non si legge mai senza essere controllato (`ARTUnit::GetAbility`).
 	 */
 	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
-		const FRTSeenUseLedger* SeenUses = nullptr);
+		const FRTSeenUseLedger* SeenUses = nullptr, int32 HoverAbilityIndex = INDEX_NONE);
 
 	/**
 	 * LA SCHEDA di un'unita' ispezionata, gia' composta (#3748): il pannello la chiede e la disegna, non ricalcola.
@@ -685,9 +690,11 @@ public:
 	 * dedotte vengono dal registro di quella squadra.
 	 *
 	 * @param Units  le unita' in campo, da cui si costruisce la vista di conoscenza (ordine stabile, come nel resto dell'HUD).
+	 * @param HoverAbilityIndex  la posizione di kit di QUESTA unita' sotto il cursore, o `INDEX_NONE`: vedi `BuildInspectSubject`. Il
+	 *                           chiamante lo passa solo se l'hover e' di questa unita' (il pannello lo verifica), non quello di un'altra.
 	 */
 	static FRTInspectView BuildInspectCard(const class ARTTurnManager* TurnManager, const class ARTUnit* Unit,
-		const TArray<class ARTUnit*>& Units, int32 PlayerTeamId);
+		const TArray<class ARTUnit*>& Units, int32 PlayerTeamId, int32 HoverAbilityIndex = INDEX_NONE);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 
 	/**

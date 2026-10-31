@@ -73,6 +73,17 @@ namespace
 	}
 
 	FString SeenText(const FRTInspectView& View) { return FString::Join(View.Lines, TEXT("\n")); }
+
+	/** Le righe della scheda che iniziano con `Prefix`, nell'ordine (la stima delle ricariche dedotte inizia con «Stima»). */
+	TArray<FString> SeenLinesWith(const FRTInspectView& View, const TCHAR* Prefix)
+	{
+		TArray<FString> Out;
+		for (const FString& Line : View.Lines)
+		{
+			if (Line.StartsWith(Prefix, ESearchCase::CaseSensitive)) { Out.Add(Line); }
+		}
+		return Out;
+	}
 }
 
 // Una voce conta solo se il suo soggetto e' chi AGISCE. I casi che P4 chiede di escludere hanno ciascuno il suo
@@ -316,7 +327,8 @@ bool FRTSeenUseMatchesTheRealCountdownTest::RunTest(const FString&)
 	return true;
 }
 
-// Niente riga dove non c'e' niente da dire, e la riga si legge come una stima.
+// Niente riga dove non c'e' niente da dire, e la riga si legge come una stima: dal 2026-10-31 fra i dettagli della skill sotto il cursore
+// (la sezione «Ricariche» non c'e' piu'). Stessi fatti di prima, spostati nei dettagli.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeenUseLinesReadAsAnEstimateTest,
 	"RefactorTactics.UI.InspectDeducedLinesReadAsAnEstimate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -334,14 +346,50 @@ bool FRTSeenUseLinesReadAsAnEstimateTest::RunTest(const FString&)
 	FRTInspectSubject Subject;
 	Subject.DisplayName = FText::FromString(TEXT("Nemico"));
 	const FString Without = SeenText(URTInspectLibrary::Compose(Subject));
-	TestFalse(TEXT("senza righe dedotte non c'e' l'intestazione"), Without.Contains(TEXT("Ricariche")));
+	TestFalse(TEXT("senza righe dedotte non c'e' ne' una sezione ne' una stima"), Without.Contains(TEXT("Ricariche")) || Without.Contains(TEXT("Stima")));
 
+	// Il soggetto HA la riga dedotta ma nessuna skill e' sotto il cursore: la riga non si disegna da sola, e la sezione di prima non c'e' piu'.
 	Subject.DeducedCooldowns.Add(Row);
-	const FString With = SeenText(URTInspectLibrary::Compose(Subject));
-	TestTrue(TEXT("l'intestazione dichiara una stima"), With.Contains(TEXT("Ricariche (stima")));
-	TestTrue(TEXT("la riga nomina l'azione"), With.Contains(TEXT("Colpo di prova")));
-	TestTrue(TEXT("e l'ultimo turno visto"), With.Contains(TEXT("turno 4")));
-	TestTrue(TEXT("e quando torna disponibile"), With.Contains(TEXT("dal turno 7")));
+	const FString NoHover = SeenText(URTInspectLibrary::Compose(Subject));
+	TestFalse(TEXT("senza una skill sotto il cursore la sezione «Ricariche» non c'e'"), NoHover.Contains(TEXT("Ricariche")));
+	TestFalse(TEXT("ne' la stima"), NoHover.Contains(TEXT("Stima")));
+	TestFalse(TEXT("ne' l'azione vista usare, ne' i suoi turni"), NoHover.Contains(TEXT("Colpo di prova")) || NoHover.Contains(TEXT("turno 4")));
+
+	// Una skill sotto il cursore la cui azione NON e' stata vista usare: i dettagli ci sono, la stima no.
+	Subject.HoveredSkill.ActionId = TEXT("A");
+	Subject.HoveredSkill.Title = Title;
+	const FString NotSeen = SeenText(URTInspectLibrary::Compose(Subject));
+	TestTrue(TEXT("i dettagli ci sono: il titolo della skill"), NotSeen.Contains(TEXT("Colpo di prova")));
+	TestFalse(TEXT("senza avvistamento nei dettagli, nessuna stima e nessuna sezione"), NotSeen.Contains(TEXT("Stima")) || NotSeen.Contains(TEXT("Ricariche")));
+
+	// Con la riga dedotta nei dettagli: una riga sola, dichiarata stima, dopo il titolo, coi due turni e nessun conteggio residuo.
+	Subject.HoveredSkill.Deduced.Add(Row);
+	const FRTInspectView WithView = URTInspectLibrary::Compose(Subject);
+	const FString With = SeenText(WithView);
+	TestFalse(TEXT("la sezione «Ricariche» non c'e' piu', nemmeno con la stima"), With.Contains(TEXT("Ricariche")));
+	int32 TitleLine = INDEX_NONE;
+	TArray<int32> EstimateLines;
+	for (int32 I = 0; I < WithView.Lines.Num(); ++I)
+	{
+		if (WithView.Lines[I] == TEXT("Colpo di prova")) { TitleLine = I; }
+		if (WithView.Lines[I].StartsWith(TEXT("Stima"))) { EstimateLines.Add(I); }
+	}
+	if (TestEqual(TEXT("la stima e' UNA riga, che dichiara di esserlo"), EstimateLines.Num(), 1))
+	{
+		const FString& Estimate = WithView.Lines[EstimateLines[0]];
+		TestTrue(TEXT("la stima viene dopo il titolo dell'azione a cui si riferisce"), TitleLine != INDEX_NONE && EstimateLines[0] > TitleLine);
+		TestTrue(TEXT("e dice l'ultimo turno visto"), Estimate.Contains(TEXT("turno 4")));
+		TestTrue(TEXT("e quando torna disponibile"), Estimate.Contains(TEXT("dal turno 7")));
+		// I numeri della riga sono i due turni e basta: un terzo numero sarebbe un conto dei turni che restano, cioe' la ricarica vera.
+		TArray<int32> Numbers;
+		FString Digits;
+		for (const TCHAR Ch : Estimate + TEXT(" "))
+		{
+			if (FChar::IsDigit(Ch)) { Digits.AppendChar(Ch); }
+			else if (!Digits.IsEmpty()) { Numbers.Add(FCString::Atoi(*Digits)); Digits.Reset(); }
+		}
+		TestEqual(TEXT("la riga porta i due turni e nessun conteggio residuo"), Numbers, TArray<int32>{ 4, 7 });
+	}
 	return true;
 }
 
@@ -394,6 +442,16 @@ bool FRTSeenUseRowCarriesNoTrueCooldownTest::RunTest(const FString&)
 		LooseScalars(FRTAbilityCooldownView::StaticStruct()).Num() >= 2);
 	TestEqual(TEXT("e sul tooltip del kit, che la scheda riusa, nessuno"), TrueCooldownFields(FRTActionTooltipView::StaticStruct()).Num(), 0);
 	TestNotNull(TEXT("e quel campo esiste"), FRTInspectSubject::StaticStruct()->FindPropertyByName(TEXT("DeducedCooldowns")));
+
+	// La stima ora si vede nei dettagli della skill sotto il cursore (2026-10-31): lo stesso conto sul dettaglio. La stima e' un array di
+	// `FRTInspectDeducedCooldown` (le quattro colonne pinnate sopra), e il resto non porta ne' una ricarica ne' un numero sciolto.
+	TestEqual(TEXT("sul dettaglio della skill nessun campo nomina una ricarica vera"), TrueCooldownFields(FRTInspectSkillDetail::StaticStruct()).Num(), 0);
+	TestEqual(TEXT("e nessun booleano o numero sciolto: un contatore residuo o un «usabile ora» sarebbero esattamente l'uno o l'altro"),
+		LooseScalars(FRTInspectSkillDetail::StaticStruct()).Num(), 0);
+	const FArrayProperty* DetailDeduced = CastField<FArrayProperty>(FRTInspectSkillDetail::StaticStruct()->FindPropertyByName(TEXT("Deduced")));
+	const FStructProperty* DetailDeducedRow = DetailDeduced != nullptr ? CastField<FStructProperty>(DetailDeduced->Inner) : nullptr;
+	TestTrue(TEXT("e `Deduced` e' la riga dedotta di quattro colonne, non un'altra"),
+		DetailDeducedRow != nullptr && DetailDeducedRow->Struct == FRTInspectDeducedCooldown::StaticStruct());
 
 	// Il controllo sa vedere: lo stesso scan, sul tipo che porta la ricarica VERA di uno slot, la trova.
 	TestTrue(TEXT("anti-vacuita': la scansione trova `TurnsRemaining`/`bUsableNow` su FRTAbilityCooldownView"),
@@ -501,13 +559,18 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 	for (const FRTTurnLogEntry& Entry : Attack.TM->GetTurnLog()) { Reread.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam }); }
 	TestEqual(TEXT("rileggendo il TurnLog si ottiene lo stesso registro"), Reread.Num(), Ledger.Num());
 
-	// Si confronta cio' che F6 produce — le righe dedotte e il loro testo — e non la scheda intera: PV, verso e stati
-	// di un attaccante che ha appena combattuto differiscono dal gemello fermo per ragioni che F6 non tocca.
-	auto Deduced = [](const FRTInspectSubject& Subject)
+	// Si confronta cio' che F6 produce — la riga della stima, nei dettagli della skill sotto il cursore (la posizione 0, il colpo) — e non la scheda
+	// intera: PV, verso e stati di un attaccante che ha appena combattuto differiscono dal gemello fermo per ragioni che F6 non tocca.
+	// (Prima del 2026-10-31 era la sezione «Ricariche»: i fatti sono gli stessi, ora nei dettagli.)
+	auto Deduced = [](const ARTUnit* Unit, const FRTSeenUseLedger* Seen)
 	{
-		FRTInspectSubject OnlyDeduced;
-		OnlyDeduced.DeducedCooldowns = Subject.DeducedCooldowns;
-		return SeenText(URTInspectLibrary::Compose(OnlyDeduced));
+		FString Out;
+		const FRTInspectView View = URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Unit, SeenObserverTeam, true, Seen, /*HoverAbilityIndex=*/ 0));
+		for (const FString& Line : View.Lines)
+		{
+			if (Line.StartsWith(TEXT("Stima"))) { Out += Line + TEXT("\n"); }
+		}
+		return Out;
 	};
 
 	// La scheda sulla voce VERA, passata da `AppendLogEntry` e dal registro del TurnManager.
@@ -529,7 +592,11 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		TestEqual(TEXT("e coincide con i turni che mancano alla disponibilita' dichiarata dalla scheda"),
 			Attack.Attacker->GetAbilityCooldown(0), Row.AvailableFromTurn - Attack.TM->GetTurnNumber());
 	}
-	TestTrue(TEXT("la sezione della scheda dichiara una stima"), Deduced(SeenSubject).Contains(TEXT("Ricariche (stima")));
+	const FString SeenEstimate = Deduced(Attack.Attacker, &Ledger);
+	TestTrue(TEXT("la riga dei dettagli della skill vista dichiara una stima"), SeenEstimate.StartsWith(TEXT("Stima")));
+	TestTrue(TEXT("e porta l'ultimo turno visto e quello da cui torna disponibile, del turno vero"),
+		SeenEstimate.Contains(FString::Printf(TEXT("al turno %d"), Hit->TurnNumber))
+		&& SeenEstimate.Contains(FString::Printf(TEXT("dal turno %d"), Hit->TurnNumber + RealCooldown)));
 
 	// Il mondo gemello: la stessa partita senza nessun attacco. E' fermo: la sua ricarica VERA e' a zero. Quella del mondo
 	// dell'attacco e' in corso, ed e' il canale che P4 vieta: se la scheda la leggesse, le due sezioni differirebbero.
@@ -547,12 +614,13 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 		Entry.Verdict = FRTKnowledgeVerdict::NoOne();
 		BlindReading.Observe(Entry, TArray<int32>{ 0, SeenObserverTeam });
 	}
-	const FString BlindDeduced = Deduced(ARTHUD::BuildInspectSubject(Attack.Attacker, SeenObserverTeam, true, &BlindReading));
-	const FString QuietDeduced = Deduced(ARTHUD::BuildInspectSubject(Quiet.Attacker, SeenObserverTeam, true, &Quiet.TM->GetSeenUses()));
-	TestEqual(TEXT("un uso fuori vista e un uso mai avvenuto danno la stessa sezione, a ricariche vere diverse"), BlindDeduced, QuietDeduced);
+	const FString BlindDeduced = Deduced(Attack.Attacker, &BlindReading);
+	const FString QuietDeduced = Deduced(Quiet.Attacker, &Quiet.TM->GetSeenUses());
+	TestEqual(TEXT("un uso fuori vista e un uso mai avvenuto danno la stessa stima, a ricariche vere diverse"), BlindDeduced, QuietDeduced);
+	TestTrue(TEXT("e nessuna delle due ha una stima da mostrare"), BlindDeduced.IsEmpty() && QuietDeduced.IsEmpty());
 	TestEqual(TEXT("e i due registri sono vuoti"), BlindReading.Num() + Quiet.TM->GetSeenUses().Num(), 0);
 	TestTrue(TEXT("controllo positivo: lo stesso attacco, letto da chi lo vede, il registro non e' vuoto"), Ledger.Num() > 0);
-	TestNotEqual(TEXT("controllo positivo: e la sezione di chi lo vede non e' quella vuota"), Deduced(SeenSubject), QuietDeduced);
+	TestNotEqual(TEXT("controllo positivo: e la stima di chi lo vede non e' quella vuota"), SeenEstimate, QuietDeduced);
 
 	RTWorldFixtures::DestroyWorld(Attack.World);
 	RTWorldFixtures::DestroyWorld(Quiet.World);
@@ -617,6 +685,135 @@ bool FRTSeenUseSubjectTest::RunTest(const FString&)
 	// La squadra che NON ha visto: un registro che non la conosce non ne inventa.
 	FRTSeenUseLedger Empty;
 	TestEqual(TEXT("registro vuoto: nessuna riga"), ARTHUD::BuildInspectSubject(Enemy, SeenObserverTeam, true, &Empty).DeducedCooldowns.Num(), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * LA STIMA STA NEI DETTAGLI DELLA SKILL SOTTO IL CURSORE, E SOLO SE LA SQUADRA L'HA VISTA USARE (`#3748`, decisione d'autore del 2026-10-31;
+ * `#3751`). La sezione «Ricariche» e' sparita dal box: la riga di UNA azione compare quando il cursore e' sul suo slot, e mai come contatore residuo.
+ *
+ * Un nemico Ivrin osservato dalla squadra `SeenObserverTeam`, con un registro in cui ha usato `InterceptShot` (posizione 1, ricarica di catalogo) al
+ * turno 4. Il controllo positivo e' il primo caso (la riga c'e', una sola, dichiarata stima, coi due turni e basta); gli altri la tolgono ciascuno per una
+ * sola ragione: nessun cursore, un'altra posizione, nessun registro, un registro vuoto, un uso di un'altra azione, un uso fuori vista, un'azione senza
+ * ricarica di catalogo, un'unita' della propria squadra. E la ricarica VERA in corso non cambia nulla: la riga e' la stessa con o senza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeenUseHoveredSkillTest,
+	"RefactorTactics.UI.InspectCardHoveredSkillShowsTheDeducedCooldownOnlyIfSeen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeenUseHoveredSkillTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	ARTUnit* Enemy = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("l'unita' esiste"), Enemy)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	Enemy->TeamId = 0;
+	Enemy->StableUnitId = SeenUnit;
+	Enemy->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+	UGameplayStatics::FinishSpawningActor(Enemy, FTransform::Identity);
+	Enemy->DispatchBeginPlay(); // `AbilityCooldowns` si allinea al kit qui: senza, `ConsumeAbility` non scrive
+
+	constexpr int32 SeenPosition = 1;  // InterceptShot, con una ricarica di catalogo
+	constexpr int32 ShotPosition = 0;  // PulseShot, senza
+	const URTActionData* Intercept = Enemy->GetAbility(SeenPosition);
+	const URTActionData* Shot = Enemy->GetAbility(ShotPosition);
+	if (!TestTrue(TEXT("premessa: la posizione 1 ha una ricarica di catalogo e la 0 no"),
+		Intercept != nullptr && Intercept->CooldownTurns > 0 && Shot != nullptr && Shot->CooldownTurns == 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	// Un'altra azione CON ricarica di catalogo, per il caso «l'uso e' di un'altra azione».
+	int32 OtherPosition = INDEX_NONE;
+	for (int32 I = 0; I < Enemy->NumAbilities() && OtherPosition == INDEX_NONE; ++I)
+	{
+		const URTActionData* Candidate = Enemy->GetAbility(I);
+		if (I != SeenPosition && Candidate != nullptr && Candidate->CooldownTurns > 0 && Candidate->Def.ActionId != Intercept->Def.ActionId) { OtherPosition = I; }
+	}
+	if (!TestNotEqual(TEXT("premessa: un'altra azione del kit ha una ricarica di catalogo"), OtherPosition, static_cast<int32>(INDEX_NONE)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const auto Ledgered = [](FName ActionId, int32 Turn, const FRTKnowledgeVerdict& Verdict)
+	{
+		FRTTurnLogEntry Used = SeenHit(ActionId, Turn);
+		Used.UnitId = SeenUnit;
+		Used.Verdict = Verdict;
+		FRTSeenUseLedger Ledger;
+		Ledger.Observe(Used, TArray<int32>{ 0, SeenObserverTeam });
+		return Ledger;
+	};
+	const FRTSeenUseLedger Seen = Ledgered(Intercept->Def.ActionId, 4, SeenOnlyTeam(SeenObserverTeam));
+	if (!TestEqual(TEXT("premessa: il registro ha visto l'uso dalla squadra osservatrice"),
+		Seen.LastSeenTurn(SeenObserverTeam, SeenUnit, Intercept->Def.ActionId), 4))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const auto ViewOf = [&](int32 PlayerTeam, const FRTSeenUseLedger* Ledger, int32 Hover)
+	{
+		return URTInspectLibrary::Compose(ARTHUD::BuildInspectSubject(Enemy, PlayerTeam, true, Ledger, Hover));
+	};
+	const auto EstimateLines = [](const FRTInspectView& View) { return SeenLinesWith(View, TEXT("Stima")); };
+
+	// --- il controllo positivo: la skill vista usare, col cursore sopra ---------------------------------------------
+	const FRTInspectSubject SeenSubject = ARTHUD::BuildInspectSubject(Enemy, SeenObserverTeam, true, &Seen, SeenPosition);
+	TestEqual(TEXT("controllo positivo: i dettagli portano UNA stima"), SeenSubject.HoveredSkill.Deduced.Num(), 1);
+	const FRTInspectView SeenView = URTInspectLibrary::Compose(SeenSubject);
+	const TArray<FString> Estimate = EstimateLines(SeenView);
+	if (!TestEqual(TEXT("controllo positivo: e una riga di stima"), Estimate.Num(), 1)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	TestTrue(TEXT("la stima dice l'ultimo turno visto"), Estimate[0].Contains(TEXT("turno 4")));
+	TestTrue(TEXT("e quando torna disponibile, dal catalogo"), Estimate[0].Contains(FString::Printf(TEXT("dal turno %d"), 4 + Intercept->CooldownTurns)));
+	TestTrue(TEXT("e i dettagli sono quelli della skill: il titolo del tooltip c'e'"),
+		SeenView.Lines.Contains(URTHudViewModel::BuildCatalogTooltip(URTHudViewModel::BuildCatalogActionRow(Intercept, SeenPosition, NAME_None)).Title.ToString()));
+
+	// Mai un contatore residuo: la ricarica VERA, in corso, non cambia la riga ne' la aggiunge. La premessa e' che sia davvero in corso.
+	Enemy->ConsumeAbility(SeenPosition);
+	if (TestTrue(TEXT("premessa: la ricarica vera di quella posizione e' in corso"), Enemy->GetAbilityCooldown(SeenPosition) > 0))
+	{
+		TestEqual(TEXT("con la ricarica vera in corso la riga di stima e' la stessa"),
+			EstimateLines(ViewOf(SeenObserverTeam, &Seen, SeenPosition)), Estimate);
+		TestEqual(TEXT("e i dettagli interi sono gli stessi, riga per riga"), SeenText(ViewOf(SeenObserverTeam, &Seen, SeenPosition)), SeenText(SeenView));
+	}
+
+	// --- ognuno dei casi che la tolgono, per una sola ragione ---------------------------------------------------------
+	TestEqual(TEXT("senza il cursore su una skill: nessuna stima, benche' il registro l'abbia vista"),
+		EstimateLines(ViewOf(SeenObserverTeam, &Seen, INDEX_NONE)).Num(), 0);
+	TestFalse(TEXT("e nessuna sezione «Ricariche»"), SeenText(ViewOf(SeenObserverTeam, &Seen, INDEX_NONE)).Contains(TEXT("Ricariche")));
+	TestEqual(TEXT("col cursore su un'altra posizione, mai vista usare: nessuna stima"), EstimateLines(ViewOf(SeenObserverTeam, &Seen, ShotPosition)).Num(), 0);
+	TestEqual(TEXT("col cursore su un'altra azione con ricarica, mai vista usare: nessuna stima"),
+		EstimateLines(ViewOf(SeenObserverTeam, &Seen, OtherPosition)).Num(), 0);
+	TestEqual(TEXT("senza registro: nessuna stima"), EstimateLines(ViewOf(SeenObserverTeam, nullptr, SeenPosition)).Num(), 0);
+	FRTSeenUseLedger Empty;
+	TestEqual(TEXT("con un registro vuoto: nessuna stima"), EstimateLines(ViewOf(SeenObserverTeam, &Empty, SeenPosition)).Num(), 0);
+
+	const FRTSeenUseLedger OtherAction = Ledgered(Enemy->GetAbility(OtherPosition)->Def.ActionId, 4, SeenOnlyTeam(SeenObserverTeam));
+	TestEqual(TEXT("l'uso e' di un'ALTRA azione: nessuna stima sulla skill sotto il cursore"), EstimateLines(ViewOf(SeenObserverTeam, &OtherAction, SeenPosition)).Num(), 0);
+	TestEqual(TEXT("controllo positivo: e quella stessa azione, col cursore sul suo slot, ha la sua"),
+		EstimateLines(ViewOf(SeenObserverTeam, &OtherAction, OtherPosition)).Num(), 1);
+
+	const FRTSeenUseLedger Unseen = Ledgered(Intercept->Def.ActionId, 4, FRTKnowledgeVerdict::NoOne());
+	TestEqual(TEXT("un uso FUORI VISTA non lascia riga: nessuna stima"), EstimateLines(ViewOf(SeenObserverTeam, &Unseen, SeenPosition)).Num(), 0);
+	TestEqual(TEXT("e il registro fuori vista e' vuoto (la premessa)"), Unseen.Num(), 0);
+
+	const FRTSeenUseLedger ShotUsed = Ledgered(Shot->Def.ActionId, 4, SeenOnlyTeam(SeenObserverTeam));
+	TestEqual(TEXT("premessa: il registro ha visto l'uso del colpo, che non ha ricarica di catalogo"),
+		ShotUsed.LastSeenTurn(SeenObserverTeam, SeenUnit, Shot->Def.ActionId), 4);
+	TestEqual(TEXT("un'azione senza ricarica di catalogo, anche vista usare: nessuna stima («torna disponibile subito» non e' una stima)"),
+		EstimateLines(ViewOf(SeenObserverTeam, &ShotUsed, ShotPosition)).Num(), 0);
+
+	// Un'unita' della squadra di chi guarda: si leggono le ricariche vere, non le dedotte. Il registro la CONOSCE dalla sua stessa squadra, o l'asserto
+	// non eserciterebbe la guardia (e la stessa scheda, letta da un'altra squadra, ha la sua stima: controllo positivo).
+	const FRTSeenUseLedger KnowsBothSides = Ledgered(Intercept->Def.ActionId, 4, FRTKnowledgeVerdict::Everyone());
+	TestEqual(TEXT("controllo positivo: lo stesso registro, letto da chi non e' della sua squadra, ha la stima"),
+		EstimateLines(ViewOf(SeenObserverTeam, &KnowsBothSides, SeenPosition)).Num(), 1);
+	TestEqual(TEXT("un'unita' della propria squadra: nessuna stima, anche se il registro la conosce"),
+		EstimateLines(ViewOf(/*PlayerTeam=*/ 0, &KnowsBothSides, SeenPosition)).Num(), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
