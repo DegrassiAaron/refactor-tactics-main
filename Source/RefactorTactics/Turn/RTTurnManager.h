@@ -1127,6 +1127,23 @@ public:
 	void BeginReplayRecording();
 
 	/**
+	 * Chiude la registrazione in corso e la dimentica (`#3035`): l'inverso di `BeginReplayRecording`, per chi la
+	 * apre su un turn manager che sopravvive a chi l'ha aperta.
+	 *
+	 * 🔑 **Due cose, e insieme.** (1) Se l'archivio e' aperto lo chiude con l'esito che la partita ha ADESSO - anche
+	 * `InProgress`, per una partita che non si e' decisa - cosi' il manifest dice `bClosed` e il Player lo apre come
+	 * completo; l'esito `InProgress` in un archivio chiuso e' gia' uno stato definito (la riga della lista lo
+	 * chiama «interrotta»). Se la partita si e' gia' decisa, `ConcludeTurn` l'ha chiuso e qui non si riscrive.
+	 * (2) Azzera l'identita': dopo, `GetReplayMatchId()` e' non valido e `BeginReplayRecording` puo' aprire un
+	 * archivio NUOVO. Senza (2) un `MatchId` valido resterebbe appeso per sempre e non distinguerebbe «sta
+	 * registrando» da «ha registrato».
+	 *
+	 * Non fa nulla se non si sta registrando. Non tocca `bRecordReplay` ne' `ReplaysRootOverride`: sono configurazione
+	 * di chi possiede il turn manager, non stato della registrazione.
+	 */
+	void EndReplayRecording();
+
+	/**
 	 * L'ALLESTIMENTO RIVENDICA L'APERTURA DEL TURNO 1 — `#2102`, [D-314].
 	 *
 	 * Dopo questa chiamata `BeginPlay` **non** apre piu' il turno da solo: lo aprira'
@@ -2959,6 +2976,18 @@ protected:
 	 * la sequenza e lo stato vivono in `FRTReplayRecording`, che non conosce ne' il mondo ne' il TurnLog.
 	 */
 	FRTReplayRecording ReplayRecording;
+
+	/**
+	 * Il `TurnNumber` del turn manager nell'istante in cui la registrazione e' cominciata (`#3035`). `1` in una
+	 * partita vera, dove `BeginReplayRecording` gira prima di qualunque turno e la sottrazione non cambia niente.
+	 *
+	 * 🔴 **Un archivio numera i suoi turni dall'1, il turn manager no se sopravvive a una partita precedente.**
+	 * `ConcludeTurn` incrementa `TurnNumber` e nessuno lo riporta a 1: una seconda run di scenario nello stesso mondo
+	 * riusa il turn manager e parte dal turno 2, e il registratore rifiuta un turno che non sia il successivo di quelli
+	 * scritti - il risultato era un archivio con zero turni e un `Error` nel TurnLog a ogni turno. L'archivio conta
+	 * quindi i turni **dall'inizio della sua registrazione**; il `TurnNumber` della partita non si tocca.
+	 */
+	int32 ReplayFirstTurnNumber = 1;
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();

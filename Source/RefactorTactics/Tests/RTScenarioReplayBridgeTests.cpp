@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/RTWorldFixtures.h"
+#include "Replay/RTMatchHistoryLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Replay/RTReplayPlayerLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
@@ -9,6 +10,7 @@
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "Turn/RTMatchFormatLibrary.h"
+#include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
@@ -447,6 +449,173 @@ bool FRTScenarioBridgeConsoleTest::RunTest(const FString&)
 			PF.DeleteDirectoryRecursively(*Dir);
 			PF.DeleteDirectory(*FPaths::GetPath(Dir)); // fallisce, senza danno, se contiene altre run
 		}
+	}
+	return true;
+}
+
+/**
+ * 9. **Due run registrate di fila nello STESSO mondo** lasciano due archivi distinti, ciascuno col suo numero di turni.
+ *
+ * E' la seduta PIE: la console due volte, un solo turn manager. Il turn manager sopravvive alla sessione, e se la
+ * prima run gli lasciasse l'identita' della registrazione, la seconda verrebbe rifiutata come «sta gia' registrando»
+ * (`#3035`, rilievo di review). Le due run hanno un numero di turni diverso, cosi' un archivio che inghiottisse i
+ * turni dell'altro avrebbe un `TurnCount` sbagliato invece di coincidere per caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeTwoRecordedRunsTest,
+	"RefactorTactics.Replay.ScenarioBridge.TwoRecordedRunsInOneWorldLeaveTwoArchives",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeTwoRecordedRunsTest::RunTest(const FString&)
+{
+	FRTTestScenario Breve;
+	FRTTestScenario Showcase;
+	if (!ScenarioBridgeLoad(*this, TEXT("Movement.Basic"), Breve)) { return false; }
+	if (!ScenarioBridgeLoad(*this, TEXT("RT_Showcase_Relay_v01"), Showcase)) { return false; }
+
+	const FScenarioBridgeRoot Root(TEXT("TwoRuns"));
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	const FRTTestResult Prima = URTScenarioRunner::Run(World, Breve, Root.Path);
+	const FRTTestResult Seconda = URTScenarioRunner::Run(World, Showcase, Root.Path); // stesso mondo, stesso turn manager
+	RTWorldFixtures::DestroyWorld(World);
+
+	if (!ScenarioBridgeExpectPass(*this, Prima) || !ScenarioBridgeExpectPass(*this, Seconda)) { return false; }
+	if (!TestTrue(TEXT("la prima run ha registrato"), Prima.ReplayMatchId.IsValid())) { return false; }
+	if (!TestTrue(TEXT("e anche la seconda: non e' rifiutata come «sta gia' registrando»"),
+		Seconda.ReplayMatchId.IsValid()))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("con due identita' diverse"), Prima.ReplayMatchId, Seconda.ReplayMatchId);
+	TestNotEqual(TEXT("e due numeri di turni diversi (altrimenti il confronto sotto non distingue)"),
+		Prima.TurnsPlayed, Seconda.TurnsPlayed);
+	TestEqual(TEXT("due cartelle di archivio nella radice"), Root.MatchDirectories().Num(), 2);
+
+	const TPair<const FRTTestResult*, const TCHAR*> Run[] = { { &Prima, TEXT("prima") }, { &Seconda, TEXT("seconda") } };
+	for (const TPair<const FRTTestResult*, const TCHAR*>& R : Run)
+	{
+		FRTReplaySession Session;
+		if (!TestTrue(FString::Printf(TEXT("l'archivio della %s run si apre"), R.Value),
+			URTReplayPlayerLibrary::OpenArchive(Root.Path, R.Key->ReplayMatchId, Session) == ERTReplayOpenResult::Opened))
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("l'archivio della %s run ha i turni di QUELLA run"), R.Value),
+			Session.Manifest.TurnCount, R.Key->TurnsPlayed);
+	}
+	return true;
+}
+
+/**
+ * 10. Il turn manager esce dalla run **com'era entrato**: radice, formato e identita' della registrazione.
+ *
+ * Il caso e' un GameMode che arriva DOPO: il suo turn manager non registra ancora, e la run di scenario gli
+ * lascerebbe la radice di prova e `Skirmish2v2` come formato. Qui il turn manager e' configurato con valori propri, la
+ * run registra, e poi si fa quello che fa il GameMode: `BeginReplayRecording`. L'archivio che ne esce deve stare nella
+ * SUA radice e col SUO formato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeLeavesTurnManagerTest,
+	"RefactorTactics.Replay.ScenarioBridge.TheTurnManagerIsLeftAsItWasFound",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeLeavesTurnManagerTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!ScenarioBridgeLoad(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	const FScenarioBridgeRoot RootScenario(TEXT("TmScenario"));
+	const FScenarioBridgeRoot RootGame(TEXT("TmGame"));
+	const FName FormatoProprio(TEXT("ScenarioBridgePriorFormat"));
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	// Il turn manager c'e' PRIMA della run, e porta la configurazione di chi lo possiede.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TM->ReplaysRootOverride = RootGame.Path;
+	FRTMatchRules Regole = TM->GetMatchRules();
+	Regole.FormatId = FormatoProprio;
+	TM->SetMatchRules(Regole);
+	const bool bRecordPrima = TM->bRecordReplay;
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario, RootScenario.Path);
+
+	if (ScenarioBridgeExpectPass(*this, Result))
+	{
+		TestTrue(TEXT("la run ha registrato"), Result.ReplayMatchId.IsValid());
+		TestEqual(TEXT("una cartella di archivio nella radice dello scenario"), RootScenario.MatchDirectories().Num(), 1);
+
+		TestEqual(TEXT("la radice del turn manager e' tornata la sua"), TM->ReplaysRootOverride, RootGame.Path);
+		TestEqual(TEXT("e il formato"), TM->GetMatchRules().FormatId, FormatoProprio);
+		TestEqual(TEXT("e bRecordReplay non e' stato toccato"), TM->bRecordReplay, bRecordPrima);
+		TestFalse(TEXT("e non resta appesa l'identita' di una registrazione che non c'e' piu'"),
+			TM->GetReplayMatchId().IsValid());
+
+		// Il GameMode che arriva dopo.
+		TM->BeginReplayRecording();
+		if (TestTrue(TEXT("il turn manager puo' aprire la SUA registrazione"), TM->GetReplayMatchId().IsValid()))
+		{
+			TArray<FRTMatchHistoryEntry> RigheGame;
+			URTMatchHistoryLibrary::LoadIndex(RootGame.Path, RigheGame);
+			if (TestEqual(TEXT("e la registra nella sua radice"), RigheGame.Num(), 1))
+			{
+				TestEqual(TEXT("con la sua identita'"), RigheGame[0].MatchId, TM->GetReplayMatchId());
+				TestEqual(TEXT("e col suo formato"), RigheGame[0].FormatId, FormatoProprio);
+			}
+
+			TArray<FRTMatchHistoryEntry> RigheScenario;
+			URTMatchHistoryLibrary::LoadIndex(RootScenario.Path, RigheScenario);
+			TestEqual(TEXT("la radice dello scenario non si e' mossa"), RigheScenario.Num(), 1);
+		}
+	}
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 11. L'archivio dello showcase e' **chiuso** quando lo scenario finisce, anche se nessuno ha vinto.
+ *
+ * Lo showcase gioca otto turni e non ha un'assertion di esito di partita: il turn manager chiude l'archivio solo se la
+ * PARTITA si decide, quindi senza la chiusura della sessione il manifest resterebbe `bClosed = false`, il Player lo
+ * aprirebbe `bComplete = false` e la lista mostrerebbe «registrazione incompleta» per uno scenario terminato
+ * regolarmente (`#3035`, rilievo di review).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeClosesArchiveTest,
+	"RefactorTactics.Replay.ScenarioBridge.ShowcaseArchiveIsClosedWhenTheScenarioEnds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBridgeClosesArchiveTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!ScenarioBridgeLoad(*this, TEXT("RT_Showcase_Relay_v01"), Scenario)) { return false; }
+
+	const FScenarioBridgeRoot Root(TEXT("Closed"));
+	const FRTTestResult Result = ScenarioBridgeRun(Scenario, Root.Path);
+	if (!ScenarioBridgeExpectPass(*this, Result)) { return false; }
+	if (!TestTrue(TEXT("c'e' un MatchId"), Result.ReplayMatchId.IsValid())) { return false; }
+
+	FRTReplaySession Session;
+	if (!TestTrue(TEXT("l'archivio si apre"),
+		URTReplayPlayerLibrary::OpenArchive(Root.Path, Result.ReplayMatchId, Session) == ERTReplayOpenResult::Opened))
+	{
+		return false;
+	}
+	TestTrue(TEXT("il manifest e' chiuso"), Session.Manifest.bClosed);
+	TestTrue(TEXT("e il Player lo apre come completo"), Session.bComplete);
+	TestNotEqual(TEXT("con l'hash di stato finale (la chiusura non e' un involucro vuoto)"),
+		Session.Manifest.FinalStateHash, static_cast<int64>(0));
+	TestEqual(TEXT("e tutti i turni giocati"), Session.Manifest.TurnCount, Result.TurnsPlayed);
+
+	// La riga della lista lo dice con le stesse parole: niente «registrazione incompleta».
+	TArray<FRTMatchHistoryEntry> Righe;
+	URTMatchHistoryLibrary::LoadIndex(Root.Path, Righe);
+	if (TestEqual(TEXT("una riga nello storico"), Righe.Num(), 1))
+	{
+		TestTrue(TEXT("e la riga dichiara il replay completo"), Righe[0].bReplayComplete);
+		TestEqual(TEXT("coi turni giocati"), Righe[0].TurnCount, Result.TurnsPlayed);
 	}
 	return true;
 }

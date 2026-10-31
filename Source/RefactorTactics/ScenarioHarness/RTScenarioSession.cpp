@@ -729,6 +729,9 @@ namespace
 
 FRTScenarioSession::~FRTScenarioSession()
 {
+	// Una sessione abbandonata a meta' (mai arrivata a `Finish`) non lascia il turn manager con un archivio aperto
+	// e con la configurazione di una run che non c'e' piu' (`#3035`). Idempotente: dopo `Finish` non fa niente.
+	StopReplayRecording();
 	UnbindOwnDecider();
 	UnbindResolutionObservers();
 	UnbindPlayerReactionWindow();
@@ -1144,13 +1147,25 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		// ⛔ Un turn manager che registra gia' - il GameMode di una partita in corso, in PIE - non si riavvia: un
 		// secondo `BeginReplayRecording` genererebbe un altro `MatchId` e lascerebbe l'archivio della partita vera
 		// senza il suo seguito. Meglio dichiararlo che sovrascrivere.
+		//
+		// ⚠️ La domanda e' «ha un'identita' di registrazione ADESSO», e una sessione precedente non la lascia: la
+		// chiude con `EndReplayRecording` (`StopReplayRecording`), che la azzera. Un `MatchId` valido qui vuol dire
+		// quindi una partita vera, in corso o conclusa, e non una run di scenario di prima nello stesso mondo.
 		if (TM->GetReplayMatchId().IsValid())
 		{
-			ErroredBy = TEXT("registrazione replay richiesta, ma il turn manager di questo mondo sta gia' registrando ")
-				TEXT("una partita: non si apre un secondo archivio sopra il primo");
+			ErroredBy = TEXT("registrazione replay richiesta, ma il turn manager di questo mondo ha gia' un archivio ")
+				TEXT("replay di una partita (in corso o conclusa): non se ne apre un secondo sopra il primo");
 			Finish();
 			return true;
 		}
+
+		// ⚠️ Cio' che si sta per cambiare sul turn manager si ricorda PRIMA, perche' il turn manager sopravvive alla
+		// sessione (`RunSingle`, `bTearDownAfter = false`) e un GameMode che arrivasse dopo lo troverebbe con la radice
+		// e il formato di una run di scenario. `StopReplayRecording` rimette tutto com'era. Il testimone si alza qui,
+		// prima delle modifiche, cosi' anche l'uscita per `BeginReplayRecording` rifiutata ripristina.
+		PreviousReplaysRoot = TM->ReplaysRootOverride;
+		PreviousFormatId = TM->GetMatchRules().FormatId;
+		bReplayBridgeApplied = true;
 
 		// La radice e' CONFIGURAZIONE del turn manager (`ReplaysRootOverride`), la stessa leva che usano i test del
 		// recorder: nessun ramo "se test" nel gameplay.
@@ -1173,7 +1188,6 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		TM->BeginReplayRecording();
 
 		Result.ReplayMatchId = TM->GetReplayMatchId();
-		bStartedReplayRecording = Result.ReplayMatchId.IsValid();
 		if (!Result.ReplayMatchId.IsValid())
 		{
 			// Il testimone si legge dal turn manager e non si deduce dalla chiamata: `BeginReplayRecording` si
@@ -2595,23 +2609,31 @@ FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectat
 
 void FRTScenarioSession::StopReplayRecording()
 {
-	if (!bStartedReplayRecording)
+	if (!bReplayBridgeApplied)
 	{
 		return;
 	}
-	bStartedReplayRecording = false;
+	bReplayBridgeApplied = false;
+
 	if (ARTTurnManager* TM = TurnManager.Get())
 	{
-		TM->bRecordReplay = false;
+		// Prima si CHIUDE l'archivio e si azzera l'identita' (`#3035`): il turn manager lo chiude da solo solo se la
+		// PARTITA si decide, e uno scenario che finisce a turni esauriti la lascerebbe aperta - `bClosed = false`,
+		// «registrazione incompleta» nella lista - mentre lo scenario e' terminato regolarmente. Chiuso con l'esito
+		// che c'e' (anche `InProgress`) l'archivio e' completo per quello che lo scenario ha giocato.
+		TM->EndReplayRecording();
+
+		// Poi si rimette la configurazione com'era. `bRecordReplay` non si tocca: non lo si e' mai cambiato, e la
+		// registrazione e' spenta dall'assenza di identita' e non da un flag da ricordarsi.
+		TM->ReplaysRootOverride = PreviousReplaysRoot;
+		FRTMatchRules Rules = TM->GetMatchRules();
+		Rules.FormatId = PreviousFormatId;
+		TM->SetMatchRules(Rules);
 	}
 }
 
 void FRTScenarioSession::Finish()
 {
-	// Il turno che ha chiuso lo scenario e' gia' stato scritto dal turn manager (`RecordTurnToReplay` gira dentro la
-	// risoluzione, prima che la sessione la veda finita): da qui in poi l'archivio e' quello che e'.
-	StopReplayRecording();
-
 	// Piani AZZERATI: se restassero appesi, qualunque cosa risolvesse un turno dopo lo scenario li
 	// ri-eseguirebbe. E' successo davvero, e in PIE sembrava lo scenario stesso.
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -2839,6 +2861,11 @@ void FRTScenarioSession::Finish()
 	{
 		Result.Outcome = ERTTestOutcome::Pass;
 	}
+	// Il turno che ha chiuso lo scenario e' gia' stato scritto dal turn manager (`RecordTurnToReplay` gira dentro la
+	// risoluzione, prima che la sessione la veda finita). In CODA e non in testa: la chiusura dell'archivio puo'
+	// dichiarare un fallimento nel TurnLog, e questo non deve poter muovere l'hash o le assertion di sopra.
+	StopReplayRecording();
+
 	State = EState::Finished;
 
 	UE_LOG(LogRT, Log, TEXT("[RT-Test] %s: %s (%d/%d assertion, %d turni)"),

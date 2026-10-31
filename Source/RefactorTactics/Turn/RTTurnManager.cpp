@@ -4129,8 +4129,22 @@ void ARTTurnManager::BeginReplayRecording()
 		OsservatoreLocale = Stato ? Stato->GetTeamId() : INDEX_NONE;
 	}
 
+	ReplayFirstTurnNumber = TurnNumber;
 	ReplayRecording.Begin(MatchRules.FormatId, MoveTemp(Osservatori), OsservatoreLocale,
 		FRTReplayRecording::ResolveRoot(ReplaysRootOverride));
+}
+
+void ARTTurnManager::EndReplayRecording()
+{
+	if (!ReplayRecording.IsRecording())
+	{
+		return;
+	}
+
+	// Silenziosa se l'archivio e' gia' chiuso (partita decisa) o se `bRecordReplay` e' spento: in entrambi i casi
+	// non c'e' niente da scrivere, e l'identita' si azzera comunque.
+	CloseReplayArchive();
+	ReplayRecording = FRTReplayRecording();
 }
 
 void ARTTurnManager::RecordTurnToReplay()
@@ -4144,7 +4158,10 @@ void ARTTurnManager::RecordTurnToReplay()
 
 	// ⛔ Il registratore risponde `false` e NON logga: il TurnLog e' del manager, e un registratore che vi
 	// scrivesse dovrebbe conoscerlo. Chi chiama decide cosa dirne — ed e' qui.
-	if (!ReplayRecording.RecordTurn(Radice, TurnNumber, TurnLog))
+	// Il numero DELL'ARCHIVIO, dall'1 (vedi `ReplayFirstTurnNumber`): in una partita vera coincide con `TurnNumber`.
+	const int32 TurnoNellArchivio = TurnNumber - ReplayFirstTurnNumber + 1;
+
+	if (!ReplayRecording.RecordTurn(Radice, TurnoNellArchivio, TurnLog))
 	{
 		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber), FRTLogSubject::World());
 		return;
@@ -4155,7 +4172,7 @@ void ARTTurnManager::RecordTurnToReplay()
 	// registratore avrebbe trascinato dentro meta' dello stato del manager, cioe' l'opposto della fetta.
 	FRTTurnAudit Audit;
 	Audit.MatchId = ReplayRecording.GetMatchId();
-	Audit.TurnNumber = TurnNumber;
+	Audit.TurnNumber = TurnoNellArchivio; // il file dell'audit sta accanto alla traccia dello stesso turno
 	Audit.OrderedHash = ReplayRecording.LastOrderedHash();
 
 	auto DiQuestoTurno = [this](const TArray<FRTTeamKnowledge>& Snapshot)
