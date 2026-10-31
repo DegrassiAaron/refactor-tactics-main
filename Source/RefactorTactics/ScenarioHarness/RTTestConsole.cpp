@@ -14,6 +14,8 @@
  *   rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>]
  *                                 esegue uno scenario nel mondo corrente e scrive il report. Con `-ReplayRoot` lascia
  *                                 ANCHE un archivio replay in <dir> (`#3035`): senza il flag, nessun archivio.
+ *                                 Il flag vale solo in un mondo NUOVO, il cui turn manager non ha ancora giocato: una
+ *                                 seconda run registrata nello stesso mondo viene rifiutata con un Error.
  *   rt.Test.DumpResult [Id]       stampa l'ultimo result.json
  *   rt.Test.Scenario <Id>         (variabile) scenario da eseguire AUTOMATICAMENTE all'avvio della partita
  *
@@ -279,7 +281,7 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestList(
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestRun(
 	TEXT("rt.Test.Run"),
-	TEXT("rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>] — esegue lo scenario nel mondo corrente e scrive Saved/RTTests/<Id>/<Run>/result.json. Con -ReplayRoot lascia anche un archivio replay in <dir>."),
+	TEXT("rt.Test.Run <ScenarioId> [-ReplayRoot=<dir>] — esegue lo scenario nel mondo corrente e scrive Saved/RTTests/<Id>/<Run>/result.json. Con -ReplayRoot lascia anche un archivio replay in <dir>, ma solo in un mondo nuovo: se il turn manager ha gia' giocato, la run e' rifiutata."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTTestRunCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestDumpResult(
