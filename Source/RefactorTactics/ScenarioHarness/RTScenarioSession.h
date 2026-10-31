@@ -95,6 +95,41 @@ public:
 	FRTWorkbenchVariant WorkbenchVariant;
 
 	/**
+	 * **Richiesta esplicita** di lasciare un archivio replay (`#3035`): la cartella in cui scriverlo. Vuota = nessuna
+	 * registrazione, ed e' il default.
+	 *
+	 * 🔑 **E' il ponte fra le tracce dello scenario e il Replay Player.** Valorizzata, `Start` apre la registrazione
+	 * del turn manager (`ARTTurnManager::BeginReplayRecording`, la stessa che chiama `ARTGameMode`): da li' in poi
+	 * ogni turno risolto lo scrive il TurnManager stesso (`RecordTurnToReplay`) e la partita che si decide lo chiude
+	 * (`CloseReplayArchive`) - la sessione non scrive nessuna voce a mano e non conosce il formato dell'archivio.
+	 * `FRTTestResult::ReplayMatchId` dice con quale id riaprirlo da questa radice.
+	 *
+	 * ⛔ **Non c'e' una radice di default, e non e' una dimenticanza**: `Saved/Replays` e' la lista delle partite vere,
+	 * e una run di scenario che ci scrivesse senza averlo chiesto la sporcherebbe. Chi vuole l'archivio dice DOVE.
+	 *
+	 * ⚠️ **Registrare non cambia la partita** ([ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md)):
+	 * `StateHash` e `TurnTraces` sono identici a registrazione accesa e spenta, pinnati da
+	 * `Replay.ScenarioBridge.RecordingDoesNotChangeTheScenarioResult`.
+	 *
+	 * ⚠️ **L'archivio si chiude quando lo scenario finisce**, non solo quando la PARTITA si decide: se si decide, lo
+	 * chiude il turn manager con l'esito vero; se lo scenario termina a turni esauriti, lo chiude la sessione
+	 * (`ARTTurnManager::EndReplayRecording`) con l'esito `InProgress`, e il Player lo apre come completo: nella
+	 * lista compare come «interrotta» (nessun esito di partita) e NON come «registrazione incompleta». Un archivio non
+	 * chiuso resta quello di una run che non e' arrivata in fondo (crash, uscita).
+	 *
+	 * ⛔ **Si registra solo su un turn manager che non ha ancora giocato** (`GetTurnNumber() == 1`). Un archivio numera i
+	 * turni come li numera il turn manager - nei file, nel manifest e nelle voci del TurnLog, che portano il
+	 * `TurnNumber` assoluto - e il turn manager sopravvive alla sessione senza tornare a 1: una seconda run registrata
+	 * nello stesso mondo avrebbe i file dall'1 e le voci dal 2, e il Player non troverebbe i turni dove li dichiara.
+	 * `Start` la rifiuta con un `Error` che dice quanti turni il turn manager ha gia' giocato, PRIMA di toccare radice,
+	 * formato o identita' di registrazione: per registrare serve un mondo nuovo. Lo stesso rifiuto, con un'altra
+	 * ragione, vale per un turn manager che ha gia' un archivio vivo.
+	 *
+	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`.
+	 */
+	FString ReplayArchiveRoot;
+
+	/**
 	 * Allestisce il mondo: arena, unita' dal catalogo, turn manager.
 	 *
 	 * @return false se lo scenario non e' eseguibile — l'esito e' gia' un `Error` con il motivo in
@@ -249,6 +284,36 @@ private:
 
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
+
+	/**
+	 * Chiude la registrazione che QUESTA sessione ha chiesto e rimette il turn manager com'era (`#3035`). Idempotente, e
+	 * non fa nulla se la sessione non ha chiesto niente.
+	 *
+	 * 🔴 **Serve perche' il turn manager sopravvive alla sessione**: `RunSingle` non lo distrugge (`bTearDownAfter =
+	 * false`) e uno scenario successivo nello stesso mondo - o un GameMode - lo riusa. Tre cose da non lasciargli:
+	 *  1. l'**identita'** della registrazione (`MatchId`): con quella valida i turni del secondo scenario finirebbero in
+	 *     coda all'archivio del primo, e la run registrata successiva si vedrebbe rifiutare come «sta gia' registrando»
+	 *     invece che per la ragione vera (il turn manager ha gia' giocato). `ARTTurnManager::EndReplayRecording` la azzera;
+	 *  2. l'archivio **aperto**: il turn manager lo chiude solo se la partita si decide, e uno scenario a turni esauriti
+	 *     lo lascerebbe `bClosed = false` («registrazione incompleta»). `EndReplayRecording` lo chiude con l'esito che c'e';
+	 *  3. la **configurazione** che la sessione ha cambiato per registrare: `ReplaysRootOverride` e `MatchRules.FormatId`.
+	 *
+	 * L'archivio gia' scritto non si tocca, a parte la chiusura.
+	 */
+	void StopReplayRecording();
+
+	/**
+	 * Vero da quando la sessione ha cambiato la configurazione del turn manager per registrare, fino a
+	 * `StopReplayRecording`: l'unico testimone di chi deve rimettere le cose a posto. Si alza PRIMA delle modifiche, cosi'
+	 * anche un `BeginReplayRecording` rifiutato ripristina.
+	 */
+	bool bReplayBridgeApplied = false;
+
+	/** La radice dell'archivio che il turn manager aveva prima del ponte: si rimette a fine run. */
+	FString PreviousReplaysRoot;
+
+	/** Il formato di partita che il turn manager aveva prima del ponte: si rimette a fine run. */
+	FName PreviousFormatId;
 
 	/**
 	 * Valuta UNA assertion sullo stato del mondo **in questo istante**.

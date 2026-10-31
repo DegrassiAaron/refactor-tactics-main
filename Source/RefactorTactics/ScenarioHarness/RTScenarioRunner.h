@@ -34,8 +34,16 @@ public:
 	 * un mondo **vuoto** — quello di un test di automazione o una PIE appena avviata su sandbox.
 	 *
 	 * Non lancia mai: ogni fallimento diventa `Outcome`, perche' un harness che crasha non sa dire perche'.
+	 *
+	 * @param ReplayArchiveRoot **richiesta esplicita** di lasciare un archivio replay (`#3035`): la cartella in cui
+	 *        scriverlo, e `FRTTestResult::ReplayMatchId` dice con quale id riaprirlo. **Vuota = nessuna
+	 *        registrazione, nessuna cartella**: e' il default, e non esiste una radice "di comodo" - scrivere in
+	 *        `Saved/Replays` per una run che non l'ha chiesto sporcherebbe la lista delle partite vere.
+	 *        Con `repeatCount` o varianti la richiesta e' un `Error`: sono piu' partite, e un solo `MatchId` non le
+	 *        descriverebbe.
 	 */
-	static FRTTestResult Run(UWorld* World, const FRTTestScenario& Scenario);
+	static FRTTestResult Run(UWorld* World, const FRTTestScenario& Scenario,
+		const FString& ReplayArchiveRoot = FString());
 
 	/**
 	 * Una singola esecuzione, senza varianti. E' cio' che `Run` chiama — una volta per scenario normale, una
@@ -49,9 +57,12 @@ public:
 	 *        e prima del primo turno. **Il default e' la baseline**, quindi ogni chiamante esistente
 	 *        continua a eseguire esattamente cio' che eseguiva: la variante e' un ingresso in piu', non un
 	 *        comportamento nuovo di chi non la passa.
+	 *
+	 * @param ReplayArchiveRoot come in `Run`: vuota = nessuna registrazione (il default).
 	 */
 	static FRTTestResult RunSingle(UWorld* World, const FRTTestScenario& Scenario, bool bTearDownAfter,
-		const FRTWorkbenchVariant& Variant = FRTWorkbenchVariant());
+		const FRTWorkbenchVariant& Variant = FRTWorkbenchVariant(),
+		const FString& ReplayArchiveRoot = FString());
 
 	/**
 	 * Carica lo scenario per ID (`Movement.Basic`), lo esegue e ne **scrive il report**.
@@ -59,8 +70,11 @@ public:
 	 * significa anche «lasciarne traccia leggibile».
 	 *
 	 * @param OutReportDirectory cartella della run appena scritta (vuota se la scrittura e' fallita).
+	 * @param ReplayArchiveRoot come in `Run`: vuota = nessuna registrazione. E' il parametro che il comando console
+	 *        `rt.Test.Run <Id> -ReplayRoot=<dir>` valorizza, ed e' il chiamante NON di test che lo tiene vivo.
 	 */
-	static FRTTestResult RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory);
+	static FRTTestResult RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory,
+		const FString& ReplayArchiveRoot = FString());
 
 	/** ID di tutti gli scenari sotto `Scenarios/` e, fuori da automation, sotto la radice del Lab, in ordine alfabetico. */
 	static TArray<FString> ListScenarioIds();

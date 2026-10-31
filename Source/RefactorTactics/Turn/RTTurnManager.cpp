@@ -4133,6 +4133,19 @@ void ARTTurnManager::BeginReplayRecording()
 		FRTReplayRecording::ResolveRoot(ReplaysRootOverride));
 }
 
+void ARTTurnManager::EndReplayRecording()
+{
+	if (!ReplayRecording.IsRecording())
+	{
+		return;
+	}
+
+	// Silenziosa se l'archivio e' gia' chiuso (partita decisa) o se `bRecordReplay` e' spento: in entrambi i casi
+	// non c'e' niente da scrivere, e l'identita' si azzera comunque.
+	CloseReplayArchive();
+	ReplayRecording = FRTReplayRecording();
+}
+
 void ARTTurnManager::RecordTurnToReplay()
 {
 	if (!bRecordReplay || !ReplayRecording.IsRecording())
