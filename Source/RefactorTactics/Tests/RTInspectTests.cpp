@@ -11,6 +11,7 @@
 #include "UI/RTGlossary.h"
 #include "UI/RTHUD.h"
 #include "UI/RTInspect.h"
+#include "UI/RTInspectCardWidget.h" // `MaxRighe`: la finestra della scheda, letta dal default invece che riscritta qui
 #include "Unit/RTUnit.h"
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
@@ -947,6 +948,83 @@ bool FRTInspectCardShowsTheHoveredSkillTest::RunTest(const FString&)
 			TestFalse(TEXT("ne' che l'azione e' in ricarica"), TextB.Contains(DockTipB.Reason.ToString()));
 		}
 	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * LA STIMA NON E' LA PRIMA RIGA CHE LA FINESTRA TAGLIA (`#3748`, review finale del 2026-10-31). La finestra della scheda e' di `MaxRighe` righe
+ * e taglia la CODA; uscendo dallo slot l'hover cade, quindi cio' che sta oltre la finestra non si raggiunge con la rotella. La stima della ricarica
+ * e' l'informazione che viene dall'osservazione, e le righe `+`/`-` dei pezzi sono catalogo: se uno dei due deve cadere, cadono i pezzi.
+ *
+ * Il caso vero piu' lungo: Muiren, posizione 0 (l'attacco base, con la variante d'arma e il suo vantaggio e svantaggio), con DUE stati attivi e la
+ * stima della ricarica di quell'azione. Prima di questo test l'ordine era titolo, righe del tooltip, pezzi, stima, e quella scheda arrivava a una
+ * riga in piu' della finestra: la riga tagliata era la stima.
+ *
+ * `MaxRighe` si legge dal default del widget e non si riscrive: se qualcuno lo alza, le premesse dicono che il caso non e' piu' al limite, invece di
+ * lasciar passare un test che non misura niente. Controlli positivi: la stessa vista senza la stima ha una riga in meno, e la finestra E' tagliata
+ * (ha il marcatore e non mostra l'ultima riga), quindi il test non puo' passare per una scheda che entra tutta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardKeepsTheEstimateInTheVisibleWindowTest,
+	"RefactorTactics.UI.InspectCardKeepsTheEstimateInTheVisibleWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInspectCardKeepsTheEstimateInTheVisibleWindowTest::RunTest(const FString&)
+{
+	const int32 MaxLines = GetDefault<URTInspectCardWidget>()->MaxRighe;
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	ARTUnit* Unit = InspectEquippedUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0, 0));
+	if (!TestNotNull(TEXT("l'unita' esiste"), Unit)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	// La scheda piu' lunga: l'attacco base (posizione 0) di un eroe armato, osservato da un'altra squadra, con DUE stati.
+	FRTInspectSubject Subject = ARTHUD::BuildInspectSubject(Unit, 0, true, nullptr, /*HoverAbilityIndex=*/ 0);
+	if (!TestTrue(TEXT("premessa: la posizione 0 ha i suoi dettagli, e un pezzo che la riguarda (la variante d'arma)"),
+		Subject.HoveredSkill.IsSet() && Subject.HoveredSkill.Equipment.Num() > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	for (const FName& Tag : { TAG_Status_Burning.GetTag().GetTagName(), TAG_Status_Slow.GetTag().GetTagName() })
+	{
+		FRTStatusBadgeView Badge;
+		Badge.Tag = Tag;
+		if (!TestFalse(TEXT("premessa: lo stato di prova ha un nome nel glossario (se no la sua riga non esiste)"), RTGlossary::NameFor(Badge.Tag).IsEmpty()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+		Subject.Statuses.Add(Badge);
+	}
+
+	// La stima: l'azione sotto il cursore, vista usare al turno 2, con una ricarica di catalogo dichiarata a 3.
+	FRTInspectDeducedCooldown Estimate;
+	if (!TestTrue(TEXT("premessa: la stima di prova esiste"),
+		URTInspectLibrary::MakeDeducedCooldown(Subject.HoveredSkill.ActionId, Subject.HoveredSkill.Title, 3, 2, Estimate)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FRTInspectView Without = URTInspectLibrary::Compose(Subject);
+	Subject.HoveredSkill.Deduced.Add(Estimate);
+	const FRTInspectView With = URTInspectLibrary::Compose(Subject);
+
+	// Controlli positivi: la stima e' UNA riga in piu', e la scheda non entra in una finestra.
+	TestEqual(TEXT("controllo positivo: senza la stima la vista non ha nessuna riga di stima"), InspectLinesStartingWith(Without.Lines, TEXT("Stima")).Num(), 0);
+	TestEqual(TEXT("controllo positivo: con la stima la vista ne ha UNA"), InspectLinesStartingWith(With.Lines, TEXT("Stima")).Num(), 1);
+	TestEqual(TEXT("controllo positivo: la stessa vista senza la stima ha una riga in meno"), Without.Lines.Num() + 1, With.Lines.Num());
+	if (!TestTrue(*FString::Printf(TEXT("premessa: la scheda eccede la finestra di %d righe (ne ha %d): se no il test non misura il taglio"), MaxLines, With.Lines.Num()),
+		With.Lines.Num() >= MaxLines + 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTInspectView Window = URTInspectLibrary::VisibleWindow(With, 0, MaxLines);
+	TestEqual(TEXT("la finestra e' piena"), Window.Lines.Num(), MaxLines);
+	TestFalse(TEXT("controllo positivo: la finestra e' tagliata, l'ultima riga della scheda non c'e'"), Window.Lines.Contains(With.Lines.Last()));
+	TestEqual(TEXT("la riga della stima e' nella finestra"), InspectLinesStartingWith(Window.Lines, TEXT("Stima")).Num(), 1);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

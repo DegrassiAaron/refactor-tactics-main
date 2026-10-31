@@ -190,8 +190,9 @@ public:
 	 * coi soli nomi (assente senza pezzi). ⛔ Non il kit (lo mostra la barra delle skill), non le righe `+`/`-` dei pezzi, non la sezione
 	 * «Ricariche»: quelle stanno nei dettagli.
 	 *
-	 * I dettagli, con `HoveredSkill` impostato: il titolo, le righe del tooltip, le righe di ciascun pezzo che la riguarda (nome e slot,
-	 * `+` vantaggio, `-` svantaggio) e, se c'e', la riga della stima (dichiarata tale). Senza: una riga di invito.
+	 * I dettagli, con `HoveredSkill` impostato: il titolo, le righe del tooltip, la riga della stima (se c'e', dichiarata tale) e le righe di
+	 * ciascun pezzo che la riguarda (nome e slot, `+` vantaggio, `-` svantaggio). Senza: una riga di invito.
+	 * 🔑 L'ordine e' quello del taglio: la finestra della scheda taglia la coda, e la stima viene dall'osservazione mentre i pezzi sono catalogo.
 	 * ⛔ Nessuna riga e' una ricarica residua.
 	 */
 	static FRTInspectView Compose(const FRTInspectSubject& Subject);

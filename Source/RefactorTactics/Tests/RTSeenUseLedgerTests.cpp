@@ -390,6 +390,42 @@ bool FRTSeenUseLinesReadAsAnEstimateTest::RunTest(const FString&)
 		}
 		TestEqual(TEXT("la riga porta i due turni e nessun conteggio residuo"), Numbers, TArray<int32>{ 4, 7 });
 	}
+
+	// 🔑 L'ORDINE (review finale del 2026-10-31): titolo, righe del tooltip, STIMA, poi le righe dei pezzi. La finestra della scheda taglia la
+	// coda, e quella che deve cadere per ultima e' il catalogo (i pezzi), non l'informazione che viene dall'osservazione. Una skill con una
+	// riga di tooltip e un pezzo che ha vantaggio e svantaggio, e la stessa stima.
+	Subject.HoveredSkill.Lines.Add(FText::FromString(TEXT("Portata  3")));
+	FRTInspectEquipmentLine Piece;
+	Piece.Name = FText::FromString(TEXT("Pezzo di prova"));
+	Piece.Slot = ERTEquipmentSlot::Gadget;
+	Piece.Advantage = FText::FromString(TEXT("un vantaggio"));
+	Piece.Drawback = FText::FromString(TEXT("uno svantaggio"));
+	Subject.HoveredSkill.Equipment.Add(Piece);
+	const FRTInspectView OrderView = URTInspectLibrary::Compose(Subject);
+	int32 TooltipLine = INDEX_NONE;
+	int32 EstimateLine = INDEX_NONE;
+	int32 FirstPieceLine = INDEX_NONE;   // la prima riga di un pezzo: il suo «Nome (Slot)», o la sua riga `+`/`-`
+	int32 PlusLine = INDEX_NONE;
+	int32 MinusLine = INDEX_NONE;
+	for (int32 I = 0; I < OrderView.Lines.Num(); ++I)
+	{
+		const FString& Line = OrderView.Lines[I];
+		if (Line == TEXT("Portata  3")) { TooltipLine = I; }
+		if (Line.StartsWith(TEXT("Stima"))) { EstimateLine = I; }
+		if (Line.StartsWith(TEXT("  + "))) { PlusLine = I; }
+		if (Line.StartsWith(TEXT("  - "))) { MinusLine = I; }
+		if ((Line.StartsWith(TEXT("Pezzo di prova (")) || Line.StartsWith(TEXT("  + ")) || Line.StartsWith(TEXT("  - "))) && FirstPieceLine == INDEX_NONE)
+		{
+			FirstPieceLine = I;
+		}
+	}
+	// Controllo positivo: le righe che si confrontano esistono tutte (un indice assente confronterebbe INDEX_NONE con INDEX_NONE).
+	TestTrue(TEXT("controllo positivo: ci sono la riga del tooltip, la stima, e le righe `+` e `-` del pezzo"),
+		TooltipLine != INDEX_NONE && EstimateLine != INDEX_NONE && PlusLine != INDEX_NONE && MinusLine != INDEX_NONE && FirstPieceLine != INDEX_NONE);
+	TestTrue(TEXT("la stima viene dopo le righe del tooltip"), TooltipLine != INDEX_NONE && EstimateLine > TooltipLine);
+	TestTrue(TEXT("e PRIMA della prima riga di un pezzo: la finestra taglia la coda, e la coda e' il catalogo"),
+		EstimateLine != INDEX_NONE && FirstPieceLine != INDEX_NONE && EstimateLine < FirstPieceLine);
+	TestTrue(TEXT("e prima delle righe `+` e `-`"), EstimateLine != INDEX_NONE && EstimateLine < PlusLine && EstimateLine < MinusLine);
 	return true;
 }
 

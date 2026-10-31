@@ -75,16 +75,15 @@ FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 		return View;
 	}
 
+	// 🔑 L'ORDINE DEI DETTAGLI E' L'ORDINE DEL TAGLIO: titolo, righe del tooltip, STIMA (se vista), righe `+`/`-` dei pezzi. La finestra della
+	// scheda (`MaxRighe`) taglia la CODA, e uscendo dallo slot l'hover cade: cio' che sta oltre la finestra non si raggiunge con la rotella. La stima
+	// viene dall'osservazione, e i pezzi sono catalogo: se una riga deve cadere, cadono i pezzi. ⌫ *La prima stesura metteva la stima per ultima*: la
+	// scheda piu' lunga (Muiren, l'attacco base con la variante d'arma) con due stati e la stima eccedeva la finestra, e la riga tagliata era la stima
+	// (`UI.InspectCardKeepsTheEstimateInTheVisibleWindow`).
 	AddLine(Skill.Title.ToString());
 	for (const FText& Line : Skill.Lines)
 	{
 		AddLine(Line.ToString());
-	}
-	for (const FRTInspectEquipmentLine& Piece : Skill.Equipment)
-	{
-		AddLine(FString::Printf(TEXT("%s (%s)"), *Piece.Name.ToString(), InspectSlotName(Piece.Slot)));
-		if (!Piece.Advantage.IsEmpty()) { AddLine(TEXT("  + ") + Piece.Advantage.ToString()); }
-		if (!Piece.Drawback.IsEmpty()) { AddLine(TEXT("  - ") + Piece.Drawback.ToString()); }
 	}
 	for (const FRTInspectDeducedCooldown& Row : Skill.Deduced)
 	{
@@ -92,6 +91,12 @@ FRTInspectView URTInspectLibrary::Compose(const FRTInspectSubject& Subject)
 		// squadra ha visto. Un effetto non visto che allunghi o accorci la ricarica la sbaglia. ⛔ Mai un conto dei turni che restano.
 		AddLine(FString::Printf(TEXT("Stima da cio' che hai visto: vista usare al turno %d, di nuovo disponibile dal turno %d"),
 			Row.LastSeenTurn, Row.AvailableFromTurn));
+	}
+	for (const FRTInspectEquipmentLine& Piece : Skill.Equipment)
+	{
+		AddLine(FString::Printf(TEXT("%s (%s)"), *Piece.Name.ToString(), InspectSlotName(Piece.Slot)));
+		if (!Piece.Advantage.IsEmpty()) { AddLine(TEXT("  + ") + Piece.Advantage.ToString()); }
+		if (!Piece.Drawback.IsEmpty()) { AddLine(TEXT("  - ") + Piece.Drawback.ToString()); }
 	}
 	return View;
 }
