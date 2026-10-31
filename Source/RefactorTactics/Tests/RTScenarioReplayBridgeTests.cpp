@@ -458,11 +458,13 @@ bool FRTScenarioBridgeConsoleTest::RunTest(const FString&)
  * 9. **Una seconda run registrata nello STESSO mondo si rifiuta**, e non lascia niente.
  *
  * Il turn manager sopravvive alla sessione (`RunSingle`, `bTearDownAfter = false`) e `ConcludeTurn` ne incrementa il
- * `TurnNumber` senza mai riportarlo a 1. Le voci del TurnLog portano il `TurnNumber` ASSOLUTO del turn manager: un
- * archivio aperto su un turn manager gia' avanzato avrebbe i file numerati dall'1 e le voci dichiarate dal 2, e
- * `SeekToTurn` del Player risponderebbe `TurnNotFound` per il turno 1 e `Found` per un turno che non esiste
- * (`#3035`, rilievo di review). Il ponte non promette cio' che non sa fare: registra solo su un turn manager che non
- * ha ancora giocato, e altrimenti lo dichiara PRIMA di toccare radice, formato o identita'.
+ * `TurnNumber` senza mai riportarlo a 1, mentre il registratore numera i turni dall'1 e in sequenza
+ * (`Replay.Recorder.OutOfSequenceTurnIsRejected`): una seconda run registrata su un turn manager gia' avanzato
+ * passerebbe al registratore il primo turno col numero assoluto e se lo vedrebbe rifiutare, insieme a tutti i
+ * successivi. Nessun file, una riga «non e' stato registrato» in `RecentEvents`, un archivio a zero turni (letto nel
+ * codice, non eseguito: questo test pinna il RIFIUTO di `Start`, non quel percorso). Il ponte non promette cio' che
+ * non sa fare: registra solo su un turn manager che non ha ancora giocato, e altrimenti lo dichiara PRIMA di toccare
+ * radice, formato o identita'.
  *
  * Il primo archivio, intanto, resta quello di una run completa: aperto e chiuso.
  */
@@ -612,8 +614,10 @@ bool FRTScenarioBridgeRefusesVariantsTest::RunTest(const FString&)
  * 9d. **Le voci dell'archivio dichiarano gli stessi turni dei file che le contengono** (`#3035`).
  *
  * E' la proprieta' che il Player usa e che il manifest non prova: `SeekToTurn` e la posizione del viewer leggono il
- * turno dalla PRIMA voce di ogni traccia, non dal nome del file. Il rilievo di review l'ha trovata violata nel caso
- * che il ponte ora rifiuta (un turn manager gia' avanzato): file dall'1, voci dal 2.
+ * turno dalla PRIMA voce di ogni traccia, non dal nome del file. Nel caso supportato (un turn manager che non ha
+ * ancora giocato) i due numeri coincidono perche' partono entrambi da 1. Un disegno intermedio del ponte, che
+ * numerava i file dall'1 e lasciava nelle voci il `TurnNumber` assoluto, la violava (`a2833e272`): fu scartato a
+ * favore del rifiuto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBridgeVoicesAgreeTest,
 	"RefactorTactics.Replay.ScenarioBridge.TheArchiveVoicesAgreeWithTheArchiveTurnNumbers",
