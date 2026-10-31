@@ -1310,7 +1310,7 @@ d'autore non ha ancora giudicato sull'interfaccia di adesso.
 
 ➕ (2026-10-31) **Tre limiti nuovi, dichiarati.** *I dettagli oltre `MaxRighe` non si scorrono*: `MaxRighe` vale 16, il default del
 C++ (la stringa non compare nell'asset `WBP_RT_InspectCard`), e lasciare lo slot azzera l'hover. La scheda più lunga del roster,
-col corredo di default, senza stati e senza stima, è di 14 righe (Muiren, l'attacco base con il pezzo d'arma); ogni stato o la
+col corredo di default, senza stati e senza stima, è di 14 righe (Muiren, l'attacco base con il pezzo d'arma; la misura è l'`AddInfo` di `UI.InspectCardShowsTheHoveredSkill`); ogni stato o la
 stima ne aggiunge una. Il taglio è dichiarato («… e altre N righe»), ma il marcatore lascia intendere uno scorrimento che non
 avviene; i rimedi sono dell'autore: alzare `MaxRighe` o un hover «appiccicoso». *Dopo la fine della partita la fissazione resta*
 sulla schermata dei risultati, perché non arriva un turno nuovo. *Il criterio (m) di `PIE-HUD-SCHEDA`*, la fissazione che cade al

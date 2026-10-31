@@ -6452,7 +6452,8 @@ sessions:
       conferma), il turno non si risolve, e non ci sono ne' un turno nuovo ne' un uso visto. Per (o), un nemico con una skill
       con un pezzo (l'attacco base, che porta la variante d'arma, o una skill concessa da un gadget o da un modulo), una senza
       pezzo e uno slot vuoto sulla barra; per (p), una skill i cui dettagli superano `MaxRighe` (l'attacco base di Muiren con
-      il pezzo d'arma fa 14 righe con la testata, e due stati piu' la stima ne fanno 17).
+      il pezzo d'arma fa 14 righe con la testata, e due stati piu' la stima ne fanno 17; la misura e' l'`AddInfo` di
+      `UI.InspectCardShowsTheHoveredSkill`).
 
       🟡 **Parzialmente eseguita il 2026-10-29**: l'autore ha giudicato sulle tavole `PIE-HUD-FUOCO-AREE` e
       `PIE-HUD-SKILL-PORTATA` (nessuna obiezione; entrambe 🟡 perche' restano criteri `NOT RUN`, che dicono le loro
