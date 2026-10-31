@@ -1705,8 +1705,9 @@ bool FRTChargeStandingUnitStaysPutUntilTheBlastTest::RunTest(const FString&)
  * - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
  *   si scopre che B era a sua volta interrotto. ❌
  *
- * E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione per
- * un Interrupt annullato **e** gratuito.
+ * E da `#1449` c'era un secondo verso: B non pagava (e' cancellato), quindi C perdeva la propria azione per
+ * un Interrupt annullato **e** gratuito. ⌫ Da [D-414] l'Interrupt annullato paga comunque
+ * (`CancelledInterrupterPaysToo`): resta annullato, ma non e' piu' gratuito.
  *
  * ⚠️ **Il test costruisce la catena DUE volte, invertendo l'ordine di spawn**, ed e' l'unica forma che
  * cade sul difetto: una sola direzione sarebbe passata anche prima. `StableUnitId` si assegna per ordine

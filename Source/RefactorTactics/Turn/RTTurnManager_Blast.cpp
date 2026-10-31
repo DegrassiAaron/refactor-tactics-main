@@ -1270,8 +1270,9 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	//   si scopre che B era a sua volta interrotto. ❌
 	//
 	// «E' come se non fosse mai partita» valeva o non valeva a seconda dell'ORDINE DI SPAWN delle unita'.
-	// E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione
-	// per un Interrupt annullato **e** gratuito.
+	// E da `#1449` c'era un secondo verso: B non pagava (e' cancellato), quindi C perdeva la propria azione
+	// per un Interrupt annullato **e** gratuito. ⌫ Da [D-414] l'Interrupt annullato paga comunque
+	// (`CancelledInterrupterPaysToo`): resta annullato, ma non e' piu' gratuito.
 	//
 	// Gli archi si tengono in due array PARALLELI e non in una `TMap`: iterare una `TMap` non ha ordine
 	// dichiarato, e qui l'ordine decide cosa la traccia archiviata contiene.
