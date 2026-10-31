@@ -6433,7 +6433,8 @@ sessions:
       pannello e' montato in `MiddleRight` (sopra il registro) e la sua riga di `not_schedulable` e' sparita, come
       diceva. Stessa partita, stesso nemico in vista: la scheda si guarda dopo `PIE-HUD-FUOCO-AREE`, perche'
       agisce sullo stesso nemico fissato. ⚠️ Due cose che il pannello aggiunge alla scena: una scheda piu' lunga
-      delle righe disponibili (per la rotella e per il taglio dichiarato) e, se ci si arriva, una finestra di
+      delle righe disponibili (per la rotella e per il taglio dichiarato; ⌫ dal 2026-10-31 la testata compatta ci arriva
+      solo con molti stati, e i dettagli di una skill non si scorrono: vedi sotto) e, se ci si arriva, una finestra di
       reazione o un modale aperti con la scheda fissata. Il caso peggiore delle righe che vanno a capo non e'
       misurato in headless, e che Slate consegni la rotella al pannello prima del gioco nemmeno.
 
@@ -6444,6 +6445,14 @@ sessions:
       (`Hero.Branth.Ram`, a portata normale) lo pianifica (`Confirm`), e in nessuno dei due casi ispeziona,
       quindi la barra non cambia e il criterio non si vede. Senza azione armata i due criteri si leggono senza
       la clausola sull'azione armata.
+
+      ➕ **Cosa serve in piu' ai criteri (m), (o) e (p) di `PIE-HUD-SCHEDA`** (2026-10-31, D-562 punto (11)): per (m), la
+      fissazione che cade al turno nuovo, e per la riga della stima di (o), una partita normale che risolva almeno un turno
+      con il nemico in vista: nel banco `PieSeduta.SchedaBench` il lock-in resta a `Ready 1/2` (l'altra squadra non
+      conferma), il turno non si risolve, e non ci sono ne' un turno nuovo ne' un uso visto. Per (o), un nemico con una skill
+      con un pezzo (l'attacco base, che porta la variante d'arma, o una skill concessa da un gadget o da un modulo), una senza
+      pezzo e uno slot vuoto sulla barra; per (p), una skill i cui dettagli superano `MaxRighe` (l'attacco base di Muiren con
+      il pezzo d'arma fa 14 righe con la testata, e due stati piu' la stima ne fanno 17).
 
       🟡 **Parzialmente eseguita il 2026-10-29**: l'autore ha giudicato sulle tavole `PIE-HUD-FUOCO-AREE` e
       `PIE-HUD-SKILL-PORTATA` (nessuna obiezione; entrambe 🟡 perche' restano criteri `NOT RUN`, che dicono le loro
