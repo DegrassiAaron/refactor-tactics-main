@@ -172,6 +172,25 @@ struct FRTTestResult
 	TArray<FRTTurnTrace> TurnTraces;
 
 	/**
+	 * L'archivio replay che questa esecuzione ha lasciato su disco (`#3035`): il `MatchId` con cui
+	 * `URTReplayPlayerLibrary::OpenArchive` lo riapre, nella radice che ha chiesto chi ha lanciato la run.
+	 *
+	 * **Non valido = nessuna registrazione**, ed e' il default: la registrazione e' una richiesta ESPLICITA
+	 * (`FRTScenarioSession::ReplayArchiveRoot`), mai un effetto collaterale dell'esecuzione. Vale anche per
+	 * un'esecuzione che si ferma prima del primo turno (`Error`, `Blocked`, zero turni): nessun turno,
+	 * nessun archivio.
+	 *
+	 * **Non valido anche** quando la richiesta e' stata rifiutata con un `Error`: repeatCount o varianti (piu' partite,
+	 * un solo id non le descriverebbe), un turn manager che ha gia' un archivio vivo, o che ha gia' giocato dei turni
+	 * (l'archivio non sarebbe coerente: serve un mondo nuovo). Niente archivio, niente effetti collaterali.
+	 *
+	 * ⛔ **Non entra in `StateHash`, nel digest delle `TurnTraces` ne' nel TurnLog**: e' identita'
+	 * dell'archivio, generata a ogni registrazione, e due run identiche ne hanno due diverse
+	 * (`Replay.ScenarioBridge.MatchIdDoesNotEnterTheScenarioHashes`). E' una lettura, come `StateDiff`.
+	 */
+	FGuid ReplayMatchId;
+
+	/**
 	 * Cose accadute durante l'esecuzione che non sono ne' assertion ne' errori, ma senza le quali un
 	 * risultato resterebbe muto: un intent che non e' partito perche' il bersaglio era gia' a terra, un
 	 * percorso rifiutato dal budget.

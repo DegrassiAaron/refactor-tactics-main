@@ -1127,6 +1127,28 @@ public:
 	void BeginReplayRecording();
 
 	/**
+	 * Chiude la registrazione in corso e la dimentica (`#3035`): l'inverso di `BeginReplayRecording`, per chi la
+	 * apre su un turn manager che sopravvive a chi l'ha aperta.
+	 *
+	 * 🔑 **Due cose, e insieme.** (1) Se l'archivio e' aperto lo chiude con l'esito che la partita ha ADESSO - anche
+	 * `InProgress`, per una partita che non si e' decisa - cosi' il manifest dice `bClosed` e il Player lo apre come
+	 * completo; l'esito `InProgress` in un archivio chiuso e' gia' uno stato definito (la riga della lista lo
+	 * chiama «interrotta»). Se la partita si e' gia' decisa, `ConcludeTurn` l'ha chiuso e qui non si riscrive.
+	 * (2) Azzera l'identita': dopo, `GetReplayMatchId()` e' non valido e `BeginReplayRecording` puo' aprire un
+	 * archivio NUOVO. Senza (2) un `MatchId` valido resterebbe appeso per sempre e non distinguerebbe «sta
+	 * registrando» da «ha registrato».
+	 *
+	 * Non fa nulla se non si sta registrando. Non tocca `bRecordReplay` ne' `ReplaysRootOverride`: sono configurazione
+	 * di chi possiede il turn manager, non stato della registrazione.
+	 *
+	 * ⚠️ **Non azzera `TurnNumber`**, e un archivio numera i turni col `TurnNumber` del turn manager (nel nome dei file,
+	 * nel manifest e nelle voci del TurnLog): una registrazione aperta su un turn manager che ha gia' giocato parte da
+	 * un turno che il registratore non accetta come primo, ed e' per questo che il ponte degli scenari
+	 * (`FRTScenarioSession::ReplayArchiveRoot`) rifiuta di aprirla su un turn manager con `GetTurnNumber() != 1`.
+	 */
+	void EndReplayRecording();
+
+	/**
 	 * L'ALLESTIMENTO RIVENDICA L'APERTURA DEL TURNO 1 — `#2102`, [D-314].
 	 *
 	 * Dopo questa chiamata `BeginPlay` **non** apre piu' il turno da solo: lo aprira'
