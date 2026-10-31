@@ -117,13 +117,16 @@ public:
 	 * lista compare come «interrotta» (nessun esito di partita) e NON come «registrazione incompleta». Un archivio non
 	 * chiuso resta quello di una run che non e' arrivata in fondo (crash, uscita).
 	 *
-	 * ⛔ **Si registra solo su un turn manager che non ha ancora giocato** (`GetTurnNumber() == 1`). Un archivio numera i
-	 * turni come li numera il turn manager - nei file, nel manifest e nelle voci del TurnLog, che portano il
-	 * `TurnNumber` assoluto - e il turn manager sopravvive alla sessione senza tornare a 1: una seconda run registrata
-	 * nello stesso mondo avrebbe i file dall'1 e le voci dal 2, e il Player non troverebbe i turni dove li dichiara.
-	 * `Start` la rifiuta con un `Error` che dice quanti turni il turn manager ha gia' giocato, PRIMA di toccare radice,
-	 * formato o identita' di registrazione: per registrare serve un mondo nuovo. Lo stesso rifiuto, con un'altra
-	 * ragione, vale per un turn manager che ha gia' un archivio vivo.
+	 * ⛔ **Si registra solo su un turn manager che non ha ancora giocato** (`GetTurnNumber() == 1`). Il registratore
+	 * numera i turni dall'1 e in sequenza (`URTReplayRecorderLibrary::RecordTurn` rifiuta ogni numero diverso da
+	 * `OrderedHashPerTurn.Num() + 1`, pinnato da `Replay.Recorder.OutOfSequenceTurnIsRejected`), mentre il turn manager
+	 * sopravvive alla sessione senza tornare a 1: in una seconda run registrata nello stesso mondo il primo turno
+	 * arriverebbe al registratore col numero assoluto e verrebbe rifiutato, come tutti i successivi. Nessun file
+	 * verrebbe scritto, l'unica traccia sarebbe «Replay: il turno N non e' stato registrato» in `RecentEvents`, e a
+	 * fine run l'archivio si chiuderebbe a zero turni: vuoto e muto. (Letto nel codice: nessun test esegue questo
+	 * percorso senza la guardia.) `Start` la rifiuta con un `Error` che dice quanti turni il turn manager ha gia'
+	 * giocato, PRIMA di toccare radice, formato o identita' di registrazione: per registrare serve un mondo nuovo. Lo
+	 * stesso rifiuto, con un'altra ragione, vale per un turn manager che ha gia' un archivio vivo.
 	 *
 	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`.
 	 */

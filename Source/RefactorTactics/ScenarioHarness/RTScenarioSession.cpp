@@ -1159,19 +1159,21 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 			return true;
 		}
 
-		// ⛔ Si registra solo su un turn manager che NON ha ancora giocato. Un archivio numera i turni come li numera il
-		// turn manager - nel nome dei file, nel manifest e, soprattutto, nelle VOCI del TurnLog, che portano il
-		// `TurnNumber` assoluto e che `SeekToTurn` del Player legge per trovare un turno. `ConcludeTurn` incrementa
-		// `TurnNumber` e nessuno lo riporta a 1: su un turn manager riusato dopo una partita l'archivio avrebbe i file
-		// dall'1 e le voci dal 2, e il Player risponderebbe `TurnNotFound` per un turno che c'e' e `Found` per uno
-		// che non c'e'. Non si promette cio' che non si sa fare: si rifiuta, dichiarandolo, PRIMA di toccare radice,
-		// formato o identita' di registrazione - niente archivio, niente effetti collaterali.
+		// ⛔ Si registra solo su un turn manager che NON ha ancora giocato. Il registratore numera i turni dall'1 e in
+		// sequenza (`URTReplayRecorderLibrary::RecordTurn` rifiuta ogni numero diverso da
+		// `OrderedHashPerTurn.Num() + 1`, pinnato da `Replay.Recorder.OutOfSequenceTurnIsRejected`) e
+		// `RecordTurnToReplay` gli passa il `TurnNumber` del turn manager. `ConcludeTurn` lo incrementa e nessuno lo
+		// riporta a 1: su un turn manager riusato dopo una partita il primo turno della run arriverebbe col numero
+		// assoluto e verrebbe rifiutato, come i successivi. Nessun file, una sola riga «Replay: il turno N non e'
+		// stato registrato» in `RecentEvents`, un archivio chiuso a zero turni (letto nel codice: nessun test esegue
+		// questo percorso senza la guardia). Non si promette cio' che non si sa fare: si rifiuta, dichiarandolo,
+		// PRIMA di toccare radice, formato o identita' di registrazione - niente archivio, niente effetti collaterali.
 		if (TM->GetTurnNumber() != 1)
 		{
 			ErroredBy = FString::Printf(
 				TEXT("registrazione replay richiesta, ma il turn manager di questo mondo ha gia' giocato %d turni: ")
-				TEXT("per registrare serve un mondo nuovo, perche' le voci del TurnLog portano il TurnNumber assoluto ")
-				TEXT("e l'archivio non sarebbe coerente"),
+				TEXT("per registrare serve un mondo nuovo, perche' il registratore numera i turni dall'1 e questo ")
+				TEXT("turn manager non riparte da 1: non scriverebbe nessun turno"),
 				TM->GetTurnNumber() - 1);
 			Finish();
 			return true;
