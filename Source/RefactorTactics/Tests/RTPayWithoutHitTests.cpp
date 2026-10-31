@@ -767,7 +767,7 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Prep: stordito"), EPagaSito::Prep, true, false, false, Pagato,
 		  TEXT("armare costa l'azione principale: negata, ma pagata") },
 		{ TEXT("Prep: stordito, gia' in ricarica"), EPagaSito::Prep, true, true, false, NonRipagato,
-		  TEXT("non e' piu' utilizzabile: il Prep non la rifiuta nemmeno, e non la ripaga") },
+		  TEXT("non e' piu' utilizzabile: il Prep non la arma, il Blast ne rifiuta il piano e non la ripaga") },
 		{ TEXT("Blast: controllo non stordito"), EPagaSito::Blast, false, false, false, Pagato,
 		  TEXT("l'attacco che colpisce paga") },
 		{ TEXT("Blast: stordito"), EPagaSito::Blast, true, false, false, Pagato,
