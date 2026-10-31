@@ -54,6 +54,10 @@ namespace
 		{
 			IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
 			if (PF.DirectoryExists(*Path)) { PF.DeleteDirectoryRecursively(*Path); }
+
+			// E la cartella che le contiene tutte, quando resta vuota: `DeleteDirectory` non e' ricorsiva e fallisce, senza
+			// danno, finche' un'altra guardia dello stesso test ne tiene una viva. L'ultima a sparire porta via anche lei.
+			PF.DeleteDirectory(*FPaths::GetPath(Path));
 		}
 
 		/** Le sottocartelle dirette: ogni archivio vive in una cartella che porta il suo `MatchId`. */
