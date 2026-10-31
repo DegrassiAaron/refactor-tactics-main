@@ -31,6 +31,10 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTInspectCardWidget.h" // #3748: la scheda e' un inquilino di MiddleRight
+#include "UI/RTInspect.h"           // #3748: la scheda piu' lunga che lo scenario sa comporre
+#include "UI/RTHUD.h"               // #3748: BuildInspectSubject, l'unica funzione che legge l'attore
+#include "UI/RTGlossary.h"          // #3748: gli stati con l'effetto piu' lungo, per la scheda piena
 #include "UI/RTHudLayout.h"     // #3661: le fasce in cui gli inquilini devono entrare
 #include "Tests/RTTargetPromptTestHelpers.h" // #3869: i testi del prompt, che il grafo del dock scrive a runtime
 #include "UI/RTHudZoneWidget.h"
@@ -748,6 +752,96 @@ namespace
 			}
 		});
 	}
+
+	/**
+	 * La scheda PIENA (#3748) per il gate delle fasce: il compositore VERO alimentato con il soggetto piu' lungo che una scheda
+	 * reale puo' avere, cosi' che la finestra di `MaxRighe` righe sia piena.
+	 *
+	 * Dal 2026-10-31 il box e' una testata compatta piu' i dettagli della skill sotto il cursore: la scheda piena e' la testata (nome, PV, verso,
+	 * gli stati con il loro effetto, UNA riga coi nomi dell'equipaggiamento) piu' i dettagli di una skill (titolo, frase, le righe del tooltip, le
+	 * righe `+`/`-` di un pezzo che la riguarda e la stima della ricarica). Senza cursore la scheda dell'unita' propria dello scenario e' di
+	 * quattro righe (nome, PV, verso, invito) e il gate non misurerebbe niente. Quindi il soggetto e' costruito con cio' che un nemico osservato puo' avere insieme: i DUE stati del glossario con
+	 * l'effetto piu' lungo, i pezzi del loadout di un eroe vero, e i dettagli della skill dell'unita' che ha piu' righe di tooltip (dal costruttore
+	 * di produzione, `BuildInspectSubject` col cursore su quella posizione) con un pezzo e una stima iniettati. E' il caso peggiore, non il caso medio.
+	 *
+	 * ⚠️ **L'andare a capo non si misura qui.** Le righe lunghe sono realistiche, ma la misura desiderata di `SlatePrepass` non le vede
+	 * spezzarsi: provato con una fixture di prova (sedici righe corte al posto di queste), la scheda misura lo stesso. L'altezza di una
+	 * scheda con righe a capo resta di PIE; questo gate misura `MaxRighe` righe per l'altezza di una riga.
+	 *
+	 * Vuota se una premessa manca (meno di due stati, nessun loadout nel roster, un'unita' senza azioni): il chiamante la dichiara.
+	 */
+	FRTInspectView RTSchedaPiena(const ARTUnit* Unit)
+	{
+		if (Unit == nullptr)
+		{
+			return FRTInspectView();
+		}
+		FRTInspectSubject Soggetto;
+		Soggetto.DisplayName = FText::FromString(ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+		Soggetto.HeroId = Unit->HeroId;
+		Soggetto.Card = URTHudViewModel::BuildUnitCard(Unit, 0);
+		Soggetto.Facing = Unit->Facing;
+		Soggetto.bShowFacing = true;
+
+		// Gli stati con l'effetto piu' lungo del glossario (la chiave e' il nome del tag, come `BuildStatusBadges` la scrive).
+		TArray<TPair<int32, FName>> PerLunghezza;
+		for (const TPair<FName, FString>& Effetto : RTGlossary::Effects())
+		{
+			if (Effetto.Key.ToString().StartsWith(TEXT("Status."))) { PerLunghezza.Emplace(Effetto.Value.Len(), Effetto.Key); }
+		}
+		PerLunghezza.Sort([](const TPair<int32, FName>& A, const TPair<int32, FName>& B) { return A.Key > B.Key; });
+		for (int32 I = 0; I < 2 && I < PerLunghezza.Num(); ++I)
+		{
+			FRTStatusBadgeView Stato;
+			Stato.Tag = PerLunghezza[I].Value;
+			Soggetto.Statuses.Add(Stato);
+		}
+
+		// I pezzi del primo loadout vero del roster (tutto o niente: il nome e' quello del catalogo).
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId);
+			if (Loadout.Num() == 0) { continue; }
+			for (const FName& Id : Loadout)
+			{
+				if (const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(Id))
+				{
+					FRTInspectEquipmentLine Riga;
+					Riga.Name = Pezzo->DisplayName;
+					Riga.Slot = Pezzo->Slot;
+					Riga.Advantage = Pezzo->Advantage;
+					Riga.Drawback = Pezzo->Drawback;
+					Soggetto.Equipment.Add(Riga);
+				}
+			}
+			break;
+		}
+
+		// I dettagli della skill con piu' righe di tooltip fra quelle dell'unita': li costruisce il percorso di produzione, col cursore su quella
+		// posizione. Un pezzo che la riguarda (il primo del loadout, con vantaggio e svantaggio) e una stima (vista usare al turno 2, ricarica di
+		// catalogo dichiarata a 3) si iniettano: l'unita' propria dello scenario non ha ne' pezzi ne' un registro delle azioni viste.
+		int32 PosizionePiena = INDEX_NONE;
+		int32 RighePiene = -1;
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			const int32 Righe = ARTHUD::BuildInspectSubject(Unit, 0, true, nullptr, I).HoveredSkill.Lines.Num();
+			if (Unit->GetAbility(I) != nullptr && Righe > RighePiene) { RighePiene = Righe; PosizionePiena = I; }
+		}
+		if (PosizionePiena == INDEX_NONE || Soggetto.Statuses.Num() < 2 || Soggetto.Equipment.Num() < 3)
+		{
+			return FRTInspectView();
+		}
+		Soggetto.HoveredSkill = ARTHUD::BuildInspectSubject(Unit, 0, true, nullptr, PosizionePiena).HoveredSkill;
+		Soggetto.HoveredSkill.Equipment.Add(Soggetto.Equipment[0]);
+		FRTInspectDeducedCooldown Stima;
+		if (!URTInspectLibrary::MakeDeducedCooldown(Soggetto.HoveredSkill.ActionId, Soggetto.HoveredSkill.Title,
+			/*CooldownTurns=*/ 3, /*LastSeenTurn=*/ 2, Stima))
+		{
+			return FRTInspectView();
+		}
+		Soggetto.HoveredSkill.Deduced.Add(Stima);
+		return URTInspectLibrary::Compose(Soggetto);
+	}
 }
 
 /**
@@ -866,6 +960,27 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 			if (URTSelectedUnitPanelWidget* Pannello = Cast<URTSelectedUnitPanelWidget>(W)) { Pannello->RefreshLook(); }
 			if (URTTurnHeaderWidget* Testata = Cast<URTTurnHeaderWidget>(W)) { Testata->RefreshLook(); }
 			if (URTPlayerEventLogWidget* Registro = Cast<URTPlayerEventLogWidget>(W)) { Registro->RefreshLook(); }
+			// La scheda (#3748) e' un inquilino solo se a schermo, e a schermo e' solo con un soggetto fissato: `Collapsed` misura zero e
+			// il ciclo la salterebbe, quindi qui la si accende con una scheda PIENA: il caso peggiore che la finestra di `MaxRighe` righe
+			// puo' mostrare (la testata con due stati dall'effetto lungo e i nomi dell'equipaggiamento, piu' i dettagli di una skill col suo
+			// pezzo e la sua stima: `RTSchedaPiena`), iniettata con `SetViewForTest`. Senza cursore la scheda dell'unita' propria, composta da
+			// `BuildInspectSubject`, e' di quattro righe (nome, PV, verso, invito) e il gate smette di misurare il caso che esiste per misurare
+			// (a schermo, col cursore su una skill, una scheda con stati e un loadout arriva a riempire la finestra).
+			if (URTInspectCardWidget* Scheda = Cast<URTInspectCardWidget>(W))
+			{
+				Scheda->SetCommandControllerForTest(Comandante);
+				Scheda->SetInspectedUnitForTest(Mia);
+				Comandante->PinInspectionForTest(Mia);
+				Scheda->SetContextForTest(ERTPointerContext::Planning);
+				const FRTInspectView Piena = RTSchedaPiena(Mia);
+				TestTrue(*FString::Printf(TEXT("%s: premessa: la scheda piena ha almeno MaxRighe (%d) righe, ne ha %d"), Scenario,
+					Scheda->MaxRighe, Piena.Lines.Num()), Piena.Lines.Num() >= Scheda->MaxRighe);
+				Scheda->SetViewForTest(Piena);
+				Scheda->RefreshLook();
+				// Anti-vacuita': la finestra e' PIENA a schermo. Una scheda piu' corta lascerebbe il gate verde senza misurare il caso peggiore.
+				TestEqual(*FString::Printf(TEXT("%s: la finestra della scheda e' piena: una riga di pannello per riga di finestra"), Scenario),
+					Scheda->GetLineWidgets().Num(), Scheda->MaxRighe);
+			}
 			if (URTPlanCommitWidget* Conferma = Cast<URTPlanCommitWidget>(W)) { Conferma->RefreshButtons(); }
 			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W)) { Dock->RefreshMovementReadout(); }
 		}

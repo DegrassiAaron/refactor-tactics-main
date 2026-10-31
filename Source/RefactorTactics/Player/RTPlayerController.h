@@ -450,6 +450,11 @@ protected:
 	/** Il corpo di `OnPan` con il tempo passato (#3792): `WASD` e' un ingresso a velocita'. */
 	void ApplyKeyPan(const FVector2D& Axis, float DeltaTime);
 	void OnZoom(const FInputActionValue& Value);
+	/**
+	 * Il corpo di `OnZoom` con la domanda «il cursore e' nella scena?» gia' risolta (`#3748`). Sopra una fascia l'HUD ha il
+	 * puntatore e la rotella non zooma il mondo, come un click sulla fascia non diventa una cella ([D-497] (1), `#3661`).
+	 */
+	void ApplyZoom(float Axis, bool bCursorInsideScene);
 	void OnRotate(const FInputActionValue& Value);
 
 	/** #863 — orbita continua. `bOrbiting` distingue «il mouse si muove» da «il giocatore sta orbitando». */
@@ -599,6 +604,15 @@ public:
 
 	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
 	void PanForTest(const FVector2D& Axis, float DeltaTime = 1.f / 60.f);
+
+	/**
+	 * `#3748`: la rotella dal gestore vero, che chiede al viewport dov'e' il cursore. Headless un viewport non c'e', quindi il
+	 * cursore non e' nella scena e non zooma: prova che `OnZoom` passa dalla domanda e non da una costante.
+	 */
+	void ZoomForTest(float Axis);
+
+	/** `#3748`: lo zoom con la posizione del cursore iniettata, il solo modo di provare il ramo «dentro la scena» senza un viewport. */
+	void ApplyZoomForTest(float Axis, bool bCursorInsideScene) { ApplyZoom(Axis, bCursorInsideScene); }
 
 	/**
 	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
@@ -876,6 +890,14 @@ private:
 	 *
 	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
 	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
+	 *
+	 * ➕ **A questi tre si aggiunge un quarto che non riguarda l'anteprima** (`#3748`): `OnTeamKnowledgeRefreshed` fa cadere la fissazione
+	 * dell'ispezione a ogni turno nuovo (`HandleTeamKnowledgeRefreshed`). Lo accende chiunque abbia di che farlo cadere, e quindi anche
+	 * `PinInspection`: un nemico fissato prima di aver selezionato qualcosa non ha mai incontrato `SelectUnit`, e senza l'iscrizione la
+	 * fissazione non cadrebbe mai.
+	 *
+	 * ⚠️ **Per quel controller i primi tre gestori si iscrivono anch'essi, e sono no-op senza selezione**: spengono o ridipingono un'anteprima
+	 * che non c'e'. E' voluto, non una svista da correggere: separare il quarto in un'iscrizione sua darebbe due sedi dove ce n'e' una.
 	 */
 	void EnsureTurnPresentationSubscriptions(class ARTTurnManager* TurnManager);
 
@@ -904,6 +926,24 @@ private:
 	 */
 	UFUNCTION()
 	void HandleMatchEndedPresentation(const struct FRTMatchResult& Result, const struct FRTMatchState& State);
+
+	/**
+	 * Un rinfresco della conoscenza di squadra: se porta un turno diverso da quello a cui appartiene l'ispezione, e' cominciato un turno nuovo
+	 * di pianificazione e la fissazione cade (`#3748`, decisione d'autore del 2026-10-31).
+	 *
+	 * 🔑 **E' l'aggancio che scatta su OGNI percorso che apre un turno**, ed e' il motivo per cui non e' `OnResolvePlaybackFinished`: quello non
+	 * scatta quando il turno si conclude in linea — senza playback (`bEnablePlayback` spento: headless, automation) o con una risoluzione che non ha niente
+	 * da mostrare (nessuna fase da riprodurre, anche in partita vera) —, e la fissazione sopravviverebbe proprio al turno che non si vede. Su ogni percorso che apre un turno,
+	 * `ConcludeTurn` riapre la pianificazione con `StartPlanningTimer`, che rinfresca la conoscenza (`PlanBots`) col numero di turno GIA'
+	 * incrementato. ⚠️ A fine partita nessun turno si apre e questo aggancio non scatta: la fissazione resta sulla schermata dei risultati.
+	 *
+	 * 🔴 **Non scatta solo all'apertura di un turno**: la conoscenza si rinfresca anche dentro la risoluzione (Blast, Move) e al setup, e sono
+	 * rinfreschi dello STESSO turno. Cadere a ogni rinfresco farebbe sparire la fissazione a risoluzione in corso, dove l'ispezione deve restare
+	 * (spec §3, regola 5). Per questo il confronto e' sul numero di turno (`InspectionTurn`) e non sull'evento: stesso turno, la fissazione resta.
+	 */
+	UFUNCTION()
+	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
+
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
@@ -1102,6 +1142,44 @@ public:
 	class ARTUnit* GetInspectedUnit() const;
 
 	/**
+	 * **Di CHI e' il kit che la barra delle skill mostra** (`#3748`, decisione d'autore del 2026-10-30): l'unita' ispezionata e fissata se
+	 * non la si comanda e l'ultimo click su un'unita' l'ha fissata (`IsDockReadOnly`); altrimenti la selezione.
+	 *
+	 * ⚠️ **Puo' essere un NEMICO**, ed e' il punto: il kit di un'unita' osservata e' pubblico (decisione d'autore del 2026-10-20), il resto no.
+	 * ⛔ **Chi la legge per costruire le righe della barra deve leggere il CATALOGO** (`URTHudViewModel::BuildPublicBar`), mai
+	 * `BuildAbilityCooldowns`: quella mescola catalogo e partita — ricariche vere, piano, azione armata — e puntata su un'avversaria li
+	 * mostrerebbe a chi guarda. Il discrimine fra le due letture e' `IsDockReadOnly()`.
+	 *
+	 * 🔑 **Non e' `GetSelectedUnit()`, che resta il soggetto del PIANO** (slot, azione armata, tasti): cliccare un nemico non sposta la
+	 * selezione e non fa perdere l'azione armata. E il puntatore e' `const`: la barra di un soggetto in sola lettura non scrive niente su di lui.
+	 *
+	 * 🔴 **NON e' un cancello `Live`.** Dice a chi appartiene la barra, non se chi guarda vede ancora quell'unita': la scheda si rilascia al tick
+	 * dell'HUD (`ReleaseInspectionUnlessLive`), e fino ad allora un nemico uscito di vista resta il soggetto. Il cancello lo applica il CONSUMATORE,
+	 * a ogni lettura, con una voce `Live` nella vista di chi guarda (`URTInspectLibrary::LiveEntry`): lo fa `URTScreenHudWidgetBase::GetDockUnit`,
+	 * da cui il dock deve leggere. Lo slot non conosce il manager e legge da qui: il suo divario dura al piu' un fotogramma ed e' sicuro (il
+	 * controller rifiuta di scrivere, e il cancello dell'hover in `GatherSkillHoverInputs` scarta un nemico senza voce `Live`).
+	 */
+	const class ARTUnit* GetDockUnit() const;
+
+	/**
+	 * La barra mostra un'unita' che NON si comanda, e quindi non scrive niente: ne' tasti, ne' armare, ne' piano (`#3748`).
+	 *
+	 * 🔑 **E' DERIVATA, non un secondo stato**: vale quando l'ultimo click su un'unita' e' stato una fissazione (`bDockFollowsInspection`),
+	 * la scheda e' fissata, il soggetto e' vivo e il giocatore non lo comanda. Soggetto e pin hanno gia' chi li azzera — il tasto destro
+	 * (passo `Inspector` del Back), il rilascio alla perdita della conoscenza (`ReleaseInspectionUnlessLive`), la caduta, il turno nuovo
+	 * (`ReleaseInspectionForNewTurn`, #3748) — e con loro la sola
+	 * lettura finisce senza che nessuno debba spegnerla.
+	 *
+	 * ⚠️ **Un'unita' propria fissata non la accende**: il compagno si comanda, e se se ne vuole il kit si seleziona. Fissarlo non sposta la
+	 * barra dalla selezione.
+	 *
+	 * 🔴 **NON e' un cancello `Live`**, come `GetDockUnit`: vale anche per il tratto fra l'uscita di vista del soggetto e il rilascio della scheda.
+	 * Chi legge la barra applica il cancello da se' (`URTScreenHudWidgetBase::IsDockReadOnly`); il controller lo usa solo per rifiutare di scrivere
+	 * il piano, e li' un falso positivo di un fotogramma costa un click ignorato con la sua riga, mai un piano scritto per un'altra unita'.
+	 */
+	bool IsDockReadOnly() const;
+
+	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
 	 *
 	 * Separata dal raycast (`OnSelect` fa solo punto-mondo -> cella) perche' la decisione e' verificabile
@@ -1137,6 +1215,10 @@ public:
 	/**
 	 * Per i test dell'arco del nemico (#3762): l'unita' ispezionata senza passare dal click, che porta con se' le
 	 * condizioni della matrice del puntatore, e la scelta dell'arco senza il cursore, che in un mondo di prova non c'e'.
+	 *
+	 * ⚠️ **Non scrive `InspectionTurn`** (e non iscrive il controller al turno): resta `INDEX_NONE`, quindi una fissazione fatta a mano cade al primo
+	 * `OnTeamKnowledgeRefreshed` che porta un turno diverso da `INDEX_NONE`, cioe' al primo rinfresco (`HandleTeamKnowledgeRefreshed`). Chi vuole una
+	 * fissazione che regge un rinfresco dello stesso turno usa `PinInspectionForTest`.
 	 */
 	void SetInspectedUnitForTest(class ARTUnit* Unit) { InspectedUnit = Unit; }
 
@@ -1154,9 +1236,12 @@ public:
 	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
 	 * `ClearSkillHover`, e allora torna la sorgente di prima.
 	 *
-	 * ⚠️ **L'unita' dev'essere quella comandata**: la barra e' di chi si comanda (spec §3 regola 7). Il filtro e' del
-	 * risolutore degli ingressi, che la confronta con la selezione di adesso, non di questa porta: l'hover di un'altra unita' non
-	 * tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione di quella unita').
+	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata mentre la barra la segue** (`#3748`): la barra propria e' di
+	 * chi si comanda, la barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del
+	 * risolutore degli ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata (`bDockFollowsInspection` e pin), non di
+	 * questa porta: l'hover di un'altra unita' non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione
+	 * di quella unita'). Anche l'hover dell'unita' ispezionata cade quando la barra torna alla selezione (`SelectUnit`), benche' la scheda resti
+	 * fissata: la barra non e' piu' sua, e Slate non manda l'uscita a uno slot che il dock ricostruisce.
 	 */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
@@ -1412,7 +1497,8 @@ public:
 
 	/**
 	 * 🔴 **La porta del pulsante `Conferma`: dichiara o ritratta il piano dell'unita' selezionata** ([D-458]).
-	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione.
+	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione. ➕ `#3748`: la barra in sola lettura NON la
+	 * ferma (vedi `IsPlanningWriteBlocked`), il mondo in sola lettura si'.
 	 * ⛔ Non e' il `LockIn` di `Spazio`, che chiude il turno per tutti.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
@@ -1444,6 +1530,38 @@ public:
 	 * lasciare una selezione a meta'. La riga di §5.3 resta aperta finche' `Inspect` non ha un produttore.
 	 */
 	bool IsWorldReadOnly() const;
+
+	/**
+	 * **Il piano non si puo' scrivere** (`#3748`): il mondo e' in sola lettura (`IsWorldReadOnly`) oppure la barra delle skill mostra
+	 * un'unita' che non si comanda (`IsDockReadOnly`). E' la domanda che fanno i punti che SCRIVONO il piano, e solo loro.
+	 *
+	 * 🔑 **E' l'UNICA porta del rifiuto, ed e' qui e non nello slot ne' nella scheda**: tasti numerici, generiche (`Z G B C X`), slot del dock
+	 * (`ArmKitAbility`), click sulla mappa e su un'unita', `Sneak` e i tre punti del verso passano tutti da un sito che la chiede. Il
+	 * piano e' di `GetSelectedUnit()` — l'unita' che si comanda — e con la barra su un nemico scriverlo vorrebbe dire dare un ordine a un'unita'
+	 * che lo schermo non sta mostrando. Il rimedio e' sempre lo stesso: il tasto destro chiude la scheda, selezionare un'unita' propria riporta la barra.
+	 *
+	 * ⛔ **`Invio` e il pulsante `Conferma` (`ToggleTurnPlanDeclared`) NON la chiedono, ed e' una decisione d'autore (2026-10-31), non una svista**:
+	 * dichiarare che le mosse sono decise non scrive il piano — nessun waypoint, nessun armo, nessun bersaglio —, e con la barra su un nemico il
+	 * giocatore deve poterlo fare per la SUA unita' selezionata. Quel sito guarda solo `IsWorldReadOnly()` (playback, finestra di reazione, modale),
+	 * come prima di `#3748`. Rovescia il ruling R10 del piano `2026-10-30-barra-in-sola-lettura`; lo fissa
+	 * `PlayerInput.DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`. Chi aggiunge un gesto: scrive il piano? allora chiede questa funzione; dichiara e basta? no.
+	 *
+	 * ⛔ **Non e' `IsWorldReadOnly()` con un'altra causa, e non va usata dove si legge e basta**: la telemetria di ritmo di `OnSelect`, la
+	 * selezione (`SelectUnit`), l'ispezione (`DispatchUnitClick`) e il Back (`ApplyBack`) restano vivi con la barra in sola lettura, perche' non
+	 * scrivono il piano — sono il modo di uscirne. ⚠️ Per lo stesso motivo `HandleClickOnCell` ne esclude il click sul pavimento del bersaglio di
+	 * una carica pianificata ([D-528] (3)): ispeziona, non scrive, e a barra in sola lettura deve funzionare come il click sulla mesh. Il rifiuto
+	 * della barra sta in quella funzione DOPO quel ramo; quello del mondo in cima, com'era.
+	 */
+	bool IsPlanningWriteBlocked() const;
+
+	/**
+	 * Perche' il piano non si scrive, detto a chi gioca e non a chi programma: vuota se `IsPlanningWriteBlocked()` e' falso.
+	 *
+	 * Per il mondo in sola lettura e' la frase di `[D-468]` (`#3510`), invariata. Per la barra nomina l'unita' MOSTRATA — che non e' la
+	 * selezione — e dice come uscirne. ⚠️ Con le due cause insieme dice quella del mondo: e' la piu' larga, e chiudere la scheda non
+	 * sbloccherebbe niente.
+	 */
+	FString WhyPlanningWriteIsBlocked() const;
 
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
@@ -1658,6 +1776,9 @@ public:
 	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
 	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
 	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
+	 *
+	 * ➕ `#3748`: falsa anche con il piano non scrivibile (`IsPlanningWriteBlocked`). Con la barra su un nemico il click sull'unita' propria
+	 * selezionata non va al selettore ma alla selezione, che riporta la barra.
 	 */
 	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
 
@@ -1671,6 +1792,9 @@ public:
 	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
 	 * soggetto; qui c'e' il setter perche' l'ORDINE del Back e' di questo contratto e senza il livello l'elenco
 	 * sarebbe incompleto.
+	 *
+	 * ⚠️ **Non scrive `InspectionTurn`**, come `SetInspectedUnitForTest`: una fissazione fatta a mano cade al primo `OnTeamKnowledgeRefreshed` che porta
+	 * un turno diverso da `INDEX_NONE`, cioe' al primo rinfresco. Per una fissazione che regge un rinfresco dello stesso turno: `PinInspectionForTest`.
 	 */
 	void SetInspectorPinned(bool bPinned) { bInspectorPinned = bPinned; }
 	bool IsInspectorPinned() const { return bInspectorPinned; }
@@ -1735,7 +1859,14 @@ protected:
 
 	bool bInspectorPinned = false;
 
-	/** Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). */
+	/**
+	 * Fissa l'ispezione su `Unit`: soggetto e pin insieme. L'unico punto che li accende (#3748). Per un'unita' vera stampiglia anche il turno
+	 * (`InspectionTurn`) e si assicura che il controller ascolti il turno nuovo (`EnsureTurnPresentationSubscriptions`).
+	 *
+	 * ⚠️ **L'iscrizione non e' solo quella del turno**: `EnsureTurnPresentationSubscriptions` iscrive anche i tre gestori di presentazione
+	 * (`HandleLockInCommitted`, `HandlePlaybackFinished`, `HandleMatchEndedPresentation`) per un controller che non ha mai selezionato niente, e
+	 * senza selezione sono no-op. Non sono da «correggere»: la sede delle quattro e' una sola.
+	 */
 	void PinInspection(ARTUnit* Unit);
 
 public:
@@ -1750,6 +1881,56 @@ public:
 private:
 
 	bool bPhaseFocusPinned = false;
+
+	/**
+	 * «L'ultimo click su un'unita' e' stato una fissazione» (`#3748`): si accende in `PinInspection` per un'unita' vera e si spegne al primo
+	 * `SelectUnit`. Da solo non dice niente — la barra e' in sola lettura solo se anche scheda e soggetto la tengono (`IsDockReadOnly`).
+	 *
+	 * 🔴 **Si spegne come PRIMA istruzione di `SelectUnit`, PRIMA dell'uscita per `Actor == SelectedActor`**, ed e' il punto: cliccare l'unita'
+	 * propria gia' selezionata non cambia la selezione e `SelectUnit` esce subito, ma e' il gesto con cui si dice «torna alla mia unita'». Con lo
+	 * spegnimento sotto quell'uscita la barra resterebbe sul nemico. Il click vero (`OnSelect`) passa da `SelectUnit` anche per l'unita' gia'
+	 * selezionata; il ciclo `N` con una sola comandabile esce prima di `SelectUnit` e lo spegne da se' (`CycleSelection`).
+	 *
+	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera). ⚠️ Non e' piu' un caso il click che il selettore
+	 * del verso consumava prima della selezione (`TryHandleFacingClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
+	 * risponde no (`IsPlanningWriteBlocked`), e il click cade nella selezione. ⚠️ E non si
+	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente. L'unica
+	 * eccezione e' la caduta al turno nuovo (`ReleaseInspectionForNewTurn`), che azzera tutto e tre insieme.
+	 */
+	bool bDockFollowsInspection = false;
+
+	/**
+	 * La fissazione cade al turno nuovo: soggetto, pin e fissazione della barra si azzerano, come il passo `Inspector` del Back (#3748, decisione
+	 * d'autore del 2026-10-31). Selezione e azione armata NON si toccano — l'ispezione convive con loro.
+	 *
+	 * 🔴 **Perche' cade, e perche' proprio qui**: una fissazione che attraversa un turno e' una barra coi tasti spenti e nessuna spiegazione di
+	 * perche', al momento in cui il giocatore riapre la pianificazione; e cio' che si sapeva del nemico puo' essere cambiato nella risoluzione —
+	 * un nemico fissato era osservato prima, e dopo puo' non esserlo piu'. Lo chiama `HandleTeamKnowledgeRefreshed`, UNA volta per turno nuovo.
+	 *
+	 * ⚠️ **Azzera anche `bDockFollowsInspection`**, che il passo `Inspector` del Back lascia com'e': li' basta (senza soggetto o senza pin non vale
+	 * niente), qui non c'e' un click che lo spenga dopo, e un flag acceso senza fissazione sarebbe uno stato che il prossimo `PinInspection` eredita.
+	 */
+	void ReleaseInspectionForNewTurn();
+
+	/**
+	 * Il turno a cui appartiene l'ispezione: `PinInspection` lo scrive col turno di adesso, `HandleTeamKnowledgeRefreshed` lo aggiorna quando
+	 * ne arriva uno diverso. `INDEX_NONE` finche' non c'e' stato ne' l'uno ne' l'altro.
+	 *
+	 * ⚠️ **E' cio' che distingue «turno nuovo» da «rinfresco della conoscenza»**: la conoscenza si rinfresca anche a risoluzione in corso, con
+	 * lo stesso numero di turno. Non e' stato canonico: vive nel controller, e nessuno snapshot, hash o TurnLog lo legge.
+	 */
+	int32 InspectionTurn = INDEX_NONE;
+
+	/**
+	 * Il giocatore di questo controller comanda `Unit`? E' la domanda che fanno il click (`DispatchUnitClick`) e la barra (`IsDockReadOnly`), e i due la
+	 * chiedono a questo helper: un click e una barra che la rispondessero in due modi mostrerebbero in sola lettura un'unita' che il click ha appena
+	 * selezionato. `nullptr` non si comanda.
+	 *
+	 * ⚠️ **Non e' l'unica copia del predicato.** La regola ha un solo produttore, `URTCombatLibrary::CanPlayerControlUnitInGroup`, ma questo helper
+	 * serve solo il click e la barra: `OnSelect` e `CycleSelection` (nel controller) e i widget in `RTScreenHudWidgets.cpp` chiamano ancora quella
+	 * funzione per conto loro, con gli stessi argomenti scritti per esteso.
+	 */
+	bool IsUnitCommandedByThisPlayer(const class ARTUnit* Unit) const;
 
 	/** Gli ingressi dell'ultimo calcolo delle aree di pianificazione (`#3511`), e se ce n'e' stato uno. */
 	FRTPlanningOverlayInputs LastPlanningOverlayInputs;
@@ -1780,14 +1961,15 @@ private:
 
 	/**
 	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
-	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda), viva, se chiede un
-	 * bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da cui mira e' una cella che la squadra vede adesso.
-	 * Non tocca niente altrimenti.
+	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda) o di quella a FUOCO
+	 * (ispezionata e fissata, `#3748`), viva, se chiede un bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da
+	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di un'unita' ispezionata (lo slot della
+	 * barra in sola lettura) scrive anche `bSkillHoverOfInspected`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
 	 *
-	 * 🔴 **L'origine e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con quello dell'azione
-	 * armata. Per l'unita' comandata e' un dato PROPRIO (il suo scatto pianificato). Il giorno in cui la scheda di un nemico a fuoco
-	 * avra' le sue skill, l'origine dovra' essere la cella della VOCE DELLA VISTA, mai il piano: questa porta non lo permette,
-	 * perche' accetta solo l'unita' comandata.
+	 * 🔴 **L'origine di un'unita' propria e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con
+	 * quello dell'azione armata: e' un dato PROPRIO (il suo scatto pianificato). **Per un nemico a fuoco e' la cella della VOCE DELLA
+	 * VISTA, mai il piano**: `AimOriginFor` leggerebbe lo scatto pianificato del nemico e la portata mostrerebbe da dove mirera'. Il
+	 * cancello e' quello del fuoco: una voce `Live` nella vista di chi guarda.
 	 */
 	void GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const;
 

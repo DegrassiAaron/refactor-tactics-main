@@ -37,6 +37,8 @@
 #include "Components/PanelWidget.h" // CardsBox, PlanWarningsBox: le porte sono pannelli (#3636)
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTInspectCardWidget.h" // la scheda dell'ispezione e la sua riga (#3748)
+#include "Components/Overlay.h"     // MiddleRightStack: il registro e la scheda condividono la zona (#3748)
 #include "UI/RTHudZoneWidget.h"
 #include "UI/RTUIPalette.h" // il colore del prompt si confronta col token (#3869)
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
@@ -75,6 +77,9 @@ namespace
 	// ⌫ *Fino alla seduta `U77` (#3637) `WBP_RT_EventLine` derivava da `UUserWidget` nudo e non entrava in
 	// `Expected[]`. Riparentata su `URTPlayerEventLineWidget`, ora c'e'.*
 	const TCHAR* const EventLinePath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLine.WBP_RT_EventLine_C");
+	// La scheda dell'ispezione e la sua riga (#3748): nate con i loro gate, e non in ritardo come il registro.
+	const TCHAR* const InspectCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_InspectCard.WBP_RT_InspectCard_C");
+	const TCHAR* const InspectLinePath = TEXT("/Game/RT/UI/Match/WBP_RT_InspectLine.WBP_RT_InspectLine_C");
 
 	/**
 	 * Vero se la proprieta' e' — o contiene — una `UTexture2D`.
@@ -936,6 +941,8 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TopCenter"),    TEXT("#613") },
 		{ URTTeamRosterWidget::StaticClass(),        TEXT("TopLeft"),      TEXT("#613, #2744") },
 		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("MiddleRight"),  TEXT("#2697, #1936 fetta F") },
+		// La scheda sta nello STESSO contenitore del registro (`MiddleRightStack`, un `Overlay`), sopra di lui: la scheda fissata copre il registro.
+		{ URTInspectCardWidget::StaticClass(),       TEXT("MiddleRight"),  TEXT("#3748") },
 		// ⚠️ MiddleLeft e non BottomLeft: Selected Unit cambia fascia col rimontaggio delle otto zone.
 		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("MiddleLeft"),   TEXT("#613, #2760") },
 		{ URTActionDockWidget::StaticClass(),        TEXT("Bottom"),       TEXT("#220, #2760, #3469") },
@@ -1627,6 +1634,15 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("LineText"), UTextBlock::StaticClass() },
 	};
 
+	// La scheda dell'ispezione e la sua riga (#3748). `LinesBox` e' un pannello, come quello del registro.
+	const TArray<FPorta> Scheda = {
+		{ TEXT("CardRoot"), UWidget::StaticClass() },
+		{ TEXT("LinesBox"), UPanelWidget::StaticClass() },
+	};
+	const TArray<FPorta> RigaScheda = {
+		{ TEXT("LineText"), UTextBlock::StaticClass() },
+	};
+
 	struct FAsset
 	{
 		const TCHAR* Path;
@@ -1646,6 +1662,8 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ PlanWarningEntryPath, TEXT("WBP_RT_PlanWarningEntry"), &VoceAvviso },
 		{ EventLogPath, TEXT("WBP_RT_EventLog"), &Registro },
 		{ EventLinePath, TEXT("WBP_RT_EventLine"), &RigaRegistro },
+		{ InspectCardPath, TEXT("WBP_RT_InspectCard"), &Scheda },
+		{ InspectLinePath, TEXT("WBP_RT_InspectLine"), &RigaScheda },
 	};
 
 	for (const FAsset& A : Asset)
@@ -2026,6 +2044,102 @@ bool FRTActionDockKeepsTheMockupPaddingTest::RunTest(const FString&)
 			TestEqual(TEXT("2: il padding sinistro del prompt e' 32"), static_cast<float>(Slot->GetPadding().Left), 32.f, 0.01f);
 		}
 	}
+	return true;
+}
+
+/**
+ * 🔑 **LA SCHEDA PORTA LA CLASSE DELLE RIGHE, ANCHE DENTRO `WBP_RT_TacticalHUD`** (#3748).
+ *
+ * Il gemello di `EventLogWearsItsLineClass`, per la stessa ragione: `LineClass` sta sul CDO, ma la scheda a schermo e' l'istanza
+ * dell'albero del TacticalHUD, e un override nullo salvato li' la lascerebbe senza righe. Senza questo asserto il pannello si
+ * montava, compilava e restava vuoto. ⚠️ Vede l'override SALVATO, non uno stato solo in memoria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInspectCardWearsItsLineClassTest,
+	"RefactorTactics.ScreenHud.InspectCardWearsItsLineClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInspectCardWearsItsLineClassTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Riga = RTWidgetAssetTest::LoadWidgetClass(InspectLinePath);
+	UWidgetBlueprintGeneratedClass* Scheda = RTWidgetAssetTest::LoadWidgetClass(InspectCardPath);
+	if (!TestNotNull(TEXT("la riga della scheda si carica"), Riga) || !TestNotNull(TEXT("la scheda si carica"), Scheda))
+	{
+		return false;
+	}
+	TestTrue(TEXT("la riga deriva da URTInspectLineWidget"), Riga->IsChildOf(URTInspectLineWidget::StaticClass()));
+	TestTrue(TEXT("la scheda deriva da URTInspectCardWidget"), Scheda->IsChildOf(URTInspectCardWidget::StaticClass()));
+	TestTrue(TEXT("i default di WBP_RT_InspectCard puntano a WBP_RT_InspectLine"),
+		Scheda->GetDefaultObject<URTInspectCardWidget>()->LineClass.Get() == Riga);
+
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	int32 Schede = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		if (const URTInspectCardWidget* S = Cast<URTInspectCardWidget>(Widget))
+		{
+			++Schede;
+			TestTrue(*FString::Printf(TEXT("la scheda '%s' del TacticalHUD costruisce WBP_RT_InspectLine"), *S->GetName()),
+				S->LineClass.Get() == Riga);
+		}
+	});
+	TestEqual(TEXT("premessa: il TacticalHUD monta una scheda"), Schede, 1);
+	return true;
+}
+
+/**
+ * 🔑 **IL REGISTRO E LA SCHEDA CONDIVIDONO LA ZONA, E LA SCHEDA STA SOPRA** (#3748, spec §7: «fissata vince»).
+ *
+ * `MiddleRight` ha un solo `NamedSlot Content`, quindi due inquilini stanno in un contenitore che lo occupa: `MiddleRightStack`, un
+ * `Overlay`. L'ordine dei figli e' lo z-order: il registro per primo, la scheda dopo, quindi una scheda fissata copre il registro e,
+ * chiusa, lo lascia com'era. Entrambi gli slot riempiono la zona: **e' lo slot a decidere se un widget riempie, non il widget**, e uno
+ * slot di `Overlay` nasce `Left/Top` (misurato il 2026-09-12): senza `Fill` il registro si rimpicciolirebbe al suo contenuto.
+ *
+ * Ogni asserto ha il suo controllo: l'ordine e' provato nei due versi (il registro NON e' sopra la scheda), e `Fill` su entrambi gli
+ * slot, non su uno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMiddleRightStackKeepsTheLogUnderTheCardTest,
+	"RefactorTactics.ScreenHud.MiddleRightStackKeepsTheLogUnderTheCard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTMiddleRightStackKeepsTheLogUnderTheCardTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+	const UOverlay* Pila = Cast<UOverlay>(Tree->FindWidget(TEXT("MiddleRightStack")));
+	if (!TestNotNull(TEXT("MiddleRightStack e' un Overlay"), Pila)) { return false; }
+	if (!TestEqual(TEXT("il contenitore ha il registro e la scheda, niente altro"), Pila->GetChildrenCount(), 2)) { return false; }
+
+	TestTrue(TEXT("il primo figlio (sotto) e' il registro"), Pila->GetChildAt(0)->IsA<URTPlayerEventLogWidget>());
+	TestTrue(TEXT("il secondo figlio (sopra) e' la scheda"), Pila->GetChildAt(1)->IsA<URTInspectCardWidget>());
+	TestFalse(TEXT("controllo: il registro non e' sopra la scheda"), Pila->GetChildAt(1)->IsA<URTPlayerEventLogWidget>());
+
+	for (int32 I = 0; I < Pila->GetChildrenCount(); ++I)
+	{
+		const UOverlaySlot* Slot = Cast<UOverlaySlot>(Pila->GetChildAt(I)->Slot);
+		if (!TestNotNull(*FString::Printf(TEXT("il figlio %d sta in uno slot di Overlay"), I), Slot)) { continue; }
+		TestTrue(*FString::Printf(TEXT("il figlio %d riempie la zona in larghezza"), I), Slot->GetHorizontalAlignment() == HAlign_Fill);
+		TestTrue(*FString::Printf(TEXT("il figlio %d riempie la zona in altezza"), I), Slot->GetVerticalAlignment() == VAlign_Fill);
+	}
+
+	// Il contenitore e' il contenuto della zona `MiddleRight`, non di un'altra.
+	int32 ZoneDelContenitore = 0;
+	Tree->ForEachWidget([&](UWidget* Widget)
+	{
+		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+		if (Zona != nullptr && Zona->GetContentForSlot(TEXT("Content")) == Pila)
+		{
+			++ZoneDelContenitore;
+			TestTrue(TEXT("e quella zona e' MiddleRight"), Zona->ZoneId == ERTHudZone::MiddleRight);
+		}
+	});
+	TestEqual(TEXT("il contenitore sta nello slot di una zona sola"), ZoneDelContenitore, 1);
 	return true;
 }
 

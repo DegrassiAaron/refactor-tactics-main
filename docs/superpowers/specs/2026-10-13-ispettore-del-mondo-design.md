@@ -34,6 +34,26 @@
 > verificati sul codice uno per uno prima di accoglierli. Le correzioni sono marcate `➕ rev2.`, e portano la
 > decisione d'autore `S8`, presa leggendo i rilievi.
 >
+> ➕ rev3. **Rivista il 2026-10-30 per una decisione d'autore, non per una revisione** (`S9`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md)):
+> dopo le tavole di `PIE-HUD-SCHEDA` l'autore ha chiesto che la barra delle skill mostri le skill dell'unità
+> cliccata, anche quando non la comanda, e che la scheda perda le righe di kit. Cambiano la regola 7 di §3, che
+> ribalta una frase della prima stesura (col `⌫`), e nascono le regole 13 e 14; seguono le frasi di §2, §3, §4 e §7
+> che dicevano che la scheda elenca il kit, e le voci nuove di §5, §8 (`R16`-`R19`), §11 e §12. Le correzioni sono
+> marcate `➕ rev3.`. Il piano è
+> [`2026-10-30-barra-in-sola-lettura.md`](../plans/2026-10-30-barra-in-sola-lettura.md); la resa a schermo non
+> è stata vista (PIE `NOT RUN`).
+>
+> ➕ rev4. **Rivista il 2026-10-31 per quattro decisioni d'autore, non per una revisione** (`S10`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11)):
+> dopo le tavole `V1`-`V4` l'autore ha scritto che il box di destra *«invece di avere tutte le info, potrebbe avere le
+> info sulla skill che si sta facendo hover con il mouse»*, e ha scelto, fra le opzioni proposte, la testata compatta con i
+> dettagli della skill sotto il cursore, `Conferma` e `Invio` sempre vivi, la fissazione che cade a ogni turno nuovo e la stima
+> delle ricariche dentro i dettagli. Cambiano la regola 7 e le regole 13 e 14 di §3 (col `⌫` dove ribaltano una frase),
+> nascono le regole 15 e 16, e seguono le frasi di §3, §4, §5, §6, §7, §8, §9, §11 e §12 che dicevano che la scheda tiene la sezione
+> «Ricariche», che la dichiarazione è un sito bloccato o che la fissazione sopravvive ai turni; `R19` è chiuso e nascono `R20` e
+> `R21`. Le correzioni sono marcate `➕ rev4.`. Il piano è
+> [`2026-10-31-box-skill-sotto-il-cursore.md`](../plans/2026-10-31-box-skill-sotto-il-cursore.md); la resa a schermo non è
+> stata vista (PIE `NOT RUN`).
+>
 > **Fetta `F1` implementata** in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744), col piano
 > [`2026-10-13-glossario-stati-superfici-ripari.md`](../plans/2026-10-13-glossario-stati-superfici-ripari.md): la
 > tabella `RTGlossary`, il documento [`RT_Glossary_v0.1.md`](../../balance/RT_Glossary_v0.1.md), il radar e i test
@@ -59,6 +79,8 @@
 | **S6** | *«sostituisci alt con ctrl»* | risposta alla domanda sulla sovrapposizione con `Alt` + click |
 | **S7** | Le tre sezioni del disegno — gesti e contenuti, privacy e architettura, superfici test e taglio — sono approvate | *«si torna»*, *«ok»* |
 | **S8** | ➕ rev2. L'area di movimento di un nemico mostra il movimento **normale** e quello **×2** della corsa, cioè il massimo che può raggiungere: *«il movimento di un nemico che si vede e' quello x2 e normale, massima area che raggiunge»* | risposta d'autore al rilievo `A1` |
+| **S9** | ➕ rev3. La barra delle skill mostra le skill dell'**unità cliccata**, in sola lettura se non la si comanda; la scheda perde le righe di kit; il lavoro resta dentro [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748): *«se seleziono un unita' (quella che controllo, quella del compagniuo di squadra o quella avversaria) la barra delle skill che vedo e' quella della unita' selezionata. questo mi permette di passare il mouse sopra una skill e vedere il raggio e altre informazioni.»* | messaggio libero dopo le tavole `T1`-`T4` della scheda, e le domande a scelta multipla che lo seguivano; il testo visto dall'autore è alla lettera in [D-562](../../decisions/RT_PDR_00_Decision_Log.md) |
+| **S10** | ➕ rev4. Il box di destra è una testata compatta e, col cursore su uno slot della barra, i dettagli di quella skill; `Conferma` e `Invio` funzionano sempre; la fissazione cade a ogni turno nuovo; la stima delle ricariche viste sta nei dettagli: *«il box sulla destra invece di avere tutte le info, potrebbe avere le info sulla skill che si sta facendo hover con il mouse»* | messaggio libero dopo le tavole `V1`-`V4` (tutte «sì»), e quattro domande a scelta singola le cui opzioni raccomandate erano dell'assistente: l'autore ha scelto quelle quattro; il testo visto dall'autore è alla lettera in [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11) |
 
 ---
 
@@ -166,7 +188,7 @@ restano alla fetta 2 e atterrano sulle stesse superfici.
 - lo **sguardo** all'hover su unità osservata, cella, porta, riparo, obiettivo;
 - la **scheda** fissata, per gli stessi bersagli;
 - il **fuoco**: camera, scheda e area di movimento di un personaggio;
-- la **portata all'hover di una skill**, dalla barra o dalla scheda;
+- la **portata all'hover di una skill**, dalla barra. ➕ rev3. ⌫ *La prima stesura diceva «dalla barra o dalla scheda»*: la scheda non ha più righe di skill, e la barra mostra anche le skill di chi è a fuoco (regola 7);
 - il cambio di modificatore della camera da `Alt` a `Ctrl`;
 - il **glossario** di stati, superfici e ripari.
 
@@ -191,14 +213,14 @@ guadagna un effetto.
 | Gesto | Effetto |
 |---|---|
 | Hover, dopo un breve ritardo | **sguardo** sul bersaglio. Non cambia nessuno stato |
-| Hover su una skill, nella barra o nella scheda | la **portata** di quella skill sulla mappa, da dove sta il suo personaggio |
-| `LMB` su un'unità non comandata e osservata, in `IdleSelection` e `Planning` | ispeziona, come oggi ([D-128](../../decisions/RT_PDR_00_Decision_Log.md)): **scheda** fissata e area di movimento. La camera resta ferma. ➕ rev2. Per gli altri contesti vale la regola 9 |
+| Hover su una skill, nella barra, della propria unità o di quella fissata | la **portata** di quella skill sulla mappa, da dove sta il suo personaggio, e il tooltip del catalogo. ➕ rev3. ⌫ *La prima stesura diceva «nella barra o nella scheda»*: la scheda non ha più righe di skill. ➕ rev4. **E, per un'unità non comandata fissata, il box di destra mostra i dettagli di quella skill** (regola 16) |
+| `LMB` su un'unità non comandata e osservata, in `IdleSelection` e `Planning` | ispeziona, come oggi ([D-128](../../decisions/RT_PDR_00_Decision_Log.md)): **scheda** fissata e area di movimento. La camera resta ferma. ➕ rev2. Per gli altri contesti vale la regola 9. ➕ rev3. **E la barra delle skill passa a quell'unità, in sola lettura** (regola 13) |
 | `Ctrl` + `LMB` click | centra la camera sulla cella, come faceva `Alt` + click, e **mette a fuoco** ciò che c'è sotto: scheda fissata, più l'area di movimento se è un personaggio |
 | `Ctrl` + `LMB` trascinato | orbita |
 | `Ctrl` + `RMB` trascinato | dolly |
 | `Ctrl` + movimento | peek |
 | `Ctrl` + `MMB` trascinato | pan di precisione |
-| `RMB` con un fuoco attivo | lo chiude: è il passo `Inspector` del Back. Tornano le anteprime di pianificazione |
+| `RMB` con un fuoco attivo | lo chiude: è il passo `Inspector` del Back. Tornano le anteprime di pianificazione. ➕ rev3. E la barra delle skill torna alla selezione |
 
 **Fuoco** vuol dire: un bersaglio con la scheda fissata e, se è un personaggio, l'area di movimento sulla mappa. Lo
 apre `LMB` su un'unità non comandata, senza muovere la camera, oppure `Ctrl` + `LMB` su qualunque bersaglio, con la
@@ -216,16 +238,23 @@ Regole:
    ⌫ *La prima stesura diceva «ordine dello sguardo, uguale in ogni contesto» e dava `Inspect` a ogni hover*: in
    `Pathing` e in `Targeting` / `Cell` contraddiceva §4.1 e la colonna Hover.
 2. **Il fuoco non tocca selezione né piano.** Vale la riga di `spec-tactical-camera.md`: il click col modificatore
-   è un comando che chi stava pianificando ritrova tutto com'era.
+   è un comando che chi stava pianificando ritrova tutto com'era. ➕ rev3. Vale anche per la barra delle skill: mostra
+   un'altra unità (regola 7), ma selezione, azione armata e piano di chi si comanda restano com'erano, e li ritrova
+   la barra quando torna a quell'unità (regola 13).
 3. **Un gesto, una operazione**: `Ctrl` + `LMB` è click oppure trascinamento, mai entrambi. La soglia è quella
    esistente (`ClickDragThreshold`).
 4. ➕ rev. **La scheda resta, l'area sulla mappa cede.** ⌫ *La prima stesura diceva «il fuoco finisce con `RMB` o
    con qualunque gesto di pianificazione»*, e contraddiceva la decisione del 2026-09-11 scritta su
    `ARTPlayerController::InspectedUnit`: l'ispezione **convive** con la selezione e persiste finché non se ne
    ispeziona un'altra. Quindi:
-   - la **scheda** si chiude con `RMB`, o quando se ne fissa un'altra;
+   - la **scheda** si chiude con `RMB`, o quando se ne fissa un'altra ➕ rev4. oppure quando si apre un turno nuovo di pianificazione (regola 15);
    - l'**area di movimento** di chi è a fuoco lascia la mappa al primo gesto di pianificazione — armare, posare un
      waypoint, dichiarare un verso — e non torna da sola.
+
+   ➕ rev3. **Restringe questa decisione, non la ribalta.** *Lo stato* convive ancora: ispezionare non fa perdere la
+   selezione né l'azione armata, e non scrive il piano. Cambia **che cosa mostra la barra** (regola 7) e, finché la
+   barra è in sola lettura, che cosa si può scrivere nel piano (regola 14). ➕ rev4. **E la restringe ancora**: la persistenza
+   vale fino al turno nuovo (regola 15), non per sempre.
 5. ➕ rev. **Contesti**: in `ReactionWindow` e `Modal` l'ispettore è inerte. In `ResolutionPlayback` deve
    funzionare, come `spec-pointer-interaction.md` §5.3 chiede, e oggi non funziona (§1.2): F3 porta
    `ResolveOutcome` a rispondere `Inspect` per un'unità osservata in quel contesto. Tutto ciò che cambierebbe il
@@ -234,8 +263,21 @@ Regole:
    mostra la targa, anche quando anticipa la scena: è il limite di #2453, ereditato e non introdotto (R15).
 6. **L'HUD consuma il puntatore prima del mondo**: click e rotella sopra il pannello non raggiungono la mappa.
    Sopra il pannello la rotella scorre la scheda.
-7. **Le skill appartengono a un personaggio**: la barra a chi si comanda, la scheda a chi è a fuoco. La portata
-   all'hover parte dalla cella di quel personaggio. Uscendo dalla skill torna la vista di prima.
+7. ➕ rev3. **Le skill appartengono a un personaggio, e la barra mostra quelle dell'ultima unità cliccata.** La barra
+   segue la selezione, cioè è di chi si comanda, finché l'ultimo click su un'unità non è stato l'ispezione di
+   un'unità che **non** si comanda: allora mostra le skill di *quella*, dal solo catalogo (regola 13), in sola
+   lettura. Senza tasti, senza anello di ricarica, senza azione armata, senza stato: ogni slot è «disponibile»,
+   che vuol dire «niente stato» e non «pronta». Passare sullo slot mostra la portata sulla mappa, dalla cella in
+   cui la squadra vede quel personaggio ora, e il tooltip del catalogo; uscendo dalla skill torna la vista di
+   prima. La scheda non elenca più il kit: ⌫ *carta, stati, verso, equipaggiamento e ricariche dedotte*. ➕ rev4. È una testata
+   (carta, stati, verso e una riga coi nomi dell'equipaggiamento) e, col cursore su uno slot della barra di chi è a fuoco, i
+   dettagli di quella skill (regola 16). L'unità di un
+   compagno si comanda, quindi si seleziona e la sua barra è quella di sempre: la sola lettura riguarda le unità
+   che la regola di `URTCombatLibrary::CanPlayerControlUnitInGroup` non assegna a chi gioca, oggi quelle avversarie.
+   ⌫ *La prima stesura diceva: «Le skill appartengono a un personaggio: la barra a chi si comanda, la scheda a chi è
+   a fuoco. La portata all'hover parte dalla cella di quel personaggio»*: la scheda aveva le righe di kit, e passarci
+   sopra mostrava la portata. L'autore ha chiesto che la barra mostri le skill dell'unità selezionata, anche non
+   comandata ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), `S9`).
 8. ➕ rev. **`RMB` chiude la scheda prima di uscire da un targeting.** È l'ordine che `ResolveBack` ha già: il passo
    `Inspector` viene prima di `Declaration` e di `Waypoint`. Chi fissa la scheda di un nemico e poi arma un attacco
    preme `RMB` due volte per disarmare. L'ordine non si cambia qui: è un contratto con i suoi test, e il giudizio
@@ -257,6 +299,65 @@ Regole:
     (`URTHudViewModel::ResolveObserverTeamIds`). In una sessione senza un giocatore che comanda —
     autobattle, spettatore — l'ispettore è inerte (R14): lì «comandata» e «non comandata» non esistono, e questa
     spec non le inventa.
+13. ➕ rev3. **Il soggetto della barra è derivato, e finisce con il gesto che dice «torna alla mia unità».** È
+    l'unità fissata dall'ultima ispezione **se** è viva e non si comanda (`ARTPlayerController::GetDockUnit` e
+    `IsDockReadOnly`, il cui header dice che **non** sono un cancello `Live`); altrimenti è la selezione. Il dock la
+    mostra solo se ha anche una voce `Live` nella vista di conoscenza, e lo verifica a ogni lettura
+    (`URTScreenHudWidgetBase::GetDockUnit` e `IsDockReadOnly`): senza, la barra mostrata è la selezione. L'ispezione
+    che lo porta sulla barra è `LMB` con esito `Inspect` e, per lo
+    stesso gesto, il click sul pavimento dell'esagono del bersaglio di una carica già pianificata
+    ([D-528](../../decisions/RT_PDR_00_Decision_Log.md)). Lo riportano alla selezione: ogni `SelectUnit`, **anche
+    sull'unità già selezionata** (il click sulla propria unità non cambia la selezione e non chiude la scheda, ma
+    dice «torna alla mia»); `N`, quando la sola unità comandabile è la selezionata; `RMB`, che chiude la scheda
+    (passo `Inspector`); l'uscita di vista del soggetto o la sua caduta. Il cancello `Live` lo applica chi legge, a
+    ogni lettura, e non chi decide il soggetto: un nemico non osservato non ha scheda **né barra** (P2).
+    `Ctrl` + click non fissa niente oggi, e non sposta la barra; se la fetta F4 lo farà passare da `PinInspection`,
+    la porterà come il click, e va deciso che sia voluto. Resta aperto un caso: con nessuna unità ciclabile (tutte
+    hanno dichiarato) `N` non riporta la barra; restano il click e `RMB`. ➕ rev4. La fissazione cade anche all'apertura di
+    un turno nuovo (regola 15): scheda e barra tornano alla selezione.
+14. ➕ rev3. **Con la barra in sola lettura il piano non si scrive, e il log dice perché.** Un solo predicato,
+    `IsPlanningWriteBlocked` (mondo in sola lettura **o** barra in sola lettura, [D-468](../../decisions/RT_PDR_00_Decision_Log.md)),
+    guarda i punti che scrivono il piano: ⌫ *la dichiarazione con `Invio`* (➕ rev4. non più, vedi sotto), il click su un'unità, l'armo da tasti,
+    generiche e slot, `Sneak` (`M`) e il selettore del verso (apertura, scelta, hover). **Il click su una cella è
+    l'eccezione, e per costruzione**: per lasciar vivo il click D-528 sul pavimento che ispeziona tiene le due cause
+    separate, `IsWorldReadOnly()` in cima (muto, com'era) e `IsDockReadOnly()` più sotto, dopo il ramo che ispeziona,
+    con la sua riga di log. Restano vivi
+    selezione, ispezione — compreso il click D-528 sul pavimento —, `RMB` e camera. La causa della barra nomina
+    l'unità mostrata e il rimedio (chiudere la scheda con il tasto destro o selezionare una propria unità); con le
+    due cause insieme dice quella del mondo. Il rifiuto sta nel controller, in un posto solo: lo slot confronta per
+    chi è stato costruito con il soggetto della barra e non ha un rifiuto suo. È un rifiuto del client: il server
+    valida comunque. Il costo è la scelta `R16`.
+    ➕ rev4. **La dichiarazione del piano non è fra i punti bloccati**, per decisione d'autore ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.2)):
+    dichiarare che le mosse sono decise non scrive il piano, e la dichiarazione è della propria unità selezionata, che la
+    barra non sposta. `Invio` (`ARTPlayerController::ToggleTurnPlanDeclared`) guarda solo `IsWorldReadOnly()`, e `Conferma` è
+    acceso quando c'è un'unità selezionata, come prima di #3748; le ferma il solo mondo in sola lettura (playback, finestra di
+    reazione, modale), con la sua frase. **Rischio noto e accettato**: `Invio` è un toggle, e premuto mentre si guarda un nemico
+    può ritrattare la dichiarazione della propria unità; è lo stesso rischio che c'è senza barra in sola lettura. Tutti gli
+    altri punti restano bloccati.
+15. ➕ rev4. **La fissazione è di un turno: cade quando se ne apre uno nuovo di pianificazione.** Scheda e barra tornano alla
+    propria unità (`ARTPlayerController::ReleaseInspectionForNewTurn` azzera soggetto, pin e fissazione della barra: lo stato
+    finale del passo `Inspector` del Back). Il turno nuovo lo annuncia `ARTTurnManager::OnTeamKnowledgeRefreshed`, e il controller
+    lo confronta col numero del turno a cui appartiene la fissazione (`PinInspection` lo scrive e iscrive il controller): il
+    rilascio scatta **una volta** per turno, anche senza playback, e non a metà turno né in risoluzione o in playback, dove
+    l'ispezione resta (regola 5). Una fissazione fatta dopo l'inizio del turno nuovo resta. Selezione e azione armata non si
+    toccano. **Resta aperto un caso**: dopo la fine della partita nessun turno nuovo arriva, e la fissazione resta sulla
+    schermata dei risultati. È presentazione del client: stato canonico, snapshot, hash, TurnLog e replay non sono toccati. Il
+    costo è la scelta `R20`.
+16. ➕ rev4. **Il box di destra è una testata compatta, e col cursore su uno slot i dettagli di quella skill.** La testata è
+    sempre visibile: nome, PV e scudo, verso (se acceso), stati col glossario e **una sola riga** «Equipaggiamento: A · B · C» coi
+    soli nomi dei pezzi. Con il cursore su uno slot della barra dell'unità della scheda il box aggiunge il titolo della skill,
+    le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno: la stessa
+    riga di catalogo, `BuildCatalogActionRow` e `BuildCatalogTooltip`, nessuna seconda fonte), poi, solo se la squadra ha visto
+    usare l'azione e il catalogo le dà una ricarica, la riga della stima («Stima da cio' che hai visto: …»), mai un conto dei
+    turni che restano, e infine le righe `+` e `-` del pezzo che la riguarda. **L'ordine è quello del taglio**: la finestra taglia
+    la coda, e la stima è l'informazione che viene dall'osservazione mentre le righe dei pezzi sono catalogo, quindi se una riga
+    deve cadere cadono i pezzi. ⌫ *La prima stesura metteva la stima dopo i pezzi*: sulla scheda più lunga (l'attacco base di
+    Muiren) con due stati la riga tagliata era proprio la stima, e non si raggiunge con la rotella. Senza cursore, una riga di invito: «Passa su una skill della
+    barra per i dettagli». L'hover vale solo se l'unità dello slot è il soggetto della scheda: un hover sulla barra della propria
+    unità non cambia il box. Uno slot vuoto o un indice fuori kit non dà dettagli, e la riga di invito resta. I pezzi che
+    riguardano la skill sono quello con `EquipmentId == ActionId` e, per un'azione del gruppo `Base`, la variante d'arma
+    (`R21`). **I dettagli oltre `MaxRighe` non si scorrono**: lasciare lo slot azzera l'hover, quindi non c'è modo di portare il
+    cursore sul box e girare la rotella; il taglio resta dichiarato («… e altre N righe») e si taglia la coda.
 
 ➕ rev. **Gli esiti**, nell'elenco chiuso di `spec-pointer-interaction.md` §5. Nessun gesto nuovo ne chiede un nono.
 
@@ -275,8 +376,8 @@ Regole:
 
 | Bersaglio | Sguardo (al massimo quattro righe) | Scheda |
 |---|---|---|
-| Unità comandata o alleata | la targa di oggi, più nome ed effetto di ogni stato | carta, stati, kit con le ricariche **vere**, equipaggiamento. La selezione non cambia |
-| Nemica osservata | come sopra, più il verso | carta, stati, verso, **kit dell'eroe**, **equipaggiamento**, **ricariche dedotte** |
+| Unità comandata o alleata | la targa di oggi, più nome ed effetto di ogni stato | carta, stati, equipaggiamento. La selezione non cambia. ➕ rev3. ⌫ *La prima stesura aggiungeva «kit con le ricariche **vere**»*: il kit sta sulla barra, e per un'unità che si comanda la barra porta già le ricariche vere |
+| Nemica osservata | come sopra, più il verso | carta, stati, verso, **equipaggiamento**, **ricariche dedotte**. ➕ rev3. ⌫ *La prima stesura aggiungeva «kit dell'eroe»*: il **kit dell'eroe** sta sulla barra, in sola lettura (regola 7). ➕ rev4. ⌫ *La rev3 teneva le **ricariche dedotte** come sezione della scheda*: la stima di una skill sta nei dettagli della skill sotto il cursore (regola 16), e l'equipaggiamento è una riga di soli nomi |
 | Nemica non osservata | l'etichetta della cella, identica a quella di una cella vuota | la scheda della cella, identica |
 | Cella **in vista** | superficie con effetto, costo d'ingresso se diverso da 1, piano, ripari per lato, «blocca la vista», obiettivo | ogni lato (riparo, porta, parapetto), regola intera della superficie, stato dell'obiettivo |
 | ➕ rev. Cella **non in vista**, esplorata o mai vista | nulla | nulla |
@@ -286,12 +387,16 @@ Regole:
 che la targa usa già e dichiara che ce ne sono altri; la scheda li porta tutti.
 
 **Una riga di kit** porta: nome, frase d'autore, fase, slot, portata, forma, danno, durata della ricarica — solo le
-voci che per quell'azione hanno un valore. Viene dal solo catalogo.
+voci che per quell'azione hanno un valore. Viene dal solo catalogo. ➕ rev3. ⌫ *La prima stesura la metteva sulla
+scheda*: sta nel tooltip dello slot della barra (da guardare in PIE), e per un'unità in sola lettura la riga è
+quella di `URTHudViewModel::BuildPublicBar`, che porta il catalogo e niente della partita. ➕ rev4. Col cursore su quello slot la
+stessa riga dà anche i dettagli del box di destra (regola 16).
 
 **Una riga di ricarica dedotta** dice l'ultimo turno in cui la squadra ha visto usare l'azione e il turno da cui
 torna disponibile. È una stima, e si legge come tale: un effetto non visto che allunghi o accorci la ricarica la
 rende sbagliata. Un'azione mai vista usare non ha riga. ➕ rev2. Nemmeno un'azione la cui ricarica parte senza che
-nessuno la veda agire — una reazione armata e mai scattata: la deduzione tace, non indovina.
+nessuno la veda agire — una reazione armata e mai scattata: la deduzione tace, non indovina. ➕ rev4. La riga sta fra i dettagli
+della skill a cui si riferisce (regola 16), non in una sezione della scheda.
 
 **Sulla mappa, a fuoco attivo:**
 
@@ -363,6 +468,17 @@ Precisazioni:
   quali azioni un eroe ha, coi numeri di catalogo — e l'equipaggiamento diventano pubblici. Che cosa non cambia:
   gli **slot**, cioè il piano del turno, e le ricariche vere restano privati, e P1 li tiene fuori. La regola di
   #2757 resta vera per gli slot.
+- ➕ rev3. **P6 ora la legge la barra, non la scheda.** La barra di un soggetto in sola lettura nasce da
+  `URTHudViewModel::BuildPublicBar`, un elenco **positivo** di campi di catalogo: non porta il piano, le ricariche
+  vere, l'azione armata né i tasti, e nemmeno `TotalTurns`, il denominatore dell'anello di carica (un valore
+  maggiore di zero con la carica piena direbbe «carica» di una skill nemica la cui ricarica vera è privata). Lo
+  prova un test con un controllo positivo: la stessa unità, letta da `BuildAbilityCooldowns`, li porta. Il dock non
+  costruisce mai `BuildAbilityCooldowns` per un soggetto in sola lettura, e applica il cancello `Live` a ogni
+  lettura.
+- ➕ rev4. **E, per UNA skill, i dettagli del box di destra.** Vengono dalla stessa riga di catalogo del tooltip
+  (`BuildCatalogActionRow` con `NAME_None`: la variante attiva è stato di partita), più i pezzi che la riguardano e la stima
+  dedotta se vista. Nessun campo di `FRTInspectSkillDetail` è piano, ricarica vera, azione armata o tasto, e la reflection ne
+  chiude l'insieme dei nomi.
 
 **Le regole P2, P3, P4, P5 e P7 hanno ciascuna un test a mondi gemelli**: stessa conoscenza autorizzata, stato
 nascosto diverso, uscita identica. Per P3 e P7 i due mondi differiscono in tre modi: nella geometria mai vista, nello stato di una cella esplorata e
@@ -381,8 +497,8 @@ diventare rosso.
 | **Risolutore del bersaglio** | dai candidati del raycast sceglie unità, bordo o cella, con l'ordine di §3 | `FRTPointerCandidates`; una funzione pura accanto a `URTPointerLibrary::ResolveTarget` |
 | **Compositore** | produce sguardo e scheda già pronti per un osservatore: solo valori derivati | gli owner di §5 |
 | **Glossario** | nome ed effetto in una riga per stati, superfici, ripari | la forma di `RTActionDescriptions` |
-| **Kit statico** | le righe di una skill dal solo catalogo | `BuildActionTooltip`, divisa in parte fissa e parte di partita |
-| **Ricariche dedotte** | per azione, ultimo uso visto e turno di ritorno | ➕ rev2. le voci del TurnLog che passano `URTPlayerEventProjector::IsAuthorized` |
+| **Kit statico** | le righe di una skill dal solo catalogo | `BuildActionTooltip`, divisa in parte fissa e parte di partita. ➕ rev3. Lo legge la barra in sola lettura (`BuildPublicBar`), non la scheda. ➕ rev4. E il box di destra, per UNA posizione, quella sotto il cursore |
+| **Ricariche dedotte** | per azione, ultimo uso visto e turno di ritorno | ➕ rev2. le voci del TurnLog che passano `URTPlayerEventProjector::IsAuthorized`. ➕ rev4. La riga di UNA azione sta nei dettagli della skill sotto il cursore (regola 16) |
 | **Aree del fuoco** | area di movimento e portata di chi è a fuoco | `ReachableCells` su uno snapshot per osservatore costruito apposta — ➕ rev2. non con `MakeSimUnit`, che legge il piano; il produttore della portata di #3507 |
 | **Arbitro dell'anteprima** | decide che cosa mostra la mappa fra piano, fuoco e hover su skill | `RefreshPlanningPreview`, che resta l'unico a scrivere i setter |
 | **Superfici** | targa aperta, etichetta di cella, pannello | `URTUnitOverlayWidget`, `FRTHudBands` (§7) |
@@ -470,8 +586,12 @@ Regole del pannello:
   lo copre finché `RMB` non la chiude.
 - **Sta nella fascia.** La colonna destra ha la larghezza di `FRTHudBands::Right`. Il pannello non la allarga:
   allargarla stringerebbe la scena.
-- **Scorre.** Kit ed equipaggiamento non entrano nell'altezza della colonna. La scheda scorre, e un taglio non è
-  mai muto: la lezione è quella di `URTContextInspectorLibrary::VisibleLines`.
+- **Scorre.** Stati ed equipaggiamento non entrano nell'altezza della colonna. La scheda scorre, e un taglio non è
+  mai muto: la lezione è quella di `URTContextInspectorLibrary::VisibleLines`. ➕ rev3. ⌫ *La prima stesura diceva
+  «Kit ed equipaggiamento»*: il kit non è più sulla scheda. Il gate `ScreenHud.TenantsFitTheirBands` misura una
+  scheda piena (nome, stato, equipaggiamento, ricariche dedotte; ➕ rev4. ⌫ *dal 2026-10-31 una testata più i dettagli di una
+  skill, fino a `MaxRighe` righe, e i dettagli oltre il limite non si scorrono: regola 16*) ma non vede le righe che vanno a capo: l'altezza
+  con righe a capo resta da guardare in PIE.
 - **Prima consegna in C++, senza `.uasset`**, come `URTContextInspectorWidgetBase` e `URTPieVerdictOverlay`, che
   compongono la propria Slate in `RebuildWidget`. La pelle secondo le tavole viene dopo, e l'autore la giudica su
   tavole.
@@ -509,6 +629,12 @@ Scelte di chi scrive, mostrate in sessione dentro le sezioni approvate (`S7`). R
 | **R14** | ➕ rev2. In una sessione senza un giocatore che comanda l'ispettore è inerte (§3 regola 12) | una seduta dimostrativa non lo può mostrare |
 | **R15** | ➕ rev2. In risoluzione la scheda mostra ciò che mostra la targa, anche se anticipa la scena (§3 regola 5) | chi ispeziona durante il playback legge l'esito prima di vederlo: è il limite di #2453, ereditato |
 | **R8** | ➕ rev2. La fonte delle ricariche dedotte sono le voci del TurnLog che passano il filtro del registro, non il proiettore | — è una correzione di fatto, fatta due volte: vedi §5 |
+| **R16** | ➕ rev3. La sola lettura della barra ferma **tutti** i punti che scrivono il piano, mappa compresa (§3 regola 14) | in `Pathing` un click su un nemico sposta la barra e blocca i click-waypoint finché non si preme `RMB` o non si clicca una propria unità: da giudicare in PIE. ➕ rev4. La dichiarazione fa eccezione (regola 14) |
+| **R17** | ➕ rev3. Gli slot di una barra in sola lettura si leggono «disponibile», che vuol dire «niente stato», non «pronta» | un valore nuovo di `ERTActionSlotState` tocca ogni `switch` sugli stati e chiede l'authoring delle tinte; senza, lo slot si legge «pronto» |
+| **R18** | ➕ rev3. Nessuna etichetta «sola lettura» sulla barra: il segnale è l'assenza dei tasti sugli slot | il giocatore può non accorgersi che la barra è del nemico; il rimedio è un'etichetta, authoring del grafo o un `Ensure*` da costruire |
+| **R19** | ➕ rev3. ⌫ *La scheda tiene la sezione «Ricariche (stima da cio' che hai visto)», che nomina i titoli di alcune abilità.* ➕ rev4. **Chiuso dall'autore il 2026-10-31** ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.4)): la stima sta nei dettagli della skill sotto il cursore e la sezione non c'è più | ⌫ *è la stima di F6 ([#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751)), pubblica per costruzione (P4), e non una riga di kit; se l'autore la vuole sulla barra, è un marcatore sullo slot e un'uscita dalla scheda.* ➕ rev4. chi non passa sulla skill non legge la stima; il marcatore sullo slot resta un'altra strada, fuori da #3748 |
+| **R20** | ➕ rev4. Il rilascio della fissazione si aggancia a `OnTeamKnowledgeRefreshed`, col confronto sul numero di turno, e non a `OnResolvePlaybackFinished` (regola 15) | se un percorso aprisse un turno senza rinfrescare la conoscenza, la fissazione sopravvivrebbe; oggi `StartPlanningTimer` la rinfresca su ogni percorso, e un test per percorso (con e senza playback, e con la fissazione fatta prima di ogni selezione) lo tiene fermo |
+| **R21** | ➕ rev4. I pezzi che riguardano una skill sono quello con `EquipmentId == ActionId` e, per l'attacco base, la variante d'arma (regola 16) | un pezzo che cambia i numeri di una skill senza darle l'id non compare nei suoi dettagli; il test ha un oracolo posizionale indipendente dai due campi, e la regola letterale del piano (`GrantedActionId == ActionId`) non si verifica mai perché quel campo è l'azione core, condivisa da più pezzi |
 | **R9** | Prima consegna del pannello in C++, senza asset | la resa non segue le tavole finché non arriva la pelle |
 | **R10** | Il ritardo dell'hover è un dato: parte da 0,3 secondi e si ritara in PIE | troppo corto, la plancia lampeggia di etichette al passaggio; troppo lungo, lo sguardo sembra rotto |
 
@@ -526,10 +652,10 @@ il primo copre F1.
 |---|---|---|
 | **F1** | **Glossario**: testi d'autore per stati, superfici e ripari, col gate di completezza. Nessuna UI. Implementata in [#3744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3744) | — |
 | **F2** | **Sguardo**: risolutore, compositore, targa che si apre, etichetta di cella. Issue: [#3747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3747) | F1; ➕ rev2. le voci 2 e 5 di §9.3 scritte nel Decision Log: sono [D-512](../../decisions/RT_PDR_00_Decision_Log.md) e [D-513](../../decisions/RT_PDR_00_Decision_Log.md) |
-| **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede. Issue: [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748) | F2 |
+| **F3** | **Scheda**: pannello, fissaggio, `RMB`, kit statico ed equipaggiamento. Chiude il buco dell'ispezione che non si vede. Issue: [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748). ➕ rev3. Il kit statico non è più sulla scheda: lo mostra la barra, in sola lettura ([D-562](../../decisions/RT_PDR_00_Decision_Log.md)). ➕ rev4. Col cursore su uno slot, il box mostra i dettagli di quella skill (regola 16) | F2 |
 | **F4** | **`Ctrl` al posto di `Alt`**: la famiglia della camera, e il fuoco sul click. Issue: [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749). Il cambio di tasto è fatto, con [D-514](../../decisions/RT_PDR_00_Decision_Log.md); il fuoco sul click no | F3 per il fuoco; il solo cambio di tasto è indipendente |
 | **F5** | **Aree del fuoco e hover su skill**: arbitro, area di movimento, portata. Issue: [#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) | F3, [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511) |
-| **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751). Il registro (`FRTSeenUseLedger`) e le righe del compositore sono fatti; la riga la disegna il pannello di F3, che manca | F3 |
+| **F6** | **Ricariche dedotte**. Issue: [#3751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3751). Il registro (`FRTSeenUseLedger`) e le righe del compositore sono fatti; ⌫ *la riga la disegna il pannello di F3, che manca*. ➕ rev4. La disegna il box di destra, fra i dettagli della skill sotto il cursore (regola 16) | F3 |
 
 ### 9.2 Vicini
 
@@ -553,6 +679,9 @@ registro, non quello qui sotto. La voce 1 è [D-533](../../decisions/RT_PDR_00_D
 La voce 4 è [D-552](../../decisions/RT_PDR_00_Decision_Log.md), scritta prima di `F5` perché la DoD di
 [#3750](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3750) la chiede accettata prima del codice:
 il suo testo vale dal merge della PR che la porta, cioè dall'approvazione dell'autore.
+➕ rev3. La regola 7 riscritta e le regole 13 e 14 di §3 sono [D-562](../../decisions/RT_PDR_00_Decision_Log.md), scritta
+con la correzione della barra sullo stesso lavoro di `F3`: non è una voce nuova di questo elenco, e fa fede il testo
+del registro. ➕ rev4. Le regole 15 e 16 e la riscrittura di 7, 13 e 14 sono il punto (11) della stessa voce.
 
 1. **Di un nemico osservato sono pubblici il kit dell'eroe e l'equipaggiamento; le ricariche si leggono solo come
    deduzione dagli eventi autorizzati.** Il piano, gli slot del turno, l'azione armata e le ricariche reali restano
@@ -627,6 +756,32 @@ il suo testo vale dal merge della PR che la porta, cioè dall'approvazione dell'
   destro, e arma il modificatore prima e dopo il cambio ([D-514](../../decisions/RT_PDR_00_Decision_Log.md) punto 8).
 - Click e rotella sul pannello non raggiungono il mondo.
 - Il fuoco e l'ispezione non cambiano selezione, piano, né l'hash dello stato di partita.
+- ➕ rev3. La scheda non porta righe di kit: per ogni eroe del roster, con e senza equipaggiamento e senza un uso
+  visto, nessuna riga è il titolo di una skill, o il titolo con la sua frase, e l'equipaggiamento c'è. Le ricariche
+  dedotte nominano un titolo, ma nascono solo da un uso che la squadra ha visto (P4).
+- ➕ rev4. ⌫ *La rev3 ammetteva un titolo fra le ricariche dedotte della scheda.* La testata non porta righe di kit, righe `+`/`-`
+  né una sezione «Ricariche»: con e senza cursore, per ogni posizione di ogni eroe del roster, i dettagli sono le righe del
+  tooltip dello stesso slot (confronto con `BuildCatalogTooltip`), i pezzi vengono dall'oracolo posizionale, e la riga della
+  stima c'è solo con un uso visto, mai come conto residuo. Un hover sulla barra della propria unità non cambia il box; uno slot
+  vuoto o un indice fuori kit lascia la testata e l'invito. Due partite che differiscono nel piano, nella ricarica vera,
+  nell'azione armata e nella variante attiva danno gli stessi dettagli.
+- ➕ rev3. La barra di un soggetto in sola lettura porta il catalogo e niente della partita: piano, ricarica vera,
+  azione armata, tasto e `TotalTurns` assenti, con il controllo positivo sulla stessa unità letta da
+  `BuildAbilityCooldowns`.
+- ➕ rev3. Il soggetto della barra segue l'ultimo click su un'unità che non si comanda, e torna alla selezione con
+  `SelectUnit` (anche sull'unità già selezionata), `N` con una sola comandabile, `RMB`, e quando il soggetto cade o
+  esce di vista; un nemico senza voce `Live` non ha barra, anche prima che la scheda si rilasci.
+- ➕ rev3. Con la barra in sola lettura nessun modo di scrivere il piano passa (tasti, generiche, slot, click su
+  cella e su unità, `Sneak`, ⌫ *`Invio`*, selettore del verso), e il log dice perché; a scheda chiusa lo stesso gesto
+  scrive. Selezione, ispezione, `RMB` e il click D-528 sul pavimento restano vivi.
+- ➕ rev3. Uno slot costruito per un'altra unità non arma e non registra hover; la portata dall'hover di uno slot del
+  nemico fissato parte dalla cella in cui lo si vede, non dal piano.
+- ➕ rev4. Con la barra in sola lettura `Invio` e `Conferma` dichiarano la propria unità e ritrattano al secondo colpo, come a
+  scheda chiusa; con il mondo in sola lettura (playback) restano rifiutati, con la frase del mondo.
+- ➕ rev4. La fissazione cade all'apertura di un turno nuovo, con e senza playback e anche se fatta prima di ogni selezione, e
+  solo lì: non a metà turno, non in risoluzione o in playback, e una fissazione fatta dopo l'inizio del turno nuovo resta.
+  Selezione e azione armata non cambiano. **Non si prova nel banco `PieSeduta.SchedaBench`**, dove il lock-in resta a
+  `Ready 1/2` e il turno non si risolve: `NOT RUN` in PIE.
 
 **Suite intera prima della revisione**: l'arbitro e il percorso del click sono condivisi con la pianificazione, e
 le famiglie da lanciare si scelgono dai lettori del dato, non dai file toccati.
@@ -655,6 +810,14 @@ camera che descrivono `Alt` si rieseguono dopo F4. I verdetti visivi l'autore li
   Slate: l'altezza utile cambia, e la scheda deve scorrere bene in entrambi i formati.
 - **Il cambio di tasto invalida le voci PIE della camera**, verdi su gesti descritti tasto per tasto.
 - **Il glossario è lavoro d'autore**, e F2 non parte senza.
+- ➕ rev3. **La barra in sola lettura può sembrare rotta.** Nessuna etichetta (R18): se l'unità cliccata non è
+  quella che si comanda, il segnale è l'assenza dei tasti, e la riga di stato del dock (`UpdateTargetPrompt`, nel
+  grafo) segue ancora la selezione e può dire «Scegli un'azione». Il rimedio è authoring del grafo nel clone
+  principale o una modifica a `GetPointerContext`, e non è fatto.
+- ➕ rev4. **I dettagli di una skill lunga non si scorrono, e `Invio` può ritrattare la dichiarazione.** Oltre `MaxRighe` righe il
+  box taglia la coda e non c'è modo di leggerla (regola 16): si alza `MaxRighe` o si rende «appiccicoso» l'hover, scelta
+  d'autore. `Invio` è un toggle: premuto mentre si guarda un nemico può ritrattare la dichiarazione della propria unità
+  (regola 14), rischio accettato dall'autore.
 - **Con `Ctrl` premuto la vista fa il peek.** Avvicinandosi a un bersaglio per il click, il bersaglio si sposta
   sotto il cursore. Succede già oggi con `Alt`; col fuoco il click diventa più frequente.
 - ➕ rev. **La regola stretta sulle celle (P5) può sembrare un difetto a chi gioca**: una cella che si vede sulla

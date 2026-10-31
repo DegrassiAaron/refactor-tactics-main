@@ -169,7 +169,7 @@ tattico è montato**; proiezione, deproiezione e `ProjectWorldLocationToScreen` 
 | `Zone_TopCenter` | fra le colonne, alta `Top` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective; la resa delle tavole A e D dalla seduta `U75` ([#3635](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3635)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `Zone_TopRight` | angolo in alto a destra, `Right` × `Top` | `WBP_RT_PlanCommit` — `Conferma` · `Annulla` ([D-458](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)), dalla seduta `U64`; la resa della tavola B ([D-496](../../decisions/RT_PDR_00_Decision_Log.md)) dalla seduta `U72` ([#3633](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3633)) | `progettazione-hud.md` §6.8 |
 | `Zone_MiddleLeft` | colonna sinistra, da `LeftTop` alla fascia bassa | `WBP_RT_SelectedUnitPanelLeft` (+ `SubjectCard`, una `WBP_RT_UnitCard`); la resa delle tavole A e B dalla seduta `U76` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_MiddleRight` | colonna destra, dalla fascia alta a quella bassa | `MiddleRightStack` (un `Overlay`, [#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)) con `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 — sotto, e `WBP_RT_InspectCardRight`, istanza di `WBP_RT_InspectCard_C`, sopra ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)); la resa della tavola D dalla seduta `U77` ([#3637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3637)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `Zone_Bottom` | tutta la larghezza, alta `Bottom` | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md); in coda alla riga del dock, l'indicatore del piano «Piano N di M» con ▲/▼ ([D-501](../../decisions/RT_PDR_00_Decision_Log.md), [#3680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3680), §7-septies) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *la scena* | il rettangolo fra le fasce | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — la 3D si rende solo qui, con il Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
@@ -861,6 +861,109 @@ riempirebbe come quelle della lettura del movimento.
 Lo misurano `ScreenHud.LayerIndicatorCountsTheLayersTheMapHas`, `ScreenHud.LayerIndicatorFollowsTheControllerAndItsButtonsStep`,
 `ScreenHud.LayerIndicatorHidesOnASingleLayerMap`, `ScreenHud.DockMountsTheLayerIndicatorBesideTheMovementReadout` e,
 per la fascia, `ScreenHud.TenantsFitTheirBands`.
+
+## 7-octies. La scheda dell'ispezione: le porte e il contenitore ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748))
+
+La scheda del nemico a fuoco sta in `MiddleRight` **insieme al registro**, perché la zona ha un solo `NamedSlot Content`. Il
+contenuto è un `Overlay`, `MiddleRightStack`: il registro per primo (sotto), la scheda dopo (sopra), **entrambi con
+slot `Fill`**. ⚠️ È lo slot a decidere se un widget riempie, e uno slot di `Overlay` nasce `Left/Top`: senza `Fill` il
+registro si rimpicciolirebbe al suo contenuto. L'ordine dei figli è lo z-order: una scheda fissata copre il registro.
+
+Il disegno della scheda è quello del registro (`LogPad` → `LogRoot` → `LogFrame` → `LogColumn`, titolo, `LinesBox`), con
+gli stessi valori: padding, cornice `RoundedBox`, larghezza di 340, font e colori.
+
+### `WBP_RT_InspectCard` → `URTInspectCardWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `CardRoot` | qualunque widget | `Visible` quando la scheda si vede, `Collapsed` quando non c'è niente da mostrare o un modale / una finestra di reazione la nasconde |
+| `LinesBox` | un pannello | una riga per riga della finestra visibile (`MaxRighe`), riusate da un tick all'altro |
+
+Nei default, `LineClass` = `WBP_RT_InspectLine_C`; `MaxRighe` (minimo 3) e `LinesPerWheelStep` stanno nei default
+della classe C++. Senza `LinesBox` o senza `LineClass` la scheda non costruisce niente.
+
+### `WBP_RT_InspectLine` → `URTInspectLineWidget`
+
+| Porta | Tipo | Che cosa ci scrive il C++ |
+|---|---|---|
+| `LineText` | `TextBlock` | la riga di testo (nome, PV, stati, verso, la riga coi nomi dell'equipaggiamento, l'invito o i dettagli della skill sotto il cursore, e i marcatori di taglio) |
+
+Una riga è **testo e basta**: il C++ la imposta `SelfHitTestInvisible`, così i gesti arrivano al pannello che li consuma, e
+non ha hover né una posizione di kit. ⌫ *Fino al 2026-10-30 la riga di una skill portava la sua posizione di kit e chiedeva
+la portata al controller passandoci sopra col cursore (`SetSkillHover` / `ClearSkillHover`), e per vedere il cursore era
+`Visible`*: il kit non è più sulla scheda. Lo mostra la barra, e la portata all'hover la chiede lo slot (qui sotto).
+
+⛔ **Il pannello consuma il tasto sinistro e la rotella, non il destro**: non va messo nel WBP un widget che consumi
+anche quello, perché il destro è il passo `Inspector` del Back e deve chiudere la scheda col cursore sopra.
+
+Lo misurano `ScreenHud.InspectCardWearsItsLineClass`, `ScreenHud.MiddleRightStackKeepsTheLogUnderTheCard`, la tabella delle porte
+di `ScreenHud.ActionBarDeclaresTheNamedPorts` e `ScreenHud.TenantsFitTheirBands`, che accende la scheda piena che lo scenario
+sa comporre (nome, stati, equipaggiamento e i dettagli di una skill con un pezzo e una stima: `MaxRighe` righe). ⚠️ Il gate **non
+vede le righe che vanno a capo**: con righe di una parola la misura è la stessa, e l'altezza di una scheda con righe a capo si
+guarda in PIE (`PIE-HUD-SCHEDA`).
+
+### Che cosa mostra il box, con e senza cursore (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11))
+
+⛔ **Nessuna porta nuova e nessun authoring**: il box è sempre `URTInspectCardWidget`, con `CardRoot` e `LinesBox`; cambia solo ciò
+che il C++ ci scrive.
+
+| Con | `LinesBox` mostra |
+|---|---|
+| nessun cursore su uno slot dell'unità della scheda | la **testata**: nome, PV e scudo, verso (se acceso), stati col glossario, **una sola riga** «Equipaggiamento: A · B · C» coi nomi dei pezzi, e la riga di invito «Passa su una skill della barra per i dettagli» |
+| il cursore su uno slot della barra in sola lettura dell'unità della scheda | la testata e, al posto dell'invito, i **dettagli di quella skill**: il titolo, le righe del tooltip dello stesso slot (descrizione, fase, slot, portata, forma, ricarica di catalogo, danno), la riga «Stima da cio' che hai visto: …» (solo se la squadra ha visto usare l'azione) e le righe `+` e `-` del pezzo che la riguarda, **in questo ordine**: la finestra taglia la coda, e cadono i pezzi prima della stima |
+| il cursore su uno slot della barra della **propria** unità | la testata e l'invito, com'era: l'hover vale solo per il soggetto della scheda |
+
+La sezione «Ricariche (stima da cio' che hai visto)» e le righe `+` e `-` in testata non ci sono più (⌫ *c'erano fino al 2026-10-31*).
+Il widget legge l'hover a ogni `RefreshLook` (`GetSkillHoverUnit()`, `GetSkillHoverIndex()`), ricompone subito al cambio e riporta la
+prima riga visibile a zero; uno slot vuoto o un indice fuori kit lascia la testata e l'invito. ⚠️ I dettagli oltre `MaxRighe` non si
+scorrono: lasciare lo slot azzera l'hover, quindi non si può portare il cursore sul box e girare la rotella. `MaxRighe` sta nei
+default della classe C++ (16) e la stringa non compare nell'asset `WBP_RT_InspectCard`; alzarlo è una scelta d'autore, e
+`ScreenHud.TenantsFitTheirBands` lo misura contro la fascia di `MiddleRight`.
+
+Lo misurano `UI.InspectCardHeaderIsCompact`, `UI.InspectCardShowsTheHoveredSkill`,
+`UI.InspectCardHoveredSkillShowsTheDeducedCooldownOnlyIfSeen` e `UI.InspectCardFollowsTheSkillHover`.
+
+### La barra delle skill con un soggetto in sola lettura: `WBP_RT_ActionDock` e `WBP_RT_ActionSlot` (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
+
+⛔ **Nessun authoring**: non c'è un `.uasset` nuovo né una porta nuova nel dock. Quando si clicca un'unità che non si comanda,
+la barra mostra le skill di quell'unità **da sola**, perché dock e slot leggono già le funzioni che ora seguono il
+soggetto della barra. Lo si è letto dalle stringhe degli asset (`WBP_RT_ActionDock` chiama `GetActionsInReadingOrder`,
+`GetArmedActionIndex`, `GetIconCatalog` e `SetAction` sugli slot; `WBP_RT_ActionSlot` chiama `Activate`, e `HoverBegin` e
+`HoverEnd` vengono dal C++ nativo), **non eseguito**: lo prova il giro in finestra. Se non fosse così si ferma e si dice,
+non si edita un asset da un worktree.
+
+| Chi | Che cosa legge, con la barra in sola lettura |
+|---|---|
+| `URTActionDockWidget::GetActionsInReadingOrder()` e `GetActions()` | `URTHudViewModel::BuildPublicBar(GetDockUnit())`: il catalogo e niente della partita. Il ramo si sceglie **prima** di costruire qualsiasi riga, e prima del ramo «nessuna unità comandata» |
+| `GetArmedActionIndex()` | `INDEX_NONE`: nessuno slot è acceso, e l'azione armata dell'unità propria non si è persa, la ritrova la barra propria |
+| `GetMovementReadout()` | la vista non autorizzata: il movimento è un piano, e quello di un'unità osservata è privato |
+| `URTActionSlotWidget` | `BuiltForUnit` è il soggetto della barra; `Activate()` e `HoverBegin()` lo confrontano con il soggetto di adesso. **Non ha un rifiuto suo**: a rifiutare l'armo è il controller (`IsPlanningWriteBlocked`), con la sua riga di log |
+
+Il soggetto lo decide `ARTPlayerController::GetDockUnit()` (e `IsDockReadOnly()`); il dock ci aggiunge il cancello `Live` a ogni
+lettura, solo mentre il controller dice «sola lettura». Lo slot non lo applica (non conosce il manager): lo scarto dura al più
+un fotogramma ed è sicuro. Una barra in sola lettura non porta **né tasti, né anello di ricarica, né stato, né azione
+armata**: se un widget disegna una di queste cose per un soggetto in sola lettura, è un difetto, e `BuildPublicBar` è il
+posto dove guardare. La fissazione che lo porta cade anche a ogni turno nuovo di pianificazione (il controller la rilascia:
+[D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.3)), e la barra torna alla selezione senza che il dock faccia niente.
+
+⚠️ **Buco dichiarato**: `UpdateTargetPrompt`, una funzione del grafo del dock, calcola la riga di stato da
+`GetPointerContext()` e `GetPointerTargetKind()` del controller, che seguono la **selezione**. Con la barra su un nemico la
+riga può dire «Scegli un'azione», e invita a una scrittura che il controller rifiuta. Non è un dato privato. Il rimedio è
+authoring del grafo nel clone principale (tacere la riga a barra in sola lettura: oggi nessuna funzione del C++ lo espone al
+grafo) o una modifica a `GetPointerContext`, e non è fatto. Non c'è nemmeno un'etichetta «sola lettura»: il segnale è
+l'assenza dei tasti sugli slot, e il giudizio è dell'autore.
+
+⛔ **`Conferma` e `Invio` non dipendono dalla barra** ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.2)). `URTPlanCommitWidget::RefreshButtons` non la
+legge: `Conferma` è accesa quando c'è un'unità selezionata, come prima di #3748, e in risoluzione il riquadro è chiuso;
+`ARTPlayerController::ToggleTurnPlanDeclared` guarda solo il mondo in sola lettura. Chi rimettesse `IsDockReadOnly()` nel pulsante
+lo spegnerebbe con la barra sul nemico: lo prova `ScreenHud.ConfirmStaysEnabledWhileTheBarIsReadOnly`. Rischio noto: `Invio` è un
+toggle, e premuto mentre si guarda un nemico può ritrattare la dichiarazione della propria unità.
+
+Lo misurano `ScreenHud.DockShowsTheBarOfAReadOnlySubject`, `ScreenHud.AReadOnlySlotNeitherArmsNorHoversTheWrongUnit`,
+`ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead`, `HexMatch.TheSlotHoverOfAReadOnlyBarShowsTheRangeFromTheViewCell`,
+`HudViewModel.PublicBarCarriesTheCatalogAndNothingOfTheMatch` e, per il blocco del piano,
+`PlayerInput.AReadOnlyBarRefusesEveryWayOfWritingThePlan` (senza la riga `Invio`), con
+`PlayerInput.DeclaringThePlanStaysAliveWhileTheBarIsReadOnly` e `ScreenHud.ConfirmStaysEnabledWhileTheBarIsReadOnly` per la dichiarazione.
 
 ## 8. Verifica
 

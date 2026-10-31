@@ -6392,7 +6392,7 @@ sessions:
       l'allestimento.
 
   - id: U95
-    title: Il cursore sull'HUD — lo sguardo, le aree di chi e' a fuoco, e la portata di una skill sullo slot
+    title: Il cursore sull'HUD — lo sguardo, le aree di chi e' a fuoco, la portata di una skill sullo slot, e la scheda di chi e' a fuoco
     block: 6
     critical: false
     execution_lane: pie
@@ -6405,7 +6405,8 @@ sessions:
       - PIE-HUD-SGUARDO
       - PIE-HUD-FUOCO-AREE
       - PIE-HUD-SKILL-PORTATA
-    issues: [3939, 3747, 3750]
+      - PIE-HUD-SCHEDA
+    issues: [3939, 3747, 3750, 3748]
     done_when: >-
       ogni voce elencata in `verifies` ha un verdetto nel registro, dato dall'autore a schermo o sulle tavole
     unblocks: []
@@ -6428,9 +6429,31 @@ sessions:
       e non `PIE-HUD-SGUARDO`; le tavole non sono un verdetto, e cosa resta da vedere lo dicono le celle delle
       voci nel registro.
 
-      ⚠️ **`PIE-HUD-SCHEDA` non e' qui, ed e' di proposito**: il pannello non esiste ancora, e la voce e'
-      dichiarata in `not_schedulable`. Quando #3748 lo monta, la voce entra in questa seduta — stessa
-      partita, stesso nemico in vista — e la sua riga di `not_schedulable` sparisce invece di cambiare.
+      ➕ **`PIE-HUD-SCHEDA` e' qui da #3748.** La voce aspettava il pannello e stava in `not_schedulable`; ora il
+      pannello e' montato in `MiddleRight` (sopra il registro) e la sua riga di `not_schedulable` e' sparita, come
+      diceva. Stessa partita, stesso nemico in vista: la scheda si guarda dopo `PIE-HUD-FUOCO-AREE`, perche'
+      agisce sullo stesso nemico fissato. ⚠️ Due cose che il pannello aggiunge alla scena: una scheda piu' lunga
+      delle righe disponibili (per la rotella e per il taglio dichiarato; ⌫ dal 2026-10-31 la testata compatta ci arriva
+      solo con molti stati, e i dettagli di una skill non si scorrono: vedi sotto) e, se ci si arriva, una finestra di
+      reazione o un modale aperti con la scheda fissata. Il caso peggiore delle righe che vanno a capo non e'
+      misurato in headless, e che Slate consegni la rotella al pannello prima del gioco nemmeno.
+
+      ➕ **Cosa serve in piu' ai criteri (j) e (k) di `PIE-HUD-SCHEDA`** (2026-10-30, D-562): uno **scatto**
+      armato che non sia la carica (un'azione della macro-fase Dash, `URTCatalogLibrary::IsFastMovement`, con
+      stile diverso da `LinearCharge`: `Hero.Muiren.FluidTrail` o `Hero.Ivrin.PassingBlade`; Aevik non ne ha)
+      prima del click sul nemico. Con ogni altra azione armata il click sul nemico bersaglia, con la carica
+      (`Hero.Branth.Ram`, a portata normale) lo pianifica (`Confirm`), e in nessuno dei due casi ispeziona,
+      quindi la barra non cambia e il criterio non si vede. Senza azione armata i due criteri si leggono senza
+      la clausola sull'azione armata.
+
+      ➕ **Cosa serve in piu' ai criteri (m), (o) e (p) di `PIE-HUD-SCHEDA`** (2026-10-31, D-562 punto (11)): per (m), la
+      fissazione che cade al turno nuovo, e per la riga della stima di (o), una partita normale che risolva almeno un turno
+      con il nemico in vista: nel banco `PieSeduta.SchedaBench` il lock-in resta a `Ready 1/2` (l'altra squadra non
+      conferma), il turno non si risolve, e non ci sono ne' un turno nuovo ne' un uso visto. Per (o), un nemico con una skill
+      con un pezzo (l'attacco base, che porta la variante d'arma, o una skill concessa da un gadget o da un modulo), una senza
+      pezzo e uno slot vuoto sulla barra; per (p), una skill i cui dettagli superano `MaxRighe` (l'attacco base di Muiren con
+      il pezzo d'arma fa 14 righe con la testata, e due stati piu' la stima ne fanno 17; la misura e' l'`AddInfo` di
+      `UI.InspectCardShowsTheHoveredSkill`).
 
       🟡 **Parzialmente eseguita il 2026-10-29**: l'autore ha giudicato sulle tavole `PIE-HUD-FUOCO-AREE` e
       `PIE-HUD-SKILL-PORTATA` (nessuna obiezione; entrambe 🟡 perche' restano criteri `NOT RUN`, che dicono le loro
@@ -6684,23 +6707,9 @@ not_schedulable:
 
   # ── Aspettano un pannello o un dato che oggi non esiste ───────────────────────────────────────
   #
-  # Aggiunte il 2026-10-29 da #3939, che rilancia l'invariante di #2188 e le trova fra i residui. Due voci,
-  # due cause: una aspetta il PANNELLO che la feature non ha ancora montato, l'altra un DATO che nessun
-  # eroe ne' scenario spedito porta.
-
-  - check: PIE-HUD-SCHEDA
-    reason: >-
-      La scheda dell'ispezione e' un pannello (`URTInspectCardWidget`, zona `MiddleRight`) e il pannello non
-      esiste: ne' la classe ne' un asset. #3840 ha portato la logica — ispezione in playback, pin e
-      chiusura, kit dal catalogo, equipaggiamento — e #3748 resta aperta proprio per il pannello, che
-      richiede authoring nel clone principale. La voce chiede cosa compare al click su un nemico osservato:
-      finche' non c'e' dove comparire, non c'e' niente da guardare.
-    oracle: >-
-      gh issue view 3748 --json state → OPEN (2026-10-29)   ·  e la misura: git grep -c
-      URTInspectCardWidget -- Source → nessuna corrispondenza, e git ls-files Content | grep -ci inspect
-      → 0. ⚠️ Il nome della classe viene da #3748 e dal piano della feature: se il pannello nascesse con
-      un altro nome le due misure resterebbero a zero, e vale lo stato di #3748
-    revisit_when: "#3748 monta il pannello: allora la voce entra in `U95` e questa riga sparisce"
+  # Aggiunte il 2026-10-29 da #3939, che rilancia l'invariante di #2188 e le trova fra i residui. Ne resta una,
+  # `PIE-V01-ARCAIM`, che aspetta un DATO che nessun eroe ne' scenario spedito porta. L'altra, `PIE-HUD-SCHEDA`,
+  # aspettava il PANNELLO che la feature non aveva ancora montato: #3748 l'ha montato e la voce e' entrata in `U95`.
 
   - check: PIE-V01-ARCAIM
     reason: >-

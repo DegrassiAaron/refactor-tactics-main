@@ -1847,6 +1847,32 @@ public:
 	static TArray<FRTAbilityCooldownView> BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits);
 
 	/**
+	 * La barra di un'unita' che si OSSERVA e non si comanda (#3748): una riga per posizione di kit, nell'ordine del
+	 * kit, come `BuildAbilityCooldowns` — e con la stessa regola sulla posizione vuota (`#2987`): una riga con
+	 * l'indice e senza `ActionId`, che si legge `Empty`, non un salto. `Subject` nullo da' un elenco vuoto.
+	 *
+	 * 🔑 **Solo catalogo.** Ogni riga parte da `BuildCatalogActionRow` e porta quello che `URTActionData` dice:
+	 * identita', icone, fase, gruppo, portata, forma, area, danno, ricarica di catalogo e frase. Il kit e
+	 * l'equipaggiamento di un'unita' osservata sono pubblici (decisione d'autore del 2026-10-20).
+	 *
+	 * ⛔ **Nient'altro, ed e' un elenco POSITIVO**, come quello di `BuildIdleBar`: cio' che non e' scritto qui resta
+	 * al default, quindi non c'e' un campo da dimenticare di spegnere. **La variante attiva non c'e'**: `VariantName` e
+	 * `VariantTradeoff` restano vuoti su ogni riga, perche' la variante attiva e' stato di partita (`ARTUnit::ActiveVariantId`, una scelta per
+	 * unita'), non catalogo, e la decisione del 2026-10-20 nomina kit ed equipaggiamento, non la variante ([D-562]). Nessun piano (`bPlanned`,
+	 * `bPlanInvalid`, `bPlanDegraded`), nessuna ricarica vera (`TurnsRemaining`, `ChargeFraction`) e nessun totale di ricarica (`TotalTurns` a 0, come
+	 * `BuildIdleBar`: l'anello di carica non ha un denominatore da disegnare; la ricarica di CATALOGO resta in `CooldownTurns`, ed e' quella che
+	 * legge il tooltip), nessun bersaglio rifiutato (`bTargetRefused` lo scrive il dock, e per questa barra non lo scrive),
+	 * nessun tasto (`HotkeyLabel` vuoto: i tasti sono di chi comanda), e niente dell'azione armata —
+	 * `SelectedAbilityIndex` non si legge, e `ResolveSlotState` ne riceve l'esito da fuori (`bArmed`), che per questa
+	 * barra deve restare falso. Sono le cose private di un nemico osservato.
+	 *
+	 * ⚠️ **`bUsableNow = true` vuol dire «niente stato», NON «pronta».** E' il valore che porta `ResolveSlotState`
+	 * a `Available` invece che a `Unavailable`: lo slot non dice se l'azione si potrebbe usare adesso, perche' chi
+	 * guarda non lo sa e non deve saperlo. Non va letto come permesso: la barra e' in sola lettura.
+	 */
+	static TArray<FRTAbilityCooldownView> BuildPublicBar(const ARTUnit* Subject);
+
+	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).
 	 *
 	 * 🔑 **La precedenza vive qui e in nessun altro posto.** Senza questa funzione ogni `WBP_` che voglia
@@ -1889,7 +1915,9 @@ public:
 	 * aggiunge. Non prende un'unita': chi la compone per un'avversaria non ha modo di leggerne ricariche, piano o stato.
 	 * `BuildAbilityCooldowns` parte da questa riga e le somma la partita (tasto, piano, ricarica vera, usabilita').
 	 *
-	 * @param ActiveVariantId  la variante di cui dire il compromesso; `NAME_None` per non dirne nessuna.
+	 * @param ActiveVariantId  la variante di cui dire il compromesso; `NAME_None` per non dirne nessuna. ⛔ La variante attiva di
+	 *                         un'unita' e' stato di partita (`ARTUnit::ActiveVariantId`): per un'unita' osservata si passa `NAME_None`
+	 *                         (`BuildPublicBar`, la scheda), e la variante attiva si passa solo per l'unita' di chi guarda (`BuildAbilityCooldowns`).
 	 */
 	static FRTAbilityCooldownView BuildCatalogActionRow(const URTActionData* Action, int32 Index, FName ActiveVariantId);
 

@@ -665,16 +665,36 @@ public:
 	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
 	/**
 	 * L'UNICA funzione che legge l'attore di un'unita' per la scheda (#3748, P1). Del nemico ricava solo cio' che e'
-	 * pubblico: carta e stati (quelli della targa), verso, kit dal CATALOGO, equipaggiamento. Il kit passa da
-	 * `BuildCatalogActionRow`, che non prende un'unita': piano, slot, azione armata e ricariche vere non hanno
-	 * un percorso per arrivare qui. `NAME_None` come variante: la variante attiva e' stato di partita.
+	 * pubblico: carta e stati (quelli della targa), verso, equipaggiamento. Piano, slot, azione armata e ricariche vere non
+	 * hanno un percorso per arrivare qui. ⛔ Il kit non c'e': lo mostra la barra delle skill dell'unita' cliccata, in sola
+	 * lettura (`URTHudViewModel::BuildPublicBar`), non la scheda.
 	 *
 	 * `SeenUses` (#3751, F6): cio' che la squadra `PlayerTeamId` ha visto usare, da `ARTTurnManager::GetSeenUses()`.
 	 * Con un'unita' di un'ALTRA squadra riempie `DeducedCooldowns`; senza (`nullptr`) o per un'unita' della propria
 	 * squadra il campo resta vuoto. Le ricariche vere dell'avversario (`AbilityCooldowns`) non vengono lette.
+	 *
+	 * `HoverAbilityIndex` (#3748, decisione d'autore del 2026-10-31): la posizione di kit sotto il cursore, o `INDEX_NONE`. Riempie
+	 * `HoveredSkill` dalla riga di catalogo di quella posizione (`BuildCatalogActionRow` con `NAME_None`, `BuildCatalogTooltip`), con i
+	 * pezzi che la riguardano e la stima se la squadra l'ha vista usare. ⛔ Un indice negativo, fuori kit o su una posizione senza azione
+	 * da' un `HoveredSkill` VUOTO: l'indice non si legge mai senza essere controllato (`ARTUnit::GetAbility`).
 	 */
 	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
-		const FRTSeenUseLedger* SeenUses = nullptr);
+		const FRTSeenUseLedger* SeenUses = nullptr, int32 HoverAbilityIndex = INDEX_NONE);
+
+	/**
+	 * LA SCHEDA di un'unita' ispezionata, gia' composta (#3748): il pannello la chiede e la disegna, non ricalcola.
+	 *
+	 * 🔑 **Il cancello viene PRIMA del soggetto.** La vista e' quella del velo (`BuildObserverKnowledgeView`) e il cancello e' una
+	 * voce `Live` (P2): se non c'e', l'attore del nemico non viene nemmeno letto e la scheda e' vuota, uguale a quella di una cella
+	 * vuota. Senza manager o senza unita' e' vuota allo stesso modo. Il verso segue la targa (`!IsResolving()`, P12) e le ricariche
+	 * dedotte vengono dal registro di quella squadra.
+	 *
+	 * @param Units  le unita' in campo, da cui si costruisce la vista di conoscenza (ordine stabile, come nel resto dell'HUD).
+	 * @param HoverAbilityIndex  la posizione di kit di QUESTA unita' sotto il cursore, o `INDEX_NONE`: vedi `BuildInspectSubject`. Il
+	 *                           chiamante lo passa solo se l'hover e' di questa unita' (il pannello lo verifica), non quello di un'altra.
+	 */
+	static FRTInspectView BuildInspectCard(const class ARTTurnManager* TurnManager, const class ARTUnit* Unit,
+		const TArray<class ARTUnit*>& Units, int32 PlayerTeamId, int32 HoverAbilityIndex = INDEX_NONE);
 	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
 
 	/**

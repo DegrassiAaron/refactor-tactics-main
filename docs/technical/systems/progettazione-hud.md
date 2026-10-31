@@ -1216,19 +1216,108 @@ che legge l'unità sotto il cursore non è raggiungibile headless: lo copre solt
 
 ## 18.1 La scheda dell'ispezione (`#3748`, F3)
 
-Il pannello fissato dal click su un'unità non comandata e osservata, nella zona `MiddleRight`. Mostra: nome, PV e
-scudo, stati col nome e l'effetto del glossario, verso (spento in `ResolutionPlayback`, come la targa), **kit dal
-catalogo** ed **equipaggiamento**. Kit ed equipaggiamento di un nemico osservato sono **pubblici** (decisione d'autore
-del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e le ricariche vere. Una funzione sola,
-`ARTHUD::BuildInspectSubject`, legge l'attore; il compositore (`URTInspectLibrary::Compose`) riceve solo valori.
+Il pannello fissato dal click su un'unità non comandata e osservata, nella zona `MiddleRight`. È una **testata
+compatta**: nome, PV e scudo, stati col nome e l'effetto del glossario, verso (spento in `ResolutionPlayback`, come la
+targa) e **una sola riga** «Equipaggiamento: A · B · C» coi nomi dei pezzi. Col cursore su uno slot della barra dell'unità
+fissata aggiunge i **dettagli di quella skill** (qui sotto); senza cursore chiude con una riga di invito, «Passa su una skill
+della barra per i dettagli». ⌫ *Fino al 2026-10-31 mostrava ogni pezzo di equipaggiamento con le righe `+` e `-` e, se la
+squadra aveva visto usare un'azione, la sezione «Ricariche (stima da cio' che hai visto)»: la stima sta ora nei dettagli
+della skill ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11)).* ⌫ *Fino al 2026-10-30 mostrava anche il **kit dal catalogo**, a righe di testo e con
+la portata all'hover sulla riga*: ora il kit lo mostra la barra delle skill dell'unità cliccata, in sola lettura (qui
+sotto, [D-562](../../decisions/RT_PDR_00_Decision_Log.md)). Kit ed equipaggiamento di un nemico osservato restano
+**pubblici** (decisione d'autore del 2026-10-20); non entrano mai il piano, gli slot del turno, l'azione armata e le
+ricariche vere. Una funzione sola, `ARTHUD::BuildInspectSubject`, legge l'attore; il compositore
+(`URTInspectLibrary::Compose`) riceve solo valori, e non ha un campo per il kit, ma solo i dettagli di UNA posizione (`HoveredSkill`).
 
 La scheda **segue la conoscenza**: senza una voce `Live` non c'è scheda (uscita identica a una cella vuota), e se il
-soggetto esce di vista o cade si chiude.
+soggetto esce di vista o cade si chiude. ➕ **E la fissazione è di un turno**: cade a ogni turno nuovo di pianificazione
+(`ARTPlayerController::ReleaseInspectionForNewTurn`, agganciato a `OnTeamKnowledgeRefreshed` col confronto sul numero di turno;
+[D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.3)). Scheda e barra tornano alla propria unità; non a metà turno, non in risoluzione o in
+playback. Dopo la fine della partita resta sulla schermata dei risultati (dichiarato).
 
-🔴 **Stato**: soggetto, compositore, cancello e chiusura sono in C++ e testati. Il **pannello** in `MiddleRight` non è
-ancora montato: la zona ha uno slot e un inquilino (il registro, costruito dal `WBP_EventLog`), e montare la scheda
-richiede authoring nel clone principale ([#3748](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3748)).
-Il fatto resta `DEFERRED` finché quell'asset non c'è.
+**Il pannello** (`URTInspectCardWidget`, `WBP_RT_InspectCard`, con la riga `WBP_RT_InspectLine`) sta in `MiddleRight`
+insieme al registro: la zona ha un solo `NamedSlot Content`, che ora ospita un `Overlay` (`MiddleRightStack`) con il
+registro sotto e la scheda sopra, entrambi con slot `Fill`. Una scheda fissata copre il registro, e chiusa lo lascia
+com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la colonna (`FRTHudBands::Right`).
+
+* **Si nasconde senza chiudersi** in `ReactionWindow` e `Modal` (`URTInspectLibrary::ShouldShowCard`): il soggetto resta
+  fissato e la scheda torna alla chiusura. Chiudono il tasto destro (passo `Inspector` del Back), la conoscenza e, dal
+  2026-10-31, il turno nuovo.
+* **Scorre, e il taglio non è muto**: le righe che non entrano (`MaxRighe`) si scorrono con la rotella, e la prima e
+  l'ultima riga visibile dicono quante ne restano sopra e sotto (`URTInspectLibrary::VisibleWindow`). ⚠️ Non i dettagli di
+  una skill sotto il cursore: lasciare lo slot li azzera, e non si arriva sul box con la rotella.
+* **Consuma il tasto sinistro e la rotella, non il destro**: il click sul pannello non raggiunge la mappa e la rotella
+  scorre la scheda; il destro resta del controller perché è quello che chiude, anche col cursore sopra. Sopra una
+  fascia dell'HUD la rotella non zooma più il mondo (`ARTPlayerController::ApplyZoom`): vale per ogni fascia, non solo
+  per la scheda.
+* **Le righe della scheda sono testo e basta** (`URTInspectLineWidget`, `SelfHitTestInvisible`): non hanno hover né
+  una posizione di kit. ⌫ *Fino al 2026-10-30 «passare sulla riga di una skill ne mostrava la portata»*: il produttore
+  dell'hover di un'unità a fuoco è ora lo slot della barra (qui sotto), e l'ingresso dell'arbitro che lo ammette si
+  chiama `bSkillHoverOfInspected` (era `bSkillHoverFromCard`).
+* **Col cursore su uno slot della barra, i dettagli di quella skill** (`FRTInspectSkillDetail`, `FRTInspectSubject::HoveredSkill`;
+  [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11)): il titolo; le righe del tooltip dello stesso slot, dalla stessa riga di catalogo
+  (`BuildCatalogActionRow`, `BuildCatalogTooltip`: descrizione, fase, slot, portata, forma, ricarica di catalogo, danno); e, solo se
+  la squadra ha visto usare l'azione e il catalogo le dà una ricarica, la riga «Stima da cio' che hai visto: …», mai un conto dei
+  turni che restano; poi le righe `+` e `-` del pezzo che la riguarda (quello con `EquipmentId == ActionId` e, per l'attacco base,
+  la variante d'arma). ➕ **L'ordine è quello del taglio**: la finestra taglia la coda (`MaxRighe`), e la stima è l'informazione che
+  viene dall'osservazione mentre le righe dei pezzi sono catalogo, quindi se una riga deve cadere cadono i pezzi. ⌫ *La prima
+  stesura metteva la stima dopo i pezzi*, e sulla scheda più lunga con due stati la riga tagliata era la stima
+  (`UI.InspectCardKeepsTheEstimateInTheVisibleWindow`). Il widget legge l'hover del controller (`GetSkillHoverUnit()`, `GetSkillHoverIndex()`) a ogni `RefreshLook` e
+  lo usa solo se l'unità dello slot è il soggetto della scheda, quindi un hover sulla barra della propria unità non lo cambia;
+  ricompone subito al cambio e riporta la prima riga visibile a zero. Uno slot vuoto o un indice fuori kit non dà dettagli, e resta
+  l'invito. ⛔ **I dettagli oltre `MaxRighe` non si scorrono**: lasciare lo slot azzera l'hover, quindi non c'è modo di portare il
+  cursore sul box e girare la rotella (qui sotto, «Limiti dichiarati»).
+
+### La barra delle skill di chi è a fuoco e non si comanda (`#3748`, [D-562](../../decisions/RT_PDR_00_Decision_Log.md))
+
+Dopo il click che fissa la scheda di un'unità **che non si comanda**, l'Action Dock mostra le skill di *quell'unità*,
+in **sola lettura**, finché non si riseleziona una propria unità (spec dell'ispettore §3 regole 7, 13 e 14). Il soggetto è
+`ARTPlayerController::GetDockUnit()`, derivato da `IsDockReadOnly()`: l'unità fissata se è viva e non comandata,
+altrimenti la selezione. **Quel predicato non è un cancello `Live`** (il suo header lo dice): il cancello lo applica il
+dock a ogni lettura, con `URTScreenHudWidgetBase::GetDockUnit()` e `IsDockReadOnly()`, e senza una voce `Live` per il
+soggetto la barra mostrata è la selezione. La barra non porta **né il piano, né le ricariche vere, né l'azione armata, né i
+tasti**: le righe sono di `URTHudViewModel::BuildPublicBar`, dal solo catalogo, e ogni slot con un'azione si legge
+«disponibile», cioè *niente stato*, non *pronta*. In sola lettura `GetArmedActionIndex()` vale `INDEX_NONE`, il
+movimento è non autorizzato e nessuna riga porta il rifiuto sotto il puntatore.
+
+* **Torna alla selezione** con `RMB` (passo `Inspector`), con un click su una propria unità — anche quella già
+  selezionata —, con `N` quando la sola unità comandabile è la selezionata, e quando il soggetto cade o esce di vista
+  (il dock applica il cancello `Live` a ogni lettura, mentre il controller dice «sola lettura»), e a ogni turno nuovo di
+  pianificazione (la fissazione cade: [D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.3)). Un nemico non osservato non ha scheda **né barra**.
+* **Il piano non si scrive**: `ARTPlayerController::IsPlanningWriteBlocked()` ferma ⌫ *la dichiarazione con `Invio`* (➕ dal
+  2026-10-31 non più: vedi sotto), click su unità, armo da tasti, generiche e slot, `Sneak` e selettore del verso, e
+  `WhyPlanningWriteIsBlocked()` nomina
+  l'unità mostrata e il rimedio nel log. Il click su una cella tiene le due cause separate (`IsWorldReadOnly()` in cima,
+  muto, e `IsDockReadOnly()` più sotto, dopo il ramo D-528 che ispeziona). Restano vivi selezione, ispezione, `RMB` e
+  camera. Il rifiuto sta solo nel controller: lo slot confronta per chi è stato costruito con il soggetto della barra e
+  non ne ha uno suo. ⌫ *`Conferma` è spento mentre la barra è in sola lettura (`Invio` resta bloccato dal controller).* ➕
+  **`Conferma` e `Invio` funzionano sempre** ([D-562](../../decisions/RT_PDR_00_Decision_Log.md), punto (11.2)): dichiarare le mosse non scrive il piano, e la
+  dichiarazione è della propria unità selezionata, che la barra non sposta. `ToggleTurnPlanDeclared` guarda solo il mondo in sola
+  lettura, e `Conferma` è acceso quando c'è un'unità selezionata, come prima di #3748. Rischio noto: `Invio` è un toggle, e premuto
+  mentre si guarda un nemico può ritrattare la dichiarazione della propria unità.
+* **Passare su uno slot ne mostra la portata**, da `SetSkillHover` come per la barra propria. Per un nemico a fuoco
+  l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche senza selezione, e
+  non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.
+
+**Nessun `.uasset` nuovo**: il grafo di `WBP_RT_ActionDock` costruisce gli slot da `GetActionsInReadingOrder()` e
+`SetAction`, e `GetArmedActionIndex()` accende lo slot, quindi la barra cambia da sola; lo si è letto dalle stringhe
+dell'asset, non eseguito, e lo prova il giro in finestra (`PIE-HUD-SCHEDA`, criterio (i)).
+
+⚠️ **Limiti dichiarati**: il grafo del dock calcola la riga di stato (`UpdateTargetPrompt`) dalla selezione, quindi con
+la barra su un nemico può dire «Scegli un'azione» (non è un dato privato, ma invita a una scrittura che il controller
+rifiuta); non c'è un'etichetta «sola lettura», e il segnale è l'assenza dei tasti. Il caso peggiore delle righe che vanno
+a capo non è misurato: `TenantsFitTheirBands` accende una scheda piena di `MaxRighe` righe (una testata e i dettagli di una skill), ma una riga che va a capo non
+risulta più alta in quella misura. Il costo di `BuildPublicBar` a ogni tick del dock, e che Slate consegni la rotella e il
+tasto sinistro al pannello prima del gioco, non sono misurati. Il fatto resta di `PIE-HUD-SCHEDA`, che il verdetto
+d'autore non ha ancora giudicato sull'interfaccia di adesso.
+
+➕ (2026-10-31) **Tre limiti nuovi, dichiarati.** *I dettagli oltre `MaxRighe` non si scorrono*: `MaxRighe` vale 16, il default del
+C++ (la stringa non compare nell'asset `WBP_RT_InspectCard`), e lasciare lo slot azzera l'hover. La scheda più lunga del roster,
+col corredo di default, senza stati e senza stima, è di 14 righe (Muiren, l'attacco base con il pezzo d'arma; la misura è l'`AddInfo` di `UI.InspectCardShowsTheHoveredSkill`); ogni stato o la
+stima ne aggiunge una. Il taglio è dichiarato («… e altre N righe»), ma il marcatore lascia intendere uno scorrimento che non
+avviene; i rimedi sono dell'autore: alzare `MaxRighe` o un hover «appiccicoso». *Dopo la fine della partita la fissazione resta*
+sulla schermata dei risultati, perché non arriva un turno nuovo. *Il criterio (m) di `PIE-HUD-SCHEDA`*, la fissazione che cade al
+turno nuovo, non si prova nel banco `PieSeduta.SchedaBench`, dove il lock-in resta a `Ready 1/2`: `NOT RUN`.
 
 ---
 

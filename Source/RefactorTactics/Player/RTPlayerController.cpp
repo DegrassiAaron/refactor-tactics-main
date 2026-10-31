@@ -1565,6 +1565,11 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `N` la saltava.
 	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
 	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
+	// 🔴 **`#3748` (decisione d'autore del 2026-10-31): qui NON `IsPlanningWriteBlocked()`, e non e' una dimenticanza.** Dichiarare che le mosse sono
+	// decise non scrive il piano — nessun waypoint, nessun armo, nessun bersaglio —, e con la barra su un nemico il giocatore deve poterlo fare per la
+	// SUA unita' selezionata: la dichiarazione e' di `GetSelectedUnit()`, e la barra non la sposta. Rovescia il ruling R10 del piano
+	// `2026-10-30-barra-in-sola-lettura` (la barra in sola lettura fermava anche `Invio` e `Conferma`). Il rifiuto resta SOLO per il mondo in sola lettura
+	// ([D-468]), con la causa del mondo. ⛔ Rimetterci `IsPlanningWriteBlocked()` fa cadere `DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`.
 	if (IsWorldReadOnly())
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
@@ -1704,6 +1709,10 @@ bool ARTPlayerController::CycleSelection()
 	ARTUnit* Scelta = Comandabili[Prossimo];
 	if (Scelta == Corrente)
 	{
+		// 🔴 **Qui la barra torna alla selezione, perche' l'uscita non passa da `SelectUnit`** (`#3748`): `N` vuol dire «seleziona
+		// una mia unita'», e con una sola comandabile la risposta e' quella che c'e' gia'. Senza questa riga la barra resterebbe sul nemico
+		// fissato, e `N` non farebbe niente proprio quando la regola dell'autore dice che si torna alla propria unita'. La scheda resta.
+		bDockFollowsInspection = false;
 		// Una sola unita' comandabile: il ciclo torna su se stesso, e non e' un fallimento da tacere.
 		UE_LOG(LogRT, Display, TEXT("[RT] N (ciclo della selezione): '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
 		return false;
@@ -1884,6 +1893,24 @@ void ARTPlayerController::ApplyKeyPan(const FVector2D& Axis, float DeltaTime)
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
+	ApplyZoom(Value.Get<float>(), IsCursorInsideScene());
+}
+
+void ARTPlayerController::ZoomForTest(float Axis)
+{
+	OnZoom(FInputActionValue(Axis));
+}
+
+void ARTPlayerController::ApplyZoom(float Axis, bool bCursorInsideScene)
+{
+	// Sopra una fascia dell'HUD la rotella e' dell'HUD (spec dell'ispettore §3 regola 6): la scheda scorre, il mondo resta.
+	// ⚠️ `false` anche senza viewport o con la proiezione fallita (headless, primi fotogrammi): da li' lo zoom non parte.
+	// `ZoomAction` e' legata alla sola rotella, quindi non c'e' uno zoom da tastiera che questo ramo spenga.
+	if (!bCursorInsideScene)
+	{
+		return;
+	}
+
 	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
 	if (!Cam)
 	{
@@ -1907,15 +1934,15 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 		{
 			FVector Origin; float HexSize; float LayerHeight;
 			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
-			Cam->ZoomTowards(Value.Get<float>(),
+			Cam->ZoomTowards(Axis,
 				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
 			return;
 		}
 	}
 
-	// Il cursore non e' su una cella valida (fuori mappa, o nessun viewport): si zooma sul centro, com'e'
+	// Il cursore e' nella scena ma non su una cella valida (fuori mappa): si zooma sul centro, com'e'
 	// sempre stato. Meglio di non zoomare.
-	Cam->AddZoom(Value.Get<float>());
+	Cam->AddZoom(Axis);
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)
@@ -2284,6 +2311,11 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// il giocatore, non impostando `SelectedActor` di nascosto. Il primo tentativo passava da
 	// `HandleClickOnUnit`, che NON seleziona — presuppone una selezione e tratta l'argomento come BERSAGLIO —
 	// quindi usciva subito senza fare nulla, e a schermo non compariva niente.
+	//
+	// 🔴 **La barra torna alla selezione QUI, come prima istruzione e PRIMA dell'uscita sotto** (`#3748`): il click sull'unita' propria
+	// gia' selezionata non cambia la selezione e esce subito, ma e' il gesto con cui si dice «torna alla mia unita'». Con questa riga sotto
+	// l'uscita la barra resterebbe sul nemico fissato, perche' il click non chiude la scheda.
+	bDockFollowsInspection = false;
 	if (Actor == SelectedActor.Get())
 	{
 		return;
@@ -2511,9 +2543,7 @@ bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* Selec
 	// legge — e la fissazione dura al piu' fino al tick dell'HUD: `ReleaseInspectionUnlessLive` la rilascia.
 	//
 	// @return vero se il click e' stato consumato: chi chiama esce.
-	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
-		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
-		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	const bool bClickedCommandable = IsUnitCommandedByThisPlayer(ClickedUnit);
 	// [D-516] / [D-528]: «questa carica punta quel nemico?» ha una sede sola, `ArmedChargeTargets`, che l'hover legge uguale.
 	const bool bArmedChargeTargetsClicked = ArmedChargeTargets(SelectedUnit, ClickedUnit);
 	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
@@ -2554,8 +2584,14 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 	// `#2518` — scrive `PlannedAbilityIndex` e `PlannedAttackTarget`: e' mutazione del piano, e durante la
 	// risoluzione non deve avvenire. La regola sta in `IsWorldReadOnly()`; qui si applica al proprio punto
 	// di mutazione, che e' anche l'unico raggiungibile da un test headless.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`). ⚠️ **Il mondo in sola lettura tace, com'era
+	// (`#2518`); la barra lo dice**: un click che non fa niente senza una riga e' indistinguibile da un click che non e' arrivato.
+	if (IsPlanningWriteBlocked())
 	{
+		if (IsDockReadOnly() && !IsWorldReadOnly())
+		{
+			UE_LOG(LogRT, Display, TEXT("[RT] Click sul bersaglio ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		}
 		return;
 	}
 
@@ -2876,6 +2912,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
 	// rimasta aperta dopo la prima stesura del fix: un clic sulla mappa durante il playback non solo
 	// riportava il piano a schermo, ma piantava waypoint che sopravvivevano al turno successivo.
+	// ⚠️ `#3748`: **qui resta il solo mondo**, e tace com'era. Il rifiuto della barra in sola lettura sta PIU' SOTTO, dopo il ramo che ispeziona.
 	if (IsWorldReadOnly())
 	{
 		return;
@@ -2897,6 +2934,34 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	if (!Map->ContainsCell(Cell))
 	{
 		return; // click fuori dalla mappa: nessun piano, nessun rumore nel log
+	}
+
+	const ERTPointerContext Context = GetPointerContext();
+
+	// 🔑 **[D-528] (3) Un click sulla cella del nemico su cui la carica e' GIA' pianificata lo ispeziona**, come lo stesso click sulla
+	// sua mesh (`DispatchUnitClick`, `ArmedChargeTargets`). Con il puntatore sul pavimento dell'esagono il raggio colpisce la mappa e
+	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
+	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
+	// selettore aperto il click e' una direzione.
+	// ⚠️ **Sta sopra il rifiuto della barra e sopra `Targeting` (`#3748`)**: i due contesti sono esclusivi (qui `Planning`/`Pathing`, li' `Targeting`),
+	// quindi lo spostamento non cambia l'ordine di niente, e ispezionare non scrive il piano — a barra in sola lettura il click deve funzionare, come
+	// quello sulla mesh. La fissazione nuova porta la barra sul nuovo nemico, ancora in sola lettura.
+	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
+	{
+		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
+		{
+			PinInspection(const_cast<ARTUnit*>(Puntato));
+			return;
+		}
+	}
+
+	// ➕ `#3748`: da qui in giu' il click SCRIVE il piano (bersaglio, verso, scatto, waypoint), e con la barra su un'unita' che non si comanda non passa:
+	// un waypoint posato mentre la barra mostra un nemico sarebbe un ordine dato a un'unita' che lo schermo non sta mostrando. Il mondo in sola
+	// lettura e' gia' uscito in cima, muto; la barra lo dice.
+	if (IsDockReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Click sulla mappa ignorato: %s"), *WhyPlanningWriteIsBlocked());
+		return;
 	}
 
 	// ➕ **IL DISPATCH MONDO→BERSAGLIO: da qui il click del giocatore raggiunge `HandleTargetCell`** (`#3063`).
@@ -2922,7 +2987,6 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// ⛔ Si esce comunque, anche se `HandleTargetCell` rifiuta: un rifiuto e' un esito DICHIARATO (lo logga), e
 	// ricadere sul waypoint dopo un bersaglio rifiutato farebbe muovere un'unita' a cui si era chiesto di
 	// mirare.
-	const ERTPointerContext Context = GetPointerContext();
 	if (Context == ERTPointerContext::Targeting)
 	{
 		FRTPointerCandidates Candidates;
@@ -2935,20 +2999,6 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		if (Target.Kind == ERTPointerTargetKind::Cell)
 		{
 			HandleTargetCell(Target.Cell);
-			return;
-		}
-	}
-
-	// 🔑 **[D-528] (3) Un click sulla cella del nemico su cui la carica e' GIA' pianificata lo ispeziona**, come lo stesso click sulla
-	// sua mesh (`DispatchUnitClick`, `ArmedChargeTargets`). Con il puntatore sul pavimento dell'esagono il raggio colpisce la mappa e
-	// non l'unita', e il click arriva qui: senza questa riga `Cell == Finale` apriva il selettore del verso, che una carica non ha.
-	// La tavola di `PIE-V01-CHARGEHOVER` lo ha trovato, e il click sulla mesh da solo non lo vedeva. Solo fuori da `Facing`: col
-	// selettore aperto il click e' una direzione.
-	if (Context == ERTPointerContext::Planning || Context == ERTPointerContext::Pathing)
-	{
-		if (const ARTUnit* Puntato = PlannedChargeTargetAt(SelectedUnit, Cell))
-		{
-			PinInspection(const_cast<ARTUnit*>(Puntato));
 			return;
 		}
 	}
@@ -3319,6 +3369,11 @@ void ARTPlayerController::EnsureTurnPresentationSubscriptions(ARTTurnManager* Tu
 	// arrivera' nessun altro commit: senza questa riga l'ultima riaccensione resterebbe a schermo per il
 	// resto della sessione.
 	TurnManager->OnMatchEnded.AddUniqueDynamic(this, &ARTPlayerController::HandleMatchEndedPresentation);
+
+	// ➕ **Il quarto non riguarda l'anteprima: fa cadere la fissazione dell'ispezione a ogni turno nuovo** (`#3748`, decisione d'autore del
+	// 2026-10-31). Sta nella stessa funzione perche' chi puo' avere una fissazione da far cadere — la selezione o `PinInspection` — passa gia'
+	// di qui, e un secondo punto di iscrizione sarebbe un secondo posto da cui dimenticarla.
+	TurnManager->OnTeamKnowledgeRefreshed.AddUniqueDynamic(this, &ARTPlayerController::HandleTeamKnowledgeRefreshed);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
@@ -3531,6 +3586,29 @@ ARTUnit* ARTPlayerController::GetInspectedUnit() const
 	return InspectedUnit.Get();
 }
 
+bool ARTPlayerController::IsUnitCommandedByThisPlayer(const ARTUnit* Unit) const
+{
+	return Unit != nullptr && URTCombatLibrary::CanPlayerControlUnitInGroup(Unit->TeamId, Unit->ControlGroup,
+		ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this), Unit->bIsBotControlled);
+}
+
+bool ARTPlayerController::IsDockReadOnly() const
+{
+	// 🔑 **Derivata**: nessun campo dice «la barra e' in sola lettura». `InspectedUnit` e' debole (`#2988`), quindi un'unita' distrutta
+	// risponde nulla, e `IsAlive()` copre l'attore ancora in campo ma caduto — la scheda lo rilascia al tick dell'HUD, la barra non aspetta.
+	const ARTUnit* Subject = InspectedUnit.Get();
+	return bDockFollowsInspection
+		&& bInspectorPinned
+		&& Subject != nullptr
+		&& Subject->IsAlive()
+		&& !IsUnitCommandedByThisPlayer(Subject);
+}
+
+const ARTUnit* ARTPlayerController::GetDockUnit() const
+{
+	return IsDockReadOnly() ? InspectedUnit.Get() : GetSelectedUnit();
+}
+
 FString ARTPlayerController::DisarmPlannedAction()
 {
 	ARTUnit* Unit = GetSelectedUnit();
@@ -3648,10 +3726,13 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	//
 	// ⚠️ Vale anche per il DISARMO, che passa di qui (`ArmKitAbility`): non ha niente da togliere, perche' il
 	// Cleanup ha gia' disarmato, e lasciarlo passare sarebbe un secondo canale con regole proprie.
-	if (IsWorldReadOnly())
+	//
+	// ➕ **`#3748`: e vale con la barra su un'unita' che non si comanda** (`IsPlanningWriteBlocked`), ed e' QUI e non nello slot: i dieci tasti, le
+	// cinque generiche e lo slot del dock (`ArmKitAbility`) passano tutti da questa funzione, e il piano che scriverebbero e' quello dell'unita'
+	// SELEZIONATA, non di quella che la barra mostra. Anche il disarmo: l'azione armata prima della fissazione resta armata.
+	if (IsPlanningWriteBlocked())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"),
-			*Richiesta, PercheIlMondoESoloLettura(GetPointerContext()));
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"), *Richiesta, *WhyPlanningWriteIsBlocked());
 		return;
 	}
 
@@ -4163,9 +4244,10 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
 	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
 	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
-	if (IsWorldReadOnly())
+	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`), e la riga dice quale delle due cause.
+	if (IsPlanningWriteBlocked())
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), *WhyPlanningWriteIsBlocked());
 		return;
 	}
 
@@ -4401,6 +4483,28 @@ bool ARTPlayerController::IsWorldReadOnly() const
 	return Context == ERTPointerContext::ResolutionPlayback
 		|| Context == ERTPointerContext::ReactionWindow
 		|| Context == ERTPointerContext::Modal;
+}
+
+bool ARTPlayerController::IsPlanningWriteBlocked() const
+{
+	return IsWorldReadOnly() || IsDockReadOnly();
+}
+
+FString ARTPlayerController::WhyPlanningWriteIsBlocked() const
+{
+	// 🔑 **Il mondo per primo**: e' la causa piu' larga, e con la barra su un nemico durante il playback «chiudi la scheda» non
+	// sbloccherebbe niente. La frase e' quella di `PercheIlMondoESoloLettura`, non una copia: la regola di [D-468] ha una sede sola.
+	if (IsWorldReadOnly())
+	{
+		return PercheIlMondoESoloLettura(GetPointerContext());
+	}
+	if (IsDockReadOnly())
+	{
+		// Il nome e' quello dell'unita' MOSTRATA, non della selezione: sono le due che il giocatore rischia di confondere.
+		return FString::Printf(TEXT("la barra mostra %s, che non comandi: chiudi la scheda con il tasto destro o seleziona una tua unita'"),
+			*GetDockUnit()->GetName());
+	}
+	return FString();
 }
 
 bool ARTPlayerController::IsGameplayInputBlocked() const
@@ -4797,17 +4901,17 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 {
 	const ARTUnit* SkillOwner = SkillHoverUnit.Get();
 	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(this);
-	// La barra e' di chi si comanda (spec §3 regola 7): la skill in hover dev'essere di QUELL'unita', viva e della squadra di chi
-	// guarda. Il confronto con `Unit` e' gia' del risolutore (che scarta l'hover di un'altra unita' prima di arrivare qui): qui e'
-	// la precondizione propria della funzione. Il cancello di squadra invece non ha altri guardiani.
-	if (SkillOwner == nullptr || SkillOwner != Unit || !SkillOwner->IsAlive() || SkillOwner->TeamId != ObserverTeamId)
+	if (SkillOwner == nullptr || !SkillOwner->IsAlive())
 	{
 		return;
 	}
-	const URTActionData* Ability = SkillOwner->GetAbility(SkillHoverIndex);
-	// Le stesse due condizioni della portata armata: l'azione chiede un bersaglio e ha una portata positiva. Una skill senza
-	// portata non ha niente da mostrare, e il piano non deve cedere la mappa per niente.
-	if (Ability == nullptr || !MostraLaPortata(SkillOwner, *Ability))
+	// Di chi puo' essere la skill sotto il cursore: della BARRA propria, cioe' dell'unita' comandata e della squadra di chi guarda; o
+	// della barra in sola lettura (`#3748`), cioe' dell'unita' ispezionata e fissata, propria o nemica. Il confronto con `Unit` e' gia' del
+	// risolutore (che scarta l'hover di chi non e' ne' l'una ne' l'altra prima di arrivare qui): qui e' la precondizione propria della
+	// funzione. Il cancello di squadra e quello della fissazione non hanno altri guardiani.
+	const bool bCommanded = SkillOwner == Unit && SkillOwner->TeamId == ObserverTeamId;
+	const bool bFocused = bInspectorPinned && SkillOwner == InspectedUnit.Get();
+	if (!bCommanded && !bFocused)
 	{
 		return;
 	}
@@ -4816,8 +4920,41 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	{
 		return;
 	}
-	// Stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello dell'azione armata.
-	const FRTCellId Origin = OrigineDiMira(SkillOwner, *Ability);
+
+	// 🔴 **Un nemico a fuoco: il cancello PRIMA di leggere la sua skill, e l'origine e' la cella della VOCE DELLA VISTA, mai il piano**
+	// (P3, D-552). `AimOriginFor` leggerebbe lo scatto pianificato del nemico, e la portata mostrerebbe da dove mirera': il suo piano.
+	// Il cancello e' lo stesso del fuoco, e un'unica funzione lo decide (`URTInspectLibrary::LiveEntry`): una voce `Live` nella vista di
+	// chi guarda. Una voce `Remembered` ha la cella del RICORDO, che puo' essere una cella che oggi si vede: e' li' che il cancello conta.
+	// `ARTUnit::IsKnownToObserver()` non decide niente. La vista costa una ricerca di unita' a ogni tick, ma solo mentre il cursore e'
+	// su uno slot della barra in sola lettura.
+	FRTKnowledgeView EnemyView;
+	const FRTKnowledgeEntry* EnemyEntry = nullptr;
+	if (SkillOwner->TeamId != ObserverTeamId)
+	{
+		TArray<ARTUnit*> Units;
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			Units.Add(*It);
+		}
+		EnemyView = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
+		EnemyEntry = URTInspectLibrary::LiveEntry(EnemyView, SkillOwner->StableUnitId);
+		if (EnemyEntry == nullptr)
+		{
+			return;
+		}
+	}
+
+	const URTActionData* Ability = SkillOwner->GetAbility(SkillHoverIndex);
+	// Le stesse due condizioni della portata armata: l'azione chiede un bersaglio e ha una portata positiva. Una skill senza
+	// portata non ha niente da mostrare, e il piano non deve cedere la mappa per niente.
+	if (Ability == nullptr || !MostraLaPortata(SkillOwner, *Ability))
+	{
+		return;
+	}
+
+	// Un'unita' propria: stessa origine della portata armata (`AimOriginFor`), cosi' che l'insieme in hover coincida con quello
+	// dell'azione armata. Il suo scatto pianificato e' un dato PROPRIO.
+	const FRTCellId Origin = EnemyEntry != nullptr ? EnemyEntry->Cell : OrigineDiMira(SkillOwner, *Ability);
 	const TArray<FRTCellId>& Visible = TM->PlaybackKnowledgeForTeam(ObserverTeamId).VisibleCells;
 	// La precondizione di `URTRangeVerdictLibrary`: chi tira dev'essere su una cella che la squadra vede. Se non lo e' (uno
 	// scatto pianificato verso una cella mai vista), non c'e' una portata da mostrare e il piano resta com'e'.
@@ -4832,6 +4969,9 @@ void ARTPlayerController::GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlannin
 	Inputs.SkillRange.MinRangeCells = Ability->Def.MinRangeCells;
 	Inputs.SkillRange.Policy = Ability->Def.LineOfSightPolicy;
 	Inputs.SkillKnowledgeStamp = VisibleCellsStamp(Visible);
+	// Lo slot della barra propria (unita' comandata) e quello della barra in sola lettura (unita' ispezionata) sono due produttori della
+	// stessa sorgente: l'arbitro li distingue da qui.
+	Inputs.bSkillHoverOfInspected = !bCommanded;
 }
 
 void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const
@@ -4863,8 +5003,8 @@ void ARTPlayerController::GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) co
 	// 🔑 La stessa vista del velo. Il cancello e' UNO: una voce `Live` (P2). `ARTUnit::IsKnownToObserver()` nasce vero e qui
 	// non decide niente.
 	const FRTKnowledgeView View = URTHudViewModel::BuildObserverKnowledgeView(TM, Units, ObserverTeamId);
-	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, Subject->StableUnitId);
-	if (Entry == nullptr || !URTInspectLibrary::IsInspectable(View, Subject->StableUnitId))
+	const FRTKnowledgeEntry* Entry = URTInspectLibrary::LiveEntry(View, Subject->StableUnitId);
+	if (Entry == nullptr)
 	{
 		return;
 	}
@@ -4893,7 +5033,18 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 	// gesto di pianificazione, e quando finisce torna la sorgente di prima.
 	if (SkillHoverIndex != INDEX_NONE)
 	{
-		if (SkillHoverUnit.Get() != Unit)
+		// L'hover e' di chi si comanda (la barra propria) o di chi e' a fuoco (la barra in sola lettura, `#3748`): chiusa la scheda, o
+		// fissata un'altra unita', l'hover di uno slot che non c'e' piu' si scarta qui, senza aspettare l'uscita del cursore che Slate puo'
+		// non mandare.
+		//
+		// 🔴 **L'hover dell'unita' ispezionata vale finche' la BARRA segue l'ispezione** (`bDockFollowsInspection`), non finche' la scheda e'
+		// fissata: `SelectUnit` spegne il flag ma non chiude la scheda, e la barra torna all'unita' propria mentre il cursore e' ancora su uno
+		// slot che Slate non ricostruisce. Con il solo `bInspectorPinned` la portata del nemico resterebbe sulla mappa sotto una barra che non e'
+		// piu' sua. ⚠️ `PinInspection` accende il flag per OGNI fissazione, anche quella di un'unita' propria: per lei l'hover resta ammesso come
+		// prima, e `IsDockReadOnly` (che guarda chi non si comanda) decide da solo se la barra e' in sola lettura.
+		const ARTUnit* HoverOwner = SkillHoverUnit.Get();
+		const bool bOwnedByInspected = bDockFollowsInspection && bInspectorPinned && HoverOwner != nullptr && HoverOwner == InspectedUnit.Get();
+		if (HoverOwner != Unit && !bOwnedByInspected)
 		{
 			// La selezione e' cambiata con il cursore fermo sulla barra (`N`). Se il dock ricostruisce gli slot con il kit dell'unita'
 			// nuova, Slate manda un ingresso al nuovo slot e `SetSkillHover` riscrive l'hover (visto in PIE il 2026-10-29, evidenza
@@ -4924,6 +5075,7 @@ FRTPlanningOverlayInputs ARTPlayerController::ResolvePlanningOverlayInputs(const
 		Inputs.HoverSkillUnit = nullptr;
 		Inputs.SkillRange = FRTRangeSubject();
 		Inputs.SkillKnowledgeStamp = 0;
+		Inputs.bSkillHoverOfInspected = false;
 	}
 	return Inputs;
 }
@@ -5041,7 +5193,47 @@ void ARTPlayerController::PinInspection(ARTUnit* Unit)
 	if (Unit != nullptr)
 	{
 		++InspectionPinSerial;
+		// #3748: l'ultimo click su un'unita' e' stato una fissazione, e la barra la segue se non e' un'unita' che si comanda
+		// (`IsDockReadOnly`). Lo accendono entrambi i click di produzione — l'esito `Inspect` e il bersaglio della carica pianificata —
+		// perche' passano tutti di qui; lo spegne il primo `SelectUnit`.
+		bDockFollowsInspection = true;
+
+		// #3748, decisione d'autore del 2026-10-31: la fissazione e' di UN turno. Si stampiglia il turno di adesso — `HandleTeamKnowledgeRefreshed`
+		// la fa cadere al primo rinfresco che ne porta un altro — e ci si assicura di ascoltarlo.
+		//
+		// 🔴 **L'iscrizione sta QUI e non solo in `SelectUnit`**: un nemico si puo' fissare prima di aver selezionato qualcosa, e in quel caso il
+		// controller non ha mai incontrato `SelectUnit` — niente iscrizione, e la fissazione sopravviverebbe a ogni turno. `AddUniqueDynamic` rende
+		// innocua la ripetizione. Senza `TurnManager` nel livello non c'e' nemmeno un turno nuovo da attendere.
+		if (ARTTurnManager* TM = PacingTurnManager(this))
+		{
+			InspectionTurn = TM->GetTurnNumber();
+			EnsureTurnPresentationSubscriptions(TM);
+		}
 	}
+}
+
+void ARTPlayerController::ReleaseInspectionForNewTurn()
+{
+	// Lo stesso stato finale del passo `Inspector` del Back (soggetto e pin), piu' la fissazione della barra: vedi la dichiarazione.
+	// ⚠️ Selezione e azione armata non si toccano: l'ispezione convive con loro, e la barra torna alla selezione da sola
+	// (`GetDockUnit` risponde `GetSelectedUnit()` quando `IsDockReadOnly` e' falso).
+	InspectedUnit = nullptr;
+	bInspectorPinned = false;
+	bDockFollowsInspection = false;
+}
+
+void ARTPlayerController::HandleTeamKnowledgeRefreshed(int32 TurnNumber)
+{
+	// Lo stesso turno: un rinfresco dentro la risoluzione (Blast, Move), o un secondo dello stesso inizio di turno. La fissazione resta —
+	// l'ispezione durante il playback funziona (spec §3, regola 5) — e non c'e' niente da riconciliare.
+	if (TurnNumber == InspectionTurn)
+	{
+		return;
+	}
+	// Un turno diverso e' un turno nuovo di pianificazione: `ConcludeTurn` incrementa il numero e `StartPlanningTimer` rinfresca la conoscenza,
+	// su ogni percorso. Si registra il turno PRIMA di rilasciare: il rilascio scatta una volta sola per numero, non a ogni rinfresco che segue.
+	InspectionTurn = TurnNumber;
+	ReleaseInspectionForNewTurn();
 }
 
 bool ARTPlayerController::ReleaseInspectionUnlessLive(const FRTKnowledgeView& View)
@@ -5537,7 +5729,8 @@ void ARTPlayerController::UpdateFacingHoverFromRay(bool bHasRay, const FVector& 
 	}
 	ARTUnit* Unit = GetSelectedUnit();
 	TOptional<ERTHexDirection> Sotto;
-	if (Unit && bDeclaringFacing && bHasRay && !IsWorldReadOnly() && !IsPlanningInputInert())
+	// `#3748`: con la barra in sola lettura il lato non si anticipa, nemmeno con un selettore rimasto aperto prima della fissazione.
+	if (Unit && bDeclaringFacing && bHasRay && !IsPlanningWriteBlocked() && !IsPlanningInputInert())
 	{
 		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 		ERTHexDirection Settore = ERTHexDirection::E;
@@ -5745,7 +5938,8 @@ void ARTPlayerController::CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perch
 
 bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 {
-	if (IsWorldReadOnly() || IsPlanningInputInert())
+	// `#3748`: aprire il selettore chiude il movimento dell'unita' selezionata, quindi con la barra in sola lettura e' una scrittura del piano.
+	if (IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}
@@ -5777,7 +5971,8 @@ bool ARTPlayerController::TryOpenFacingSelector(const FRTCellId& ClickedCell)
 
 bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector)
 {
-	if (IsWorldReadOnly() || IsPlanningInputInert())
+	// `#3748`: un selettore rimasto aperto prima della fissazione non dichiara un verso mentre la barra e' in sola lettura.
+	if (IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}
@@ -5822,7 +6017,10 @@ bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirecti
 
 bool ARTPlayerController::FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const
 {
-	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
+	// 🔴 `#3748`: con la barra in sola lettura il selettore NON reclama il click, ed e' il punto — un click sull'unita' propria selezionata, che ha
+	// una destinazione pianificata, cadrebbe sul pavimento dell'esagono finale e verrebbe consumato come scelta del verso PRIMA della selezione.
+	// Senza questa riga la barra resterebbe sul nemico: il click deve arrivare a `SelectUnit`, che la riporta.
+	if (!Unit || IsPlanningWriteBlocked() || IsPlanningInputInert())
 	{
 		return false;
 	}
