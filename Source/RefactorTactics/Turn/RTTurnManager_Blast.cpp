@@ -1540,7 +1540,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
 			|| InterruptedIntents.Contains(k))
 		{
-			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: non paga
+			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: lo paga il ciclo sotto
 		}
 		const bool bMirataACella = Intents[k].TargetId == INDEX_NONE;
 		if (!IntentiConColpo.Contains(k) && !bMirataACella)
@@ -1565,6 +1565,52 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (Interruttore && Interruttore->IsAlive())
 		{
 			Ctx.MarkAbilitySpent(Interruttore, Ctx.IntentAbilityIndex[k]);
+		}
+	}
+
+	// 🔴 **Chi e' stato interrotto paga l'azione annullata** ([D-414], `#3134` primo punto).
+	//
+	// [D-414] supera [D-200] sul caso «azione interrotta»: era gratuita perche' «e' come se non fosse mai
+	// partita», ed e' un ESITO — dichiarata, valida, annullata da un avversario — e un esito si paga. Fino a
+	// qui non pagava perche' i suoi colpi escono da `Plan.Hits` (il `RemoveAll` qui sotto) PRIMA che
+	// `MarkAttackerAbilitiesSpent` costruisca gli attaccanti dai colpi sopravvissuti.
+	//
+	// ⚠️ **Si annota e basta: la SEDE del pagamento non si sposta.** A scrivere il cooldown resta
+	// `SpendStartedAbilities` ([D-209]), a fase finita; qui si aggiunge soltanto un'annotazione, esattamente
+	// come fa il ciclo dell'Interrupter qui sopra. Spostare la scrittura al piano definitivo e' il secondo
+	// punto di [D-414], e tocca lo snapshot e il digest: non e' di questa fetta.
+	//
+	// ⚠️ **«Vivo quando annota»** (`IsAlive()`), la STESSA guardia dell'Interrupter e non quella dei
+	// sopravvissuti di `MarkAttackerAbilitiesSpent` ([D-209]): si gira PRIMA del danno, e un'azione annullata
+	// non e' arrivata a colpire, quindi per lei il criterio «sopravvissuto alla fase» non esiste. Chi cade
+	// nello stesso Blast paga comunque (`InterruptedActionPaysEvenIfItFalls`); un cadavere che arriva al
+	// Blast col piano ancora addosso no.
+	//
+	// ⚠️ **Paga solo cio' che AVEVA un colpo** (`IntentiConColpo`, calcolato PRIMA del `RemoveAll`): e' lo
+	// stesso criterio con cui un'azione non interrotta paga, quindi l'Interrupt non rende a pagamento cio' che
+	// senza di lui sarebbe gratuito. Un intento a CELLA oltre la portata nasce valido e un Interrupt lo
+	// annulla, ma la geometria non ha prodotto nessun colpo: non e' partita, e qui [D-200] e [D-414]
+	// coincidono. Un bersaglio-unita' fuori portata non arriva nemmeno qui, perche' `ValidateInstance` ne
+	// ferma l'intento in raccolta.
+	//
+	// ⚠️ **Gli impatti di carica non pagano** (`IntentAbilityIndex == INDEX_NONE`: lo scatto l'ha gia' fatto
+	// nel Dash), e un intento DEGRADATO ([D-300], `SuppressSecondary`) non e' in `InterruptedIntents`: la sua
+	// azione e' avvenuta, monca, e la paga una volta sola `MarkAttackerAbilitiesSpent` come ogni attacco che
+	// colpisce. `Cancellati` e' ordinato: l'ordine di annotazione non decide niente, ma non lo si lascia a un `TSet`.
+	for (int32 k : Cancellati)
+	{
+		if (!Intents.IsValidIndex(k) || !IntentiConColpo.Contains(k))
+		{
+			continue;
+		}
+		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+		{
+			continue;
+		}
+		ARTUnit* Interrotto = Units.IsValidIndex(Intents[k].AttackerId) ? Units[Intents[k].AttackerId] : nullptr;
+		if (Interrotto && Interrotto->IsAlive())
+		{
+			Ctx.MarkAbilitySpent(Interrotto, Ctx.IntentAbilityIndex[k]);
 		}
 	}
 
