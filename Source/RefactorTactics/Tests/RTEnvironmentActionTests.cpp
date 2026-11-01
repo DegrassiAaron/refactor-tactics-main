@@ -571,24 +571,31 @@ bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
-// `RIC-5` (#3958) — che cosa fa OGGI uno stordito davanti a una struttura di BORDO.
+// `RIC-5` (#3958) — uno stordito NON erige e NON sposta una copertura di BORDO ([D-565], [D-416] (1)).
 //
 // [D-416] (1) toglie allo stordito «l'azione principale e la reazione per la sua durata». Il rifiuto e'
 // implementato PER SITO — `ResolvePrep`, `CollectAttackIntents`, `ResolveEnvironment`, `CollectHealActions` e
-// `ResolveCleanseActions` lo scrivono — e `ResolveCoverStructures` non e' fra loro: `ResolvePrep` la chiama PRIMA
-// del ciclo che rifiuta, e lei consuma il piano di chi dichiara uno `StructureOp` senza passare da
-// `RefuseMainActionIfStunned`. Lo dicevano il commento di `EmitAbilityActivated` in quel ramo («Il caso non ha
-// test») e `RIC-5` di `docs/OPEN_DECISIONS.md`: **letto nel codice, mai eseguito**. Questo banco lo esegue.
+// `ResolveCleanseActions` lo scrivono — e `ResolveCoverStructures` non era fra loro: `ResolvePrep` la chiama PRIMA
+// del ciclo che rifiuta, e lei consumava il piano di chi dichiara uno `StructureOp` senza passare da
+// `RefuseMainActionIfStunned`. Questo banco nacque come CARATTERIZZAZIONE di quel comportamento — lo eseguiva: la
+// stordita erigeva, spostava e si attivava — e con la decisione si INVERTE: il braccio STORDITO asserisce cio' che
+// [D-565] vuole, il braccio di CONTROLLO non cambia.
 //
-// 🔴 **E' una CARATTERIZZAZIONE, non una regola.** Gli asserti sul braccio STORDITO dichiarano la lettura del
-// codice di oggi — la struttura si erige o si sposta, l'attivazione c'e', nessun rifiuto, la ricarica parte come
-// per chi non e' stordito —, NON cio' che [D-416] chiede. Se `RIC-5` sara' deciso nel senso di negarle, quegli
-// asserti si INVERTONO insieme al codice: e' il loro scopo. Un rosso qui, prima di quella decisione, vuol dire
-// che la lettura era sbagliata: si riportano i valori veri, non si ritocca l'asserto.
+// Cio' che [D-565] fissa, e che il banco pinna riga per riga:
+//   · la struttura NON nasce e NON si sposta, e nessun `AbilityActivated` esce; esce UNA voce `Fallback`/`Cancelled`/
+//     `Stunned` di fase Prep che nomina l'azione, la cella di chi agisce e la cella mirata;
+//   · il rifiuto PAGA la ricarica ([D-563] (2) e [D-564], come `ResolvePrep`): scrittura immediata, sullo slot
+//     dell'azione e su nessun altro — anche per `Reconfigure`, che una rotazione gratuita avrebbe lasciato gratis;
+//   · la rotazione gratuita del pannello adattivo SOPRAVVIVE al rifiuto: il contatore `FreeRotations` non si tocca;
+//   · NON cambia un'azione GIA' in ricarica (scarto muto di `CanUseAbility`, prima della guardia: niente voce e niente
+//     secondo addebito), ne' un attore caduto (il ciclo lo salta), ne' i `Reject` di raccolta di chi NON e' stordito,
+//     che restano gratis: `RIC-3` non e' deciso, e la riga «senza bordo» pinna che la guardia sta PRIMA di quei
+//     `Reject` senza deciderlo.
 //
-// ⚠️ **Ogni azione ha il suo braccio di CONTROLLO**: stessa unita', stesso piano, mondo ricostruito da capo,
-// senza stordimento. Senza, «nessun rifiuto» sarebbe verde anche se il banco non facesse succedere niente. In
-// coda c'e' il controllo del CONTATORE dei rifiuti: lo stesso predicato, su un sito che il rifiuto lo scrive.
+// ⚠️ **Ogni riga ha il suo braccio di CONTROLLO**: stessa unita', stesso piano, mondo ricostruito da capo, senza
+// stordimento. Senza, «non e' successo niente» sarebbe verde anche se il banco non facesse succedere niente. In coda
+// stanno i controlli POSITIVI del contatore dei rifiuti — lo stesso predicato, su un sito di Prep (`Action.Overwatch`)
+// e su uno di Cleanup (`Action.Ignite`) che il rifiuto lo scrivono.
 //
 // Prefisso `CoverStun*` negli helper: unity build, namespace anonimi fusi con gli altri file di test.
 // =====================================================================================================
@@ -597,10 +604,21 @@ namespace
 	/** La struttura di bordo che l'attore del banco `RIC-5` pianifica. */
 	enum class ECoverStunKind : uint8
 	{
-		CreateCover,     //< `Action.CreateCover` del catalogo core: erige
-		KineticPanel,    //< `Hero.Branth.KineticPanel` senza variante: erige, 30 punti struttura per due turni
-		Reconfigure,     //< `Hero.Branth.Reconfigure` su una copertura di MAPPA: sposta, e paga (non e' in `DynamicCovers`)
-		ReconfigureFree, //< `Hero.Branth.Reconfigure` sul pannello ADATTIVO eretto prima: sposta, e la rotazione e' gratuita
+		CreateCover,  //< `Action.CreateCover` del catalogo core: erige
+		KineticPanel, //< `Hero.Branth.KineticPanel` senza variante: erige, 30 punti struttura per due turni
+		Reconfigure,  //< `Hero.Branth.Reconfigure` su una copertura di MAPPA: sposta, e paga (non e' in `DynamicCovers`)
+	};
+
+	/**
+	 * In che situazione si trova l'attore, oltre al tipo di struttura. Ogni flag e' UN'altra uscita del ciclo di
+	 * `ResolveCoverStructures`, e la riga ne pinna la posizione rispetto alla guardia dello stordimento.
+	 */
+	struct FCoverStunScene
+	{
+		ECoverStunKind Kind = ECoverStunKind::CreateCover;
+		bool bAlreadyCooling = false; //< lo slot parte in ricarica (`Mirror - 1`): `CanUseAbility` e' falso e il piano si scarta in silenzio
+		bool bNoEdge = false;         //< piano incompleto: il bersaglio c'e' e il bordo no (il `Reject` di raccolta di chi non e' stordito)
+		bool bFallen = false;         //< l'attore e' a zero salute prima del turno; un testimone vivo erige altrove nello stesso Prep
 	};
 
 	/**
@@ -618,33 +636,50 @@ namespace
 		bool bPlanAtCommit = false;     //< premessa: il piano c'e' ancora un attimo prima del turno
 		bool bMainInPrep = false;       //< premessa: l'azione e' una PRINCIPALE di fase Prep, cioe' la classe che [D-416] nega
 		FName ActionId;                 //< l'azione installata nello slot
+		FRTCellId Home;                 //< la cella di chi agisce: e' la `SrcCell` che la voce di rifiuto deve portare
+		FRTCellId Aimed;                //< la cella che il piano mira: e' la `TgtCell` che la voce di rifiuto deve portare
 		int32 StableId = 0;             //< premessa: dopo il turno non e' 0 (a zero, ogni predicato su `UnitId` e' cieco)
 		int32 DefCooldown = -1;         //< `Def.CooldownTurns` dell'azione
 		int32 MirrorCooldown = -1;      //< lo specchio `URTActionData::CooldownTurns`, che e' quello che scrive `ConsumeAbility`
-		int32 CooldownBefore = -1;      //< residuo nello slot prima del turno (premessa: 0, l'azione e' utilizzabile)
-		int32 CooldownAfter = -1;       //< residuo a fine turno: il Cleanup decrementa di uno, quindi `Mirror - 1` = pagata una volta
+		int32 CooldownBefore = -1;      //< residuo nello slot prima del turno: 0 = utilizzabile, `Mirror - 1` = gia' in ricarica
+		int32 CooldownAfter = -1;       //< residuo a fine turno: il Cleanup decrementa di uno, quindi `Mirror - 1` = la ricarica e' PARTITA
+		TArray<int32> SlotsBefore;      //< il residuo di OGNI slot di abilita' prima del turno
+		TArray<int32> SlotsAfter;       //< ... e dopo: un addebito sullo slot sbagliato non deve passare per uno scritto bene
 		int32 WBefore = 0;              //< integrita' sul bordo W della cella bersaglio prima del turno
 		int32 WAfter = 0;               //< ... e dopo
 		int32 EBefore = 0;              //< integrita' sul bordo E prima del turno
 		int32 EAfter = 0;               //< ... e dopo
 		int32 CoversAfter = 0;          //< coperture presenti sulla cella bersaglio a fine turno
-		int32 Created = 0;              //< voci ambientali `CoverCreated`
+		int32 Created = 0;              //< voci ambientali `CoverCreated`, di chiunque
 		int32 Moved = 0;                //< voci ambientali `CoverMoved`
 		int32 Rejected = 0;             //< voci ambientali `CoverRejected`
 		int32 Activations = 0;          //< eventi `AbilityActivated` dell'attore
-		int32 StunRefusals = 0;         //< voci `Fallback`/`Cancelled`/`Stunned` dell'attore: oggi attese a zero
+		int32 StunRefusals = 0;         //< voci `Fallback`/`Cancelled`/`Stunned` dell'attore
+		int32 RefusalsAnyUnit = 0;      //< ... di CHIUNQUE: non dipende dallo `StableUnitId` dell'attore
 		int32 AnyFallbacks = 0;         //< voci `Fallback` dell'attore, di qualunque causa
+		int32 FallbacksAnyUnit = 0;     //< ... di chiunque e di qualunque causa: «nessun altro Fallback»
 		int32 EntriesOfActor = 0;       //< tutte le voci del TurnLog che nominano l'attore
+		ERTMatchPhase RefusalPhase = ERTMatchPhase::Planning; //< i quattro campi che seguono sono della PRIMA voce di rifiuto dell'attore
+		FName RefusalActionId;
+		FRTCellId RefusalSrc;
+		FRTCellId RefusalTgt;
+		int32 WitnessWAfter = 0;        //< solo riga «caduto»: integrita' sul bordo W della copertura del testimone
 	};
 
-	/** Le voci `Fallback`/`Cancelled` per stordimento di UNA unita': e' il predicato di `Status.StunDeniedMainActionPaysItsCooldown`. */
+	/** Una voce di rifiuto per stordimento, di CHIUNQUE: `Fallback`/`Cancelled` con la causa `Stunned` in `Amount`. */
+	bool CoverStunIsRefusal(const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned);
+	}
+
+	/** Le voci di rifiuto per stordimento di UNA unita': e' il predicato di `Status.StunDeniedMainActionPaysItsCooldown`. */
 	int32 CoverStunCountRefusals(const ARTTurnManager* TM, int32 UnitId)
 	{
 		int32 N = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
-				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned) && E.UnitId == UnitId)
+			if (CoverStunIsRefusal(E) && E.UnitId == UnitId)
 			{
 				++N;
 			}
@@ -673,184 +708,376 @@ namespace
 		return Found ? Found->Get() : nullptr;
 	}
 
+	/** Il residuo di OGNI slot di abilita' dell'unita': leggere solo quello sotto prova lascerebbe invisibile un addebito sullo slot sbagliato. */
+	TArray<int32> CoverStunSlots(const ARTUnit* Unit)
+	{
+		TArray<int32> Slots;
+		for (int32 I = 0; I < Unit->Abilities.Num(); ++I)
+		{
+			Slots.Add(Unit->GetAbilityCooldown(I));
+		}
+		return Slots;
+	}
+
+	FString CoverStunSlotsText(const TArray<int32>& Slots)
+	{
+		FString Text;
+		for (int32 I = 0; I < Slots.Num(); ++I)
+		{
+			Text += FString::Printf(TEXT("%s%d"), I == 0 ? TEXT("") : TEXT(","), Slots[I]);
+		}
+		return Text;
+	}
+
+	/** Quanti slot DIVERSI da `Except` hanno una ricarica in corso: a inizio turno devono essere zero, e a fine turno pure. */
+	int32 CoverStunBusyOtherSlots(const TArray<int32>& Slots, int32 Except)
+	{
+		int32 Busy = 0;
+		for (int32 I = 0; I < Slots.Num(); ++I)
+		{
+			if (I != Except && Slots[I] != 0) { ++Busy; }
+		}
+		return Busy;
+	}
+
 	const TCHAR* CoverStunKindName(ECoverStunKind Kind)
 	{
 		switch (Kind)
 		{
-		case ECoverStunKind::CreateCover:     return TEXT("CreateCover");
-		case ECoverStunKind::KineticPanel:    return TEXT("KineticPanel");
-		case ECoverStunKind::Reconfigure:     return TEXT("Reconfigure");
-		case ECoverStunKind::ReconfigureFree: return TEXT("Reconfigure (rotazione gratuita)");
+		case ECoverStunKind::CreateCover:  return TEXT("CreateCover");
+		case ECoverStunKind::KineticPanel: return TEXT("KineticPanel");
+		case ECoverStunKind::Reconfigure:  return TEXT("Reconfigure");
 		}
 		return TEXT("?");
 	}
 
-	FString CoverStunRunLabel(ECoverStunKind Kind, bool bStunned)
+	FString CoverStunRunLabel(const FCoverStunScene& Scene, bool bStunned)
 	{
-		return FString::Printf(TEXT("%s, %s"), CoverStunKindName(Kind), bStunned ? TEXT("stordito") : TEXT("controllo"));
+		FString Label = CoverStunKindName(Scene.Kind);
+		if (Scene.bAlreadyCooling) { Label += TEXT(", gia' in ricarica"); }
+		if (Scene.bNoEdge) { Label += TEXT(", senza bordo"); }
+		if (Scene.bFallen) { Label += TEXT(", attore caduto"); }
+		return FString::Printf(TEXT("%s, %s"), *Label, bStunned ? TEXT("stordito") : TEXT("controllo"));
+	}
+
+	/** Il mondo vivo di una run: abbastanza per giocare piu' turni sullo stesso attore. */
+	struct FCoverStunBed
+	{
+		UWorld* World = nullptr;
+		URTHexMapAsset* Map = nullptr;
+		ARTUnit* Caster = nullptr;
+		ARTUnit* Witness = nullptr;                    //< solo se l'attore e' caduto: un'unita' viva della stessa squadra, che erige altrove
+		ARTTurnManager* TM = nullptr;
+		FRTCellId Home = FRTCellId(0, 0);
+		FRTCellId Shielded = FRTCellId(1, 0);          //< la cella che riceve la struttura, adiacente a Home
+		FRTCellId WitnessHome = FRTCellId(0, 2);
+		FRTCellId WitnessTarget = FRTCellId(0, 3);
+	};
+
+	void CoverStunCloseBed(FCoverStunBed& Bed)
+	{
+		DestroyEnvWorld(Bed.World);
+		Bed.World = nullptr;
+	}
+
+	/** Costruisce il mondo: mappa piatta, l'attore, un avversario lontano (e il testimone, se serve). Falso, e rosso, se qualcosa manca. */
+	bool CoverStunOpenBed(FAutomationTestBase& Test, const FString& Run, bool bWithWitness, FCoverStunBed& Bed)
+	{
+		Bed.World = MakeEnvWorld();
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), *Run), Bed.World)) { return false; }
+		ARTHexMapActor* MapActor = SpawnEnvMap(Bed.World);
+		Bed.Map = MapActor ? MapActor->MapAsset : nullptr;
+
+		Bed.Caster = SpawnEnvUnit(Bed.World, 0, Bed.Home);
+		// Un avversario inerte e lontano: senza nemici la partita finirebbe al primo turno (`EvaluateOutcome`).
+		ARTUnit* Foe = SpawnEnvUnit(Bed.World, 1, FRTCellId(-4, 0));
+		// Il testimone della riga «caduto»: la sua copertura prova che il Prep e' girato davvero con un cadavere nella lista.
+		if (bWithWitness) { Bed.Witness = SpawnEnvUnit(Bed.World, 0, Bed.WitnessHome); }
+		Bed.TM = Bed.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: mappa"), *Run), Bed.Map)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Caster"), *Run), Bed.Caster)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Foe"), *Run), Foe)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), *Run), Bed.TM)
+			|| (bWithWitness && !Test.TestNotNull(*FString::Printf(TEXT("%s: testimone"), *Run), Bed.Witness)))
+		{
+			CoverStunCloseBed(Bed);
+			return false;
+		}
+		return true;
+	}
+
+	/** Pianifica nello slot dell'attore un'azione del kit di Branth su una cella e un bordo; falso, e rosso, se il kit non l'ha. */
+	bool CoverStunPlanBranth(FAutomationTestBase& Test, const FString& Run, ARTUnit* Caster, const TCHAR* ActionId,
+		const FRTCellId& TargetCell, ERTHexDirection Edge, const FName& VariantId = NAME_None)
+	{
+		URTActionData* Action = CoverStunBranthAction(ActionId);
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: %s nel kit di Branth"), *Run, ActionId), Action)) { return false; }
+		PlanHeroCoverAction(Caster, Action, TargetCell, Edge, VariantId);
+		return true;
 	}
 
 	/**
-	 * UNA run del banco: un mondo costruito da capo, un attore con il suo piano, un turno (l'ultimo) misurato.
+	 * UN turno risolto sull'attore del banco, con tutto cio' che lo misura PRIMA e DOPO.
 	 *
 	 * Il braccio STORDITO e quello di CONTROLLO differiscono per UNA riga — `ApplyStatus(Stunned)` subito prima del
-	 * commit, dopo che il piano e' scritto — e le premesse lo verificano invece di darlo per scontato.
+	 * commit, dopo che il piano e' scritto — e le premesse lo verificano invece di darlo per scontato. ⚠️ Le premesse
+	 * valgono sotto QUALUNQUE decisione su `RIC-5`: nessuna legge un esito che il turno sta decidendo.
 	 *
-	 * `ReconfigureFree` gioca tre turni, e solo l'ultimo ha lo stordimento: l'adattivo erige (turno 1), un turno vuoto
-	 * fa scendere la ricarica dello slot (che `Reconfigure` condivide col pannello), e al terzo si ruota la copertura
-	 * che `DynamicCovers` traccia con una rotazione gratuita.
+	 * L'attore caduto e' distrutto a fine turno (`DestroyDefeatedUnits`) ma resta leggibile finche' nessuno raccoglie i
+	 * rifiuti: per questo lo si rilegge da un riferimento debole, come fa `PagaGiraStordito`.
 	 */
-	FCoverStunOutcome CoverStunRun(FAutomationTestBase& Test, ECoverStunKind Kind, bool bStunned)
+	FCoverStunOutcome CoverStunPlayTurn(FAutomationTestBase& Test, const FString& Run, const FCoverStunBed& Bed,
+		bool bStunned, bool bAlreadyCooling, bool bFallen)
 	{
 		FCoverStunOutcome Out;
-		const FString Run = CoverStunRunLabel(Kind, bStunned);
-
-		UWorld* World = MakeEnvWorld();
-		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), *Run), World)) { return Out; }
-		ARTHexMapActor* MapActor = SpawnEnvMap(World);
-		URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
-
-		const FRTCellId Home(0, 0);
-		const FRTCellId Shielded(1, 0); // la cella che riceve la struttura, adiacente a Home
-		ARTUnit* Caster = SpawnEnvUnit(World, 0, Home);
-		// Un avversario inerte e lontano: senza nemici la partita finirebbe al primo turno (`EvaluateOutcome`).
-		ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: mappa"), *Run), Map)
-			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Caster"), *Run), Caster)
-			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Foe"), *Run), Foe)
-			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), *Run), TM))
-		{
-			DestroyEnvWorld(World);
-			return Out;
-		}
-
-		// Una run che non puo' continuare rende cio' che ha misurato finora, con `bValid` falso.
-		auto Abort = [&]() { DestroyEnvWorld(World); return Out; };
-
-		switch (Kind)
-		{
-		case ECoverStunKind::CreateCover:
-			PlanCoverAction(Caster, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::W);
-			break;
-
-		case ECoverStunKind::KineticPanel:
-		{
-			URTActionData* Panel = CoverStunBranthAction(TEXT("Hero.Branth.KineticPanel"));
-			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: KineticPanel nel kit di Branth"), *Run), Panel)) { return Abort(); }
-			PlanHeroCoverAction(Caster, Panel, Shielded, ERTHexDirection::W);
-			break;
-		}
-
-		case ECoverStunKind::Reconfigure:
-		{
-			// Una copertura gia' in campo, ammaccata (18 invece di 30) e NON tracciata da `DynamicCovers`: nessuna
-			// rotazione gratuita, quindi lo spostamento si paga.
-			if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura di mappa e' posta"), *Run),
-					URTHexCoverLibrary::AddCover(Map, Shielded, ERTHexDirection::W, ERTHexCoverType::Low, 18)))
-			{
-				return Abort();
-			}
-			URTActionData* Reconfigure = CoverStunBranthAction(TEXT("Hero.Branth.Reconfigure"));
-			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: Reconfigure nel kit di Branth"), *Run), Reconfigure)) { return Abort(); }
-			PlanHeroCoverAction(Caster, Reconfigure, Shielded, ERTHexDirection::E);
-			break;
-		}
-
-		case ECoverStunKind::ReconfigureFree:
-		{
-			// Turno 1, NON stordito in nessuno dei due bracci: il pannello ADATTIVO nasce tracciato da `DynamicCovers`
-			// con 25 punti struttura, una rotazione gratuita, e non scade da solo.
-			URTActionData* Panel = CoverStunBranthAction(TEXT("Hero.Branth.KineticPanel"));
-			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: KineticPanel nel kit di Branth"), *Run), Panel)) { return Abort(); }
-			PlanHeroCoverAction(Caster, Panel, Shielded, ERTHexDirection::W, TEXT("Hero.Branth.KineticPanel.Adaptive"));
-			RunEnvTurn(TM);
-			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo e' eretto (25 punti struttura)"), *Run),
-					CoverIntegrityOn(Map, Shielded, ERTHexDirection::W), 25))
-			{
-				return Abort();
-			}
-
-			// Turno 2, VUOTO: la ricarica del pannello sta nello stesso slot che `Reconfigure` occupera', e finche' non
-			// e' scesa a zero il piano verrebbe scartato in silenzio da `CanUseAbility` (come in
-			// `Heroes.Branth.ReconfigureRefusesInsteadOfGuessing`).
-			RunEnvTurn(TM);
-			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo non scade da solo"), *Run),
-					CoverIntegrityOn(Map, Shielded, ERTHexDirection::W), 25))
-			{
-				return Abort();
-			}
-
-			// Turno 3, quello misurato: si ruota QUELLA copertura da W a E.
-			URTActionData* Reconfigure = CoverStunBranthAction(TEXT("Hero.Branth.Reconfigure"));
-			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: Reconfigure nel kit di Branth"), *Run), Reconfigure)) { return Abort(); }
-			PlanHeroCoverAction(Caster, Reconfigure, Shielded, ERTHexDirection::E);
-			break;
-		}
-		}
+		ARTUnit* Caster = Bed.Caster;
 
 		const URTActionData* Installed = Caster->GetAbility(CoverStunSlot);
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'azione e' nello slot %d"), *Run, CoverStunSlot), Installed))
 		{
-			return Abort();
+			return Out;
 		}
 		Out.ActionId = Installed->Def.ActionId;
+		Out.Home = Caster->Cell;
+		Out.Aimed = Caster->PlannedAttackCell;
 		Out.bMainInPrep = Installed->Def.Slot == ERTActionSlot::Main
 			&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep;
 		Out.DefCooldown = Installed->Def.CooldownTurns;
 		Out.MirrorCooldown = Installed->CooldownTurns;
+
+		// «Gia' in ricarica»: lo stesso preludio di `PagaGiraStordito`. `ConsumeAbility` scrive un valore FISSO, quindi un
+		// secondo addebito riporterebbe lo slot a `Mirror` e il residuo a fine turno lo direbbe.
+		if (bAlreadyCooling)
+		{
+			Caster->ConsumeAbility(CoverStunSlot);
+			Caster->TickCooldowns();
+		}
 		Out.CooldownBefore = Caster->GetAbilityCooldown(CoverStunSlot);
-		Out.WBefore = CoverIntegrityOn(Map, Shielded, ERTHexDirection::W);
-		Out.EBefore = CoverIntegrityOn(Map, Shielded, ERTHexDirection::E);
+		Out.SlotsBefore = CoverStunSlots(Caster);
+		Out.WBefore = CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::W);
+		Out.EBefore = CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::E);
 
 		// L'UNICA riga che separa i due bracci, DOPO il piano: l'ordine e' quello di `PagaGiraStordito`.
 		if (bStunned) { Caster->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		// Caduto DOPO lo stordimento, come `PagaGiraStordito`: un cadavere stordito e' il caso che la riga vuole.
+		if (bFallen) { Caster->Health = 0; }
 		Out.bStunnedAtCommit = Caster->HasStatus(TAG_Status_Stunned);
 		Out.bPlanAtCommit = Caster->PlannedAbilityIndex == CoverStunSlot;
 
 		bool bPremises = true;
-		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo nel braccio stordito"), *Run),
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo dove il turno lo dichiara"), *Run),
 			Out.bStunnedAtCommit, bStunned);
 		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il piano e' nello slot %d al commit"), *Run, CoverStunSlot),
 			Out.bPlanAtCommit);
 		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: e' un'azione PRINCIPALE di fase Prep"), *Run),
 			Out.bMainInPrep);
-		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'azione e' utilizzabile (nessuna ricarica residua)"), *Run),
-			Out.CooldownBefore, 0);
+		if (bAlreadyCooling)
+		{
+			bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'azione parte in ricarica (specchio - 1)"), *Run),
+				Out.CooldownBefore, Out.MirrorCooldown - 1);
+			bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: `CanUseAbility` e' falso, il piano si scarta in silenzio"), *Run),
+				Out.CooldownBefore > 0 && !Caster->CanUseAbility(CoverStunSlot));
+		}
+		else
+		{
+			bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'azione e' utilizzabile (nessuna ricarica residua)"), *Run),
+				Out.CooldownBefore, 0);
+		}
 		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: ricarica dichiarata e specchio coincidono e sono positivi"), *Run),
 			Out.DefCooldown > 0 && Out.DefCooldown == Out.MirrorCooldown);
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: nessun altro slot e' in ricarica prima del turno"), *Run),
+			CoverStunBusyOtherSlots(Out.SlotsBefore, CoverStunSlot), 0);
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'attore e' caduto solo dove il turno lo dichiara"), *Run),
+			!Caster->IsAlive(), bFallen);
 
-		RunEnvTurn(TM);
+		const TWeakObjectPtr<ARTUnit> CasterWeak(Caster);
+		RunEnvTurn(Bed.TM);
 
-		Out.StableId = Caster->StableUnitId;
-		Out.CooldownAfter = Caster->GetAbilityCooldown(CoverStunSlot);
-		Out.WAfter = CoverIntegrityOn(Map, Shielded, ERTHexDirection::W);
-		Out.EAfter = CoverIntegrityOn(Map, Shielded, ERTHexDirection::E);
-		if (const FRTHexCellData* TargetCell = Map->FindCell(Shielded))
+		ARTUnit* After = CasterWeak.Get(/*bEvenIfPendingKill=*/ true);
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: l'attore e' ancora leggibile"), *Run), After))
+		{
+			return Out;
+		}
+		Out.StableId = After->StableUnitId;
+		Out.CooldownAfter = After->GetAbilityCooldown(CoverStunSlot);
+		Out.SlotsAfter = CoverStunSlots(After);
+		Out.WAfter = CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::W);
+		Out.EAfter = CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::E);
+		if (const FRTHexCellData* TargetCell = Bed.Map->FindCell(Bed.Shielded))
 		{
 			for (const FRTHexCover& Cover : TargetCell->Covers)
 			{
 				if (Cover.Type != ERTHexCoverType::None) { ++Out.CoversAfter; }
 			}
 		}
-		Out.Created = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated);
-		Out.Moved = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved);
-		Out.Rejected = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected);
+		Out.Created = CountEnvOutcome(Bed.TM, ERTEnvironmentOutcome::CoverCreated);
+		Out.Moved = CountEnvOutcome(Bed.TM, ERTEnvironmentOutcome::CoverMoved);
+		Out.Rejected = CountEnvOutcome(Bed.TM, ERTEnvironmentOutcome::CoverRejected);
+		for (const FRTTurnLogEntry& E : Bed.TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback) { ++Out.FallbacksAnyUnit; }
+			if (CoverStunIsRefusal(E)) { ++Out.RefusalsAnyUnit; }
+		}
 		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'attore ha uno StableUnitId"), *Run), Out.StableId != 0);
 		if (Out.StableId != 0)
 		{
-			Out.Activations = CoverStunCountActivations(TM, Out.StableId);
-			Out.StunRefusals = CoverStunCountRefusals(TM, Out.StableId);
-			for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+			Out.Activations = CoverStunCountActivations(Bed.TM, Out.StableId);
+			Out.StunRefusals = CoverStunCountRefusals(Bed.TM, Out.StableId);
+			bool bFirstRefusal = true;
+			for (const FRTTurnLogEntry& E : Bed.TM->GetTurnLog())
 			{
 				if (E.UnitId != Out.StableId) { continue; }
 				++Out.EntriesOfActor;
 				if (E.Category == ERTLogCategory::Fallback) { ++Out.AnyFallbacks; }
+				if (bFirstRefusal && CoverStunIsRefusal(E))
+				{
+					bFirstRefusal = false;
+					Out.RefusalPhase = E.Phase;
+					Out.RefusalActionId = E.ActionId;
+					Out.RefusalSrc = E.SrcCell;
+					Out.RefusalTgt = E.TgtCell;
+				}
 			}
 		}
 
 		Out.bValid = bPremises;
-		DestroyEnvWorld(World);
+		return Out;
+	}
+
+	/**
+	 * UNA run del banco a turno singolo: un mondo costruito da capo, un attore con il suo piano, un turno misurato.
+	 *
+	 * Il piano e' scritto PRIMA dello stordimento. `bNoEdge` lo rende incompleto (nessun bordo), `bFallen` aggiunge il
+	 * testimone e fa cadere l'attore, `bAlreadyCooling` mette lo slot in ricarica: tutto dentro il turno misurato.
+	 */
+	FCoverStunOutcome CoverStunRun(FAutomationTestBase& Test, const FCoverStunScene& Scene, bool bStunned)
+	{
+		FCoverStunOutcome Out;
+		const FString Run = CoverStunRunLabel(Scene, bStunned);
+
+		FCoverStunBed Bed;
+		if (!CoverStunOpenBed(Test, Run, Scene.bFallen, Bed)) { return Out; }
+
+		bool bPlanned = false;
+		switch (Scene.Kind)
+		{
+		case ECoverStunKind::CreateCover:
+			PlanCoverAction(Bed.Caster, TEXT("Action.CreateCover"), Bed.Shielded, ERTHexDirection::W);
+			bPlanned = true;
+			break;
+
+		case ECoverStunKind::KineticPanel:
+			bPlanned = CoverStunPlanBranth(Test, Run, Bed.Caster, TEXT("Hero.Branth.KineticPanel"), Bed.Shielded, ERTHexDirection::W);
+			break;
+
+		case ECoverStunKind::Reconfigure:
+			// Una copertura gia' in campo, ammaccata (18 invece di 30) e NON tracciata da `DynamicCovers`: nessuna
+			// rotazione gratuita, quindi lo spostamento si paga.
+			if (Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura di mappa e' posta"), *Run),
+					URTHexCoverLibrary::AddCover(Bed.Map, Bed.Shielded, ERTHexDirection::W, ERTHexCoverType::Low, 18)))
+			{
+				bPlanned = CoverStunPlanBranth(Test, Run, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded, ERTHexDirection::E);
+			}
+			break;
+		}
+		if (!bPlanned)
+		{
+			CoverStunCloseBed(Bed);
+			return Out;
+		}
+
+		// Piano incompleto: il bersaglio c'e', il bordo no. E' il caso che il ciclo scarta con un `Reject` di raccolta.
+		if (Scene.bNoEdge) { Bed.Caster->bHasPlannedCoverEdge = false; }
+		// Il testimone erige altrove, nello stesso Prep: se la sua copertura c'e', `ResolveCoverStructures` e' girata.
+		if (Scene.bFallen) { PlanCoverAction(Bed.Witness, TEXT("Action.CreateCover"), Bed.WitnessTarget, ERTHexDirection::W); }
+
+		Out = CoverStunPlayTurn(Test, Run, Bed, bStunned, Scene.bAlreadyCooling, Scene.bFallen);
+		if (Scene.bFallen) { Out.WitnessWAfter = CoverIntegrityOn(Bed.Map, Bed.WitnessTarget, ERTHexDirection::W); }
+		CoverStunCloseBed(Bed);
+		return Out;
+	}
+
+	/** I due turni misurati del flusso a cinque turni della rotazione gratuita, e lo stato in mezzo. */
+	struct FCoverStunRotation
+	{
+		bool bValid = false;
+		FString Label;
+		FCoverStunOutcome Turn3;         //< stordito: il turno del rifiuto; controllo: la rotazione gratuita
+		bool bStunnedAfterTurn3 = false; //< informativo: lo stordimento (durata 2) sopravvive al Cleanup del proprio turno
+		bool bStunnedAfterTurn4 = false; //< premessa del turno 5: lo stordimento e' scaduto nel Cleanup del turno vuoto
+		int32 CooldownAfterTurn4 = -1;   //< premessa del turno 5: ... e la ricarica e' a zero
+		FCoverStunOutcome Turn5;         //< stordito: la rotazione gratuita sopravvissuta; controllo: lo spostamento di ritorno, che si paga
+	};
+
+	/**
+	 * Cinque turni sul pannello ADATTIVO. T1 erige (non stordito, in entrambi i bracci). T2 e' VUOTO: la ricarica dello
+	 * slot, che `Reconfigure` condivide col pannello, scende a zero — prima, un piano di `Reconfigure` verrebbe scartato in
+	 * silenzio da `CanUseAbility` (come in `Heroes.Branth.ReconfigureRefusesInsteadOfGuessing`). T3 pianifica `Reconfigure`
+	 * da W a E, e nel braccio stordito lo stordimento e' applicato dopo il piano. T4 e' VUOTO: lo stordimento (durata
+	 * `StunnedDurationTurns`) sopravvive al Cleanup di T3 e scade in quello di T4, e la ricarica scende a zero. T5 e' NON
+	 * stordito: lo stordito ruota di nuovo la STESSA copertura da W a E; il controllo, che l'ha gia' ruotata al T3, la riporta
+	 * da E a W.
+	 */
+	FCoverStunRotation CoverStunRunRotation(FAutomationTestBase& Test, bool bStunned)
+	{
+		FCoverStunRotation Out;
+		Out.Label = FString::Printf(TEXT("Reconfigure (rotazione gratuita), %s"), bStunned ? TEXT("stordito") : TEXT("controllo"));
+		const FString& Label = Out.Label;
+
+		FCoverStunBed Bed;
+		if (!CoverStunOpenBed(Test, Label, /*bWithWitness=*/ false, Bed)) { return Out; }
+		auto Abort = [&]() { CoverStunCloseBed(Bed); return Out; };
+
+		// Turno 1, NON stordito in nessuno dei due bracci: il pannello ADATTIVO nasce tracciato da `DynamicCovers` con 25
+		// punti struttura, una rotazione gratuita, e non scade da solo.
+		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.KineticPanel"), Bed.Shielded, ERTHexDirection::W,
+				TEXT("Hero.Branth.KineticPanel.Adaptive")))
+		{
+			return Abort();
+		}
+		RunEnvTurn(Bed.TM);
+		if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo e' eretto (25 punti struttura)"), *Label),
+				CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::W), 25))
+		{
+			return Abort();
+		}
+
+		// Turno 2, VUOTO: vedi sopra.
+		RunEnvTurn(Bed.TM);
+		if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo non scade da solo"), *Label),
+				CoverIntegrityOn(Bed.Map, Bed.Shielded, ERTHexDirection::W), 25))
+		{
+			return Abort();
+		}
+
+		// Turno 3, quello del rifiuto (o della rotazione gratuita): si ruota QUELLA copertura da W a E.
+		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded, ERTHexDirection::E))
+		{
+			return Abort();
+		}
+		Out.Turn3 = CoverStunPlayTurn(Test, Label + TEXT(", turno 3"), Bed, bStunned, /*bAlreadyCooling=*/ false, /*bFallen=*/ false);
+		Out.bStunnedAfterTurn3 = Bed.Caster->HasStatus(TAG_Status_Stunned);
+
+		// Turno 4, VUOTO: lo stordimento scade nel suo Cleanup e la ricarica arriva a zero, in entrambi i bracci.
+		RunEnvTurn(Bed.TM);
+		Out.bStunnedAfterTurn4 = Bed.Caster->HasStatus(TAG_Status_Stunned);
+		Out.CooldownAfterTurn4 = Bed.Caster->GetAbilityCooldown(CoverStunSlot);
+		bool bPremises = true;
+		bPremises &= Test.TestFalse(*FString::Printf(TEXT("%s: premessa: lo stordimento e' scaduto nel Cleanup del turno 4"), *Label),
+			Out.bStunnedAfterTurn4);
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la ricarica e' arrivata a zero a fine turno 4"), *Label),
+			Out.CooldownAfterTurn4, 0);
+
+		// Turno 5, NON stordito: lo stordito ruota di nuovo la STESSA copertura (W->E); il controllo la riporta da E a W.
+		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded,
+				bStunned ? ERTHexDirection::E : ERTHexDirection::W))
+		{
+			return Abort();
+		}
+		Out.Turn5 = CoverStunPlayTurn(Test, Label + TEXT(", turno 5"), Bed, /*bStunned=*/ false, /*bAlreadyCooling=*/ false, /*bFallen=*/ false);
+
+		Out.bValid = bPremises && Out.Turn3.bValid && Out.Turn5.bValid;
+		CoverStunCloseBed(Bed);
 		return Out;
 	}
 
@@ -860,139 +1087,305 @@ namespace
 		return FString::Printf(
 			TEXT("%s -> premesse: stordito %d, piano %d, principale-Prep %d, valida %d; azione %s; ")
 			TEXT("bordo W %d>%d, bordo E %d>%d, coperture sulla cella %d; ")
-			TEXT("CoverCreated %d, CoverMoved %d, CoverRejected %d; AbilityActivated %d; ")
-			TEXT("rifiuti Stunned %d, Fallback di ogni causa %d, voci dell'attore %d (id %d); ")
-			TEXT("ricarica %d>%d (Def %d, specchio %d)"),
+			TEXT("CoverCreated %d, CoverMoved %d, CoverRejected %d, testimone W %d; AbilityActivated %d; ")
+			TEXT("rifiuti Stunned %d (di chiunque %d), Fallback di ogni causa %d (di chiunque %d), voci dell'attore %d (id %d); ")
+			TEXT("primo rifiuto: fase %d, azione %s, da %s a %s; ")
+			TEXT("ricarica %d>%d (Def %d, specchio %d), slot prima [%s] dopo [%s]"),
 			*Run, O.bStunnedAtCommit ? 1 : 0, O.bPlanAtCommit ? 1 : 0, O.bMainInPrep ? 1 : 0, O.bValid ? 1 : 0,
 			*O.ActionId.ToString(), O.WBefore, O.WAfter, O.EBefore, O.EAfter, O.CoversAfter,
-			O.Created, O.Moved, O.Rejected, O.Activations,
-			O.StunRefusals, O.AnyFallbacks, O.EntriesOfActor, O.StableId,
-			O.CooldownBefore, O.CooldownAfter, O.DefCooldown, O.MirrorCooldown);
+			O.Created, O.Moved, O.Rejected, O.WitnessWAfter, O.Activations,
+			O.StunRefusals, O.RefusalsAnyUnit, O.AnyFallbacks, O.FallbacksAnyUnit, O.EntriesOfActor, O.StableId,
+			static_cast<int32>(O.RefusalPhase), *O.RefusalActionId.ToString(), *O.RefusalSrc.ToString(), *O.RefusalTgt.ToString(),
+			O.CooldownBefore, O.CooldownAfter, O.DefCooldown, O.MirrorCooldown,
+			*CoverStunSlotsText(O.SlotsBefore), *CoverStunSlotsText(O.SlotsAfter));
 	}
 
-	/** Che cosa ci si aspetta da UNA run, nei due bracci: la lettura del codice di oggi, identica per controllo e stordito. */
-	struct FCoverStunExpect
+	/** Che cosa fa la ricarica dello slot sotto prova, a fine turno. */
+	enum class ECoverStunCooldown : uint8
 	{
-		ECoverStunKind Kind;
-		int32 WAfter;  //< integrita' attesa sul bordo W a fine turno
-		int32 EAfter;  //< ... sul bordo E
-		int32 Created; //< voci `CoverCreated`
-		int32 Moved;   //< voci `CoverMoved`
-		bool bPays;    //< la ricarica parte; falso solo per la rotazione gratuita
+		Free,         //< non parte: il residuo e' 0
+		Starts,       //< parte: `Mirror - 1` — un addebito, poi il decremento del Cleanup
+		KeepsTicking, //< era gia' in corso: `Prima - 1` — non ripagata
 	};
 
-	void CoverStunAssertToday(FAutomationTestBase& Test, const FString& Run, const FCoverStunExpect& X,
-		const FCoverStunOutcome& O)
+	/** Che cosa ci si aspetta da UNA run in UN braccio. */
+	struct FCoverStunExpect
+	{
+		int32 WAfter;                //< integrita' attesa sul bordo W a fine turno
+		int32 EAfter;                //< ... sul bordo E
+		int32 Created;               //< voci `CoverCreated`
+		int32 Moved;                 //< voci `CoverMoved`
+		int32 Rejected;              //< voci `CoverRejected`
+		int32 Activations;           //< eventi `AbilityActivated` dell'attore
+		int32 Refusals;              //< voci di rifiuto per stordimento: 1 dove l'attore e' rifiutato, 0 altrove. E' anche il numero atteso di `Fallback` di ogni causa
+		ECoverStunCooldown Cooldown; //< che cosa fa la ricarica dello slot
+		int32 WitnessW = -1;         //< solo riga «caduto»: integrita' attesa sul bordo W del testimone; -1 = senza testimone
+	};
+
+	/** Una riga della tabella: la scena, e l'attesa nei due bracci. */
+	struct FCoverStunRow
+	{
+		FCoverStunScene Scene;
+		FCoverStunExpect Control; //< non stordito: la lettura del codice, che [D-565] non tocca
+		FCoverStunExpect Stunned; //< stordito: cio' che [D-565] vuole
+	};
+
+	int32 CoverStunExpectedCooldown(const FCoverStunExpect& X, const FCoverStunOutcome& O)
+	{
+		switch (X.Cooldown)
+		{
+		case ECoverStunCooldown::Free:         return 0;
+		case ECoverStunCooldown::Starts:       return O.MirrorCooldown - 1;
+		case ECoverStunCooldown::KeepsTicking: return O.CooldownBefore - 1;
+		}
+		return -1;
+	}
+
+	void CoverStunAssert(FAutomationTestBase& Test, const FString& Run, const FCoverStunExpect& X, const FCoverStunOutcome& O)
 	{
 		Test.TestEqual(*FString::Printf(TEXT("%s: la copertura sul bordo W"), *Run), O.WAfter, X.WAfter);
 		Test.TestEqual(*FString::Printf(TEXT("%s: la copertura sul bordo E"), *Run), O.EAfter, X.EAfter);
 		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverCreated"), *Run), O.Created, X.Created);
 		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverMoved"), *Run), O.Moved, X.Moved);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverRejected"), *Run), O.Rejected, 0);
-		Test.TestEqual(*FString::Printf(TEXT("%s: eventi AbilityActivated dell'attore"), *Run), O.Activations, 1);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento"), *Run), O.StunRefusals, 0);
-		// Il Cleanup decrementa di uno: pagata una volta = `Mirror - 1`; la rotazione gratuita non la spende affatto.
-		Test.TestEqual(*FString::Printf(TEXT("%s: ricarica a fine turno"), *Run),
-			O.CooldownAfter, X.bPays ? O.MirrorCooldown - 1 : 0);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverRejected"), *Run), O.Rejected, X.Rejected);
+		Test.TestEqual(*FString::Printf(TEXT("%s: eventi AbilityActivated dell'attore"), *Run), O.Activations, X.Activations);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, X.Refusals);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, X.Refusals);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, X.Refusals);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, X.Refusals);
+		if (X.Refusals > 0)
+		{
+			// La voce dice CHE azione, DA DOVE, VERSO DOVE e IN CHE FASE: un'azione, una cella o una fase sbagliate nel blocco
+			// passerebbero il solo conteggio.
+			Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto e' di fase Prep"), *Run),
+				static_cast<int32>(O.RefusalPhase), static_cast<int32>(ERTMatchPhase::Prep));
+			Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto nomina l'azione installata"), *Run),
+				O.RefusalActionId.ToString(), O.ActionId.ToString());
+			Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto parte dalla cella di chi agisce"), *Run),
+				O.RefusalSrc.ToString(), O.Home.ToString());
+			Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto mira la cella mirata"), *Run),
+				O.RefusalTgt.ToString(), O.Aimed.ToString());
+		}
+		// Il Cleanup decrementa di uno: `Mirror - 1` = la ricarica e' PARTITA; `Prima - 1` = non e' stata ripagata; 0 = non parte.
+		Test.TestEqual(*FString::Printf(TEXT("%s: ricarica a fine turno"), *Run), O.CooldownAfter, CoverStunExpectedCooldown(X, O));
+		// Un addebito sullo slot sbagliato non deve restare verde perche' si e' letto solo lo slot giusto.
+		Test.TestEqual(*FString::Printf(TEXT("%s: nessun altro slot e' in ricarica a fine turno"), *Run),
+			CoverStunBusyOtherSlots(O.SlotsAfter, CoverStunSlot), 0);
+		if (X.WitnessW >= 0)
+		{
+			Test.TestEqual(*FString::Printf(TEXT("%s: il testimone ha eretto la sua copertura (il Prep e' girato)"), *Run),
+				O.WitnessWAfter, X.WitnessW);
+		}
+	}
+
+	/** Un sito che il rifiuto lo scrive, per il controllo POSITIVO del contatore. */
+	struct FCoverStunControlSite
+	{
+		const TCHAR* ActionId; //< una principale di quel sito
+		ERTMatchPhase Phase;   //< la fase in cui il rifiuto si scrive
+		bool bAimsAtCell;      //< armare una zona mira una CELLA; un'azione ambientale mira un'unita'
+	};
+
+	/**
+	 * Lo stesso predicato dei bracci stordito, su un sito che il rifiuto lo scrive. Senza questo, «nessun rifiuto» sulle
+	 * strutture proverebbe solo che il contatore non vede niente: uno `StableUnitId` a zero o un esito sbagliato nel
+	 * predicato lo renderebbero cieco. Con una voce attesa in una fase nota, uno zero e' una misura.
+	 */
+	void CoverStunPositiveControl(FAutomationTestBase& Test, const FCoverStunControlSite& Site)
+	{
+		const FString Label = FString::Printf(TEXT("controllo positivo (%s)"), Site.ActionId);
+		UWorld* World = MakeEnvWorld();
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), *Label), World)) { return; }
+		SpawnEnvMap(World);
+
+		const FRTCellId Home(0, 0);
+		ARTUnit* Actor = SpawnEnvUnit(World, 0, Home);
+		ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: attore"), *Label), Actor)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: bersaglio"), *Label), Target)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), *Label), TM))
+		{
+			DestroyEnvWorld(World);
+			return;
+		}
+
+		if (Site.bAimsAtCell)
+		{
+			// Armare e' mirare una ZONA: il bersaglio e' una cella, come per le strutture di bordo.
+			RTAbilityFixtures::AddCoreAbilityInSlot(Actor, Site.ActionId, CoverStunSlot);
+			Actor->PlannedAbilityIndex = CoverStunSlot;
+			Actor->PlannedAttackTarget = nullptr;
+			Actor->PlannedAttackCell = FRTCellId(1, 0);
+			Actor->bAttackTargetsCell = true;
+		}
+		else
+		{
+			PlanEnvAction(Actor, Site.ActionId, Target);
+		}
+		Actor->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		RunEnvTurn(TM);
+
+		const int32 Id = Actor->StableUnitId;
+		const int32 Refusals = CoverStunCountRefusals(TM, Id);
+		int32 FoundPhase = -1;
+		FString FoundAction;
+		FString FoundSrc;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (CoverStunIsRefusal(E) && E.UnitId == Id)
+			{
+				FoundPhase = static_cast<int32>(E.Phase);
+				FoundAction = E.ActionId.ToString();
+				FoundSrc = E.SrcCell.ToString();
+				break;
+			}
+		}
+		Test.AddInfo(FString::Printf(TEXT("%s -> rifiuti Stunned %d (id %d), fase %d, azione %s, da %s"),
+			*Label, Refusals, Id, FoundPhase, *FoundAction, *FoundSrc));
+		Test.TestTrue(*FString::Printf(TEXT("%s: l'attore ha uno StableUnitId"), *Label), Id != 0);
+		Test.TestEqual(*FString::Printf(TEXT("%s: il contatore vede il rifiuto di un sito che lo scrive"), *Label), Refusals, 1);
+		Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto e' nella fase del sito"), *Label), FoundPhase, static_cast<int32>(Site.Phase));
+		Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto nomina l'azione"), *Label), FoundAction, FString(Site.ActionId));
+		Test.TestEqual(*FString::Printf(TEXT("%s: il rifiuto parte dalla cella di chi agisce"), *Label), FoundSrc, Home.ToString());
+
+		DestroyEnvWorld(World);
 	}
 }
 
 /**
- * `RIC-5` (#3958): uno stordito davanti a `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure`
- * erige o sposta OGGI la copertura, attiva l'abilita' e paga la ricarica come chi non e' stordito.
+ * `RIC-5` (#3958), [D-565]: uno stordito NON erige e NON sposta una copertura di bordo, e il rifiuto PAGA la ricarica.
  *
- * Sono tutte azioni **principali** di fase Prep (e le premesse lo verificano), quindi per [D-416] (1) uno stordito non
- * dovrebbe poterle usare: se debba, e se le debba pagare, e' la domanda aperta di `RIC-5`. Questo test non la decide —
- * misura lo stato attuale, per due bracci sullo stesso piano. ⚠️ Gli asserti dello STORDITO sono la lettura del codice:
- * quando `RIC-5` sara' deciso si invertono, e chi li inverte non deve toccare il braccio di controllo.
+ * `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure` sono azioni **principali** di fase Prep (le
+ * premesse lo verificano riga per riga), quindi [D-416] (1) le nega come tutte le altre. Il braccio STORDITO di ogni riga
+ * asserisce la regola: la mappa com'era, nessuna struttura e nessuna `AbilityActivated`, UNA voce di rifiuto di fase Prep che
+ * nomina l'azione, la cella di chi agisce e la cella mirata, nessun altro `Fallback`, e la ricarica che PARTE (`Mirror - 1` a
+ * fine turno, dopo il decremento del Cleanup) sul solo slot dell'azione. Il braccio di CONTROLLO e' lo stesso piano senza
+ * stordimento, e non cambia.
  *
- * `Reconfigure` agisce qui su una copertura di MAPPA, che `DynamicCovers` non traccia: lo spostamento si paga. Il caso
- * speculare — la rotazione gratuita del pannello adattivo, che non paga — e' `StunnedCasterTodayStillRotatesForFree`.
+ * Le righe oltre la prima famiglia pinnano DOVE sta la guardia:
+ *  - **gia' in ricarica**: `CanUseAbility` e' falso e il piano si scarta in silenzio PRIMA della guardia — niente voce e
+ *    niente secondo addebito, in entrambi i bracci (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot
+ *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
+ *    il ciclo azzera il piano PRIMA di `CanUseAbility`, quindi nemmeno il Blast ritrova niente da rifiutare;
+ *  - **senza bordo**: il `Reject` di raccolta di chi NON e' stordito resta GRATIS (`RIC-3` non e' deciso) e lascia
+ *    `CoverRejected`; lo stordito e' rifiutato PRIMA di quel `Reject`, quindi paga e non lascia `CoverRejected`;
+ *  - **attore caduto**: il ciclo lo salta prima della guardia — niente voce, nessuno slot si muove. Il testimone vivo che
+ *    erige altrove nello stesso Prep prova che il Prep e' girato: senza, lo zero non distinguerebbe una guardia assente da
+ *    una fase mai eseguita.
+ *
+ * In coda i controlli POSITIVI del contatore: `Action.Overwatch` (Prep) e `Action.Ignite` (Cleanup), principali di siti che
+ * il rifiuto lo scrivono, devono lasciare UNA voce di rifiuto nella fase giusta.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterTodayStillBuildsTest,
-	"RefactorTactics.Actions.CoverStructures.StunnedCasterTodayStillBuilds",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterChangesNothingTest,
+	"RefactorTactics.Actions.CoverStructures.StunnedCasterChangesNothing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStunnedCasterTodayStillBuildsTest::RunTest(const FString&)
+bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 {
-	const FCoverStunExpect Rows[] = {
-		{ ECoverStunKind::CreateCover,  30,  0, 1, 0, true },
-		{ ECoverStunKind::KineticPanel, 30,  0, 1, 0, true },
-		{ ECoverStunKind::Reconfigure,   0, 18, 0, 1, true },
+	using Cd = ECoverStunCooldown;
+	// Colonne dell'attesa: bordo W, bordo E | Created, Moved, Rejected | AbilityActivated, rifiuti | ricarica [| testimone].
+	const FCoverStunRow Rows[] = {
+		// Fresche e complete: il rifiuto prende il posto della struttura, e la ricarica parte lo stesso.
+		{ { ECoverStunKind::CreateCover },
+		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+		{ { ECoverStunKind::KineticPanel },
+		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+		{ { ECoverStunKind::Reconfigure },
+		  /*controllo*/ {  0, 18, 0, 1, 0, 1, 0, Cd::Starts },
+		  /*stordito */ { 18,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+
+		// GIA' IN RICARICA: scarto muto di `CanUseAbility`, prima della guardia. Identico nei due bracci.
+		{ { ECoverStunKind::CreateCover, /*bAlreadyCooling=*/ true },
+		  /*controllo*/ {  0,  0, 0, 0, 0, 0, 0, Cd::KeepsTicking },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 0, Cd::KeepsTicking } },
+		{ { ECoverStunKind::Reconfigure, /*bAlreadyCooling=*/ true },
+		  /*controllo*/ { 18,  0, 0, 0, 0, 0, 0, Cd::KeepsTicking },
+		  /*stordito */ { 18,  0, 0, 0, 0, 0, 0, Cd::KeepsTicking } },
+
+		// SENZA BORDO: chi non e' stordito lascia il `Reject` di raccolta e non paga; lo stordito e' rifiutato prima, e paga.
+		{ { ECoverStunKind::CreateCover, false, /*bNoEdge=*/ true },
+		  /*controllo*/ {  0,  0, 0, 0, 1, 0, 0, Cd::Free },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+		{ { ECoverStunKind::Reconfigure, false, /*bNoEdge=*/ true },
+		  /*controllo*/ { 18,  0, 0, 0, 1, 0, 0, Cd::Free },
+		  /*stordito */ { 18,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+
+		// ATTORE CADUTO: nessuna voce e nessun addebito; l'unica copertura e' quella del testimone.
+		{ { ECoverStunKind::CreateCover, false, false, /*bFallen=*/ true },
+		  /*controllo*/ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30 },
+		  /*stordito */ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30 } },
 	};
 
-	for (const FCoverStunExpect& Row : Rows)
+	for (const FCoverStunRow& Row : Rows)
 	{
 		for (int32 Arm = 0; Arm < 2; ++Arm)
 		{
 			const bool bStunned = Arm == 1;
-			const FString Run = CoverStunRunLabel(Row.Kind, bStunned);
-			const FCoverStunOutcome O = CoverStunRun(*this, Row.Kind, bStunned);
+			const FString Run = CoverStunRunLabel(Row.Scene, bStunned);
+			const FCoverStunOutcome O = CoverStunRun(*this, Row.Scene, bStunned);
 			AddInfo(CoverStunDescribe(Run, O));
 			if (!O.bValid) { return false; }
-			CoverStunAssertToday(*this, Run, Row, O);
+			CoverStunAssert(*this, Run, bStunned ? Row.Stunned : Row.Control, O);
 		}
 	}
 
-	// Controllo POSITIVO del contatore: lo stesso predicato, su un sito che il rifiuto lo scrive (`Action.Ignite` nel
-	// Cleanup, come `Actions.Ignite.StunnedCasterLightsNothing`). Senza, «nessun rifiuto» sul braccio stordito proverebbe
-	// solo che il contatore non vede niente: un `StableUnitId` a zero o un esito sbagliato nel predicato lo renderebbero cieco.
+	// Controlli POSITIVI del contatore, sullo stesso tipo di banco: un sito di Prep e uno di Cleanup.
+	const FCoverStunControlSite Sites[] = {
+		{ TEXT("Action.Overwatch"), ERTMatchPhase::Prep, /*bAimsAtCell=*/ true },
+		{ TEXT("Action.Ignite"), ERTMatchPhase::Cleanup, /*bAimsAtCell=*/ false },
+	};
+	for (const FCoverStunControlSite& Site : Sites)
 	{
-		UWorld* World = MakeEnvWorld();
-		if (!TestNotNull(TEXT("controllo positivo: world di prova"), World)) { return false; }
-		SpawnEnvMap(World);
-
-		ARTUnit* Igniter = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
-		ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TestNotNull(TEXT("controllo positivo: Igniter"), Igniter) || !TestNotNull(TEXT("controllo positivo: Target"), Target)
-			|| !TestNotNull(TEXT("controllo positivo: TM"), TM))
-		{
-			DestroyEnvWorld(World);
-			return false;
-		}
-
-		PlanEnvAction(Igniter, TEXT("Action.Ignite"), Target);
-		Igniter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
-		RunEnvTurn(TM);
-
-		const int32 Refusals = CoverStunCountRefusals(TM, Igniter->StableUnitId);
-		AddInfo(FString::Printf(TEXT("controllo positivo (Action.Ignite, stordito) -> rifiuti Stunned %d (id %d)"),
-			Refusals, Igniter->StableUnitId));
-		TestTrue(TEXT("controllo positivo: l'attore ha uno StableUnitId"), Igniter->StableUnitId != 0);
-		TestEqual(TEXT("controllo positivo: il contatore vede il rifiuto di un sito che lo scrive"), Refusals, 1);
-
-		DestroyEnvWorld(World);
+		CoverStunPositiveControl(*this, Site);
 	}
 	return true;
 }
 
 /**
- * `RIC-5` (#3958): la ROTAZIONE GRATUITA del pannello adattivo, in mano a uno stordito.
+ * `RIC-5` (#3958), [D-565]: la ROTAZIONE GRATUITA del pannello adattivo SOPRAVVIVE al rifiuto.
  *
  * `Hero.Branth.KineticPanel.Adaptive` eretto da chi non e' stordito ha 25 punti struttura, non scade e porta con se' una
- * rotazione gratuita (`FreeRotations` 1 in `DynamicCovers`). Al terzo turno — il secondo e' vuoto, per la ricarica dello
- * slot — `Hero.Branth.Reconfigure` ruota QUELLA copertura da W a E: la rotazione non spende la ricarica. Il braccio stordito
- * differisce dal controllo per lo stordimento applicato al solo terzo turno.
+ * rotazione gratuita (`FreeRotations` 1 in `DynamicCovers`). Cinque turni sullo stesso attore (la sequenza e' in
+ * `CoverStunRunRotation`): T1 erige, T2 e T4 sono vuoti, T3 e T5 pianificano `Hero.Branth.Reconfigure`. Il braccio stordito
+ * riceve lo stordimento solo prima di T3; e' libero a T5.
  *
- * ⚠️ E' il caso in cui «pagare» e «non pagare» si distinguono meglio: uno stordito che oggi ruota gratis e uno che domani
- * fosse rifiutato e pagasse la ricarica intera (D-414: «se si usa un'abilita' si paga») lascerebbero residui diversi.
- * Come per l'altro test, gli asserti dello STORDITO sono la lettura del codice di oggi, non la regola di [D-416].
+ *  - **T3 stordito**: rifiutato. La copertura resta in W (25), nessuno spostamento e nessuna attivazione, UNA voce di rifiuto
+ *    di Prep, la ricarica PARTE. La rotazione gratuita NON si tocca: il rifiuto precede lo spostamento.
+ *  - **T5 stordito, ormai libero**: la STESSA copertura ruota gratis — spostata, ricarica a zero, una attivazione. E' il
+ *    punto del test: se il rifiuto avesse speso il credito, T5 pagherebbe.
+ *  - **Controllo**: stesso flusso senza stordimento. T3 ruota gratis e SPENDE il credito; T5, per riportare la copertura in W,
+ *    PAGA. Il contrasto dimostra che T5 dello stordito e' gratuito solo perche' il credito e' integro.
+ *
+ * ⚠️ E' il caso in cui «il rifiuto paga la ricarica intera» e «la rotazione gratuita non paga» si toccano: uno stordito
+ * rifiutato paga a T3 anche se l'esecuzione sarebbe stata gratuita ([D-414]: «se si usa un'abilita' si paga»), ma non brucia
+ * il credito che l'esecuzione avrebbe consumato.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterTodayStillRotatesForFreeTest,
-	"RefactorTactics.Actions.CoverStructures.StunnedCasterTodayStillRotatesForFree",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterKeepsTheFreeRotationTest,
+	"RefactorTactics.Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStunnedCasterTodayStillRotatesForFreeTest::RunTest(const FString&)
+bool FRTStunnedCasterKeepsTheFreeRotationTest::RunTest(const FString&)
 {
-	const FCoverStunExpect Row = { ECoverStunKind::ReconfigureFree, 0, 25, 0, 1, /*bPays=*/ false };
+	using Cd = ECoverStunCooldown;
+	// Colonne come nell'altro test: bordo W, bordo E | Created, Moved, Rejected | AbilityActivated, rifiuti | ricarica.
+	const FCoverStunExpect Turn3Control = {  0, 25, 0, 1, 0, 1, 0, Cd::Free };   // ruota gratis e spende il credito
+	const FCoverStunExpect Turn3Stunned = { 25,  0, 0, 0, 0, 0, 1, Cd::Starts }; // rifiutato: la copertura resta, la ricarica parte
+	const FCoverStunExpect Turn5Control = { 25,  0, 0, 1, 0, 1, 0, Cd::Starts }; // E->W: il credito e' speso, quindi PAGA
+	const FCoverStunExpect Turn5Stunned = {  0, 25, 0, 1, 0, 1, 0, Cd::Free };   // W->E: il credito e' integro, quindi e' GRATIS
 
 	for (int32 Arm = 0; Arm < 2; ++Arm)
 	{
 		const bool bStunned = Arm == 1;
-		const FString Run = CoverStunRunLabel(Row.Kind, bStunned);
-		const FCoverStunOutcome O = CoverStunRun(*this, Row.Kind, bStunned);
-		AddInfo(CoverStunDescribe(Run, O));
-		if (!O.bValid) { return false; }
-		CoverStunAssertToday(*this, Run, Row, O);
+		const FCoverStunRotation R = CoverStunRunRotation(*this, bStunned);
+		AddInfo(CoverStunDescribe(R.Label + TEXT(", turno 3"), R.Turn3));
+		AddInfo(FString::Printf(TEXT("%s -> stordimento dopo il turno 3 %d, dopo il turno 4 %d; ricarica dopo il turno 4 %d"),
+			*R.Label, R.bStunnedAfterTurn3 ? 1 : 0, R.bStunnedAfterTurn4 ? 1 : 0, R.CooldownAfterTurn4));
+		AddInfo(CoverStunDescribe(R.Label + TEXT(", turno 5"), R.Turn5));
+		if (!R.bValid) { return false; }
+
+		CoverStunAssert(*this, R.Label + TEXT(", turno 3"), bStunned ? Turn3Stunned : Turn3Control, R.Turn3);
+		CoverStunAssert(*this, R.Label + TEXT(", turno 5"), bStunned ? Turn5Stunned : Turn5Control, R.Turn5);
 	}
 	return true;
 }
