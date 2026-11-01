@@ -171,7 +171,7 @@ Il cooldown risponde a *«ogni quanto posso ripeterlo?»*, e quel «ripeterlo» 
 | la def non porta un effetto utile (`NoEffect`) | mai — è un difetto del **dato** | **sì**: un catalogo rotto non è una leva di bilanciamento |
 | nulla da purificare (`Cleanse` a vuoto) | alla risoluzione | **sì**: l'azione ha guardato, ed è un esito |
 | attacco senza nessun colpo: area su cella vuota, bersaglio scattato, linea di tiro bloccata a risoluzione, mira su un altro piano, bersaglio già morto, tiro cappato dal Fumo non osservato | alla risoluzione | **sì** dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)): era valida quando è partita. ⌫ *Prima no: per l'attacco il criterio era il colpo prodotto.* |
-| stordimento (`Status.Stunned`): l'azione principale è negata | in pianificazione e alla risoluzione | **sì** dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)): chi la dichiara l'ha usata |
+| stordimento (`Status.Stunned`): l'azione principale è negata | in pianificazione e alla risoluzione | **sì** dal 2026-10-31 ([D-563](../decisions/RT_PDR_00_Decision_Log.md)): chi la dichiara l'ha usata. Per la cura e la purificazione la negazione è d'autore dal 2026-11-01 ([D-564](../decisions/RT_PDR_00_Decision_Log.md)); che paghino ne è l'applicazione, confermata dall'autore il 2026-11-01 con «si a tuttp» (risposta cumulativa, lettura dell'assistente: [D-564](../decisions/RT_PDR_00_Decision_Log.md)) |
 | tiro a cella oltre la portata dichiarata, distanza minima | in **pianificazione**: il click li rifiuta | **no**: come «fuori portata», invariato |
 
 ⚠️ **Lo slot si spende comunque**, e i due assi non si confondono: l'unità che ha dichiarato una cura ha speso
