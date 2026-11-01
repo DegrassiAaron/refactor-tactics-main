@@ -570,6 +570,433 @@ bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `RIC-5` (#3958) — che cosa fa OGGI uno stordito davanti a una struttura di BORDO.
+//
+// [D-416] (1) toglie allo stordito «l'azione principale e la reazione per la sua durata». Il rifiuto e'
+// implementato PER SITO — `ResolvePrep`, `CollectAttackIntents`, `ResolveEnvironment`, `CollectHealActions` e
+// `ResolveCleanseActions` lo scrivono — e `ResolveCoverStructures` non e' fra loro: `ResolvePrep` la chiama PRIMA
+// del ciclo che rifiuta, e lei consuma il piano di chi dichiara uno `StructureOp` senza passare da
+// `RefuseMainActionIfStunned`. Lo dicevano il commento di `EmitAbilityActivated` in quel ramo («Il caso non ha
+// test») e `RIC-5` di `docs/OPEN_DECISIONS.md`: **letto nel codice, mai eseguito**. Questo banco lo esegue.
+//
+// 🔴 **E' una CARATTERIZZAZIONE, non una regola.** Gli asserti sul braccio STORDITO dichiarano la lettura del
+// codice di oggi — la struttura si erige o si sposta, l'attivazione c'e', nessun rifiuto, la ricarica parte come
+// per chi non e' stordito —, NON cio' che [D-416] chiede. Se `RIC-5` sara' deciso nel senso di negarle, quegli
+// asserti si INVERTONO insieme al codice: e' il loro scopo. Un rosso qui, prima di quella decisione, vuol dire
+// che la lettura era sbagliata: si riportano i valori veri, non si ritocca l'asserto.
+//
+// ⚠️ **Ogni azione ha il suo braccio di CONTROLLO**: stessa unita', stesso piano, mondo ricostruito da capo,
+// senza stordimento. Senza, «nessun rifiuto» sarebbe verde anche se il banco non facesse succedere niente. In
+// coda c'e' il controllo del CONTATORE dei rifiuti: lo stesso predicato, su un sito che il rifiuto lo scrive.
+//
+// Prefisso `CoverStun*` negli helper: unity build, namespace anonimi fusi con gli altri file di test.
+// =====================================================================================================
+namespace
+{
+	/** La struttura di bordo che l'attore del banco `RIC-5` pianifica. */
+	enum class ECoverStunKind : uint8
+	{
+		CreateCover,     //< `Action.CreateCover` del catalogo core: erige
+		KineticPanel,    //< `Hero.Branth.KineticPanel` senza variante: erige, 30 punti struttura per due turni
+		Reconfigure,     //< `Hero.Branth.Reconfigure` su una copertura di MAPPA: sposta, e paga (non e' in `DynamicCovers`)
+		ReconfigureFree, //< `Hero.Branth.Reconfigure` sul pannello ADATTIVO eretto prima: sposta, e la rotazione e' gratuita
+	};
+
+	/**
+	 * Lo slot dell'azione sotto prova. `PlanCoverAction` e `PlanHeroCoverAction` scrivono sempre il 3, e con due sole
+	 * unita' nel mondo gli indici dell'UNITA' sono 0 e 1: un pagamento scritto con l'indice sbagliato (quello
+	 * dell'unita' al posto di quello dell'abilita') non resterebbe invisibile.
+	 */
+	constexpr int32 CoverStunSlot = 3;
+
+	/** Tutto cio' che una run del banco misura. I campi `premessa` decidono se la run VALE: se mancano, non si deduce nulla. */
+	struct FCoverStunOutcome
+	{
+		bool bValid = false;
+		bool bStunnedAtCommit = false;  //< premessa: `HasStatus(Stunned)` un attimo prima del turno
+		bool bPlanAtCommit = false;     //< premessa: il piano c'e' ancora un attimo prima del turno
+		bool bMainInPrep = false;       //< premessa: l'azione e' una PRINCIPALE di fase Prep, cioe' la classe che [D-416] nega
+		FName ActionId;                 //< l'azione installata nello slot
+		int32 StableId = 0;             //< premessa: dopo il turno non e' 0 (a zero, ogni predicato su `UnitId` e' cieco)
+		int32 DefCooldown = -1;         //< `Def.CooldownTurns` dell'azione
+		int32 MirrorCooldown = -1;      //< lo specchio `URTActionData::CooldownTurns`, che e' quello che scrive `ConsumeAbility`
+		int32 CooldownBefore = -1;      //< residuo nello slot prima del turno (premessa: 0, l'azione e' utilizzabile)
+		int32 CooldownAfter = -1;       //< residuo a fine turno: il Cleanup decrementa di uno, quindi `Mirror - 1` = pagata una volta
+		int32 WBefore = 0;              //< integrita' sul bordo W della cella bersaglio prima del turno
+		int32 WAfter = 0;               //< ... e dopo
+		int32 EBefore = 0;              //< integrita' sul bordo E prima del turno
+		int32 EAfter = 0;               //< ... e dopo
+		int32 CoversAfter = 0;          //< coperture presenti sulla cella bersaglio a fine turno
+		int32 Created = 0;              //< voci ambientali `CoverCreated`
+		int32 Moved = 0;                //< voci ambientali `CoverMoved`
+		int32 Rejected = 0;             //< voci ambientali `CoverRejected`
+		int32 Activations = 0;          //< eventi `AbilityActivated` dell'attore
+		int32 StunRefusals = 0;         //< voci `Fallback`/`Cancelled`/`Stunned` dell'attore: oggi attese a zero
+		int32 AnyFallbacks = 0;         //< voci `Fallback` dell'attore, di qualunque causa
+		int32 EntriesOfActor = 0;       //< tutte le voci del TurnLog che nominano l'attore
+	};
+
+	/** Le voci `Fallback`/`Cancelled` per stordimento di UNA unita': e' il predicato di `Status.StunDeniedMainActionPaysItsCooldown`. */
+	int32 CoverStunCountRefusals(const ARTTurnManager* TM, int32 UnitId)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned) && E.UnitId == UnitId)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+
+	/** Gli eventi `AbilityActivated` che hanno quell'unita' per sorgente. */
+	int32 CoverStunCountActivations(const ARTTurnManager* TM, int32 UnitId)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == UnitId) { ++N; }
+		}
+		return N;
+	}
+
+	/** Un'azione del kit di Branth, cercata per ActionId e non per indice: l'indice scivola se un'azione core manca (vedi `MakeBranth`). */
+	URTActionData* CoverStunBranthAction(const TCHAR* ActionId)
+	{
+		URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+		if (!Branth) { return nullptr; }
+		const TObjectPtr<URTActionData>* Found = Branth->Actions.FindByPredicate(
+			[ActionId](const TObjectPtr<URTActionData>& Action) { return Action && Action->Def.ActionId == FName(ActionId); });
+		return Found ? Found->Get() : nullptr;
+	}
+
+	const TCHAR* CoverStunKindName(ECoverStunKind Kind)
+	{
+		switch (Kind)
+		{
+		case ECoverStunKind::CreateCover:     return TEXT("CreateCover");
+		case ECoverStunKind::KineticPanel:    return TEXT("KineticPanel");
+		case ECoverStunKind::Reconfigure:     return TEXT("Reconfigure");
+		case ECoverStunKind::ReconfigureFree: return TEXT("Reconfigure (rotazione gratuita)");
+		}
+		return TEXT("?");
+	}
+
+	FString CoverStunRunLabel(ECoverStunKind Kind, bool bStunned)
+	{
+		return FString::Printf(TEXT("%s, %s"), CoverStunKindName(Kind), bStunned ? TEXT("stordito") : TEXT("controllo"));
+	}
+
+	/**
+	 * UNA run del banco: un mondo costruito da capo, un attore con il suo piano, un turno (l'ultimo) misurato.
+	 *
+	 * Il braccio STORDITO e quello di CONTROLLO differiscono per UNA riga — `ApplyStatus(Stunned)` subito prima del
+	 * commit, dopo che il piano e' scritto — e le premesse lo verificano invece di darlo per scontato.
+	 *
+	 * `ReconfigureFree` gioca tre turni, e solo l'ultimo ha lo stordimento: l'adattivo erige (turno 1), un turno vuoto
+	 * fa scendere la ricarica dello slot (che `Reconfigure` condivide col pannello), e al terzo si ruota la copertura
+	 * che `DynamicCovers` traccia con una rotazione gratuita.
+	 */
+	FCoverStunOutcome CoverStunRun(FAutomationTestBase& Test, ECoverStunKind Kind, bool bStunned)
+	{
+		FCoverStunOutcome Out;
+		const FString Run = CoverStunRunLabel(Kind, bStunned);
+
+		UWorld* World = MakeEnvWorld();
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), *Run), World)) { return Out; }
+		ARTHexMapActor* MapActor = SpawnEnvMap(World);
+		URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+
+		const FRTCellId Home(0, 0);
+		const FRTCellId Shielded(1, 0); // la cella che riceve la struttura, adiacente a Home
+		ARTUnit* Caster = SpawnEnvUnit(World, 0, Home);
+		// Un avversario inerte e lontano: senza nemici la partita finirebbe al primo turno (`EvaluateOutcome`).
+		ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: mappa"), *Run), Map)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Caster"), *Run), Caster)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Foe"), *Run), Foe)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), *Run), TM))
+		{
+			DestroyEnvWorld(World);
+			return Out;
+		}
+
+		// Una run che non puo' continuare rende cio' che ha misurato finora, con `bValid` falso.
+		auto Abort = [&]() { DestroyEnvWorld(World); return Out; };
+
+		switch (Kind)
+		{
+		case ECoverStunKind::CreateCover:
+			PlanCoverAction(Caster, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::W);
+			break;
+
+		case ECoverStunKind::KineticPanel:
+		{
+			URTActionData* Panel = CoverStunBranthAction(TEXT("Hero.Branth.KineticPanel"));
+			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: KineticPanel nel kit di Branth"), *Run), Panel)) { return Abort(); }
+			PlanHeroCoverAction(Caster, Panel, Shielded, ERTHexDirection::W);
+			break;
+		}
+
+		case ECoverStunKind::Reconfigure:
+		{
+			// Una copertura gia' in campo, ammaccata (18 invece di 30) e NON tracciata da `DynamicCovers`: nessuna
+			// rotazione gratuita, quindi lo spostamento si paga.
+			if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura di mappa e' posta"), *Run),
+					URTHexCoverLibrary::AddCover(Map, Shielded, ERTHexDirection::W, ERTHexCoverType::Low, 18)))
+			{
+				return Abort();
+			}
+			URTActionData* Reconfigure = CoverStunBranthAction(TEXT("Hero.Branth.Reconfigure"));
+			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: Reconfigure nel kit di Branth"), *Run), Reconfigure)) { return Abort(); }
+			PlanHeroCoverAction(Caster, Reconfigure, Shielded, ERTHexDirection::E);
+			break;
+		}
+
+		case ECoverStunKind::ReconfigureFree:
+		{
+			// Turno 1, NON stordito in nessuno dei due bracci: il pannello ADATTIVO nasce tracciato da `DynamicCovers`
+			// con 25 punti struttura, una rotazione gratuita, e non scade da solo.
+			URTActionData* Panel = CoverStunBranthAction(TEXT("Hero.Branth.KineticPanel"));
+			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: KineticPanel nel kit di Branth"), *Run), Panel)) { return Abort(); }
+			PlanHeroCoverAction(Caster, Panel, Shielded, ERTHexDirection::W, TEXT("Hero.Branth.KineticPanel.Adaptive"));
+			RunEnvTurn(TM);
+			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo e' eretto (25 punti struttura)"), *Run),
+					CoverIntegrityOn(Map, Shielded, ERTHexDirection::W), 25))
+			{
+				return Abort();
+			}
+
+			// Turno 2, VUOTO: la ricarica del pannello sta nello stesso slot che `Reconfigure` occupera', e finche' non
+			// e' scesa a zero il piano verrebbe scartato in silenzio da `CanUseAbility` (come in
+			// `Heroes.Branth.ReconfigureRefusesInsteadOfGuessing`).
+			RunEnvTurn(TM);
+			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il pannello adattivo non scade da solo"), *Run),
+					CoverIntegrityOn(Map, Shielded, ERTHexDirection::W), 25))
+			{
+				return Abort();
+			}
+
+			// Turno 3, quello misurato: si ruota QUELLA copertura da W a E.
+			URTActionData* Reconfigure = CoverStunBranthAction(TEXT("Hero.Branth.Reconfigure"));
+			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: Reconfigure nel kit di Branth"), *Run), Reconfigure)) { return Abort(); }
+			PlanHeroCoverAction(Caster, Reconfigure, Shielded, ERTHexDirection::E);
+			break;
+		}
+		}
+
+		const URTActionData* Installed = Caster->GetAbility(CoverStunSlot);
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'azione e' nello slot %d"), *Run, CoverStunSlot), Installed))
+		{
+			return Abort();
+		}
+		Out.ActionId = Installed->Def.ActionId;
+		Out.bMainInPrep = Installed->Def.Slot == ERTActionSlot::Main
+			&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep;
+		Out.DefCooldown = Installed->Def.CooldownTurns;
+		Out.MirrorCooldown = Installed->CooldownTurns;
+		Out.CooldownBefore = Caster->GetAbilityCooldown(CoverStunSlot);
+		Out.WBefore = CoverIntegrityOn(Map, Shielded, ERTHexDirection::W);
+		Out.EBefore = CoverIntegrityOn(Map, Shielded, ERTHexDirection::E);
+
+		// L'UNICA riga che separa i due bracci, DOPO il piano: l'ordine e' quello di `PagaGiraStordito`.
+		if (bStunned) { Caster->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		Out.bStunnedAtCommit = Caster->HasStatus(TAG_Status_Stunned);
+		Out.bPlanAtCommit = Caster->PlannedAbilityIndex == CoverStunSlot;
+
+		bool bPremises = true;
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo nel braccio stordito"), *Run),
+			Out.bStunnedAtCommit, bStunned);
+		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il piano e' nello slot %d al commit"), *Run, CoverStunSlot),
+			Out.bPlanAtCommit);
+		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: e' un'azione PRINCIPALE di fase Prep"), *Run),
+			Out.bMainInPrep);
+		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'azione e' utilizzabile (nessuna ricarica residua)"), *Run),
+			Out.CooldownBefore, 0);
+		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: ricarica dichiarata e specchio coincidono e sono positivi"), *Run),
+			Out.DefCooldown > 0 && Out.DefCooldown == Out.MirrorCooldown);
+
+		RunEnvTurn(TM);
+
+		Out.StableId = Caster->StableUnitId;
+		Out.CooldownAfter = Caster->GetAbilityCooldown(CoverStunSlot);
+		Out.WAfter = CoverIntegrityOn(Map, Shielded, ERTHexDirection::W);
+		Out.EAfter = CoverIntegrityOn(Map, Shielded, ERTHexDirection::E);
+		if (const FRTHexCellData* TargetCell = Map->FindCell(Shielded))
+		{
+			for (const FRTHexCover& Cover : TargetCell->Covers)
+			{
+				if (Cover.Type != ERTHexCoverType::None) { ++Out.CoversAfter; }
+			}
+		}
+		Out.Created = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated);
+		Out.Moved = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverMoved);
+		Out.Rejected = CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected);
+		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'attore ha uno StableUnitId"), *Run), Out.StableId != 0);
+		if (Out.StableId != 0)
+		{
+			Out.Activations = CoverStunCountActivations(TM, Out.StableId);
+			Out.StunRefusals = CoverStunCountRefusals(TM, Out.StableId);
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+			{
+				if (E.UnitId != Out.StableId) { continue; }
+				++Out.EntriesOfActor;
+				if (E.Category == ERTLogCategory::Fallback) { ++Out.AnyFallbacks; }
+			}
+		}
+
+		Out.bValid = bPremises;
+		DestroyEnvWorld(World);
+		return Out;
+	}
+
+	/** La riga che il referto riporta per una run: TUTTI gli osservabili, anche quelli non asseriti. */
+	FString CoverStunDescribe(const FString& Run, const FCoverStunOutcome& O)
+	{
+		return FString::Printf(
+			TEXT("%s -> premesse: stordito %d, piano %d, principale-Prep %d, valida %d; azione %s; ")
+			TEXT("bordo W %d>%d, bordo E %d>%d, coperture sulla cella %d; ")
+			TEXT("CoverCreated %d, CoverMoved %d, CoverRejected %d; AbilityActivated %d; ")
+			TEXT("rifiuti Stunned %d, Fallback di ogni causa %d, voci dell'attore %d (id %d); ")
+			TEXT("ricarica %d>%d (Def %d, specchio %d)"),
+			*Run, O.bStunnedAtCommit ? 1 : 0, O.bPlanAtCommit ? 1 : 0, O.bMainInPrep ? 1 : 0, O.bValid ? 1 : 0,
+			*O.ActionId.ToString(), O.WBefore, O.WAfter, O.EBefore, O.EAfter, O.CoversAfter,
+			O.Created, O.Moved, O.Rejected, O.Activations,
+			O.StunRefusals, O.AnyFallbacks, O.EntriesOfActor, O.StableId,
+			O.CooldownBefore, O.CooldownAfter, O.DefCooldown, O.MirrorCooldown);
+	}
+
+	/** Che cosa ci si aspetta da UNA run, nei due bracci: la lettura del codice di oggi, identica per controllo e stordito. */
+	struct FCoverStunExpect
+	{
+		ECoverStunKind Kind;
+		int32 WAfter;  //< integrita' attesa sul bordo W a fine turno
+		int32 EAfter;  //< ... sul bordo E
+		int32 Created; //< voci `CoverCreated`
+		int32 Moved;   //< voci `CoverMoved`
+		bool bPays;    //< la ricarica parte; falso solo per la rotazione gratuita
+	};
+
+	void CoverStunAssertToday(FAutomationTestBase& Test, const FString& Run, const FCoverStunExpect& X,
+		const FCoverStunOutcome& O)
+	{
+		Test.TestEqual(*FString::Printf(TEXT("%s: la copertura sul bordo W"), *Run), O.WAfter, X.WAfter);
+		Test.TestEqual(*FString::Printf(TEXT("%s: la copertura sul bordo E"), *Run), O.EAfter, X.EAfter);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverCreated"), *Run), O.Created, X.Created);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverMoved"), *Run), O.Moved, X.Moved);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverRejected"), *Run), O.Rejected, 0);
+		Test.TestEqual(*FString::Printf(TEXT("%s: eventi AbilityActivated dell'attore"), *Run), O.Activations, 1);
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento"), *Run), O.StunRefusals, 0);
+		// Il Cleanup decrementa di uno: pagata una volta = `Mirror - 1`; la rotazione gratuita non la spende affatto.
+		Test.TestEqual(*FString::Printf(TEXT("%s: ricarica a fine turno"), *Run),
+			O.CooldownAfter, X.bPays ? O.MirrorCooldown - 1 : 0);
+	}
+}
+
+/**
+ * `RIC-5` (#3958): uno stordito davanti a `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure`
+ * erige o sposta OGGI la copertura, attiva l'abilita' e paga la ricarica come chi non e' stordito.
+ *
+ * Sono tutte azioni **principali** di fase Prep (e le premesse lo verificano), quindi per [D-416] (1) uno stordito non
+ * dovrebbe poterle usare: se debba, e se le debba pagare, e' la domanda aperta di `RIC-5`. Questo test non la decide —
+ * misura lo stato attuale, per due bracci sullo stesso piano. ⚠️ Gli asserti dello STORDITO sono la lettura del codice:
+ * quando `RIC-5` sara' deciso si invertono, e chi li inverte non deve toccare il braccio di controllo.
+ *
+ * `Reconfigure` agisce qui su una copertura di MAPPA, che `DynamicCovers` non traccia: lo spostamento si paga. Il caso
+ * speculare — la rotazione gratuita del pannello adattivo, che non paga — e' `StunnedCasterTodayStillRotatesForFree`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterTodayStillBuildsTest,
+	"RefactorTactics.Actions.CoverStructures.StunnedCasterTodayStillBuilds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedCasterTodayStillBuildsTest::RunTest(const FString&)
+{
+	const FCoverStunExpect Rows[] = {
+		{ ECoverStunKind::CreateCover,  30,  0, 1, 0, true },
+		{ ECoverStunKind::KineticPanel, 30,  0, 1, 0, true },
+		{ ECoverStunKind::Reconfigure,   0, 18, 0, 1, true },
+	};
+
+	for (const FCoverStunExpect& Row : Rows)
+	{
+		for (int32 Arm = 0; Arm < 2; ++Arm)
+		{
+			const bool bStunned = Arm == 1;
+			const FString Run = CoverStunRunLabel(Row.Kind, bStunned);
+			const FCoverStunOutcome O = CoverStunRun(*this, Row.Kind, bStunned);
+			AddInfo(CoverStunDescribe(Run, O));
+			if (!O.bValid) { return false; }
+			CoverStunAssertToday(*this, Run, Row, O);
+		}
+	}
+
+	// Controllo POSITIVO del contatore: lo stesso predicato, su un sito che il rifiuto lo scrive (`Action.Ignite` nel
+	// Cleanup, come `Actions.Ignite.StunnedCasterLightsNothing`). Senza, «nessun rifiuto» sul braccio stordito proverebbe
+	// solo che il contatore non vede niente: un `StableUnitId` a zero o un esito sbagliato nel predicato lo renderebbero cieco.
+	{
+		UWorld* World = MakeEnvWorld();
+		if (!TestNotNull(TEXT("controllo positivo: world di prova"), World)) { return false; }
+		SpawnEnvMap(World);
+
+		ARTUnit* Igniter = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("controllo positivo: Igniter"), Igniter) || !TestNotNull(TEXT("controllo positivo: Target"), Target)
+			|| !TestNotNull(TEXT("controllo positivo: TM"), TM))
+		{
+			DestroyEnvWorld(World);
+			return false;
+		}
+
+		PlanEnvAction(Igniter, TEXT("Action.Ignite"), Target);
+		Igniter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		RunEnvTurn(TM);
+
+		const int32 Refusals = CoverStunCountRefusals(TM, Igniter->StableUnitId);
+		AddInfo(FString::Printf(TEXT("controllo positivo (Action.Ignite, stordito) -> rifiuti Stunned %d (id %d)"),
+			Refusals, Igniter->StableUnitId));
+		TestTrue(TEXT("controllo positivo: l'attore ha uno StableUnitId"), Igniter->StableUnitId != 0);
+		TestEqual(TEXT("controllo positivo: il contatore vede il rifiuto di un sito che lo scrive"), Refusals, 1);
+
+		DestroyEnvWorld(World);
+	}
+	return true;
+}
+
+/**
+ * `RIC-5` (#3958): la ROTAZIONE GRATUITA del pannello adattivo, in mano a uno stordito.
+ *
+ * `Hero.Branth.KineticPanel.Adaptive` eretto da chi non e' stordito ha 25 punti struttura, non scade e porta con se' una
+ * rotazione gratuita (`FreeRotations` 1 in `DynamicCovers`). Al terzo turno — il secondo e' vuoto, per la ricarica dello
+ * slot — `Hero.Branth.Reconfigure` ruota QUELLA copertura da W a E: la rotazione non spende la ricarica. Il braccio stordito
+ * differisce dal controllo per lo stordimento applicato al solo terzo turno.
+ *
+ * ⚠️ E' il caso in cui «pagare» e «non pagare» si distinguono meglio: uno stordito che oggi ruota gratis e uno che domani
+ * fosse rifiutato e pagasse la ricarica intera (D-414: «se si usa un'abilita' si paga») lascerebbero residui diversi.
+ * Come per l'altro test, gli asserti dello STORDITO sono la lettura del codice di oggi, non la regola di [D-416].
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterTodayStillRotatesForFreeTest,
+	"RefactorTactics.Actions.CoverStructures.StunnedCasterTodayStillRotatesForFree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedCasterTodayStillRotatesForFreeTest::RunTest(const FString&)
+{
+	const FCoverStunExpect Row = { ECoverStunKind::ReconfigureFree, 0, 25, 0, 1, /*bPays=*/ false };
+
+	for (int32 Arm = 0; Arm < 2; ++Arm)
+	{
+		const bool bStunned = Arm == 1;
+		const FString Run = CoverStunRunLabel(Row.Kind, bStunned);
+		const FCoverStunOutcome O = CoverStunRun(*this, Row.Kind, bStunned);
+		AddInfo(CoverStunDescribe(Run, O));
+		if (!O.bValid) { return false; }
+		CoverStunAssertToday(*this, Run, Row, O);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcRangeTest,
 	"RefactorTactics.Actions.ModifyArc.RejectsOutOfRange",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
