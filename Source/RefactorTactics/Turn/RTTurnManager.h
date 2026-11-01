@@ -1989,7 +1989,8 @@ protected:
 	void ApplyDisplacements(FRTBlastContext& Ctx);
 
 	/**
-	 * Decide QUALI attaccanti pagano — i sopravvissuti.
+	 * Decide QUALI attaccanti pagano — i sopravvissuti che hanno lasciato un colpo e, dal 2026-10-31 ([D-563]), quelli la
+	 * cui azione e' PARTITA senza lasciarne uno (`IntentoPartitoSenzaColpo`, in `RTTurnManager_Blast.cpp`).
 	 *
 	 * Assegnava anche energia, o in alternativa la voce di log `Ultimate!` quando l'abilita' aveva un costo.
 	 * [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay, e con essa
@@ -3333,10 +3334,12 @@ protected:
 	 * Se l'unita' e' **stordita**, cancella l'azione principale che stava per risolvere e lascia la voce che
 	 * ne dice il motivo. Torna `true` quando ha rifiutato, cioe' quando il chiamante deve saltare l'azione.
 	 *
-	 * 🔑 **Una funzione e non due blocchi**, perche' i siti sono **due**: l'azione principale si consuma nel
-	 * **Prep** (Overwatch e predittive si ARMANO li') e nel **Blast** (tutto il resto). Scrivere il rifiuto
-	 * una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha girato la
-	 * suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso.
+	 * 🔑 **Una funzione e non un blocco per sito**, perche' i siti sono piu' d'uno: l'azione principale si consuma nel
+	 * **Prep** (Overwatch e predittive si ARMANO li'), nel **Blast** (`CollectAttackIntents`, e prima di lui
+	 * `ResolveCleanseActions` e `CollectHealActions`, che azzerano il piano) e nel **Cleanup** (`ResolveEnvironment`).
+	 * Scrivere il rifiuto una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha
+	 * girato la suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso. Il
+	 * pagamento della ricarica ([D-563]) resta al chiamante: la sede della scrittura cambia da sito a sito.
 	 *
 	 * ⛔ **Non tocca il movimento** ([D-416]): rifiuta l'azione, non il percorso. Quello e' `Root`.
 	 */

@@ -3610,8 +3610,9 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->ClearPlannedAttack();
 
-		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' il TERZO dei tre siti in
-		// cui una principale si consuma — gli altri due sono `ResolvePrep` e `CollectAttackIntents`. Le
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' uno dei siti in cui una
+		// principale si consuma — gli altri sono `ResolvePrep`, `CollectAttackIntents` e, dal 2026-11-01 ([D-564]),
+		// `ResolveCleanseActions` e `CollectHealActions`. Le
 		// ambientali (`Ignite`, `CreateWater`, `Electrify`, `MistVeil`) sono principali a tutti gli effetti:
 		// `ERTActionSlot::Main` e' il default di `ShippedAction`, e nessuna di loro lo sovrascrive.
 		//
@@ -4630,7 +4631,7 @@ void ARTTurnManager::ResolvePrep()
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
 
-		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e il Prep e' **il primo** dei due siti
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e il Prep e' **uno** dei siti
 		// in cui una principale si consuma: qui si ARMANO Overwatch e predittive, e armare costa l'azione
 		// principale (catalogo §1). Senza questa riga uno stordito armava l'Overwatch e sparava nel Move — non
 		// e' un'ipotesi, e' cio' che `Status.StunSilencesAnArmedWatcher` ha misurato prima che ci fosse.
@@ -4639,7 +4640,8 @@ void ARTTurnManager::ResolvePrep()
 		// `ConsumeAbility`, quindi il cooldown non parte per una scommessa che non e' stata piazzata. Cio'
 		// che cambia fra i siti e' solo CHI azzera il piano — qui la riga sotto, nel Blast la cima del ciclo.
 		// ⌫ **Ritrattato il 2026-10-31** dalla decisione d'autore «se si usa una abilita' si paga» («Lo stordito
-		// (D-416) paga?» «si»; [D-414] alla lettera): il piano si perde e la RICARICA PARTE, in tutti e tre i siti. Il
+		// (D-416) paga?» «si»; [D-414] alla lettera): il piano si perde e la RICARICA PARTE, in ogni sito che la consuma
+		// (e dal 2026-11-01 anche per la cura e la purificazione, [D-564]). Il
 		// testo qui sopra resta perche' dice come e' nato il rifiuto, non cosa vale oggi.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
