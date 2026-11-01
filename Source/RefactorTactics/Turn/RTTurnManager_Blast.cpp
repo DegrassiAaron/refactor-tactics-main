@@ -256,8 +256,14 @@ namespace
 
 	/**
 	 * 🔴 **LA TABELLA DELLE CAUSE di «se si usa una abilita' si paga»** — decisione d'autore del 2026-10-31 su
-	 * [D-414] (`#3134`): l'UNICO punto in cui si decide quale causa e' gia' una causa di PAGAMENTO. Togliere una
-	 * causa dalla regola e' togliere una riga da qui.
+	 * [D-414] (`#3134`): dice se il MOTIVO con cui un'azione e' nata e' gia' una causa di PAGAMENTO.
+	 * ⚠️ **Non e' l'unica sede della regola, e togliere una causa NON e' sempre togliere una riga da qui**: per un
+	 * intento gia' nato, che sia partito senza lasciare un colpo lo dice `IntentoPartitoSenzaColpo`, con una clausola per
+	 * canale (`OtherLayerIntents`, `BlockedIntents`, `TerrainCappedIntents`, `Footprints`), e `R8` e l'Interrupt come
+	 * attore passano dal lambda `AzionePartita` di `ApplyInterrupts`, che chiama quel predicato. Basta una riga di qui
+	 * solo per `R6` (`TargetDead`); `R4` e `R5` sono le clausole `BlockedIntents` e `OtherLayerIntents`, `R7` la clausola
+	 * `TerrainCappedIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e `R3`), e `R3` un
+	 * discriminante che oggi non c'e': divide con `R1` la riga `None` e la clausola `Footprints`.
 	 *
 	 * Le etichette `R1`..`R10` che questo file, i suoi commenti e i test citano sono quelle di [D-563], clausole
 	 * (2) e (3): PAGANO `R1` area in portata che non trova nessuno, `R2` azione principale negata dallo stordimento,
@@ -267,15 +273,19 @@ namespace
 	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
 	 * `R3`..`R8` sono conseguenze che l'assistente ha ricavato dal principio e l'autore ha CONFERMATO il 2026-11-01
 	 * ([D-563], clausola (2)). ⚠️ `R2` vale anche per la cura e la purificazione negate ([D-564]): la NEGAZIONE e'
-	 * dell'autore; il PAGAMENTO di queste due e' `R2` applicata dall'assistente e CONFERMATA dall'autore il 2026-11-01.
+	 * dell'autore; il PAGAMENTO di queste due e' `R2` applicata dall'assistente e CONFERMATA dall'autore il 2026-11-01
+	 * (risposta cumulativa, lettura «si» dell'assistente).
 	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
 	 *
 	 * - `None` — l'azione e' valida e la geometria della raccolta decide il resto: area che non trova nessuno (`R1`),
-	 *   bersaglio-unita' scattato altrove (`R3`), tiro a cella cappato dal Fumo non osservato (`R7`);
-	 * - `NoLineOfSight` — linea di tiro bloccata a risoluzione (`R4`): chiude l'asimmetria con la cura, [D-504] punto 3;
-	 * - `OtherLayer` — mira su un altro piano (`R5`): corregge [D-509] punto 7h;
+	 *   bersaglio-unita' scattato altrove (`R3`), tiro a cella cappato dal Fumo non osservato (`R7`); e anche ogni tiro a
+	 *   CELLA, perche' `ValidateInstance` risponde `None` quando non c'e' un bersaglio-unita' da validare: `R4` e `R5` ci
+	 *   passano, e le decidono le clausole `BlockedIntents` e `OtherLayerIntents` di `IntentoPartitoSenzaColpo`;
+	 * - `NoLineOfSight` — linea di tiro bloccata a risoluzione (`R4`), per il bersaglio-UNITA': chiude l'asimmetria con la
+	 *   cura, [D-504] punto 3;
+	 * - `OtherLayer` — mira su un altro piano (`R5`), per il bersaglio-UNITA': corregge [D-509] punto 7h;
 	 * - `TargetDead` — bersaglio-unita' gia' morto prima del Blast (`R6`): come la cura su un alleato caduto.
 	 *
 	 * ⛔ **NON DECISO, e quindi gratis come prima**: `OutOfRange` di un bersaglio-UNITA' (a risoluzione), `TargetUnknown`,
@@ -528,7 +538,8 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents` (anche per il cadavere, com'era),
 		// senza pagamento.
 		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`; applicata a questa azione dall'assistente e
-		// CONFERMATA dall'autore il 2026-11-01: [D-564]), con la sede di sempre: si annota qui e a scrivere
+		// CONFERMATA dall'autore il 2026-11-01, risposta cumulativa e lettura «si» dell'assistente: [D-564]), con la
+		// sede di sempre: si annota qui e a scrivere
 		// e' `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))

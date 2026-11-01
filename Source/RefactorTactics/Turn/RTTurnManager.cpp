@@ -4276,8 +4276,11 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingMoveOp> Moves;
 
-	// Le voci di rifiuto decise gia' in raccolta: escono in coda agli esiti, cosi' il replay racconta prima
-	// cosa e' successo al campo e poi cosa non e' successo a chi ci ha provato.
+	// Le voci di rifiuto decise gia' in raccolta: si APPENDONO al TurnLog in coda agli esiti, ma l'ordine di inserimento
+	// non e' osservabile — `SortTurnLog` ordina la traccia in `ConcludeResolution`, prima del Cleanup, e il replay la
+	// legge nell'ordine canonico di quel sort, non in quello in cui le voci sono state scritte. ⚠️ Il log testuale
+	// (`RecentEvents`, via `AddLogEvent`) invece riceve questi rifiuti SUBITO, in raccolta, e li vede PRIMA degli esiti
+	// applicati: li' l'ordine e' l'opposto di quello di inserimento nel TurnLog.
 	//
 	// La voce viaggia CON il suo attore (#405): sono emesse in blocco molto piu' tardi, e a quel punto «chi ci
 	// ha provato» non e' piu' ricostruibile — la cella nella voce e' quella del bordo, non dell'unita'.
@@ -4360,7 +4363,8 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// sostituisce: uno stordito con un piano incompleto e' rifiutato e paga, chi non lo e' lascia il suo `Reject` e non
 		// paga (`RIC-3` non e' deciso). E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
 		// scartata in silenzio, senza voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e
-		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le due uscite in cima al ciclo.
+		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le uscite in cima al ciclo
+		// (`IsAlive`, `StructureOp` assente, `SetDoorState`).
 		//
 		// ⚠️ **La ricarica PARTE** ([D-563] (2), [D-564]): scrittura immediata, la stessa sede di `ResolvePrep` per
 		// l'Overwatch che arma. Vale anche per `MoveCover`, che altrimenti decide il costo in applicazione: il rifiuto

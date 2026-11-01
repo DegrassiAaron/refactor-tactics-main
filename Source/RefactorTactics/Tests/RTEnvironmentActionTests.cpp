@@ -619,8 +619,8 @@ namespace
 		bool bAlreadyCooling = false; //< lo slot parte in ricarica (`Mirror - 1`): `CanUseAbility` e' falso e il piano si scarta in silenzio
 		bool bNoEdge = false;         //< piano incompleto: il bersaglio c'e' e il bordo no (il `Reject` di raccolta di chi non e' stordito)
 		bool bFallen = false;         //< l'attore e' a zero salute prima del turno; un testimone vivo erige altrove nello stesso Prep
-		bool bNoTarget = false;       //< piano incompleto: ne' unita' ne' cella bersaglio (il primo `Reject` di raccolta)
-		bool bOutOfRange = false;     //< la cella mirata e' oltre la portata dichiarata (il terzo `Reject` di raccolta)
+		bool bNoTarget = false;       //< piano incompleto: ne' unita' ne' cella bersaglio (il `Reject` «nessun bersaglio»)
+		bool bOutOfRange = false;     //< la cella mirata e' oltre la portata dichiarata (il `Reject` «fuori portata»)
 	};
 
 	/**
@@ -830,8 +830,8 @@ namespace
 	 * commit, dopo che il piano e' scritto — e le premesse lo verificano invece di darlo per scontato. ⚠️ Le premesse
 	 * valgono sotto QUALUNQUE decisione su `RIC-5`: nessuna legge un esito che il turno sta decidendo.
 	 *
-	 * L'attore caduto e' distrutto a fine turno (`DestroyDefeatedUnits`) ma resta leggibile finche' nessuno raccoglie i
-	 * rifiuti: per questo lo si rilegge da un riferimento debole, come fa `PagaGiraStordito`.
+	 * L'attore caduto e' distrutto a fine turno (`DestroyDefeatedUnits`) ma resta leggibile finche' non gira il garbage
+	 * collector: per questo lo si rilegge da un riferimento debole, come fa `PagaGiraStordito`.
 	 */
 	FCoverStunOutcome CoverStunPlayTurn(FAutomationTestBase& Test, const FString& Run, const FCoverStunBed& Bed,
 		bool bStunned, bool bAlreadyCooling, bool bFallen)
@@ -997,7 +997,7 @@ namespace
 			return Out;
 		}
 
-		// Piani incompleti o fuori portata: i tre casi che il ciclo scarta con un `Reject` di raccolta, nell'ordine del codice.
+		// Piani incompleti o fuori portata: i casi che il ciclo scarta con un `Reject` di raccolta, nell'ordine del codice.
 		// Senza bordo: il bersaglio c'e', il bordo no.
 		if (Scene.bNoEdge) { Bed.Caster->bHasPlannedCoverEdge = false; }
 		// Senza bersaglio: ne' unita' ne' cella. La mira ricade sulla cella di chi agisce.
@@ -1297,8 +1297,8 @@ namespace
  *    niente secondo addebito, in entrambi i bracci (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot
  *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
  *    il ciclo azzera il piano PRIMA di `CanUseAbility`, quindi nemmeno il Blast ritrova niente da rifiutare;
- *  - **senza bordo**, **senza bersaglio**, **fuori portata** (i tre `Reject` di raccolta): quello di chi NON e' stordito
- *    resta GRATIS (`RIC-3` non e' deciso) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di tutti e tre, quindi
+ *  - **senza bordo**, **senza bersaglio**, **fuori portata** (i `Reject` di raccolta): quello di chi NON e' stordito
+ *    resta GRATIS (`RIC-3` non e' deciso) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di ciascuno, quindi
  *    paga e non lascia `CoverRejected`;
  *  - **attore caduto**: il ciclo lo salta prima della guardia — niente voce di Prep, nessuno slot si muove. Il testimone vivo
  *    che erige altrove nello stesso Prep prova che il Prep e' girato: senza, lo zero non distinguerebbe una guardia assente
@@ -1343,7 +1343,7 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 		{ { ECoverStunKind::Reconfigure, false, /*bNoEdge=*/ true },
 		  /*controllo*/ { 18,  0, 0, 0, 1, 0, 0, Cd::Free },
 		  /*stordito */ { 18,  0, 0, 0, 0, 0, 1, Cd::Starts } },
-		// SENZA BERSAGLIO e FUORI PORTATA: gli altri due `Reject` di raccolta. La guardia sta prima di TUTTI, non solo del primo.
+		// SENZA BERSAGLIO e FUORI PORTATA: gli altri `Reject` di raccolta. La guardia sta prima di OGNUNO, non solo del primo.
 		{ { ECoverStunKind::CreateCover, false, false, false, /*bNoTarget=*/ true },
 		  /*controllo*/ {  0,  0, 0, 0, 1, 0, 0, Cd::Free },
 		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },

@@ -593,8 +593,12 @@ namespace
  * - bersaglio PERSO (`TargetGone`: nessun bersaglio dichiarato): DA DECIDERE.
  *
  * ⚠️ Le altre cause non decise (`TargetUnknown`, porta senza varco, commutazione rifiutata, mappa assente,
- * `ModifyArc`, azioni ambientali, reazione armata senza trigger, fallimenti di Prep, Dash rifiutato) non hanno un
- * fixture semplice qui: stanno nei `followups` della sessione che ha scritto questo file, col motivo.
+ * `ModifyArc`, azioni ambientali, reazione armata senza trigger, i `Reject` di raccolta di `ResolveCoverStructures`,
+ * Dash rifiutato) non hanno un fixture semplice qui: stanno nei `followups` della sessione che ha scritto questo file,
+ * col motivo. I `Reject` di raccolta delle coperture (nessun bersaglio, nessun bordo dichiarato, fuori portata) restano
+ * gratis e non decisi (`RIC-3`), e li fissa il braccio non stordito di
+ * `Actions.CoverStructures.StunnedCasterChangesNothing`; i fallimenti IN APPLICAZIONE (`MoveCover` via `RejectMove`,
+ * `CreateCover` con `AddCover` rifiutato) pagano gia' dal CP 9.5 e non sono fra le cause non decise.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUndecidedCausesStayFreeTest,
 	"RefactorTactics.Actions.Blast.UndecidedCausesStayFree",
@@ -844,7 +848,8 @@ namespace
  * **Lo stordito PAGA l'azione principale che gli viene negata, in OGNI sito che la nega — e una volta sola**
  * ([D-416], [D-414], decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»). Per la cura e la
  * purificazione la NEGAZIONE e' d'autore (2026-11-01, [D-564]); il PAGAMENTO e' l'applicazione di quella risposta del
- * 2026-10-31, fatta dall'assistente e confermata dall'autore il 2026-11-01.
+ * 2026-10-31, fatta dall'assistente e confermata dall'autore il 2026-11-01 (risposta cumulativa, lettura «si»
+ * dell'assistente).
  *
  * I siti che negano una principale hanno ognuno la propria guardia: `ResolvePrep` (Overwatch e predittive),
  * `CollectAttackIntents` (Blast), `ResolveEnvironment` (Cleanup) e, dal 2026-11-01, `ResolveCleanseActions` e
