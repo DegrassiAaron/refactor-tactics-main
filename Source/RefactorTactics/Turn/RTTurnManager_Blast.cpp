@@ -267,7 +267,7 @@ namespace
 	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
 	 * `R3`..`R8` sono conseguenze che l'assistente ha ricavato dal principio e l'autore ha CONFERMATO il 2026-11-01
 	 * ([D-563], clausola (2)). ⚠️ `R2` vale anche per la cura e la purificazione negate ([D-564]): la NEGAZIONE e'
-	 * dell'autore, l'applicazione di `R2` al PAGAMENTO di queste due e' dell'assistente, DA CONFERMARE.
+	 * dell'autore; il PAGAMENTO di queste due e' `R2` applicata dall'assistente e CONFERMATA dall'autore il 2026-11-01.
 	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
@@ -527,9 +527,9 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// GIA' in ricarica non si ripaga ([D-414], `CanUseAbility`: la ricarica si scrive a valore FISSO). Chi la guardia
 		// scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents` (anche per il cadavere, com'era),
 		// senza pagamento.
-		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`; applicata a questa azione dall'assistente, DA CONFERMARE:
-		// [D-564]), con la sede di sempre: si annota qui e a scrivere e' `SpendStartedAbilities`. Niente
-		// `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
+		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`; applicata a questa azione dall'assistente e
+		// CONFERMATA dall'autore il 2026-11-01: [D-564]), con la sede di sempre: si annota qui e a scrivere
+		// e' `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{

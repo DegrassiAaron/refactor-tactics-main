@@ -458,8 +458,9 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 //
 // 🔴 **Nati da una code review, non da un'intuizione.** L'implementazione metteva la guardia in
 // `ResolvePrep` e a meta' di `CollectAttackIntents`, e i siti che consumano un'azione principale erano
-// **tre** (dal 2026-11-01 la negano anche `ResolveCleanseActions` e `CollectHealActions`, [D-564]): il ramo
-// `ModifyArc` la PRECEDE dentro lo stesso ciclo, e le ambientali risolvono altrove.
+// quei due e `ResolveEnvironment` (dal 2026-11-01 la negano anche `ResolveCleanseActions` e
+// `CollectHealActions`, [D-564]; `ResolveCoverStructures` la consuma senza negarla: `RIC-5`, non deciso):
+// il ramo `ModifyArc` la PRECEDE dentro lo stesso ciclo, e le ambientali risolvono altrove.
 // Un'unita' stordita cambiava la topologia della mappa e accendeva incendi.
 //
 // ⚠️ **Entrambi i test hanno un braccio di CONTROLLO**, e non e' abbondanza: senza, un'asserzione «non e'
