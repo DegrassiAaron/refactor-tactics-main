@@ -688,6 +688,7 @@ namespace
 		bool bAttoreCaduto;
 		int32 CooldownAtteso; //< residuo a fine turno (il Cleanup decrementa di uno)
 		const TCHAR* Perche;
+		bool bAlleatoFuoriPortata = false; //< solo per la cura: il piano mira a un alleato oltre la portata dichiarata
 	};
 
 	struct FPagaStorditoEsito
@@ -699,6 +700,8 @@ namespace
 		int32 PremessaCooldown = -1;         //< il residuo PRIMA del turno, per le righe «gia' in ricarica»
 		bool bEffetto = false;               //< l'effetto PROPRIO dell'azione e' avvenuto (solo cura e purificazione)
 		int32 Attivazioni = 0;               //< eventi `AbilityActivated` dell'attore: un rifiuto non si attiva
+		int32 FuoriPortata = 0;              //< voci Fallback/Cancelled `OutOfRange` di chi agisce
+		int32 RifiutiDellAzione = 0;         //< i rifiuti `Stunned` che nominano l'azione installata e la cella di chi agisce
 	};
 
 	FPagaStorditoEsito PagaGiraStordito(FAutomationTestBase& Test, const FPagaStorditoCase& C)
@@ -734,11 +737,14 @@ namespace
 		case EPagaSito::Cleanup:
 			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Ignite"), 3);
 			break;
+		// ⚠️ Cura e purificazione nello slot 3 e NON nello 0: l'attore e' `Ctx.Units[0]` (la sua cella precede quella del
+		// nemico), quindi con lo slot 0 indice dell'unita' e indice dell'abilita' coinciderebbero, e un pagamento scritto
+		// con l'indice sbagliato (`MarkAbilitySpent(Unit, i)` al posto di `HealIdx`) lascerebbe verde ogni riga.
 		case EPagaSito::Cura:
-			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Heal"), 0);
+			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Heal"), 3);
 			break;
 		case EPagaSito::Purificazione:
-			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Cleanse"), 0);
+			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Cleanse"), 3);
 			break;
 		}
 		if (!Test.TestTrue(*FString::Printf(TEXT("%s: l'abilita' e' installata"), C.Nome), Idx != INDEX_NONE))
@@ -759,12 +765,29 @@ namespace
 		{
 			Attore->Health = FMath::Max(1, Attore->Health - 30);
 			SaluteInPartenza = Attore->Health;
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: chi cura e' ferito"), C.Nome),
+				Attore->Health < Attore->MaxHealth);
 		}
 		if (C.Sito == EPagaSito::Purificazione)
 		{
 			Attore->ApplyStatus(TAG_Status_Root, 2);
 			Attore->PlannedCleansePriority = { TAG_Status_Root };
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: lo stato da togliere c'e'"), C.Nome),
+				Attore->HasStatus(TAG_Status_Root));
 		}
+		if (C.bAlleatoFuoriPortata)
+		{
+			// Stessa distanza della riga «cura fuori portata» di `Actions.Blast.PlannedActionPaysOnlyIfItStarted`.
+			ARTUnit* Alleato = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(5, 0, 0));
+			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: alleato"), C.Nome), Alleato))
+			{
+				PagaDestroyWorld(World);
+				return Esito;
+			}
+			Attore->PlannedAttackTarget = Alleato;
+		}
+		const FName AzioneAttesa = Attore->Abilities[Idx]->Def.ActionId;
+		const FRTCellId CellaDiChiAgisce = Attore->Cell;
 
 		if (C.bStordito) { Attore->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 		if (C.bGiaInRicarica)
@@ -802,6 +825,13 @@ namespace
 			{
 				++Esito.Rifiuti;
 				Esito.FaseDelRifiuto = E.Phase;
+				if (E.ActionId == AzioneAttesa && E.SrcCell == CellaDiChiAgisce) { ++Esito.RifiutiDellAzione; }
+			}
+			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)
+				&& E.UnitId == AttoreDopo->StableUnitId)
+			{
+				++Esito.FuoriPortata;
 			}
 		}
 		Esito.bValido = true;
@@ -824,6 +854,11 @@ namespace
  * 🔴 **Cura e purificazione misurano anche l'EFFETTO e l'ATTIVAZIONE**, non solo la ricarica: un rifiuto che pagasse e
  * poi curasse lo stesso avrebbe il cooldown giusto e la voce giusta. La riga di controllo (non stordita) cura e si
  * attiva, ed e' cio' che rende lo «zero» delle altre una misura e non l'assenza della fixture.
+ *
+ * 🔑 **Le righe «alleato fuori portata» pinnano l'ORDINE**: il rifiuto precede la misura della portata, quindi lo
+ * stordito lascia la sola causa `Stunned` e paga, mentre lo stesso piano senza stordimento lascia `OutOfRange` e non
+ * paga ([D-200]). Cura e purificazione stanno nello slot 3 perche' l'indice dell'abilita' non coincida con quello
+ * dell'unita' (l'attore e' la prima unita' del Blast).
  *
  * 🔴 **La riga «gia' in ricarica» e' la guardia `CanUseAbility`**: `ConsumeAbility` scrive un valore FISSO, quindi
  * chiamato su un'abilita' gia' in ricarica la RIPORTA al valore pieno. Uno stordito che pianifica a mano
@@ -862,7 +897,7 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Cleanup: controllo non stordito"), EPagaSito::Cleanup, false, false, false, Pagato,
 		  TEXT("l'azione ambientale paga") },
 		{ TEXT("Cleanup: stordito"), EPagaSito::Cleanup, true, false, false, Pagato,
-		  TEXT("la principale ambientale negata paga: e' il terzo sito") },
+		  TEXT("la principale ambientale negata paga: e' il sito del Cleanup") },
 		{ TEXT("Cleanup: stordito, gia' in ricarica"), EPagaSito::Cleanup, true, true, false, NonRipagato,
 		  TEXT("[D-414]: la guardia `CanUseAbility` anche qui") },
 		{ TEXT("Cleanup: stordito e gia' caduto"), EPagaSito::Cleanup, true, false, true, 0,
@@ -875,6 +910,12 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		  TEXT("[D-414]: la guardia `CanUseAbility` — il rifiuto lo scrive `CollectAttackIntents` e non ripaga") },
 		{ TEXT("Cura: stordito e gia' caduto"), EPagaSito::Cura, true, false, true, 0,
 		  TEXT("un cadavere non paga una cura che non ha mai tentato") },
+		// 🔑 L'ORDINE: il rifiuto precede la misura della portata. Il controllo dice che lo STESSO piano, senza stordimento,
+		// lascia `OutOfRange` e non paga ([D-200]); lo stordito lascia la sola causa `Stunned` e paga.
+		{ TEXT("Cura: controllo non stordito, alleato fuori portata"), EPagaSito::Cura, false, false, false, 0,
+		  TEXT("[D-200]: la portata decide se l'azione parte — fuori portata non paga, e lascia `OutOfRange`"), true },
+		{ TEXT("Cura: stordito, alleato fuori portata"), EPagaSito::Cura, true, false, false, Pagato,
+		  TEXT("[D-564]: il rifiuto precede la portata — una sola causa, `Stunned`, e la cura paga come ogni principale negata"), true },
 		{ TEXT("Purificazione: controllo non stordito"), EPagaSito::Purificazione, false, false, false, Pagato,
 		  TEXT("la purificazione che parte paga: fissa il valore che lo stordito deve eguagliare") },
 		{ TEXT("Purificazione: stordito"), EPagaSito::Purificazione, true, false, false, Pagato,
@@ -918,13 +959,24 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 
 		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.Perche), Esito.Cooldown, C.CooldownAtteso);
 
-		if (C.Sito == EPagaSito::Cura || C.Sito == EPagaSito::Purificazione)
+		if ((C.Sito == EPagaSito::Cura || C.Sito == EPagaSito::Purificazione) && !C.bAlleatoFuoriPortata)
 		{
 			// Solo il controllo non stordito fa il proprio effetto e si attiva: chi e' stordito, in ricarica o caduto non fa
 			// ne' l'uno ne' l'altro. Un rifiuto che pagasse e poi curasse lo stesso passerebbe le righe sopra.
 			const bool bFaEffetto = !C.bStordito;
 			TestEqual(*FString::Printf(TEXT("%s: l'effetto proprio dell'azione"), C.Nome), Esito.bEffetto, bFaEffetto);
 			TestEqual(*FString::Printf(TEXT("%s: attivazioni dell'attore"), C.Nome), Esito.Attivazioni, bFaEffetto ? 1 : 0);
+		}
+		if ((C.Sito == EPagaSito::Cura || C.Sito == EPagaSito::Purificazione) && C.bStordito && !C.bAttoreCaduto)
+		{
+			// La voce di rifiuto dice CHE azione e DA DOVE: una `Def` o una cella sbagliate nel blocco passerebbero cooldown e conteggio.
+			TestEqual(*FString::Printf(TEXT("%s: il rifiuto nomina l'azione e la cella di chi agisce"), C.Nome),
+				Esito.RifiutiDellAzione, Esito.Rifiuti);
+		}
+		if (C.bAlleatoFuoriPortata)
+		{
+			// Il controllo misura che la voce `OutOfRange` si vede quando c'e'; lo stordito non la lascia.
+			TestEqual(*FString::Printf(TEXT("%s: voci di fuori portata"), C.Nome), Esito.FuoriPortata, C.bStordito ? 0 : 1);
 		}
 	}
 	return true;
