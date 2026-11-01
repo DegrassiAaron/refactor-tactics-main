@@ -457,8 +457,10 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 // `Status.Stunned` contro i due siti che il rifiuto NON copriva ([D-416], `#3142`).
 //
 // 🔴 **Nati da una code review, non da un'intuizione.** L'implementazione metteva la guardia in
-// `ResolvePrep` e a meta' di `CollectAttackIntents`, e i siti che consumano un'azione principale sono
-// **tre**: il ramo `ModifyArc` la PRECEDE dentro lo stesso ciclo, e le ambientali risolvono altrove.
+// `ResolvePrep` e a meta' di `CollectAttackIntents`, e i siti che consumano un'azione principale erano
+// quei due e `ResolveEnvironment` (dal 2026-11-01 la negano anche `ResolveCleanseActions` e
+// `CollectHealActions`, [D-564]; `ResolveCoverStructures` la consuma senza negarla: `RIC-5`, non deciso):
+// il ramo `ModifyArc` la PRECEDE dentro lo stesso ciclo, e le ambientali risolvono altrove.
 // Un'unita' stordita cambiava la topologia della mappa e accendeva incendi.
 //
 // ⚠️ **Entrambi i test hanno un braccio di CONTROLLO**, e non e' abbondanza: senza, un'asserzione «non e'
@@ -521,11 +523,11 @@ bool FRTStunnedCasterDoesNotModifyArcTest::RunTest(const FString&)
 }
 
 /**
- * Uno stordito non accende: le azioni **ambientali** sono principali, e risolvono nel terzo sito.
+ * Uno stordito non accende: le azioni **ambientali** sono principali, e risolvono in `ResolveEnvironment`.
  *
  * `Action.Ignite` esce da `CollectAttackIntents` col piano INTATTO — quel ciclo lascia passare la fase
- * `Cleanup` apposta — e lo consuma `ResolveEnvironment`. Senza una guardia li', il rifiuto degli altri due
- * siti non la tocca: e' esattamente il buco che questo test pinna.
+ * `Cleanup` apposta — e lo consuma `ResolveEnvironment`. Senza una guardia li', il rifiuto degli altri siti
+ * non la tocca: e' esattamente il buco che questo test pinna.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterDoesNotIgniteTest,
 	"RefactorTactics.Actions.Ignite.StunnedCasterLightsNothing",

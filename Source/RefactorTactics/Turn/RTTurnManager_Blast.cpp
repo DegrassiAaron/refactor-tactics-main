@@ -265,7 +265,9 @@ namespace
 	 * `R6` bersaglio-unita' gia' morto, `R7` tiro a cella cappato dal Fumo non osservato, `R8` azione in portata
 	 * annullata da `Action.Interrupt` senza colpi; restano GRATIS `R9` tiro a cella oltre la portata dichiarata o
 	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
-	 * `R3`..`R8` sono conseguenze scelte dall'assistente, DA CONFERMARE.
+	 * `R3`..`R8` sono conseguenze che l'assistente ha ricavato dal principio e l'autore ha CONFERMATO il 2026-11-01
+	 * ([D-563], clausola (2)). ⚠️ `R2` vale anche per la cura e la purificazione negate ([D-564]): la NEGAZIONE e'
+	 * dell'autore; il PAGAMENTO di queste due e' `R2` applicata dall'assistente e CONFERMATA dall'autore il 2026-11-01.
 	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
@@ -518,6 +520,25 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 			continue;
 		}
 
+		// 🔴 `Status.Stunned` NEGA ANCHE LA PURIFICAZIONE ([D-416], [D-564], `#3954`): e' un'azione PRINCIPALE — lo dice
+		// la prima riga di questa funzione — e questa gira PRIMA di `CollectAttackIntents` e AZZERA il piano, quindi il
+		// rifiuto di quel ciclo non la vedeva mai e uno stordito si purificava come se niente fosse.
+		// ⚠️ **Dopo le guardie di vita e di disponibilita', prima di ogni effetto**: un cadavere non paga, e un'azione
+		// GIA' in ricarica non si ripaga ([D-414], `CanUseAbility`: la ricarica si scrive a valore FISSO). Chi la guardia
+		// scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents` (anche per il cadavere, com'era),
+		// senza pagamento.
+		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`; applicata a questa azione dall'assistente e
+		// CONFERMATA dall'autore il 2026-11-01: [D-564]), con la sede di sempre: si annota qui e a scrivere
+		// e' `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
+		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
+			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+		{
+			Ctx.MarkAbilitySpent(Unit, CleanseIdx);
+			Unit->PlannedAbilityIndex = INDEX_NONE; // consumata nel turno, come ogni principale che non parte
+			Unit->ClearPlannedAttack();
+			continue;
+		}
+
 		FGameplayTag Removed;
 		for (const FGameplayTag& Candidate : Unit->PlannedCleansePriority)
 		{
@@ -591,6 +612,20 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		if (!Heal || !IsCoreAction(Heal->Def, ActionHeal) || !Unit->CanUseAbility(HealIdx))
 		{
+			continue;
+		}
+
+		// 🔴 `Status.Stunned` NEGA ANCHE LA CURA ([D-416], [D-564], `#3954`): e' un'azione PRINCIPALE, e questa raccolta gira
+		// PRIMA di `CollectAttackIntents` e AZZERA il piano — il rifiuto di quel ciclo non la vedeva mai e uno stordito
+		// curava come se niente fosse. Stesse guardie e stesso pagamento di `ResolveCleanseActions`, che ne spiega le ragioni.
+		// ⚠️ **Prima di leggere il bersaglio e di misurare portata e linea di tiro**: il rifiuto non giudica la mira, e una
+		// cura che non parte per lo stordimento non deve lasciare anche la voce di un fuori portata (due cause per un'azione).
+		if (RefuseMainActionIfStunned(Unit, Heal->Def, ERTMatchPhase::Blast,
+			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+		{
+			Ctx.MarkAbilitySpent(Unit, HealIdx);
+			Unit->PlannedAbilityIndex = INDEX_NONE; // consumata nel turno, come ogni principale che non parte
+			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 			continue;
 		}
 
@@ -808,9 +843,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// (`ERTActionSlot::Main`, il default di `ShippedAction`) e si intercetta prima di tutto il resto.
 		//
 		// 🔴 **La prima stesura la metteva sotto, e un'unita' stordita cambiava la topologia della mappa.**
-		// E' il secondo buco della stessa famiglia del Prep: i siti che consumano una principale sono TRE —
-		// `ResolvePrep`, questo e `ResolveEnvironment` — e una guardia per sito e' una regola che il quarto
-		// sito non erediterà. Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
+		// E' il secondo buco della stessa famiglia del Prep: i siti che negano una principale sono piu' d'uno —
+		// `ResolvePrep`, questo, `ResolveEnvironment` e, dal 2026-11-01 ([D-564], `#3954`), `ResolveCleanseActions` e
+		// `CollectHealActions`, che azzerano il piano PRIMA di questo ciclo — e una guardia per sito e' una regola che
+		// il sito successivo non erediterà. ⚠️ Ne manca ancora uno: `ResolveCoverStructures` consuma il piano senza
+		// negarlo (`RIC-5`, non deciso). Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
 		//
 		// ⚠️ **Sotto il guard delle AMBIENTALI, non sopra**: quelle escono da questo ciclo col piano INTATTO
 		// (lo consuma `ResolveEnvironment`, che ha la propria guardia). Rifiutarle qui ne consumerebbe il
@@ -1678,9 +1715,9 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// mirava a una cella» qui sopra non e' piu' completo. Restano gratuiti fuori portata, senza mappa autorevole e su
 	// un alleato: portata e distanza minima le rifiuta il click, gli altri due sono cause NON DECISE.
 	// ⚠️ **L'Interrupt come ATTORE rientra nella regola perche' e' un'azione d'attacco (`bCountsAsAttack`)**: e' una
-	// conseguenza del principio, DA CONFERMARE ([D-563], clausola (2)). Le sue guardie di vita non sono uguali
-	// (`R3`, `R4`, `R5`, `R7` pagano se e' vivo all'annotazione; `R6` solo se sopravvive alla fase) e una sola riga di
-	// test lo pinna (`R4`).*
+	// conseguenza del principio, CONFERMATA dall'autore il 2026-11-01 ([D-563], clausola (2)). Le sue guardie di
+	// vita non sono uguali (`R3`, `R4`, `R5`, `R7` pagano se e' vivo all'annotazione; `R6` solo se sopravvive alla
+	// fase) e una sola riga di test lo pinna (`R4`).*
 	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
