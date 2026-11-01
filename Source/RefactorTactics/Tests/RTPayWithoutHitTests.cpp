@@ -128,7 +128,7 @@ namespace
 		BersaglioMorto,         //< R6  bersaglio-unita' gia' morto prima del Blast (TargetDead)
 		TiroCappatoDalFumo,     //< R7  tiro a cella cappato dal Fumo non osservato (TerrainCappedIntents)
 		InterrottaSenzaColpi,   //< R8  azione in portata annullata da Action.Interrupt, senza colpi
-		InterruptBloccato,      //< R4  l'INTERRUPT come attore: il bersaglio-unita' sta dietro un muro (DA CONFERMARE dall'autore)
+		InterruptBloccato,      //< R4  l'INTERRUPT come attore: il bersaglio-unita' sta dietro un muro (confermato dall'autore il 2026-11-01)
 		NonAggressivaBloccata,  //< la clausola `bCountsAsAttack` di `IntentoPartitoSenzaColpo`: bloccata dal muro, NON paga
 		NonAggressivaBersaglioMorto, //< la guardia `bCountsAsAttack` di R6: bersaglio morto, NON paga
 		CellaOltrePortata,      //< R9  tiro a CELLA fuori portata dichiarata: il click lo rifiuta
@@ -499,7 +499,7 @@ bool FRTStartedActionPaysWithoutAHitTest::RunTest(const FString&)
 		  TEXT("[D-414] punto 1: un controllo che impedisce l'abilita' non restituisce la ricarica") },
 		// ➕ **Fix wave di `#3134`**: tre righe che difendono tre clausole che nessun test copriva.
 		{ TEXT("R4 l'Interrupt come attore, bersaglio dietro un muro"), EPagaCausa::InterruptBloccato, true,
-		  TEXT("DA CONFERMARE dall'autore: `bCountsAsAttack` e' vero per `Action.Interrupt`, quindi R4 vale anche per chi interrompe") },
+		  TEXT("confermato dall'autore il 2026-11-01: `bCountsAsAttack` e' vero per `Action.Interrupt`, quindi R4 vale anche per chi interrompe") },
 		{ TEXT("azione non aggressiva bloccata dal muro"), EPagaCausa::NonAggressivaBloccata, false,
 		  TEXT("la clausola `!bCountsAsAttack` di `IntentoPartitoSenzaColpo`: l'intento e' in `BlockedIntents` ma non e' un'aggressione") },
 		{ TEXT("azione non aggressiva, bersaglio-unita' gia' morto"), EPagaCausa::NonAggressivaBersaglioMorto, false,
@@ -677,7 +677,7 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 
 namespace
 {
-	enum class EPagaSito : uint8 { Prep, Blast, Cleanup };
+	enum class EPagaSito : uint8 { Prep, Blast, Cleanup, Cura, Purificazione };
 
 	struct FPagaStorditoCase
 	{
@@ -697,6 +697,8 @@ namespace
 		int32 Rifiuti = 0;                   //< voci Fallback/Cancelled `Stunned` di chi agisce
 		ERTMatchPhase FaseDelRifiuto = ERTMatchPhase::Planning;
 		int32 PremessaCooldown = -1;         //< il residuo PRIMA del turno, per le righe «gia' in ricarica»
+		bool bEffetto = false;               //< l'effetto PROPRIO dell'azione e' avvenuto (solo cura e purificazione)
+		int32 Attivazioni = 0;               //< eventi `AbilityActivated` dell'attore: un rifiuto non si attiva
 	};
 
 	FPagaStorditoEsito PagaGiraStordito(FAutomationTestBase& Test, const FPagaStorditoCase& C)
@@ -732,6 +734,12 @@ namespace
 		case EPagaSito::Cleanup:
 			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Ignite"), 3);
 			break;
+		case EPagaSito::Cura:
+			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Heal"), 0);
+			break;
+		case EPagaSito::Purificazione:
+			Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Cleanse"), 0);
+			break;
 		}
 		if (!Test.TestTrue(*FString::Printf(TEXT("%s: l'abilita' e' installata"), C.Nome), Idx != INDEX_NONE))
 		{
@@ -740,7 +748,23 @@ namespace
 		}
 		Attore->Abilities[Idx]->CooldownTurns = PagaCooldown;
 		Attore->PlannedAbilityIndex = Idx;
-		if (C.Sito != EPagaSito::Prep) { Attore->DeclareAttackOnUnit(Nemico); }
+		// Cura e purificazione agiscono su CHI LE USA: un nemico dichiarato come bersaglio le renderebbe un'altra azione.
+		if (C.Sito == EPagaSito::Blast || C.Sito == EPagaSito::Cleanup) { Attore->DeclareAttackOnUnit(Nemico); }
+
+		// L'effetto proprio dell'azione dev'essere OSSERVABILE, o il rifiuto e il controllo positivo non si distinguono:
+		// la cura ha qualcosa da curare, la purificazione uno stato da togliere (`Root` dura 2, quindi a fine turno c'e'
+		// ancora se nessuno lo ha tolto).
+		int32 SaluteInPartenza = 0;
+		if (C.Sito == EPagaSito::Cura)
+		{
+			Attore->Health = FMath::Max(1, Attore->Health - 30);
+			SaluteInPartenza = Attore->Health;
+		}
+		if (C.Sito == EPagaSito::Purificazione)
+		{
+			Attore->ApplyStatus(TAG_Status_Root, 2);
+			Attore->PlannedCleansePriority = { TAG_Status_Root };
+		}
 
 		if (C.bStordito) { Attore->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 		if (C.bGiaInRicarica)
@@ -761,6 +785,15 @@ namespace
 			return Esito;
 		}
 		Esito.Cooldown = AttoreDopo->GetAbilityCooldown(Idx);
+		if (C.Sito == EPagaSito::Cura) { Esito.bEffetto = AttoreDopo->Health > SaluteInPartenza; }
+		if (C.Sito == EPagaSito::Purificazione) { Esito.bEffetto = !AttoreDopo->HasStatus(TAG_Status_Root); }
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == AttoreDopo->StableUnitId)
+			{
+				++Esito.Attivazioni;
+			}
+		}
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
 			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
@@ -778,12 +811,19 @@ namespace
 }
 
 /**
- * **Lo stordito PAGA l'azione principale che gli viene negata, nei TRE siti — e una volta sola** ([D-416], [D-414],
- * decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»).
+ * **Lo stordito PAGA l'azione principale che gli viene negata, in OGNI sito che la consuma — e una volta sola**
+ * ([D-416], [D-414], decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»; e del 2026-11-01 per la cura
+ * e la purificazione, [D-564]).
  *
- * I siti che consumano una principale sono tre e ognuno ha la propria guardia: `ResolvePrep` (Overwatch e
- * predittive), `CollectAttackIntents` (Blast) e `ResolveEnvironment` (Cleanup). Una riga per sito, ciascuna con il
- * proprio mondo: pagare in due su tre lascerebbe lo stordito a ricaricare gratis dall'ultimo.
+ * I siti che consumano una principale hanno ognuno la propria guardia: `ResolvePrep` (Overwatch e predittive),
+ * `CollectAttackIntents` (Blast), `ResolveEnvironment` (Cleanup) e, dal 2026-11-01, `ResolveCleanseActions` e
+ * `CollectHealActions` (Blast, PRIMA del ciclo degli intenti: azzerano il piano, quindi il rifiuto di
+ * `CollectAttackIntents` non le vedeva mai). Una riga per sito, ciascuna con il proprio mondo: pagare in alcuni
+ * lascerebbe lo stordito a ricaricare gratis dall'ultimo.
+ *
+ * 🔴 **Cura e purificazione misurano anche l'EFFETTO e l'ATTIVAZIONE**, non solo la ricarica: un rifiuto che pagasse e
+ * poi curasse lo stesso avrebbe il cooldown giusto e la voce giusta. La riga di controllo (non stordita) cura e si
+ * attiva, ed e' cio' che rende lo «zero» delle altre una misura e non l'assenza della fixture.
  *
  * 🔴 **La riga «gia' in ricarica» e' la guardia `CanUseAbility`**: `ConsumeAbility` scrive un valore FISSO, quindi
  * chiamato su un'abilita' gia' in ricarica la RIPORTA al valore pieno. Uno stordito che pianifica a mano
@@ -827,6 +867,22 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		  TEXT("[D-414]: la guardia `CanUseAbility` anche qui") },
 		{ TEXT("Cleanup: stordito e gia' caduto"), EPagaSito::Cleanup, true, false, true, 0,
 		  TEXT("un cadavere non paga nemmeno nel Cleanup") },
+		{ TEXT("Cura: controllo non stordito"), EPagaSito::Cura, false, false, false, Pagato,
+		  TEXT("la cura che parte paga: fissa il valore che lo stordito deve eguagliare") },
+		{ TEXT("Cura: stordito"), EPagaSito::Cura, true, false, false, Pagato,
+		  TEXT("[D-564]: la cura negata dallo stordimento paga, UNA volta sola — prima curava e basta") },
+		{ TEXT("Cura: stordito, gia' in ricarica"), EPagaSito::Cura, true, true, false, NonRipagato,
+		  TEXT("[D-414]: la guardia `CanUseAbility` — il rifiuto lo scrive `CollectAttackIntents` e non ripaga") },
+		{ TEXT("Cura: stordito e gia' caduto"), EPagaSito::Cura, true, false, true, 0,
+		  TEXT("un cadavere non paga una cura che non ha mai tentato") },
+		{ TEXT("Purificazione: controllo non stordito"), EPagaSito::Purificazione, false, false, false, Pagato,
+		  TEXT("la purificazione che parte paga: fissa il valore che lo stordito deve eguagliare") },
+		{ TEXT("Purificazione: stordito"), EPagaSito::Purificazione, true, false, false, Pagato,
+		  TEXT("[D-564]: la purificazione negata dallo stordimento paga, UNA volta sola — prima purificava e basta") },
+		{ TEXT("Purificazione: stordito, gia' in ricarica"), EPagaSito::Purificazione, true, true, false, NonRipagato,
+		  TEXT("[D-414]: la guardia `CanUseAbility` — il rifiuto lo scrive `CollectAttackIntents` e non ripaga") },
+		{ TEXT("Purificazione: stordito e gia' caduto"), EPagaSito::Purificazione, true, false, true, 0,
+		  TEXT("un cadavere non paga una purificazione che non ha mai tentato") },
 	};
 
 	for (const FPagaStorditoCase& C : Casi)
@@ -834,8 +890,8 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		const FPagaStorditoEsito Esito = PagaGiraStordito(*this, C);
 		if (!Esito.bValido) { return false; }
 
-		AddInfo(FString::Printf(TEXT("%s -> cooldown prima %d, residuo %d, rifiuti %d"),
-			C.Nome, Esito.PremessaCooldown, Esito.Cooldown, Esito.Rifiuti));
+		AddInfo(FString::Printf(TEXT("%s -> cooldown prima %d, residuo %d, rifiuti %d, effetto %d, attivazioni %d"),
+			C.Nome, Esito.PremessaCooldown, Esito.Cooldown, Esito.Rifiuti, Esito.bEffetto ? 1 : 0, Esito.Attivazioni));
 
 		// Le premesse: la riga misura quello che dichiara.
 		if (C.bGiaInRicarica)
@@ -855,12 +911,21 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 			// perche' e' il motivo per cui la guardia `CanUseAbility` del Blast conta anche per un'azione di Prep.
 			const ERTMatchPhase Fase = C.Sito == EPagaSito::Prep
 				? (C.bGiaInRicarica ? ERTMatchPhase::Blast : ERTMatchPhase::Prep)
-				: C.Sito == EPagaSito::Blast ? ERTMatchPhase::Blast : ERTMatchPhase::Cleanup;
+				: C.Sito == EPagaSito::Cleanup ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
 			TestTrue(*FString::Printf(TEXT("%s: premessa: il rifiuto e' nella fase attesa"), C.Nome),
 				Esito.FaseDelRifiuto == Fase);
 		}
 
 		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.Perche), Esito.Cooldown, C.CooldownAtteso);
+
+		if (C.Sito == EPagaSito::Cura || C.Sito == EPagaSito::Purificazione)
+		{
+			// Solo il controllo non stordito fa il proprio effetto e si attiva: chi e' stordito, in ricarica o caduto non fa
+			// ne' l'uno ne' l'altro. Un rifiuto che pagasse e poi curasse lo stesso passerebbe le righe sopra.
+			const bool bFaEffetto = !C.bStordito;
+			TestEqual(*FString::Printf(TEXT("%s: l'effetto proprio dell'azione"), C.Nome), Esito.bEffetto, bFaEffetto);
+			TestEqual(*FString::Printf(TEXT("%s: attivazioni dell'attore"), C.Nome), Esito.Attivazioni, bFaEffetto ? 1 : 0);
+		}
 	}
 	return true;
 }
