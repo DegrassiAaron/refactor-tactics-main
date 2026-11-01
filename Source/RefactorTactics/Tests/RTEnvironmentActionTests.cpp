@@ -619,6 +619,8 @@ namespace
 		bool bAlreadyCooling = false; //< lo slot parte in ricarica (`Mirror - 1`): `CanUseAbility` e' falso e il piano si scarta in silenzio
 		bool bNoEdge = false;         //< piano incompleto: il bersaglio c'e' e il bordo no (il `Reject` di raccolta di chi non e' stordito)
 		bool bFallen = false;         //< l'attore e' a zero salute prima del turno; un testimone vivo erige altrove nello stesso Prep
+		bool bNoTarget = false;       //< piano incompleto: ne' unita' ne' cella bersaglio (il primo `Reject` di raccolta)
+		bool bOutOfRange = false;     //< la cella mirata e' oltre la portata dichiarata (il terzo `Reject` di raccolta)
 	};
 
 	/**
@@ -659,10 +661,13 @@ namespace
 		int32 AnyFallbacks = 0;         //< voci `Fallback` dell'attore, di qualunque causa
 		int32 FallbacksAnyUnit = 0;     //< ... di chiunque e di qualunque causa: «nessun altro Fallback»
 		int32 EntriesOfActor = 0;       //< tutte le voci del TurnLog che nominano l'attore
-		ERTMatchPhase RefusalPhase = ERTMatchPhase::Planning; //< i quattro campi che seguono sono della PRIMA voce di rifiuto dell'attore
+		int32 PrepRefusalsAnyUnit = 0;  //< ... di CHIUNQUE e di fase Prep: l'unico rifiuto che questo banco decide
+		// I quattro campi che seguono sono della PRIMA voce di rifiuto dell'attore. Le celle partono da una SENTINELLA: la
+		// cella di default, (0,0), e' proprio quella di chi agisce, e «nessun rifiuto» passerebbe per «rifiuto dalla cella giusta».
+		ERTMatchPhase RefusalPhase = ERTMatchPhase::Planning;
 		FName RefusalActionId;
-		FRTCellId RefusalSrc;
-		FRTCellId RefusalTgt;
+		FRTCellId RefusalSrc = FRTCellId(-99, -99, -99);
+		FRTCellId RefusalTgt = FRTCellId(-99, -99, -99);
 		int32 WitnessWAfter = 0;        //< solo riga «caduto»: integrita' sul bordo W della copertura del testimone
 	};
 
@@ -756,6 +761,8 @@ namespace
 		FString Label = CoverStunKindName(Scene.Kind);
 		if (Scene.bAlreadyCooling) { Label += TEXT(", gia' in ricarica"); }
 		if (Scene.bNoEdge) { Label += TEXT(", senza bordo"); }
+		if (Scene.bNoTarget) { Label += TEXT(", senza bersaglio"); }
+		if (Scene.bOutOfRange) { Label += TEXT(", fuori portata"); }
 		if (Scene.bFallen) { Label += TEXT(", attore caduto"); }
 		return FString::Printf(TEXT("%s, %s"), *Label, bStunned ? TEXT("stordito") : TEXT("controllo"));
 	}
@@ -839,7 +846,7 @@ namespace
 		}
 		Out.ActionId = Installed->Def.ActionId;
 		Out.Home = Caster->Cell;
-		Out.Aimed = Caster->PlannedAttackCell;
+		Out.Aimed = Caster->ResolutionAimCell(Installed->Def.DeclaresTracking());
 		Out.bMainInPrep = Installed->Def.Slot == ERTActionSlot::Main
 			&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep;
 		Out.DefCooldown = Installed->Def.CooldownTurns;
@@ -916,7 +923,11 @@ namespace
 		for (const FRTTurnLogEntry& E : Bed.TM->GetTurnLog())
 		{
 			if (E.Category == ERTLogCategory::Fallback) { ++Out.FallbacksAnyUnit; }
-			if (CoverStunIsRefusal(E)) { ++Out.RefusalsAnyUnit; }
+			if (CoverStunIsRefusal(E))
+			{
+				++Out.RefusalsAnyUnit;
+				if (E.Phase == ERTMatchPhase::Prep) { ++Out.PrepRefusalsAnyUnit; }
+			}
 		}
 		bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'attore ha uno StableUnitId"), *Run), Out.StableId != 0);
 		if (Out.StableId != 0)
@@ -986,8 +997,17 @@ namespace
 			return Out;
 		}
 
-		// Piano incompleto: il bersaglio c'e', il bordo no. E' il caso che il ciclo scarta con un `Reject` di raccolta.
+		// Piani incompleti o fuori portata: i tre casi che il ciclo scarta con un `Reject` di raccolta, nell'ordine del codice.
+		// Senza bordo: il bersaglio c'e', il bordo no.
 		if (Scene.bNoEdge) { Bed.Caster->bHasPlannedCoverEdge = false; }
+		// Senza bersaglio: ne' unita' ne' cella. La mira ricade sulla cella di chi agisce.
+		if (Scene.bNoTarget)
+		{
+			Bed.Caster->bAttackTargetsCell = false;
+			Bed.Caster->PlannedAttackTarget = nullptr;
+		}
+		// Fuori portata: `Action.CreateCover` ha portata 3, e la cella (4,0) sta nella mappa a distanza 4.
+		if (Scene.bOutOfRange) { Bed.Caster->PlannedAttackCell = FRTCellId(4, 0); }
 		// Il testimone erige altrove, nello stesso Prep: se la sua copertura c'e', `ResolveCoverStructures` e' girata.
 		if (Scene.bFallen) { PlanCoverAction(Bed.Witness, TEXT("Action.CreateCover"), Bed.WitnessTarget, ERTHexDirection::W); }
 
@@ -1117,9 +1137,10 @@ namespace
 		int32 Moved;                 //< voci `CoverMoved`
 		int32 Rejected;              //< voci `CoverRejected`
 		int32 Activations;           //< eventi `AbilityActivated` dell'attore
-		int32 Refusals;              //< voci di rifiuto per stordimento: 1 dove l'attore e' rifiutato, 0 altrove. E' anche il numero atteso di `Fallback` di ogni causa
+		int32 Refusals;              //< voci di rifiuto per stordimento di Prep: 1 dove l'attore e' rifiutato, 0 altrove. Salvo la riga «caduto», e' anche il numero atteso di `Fallback` di ogni causa e fase
 		ECoverStunCooldown Cooldown; //< che cosa fa la ricarica dello slot
 		int32 WitnessW = -1;         //< solo riga «caduto»: integrita' attesa sul bordo W del testimone; -1 = senza testimone
+		bool bFallenActor = false;   //< solo riga «caduto»: i rifiuti si contano in Prep e basta (vedi `CoverStunAssert`)
 	};
 
 	/** Una riga della tabella: la scena, e l'attesa nei due bracci. */
@@ -1149,10 +1170,18 @@ namespace
 		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverMoved"), *Run), O.Moved, X.Moved);
 		Test.TestEqual(*FString::Printf(TEXT("%s: voci CoverRejected"), *Run), O.Rejected, X.Rejected);
 		Test.TestEqual(*FString::Printf(TEXT("%s: eventi AbilityActivated dell'attore"), *Run), O.Activations, X.Activations);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, X.Refusals);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, X.Refusals);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, X.Refusals);
-		Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, X.Refusals);
+		// Il rifiuto di PREP, di chiunque: e' l'unico che questo banco decide.
+		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di fase Prep"), *Run), O.PrepRefusalsAnyUnit, X.Refusals);
+		// ⚠️ Un cadavere stordito che arriva al Blast col piano addosso riceve LI' una voce di rifiuto (e non lo paga):
+		// `CollectAttackIntents` non filtra i morti. E' preesistente, non e' di questo banco e non e' deciso, quindi per la
+		// riga «caduto» si conta il Prep e basta, e il Blast non si asserisce ne' in un senso ne' nell'altro.
+		if (!X.bFallenActor)
+		{
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, X.Refusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, X.Refusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, X.Refusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, X.Refusals);
+		}
 		if (X.Refusals > 0)
 		{
 			// La voce dice CHE azione, DA DOVE, VERSO DOVE e IN CHE FASE: un'azione, una cella o una fase sbagliate nel blocco
@@ -1268,11 +1297,14 @@ namespace
  *    niente secondo addebito, in entrambi i bracci (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot
  *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
  *    il ciclo azzera il piano PRIMA di `CanUseAbility`, quindi nemmeno il Blast ritrova niente da rifiutare;
- *  - **senza bordo**: il `Reject` di raccolta di chi NON e' stordito resta GRATIS (`RIC-3` non e' deciso) e lascia
- *    `CoverRejected`; lo stordito e' rifiutato PRIMA di quel `Reject`, quindi paga e non lascia `CoverRejected`;
- *  - **attore caduto**: il ciclo lo salta prima della guardia — niente voce, nessuno slot si muove. Il testimone vivo che
- *    erige altrove nello stesso Prep prova che il Prep e' girato: senza, lo zero non distinguerebbe una guardia assente da
- *    una fase mai eseguita.
+ *  - **senza bordo**, **senza bersaglio**, **fuori portata** (i tre `Reject` di raccolta): quello di chi NON e' stordito
+ *    resta GRATIS (`RIC-3` non e' deciso) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di tutti e tre, quindi
+ *    paga e non lascia `CoverRejected`;
+ *  - **attore caduto**: il ciclo lo salta prima della guardia — niente voce di Prep, nessuno slot si muove. Il testimone vivo
+ *    che erige altrove nello stesso Prep prova che il Prep e' girato: senza, lo zero non distinguerebbe una guardia assente
+ *    da una fase mai eseguita. ⚠️ Il banco conta i rifiuti di Prep e basta: un cadavere stordito col piano addosso ne riceve
+ *    uno in Blast (`CollectAttackIntents` non filtra i morti, e non lo paga), preesistente e non deciso, che qui non si
+ *    asserisce ne' in un senso ne' nell'altro.
  *
  * In coda i controlli POSITIVI del contatore: `Action.Overwatch` (Prep) e `Action.Ignite` (Cleanup), principali di siti che
  * il rifiuto lo scrivono, devono lasciare UNA voce di rifiuto nella fase giusta.
@@ -1311,11 +1343,18 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 		{ { ECoverStunKind::Reconfigure, false, /*bNoEdge=*/ true },
 		  /*controllo*/ { 18,  0, 0, 0, 1, 0, 0, Cd::Free },
 		  /*stordito */ { 18,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+		// SENZA BERSAGLIO e FUORI PORTATA: gli altri due `Reject` di raccolta. La guardia sta prima di TUTTI, non solo del primo.
+		{ { ECoverStunKind::CreateCover, false, false, false, /*bNoTarget=*/ true },
+		  /*controllo*/ {  0,  0, 0, 0, 1, 0, 0, Cd::Free },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
+		{ { ECoverStunKind::CreateCover, false, false, false, false, /*bOutOfRange=*/ true },
+		  /*controllo*/ {  0,  0, 0, 0, 1, 0, 0, Cd::Free },
+		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
 
-		// ATTORE CADUTO: nessuna voce e nessun addebito; l'unica copertura e' quella del testimone.
+		// ATTORE CADUTO: nessuna voce di Prep e nessun addebito; l'unica copertura e' quella del testimone.
 		{ { ECoverStunKind::CreateCover, false, false, /*bFallen=*/ true },
-		  /*controllo*/ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30 },
-		  /*stordito */ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30 } },
+		  /*controllo*/ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30, /*bFallenActor=*/ true },
+		  /*stordito */ {  0,  0, 1, 0, 0, 0, 0, Cd::Free, /*testimone*/ 30, /*bFallenActor=*/ true } },
 	};
 
 	for (const FCoverStunRow& Row : Rows)
