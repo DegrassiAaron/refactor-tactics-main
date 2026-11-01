@@ -842,8 +842,9 @@ namespace
 
 /**
  * **Lo stordito PAGA l'azione principale che gli viene negata, in OGNI sito che la nega — e una volta sola**
- * ([D-416], [D-414], decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»; e del 2026-11-01 per la cura
- * e la purificazione, [D-564]).
+ * ([D-416], [D-414], decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»). Per la cura e la
+ * purificazione la NEGAZIONE e' d'autore (2026-11-01, [D-564]); il PAGAMENTO e' l'applicazione di quella risposta del
+ * 2026-10-31, fatta dall'assistente e DA CONFERMARE.
  *
  * I siti che negano una principale hanno ognuno la propria guardia: `ResolvePrep` (Overwatch e predittive),
  * `CollectAttackIntents` (Blast), `ResolveEnvironment` (Cleanup) e, dal 2026-11-01, `ResolveCleanseActions` e

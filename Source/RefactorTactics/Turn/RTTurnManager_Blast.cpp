@@ -264,9 +264,10 @@ namespace
 	 * `R3` bersaglio-unita' scattato altrove, `R4` linea di tiro bloccata a risoluzione, `R5` mira su un altro piano,
 	 * `R6` bersaglio-unita' gia' morto, `R7` tiro a cella cappato dal Fumo non osservato, `R8` azione in portata
 	 * annullata da `Action.Interrupt` senza colpi; restano GRATIS `R9` tiro a cella oltre la portata dichiarata o
-	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore (per
-	 * `R2` vale anche per la cura e la purificazione: [D-564]); `R3`..`R8` sono conseguenze che l'assistente ha ricavato
-	 * dal principio e l'autore ha CONFERMATO il 2026-11-01 ([D-563], clausola (2)).
+	 * sotto la distanza minima, `R10` chi attacca muore prima del Blast o nel Blast. `R1` e `R2` sono dell'autore;
+	 * `R3`..`R8` sono conseguenze che l'assistente ha ricavato dal principio e l'autore ha CONFERMATO il 2026-11-01
+	 * ([D-563], clausola (2)). ⚠️ `R2` vale anche per la cura e la purificazione negate ([D-564]): la NEGAZIONE e'
+	 * dell'autore, l'applicazione di `R2` al PAGAMENTO di queste due e' dell'assistente, DA CONFERMARE.
 	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
@@ -526,8 +527,9 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// GIA' in ricarica non si ripaga ([D-414], `CanUseAbility`: la ricarica si scrive a valore FISSO). Chi la guardia
 		// scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents` (anche per il cadavere, com'era),
 		// senza pagamento.
-		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`), con la sede di sempre: si annota qui e a scrivere e'
-		// `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
+		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`; applicata a questa azione dall'assistente, DA CONFERMARE:
+		// [D-564]), con la sede di sempre: si annota qui e a scrivere e' `SpendStartedAbilities`. Niente
+		// `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{
