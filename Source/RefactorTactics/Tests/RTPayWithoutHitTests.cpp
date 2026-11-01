@@ -841,15 +841,16 @@ namespace
 }
 
 /**
- * **Lo stordito PAGA l'azione principale che gli viene negata, in OGNI sito che la consuma — e una volta sola**
+ * **Lo stordito PAGA l'azione principale che gli viene negata, in OGNI sito che la nega — e una volta sola**
  * ([D-416], [D-414], decisione d'autore del 2026-10-31: «Lo stordito (D-416) paga?» «si»; e del 2026-11-01 per la cura
  * e la purificazione, [D-564]).
  *
- * I siti che consumano una principale hanno ognuno la propria guardia: `ResolvePrep` (Overwatch e predittive),
+ * I siti che negano una principale hanno ognuno la propria guardia: `ResolvePrep` (Overwatch e predittive),
  * `CollectAttackIntents` (Blast), `ResolveEnvironment` (Cleanup) e, dal 2026-11-01, `ResolveCleanseActions` e
  * `CollectHealActions` (Blast, PRIMA del ciclo degli intenti: azzerano il piano, quindi il rifiuto di
  * `CollectAttackIntents` non le vedeva mai). Una riga per sito, ciascuna con il proprio mondo: pagare in alcuni
- * lascerebbe lo stordito a ricaricare gratis dall'ultimo.
+ * lascerebbe lo stordito a ricaricare gratis dall'ultimo. ⚠️ `ResolveCoverStructures` (le coperture, in Prep) consuma
+ * il piano senza negarlo e non ha righe qui: e' `RIC-5`, non deciso.
  *
  * 🔴 **Cura e purificazione misurano anche l'EFFETTO e l'ATTIVAZIONE**, non solo la ricarica: un rifiuto che pagasse e
  * poi curasse lo stesso avrebbe il cooldown giusto e la voce giusta. La riga di controllo (non stordita) cura e si

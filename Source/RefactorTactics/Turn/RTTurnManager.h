@@ -3337,7 +3337,8 @@ protected:
 	 * 🔑 **Una funzione e non un blocco per sito**, perche' i siti sono piu' d'uno: l'azione principale si consuma nel
 	 * **Prep** (Overwatch e predittive si ARMANO li'), nel **Blast** (`CollectAttackIntents`, e prima di lui
 	 * `ResolveCleanseActions` e `CollectHealActions`, che azzerano il piano) e nel **Cleanup** (`ResolveEnvironment`).
-	 * Scrivere il rifiuto una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha
+	 * ⚠️ `ResolveCoverStructures` (Prep) consuma il piano e non la chiama ancora: `RIC-5`, non deciso. Scrivere il
+	 * rifiuto una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha
 	 * girato la suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso. Il
 	 * pagamento della ricarica ([D-563]) resta al chiamante: la sede della scrittura cambia da sito a sito.
 	 *

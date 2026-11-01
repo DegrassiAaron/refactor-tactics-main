@@ -522,9 +522,10 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// 🔴 `Status.Stunned` NEGA ANCHE LA PURIFICAZIONE ([D-416], [D-564], `#3954`): e' un'azione PRINCIPALE — lo dice
 		// la prima riga di questa funzione — e questa gira PRIMA di `CollectAttackIntents` e AZZERA il piano, quindi il
 		// rifiuto di quel ciclo non la vedeva mai e uno stordito si purificava come se niente fosse.
-		// ⚠️ **Dopo le guardie di vita e di disponibilita', prima di ogni effetto**: un cadavere non tenta niente, e
-		// un'azione GIA' in ricarica non si ripaga ([D-414], `CanUseAbility`: la ricarica si scrive a valore FISSO).
-		// Quella che la guardia scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents`, senza pagamento.
+		// ⚠️ **Dopo le guardie di vita e di disponibilita', prima di ogni effetto**: un cadavere non paga, e un'azione
+		// GIA' in ricarica non si ripaga ([D-414], `CanUseAbility`: la ricarica si scrive a valore FISSO). Chi la guardia
+		// scarta lascia il piano addosso: il rifiuto lo scrive `CollectAttackIntents` (anche per il cadavere, com'era),
+		// senza pagamento.
 		// 🔴 **Lo stordito PAGA l'azione negata** ([D-563], `R2`), con la sede di sempre: si annota qui e a scrivere e'
 		// `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
@@ -840,10 +841,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// (`ERTActionSlot::Main`, il default di `ShippedAction`) e si intercetta prima di tutto il resto.
 		//
 		// 🔴 **La prima stesura la metteva sotto, e un'unita' stordita cambiava la topologia della mappa.**
-		// E' il secondo buco della stessa famiglia del Prep: i siti che consumano una principale sono piu' d'uno —
+		// E' il secondo buco della stessa famiglia del Prep: i siti che negano una principale sono piu' d'uno —
 		// `ResolvePrep`, questo, `ResolveEnvironment` e, dal 2026-11-01 ([D-564], `#3954`), `ResolveCleanseActions` e
 		// `CollectHealActions`, che azzerano il piano PRIMA di questo ciclo — e una guardia per sito e' una regola che
-		// il sito successivo non erediterà. Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
+		// il sito successivo non erediterà. ⚠️ Ne manca ancora uno: `ResolveCoverStructures` consuma il piano senza
+		// negarlo (`RIC-5`, non deciso). Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
 		//
 		// ⚠️ **Sotto il guard delle AMBIENTALI, non sopra**: quelle escono da questo ciclo col piano INTATTO
 		// (lo consuma `ResolveEnvironment`, che ha la propria guardia). Rifiutarle qui ne consumerebbe il
