@@ -2609,6 +2609,10 @@ protected:
 	 * erezioni **e** spostamenti: e' il numero che accende il beat di Prep nel playback, e un turno in cui
 	 * l'unico evento e' una `Reconfigure` non deve restare muto per lo spettatore.
 	 *
+	 * 🔴 **Uno stordito non erige e non sposta** ([D-565], [D-416] (1)): la voce di rifiuto e la ricarica che parte si
+	 * scrivono in raccolta, dopo `CanUseAbility` e prima di ogni `Reject`. Un rifiuto non e' un'operazione applicata: non
+	 * conta nel ritorno e non si attiva.
+	 *
 	 * Sta fuori da `ResolvePrep` (il motore azioni, che lavora su eventi verso UNITA') per la stessa ragione
 	 * per cui `ModifyArc` sta fuori dalla raccolta degli intenti del Blast: il suo esito e' una modifica della
 	 * mappa, e passare dagli effetti la farebbe ripiegare sul campo legacy `Power`.
@@ -3335,9 +3339,9 @@ protected:
 	 * ne dice il motivo. Torna `true` quando ha rifiutato, cioe' quando il chiamante deve saltare l'azione.
 	 *
 	 * 🔑 **Una funzione e non un blocco per sito**, perche' i siti sono piu' d'uno: l'azione principale si consuma nel
-	 * **Prep** (Overwatch e predittive si ARMANO li'), nel **Blast** (`CollectAttackIntents`, e prima di lui
-	 * `ResolveCleanseActions` e `CollectHealActions`, che azzerano il piano) e nel **Cleanup** (`ResolveEnvironment`).
-	 * ⚠️ `ResolveCoverStructures` (Prep) consuma il piano e non la chiama ancora: `RIC-5`, non deciso. Scrivere il
+	 * **Prep** (Overwatch e predittive si ARMANO li'; e le strutture di bordo di `ResolveCoverStructures`, [D-565]), nel
+	 * **Blast** (`CollectAttackIntents`, e prima di lui `ResolveCleanseActions` e `CollectHealActions`, che azzerano il
+	 * piano) e nel **Cleanup** (`ResolveEnvironment`). Scrivere il
 	 * rifiuto una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha
 	 * girato la suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso. Il
 	 * pagamento della ricarica ([D-563]) resta al chiamante: la sede della scrittura cambia da sito a sito.

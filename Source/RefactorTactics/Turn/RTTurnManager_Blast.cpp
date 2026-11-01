@@ -846,8 +846,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// E' il secondo buco della stessa famiglia del Prep: i siti che negano una principale sono piu' d'uno —
 		// `ResolvePrep`, questo, `ResolveEnvironment` e, dal 2026-11-01 ([D-564], `#3954`), `ResolveCleanseActions` e
 		// `CollectHealActions`, che azzerano il piano PRIMA di questo ciclo — e una guardia per sito e' una regola che
-		// il sito successivo non erediterà. ⚠️ Ne manca ancora uno: `ResolveCoverStructures` consuma il piano senza
-		// negarlo (`RIC-5`, non deciso). Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
+		// il sito successivo non erediterà. Dal 2026-11-01 la nega anche `ResolveCoverStructures` ([D-565]), che consuma il
+		// piano in Prep, prima di questo ciclo. Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
 		//
 		// ⚠️ **Sotto il guard delle AMBIENTALI, non sopra**: quelle escono da questo ciclo col piano INTATTO
 		// (lo consuma `ResolveEnvironment`, che ha la propria guardia). Rifiutarle qui ne consumerebbe il

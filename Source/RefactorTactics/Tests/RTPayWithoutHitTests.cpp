@@ -850,8 +850,9 @@ namespace
  * `CollectAttackIntents` (Blast), `ResolveEnvironment` (Cleanup) e, dal 2026-11-01, `ResolveCleanseActions` e
  * `CollectHealActions` (Blast, PRIMA del ciclo degli intenti: azzerano il piano, quindi il rifiuto di
  * `CollectAttackIntents` non le vedeva mai). Una riga per sito, ciascuna con il proprio mondo: pagare in alcuni
- * lascerebbe lo stordito a ricaricare gratis dall'ultimo. ⚠️ `ResolveCoverStructures` (le coperture, in Prep) consuma
- * il piano senza negarlo e non ha righe qui: e' `RIC-5`, non deciso.
+ * lascerebbe lo stordito a ricaricare gratis dall'ultimo. `ResolveCoverStructures` (le coperture, in Prep) nega e paga
+ * dal [D-565]: le sue righe non stanno qui — il suo piano e' una cella e un bordo, non un'unita' — ma in
+ * `Actions.CoverStructures.StunnedCasterChangesNothing` e `Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation`.
  *
  * 🔴 **Cura e purificazione misurano anche l'EFFETTO e l'ATTIVAZIONE**, non solo la ricarica: un rifiuto che pagasse e
  * poi curasse lo stesso avrebbe il cooldown giusto e la voce giusta. La riga di controllo (non stordita) cura e si
