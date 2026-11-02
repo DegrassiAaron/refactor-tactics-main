@@ -4282,6 +4282,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	// ⚠️ Lo vede invece chi ascolta `OnLogEntryAppended`, che `AppendLogEntry` annuncia a ogni voce aggiunta, e il log
 	// testuale (`RecentEvents`, via `AddLogEvent`), che riceve questi rifiuti SUBITO, in raccolta, e li vede PRIMA degli
 	// esiti applicati: li' l'ordine e' l'opposto di quello di inserimento nel TurnLog.
+	// ⚠️ Il rifiuto per stordimento ([D-565], `RefuseMainActionIfStunned`) NON segue questa via: `AppendLogEntry` lo scrive nel
+	// TurnLog e lo annuncia SUBITO, in raccolta, quindi in `OnLogEntryAppended` precede sia gli esiti applicati sia questi
+	// `Reject`.
 	//
 	// La voce viaggia CON il suo attore (#405): sono emesse in blocco molto piu' tardi, e a quel punto «chi ci
 	// ha provato» non e' piu' ricostruibile — la cella nella voce e' quella del bordo, non dell'unita'.
@@ -4355,8 +4358,8 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// 🔴 **`Status.Stunned` NEGA L'AZIONE PRINCIPALE** ([D-416] (1), `#3142`), e le strutture di bordo sono principali di
 		// Prep ([D-565], `#3958`): `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure` hanno
 		// `ERTActionSlot::Main`. Questo ciclo consumava il piano di chi dichiara uno `StructureOp` senza passare da
-		// `RefuseMainActionIfStunned`, ed era il sito che mancava: `ResolvePrep` lo chiama PRIMA del proprio ciclo
-		// guardato, e quel ciclo non ritrova un piano gia' azzerato.
+		// `RefuseMainActionIfStunned`, ed era il sito che mancava: `ResolvePrep` chiama `ResolveCoverStructures` PRIMA del
+		// proprio ciclo guardato, e quel ciclo non ritrova un piano gia' azzerato.
 		//
 		// 🔑 **PRIMA di ogni `Reject`, DOPO `CanUseAbility`.** Il click accetta il piano di uno stordito — lo stordimento
 		// non e' geometria nota in pianificazione, e [D-200] libera solo cio' che il click rifiuta — quindi il rifiuto per
