@@ -17,6 +17,7 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Replay/RTReplayPrivacyLibrary.h" // `#3974`: il confine per voce, letto dalla squadra avversaria
 // `#2193` estensione: la regola di autorizzazione ha UN owner, e i test del Ready per partecipante la
 // interrogano invece di riscriverla — stesso precedente di `IsIntentVisibleTo` (`#507`).
 #include "Combat/RTCombatLibrary.h"
@@ -886,6 +887,209 @@ bool FRTHexChargeBeyondRangeRevalidatedTest::RunTest(const FString&)
 		}
 		TestEqual(FString::Printf(TEXT("%s: la carica e' annullata, come prima di D-516"), Caso), Annullate, 1);
 		TestEqual(FString::Printf(TEXT("%s: e non si scrive una corsa fino alla portata"), Caso), Fermate, 0);
+
+		DestroyHexMatchWorld(World);
+	}
+	return true;
+}
+
+/**
+ * `#3974` — **un rifiuto GEOMETRICO di uno scatto non scrive la meta pianificata**: la voce `Fallback`/`Cancelled` porta la
+ * cella di PARTENZA sia in `SrcCell` sia in `TgtCell`, come il rifiuto per `Unbalanced` e quello per stordimento.
+ *
+ * Perche': nel modello di visibilita' del replay `TgtCell` e' una colonna pubblica e il filtro lavora per riga o per colonna,
+ * mai per valore (`RTReplayPrivacyLibrary.cpp`). Chi percepisce l'unita' riceve la riga, e con essa la destinazione che il
+ * piano privato di un nemico aveva scelto. Il motivo del rifiuto resta in `Amount`, e dice SOLO perche' non e' partito.
+ *
+ * Quattro cause, cinque mondi — quanti sono i codici che `ResolveDash` scrive dal ramo geometrico, piu' una variante:
+ * il bordo alto, il terreno che nega la corsa e il muro sul PRIMO passo (la carica non si muove, quindi c'e' un rifiuto e
+ * non una corsa accorciata), e una carica oltre la portata verso una cella vuota (che il server rivalida, D-516). La
+ * variante e' il terreno con un camminare pianificato ALTROVE: il rifiuto del Dash non cancella il Move, e la voce deve
+ * restare ancorata alla cella di partenza, non alla destinazione del camminare.
+ *
+ * 🔑 **La meta pianificata e' sempre diversa dalla partenza, e la partenza non e' l'origine**, e lo asserisce la premessa:
+ * con `PlannedDashCell == Cell` l'asserto sulla riga sarebbe vero anche con il difetto, e con la partenza in `(0,0,0)` sarebbe
+ * vero anche scrivendo una `FRTCellId` di default. Il testo del combat log e' misurato contro la STESSA cella pianificata,
+ * non contro una stringa scritta a mano che il giorno in cui cambia il formato di `DescribeEntry` non cercherebbe piu'
+ * niente: il controllo positivo cerca la cella di partenza nel formato vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexGeometricDashRefusalHidesDestinationTest,
+	"RefactorTactics.HexMatch.GeometricDashRefusalHidesThePlannedDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexGeometricDashRefusalHidesDestinationTest::RunTest(const FString&)
+{
+	struct FCasoRifiuto
+	{
+		const TCHAR* Nome;
+		ERTActionInvalidReason Motivo;
+		bool bConCamminata; // un camminare pianificato altrove, che il rifiuto del Dash NON cancella
+	};
+	const FCasoRifiuto Casi[] = {
+		{ TEXT("bordo alto sul primo passo"),                                   ERTActionInvalidReason::DashEdgeBlocked,    false },
+		{ TEXT("terreno che nega la corsa sul primo passo"),                    ERTActionInvalidReason::TerrainDeniesDash,  false },
+		{ TEXT("terreno sul primo passo, con un camminare pianificato altrove"), ERTActionInvalidReason::TerrainDeniesDash,  true },
+		{ TEXT("muro sul primo passo"),                                         ERTActionInvalidReason::DashPathBlocked,    false },
+		{ TEXT("carica oltre la portata su una cella vuota"),                   ERTActionInvalidReason::DashNotAligned,     false },
+	};
+	// La partenza NON e' l'origine: `FRTCellId()` vale `(0,0,0)`, e una voce che scrivesse una cella di default sarebbe
+	// altrimenti indistinguibile da una che scrive la partenza.
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId PrimoPasso(-1, 0, 0);
+	const FRTCellId Camminata(-2, 1, 0); // adiacente alla partenza, lontana dal rough del primo passo
+
+	for (int32 Indice = 0; Indice < UE_ARRAY_COUNT(Casi); ++Indice)
+	{
+		const TCHAR* Caso = Casi[Indice].Nome;
+		UWorld* World = MakeHexMatchWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 7);
+
+		ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Partenza);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Charger || !Map) { DestroyHexMatchWorld(World); return false; }
+		Charger->bIsBotControlled = false;
+
+		int32 ChargeIdx = INDEX_NONE;
+		for (int32 i = 0; i < Charger->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Charger->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+		}
+		const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: Branth ha la carica, e la mappa contiene due celle oltre la portata"), Caso),
+			ChargeIdx != INDEX_NONE && Portata >= 1 && Portata + 2 <= 6))
+		{
+			DestroyHexMatchWorld(World); return false;
+		}
+
+		// Quattro mondi hanno un nemico in linea a 3 celle; l'ultimo, una cella vuota oltre la portata (il nemico non serve).
+		const bool bCellaVuota = (Casi[Indice].Motivo == ERTActionInvalidReason::DashNotAligned);
+		const FRTCellId Bersaglio = bCellaVuota ? FRTCellId(Partenza.X + Portata + 2, 0, 0) : FRTCellId(Partenza.X + 3, 0, 0);
+		ARTUnit* Nemico = nullptr;
+		if (!bCellaVuota)
+		{
+			Nemico = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Bersaglio);
+			if (!Nemico) { DestroyHexMatchWorld(World); return false; }
+			Nemico->bIsBotControlled = false;
+		}
+
+		switch (Casi[Indice].Motivo)
+		{
+		case ERTActionInvalidReason::DashEdgeBlocked:
+		{
+			ERTHexDirection Lato = ERTHexDirection::E;
+			verify(URTHexLibrary::DirectionBetween(Partenza, PrimoPasso, Lato));
+			verify(URTHexCoverLibrary::AddCover(Map, Partenza, Lato, ERTHexCoverType::High,
+				FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+			break;
+		}
+		case ERTActionInvalidReason::TerrainDeniesDash:
+		{
+			FRTHexCellData Dato = Map->FindCell(PrimoPasso) ? *Map->FindCell(PrimoPasso) : FRTHexCellData(PrimoPasso);
+			Dato.Surface = ERTHexSurface::Rough;
+			Map->AddOrUpdateCell(Dato);
+			Map->SortCells();
+			break;
+		}
+		case ERTActionInvalidReason::DashPathBlocked:
+		{
+			FRTHexCellData Dato = Map->FindCell(PrimoPasso) ? *Map->FindCell(PrimoPasso) : FRTHexCellData(PrimoPasso);
+			Dato.bBlocksMovement = true;
+			Dato.bBlocksLineOfSight = true;
+			Map->AddOrUpdateCell(Dato);
+			Map->SortCells();
+			break;
+		}
+		default:
+			break; // DashNotAligned: nessun ostacolo, e' la distanza a negare il piano
+		}
+
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: la meta pianificata e' DIVERSA dalla partenza"), Caso),
+			Bersaglio != Partenza))
+		{
+			DestroyHexMatchWorld(World); return false;
+		}
+
+		Charger->PlannedDashAbility = ChargeIdx;
+		Charger->PlannedDashCell = Bersaglio;
+		if (Casi[Indice].bConCamminata)
+		{
+			Charger->PlannedCell = Camminata;
+		}
+		RTWorldFixtures::PlayOneTurn(TM);
+
+		// Il Dash e' rifiutato; il camminare, se c'e', si compie dopo (il rifiuto non cancella il Move).
+		const FRTCellId Arrivo = Casi[Indice].bConCamminata ? Camminata : Partenza;
+		TestEqual(*FString::Printf(TEXT("%s: dopo il turno chi carica sta dove deve (il Dash non e' partito)"), Caso),
+			Charger->Cell.ToString(), Arrivo.ToString());
+
+		// La cella pianificata, nel formato con cui `DescribeEntry` rende ogni cella. Il controllo positivo cerca la partenza
+		// nello stesso formato: se il formato cambiasse, il test diventerebbe rosso qui e non verde per assenza.
+		auto TestoDellaCella = [](const FRTCellId& Cella)
+		{
+			return FString::Printf(TEXT("(q=%d,r=%d,L=%d)"), Cella.X, Cella.Y, Cella.Layer);
+		};
+
+		int32 Annullate = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.Phase != ERTMatchPhase::Dash
+				|| E.Outcome != static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				|| E.ActionId != FName(TEXT("Hero.Branth.Ram")))
+			{
+				continue;
+			}
+			++Annullate;
+			TestEqual(*FString::Printf(TEXT("%s: il motivo e' quello atteso"), Caso),
+				E.Amount, static_cast<int32>(Casi[Indice].Motivo));
+			TestEqual(*FString::Printf(TEXT("%s: la voce parte dalla cella di partenza"), Caso),
+				E.SrcCell.ToString(), Partenza.ToString());
+			TestEqual(*FString::Printf(TEXT("%s: e NON porta la meta pianificata: arriva alla stessa cella"), Caso),
+				E.TgtCell.ToString(), Partenza.ToString());
+
+			const FString Riga = URTTurnLogLibrary::DescribeEntry(E);
+			TestTrue(*FString::Printf(TEXT("%s: la riga del combat log nomina la partenza (controllo positivo del formato)"), Caso),
+				Riga.Contains(TestoDellaCella(Partenza)));
+			TestFalse(*FString::Printf(TEXT("%s: e non nomina la meta pianificata"), Caso),
+				Riga.Contains(TestoDellaCella(Bersaglio)));
+			if (Casi[Indice].bConCamminata)
+			{
+				TestFalse(*FString::Printf(TEXT("%s: ne' la destinazione del camminare"), Caso),
+					Riga.Contains(TestoDellaCella(Camminata)));
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("%s: una sola voce di annullamento"), Caso), Annullate, 1);
+
+		// Il caso PEGGIORE per la privacy: l'avversario percepisce l'unita', quindi riceve la RIGA (il filtro e' per riga, mai
+		// per valore) e tutto cio' che la riga porta. La voce e' quella VERA prodotta dal flusso, con il verdetto «tutti»: non si
+		// riproduce la visione della squadra avversaria (e' direzionale, e il banco la rinfresca da se'), si asserisce cosa
+		// arriverebbe SE la vedesse. Il controllo positivo e' che la riga arrivi: senza, "nessuna meta nella traccia" sarebbe
+		// vero anche perche' il filtro l'ha scartata.
+		constexpr int32 SquadraAvversaria = 1;
+		TArray<FRTTurnLogEntry> Percepite;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Phase == ERTMatchPhase::Dash
+				&& E.ActionId == FName(TEXT("Hero.Branth.Ram")))
+			{
+				FRTTurnLogEntry& Copia = Percepite.Add_GetRef(E);
+				Copia.Verdict = FRTKnowledgeVerdict::Everyone();
+			}
+		}
+		const TArray<FRTTurnLogEntry> AllAvversario = URTReplayPrivacyLibrary::FilterEntriesForObserver(Percepite, SquadraAvversaria);
+		TestEqual(*FString::Printf(TEXT("%s: premessa: la riga arriva all'avversario (altrimenti gli asserti sotto sono vacui)"), Caso),
+			AllAvversario.Num(), 1);
+		for (const FRTTurnLogEntry& E : AllAvversario)
+		{
+			TestNotEqual(*FString::Printf(TEXT("%s: la riga che arriva all'avversario non porta la meta in TgtCell"), Caso),
+				E.TgtCell.ToString(), Bersaglio.ToString());
+			TestNotEqual(*FString::Printf(TEXT("%s: ne' in SrcCell"), Caso), E.SrcCell.ToString(), Bersaglio.ToString());
+		}
+		// E il prodotto PUBBLICO (`ToPublicTrace`: `TgtCell` e' una colonna `Public`) non la porta nemmeno.
+		for (const FRTPublicReplayEntry& Pubblica : URTReplayPrivacyLibrary::ToPublicTrace(AllAvversario))
+		{
+			TestNotEqual(*FString::Printf(TEXT("%s: ne' la traccia pubblica"), Caso), Pubblica.TgtCell.ToString(), Bersaglio.ToString());
+		}
 
 		DestroyHexMatchWorld(World);
 	}
