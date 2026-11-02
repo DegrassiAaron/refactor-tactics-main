@@ -37,7 +37,7 @@
 //
 // La REGOLA che questo banco fissa: a parita' di cella e di bordo vince l'operazione raccolta per prima, cioe' quella
 // dell'unita' che `SortUnitsForResolution` mette prima (cella, poi `StableUnitId`, poi nome). Le altre sono rifiutate e
-// pagano come prima.
+// pagano la ricarica come il vincitore: il banco la legge, per ogni contendente, dalla ricarica pubblica dell'unita'.
 //
 // Come e' costruito
 //   - FLUSSO REALE: unita' vere e `ARTTurnManager::LockInAndResolve`. Il comparatore e la sua lista sono locali alla
@@ -48,33 +48,53 @@
 //     del TurnLog e l'evento `AbilityActivated` della timeline. Per l'erezione anche la mappa: il vincitore atteso
 //     porta il pannello ADATTIVO e tutti gli altri quello base, con integrita' diverse, quindi cio' che resta sul bordo
 //     dice chi ha vinto anche a TurnLog muto.
-//   - LA STORDITA: la stessa scena in mondi che differiscono per una riga. Stordita (col piano e con
-//     `Status.Stunned`: [D-565] la rifiuta in raccolta), senza piano (il controllo "senza di lei", nello stesso mondo e
-//     con gli stessi `StableUnitId`) e non stordita (contende come ogni altra: il controllo POSITIVO, in cui la stordita,
-//     se e' la prima, vince). Il vincitore fra gli altri non deve cambiare fra il mondo stordita e quello senza piano, e
-//     la stordita non ha nessuna voce ambientale: non e' fra i rifiutati, perche' non e' entrata.
+//   - LA STORDITA: la stessa scena in mondi diversi. Stordita (col piano e con `Status.Stunned`: [D-565] la rifiuta in
+//     raccolta), senza piano (il controllo "senza di lei", nello stesso mondo e con gli stessi `StableUnitId`) e non
+//     stordita (contende come ogni altra: il controllo POSITIVO, in cui la stordita, se e' la prima, vince). Stordita e
+//     non stordita differiscono per UNA riga (lo stato, scritto dopo il piano); senza piano e non stordita per UN fatto
+//     (il piano); stordita e senza piano ne differiscono DUE, piano e stato. Le premesse verificano ciascuna differenza.
+//     Il vincitore fra gli altri non deve cambiare fra il mondo stordita e quello senza piano, e la stordita non ha
+//     nessuna voce ambientale: non e' fra i rifiutati, perche' non e' entrata.
 //   - LISTE LUNGHE: spettatori che erigono (o spostano) altrove nello stesso Prep, in mezzo ai contendenti, e una scena
 //     con tante operazioni da portare l'introsort sul ramo a partizione (`Algo/IntroSort.h`), che nei formati noti non
-//     si raggiunge ma che l'ordine totale deve coprire lo stesso.
+//     si raggiunge ma che l'ordine totale deve coprire lo stesso. Che la scena lo raggiunga e' una PREMESSA asserita
+//     (`bPartitionBranch`, `CoverTieIntroSortSelectionMax`): fino a 8 elementi l'introsort di UE 5.8 ordina per
+//     selezione, da 9 partiziona, e su una lista corta un comparatore che non e' un ordine debole stretto (per esempio
+//     `A.Order != B.Order`) puo' restare verde per caso.
 //   - SQUADRE DIVERSE: il comparatore non legge la squadra, ma gli `StableUnitId` si assegnano per squadra e POI per cella
 //     (`MatchRosterLess`), mentre la raccolta ordina per cella: con un contendente di squadra 1 in una cella minore, il
 //     primo raccolto NON ha lo `StableUnitId` minore, e la riga distingue "il primo raccolto" da "l'id minore".
-//   - CONTROLLO DI CELLA: le due facce dello stesso bordo fisico, mirate da due unita' (una su (1,0) W, l'altra su
-//     (0,0) E), non pareggiano: le ordina la cella, e vince la minore anche se l'altra e' raccolta per prima. Il terzo
-//     criterio e' il TERZO: se prendesse il posto della cella questa riga cadrebbe.
+//   - CONTROLLO DI CELLA: le due facce dello stesso bordo fisico, mirate da due unita' (la cella minore sulla propria
+//     faccia, la maggiore sulla sua), non pareggiano: le ordina la cella, e vince la minore anche se l'altra e' raccolta
+//     per prima. Il terzo criterio e' il TERZO: se prendesse il posto della cella questa riga cadrebbe. Le coppie: E
+//     contro W ((0,0) e (1,0)), dove l'ordine di cella e quello dell'enum COINCIDONO (E < W) e la riga non distingue
+//     "ordina la cella" da "ordina il bordo"; SE contro NW ((0,0) e (0,1)), dove DISCORDANO (NW < SE) e vincerebbe l'altra
+//     cella se il bordo precedesse la cella o se la cella mancasse.
+//   - BORDI DIVERSI SULLA STESSA CELLA (solo spostare): due spostamenti sulla stessa cella con bordi di destinazione
+//     DIVERSI si contendono l'unica copertura della cella (ciclo `Moves`): il primo applicato la porta dal bordo di
+//     partenza al proprio, il secondo la trova sul bordo del primo e la porta al proprio, quindi il bordo finale e' quello
+//     dell'ULTIMO applicato. Con (cella, bordo, raccolta) e' il bordo di valore enum maggiore; con (cella, raccolta,
+//     bordo) sarebbe quello dell'ultimo raccolto. La scena li fa DISCORDARE (il primo raccolto mira il bordo di valore
+//     enum maggiore) e l'oracolo e' il valore enum maggiore dei due bordi mirati, non il risultato della produzione.
 //
 // Premesse asserite in ogni run (se una cade il banco e' rosso per un guasto di fixture, e gli esiti non si leggono):
 // l'azione e' nello slot 3, e' una PRINCIPALE di Prep con la `StructureOp` attesa, e' utilizzabile; la cella mirata e'
-// a portata; lo stordimento c'e' dove il braccio lo dichiara; le celle di partenza sono distinte; l'ordine reale di
-// raccolta coincide con quello per cella; gli `StableUnitId` sono non nulli e distinti.
+// a portata; la ricarica dichiarata e lo specchio coincidono e superano uno (altrimenti "pagata" e "mai pagata" si
+// confonderebbero dopo il decremento del Cleanup); lo stordimento c'e' dove il braccio lo dichiara; le celle di partenza
+// sono distinte; l'ordine reale di raccolta coincide con quello per cella; gli `StableUnitId` sono non nulli e distinti.
 //
 // Cio' che il banco NON misura (limiti dichiarati)
 //   - due unita' sulla STESSA cella di partenza: li' decide lo `StableUnitId` di `SortUnitsForResolution`, che ha il suo
 //     banco (`Actions.UnitOrderStableIdBeatsActorName`); qui le celle di partenza sono sempre distinte;
-//   - la posizione del terzo criterio rispetto al bordo: operazioni sulla stessa cella e su bordi diversi non si
-//     contendono nulla, quindi l'ordine fra i due criteri non cambia nessun esito osservabile in un turno;
-//   - il pagamento dello spostamento e la rotazione gratuita del pannello adattivo: la lista che li tiene e' `protected`
-//     e senza accessor;
+//   - la posizione del terzo criterio rispetto al bordo, per le EREZIONI: due erezioni sulla stessa cella e su bordi
+//     diversi non si contendono nulla (`AddCover` le applica entrambe in qualunque ordine e la mappa finale e' la stessa),
+//     quindi quella posizione non cambia ne' chi vince ne' la mappa. Cambia l'ORDINE in cui le due si applicano, cioe'
+//     quello dei loro `AbilityActivated` in timeline (l'ordine di emissione, `EmitAbilityActivated`): non e' un esito di
+//     contesa e nessuna riga lo legge. Per gli SPOSTAMENTI la posizione conta, perche' i due si contendono l'unica
+//     copertura della cella, ed e' misurata (`MoveDifferentEdgesKeepEdgeOrder`);
+//   - la rotazione gratuita del pannello adattivo: i crediti stanno in `DynamicCovers`, che e' `protected` e senza
+//     accessor, e nessuna scena sposta una copertura che ne porti uno. Il PAGAMENTO invece e' pubblico (la ricarica
+//     dell'unita', `GetAbilityCooldown`) e il banco lo legge per ogni contendente;
 //   - determinismo, replay e digest: li misurano il corpus golden e `Replay.*`, non questo file; PIE e packaged.
 //
 // Prefisso `CoverTie*` negli helper: unity build, namespace anonimi fusi con gli altri file di test.
@@ -96,7 +116,11 @@ namespace
 		Bystander, //< fuori dalla contesa: pianifica una struttura sulla PROPRIA cella, bordo E, nello stesso Prep
 	};
 
-	/** I mondi di una scena con la stordita: differiscono per UNA riga, e le premesse lo verificano. */
+	/**
+	 * I mondi di una scena con la stordita. Stordita e non stordita differiscono per UNA riga (lo stato, scritto dopo il
+	 * piano); senza piano e non stordita per UN fatto (il piano); stordita e senza piano ne differiscono DUE. Le premesse
+	 * verificano ciascuna differenza.
+	 */
 	enum class ECoverTieArm : uint8
 	{
 		Stunned, //< col piano e con `Status.Stunned` al commit
@@ -116,6 +140,7 @@ namespace
 		FString Name;
 		TArray<FCoverTieUnit> Units;     //< nell'ordine di SPAWN, che non e' l'ordine di raccolta: lo decide la cella di partenza
 		bool bWinnerNotLowestId = false; //< premessa di riga: il vincitore atteso NON ha lo StableUnitId minore fra i contendenti
+		bool bPartitionBranch = false;   //< premessa di riga: i contendenti superano `CoverTieIntroSortSelectionMax`, quindi l'introsort PARTIZIONA
 	};
 
 	/** Lo slot dell'azione sotto prova, lo stesso del banco di [D-565]. */
@@ -123,6 +148,12 @@ namespace
 
 	/** L'integrita' della copertura di mappa posta prima del turno nelle scene di spostamento: non e' un default del catalogo. */
 	constexpr int32 CoverTiePreplacedIntegrity = 18;
+
+	/**
+	 * Fino a quanti elementi l'introsort di UE 5.8 ordina per SELEZIONE (`Algo/IntroSort.h`, `if( Count <= 8 )`): da uno in
+	 * piu' parte il ramo a PARTIZIONE. E' un valore dell'Engine copiato qui: se l'Engine si aggiorna va riletto.
+	 */
+	constexpr int32 CoverTieIntroSortSelectionMax = 8;
 
 	/** La cella che riceve la struttura contestata. */
 	FRTCellId CoverTieTargetCell() { return FRTCellId(1, 0); }
@@ -137,6 +168,20 @@ namespace
 		case ECoverTieArm::Stunned: return TEXT("stordita");
 		case ECoverTieArm::Idle:    return TEXT("senza piano");
 		case ECoverTieArm::Free:    return TEXT("non stordita");
+		}
+		return TEXT("?");
+	}
+
+	const TCHAR* CoverTieEdgeName(ERTHexDirection Edge)
+	{
+		switch (Edge)
+		{
+		case ERTHexDirection::E:  return TEXT("E");
+		case ERTHexDirection::NE: return TEXT("NE");
+		case ERTHexDirection::NW: return TEXT("NW");
+		case ERTHexDirection::W:  return TEXT("W");
+		case ERTHexDirection::SW: return TEXT("SW");
+		case ERTHexDirection::SE: return TEXT("SE");
 		}
 		return TEXT("?");
 	}
@@ -384,6 +429,17 @@ namespace
 		{
 			return false;
 		}
+		// La scena che promette il ramo a partizione dell'introsort lo raggiunge davvero: fino a `CoverTieIntroSortSelectionMax`
+		// elementi UE 5.8 ordina per selezione, e su quel ramo un comparatore che non e' un ordine debole stretto resta verde per caso.
+		// Senza questa premessa una scena ristretta (`ManyCount`, il raggio di `HexArea`) manterrebbe il nome e mentirebbe in silenzio.
+		if (Scene.bPartitionBranch
+			&& !Test.TestTrue(*FString::Printf(TEXT("%s: premessa: i contendenti sono piu' di %d (ora %d): fino a %d elementi l'introsort ")
+				TEXT("di UE 5.8 ordina per selezione, solo da %d partiziona, e questa scena promette il ramo a partizione"), *Run,
+				CoverTieIntroSortSelectionMax, Group.Num(), CoverTieIntroSortSelectionMax, CoverTieIntroSortSelectionMax + 1),
+				Group.Num() > CoverTieIntroSortSelectionMax))
+		{
+			return false;
+		}
 		TArray<int32> GroupByCell = Group;
 		GroupByCell.Sort([&Scene](int32 A, int32 B)
 		{
@@ -458,7 +514,8 @@ namespace
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha ricevuto il piano"), *Run, I), bPlanned);
 		}
 
-		// L'UNICA riga che separa i bracci della stordita, DOPO il piano.
+		// L'UNICA riga che separa la stordita da quella non stordita (stesso piano), DOPO il piano. Il braccio senza piano si
+		// distingue dalla non stordita per il solo piano, che il ciclo qui sopra non scrive (`CoverTiePlans`).
 		for (int32 I = 0; I < N; ++I)
 		{
 			if (CoverTieIsStunnedNow(Scene.Units[I], Arm) && Bed.Units[I])
@@ -467,8 +524,11 @@ namespace
 			}
 		}
 
-		// Le premesse sulle unita': il piano, la classe dell'azione, la portata, lo stordimento.
+		// Le premesse sulle unita': il piano, la classe dell'azione, la portata, la ricarica, lo stordimento.
 		int32 AdaptiveIntegrity = 0;
+		// La ricarica attesa a fine turno di ogni unita' col piano: lo specchio meno il decremento del Cleanup, come nel banco di [D-565].
+		TArray<int32> ExpectedCooldownAfter;
+		ExpectedCooldownAfter.Init(static_cast<int32>(INDEX_NONE), N);
 		for (int32 I = 0; I < N && bOk; ++I)
 		{
 			const FCoverTieUnit& Spec = Scene.Units[I];
@@ -495,6 +555,11 @@ namespace
 			const FRTCellId Aimed = Spec.Role == ECoverTieRole::Bystander ? Spec.Start : Target;
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la cella mirata dall'unita' %d e' a portata"), *Run, I),
 				URTHexLibrary::HexDistance(Spec.Start, Aimed) <= Installed->Def.RangeCells);
+			// La ricarica che il turno addebita: `ConsumeAbility` scrive lo specchio, che deve coincidere con la dichiarata e superare
+			// uno, o "pagata" (1) e "mai pagata" (0) si confonderebbero dopo il decremento del Cleanup.
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la ricarica dell'unita' %d e' dichiarata, uguale allo specchio e maggiore di uno"), *Run, I),
+				Installed->Def.CooldownTurns > 1 && Installed->Def.CooldownTurns == Installed->CooldownTurns);
+			ExpectedCooldownAfter[I] = Installed->CooldownTurns - 1;
 			if (bCreate && I == ExpectedWinner)
 			{
 				const FRTAbilityVariant* Variant = Installed->FindVariant(Unit->ActiveVariantId);
@@ -608,6 +673,17 @@ namespace
 		Test.TestEqual(*FString::Printf(TEXT("%s: i rifiutati sono i contendenti meno il vincitore, e nessun altro"), *Run),
 			RejectedTotal, Group.Num() - 1);
 
+		// 2b. Tutti i contendenti PAGANO, il vincitore e i rifiutati. L'erezione addebita la ricarica in raccolta, prima del rifiuto;
+		// lo spostamento in applicazione (riuscito) o nel rifiuto, e nessuna scena ha un credito di rotazione gratuita da spendere.
+		// Il Cleanup decrementa di uno: lo stesso valore atteso del banco di [D-565] (`Mirror - 1`, la ricarica e' PARTITA).
+		for (const int32 Member : Group)
+		{
+			const ARTUnit* After = Bed.Weak[Member].Get(/*bEvenIfPendingKill=*/ true);
+			Test.TestEqual(*FString::Printf(TEXT("%s: il contendente %d (%s) ha la ricarica pagata (specchio meno il decremento del Cleanup)"), *Run,
+				Member, *Scene.Units[Member].Start.ToString()),
+				After ? After->GetAbilityCooldown(CoverTieSlot) : static_cast<int32>(INDEX_NONE), ExpectedCooldownAfter[Member]);
+		}
+
 		// 3. La stordita: nel braccio stordito ha UN rifiuto per stordimento e nessuna voce ambientale (non e' fra i rifiutati, perche'
 		// non e' entrata); nel braccio senza piano non ha niente; nel braccio libero contende come le altre (punto 1 e 2).
 		int32 ExpectedRefusals = 0;
@@ -666,21 +742,63 @@ namespace
 	}
 
 	/**
-	 * Il controllo di CELLA: le due facce dello stesso bordo fisico, (0,0) E e (1,0) W, mirate da due unita'. Non pareggiano:
-	 * le ordina la cella, e vince quella che mira la faccia della cella MINORE, anche se l'altra e' raccolta per prima.
+	 * Le due facce dello stesso bordo fisico: la cella MINORE (`StableLess`) con la sua faccia verso la maggiore, la cella
+	 * maggiore con la sua faccia verso la minore. `EarlyStart` e `LateStart` sono le partenze delle due unita' (la minore e'
+	 * raccolta per prima), a portata di entrambe le celle mirate. `bEdgeOrderDiscordsFromCellOrder` e' la premessa di riga:
+	 * la faccia della cella minore ha il valore enum MAGGIORE, quindi un ordine per bordo sceglierebbe l'altra cella.
+	 */
+	struct FCoverTieFacePair
+	{
+		const TCHAR* Name = TEXT("");
+		FRTCellId LowCell;
+		ERTHexDirection LowFace = ERTHexDirection::E;
+		FRTCellId HighCell;
+		ERTHexDirection HighFace = ERTHexDirection::E;
+		FRTCellId EarlyStart;
+		FRTCellId LateStart;
+		bool bEdgeOrderDiscordsFromCellOrder = false;
+	};
+
+	/**
+	 * Il controllo di CELLA: le due facce dello stesso bordo fisico (`Pair`), mirate da due unita'. Non pareggiano: le ordina
+	 * la cella, e vince quella che mira la faccia della cella MINORE, anche se l'altra e' raccolta per prima.
 	 * `bLoserCollectedFirst` decide quale delle due partenze e' la minore.
 	 */
-	bool CoverTieRunFaces(FAutomationTestBase& Test, ECoverTieKind Kind, bool bLoserCollectedFirst)
+	bool CoverTieRunFaces(FAutomationTestBase& Test, ECoverTieKind Kind, const FCoverTieFacePair& Pair, bool bLoserCollectedFirst)
 	{
 		const bool bCreate = Kind == ECoverTieKind::Create;
-		const FString Run = FString::Printf(TEXT("%s - le due facce dello stesso bordo, %s"), bCreate ? TEXT("erigere") : TEXT("spostare"),
-			bLoserCollectedFirst ? TEXT("chi perde e' raccolto per primo") : TEXT("chi vince e' raccolto per primo"));
+		const FString Run = FString::Printf(TEXT("%s - le due facce dello stesso bordo (%s), %s"), bCreate ? TEXT("erigere") : TEXT("spostare"),
+			Pair.Name, bLoserCollectedFirst ? TEXT("chi perde e' raccolto per primo") : TEXT("chi vince e' raccolto per primo"));
 
-		const FRTCellId LowCell(0, 0);   // la cella minore: la sua faccia E vince
-		const FRTCellId HighCell(1, 0);  // la sua faccia W perde
-		// Le partenze: spawn (vincitore, perdente); la minore e' raccolta per prima.
-		const FRTCellId WinnerStart = bLoserCollectedFirst ? FRTCellId(0, 2) : FRTCellId(0, 1);
-		const FRTCellId LoserStart = bLoserCollectedFirst ? FRTCellId(0, 1) : FRTCellId(0, 2);
+		const FRTCellId LowCell = Pair.LowCell;   // la cella minore: la sua faccia vince
+		const FRTCellId HighCell = Pair.HighCell; // la sua faccia perde
+		const ERTHexDirection LowFace = Pair.LowFace;
+		const ERTHexDirection HighFace = Pair.HighFace;
+		// Lo spostamento parte da una copertura per cella, sul bordo OPPOSTO a quello comune: la faccia dell'altra cella e' il suo valore.
+		const ERTHexDirection LowFrom = HighFace;
+		const ERTHexDirection HighFrom = LowFace;
+
+		// La geometria della coppia, riletta dal progetto invece che data per buona: la minore e' minore per `StableLess`, ognuna
+		// vede l'altra dalla faccia dichiarata (e' lo stesso bordo fisico), la partenza raccolta per prima e' la minore, e la riga
+		// e' concorde o discorde fra ordine di cella e ordine dell'enum come dichiara.
+		ERTHexDirection LowToHigh = ERTHexDirection::E;
+		ERTHexDirection HighToLow = ERTHexDirection::E;
+		bool bPair = true;
+		bPair &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la cella %s e' minore della cella %s per StableLess"), *Run,
+			*LowCell.ToString(), *HighCell.ToString()), URTHexLibrary::StableLess(LowCell, HighCell));
+		bPair &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la faccia %s della cella minore guarda la cella maggiore"), *Run, CoverTieEdgeName(LowFace)),
+			URTHexLibrary::DirectionBetween(LowCell, HighCell, LowToHigh) && LowToHigh == LowFace);
+		bPair &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la faccia %s della cella maggiore guarda la cella minore"), *Run, CoverTieEdgeName(HighFace)),
+			URTHexLibrary::DirectionBetween(HighCell, LowCell, HighToLow) && HighToLow == HighFace);
+		bPair &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la faccia della cella minore ha il valore enum maggiore solo dove la riga lo dichiara"), *Run),
+			static_cast<uint8>(LowFace) > static_cast<uint8>(HighFace), Pair.bEdgeOrderDiscordsFromCellOrder);
+		bPair &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la partenza raccolta per prima e' minore dell'altra"), *Run),
+			URTHexLibrary::StableLess(Pair.EarlyStart, Pair.LateStart));
+		if (!bPair) { return false; }
+
+		// Le partenze: spawn (vincitore, perdente); la partenza minore e' raccolta per prima.
+		const FRTCellId WinnerStart = bLoserCollectedFirst ? Pair.LateStart : Pair.EarlyStart;
+		const FRTCellId LoserStart = bLoserCollectedFirst ? Pair.EarlyStart : Pair.LateStart;
 
 		TArray<FCoverTieUnit> Specs;
 		FCoverTieUnit Winner;
@@ -696,26 +814,26 @@ namespace
 		bool bOk = true;
 		if (bCreate)
 		{
-			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la faccia E della cella minore parte scoperta"), *Run),
-				CoverTieIntegrityOn(Bed.Map, LowCell, ERTHexDirection::E), 0);
-			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la faccia W della cella maggiore parte scoperta"), *Run),
-				CoverTieIntegrityOn(Bed.Map, HighCell, ERTHexDirection::W), 0);
+			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la faccia %s della cella minore parte scoperta"), *Run, CoverTieEdgeName(LowFace)),
+				CoverTieIntegrityOn(Bed.Map, LowCell, LowFace), 0);
+			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la faccia %s della cella maggiore parte scoperta"), *Run, CoverTieEdgeName(HighFace)),
+				CoverTieIntegrityOn(Bed.Map, HighCell, HighFace), 0);
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il vincitore ha il piano"), *Run),
-				CoverTiePlanBase(Bed.Units[0], LowCell, ERTHexDirection::E));
+				CoverTiePlanBase(Bed.Units[0], LowCell, LowFace));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il perdente ha il piano"), *Run),
-				CoverTiePlanBase(Bed.Units[1], HighCell, ERTHexDirection::W));
+				CoverTiePlanBase(Bed.Units[1], HighCell, HighFace));
 		}
 		else
 		{
 			// Una copertura su ciascuna cella, ognuna sul bordo che NON e' quello comune: ciascun mover la porta sul bordo comune.
-			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura della cella minore e' posta"), *Run),
-				URTHexCoverLibrary::AddCover(Bed.Map, LowCell, ERTHexDirection::W, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
-			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura della cella maggiore e' posta"), *Run),
-				URTHexCoverLibrary::AddCover(Bed.Map, HighCell, ERTHexDirection::E, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura della cella minore e' posta sul bordo %s"), *Run, CoverTieEdgeName(LowFrom)),
+				URTHexCoverLibrary::AddCover(Bed.Map, LowCell, LowFrom, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura della cella maggiore e' posta sul bordo %s"), *Run, CoverTieEdgeName(HighFrom)),
+				URTHexCoverLibrary::AddCover(Bed.Map, HighCell, HighFrom, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il vincitore ha il piano"), *Run),
-				CoverTiePlanBranth(Bed.Units[0], TEXT("Hero.Branth.Reconfigure"), NAME_None, LowCell, ERTHexDirection::E));
+				CoverTiePlanBranth(Bed.Units[0], TEXT("Hero.Branth.Reconfigure"), NAME_None, LowCell, LowFace));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il perdente ha il piano"), *Run),
-				CoverTiePlanBranth(Bed.Units[1], TEXT("Hero.Branth.Reconfigure"), NAME_None, HighCell, ERTHexDirection::W));
+				CoverTiePlanBranth(Bed.Units[1], TEXT("Hero.Branth.Reconfigure"), NAME_None, HighCell, HighFace));
 		}
 		if (!bOk) { return false; }
 
@@ -777,22 +895,162 @@ namespace
 
 		if (bCreate)
 		{
-			Test.TestEqual(*FString::Printf(TEXT("%s: la faccia E della cella minore ha la copertura"), *Run),
-				CoverTieIntegrityOn(Bed.Map, LowCell, ERTHexDirection::E), FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low));
-			Test.TestEqual(*FString::Printf(TEXT("%s: la faccia W della cella maggiore resta scoperta"), *Run),
-				CoverTieIntegrityOn(Bed.Map, HighCell, ERTHexDirection::W), 0);
+			Test.TestEqual(*FString::Printf(TEXT("%s: la faccia %s della cella minore ha la copertura"), *Run, CoverTieEdgeName(LowFace)),
+				CoverTieIntegrityOn(Bed.Map, LowCell, LowFace), FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low));
+			Test.TestEqual(*FString::Printf(TEXT("%s: la faccia %s della cella maggiore resta scoperta"), *Run, CoverTieEdgeName(HighFace)),
+				CoverTieIntegrityOn(Bed.Map, HighCell, HighFace), 0);
 		}
 		else
 		{
-			Test.TestEqual(*FString::Printf(TEXT("%s: la copertura della cella minore e' passata sul bordo comune"), *Run),
-				CoverTieIntegrityOn(Bed.Map, LowCell, ERTHexDirection::E), CoverTiePreplacedIntegrity);
-			Test.TestEqual(*FString::Printf(TEXT("%s: e ha lasciato il bordo W"), *Run),
-				CoverTieIntegrityOn(Bed.Map, LowCell, ERTHexDirection::W), 0);
-			Test.TestEqual(*FString::Printf(TEXT("%s: quella della cella maggiore e' restata dov'era"), *Run),
-				CoverTieIntegrityOn(Bed.Map, HighCell, ERTHexDirection::E), CoverTiePreplacedIntegrity);
-			Test.TestEqual(*FString::Printf(TEXT("%s: senza spostarsi sul bordo comune"), *Run),
-				CoverTieIntegrityOn(Bed.Map, HighCell, ERTHexDirection::W), 0);
+			Test.TestEqual(*FString::Printf(TEXT("%s: la copertura della cella minore e' passata sul bordo comune %s"), *Run, CoverTieEdgeName(LowFace)),
+				CoverTieIntegrityOn(Bed.Map, LowCell, LowFace), CoverTiePreplacedIntegrity);
+			Test.TestEqual(*FString::Printf(TEXT("%s: e ha lasciato il bordo %s"), *Run, CoverTieEdgeName(LowFrom)),
+				CoverTieIntegrityOn(Bed.Map, LowCell, LowFrom), 0);
+			Test.TestEqual(*FString::Printf(TEXT("%s: quella della cella maggiore e' restata dov'era (%s)"), *Run, CoverTieEdgeName(HighFrom)),
+				CoverTieIntegrityOn(Bed.Map, HighCell, HighFrom), CoverTiePreplacedIntegrity);
+			Test.TestEqual(*FString::Printf(TEXT("%s: senza spostarsi sul bordo comune %s"), *Run, CoverTieEdgeName(HighFace)),
+				CoverTieIntegrityOn(Bed.Map, HighCell, HighFace), 0);
 		}
+		return true;
+	}
+
+	/**
+	 * Due spostamenti sulla STESSA cella con bordi di destinazione DIVERSI. Non pareggiano nei due criteri, ma l'ordine fra il
+	 * bordo e la raccolta conta lo stesso, perche' si contendono l'UNICA copertura della cella (ciclo `Moves`): il primo applicato
+	 * la porta dal bordo di partenza al proprio, il secondo la trova sul bordo del primo e la porta al proprio, quindi il bordo
+	 * finale e' quello dell'ULTIMO applicato. Con (cella, bordo, raccolta) e' il bordo di valore enum maggiore; con
+	 * (cella, raccolta, bordo) sarebbe quello dell'ultimo raccolto. La scena li fa DISCORDARE: il primo raccolto mira il bordo
+	 * di valore enum maggiore. L'oracolo e' il valore enum maggiore dei due bordi mirati, letto dalla scena e non dalla produzione.
+	 */
+	bool CoverTieRunMoveDifferentEdges(FAutomationTestBase& Test)
+	{
+		const FString Run = TEXT("spostare - due bordi di destinazione diversi sulla stessa cella");
+		const FRTCellId Target = CoverTieTargetCell();
+		const ERTHexDirection FromEdge = ERTHexDirection::W; // dove sta la copertura di mappa prima del turno
+
+		// In ordine di SPAWN, che non e' l'ordine di raccolta (lo decide la cella di partenza): u0 parte da (0,1) e mira E, u1 parte
+		// da (0,0), e' raccolta per prima e mira SE, il valore enum maggiore.
+		TArray<FCoverTieUnit> Specs;
+		FCoverTieUnit SpawnedFirst;
+		SpawnedFirst.Start = FRTCellId(0, 1);
+		FCoverTieUnit SpawnedSecond;
+		SpawnedSecond.Start = FRTCellId(0, 0);
+		Specs.Add(SpawnedFirst);
+		Specs.Add(SpawnedSecond);
+		const ERTHexDirection ToEdges[2] = { ERTHexDirection::E, ERTHexDirection::SE };
+
+		// Dalla scena e non dalla produzione: chi e' raccolto per primo (la cella di partenza minore) e quale bordo deve restare
+		// (il valore enum maggiore dei due mirati).
+		TArray<int32> ByCell = { 0, 1 };
+		ByCell.Sort([&Specs](int32 A, int32 B) { return URTHexLibrary::StableLess(Specs[A].Start, Specs[B].Start); });
+		const int32 First = ByCell[0];
+		const int32 Second = ByCell[1];
+		const ERTHexDirection HighestEdge = static_cast<uint8>(ToEdges[0]) > static_cast<uint8>(ToEdges[1]) ? ToEdges[0] : ToEdges[1];
+
+		bool bOk = true;
+		bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: i due bordi mirati (%s, %s) sono distinti fra loro e dal bordo di partenza (%s)"), *Run,
+			CoverTieEdgeName(ToEdges[0]), CoverTieEdgeName(ToEdges[1]), CoverTieEdgeName(FromEdge)),
+			ToEdges[0] != ToEdges[1] && ToEdges[0] != FromEdge && ToEdges[1] != FromEdge);
+		bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il primo raccolto (u%d) mira il bordo di valore enum MAGGIORE (%s), il secondo (u%d) il minore (%s): ")
+			TEXT("raccolta ed enum discordano"), *Run, First, CoverTieEdgeName(ToEdges[First]), Second, CoverTieEdgeName(ToEdges[Second])),
+			static_cast<uint8>(ToEdges[First]) > static_cast<uint8>(ToEdges[Second]));
+		if (!bOk) { return false; }
+
+		FCoverTieBed Bed;
+		if (!CoverTieOpenBed(Test, Run, Specs, Bed)) { return false; }
+
+		bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura contesa e' posta sul bordo di partenza %s"), *Run, CoverTieEdgeName(FromEdge)),
+			URTHexCoverLibrary::AddCover(Bed.Map, Target, FromEdge, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
+		bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: sulla cella bersaglio c'e' una sola copertura, quella da spostare"), *Run),
+			CoverTieCoversOn(Bed.Map, Target), 1);
+		for (int32 I = 0; I < Specs.Num(); ++I)
+		{
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha ricevuto il piano di spostare sul bordo %s"), *Run, I,
+				CoverTieEdgeName(ToEdges[I])),
+				CoverTiePlanBranth(Bed.Units[I], TEXT("Hero.Branth.Reconfigure"), NAME_None, Target, ToEdges[I]));
+		}
+		if (!bOk) { return false; }
+
+		for (int32 I = 0; I < Specs.Num(); ++I)
+		{
+			const ARTUnit* Unit = Bed.Units[I];
+			const URTActionData* Installed = Unit->GetAbility(CoverTieSlot);
+			bOk &= Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha l'azione nello slot %d"), *Run, I, CoverTieSlot), Installed);
+			if (Installed == nullptr) { continue; }
+			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha il piano nello slot %d"), *Run, I, CoverTieSlot),
+				Unit->PlannedAbilityIndex, CoverTieSlot);
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha una PRINCIPALE di Prep che sposta"), *Run, I),
+				Installed->Def.Slot == ERTActionSlot::Main
+				&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep
+				&& Installed->Def.StructureOp == ERTStructureOp::MoveCover);
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d e' utilizzabile e non stordita"), *Run, I),
+				Unit->CanUseAbility(CoverTieSlot) && !Unit->HasStatus(TAG_Status_Stunned));
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il piano dell'unita' %d dichiara il bordo %s"), *Run, I, CoverTieEdgeName(ToEdges[I])),
+				Unit->bHasPlannedCoverEdge && Unit->PlannedCoverEdge == ToEdges[I]);
+			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la cella bersaglio e' a portata dell'unita' %d"), *Run, I),
+				URTHexLibrary::HexDistance(Unit->Cell, Target) <= Installed->Def.RangeCells);
+		}
+		const TArray<int32> Members = { 0, 1 };
+		const TArray<int32> RealOrder = CoverTieRealOrder(Bed, Members);
+		bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'ordine reale di raccolta e' quello per cella di partenza"), *Run), RealOrder == ByCell);
+		if (!bOk) { return false; }
+
+		CoverTieRunTurn(Bed.TM);
+
+		const TArray<int32> Ids = CoverTieIdsAfterTurn(Bed);
+		if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: gli StableUnitId sono non nulli e distinti"), *Run), CoverTieIdsAreUsable(Ids)))
+		{
+			return false;
+		}
+
+		// Le voci del TurnLog: due spostamenti riusciti, uno a testa, ognuno verso il bordo mirato dalla propria unita'.
+		int32 MovedTotal = 0;
+		int32 RejectedTotal = 0;
+		int32 CreatedTotal = 0;
+		TArray<int32> MovedBy;
+		MovedBy.Init(0, Specs.Num());
+		for (const FRTTurnLogEntry& E : Bed.TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Environment) { continue; }
+			if (E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverMoved))
+			{
+				++MovedTotal;
+				const int32 Who = Ids.IndexOfByKey(E.UnitId);
+				if (!MovedBy.IsValidIndex(Who)) { continue; }
+				++MovedBy[Who];
+				Test.TestEqual(*FString::Printf(TEXT("%s: la voce di spostamento dell'unita' %d parte dalla cella bersaglio"), *Run, Who),
+					E.SrcCell.ToString(), Target.ToString());
+				Test.TestEqual(*FString::Printf(TEXT("%s: la voce di spostamento dell'unita' %d guarda verso il bordo che ha mirato (%s)"), *Run, Who,
+					CoverTieEdgeName(ToEdges[Who])), E.TgtCell.ToString(), URTHexLibrary::Neighbor(Target, ToEdges[Who]).ToString());
+				Test.TestEqual(*FString::Printf(TEXT("%s: la voce di spostamento dell'unita' %d porta l'integrita' della copertura spostata"), *Run, Who),
+					E.Amount, CoverTiePreplacedIntegrity);
+			}
+			else if (E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverRejected)) { ++RejectedTotal; }
+			else if (E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverCreated)) { ++CreatedTotal; }
+		}
+		Test.TestEqual(*FString::Printf(TEXT("%s: due spostamenti riusciti in tutto"), *Run), MovedTotal, 2);
+		for (int32 I = 0; I < Specs.Num(); ++I)
+		{
+			Test.TestEqual(*FString::Printf(TEXT("%s: l'unita' %d ha UNA voce di spostamento"), *Run, I), MovedBy[I], 1);
+			Test.TestEqual(*FString::Printf(TEXT("%s: l'unita' %d ha UN AbilityActivated"), *Run, I), CoverTieCountActivations(Bed.TM, Ids[I]), 1);
+		}
+		Test.TestEqual(*FString::Printf(TEXT("%s: nessun rifiuto: i due bordi di destinazione non pareggiano"), *Run), RejectedTotal, 0);
+		Test.TestEqual(*FString::Printf(TEXT("%s: nessuna erezione"), *Run), CreatedTotal, 0);
+
+		// La mappa: la copertura e' una sola, e sta sul bordo che l'ultimo applicato le ha dato.
+		int32 SeenEdge = static_cast<int32>(INDEX_NONE);
+		for (int32 D = 0; D < 6; ++D)
+		{
+			if (CoverTieIntegrityOn(Bed.Map, Target, static_cast<ERTHexDirection>(D)) > 0) { SeenEdge = D; }
+		}
+		Test.AddInfo(FString::Printf(TEXT("%s -> il primo raccolto u%d mira %s, il secondo u%d mira %s; bordo finale atteso %s (valore enum maggiore), visto %s"),
+			*Run, First, CoverTieEdgeName(ToEdges[First]), Second, CoverTieEdgeName(ToEdges[Second]), CoverTieEdgeName(HighestEdge),
+			SeenEdge == INDEX_NONE ? TEXT("nessuno") : CoverTieEdgeName(static_cast<ERTHexDirection>(SeenEdge))));
+		Test.TestEqual(*FString::Printf(TEXT("%s: la cella bersaglio porta una sola copertura"), *Run), CoverTieCoversOn(Bed.Map, Target), 1);
+		Test.TestEqual(*FString::Printf(TEXT("%s: il bordo finale e' %s, il valore enum maggiore dei due mirati (per ordine di raccolta sarebbe %s)"), *Run,
+			CoverTieEdgeName(HighestEdge), CoverTieEdgeName(ToEdges[Second])), SeenEdge, static_cast<int32>(HighestEdge));
+		Test.TestEqual(*FString::Printf(TEXT("%s: la copertura ha conservato la propria integrita'"), *Run),
+			CoverTieIntegrityOn(Bed.Map, Target, HighestEdge), CoverTiePreplacedIntegrity);
 		return true;
 	}
 
@@ -807,13 +1065,46 @@ namespace
 		return Unit;
 	}
 
-	FCoverTieScene CoverTieMakeScene(const TCHAR* Name, const TArray<FCoverTieUnit>& Units, bool bWinnerNotLowestId = false)
+	FCoverTieScene CoverTieMakeScene(const TCHAR* Name, const TArray<FCoverTieUnit>& Units, bool bWinnerNotLowestId = false,
+		bool bPartitionBranch = false)
 	{
 		FCoverTieScene Scene;
 		Scene.Name = Name;
 		Scene.Units = Units;
 		Scene.bWinnerNotLowestId = bWinnerNotLowestId;
+		Scene.bPartitionBranch = bPartitionBranch;
 		return Scene;
+	}
+
+	FCoverTieFacePair CoverTieMakeFacePair(const TCHAR* Name, const FRTCellId& LowCell, ERTHexDirection LowFace, const FRTCellId& HighCell,
+		ERTHexDirection HighFace, const FRTCellId& EarlyStart, const FRTCellId& LateStart, bool bEdgeOrderDiscordsFromCellOrder)
+	{
+		FCoverTieFacePair Pair;
+		Pair.Name = Name;
+		Pair.LowCell = LowCell;
+		Pair.LowFace = LowFace;
+		Pair.HighCell = HighCell;
+		Pair.HighFace = HighFace;
+		Pair.EarlyStart = EarlyStart;
+		Pair.LateStart = LateStart;
+		Pair.bEdgeOrderDiscordsFromCellOrder = bEdgeOrderDiscordsFromCellOrder;
+		return Pair;
+	}
+
+	/**
+	 * Le coppie di facce del controllo di cella. E contro W, (0,0) e (1,0): la cella minore ha il valore enum minore (E < W), quindi
+	 * l'ordine di cella e quello dell'enum COINCIDONO e la riga non li distingue. SE contro NW, (0,0) e (0,1): la cella minore ha il
+	 * valore enum MAGGIORE (NW < SE), quindi un ordine per bordo, o senza la cella, farebbe vincere l'altra. Le partenze stanno a
+	 * portata di entrambe le celle mirate e mai su di esse.
+	 */
+	TArray<FCoverTieFacePair> CoverTieFacePairs()
+	{
+		TArray<FCoverTieFacePair> Pairs;
+		Pairs.Add(CoverTieMakeFacePair(TEXT("E contro W"), FRTCellId(0, 0), ERTHexDirection::E, FRTCellId(1, 0), ERTHexDirection::W,
+			FRTCellId(0, 1), FRTCellId(0, 2), /*bEdgeOrderDiscordsFromCellOrder=*/ false));
+		Pairs.Add(CoverTieMakeFacePair(TEXT("SE contro NW"), FRTCellId(0, 0), ERTHexDirection::SE, FRTCellId(0, 1), ERTHexDirection::NW,
+			FRTCellId(-1, 1), FRTCellId(-1, 2), /*bEdgeOrderDiscordsFromCellOrder=*/ true));
+		return Pairs;
 	}
 
 	/** Contese semplici fra unita' non stordite. Le celle di partenza (0,0) < (0,1) < (0,2) sono tutte a portata di (1,0). */
@@ -852,7 +1143,9 @@ namespace
 	/**
 	 * Liste lunghe. La prima mescola tre contendenti e tre spettatori in un ordine di raccolta che li alterna:
 	 * B(-3,1) C(-2,1) B(-1,2) C(0,0) C(0,1) B(2,-2). La seconda ha tanti contendenti da portare l'introsort sul ramo a
-	 * partizione (`Algo/IntroSort.h`): le prime celle a distanza 3 dal bersaglio, bersaglio escluso, con lo spawn al contrario.
+	 * partizione (`Algo/IntroSort.h`): le prime celle (per `StableLess`) entro distanza 3 dal bersaglio (`HexArea` e' un disco),
+	 * bersaglio escluso, con lo spawn al contrario. Che i contendenti superino la soglia dell'introsort lo asserisce la premessa
+	 * `bPartitionBranch`: se `ManyCount` o il raggio si riducessero la riga cadrebbe, invece di mentire sul proprio nome.
 	 */
 	TArray<FCoverTieScene> CoverTieLongScenes()
 	{
@@ -870,7 +1163,8 @@ namespace
 		{
 			Many.Add(CoverTieUnit(Area[I].X, Area[I].Y));
 		}
-		Scenes.Add(CoverTieMakeScene(*FString::Printf(TEXT("%d contendenti, ramo a partizione dell'introsort"), Many.Num()), Many));
+		Scenes.Add(CoverTieMakeScene(*FString::Printf(TEXT("%d contendenti, ramo a partizione dell'introsort"), Many.Num()), Many,
+			/*bWinnerNotLowestId=*/ false, /*bPartitionBranch=*/ true));
 		return Scenes;
 	}
 
@@ -897,8 +1191,11 @@ namespace
 
 	void CoverTieRunFacesBothWays(FAutomationTestBase& Test, ECoverTieKind Kind)
 	{
-		CoverTieRunFaces(Test, Kind, /*bLoserCollectedFirst=*/ true);
-		CoverTieRunFaces(Test, Kind, /*bLoserCollectedFirst=*/ false);
+		for (const FCoverTieFacePair& Pair : CoverTieFacePairs())
+		{
+			CoverTieRunFaces(Test, Kind, Pair, /*bLoserCollectedFirst=*/ true);
+			CoverTieRunFaces(Test, Kind, Pair, /*bLoserCollectedFirst=*/ false);
+		}
 	}
 }
 
@@ -935,7 +1232,10 @@ bool FRTCoverTieCreateLongListsKeepTheRuleTest::RunTest(const FString&)
 	return true;
 }
 
-/** Erigere: il terzo criterio e' il TERZO. Le due facce dello stesso bordo fisico le ordina la cella, non la raccolta. */
+/**
+ * Erigere: il terzo criterio e' il TERZO. Le due facce dello stesso bordo fisico le ordina la cella, non la raccolta ne' il
+ * bordo: nella coppia SE contro NW l'ordine di cella e quello dell'enum discordano, in E contro W coincidono.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverTieCreateCellOrderStillComesFirstTest,
 	"RefactorTactics.Actions.CoverStructures.ContestedEdge.CreateCellOrderStillComesFirst",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -975,13 +1275,30 @@ bool FRTCoverTieMoveLongListsKeepTheRuleTest::RunTest(const FString&)
 	return true;
 }
 
-/** Spostare: il terzo criterio e' il TERZO. Due mover che portano la propria copertura sulle due facce dello stesso bordo: li ordina la cella. */
+/**
+ * Spostare: il terzo criterio e' il TERZO. Due mover che portano la propria copertura sulle due facce dello stesso bordo: li
+ * ordina la cella, non il bordo (coppia SE contro NW, dove discordano) ne' la raccolta.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverTieMoveCellOrderStillComesFirstTest,
 	"RefactorTactics.Actions.CoverStructures.ContestedEdge.MoveCellOrderStillComesFirst",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCoverTieMoveCellOrderStillComesFirstTest::RunTest(const FString&)
 {
 	CoverTieRunFacesBothWays(*this, ECoverTieKind::Move);
+	return true;
+}
+
+/**
+ * Spostare con bordi di destinazione DIVERSI sulla stessa cella: non pareggiano, ma si contendono l'unica copertura, e il bordo
+ * finale e' quello dell'ultimo applicato. Con (cella, bordo, raccolta) e' il bordo di valore enum maggiore, non quello dell'ultimo
+ * raccolto: pinna la posizione del terzo criterio rispetto al bordo in `Moves.Sort`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverTieMoveDifferentEdgesKeepEdgeOrderTest,
+	"RefactorTactics.Actions.CoverStructures.ContestedEdge.MoveDifferentEdgesKeepEdgeOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverTieMoveDifferentEdgesKeepEdgeOrderTest::RunTest(const FString&)
+{
+	CoverTieRunMoveDifferentEdges(*this);
 	return true;
 }
 
