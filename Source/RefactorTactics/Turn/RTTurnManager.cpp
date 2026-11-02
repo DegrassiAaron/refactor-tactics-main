@@ -4277,10 +4277,11 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	TArray<FRTPendingMoveOp> Moves;
 
 	// Le voci di rifiuto decise gia' in raccolta: si APPENDONO al TurnLog in coda agli esiti, ma l'ordine di inserimento
-	// non e' osservabile — `SortTurnLog` ordina la traccia in `ConcludeResolution`, prima del Cleanup, e il replay la
-	// legge nell'ordine canonico di quel sort, non in quello in cui le voci sono state scritte. ⚠️ Il log testuale
-	// (`RecentEvents`, via `AddLogEvent`) invece riceve questi rifiuti SUBITO, in raccolta, e li vede PRIMA degli esiti
-	// applicati: li' l'ordine e' l'opposto di quello di inserimento nel TurnLog.
+	// non e' osservabile nella traccia ordinata — `SortTurnLog` ordina la traccia in `ConcludeResolution`, prima del
+	// Cleanup, e il replay la legge nell'ordine canonico di quel sort, non in quello in cui le voci sono state scritte.
+	// ⚠️ Lo vede invece chi ascolta `OnLogEntryAppended`, che `AppendLogEntry` annuncia a ogni voce aggiunta, e il log
+	// testuale (`RecentEvents`, via `AddLogEvent`), che riceve questi rifiuti SUBITO, in raccolta, e li vede PRIMA degli
+	// esiti applicati: li' l'ordine e' l'opposto di quello di inserimento nel TurnLog.
 	//
 	// La voce viaggia CON il suo attore (#405): sono emesse in blocco molto piu' tardi, e a quel punto «chi ci
 	// ha provato» non e' piu' ricostruibile — la cella nella voce e' quella del bordo, non dell'unita'.
