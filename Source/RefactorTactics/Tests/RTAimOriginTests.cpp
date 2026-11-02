@@ -691,6 +691,60 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 }
 
 /**
+ * **Una mobilita' che la stordita non compie non sposta la mira** ([D-567], `#3964`, [D-471]).
+ *
+ * `ResolveDash` nega a chi e' stordito la mobilita' che prende anche la principale (`MovementAndMain`). La condizione e'
+ * `ARTUnit::PlannedDashDeniedByStun()`, e `PlannedDashMoves()` la include come include il rifiuto per `Unbalanced`: senza
+ * questa riga la mira e il verso partirebbero da una cella che la stordita non raggiunge, lo stesso difetto che [D-471]
+ * chiuse per lo scatto a budget.
+ *
+ * ⚠️ **L'azione si COSTRUISCE**: `FluidTrail` e' `Movement` nel catalogo e diventa `MovementAndMain` solo qui. Il controllo
+ * e' lo stesso scatto non stordito, il confine lo stesso stordito ma con lo slot del catalogo: entrambi spostano.
+ * ⚠️ **Solo la mobilita'**: per le altre principali l'anteprima non cambia, perche' il click accetta il piano di una
+ * stordita e lo nega la risoluzione ([D-565] (2), `#3134`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest,
+	"RefactorTactics.AimOrigin.StunnedMobilityThatTakesTheMainSlotDoesNotMoveTheAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest::RunTest(const FString&)
+{
+	FAimOriginBench B;
+	if (!SetUpAimOriginBench(*this, B, FRTCellId(-4, 4, 0), FRTCellId(4, -4, 0)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	URTActionData* Scia = B.Mine->GetAbility(B.Scatto);
+	Scia->Def.Slot = ERTActionSlot::MovementAndMain;
+	B.PC->SelectAbilityForCurrentForTest(B.Getto);
+
+	// CONTROLLO — senza lo stordimento lo scatto che prende la principale sposta: la mira e il verso partono dallo scatto.
+	TestTrue(TEXT("controllo: senza stordimento lo scatto sposta"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("controllo: un Attack mira dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginScatto);
+	TestEqual(TEXT("controllo: il verso si dichiara dalla cella dello scatto"), B.PC->FacingCellFor(B.Mine),
+		GAimOriginScatto);
+
+	// IL CUORE — stordita: la regola del catalogo dice ancora si', quella che sposta no.
+	B.Mine->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	B.PC->SelectAbilityForCurrentForTest(B.Getto); // la riconferma ridisegna l'anteprima
+	TestTrue(TEXT("premessa: per la regola del catalogo lo scatto si applica ancora"), B.Mine->PlannedDashApplies());
+	TestFalse(TEXT("ma lo stordimento lo nega: lo scatto non sposta"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("e un Attack mira dalla cella corrente"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginQui);
+	TestEqual(TEXT("e il verso si dichiara da dove l'unita' resta"), B.PC->FacingCellFor(B.Mine), GAimOriginQui);
+
+	// CONFINE — la stessa stordita con lo slot del catalogo, solo movimento: D-416 (1) non lo tocca, e sposta ancora.
+	Scia->Def.Slot = ERTActionSlot::Movement;
+	TestTrue(TEXT("confine: una mobilita' di solo movimento sposta anche da stordita"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("confine: e la mira parte dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginScatto);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
  * **Il canale del Fumo mai esplorato, CHIUSO PER IL GIOCATORE — `#3270`, [D-465], rovesciato da `#2794`.**
  *
  * La decisione d'autore del 2026-10-06 era la via 3: *«si accetta il canale dichiarandolo»*, a termine, finche'

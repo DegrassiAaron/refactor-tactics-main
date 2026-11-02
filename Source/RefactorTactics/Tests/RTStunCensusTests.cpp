@@ -3,8 +3,9 @@
 // ## Il difetto che questo file chiude, a meta'
 //
 // Lo stordimento toglie l'azione principale (D-416 (1)), e il rifiuto e' scritto PER SITO: ogni funzione di
-// `ARTTurnManager` che consuma una principale deve chiamare `RefuseMainActionIfStunned` (l'unica eccezione nota e' il
-// ramo `MovementAndMain` di `ResolveDash`, che il contratto non copre: #3964). L'elenco si ricava dal codice:
+// `ARTTurnManager` che consuma una principale deve chiamare `RefuseMainActionIfStunned` (anche `ResolveDash`, per la
+// mobilita' che prende pure la principale: D-567, #3964; nessuna azione di catalogo la percorre, vedi
+// `EveryMainActionHasAKnownSite`). L'elenco si ricava dal codice:
 //
 //     git grep -n 'RefuseMainActionIfStunned(' -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'
 //
@@ -17,7 +18,8 @@
 //
 // - `EveryMainActionHasAKnownSite` (STATICO): ogni azione con `TakesMainSlot` dei cataloghi (kit d'eroe, generiche,
 //   core, equipaggiamento) ha una macro-fase che un sito noto consuma. PUO' rilevare, dicendo che cosa decidere: una
-//   principale su un percorso senza guardia (`Slot == MovementAndMain` o macro-fase Dash: #3964); una principale con
+//   principale sul percorso Dash (`Slot == MovementAndMain` o macro-fase Dash: D-567, #3964), che ha la guardia ma non
+//   ha una categoria con la sua riga comportamentale; una principale con
 //   macro-fase Move o Planning, che nessuna categoria dichiara (un'anomalia di dato); un VALORE DI ENUM che il resolver
 //   usa per instradare e che questo file non dichiara (`RTActionDef.h` avverte che aggiungere un `ERTStructureOp` NON fa
 //   fallire la compilazione). NON PUO' rilevare un sito NUOVO che consuma una principale: non cambia nessuna chiave che
@@ -344,7 +346,7 @@ namespace RTStunCensusTestsInternal
 		static const TArray<FEnumRole> Roles = {
 			{ TEXT("Snapshot"),       TEXT("macro-fase Planning: nessuna azione risolve qui e nessuna categoria la dichiara; una principale con questa fase e' un'anomalia di dato (CollectAttackIntents salta solo il Cleanup: il Blast la prenderebbe come intento)") },
 			{ TEXT("Preparation"),    TEXT("macro-fase Prep: ResolvePrep e ResolveCoverStructures") },
-			{ TEXT("FastMovement"),   TEXT("macro-fase Dash: ResolveDash, mobilita' (Slot Movement); una principale qui passa da un percorso SENZA guardia (ResolveDash non chiama RefuseMainActionIfStunned): #3964") },
+			{ TEXT("FastMovement"),   TEXT("macro-fase Dash: ResolveDash, mobilita' (Slot Movement); una principale qui passa dalla guardia di ResolveDash (D-567, #3964) ma nessuna categoria di questo file la dichiara: vietata finche' qualcuno non la dichiara con la sua riga") },
 			{ TEXT("NormalMovement"), TEXT("macro-fase Move: ResolveMovement, mobilita' (Slot Movement); una principale qui e' un'anomalia di dato che nessuna categoria dichiara (CollectAttackIntents salta solo il Cleanup: il Blast la prenderebbe come intento)") },
 			{ TEXT("Control"),        TEXT("macro-fase Blast: ResolveCleanseActions e CollectAttackIntents") },
 			{ TEXT("Attack"),         TEXT("macro-fase Blast: CollectHealActions e CollectAttackIntents") },
@@ -360,7 +362,7 @@ namespace RTStunCensusTestsInternal
 			{ TEXT("None"),            TEXT("non occupa slot (Action.Wait): non e' una principale") },
 			{ TEXT("Movement"),        TEXT("mobilita': D-416 (1) non tocca il movimento") },
 			{ TEXT("Main"),            TEXT("l'azione principale: e' il soggetto di questo censimento") },
-			{ TEXT("MovementAndMain"), TEXT("consuma anche la principale, ma ResolveDash la scarta SENZA guardia (#3964): vietato dal controllo statico finche' qualcuno non lo decide") },
+			{ TEXT("MovementAndMain"), TEXT("consuma anche la principale: negata alla stordita da ResolveDash (D-567, #3964), ma nessuna categoria di questo file la dichiara: vietato dal controllo statico finche' qualcuno non la dichiara con la sua riga") },
 			{ TEXT("Reaction"),        TEXT("le reazioni le toglie ReactionBlockedThisTurn / DisarmPreparedReactions, non questa guardia") },
 		};
 		return Roles;
@@ -431,9 +433,10 @@ namespace RTStunCensusTestsInternal
 	{
 		static const TArray<FNotCovered> List = {
 			{ TEXT("Slot MovementAndMain (#3964)"),
-			  TEXT("nessuna azione dei cataloghi lo dichiara e ResolveDash lo scarta SENZA guardia: non si prova, si VIETA "
-				   "staticamente (EveryMainActionHasAKnownSite) finche' qualcuno non decide cosa vale per una stordita"),
-			  {} },
+			  TEXT("nessuna azione dei cataloghi lo dichiara: la guardia di ResolveDash (D-567) non si prova con una riga del "
+				   "catalogo ma con un'azione COSTRUITA nel test, e il controllo statico (EveryMainActionHasAKnownSite) la VIETA "
+				   "finche' qualcuno non dichiara la categoria con la sua riga comportamentale"),
+			  { TEXT("RefactorTactics.Status.StunDeniesAMobilityThatAlsoCostsTheMainAction") } },
 			{ TEXT("abilita' legacy senza ActionId (ARTUnit::EnsureDefaultAbilities)"),
 			  TEXT("fuori da ogni catalogo, quindi non enumerabili; passano da CollectAttackIntents, coperto dalla categoria "
 				   "'attacco e controllo'"),
@@ -1197,9 +1200,10 @@ namespace RTStunCensusTestsInternal
  * `MakeReactionModules`), filtrate con `TakesMainSlot`. Non si asserisce quante sono: l'insieme e' la sorgente.
  *
  * Cade, con un messaggio che dice che cosa decidere, quando:
- * 1. una principale passa da un percorso SENZA guardia: `Slot == MovementAndMain` o macro-fase Dash. `ResolveDash` non
- *    chiama `RefuseMainActionIfStunned`: consuma `PlannedDashAbility`, e il suo ramo `MovementAndMain` scarta la principale
- *    pianificata (`RTTurnManager.cpp`) senza guardia (#3964, D-565 (4)(b));
+ * 1. una principale passa dal percorso Dash: `Slot == MovementAndMain` o macro-fase Dash. `ResolveDash` ha la guardia
+ *    (D-567, #3964, che scioglie D-565 (4)(b)): `ARTUnit::PlannedDashDeniedByStun` nega la mobilita' che prende la
+ *    principale e il rifiuto paga. La prova e' `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, con un'azione
+ *    COSTRUITA; qui manca la categoria con la sua riga comportamentale per un'azione di CATALOGO, e il divieto resta;
  * 2. una principale ha macro-fase Move o Planning: nessuna categoria la dichiara. Non e' un percorso senza guardia
  *    (`CollectAttackIntents` salta solo il Cleanup, la prenderebbe come intento e la rifiuterebbe nel Blast) ma
  *    un'anomalia di dato: si corregge la fase, o si decide a quale sito appartiene e si dichiara;
@@ -1244,16 +1248,18 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
 		const FRTActionDef& Def = C.Def;
 		const ERTMatchPhase Macro = Census::MacroPhaseOf(Def);
 
-		// I percorsi che consumano una principale SENZA guardia: `ResolveDash` non chiama `RefuseMainActionIfStunned`.
+		// Il percorso Dash: una principale qui e' una mobilita' che prende anche la principale. La regola c'e' (D-567) e la
+		// guardia sta in `ResolveDash`, ma il censimento non ha una categoria con la sua riga comportamentale per un'azione di
+		// CATALOGO di questo tipo, quindi la vieta finche' qualcuno non la dichiara.
 		if (Def.Slot == ERTActionSlot::MovementAndMain || Macro == ERTMatchPhase::Dash)
 		{
 			bAllKnown = false;
 			AddError(FString::Printf(
-				TEXT("%s: occupa la principale (Slot %s) ma la sua fase %s -> %s la manda su un percorso SENZA guardia: ResolveDash "
-					 "consuma PlannedDashAbility, e il suo ramo MovementAndMain scarta la principale pianificata, senza chiamare "
-					 "ARTTurnManager::RefuseMainActionIfStunned. Che cosa valga per una stordita su questo percorso non e' deciso: e' "
-					 "#3964, e D-565 (4)(b) lo rinvia al primo kit che la dichiara. Va decisa PRIMA di aggiungerla (guardia nel "
-					 "percorso, oppure una regola scritta nel Decision Log) e poi dichiarata qui."),
+				TEXT("%s: occupa la principale (Slot %s) ma la sua fase %s -> %s la manda a ResolveDash. La regola c'e' (D-567, #3964): "
+					 "una stordita non la compie e il rifiuto paga la ricarica, con la guardia in ARTUnit::PlannedDashDeniedByStun letta da "
+					 "ResolveDash e provata da Status.StunDeniesAMobilityThatAlsoCostsTheMainAction con un'azione costruita nel test. Quello "
+					 "che manca e' la RIGA di questo censimento per un'azione di catalogo: dichiara qui la categoria (predicato, sito "
+					 "ResolveDash, fase Dash) con la sua riga comportamentale, e solo allora togli questo divieto per lei."),
 				*C.Label(), *Census::EnumNameOf(Def.Slot), *Census::EnumNameOf(Def.ResolutionPhase), *Census::EnumNameOf(Macro)));
 			continue;
 		}
@@ -1303,7 +1309,8 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
 				 "e Cleanup, e scarta Dash, Move e Planning.")));
 	TestTrue(TEXT("ERTActionSlot: ogni valore e' dichiarato"),
 		Census::CheckEnumIsDeclared<ERTActionSlot>(*this, TEXT("ERTActionSlot"), Census::ActionSlotRoles(),
-			TEXT("TakesMainSlot conta fra le principali solo Main e MovementAndMain, e ResolveDash legge Slot == MovementAndMain.")));
+			TEXT("TakesMainSlot conta fra le principali solo Main e MovementAndMain; ResolveDash nega la mobilita' che la prende "
+					 "(ARTUnit::PlannedDashDeniedByStun, D-567) e legge Slot == MovementAndMain per spendere la principale di chi scatta.")));
 	TestTrue(TEXT("ERTPredictiveTargeting: ogni valore e' dichiarato"),
 		Census::CheckEnumIsDeclared<ERTPredictiveTargeting>(*this, TEXT("ERTPredictiveTargeting"), Census::PredictiveTargetingRoles(),
 			TEXT("ResolvePrep tratta come predittivo ogni valore diverso da None.")));
