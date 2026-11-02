@@ -1331,7 +1331,8 @@ namespace
 			// Qui il beat di Prep c'e' se e solo se un'operazione e' stata APPLICATA (`ResolveCoverStructures` > 0): un rifiuto, e
 			// un `Reject` di raccolta, non lo accendono — ne' nel braccio stordito ne' in quello di controllo. L'equivalenza vale
 			// per questa scena: `BeginPlayback` aggiunge la fase Prep anche per un `AbilityActivated` di Prep visibile alla
-			// squadra, e `bPrepActiveThisTurn` ha altri setter (Overwatch e predittive che armano), che qui non ci sono.
+			// squadra, e `bPrepActiveThisTurn` ha altri setter (Overwatch e predittive che armano, e il motore azioni che
+			// applica un evento di Prep), che qui non ci sono.
 			Test.TestEqual(*FString::Printf(TEXT("%s: il beat di Prep c'e' solo se una struttura e' stata applicata"), *Run),
 				O.bSawPrepBeat, X.Created + X.Moved > 0);
 		}
@@ -1556,9 +1557,10 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
  * rifiutato paga a T3 anche se l'esecuzione sarebbe stata gratuita ([D-414]: «se si usa un'abilita' si paga»), ma non brucia
  * il credito che l'esecuzione avrebbe consumato.
  *
- * ⚠️ **Il credito ha UN sensore solo**: la ricarica pagata a T5 (`FreeRotations` e' un campo `protected` di `DynamicCovers`,
- * senza accessor e fuori dallo `StateHash`, quindi il banco non lo legge). Si vede un rifiuto che SPENDE il credito; non si
- * vede un rifiuto che ne REGALA uno in piu', perche' con due crediti T5 e' gratuito come con uno: servirebbe un sesto turno.
+ * ⚠️ **Il credito ha UN sensore solo**: la ricarica pagata a T5 (`FreeRotations` e' un campo di `FRTDynamicCover`, nella
+ * lista `DynamicCovers` che e' `protected`, senza accessor, e lo `StateHash` non lo copre: il banco non lo legge). Si vede un
+ * rifiuto che SPENDE il credito; non si vede un rifiuto che ne REGALA uno in piu', perche' con due crediti T5 e' gratuito
+ * come con uno: servirebbe un sesto turno.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterKeepsTheFreeRotationTest,
 	"RefactorTactics.Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation",

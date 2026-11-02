@@ -265,7 +265,8 @@ namespace
 	 * con un ramo proprio che non passa dal predicato, l'Interrupt mirato a una cella (`TargetId == INDEX_NONE`). Basta
 	 * una riga di qui solo per `R6` (`TargetDead`); `R4` e `R5` sono le clausole `BlockedIntents` e `OtherLayerIntents`
 	 * (le righe `NoLineOfSight` e `OtherLayer` fanno nascere pagante il bersaglio-unita', ma e' la clausola a dire che
-	 * l'intento e' partito senza colpo: tolta lei non paga nessuno, ne' il bersaglio-unita' ne' il tiro a cella),
+	 * l'intento e' partito senza colpo: tolta lei non paga piu' nessun attacco ordinario, ne' il bersaglio-unita' ne' il
+	 * tiro a cella; l'Interrupt mirato a una cella paga per il ramo proprio di `AzionePartita`, detto qui sopra),
 	 * `R7` la clausola `TerrainCappedIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e
 	 * `R3`), e `R3` un discriminante che il predicato oggi non legge: divide con `R1` la riga `None` e la clausola
 	 * `Footprints`.
