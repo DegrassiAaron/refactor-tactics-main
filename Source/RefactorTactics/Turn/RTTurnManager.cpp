@@ -4259,6 +4259,8 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		 */
 		ARTUnit* Actor = nullptr;
 		FName BaseActionId;
+		/** Il posto nell'ordine di raccolta (`CollectionOrder`): il terzo criterio di `Pending.Sort`. */
+		int32 Order = 0;
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
@@ -4273,8 +4275,28 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		ARTUnit* Mover = nullptr;
 		int32 AbilityIndex = INDEX_NONE;
 		FName BaseActionId;
+		/** Il posto nell'ordine di raccolta (`CollectionOrder`): il terzo criterio di `Moves.Sort`. */
+		int32 Order = 0;
 	};
 	TArray<FRTPendingMoveOp> Moves;
+
+	// CHI VINCE UN BORDO CONTESTATO (#3963). Due operazioni sulla stessa cella e sullo stesso bordo nello stesso Prep
+	// pareggiano nei primi due criteri di `Pending.Sort` e di `Moves.Sort`, e `TArray::Sort` e' un introsort, instabile:
+	// senza un terzo criterio scritto il vincitore lo decide l'algoritmo, in funzione di quante operazioni ci sono e di
+	// dove stanno. Il terzo criterio e' `Order`, che questo contatore assegna all'`Add`: UNO per operazione, condiviso da
+	// `Pending` e `Moves`, quindi unico, e l'ordine e' TOTALE - l'esito non dipende dall'algoritmo ne' dalle altre operazioni.
+	//
+	// La regola: a parita' di cella e di bordo vince l'operazione RACCOLTA PER PRIMA, cioe' quella dell'unita' che
+	// `SortUnitsForResolution` mette prima (cella, poi `StableUnitId`, poi nome). Le altre le rifiuta `AddCover`
+	// (`CoverRejected`) o, per gli spostamenti, la verifica "e' gia' su quel bordo", e pagano come sempre. Una stordita non
+	// ha un posto: [D-565] la rifiuta prima dell'`Add`, e il contatore non avanza per lei.
+	//
+	// Il criterio e' il TERZO e non sostituisce la cella: le due facce dello stesso bordo fisico, viste da celle adiacenti,
+	// non pareggiano (le ordina la cella, e `AddCover` rifiuta la seconda dall'altro lato), quindi vince la faccia della
+	// cella minore anche se l'altra e' raccolta per prima. E il vantaggio e' spaziale, ereditato dall'ordine di
+	// risoluzione: a pari cella e bordo vince l'unita' che sta su Layer, X, Y minori.
+	// Pinnato da `Actions.CoverStructures.ContestedEdge.*`.
+	int32 CollectionOrder = 0;
 
 	// Le voci di rifiuto decise gia' in raccolta: si APPENDONO al TurnLog in coda agli esiti, ma l'ordine di inserimento
 	// non e' osservabile nella traccia ordinata — `SortTurnLog` ordina la traccia in `ConcludeResolution`, prima del
@@ -4405,7 +4427,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// quale copertura verra' mossa, e quello succede in applicazione.
 		if (Def.StructureOp == ERTStructureOp::MoveCover)
 		{
-			Moves.Add({ TargetCell, Edge, Def.ActionId, Unit, Index, Def.BaseActionId });
+			Moves.Add({ TargetCell, Edge, Def.ActionId, Unit, Index, Def.BaseActionId, CollectionOrder++ });
 			continue;
 		}
 
@@ -4437,7 +4459,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			}
 		}
 
-		Pending.Add({ TargetCell, Edge, Integrity, Turns, FreeRotations, Def.ActionId, Unit, Def.BaseActionId });
+		Pending.Add({ TargetCell, Edge, Integrity, Turns, FreeRotations, Def.ActionId, Unit, Def.BaseActionId, CollectionOrder++ });
 	}
 
 	if (Pending.Num() == 0 && Moves.Num() == 0 && Rejections.Num() == 0)
@@ -4445,10 +4467,12 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		return 0;
 	}
 
+	// Il terzo criterio e' l'ordine di raccolta (`CollectionOrder`, #3963): a pari cella e bordo vince la prima operazione raccolta.
 	Pending.Sort([](const FRTPendingCoverOp& A, const FRTPendingCoverOp& B)
 	{
 		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
-		return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+		if (A.Edge != B.Edge) { return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge); }
+		return A.Order < B.Order;
 	});
 
 	int32 Applied = 0;
@@ -4504,10 +4528,12 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 
 	// Gli SPOSTAMENTI dopo le creazioni: agiscono su un campo gia' aggiornato, e l'ordine fra i due gruppi e'
 	// dichiarato invece che emergente dall'ordine degli attori.
+	// Stesso terzo criterio di `Pending.Sort`: a pari cella e bordo di destinazione vince il primo spostamento raccolto.
 	Moves.Sort([](const FRTPendingMoveOp& A, const FRTPendingMoveOp& B)
 	{
 		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
-		return static_cast<uint8>(A.ToEdge) < static_cast<uint8>(B.ToEdge);
+		if (A.ToEdge != B.ToEdge) { return static_cast<uint8>(A.ToEdge) < static_cast<uint8>(B.ToEdge); }
+		return A.Order < B.Order;
 	});
 
 	for (const FRTPendingMoveOp& Move : Moves)
