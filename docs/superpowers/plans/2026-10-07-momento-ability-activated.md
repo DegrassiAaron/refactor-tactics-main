@@ -842,6 +842,8 @@ Nel ciclo di applicazione delle creazioni, dopo `++Applied;` (`:4080`):
 			Op.Actor ? Op.Actor->StableUnitId : 0, Op.Cell, ERTAbilityShape::Single);
 ```
 
+⌫ *Il commento qui sopra («di un'unita' stordita SI attiva — questa funzione non passa da `RefuseMainActionIfStunned`») descriveva la funzione del 2026-10-07 ed è ritrattato: dal 2026-11-01 la struttura di una stordita è rifiutata e non si attiva ([D-565](../../decisions/RT_PDR_00_Decision_Log.md); `Ruling` della spec § 2.2, ritrattato). Il piano resta com'è stato eseguito.*
+
 Nel ciclo degli spostamenti, dopo `AppendLogEntry(Entry2, Mover);` (`:4185`):
 
 ```cpp

@@ -3611,8 +3611,8 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		Caster->ClearPlannedAttack();
 
 		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' uno dei siti che la negano — gli altri
-		// sono `ResolvePrep`, `CollectAttackIntents` e, dal 2026-11-01 ([D-564]), `ResolveCleanseActions` e
-		// `CollectHealActions`; `ResolveCoverStructures` non la nega ancora (`RIC-5`, non deciso). Le ambientali
+		// sono `ResolvePrep`, `CollectAttackIntents` e, dal 2026-11-01, `ResolveCleanseActions` e `CollectHealActions`
+		// ([D-564]) e `ResolveCoverStructures` ([D-565]). Le ambientali
 		// (`Ignite`, `CreateWater`, `Electrify`, `MistVeil`) sono principali a tutti gli effetti:
 		// `ERTActionSlot::Main` e' il default di `ShippedAction`, e nessuna di loro lo sovrascrive.
 		//
@@ -4276,8 +4276,15 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingMoveOp> Moves;
 
-	// Le voci di rifiuto decise gia' in raccolta: escono in coda agli esiti, cosi' il replay racconta prima
-	// cosa e' successo al campo e poi cosa non e' successo a chi ci ha provato.
+	// Le voci di rifiuto decise gia' in raccolta: si APPENDONO al TurnLog in coda agli esiti, ma l'ordine di inserimento
+	// non e' osservabile nella traccia ordinata — `SortTurnLog` ordina la traccia in `ConcludeResolution`, prima del
+	// Cleanup, e il replay la legge nell'ordine canonico di quel sort, non in quello in cui le voci sono state scritte.
+	// ⚠️ Lo vede invece chi ascolta `OnLogEntryAppended`, che `AppendLogEntry` annuncia a ogni voce aggiunta, e il log
+	// testuale (`RecentEvents`, via `AddLogEvent`), che riceve questi rifiuti SUBITO, in raccolta, e li vede PRIMA degli
+	// esiti applicati: li' l'ordine e' l'opposto di quello di inserimento nel TurnLog.
+	// ⚠️ Il rifiuto per stordimento ([D-565], `RefuseMainActionIfStunned`) NON segue questa via: `AppendLogEntry` lo scrive nel
+	// TurnLog e lo annuncia SUBITO, in raccolta, quindi in `OnLogEntryAppended` precede sia gli esiti applicati sia questi
+	// `Reject`.
 	//
 	// La voce viaggia CON il suo attore (#405): sono emesse in blocco molto piu' tardi, e a quel punto «chi ci
 	// ha provato» non e' piu' ricostruibile — la cella nella voce e' quella del bordo, non dell'unita'.
@@ -4347,6 +4354,31 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Unit->ClearPlannedAttack();
 		Unit->bHasPlannedCoverEdge = false;
 		if (!Unit->CanUseAbility(Index)) { continue; }
+
+		// 🔴 **`Status.Stunned` NEGA L'AZIONE PRINCIPALE** ([D-416] (1), `#3142`), e le strutture di bordo sono principali di
+		// Prep ([D-565], `#3958`): `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure` hanno
+		// `ERTActionSlot::Main`. Questo ciclo consumava il piano di chi dichiara uno `StructureOp` senza passare da
+		// `RefuseMainActionIfStunned`, ed era il sito che mancava: `ResolvePrep` chiama `ResolveCoverStructures` PRIMA del
+		// proprio ciclo guardato, e quel ciclo non ritrova un piano gia' azzerato.
+		//
+		// 🔑 **PRIMA di ogni `Reject`, DOPO `CanUseAbility`.** Il click accetta il piano di uno stordito — lo stordimento
+		// non e' geometria nota in pianificazione, e [D-200] libera solo cio' che il click rifiuta — quindi il rifiuto per
+		// stordimento precede i `Reject` di raccolta (nessun bersaglio, nessun bordo dichiarato, fuori portata) e li
+		// sostituisce: uno stordito con un piano incompleto e' rifiutato e paga, chi non lo e' lascia il suo `Reject` e non
+		// paga (`RIC-3` non e' deciso). E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
+		// scartata in silenzio, senza voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e
+		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le uscite in cima al ciclo
+		// (`IsAlive`, `StructureOp` assente, `SetDoorState`).
+		//
+		// ⚠️ **La ricarica PARTE** ([D-563] (2), [D-564]): scrittura immediata, la stessa sede di `ResolvePrep` per
+		// l'Overwatch che arma. Vale anche per `MoveCover`, che altrimenti decide il costo in applicazione: il rifiuto
+		// precede `Moves.Add`, quindi la rotazione gratuita non entra in gioco e `FreeRotations` della copertura non si
+		// tocca. Nessun `AbilityActivated` e nessun `Applied`: un rifiuto non e' un esito applicato.
+		if (RefuseMainActionIfStunned(Unit, Def, ERTMatchPhase::Prep, TargetCell))
+		{
+			Unit->ConsumeAbility(Index);
+			continue;
+		}
 
 		if (!bHasTarget)
 		{
@@ -4462,10 +4494,10 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns), FRTLogSubject::World());
 		++Applied;
 		// #3549: la copertura e' APPLICATA, quindi l'intento e' accettato. Un `Reject` e un `AddCover` rifiutato
-		// sopra non arrivano qui: un rifiuto non si attiva (spec §2.2, `Ruling` sulle coperture). Una struttura
-		// di un'unita' stordita SI attiva — questa funzione non passa da `RefuseMainActionIfStunned`. ⚠️ Il caso
-		// non ha test: se D-416 vale anche per le strutture, e' un drift PREESISTENTE (follow-up), non di questa issue —
-		// ed e' `RIC-5` di `docs/OPEN_DECISIONS.md` ([D-564]).
+		// sopra non arrivano qui: un rifiuto non si attiva (spec §2.2, `Ruling` sulle coperture). Neanche quello di
+		// un'unita' stordita ci arriva: la guardia di [D-565] la rifiuta in raccolta, prima di ogni `Reject` e di
+		// `Pending.Add`, quindi una struttura applicata e' sempre di chi poteva agire. Pinnato da
+		// `Actions.CoverStructures.StunnedCasterChangesNothing`.
 		EmitAbilityActivated(Op.Actor, ERTMatchPhase::Prep, Op.ActionId, Op.BaseActionId,
 			Op.Actor ? Op.Actor->StableUnitId : 0, Op.Cell, ERTAbilityShape::Single);
 	}
@@ -4642,7 +4674,7 @@ void ARTTurnManager::ResolvePrep()
 		// che cambia fra i siti e' solo CHI azzera il piano — qui la riga sotto, nel Blast la cima del ciclo.
 		// ⌫ **Ritrattato il 2026-10-31** dalla decisione d'autore «se si usa una abilita' si paga» («Lo stordito
 		// (D-416) paga?» «si»; [D-414] alla lettera): il piano si perde e la RICARICA PARTE, in ogni sito che la nega
-		// (e dal 2026-11-01 anche per la cura e la purificazione, [D-564]). Il
+		// (e dal 2026-11-01 anche per la cura e la purificazione, [D-564], e per le strutture di bordo, [D-565]). Il
 		// testo qui sopra resta perche' dice come e' nato il rifiuto, non cosa vale oggi.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))

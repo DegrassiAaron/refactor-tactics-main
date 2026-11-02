@@ -117,10 +117,15 @@ timeline è l'ordine di emissione; nessun riordino a posteriori.
 - ➕ rev. `ResolveCoverStructures` (`:3860`, chiamata a `:4225`, **prima** del ciclo di raccolta): consuma un
   piano con `ActionId` (`Ability->Def.StructureOp`, `Def.ActionId`, azzera `PlannedAbilityIndex`), rifiuta con
   `Reject` per «nessun bersaglio», «nessun bordo dichiarato», «fuori portata», e **non** passa da
-  `RefuseMainActionIfStunned`. `Ruling`: **emette solo per le operazioni accettate**, nel punto in cui le
-  applica (lo stesso criterio di `ModifyArc`); un rifiuto `Reject` non si attiva; la struttura di un'unità
-  stordita **si attiva**, perché la funzione la applica. Costo se sbagliato: un beat su una struttura che il
-  gioco ha comunque piazzato;
+  `RefuseMainActionIfStunned` ⌫ *(dal 2026-11-01 ci passa: [D-565](../../decisions/RT_PDR_00_Decision_Log.md))*.
+  `Ruling`: **emette solo per le operazioni accettate**, nel punto in cui le applica (lo stesso criterio di
+  `ModifyArc`); un rifiuto `Reject` non si attiva; **la struttura di una stordita è rifiutata, e un rifiuto non si
+  attiva** ([D-565](../../decisions/RT_PDR_00_Decision_Log.md), decisione d'autore del 2026-11-01: risposta
+  cumulativa, lettura «sì» dell'assistente). ⌫ *Questo `Ruling` diceva «la struttura di un'unità stordita **si
+  attiva**, perché la funzione la applica. Costo se sbagliato: un beat su una struttura che il gioco ha comunque
+  piazzato», ed era una scelta di chi scriveva la spec, revocabile dall'autore (§ 0): l'autore l'ha revocata. Resta
+  scritto per dire com'è nato: descriveva la funzione del 2026-10-07, che non passava dal rifiuto, e non una deroga
+  d'autore*;
 - ➕ rev. **tre ordini nella stessa fase**, dichiarati: prima le coperture, applicate in ordine di cella e
   bordo; poi predittiva/Overwatch in ordine di unità; poi le istanze in ordine di `SortActionInstances`. È
   l'ordine del resolver, e il playback lo rispetta;
