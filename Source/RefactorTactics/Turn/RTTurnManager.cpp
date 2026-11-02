@@ -5099,11 +5099,12 @@ void ARTTurnManager::ResolveDash()
 		//
 		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget che prende la
 		// principale e' negata come stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso
-		// (nessuna azione dichiara `MovementAndMain`): l'ordine e' scritto, non esercitato. Un'unita' MORTA non entra
-		// (`IsAlive`): `Units` include anche i caduti, e come negli altri siti il rifiuto riguarda chi gioca ancora; per lei il
-		// ramo prosegue come prima.
-		if (bNegatoDalloStordimento && Unit->IsAlive()
-			&& RefuseMainActionIfStunned(Unit, Dash->Def, ERTMatchPhase::Dash, Unit->Cell))
+		// (nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
+		// un'azione costruita. ⚠️ **DOPO `if (!bDashApplies)`**: una mobilita' gia' in ricarica e' scartata in silenzio, senza
+		// voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno.
+		// Nessun controllo `IsAlive`: `Units` viene da `MakeCurrentSnapshot`, cioe' da `CollectLivingUnits`, che tiene solo le
+		// vive, e questo ciclo non toglie salute a nessuno.
+		if (bNegatoDalloStordimento && RefuseMainActionIfStunned(Unit, Dash->Def, ERTMatchPhase::Dash, Unit->Cell))
 		{
 			Unit->ConsumeAbility(DashIdx);
 			continue;
