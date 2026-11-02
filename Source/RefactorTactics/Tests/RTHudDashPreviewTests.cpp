@@ -368,12 +368,15 @@ bool FRTHudDashPreviewChargeRunTest::RunTest(const FString&)
 //
 //   # | mutazione                                                          | rosso atteso             | esito
 //  ---|--------------------------------------------------------------------|--------------------------|--------
-//   1 | LastRunSegment: `HasShortfall()` → `!HasShortfall()`               | DashRunSegment…          | {{R11}}
-//   2 | LastRunSegment: `ReachSegments` → `ReachSegments + 1`              | DashRunSegment…          | {{R12}}
-//   3 | LastRunSegment: `Num() - 1` → `Num()`                              | DashRunSegment…          | {{R13}}
-//   4 | DestinationMarkerCell: `HasShortfall()` → `!HasShortfall()`        | DashMarker…              | {{R14}}
-//   5 | DestinationMarkerCell: senza shortfall → `PathCells.Last()`        | DashMarker…              | {{R15}}
-//   6 | DestinationMarkerCell: i due rami scambiati                        | DashMarker…              | {{R16}}
+//   1 | LastRunSegment: `HasShortfall()` → `!HasShortfall()`               | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   2 | LastRunSegment: `ReachSegments` → `ReachSegments + 1`              | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   3 | LastRunSegment: `Num() - 1` → `Num()`                              | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   4 | DestinationMarkerCell: `HasShortfall()` → `!HasShortfall()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//   5 | DestinationMarkerCell: senza shortfall → `PathCells.Last()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//   6 | DestinationMarkerCell: i due rami scambiati                        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//
+// ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro era `RefactorTactics.HUD.Dash`, e i
+// test trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
 //
 // ⚠️ Il cablaggio (che `DisegnaScatto` chiami davvero questi due metodi, e non altro) non e' raggiungibile headless:
 // si vede solo in PIE, e quella voce e' `NOT RUN` in questa fetta.

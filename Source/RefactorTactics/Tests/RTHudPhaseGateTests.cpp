@@ -30,19 +30,20 @@
 //
 //   # | mutazione                                                         | rosso atteso            | esito
 //  ---|-------------------------------------------------------------------|-------------------------|--------
-//   1 | traccia: `Phase == Planning` → `Phase != MatchEnded`               | PostLockTrail…          | {{R1}}
-//   2 | traccia: aggiunto `&& !bResolving`                                 | PostLockTrail…          | {{R2}}
-//   3 | intenti: tolto `&& !bResolving`                                    | PlannedIntents…         | {{R3}}
-//   4 | intenti: `!bResolving` → `bResolving`                              | PlannedIntents…         | {{R4}}
-//   5 | pannello: `Phase == MatchEnded` → `Phase != Planning`              | MatchEndPanel…          | {{R5}}
-//   6 | pannello: aggiunto `&& !bResolving`                                | MatchEndPanel…          | {{R6}}
-//   7 | selezione: `bHasSelection && Owner == Sel` → `bHasSelection`       | IntentIsMarked…         | {{R7}}
-//   8 | selezione: → `Owner == Sel` (senza `bHasSelection`)                | IntentIsMarked…         | {{R8}}
-//   9 | selezione: `&&` → `||`                                             | IntentIsMarked…         | {{R9}}
-//  10 | selezione: confronta solo `X` e `Y` (ignora il layer)              | IntentIsMarked…         | {{R10}}
+//   1 | traccia: `Phase == Planning` → `Phase != MatchEnded`               | PostLockTrail…          | UCCISA: 1 rosso, il previsto
+//   2 | traccia: aggiunto `&& !bResolving`                                 | PostLockTrail…          | UCCISA: 1 rosso, il previsto
+//   3 | intenti: tolto `&& !bResolving`                                    | PlannedIntents…         | UCCISA: 1 rosso, il previsto
+//   4 | intenti: `!bResolving` → `bResolving`                              | PlannedIntents…         | UCCISA: 1 rosso, il previsto
+//   5 | pannello: `Phase == MatchEnded` → `Phase != Planning`              | MatchEndPanel…          | UCCISA: 1 rosso, il previsto
+//   6 | pannello: aggiunto `&& !bResolving`                                | MatchEndPanel…          | UCCISA: 1 rosso, il previsto
+//   7 | selezione: `bHasSelection && Owner == Sel` → `bHasSelection`       | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
+//   8 | selezione: → `Owner == Sel` (senza `bHasSelection`)                | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
+//   9 | selezione: `&&` → `||`                                             | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
+//  10 | selezione: confronta solo `X` e `Y` (ignora il layer)              | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
 //
-// ⛔ Ogni build di mutazione deve dare `Result: Succeeded` prima della run, e ogni run usa il filtro
-// `RefactorTactics.HUD` intero.
+// ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro di ogni run era
+// `RefactorTactics.HUD.PhaseGates` per le righe 1–6 e `RefactorTactics.HUD.IntentIsMarked` per le righe 7–10, e i test
+// trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
