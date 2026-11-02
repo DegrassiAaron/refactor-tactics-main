@@ -7,8 +7,11 @@
 // 1. **Quali strati dipendono dalla fase.** Tre confronti scritti a mano su `TurnManager->GetPhase()`, in tre
 //    siti diversi: la traccia dell'ultima risoluzione, gli intenti pianificati, il pannello di fine partita.
 //    🔑 **Non sono lo stesso confronto, ed è la regola che il censimento voleva pinnata**: la traccia resta
-//    visibile durante il playback, gli intenti no. Durante il playback si vede ciò che è successo, non ciò che
-//    era stato pianificato. Il comportamento è voluto; la regola, prima, non era interrogabile da nessun test.
+//    visibile durante il playback, gli intenti no.
+//    ⚠️ **È lo stato di fatto, non una regola dichiarata desiderabile**: `D-356` elenca la traccia sopra un turno
+//    in corso fra i difetti e la chiude per la sola sospensione (con `Phase` a `Blast`/`Move` il `== Planning` è
+//    falso). Se il playback ordinario debba nasconderla non lo decide questo file, che la registra com'è: chi
+//    la cambia deve cambiare anche il test, e saperlo. La regola, prima, non era interrogabile da nessun test.
 // 2. **Quando un intento è "quello che sto pianificando".** `bHasSelection && View.OwnerCell == SelectedCell`
 //    è l'unico produttore del flag che sceglie fra `[PIANO *]` e `[PIANO]`, cioè il testo. `ComposeIntentPresentation`
 //    lo riceve come parametro e per progetto non sa da dove venga, quindi la risposta non aveva una sede pura:
@@ -40,10 +43,13 @@
 //   8 | selezione: → `Owner == Sel` (senza `bHasSelection`)                | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
 //   9 | selezione: `&&` → `||`                                             | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
 //  10 | selezione: confronta solo `X` e `Y` (ignora il layer)              | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
+//  11 | default: `bShowPlannedIntents = false` → `= true` (in `RTHUD.h`)   | DefaultGatesAre…        | {{R17}}
 //
 // ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro di ogni run era
 // `RefactorTactics.HUD.PhaseGates` per le righe 1–6 e `RefactorTactics.HUD.IntentIsMarked` per le righe 7–10, e i test
 // trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
+// La riga 11 è stata aggiunta dopo la revisione indipendente, col test `DefaultGatesAreAllClosed` e lo stesso filtro
+// `PhaseGates`; la baseline di quel giro conta un test in più.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
@@ -64,8 +70,8 @@ namespace
 		bool bEndPanel;
 	};
 
-	// Scritta a mano, una riga per ogni coppia (fase, bResolving). Le fasi sono sette: Planning, Prep, Dash,
-	// Blast, Move, Cleanup, MatchEnded.
+	// Scritta a mano, una riga per ogni coppia (fase, bResolving) di `ERTMatchPhase`: Planning, Prep, Dash,
+	// Blast, Move, Cleanup, MatchEnded. Se l'enum cresce la tabella va estesa a mano: nessun asserto lo segnala.
 	const FPhaseGateRow PhaseGateRows[] =
 	{
 		{ ERTMatchPhase::Planning,   false, true,  true,  false },
@@ -132,6 +138,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPhaseGateMatchEndPanelTest,
 bool FRTHudPhaseGateMatchEndPanelTest::RunTest(const FString&)
 {
 	PhaseGateCheck(*this, TEXT("pannello"), &FRTHudPhaseGates::bShowMatchEndPanel, &FPhaseGateRow::bEndPanel);
+	return true;
+}
+
+/**
+ * Senza un `ARTTurnManager` `DrawHUD` usa il default di `FRTHudPhaseGates`: nessuno dei tre strati ha qualcosa da
+ * mostrare. Oggi e' inerte — i siti tengono `TurnManager &&` perche' lo leggono nel corpo — ed e' pinnato lo
+ * stesso: se un giorno un sito perde quella guardia, il default e' tutto cio' che lo separa da un puntatore nullo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPhaseGateDefaultTest,
+	"RefactorTactics.HUD.PhaseGates.DefaultGatesAreAllClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudPhaseGateDefaultTest::RunTest(const FString&)
+{
+	const FRTHudPhaseGates Chiusi = FRTHudPhaseGates();
+	TestFalse(TEXT("traccia chiusa di default"), Chiusi.bShowPostLockTrail);
+	TestFalse(TEXT("intenti chiusi di default"), Chiusi.bShowPlannedIntents);
+	TestFalse(TEXT("pannello chiuso di default"), Chiusi.bShowMatchEndPanel);
 	return true;
 }
 

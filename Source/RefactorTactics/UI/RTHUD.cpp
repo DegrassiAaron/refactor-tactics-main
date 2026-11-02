@@ -1105,12 +1105,12 @@ void ARTHUD::DrawHUD()
 	// Lasciarla qui avrebbe calcolato due `TSet` per fotogramma senza che nessuno li leggesse — trovato in
 	// review, dopo che la prima stesura di questa PR aveva rimosso il consumatore e non il calcolo.
 
-	// Recuperato QUI, PRIMA del ciclo delle unita': serve alla traccia post-lock e al numero di turno.
+	// Recuperato QUI, PRIMA del ciclo delle unita': serve ai cancelli di fase, alla traccia post-lock e al numero di turno.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
 	// Quali strati dipendono dalla fase, decisi UNA volta per fotogramma in `ComposeHudPhaseGates` (#2184): prima
-	// erano tre confronti su `GetPhase()` in tre siti, e non erano lo stesso. Senza `TurnManager` e' tutto falso.
+	// erano tre confronti in tre siti. Senza `TurnManager` e' tutto falso, ma i siti tengono `TurnManager &&`: lo leggono.
 	const FRTHudPhaseGates PhaseGates = TurnManager
 		? ComposeHudPhaseGates(TurnManager->GetPhase(), TurnManager->IsResolving())
 		: FRTHudPhaseGates();
@@ -1954,8 +1954,8 @@ FRTHudPhaseGates ARTHUD::ComposeHudPhaseGates(ERTMatchPhase Phase, bool bResolvi
 {
 	FRTHudPhaseGates Gates;
 
-	// La traccia dell'ultima risoluzione resta mentre il playback gira: e' cio' che e' successo, e il playback lo
-	// sta mostrando. Non vuole `!bResolving`, ed e' per questo che non e' lo stesso cancello degli intenti.
+	// La traccia dell'ultima risoluzione NON vuole `!bResolving`: oggi resta mentre il playback gira, ed e' per
+	// questo che non e' lo stesso cancello degli intenti. Stato di fatto, non decisione: vedi `FRTHudPhaseGates`.
 	Gates.bShowPostLockTrail = Phase == ERTMatchPhase::Planning;
 
 	// Gli intenti no: durante il playback si vede cio' che e' successo, non cio' che era stato pianificato.
@@ -2070,7 +2070,7 @@ FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)
 	// partite che si raccontano in modo diverso.
 	//
 	// ⚠️ **Con `InProgress` rende «Partita in corso - nessuna via», ed e' stato di fatto.** Il caso e'
-	// irraggiungibile perche' `DrawHUD` chiama questa funzione solo dentro `GetPhase() == MatchEnded` — ma
+	// irraggiungibile perche' `DrawHUD` chiama questa funzione solo dietro `PhaseGates.bShowMatchEndPanel` (cioe' `Phase == MatchEnded`) — ma
 	// il gate e la composizione stanno in DUE posti, e questa funzione e' pubblica. ⛔ Non e' stato
 	// corretto rendendo stringa vuota: sarebbe aggiungere una reticenza che oggi non esiste, e #2184 mette
 	// fuori scope «cambiare cio' che si vede». Se arriva un secondo chiamante, quella diventa una decisione

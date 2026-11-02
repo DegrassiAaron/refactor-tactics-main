@@ -301,15 +301,19 @@ struct FRTDashPreview
 };
 
 /**
- * [#2184 fetta 13] Quali strati di `DrawHUD` dipendono dalla fase, decisi in un posto solo.
+ * [#2184 fetta 13] Quali strati di `DrawHUD` dipendono dalla fase, decisi qui e non in tre siti.
  *
  * Erano tre confronti scritti a mano su `TurnManager->GetPhase()`, in tre siti diversi, e **non sono lo
  * stesso confronto**: la traccia dell'ultima risoluzione resta visibile durante il playback, gli intenti
- * pianificati no — durante il playback si vede cio' che e' successo, non cio' che era stato pianificato.
- * Il comportamento e' voluto; la regola, prima, non era interrogabile da nessun test.
+ * pianificati no.
  *
- * Il default e' tutto falso: e' quello che torna senza un `ARTTurnManager`, dove nessuno dei tre strati ha
- * qualcosa da mostrare.
+ * ⚠️ **E' lo stato di fatto, non una regola dichiarata desiderabile.** [D-356] elenca la traccia sopra un
+ * turno in corso fra i difetti, e la chiude per la sola sospensione (con `Phase` a `Blast`/`Move` il
+ * `== Planning` e' falso). Se il playback ordinario debba nasconderla non lo decide questa estrazione, che
+ * la registra com'e': pinnarla rende visibile la scelta a chi un giorno la cambia.
+ *
+ * Il default e' tutto falso: e' quello che torna senza un `ARTTurnManager`. Oggi e' inerte, perche' i siti di
+ * `DrawHUD` tengono `TurnManager &&` (lo leggono nel corpo), ed e' pinnato lo stesso.
  */
 struct FRTHudPhaseGates
 {
@@ -843,7 +847,7 @@ public:
 	 * «Vince il team 0» da solo non distingue un'eliminazione da un vantaggio allo scadere dei round.
 	 *
 	 * ⚠️ **Con un esito `InProgress` rende una frase senza senso** («Partita in corso - nessuna via»), ed
-	 * e' stato di fatto e non regola: `DrawHUD` la chiama solo dentro `GetPhase() == MatchEnded`, quindi il
+	 * e' stato di fatto e non regola: `DrawHUD` la chiama solo dietro `PhaseGates.bShowMatchEndPanel` (cioe' `Phase == MatchEnded`), quindi il
 	 * caso e' irraggiungibile — ma il gate e la composizione stanno in due posti. Vedi il test omonimo.
 	 */
 	static FString ComposeMatchEndHeadline(const struct FRTMatchResult& Result);
