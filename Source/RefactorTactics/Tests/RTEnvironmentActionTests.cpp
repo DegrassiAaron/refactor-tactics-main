@@ -592,7 +592,7 @@ bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
 //   · il rifiuto e' di UNA unita': il ciclo prosegue, la struttura di un compagno ordinato DOPO la stordita nasce (riga
 //     «con testimone»), e quella di un compagno ordinato PRIMA non si perde (riga «con testimone anticipato»);
 //   · la regola vale per DISCRIMINANTE (la `StructureOp` che erige o sposta) e non per nome: oltre alle azioni del catalogo
-//     core e dell'eroe, la riga di `Gadget.PortableCover`, che le copia da `Action.CreateCover` con un nome suo;
+//     core e dell'eroe, la riga di `Gadget.PortableCover`, che copia la `StructureOp` di `Action.CreateCover` e porta un nome suo;
 //   · il rifiuto e' dell'AZIONE, non del percorso: il passo normale di una stordita si cammina ([D-416] (1): il
 //     movimento lo toglie `Status.Root`, non `Status.Stunned`), in ogni forma in cui lo si pianifica — il percorso di un
 //     passo, il percorso composito e la sola destinazione;
@@ -637,7 +637,7 @@ namespace
 		bool bWithStep = false;       //< l'attore pianifica ANCHE un passo normale verso una cella adiacente e libera: un fatto di timeline che il playback mostra
 		bool bWithEarlyWitness = false; //< un compagno VIVO, ordinato PRIMA dell'attore, erige altrove nello stesso Prep: la sua operazione e' gia' RACCOLTA quando scatta la guardia, e deve risultare applicata
 		bool bWithDetour = false;     //< come `bWithStep`, ma col percorso COMPOSITO {partenza, deviazione, destinazione}: piu' lungo di quello che il pathfinder calcolerebbe verso la stessa destinazione
-		bool bDestinationOnly = false; //< come `bWithStep`, ma di SOLA DESTINAZIONE (`PlannedPath` vuoto): la forma di bot e harness, il cui percorso nasce dentro la fase Move
+		bool bDestinationOnly = false; //< come `bWithStep`, ma di SOLA DESTINAZIONE (`PlannedPath` vuoto): la forma dei bot, il cui percorso nasce dentro la fase Move
 	};
 
 	/** La stessa scena con il testimone, col passo, ...: i flag si aggiungono a qualunque riga senza allungare la sua lista posizionale. */
@@ -837,7 +837,7 @@ namespace
 		FRTCellId WitnessHome = FRTCellId(0, 2);
 		FRTCellId WitnessTarget = FRTCellId(0, 3);
 		ARTUnit* EarlyWitness = nullptr;               //< solo con testimone anticipato: un'unita' viva della stessa squadra, ordinata PRIMA dell'attore (`StableLess` ordina per livello, X, Y: X minore), che erige altrove
-		FRTCellId EarlyHome = FRTCellId(-2, 2);        //< a distanza 2 da Step e dal nemico: non e' adiacente ne' sul percorso dell'attore
+		FRTCellId EarlyHome = FRTCellId(-2, 2);        //< a distanza 2 da Home e da Step e 4 dal nemico: non e' adiacente ne' sul percorso dell'attore
 		FRTCellId EarlyTarget = FRTCellId(-2, 3);
 		FRTCellId Detour = FRTCellId(0, -1);           //< la cella intermedia del percorso composito: adiacente sia a Home sia a Step, e libera
 	};
@@ -1146,7 +1146,7 @@ namespace
 		if (Out.StableId != 0)
 		{
 			// La rotta che l'attore ha PERCORSO: l'evento `Move` di fase Move che ha lui per sorgente, con la rotta in celle (partenza
-			// inclusa). E' l'unico osservabile che distingue un percorso composito dal percorso che il pathfinder avrebbe calcolato
+			// inclusa). E' un osservabile che distingue un percorso composito dal percorso che il pathfinder avrebbe calcolato
 			// da solo verso la stessa destinazione: la cella finale, a fine turno, e' la stessa.
 			for (const FRTResolvedEvent& Ev : Bed.TM->ResolvedTimelineForTest())
 			{
@@ -1266,7 +1266,7 @@ namespace
 			}
 		}
 		// Il piano di SOLA DESTINAZIONE: nessun percorso, lo trova il pathfinder della fase Move. E' la forma dei bot (non scrivono
-		// mai `PlannedPath`: dichiarano la sola `PlannedCell`) e dell'harness quando non scrive un percorso.
+		// mai `PlannedPath`: dichiarano la sola `PlannedCell`).
 		if (Scene.bDestinationOnly)
 		{
 			Bed.Caster->PlannedPath.Reset();
@@ -1544,7 +1544,7 @@ namespace
 				O.FinalCell.ToString(), O.Destination.ToString());
 			// La rotta e' quella del PIANO: il suo percorso composito se la riga ne scrive uno, altrimenti quella che il pathfinder
 			// trova verso la sola destinazione. La cella finale non lo dice: con un percorso diverso da quello del pathfinder e' la
-			// stessa, e senza percorso scritto (la forma di bot e harness) la raggiunge solo chi la rotta la ricava dalla destinazione.
+			// stessa, e senza percorso scritto (la forma dei bot) la raggiunge solo chi la rotta la ricava dalla destinazione.
 			Test.TestEqual(*FString::Printf(TEXT("%s: l'attore ha percorso la rotta del piano"), *Run),
 				CoverStunRouteText(O.WalkedRoute), CoverStunRouteText(O.ExpectedRoute));
 			// Il playback si apre perche' il passo e' un fatto di timeline: senza, «niente Prep» sarebbe vero anche con un
@@ -1651,12 +1651,12 @@ namespace
  * fatto in timeline il playback del braccio stordito non si apre, e «niente Prep» sarebbe vero per il motivo banale.
  *
  * Il passo ha forme diverse, e in ognuna la stordita cammina QUELLO che ha pianificato: il percorso di un passo (la forma del
- * giocatore dopo un click), il percorso COMPOSITO con una deviazione e la SOLA DESTINAZIONE (`PlannedPath` vuoto: la forma di bot
- * e harness, il cui percorso nasce dentro la fase Move). Col percorso composito la cella finale e' la stessa del percorso diretto,
+ * giocatore dopo un click), il percorso COMPOSITO con una deviazione e la SOLA DESTINAZIONE (`PlannedPath` vuoto: la forma dei bot,
+ * il cui percorso nasce dentro la fase Move). Col percorso composito la cella finale e' la stessa del percorso diretto,
  * e la distingue solo la rotta: il banco la legge dall'evento `Move` della timeline. Una premessa per riga verifica che il piano
  * abbia la forma dichiarata, perche' gli asserti del passo si saltano se il piano non ha un passo.
  *
- * Le righe oltre la prima famiglia pinnano DOVE sta la guardia:
+ * Le righe oltre la prima famiglia pinnano DOVE sta la guardia e COSA riconosce:
  *  - **gia' in ricarica**: `CanUseAbility` e' falso e il piano si scarta in silenzio PRIMA della guardia — niente voce e
  *    niente secondo addebito, in entrambi i bracci (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot
  *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
@@ -1671,7 +1671,7 @@ namespace
  *  - **con testimone anticipato**: l'opposto. Un compagno ordinato PRIMA della stordita (una premessa lo verifica) ha la sua
  *    operazione gia' RACCOLTA quando la guardia scatta, e il rifiuto di lei non deve buttarla: la sua copertura nasce anche nel
  *    braccio stordito. Ne' il `continue` ne' il `break` la toccano, e per questo il testimone di DOPO non basta; un rifiuto che
- *    azzerasse la raccolta gia' fatta si;
+ *    azzerasse la raccolta gia' fatta si';
  *  - **un'altra azione**: `Gadget.PortableCover` e' l'azione che il gadget concede (`MakeEquipmentAction`), costruita come la
  *    costruisce il gioco. Copia la definizione di `Action.CreateCover`, quindi la sua `StructureOp`, e porta un nome e una
  *    ricarica suoi. La guardia vale per DISCRIMINANTE e non per nome ([D-565] (1)): la stordita che la pianifica e' rifiutata
@@ -1717,7 +1717,7 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 
 		// LE ALTRE FORME DEL PASSO. Il rifiuto e' dell'AZIONE e non del piano di movimento, e la stordita cammina QUELLO che ha
 		// pianificato: un percorso composito con una deviazione (la cella finale e' quella del percorso diretto: la distingue la
-		// rotta) e la sola destinazione, senza percorso scritto (la forma di bot e harness: la fase Move ricava la rotta da
+		// rotta) e la sola destinazione, senza percorso scritto (la forma dei bot: la fase Move ricava la rotta da
 		// `PlannedCell`, e un rifiuto che la riportasse sulla cella corrente fermerebbe la stordita).
 		{ CoverStunWithDetour({ ECoverStunKind::CreateCover }),
 		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
