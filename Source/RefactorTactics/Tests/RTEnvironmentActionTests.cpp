@@ -1103,8 +1103,9 @@ namespace
 		if (Scene.bOutOfRange) { Bed.Caster->PlannedAttackCell = FRTCellId(4, 0); }
 		// Il testimone erige altrove, nello stesso Prep: se la sua copertura c'e', `ResolveCoverStructures` e' girata.
 		if (Scene.bWithWitness) { PlanCoverAction(Bed.Witness, TEXT("Action.CreateCover"), Bed.WitnessTarget, ERTHexDirection::W); }
-		// Il passo normale, scritto come lo scrive il controller dopo un click: percorso ANCORATO alla cella corrente e
-		// destinazione. L'adiacenza la verifica una premessa; che `Step` sia libera lo prova il braccio di controllo, dove si cammina.
+		// Il passo normale: le due scritture finali del controller dopo un click, `PlannedPath` ANCORATO alla cella corrente
+		// e `PlannedCell`. `PlannedWaypoints` non si scrive, perche' il resolver non lo legge. L'adiacenza la verifica una
+		// premessa; che `Step` sia libera lo prova il braccio di controllo, dove si cammina.
 		if (Scene.bWithStep)
 		{
 			Bed.Caster->PlannedPath = { Bed.Caster->Cell, Bed.Step };
@@ -1327,8 +1328,10 @@ namespace
 			// Il playback si apre perche' il passo e' un fatto di timeline: senza, «niente Prep» sarebbe vero anche con un
 			// rifiuto contato fra le operazioni applicate (vedi `CoverStunRunTurnWatchingPlayback`).
 			Test.TestTrue(*FString::Printf(TEXT("%s: il playback mostra il passo (fase Move)"), *Run), O.bSawMoveBeat);
-			// Il beat di Prep c'e' se e solo se un'operazione e' stata APPLICATA (`ResolveCoverStructures` > 0): un rifiuto, e un
-			// `Reject` di raccolta, non lo accendono — ne' nel braccio stordito ne' in quello di controllo.
+			// Qui il beat di Prep c'e' se e solo se un'operazione e' stata APPLICATA (`ResolveCoverStructures` > 0): un rifiuto, e
+			// un `Reject` di raccolta, non lo accendono — ne' nel braccio stordito ne' in quello di controllo. L'equivalenza vale
+			// per questa scena: `BeginPlayback` aggiunge la fase Prep anche per un `AbilityActivated` di Prep visibile alla
+			// squadra, e `bPrepActiveThisTurn` ha altri setter (Overwatch e predittive che armano), che qui non ci sono.
 			Test.TestEqual(*FString::Printf(TEXT("%s: il beat di Prep c'e' solo se una struttura e' stata applicata"), *Run),
 				O.bSawPrepBeat, X.Created + X.Moved > 0);
 		}
@@ -1552,6 +1555,10 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
  * ⚠️ E' il caso in cui «il rifiuto paga la ricarica intera» e «la rotazione gratuita non paga» si toccano: uno stordito
  * rifiutato paga a T3 anche se l'esecuzione sarebbe stata gratuita ([D-414]: «se si usa un'abilita' si paga»), ma non brucia
  * il credito che l'esecuzione avrebbe consumato.
+ *
+ * ⚠️ **Il credito ha UN sensore solo**: la ricarica pagata a T5 (`FreeRotations` e' un campo `protected` di `DynamicCovers`,
+ * senza accessor e fuori dallo `StateHash`, quindi il banco non lo legge). Si vede un rifiuto che SPENDE il credito; non si
+ * vede un rifiuto che ne REGALA uno in piu', perche' con due crediti T5 e' gratuito come con uno: servirebbe un sesto turno.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterKeepsTheFreeRotationTest,
 	"RefactorTactics.Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation",
