@@ -5076,11 +5076,36 @@ void ARTTurnManager::ResolveDash()
 		const bool bDashApplies = Unit->PlannedDashApplies();
 		// [D-471]: il rifiuto dello stato si legge QUI, prima del consumo, per la stessa ragione della riga sopra.
 		const bool bNegatoDalloStato = Unit->PlannedDashDeniedByStatus();
+		// [D-567]: idem per lo stordimento, che legge `PlannedDashAbility` come il rifiuto dello stato.
+		const bool bNegatoDalloStordimento = Unit->PlannedDashDeniedByStun();
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
 		if (!bDashApplies)
 		{
+			continue;
+		}
+
+		// 🔴 **Lo stordimento NEGA la mobilita' che prende ANCHE l'azione principale** ([D-567], `#3964`). [D-416] (1) toglie
+		// la principale alla stordita e «non tocca il movimento»: una mobilita' `MovementAndMain` (o una principale di
+		// macro-fase Dash) li prende tutti e due, e l'autore ha deciso che vince la prima meta' — la stordita non la compie
+		// e il rifiuto PAGA la ricarica ([D-563] (2)), come ogni altra principale negata. Una mobilita' che prende il SOLO
+		// movimento (`Slot == Movement`, oggi ogni scatto spedito) resta permessa: il criterio e' `TakesMainSlot`, non un nome.
+		//
+		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStun()`**, letta sopra prima del consumo e la stessa che
+		// anteprima e mira leggono attraverso `PlannedDashMoves()` ([D-471]). La voce e' quella di ogni altro sito
+		// (`RefuseMainActionIfStunned`: `Fallback`/`Cancelled`/`Stunned`, fase `Dash`) con `TgtCell = Unit->Cell`: la
+		// destinazione pianificata e' piano privato, come nel rifiuto per `Unbalanced` qui sotto.
+		//
+		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget che prende la
+		// principale e' negata come stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso
+		// (nessuna azione dichiara `MovementAndMain`): l'ordine e' scritto, non esercitato. Un'unita' MORTA non entra
+		// (`IsAlive`): `Units` include anche i caduti, e come negli altri siti il rifiuto riguarda chi gioca ancora; per lei il
+		// ramo prosegue come prima.
+		if (bNegatoDalloStordimento && Unit->IsAlive()
+			&& RefuseMainActionIfStunned(Unit, Dash->Def, ERTMatchPhase::Dash, Unit->Cell))
+		{
+			Unit->ConsumeAbility(DashIdx);
 			continue;
 		}
 
@@ -5604,6 +5629,10 @@ void ARTTurnManager::ResolveDash()
 		// mobilita' costa tutto il turno» si esprime in DATI, senza un `if` sull'ActionId qui dentro. E resta
 		// verificato — `Actions.KitCanDeclareAMobilityThatCostsBothSlots` costruisce proprio quel caso, perche'
 		// un ramo che nessun dato attraversa e' un ramo che nessun test difende.
+		//
+		// ⚠️ **Da [D-567] una stordita VIVA non arriva qui**: la guardia in cima al ciclo nega la mobilita' che prende la
+		// principale, quindi `DashAbilityIdx` resta `INDEX_NONE` per lei e la sua principale pianificata non e' un affare
+		// di questo ramo. Il ramo e' di chi lo scatto lo compie.
 		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
 		{
 			// 🔴 **Anche questo scarto si DICHIARA.** Fino ad ora la principale spariva in silenzio: stessa

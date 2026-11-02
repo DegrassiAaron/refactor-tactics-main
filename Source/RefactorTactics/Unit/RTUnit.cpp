@@ -2191,9 +2191,17 @@ bool ARTUnit::PlannedDashDeniedByStatus() const
 		&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
 }
 
+bool ARTUnit::PlannedDashDeniedByStun() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	// `TakesMainSlot` e non lo slot letto a mano: e' la stessa domanda che pone il censimento dello stordimento, e la
+	// prossima mobilita' che prende la principale (macro-fase Dash compresa) e' negata senza che nessuno lo ricordi.
+	return Dash != nullptr && HasStatus(TAG_Status_Stunned) && URTCatalogLibrary::TakesMainSlot(Dash->Def);
+}
+
 bool ARTUnit::PlannedDashMoves() const
 {
-	return PlannedDashApplies() && !PlannedDashDeniedByStatus();
+	return PlannedDashApplies() && !PlannedDashDeniedByStatus() && !PlannedDashDeniedByStun();
 }
 
 FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const

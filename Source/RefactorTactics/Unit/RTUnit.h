@@ -1016,11 +1016,29 @@ public:
 	bool PlannedDashDeniedByStatus() const;
 
 	/**
-	 * 🔑 **Lo scatto pianificato SPOSTA l'unita'** ([D-471]): `PlannedDashApplies()`, e lo stato non lo nega.
+	 * Vero se lo STORDIMENTO nega lo scatto pianificato: `Status.Stunned` e una mobilita' che prende anche l'azione
+	 * principale (`URTCatalogLibrary::TakesMainSlot`: `ERTActionSlot::MovementAndMain`, o una principale di macro-fase
+	 * Dash) ([D-567], `#3964`). [D-416] (1) toglie la principale alla stordita e «non tocca il movimento»: una
+	 * mobilita' che prende tutti e due gli slot vince la prima meta', e la stordita non la compie.
+	 *
+	 * ⚠️ **Non nega il movimento**: una mobilita' che prende il SOLO slot movimento (`ERTActionSlot::Movement`) resta
+	 * permessa a una stordita, ed e' il confine della regola.
+	 *
+	 * 🔑 **Una regola, due lettori**, come `PlannedDashDeniedByStatus()` ([D-471]): `ARTTurnManager::ResolveDash` per il
+	 * suo rifiuto dichiarato, che PAGA la ricarica ([D-563] (2)), e `PlannedDashMoves()` per tutti gli altri. ⚠️ **Solo
+	 * le mobilita'**: il click accetta ancora il piano di una stordita e lo nega la risoluzione ([D-565] (2), `#3134`),
+	 * quindi per le altre principali l'anteprima non cambia; qui cambia perche' `PlannedDashMoves()` decide DOVE sara'
+	 * l'unita', e una mira o un ghost che partissero da uno scatto negato mentirebbero come prima di [D-471].
+	 */
+	bool PlannedDashDeniedByStun() const;
+
+	/**
+	 * 🔑 **Lo scatto pianificato SPOSTA l'unita'** ([D-471]): `PlannedDashApplies()`, e ne' lo stato ne' lo
+	 * stordimento lo negano (`PlannedDashDeniedByStatus()`, `PlannedDashDeniedByStun()`).
 	 *
 	 * E' la domanda di chi deve sapere dove l'unita' sara' dopo il Dash: l'origine di mira (`AimOriginFor`), le
-	 * anteprime, il verso dichiarato. ⛔ Il resolver non la chiede: chiede `PlannedDashApplies()` e poi
-	 * `PlannedDashDeniedByStatus()`, perche' quel rifiuto ha una voce sua nel TurnLog.
+	 * anteprime, il verso dichiarato. ⛔ Il resolver non la chiede: chiede `PlannedDashApplies()` e poi i due rifiuti,
+	 * perche' ciascuno ha una voce sua nel TurnLog.
 	 */
 	bool PlannedDashMoves() const;
 
