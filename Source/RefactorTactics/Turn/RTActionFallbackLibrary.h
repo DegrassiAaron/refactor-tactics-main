@@ -234,6 +234,10 @@ enum class ERTActionInvalidReason : uint8
 	 * ⛔ **Non dice niente sul movimento**, ed e' la distinzione da `Root` che [D-416] mette per iscritto:
 	 * `Root` non passa di qui, perche' non rifiuta un'azione — azzera un budget, che e' un'altra sede.
 	 *
+	 * ⚠️ **Una mobilita' che prende ANCHE la principale e' un'azione principale** ([D-567], `#3964`): `MovementAndMain`
+	 * (o una principale di macro-fase Dash) e' negata da questo motivo, e il rifiuto paga la ricarica come ogni altro. Non
+	 * e' un divieto di muoversi: resta permessa la mobilita' che prende il SOLO slot movimento.
+	 *
 	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked` e le altre prima: il
 	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
 	 * significato di ogni traccia gia' archiviata che ne porti uno successivo.

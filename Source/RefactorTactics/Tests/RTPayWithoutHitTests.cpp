@@ -594,7 +594,9 @@ namespace
  *
  * ⚠️ Le altre cause non decise (`TargetUnknown`, porta senza varco, commutazione rifiutata, mappa assente,
  * `ModifyArc`, azioni ambientali, reazione armata senza trigger, i `Reject` di raccolta di `ResolveCoverStructures`,
- * Dash rifiutato) non hanno un fixture semplice qui: stanno nei `followups` della sessione che ha scritto questo file,
+ * Dash rifiutato per cause diverse dallo stordimento, che da [D-567] e' deciso e paga: lo prova
+ * `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`) non hanno un fixture semplice qui: stanno nei `followups` della
+ * sessione che ha scritto questo file,
  * col motivo. I `Reject` di raccolta delle coperture (nessun bersaglio, nessun bordo dichiarato, fuori portata) restano
  * gratis e non decisi (`RIC-3`), e li fissa il braccio non stordito di
  * `Actions.CoverStructures.StunnedCasterChangesNothing`; i fallimenti IN APPLICAZIONE (`MoveCover` via `RejectMove`,
