@@ -823,7 +823,8 @@ namespace
 		Bed.Caster = SpawnEnvUnit(Bed.World, 0, Bed.Home);
 		// Un avversario inerte e lontano: senza nemici la partita finirebbe al primo turno (`EvaluateOutcome`).
 		ARTUnit* Foe = SpawnEnvUnit(Bed.World, 1, FRTCellId(-4, 0));
-		// Il testimone della riga «caduto»: la sua copertura prova che il Prep e' girato davvero con un cadavere nella lista.
+		// Il testimone delle righe «con testimone» e «caduto»: la sua copertura prova che il Prep e' girato davvero, con una
+		// stordita o un cadavere davanti a lui nella lista.
 		if (bWithWitness) { Bed.Witness = SpawnEnvUnit(Bed.World, 0, Bed.WitnessHome); }
 		Bed.TM = Bed.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: mappa"), *Run), Bed.Map)
@@ -1103,7 +1104,7 @@ namespace
 		// Il testimone erige altrove, nello stesso Prep: se la sua copertura c'e', `ResolveCoverStructures` e' girata.
 		if (Scene.bWithWitness) { PlanCoverAction(Bed.Witness, TEXT("Action.CreateCover"), Bed.WitnessTarget, ERTHexDirection::W); }
 		// Il passo normale, scritto come lo scrive il controller dopo un click: percorso ANCORATO alla cella corrente e
-		// destinazione. `Step` e' libera e adiacente (le premesse lo verificano), quindi nel braccio di controllo si cammina.
+		// destinazione. L'adiacenza la verifica una premessa; che `Step` sia libera lo prova il braccio di controllo, dove si cammina.
 		if (Scene.bWithStep)
 		{
 			Bed.Caster->PlannedPath = { Bed.Caster->Cell, Bed.Step };
@@ -1282,7 +1283,8 @@ namespace
 		Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di fase Prep"), *Run), O.PrepRefusalsAnyUnit, X.Refusals);
 		// ⚠️ Un cadavere stordito che arriva al Blast col piano addosso riceve LI' una voce di rifiuto (e non lo paga):
 		// `CollectAttackIntents` non filtra i morti. E' preesistente, non e' di questo banco e non e' deciso, quindi per la
-		// riga «caduto» si conta il Prep e basta, e il Blast non si asserisce ne' in un senso ne' nell'altro.
+		// riga «caduto» le voci di rifiuto si contano in Prep e basta, e quella del Blast non si asserisce. Il NON-pagamento
+		// invece si: la ricarica `Free` e gli altri slot, qui sotto, valgono anche per il cadavere.
 		if (!X.bFallenActor)
 		{
 			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, X.Refusals);
