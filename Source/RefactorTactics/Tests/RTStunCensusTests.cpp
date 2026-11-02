@@ -288,6 +288,10 @@ namespace RTStunCensusTestsInternal
 	 * categorie: e' il confronto fra i siti e le categorie a dire se un sito resta senza categorie, o una categoria senza un
 	 * sito dichiarato (`CoverageProblems`, in `EveryGuardedSiteHasARow`).
 	 * Si tiene d'accordo col comando in testa al file; un sito nuovo si aggiunge qui E come categoria.
+	 * ⚠️ **Eccezione dichiarata: `ResolveDash`** (D-567, #3964) chiama la guardia, per la mobilita' che prende anche la
+	 * principale, ma non sta qui ne' in una categoria: nessuna azione di catalogo la percorre, e `EveryMainActionHasAKnownSite`
+	 * la vieta finche' non ha la sua riga. La prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, con un'azione
+	 * costruita. Il giorno in cui un'azione di catalogo la percorre si aggiunge qui E come categoria, con la sua riga.
 	 */
 	const TArray<const TCHAR*>& GuardedSites()
 	{

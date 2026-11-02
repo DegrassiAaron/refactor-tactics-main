@@ -954,7 +954,7 @@ public:
 	 * chiede l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast, quindi chi
 	 * carica e poi spara agisce da dove e' arrivato. Finche' la condizione stava solo dentro `ResolveDash`,
 	 * l'anteprima non aveva modo di porre la domanda senza riscriverla. ⚠️ Da [D-471] l'anteprima la chiede
-	 * attraverso `PlannedDashMoves()`, che aggiunge il rifiuto dello stato.
+	 * attraverso `PlannedDashMoves()`, che aggiunge i rifiuti dello stato e dello stordimento.
 	 *
 	 * ⚠️ **Non promette la cella d'arrivo.** `ResolveDash` risolve la collisione simultanea (CP 4.8) e puo'
 	 * fermare lo scatto prima della destinazione: questa risponde «lo scatto parte», non «lo scatto arriva».

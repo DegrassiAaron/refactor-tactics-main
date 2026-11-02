@@ -880,7 +880,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// ⚠️ **`CanUseAbility` e' la guardia**: `ConsumeAbility` scrive un valore FISSO, quindi su un'abilita' GIA' in
 			// ricarica la riporterebbe al valore pieno — un'azione pianificata a mano e non disponibile non si ripaga.
 			// ⚠️ **Vivo**: un cadavere che arriva al Blast col piano addosso non ha tentato niente. ⚠️ **Non lo scatto**:
-			// lo rifiuta `ResolveDash`, prima del consumo, e il Dash rifiutato e' una causa NON DECISA.
+			// lo rifiuta `ResolveDash`, prima del consumo ([D-567] per lo stordimento: la' il rifiuto e' deciso e paga), e per le
+			// altre cause il Dash rifiutato e' una causa NON DECISA.
 			if (Unit->IsAlive() && !URTCatalogLibrary::IsFastMovement(PlannedNow->Def)
 				&& Unit->CanUseAbility(Unit->PlannedAbilityIndex))
 			{
