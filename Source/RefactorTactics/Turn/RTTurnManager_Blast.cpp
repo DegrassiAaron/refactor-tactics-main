@@ -260,10 +260,13 @@ namespace
 	 * ⚠️ **Non e' l'unica sede della regola, e togliere una causa NON e' sempre togliere una riga da qui**: per un
 	 * intento gia' nato, che sia partito senza lasciare un colpo lo dice `IntentoPartitoSenzaColpo`, con una clausola per
 	 * canale (`OtherLayerIntents`, `BlockedIntents`, `TerrainCappedIntents`, `Footprints`), e `R8` e l'Interrupt come
-	 * attore passano dal lambda `AzionePartita` di `ApplyInterrupts`, che chiama quel predicato. Basta una riga di qui
-	 * solo per `R6` (`TargetDead`); `R4` e `R5` sono le clausole `BlockedIntents` e `OtherLayerIntents`, `R7` la clausola
-	 * `TerrainCappedIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e `R3`), e `R3` un
-	 * discriminante che oggi non c'e': divide con `R1` la riga `None` e la clausola `Footprints`.
+	 * attore passano dal lambda `AzionePartita` di `ApplyInterrupts`, che non ha una riga propria nella tabella:
+	 * dichiara partita l'azione che ha lasciato un colpo, quella che lo stesso predicato dichiara partita senza colpo e,
+	 * con un ramo proprio che non passa dal predicato, l'Interrupt mirato a una cella (`TargetId == INDEX_NONE`). Basta
+	 * una riga di qui solo per `R6` (`TargetDead`); `R4` e `R5` sono le clausole `BlockedIntents` e `OtherLayerIntents`,
+	 * `R7` la clausola `TerrainCappedIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e
+	 * `R3`), e `R3` un discriminante che il predicato oggi non legge: divide con `R1` la riga `None` e la clausola
+	 * `Footprints`.
 	 *
 	 * Le etichette `R1`..`R10` che questo file, i suoi commenti e i test citano sono quelle di [D-563], clausole
 	 * (2) e (3): PAGANO `R1` area in portata che non trova nessuno, `R2` azione principale negata dallo stordimento,
