@@ -5299,7 +5299,12 @@ void ARTTurnManager::ResolveDash()
 				// 🔴 **La cella di PARTENZA, e non la meta pianificata** ([D-568], `#3974`), come nel rifiuto per `Unbalanced` e in
 				// quello per stordimento ([D-567]). `TgtCell` e' una colonna `Public` del replay e il filtro lavora per riga, mai per
 				// valore: chi percepisce l'unita' riceve la riga, e con la riga la destinazione che il piano privato di un nemico
-				// aveva scelto. Il PERCHE' del rifiuto resta in `Amount`; la meta non resta scritta da nessuna parte.
+				// aveva scelto. Il PERCHE' del rifiuto resta in `Amount` e dice che il primo passo verso la meta e' negato, o che la
+				// meta e' fuori portata o fuori retta; la cella di destinazione non resta scritta in QUESTA voce.
+				//
+				// ⚠️ **Non e' l'unica voce che nomina una destinazione pianificata**: la `Fermata` di D-516 piu' sotto scrive
+				// `PlannedDashCell`, il movimento superato dallo scatto scrive `PlannedCell` e il diniego per occupante scrive la
+				// destinazione negata. Sono la stessa classe e restano fuori da [D-568] (`#3974`, «da mappare e decidere a parte»).
 				//
 				// ⌫ *Fino al 2026-11-02 qui c'era `Unit->PlannedDashCell`, con la ragione opposta: «l'unico posto in cui resta scritto
 				// dove l'unita' voleva andare, e senza di essa il rifiuto non e' ricostruibile dal log».* L'autore ha scelto di

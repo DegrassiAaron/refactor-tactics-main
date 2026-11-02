@@ -899,19 +899,25 @@ bool FRTHexChargeBeyondRangeRevalidatedTest::RunTest(const FString&)
  *
  * Perche': nel modello di visibilita' del replay `TgtCell` e' una colonna pubblica e il filtro lavora per riga o per colonna,
  * mai per valore (`RTReplayPrivacyLibrary.cpp`). Chi percepisce l'unita' riceve la riga, e con essa la destinazione che il
- * piano privato di un nemico aveva scelto. Il motivo del rifiuto resta in `Amount`, e dice SOLO perche' non e' partito.
+ * piano privato di un nemico aveva scelto. Il motivo del rifiuto resta in `Amount` e NON e' nascosto: dice che il primo passo
+ * verso la meta e' negato (o che la meta e' fuori portata o fuori retta), quindi chi conosce la mappa puo' restringere la
+ * direzione. Questo test pinna il valore di `TgtCell`, non l'assenza di ogni informazione.
  *
- * Quattro cause, cinque mondi — quanti sono i codici che `ResolveDash` scrive dal ramo geometrico, piu' una variante:
- * il bordo alto, il terreno che nega la corsa e il muro sul PRIMO passo (la carica non si muove, quindi c'e' un rifiuto e
- * non una corsa accorciata), e una carica oltre la portata verso una cella vuota (che il server rivalida, D-516). La
- * variante e' il terreno con un camminare pianificato ALTROVE: il rifiuto del Dash non cancella il Move, e la voce deve
- * restare ancorata alla cella di partenza, non alla destinazione del camminare.
+ * Un mondo per ciascun codice che `ResolveDash` scrive dal ramo geometrico, piu' una variante: il bordo alto, il terreno
+ * che nega la corsa e il muro sul PRIMO passo (la carica non si muove, quindi c'e' un rifiuto e non una corsa accorciata), e
+ * una carica oltre la portata verso una cella vuota (che il server rivalida, D-516). La variante e' il terreno con un
+ * camminare pianificato ALTROVE: il rifiuto del Dash non cancella il Move, e la voce deve restare ancorata alla cella di
+ * partenza, non alla destinazione del camminare.
  *
  * 🔑 **La meta pianificata e' sempre diversa dalla partenza, e la partenza non e' l'origine**, e lo asserisce la premessa:
  * con `PlannedDashCell == Cell` l'asserto sulla riga sarebbe vero anche con il difetto, e con la partenza in `(0,0,0)` sarebbe
- * vero anche scrivendo una `FRTCellId` di default. Il testo del combat log e' misurato contro la STESSA cella pianificata,
- * non contro una stringa scritta a mano che il giorno in cui cambia il formato di `DescribeEntry` non cercherebbe piu'
- * niente: il controllo positivo cerca la cella di partenza nel formato vero.
+ * vero anche scrivendo una `FRTCellId` di default. Il testo del combat log e' misurato contro la STESSA cella pianificata
+ * (nello stesso formato di `DescribeEntry`, ripetuto qui): il controllo positivo cerca la cella di partenza in quel formato, e
+ * se `DescribeEntry` lo cambiasse il test diventerebbe rosso invece di cercare per sempre una stringa che non esiste piu'.
+ *
+ * Gli asserti DOPO il filtro per osservatore e dopo `ToPublicTrace` sono una guardia sulla proiezione (un filtro futuro che
+ * aggiungesse la meta li farebbe cadere): la voce e' quella vera del flusso con il verdetto «tutti», il caso peggiore, e non
+ * esercitano la percezione reale della squadra avversaria.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexGeometricDashRefusalHidesDestinationTest,
 	"RefactorTactics.HexMatch.GeometricDashRefusalHidesThePlannedDestination",
@@ -956,13 +962,15 @@ bool FRTHexGeometricDashRefusalHidesDestinationTest::RunTest(const FString&)
 			if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
 		}
 		const int32 Portata = Charger->EffectiveDashRangeOf(ChargeIdx);
-		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: Branth ha la carica, e la mappa contiene due celle oltre la portata"), Caso),
-			ChargeIdx != INDEX_NONE && Portata >= 1 && Portata + 2 <= 6))
+		// `Portata >= 3`: quattro mondi mettono il nemico a tre celle in linea, e con una portata minore D-516 trasformerebbe
+		// il rifiuto in una corsa fino alla portata. L'ultimo mondo ha bisogno di due celle in piu' della portata nella mappa.
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: Branth ha la carica, con portata che raggiunge il nemico e due celle oltre in mappa"), Caso),
+			ChargeIdx != INDEX_NONE && Portata >= 3 && Portata + 2 <= 6))
 		{
 			DestroyHexMatchWorld(World); return false;
 		}
 
-		// Quattro mondi hanno un nemico in linea a 3 celle; l'ultimo, una cella vuota oltre la portata (il nemico non serve).
+		// Tutti i mondi tranne l'ultimo hanno un nemico in linea a 3 celle; l'ultimo, una cella vuota oltre la portata (il nemico non serve).
 		const bool bCellaVuota = (Casi[Indice].Motivo == ERTActionInvalidReason::DashNotAligned);
 		const FRTCellId Bersaglio = bCellaVuota ? FRTCellId(Partenza.X + Portata + 2, 0, 0) : FRTCellId(Partenza.X + 3, 0, 0);
 		ARTUnit* Nemico = nullptr;
