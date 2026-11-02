@@ -3,7 +3,8 @@
 // ## Il difetto che questo file chiude, a meta'
 //
 // Lo stordimento toglie l'azione principale (D-416 (1)), e il rifiuto e' scritto PER SITO: ogni funzione di
-// `ARTTurnManager` che consuma una principale chiama `RefuseMainActionIfStunned`. L'elenco si ricava dal codice:
+// `ARTTurnManager` che consuma una principale deve chiamare `RefuseMainActionIfStunned` (l'unica eccezione nota e' il
+// ramo `MovementAndMain` di `ResolveDash`, che il contratto non copre: #3964). L'elenco si ricava dal codice:
 //
 //     git grep -n 'RefuseMainActionIfStunned(' -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'
 //
