@@ -285,6 +285,19 @@ struct FRTDashPreview
 	{
 		return HasShortfall() ? PathCells[ReachSegments] : (PathCells.Num() > 0 ? PathCells.Last() : FRTCellId());
 	}
+
+	/**
+	 * [#2184 fetta 13] L'ultimo tratto di `PathCells` che si disegna come corsa piena: quanti la corsa ne percorre se
+	 * non li percorre tutti, altrimenti tutta la traiettoria. Con una traiettoria vuota e' `-1`, e il ciclo che lo
+	 * consuma non gira.
+	 */
+	int32 LastRunSegment() const;
+
+	/**
+	 * [#2184 fetta 13] La cella del quadrato di destinazione: dove la corsa si ferma se manca la portata, altrimenti la
+	 * cella che il giocatore ha scelto. `ChosenCell` e' `View.DashCell`, che la struttura non conosce.
+	 */
+	FRTCellId DestinationMarkerCell(const FRTCellId& ChosenCell) const;
 };
 
 /**

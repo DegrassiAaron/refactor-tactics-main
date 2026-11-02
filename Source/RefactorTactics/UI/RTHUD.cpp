@@ -1302,7 +1302,7 @@ void ARTHUD::DrawHUD()
 			// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 			const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
 			const FLinearColor DashColorSfumato(DashColor.R, DashColor.G, DashColor.B, DashColor.A * Opacita);
-			const int32 UltimoTrattoDiCorsa = Scatto.HasShortfall() ? Scatto.ReachSegments : Scatto.PathCells.Num() - 1;
+			const int32 UltimoTrattoDiCorsa = Scatto.LastRunSegment();
 			for (int32 i = 1; i <= UltimoTrattoDiCorsa; ++i)
 			{
 				const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
@@ -1333,8 +1333,7 @@ void ARTHUD::DrawHUD()
 			// Il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico ([D-528]): la carica si ferma accanto a lui ([D-296]).
 			// ⏱️ *Fino a [D-528] stava sulla cella del nemico per una carica in portata*, e solo oltre la portata dove la corsa
 			// si ferma: sullo stesso schermo due cariche usavano il segno in due modi. Senza una lettura (un bot) resta com'era.
-			const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
-				Origin, HexSize, LayerH));
+			const FVector DDest = Project(HexCellWorld(Scatto.DestinationMarkerCell(View.DashCell), Origin, HexSize, LayerH));
 			if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f * Opacita), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
 		};
 
@@ -1974,6 +1973,16 @@ bool ARTHUD::ComposeIntentIsSelected(bool bHasSelection, const FRTCellId& Select
 	// marcherebbe come quella in pianificazione: in autobattle nessuno seleziona niente, e il confronto da solo
 	// non significa niente.
 	return bHasSelection && OwnerCell == SelectedCell;
+}
+
+int32 FRTDashPreview::LastRunSegment() const
+{
+	return HasShortfall() ? ReachSegments : PathCells.Num() - 1;
+}
+
+FRTCellId FRTDashPreview::DestinationMarkerCell(const FRTCellId& ChosenCell) const
+{
+	return HasShortfall() ? StopCell() : ChosenCell;
 }
 
 FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHexMapAsset* Map)
