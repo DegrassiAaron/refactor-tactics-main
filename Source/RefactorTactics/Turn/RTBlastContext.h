@@ -374,7 +374,8 @@ struct FRTBlastContext
 	//
 	// Un'azione d'attacco USATA paga la ricarica anche se la risoluzione non produce nessun colpo, per le cause
 	// che si conoscono SOLO a risoluzione. Cio' che il click rifiuta (fuori portata dichiarata, distanza minima)
-	// resta gratis. La tabella delle cause e' una sola, in `RTTurnManager_Blast.cpp` (`PagaSeParteSenzaColpo`).
+	// resta gratis. La tabella dei MOTIVI di nascita e' una sola, in `RTTurnManager_Blast.cpp` (`PagaSeParteSenzaColpo`);
+	// la regola per gli intenti gia' nati sta anche nelle clausole di `IntentoPartitoSenzaColpo` e nel lambda `AzionePartita`.
 	//
 	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive
 	// `SpendStartedAbilities`. Spostarla al piano definitivo e' il punto 3 di [D-414], non deciso.
