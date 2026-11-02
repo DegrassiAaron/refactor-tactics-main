@@ -15,18 +15,21 @@
 // ## I test, e che cosa ciascuno vede
 //
 // - `EveryMainActionHasAKnownSite` (STATICO): ogni azione con `TakesMainSlot` dei cataloghi (kit d'eroe, generiche,
-//   core, equipaggiamento) cade in una categoria della tabella `Categories`, cioe' ha un sito che la consuma e una
-//   fase in cui il rifiuto deve comparire. Cade, dicendo DOVE aggiungere e QUALE sito deve chiamare la guardia, per
-//   un'azione che non cade in nessuna categoria, per una principale su un percorso senza guardia (`MovementAndMain`,
-//   fase di Dash o di Move: #3964), e per un VALORE DI ENUM che il resolver usa per instradare e che questo file non
-//   dichiara (`RTActionDef.h` avverte che aggiungere un `ERTStructureOp` NON fa fallire la compilazione).
+//   core, equipaggiamento) ha una macro-fase che un sito noto consuma. PUO' rilevare, dicendo che cosa decidere: una
+//   principale su un percorso senza guardia (`Slot == MovementAndMain` o macro-fase Dash: #3964); una principale con
+//   macro-fase Move o Planning, che nessuna categoria dichiara (un'anomalia di dato); un VALORE DI ENUM che il resolver
+//   usa per instradare e che questo file non dichiara (`RTActionDef.h` avverte che aggiungere un `ERTStructureOp` NON fa
+//   fallire la compilazione). NON PUO' rilevare un sito NUOVO che consuma una principale: non cambia nessuna chiave che
+//   legge (dopo lo scarto di quelle fasi restano Prep, Blast e Cleanup, e una categoria le prende tutte), e lo vede solo
+//   una riga comportamentale, e solo se la fixture ci passa.
 // - `EveryMainActionIsRefusedWhenStunned` (COMPORTAMENTALE): per ogni azione del catalogo un turno vero, su mondi
 //   identici fuori dallo stordimento e dal piano (vedi `EArm`). Premesse asserite, controllo positivo (la stessa
 //   pianificazione da una NON stordita produce l'effetto), poi il divieto: una sola voce di rifiuto `Fallback` /
 //   `Cancelled` / `Stunned` che nomina l'azione, nella fase che la categoria dichiara; nessun `AbilityActivated`;
-//   la ricarica parte una volta sola; nessun effetto.
-// - `EveryGuardedSiteHasARow` (STATICO): ogni sito della tabella ha almeno un'azione del catalogo, quindi almeno una
-//   riga comportamentale; e i test che coprono altrove le categorie dichiarate "non coperte" esistono ancora.
+//   la ricarica parte (uno o piu' addebiti non si distinguono: `ConsumeAbility` scrive un valore fisso); nessun effetto.
+// - `EveryGuardedSiteHasARow` (STATICO): ogni CATEGORIA della tabella ha almeno un'azione del catalogo, o e' dichiarata
+//   senza azioni per nome e ragione in `AllowedEmptyCategories`; quindi ogni sito ha almeno una riga comportamentale.
+//   E i test che coprono altrove le categorie dichiarate "non coperte" esistono ancora.
 //
 // ## La tabella azione -> categoria -> sito NON e' scritta a mano
 //
@@ -37,18 +40,22 @@
 //
 // e si legge con `grep STUNCENSUS <file>`. E' la sola forma che non invecchia: nessun conteggio qui, nessuna riga
 // copiata in un documento. Le righe `STUNCENSUS-DEBOLE` nominano le azioni il cui unico canale di controllo e'
-// l'attivazione (la clausola "nessun effetto" e' vuota per loro).
+// l'attivazione (la clausola "nessun effetto" e' vuota per loro); le righe `STUNCENSUS-SENZA-ATTIVAZIONE` quelle il cui
+// controllo non emette nessun `AbilityActivated` (la clausola "nessuna attivazione" e' vuota per loro).
 //
 // ## Cosa il censimento NON vede (dichiarato, non nascosto)
 //
-// 1. UNA FUNZIONE NUOVA che consuma una categoria esistente: la vede una riga solo se la fixture passa da li'. La
+// 1. UN SITO NUOVO che consuma una principale (una funzione nuova, in una categoria esistente o fuori da tutte): non
+//    cambia nessuna chiave che il controllo statico legge, e lo vede una riga solo se la fixture passa da li'. La
 //    fixture e' fissa (mappa piatta, un nemico, unita' viva, azione disponibile, piano scritto a mano): i percorsi che
 //    chiedono altro (caduta, ricarica residua, piano incompleto) sono coperti dai test per sito citati in `NotCovered`.
 // 2. IL SITO NON SI LEGGE DALLA FASE: `ResolvePrep` e `ResolveCoverStructures` scrivono entrambe Prep;
 //    `ResolveCleanseActions`, `CollectHealActions` e `CollectAttackIntents` scrivono tutte Blast. Che UN sito sia
 //    osservato lo prova la riga le cui azioni PASSANO da quel sito e solo da quello (la mutazione per sito), non la fase.
-// 3. LA TABELLA DI INSTRADAMENTO E' UNA SECONDA SEDE della conoscenza del resolver: se il resolver sposta un'azione di
-//    sito, la clausola "il rifiuto compare nella fase che la categoria dichiara" diventa rossa invece di mentire.
+// 3. LA TABELLA DI INSTRADAMENTO E' UNA SECONDA SEDE della conoscenza del resolver: se il resolver sposta un'azione su un
+//    sito che scrive una fase DIVERSA, la clausola "il rifiuto compare nella fase che la categoria dichiara" diventa rossa
+//    invece di mentire. Fra siti che scrivono la stessa fase (punto 2) non cade: la colonna `sito` di `STUNCENSUS` e' la
+//    dichiarazione del predicato, non una misura.
 // 4. LA PIANIFICAZIONE: il click e `ValidatePlan` accettano il piano di una stordita (RIC-1, #3134). La riga scrive il
 //    piano a mano, come i test per sito.
 // 5. Le azioni fuori catalogo: vedi `NotCovered`.
@@ -64,7 +71,6 @@
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexCellData.h"
@@ -73,6 +79,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Tests/RTAbilityFixtures.h"
+#include "Tests/RTWorldFixtures.h" // MakeWorld/DestroyWorld: il mondo di prova condiviso (spawn e porta restano locali, vedi l'header)
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTMatchStateHash.h"
@@ -93,7 +100,10 @@ namespace RTStunCensusTestsInternal
 	 * La ricarica forzata dell'azione sotto prova. Abbastanza da sopravvivere al decremento del Cleanup dello stesso turno
 	 * e restare leggibile: con una ricarica da 1 il Cleanup la riporterebbe a zero prima che il test guardi, e un'asserzione
 	 * "ha pagato" sarebbe verde anche senza pagamento (la trappola di `PagaCooldown` in `RTPayWithoutHitTests.cpp`).
-	 * Residuo a fine turno: `CensusCooldown - 1` = pagata una volta; `0` = non pagata; `CensusCooldown - 2` = pagata due volte.
+	 * Residuo a fine turno: `CensusCooldown - 1` = la ricarica e' partita; `0` = non e' partita. Il residuo NON dice quanti
+	 * addebiti sono avvenuti: `ConsumeAbility` scrive un valore FISSO (`RTUnit.cpp`), quindi un secondo addebito dopo il
+	 * primo lascia lo stesso valore. Un doppio addebito si distingue solo da una ricarica gia' in corso, ed e' la riga
+	 * "gia' in ricarica" di `Status.StunDeniedMainActionPaysItsCooldown`; qui la ricarica prima del turno e' zero (asserito).
 	 */
 	constexpr int32 CensusCooldown = 3;
 
@@ -114,33 +124,16 @@ namespace RTStunCensusTestsInternal
 	// MONDO DI PROVA
 	// ---------------------------------------------------------------------------------------------
 
-	UWorld* MakeCensusWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
-
-	void DestroyCensusWorld(UWorld* World)
-	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
-
-	/** Il mondo si distrugge su OGNI uscita: una riga che esce presto per una premessa mancata non lo lascia aperto. */
+	/**
+	 * Il mondo si distrugge su OGNI uscita: una riga che esce presto per una premessa mancata non lo lascia aperto.
+	 * Crea e distrugge col mondo di prova condiviso (`RTWorldFixtures::MakeWorld` / `DestroyWorld`), non con una copia locale.
+	 */
 	struct FCensusWorldScope
 	{
 		UWorld* World = nullptr;
 
-		FCensusWorldScope() : World(MakeCensusWorld()) {}
-		~FCensusWorldScope() { DestroyCensusWorld(World); }
+		FCensusWorldScope() : World(RTWorldFixtures::MakeWorld()) {}
+		~FCensusWorldScope() { RTWorldFixtures::DestroyWorld(World); }
 		FCensusWorldScope(const FCensusWorldScope&) = delete;
 		FCensusWorldScope& operator=(const FCensusWorldScope&) = delete;
 	};
@@ -185,14 +178,27 @@ namespace RTStunCensusTestsInternal
 		return Def.ActionId == Core || Def.DerivedFromActionId == Core;
 	}
 
-	// I predicati sono nell'ordine in cui il resolver CONSUMA il piano: la prima categoria che corrisponde e' quella che
-	// lo prende (le strutture di bordo dentro `ResolvePrep` prima del suo ciclo, poi il ciclo di Prep, poi il Blast con
-	// la purificazione e la cura prima del ciclo degli intenti, poi il ciclo degli intenti, e il Cleanup per ultimo).
+	// L'ORDINE della tabella conta solo dove due predicati possono corrispondere alla stessa azione: la prima categoria che
+	// corrisponde e' quella che la prende (`Classify`). Le precedenze sono queste, lette dal resolver:
+	//  - 'struttura di bordo' per prima: `ResolveCoverStructures` gira dentro `ResolvePrep` prima di ogni altro ciclo e prende
+	//    ogni `StructureOp` diverso da `None` e da `SetDoorState`, qualunque sia la fase dichiarata;
+	//  - le specifiche prima del catch-all della loro fase: 'armare predittiva', poi 'armare Overwatch' (l'ordine in cui
+	//    `ResolvePrep` le prova), poi 'Prep su chi agisce'; 'topologia' e 'porta' prima di 'attacco e controllo';
+	//  - 'purificazione' e 'cura', che il resolver prende per derivazione qualunque sia la fase dichiarata, dopo 'Prep su chi
+	//    agisce' (`ResolvePrep` gira per primo) e prima di 'ambientale' e di 'attacco e controllo' (`ResolveEnvironment` e il
+	//    ciclo di `CollectAttackIntents` vengono dopo).
+	// Per le altre coppie le macro-fasi sono disgiunte: l'ordine non decide niente.
 
-	/** `ResolveCoverStructures` (dal D-565): le strutture che ergono o spostano una copertura. */
+	/**
+	 * `ResolveCoverStructures` (dal D-565): ogni `StructureOp` diverso da `None` e da `SetDoorState`. E' la regola NEGATIVA
+	 * del resolver (`RTTurnManager.cpp`: il ciclo esce su `None` e su `SetDoorState`, tratta `MoveCover` in un ramo proprio e
+	 * manda tutto il resto al ramo che erige una copertura), e `RTActionDef.h` avverte che un valore nuovo di `ERTStructureOp`
+	 * erige una copertura senza che il compilatore se ne accorga: elencare `CreateCover` e `MoveCover` farebbe cadere un valore
+	 * nuovo nel catch-all della sua fase (`IsPrepOnSelf`, `IsBlastIntent`), mentre il resolver lo manda a questo sito.
+	 */
 	bool IsCoverStructure(const FRTActionDef& Def)
 	{
-		return Def.StructureOp == ERTStructureOp::CreateCover || Def.StructureOp == ERTStructureOp::MoveCover;
+		return Def.StructureOp != ERTStructureOp::None && Def.StructureOp != ERTStructureOp::SetDoorState;
 	}
 
 	/** `ResolvePrep`, ramo predittivo: si ARMA li' e risolve al boundary del Move. */
@@ -276,7 +282,8 @@ namespace RTStunCensusTestsInternal
 
 	/**
 	 * I siti che consumano un'azione principale e chiamano `RefuseMainActionIfStunned`, DICHIARATI qui a parte dalle
-	 * categorie: e' il confronto fra le due liste a dire se un sito resta senza azioni (`EveryGuardedSiteHasARow`).
+	 * categorie: e' il confronto fra i siti e le categorie a dire se un sito resta senza categorie, o una categoria senza un
+	 * sito dichiarato (`CoverageProblems`, in `EveryGuardedSiteHasARow`).
 	 * Si tiene d'accordo col comando in testa al file; un sito nuovo si aggiunge qui E come categoria.
 	 */
 	const TArray<const TCHAR*>& GuardedSites()
@@ -334,10 +341,10 @@ namespace RTStunCensusTestsInternal
 	const TArray<FEnumRole>& ResolutionPhaseRoles()
 	{
 		static const TArray<FEnumRole> Roles = {
-			{ TEXT("Snapshot"),       TEXT("macro-fase Planning: nessuna azione risolve qui, nessun sito") },
+			{ TEXT("Snapshot"),       TEXT("macro-fase Planning: nessuna azione risolve qui e nessuna categoria la dichiara; una principale con questa fase e' un'anomalia di dato (CollectAttackIntents salta solo il Cleanup: il Blast la prenderebbe come intento)") },
 			{ TEXT("Preparation"),    TEXT("macro-fase Prep: ResolvePrep e ResolveCoverStructures") },
-			{ TEXT("FastMovement"),   TEXT("macro-fase Dash: ResolveDash, mobilita' (Slot Movement); una principale qui NON ha un sito guardato") },
-			{ TEXT("NormalMovement"), TEXT("macro-fase Move: ResolveMovement, mobilita' (Slot Movement); una principale qui NON ha un sito guardato") },
+			{ TEXT("FastMovement"),   TEXT("macro-fase Dash: ResolveDash, mobilita' (Slot Movement); una principale qui passa da un percorso SENZA guardia (ResolveDash non chiama RefuseMainActionIfStunned): #3964") },
+			{ TEXT("NormalMovement"), TEXT("macro-fase Move: ResolveMovement, mobilita' (Slot Movement); una principale qui e' un'anomalia di dato che nessuna categoria dichiara (CollectAttackIntents salta solo il Cleanup: il Blast la prenderebbe come intento)") },
 			{ TEXT("Control"),        TEXT("macro-fase Blast: ResolveCleanseActions e CollectAttackIntents") },
 			{ TEXT("Attack"),         TEXT("macro-fase Blast: CollectHealActions e CollectAttackIntents") },
 			{ TEXT("Environment"),    TEXT("macro-fase Cleanup: ResolveEnvironment") },
@@ -369,10 +376,13 @@ namespace RTStunCensusTestsInternal
 
 	/**
 	 * Ogni valore dell'enum e' dichiarato in `Roles`, e ogni voce di `Roles` e' un valore dell'enum. Falso, e rosso, per un
-	 * valore non dichiarato (il resolver ci instrada senza che il compilatore se ne accorga) o per una voce fantasma.
+	 * valore non dichiarato (il resolver puo' instradarci senza che il compilatore se ne accorga) o per una voce fantasma.
+	 * `WhatANewValueDoes` dice che cosa il resolver fa di un valore nuovo di QUELL'enum: e' la frase che il messaggio
+	 * di un valore non dichiarato porta a chi lo ha aggiunto, e non e' la stessa per tutti gli enum controllati.
 	 */
 	template <typename TEnum>
-	bool CheckEnumIsDeclared(FAutomationTestBase& Test, const TCHAR* EnumLabel, const TArray<FEnumRole>& Roles)
+	bool CheckEnumIsDeclared(FAutomationTestBase& Test, const TCHAR* EnumLabel, const TArray<FEnumRole>& Roles,
+		const TCHAR* WhatANewValueDoes)
 	{
 		const UEnum* Enum = StaticEnum<TEnum>();
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: l'enum e' riflesso"), EnumLabel), Enum)) { return false; }
@@ -388,10 +398,9 @@ namespace RTStunCensusTestsInternal
 			{
 				bOk = false;
 				Test.AddError(FString::Printf(
-					TEXT("%s::%s non e' dichiarato in questo test. Il resolver instrada anche per questo valore, e aggiungerlo NON "
-						 "fa fallire la compilazione (RTActionDef.h): decidi a quale sito appartiene, se ne ha uno, e dichiaralo in "
+					TEXT("%s::%s non e' dichiarato in questo test. %s Decidi a quale sito appartiene, se ne ha uno, e dichiaralo in "
 						 "RTStunCensusTests.cpp (le tabelle *Roles e, se serve, la tabella delle categorie)."),
-					EnumLabel, *Name));
+					EnumLabel, *Name, WhatANewValueDoes));
 			}
 		}
 		for (const FEnumRole& Role : Roles)
@@ -414,7 +423,7 @@ namespace RTStunCensusTestsInternal
 	{
 		const TCHAR* Name;
 		const TCHAR* Reason;
-		const TCHAR* CoveredBy;  //< il test che la copre altrove (percorso completo), o stringa vuota se nessuno
+		TArray<const TCHAR*> CoveredBy;  //< i test che la coprono altrove (percorso completo di ciascuno); vuoto se nessuno
 	};
 
 	const TArray<FNotCovered>& NotCovered()
@@ -423,37 +432,171 @@ namespace RTStunCensusTestsInternal
 			{ TEXT("Slot MovementAndMain (#3964)"),
 			  TEXT("nessuna azione dei cataloghi lo dichiara e ResolveDash lo scarta SENZA guardia: non si prova, si VIETA "
 				   "staticamente (EveryMainActionHasAKnownSite) finche' qualcuno non decide cosa vale per una stordita"),
-			  TEXT("") },
+			  {} },
 			{ TEXT("abilita' legacy senza ActionId (ARTUnit::EnsureDefaultAbilities)"),
 			  TEXT("fuori da ogni catalogo, quindi non enumerabili; passano da CollectAttackIntents, coperto dalla categoria "
 				   "'attacco e controllo'"),
-			  TEXT("") },
+			  {} },
 			{ TEXT("Def sintetiche costruite dai test (per esempio Test.Stun, lo stordente di RTUnbalancedProneTests.cpp)"),
 			  TEXT("fuori da ogni catalogo, quindi non enumerabili da un test guidato dal catalogo; se una stordita ne pianifica "
 				   "una passa comunque dal sito della sua categoria"),
-			  TEXT("") },
+			  {} },
 			{ TEXT("pre-condizione: azione gia' in ricarica"),
 			  TEXT("non e' una categoria ma una pre-condizione: ConsumeAbility scrive un valore FISSO e la riporterebbe al valore "
-				   "pieno. Il censimento NON la ripete per ogni azione: moltiplicherebbe le righe senza aggiungere un sito"),
-			  TEXT("RefactorTactics.Status.StunDeniedMainActionPaysItsCooldown") },
+				   "pieno. Il censimento NON la ripete per ogni azione: moltiplicherebbe le righe senza aggiungere un sito. La fissano "
+				   "Status.StunDeniedMainActionPaysItsCooldown (Prep, Blast, Cleanup, cura, purificazione) e "
+				   "Actions.CoverStructures.StunnedCasterChangesNothing (strutture di bordo)"),
+			  { TEXT("RefactorTactics.Status.StunDeniedMainActionPaysItsCooldown"),
+				TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterChangesNothing") } },
 			{ TEXT("pre-condizione: attore caduto"),
 			  TEXT("un cadavere stordito col piano addosso e' rifiutato dove il ciclo non filtra i morti (CollectAttackIntents, "
-				   "ResolveEnvironment) e saltato altrove: lo fissano le righe 'caduto' dei test per sito"),
-			  TEXT("RefactorTactics.Status.StunDeniedMainActionPaysItsCooldown") },
+				   "ResolveEnvironment) e saltato altrove. Lo fissano Status.StunDeniedMainActionPaysItsCooldown (Blast, Cleanup, "
+				   "cura, purificazione) e Actions.CoverStructures.StunnedCasterChangesNothing (strutture di bordo); per "
+				   "ResolvePrep (armare, Prep su chi agisce) nessuno di questi test ha una riga dell'attore caduto"),
+			  { TEXT("RefactorTactics.Status.StunDeniedMainActionPaysItsCooldown"),
+				TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterChangesNothing") } },
 			{ TEXT("pre-condizione: piano incompleto o fuori portata (strutture di bordo)"),
 			  TEXT("il rifiuto per stordimento precede i Reject di raccolta e li sostituisce"),
-			  TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterChangesNothing") },
+			  { TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterChangesNothing") } },
 			{ TEXT("rotazione gratuita di Reconfigure"),
 			  TEXT("serve un turno in piu' per vederla sopravvivere: non e' una proprieta' per-azione del catalogo"),
-			  TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation") },
+			  { TEXT("RefactorTactics.Actions.CoverStructures.StunnedCasterKeepsTheFreeRotation") } },
 			{ TEXT("Overwatch gia' armato e disarmo da stordimento"),
 			  TEXT("lo stato armato e' privato e non entra ne' nell'hash ne' nel log: lo mostra solo un movimento che lo innesca"),
-			  TEXT("RefactorTactics.Status.StunSilencesAnArmedWatcher") },
+			  { TEXT("RefactorTactics.Status.StunSilencesAnArmedWatcher") } },
 			{ TEXT("il movimento di una stordita"),
-			  TEXT("D-416 (1) toglie l'azione principale e non il percorso: non e' una azione Main"),
-			  TEXT("RefactorTactics.Status.StunDeniesTheActionNotTheMovement") },
+			  TEXT("D-416 (1) toglie l'azione principale e non il percorso: non e' un'azione Main"),
+			  { TEXT("RefactorTactics.Status.StunDeniesTheActionNotTheMovement") } },
 		};
 		return List;
+	}
+
+	/** I test che coprono altrove una voce di `NotCovered`, per la stampa: "nessun test" se nessuno. */
+	FString CoveredByText(const FNotCovered& Item)
+	{
+		if (Item.CoveredBy.Num() == 0) { return TEXT("nessun test"); }
+		TArray<FString> Names;
+		for (const TCHAR* TestName : Item.CoveredBy) { Names.Add(FString(TestName)); }
+		return FString::Join(Names, TEXT(", "));
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// LE CATEGORIE CHE POSSONO RESTARE SENZA AZIONI, per nome e col motivo
+	// ---------------------------------------------------------------------------------------------
+
+	struct FAllowedEmpty
+	{
+		const TCHAR* Category;  //< il NOME di una categoria di `AllCategories()`
+		const TCHAR* Reason;    //< perche' puo' restare senza azioni nei cataloghi, e che cosa ne e' del codice del suo sito
+	};
+
+	/**
+	 * Le categorie che possono NON avere nessuna azione nei cataloghi, ognuna con la sua ragione. E' VUOTA: oggi ogni
+	 * categoria ne ha almeno una (la colonna `categoria` delle righe `STUNCENSUS|` lo mostra).
+	 *
+	 * Il caso che questa lista aspetta e' D-264: se `Action.Cleanse` esce dai cataloghi, la categoria 'purificazione' si
+	 * svuota e `ResolveCleanseActions` resta nel codice senza che nessuna riga lo tocchi. O si toglie il codice con la sua
+	 * categoria e il suo sito, o si dichiara qui la categoria con la ragione: non si tace togliendo il sito dal censimento.
+	 *
+	 * Modello: `Dichiarate` in `Catalog.EveryCoreActionIsReachableOrDeclared`, verificata come `NotCovered` (`CoverageProblems`):
+	 * una eccezione deve nominare una categoria che esiste, e quella categoria deve essere DAVVERO senza azioni; se ne ha di
+	 * nuovo l'eccezione e' stantia e il test cade.
+	 */
+	const TArray<FAllowedEmpty>& AllowedEmptyCategories()
+	{
+		static const TArray<FAllowedEmpty> List = {};
+		return List;
+	}
+
+	/**
+	 * Gli errori di copertura di categorie e siti, dati la tabella, i siti dichiarati, quante azioni cadono in ogni categoria
+	 * (stesso indice della tabella) e le eccezioni ammesse. Vuoto = tutto coperto. Cade per:
+	 *  1. una categoria senza azioni che non e' dichiarata fra le eccezioni — anche quando un'altra categoria tiene coperto lo
+	 *     stesso sito: e' lo scenario di una categoria che dipende da UNA azione, quella esce dal catalogo, e il sito resta
+	 *     verde per le altre;
+	 *  2. una eccezione stantia: la categoria dichiarata senza azioni ne ha di nuovo;
+	 *  3. una eccezione che nomina una categoria che non esiste;
+	 *  4. un sito dichiarato che nessuna categoria serve;
+	 *  5. una categoria su un sito che non e' fra quelli dichiarati.
+	 * Funzione PURA: il test la chiama coi dati veri e, come controllo positivo, con dati costruiti. L'elenco vero delle
+	 * eccezioni e' vuoto, quindi i versi 2 e 3 non avrebbero mai una voce da giudicare, e un verificatore che non puo' cadere
+	 * non verifica niente.
+	 */
+	TArray<FString> CoverageProblems(const TArray<FCategory>& Categories, const TArray<const TCHAR*>& Sites,
+		const TArray<int32>& Hits, const TArray<FAllowedEmpty>& Allowed)
+	{
+		TArray<FString> Problems;
+		if (Hits.Num() != Categories.Num())
+		{
+			Problems.Add(TEXT("la popolazione non ha una cella per ogni categoria: il verificatore non guarda niente"));
+			return Problems;
+		}
+
+		const auto IsAllowedEmpty = [&Allowed](const TCHAR* CategoryName)
+		{
+			return Allowed.ContainsByPredicate([CategoryName](const FAllowedEmpty& Entry)
+				{ return FCString::Strcmp(Entry.Category, CategoryName) == 0; });
+		};
+
+		for (int32 I = 0; I < Categories.Num(); ++I)
+		{
+			const FCategory& Category = Categories[I];
+			if (Hits[I] == 0 && !IsAllowedEmpty(Category.Name))
+			{
+				Problems.Add(FString::Printf(
+					TEXT("la categoria '%s' (sito %s) non ha nessuna azione nei cataloghi, quindi nessuna riga di "
+						 "EveryMainActionIsRefusedWhenStunned la esercita. Se il catalogo non la esercita piu', e' codice che resta in "
+						 "piedi senza che niente lo tocchi: toglilo con la sua categoria, oppure dichiara la categoria in "
+						 "AllowedEmptyCategories() con la ragione"),
+					Category.Name, Category.Site));
+			}
+			else if (Hits[I] > 0 && IsAllowedEmpty(Category.Name))
+			{
+				Problems.Add(FString::Printf(
+					TEXT("la categoria '%s' (sito %s) e' dichiarata senza azioni in AllowedEmptyCategories(), ma ne ha di nuovo: "
+						 "l'eccezione e' stantia, togli la riga"),
+					Category.Name, Category.Site));
+			}
+		}
+
+		for (const FAllowedEmpty& Entry : Allowed)
+		{
+			const bool bExists = Categories.ContainsByPredicate([&Entry](const FCategory& Category)
+				{ return FCString::Strcmp(Category.Name, Entry.Category) == 0; });
+			if (!bExists)
+			{
+				Problems.Add(FString::Printf(
+					TEXT("AllowedEmptyCategories() nomina la categoria '%s' (%s), che non esiste fra le categorie: e' un residuo, "
+						 "toglila"),
+					Entry.Category, Entry.Reason));
+			}
+		}
+
+		for (const TCHAR* Site : Sites)
+		{
+			const bool bServed = Categories.ContainsByPredicate([Site](const FCategory& Category)
+				{ return FCString::Strcmp(Category.Site, Site) == 0; });
+			if (!bServed)
+			{
+				Problems.Add(FString::Printf(
+					TEXT("il sito %s e' dichiarato fra i siti guardati ma nessuna categoria lo serve, quindi nessuna riga puo' "
+						 "esercitarlo: aggiungi la categoria, oppure togli il sito"),
+					Site));
+			}
+		}
+		for (const FCategory& Category : Categories)
+		{
+			const bool bDeclared = Sites.ContainsByPredicate([&Category](const TCHAR* Site)
+				{ return FCString::Strcmp(Category.Site, Site) == 0; });
+			if (!bDeclared)
+			{
+				Problems.Add(FString::Printf(
+					TEXT("la categoria '%s' dichiara il sito %s, che non e' fra i siti guardati: una riga che non chiude nessun "
+						 "sito. Aggiungilo a GuardedSites()"),
+					Category.Name, Category.Site));
+			}
+		}
+		return Problems;
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -715,14 +858,16 @@ namespace RTStunCensusTestsInternal
 		return C.HeroIndex != INDEX_NONE ? C.HeroIndex : RosterNum - 1;
 	}
 
-	void AddClosedDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)
+	/** Una porta chiusa sul bordo dato. Falso se la cella non c'e': il chiamante lo asserisce, come fa per `AddCover`. */
+	bool AddClosedDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge)
 	{
 		const FRTHexCellData* Existing = Map ? Map->FindCell(Cell) : nullptr;
-		if (!Existing) { return; }
+		if (!Existing) { return false; }
 		FRTHexCellData Data = *Existing;
 		Data.Doors.Add(FRTHexDoor(Edge, ERTHexDoorState::Closed));
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
+		return true;
 	}
 
 	/**
@@ -816,7 +961,11 @@ namespace RTStunCensusTestsInternal
 			bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura da spostare e' posta"), *Run),
 				URTHexCoverLibrary::AddCover(Map, AimedCell(), ERTHexDirection::W, ERTHexCoverType::Low, 18));
 		}
-		if (Scene.bDoorToToggle) { AddClosedDoor(Map, AimedCell(), ERTHexDirection::W); }
+		if (Scene.bDoorToToggle)
+		{
+			bPremises &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la porta chiusa da aprire e' posta"), *Run),
+				AddClosedDoor(Map, AimedCell(), ERTHexDirection::W));
+		}
 
 		// Il piano, scritto PRIMA dello stordimento: e' l'unica riga che separa `Stun` da `Control`, e l'ordine e'
 		// quello degli altri test per sito.
@@ -1005,7 +1154,9 @@ namespace RTStunCensusTestsInternal
 			Stun.Refusals == 1 && Stun.RefusalPhase == Category.RefusalPhase);
 		bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: nessun AbilityActivated dell'attore (un rifiuto non si attiva)"), *Row),
 			Stun.Activations, 0);
-		bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: la ricarica parte UNA volta sola (residuo a fine turno)"), *Row),
+		// Il residuo vale `CensusCooldown - 1` se la ricarica e' partita (uno o piu' addebiti non si distinguono:
+		// `ConsumeAbility` scrive un valore fisso) e `0` se non e' partita; la ricarica prima del turno e' zero, asserita in `RunArm`.
+		bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: la ricarica parte (residuo a fine turno; un secondo addebito non si distingue dal primo)"), *Row),
 			Stun.CooldownAfter, CensusCooldown - 1);
 		bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: nessun altro slot e' toccato dal pagamento"), *Row),
 			Stun.OtherSlotsBusyAfter, 0);
@@ -1037,19 +1188,32 @@ namespace RTStunCensusTestsInternal
 // =====================================================================================================
 
 /**
- * **Ogni azione che occupa la principale ha un sito noto, e ogni valore con cui il resolver instrada e' dichiarato.**
+ * **Ogni azione che occupa la principale ha una macro-fase che un sito noto consuma, e ogni valore con cui il resolver
+ * instrada e' dichiarato.**
  *
  * L'insieme in esame viene dai cataloghi, mai da un elenco di nomi: kit d'eroe (`GetHeroRoster`), generiche
  * (`MakeGenericActions`), core (`GetCoreActionCatalog`) e azioni concesse dall'equipaggiamento (`MakeGadgets`,
  * `MakeReactionModules`), filtrate con `TakesMainSlot`. Non si asserisce quante sono: l'insieme e' la sorgente.
  *
- * Cade, con un messaggio che dice DOVE aggiungere e QUALE sito deve chiamare la guardia, quando:
- * 1. un'azione principale non cade in nessuna categoria (un sito nuovo, o un predicato da estendere);
- * 2. un'azione principale e' consumata da un percorso SENZA guardia: `Slot == MovementAndMain` o fase di Dash / Move
- *    (`ResolveDash` e `ResolveMovement` non chiamano `RefuseMainActionIfStunned`: #3964, D-565 (4)(b));
+ * Cade, con un messaggio che dice che cosa decidere, quando:
+ * 1. una principale passa da un percorso SENZA guardia: `Slot == MovementAndMain` o macro-fase Dash. `ResolveDash` non
+ *    chiama `RefuseMainActionIfStunned`: consuma `PlannedDashAbility`, e il suo ramo `MovementAndMain` scarta la principale
+ *    pianificata (`RTTurnManager.cpp`) senza guardia (#3964, D-565 (4)(b));
+ * 2. una principale ha macro-fase Move o Planning: nessuna categoria la dichiara. Non e' un percorso senza guardia
+ *    (`CollectAttackIntents` salta solo il Cleanup, la prenderebbe come intento e la rifiuterebbe nel Blast) ma
+ *    un'anomalia di dato: si corregge la fase, o si decide a quale sito appartiene e si dichiara;
  * 3. un valore di `ERTStructureOp`, `ERTResolutionPhase`, `ERTActionSlot` o `ERTPredictiveTargeting` non e' dichiarato
  *    in questo file, anche senza azioni che lo usino: aggiungere un valore a `ERTStructureOp` non fa fallire la
- *    compilazione, e il resolver tratta come "erige una copertura" tutto cio' che non conosce.
+ *    compilazione, e `ResolveCoverStructures` prende ogni valore diverso da `None` e da `SetDoorState`;
+ * 4. un'azione non cade in nessuna categoria. OGGI E' IRRAGGIUNGIBILE: dopo lo scarto di 1 e 2 la macro-fase e' Prep,
+ *    Blast o Cleanup (`MapResolutionPhase` e' totale e non restituisce altro), e `IsPrepOnSelf`, `IsBlastIntent` e
+ *    `IsEnvironmental` sono catch-all su quelle macro-fasi. Il ramo resta come difesa per il giorno in cui qualcuno STRINGE uno di
+ *    quei predicati in questo file.
+ *
+ * Cio' che NON puo' rilevare: un sito NUOVO del resolver che consuma una principale (una funzione che non chiama
+ * `RefuseMainActionIfStunned`, in una categoria esistente o in una nuova), come furono la cura e la purificazione (#3954)
+ * e le strutture di bordo (#3958). Non cambia nessuna chiave che questo test legge: lo vede solo una riga di
+ * `EveryMainActionIsRefusedWhenStunned`, e solo se la fixture passa da quel sito.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunCensusKnownSiteTest,
 	"RefactorTactics.Status.StunCensus.EveryMainActionHasAKnownSite",
@@ -1079,42 +1243,69 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
 		const FRTActionDef& Def = C.Def;
 		const ERTMatchPhase Macro = Census::MacroPhaseOf(Def);
 
-		if (Def.Slot == ERTActionSlot::MovementAndMain || Macro == ERTMatchPhase::Dash || Macro == ERTMatchPhase::Move
-			|| Macro == ERTMatchPhase::Planning)
+		// I percorsi che consumano una principale SENZA guardia: `ResolveDash` non chiama `RefuseMainActionIfStunned`.
+		if (Def.Slot == ERTActionSlot::MovementAndMain || Macro == ERTMatchPhase::Dash)
 		{
 			bAllKnown = false;
 			AddError(FString::Printf(
-				TEXT("%s: occupa la principale (Slot %s) ma la sua fase %s -> %s la manda su un percorso SENZA guardia "
-					 "(ResolveDash / ResolveMovement non chiamano ARTTurnManager::RefuseMainActionIfStunned): una stordita la "
-					 "eseguirebbe. E' #3964, e D-565 (4)(b) lo rinvia al primo kit che la dichiara: va decisa PRIMA di aggiungerla "
-					 "(guardia nel percorso, oppure una regola scritta nel Decision Log) e poi dichiarata qui."),
+				TEXT("%s: occupa la principale (Slot %s) ma la sua fase %s -> %s la manda su un percorso SENZA guardia: ResolveDash "
+					 "consuma PlannedDashAbility, e il suo ramo MovementAndMain scarta la principale pianificata, senza chiamare "
+					 "ARTTurnManager::RefuseMainActionIfStunned. Che cosa valga per una stordita su questo percorso non e' deciso: e' "
+					 "#3964, e D-565 (4)(b) lo rinvia al primo kit che la dichiara. Va decisa PRIMA di aggiungerla (guardia nel "
+					 "percorso, oppure una regola scritta nel Decision Log) e poi dichiarata qui."),
 				*C.Label(), *Census::EnumNameOf(Def.Slot), *Census::EnumNameOf(Def.ResolutionPhase), *Census::EnumNameOf(Macro)));
 			continue;
 		}
 
+		// Move e Planning: NON sono percorsi senza guardia — `CollectAttackIntents` salta solo il Cleanup, quindi una principale
+		// con queste fasi arriverebbe al Blast come intento e li' sarebbe rifiutata — ma nessuna categoria le dichiara: e' un'anomalia
+		// di dato (una principale con la fase di una mobilita' o del congelamento), e va decisa, non assorbita.
+		if (Macro == ERTMatchPhase::Move || Macro == ERTMatchPhase::Planning)
+		{
+			bAllKnown = false;
+			AddError(FString::Printf(
+				TEXT("%s: occupa la principale (Slot %s) ma la sua fase %s -> %s non e' di nessuna categoria di questo censimento. "
+					 "Non e' un percorso senza guardia (CollectAttackIntents salta solo il Cleanup: la prenderebbe come intento e la "
+					 "rifiuterebbe nel Blast) ma un'anomalia di dato, una principale con la fase di una mobilita' o del congelamento: "
+					 "correggi la fase nel catalogo, oppure decidi a quale sito appartiene e dichiaralo qui (predicato e categoria)."),
+				*C.Label(), *Census::EnumNameOf(Def.Slot), *Census::EnumNameOf(Def.ResolutionPhase), *Census::EnumNameOf(Macro)));
+			continue;
+		}
+
+		// DIFESA, OGGI IRRAGGIUNGIBILE: dopo lo scarto qui sopra la macro-fase e' Prep, Blast o Cleanup (`MapResolutionPhase` e'
+		// totale e non restituisce altro) e `IsPrepOnSelf`, `IsBlastIntent` e `IsEnvironmental` sono catch-all su quelle macro-fasi.
+		// Scatterebbe se qualcuno STRINGESSE uno di quei predicati in questo file; NON rileva un sito nuovo del resolver.
 		if (Census::Classify(Def) == INDEX_NONE)
 		{
 			bAllKnown = false;
 			AddError(FString::Printf(
-				TEXT("%s: azione principale con Slot %s, fase %s -> %s, StructureOp %s, PredictiveTargeting %s: nessun sito noto la "
-					 "consuma. Se la consuma un sito NUOVO, quel sito DEVE chiamare ARTTurnManager::RefuseMainActionIfStunned "
-					 "(RTTurnManager.h, docstring della funzione) e va dichiarato come categoria in RTStunCensusTests.cpp con la sua "
-					 "riga comportamentale; se e' un sito gia' coperto, estendi il predicato della categoria."),
+				TEXT("%s: azione principale con Slot %s, fase %s -> %s, StructureOp %s, PredictiveTargeting %s: nessuna categoria la "
+					 "prende, e i predicati catch-all di Prep, Blast e Cleanup dovrebbero prenderle tutte: uno e' stato ristretto. Se la "
+					 "consuma un sito NUOVO, quel sito DEVE chiamare ARTTurnManager::RefuseMainActionIfStunned (RTTurnManager.h, "
+					 "docstring della funzione) e va dichiarato come categoria in RTStunCensusTests.cpp con la sua riga comportamentale; "
+					 "se e' un sito gia' coperto, estendi il predicato della categoria."),
 				*C.Label(), *Census::EnumNameOf(Def.Slot), *Census::EnumNameOf(Def.ResolutionPhase), *Census::EnumNameOf(Macro),
 				*Census::EnumNameOf(Def.StructureOp), *Census::EnumNameOf(Def.PredictiveTargeting)));
 		}
 	}
 	TestTrue(TEXT("ogni azione principale dei cataloghi cade in una categoria con un sito guardato"), bAllKnown);
 
-	// I valori con cui il resolver instrada, anche senza azioni che li usino.
+	// I valori con cui il resolver instrada, anche senza azioni che li usino. Il quarto argomento dice che cosa il resolver fa
+	// di un valore nuovo di quell'enum (letto dal codice), perche' la frase non e' la stessa per tutti.
 	TestTrue(TEXT("ERTStructureOp: ogni valore e' dichiarato"),
-		Census::CheckEnumIsDeclared<ERTStructureOp>(*this, TEXT("ERTStructureOp"), Census::StructureOpRoles()));
+		Census::CheckEnumIsDeclared<ERTStructureOp>(*this, TEXT("ERTStructureOp"), Census::StructureOpRoles(),
+			TEXT("Un valore nuovo passa da ResolveCoverStructures, che prende ogni StructureOp diverso da None e da SetDoorState "
+				 "e ERIGE UNA COPERTURA; e aggiungerlo NON fa fallire la compilazione (RTActionDef.h).")));
 	TestTrue(TEXT("ERTResolutionPhase: ogni valore e' dichiarato"),
-		Census::CheckEnumIsDeclared<ERTResolutionPhase>(*this, TEXT("ERTResolutionPhase"), Census::ResolutionPhaseRoles()));
+		Census::CheckEnumIsDeclared<ERTResolutionPhase>(*this, TEXT("ERTResolutionPhase"), Census::ResolutionPhaseRoles(),
+			TEXT("MapResolutionPhase lo porta in una macro-fase, e la macro-fase decide il sito: questo file classifica Prep, Blast "
+				 "e Cleanup, e scarta Dash, Move e Planning.")));
 	TestTrue(TEXT("ERTActionSlot: ogni valore e' dichiarato"),
-		Census::CheckEnumIsDeclared<ERTActionSlot>(*this, TEXT("ERTActionSlot"), Census::ActionSlotRoles()));
+		Census::CheckEnumIsDeclared<ERTActionSlot>(*this, TEXT("ERTActionSlot"), Census::ActionSlotRoles(),
+			TEXT("TakesMainSlot conta fra le principali solo Main e MovementAndMain, e ResolveDash legge Slot == MovementAndMain.")));
 	TestTrue(TEXT("ERTPredictiveTargeting: ogni valore e' dichiarato"),
-		Census::CheckEnumIsDeclared<ERTPredictiveTargeting>(*this, TEXT("ERTPredictiveTargeting"), Census::PredictiveTargetingRoles()));
+		Census::CheckEnumIsDeclared<ERTPredictiveTargeting>(*this, TEXT("ERTPredictiveTargeting"), Census::PredictiveTargetingRoles(),
+			TEXT("ResolvePrep tratta come predittivo ogni valore diverso da None.")));
 	return true;
 }
 
@@ -1124,7 +1315,7 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
 
 /**
  * **Per ogni azione principale dei cataloghi, una stordita che la pianifica non produce nessun effetto, lascia UNA
- * voce di rifiuto nella fase del suo sito, non si attiva, e paga la ricarica una volta sola.**
+ * voce di rifiuto nella fase del suo sito, non si attiva, e la sua ricarica parte.**
  *
  * Le azioni sono quelle di `CollectCandidates()` (dal catalogo). Ogni riga costruisce da zero i mondi di `EArm` con la
  * stessa pre-condizione, e il verdetto e' in `JudgeRow`:
@@ -1135,7 +1326,8 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
  * - **controllo positivo**: la stessa pianificazione da una non stordita produce un'attivazione dell'attore o uno stato
  *   diverso da quello senza piano. Senza, la riga e' vacua e cade con il suo nome;
  * - **divieto**: una sola voce `Fallback`/`Cancelled`/`Stunned` che nomina l'azione e la cella di chi agisce, nella
- *   fase che la categoria dichiara; nessun `AbilityActivated`; ricarica `CensusCooldown - 1`; il TurnLog della stordita
+ *   fase che la categoria dichiara; nessun `AbilityActivated`; la ricarica parte (residuo `CensusCooldown - 1`, da zero:
+ *   `ConsumeAbility` scrive un valore fisso, quindi uno o piu' addebiti non si distinguono); il TurnLog della stordita
  *   e' quello della base senza piano piu' quella sola voce; lo stato e' quello della base.
  *
  * Attenzione: il controllo positivo e' l'UNIONE di attivazione e stato (l'hash di unita' e mappa). Il TurnLog si riporta
@@ -1145,7 +1337,9 @@ bool FRTStunCensusKnownSiteTest::RunTest(const FString&)
  * ricarica. La run le nomina con `STUNCENSUS-DEBOLE`.
  *
  * Attenzione: `AbilityActivated` non e' emesso da `ResolveEnvironment` (Cleanup): per quel sito "nessuna attivazione" e'
- * vuoto anche nel controllo, e l'oracolo regge sul rifiuto, sulla fase, sulla ricarica e sull'hash di stato.
+ * vuoto anche nel controllo, e l'oracolo regge sul rifiuto, sulla fase, sulla ricarica e sull'hash di stato. La run lo
+ * dichiara, riga per riga, con `STUNCENSUS-SENZA-ATTIVAZIONE`: e' la riga il cui controllo (la non stordita) non emette
+ * nessun `AbilityActivated`, qualunque ne sia la ragione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunCensusRefusedWhenStunnedTest,
 	"RefactorTactics.Status.StunCensus.EveryMainActionIsRefusedWhenStunned",
@@ -1157,8 +1351,7 @@ bool FRTStunCensusRefusedWhenStunnedTest::RunTest(const FString&)
 	// Il debito dichiarato, per nome: cio' che la matrice NON copre e perche'.
 	for (const Census::FNotCovered& Item : Census::NotCovered())
 	{
-		AddInfo(FString::Printf(TEXT("STUNCENSUS-NONCOPERTO|%s|%s|%s"), Item.Name, Item.Reason,
-			FCString::Strlen(Item.CoveredBy) > 0 ? Item.CoveredBy : TEXT("nessun test")));
+		AddInfo(FString::Printf(TEXT("STUNCENSUS-NONCOPERTO|%s|%s|%s"), Item.Name, Item.Reason, *Census::CoveredByText(Item)));
 	}
 
 	const TArray<Census::FCandidate> Candidates = Census::CollectCandidates();
@@ -1196,22 +1389,41 @@ bool FRTStunCensusRefusedWhenStunnedTest::RunTest(const FString&)
 			AddInfo(FString::Printf(TEXT("STUNCENSUS-DEBOLE|%s|controllo solo per attivazione: la clausola 'nessun effetto' e' vuota per questa riga"),
 				*C.Def.ActionId.ToString()));
 		}
+		// L'altra clausola vuota: se la NON stordita non emette `AbilityActivated`, "nessun AbilityActivated" della stordita e'
+		// vero per costruzione e non prova niente. E' il caso di `ResolveEnvironment`, che non lo emette; la riga regge su
+		// rifiuto, fase, ricarica e stato.
+		if (!Channels.bActivation)
+		{
+			AddInfo(FString::Printf(TEXT("STUNCENSUS-SENZA-ATTIVAZIONE|%s|%s|la non stordita non emette AbilityActivated (e' il caso di "
+					"ResolveEnvironment, che non lo emette): la clausola 'nessun AbilityActivated' e' vuota per questa riga"),
+				*C.Def.ActionId.ToString(), Category.Site));
+		}
 	}
 	return true;
 }
 
 // =====================================================================================================
-// 3. STATICO: ogni sito guardato ha una riga, e le categorie non coperte hanno ancora chi le copre
+// 3. STATICO: ogni categoria ha una riga (o un'eccezione dichiarata), e le categorie non coperte hanno ancora chi le copre
 // =====================================================================================================
 
 /**
- * **Ogni sito che consuma un'azione principale ha almeno un'azione nel catalogo, quindi almeno una riga di
- * `EveryMainActionIsRefusedWhenStunned`; e i test che coprono altrove le categorie dichiarate "non coperte" esistono ancora.**
+ * **Ogni categoria ha almeno un'azione nel catalogo, o e' dichiarata senza azioni per nome e ragione; quindi ogni sito ha
+ * almeno una riga di `EveryMainActionIsRefusedWhenStunned`. E i test che coprono altrove le categorie dichiarate "non
+ * coperte" esistono ancora.**
  *
- * Un sito senza nessuna azione e' codice che il catalogo non esercita piu' (per esempio `ResolveCleanseActions` se
- * D-264 togliesse `Action.Cleanse`): o si toglie il codice e la categoria, o si dichiara qui l'eccezione con la sua
- * ragione, come `Dichiarate` in `Catalog.EveryCoreActionIsReachableOrDeclared`. Un'eccezione non dichiarata e' un sito
- * che resta in piedi senza che nessuna riga lo tocchi.
+ * Si verifica per CATEGORIA e non per sito, perche' piu' categorie condividono lo stesso sito ('armare predittiva' e
+ * 'armare Overwatch' stanno su `ResolvePrep`; 'topologia' e 'porta' su `CollectAttackIntents`). Una categoria che dipende da
+ * una sola azione si svuota se quell'azione esce dal catalogo, e un controllo per sito resterebbe verde perche' un'altra
+ * categoria tiene coperto lo stesso sito: e' il caso in cui una guardia spostata sotto quel ramo (il difetto di `ModifyArc`,
+ * descritto nel resolver) non farebbe cadere niente.
+ *
+ * Una categoria senza nessuna azione e' codice che il catalogo non esercita piu' (per esempio `ResolveCleanseActions` se
+ * D-264 togliesse `Action.Cleanse`): o si toglie il codice con la sua categoria e il suo sito, o si dichiara la categoria in
+ * `AllowedEmptyCategories` con la ragione, come `Dichiarate` in `Catalog.EveryCoreActionIsReachableOrDeclared`. Una
+ * eccezione non dichiarata e' codice che resta in piedi senza che nessuna riga lo tocchi; una dichiarata e' verificata:
+ * nomina una categoria che esiste ed e' DAVVERO senza azioni (se ne ha di nuovo e' stantia, e il test cade). Il verificatore
+ * (`CoverageProblems`) e' provato anche su dati costruiti, perche' l'elenco vero e' vuoto e i versi sulle eccezioni non
+ * avrebbero altrimenti mai una voce da giudicare.
  *
  * I nomi dei test citati in `NotCovered` si leggono dal registro dei test (come `Naming.NoTestNameIsAPrefixOfAnother`):
  * un riferimento a un test che non esiste piu' e' una copertura dichiarata e non piu' vera.
@@ -1226,26 +1438,64 @@ bool FRTStunCensusEverySiteHasARowTest::RunTest(const FString&)
 	const TArray<Census::FCandidate> Candidates = Census::CollectCandidates();
 	if (!TestTrue(TEXT("i cataloghi offrono azioni principali da censire"), Candidates.Num() > 0)) { return false; }
 
-	TSet<FString> SitesWithARow;
+	// La popolazione per CATEGORIA, non per sito: quante azioni dei cataloghi cadono in ciascuna voce della tabella (stesso
+	// indice). Le azioni senza categoria le dice `EveryMainActionHasAKnownSite`.
+	TArray<int32> Hits;
+	Hits.Init(0, Census::AllCategories().Num());
 	for (const Census::FCandidate& C : Candidates)
 	{
 		const int32 CategoryIndex = Census::Classify(C.Def);
-		if (CategoryIndex != INDEX_NONE) { SitesWithARow.Add(FString(Census::AllCategories()[CategoryIndex].Site)); }
+		if (CategoryIndex != INDEX_NONE) { ++Hits[CategoryIndex]; }
 	}
 
-	for (const TCHAR* Site : Census::GuardedSites())
+	// Ogni categoria ha azioni (o e' un'eccezione dichiarata e davvero vuota), ogni eccezione nomina una categoria che esiste,
+	// ogni sito e' servito da una categoria e ogni categoria sta su un sito dichiarato.
+	for (const FString& Problem : Census::CoverageProblems(
+			Census::AllCategories(), Census::GuardedSites(), Hits, Census::AllowedEmptyCategories()))
 	{
-		TestTrue(*FString::Printf(
-			TEXT("il sito %s ha almeno un'azione principale nel catalogo, quindi almeno una riga. Se non ne ha piu', e' codice che "
-				 "il catalogo non esercita: toglilo con la sua categoria, oppure dichiara qui l'eccezione con la ragione"), Site),
-			SitesWithARow.Contains(FString(Site)));
+		AddError(Problem);
 	}
 
-	// Ogni categoria sta su un sito dichiarato: una categoria con un sito non elencato e' una riga che non chiude nessun sito.
-	for (const Census::FCategory& Category : Census::AllCategories())
+	// Il verificatore stesso, su dati costruiti. L'elenco vero delle eccezioni e' vuoto: i versi che lo riguardano (eccezione
+	// stantia, eccezione che nomina una categoria inesistente, sito escusato) non avrebbero mai una voce da giudicare, e un
+	// verificatore che non puo' cadere non verifica niente. Le categorie e i siti qui sono finti, e non toccano quelli veri.
 	{
-		TestTrue(*FString::Printf(TEXT("la categoria '%s' dichiara un sito che e' fra i siti guardati (%s)"), Category.Name, Category.Site),
-			Census::GuardedSites().ContainsByPredicate([&Category](const TCHAR* Site) { return FCString::Strcmp(Site, Category.Site) == 0; }));
+		const TArray<Census::FCategory> FakeCategories = {
+			{ TEXT("A"), TEXT("SitoUno"), ERTMatchPhase::Prep,  nullptr },
+			{ TEXT("B"), TEXT("SitoUno"), ERTMatchPhase::Prep,  nullptr },
+			{ TEXT("C"), TEXT("SitoDue"), ERTMatchPhase::Blast, nullptr },
+		};
+		const TArray<const TCHAR*> BothSites = { TEXT("SitoUno"), TEXT("SitoDue") };
+		const TArray<const TCHAR*> OnlyTheFirstSite = { TEXT("SitoUno") };
+		const TArray<const TCHAR*> ASiteNobodyServes = { TEXT("SitoUno"), TEXT("SitoDue"), TEXT("SitoTre") };
+
+		const TArray<int32> AllPopulated = { 1, 1, 1 };
+		const TArray<int32> BEmpty = { 1, 0, 1 };           // B vuota, ma A tiene coperto il suo sito
+		const TArray<int32> TheFirstSiteEmpty = { 0, 0, 1 };  // A e B vuote: SitoUno resta senza righe
+		const TArray<int32> OneCellShort = { 1, 1 };
+
+		const TArray<Census::FAllowedEmpty> NoExceptions;
+		const TArray<Census::FAllowedEmpty> ExceptionForB = { { TEXT("B"), TEXT("prova") } };
+		const TArray<Census::FAllowedEmpty> ExceptionsForAAndB = { { TEXT("A"), TEXT("prova") }, { TEXT("B"), TEXT("prova") } };
+		const TArray<Census::FAllowedEmpty> ExceptionForAGhost = { { TEXT("Z"), TEXT("prova") } };
+
+		const auto Expect = [this, &FakeCategories](const TCHAR* Label, const TArray<const TCHAR*>& Sites,
+			const TArray<int32>& FakeHits, const TArray<Census::FAllowedEmpty>& Allowed, int32 ExpectedProblems)
+		{
+			TestEqual(*FString::Printf(TEXT("verificatore su dati costruiti: %s"), Label),
+				Census::CoverageProblems(FakeCategories, Sites, FakeHits, Allowed).Num(), ExpectedProblems);
+		};
+		Expect(TEXT("tutto popolato, nessun problema (il verificatore non grida al lupo)"), BothSites, AllPopulated, NoExceptions, 0);
+		Expect(TEXT("una categoria vuota su un sito che l'altra tiene coperto: cade LEI, e non e' il sito a dirlo"),
+			BothSites, BEmpty, NoExceptions, 1);
+		Expect(TEXT("la stessa, dichiarata senza azioni: nessun problema"), BothSites, BEmpty, ExceptionForB, 0);
+		Expect(TEXT("dichiarata senza azioni ma popolata: l'eccezione e' stantia"), BothSites, AllPopulated, ExceptionForB, 1);
+		Expect(TEXT("un'eccezione che nomina una categoria inesistente"), BothSites, AllPopulated, ExceptionForAGhost, 1);
+		Expect(TEXT("tutte le categorie di un sito dichiarate senza azioni: il sito e' escusato"),
+			BothSites, TheFirstSiteEmpty, ExceptionsForAAndB, 0);
+		Expect(TEXT("una categoria su un sito che non e' dichiarato"), OnlyTheFirstSite, AllPopulated, NoExceptions, 1);
+		Expect(TEXT("un sito dichiarato che nessuna categoria serve"), ASiteNobodyServes, AllPopulated, NoExceptions, 1);
+		Expect(TEXT("una popolazione che non ha una cella per categoria"), BothSites, OneCellShort, NoExceptions, 1);
 	}
 
 	// I test che coprono altrove le categorie "non coperte" esistono ancora.
@@ -1264,9 +1514,11 @@ bool FRTStunCensusEverySiteHasARowTest::RunTest(const FString&)
 	}
 	for (const Census::FNotCovered& Item : Census::NotCovered())
 	{
-		if (FCString::Strlen(Item.CoveredBy) == 0) { continue; }
-		TestTrue(*FString::Printf(TEXT("'%s' e' coperta altrove da %s, e quel test esiste"), Item.Name, Item.CoveredBy),
-			RegisteredPaths.Contains(FString(Item.CoveredBy)));
+		for (const TCHAR* CoveringTest : Item.CoveredBy)
+		{
+			TestTrue(*FString::Printf(TEXT("'%s' e' coperta altrove da %s, e quel test esiste"), Item.Name, CoveringTest),
+				RegisteredPaths.Contains(FString(CoveringTest)));
+		}
 	}
 	return true;
 }
