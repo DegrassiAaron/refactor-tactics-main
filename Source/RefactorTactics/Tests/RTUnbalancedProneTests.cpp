@@ -1754,6 +1754,14 @@ namespace
 	/** Ricarica dichiarata della mobilita' di prova: dopo un addebito e il decremento del Cleanup ne restano due. */
 	constexpr int32 StunMobCooldown = 3;
 
+	// La scena sta SPOSTATA di un offset non nullo: se chi scatta partisse da `FRTCellId()` (0,0), l'asserto 'le sue due celle
+	// sono quella di partenza' sarebbe vero anche per una voce con una cella mai scritta, e un `TgtCell` non impostato non
+	// cadrebbe (N05 della mutazione indipendente).
+	const FRTCellId StunMobStart(1, 0);      //< chi scatta (la stordita)
+	const FRTCellId StunMobGoal(3, 0);       //< la sua meta pianificata, a due celle
+	const FRTCellId StunMobMateStart(1, 2);  //< il compagno: stessa X e Y maggiore, quindi DOPO di lei nell'ordine di raccolta
+	const FRTCellId StunMobMateGoal(3, 2);   //< la sua meta pianificata, a due celle
+
 	/** Che cosa cambia da un braccio all'altro del test: tutto il resto e' uguale. */
 	struct FStunMobCase
 	{
@@ -1795,11 +1803,11 @@ namespace
 		UWorld* World = MakeFallWorld();
 		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return Esito; }
 		SpawnFallMap(World, /*Radius=*/ 6);
-		ARTUnit* Runner = SpawnFallUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Runner = SpawnFallUnit(World, 0, StunMobStart);
 		ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(-6, 0));
 		// Il compagno sta DOPO la stordita nell'ordine di raccolta (stessa X, Y maggiore): se la guardia uscisse dal ciclo
 		// invece di passare all'unita' successiva, e' lui a non scattare.
-		ARTUnit* Compagno = C.bCompagno ? SpawnFallUnit(World, 0, FRTCellId(0, 2)) : nullptr;
+		ARTUnit* Compagno = C.bCompagno ? SpawnFallUnit(World, 0, StunMobMateStart) : nullptr;
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Runner || !Foe || (C.bCompagno && !Compagno)) { DestroyFallWorld(World); return Esito; }
 		NeutralizeAllIntents(Foe);
@@ -1821,6 +1829,7 @@ namespace
 		Azione->CooldownTurns = StunMobCooldown;
 		const FName AzioneAttesa = Azione->Def.ActionId;
 		const FRTCellId Partenza = Runner->Cell;
+		Test.TestTrue(TEXT("premessa: chi scatta non parte dalla cella di default"), !(Partenza == FRTCellId()));
 
 		if (C.bStordita) { Runner->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 		if (C.bSbilanciata) { Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns); }
@@ -1830,7 +1839,7 @@ namespace
 			Runner->TickCooldowns(); // StunMobCooldown - 1: un secondo `ConsumeAbility` la riporterebbe al valore pieno
 		}
 		Runner->PlannedDashAbility = Scatto;
-		Runner->PlannedDashCell = FRTCellId(2, 0);
+		Runner->PlannedDashCell = StunMobGoal;
 		Esito.bApplicaPrima = Runner->PlannedDashApplies();
 		Esito.bSpostaPrima = Runner->PlannedDashMoves();
 		Test.TestTrue(TEXT("premessa: il Def porta lo slot del caso"), Azione->Def.Slot == C.Slot);
@@ -1849,7 +1858,7 @@ namespace
 				return Esito;
 			}
 			Compagno->PlannedDashAbility = ScattoCompagno;
-			Compagno->PlannedDashCell = FRTCellId(2, 2);
+			Compagno->PlannedDashCell = StunMobMateGoal;
 			Test.TestTrue(TEXT("premessa: lo scatto del compagno si applica"), Compagno->PlannedDashApplies());
 			// L'ordine si MISURA con la funzione vera, su un array passato nell'ordine sbagliato perche' il sort debba muoverlo.
 			TArray<ARTUnit*> Ordine = { Compagno, Runner, Foe };
@@ -1913,22 +1922,22 @@ namespace
  *  - STORDITA E SBILANCIATA, con la mobilita' a budget che `Unbalanced` nega: vince lo stordimento (una voce `Stunned`,
  *    nessuna `Unbalanced`, e paga: l'altro rifiuto non paga);
  *  - ALTRO STATO: sbilanciata ma NON stordita, con lo slancio lineare: arriva, perche' la guardia legge lo stordimento e non
- *    un qualunque stato di controllo.
+ *    `Unbalanced`, l'altro stato di controllo che ha un rifiuto proprio (Slow, Prone e Root non sono provati).
  *
  * ⚠️ `ConsumeAbility` scrive un valore FISSO: uno o due addebiti lasciano lo stesso residuo, quindi il test distingue «ha
  * pagato» da «non ha pagato», non quante volte. ⚠️ **Il residuo e' letto a fine turno**: il Cleanup decrementa di uno.
  *
- * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): ogni braccio ne asserisce il valore PRIMA del turno,
- * perche' un ghost o una mira che partissero da uno scatto negato mentirebbero.
+ * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): CONTROLLO, CUORE, CONFINE, PRINCIPALE e ALTRO STATO ne
+ * asseriscono il valore PRIMA del turno, perche' un ghost o una mira che partissero da uno scatto negato mentirebbero.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest,
 	"RefactorTactics.Status.StunDeniesAMobilityThatAlsoCostsTheMainAction",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest::RunTest(const FString&)
 {
-	const FRTCellId Partenza(0, 0);
-	const FRTCellId Meta(2, 0);
-	const FRTCellId MetaCompagno(2, 2);
+	const FRTCellId Partenza = StunMobStart;
+	const FRTCellId Meta = StunMobGoal;
+	const FRTCellId MetaCompagno = StunMobMateGoal;
 	const int32 Pagato = StunMobCooldown - 1;       // un addebito e il decremento del Cleanup
 	const int32 NonRipagato = StunMobCooldown - 2;  // era gia' a `StunMobCooldown - 1`, e scende di uno
 
