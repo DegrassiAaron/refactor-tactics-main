@@ -9,6 +9,7 @@
 #include "UI/RTGlance.h" // i soggetti pubblici dello sguardo (#3747)
 #include "UI/RTInspect.h" // il soggetto pubblico della scheda (#3748)
 #include "Turn/RTSeenUseLedger.h" // FRTSeenUseLedger: le ricariche dedotte della scheda (#3751)
+#include "Turn/RTTurnRules.h" // ERTMatchPhase: i cancelli di fase (#2184)
 #include "RTHUD.generated.h"
 
 /**
@@ -284,6 +285,29 @@ struct FRTDashPreview
 	{
 		return HasShortfall() ? PathCells[ReachSegments] : (PathCells.Num() > 0 ? PathCells.Last() : FRTCellId());
 	}
+};
+
+/**
+ * [#2184 fetta 13] Quali strati di `DrawHUD` dipendono dalla fase, decisi in un posto solo.
+ *
+ * Erano tre confronti scritti a mano su `TurnManager->GetPhase()`, in tre siti diversi, e **non sono lo
+ * stesso confronto**: la traccia dell'ultima risoluzione resta visibile durante il playback, gli intenti
+ * pianificati no — durante il playback si vede cio' che e' successo, non cio' che era stato pianificato.
+ * Il comportamento e' voluto; la regola, prima, non era interrogabile da nessun test.
+ *
+ * Il default e' tutto falso: e' quello che torna senza un `ARTTurnManager`, dove nessuno dei tre strati ha
+ * qualcosa da mostrare.
+ */
+struct FRTHudPhaseGates
+{
+	/** La traccia dell'ultima risoluzione (grigia, sotto le anteprime). Vale in `Planning`, anche a playback in corso. */
+	bool bShowPostLockTrail = false;
+
+	/** Gli intenti pianificati. Vale in `Planning` e NON durante il playback. */
+	bool bShowPlannedIntents = false;
+
+	/** Il pannello di fine partita. Vale solo a partita finita, qualunque cosa dica il playback. */
+	bool bShowMatchEndPanel = false;
 };
 
 struct FRTIntentCertaintyStyle
@@ -1170,6 +1194,22 @@ public:
 	 * @param HexMap  puo' essere nullo: la geometria torna ai ripieghi e `bFromWorld` resta falso.
 	 */
 	static FRTHudHexGeometry ComposeHexGeometry(const class ARTHexMapActor* HexMap);
+
+	/**
+	 * Quali strati dipendono dalla fase (#2184, fetta 13). `bResolving` e' `ARTTurnManager::IsResolving()`: il
+	 * playback in corso, che NON e' una fase — durante il playback `GetPhase()` puo' gia' dire `Planning`, ed e'
+	 * per questo che il cancello degli intenti vuole entrambi. Chi non ha un `TurnManager` non la chiama e usa il
+	 * default della struct, tutto falso.
+	 */
+	static FRTHudPhaseGates ComposeHudPhaseGates(ERTMatchPhase Phase, bool bResolving);
+
+	/**
+	 * Se un intento e' quello che il giocatore sta pianificando ADESSO (#2184, fetta 13): c'e' una selezione E il
+	 * proprietario sta nella cella selezionata. E' l'unico produttore del flag che sceglie `[PIANO *]` o `[PIANO]`,
+	 * cioe' il testo. Si identifica per CELLA e non per pointer; `SelectedCell` non significa niente se
+	 * `bHasSelection` e' falso.
+	 */
+	static bool ComposeIntentIsSelected(bool bHasSelection, const FRTCellId& SelectedCell, const FRTCellId& OwnerCell);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:

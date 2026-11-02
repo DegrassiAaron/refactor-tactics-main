@@ -1109,6 +1109,12 @@ void ARTHUD::DrawHUD()
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
+	// Quali strati dipendono dalla fase, decisi UNA volta per fotogramma in `ComposeHudPhaseGates` (#2184): prima
+	// erano tre confronti su `GetPhase()` in tre siti, e non erano lo stesso. Senza `TurnManager` e' tutto falso.
+	const FRTHudPhaseGates PhaseGates = TurnManager
+		? ComposeHudPhaseGates(TurnManager->GetPhase(), TurnManager->IsResolving())
+		: FRTHudPhaseGates();
+
 	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
 	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
 	//
@@ -1146,7 +1152,7 @@ void ARTHUD::DrawHUD()
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	// ⛔ `Geo.bFromWorld` e' una CORREZIONE, e non puo' essere `if (Map)`: vedi `FRTHudHexGeometry`.
-	if (Geo.bFromWorld && TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	if (Geo.bFromWorld && TurnManager && PhaseGates.bShowPostLockTrail)
 	{
 		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
 		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
@@ -1188,7 +1194,7 @@ void ARTHUD::DrawHUD()
 	// nascosto a schermo — leggibile con qualunque strumento, e insostenibile quando arrivera' la rete (M10).
 	// Ora un piano avversario non rivelato non compare proprio fra le viste, e la reazione di un alleato non
 	// viene mai copiata in una vista avversaria.
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
+	if (TurnManager && PhaseGates.bShowPlannedIntents)
 	{
 		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
 		// ⚠️ Il ciclo che li costruiva stava qui fino al 2026-08-24 ed e' ora in `URTHudViewModel`: lo
@@ -1343,7 +1349,7 @@ void ARTHUD::DrawHUD()
 			// con la geometria e non lo erano — `bOwn` era `View.bIsAlly` e nient'altro. Ora vivono in una
 			// statica pura coi suoi test (#2184), **prefisso compreso**: quello era deciso venti righe piu'
 			// sotto, fuori da `ComposeIntentLabel`, e quindi l'etichetta completa non aveva una sede sola.
-			const bool bIsSelected = bHasSelection && View.OwnerCell == SelectedCell;
+			const bool bIsSelected = ComposeIntentIsSelected(bHasSelection, SelectedCell, View.OwnerCell);
 			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style, bIsSelected);
 			if (!Intento.bShow)
 			{
@@ -1675,7 +1681,7 @@ void ARTHUD::DrawHUD()
 	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
 	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
 	// 🔑 DOVE cadono le due righe lo decide `ComposeMatchEndPanelPlacement` (#2184), interrogabile senza un HUD.
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
+	if (TurnManager && PhaseGates.bShowMatchEndPanel)
 	{
 		const FString Headline = ComposeMatchEndHeadline(TurnManager->GetMatchResult());
 		const FString Restart = MatchEndRestartPrompt;
@@ -1943,6 +1949,31 @@ FRTHudHexGeometry ARTHUD::ComposeHexGeometry(const ARTHexMapActor* HexMap)
 	Out.bFromWorld = true;
 	Out.Map = HexMap->GetHexContext(Out.Origin, Out.HexSize, Out.LayerH);
 	return Out;
+}
+
+FRTHudPhaseGates ARTHUD::ComposeHudPhaseGates(ERTMatchPhase Phase, bool bResolving)
+{
+	FRTHudPhaseGates Gates;
+
+	// La traccia dell'ultima risoluzione resta mentre il playback gira: e' cio' che e' successo, e il playback lo
+	// sta mostrando. Non vuole `!bResolving`, ed e' per questo che non e' lo stesso cancello degli intenti.
+	Gates.bShowPostLockTrail = Phase == ERTMatchPhase::Planning;
+
+	// Gli intenti no: durante il playback si vede cio' che e' successo, non cio' che era stato pianificato.
+	Gates.bShowPlannedIntents = Phase == ERTMatchPhase::Planning && !bResolving;
+
+	// A partita finita il pannello non dipende dal playback.
+	Gates.bShowMatchEndPanel = Phase == ERTMatchPhase::MatchEnded;
+
+	return Gates;
+}
+
+bool ARTHUD::ComposeIntentIsSelected(bool bHasSelection, const FRTCellId& SelectedCell, const FRTCellId& OwnerCell)
+{
+	// Senza selezione `SelectedCell` e' la cella di default `(0,0,0)`, e un'unita' proprietaria di quella cella si
+	// marcherebbe come quella in pianificazione: in autobattle nessuno seleziona niente, e il confronto da solo
+	// non significa niente.
+	return bHasSelection && OwnerCell == SelectedCell;
 }
 
 FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHexMapAsset* Map)
