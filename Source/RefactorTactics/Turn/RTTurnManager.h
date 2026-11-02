@@ -2613,6 +2613,10 @@ protected:
 	 * scrivono in raccolta, dopo `CanUseAbility` e prima di ogni `Reject`. Un rifiuto non e' un'operazione applicata: non
 	 * conta nel ritorno e non si attiva.
 	 *
+	 * **Chi vince un bordo contestato** (#3963): a parita' di cella e di bordo vince l'operazione raccolta per PRIMA, cioe'
+	 * quella dell'unita' che `SortUnitsForResolution` mette prima. `Units` DEVE arrivare in quell'ordine: e' la precondizione
+	 * portante del terzo criterio dei comparatori (`CollectionOrder`), e l'unico chiamante, `ResolvePrep`, la rispetta.
+	 *
 	 * Sta fuori da `ResolvePrep` (il motore azioni, che lavora su eventi verso UNITA') per la stessa ragione
 	 * per cui `ModifyArc` sta fuori dalla raccolta degli intenti del Blast: il suo esito e' una modifica della
 	 * mappa, e passare dagli effetti la farebbe ripiegare sul campo legacy `Power`.
