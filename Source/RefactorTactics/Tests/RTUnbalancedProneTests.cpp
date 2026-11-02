@@ -30,6 +30,7 @@
 #include "Replay/RTReplayAuditLibrary.h"   // [D-366]: l'audit di [D-313] ricalcola il verdetto del disarmo per regola
 #include "Replay/RTReplayPrivacyLibrary.h" // [D-366]: chi legge il disarmo, col filtro del replay per osservatore
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: l'ordine reale in cui il resolver passa le unita' (#2922)
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -1753,28 +1754,42 @@ namespace
 	/** Ricarica dichiarata della mobilita' di prova: dopo un addebito e il decremento del Cleanup ne restano due. */
 	constexpr int32 StunMobCooldown = 3;
 
+	/** Che cosa cambia da un braccio all'altro del test: tutto il resto e' uguale. */
+	struct FStunMobCase
+	{
+		ERTActionSlot Slot = ERTActionSlot::MovementAndMain;
+		bool bStordita = false;
+		bool bSbilanciata = false;    //< anche `Status.Unbalanced`
+		bool bABudget = false;        //< stile `Budget`, che `Unbalanced` nega ([D-319]); altrimenti quello del catalogo, `LinearDash`
+		bool bGiaInRicarica = false;  //< la ricarica e' gia' partita: `PlannedDashApplies()` e' falso
+		bool bCompagno = false;       //< un compagno NON stordito, ordinato DOPO la stordita, con la mobilita' del catalogo
+	};
+
 	/** Quello che un turno con UNA mobilita' pianificata di due celle lascia da leggere. */
 	struct FStunMobOutcome
 	{
 		bool bValido = false;
 		FRTCellId Arrivo;
-		bool bApplicaPrima = false;  //< `PlannedDashApplies()` PRIMA del turno: per la regola del catalogo lo scatto parte
-		bool bSpostaPrima = false;   //< `PlannedDashMoves()` PRIMA del turno: la domanda di anteprima e mira
-		int32 Rifiuti = 0;           //< voci Fallback/Cancelled `Stunned` in fase Dash che nominano l'azione dello scatto
-		int32 RifiutiDaFermo = 0;    //< fra quelle, le due celle della voce sono la cella di partenza (la meta e' piano privato)
-		int32 Attivazioni = 0;       //< eventi `AbilityActivated` di chi scatta: un rifiuto non si attiva
-		int32 Ricarica = -1;         //< il residuo a fine turno (il Cleanup decrementa di uno)
+		bool bApplicaPrima = false;     //< `PlannedDashApplies()` PRIMA del turno: per la regola del catalogo lo scatto parte
+		bool bSpostaPrima = false;      //< `PlannedDashMoves()` PRIMA del turno: la domanda di anteprima e mira
+		int32 Rifiuti = 0;              //< voci Fallback/Cancelled `Stunned` in fase Dash che nominano l'azione dello scatto
+		int32 RifiutiDaFermo = 0;       //< fra quelle, le due celle della voce sono la cella di partenza (la meta e' piano privato)
+		int32 RifiutiUnbalanced = 0;    //< voci Fallback/Cancelled `Unbalanced` in fase Dash di chi scatta
+		int32 Attivazioni = 0;          //< eventi `AbilityActivated` di chi scatta: un rifiuto non si attiva
+		int32 Ricarica = -1;            //< il residuo a fine turno (il Cleanup decrementa di uno)
+		FRTCellId ArrivoCompagno;       //< dove e' finito il compagno (solo con `bCompagno`)
+		bool bCompagnoDopo = false;     //< premessa: nell'ordine REALE di raccolta il compagno viene dopo la stordita
 	};
 
 	/**
-	 * Un turno con `Action.Dodge` costruita con lo slot `Slot`, pianificata di due celle, da una unita' stordita o no.
+	 * Un turno con `Action.Dodge` costruita come dice `C`, pianificata di due celle da una unita' (stordita o no).
 	 *
 	 * 🔑 **L'azione si COSTRUISCE**: nessuna azione di catalogo dichiara `MovementAndMain` (il censimento
 	 * `Status.StunCensus.EveryMainActionHasAKnownSite` lo vieta finche' non ha la sua riga), quindi il ramo non si raggiunge
-	 * altrimenti. `Action.Dodge` resta `FastMovement`, cioe' macro-fase Dash; cambia il solo slot, che e' cio' che il criterio
-	 * legge.
+	 * altrimenti. `Action.Dodge` resta `FastMovement`, cioe' macro-fase Dash; cambiano lo slot e, per un braccio, lo stile,
+	 * che sono cio' che i criteri leggono.
 	 */
-	FStunMobOutcome RunStunMobTurn(FAutomationTestBase& Test, ERTActionSlot Slot, bool bStordita)
+	FStunMobOutcome RunStunMobTurn(FAutomationTestBase& Test, const FStunMobCase& C)
 	{
 		FStunMobOutcome Esito;
 		UWorld* World = MakeFallWorld();
@@ -1782,13 +1797,17 @@ namespace
 		SpawnFallMap(World, /*Radius=*/ 6);
 		ARTUnit* Runner = SpawnFallUnit(World, 0, FRTCellId(0, 0));
 		ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(-6, 0));
+		// Il compagno sta DOPO la stordita nell'ordine di raccolta (stessa X, Y maggiore): se la guardia uscisse dal ciclo
+		// invece di passare all'unita' successiva, e' lui a non scattare.
+		ARTUnit* Compagno = C.bCompagno ? SpawnFallUnit(World, 0, FRTCellId(0, 2)) : nullptr;
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Runner || !Foe) { DestroyFallWorld(World); return Esito; }
+		if (!TM || !Runner || !Foe || (C.bCompagno && !Compagno)) { DestroyFallWorld(World); return Esito; }
 		NeutralizeAllIntents(Foe);
 		NeutralizeAllIntents(Runner);
 
 		// ⚠️ **Nello slot 3 e non appesa in coda**: `AddCoreAbility` la metterebbe a un indice che `AbilityCooldowns` non copre,
-		// `ConsumeAbility` non scriverebbe niente e «non ha pagato» sarebbe vero anche col difetto.
+		// `ConsumeAbility` non scriverebbe niente e «non ha pagato» sarebbe vero anche col difetto. Lo slot 3 non coincide
+		// nemmeno con l'indice che le unita' hanno nell'ordine di raccolta.
 		const int32 Scatto = RTAbilityFixtures::AddCoreAbilityInSlot(Runner, TEXT("Action.Dodge"), 3);
 		if (!Test.TestTrue(TEXT("premessa: Action.Dodge e' nel catalogo core e lo slot 3 esiste"), Scatto != INDEX_NONE))
 		{
@@ -1796,36 +1815,68 @@ namespace
 			return Esito;
 		}
 		URTActionData* Azione = Runner->GetAbility(Scatto);
-		Azione->Def.Slot = Slot;
+		Azione->Def.Slot = C.Slot;
+		if (C.bABudget) { Azione->Def.MovementStyle = ERTMovementStyle::Budget; }
 		Azione->Def.CooldownTurns = StunMobCooldown;
 		Azione->CooldownTurns = StunMobCooldown;
 		const FName AzioneAttesa = Azione->Def.ActionId;
 		const FRTCellId Partenza = Runner->Cell;
 
-		if (bStordita) { Runner->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		if (C.bStordita) { Runner->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		if (C.bSbilanciata) { Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns); }
+		if (C.bGiaInRicarica)
+		{
+			Runner->ConsumeAbility(Scatto);
+			Runner->TickCooldowns(); // StunMobCooldown - 1: un secondo `ConsumeAbility` la riporterebbe al valore pieno
+		}
 		Runner->PlannedDashAbility = Scatto;
 		Runner->PlannedDashCell = FRTCellId(2, 0);
 		Esito.bApplicaPrima = Runner->PlannedDashApplies();
 		Esito.bSpostaPrima = Runner->PlannedDashMoves();
-		Test.TestTrue(TEXT("premessa: il Def porta lo slot del caso"), Azione->Def.Slot == Slot);
-		Test.TestTrue(TEXT("premessa: TakesMainSlot lo riconosce solo per MovementAndMain"),
-			URTCatalogLibrary::TakesMainSlot(Azione->Def) == (Slot == ERTActionSlot::MovementAndMain));
-		Test.TestEqual(TEXT("premessa: la ricarica e' leggibile e vuota"), Runner->GetAbilityCooldown(Scatto), 0);
+		Test.TestTrue(TEXT("premessa: il Def porta lo slot del caso"), Azione->Def.Slot == C.Slot);
+		Test.TestTrue(TEXT("premessa: TakesMainSlot lo riconosce per Main e MovementAndMain"),
+			URTCatalogLibrary::TakesMainSlot(Azione->Def) == (C.Slot == ERTActionSlot::Main || C.Slot == ERTActionSlot::MovementAndMain));
+		Test.TestEqual(TEXT("premessa: la ricarica prima del turno e' quella del caso"), Runner->GetAbilityCooldown(Scatto),
+			C.bGiaInRicarica ? StunMobCooldown - 1 : 0);
+
+		if (Compagno)
+		{
+			NeutralizeAllIntents(Compagno);
+			const int32 ScattoCompagno = RTAbilityFixtures::AddCoreAbilityInSlot(Compagno, TEXT("Action.Dodge"), 3);
+			if (!Test.TestTrue(TEXT("premessa: il compagno ha il suo scatto"), ScattoCompagno != INDEX_NONE))
+			{
+				DestroyFallWorld(World);
+				return Esito;
+			}
+			Compagno->PlannedDashAbility = ScattoCompagno;
+			Compagno->PlannedDashCell = FRTCellId(2, 2);
+			Test.TestTrue(TEXT("premessa: lo scatto del compagno si applica"), Compagno->PlannedDashApplies());
+			// L'ordine si MISURA con la funzione vera, su un array passato nell'ordine sbagliato perche' il sort debba muoverlo.
+			TArray<ARTUnit*> Ordine = { Compagno, Runner, Foe };
+			URTActionQueueLibrary::SortUnitsForResolution(Ordine);
+			Esito.bCompagnoDopo = Ordine.IndexOfByKey(Compagno) > Ordine.IndexOfByKey(Runner);
+		}
 
 		RunFallTurn(TM);
 
 		Esito.Arrivo = Runner->Cell;
 		Esito.Ricarica = Runner->GetAbilityCooldown(Scatto);
+		if (Compagno) { Esito.ArrivoCompagno = Compagno->Cell; }
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Runner->StableUnitId
-				&& E.Phase == ERTMatchPhase::Dash
-				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
-				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned)
-				&& E.ActionId == AzioneAttesa)
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Runner->StableUnitId || E.Phase != ERTMatchPhase::Dash
+				|| E.Outcome != static_cast<uint8>(ERTFallbackOutcome::Cancelled))
+			{
+				continue;
+			}
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned) && E.ActionId == AzioneAttesa)
 			{
 				++Esito.Rifiuti;
 				if (E.SrcCell == Partenza && E.TgtCell == Partenza) { ++Esito.RifiutiDaFermo; }
+			}
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced))
+			{
+				++Esito.RifiutiUnbalanced;
 			}
 		}
 		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
@@ -1844,19 +1895,31 @@ namespace
 /**
  * **Lo stordimento NEGA la mobilita' che prende ANCHE la principale, e il rifiuto PAGA** ([D-567], `#3964`).
  *
- * [D-416] (1) toglie la principale alla stordita e «non tocca il movimento»: una mobilita' `MovementAndMain` li prende
- * tutti e due. L'autore ha deciso (2026-11-02, opzione «a») che vince la prima meta': la stordita non la compie, la
+ * [D-416] (1) toglie la principale alla stordita e non tocca il movimento: una mobilita' `MovementAndMain` li prende
+ * tutti e due. L'autore ha deciso (2026-11-02, risposta `a`) che vince la prima meta': la stordita non la compie, la
  * voce `Fallback`/`Cancelled`/`Stunned` lo dice in fase `Dash`, e il rifiuto paga come ogni principale negata
  * ([D-563] (2)). Resta permesso tutto cio' che prende il solo movimento.
  *
- * 🔴 **Tre bracci, perche' l'asserzione centrale e' negativa**: «non si e' mosso» e «non ha attivato» sono vere anche
- * per una fixture che non permette lo scatto.
- *  - CONTROLLO: la stessa mobilita' `MovementAndMain` da una unita' NON stordita arriva, attiva e paga una volta;
- *  - CUORE: la stessa, stordita, resta dov'e', lascia UNA voce di rifiuto in fase Dash e paga una volta sola;
- *  - CONFINE: stordita, ma con lo slot `Movement` del catalogo, arriva come il controllo: la regola non nega il movimento.
+ * 🔴 **Bracci, perche' l'asserzione centrale e' negativa**: «non si e' mosso» e «non ha attivato» sono vere anche per
+ * una fixture che non permette lo scatto. Ognuno chiude un modo di sbagliare la guardia:
+ *  - CONTROLLO: la stessa mobilita' `MovementAndMain` da una unita' NON stordita arriva, attiva e paga;
+ *  - CUORE: la stessa, stordita, resta dov'e', lascia UNA voce di rifiuto in fase Dash con le due celle uguali alla sua,
+ *    non attiva e paga; un COMPAGNO non stordito, ordinato DOPO di lei, arriva comunque (la guardia passa all'unita'
+ *    successiva, non esce dal ciclo);
+ *  - CONFINE: stordita ma con lo slot `Movement` del catalogo, arriva: la regola non nega il movimento;
+ *  - PRINCIPALE DI FASE DASH: lo stesso con lo slot `Main` — il criterio e' `TakesMainSlot`, non `MovementAndMain`;
+ *  - GIA' IN RICARICA: stordita, ma lo scatto non si applica (`PlannedDashApplies()` falso): nessuna voce e nessun
+ *    secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno;
+ *  - STORDITA E SBILANCIATA, con la mobilita' a budget che `Unbalanced` nega: vince lo stordimento (una voce `Stunned`,
+ *    nessuna `Unbalanced`, e paga: l'altro rifiuto non paga);
+ *  - ALTRO STATO: sbilanciata ma NON stordita, con lo slancio lineare: arriva, perche' la guardia legge lo stordimento e non
+ *    un qualunque stato di controllo.
  *
- * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): il cuore asserisce che la condizione e' una sola, perche'
- * un ghost o una mira che partissero da uno scatto negato mentirebbero.
+ * ⚠️ `ConsumeAbility` scrive un valore FISSO: uno o due addebiti lasciano lo stesso residuo, quindi il test distingue «ha
+ * pagato» da «non ha pagato», non quante volte. ⚠️ **Il residuo e' letto a fine turno**: il Cleanup decrementa di uno.
+ *
+ * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): ogni braccio ne asserisce il valore PRIMA del turno,
+ * perche' un ghost o una mira che partissero da uno scatto negato mentirebbero.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest,
 	"RefactorTactics.Status.StunDeniesAMobilityThatAlsoCostsTheMainAction",
@@ -1865,20 +1928,25 @@ bool FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest::RunTest(const FString
 {
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Meta(2, 0);
-	const int32 Pagato = StunMobCooldown - 1; // un solo addebito, poi il decremento del Cleanup
+	const FRTCellId MetaCompagno(2, 2);
+	const int32 Pagato = StunMobCooldown - 1;       // un addebito e il decremento del Cleanup
+	const int32 NonRipagato = StunMobCooldown - 2;  // era gia' a `StunMobCooldown - 1`, e scende di uno
 
 	// CONTROLLO — non stordita: lo scatto parte, attiva e paga.
-	const FStunMobOutcome Libera = RunStunMobTurn(*this, ERTActionSlot::MovementAndMain, /*bStordita=*/ false);
+	FStunMobCase Caso;
+	const FStunMobOutcome Libera = RunStunMobTurn(*this, Caso);
 	if (!TestTrue(TEXT("controllo: il turno e' girato"), Libera.bValido)) { return false; }
 	TestTrue(TEXT("controllo: lo scatto si applica"), Libera.bApplicaPrima);
 	TestTrue(TEXT("controllo: e sposta (anteprima e mira)"), Libera.bSpostaPrima);
 	TestEqual(TEXT("controllo: arriva a destinazione"), Libera.Arrivo, Meta);
 	TestEqual(TEXT("controllo: nessun rifiuto"), Libera.Rifiuti, 0);
 	TestTrue(TEXT("controllo: attiva l'azione (il sensore delle attivazioni vede)"), Libera.Attivazioni >= 1);
-	TestEqual(TEXT("controllo: la ricarica e' pagata una volta"), Libera.Ricarica, Pagato);
+	TestEqual(TEXT("controllo: la ricarica e' pagata"), Libera.Ricarica, Pagato);
 
-	// IL CUORE — stordita: la mobilita' che prende la principale e' negata, e paga.
-	const FStunMobOutcome Stordita = RunStunMobTurn(*this, ERTActionSlot::MovementAndMain, /*bStordita=*/ true);
+	// IL CUORE — stordita: la mobilita' che prende la principale e' negata, e paga. Un compagno ordinato dopo di lei arriva.
+	Caso.bStordita = true;
+	Caso.bCompagno = true;
+	const FStunMobOutcome Stordita = RunStunMobTurn(*this, Caso);
 	if (!TestTrue(TEXT("cuore: il turno e' girato"), Stordita.bValido)) { return false; }
 	TestTrue(TEXT("premessa: per la regola del catalogo lo scatto si applica ancora"), Stordita.bApplicaPrima);
 	TestFalse(TEXT("ma lo stordimento lo nega: lo scatto non sposta (anteprima e mira)"), Stordita.bSpostaPrima);
@@ -1888,16 +1956,74 @@ bool FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest::RunTest(const FString
 	TestEqual(TEXT("la voce non rivela la meta pianificata: le sue due celle sono quella di partenza"),
 		Stordita.RifiutiDaFermo, 1);
 	TestEqual(TEXT("e l'azione non si attiva"), Stordita.Attivazioni, 0);
-	TestEqual(TEXT("il rifiuto PAGA la ricarica, una volta sola"), Stordita.Ricarica, Pagato);
+	TestEqual(TEXT("il rifiuto PAGA la ricarica"), Stordita.Ricarica, Pagato);
+	TestTrue(TEXT("premessa: nell'ordine reale di raccolta il compagno viene DOPO la stordita"), Stordita.bCompagnoDopo);
+	TestEqual(TEXT("il compagno ordinato dopo di lei arriva: la guardia passa all'unita' successiva"),
+		Stordita.ArrivoCompagno, MetaCompagno);
 
 	// CONFINE — stordita, ma la mobilita' prende il SOLO movimento: D-416 (1) non la tocca.
-	const FStunMobOutcome SoloMovimento = RunStunMobTurn(*this, ERTActionSlot::Movement, /*bStordita=*/ true);
-	if (!TestTrue(TEXT("confine: il turno e' girato"), SoloMovimento.bValido)) { return false; }
-	TestTrue(TEXT("confine: lo scatto sposta (anteprima e mira)"), SoloMovimento.bSpostaPrima);
-	TestEqual(TEXT("confine: la stordita con una mobilita' di solo movimento arriva"), SoloMovimento.Arrivo, Meta);
-	TestEqual(TEXT("confine: nessun rifiuto"), SoloMovimento.Rifiuti, 0);
-	TestTrue(TEXT("confine: l'azione si attiva"), SoloMovimento.Attivazioni >= 1);
-	TestEqual(TEXT("confine: la ricarica e' pagata una volta"), SoloMovimento.Ricarica, Pagato);
+	FStunMobCase SoloMovimento;
+	SoloMovimento.Slot = ERTActionSlot::Movement;
+	SoloMovimento.bStordita = true;
+	const FStunMobOutcome Confine = RunStunMobTurn(*this, SoloMovimento);
+	if (!TestTrue(TEXT("confine: il turno e' girato"), Confine.bValido)) { return false; }
+	TestTrue(TEXT("confine: lo scatto sposta (anteprima e mira)"), Confine.bSpostaPrima);
+	TestEqual(TEXT("confine: la stordita con una mobilita' di solo movimento arriva"), Confine.Arrivo, Meta);
+	TestEqual(TEXT("confine: nessun rifiuto"), Confine.Rifiuti, 0);
+	TestTrue(TEXT("confine: l'azione si attiva"), Confine.Attivazioni >= 1);
+	TestEqual(TEXT("confine: la ricarica e' pagata"), Confine.Ricarica, Pagato);
+
+	// PRINCIPALE DI FASE DASH — lo slot `Main` con la macro-fase Dash: il criterio e' `TakesMainSlot`, non `MovementAndMain`.
+	FStunMobCase Principale;
+	Principale.Slot = ERTActionSlot::Main;
+	const FStunMobOutcome PrincipaleLibera = RunStunMobTurn(*this, Principale);
+	if (!TestTrue(TEXT("principale di fase Dash, controllo: il turno e' girato"), PrincipaleLibera.bValido)) { return false; }
+	TestEqual(TEXT("principale di fase Dash, controllo: non stordita arriva"), PrincipaleLibera.Arrivo, Meta);
+	TestEqual(TEXT("principale di fase Dash, controllo: nessun rifiuto"), PrincipaleLibera.Rifiuti, 0);
+	Principale.bStordita = true;
+	const FStunMobOutcome PrincipaleStordita = RunStunMobTurn(*this, Principale);
+	if (!TestTrue(TEXT("principale di fase Dash: il turno e' girato"), PrincipaleStordita.bValido)) { return false; }
+	TestFalse(TEXT("principale di fase Dash: lo stordimento la nega (anteprima e mira)"), PrincipaleStordita.bSpostaPrima);
+	TestEqual(TEXT("principale di fase Dash: la stordita resta dov'e'"), PrincipaleStordita.Arrivo, Partenza);
+	TestEqual(TEXT("principale di fase Dash: UNA voce di rifiuto"), PrincipaleStordita.Rifiuti, 1);
+	TestEqual(TEXT("principale di fase Dash: l'azione non si attiva"), PrincipaleStordita.Attivazioni, 0);
+	TestEqual(TEXT("principale di fase Dash: il rifiuto paga"), PrincipaleStordita.Ricarica, Pagato);
+
+	// GIA' IN RICARICA — lo scatto non si applica: la guardia sta DOPO `if (!bDashApplies)`, nessun rifiuto e nessun addebito.
+	FStunMobCase InRicarica;
+	InRicarica.bStordita = true;
+	InRicarica.bGiaInRicarica = true;
+	const FStunMobOutcome Ricarica = RunStunMobTurn(*this, InRicarica);
+	if (!TestTrue(TEXT("gia' in ricarica: il turno e' girato"), Ricarica.bValido)) { return false; }
+	TestFalse(TEXT("gia' in ricarica: lo scatto non si applica"), Ricarica.bApplicaPrima);
+	TestEqual(TEXT("gia' in ricarica: la stordita resta dov'e'"), Ricarica.Arrivo, Partenza);
+	TestEqual(TEXT("gia' in ricarica: nessuna voce di rifiuto"), Ricarica.Rifiuti, 0);
+	TestEqual(TEXT("gia' in ricarica: l'azione non si attiva"), Ricarica.Attivazioni, 0);
+	TestEqual(TEXT("gia' in ricarica: nessun secondo addebito, la ricarica scende di uno"), Ricarica.Ricarica, NonRipagato);
+
+	// STORDITA E SBILANCIATA — la mobilita' a budget che `Unbalanced` nega: vince lo stordimento, e paga.
+	FStunMobCase Entrambi;
+	Entrambi.bStordita = true;
+	Entrambi.bSbilanciata = true;
+	Entrambi.bABudget = true;
+	const FStunMobOutcome StorditaSbilanciata = RunStunMobTurn(*this, Entrambi);
+	if (!TestTrue(TEXT("stordita e sbilanciata: il turno e' girato"), StorditaSbilanciata.bValido)) { return false; }
+	TestTrue(TEXT("stordita e sbilanciata: lo scatto si applica per la regola del catalogo"), StorditaSbilanciata.bApplicaPrima);
+	TestEqual(TEXT("stordita e sbilanciata: resta dov'e'"), StorditaSbilanciata.Arrivo, Partenza);
+	TestEqual(TEXT("stordita e sbilanciata: la voce e' quella dello stordimento"), StorditaSbilanciata.Rifiuti, 1);
+	TestEqual(TEXT("stordita e sbilanciata: e non c'e' quella di Unbalanced"), StorditaSbilanciata.RifiutiUnbalanced, 0);
+	TestEqual(TEXT("stordita e sbilanciata: lo stordimento paga"), StorditaSbilanciata.Ricarica, Pagato);
+
+	// ALTRO STATO — sbilanciata ma NON stordita, con lo slancio lineare che `Unbalanced` non nega: arriva.
+	FStunMobCase SoloSbilanciata;
+	SoloSbilanciata.bSbilanciata = true;
+	const FStunMobOutcome Sbilanciata = RunStunMobTurn(*this, SoloSbilanciata);
+	if (!TestTrue(TEXT("altro stato: il turno e' girato"), Sbilanciata.bValido)) { return false; }
+	TestTrue(TEXT("altro stato: lo scatto sposta (anteprima e mira)"), Sbilanciata.bSpostaPrima);
+	TestEqual(TEXT("altro stato: la sbilanciata non stordita arriva"), Sbilanciata.Arrivo, Meta);
+	TestEqual(TEXT("altro stato: nessun rifiuto per stordimento"), Sbilanciata.Rifiuti, 0);
+	TestEqual(TEXT("altro stato: e nessuno per Unbalanced"), Sbilanciata.RifiutiUnbalanced, 0);
+	TestEqual(TEXT("altro stato: la ricarica e' pagata"), Sbilanciata.Ricarica, Pagato);
 	return true;
 }
 
