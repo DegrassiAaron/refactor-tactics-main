@@ -130,6 +130,7 @@ namespace
 		BersaglioMorto,         //< R6  bersaglio-unita' gia' morto prima del Blast (TargetDead)
 		TiroCappatoDalFumo,     //< R7  tiro a cella cappato da un Fumo NON osservato (TerrainCappedIntents): il Fumo e' in (3,0,0), fuori dall'intorno di chi tira (vista 0), la mira alla portata
 		TiroCappatoDalFumoOsservato, //< controllo di R7: lo STESSO cap ma con il Fumo in (1,0,0), OSSERVATO: il click lo vede e rifiuta
+		TiroCappatoInterrotto,  //< R7+R8  il tiro cappato dal Fumo NON osservato, annullato da Action.Interrupt: paga come R8 (la classificazione sta PRIMA di ApplyInterrupts)
 		InterrottaSenzaColpi,   //< R8  azione in portata annullata da Action.Interrupt, senza colpi
 		InterruptBloccato,      //< R4  l'INTERRUPT come attore: il bersaglio-unita' sta dietro un muro (confermato dall'autore il 2026-11-01)
 		NonAggressivaBloccata,  //< la clausola `bCountsAsAttack` di `IntentoPartitoSenzaColpo`: bloccata dal muro, NON paga
@@ -176,6 +177,7 @@ namespace
 		case EPagaCausa::TiroCappatoDalFumo:    A.FuoriPortata = 1; break;
 		case EPagaCausa::TiroCappatoDalFumoOsservato: A.FuoriPortata = 1; break;
 		case EPagaCausa::InterrottaSenzaColpi:  A.Interrotte = 1; break;
+		case EPagaCausa::TiroCappatoInterrotto: A.Interrotte = 1; break; // e nessuna voce OutOfRange: `ApplyInterrupts` toglie il tiro dal canale
 		case EPagaCausa::AttaccanteGiaCaduto:   A.bAttaccanteVivo = false; break;
 		case EPagaCausa::AttaccanteCadeNelBlast: A.bAttaccanteVivo = false; break;
 		default: break; // AreaVuota*, BersaglioScattato, CellaOltrePortata, TroppoVicino, MortaioAlMinimo: nessuna voce
@@ -219,7 +221,10 @@ namespace
 		{
 			Muri = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
 		}
-		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Fumo = { CellaDelFumoNonOsservata }; }
+		if (C.Causa == EPagaCausa::TiroCappatoDalFumo || C.Causa == EPagaCausa::TiroCappatoInterrotto)
+		{
+			Fumo = { CellaDelFumoNonOsservata };
+		}
 		if (C.Causa == EPagaCausa::TiroCappatoDalFumoOsservato) { Fumo = { CellaDelFumo }; }
 		if (C.Causa == EPagaCausa::AltroPiano) { InPiu = { CellaSuAltroPiano }; }
 		PagaSpawnMap(World, /*Radius=*/ 9, Muri, Fumo, InPiu);
@@ -241,7 +246,10 @@ namespace
 		TArray<TWeakObjectPtr<ARTUnit>> Tutti = { Attaccante, Spettatore };
 		// R7 con il Fumo NON osservato: chi tira vede solo l'intorno di 2 celle (vista 0), quindi il Fumo in (3,0,0) e' una cella
 		// che la squadra non conosce. Il tiro a (Portata,0,0) e' dentro la portata dichiarata e oltre il cap del Fumo (2).
-		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Attaccante->VisionRange = 0; }
+		if (C.Causa == EPagaCausa::TiroCappatoDalFumo || C.Causa == EPagaCausa::TiroCappatoInterrotto)
+		{
+			Attaccante->VisionRange = 0;
+		}
 
 		// L'abilita' d'attacco e il suo cooldown, reso OSSERVABILE: l'attacco base dell'eroe non ne dichiara uno.
 		int32 Idx = 0;
@@ -364,6 +372,7 @@ namespace
 			break;
 
 		case EPagaCausa::InterrottaSenzaColpi:
+		case EPagaCausa::TiroCappatoInterrotto:
 		{
 			// `Action.Interrupt` ha portata 1: l'interruttore sta accanto all'attaccante e lo coglie sulla cella dove sta.
 			Aiutante = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0, 0));
@@ -373,7 +382,19 @@ namespace
 				Aiutante->PlannedAbilityIndex = InterruptIdx;
 				Aiutante->PlannedAttackTarget = Attaccante;
 			}
-			Attaccante->DeclareAttackOnCell(FRTCellId(0, 3, 0)); // in portata, e nessuno ci sta
+			if (C.Causa == EPagaCausa::TiroCappatoInterrotto)
+			{
+				// `R7` + `R8`: la stessa mira di `TiroCappatoDalFumo` (Fumo non osservato in (3,0,0), alla portata esatta). La
+				// classificazione del pagamento deve girare PRIMA di `ApplyInterrupts`, che legge `AzionePartita` e poi toglie il tiro
+				// dal canale `TerrainCappedIntents`: dopo, l'azione annullata non risulterebbe partita e non pagherebbe.
+				Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la mira (portata %d) sta oltre il Fumo in (3,0,0)"), C.Nome, Portata),
+					Portata >= 4);
+				Attaccante->DeclareAttackOnCell(FRTCellId(Portata, 0, 0));
+			}
+			else
+			{
+				Attaccante->DeclareAttackOnCell(FRTCellId(0, 3, 0)); // in portata, e nessuno ci sta
+			}
 			break;
 		}
 
@@ -403,6 +424,7 @@ namespace
 			|| C.Causa == EPagaCausa::AltroPiano || C.Causa == EPagaCausa::InterruptBloccato
 			|| C.Causa == EPagaCausa::NonAggressivaBloccata || C.Causa == EPagaCausa::NonAggressivaBersaglioMorto;
 		const bool bServeAiutante = C.Causa == EPagaCausa::InterrottaSenzaColpi
+			|| C.Causa == EPagaCausa::TiroCappatoInterrotto
 			|| C.Causa == EPagaCausa::AttaccanteCadeNelBlast;
 		if ((bServeBersaglio && !Bersaglio) || (bServeAiutante && !Aiutante))
 		{
@@ -486,7 +508,9 @@ namespace
  * 🔴 **Il controllo di `R7` e' la coppia `TiroCappatoDalFumo` / `TiroCappatoDalFumoOsservato`** (decisione d'autore del
  * 2026-11-03): lo stesso tiro a cella cappato dal Fumo paga se la squadra non vedeva il Fumo (il click non ne vedeva il
  * cap e ha accettato) ed e' gratis se lo vedeva (il click rifiutava). Senza la coppia non si distingue «il tiro cappato
- * non paga mai» da «paga sempre» (il codice che c'era prima, piu' largo del proprio testo).
+ * non paga mai» da «paga sempre» (il codice che c'era prima, piu' largo del proprio testo). La riga `TiroCappatoInterrotto`
+ * pinna l'ORDINE: la classificazione (`ClassifyTerrainCappedPayment`) sta prima di `ApplyInterrupts`, che toglie il tiro dal
+ * canale del piano subito dopo averlo letto, e un Interrupt altrui non deve rendere gratuito cio' che avrebbe pagato.
  *
  * Premesse per riga (`PagaAttesi`): ogni voce di rifiuto del turno e' asserita, ZERO comprese — cosi' la riga
  * isola la propria causa e un'altra non puo' pagare al suo posto.
@@ -518,6 +542,8 @@ bool FRTStartedActionPaysWithoutAHitTest::RunTest(const FString&)
 		  TEXT("R7: il click giudica sulla mappa ottimistica, che non vede il Fumo, e accetta; il cap emerge solo a risoluzione e l'azione, partita, paga") },
 		{ TEXT("controllo di R7: tiro cappato dal Fumo OSSERVATO (in (1,0,0))"), EPagaCausa::TiroCappatoDalFumoOsservato, false,
 		  TEXT("decisione d'autore del 2026-11-03: la squadra vedeva il Fumo, il click vedeva il cap e rifiutava; cio' che il click rifiuta e' gratis") },
+		{ TEXT("R7+R8 tiro cappato dal Fumo NON osservato, annullato da un Interrupt"), EPagaCausa::TiroCappatoInterrotto, true,
+		  TEXT("[D-414] punto 1 su R7: l'Interrupt altrui non rende gratuito cio' che senza di lui avrebbe pagato (la classificazione del pagamento sta prima di ApplyInterrupts)") },
 		{ TEXT("R8 annullata da un Interrupt, senza colpi"), EPagaCausa::InterrottaSenzaColpi, true,
 		  TEXT("[D-414] punto 1: un controllo che impedisce l'abilita' non restituisce la ricarica") },
 		// ➕ **Fix wave di `#3134`**: tre righe che difendono tre clausole che nessun test copriva.
