@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchStateHash.h"        // HashMatchState: lo stato finale identico se cambia solo l'ordine di creazione degli Actor
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo nella voce di fallback
@@ -655,6 +656,9 @@ namespace
 		bool bBersaglioIgnotoAlVelo = false;  //< il velo dell'HUD non conosce il bersaglio: il click non lo bersaglia (`IsKnownToObserver`)
 		bool bAlleatoNonComandabile = false;  //< il bersaglio alleato e' pianificato dal bot: non e' comandabile da questo giocatore
 		bool bBordoDichiarato = false;     //< solo `CreateCover` col piano a mano: il lato e' dichiarato
+		bool bFumoEsploratoFuoriVista = false; //< la cella del Fumo e' in `ExploredCells` e NON in `VisibleCells`: la squadra non la vede, la mappa del click la LEGGE (D-534 (3), `Q4`)
+		bool bCompagnoLontano = false;         //< un compagno (vista 0) a tre celle dal Fumo: in pianificazione NON lo vede, e non cambia niente se resta fermo
+		bool bCompagnoScatta = false;          //< solo con `bCompagnoLontano`: il compagno scatta di due celle verso il Fumo, lo mette in vista nel Blast e non in pianificazione
 	};
 
 	/** Che cosa il click fa della scena: `ND` = non c'e' niente da cliccare, o il click non puo' nemmeno armare l'azione. */
@@ -675,8 +679,9 @@ namespace
 		ERic3Click Click = ERic3Click::ND; //< l'ORACOLO: il click di produzione accetta il piano?
 		// ⚠️ `bConflittoNoto` e' un CAMPANELLO, non una regola: marca righe in cui il click e la regola divergono e che restano
 		// verdi finche' l'autore non decide. Diventa ROSSO quando una decisione fa convergere le due parti — e va riscritto
-		// allora, di proposito, non aggirato. Tre righe lo usano: l'alleato non comandabile, il bordo senza lato e lo scatto
-		// fermato (il click accetta, la regola non paga: D-571 alla lettera chiederebbe di far pagare). ⌫ *Fino alla decisione
+		// allora, di proposito, non aggirato. Lo usano le righe dell'alleato non comandabile, del bordo senza lato, dello scatto
+		// fermato e del Fumo messo in vista dallo scatto di un compagno (il click accetta, la regola non paga: D-571 alla
+		// lettera, o «non lo vedeva la squadra» alla lettera, chiederebbe di far pagare). ⌫ *Fino alla decisione
 		// d'autore del 2026-11-03 c'era un secondo flag, per il tiro a cella `R7` con il Fumo osservato (il click rifiutava, il
 		// codice pagava): la decisione ha reso `R7` fedele al proprio testo, e quella riga e' ora una regola come le altre.*
 		bool bConflittoNoto = false; //< il click accetta e la regola non fa pagare: pin di una decisione aperta, non una regola
@@ -755,6 +760,14 @@ namespace
 			Attore->Abilities[Idx]->Def.RangeCells = S.PortataSovrascritta;
 		}
 		const int32 Portata = Attore->Abilities[Idx]->RangeCells;
+		if (S.Azione == ERic3Azione::AttaccoACella)
+		{
+			// Il confine del predicato (`>=`) e' esercitato solo se la mira sta ESATTAMENTE alla portata dichiarata: la riga lo
+			// dichiara con `Distanza`, e questa premessa lo lega al catalogo. Se la portata dell'attacco base cambia, la riga
+			// diventa rossa qui invece di indebolire in silenzio il confine.
+			Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la mira a cella sta alla portata dichiarata dell'azione"), Nome),
+				Portata, S.Distanza);
+		}
 
 		// Dove sta il bersaglio. Con lo scatto la distanza e' misurata dalla cella d'ARRIVO dello scatto (2,0,0): da la'
 		// il bersaglio e' ESATTAMENTE alla portata, dalla cella dove lo scatto si ferma (1,0,0) e' una cella oltre.
@@ -833,6 +846,32 @@ namespace
 				Testimone->VisionRange = 0;
 			}
 
+			// Un compagno a tre celle dal Fumo (FumoX,0,0), in (FumoX,3,0): fuori dall'intorno di 2 celle, quindi in pianificazione
+			// la squadra NON vede il Fumo. Se scatta di due celle lungo l'asse r arriva in (FumoX,1,0), a una cella dal Fumo: nel Blast
+			// (`RefreshTeamKnowledgeForBlast` osserva le posizioni POST-Dash) la cella e' in vista, e la mappa del click del Blast la
+			// legge. E' l'UNICA variabile fra il controllo (compagno fermo) e il caso (compagno che scatta).
+			if (S.bCompagnoLontano)
+			{
+				if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il compagno ha un Fumo da guardare"), Nome), S.FumoX != INDEX_NONE))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				ARTUnit* Compagno = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(S.FumoX, 3, 0));
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: compagno"), Nome), Compagno))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				Compagno->VisionRange = 0;
+				if (S.bCompagnoScatta)
+				{
+					const int32 ScattoCompagno = RTAbilityFixtures::AddCoreAbility(Compagno, TEXT("Action.Reposition"));
+					Compagno->PlannedDashAbility = ScattoCompagno;
+					Compagno->PlannedDashCell = FRTCellId(S.FumoX, 1, 0);
+				}
+			}
+
 			if (S.Azione == ERic3Azione::AttaccoDopoScattoFermato)
 			{
 				// `Action.Reposition`: uno scatto lineare di 2 celle SENZA impatto ne' effetti. Sulla cella d'arrivo, se c'e'
@@ -872,6 +911,22 @@ namespace
 			// gioco percorre, con la matrice di `ResolveOutcome` (un compagno comandabile si seleziona, non si bersaglia).
 			// Non si clicca cio' che non c'e' (nessun bersaglio) ne' un'azione che il click non puo' armare (gia' in ricarica).
 			TM->RefreshTeamKnowledgeNow();
+			if (S.bFumoEsploratoFuoriVista)
+			{
+				// La cella del Fumo e' ESPLORATA ma non in vista: la squadra la conosce (era vuota quando l'ha esplorata, il Fumo e'
+				// nato dopo) e non la vede adesso. La mappa del click tiene il contenuto ATTUALE delle celle esplorate (D-534 (3), `Q4`,
+				// confermato dall'autore), quindi legge il Fumo e il cap. `SetTeamKnowledgeForTest` sostituisce la conoscenza della
+				// squadra; il Blast la rinfresca con `Observe` a partire da questa, e le celle esplorate non si perdono.
+				FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(Attore->TeamId);
+				const FRTCellId CellaDelFumo(S.FumoX, 0, 0);
+				Test.TestFalse(*FString::Printf(TEXT("%s: premessa: il Fumo non e' in vista alla squadra"), Nome),
+					Conoscenza.VisibleCells.Contains(CellaDelFumo));
+				Conoscenza.ExploredCells.AddUnique(CellaDelFumo);
+				Conoscenza.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+				TM->SetTeamKnowledgeForTest(Conoscenza);
+				Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il Fumo e' esplorato"), Nome),
+					TM->KnowledgeForTeamPublic(Attore->TeamId).ExploredCells.Contains(CellaDelFumo));
+			}
 			if (S.Azione == ERic3Azione::AttaccoACella)
 			{
 				// Il tiro a CELLA: il click di produzione e' `HandleClickOnCell` -> `HandleTargetCell`, che esige il kind `Cell`
@@ -1113,8 +1168,9 @@ namespace
  *   ha accettato; il costo dell'ottimismo si paga qui. Controparti gratis (in `Actions.Blast.UndecidedCausesStayFree`): Fumo
  *   su una cella OSSERVATA (il click vede il cap e rifiuta) e oltre la portata DICHIARATA.
  * - tiro a CELLA cappato dal Fumo NON OSSERVATO (`R7`, ultime righe di questo test): la stessa regola con la stessa mappa e la
- *   stessa funzione (`ClickWouldAcceptAimRange`), decisa dall'autore il 2026-11-03. Controparte gratis (in
- *   `Actions.Blast.UndecidedCausesStayFree`): il Fumo su una cella OSSERVATA, dove il click rifiuta.
+ *   stessa funzione (`FuoriPortataSoloPerIlTerreno`, sulla mappa di `ClickMapForPaymentClassification`), decisa dall'autore il
+ *   2026-11-03. Controparte gratis (in `Actions.Blast.UndecidedCausesStayFree`): il Fumo su una cella OSSERVATA, dove il click
+ *   rifiuta.
  *
  * 🔑 **L'oracolo del click**: ogni riga dichiara cosa fa il click di produzione (`DispatchUnitClick` ->
  * `HandleClickOnUnit`, sulla STESSA fixture, con la conoscenza di squadra rinfrescata come a inizio turno) e asserisce
@@ -1323,6 +1379,11 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
  * - bersaglio-UNITA' oltre la portata DICHIARATA: il click lo rifiuta (`ClassifyHexTargeting`, `OutOfRange`);
  * - bersaglio-UNITA' o tiro a CELLA dietro un Fumo OSSERVATO (`R7` per il tiro a cella, decisione d'autore del 2026-11-03):
  *   la mappa del click vede il cap, il click rifiuta;
+ * - bersaglio-UNITA' o tiro a CELLA dietro un Fumo ESPLORATO ma FUORI VISTA: «osservato» per la mappa del click e'
+ *   `ExploredCells` U `VisibleCells`, e una cella esplorata conserva il contenuto ATTUALE (D-534 (3), `Q4`). Il click legge il
+ *   Fumo e rifiuta: gratis, anche se la squadra «non l'ha mai visto». Il criterio dell'autore e' il click, non la lettera;
+ * - **DA DECIDERE, e gratis oggi — il Fumo messo in vista dallo scatto di un compagno** (tiro a cella): il click ha accettato
+ *   perche' in pianificazione il Fumo era ignoto, ma la conoscenza del Blast (posizioni post-Dash) lo contiene;
  * - bersaglio ALLEATO: per un'unita' comandabile il click non bersaglia ma SELEZIONA (`ResolveOutcome`); ⚠️ per un
  *   alleato non comandabile il click NON controlla la squadra — scarto del click, non del resolver: resta gratis finche'
  *   non lo decide l'autore (`BLOCKED — DECISION REQUIRED`);
@@ -1390,6 +1451,68 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo OSSERVATO"), TEXT("caso"), Osservato,
 			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
 			TEXT("il click vede il cap del Fumo e rifiuta: geometria nota in pianificazione, gratis"))) { return false; }
+	}
+
+	// --- il Fumo ESPLORATO ma FUORI VISTA: il criterio e' il click, non «la squadra lo vedeva» ------------
+	{
+		// ⚠️ **«Osservato» per la mappa del click vuol dire «in `ExploredCells` U `VisibleCells`», non «in vista adesso».** Una cella
+		// esplorata ma ora fuori vista conserva il contenuto ATTUALE (D-534 (3), `Q4`, confermato dall'autore): un Fumo nato dopo
+		// l'esplorazione, su una cella che la squadra non vede piu', e' LETTO dal click, che rifiuta. Il tiro e' quindi GRATIS anche
+		// se la squadra «non l'ha mai visto» quel Fumo. ⚠️ **La lettera di «non lo vedeva la squadra» e il click DIVERGONO qui, e il
+		// criterio dell'autore e' il click** («il click accettava/rifiutava»): il codice e' coerente col click, e la riga lo fissa,
+		// per il tiro a cella e per il bersaglio-unita'. La stessa scena dei casi NON osservati (`ResolutionEmergingCausesPay`), con
+		// UNA variabile cambiata: la cella del Fumo, in (3,0,0) e fuori vista, e' in `ExploredCells`.
+		FRic3Scena Cella;
+		Cella.Azione = ERic3Azione::AttaccoACella;
+		Cella.Bersaglio = ERic3Bersaglio::Assente;
+		Cella.Distanza = 4;
+		Cella.Visione = 0;
+		Cella.FumoX = 3;
+		Cella.bFumoEsploratoFuoriVista = true;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo ESPLORATO ma fuori vista"), TEXT("caso"), Cella,
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
+			TEXT("DIVERGE DALLA LETTERA «non lo vedeva la squadra»: la cella e' esplorata, il click legge il Fumo e rifiuta, gratis"))) { return false; }
+
+		FRic3Scena Unita;
+		Unita.Distanza = 5;
+		Unita.PortataSovrascritta = 6;
+		Unita.bTestimone = true;
+		Unita.FumoX = 3;
+		Unita.bFumoEsploratoFuoriVista = true;
+		if (!Ric3Verifica(*this, TEXT("bersaglio-unita', Fumo ESPLORATO ma fuori vista"), TEXT("caso"), Unita,
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
+			TEXT("DIVERGE DALLA LETTERA «non lo vedeva la squadra»: la cella e' esplorata, il click legge il Fumo e rifiuta, gratis"))) { return false; }
+	}
+
+	// --- DA DECIDERE: il Fumo messo in vista dallo scatto di un compagno --------------------------------
+	{
+		// ⚠️ **La conoscenza del Blast contiene quella della pianificazione, e puo' contenere di piu'.** Un compagno che a inizio turno
+		// non vede il Fumo e con uno scatto gli arriva a una cella lo mette in vista nel Blast (`RefreshTeamKnowledgeForBlast`
+		// osserva le posizioni POST-Dash), non in pianificazione. In pianificazione il click ACCETTA (il Fumo e' ignoto alla mappa
+		// del click); nel Blast la mappa del click lo legge e il tiro e' gratis. Alla lettera di «non lo vedeva la squadra quando
+		// ha pianificato» il tiro pagherebbe: la riga pinna il GRATIS di oggi come campanello, dichiarato nel codice
+		// (`FuoriPortataSoloPerIlTerreno`: «sbaglia verso il gratis») e finora non fissato. Il controllo e' lo STESSO compagno
+		// fermo: il tiro paga. Non e' una decisione presa (`BLOCKED — DECISION REQUIRED`): la decisione minima e' se vale la lettera,
+		// e allora la conoscenza con cui il click ha giudicato va congelata al lock-in, come l'origine dello scatto, a costo di un
+		// campo transitorio e della verifica che il percorso di replay lo ricalcoli.
+		FRic3Scena Fermo;
+		Fermo.Azione = ERic3Azione::AttaccoACella;
+		Fermo.Bersaglio = ERic3Bersaglio::Assente;
+		Fermo.Distanza = 4;
+		Fermo.Visione = 0;
+		Fermo.FumoX = 3;
+		Fermo.bCompagnoLontano = true;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo NON osservato, compagno lontano e fermo"), TEXT("controllo"), Fermo,
+			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange),
+			TEXT("il compagno non vede il Fumo ne' in pianificazione ne' nel Blast: il click accetta e R7 paga"))) { return false; }
+
+		FRic3Scena Scatta = Fermo;
+		Scatta.bCompagnoScatta = true;
+		FRic3Atteso AttesoScatta = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
+		AttesoScatta.bConflittoNoto = true;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, il compagno scatta e mette il Fumo in vista"), TEXT("caso"), Scatta,
+			AttesoScatta,
+			TEXT("DA DECIDERE — il click accetta (il Fumo e' ignoto in pianificazione), ma nel Blast il Fumo e' in vista: gratis"))) { return false; }
 	}
 
 	// --- bersaglio alleato -------------------------------------------------------------------------
@@ -1546,6 +1669,161 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("reazione armata, nessun trigger"), TEXT("caso"), Muta, AttesoMuta,
 			TEXT("DA DECIDERE — non e' un'azione fallita ma lo stato normale dello slot: paga solo al trigger"))) { return false; }
 	}
+	return true;
+}
+
+// =====================================================================================================
+// `R7` per squadra: due tiri cappati dalla STESSA cella di Fumo, una squadra lo vede e l'altra no.
+// =====================================================================================================
+
+namespace
+{
+	struct FPagaDueSquadreEsito
+	{
+		bool bValido = false;
+		int32 CooldownChiVede = -1;     //< il tiratore la cui squadra vede il Fumo
+		int32 CooldownChiNonVede = -1;  //< il tiratore la cui squadra non lo vede
+		int32 VociFuoriPortata = 0;     //< voci Fallback/Cancelled `OutOfRange` del turno, di entrambi
+		uint32 HashDiStato = 0;         //< `HashMatchState` a fine turno
+	};
+
+	/**
+	 * UN Blast con DUE tiri a cella cappati dalla stessa cella di Fumo, lungo l'asse X. Il tiratore «che vede» (squadra 0) sta in
+	 * 0 e ha il Fumo in 1, nel suo intorno di 2 celle (vista 0); quello «che non vede» (squadra 1) sta in 5, a quattro celle dal
+	 * Fumo, fuori dall'intorno. Ognuno mira alla portata ESATTA dell'attacco base (4) su una cella VUOTA, con il Fumo sulla linea:
+	 * chi vede mira in 4, chi non vede mira nella cella stessa del Fumo, in 1. Nessun bersaglio-unita': un'unita' sulla cella mirata
+	 * trasformerebbe il tiro in un attacco a un'unita' (`LineResolution`), e non sarebbe piu' un tiro a cella cappato.
+	 *
+	 * `bLatiScambiati` specchia la geometria lungo l'asse X (x -> 5 - x): chi vede passa dall'ultimo al primo nell'ordine di
+	 * risoluzione (la cella e' la prima chiave di `SortUnitsForResolution`), cioe' la cache a slot singolo di `PlanningMapFor` si
+	 * ricostruisce in un ordine di squadre diverso. `bSpawnInvertito` cambia solo l'ordine di creazione degli Actor: l'identita'
+	 * stabile non ne dipende (`EnsureMatchRoster`), quindi lo stato finale dev'essere identico.
+	 */
+	FPagaDueSquadreEsito PagaGiraDueSquadre(FAutomationTestBase& Test, const TCHAR* Nome, bool bLatiScambiati, bool bSpawnInvertito)
+	{
+		FPagaDueSquadreEsito Esito;
+		UWorld* World = PagaMakeWorld();
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), Nome), World)) { return Esito; }
+
+		// Specchio lungo X: (x,0,0) -> (5 - x,0,0) porta chi vede da (0,0,0) a (5,0,0), chi non vede da (5,0,0) a (0,0,0), il Fumo da 1 a 4.
+		const auto Cella = [bLatiScambiati](int32 X) { return FRTCellId(bLatiScambiati ? 5 - X : X, 0, 0); };
+		const FRTCellId CellaChiVede = Cella(0);
+		const FRTCellId CellaChiNonVede = Cella(5);
+		const FRTCellId CellaDelFumo = Cella(1);
+		const FRTCellId MiraChiVede = Cella(4);        // a distanza 4, con il Fumo sulla linea
+		const FRTCellId MiraChiNonVede = CellaDelFumo; // a distanza 4, e il Fumo e' proprio l'ultima cella della linea
+
+		ARTHexMapActor* MapActor = PagaSpawnMap(World, /*Radius=*/ 9, {}, { CellaDelFumo }, {});
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		// L'ordine di creazione e' l'unica cosa che `bSpawnInvertito` cambia.
+		ARTUnit* ChiVede = nullptr;
+		ARTUnit* ChiNonVede = nullptr;
+		const auto CreaChiVede = [&]() { ChiVede = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), CellaChiVede); };
+		const auto CreaChiNonVede = [&]() { ChiNonVede = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), CellaChiNonVede); };
+		if (bSpawnInvertito) { CreaChiNonVede(); CreaChiVede(); } else { CreaChiVede(); CreaChiNonVede(); }
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), Nome), TM)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: chi vede"), Nome), ChiVede)
+			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: chi non vede"), Nome), ChiNonVede))
+		{
+			PagaDestroyWorld(World);
+			return Esito;
+		}
+
+		for (ARTUnit* Tiratore : { ChiVede, ChiNonVede })
+		{
+			Tiratore->VisionRange = 0; // solo l'intorno di 2 celle
+			Tiratore->Abilities[0]->CooldownTurns = PagaCooldown;
+			Tiratore->PlannedAbilityIndex = 0;
+		}
+		if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la mira sta alla portata dichiarata"), Nome),
+			ChiVede->Abilities[0]->RangeCells, 4))
+		{
+			PagaDestroyWorld(World);
+			return Esito;
+		}
+		ChiVede->DeclareAttackOnCell(MiraChiVede);
+		ChiNonVede->DeclareAttackOnCell(MiraChiNonVede);
+
+		// Le premesse sulla conoscenza: la squadra 0 ha il Fumo in vista, la squadra 1 non lo conosce affatto.
+		TM->RefreshTeamKnowledgeNow();
+		const FRTTeamKnowledge ConoscenzaChiVede = TM->KnowledgeForTeamPublic(0);
+		const FRTTeamKnowledge ConoscenzaChiNonVede = TM->KnowledgeForTeamPublic(1);
+		Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la squadra 0 vede il Fumo"), Nome),
+			ConoscenzaChiVede.VisibleCells.Contains(CellaDelFumo));
+		Test.TestFalse(*FString::Printf(TEXT("%s: premessa: la squadra 1 non lo vede"), Nome),
+			ConoscenzaChiNonVede.VisibleCells.Contains(CellaDelFumo));
+		Test.TestFalse(*FString::Printf(TEXT("%s: premessa: la squadra 1 non lo ha nemmeno esplorato"), Nome),
+			ConoscenzaChiNonVede.ExploredCells.Contains(CellaDelFumo));
+
+		PagaRunTurn(TM);
+
+		Esito.CooldownChiVede = ChiVede->GetAbilityCooldown(0);
+		Esito.CooldownChiNonVede = ChiNonVede->GetAbilityCooldown(0);
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+			{
+				++Esito.VociFuoriPortata;
+			}
+		}
+		TArray<ARTUnit*> Unita = { ChiVede, ChiNonVede };
+		Esito.HashDiStato = URTMatchStateHashLibrary::HashMatchState(MapActor->MapAsset,
+			URTMatchStateHashLibrary::BuildUnitDigests(Unita), TArray<int32>{ 0, 0 });
+
+		Esito.bValido = true;
+		PagaDestroyWorld(World);
+		return Esito;
+	}
+}
+
+/**
+ * **`R7` e' per SQUADRA, e non dipende dall'ordine in cui le unita' vengono risolte** (decisione d'autore del 2026-11-03).
+ *
+ * Due tiratori di squadre diverse, due tiri a cella cappati dalla STESSA cella di Fumo: la squadra che la vede
+ * (`VisibleCells`) ha un click che rifiutava, quindi il suo tiro e' GRATIS; quella che non la conosce ha un click che accettava,
+ * quindi il suo tiro PAGA. La cache a slot singolo di `PlanningMapFor` si ricostruisce a ogni cambio di squadra: il risultato
+ * non deve dipendere ne' da QUALE squadra e' risolta per prima ne' dall'ordine di creazione degli Actor.
+ *
+ * Quattro esecuzioni: la geometria base e la sua specchiata (chi vede passa dall'ultimo al primo nell'ordine di risoluzione), ciascuna
+ * con l'ordine di creazione degli Actor diritto e invertito. Il pagamento dei due ruoli e' lo stesso in tutte e quattro, e per le
+ * coppie che differiscono solo per l'ordine di creazione lo stato finale (`HashMatchState`, che include le ricariche) e' identico.
+ *
+ * ⚠️ **Non c'e' l'oracolo del click**: la riga misura l'indipendenza dall'ordine, non l'equivalenza col click, che e' gia' pinnata
+ * dalle righe `R7` di `ResolutionEmergingCausesPay` e `UndecidedCausesStayFree`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainCappedPaymentIsPerTeamTest,
+	"RefactorTactics.Actions.Blast.TerrainCappedPaymentIsPerTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainCappedPaymentIsPerTeamTest::RunTest(const FString&)
+{
+	const FPagaDueSquadreEsito Base = PagaGiraDueSquadre(*this, TEXT("base"), /*bLatiScambiati=*/ false, /*bSpawnInvertito=*/ false);
+	const FPagaDueSquadreEsito BaseInvertita = PagaGiraDueSquadre(*this, TEXT("base, Actor creati al contrario"), false, true);
+	const FPagaDueSquadreEsito Specchio = PagaGiraDueSquadre(*this, TEXT("specchiata"), true, false);
+	const FPagaDueSquadreEsito SpecchioInvertita = PagaGiraDueSquadre(*this, TEXT("specchiata, Actor creati al contrario"), true, true);
+	if (!Base.bValido || !BaseInvertita.bValido || !Specchio.bValido || !SpecchioInvertita.bValido) { return false; }
+
+	const struct { const TCHAR* Nome; const FPagaDueSquadreEsito* Esito; } Righe[] = {
+		{ TEXT("base"), &Base },
+		{ TEXT("base, Actor creati al contrario"), &BaseInvertita },
+		{ TEXT("specchiata"), &Specchio },
+		{ TEXT("specchiata, Actor creati al contrario"), &SpecchioInvertita },
+	};
+	for (const auto& Riga : Righe)
+	{
+		// Le voci di TurnLog escono per OGNI tiro cappato, osservato o no: sono la prova che entrambi i tiri erano cappati.
+		TestEqual(*FString::Printf(TEXT("%s: premessa: entrambi i tiri sono cappati (una voce OutOfRange ciascuno)"), Riga.Nome),
+			Riga.Esito->VociFuoriPortata, 2);
+		TestEqual(*FString::Printf(TEXT("%s: la squadra che VEDE il Fumo non paga (il click rifiutava)"), Riga.Nome),
+			Riga.Esito->CooldownChiVede, 0);
+		TestEqual(*FString::Printf(TEXT("%s: la squadra che NON lo vede paga (il click accettava), una volta sola"), Riga.Nome),
+			Riga.Esito->CooldownChiNonVede, PagaCooldown - 1);
+	}
+	TestEqual(TEXT("stato finale identico se cambia solo l'ordine di creazione degli Actor (geometria base)"),
+		BaseInvertita.HashDiStato, Base.HashDiStato);
+	TestEqual(TEXT("stato finale identico se cambia solo l'ordine di creazione degli Actor (geometria specchiata)"),
+		SpecchioInvertita.HashDiStato, Specchio.HashDiStato);
 	return true;
 }
 
