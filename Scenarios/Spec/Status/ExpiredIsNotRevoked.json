@@ -1,19 +1,25 @@
 {
   "scenarioId": "Spec.Status.ExpiredIsNotRevoked",
   "tags": ["spec", "environment", "turnlog", "gadget", "wraith"],
-  "version": 1,
+  "version": 7,
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "SPECIFICA ESEGUIBILE della vita di uno status nel TurnLog (#3035, riga 5 della tabella del suo corpo): la nascita e la FINE, e soprattutto CHE COSA ha causato la fine. Due unita', due stati, due fini diverse nello stesso turno: Ivrin entra nel fuoco e prende `Status.Burning` per due turni, poi esce e lo lascia SCADERE; Aevik entra nell'acqua e prende `Status.Wet`, legato alla cella, poi esce e lo vede REVOCARE. Un replay che confondesse i due esiti non saprebbe dire se qualcuno ha fatto qualcosa o se e' solo passato il tempo.",
+  "_nota": "SPECIFICA ESEGUIBILE della vita di uno status nel TurnLog (#3035): la nascita e la FINE, e soprattutto CHE COSA ha causato la fine. Due unita', due stati, due fini diverse nello stesso turno: Ivrin entra nel fuoco e prende `Status.Burning` per due turni, poi esce e lo lascia SCADERE; Aevik entra nell'acqua e prende `Status.Wet`, legato alla cella, poi esce e lo vede REVOCARE. Un replay che confondesse i due esiti non saprebbe dire se qualcuno ha fatto qualcosa o se e' solo passato il tempo.",
 
-  "_nota_perche_esiste": "Prima di questo file nessuno scenario del corpus asseriva una voce `Status` del TurnLog: il vocabolario (`ERTStatusOutcome`) e il suo produttore c'erano, e li pinnavano i test C++ (`Environment.Status.*` fra gli altri). Un file di scenario ha un'altra proprieta': gira sul resolver reale con un allestimento dichiarato, quindi la sua traccia e' riproducibile e puo' alimentare l'archivio replay quando il ponte di #3035 e' acceso.",
+  "_nota_perche_esiste": "Prima di questo file nessuno scenario del corpus asseriva una voce `Status` del TurnLog (`grep -rlE '\"category\": *\"Status\"' Scenarios` non trovava nulla): il vocabolario (`ERTStatusOutcome`) e il suo produttore c'erano, e li pinnavano i test C++ (`Environment.Status.*` fra gli altri). Un file di scenario ha un'altra proprieta': gira sul resolver reale con un allestimento dichiarato, quindi la sua traccia e' riproducibile e puo' alimentare l'archivio replay quando il ponte di #3035 e' acceso.",
 
-  "_nota_aritmetica": "Ivrin parte da 90. T1: entra nel fuoco a (0,-2): 10 all'ingresso (catalogo terreni) e `Burning` per 2 turni. Il Cleanup di T1 toglie 8 (72) e il conteggio scende a 1. T2: esce dal fuoco a (0,-3), ma `Burning` sopravvive alla cella che l'ha dato (l'effetto del terreno e' on-enter). Il Cleanup di T2 toglie altri 8 (64) e il conteggio arriva a 0: lo stato SCADE. Due colpi di `Burning`, non tre: la durata 2 e' misurata due volte, dal conto delle voci e dai punti ferita. Il danno di `Burning` non e' `Direct`, quindi lo scudo base non lo assorbe.",
+  "_nota_provenienza": "Il file dipende da due celle della fixture `RelayLite` (`MakeShowcaseRelayLiteArena`): (0,-2) e' `Fire` e (0,0) e' `ShallowWater`. Se la fixture cambia, il rosso arriva da qui e non da una regola di status.",
 
-  "_nota_perche_due_unita": "Servono due squadre: con una sola la partita finirebbe per eliminazione al primo Cleanup e il secondo turno non risolverebbe niente. Ma non e' solo un obbligo di allestimento, ed e' il motivo per cui le due unita' non si incontrano mai: nessuna delle due colpisce l'altra, quindi ogni voce `Status` di questo file ha una sola causa possibile, e la causa e' il terreno o il tempo.",
+  "_nota_aritmetica": "Ivrin parte da 90. T1: entra nel fuoco a (0,-2): 10 all'ingresso (catalogo terreni) e `Burning` per 2 turni. Il Cleanup di T1 toglie 8 (72) e il conteggio scende a 1. T2: esce dal fuoco a (0,-3), ma `Burning` sopravvive alla cella che l'ha dato (l'effetto del terreno e' on-enter). Il Cleanup di T2 toglie altri 8 (64) e il conteggio arriva a 0: lo stato SCADE. Due colpi di `Burning`, non tre. Il danno di `Burning` non e' `Direct`, quindi lo scudo base non lo assorbe. Aevik parte da 90 e non subisce niente: l'acqua bagna, non ferisce.",
 
-  "_nota_cosa_non_prova": "Non prova che i valori siano quelli GIUSTI di bilanciamento: 10, 8 e 2 vengono dal catalogo dei terreni e non sono una decisione di questo file. Non prova la terza causa di fine, lo spegnimento (`Extinguished`), che ha il proprio test C++ e che qui non puo' comparire perche' Ivrin non tocca l'acqua. E non e' un test di presentazione: cosa si veda a schermo e' una voce PIE, non questo.",
+  "_nota_durata": "La durata NON la misura il totale dei punti ferita: in due turni sia il conto dei colpi sia gli HP sono gli stessi per qualunque durata da 2 in su. La misurano l'`Amount` della nascita e la SCADENZA nel Cleanup di T2.",
+
+  "_nota_quando": "Il log di uno scenario accumula i turni e le assertion `LogEvent*` non hanno una chiave per turno ne' per unita'. Per questo la CAUSA di ciascuna fine e' agganciata con `afterEvent`, che valuta lo stato NEL MOMENTO in cui la voce entra nel log: Aevik e' a (1,0,0) quando `Wet` viene revocato, quindi la revoca e' del turno 2 e della sua mossa; Ivrin ha 64 punti ferita quando `Burning` scade, quindi i due colpi sono gia' stati dati. Senza questi due appigli, una revoca scritta a fine T1 con Aevik ancora nell'acqua, o una scadenza scritta con lo stato ancora vivo, lascerebbe verde ogni conteggio.",
+
+  "_nota_perche_due_unita": "Servono due squadre: con una sola la partita finirebbe per eliminazione al primo Cleanup e il secondo turno non risolverebbe niente. Nessuna delle due unita' colpisce l'altra, quindi ogni voce `Status` di questo file ha come sola causa possibile il terreno o il tempo.",
+
+  "_nota_cosa_non_prova": "Non prova che i valori siano quelli GIUSTI di bilanciamento: 10, 8 e 2 vengono dal catalogo dei terreni e non sono una decisione di questo file. Non prova le altre cause di fine che non sono scadenza ne' revoca, per esempio `Extinguished`, che ha il proprio test C++ in `Environment.Status.*` e che qui non puo' comparire perche' Ivrin non tocca l'acqua. E non e' un test di presentazione: cosa si veda a schermo e' una voce PIE, non questo.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [ 1,  0, 0] },
@@ -38,66 +44,69 @@
   ],
 
   "expect": [
-    {
-      "_assertion": "Entrambi sono usciti dalle celle che davano gli stati. Senza questa riga, la revoca di Aevik e' indistinguibile da un piano che non si e' mai eseguito.",
-      "type": "UnitAtCell", "unit": "V1", "cell": [0, -3, 0]
-    },
+    { "type": "UnitAtCell", "unit": "V1", "cell": [0, -3, 0] },
     { "type": "UnitAtCell", "unit": "F1", "cell": [1, 0, 0] },
     { "type": "UnitAlive", "unit": "V1", "value": true },
     { "type": "UnitAlive", "unit": "F1", "value": true },
     {
-      "_assertion": "90 - 10 (fuoco all'ingresso) - 8 - 8 (due Cleanup con `Burning`) = 64. Se la durata fosse 3 il valore sarebbe lo stesso a fine T2: ecco perche' non e' l'unica guardia sulla durata, ci sono anche l'`Amount` e la SCADENZA.",
+      "_assertion": "L'acqua bagna e non ferisce: Aevik finisce con tutti i suoi punti ferita.",
+      "type": "UnitHpEquals", "unit": "F1", "value": 90
+    },
+    {
+      "_assertion": "90 - 10 (fuoco all'ingresso) - 8 - 8 (due Cleanup con `Burning`) = 64 a fine partita. Da solo non misura la durata (vedi `_nota_durata`).",
       "type": "UnitHpEquals", "unit": "V1", "value": 64
     },
     {
+      "_assertion": "E 72 alla fine del PRIMO Cleanup: un colpo di `Burning` per Cleanup, non due nello stesso. Il confine e' esplicito, quindi si valuta a fine T1 e non a fine scenario.",
+      "type": "UnitHpEquals", "unit": "V1", "value": 72, "at": "CleanupEnded"
+    },
+    {
       "_assertion": "I colpi di `Burning` sono voci `Combat/Hit` con la causa in `ActionId` (D-162): due, uno per Cleanup. E' la stessa forma che il Relay asserisce al suo T3.",
-      "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "actionId": "Status.Burning", "value": 2
+      "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "actionId": "Status.Burning", "phase": "Cleanup", "value": 2
     },
 
     {
-      "_assertion": "NASCITA di `Burning`: dal terreno, non da un'azione. Una sola.",
-      "type": "LogEventCount", "category": "Status", "outcome": "AppliedByTerrain", "actionId": "Status.Burning", "value": 1
+      "_assertion": "NASCITA di `Burning`: dal terreno, non da un'azione, e nel Move di T1. Una sola.",
+      "type": "LogEventCount", "category": "Status", "outcome": "AppliedByTerrain", "actionId": "Status.Burning", "phase": "Move", "value": 1
     },
     {
       "_assertion": "E porta la durata dichiarata: 2 turni. Senza questo, la scadenza di sotto sarebbe vera anche con una durata sbagliata, purche' prima o poi finisca.",
-      "type": "LogEventAmount", "category": "Status", "outcome": "AppliedByTerrain", "actionId": "Status.Burning", "value": 2
+      "type": "LogEventAmount", "category": "Status", "outcome": "AppliedByTerrain", "actionId": "Status.Burning", "phase": "Move", "value": 2
     },
     {
-      "_assertion": "FINE di `Burning`: SCADUTO, una volta. Nessuno ha lasciato niente: e' finito il conteggio.",
-      "type": "LogEventCount", "category": "Status", "outcome": "Expired", "actionId": "Status.Burning", "value": 1
+      "_assertion": "FINE di `Burning`: SCADUTO, una volta, nel Cleanup. Nessuno ha lasciato niente: e' finito il conteggio.",
+      "type": "LogEventCount", "category": "Status", "outcome": "Expired", "actionId": "Status.Burning", "phase": "Cleanup", "value": 1
     },
     {
       "_assertion": "E NON revocato. Ivrin e' uscito dal fuoco, ma `Burning` non era legato a quella cella e sopravvive all'uscita fino al Cleanup di T2: dirlo 'revocato' direbbe che l'uscita lo ha tolto, ed e' falso.",
       "type": "LogEventCount", "category": "Status", "outcome": "Revoked", "actionId": "Status.Burning", "value": 0
     },
     {
-      "_assertion": "La nascita precede la fine.",
-      "type": "LogEventOrder",
-      "category": "Status", "outcome": "AppliedByTerrain", "actionId": "Status.Burning",
-      "thenCategory": "Status", "thenOutcome": "Expired", "thenActionId": "Status.Burning"
+      "_assertion": "QUANDO scade: nel momento in cui entra la voce di scadenza, Ivrin ha gia' preso i suoi due colpi (64). Una scadenza scritta con lo stato ancora vivo, a fine T1, lo troverebbe a 72.",
+      "type": "UnitHpEquals", "unit": "V1", "value": 64,
+      "afterEvent": { "category": "Status", "outcome": "Expired", "actionId": "Status.Burning", "unit": "V1" }
     },
 
     {
-      "_assertion": "NASCITA di `Wet`: legato alla cella, non per una durata. Una sola.",
-      "type": "LogEventCount", "category": "Status", "outcome": "AppliedWhileOnCell", "actionId": "Status.Wet", "value": 1
+      "_assertion": "NASCITA di `Wet`: legato alla cella, non per una durata, e nel Move di T1. Una sola.",
+      "type": "LogEventCount", "category": "Status", "outcome": "AppliedWhileOnCell", "actionId": "Status.Wet", "phase": "Move", "value": 1
     },
     {
-      "_assertion": "`Amount` vale ZERO ed e' voluto: qui una durata non esiste, e scrivere il -1 interno darebbe a chi rilegge 'meno un turno' da interpretare. E' l'unico esito di `Status` in cui `Amount` non e' un conteggio, e l'assenza dell'evento NON leggerebbe zero: il runner la dichiara 'assente'.",
-      "type": "LogEventAmount", "category": "Status", "outcome": "AppliedWhileOnCell", "actionId": "Status.Wet", "value": 0
+      "_assertion": "`Amount` vale ZERO ed e' voluto: qui una durata non esiste, e scrivere il -1 interno darebbe a chi rilegge 'meno un turno' da interpretare. La forma di vita sta nell'esito, non in un numero. L'assenza dell'evento NON leggerebbe zero: il runner la dichiara 'assente'.",
+      "type": "LogEventAmount", "category": "Status", "outcome": "AppliedWhileOnCell", "actionId": "Status.Wet", "phase": "Move", "value": 0
     },
     {
-      "_assertion": "FINE di `Wet`: REVOCATO, una volta. La causa e' una mossa di Aevik, ed e' cio' che lo separa dalla scadenza.",
-      "type": "LogEventCount", "category": "Status", "outcome": "Revoked", "actionId": "Status.Wet", "value": 1
+      "_assertion": "FINE di `Wet`: REVOCATO, una volta, nel Cleanup. La causa e' una mossa di Aevik, ed e' cio' che lo separa dalla scadenza.",
+      "type": "LogEventCount", "category": "Status", "outcome": "Revoked", "actionId": "Status.Wet", "phase": "Cleanup", "value": 1
     },
     {
       "_assertion": "E NON scaduto: il conteggio non c'entra, perche' un conteggio non c'e'.",
       "type": "LogEventCount", "category": "Status", "outcome": "Expired", "actionId": "Status.Wet", "value": 0
     },
     {
-      "_assertion": "La nascita precede la fine.",
-      "type": "LogEventOrder",
-      "category": "Status", "outcome": "AppliedWhileOnCell", "actionId": "Status.Wet",
-      "thenCategory": "Status", "thenOutcome": "Revoked", "thenActionId": "Status.Wet"
+      "_assertion": "QUANDO e PERCHE' si revoca: nel momento in cui entra la voce, Aevik e' GIA' a (1,0,0), fuori dall'acqua. E' l'appiglio che lega la revoca alla sua causa, la mossa di T2. Una revoca scritta a fine T1 lo troverebbe ancora a (0,0,0), e tutti i conteggi sopra resterebbero veri.",
+      "type": "UnitAtCell", "unit": "F1", "cell": [1, 0, 0],
+      "afterEvent": { "category": "Status", "outcome": "Revoked", "actionId": "Status.Wet", "unit": "F1" }
     },
 
     { "type": "TurnsCompleted", "value": 2 }
