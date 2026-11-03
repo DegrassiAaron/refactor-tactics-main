@@ -282,6 +282,14 @@ namespace
 	 * dell'autore; il PAGAMENTO di queste due e' `R2` applicata dall'assistente e CONFERMATA dall'autore il 2026-11-01
 	 * (risposta cumulativa, lettura «si» dell'assistente).
 	 *
+	 * ⚠️ **`R7` nel codice e' PIU' LARGO del suo testo** (verificato il 2026-11-03, [D-571] RIC-3). Il testo di [D-563] (2),
+	 * confermato dall'autore, dice «cappato dal Fumo **non osservato**»; ma `TerrainCappedIntents` si riempie in
+	 * `URTHexCombatLibrary::CollectHexAttacks` con `HexDistance <= Intent.RangeCells` sulla mappa AUTOREVOLE, senza
+	 * conoscenza di squadra: paga anche con il Fumo su una cella OSSERVATA, dove il click a cella (`HandleTargetCell`, la
+	 * stessa `PlayerAimMap` del click su un'unita') vede il cap e rifiuterebbe. E' una causa gia' decisa e attuata: NON si
+	 * tocca qui, ed e' `BLOCKED — DECISION REQUIRED` in `RIC-3` («`R7` va reso fedele al testo, stessa mappa del click?»). Lo
+	 * pinna `Actions.Blast.ResolutionEmergingCausesPay` con la riga «tiro a CELLA, Fumo OSSERVATO».
+	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
 	 *
@@ -363,7 +371,18 @@ namespace
 	 * OTTIMISTICA (`PlayerAimMap` -> `PlanningMapFor`, [D-465] (3)), che rende neutre le sole celle fuori da `ExploredCells U
 	 * VisibleCells` della propria squadra: un Fumo su una cella NOTA cappa la portata anche per il click, che rifiuta (geometria
 	 * nota in pianificazione, [D-200]: gratis); un Fumo su una cella NON osservata il click non lo vede, accetta, e il cap emerge
-	 * solo a risoluzione — la stessa ragione per cui il tiro a CELLA cappato dal Fumo paga (`R7`, `TerrainCappedIntents`).
+	 * solo a risoluzione. E' il testo di `R7` ([D-563] (2): «cappato dal Fumo non osservato») attuato per il bersaglio-UNITA'
+	 * in modo FEDELE; il codice di `R7` per il tiro a CELLA (`TerrainCappedIntents`) e' invece piu' largo del proprio testo e
+	 * paga anche con il Fumo osservato (vedi la nota sulla tabella): divergenza dichiarata, non toccata.
+	 *
+	 * ⚠️ **CONTRACT CONFLICT con [D-534] (2), dichiarato qui e non risolto**: il contratto scritto dice che la Resolution non
+	 * chiama `PlanningMapFor` e resta sulla mappa autorevole (`RTTurnManager.h`, [D-534] (2), «confermato dall'autore
+	 * 2026-10-20»). Questo predicato e' un NUOVO lettore della mappa del click dentro la Resolution. La cache resta fuori dallo
+	 * stato canonico e l'errore va solo verso il gratis (colpi e movimento restano autorevoli), ma il risultato decide una
+	 * ricarica, che entra in `FRTUnitStateDigest` e la vedono anche le squadre bot. Non e' una scelta di questa PR:
+	 * `BLOCKED — DECISION REQUIRED` in `RIC-3` («il perimetro di D-534 (2) ammette che la Resolution legga la mappa del click
+	 * per classificare un pagamento? Se no, il ramo del Fumo per bersaglio-unita' va tolto e la riga torna gratis come su
+	 * `main`»). Per cio' il lettore e' UNO solo, con un solo scopo, ed e' questo.
 	 *
 	 * Qui si rifa' la domanda del click con la STESSA funzione e la stessa mappa: `MappaDelClick` e' `PlanningMapFor(squadra,
 	 * mappa autorevole)`, e il predicato e' vero se la portata effettiva su quella mappa ARRIVA alla mira. Cio' esclude da se'
@@ -1275,7 +1294,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// un'azione non aggressiva su un bersaglio-unita' caduto, che su `main` e' gratis.
 			//
 			// ➕ **2026-11-03, [D-571] (RIC-3) causa (a)**: il bersaglio-unita' fuori portata SOLO per il cap del Fumo non
-			// osservato paga come il tiro a cella cappato (`R7`): il click l'ha accettato sulla mappa ottimistica. Oltre la
+			// osservato paga, nel testo di `R7` ([D-563] (2)) e non nel suo codice, che per il tiro a CELLA e' piu' largo e paga
+			// anche con il Fumo osservato: il click l'ha accettato sulla mappa ottimistica. Oltre la
 			// portata DICHIARATA no (il click la rifiuta), e nemmeno con un Fumo su una cella NOTA (il click ne vede il cap):
 			// `OutOfRange` non sta nella tabella proprio per questo, vedi `FuoriPortataSoloPerIlTerreno`, che rifa' la domanda
 			// del click sulla STESSA mappa (`PlanningMapFor`). La sede e il resto non cambiano: si annota qui, scrive

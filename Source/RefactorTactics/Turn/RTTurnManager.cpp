@@ -3655,10 +3655,20 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// partita e la ricarica con lei. `Target == nullptr` e' un piano che il click non produce — dichiara sempre
 			// un'unita' o una cella — e resta gratis. La SEDE e' quella di sempre per questo sito: scrittura immediata, come
 			// per il rifiuto da stordimento qui sopra e per `ConsumeAbility` piu' in basso. `CanUseAbility` e' gia' stato
-			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno); `IsAlive()` e' la guardia del Cleanup,
-			// la stessa del rifiuto da stordimento qui sopra, e si legge DOPO il Blast: chi muore nel Blast non paga
-			// l'azione ambientale (a differenza di `ModifyArc`, annotata da viva a inizio Blast). Un cadavere col piano
-			// addosso non ha tentato niente. Nessuna voce di TurnLog, nessun evento nuovo.
+			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno). Nessuna voce di TurnLog, nessun
+			// evento nuovo.
+			//
+			// ⚠️ **La guardia di vita NON e' una regola sola: dipende dal SITO** ([D-209]).
+			//  - attacco (`R10`): paga solo chi SOPRAVVIVE alla fase;
+			//  - cura e `ModifyArc`: annotate da vive a inizio Blast, pagano anche se muoiono nello stesso Blast;
+			//  - Interrupt: vivo quando annota;
+			//  - azione ambientale a bersaglio VIVO (superficie e scarica, i due `ConsumeAbility` piu' in basso): NESSUNA guardia
+			//    di vita — un lanciatore morto nel Blast agisce e paga (preesistente, non toccato);
+			//  - azione ambientale a bersaglio MORTO (questo ramo, nuovo): paga solo se `Caster->IsAlive()` DOPO il Blast, la
+			//    stessa guardia del rifiuto da stordimento qui sopra. Un cadavere col piano addosso non ha tentato niente.
+			// La differenza non e' inosservabile: `BuildUnitDigests` include le unita' morte e `CaptureFinalStateHash` gira
+			// prima di `DestroyDefeatedUnits`, quindi la ricarica di un morto entra nell'hash del turno che chiude la
+			// partita. I pin: `Actions.Blast.ResolutionEmergingCausesPay`.
 			if (Target && Caster->IsAlive())
 			{
 				Caster->ConsumeAbility(AbilityIndex);

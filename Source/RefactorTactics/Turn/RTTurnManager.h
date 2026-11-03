@@ -1700,7 +1700,11 @@ public:
 	 *
 	 * 🔑 **E' la stessa copia che `AttachPlanningMap` consegna a `FindPath`**: click, portata viola e percorso ricevono
 	 * la stessa vista, che e' cio' che [D-465] punto (3) chiede. ⛔ La Resolution, la validazione al lock-in e i bot non
-	 * la chiamano e restano sulla mappa autorevole.
+	 * la chiamano e restano sulla mappa autorevole — **salvo UN lettore nella Resolution**, aggiunto il 2026-11-03 da
+	 * [D-571] (RIC-3): `FuoriPortataSoloPerIlTerreno` in `RTTurnManager_Blast.cpp` la chiama SOLO per classificare un
+	 * pagamento di ricarica (il bersaglio-unita' fuori portata per un Fumo che il click non vedeva). Non tocca colpi,
+	 * movimento ne' percorsi, che restano autorevoli. ⚠️ **E' un CONTRACT CONFLICT con [D-534] (2), non risolto**: vedi
+	 * `RIC-3` in `docs/OPEN_DECISIONS.md` (`BLOCKED — DECISION REQUIRED`).
 	 */
 	const URTHexMapAsset* PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative);
 
@@ -3137,6 +3141,11 @@ protected:
 	 * La copia ottimistica della mappa per la pianificazione del giocatore (`AttachPlanningMap`). `UPROPERTY` perche'
 	 * `FRTHexSnapshot::PlanningMap` e' un puntatore grezzo: senza un riferimento forte il GC la raccoglie fra due
 	 * interazioni. Non entra in nessuno stato canonico, snapshot serializzato, replay o hash.
+	 *
+	 * ⚠️ **La copia non entra in nessuno stato canonico, ma dal 2026-11-03 il suo RISULTATO si': un lettore nella
+	 * Resolution (`FuoriPortataSoloPerIlTerreno`, [D-571]) la usa per decidere se una ricarica si paga, e la ricarica
+	 * entra in `FRTUnitStateDigest`.** Cio' che e' deterministico e' la chiave (mappa, revisione, squadra e conoscenza di
+	 * squadra), non il puntatore: il contenuto della cache non cambia l'esito.
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<URTHexMapAsset> PlanningMapCache;

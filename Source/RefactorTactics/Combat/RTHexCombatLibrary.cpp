@@ -404,6 +404,10 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			// Fuori portata. Per il cap del TERRENO su un tiro a cella, entro la portata dichiarata, il silenzio non e'
 			// piu' accettabile (`#2794`, [D-465] punto (3)): il click del giocatore legge la mappa ottimistica, quindi
 			// un Fumo mai osservato non l'ha fermato in planning e qui il tiro sparisce. Ha una voce, non un colpo.
+			// ⚠️ **Il codice qui sotto e' PIU' LARGO del commento** (verificato il 2026-11-03, [D-571] RIC-3): non
+			// guarda la conoscenza di squadra, quindi riempie `TerrainCappedIntents` — e il tiro paga, `R7` — anche per
+			// un Fumo OSSERVATO, dove il click a cella, che legge la stessa mappa ottimistica, vedrebbe il cap e
+			// rifiuterebbe. E' una causa gia' decisa e attuata e non si tocca qui: `BLOCKED — DECISION REQUIRED` in `RIC-3`.
 			if (!bTargetsUnit && Intent.bCountsAsAttack
 				&& URTHexLibrary::HexDistance(Attacker.Cell, AimCell) <= Intent.RangeCells)
 			{
