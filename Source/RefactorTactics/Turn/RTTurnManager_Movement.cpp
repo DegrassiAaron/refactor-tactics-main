@@ -198,14 +198,16 @@ void ARTTurnManager::BeginMovementResolution()
 		// c'e' niente da pagare; lo Sprint paga `Exposed` e perde la reazione per il PIANO, in fondo a questa funzione e in
 		// `ResolveDash`, e quindi anche da fermo ([D-116] (3): «si paga l'impegno dichiarato»).
 		//
-		// ⚠️ **NON DECISO — stordita + sbilanciata con una corsa pianificata scrive DUE rifiuti in fase Move.** `ResolveDash` scrive in
-		// apertura la voce `Unbalanced` per la corsa negata ([D-319]) e questa guardia aggiunge `Stunned` (con `Action.Move`: la banda
-		// congelata sopra e' gia' quella senza corsa, perche' l'unita' e' sbilanciata). Nel Dash l'incrocio e' deciso — vince lo
-		// stordimento, una voce sola — ma sul Move nessuna fonte lo decide: lo stato di fatto e' fissato da
-		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesTwoRefusalsUntilDecided` e si rovescia se si decide per una voce.
-		// Conseguenza concreta di "vince lo stordimento": saltato il rifiuto `Unbalanced` di `ResolveDash`, la voce rimasta nomina
-		// `Action.Move` (la banda e' gia' degradata da `bRunDenied`) e si perde la traccia che era stata dichiarata una corsa; per
-		// questo il pin fissa i due `ActionId` e non solo il conteggio.
+		// 🔑 **Stordita + sbilanciata con una corsa pianificata: UNA voce, questa** (risposta d'autore del 2026-11-03: «una voce»). Vince
+		// lo stordimento come nel Dash: `ResolveDash` non scrive la voce `Unbalanced` per la corsa negata ([D-319]) a chi e' gia'
+		// stordito quando la fase Dash si apre (`ARTUnit::PlannedNormalMoveDeniedByStun()`, la domanda che pone anche questa guardia),
+		// e resta la voce `Stunned`. Nomina `Action.Move`: la banda congelata sopra e' gia' quella senza corsa, perche' l'unita' e'
+		// sbilanciata, quindi si perde la traccia che era stata dichiarata una corsa. Fissato da
+		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal`.
+		//
+		// ⚠️ **Resta aperto il caso dello stun nato nel Blast di T**: la voce `Unbalanced` si scrive prima del Blast, quando l'unita'
+		// non e' ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`: DUE voci, non decise
+		// (`Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
 		const bool bNegataDalloStordimento = Unit->PlannedNormalMoveDeniedByStun();
 		if (bNegataDalloStordimento)
 		{

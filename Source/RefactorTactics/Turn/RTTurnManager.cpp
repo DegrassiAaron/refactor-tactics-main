@@ -5001,6 +5001,29 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
+		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' UNA** ([D-569], `#3973`). Alla domanda
+		// posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince lo
+		// stordimento come nel Dash oppure restano due voci? — la risposta e' stata «una voce». Quella che resta e' la `Fallback`/
+		// `Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si scrive.
+		//
+		// 🔑 **Il criterio e' `ARTUnit::PlannedNormalMoveDeniedByStun()`**, la domanda che `BeginMovementResolution` pone per scrivere
+		// la voce `Stunned` ([D-471]: una regola, tanti lettori) e lo stesso esito che il Dash ha gia' per questo incrocio (sotto,
+		// «PRIMA del rifiuto per `Unbalanced`»).
+		//
+		// ⚠️ **Si perde la traccia che era stata dichiarata una corsa**: la voce rimasta nomina `Action.Move`, perche' la banda
+		// congelata per chi e' sbilanciata e' gia' degradata da `bRunDenied`. E' la conseguenza che la domanda nominava.
+		//
+		// ⚠️ **Lo stato si legge ALLA FASE DEL DASH** ([D-569] (4)), cioe' prima del Blast. Chi e' stordita da prima del turno ha una
+		// voce sola; chi viene stordita DAL Blast di T non lo e' ancora qui: per lei la voce `Unbalanced` si scrive e `Stunned` segue
+		// in fase `Move`, DUE voci, e non e' deciso se anche li' debba essercene una sola (fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
+		//
+		// Saltare la voce non cambia altro: questo ciclo scrive solo la voce e la riga del combat log. Il divieto di reazione dello
+		// Sprint e' in `ReactionBlockedThisTurn` (sopra) e `Exposed` lo applica `BeginMovementResolution`, entrambi dal piano.
+		if (Unit->PlannedNormalMoveDeniedByStun())
+		{
+			continue;
+		}
 		// ⚠️ **Si chiede la banda SENZA il divieto**, cioe' quella che il piano produrrebbe se l'unita' non
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
