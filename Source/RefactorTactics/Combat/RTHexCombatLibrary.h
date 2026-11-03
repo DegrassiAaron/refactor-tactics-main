@@ -476,9 +476,13 @@ struct FRTHexBlastPlan
 	 * lock-in: aggiungerlo qui lo scriverebbe due volte. ⚠️ Non un riuso di `BlockedIntents`: nessuna linea di tiro e'
 	 * bloccata, e dirlo manderebbe a cercare un muro che non c'e'.
 	 *
-	 * ⚠️ **Un intento qui dentro e' un'azione PARTITA, e paga la ricarica** (decisione d'autore del 2026-10-31, [D-414]):
-	 * il click l'ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga. Il tiro a cella OLTRE la
-	 * portata dichiarata (e la distanza minima) NON e' qui dentro: il click lo rifiuta, e resta gratis.
+	 * ⚠️ **Questo insieme e' la TRACCIA, non il pagamento.** Raccoglie ogni tiro cappato dal Fumo, osservato o no: la voce di
+	 * TurnLog esce per tutti. Un tiro qui dentro paga la ricarica (decisione d'autore del 2026-10-31, [D-414], `R7`) solo se
+	 * la squadra NON vedeva il Fumo — il click ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga; se lo
+	 * vedeva il click rifiutava, ed e' gratis (decisione d'autore del 2026-11-03). Lo decide
+	 * `ARTTurnManager::ClassifyTerrainCappedPayment`, che riempie `FRTBlastContext::TerrainCappedPayingIntents`: questa
+	 * libreria e' geometria pura e non conosce le squadre. Il tiro a cella OLTRE la portata dichiarata (e la distanza
+	 * minima) NON e' qui dentro: il click lo rifiuta, e resta gratis.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> TerrainCappedIntents;

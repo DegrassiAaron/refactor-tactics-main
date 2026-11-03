@@ -378,8 +378,9 @@ struct FRTBlastContext
 	// la regola per gli intenti gia' nati sta anche nelle clausole di `IntentoPartitoSenzaColpo` e nel lambda `AzionePartita`.
 	// ➕ [D-571] (RIC-3): il bersaglio-unita' fuori portata SOLO per il cap del Fumo NON osservato paga
 	// (`FuoriPortataSoloPerIlTerreno`, accanto alla tabella: `OutOfRange` non puo' stare nella tabella perche' oltre la
-	// portata dichiarata, o dietro un Fumo noto, il click rifiuta); il
-	// bersaglio-unita' morto di `ModifyArc` e delle azioni ambientali paga nei loro siti, non da qui.
+	// portata dichiarata, o dietro un Fumo noto, il click rifiuta); e con la stessa regola, la stessa mappa e la stessa
+	// funzione paga il tiro a CELLA cappato dal Fumo (`R7`, decisione d'autore del 2026-11-03: `TerrainCappedPayingIntents`,
+	// qui sotto); il bersaglio-unita' morto di `ModifyArc` e delle azioni ambientali paga nei loro siti, non da qui.
 	//
 	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive
 	// `SpendStartedAbilities`. Spostarla al piano definitivo e' il punto 3 di [D-414], non deciso.
@@ -391,6 +392,19 @@ struct FRTBlastContext
 	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.
 	 */
 	TSet<int32> UnhitPayableIntents;
+
+	/**
+	 * I tiri a CELLA cappati dal Fumo (`FRTHexBlastPlan::TerrainCappedIntents`) che il click avrebbe ACCETTATO, e che quindi
+	 * pagano (`R7`, [D-563] (2): «cappato dal Fumo non osservato»; decisione d'autore del 2026-11-03). Sottoinsieme di
+	 * `Plan.TerrainCappedIntents`: la voce di TurnLog `Fallback`/`Cancelled`/`OutOfRange` esce per TUTTI i tiri cappati, il
+	 * pagamento solo per questi.
+	 *
+	 * 🔑 **Lo riempie `ClassifyTerrainCappedPayment`, subito dopo `CollectHexAttacks`, e lo legge `IntentoPartitoSenzaColpo`.**
+	 * Vive nel contesto e non nel piano perche' il piano e' geometria pura, senza conoscenza di squadra: la domanda «il click
+	 * di QUESTA squadra vedeva il cap?» e' del TurnManager, che ha `TeamKnowledgeState`. ⚠️ Solo `Contains`: l'ordine di un
+	 * `TSet` non decide niente (si riempie iterando `TerrainCappedIntents`, che `CollectHexAttacks` ordina).
+	 */
+	TSet<int32> TerrainCappedPayingIntents;
 
 	/**
 	 * Azioni d'attacco partite che NON hanno un intento (`R6`: bersaglio-unita' gia' morto, annullato dal fallback

@@ -404,10 +404,11 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			// Fuori portata. Per il cap del TERRENO su un tiro a cella, entro la portata dichiarata, il silenzio non e'
 			// piu' accettabile (`#2794`, [D-465] punto (3)): il click del giocatore legge la mappa ottimistica, quindi
 			// un Fumo mai osservato non l'ha fermato in planning e qui il tiro sparisce. Ha una voce, non un colpo.
-			// ⚠️ **Il codice qui sotto e' PIU' LARGO del commento** (verificato il 2026-11-03, [D-571] RIC-3): non
-			// guarda la conoscenza di squadra, quindi riempie `TerrainCappedIntents` — e il tiro paga, `R7` — anche per
-			// un Fumo OSSERVATO, dove il click a cella, che legge la stessa mappa ottimistica, vedrebbe il cap e
-			// rifiuterebbe. E' una causa gia' decisa e attuata e non si tocca qui: `BLOCKED — DECISION REQUIRED` in `RIC-3`.
+			// ⚠️ **Qui si raccoglie OGNI tiro cappato, osservato o no**: la geometria e' pura e non conosce le squadre, e la voce
+			// di TurnLog `OutOfRange` esce per tutti. Chi decide quali PAGANO (`R7`, [D-563] (2): «cappato dal Fumo non
+			// osservato») e' `ARTTurnManager::ClassifyTerrainCappedPayment`, che ha la conoscenza di squadra: un tiro cappato da
+			// un Fumo che il click vedeva (e rifiutava) e' gratis, uno cappato da un Fumo che non vedeva paga (decisione d'autore
+			// del 2026-11-03). ⌫ *Fino ad allora ogni intento di questo insieme pagava, anche col Fumo osservato.*
 			if (!bTargetsUnit && Intent.bCountsAsAttack
 				&& URTHexLibrary::HexDistance(Attacker.Cell, AimCell) <= Intent.RangeCells)
 			{

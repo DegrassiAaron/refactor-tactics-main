@@ -1700,11 +1700,12 @@ public:
 	 *
 	 * 🔑 **E' la stessa copia che `AttachPlanningMap` consegna a `FindPath`**: click, portata viola e percorso ricevono
 	 * la stessa vista, che e' cio' che [D-465] punto (3) chiede. ⛔ La Resolution, la validazione al lock-in e i bot non
-	 * la chiamano e restano sulla mappa autorevole — **salvo UN lettore nella Resolution**, aggiunto il 2026-11-03 da
-	 * [D-571] (RIC-3): `FuoriPortataSoloPerIlTerreno` in `RTTurnManager_Blast.cpp` la chiama SOLO per classificare un
-	 * pagamento di ricarica (il bersaglio-unita' fuori portata per un Fumo che il click non vedeva). Non tocca colpi,
-	 * movimento ne' percorsi, che restano autorevoli. ⚠️ **E' un CONTRACT CONFLICT con [D-534] (2), non risolto**: vedi
-	 * `RIC-3` in `docs/OPEN_DECISIONS.md` (`BLOCKED — DECISION REQUIRED`).
+	 * la chiamano e restano sulla mappa autorevole — **salvo UN lettore nella Resolution**, ammesso dall'autore il
+	 * 2026-11-03 ([D-571], RIC-3): `ClickMapForPaymentClassification` la chiama SOLO per classificare un pagamento di
+	 * ricarica (un'azione cappata dal Fumo che il click non vedeva: il bersaglio-unita' fuori portata e il tiro a cella,
+	 * `R7`). Non tocca colpi, movimento ne' percorsi, che restano autorevoli. ✅ **E' un'eccezione STRETTA a [D-534] (2)**,
+	 * decisa dall'autore («solo se il fumo non c'e' quando si spara»): un lettore, un solo scopo. ⚠️ Un secondo lettore
+	 * o un secondo scopo e' una nuova eccezione, e va deciso.
 	 */
 	const URTHexMapAsset* PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative);
 
@@ -1897,6 +1898,31 @@ protected:
 	 * prima di sparare. Osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
 	 */
 	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
+
+	/**
+	 * La mappa su cui il click di `TeamId` ha giudicato la portata, per CLASSIFICARE UN PAGAMENTO di ricarica.
+	 *
+	 * 🔴 **E' l'UNICO lettore di `PlanningMapFor` dentro la Resolution, e ha UN solo scopo**: decidere se un'azione partita
+	 * senza colpo e' stata cappata dal Fumo che la squadra NON vedeva (il click, sulla mappa ottimistica, ha accettato: si
+	 * paga) o da un Fumo che vedeva (il click rifiutava: gratis). Decisione d'autore del 2026-11-03, **eccezione scritta a
+	 * [D-534] (2)** («Resolution resta onnisciente»): colpi, movimento e percorsi restano sulla mappa autorevole, e questa
+	 * funzione non li serve. Lo chiamano due siti, ciascuno per la propria forma di bersaglio: il bersaglio-unita' in
+	 * `CollectAttackIntents` (via `FuoriPortataSoloPerIlTerreno`) e il tiro a cella in `ClassifyTerrainCappedPayment`.
+	 *
+	 * ⚠️ **Un altro lettore, o un altro scopo, e' una nuova eccezione a D-534 (2) e va deciso**: non si aggiunge una
+	 * chiamata a `PlanningMapFor` nella Resolution senza che l'autore l'abbia ammessa.
+	 */
+	const URTHexMapAsset* ClickMapForPaymentClassification(int32 TeamId, const URTHexMapAsset* Authoritative);
+
+	/**
+	 * Per ogni tiro a CELLA cappato dal Fumo (`Plan.TerrainCappedIntents`), dice se il click della squadra di chi tira lo avrebbe
+	 * accettato, e riempie `Ctx.TerrainCappedPayingIntents` con quelli che si PAGANO (`R7`, decisione d'autore del 2026-11-03).
+	 * Chiamata subito dopo `CollectHexAttacks`, e prima di `ApplyInterrupts`: il predicato di pagamento
+	 * (`IntentoPartitoSenzaColpo`) deve vedere il tiro anche quando un Interrupt lo annulla.
+	 *
+	 * La voce di TurnLog `OutOfRange` di questi tiri NON dipende da qui: la scrive il Blast per tutti i tiri cappati.
+	 */
+	void ClassifyTerrainCappedPayment(FRTBlastContext& Ctx);
 
 	/**
 	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-380]).
@@ -3143,9 +3169,10 @@ protected:
 	 * interazioni. Non entra in nessuno stato canonico, snapshot serializzato, replay o hash.
 	 *
 	 * ⚠️ **La copia non entra in nessuno stato canonico, ma dal 2026-11-03 il suo RISULTATO si': un lettore nella
-	 * Resolution (`FuoriPortataSoloPerIlTerreno`, [D-571]) la usa per decidere se una ricarica si paga, e la ricarica
-	 * entra in `FRTUnitStateDigest`.** Cio' che e' deterministico e' la chiave (mappa, revisione, squadra e conoscenza di
-	 * squadra), non il puntatore: il contenuto della cache non cambia l'esito.
+	 * Resolution (`ClickMapForPaymentClassification`, [D-571] e decisione d'autore del 2026-11-03) la usa per decidere se
+	 * una ricarica si paga, e la ricarica entra in `FRTUnitStateDigest`.** Cio' che e' deterministico e' la chiave (mappa,
+	 * revisione, squadra e conoscenza di squadra), non il puntatore: il contenuto della cache non cambia l'esito, e lo
+	 * scambio di squadra fra due chiamate (la cache e' a slot singolo) costa solo una ricostruzione.
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<URTHexMapAsset> PlanningMapCache;

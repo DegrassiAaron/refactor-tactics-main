@@ -6063,6 +6063,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
 
+	// `R7`: quali tiri a cella cappati dal Fumo si pagano (quelli che il click della squadra avrebbe accettato). Subito dopo la
+	// raccolta, che ne produce l'insieme, e prima di `ApplyInterrupts`, che ne legge il pagamento.
+	ClassifyTerrainCappedPayment(Ctx);
+
 	// Alias sui campi del contesto: il resto della fase non e' ancora estratto e continua a leggerli con i
 	// nomi che avevano da variabili locali. Sono RIFERIMENTI, non copie: nessun cambio di semantica. Ogni
 	// alias sparisce quando il pass che lo usa diventa un metodo, e quando non ne resta nessuno questa
