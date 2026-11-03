@@ -477,9 +477,10 @@ struct FRTHexBlastPlan
 	 * bloccata, e dirlo manderebbe a cercare un muro che non c'e'.
 	 *
 	 * ⚠️ **Questo insieme e' la TRACCIA, non il pagamento.** Raccoglie ogni tiro cappato dal Fumo, osservato o no: la voce di
-	 * TurnLog esce per tutti. Un tiro qui dentro paga la ricarica (decisione d'autore del 2026-10-31, [D-414], `R7`) solo se
-	 * la squadra NON vedeva il Fumo — il click ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga; se lo
-	 * vedeva il click rifiutava, ed e' gratis (decisione d'autore del 2026-11-03). Lo decide
+	 * TurnLog esce per tutti. Un tiro qui dentro paga la ricarica (`R7`, [D-563] (2), confermata dall'autore il 2026-11-01:
+	 * l'applicazione ai tiri cappati di «se si usa una abilita' si paga», [D-414]) solo se la squadra NON vedeva il Fumo — il
+	 * click ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga; se lo vedeva il click rifiutava, ed e'
+	 * gratis (decisione d'autore del 2026-11-03). Lo decide
 	 * `ARTTurnManager::ClassifyTerrainCappedPayment`, che riempie `FRTBlastContext::TerrainCappedPayingIntents`: questa
 	 * libreria e' geometria pura e non conosce le squadre. Il tiro a cella OLTRE la portata dichiarata (e la distanza
 	 * minima) NON e' qui dentro: il click lo rifiuta, e resta gratis.

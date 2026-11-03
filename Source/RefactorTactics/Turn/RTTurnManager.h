@@ -1906,11 +1906,16 @@ protected:
 	 * senza colpo e' stata cappata dal Fumo che la squadra NON vedeva (il click, sulla mappa ottimistica, ha accettato: si
 	 * paga) o da un Fumo che vedeva (il click rifiutava: gratis). Decisione d'autore del 2026-11-03, **eccezione scritta a
 	 * [D-534] (2)** («Resolution resta onnisciente»): colpi, movimento e percorsi restano sulla mappa autorevole, e questa
-	 * funzione non li serve. Lo chiamano due siti, ciascuno per la propria forma di bersaglio: il bersaglio-unita' in
-	 * `CollectAttackIntents` (via `FuoriPortataSoloPerIlTerreno`) e il tiro a cella in `ClassifyTerrainCappedPayment`.
+	 * funzione non li serve. Lo chiamano `CollectAttackIntents` (via `FuoriPortataSoloPerIlTerreno`) per il
+	 * bersaglio-unita' e `ClassifyTerrainCappedPayment` per il tiro a cella, ciascuno per la propria forma di bersaglio.
 	 *
 	 * ⚠️ **Un altro lettore, o un altro scopo, e' una nuova eccezione a D-534 (2) e va deciso**: non si aggiunge una
 	 * chiamata a `PlanningMapFor` nella Resolution senza che l'autore l'abbia ammessa.
+	 *
+	 * ⛔ **Tempo di vita del puntatore**: valido SOLO fino alla chiamata successiva con una chiave diversa. La cache di
+	 * `PlanningMapFor` e' a slot singolo (`PlanningMapCache`), e ricostruirla per un'altra squadra rilascia la copia nominata
+	 * dal puntatore. I siti lo usano subito, nella stessa espressione che ne trae un `bool`; chi lo conservasse (per squadra, o
+	 * fra due chiamate) lo troverebbe pendente.
 	 */
 	const URTHexMapAsset* ClickMapForPaymentClassification(int32 TeamId, const URTHexMapAsset* Authoritative);
 

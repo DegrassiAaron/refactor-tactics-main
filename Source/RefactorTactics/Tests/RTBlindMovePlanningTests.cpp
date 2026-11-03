@@ -232,7 +232,10 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 	TestEqual(TEXT("ClassifyWaypointCell non rifiuta la cella mai osservata"),
 		URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, BlindMoveWall), ERTHexWaypointReason::Ok);
 
-	// La copia si RIUSA finche' nulla cambia, e non nasce per la Resolution ne' per i bot.
+	// La copia si RIUSA finche' nulla cambia. `Snapshot.PlanningMap` non nasce per la Resolution ne' per i bot: i colpi, il movimento e
+	// i percorsi della Resolution restano sulla mappa autorevole. ⚠️ La Resolution legge pero' la copia (`PlanningMapCache`, via
+	// `ClickMapForPaymentClassification`) per UN solo scopo, classificare un pagamento di ricarica: eccezione stretta a [D-534] (2),
+	// decisa dall'autore il 2026-11-03.
 	const URTHexMapAsset* First = Snapshot.PlanningMap;
 	TM->AttachPlanningMap(Snapshot, Unit->TeamId);
 	TestTrue(TEXT("una seconda richiesta con la stessa conoscenza riusa la copia"), Snapshot.PlanningMap == First);
@@ -267,9 +270,12 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 // Fetta B — Resolution con il muro VERO
 // =========================================================================================================
 //
-// La mappa ottimistica serve a pianificare; la Resolution resta onnisciente e non la vede. Il giocatore porta un
-// `PlannedPath`, quindi Resolution lo cammina e `TruncatePathToTopology` lo ferma dove la verita' lo ferma. Un bot
-// non lo porta (`PlannedPath.Reset()`), e Resolution lo ricalcola: e' il motivo per cui [D-534] lo lascia fuori.
+// La mappa ottimistica serve a pianificare; la Resolution resta onnisciente per i colpi, il movimento e i percorsi, e per
+// questi non la vede. ⚠️ Un solo lettore la legge dentro la Resolution (`ClickMapForPaymentClassification`), solo per
+// classificare un pagamento di ricarica: eccezione stretta a [D-534] (2), decisa dall'autore il 2026-11-03; qui si misura
+// il movimento, che quel lettore non attraversa. Il giocatore porta un `PlannedPath`, quindi Resolution lo cammina e
+// `TruncatePathToTopology` lo ferma dove la verita' lo ferma. Un bot non lo porta (`PlannedPath.Reset()`), e Resolution lo
+// ricalcola: e' il motivo per cui [D-534] lo lascia fuori.
 
 namespace
 {

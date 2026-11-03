@@ -392,7 +392,7 @@ namespace
 	 * quindi la sola cosa che varia e' se la squadra lo conosceva: se non lo vedeva il click accettava e si paga, se lo
 	 * vedeva il click rifiutava ed e' gratis. La Resolution legge la mappa del click SOLO per classificare un pagamento di
 	 * ricarica, e il lettore e' UNO, con UN solo scopo: `ClickMapForPaymentClassification`. La cache resta fuori dallo stato
-	 * canonico e l'errore di conoscenza va solo verso il gratis (colpi e movimento restano autorevoli; il residuo del tiro a
+	 * canonico e l'errore di conoscenza va di norma verso il gratis (colpi e movimento restano autorevoli; il residuo del tiro a
 	 * cella e' in `ClassifyTerrainCappedPayment`); il risultato decide una ricarica, che entra in `FRTUnitStateDigest` e la
 	 * vedono anche le squadre bot.
 	 *
@@ -403,10 +403,18 @@ namespace
 	 * ⚠️ **Approssimazione dichiarata, e il verso dell'errore**: la conoscenza di squadra e' quella del Blast, non quella della
 	 * pianificazione. Le celle esplorate non si perdono, quindi la conoscenza del Blast CONTIENE quella del click: un Fumo che
 	 * una cella diventa nota durante il turno (uno scatto che la mette in vista) si legge osservato e resta gratis anche se il
-	 * click, in pianificazione, lo ignorava. L'errore va sempre nel verso del gratis, mai in quello di un pagamento indebito.
-	 * ⚠️ **E non distingue il caso dello scatto fermato**: se l'origine di chi agisce non e' quella con cui il click ha
-	 * giudicato, il predicato non sa che il click avrebbe potuto accettare. Quel caso e' gratis ed e' dichiarato
-	 * (`Actions.Blast.UndecidedCausesStayFree`, `BLOCKED — DECISION REQUIRED`).
+	 * click, in pianificazione, lo ignorava (pinnato per il tiro a cella dalla riga «il compagno scatta e mette il Fumo in vista»
+	 * di `Actions.Blast.UndecidedCausesStayFree`, campanello). Di norma l'errore va nel verso del gratis, e non in quello di un
+	 * pagamento indebito.
+	 * ⚠️ **«Osservato» e' quello della mappa del click, non «in vista adesso»**: una cella esplorata ma ora fuori vista conserva
+	 * il contenuto ATTUALE (D-534 (3), `Q4`), quindi un Fumo nato dopo l'esplorazione si legge e il click rifiuta. Il criterio
+	 * dell'autore e' il click, e il codice lo segue; la lettera «non lo vedeva la squadra» diverge qui (pinnato, per il tiro a
+	 * cella e per il bersaglio-unita', in `Actions.Blast.UndecidedCausesStayFree`).
+	 * ⚠️ **L'origine di chi agisce puo' differire da quella del click, e lo scarto NON e' dimostrato verso il gratis**: il click
+	 * giudica da `AimOriginFor(ResolutionPhase)`, la cella d'arrivo dello scatto PIANIFICATO; il Blast misura da `Attacker.Cell`,
+	 * dove lo scatto e' davvero arrivato. Con uno scatto fermato o spostato le due origini possono differire, e la distanza
+	 * contro il cap puo' dare un verdetto diverso nei due versi: non e' misurato. E' il `BLOCKED — DECISION REQUIRED` «scatto
+	 * fermato» (`Actions.Blast.UndecidedCausesStayFree`), che resta gratis.
 	 */
 	bool FuoriPortataSoloPerIlTerreno(ERTActionInvalidReason Motivo, const URTHexMapAsset* MappaDelClick,
 		const FRTCellId& Da, const FRTCellId& Mira, int32 PortataDichiarata)
@@ -524,11 +532,17 @@ const URTHexMapAsset* ARTTurnManager::ClickMapForPaymentClassification(int32 Tea
 	// ⚠️ **La conoscenza e' quella del Blast** (`TeamKnowledgeState`, rinfrescata da `RefreshTeamKnowledgeForBlast` prima di
 	// ogni raccolta), la STESSA su cui `CollectAttackIntents` e il congelamento dei verdetti ([D-223]) gia' decidono: non
 	// c'e' una seconda fonte di conoscenza. Contiene quella con cui il click ha giudicato (le celle esplorate non si perdono),
-	// quindi l'errore va solo verso il gratis.
+	// quindi di norma l'errore va verso il gratis (con le eccezioni dichiarate in `FuoriPortataSoloPerIlTerreno`).
 	//
 	// ⚠️ **Dipende solo da `(Authoritative, TeamId, TeamKnowledgeState)`, non dalla storia delle chiamate**: la cache e' a
 	// slot singolo e la sua chiave contiene mappa, revisione, squadra e le due liste di celle, quindi un click del giocatore
 	// fra due chiamate (live) o la sua assenza (replay) sposta al piu' una ricostruzione, mai l'esito.
+	//
+	// ⛔ **TEMPO DI VITA DEL PUNTATORE**: e' valido SOLO fino alla chiamata successiva con una chiave diversa. La cache di
+	// `PlanningMapFor` e' a slot singolo (`PlanningMapCache`): ricostruirla per un'altra squadra rilascia la copia che questo
+	// puntatore nomina, e il GC puo' raccoglierla. I due siti lo usano SUBITO, dentro la stessa espressione che ne trae un
+	// `bool`; nessuno lo conserva. Una futura ottimizzazione che tenga una mappa per squadra (o un puntatore fra due chiamate)
+	// lo renderebbe pendente: dovrebbe tenere la propria copia viva, non fidarsi di questa.
 	return PlanningMapFor(TeamId, Authoritative);
 }
 
