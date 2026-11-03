@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTActionQueueLibrary.h"    // SortUnitsForResolution: la premessa sull'ordine in cui il Blast passa le unita' (#2922)
 #include "Turn/RTMatchStateHash.h"        // HashMatchState: lo stato finale identico se cambia solo l'ordine di creazione degli Actor
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
@@ -659,6 +660,7 @@ namespace
 		bool bFumoEsploratoFuoriVista = false; //< la cella del Fumo e' in `ExploredCells` e NON in `VisibleCells`: la squadra non la vede, la mappa del click la LEGGE (D-534 (3), `Q4`)
 		bool bCompagnoLontano = false;         //< un compagno (vista 0) a tre celle dal Fumo: in pianificazione NON lo vede, e non cambia niente se resta fermo
 		bool bCompagnoScatta = false;          //< solo con `bCompagnoLontano`: il compagno scatta di due celle verso il Fumo, lo mette in vista nel Blast e non in pianificazione
+		bool bCompagnaPressoLaMira = false;    //< solo `AttaccoACella`: una compagna (vista 0) a tre celle dalla mira, in una cella che ordina DOPO chi tira: la sua cella non e' quella di chi tira
 	};
 
 	/** Che cosa il click fa della scena: `ND` = non c'e' niente da cliccare, o il click non puo' nemmeno armare l'azione. */
@@ -686,6 +688,7 @@ namespace
 		// codice pagava): la decisione ha reso `R7` fedele al proprio testo, e quella riga e' ora una regola come le altre.*
 		bool bConflittoNoto = false; //< il click accetta e la regola non fa pagare: pin di una decisione aperta, non una regola
 		bool bSenzaEquivalenza = false; //< chi agisce cade FRA il click e il Blast: la guardia di vita decide, non il click
+		bool bAttoreNonUltimo = false;  //< solo `AttaccoACella`: un'altra unita' ordina DOPO chi tira (altrimenti chi tira e' l'ultima)
 		int32 CopertureRifiutate = 0; //< voci `CoverRejected` del turno
 		int32 CopertureErette = 0;    //< voci `CoverCreated` del turno
 		bool bControllaBordo = false; //< solo `CreateCover`: il click ha scritto il lato?
@@ -711,6 +714,7 @@ namespace
 		int32 CopertureRifiutate = 0;
 		int32 CopertureErette = 0;
 		bool bBordoDopoIlClick = false;
+		bool bAttoreUltimo = false; //< solo `AttaccoACella`: chi tira e' l'ULTIMO nell'ordine di `SortUnitsForResolution` (premessa dell'origine)
 		FRTCellId CellaDelBersaglioDopo;
 	};
 
@@ -872,6 +876,25 @@ namespace
 				}
 			}
 
+			// Una compagna a TRE celle dalla mira, in (X della mira, -3, 0): la sua cella ordina DOPO quella di chi tira (la X della mira
+			// e' maggiore di 0) e la linea dalla sua cella alla mira (la stessa colonna) non incontra il Fumo, che sta sull'asse di chi
+			// tira. Un'origine sbagliata — la cella dell'ULTIMA unita' dell'ordine invece di quella di chi tira — vedrebbe una linea
+			// senza Fumo e a distanza 3: la portata efficace basterebbe e il tiro pagherebbe anche col Fumo osservato, dove
+			// dall'origine vera il click rifiuta. A tre celle (e non a una) la compagna non vede il Fumo in (3,0,0), vicino alla mira,
+			// quindi il controllo col Fumo NON osservato resta tale.
+			if (S.bCompagnaPressoLaMira)
+			{
+				ARTUnit* Compagna = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(CellaBersaglio.X, -3, 0));
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: compagna presso la mira"), Nome), Compagna)
+					|| !Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la compagna e' a tre celle dalla mira"), Nome),
+						URTHexLibrary::HexDistance(Compagna->Cell, CellaBersaglio), 3))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				Compagna->VisionRange = 0;
+			}
+
 			if (S.Azione == ERic3Azione::AttaccoDopoScattoFermato)
 			{
 				// `Action.Reposition`: uno scatto lineare di 2 celle SENZA impatto ne' effetti. Sulla cella d'arrivo, se c'e'
@@ -1004,6 +1027,25 @@ namespace
 
 		if (S.bAttoreCaduto) { Attore->Health = 0; } // arriva al Blast col piano ancora addosso
 
+		if (S.Azione == ERic3Azione::AttaccoACella)
+		{
+			// 🔑 **PREMESSA SULL'ORDINE DI RISOLUZIONE** (come nel banco di `CoverTieRealOrder`: la funzione vera, `SortUnitsForResolution`,
+			// sulle unita' del mondo). `Ctx.HexUnits` nasce da quest'ordine (`GatherBlastUnits`), e il tiro a cella cappato misura DA
+			// `Attacker.Cell`, cioe' dalla cella di chi tira, e non da un'altra unita'. Una riga in cui chi tira e' l'ULTIMO dell'ordine
+			// non distingue `Attacker.Cell` da `HexUnits.Last().Cell`: ogni riga dichiara se lo e' (`bAttoreNonUltimo`), e questa
+			// misura l'ordine invece di darlo per scontato. ⚠️ L'ordine e' quello PRE-scatto: l'unico scatto dei banchi (il compagno)
+			// sposta la sola Y, e la prima chiave dopo il piano e' la X.
+			TArray<AActor*> Attori;
+			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Attori);
+			TArray<ARTUnit*> Ordine;
+			for (AActor* A : Attori)
+			{
+				if (ARTUnit* U = Cast<ARTUnit>(A)) { Ordine.Add(U); }
+			}
+			URTActionQueueLibrary::SortUnitsForResolution(Ordine);
+			Esito.bAttoreUltimo = Ordine.Num() > 0 && Ordine.Last() == Attore;
+		}
+
 		const int32 ArchiPrima = MapActor->MapAsset->Transitions.Num();
 		const TWeakObjectPtr<ARTUnit> AttoreDebole(Attore);
 		PagaRunTurn(TM);
@@ -1086,6 +1128,13 @@ namespace
 			{
 				Test.TestEqual(*FString::Printf(TEXT("%s: il click accetta <=> l'azione paga"), *Etichetta), bAccetta, E.bHaPagato);
 			}
+		}
+		if (S.Azione == ERic3Azione::AttaccoACella)
+		{
+			// L'origine del tiro cappato e' la cella di chi tira, non quella dell'ultima unita' dell'ordine di risoluzione: la riga
+			// dichiara se le due coincidono, e la misura (`SortUnitsForResolution` sulle unita' del mondo).
+			Test.TestEqual(*FString::Printf(TEXT("%s: premessa: chi tira e' l'ultima unita' nell'ordine di risoluzione?"), *Etichetta),
+				E.bAttoreUltimo, !A.bAttoreNonUltimo);
 		}
 		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: coperture erette"), *Etichetta), E.CopertureErette, A.CopertureErette);
 		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: coperture rifiutate"), *Etichetta), E.CopertureRifiutate, A.CopertureRifiutate);
@@ -1382,6 +1431,10 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
  * - bersaglio-UNITA' o tiro a CELLA dietro un Fumo ESPLORATO ma FUORI VISTA: «osservato» per la mappa del click e'
  *   `ExploredCells` U `VisibleCells`, e una cella esplorata conserva il contenuto ATTUALE (D-534 (3), `Q4`). Il click legge il
  *   Fumo e rifiuta: gratis, anche se la squadra «non l'ha mai visto». Il criterio dell'autore e' il click, non la lettera;
+ * - tiro a CELLA con una compagna che ordina DOPO chi tira: l'origine del tiro cappato e' la cella di chi tira
+ *   (`Attacker.Cell`), non quella dell'ultima unita' dell'ordine di risoluzione. Le righe di `R7` dichiarano e MISURANO se chi
+ *   tira e' l'ultima (`bAttoreNonUltimo`); con la compagna a tre celle dalla mira, un'origine sbagliata farebbe pagare il tiro
+ *   anche col Fumo osservato;
  * - **DA DECIDERE, e gratis oggi — il Fumo messo in vista dallo scatto di un compagno** (tiro a cella): il click ha accettato
  *   perche' in pianificazione il Fumo era ignoto, ma la conoscenza del Blast (posizioni post-Dash) lo contiene;
  * - bersaglio ALLEATO: per un'unita' comandabile il click non bersaglia ma SELEZIONA (`ResolveOutcome`); ⚠️ per un
@@ -1502,17 +1555,49 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		Fermo.Visione = 0;
 		Fermo.FumoX = 3;
 		Fermo.bCompagnoLontano = true;
+		FRic3Atteso AttesoFermo = Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
+		AttesoFermo.bAttoreNonUltimo = true; // il compagno ordina dopo chi tira (X = FumoX = 3)
 		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo NON osservato, compagno lontano e fermo"), TEXT("controllo"), Fermo,
-			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange),
+			AttesoFermo,
 			TEXT("il compagno non vede il Fumo ne' in pianificazione ne' nel Blast: il click accetta e R7 paga"))) { return false; }
 
 		FRic3Scena Scatta = Fermo;
 		Scatta.bCompagnoScatta = true;
 		FRic3Atteso AttesoScatta = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
 		AttesoScatta.bConflittoNoto = true;
+		AttesoScatta.bAttoreNonUltimo = true;
 		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, il compagno scatta e mette il Fumo in vista"), TEXT("caso"), Scatta,
 			AttesoScatta,
 			TEXT("DA DECIDERE — il click accetta (il Fumo e' ignoto in pianificazione), ma nel Blast il Fumo e' in vista: gratis"))) { return false; }
+	}
+
+	// --- l'ORIGINE del tiro cappato e' la cella di CHI TIRA, non quella dell'ultima unita' dell'ordine ------------
+	{
+		// Il predicato misura da `Attacker.Cell` (`Ctx.HexUnits[Intent.AttackerId]`). Nelle altre righe di `R7` chi tira e' spesso
+		// l'ULTIMA unita' di `SortUnitsForResolution`, e allora `Attacker.Cell` e `HexUnits.Last().Cell` coincidono: un'origine
+		// sbagliata non farebbe cadere niente. Qui una compagna a tre celle dalla mira ordina DOPO chi tira (premessa MISURATA dalla
+		// riga: `bAttoreNonUltimo`), e dalla sua cella la linea fino alla mira non incontra il Fumo. Il controllo e' la STESSA scena
+		// col Fumo NON osservato: dall'origine vera il click accetta e il tiro paga, con o senza la compagna.
+		FRic3Scena Controllo;
+		Controllo.Azione = ERic3Azione::AttaccoACella;
+		Controllo.Bersaglio = ERic3Bersaglio::Assente;
+		Controllo.Distanza = 4;
+		Controllo.Visione = 0;
+		Controllo.FumoX = 3; // fuori dall'intorno di chi tira e della compagna (a tre celle da (3,0,0))
+		Controllo.bCompagnaPressoLaMira = true;
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
+		AttesoControllo.bAttoreNonUltimo = true;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo NON osservato, compagna che ordina dopo"), TEXT("controllo"), Controllo,
+			AttesoControllo,
+			TEXT("la compagna non cambia niente: dall'origine vera il click accetta e R7 paga"))) { return false; }
+
+		FRic3Scena Caso = Controllo;
+		Caso.FumoX = 1; // nell'intorno di chi tira: OSSERVATO
+		FRic3Atteso AttesoCaso = Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange);
+		AttesoCaso.bAttoreNonUltimo = true;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo OSSERVATO, compagna che ordina dopo"), TEXT("caso"), Caso,
+			AttesoCaso,
+			TEXT("dall'origine vera (chi tira) il click vede il cap e rifiuta: gratis. Da quella dell'ultima unita' pagherebbe"))) { return false; }
 	}
 
 	// --- bersaglio alleato -------------------------------------------------------------------------
