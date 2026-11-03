@@ -128,7 +128,8 @@ namespace
 		LineaBloccata,          //< R4  linea di tiro bloccata a risoluzione (BlockedIntents)
 		AltroPiano,             //< R5  mira su un altro piano (OtherLayerIntents)
 		BersaglioMorto,         //< R6  bersaglio-unita' gia' morto prima del Blast (TargetDead)
-		TiroCappatoDalFumo,     //< R7  tiro a cella cappato dal Fumo (TerrainCappedIntents; il testo dice «non osservato», il codice no: qui il Fumo e' in (1,0,0), OSSERVATO)
+		TiroCappatoDalFumo,     //< R7  tiro a cella cappato da un Fumo NON osservato (TerrainCappedIntents): il Fumo e' in (3,0,0), fuori dall'intorno di chi tira (vista 0), la mira alla portata
+		TiroCappatoDalFumoOsservato, //< controllo di R7: lo STESSO cap ma con il Fumo in (1,0,0), OSSERVATO: il click lo vede e rifiuta
 		InterrottaSenzaColpi,   //< R8  azione in portata annullata da Action.Interrupt, senza colpi
 		InterruptBloccato,      //< R4  l'INTERRUPT come attore: il bersaglio-unita' sta dietro un muro (confermato dall'autore il 2026-11-01)
 		NonAggressivaBloccata,  //< la clausola `bCountsAsAttack` di `IntentoPartitoSenzaColpo`: bloccata dal muro, NON paga
@@ -173,6 +174,7 @@ namespace
 		case EPagaCausa::AltroPiano:            A.AltroPiano = 1; break;
 		case EPagaCausa::BersaglioMorto:        A.BersaglioMorto = 1; break;
 		case EPagaCausa::TiroCappatoDalFumo:    A.FuoriPortata = 1; break;
+		case EPagaCausa::TiroCappatoDalFumoOsservato: A.FuoriPortata = 1; break;
 		case EPagaCausa::InterrottaSenzaColpi:  A.Interrotte = 1; break;
 		case EPagaCausa::AttaccanteGiaCaduto:   A.bAttaccanteVivo = false; break;
 		case EPagaCausa::AttaccanteCadeNelBlast: A.bAttaccanteVivo = false; break;
@@ -206,7 +208,8 @@ namespace
 		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return Esito; }
 
 		const FRTCellId CellaAlBersaglio(3, 0, 0);
-		const FRTCellId CellaDelFumo(1, 0, 0);
+		const FRTCellId CellaDelFumo(1, 0, 0);          // OSSERVATA: nell'intorno di chi tira
+		const FRTCellId CellaDelFumoNonOsservata(3, 0, 0); // a distanza 3: fuori dall'intorno di 2 celle, con la vista a 0
 		const FRTCellId CellaSuAltroPiano(3, 0, 1);
 		TArray<FRTCellId> Muri;
 		TArray<FRTCellId> Fumo;
@@ -216,7 +219,8 @@ namespace
 		{
 			Muri = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
 		}
-		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Fumo = { CellaDelFumo }; }
+		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Fumo = { CellaDelFumoNonOsservata }; }
+		if (C.Causa == EPagaCausa::TiroCappatoDalFumoOsservato) { Fumo = { CellaDelFumo }; }
 		if (C.Causa == EPagaCausa::AltroPiano) { InPiu = { CellaSuAltroPiano }; }
 		PagaSpawnMap(World, /*Radius=*/ 9, Muri, Fumo, InPiu);
 
@@ -235,6 +239,9 @@ namespace
 			return Esito;
 		}
 		TArray<TWeakObjectPtr<ARTUnit>> Tutti = { Attaccante, Spettatore };
+		// R7 con il Fumo NON osservato: chi tira vede solo l'intorno di 2 celle (vista 0), quindi il Fumo in (3,0,0) e' una cella
+		// che la squadra non conosce. Il tiro a (Portata,0,0) e' dentro la portata dichiarata e oltre il cap del Fumo (2).
+		if (C.Causa == EPagaCausa::TiroCappatoDalFumo) { Attaccante->VisionRange = 0; }
 
 		// L'abilita' d'attacco e il suo cooldown, reso OSSERVABILE: l'attacco base dell'eroe non ne dichiara uno.
 		int32 Idx = 0;
@@ -329,8 +336,15 @@ namespace
 			break;
 
 		case EPagaCausa::AreaVuota:
-		case EPagaCausa::TiroCappatoDalFumo:
+		case EPagaCausa::TiroCappatoDalFumoOsservato:
 			Attaccante->DeclareAttackOnCell(CellaVuota);
+			break;
+
+		case EPagaCausa::TiroCappatoDalFumo:
+			// Alla portata ESATTA: il Fumo in (3,0,0) sta sulla linea e la cappa a 2, la mira (portata >= 4) resta dentro la dichiarata.
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la mira (portata %d) sta oltre il Fumo in (3,0,0)"), C.Nome, Portata),
+				Portata >= 4);
+			Attaccante->DeclareAttackOnCell(FRTCellId(Portata, 0, 0));
 			break;
 
 		case EPagaCausa::AreaVuotaAlBordo:
@@ -460,14 +474,19 @@ namespace
  * ([D-414], decisione d'autore del 2026-10-31 «se si usa una abilita' si paga»).
  *
  * ⚠️ **A tabella, una riga per CAUSA, ciascuna col proprio mondo**: la tabella e' la regola. Le righe che pagano
- * sono le cause che si conoscono SOLO a risoluzione; le due che non pagano sono geometria nota in pianificazione
- * (`R9`) e la guardia di vita di [D-209] (`R10`). Una versione ingenua — «l'intento esiste, quindi paga» —
- * romperebbe `R9`: `ValidateInstance` risponde `None` per ogni bersaglio-CELLA, e la portata la giudica solo
- * `CollectHexAttacks`, in silenzio.
+ * sono le cause che si conoscono SOLO a risoluzione; quelle che non pagano sono geometria nota in pianificazione
+ * (`R9`, e `R7` quando il Fumo e' OSSERVATO) e la guardia di vita di [D-209] (`R10`). Una versione ingenua —
+ * «l'intento esiste, quindi paga» — romperebbe `R9`: `ValidateInstance` risponde `None` per ogni bersaglio-CELLA, e
+ * la portata la giudica solo `CollectHexAttacks`, in silenzio.
  *
  * 🔴 **Il controllo di `R9` e' la riga `AreaVuotaAlBordo`**: stessa scena di `CellaOltrePortata` con la mira spostata
  * di UNA cella, dentro la portata. Una cella dopo, l'azione non paga; sul bordo, paga. Senza la coppia non si
  * distingue «l'attacco a vuoto non paga mai» (il difetto) da «l'attacco fuori portata non paga» (la regola).
+ *
+ * 🔴 **Il controllo di `R7` e' la coppia `TiroCappatoDalFumo` / `TiroCappatoDalFumoOsservato`** (decisione d'autore del
+ * 2026-11-03): lo stesso tiro a cella cappato dal Fumo paga se la squadra non vedeva il Fumo (il click non ne vedeva il
+ * cap e ha accettato) ed e' gratis se lo vedeva (il click rifiutava). Senza la coppia non si distingue «il tiro cappato
+ * non paga mai» da «paga sempre» (il codice che c'era prima, piu' largo del proprio testo).
  *
  * Premesse per riga (`PagaAttesi`): ogni voce di rifiuto del turno e' asserita, ZERO comprese — cosi' la riga
  * isola la propria causa e un'altra non puo' pagare al suo posto.
@@ -495,8 +514,10 @@ bool FRTStartedActionPaysWithoutAHitTest::RunTest(const FString&)
 		  TEXT("il piano si giudica a risoluzione: corregge D-509 punto 7h") },
 		{ TEXT("R6 bersaglio gia' morto"), EPagaCausa::BersaglioMorto, true,
 		  TEXT("come la cura su un alleato caduto: dichiarata, valida in pianificazione, e il bersaglio non c'e' piu'") },
-		{ TEXT("R7 tiro cappato dal Fumo (qui in (1,0,0): cella OSSERVATA)"), EPagaCausa::TiroCappatoDalFumo, true,
-		  TEXT("R7 paga: il codice (TerrainCappedIntents) non guarda la conoscenza, e con il Fumo OSSERVATO come qui il click rifiuterebbe: divergenza nota dal testo «non osservato», pinnata in ResolutionEmergingCausesPay") },
+		{ TEXT("R7 tiro cappato dal Fumo NON osservato (in (3,0,0), vista 0)"), EPagaCausa::TiroCappatoDalFumo, true,
+		  TEXT("R7: il click giudica sulla mappa ottimistica, che non vede il Fumo, e accetta; il cap emerge solo a risoluzione e l'azione, partita, paga") },
+		{ TEXT("controllo di R7: tiro cappato dal Fumo OSSERVATO (in (1,0,0))"), EPagaCausa::TiroCappatoDalFumoOsservato, false,
+		  TEXT("decisione d'autore del 2026-11-03: la squadra vedeva il Fumo, il click vedeva il cap e rifiutava; cio' che il click rifiuta e' gratis") },
 		{ TEXT("R8 annullata da un Interrupt, senza colpi"), EPagaCausa::InterrottaSenzaColpi, true,
 		  TEXT("[D-414] punto 1: un controllo che impedisce l'abilita' non restituisce la ricarica") },
 		// ➕ **Fix wave di `#3134`**: tre righe che difendono tre clausole che nessun test copriva.
@@ -626,13 +647,13 @@ namespace
 		bool bControllaCella = false; //< solo `AttaccoDopoScattoFermato`
 		FRTCellId CellaFinale;        //< dove chi agisce deve trovarsi a fine turno
 		ERic3Click Click = ERic3Click::ND; //< l'ORACOLO: il click di produzione accetta il piano?
-		// ⚠️ I due flag `bConflitto*` sono CAMPANELLI, non regole: marcano righe in cui il click e la regola divergono e che
-		// restano verdi finche' l'autore non decide. Diventano ROSSI quando una decisione li fa convergere — e vanno riscritti
-		// allora, di proposito, non aggirati. Quattro righe li usano: l'alleato non comandabile, il bordo senza lato e lo
-		// scatto fermato (il click accetta, la regola non paga: D-571 alla lettera chiederebbe di far pagare) e il tiro a
-		// cella `R7` con il Fumo osservato (il click rifiuta, il codice paga: piu' largo del testo di D-563).
+		// ⚠️ `bConflittoNoto` e' un CAMPANELLO, non una regola: marca righe in cui il click e la regola divergono e che restano
+		// verdi finche' l'autore non decide. Diventa ROSSO quando una decisione fa convergere le due parti — e va riscritto
+		// allora, di proposito, non aggirato. Tre righe lo usano: l'alleato non comandabile, il bordo senza lato e lo scatto
+		// fermato (il click accetta, la regola non paga: D-571 alla lettera chiederebbe di far pagare). ⌫ *Fino alla decisione
+		// d'autore del 2026-11-03 c'era un secondo flag, per il tiro a cella `R7` con il Fumo osservato (il click rifiutava, il
+		// codice pagava): la decisione ha reso `R7` fedele al proprio testo, e quella riga e' ora una regola come le altre.*
 		bool bConflittoNoto = false; //< il click accetta e la regola non fa pagare: pin di una decisione aperta, non una regola
-		bool bConflittoInverso = false; //< il click RIFIUTA e la regola fa pagare: pin di una decisione aperta, non una regola
 		bool bSenzaEquivalenza = false; //< chi agisce cade FRA il click e il Blast: la guardia di vita decide, non il click
 		int32 CopertureRifiutate = 0; //< voci `CoverRejected` del turno
 		int32 CopertureErette = 0;    //< voci `CoverCreated` del turno
@@ -975,11 +996,6 @@ namespace
 				Test.TestTrue(*FString::Printf(TEXT("%s: CONFLITTO NOTO: il click accetta e l'azione non paga"), *Etichetta),
 					bAccetta && !E.bHaPagato);
 			}
-			else if (A.bConflittoInverso)
-			{
-				Test.TestTrue(*FString::Printf(TEXT("%s: CONFLITTO NOTO (inverso): il click rifiuta e l'azione paga"), *Etichetta),
-					!bAccetta && E.bHaPagato);
-			}
 			else if (A.bSenzaEquivalenza)
 			{
 				// Il click accetta, poi chi agisce cade: pagare o no lo decide la guardia di vita del sito, non il click.
@@ -1066,13 +1082,13 @@ namespace
  *   risoluzione — come la cura su un alleato caduto ([D-197]). Controparte gratis: nessun bersaglio dichiarato, un piano
  *   che il click non produce.
  * - azione AMBIENTALE con bersaglio-unita' morto: stessa forma, in `ResolveEnvironment` (Cleanup).
- * - bersaglio-UNITA' fuori portata SOLO per il cap del Fumo NON OSSERVATO: e' il TESTO di `R7` ([D-563] (2)) attuato per il
- *   bersaglio-unita' in modo fedele; il CODICE di `R7` per il tiro a cella e' piu' largo del proprio testo e paga anche con
- *   il Fumo osservato (ultime tre righe di questo test, che lo pinnano senza toccarlo). Per il bersaglio-unita' il click
- *   ([D-465] (3)) giudica sulla mappa ottimistica, che rende neutre le celle fuori da `ExploredCells U
- *   VisibleCells`, e lo ha accettato; il costo dell'ottimismo si paga qui. Controparti gratis (in
- *   `Actions.Blast.UndecidedCausesStayFree`): Fumo su una cella OSSERVATA (il click vede il cap e rifiuta) e oltre la
- *   portata DICHIARATA.
+ * - bersaglio-UNITA' fuori portata SOLO per il cap del Fumo NON OSSERVATO: e' il TESTO di `R7` ([D-563] (2)). Il click
+ *   ([D-465] (3)) giudica sulla mappa ottimistica, che rende neutre le celle fuori da `ExploredCells U VisibleCells`, e lo
+ *   ha accettato; il costo dell'ottimismo si paga qui. Controparti gratis (in `Actions.Blast.UndecidedCausesStayFree`): Fumo
+ *   su una cella OSSERVATA (il click vede il cap e rifiuta) e oltre la portata DICHIARATA.
+ * - tiro a CELLA cappato dal Fumo NON OSSERVATO (`R7`, ultime righe di questo test): la stessa regola con la stessa mappa e la
+ *   stessa funzione (`ClickWouldAcceptAimRange`), decisa dall'autore il 2026-11-03. Controparte gratis (in
+ *   `Actions.Blast.UndecidedCausesStayFree`): il Fumo su una cella OSSERVATA, dove il click rifiuta.
  *
  * 🔑 **L'oracolo del click**: ogni riga dichiara cosa fa il click di produzione (`DispatchUnitClick` ->
  * `HandleClickOnUnit`, sulla STESSA fixture, con la conoscenza di squadra rinfrescata come a inizio turno) e asserisce
@@ -1246,13 +1262,14 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 			TEXT("R10, D-209: per chi attacca «spesa» vuol dire sopravvissuto alla fase"))) { return false; }
 	}
 
-	// --- R7, il TIRO A CELLA cappato dal Fumo: il codice e' piu' largo del suo testo ---------------
+	// --- R7, il TIRO A CELLA cappato dal Fumo NON osservato ----------------------------------------
 	{
-		// `R7` ([D-563] (2), confermato dall'autore) dice «cappato dal Fumo NON osservato». Il codice
-		// (`CollectHexAttacks` -> `TerrainCappedIntents`) non guarda la conoscenza di squadra: paga anche con il Fumo OSSERVATO,
-		// dove il click a cella — la stessa `PlayerAimMap` del click su un'unita' — vede il cap e rifiuta. NON e' toccato qui
-		// (causa gia' decisa e attuata): le tre righe lo rendono visibile. Chi tira vede solo l'intorno (vista 0); l'attacco
-		// base e' dichiarato su una cella VUOTA alla portata esatta (4), il Fumo sta in (3,0,0) o in (1,0,0).
+		// `R7` ([D-563] (2), confermato dall'autore) dice «cappato dal Fumo NON osservato», e dal 2026-11-03 (decisione d'autore)
+		// il codice e' fedele al testo: `CollectHexAttacks` raccoglie in `TerrainCappedIntents` ogni tiro cappato, e il
+		// pagamento (`ClassifyTerrainCappedPayment`) tiene solo quelli che il click, sulla propria mappa ottimistica
+		// (`PlayerAimMap`, la stessa del click su un'unita'), avrebbe accettato. La riga con il Fumo OSSERVATO, dove il click
+		// vede il cap e rifiuta, e' il controllo gratis e sta in `Actions.Blast.UndecidedCausesStayFree`. Chi tira vede solo
+		// l'intorno (vista 0); l'attacco base e' dichiarato su una cella VUOTA alla portata esatta (4), il Fumo sta in (3,0,0).
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::AttaccoACella;
 		Controllo.Bersaglio = ERic3Bersaglio::Assente;
@@ -1267,13 +1284,6 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo NON osservato"), TEXT("caso"), NonOsservato,
 			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange),
 			TEXT("il click giudica sulla mappa ottimistica e accetta; R7 paga: click e R7 CONCORDANO"))) { return false; }
-
-		FRic3Scena Osservato = Controllo;
-		Osservato.FumoX = 1; // nell'intorno di chi tira: cella OSSERVATA
-		FRic3Atteso AttesoOsservato = Ric3Atteso(true, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange);
-		AttesoOsservato.bConflittoInverso = true;
-		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo OSSERVATO"), TEXT("caso"), Osservato, AttesoOsservato,
-			TEXT("DA DECIDERE — il click vede il cap e rifiuta, ma R7 paga: il codice e' piu' largo del testo «non osservato»"))) { return false; }
 	}
 	return true;
 }
@@ -1285,6 +1295,8 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
  * che lo rende un piano accettabile, e prova che l'azione parte (colpisce, apre l'arco) e paga.
  *
  * - bersaglio-UNITA' oltre la portata DICHIARATA: il click lo rifiuta (`ClassifyHexTargeting`, `OutOfRange`);
+ * - bersaglio-UNITA' o tiro a CELLA dietro un Fumo OSSERVATO (`R7` per il tiro a cella, decisione d'autore del 2026-11-03):
+ *   la mappa del click vede il cap, il click rifiuta;
  * - bersaglio ALLEATO: per un'unita' comandabile il click non bersaglia ma SELEZIONA (`ResolveOutcome`); ⚠️ per un
  *   alleato non comandabile il click NON controlla la squadra — scarto del click, non del resolver: resta gratis finche'
  *   non lo decide l'autore (`BLOCKED — DECISION REQUIRED`);
@@ -1334,6 +1346,24 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("Fumo OSSERVATO fra chi tira e il bersaglio"), TEXT("caso"), Osservato,
 			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
 			TEXT("il click vede il Fumo e ne subisce il cap: geometria nota in pianificazione, gratis"))) { return false; }
+	}
+
+	// --- tiro a CELLA dietro un Fumo OSSERVATO (R7, il controllo gratis) ----------------------------
+	{
+		// Decisione d'autore del 2026-11-03: `R7` paga solo col Fumo NON osservato ([D-563] (2)). Con il Fumo in (1,0,0), nell'intorno
+		// di chi tira (vista 0), la mappa del click lo vede e cappa la portata a 2: il click a cella (`HandleTargetCell`, la stessa
+		// `PlayerAimMap`) RIFIUTA, e il tiro e' gratis. Il caso con il Fumo NON osservato (stessa scena, Fumo in (3,0,0)) paga ed e'
+		// in `ResolutionEmergingCausesPay`, insieme al controllo senza Fumo. La voce `Fallback`/`Cancelled` `OutOfRange` resta:
+		// cambia il pagamento, non la traccia.
+		FRic3Scena Osservato;
+		Osservato.Azione = ERic3Azione::AttaccoACella;
+		Osservato.Bersaglio = ERic3Bersaglio::Assente;
+		Osservato.Distanza = 4;
+		Osservato.Visione = 0;
+		Osservato.FumoX = 1;
+		if (!Ric3Verifica(*this, TEXT("R7: tiro a CELLA, Fumo OSSERVATO"), TEXT("caso"), Osservato,
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
+			TEXT("il click vede il cap del Fumo e rifiuta: geometria nota in pianificazione, gratis"))) { return false; }
 	}
 
 	// --- bersaglio alleato -------------------------------------------------------------------------
