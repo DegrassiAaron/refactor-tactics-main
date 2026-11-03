@@ -1067,7 +1067,7 @@ namespace
 			// Ora la stordita non cammina comunque, e la premessa serve solo al controllo.)
 			bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il passo e' verso una cella ADIACENTE"), *Run),
 				URTHexLibrary::HexDistance(Caster->Cell, Out.Destination), 1);
-			bPremises &= Test.TestFalse(*FString::Printf(TEXT("%s: premessa: l'attore non e' radicato (Root e Stunned sono stati distinti)"), *Run),
+			bPremises &= Test.TestFalse(*FString::Printf(TEXT("%s: premessa: l'attore non e' radicato"), *Run),
 				Caster->HasStatus(TAG_Status_Root));
 			if (Out.PlannedRoute.Num() >= 2)
 			{

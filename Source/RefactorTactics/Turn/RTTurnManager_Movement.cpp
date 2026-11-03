@@ -197,6 +197,12 @@ void ARTTurnManager::BeginMovementResolution()
 		// raggiungibile e' solo un `Root` nato nel Blast — nessun precedente da seguire. Il camminare ha ricarica zero: non
 		// c'e' niente da pagare; lo Sprint paga `Exposed` e perde la reazione per il PIANO, in fondo a questa funzione e in
 		// `ResolveDash`, e quindi anche da fermo ([D-116] (3): «si paga l'impegno dichiarato»).
+		//
+		// ⚠️ **NON DECISO — stordita + sbilanciata con una corsa pianificata scrive DUE rifiuti in fase Move.** `ResolveDash` scrive in
+		// apertura la voce `Unbalanced` per la corsa negata ([D-319]) e questa guardia aggiunge `Stunned` (con `Action.Move`: la banda
+		// congelata sopra e' gia' quella senza corsa, perche' l'unita' e' sbilanciata). Nel Dash l'incrocio e' deciso — vince lo
+		// stordimento, una voce sola — ma sul Move nessuna fonte lo decide: lo stato di fatto e' fissato da
+		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesTwoRefusalsUntilDecided` e si rovescia se si decide per una voce.
 		const bool bNegataDalloStordimento = Unit->PlannedNormalMoveDeniedByStun();
 		if (bNegataDalloStordimento)
 		{
@@ -208,6 +214,15 @@ void ARTTurnManager::BeginMovementResolution()
 				Mossa = URTCatalogLibrary::FindCoreAction(MoveCauseActionId);
 			}
 			RefuseMainActionIfStunned(Unit, Mossa, ERTMatchPhase::Move, Unit->Cell);
+
+			// ⚠️ **La cadenza di chi e' negato torna NEUTRA.** `BeginHexMovement` deriva i sotto-passi del tick come il MASSIMO
+			// `StepsPerTick` fra tutte le unita' della risoluzione, anche quelle con un percorso di una cella: una stordita con uno Sprint
+			// pianificato porterebbe `{2,1}` (congelata sopra, dalla banda del piano) nel calendario di tutti, senza muoversi. Misurato da
+			// `Status.StunnedMovement.ADeniedSprintKeepsTheMicroStepNumbering`: la decisione di un Overwatch passava dal micro-step 2 al 4,
+			// e con lei ogni `MicroStepIndex` del TurnLog e le chiavi delle opportunita' di reazione ([D-428] punto 3). Il percorso di chi e'
+			// negato e' la sola cella di partenza, quindi la sua cadenza non ha niente da governare; la voce `Move` continua a nominare la
+			// banda dichiarata (`Ctx.MovementProfiles` non cambia).
+			Cadences[i] = FRTMovementCadence();
 		}
 
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata

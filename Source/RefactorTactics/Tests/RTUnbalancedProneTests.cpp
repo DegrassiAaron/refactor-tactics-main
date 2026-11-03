@@ -1297,27 +1297,27 @@ bool FRTRealIconCatalogCoversRequiredIdsTest::RunTest(const FString&)
 // =====================================================================================================
 
 /**
- * 🔴 **Lo stordimento nega il movimento ALLA RISOLUZIONE e non in pianificazione; `Root` lo toglie dal budget. Sono due
- * meccanismi, e questo e' il confine che li tiene separati** ([D-569], `#3973`).
+ * 🔴 **Il budget di pianificazione di una stordita resta intero e quello di una radicata e' zero; la condizione che la
+ * risoluzione legge e' vera solo per chi e' stordito E ha un Move pianificato** ([D-569], `#3973`). Questo test prova i DUE
+ * PREDICATI e il budget, non la risoluzione: il movimento negato in partita lo misurano
+ * `Status.StunnedMovement.TheWalkIsRefusedWhenStunned` e `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`.
  *
- * ⌫ *Questo test si chiamava `Status.StunDeniesTheActionNotTheMovement` e diceva l'opposto della regola di oggi.* [D-416] (1)
+ * ⌫ *Questo test si chiamava `Status.StunDeniesTheActionNotTheMovement` e diceva l'opposto della regola di oggi, poi
+ * `Status.StunDeniesTheMovementAtResolutionNotInPlanning` (un nome che prometteva piu' di quanto asserisse).* [D-416] (1)
  * scriveva che lo stordimento «non tocca il movimento», perche' quello e' `Root`, e il test pinnava che il budget di una stordita
  * restasse intero: vero, e lo e' ancora. Quello che [D-569] ribalta e' un'altra cosa — la stordita NON CAMMINA —, ma lo ribalta
  * alla risoluzione: il click continua ad accettare il piano di una stordita ([D-565] (2), `#3134`), quindi il budget di
- * pianificazione non si tocca, mentre `Root` lo azzera e il click rifiuta prima. Il nome vecchio avrebbe detto una cosa falsa.
- * Il movimento negato alla risoluzione lo misurano `Status.StunnedMovement.TheWalkIsRefusedWhenStunned` e
- * `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`.
+ * pianificazione non si tocca, mentre `Root` lo azzera e il click rifiuta prima.
  *
  * Il montaggio e' costruito perche' cada in ENTRAMBI i versi: se `Stunned` finisse per azzerare il budget sarebbe rosso il
  * primo asserto (il click rifiuterebbe il piano che [D-565] (2) vuole accettato), e se `Root` smettesse di azzerarlo sarebbe
- * rosso il secondo. La condizione che la risoluzione legge, `PlannedNormalMoveDeniedByStun()`, e' vera solo per chi e' stordito
- * E ha un Move pianificato.
+ * rosso il secondo.
  *
  * ⚠️ **Due unita' e non una riusata**: `RemoveStatus` fra i due casi misurerebbe anche la rimozione, che e'
  * un'altra proprieta'. Con due soggetti lo zero del secondo non puo' venire da un residuo del primo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesActionNotMovementTest,
-	"RefactorTactics.Status.StunDeniesTheMovementAtResolutionNotInPlanning",
+	"RefactorTactics.Status.StunKeepsThePlanningBudgetAndNamesTheMoveItDenies",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
 {

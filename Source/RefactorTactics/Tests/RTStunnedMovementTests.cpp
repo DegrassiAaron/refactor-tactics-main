@@ -5,7 +5,7 @@
 // D-416 (1) toglieva alla stordita l'azione principale e la reazione e scriveva che "non tocca il movimento", perche'
 // quello e' `Root`. D-567 aveva esteso il divieto alla mobilita' che prende anche la principale. D-569 (2026-11-02 e
 // 2026-11-03) ribalta il resto: una stordita non compie nessun movimento VOLONTARIO, e l'eccezione alla regola
-// anti-stun-lock di D-072 e' dichiarata. I siti che muovono sono due, e ciascuno ha qui il suo banco:
+// anti-stun-lock di D-072 e' dichiarata. Ogni sito che muove ha qui il suo banco:
 //
 //   - il DASH (`ARTTurnManager::ResolveDash`): ogni mobilita' rapida dei cataloghi, ricavata dai cataloghi e mai da un
 //     elenco di nomi (`EveryCatalogMobilityIsRefusedWhenStunned`);
@@ -38,17 +38,20 @@
 #include "Ability/RTEquipmentData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTTeamKnowledge.h"
 #include "Tests/RTAbilityFixtures.h"
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
@@ -399,16 +402,18 @@ namespace RTStunnedMovementTestsInternal
 		DestinationOnly,  //< la forma dei bot: nessun percorso, la sola destinazione a due celle
 		Sprint,           //< oltre il passo del Move: la banda legge `Sprint`
 		OccupiedTarget,   //< la destinazione dichiarata e' occupata da un'altra unita'
+		RejectedWaypoint, //< un passo valido, piu' un waypoint successivo rifiutato perche' occupato: `bMovePlanRejectedByOccupant` ACCESO
 	};
 
 	const TCHAR* WalkFormName(EWalkForm Form)
 	{
 		switch (Form)
 		{
-		case EWalkForm::OneStep:         return TEXT("un passo");
-		case EWalkForm::DestinationOnly: return TEXT("sola destinazione");
-		case EWalkForm::Sprint:          return TEXT("Sprint");
-		case EWalkForm::OccupiedTarget:  return TEXT("destinazione occupata");
+		case EWalkForm::OneStep:          return TEXT("un passo");
+		case EWalkForm::DestinationOnly:  return TEXT("sola destinazione");
+		case EWalkForm::Sprint:           return TEXT("Sprint");
+		case EWalkForm::OccupiedTarget:   return TEXT("destinazione occupata");
+		case EWalkForm::RejectedWaypoint: return TEXT("waypoint rifiutato per occupazione");
 		}
 		return TEXT("?");
 	}
@@ -430,6 +435,15 @@ namespace RTStunnedMovementTestsInternal
 		FRTCellId MoveEntryTarget;   //< TgtCell della voce `Move` di chi cammina
 		bool bExposed = false;       //< `Status.Exposed` a fine turno (il prezzo dello Sprint)
 		bool bPlanHadMove = false;   //< premessa: `HasPlannedNormalMove()` al commit
+		// L'identita' della voce di rifiuto di fase Move (la prima): serve a fissare CHE azione nomina, non solo che c'e'.
+		FName RefusalActionId;
+		FName RefusalBaseActionId;
+		int32 RefusalPriority = -1;
+		// Solo `RejectedWaypoint`: il flag di rifiuto per occupazione era DAVVERO acceso al commit (altrimenti il ramo che la
+		// guardia protegge non si raggiunge e la riga prova niente), e se la squadra ha poi RIVELATO il contatto col bloccante.
+		bool bRejectionFlagged = false;
+		bool bContactRevealed = false;
+		int32 BlockerStableId = 0;
 	};
 
 	FWalkOutcome RunWalkTurn(FAutomationTestBase& Test, EWalkForm Form, bool bStunned, const FString& Label)
@@ -470,6 +484,23 @@ namespace RTStunnedMovementTestsInternal
 			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
 			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
 			break;
+		case EWalkForm::RejectedWaypoint:
+		{
+			// La forma che il click produce: un percorso valido di un passo, e poi un waypoint verso una cella occupata, rifiutato e
+			// ricordato (`NoteMovePlanRejection`, la stessa funzione del controller e dell'harness). Il flag e' acceso e il piano e'
+			// un Move: e' il solo caso in cui il ramo "rifiuto per occupazione" di `BeginMovementResolution` e la guardia dello
+			// stordimento si incontrano. Il bloccante e' il nemico lontano: omniscia sullo snapshot, ignoto alla squadra.
+			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
+			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
+			TM->RefreshTeamKnowledgeNow();
+			TArray<ARTUnit*> SnapshotUnits;
+			const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
+			const int32 WalkerIndex = SnapshotUnits.IndexOfByKey(Walker);
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: chi cammina e' nello snapshot"), *Label), WalkerIndex != INDEX_NONE);
+			Walker->NoteMovePlanRejection(Snapshot, WalkerIndex, Foe->Cell);
+			Out.bRejectionFlagged = Walker->bMovePlanRejectedByOccupant;
+			break;
+		}
 		case EWalkForm::Sprint:
 		{
 			// Un passo OLTRE il Move neutro: la banda si legge dalla distanza pianificata (D-425).
@@ -505,11 +536,24 @@ namespace RTStunnedMovementTestsInternal
 		Out.MoveEvents = CountMoveEvents(TM, Walker->StableUnitId, ERTMatchPhase::Move);
 		Out.MoveOutcome = MoveOutcomeOf(TM, Walker->StableUnitId);
 		Out.bExposed = Walker->HasStatus(TAG_Status_Exposed);
+		Out.BlockerStableId = Foe->StableUnitId;
+		for (const FRTLastKnownContact& Contact : TM->KnowledgeForTeamPublic(Walker->TeamId).Contacts)
+		{
+			if (Contact.StableUnitId == Foe->StableUnitId) { Out.bContactRevealed = true; }
+		}
+		bool bFirstRefusal = true;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
 			if (E.Category == ERTLogCategory::Move && E.Phase == ERTMatchPhase::Move && E.UnitId == Walker->StableUnitId)
 			{
 				Out.MoveEntryTarget = E.TgtCell;
+			}
+			if (bFirstRefusal && IsStunRefusal(E, Walker->StableUnitId, ERTMatchPhase::Move))
+			{
+				bFirstRefusal = false;
+				Out.RefusalActionId = E.ActionId;
+				Out.RefusalBaseActionId = E.BaseActionId;
+				Out.RefusalPriority = E.Priority;
 			}
 			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Walker->StableUnitId
 				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
@@ -631,15 +675,19 @@ bool FRTStunnedEveryCatalogMobilityIsRefusedTest::RunTest(const FString&)
  * Una stordita non CAMMINA, e nemmeno con lo Sprint (D-569 (1)); il camminare ha ricarica zero, lo Sprint paga `Exposed`
  * (D-116 (3): "si paga l'impegno dichiarato").
  *
- * Quattro forme del piano, ognuna con il suo braccio di controllo (la stessa unita', lo stesso piano, senza stordimento):
- * il percorso a un passo che scrive il click, la sola destinazione che dichiarano i bot, lo Sprint (un passo oltre il Move
- * neutro) e la destinazione occupata da un'altra unita'. Per la stordita:
+ * Le forme del piano, ognuna con il suo braccio di controllo (la stessa unita', lo stesso piano, senza stordimento): il
+ * percorso a un passo che scrive il click, la sola destinazione che dichiarano i bot, lo Sprint (un passo oltre il Move
+ * neutro), la destinazione occupata da un'altra unita' e il waypoint rifiutato per occupazione (il flag
+ * `bMovePlanRejectedByOccupant` ACCESO su un piano che e' un Move valido: l'unico caso in cui il primo ramo del
+ * rilevamento del diniego e la guardia dello stordimento si incontrano). Per la stordita:
  *
  *  - resta nella sua cella e nessun evento `Move` di fase Move la nomina;
  *  - UNA voce Fallback/Cancelled/Stunned in fase Move con SrcCell e TgtCell uguali alla cella dell'unita': la destinazione
  *    pianificata e' piano privato (D-567). E' una lettura, non il testo dell'autore: ribaltabile;
- *  - la voce `Move` dice `Stayed` e non `BlockedByUnit` anche quando la destinazione e' occupata: la stordita non ha
- *    camminato, quindi non ha urtato nessuno ne' ne ha rivelato la posizione;
+ *  - la voce nomina l'azione che il piano nomina per la banda (`Action.Sprint` per lo Sprint, `Action.Move` per il resto) con il
+ *    suo BaseActionId e la sua Priority: la Priority entra nell'ordine canonico e nel digest;
+ *  - la voce `Move` dice `Stayed` e non `BlockedByUnit` anche quando la destinazione e' occupata o il flag e' acceso: la stordita
+ *    non ha camminato, quindi non ha urtato nessuno ne' ne ha rivelato la posizione (la squadra non riceve il contatto);
  *  - lo Sprint paga `Exposed` anche da ferma; il camminare no;
  *  - un compagno non stordito, ordinato DOPO di lei, arriva comunque (gli array paralleli di `BeginMovementResolution`
  *    restano allineati: nessun `continue` che salti `Ctx.Paths`).
@@ -651,12 +699,25 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 {
 	namespace T = RTStunnedMovementTestsInternal;
 
-	const T::EWalkForm Forms[] = { T::EWalkForm::OneStep, T::EWalkForm::DestinationOnly, T::EWalkForm::Sprint, T::EWalkForm::OccupiedTarget };
+	const T::EWalkForm Forms[] = { T::EWalkForm::OneStep, T::EWalkForm::DestinationOnly, T::EWalkForm::Sprint,
+		T::EWalkForm::OccupiedTarget, T::EWalkForm::RejectedWaypoint };
 	for (const T::EWalkForm Form : Forms)
 	{
 		const FString Name = T::WalkFormName(Form);
 		const bool bSprint = Form == T::EWalkForm::Sprint;
 		const bool bOccupied = Form == T::EWalkForm::OccupiedTarget;
+		const bool bRejected = Form == T::EWalkForm::RejectedWaypoint;
+
+		// L'azione che la voce di rifiuto deve nominare: quella che il piano nomina per la banda ([D-425]) — lo Sprint nomina la
+		// sua, il resto ripiega su `Action.Move` — con la sua Priority e il suo BaseActionId. La Priority entra nell'ordine
+		// canonico del TurnLog (`EntryLess`) e nel digest: azzerarla o nominare l'azione sbagliata muove entrambi.
+		const FRTActionDef Expected = bSprint
+			? URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileSprint)
+			: URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+		TestFalse(*FString::Printf(TEXT("%s: premessa: l'azione attesa esiste"), *Name), Expected.ActionId.IsNone());
+		TestTrue(*FString::Printf(TEXT("%s: premessa: l'azione attesa ha una Priority (non e' l'azione vuota)"), *Name), Expected.Priority > 0);
+		TestEqual(*FString::Printf(TEXT("%s: premessa: solo lo Sprint nomina un'azione diversa da Action.Move"), *Name),
+			Expected.ActionId == FName(TEXT("Action.Move")), !bSprint);
 
 		// CONTROLLO - non stordita: cammina (o, con la destinazione occupata, e' negata dal piano come sempre).
 		const T::FWalkOutcome Free = T::RunWalkTurn(*this, Form, /*bStunned=*/ false, Name + TEXT(", controllo"));
@@ -676,6 +737,16 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 		}
 		TestEqual(*FString::Printf(TEXT("%s: controllo: il compagno arriva"), *Name), Free.MateArrival.ToString(), Free.MatePlanned.ToString());
 		TestEqual(*FString::Printf(TEXT("%s: controllo: Exposed c'e' se e solo se e' uno Sprint"), *Name), Free.bExposed, bSprint && !bOccupied);
+		if (bRejected)
+		{
+			// Il controllo POSITIVO dell'oracolo del contatto: senza stordimento il flag acceso rivela alla squadra il bloccante
+			// (`FinishMovementResolution` itera `bDeniedByOccupant`, anche per chi poi si e' mosso). Se qui non si vedesse il contatto,
+			// la sua assenza nel braccio stordito non direbbe niente.
+			TestTrue(*FString::Printf(TEXT("%s: premessa: il flag di rifiuto per occupazione e' ACCESO al commit"), *Name), Free.bRejectionFlagged);
+			TestTrue(*FString::Printf(TEXT("%s: controllo: senza stordimento la squadra ha rivelato il contatto col bloccante"), *Name), Free.bContactRevealed);
+			TestEqual(*FString::Printf(TEXT("%s: controllo: e il Move si e' compiuto (la voce non e' BlockedByUnit)"), *Name),
+				static_cast<int32>(Free.MoveOutcome), static_cast<int32>(ERTMoveOutcome::Moved));
+		}
 
 		// CUORE - stordita.
 		const T::FWalkOutcome Stunned = T::RunWalkTurn(*this, Form, /*bStunned=*/ true, Name + TEXT(", stordita"));
@@ -688,6 +759,21 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: la voce non rivela la destinazione: le sue due celle sono quella di partenza"), *Name),
 			Stunned.RefusalsStill, 1);
 		TestEqual(*FString::Printf(TEXT("%s: e non ce n'e' una in altra fase"), *Name), Stunned.RefusalsAnyPhase, 1);
+		TestEqual(*FString::Printf(TEXT("%s: la voce nomina l'azione che il piano nomina per la banda"), *Name),
+			Stunned.RefusalActionId, Expected.ActionId);
+		TestEqual(*FString::Printf(TEXT("%s: con il suo BaseActionId"), *Name), Stunned.RefusalBaseActionId, Expected.BaseActionId);
+		TestEqual(*FString::Printf(TEXT("%s: e la sua Priority (entra nell'ordine canonico e nel digest)"), *Name),
+			Stunned.RefusalPriority, Expected.Priority);
+		if (bRejected)
+		{
+			// S9: il flag di rifiuto per occupazione e' acceso ma chi e' negato dallo stordimento non ha camminato, quindi non ha urtato
+			// nessuno. Senza `!bNegataDalloStordimento` nel primo ramo la voce Move direbbe BlockedByUnit verso il bloccante (piano
+			// privato) e la squadra ne rivelerebbe la posizione.
+			TestTrue(*FString::Printf(TEXT("%s: premessa: il flag di rifiuto per occupazione e' ACCESO anche nel braccio stordito"), *Name),
+				Stunned.bRejectionFlagged);
+			TestFalse(*FString::Printf(TEXT("%s: la squadra NON rivela il contatto col bloccante: la stordita non ha urtato nessuno"), *Name),
+				Stunned.bContactRevealed);
+		}
 		TestEqual(*FString::Printf(TEXT("%s: la voce Move dice Stayed, non BlockedByUnit"), *Name),
 			static_cast<int32>(Stunned.MoveOutcome), static_cast<int32>(ERTMoveOutcome::Stayed));
 		TestEqual(*FString::Printf(TEXT("%s: e porta la cella di partenza come destinazione"), *Name),
@@ -697,6 +783,181 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: il compagno non stordito arriva comunque"), *Name),
 			Stunned.MateArrival.ToString(), Stunned.MatePlanned.ToString());
 	}
+	return true;
+}
+
+/**
+ * PIN DEL COMPORTAMENTO ATTUALE, NON UNA DECISIONE: stordita + sbilanciata + Sprint pianificato scrive DUE rifiuti in fase Move.
+ *
+ * `ResolveDash` scrive in apertura, per chi e' `Unbalanced` e ha pianificato una corsa, una voce `Fallback`/`Cancelled`/
+ * `Unbalanced` in fase Move ([D-319]); `BeginMovementResolution` aggiunge poi quella `Stunned` ([D-569]). Nel Dash l'incrocio e'
+ * deciso e fissato (`Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, braccio "stordita e sbilanciata"): vince lo
+ * stordimento e non c'e' voce `Unbalanced`. Sul Move nessuna fonte lo decide, e il comportamento oggi e' quello di due voci.
+ *
+ * ⚠️ **BLOCKED — DECISION REQUIRED**: nel Move, con stordimento e sbilanciamento insieme, vince lo stordimento come nel Dash (UNA
+ * voce, `Stunned`) oppure restano due voci? Questo test fissa lo stato di fatto per non farlo cambiare in silenzio: se la
+ * decisione e' "una voce", l'asserto sulla voce `Unbalanced` si rovescia (zero) e la corsa negata di `ResolveDash` va saltata per
+ * chi e' stordito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedAndUnbalancedSprintPinTest,
+	"RefactorTactics.Status.StunnedMovement.StunnedAndUnbalancedSprintWritesTwoRefusalsUntilDecided",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedAndUnbalancedSprintPinTest::RunTest(const FString&)
+{
+	namespace T = RTStunnedMovementTestsInternal;
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	T::SpawnMap(World, /*Radius=*/ 10);
+	ARTUnit* Walker = T::SpawnUnit(World, 0, T::Home);
+	ARTUnit* Foe = T::SpawnUnit(World, 1, FRTCellId(-8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Walker || !Foe || !TM) { RTWorldFixtures::DestroyWorld(World); return false; }
+	T::Stand(Walker);
+	T::Stand(Foe);
+
+	// Una corsa: un passo oltre il Move neutro (la banda `Sprint` si legge dalla distanza pianificata, D-425).
+	const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
+	Walker->PlannedPath.Reset();
+	for (int32 Q = 0; Q <= Oltre; ++Q) { Walker->PlannedPath.Add(FRTCellId(T::Home.X + Q, T::Home.Y)); }
+	Walker->PlannedCell = Walker->PlannedPath.Last();
+	Walker->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	Walker->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+	TestTrue(TEXT("premessa: stordita e sbilanciata, con un Move pianificato"),
+		Walker->HasStatus(TAG_Status_Stunned) && Walker->HasStatus(TAG_Status_Unbalanced) && Walker->HasPlannedNormalMove());
+
+	T::RunTurn(TM);
+
+	int32 Unbalanced = 0, Stunned = 0, OtherFallbacksInMove = 0;
+	FName UnbalancedAction, StunnedAction;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback || E.UnitId != Walker->StableUnitId || E.Phase != ERTMatchPhase::Move
+			|| E.Outcome != static_cast<uint8>(ERTFallbackOutcome::Cancelled))
+		{
+			continue;
+		}
+		if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced)) { ++Unbalanced; UnbalancedAction = E.ActionId; }
+		else if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned)) { ++Stunned; StunnedAction = E.ActionId; }
+		else { ++OtherFallbacksInMove; }
+	}
+	// Le due voci nominano azioni diverse: la corsa negata da `Unbalanced` nomina l'azione della banda `Sprint`, mentre la banda
+	// che `BeginMovementResolution` ha congelato per chi e' sbilanciata non e' piu' una corsa (tetto 1x), quindi `Action.Move`.
+	TestEqual(TEXT("la voce Unbalanced nomina l'azione della corsa negata"), UnbalancedAction,
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileSprint).ActionId);
+	TestEqual(TEXT("la voce Stunned nomina Action.Move (la banda di chi e' sbilanciata non e' una corsa)"), StunnedAction,
+		FName(TEXT("Action.Move")));
+	TestEqual(TEXT("la stordita sbilanciata resta dov'e'"), Walker->Cell.ToString(), T::Home.ToString());
+	TestEqual(TEXT("PIN: una voce Stunned in fase Move"), Stunned, 1);
+	TestEqual(TEXT("PIN (non deciso): e ANCHE una voce Unbalanced in fase Move, scritta da ResolveDash per la corsa negata"), Unbalanced, 1);
+	TestEqual(TEXT("nessun altro rifiuto in fase Move"), OtherFallbacksInMove, 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Una stordita con uno Sprint NEGATO non cambia il calendario del Move degli altri.
+ *
+ * `BeginHexMovement` deriva i sotto-passi del tick come il massimo `StepsPerTick` fra TUTTE le unita' della risoluzione, anche
+ * quelle con un percorso di una cella (`Cadences` e' parallelo a `Paths`). La cadenza di una unita' si congela dalla banda
+ * del piano PRIMA della guardia dello stordimento: una stordita che ha pianificato uno Sprint porterebbe `{2,1}` nel
+ * calendario, e raddoppierebbe i micro-step per tutti, spostando ogni `MicroStepIndex` del TurnLog e le chiavi delle
+ * opportunita' di reazione ([D-428] punto 3: la deriva del digest che il calendario esiste per impedire).
+ *
+ * Tre bracci sullo stesso mondo (un Overwatch che spara a chi cammina verso il guardiano, un compagno che puo' sprintare):
+ *  - BASE: nessuno sprintatore. Gli indici dei micro-step delle voci di reazione sono quelli di riferimento;
+ *  - CONTROLLO POSITIVO: uno sprintatore NON stordito che corre davvero. Il calendario si raddoppia e gli indici cambiano — se
+ *    non cambiassero, l'osservabile sarebbe cieco e l'uguaglianza del terzo braccio non direbbe niente;
+ *  - IL CUORE: lo sprintatore e' stordito, lo Sprint e' negato, non si muove: gli indici sono quelli della BASE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedADeniedSprintKeepsTheCalendarTest,
+	"RefactorTactics.Status.StunnedMovement.ADeniedSprintKeepsTheMicroStepNumbering",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
+{
+	namespace T = RTStunnedMovementTestsInternal;
+
+	enum class ESprinter : uint8 { None, Free, Stunned };
+
+	auto Run = [this](ESprinter Kind, TArray<int32>& OutIndices, FRTCellId& OutSprinterCell) -> bool
+	{
+		OutIndices.Reset();
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		T::SpawnMap(World, /*Radius=*/ 10);
+		ARTUnit* Watcher = T::SpawnUnit(World, 0, FRTCellId(-1, 0));
+		ARTUnit* Mover = T::SpawnUnit(World, 1, FRTCellId(0, 3));
+		const FRTCellId SprinterHome(-6, 5);
+		ARTUnit* Sprinter = Kind == ESprinter::None ? nullptr : T::SpawnUnit(World, 0, SprinterHome);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Watcher || !Mover || !TM || (Kind != ESprinter::None && !Sprinter)) { RTWorldFixtures::DestroyWorld(World); return false; }
+		T::Stand(Watcher);
+		T::Stand(Mover);
+
+		TM->ReactionDecider.BindLambda(
+			[](const FRTReactionOpportunity& Opportunity, int32) -> FString
+			{
+				for (const FString& Response : Opportunity.AllowedResponses)
+				{
+					if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE) { return Response; }
+				}
+				return FString();
+			});
+		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), T::CoreSlot);
+		if (!TestTrue(TEXT("premessa: Action.Overwatch e' montata"), OverwatchIdx != INDEX_NONE)) { RTWorldFixtures::DestroyWorld(World); return false; }
+		Watcher->PlannedAbilityIndex = OverwatchIdx;
+		Watcher->PlannedCell = Watcher->Cell;
+
+		// Chi cammina verso il guardiano: piu' passi, cosi' che la numerazione dei micro-step si veda piu' in la' del primo.
+		Mover->PlannedPath = { FRTCellId(0, 3), FRTCellId(0, 2), FRTCellId(0, 1), FRTCellId(0, 0) };
+		Mover->PlannedCell = FRTCellId(0, 0);
+
+		if (Sprinter)
+		{
+			T::Stand(Sprinter);
+			const int32 Oltre = Sprinter->GetEffectiveMoveRange() + 1;
+			Sprinter->PlannedPath.Reset();
+			for (int32 Q = 0; Q <= Oltre; ++Q) { Sprinter->PlannedPath.Add(FRTCellId(SprinterHome.X + Q, SprinterHome.Y)); }
+			Sprinter->PlannedCell = Sprinter->PlannedPath.Last();
+			if (Kind == ESprinter::Stunned) { Sprinter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+			TestEqual(TEXT("premessa: lo sprintatore e' stordito solo nel braccio stordito"),
+				Sprinter->HasStatus(TAG_Status_Stunned), Kind == ESprinter::Stunned);
+		}
+
+		T::RunTurn(TM);
+
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::ReactionDecision) { OutIndices.Add(E.MicroStepIndex); }
+		}
+		OutIndices.Sort();
+		OutSprinterCell = Sprinter ? Sprinter->Cell : FRTCellId();
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	auto Text = [](const TArray<int32>& Indices)
+	{
+		FString S;
+		for (int32 I = 0; I < Indices.Num(); ++I) { S += FString::Printf(TEXT("%s%d"), I == 0 ? TEXT("") : TEXT(","), Indices[I]); }
+		return S.IsEmpty() ? FString(TEXT("-")) : S;
+	};
+
+	TArray<int32> Base, Free, Stunned;
+	FRTCellId BaseCell, FreeCell, StunnedCell;
+	if (!Run(ESprinter::None, Base, BaseCell) || !Run(ESprinter::Free, Free, FreeCell) || !Run(ESprinter::Stunned, Stunned, StunnedCell)) { return false; }
+
+	// Anti-vacuita': il guardiano deve aver deciso almeno una finestra, o gli indici da confrontare non esistono.
+	if (!TestTrue(TEXT("premessa: nel braccio BASE almeno una finestra di reazione e' stata decisa"), Base.Num() > 0)) { return false; }
+	AddInfo(FString::Printf(TEXT("indici dei micro-step delle decisioni: base [%s], sprintatore libero [%s], sprintatore stordito [%s]"),
+		*Text(Base), *Text(Free), *Text(Stunned)));
+
+	TestNotEqual(TEXT("CONTROLLO POSITIVO: uno sprintatore che corre davvero cambia la numerazione dei micro-step (l'osservabile vede il calendario)"),
+		Text(Free), Text(Base));
+	TestTrue(TEXT("premessa: lo sprintatore libero si e' mosso, quello stordito no"),
+		!(FreeCell == FRTCellId(-6, 5)) && StunnedCell == FRTCellId(-6, 5));
+	TestEqual(TEXT("IL CUORE: con uno Sprint negato la numerazione dei micro-step e' quella di chi non c'e'"), Text(Stunned), Text(Base));
 	return true;
 }
 

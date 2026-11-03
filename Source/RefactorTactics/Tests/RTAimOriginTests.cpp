@@ -760,7 +760,7 @@ bool FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest::RunTest(const FString&)
  *
  * Come per lo scatto, la domanda e' una sola e la pone il resolver (`BeginMovementResolution` nega il camminare a chi e'
  * stordito): `ARTUnit::PlannedNormalMoveDeniedByStun()`. Il click accetta ancora il piano di una stordita ([D-565] (2)), quindi
- * il piano resta scritto; cio' che cambia e' dove l'unita' RESTERA', e due lettori lo chiedono:
+ * il piano resta scritto; cio' che cambia e' dove l'unita' RESTERA', e lo chiedono:
  *  - il verso dichiarato (`FacingCellFor`): si dichiara da dove l'unita' resta, non dal fondo di un percorso che non fara';
  *  - la voce Move della timeline: e' una rotta RIFIUTATA — la voce resta (il click l'ha accettata), il ghost sta dove l'unita'
  *    si trova e non percorre niente — come uno scatto che non si applica.

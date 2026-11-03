@@ -12,7 +12,8 @@
 // con la stessa `RefuseMainActionIfStunned`. Non sono "azioni principali" e non hanno una categoria in questo file: le prova
 // `EveryMobilityIsRefusedWhenStunned` (in `RTStunnedMovementTests.cpp`, sotto lo stesso prefisso `StunCensus`), guidato dai
 // cataloghi con `IsFastMovement` come questo lo e' con `TakesMainSlot`, e il banco `Status.StunnedMovement.*`. Il comando qui
-// sotto li elenca entrambi: i due siti del movimento sono la differenza rispetto alla tabella `GuardedSites()`.
+// sotto li elenca entrambi: i siti del movimento (`ResolveDash` e `BeginMovementResolution`) sono la differenza rispetto
+// alla tabella `GuardedSites()`.
 //
 //     git grep -n 'RefuseMainActionIfStunned(' -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'
 //
