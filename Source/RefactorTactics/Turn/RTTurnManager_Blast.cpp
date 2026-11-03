@@ -294,10 +294,18 @@ namespace
 	 * - `OtherLayer` — mira su un altro piano (`R5`), per il bersaglio-UNITA': corregge [D-509] punto 7h;
 	 * - `TargetDead` — bersaglio-unita' gia' morto prima del Blast (`R6`): come la cura su un alleato caduto.
 	 *
-	 * ⛔ **NON DECISO, e quindi gratis come prima**: `OutOfRange` di un bersaglio-UNITA' (a risoluzione), `TargetUnknown`,
-	 * `TargetFriendly`, `TargetGone`, `NoMap`, e tutto cio' che non passa di qui (porta senza varco, commutazione
-	 * rifiutata, mappa assente). Il `default` e' `false` APPOSTA: una causa nuova non paga finche' qualcuno non la
-	 * mette in tabella.
+	 * ⛔ **GRATIS, e dal 2026-11-03 non piu' «non deciso»** ([D-571], RIC-3: gratis e' cio' che il click rifiuta o non produce,
+	 * verificato causa per causa): `TargetUnknown` (il click non bersaglia cio' che la squadra non vede, `IsKnownToObserver`),
+	 * `TargetFriendly` (per un'unita' comandabile il click seleziona, non bersaglia), `TargetGone` (il click dichiara sempre
+	 * un'unita' o una cella: questo piano non nasce da un click), `OutOfRange` di un bersaglio-UNITA' oltre la portata
+	 * DICHIARATA (il click la rifiuta), `NoMap` (difetto del livello). Il `default` e' `false` APPOSTA: una causa nuova non paga
+	 * finche' qualcuno non la mette in tabella.
+	 *
+	 * ⚠️ **`OutOfRange` NON sta nella tabella, e non e' una svista**: dice «fuori portata» senza dire PERCHE'. Se e' oltre la
+	 * portata dichiarata il click la rifiuta (gratis); se e' dentro la portata dichiarata e oltre il cap del Fumo non
+	 * osservato, il click l'ha accettata sulla mappa ottimistica (paga): lo distingue `FuoriPortataSoloPerIlTerreno`, qui
+	 * sotto. Il terzo caso — fuori portata perche' uno scatto di chi agisce si e' fermato — il resolver non sa
+	 * distinguerlo dal primo (non conserva l'origine con cui il click ha giudicato), e resta gratis: `BLOCKED — DECISION REQUIRED`.
 	 *
 	 * ⚠️ **Il tiro a CELLA fuori portata dichiarata e la distanza minima non sono qui**: li giudica
 	 * `CollectHexAttacks`, in silenzio, e non lasciano ne' impronta ne' canale — il click li rifiuta, quindi
@@ -345,6 +353,28 @@ namespace
 			{
 				return Impronta.IntentIndex == IntentIdx;
 			});
+	}
+
+	/**
+	 * ➕ **2026-11-03, [D-571] (RIC-3), causa (a)**: il bersaglio-UNITA' e' fuori portata SOLO per il cap del terreno?
+	 *
+	 * `ValidateInstance` misura la distanza dalla mira congelata contro la portata EFFETTIVA (il Fumo la cappa a 2), e risponde
+	 * `OutOfRange` sia oltre la portata dichiarata sia oltre il cap. Sono due piani diversi per il click: oltre la portata
+	 * dichiarata lo rifiuta (`ClassifyHexTargeting`, [D-200]: geometria nota in pianificazione); dentro la portata dichiarata
+	 * lo accetta, perche' giudica sulla mappa ottimistica che ignora il Fumo non osservato (`PlayerAimMap`, [D-465] (3)) — ed e'
+	 * la stessa ragione per cui il tiro a CELLA cappato dal Fumo paga (`R7`, `TerrainCappedIntents`). Qui si rifa' la stessa
+	 * domanda che `CollectHexAttacks` pone sull'intento a cella: distanza dalla cella di partenza della fase contro la portata
+	 * DICHIARATA.
+	 *
+	 * ⚠️ **Non distingue il caso dello scatto fermato**: se l'origine di chi agisce non e' quella con cui il click ha giudicato,
+	 * una distanza entro la portata dichiarata resta dentro e una oltre resta oltre, e il predicato non sa che il click avrebbe
+	 * potuto accettare. Quel caso e' gratis ed e' dichiarato (`Actions.Blast.UndecidedCausesStayFree`).
+	 */
+	bool FuoriPortataSoloPerIlTerreno(ERTActionInvalidReason Motivo, const FRTCellId& Da, const FRTCellId& Mira,
+		int32 PortataDichiarata)
+	{
+		return Motivo == ERTActionInvalidReason::OutOfRange
+			&& URTHexLibrary::HexDistance(Da, Mira) <= PortataDichiarata;
 	}
 }
 
@@ -909,6 +939,19 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
+
+			// ➕ **2026-11-03, [D-571] (RIC-3) causa (d)**: il bersaglio-unita' GIA' MORTO. Il click ha accettato un piano su un
+			// bersaglio vivo e noto, e la morte e' un fatto di risoluzione — come la cura su un alleato caduto ([D-197]).
+			// Nessun bersaglio dichiarato (`ArcTarget == nullptr`) e' un piano che il click non produce: gratis, come prima.
+			// ⚠️ Nessuna voce di TurnLog (il formato non cambia): cambia solo la ricarica, che scrive `SpendStartedAbilities`.
+			// ⚠️ `IsAlive()` di chi agisce, ora e non alla fine: e' la guardia «vivo quando annota» di `R10` ([D-209]).
+			// ⚠️ La morte precede la misura della portata, come in `ValidateInstance` (`TargetDead` esce prima di `OutOfRange`):
+			// il fuori portata di un bersaglio VIVO e' la riga `ArcRejected` piu' in basso, e resta gratis.
+			if (ArcTarget && !ArcTarget->IsAlive() && Unit->IsAlive() && Unit->CanUseAbility(ArcAbilityIndex))
+			{
+				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex);
+			}
+
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
 				// La PORTATA dichiarata dal catalogo si valida qui, prima di toccare la topologia (#206).
@@ -1218,7 +1261,14 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// `IntentoPartitoSenzaColpo`: la regola e' «se si usa un attacco si paga», e un'azione che non e' un colpo ha le
 			// proprie regole (la cura paga per conto suo, in `CollectHealActions`). Senza la clausola `R6` pagava anche
 			// un'azione non aggressiva su un bersaglio-unita' caduto, che su `main` e' gratis.
-			if (Instance.Def.bCountsAsAttack && PagaSeParteSenzaColpo(Reason))
+			//
+			// ➕ **2026-11-03, [D-571] (RIC-3) causa (a)**: il bersaglio-unita' fuori portata SOLO per il cap del Fumo non
+			// osservato paga come il tiro a cella cappato (`R7`): il click l'ha accettato sulla mappa ottimistica. Oltre la
+			// portata DICHIARATA no: il click lo rifiuta. `OutOfRange` non sta nella tabella proprio per questo, vedi
+			// `FuoriPortataSoloPerIlTerreno`. La sede e il resto non cambiano: si annota qui, scrive `MarkAttackerAbilitiesSpent`.
+			const bool bFuoriPortataPerIlTerreno = FuoriPortataSoloPerIlTerreno(Reason, HexUnits[i].Cell,
+				Instance.TargetCell, Instance.Def.RangeCells);
+			if (Instance.Def.bCountsAsAttack && (PagaSeParteSenzaColpo(Reason) || bFuoriPortataPerIlTerreno))
 			{
 				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
 			}

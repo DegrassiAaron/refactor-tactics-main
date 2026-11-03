@@ -3649,6 +3649,18 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		{
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
 				*Caster->GetName(), *Ability->Def.ActionId.ToString()), FRTLogSubject::Unit(Caster));
+
+			// ➕ **2026-11-03, [D-571] (RIC-3) causa (e)**: il bersaglio-unita' GIA' MORTO. Il click ha accettato un piano su un
+			// bersaglio vivo e noto, e la morte e' un fatto di risoluzione (questo e' il Cleanup, dopo il Blast): l'azione e'
+			// partita e la ricarica con lei. `Target == nullptr` e' un piano che il click non produce — dichiara sempre
+			// un'unita' o una cella — e resta gratis. La SEDE e' quella di sempre per questo sito: scrittura immediata, come
+			// per il rifiuto da stordimento qui sopra e per `ConsumeAbility` piu' in basso. `CanUseAbility` e' gia' stato
+			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno); `IsAlive()` e' la guardia di `R10`
+			// ([D-209]): un cadavere col piano addosso non ha tentato niente. Nessuna voce di TurnLog, nessun evento nuovo.
+			if (Target && Caster->IsAlive())
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+			}
 			continue;
 		}
 
@@ -4387,7 +4399,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// non e' geometria nota in pianificazione, e [D-200] libera solo cio' che il click rifiuta — quindi il rifiuto per
 		// stordimento precede i `Reject` di raccolta (nessun bersaglio, nessun bordo dichiarato, fuori portata) e li
 		// sostituisce: uno stordito con un piano incompleto e' rifiutato e paga, chi non lo e' lascia il suo `Reject` e non
-		// paga (`RIC-3` non e' deciso). E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
+		// paga (`RIC-3`, [D-571]: gratis perche' il click non produce un piano senza bersaglio o senza bordo e rifiuta quello
+		// fuori portata; l'origine in Prep e' sempre la cella di partenza, quindi la portata non dipende da uno scatto). E sta
+		// dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
 		// scartata in silenzio, senza voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e
 		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le uscite in cima al ciclo
 		// (`IsAlive`, `StructureOp` assente, `SetDoorState`).

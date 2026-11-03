@@ -600,8 +600,8 @@ bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
 //     il beat di Prep del playback — che si legge dove il playback c'e' di sicuro, cioe' sulle righe col passo;
 //   · NON cambia un'azione GIA' in ricarica (scarto muto di `CanUseAbility`, prima della guardia: niente voce e niente
 //     secondo addebito), ne' un attore caduto (il ciclo lo salta), ne' i `Reject` di raccolta di chi NON e' stordito,
-//     che restano gratis: `RIC-3` non e' deciso, e la riga «senza bordo» pinna che la guardia sta PRIMA di quei
-//     `Reject` senza deciderlo.
+//     che restano gratis (`RIC-3`, [D-571]: il click non produce un piano senza bersaglio o senza bordo e rifiuta quello
+//     fuori portata), e la riga «senza bordo» pinna che la guardia sta PRIMA di quei `Reject`.
 //
 // ⚠️ **Ogni riga ha il suo braccio di CONTROLLO**: stessa unita', stesso piano, mondo ricostruito da capo, senza
 // stordimento. Senza, «non e' successo niente» sarebbe verde anche se il banco non facesse succedere niente. In coda
@@ -1662,7 +1662,7 @@ namespace
  *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
  *    il ciclo azzera il piano PRIMA di `CanUseAbility`, quindi nemmeno il Blast ritrova niente da rifiutare;
  *  - **senza bordo**, **senza bersaglio**, **fuori portata** (i `Reject` di raccolta): quello di chi NON e' stordito
- *    resta GRATIS (`RIC-3` non e' deciso) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di ciascuno, quindi
+ *    resta GRATIS (`RIC-3`, [D-571]: il click non lo produce o lo rifiuta) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di ciascuno, quindi
  *    paga e non lascia `CoverRejected`;
  *  - **con testimone**: la stordita e' rifiutata e il ciclo PROSEGUE. Un compagno della stessa squadra, ordinato DOPO di lei
  *    da `SortUnitsForResolution` (una premessa lo verifica), erige altrove: la sua copertura nasce anche nel braccio
