@@ -813,7 +813,7 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  *
  * La domanda all'autore (2026-11-03): nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince lo
  * stordimento come nel Dash (UNA voce, `Stunned`; si perde la traccia della corsa dichiarata) oppure restano DUE voci
- * (`Unbalanced` scritta da `ResolveDash` e `Stunned` che nomina `Action.Move`)? La risposta, alla lettera: «una voce». Fino a
+ * (`Unbalanced` scritta da `ResolveDash` e `Stunned` che nomina `Action.Move`)? La risposta, in sintesi: una voce sola. Fino a
  * allora questo test fissava le due voci come stato di fatto non deciso (`...WritesTwoRefusalsUntilDecided`).
  *
  * `ResolveDash` scrive in apertura, per chi e' `Unbalanced` e ha pianificato una corsa, una voce `Fallback`/`Cancelled`/
@@ -822,12 +822,18 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  * (`Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, braccio "stordita e sbilanciata"), e il criterio e' la domanda che
  * anche `BeginMovementResolution` pone, `ARTUnit::PlannedNormalMoveDeniedByStun`.
  *
- * Due bracci su mondi ricostruiti da capo, che differiscono per UNA riga (`ApplyStatus(Stunned)`):
+ * Due bracci su mondi ricostruiti da capo, che differiscono per UNA riga (`ApplyStatus(Stunned)`). In ognuno, oltre alla
+ * camminatrice, un SECONDO sprintatore sbilanciato e NON stordito, ordinato DOPO di lei nell'ordine reale di risoluzione (la
+ * premessa si asserisce: `SortUnitsForResolution` su un array passato nell'ordine sbagliato):
  *  - CONTROLLO (sbilanciata, non stordita): la voce `Unbalanced` c'e', una sola, e nomina l'azione della corsa negata; la voce
  *    `Stunned` non c'e'; la riga del combat log che la racconta c'e'. Senza questo braccio lo zero del secondo direbbe solo che
  *    la fixture non scrive mai quella voce (e prova che il piano e' davvero una corsa);
- *  - CUORE (stordita e sbilanciata): UNA voce, `Stunned`, in fase Move; ZERO voci con causa `Unbalanced` (di qualunque fase ed
- *    esito, e nemmeno la riga del combat log); nessun altro rifiuto; l'unita' resta dov'e'.
+ *  - CUORE (stordita e sbilanciata): UNA voce, `Stunned`, in fase Move, con le due celle uguali a quella dell'unita' (la
+ *    destinazione pianificata e' piano privato); ZERO voci con causa `Unbalanced` (di qualunque fase ed esito, e nemmeno la riga
+ *    del combat log); nessun altro rifiuto; l'unita' resta dov'e';
+ *  - IL COMPAGNO, in entrambi: la SUA voce `Unbalanced` c'e' ed e' una sola, anche quando la camminatrice e' stordita. E' cio'
+ *    che separa `continue` da `break` nel guard di `ResolveDash`: con `break` il ciclo uscirebbe alla stordita, e nessuno
+ *    ordinato dopo di lei scriverebbe la propria voce.
  *
  * ⚠️ **La conseguenza accettata**: la voce rimasta nomina `Action.Move` — la banda congelata per chi e' sbilanciata e' gia'
  * degradata da `bRunDenied`, quindi non e' piu' la corsa — e si PERDE la traccia che era stata dichiarata una corsa
@@ -838,10 +844,13 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  * riga del combat log. Il piano di chi e' sbilanciato non nomina nessuno Sprint (la banda e' gia' `Move`), quindi `Exposed` non
  * c'e' in nessuno dei due bracci: e' asserito, ed e' lo stesso valore che il codice con le due voci produceva.
  *
- * ⚠️ **Il confine di questa regola e' la FASE DEL DASH, non il Move**: il criterio si legge quando `ResolveDash` scrive la voce,
- * cioe' prima del Blast ([D-569] (4): lo stato si legge alla fase in cui l'azione risolve). Chi e' stordita da prima del turno ha
- * una voce sola; chi viene stordita DAL Blast di T non lo e' ancora quando la voce `Unbalanced` si scrive, e per lei restano
- * due voci (vedi `...AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
+ * ⚠️ **Il confine di questa regola e' lo stato di INIZIO TURNO, non il Move**: il guard di `ResolveDash` legge `Stunned` quando
+ * scrive la voce, cioe' prima del Blast (la voce porta `Phase = Move`, ma nasce nel Dash). Chi e' stordita da prima del turno ha
+ * una voce sola; chi viene stordita DAL Blast di T non lo e' ancora, e per lei restano due voci (vedi
+ * `...AStunBornInTheBlastKeepsBothRefusalsUntilDecided`). Se anche li' debba essercene una sola e' una domanda aperta all'autore.
+ *
+ * ⚠️ **E la voce rimasta c'e' solo se al Move c'e' ancora un Move da rifiutare**: uno spostamento forzato nel Blast azzera il
+ * piano ([D-045]), e allora non resta nessuna voce (vedi `...AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedAndUnbalancedSprintOneRefusalTest,
 	"RefactorTactics.Status.StunnedMovement.StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal",
@@ -850,49 +859,49 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 {
 	namespace T = RTStunnedMovementTestsInternal;
 
+	// Il rifiuto di un'unita': cio' che il TurnLog e il combat log dicono di LEI, indipendentemente dalle altre.
+	struct FUnitTally
+	{
+		int32 UnbalancedAnyShape = 0;        //< voci Fallback dell'unita' con causa Unbalanced, di qualunque fase ed esito
+		int32 UnbalancedCancelledInMove = 0; //< fra quelle: Cancelled in fase Move (la forma che scrive ResolveDash)
+		int32 StunnedCancelledInMove = 0;    //< voci Fallback/Cancelled/Stunned in fase Move
+		int32 FallbacksAnyShape = 0;         //< ogni voce Fallback dell'unita', di qualunque causa
+		FName UnbalancedAction;
+		FName StunnedAction;
+		FRTCellId StunnedSrcCell;            //< le due celle della voce Stunned: uguali alla cella dell'unita' (piano privato)
+		FRTCellId StunnedTgtCell;
+		int32 UnbalancedLines = 0;           //< righe del combat log di QUESTA unita' che dicono "sbilanciato, non puo' correre"
+		FRTCellId Arrival;
+		bool bExposed = false;
+	};
+
 	struct FArm
 	{
 		bool bValid = false;
-		int32 UnbalancedAnyShape = 0;       //< voci Fallback dell'unita' con causa Unbalanced, di qualunque fase ed esito
-		int32 UnbalancedCancelledInMove = 0; //< fra quelle: Cancelled in fase Move (la forma che scrive ResolveDash)
-		int32 StunnedCancelledInMove = 0;   //< voci Fallback/Cancelled/Stunned in fase Move
-		int32 FallbacksAnyShape = 0;        //< ogni voce Fallback dell'unita', di qualunque causa
-		FName UnbalancedAction;
-		FName StunnedAction;
-		FRTCellId Arrival;
-		bool bExposed = false;
-		int32 UnbalancedLines = 0;          //< righe del combat log che dicono "sbilanciato, non puo' correre"
+		bool bMateAfter = false; //< premessa: nell'ordine reale di risoluzione il compagno viene DOPO la camminatrice
+		FUnitTally Walker;
+		FUnitTally Mate;
 	};
 
-	auto Run = [this](bool bStunned, FArm& Out) -> bool
+	// Il compagno sta a X maggiore (ordina DOPO chi cammina) e su una riga lontana, cosi' le due corse non si toccano. Sbilanciato e
+	// NON stordito, con una corsa pianificata: la sua voce `Unbalanced` c'e' in entrambi i bracci.
+	const FRTCellId MateHome(T::Home.X + 1, T::Home.Y - 4);
+
+	auto PlanRun = [](ARTUnit* Unit)
 	{
-		UWorld* World = RTWorldFixtures::MakeWorld();
-		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-		T::SpawnMap(World, /*Radius=*/ 10);
-		ARTUnit* Walker = T::SpawnUnit(World, 0, T::Home);
-		ARTUnit* Foe = T::SpawnUnit(World, 1, FRTCellId(-8, 0));
-		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!Walker || !Foe || !TM) { RTWorldFixtures::DestroyWorld(World); return false; }
-		T::Stand(Walker);
-		T::Stand(Foe);
-
 		// Una corsa: un passo oltre il Move neutro (la banda `Sprint` si legge dalla distanza pianificata, D-425).
-		const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
-		Walker->PlannedPath.Reset();
-		for (int32 Q = 0; Q <= Oltre; ++Q) { Walker->PlannedPath.Add(FRTCellId(T::Home.X + Q, T::Home.Y)); }
-		Walker->PlannedCell = Walker->PlannedPath.Last();
-		if (bStunned) { Walker->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
-		Walker->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-		TestEqual(*FString::Printf(TEXT("premessa (%s): lo stordimento c'e' solo dove il braccio lo dichiara"), bStunned ? TEXT("stordita") : TEXT("controllo")),
-			Walker->HasStatus(TAG_Status_Stunned), bStunned);
-		TestTrue(*FString::Printf(TEXT("premessa (%s): sbilanciata, con un Move pianificato"), bStunned ? TEXT("stordita") : TEXT("controllo")),
-			Walker->HasStatus(TAG_Status_Unbalanced) && Walker->HasPlannedNormalMove());
+		const FRTCellId From = Unit->Cell;
+		const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
+		Unit->PlannedPath.Reset();
+		for (int32 Q = 0; Q <= Oltre; ++Q) { Unit->PlannedPath.Add(FRTCellId(From.X + Q, From.Y)); }
+		Unit->PlannedCell = Unit->PlannedPath.Last();
+	};
 
-		T::RunTurn(TM);
-
+	auto Tally = [](const ARTTurnManager* TM, const ARTUnit* Unit, const FRTCellId& Start, FUnitTally& Out)
+	{
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Walker->StableUnitId) { continue; }
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Unit->StableUnitId) { continue; }
 			++Out.FallbacksAnyShape;
 			const bool bCancelledInMove = E.Phase == ERTMatchPhase::Move && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled);
 			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced))
@@ -904,14 +913,56 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 			{
 				++Out.StunnedCancelledInMove;
 				Out.StunnedAction = E.ActionId;
+				Out.StunnedSrcCell = E.SrcCell;
+				Out.StunnedTgtCell = E.TgtCell;
 			}
 		}
+		// La riga del combat log porta la cella dell'unita' (`LogLabel` e' per eroe, e i due sprintatori sono lo stesso eroe).
+		const FString Mark = FString::Printf(TEXT("(q=%d,r=%d,L=%d): sbilanciato, non puo' correre"), Start.X, Start.Y, Start.Layer);
 		for (const FString& Line : TM->GetRecentEvents())
 		{
-			if (Line.Contains(TEXT("sbilanciato, non puo' correre"))) { ++Out.UnbalancedLines; }
+			if (Line.Contains(Mark)) { ++Out.UnbalancedLines; }
 		}
-		Out.Arrival = Walker->Cell;
-		Out.bExposed = Walker->HasStatus(TAG_Status_Exposed);
+		Out.Arrival = Unit->Cell;
+		Out.bExposed = Unit->HasStatus(TAG_Status_Exposed);
+	};
+
+	auto Run = [this, &PlanRun, &Tally, MateHome](bool bStunned, FArm& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		T::SpawnMap(World, /*Radius=*/ 10);
+		ARTUnit* Walker = T::SpawnUnit(World, 0, T::Home);
+		ARTUnit* Mate = T::SpawnUnit(World, 0, MateHome);
+		ARTUnit* Foe = T::SpawnUnit(World, 1, FRTCellId(-8, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Walker || !Mate || !Foe || !TM) { RTWorldFixtures::DestroyWorld(World); return false; }
+		T::Stand(Walker);
+		T::Stand(Mate);
+		T::Stand(Foe);
+
+		const TCHAR* Arm = bStunned ? TEXT("stordita") : TEXT("controllo");
+		PlanRun(Walker);
+		PlanRun(Mate);
+		if (bStunned) { Walker->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		Walker->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		Mate->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		TestEqual(*FString::Printf(TEXT("premessa (%s): lo stordimento c'e' solo dove il braccio lo dichiara"), Arm),
+			Walker->HasStatus(TAG_Status_Stunned), bStunned);
+		TestTrue(*FString::Printf(TEXT("premessa (%s): sbilanciata, con un Move pianificato"), Arm),
+			Walker->HasStatus(TAG_Status_Unbalanced) && Walker->HasPlannedNormalMove());
+		TestTrue(*FString::Printf(TEXT("premessa (%s): il compagno e' sbilanciato, NON stordito, con un Move pianificato"), Arm),
+			Mate->HasStatus(TAG_Status_Unbalanced) && !Mate->HasStatus(TAG_Status_Stunned) && Mate->HasPlannedNormalMove());
+
+		// L'ordine si MISURA con la funzione vera, su un array passato nell'ordine sbagliato perche' il sort debba muoverlo.
+		TArray<ARTUnit*> Ordine = { Mate, Walker, Foe };
+		URTActionQueueLibrary::SortUnitsForResolution(Ordine);
+		Out.bMateAfter = Ordine.IndexOfByKey(Mate) > Ordine.IndexOfByKey(Walker);
+
+		T::RunTurn(TM);
+
+		Tally(TM, Walker, T::Home, Out.Walker);
+		Tally(TM, Mate, MateHome, Out.Mate);
 		Out.bValid = true;
 		RTWorldFixtures::DestroyWorld(World);
 		return true;
@@ -921,30 +972,48 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 	const FName SprintAction = URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileSprint).ActionId;
 	if (!TestFalse(TEXT("premessa: la banda Sprint nomina un'azione"), SprintAction.IsNone())) { return false; }
 
+	// Il compagno ha la sua voce `Unbalanced`, una sola, in entrambi i bracci: non e' stordito, quindi niente la deve togliere.
+	auto CheckMate = [this, SprintAction](const TCHAR* Arm, const FArm& A)
+	{
+		TestTrue(*FString::Printf(TEXT("%s: premessa: nell'ordine reale di risoluzione il compagno viene DOPO la camminatrice"), Arm), A.bMateAfter);
+		TestEqual(*FString::Printf(TEXT("%s: il compagno ha UNA voce Unbalanced (Cancelled, fase Move)"), Arm), A.Mate.UnbalancedCancelledInMove, 1);
+		TestEqual(*FString::Printf(TEXT("%s: e nessun'altra voce con causa Unbalanced, di nessuna fase"), Arm), A.Mate.UnbalancedAnyShape, 1);
+		TestEqual(*FString::Printf(TEXT("%s: la sua voce nomina l'azione della corsa negata"), Arm), A.Mate.UnbalancedAction, SprintAction);
+		TestEqual(*FString::Printf(TEXT("%s: non e' stordito, quindi nessuna voce Stunned"), Arm), A.Mate.StunnedCancelledInMove, 0);
+		TestEqual(*FString::Printf(TEXT("%s: e nessun altro rifiuto"), Arm), A.Mate.FallbacksAnyShape, 1);
+		TestEqual(*FString::Printf(TEXT("%s: la riga del combat log del compagno c'e'"), Arm), A.Mate.UnbalancedLines, 1);
+	};
+
 	// CONTROLLO - sbilanciata, non stordita: la corsa e' negata da Unbalanced e la voce c'e'.
 	FArm Free;
 	if (!Run(/*bStunned=*/ false, Free) || !TestTrue(TEXT("controllo: il turno e' girato"), Free.bValid)) { return false; }
-	TestEqual(TEXT("controllo: UNA voce Unbalanced (Cancelled, fase Move): il piano e' davvero una corsa negata"), Free.UnbalancedCancelledInMove, 1);
-	TestEqual(TEXT("controllo: e nessun'altra voce con causa Unbalanced, di nessuna fase"), Free.UnbalancedAnyShape, 1);
-	TestEqual(TEXT("controllo: la voce nomina l'azione della corsa negata"), Free.UnbalancedAction, SprintAction);
-	TestEqual(TEXT("controllo: non e' stordita, quindi nessuna voce Stunned"), Free.StunnedCancelledInMove, 0);
-	TestEqual(TEXT("controllo: e nessun altro rifiuto"), Free.FallbacksAnyShape, 1);
-	TestTrue(TEXT("controllo: la riga del combat log racconta la corsa negata"), Free.UnbalancedLines >= 1);
-	TestFalse(TEXT("controllo: nessuno Sprint nel piano, quindi nessun Exposed da pagare"), Free.bExposed);
+	TestEqual(TEXT("controllo: UNA voce Unbalanced (Cancelled, fase Move): il piano e' davvero una corsa negata"), Free.Walker.UnbalancedCancelledInMove, 1);
+	TestEqual(TEXT("controllo: e nessun'altra voce con causa Unbalanced, di nessuna fase"), Free.Walker.UnbalancedAnyShape, 1);
+	TestEqual(TEXT("controllo: la voce nomina l'azione della corsa negata"), Free.Walker.UnbalancedAction, SprintAction);
+	TestEqual(TEXT("controllo: non e' stordita, quindi nessuna voce Stunned"), Free.Walker.StunnedCancelledInMove, 0);
+	TestEqual(TEXT("controllo: e nessun altro rifiuto"), Free.Walker.FallbacksAnyShape, 1);
+	TestEqual(TEXT("controllo: la riga del combat log racconta la corsa negata"), Free.Walker.UnbalancedLines, 1);
+	TestFalse(TEXT("controllo: nessuno Sprint nel piano, quindi nessun Exposed da pagare"), Free.Walker.bExposed);
+	CheckMate(TEXT("controllo"), Free);
 
 	// CUORE - stordita e sbilanciata: vince lo stordimento, una voce.
 	FArm Both;
 	if (!Run(/*bStunned=*/ true, Both) || !TestTrue(TEXT("stordita: il turno e' girato"), Both.bValid)) { return false; }
-	TestEqual(TEXT("UNA voce Stunned in fase Move"), Both.StunnedCancelledInMove, 1);
+	TestEqual(TEXT("UNA voce Stunned in fase Move"), Both.Walker.StunnedCancelledInMove, 1);
 	// La voce rimasta nomina `Action.Move`: la banda che `BeginMovementResolution` ha congelato per chi e' sbilanciata non e' piu' una
 	// corsa (tetto 1x). Si perde la traccia che era stata dichiarata una corsa, ed e' la conseguenza che l'autore ha accettato.
-	TestEqual(TEXT("e nomina Action.Move: la traccia della corsa dichiarata si perde"), Both.StunnedAction, FName(TEXT("Action.Move")));
-	TestEqual(TEXT("ZERO voci con causa Unbalanced, di qualunque fase ed esito"), Both.UnbalancedAnyShape, 0);
-	TestEqual(TEXT("ZERO voci Unbalanced in fase Move (la forma che scrive ResolveDash)"), Both.UnbalancedCancelledInMove, 0);
-	TestEqual(TEXT("nessun altro rifiuto, di nessuna causa o fase"), Both.FallbacksAnyShape, 1);
-	TestEqual(TEXT("e nemmeno la riga del combat log che racconta la corsa negata"), Both.UnbalancedLines, 0);
-	TestEqual(TEXT("la stordita sbilanciata resta dov'e'"), Both.Arrival.ToString(), T::Home.ToString());
-	TestFalse(TEXT("saltare la voce non cambia cio' che si paga: nessuno Sprint nel piano, nessun Exposed (come nel controllo)"), Both.bExposed);
+	TestEqual(TEXT("e nomina Action.Move: la traccia della corsa dichiarata si perde"), Both.Walker.StunnedAction, FName(TEXT("Action.Move")));
+	// Privacy: la destinazione pianificata e' piano privato, quindi la voce porta due volte la cella di partenza.
+	TestEqual(TEXT("la voce non rivela la destinazione: SrcCell e' la cella della stordita"), Both.Walker.StunnedSrcCell.ToString(), T::Home.ToString());
+	TestEqual(TEXT("e TgtCell e' la stessa"), Both.Walker.StunnedTgtCell.ToString(), T::Home.ToString());
+	TestEqual(TEXT("ZERO voci con causa Unbalanced, di qualunque fase ed esito"), Both.Walker.UnbalancedAnyShape, 0);
+	TestEqual(TEXT("ZERO voci Unbalanced in fase Move (la forma che scrive ResolveDash)"), Both.Walker.UnbalancedCancelledInMove, 0);
+	TestEqual(TEXT("nessun altro rifiuto, di nessuna causa o fase"), Both.Walker.FallbacksAnyShape, 1);
+	TestEqual(TEXT("e nemmeno la riga del combat log che racconta la corsa negata"), Both.Walker.UnbalancedLines, 0);
+	TestEqual(TEXT("la stordita sbilanciata resta dov'e'"), Both.Walker.Arrival.ToString(), T::Home.ToString());
+	TestFalse(TEXT("saltare la voce non cambia cio' che si paga: nessuno Sprint nel piano, nessun Exposed (come nel controllo)"), Both.Walker.bExposed);
+	// IL COMPAGNO dopo di lei: il guard salta la stordita e passa all'unita' successiva (`continue`, non `break`).
+	CheckMate(TEXT("stordita"), Both);
 	return true;
 }
 
@@ -952,14 +1021,15 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
  * PIN DEL COMPORTAMENTO ATTUALE, NON UNA DECISIONE: chi viene stordita DAL Blast di T, ed era sbilanciata con una corsa
  * pianificata, scrive DUE voci in fase Move.
  *
- * La risposta d'autore «una voce» riguarda lo stordimento e lo sbilanciamento INSIEME, e la regola che la attua si legge alla
- * fase del Dash (`ResolveDash`, [D-569] (4)): uno stun nato nel Blast di T non c'e' ancora quando la voce `Unbalanced` si scrive,
+ * La risposta d'autore (una voce sola) riguarda lo stordimento e lo sbilanciamento INSIEME, e la regola che la attua legge lo
+ * stato di inizio turno, in `ResolveDash`: uno stun nato nel Blast di T non c'e' ancora quando la voce `Unbalanced` si scrive,
  * quindi la voce c'e', e poi `BeginMovementResolution` (dopo il Blast) scrive quella `Stunned`. Ogni voce descrive lo stato
- * com'era alla fase in cui e' stata scritta, ma l'autore non ha detto se per QUESTO caso vale ancora «una voce».
+ * com'era quando e' stata scritta, ma l'autore non ha detto se per QUESTO caso vale ancora una voce sola.
  *
- * ⚠️ **DECISION REQUIRED**: farne una sola vorrebbe dire spostare la voce `Unbalanced` dal Dash al Move (o cancellarla a Blast
- * finito), cioe' cambiare QUANDO nasce una voce che oggi nasce prima del Blast. Questo test fissa lo stato di fatto per non farlo
- * cambiare in silenzio: se la decisione e' «una voce anche qui», l'asserto sulla voce `Unbalanced` si rovescia (zero).
+ * ⚠️ **DECISION REQUIRED**: farne una sola vorrebbe dire scrivere la voce `Unbalanced` dopo il Blast (la voce porta `Phase = Move`
+ * ma oggi nasce nel Dash), con effetto su `AppendLogEntry`, che congela verdetto e `GraphRevision` nell'istante in cui scrive. Questo
+ * test fissa lo stato di fatto per non farlo cambiare in silenzio: se la decisione e' una voce sola anche qui, l'asserto sulla
+ * voce `Unbalanced` si rovescia (zero).
  *
  * Due bracci: senza stordente la sbilanciata cammina (1x) e scrive la sola voce `Unbalanced` (controllo: e' lo stordimento a
  * fermarla, e a scrivere `Stunned`); con lo stordente la voce `Unbalanced` c'e' e c'e' anche `Stunned`.
@@ -1016,6 +1086,93 @@ bool FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest::RunTest(const FString&)
 			TestEqual(TEXT("controllo: nessuna voce Stunned"), Stunned, 0);
 			TestFalse(TEXT("controllo: la sbilanciata non stordita cammina (e' lo stordimento a fermare l'altro braccio)"),
 				Walker->Cell == T::Home);
+		}
+		RTWorldFixtures::DestroyWorld(World);
+	}
+	return true;
+}
+
+/**
+ * Una stordita sbilanciata con una corsa pianificata, SPINTA nel Blast, non scrive nessun rifiuto: il piano decade per intero.
+ *
+ * Uno spostamento forzato che precede il Move annulla il Move pianificato ([D-045]: `ApplyForcedDisplacement` azzera `PlannedPath`
+ * e porta `PlannedCell` alla cella nuova). Al Move `HasPlannedNormalMove()` e' falso, quindi `BeginMovementResolution` non ha un
+ * Move da rifiutare e non scrive `Stunned`; e `ResolveDash`, che ha letto lo stato prima del Blast, ha gia' saltato `Unbalanced`
+ * per la stessa unita'. Risultato: ZERO voci di rifiuto per quella corsa.
+ *
+ * E' una CONSEGUENZA dichiarata e non un difetto: non c'e' piu' niente da rifiutare (il piano decade per intero), e l'unita' e'
+ * dove la forza l'ha portata, perche' il movimento forzato non e' volontario e non si nega (`ForcedMovementIsNotDenied`).
+ * Raggiungibile solo nei banchi: nessun catalogo produce `Stunned` ([#3965]).
+ *
+ * Due bracci sullo stesso mondo, che differiscono per UNA riga (la spinta):
+ *  - CONTROLLO (nessuna spinta): la stordita sbilanciata con la corsa pianificata scrive UNA voce `Stunned` e resta ferma. Prova che
+ *    il piano e' davvero un Move da rifiutare, e che lo zero del secondo braccio viene dalla spinta e non dalla fixture;
+ *  - CUORE (spinta nel Blast): e' stata spostata dalla forza, non e' arrivata alla meta della corsa, e il TurnLog non porta nessuna
+ *    voce `Fallback` per lei.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedForcedDisplacementDropsTheRunPlanTest,
+	"RefactorTactics.Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedForcedDisplacementDropsTheRunPlanTest::RunTest(const FString&)
+{
+	namespace T = RTStunnedMovementTestsInternal;
+
+	for (const bool bPushed : { false, true })
+	{
+		const TCHAR* Arm = bPushed ? TEXT("spinta") : TEXT("controllo");
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		T::SpawnMap(World, /*Radius=*/ 10);
+		ARTUnit* Pusher = T::SpawnUnit(World, 0, FRTCellId(T::Home.X - 1, T::Home.Y));
+		ARTUnit* Victim = T::SpawnUnit(World, 1, T::Home);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Pusher || !Victim || !TM) { RTWorldFixtures::DestroyWorld(World); return false; }
+		T::Stand(Pusher);
+		T::Stand(Victim);
+		Victim->PushResistance = 0;
+
+		// Una corsa, per una direzione diversa da quella della spinta: un passo oltre il Move neutro.
+		const int32 Oltre = Victim->GetEffectiveMoveRange() + 1;
+		Victim->PlannedPath.Reset();
+		for (int32 Q = 0; Q <= Oltre; ++Q) { Victim->PlannedPath.Add(FRTCellId(T::Home.X, T::Home.Y + Q)); }
+		Victim->PlannedCell = Victim->PlannedPath.Last();
+		const FRTCellId Goal = Victim->PlannedCell;
+		Victim->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		TestTrue(*FString::Printf(TEXT("%s: premessa: stordita e sbilanciata, con una corsa pianificata"), Arm),
+			Victim->HasStatus(TAG_Status_Stunned) && Victim->HasStatus(TAG_Status_Unbalanced) && Victim->HasPlannedNormalMove());
+		if (bPushed)
+		{
+			Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
+			Pusher->PlannedAttackTarget = Victim;
+			TestTrue(TEXT("spinta: premessa: lo spingitore ha la sua azione"), Pusher->PlannedAbilityIndex != INDEX_NONE);
+		}
+
+		T::RunTurn(TM);
+
+		int32 Fallbacks = 0, Stunned = 0, Unbalanced = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Victim->StableUnitId) { continue; }
+			++Fallbacks;
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced)) { ++Unbalanced; }
+			if (T::IsStunRefusal(E, Victim->StableUnitId, ERTMatchPhase::Move)) { ++Stunned; }
+		}
+
+		if (!bPushed)
+		{
+			TestEqual(TEXT("controllo: resta dov'e'"), Victim->Cell.ToString(), T::Home.ToString());
+			TestEqual(TEXT("controllo: UNA voce Stunned in fase Move: c'e' un Move da rifiutare"), Stunned, 1);
+			TestEqual(TEXT("controllo: nessuna voce Unbalanced (vince lo stordimento)"), Unbalanced, 0);
+			TestEqual(TEXT("controllo: e nessun altro rifiuto"), Fallbacks, 1);
+		}
+		else
+		{
+			TestFalse(TEXT("spinta: e' stata spostata dalla forza"), Victim->Cell == T::Home);
+			TestFalse(TEXT("spinta: e non e' arrivata alla meta della corsa"), Victim->Cell == Goal);
+			TestEqual(TEXT("spinta: nessuna voce Stunned: il Move decade, non c'e' niente da rifiutare"), Stunned, 0);
+			TestEqual(TEXT("spinta: e nessuna voce Unbalanced (ResolveDash l'aveva saltata)"), Unbalanced, 0);
+			TestEqual(TEXT("spinta: ZERO voci di rifiuto di qualunque causa o fase"), Fallbacks, 0);
 		}
 		RTWorldFixtures::DestroyWorld(World);
 	}
