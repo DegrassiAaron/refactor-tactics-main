@@ -4,6 +4,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo nella voce di fallback
 #include "Turn/RTReactionLibrary.h"       // ERTReactionOutcome: la reazione armata che non scatta (RIC-3)
+#include "Player/RTPlayerController.h"    // l'ORACOLO del click: DispatchUnitClickForTest (RIC-3)
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -582,6 +583,7 @@ namespace
 		Ignite,          //< `Action.Ignite` (slot 3), ambientale: risolve nel Cleanup
 		ReazioneCounter, //< `Action.Counter` (slot 3) armata come REAZIONE
 		AttaccoDopoScattoFermato, //< attacco base preceduto da uno scatto che un ostacolo ferma a meta'
+		CreateCover,     //< `Action.CreateCover` (slot 3): una struttura di BORDO, kind `Edge` per il puntatore
 	};
 
 	/** UNA scena: le righe differiscono per UNA variabile fra il controllo e il caso. */
@@ -591,12 +593,24 @@ namespace
 		ERic3Bersaglio Bersaglio = ERic3Bersaglio::Nemico;
 		int32 Distanza = 3;                //< del bersaglio, lungo +X dall'origine dove sta chi agisce
 		bool bOltrePortataDichiarata = false; //< se vero la distanza e' `portata + 1` e `Distanza` si ignora
-		bool bFumoSullaLinea = false;      //< Fumo sulla cella (1,0,0), fra chi agisce e il bersaglio
+		bool bDistanzaPariAllaPortata = false; //< se vero la distanza e' ESATTAMENTE la portata dichiarata
+		int32 FumoX = INDEX_NONE;          //< se >= 0, Fumo sulla cella (FumoX,0,0), sulla linea fra chi agisce e il bersaglio
+		bool bTestimone = false;           //< un compagno 2 celle dietro il bersaglio lo VEDE (vista 0, solo l'intorno), e chi agisce non vede oltre il proprio
+		int32 PortataSovrascritta = INDEX_NONE; //< se >= 0 sostituisce la portata dell'azione (specchio e `Def`): serve a dare spazio alla geometria del Fumo
 		int32 Visione = INDEX_NONE;        //< se >= 0 sostituisce `VisionRange` di chi agisce
 		bool bOstacoloSulloScatto = false; //< solo `AttaccoDopoScattoFermato`: un avversario sulla cella d'arrivo dello scatto
 		bool bNemicoAttacca = false;       //< solo `ReazioneCounter`: un avversario adiacente colpisce chi ha la reazione armata
 		bool bAttoreCaduto = false;        //< chi agisce arriva al turno gia' caduto (salute 0) col piano ancora addosso
+		bool bAttoreCadeNelBlast = false;  //< un avversario adiacente lo uccide nello stesso Blast (parte con 1 di salute)
+		bool bGiaInRicarica = false;       //< l'azione e' GIA' in ricarica: nessun click puo' armarla, il piano e' scritto a mano
+		bool bBersaglioScattaLontano = false; //< il bersaglio scatta di due celle e finisce OLTRE la portata dichiarata
+		bool bBersaglioIgnotoAlVelo = false;  //< il velo dell'HUD non conosce il bersaglio: il click non lo bersaglia (`IsKnownToObserver`)
+		bool bAlleatoNonComandabile = false;  //< il bersaglio alleato e' pianificato dal bot: non e' comandabile da questo giocatore
+		bool bBordoDichiarato = false;     //< solo `CreateCover` col piano a mano: il lato e' dichiarato
 	};
+
+	/** Che cosa il click fa della scena: `ND` = non c'e' niente da cliccare, o il click non puo' nemmeno armare l'azione. */
+	enum class ERic3Click : uint8 { ND, Accetta, Rifiuta };
 
 	/** Che cosa la riga si aspetta di vedere: le PREMESSE, senza le quali il verde potrebbe misurare un'altra scena. */
 	struct FRic3Atteso
@@ -610,6 +624,16 @@ namespace
 		int32 NonInnescate = 0;  //< voci di reazione `NotTriggered`
 		bool bControllaCella = false; //< solo `AttaccoDopoScattoFermato`
 		FRTCellId CellaFinale;        //< dove chi agisce deve trovarsi a fine turno
+		ERic3Click Click = ERic3Click::ND; //< l'ORACOLO: il click di produzione accetta il piano?
+		bool bConflittoNoto = false; //< il click accetta e la regola non fa pagare: pin di una decisione aperta, non una regola
+		bool bSenzaEquivalenza = false; //< chi agisce cade FRA il click e il Blast: la guardia di vita decide, non il click
+		int32 CopertureRifiutate = 0; //< voci `CoverRejected` del turno
+		int32 CopertureErette = 0;    //< voci `CoverCreated` del turno
+		bool bControllaBordo = false; //< solo `CreateCover`: il click ha scritto il lato?
+		bool bBordo = false;
+		bool bControllaBersaglio = false; //< solo `bBersaglioScattaLontano`: il bersaglio deve essere DAVVERO finito altrove
+		FRTCellId CellaDelBersaglio;
+		int32 ResiduoAtteso = INDEX_NONE; //< se >= 0 sostituisce il residuo calcolato da `bPaga`
 	};
 
 	struct FRic3Esito
@@ -624,6 +648,11 @@ namespace
 		int32 Attivate = 0;
 		int32 NonInnescate = 0;
 		FRTCellId CellaFinale;
+		ERic3Click Click = ERic3Click::ND;
+		int32 CopertureRifiutate = 0;
+		int32 CopertureErette = 0;
+		bool bBordoDopoIlClick = false;
+		FRTCellId CellaDelBersaglioDopo;
 	};
 
 	FRic3Esito Ric3Gira(FAutomationTestBase& Test, const TCHAR* Nome, const FRic3Scena& S)
@@ -633,7 +662,7 @@ namespace
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), Nome), World)) { return Esito; }
 
 		TArray<FRTCellId> Fumo;
-		if (S.bFumoSullaLinea) { Fumo.Add(FRTCellId(1, 0, 0)); }
+		if (S.FumoX != INDEX_NONE) { Fumo.Add(FRTCellId(S.FumoX, 0, 0)); }
 		ARTHexMapActor* MapActor = PagaSpawnMap(World, /*Radius=*/ 9, {}, Fumo, {});
 
 		ARTUnit* Attore = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
@@ -656,6 +685,7 @@ namespace
 		case ERic3Azione::ModifyArc:       Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.ModifyArc"), 3); break;
 		case ERic3Azione::Ignite:          Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Ignite"), 3); break;
 		case ERic3Azione::ReazioneCounter: Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Counter"), 3); break;
+		case ERic3Azione::CreateCover:     Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.CreateCover"), 3); break;
 		default: break; // l'attacco base e' lo slot 0
 		}
 		if (!Test.TestTrue(*FString::Printf(TEXT("%s: l'azione e' installata"), Nome), Idx != INDEX_NONE))
@@ -664,14 +694,35 @@ namespace
 			return Esito;
 		}
 		Attore->Abilities[Idx]->CooldownTurns = PagaCooldown;
+		if (S.PortataSovrascritta != INDEX_NONE)
+		{
+			// Ivrin tira a 4: troppo poco perche' il bersaglio sia visto da un compagno senza che lo sia anche il Fumo davanti a lui.
+			Attore->Abilities[Idx]->RangeCells = S.PortataSovrascritta;
+			Attore->Abilities[Idx]->Def.RangeCells = S.PortataSovrascritta;
+		}
 		const int32 Portata = Attore->Abilities[Idx]->RangeCells;
 
 		// Dove sta il bersaglio. Con lo scatto la distanza e' misurata dalla cella d'ARRIVO dello scatto (2,0,0): da la'
 		// il bersaglio e' ESATTAMENTE alla portata, dalla cella dove lo scatto si ferma (1,0,0) e' una cella oltre.
 		const FRTCellId CellaScatto(2, 0, 0);
+		// Con `bBersaglioScattaLontano` il bersaglio parte UNA cella dentro la portata: due celle lungo l'asse r lo portano a
+		// distanza `portata + 1` (la distanza esagonale di (x,2) e' x+2), qualunque sia la portata.
 		const int32 Distanza = S.Azione == ERic3Azione::AttaccoDopoScattoFermato ? CellaScatto.X + Portata
-			: S.bOltrePortataDichiarata ? Portata + 1 : S.Distanza;
+			: S.bOltrePortataDichiarata ? Portata + 1
+			: S.bDistanzaPariAllaPortata ? Portata
+			: S.bBersaglioScattaLontano ? Portata - 1 : S.Distanza;
+		if (S.bTestimone)
+		{
+			// Il compagno sta a (Distanza + 2): vede il bersaglio (intorno di 2 celle) e dista Distanza - 1 dal Fumo in (3,0,0), che
+			// resta fuori dall'intorno (>= 3) solo se Distanza >= 4. Chi agisce, con vista 0, vede fino a 2 celle.
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la distanza (%d) regge la geometria del Fumo non osservato"), Nome, Distanza),
+				Distanza >= 4 && Distanza <= Portata);
+		}
 		const FRTCellId CellaBersaglio(Distanza, 0, 0);
+		// La vista: con il testimone, chi agisce vede solo il proprio intorno (consapevolezza ravvicinata di 2 celle) e il
+		// compagno dietro il bersaglio vede il bersaglio e nient'altro, quindi una cella di Fumo a distanza 3 da tutti e
+		// due e' NON OSSERVATA. Senza testimone il Fumo a (1,0,0) sta nell'intorno di chi agisce: e' OSSERVATO.
+		if (S.bTestimone) { Attore->VisionRange = 0; }
 
 		TWeakObjectPtr<ARTUnit> BersaglioDebole;
 		int32 SaluteBersaglio = 0;
@@ -713,16 +764,26 @@ namespace
 				PagaDestroyWorld(World);
 				return Esito;
 			}
-			if (Bersaglio && S.Bersaglio == ERic3Bersaglio::Morto) { Bersaglio->Health = 0; }
 			if (Bersaglio) { SaluteBersaglio = Bersaglio->Health; BersaglioDebole = Bersaglio; }
+			if (Bersaglio && S.bAlleatoNonComandabile) { Bersaglio->bIsBotControlled = true; }
 
-			Attore->PlannedAbilityIndex = Idx;
-			Attore->DeclareAttackOnUnit(Bersaglio); // `nullptr` = piano senza bersaglio-unita' ne' cella
+			// Un compagno dietro il bersaglio, che lo vede: la squadra lo conosce anche se chi agisce non vede oltre l'intorno.
+			if (S.bTestimone)
+			{
+				ARTUnit* Testimone = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(Distanza + 2, 0, 0));
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: testimone"), Nome), Testimone))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				Testimone->VisionRange = 0;
+			}
 
 			if (S.Azione == ERic3Azione::AttaccoDopoScattoFermato)
 			{
 				// `Action.Reposition`: uno scatto lineare di 2 celle SENZA impatto ne' effetti. Sulla cella d'arrivo, se c'e'
-				// l'ostacolo, lo scatto si ferma una cella prima: e' l'unica variabile fra controllo e caso.
+				// l'ostacolo, lo scatto si ferma una cella prima: e' l'unica variabile fra controllo e caso. Lo scatto e'
+				// pianificato PRIMA del click: e' da li' che il click giudica (`AimOriginFor`, [D-464]).
 				const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Attore, TEXT("Action.Reposition"));
 				Attore->PlannedDashAbility = Scatto;
 				Attore->PlannedDashCell = CellaScatto;
@@ -735,6 +796,73 @@ namespace
 						return Esito;
 					}
 				}
+			}
+			if (Bersaglio && S.bBersaglioScattaLontano)
+			{
+				// Il bersaglio scatta di due celle lungo l'asse r e finisce a distanza `Portata + 1` da chi agisce. La mira e'
+				// congelata al lock-in sulla cella di PRIMA ([D-415]): il predicato non deve leggere dove il bersaglio e' finito.
+				const int32 ScattoDelBersaglio = RTAbilityFixtures::AddCoreAbility(Bersaglio, TEXT("Action.Reposition"));
+				Bersaglio->PlannedDashAbility = ScattoDelBersaglio;
+				Bersaglio->PlannedDashCell = FRTCellId(Distanza, 2, 0);
+			}
+
+			if (S.bGiaInRicarica)
+			{
+				Attore->ConsumeAbility(Idx);
+				Attore->TickCooldowns(); // PagaCooldown - 1: un secondo `ConsumeAbility` la riporterebbe a PagaCooldown
+			}
+
+			// --- L'ORACOLO: il click di produzione, sulla STESSA fixture ----------------------------------------------
+			// `RefreshTeamKnowledgeNow` come all'avvio di un turno: senza, `PlayerAimMap` giudica sulla mappa autorevole e il
+			// Fumo non osservato cappa anche il click. `DispatchUnitClick` e non `HandleClickOnUnit`: e' il percorso che il
+			// gioco percorre, con la matrice di `ResolveOutcome` (un compagno comandabile si seleziona, non si bersaglia).
+			// Non si clicca cio' che non c'e' (nessun bersaglio) ne' un'azione che il click non puo' armare (gia' in ricarica).
+			TM->RefreshTeamKnowledgeNow();
+			if (Bersaglio && !S.bGiaInRicarica)
+			{
+				ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: controller"), Nome), PC))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				PC->SelectUnit(Attore, /*bRecordAsPlayerInput=*/ false);
+				PC->ArmKitAbility(Idx);
+				Bersaglio->SetKnownToObserver(!S.bBersaglioIgnotoAlVelo);
+				PC->DispatchUnitClickForTest(Bersaglio, Attore);
+				Esito.Click = (Attore->PlannedAbilityIndex == Idx && Attore->PlannedAttackTarget.Get() == Bersaglio)
+					? ERic3Click::Accetta : ERic3Click::Rifiuta;
+				Esito.bBordoDopoIlClick = Attore->bHasPlannedCoverEdge;
+				Attore->SelectAbility(INDEX_NONE); // il turno non porta lo stato di UI dell'oracolo
+			}
+			if (Esito.Click != ERic3Click::Accetta)
+			{
+				// Il click non ha prodotto il piano (o non c'era niente da cliccare): lo si scrive a mano, perche' la riga
+				// misura anche cio' che il RESOLVER fa di un piano che il click non produce.
+				Attore->PlannedAbilityIndex = Idx;
+				Attore->DeclareAttackOnUnit(Bersaglio); // `nullptr` = piano senza bersaglio-unita' ne' cella
+			}
+			if (S.Azione == ERic3Azione::CreateCover && S.bBordoDichiarato)
+			{
+				// Il lato dichiarato, come lo scrive `HandleTargetEdge`: la cella del bersaglio e il bordo.
+				Attore->DeclareAttackOnCell(CellaBersaglio);
+				Attore->PlannedCoverEdge = ERTHexDirection::W;
+				Attore->bHasPlannedCoverEdge = true;
+			}
+
+			// Dopo il click: un bersaglio che il click ha accettato da vivo e poi muore e' un fatto di risoluzione.
+			if (Bersaglio && S.Bersaglio == ERic3Bersaglio::Morto) { Bersaglio->Health = 0; SaluteBersaglio = 0; }
+			if (S.bAttoreCadeNelBlast)
+			{
+				ARTUnit* Carnefice = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1, 0));
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: carnefice"), Nome), Carnefice))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				Attore->Health = 1;
+				Carnefice->PlannedAbilityIndex = 0;
+				Carnefice->DeclareAttackOnUnit(Attore);
 			}
 		}
 
@@ -757,6 +885,7 @@ namespace
 		Esito.CellaFinale = AttoreDopo->Cell;
 		const ARTUnit* BersaglioDopo = BersaglioDebole.Get(/*bEvenIfPendingKill*/ true);
 		Esito.bDanno = BersaglioDopo && BersaglioDopo->Health < SaluteBersaglio;
+		if (BersaglioDopo) { Esito.CellaDelBersaglioDopo = BersaglioDopo->Cell; }
 		Esito.bArco = MapActor->MapAsset->Transitions.Num() > ArchiPrima;
 		const FRTHexCellData* DatiCella = MapActor->MapAsset->FindCell(CellaBersaglio);
 		Esito.bFuoco = DatiCella && DatiCella->Surface == ERTHexSurface::Fire;
@@ -767,6 +896,11 @@ namespace
 			{
 				if (E.Outcome == static_cast<uint8>(ERTReactionOutcome::Activated)) { ++Esito.Attivate; }
 				if (E.Outcome == static_cast<uint8>(ERTReactionOutcome::NotTriggered)) { ++Esito.NonInnescate; }
+			}
+			if (E.Category == ERTLogCategory::Environment)
+			{
+				if (E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverRejected)) { ++Esito.CopertureRifiutate; }
+				if (E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverCreated)) { ++Esito.CopertureErette; }
 			}
 			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
 				&& E.UnitId == AttoreDopo->StableUnitId)
@@ -788,9 +922,42 @@ namespace
 		const FRic3Esito E = Ric3Gira(Test, *Etichetta, S);
 		if (!E.bValido) { return false; }
 
-		Test.AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d, rifiuti %d, danno %d, arco %d, fuoco %d, reazioni attivate %d / non innescate %d, cella finale (%d,%d,%d)"),
-			*Etichetta, E.Cooldown, E.Rifiuti.Num(), E.bDanno ? 1 : 0, E.bArco ? 1 : 0, E.bFuoco ? 1 : 0, E.Attivate,
-			E.NonInnescate, E.CellaFinale.X, E.CellaFinale.Y, E.CellaFinale.Layer));
+		Test.AddInfo(FString::Printf(TEXT("%s -> click %s, cooldown residuo %d, rifiuti %d, danno %d, arco %d, fuoco %d, reazioni attivate %d / non innescate %d, coperture erette %d / rifiutate %d, cella finale (%d,%d,%d)"),
+			*Etichetta, E.Click == ERic3Click::Accetta ? TEXT("ACCETTA") : E.Click == ERic3Click::Rifiuta ? TEXT("RIFIUTA") : TEXT("n/d"),
+			E.Cooldown, E.Rifiuti.Num(), E.bDanno ? 1 : 0, E.bArco ? 1 : 0, E.bFuoco ? 1 : 0, E.Attivate,
+			E.NonInnescate, E.CopertureErette, E.CopertureRifiutate, E.CellaFinale.X, E.CellaFinale.Y, E.CellaFinale.Layer));
+
+		// 🔑 **L'ORACOLO DEL CLICK**: la tabella «il click accetta?» non e' prosa, e' misurata sul percorso di produzione
+		// (`DispatchUnitClick` -> `HandleClickOnUnit`). Ogni riga dichiara cosa il click fa; dove la regola e' «paga se e solo
+		// se il click accetta», l'equivalenza e' asserita. Dove il click accetta e la regola NON fa pagare (`bConflittoNoto`)
+		// la riga e' il pin di una decisione aperta, non una regola: l'equivalenza non si asserisce, si asserisce il conflitto.
+		Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'oracolo del click risponde come la riga dichiara"), *Etichetta),
+			E.Click == A.Click);
+		if (A.Click != ERic3Click::ND)
+		{
+			const bool bAccetta = E.Click == ERic3Click::Accetta;
+			if (A.bConflittoNoto)
+			{
+				Test.TestTrue(*FString::Printf(TEXT("%s: CONFLITTO NOTO: il click accetta e l'azione non paga"), *Etichetta),
+					bAccetta && !E.bHaPagato);
+			}
+			else if (A.bSenzaEquivalenza)
+			{
+				// Il click accetta, poi chi agisce cade: pagare o no lo decide la guardia di vita del sito, non il click.
+				Test.TestTrue(*FString::Printf(TEXT("%s: il click accetta"), *Etichetta), bAccetta);
+			}
+			else
+			{
+				Test.TestEqual(*FString::Printf(TEXT("%s: il click accetta <=> l'azione paga"), *Etichetta), bAccetta, E.bHaPagato);
+			}
+		}
+		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: coperture erette"), *Etichetta), E.CopertureErette, A.CopertureErette);
+		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: coperture rifiutate"), *Etichetta), E.CopertureRifiutate, A.CopertureRifiutate);
+		if (A.bControllaBordo)
+		{
+			Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il click ha scritto il lato?"), *Etichetta),
+				E.bBordoDopoIlClick, A.bBordo);
+		}
 
 		// Le premesse: la riga misura quello che dichiara. ZERO compresi, cosi' un'altra causa non puo' pagare al suo posto.
 		const int32 VociAttese = A.Voce == ERTActionInvalidReason::None ? 0 : 1;
@@ -810,9 +977,18 @@ namespace
 			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: dove chi agisce si trova a fine turno"), *Etichetta),
 				E.CellaFinale == A.CellaFinale);
 		}
+		if (A.bControllaBersaglio)
+		{
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: dove il bersaglio si trova a fine turno"), *Etichetta),
+				E.CellaDelBersaglioDopo == A.CellaDelBersaglio);
+		}
 
 		// UNA volta sola: chi paga lascia il residuo di PagaCooldown, decrementato dal Cleanup, e non di piu'.
-		if (A.bPaga)
+		if (A.ResiduoAtteso != INDEX_NONE)
+		{
+			Test.TestEqual(*FString::Printf(TEXT("%s: %s (residuo atteso)"), *Etichetta, Perche), E.Cooldown, A.ResiduoAtteso);
+		}
+		else if (A.bPaga)
 		{
 			Test.TestEqual(*FString::Printf(TEXT("%s: %s (residuo: pagato una volta)"), *Etichetta, Perche), E.Cooldown, PagaCooldown - 1);
 		}
@@ -823,11 +999,19 @@ namespace
 		return true;
 	}
 
-	FRic3Atteso Ric3Atteso(bool bPaga, ERTActionInvalidReason Voce = ERTActionInvalidReason::None)
+	FRic3Atteso Ric3Atteso(bool bPaga, ERic3Click Click, ERTActionInvalidReason Voce = ERTActionInvalidReason::None)
 	{
 		FRic3Atteso A;
 		A.bPaga = bPaga;
+		A.Click = Click;
 		A.Voce = Voce;
+		return A;
+	}
+
+	/** Chi agisce cade fra il click e il Blast: il click accetta, e a decidere se si paga e' la guardia di vita del sito. */
+	FRic3Atteso Ric3DopoLaCaduta(FRic3Atteso A)
+	{
+		A.bSenzaEquivalenza = true;
 		return A;
 	}
 }
@@ -843,14 +1027,27 @@ namespace
  *   risoluzione — come la cura su un alleato caduto ([D-197]). Controparte gratis: nessun bersaglio dichiarato, un piano
  *   che il click non produce.
  * - azione AMBIENTALE con bersaglio-unita' morto: stessa forma, in `ResolveEnvironment` (Cleanup).
- * - bersaglio-UNITA' fuori portata SOLO per il cap del Fumo non osservato: stessa ragione di `R7` per il tiro a cella
- *   ([D-465] (3)): il click leggeva la mappa ottimistica e lo ha accettato, e il costo dell'ottimismo si paga qui.
- *   Controparte gratis: oltre la portata DICHIARATA (`Actions.Blast.UndecidedCausesStayFree`).
+ * - bersaglio-UNITA' fuori portata SOLO per il cap del Fumo NON OSSERVATO: stessa ragione di `R7` per il tiro a cella
+ *   ([D-465] (3)): il click giudica sulla mappa ottimistica, che rende neutre le celle fuori da `ExploredCells U
+ *   VisibleCells`, e lo ha accettato; il costo dell'ottimismo si paga qui. Controparti gratis (in
+ *   `Actions.Blast.UndecidedCausesStayFree`): Fumo su una cella OSSERVATA (il click vede il cap e rifiuta) e oltre la
+ *   portata DICHIARATA.
+ *
+ * 🔑 **L'oracolo del click**: ogni riga dichiara cosa fa il click di produzione (`DispatchUnitClick` ->
+ * `HandleClickOnUnit`, sulla STESSA fixture, con la conoscenza di squadra rinfrescata come a inizio turno) e asserisce
+ * «il click accetta <=> l'azione paga». Il click giudica PRIMA di cio' che emerge (la morte del bersaglio avviene dopo il
+ * click); dove l'attore cade fra il click e il Blast decide la guardia di vita del sito, e la riga lo dichiara. Non c'e'
+ * oracolo dove non c'e' niente da cliccare (nessun bersaglio) o dove il click non puo' armare l'azione (gia' in ricarica).
  *
  * ⚠️ **Dichiarato, non coperto**: il bersaglio-unita' (o `ModifyArc`) fuori portata perche' uno SCATTO dell'attore si e'
  * fermato. Il click ha giudicato dalla cella d'arrivo dello scatto, ma il resolver non conserva quell'origine e non sa
  * distinguere il piano che il click avrebbe accettato da quello che rifiuta: la riga di `UndecidedCausesStayFree` lo
  * pinna gratis e lo riporta come `BLOCKED — DECISION REQUIRED`.
+ *
+ * ⚠️ **Approssimazione del predicato, e dove sbaglia**: il resolver rifa la domanda del click con la conoscenza del Blast,
+ * che include quella della pianificazione (le celle esplorate non si perdono). Un Fumo che una cella diventa nota DURANTE
+ * il turno (uno scatto che la mette in vista) si legge osservato e resta gratis anche se il click, in pianificazione, lo
+ * ignorava: l'errore va nel verso del gratis, mai in quello del pagamento indebito.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionEmergingCausesPayTest,
 	"RefactorTactics.Actions.Blast.ResolutionEmergingCausesPay",
@@ -862,25 +1059,50 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::ModifyArc;
 		Controllo.Distanza = 2;
-		FRic3Atteso AttesoControllo = Ric3Atteso(true);
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
 		AttesoControllo.bArco = true;
 		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio vivo"), TEXT("controllo"), Controllo, AttesoControllo,
 			TEXT("l'arco si apre e l'azione paga come prima"))) { return false; }
 
 		FRic3Scena Morto = Controllo;
 		Morto.Bersaglio = ERic3Bersaglio::Morto;
-		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio-unita' gia' morto"), TEXT("caso"), Morto, Ric3Atteso(true),
+		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio-unita' gia' morto"), TEXT("caso"), Morto,
+			Ric3Atteso(true, ERic3Click::Accetta),
 			TEXT("il click lo ha accettato da vivo: la morte e' un fatto di risoluzione e la ricarica parte"))) { return false; }
 
 		FRic3Scena Assente = Controllo;
 		Assente.Bersaglio = ERic3Bersaglio::Assente;
-		if (!Ric3Verifica(*this, TEXT("ModifyArc: nessun bersaglio dichiarato"), TEXT("controparte"), Assente, Ric3Atteso(false),
+		if (!Ric3Verifica(*this, TEXT("ModifyArc: nessun bersaglio dichiarato"), TEXT("controparte"), Assente,
+			Ric3Atteso(false, ERic3Click::ND),
 			TEXT("il click non produce un piano senza bersaglio: resta gratis"))) { return false; }
 
 		FRic3Scena Caduto = Morto;
 		Caduto.bAttoreCaduto = true;
-		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio morto e attore gia' caduto"), TEXT("controparte"), Caduto, Ric3Atteso(false),
-			TEXT("R10, D-209: un cadavere non paga un'azione che non ha tentato"))) { return false; }
+		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio morto e attore gia' caduto"), TEXT("controparte"), Caduto,
+			Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta)),
+			TEXT("D-209: chi agisce deve essere vivo quando l'azione si annota"))) { return false; }
+
+		// 🔴 La guardia `CanUseAbility` del ramo nuovo: `ConsumeAbility` scrive un valore FISSO, quindi chiamato su
+		// un'abilita' GIA' in ricarica la riporterebbe al valore pieno. Nessun click puo' armare un'azione in ricarica: il
+		// piano e' scritto a mano, e il residuo dice che non e' stata ripagata.
+		FRic3Scena InRicarica = Morto;
+		InRicarica.bGiaInRicarica = true;
+		FRic3Atteso AttesoInRicarica = Ric3Atteso(false, ERic3Click::ND);
+		AttesoInRicarica.ResiduoAtteso = PagaCooldown - 2;
+		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio morto, azione gia' in ricarica"), TEXT("controparte"), InRicarica,
+			AttesoInRicarica, TEXT("la guardia CanUseAbility: un secondo addebito la riporterebbe al valore pieno"))) { return false; }
+
+		// Chi muore nello STESSO Blast: ModifyArc annota da vivo a inizio Blast e `SpendStartedAbilities` non rilegge la vita,
+		// come per il ramo normale di ModifyArc e per la cura ([D-209]). Pinnato come e' oggi.
+		FRic3Scena CadeNelBlast = Morto;
+		CadeNelBlast.bAttoreCadeNelBlast = true;
+		// Il residuo e' `PagaCooldown` e non `PagaCooldown - 1`: la ricarica e' scritta (pagata), ma chi muore nel Blast non
+		// arriva al decremento del Cleanup.
+		FRic3Atteso AttesoCadeNelBlast = Ric3Atteso(true, ERic3Click::Accetta);
+		AttesoCadeNelBlast.ResiduoAtteso = PagaCooldown;
+		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio morto, l'attore cade nello stesso Blast"), TEXT("caso"), CadeNelBlast,
+			AttesoCadeNelBlast,
+			TEXT("annotata da vivo a inizio Blast: come il ramo normale di ModifyArc"))) { return false; }
 	}
 
 	// --- azione ambientale, bersaglio-unita' morto ------------------------------------------------
@@ -888,7 +1110,7 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::Ignite;
 		Controllo.Distanza = 3;
-		FRic3Atteso AttesoControllo = Ric3Atteso(true);
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
 		AttesoControllo.bFuoco = true;
 		AttesoControllo.bDanno = true; // chi sta sulla cella in fiamme prende fuoco: l'azione ha fatto il suo lavoro
 		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio vivo"), TEXT("controllo"), Controllo, AttesoControllo,
@@ -896,33 +1118,77 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 
 		FRic3Scena Morto = Controllo;
 		Morto.Bersaglio = ERic3Bersaglio::Morto;
-		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio-unita' gia' morto"), TEXT("caso"), Morto, Ric3Atteso(true),
+		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio-unita' gia' morto"), TEXT("caso"), Morto,
+			Ric3Atteso(true, ERic3Click::Accetta),
 			TEXT("il click lo ha accettato da vivo: la morte e' un fatto di risoluzione e la ricarica parte"))) { return false; }
 
 		FRic3Scena Assente = Controllo;
 		Assente.Bersaglio = ERic3Bersaglio::Assente;
-		if (!Ric3Verifica(*this, TEXT("Ignite: nessun bersaglio dichiarato"), TEXT("controparte"), Assente, Ric3Atteso(false),
+		if (!Ric3Verifica(*this, TEXT("Ignite: nessun bersaglio dichiarato"), TEXT("controparte"), Assente,
+			Ric3Atteso(false, ERic3Click::ND),
 			TEXT("il click non produce un piano senza bersaglio: resta gratis"))) { return false; }
 
 		FRic3Scena Caduto = Morto;
 		Caduto.bAttoreCaduto = true;
-		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio morto e attore gia' caduto"), TEXT("controparte"), Caduto, Ric3Atteso(false),
-			TEXT("R10, D-209: un cadavere non paga un'azione che non ha tentato"))) { return false; }
+		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio morto e attore gia' caduto"), TEXT("controparte"), Caduto,
+			Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta)),
+			TEXT("D-209: un cadavere non paga un'azione che non ha tentato"))) { return false; }
+
+		// Chi muore nel Blast NON paga l'azione ambientale: il Cleanup controlla `IsAlive()` DOPO il Blast. E' la differenza
+		// con ModifyArc (annotata da vivo a inizio Blast), pinnata come e' oggi.
+		FRic3Scena CadeNelBlast = Morto;
+		CadeNelBlast.bAttoreCadeNelBlast = true;
+		if (!Ric3Verifica(*this, TEXT("Ignite: bersaglio morto, l'attore cade nel Blast"), TEXT("controparte"), CadeNelBlast,
+			Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta)),
+			TEXT("il Cleanup controlla che chi agisce sia vivo dopo il Blast"))) { return false; }
 	}
 
-	// --- bersaglio-unita' fuori portata SOLO per il cap del Fumo ----------------------------------
+	// --- bersaglio-unita' fuori portata SOLO per il cap del Fumo NON OSSERVATO --------------------
 	{
-		FRic3Scena Controllo; // distanza 3, nessun Fumo: dentro la portata di Ivrin (>= 3)
-		FRic3Atteso AttesoControllo = Ric3Atteso(true);
+		// Geometria (portata portata a 6: quella di Ivrin, 4, non lascia spazio): chi agisce in (0,0,0) vede solo l'intorno
+		// (vista 0, consapevolezza ravvicinata 2); un compagno due celle dietro il bersaglio, in (7,0,0) per il bersaglio in
+		// (5,0,0), vede il bersaglio e nient'altro. Il Fumo in (3,0,0) sta a distanza 3 da chi tira e 4 dal compagno: cella
+		// NON OSSERVATA, quindi neutra per la mappa ottimistica del click. In (1,0,0) sta nell'intorno: OSSERVATA.
+		FRic3Scena Controllo;
+		Controllo.Distanza = 5;
+		Controllo.PortataSovrascritta = 6;
+		Controllo.bTestimone = true;
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
 		AttesoControllo.bDanno = true;
-		if (!Ric3Verifica(*this, TEXT("bersaglio-unita' a distanza 3"), TEXT("controllo"), Controllo, AttesoControllo,
-			TEXT("senza Fumo l'attacco colpisce e paga"))) { return false; }
+		if (!Ric3Verifica(*this, TEXT("bersaglio-unita' a distanza 5, visto dal compagno"), TEXT("controllo"), Controllo,
+			AttesoControllo, TEXT("senza Fumo l'attacco colpisce e paga"))) { return false; }
 
-		FRic3Scena ConFumo = Controllo;
-		ConFumo.bFumoSullaLinea = true;
-		if (!Ric3Verifica(*this, TEXT("bersaglio-unita' dietro il Fumo non osservato"), TEXT("caso"), ConFumo,
-			Ric3Atteso(true, ERTActionInvalidReason::OutOfRange),
-			TEXT("la distanza e' dentro la portata dichiarata ma oltre il cap del Fumo: stessa causa di R7"))) { return false; }
+		FRic3Scena NonOsservato = Controllo;
+		NonOsservato.FumoX = 3;
+		if (!Ric3Verifica(*this, TEXT("Fumo NON osservato fra chi tira e il bersaglio"), TEXT("caso"), NonOsservato,
+			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange),
+			TEXT("il click giudica sulla mappa ottimistica e accetta: il cap del Fumo emerge solo a risoluzione"))) { return false; }
+
+		// 🔑 Il confine: distanza ESATTAMENTE pari alla portata dichiarata, ancora dentro. Uccide `<=` -> `<` nel predicato.
+		FRic3Scena AlConfine = NonOsservato;
+		AlConfine.Distanza = 0;
+		AlConfine.bDistanzaPariAllaPortata = true;
+		if (!Ric3Verifica(*this, TEXT("Fumo NON osservato, bersaglio alla portata esatta"), TEXT("caso"), AlConfine,
+			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange),
+			TEXT("a distanza pari alla portata il click accetta ancora"))) { return false; }
+
+		// 🔑 La mira e' quella CONGELATA al lock-in ([D-415]): il bersaglio scatta di due celle e finisce oltre la portata, ma
+		// la distanza che conta e' quella dalla cella mirata. Uccide `TargetCell` -> cella viva nel predicato.
+		FRic3Scena Scatta = NonOsservato;
+		Scatta.bBersaglioScattaLontano = true;
+		FRic3Atteso AttesoScatta = Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
+		AttesoScatta.bControllaBersaglio = true;
+		AttesoScatta.CellaDelBersaglio = FRTCellId(5, 2, 0); // portata 6 - 1 = 5 in X, due celle lungo r: distanza 7
+		if (!Ric3Verifica(*this, TEXT("Fumo NON osservato, il bersaglio scatta oltre la portata"), TEXT("caso"), Scatta,
+			AttesoScatta,
+			TEXT("la mira e' congelata al lock-in: dove il bersaglio e' finito non conta"))) { return false; }
+
+		// R10: chi agisce e' caduto prima del Blast, il predicato lo annota ma il pagamento rilegge la vita.
+		FRic3Scena Caduto = NonOsservato;
+		Caduto.bAttoreCaduto = true;
+		if (!Ric3Verifica(*this, TEXT("Fumo NON osservato, attore gia' caduto"), TEXT("controparte"), Caduto,
+			Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange)),
+			TEXT("R10, D-209: per chi attacca «spesa» vuol dire sopravvissuto alla fase"))) { return false; }
 	}
 	return true;
 }
@@ -953,7 +1219,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUndecidedCausesStayFreeTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 {
-	FRic3Atteso Colpisce = Ric3Atteso(true);
+	FRic3Atteso Colpisce = Ric3Atteso(true, ERic3Click::Accetta);
 	Colpisce.bDanno = true;
 
 	// --- bersaglio-unita' oltre la portata dichiarata ---------------------------------------------
@@ -964,8 +1230,22 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		FRic3Scena Oltre = Controllo;
 		Oltre.bOltrePortataDichiarata = true;
 		if (!Ric3Verifica(*this, TEXT("bersaglio-unita' oltre la portata dichiarata"), TEXT("caso"), Oltre,
-			Ric3Atteso(false, ERTActionInvalidReason::OutOfRange),
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
 			TEXT("D-200: la portata e' geometria nota in pianificazione, il click la rifiuta"))) { return false; }
+	}
+
+	// --- bersaglio-unita' dietro un Fumo OSSERVATO --------------------------------------------------
+	{
+		// Come la riga del Fumo non osservato (`ResolutionEmergingCausesPay`), con UNA variabile cambiata: il Fumo sta in
+		// (1,0,0), nell'intorno di chi tira, quindi la mappa del click lo vede e cappa la portata a 2: il click RIFIUTA.
+		FRic3Scena Osservato;
+		Osservato.Distanza = 5;
+		Osservato.PortataSovrascritta = 6;
+		Osservato.bTestimone = true;
+		Osservato.FumoX = 1;
+		if (!Ric3Verifica(*this, TEXT("Fumo OSSERVATO fra chi tira e il bersaglio"), TEXT("caso"), Osservato,
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
+			TEXT("il click vede il Fumo e ne subisce il cap: geometria nota in pianificazione, gratis"))) { return false; }
 	}
 
 	// --- bersaglio alleato -------------------------------------------------------------------------
@@ -975,9 +1255,18 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 			TEXT("colpisce e paga"))) { return false; }
 		FRic3Scena Alleato = Controllo;
 		Alleato.Bersaglio = ERic3Bersaglio::Alleato;
-		if (!Ric3Verifica(*this, TEXT("bersaglio alleato"), TEXT("caso"), Alleato,
-			Ric3Atteso(false, ERTActionInvalidReason::TargetFriendly),
-			TEXT("il click non bersaglia un'unita' comandabile della propria squadra"))) { return false; }
+		if (!Ric3Verifica(*this, TEXT("bersaglio alleato comandabile"), TEXT("caso"), Alleato,
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::TargetFriendly),
+			TEXT("il click non bersaglia un'unita' comandabile della propria squadra: la seleziona"))) { return false; }
+
+		// DA DECIDERE: lo stesso alleato, ma pianificato dal bot (non comandabile da questo giocatore). `ResolveOutcome` lo
+		// risponde `Confirm` e `HandleClickOnUnit` non controlla la squadra: il click ACCETTA, il resolver lo scarta.
+		FRic3Scena NonComandabile = Alleato;
+		NonComandabile.bAlleatoNonComandabile = true;
+		FRic3Atteso AttesoNonComandabile = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::TargetFriendly);
+		AttesoNonComandabile.bConflittoNoto = true;
+		if (!Ric3Verifica(*this, TEXT("bersaglio alleato NON comandabile"), TEXT("caso"), NonComandabile, AttesoNonComandabile,
+			TEXT("DA DECIDERE — il click non controlla la squadra: o e' un suo difetto, o il piano paga"))) { return false; }
 	}
 
 	// --- bersaglio perso ---------------------------------------------------------------------------
@@ -988,7 +1277,7 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		FRic3Scena Perso = Controllo;
 		Perso.Bersaglio = ERic3Bersaglio::Assente;
 		if (!Ric3Verifica(*this, TEXT("bersaglio perso"), TEXT("caso"), Perso,
-			Ric3Atteso(false, ERTActionInvalidReason::TargetGone),
+			Ric3Atteso(false, ERic3Click::ND, ERTActionInvalidReason::TargetGone),
 			TEXT("il click dichiara sempre un'unita' o una cella: questo piano non nasce da un click"))) { return false; }
 	}
 
@@ -999,9 +1288,10 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 			TEXT("colpisce e paga"))) { return false; }
 		FRic3Scena Ignoto = Controllo;
 		Ignoto.Visione = 1; // la squadra non vede piu' a distanza 3, e non ha mai avuto un contatto
+		Ignoto.bBersaglioIgnotoAlVelo = true; // e il velo dell'HUD non lo conosce: il click non lo bersaglia
 		if (!Ric3Verifica(*this, TEXT("bersaglio mai visto dalla squadra"), TEXT("caso"), Ignoto,
-			Ric3Atteso(false, ERTActionInvalidReason::TargetUnknown),
-			TEXT("il click non bersaglia cio' che non si vede"))) { return false; }
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::TargetUnknown),
+			TEXT("il click non bersaglia cio' che non si vede (IsKnownToObserver)"))) { return false; }
 	}
 
 	// --- ModifyArc oltre la portata dichiarata -----------------------------------------------------
@@ -1009,15 +1299,63 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::ModifyArc;
 		Controllo.Distanza = 2;
-		FRic3Atteso AttesoControllo = Ric3Atteso(true);
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
 		AttesoControllo.bArco = true;
 		if (!Ric3Verifica(*this, TEXT("ModifyArc dentro la portata"), TEXT("controllo"), Controllo, AttesoControllo,
 			TEXT("l'arco si apre e paga"))) { return false; }
 		FRic3Scena Oltre = Controllo;
 		Oltre.bOltrePortataDichiarata = true;
 		if (!Ric3Verifica(*this, TEXT("ModifyArc oltre la portata dichiarata"), TEXT("caso"), Oltre,
-			Ric3Atteso(false, ERTActionInvalidReason::OutOfRange),
+			Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange),
 			TEXT("D-200: la portata e' geometria nota in pianificazione, il click la rifiuta"))) { return false; }
+	}
+
+	// --- strutture di bordo in Prep ----------------------------------------------------------------
+	{
+		// Controllo: il lato dichiarato (come lo scrive `HandleTargetEdge`) -> la copertura sorge e l'azione paga.
+		FRic3Scena Controllo;
+		Controllo.Azione = ERic3Azione::CreateCover;
+		Controllo.Distanza = 2;
+		Controllo.bBordoDichiarato = true;
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
+		AttesoControllo.CopertureErette = 1;
+		if (!Ric3Verifica(*this, TEXT("CreateCover col lato dichiarato"), TEXT("controllo"), Controllo, AttesoControllo,
+			TEXT("la copertura sorge e l'azione paga (il verdetto del click e' quello del click sull'unita': stessa portata)"))) { return false; }
+
+		// 🔴 DA DECIDERE — «nessun bordo dichiarato»: `GetPointerContext` risponde `Targeting` per ogni abilita' armata che
+		// non sia mobilita' rapida, `ResolveOutcome` risponde `Confirm` per un nemico osservato e `HandleClickOnUnit` NON ha
+		// la guardia sul kind del bersaglio che hanno `HandleTargetCell` e `HandleTargetEdge`. Un'abilita' di BORDO armata
+		// accetta quindi il click su un'unita': il piano nasce senza lato, e `ResolveCoverStructures` lo rifiuta prima del
+		// pagamento. Il click ACCETTA, l'azione e' gratis: o il click (o il validatore, RIC-1) deve rifiutare, o il piano paga.
+		FRic3Scena SenzaLato = Controllo;
+		SenzaLato.bBordoDichiarato = false;
+		FRic3Atteso AttesoSenzaLato = Ric3Atteso(false, ERic3Click::Accetta);
+		AttesoSenzaLato.CopertureRifiutate = 1;
+		AttesoSenzaLato.bConflittoNoto = true;
+		AttesoSenzaLato.bControllaBordo = true;
+		AttesoSenzaLato.bBordo = false;
+		if (!Ric3Verifica(*this, TEXT("CreateCover armata, click su un'unita' (nessun lato)"), TEXT("caso"), SenzaLato,
+			AttesoSenzaLato,
+			TEXT("DA DECIDERE — il click accetta un piano di bordo senza lato, il resolver lo rifiuta gratis"))) { return false; }
+
+		// «fuori portata»: il click rifiuta (stessa `ClassifyHexTargeting` di `HandleTargetEdge`), e in Prep l'origine e'
+		// sempre la cella di partenza. Il lato e' dichiarato, cosi' il resolver arriva alla guardia di portata (che nel ciclo
+		// viene DOPO quella del lato). Verificato: gratis.
+		FRic3Scena FuoriPortata = Controllo;
+		FuoriPortata.bOltrePortataDichiarata = true;
+		FRic3Atteso AttesoFuori = Ric3Atteso(false, ERic3Click::Rifiuta);
+		AttesoFuori.CopertureRifiutate = 1;
+		if (!Ric3Verifica(*this, TEXT("CreateCover armata, bersaglio oltre la portata"), TEXT("caso"), FuoriPortata, AttesoFuori,
+			TEXT("il click rifiuta il fuori portata: geometria nota in pianificazione"))) { return false; }
+
+		// «nessun bersaglio»: nessuna scrittura del click lascia `PlannedAbilityIndex` senza una dichiarazione di bersaglio
+		// per un'abilita' che non sia su se stessi. Il resolver lo rifiuta gratis.
+		FRic3Scena SenzaBersaglio = SenzaLato;
+		SenzaBersaglio.Bersaglio = ERic3Bersaglio::Assente;
+		FRic3Atteso AttesoSenzaBersaglio = Ric3Atteso(false, ERic3Click::ND);
+		AttesoSenzaBersaglio.CopertureRifiutate = 1;
+		if (!Ric3Verifica(*this, TEXT("CreateCover armata, nessun bersaglio"), TEXT("caso"), SenzaBersaglio, AttesoSenzaBersaglio,
+			TEXT("il click non produce un piano di bordo senza bersaglio"))) { return false; }
 	}
 
 	// --- DA DECIDERE: attacco fuori portata dopo uno scatto fermato --------------------------------
@@ -1031,11 +1369,12 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 			TEXT("lo scatto arriva, l'attacco colpisce e paga"))) { return false; }
 		FRic3Scena Fermato = Controllo;
 		Fermato.bOstacoloSulloScatto = true;
-		FRic3Atteso AttesoFermato = Ric3Atteso(false, ERTActionInvalidReason::OutOfRange);
+		FRic3Atteso AttesoFermato = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
 		AttesoFermato.bControllaCella = true;
 		AttesoFermato.CellaFinale = FRTCellId(1, 0, 0);
+		AttesoFermato.bConflittoNoto = true;
 		if (!Ric3Verifica(*this, TEXT("scatto fermato, poi attacco"), TEXT("caso"), Fermato, AttesoFermato,
-			TEXT("DA DECIDERE — il click avrebbe accettato, ma il resolver non conserva l'origine con cui ha giudicato"))) { return false; }
+			TEXT("DA DECIDERE — il click accetta (giudica dalla cella d'arrivo dello scatto), ma il resolver non conserva l'origine"))) { return false; }
 	}
 
 	// --- DA DECIDERE: reazione armata che non scatta -----------------------------------------------
@@ -1043,14 +1382,13 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::ReazioneCounter;
 		Controllo.bNemicoAttacca = true;
-		FRic3Atteso AttesoControllo = Ric3Atteso(true);
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::ND);
 		AttesoControllo.Attivate = 1;
-		AttesoControllo.bControllaCella = false;
 		if (!Ric3Verifica(*this, TEXT("reazione armata e colpita"), TEXT("controllo"), Controllo, AttesoControllo,
 			TEXT("la reazione scatta e paga, come sempre"))) { return false; }
 		FRic3Scena Muta = Controllo;
 		Muta.bNemicoAttacca = false;
-		FRic3Atteso AttesoMuta = Ric3Atteso(false);
+		FRic3Atteso AttesoMuta = Ric3Atteso(false, ERic3Click::ND);
 		AttesoMuta.NonInnescate = 1;
 		if (!Ric3Verifica(*this, TEXT("reazione armata, nessun trigger"), TEXT("caso"), Muta, AttesoMuta,
 			TEXT("DA DECIDERE — non e' un'azione fallita ma lo stato normale dello slot: paga solo al trigger"))) { return false; }
