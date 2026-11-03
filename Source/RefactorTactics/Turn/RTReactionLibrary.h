@@ -191,8 +191,10 @@ public:
 	 *
 	 * Ordine, non insieme: con due controlli nello stesso Blast `Reaction.Cleanse` ne annulla uno solo, e
 	 * quale non puo' dipendere da chi ha colpito per primo. Il criterio e' **quanta capacita' toglie**:
-	 * `Stunned` toglie l'azione principale, la reazione e cio' che era gia' armato ([D-416]); `Root` azzera
-	 * il budget di movimento e lascia intatto l'agire; `Slow` non toglie niente, rende piu' caro il passo.
+	 * `Stunned` toglie l'azione principale, la reazione, cio' che era gia' armato ([D-416]) e, da [D-569], il
+	 * movimento volontario; `Root` azzera il budget di movimento e lascia intatto l'agire; `Slow` non toglie niente,
+	 * rende piu' caro il passo. ⌫ *Fino al 2026-11-03 il movimento non era fra le capacita' di `Stunned`: era la riga che
+	 * lo separava da `Root`.* Il rango resta lo stesso: `Stunned` toglie un sovrainsieme di cio' che toglie `Root`.
 	 *
 	 * ⚠️ **Limite dichiarato**: e' una lista nel codice, non un dato del catalogo. Uno stato di controllo
 	 * aggiunto domani non entra qui da solo e il modulo smetterebbe di vederlo — lo stesso difetto che
