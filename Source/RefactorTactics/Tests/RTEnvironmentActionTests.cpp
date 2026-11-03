@@ -593,9 +593,12 @@ bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
 //     «con testimone»), e quella di un compagno ordinato PRIMA non si perde (riga «con testimone anticipato»);
 //   · la regola vale per DISCRIMINANTE (la `StructureOp` che erige o sposta) e non per nome: oltre alle azioni del catalogo
 //     core e dell'eroe, la riga di `Gadget.PortableCover`, che copia la `StructureOp` di `Action.CreateCover` e porta un nome suo;
-//   · il rifiuto e' dell'AZIONE, non del percorso: il passo normale di una stordita si cammina ([D-416] (1): il
-//     movimento lo toglie `Status.Root`, non `Status.Stunned`), in ogni forma in cui lo si pianifica — il percorso di un
-//     passo, il percorso composito e la sola destinazione;
+//   · ⌫ [D-569] (2026-11-03) ribalta il punto che stava qui — *«il rifiuto e' dell'AZIONE, non del percorso: il passo normale di
+//     una stordita si cammina ([D-416] (1): il movimento lo toglie `Status.Root`)»*. Una stordita non si muove: il suo passo e'
+//     NEGATO, in ogni forma in cui lo si pianifica (il percorso di un passo, il composito, la sola destinazione), con una voce
+//     `Fallback`/`Cancelled`/`Stunned` di fase Move accanto a quella di Prep. Il braccio di CONTROLLO cammina ancora;
+//   · il fatto di timeline che apre il playback non e' piu' il passo dell'attore ma quello di un COMPAGNO non stordito
+//     (`Bed.Opener`), che cammina in entrambi i bracci;
 //   · il rifiuto non e' un'operazione APPLICATA: non conta nel ritorno di `ResolveCoverStructures`, quindi non accende
 //     il beat di Prep del playback — che si legge dove il playback c'e' di sicuro, cioe' sulle righe col passo;
 //   · NON cambia un'azione GIA' in ricarica (scarto muto di `CanUseAbility`, prima della guardia: niente voce e niente
@@ -703,10 +706,19 @@ namespace
 		FRTCellId Destination = FRTCellId(-99, -99, -99); //< la cella che il piano raggiunge
 		FRTCellId FinalCell = FRTCellId(-99, -99, -99);   //< dov'e' l'attore a fine turno
 		bool bSawPrepBeat = false;      //< il playback ha MOSTRATO la fase Prep (letta subito dopo il lock-in e dopo ogni tick)
-		bool bSawMoveBeat = false;      //< ... la fase Move: col passo pianificato e' la prova che il playback si e' aperto
+		bool bSawMoveBeat = false;      //< ... la fase Move: la prova che il playback si e' aperto (da D-569 la porta il compagno che cammina, non l'attore stordito)
 		TArray<FRTCellId> PlannedRoute;  //< il percorso scritto nel piano un attimo prima del turno: vuoto per un piano di sola destinazione
 		TArray<FRTCellId> ExpectedRoute; //< la rotta che il piano promette: il suo percorso se c'e', altrimenti partenza e destinazione (adiacenti: lo dice una premessa)
 		TArray<FRTCellId> WalkedRoute;   //< la rotta dell'evento `Move` di fase Move dell'attore: vuota se l'attore non ha camminato
+		// D-569: una stordita non cammina. Il passo dell'attore stordito e' NEGATO (voce di rifiuto in fase Move), e il fatto di
+		// timeline che apre il playback lo porta un COMPAGNO non stordito che cammina sempre, in entrambi i bracci.
+		bool bOpener = false;                              //< la scena ha il compagno apritore
+		FRTCellId OpenerPlanned = FRTCellId(-99, -99, -99); //< dove il piano porta l'apritore
+		FRTCellId OpenerFinal = FRTCellId(-99, -99, -99);   //< dov'e' l'apritore a fine turno
+		int32 MoveRefusals = 0;                            //< voci di rifiuto per stordimento di fase Move dell'attore
+		FRTCellId MoveRefusalSrc = FRTCellId(-99, -99, -99);
+		FRTCellId MoveRefusalTgt = FRTCellId(-99, -99, -99);
+		uint8 ActorMoveOutcome = MAX_uint8;                //< l'esito della voce `Move` dell'attore (MAX_uint8 = nessuna voce)
 	};
 
 	/** Una voce di rifiuto per stordimento, di CHIUNQUE: `Fallback`/`Cancelled` con la causa `Stunned` in `Amount`. */
@@ -840,6 +852,9 @@ namespace
 		FRTCellId EarlyHome = FRTCellId(-2, 2);        //< a distanza 2 da Home e da Step e 4 dal nemico: non e' adiacente ne' sul percorso dell'attore
 		FRTCellId EarlyTarget = FRTCellId(-2, 3);
 		FRTCellId Detour = FRTCellId(0, -1);           //< la cella intermedia del percorso composito: adiacente sia a Home sia a Step, e libera
+		ARTUnit* Opener = nullptr;                     //< solo con un passo: un compagno NON stordito che cammina sempre, in entrambi i bracci (D-569: il passo di una stordita e' negato, e il playback si apre per lui)
+		FRTCellId OpenerHome = FRTCellId(2, -3);       //< lontano da ogni altra cella della scena (a distanza 3 da Home), sulla riga r=-3
+		FRTCellId OpenerStep = FRTCellId(3, -3);       //< una cella a est: libera
 	};
 
 	void CoverStunCloseBed(FCoverStunBed& Bed)
@@ -849,7 +864,8 @@ namespace
 	}
 
 	/** Costruisce il mondo: mappa piatta, l'attore, un avversario lontano (e i testimoni, se servono). Falso, e rosso, se qualcosa manca. */
-	bool CoverStunOpenBed(FAutomationTestBase& Test, const FString& Run, bool bWithWitness, bool bWithEarlyWitness, FCoverStunBed& Bed)
+	bool CoverStunOpenBed(FAutomationTestBase& Test, const FString& Run, bool bWithWitness, bool bWithEarlyWitness, FCoverStunBed& Bed,
+		bool bWithOpener = false)
 	{
 		Bed.World = MakeEnvWorld();
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), *Run), Bed.World)) { return false; }
@@ -865,13 +881,18 @@ namespace
 		// Il testimone ANTICIPATO: sta prima dell'attore nella lista di `ResolveCoverStructures`, quindi la sua operazione e' gia'
 		// raccolta (in `Pending`) quando la guardia scatta. E' l'unico a cui un rifiuto che buttasse la raccolta farebbe del male.
 		if (bWithEarlyWitness) { Bed.EarlyWitness = SpawnEnvUnit(Bed.World, 0, Bed.EarlyHome); }
+		// L'apritore del playback: cammina di una cella in entrambi i bracci. Da D-569 il passo dell'attore stordito e' negato, e
+		// senza un fatto di timeline il playback del braccio stordito non si aprirebbe: "niente beat di Prep" sarebbe vero per il
+		// motivo banale. L'apritore e' il fatto, e non e' stordito.
+		if (bWithOpener) { Bed.Opener = SpawnEnvUnit(Bed.World, 0, Bed.OpenerHome); }
 		Bed.TM = Bed.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: mappa"), *Run), Bed.Map)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Caster"), *Run), Bed.Caster)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: Foe"), *Run), Foe)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: TM"), *Run), Bed.TM)
 			|| (bWithWitness && !Test.TestNotNull(*FString::Printf(TEXT("%s: testimone"), *Run), Bed.Witness))
-			|| (bWithEarlyWitness && !Test.TestNotNull(*FString::Printf(TEXT("%s: testimone anticipato"), *Run), Bed.EarlyWitness)))
+			|| (bWithEarlyWitness && !Test.TestNotNull(*FString::Printf(TEXT("%s: testimone anticipato"), *Run), Bed.EarlyWitness))
+			|| (bWithOpener && !Test.TestNotNull(*FString::Printf(TEXT("%s: apritore"), *Run), Bed.Opener)))
 		{
 			CoverStunCloseBed(Bed);
 			return false;
@@ -1041,8 +1062,9 @@ namespace
 			Out.bMoveAtCommit, bExpectsStep);
 		if (Out.bMoveAtCommit)
 		{
-			// [D-416] (1): lo stordimento toglie l'azione principale e la reazione, NON il movimento — quello e' `Status.Root`.
-			// Se il banco radicasse la stordita il passo non avverrebbe, e la riga proverebbe il contrario di cio' che dice.
+			// Chi cammina non e' radicato: il braccio di CONTROLLO deve poter camminare, altrimenti lo zero dello stordito non direbbe
+			// niente. (⌫ Fino a D-569 questa premessa difendeva "Root e Stunned sono due stati": [D-416] (1) lasciava il movimento a Root.
+			// Ora la stordita non cammina comunque, e la premessa serve solo al controllo.)
 			bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il passo e' verso una cella ADIACENTE"), *Run),
 				URTHexLibrary::HexDistance(Caster->Cell, Out.Destination), 1);
 			bPremises &= Test.TestFalse(*FString::Printf(TEXT("%s: premessa: l'attore non e' radicato (Root e Stunned sono stati distinti)"), *Run),
@@ -1164,7 +1186,17 @@ namespace
 				if (E.UnitId != Out.StableId) { continue; }
 				++Out.EntriesOfActor;
 				if (E.Category == ERTLogCategory::Fallback) { ++Out.AnyFallbacks; }
-				if (bFirstRefusal && CoverStunIsRefusal(E))
+				if (E.Category == ERTLogCategory::Move && E.Phase == ERTMatchPhase::Move) { Out.ActorMoveOutcome = E.Outcome; }
+				// D-569: il passo di una stordita e' negato con una voce di rifiuto in fase MOVE, accanto a quella di Prep. Questo
+				// banco decide la voce di Prep (la struttura di bordo), quindi il "primo rifiuto" e' il primo di Prep; quella di Move ha
+				// i suoi campi.
+				if (CoverStunIsRefusal(E) && E.Phase == ERTMatchPhase::Move)
+				{
+					++Out.MoveRefusals;
+					Out.MoveRefusalSrc = E.SrcCell;
+					Out.MoveRefusalTgt = E.TgtCell;
+				}
+				if (bFirstRefusal && CoverStunIsRefusal(E) && E.Phase == ERTMatchPhase::Prep)
 				{
 					bFirstRefusal = false;
 					Out.RefusalPhase = E.Phase;
@@ -1192,7 +1224,8 @@ namespace
 		const FString Run = CoverStunRunLabel(Scene, bStunned);
 
 		FCoverStunBed Bed;
-		if (!CoverStunOpenBed(Test, Run, Scene.bWithWitness, Scene.bWithEarlyWitness, Bed)) { return Out; }
+		const bool bAnyStep = Scene.bWithStep || Scene.bWithDetour || Scene.bDestinationOnly;
+		if (!CoverStunOpenBed(Test, Run, Scene.bWithWitness, Scene.bWithEarlyWitness, Bed, /*bWithOpener=*/ bAnyStep)) { return Out; }
 
 		bool bPlanned = false;
 		switch (Scene.Kind)
@@ -1279,8 +1312,21 @@ namespace
 			}
 		}
 
-		Out = CoverStunPlayTurn(Test, Run, Bed, bStunned, Scene.bAlreadyCooling, Scene.bFallen,
-			/*bExpectsStep=*/ Scene.bWithStep || Scene.bWithDetour || Scene.bDestinationOnly);
+		// L'apritore cammina di una cella, sempre: e' il fatto di timeline che apre il playback anche quando il passo dell'attore
+		// stordito e' negato (D-569). La sua cella di arrivo si legge dopo il turno.
+		if (Bed.Opener)
+		{
+			Bed.Opener->PlannedPath = { Bed.Opener->Cell, Bed.OpenerStep };
+			Bed.Opener->PlannedCell = Bed.OpenerStep;
+		}
+
+		Out = CoverStunPlayTurn(Test, Run, Bed, bStunned, Scene.bAlreadyCooling, Scene.bFallen, /*bExpectsStep=*/ bAnyStep);
+		if (Bed.Opener)
+		{
+			Out.bOpener = true;
+			Out.OpenerPlanned = Bed.OpenerStep;
+			Out.OpenerFinal = Bed.Opener->Cell;
+		}
 		if (Scene.bWithWitness) { Out.WitnessWAfter = CoverIntegrityOn(Bed.Map, Bed.WitnessTarget, ERTHexDirection::W); }
 		if (Scene.bWithEarlyWitness) { Out.EarlyWAfter = CoverIntegrityOn(Bed.Map, Bed.EarlyTarget, ERTHexDirection::W); }
 		CoverStunCloseBed(Bed);
@@ -1419,7 +1465,8 @@ namespace
 			TEXT("primo rifiuto: fase %d, azione %s, da %s a %s; ")
 			TEXT("ricarica %d>%d (Def %d, specchio %d), slot prima [%s] dopo [%s]; ")
 			TEXT("passo %d verso %s, a fine turno su %s; playback mostra Prep %d, Move %d; ")
-			TEXT("rotta pianificata %s, attesa %s, percorsa %s; testimone anticipato W %d (CoverCreated %d)"),
+			TEXT("rotta pianificata %s, attesa %s, percorsa %s; testimone anticipato W %d (CoverCreated %d); ")
+			TEXT("rifiuti di Move %d (esito Move dell'attore %d), apritore %d: %s>%s"),
 			*Run, O.bStunnedAtCommit ? 1 : 0, O.bPlanAtCommit ? 1 : 0, O.bMainInPrep ? 1 : 0, O.bValid ? 1 : 0,
 			*O.ActionId.ToString(), O.WBefore, O.WAfter, O.EBefore, O.EAfter, O.CoversAfter,
 			O.Created, O.Moved, O.Rejected, O.WitnessWAfter, O.WitnessCreated, O.Activations,
@@ -1430,7 +1477,8 @@ namespace
 			O.bMoveAtCommit ? 1 : 0, *O.Destination.ToString(), *O.FinalCell.ToString(),
 			O.bSawPrepBeat ? 1 : 0, O.bSawMoveBeat ? 1 : 0,
 			*CoverStunRouteText(O.PlannedRoute), *CoverStunRouteText(O.ExpectedRoute), *CoverStunRouteText(O.WalkedRoute),
-			O.EarlyWAfter, O.EarlyCreated);
+			O.EarlyWAfter, O.EarlyCreated,
+			O.MoveRefusals, static_cast<int32>(O.ActorMoveOutcome), O.bOpener ? 1 : 0, *O.OpenerPlanned.ToString(), *O.OpenerFinal.ToString());
 	}
 
 	/** Che cosa fa la ricarica dello slot sotto prova, a fine turno. */
@@ -1494,12 +1542,17 @@ namespace
 		// `CollectAttackIntents` non filtra i morti. E' preesistente, non e' di questo banco e non e' deciso, quindi per la
 		// riga «caduto» le voci di rifiuto si contano in Prep e basta, e quella del Blast non si asserisce. Il NON-pagamento
 		// invece si: la ricarica `Free` e gli altri slot, qui sotto, valgono anche per il cadavere.
+		// D-569: se l'attore stordito ha anche un passo pianificato, il passo e' NEGATO e lascia la sua voce di rifiuto (fase Move) accanto a
+		// quella della struttura (fase Prep). Le colonne `Refusals` della tabella restano quelle di Prep; la voce di Move si somma qui,
+		// e la asserisce per esteso il blocco del passo in fondo.
+		const int32 ExpectedMoveRefusals = (O.bMoveAtCommit && O.bStunnedAtCommit) ? 1 : 0;
+		const int32 ExpectedAllRefusals = X.Refusals + ExpectedMoveRefusals;
 		if (!X.bFallenActor)
 		{
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, X.Refusals);
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, X.Refusals);
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, X.Refusals);
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, X.Refusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, ExpectedAllRefusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, ExpectedAllRefusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, ExpectedAllRefusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, ExpectedAllRefusals);
 		}
 		if (X.Refusals > 0)
 		{
@@ -1538,17 +1591,42 @@ namespace
 		}
 		if (O.bMoveAtCommit)
 		{
-			// [D-416] (1): il rifiuto e' dell'AZIONE, non del percorso. La stordita cammina come chi non lo e', e nel controllo
-			// il passo avviene (se non avvenisse, la riga non proverebbe niente).
-			Test.TestEqual(*FString::Printf(TEXT("%s: a fine turno l'attore e' sulla cella del passo pianificato"), *Run),
-				O.FinalCell.ToString(), O.Destination.ToString());
-			// La rotta e' quella del PIANO: il suo percorso composito se la riga ne scrive uno, altrimenti quella che il pathfinder
-			// trova verso la sola destinazione. La cella finale non lo dice: con un percorso diverso da quello del pathfinder e' la
-			// stessa, e senza percorso scritto (la forma dei bot) la raggiunge solo chi la rotta la ricava dalla destinazione.
-			Test.TestEqual(*FString::Printf(TEXT("%s: l'attore ha percorso la rotta del piano"), *Run),
-				CoverStunRouteText(O.WalkedRoute), CoverStunRouteText(O.ExpectedRoute));
-			// Il playback si apre perche' il passo e' un fatto di timeline: senza, «niente Prep» sarebbe vero anche con un
-			// rifiuto contato fra le operazioni applicate (vedi `CoverStunRunTurnWatchingPlayback`).
+			// ⌫ [D-569]. Fino al 2026-11-03 questo blocco diceva che "il rifiuto e' dell'AZIONE, non del percorso: la stordita cammina come
+			// chi non lo e'" ([D-416] (1) lasciava il movimento a `Root`), e usava il passo dell'attore come fatto di timeline che apre il
+			// playback. L'autore ha ribaltato la regola: una stordita non si muove, e il suo passo e' NEGATO. Qui sotto il braccio di
+			// CONTROLLO cammina ancora (e prova che il passo si compie, cosi' lo zero dello stordito non e' una fixture che non permette di
+			// camminare); il braccio STORDITO resta fermo e lascia la voce di rifiuto in fase Move. Il fatto che apre il playback e' ora un
+			// compagno NON stordito che cammina in entrambi i bracci (`Bed.Opener`).
+			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la scena ha l'apritore del playback"), *Run), O.bOpener);
+			Test.TestEqual(*FString::Printf(TEXT("%s: l'apritore, non stordito, arriva alla sua cella in entrambi i bracci"), *Run),
+				O.OpenerFinal.ToString(), O.OpenerPlanned.ToString());
+			if (!O.bStunnedAtCommit)
+			{
+				Test.TestEqual(*FString::Printf(TEXT("%s: controllo: a fine turno l'attore e' sulla cella del passo pianificato"), *Run),
+					O.FinalCell.ToString(), O.Destination.ToString());
+				// La rotta e' quella del PIANO: il suo percorso composito se la riga ne scrive uno, altrimenti quella che il pathfinder
+				// trova verso la sola destinazione. La cella finale non lo dice: con un percorso diverso da quello del pathfinder e' la
+				// stessa, e senza percorso scritto (la forma dei bot) la raggiunge solo chi la rotta la ricava dalla destinazione.
+				Test.TestEqual(*FString::Printf(TEXT("%s: controllo: l'attore ha percorso la rotta del piano"), *Run),
+					CoverStunRouteText(O.WalkedRoute), CoverStunRouteText(O.ExpectedRoute));
+				Test.TestEqual(*FString::Printf(TEXT("%s: controllo: nessun rifiuto di fase Move"), *Run), O.MoveRefusals, 0);
+			}
+			else
+			{
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: l'attore resta sulla sua cella, il passo e' negato"), *Run),
+					O.FinalCell.ToString(), O.Home.ToString());
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: nessuna rotta percorsa"), *Run),
+					CoverStunRouteText(O.WalkedRoute), CoverStunRouteText(TArray<FRTCellId>()));
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: UNA voce di rifiuto di fase Move"), *Run), O.MoveRefusals, 1);
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: la voce parte dalla cella di chi agisce"), *Run),
+					O.MoveRefusalSrc.ToString(), O.Home.ToString());
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: e non rivela la destinazione (le due celle sono quella di partenza)"), *Run),
+					O.MoveRefusalTgt.ToString(), O.Home.ToString());
+				Test.TestEqual(*FString::Printf(TEXT("%s: stordito: la voce Move dell'attore dice Stayed"), *Run),
+					static_cast<int32>(O.ActorMoveOutcome), static_cast<int32>(ERTMoveOutcome::Stayed));
+			}
+			// Il playback si apre perche' l'apritore cammina, un fatto di timeline in entrambi i bracci: senza, «niente Prep» sarebbe
+			// vero anche con un rifiuto contato fra le operazioni applicate (vedi `CoverStunRunTurnWatchingPlayback`).
 			Test.TestTrue(*FString::Printf(TEXT("%s: il playback mostra il passo (fase Move)"), *Run), O.bSawMoveBeat);
 			// Qui il beat di Prep c'e' se e solo se un'operazione e' stata APPLICATA (`ResolveCoverStructures` > 0): un rifiuto, e
 			// un `Reject` di raccolta, non lo accendono — ne' nel braccio stordito ne' in quello di controllo. L'equivalenza vale
@@ -1645,16 +1723,20 @@ namespace
  * fine turno, dopo il decremento del Cleanup) sul solo slot dell'azione. Il braccio di CONTROLLO e' lo stesso piano senza
  * stordimento, e non cambia.
  *
- * Le righe fresche pianificano anche un passo normale e pinnano cio' che il rifiuto NON e': non toglie il percorso (la
- * stordita cammina: [D-416] (1) lascia il movimento a `Status.Root`) e non e' un'operazione applicata (non accende il beat
- * di Prep del playback, che si legge con `CurrentPlaybackPhaseForTest`). ⚠️ Il passo serve anche a questo: senza nessun
- * fatto in timeline il playback del braccio stordito non si apre, e «niente Prep» sarebbe vero per il motivo banale.
+ * Le righe fresche pianificano anche un passo normale. ⌫ **[D-569] (2026-11-03) ha ribaltato cio' che questo passo pinnava**: fino
+ * ad allora il rifiuto era "dell'AZIONE, non del percorso" e la stordita camminava ([D-416] (1) lasciava il movimento a
+ * `Status.Root`); ora una stordita non si muove e il suo passo e' NEGATO, con una voce `Fallback`/`Cancelled`/`Stunned` di fase
+ * Move accanto a quella di Prep. Il braccio di CONTROLLO cammina ancora. Cio' che il rifiuto di Prep NON e' resta pinnato: non e'
+ * un'operazione applicata, quindi non accende il beat di Prep del playback (che si legge con `CurrentPlaybackPhaseForTest`).
+ * ⚠️ Perche' quel "niente Prep" valga serve un fatto in timeline che apra il playback anche nel braccio stordito: non e' piu' il
+ * passo dell'attore (negato) ma quello di un compagno NON stordito che cammina in entrambi i bracci (`Bed.Opener`).
  *
- * Il passo ha forme diverse, e in ognuna la stordita cammina QUELLO che ha pianificato: il percorso di un passo (la forma del
- * giocatore dopo un click), il percorso COMPOSITO con una deviazione e la SOLA DESTINAZIONE (`PlannedPath` vuoto: la forma dei bot,
- * il cui percorso nasce dentro la fase Move). Col percorso composito la cella finale e' la stessa del percorso diretto,
- * e la distingue solo la rotta: il banco la legge dall'evento `Move` della timeline. Una premessa per riga verifica che il piano
- * abbia la forma dichiarata, perche' gli asserti del passo si saltano se il piano non ha un passo.
+ * Il passo ha forme diverse: il percorso di un passo (la forma del giocatore dopo un click), il percorso COMPOSITO con una
+ * deviazione e la SOLA DESTINAZIONE (`PlannedPath` vuoto: la forma dei bot, il cui percorso nasce dentro la fase Move). Nel
+ * controllo la stordita cammina QUELLO che ha pianificato (col composito la cella finale e' la stessa del percorso diretto, e la
+ * distingue solo la rotta: il banco la legge dall'evento `Move` della timeline); da stordita resta ferma in tutte e tre. Una
+ * premessa per riga verifica che il piano abbia la forma dichiarata, perche' gli asserti del passo si saltano se il piano non ha
+ * un passo.
  *
  * Le righe oltre la prima famiglia pinnano DOVE sta la guardia e COSA riconosce:
  *  - **gia' in ricarica**: `CanUseAbility` e' falso e il piano si scarta in silenzio PRIMA della guardia — niente voce e
@@ -1696,8 +1778,8 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 	// Colonne dell'attesa: bordo W, bordo E | Created, Moved, Rejected | AbilityActivated, rifiuti | ricarica [| testimone, caduto, anticipato].
 	const FCoverStunRow Rows[] = {
 		// Fresche e complete: il rifiuto prende il posto della struttura, e la ricarica parte lo stesso. L'attore pianifica
-		// anche un passo normale: lo stordimento non glielo toglie (lo toglie `Root`), e il passo e' il fatto di timeline che
-		// apre il playback anche nel braccio stordito — senza, «niente beat di Prep» sarebbe vero perche' il playback non c'e'.
+		// anche un passo normale: da D-569 lo stordimento glielo NEGA (nel controllo cammina), e il fatto di timeline che apre il
+		// playback anche nel braccio stordito e' l'apritore — senza, «niente beat di Prep» sarebbe vero perche' il playback non c'e'.
 		{ CoverStunWithStep({ ECoverStunKind::CreateCover }),
 		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
 		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
@@ -1715,10 +1797,10 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
 		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },
 
-		// LE ALTRE FORME DEL PASSO. Il rifiuto e' dell'AZIONE e non del piano di movimento, e la stordita cammina QUELLO che ha
-		// pianificato: un percorso composito con una deviazione (la cella finale e' quella del percorso diretto: la distingue la
-		// rotta) e la sola destinazione, senza percorso scritto (la forma dei bot: la fase Move ricava la rotta da
-		// `PlannedCell`, e un rifiuto che la riportasse sulla cella corrente fermerebbe la stordita).
+		// LE ALTRE FORME DEL PASSO. Nel controllo il passo si compie QUELLO che si e' pianificato: un percorso composito con una
+		// deviazione (la cella finale e' quella del percorso diretto: la distingue la rotta) e la sola destinazione, senza percorso
+		// scritto (la forma dei bot: la fase Move ricava la rotta da `PlannedCell`). ⌫ Fino a D-569 anche la stordita li camminava,
+		// e la riga pinnava che il rifiuto di Prep non fermasse il passo; ora lo ferma in tutte e tre le forme.
 		{ CoverStunWithDetour({ ECoverStunKind::CreateCover }),
 		  /*controllo*/ { 30,  0, 1, 0, 0, 1, 0, Cd::Starts },
 		  /*stordito */ {  0,  0, 0, 0, 0, 0, 1, Cd::Starts } },

@@ -5,7 +5,14 @@
 // Lo stordimento toglie l'azione principale (D-416 (1)), e il rifiuto e' scritto PER SITO: ogni funzione di
 // `ARTTurnManager` che consuma una principale deve chiamare `RefuseMainActionIfStunned` (anche `ResolveDash`, per la
 // mobilita' che prende pure la principale: D-567, #3964; nessuna azione di catalogo la percorre, vedi
-// `EveryMainActionHasAKnownSite`). L'elenco si ricava dal codice:
+// `EveryMainActionHasAKnownSite`). L'elenco si ricava dal codice.
+//
+// DA D-569 (#3973) LE MOBILITA' NON SONO PIU' UN CASO A PARTE: la stordita non compie nessun movimento volontario, quindi
+// `ResolveDash` rifiuta OGNI mobilita' rapida (qualunque slot occupi) e `BeginMovementResolution` rifiuta il camminare, entrambi
+// con la stessa `RefuseMainActionIfStunned`. Non sono "azioni principali" e non hanno una categoria in questo file: le prova
+// `EveryMobilityIsRefusedWhenStunned` (in `RTStunnedMovementTests.cpp`, sotto lo stesso prefisso `StunCensus`), guidato dai
+// cataloghi con `IsFastMovement` come questo lo e' con `TakesMainSlot`, e il banco `Status.StunnedMovement.*`. Il comando qui
+// sotto li elenca entrambi: i due siti del movimento sono la differenza rispetto alla tabella `GuardedSites()`.
 //
 //     git grep -n 'RefuseMainActionIfStunned(' -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'
 //
@@ -288,10 +295,12 @@ namespace RTStunCensusTestsInternal
 	 * categorie: e' il confronto fra i siti e le categorie a dire se un sito resta senza categorie, o una categoria senza un
 	 * sito dichiarato (`CoverageProblems`, in `EveryGuardedSiteHasARow`).
 	 * Si tiene d'accordo col comando in testa al file; un sito nuovo si aggiunge qui E come categoria.
-	 * ⚠️ **Eccezione dichiarata: `ResolveDash`** (D-567, #3964) chiama la guardia, per la mobilita' che prende anche la
-	 * principale, ma non sta qui ne' in una categoria: nessuna azione di catalogo la percorre, e `EveryMainActionHasAKnownSite`
-	 * la vieta finche' non ha la sua riga. La prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, con un'azione
-	 * costruita. Il giorno in cui un'azione di catalogo la percorre si aggiunge qui E come categoria, con la sua riga.
+	 * ⚠️ **Eccezione dichiarata: `ResolveDash`** (D-567, #3964; da D-569 per OGNI mobilita') chiama la guardia, ma non sta qui ne'
+	 * in una categoria: non e' un sito di azioni PRINCIPALI. Per la mobilita' che prende anche la principale nessuna azione di
+	 * catalogo lo percorre, e `EveryMainActionHasAKnownSite` la vieta finche' non ha la sua riga: la prova
+	 * `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction`, con un'azione costruita. Per le mobilita' del solo movimento, che
+	 * sono tutte quelle spedite, la riga e' `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`. Stesso discorso per
+	 * `BeginMovementResolution` (D-569), che la chiama in fase Move per il camminare.
 	 */
 	const TArray<const TCHAR*>& GuardedSites()
 	{
@@ -364,9 +373,9 @@ namespace RTStunCensusTestsInternal
 	{
 		static const TArray<FEnumRole> Roles = {
 			{ TEXT("None"),            TEXT("non occupa slot (Action.Wait): non e' una principale") },
-			{ TEXT("Movement"),        TEXT("mobilita': D-416 (1) non tocca il movimento") },
+			{ TEXT("Movement"),        TEXT("mobilita': negata alla stordita da ResolveDash (D-569, #3973: nessun movimento volontario, scatti compresi) e provata per ogni mobilita' dei cataloghi da EveryMobilityIsRefusedWhenStunned") },
 			{ TEXT("Main"),            TEXT("l'azione principale: e' il soggetto di questo censimento") },
-			{ TEXT("MovementAndMain"), TEXT("consuma anche la principale: negata alla stordita da ResolveDash (D-567, #3964), ma nessuna categoria di questo file la dichiara: vietato dal controllo statico finche' qualcuno non la dichiara con la sua riga") },
+			{ TEXT("MovementAndMain"), TEXT("consuma anche la principale: negata alla stordita da ResolveDash (D-567, #3964; da D-569 la nega come ogni mobilita', e il criterio non e' piu' lo slot), ma nessuna categoria di questo file la dichiara: vietato dal controllo statico finche' qualcuno non la dichiara con la sua riga") },
 			{ TEXT("Reaction"),        TEXT("le reazioni le toglie ReactionBlockedThisTurn / DisarmPreparedReactions, non questa guardia") },
 		};
 		return Roles;
@@ -472,9 +481,13 @@ namespace RTStunCensusTestsInternal
 			{ TEXT("Overwatch gia' armato e disarmo da stordimento"),
 			  TEXT("lo stato armato e' privato e non entra ne' nell'hash ne' nel log: lo mostra solo un movimento che lo innesca"),
 			  { TEXT("RefactorTactics.Status.StunSilencesAnArmedWatcher") } },
-			{ TEXT("il movimento di una stordita"),
-			  TEXT("D-416 (1) toglie l'azione principale e non il percorso: non e' un'azione Main"),
-			  { TEXT("RefactorTactics.Status.StunDeniesTheActionNotTheMovement") } },
+			{ TEXT("il movimento di una stordita (D-569: negato, scatti e camminare)"),
+			  TEXT("non e' un'azione Main e non sta nelle categorie di questo file: lo nega ResolveDash per OGNI mobilita' rapida e "
+				   "BeginMovementResolution per il camminare, con una voce Fallback/Cancelled/Stunned nella fase che risolve (Dash o "
+				   "Move). Il censimento delle mobilita' guidato dai cataloghi e il banco del camminare lo coprono altrove"),
+			  { TEXT("RefactorTactics.Status.StunCensus.EveryMobilityIsRefusedWhenStunned"),
+				TEXT("RefactorTactics.Status.StunnedMovement.TheWalkIsRefusedWhenStunned"),
+				TEXT("RefactorTactics.Status.StunnedMovement.TheStatusIsReadAtTheResolvingPhase") } },
 		};
 		return List;
 	}

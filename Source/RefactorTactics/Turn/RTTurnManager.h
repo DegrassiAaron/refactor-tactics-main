@@ -3345,15 +3345,15 @@ protected:
 	 * 🔑 **Una funzione e non un blocco per sito**, perche' i siti sono piu' d'uno: l'azione principale si consuma nel
 	 * **Prep** (Overwatch e predittive si ARMANO li'; e le strutture di bordo di `ResolveCoverStructures`, [D-565]), nel
 	 * **Blast** (`CollectAttackIntents`, e prima di lui `ResolveCleanseActions` e `CollectHealActions`, che azzerano il
-	 * piano), nel **Cleanup** (`ResolveEnvironment`) e nel **Dash** (`ResolveDash`, per la mobilita' che prende anche la
-	 * principale, [D-567]). Scrivere il
+	 * piano), nel **Cleanup** (`ResolveEnvironment`) e nel **Dash** (`ResolveDash`, per ogni mobilita', [D-569]). Scrivere il
 	 * rifiuto una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha
 	 * girato la suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso. Il
 	 * pagamento della ricarica ([D-563]) resta al chiamante: la sede della scrittura cambia da sito a sito.
 	 *
-	 * ⛔ **Non tocca il movimento** ([D-416]): rifiuta l'azione, non il percorso. Quello e' `Root`. ⚠️ **Una mobilita'
-	 * che prende il SOLO slot movimento passa**; una che prende anche la principale (`TakesMainSlot`) e' un'azione
-	 * principale come le altre, ed e' rifiutata dal sito Dash ([D-567], `#3964`).
+	 * ⚠️ **Da [D-569] (`#3973`) rifiuta anche il MOVIMENTO volontario**, che [D-416] (1) lasciava a `Root`: le mobilita'
+	 * rapide (`ResolveDash`, qualunque slot occupino) e il camminare (`BeginMovementResolution`, in fase `Move`, dove non c'e'
+	 * niente da pagare: il camminare ha ricarica zero). Il nome della funzione e' rimasto quello dell'azione principale; la
+	 * voce e' la stessa per ogni sito. Il movimento FORZATO (spinte, trazioni) non e' volontario e non passa da qui.
 	 */
 	bool RefuseMainActionIfStunned(ARTUnit* Unit, const FRTActionDef& Def, ERTMatchPhase InPhase,
 		const FRTCellId& TargetCell);

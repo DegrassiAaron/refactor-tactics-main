@@ -5086,20 +5086,24 @@ void ARTTurnManager::ResolveDash()
 			continue;
 		}
 
-		// 🔴 **Lo stordimento NEGA la mobilita' che prende ANCHE l'azione principale** ([D-567], `#3964`). [D-416] (1) toglie
-		// la principale alla stordita e «non tocca il movimento»: una mobilita' `MovementAndMain` (o una principale di
-		// macro-fase Dash) li prende tutti e due, e l'autore ha deciso che vince la prima meta' — la stordita non la compie
-		// e il rifiuto PAGA la ricarica ([D-563] (2)), come ogni altra principale negata. Una mobilita' che prende il SOLO
-		// movimento (`Slot == Movement`, oggi ogni scatto spedito) resta permessa: il criterio e' `TakesMainSlot`, non un nome.
+		// 🔴 **Lo stordimento NEGA OGNI mobilita'** ([D-569], `#3973`, che estende [D-567] — la sola mobilita' che prende anche la
+		// principale — a tutte). [D-416] (1) toglieva alla stordita la principale e lasciava il movimento a `Root`; l'autore ha
+		// ribaltato il resto il 2026-11-02: una stordita non compie nessun movimento volontario, scatti compresi (`Dodge`, `Leap`,
+		// `Reposition`, `Charge` e le mobilita' d'eroe). Il rifiuto PAGA la ricarica ([D-563] (2), [D-567]) — lettura
+		// dell'assistente, ribaltabile ([D-569] (5)). Il criterio e' lo stato e non lo slot: `TakesMainSlot` e' uscito dalla condizione.
+		//
+		// 🔑 **Lo stato si legge ALLA FASE in cui l'azione risolve** ([D-569] (4)): il Dash precede il Blast, quindi uno stun nato
+		// nel Blast di T non lo nega (la mobilita' di T e' gia' avvenuta) e nega invece il Move di T (`BeginMovementResolution`).
+		// Gli impatti della carica non nascono: questo ramo esce prima di `PendingChargeImpacts`.
 		//
 		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStun()`**, letta sopra prima del consumo e la stessa che
 		// anteprima e mira leggono attraverso `PlannedDashMoves()` ([D-471]). La voce e' quella di ogni altro sito
 		// (`RefuseMainActionIfStunned`: `Fallback`/`Cancelled`/`Stunned`, fase `Dash`) con `TgtCell = Unit->Cell`: la
 		// destinazione pianificata e' piano privato, come nel rifiuto per `Unbalanced` qui sotto.
 		//
-		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget che prende la
-		// principale e' negata come stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso
-		// (nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
+		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget e' negata come
+		// stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso (lo Sprint e' una banda del
+		// Move e nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
 		// un'azione costruita. ⚠️ **DOPO `if (!bDashApplies)`**: una mobilita' gia' in ricarica e' scartata in silenzio, senza
 		// voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno.
 		// Nessun controllo `IsAlive`: `Units` viene da `MakeCurrentSnapshot`, cioe' da `CollectLivingUnits`, che tiene solo le

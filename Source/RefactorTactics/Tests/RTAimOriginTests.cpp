@@ -691,20 +691,24 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 }
 
 /**
- * **Una mobilita' che la stordita non compie non sposta la mira** ([D-567], `#3964`, [D-471]).
+ * **Una mobilita' che la stordita non compie non sposta la mira** ([D-567], `#3964`, esteso a ogni mobilita' da [D-569],
+ * `#3973`; [D-471]).
  *
- * `ResolveDash` nega a chi e' stordito la mobilita' che prende anche la principale (`MovementAndMain`). La condizione e'
- * `ARTUnit::PlannedDashDeniedByStun()`, e `PlannedDashMoves()` la include come include il rifiuto per `Unbalanced`: senza
- * questa riga la mira e il verso partirebbero da una cella che la stordita non raggiunge, lo stesso difetto che [D-471]
- * chiuse per lo scatto a budget.
+ * `ResolveDash` nega a chi e' stordito OGNI mobilita'. La condizione e' `ARTUnit::PlannedDashDeniedByStun()`, e
+ * `PlannedDashMoves()` la include come include il rifiuto per `Unbalanced`: senza questa riga la mira e il verso
+ * partirebbero da una cella che la stordita non raggiunge, lo stesso difetto che [D-471] chiuse per lo scatto a budget.
  *
- * ⚠️ **L'azione si COSTRUISCE**: `FluidTrail` e' `Movement` nel catalogo e diventa `MovementAndMain` solo qui. Il controllo
- * e' lo stesso scatto non stordito, il confine lo stesso stordito ma con lo slot del catalogo: entrambi spostano.
+ * ⌫ *Questo test si chiamava `StunnedMobilityThatTakesTheMainSlotDoesNotMoveTheAim` e costruiva la mobilita' come
+ * `MovementAndMain`, perche' [D-567] negava la sola mobilita' che prende anche la principale: il suo CONFINE asseriva che la
+ * stessa stordita con lo slot `Movement` del catalogo spostasse ancora la mira.* [D-569] ribalta quel confine. Il braccio
+ * principale ora usa lo slot del catalogo (`Movement`, quello di `FluidTrail` com'e' spedita); il braccio `MovementAndMain` resta
+ * come prova che il criterio non e' lo slot.
+ *
  * ⚠️ **Solo la mobilita'**: per le altre principali l'anteprima non cambia, perche' il click accetta il piano di una
  * stordita e lo nega la risoluzione ([D-565] (2), `#3134`).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest,
-	"RefactorTactics.AimOrigin.StunnedMobilityThatTakesTheMainSlotDoesNotMoveTheAim",
+	"RefactorTactics.AimOrigin.StunnedMobilityDoesNotMoveTheAim",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest::RunTest(const FString&)
 {
@@ -715,10 +719,10 @@ bool FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest::RunTest(const FString&)
 		return false;
 	}
 	URTActionData* Scia = B.Mine->GetAbility(B.Scatto);
-	Scia->Def.Slot = ERTActionSlot::MovementAndMain;
+	TestTrue(TEXT("premessa: la mobilita' ha lo slot del catalogo, il solo movimento"), Scia->Def.Slot == ERTActionSlot::Movement);
 	B.PC->SelectAbilityForCurrentForTest(B.Getto);
 
-	// CONTROLLO — senza lo stordimento lo scatto che prende la principale sposta: la mira e il verso partono dallo scatto.
+	// CONTROLLO — senza lo stordimento lo scatto sposta: la mira e il verso partono dallo scatto.
 	TestTrue(TEXT("controllo: senza stordimento lo scatto sposta"), B.Mine->PlannedDashMoves());
 	TestEqual(TEXT("controllo: un Attack mira dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
 		GAimOriginScatto);
@@ -734,11 +738,88 @@ bool FRTAimOriginStunnedMobilityDoesNotMoveTheAimTest::RunTest(const FString&)
 		GAimOriginQui);
 	TestEqual(TEXT("e il verso si dichiara da dove l'unita' resta"), B.PC->FacingCellFor(B.Mine), GAimOriginQui);
 
-	// CONFINE — la stessa stordita con lo slot del catalogo, solo movimento: D-416 (1) non lo tocca, e sposta ancora.
-	Scia->Def.Slot = ERTActionSlot::Movement;
-	TestTrue(TEXT("confine: una mobilita' di solo movimento sposta anche da stordita"), B.Mine->PlannedDashMoves());
-	TestEqual(TEXT("confine: e la mira parte dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
-		GAimOriginScatto);
+	// ALTRO SLOT — la stessa stordita con la mobilita' che prende anche la principale: negata lo stesso. Il criterio e' lo stato,
+	// non lo slot ([D-569]; [D-567] negava la sola `MovementAndMain` e qui sopra il confine diceva il contrario per `Movement`).
+	Scia->Def.Slot = ERTActionSlot::MovementAndMain;
+	TestFalse(TEXT("altro slot: una mobilita' che prende anche la principale non sposta da stordita"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("altro slot: e la mira parte dalla cella corrente"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginQui);
+
+	// CONTROLLO — scaduto lo stordimento, la stessa mobilita' sposta di nuovo: lo zero di sopra non viene da una fixture che
+	// non permette lo scatto.
+	B.Mine->RemoveStatus(TAG_Status_Stunned);
+	TestTrue(TEXT("controllo: senza lo stordimento lo scatto sposta di nuovo"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("controllo: e la mira riparte dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack), GAimOriginScatto);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * **Un Move che la stordita non compie non sposta il verso ne' l'anteprima** ([D-569], `#3973`, [D-471]).
+ *
+ * Come per lo scatto, la domanda e' una sola e la pone il resolver (`BeginMovementResolution` nega il camminare a chi e'
+ * stordito): `ARTUnit::PlannedNormalMoveDeniedByStun()`. Il click accetta ancora il piano di una stordita ([D-565] (2)), quindi
+ * il piano resta scritto; cio' che cambia e' dove l'unita' RESTERA', e due lettori lo chiedono:
+ *  - il verso dichiarato (`FacingCellFor`): si dichiara da dove l'unita' resta, non dal fondo di un percorso che non fara';
+ *  - la voce Move della timeline: e' una rotta RIFIUTATA — la voce resta (il click l'ha accettata), il ghost sta dove l'unita'
+ *    si trova e non percorre niente — come uno scatto che non si applica.
+ *
+ * Il controllo e' lo stesso piano non stordito (il percorso c'e', il verso parte dal fondo), e a stordimento tolto torna cosi'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginStunnedWalkDoesNotMoveTheFacingCellTest,
+	"RefactorTactics.AimOrigin.StunnedWalkDoesNotMoveTheFacingCellNorThePreview",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginStunnedWalkDoesNotMoveTheFacingCellTest::RunTest(const FString&)
+{
+	FAimOriginBench B;
+	if (!SetUpAimOriginBench(*this, B, FRTCellId(-4, 4, 0), FRTCellId(4, -4, 0)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	// Nessuno scatto: un Move pianificato di due celle verso est, la forma che il controller scrive dopo un click.
+	B.Mine->PlannedDashAbility = INDEX_NONE;
+	const FRTCellId Meta(1, 0, 0);
+	B.Mine->PlannedPath = { GAimOriginQui, FRTCellId(0, 0, 0), Meta };
+	B.Mine->PlannedWaypoints = { Meta };
+	B.Mine->PlannedCell = Meta;
+	B.PC->SelectAbilityForCurrentForTest(B.Getto); // ridisegna l'anteprima
+	TestTrue(TEXT("premessa: il Move e' pianificato"), B.Mine->HasPlannedNormalMove());
+
+	auto MoveEntry = [&B]() { return AimOriginMainEntry(B, ERTResolutionPhase::NormalMovement); };
+
+	// CONTROLLO — non stordita: il verso parte dal fondo del percorso, e la voce Move lo percorre.
+	TestFalse(TEXT("controllo: il Move non e' negato"), B.Mine->PlannedNormalMoveDeniedByStun());
+	TestEqual(TEXT("controllo: il verso si dichiara dal fondo del percorso"), B.PC->FacingCellFor(B.Mine), Meta);
+	// L'ultimo passo del percorso e' verso E: a fine Move a budget il cono del verso sta attorno a E, e W ne resta fuori.
+	// Da fermo ogni verso e' legale ([D-367]): e' il lettore `PlannedMovementForFacing`, non solo `FacingCellFor`.
+	const ERTHexDirection Indietro = ERTHexDirection::W;
+	TestFalse(TEXT("controllo: a fine Move a budget il verso opposto al percorso non e' legale"),
+		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
+	const FRTPhasePreviewEntry* Libera = MoveEntry();
+	if (!TestNotNull(TEXT("controllo: la timeline ha la voce Move"), Libera)) { RTWorldFixtures::DestroyWorld(B.World); return false; }
+	TestEqual(TEXT("controllo: il ghost del Move sta alla meta"), Libera->PreviewDestination, Meta);
+	TestTrue(TEXT("controllo: e la voce percorre qualcosa"), Libera->PreviewPath.Num() >= 2);
+
+	// IL CUORE — stordita: il piano c'e' ancora, ma l'unita' resta dov'e'.
+	B.Mine->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	B.PC->SelectAbilityForCurrentForTest(B.Getto); // la riconferma ridisegna l'anteprima
+	TestTrue(TEXT("premessa: il click ha accettato il piano e lo conserva (D-565 (2))"), B.Mine->HasPlannedNormalMove());
+	TestTrue(TEXT("il Move e' negato dallo stordimento"), B.Mine->PlannedNormalMoveDeniedByStun());
+	TestEqual(TEXT("il verso si dichiara da dove l'unita' resta"), B.PC->FacingCellFor(B.Mine), GAimOriginQui);
+	TestTrue(TEXT("e si giudica da fermo: anche l'opposto al percorso e' legale"), B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
+	const FRTPhasePreviewEntry* Stordita = MoveEntry();
+	if (!TestNotNull(TEXT("la voce Move resta nella timeline: il click l'ha accettata"), Stordita)) { RTWorldFixtures::DestroyWorld(B.World); return false; }
+	TestEqual(TEXT("ma il ghost sta dove l'unita' si trova"), Stordita->PreviewDestination, GAimOriginQui);
+	TestEqual(TEXT("e non percorre niente"), Stordita->PreviewPath.Num(), 0);
+
+	// CONTROLLO 2 — scaduto lo stordimento il piano torna a muovere: lo zero di sopra non viene da una fixture che non permette di camminare.
+	B.Mine->RemoveStatus(TAG_Status_Stunned);
+	B.PC->SelectAbilityForCurrentForTest(B.Getto);
+	TestFalse(TEXT("controllo: tolto lo stordimento il Move non e' piu' negato"), B.Mine->PlannedNormalMoveDeniedByStun());
+	TestEqual(TEXT("controllo: e il verso torna al fondo del percorso"), B.PC->FacingCellFor(B.Mine), Meta);
+	TestFalse(TEXT("controllo: e il verso opposto al percorso torna illegale"), B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

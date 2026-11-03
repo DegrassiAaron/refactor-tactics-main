@@ -223,20 +223,20 @@ enum class ERTActionInvalidReason : uint8
 	 */
 	DashPathBlocked,
 	/**
-	 * Chi e' **stordito** non agisce: `Status.Stunned` nega l'**azione principale** per la propria durata
-	 * ([D-416], `#3142`).
+	 * Chi e' **stordito** non agisce e non si muove: `Status.Stunned` nega l'**azione principale** per la propria durata
+	 * ([D-416], `#3142`) e, da [D-569] (`#3973`), il **movimento volontario**.
 	 *
 	 * 🔑 **Motivo PROPRIO e non `Unbalanced`**, benche' entrambi nascano da uno stato di controllo: quello
 	 * dice *«hai perso l'equilibrio, non puoi CORRERE»* e lascia intatta l'azione; questo dice *«non puoi
-	 * AGIRE»* e lascia intatto il movimento. Sono i due divieti complementari, e un motivo solo per
-	 * entrambi manderebbe il giocatore a cercare il rimedio sbagliato.
+	 * AGIRE»*. Sono due divieti diversi, e un motivo solo per entrambi manderebbe il giocatore a cercare il
+	 * rimedio sbagliato.
 	 *
-	 * ⛔ **Non dice niente sul movimento**, ed e' la distinzione da `Root` che [D-416] mette per iscritto:
-	 * `Root` non passa di qui, perche' non rifiuta un'azione — azzera un budget, che e' un'altra sede.
-	 *
-	 * ⚠️ **Una mobilita' che prende ANCHE la principale e' un'azione principale** ([D-567], `#3964`): `MovementAndMain`
-	 * (o una principale di macro-fase Dash) e' negata da questo motivo, e il rifiuto paga la ricarica come ogni altro. Non
-	 * e' un divieto di muoversi: resta permessa la mobilita' che prende il SOLO slot movimento.
+	 * ⌫ *Fino al 2026-11-03 questa riga diceva «Non dice niente sul movimento», la distinzione da `Root` che [D-416] (1) metteva per
+	 * iscritto, e «resta permessa la mobilita' che prende il SOLO slot movimento» ([D-567]).* [D-569] l'ha ribaltata: una stordita
+	 * non compie nessun movimento volontario, e il rifiuto del movimento esce con questo stesso motivo — in fase `Dash` per ogni
+	 * mobilita' (`ResolveDash`, qualunque slot occupi; il rifiuto paga la ricarica come ogni altro, [D-563] (2)) e in fase `Move`
+	 * per il camminare (`BeginMovementResolution`, ricarica zero). `Root` resta un'altra sede (azzera un budget e non scrive questa
+	 * voce) e il movimento FORZATO non passa di qui.
 	 *
 	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked` e le altre prima: il
 	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
