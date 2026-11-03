@@ -376,8 +376,9 @@ struct FRTBlastContext
 	// che si conoscono SOLO a risoluzione. Cio' che il click rifiuta (fuori portata dichiarata, distanza minima)
 	// resta gratis. La tabella dei MOTIVI di nascita e' una sola, in `RTTurnManager_Blast.cpp` (`PagaSeParteSenzaColpo`);
 	// la regola per gli intenti gia' nati sta anche nelle clausole di `IntentoPartitoSenzaColpo` e nel lambda `AzionePartita`.
-	// ➕ [D-571] (RIC-3): il bersaglio-unita' fuori portata SOLO per il cap del Fumo paga (`FuoriPortataSoloPerIlTerreno`, accanto
-	// alla tabella: `OutOfRange` non puo' stare nella tabella perche' oltre la portata dichiarata il click rifiuta); il
+	// ➕ [D-571] (RIC-3): il bersaglio-unita' fuori portata SOLO per il cap del Fumo NON osservato paga
+	// (`FuoriPortataSoloPerIlTerreno`, accanto alla tabella: `OutOfRange` non puo' stare nella tabella perche' oltre la
+	// portata dichiarata, o dietro un Fumo noto, il click rifiuta); il
 	// bersaglio-unita' morto di `ModifyArc` e delle azioni ambientali paga nei loro siti, non da qui.
 	//
 	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive

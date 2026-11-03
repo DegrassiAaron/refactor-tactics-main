@@ -3655,8 +3655,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// partita e la ricarica con lei. `Target == nullptr` e' un piano che il click non produce — dichiara sempre
 			// un'unita' o una cella — e resta gratis. La SEDE e' quella di sempre per questo sito: scrittura immediata, come
 			// per il rifiuto da stordimento qui sopra e per `ConsumeAbility` piu' in basso. `CanUseAbility` e' gia' stato
-			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno); `IsAlive()` e' la guardia di `R10`
-			// ([D-209]): un cadavere col piano addosso non ha tentato niente. Nessuna voce di TurnLog, nessun evento nuovo.
+			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno); `IsAlive()` e' la guardia del Cleanup,
+			// la stessa del rifiuto da stordimento qui sopra, e si legge DOPO il Blast: chi muore nel Blast non paga
+			// l'azione ambientale (a differenza di `ModifyArc`, annotata da viva a inizio Blast). Un cadavere col piano
+			// addosso non ha tentato niente. Nessuna voce di TurnLog, nessun evento nuovo.
 			if (Target && Caster->IsAlive())
 			{
 				Caster->ConsumeAbility(AbilityIndex);
@@ -4399,9 +4401,14 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// non e' geometria nota in pianificazione, e [D-200] libera solo cio' che il click rifiuta — quindi il rifiuto per
 		// stordimento precede i `Reject` di raccolta (nessun bersaglio, nessun bordo dichiarato, fuori portata) e li
 		// sostituisce: uno stordito con un piano incompleto e' rifiutato e paga, chi non lo e' lascia il suo `Reject` e non
-		// paga (`RIC-3`, [D-571]: gratis perche' il click non produce un piano senza bersaglio o senza bordo e rifiuta quello
-		// fuori portata; l'origine in Prep e' sempre la cella di partenza, quindi la portata non dipende da uno scatto). E sta
-		// dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
+		// paga (`RIC-3`, [D-571]). **Verificato col click, sotto-caso per sotto-caso**: «nessun bersaglio» e' un piano che il click
+		// non produce (ogni scrittura di `PlannedAbilityIndex` per un'abilita' non su se stessi dichiara anche un bersaglio) e
+		// «fuori portata» lo rifiuta (`ClassifyHexTargeting`, e in Prep l'origine e' la cella di partenza: nessuno scatto la
+		// sposta) — entrambi gratis. ⚠️ **«Nessun bordo dichiarato» invece il click lo ACCETTA**: `HandleClickOnUnit` non ha la
+		// guardia sul kind del bersaglio che hanno `HandleTargetCell` e `HandleTargetEdge`, quindi un'abilita' di bordo armata
+		// accetta il click su un'unita' e il piano nasce senza lato. Resta gratis come oggi, ed e' `BLOCKED — DECISION REQUIRED`:
+		// o il click (o il validatore al lock-in, `RIC-1`) deve rifiutarlo, o quel piano paga. Pinnato da
+		// `Actions.Blast.UndecidedCausesStayFree`. E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
 		// scartata in silenzio, senza voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e
 		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le uscite in cima al ciclo
 		// (`IsAlive`, `StructureOp` assente, `SetDoorState`).
