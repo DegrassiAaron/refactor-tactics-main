@@ -194,7 +194,10 @@ public:
 	 * `Stunned` toglie l'azione principale, la reazione, cio' che era gia' armato ([D-416]) e, da [D-569], il
 	 * movimento volontario; `Root` azzera il budget di movimento e lascia intatto l'agire; `Slow` non toglie niente,
 	 * rende piu' caro il passo. ⌫ *Fino al 2026-11-03 il movimento non era fra le capacita' di `Stunned`: era la riga che
-	 * lo separava da `Root`.* Il rango resta lo stesso: `Stunned` toglie un sovrainsieme di cio' che toglie `Root`.
+	 * lo separava da `Root`.* Il rango resta lo stesso: `Stunned` toglie almeno cio' che `Root` toglie alla
+	 * risoluzione (il movimento volontario). ⚠️ *Non si afferma di piu'*: le due negazioni hanno sedi e prezzi diversi — `Root`
+	 * azzera il budget e il click rifiuta in pianificazione, `Stunned` nega alla risoluzione e il click accetta il piano; uno
+	 * Sprint negato a una stordita paga `Exposed`, a una radicata no.
 	 *
 	 * ⚠️ **Limite dichiarato**: e' una lista nel codice, non un dato del catalogo. Uno stato di controllo
 	 * aggiunto domani non entra qui da solo e il modulo smetterebbe di vederlo — lo stesso difetto che

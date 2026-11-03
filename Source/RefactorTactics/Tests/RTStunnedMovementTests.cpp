@@ -443,6 +443,8 @@ namespace RTStunnedMovementTestsInternal
 		// guardia protegge non si raggiunge e la riga prova niente), e se la squadra ha poi RIVELATO il contatto col bloccante.
 		bool bRejectionFlagged = false;
 		bool bContactRevealed = false;
+		bool bBlockerVisibleBefore = false;  //< la visione della squadra conteneva la cella del bloccante prima del turno (premessa: no)
+		bool bBlockerVisibleAfter = false;   //< ... e dopo il turno (premessa: no, altrimenti il contatto potrebbe essere una vista)
 		int32 BlockerStableId = 0;
 	};
 
@@ -489,10 +491,24 @@ namespace RTStunnedMovementTestsInternal
 			// La forma che il click produce: un percorso valido di un passo, e poi un waypoint verso una cella occupata, rifiutato e
 			// ricordato (`NoteMovePlanRejection`, la stessa funzione del controller e dell'harness). Il flag e' acceso e il piano e'
 			// un Move: e' il solo caso in cui il ramo "rifiuto per occupazione" di `BeginMovementResolution` e la guardia dello
-			// stordimento si incontrano. Il bloccante e' il nemico lontano: omniscia sullo snapshot, ignoto alla squadra.
+			// stordimento si incontrano. Il bloccante e' il nemico lontano.
+			//
+			// ⚠️ **QUESTO E' UNO STATO DI FIXTURE, non di partita.** Il flag nasce qui da uno snapshot ONNISCIENTE (`RTObserver::Omniscient`),
+			// che porta anche il corpo del nemico che la squadra non vede. Il controller pianifica sullo snapshot PER OSSERVATORE
+			// (`PlanningSnapshotFor`, `RTPlayerController.cpp`), che i corpi ignoti non li porta: in gioco il rifiuto del click scatta
+			// solo per un bloccante gia' NOTO alla squadra. Il test prova la guardia in uno stato che il gioco non produce con un
+			// bloccante ignoto: serve a fissare che la guardia c'e' (il ramo e' raggiungibile con un bloccante noto, e la guardia non
+			// guarda la conoscenza), non a dire che la partita lo mostri.
+			//
+			// Per questo il bloccante e' lontano e la PREMESSA qui sotto asserisce che la visione della squadra non contenga la sua cella:
+			// il contatto che la squadra puo' ricevere e' allora un URTO (`RevealByHit`) e non una vista (`Observe`, che riempie
+			// `Contacts` anche per i nemici visti: senza la premessa "contatto rivelato" sarebbe ambiguo).
 			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
 			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
 			TM->RefreshTeamKnowledgeNow();
+			Out.bBlockerVisibleBefore = TM->KnowledgeForTeamPublic(Walker->TeamId).VisibleCells.Contains(Foe->Cell);
+			Test.TestFalse(*FString::Printf(TEXT("%s: premessa: la visione della squadra non contiene la cella del bloccante prima del turno"), *Label),
+				Out.bBlockerVisibleBefore);
 			TArray<ARTUnit*> SnapshotUnits;
 			const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
 			const int32 WalkerIndex = SnapshotUnits.IndexOfByKey(Walker);
@@ -525,7 +541,7 @@ namespace RTStunnedMovementTestsInternal
 		if (bStunned) { Walker->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo dove il braccio lo dichiara"), *Label),
 			Walker->HasStatus(TAG_Status_Stunned), bStunned);
-		Test.TestFalse(*FString::Printf(TEXT("%s: premessa: chi cammina non e' radicato (Root e Stunned sono due stati)"), *Label),
+		Test.TestFalse(*FString::Printf(TEXT("%s: premessa: chi cammina non e' radicato"), *Label),
 			Walker->HasStatus(TAG_Status_Root));
 
 		RunTurn(TM);
@@ -537,7 +553,9 @@ namespace RTStunnedMovementTestsInternal
 		Out.MoveOutcome = MoveOutcomeOf(TM, Walker->StableUnitId);
 		Out.bExposed = Walker->HasStatus(TAG_Status_Exposed);
 		Out.BlockerStableId = Foe->StableUnitId;
-		for (const FRTLastKnownContact& Contact : TM->KnowledgeForTeamPublic(Walker->TeamId).Contacts)
+		const FRTTeamKnowledge KnowledgeAfter = TM->KnowledgeForTeamPublic(Walker->TeamId);
+		Out.bBlockerVisibleAfter = KnowledgeAfter.VisibleCells.Contains(Foe->Cell);
+		for (const FRTLastKnownContact& Contact : KnowledgeAfter.Contacts)
 		{
 			if (Contact.StableUnitId == Foe->StableUnitId) { Out.bContactRevealed = true; }
 		}
@@ -743,6 +761,8 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 			// (`FinishMovementResolution` itera `bDeniedByOccupant`, anche per chi poi si e' mosso). Se qui non si vedesse il contatto,
 			// la sua assenza nel braccio stordito non direbbe niente.
 			TestTrue(*FString::Printf(TEXT("%s: premessa: il flag di rifiuto per occupazione e' ACCESO al commit"), *Name), Free.bRejectionFlagged);
+			TestFalse(*FString::Printf(TEXT("%s: premessa: il bloccante non e' visto dalla squadra nemmeno a fine turno, quindi il contatto e' un urto e non una vista"), *Name),
+				Free.bBlockerVisibleBefore || Free.bBlockerVisibleAfter);
 			TestTrue(*FString::Printf(TEXT("%s: controllo: senza stordimento la squadra ha rivelato il contatto col bloccante"), *Name), Free.bContactRevealed);
 			TestEqual(*FString::Printf(TEXT("%s: controllo: e il Move si e' compiuto (la voce non e' BlockedByUnit)"), *Name),
 				static_cast<int32>(Free.MoveOutcome), static_cast<int32>(ERTMoveOutcome::Moved));
@@ -771,6 +791,8 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 			// privato) e la squadra ne rivelerebbe la posizione.
 			TestTrue(*FString::Printf(TEXT("%s: premessa: il flag di rifiuto per occupazione e' ACCESO anche nel braccio stordito"), *Name),
 				Stunned.bRejectionFlagged);
+			TestFalse(*FString::Printf(TEXT("%s: premessa: il bloccante non e' visto dalla squadra nemmeno nel braccio stordito, quindi un contatto sarebbe un urto"), *Name),
+				Stunned.bBlockerVisibleBefore || Stunned.bBlockerVisibleAfter);
 			TestFalse(*FString::Printf(TEXT("%s: la squadra NON rivela il contatto col bloccante: la stordita non ha urtato nessuno"), *Name),
 				Stunned.bContactRevealed);
 		}
@@ -798,6 +820,12 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  * voce, `Stunned`) oppure restano due voci? Questo test fissa lo stato di fatto per non farlo cambiare in silenzio: se la
  * decisione e' "una voce", l'asserto sulla voce `Unbalanced` si rovescia (zero) e la corsa negata di `ResolveDash` va saltata per
  * chi e' stordito.
+ *
+ * ⚠️ **La conseguenza concreta di "vince lo stordimento"**: saltato il rifiuto `Unbalanced` di `ResolveDash`, la voce che resta
+ * nomina `Action.Move` — la banda congelata per chi e' sbilanciata e' gia' degradata da `bRunDenied`, quindi non e' piu' la corsa —
+ * e si PERDE la traccia che era stata dichiarata una corsa (`Action.Sprint` nella voce `Unbalanced`). Per questo il pin non fissa
+ * solo il conteggio ma i DUE `ActionId`: la voce `Unbalanced` nomina l'azione dello Sprint, quella `Stunned` nomina `Action.Move`.
+ * Chi decide "una voce" decide anche se quella traccia (che corsa era stata pianificata) vale la voce in piu'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedAndUnbalancedSprintPinTest,
 	"RefactorTactics.Status.StunnedMovement.StunnedAndUnbalancedSprintWritesTwoRefusalsUntilDecided",
@@ -870,6 +898,15 @@ bool FRTStunnedAndUnbalancedSprintPinTest::RunTest(const FString&)
  *  - CONTROLLO POSITIVO: uno sprintatore NON stordito che corre davvero. Il calendario si raddoppia e gli indici cambiano — se
  *    non cambiassero, l'osservabile sarebbe cieco e l'uguaglianza del terzo braccio non direbbe niente;
  *  - IL CUORE: lo sprintatore e' stordito, lo Sprint e' negato, non si muove: gli indici sono quelli della BASE.
+ *
+ * ⚠️ **Due varianti, per la POSIZIONE dello sprintatore nell'ordine di risoluzione.** `BeginMovementResolution` scorre le unita'
+ * nell'ordine di `SortUnitsForResolution` (per cella, poi `StableUnitId`, poi nome), e la neutralizzazione della cadenza si fa
+ * sull'indice dell'unita' negata. Se lo sprintatore stordito fosse sempre il PRIMO, scrivere `Cadences[0]` al posto di
+ * `Cadences[i]` sarebbe indistinguibile dall'originale (mutante C2 della mutazione indipendente: equivalente PER FIXTURE).
+ *  - PRIMA: lo sprintatore sta a X minore di tutti e ordina per primo (indice 0 su tre unita');
+ *  - DOPO: sta a X maggiore di tutti e ordina per ultimo (indice 2 su tre unita'); `Cadences[0]` e' qui la cadenza del guardiano, non la sua.
+ * L'indice si legge dall'ordine REALE (`SortUnitsForResolution` su un array passato nell'ordine sbagliato) e si asserisce come
+ * premessa, cosi' una regola di ordinamento diversa rende rosso il test invece di rendere vuota la variante.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedADeniedSprintKeepsTheCalendarTest,
 	"RefactorTactics.Status.StunnedMovement.ADeniedSprintKeepsTheMicroStepNumbering",
@@ -880,15 +917,16 @@ bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
 
 	enum class ESprinter : uint8 { None, Free, Stunned };
 
-	auto Run = [this](ESprinter Kind, TArray<int32>& OutIndices, FRTCellId& OutSprinterCell) -> bool
+	auto Run = [this](ESprinter Kind, const FRTCellId& SprinterHome, TArray<int32>& OutIndices, FRTCellId& OutSprinterCell,
+		int32& OutSprinterOrder) -> bool
 	{
 		OutIndices.Reset();
+		OutSprinterOrder = INDEX_NONE;
 		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		T::SpawnMap(World, /*Radius=*/ 10);
 		ARTUnit* Watcher = T::SpawnUnit(World, 0, FRTCellId(-1, 0));
 		ARTUnit* Mover = T::SpawnUnit(World, 1, FRTCellId(0, 3));
-		const FRTCellId SprinterHome(-6, 5);
 		ARTUnit* Sprinter = Kind == ESprinter::None ? nullptr : T::SpawnUnit(World, 0, SprinterHome);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Watcher || !Mover || !TM || (Kind != ESprinter::None && !Sprinter)) { RTWorldFixtures::DestroyWorld(World); return false; }
@@ -923,6 +961,12 @@ bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
 			if (Kind == ESprinter::Stunned) { Sprinter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 			TestEqual(TEXT("premessa: lo sprintatore e' stordito solo nel braccio stordito"),
 				Sprinter->HasStatus(TAG_Status_Stunned), Kind == ESprinter::Stunned);
+
+			// L'indice dello sprintatore nell'ordine REALE di risoluzione. L'array parte nell'ordine "sbagliato" per la regola
+			// (lo sprintatore in coda), cosi' per le varianti in cui deve stare davanti il sort deve spostarlo davvero.
+			TArray<ARTUnit*> Ordine = { Watcher, Mover, Sprinter };
+			URTActionQueueLibrary::SortUnitsForResolution(Ordine);
+			OutSprinterOrder = Ordine.IndexOfByKey(Sprinter);
 		}
 
 		T::RunTurn(TM);
@@ -944,20 +988,46 @@ bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
 		return S.IsEmpty() ? FString(TEXT("-")) : S;
 	};
 
-	TArray<int32> Base, Free, Stunned;
-	FRTCellId BaseCell, FreeCell, StunnedCell;
-	if (!Run(ESprinter::None, Base, BaseCell) || !Run(ESprinter::Free, Free, FreeCell) || !Run(ESprinter::Stunned, Stunned, StunnedCell)) { return false; }
+	struct FVariant
+	{
+		const TCHAR* Name;
+		FRTCellId SprinterHome;  //< dove parte lo sprintatore: decide il suo posto nell'ordine di risoluzione
+		int32 ExpectedOrder;     //< l'indice atteso dello sprintatore nell'ordine di risoluzione fra le tre unita'
+	};
+	// Il guardiano sta a (-1,0) e il bersaglio a (0,3): lo sprintatore a X=-6 ordina prima di entrambi, a X=2 dopo entrambi. Il
+	// percorso va verso est lungo la riga dello sprintatore e resta nell'arena di raggio 10 anche a (2,-5) + 8 passi.
+	const FVariant Variants[] = {
+		{ TEXT("sprintatore PRIMO nell'ordine"),   FRTCellId(-6, 5),  0 },
+		{ TEXT("sprintatore ULTIMO nell'ordine"),  FRTCellId(2, -5),  2 },
+	};
 
-	// Anti-vacuita': il guardiano deve aver deciso almeno una finestra, o gli indici da confrontare non esistono.
-	if (!TestTrue(TEXT("premessa: nel braccio BASE almeno una finestra di reazione e' stata decisa"), Base.Num() > 0)) { return false; }
-	AddInfo(FString::Printf(TEXT("indici dei micro-step delle decisioni: base [%s], sprintatore libero [%s], sprintatore stordito [%s]"),
-		*Text(Base), *Text(Free), *Text(Stunned)));
+	for (const FVariant& V : Variants)
+	{
+		TArray<int32> Base, Free, Stunned;
+		FRTCellId BaseCell, FreeCell, StunnedCell;
+		int32 OrderNone = INDEX_NONE, OrderFree = INDEX_NONE, OrderStunned = INDEX_NONE;
+		if (!Run(ESprinter::None, V.SprinterHome, Base, BaseCell, OrderNone)
+			|| !Run(ESprinter::Free, V.SprinterHome, Free, FreeCell, OrderFree)
+			|| !Run(ESprinter::Stunned, V.SprinterHome, Stunned, StunnedCell, OrderStunned))
+		{
+			return false;
+		}
 
-	TestNotEqual(TEXT("CONTROLLO POSITIVO: uno sprintatore che corre davvero cambia la numerazione dei micro-step (l'osservabile vede il calendario)"),
-		Text(Free), Text(Base));
-	TestTrue(TEXT("premessa: lo sprintatore libero si e' mosso, quello stordito no"),
-		!(FreeCell == FRTCellId(-6, 5)) && StunnedCell == FRTCellId(-6, 5));
-	TestEqual(TEXT("IL CUORE: con uno Sprint negato la numerazione dei micro-step e' quella di chi non c'e'"), Text(Stunned), Text(Base));
+		// Anti-vacuita': il guardiano deve aver deciso almeno una finestra, o gli indici da confrontare non esistono.
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: nel braccio BASE almeno una finestra di reazione e' stata decisa"), V.Name), Base.Num() > 0)) { return false; }
+		AddInfo(FString::Printf(TEXT("%s: posto dello sprintatore nell'ordine di risoluzione %d; indici dei micro-step delle decisioni: base [%s], sprintatore libero [%s], sprintatore stordito [%s]"),
+			V.Name, OrderStunned, *Text(Base), *Text(Free), *Text(Stunned)));
+
+		TestEqual(*FString::Printf(TEXT("%s: premessa: lo sprintatore stordito sta al posto atteso nell'ordine di risoluzione"), V.Name),
+			OrderStunned, V.ExpectedOrder);
+		TestEqual(*FString::Printf(TEXT("%s: premessa: e quello libero allo stesso posto"), V.Name), OrderFree, V.ExpectedOrder);
+		TestNotEqual(*FString::Printf(TEXT("%s: CONTROLLO POSITIVO: uno sprintatore che corre davvero cambia la numerazione dei micro-step (l'osservabile vede il calendario)"), V.Name),
+			Text(Free), Text(Base));
+		TestTrue(*FString::Printf(TEXT("%s: premessa: lo sprintatore libero si e' mosso, quello stordito no"), V.Name),
+			!(FreeCell == V.SprinterHome) && StunnedCell == V.SprinterHome);
+		TestEqual(*FString::Printf(TEXT("%s: IL CUORE: con uno Sprint negato la numerazione dei micro-step e' quella di chi non c'e'"), V.Name),
+			Text(Stunned), Text(Base));
+	}
 	return true;
 }
 

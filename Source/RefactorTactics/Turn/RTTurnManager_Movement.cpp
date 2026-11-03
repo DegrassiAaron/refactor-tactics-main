@@ -203,6 +203,9 @@ void ARTTurnManager::BeginMovementResolution()
 		// congelata sopra e' gia' quella senza corsa, perche' l'unita' e' sbilanciata). Nel Dash l'incrocio e' deciso — vince lo
 		// stordimento, una voce sola — ma sul Move nessuna fonte lo decide: lo stato di fatto e' fissato da
 		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesTwoRefusalsUntilDecided` e si rovescia se si decide per una voce.
+		// Conseguenza concreta di "vince lo stordimento": saltato il rifiuto `Unbalanced` di `ResolveDash`, la voce rimasta nomina
+		// `Action.Move` (la banda e' gia' degradata da `bRunDenied`) e si perde la traccia che era stata dichiarata una corsa; per
+		// questo il pin fissa i due `ActionId` e non solo il conteggio.
 		const bool bNegataDalloStordimento = Unit->PlannedNormalMoveDeniedByStun();
 		if (bNegataDalloStordimento)
 		{
