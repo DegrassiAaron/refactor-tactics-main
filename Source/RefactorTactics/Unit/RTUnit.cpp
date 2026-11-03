@@ -2202,8 +2202,9 @@ bool ARTUnit::PlannedDashDeniedByStun() const
 
 bool ARTUnit::PlannedNormalMoveDeniedByStun() const
 {
-	// [D-569]: la stessa regola per il camminare, letta alla fase del Move. `HasPlannedNormalMove()` e' la domanda che il
-	// piano pone per sapere se c'e' un Move da negare: senza, una stordita ferma scriverebbe un rifiuto per ogni turno.
+	// [D-569]: la stessa regola per il camminare, sullo stato VIVO: `BeginMovementResolution` la legge a inizio del Move (dopo il
+	// Blast), `ResolveDash` a inizio turno (prima del Blast). `HasPlannedNormalMove()` e' la domanda che il piano pone per sapere
+	// se c'e' un Move da negare: senza, una stordita ferma scriverebbe un rifiuto per ogni turno.
 	return HasPlannedNormalMove() && HasStatus(TAG_Status_Stunned);
 }
 

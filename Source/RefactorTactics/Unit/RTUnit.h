@@ -1040,16 +1040,21 @@ public:
 	 * pianificato (`HasPlannedNormalMove()`) ([D-569], `#3973`). Stessa regola di `PlannedDashDeniedByStun()`, per l'altro
 	 * sito che muove: il camminare, anche col profilo Sprint (che e' una banda del Move, non uno scatto).
 	 *
-	 * ⚠️ **Letto alla fase in cui risolve** ([D-569] (4)): `ARTTurnManager::BeginMovementResolution` la pone a inizio del
-	 * Move, dopo il Blast, quindi uno stun nato nel Blast di T nega il Move di T. E' la lettura di `Root`
-	 * (`GetEffectiveMoveRange` lo legge dal vivo), con una differenza che non e' una scelta di questa funzione: `Root` azzera
-	 * il budget e il click lo rifiuta in pianificazione, mentre il click accetta ancora il piano di una stordita e lo nega
-	 * la risoluzione ([D-565] (2)). Per questo i lettori di pianificazione (anteprima, verso) la chiedono qui invece di
-	 * leggere il budget.
+	 * ⚠️ **Legge lo stato VIVO, quindi il momento lo decide il lettore**. `ARTTurnManager::BeginMovementResolution` la pone a
+	 * inizio del Move, dopo il Blast, quindi uno stun nato nel Blast di T nega il Move di T ([D-569] (4): lo stato si legge alla
+	 * fase in cui risolve l'azione negata). E' la lettura di `Root` (`GetEffectiveMoveRange` lo legge dal vivo), con una
+	 * differenza che non e' una scelta di questa funzione: `Root` azzera il budget e il click lo rifiuta in pianificazione,
+	 * mentre il click accetta ancora il piano di una stordita e lo nega la risoluzione ([D-565] (2)). Per questo i lettori di
+	 * pianificazione (anteprima, verso) la chiedono qui invece di leggere il budget.
 	 *
-	 * 🔑 **Una regola, tanti lettori**: il resolver (`BeginMovementResolution`, che scrive la voce di rifiuto), l'anteprima
-	 * del Move (`FRTPlanPreviewInput::bMoveResolves`) e il verso dichiarato (`ARTPlayerController::FacingCellFor`,
-	 * `PlannedMovementForFacing`). Il movimento FORZATO non passa da qui.
+	 * ⚠️ **`ARTTurnManager::ResolveDash` la pone invece PRIMA del Blast**, sullo stato di inizio turno, per decidere se scrivere la
+	 * voce `Unbalanced` di una corsa negata: una stordita sbilanciata scrive la sola voce `Stunned` del Move. Quella lettura non
+	 * e' la (4) di [D-569] — la voce porta `Phase = Move` ma nasce nel Dash — e per chi viene stordita DAL Blast di T non vede
+	 * lo stun: due voci, e se debbano essere una sola e' una domanda aperta all'autore.
+	 *
+	 * 🔑 **Una regola, tanti lettori**: il resolver (`BeginMovementResolution`, che scrive la voce di rifiuto, e `ResolveDash`, che
+	 * per questa unita' non scrive quella di `Unbalanced`), l'anteprima del Move (`FRTPlanPreviewInput::bMoveResolves`) e il verso
+	 * dichiarato (`ARTPlayerController::FacingCellFor`, `PlannedMovementForFacing`). Il movimento FORZATO non passa da qui.
 	 */
 	bool PlannedNormalMoveDeniedByStun() const;
 

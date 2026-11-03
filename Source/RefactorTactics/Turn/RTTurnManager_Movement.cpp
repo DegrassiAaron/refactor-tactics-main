@@ -198,16 +198,20 @@ void ARTTurnManager::BeginMovementResolution()
 		// c'e' niente da pagare; lo Sprint paga `Exposed` e perde la reazione per il PIANO, in fondo a questa funzione e in
 		// `ResolveDash`, e quindi anche da fermo ([D-116] (3): «si paga l'impegno dichiarato»).
 		//
-		// 🔑 **Stordita + sbilanciata con una corsa pianificata: UNA voce, questa** (risposta d'autore del 2026-11-03: «una voce»). Vince
-		// lo stordimento come nel Dash: `ResolveDash` non scrive la voce `Unbalanced` per la corsa negata ([D-319]) a chi e' gia'
-		// stordito quando la fase Dash si apre (`ARTUnit::PlannedNormalMoveDeniedByStun()`, la domanda che pone anche questa guardia),
-		// e resta la voce `Stunned`. Nomina `Action.Move`: la banda congelata sopra e' gia' quella senza corsa, perche' l'unita' e'
-		// sbilanciata, quindi si perde la traccia che era stata dichiarata una corsa. Fissato da
+		// 🔑 **Stordita + sbilanciata con una corsa pianificata: UNA voce, questa** (l'autore ha risposto il 2026-11-03, in sintesi, che
+		// dev'essere una sola). Vince lo stordimento come nel Dash: `ResolveDash` non scrive la voce `Unbalanced` per la corsa negata
+		// ([D-319]) a chi e' stordito a INIZIO TURNO (`ARTUnit::PlannedNormalMoveDeniedByStun()`, la domanda che pone anche questa
+		// guardia, ma letta prima del Blast), e resta la voce `Stunned`. Nomina `Action.Move`: la banda congelata sopra e' gia' quella
+		// senza corsa, perche' l'unita' e' sbilanciata, quindi si perde la traccia che era stata dichiarata una corsa. Fissato da
 		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal`.
 		//
 		// ⚠️ **Resta aperto il caso dello stun nato nel Blast di T**: la voce `Unbalanced` si scrive prima del Blast, quando l'unita'
-		// non e' ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`: DUE voci, non decise
-		// (`Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
+		// non e' ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`: DUE voci, e se debbano essere una sola e' una
+		// domanda aperta all'autore (`Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
+		//
+		// ⚠️ **E la voce c'e' solo se qui c'e' ancora un Move pianificato**: uno spostamento forzato nel Blast azzera il piano ([D-045]),
+		// e allora non c'e' niente da rifiutare e le voci di quella corsa sono zero
+		// (`Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`).
 		const bool bNegataDalloStordimento = Unit->PlannedNormalMoveDeniedByStun();
 		if (bNegataDalloStordimento)
 		{

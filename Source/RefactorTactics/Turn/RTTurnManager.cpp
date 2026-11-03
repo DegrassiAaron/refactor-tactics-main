@@ -5001,22 +5001,31 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
-		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' UNA** ([D-569], `#3973`). Alla domanda
-		// posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince lo
-		// stordimento come nel Dash oppure restano due voci? — la risposta e' stata «una voce». Quella che resta e' la `Fallback`/
-		// `Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si scrive.
+		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' una sola** ([D-569], `#3973`). Alla
+		// domanda posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince
+		// lo stordimento come nel Dash oppure restano due voci? — l'autore ha risposto, in sintesi, che la voce dev'essere una sola.
+		// Quella che resta e' la `Fallback`/`Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si
+		// scrive.
 		//
 		// 🔑 **Il criterio e' `ARTUnit::PlannedNormalMoveDeniedByStun()`**, la domanda che `BeginMovementResolution` pone per scrivere
-		// la voce `Stunned` ([D-471]: una regola, tanti lettori) e lo stesso esito che il Dash ha gia' per questo incrocio (sotto,
+		// la voce `Stunned` ([D-471]: una regola, tanti lettori), e lo stesso esito che il Dash ha gia' per questo incrocio (sotto,
 		// «PRIMA del rifiuto per `Unbalanced`»).
+		//
+		// ⚠️ **Qui la domanda legge lo stato di INIZIO TURNO**, prima del Blast, mentre `BeginMovementResolution` la legge dopo. Non e'
+		// la lettura «alla fase in cui risolve l'azione» di [D-569] (4): la voce `Unbalanced` porta `Phase = Move` ma la scrive questo
+		// ciclo, nel Dash. Chi e' stordita da prima del turno ha una voce sola. Per chi viene stordita DAL Blast di T le voci restano
+		// DUE (`Unbalanced` qui, `Stunned` al Move): se debbano essere una sola e' una domanda APERTA all'autore, perche' allinearsi
+		// vorrebbe dire scrivere la voce `Unbalanced` dopo il Blast, e `AppendLogEntry` congela verdetto e `GraphRevision` nell'istante
+		// in cui scrive. Fissato da `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`.
+		//
+		// ⚠️ **La voce `Stunned` rimasta c'e' solo se al Move c'e' ancora un Move pianificato.** Uno spostamento forzato nel Blast
+		// azzera il piano ([D-045]): al Move `HasPlannedNormalMove()` e' falso, `BeginMovementResolution` non scrive niente, e per
+		// quella corsa le voci sono ZERO. E' una conseguenza dichiarata e non un difetto (non c'e' piu' un Move da rifiutare), ed e'
+		// raggiungibile solo nei banchi finche' `Stunned` non ha produttori. Fissato da
+		// `Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`.
 		//
 		// ⚠️ **Si perde la traccia che era stata dichiarata una corsa**: la voce rimasta nomina `Action.Move`, perche' la banda
 		// congelata per chi e' sbilanciata e' gia' degradata da `bRunDenied`. E' la conseguenza che la domanda nominava.
-		//
-		// ⚠️ **Lo stato si legge ALLA FASE DEL DASH** ([D-569] (4)), cioe' prima del Blast. Chi e' stordita da prima del turno ha una
-		// voce sola; chi viene stordita DAL Blast di T non lo e' ancora qui: per lei la voce `Unbalanced` si scrive e `Stunned` segue
-		// in fase `Move`, DUE voci, e non e' deciso se anche li' debba essercene una sola (fissato da
-		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
 		//
 		// Saltare la voce non cambia altro: questo ciclo scrive solo la voce e la riga del combat log. Il divieto di reazione dello
 		// Sprint e' in `ReactionBlockedThisTurn` (sopra) e `Exposed` lo applica `BeginMovementResolution`, entrambi dal piano.
