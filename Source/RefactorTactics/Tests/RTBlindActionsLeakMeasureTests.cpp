@@ -671,6 +671,11 @@ namespace
  * movimento del giocatore, che ora pianifica su `PlanningMap`, lo misura
  * `RefactorTactics.BlindMove.PlayerPlansThroughANeverObservedWall`. ⛔ Se questo banco diventasse rosso, i bot o la
  * Resolution avrebbero ereditato la geometria ottimistica: e' il difetto che [D-534] punto (2) esclude.
+ *
+ * ⚠️ **Dal 2026-11-03 la Resolution ha UN lettore della mappa ottimistica** (`FuoriPortataSoloPerIlTerreno`, [D-571],
+ * RIC-3): lo usa solo per classificare un pagamento di ricarica, non per percorsi o colpi, e questo banco misura una
+ * fotografia che non lo attraversa — quindi resta verde per cio' che dichiara. Che [D-534] (2) lo ammetta e' un
+ * `CONTRACT CONFLICT` aperto (`BLOCKED — DECISION REQUIRED`, `docs/OPEN_DECISIONS.md`, RIC-3).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsDarkWallBendsPathTest,
 	"RefactorTactics.BlindActions.NeverObservedWallBendsTheLitPath",
