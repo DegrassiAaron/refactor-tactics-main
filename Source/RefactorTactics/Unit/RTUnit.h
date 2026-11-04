@@ -1016,25 +1016,52 @@ public:
 	bool PlannedDashDeniedByStatus() const;
 
 	/**
-	 * Vero se lo STORDIMENTO nega lo scatto pianificato: `Status.Stunned` e una mobilita' che prende anche l'azione
-	 * principale (`URTCatalogLibrary::TakesMainSlot`: `ERTActionSlot::MovementAndMain`, o una principale di macro-fase
-	 * Dash) ([D-567], `#3964`). [D-416] (1) toglie la principale alla stordita e «non tocca il movimento»: una
-	 * mobilita' che prende tutti e due gli slot vince la prima meta', e la stordita non la compie.
+	 * Vero se lo STORDIMENTO nega lo scatto pianificato: `Status.Stunned` e un'abilita' pianificata nello slot dello scatto
+	 * ([D-569], `#3973`). Una stordita non compie NESSUN movimento volontario: ne' le mobilita' rapide (`Dodge`, `Leap`,
+	 * `Reposition`, `Charge` e le mobilita' d'eroe) ne' il camminare ([D-416] (1) lo lasciava a `Root`; [D-569] lo ribalta).
+	 * Vale per OGNI mobilita', qualunque slot occupi: il criterio non e' piu' `TakesMainSlot` ([D-567], che copriva la sola
+	 * mobilita' che prende anche la principale e che questa condizione restringe a un caso particolare).
 	 *
-	 * ⚠️ **Non nega il movimento**: una mobilita' che prende il SOLO slot movimento (`ERTActionSlot::Movement`) resta
-	 * permessa a una stordita, ed e' il confine della regola.
+	 * ⚠️ **Lo stato si legge ALLA FASE in cui l'azione risolve**: la condizione e' vera quando la chiede il Dash, quindi uno
+	 * stun nato nel Blast del turno T nega il Move di T (`PlannedNormalMoveDeniedByStun()`) e non il Dash di T, gia' risolto.
+	 * Presuppone che l'abilita' sia una mobilita' rapida: i lettori la pongono dopo `PlannedDashApplies()`.
 	 *
-	 * 🔑 **Una regola, due lettori**, come `PlannedDashDeniedByStatus()` ([D-471]): `ARTTurnManager::ResolveDash` per il
-	 * suo rifiuto dichiarato, che PAGA la ricarica ([D-563] (2)), e `PlannedDashMoves()` per tutti gli altri. ⚠️ **Solo
-	 * le mobilita'**: il click accetta ancora il piano di una stordita e lo nega la risoluzione ([D-565] (2), `#3134`),
-	 * quindi per le altre principali l'anteprima non cambia; qui cambia perche' `PlannedDashMoves()` decide DOVE sara'
-	 * l'unita', e una mira o un ghost che partissero da uno scatto negato mentirebbero come prima di [D-471].
+	 * 🔑 **Una regola, tanti lettori**, come `PlannedDashDeniedByStatus()` ([D-471]): `ARTTurnManager::ResolveDash` per il
+	 * suo rifiuto dichiarato, che PAGA la ricarica ([D-563] (2)), e `PlannedDashMoves()` per tutti gli altri (mira, verso,
+	 * portata, anteprima, HUD). ⚠️ **Solo la mobilita'**: il click accetta ancora il piano di una stordita e lo nega la
+	 * risoluzione ([D-565] (2), `#3134`), quindi per le altre principali l'anteprima non cambia; qui cambia perche'
+	 * `PlannedDashMoves()` decide DOVE sara' l'unita', e una mira o un ghost che partissero da uno scatto negato
+	 * mentirebbero come prima di [D-471]. Il movimento FORZATO (spinte e trazioni) non e' volontario e non passa da qui.
 	 */
 	bool PlannedDashDeniedByStun() const;
 
 	/**
+	 * Vero se lo STORDIMENTO nega il movimento normale pianificato: `Status.Stunned` e un Move che l'unita' ha davvero
+	 * pianificato (`HasPlannedNormalMove()`) ([D-569], `#3973`). Stessa regola di `PlannedDashDeniedByStun()`, per l'altro
+	 * sito che muove: il camminare, anche col profilo Sprint (che e' una banda del Move, non uno scatto).
+	 *
+	 * ⚠️ **Legge lo stato VIVO, quindi il momento lo decide il lettore**. `ARTTurnManager::BeginMovementResolution` la pone a
+	 * inizio del Move, dopo il Blast, quindi uno stun nato nel Blast di T nega il Move di T ([D-569] (4): lo stato si legge alla
+	 * fase in cui risolve l'azione negata). E' la lettura di `Root` (`GetEffectiveMoveRange` lo legge dal vivo), con una
+	 * differenza che non e' una scelta di questa funzione: `Root` azzera il budget e il click lo rifiuta in pianificazione,
+	 * mentre il click accetta ancora il piano di una stordita e lo nega la risoluzione ([D-565] (2)). Per questo i lettori di
+	 * pianificazione (anteprima, verso) la chiedono qui invece di leggere il budget.
+	 *
+	 * ⚠️ **`ARTTurnManager::ResolveDash` la pone invece PRIMA del Blast**, sullo stato di inizio turno, per decidere se scrivere la
+	 * voce `Unbalanced` di una corsa negata: una stordita sbilanciata scrive la sola voce `Stunned` del Move. Quella lettura non
+	 * e' la (4) di [D-569] — la voce porta `Phase = Move` ma nasce nel Dash — e per chi viene stordita DAL Blast di T non vede
+	 * lo stun: due voci, due fatti veri a due istanti diversi (deciso dall'autore il 2026-11-04, [D-573] (2bis); si riapre quando
+	 * `#3965` da' un produttore a `Stunned`).
+	 *
+	 * 🔑 **Una regola, tanti lettori**: il resolver (`BeginMovementResolution`, che scrive la voce di rifiuto, e `ResolveDash`, che
+	 * per questa unita' non scrive quella di `Unbalanced`), l'anteprima del Move (`FRTPlanPreviewInput::bMoveResolves`) e il verso
+	 * dichiarato (`ARTPlayerController::FacingCellFor`, `PlannedMovementForFacing`). Il movimento FORZATO non passa da qui.
+	 */
+	bool PlannedNormalMoveDeniedByStun() const;
+
+	/**
 	 * 🔑 **Lo scatto pianificato SPOSTA l'unita'** ([D-471]): `PlannedDashApplies()`, e ne' lo stato ne' lo
-	 * stordimento lo negano (`PlannedDashDeniedByStatus()`, `PlannedDashDeniedByStun()`).
+	 * stordimento lo negano (`PlannedDashDeniedByStatus()`, `PlannedDashDeniedByStun()`, [D-569]).
 	 *
 	 * E' la domanda di chi deve sapere dove l'unita' sara' dopo il Dash: l'origine di mira (`AimOriginFor`), le
 	 * anteprime, il verso dichiarato. ⛔ Il resolver non la chiede: chiede `PlannedDashApplies()` e poi i due rifiuti,

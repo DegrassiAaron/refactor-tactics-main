@@ -340,13 +340,20 @@ public:
 	 * 🔑 **`2` non e' una simmetria con `Prone`: e' la condizione perche' la regola sia vera.** Lo
 	 * stordimento nega l'**azione principale**, e l'azione principale risolve nel **Blast**. Uno stato
 	 * applicato nel Blast del turno `N` con durata `1` muore nel Cleanup di `N`, cioe' **dopo** che l'azione
-	 * di `N` ha gia' risolto e **prima** che quella di `N+1` sia valutata: negherebbe zero azioni. `2`
-	 * sopravvive al Cleanup di `N` e copre tutto `N+1`, che e' il primo turno in cui c'e' un'azione da
-	 * togliere.
+	 * di `N` ha gia' risolto e **prima** che quella di `N+1` sia valutata: negherebbe zero azioni principali. `2`
+	 * sopravvive al Cleanup di `N` e copre tutto `N+1`, che e' il primo turno in cui c'e' un'azione principale
+	 * da togliere.
+	 *
+	 * ⌫ *Fino al 2026-11-03 la frase diceva «negherebbe zero azioni» senza qualificare.* Da [D-569] lo stordimento nega
+	 * anche il movimento volontario, e il Move risolve DOPO il Blast e PRIMA del Cleanup: uno stun di durata `1` nato nel
+	 * Blast di `N` negherebbe comunque il Move di `N`. L'argomento qui sopra resta vero per la sola **azione principale**,
+	 * ed e' quella che fissa il `2`; la durata non e' stata rivista per il movimento (nessuna decisione lo chiede, e coi `2`
+	 * turni il movimento di `N+1` e' negato per intero: Dash e Move).
 	 *
 	 * ⚠️ **Il resto di `N` non va perso**: la reazione e' negata subito — `ReactionBlockedThisTurn` copre il
-	 * turno intero — e il disarmo di Overwatch e predittive e' immediato. E' la sola **azione principale** ad
-	 * avere bisogno del turno successivo per esistere come bersaglio del divieto.
+	 * turno intero — e il disarmo di Overwatch e predittive e' immediato; da [D-569] anche il Move di `N` e' negato (il Dash di
+	 * `N`, gia' risolto, no). E' la sola **azione principale** ad avere bisogno del turno successivo per esistere come
+	 * bersaglio del divieto.
 	 *
 	 * ⛔ Nessun produttore la consuma oggi: [D-416] non assegna chi infligge lo stordimento.
 	 */

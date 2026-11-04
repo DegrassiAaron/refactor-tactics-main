@@ -123,11 +123,16 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Prone);
 /**
  * Stordito. Il TERZO stato di controllo della v0.1, e il piu' grave ([D-416], 2026-09-14): toglie
  * l'**azione principale** e la **reazione** per la sua durata, e disattiva cio' che l'unita' aveva gia'
- * armato — Overwatch e predittive.
+ * armato — Overwatch e predittive. Da [D-569] (2026-11-03, `#3973`) toglie anche il **movimento volontario**:
+ * nessuna mobilita' rapida e nessun camminare, Sprint compreso, letto alla fase in cui l'azione risolve.
  *
- * ⛔ **Non tocca il movimento**, ed e' il confine che lo tiene distinto da `Status.Root`. Due stati che
- * negano la stessa cosa sono un solo stato scritto due volte: `Root` toglie la posizione, `Stunned` toglie
- * l'agire. Chi e' stordito cammina; chi e' radicato colpisce.
+ * ⌫ *Fino al 2026-11-03 questo commento diceva «Non tocca il movimento», il confine che lo teneva distinto da
+ * `Status.Root` («due stati che negano la stessa cosa sono un solo stato scritto due volte»), e chiudeva con «Chi e'
+ * stordito cammina; chi e' radicato colpisce».* L'autore l'ha ribaltato (D-569): la stordita non si muove e non agisce,
+ * la radicata non si muove e agisce. Le due negazioni si sovrappongono sul movimento e la sede resta diversa: `Root`
+ * azzera il budget (il click rifiuta in pianificazione), `Stunned` nega alla risoluzione e il click accetta ancora il
+ * piano ([D-565] (2)). Il movimento FORZATO (spinte, trazioni) non e' volontario e non si tocca. `Stunned` e'
+ * l'eccezione dichiarata alla regola anti-stun-lock di [D-072].
  *
  * **Durata**: `URTCombatLibrary::StunnedDurationTurns`, e il numero ha una ragione di fase — vedi il
  * commento sulla costante.

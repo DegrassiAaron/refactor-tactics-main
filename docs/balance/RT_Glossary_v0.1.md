@@ -49,7 +49,7 @@ La chiave è il nome del tag. Le regole stanno in
 | `Status.Electrified` | Folgorato | L'elettricita' corsa nel terreno ti ha colpito: sulla cella mirata, oppure lungo acqua e metallo. | non resta addosso: e' l'istante di una scarica |
 | `Status.Unbalanced` | Sbilanciato | Non puoi correre, e guardia e irrigidimento non ti tengono fermo; spinte, trazioni e scivolate ti portano piu' lontano, e una spinta o una trazione che ti sposta ti butta a terra. |  |
 | `Status.Prone` | A terra | Cadendo perdi cio' che avevi armato, e le tue reazioni non scattano. Rialzarti ti costa una parte del movimento. |  |
-| `Status.Stunned` | Stordito | Non puoi usare l'azione principale, le tue reazioni non scattano, e perdi cio' che avevi gia' armato. | oggi nessuna azione lo applica |
+| `Status.Stunned` | Stordito | Non puoi usare l'azione principale ne' muoverti, di scatto o a piedi; le tue reazioni non scattano, e perdi cio' che avevi gia' armato. | oggi nessuna azione lo applica |
 
 ## Superfici
 

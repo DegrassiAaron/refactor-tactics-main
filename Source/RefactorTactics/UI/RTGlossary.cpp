@@ -66,7 +66,7 @@ const TArray<TPair<FName, FString>>& RTGlossary::Effects()
 		{ TEXT("Status.Electrified"), TEXT("L'elettricita' corsa nel terreno ti ha colpito: sulla cella mirata, oppure lungo acqua e metallo.") },
 		{ TEXT("Status.Unbalanced"),  TEXT("Non puoi correre, e guardia e irrigidimento non ti tengono fermo; spinte, trazioni e scivolate ti portano piu' lontano, e una spinta o una trazione che ti sposta ti butta a terra.") },
 		{ TEXT("Status.Prone"),       TEXT("Cadendo perdi cio' che avevi armato, e le tue reazioni non scattano. Rialzarti ti costa una parte del movimento.") },
-		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale, le tue reazioni non scattano, e perdi cio' che avevi gia' armato.") },
+		{ TEXT("Status.Stunned"),     TEXT("Non puoi usare l'azione principale ne' muoverti, di scatto o a piedi; le tue reazioni non scattano, e perdi cio' che avevi gia' armato.") },
 
 		// Superfici
 		{ TEXT("Terrain.Floor"),        TEXT("Nessun effetto proprio. Puo' prendere fuoco.") },

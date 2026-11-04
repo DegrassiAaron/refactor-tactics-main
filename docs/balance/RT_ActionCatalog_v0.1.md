@@ -695,19 +695,43 @@ filtrando i colpi già raccolti nel Blast, prima che diventino danno o eventi.
 
 ## 6. Azioni di supporto e ambiente
 
-Le azioni che creano o modificano l'ambiente hanno un doppio codice (`40/50`): l'azione risolve nel **Blast**, la
-sua **propagazione** ambientale nel `Cleanup` (fase 50 del catalogo), dopo il Move — così colpisce anche chi è
-appena entrato nella cella.
+Le azioni che creano o propagano l'ambiente — `Create Water`, `Ignite`, `Create Smoke`, `Electrify` — risolvono in
+**una fase sola**: la `50` «Ambiente», che il resolver manda nel `Cleanup`, dopo il Move
+([D-570](../decisions/RT_PDR_00_Decision_Log.md)). L'effetto raggiunge così anche chi è appena entrato nella cella.
+Non c'è un secondo tempo: nessuna di loro risolve nel **Blast** per poi **propagare** nel Cleanup, e nessuna
+dichiara un doppio codice `40/50`.
 
 | ActionId | Azione | Macro-fase | Cod. | Prio | Range | Effetto | CD |
 |---|---|---|---:|---:|---:|---|---:|
 | `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 20 | 1 |
-| `Action.CreateWater` | Crea acqua | Blast (+Cleanup) | 40/50 | 60 | 4 | acqua raggio 1 | 2 |
-| `Action.Ignite` | Incendia | Blast (+Cleanup) | 40/50 | 60 | 4 | fuoco su cella | 2 |
+| `Action.CreateWater` | Crea acqua | **Cleanup** | 50 | 60 | 4 | acqua raggio 1 | 2 |
+| `Action.Ignite` | Incendia | **Cleanup** | 50 | 60 | 4 | fuoco su cella | 2 |
 | `Action.CreateSmoke` | Crea fumo | **Cleanup** | 50 | 60 | 4 | fumo raggio 1, durata 2 turni | 2 |
 | `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 20 danni, propagazione elettrica 12 | 2 |
 | `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
+
+> **Allineamento 2026-11-03 — `Create Water` e `Ignite` dichiarano `Cleanup` · `50`, come le altre due**
+> ([D-570](../decisions/RT_PDR_00_Decision_Log.md),
+> [#3200](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3200)).
+>
+> Le due righe dicevano `Blast (+Cleanup)` · `40/50`, un modello che il codice non realizza: tutte e
+> quattro le ambientali sono costruite con `ERTResolutionPhase::Environment` e nient'altro
+> (`grep -A1 'ShippedAction(TEXT("Action.<nome>")' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp`), e la
+> superficie nasce nello stesso passaggio in cui l'azione risolve (`ARTTurnManager::ResolveEnvironment`, che la
+> applica con `ApplyDynamicSurface`), senza un momento «propagazione» distinto. L'autore ha allineato il catalogo
+> al codice e non il contrario: se mai servisse un effetto nel Blast prima della propagazione, riapre come
+> feature post-v0.1, con la sua decisione. `Action.CreateSmoke` era entrata già con `50` per lo stesso motivo.
+>
+> ⚠️ **Il gate catalogo-C++ non protegge questa differenza.** `node tools/radar/catalog-code.ts`
+> ([#2578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2578)) accetta una cella a due codici se
+> il valore del C++ è fra quelli: `40/50` con `Environment` passerebbe, e il `40` di troppo resterebbe
+> invisibile. È il limite dichiarato di ciò che può misurare — lo stesso criterio serve a `Action.Counter`
+> (`30/40`), dove il doppio codice è reale — quindi che queste quattro righe dicano `50` lo tengono questa nota
+> e D-570, non il gate.
+>
+> Il PRD di ricerca citato in testata riporta ancora `40/50` per `Create Water` e `Ignite`: non è una fonte e non
+> si riscrive.
 
 > 🔴 **`Action.CreateSmoke` è entrata il 2026-09-18**
 > ([#3187](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3187)), dove il codice la
@@ -715,14 +739,6 @@ appena entrato nella cella.
 > stessa superficie** che `MistVeil` dichiara — non c'è un secondo fumo. La **durata 2 turni** è quella che
 > `ARTTurnManager::ApplyDynamicSurface` applica a ogni superficie creata, la stessa di `Create Water` e
 > `Ignite`.
->
-> ⚠️ **La sua fase dice `50` e non `40/50`, a differenza delle due sorelle, e la differenza è voluta**: il
-> C++ costruisce tutte e tre — `CreateSmoke`, `Ignite`, `CreateWater` — con `ERTResolutionPhase::Environment`
-> e nient'altro, esattamente come `Electrify`, che infatti in questa tabella dichiara `50`. Il doppio codice
-> `40/50` descritto qui sopra è un modello che il codice **non** implementa: allinearvi anche la riga nuova
-> avrebbe aggiunto una terza dichiarazione a un'intenzione che nessuno ha ancora deciso di realizzare. La
-> domanda — catalogo o codice — è in
-> [#3200](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3200).
 >
 > ⚠️ **Il fumo NON blocca la linea di vista**, e chi legge «fumo» può aspettarselo: il catalogo terreni gli
 > dà `bBlocksLineOfSight = false`, portata di targeting **2** attraverso, e `Status.Obscured` a chi entra.
