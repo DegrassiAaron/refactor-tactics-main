@@ -43,7 +43,7 @@ candidate.
 | Che cosa | Com'è | Dove |
 |---|---|---|
 | Tema della v0.1 | «Il turno simultaneo funziona e si vede»: slice 2v2 offline contro bot | [`roadmap-v0.1-v1.0.md`](../roadmap-v0.1-v1.0.md) §2 |
-| Giocabilità nella DoD | Un solo gate la nomina, `G13`. La riserva è scritta dal 2026-08-10: *«e una build che avvia sull'arena di prova soddisfa la lettera ma non la cosa»* | `roadmap-v0.1.md`, E46 ([D-144](../../decisions/RT_PDR_00_Decision_Log.md)); [evidenza del candidate v3](../../technical/evidence/85/misure-candidate-v3-2026-10-26.md) |
+| Giocabilità nella DoD | Un solo gate ha un criterio che la nomina, `G13` (*«Partita giocabile senza editor dalla build packaged»*; `grep -E '^\| (~~)?\*\*G[0-9]+' docs/roadmap/v0.1-definition-of-done.md \| cut -d'\|' -f3 \| grep -i -c giocabil` → 1). La riserva è scritta dal 2026-08-10: *«e una build che avvia sull'arena di prova soddisfa la lettera ma non la cosa»* | `roadmap-v0.1.md`, E46 ([D-144](../../decisions/RT_PDR_00_Decision_Log.md)); [evidenza del candidate v3](../../technical/evidence/85/misure-candidate-v3-2026-10-26.md) |
 | Tetto della presentazione | [D-124](../../decisions/RT_PDR_00_Decision_Log.md) lascia fuori *«VFX completo per tutti gli status, Niagara per ogni abilità, foot IK raffinato, locomotion set bespoke, cinematic death, e ogni presentation framework che nessun gate v0.1 misura»* | `roadmap-v0.1.md`, E21 |
 | Ambiente | Solo asset `Graybox` (cover, porte, superfici ghiaccio e acqua) e un Blueprint di presentazione. I DataAsset di mappa stanno sotto `Maps/Dev` e `Maps/Templates` | `find Content/RT/World Content/RT/Maps -name '*.uasset' -o -name '*.umap'` |
 | Personaggi | I quattro `BP_Unit_*` referenziano soli asset `Characters` dei pack Paragon, i due anelli e `ABP_RTUnitAuthored`; nessun riferimento forte a cartelle `FX` o `Sounds`. I ruoli di presentazione (Idle, Move, Cast, Attack, Hit, Death) e le varianti per azione esistono in C++; la morte visiva è differita | `grep -a -o -E '/Game/[A-Za-z0-9_/.-]+'` sui `.uasset` (solo riferimenti forti); `Source/RefactorTactics/Unit/RTUnitAnimInstance.h`; E21.2 |
@@ -116,9 +116,9 @@ v0.2 … v1.0  invariate,
 
 ### 3.5 La conferma
 
-Il rapporto con cui è finita la sessione di brainstorming chiudeva con «La regola è mia, confermala o toglila.» (la
-regola di scorrimento, §7) e con «Prossimo passo, se confermi» (PR del brief, issue di tracking, `D-nnn`, audit per
-area). È in **Appendice A**, alla lettera. L'autore ha risposto, alla lettera:
+Il rapporto con cui è finita la sessione di brainstorming conteneva «La regola è mia, confermala o toglila.» (la regola
+di scorrimento, §7) e proponeva, sotto «Prossimo passo, se confermi», la PR di questo brief, l'issue di tracking, il
+`D-nnn` e l'audit per area. È in **Appendice A**, alla lettera. L'autore ha risposto, alla lettera:
 
 > «confermo»
 
