@@ -374,11 +374,13 @@ bool FRTHudDashPreviewChargeRunTest::RunTest(const FString&)
 //   4 | DestinationMarkerCell: `HasShortfall()` → `!HasShortfall()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
 //   5 | DestinationMarkerCell: senza shortfall → `PathCells.Last()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
 //   6 | DestinationMarkerCell: i due rami scambiati                        | DashMarker…              | UCCISA: 1 rosso, il previsto
-//   7 | DestinationMarkerCell: `ReachSegments == 0` non e' un mancato arrivo | DashMarker…              | {{R18}}
+//   7 | DestinationMarkerCell: `ReachSegments == 0` non e' un mancato arrivo | DashMarker…              | UCCISA: 1 rosso, il previsto
 //
 // ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro era `RefactorTactics.HUD.Dash`, e i
 // test trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
 // La riga 7 è stata aggiunta dopo la revisione indipendente, con il caso `ReachSegments = 0` nel test del quadrato.
+// Misurata il 2026-11-04 su `da0de90f0` (dopo il merge di `main`): 3 test trovati col filtro `HUD.Dash`, 1 rosso,
+// `DashMarkerLandsWhereTheRunStopsOrOnTheChosenCell`; il controllo senza mutante sul filtro `HUD` intero è verde prima e dopo.
 //
 // ⚠️ Il cablaggio (che `DisegnaScatto` chiami davvero questi due metodi, e non altro) non e' raggiungibile headless:
 // si vede solo in PIE, e quella voce e' `NOT RUN` in questa fetta.

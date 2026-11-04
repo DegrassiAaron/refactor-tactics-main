@@ -43,13 +43,15 @@
 //   8 | selezione: → `Owner == Sel` (senza `bHasSelection`)                | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
 //   9 | selezione: `&&` → `||`                                             | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
 //  10 | selezione: confronta solo `X` e `Y` (ignora il layer)              | IntentIsMarked…         | UCCISA: 1 rosso, il previsto
-//  11 | default: `bShowPlannedIntents = false` → `= true` (in `RTHUD.h`)   | DefaultGatesAre…        | {{R17}}
+//  11 | default: `bShowPlannedIntents = false` → `= true` (in `RTHUD.h`)   | DefaultGatesAre…        | UCCISA: 1 rosso, il previsto
 //
 // ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro di ogni run era
 // `RefactorTactics.HUD.PhaseGates` per le righe 1–6 e `RefactorTactics.HUD.IntentIsMarked` per le righe 7–10, e i test
 // trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
 // La riga 11 è stata aggiunta dopo la revisione indipendente, col test `DefaultGatesAreAllClosed` e lo stesso filtro
-// `PhaseGates`; la baseline di quel giro conta un test in più.
+// `PhaseGates`; la baseline di quel giro conta un test in più. La riga 11 è misurata il 2026-11-04 su `da0de90f0`
+// (dopo il merge di `main`): 4 test trovati col filtro `PhaseGates`, 1 rosso, `DefaultGatesAreAllClosed`; il controllo senza
+// mutante sul filtro `HUD` intero è verde prima e dopo.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
