@@ -5377,9 +5377,20 @@ void ARTTurnManager::ResolveDash()
 				Rifiutata.BaseActionId = Dash->Def.BaseActionId;
 				Rifiutata.Priority = Dash->Def.Priority;
 				Rifiutata.SrcCell = Unit->Cell;
-				// La cella PIANIFICATA e non quella di partenza: e' l'unico posto in cui resta scritto dove
-				// l'unita' voleva andare, e senza di essa il rifiuto non e' ricostruibile dal log.
-				Rifiutata.TgtCell = Unit->PlannedDashCell;
+				// 🔴 **La cella di PARTENZA, e non la meta pianificata** ([D-568], `#3974`), come nel rifiuto per `Unbalanced` e in
+				// quello per stordimento ([D-567]). `TgtCell` e' una colonna `Public` del replay e il filtro lavora per riga, mai per
+				// valore: chi percepisce l'unita' riceve la riga, e con la riga la destinazione che il piano privato di un nemico
+				// aveva scelto. Il PERCHE' del rifiuto resta in `Amount` e dice che il primo passo verso la meta e' negato, o che la
+				// meta e' fuori portata o fuori retta; la cella di destinazione non resta scritta in QUESTA voce.
+				//
+				// ⚠️ **Non e' l'unica voce che nomina una destinazione pianificata**: la `Fermata` di D-516 piu' sotto scrive
+				// `PlannedDashCell`, il movimento superato dallo scatto scrive `PlannedCell` e il diniego per occupante scrive la
+				// destinazione negata. Sono la stessa classe e restano fuori da [D-568] (`#3974`, «da mappare e decidere a parte»).
+				//
+				// ⌫ *Fino al 2026-11-02 qui c'era `Unit->PlannedDashCell`, con la ragione opposta: «l'unico posto in cui resta scritto
+				// dove l'unita' voleva andare, e senza di essa il rifiuto non e' ricostruibile dal log».* L'autore ha scelto di
+				// perdere quella ricostruzione, per la propria squadra e per il debug, in cambio del confine.
+				Rifiutata.TgtCell = Unit->Cell;
 				Rifiutata.Amount = static_cast<int32>(Motivo);
 				AppendLogEntry(Rifiutata, Unit);
 
@@ -5389,7 +5400,8 @@ void ARTTurnManager::ResolveDash()
 				//
 				// ⌫ **Una prima stesura ne aggiungeva uno, e produceva DUE righe per un rifiuto solo** —
 				// `Branth (q=-3,r=-1,L=0): il terreno non si attraversa di corsa` seguita subito dalla voce
-				// derivata, che dice le stesse cose e in piu' la destinazione. `RecentEvents` e' limitato a
+				// derivata, che dice le stesse cose (e fino al 2026-11-02 anche la destinazione: [D-568] l'ha
+				// tolta, e la ridondanza sul motivo resta). `RecentEvents` e' limitato a
 				// `MaxLogLines`, quindi la riga ridondante ne sfrattava una vera: peggiorava il log che
 				// questo lavoro esiste per rendere leggibile.
 			}
