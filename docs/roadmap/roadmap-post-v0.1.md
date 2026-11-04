@@ -13,8 +13,8 @@
 > soglie che separano le release — si legge in una pagina sola in [`roadmap-v0.1-v1.0.md`](roadmap-v0.1-v1.0.md),
 > che è una **vista** e non sposta di qui l'autorità sullo scope.
 >
-> **Questo documento non apre lavoro.** Nessuna epic qui dentro si implementa prima che i 15 gate della v0.1
-> siano verdi ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3). Serve a decidere **oggi** le
+> **Questo documento non apre lavoro.** Nessuna epic qui dentro si implementa prima che i gate della v0.1
+> siano verdi ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3), salvo `E26` ed `E35`, anticipate alla v0.1 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)). Serve a decidere **oggi** le
 > cose che, se decise dopo, costringerebbero a rifare: numerazione delle epic, confini fra release, e quali
 > vincoli architetturali la v0.1 deve già rispettare.
 
@@ -117,7 +117,7 @@ modi, e vale la pena non confonderli:
 > contava **3**. La riga non è stata cancellata: è **cambiata di modo**, perché la distruzione ha acquisito
 > una release (**v0.2**) e un owner (**E51**, [#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848))
 > mentre le altre due no. Metterla nel primo modo sarebbe stato falso in senso opposto: il repository **non**
-> la sta costruendo, e l'epic non apre lavoro prima che i quindici gate della v0.1 siano verdi. Il totale
+> la sta costruendo, e l'epic non apre lavoro prima che i gate della v0.1 siano verdi. Il totale
 > resta nove — ma, come questa stessa sezione avverte due paragrafi più in basso, **un totale che torna non
 > convalida la partizione**, ed è il modo a essere cambiato, non la somma.
 > Provenance: [`plans/structural-debris-canonicalization-spec-panel-2026-08-30.md`](plans/structural-debris-canonicalization-spec-panel-2026-08-30.md).
@@ -848,7 +848,7 @@ trasformazione tattica della mappa, persistente e leggibile.
 
 > **La struttura decide QUANTO materiale esiste. L'effetto decide COME viene distribuito.**
 
-**Perché non è v0.1**: nessuno dei quindici gate riguarda la distruzione strutturale, e questa epic non apre
+**Perché non è v0.1**: nessun gate della v0.1 riguarda la distruzione strutturale, e questa epic non apre
 lavoro prima che siano verdi.
 
 > ⚠️ **Questa epic ESTENDE l'Environmental System esistente. NON introduce una seconda simulazione.**
@@ -1461,4 +1461,4 @@ no — ed è la ragione per cui le feature di E46 usano il prefisso `RT-FEAT-UI-
 - ~~**Il formato competitivo finale**: 3v3 è baseline da playtestare, non una decisione chiusa.~~
   ✅ **Deciso il 2026-08-30** da [D-256](../decisions/RT_PDR_00_Decision_Log.md): **3v3 è il formato Standard
   definitivo**. Restano da playtestare i suoi *parametri* — timer, durata, scala mappa — non la sua scelta.
-- **Le date**: nessuna epic qui ha una scadenza. La v0.1 non ha ancora chiuso i suoi 15 gate.
+- **Le date**: nessuna epic qui ha una scadenza. La v0.1 non ha ancora chiuso i suoi gate.

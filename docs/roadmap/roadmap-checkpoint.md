@@ -124,7 +124,7 @@ Manca la prova sul campo: la sessione di playtest **M6.8**, che si esegue in edi
 
 > **Oltre la v0.1**: [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) ripartisce fra **v0.2, v0.3 e v0.4** (epic
 > E22–E35) il materiale dei sorgenti che non entra nel vertical slice — roster 8, Cover Window, muri e porte,
-> Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 15 gate della v0.1.
+> Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei gate della v0.1.
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
 [`roadmap-v0.1.md`](roadmap-v0.1.md), che ne tiene il **totale** — non ripetuto qui, perché questa riga
