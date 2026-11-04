@@ -1962,9 +1962,8 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		// la commutazione rifiutata (`DoorToggleRefusals`) puo' nascere da una porta trovata sulla traiettoria invece che sul lato. `INT-*` paga
 		// perche' il click dei bordi (`HandleTargetEdge`, oggi raggiunto solo da test e harness) accetta quel piano E scrive sempre il lato: un
 		// piano SENZA lato non viene da li'. Viene dal click su un'UNITA' (`HandleClickOnUnit` non controlla il kind del bersaglio), che accetta
-		// un'`Interact` armata: non e' il piano che `INT-*` paga. ⚠️ Che sia il difetto del click di [D-575] (b) e #3983 e' una lettura
-		// dell'assistente (#3983 nomina `CreateCover` e `MoveCover`, non l'`Interact`): la riga la pinna gratis, e il rifiuto del click la
-		// ribalterebbe da sola. Le righe sono misurate su questa fixture: la porta sta sul bordo W di una cella non nota alla squadra.
+		// un'`Interact` armata: non e' il piano che `INT-*` paga. ⚠️ Che sia il difetto del click di [D-575] (b) e #3983 e' confermato
+		// dall'autore il 2026-11-04 (estensione all'`Interact`): la riga la pinna gratis, e il rifiuto del click la renderebbe rossa da sola. Le righe sono misurate su questa fixture: la porta sta sul bordo W di una cella non nota alla squadra.
 		//
 		// Il controllo e' lo STESSO piano con il lato dichiarato come lo scrive `HandleTargetEdge`: nessuna porta sul bordo, paga (`NoEffect`).
 		// ⚠️ L'oracolo di queste righe e' il click su un'UNITA' adiacente, non `HandleTargetEdge`: l'equivalenza «il click accetta <=> paga»

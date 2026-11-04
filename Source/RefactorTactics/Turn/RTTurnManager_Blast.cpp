@@ -366,8 +366,8 @@ namespace
 	 * `Actions.Blast.DoorInteractionRefusalsPay`).
 	 * ⚠️ **Solo se il piano porta il lato dichiarato** (`bHasDeclaredDoorEdge`): i due canali raccolgono anche gli intenti senza lato
 	 * (la porta cercata sulla traiettoria), che `HandleTargetEdge` non produce mai; vengono dal click su un'unita', che accetta un
-	 * piano di bordo senza lato. Lettura dell'assistente, non dell'autore: e' lo stesso difetto del click che [D-575] (b) manda a
-	 * riparare per le strutture di bordo (#3983, che nomina `CreateCover` e `MoveCover` e non l'`Interact`), e intanto e' gratis
+	 * piano di bordo senza lato. E' lo stesso difetto del click che [D-575] (b) manda a
+	 * riparare per le strutture di bordo (#3983: l'estensione all'`Interact` e' confermata dall'autore, 2026-11-04), e intanto e' gratis
 	 * (`Actions.Blast.UndecidedCausesStayFree`, righe «Interact armata»). In una partita non cambia niente: il lato lo scrive solo
 	 * `HandleTargetEdge`, e l'unico modo di pianificare un `Interact` e' il click su un'unita'.
 	 * ⚠️ **Il successo della stessa interazione NON paga**: una commutazione riuscita non lascia un colpo ne' un canale, e non ha un
@@ -390,8 +390,8 @@ namespace
 		// ⚠️ **Solo se il piano porta il LATO dichiarato** (`bHasDeclaredDoorEdge`): paga perche' il click dei bordi
 		// (`HandleTargetEdge`, oggi solo da test e harness) accetta il piano e scrive SEMPRE il lato. `DoorlessIntents` e `DoorToggleRefusals` raccolgono anche gli intenti
 		// senza lato (il ramo di CP 9.3: la porta si cerca sulla traiettoria), e un piano senza lato non viene da li': viene dal click su
-		// un'unita', che accetta un piano di bordo che non dovrebbe: stesso difetto di [D-575] (b) e #3983 (lettura dell'assistente per
-		// l'`Interact`, che #3983 non nomina), gratis finche' non lo si ripara.
+		// un'unita', che accetta un piano di bordo che non dovrebbe: stesso difetto di [D-575] (b) e #3983 (estensione all'`Interact`
+		// confermata dall'autore il 2026-11-04), gratis finche' non lo si ripara.
 		if (Ctx.Intents[IntentIdx].bHasDeclaredDoorEdge
 			&& (Piano.DoorlessIntents.Contains(IntentIdx)
 				|| Piano.DoorToggleRefusals.ContainsByPredicate([IntentIdx](const FRTDoorToggleRefusal& Rifiuto)
