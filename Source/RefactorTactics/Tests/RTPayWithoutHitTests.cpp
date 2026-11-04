@@ -664,6 +664,7 @@ namespace
 		bool bBersaglioIgnotoAlVelo = false;  //< il velo dell'HUD non conosce il bersaglio: il click non lo bersaglia (`IsKnownToObserver`)
 		bool bAlleatoNonComandabile = false;  //< il bersaglio alleato e' pianificato dal bot: non e' comandabile da questo giocatore
 		bool bBordoDichiarato = false;     //< solo `CreateCover` e `Interact` col piano a mano: il lato e' dichiarato (come lo scrive `HandleTargetEdge`)
+		bool bPianoACellaSenzaLato = false; //< solo `CreateCover` e `Interact`: il piano a mano ha il bersaglio a CELLA (come quello dei bordi) ma NESSUN lato
 		bool bPortaBloccataTraLeCelle = false; //< solo `Interact`: sul bordo fra la cella di chi agisce (0,0,0) e quella del bersaglio (1,0,0) c'e' una porta `Locked`: la commutazione e' rifiutata
 		bool bCaricaPrecede = false;       //< chi agisce pianifica prima una CARICA che RIESCE (un nemico due celle dietro di lui, lungo -X): il click giudica dalla cella di PARTENZA (la carica non sposta l'origine), il Blast dalla cella d'arrivo (D-575 (1bis))
 		bool bAttoreMuoreNelloScatto = false; //< solo con `bScattoPrecede` e `bOstacoloSulloScatto`: il primo passo dello scatto e' un Fuoco (10 danni all'ingresso) e chi agisce ha 5 di salute, quindi muore nel Dash, DOPO il lock-in e PRIMA del Blast
@@ -1060,6 +1061,11 @@ namespace
 				Attore->DeclareAttackOnCell(CellaBersaglio);
 				Attore->PlannedCoverEdge = ERTHexDirection::W;
 				Attore->bHasPlannedCoverEdge = true;
+			}
+			else if ((S.Azione == ERic3Azione::CreateCover || S.Azione == ERic3Azione::Interact) && S.bPianoACellaSenzaLato)
+			{
+				// Stesso bersaglio a cella del lato dichiarato, ma senza lato: la sola cosa che varia rispetto al controllo e' `bHasPlannedCoverEdge`.
+				Attore->DeclareAttackOnCell(CellaBersaglio);
 			}
 
 			// Dopo il click: un bersaglio che il click ha accettato da vivo e poi muore e' un fatto di risoluzione.
@@ -1954,13 +1960,16 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 	{
 		// `DoorlessIntents` raccoglie ANCHE gli intenti senza lato dichiarato (il ramo di CP 9.3, dove l'operazione nasce dalla traiettoria), e
 		// la commutazione rifiutata (`DoorToggleRefusals`) puo' nascere da una porta trovata sulla traiettoria invece che sul lato. `INT-*` paga
-		// perche' il click di produzione dei bordi (`HandleTargetEdge`) accetta quel piano E scrive sempre il lato: un piano SENZA lato non
-		// viene da li'. Viene dal click su un'UNITA' (`HandleClickOnUnit` non controlla il kind del bersaglio: [D-575] (b), difetto del click da
-		// riparare, #3983), che accetta un'`Interact` armata, con o senza una porta sul bordo: non e' il piano che `INT-*` paga.
+		// perche' il click dei bordi (`HandleTargetEdge`, oggi raggiunto solo da test e harness) accetta quel piano E scrive sempre il lato: un
+		// piano SENZA lato non viene da li'. Viene dal click su un'UNITA' (`HandleClickOnUnit` non controlla il kind del bersaglio), che accetta
+		// un'`Interact` armata: non e' il piano che `INT-*` paga. ⚠️ Che sia il difetto del click di [D-575] (b) e #3983 e' una lettura
+		// dell'assistente (#3983 nomina `CreateCover` e `MoveCover`, non l'`Interact`): la riga la pinna gratis, e il rifiuto del click la
+		// ribalterebbe da sola. Le righe sono misurate su questa fixture: la porta sta sul bordo W di una cella non nota alla squadra.
 		//
 		// Il controllo e' lo STESSO piano con il lato dichiarato come lo scrive `HandleTargetEdge`: nessuna porta sul bordo, paga (`NoEffect`).
-		// ⚠️ L'oracolo di queste righe e' il click su un'UNITA' adiacente, non `HandleTargetEdge`: il controllo del lato dichiarato sta qui solo come
-		// controparte della riga senza lato. La commutazione rifiutata CON il lato dichiarato (`Locked`, `Destroyed`) la misura, col click dei
+		// ⚠️ L'oracolo di queste righe e' il click su un'UNITA' adiacente, non `HandleTargetEdge`: l'equivalenza «il click accetta <=> paga»
+		// del controllo e' asserita su un click che ha scritto un altro piano, poi riscritto a mano (cella e lato). Il controllo sta qui solo come
+		// controparte delle righe senza lato. La commutazione rifiutata CON il lato dichiarato (`Locked`, `Destroyed`) la misura, col click dei
 		// bordi, `Actions.Blast.DoorInteractionRefusalsPay`.
 		FRic3Scena Controllo;
 		Controllo.Azione = ERic3Azione::Interact;
@@ -1979,8 +1988,21 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("Interact armata, click su un'unita' (nessun lato), nessuna porta"), TEXT("caso"), SenzaLato, AttesoSenzaLato,
 			TEXT("D-575 (b) — il click accetta un piano di bordo senza lato, il resolver non trova nessuna porta: non e' `INT-*`, si ripara il click, intanto gratis"))) { return false; }
 
+		// Il piano a CELLA senza lato: stesso bersaglio a cella del controllo e stessa assenza di porta, e la SOLA differenza e' che il
+		// lato non e' dichiarato. Isola la variabile (`bHasDeclaredDoorEdge`): la riga qui sopra differisce dal controllo anche nella forma
+		// del bersaglio (unita' contro cella), e un filtro sulla forma invece che sul lato non la distinguerebbe.
+		FRic3Scena CellaSenzaLato = Controllo;
+		CellaSenzaLato.bBordoDichiarato = false;
+		CellaSenzaLato.bPianoACellaSenzaLato = true;
+		FRic3Atteso AttesoCellaSenzaLato = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::NoEffect);
+		AttesoCellaSenzaLato.bClickDaRiparare = true;
+		AttesoCellaSenzaLato.bControllaBordo = true;
+		AttesoCellaSenzaLato.bBordo = false;
+		if (!Ric3Verifica(*this, TEXT("Interact armata, piano a cella senza lato, nessuna porta"), TEXT("caso"), CellaSenzaLato, AttesoCellaSenzaLato,
+			TEXT("D-575 (b) — stesso piano a cella del controllo, senza lato: `INT-*` guarda il lato dichiarato e non la forma del bersaglio, gratis"))) { return false; }
+
 		// La commutazione rifiutata SENZA lato: una porta `Locked` sul bordo fra chi agisce e l'unita' adiacente. MISURATO: il click su un'unita'
-		// la ACCETTA lo stesso (la porta non toglie la vista a questo click), e il piano non ha il lato: `FirstDoorEdge` trova la porta sulla
+		// la ACCETTA lo stesso (su questa fixture la porta non toglie la vista: sta su una cella non nota alla squadra), e il piano non ha il lato: `FirstDoorEdge` trova la porta sulla
 		// traiettoria e il resolver rifiuta la commutazione (`DoorToggleRefusals`, `DoorLocked`). E' lo stesso difetto del click della riga
 		// sopra, non `INT-*`: gratis, e si ripara il click. (Il controllo col lato dichiarato, che paga, e' `Actions.Blast.DoorInteractionRefusalsPay`.)
 		FRic3Scena Bloccata = SenzaLato;
@@ -2624,8 +2646,8 @@ namespace
 
 	/**
 	 * Un `Action.Interact` con una ricarica reso OSSERVABILE (`PagaCooldown`: quello spedito ne ha 0, ed e' la ragione per cui pagare o no non
-	 * cambia nessuna partita oggi) contro la porta sul bordo W di (1,0,0). Si clicca con il percorso di produzione dei bordi, `HandleTargetEdge`
-	 * (quello che scrive il lato): e' l'ORACOLO di «il click avrebbe accettato il piano».
+	 * cambia nessuna partita oggi) contro la porta sul bordo W di (1,0,0). Si clicca con il percorso dei bordi, `HandleTargetEdge`
+	 * (quello che scrive il lato, oggi senza chiamanti fuori dai test): e' l'ORACOLO di «il click avrebbe accettato il piano».
 	 */
 	FPagaPortaEsito PagaGiraPorta(FAutomationTestBase& Test, const TCHAR* Nome, EPagaPorta Caso)
 	{
@@ -2717,7 +2739,7 @@ namespace
  * **`INT-*` PAGANO se il click avrebbe accettato il piano** ([D-575] (a), registrata in #3981: il numero vale al merge): la porta senza varco
  * (`NoEffect`) e la commutazione rifiutata (`DoorLocked`, `DoorDestroyed`).
  *
- * 🔑 **L'oracolo e' il click di produzione dei bordi** (`HandleTargetEdge`, che scrive il lato). Misurato qui, riga per riga: il click
+ * 🔑 **L'oracolo e' il click dei bordi** (`HandleTargetEdge`, che scrive il lato; oggi senza chiamanti fuori dai test). Misurato qui, riga per riga: il click
  * ACCETTA tutte e tre le cause, perche' guarda la portata e non guarda se sul bordo c'e' una porta ne' in che stato sia. Quindi pagano.
  *
  * ⚠️ **Il controllo senza causa NON paga, e non e' una scelta**: un `Action.Interact` che RIESCE non ha nessun sito di pagamento (la
@@ -2746,7 +2768,7 @@ bool FRTDoorInteractionRefusalsPayTest::RunTest(const FString&)
 	};
 	for (const auto& R : Righe)
 	{
-		TestTrue(*FString::Printf(TEXT("%s: il click di produzione dei bordi accetta il piano"), R.Nome), R.E->bClickAccetta);
+		TestTrue(*FString::Printf(TEXT("%s: il click dei bordi accetta il piano"), R.Nome), R.E->bClickAccetta);
 		TestEqual(*FString::Printf(TEXT("%s: premessa: porte aperte"), R.Nome), R.E->PorteAperte, R.Aperte);
 		TestEqual(*FString::Printf(TEXT("%s: premessa: porte chiuse"), R.Nome), R.E->PorteChiuse, 0);
 		TestEqual(*FString::Printf(TEXT("%s: premessa: voci NoEffect"), R.Nome), R.E->SenzaPorta, R.NoEffect);

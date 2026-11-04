@@ -380,7 +380,7 @@ struct FRTBlastContext
 	// (`FuoriPortataMaIlClickAccettava`, accanto alla tabella: `OutOfRange` non puo' stare nella tabella perche' oltre la
 	// portata dichiarata, o dietro un Fumo noto, il click rifiuta). Il click si rifa' con la conoscenza e l'origine con cui ha
 	// giudicato, congelate al lock-in ([D-574], [D-575]: `ClickKnowledgeAtLockIn`, `ClickAimOriginsAtLockIn`), e con la stessa
-	// regola paga il tiro a CELLA che il Fumo ha cappato o che uno scatto fermato ha portato fuori portata (`R7`, `R9` per
+	// regola paga il tiro a CELLA che il Fumo ha cappato o che uno scatto fermato o una carica riuscita hanno portato fuori portata (`R7`, `R9` per
 	// riflesso: `RangeLostPayingIntents`, qui sotto); il bersaglio-unita' morto di `ModifyArc` e delle azioni ambientali paga nei loro siti, non da qui.
 	//
 	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive

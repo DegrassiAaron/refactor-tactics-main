@@ -493,12 +493,13 @@ struct FRTHexBlastPlan
 	 * cella di chi tira nel Blast (`R9`, [D-563] (3)). Nessuna voce di TurnLog: e' un canale di sola CLASSIFICAZIONE, e la traccia
 	 * non cambia.
 	 *
-	 * 🔑 **Esiste per il pagamento dello scatto fermato** ([D-575] (a), registrata in #3981: il numero vale al merge). Il click ha
-	 * giudicato dall'origine della mira prevista (la cella d'arrivo dello scatto), il Blast misura da dove l'unita' si e' fermata:
+	 * 🔑 **Esiste per il pagamento dello scatto fermato e della carica riuscita** ([D-575] (a), (1bis), registrata in #3981: il
+	 * numero vale al merge). Il click ha giudicato dall'origine della mira prevista (la cella d'arrivo dello scatto o, con una
+	 * carica, la cella di partenza: la carica non sposta l'origine di mira, [D-464] (5)), il Blast misura da dove l'unita' si trova:
 	 * un tiro dentro la portata dall'una e fuori dall'altra sparisce qui, e il click l'aveva accettato. Chi lo decide, con la
 	 * conoscenza e l'origine con cui il click ha giudicato, e' `ARTTurnManager::ClassifyRangeLostPayment`: questa libreria e'
 	 * geometria pura e non conosce ne' le squadre ne' il click. Un tiro qui dentro e' gratis per chi l'avrebbe rifiutato anche
-	 * dall'origine del click (e' il caso comune: nessuno scatto fermato), e paga per chi l'avrebbe accettato.
+	 * dall'origine del click (e' il caso comune: nessuno scatto fermato ne' carica riuscita), e paga per chi l'avrebbe accettato.
 	 *
 	 * ⛔ **Solo il tiro a CELLA di un'azione che si dichiara aggressione** (`bCountsAsAttack`): un bersaglio-unita' fuori portata
 	 * e' gia' una voce `Fallback` della validazione, che ha il suo sito di pagamento in `CollectAttackIntents`. Ordinato.

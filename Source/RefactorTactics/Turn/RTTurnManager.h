@@ -1702,7 +1702,7 @@ public:
 	 * la stessa vista, che e' cio' che [D-465] punto (3) chiede. ⛔ La Resolution, la validazione al lock-in e i bot non
 	 * la chiamano e restano sulla mappa autorevole — **salvo UN lettore nella Resolution**, ammesso dall'autore il
 	 * 2026-11-03 ([D-571], RIC-3): `ClickMapForPaymentClassification` classifica SOLO un pagamento di ricarica (un'azione che
-	 * il Fumo o uno scatto fermato hanno portato fuori portata, e che il click avrebbe accettato: il bersaglio-unita' fuori
+	 * il Fumo, uno scatto fermato o una carica riuscita hanno portato fuori portata, e che il click avrebbe accettato: il bersaglio-unita' fuori
 	 * portata e il tiro a cella, `R7` e `R9` per riflesso). Non tocca colpi, movimento ne' percorsi, che restano autorevoli.
 	 * ✅ **E' un'eccezione STRETTA a [D-534] (2)**, decisa dall'autore («solo se il fumo non c'e' quando si spara»): un lettore,
 	 * un solo scopo. ⚠️ Un secondo lettore o un secondo scopo e' una nuova eccezione, e va deciso.
@@ -1931,7 +1931,7 @@ protected:
 	 * La mappa su cui il click di `TeamId` ha giudicato la portata, per CLASSIFICARE UN PAGAMENTO di ricarica.
 	 *
 	 * 🔴 **E' l'UNICO lettore della mappa del click dentro la Resolution, e ha UN solo scopo**: decidere se un'azione partita
-	 * senza colpo e' stata fermata dalla portata (il Fumo che la squadra NON vedeva, o uno scatto fermato) e il click, sulla
+	 * senza colpo e' stata fermata dalla portata (il Fumo che la squadra NON vedeva, uno scatto fermato o una carica riuscita) e il click, sulla
 	 * propria mappa ottimistica, l'avrebbe accettata (si paga), oppure no (gratis). Decisione d'autore del 2026-11-03,
 	 * **eccezione scritta a [D-534] (2)** («Resolution resta onnisciente»): colpi, movimento e percorsi restano sulla mappa
 	 * autorevole, e questa funzione non li serve. Lo chiamano `CollectAttackIntents` (via `FuoriPortataMaIlClickAccettava`) per il
@@ -1956,7 +1956,7 @@ protected:
 	/**
 	 * L'origine con cui il click di `Unit` ha giudicato la portata della sua azione pianificata ([D-575] (a)): quella congelata al
 	 * lock-in (`ClickAimOriginsAtLockIn`), oppure `Fallback` se l'unita' non ne ha una (nessuna azione pianificata al lock-in).
-	 * Per chi non ha uno scatto che sposta, coincide con la cella di chi agisce: il comportamento non cambia.
+	 * Per chi non si e' spostato (ne' scatto fermato ne' carica riuscita), coincide con la cella di chi agisce: il comportamento non cambia.
 	 *
 	 * Sta accanto a `ClickMapForPaymentClassification` e ha il suo stesso scopo: classificare un pagamento. Il Blast misura da
 	 * dove l'unita' si trova; i COLPI e il TurnLog non leggono questa funzione.

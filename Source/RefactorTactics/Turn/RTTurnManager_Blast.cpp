@@ -361,11 +361,15 @@ namespace
 	 *
 	 * ➕ **2026-11-04, [D-575] (a), `INT-*`**: l'eccezione a «un'azione che non e' un colpo ha le proprie regole» sono le due
 	 * interazioni con una porta che la raccolta ha rifiutato — nessuna porta sul bordo dichiarato (`DoorlessIntents`, `NoEffect`) e
-	 * la commutazione di una porta bloccata o distrutta (`DoorToggleRefusals`) —, perche' il click di produzione dei bordi
-	 * (`HandleTargetEdge`) le accetta: guarda la portata, non la porta (misurato da `Actions.Blast.DoorInteractionRefusalsPay`).
+	 * la commutazione di una porta bloccata o distrutta (`DoorToggleRefusals`) —, perche' il click dei bordi
+	 * (`HandleTargetEdge`, oggi raggiunto solo da test e harness) le accetta: guarda la portata, non la porta (misurato da
+	 * `Actions.Blast.DoorInteractionRefusalsPay`).
 	 * ⚠️ **Solo se il piano porta il lato dichiarato** (`bHasDeclaredDoorEdge`): i due canali raccolgono anche gli intenti senza lato
-	 * (la porta cercata sulla traiettoria), che `HandleTargetEdge` non produce mai; vengono dal click su un'unita' (difetto del click,
-	 * [D-575] (b), #3983) e sono gratis (`Actions.Blast.UndecidedCausesStayFree`, righe «Interact armata»).
+	 * (la porta cercata sulla traiettoria), che `HandleTargetEdge` non produce mai; vengono dal click su un'unita', che accetta un
+	 * piano di bordo senza lato. Lettura dell'assistente, non dell'autore: e' lo stesso difetto del click che [D-575] (b) manda a
+	 * riparare per le strutture di bordo (#3983, che nomina `CreateCover` e `MoveCover` e non l'`Interact`), e intanto e' gratis
+	 * (`Actions.Blast.UndecidedCausesStayFree`, righe «Interact armata»). In una partita non cambia niente: il lato lo scrive solo
+	 * `HandleTargetEdge`, e l'unico modo di pianificare un `Interact` e' il click su un'unita'.
 	 * ⚠️ **Il successo della stessa interazione NON paga**: una commutazione riuscita non lascia un colpo ne' un canale, e non ha un
 	 * sito di pagamento ([D-575] (c): le azioni non d'attacco restano gratis e non decise). L'`Interact` spedito ha ricarica 0, quindi
 	 * oggi non cambia nessuna partita; l'asimmetria (il rifiuto costa, il successo no) e' dichiarata nel report della PR.
@@ -383,10 +387,11 @@ namespace
 		}
 		const FRTHexBlastPlan& Piano = Ctx.Plan;
 		// `INT-*`: l'unica clausola che non passa dalla dichiarazione di aggressione. Va prima della guardia `bCountsAsAttack`.
-		// ⚠️ **Solo se il piano porta il LATO dichiarato** (`bHasDeclaredDoorEdge`): paga perche' il click di produzione dei bordi
-		// (`HandleTargetEdge`) accetta il piano e scrive SEMPRE il lato. `DoorlessIntents` e `DoorToggleRefusals` raccolgono anche gli intenti
+		// ⚠️ **Solo se il piano porta il LATO dichiarato** (`bHasDeclaredDoorEdge`): paga perche' il click dei bordi
+		// (`HandleTargetEdge`, oggi solo da test e harness) accetta il piano e scrive SEMPRE il lato. `DoorlessIntents` e `DoorToggleRefusals` raccolgono anche gli intenti
 		// senza lato (il ramo di CP 9.3: la porta si cerca sulla traiettoria), e un piano senza lato non viene da li': viene dal click su
-		// un'unita', che accetta un piano di bordo che non dovrebbe ([D-575] (b), #3983) ed e' gratis finche' non lo si ripara.
+		// un'unita', che accetta un piano di bordo che non dovrebbe: stesso difetto di [D-575] (b) e #3983 (lettura dell'assistente per
+		// l'`Interact`, che #3983 non nomina), gratis finche' non lo si ripara.
 		if (Ctx.Intents[IntentIdx].bHasDeclaredDoorEdge
 			&& (Piano.DoorlessIntents.Contains(IntentIdx)
 				|| Piano.DoorToggleRefusals.ContainsByPredicate([IntentIdx](const FRTDoorToggleRefusal& Rifiuto)
@@ -445,8 +450,8 @@ namespace
 	 * Qui si rifa' la domanda del click con la STESSA funzione: `MappaDelClick` e' la mappa ottimistica costruita sulla conoscenza
 	 * CONGELATA al lock-in ([D-574]), `Da` l'origine CONGELATA ([D-575] (a)), e il predicato e' vero se la portata effettiva su
 	 * quella mappa, da quell'origine, ARRIVA alla mira. Cio' esclude da se' il fuori portata oltre la portata DICHIARATA dall'origine
-	 * del click (la portata effettiva non supera mai quella dichiarata). Per chi non ha uno scatto che sposta, `Da` e' `Attacker.Cell`
-	 * e la risposta e' quella di prima.
+	 * del click (la portata effettiva non supera mai quella dichiarata). Per chi non si e' spostato (ne' scatto fermato ne' carica
+	 * riuscita), `Da` e' `Attacker.Cell` e la risposta e' quella di prima.
 	 *
 	 * ⚠️ **«Osservato» e' quello della mappa del click, non «in vista adesso»**: una cella esplorata ma ora fuori vista conserva
 	 * il contenuto ATTUALE (D-534 (3), `Q4`), quindi un Fumo nato dopo l'esplorazione si legge e il click rifiuta. Il criterio
@@ -618,7 +623,7 @@ const URTHexMapAsset* ARTTurnManager::ClickMapForPaymentClassification(int32 Tea
 {
 	// 🔴 **L'UNICO lettore della mappa del click dentro la Resolution, con UN solo scopo** (decisione d'autore del 2026-11-03,
 	// eccezione stretta a [D-534] (2)): dire se il click di `TeamId` avrebbe accettato la portata di un'azione che il Fumo o uno
-	// scatto fermato hanno fermato, per decidere se la ricarica si paga. Non serve colpi, movimento ne' percorsi, e non c'e' un
+	// scatto fermato hanno fermato (o che una carica riuscita ha portato fuori dall'origine del click), per decidere se la ricarica si paga. Non serve colpi, movimento ne' percorsi, e non c'e' un
 	// secondo chiamante: uno nuovo sarebbe una nuova eccezione.
 	//
 	// ✅ **La conoscenza e' quella con cui il click ha giudicato** (`ClickKnowledgeAtLockIn`, [D-574]), congelata prima della prima
@@ -669,8 +674,8 @@ void ARTTurnManager::ClassifyRangeLostPayment(FRTBlastContext& Ctx)
 	// ➕ **`R9` per riflesso dello scatto fermato** ([D-575] (a), registrata in #3981: il numero vale al merge): i tiri in
 	// `OutOfDeclaredRangeIntents` sono oltre la portata DICHIARATA da dove chi tira si trova nel Blast, e spariscono in silenzio.
 	// Se il click, dall'origine con cui ha giudicato (la cella d'arrivo dello scatto pianificato), li aveva accettati, l'esecuzione
-	// ha impedito il piano: pagano. Se li rifiutava anche da li' (e' il caso comune: nessuno scatto fermato, origine uguale a
-	// `Attacker.Cell`) restano gratis, come `R9` ha sempre fatto ([D-563] (3)).
+	// ha impedito il piano: pagano. Se li rifiutava anche da li' (e' il caso comune: nessuno scatto fermato ne' carica riuscita,
+	// origine uguale a `Attacker.Cell`) restano gratis, come `R9` ha sempre fatto ([D-563] (3)).
 	//
 	// ⚠️ **Solo la domanda di PORTATA del click**, come per il bersaglio-unita': il click giudica prima la portata, e poi la
 	// distanza minima, il piano e la linea di tiro. Un tiro che il click avrebbe rifiutato per UNO di questi ultimi
@@ -692,7 +697,7 @@ void ARTTurnManager::ClassifyRangeLostPayment(FRTBlastContext& Ctx)
 			}
 			const FRTHexAttackIntent& Intent = Ctx.Intents[IntentIdx];
 			const FRTHexCombatUnit& Attacker = Ctx.HexUnits[Intent.AttackerId]; // dove chi tira si trova nel Blast: la STESSA cella con cui `CollectHexAttacks` ha misurato
-			// L'origine del click, non quella del Blast: coincidono salvo uno scatto fermato o una spinta ([D-575] (a)).
+			// L'origine del click, non quella del Blast: coincidono salvo uno scatto fermato o una carica riuscita ([D-575] (a), (1bis)).
 			const FRTCellId Origine = ClickOriginForPaymentClassification(
 				Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr, Attacker.Cell);
 			if (FuoriPortataMaIlClickAccettava(ERTActionInvalidReason::OutOfRange,

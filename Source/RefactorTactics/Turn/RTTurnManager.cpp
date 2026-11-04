@@ -6075,7 +6075,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
 
 	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'
-	// fermato) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe
+	// fermato, o una carica riuscita) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe
 	// accettato. Subito dopo la raccolta, che ne produce i due canali, e prima di `ApplyInterrupts`, che ne legge il pagamento.
 	ClassifyRangeLostPayment(Ctx);
 

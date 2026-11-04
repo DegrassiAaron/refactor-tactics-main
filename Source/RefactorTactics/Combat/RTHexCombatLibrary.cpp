@@ -418,7 +418,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				else
 				{
 					// Oltre la portata DICHIARATA da dove chi tira si trova nel Blast: nessuna voce (`R9`), ma un canale di sola
-					// classificazione, perche' se il click aveva giudicato da un'altra origine (uno scatto fermato) l'aveva accettato
+					// classificazione, perche' se il click aveva giudicato da un'altra origine (uno scatto fermato o una carica riuscita) l'aveva accettato
 					// ([D-575] (a)). Il confine `<=` sopra e `>` qui sono la stessa condizione vista dai due lati.
 					Plan.OutOfDeclaredRangeIntents.Add(IntentIdx);
 				}
