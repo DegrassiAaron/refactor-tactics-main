@@ -16,6 +16,8 @@
 > **64 avanti / 0 dietro** `origin/main` = `ad7f212b` dopo `git fetch --prune`. Lo stato delle issue è
 > letto lato server con `gh`, non trascritto.
 
+> 🔀 **Dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)) la v0.1 è ridefinita «giocabile» e `E26` ed `E35` sono anticipate dalla v0.2 alla v0.1.** Questa vista **non è ancora riscritta**: il tema della v0.1, le righe della v0.1 e della v0.2 in §2, le quattro soglie e le note di §5 descrivono la definizione precedente, e dove contraddicono `D-576` vale `D-576`. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
+
 ---
 
 **Indice** · [1. Le dieci release](#1-le-dieci-release) · [2. Cosa contiene ogni release](#2-cosa-contiene-ogni-release) · [3. Le quattro soglie](#3-le-quattro-soglie) · [4. Focus v0.1 — dove si legge lo stato](#4-focus-v01--dove-si-legge-lo-stato) · [5. Cosa questa pagina non decide](#5-cosa-questa-pagina-non-decide) · [6. Limiti dichiarati](#6-limiti-dichiarati)

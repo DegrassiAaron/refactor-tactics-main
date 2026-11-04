@@ -53,6 +53,8 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | **v0.9** | Release Candidate | Niente di nuovo: quello che c'è deve reggere | **E44** | Feature freeze |
 | **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 **non classificato** ([D-259](../decisions/RT_PDR_00_Decision_Log.md)) |
 
+> 🔀 **Dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)) `E26` ed `E35` sono anticipate dalla v0.2 alla v0.1**: la riga `v0.2` qui sopra **non è ancora riscritta**, e dove contraddice `D-576` vale `D-576`. Il vincolo di questo file (nessuna epic qui dentro si implementa prima dei gate della v0.1) non si applica più a `E26` ed `E35` e vale ancora, intero, per ogni altra epic. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
+
 > ⚠️ **`E22 · E24–E26` e non `E22–E26`: il buco è E23, ed è voluto.** L'epic è stata **anticipata alla v0.1** il 2026-08-17 (`D-160`), lo dichiarano la propria sezione qui sotto (*«⛔ E23 NON È PIÙ DI QUESTA RELEASE»*) e la riga `E23` di [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1. Finché la cella diceva `E22–E26` l'**intervallo continuava a rivendicarla**, e la contraddizione era invisibile a `grep`: la stringa `E23` non compare in una riga che la contiene. Costo misurato — `feature_registry.py` leggeva `E23 → v0.2`, quindi le **cinque** feature che dichiarano `release: v0.1` ed `epic: E23` finivano nella tabella dei *disallineati* di `roadmap-v0.1.md` invece che sotto la propria epic, e `wiki --check` — che è una condizione del gate **G15** — restava rosso.
 > 
 > **Questa riga non è un indice esaustivo delle epic v0.1**: `E46` ed `E47` sono v0.1 e non compaiono qui. L'owner delle epic della v0.1 è `roadmap-v0.1.md` §2.1; questa tabella dichiara ciò che sta **oltre** la v0.1, ed E23 ne è uscita.
@@ -240,7 +242,7 @@ Cover Window dimostrabile in scenario automatico, suite verde, replay determinis
 
 ### E35 — Roster 8: Sentinel Directorate e Resonance · P0
 
-> 🔀 **E35 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic. Con essa rientrano #2291 (CP 35.5) e #2297, differite da [D-484](../decisions/RT_PDR_00_Decision_Log.md) (2). ⚠️ Nel progetto non ci sono i pack Paragon di `aurora` e `kwang`.
+> 🔀 **E35 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. Con essa rientrano #2291 (CP 35.5, già checkpoint di E35) e #2297, quest'ultima differita da [D-484](../decisions/RT_PDR_00_Decision_Log.md) (2). ⚠️ Nel progetto non ci sono i pack Paragon di `aurora` e `kwang`.
 
 **Tracciata su GitHub**: epic [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322).
 
@@ -476,7 +478,7 @@ Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 ### E26 — Tactical Bot v1 · P1
 
-> 🔀 **E26 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic. **Il suo tetto nella v0.1 non è deciso**: l'elenco di sotto nomina anche *belief weights*, *predictive action scoring* e *stress 4v4*. Dipende da E13, che resta nella v0.1.
+> 🔀 **E26 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. **Il suo tetto nella v0.1 non è deciso**: l'elenco di sotto nomina anche *belief weights*, *predictive action scoring* e *stress 4v4*, e quest'ultimo è fuori per la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1 finché non è deciso. Dipende da E13, che resta nella v0.1 ([`D-441`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-338`](../decisions/RT_PDR_00_Decision_Log.md) dicevano il contrario: annotate).
 
 **Tracciata su GitHub**: epic [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326).
 
