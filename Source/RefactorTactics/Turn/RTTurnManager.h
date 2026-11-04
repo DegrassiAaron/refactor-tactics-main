@@ -1701,11 +1701,16 @@ public:
 	 * 🔑 **E' la stessa copia che `AttachPlanningMap` consegna a `FindPath`**: click, portata viola e percorso ricevono
 	 * la stessa vista, che e' cio' che [D-465] punto (3) chiede. ⛔ La Resolution, la validazione al lock-in e i bot non
 	 * la chiamano e restano sulla mappa autorevole — **salvo UN lettore nella Resolution**, ammesso dall'autore il
-	 * 2026-11-03 ([D-571], RIC-3): `ClickMapForPaymentClassification` la chiama SOLO per classificare un pagamento di
-	 * ricarica (un'azione cappata dal Fumo che il click non vedeva: il bersaglio-unita' fuori portata e il tiro a cella,
-	 * `R7`). Non tocca colpi, movimento ne' percorsi, che restano autorevoli. ✅ **E' un'eccezione STRETTA a [D-534] (2)**,
-	 * decisa dall'autore («solo se il fumo non c'e' quando si spara»): un lettore, un solo scopo. ⚠️ Un secondo lettore
-	 * o un secondo scopo e' una nuova eccezione, e va deciso.
+	 * 2026-11-03 ([D-571], RIC-3): `ClickMapForPaymentClassification` classifica SOLO un pagamento di ricarica (un'azione che
+	 * il Fumo o uno scatto fermato hanno portato fuori portata, e che il click avrebbe accettato: il bersaglio-unita' fuori
+	 * portata e il tiro a cella, `R7` e `R9` per riflesso). Non tocca colpi, movimento ne' percorsi, che restano autorevoli.
+	 * ✅ **E' un'eccezione STRETTA a [D-534] (2)**, decisa dall'autore («solo se il fumo non c'e' quando si spara»): un lettore,
+	 * un solo scopo. ⚠️ Un secondo lettore o un secondo scopo e' una nuova eccezione, e va deciso.
+	 *
+	 * ⚠️ **Dal 2026-11-04 ([D-574]) quel lettore NON chiama piu' questa funzione**: legge la conoscenza di squadra con cui il click ha
+	 * giudicato, congelata all'inizio della risoluzione (`ClickKnowledgeAtLockIn`), tramite l'overload interno `PlanningMapFrom`.
+	 * Questa funzione legge `TeamKnowledgeState` VIVA, che il Blast rinfresca dopo gli scatti: dentro la Resolution darebbe la
+	 * conoscenza del Blast e non quella della pianificazione.
 	 */
 	const URTHexMapAsset* PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative);
 
@@ -1900,17 +1905,46 @@ protected:
 	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
 
 	/**
+	 * Congela, all'inizio della risoluzione, cio' con cui il click ha giudicato: la conoscenza di squadra
+	 * (`ClickKnowledgeAtLockIn`, [D-574]) e l'origine della mira di ogni unita' con un'azione pianificata
+	 * (`ClickAimOriginsAtLockIn`, [D-575] (a)). Registrate in #3981: i numeri valgono al merge.
+	 *
+	 * 🔑 **E' una COPIA TRANSITORIA, ricalcolata a ogni lock-in dallo stato che il lock-in trova**: `LockInAndResolve` la chiama
+	 * dopo `EnsureMatchRoster` (serve `StableUnitId`) e prima di `ValidatePlansAtLockIn` e della prima fase. Ne' la
+	 * conoscenza ne' l'origine sono aggiornate durante la risoluzione, quindi un replay che riesegue lo stesso turno dallo
+	 * stesso stato di pianificazione ottiene gli stessi valori. ⛔ Non entra nello stato canonico, nello snapshot, nel TurnLog,
+	 * in nessun hash ne' in una `UPROPERTY` replicata; la svuota `ConcludeResolution`.
+	 */
+	void FreezeClickContextAtLockIn();
+
+	/**
+	 * `PlanningMapFor` su una conoscenza data: `Source` al posto di `TeamKnowledgeState`. Stessa cache, stessa chiave (mappa,
+	 * revisione, squadra e le due liste di celle USATE: una conoscenza congelata e una viva con liste diverse non si scambiano
+	 * la copia), stesso ritorno all'autorevole per l'osservatore onnisciente o per la squadra assente / con le liste vuote.
+	 * `PlanningMapFor` e' `PlanningMapFrom(TeamKnowledgeState, ...)`. ⛔ Non e' un secondo ingresso per la Resolution:
+	 * l'unico chiamante dentro la risoluzione e' `ClickMapForPaymentClassification`.
+	 */
+	const URTHexMapAsset* PlanningMapFrom(const TArray<FRTTeamKnowledge>& Source, int32 TeamId,
+		const URTHexMapAsset* Authoritative);
+
+	/**
 	 * La mappa su cui il click di `TeamId` ha giudicato la portata, per CLASSIFICARE UN PAGAMENTO di ricarica.
 	 *
-	 * 🔴 **E' l'UNICO lettore di `PlanningMapFor` dentro la Resolution, e ha UN solo scopo**: decidere se un'azione partita
-	 * senza colpo e' stata cappata dal Fumo che la squadra NON vedeva (il click, sulla mappa ottimistica, ha accettato: si
-	 * paga) o da un Fumo che vedeva (il click rifiutava: gratis). Decisione d'autore del 2026-11-03, **eccezione scritta a
-	 * [D-534] (2)** («Resolution resta onnisciente»): colpi, movimento e percorsi restano sulla mappa autorevole, e questa
-	 * funzione non li serve. Lo chiamano `CollectAttackIntents` (via `FuoriPortataSoloPerIlTerreno`) per il
-	 * bersaglio-unita' e `ClassifyTerrainCappedPayment` per il tiro a cella, ciascuno per la propria forma di bersaglio.
+	 * 🔴 **E' l'UNICO lettore della mappa del click dentro la Resolution, e ha UN solo scopo**: decidere se un'azione partita
+	 * senza colpo e' stata fermata dalla portata (il Fumo che la squadra NON vedeva, o uno scatto fermato) e il click, sulla
+	 * propria mappa ottimistica, l'avrebbe accettata (si paga), oppure no (gratis). Decisione d'autore del 2026-11-03,
+	 * **eccezione scritta a [D-534] (2)** («Resolution resta onnisciente»): colpi, movimento e percorsi restano sulla mappa
+	 * autorevole, e questa funzione non li serve. Lo chiamano `CollectAttackIntents` (via `FuoriPortataMaIlClickAccettava`) per il
+	 * bersaglio-unita' e `ModifyArc`, e `ClassifyRangeLostPayment` per il tiro a cella.
+	 *
+	 * ⚠️ **Legge la conoscenza CONGELATA al lock-in, non `TeamKnowledgeState`** ([D-574]): quella viva la rinfresca il Blast dopo gli
+	 * scatti, e conterrebbe un Fumo che il click non vedeva. Per questo NON passa da `PlanningMapFor` (che legge la viva) ma
+	 * dall'overload interno `PlanningMapFrom`, che prende le liste da leggere: un overload, giustificato qui, che sta dietro
+	 * questo unico punto d'ingresso. Con la squadra assente dalla copia, o con le due liste vuote, ritorna la mappa autorevole,
+	 * come faceva il click.
 	 *
 	 * ⚠️ **Un altro lettore, o un altro scopo, e' una nuova eccezione a D-534 (2) e va deciso**: non si aggiunge una
-	 * chiamata a `PlanningMapFor` nella Resolution senza che l'autore l'abbia ammessa.
+	 * chiamata a `PlanningMapFor` o `PlanningMapFrom` nella Resolution senza che l'autore l'abbia ammessa.
 	 *
 	 * ⛔ **Tempo di vita del puntatore**: valido SOLO fino alla chiamata successiva con una chiave diversa. La cache di
 	 * `PlanningMapFor` e' a slot singolo (`PlanningMapCache`), e ricostruirla per un'altra squadra rilascia la copia nominata
@@ -1920,14 +1954,26 @@ protected:
 	const URTHexMapAsset* ClickMapForPaymentClassification(int32 TeamId, const URTHexMapAsset* Authoritative);
 
 	/**
-	 * Per ogni tiro a CELLA cappato dal Fumo (`Plan.TerrainCappedIntents`), dice se il click della squadra di chi tira lo avrebbe
-	 * accettato, e riempie `Ctx.TerrainCappedPayingIntents` con quelli che si PAGANO (`R7`, decisione d'autore del 2026-11-03).
+	 * L'origine con cui il click di `Unit` ha giudicato la portata della sua azione pianificata ([D-575] (a)): quella congelata al
+	 * lock-in (`ClickAimOriginsAtLockIn`), oppure `Fallback` se l'unita' non ne ha una (nessuna azione pianificata al lock-in).
+	 * Per chi non ha uno scatto che sposta, coincide con la cella di chi agisce: il comportamento non cambia.
+	 *
+	 * Sta accanto a `ClickMapForPaymentClassification` e ha il suo stesso scopo: classificare un pagamento. Il Blast misura da
+	 * dove l'unita' si trova; i COLPI e il TurnLog non leggono questa funzione.
+	 */
+	FRTCellId ClickOriginForPaymentClassification(const ARTUnit* Unit, const FRTCellId& Fallback) const;
+
+	/**
+	 * Per ogni tiro a CELLA che la portata ha fermato — cappato dal Fumo (`Plan.TerrainCappedIntents`) o oltre la portata dichiarata
+	 * da dove chi tira si trova (`Plan.OutOfDeclaredRangeIntents`) — dice se il click della squadra di chi tira, dall'origine con
+	 * cui ha giudicato e sulla conoscenza con cui ha pianificato, lo avrebbe accettato, e riempie `Ctx.RangeLostPayingIntents` con
+	 * quelli che si PAGANO (`R7`, decisione d'autore del 2026-11-03; `R9` per riflesso dello scatto fermato, [D-575] (a)).
 	 * Chiamata subito dopo `CollectHexAttacks`, e prima di `ApplyInterrupts`: il predicato di pagamento
 	 * (`IntentoPartitoSenzaColpo`) deve vedere il tiro anche quando un Interrupt lo annulla.
 	 *
-	 * La voce di TurnLog `OutOfRange` di questi tiri NON dipende da qui: la scrive il Blast per tutti i tiri cappati.
+	 * La voce di TurnLog `OutOfRange` NON dipende da qui: la scrive il Blast per tutti i tiri cappati dal Fumo, e per nessun altro.
 	 */
-	void ClassifyTerrainCappedPayment(FRTBlastContext& Ctx);
+	void ClassifyRangeLostPayment(FRTBlastContext& Ctx);
 
 	/**
 	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-380]).
@@ -3184,6 +3230,46 @@ protected:
 
 	/** La chiave per cui `PlanningMapCache` e' valida: mappa, revisione, squadra e conoscenza. */
 	uint32 PlanningMapKey = 0;
+
+	/**
+	 * La conoscenza di squadra con cui il **click** ha giudicato, congelata all'inizio della risoluzione ([D-574], registrata in
+	 * #3981: il numero vale al merge). Per ogni squadra di `TeamKnowledgeState` al lock-in, SOLO `TeamId`, `VisibleCells` ed
+	 * `ExploredCells`: sono le uniche letture di `MakeOptimisticPlanningMap`, e non c'e' un contatto in piu' da custodire. Ordinata
+	 * per `TeamId`.
+	 *
+	 * 🔑 **Perche' coincide con quella del click**: l'ultimo scrittore di `TeamKnowledgeState` prima di `LockInAndResolve` e'
+	 * `RefreshTeamKnowledgeForPlanning` (`PlanBots`, `RefreshTeamKnowledgeNow`); tutti gli altri — `AccumulateExploredFromTransit` (via
+	 * `ApplyOnEnter`), `RefreshTeamKnowledgeForBlast`, `RevealHitTargetsToAttackers`, la rivelazione del Move — girano DENTRO le fasi,
+	 * dopo. Il click legge `TeamKnowledgeState` (`PlayerAimMap` -> `PlanningMapFor`), quindi legge la stessa fotografia. Il Blast ne
+	 * ha una successiva: contiene anche cio' che uno scatto di un compagno mette in vista, ed e' la conoscenza SBAGLIATA per
+	 * classificare un pagamento.
+	 *
+	 * ⛔ **Transitoria, non canonica**: non entra nello stato canonico, nello snapshot, nel TurnLog, in nessun hash/digest ne' in
+	 * una `UPROPERTY` replicata (non c'e' replica in produzione: `grep -rn DOREPLIFETIME Source/` non da' righe fuori da `Tests/`).
+	 * Si ricalcola a ogni lock-in, la legge UN solo punto (`ClickMapForPaymentClassification`) e la svuota `ConcludeResolution`.
+	 */
+	TArray<FRTTeamKnowledge> ClickKnowledgeAtLockIn;
+
+	/** L'origine con cui il click ha giudicato la mira di una unita', per `StableUnitId` ([D-575] (a)). */
+	struct FClickAimOrigin
+	{
+		int32 StableUnitId = 0;
+		FRTCellId Cell;
+	};
+
+	/**
+	 * Le origini di mira congelate al lock-in: per ogni unita' VIVA con un'azione pianificata, `AimOriginFor(fase di quell'azione)`.
+	 * Per un'azione del Blast e' la cella d'arrivo dello scatto pianificato se lo scatto si applica e sposta, altrimenti la cella
+	 * corrente ([D-464]); il Blast misura invece da `Attacker.Cell`, dove l'unita' si e' davvero fermata. Ordinate per
+	 * `StableUnitId`, cercate per chiave: niente `TMap`. Stesso statuto di `ClickKnowledgeAtLockIn` (transitorie, non canoniche,
+	 * non replicate, svuotate a fine risoluzione).
+	 *
+	 * ⚠️ **E' l'origine del piano che il lock-in porta, che e' quella del click salvo un caso**: se il giocatore ripianifica lo scatto
+	 * DOPO aver cliccato l'azione, il click ha giudicato dal vecchio scatto e il piano eseguito porta il nuovo. Nulla cancella
+	 * l'azione in quel caso (`HandleClickOnCell` scrive `PlannedDashCell` senza toccare il piano d'attacco); gli slot `Invalid` e
+	 * `Warning` giudicano dall'origine corrente ([D-464]). Qui si paga rispetto al piano che si esegue: limite dichiarato.
+	 */
+	TArray<FClickAimOrigin> ClickAimOriginsAtLockIn;
 
 	/**
 	 * Lo stato che il **playback** mostra, distinto da quello canonico (`#2876`). Vedi

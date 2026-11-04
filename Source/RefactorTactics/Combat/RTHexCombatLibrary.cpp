@@ -406,13 +406,22 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			// un Fumo mai osservato non l'ha fermato in planning e qui il tiro sparisce. Ha una voce, non un colpo.
 			// ⚠️ **Qui si raccoglie OGNI tiro cappato, osservato o no**: la geometria e' pura e non conosce le squadre, e la voce
 			// di TurnLog `OutOfRange` esce per tutti. Chi decide quali PAGANO (`R7`, [D-563] (2): «cappato dal Fumo non
-			// osservato») e' `ARTTurnManager::ClassifyTerrainCappedPayment`, che ha la conoscenza di squadra: un tiro cappato da
+			// osservato») e' `ARTTurnManager::ClassifyRangeLostPayment`, che ha la conoscenza di squadra: un tiro cappato da
 			// un Fumo che il click vedeva (e rifiutava) e' gratis, uno cappato da un Fumo che non vedeva paga (decisione d'autore
 			// del 2026-11-03). ⌫ *Fino ad allora ogni intento di questo insieme pagava, anche col Fumo osservato.*
-			if (!bTargetsUnit && Intent.bCountsAsAttack
-				&& URTHexLibrary::HexDistance(Attacker.Cell, AimCell) <= Intent.RangeCells)
+			if (!bTargetsUnit && Intent.bCountsAsAttack)
 			{
-				Plan.TerrainCappedIntents.Add(IntentIdx);
+				if (URTHexLibrary::HexDistance(Attacker.Cell, AimCell) <= Intent.RangeCells)
+				{
+					Plan.TerrainCappedIntents.Add(IntentIdx);
+				}
+				else
+				{
+					// Oltre la portata DICHIARATA da dove chi tira si trova nel Blast: nessuna voce (`R9`), ma un canale di sola
+					// classificazione, perche' se il click aveva giudicato da un'altra origine (uno scatto fermato) l'aveva accettato
+					// ([D-575] (a)). Il confine `<=` sopra e `>` qui sono la stessa condizione vista dai due lati.
+					Plan.OutOfDeclaredRangeIntents.Add(IntentIdx);
+				}
 			}
 			continue; // fuori portata (anche per il cap del Fumo): nessun colpo
 		}
@@ -738,6 +747,9 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	Plan.OtherLayerIntents.Sort();
 	// Stessa rete: le voci del tiro cappato dal terreno finiscono nel TurnLog (`#2794`).
 	Plan.TerrainCappedIntents.Sort();
+	// Il canale di sola classificazione non finisce nel TurnLog, ma lo legge un pass che itera: stessa rete, per non dipendere
+	// dall'ordine del ciclo chiamante.
+	Plan.OutOfDeclaredRangeIntents.Sort();
 	// Stesso ordine canonico e per la stessa ragione: le voci di rifiuto finiscono nel TurnLog, e un ordine
 	// che dipendesse dalla raccolta renderebbe il replay non riproducibile.
 	Plan.DoorToggleRefusals.Sort([](const FRTDoorToggleRefusal& A, const FRTDoorToggleRefusal& B)

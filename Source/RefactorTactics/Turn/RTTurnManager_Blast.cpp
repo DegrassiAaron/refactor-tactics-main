@@ -267,7 +267,7 @@ namespace
 	 * (le righe `NoLineOfSight` e `OtherLayer` fanno nascere pagante il bersaglio-unita', ma e' la clausola a dire che
 	 * l'intento e' partito senza colpo: tolta lei non paga piu' nessun attacco ordinario, ne' il bersaglio-unita' ne' il
 	 * tiro a cella; l'Interrupt mirato a una cella paga per il ramo proprio di `AzionePartita`, detto qui sopra),
-	 * `R7` la clausola `TerrainCappedPayingIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e
+	 * `R7` la clausola `RangeLostPayingIntents` (togliere la riga `None` toglierebbe con lei `R1`, che e' dell'autore, e
 	 * `R3`), e `R3` un discriminante che il predicato oggi non legge: divide con `R1` la riga `None` e la clausola
 	 * `Footprints`.
 	 *
@@ -286,13 +286,20 @@ namespace
 	 * dall'autore, dice «cappato dal Fumo **non osservato**». `TerrainCappedIntents` si riempie in
 	 * `URTHexCombatLibrary::CollectHexAttacks` con `HexDistance <= Intent.RangeCells` sulla mappa AUTOREVOLE, senza
 	 * conoscenza di squadra, ed e' la voce di TurnLog per OGNI tiro cappato; il PAGAMENTO invece lo decide
-	 * `ClassifyTerrainCappedPayment`, che tiene solo i tiri che il click a cella (`HandleTargetCell`, la stessa `PlayerAimMap`
+	 * `ClassifyRangeLostPayment`, che tiene solo i tiri che il click a cella (`HandleTargetCell`, la stessa `PlayerAimMap`
 	 * del click su un'unita') avrebbe accettato: con il Fumo su una cella OSSERVATA il click vede il cap e rifiuta, e il
 	 * tiro e' GRATIS; con il Fumo NON osservato il click accetta, il cap emerge a risoluzione e il tiro paga. E' la stessa
-	 * regola, con la stessa mappa e la stessa funzione, del bersaglio-unita' (`FuoriPortataSoloPerIlTerreno`). ⌫ *Fino al
+	 * regola, con la stessa mappa e la stessa funzione, del bersaglio-unita' (`FuoriPortataMaIlClickAccettava`). ⌫ *Fino al
 	 * 2026-11-03 il tiro a cella pagava anche con il Fumo osservato (il codice era piu' largo del proprio testo): era un
 	 * `BLOCKED — DECISION REQUIRED` in `RIC-3`.* Lo pinna `Actions.Blast.ResolutionEmergingCausesPay` (Fumo NON osservato)
 	 * e `Actions.Blast.UndecidedCausesStayFree` (Fumo OSSERVATO).
+	 *
+	 * ✅ **Il Fumo che la squadra non vedeva e' quello con cui HA PIANIFICATO, dal 2026-11-04** ([D-574], registrata in #3981: il
+	 * numero vale al merge): la conoscenza che il click ha letto si congela all'inizio della risoluzione (`ClickKnowledgeAtLockIn`)
+	 * e il Blast non la rinfresca. Un Fumo messo in vista dallo scatto di un compagno prima del colpo non rende il tiro gratis. ⌫
+	 * *Fino ad allora la conoscenza era quella del Blast (`TeamKnowledgeState`, rinfrescata dopo gli scatti), e quel caso era gratis.*
+	 * Lo stesso vale per l'ORIGINE: il click ha giudicato dalla cella d'arrivo dello scatto pianificato, e si congela con la
+	 * conoscenza (`ClickAimOriginsAtLockIn`, [D-575] (a)).
 	 *
 	 * Si chiede a `CollectAttackIntents` con il motivo con cui l'azione e' nata. Risponde `true` per le cause che si
 	 * conoscono SOLO a risoluzione, decise dall'autore o conseguenza del principio:
@@ -314,14 +321,16 @@ namespace
 	 * finche' qualcuno non la mette in tabella.
 	 *
 	 * ⚠️ **`OutOfRange` NON sta nella tabella, e non e' una svista**: dice «fuori portata» senza dire PERCHE'. Se e' oltre la
-	 * portata dichiarata il click la rifiuta (gratis); se e' dentro la portata dichiarata e oltre il cap del Fumo non
-	 * osservato, il click l'ha accettata sulla mappa ottimistica (paga): lo distingue `FuoriPortataSoloPerIlTerreno`, qui
-	 * sotto. Il terzo caso — fuori portata perche' uno scatto di chi agisce si e' fermato — il resolver non sa
-	 * distinguerlo dal primo (non conserva l'origine con cui il click ha giudicato), e resta gratis: `BLOCKED — DECISION REQUIRED`.
+	 * portata dichiarata dall'origine del click il click la rifiuta (gratis); se e' dentro la portata dichiarata dall'origine
+	 * del click e fuori da dove l'unita' si trova — per il cap di un Fumo che la squadra non vedeva, o perche' uno scatto di
+	 * chi agisce si e' fermato — il click l'ha accettata sulla mappa ottimistica (paga): lo distingue
+	 * `FuoriPortataMaIlClickAccettava`, qui sotto, con la conoscenza e l'origine congelate al lock-in ([D-574], [D-575] (a)).
 	 *
-	 * ⚠️ **Il tiro a CELLA fuori portata dichiarata e la distanza minima non sono qui**: li giudica
-	 * `CollectHexAttacks`, in silenzio, e non lasciano ne' impronta ne' canale — il click li rifiuta, quindi
-	 * restano gratis ([D-200], [D-414] punto 2). `R10`, la guardia di vita di [D-209], sta nel pagamento.
+	 * ⚠️ **La distanza minima non e' qui**: la giudica `CollectHexAttacks`, in silenzio, e non lascia ne' impronta ne' canale — il
+	 * click la rifiuta, quindi resta gratis ([D-200], [D-414] punto 2). Il tiro a CELLA oltre la portata dichiarata ha un canale di
+	 * sola classificazione (`OutOfDeclaredRangeIntents`): e' gratis se il click lo rifiutava anche dall'origine che ha usato
+	 * (`R9`), paga se l'aveva accettato dalla cella d'arrivo di uno scatto che poi si e' fermato. `R10`, la guardia di vita di
+	 * [D-209], sta nel pagamento.
 	 */
 	bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo)
 	{
@@ -343,27 +352,47 @@ namespace
 	 * Partito vuol dire: nato con una causa di pagamento (`UnhitPayableIntents`), dichiarato aggressione
 	 * (`bCountsAsAttack`: un'azione che non e' un colpo ha le proprie regole) e arrivato a uno dei quattro esiti che
 	 * la geometria registra per un intento che HA superato portata e distanza minima — l'impronta (area vuota,
-	 * bersaglio scattato), la linea bloccata, il piano diverso, il tiro cappato dal Fumo che la squadra non vedeva
-	 * (`TerrainCappedPayingIntents`: il tiro cappato dal Fumo che la squadra VEDEVA e' un tiro che il click ha rifiutato).
-	 * Un intento scartato in silenzio dalla portata o dalla distanza minima non ha nessuno dei quattro, ed e' per questo
-	 * che il click lo rifiuta e la regola lo lascia gratis.
+	 * bersaglio scattato), la linea bloccata, il piano diverso, il tiro che la portata ha fermato e che il click avrebbe
+	 * accettato (`RangeLostPayingIntents`: il tiro cappato dal Fumo che la squadra VEDEVA, o oltre la portata dall'origine del
+	 * click, e' un tiro che il click ha rifiutato). Un intento scartato in silenzio dalla portata o dalla distanza minima, che il
+	 * click rifiutava anche dall'origine che ha usato, non ha nessuno dei quattro, ed e' per questo che la regola lo lascia gratis.
+	 *
+	 * ➕ **2026-11-04, [D-575] (a), `INT-*`**: l'eccezione a «un'azione che non e' un colpo ha le proprie regole» sono le due
+	 * interazioni con una porta che la raccolta ha rifiutato — nessuna porta sul bordo dichiarato (`DoorlessIntents`, `NoEffect`) e
+	 * la commutazione di una porta bloccata o distrutta (`DoorToggleRefusals`) —, perche' il click di produzione dei bordi
+	 * (`HandleTargetEdge`) le accetta: guarda la portata, non la porta (misurato da `Actions.Blast.DoorInteractionRefusalsPay`).
+	 * ⚠️ **Il successo della stessa interazione NON paga**: una commutazione riuscita non lascia un colpo ne' un canale, e non ha un
+	 * sito di pagamento ([D-575] (c): le azioni non d'attacco restano gratis e non decise). L'`Interact` spedito ha ricarica 0, quindi
+	 * oggi non cambia nessuna partita; l'asimmetria (il rifiuto costa, il successo no) e' dichiarata nel report della PR.
 	 *
 	 * ⚠️ Va chiamato PRIMA dei `RemoveAll` finali di `ApplyInterrupts`, che tolgono impronte e canali degli intenti
-	 * cancellati: dopo, un'azione interrotta non avrebbe piu' niente da cui risultare partita. ⚠️ `TerrainCappedPayingIntents`
+	 * cancellati: dopo, un'azione interrotta non avrebbe piu' niente da cui risultare partita. ⚠️ `RangeLostPayingIntents`
 	 * non e' un canale del piano e quel `RemoveAll` non lo svuota: chi lo chiama dopo deve escludere gli intenti interrotti,
 	 * come fa `MarkAttackerAbilitiesSpent` con `InterruptedIntents`.
 	 */
 	bool IntentoPartitoSenzaColpo(const FRTBlastContext& Ctx, int32 IntentIdx)
 	{
-		if (!Ctx.UnhitPayableIntents.Contains(IntentIdx) || !Ctx.Intents.IsValidIndex(IntentIdx)
-			|| !Ctx.Intents[IntentIdx].bCountsAsAttack)
+		if (!Ctx.UnhitPayableIntents.Contains(IntentIdx) || !Ctx.Intents.IsValidIndex(IntentIdx))
 		{
 			return false;
 		}
 		const FRTHexBlastPlan& Piano = Ctx.Plan;
+		// `INT-*`: l'unica clausola che non passa dalla dichiarazione di aggressione. Va prima della guardia `bCountsAsAttack`.
+		if (Piano.DoorlessIntents.Contains(IntentIdx)
+			|| Piano.DoorToggleRefusals.ContainsByPredicate([IntentIdx](const FRTDoorToggleRefusal& Rifiuto)
+			{
+				return Rifiuto.IntentIndex == IntentIdx;
+			}))
+		{
+			return true;
+		}
+		if (!Ctx.Intents[IntentIdx].bCountsAsAttack)
+		{
+			return false;
+		}
 		return Piano.OtherLayerIntents.Contains(IntentIdx)
 			|| Piano.BlockedIntents.Contains(IntentIdx)
-			|| Ctx.TerrainCappedPayingIntents.Contains(IntentIdx)
+			|| Ctx.RangeLostPayingIntents.Contains(IntentIdx)
 			|| Piano.Footprints.ContainsByPredicate([IntentIdx](const FRTAttackFootprint& Impronta)
 			{
 				return Impronta.IntentIndex == IntentIdx;
@@ -371,17 +400,21 @@ namespace
 	}
 
 	/**
-	 * ➕ **2026-11-03, [D-571] (RIC-3), causa (a)**: il bersaglio-UNITA' e' fuori portata SOLO per il cap del terreno?
+	 * ➕ **[D-571] (RIC-3), causa (a)**: l'azione e' fuori portata da dove l'unita' si trova nel Blast, ma il CLICK, dall'origine con
+	 * cui ha giudicato e sulla mappa che aveva, l'avrebbe accettata?
 	 *
 	 * `ValidateInstance` misura la distanza dalla mira congelata contro la portata EFFETTIVA sulla mappa AUTOREVOLE (il Fumo la
-	 * cappa a 2), e risponde `OutOfRange` sia oltre la portata dichiarata sia oltre il cap. Il click giudica invece sulla mappa
-	 * OTTIMISTICA (`PlayerAimMap` -> `PlanningMapFor`, [D-465] (3)), che rende neutre le sole celle fuori da `ExploredCells U
-	 * VisibleCells` della propria squadra: un Fumo su una cella NOTA cappa la portata anche per il click, che rifiuta (geometria
-	 * nota in pianificazione, [D-200]: gratis); un Fumo su una cella NON osservata il click non lo vede, accetta, e il cap emerge
-	 * solo a risoluzione. E' il testo di `R7` ([D-563] (2): «cappato dal Fumo non osservato») attuato per il bersaglio-UNITA'
-	 * qui e per il tiro a CELLA in `ClassifyTerrainCappedPayment`, con la stessa funzione e la stessa mappa: dal 2026-11-03
-	 * (decisione d'autore) il tiro a cella cappato da un Fumo OSSERVATO e' gratis come il bersaglio-unita'. ⌫ *Fino ad allora
-	 * il codice di `R7` per il tiro a cella era piu' largo del proprio testo e pagava anche con il Fumo osservato.*
+	 * cappa a 2), da `Attacker.Cell`, e risponde `OutOfRange` sia oltre la portata dichiarata sia oltre il cap. Il click giudica
+	 * invece sulla mappa OTTIMISTICA (`PlayerAimMap` -> `PlanningMapFor`, [D-465] (3)), che rende neutre le sole celle fuori da
+	 * `ExploredCells U VisibleCells` della propria squadra, e dall'origine della mira prevista (`AimOriginFor`). Quindi:
+	 *
+	 * - un Fumo su una cella NOTA cappa la portata anche per il click, che rifiuta (geometria nota in pianificazione, [D-200]:
+	 *   gratis); un Fumo su una cella NON osservata il click non lo vede, accetta, e il cap emerge solo a risoluzione. E' il testo di
+	 *   `R7` ([D-563] (2): «cappato dal Fumo non osservato») attuato per il bersaglio-UNITA' qui e per il tiro a CELLA in
+	 *   `ClassifyRangeLostPayment`, con la stessa funzione e la stessa mappa;
+	 * - uno scatto di chi agisce che si e' fermato (o una spinta) lascia l'unita' dove il click non aveva previsto: il click ha
+	 *   accettato dalla cella d'arrivo dello scatto, il Blast misura da dove l'unita' si trova. [D-575] (a): paga, perche' il click
+	 *   ha accettato il piano e l'esecuzione lo impedisce.
 	 *
 	 * ✅ **Eccezione STRETTA a [D-534] (2), decisa dall'autore il 2026-11-03.** Il contratto scritto dice che la Resolution
 	 * non chiama `PlanningMapFor` e resta sulla mappa autorevole (`RTTurnManager.h`, [D-534] (2), «confermato dall'autore
@@ -392,36 +425,28 @@ namespace
 	 * quindi la sola cosa che varia e' se la squadra lo conosceva: se non lo vedeva il click accettava e si paga, se lo
 	 * vedeva il click rifiutava ed e' gratis. La Resolution legge la mappa del click SOLO per classificare un pagamento di
 	 * ricarica, e il lettore e' UNO, con UN solo scopo: `ClickMapForPaymentClassification`. La cache resta fuori dallo stato
-	 * canonico e l'errore di conoscenza va di norma verso il gratis (colpi e movimento restano autorevoli; il residuo del tiro a
-	 * cella e' in `ClassifyTerrainCappedPayment`); il risultato decide una ricarica, che entra in `FRTUnitStateDigest` e la
-	 * vedono anche le squadre bot.
+	 * canonico; il risultato decide una ricarica, che entra in `FRTUnitStateDigest` e la vedono anche le squadre bot.
 	 *
-	 * Qui si rifa' la domanda del click con la STESSA funzione e la stessa mappa: `MappaDelClick` e' `PlanningMapFor(squadra,
-	 * mappa autorevole)`, e il predicato e' vero se la portata effettiva su quella mappa ARRIVA alla mira. Cio' esclude da se'
-	 * il fuori portata oltre la portata DICHIARATA (la portata effettiva non supera mai quella dichiarata).
+	 * Qui si rifa' la domanda del click con la STESSA funzione: `MappaDelClick` e' la mappa ottimistica costruita sulla conoscenza
+	 * CONGELATA al lock-in ([D-574]), `Da` l'origine CONGELATA ([D-575] (a)), e il predicato e' vero se la portata effettiva su
+	 * quella mappa, da quell'origine, ARRIVA alla mira. Cio' esclude da se' il fuori portata oltre la portata DICHIARATA dall'origine
+	 * del click (la portata effettiva non supera mai quella dichiarata). Per chi non ha uno scatto che sposta, `Da` e' `Attacker.Cell`
+	 * e la risposta e' quella di prima.
 	 *
-	 * ⚠️ **Approssimazione dichiarata, e il verso dell'errore**: la conoscenza di squadra e' quella del Blast, non quella della
-	 * pianificazione. Le celle esplorate non si perdono, quindi la conoscenza del Blast CONTIENE quella del click: un Fumo che
-	 * una cella diventa nota durante il turno (uno scatto che la mette in vista) si legge osservato e resta gratis anche se il
-	 * click, in pianificazione, lo ignorava (pinnato per il tiro a cella dalla riga «il compagno scatta e mette il Fumo in vista»
-	 * di `Actions.Blast.UndecidedCausesStayFree`, campanello). Di norma l'errore va nel verso del gratis, e non in quello di un
-	 * pagamento indebito.
 	 * ⚠️ **«Osservato» e' quello della mappa del click, non «in vista adesso»**: una cella esplorata ma ora fuori vista conserva
 	 * il contenuto ATTUALE (D-534 (3), `Q4`), quindi un Fumo nato dopo l'esplorazione si legge e il click rifiuta. Il criterio
-	 * dell'autore e' il click, e il codice lo segue; la lettera «non lo vedeva la squadra» diverge qui (pinnato, per il tiro a
-	 * cella e per il bersaglio-unita', in `Actions.Blast.UndecidedCausesStayFree`).
-	 * ⚠️ **L'origine di chi agisce puo' differire da quella del click, e lo scarto NON e' dimostrato verso il gratis**: il click
-	 * giudica da `AimOriginFor(ResolutionPhase)`, la cella d'arrivo dello scatto PIANIFICATO; il Blast misura da `Attacker.Cell`,
-	 * dove lo scatto e' davvero arrivato. Con uno scatto fermato o spostato le due origini possono differire, e la distanza
-	 * contro il cap puo' dare un verdetto diverso nei due versi: non e' misurato. E' il `BLOCKED — DECISION REQUIRED` «scatto
-	 * fermato» (`Actions.Blast.UndecidedCausesStayFree`), che resta gratis.
+	 * dell'autore e' il click, e il codice lo segue; la lettera «non lo vedeva la squadra» diverge qui, dichiarato in [D-574] (3)
+	 * e pinnato in `Actions.Blast.UndecidedCausesStayFree`.
+	 *
+	 * ⚠️ **Solo la domanda di PORTATA del click**: il click giudica anche distanza minima, piano e linea di tiro. Un tiro che il click
+	 * avrebbe rifiutato per UNA di queste dall'origine che ha usato pagherebbe lo stesso: limite dichiarato in `RIC-3`, non coperto.
 	 */
-	bool FuoriPortataSoloPerIlTerreno(ERTActionInvalidReason Motivo, const URTHexMapAsset* MappaDelClick,
-		const FRTCellId& Da, const FRTCellId& Mira, int32 PortataDichiarata)
+	bool FuoriPortataMaIlClickAccettava(ERTActionInvalidReason Motivo, const URTHexMapAsset* MappaDelClick,
+		const FRTCellId& OrigineDelClick, const FRTCellId& Mira, int32 PortataDichiarata)
 	{
 		return Motivo == ERTActionInvalidReason::OutOfRange
-			&& URTTerrainLibrary::EffectiveTargetingRange(MappaDelClick, Da, Mira, PortataDichiarata)
-				>= URTHexLibrary::HexDistance(Da, Mira);
+			&& URTTerrainLibrary::EffectiveTargetingRange(MappaDelClick, OrigineDelClick, Mira, PortataDichiarata)
+				>= URTHexLibrary::HexDistance(OrigineDelClick, Mira);
 	}
 }
 
@@ -522,63 +547,139 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
+void ARTTurnManager::FreezeClickContextAtLockIn()
+{
+	// ➕ **[D-574] la conoscenza, [D-575] (a) l'origine: CIO' CON CUI IL CLICK HA GIUDICATO, congelato prima della prima fase.**
+	//
+	// La conoscenza. Si copiano SOLO le due liste che `MakeOptimisticPlanningMap` legge (`VisibleCells`, `ExploredCells`) con la
+	// squadra, non l'intera `FRTTeamKnowledge`: i contatti e il resto non servono a classificare un pagamento, e non c'e' un campo
+	// in piu' da tenere d'accordo con l'originale. L'ordine e' esplicito per `TeamId` (l'array vivo e' ordinato dal refresh, ma
+	// `AccumulateExploredFromTransit` puo' accodare una squadra nuova): la ricerca e' per chiave e non dipende dall'ordine, ma una
+	// copia ordinata non lo lascia al caso.
+	ClickKnowledgeAtLockIn.Reset();
+	ClickKnowledgeAtLockIn.Reserve(TeamKnowledgeState.Num());
+	for (const FRTTeamKnowledge& Live : TeamKnowledgeState)
+	{
+		FRTTeamKnowledge Frozen;
+		Frozen.TeamId = Live.TeamId;
+		Frozen.VisibleCells = Live.VisibleCells;
+		Frozen.ExploredCells = Live.ExploredCells;
+		ClickKnowledgeAtLockIn.Add(MoveTemp(Frozen));
+	}
+	ClickKnowledgeAtLockIn.Sort([](const FRTTeamKnowledge& A, const FRTTeamKnowledge& B) { return A.TeamId < B.TeamId; });
+
+	// L'origine. Per ogni unita' VIVA con un'azione pianificata, la cella da cui il click ha mirato: `AimOriginFor` per la fase di
+	// QUELL'azione ([D-464]), cioe' la cella d'arrivo dello scatto pianificato per un'azione del Blast se lo scatto sposta, altrimenti
+	// la cella corrente. Si legge ADESSO perche' dopo il Dash la cella corrente e' un'altra, e il piano di scatto e' gia' stato consumato.
+	// Le unita' vengono dal punto UNICO che le raccoglie e le ordina; l'ordine finale e' per `StableUnitId`, la chiave di ricerca.
+	ClickAimOriginsAtLockIn.Reset();
+	TArray<ARTUnit*> Units;
+	CollectLivingUnits(Units);
+	for (const ARTUnit* Unit : Units)
+	{
+		const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (!Planned)
+		{
+			continue; // nessuna azione pianificata: non c'e' una mira che il click abbia giudicato
+		}
+		FClickAimOrigin Origin;
+		Origin.StableUnitId = Unit->StableUnitId;
+		Origin.Cell = Unit->AimOriginFor(Planned->Def.ResolutionPhase);
+		ClickAimOriginsAtLockIn.Add(Origin);
+	}
+	ClickAimOriginsAtLockIn.Sort([](const FClickAimOrigin& A, const FClickAimOrigin& B) { return A.StableUnitId < B.StableUnitId; });
+}
+
 const URTHexMapAsset* ARTTurnManager::ClickMapForPaymentClassification(int32 TeamId, const URTHexMapAsset* Authoritative)
 {
-	// 🔴 **L'UNICO lettore di `PlanningMapFor` dentro la Resolution, con UN solo scopo** (decisione d'autore del 2026-11-03,
-	// eccezione stretta a [D-534] (2)): dire se il click di `TeamId` vedeva il cap del Fumo che ha fermato un'azione, per
-	// decidere se la ricarica si paga. Non serve colpi, movimento ne' percorsi, e non c'e' un secondo chiamante: uno nuovo
-	// sarebbe una nuova eccezione.
+	// 🔴 **L'UNICO lettore della mappa del click dentro la Resolution, con UN solo scopo** (decisione d'autore del 2026-11-03,
+	// eccezione stretta a [D-534] (2)): dire se il click di `TeamId` avrebbe accettato la portata di un'azione che il Fumo o uno
+	// scatto fermato hanno fermato, per decidere se la ricarica si paga. Non serve colpi, movimento ne' percorsi, e non c'e' un
+	// secondo chiamante: uno nuovo sarebbe una nuova eccezione.
 	//
-	// ⚠️ **La conoscenza e' quella del Blast** (`TeamKnowledgeState`, rinfrescata da `RefreshTeamKnowledgeForBlast` prima di
-	// ogni raccolta), la STESSA su cui `CollectAttackIntents` e il congelamento dei verdetti ([D-223]) gia' decidono: non
-	// c'e' una seconda fonte di conoscenza. Contiene quella con cui il click ha giudicato (le celle esplorate non si perdono),
-	// quindi di norma l'errore va verso il gratis (con le eccezioni dichiarate in `FuoriPortataSoloPerIlTerreno`).
+	// ✅ **La conoscenza e' quella con cui il click ha giudicato** (`ClickKnowledgeAtLockIn`, [D-574]), congelata prima della prima
+	// fase, e NON quella del Blast: `RefreshTeamKnowledgeForBlast` rinfresca `TeamKnowledgeState` dopo gli scatti, e un Fumo messo
+	// in vista dallo scatto di un compagno si leggerebbe «osservato» e il tiro sarebbe gratis. ⌫ *Fino al 2026-11-04 questa funzione
+	// chiamava `PlanningMapFor` e leggeva la conoscenza del Blast.* L'overload interno `PlanningMapFrom` prende le liste da leggere
+	// ed e' dietro questo unico punto d'ingresso: `PlanningMapFor` (la viva) non ha piu' nessun lettore dentro la Resolution.
 	//
-	// ⚠️ **Dipende solo da `(Authoritative, TeamId, TeamKnowledgeState)`, non dalla storia delle chiamate**: la cache e' a
-	// slot singolo e la sua chiave contiene mappa, revisione, squadra e le due liste di celle, quindi un click del giocatore
-	// fra due chiamate (live) o la sua assenza (replay) sposta al piu' una ricostruzione, mai l'esito.
+	// ⚠️ **Dipende solo da `(Authoritative, TeamId, ClickKnowledgeAtLockIn)`, non dalla storia delle chiamate ne' dal Blast**: la
+	// cache e' a slot singolo e la sua chiave contiene mappa, revisione, squadra e le due liste di celle LETTE, quindi un click del
+	// giocatore fra due chiamate (live) o la sua assenza (replay) sposta al piu' una ricostruzione, mai l'esito. Una copia vuota (nessun
+	// `LockInAndResolve`, o squadra senza conoscenza al lock-in) da' la mappa autorevole: e' la risposta che avrebbe avuto il click.
 	//
 	// ⛔ **TEMPO DI VITA DEL PUNTATORE**: e' valido SOLO fino alla chiamata successiva con una chiave diversa. La cache di
 	// `PlanningMapFor` e' a slot singolo (`PlanningMapCache`): ricostruirla per un'altra squadra rilascia la copia che questo
-	// puntatore nomina, e il GC puo' raccoglierla. I due siti lo usano SUBITO, dentro la stessa espressione che ne trae un
+	// puntatore nomina, e il GC puo' raccoglierla. I siti lo usano SUBITO, dentro la stessa espressione che ne trae un
 	// `bool`; nessuno lo conserva. Una futura ottimizzazione che tenga una mappa per squadra (o un puntatore fra due chiamate)
 	// lo renderebbe pendente: dovrebbe tenere la propria copia viva, non fidarsi di questa.
-	return PlanningMapFor(TeamId, Authoritative);
+	return PlanningMapFrom(ClickKnowledgeAtLockIn, TeamId, Authoritative);
 }
 
-void ARTTurnManager::ClassifyTerrainCappedPayment(FRTBlastContext& Ctx)
+FRTCellId ARTTurnManager::ClickOriginForPaymentClassification(const ARTUnit* Unit, const FRTCellId& Fallback) const
+{
+	// L'origine con cui il click di QUESTA unita' ha giudicato ([D-575] (a)), cercata per `StableUnitId` nella copia congelata al
+	// lock-in. Senza voce (nessuna azione pianificata al lock-in) vale `Fallback`, che i chiamanti pongono uguale a `Attacker.Cell`:
+	// e' il comportamento di prima. La ricerca e' per chiave: l'ordine dell'array e' esplicito ma non decide niente.
+	if (Unit)
+	{
+		const int32 StableId = Unit->StableUnitId;
+		if (const FClickAimOrigin* Found = ClickAimOriginsAtLockIn.FindByPredicate(
+			[StableId](const FClickAimOrigin& O) { return O.StableUnitId == StableId; }))
+		{
+			return Found->Cell;
+		}
+	}
+	return Fallback;
+}
+
+void ARTTurnManager::ClassifyRangeLostPayment(FRTBlastContext& Ctx)
 {
 	// `R7` ([D-563] (2)): un tiro a CELLA cappato dal Fumo paga se la squadra NON vedeva il Fumo, perche' allora il click ha
 	// accettato il piano sulla propria mappa ottimistica e il cap e' emerso a risoluzione. Se lo vedeva il click rifiutava, e
 	// cio' che il click rifiuta e' gratis (decisione d'autore del 2026-11-03). E' la stessa domanda e la stessa funzione del
-	// bersaglio-unita' (`FuoriPortataSoloPerIlTerreno`), fatta sulla stessa mappa: la differenza e' che qui non c'e' un
+	// bersaglio-unita' (`FuoriPortataMaIlClickAccettava`), fatta sulla stessa mappa: la differenza e' che qui non c'e' un
 	// motivo di fallback da guardare, perche' i tiri in `TerrainCappedIntents` sono per costruzione fuori portata sulla
 	// mappa autorevole, entro la dichiarata (`CollectHexAttacks`), cioe' `OutOfRange` per il solo terreno.
 	//
+	// ➕ **`R9` per riflesso dello scatto fermato** ([D-575] (a), registrata in #3981: il numero vale al merge): i tiri in
+	// `OutOfDeclaredRangeIntents` sono oltre la portata DICHIARATA da dove chi tira si trova nel Blast, e spariscono in silenzio.
+	// Se il click, dall'origine con cui ha giudicato (la cella d'arrivo dello scatto pianificato), li aveva accettati, l'esecuzione
+	// ha impedito il piano: pagano. Se li rifiutava anche da li' (e' il caso comune: nessuno scatto fermato, origine uguale a
+	// `Attacker.Cell`) restano gratis, come `R9` ha sempre fatto ([D-563] (3)).
+	//
 	// ⚠️ **Solo la domanda di PORTATA del click**, come per il bersaglio-unita': il click giudica prima la portata, e poi la
-	// distanza minima, il piano e la linea di tiro. Un tiro cappato che il click avrebbe rifiutato per UNO di questi ultimi
+	// distanza minima, il piano e la linea di tiro. Un tiro che il click avrebbe rifiutato per UNO di questi ultimi
 	// sulla mappa ottimistica (una distanza minima sopra il cap, una mira su un altro piano, una linea gia' nota bloccata)
 	// paga qui e non pagherebbe col click: sbaglia verso il PAGAMENTO, a differenza del resto del predicato. Per la distanza
-	// minima il catalogo spedito non ha un caso (l'unica e' 2, e il cap e' 2); il piano e la linea non sono misurati.
-	// Dichiarato in `RIC-3` fra i limiti, non coperto.
+	// minima il catalogo spedito non ha un caso (l'unica e' 2, e il cap e' 2); il piano e la linea non sono misurati. Un tiro sotto
+	// la distanza minima NON ha canale (resta gratis, come prima). Dichiarato in `RIC-3` fra i limiti, non coperto.
 	//
-	// ⚠️ **Ordinato e senza dipendere da `TSet`**: si itera `TerrainCappedIntents`, che `CollectHexAttacks` ordina; l'insieme
-	// che se ne ricava si legge solo con `Contains`.
-	Ctx.TerrainCappedPayingIntents.Reset();
-	for (const int32 IntentIdx : Ctx.Plan.TerrainCappedIntents)
+	// ⚠️ **Ordinato e senza dipendere da `TSet`**: si iterano i due canali del piano, che `CollectHexAttacks` ordina; l'insieme
+	// che se ne ricava si legge solo con `Contains`, e un intento sta in uno solo dei due.
+	Ctx.RangeLostPayingIntents.Reset();
+	const auto Classifica = [this, &Ctx](const TArray<int32>& Canale)
 	{
-		if (!Ctx.Intents.IsValidIndex(IntentIdx) || !Ctx.HexUnits.IsValidIndex(Ctx.Intents[IntentIdx].AttackerId))
+		for (const int32 IntentIdx : Canale)
 		{
-			continue;
+			if (!Ctx.Intents.IsValidIndex(IntentIdx) || !Ctx.HexUnits.IsValidIndex(Ctx.Intents[IntentIdx].AttackerId))
+			{
+				continue;
+			}
+			const FRTHexAttackIntent& Intent = Ctx.Intents[IntentIdx];
+			const FRTHexCombatUnit& Attacker = Ctx.HexUnits[Intent.AttackerId]; // dove chi tira si trova nel Blast: la STESSA cella con cui `CollectHexAttacks` ha misurato
+			// L'origine del click, non quella del Blast: coincidono salvo uno scatto fermato o una spinta ([D-575] (a)).
+			const FRTCellId Origine = ClickOriginForPaymentClassification(
+				Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr, Attacker.Cell);
+			if (FuoriPortataMaIlClickAccettava(ERTActionInvalidReason::OutOfRange,
+				ClickMapForPaymentClassification(Attacker.TeamId, Ctx.Map), Origine, Intent.TargetCell, Intent.RangeCells))
+			{
+				Ctx.RangeLostPayingIntents.Add(IntentIdx);
+			}
 		}
-		const FRTHexAttackIntent& Intent = Ctx.Intents[IntentIdx];
-		const FRTHexCombatUnit& Attacker = Ctx.HexUnits[Intent.AttackerId]; // la STESSA origine con cui `CollectHexAttacks` ha misurato
-		if (FuoriPortataSoloPerIlTerreno(ERTActionInvalidReason::OutOfRange,
-			ClickMapForPaymentClassification(Attacker.TeamId, Ctx.Map), Attacker.Cell, Intent.TargetCell, Intent.RangeCells))
-		{
-			Ctx.TerrainCappedPayingIntents.Add(IntentIdx);
-		}
-	}
+	};
+	Classifica(Ctx.Plan.TerrainCappedIntents);
+	Classifica(Ctx.Plan.OutOfDeclaredRangeIntents);
 }
 
 void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
@@ -1088,8 +1189,20 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					// categoria `Fallback` dichiara il proprio soggetto.
 					AppendLogEntry(ArcRejected, Unit);
 
-					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
-					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
+					// Il cooldown paga cio' che ha davvero toccato la mappa, e il piano e' gia' stato azzerato sopra (si spende
+					// nel turno, attivata o no) — SALVO che il click avesse accettato la portata: ➕ **[D-575] (a), 2026-11-04**, uno
+					// scatto di chi agisce che si e' fermato lo lascia dove il click non aveva previsto (la portata sopra e' misurata da
+					// `Unit->Cell`, il click aveva giudicato dalla cella d'arrivo dello scatto), e l'esecuzione ha impedito un piano
+					// accettato: paga. Oltre la portata dichiarata anche dall'origine del click, o dietro un Fumo che il click vedeva,
+					// resta gratis. La guardia e' quella del ramo `ArcTarget` morto qui sopra («vivo quando annota», [D-209]); la
+					// vita dei due rami non e' una regola sola. La domanda e' la STESSA del bersaglio-unita'
+					// (`FuoriPortataMaIlClickAccettava`), con la conoscenza e l'origine congelate al lock-in.
+					if (Unit->IsAlive() && FuoriPortataMaIlClickAccettava(ERTActionInvalidReason::OutOfRange,
+						ClickMapForPaymentClassification(Unit->TeamId, Map),
+						ClickOriginForPaymentClassification(Unit, Unit->Cell), ArcAim, PlannedNow->Def.RangeCells))
+					{
+						Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex);
+					}
 					continue;
 				}
 
@@ -1365,25 +1478,28 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// si annota ORA, e si paga solo se chi attacca sopravvive alla fase ([D-209]). Le altre cause di questo ramo
 			// restano gratis, e dal 2026-11-03 non perche' siano «non decise» ma perche' il click le rifiuta o non le produce
 			// ([D-571], RIC-3): `TargetGone`, `TargetUnknown`, `TargetFriendly` e `OutOfRange` oltre la portata dichiarata o dietro
-			// un Fumo noto. L'unica eccezione e' `OutOfRange` per il cap di un Fumo NON osservato, qui sotto.
+			// un Fumo noto. (`TargetFriendly` per l'alleato NON comandabile e' un click da riparare, [D-575] (b): gratis intanto.)
+			// L'unica eccezione e' `OutOfRange` che il click avrebbe accettato, qui sotto.
 			//
 			// ⚠️ **Solo se l'azione si dichiara aggressione** (`bCountsAsAttack`), la STESSA clausola di
 			// `IntentoPartitoSenzaColpo`: la regola e' «se si usa un attacco si paga», e un'azione che non e' un colpo ha le
 			// proprie regole (la cura paga per conto suo, in `CollectHealActions`). Senza la clausola `R6` pagava anche
 			// un'azione non aggressiva su un bersaglio-unita' caduto, che su `main` e' gratis.
 			//
-			// ➕ **2026-11-03, [D-571] (RIC-3) causa (a)**: il bersaglio-unita' fuori portata SOLO per il cap del Fumo non
-			// osservato paga, come dice il testo di `R7` ([D-563] (2)): il click l'ha accettato sulla mappa ottimistica. Il tiro a
-			// CELLA cappato dal Fumo segue la stessa regola dal 2026-11-03 (decisione d'autore), in `ClassifyTerrainCappedPayment`.
-			// Oltre la portata DICHIARATA no (il click la rifiuta), e nemmeno con un Fumo su una cella NOTA (il click ne vede il
-			// cap): `OutOfRange` non sta nella tabella proprio per questo, vedi `FuoriPortataSoloPerIlTerreno`, che rifa' la
-			// domanda del click sulla STESSA mappa (`ClickMapForPaymentClassification`, l'unico lettore di `PlanningMapFor` nella
-			// Resolution). La sede e il resto non cambiano: si annota qui, scrive `MarkAttackerAbilitiesSpent`.
+			// ➕ **2026-11-03, [D-571] (RIC-3) causa (a)**: il bersaglio-unita' fuori portata che il click avrebbe accettato paga: o
+			// per il cap di un Fumo che la squadra non vedeva quando ha pianificato (il testo di `R7`, [D-563] (2)), o — [D-575] (a),
+			// 2026-11-04 — perche' uno scatto di chi agisce si e' fermato e il click aveva giudicato dalla cella d'arrivo dello scatto.
+			// Il tiro a CELLA segue la stessa regola in `ClassifyRangeLostPayment`. Oltre la portata DICHIARATA dall'origine del click
+			// no (il click la rifiuta), e nemmeno con un Fumo su una cella NOTA a chi ha pianificato (il click ne vede il cap):
+			// `OutOfRange` non sta nella tabella proprio per questo, vedi `FuoriPortataMaIlClickAccettava`, che rifa' la domanda del
+			// click sulla STESSA mappa e dalla STESSA origine (`ClickMapForPaymentClassification` e
+			// `ClickOriginForPaymentClassification`: conoscenza e origine congelate al lock-in, non quelle del Blast). La sede e il
+			// resto non cambiano: si annota qui, scrive `MarkAttackerAbilitiesSpent`.
 			// ⚠️ La mappa del click si costruisce (e si tiene in cache) solo per il motivo che la usa.
-			const bool bFuoriPortataPerIlTerreno = Reason == ERTActionInvalidReason::OutOfRange
-				&& FuoriPortataSoloPerIlTerreno(Reason, ClickMapForPaymentClassification(Unit->TeamId, Map),
-					HexUnits[i].Cell, Instance.TargetCell, Instance.Def.RangeCells);
-			if (Instance.Def.bCountsAsAttack && (PagaSeParteSenzaColpo(Reason) || bFuoriPortataPerIlTerreno))
+			const bool bClickAvrebbeAccettato = Reason == ERTActionInvalidReason::OutOfRange
+				&& FuoriPortataMaIlClickAccettava(Reason, ClickMapForPaymentClassification(Unit->TeamId, Map),
+					ClickOriginForPaymentClassification(Unit, HexUnits[i].Cell), Instance.TargetCell, Instance.Def.RangeCells);
+			if (Instance.Def.bCountsAsAttack && (PagaSeParteSenzaColpo(Reason) || bClickAvrebbeAccettato))
 			{
 				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
 			}
@@ -1895,11 +2011,12 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// ⌫ *2026-10-31: «senza linea di tiro» e «su un altro piano» non sono piu' gratuiti, ne' per l'Interrupt ne' per
 	// un attacco qualunque (`R4`, `R5`: vedi `AzionePartita`), e nemmeno «bersaglio scattato» o «cappato dal Fumo»
 	// (`R3`, `R7`): l'Interrupt non e' piu' un caso a parte, e «si paga il colpo che c'e' stato, oppure l'intento che
-	// mirava a una cella» qui sopra non e' piu' completo. Restano gratuiti fuori portata dichiarata (o dietro un Fumo
-	// NOTO) e distanza minima, che il click rifiuta; su un alleato comandabile, che il click non bersaglia ma seleziona
-	// (il non comandabile e' `BLOCKED`, RIC-3); senza mappa autorevole, difetto del livello. ⌫ *Il bersaglio-unita' cappato
-	// da un Fumo NON osservato paga dal 2026-11-03 ([D-571], RIC-3 causa (a)): passa dal fallback di `CollectAttackIntents`
-	// e da `FuoriPortataSoloPerIlTerreno`, come per un attacco qualunque.*
+	// mirava a una cella» qui sopra non e' piu' completo. Restano gratuiti fuori portata dichiarata dall'origine del click (o
+	// dietro un Fumo NOTO a chi ha pianificato) e distanza minima, che il click rifiuta; su un alleato comandabile, che il click
+	// non bersaglia ma seleziona (il non comandabile e' un click da riparare, [D-575] (b), gratis intanto); senza mappa
+	// autorevole, difetto del livello. ⌫ *Il bersaglio-unita' fuori portata che il click avrebbe accettato paga dal
+	// 2026-11-03 ([D-571], RIC-3 causa (a)), anche per uno scatto fermato dal 2026-11-04 ([D-575] (a)): passa dal fallback di
+	// `CollectAttackIntents` e da `FuoriPortataMaIlClickAccettava`, come per un attacco qualunque.*
 	// ⚠️ **L'Interrupt come ATTORE rientra nella regola perche' e' un'azione d'attacco (`bCountsAsAttack`)**: e' una
 	// conseguenza del principio, CONFERMATA dall'autore il 2026-11-01 ([D-563], clausola (2)). Le sue guardie di
 	// vita non sono uguali (`R3`, `R4`, `R5`, `R7` pagano se e' vivo all'annotazione; `R6` solo se sopravvive alla

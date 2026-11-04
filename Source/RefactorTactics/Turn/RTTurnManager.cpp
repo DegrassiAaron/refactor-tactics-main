@@ -1776,6 +1776,12 @@ void ARTTurnManager::LockInAndResolve()
 	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
 	EnsureMatchRoster();
 
+	// ➕ **La conoscenza e l'origine con cui il click ha giudicato si congelano QUI** ([D-574], [D-575] (a)): dopo
+	// `EnsureMatchRoster` (le origini si cercano per `StableUnitId`) e prima di `ValidatePlansAtLockIn` e della prima fase, cioe'
+	// prima che qualunque scatto, spinta o rinfresco del Blast muova una cella o allarghi la conoscenza. Serve a una cosa sola,
+	// classificare un pagamento di ricarica; colpi, movimento e percorsi non la leggono.
+	FreezeClickContextAtLockIn();
+
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
 		// 🔴 Il campione puo' non essere mai stato APERTO: `BeginPacingSample()` la chiama solo
@@ -1877,6 +1883,11 @@ void ARTTurnManager::LockInAndResolve()
  */
 void ARTTurnManager::ConcludeResolution()
 {
+	// Le fasi sono finite, Blast compreso: la conoscenza e le origini congelate al lock-in ([D-574], [D-575] (a)) hanno servito
+	// l'unico scopo che avevano, classificare un pagamento di ricarica. Si svuotano qui, cosi' sono transitorie alla lettera e
+	// una risoluzione che non passasse da `LockInAndResolve` non leggerebbe quelle di un altro turno.
+	ClickKnowledgeAtLockIn.Reset();
+	ClickAimOriginsAtLockIn.Reset();
 
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
@@ -6063,9 +6074,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
 
-	// `R7`: quali tiri a cella cappati dal Fumo si pagano (quelli che il click della squadra avrebbe accettato). Subito dopo la
-	// raccolta, che ne produce l'insieme, e prima di `ApplyInterrupts`, che ne legge il pagamento.
-	ClassifyTerrainCappedPayment(Ctx);
+	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'
+	// fermato) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe
+	// accettato. Subito dopo la raccolta, che ne produce i due canali, e prima di `ApplyInterrupts`, che ne legge il pagamento.
+	ClassifyRangeLostPayment(Ctx);
 
 	// Alias sui campi del contesto: il resto della fase non e' ancora estratto e continua a leggerli con i
 	// nomi che avevano da variabili locali. Sono RIFERIMENTI, non copie: nessun cambio di semantica. Ogni
@@ -7676,11 +7688,17 @@ void ARTTurnManager::AttachPlanningMap(FRTHexSnapshot& Snapshot, int32 ObserverT
 
 const URTHexMapAsset* ARTTurnManager::PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative)
 {
+	return PlanningMapFrom(TeamKnowledgeState, TeamId, Authoritative);
+}
+
+const URTHexMapAsset* ARTTurnManager::PlanningMapFrom(const TArray<FRTTeamKnowledge>& Source, int32 TeamId,
+	const URTHexMapAsset* Authoritative)
+{
 	if (!Authoritative || TeamId == RTObserver::Omniscient)
 	{
 		return Authoritative;
 	}
-	const FRTTeamKnowledge* Conoscenza = TeamKnowledgeState.FindByPredicate(
+	const FRTTeamKnowledge* Conoscenza = Source.FindByPredicate(
 		[TeamId](const FRTTeamKnowledge& K) { return K.TeamId == TeamId; });
 	if (!Conoscenza || (Conoscenza->VisibleCells.Num() == 0 && Conoscenza->ExploredCells.Num() == 0))
 	{

@@ -439,6 +439,11 @@ namespace
 
 		const int32 SaluteBersaglio = Bersaglio ? Bersaglio->Health : 0;
 		const TWeakObjectPtr<ARTUnit> AttaccanteDebole(Attaccante);
+		// La conoscenza di PIANIFICAZIONE, come a inizio turno (`PlanBots`, `RefreshTeamKnowledgeNow` in `SetupHexMatch`): il click ha giudicato su
+		// di lei, e il Blast la congela al lock-in ([D-574]) invece di leggere la propria. Senza questa riga la squadra non ha nessuna
+		// conoscenza al lock-in, e la risposta del click sarebbe «vedo tutto» — il Fumo NON osservato delle righe `R7` risulterebbe
+		// osservato e il tiro gratis. Il banco la leggeva prima dal rinfresco del Blast; ora la dichiara. (Le altre righe non cambiano.)
+		TM->RefreshTeamKnowledgeNow();
 		PagaRunTurn(TM);
 
 		// Il cadavere si legge da distrutto: `ConcludeTurn` chiama `DestroyDefeatedUnits`, quindi a turno finito
@@ -511,7 +516,7 @@ namespace
  * 2026-11-03): lo stesso tiro a cella cappato dal Fumo paga se la squadra non vedeva il Fumo (il click non ne vedeva il
  * cap e ha accettato) ed e' gratis se lo vedeva (il click rifiutava). Senza la coppia non si distingue «il tiro cappato
  * non paga mai» da «paga sempre» (il codice che c'era prima, piu' largo del proprio testo). La riga `TiroCappatoInterrotto`
- * pinna l'ORDINE: la classificazione (`ClassifyTerrainCappedPayment`) sta prima di `ApplyInterrupts`, che toglie il tiro dal
+ * pinna l'ORDINE: la classificazione (`ClassifyRangeLostPayment`) sta prima di `ApplyInterrupts`, che toglie il tiro dal
  * canale del piano subito dopo averlo letto, e un Interrupt altrui non deve rendere gratuito cio' che avrebbe pagato.
  *
  * Premesse per riga (`PagaAttesi`): ogni voce di rifiuto del turno e' asserita, ZERO comprese — cosi' la riga
@@ -1402,7 +1407,7 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 	{
 		// `R7` ([D-563] (2), confermato dall'autore) dice «cappato dal Fumo NON osservato», e dal 2026-11-03 (decisione d'autore)
 		// il codice e' fedele al testo: `CollectHexAttacks` raccoglie in `TerrainCappedIntents` ogni tiro cappato, e il
-		// pagamento (`ClassifyTerrainCappedPayment`) tiene solo quelli che il click, sulla propria mappa ottimistica
+		// pagamento (`ClassifyRangeLostPayment`) tiene solo quelli che il click, sulla propria mappa ottimistica
 		// (`PlayerAimMap`, la stessa del click su un'unita'), avrebbe accettato. La riga con il Fumo OSSERVATO, dove il click
 		// vede il cap e rifiuta, e' il controllo gratis e sta in `Actions.Blast.UndecidedCausesStayFree`. Chi tira vede solo
 		// l'intorno (vista 0); l'attacco base e' dichiarato su una cella VUOTA alla portata esatta (4), il Fumo sta in (3,0,0).
