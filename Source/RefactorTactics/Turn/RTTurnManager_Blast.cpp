@@ -1298,8 +1298,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// seconda guardia qui non sarebbe difesa in profondita', sarebbe una seconda regola da tenere
 		// d'accordo con la prima — e scriverebbe due voci di rifiuto per lo stesso turno.
 		//
-		// ⛔ **Il movimento non passa di qui**, ed e' il confine con `Root`: il rifiuto salta l'azione, non
-		// il percorso, e il Move di un'unita' stordita risolve come se lo stordimento non ci fosse.
+		// ⛔ **Il movimento non passa di qui**: questo rifiuto salta l'azione principale. ⌫ *Fino al 2026-11-03 questa riga
+		// aggiungeva «il confine con `Root`: il rifiuto salta l'azione, non il percorso, e il Move di un'unita' stordita
+		// risolve come se lo stordimento non ci fosse».* [D-569] l'ha ribaltato: il movimento volontario della stordita e'
+		// negato, ma dai suoi due siti (`ResolveDash` per le mobilita', `BeginMovementResolution` per il camminare), che
+		// risolvono in altre fasi e scrivono la propria voce.
 
 		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
 		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,

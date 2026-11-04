@@ -1297,18 +1297,27 @@ bool FRTRealIconCatalogCoversRequiredIdsTest::RunTest(const FString&)
 // =====================================================================================================
 
 /**
- * 🔴 **Lo stordimento NON tocca il movimento, e `Root` si': e' il confine che li tiene due stati.**
+ * 🔴 **Il budget di pianificazione di una stordita resta intero e quello di una radicata e' zero; la condizione che la
+ * risoluzione legge e' vera solo per chi e' stordito E ha un Move pianificato** ([D-569], `#3973`). Questo test prova i DUE
+ * PREDICATI e il budget, non la risoluzione: il movimento negato in partita lo misurano
+ * `Status.StunnedMovement.TheWalkIsRefusedWhenStunned` e `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`.
  *
- * [D-416] lo scrive come vincolo — *«due stati che negano la stessa cosa sono uno stato solo scritto due
- * volte»* — e senza questo test la distinzione resterebbe una frase nel Decision Log. Il montaggio e'
- * costruito perche' cada in ENTRAMBI i versi: se `Stunned` finisse per azzerare il budget sarebbe rosso il
- * primo asserto, e se `Root` smettesse di azzerarlo sarebbe rosso il secondo.
+ * ⌫ *Questo test si chiamava `Status.StunDeniesTheActionNotTheMovement` e diceva l'opposto della regola di oggi, poi
+ * `Status.StunDeniesTheMovementAtResolutionNotInPlanning` (un nome che prometteva piu' di quanto asserisse).* [D-416] (1)
+ * scriveva che lo stordimento «non tocca il movimento», perche' quello e' `Root`, e il test pinnava che il budget di una stordita
+ * restasse intero: vero, e lo e' ancora. Quello che [D-569] ribalta e' un'altra cosa — la stordita NON CAMMINA —, ma lo ribalta
+ * alla risoluzione: il click continua ad accettare il piano di una stordita ([D-565] (2), `#3134`), quindi il budget di
+ * pianificazione non si tocca, mentre `Root` lo azzera e il click rifiuta prima.
+ *
+ * Il montaggio e' costruito perche' cada in ENTRAMBI i versi: se `Stunned` finisse per azzerare il budget sarebbe rosso il
+ * primo asserto (il click rifiuterebbe il piano che [D-565] (2) vuole accettato), e se `Root` smettesse di azzerarlo sarebbe
+ * rosso il secondo.
  *
  * ⚠️ **Due unita' e non una riusata**: `RemoveStatus` fra i due casi misurerebbe anche la rimozione, che e'
  * un'altra proprieta'. Con due soggetti lo zero del secondo non puo' venire da un residuo del primo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesActionNotMovementTest,
-	"RefactorTactics.Status.StunDeniesTheActionNotTheMovement",
+	"RefactorTactics.Status.StunKeepsThePlanningBudgetAndNamesTheMoveItDenies",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
 {
@@ -1331,10 +1340,23 @@ bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
 	Stordito->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
 	Radicato->ApplyStatus(TAG_Status_Root, /*Turni=*/ 1);
 
-	TestEqual(TEXT("chi e' stordito cammina: il budget non cambia"),
+	TestEqual(TEXT("chi e' stordito conserva il budget di pianificazione: il click accetta il suo piano, lo nega la risoluzione"),
 		Stordito->GetEffectiveMoveRange(), BudgetPieno);
-	TestEqual(TEXT("chi e' radicato no: il budget e' azzerato"),
+	TestEqual(TEXT("chi e' radicato no: il budget e' azzerato, e il click rifiuta prima"),
 		Radicato->GetEffectiveMoveRange(), 0);
+
+	// La condizione che la RISOLUZIONE legge ([D-569]): stordita E con un Move pianificato. Senza il Move non c'e' niente da
+	// negare (e una stordita ferma non scriverebbe un rifiuto a ogni turno); senza lo stordimento il Move si compie.
+	Stordito->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
+	Stordito->PlannedCell = FRTCellId(1, 0);
+	Radicato->PlannedPath = { FRTCellId(2, 0), FRTCellId(3, 0) };
+	Radicato->PlannedCell = FRTCellId(3, 0);
+	TestTrue(TEXT("premessa: il Move di chi e' stordito e' pianificato"), Stordito->HasPlannedNormalMove());
+	TestTrue(TEXT("chi e' stordito e ha un Move pianificato: la risoluzione lo nega"), Stordito->PlannedNormalMoveDeniedByStun());
+	TestFalse(TEXT("chi e' solo radicato: non e' questa condizione (lo nega il budget)"), Radicato->PlannedNormalMoveDeniedByStun());
+	Stordito->PlannedPath.Reset();
+	Stordito->PlannedCell = Stordito->Cell;
+	TestFalse(TEXT("chi e' stordito ma non ha pianificato un Move: niente da negare"), Stordito->PlannedNormalMoveDeniedByStun());
 
 	// ⚠️ Il rango di gravita' e' l'altra meta' della distinzione, e si chiede a chi la possiede invece di
 	// riscriverla: `Stunned` toglie di piu', quindi viene prima. Se i due si scambiassero, `Reaction.Cleanse`
@@ -1747,7 +1769,7 @@ bool FRTBudgetDashRefusedWhileUnbalancedTest::RunTest(const FString&)
 }
 
 // =========================================================================================================
-// 6. Lo stordimento NEGA la mobilita' che prende ANCHE la principale ([D-567], #3964)
+// 6. Lo stordimento NEGA la mobilita' ([D-567], #3964, esteso a OGNI mobilita' da [D-569], #3973)
 // =========================================================================================================
 namespace
 {
@@ -1902,12 +1924,16 @@ namespace
 }
 
 /**
- * **Lo stordimento NEGA la mobilita' che prende ANCHE la principale, e il rifiuto PAGA** ([D-567], `#3964`).
+ * **Lo stordimento NEGA la mobilita' qualunque slot occupi, e il rifiuto PAGA** ([D-567], `#3964`, esteso da [D-569], `#3973`).
  *
- * [D-416] (1) toglie la principale alla stordita e non tocca il movimento: una mobilita' `MovementAndMain` li prende
- * tutti e due. L'autore ha deciso (2026-11-02, risposta `a`) che vince la prima meta': la stordita non la compie, la
- * voce `Fallback`/`Cancelled`/`Stunned` lo dice in fase `Dash`, e il rifiuto paga come ogni principale negata
- * ([D-563] (2)). Resta permesso tutto cio' che prende il solo movimento.
+ * [D-416] (1) toglie la principale alla stordita; [D-567] (2026-11-02, risposta `a`) aveva deciso che una mobilita'
+ * `MovementAndMain` — che prende anche la principale — non si compie, che la voce `Fallback`/`Cancelled`/`Stunned` lo dice in
+ * fase `Dash` e che il rifiuto paga come ogni principale negata ([D-563] (2)). ⌫ *Lasciava permesso tutto cio' che prende il
+ * solo movimento, e questo test lo pinnava nel braccio CONFINE.* [D-569] lo ribalta: una stordita non compie nessun movimento
+ * volontario, e il braccio CONFINE ora asserisce il contrario (la mobilita' di solo movimento e' negata e paga come le altre).
+ * Il criterio non e' piu' lo slot: i bracci `MovementAndMain` e `Main` restano perche' il ramo deve valere per ogni slot, ma
+ * l'asserto che li separava dal solo movimento e' caduto. Il test per ogni mobilita' dei cataloghi e'
+ * `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`.
  *
  * 🔴 **Bracci, perche' l'asserzione centrale e' negativa**: «non si e' mosso» e «non ha attivato» sono vere anche per
  * una fixture che non permette lo scatto. Ognuno chiude un modo di sbagliare la guardia:
@@ -1915,8 +1941,8 @@ namespace
  *  - CUORE: la stessa, stordita, resta dov'e', lascia UNA voce di rifiuto in fase Dash con le due celle uguali alla sua,
  *    non attiva e paga; un COMPAGNO non stordito, ordinato DOPO di lei, arriva comunque (la guardia passa all'unita'
  *    successiva, non esce dal ciclo);
- *  - CONFINE: stordita ma con lo slot `Movement` del catalogo, arriva: la regola non nega il movimento;
- *  - PRINCIPALE DI FASE DASH: lo stesso con lo slot `Main` — il criterio e' `TakesMainSlot`, non `MovementAndMain`;
+ *  - SOLO MOVIMENTO (era il CONFINE di [D-567]): stordita con lo slot `Movement` del catalogo, e' negata come le altre ([D-569]);
+ *  - PRINCIPALE DI FASE DASH: lo stesso con lo slot `Main` — il criterio non e' lo slot;
  *  - GIA' IN RICARICA: stordita, ma lo scatto non si applica (`PlannedDashApplies()` falso): nessuna voce e nessun
  *    secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno;
  *  - STORDITA E SBILANCIATA, con la mobilita' a budget che `Unbalanced` nega: vince lo stordimento (una voce `Stunned`,
@@ -1927,7 +1953,7 @@ namespace
  * ⚠️ `ConsumeAbility` scrive un valore FISSO: uno o due addebiti lasciano lo stesso residuo, quindi il test distingue «ha
  * pagato» da «non ha pagato», non quante volte. ⚠️ **Il residuo e' letto a fine turno**: il Cleanup decrementa di uno.
  *
- * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): CONTROLLO, CUORE, CONFINE, PRINCIPALE e ALTRO STATO ne
+ * ⚠️ **Anteprima e mira** leggono `PlannedDashMoves()` ([D-471]): CONTROLLO, CUORE, SOLO MOVIMENTO, PRINCIPALE e ALTRO STATO ne
  * asseriscono il valore PRIMA del turno, perche' un ghost o una mira che partissero da uno scatto negato mentirebbero.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest,
@@ -1970,17 +1996,21 @@ bool FRTStunDeniesAMobilityThatAlsoCostsTheMainActionTest::RunTest(const FString
 	TestEqual(TEXT("il compagno ordinato dopo di lei arriva: la guardia passa all'unita' successiva"),
 		Stordita.ArrivoCompagno, MetaCompagno);
 
-	// CONFINE — stordita, ma la mobilita' prende il SOLO movimento: D-416 (1) non la tocca.
+	// SOLO MOVIMENTO — stordita, con la mobilita' che prende il SOLO movimento (lo slot del catalogo, di ogni scatto spedito).
+	// ⌫ Fino a [D-569] questo era il CONFINE della regola di [D-567]: D-416 (1) lasciava il movimento a `Root` e la stordita
+	// arrivava, senza rifiuti e pagando. Ora e' negata come tutte le altre: l'asserzione e' rovesciata, non indebolita.
 	FStunMobCase SoloMovimento;
 	SoloMovimento.Slot = ERTActionSlot::Movement;
 	SoloMovimento.bStordita = true;
 	const FStunMobOutcome Confine = RunStunMobTurn(*this, SoloMovimento);
-	if (!TestTrue(TEXT("confine: il turno e' girato"), Confine.bValido)) { return false; }
-	TestTrue(TEXT("confine: lo scatto sposta (anteprima e mira)"), Confine.bSpostaPrima);
-	TestEqual(TEXT("confine: la stordita con una mobilita' di solo movimento arriva"), Confine.Arrivo, Meta);
-	TestEqual(TEXT("confine: nessun rifiuto"), Confine.Rifiuti, 0);
-	TestTrue(TEXT("confine: l'azione si attiva"), Confine.Attivazioni >= 1);
-	TestEqual(TEXT("confine: la ricarica e' pagata"), Confine.Ricarica, Pagato);
+	if (!TestTrue(TEXT("solo movimento: il turno e' girato"), Confine.bValido)) { return false; }
+	TestTrue(TEXT("solo movimento: per la regola del catalogo lo scatto si applica ancora"), Confine.bApplicaPrima);
+	TestFalse(TEXT("solo movimento: ma lo stordimento lo nega (anteprima e mira)"), Confine.bSpostaPrima);
+	TestEqual(TEXT("solo movimento: la stordita resta dov'e'"), Confine.Arrivo, Partenza);
+	TestEqual(TEXT("solo movimento: UNA voce di rifiuto in fase Dash"), Confine.Rifiuti, 1);
+	TestEqual(TEXT("solo movimento: con le due celle uguali alla sua"), Confine.RifiutiDaFermo, 1);
+	TestEqual(TEXT("solo movimento: l'azione non si attiva"), Confine.Attivazioni, 0);
+	TestEqual(TEXT("solo movimento: il rifiuto paga la ricarica"), Confine.Ricarica, Pagato);
 
 	// PRINCIPALE DI FASE DASH — lo slot `Main` con la macro-fase Dash: il criterio e' `TakesMainSlot`, non `MovementAndMain`.
 	FStunMobCase Principale;

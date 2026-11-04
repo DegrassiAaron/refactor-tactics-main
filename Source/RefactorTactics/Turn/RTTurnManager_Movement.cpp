@@ -180,11 +180,76 @@ void ARTTurnManager::BeginMovementResolution()
 			Cadences[i].TickPeriod = Profilo.TickPeriod;
 		}
 
+		// 🔴 **Una stordita NON CAMMINA** ([D-569], `#3973`): ne' il passo normale ne' la corsa (lo Sprint e' una banda del Move).
+		// [D-416] (1) lasciava il movimento a `Root`, e l'autore l'ha ribaltato il 2026-11-02; il 2026-11-03 ha deciso che lo
+		// stato si legge ALLA FASE in cui l'azione risolve. Il Move risolve DOPO il Blast, quindi uno stun nato nel Blast di T
+		// nega il Move di T (e non il Dash di T, gia' risolto): e' la lettura di `Root`, che `GetEffectiveMoveRange` legge dal
+		// vivo — misurata da `Status.StunnedMovement.TheMoveIsDeniedByARootBornInTheBlastToo`.
+		//
+		// 🔑 **Il click accetta ancora il piano di una stordita e lo nega la risoluzione** ([D-565] (2), `#3134`): per questo la
+		// guardia sta qui e non nel budget. La condizione e' `ARTUnit::PlannedNormalMoveDeniedByStun()`, la stessa che anteprima e
+		// verso leggono; il Dash legge `PlannedDashDeniedByStun()` ([D-471]: una regola, tanti lettori).
+		//
+		// ⚠️ **Rifiuto DICHIARATO, non scarto muto**, nella forma di quello del Dash ([D-567]): `Fallback`/`Cancelled`/`Stunned`
+		// con `SrcCell` e `TgtCell` uguali alla cella dell'unita' — la destinazione pianificata e' piano privato. In fase `Move`.
+		// E' una lettura dell'implementazione, non del testo che l'autore ha visto (ribaltabile, [D-569] (5)). `Root` non ha
+		// questa voce: il suo Move negato esce come un `Stayed` senza spiegazione, perche' il click lo rifiuta prima e il caso
+		// raggiungibile e' solo un `Root` nato nel Blast — nessun precedente da seguire. Il camminare ha ricarica zero: non
+		// c'e' niente da pagare; lo Sprint paga `Exposed` e perde la reazione per il PIANO, in fondo a questa funzione e in
+		// `ResolveDash`, e quindi anche da fermo ([D-116] (3): «si paga l'impegno dichiarato»).
+		//
+		// 🔑 **Stordita + sbilanciata con una corsa pianificata: UNA voce, questa** (l'autore ha risposto il 2026-11-03, in sintesi, che
+		// dev'essere una sola). Vince lo stordimento come nel Dash: `ResolveDash` non scrive la voce `Unbalanced` per la corsa negata
+		// ([D-319]) a chi e' stordito a INIZIO TURNO (`ARTUnit::PlannedNormalMoveDeniedByStun()`, la domanda che pone anche questa
+		// guardia, ma letta prima del Blast), e resta la voce `Stunned`. Nomina `Action.Move`: la banda congelata sopra e' gia' quella
+		// senza corsa, perche' l'unita' e' sbilanciata, quindi si perde la traccia che era stata dichiarata una corsa. Fissato da
+		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal`.
+		//
+		// ⚠️ **Lo stun nato nel Blast di T ha DUE voci, ed e' deciso** ([D-573] (2bis), 2026-11-04): la voce `Unbalanced` si scrive
+		// prima del Blast, quando l'unita' e' sbilanciata e non ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`
+		// perche' ora e' stordita. Sono due fatti veri a due istanti diversi; «una voce» vale quando valgono nello stesso istante,
+		// cioe' per chi e' stordita da prima del turno. Si riapre quando `#3965` da' un produttore a `Stunned`. Fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals`.
+		//
+		// ⚠️ **E la voce c'e' solo se qui c'e' ancora un Move pianificato**: uno spostamento forzato nel Blast azzera il piano ([D-045]),
+		// e allora non c'e' niente da rifiutare e le voci di quella corsa sono zero
+		// (`Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`).
+		const bool bNegataDalloStordimento = Unit->PlannedNormalMoveDeniedByStun();
+		if (bNegataDalloStordimento)
+		{
+			// L'azione che il piano nomina per questa banda, come la nomina `MakePlanFor`: il profilo neutro non ne ha una e
+			// ripiega su `Action.Move`. La banda e' quella congelata sopra, quindi la voce e i prezzi vengono dalla stessa derivazione.
+			FRTActionDef Mossa = URTMovementProfileLibrary::FindActionForProfile(Ctx.MovementProfiles[i]);
+			if (Mossa.ActionId.IsNone())
+			{
+				Mossa = URTCatalogLibrary::FindCoreAction(MoveCauseActionId);
+			}
+			RefuseMainActionIfStunned(Unit, Mossa, ERTMatchPhase::Move, Unit->Cell);
+
+			// ⚠️ **La cadenza di chi e' negato torna NEUTRA.** `BeginHexMovement` deriva i sotto-passi del tick come il MASSIMO
+			// `StepsPerTick` fra tutte le unita' della risoluzione, anche quelle con un percorso di una cella: una stordita con uno Sprint
+			// pianificato porterebbe `{2,1}` (congelata sopra, dalla banda del piano) nel calendario di tutti, senza muoversi. Misurato da
+			// `Status.StunnedMovement.ADeniedSprintKeepsTheMicroStepNumbering`: la decisione di un Overwatch passava dal micro-step 2 al 4,
+			// e con lei ogni `MicroStepIndex` del TurnLog e le chiavi delle opportunita' di reazione ([D-428] punto 3). Il percorso di chi e'
+			// negato e' la sola cella di partenza, quindi la sua cadenza non ha niente da governare; la voce `Move` continua a nominare la
+			// banda dichiarata (`Ctx.MovementProfiles` non cambia).
+			Cadences[i] = FRTMovementCadence();
+		}
+
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
 		// verso la destinazione singola. La validazione e' AUTOREVOLE e passa dallo strato puro esagonale:
 		// FindPathForUnit rispetta costi, blocchi, occupazione e budget, a prescindere da cosa arriva dal client.
+		//
+		// ⚠️ **Chi e' stato negato dallo stordimento resta fermo, e NON `continue`**: gli array paralleli a `Units` (`Ctx.Paths`
+		// e `StepDurations` crescono con un `Add` per unita', `PlannedMoves` e `Cadences` sono dimensionati prima) devono
+		// restare allineati, e un salto sfaserebbe gli indici di chi viene dopo. Il percorso e' la sola cella di partenza,
+		// come per chi non ha pianificato niente.
 		TArray<FRTCellId> Path;
-		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
+		if (bNegataDalloStordimento)
+		{
+			Path = { Unit->Cell }; // fermo
+		}
+		else if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
 		{
 			Path = Unit->PlannedPath;
 		}
@@ -220,12 +285,17 @@ void ARTTurnManager::BeginMovementResolution()
 		//
 		// Chi decide se la voce PARLA resta il guardiano in coda a `FinalizeHexMovementOutcomes`: qui si
 		// registra un fatto della pianificazione, non un verdetto.
-		if (Unit->bMovePlanRejectedByOccupant)
+		//
+		// ⚠️ **Non per chi e' stato negato dallo stordimento** ([D-569]): non ha camminato, quindi non ha urtato nessuno. Senza
+		// `!bNegataDalloStordimento` la sua voce `Move` direbbe `BlockedByUnit` verso la destinazione pianificata (piano privato),
+		// e `FinishMovementResolution` rivelerebbe alla squadra il contatto con un nemico mai raggiunto. Il motivo e' lo stordimento,
+		// ed e' gia' scritto.
+		if (!bNegataDalloStordimento && Unit->bMovePlanRejectedByOccupant)
 		{
 			Ctx.bDeniedByOccupant[i] = true;
 			Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
 		}
-		else if (Unit->HasPlannedNormalMove()
+		else if (!bNegataDalloStordimento && Unit->HasPlannedNormalMove()
 			&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
 				== ERTHexWaypointReason::Occupied)
 		{

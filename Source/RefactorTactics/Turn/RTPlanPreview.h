@@ -326,6 +326,16 @@ struct FRTPlanPreviewInput
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	TArray<FRTCellId> PlannedWaypoints;
 
+	/**
+	 * Vero se il Move dichiarato si compie DAVVERO: la domanda e' `!ARTUnit::PlannedNormalMoveDeniedByStun()` ([D-569]), la
+	 * stessa del resolver (`BeginMovementResolution`). Falso, la voce Move resta nella timeline ma e' una rotta RIFIUTATA —
+	 * ghost sulla cella dove l'unita' si trova, nessun percorso — come uno scatto che non si applica: nasconderla direbbe
+	 * che il Move non e' stato pianificato, e il click lo ha accettato ([D-565] (2)). Il default e' `true`: chi non conosce lo
+	 * stordimento, e i test che costruiscono l'ingresso a mano, restano com'erano.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	bool bMoveResolves = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FName MoveActionId;
 

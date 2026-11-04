@@ -5043,6 +5043,41 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
+		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' una sola** ([D-573], `#3973`). Alla
+		// domanda posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince
+		// lo stordimento come nel Dash oppure restano due voci? — l'autore ha risposto, in sintesi, che la voce dev'essere una sola.
+		// Quella che resta e' la `Fallback`/`Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si
+		// scrive.
+		//
+		// 🔑 **Il criterio e' `ARTUnit::PlannedNormalMoveDeniedByStun()`**, la domanda che `BeginMovementResolution` pone per scrivere
+		// la voce `Stunned` ([D-471]: una regola, tanti lettori), e lo stesso esito che il Dash ha gia' per questo incrocio (sotto,
+		// «PRIMA del rifiuto per `Unbalanced`»).
+		//
+		// ⚠️ **Qui la domanda legge lo stato di INIZIO TURNO**, prima del Blast, mentre `BeginMovementResolution` la legge dopo. Non e'
+		// la lettura «alla fase in cui risolve l'azione» di [D-569] (4): la voce `Unbalanced` porta `Phase = Move` ma la scrive questo
+		// ciclo, nel Dash. Chi e' stordita da prima del turno ha una voce sola: i due fatti (sbilanciata e stordita) valgono nello
+		// stesso istante. Per chi viene stordita DAL Blast di T le voci sono DUE (`Unbalanced` qui, `Stunned` al Move), e sono due
+		// fatti veri a due istanti diversi: qui l'unita' e' sbilanciata e non ancora stordita, al Move e' stordita. E' deciso
+		// dall'autore il 2026-11-04 ([D-573] (2bis)), che ha scartato la scrittura differita: la voce `Unbalanced` dopo il Blast, con
+		// `AppendLogEntry` che congela verdetto e `GraphRevision` nell'istante in cui scrive, avrebbe cambiato quei campi per ogni
+		// voce `Unbalanced`. Si riapre quando `#3965` da' un produttore a `Stunned`. Fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals`.
+		//
+		// ⚠️ **La voce `Stunned` rimasta c'e' solo se al Move c'e' ancora un Move pianificato.** Uno spostamento forzato nel Blast
+		// azzera il piano ([D-045]): al Move `HasPlannedNormalMove()` e' falso, `BeginMovementResolution` non scrive niente, e per
+		// quella corsa le voci sono ZERO. E' una conseguenza dichiarata e non un difetto (non c'e' piu' un Move da rifiutare), ed e'
+		// raggiungibile solo nei banchi finche' `Stunned` non ha produttori. Fissato da
+		// `Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`.
+		//
+		// ⚠️ **Si perde la traccia che era stata dichiarata una corsa**: la voce rimasta nomina `Action.Move`, perche' la banda
+		// congelata per chi e' sbilanciata e' gia' degradata da `bRunDenied`. E' la conseguenza che la domanda nominava.
+		//
+		// Saltare la voce non cambia altro: questo ciclo scrive solo la voce e la riga del combat log. Il divieto di reazione dello
+		// Sprint e' in `ReactionBlockedThisTurn` (sopra) e `Exposed` lo applica `BeginMovementResolution`, entrambi dal piano.
+		if (Unit->PlannedNormalMoveDeniedByStun())
+		{
+			continue;
+		}
 		// ⚠️ **Si chiede la banda SENZA il divieto**, cioe' quella che il piano produrrebbe se l'unita' non
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
@@ -5128,20 +5163,24 @@ void ARTTurnManager::ResolveDash()
 			continue;
 		}
 
-		// 🔴 **Lo stordimento NEGA la mobilita' che prende ANCHE l'azione principale** ([D-567], `#3964`). [D-416] (1) toglie
-		// la principale alla stordita e «non tocca il movimento»: una mobilita' `MovementAndMain` (o una principale di
-		// macro-fase Dash) li prende tutti e due, e l'autore ha deciso che vince la prima meta' — la stordita non la compie
-		// e il rifiuto PAGA la ricarica ([D-563] (2)), come ogni altra principale negata. Una mobilita' che prende il SOLO
-		// movimento (`Slot == Movement`, oggi ogni scatto spedito) resta permessa: il criterio e' `TakesMainSlot`, non un nome.
+		// 🔴 **Lo stordimento NEGA OGNI mobilita'** ([D-569], `#3973`, che estende [D-567] — la sola mobilita' che prende anche la
+		// principale — a tutte). [D-416] (1) toglieva alla stordita la principale e lasciava il movimento a `Root`; l'autore ha
+		// ribaltato il resto il 2026-11-02: una stordita non compie nessun movimento volontario, scatti compresi (`Dodge`, `Leap`,
+		// `Reposition`, `Charge` e le mobilita' d'eroe). Il rifiuto PAGA la ricarica ([D-563] (2), [D-567]) — lettura
+		// dell'assistente, ribaltabile ([D-569] (5)). Il criterio e' lo stato e non lo slot: `TakesMainSlot` e' uscito dalla condizione.
+		//
+		// 🔑 **Lo stato si legge ALLA FASE in cui l'azione risolve** ([D-569] (4)): il Dash precede il Blast, quindi uno stun nato
+		// nel Blast di T non lo nega (la mobilita' di T e' gia' avvenuta) e nega invece il Move di T (`BeginMovementResolution`).
+		// Gli impatti della carica non nascono: questo ramo esce prima di `PendingChargeImpacts`.
 		//
 		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStun()`**, letta sopra prima del consumo e la stessa che
 		// anteprima e mira leggono attraverso `PlannedDashMoves()` ([D-471]). La voce e' quella di ogni altro sito
 		// (`RefuseMainActionIfStunned`: `Fallback`/`Cancelled`/`Stunned`, fase `Dash`) con `TgtCell = Unit->Cell`: la
 		// destinazione pianificata e' piano privato, come nel rifiuto per `Unbalanced` qui sotto.
 		//
-		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget che prende la
-		// principale e' negata come stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso
-		// (nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
+		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget e' negata come
+		// stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso (lo Sprint e' una banda del
+		// Move e nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
 		// un'azione costruita. ⚠️ **DOPO `if (!bDashApplies)`**: una mobilita' gia' in ricarica e' scartata in silenzio, senza
 		// voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno.
 		// Nessun controllo `IsAlive`: `Units` viene da `MakeCurrentSnapshot`, cioe' da `CollectLivingUnits`, che tiene solo le
