@@ -322,14 +322,16 @@ namespace
 	 *
 	 * ⚠️ **`OutOfRange` NON sta nella tabella, e non e' una svista**: dice «fuori portata» senza dire PERCHE'. Se e' oltre la
 	 * portata dichiarata dall'origine del click il click la rifiuta (gratis); se e' dentro la portata dichiarata dall'origine
-	 * del click e fuori da dove l'unita' si trova — per il cap di un Fumo che la squadra non vedeva, o perche' uno scatto di
-	 * chi agisce si e' fermato — il click l'ha accettata sulla mappa ottimistica (paga): lo distingue
+	 * del click e fuori da dove l'unita' si trova — per il cap di un Fumo che la squadra non vedeva, perche' uno scatto di
+	 * chi agisce si e' fermato, o perche' una carica riuscita l'ha portata altrove ([D-575] (1bis)) — il click l'ha accettata sulla
+	 * mappa ottimistica (paga): lo distingue
 	 * `FuoriPortataMaIlClickAccettava`, qui sotto, con la conoscenza e l'origine congelate al lock-in ([D-574], [D-575] (a)).
 	 *
 	 * ⚠️ **La distanza minima non e' qui**: la giudica `CollectHexAttacks`, in silenzio, e non lascia ne' impronta ne' canale — il
 	 * click la rifiuta, quindi resta gratis ([D-200], [D-414] punto 2). Il tiro a CELLA oltre la portata dichiarata ha un canale di
 	 * sola classificazione (`OutOfDeclaredRangeIntents`): e' gratis se il click lo rifiutava anche dall'origine che ha usato
-	 * (`R9`), paga se l'aveva accettato dalla cella d'arrivo di uno scatto che poi si e' fermato. `R10`, la guardia di vita di
+	 * (`R9`), paga se l'aveva accettato dalla cella d'arrivo di uno scatto che poi si e' fermato (o dalla cella di partenza di una
+	 * carica che poi e' riuscita: non misurato per il tiro a cella). `R10`, la guardia di vita di
 	 * [D-209], sta nel pagamento.
 	 */
 	bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo)
@@ -420,9 +422,14 @@ namespace
 	 *   gratis); un Fumo su una cella NON osservata il click non lo vede, accetta, e il cap emerge solo a risoluzione. E' il testo di
 	 *   `R7` ([D-563] (2): «cappato dal Fumo non osservato») attuato per il bersaglio-UNITA' qui e per il tiro a CELLA in
 	 *   `ClassifyRangeLostPayment`, con la stessa funzione e la stessa mappa;
-	 * - uno scatto di chi agisce che si e' fermato (o una spinta) lascia l'unita' dove il click non aveva previsto: il click ha
-	 *   accettato dalla cella d'arrivo dello scatto, il Blast misura da dove l'unita' si trova. [D-575] (a): paga, perche' il click
-	 *   ha accettato il piano e l'esecuzione lo impedisce.
+	 * - uno scatto di chi agisce che si e' fermato lascia l'unita' dove il click non aveva previsto: il click ha accettato dalla cella
+	 *   d'arrivo dello scatto, il Blast misura da dove l'unita' si trova. [D-575] (a): paga, perche' il click ha accettato il piano e
+	 *   l'esecuzione lo impedisce. Vale per OGNI caso in cui la cella reale differisce dall'origine del click ([D-575] (1bis), lettura
+	 *   estesa decisa dall'autore il 2026-11-04): anche una CARICA RIUSCITA seguita da un tiro a un altro bersaglio, perche' il click
+	 *   giudica dalla cella di PARTENZA ([D-464] (5), `AimOriginCell` non sposta l'origine per una carica) e il Blast dalla cella
+	 *   d'arrivo (`Actions.Blast.ResolutionEmergingCausesPay`, riga «carica riuscita»). ⚠️ La spinta e lo scatto negato da uno stato nato
+	 *   dopo il lock-in sono nella stessa regola ma il motore spedito non li produce prima della misura del Blast (una sola raccolta,
+	 *   gli spostamenti forzati dopo; nel catalogo spedito nessuna azione applica `Stunned`, e `Unbalanced` nasce nel Move): nessuna riga.
 	 *
 	 * ✅ **Eccezione STRETTA a [D-534] (2), decisa dall'autore il 2026-11-03.** Il contratto scritto dice che la Resolution
 	 * non chiama `PlanningMapFor` e resta sulla mappa autorevole (`RTTurnManager.h`, [D-534] (2), «confermato dall'autore
@@ -1210,10 +1217,14 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					// nel turno, attivata o no) — SALVO che il click avesse accettato la portata: ➕ **[D-575] (a), 2026-11-04**, uno
 					// scatto di chi agisce che si e' fermato lo lascia dove il click non aveva previsto (la portata sopra e' misurata da
 					// `Unit->Cell`, il click aveva giudicato dalla cella d'arrivo dello scatto), e l'esecuzione ha impedito un piano
-					// accettato: paga. Oltre la portata dichiarata anche dall'origine del click, o dietro un Fumo che il click vedeva,
-					// resta gratis. La guardia e' quella del ramo `ArcTarget` morto qui sopra («vivo quando annota», [D-209]); la
-					// vita dei due rami non e' una regola sola. La domanda e' la STESSA del bersaglio-unita'
-					// (`FuoriPortataMaIlClickAccettava`), con la conoscenza e l'origine congelate al lock-in.
+					// accettato: paga (e cosi' ogni altra differenza fra la cella reale e l'origine del click, [D-575] (1bis): una
+					// carica riuscita, che il click giudica dalla partenza). Oltre la portata dichiarata anche dall'origine del click, o
+					// dietro un Fumo che il click vedeva, resta gratis. La guardia e' quella del ramo `ArcTarget` morto qui sopra («vivo
+					// quando annota», [D-209]); la vita dei due rami non e' una regola sola. ⚠️ Qui `Unit->IsAlive()` e' l'UNICA guardia
+					// di vita e si legge a inizio Blast: chi e' vivo al lock-in e cade nel Dash (il Fuoco di uno scatto) arriva qui cadavere
+					// con il piano addosso, e non paga (`Actions.Blast.ResolutionEmergingCausesPay`, riga «chi agisce muore nel Dash»).
+					// La domanda e' la STESSA del bersaglio-unita' (`FuoriPortataMaIlClickAccettava`), con la conoscenza e l'origine
+					// congelate al lock-in.
 					if (Unit->IsAlive() && FuoriPortataMaIlClickAccettava(ERTActionInvalidReason::OutOfRange,
 						ClickMapForPaymentClassification(Unit->TeamId, Map),
 						ClickOriginForPaymentClassification(Unit, Unit->Cell), ArcAim, PlannedNow->Def.RangeCells))
@@ -1505,7 +1516,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			//
 			// ➕ **2026-11-03, [D-571] (RIC-3) causa (a)**: il bersaglio-unita' fuori portata che il click avrebbe accettato paga: o
 			// per il cap di un Fumo che la squadra non vedeva quando ha pianificato (il testo di `R7`, [D-563] (2)), o — [D-575] (a),
-			// 2026-11-04 — perche' uno scatto di chi agisce si e' fermato e il click aveva giudicato dalla cella d'arrivo dello scatto.
+			// 2026-11-04 — perche' uno scatto di chi agisce si e' fermato e il click aveva giudicato dalla cella d'arrivo dello scatto
+			// (o perche' una carica riuscita l'ha portata lontano dalla cella di partenza da cui il click ha giudicato, (1bis)).
 			// Il tiro a CELLA segue la stessa regola in `ClassifyRangeLostPayment`. Oltre la portata DICHIARATA dall'origine del click
 			// no (il click la rifiuta), e nemmeno con un Fumo su una cella NOTA a chi ha pianificato (il click ne vede il cap):
 			// `OutOfRange` non sta nella tabella proprio per questo, vedi `FuoriPortataMaIlClickAccettava`, che rifa' la domanda del

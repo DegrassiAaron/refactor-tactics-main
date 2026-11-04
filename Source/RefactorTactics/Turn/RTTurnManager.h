@@ -3260,9 +3260,11 @@ protected:
 	/**
 	 * Le origini di mira congelate al lock-in: per ogni unita' VIVA con un'azione pianificata, `AimOriginFor(fase di quell'azione)`.
 	 * Per un'azione del Blast e' la cella d'arrivo dello scatto pianificato se lo scatto si applica e sposta, altrimenti la cella
-	 * corrente ([D-464]); il Blast misura invece da `Attacker.Cell`, dove l'unita' si e' davvero fermata. Ordinate per
-	 * `StableUnitId`, cercate per chiave: niente `TMap`. Stesso statuto di `ClickKnowledgeAtLockIn` (transitorie, non canoniche,
-	 * non replicate, svuotate a fine risoluzione).
+	 * corrente ([D-464]) — anche con una CARICA pianificata, che non sposta l'origine ([D-464] (5)); il Blast misura invece da
+	 * `Attacker.Cell`, dove l'unita' si e' davvero fermata (o dove la carica l'ha portata). Ordinate per
+	 * `StableUnitId`, cercate per chiave: niente `TMap`; un'unita' senza identita' (`StableUnitId <= 0`) non ha voce, perche' sotto
+	 * la chiave `0` due unita' si scambierebbero l'origine, e la ricerca ricade su `Unit->Cell`. Stesso statuto di
+	 * `ClickKnowledgeAtLockIn` (transitorie, non canoniche, non replicate, svuotate a fine risoluzione).
 	 *
 	 * ⚠️ **E' l'origine del piano che il lock-in porta, che e' quella del click salvo un caso**: se il giocatore ripianifica lo scatto
 	 * DOPO aver cliccato l'azione, il click ha giudicato dal vecchio scatto e il piano eseguito porta il nuovo. Nulla cancella
