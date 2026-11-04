@@ -361,6 +361,9 @@ namespace
 	 * interazioni con una porta che la raccolta ha rifiutato — nessuna porta sul bordo dichiarato (`DoorlessIntents`, `NoEffect`) e
 	 * la commutazione di una porta bloccata o distrutta (`DoorToggleRefusals`) —, perche' il click di produzione dei bordi
 	 * (`HandleTargetEdge`) le accetta: guarda la portata, non la porta (misurato da `Actions.Blast.DoorInteractionRefusalsPay`).
+	 * ⚠️ **Solo se il piano porta il lato dichiarato** (`bHasDeclaredDoorEdge`): i due canali raccolgono anche gli intenti senza lato
+	 * (la porta cercata sulla traiettoria), che `HandleTargetEdge` non produce mai; vengono dal click su un'unita' (difetto del click,
+	 * [D-575] (b), #3983) e sono gratis (`Actions.Blast.UndecidedCausesStayFree`, righe «Interact armata»).
 	 * ⚠️ **Il successo della stessa interazione NON paga**: una commutazione riuscita non lascia un colpo ne' un canale, e non ha un
 	 * sito di pagamento ([D-575] (c): le azioni non d'attacco restano gratis e non decise). L'`Interact` spedito ha ricarica 0, quindi
 	 * oggi non cambia nessuna partita; l'asimmetria (il rifiuto costa, il successo no) e' dichiarata nel report della PR.
@@ -378,11 +381,16 @@ namespace
 		}
 		const FRTHexBlastPlan& Piano = Ctx.Plan;
 		// `INT-*`: l'unica clausola che non passa dalla dichiarazione di aggressione. Va prima della guardia `bCountsAsAttack`.
-		if (Piano.DoorlessIntents.Contains(IntentIdx)
-			|| Piano.DoorToggleRefusals.ContainsByPredicate([IntentIdx](const FRTDoorToggleRefusal& Rifiuto)
-			{
-				return Rifiuto.IntentIndex == IntentIdx;
-			}))
+		// ⚠️ **Solo se il piano porta il LATO dichiarato** (`bHasDeclaredDoorEdge`): paga perche' il click di produzione dei bordi
+		// (`HandleTargetEdge`) accetta il piano e scrive SEMPRE il lato. `DoorlessIntents` e `DoorToggleRefusals` raccolgono anche gli intenti
+		// senza lato (il ramo di CP 9.3: la porta si cerca sulla traiettoria), e un piano senza lato non viene da li': viene dal click su
+		// un'unita', che accetta un piano di bordo che non dovrebbe ([D-575] (b), #3983) ed e' gratis finche' non lo si ripara.
+		if (Ctx.Intents[IntentIdx].bHasDeclaredDoorEdge
+			&& (Piano.DoorlessIntents.Contains(IntentIdx)
+				|| Piano.DoorToggleRefusals.ContainsByPredicate([IntentIdx](const FRTDoorToggleRefusal& Rifiuto)
+				{
+					return Rifiuto.IntentIndex == IntentIdx;
+				})))
 		{
 			return true;
 		}
@@ -581,6 +589,15 @@ void ARTTurnManager::FreezeClickContextAtLockIn()
 		if (!Planned)
 		{
 			continue; // nessuna azione pianificata: non c'e' una mira che il click abbia giudicato
+		}
+		// ⚠️ Una unita' senza identita' (`StableUnitId <= 0`: `0` e' «nessuna», [D-063]) non ha una chiave sotto cui custodire la sua origine.
+		// `EnsureMatchRoster` ne assegna una a tutte le unita' esistenti al primo lock-in, e nessun codice di produzione ne crea dopo (solo
+		// `RTMatchBootstrapper` e l'Harness, prima di quel lock-in): qui e' una difesa. Due unita' a `0` condividerebbero una voce e la
+		// ricerca per chiave darebbe a una l'origine dell'altra; senza voce la ricerca fallisce e cade sul fallback, `Unit->Cell`, cioe'
+		// il comportamento di prima di [D-575] (a). Non ha una riga di test: nessun flusso di produzione la raggiunge.
+		if (Unit->StableUnitId <= 0)
+		{
+			continue;
 		}
 		FClickAimOrigin Origin;
 		Origin.StableUnitId = Unit->StableUnitId;
