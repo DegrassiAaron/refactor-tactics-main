@@ -638,6 +638,7 @@ namespace
 		ReazioneCounter, //< `Action.Counter` (slot 3) armata come REAZIONE
 		CreateCover,     //< `Action.CreateCover` (slot 3): una struttura di BORDO, kind `Edge` per il puntatore
 		AttaccoACella,   //< l'attacco base di Ivrin (slot 0) dichiarato su una CELLA vuota: il tiro a cella di `R7`
+		Interact,        //< `Action.Interact` (slot 3): una struttura di BORDO (`StructureOp = SetDoorState`), kind `Edge` per il puntatore, ricarica scritta dal banco
 	};
 
 	/** UNA scena: le righe differiscono per UNA variabile fra il controllo e il caso. */
@@ -662,7 +663,10 @@ namespace
 		bool bBersaglioScattaLontano = false; //< il bersaglio scatta di due celle e finisce OLTRE la portata dichiarata
 		bool bBersaglioIgnotoAlVelo = false;  //< il velo dell'HUD non conosce il bersaglio: il click non lo bersaglia (`IsKnownToObserver`)
 		bool bAlleatoNonComandabile = false;  //< il bersaglio alleato e' pianificato dal bot: non e' comandabile da questo giocatore
-		bool bBordoDichiarato = false;     //< solo `CreateCover` col piano a mano: il lato e' dichiarato
+		bool bBordoDichiarato = false;     //< solo `CreateCover` e `Interact` col piano a mano: il lato e' dichiarato (come lo scrive `HandleTargetEdge`)
+		bool bPortaBloccataTraLeCelle = false; //< solo `Interact`: sul bordo fra la cella di chi agisce (0,0,0) e quella del bersaglio (1,0,0) c'e' una porta `Locked`: la commutazione e' rifiutata
+		bool bCaricaPrecede = false;       //< chi agisce pianifica prima una CARICA che RIESCE (un nemico due celle dietro di lui, lungo -X): il click giudica dalla cella di PARTENZA (la carica non sposta l'origine), il Blast dalla cella d'arrivo (D-575 (1bis))
+		bool bAttoreMuoreNelloScatto = false; //< solo con `bScattoPrecede` e `bOstacoloSulloScatto`: il primo passo dello scatto e' un Fuoco (10 danni all'ingresso) e chi agisce ha 5 di salute, quindi muore nel Dash, DOPO il lock-in e PRIMA del Blast
 		bool bFumoEsploratoFuoriVista = false; //< la cella del Fumo e' in `ExploredCells` e NON in `VisibleCells`: la squadra non la vede, la mappa del click la LEGGE (D-534 (3), `Q4`)
 		bool bCompagnoLontano = false;         //< un compagno (vista 0) a tre celle dal Fumo: in pianificazione NON lo vede, e non cambia niente se resta fermo
 		bool bCompagnoScatta = false;          //< solo con `bCompagnoLontano`: il compagno scatta di due celle verso il Fumo, lo mette in vista nel Blast e non in pianificazione
@@ -697,8 +701,9 @@ namespace
 		bool bAttoreNonUltimo = false;  //< solo `AttaccoACella`: un'altra unita' ordina DOPO chi tira (altrimenti chi tira e' l'ultima)
 		int32 CopertureRifiutate = 0; //< voci `CoverRejected` del turno
 		int32 CopertureErette = 0;    //< voci `CoverCreated` del turno
-		bool bControllaBordo = false; //< solo `CreateCover`: il click ha scritto il lato?
+		bool bControllaBordo = false; //< solo `CreateCover` e `Interact`: il click ha scritto il lato?
 		bool bBordo = false;
+		bool bMuoreNelDash = false;   //< chi agisce e' MORTO a fine turno, e per un danno scritto nella fase Dash (e non nel Blast): era vivo al lock-in e cade prima del Blast
 		bool bControllaBersaglio = false; //< solo `bBersaglioScattaLontano`: il bersaglio deve essere DAVVERO finito altrove
 		FRTCellId CellaDelBersaglio;
 		int32 ResiduoAtteso = INDEX_NONE; //< se >= 0 sostituisce il residuo calcolato da `bPaga`
@@ -720,6 +725,8 @@ namespace
 		int32 CopertureRifiutate = 0;
 		int32 CopertureErette = 0;
 		bool bBordoDopoIlClick = false;
+		bool bAttoreVivo = true;    //< chi agisce e' vivo a fine turno
+		int32 DanniNelDash = 0;     //< voci `Combat` della fase Dash: il danno da terreno di uno scatto (nessun'altra riga ne produce)
 		bool bAttoreUltimo = false; //< solo `AttaccoACella`: chi tira e' l'ULTIMO nell'ordine di `SortUnitsForResolution` (premessa dell'origine)
 		FRTCellId CellaDelBersaglioDopo;
 	};
@@ -734,6 +741,25 @@ namespace
 		if (S.FumoX != INDEX_NONE) { Fumo.Add(FRTCellId(S.FumoX, 0, 0)); }
 		ARTHexMapActor* MapActor = PagaSpawnMap(World, /*Radius=*/ 9, {}, Fumo, {});
 
+		if (S.bAttoreMuoreNelloScatto || S.bPortaBloccataTraLeCelle)
+		{
+			// La cella (1,0,0) con una caratteristica in piu', scritta come fa `PagaGiraPorta`: si legge, si cambia, si riscrive e si riordina.
+			// Il Fuoco e' il primo passo dello scatto (10 danni all'ingresso, `Terrain.Fire`, CP 8.1; non ferma lo scatto lineare); la porta `Locked`
+			// sta sul bordo W, cioe' fra la cella di chi agisce e quella del bersaglio adiacente.
+			FRTHexCellData Dati = *MapActor->MapAsset->FindCell(FRTCellId(1, 0, 0));
+			if (S.bAttoreMuoreNelloScatto)
+			{
+				Dati.Surface = ERTHexSurface::Fire;
+				Dati.MoveCost = 2; // costo del catalogo v0.1, come lo precompila il paint tool
+			}
+			if (S.bPortaBloccataTraLeCelle)
+			{
+				Dati.Doors.Add(FRTHexDoor(ERTHexDirection::W, ERTHexDoorState::Locked));
+			}
+			MapActor->MapAsset->AddOrUpdateCell(Dati);
+			MapActor->MapAsset->SortCells();
+		}
+
 		ARTUnit* Attore = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 		// Un avversario lontano in ogni banco: la squadra avversa non e' mai vuota, e non entra nella portata di nessuno.
 		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0, 0));
@@ -746,6 +772,8 @@ namespace
 			return Esito;
 		}
 		if (S.Visione != INDEX_NONE) { Attore->VisionRange = S.Visione; }
+		// Salute per cui il Fuoco in (1,0,0) uccide (10 danni, scudo gia' a zero per `PagaSpawnUnit`): muore ENTRANDO nella cella, nel Dash.
+		if (S.bAttoreMuoreNelloScatto) { Attore->Health = 5; }
 
 		// L'azione sta in uno slot che l'array dei cooldown COPRE, o il contatore non e' osservabile affatto.
 		int32 Idx = 0;
@@ -755,6 +783,7 @@ namespace
 		case ERic3Azione::Ignite:          Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Ignite"), 3); break;
 		case ERic3Azione::ReazioneCounter: Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Counter"), 3); break;
 		case ERic3Azione::CreateCover:     Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.CreateCover"), 3); break;
+		case ERic3Azione::Interact:        Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Attore, TEXT("Action.Interact"), 3); break;
 		default: break; // l'attacco base e' lo slot 0
 		}
 		if (!Test.TestTrue(*FString::Printf(TEXT("%s: l'azione e' installata"), Nome), Idx != INDEX_NONE))
@@ -920,6 +949,23 @@ namespace
 					}
 				}
 			}
+			if (S.bCaricaPrecede)
+			{
+				// La CARICA RIESCE ([D-575] (1bis)): un nemico in (-2,0,0), due celle dietro chi agisce, e la carica (portata 3) verso (-3,0,0) lo
+				// urta e si ferma adiacente, in (-1,0,0). Il bersaglio del tiro sta sul lato opposto (+X): il click giudica dalla cella di PARTENZA
+				// (`AimOriginCell` non sposta l'origine per una carica, [D-464] (5)), il Blast da quella d'arrivo, una cella piu' lontana dal
+				// bersaglio. E' l'unica variabile fra il controllo (nessuna carica) e il caso. L'impatto (20 danni e una spinta di 1) e' un
+				// intento a parte, con la propria ricarica: la ricarica che la riga misura e' quella del tiro (slot 0).
+				ARTUnit* Caricato = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 0, 0));
+				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: nemico caricato"), Nome), Caricato))
+				{
+					PagaDestroyWorld(World);
+					return Esito;
+				}
+				const int32 Carica = RTAbilityFixtures::AddCoreAbility(Attore, TEXT("Action.Charge"));
+				Attore->PlannedDashAbility = Carica;
+				Attore->PlannedDashCell = FRTCellId(-3, 0, 0);
+			}
 			if (Bersaglio && S.bBersaglioScattaLontano)
 			{
 				// Il bersaglio scatta di due celle lungo l'asse r e finisce a distanza `Portata + 1` da chi agisce. La mira e'
@@ -1008,7 +1054,7 @@ namespace
 					Attore->DeclareAttackOnUnit(Bersaglio); // `nullptr` = piano senza bersaglio-unita' ne' cella
 				}
 			}
-			if (S.Azione == ERic3Azione::CreateCover && S.bBordoDichiarato)
+			if ((S.Azione == ERic3Azione::CreateCover || S.Azione == ERic3Azione::Interact) && S.bBordoDichiarato)
 			{
 				// Il lato dichiarato, come lo scrive `HandleTargetEdge`: la cella del bersaglio e il bordo.
 				Attore->DeclareAttackOnCell(CellaBersaglio);
@@ -1068,6 +1114,7 @@ namespace
 		Esito.Cooldown = AttoreDopo->GetAbilityCooldown(Idx);
 		Esito.bHaPagato = PagaHaPagato(AttoreDopo, Idx);
 		Esito.CellaFinale = AttoreDopo->Cell;
+		Esito.bAttoreVivo = AttoreDopo->IsAlive();
 		const ARTUnit* BersaglioDopo = BersaglioDebole.Get(/*bEvenIfPendingKill*/ true);
 		Esito.bDanno = BersaglioDopo && BersaglioDopo->Health < SaluteBersaglio;
 		if (BersaglioDopo) { Esito.CellaDelBersaglioDopo = BersaglioDopo->Cell; }
@@ -1077,6 +1124,10 @@ namespace
 
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
+			if (E.Phase == ERTMatchPhase::Dash && E.Category == ERTLogCategory::Combat)
+			{
+				++Esito.DanniNelDash; // nessuna riga del banco colpisce nel Dash: l'impatto di una carica e i colpi risolvono nel Blast
+			}
 			if (E.Category == ERTLogCategory::Reaction)
 			{
 				if (E.Outcome == static_cast<uint8>(ERTReactionOutcome::Activated)) { ++Esito.Attivate; }
@@ -1150,6 +1201,13 @@ namespace
 		{
 			Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il click ha scritto il lato?"), *Etichetta),
 				E.bBordoDopoIlClick, A.bBordo);
+		}
+		if (A.bMuoreNelDash)
+		{
+			// Senza queste due premesse la riga potrebbe misurare un attore morto PRIMA del lock-in (che `CollectLivingUnits` esclude dalle origini
+			// congelate): muore, e muore per un danno della fase Dash, quindi era vivo quando il click ha giudicato e l'origine e' stata congelata.
+			Test.TestFalse(*FString::Printf(TEXT("%s: premessa: chi agisce e' morto a fine turno"), *Etichetta), E.bAttoreVivo);
+			Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il danno che l'ha ucciso e' della fase Dash"), *Etichetta), E.DanniNelDash, 1);
 		}
 
 		// Le premesse: la riga misura quello che dichiara. ZERO compresi, cosi' un'altra causa non puo' pagare al suo posto.
@@ -1533,6 +1591,23 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 			AttesoArcoFermatoEOltre,
 			TEXT("il click rifiutava anche dalla cella d'arrivo: gratis"))) { return false; }
 
+		// 🔴 La GUARDIA DI VITA del ramo `ModifyArc` fuori portata: «vivo quando annota» ([D-209]). Chi agisce e' VIVO al lock-in (altrimenti
+		// `CollectLivingUnits` lo esclude dalle origini congelate e il click rifiuterebbe comunque), il suo scatto entra in un Fuoco in
+		// (1,0,0) e lo ferma l'ostacolo in (2,0,0): muore ENTRANDO, nella fase Dash, e arriva al Blast cadavere con il piano ancora addosso. Il
+		// click aveva accettato dalla cella d'arrivo dello scatto (2,0,0), il Blast misurerebbe da (1,0,0): senza la guardia la riga di sopra
+		// (`ArcoFermato`) pagherebbe, e un cadavere pagherebbe una ricarica che non ha tentato. E' raggiungibile nel gioco: il Fuoco fa 10 danni
+		// a chi lo attraversa in scatto (`Terrain.Fire.DamagesOnDash`) e il Blast non salta chi e' caduto prima. La riga `ModifyArc: bersaglio
+		// morto e attore gia' caduto` NON la raggiunge: con la salute a zero PRIMA del lock-in il click rifiuterebbe comunque.
+		FRic3Scena ArcoMuore = ArcoFermato;
+		ArcoMuore.bAttoreMuoreNelloScatto = true;
+		FRic3Atteso AttesoArcoMuore = Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange));
+		AttesoArcoMuore.bControllaCella = true;
+		AttesoArcoMuore.CellaFinale = FRTCellId(1, 0, 0);
+		AttesoArcoMuore.bMuoreNelDash = true;
+		if (!Ric3Verifica(*this, TEXT("scatto fermato in un Fuoco, ModifyArc, chi agisce muore nel Dash"), TEXT("controparte"), ArcoMuore,
+			AttesoArcoMuore,
+			TEXT("D-209: un cadavere non paga un'azione che non ha tentato, anche se il click l'aveva accettata dalla cella d'arrivo dello scatto"))) { return false; }
+
 		// Per riflesso il tiro a CELLA oltre la portata dichiarata (`R9`, D-563 (3)): il Blast lo scarta in SILENZIO (nessuna voce, nessun
 		// canale), il click l'aveva accettato dalla cella d'arrivo dello scatto. Controllo: lo scatto arriva, l'area vuota in portata
 		// parte (`R1`) e paga come sempre.
@@ -1565,6 +1640,42 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 		if (!Ric3Verifica(*this, TEXT("scatto fermato, tiro a CELLA oltre la portata anche dalla cella d'arrivo (R9)"), TEXT("controparte"), CellaFermataEOltre,
 			AttesoCellaFermataEOltre,
 			TEXT("il click rifiutava anche dalla cella d'arrivo: R9 resta gratis (D-563 (3))"))) { return false; }
+	}
+
+	// --- D-575 (1bis), la CARICA RIUSCITA seguita da un tiro a un ALTRO bersaglio -------------------------
+	{
+		// Lettura ESTESA oltre lo scatto fermato, decisa dall'autore il 2026-11-04 («Sì, paga»): paga ogni caso in cui la cella reale di chi
+		// agisce differisce dall'origine con cui il click ha giudicato. Qui lo scatto NON si ferma: la carica riesce, e per [D-464] (5) il
+		// click giudica comunque la portata del tiro dalla cella di PARTENZA (`AimOriginCell` non sposta l'origine per una carica). La carica
+		// urta il nemico in (-2,0,0) e si ferma in (-1,0,0): il bersaglio del tiro, sul lato opposto, sta alla portata esatta da (0,0,0) e una cella
+		// oltre da (-1,0,0). Il controllo e' la stessa scena SENZA carica: il tiro colpisce (l'esito dipende dallo spostamento). La controparte
+		// gratis e' il bersaglio una cella oltre la portata anche dalla partenza: il click rifiutava.
+		FRic3Scena Controllo;
+		Controllo.bDistanzaPariAllaPortata = true;
+		FRic3Atteso AttesoControllo = Ric3Atteso(true, ERic3Click::Accetta);
+		AttesoControllo.bDanno = true;
+		AttesoControllo.bControllaCella = true;
+		AttesoControllo.CellaFinale = FRTCellId(0, 0, 0);
+		if (!Ric3Verifica(*this, TEXT("tiro alla portata esatta, nessuna carica"), TEXT("controllo"), Controllo, AttesoControllo,
+			TEXT("senza carica chi agisce resta dov'e', il tiro colpisce e paga"))) { return false; }
+
+		FRic3Scena Carica = Controllo;
+		Carica.bCaricaPrecede = true;
+		FRic3Atteso AttesoCarica = Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::OutOfRange);
+		AttesoCarica.bControllaCella = true;
+		AttesoCarica.CellaFinale = FRTCellId(-1, 0, 0);
+		if (!Ric3Verifica(*this, TEXT("carica riuscita, poi tiro a un altro bersaglio"), TEXT("caso"), Carica, AttesoCarica,
+			TEXT("D-575 (1bis): il click ha giudicato dalla cella di partenza, il tiro fallisce dalla cella d'arrivo della carica: paga"))) { return false; }
+
+		FRic3Scena CaricaEOltre = Carica;
+		CaricaEOltre.bDistanzaPariAllaPortata = false;
+		CaricaEOltre.bOltrePortataDichiarata = true;
+		FRic3Atteso AttesoCaricaEOltre = Ric3Atteso(false, ERic3Click::Rifiuta, ERTActionInvalidReason::OutOfRange);
+		AttesoCaricaEOltre.bControllaCella = true;
+		AttesoCaricaEOltre.CellaFinale = FRTCellId(-1, 0, 0);
+		if (!Ric3Verifica(*this, TEXT("carica riuscita, poi tiro oltre la portata anche dalla partenza"), TEXT("controparte"), CaricaEOltre,
+			AttesoCaricaEOltre,
+			TEXT("il click rifiutava anche dalla cella di partenza: gratis"))) { return false; }
 	}
 	return true;
 }
@@ -1837,6 +1948,50 @@ bool FRTUndecidedCausesStayFreeTest::RunTest(const FString&)
 		AttesoSenzaBersaglio.CopertureRifiutate = 1;
 		if (!Ric3Verifica(*this, TEXT("CreateCover armata, nessun bersaglio"), TEXT("caso"), SenzaBersaglio, AttesoSenzaBersaglio,
 			TEXT("il click non produce un piano di bordo senza bersaglio"))) { return false; }
+	}
+
+	// --- Interact armato: INT-* paga SOLO se il piano ha un lato dichiarato ([D-575] (a) e (b)) -------------------
+	{
+		// `DoorlessIntents` raccoglie ANCHE gli intenti senza lato dichiarato (il ramo di CP 9.3, dove l'operazione nasce dalla traiettoria), e
+		// la commutazione rifiutata (`DoorToggleRefusals`) puo' nascere da una porta trovata sulla traiettoria invece che sul lato. `INT-*` paga
+		// perche' il click di produzione dei bordi (`HandleTargetEdge`) accetta quel piano E scrive sempre il lato: un piano SENZA lato non
+		// viene da li'. Viene dal click su un'UNITA' (`HandleClickOnUnit` non controlla il kind del bersaglio: [D-575] (b), difetto del click da
+		// riparare, #3983), che accetta un'`Interact` armata, con o senza una porta sul bordo: non e' il piano che `INT-*` paga.
+		//
+		// Il controllo e' lo STESSO piano con il lato dichiarato come lo scrive `HandleTargetEdge`: nessuna porta sul bordo, paga (`NoEffect`).
+		// ⚠️ L'oracolo di queste righe e' il click su un'UNITA' adiacente, non `HandleTargetEdge`: il controllo del lato dichiarato sta qui solo come
+		// controparte della riga senza lato. La commutazione rifiutata CON il lato dichiarato (`Locked`, `Destroyed`) la misura, col click dei
+		// bordi, `Actions.Blast.DoorInteractionRefusalsPay`.
+		FRic3Scena Controllo;
+		Controllo.Azione = ERic3Azione::Interact;
+		Controllo.Distanza = 1;
+		Controllo.bBordoDichiarato = true;
+		if (!Ric3Verifica(*this, TEXT("Interact armata, lato dichiarato, nessuna porta"), TEXT("controllo"), Controllo,
+			Ric3Atteso(true, ERic3Click::Accetta, ERTActionInvalidReason::NoEffect),
+			TEXT("INT-*: la porta senza varco sul lato dichiarato, che il click dei bordi accetta, paga"))) { return false; }
+
+		FRic3Scena SenzaLato = Controllo;
+		SenzaLato.bBordoDichiarato = false;
+		FRic3Atteso AttesoSenzaLato = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::NoEffect);
+		AttesoSenzaLato.bClickDaRiparare = true;
+		AttesoSenzaLato.bControllaBordo = true;
+		AttesoSenzaLato.bBordo = false;
+		if (!Ric3Verifica(*this, TEXT("Interact armata, click su un'unita' (nessun lato), nessuna porta"), TEXT("caso"), SenzaLato, AttesoSenzaLato,
+			TEXT("D-575 (b) — il click accetta un piano di bordo senza lato, il resolver non trova nessuna porta: non e' `INT-*`, si ripara il click, intanto gratis"))) { return false; }
+
+		// La commutazione rifiutata SENZA lato: una porta `Locked` sul bordo fra chi agisce e l'unita' adiacente. MISURATO: il click su un'unita'
+		// la ACCETTA lo stesso (la porta non toglie la vista a questo click), e il piano non ha il lato: `FirstDoorEdge` trova la porta sulla
+		// traiettoria e il resolver rifiuta la commutazione (`DoorToggleRefusals`, `DoorLocked`). E' lo stesso difetto del click della riga
+		// sopra, non `INT-*`: gratis, e si ripara il click. (Il controllo col lato dichiarato, che paga, e' `Actions.Blast.DoorInteractionRefusalsPay`.)
+		FRic3Scena Bloccata = SenzaLato;
+		Bloccata.bPortaBloccataTraLeCelle = true;
+		FRic3Atteso AttesoBloccata = Ric3Atteso(false, ERic3Click::Accetta, ERTActionInvalidReason::DoorLocked);
+		AttesoBloccata.bClickDaRiparare = true;
+		AttesoBloccata.bControllaBordo = true;
+		AttesoBloccata.bBordo = false;
+		if (!Ric3Verifica(*this, TEXT("Interact armata, click su un'unita' (nessun lato), porta bloccata sulla traiettoria"), TEXT("caso"), Bloccata,
+			AttesoBloccata,
+			TEXT("D-575 (b) — senza lato il piano non viene dal click dei bordi: la commutazione rifiutata non e' `INT-*`, si ripara il click, intanto gratis"))) { return false; }
 	}
 
 	// --- D-575 (c), GRATIS E NON DECISA: reazione armata che non scatta -------------------------------
