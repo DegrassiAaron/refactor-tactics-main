@@ -7,7 +7,13 @@
 >   scrive, e **da confermare**.
 > - **Misurato su** `origin/main` = `361e2225f`. Le misure di §2 sono state rifatte su questo commit: la base
 >   precedente, `f1a56d9b1`, è avanzata con le PR #3978, #3979, #3980 e #3981 (`D-572`…`D-575`).
-> - **Decisioni registrate**: nessuna, ancora. §8 dice quali servono.
+> - **Decisioni registrate**: nessuna in `main`. La voce `D-576` è nella PR
+>   [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), in bozza; §8 dice cosa registra.
+> - **Correzioni dopo la conferma**: una revisione indipendente della voce (2026-11-04) ha trovato errori anche in
+>   questo brief, ora corretti: `#2291` non fu differita da D-484 (§6, §8), la corrispondenza schede ↔ nomi RT è già
+>   decisa (§6, §7), CP 46.4 sta in `roadmap-v0.1.md` e non in D-144 (§8), la morte visiva non è differita (§2, §8), i
+>   pack portano solo voci e non effetti sonori (§2). D-441 e D-338 dicevano il contrario di «anticipare E26» (§6).
+>   L'Appendice A cita il rapporto com'era: non si riscrive.
 > - **Conferma dell'autore**: «confermo», il 2026-11-04 (§3.5, e il rapporto confermato in Appendice A).
 > - **Owner di dominio**: lo scope è di [`roadmap-v0.1.md`](../roadmap-v0.1.md), i gate di
 >   [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md), l'attestazione di
@@ -46,15 +52,15 @@ candidate.
 | Giocabilità nella DoD | Un solo gate ha un criterio che la nomina, `G13` (*«Partita giocabile senza editor dalla build packaged»*; `grep -E '^\| (~~)?\*\*G[0-9]+' docs/roadmap/v0.1-definition-of-done.md \| cut -d'\|' -f3 \| grep -i -c giocabil` → 1). La riserva è scritta dal 2026-08-10: *«e una build che avvia sull'arena di prova soddisfa la lettera ma non la cosa»* | `roadmap-v0.1.md`, E46 ([D-144](../../decisions/RT_PDR_00_Decision_Log.md)); [evidenza del candidate v3](../../technical/evidence/85/misure-candidate-v3-2026-10-26.md) |
 | Tetto della presentazione | [D-124](../../decisions/RT_PDR_00_Decision_Log.md) lascia fuori *«VFX completo per tutti gli status, Niagara per ogni abilità, foot IK raffinato, locomotion set bespoke, cinematic death, e ogni presentation framework che nessun gate v0.1 misura»* | `roadmap-v0.1.md`, E21 |
 | Ambiente | Solo asset `Graybox` (cover, porte, superfici ghiaccio e acqua) e un Blueprint di presentazione. I DataAsset di mappa stanno sotto `Maps/Dev` e `Maps/Templates` | `find Content/RT/World Content/RT/Maps -name '*.uasset' -o -name '*.umap'` |
-| Personaggi | I quattro `BP_Unit_*` referenziano soli asset `Characters` dei pack Paragon, i due anelli e `ABP_RTUnitAuthored`; nessun riferimento forte a cartelle `FX` o `Sounds`. I ruoli di presentazione (Idle, Move, Cast, Attack, Hit, Death) e le varianti per azione esistono in C++; la morte visiva è differita | `grep -a -o -E '/Game/[A-Za-z0-9_/.-]+'` sui `.uasset` (solo riferimenti forti); `Source/RefactorTactics/Unit/RTUnitAnimInstance.h`; E21.2 |
+| Personaggi | I quattro `BP_Unit_*` referenziano soli asset `Characters` dei pack Paragon, i due anelli e `ABP_RTUnitAuthored`; nessun riferimento forte a cartelle `FX` o `Sounds`. I ruoli di presentazione (Idle, Move, Cast, Attack, Hit, Death) e le varianti per azione esistono in C++; la clip `Death` c'è: `PIE-AS4b` è ✅ dal 2026-09-28, e «differita» in E21.2 vale per la sparizione dell'unità (§6) | `grep -a -o -E '/Game/[A-Za-z0-9_/.-]+'` sui `.uasset` (solo riferimenti forti); `Source/RefactorTactics/Unit/RTUnitAnimInstance.h`; E21.2 |
 | VFX e suoni nel C++ | Nessun riscontro fuori dai `Tests/`. ⚠️ Per regola VFX e audio vivono nei Blueprint e nei dati: il C++ vuoto è atteso e **non prova** l'assenza. I Blueprint non sono stati aperti (`unreal-mcp` non connesso in sessione) | `git grep -l -E 'UNiagara\|NiagaraComponent\|SpawnSystemAtLocation\|SpawnSystemAttached\|UParticleSystem\|SpawnEmitter\|USoundBase\|USoundCue\|PlaySound\|SpawnSound\|UAudioComponent\|MetaSound' -- 'Source/*.cpp' 'Source/*.h' ':(exclude)Source/RefactorTactics/Tests' ':(exclude)Source/RefactorTacticsEditor/Private/Tests'` → nessun riscontro; controllo positivo con `UAnimInstance` → riscontri |
-| Pack Paragon degli eroi | Animazioni, suoni e FX in **Cascade** (`P_*`) per ciascuno; nessun Niagara (`NS_*`). Cascade è il sistema legacy di UE, deprecato a favore di Niagara: la sua resa in 5.8.1 **non è misurata** | `find Content/FabAsset/Paragon/ParagonRiktor/FX -name 'P_*.uasset'`, e gli altri tre pack |
+| Pack Paragon degli eroi | Animazioni e FX in **Cascade** (`P_*`) per ciascuno; nessun Niagara (`NS_*`). **I suoni sono di sola voce** (cartelle `Sounds` per tre pack e `Audio` per Wraith; famiglie `Effort`, `Lore`, `Emote`, `Kill`…): nessun effetto di combattimento. Cascade è il sistema legacy di UE, deprecato a favore di Niagara: la sua resa in 5.8.1 **non è misurata** | `find Content/FabAsset/Paragon/ParagonRiktor/FX -name 'P_*.uasset'`, e gli altri tre pack; `grep -rl -a -E 'SoundCue\|SoundWave\|SoundClass' <pack> --include='*.uasset'`, che trova solo le cartelle di voce |
 | Pack degli eroi nuovi | Per le schede di [`docs/characters/v0.2/`](../../characters/v0.2/) il progetto ha `ParagonMurdock` e `ParagonSteel`; **non ha** pack per `aurora` e `kwang`. I quattro pack degli eroi attuali ci sono | `ls Content/FabAsset/Paragon \| grep -i -E 'aurora\|kwang\|steel\|murdock'` → `ParagonMurdock`, `ParagonSteel`; controllo positivo con `gadget\|phase\|riktor\|wraith` → i quattro |
 | Combat feedback | Evento → cue: [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454), #2456 e #2457 aperte (`P2`); #2455 (numeri di danno) chiusa | `gh issue view` |
 | Audio | Nessuna issue con «audio» nel titolo, aperta o chiusa; zero occorrenze in `roadmap-v0.1.md` e nella DoD | `gh issue list --search "audio in:title" --state all`; `grep -c -i -E 'audio\|suono\|sound\|musica' docs/roadmap/roadmap-v0.1.md docs/roadmap/v0.1-definition-of-done.md` → 0 e 0 |
 | Frontend | `PLAY · SETTINGS · QUIT`; `SETTINGS` ammesso come pannello «coming soon»; *«Match Setup v0.1 è preconfigurato — non c'è nulla da scegliere finché esiste un solo formato e una sola mappa»*. Settings reali, Briefing e Training Lite sono v0.2; Onboarding è v1.0 | `roadmap-v0.1.md`, CP 46.3 e 46.4; `roadmap-post-v0.1.md`, «Il frontend oltre la v0.1» |
 | Scelte pre-partita | Il roster si imposta da `Team0Heroes` e `Team1Heroes` del GameMode; il bootstrapper rifiuta un `HeroId` sconosciuto (`RosterHeroMissing`); un resolver sui roster è in `main` (PR #3717) con il verdetto a schermo ancora aperto (#2748). Nessuna UI di scelta | #2748 |
-| Roster | I `BP_Unit_*` si chiamano Aevik, Branth, Ivrin e Muiren e usano nell'ordine i pack Gadget, Riktor, Wraith e Phase; a schermo, per [D-120](../../decisions/RT_PDR_00_Decision_Log.md), Gadget · Phase · Riktor · Wraith. La migrazione dell'identità (#2297) è differita alla v0.2 da [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2) | riferimenti dei `.uasset`; `roadmap-v0.1.md`, E21 |
+| Roster | I `BP_Unit_*` si chiamano Aevik, Branth, Ivrin e Muiren e usano nell'ordine i pack Gadget, Riktor, Wraith e Phase; a schermo, per [D-120](../../decisions/RT_PDR_00_Decision_Log.md), Gadget · Phase · Riktor · Wraith. La migrazione dell'identità (#2297) è differita alla v0.2 da [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2); il rename degli ID del roster v0.1 (fette B·C·D) è già in `main` con #2491 | riferimenti dei `.uasset`; `roadmap-v0.1.md`, E21 |
 | Bot | Utility scoring; la competenza per eroe e capability è dati in [`bot-competence.yaml`](../bot-competence.yaml) ([D-102](../../decisions/RT_PDR_00_Decision_Log.md)); E26 sta nella v0.2 | `roadmap-post-v0.1.md`, E26 |
 | PIA | `Playable Integration & Acceptance` (#2623, PIA-1…PIA-6 aperte) porta il slice «da "le feature esistono" a giocabile», ma **accetta ciò che c'è**: non aggiunge arte, menu o audio | [`roadmap-pia.md`](../roadmap-pia.md) §1 |
 
@@ -123,8 +129,10 @@ di scorrimento, §7) e proponeva, sotto «Prossimo passo, se confermi», la PR d
 > «confermo»
 
 **Lettura dell'assistente, ribaltabile** (come [D-547](../../decisions/RT_PDR_00_Decision_Log.md)):
-- la risposta **autorizza i quattro passi** e **conferma la regola di scorrimento**, perché seguiva «confermala o
-  toglila»;
+- la risposta **autorizza la PR del brief, il `D-nnn` e l'audit per area** e **conferma la regola di scorrimento**,
+  perché seguiva «confermala o toglila»; **per l'issue di tracking su GitHub** il rapporto annunciava un OK separato
+  («scrivo su GitHub, quindi ti chiedo l'OK»), e «confermo» lo copre solo per lettura dell'assistente:
+  [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985) è stata aperta su questa lettura;
 - **accetta lo spostamento di E26 ed E35** *sapendo* le dipendenze che il rapporto nominava (§6, prima parte): non è
   la scelta fatta a occhi chiusi del §3.4;
 - **non risponde** alle domande di «Da decidere tu»: la forma di `G17`, lo stile dell'ambiente, il tetto di E26 e che
@@ -141,9 +149,11 @@ mappa con arte d'ambiente, vede e sente ogni skill, e scrive un verdetto sulle p
   (`grep -c -E '\*\*G(1[7-9]|2[0-9])\*\*' docs/roadmap/v0.1-definition-of-done.md` → 0); `G15` è ritirato e il
   numero non si riusa. Il giudizio «si gioca bene» è dell'autore; la meccanica (build, suite, packaging,
   determinismo, privacy) la misura chi scrive, e chi ripara non firma. Com'è fatto il verdetto è aperto (§7).
-- **`G13`** («partita giocabile senza editor dalla build packaged») va riscritto o assorbito: oggi si chiude con una
-  seduta senza persona.
-- **`G1`–`G14` e `G16`** si rimisurano sul candidate finale: le misure sul v3 non si riportano.
+- **`G13`** («partita giocabile senza editor dalla build packaged») potrebbe dover essere riscritto o assorbito: oggi si
+  chiude con una seduta senza persona *(lettura dell'assistente, aperta)*.
+- **`G1`–`G14` e `G16`** si rimisurano sul candidate finale (nel testo che l'autore ha visto: «G1–G14 e G16 rimisurati
+  sul candidate finale»). Le deroghe di D-544, D-545 e D-546 sono date sul v3: che valgano sul candidate finale non è
+  deciso *(lettura dell'assistente, aperta)*.
 
 ## 5. Le ondate *(bozza di chi scrive; l'ordine di partenza, Ambiente per primo, è dell'autore)*
 
@@ -154,10 +164,10 @@ sono e si allarga con la 4b, perché il roster è dato.
 | Ondata | Che cosa | Riusa (Search → Reuse) | Esce con |
 |---|---|---|---|
 | **1 · Ambiente** | Look da materiali su griglia esagonale, una mappa; superfici riconoscibili senza console debug; la leggibilità tattica non si sacrifica | contratto di posa ([`spec-graybox-placement-contract.md`](../../technical/systems/spec-graybox-placement-contract.md)); #2492, #2330, #1095 | la mappa non si legge come graybox; verdetto breve dell'autore; `Client FPS` da rimisurare |
-| **2 · Skill viste e sentite + audio** | Dorsale evento → cue; clip per azione dei quattro eroi, morte visiva inclusa; FX e suoni dai pack, Cascade da misurare in 5.8.1; audio (musica, UI, effetti) come epic nuova, senza owner | #2454, #2456, #2457; difetti di posa #1793 e #2167; i ruoli di `URTUnitAnimInstance` | un pilota su **un** eroe completo prima di replicare sugli altri tre |
+| **2 · Skill viste e sentite + audio** | Dorsale evento → cue; clip per azione dei quattro eroi (la clip `Death` c'è già; resta la finestra zero per chi cade nell'ultima fase); FX dai pack, Cascade da misurare in 5.8.1; suoni di effetto senza base nel progetto (i pack portano solo voci); audio (musica, UI, effetti) come epic nuova, senza owner | #2454, #2456, #2457; difetti di posa #1793 e #2167; i ruoli di `URTUnitAnimInstance` | un pilota su **un** eroe completo prima di replicare sugli altri tre |
 | **3 · Scelte pre-partita** | Match Setup su eroi, mappa (con la seconda), avversario, obiettivo e durata; passa dal bootstrapper esistente, nessun secondo percorso d'avvio (CP 46.4); le scelte entrano nel manifest e nel replay | resolver sui roster (#2748); `RosterHeroMissing`; [`spec-manifesto-showcase.md`](../../technical/tooling/spec-manifesto-showcase.md) | da Main Menu si configura e si avvia; il replay registra le scelte |
 | **4a · Bot** | Completare E13 (#151, #159, #160, #1466), poi E26 (#326) con un tetto scritto (§6) | `bot-competence.yaml` | il bot certificato sulle skill del roster di quel momento |
-| **4b · Roster a 8** | E35 (#322): 35.1–35.5, identità (#2291, #2297), bilanciamento a 8, bot certificato sugli otto | l'ondata 2 come modello di collegamento dei pack | `Heroes.RosterIsBalanced` esteso a 8; presentazione per i quattro eroi nuovi |
+| **4b · Roster a 8** | E35 (#322): 35.1–35.5 (CP 35.5 è #2291), la parte di #2297 che E35 richiede, bilanciamento a 8, bot certificato sugli otto | l'ondata 2 come modello di collegamento dei pack | `Heroes.RosterIsBalanced` esteso a 8; presentazione per i quattro eroi nuovi |
 | **5 · HUD, schermate, giro finale** | Un solo linguaggio visivo su menu, setup, HUD e result; PIA riallineato; rimisura di `G1`–`G14` e `G16`; `G17` | #1330; PIA (#2623) | il verdetto d'autore |
 
 ## 6. Che cosa porta con sé la scelta
@@ -167,11 +177,16 @@ dipendenze: nominava «un D-nnn di spostamento» e «l'opzione più grande». Se
 qui sono scritte come sono.
 
 - **E35** dichiara una sola dipendenza, *«E6 (roster 4) chiusa»*. Però:
-  - il suo CP 35.5 (*Paragon naming purge*, #2291) porta dentro l'identità dei roster, che
-    [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2) aveva differito alla v0.2 insieme a #2297;
-  - le schede dei quattro eroi nuovi in [`docs/characters/v0.2/`](../../characters/v0.2/) si chiamano ancora `aurora`,
-    `kwang`, `murdock` e `steel`, mentre E35 nomina Ward e Vigil (Sentinel Directorate), Rime e Tethra (Resonance): la
-    corrispondenza non è scritta nei file letti;
+  - il suo CP 35.5 (*Paragon naming purge*, #2291) porta dentro l'identità dei roster. ⚠️ **Correzione, trovata dopo
+    la conferma:** [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2) differisce la sola #2297; #2291 è già un
+    checkpoint di E35 in milestone v0.2, e il rapporto, che le metteva insieme, era impreciso. Il rename degli ID del
+    roster v0.1 (fette B·C·D di #2297) è già in `main` con #2491, quindi quale parte di #2297 E35 richieda è da
+    misurare;
+  - ⚠️ **Correzione, trovata dopo la conferma:** le schede dei quattro eroi nuovi in
+    [`docs/characters/v0.2/`](../../characters/v0.2/) si chiamano `aurora`, `kwang`, `murdock` e `steel`, e la
+    corrispondenza con Ward, Vigil, Rime e Tethra **è già decisa**: la tabella di
+    [`docs/characters/paragon.md`](../../characters/paragon.md) e [D-322](../../decisions/RT_PDR_00_Decision_Log.md)
+    (Steel = Ward, Aurora = Rime, Murdock = Vigil, Kwang = Tethra). Questo brief la dava per non scritta;
   - due schede dichiarano dipendenze tecniche: `aurora` *«Dynamic terrain, ice, LOS, movement costs»*, e descrive il
     cambio di geometria dietro di sé aggiungendo *«È una specifica di design, non ancora runtime»*; `kwang`
     *«Persistent object, electricity, water, geometry»*. Che i kit si realizzino con le meccaniche di oggi **non è
@@ -186,7 +201,20 @@ qui sono scritte come sono.
   allargata dal [brainstorming del 2026-10-14](fog-of-war-ripensata-brainstorm-2026-10-14.md) (resa, memoria, rumori,
   rivelare, tutto dichiarato nella v0.1). La coda di E13 entra nel percorso critico. L'elenco di E26 nomina anche
   *belief weights*, *predictive action scoring* e *stress 4v4*, che la stessa epic dice usciti in feature separate o
-  che hanno epic proprie (E17 in v0.1, E32 in v0.4): il tetto di E26 nella v0.1 va scritto.
+  che hanno epic proprie (E17 in v0.1, E32 in v0.4): il tetto di E26 nella v0.1 va scritto. Lo «stress 4v4» che
+  l'elenco nomina è fuori per la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1: finché il tetto non è deciso, vale
+  la riga.
+- ⚠️ **Decisioni accettate che dicono il contrario di «anticipare E26», trovate dopo la conferma** (l'autore non le ha
+  viste quando ha scelto):
+  [D-441](../../decisions/RT_PDR_00_Decision_Log.md) porta il **comportamento** dei bot fuori dalla v0.1 su una
+  frase d'autore del 2026-09-27, *«il comportamento dei bot al momento non mi interessa, mi servono solo per veder
+  funzionare il gioco»*, e sposta `U5` e `#149` su «E26 · v0.2»;
+  [D-338](../../decisions/RT_PDR_00_Decision_Log.md) (2) rifiuta di esercitare la via dell'obiettivo con *«oppure
+  anticipare `E26`»*, e il Match Setup scelto comprende «obiettivo e durata»;
+  [D-321](../../decisions/RT_PDR_00_Decision_Log.md) differisce la migrazione delle identità (D-322 ripete che il
+  differimento «resta intero»); [D-258](../../decisions/RT_PDR_00_Decision_Log.md) vieta di coniare `HeroId` dei
+  candidati «prima di E35». La scelta di oggi è più recente e specifica, ma la frase del 2026-09-27 non gli è stata
+  riproposta: `D-576` annota le righe e lascia aperto che cosa ne segua.
 - **Skill e bot si muovono insieme.** Per [`bot-competence.yaml`](../bot-competence.yaml) ([D-102](../../decisions/RT_PDR_00_Decision_Log.md))
   una capability decisiva `FAIL` o `UNTESTED` lascia dire solo *«il bot non sa giocarla»*: una skill nuova che il bot
   non gioca non fa vedere la profondità. Vale per ogni eroe aggiunto.
@@ -211,22 +239,30 @@ Non sono state poste in questa sessione. Si chiudono pezzo per pezzo, col pezzo.
 
 - **`G17`**: quante partite, che forma ha il verdetto, dove si scrive (il registro è
   [`test-manuali-pie.md`](../../technical/test-manuali-pie.md)); se una seconda persona deve giocare prima della
-  dichiarazione, come chiedeva `G13`.
-- **Regola di scorrimento** *(proposta di chi scrive)*: ogni ondata lascia una build che si gioca, e ciò che non è
-  chiuso quando l'autore dichiara scorre nella v0.2 con un `D-nnn`, non in silenzio. Da confermare o togliere.
+  dichiarazione (`G13` non la chiede: il suo ✅ si regge su una seduta pilotata dall'assistente, con i giudizi a occhio
+  dell'autore riportati dal v2).
+- **Regola di scorrimento** *(proposta di chi scrive, confermata per lettura: §3.5)*: ogni ondata lascia una build che
+  si gioca, E26 ed E35 vanno per ultime fra le ondate di contenuto (4a e 4b), prima dell'ondata 5, e ciò che non è
+  chiuso scorre nella v0.2 con un `D-nnn`, non in silenzio.
 - **Ambiente**: lo stile del look da materiali (palette, atmosfera, riferimenti); quanti tipi di superficie; la seconda
   mappa.
 - **Match Setup**: doppioni ammessi; se si sceglie anche la squadra avversaria; quali preset di obiettivo e durata; che
   cosa significa «livello» del bot.
 - **Audio**: musica originale o libreria; mix minimo; a quale ondata.
-- **E35**: la corrispondenza schede ↔ nomi RT; se i kit di `aurora` e `kwang` si realizzano con le meccaniche di oggi;
-  quando si fa la purga dell'identità.
+- **E35**: la parte di #2297 che E35 richiede (la corrispondenza schede ↔ nomi RT è già decisa: §6); se i kit di
+  `aurora` e `kwang` si realizzano con le meccaniche di oggi; quando si fa la purga dell'identità.
+- **D-441 e D-338**: se `U5`, `#149` e la prima precondizione di `U19` tornano con E26 dentro, se la frase d'autore del
+  2026-09-27 è superata dalla scelta di oggi, e se la via a punti si accende nei preset di «obiettivo e durata».
+- **Deroghe**: se quelle di D-544, D-545 e D-546, date sul v3, si estendono al candidate finale.
+- **Menu**: che cosa intendeva l'autore con «menu» nel mandato (Match Setup, Main Menu, Pause, Settings).
 - **Eroi senza pack** (`aurora`, `kwang`): da dove arriva la base visiva; se E35 entra comunque con soli due eroi
   nuovi finché i pack non ci sono.
 - **E26**: il tetto nella v0.1.
 - **Che cosa esce.** Nessun taglio è stato chiesto. Il lavoro `P2` e `P3` già aperto nella milestone resta tagliabile
   per [D-377](../../decisions/RT_PDR_00_Decision_Log.md); decidere se la ridefinizione ne usa il margine.
-- **Cascade** in 5.8.1: si misura prima di contare sugli FX dei pack.
+- **Cascade** in 5.8.1: si misura prima di contare sugli FX dei pack; e se i FX in Cascade siano ammessi dal nuovo
+  tetto, e se la dorsale evento → cue rientri nel tetto di D-124 o resti un «presentation framework che nessun gate
+  misura».
 
 ## 8. Le decisioni da registrare
 
@@ -235,16 +271,20 @@ Nessuna è ancora nel Decision Log. Si registrano col primo merge che le impleme
 
 1. **Il traguardo**: la v0.1 è una build giocabile dall'autore («Solo per me»), col giro «Con scelte».
 2. **Lo scope per area**: grafica, skill, scelte pre-partita, audio, partite più vere. Emenda
-   [D-124](../../decisions/RT_PDR_00_Decision_Log.md) (tetto della presentazione: cade per «Niagara per ogni abilità» e
-   per la morte visiva, che le opzioni scelte nominano) e CP 46.4 di [D-144](../../decisions/RT_PDR_00_Decision_Log.md)
-   (*«Match Setup v0.1 è preconfigurato»*). **Non** emenda CP 46.3, perché «Settings reali» non è stato scelto e
-   `SETTINGS` «coming soon» resta valido; **non** tocca la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1
-   (multiplayer in rete, 4v4, GAS, progressione, modding, editor di mappe a runtime), che nessuna scelta nomina.
-3. **Lo spostamento di E26 (#326) e di E35 (#322)** dalla v0.2 alla v0.1, con #2291 e #2297 che rientrano (ribalta
-   [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2) per E35.5).
+   [D-124](../../decisions/RT_PDR_00_Decision_Log.md) (tetto della presentazione: cade per «Niagara per ogni abilità»,
+   che l'opzione «VFX e impatti» nomina; la «morte visiva» non è un caso, perché la clip `Death` è già dentro il tetto e
+   `PIE-AS4b` è ✅ dal 2026-09-28) e CP 46.4 di [`roadmap-v0.1.md`](../roadmap-v0.1.md) §5 (E46, aperta da
+   [D-144](../../decisions/RT_PDR_00_Decision_Log.md)): *«Match Setup v0.1 è **preconfigurato**»*. **Non** emenda CP
+   46.3 (`roadmap-v0.1.md` §5, E46), perché «Settings reali» non è stato scelto e `SETTINGS` «coming soon» resta
+   valido; **non** tocca la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1 (multiplayer in rete, 4v4, GAS,
+   progressione, modding, editor di mappe a runtime), che nessuna scelta nomina.
+3. **Lo spostamento di E26 (#326) e di E35 (#322)** dalla v0.2 alla v0.1, con #2291 (CP 35.5, già checkpoint di E35) e
+   #2297 che rientrano (ribalta [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2), che differisce la sola #2297,
+   per la parte che E35 richiede). La stessa voce annota [D-441](../../decisions/RT_PDR_00_Decision_Log.md),
+   [D-338](../../decisions/RT_PDR_00_Decision_Log.md) e [D-321](../../decisions/RT_PDR_00_Decision_Log.md) (§6).
 4. **La forma**: v0.1 allargata, a ondate. Il v3 (`947a783d5`) resta l'ultimo candidate della vecchia definizione;
    [D-547](../../decisions/RT_PDR_00_Decision_Log.md) resta com'è e la release non si dichiara su di esso.
-5. **`G17`** e la riscrittura di `G13`.
+5. **`G17`**; la riscrittura di `G13` è una lettura dell'assistente, aperta.
 6. **La fonte degli asset**: pack Paragon come partenza, sostituiti dove non reggono; l'ambiente come look da
    materiali.
 
@@ -266,12 +306,15 @@ milestone v0.1 e v0.2, i corpi di #14, #26 e #85, la milestone di #326 e #322, e
 
 ## 10. Prossimi passi
 
-Dopo la conferma di §3.5 partono, in quest'ordine: la PR di questo brief, l'issue di tracking, il `D-nnn` (numero da
-misurare al merge) e l'audit per area. **Nulla si unisce senza un «unisci» dell'autore.**
+Dopo la conferma di §3.5 sono partiti, in quest'ordine: la PR di questo brief, l'issue di tracking, il `D-nnn` (numero
+da misurare al merge) e l'audit per area. **Nulla si unisce senza un «unisci» dell'autore.**
 
 1. ~~L'autore conferma o corregge §4–§7.~~ Confermato (§3.5); restano aperte le domande di §7.
-2. Issue di tracking, e `D-nnn` col testo di §3 e di Appendice A.
-3. Audit per area, esistente contro ondata, per mappare le issue già aperte prima di crearne di nuove.
+2. ~~Issue di tracking, e `D-nnn` col testo di §3 e di Appendice A.~~ [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985) è aperta;
+   la voce è nella PR [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), in bozza, dopo una
+   revisione indipendente che ha corretto errori di questo brief (§6, §7, §8).
+3. ~~Audit per area.~~ Eseguito: `v01-giocabile-audit-2026-11-04.md` e i suoi allegati, in una PR a parte che poggia su
+   questa (il percorso è fra apici perché il file non esiste su questo branch).
 4. **Dopo** il merge del `D-nnn`: si aggiornano i documenti di §8 e le issue su GitHub (milestone di #326 e #322,
    descrizioni delle milestone, corpi di #14, #26 e #85, PIA). Non prima: il `D-nnn` vale al merge.
 
