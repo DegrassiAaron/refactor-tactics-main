@@ -11,6 +11,8 @@
 > La vista **di esecuzione** (milestone M6–M11, stato per checkpoint) resta
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md); la mappatura fra le due è in §8.
 > Le decisioni vincolanti restano in [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md).
+>
+> 🔀 **RIDEFINIZIONE IN CORSO dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)): la v0.1 diventa una build giocabile dall'autore, allargata a ondate, con E26 ed E35 anticipate dalla v0.2.** Questo file resta l'owner dello scope finché le ondate non vi entrano: §1, §3, il tetto di E21 e CP 46.4 di E46 **non sono ancora riscritti**, e dove contraddicono le parti d'autore di `D-576` ((1)–(4) nel testo scelto, e l'esistenza di `G17`) vale `D-576`; le parti dell'assistente e il punto (7) restano aperti. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
 
 ---
 
@@ -1625,6 +1627,8 @@ vera per **E21.2** ed **E21.3**, che l'editor lo richiedono davvero: prima di er
 | **E21.1** | Personaggi sui centri esagonali | I `BP_Unit_*` (Paragon) sono posati sui centri, a terra, senza compenetrazione; se l'asset manca si vede il cilindro, non un buco | `PIE-AS2`, `PIE-FACING` |
 | **E21.2** | Animazioni di locomozione e impatto | Idle↔Run nella fase Move, dal grafo C++ `URTUnitAnimInstance` (⚠️ *questa cella diceva «`ABP_*`» fino al 2026-08-30: è la via che il CP stesso ha scartato il 2026-08-25 — [D-248](../decisions/RT_PDR_00_Decision_Log.md)*); montaggi Cast/Hit/Death nel Blast. **La morte visiva resta differita**: la presentazione non decide (invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
 | **E21.3** | Leggibilità tattica | `M_TeamRing` e `M_SelectionRing` assegnati; colori delle superfici leggibili **in partita**, non solo nell'overlay dell'editor; camera tarata su scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
+
+> 🔀 **Il tetto qui sotto è emendato dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md) (2)): cade per «Niagara per ogni abilità»; il resto della lista «Fuori» resta fuori finché non è chiesto.** Il riquadro non è ancora riscritto. La cella E21.2 qui sopra dice che la morte visiva «resta differita»: `PIE-AS4b` è ✅ dal 2026-09-28, e «differita» vale per la sparizione dell'unità.
 
 > ✅ **Il ceiling della v0.1 è fissato da [D-124](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12).**
 > **Dentro**: skeletal posate sugli hex per i quattro eroi · locomozione `Idle ↔ Run` · `Cast / Hit / Death` ·
