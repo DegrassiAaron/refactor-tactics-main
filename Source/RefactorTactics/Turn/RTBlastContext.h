@@ -376,6 +376,12 @@ struct FRTBlastContext
 	// che si conoscono SOLO a risoluzione. Cio' che il click rifiuta (fuori portata dichiarata, distanza minima)
 	// resta gratis. La tabella dei MOTIVI di nascita e' una sola, in `RTTurnManager_Blast.cpp` (`PagaSeParteSenzaColpo`);
 	// la regola per gli intenti gia' nati sta anche nelle clausole di `IntentoPartitoSenzaColpo` e nel lambda `AzionePartita`.
+	// ➕ [D-571] (RIC-3): il bersaglio-unita' fuori portata, che il click avrebbe accettato, paga
+	// (`FuoriPortataMaIlClickAccettava`, accanto alla tabella: `OutOfRange` non puo' stare nella tabella perche' oltre la
+	// portata dichiarata, o dietro un Fumo noto, il click rifiuta). Il click si rifa' con la conoscenza e l'origine con cui ha
+	// giudicato, congelate al lock-in ([D-574], [D-575]: `ClickKnowledgeAtLockIn`, `ClickAimOriginsAtLockIn`), e con la stessa
+	// regola paga il tiro a CELLA che il Fumo ha cappato o che uno scatto fermato o una carica riuscita hanno portato fuori portata (`R7`, `R9` per
+	// riflesso: `RangeLostPayingIntents`, qui sotto); il bersaglio-unita' morto di `ModifyArc` e delle azioni ambientali paga nei loro siti, non da qui.
 	//
 	// ⚠️ **La SEDE della scrittura non cambia**: anche questi pagamenti passano da `MarkAbilitySpent` e li scrive
 	// `SpendStartedAbilities`. Spostarla al piano definitivo e' il punto 3 di [D-414], non deciso.
@@ -387,6 +393,21 @@ struct FRTBlastContext
 	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.
 	 */
 	TSet<int32> UnhitPayableIntents;
+
+	/**
+	 * I tiri a CELLA che la geometria ha scartato per la portata (`FRTHexBlastPlan::TerrainCappedIntents`, cappati dal Fumo, e
+	 * `OutOfDeclaredRangeIntents`, oltre la portata dichiarata da dove chi tira si trova nel Blast) e che il click avrebbe
+	 * ACCETTATO, e che quindi pagano (`R7`, [D-563] (2): «cappato dal Fumo non osservato», decisione d'autore del 2026-11-03;
+	 * `R9` per riflesso dello scatto fermato, [D-575] (a)). Sottoinsieme dell'unione dei due canali: la voce di TurnLog
+	 * `Fallback`/`Cancelled`/`OutOfRange` esce per TUTTI i tiri cappati (e per nessuno degli altri), il pagamento solo per questi.
+	 *
+	 * 🔑 **Lo riempie `ClassifyRangeLostPayment`, subito dopo `CollectHexAttacks`, e lo legge `IntentoPartitoSenzaColpo`.**
+	 * Vive nel contesto e non nel piano perche' il piano e' geometria pura, senza conoscenza di squadra ne' origine del click: la
+	 * domanda «il click di QUESTA squadra, da QUELLA cella, accettava la portata?» e' del TurnManager, che ha le copie congelate al
+	 * lock-in. ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente (si riempie iterando i due canali, che
+	 * `CollectHexAttacks` ordina).
+	 */
+	TSet<int32> RangeLostPayingIntents;
 
 	/**
 	 * Azioni d'attacco partite che NON hanno un intento (`R6`: bersaglio-unita' gia' morto, annullato dal fallback

@@ -476,12 +476,36 @@ struct FRTHexBlastPlan
 	 * lock-in: aggiungerlo qui lo scriverebbe due volte. ⚠️ Non un riuso di `BlockedIntents`: nessuna linea di tiro e'
 	 * bloccata, e dirlo manderebbe a cercare un muro che non c'e'.
 	 *
-	 * ⚠️ **Un intento qui dentro e' un'azione PARTITA, e paga la ricarica** (decisione d'autore del 2026-10-31, [D-414]):
-	 * il click l'ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga. Il tiro a cella OLTRE la
-	 * portata dichiarata (e la distanza minima) NON e' qui dentro: il click lo rifiuta, e resta gratis.
+	 * ⚠️ **Questo insieme e' la TRACCIA, non il pagamento.** Raccoglie ogni tiro cappato dal Fumo, osservato o no: la voce di
+	 * TurnLog esce per tutti. Un tiro qui dentro paga la ricarica (`R7`, [D-563] (2), confermata dall'autore il 2026-11-01:
+	 * l'applicazione ai tiri cappati di «se si usa una abilita' si paga», [D-414]) solo se la squadra NON vedeva il Fumo — il
+	 * click ha accettato sulla mappa ottimistica, e il costo dell'ottimismo si paga; se lo vedeva il click rifiutava, ed e'
+	 * gratis (decisione d'autore del 2026-11-03). Lo decide
+	 * `ARTTurnManager::ClassifyRangeLostPayment`, che riempie `FRTBlastContext::RangeLostPayingIntents`: questa
+	 * libreria e' geometria pura e non conosce le squadre. Il tiro a cella OLTRE la portata dichiarata NON e' qui dentro: ha il
+	 * suo canale (`OutOfDeclaredRangeIntents`), senza voce. La distanza minima non ha canale e resta gratis.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> TerrainCappedIntents;
+
+	/**
+	 * Indici degli intenti d'attacco A CELLA scartati in SILENZIO perche' la mira sta oltre la portata DICHIARATA, misurata dalla
+	 * cella di chi tira nel Blast (`R9`, [D-563] (3)). Nessuna voce di TurnLog: e' un canale di sola CLASSIFICAZIONE, e la traccia
+	 * non cambia.
+	 *
+	 * 🔑 **Esiste per il pagamento dello scatto fermato e della carica riuscita** ([D-575] (a), (1bis), registrata in #3981: il
+	 * numero vale al merge). Il click ha giudicato dall'origine della mira prevista (la cella d'arrivo dello scatto o, con una
+	 * carica, la cella di partenza: la carica non sposta l'origine di mira, [D-464] (5)), il Blast misura da dove l'unita' si trova:
+	 * un tiro dentro la portata dall'una e fuori dall'altra sparisce qui, e il click l'aveva accettato. Chi lo decide, con la
+	 * conoscenza e l'origine con cui il click ha giudicato, e' `ARTTurnManager::ClassifyRangeLostPayment`: questa libreria e'
+	 * geometria pura e non conosce ne' le squadre ne' il click. Un tiro qui dentro e' gratis per chi l'avrebbe rifiutato anche
+	 * dall'origine del click (e' il caso comune: nessuno scatto fermato ne' carica riuscita), e paga per chi l'avrebbe accettato.
+	 *
+	 * ⛔ **Solo il tiro a CELLA di un'azione che si dichiara aggressione** (`bCountsAsAttack`): un bersaglio-unita' fuori portata
+	 * e' gia' una voce `Fallback` della validazione, che ha il suo sito di pagamento in `CollectAttackIntents`. Ordinato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<int32> OutOfDeclaredRangeIntents;
 
 	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non

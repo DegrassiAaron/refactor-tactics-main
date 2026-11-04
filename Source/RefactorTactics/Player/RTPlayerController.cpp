@@ -444,6 +444,7 @@ namespace
 
 			Timeline.Blast = PreviewPlan;
 			Timeline.PlannedWaypoints = Unit->PlannedWaypoints;
+			Timeline.bMoveResolves = !Unit->PlannedNormalMoveDeniedByStun(); // [D-569]: la domanda del resolver, non un secondo giudizio
 			// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
 			// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
 			// su quattro vuote, un consumatore non poteva distinguere le due cose.
@@ -5825,7 +5826,8 @@ FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
 	{
 		return Unit->PlannedDashCell;
 	}
-	if (Unit->PlannedPath.Num() > 1)
+	// [D-569]: un Move che lo stordimento nega non sposta l'unita', e il verso si dichiara da dove restera' — come per lo scatto.
+	if (Unit->PlannedPath.Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
 	{
 		return Unit->PlannedPath.Last();
 	}
@@ -5895,7 +5897,8 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 		}
 	}
 
-	if (Unit->PlannedPath.Num() > 1)
+	// [D-569]: un Move negato dallo stordimento non percorre niente, e il resolver giudica il verso di chi resta fermo (sei direzioni).
+	if (Unit->PlannedPath.Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
 	{
 		OutStyle = ERTMovementStyle::Budget;
 		OutPath = Unit->PlannedPath;

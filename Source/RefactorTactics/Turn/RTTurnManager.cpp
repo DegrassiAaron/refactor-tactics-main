@@ -1776,6 +1776,12 @@ void ARTTurnManager::LockInAndResolve()
 	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
 	EnsureMatchRoster();
 
+	// ➕ **La conoscenza e l'origine con cui il click ha giudicato si congelano QUI** ([D-574], [D-575] (a)): dopo
+	// `EnsureMatchRoster` (le origini si cercano per `StableUnitId`) e prima di `ValidatePlansAtLockIn` e della prima fase, cioe'
+	// prima che qualunque scatto, spinta o rinfresco del Blast muova una cella o allarghi la conoscenza. Serve a una cosa sola,
+	// classificare un pagamento di ricarica; colpi, movimento e percorsi non la leggono.
+	FreezeClickContextAtLockIn();
+
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
 		// 🔴 Il campione puo' non essere mai stato APERTO: `BeginPacingSample()` la chiama solo
@@ -1877,6 +1883,11 @@ void ARTTurnManager::LockInAndResolve()
  */
 void ARTTurnManager::ConcludeResolution()
 {
+	// Le fasi sono finite, Blast compreso: la conoscenza e le origini congelate al lock-in ([D-574], [D-575] (a)) hanno servito
+	// l'unico scopo che avevano, classificare un pagamento di ricarica. Si svuotano qui, cosi' sono transitorie alla lettera e
+	// una risoluzione che non passasse da `LockInAndResolve` non leggerebbe quelle di un altro turno.
+	ClickKnowledgeAtLockIn.Reset();
+	ClickAimOriginsAtLockIn.Reset();
 
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
@@ -3649,6 +3660,30 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		{
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
 				*Caster->GetName(), *Ability->Def.ActionId.ToString()), FRTLogSubject::Unit(Caster));
+
+			// ➕ **2026-11-03, [D-571] (RIC-3) causa (e)**: il bersaglio-unita' GIA' MORTO. Il click ha accettato un piano su un
+			// bersaglio vivo e noto, e la morte e' un fatto di risoluzione (questo e' il Cleanup, dopo il Blast): l'azione e'
+			// partita e la ricarica con lei. `Target == nullptr` e' un piano che il click non produce — dichiara sempre
+			// un'unita' o una cella — e resta gratis. La SEDE e' quella di sempre per questo sito: scrittura immediata, come
+			// per il rifiuto da stordimento qui sopra e per `ConsumeAbility` piu' in basso. `CanUseAbility` e' gia' stato
+			// verificato dalla guardia sopra (nessun valore FISSO riportato al pieno). Nessuna voce di TurnLog, nessun
+			// evento nuovo.
+			//
+			// ⚠️ **La guardia di vita NON e' una regola sola: dipende dal SITO** ([D-209]).
+			//  - attacco (`R10`): paga solo chi SOPRAVVIVE alla fase;
+			//  - cura e `ModifyArc`: annotate da vive a inizio Blast, pagano anche se muoiono nello stesso Blast;
+			//  - Interrupt: vivo quando annota;
+			//  - azione ambientale a bersaglio VIVO (superficie e scarica, i due `ConsumeAbility` piu' in basso): NESSUNA guardia
+			//    di vita — un lanciatore morto nel Blast agisce e paga (preesistente, non toccato);
+			//  - azione ambientale a bersaglio MORTO (questo ramo, nuovo): paga solo se `Caster->IsAlive()` DOPO il Blast, la
+			//    stessa guardia del rifiuto da stordimento qui sopra. Un cadavere col piano addosso non ha tentato niente.
+			// La differenza non e' inosservabile: `BuildUnitDigests` include le unita' morte e `CaptureFinalStateHash` gira
+			// prima di `DestroyDefeatedUnits`, quindi la ricarica di un morto entra nell'hash del turno che chiude la
+			// partita. I pin: `Actions.Blast.ResolutionEmergingCausesPay`.
+			if (Target && Caster->IsAlive())
+			{
+				Caster->ConsumeAbility(AbilityIndex);
+			}
 			continue;
 		}
 
@@ -4387,7 +4422,14 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// non e' geometria nota in pianificazione, e [D-200] libera solo cio' che il click rifiuta — quindi il rifiuto per
 		// stordimento precede i `Reject` di raccolta (nessun bersaglio, nessun bordo dichiarato, fuori portata) e li
 		// sostituisce: uno stordito con un piano incompleto e' rifiutato e paga, chi non lo e' lascia il suo `Reject` e non
-		// paga (`RIC-3` non e' deciso). E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
+		// paga (`RIC-3`, [D-571]). **Verificato col click, sotto-caso per sotto-caso**: «nessun bersaglio» e' un piano che il click
+		// non produce (ogni scrittura di `PlannedAbilityIndex` per un'abilita' non su se stessi dichiara anche un bersaglio) e
+		// «fuori portata» lo rifiuta (`ClassifyHexTargeting`, e in Prep l'origine e' la cella di partenza: nessuno scatto la
+		// sposta) — entrambi gratis. ⚠️ **«Nessun bordo dichiarato» invece il click lo ACCETTA**: `HandleClickOnUnit` non ha la
+		// guardia sul kind del bersaglio che hanno `HandleTargetCell` e `HandleTargetEdge`, quindi un'abilita' di bordo armata
+		// accetta il click su un'unita' e il piano nasce senza lato. Resta gratis come oggi, ed e' `BLOCKED — DECISION REQUIRED`:
+		// o il click (o il validatore al lock-in, `RIC-1`) deve rifiutarlo, o quel piano paga. Pinnato da
+		// `Actions.Blast.UndecidedCausesStayFree`. E sta dopo `CanUseAbility`, come in `ResolvePrep`: un'abilita' gia' in ricarica e'
 		// scartata in silenzio, senza voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e
 		// la riporterebbe al valore pieno. I morti e le porte non arrivano qui: li escludono le uscite in cima al ciclo
 		// (`IsAlive`, `StructureOp` assente, `SetDoorState`).
@@ -5001,6 +5043,41 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
+		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' una sola** ([D-573], `#3973`). Alla
+		// domanda posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince
+		// lo stordimento come nel Dash oppure restano due voci? — l'autore ha risposto, in sintesi, che la voce dev'essere una sola.
+		// Quella che resta e' la `Fallback`/`Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si
+		// scrive.
+		//
+		// 🔑 **Il criterio e' `ARTUnit::PlannedNormalMoveDeniedByStun()`**, la domanda che `BeginMovementResolution` pone per scrivere
+		// la voce `Stunned` ([D-471]: una regola, tanti lettori), e lo stesso esito che il Dash ha gia' per questo incrocio (sotto,
+		// «PRIMA del rifiuto per `Unbalanced`»).
+		//
+		// ⚠️ **Qui la domanda legge lo stato di INIZIO TURNO**, prima del Blast, mentre `BeginMovementResolution` la legge dopo. Non e'
+		// la lettura «alla fase in cui risolve l'azione» di [D-569] (4): la voce `Unbalanced` porta `Phase = Move` ma la scrive questo
+		// ciclo, nel Dash. Chi e' stordita da prima del turno ha una voce sola: i due fatti (sbilanciata e stordita) valgono nello
+		// stesso istante. Per chi viene stordita DAL Blast di T le voci sono DUE (`Unbalanced` qui, `Stunned` al Move), e sono due
+		// fatti veri a due istanti diversi: qui l'unita' e' sbilanciata e non ancora stordita, al Move e' stordita. E' deciso
+		// dall'autore il 2026-11-04 ([D-573] (2bis)), che ha scartato la scrittura differita: la voce `Unbalanced` dopo il Blast, con
+		// `AppendLogEntry` che congela verdetto e `GraphRevision` nell'istante in cui scrive, avrebbe cambiato quei campi per ogni
+		// voce `Unbalanced`. Si riapre quando `#3965` da' un produttore a `Stunned`. Fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals`.
+		//
+		// ⚠️ **La voce `Stunned` rimasta c'e' solo se al Move c'e' ancora un Move pianificato.** Uno spostamento forzato nel Blast
+		// azzera il piano ([D-045]): al Move `HasPlannedNormalMove()` e' falso, `BeginMovementResolution` non scrive niente, e per
+		// quella corsa le voci sono ZERO. E' una conseguenza dichiarata e non un difetto (non c'e' piu' un Move da rifiutare), ed e'
+		// raggiungibile solo nei banchi finche' `Stunned` non ha produttori. Fissato da
+		// `Status.StunnedMovement.AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`.
+		//
+		// ⚠️ **Si perde la traccia che era stata dichiarata una corsa**: la voce rimasta nomina `Action.Move`, perche' la banda
+		// congelata per chi e' sbilanciata e' gia' degradata da `bRunDenied`. E' la conseguenza che la domanda nominava.
+		//
+		// Saltare la voce non cambia altro: questo ciclo scrive solo la voce e la riga del combat log. Il divieto di reazione dello
+		// Sprint e' in `ReactionBlockedThisTurn` (sopra) e `Exposed` lo applica `BeginMovementResolution`, entrambi dal piano.
+		if (Unit->PlannedNormalMoveDeniedByStun())
+		{
+			continue;
+		}
 		// ⚠️ **Si chiede la banda SENZA il divieto**, cioe' quella che il piano produrrebbe se l'unita' non
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
@@ -5086,20 +5163,24 @@ void ARTTurnManager::ResolveDash()
 			continue;
 		}
 
-		// 🔴 **Lo stordimento NEGA la mobilita' che prende ANCHE l'azione principale** ([D-567], `#3964`). [D-416] (1) toglie
-		// la principale alla stordita e «non tocca il movimento»: una mobilita' `MovementAndMain` (o una principale di
-		// macro-fase Dash) li prende tutti e due, e l'autore ha deciso che vince la prima meta' — la stordita non la compie
-		// e il rifiuto PAGA la ricarica ([D-563] (2)), come ogni altra principale negata. Una mobilita' che prende il SOLO
-		// movimento (`Slot == Movement`, oggi ogni scatto spedito) resta permessa: il criterio e' `TakesMainSlot`, non un nome.
+		// 🔴 **Lo stordimento NEGA OGNI mobilita'** ([D-569], `#3973`, che estende [D-567] — la sola mobilita' che prende anche la
+		// principale — a tutte). [D-416] (1) toglieva alla stordita la principale e lasciava il movimento a `Root`; l'autore ha
+		// ribaltato il resto il 2026-11-02: una stordita non compie nessun movimento volontario, scatti compresi (`Dodge`, `Leap`,
+		// `Reposition`, `Charge` e le mobilita' d'eroe). Il rifiuto PAGA la ricarica ([D-563] (2), [D-567]) — lettura
+		// dell'assistente, ribaltabile ([D-569] (5)). Il criterio e' lo stato e non lo slot: `TakesMainSlot` e' uscito dalla condizione.
+		//
+		// 🔑 **Lo stato si legge ALLA FASE in cui l'azione risolve** ([D-569] (4)): il Dash precede il Blast, quindi uno stun nato
+		// nel Blast di T non lo nega (la mobilita' di T e' gia' avvenuta) e nega invece il Move di T (`BeginMovementResolution`).
+		// Gli impatti della carica non nascono: questo ramo esce prima di `PendingChargeImpacts`.
 		//
 		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStun()`**, letta sopra prima del consumo e la stessa che
 		// anteprima e mira leggono attraverso `PlannedDashMoves()` ([D-471]). La voce e' quella di ogni altro sito
 		// (`RefuseMainActionIfStunned`: `Fallback`/`Cancelled`/`Stunned`, fase `Dash`) con `TgtCell = Unit->Cell`: la
 		// destinazione pianificata e' piano privato, come nel rifiuto per `Unbalanced` qui sotto.
 		//
-		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget che prende la
-		// principale e' negata come stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso
-		// (nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
+		// ⚠️ **PRIMA del rifiuto per `Unbalanced`**: una stordita sbilanciata con una mobilita' a budget e' negata come
+		// stordita e paga, mentre l'altro rifiuto non paga. Nessun catalogo spedisce oggi quel caso (lo Sprint e' una banda del
+		// Move e nessuna azione dichiara `MovementAndMain`): lo prova `Status.StunDeniesAMobilityThatAlsoCostsTheMainAction` con
 		// un'azione costruita. ⚠️ **DOPO `if (!bDashApplies)`**: una mobilita' gia' in ricarica e' scartata in silenzio, senza
 		// voce e senza un secondo addebito, perche' `ConsumeAbility` scrive un valore FISSO e la riporterebbe al valore pieno.
 		// Nessun controllo `IsAlive`: `Units` viene da `MakeCurrentSnapshot`, cioe' da `CollectLivingUnits`, che tiene solo le
@@ -6031,6 +6112,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
+
+	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'
+	// fermato, o una carica riuscita) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe
+	// accettato. Subito dopo la raccolta, che ne produce i due canali, e prima di `ApplyInterrupts`, che ne legge il pagamento.
+	ClassifyRangeLostPayment(Ctx);
 
 	// Alias sui campi del contesto: il resto della fase non e' ancora estratto e continua a leggerli con i
 	// nomi che avevano da variabili locali. Sono RIFERIMENTI, non copie: nessun cambio di semantica. Ogni
@@ -7641,11 +7727,17 @@ void ARTTurnManager::AttachPlanningMap(FRTHexSnapshot& Snapshot, int32 ObserverT
 
 const URTHexMapAsset* ARTTurnManager::PlanningMapFor(int32 TeamId, const URTHexMapAsset* Authoritative)
 {
+	return PlanningMapFrom(TeamKnowledgeState, TeamId, Authoritative);
+}
+
+const URTHexMapAsset* ARTTurnManager::PlanningMapFrom(const TArray<FRTTeamKnowledge>& Source, int32 TeamId,
+	const URTHexMapAsset* Authoritative)
+{
 	if (!Authoritative || TeamId == RTObserver::Omniscient)
 	{
 		return Authoritative;
 	}
-	const FRTTeamKnowledge* Conoscenza = TeamKnowledgeState.FindByPredicate(
+	const FRTTeamKnowledge* Conoscenza = Source.FindByPredicate(
 		[TeamId](const FRTTeamKnowledge& K) { return K.TeamId == TeamId; });
 	if (!Conoscenza || (Conoscenza->VisibleCells.Num() == 0 && Conoscenza->ExploredCells.Num() == 0))
 	{

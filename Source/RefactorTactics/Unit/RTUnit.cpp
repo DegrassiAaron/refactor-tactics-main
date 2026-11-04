@@ -2193,10 +2193,19 @@ bool ARTUnit::PlannedDashDeniedByStatus() const
 
 bool ARTUnit::PlannedDashDeniedByStun() const
 {
-	const URTActionData* Dash = GetAbility(PlannedDashAbility);
-	// `TakesMainSlot` e non lo slot letto a mano: e' la stessa domanda che pone il censimento dello stordimento, e la
-	// prossima mobilita' che prende la principale (macro-fase Dash compresa) e' negata senza che nessuno lo ricordi.
-	return Dash != nullptr && HasStatus(TAG_Status_Stunned) && URTCatalogLibrary::TakesMainSlot(Dash->Def);
+	// [D-569]: una stordita non compie NESSUNA mobilita', e il criterio e' lo stato e non lo slot. Fino al 2026-11-03 qui c'era
+	// anche `TakesMainSlot` ([D-567]): la mobilita' del solo movimento restava permessa perche' [D-416] (1) lasciava il
+	// movimento a `Root`, e l'autore l'ha ribaltato. Un confronto con lo slot qui lascerebbe fuori la prossima mobilita'
+	// senza che nulla diventi rosso: lo prova `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`, guidato dai cataloghi.
+	return GetAbility(PlannedDashAbility) != nullptr && HasStatus(TAG_Status_Stunned);
+}
+
+bool ARTUnit::PlannedNormalMoveDeniedByStun() const
+{
+	// [D-569]: la stessa regola per il camminare, sullo stato VIVO: `BeginMovementResolution` la legge a inizio del Move (dopo il
+	// Blast), `ResolveDash` a inizio turno (prima del Blast). `HasPlannedNormalMove()` e' la domanda che il piano pone per sapere
+	// se c'e' un Move da negare: senza, una stordita ferma scriverebbe un rifiuto per ogni turno.
+	return HasPlannedNormalMove() && HasStatus(TAG_Status_Stunned);
 }
 
 bool ARTUnit::PlannedDashMoves() const

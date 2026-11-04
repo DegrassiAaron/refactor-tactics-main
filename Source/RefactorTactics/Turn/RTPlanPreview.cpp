@@ -363,8 +363,11 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 			SnapshotPerIlMove = &SnapshotDiFase;
 		}
 
-		const FRTHexPathResult Percorso = URTHexSimLibrary::BuildCompositeHexPath(
-			*SnapshotPerIlMove, Plan.UnitId, Plan.PlannedWaypoints);
+		// [D-569]: un Move che lo stordimento nega e' una rotta RIFIUTATA (vuota), come la rifiuta il resolver: la voce resta, il
+		// ghost sta dove l'unita' si trova e non percorre niente. `bMoveResolves` e' la domanda del resolver, non un secondo giudizio.
+		const FRTHexPathResult Percorso = Plan.bMoveResolves
+			? URTHexSimLibrary::BuildCompositeHexPath(*SnapshotPerIlMove, Plan.UnitId, Plan.PlannedWaypoints)
+			: FRTHexPathResult();
 
 		FRTPhasePreviewEntry Move;
 		Move.Phase = ERTResolutionPhase::NormalMovement;
