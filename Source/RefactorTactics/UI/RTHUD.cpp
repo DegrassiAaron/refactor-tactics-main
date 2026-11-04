@@ -1105,9 +1105,15 @@ void ARTHUD::DrawHUD()
 	// Lasciarla qui avrebbe calcolato due `TSet` per fotogramma senza che nessuno li leggesse — trovato in
 	// review, dopo che la prima stesura di questa PR aveva rimosso il consumatore e non il calcolo.
 
-	// Recuperato QUI, PRIMA del ciclo delle unita': serve alla traccia post-lock e al numero di turno.
+	// Recuperato QUI, PRIMA del ciclo delle unita': serve ai cancelli di fase, alla traccia post-lock e al numero di turno.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Quali strati dipendono dalla fase, decisi UNA volta per fotogramma in `ComposeHudPhaseGates` (#2184): prima
+	// erano tre confronti in tre siti. Senza `TurnManager` e' tutto falso, ma i siti tengono `TurnManager &&`: lo leggono.
+	const FRTHudPhaseGates PhaseGates = TurnManager
+		? ComposeHudPhaseGates(TurnManager->GetPhase(), TurnManager->IsResolving())
+		: FRTHudPhaseGates();
 
 	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
 	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
@@ -1146,7 +1152,7 @@ void ARTHUD::DrawHUD()
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	// ⛔ `Geo.bFromWorld` e' una CORREZIONE, e non puo' essere `if (Map)`: vedi `FRTHudHexGeometry`.
-	if (Geo.bFromWorld && TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	if (Geo.bFromWorld && TurnManager && PhaseGates.bShowPostLockTrail)
 	{
 		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
 		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
@@ -1188,7 +1194,7 @@ void ARTHUD::DrawHUD()
 	// nascosto a schermo — leggibile con qualunque strumento, e insostenibile quando arrivera' la rete (M10).
 	// Ora un piano avversario non rivelato non compare proprio fra le viste, e la reazione di un alleato non
 	// viene mai copiata in una vista avversaria.
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
+	if (TurnManager && PhaseGates.bShowPlannedIntents)
 	{
 		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
 		// ⚠️ Il ciclo che li costruiva stava qui fino al 2026-08-24 ed e' ora in `URTHudViewModel`: lo
@@ -1296,7 +1302,7 @@ void ARTHUD::DrawHUD()
 			// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 			const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
 			const FLinearColor DashColorSfumato(DashColor.R, DashColor.G, DashColor.B, DashColor.A * Opacita);
-			const int32 UltimoTrattoDiCorsa = Scatto.HasShortfall() ? Scatto.ReachSegments : Scatto.PathCells.Num() - 1;
+			const int32 UltimoTrattoDiCorsa = Scatto.LastRunSegment();
 			for (int32 i = 1; i <= UltimoTrattoDiCorsa; ++i)
 			{
 				const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
@@ -1327,8 +1333,7 @@ void ARTHUD::DrawHUD()
 			// Il segno d'arrivo sta dove la corsa SI FERMA, non sul nemico ([D-528]): la carica si ferma accanto a lui ([D-296]).
 			// ⏱️ *Fino a [D-528] stava sulla cella del nemico per una carica in portata*, e solo oltre la portata dove la corsa
 			// si ferma: sullo stesso schermo due cariche usavano il segno in due modi. Senza una lettura (un bot) resta com'era.
-			const FVector DDest = Project(HexCellWorld(Scatto.HasShortfall() ? Scatto.StopCell() : View.DashCell,
-				Origin, HexSize, LayerH));
+			const FVector DDest = Project(HexCellWorld(Scatto.DestinationMarkerCell(View.DashCell), Origin, HexSize, LayerH));
 			if (DDest.Z > 0.f) { DrawRect(FLinearColor(DashColor.R, DashColor.G, DashColor.B, 0.4f * Opacita), DDest.X - 10.f, DDest.Y - 10.f, 20.f, 20.f); }
 		};
 
@@ -1343,7 +1348,7 @@ void ARTHUD::DrawHUD()
 			// con la geometria e non lo erano — `bOwn` era `View.bIsAlly` e nient'altro. Ora vivono in una
 			// statica pura coi suoi test (#2184), **prefisso compreso**: quello era deciso venti righe piu'
 			// sotto, fuori da `ComposeIntentLabel`, e quindi l'etichetta completa non aveva una sede sola.
-			const bool bIsSelected = bHasSelection && View.OwnerCell == SelectedCell;
+			const bool bIsSelected = ComposeIntentIsSelected(bHasSelection, SelectedCell, View.OwnerCell);
 			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style, bIsSelected);
 			if (!Intento.bShow)
 			{
@@ -1675,7 +1680,7 @@ void ARTHUD::DrawHUD()
 	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
 	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
 	// 🔑 DOVE cadono le due righe lo decide `ComposeMatchEndPanelPlacement` (#2184), interrogabile senza un HUD.
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
+	if (TurnManager && PhaseGates.bShowMatchEndPanel)
 	{
 		const FString Headline = ComposeMatchEndHeadline(TurnManager->GetMatchResult());
 		const FString Restart = MatchEndRestartPrompt;
@@ -1945,6 +1950,41 @@ FRTHudHexGeometry ARTHUD::ComposeHexGeometry(const ARTHexMapActor* HexMap)
 	return Out;
 }
 
+FRTHudPhaseGates ARTHUD::ComposeHudPhaseGates(ERTMatchPhase Phase, bool bResolving)
+{
+	FRTHudPhaseGates Gates;
+
+	// La traccia dell'ultima risoluzione NON vuole `!bResolving`: oggi resta mentre il playback gira, ed e' per
+	// questo che non e' lo stesso cancello degli intenti. Stato di fatto, non decisione: vedi `FRTHudPhaseGates`.
+	Gates.bShowPostLockTrail = Phase == ERTMatchPhase::Planning;
+
+	// Gli intenti no: durante il playback si vede cio' che e' successo, non cio' che era stato pianificato.
+	Gates.bShowPlannedIntents = Phase == ERTMatchPhase::Planning && !bResolving;
+
+	// A partita finita il pannello non dipende dal playback.
+	Gates.bShowMatchEndPanel = Phase == ERTMatchPhase::MatchEnded;
+
+	return Gates;
+}
+
+bool ARTHUD::ComposeIntentIsSelected(bool bHasSelection, const FRTCellId& SelectedCell, const FRTCellId& OwnerCell)
+{
+	// Senza selezione `SelectedCell` e' la cella di default `(0,0,0)`, e un'unita' proprietaria di quella cella si
+	// marcherebbe come quella in pianificazione: in autobattle nessuno seleziona niente, e il confronto da solo
+	// non significa niente.
+	return bHasSelection && OwnerCell == SelectedCell;
+}
+
+int32 FRTDashPreview::LastRunSegment() const
+{
+	return HasShortfall() ? ReachSegments : PathCells.Num() - 1;
+}
+
+FRTCellId FRTDashPreview::DestinationMarkerCell(const FRTCellId& ChosenCell) const
+{
+	return HasShortfall() ? StopCell() : ChosenCell;
+}
+
 FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHexMapAsset* Map)
 {
 	FRTDashPreview Out;
@@ -2030,7 +2070,7 @@ FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)
 	// partite che si raccontano in modo diverso.
 	//
 	// ⚠️ **Con `InProgress` rende «Partita in corso - nessuna via», ed e' stato di fatto.** Il caso e'
-	// irraggiungibile perche' `DrawHUD` chiama questa funzione solo dentro `GetPhase() == MatchEnded` — ma
+	// irraggiungibile perche' `DrawHUD` chiama questa funzione solo dietro `PhaseGates.bShowMatchEndPanel` (cioe' `Phase == MatchEnded`) — ma
 	// il gate e la composizione stanno in DUE posti, e questa funzione e' pubblica. ⛔ Non e' stato
 	// corretto rendendo stringa vuota: sarebbe aggiungere una reticenza che oggi non esiste, e #2184 mette
 	// fuori scope «cambiare cio' che si vede». Se arriva un secondo chiamante, quella diventa una decisione
