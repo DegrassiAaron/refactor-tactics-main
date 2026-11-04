@@ -3245,7 +3245,7 @@ protected:
 	 * classificare un pagamento.
 	 *
 	 * ⛔ **Transitoria, non canonica**: non entra nello stato canonico, nello snapshot, nel TurnLog, in nessun hash/digest ne' in
-	 * una `UPROPERTY` replicata (non c'e' replica in produzione: `grep -rn DOREPLIFETIME Source/` non da' righe fuori da `Tests/`).
+	 * una `UPROPERTY` replicata (non c'e' replica in produzione: nessuna macro di registrazione delle proprieta' replicate fuori da `Tests/`).
 	 * Si ricalcola a ogni lock-in, la legge UN solo punto (`ClickMapForPaymentClassification`) e la svuota `ConcludeResolution`.
 	 */
 	TArray<FRTTeamKnowledge> ClickKnowledgeAtLockIn;
