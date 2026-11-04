@@ -11,6 +11,8 @@
 > La vista **di esecuzione** (milestone M6–M11, stato per checkpoint) resta
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md); la mappatura fra le due è in §8.
 > Le decisioni vincolanti restano in [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md).
+>
+> 🔀 **RIDEFINIZIONE IN CORSO dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)): la v0.1 diventa una build giocabile dall'autore, allargata a ondate, con E26 ed E35 anticipate dalla v0.2.** Questo file resta l'owner dello scope finché le ondate non vi entrano: §1, §3 e il tetto di E21 **non sono ancora riscritti**, e dove contraddicono `D-576` vale `D-576`. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
 
 ---
 

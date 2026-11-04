@@ -240,6 +240,8 @@ Cover Window dimostrabile in scenario automatico, suite verde, replay determinis
 
 ### E35 — Roster 8: Sentinel Directorate e Resonance · P0
 
+> 🔀 **E35 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic. Con essa rientrano #2291 (CP 35.5) e #2297, differite da [D-484](../decisions/RT_PDR_00_Decision_Log.md) (2). ⚠️ Nel progetto non ci sono i pack Paragon di `aurora` e `kwang`.
+
 **Tracciata su GitHub**: epic [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322).
 
 **Obiettivo**: portare il roster da 4 a 8 eroi aggiungendo le due fazioni v0.2, senza introdurre bonus di
@@ -473,6 +475,8 @@ con 4 checkpoint (`CP 25.1`–`25.4`). Fondazione v0.1 in
 Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 ### E26 — Tactical Bot v1 · P1
+
+> 🔀 **E26 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic. **Il suo tetto nella v0.1 non è deciso**: l'elenco di sotto nomina anche *belief weights*, *predictive action scoring* e *stress 4v4*. Dipende da E13, che resta nella v0.1.
 
 **Tracciata su GitHub**: epic [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326).
 
