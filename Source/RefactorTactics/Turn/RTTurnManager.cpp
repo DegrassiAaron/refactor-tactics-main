@@ -5001,7 +5001,7 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue;
 		}
-		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' una sola** ([D-569], `#3973`). Alla
+		// 🔴 **Stordita + sbilanciata: vince lo stordimento, e la voce di rifiuto del Move e' una sola** ([D-573], `#3973`). Alla
 		// domanda posta all'autore il 2026-11-03 — nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince
 		// lo stordimento come nel Dash oppure restano due voci? — l'autore ha risposto, in sintesi, che la voce dev'essere una sola.
 		// Quella che resta e' la `Fallback`/`Cancelled`/`Stunned` di fase `Move` che scrive `BeginMovementResolution`; questa non si

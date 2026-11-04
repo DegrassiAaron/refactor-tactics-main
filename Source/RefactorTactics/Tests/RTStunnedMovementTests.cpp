@@ -809,7 +809,7 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
 }
 
 /**
- * Stordita + sbilanciata + una corsa pianificata scrive UNA voce di rifiuto in fase Move, `Stunned` (D-569, `#3973`).
+ * Stordita + sbilanciata + una corsa pianificata scrive UNA voce di rifiuto in fase Move, `Stunned` (D-573, `#3973`).
  *
  * La domanda all'autore (2026-11-03): nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince lo
  * stordimento come nel Dash (UNA voce, `Stunned`; si perde la traccia della corsa dichiarata) oppure restano DUE voci
