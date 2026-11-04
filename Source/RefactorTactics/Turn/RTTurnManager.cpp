@@ -5013,10 +5013,13 @@ void ARTTurnManager::ResolveDash()
 		//
 		// ⚠️ **Qui la domanda legge lo stato di INIZIO TURNO**, prima del Blast, mentre `BeginMovementResolution` la legge dopo. Non e'
 		// la lettura «alla fase in cui risolve l'azione» di [D-569] (4): la voce `Unbalanced` porta `Phase = Move` ma la scrive questo
-		// ciclo, nel Dash. Chi e' stordita da prima del turno ha una voce sola. Per chi viene stordita DAL Blast di T le voci restano
-		// DUE (`Unbalanced` qui, `Stunned` al Move): se debbano essere una sola e' una domanda APERTA all'autore, perche' allinearsi
-		// vorrebbe dire scrivere la voce `Unbalanced` dopo il Blast, e `AppendLogEntry` congela verdetto e `GraphRevision` nell'istante
-		// in cui scrive. Fissato da `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`.
+		// ciclo, nel Dash. Chi e' stordita da prima del turno ha una voce sola: i due fatti (sbilanciata e stordita) valgono nello
+		// stesso istante. Per chi viene stordita DAL Blast di T le voci sono DUE (`Unbalanced` qui, `Stunned` al Move), e sono due
+		// fatti veri a due istanti diversi: qui l'unita' e' sbilanciata e non ancora stordita, al Move e' stordita. E' deciso
+		// dall'autore il 2026-11-04 ([D-573] (2bis)), che ha scartato la scrittura differita: la voce `Unbalanced` dopo il Blast, con
+		// `AppendLogEntry` che congela verdetto e `GraphRevision` nell'istante in cui scrive, avrebbe cambiato quei campi per ogni
+		// voce `Unbalanced`. Si riapre quando `#3965` da' un produttore a `Stunned`. Fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals`.
 		//
 		// ⚠️ **La voce `Stunned` rimasta c'e' solo se al Move c'e' ancora un Move pianificato.** Uno spostamento forzato nel Blast
 		// azzera il piano ([D-045]): al Move `HasPlannedNormalMove()` e' falso, `BeginMovementResolution` non scrive niente, e per

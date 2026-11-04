@@ -205,9 +205,11 @@ void ARTTurnManager::BeginMovementResolution()
 		// senza corsa, perche' l'unita' e' sbilanciata, quindi si perde la traccia che era stata dichiarata una corsa. Fissato da
 		// `Status.StunnedMovement.StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal`.
 		//
-		// ⚠️ **Resta aperto il caso dello stun nato nel Blast di T**: la voce `Unbalanced` si scrive prima del Blast, quando l'unita'
-		// non e' ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`: DUE voci, e se debbano essere una sola e' una
-		// domanda aperta all'autore (`Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided`).
+		// ⚠️ **Lo stun nato nel Blast di T ha DUE voci, ed e' deciso** ([D-573] (2bis), 2026-11-04): la voce `Unbalanced` si scrive
+		// prima del Blast, quando l'unita' e' sbilanciata e non ancora stordita, e questa guardia (dopo il Blast) scrive `Stunned`
+		// perche' ora e' stordita. Sono due fatti veri a due istanti diversi; «una voce» vale quando valgono nello stesso istante,
+		// cioe' per chi e' stordita da prima del turno. Si riapre quando `#3965` da' un produttore a `Stunned`. Fissato da
+		// `Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals`.
 		//
 		// ⚠️ **E la voce c'e' solo se qui c'e' ancora un Move pianificato**: uno spostamento forzato nel Blast azzera il piano ([D-045]),
 		// e allora non c'e' niente da rifiutare e le voci di quella corsa sono zero

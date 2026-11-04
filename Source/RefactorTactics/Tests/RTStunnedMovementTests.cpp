@@ -813,8 +813,8 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  *
  * La domanda all'autore (2026-11-03): nel Move, con stordimento e sbilanciamento insieme e uno Sprint pianificato, vince lo
  * stordimento come nel Dash (UNA voce, `Stunned`; si perde la traccia della corsa dichiarata) oppure restano DUE voci
- * (`Unbalanced` scritta da `ResolveDash` e `Stunned` che nomina `Action.Move`)? La risposta, in sintesi: una voce sola. Fino a
- * allora questo test fissava le due voci come stato di fatto non deciso (`...WritesTwoRefusalsUntilDecided`).
+ * (`Unbalanced` scritta da `ResolveDash` e `Stunned` che nomina `Action.Move`)? La risposta, in sintesi: una voce sola. Prima di
+ * quella risposta questo test fissava le due voci come stato di fatto non deciso (e si chiamava `...WritesTwoRefusalsUntilDecided`).
  *
  * `ResolveDash` scrive in apertura, per chi e' `Unbalanced` e ha pianificato una corsa, una voce `Fallback`/`Cancelled`/
  * `Unbalanced` in fase Move ([D-319]); `BeginMovementResolution` scrive poi quella `Stunned` ([D-569]). Per chi e' gia' stordito
@@ -846,8 +846,9 @@ bool FRTStunnedTheWalkIsRefusedTest::RunTest(const FString&)
  *
  * ⚠️ **Il confine di questa regola e' lo stato di INIZIO TURNO, non il Move**: il guard di `ResolveDash` legge `Stunned` quando
  * scrive la voce, cioe' prima del Blast (la voce porta `Phase = Move`, ma nasce nel Dash). Chi e' stordita da prima del turno ha
- * una voce sola; chi viene stordita DAL Blast di T non lo e' ancora, e per lei restano due voci (vedi
- * `...AStunBornInTheBlastKeepsBothRefusalsUntilDecided`). Se anche li' debba essercene una sola e' una domanda aperta all'autore.
+ * una voce sola, perche' i due fatti (sbilanciata e stordita) valgono nello stesso istante; chi viene stordita DAL Blast di T non
+ * lo e' ancora quando la voce `Unbalanced` si scrive, e per lei restano DUE voci: due fatti veri a due istanti diversi. E'
+ * deciso dall'autore il 2026-11-04 ([D-573] (2bis)) e lo fissa `...AStunBornInTheBlastKeepsBothRefusals`.
  *
  * ⚠️ **E la voce rimasta c'e' solo se al Move c'e' ancora un Move da rifiutare**: uno spostamento forzato nel Blast azzera il
  * piano ([D-045]), e allora non resta nessuna voce (vedi `...AForcedDisplacementDropsTheWholeRunPlanSoNoRefusalIsWritten`).
@@ -1018,24 +1019,25 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 }
 
 /**
- * PIN DEL COMPORTAMENTO ATTUALE, NON UNA DECISIONE: chi viene stordita DAL Blast di T, ed era sbilanciata con una corsa
- * pianificata, scrive DUE voci in fase Move.
+ * Chi viene stordita DAL Blast di T, ed era sbilanciata con una corsa pianificata, scrive DUE voci in fase Move: `Unbalanced` e
+ * `Stunned`. E' una decisione dell'autore, presa il 2026-11-04 ([D-573] (2bis)), e questo test ne e' il pin.
  *
- * La risposta d'autore (una voce sola) riguarda lo stordimento e lo sbilanciamento INSIEME, e la regola che la attua legge lo
- * stato di inizio turno, in `ResolveDash`: uno stun nato nel Blast di T non c'e' ancora quando la voce `Unbalanced` si scrive,
- * quindi la voce c'e', e poi `BeginMovementResolution` (dopo il Blast) scrive quella `Stunned`. Ogni voce descrive lo stato
- * com'era quando e' stata scritta, ma l'autore non ha detto se per QUESTO caso vale ancora una voce sola.
+ * Sono due fatti veri a due istanti diversi. `ResolveDash` legge lo stato di inizio turno, in apertura: uno stun nato nel Blast di
+ * T non c'e' ancora quando la voce `Unbalanced` si scrive (l'unita' e' sbilanciata e non ancora stordita), e `BeginMovementResolution`
+ * (dopo il Blast) scrive poi quella `Stunned` (al Move l'unita' e' stordita). «Una voce sola», cioe' l'esito del test
+ * `...StunnedAndUnbalancedSprintWritesOnlyTheStunnedRefusal`, vale quando i due fatti valgono nello stesso istante: per chi e'
+ * stordita da prima del turno.
  *
- * ⚠️ **DECISION REQUIRED**: farne una sola vorrebbe dire scrivere la voce `Unbalanced` dopo il Blast (la voce porta `Phase = Move`
- * ma oggi nasce nel Dash), con effetto su `AppendLogEntry`, che congela verdetto e `GraphRevision` nell'istante in cui scrive. Questo
- * test fissa lo stato di fatto per non farlo cambiare in silenzio: se la decisione e' una voce sola anche qui, l'asserto sulla
- * voce `Unbalanced` si rovescia (zero).
+ * Scegliere una voce sola anche qui vorrebbe dire scrivere la voce `Unbalanced` dopo il Blast (porta `Phase = Move` ma nasce nel
+ * Dash), e `AppendLogEntry` congela verdetto e `GraphRevision` nell'istante in cui scrive: spostare la scrittura cambierebbe quei
+ * campi per OGNI voce `Unbalanced` e non solo per questo caso. L'autore ha scelto di non farlo. La decisione si riapre quando
+ * `#3965` da' un produttore a `Stunned`, perche' oggi il caso e' raggiungibile solo nei banchi.
  *
  * Due bracci: senza stordente la sbilanciata cammina (1x) e scrive la sola voce `Unbalanced` (controllo: e' lo stordimento a
  * fermarla, e a scrivere `Stunned`); con lo stordente la voce `Unbalanced` c'e' e c'e' anche `Stunned`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest,
-	"RefactorTactics.Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusalsUntilDecided",
+	"RefactorTactics.Status.StunnedMovement.AStunBornInTheBlastKeepsBothRefusals",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest::RunTest(const FString&)
 {
@@ -1077,7 +1079,7 @@ bool FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest::RunTest(const FString&)
 		if (bWithStunner)
 		{
 			TestTrue(TEXT("con stordente: premessa: e' uscita stordita dal Blast"), Walker->HasStatus(TAG_Status_Stunned));
-			TestEqual(TEXT("con stordente: PIN (non deciso): e c'e' ANCHE la voce Stunned in fase Move"), Stunned, 1);
+			TestEqual(TEXT("con stordente: e c'e' ANCHE la voce Stunned in fase Move: due fatti veri a due istanti diversi"), Stunned, 1);
 			TestEqual(TEXT("con stordente: lo stun nato nel Blast di T nega il Move di T: resta dov'e'"), Walker->Cell.ToString(), T::Home.ToString());
 		}
 		else

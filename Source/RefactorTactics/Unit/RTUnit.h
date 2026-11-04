@@ -1050,7 +1050,8 @@ public:
 	 * ⚠️ **`ARTTurnManager::ResolveDash` la pone invece PRIMA del Blast**, sullo stato di inizio turno, per decidere se scrivere la
 	 * voce `Unbalanced` di una corsa negata: una stordita sbilanciata scrive la sola voce `Stunned` del Move. Quella lettura non
 	 * e' la (4) di [D-569] — la voce porta `Phase = Move` ma nasce nel Dash — e per chi viene stordita DAL Blast di T non vede
-	 * lo stun: due voci, e se debbano essere una sola e' una domanda aperta all'autore.
+	 * lo stun: due voci, due fatti veri a due istanti diversi (deciso dall'autore il 2026-11-04, [D-573] (2bis); si riapre quando
+	 * `#3965` da' un produttore a `Stunned`).
 	 *
 	 * 🔑 **Una regola, tanti lettori**: il resolver (`BeginMovementResolution`, che scrive la voce di rifiuto, e `ResolveDash`, che
 	 * per questa unita' non scrive quella di `Unbalanced`), l'anteprima del Move (`FRTPlanPreviewInput::bMoveResolves`) e il verso
