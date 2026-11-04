@@ -235,9 +235,11 @@ Nessuna è ancora nel Decision Log. Si registrano col primo merge che le impleme
 
 1. **Il traguardo**: la v0.1 è una build giocabile dall'autore («Solo per me»), col giro «Con scelte».
 2. **Lo scope per area**: grafica, skill, scelte pre-partita, audio, partite più vere. Emenda
-   [D-124](../../decisions/RT_PDR_00_Decision_Log.md) (tetto della presentazione),
-   [D-144](../../decisions/RT_PDR_00_Decision_Log.md) con CP 46.3 e 46.4 (frontend minimo) e la riga «Fuori scope» di
-   `roadmap-v0.1.md`.
+   [D-124](../../decisions/RT_PDR_00_Decision_Log.md) (tetto della presentazione: cade per «Niagara per ogni abilità» e
+   per la morte visiva, che le opzioni scelte nominano) e CP 46.4 di [D-144](../../decisions/RT_PDR_00_Decision_Log.md)
+   (*«Match Setup v0.1 è preconfigurato»*). **Non** emenda CP 46.3, perché «Settings reali» non è stato scelto e
+   `SETTINGS` «coming soon» resta valido; **non** tocca la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1
+   (multiplayer in rete, 4v4, GAS, progressione, modding, editor di mappe a runtime), che nessuna scelta nomina.
 3. **Lo spostamento di E26 (#326) e di E35 (#322)** dalla v0.2 alla v0.1, con #2291 e #2297 che rientrano (ribalta
    [D-484](../../decisions/RT_PDR_00_Decision_Log.md) (2) per E35.5).
 4. **La forma**: v0.1 allargata, a ondate. Il v3 (`947a783d5`) resta l'ultimo candidate della vecchia definizione;
