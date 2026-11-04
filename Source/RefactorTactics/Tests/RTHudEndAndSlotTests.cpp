@@ -63,7 +63,7 @@ bool FRTHudMatchEndHeadlineTest::RunTest(const FString&)
 
 	// ⚠️ **STATO DI FATTO, non una regola desiderabile.** Con una partita non finita la headline rende
 	// «Partita in corso - nessuna via», che è una frase senza senso. Oggi è IRRAGGIUNGIBILE perché
-	// `DrawHUD` chiama questa funzione solo dentro `GetPhase() == ERTMatchPhase::MatchEnded`: il gate e la
+	// `DrawHUD` chiama questa funzione solo dietro `PhaseGates.bShowMatchEndPanel` (cioè `Phase == MatchEnded`): il gate e la
 	// composizione stanno in due posti, e questo caso registra l'accoppiamento invece di lasciarlo implicito.
 	//
 	// ⛔ Non è stato «corretto» rendendo stringa vuota: sarebbe AGGIUNGERE una reticenza che oggi non

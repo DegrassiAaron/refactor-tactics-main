@@ -358,4 +358,96 @@ bool FRTHudDashPreviewChargeRunTest::RunTest(const FString&)
 	return true;
 }
 
+// ── FETTA 13 (#2184): le due scelte sul tratto di corsa di `DisegnaScatto` ──────────────────────────────────
+// Il ciclo che disegna la corsa si ferma all'ultimo tratto percorso, e il quadrato di destinazione sta dove la
+// corsa si ferma se manca la portata, altrimenti sulla cella scelta. Entrambe le scelte dipendono da
+// `HasShortfall()` e vivevano come due ternari dentro il lambda `DisegnaScatto`, che non e' raggiungibile
+// headless: nessun test cadeva se si invertivano.
+//
+// TABELLA DELLE ATTESE DI MUTAZIONE (scritta prima di lanciare, eseguibile):
+//
+//   # | mutazione                                                          | rosso atteso             | esito
+//  ---|--------------------------------------------------------------------|--------------------------|--------
+//   1 | LastRunSegment: `HasShortfall()` → `!HasShortfall()`               | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   2 | LastRunSegment: `ReachSegments` → `ReachSegments + 1`              | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   3 | LastRunSegment: `Num() - 1` → `Num()`                              | DashRunSegment…          | UCCISA: 1 rosso, il previsto
+//   4 | DestinationMarkerCell: `HasShortfall()` → `!HasShortfall()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//   5 | DestinationMarkerCell: senza shortfall → `PathCells.Last()`        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//   6 | DestinationMarkerCell: i due rami scambiati                        | DashMarker…              | UCCISA: 1 rosso, il previsto
+//   7 | DestinationMarkerCell: `ReachSegments == 0` non e' un mancato arrivo | DashMarker…              | UCCISA: 1 rosso, il previsto
+//
+// ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Il filtro era `RefactorTactics.HUD.Dash`, e i
+// test trovati erano quanti in baseline. Un filtro stretto dice che il test atteso cade, non che non cada altro in `HUD`.
+// La riga 7 è stata aggiunta dopo la revisione indipendente, con il caso `ReachSegments = 0` nel test del quadrato.
+// Misurata il 2026-11-04 su `da0de90f0` (dopo il merge di `main`): 3 test trovati col filtro `HUD.Dash`, 1 rosso,
+// `DashMarkerLandsWhereTheRunStopsOrOnTheChosenCell`; il controllo senza mutante sul filtro `HUD` intero è verde prima e dopo.
+//
+// ⚠️ Il cablaggio (che `DisegnaScatto` chiami davvero questi due metodi, e non altro) non e' raggiungibile headless:
+// si vede solo in PIE, e quella voce e' `NOT RUN` in questa fetta.
+
+/** L'ultimo tratto di corsa: tutta la traiettoria se la corsa la fa tutta, altrimenti quanti ne percorre. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudDashRunSegmentTest,
+	"RefactorTactics.HUD.DashRunSegmentIsTheWholePathUnlessTheRunStopsShort",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudDashRunSegmentTest::RunTest(const FString&)
+{
+	// Una traiettoria di cinque celle: quattro tratti.
+	FRTDashPreview P;
+	P.PathCells = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0), FRTCellId(4, 0, 0) };
+
+	P.ReachSegments = INDEX_NONE;
+	TestEqual(TEXT("senza lettura della portata: tutta la traiettoria"), P.LastRunSegment(), 4);
+
+	P.ReachSegments = 4;
+	TestEqual(TEXT("la corsa arriva in fondo: nessun mancato arrivo, tutta la traiettoria"), P.LastRunSegment(), 4);
+
+	P.ReachSegments = 7;
+	TestEqual(TEXT("una portata oltre la traiettoria non la allunga"), P.LastRunSegment(), 4);
+
+	P.ReachSegments = 2;
+	TestEqual(TEXT("la corsa si ferma al secondo tratto"), P.LastRunSegment(), 2);
+
+	P.ReachSegments = 0;
+	TestEqual(TEXT("la corsa non percorre nemmeno un tratto: zero, non quattro"), P.LastRunSegment(), 0);
+
+	FRTDashPreview Vuota;
+	TestEqual(TEXT("traiettoria vuota: -1, e il ciclo che lo consuma non gira"), Vuota.LastRunSegment(), -1);
+
+	return true;
+}
+
+/** Il quadrato di destinazione: dove la corsa si ferma se manca la portata, altrimenti la cella scelta. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudDashMarkerCellTest,
+	"RefactorTactics.HUD.DashMarkerLandsWhereTheRunStopsOrOnTheChosenCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudDashMarkerCellTest::RunTest(const FString&)
+{
+	// La cella scelta e' DIVERSA dall'ultima della traiettoria, apposta: e' l'unico modo di distinguere "la cella
+	// scelta" da "la fine della traiettoria", che nella corsa piena coincidono.
+	const FRTCellId Scelta(9, 9, 0);
+
+	FRTDashPreview P;
+	P.PathCells = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0), FRTCellId(4, 0, 0) };
+
+	P.ReachSegments = INDEX_NONE;
+	TestTrue(TEXT("corsa piena: il quadrato sta sulla cella scelta"), P.DestinationMarkerCell(Scelta) == Scelta);
+
+	P.ReachSegments = 2;
+	TestTrue(TEXT("manca la portata: il quadrato sta dove la corsa si ferma, non sulla cella scelta"),
+		P.DestinationMarkerCell(Scelta) == FRTCellId(2, 0, 0));
+	TestTrue(TEXT("e coincide con la cella d'arresto"), P.DestinationMarkerCell(Scelta) == P.StopCell());
+
+	P.ReachSegments = 0;
+	TestTrue(TEXT("la corsa non percorre nemmeno un tratto: il quadrato sta sulla cella di partenza, non sulla scelta"),
+		P.DestinationMarkerCell(Scelta) == FRTCellId(0, 0, 0));
+
+	P.ReachSegments = 4;
+	TestTrue(TEXT("la corsa arriva in fondo: di nuovo la cella scelta"), P.DestinationMarkerCell(Scelta) == Scelta);
+
+	FRTDashPreview Vuota;
+	TestTrue(TEXT("traiettoria vuota: la cella scelta"), Vuota.DestinationMarkerCell(Scelta) == Scelta);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
