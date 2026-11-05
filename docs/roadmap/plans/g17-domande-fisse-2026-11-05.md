@@ -1,8 +1,7 @@
-# G17 — le domande fisse: bozza dell'assistente, da correggere dall'autore
+# G17 — le domande fisse: il dialogo del 2026-11-05 e il perché di ciascuna
 
-> `BOZZA` · 2026-11-05 · **non è contratto.** La riga `G17` di [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) §3 dice che le domande fisse non sono ancora scritte, e continua a dirlo finché questo file non è corretto.
+> `RECORD` · 2026-11-05 · **Non è il contratto: il contratto è la riga `G17` di [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) §3, e la decisione è [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md).** Questo file è il **perché** di ogni domanda e la provenienza di ogni classe: nato come bozza dell'assistente, corretto dall'autore in un dialogo a una domanda per volta, una risposta per volta. Se la riga e questo file divergono, vale la riga.
 >
-> - **Come si corregge**: modifica questo file direttamente. Cancella una domanda, riscrivila, aggiungine una, cambia la classe. Quello che resta in fondo entra **alla lettera** nella riga `G17` e nel passo 3 del record `U98` ([#3997](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3997)); poi questo file si cancella.
 > - **Da dove viene**: la risposta dell'autore del 2026-11-05, «La scrivo io, tu correggi» ([`D-580`](../../decisions/RT_PDR_00_Decision_Log.md), nota ➕): le due domande percettive che `G13` teneva per l'occhio, più una per ondata.
 
 ## 1. Che cosa sono e che cosa non sono
@@ -59,15 +58,15 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 - `esito` — **non è più una domanda di ondata**: è *fondamentale* e ha una sezione sua, il §2.4.
 - `audio` · *fondamentale* — Ho sentito **musica, suoni dell'interfaccia ed effetti**, senza dover spegnere nulla perché disturbava?
 - `usabili-da-sole` · *fondamentale* — Ho **scelto una skill, mirato, visto l'anteprima dell'esito e confermato** senza spiegazioni?
-  - Viene da «Si usano da sole» ([§3.2](v01-giocabile-brainstorm-2026-11-04.md)). ❓ **Il brief non assegna dock, mira e tooltip a un'ondata**: dimmi tu a quale va.
+  - Viene da «Si usano da sole» ([§3.2](v01-giocabile-brainstorm-2026-11-04.md)). Il brief non assegna dock, mira e tooltip a un'ondata: **l'autore l'ha messa nell'ondata 1** («Sì, ondata 1», [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md)).
 - `fumetti` · *fondamentale* — Durante lo svolgimento del piano, quando un personaggio attiva una skill, appare **sopra di lui un fumetto con un grido**, e **anche un'azione bloccata appare come fumetto**, nello stesso stile; la grafica **ricorda quello dei fumetti/manga**, e i fumetti hanno **lo stesso stile del resto dell'interfaccia**?
   - **Aggiunta dall'autore in dialogo** («voglio anche un'altra cosa o smetto»). Le sue parole, alla lettera: «una grafica che ricorda i fumetti, nel senso che quando i personaggi attivano una skill, appare un fumetto sul personaggio con qualche grido, magari informazioni sulla skill che sta per essere lanciata. si vede durante lo svolgimento del piano, e anche i blocchi devono apparire come fumetto/manga, la grafica deve ricordare quello stile».
   - Lo stile coerente col resto dell'interfaccia è un «smetto» dell'autore (ondata 5), fuso qui per non fare due domande.
   - Le «informazioni sulla skill» sono un «magari»: **restano fuori dalla domanda** finché l'autore non dice che sono un requisito.
-  - ⚠️ **Non è nel brief e non è in nessuna ondata**: è una scelta nuova sullo stile della presentazione. Serve una decisione registrata dell'autore, e l'assistente non assegna il numero. La bozza la mette accanto all'ondata 2 (i fumetti delle skill) e tocca l'ondata 5 («un solo linguaggio visivo»).
+  - Non era nel brief: è una scelta nuova sullo stile della presentazione, registrata in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md); **l'autore l'ha messa nell'ondata 2** («ondata 2»), e tocca l'ondata 5 («un solo linguaggio visivo»).
   - **Tensione con `leggibilita-tattica`.** Un fumetto può coprire un'unità, una cella o una copertura, e le azioni di più unità risolvono nella stessa fase. **L'autore prevede che, vista la grandezza degli esagoni, il problema non nasca.** È una **previsione, non misurata**: la misura la fa `leggibilita-tattica` sul pacchetto, e se si sbaglia l'autore risponde «smetto».
   - **Le due viste (deciso dall'autore).** I fumetti si vedono nella vista ravvicinata. Nella **vista strategica** (lo zoom indietro, [`D-252`](../../decisions/RT_PDR_00_Decision_Log.md) e [`D-488`](../../decisions/RT_PDR_00_Decision_Log.md), semplificata) **non si vedono, e le informazioni appaiono nel log a destra** (`WBP_RT_CombatLog`).
-  - ❓ **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. La bozza lo scrive come vincolo (il fumetto segue la stessa visibilità degli eventi), da confermare.
+  - **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. Vincolo scritto in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md): il fumetto segue la stessa visibilità degli eventi. (L'autore non ha risposto a parte su questo punto: è una lettura dell'assistente, ribaltabile.)
 
 **Ondata 3 · Scelte pre-partita**
 
@@ -130,14 +129,14 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 - La voce di TurnLog che il resolver scrive per un'azione interrotta porta: fase `Blast`, categoria `Fallback`, esito `Cancelled`, la cella e l'unità **della vittima**, la cella a cui puntava l'azione, il motivo `Interrupted` (in `Amount`), l'azione e la sua priorità (`Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp`, righe 1988-1998). **Chi ha interrotto non entra nella voce**: `UnitId` è uno solo e lo prende il soggetto (commento alle righe 1977-1978).
 - Il formato chiesto dall'autore è «eroe: azione x interrotta» e, sotto, «dettagli> motivazione». La prima riga ha **tutti i dati**: l'eroe, l'azione e il motivo. Il «chi» no.
-- Due strade. **Derivarlo** in presentazione dalla voce dell'`Action.Interrupt` dello stesso turno è ambiguo se due unità interrompono la stessa vittima (il resolver scrive una voce sola per azione cancellata, commento alle righe 1954-1956): **non basta** per il replay, dove l'autore vuole vederle entrambe. Resta **aggiungerlo alla voce**, che è un cambio di stato canonico (TurnLog, hash, replay, versione: ogni campo della voce entra nell'hash, vedi il commento alla riga 1975) e richiede una decisione dell'autore e un owner. **Non è decisa.**
+- Due strade. **Derivarlo** in presentazione dalla voce dell'`Action.Interrupt` dello stesso turno è ambiguo se due unità interrompono la stessa vittima (il resolver scrive una voce sola per azione cancellata, commento alle righe 1954-1956): **non basta** per il replay, dove l'autore vuole vederle entrambe. Resta **aggiungerlo alla voce**, che è un cambio di formato del TurnLog. **Deciso dall'autore** ([`D-582`](../../decisions/RT_PDR_00_Decision_Log.md) (4)): un campo `InterruptedByUnitId` (uno `StableUnitId`, sul modello di `OriginalTargetUnitId`), **fuori dall'hash**, con un valore nuovo di `ERTTurnLogFormatVersion`; con due interruttori ne nomina uno (il primo in ordine canonico) e il replay ricava l'altro dalle voci degli Interrupt. Il codice non è scritto e l'owner nasce al punto 5 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
 - Il vincolo di privacy resta: al giocatore l'unità si mostra solo se la vede, con lo stesso filtro per squadra degli altri eventi (`FilterForTeam`). L'azione bloccante e il motivo si mostrano sempre.
 
 **Aperto**
 
 - Il legame fra la scheda e l'enum come **controllo meccanico** (un test che si rompe se nasce un motivo senza riga): è codice e serve il tuo OK.
 
-## 3. Come si arriva a verde, giallo, rosso *(proposta dell'assistente)*
+## 3. Come si arriva a verde, giallo, rosso *(confermato dall'autore: «si»)*
 
 - **Verde**: la precondizione meccanica è `PASS`, ogni domanda *fondamentale* è **sì** e ogni domanda *di ondata* è **sì**.
 - **Giallo**: la precondizione è `PASS`, ogni *fondamentale* è **sì**, e almeno una *di ondata* è **no**. Ogni no apre una issue sull'owner dell'ondata con la tua riga su ciò che hai visto. **Se un giallo basta per rilasciare lo decidi tu**, non l'assistente.
@@ -145,13 +144,8 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 - **Nessuna domanda si salta, e nessuna diventa «non applicabile» perché la sua ondata manca.** Se l'ondata non è nel candidate, il candidate non è quello finale e `G17` resta `NON ESEGUITO`. Una domanda esce solo se togli la sua ondata dal perimetro, con un `D-nnn` tuo.
 - La conclusione si scrive sempre con lo **SHA del pacchetto** e la lista dei no, ciascuno con la sua riga.
 
-## 4. Che cosa resta da decidere
+## 4. Che cosa è deciso, e che cosa resta
 
-Le domande e le classi sono tutte dell'autore (dialogo del 2026-11-05). Restano aperti:
+Le domande, le classi, l'ondata di `usabili-da-sole` (1) e di `fumetti` (2), il campo per il «chi» e la regola del §3 sono dell'autore, registrati in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md). Le domande sono nella riga `G17` **alla lettera**; qui resta il perché.
 
-1. `usabili-da-sole`: a quale ondata va (il brief non assegna dock, mira e tooltip).
-2. `fumetti`: non è in nessuna ondata del brief; serve una decisione registrata dell'autore (l'assistente non assegna il `D-nnn`), e il vincolo di privacy va confermato.
-3. `esito`: il «chi» nella voce di TurnLog è un cambio canonico non deciso (§2.4); gli scenari per `Interrupt` e `Neutralised` non esistono e vanno scritti con un owner.
-4. La regola del §3: con le classi decise, un solo «no» *fondamentale* è rosso. Resta la tua conferma, o un'altra regola.
-
-Quando hai finito, dimmelo: scrivo le domande nella riga `G17` e nello step 3 di `U98` in un commit solo, rieseguo `RefactorTactics.Meta` e i radar, e cancello questo file.
+Resta, con un owner da assegnare al punto 5 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985): il campo `InterruptedByUnitId` nel TurnLog; gli scenari per `Interrupted` e `Neutralised`; la verifica che `-RTScenario=<Id>` giri sul pacchetto con lo stesso HUD di una partita; un controllo meccanico che leghi la scheda dei casi all'enum (codice, serve l'OK dell'autore).
