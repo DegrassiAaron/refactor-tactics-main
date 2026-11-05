@@ -2,7 +2,7 @@
 
 Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character Master Matrix di RefactorTactics.
 
-> **Attenzione:** soltanto **quattro** dei 38 slot sono assegnati alla **v0.2** — Steel, Aurora, Murdock e Kwang, la cui identità RefactorTactics è **Ward**, **Rime**, **Vigil** e **Tethra**. Gli altri **34** sono candidati `SIGNATURE_DEFINED` con release `UNASSIGNED`.
+> **Attenzione:** soltanto **quattro** dei 38 slot sono assegnati alla **v0.2** — Steel, Aurora, Murdock e Kwang, la cui identità RefactorTactics è **Ward**, **Rime**, **Vigil** e **Tethra**. ⌫ *Dal 2026-11-04 i quattro sono di E35, anticipata alla v0.1 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md) (4)): «v0.2» qui e nella tabella sotto è il nome che aveva la loro release, e la cartella v0.2 conserva il nome.* Gli altri **34** sono candidati `SIGNATURE_DEFINED` con release `UNASSIGNED`.
 >
 > 🔴 **Corretta il 2026-09-04 da [D-321](../decisions/RT_PDR_00_Decision_Log.md): questa riga affermava il contrario di ciò che è vero.** Diceva che *«le quattro pagine v0.1 di Gadget, Phase, Riktor e Wraith sono personaggi RefactorTactics separati: hanno un asset Paragon come base visuale, non un'identità Paragon»*. È **falso**, e la misura che lo falsifica è nella tabella qui sotto: quei quattro nomi **sono** i nomi degli slot, non nomi ispirati ad essi — `Gadget`, `Phase`, `Riktor` e `Wraith` compaiono in [`candidates/`](candidates/), il pool dei 38. La coincidenza è letterale, quindi sono identità Paragon.
 >
@@ -21,10 +21,10 @@ altri documenti la referenziano, non la copiano.
 | **Muiren** ⏳ | `Hero.Muiren` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
 | **Branth** ⏳ | `Hero.Riktor` → `Hero.Branth` | [Riktor](candidates/riktor.md) | v0.1 |
 | **Ivrin** ⏳ | `Hero.Wraith` → `Hero.Ivrin` | [Wraith](candidates/wraith.md) | v0.1 |
-| **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.2 |
-| **Rime** | `Hero.Rime` | [Aurora](v0.2/aurora.md) | v0.2 |
-| **Vigil** | `Hero.Vigil` | [Murdock](v0.2/murdock.md) | v0.2 |
-| **Tethra** | `Hero.Tethra` | [Kwang](v0.2/kwang.md) | v0.2 |
+| **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.1 (E35, ex v0.2) |
+| **Rime** | `Hero.Rime` | [Aurora](v0.2/aurora.md) | v0.1 (E35, ex v0.2) |
+| **Vigil** | `Hero.Vigil` | [Murdock](v0.2/murdock.md) | v0.1 (E35, ex v0.2) |
+| **Tethra** | `Hero.Tethra` | [Kwang](v0.2/kwang.md) | v0.1 (E35, ex v0.2) |
 
 ⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Aevik` è ciò che il codice contiene e `Aevik` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
 
@@ -124,10 +124,10 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 
 | Asset base | Macro ruolo RT | Signature | Complessità tecnica | Stato roster |
 | --- | --- | --- | ---: | --- |
-| [Steel](v0.2/steel.md) | Guardian / Vanguard | Guard Meter | 3/5 | **v0.2** — `Hero.Ward` |
-| [Aurora](v0.2/aurora.md) | Controller | Frozen Domain | 4/5 | **v0.2** — `Hero.Rime` |
-| [Murdock](v0.2/murdock.md) | Marksman | Focus + Fire Sector | 3/5 | **v0.2** — `Hero.Vigil` |
-| [Kwang](v0.2/kwang.md) | Fighter / Controller | Electric Anchor | 4/5 | **v0.2** — `Hero.Tethra` |
+| [Steel](v0.2/steel.md) | Guardian / Vanguard | Guard Meter | 3/5 | **v0.1** (E35, ex v0.2) — `Hero.Ward` |
+| [Aurora](v0.2/aurora.md) | Controller | Frozen Domain | 4/5 | **v0.1** (E35, ex v0.2) — `Hero.Rime` |
+| [Murdock](v0.2/murdock.md) | Marksman | Focus + Fire Sector | 3/5 | **v0.1** (E35, ex v0.2) — `Hero.Vigil` |
+| [Kwang](v0.2/kwang.md) | Fighter / Controller | Electric Anchor | 4/5 | **v0.1** (E35, ex v0.2) — `Hero.Tethra` |
 | [Terra](candidates/terra.md) | Guardian | Fortress | 3/5 | Candidate |
 | [Greystone](candidates/greystone.md) | Vanguard | Resolve | 3/5 | Candidate |
 | [Grux](candidates/grux.md) | Bruiser | Battle Momentum | 3/5 | Candidate |
