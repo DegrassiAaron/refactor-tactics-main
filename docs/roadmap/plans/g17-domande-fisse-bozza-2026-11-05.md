@@ -64,7 +64,8 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
   - **Aggiunta dall'autore in dialogo** («voglio anche un'altra cosa o smetto»). Le sue parole, alla lettera: «una grafica che ricorda i fumetti, nel senso che quando i personaggi attivano una skill, appare un fumetto sul personaggio con qualche grido, magari informazioni sulla skill che sta per essere lanciata. si vede durante lo svolgimento del piano, e anche i blocchi devono apparire come fumetto/manga, la grafica deve ricordare quello stile».
   - Le «informazioni sulla skill» sono un «magari»: **restano fuori dalla domanda** finché l'autore non dice che sono un requisito.
   - ⚠️ **Non è nel brief e non è in nessuna ondata**: è una scelta nuova sullo stile della presentazione. Serve una decisione registrata dell'autore, e l'assistente non assegna il numero. La bozza la mette accanto all'ondata 2 (i fumetti delle skill) e tocca l'ondata 5 («un solo linguaggio visivo»).
-  - ❓ **Tensione con `leggibilita-tattica`, da risolvere**: un fumetto può coprire un'unità, una cella o una copertura, e le azioni di più unità risolvono nella stessa fase.
+  - **Tensione con `leggibilita-tattica`.** Un fumetto può coprire un'unità, una cella o una copertura, e le azioni di più unità risolvono nella stessa fase. **L'autore prevede che, vista la grandezza degli esagoni, il problema non nasca.** È una **previsione, non misurata**: la misura la fa `leggibilita-tattica` sul pacchetto, e se si sbaglia l'autore risponde «smetto».
+  - **Le due viste (deciso dall'autore).** I fumetti si vedono nella vista ravvicinata. Nella **vista strategica** (lo zoom indietro, [`D-252`](../../decisions/RT_PDR_00_Decision_Log.md) e [`D-488`](../../decisions/RT_PDR_00_Decision_Log.md), semplificata) **non si vedono, e le informazioni appaiono nel log a destra** (`WBP_RT_CombatLog`).
   - ❓ **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. La bozza lo scrive come vincolo (il fumetto segue la stessa visibilità degli eventi), da confermare.
 
 **Ondata 3 · Scelte pre-partita**
@@ -105,6 +106,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 4. **La verifica è una lista di casi** da spuntare uno a uno, con la risposta accanto. Non si affida al caso e non è una prova sola.
 5. **Tutti i casi della lista.** Quelli rari si **costruiscono a mano**, con gli scenari.
 6. **Si guardano sul pacchetto**, non nell'anteprima dell'Editor: il gate giudica ciò che il giocatore ha in mano.
+7. **Nella vista strategica i fumetti non si vedono e le informazioni stanno nel log a destra.** Lettura dell'assistente, ribaltabile: `esito` deve quindi valere **in tutte e due le viste**, con i fumetti nella ravvicinata e il log nella strategica.
 
 **Conseguenze, lettura dell'assistente**
 
@@ -118,6 +120,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 - Che `-RTScenario=<Id>` giri su un pacchetto candidate. È predisposto (`RTGameMode.cpp`, e `Scenarios/` è inclusa nel pacchetto da `Config/DefaultGame.ini`), ma non provato.
 - **Che uno scenario lanciato dal pacchetto mostri lo stesso HUD e la stessa presentazione di una partita.** Se mostra una vista diversa, la scheda misura una superficie che il giocatore non vede.
+- **Che cosa dice oggi il log.** Il testo del motivo `Interrupted` è «interrotta» (`Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp`) e quello di `Neutralised` «neutralizzata da un'interruzione reciproca». **Non ho verificato se la riga che arriva al `WBP_RT_CombatLog` nomina anche l'unità che ha interrotto**, che è il «chi» richiesto da `esito`.
 
 **Aperto**
 
