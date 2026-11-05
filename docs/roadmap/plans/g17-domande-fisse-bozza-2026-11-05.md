@@ -18,7 +18,7 @@
 
 Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe**: *fondamentale* o *di ondata*; la regola del §3 dice che cosa cambia.
 
-**Che cosa ha già risposto l'autore** (2026-11-05, dopo aver immaginato la scena in partita; le risposte erano «smetto» / «fastidio» / «togli»): `obiettivo`, `leggibile`, `affordance`, `overlay` e `non-si-blocca` sono *fondamentali*; `senza-console` è *di ondata*; `rigiocare` è tolta; `esito` è *fondamentale* (§2.4). Per le ondate 1 e 2 l'autore ha risposto «smetto» a `graybox`, `leggibilita-tattica`, `skill-distinte`, `audio` e `usabili-da-sole`: sono *fondamentali*. **Le classi delle domande per le ondate 3, 4a, 4b e 5 sono ancora una proposta dell'assistente.**
+**Che cosa ha già risposto l'autore** (2026-11-05, dopo aver immaginato la scena in partita; le risposte erano «smetto» / «fastidio» / «togli»): `obiettivo`, `leggibile`, `affordance`, `overlay` e `non-si-blocca` sono *fondamentali*; `senza-console` è *di ondata*; `rigiocare` è tolta; `esito` è *fondamentale* (§2.4). Per le ondate 1 e 2 l'autore ha risposto «smetto» a `graybox`, `leggibilita-tattica`, `skill-distinte`, `audio` e `usabili-da-sole`: sono *fondamentali*. Per le ondate 3 e 4: `scelte`, `credibile` e `varieta` sono *fondamentali* («smetto»); `due-mappe`, `livelli` e `otto` sono *di ondata* («fastidio»). **Le classi delle domande dell'ondata 5 sono ancora una proposta dell'assistente.**
 
 ### 2.1 Il giro
 
@@ -70,16 +70,17 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 **Ondata 3 · Scelte pre-partita**
 
-- `scelte` · *di ondata* — Dal Main Menu ho scelto **squadra, mappa, avversario, obiettivo e durata**, e la partita è partita con quello che avevo scelto?
+- `scelte` · *fondamentale* — Dal Main Menu ho scelto **squadra, mappa, avversario, obiettivo e durata**, e la partita è partita con quello che avevo scelto?
 - `due-mappe` · *di ondata* — Ho potuto scegliere fra **almeno due mappe**, e la seconda non si legge come graybox?
 
 **Ondata 4a · Bot**
 
 - `livelli` · *di ondata* — Ho scelto il **livello dell'avversario** e due livelli si sono giocati in modo diverso?
   - Viene da: [`D-578`](../../decisions/RT_PDR_00_Decision_Log.md) (3): un livello è un preset di pesi, la difficoltà dà più ragionamento e mai più informazione.
-- `credibile` · *di ondata* — L'avversario ha giocato in modo **credibile**: coordinato, senza mosse che mi sono sembrate senza senso?
-- `varieta` · *di ondata* — Con le stesse scelte, due partite **non sono andate allo stesso modo**?
-  - ❓ **Probabilmente da cancellare.** Viene da «varietà fra una partita e l'altra» ([§3.3](v01-giocabile-brainstorm-2026-11-04.md)), ma l'assistente **non ha verificato** che il tetto C di E26 la preveda, e a parità di seme una partita deve poter ripetersi uguale (determinismo).
+- `credibile` · *fondamentale* — L'avversario ha giocato in modo **credibile**: coordinato, senza mosse che mi sono sembrate senza senso?
+- `varieta` · *fondamentale* — Giocando due partite con **le stesse scelte di setup ma piani diversi**, l'avversario si è comportato in modo diverso, e le due partite **non si sono assomigliate**?
+  - L'autore ha risposto «smetto» e ha confermato la lettura **(a)**: è la varietà del bot, non il determinismo. A parità di stato iniziale, seme e piani la partita **deve** ripetersi identica (`G4`, `CLAUDE.md` §7): quella lettura (b) non è nel gate.
+  - Viene da «varietà fra una partita e l'altra» ([§3.3](v01-giocabile-brainstorm-2026-11-04.md)). ❓ Non verificato che il tetto C di E26 ([`D-578`](../../decisions/RT_PDR_00_Decision_Log.md)) la garantisca: se il bot è deterministico anche a piani diversi dell'avversario, la domanda misura una cosa che E26 non promette.
 
 **Ondata 4b · Roster a 8**
 
