@@ -72,7 +72,7 @@ inventare date sarebbe una metrica falsa»*. Nessuna riga di questa pagina porta
 
 | Release | Tema | Epic | Formato di gioco | Owner dello scope |
 |---|---|---|---|---|
-| **v0.1** | Il turno simultaneo funziona e si vede | **E1–E21 · E23 · E26 · E35 · E46 · E47** | Skirmish 2v2 offline vs bot | [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 |
+| **v0.1** | Il turno simultaneo funziona e si vede | **E1–E16 · E18–E21 · E23 · E26 · E35 · E46 · E47** | Skirmish 2v2 offline vs bot | [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 |
 | **v0.2** | Struttura e finestre | E22 · E24–E25 · E36 · E38 · E39 · E51 | Standard 3v3 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v0.3** | Informazione e conoscenza parziale estesa | E27–E29 · E33 | Standard 3v3 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v0.4** | Operations: partite lunghe, mappe grandi | E30–E32 · E34 · E37 | Operations 4v4+ | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
@@ -83,7 +83,7 @@ inventare date sarebbe una metrica falsa»*. Nessuna riga di questa pagina porta
 | **v0.9** | Release Candidate | E44 | Feature freeze | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v1.0** | Launch | E45 | Standard 3v3 ranked | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 
-> 🔴 **La riga v0.1 è l'unica che non si copia dalla tabella dell'owner post-v0.1, e la ragione è registrata là.** Quella tabella dichiara `E1–E21 · E26 · E35` per la v0.1 e avverte in proprio: *«non è un indice esaustivo delle epic v0.1 — E46 ed E47 sono v0.1 e non compaiono»*. A cui si aggiunge **E23**, anticipata dalla v0.2 il 2026-08-17 ([D-160](../decisions/RT_PDR_00_Decision_Log.md)) e per questo assente dall'intervallo `E22 · E24–E25`; E26 ed E35, anticipate il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)), sono invece già nominate là. La forma scritta qui — `E1–E21 · E23 · E26 · E35 · E46 · E47` — coincide con le epic della tabella di [`roadmap-v0.1.md`](roadmap-v0.1.md) §3, e il loro numero non si scrive qui: lo stampa A5 (`node tools/radar/doc-coherence.ts --check`, riga «N epic in §3»). Un intervallo che si legge da solo vale più di uno che richiede di ricordare tre eccezioni.
+> 🔴 **La riga v0.1 è l'unica che non si copia dalla tabella dell'owner post-v0.1, e la ragione è registrata là.** Quella tabella dichiara `E1–E16 · E18–E21 · E26 · E35` per la v0.1 e avverte in proprio: *«non è un indice esaustivo delle epic v0.1 — E46 ed E47 sono v0.1 e non compaiono»*. A cui si aggiunge **E23**, anticipata dalla v0.2 il 2026-08-17 ([D-160](../decisions/RT_PDR_00_Decision_Log.md)) e per questo assente dall'intervallo `E22 · E24–E25`; E26 ed E35, anticipate il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)), sono invece già nominate là; **E17**, che stava nell'intervallo `E1–E21`, è uscita il 2026-11-05 ([`D-581`](../decisions/RT_PDR_00_Decision_Log.md)), e per questo l'intervallo si spezza. La forma scritta qui — `E1–E16 · E18–E21 · E23 · E26 · E35 · E46 · E47` — coincide con le epic della tabella di [`roadmap-v0.1.md`](roadmap-v0.1.md) §3, e il loro numero non si scrive qui: lo stampa A5 (`node tools/radar/doc-coherence.ts --check`, riga «N epic in §3»). Un intervallo che si legge da solo vale più di uno che richiede di ricordare tre eccezioni.
 
 > ⚠️ **`E22` esiste e non è un refuso**: è la Cover Window, e resta in v0.2. Il buco fra E21 ed E23 nella
 > riga v0.1 è quello, non un numero saltato.
