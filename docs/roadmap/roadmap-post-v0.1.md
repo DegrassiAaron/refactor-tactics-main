@@ -42,8 +42,8 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
-| **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22 · E24–E26 · **E35** · **E36** · **E38** · **E39** · **E51** | Standard 3v3 |
+| **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E16 · E18–E21 · **E26** · **E35** | Skirmish 2v2 vs bot |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile | E22 · E24–E25 · **E36** · **E38** · **E39** · **E51** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** · **E37** | Operations 4v4+ |
 | **v0.5** | Online Foundation | Il turno simultaneo regge la rete | **E40** | Standard 3v3 online, lobby privata |
@@ -53,9 +53,9 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | **v0.9** | Release Candidate | Niente di nuovo: quello che c'è deve reggere | **E44** | Feature freeze |
 | **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 **non classificato** ([D-259](../decisions/RT_PDR_00_Decision_Log.md)) |
 
-> 🔀 **Dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)) `E26` ed `E35` sono anticipate dalla v0.2 alla v0.1**: la riga `v0.2` qui sopra **non è ancora riscritta**, e dove contraddice `D-576` vale `D-576`. Il vincolo di questo file (nessuna epic qui dentro si implementa prima dei gate della v0.1) non si applica più a `E26` ed `E35` e vale ancora, intero, per ogni altra epic. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
+> 🔀 **Dal 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)) `E26` ed `E35` sono anticipate dalla v0.2 alla v0.1**: le righe `v0.1` e `v0.2` qui sopra sono riscritte (2026-11-05), e i checkpoint delle due epic stanno in [`roadmap-v0.1.md`](roadmap-v0.1.md) §5, che ne è l'owner. Il vincolo di questo file (nessuna epic qui dentro si implementa prima dei gate della v0.1) non si applica più a `E26` ed `E35` e vale ancora, intero, per ogni altra epic. Tracking: [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
 
-> ⚠️ **`E22 · E24–E26` e non `E22–E26`: il buco è E23, ed è voluto.** L'epic è stata **anticipata alla v0.1** il 2026-08-17 (`D-160`), lo dichiarano la propria sezione qui sotto (*«⛔ E23 NON È PIÙ DI QUESTA RELEASE»*) e la riga `E23` di [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1. Finché la cella diceva `E22–E26` l'**intervallo continuava a rivendicarla**, e la contraddizione era invisibile a `grep`: la stringa `E23` non compare in una riga che la contiene. Costo misurato — `feature_registry.py` leggeva `E23 → v0.2`, quindi le **cinque** feature che dichiarano `release: v0.1` ed `epic: E23` finivano nella tabella dei *disallineati* di `roadmap-v0.1.md` invece che sotto la propria epic, e `wiki --check` — che è una condizione del gate **G15** — restava rosso.
+> ⚠️ **`E22 · E24–E25` e non `E22–E25`: il buco è E23, ed è voluto.** *(Fino al 2026-11-05 l'intervallo era `E22 · E24–E26`: E26 è stata anticipata alla v0.1, [`D-576`](../decisions/RT_PDR_00_Decision_Log.md).)* L'epic è stata **anticipata alla v0.1** il 2026-08-17 (`D-160`), lo dichiarano la propria sezione qui sotto (*«⛔ E23 NON È PIÙ DI QUESTA RELEASE»*) e la riga `E23` di [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1. Finché la cella diceva `E22–E26` l'**intervallo continuava a rivendicarla**, e la contraddizione era invisibile a `grep`: la stringa `E23` non compare in una riga che la contiene. Costo misurato — `feature_registry.py` leggeva `E23 → v0.2`, quindi le **cinque** feature che dichiarano `release: v0.1` ed `epic: E23` finivano nella tabella dei *disallineati* di `roadmap-v0.1.md` invece che sotto la propria epic, e `wiki --check` — che è una condizione del gate **G15** — restava rosso.
 > 
 > **Questa riga non è un indice esaustivo delle epic v0.1**: `E46` ed `E47` sono v0.1 e non compaiono qui. L'owner delle epic della v0.1 è `roadmap-v0.1.md` §2.1; questa tabella dichiara ciò che sta **oltre** la v0.1, ed E23 ne è uscita.
 
@@ -231,18 +231,67 @@ in v0.1 sono P2 e ancora aperte: anticiparla significherebbe costruire sopra fon
 
 ---
 
+## Uscite dalla v0.1 — senza release assegnata
+
+Escono dalla v0.1 il 2026-11-05 per decisione d'autore ([`D-581`](../decisions/RT_PDR_00_Decision_Log.md)): [#221](https://github.com/DegrassiAaron/refactor-tactics-main/issues/221) (E17, stress 4v4: **l'epic intera**, con i CP 17.1 e 17.2 già chiusi), [#224](https://github.com/DegrassiAaron/refactor-tactics-main/issues/224) (CP 17.3, leggibilità con otto unità), [#314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/314) (CP 14.7, Reaction Clash) e [#319](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) (CP 14.8, Decision Time Bank). **Nessuna release è ancora assegnata**: la regola di scorrimento di [`D-576`](../decisions/RT_PDR_00_Decision_Log.md) (6) chiede che ciò che non è chiuso scorra con un D-nnn e non in silenzio, e la destinazione si decide col punto 4 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985). Il lavoro già fatto e i test di E17 (`Stress.*`, `Perf.ResolverAt4v4`) restano nel repository, ma non sono più della v0.1. Qui sotto, **alla lettera** perché sono l'unica copia: le righe di CP 14.7 e 14.8, il testo di E17 (compresa la riga 17.3) e la sua riga di §2.1, come stavano in [`roadmap-v0.1.md`](roadmap-v0.1.md); i rimandi a «§» dentro quei testi sono a quel file. Le specifiche [`spec-reaction-clash-e14.md`](../gameplay/spec-reaction-clash-e14.md) e [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) restano owner delle due capability.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **14.7** *(nuovo 2026-08-09)* | **Reaction Clash** — opportunity *contested* | `Brace` **arma un profilo** e non è più «un'azione che si dichiara e basta» ([D-047](../decisions/RT_PDR_00_Decision_Log.md)): `Hold Ground` è la risposta universale e **coincide col comportamento di oggi**, quindi nessun numero si muove e i due scenari restano verdi. Un'opportunity è **contested** quando *due* partecipanti hanno ciascuno ≥ 2 risposte legali — **derivato dalla cardinalità, nessun campo `Type`** (è il rischio (b) di questa epic). Scelta in cieco, **reveal a scadenza fissa** — la finestra dura sempre 3,0 s e non anticipa se entrambi lockano subito, perché il momento del lock è un canale ([D-048](../decisions/RT_PDR_00_Decision_Log.md), emenda ADR-0004 §7) — poi confronto deterministico. Il boundary contested vale **1 prompt**, quindi il caso peggiore di ADR-0004 §8 non cambia. Gli esiti si esprimono **solo** con `FRTActionEffectSpec`, mai callback. **Sostituire** l'asserzione `ReactionTrigger == None` su `Action.Brace` dentro `Reactions.DefensivesMatchCatalog` (`RTDefensiveReactionTests.cpp:171`), che pinna la classificazione vecchia — **non** un test omonimo, che non esiste *(riferimento corretto il 2026-08-13)* | `Reactions.Brace.BaseProfileHasSingleResponse`, `Reactions.Brace.RicherProfileOpensWindow`, `Clash.ContestedIsDerivedNotDeclared`, `Clash.RevealIsFixedDeadline`, `Clash.HiddenUntilReveal`, `Clash.TieAppliesOnce`, `Clash.CostConsumedOnLock`, `Clash.NoNestedWindow`, `Clash.Determinism`; scenari `Spec.Clash.*` |
+| **14.8** *(nuovo 2026-08-09)* | **Decision Time Bank** — budget di decisione per giocatore | Una risorsa temporale **per giocatore**, condivisa da tutte le Decision Window live: dentro la `Grace` non consuma, oltre consuma il tempo effettivo, e allo scadere costa `MaxWindow − Grace` per intero. `InitialBank` è **derivato** — `RoundLimit × (MaxWindow − Grace)`, 24 s in 2v2 — non un numero fisso (⚠️ **24 s è il valore per `LoadFactor = 1`**: la v0.1 ha un umano che comanda **due** unità, quindi il formato spedito ne deriva **31,5 s** — vedi [D-156](../decisions/RT_PDR_00_Decision_Log.md) e §3.4 della spec). La singola finestra **resta 3,0 s**: il bank non la allunga mai e non tocca mai le `AllowedResponses`. È **wall-clock, non regola**: sta accanto a `PlanningSeconds` e non entra in `URTMatchFormatData` né in alcun hash (`RTMatchFormatData.h`). Il residuo è un **input canonico registrato**: il replay lo legge dal TurnLog, non lo ricalcola. Visibilità **owner-only** — un bank pubblico riaprirebbe il canale che [D-021](../decisions/RT_PDR_00_Decision_Log.md) e [D-048](../decisions/RT_PDR_00_Decision_Log.md) chiudono. Il **bot ha un bank** e lo consuma per policy: nessun ramo `IsBot` nella Decision Window. Vincolo che rende equo il costo pieno del timeout: il fallback è **preselezionato e raggiungibile entro la grace**, apparizione del prompt inclusa — **da misurare**, non da assumere. **Sostituisce D20** («nessun cap aggregato») prima della misura che l'avrebbe informata: rischio dichiarato, e i due rientri di ADR-0004 §Revisione restano validi. **Non precede 14.5/14.6**: la prima misura arriva prima della taratura. ➕ **Esteso il 2026-08-17** ([D-156](../decisions/RT_PDR_00_Decision_Log.md), [D-157](../decisions/RT_PDR_00_Decision_Log.md)): il bank scala col **carico di controllo** — `LoadFactor` **dentro** la derivazione di D-056, non un fattore applicato dopo — mentre `FastReactionDuration` **non cresce mai** col numero di Hero: il carico si assorbe nel budget aggregato, mai nel limite della finestra. La `PreferredResponse` specializza il «fallback preselezionato»: è una dichiarazione di planning accanto alla condizione di [D-109](../decisions/RT_PDR_00_Decision_Log.md), **non** cambia le `AllowedResponses`, non consuma nulla finché non è committata, e **il timeout la ignora** — allo scadere vale sempre `DecisionOnTimeout`. Quick Confirm = azione **semantica**: `Space` è già `LockInAction` in `RTPlayerController.cpp:256`, quindi il riuso è una decisione sul contesto di input, non un default. ✅ **Il prerequisito è caduto il 2026-09-02, e questa riga lo diceva ancora al presente**: CP 19.3 ([#1124](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1124)) ha portato il soggetto — `URTCombatLibrary::ControlGroupForUnit`, il campo `ARTUnit::ControlGroup`, `ARTPlayerState::ControlGroupOf`, e l'assegnazione `ARTGameMode::AssignUnitControlGroups()`. ⚠️ **Quel che resta a CP 14.8 non è inventarlo, è farlo arrivare nella Decision Window**: `ARTTurnManager::AskReactionDecision` prende ancora un indice di unita' e un `bOwnerIsBot`, e il gruppo non entra in quella firma — rimisurato il 2026-09-23. Owner: [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) | I **tredici** scenari `Spec.TimeBank.*` — il registro che questa riga citava come loro sede è uscito con [D-181](../decisions/RT_PDR_00_Decision_Log.md), il conteggio no: è la somma delle righe marcate `harness` in [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §13, e resta l'oracolo che la riga stessa dichiara più sotto — `TimeBank.GraceDoesNotDrain`, `TimeBank.DrainsAfterGrace`, `TimeBank.NeverBelowZero`, `TimeBank.TimeoutCostsFullWindow`, `TimeBank.TimeoutSpendsNoCharge`, `TimeBank.ClashCostsFullWindow`, `TimeBank.BotDrainsLikePlayer`, `TimeBank.ExhaustionKeepsResponsesLegal`, `TimeBank.ReplayReadsRecordedBank`, `TimeBank.PacketOrderInvariant` (*`ExhaustionKeepsResponsesLegal` mancava da questa riga e dal corpo di `#319`: allineate entrambe il 2026-08-13*), più `TimeBank.ControlLoadScalesInitialBank`, `TimeBank.ControlLoadNeverExtendsWindow` e `TimeBank.TimeoutIgnoresPreferredResponse` (*dieci → tredici il 2026-08-17: il numero è la somma delle righe `harness` della tabella §13 della spec, riparsata, non incrementata a mano*); estendono test C++ esistenti `TimeBank.PreferredResponseFallsBackWhenStale`, `…PreselectionSpendsNoCharge`, `…PreferredResponseKeepsAllowedResponses`; UI `TimeBank.FallbackReachableWithinGrace` e `TimeBank.QuickConfirmReachableWithinGrace`; scenari `Spec.TimeBank.*`, **scrivibili dal 2026-08-10** — `LogEventAmount` (`a7e4677b`) ha chiuso l'ultimo blocco dell'harness |
+
+### E17 — Validazione di stress 4v4 · P3
+
+**Obiettivo**: scoprire **dove il sistema si rompe con otto unità**, prima che lo scopra un giocatore.
+Non è produzione di contenuto: è una **misura**.
+
+Decisione: [D-011](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-07) — il 4v4 entra in roadmap **solo** come
+scenario di stress. **Non è il formato principale**: D-001 è stata declassata ad *Assunzione da bloccare*
+perché né un 3v3 né un 4v4 sono mai stati giocati, e consolidare un formato senza misura è l'errore che D-002
+ha già commesso una volta.
+
+> **Perché mirror.** `Gadget · Phase · Riktor · Wraith` contro sé stessi: isola il valore del **piano** da quello
+> della **composizione**, e col roster attuale (4 eroi) un 4v4 non-mirror non esiste comunque.
+
+**Posizione**: dopo **E15**. Prima non ha senso — misurare la leggibilità con otto unità richiede che l'HUD,
+il TurnLog e lo scenario scriptabile esistano. È la **prima epic da tagliare** insieme a E14 (§8).
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **17.1** ✅ | Fixture 4v4 deterministica | `Team0Heroes`/`Team1Heroes` a **4 elementi** senza modifiche al resolver né rami condizionali: se serve un `if (Num == 2)` da qualche parte, **quello è il difetto che l'epic cerca**. Arena più ampia della showcase, tre direttrici (centro/obiettivo · lane conduttiva · rotta alternativa), Layer 0 sufficiente | `Stress.CoreRoster4v4Completes`, `Stress.NoTeamSizeAssumptionInResolver` |
+| **17.2** ✅ | Determinismo e metriche sotto carico | Stesso scenario × N ripetizioni ⇒ **stesso `StateHash` e `LogHash`**. Registrati e allegati alla PR: durata del resolver per turno, eventi per turno, **opportunity di reazione per turno**, **prompt manuali per turno**, dimensione del TurnLog | `Stress.ReplayDivergenceZeroAt4v4`, `Perf.ResolverAt4v4`; misure nel corpo della PR |
+| **17.3** | Leggibilità con otto unità | Giudizio a schermo su una partita registrata: centro libero, intenti non rilevanti collassati, Ghost Timeline **per unità selezionata** e non otto sempre espanse, prompt di reazione compatto. Nessuna **tempesta di prompt**: se la resolution supera stabilmente i **20 s**, scattano i rientri già scritti (cap aggregato, oppure `MaxPromptsPerReaction = 1`) | PIE `PIE-V01-STRESS4V4` + partita registrata |
+
+**Exit gate**: lo scenario scriptato **completa** · **0 divergenze** su N ripetizioni · nessuna tempesta di
+prompt · il planning resta comprensibile · le metriche del resolver sono **registrate**, anche se fuori target.
+
+**Cosa questa epic NON fa**: non introduce eroi, non decide il formato principale (è D-001, aperta), non
+produce una mappa di release. L'arena è un graybox il cui unico scopo è generare **più fronti simultanei**.
+
+**Rischi**: (a) diventa produzione di contenuto invece che misura — il gate è che nessun CP aggiunga regole;
+(b) misura la leggibilità con un campione di **un** giocatore, che è l'autore del gioco: il dato va letto come
+segnale, non come validazione.
+
+**La riga di E17 in §2.1 di `roadmap-v0.1.md`** *(misurata il 2026-08-08)*:
+
+| Epic | Stato | Evidenza |
+|---|---|---|
+| **E17** Validazione di stress 4v4 | 🟡 **CP 17.1 e 17.2 chiusi** | 4 test `Stress.*`/`Perf.ResolverAt4v4` (2026-08-10, `#222`/`#223`) — il roster core a **quattro** per squadra gioca una partita intera su arena r=8 a tre direttrici, e due esecuzioni identiche danno gli stessi hash confrontati **turno per turno**. Il difetto che l'epic cercava, un `if (Num == 2)` nel resolver, **non è stato trovato**: `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4 — con due sole dimensioni «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali. Misurato: resolver **2,319 ms/turno** a 4v4 contro **1,655** a 2v2, TurnLog **11,7 voci/turno** · ⚠️ due metriche del DoD — opportunity di reazione e prompt manuali per turno — sono **non misurabili** e il test lo dichiara: il produttore è CP 14.5 · ⏳ CP 17.3 è una voce PIE. **Non** è un gate di release |
+
 ## v0.2 — «Struttura e finestre»
 
 Il campo di battaglia passa da fondale a materia manipolabile: si aprono e si richiudono coperture, i muri e
-le porte diventano oggetti logici con stato, e il roster raddoppia. È la release che rende vero il pilastro
+le porte diventano oggetti logici con stato. È la release che rende vero il pilastro
 «la mappa è un'arma».
 
-**Gate di release**: Standard 3v3 giocabile end-to-end su una mappa di classe Standard, roster 8 completo,
+**Gate di release**: Standard 3v3 giocabile end-to-end su una mappa di classe Standard,
 Cover Window dimostrabile in scenario automatico, suite verde, replay deterministico.
+
+> ⌫ *Fino al 2026-11-04 questo gate chiedeva anche il roster a 8 completo: E35 è passata alla v0.1 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).*
 
 ### E35 — Roster 8: Sentinel Directorate e Resonance · P0
 
-> 🔀 **E35 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. Con essa rientrano #2291 (CP 35.5, già checkpoint di E35) e #2297, quest'ultima differita da [D-484](../decisions/RT_PDR_00_Decision_Log.md) (2). ⚠️ Nel progetto non ci sono i pack Paragon di `aurora` e `kwang`.
+> 🔀 **E35 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)); forma scelta il 2026-11-05 ([`D-579`](../decisions/RT_PDR_00_Decision_Log.md)): otto eroi in due fette, Ward e Vigil prima e Rime e Tethra poi.** I suoi checkpoint (E35.1–E35.5) sono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §5, che ne è l'owner (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. Con essa rientrano #2291 (CP 35.5, già checkpoint di E35) e #2297, quest'ultima differita da [D-484](../decisions/RT_PDR_00_Decision_Log.md) (2). ⚠️ Nel progetto non ci sono i pack Paragon di `aurora` e `kwang`: la base visiva è un pack già presente, provvisorio e dichiarato sostituibile ([D-037](../decisions/RT_PDR_00_Decision_Log.md)).
 
 **Tracciata su GitHub**: epic [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322).
 
@@ -252,13 +301,7 @@ fazione né kit di coppia — [ADR-0006](../decisions/adr-0006-ownership-abilita
 Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](../characters/v0.2/) e
 [`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni). Questa epic le porta a runtime.
 
-| CP | Obiettivo | DoD misurabile |
-|---|---|---|
-| **35.1** | Sentinel Directorate — Ward, Vigil | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
-| **35.2** | Resonance — Rime, Tethra | Idem per *Terrain Shaping → Anchor Geometry* |
-| **35.3** | Bilanciamento a 8 | `Heroes.RosterIsBalanced` esteso a 8: nessun eroe domina, le coppie di affinità restano simmetriche |
-| **35.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
-| **35.5** | Paragon naming purge | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti. Issue [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) |
+**Checkpoint**: E35.1–E35.5 in [`roadmap-v0.1.md`](roadmap-v0.1.md) §5 (CP 35.1 Ward e Vigil · CP 35.2 Rime e Tethra · CP 35.3 bilanciamento a 8 · CP 35.4 Wiki e cataloghi · CP 35.5 Paragon naming purge). La tabella non è più duplicata qui.
 
 > ➕ **Un contenuto di questa epic sblocca un comportamento del bot che esiste già.** Un'azione
 > **`bSelfTarget` con un effetto `Heal`** — su un eroe nuovo, o aggiunta al kit di uno esistente — rende
@@ -478,7 +521,7 @@ Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 ### E26 — Tactical Bot v1 · P1
 
-> 🔀 **E26 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)).** Il dettaglio qui sotto resta la sola copia finché i suoi checkpoint non vengono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5 (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. **Il suo tetto nella v0.1 non è deciso**: l'elenco di sotto nomina anche *belief weights*, *predictive action scoring* e *stress 4v4*, e quest'ultimo è fuori per la riga «Fuori scope v0.1» di `roadmap-v0.1.md` §1 finché non è deciso. Dipende da E13, che resta nella v0.1 ([`D-441`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-338`](../decisions/RT_PDR_00_Decision_Log.md) dicevano il contrario: annotate).
+> 🔀 **E26 ENTRA NELLA v0.1 — anticipata dalla v0.2 il 2026-11-04 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md)); tetto scelto il 2026-11-05 ([`D-578`](../decisions/RT_PDR_00_Decision_Log.md)): il tetto C, la coordinazione di [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) per intero.** I suoi checkpoint (E26.1–E26.5) sono dichiarati in [`roadmap-v0.1.md`](roadmap-v0.1.md) §5, che ne è l'owner (tracking [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985)). Il vincolo delle milestone v0.2–v0.4 (nessuna loro epic si apre prima dei gate della v0.1) non si applica più a questa epic e vale ancora, intero, per ogni altra. L'elenco di sotto nomina anche *belief weights*, *predictive action scoring* e *stress 4v4*: **restano fuori** dal tetto (E27 ed E28 restano in v0.3; lo stress 4v4 esce con E17, [`D-581`](../decisions/RT_PDR_00_Decision_Log.md)). Dipende da E13, che resta nella v0.1 ([`D-441`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-338`](../decisions/RT_PDR_00_Decision_Log.md) dicevano il contrario: superate in quella parte, [`D-578`](../decisions/RT_PDR_00_Decision_Log.md)).
 
 **Tracciata su GitHub**: epic [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326).
 
@@ -996,7 +1039,7 @@ riscritture.
 
 **Tracciata su GitHub**: epic [#333](https://github.com/DegrassiAaron/refactor-tactics-main/issues/333).
 
-La v0.1 usa il 4v4 solo come **stress test** (E17). Qui diventerebbe un formato vero — ma solo se il playtest
+La v0.1 usava il 4v4 solo come **stress test** (E17, uscita dalla v0.1 il 2026-11-05: [`D-581`](../decisions/RT_PDR_00_Decision_Log.md)). Qui diventerebbe un formato vero — ma solo se il playtest
 del 3v3 dice che il sistema regge la densità.
 
 > ✅ **Aggiornato il 2026-08-30**: questa riga diceva che *«il formato competitivo finale non è deciso»*, e
