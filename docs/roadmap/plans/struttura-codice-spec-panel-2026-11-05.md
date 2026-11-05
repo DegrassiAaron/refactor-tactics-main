@@ -280,7 +280,7 @@ la misura. I disaccordi sono in §4.10.
   `KnowledgeForTeam` (`grep -c` → `RTTurnManager.cpp` 7, cioè anche Prep e Dash; `_Blast.cpp` 5;
   `_Movement.cpp` 0); la fetta dichiara che la lettura passa dalla stessa funzione e lo misura.
 - **Misura**: `git grep -c 'TurnLog\.Add' -- 'Source/RefactorTactics/*.cpp' ':!Source/RefactorTactics/Tests/*'`
-  = 1 prima e dopo; i produttori di `FRTResolvedEvent` dopo la fetta in un solo file; sidecar ordinato identico;
+  = 1 prima e dopo; i produttori di `FRTResolvedEvent` dopo la fetta in un solo file; `OrderedHashPerTurn` identico;
   `git grep -c 'Append.*Entry\|MakeStatus' -- Source/RefactorTactics/Turn/RTTurnManager.h` a 0.
 
 ### 4.5 TurnManager (Q5): riaprire il perimetro dei resolver, con due precondizioni, **Movement prima e Blast per ultimo**
