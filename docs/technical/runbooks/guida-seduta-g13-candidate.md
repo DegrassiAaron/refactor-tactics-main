@@ -1,5 +1,7 @@
 # Seduta `G13` — partita giocabile senza editor, dal pacchetto del candidate
 
+> ⌫ **Dal 2026-11-05 `G13` è assorbito in `G17`** ([`D-580`](../../decisions/RT_PDR_00_Decision_Log.md)): questo foglio conduce la **precondizione meccanica di `G17`**, confermata dall'autore. Il nome del file conserva `g13` perché i link lo citano, e la riga `G13` citata qui sotto è quella barrata di [DoD §3](../../roadmap/v0.1-definition-of-done.md), che ne conserva il testo.
+
 > **Foglio di conduzione.** Lo esegue una persona davanti allo schermo. Ogni comando qui è stato
 > verificato sul filesystem o nel sorgente il **2026-10-03**; ciò che non è stato verificato è dichiarato
 > tale invece di essere dato per buono.

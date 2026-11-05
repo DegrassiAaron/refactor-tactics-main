@@ -6555,6 +6555,36 @@ sessions:
       Lo stato delle voci vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo
       l'allestimento.
 
+  - id: U98
+    title: G17, il verdetto dell'autore sulle partite giocate
+    block: 6
+    critical: true
+    execution_lane: pie
+    produces: >-
+      il verdetto di `G17` (verde, giallo o rosso, con lo SHA del pacchetto) sulle partite che l'autore gioca sul pacchetto candidate, dopo la precondizione meccanica
+    artifacts: []
+    verifies: []
+    issues: [3997]
+    done_when: >-
+      la precondizione meccanica e' PASS sul pacchetto candidate, l'autore ha giocato almeno una partita completa del giro Con scelte e almeno una che puo' finire per obiettivo,
+      e ha scritto il verdetto con lo SHA del pacchetto
+    # 🔴 **Questo record nasce VUOTO e prima dell'esecuzione, ed e' deliberato**, sul modello di `U60` (`G16`): il criterio del gate chiede che
+    # il giro sia *registrato come seduta*, e senza un contenitore chi conduce dovrebbe riderivare i passi dal corpo della issue.
+    #
+    # 🔑 **`issues: [3997]` NON e' una formalita': senza, questa riga rende rosso `G14`.** L'asserzione `A2` di `doc-coherence.ts` fallisce su una seduta
+    # `critical: true` che sia INSIEME priva di `issues:`, non nominata da nessuna issue aperta, e non ancora eseguita. 3997 e' la issue che ESEGUE `G17`
+    # (come #2601 per `G16`): una issue non istituisce un gate, lo esegue.
+    #
+    # ⛔ **Nessun passo e' dichiarato verde in anticipo.** Il numero `U98` e' un contatore condiviso: vale al merge, e va rimisurato prima.
+    steps: |
+      ⏳ **Non eseguita.** Passi, nell'ordine in cui si registrano; ciascuno porta un esito reale, e i passi non eseguiti dichiarano il motivo.
+
+      1. **Precondizione meccanica**: il cancello di `tools/seduta/esiti.py` sul pacchetto candidate, misurato da chi non ha riparato, col foglio
+         `docs/technical/runbooks/guida-seduta-g13-candidate.md`. Se e' rosso, i passi seguenti non si eseguono e `G17` non puo' essere verde.
+      2. **Partite dell'autore**: almeno una completa del giro «Con scelte» (Play, Match Setup, partita, Result) e almeno una che puo' finire per obiettivo.
+      3. **Domande fisse**: si/no, scritte e approvate dall'autore. *Non ancora scritte: bozza dell'assistente in attesa di correzione.*
+      4. **Verdetto**: verde, giallo o rosso, con lo SHA del pacchetto.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

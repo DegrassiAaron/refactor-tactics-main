@@ -10,7 +10,7 @@
       (`TurnLog.Reset()` a ogni risoluzione): a mano la finestra utile va indovinata;
     - l'archivio replay del passo 5 vale solo se la partita CHIUDE con un esito terminale, e una
       partita abbandonata lascia `Outcome: 0`;
-    - gli esiti dal log sono gli stessi sei di `G13`.
+    - gli esiti dal log sono gli stessi sei di `G13` (assorbito in `G17` il 2026-11-05: ora la precondizione meccanica di `G17`).
 
   Questo script le verifica da se', in autobattle, e lascia alla persona i soli giudizi percettivi.
 

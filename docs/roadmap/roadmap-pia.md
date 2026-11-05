@@ -7,7 +7,7 @@
 > **La matrice dei gate di release resta in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3
 > — `G1`–`G14`**, che ha già le colonne criterio, evidenza e stato datato. ⚠️ `G1`–`G14` è il perimetro su cui
 > **PIA** riporta, non l'elenco dei gate vivi: dal 2026-09-10 la tabella porta anche `G16`, su cui PIA non
-> riporta nulla.
+> riporta nulla. Dal 2026-11-05 la tabella porta anche `G17`, su cui PIA non riporta nulla, e `G13` è assorbito in `G17` ([`D-580`](../decisions/RT_PDR_00_Decision_Log.md) (2)): il perimetro su cui PIA riporta è `G1`–`G12` e `G14`.
 > Il registro delle verifiche manuali resta in [`test-manuali-pie.md`](../technical/test-manuali-pie.md).
 >
 > **PIA registra soltanto il progresso dei propri gate di integrazione e accettazione.**
@@ -60,8 +60,8 @@ che le descrive è disallineato dal prodotto, ed è esattamente ciò che `G14` m
 | **PIA-2** Combat feedback | `#2617` | `G14` *(riporto)* | `#2453` `#2454` `#2456` `#2457` `#2505` · `#2455` **chiusa 2026-09-06** |
 | **PIA-3** HUD, pointer, privacy | `#2618` | `G8` `G9` | `#25` `#217` · sedute `U15` `U43` · `U46` **spesa** |
 | **PIA-4** Scene readability e mappa | `#2619` | `G10` | `#286` `#324` `#288` `#289` `#1758` · seduta `U9` |
-| **PIA-5** Replay e packaged | `#2620` | `G4` `G12` `G13` | `#26` `#816` |
-| **PIA-6** Final acceptance | `#2621` | `G14`, più il riporto su `G1`–`G14` | `#26` |
+| **PIA-5** Replay e packaged | `#2620` | `G4` `G12` ~~`G13`~~ *(assorbito in `G17`: PIA non riporta sulla sua precondizione meccanica)* | `#26` `#816` |
+| **PIA-6** Final acceptance | `#2621` | `G14`, più il riporto su `G1`–`G12` e `G14` | `#26` |
 | *leaf* — tre voci PIE senza seduta | `#2622` | `G9` *(solo `PIE-V01-GHOSTS`)* | `#25` `#2454` `#2505` |
 
 ⚠️ **`PIA-1` non è mappato su `G3`.** `G3` chiede che i dieci test nominati dal catalogo **esistano**, ed è ✅
