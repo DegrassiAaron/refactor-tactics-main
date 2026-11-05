@@ -7,8 +7,8 @@
 >   scrive, e **da confermare**.
 > - **Misurato su** `origin/main` = `361e2225f`. Le misure di §2 sono state rifatte su questo commit: la base
 >   precedente, `f1a56d9b1`, è avanzata con le PR #3978, #3979, #3980 e #3981 (`D-572`…`D-575`).
-> - **Decisioni registrate**: nessuna in `main`. La voce `D-576` è nella PR
->   [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), in bozza; §8 dice cosa registra.
+> - **Decisioni registrate**: nessuna in `main` su `361e2225f`. La voce `D-576` era nella PR
+>   [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987); ora è in `main` (unita il 2026-11-04, merge `f18c06ff0`). §8 dice cosa registra.
 > - **Correzioni dopo la conferma**: una revisione indipendente della voce (2026-11-04) ha trovato errori anche in
 >   questo brief, ora corretti: `#2291` non fu differita da D-484 (§6, §8), la corrispondenza schede ↔ nomi RT è già
 >   decisa (§6, §7), CP 46.4 sta in `roadmap-v0.1.md` e non in D-144 (§8), la morte visiva non è differita (§2, §8), i
@@ -24,7 +24,7 @@
 >
 > ⛔ Nessuna riga di `Source/` e di `Content/`, e nessun documento owner, cambia con questo brief. Lo scope della
 > v0.1 resta quello di `roadmap-v0.1.md` finché il `D-nnn` di §8 non è in `main`: *«Una capability dichiarata dal
-> tracker e assente dall'owner dello scope non è scope: è un'aspettativa.»*
+> tracker e assente dall'owner dello scope non è scope: è un'aspettativa.»* *(Dal 2026-11-04 il `D-nnn` è in `main` ([D-576](../../decisions/RT_PDR_00_Decision_Log.md), [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), merge `f18c06ff0`): vale la regola del banner in testa a [`roadmap-v0.1.md`](../roadmap-v0.1.md), che resta l'owner dello scope finché le ondate non vi entrano e cede a `D-576` dove lo contraddice nelle parti d'autore; i documenti si riscrivono nel giro del punto 4 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).)*
 >
 > Convenzione: niente totali che cambiano da soli. Dove un numero serve, sta accanto al comando che lo produce.
 
@@ -266,7 +266,7 @@ Non sono state poste in questa sessione. Si chiudono pezzo per pezzo, col pezzo.
 
 ## 8. Le decisioni da registrare
 
-Nessuna è ancora nel Decision Log. Si registrano col primo merge che le implementa, col testo di §3 e le correzioni di
+Nessuna era ancora nel Decision Log su `361e2225f`; [D-576](../../decisions/RT_PDR_00_Decision_Log.md) le registra dal 2026-11-04 ([#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), unita), col testo di §3 e le correzioni di
 §6 con il loro nome. Il numero si prende su misura al momento: vale al merge, non alla misura.
 
 1. **Il traguardo**: la v0.1 è una build giocabile dall'autore («Solo per me»), col giro «Con scelte».
@@ -311,10 +311,10 @@ da misurare al merge) e l'audit per area. **Nulla si unisce senza un «unisci» 
 
 1. ~~L'autore conferma o corregge §4–§7.~~ Confermato (§3.5); restano aperte le domande di §7.
 2. ~~Issue di tracking, e `D-nnn` col testo di §3 e di Appendice A.~~ [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985) è aperta;
-   la voce è nella PR [#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), in bozza, dopo una
+   la voce è in `main` ([#3987](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3987), unita il 2026-11-04, merge `f18c06ff0`), dopo una
    revisione indipendente che ha corretto errori di questo brief (§6, §7, §8).
-3. ~~Audit per area.~~ Eseguito: `v01-giocabile-audit-2026-11-04.md` e i suoi allegati, in una PR a parte che poggia su
-   questa (il percorso è fra apici perché il file non esiste su questo branch).
+3. ~~Audit per area.~~ Eseguito: [`v01-giocabile-audit-2026-11-04.md`](v01-giocabile-audit-2026-11-04.md) e i suoi allegati ([ondate 1–3](v01-giocabile-audit-lavori-ondate-1-3-2026-11-04.md), [ondate 4–5](v01-giocabile-audit-lavori-ondate-4-5-2026-11-04.md)),
+   in `main` ([#3989](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3989), unita il 2026-11-04, merge `e453186d4`).
 4. **Dopo** il merge del `D-nnn`: si aggiornano i documenti di §8 e le issue su GitHub (milestone di #326 e #322,
    descrizioni delle milestone, corpi di #14, #26 e #85, PIA). Non prima: il `D-nnn` vale al merge.
 
