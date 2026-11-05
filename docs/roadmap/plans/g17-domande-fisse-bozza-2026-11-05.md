@@ -52,7 +52,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 **Ondata 2 · Skill viste e sentite, audio**
 
 - `skill-distinte` · *di ondata* — Per ogni skill che ho usato ho visto un'**animazione e un effetto** e sentito un **suono** che distinguo da quelli delle altre?
-- `esito` · *di ondata* — Ho capito l'**esito di un'azione** (colpo, danno, KO) guardando e ascoltando, senza leggere il log?
+- `esito` — **non è più una domanda di ondata**: è *fondamentale* e ha una sezione sua, il §2.4.
 - `audio` · *di ondata* — Ho sentito **musica, suoni dell'interfaccia ed effetti**, senza dover spegnere nulla perché disturbava?
 - `usabili-da-sole` · *di ondata* — Ho **scelto una skill, mirato, visto l'anteprima dell'esito e confermato** senza spiegazioni?
   - Viene da «Si usano da sole» ([§3.2](v01-giocabile-brainstorm-2026-11-04.md)). ❓ **Il brief non assegna dock, mira e tooltip a un'ondata**: dimmi tu a quale va.
@@ -81,6 +81,38 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 - `lingua` · *di ondata* — Ogni scritta in schermata è **nella stessa lingua**?
   - ❓ **Domanda tua, non mia**: non so se la lingua unica è una regola del progetto o una scelta che non hai ancora fatto. Se non lo è, togli la domanda: non va a creare la regola dal fondo.
 
+### 2.4 `esito` — la scheda dei casi *(fondamentale)*
+
+> Sezione scritta da un dialogo del 2026-11-05 fra l'autore e l'assistente, una domanda alla volta. **Le decisioni sono dell'autore; le conseguenze sono dell'assistente e sono ribaltabili.**
+
+- `esito` · *fondamentale* — Ogni volta che qualcosa che avevo pianificato **non è andato come previsto** (azione bloccata, annullata o interrotta; movimento o scatto fermato; bersaglio non più valido; unità messa KO), ho capito il **perché** e, dove c'è un'unità che l'ha causato, **chi**, senza leggere il log?
+
+**Deciso dall'autore, in dialogo**
+
+1. **La scena.** Pianifica un Blast; durante l'esecuzione l'azione di un avversario, in una fase precedente al Blast, blocca il suo. È una pianificazione interrotta.
+2. **Il minimo è «chi» e «perché».** Vedere solo che l'azione non è avvenuta non basta. Dove non c'è un autore, basta il perché.
+3. **Regola generale**, non solo per l'`Interrupt`: vale per ogni cosa pianificata che non va come previsto.
+4. **La verifica è una lista di casi** da spuntare uno a uno, con la risposta accanto. Non si affida al caso e non è una prova sola.
+5. **Tutti i casi della lista.** Quelli rari si **costruiscono a mano**, con gli scenari.
+6. **Si guardano sul pacchetto**, non nell'anteprima dell'Editor: il gate giudica ciò che il giocatore ha in mano.
+
+**Conseguenze, lettura dell'assistente**
+
+- **La lista si ricava dall'enum `ERTActionInvalidReason`** (`Source/RefactorTactics/Turn/RTActionFallbackLibrary.h`) **al commit del candidate finale**, non da una memoria: l'enum cresce in coda per costruzione, e una lista scritta a mano invecchia in silenzio. I motivi che un giocatore non incontra (per esempio `NoMap`, difetto di configurazione; `NoEffect`, catalogo scritto male; `InsufficientMovementPoints`, senza produttore) restano fuori **con il perché dell'esclusione scritto accanto**.
+- **Ogni motivo diventa una riga**: motivo · scenario `-RTScenario=<Id>` · *chi* (sì / no / non applicabile) · *perché* (sì / no) · che cosa hai visto, se la risposta è no.
+- **Un caso senza scenario, o non visto, non vale come sì**: `G17` non può essere verde.
+- **Gli scenari mancanti vanno scritti.** Nel corpus di `Scenarios/` nessun file nomina `Interrupt`, `Interrupted` o `Neutralised` (cercato con grep): il caso della tua scena non ha uno scenario. È lavoro nuovo, l'owner non è deciso e le issue nascono al punto 5 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
+- **Va aggiunta una parte alla precondizione meccanica**, misurata da chi non ha riparato: ogni scenario della scheda **parte dal pacchetto candidate** con `-RTScenario=<Id>` e arriva alla fine.
+
+**Non misurato**
+
+- Che `-RTScenario=<Id>` giri su un pacchetto candidate. È predisposto (`RTGameMode.cpp`, e `Scenarios/` è inclusa nel pacchetto da `Config/DefaultGame.ini`), ma non provato.
+- **Che uno scenario lanciato dal pacchetto mostri lo stesso HUD e la stessa presentazione di una partita.** Se mostra una vista diversa, la scheda misura una superficie che il giocatore non vede.
+
+**Aperto**
+
+- Il legame fra la scheda e l'enum come **controllo meccanico** (un test che si rompe se nasce un motivo senza riga): è codice e serve il tuo OK.
+
 ## 3. Come si arriva a verde, giallo, rosso *(proposta dell'assistente)*
 
 - **Verde**: la precondizione meccanica è `PASS`, ogni domanda *fondamentale* è **sì** e ogni domanda *di ondata* è **sì**.
@@ -90,6 +122,8 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 - La conclusione si scrive sempre con lo **SHA del pacchetto** e la lista dei no, ciascuno con la sua riga.
 
 ## 4. Che cosa decidi tu
+
+*`esito` è già deciso (§2.4). Per le altre:*
 
 1. Quali domande tieni, quali riscrivi, quali aggiungi.
 2. La **classe** di ognuna: la mia è una proposta, e decide che cosa rende rosso.
