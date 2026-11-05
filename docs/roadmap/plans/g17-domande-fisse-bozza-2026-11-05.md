@@ -96,7 +96,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 > Sezione scritta da un dialogo del 2026-11-05 fra l'autore e l'assistente, una domanda alla volta. **Le decisioni sono dell'autore; le conseguenze sono dell'assistente e sono ribaltabili.**
 
-- `esito` · *fondamentale* — Ogni volta che qualcosa che avevo pianificato **non è andato come previsto** (azione bloccata, annullata o interrotta; movimento o scatto fermato; bersaglio non più valido; unità messa KO), ho capito il **perché** e, dove c'è un'unità che l'ha causato, **chi**, senza leggere il log?
+- `esito` · *fondamentale* — Ogni volta che qualcosa che avevo pianificato **non è andato come previsto** (azione bloccata, annullata o interrotta; movimento o scatto fermato; bersaglio non più valido; unità messa KO), ho visto **la mia azione bloccata**, ho visto **l'azione che l'ha bloccata** e ho capito il **perché**; e, se l'unità responsabile era visibile, ho capito **da dove arrivava**?
 
 **Deciso dall'autore, in dialogo**
 
@@ -107,6 +107,8 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 5. **Tutti i casi della lista.** Quelli rari si **costruiscono a mano**, con gli scenari.
 6. **Si guardano sul pacchetto**, non nell'anteprima dell'Editor: il gate giudica ciò che il giocatore ha in mano.
 7. **Nella vista strategica i fumetti non si vedono e le informazioni stanno nel log a destra.** Lettura dell'assistente, ribaltabile: `esito` deve quindi valere **in tutte e due le viste**, con i fumetti nella ravvicinata e il log nella strategica.
+8. **Il formato del log**: «eroe: azione x interrotta», e sotto «dettagli> motivazione».
+9. **Tre cose con visibilità diversa.** Il giocatore vede sempre **la propria azione bloccata** e **l'azione bloccante**; **da dove arriva** non è detto. Lo spettatore del replay può vedere tutto, comprese due unità che interrompono insieme. Lettura dell'assistente: il «chi» del gate è **l'azione bloccante**, non l'unità; l'unità segue la visibilità degli eventi, e nel **dato** deve esserci sempre, perché il replay la mostra.
 
 **Conseguenze, lettura dell'assistente**
 
@@ -126,8 +128,8 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 - La voce di TurnLog che il resolver scrive per un'azione interrotta porta: fase `Blast`, categoria `Fallback`, esito `Cancelled`, la cella e l'unità **della vittima**, la cella a cui puntava l'azione, il motivo `Interrupted` (in `Amount`), l'azione e la sua priorità (`Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp`, righe 1988-1998). **Chi ha interrotto non entra nella voce**: `UnitId` è uno solo e lo prende il soggetto (commento alle righe 1977-1978).
 - Il formato chiesto dall'autore è «eroe: azione x interrotta» e, sotto, «dettagli> motivazione». La prima riga ha **tutti i dati**: l'eroe, l'azione e il motivo. Il «chi» no.
-- Due strade, **nessuna decisa**: **derivarlo** in presentazione dalla voce dell'`Action.Interrupt` dello stesso turno (ambiguo se due unità interrompono la stessa vittima: il resolver scrive una voce sola per azione cancellata, commento alle righe 1954-1956); oppure **aggiungerlo alla voce**, che è un cambio di stato canonico (TurnLog, hash, replay, versione: ogni campo della voce entra nell'hash, vedi il commento alla riga 1975) e richiede una decisione dell'autore e un owner.
-- Un vincolo che vale per tutte e due: il «chi» non va scritto se il giocatore non vede quell'unità (stessa visibilità degli eventi).
+- Due strade. **Derivarlo** in presentazione dalla voce dell'`Action.Interrupt` dello stesso turno è ambiguo se due unità interrompono la stessa vittima (il resolver scrive una voce sola per azione cancellata, commento alle righe 1954-1956): **non basta** per il replay, dove l'autore vuole vederle entrambe. Resta **aggiungerlo alla voce**, che è un cambio di stato canonico (TurnLog, hash, replay, versione: ogni campo della voce entra nell'hash, vedi il commento alla riga 1975) e richiede una decisione dell'autore e un owner. **Non è decisa.**
+- Il vincolo di privacy resta: al giocatore l'unità si mostra solo se la vede, con lo stesso filtro per squadra degli altri eventi (`FilterForTeam`). L'azione bloccante e il motivo si mostrano sempre.
 
 **Aperto**
 
