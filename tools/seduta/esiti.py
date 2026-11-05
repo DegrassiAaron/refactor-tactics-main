@@ -8,7 +8,7 @@ Deriva gli esiti MECCANICI di una seduta dal log e dal CSV di pacing, invece di 
 
 Perche' esiste
 --------------
-I verdetti meccanici di `G13` si leggono dal log e dal CSV, e finora si greppavano a mano. Questo
+I verdetti meccanici di `G13` (assorbito in `G17` il 2026-11-05: sono la precondizione meccanica di `G17`) si leggono dal log e dal CSV, e finora si greppavano a mano. Questo
 repository ha una storia documentata di pattern CIECHI: un grep che non puo' colpire rende un gate
 verde perche' **non guarda**, e un verde ottenuto cosi' e' indistinguibile da un verde vero.
 

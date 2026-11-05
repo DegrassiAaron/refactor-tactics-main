@@ -520,9 +520,10 @@ tiene solo **che cosa ciascun gate guarda**, che e' l'unica cosa che non invecch
 | `G10` | Partita completa 2v2 con esito terminale |
 | `G11` | KPI misurati e registrati |
 | `G12` | Packaging Development + Shipping |
-| `G13` | Partita giocabile dalla build packaged |
+| ~~`G13`~~ | ⌫ Assorbito in `G17` il 2026-11-05 ([`D-580`](../../decisions/RT_PDR_00_Decision_Log.md)): era «partita giocabile dalla build packaged», ora precondizione meccanica di `G17` |
 | `G14` | Documentazione allineata |
 | `G16` | Vertical Slice Labs & Playback — smoke integrato |
+| `G17` | Il verdetto dell'autore sulle partite giocate |
 
 ⚠️ **E il principio che la vecchia tabella portava resta vero, quindi resta scritto**: un gate senza
 esecutore automatico **non e' verde, e' verde a una data**. La data si legge nella cella, insieme al
@@ -537,6 +538,8 @@ si riscrive uguale sei mesi dopo. `G16` è il gate **successivo**, non il quindi
 ⏮️ **Questa riga era una PREVISIONE, e il suo innesco è scattato il 2026-09-10: riscritta al passato il 2026-10-03.** Diceva che `G16` non era ancora su `origin/main` `18065c28`, cioè fuori dalla fotografia dichiarata in testa a questo
 documento: entra con `1cdd0d03` (`D-377`), il commit **gemello di questo file nella stessa PR**. Quel merge è avvenuto, e il perimetro È `G1`…`G14` più `G16`. La riga è qui perché la prima stesura scriveva *«`G1`…`G14`»*
 come se fosse tutto, e sarebbe atterrata contraddicendo il commit accanto al proprio.
+
+➕ **Dal 2026-11-05 il perimetro cambia ancora.** `G13` è assorbito in `G17` (riga barrata, il numero si ritira come `G15`: [`D-580`](../../decisions/RT_PDR_00_Decision_Log.md)) e `G17` è nato. Il perimetro non si scrive più come elenco di numeri: sono **le righe non barrate** di DoD §3.
 
 🔑 **`G16` è il gate che questa mappa avrebbe voluto avere.** Chiede che **Ability Lab**, **Hero Lab**,
 **Presentation**, **Turn Log proiettato al giocatore** e **Replay Viewer** siano usabili **nello stesso

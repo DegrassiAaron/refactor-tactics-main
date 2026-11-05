@@ -1532,7 +1532,7 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 >
 > ⚠️ **Nessuna delle sei diventa per questo «eseguita»**: cambia la ragione per cui non lo sono, da «non si
 > può» a «non è stato fatto». E `PIE-V01-FRONTEND-MAIN` ha un vincolo suo che nessun aggancio scioglie —
-> chiede il **packaged**, perché `G13` chiede «senza editor».
+> chiede il **packaged**, perché `G13` chiede «senza editor» (⌫ `G13` è assorbito in `G17` dal 2026-11-05: la precondizione meccanica di `G17` porta la stessa richiesta).
 >
 > **Perché sono manuali per costruzione e non per rinuncia.** La navigazione **non** è UI — `FRTScreenStack`
 > è un `USTRUCT` puro e si prova senza mondo: sono le **91** `Frontend.*`/`Startup.*` — 79 + 12, misurate il
@@ -1541,7 +1541,7 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 > resta è il *layout dentro il binario* — che una schermata si legga, che il focus si veda, che il modale
 > copra ciò che deve. Un test che aprisse il `.uasset` per giudicarlo starebbe giudicando un'immagine.
 >
-> ⚠️ **Nessuna porta `RELEASE-V01`**, e non è una dimenticanza: `G13` chiede «partita giocabile senza editor
+> ⚠️ **Nessuna porta `RELEASE-V01`**, e non è una dimenticanza: `G13` (⌫ assorbito in `G17` dal 2026-11-05) chiede «partita giocabile senza editor
 > dalla build packaged» e le sue due riserve sono **dati**, non menu — E46 è scope nuovo per
 > [D-144](../decisions/RT_PDR_00_Decision_Log.md), e nessun gate della v0.1 richiede questa epic.
 > Spostarcele richiederebbe la mossa gemella in [`tooling/scenario-map.md`](tooling/scenario-map.md) §8.
