@@ -18,17 +18,21 @@
 
 Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe**: *fondamentale* o *di ondata*; la regola del §3 dice che cosa cambia.
 
+**Che cosa ha già risposto l'autore** (2026-11-05, dopo aver immaginato la scena in partita; le risposte erano «smetto» / «fastidio» / «togli»): `obiettivo`, `leggibile`, `affordance`, `overlay` e `non-si-blocca` sono *fondamentali*; `senza-console` è *di ondata*; `rigiocare` è tolta; `esito` è *fondamentale* (§2.4). **Le classi delle domande per ondata sono ancora una proposta dell'assistente.**
+
 ### 2.1 Il giro
 
-- `fine` · *fondamentale* — In almeno una partita completa del giro «Con scelte» (Play, Match Setup, partita, Result) sono arrivato in fondo **senza aprire la console, l'editor o una riga di comando**, e senza che la partita si bloccasse?
-  - Viene da: [`D-576`](../../decisions/RT_PDR_00_Decision_Log.md) (5), [`D-580`](../../decisions/RT_PDR_00_Decision_Log.md) (1), minimo di una partita completa.
-  - Un no vuol dire: dove ti sei fermato, o che cosa hai dovuto aprire.
+- `non-si-blocca` · *fondamentale* — In almeno una partita completa del giro «Con scelte» (Play, Match Setup, partita, Result) sono arrivato fino al **Result senza che la partita si bloccasse o si fermasse**?
+  - Viene da: [`D-576`](../../decisions/RT_PDR_00_Decision_Log.md) (5), [`D-580`](../../decisions/RT_PDR_00_Decision_Log.md) (1), minimo di una partita completa. **L'autore ha confermato: un blocco in partita è «smetto».**
+  - Un no vuol dire: dove si è fermata.
+  - Il cancello meccanico controlla già, prima che l'autore giochi, che la partita si completi e che il risultato sia raggiungibile (precondizione della riga `G17`): questa domanda copre il blocco **che il cancello non vede** e che l'autore incontra.
+- `senza-console` · *di ondata* — Ho giocato **senza aprire la console, l'editor o una riga di comando**?
+  - Viene da: la metà *(a)* della vecchia `fine`. L'autore ha risposto «fastidio»; la lettura dell'assistente è che il «fastidio» fosse per questa metà e che la metà *(b)*, il blocco, sia `non-si-blocca`.
+  - Un no vuol dire: che cosa hai dovuto aprire.
 - `obiettivo` · *fondamentale* — Una partita è finita **per obiettivo** (la via a punti), e il Result mi ha detto perché era finita, e il perché era vero?
   - Viene da: [`D-578`](../../decisions/RT_PDR_00_Decision_Log.md) (5), [`D-247`](../../decisions/RT_PDR_00_Decision_Log.md) (ScoreToWin vale 5 dal 2026-08-30).
   - Un no vuol dire: che cosa diceva il Result e che cosa era successo davvero.
-- `rigiocare` · *fondamentale* — Finito il Result, avrei giocato **subito una seconda partita**, senza che nessuno me lo chiedesse?
-  - Viene da: il traguardo del brief, «giudicare se il gioco diverte, anche se ancora grezza» ([§3.1](v01-giocabile-brainstorm-2026-11-04.md)).
-  - Un no vuol dire: la riga su che cosa ti ha fermato. Non serve che sia un difetto.
+- ~~`rigiocare`~~ — **tolta dall'autore** («togli»). Lettura dell'assistente, **non confermata**: il «diverte» del traguardo ([§3.1](v01-giocabile-brainstorm-2026-11-04.md)) sta nel verdetto finale che l'autore scrive, che resta libero, e non in una domanda sì/no.
 
 ### 2.2 Le due che `G13` teneva per l'occhio
 
@@ -123,7 +127,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 ## 4. Che cosa decidi tu
 
-*`esito` è già deciso (§2.4). Per le altre:*
+*`esito` (§2.4) e le classi delle domande del giro e di quelle ereditate da `G13` sono già decise. Per le altre:*
 
 1. Quali domande tieni, quali riscrivi, quali aggiungi.
 2. La **classe** di ognuna: la mia è una proposta, e decide che cosa rende rosso.
