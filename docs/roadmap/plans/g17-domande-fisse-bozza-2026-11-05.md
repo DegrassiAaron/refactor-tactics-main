@@ -18,7 +18,7 @@
 
 Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe**: *fondamentale* o *di ondata*; la regola del §3 dice che cosa cambia.
 
-**Che cosa ha già risposto l'autore** (2026-11-05, dopo aver immaginato la scena in partita; le risposte erano «smetto» / «fastidio» / «togli»): `obiettivo`, `leggibile`, `affordance`, `overlay` e `non-si-blocca` sono *fondamentali*; `senza-console` è *di ondata*; `rigiocare` è tolta; `esito` è *fondamentale* (§2.4). **Le classi delle domande per ondata sono ancora una proposta dell'assistente.**
+**Che cosa ha già risposto l'autore** (2026-11-05, dopo aver immaginato la scena in partita; le risposte erano «smetto» / «fastidio» / «togli»): `obiettivo`, `leggibile`, `affordance`, `overlay` e `non-si-blocca` sono *fondamentali*; `senza-console` è *di ondata*; `rigiocare` è tolta; `esito` è *fondamentale* (§2.4). Per le ondate 1 e 2 l'autore ha risposto «smetto» a `graybox`, `leggibilita-tattica`, `skill-distinte`, `audio` e `usabili-da-sole`: sono *fondamentali*. **Le classi delle domande per le ondate 3, 4a, 4b e 5 sono ancora una proposta dell'assistente.**
 
 ### 2.1 Il giro
 
@@ -49,17 +49,23 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 **Ondata 1 · Ambiente**
 
-- `graybox` · *di ondata* — La mappa **non si legge come graybox**: guardandola non vedo superfici grigie di sviluppo?
-- `leggibilita-tattica` · *di ondata* — Unità, coperture, dislivelli e celle restano **leggibili sull'arte**?
+- `graybox` · *fondamentale* — La mappa **non si legge come graybox**: guardandola non vedo superfici grigie di sviluppo?
+- `leggibilita-tattica` · *fondamentale* — Unità, coperture, dislivelli e celle restano **leggibili sull'arte**?
   - Il tetto resta quello di [`D-124`](../../decisions/RT_PDR_00_Decision_Log.md) per l'ondata 1: «leggibile, non bello» ([`D-577`](../../decisions/RT_PDR_00_Decision_Log.md) (4)(5)). La domanda non chiede se è bella.
 
 **Ondata 2 · Skill viste e sentite, audio**
 
-- `skill-distinte` · *di ondata* — Per ogni skill che ho usato ho visto un'**animazione e un effetto** e sentito un **suono** che distinguo da quelli delle altre?
+- `skill-distinte` · *fondamentale* — Per ogni skill che ho usato ho visto un'**animazione e un effetto** e sentito un **suono** che distinguo da quelli delle altre?
 - `esito` — **non è più una domanda di ondata**: è *fondamentale* e ha una sezione sua, il §2.4.
-- `audio` · *di ondata* — Ho sentito **musica, suoni dell'interfaccia ed effetti**, senza dover spegnere nulla perché disturbava?
-- `usabili-da-sole` · *di ondata* — Ho **scelto una skill, mirato, visto l'anteprima dell'esito e confermato** senza spiegazioni?
+- `audio` · *fondamentale* — Ho sentito **musica, suoni dell'interfaccia ed effetti**, senza dover spegnere nulla perché disturbava?
+- `usabili-da-sole` · *fondamentale* — Ho **scelto una skill, mirato, visto l'anteprima dell'esito e confermato** senza spiegazioni?
   - Viene da «Si usano da sole» ([§3.2](v01-giocabile-brainstorm-2026-11-04.md)). ❓ **Il brief non assegna dock, mira e tooltip a un'ondata**: dimmi tu a quale va.
+- `fumetti` · *fondamentale* — Durante lo svolgimento del piano, quando un personaggio attiva una skill, appare **sopra di lui un fumetto con un grido**, e **anche un'azione bloccata appare come fumetto**, nello stesso stile; e la grafica **ricorda quello dei fumetti/manga**?
+  - **Aggiunta dall'autore in dialogo** («voglio anche un'altra cosa o smetto»). Le sue parole, alla lettera: «una grafica che ricorda i fumetti, nel senso che quando i personaggi attivano una skill, appare un fumetto sul personaggio con qualche grido, magari informazioni sulla skill che sta per essere lanciata. si vede durante lo svolgimento del piano, e anche i blocchi devono apparire come fumetto/manga, la grafica deve ricordare quello stile».
+  - Le «informazioni sulla skill» sono un «magari»: **restano fuori dalla domanda** finché l'autore non dice che sono un requisito.
+  - ⚠️ **Non è nel brief e non è in nessuna ondata**: è una scelta nuova sullo stile della presentazione. Serve una decisione registrata dell'autore, e l'assistente non assegna il numero. La bozza la mette accanto all'ondata 2 (i fumetti delle skill) e tocca l'ondata 5 («un solo linguaggio visivo»).
+  - ❓ **Tensione con `leggibilita-tattica`, da risolvere**: un fumetto può coprire un'unità, una cella o una copertura, e le azioni di più unità risolvono nella stessa fase.
+  - ❓ **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. La bozza lo scrive come vincolo (il fumetto segue la stessa visibilità degli eventi), da confermare.
 
 **Ondata 3 · Scelte pre-partita**
 
