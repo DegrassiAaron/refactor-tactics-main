@@ -1,7 +1,7 @@
 # Decision Time Bank — specifica di design
 
 > `CURRENT` · **Stato**: design deciso dall'autore il **2026-08-09**, ID del Decision Log da assegnare al merge
-> **Owner**: questo file · **Epic**: E14 come **CP 14.8**, dopo [CP 14.7](spec-reaction-clash-e14.md) · **Release**: v0.1
+> **Owner**: questo file · **Epic**: E14 come **CP 14.8**, dopo [CP 14.7](spec-reaction-clash-e14.md) · **Release**: ~~v0.1~~ ⌫ *esce dalla v0.1 dal 2026-11-05 ([`{{D-ESCE}}`](../decisions/RT_PDR_00_Decision_Log.md)); destinazione da assegnare*
 > **Dipende da**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) · CP 14.5–14.6 per la calibrazione
 > **Contesto sorgente**: discussione del 2026-08-09, kit `RefactorTactics_Decision_Time_Bank_Claude_Consolidation_2026-08-09.md`
 > **Audit di provenienza**: [`decision-time-bank-conflict-report-2026-08-09.md`](../roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md)
