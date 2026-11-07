@@ -31,7 +31,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 - `obiettivo` · *fondamentale* — Una partita è finita **per obiettivo** (la via a punti), e il Result mi ha detto perché era finita, e il perché era vero?
   - Viene da: [`D-578`](../../decisions/RT_PDR_00_Decision_Log.md) (5), [`D-247`](../../decisions/RT_PDR_00_Decision_Log.md) (ScoreToWin vale 5 dal 2026-08-30).
   - Un no vuol dire: che cosa diceva il Result e che cosa era successo davvero.
-- ~~`rigiocare`~~ — **tolta dall'autore** («togli»). Lettura dell'assistente, **non confermata**: il «diverte» del traguardo ([§3.1](v01-giocabile-brainstorm-2026-11-04.md)) sta nel verdetto finale che l'autore scrive, che resta libero, e non in una domanda sì/no.
+- ~~`rigiocare`~~ — **tolta dall'autore** («togli»). **Confermato dall'autore** («Sì, confermo», [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md), nota ➕): il «diverte» del traguardo ([§3.1](v01-giocabile-brainstorm-2026-11-04.md)) sta nel verdetto finale che l'autore scrive, che resta libero, e non in una domanda sì/no.
 
 ### 2.2 Le due che `G13` teneva per l'occhio
 
@@ -66,7 +66,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
   - Non era nel brief: è una scelta nuova sullo stile della presentazione, registrata in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md); **l'autore l'ha messa nell'ondata 2** («ondata 2»), e tocca l'ondata 5 («un solo linguaggio visivo»).
   - **Tensione con `leggibilita-tattica`.** Un fumetto può coprire un'unità, una cella o una copertura, e le azioni di più unità risolvono nella stessa fase. **L'autore prevede che, vista la grandezza degli esagoni, il problema non nasca.** È una **previsione, non misurata**: la misura la fa `leggibilita-tattica` sul pacchetto, e se si sbaglia l'autore risponde «smetto».
   - **Le due viste (deciso dall'autore).** I fumetti si vedono nella vista ravvicinata. Nella **vista strategica** (lo zoom indietro, [`D-252`](../../decisions/RT_PDR_00_Decision_Log.md) e [`D-488`](../../decisions/RT_PDR_00_Decision_Log.md), semplificata) **non si vedono, e le informazioni appaiono nel log a destra** (`WBP_RT_CombatLog`).
-  - **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. Vincolo scritto in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md): il fumetto segue la stessa visibilità degli eventi. (L'autore non ha risposto a parte su questo punto: è una lettura dell'assistente, ribaltabile.)
+  - **Privacy**: un fumetto su un'unità avversaria che il giocatore non vede rivelerebbe posizione o intenzione. Vincolo scritto in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md): il fumetto segue la stessa visibilità degli eventi. **Confermato dall'autore** («Sì, confermo», [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md), nota ➕).
 
 **Ondata 3 · Scelte pre-partita**
 
@@ -109,7 +109,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 6. **Si guardano sul pacchetto**, non nell'anteprima dell'Editor: il gate giudica ciò che il giocatore ha in mano.
 7. **Nella vista strategica i fumetti non si vedono e le informazioni stanno nel log a destra.** Lettura dell'assistente, ribaltabile: `esito` deve quindi valere **in tutte e due le viste**, con i fumetti nella ravvicinata e il log nella strategica.
 8. **Il formato del log**: «eroe: azione x interrotta», e sotto «dettagli> motivazione».
-9. **Tre cose con visibilità diversa.** Il giocatore vede sempre **la propria azione bloccata** e **l'azione bloccante**; **da dove arriva** non è detto. Lo spettatore del replay può vedere tutto, comprese due unità che interrompono insieme. Lettura dell'assistente: il «chi» del gate è **l'azione bloccante**, non l'unità; l'unità segue la visibilità degli eventi, e nel **dato** deve esserci sempre, perché il replay la mostra.
+9. **Tre cose con visibilità diversa.** Il giocatore vede sempre **la propria azione bloccata** e **l'azione bloccante**; **da dove arriva** non è detto. Lo spettatore del replay può vedere tutto, comprese due unità che interrompono insieme. **Confermato dall'autore** («Sì, confermo», [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md), nota ➕): il «chi» del gate è **l'azione bloccante**, non l'unità; l'unità segue la visibilità degli eventi, e nel **dato** deve esserci sempre, perché il replay la mostra.
 
 **Conseguenze, lettura dell'assistente**
 
