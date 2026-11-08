@@ -5,6 +5,12 @@
 >
 > **Ambito**: Harmonic Coupling, The Refactor, ARC, le quattro fazioni — e il livello di conoscenza con
 > **spoiler narrativi** che la Wiki non pubblica.
+>
+> 🔁 **Dal 2026-11-08 il vocabolario elementale e' cambiato** ([D-588](../decisions/RT_PDR_00_Decision_Log.md), [D-593](../decisions/RT_PDR_00_Decision_Log.md)): dodici elementi senza
+> ordine ciclico (`Warp`, `Fire`, `Water`, `Earth`, `Electric`, `Frost`, `Decay`, `Life`, `Arcane`, `Aegis`, `Air`, `Disintegration`);
+> **`Harmonic` non e' piu' un elemento** e la «ratifica parziale della lore» di D-274 e' caduta. L'**Harmonic Coupling** di questa pagina resta
+> lore `PROPOSED`, non vocabolario di gioco; l'energia che riscrive la materia si chiama `Warp` nel gioco (il «Flux» del GDD, D-130 resta).
+> Questa pagina non e' stata riscritta: dove nomina Harmonic come elemento, governa D-588.
 
 ## Che cos'è questa pagina, e che cosa non è
 

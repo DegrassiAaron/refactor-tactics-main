@@ -29,6 +29,27 @@
 > **Come rivederle**: correggi le colonne *Nome* ed *Effetto*. Il cambio va riportato nelle tabelle C++ nella
 > stessa PR; il radar lo pretende. La colonna *Voce* è la chiave della tabella, e non si cambia qui.
 
+## Elementi
+
+> I **dodici** elementi del vocabolario di design ([D-588](../decisions/RT_PDR_00_Decision_Log.md)), con gli identificatori di [D-593](../decisions/RT_PDR_00_Decision_Log.md). Nessun ordine ciclico: la
+> relazione fra due elementi vive solo nella sua voce del [catalogo delle coppie](RT_ElementPairCatalog_v0.1.md). `Element`, `Surface` (`Terrain.*`) e
+> `Status` sono tre cose distinte: `Terrain.Fire` e `Status.Burning` non sono `Element.Fire`.
+
+| ID | Nome | Che cosa e' |
+|---|---|---|
+| `Element.Warp` | Warp | L'elemento che riscrive lo spazio: muri e geometria della cella. |
+| `Element.Fire` | Fuoco | Brucia e divampa; l'acqua lo spegne. |
+| `Element.Water` | Acqua | Bagna, spegne il fuoco, conduce l'elettricita'. |
+| `Element.Earth` | Terra | Solido e pesante: ostacoli, spinte, fango con l'acqua. |
+| `Element.Electric` | Fulmine | Scarica e si propaga lungo l'acqua. |
+| `Element.Frost` | Freddo | Gela e rallenta; il ghiaccio e' un suo esito, non il suo nome. |
+| `Element.Decay` | Morte | Decadimento: blocca le cure e consuma. |
+| `Element.Life` | Vita | Cura, cresce, rigenera. |
+| `Element.Arcane` | Arcano | Energia pura, non fisica. |
+| `Element.Aegis` | Scudo | Barriera e mitigazione come elemento; la statistica Shield e `Action.Shield` restano altro. |
+| `Element.Air` | Aria | Spinge, disperde, acceca. |
+| `Element.Disintegration` | Disintegrazione | Perfora e distrugge le strutture. |
+
 ## Stati
 
 La chiave è il nome del tag. Le regole stanno in
