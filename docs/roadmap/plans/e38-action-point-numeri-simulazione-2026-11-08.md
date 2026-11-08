@@ -61,6 +61,11 @@ sulle cinque fasi con `M = 1` o `M = 2`: nessuna forma di oggi si perde, entrano
 
 ## 4. Proposta (dell'assistente, da accettare o respingere)
 
+> ⛔ **Esito (2026-11-08, [D-594](../../decisions/RT_PDR_00_Decision_Log.md))**: l'autore **non** ha accettato questa proposta e ha scelto il vettore della specifica e del GDD letto sulle
+> cinque fasi: **budget 6; Prep 1 · Dash 2 · Blast 2 · Move 2 · reazione 2**, stesso costo per tutti i profili del camminare, una colonna di costo per riga con le
+> Ultimate a un punto in più. La misura di quel vettore è il §3 qui sopra (60 forme nuove a 2–3 azioni, 28 a 4 o più, fino a sei azioni). Il resto di questa
+> sezione resta come documento della proposta scartata.
+
 **Budget 5. Ogni azione costa 2, la reazione costa 1.** In parole: *un'unità fa due cose e tiene una reazione pronta,
 in qualunque fase le due cose cadano*. È il vettore con il minor numero di forme nuove fra quelli che non perdono
 nulla; le forme nuove sono esattamente «due azioni nella stessa fase» e «un'azione e più reazioni».
