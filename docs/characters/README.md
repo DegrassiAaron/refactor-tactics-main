@@ -5,8 +5,8 @@ Questa cartella contiene le pagine personaggio di RefactorTactics.
 ## Struttura
 
 ```text
-v0.1/        Gadget · Phase · Riktor · Wraith
-v0.2/        Steel · Aurora · Murdock · Kwang
+v0.1/        Gadget · Phase · Riktor · Wraith · Muriel · Kallari (DESIGN_SPEC dal GDD, D-586)
+v0.2/        Steel · Aurora · Murdock · Kwang · Feng Mao · The Fey (DESIGN_SPEC dal GDD, D-586)
 candidates/  34 asset Paragon candidati
 images/      card / screenshot dei personaggi
 paragon.md   indice completo dei 38 hero asset Paragon
