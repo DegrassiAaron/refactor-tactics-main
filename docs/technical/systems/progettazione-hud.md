@@ -6,6 +6,12 @@
 **Engine:** Unreal Engine 5, patch bloccata dalla milestone corrente  
 **Ambito:** HUD screen-space, componenti UI, stati adattivi, criteri per asset e handoff a Unreal
 
+> 📄 **Input dichiarato dal 2026-11-08** ([D-591](../../decisions/RT_PDR_00_Decision_Log.md) (4)): la grammatica visiva del «Master Game Design Document»
+> dell'autore ([`research/handoff/master-game-design-document-input-2026-11-08.md`](../../research/handoff/master-game-design-document-input-2026-11-08.md) §6:
+> forme per fase, glifi per elemento, Syntax Ring, Wireframe Rule, cut-in, timeline a tracce, bussola sotto i piedi) è materiale di design per questo
+> documento e per i riferimenti di E52.1, **non** una regola: le fasi sono cinque (non quattro), gli elementi sono i dodici di D-588 (non nove),
+> i settori sono il righello di D-303. Dove il GDD diverge dal contratto, governa il contratto.
+
 ---
 
 ## 1. Riferimento visuale ufficiale

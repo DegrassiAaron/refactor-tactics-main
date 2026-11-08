@@ -2,6 +2,12 @@
 
 Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character Master Matrix di RefactorTactics.
 
+> 🔁 **Dal 2026-11-08 ([D-585](../decisions/RT_PDR_00_Decision_Log.md)) gli eroi prendono il nome dello slot Paragon che li veste, come nomi di sviluppo**: Riktor, Steel, Gadget, Murdock e quattro slot nuovi, Kallari, Feng Mao, Muriel, The Fey,
+> al posto di Phase, Wraith, Aurora e Kwang. L'invariante «lo slot non è l'identità» cade; la nota IP del canone resta e i nomi di pubblicazione si decidono prima di pubblicare. ⏳ **Nessun rename è avvenuto**: la tabella
+> qui sotto e gli ID nel codice (`Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`, `Hero.Ward`, `Hero.Rime`, `Hero.Vigil`, `Hero.Tethra`) descrivono lo stato in vigore finché la issue di rename non consegna, e la
+> mappatura dei quattro slot uscenti sui quattro entranti è decisa da [D-586](../decisions/RT_PDR_00_Decision_Log.md): **per ruolo**, Phase → Muriel, Wraith → Kallari, Aurora → The Fey, Kwang → Feng Mao,
+> con le fazioni ereditate dallo slot sostituito e i kit dalla specifica come input di design (`MSP-5.d`). E35 porta Steel e Murdock nella v0.1; The Fey e Feng Mao sono v0.2.
+
 > **Attenzione:** soltanto **quattro** dei 38 slot sono assegnati alla **v0.2** — Steel, Aurora, Murdock e Kwang, la cui identità RefactorTactics è **Ward**, **Rime**, **Vigil** e **Tethra**. ⌫ *Dal 2026-11-04 i quattro sono di E35, anticipata alla v0.1 ([`D-576`](../decisions/RT_PDR_00_Decision_Log.md) (4)): «v0.2» qui e nella tabella sotto è il nome che aveva la loro release, e la cartella v0.2 conserva il nome.* Gli altri **34** sono candidati `SIGNATURE_DEFINED` con release `UNASSIGNED`.
 >
 > 🔴 **Corretta il 2026-09-04 da [D-321](../decisions/RT_PDR_00_Decision_Log.md): questa riga affermava il contrario di ciò che è vero.** Diceva che *«le quattro pagine v0.1 di Gadget, Phase, Riktor e Wraith sono personaggi RefactorTactics separati: hanno un asset Paragon come base visuale, non un'identità Paragon»*. È **falso**, e la misura che lo falsifica è nella tabella qui sotto: quei quattro nomi **sono** i nomi degli slot, non nomi ispirati ad essi — `Gadget`, `Phase`, `Riktor` e `Wraith` compaiono in [`candidates/`](candidates/), il pool dei 38. La coincidenza è letterale, quindi sono identità Paragon.
