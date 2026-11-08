@@ -1,5 +1,12 @@
 # Spec — Economia del turno: quanto può fare un'unità, e come il movimento cambia cosa può fare
 
+> 🔁 **Superata nel modello il 2026-11-08 da [D-584](../decisions/RT_PDR_00_Decision_Log.md) e [ADR-0011](../decisions/adr-0011-action-point.md), non ancora nel codice.** L'autore ha scelto un pool di
+> **Action Point** per unità: ogni azione ha un costo, più azioni nella stessa fase sono legali se gli AP bastano, il camminare costa
+> AP per profilo e i Movement Point restano la distanza, cooldown e drawback restano. Budget e costi **non esistono ancora**: li
+> propone E38 su una simulazione del catalogo (`MSP-1.n` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). Il testo qui sotto
+> descrive il modello a slot che il codice esegue oggi, e resta il contratto in vigore finché E38 non consegna: nessun
+> `IMPLEMENTATION DRIFT` va dichiarato contro di esso. Quando E38 consegna, §1, §1-bis, §2 e §3 si riscrivono; gli altri paragrafi no.
+
 > `CURRENT` · **Owner** della domanda «quanto può fare un'unità in un turno, e che cosa il movimento scelto
 > toglie o aggiunge alle sue azioni». · Creato il **2026-08-12** consolidando il kit d'autore
 > `CLAUDE_ActionEconomy_Movement_Facing_Consolidation_2026-08-12.md` — referto:

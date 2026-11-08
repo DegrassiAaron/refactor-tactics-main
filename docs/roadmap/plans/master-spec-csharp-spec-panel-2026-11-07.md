@@ -479,3 +479,33 @@ Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: `N/A`. 
 `D-583`; cambiano il Decision Log, `OPEN_DECISIONS.md`, l'emendamento in testa ad ADR-0005 e questo referto.
 `NOT RUN`: la rilettura della licenza degli asset Paragon (`MSP-5`); la riapertura di `#604` e il riorientamento di
 `#2297` su GitHub (scritture non eseguite in questa sessione).
+
+### 16.3 Esito delle istruttorie `MSP-1` e `MSP-5`, stessa giornata (2026-11-08)
+
+Su richiesta dell'autore («una sessione d'autore per ciascuna MSP, a partire da MSP-1 e MSP-5») le due istruttorie con più sedi
+coinvolte sono state decise con domande a scelta; il testo delle opzioni è nel registro, alla lettera.
+
+| Istruttoria | Domanda | Scelta dell'autore | Registro | Resta aperto |
+|---|---|---|---|---|
+| `MSP-1` | la legalità con gli AP | **pool AP puro, anche più azioni nella stessa fase** (la raccomandazione era «al più una per fase») | `D-584`, [ADR-0011](../../decisions/adr-0011-action-point.md) | l'ordine dentro la fase (asserto prima dei numeri) |
+| `MSP-1` | il camminare | **costa AP per profilo; i Movement Point restano la distanza** | `D-584` (2) | i costi per profilo |
+| `MSP-1` | budget e costi | **il modello ora, i numeri dopo, misurati** (E38 su simulazione del catalogo) | `D-584` (3) | `MSP-1.n` |
+| `MSP-1` | cooldown e drawback | **restano tutti, il costo AP è un asse in più** | `D-584` (4) | — |
+| `MSP-5` | quali otto | **gli otto della specifica**: Riktor, Steel, Gadget, Murdock, Kallari, Feng Mao, Muriel, The Fey (la raccomandazione era «gli otto slot già assegnati») | `D-585` (1) | `MSP-5.b` mappatura uscenti → entranti; `MSP-5.c` E35 |
+| `MSP-5` | la nota IP del canone | **resta: nomi Paragon in sviluppo, originali prima di pubblicare** | `D-585` (2) | §9 «Identità originale» del canone |
+| `MSP-5` | come entra il nome | **rename secco inverso in una issue nuova, `#2297` superata** (la raccomandazione era «solo come nome mostrato») | `D-585` (3) | la issue nuova e la lettura della licenza prima della pubblicazione |
+
+Due correzioni di fatto emerse preparando le domande, già portate nel registro: `#2297` aveva **già** eseguito le fette B·C·D
+(`#2491`, 2026-09-10), quindi tornare ai nomi Paragon è un **secondo** rename secco e non l'inversione di una migrazione in
+corso; e `ResolveLegacyActionId` non esiste più (`D-134`), quindi la frase di §16 su un redirect era sbagliata.
+
+**Coerenza fra le scelte, vista dal panel.** Wiegers: `MSP-1` è ora un requisito, ma senza numeri non è ancora verificabile, e la
+scelta (3) lo dichiara; l'asserto d'ordine dentro la fase è il primo criterio di accettazione scrivibile oggi. Fowler: con «più
+azioni nella stessa fase» il piano cambia forma (una lista, non tre caselle), ed è la ragione per cui ADR-0011 esiste. Nygard: la
+reazione può ora perdersi per esaurimento del budget, è una conseguenza accettata e non un difetto, ma va resa visibile nell'HUD
+prima che un playtest la scopra. Cockburn: `MSP-5` (2) conserva la ragione esterna di `D-321` (la nota IP) spostandola a prima
+della pubblicazione; la licenza non è più un prerequisito di oggi, lo diventa allora. Crispin: il rename inverso ha già i suoi
+gate scritti nel corpo di `#2297` (ratchet, `Heroes.HeroIdsMatchRoster`, golden): si ribaltano, non si cancellano.
+
+Stati di verifica di §16.3: tutti `N/A`, nessun codice cambia. Eseguite su GitHub: la riapertura di `#604` con commento, la
+issue nuova del rename inverso, i commenti su `#2297` e `#2291` (chiusure al merge). `NOT RUN`: la licenza degli asset Paragon.
