@@ -121,3 +121,10 @@ Quattro domande a scelta, testo delle opzioni alla lettera in `D-591`.
   #4018 (icone di fase), #4019 (licenza Paragon), #4020 (vocabolario di `D-588`); commentate #609, #617, #995, #1557, #1803, #1833, #326, #4005, #4011.
 - Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: `N/A`. Nessun codice, asset o scenario cambia.
 - `NOT RUN`: la licenza degli asset Paragon (prerequisito della pubblicazione, `D-585` (2)).
+
+## 8. Esiti successivi dello stesso giorno
+
+- `GDD-1` (#4015): l'autore ha scelto *«Resta ricerca finché G17 non ha prodotto partite»*; la voce resta aperta con quella scadenza.
+- La domanda sulle reazioni multiple sollevata dalla proposta E38 (§4 della proposta) è decisa da `D-592`: lista, limite solo dal budget.
+- Gli identificatori dei dodici elementi sono `D-593`: `Warp`, `Fire`, `Water`, `Earth`, `Electric`, `Frost`, `Decay`, `Life`, `Arcane`, `Aegis`, `Air`,
+  `Disintegration`; ogni traduzione del GDD scrive `Warp` per «Flux», `Aegis` per «Scudo» come elemento, `Decay` per «Morte».

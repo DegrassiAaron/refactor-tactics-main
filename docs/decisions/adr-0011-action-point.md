@@ -13,6 +13,7 @@
 > (ADR-0003), le finestre di reazione (ADR-0004), il pivot (ADR-0008), [D-265](RT_PDR_00_Decision_Log.md) (nessuna
 > risorsa universale: l'Overclock resta fuori), [D-117](RT_PDR_00_Decision_Log.md) (costo per cella)
 > **Issue**: [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604) riaperta · epic **E38**
+> ➕ **Emendamento 2026-11-08 — [D-592](RT_PDR_00_Decision_Log.md)**: la conseguenza 4 è decisa, le reazioni sono una lista (vedi sotto).
 
 ## Contesto
 
@@ -89,6 +90,9 @@ Scartate: «Il costo AP sostituisce i drawback, i cooldown restano» e «Il cost
 4. **La reazione.** Oggi è «indipendente da movimento e principale» e non si perde agendo. Con un costo in AP si può
    perdere per esaurimento del budget: è la conseguenza aritmetica che il referto §9 aveva segnalato, e l'autore l'ha
    accettata scegliendo il modello; il valore che la rende rara o frequente è dei numeri di E38.
+   ➕ **2026-11-08, [D-592](RT_PDR_00_Decision_Log.md)**: le reazioni sono una **lista**, limite solo dal budget: un'unità ne arma quante gli AP
+   consentono, ciascuna con trigger e condizione dichiarata propri; `PlannedReactionAbility` diventa una lista e l'ordine fra reazioni
+   armate sullo stesso trigger segue la conseguenza 1.
 5. **Il bot e l'HUD** leggono la stessa legalità del validatore (CLAUDE.md §11): il planning UX deve mostrare un
    budget e una somma, e il bot deve esplorare combinazioni, non più permutazioni di tre caselle.
 6. **Il primo consegnabile è l'asserto.** Prima di ogni numero: un test che fallisce se due azioni della stessa fase
