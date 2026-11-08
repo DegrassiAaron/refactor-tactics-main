@@ -508,4 +508,4 @@ della pubblicazione; la licenza non è più un prerequisito di oggi, lo diventa 
 gate scritti nel corpo di `#2297` (ratchet, `Heroes.HeroIdsMatchRoster`, golden): si ribaltano, non si cancellano.
 
 Stati di verifica di §16.3: tutti `N/A`, nessun codice cambia. Eseguite su GitHub: la riapertura di `#604` con commento, la
-issue nuova del rename inverso, i commenti su `#2297` e `#2291` (chiusure al merge). `NOT RUN`: la licenza degli asset Paragon.
+issue nuova del rename inverso (`#4011`), i commenti su `#2297` e `#2291` (chiusure al merge). `NOT RUN`: la licenza degli asset Paragon.
