@@ -71,6 +71,8 @@ Conseguenze che la proposta porta con sé, da decidere con il vettore:
    un trigger proprio, quindi non è la stessa cosa di «tre colpi»; ma il catalogo reazioni oggi assume **una** reazione
    armata (`ARTUnit` ne tiene una). O il budget la limita (`R = 2` e budget 6: diventa «tre azioni qualunque», 60 forme
    nuove), o il contratto delle reazioni accetta una lista. È una domanda per l'autore, non una taratura.
+   ✅ **Decisa il 2026-11-08 ([D-592](../../decisions/RT_PDR_00_Decision_Log.md))**: lista di reazioni, limite solo dal budget. La proposta non ha
+   più prerequisiti aperti: il vettore va all'accettazione in #4012 dopo gli asserti.
 2. **Le mobilità d'eroe e il camminare costano uguale** (2): `Dash + Move` nello stesso turno diventa legale (`DM`), e
    D-412 (`Sprint` ×2 budget) resta un fatto dei Movement Point, non degli AP.
 3. **L'Ultimate non ha un costo proprio.** La specifica lo prezza 3; qui gli attacchi pesanti continuano a pagare in
