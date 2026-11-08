@@ -17,6 +17,13 @@
 > ADR-0008 definisce inoltre il facing **durante** i micro-step (`FAC-4`), che qui era fuori perimetro.
 > **Resta invariato tutto il resto**: il facing come stato di gioco, la timeline di D-020 (§2-bis), l'arco
 > frontale unico e i suoi tre consumatori (§4), il determinismo e la privacy (§5).
+>
+> 🔁 **Emendamento 2026-11-08 — [D-583](RT_PDR_00_Decision_Log.md) (3)**: la **§4a** resta in vigore (il retro
+> **toglie** copertura bassa e `Guard`), ma la riga «Retro = 1 sola direzione con +6 danni» della tabella
+> «Alternative considerate» è **riaperta** nella parte «aggiunge un modificatore»: l'autore ha scelto *«Sei
+> direzioni, più un bonus PIATTO alle spalle»*. Il facing resta a sei direzioni ([D-126](RT_PDR_00_Decision_Log.md)).
+> Valore, lati che contano come «spalle» e ordine con la formula del danno sono `MSP-2` (alias `FAC-17`) in
+> [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): finché non decide, nessun numero nuovo esiste.
 
 ## Contesto
 

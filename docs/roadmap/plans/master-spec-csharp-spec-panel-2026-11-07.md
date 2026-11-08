@@ -1,6 +1,10 @@
 # Spec panel — la «Master Technical Specification» C# contro il contratto di RefactorTactics
 
 > `SNAPSHOT` · fotografia del 2026-11-07: vale finché è l'ultima misura del suo oggetto.
+>
+> ➕ **2026-11-08**: i sette conflitti di §1 sono stati **decisi dall'autore** con sette domande a scelta: due
+> confermano il contratto, cinque lo riaprono. Registrati in [D-583](../../decisions/RT_PDR_00_Decision_Log.md); esito,
+> coerenza fra le scelte e letture del panel in **§16**. Le §4–§11 conservano lo stato alla scrittura del 2026-11-07.
 
 **Data**: 2026-11-07 · **Misurato su**: `main` `8029e80ac` · **Modalità**: critique · discussion · **Focus**: requirements · architecture · testing
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Fowler (confini e modello dati) · Nygard (failure mode) · Crispin (testabilità), più un verificatore avversario delle premesse (vedi §15)
@@ -427,3 +431,51 @@ Due osservazioni del verificatore restano come note: (a) la spec di posa §7 non
 e il «nessun danno» poggia su `piano-canonico-mvp.md` §6 («entrambe le unità restano ferme»); (b) la riga 19
 di `spec-durata-partita-e-scala-mappe.md` dice ancora *«formato competitivo principale = APERTO»*, stantia
 rispetto a `D-256`: candidata di follow-up per quel documento, non di questo referto.
+
+
+## 16. Esito della sessione di decisioni del 2026-11-08
+
+Le sette `DR` di §11 che l'autore aveva elencato come *«i conflitti»* sono state poste come domande a scelta, con
+il testo di ogni opzione davanti; il testo scelto è registrato alla lettera in
+[D-583](../../decisions/RT_PDR_00_Decision_Log.md). Le etichette «(Recommended)» erano del panel e sono state
+seguite in due casi su sette. Qui la mappa, e ciò che ogni scelta apre.
+
+| DR | Scelta dell'autore | Il contratto | Che cosa apre |
+|---|---|---|---|
+| `DR-2` fasi | Cinque fasi, reazioni come segmenti | **confermato** (ADR-0003, ADR-0004) | nulla |
+| `DR-4` posa | Un solo slot di occupancy | **confermato** (`D-302`, `D-303`, `D-308`) | nulla |
+| `DR-1` economia | Riaprire `D-114` verso gli Action Point | **riaperto**: `D-114`, `#604` | `MSP-1`: il modello AP su cinque fasi; `D-265` non riaperta |
+| `DR-3` facing | Sei direzioni, più un bonus piatto alle spalle | **emendato**: ADR-0005 (scartata riaperta); `D-126` resta | `MSP-2` (`FAC-17`): valore e lati |
+| `DR-5` elementi | Riaprire `D-272`: estendere il vocabolario | **riaperto**: `D-272`; `D-275` resta come regola | `MSP-3`: quali dodici, 66 coppie, il nome `Flux` |
+| `DR-6` danno | Moltiplicativa ora, con riscalatura | **deciso in forma**, applicazione a E49 | `MSP-4`: statistiche, «Mod», scala, golden |
+| `DR-7` roster | Riaprire `D-321`/`D-334` verso i nomi retail | **riaperto**: `D-321`, `D-334`; `#2297` inverte il verso | `MSP-5`: quali otto, mappatura, licenza |
+
+Le istruttorie `MSP-1`…`MSP-5` stanno in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Le `DR-8`…`DR-11` di §11
+(direzione artistica, timer, copertura percentuale, danno da contesa) **non erano nell'elenco dell'autore** e restano
+come erano: aperte, con la raccomandazione del panel.
+
+### 16.1 Coerenza fra le scelte — ciò che il panel segnala all'autore
+
+- **Wiegers**: una riapertura non è un requisito. `DR-1`, `DR-5` e `DR-7` dicono *verso dove* senza dire *che cosa*:
+  finché le `MSP-*` non producono un testo accettato, l'unico requisito verificabile è «il contratto attuale resta in
+  vigore». Chi legge «AP» o «dodici elementi» in una spec prima di allora legge una `STALE ROADMAP`.
+- **Fowler**: `DR-1` cambia il *tipo* della legalità, da strutturale (`D-114`, `D-190`: due principali non si sommano
+  perché occupano la stessa cosa) a quantitativa (un totale che sfora). È il cambio più profondo dei sette e tocca
+  `ValidatePlan`, il bot e l'HUD insieme; conviene scriverlo come ADR, non come riga di catalogo.
+- **Nygard**: `DR-6` è una decisione che oggi non può fallire, perché nessuna statistica di difesa esiste in `Source/`.
+  Il primo test che la rende falsificabile è il golden di un colpo con `DEF` nota: senza quello la formula è prosa.
+- **Adzic**: `DR-3` e `DR-6` vanno letti insieme. Un bonus *piatto* dentro una formula *moltiplicativa* ha due
+  posizioni possibili (prima o dopo `100/(100+DEF)`) con esiti diversi: `MSP-2` deve dire quale, con un esempio
+  numerico.
+- **Crispin**: le due conferme (`DR-2`, `DR-4`) sono le sole scelte già coperte da test (`RTHexSimTests.cpp`, i test
+  di fase). Le cinque riaperture non hanno un test che possa diventare rosso finché il modello non esiste: il primo
+  deliverable di ogni `MSP-*` è l'asserto, non il numero.
+- **Cockburn**: `DR-7` riapre una scelta presa per una ragione esterna al gioco (la nota IP di `D-321`). La ragione non
+  è sparita con la riapertura: `MSP-5` deve rileggerla prima del primo rename, non dopo.
+
+### 16.2 Stati di verifica di questa sezione
+
+Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: `N/A`. Nessun codice, asset o scenario cambia con
+`D-583`; cambiano il Decision Log, `OPEN_DECISIONS.md`, l'emendamento in testa ad ADR-0005 e questo referto.
+`NOT RUN`: la rilettura della licenza degli asset Paragon (`MSP-5`); la riapertura di `#604` e il riorientamento di
+`#2297` su GitHub (scritture non eseguite in questa sessione).
