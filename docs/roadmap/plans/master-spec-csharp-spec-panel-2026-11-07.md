@@ -448,7 +448,7 @@ seguite in due casi su sette. Qui la mappa, e ciò che ogni scelta apre.
 | `DR-3` facing | Sei direzioni, più un bonus piatto alle spalle | **emendato**: ADR-0005 (scartata riaperta); `D-126` resta | `MSP-2` (`FAC-17`): valore e lati |
 | `DR-5` elementi | Riaprire `D-272`: estendere il vocabolario | **riaperto**: `D-272`; `D-275` resta come regola | `MSP-3`: quali dodici, 66 coppie, il nome `Flux` |
 | `DR-6` danno | Moltiplicativa ora, con riscalatura | **deciso in forma**, applicazione a E49 | `MSP-4`: statistiche, «Mod», scala, golden |
-| `DR-7` roster | Riaprire `D-321`/`D-334` verso i nomi retail | **riaperto**: `D-321`, `D-334`; `#2297` inverte il verso | `MSP-5`: quali otto, mappatura, licenza |
+| `DR-7` roster | Riaprire `D-321`/`D-334` verso i nomi retail | **riaperto**: `D-321`, `D-334`; `#2297` ha già eseguito le fette B·C·D (`#2491`, 2026-09-10), quindi un nome nuovo è un **secondo rename secco** (`ResolveLegacyActionId` non esiste più, `D-134`) | `MSP-5`: quali otto, mappatura, licenza, ratchet |
 
 Le istruttorie `MSP-1`…`MSP-5` stanno in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Le `DR-8`…`DR-11` di §11
 (direzione artistica, timer, copertura percentuale, danno da contesa) **non erano nell'elenco dell'autore** e restano
