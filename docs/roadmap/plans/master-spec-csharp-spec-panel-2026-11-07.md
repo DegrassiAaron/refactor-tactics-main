@@ -540,3 +540,10 @@ il registro ancora non ha.
 
 Stati di verifica di §16.4: tutti `N/A`, nessun codice cambia; `tools/balance/ap_forms_sim.py` è stato eseguito e la sua uscita è la
 tabella della proposta. Eseguite su GitHub: commenti su `#4011`, `#322` e `#4005`. `NOT RUN`: la licenza degli asset Paragon.
+
+### 16.5 Il documento successivo dell'autore (2026-11-08)
+
+Lo stesso giorno l'autore ha consegnato un «Master Game Design Document» (PDF) che riscrive questa specifica: il referto è
+[`master-gdd-spec-panel-2026-11-08.md`](master-gdd-spec-panel-2026-11-08.md) e l'esito è `D-591`. Dove il GDD diverge dalle decisioni
+`D-583`…`D-590` non governa; come **input di design** per i kit, le statistiche e i costi AP **sostituisce questa specifica**, che resta
+ricerca storica.

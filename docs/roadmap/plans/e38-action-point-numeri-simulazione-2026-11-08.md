@@ -33,7 +33,9 @@ bot, HUD e bilanciamento devono imparare.
 python tools/balance/ap_forms_sim.py
 ```
 
-Il comando stampa la tabella del §2 e la lettura del vettore della specifica (§3). È una misura su **classi di
+Il comando stampa la tabella del §2 e la lettura del vettore della specifica (§3). 🔁 Dal 2026-11-08 l'input per i costi è il
+«Master Game Design Document» ([D-591](../../decisions/RT_PDR_00_Decision_Log.md) (3)), che porta gli stessi costi di fase della specifica
+(Prep 1 · Dash 2 · Blast 2, Ultimate 3 · Reaction 1–2) più i movimenti di §2.3: il §3 vale anche per lui. È una misura su **classi di
 fase**, non sulle singole azioni: non vede cooldown, portata, né il fatto che due reazioni hanno bisogno di due trigger.
 
 ## 2. I vettori che non perdono nulla, ordinati per collaterale
