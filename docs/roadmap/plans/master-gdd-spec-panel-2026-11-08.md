@@ -116,7 +116,8 @@ Quattro domande a scelta, testo delle opzioni alla lettera in `D-591`.
 - Misure sul repository: `FRTCellId::Layer` (`Source/RefactorTactics/Map/RTCellId.h`), `RTFallOverLedgeTests.cpp`, `HexBot.SeeksUncontestedObjective`,
   `RT_UI_Icon_Phase_*` in `Content/RT/UI/Icons/`, `spec-durata-partita-e-scala-mappe.md` righe 17–19, `D-010`, `D-256`, `D-578`.
 - ⚠️ **Numero di epic conteso**: il PRD del danno si intitola «E49 proposta», ma l'epic **E49** esistente è «Tactical Camera & Map
-  Presentation» (#1769). `D-583` (6) e `D-589` chiamano «E49» l'owner del danno **leggendo il PRD**: l'owner va numerato da capo quando
-  nasce la sua epic, e le due voci vanno lette con questa correzione (registrata in `D-591`).
+  Presentation» (#1769). `D-583` (6) e `D-589` chiamano «E49» l'owner del danno **leggendo il PRD**: l'owner è nato come **E53** (#4013) il 2026-11-08, e le due voci vanno lette con questa correzione (registrata in `D-591`).
+- Issue aperte il 2026-11-08 dalle decisioni di oggi: #4012 (CP 38.6, numeri AP), #4013 (E53), #4014 (`MSP-5.d`), #4015–#4017 (`GDD-1`…`GDD-3`),
+  #4018 (icone di fase), #4019 (licenza Paragon), #4020 (vocabolario di `D-588`); commentate #609, #617, #995, #1557, #1803, #1833, #326, #4005, #4011.
 - Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: `N/A`. Nessun codice, asset o scenario cambia.
 - `NOT RUN`: la licenza degli asset Paragon (prerequisito della pubblicazione, `D-585` (2)).
