@@ -24,6 +24,10 @@
 > direzioni, più un bonus PIATTO alle spalle»*. Il facing resta a sei direzioni ([D-126](RT_PDR_00_Decision_Log.md)).
 > Valore, lati che contano come «spalle» e ordine con la formula del danno sono `MSP-2` (alias `FAC-17`) in
 > [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): finché non decide, nessun numero nuovo esiste.
+> ➕ **2026-11-08, [D-587](RT_PDR_00_Decision_Log.md)**: `MSP-2` è decisa. Il bonus vale dai **tre lati posteriori** (`Rear`, `RearLeft`, `RearRight`: lo stesso emisfero
+> di §4a, nessuna banda nuova), è un **valore per personaggio dell'attaccante** come la Guard di D-408, e si somma alla **Base prima della
+> mitigazione**: `Danno = (Base + Spalle) × Mod × 100/(100+DEF)` (D-589). La §4a resta: il retro continua a togliere copertura e Guard, e in più
+> aggiunge il bonus. I valori per personaggio sono `MSP-2.n`; finché non esistono, nessun colpo alle spalle fa più danno di oggi.
 
 ## Contesto
 

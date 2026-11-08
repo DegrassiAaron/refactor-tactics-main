@@ -509,3 +509,34 @@ gate scritti nel corpo di `#2297` (ratchet, `Heroes.HeroIdsMatchRoster`, golden)
 
 Stati di verifica di §16.3: tutti `N/A`, nessun codice cambia. Eseguite su GitHub: la riapertura di `#604` con commento, la
 issue nuova del rename inverso (`#4011`), i commenti su `#2297` e `#2291` (chiusure al merge). `NOT RUN`: la licenza degli asset Paragon.
+
+### 16.4 Esito delle istruttorie `MSP-5.b`, `MSP-5.c`, `MSP-2`, `MSP-3`, `MSP-4` e di `DR-8`…`DR-11` (2026-11-08, terzo giro)
+
+Su richiesta dell'autore, le istruttorie rimaste e le quattro decisioni minori di §11 sono state decise con domande a scelta;
+il testo delle opzioni è nel registro, alla lettera. `MSP-1.n` ha ricevuto la simulazione e la proposta di E38
+([`e38-action-point-numeri-simulazione-2026-11-08.md`](e38-action-point-numeri-simulazione-2026-11-08.md)), non una decisione.
+
+| Istruttoria | Scelta dell'autore | Registro | Resta aperto |
+|---|---|---|---|
+| `MSP-5.b` | mappatura **per ruolo** (Phase → Muriel, Wraith → Kallari, Aurora → The Fey, Kwang → Feng Mao); **kit dalla specifica** come input di design, i kit di Muiren e Ivrin si ritirano (la raccomandazione era il reskin); fazioni ereditate | `D-586` (1)–(3) | `MSP-5.d`, i quattro kit |
+| `MSP-5.c` | E35 porta **Steel e Murdock** nella v0.1; The Fey e Feng Mao scorrono in v0.2 | `D-586` (4) | — |
+| `MSP-2` | **tre lati posteriori**; valore **per personaggio** (la raccomandazione era unico); **sulla Base prima della mitigazione** (la raccomandazione era dopo) | `D-587` | `MSP-2.n`, i valori |
+| `MSP-3` | **i dodici della specifica tali e quali** (la raccomandazione era otto più quattro); **Warp** al posto di «Flux»; **nessun ordine ciclico** (la raccomandazione era un dodecagono con le coppie) | `D-588` | `MSP-3.c`, identificatori e 66 voci |
+| `MSP-4` | **DEF = Armor, RES per elemento**; **scala ×10** (la raccomandazione era la scala di oggi); **Mod = moltiplicatori di stato, copertura e Guard piatte dopo** | `D-589` | `MSP-4.n`, valori e arrotondamento |
+| `DR-8` | **cel-shaded / manga**, recepito da E52.1 | `D-590` (1) | — |
+| `DR-9` | resta il contratto: timer per formato, sul misurato | `D-590` (2) | — |
+| `DR-10` | copertura **piatta**, i dodici tipi entrano come contenuto | `D-590` (3) | le righe di catalogo, con la scala |
+| `DR-11` | resta `BlockedContested`, nessun danno | `D-590` (4) | — |
+
+**Coerenza fra le scelte, vista dal panel.** Adzic: il bonus alle spalle sulla Base e la copertura piatta dopo la formula danno una
+formula a tre strati (`(Base + Spalle) × Mod × 100/(100+DEF) − Copertura − Guard`) che si legge in un esempio solo, ed è l'esempio che
+`MSP-4.n` deve scrivere per primo. Fowler: con dodici elementi senza ordine ciclico, l'unico posto in cui una relazione esiste è
+la voce di catalogo: `MSP-3.c` è quindi un documento owner, non una tabella. Nygard: la scala ×10 è una migrazione totale del
+corpus; farla in una passata sola e atomica è ciò che la rende reversibile. Crispin: i kit di Muiren e Ivrin che si ritirano portano
+via i loro test e i loro golden, e la v0.1 perde due eroi giocabili finché `MSP-5.d` non consegna; l'autore lo ha accettato nel testo
+dell'opzione. Cockburn: la nota IP resta (D-585) e nessuna delle scelte di oggi la tocca; la licenza resta `NOT RUN` e un prerequisito
+della pubblicazione. Wiegers: `MSP-1.n` è ora una proposta misurabile con un comando; la sua accettazione è l'unica voce di numeri che
+il registro ancora non ha.
+
+Stati di verifica di §16.4: tutti `N/A`, nessun codice cambia; `tools/balance/ap_forms_sim.py` è stato eseguito e la sua uscita è la
+tabella della proposta. Eseguite su GitHub: commenti su `#4011`, `#322` e `#4005`. `NOT RUN`: la licenza degli asset Paragon.
