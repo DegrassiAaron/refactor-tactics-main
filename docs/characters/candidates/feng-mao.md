@@ -1,5 +1,7 @@
 # Feng Mao
 
+> ✅ **Assegnato il 2026-11-08** ([D-586](../../decisions/RT_PDR_00_Decision_Log.md)): entra nel roster come **v0.2**; la scheda tradotta dal GDD è [`v0.2/feng-mao.md`](../v0.2/feng-mao.md). Questa pagina resta la scheda **candidata** (Signature e dati asset), non il kit.
+
 ![Feng Mao — Paragon asset base](../images/paragon/feng-mao.png)
 
 > 🧩 **Stato RefactorTactics:** `CANDIDATE / SIGNATURE_DEFINED`  

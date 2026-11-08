@@ -1,5 +1,7 @@
 # Muriel
 
+> ✅ **Assegnato il 2026-11-08** ([D-586](../../decisions/RT_PDR_00_Decision_Log.md)): entra nel roster come **v0.1**; la scheda tradotta dal GDD è [`v0.1/muriel.md`](../v0.1/muriel.md). Questa pagina resta la scheda **candidata** (Signature e dati asset), non il kit.
+
 ![Muriel — Paragon asset base](../images/paragon/muriel.png)
 
 > 🧩 **Stato RefactorTactics:** `CANDIDATE / SIGNATURE_DEFINED`  

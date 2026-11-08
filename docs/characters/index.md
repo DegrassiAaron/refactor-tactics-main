@@ -15,6 +15,8 @@ I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decisi
 | **Muiren** | [scheda](v0.1/muiren.md) | `Hero.Muiren` | `Paragon.Muiren` |
 | **Riktor** | [scheda](v0.1/riktor.md) | `Hero.Riktor` | `Paragon.Riktor` |
 | **Wraith** | [scheda](v0.1/wraith.md) | `Hero.Wraith` | `Paragon.Wraith` |
+| **Muriel** ⏳ | [scheda](v0.1/muriel.md) (`DESIGN_SPEC`, prende il posto di Muiren: [D-586](../decisions/RT_PDR_00_Decision_Log.md)) | `Hero.Muriel` dopo #4011 | `Paragon.Muriel` |
+| **Kallari** ⏳ | [scheda](v0.1/kallari.md) (`DESIGN_SPEC`, prende il posto di Wraith / Ivrin: [D-586](../decisions/RT_PDR_00_Decision_Log.md)) | `Hero.Kallari` dopo #4011 | `Paragon.Kallari` |
 
 > **I token della colonna «Stable ID» sono legacy implementation identifiers, non nomi del personaggio.**
 > Sopravvivono dove esistono già — codice, asset, scenari, replay — e **non si rinominano**: una migrazione
@@ -29,6 +31,8 @@ I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decisi
 > resta la voce `PIE-NAME` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md).
 
 ## Roster v0.2 — asset base Paragon
+
+> 🔁 **Dal 2026-11-08 ([D-586](../decisions/RT_PDR_00_Decision_Log.md) (1)(4))**: Aurora e Kwang escono; entrano **The Fey** ([scheda](v0.2/the-fey.md)) e **Feng Mao** ([scheda](v0.2/feng-mao.md)), `DESIGN_SPEC` tradotte dal GDD, in v0.2 (E35.2). Steel e Murdock restano, in v0.1 (E35.1), e prendono il nome Paragon con [D-585](../decisions/RT_PDR_00_Decision_Log.md). La tabella sotto è conservata com'era.
 
 Nome di lavoro e slot asset coincidono; il `RT Character ID` definitivo resta **TBD**.
 

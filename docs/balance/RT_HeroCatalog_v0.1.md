@@ -6,6 +6,8 @@
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E6** (`#54`–`#59`).
 
+> 🔁 **2026-11-08 — [D-585](../decisions/RT_PDR_00_Decision_Log.md), [D-586](../decisions/RT_PDR_00_Decision_Log.md)**: gli eroi prendono i nomi degli slot Paragon come nomi di sviluppo (Aevik → Gadget, Branth → Riktor); i kit di **Muiren** e **Ivrin** si **ritirano** e i loro slot vanno a **Muriel** e **Kallari** con kit nuovi tradotti dal GDD ([`../characters/v0.1/muriel.md`](../characters/v0.1/muriel.md), [`../characters/v0.1/kallari.md`](../characters/v0.1/kallari.md)). ⏳ **Questo catalogo descrive il runtime in vigore**, che non cambia finché [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011) non esegue il rename: §2 e §4 restano il contratto fino ad allora.
+
 ## Stato dell'implementazione (2026-08-06)
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
