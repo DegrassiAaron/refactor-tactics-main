@@ -7,6 +7,23 @@
 > Copre la **prima fetta**: il fumetto delle skill che si attivano. Le azioni bloccate come fumetto, che la
 > stessa domanda richiede, sono la fetta successiva (§9).
 >
+> ➕ **Implementato il 2026-11-09 su `feat/4025-fumetto-skill`** (⌫ *«non implementato», qui sopra, era lo stato
+> all'approvazione*): funzioni pure e vista `7d6c71355`; canale sull'unità e sull'overlay `496e4461d`, `cfaaaadef`;
+> cablaggio nel `TurnManager` con l'orologio del playback `99d6a2580`, `e480618fd`; unione di `origin/main`
+> `ec7355eae`; scorciatoie del censimento della superficie BP che la unity piena non compilava `d2abb275c`;
+> `WBP_RT_UnitOverlay` col fumetto `2ad1a8aa5`; `DrawSize` e contorno nel colore di squadra `0fd13f769`; censimento
+> dei tre widget del fumetto `ab05e9b55`; documentazione in `progettazione-hud.md` `4bd839cf1`; `DrawSize` 220×228
+> sulla misura della seduta visiva `5167ae133`. **Suite** `RefactorTactics` intera a `ab05e9b55`, build unity piena
+> senza esclusioni adattive: `Found 3702 automation tests`, 3702 `Result={Success}`, `TEST COMPLETE. EXIT CODE: 0`.
+> **Seduta visiva** del 2026-11-09 (finestra `-game`, non PIE; un passaggio indipendente che non ha scritto codice;
+> clone principale a `ab05e9b55`, L1 rimisurata a `5167ae133`):
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md), esiti nella voce `PIE-HUD-FUMETTO` di
+> [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), che è 🟡. Due `FAIL`: il punto (e) nella seconda
+> metà, perché il Registro a destra non porta la riga `Attiva:` (premessa di R8 falsa, seguito
+> [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)), ed è un buco della fetta, non del
+> fumetto; il punto (h) con `ESC`, perché `ESC` non ferma il playback (nota sotto A8), ed è una premessa imprecisa
+> della spec, non un difetto. Manca il giudizio d'autore sulla resa (§5).
+>
 > **Stato misurato**: 2026-11-08, `main` = `e2fc03f09`; `Source/` identico sul branch di lavoro
 > (`git diff --stat main HEAD -- Source` vuoto) e su `origin/main` = `5eac6115e` del 2026-11-09
 > (`git diff --stat e2fc03f09 origin/main -- Source` vuoto). Ogni `file:riga` è stato letto su quel codice;
@@ -31,6 +48,13 @@
 | A6 | Perimetro | «parti solo dalle skill che vanno a segno»: la fetta copre le attivazioni, **non** le azioni bloccate. |
 | A7 | Quali azioni | Messo davanti al fatto che `AbilityActivated` esce anche per l'attacco base di ogni eroe, per Guardia, Irrigidimento, Guardia reattiva e per le coperture (§2): **«Solo le skill del kit»**, escluso l'attacco base e le azioni generiche. |
 | A8 | Orologio | Messo davanti al fatto che il playback si ferma (ESC, `Next Action`) e rallenta nella finestra di reazione (§2): **«Tempo del playback»**. In pausa il fumetto resta fermo; nello slow-motion dura di più a parete. |
+
+> ⚠️ **A8, misurato il 2026-11-09: `ESC` non ferma il playback.** Apre il menu di pausa, che «Non sospende niente»
+> (`Frontend/RTFrontendNavigator.h:290-310`: nessun `SetPause`, nessuna dilatazione del tempo, nessun flag nel
+> `TurnManager`). La pausa del playback è `K` (`ARTTurnManager::PausePlayback`, con i comandi di playback accesi,
+> `rt.Debug.PlaybackControls 1`). La decisione dell'autore non cambia: il fumetto segue l'orologio del playback in
+> entrambi i casi, fermo con `K` e in corsa con `ESC` (seduta visiva, punto (h):
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
 
 Decisioni precedenti che governano, già accettate:
 
@@ -146,6 +170,17 @@ fumetti possono essere vivi insieme su unità diverse.
 | R9 | Il fumetto **vive dentro `WBP_RT_UnitOverlay`**, mai in un componente separato: eredita il velo per costruzione. | progettazione-hud.md:188-193 |
 | R10 | Il fumetto **non decide nulla**: nessun campo entra in `MapState`, snapshot, TurnLog o `StateHash`. Il tempo che consuma è quello del playback, che è già dichiarato presentazione e mai decisione (invariante #1). | AGENTS.md §3 |
 | R11 | `Ruling` Se `EmitAbilityActivated` viene emesso anche per un intento che poi risulta interrotto o bloccato, in questa fetta il fumetto **compare lo stesso**: è lo stesso beat su cui già suona la clip `Cast`, e distinguere i due casi è la fetta «azioni bloccate» (§9). Il builder **misura** se il caso esiste (`RTTurnManager_Blast.cpp`, `ApplyInterrupts`) e lo scrive nella DoD. Costo se sbagliato: un grido per una skill poi interrotta, coerente con la clip che già parte. | A6 |
+
+> ⚠️ **R8, misurato il 2026-11-09: la premessa è falsa.** In vista strategica il fumetto si collassa come la regola
+> dice, ma il Registro a destra **non** porta la riga `Attiva:`. La stringa va solo nel log del motore e in
+> `RecentEvents` (`ShowActivation` → `AddLogEvent`); `GetRecentEventsForTeam` non ha chiamanti fuori da
+> `RTTurnManager.cpp` (`git grep -n GetRecentEventsForTeam -- Source` fuori dai `Tests/`); il Registro si compone dal
+> `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/RTHudViewModel.h:1360-1361`). Quindi
+> l'informazione che D-582 (3) vuole nella vista strategica oggi non c'è: seguito
+> [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+>
+> 🔎 **R11, misurato** (sul codice): un **attacco** interrotto non emette `AbilityActivated` e non grida (`ApplyInterrupts` → `InterruptedIntents`, da cui `EmitAttackIntentActivation` esce), uno degradato grida; una **cura** (`DeferredActivations`) non si attiva se il guaritore è stordito, e si attiva se è interrotto (una skill del kit, quindi, grida lo stesso), perché l'interruzione cerca le vittime solo fra gli intenti d'attacco. Le azioni bloccate come fumetto sono [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034).
 
 ### 3.3 Non-obiettivi
 
@@ -265,6 +300,13 @@ correggerà lì.
 | Determinism / Replay / Privacy | Solo presentazione; nessun golden cambia. Il builder lo dimostra con la suite verde, non lo dichiara. | `N/A` con evidenza |
 | Packaged | Non richiesto a questa fetta; `G17` lo misura sul pacchetto. | `NOT RUN` dichiarato |
 
+> ⚠️ **Riga PIE, misurata nella seduta visiva del 2026-11-09** (`U99`;
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)): (e) è `FAIL` nella seconda metà, per la
+> premessa falsa di R8 (seguito [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)); (h)
+> com'è scritta non si può avere, perché `ESC` non ferma il playback (nota sotto A8): si prova con la pausa del
+> playback (`K`), ed è `PASS`. Gli esiti di tutti i punti stanno nella voce `PIE-HUD-FUMETTO` di
+> [`test-manuali-pie.md`](../../technical/test-manuali-pie.md).
+
 Chi scrive il codice **non firma** il verdetto PIE sui punti (b) e (c): li rimisura una seconda passata su
 commit dichiarato (CLAUDE.md §6, §10).
 
@@ -291,7 +333,11 @@ commit dichiarato (CLAUDE.md §6, §10).
 
 - **Azioni bloccate come fumetto** (D-582 (3), seconda metà della domanda `fumetti`): richiede un evento o
   una voce per l'intento interrotto/cancellato e un testo («Bloccato!», o il nome barrato); lo stesso canale
-  di §4 con una `FRTSkillCalloutView` diversa.
+  di §4 con una `FRTSkillCalloutView` diversa. ➕ *Aperta come
+  [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034); la risposta misurata a R11 è sotto
+  §3.2.*
+- ➕ **La riga `Attiva:` nel Registro a destra** in vista strategica (D-582 (3)): la premessa di R8 era falsa, e
+  l'informazione oggi non c'è. Aperta come [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033).
 - **«Qualche grido»**: un testo per skill oltre al nome (onomatopea, frase dell'eroe), in `URTActionData`.
 - **Localizzazione** dei nomi delle azioni (oggi `FText::FromString`).
 - **Leggibilità tattica**: la previsione dell'autore «vista la grandezza degli esagoni» si misura con

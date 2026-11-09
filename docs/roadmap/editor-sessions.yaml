@@ -6588,6 +6588,53 @@ sessions:
          `-RTScenario=<Id>` lanciato dal pacchetto; un caso senza scenario o non visto non vale come si'.
       4. **Verdetto**: verde, giallo o rosso, con lo SHA del pacchetto.
 
+  - id: U99
+    title: Il fumetto della skill sopra l'unita' durante il playback
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-HUD-FUMETTO` e le tavole per il giudizio d'autore; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-HUD-FUMETTO]
+    issues: [4025, 4033, 4034, 3997]
+    done_when: >-
+      la voce `PIE-HUD-FUMETTO` ha nel registro un esito per ogni criterio, e il giudizio dell'autore sulla resa, dato a
+      schermo o sulle tavole
+    unblocks: []
+    notes: |
+      ➕ **Nata il 2026-11-09 con #4025**, la prima fetta del fumetto di `D-582` (3). La voce nasce con la sua seduta,
+      invece di restare fuori da ogni `verifies` come le voci di `U95`-`U97` prima che #3939 e #3945 le convocassero.
+
+      🔑 **Perche' una seduta nuova.** Il fumetto si guarda durante il playback, non in pianificazione: non condivide
+      l'allestimento di `U95` (il cursore sull'HUD in pianificazione), e `U98` e' il giro di `G17` sul pacchetto, che
+      fa all'autore la domanda `fumetti` e non guarda i criteri della voce. Le issue: #4025 la fetta, #4033 la riga
+      `Attiva:` che il Registro a destra non porta in vista strategica, #4034 la fetta delle azioni bloccate, #3997 la
+      issue che esegue `G17`.
+
+      **Allestimento**: tre scenari del Lab, non versionati (`Saved/RTLab/Scenarios` del clone principale), copiati in
+      `docs/technical/evidence/4025/` (`Lab.T5.Fumetto4025.json`, `Lab.T5.Fumetto4025b.json`,
+      `Lab.T5.Fumetto4025c.json`); si caricano dalla riga di comando con `-RTScenario=<Id>`. Finestra `-game` (non la
+      PIE dell'Editor) su `L_DevSandbox`, 1920x1080, con
+      `-dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,t.MaxFPS=60`: i comandi di playback servono
+      alla pausa con `K` e a far partire ogni playback fermo. Catture `PrintWindow` a raffica, input sintetico, camera a
+      mano. La riga di comando intera e' nell'evidenza.
+
+      ⚠️ **Tre trappole dei banchi, misurate**: un attacco su una cella vuota non produce eventi, quindi un nemico fuori
+      vista che lo usa non prova niente (serve un'azione che ne produca, per esempio una cura su di se');
+      `Hero.Branth.Ram` e' una mobilita' e si dichiara con `dash` e `dashTo`, non con `ability`; e con il playback a
+      x0,35 della finestra di reazione l'harness si ferma al tetto di 900 passi e il referto dice `ERROR`, mentre il
+      `TurnManager` prosegue e la finestra si apre.
+
+      🟡 **Eseguita il 2026-11-09** da un passaggio indipendente che non ha scritto codice di #4025, sul clone principale
+      a `ab05e9b55` (un criterio rimisurato a `5167ae133`): tavole e banchi in
+      `docs/technical/evidence/4025/seduta-pilotata-2026-11-09.md`. **Il giudizio d'autore non c'e'**, e la seduta resta
+      aperta per quello e per cio' che la cella della voce dichiara `NOT RUN`.
+
+      Lo stato della voce vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo l'allestimento.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

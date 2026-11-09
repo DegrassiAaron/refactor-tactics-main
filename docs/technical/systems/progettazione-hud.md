@@ -232,8 +232,9 @@ con `PlaybackElapsedTotal` come `StartAt`, e `ARTTurnManager::SyncSkillCalloutCl
 Opacità e scala sono funzioni pure di `Now − StartAt` (`URTHudViewModel::SkillCalloutAlpha` e `SkillCalloutScale`: pop da 1,15 a 1, dissolvenza negli ultimi istanti),
 per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
 
-- **si ferma** quando `TickPlayback` esce prima del sync: pausa del giocatore (`bPlaybackPaused`) e playback trattenuto da una finestra di reazione
-  (`bPlaybackHeldByWindow`); se la velocità del playback scende, dura di più a parete;
+- **si ferma** quando `TickPlayback` esce prima del sync: pausa del playback (`bPlaybackPaused`, per esempio `K` con `rt.Debug.PlaybackControls 1`) e playback
+  trattenuto da una finestra di reazione (`bPlaybackHeldByWindow`); se la velocità del playback scende, dura di più a parete. ⚠️ `ESC` **non** è una pausa del
+  playback: apre il menu, che non sospende niente (`RTFrontendNavigator.h`), quindi il fumetto continua, come il playback;
 - **uno step di `Next Action`** lo fa avanzare dello scarto mostrato, perché il sync segue la correzione di `PlaybackElapsedTotal`;
 - **si taglia solo alla fine vera**: `FinishPlayback` chiama `ClearSkillCallout` **dopo** il ramo `IsResolutionSuspended()`, che è la fine di un *prefisso* su una
   finestra di reazione e non del turno. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi visibile e fermo mentre il giocatore decide;
@@ -248,7 +249,11 @@ profilo di una generica non è core ma ha base. Il testo viene dal kit (`ARTUnit
 de-sovrapposizione (A5), e la cadenza del playback non cambia. `ARTTurnManager::SkillCalloutUnits` tiene chi ne ha uno vivo.
 
 **Vista strategica.** Il fumetto è collassato (`ARTUnit::SetStrategicPresentation` lo inoltra al widget); tornando alla vista ravvicinata entro i tre secondi ricompare per il
-tempo che resta. L'informazione c'è già: la riga `Attiva:` del log a destra (`ShowActivation`), che è ciò che chiede D-582 (3).
+tempo che resta (seduta visiva del 2026-11-09, anche per un fumetto nato durante la vista strategica). ⚠️ **L'informazione che D-582 (3) vuole nel log a destra oggi non
+c'è**: la riga `Attiva:` di `ShowActivation` va solo nel log del motore e in `RecentEvents` (`AddLogEvent`), `GetRecentEventsForTeam` non ha chiamanti fuori da
+`RTTurnManager.cpp`, e il Registro a destra si compone dal `TurnLog` tipizzato, dove il canale testuale non entra. Misurato nella stessa seduta: in vista strategica il
+Registro mostra i colpi e nessuna attivazione. Seguito: [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033). ⌫ *Questa riga diceva: «L'informazione
+c'è già: la riga `Attiva:` del log a destra (`ShowActivation`), che è ciò che chiede D-582 (3).» Era la premessa di R8 della spec, e non era vera.*
 
 **Layout.** `ARTUnit` porta la `DrawSize` dell'overlay a **220×228** (era 220×90): fumetto, token di danno e riga di stati insieme. Il pivot resta `(0.5, 1)` e un
 `TopSpacer` in Fill nel `WBP_RT_UnitOverlay` impila il contenuto in basso: il fumetto **cresce verso l'alto** e non sposta nome e barra; una riga di stati in più spinge su
