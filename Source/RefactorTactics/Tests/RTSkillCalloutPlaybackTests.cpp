@@ -386,7 +386,9 @@ namespace
  * fermo (R4, trattenimento); (2) dopo la risposta, a ogni tick del playback residuo, l'orologio del manager e la vita
  * del fumetto (`clock dell'unita' - StartAt`) non scendono mai sotto il loro valore alla presentazione — che e' dire
  * che l'opacita' non risale e il pop non riparte.
- * ✅ Verificato per mutazione: azzerare `SkillCalloutClock` in `ConcludeResolution` rende rosso il punto (2).
+ * ✅ Verificato per mutazione (2026-11-09, una per build): azzerare `SkillCalloutClock` in `ConcludeResolution` rende
+ * rosso il punto (2) al primo campione dopo la ripresa (vita -0,458 contro 1,505: opacita' 1, scala 1,15, il difetto
+ * della review); spegnere i fumetti in cima a `FinishPlayback`, sopra il ramo sospeso, rende rosso il punto (1).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackClockSurvivesTheWindowTest,
 	"RefactorTactics.Playback.SkillCallout.CalloutClockSurvivesTheReactionWindow",
