@@ -398,18 +398,39 @@ bool FRTSkillCalloutPlaybackClockSurvivesTheWindowTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
 	if (!bOk) { return false; }
 
+	// 🔴 **Senza un ascoltatore la finestra non si apre**: `PumpReactionTriggers` sospende solo se
+	// `OnReactionWindowOpened.IsBound()`, altrimenti decide da se' e il turno non si ferma (misurato: la prima stesura
+	// di questo test non lo legava, e il Move si risolveva senza finestra). Il delegate e' anche il FOTOGRAMMA della
+	// presentazione (`FinishPlayback`, ramo sospeso → `PresentPendingReactionWindow`): lo stato si legge li' dentro.
+	// ⚠️ Lo slegamento e' dichiarato DOPO la distruzione del mondo, quindi gira PRIMA (ordine inverso degli scope exit).
+	int32 Presentazioni = 0;
+	bool bVivoAllaPresentazione = false;
+	int32 ListaAllaPresentazione = 0;
+	ARTUnit* const Scudo = S.Scudo;
+	ARTTurnManager* const TM = S.TM;
+	S.TM->OnReactionWindowOpened.BindLambda(
+		[&Presentazioni, &bVivoAllaPresentazione, &ListaAllaPresentazione, Scudo, TM](const FRTReactionWindowView&, int32)
+		{
+			++Presentazioni;
+			bVivoAllaPresentazione = Scudo->IsSkillCalloutLive();
+			ListaAllaPresentazione = TM->SkillCalloutUnitsForTest();
+		});
+	ON_SCOPE_EXIT{ TM->OnReactionWindowOpened.Unbind(); };
+
 	S.TM->LockInAndResolve();
 	if (!TestTrue(TEXT("⛔ premessa: la resolution si e' sospesa su una finestra"), S.TM->IsResolutionSuspended())
 		|| !TestTrue(TEXT("⛔ premessa: la finestra si presenta pompando il playback"),
 			RTReactionWindowFixtures::PompaFinoAllaPresentazione(S.TM))
-		|| !TestTrue(TEXT("⛔ premessa: alla presentazione il playback e' trattenuto"), S.TM->IsPlaybackHeldByWindow()))
+		|| !TestTrue(TEXT("⛔ premessa: alla presentazione il playback e' trattenuto"), S.TM->IsPlaybackHeldByWindow())
+		|| !TestEqual(TEXT("⛔ premessa: la finestra e' stata presentata una volta"), Presentazioni, 1))
 	{
 		return false;
 	}
 
 	// --- (1) la presentazione: il fumetto c'e', fermo ---------------------------------------------------------------
-	TestTrue(TEXT("🔴 alla presentazione della finestra il fumetto dello Scudo e' vivo (R7)"), S.Scudo->IsSkillCalloutLive());
-	TestTrue(TEXT("🔴 e il manager lo tiene nella sua lista (R7)"), S.TM->SkillCalloutUnitsForTest() >= 1);
+	TestTrue(TEXT("🔴 nel fotogramma della presentazione il fumetto dello Scudo e' vivo (R7)"), bVivoAllaPresentazione);
+	TestTrue(TEXT("🔴 e il manager lo tiene nella sua lista (R7)"), ListaAllaPresentazione >= 1);
+	TestTrue(TEXT("e resta vivo mentre la finestra attende"), S.Scudo->IsSkillCalloutLive());
 	const FRTSkillCalloutView Acceso = S.Scudo->LastSkillCalloutForTest();
 	if (!TestEqual(TEXT("⛔ premessa: il fumetto e' quello di TideGuard"), Acceso.ActionId, AzioneFirmaFumetto))
 	{
@@ -445,6 +466,7 @@ bool FRTSkillCalloutPlaybackClockSurvivesTheWindowTest::RunTest(const FString&)
 		S.TM->PlaybackElapsedTotalForTest(), S.TM->PlaybackSkillCalloutClockForTest()));
 
 	int32 Campioni = 0;
+	bool bGiaDetto = false;
 	for (int32 I = 0; I < 400 && S.TM->IsResolving(); ++I)
 	{
 		S.TM->Tick(0.05f);
@@ -454,13 +476,15 @@ bool FRTSkillCalloutPlaybackClockSurvivesTheWindowTest::RunTest(const FString&)
 		const float Vita = S.Scudo->SkillCalloutClockForTest() - Acceso.StartAt;
 		const bool bManagerInCorsa = S.TM->IsResolving();
 		const float Orologio = S.TM->PlaybackSkillCalloutClockForTest();
-		if (Vita < VitaAllaFinestra || (bManagerInCorsa && Orologio < OrologioAllaFinestra))
+		// Si dice UNA volta e il ciclo continua: un `break` lascerebbe il playback a meta', e gli asserti di fine turno
+		// qui sotto cadrebbero per quello invece che per il proprio motivo.
+		if (!bGiaDetto && (Vita < VitaAllaFinestra || (bManagerInCorsa && Orologio < OrologioAllaFinestra)))
 		{
+			bGiaDetto = true;
 			AddError(FString::Printf(TEXT("🔴 al campione %d dopo la ripresa il fumetto e' tornato indietro: vita %.3f "
 				"(alla finestra %.3f), orologio del manager %.3f (alla finestra %.3f), opacita' %.2f, scala %.2f"),
 				Campioni, Vita, VitaAllaFinestra, Orologio, OrologioAllaFinestra,
 				URTHudViewModel::SkillCalloutAlpha(Vita, 3.f), URTHudViewModel::SkillCalloutScale(Vita)));
-			break;
 		}
 	}
 	TestTrue(FString::Printf(TEXT("⛔ premessa: il playback residuo e' stato osservato (%d campioni)"), Campioni),
