@@ -230,12 +230,12 @@ class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * `Status.Exposed`: +5 al PRIMO danno diretto ricevuto (catalogo v0.1 §2, `Action.Sprint`).
+	 * `Status.Exposed`: +50 al PRIMO danno diretto ricevuto (catalogo v0.1 §2, `Action.Sprint`).
 	 *
 	 * Costante nominata e non numero sparso nel resolver: e' un valore di catalogo, e quando gli stati
 	 * diventeranno dati (CP 8.2) sara' un campo dell'asset, non una modifica in tre punti.
 	 */
-	static constexpr int32 ExposedFirstHitBonus = 5;
+	static constexpr int32 ExposedFirstHitBonus = 50;
 
 	/**
 	 * `Action.Guard`: il **DEFAULT DI CATALOGO** della riduzione per colpo ([D-408] + [D-206]). Non
@@ -275,7 +275,7 @@ public:
 	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
 	 * il 2026-09-20, di [D-408].
 	 */
-	static constexpr int32 GuardReductionDefault = 15;
+	static constexpr int32 GuardReductionDefault = 150;
 
 	/**
 	 * `Status.Burning`: 8 danni nel Cleanup, per la durata dello stato (catalogo terreni §2, CP 8.2).
@@ -283,7 +283,7 @@ public:
 	 * Non e' un danno diretto: `Guard`, `Brace` e `Deflect` non lo riducono (i loro delta si applicano ai
 	 * colpi del Blast), e il catalogo lo conferma escludendo `Counter` dal danno ambientale.
 	 */
-	static constexpr int32 BurningCleanupDamage = 8;
+	static constexpr int32 BurningCleanupDamage = 80;
 
 	/**
 	 * Scudo BASE di ogni unita' ([D-224]): 5 punti che non crescono e tornano pieni a fine turno.
@@ -295,7 +295,7 @@ public:
 	 * perderebbe meta' del suo peso e `BurningCleanupDamage` due terzi, e le fonti di danno piccole
 	 * diventerebbero ornamentali.
 	 */
-	static constexpr int32 BaseShield = 5;
+	static constexpr int32 BaseShield = 50;
 
 	/**
 	 * Danno che la propagazione elettrica porta OLTRE la cella colpita (catalogo terreni §2, CP 8.3): 12,
@@ -309,7 +309,7 @@ public:
 	 * Come `Burning`, non e' danno diretto: `Guard`/`Brace`/`Deflect` non lo riducono e `Counter` non scatta
 	 * (il catalogo esclude esplicitamente il danno ambientale dai trigger di reazione).
 	 */
-	static constexpr int32 PropagatedElectricDamage = 12;
+	static constexpr int32 PropagatedElectricDamage = 120;
 
 	/** `Action.Guard`: spinta massima (in celle) a cui si resiste restando fermi. */
 	static constexpr int32 GuardResistedPushDistance = 1;
@@ -434,7 +434,7 @@ public:
 	 * marchio: "consumato una volta sola" e' una proprieta' dell'ORDINE, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
 	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
 	 */
-	static constexpr int32 MarkedFirstHitBonus = 6;
+	static constexpr int32 MarkedFirstHitBonus = 60;
 
 	/**
 	 * `Action.Deflect` (catalogo v0.1 §4): apre un POOL di 20 danni assorbibili sui colpi diretti del
@@ -458,10 +458,10 @@ public:
 	 * — `D-312` non e' toccata — cambia il secondo dei due meccanismi, e quindi il numero che ne esce
 	 * (`Combat.DeflectAbsorbsBeforeGuardReduces`).*
 	 */
-	static constexpr int32 DeflectDamageReduction = 20;
+	static constexpr int32 DeflectDamageReduction = 200;
 
 	/**
-	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
+	 * `Action.Brace` (catalogo v0.1 §4): riduce di 100 OGNI danno diretto fino al Cleanup.
 	 *
 	 * A differenza di `Deflect` NON e' un POOL: quello ha un budget che si esaurisce ([D-309]), questo e' un
 	 * delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`, nessun gate "una volta sola".
@@ -469,7 +469,7 @@ public:
 	 * 🔴 **E dal 2026-09-20 NON e' piu' una differenza rispetto alla `Guard`, che e' la cosa da sapere qui.**
 	 * Questa riga diceva *«a differenza di `Guard`/`Deflect`… contro molti colpi piccoli la `Brace` non
 	 * finisce, un pool si'»*, e con [D-292] era il mestiere del `Brace`. [D-408] ritira il pool della
-	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (15 contro 10).
+	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (150 contro 100).
 	 * ∴ sull'arco frontale la `Guard` domina, e cio' che resta a separarle e' la **direzione** — la Guardia
 	 * copre il davanti ([D-206]), il `Brace` no ha clausola d'arco. ⚠️ **E' una conseguenza di
 	 * bilanciamento, e `BAL-1` e' aperta**: `docs/decisions/open/bal-1.md` la registra.
@@ -477,10 +477,10 @@ public:
 	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
 	 * regge lo stesso, ma il termine di paragone e' cambiato.*
 	 */
-	static constexpr int32 BraceDamageReduction = 10;
+	static constexpr int32 BraceDamageReduction = 100;
 
 	/**
-	 * Copertura bassa (catalogo v0.1, CP 9.1): riduce di 10 il danno diretto che ATTRAVERSA il bordo riparato.
+	 * Copertura bassa (catalogo v0.1, CP 9.1): riduce di 100 il danno diretto che ATTRAVERSA il bordo riparato.
 	 *
 	 * Sta qui accanto a `Guard`/`Deflect`/`Brace` perche' e' la stessa famiglia di numeri — quanto danno
 	 * diretto si toglie — anche se la condizione che la attiva e' geometrica invece che di stato. Come `Brace`
@@ -490,17 +490,17 @@ public:
 	 * nascono nella cella. E non riduce le AREE: un'esplosione non e' un proiettile che si possa intercettare
 	 * con un muretto — vale anche quando il centro sta dal lato riparato.
 	 */
-	static constexpr int32 LowCoverDamageReduction = 10;
+	static constexpr int32 LowCoverDamageReduction = 100;
 
 	/**
-	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
+	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +80 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed`, NON passa da `ApplyFirstHitDelta` (e nemmeno `Marked` e la Guardia, che hanno una sede propria): il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
 	 */
-	static constexpr int32 AevikWetDischargeBonus = 8;
+	static constexpr int32 AevikWetDischargeBonus = 80;
 
 	/**
 	 * Applica il danno: erode il temporaneo, poi — solo se la sorgente e' `Direct` — lo scudo base, poi gli

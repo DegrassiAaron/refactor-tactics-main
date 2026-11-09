@@ -34,7 +34,7 @@ Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il te
 | Dipendenze tecniche | Water, Wet, smoke, reposition |
 | Player question | Dove preparo il terreno per la squadra? |
 
-> **Nota bilanciamento:** Canonico v0.1. 95 HP, 5 MP, vista 5; valore massimo quando abilita interazioni e controllo terreno.
+> **Nota bilanciamento:** Canonico v0.1. 950 HP, 5 MP, vista 5; valore massimo quando abilita interazioni e controllo terreno.
 
 ## Meccanica firma
 
@@ -80,7 +80,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Muiren h
 
 | Campo | Valore |
 | --- | --- |
-| HP | 95 |
+| HP | 950 |
 | Armatura | — |
 | Resistenza | — |
 | Movimento base | 5 |
@@ -94,7 +94,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Muiren h
 | Budget Punti | — |
 | Delta Budget | — |
 
-**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 95, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
+**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 950, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
 
 ## Visione e stealth
 
@@ -191,7 +191,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Muiren h
 
 #### Descrizione
 
-Pressure Jet è l'attacco base tematico di Muiren: una linea a range 5 che infligge 16 danni, applica `Wet` per 1 turno e `Push 1`.
+Pressure Jet è l'attacco base tematico di Muiren: una linea a range 5 che infligge 160 danni, applica `Wet` per 1 turno e `Push 1`.
 
 | Campo | Valore |
 | --- | --- |
@@ -211,7 +211,7 @@ Pressure Jet è l'attacco base tematico di Muiren: una linea a range 5 che infli
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
 
-> Attacco base tematico: 16 danni, range 5.
+> Attacco base tematico: 160 danni, range 5.
 
 #### Uso tattico e limiti
 
@@ -221,7 +221,7 @@ Fa tre cose con una sola azione leggibile: danno leggero, spostamento e setup. I
 
 #### Descrizione
 
-Circular Tide è l'AoE di supporto di Muiren. A range 4 e raggio 1, **cura 18 e basta**.
+Circular Tide è l'AoE di supporto di Muiren. A range 4 e raggio 1, **cura 180 e basta**.
 
 > ⚠️ **Corretto il 2026-09-10.** Questa riga diceva «cura 18 agli alleati **e applica `Wet` ai nemici per 1
 > turno**». Il `Wet` ad area è uscito dalla dichiarazione con

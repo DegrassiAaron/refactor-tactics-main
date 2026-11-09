@@ -479,7 +479,7 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	// Prima era `25`, il danno del Ranger legacy, e cambiare unita' faceva cadere il test su un dettaglio
 	// che non stava verificando.
 	const int32 FullHit = Shooter->AttackPower;
-	TestEqual(TEXT("in guardia un colpo frontale fa FullHit - 15"), StartHealth - Defender->Health, FullHit - 15);
+	TestEqual(TEXT("in guardia un colpo frontale fa FullHit - GuardReductionDefault"), StartHealth - Defender->Health, FullHit - URTCombatLibrary::GuardReductionDefault);
 
 	// Controprova: senza guardia lo stesso tiro arriva intero.
 	Defender->ApplyCombatState(StartHealth, 0);
@@ -567,7 +567,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
-	TestEqual(TEXT("l'impatto fa 20 danni, applicati nel Blast"), VictimHealth - Victim->Health, 20);
+	TestEqual(TEXT("l'impatto fa 200 danni, applicati nel Blast"), VictimHealth - Victim->Health, 200);
 	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
 
 	DestroyHexBlastWorld(World);
@@ -628,7 +628,7 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la carica si e' mossa e si e' fermata davanti al bersaglio"),
 		Charger->Cell == FRTCellId(1, 0));
 	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
-		VictimHealth - Victim->Health, 20);
+		VictimHealth - Victim->Health, 200);
 
 	// 🔴 **La meta' che [D-300] rovescia**: la vittima NON viene spinta. Senza interruzione finirebbe a
 	// (3,0), e a dirlo e' il test gemello `Charge.ImpactResolvesInBlast` — che asserisce la spinta con la

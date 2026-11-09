@@ -44,7 +44,7 @@ public:
 	FText DisplayName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 MaxHealth = 100;
+	int32 MaxHealth = 1000;
 
 	/** Punti movimento per turno (budget standard del catalogo: 5). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
@@ -100,7 +100,7 @@ public:
 	 * default di catalogo, ancora `URTCombatLibrary::GuardReductionDefault`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 GuardReduction = 15;
+	int32 GuardReduction = 150;
 
 	/**
 	 * DEF del personaggio: la mitigazione moltiplicativa del danno DIRETTO, `100 / (100 + Defense)`

@@ -83,13 +83,13 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	Delta.Init(0, 3);
 	Delta[1] = URTCombatLibrary::ExposedFirstHitBonus;
 
-	const TArray<FRTAttack> Attacks = { FRTAttack(1, 20), FRTAttack(1, 10), FRTAttack(2, 20) };
+	const TArray<FRTAttack> Attacks = { FRTAttack(1, 200), FRTAttack(1, 100), FRTAttack(2, 200) };
 	const TArray<FRTAttack> Boosted = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
 
 	if (!TestEqual(TEXT("nessun colpo si perde per strada"), Boosted.Num(), 3)) { return false; }
-	TestEqual(TEXT("il primo colpo su chi e' esposto prende +5"), Boosted[0].Power, 25);
-	TestEqual(TEXT("il secondo colpo sullo stesso bersaglio NON lo prende: vale una volta sola"), Boosted[1].Power, 10);
-	TestEqual(TEXT("chi non e' esposto incassa il danno nominale"), Boosted[2].Power, 20);
+	TestEqual(TEXT("il primo colpo su chi e' esposto prende +50"), Boosted[0].Power, 250);
+	TestEqual(TEXT("il secondo colpo sullo stesso bersaglio NON lo prende: vale una volta sola"), Boosted[1].Power, 100);
+	TestEqual(TEXT("chi non e' esposto incassa il danno nominale"), Boosted[2].Power, 200);
 
 	// Ordine-indipendenza (invariante #3): il TOTALE per bersaglio non cambia se i colpi arrivano in un altro
 	// ordine — cambia solo a quale colpo e' attribuito il bonus, e i danni si sommano.
@@ -99,19 +99,19 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	int32 SumDirect = 0, SumReversed = 0;
 	for (const FRTAttack& A : Boosted)    { if (A.TargetIndex == 1) { SumDirect += A.Power; } }
 	for (const FRTAttack& A : BoostedRev) { if (A.TargetIndex == 1) { SumReversed += A.Power; } }
-	TestEqual(TEXT("danno totale sull'esposto: 20 + 10 + 5"), SumDirect, 35);
+	TestEqual(TEXT("danno totale sull'esposto: 200 + 100 + 50"), SumDirect, 350);
 	TestEqual(TEXT("invertendo l'ordine dei colpi il totale e' identico"), SumReversed, SumDirect);
 
 	// Nessuno esposto: gli attacchi restano quelli dichiarati (nessun ritocco silenzioso).
 	TArray<int32> NoDelta;
 	NoDelta.Init(0, 3);
 	const TArray<FRTAttack> Untouched = URTCombatResolver::ApplyFirstHitDelta(Attacks, NoDelta);
-	TestEqual(TEXT("senza stato il primo colpo non cambia"), Untouched[0].Power, 20);
+	TestEqual(TEXT("senza stato il primo colpo non cambia"), Untouched[0].Power, 200);
 
 	// Un delta negativo (la Guardia di CP 4.4) puo' annullare un colpo, non curare il bersaglio.
 	TArray<int32> Guarded;
 	Guarded.Init(0, 3);
-	Guarded[1] = -50;
+	Guarded[1] = -500;
 	const TArray<FRTAttack> Blocked = URTCombatResolver::ApplyFirstHitDelta(Attacks, Guarded);
 	TestEqual(TEXT("un delta piu' grande del colpo lo azzera, non lo inverte"), Blocked[0].Power, 0);
 
@@ -119,7 +119,7 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	TArray<int32> Short;
 	Short.Init(0, 1);
 	const TArray<FRTAttack> Safe = URTCombatResolver::ApplyFirstHitDelta(Attacks, Short);
-	TestEqual(TEXT("indice fuori dai delta: colpo invariato"), Safe[0].Power, 20);
+	TestEqual(TEXT("indice fuori dai delta: colpo invariato"), Safe[0].Power, 200);
 	return true;
 }
 
@@ -147,7 +147,7 @@ bool FRTGuardReductionPermutationTest::RunTest(const FString&)
 	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15, il default di catalogo
 
 	// Due colpi frontali di taglia diversa: il caso ordinario di due attaccanti sullo stesso bersaglio.
-	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 10, 0), FRTAttack(1, 30, 2) };
+	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 100, 0), FRTAttack(1, 300, 2) };
 	TArray<FRTAttack> Grande = Piccolo;
 	Algo::Reverse(Grande);
 	const TArray<bool> Eleggibili = { true, true };
@@ -165,14 +165,14 @@ bool FRTGuardReductionPermutationTest::RunTest(const FString&)
 		Grande, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource), 1);
 
 	// ANTI-VACUITA': una riduzione che non riducesse niente sarebbe invariante e inutile. 40 e' il nominale.
-	TestNotEqual(TEXT("la Guardia toglie qualcosa: il totale non e' quello nominale"), PiccoloPrima, 40);
+	TestNotEqual(TEXT("la Guardia toglie qualcosa: il totale non e' quello nominale"), PiccoloPrima, 400);
 
 	TestEqual(TEXT("il totale non dipende da quale colpo arriva per primo"), PiccoloPrima, GrandePrima);
 
 	// 🔴 **E il NUMERO e' quello nuovo, non quello del pool.** Col pool il totale era `40 - 15 = 25`: un
 	// tetto di 15 per l'intero turno. Con la riduzione per colpo il primo colpo si azzera (10 - 15 -> 0) e
 	// il secondo scende a 15, per un totale di **15**. E' il cambio di tetto che [D-408] dichiara VOLUTO.
-	TestEqual(TEXT("ogni colpo frontale e' ridotto: 0 + 15, non 40 - 15"), PiccoloPrima, 15);
+	TestEqual(TEXT("ogni colpo frontale e' ridotto: 0 + 150, non 400 - 150"), PiccoloPrima, 150);
 	return true;
 }
 
@@ -210,7 +210,7 @@ bool FRTDeflectPoolPermutationTest::RunTest(const FString&)
 
 	// Gli stessi due colpi di taglia diversa del test della Guardia: e' il caso in cui `ApplyFirstHitDelta`
 	// perdeva l'avanzo nel clamp, e quanto ne perdesse dipendeva da quale colpo fosse primo.
-	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 10, 0), FRTAttack(1, 30, 2) };
+	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 100, 0), FRTAttack(1, 300, 2) };
 	TArray<FRTAttack> Grande = Piccolo;
 	Algo::Reverse(Grande);
 	const TArray<bool> Eleggibili = { true, true };
@@ -228,7 +228,7 @@ bool FRTDeflectPoolPermutationTest::RunTest(const FString&)
 		Grande, Pool, Eleggibili, URTCombatLibrary::ReactionReductionPoolSource), 1);
 
 	// ANTI-VACUITA': un pool che non assorbisse niente sarebbe invariante e inutile. 40 e' il nominale.
-	TestNotEqual(TEXT("il Deflect toglie qualcosa: il totale non e' quello nominale"), PiccoloPrima, 40);
+	TestNotEqual(TEXT("il Deflect toglie qualcosa: il totale non e' quello nominale"), PiccoloPrima, 400);
 
 	TestEqual(TEXT("il totale con Deflect non dipende da quale colpo arriva per primo"),
 		PiccoloPrima, GrandePrima);
@@ -236,7 +236,7 @@ bool FRTDeflectPoolPermutationTest::RunTest(const FString&)
 	// ⚠️ Il LETTERALE, e non `40 - DeflectDamageReduction`: e' il pin che
 	// `Spec.Reaction.DeflectionReducesByTwenty` dichiara come l'unico a livello di resolver. Derivarlo dalla
 	// costante lo renderebbe verde anche cambiandola, che e' il difetto che quel file racconta.
-	TestEqual(TEXT("e vale 40 - 20, senza avanzi persi nel clamp"), PiccoloPrima, 20);
+	TestEqual(TEXT("e vale 400 - 200, senza avanzi persi nel clamp"), PiccoloPrima, 200);
 	return true;
 }
 
@@ -262,7 +262,7 @@ bool FRTGuardReductionHasNoCeilingTest::RunTest(const FString&)
 
 	// Quattro colpi piccoli: il caso in cui i due modelli divergono di piu'.
 	const TArray<FRTAttack> Colpi = {
-		FRTAttack(1, 8, 0), FRTAttack(1, 8, 2), FRTAttack(1, 8, 3), FRTAttack(1, 8, 4) };
+		FRTAttack(1, 80, 0), FRTAttack(1, 80, 2), FRTAttack(1, 80, 3), FRTAttack(1, 80, 4) };
 	const TArray<bool> Eleggibili = { true, true, true, true };
 
 	auto Totale = [](const TArray<FRTAttack>& In)
@@ -279,7 +279,7 @@ bool FRTGuardReductionHasNoCeilingTest::RunTest(const FString&)
 
 	// Quattro colpi da 8: nominale 32. Il pool ne assorbe 15 in tutto -> 17. La riduzione ne toglie 8 per
 	// colpo (ciascuno si azzera, non cura) -> 0.
-	TestEqual(TEXT("il pool aveva un tetto: 32 nominali meno 15 di budget"), ConPool, 17);
+	TestEqual(TEXT("il pool aveva un tetto: 320 nominali meno 150 di budget"), ConPool, 170);
 	TestEqual(TEXT("la riduzione per colpo non ne ha: ogni colpo si azzera"), ConRiduzione, 0);
 
 	// ANTI-VACUITA': i due modelli DEVONO divergere qui, altrimenti il test non misura il cambio di tetto.
@@ -303,21 +303,21 @@ bool FRTGuardReductionSkipsBehindTest::RunTest(const FString&)
 	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15
 
 	// Colpo 0 dalle SPALLE (30), colpo 1 dal DAVANTI (20).
-	const TArray<FRTAttack> Colpi = { FRTAttack(1, 30, 0), FRTAttack(1, 20, 2) };
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 300, 0), FRTAttack(1, 200, 2) };
 	const TArray<bool> Eleggibili = { false, true };
 
 	const TArray<FRTAttack> Out = URTCombatResolver::ApplyEligibleHitDelta(
 		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 
-	TestEqual(TEXT("il colpo alle spalle passa intero"), Out[0].Power, 30);
-	TestEqual(TEXT("il colpo frontale e' ridotto"), Out[1].Power, 5);
+	TestEqual(TEXT("il colpo alle spalle passa intero"), Out[0].Power, 300);
+	TestEqual(TEXT("il colpo frontale e' ridotto"), Out[1].Power, 50);
 
 	// ANTI-VACUITA': se la maschera fosse ignorata, ANCHE il colpo alle spalle scenderebbe. I due asserti
 	// sopra distinguono i due casi solo se questo vale.
 	const TArray<bool> TuttiEleggibili = { true, true };
 	const TArray<FRTAttack> Ignorata = URTCombatResolver::ApplyEligibleHitDelta(
 		Colpi, Riduzione, TuttiEleggibili, URTCombatLibrary::GuardPerHitSource);
-	TestEqual(TEXT("ignorando la maschera anche il colpo alle spalle scenderebbe"), Ignorata[0].Power, 15);
+	TestEqual(TEXT("ignorando la maschera anche il colpo alle spalle scenderebbe"), Ignorata[0].Power, 150);
 	return true;
 }
 
@@ -349,7 +349,7 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 
 	// Tre taglie: **sopra** il valore, **uguale**, e **sotto**. La terza e' quella che conta — e' il caso
 	// in cui l'avanzo del pool esisterebbe, e su UN colpo solo non c'e' comunque niente da riportare.
-	for (const int32 Potenza : { 30, Valore, 10 })
+	for (const int32 Potenza : { 300, Valore, 100 })
 	{
 		TArray<int32> Budget;    Budget.Init(0, 2);     Budget[1] = Valore;
 		TArray<int32> Riduzione; Riduzione.Init(0, 2);  Riduzione[1] = -Valore;
@@ -368,10 +368,10 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 	// tre righe sopra non direbbero nulla. 30 e' la taglia piu' grande del ciclo.
 	{
 		TArray<int32> Riduzione; Riduzione.Init(0, 2); Riduzione[1] = -Valore;
-		const TArray<FRTAttack> Grosso = { FRTAttack(1, 30, 0) };
-		TestEqual(TEXT("e la Guardia toglie davvero qualcosa: 30 - 15"),
+		const TArray<FRTAttack> Grosso = { FRTAttack(1, 300, 0) };
+		TestEqual(TEXT("e la Guardia toglie davvero qualcosa: 300 - 150"),
 			URTCombatResolver::ApplyEligibleHitDelta(
-				Grosso, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0].Power, 15);
+				Grosso, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0].Power, 150);
 	}
 	return true;
 }
@@ -397,22 +397,22 @@ bool FRTDeflectStaysAPoolTest::RunTest(const FString&)
 	const TArray<bool> Eleggibili = { true, true, true };
 
 	// Tre colpi da 9: nominale 27. Un pool da 20 ne lascia passare 7.
-	const TArray<FRTAttack> Colpi = { FRTAttack(1, 9, 0), FRTAttack(1, 9, 2), FRTAttack(1, 9, 3) };
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 90, 0), FRTAttack(1, 90, 2), FRTAttack(1, 90, 3) };
 	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(
 		Colpi, Pool, Eleggibili, URTCombatLibrary::ReactionReductionPoolSource);
 
 	int32 Totale = 0;
 	for (const FRTAttack& A : Out) { Totale += A.Power; }
 
-	TestEqual(TEXT("il Deflect ha ancora un TETTO: 27 nominali meno 20 di budget"), Totale, 7);
+	TestEqual(TEXT("il Deflect ha ancora un TETTO: 270 nominali meno 200 di budget"), Totale, 70);
 
 	// 🔴 E la Guardia, sugli STESSI colpi, non ce l'ha: e' la divergenza, misurata invece che dichiarata.
-	TArray<int32> Riduzione;  Riduzione.Init(0, 2);  Riduzione[1] = -9;
+	TArray<int32> Riduzione;  Riduzione.Init(0, 2);  Riduzione[1] = -90;
 	const TArray<FRTAttack> Guardata = URTCombatResolver::ApplyEligibleHitDelta(
 		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 	int32 TotaleGuardia = 0;
 	for (const FRTAttack& A : Guardata) { TotaleGuardia += A.Power; }
-	TestEqual(TEXT("una riduzione da 9 per colpo azzera tutti e tre"), TotaleGuardia, 0);
+	TestEqual(TEXT("una riduzione da 90 per colpo azzera tutti e tre"), TotaleGuardia, 0);
 	TestNotEqual(TEXT("i due modelli difensivi danno numeri diversi, ed e' voluto"), Totale, TotaleGuardia);
 	return true;
 }
@@ -454,7 +454,7 @@ bool FRTDeflectBeforeGuardTest::RunTest(const FString&)
 	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;         // -15 — quota per colpo
 
 	// Colpo 0: 5 danni, FRONTALE.  Colpo 1: 20 danni, DALLE SPALLE.
-	const TArray<FRTAttack> Colpi = { FRTAttack(1, 5, 0), FRTAttack(1, 20, 2) };
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 50, 0), FRTAttack(1, 200, 2) };
 	const TArray<bool> Frontali = { true, false };   // la Guardia copre solo il davanti ([D-206])
 	const TArray<bool> Diretti  = { true, true };    // il Deflect non ha clausola d'arco ([D-309])
 
@@ -484,7 +484,7 @@ bool FRTDeflectBeforeGuardTest::RunTest(const FString&)
 
 	// 25 nominali. Deflect (su entrambi): 5->0 col budget a 15, poi 20->5 esaurendolo. La Guardia vede
 	// solo il colpo 0, gia' a zero, e non ha niente da togliere. Totale **5**.
-	TestEqual(TEXT("nell'ordine di [D-312] il bersaglio riceve 5"), DeflectPrima, 5);
+	TestEqual(TEXT("nell'ordine di [D-312] il bersaglio riceve 50"), DeflectPrima, 50);
 	// Invertito: la Guardia azzera il colpo frontale da 5 e non tocca quello alle spalle; poi il Deflect
 	// assorbe i 20 di dietro col suo budget intatto. Totale **0**, cioe' PIU' protezione.
 	TestEqual(TEXT("nell'ordine opposto sarebbe 0, cioe' PIU' protezione"), GuardiaPrima, 0);

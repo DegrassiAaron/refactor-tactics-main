@@ -187,12 +187,12 @@ regola standard del vertical slice).
 
 | Tipo | Danno | Range |
 |---|---:|---:|
-| Corpo a corpo | 28 | 1 |
-| Corto raggio | 25 | 3 |
-| Medio raggio | 22 | 4 |
-| Lungo raggio | 20 | 6 |
+| Corpo a corpo | 280 | 1 |
+| Corto raggio | 250 | 3 |
+| Medio raggio | 220 | 4 |
+| Lungo raggio | 200 | 6 |
 
-**Guard** — riduce di **15** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]) · resiste a una
+**Guard** — riduce di **150** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]) · resiste a una
 spinta di 1 cella · termina nel Cleanup · **non** protegge dagli hazard ambientali già presenti.
 
 > ⏱️ **Riscritta il 2026-09-20 da [D-408]**, e la riga è stata sbagliata due volte prima: diceva «il **primo**
@@ -383,7 +383,7 @@ coerente con D-015) · non permette di preparare una reazione · applica `Status
 **Dash** — movimento lineare lungo una delle **sei** direzioni · non consuma il percorso `Move` (quindi è
 compatibile con esso) · non attraversa muri o coperture alte · non può terminare in una cella occupata.
 
-**Charge** — lineare, massimo 3 celle · infligge **20** danni al primo nemico incontrato e applica `Push 1` ·
+**Charge** — lineare, massimo 3 celle · infligge **200** danni al primo nemico incontrato e applica `Push 1` ·
 si ferma dopo l'impatto · interrotta da coperture alte, muri e porte chiuse. Il codice `20/30` è dovuto
 all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorità.
 
@@ -398,17 +398,17 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 
 | ActionId | Azione | Macro-fase | Cod. | Prio | Danno | Targeting | CD | Fallback | Interr. |
 |---|---|---|---:|---:|---:|---|---:|---|---|
-| `Action.PrecisionAttack` | Attacco di precisione | Blast | 40 | 60 | 24 | bersaglio | 1 | `Fallback.Cancel` | sì |
-| `Action.HeavyAttack` | Attacco pesante | Blast | 40 | 80 | 35 | bersaglio | 2 | `Fallback.Cancel` | sì |
-| `Action.LineAttack` | Attacco lineare | Blast | 40 | 55 | 22 | linea | 1 | `Fallback.AttackCell` | sì |
-| `Action.CircularAoE` | Area circolare | Blast | 40 | 65 | 18 | cella, raggio 1 | 2 | `Fallback.AttackCell` | sì |
-| `Action.Mortar` | Mortaio | Blast | 40 | 65 | 12 | cella, raggio 1, tiro indiretto | 3 | `Fallback.AttackCell` | sì |
-| `Action.SuppressiveLine` | Linea di soppressione | **Prep** | 10/20 | 30 | 16 | linea / reazione | 2 | — | no |
+| `Action.PrecisionAttack` | Attacco di precisione | Blast | 40 | 60 | 240 | bersaglio | 1 | `Fallback.Cancel` | sì |
+| `Action.HeavyAttack` | Attacco pesante | Blast | 40 | 80 | 350 | bersaglio | 2 | `Fallback.Cancel` | sì |
+| `Action.LineAttack` | Attacco lineare | Blast | 40 | 55 | 220 | linea | 1 | `Fallback.AttackCell` | sì |
+| `Action.CircularAoE` | Area circolare | Blast | 40 | 65 | 180 | cella, raggio 1 | 2 | `Fallback.AttackCell` | sì |
+| `Action.Mortar` | Mortaio | Blast | 40 | 65 | 120 | cella, raggio 1, tiro indiretto | 3 | `Fallback.AttackCell` | sì |
+| `Action.SuppressiveLine` | Linea di soppressione | **Prep** | 10/20 | 30 | 160 | linea / reazione | 2 | — | no |
 | `Action.MarkTarget` | Marchia bersaglio | Blast | 40 | 40 | 0 | bersaglio | 1 | `Fallback.Cancel` | sì |
 
 > **`SuppressiveLine` non si fonde con `Overwatch`.** Si somigliano — entrambe si armano in `Prep` e reagiscono
 > a un passaggio — ma non sono la stessa cosa: `Overwatch` è l'**azione universale** e l'infrastruttura di
-> controllo reattivo, `SuppressiveLine` è un **contenuto specifico** con effetti propri (linea, 16 danni,
+> controllo reattivo, `SuppressiveLine` è un **contenuto specifico** con effetti propri (linea, 160 danni,
 > cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
 > conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
 
@@ -452,7 +452,7 @@ copertura alta interrompe la linea.
 riduce il danno se il centro dell'esplosione è dalla stessa parte della copertura del bersaglio.
 
 **Suppressive Line** — si *prepara* (per questo risolve in `Prep`) e si attiva sul trigger «un nemico entra in una
-cella controllata»: 16 danni, interruzione del movimento, **una sola attivazione**; il nemico resta nella cella
+cella controllata»: 160 danni, interruzione del movimento, **una sola attivazione**; il nemico resta nella cella
 appena raggiunta.
 
 **Mark Target** — applica `Status.Marked` per un turno: il prossimo attacco alleato contro il bersaglio infligge
@@ -488,14 +488,14 @@ per le altre: è il punto di valutazione a essere diverso, e le due cose non van
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | Effetto | CD |
 |---|---|---|---|---:|---:|---:|---|---:|
-| `Action.Counter` | Contrattacco | Reazione | Blast | 30/40 | 20 | 0 | contrattacco 16 | 2 |
+| `Action.Counter` | Contrattacco | Reazione | Blast | 30/40 | 20 | 0 | contrattacco 1600 | 2 |
 | `Action.Intercept` | Interposizione | Reazione | Blast | 30 | 10 | 2 | protezione alleato | 2 |
-| `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | 0 | riduzione danno 20 | 2 |
+| `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | 0 | riduzione danno 2000 | 2 |
 | `Action.Anchor` | Ancoraggio | Reazione | Blast | 30 | 5 | 0 | annulla lo spostamento | 2 |
 | `Action.Purge` | Epurazione | Reazione | Blast | 30 | 5 | 0 | annulla lo stato di controllo | 2 |
 | `Action.Evade` | Elusione | Reazione | Blast (valutata nel Cleanup) | 30 | 5 | 0 | si sposta di una cella | 2 |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | anti-spinta | 1 |
-| `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | 0 | scudo temporaneo 25 | 2 |
+| `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | 0 | scudo temporaneo 2500 | 2 |
 | `Action.Cleanse` | Purifica | Principale | Blast | 30 | 25 | 0 | rimozione stato | 2 |
 
 > La colonna **Range** non era nella tabella originale (il PDF dice «entro il range consentito», senza numero):
@@ -542,13 +542,13 @@ Il contrattacco entra **in coda** agli attacchi del Blast: non consuma i modific
 > non è un dettaglio di bilanciamento: cambiando il bersaglio dei colpi, Intercept deve risolvere prima che le
 > altre reazioni valutino chi è stato colpito, altrimenti il protetto contrattaccherebbe per un colpo mai ricevuto.
 
-**Deflect** — riduce il danno diretto di **20**. Se il danno arriva a zero l'attacco è comunque considerato
+**Deflect** — riduce il danno diretto di **200**. Se il danno arriva a zero l'attacco è comunque considerato
 avvenuto (conta per trigger e marchi) · non riflette · non funziona contro AoE ambientali.
 
 **Brace** — impedisce la prima spinta · riduce di **10** tutti i danni diretti fino al Cleanup · **blocca il
 movimento volontario** dell'eroe.
 
-> Tre precisazioni di implementazione (CP 5.2). Il **-10 vale su ogni colpo**, non solo sul primo: è un
+> Tre precisazioni di implementazione (CP 5.2). Il **-100 vale su ogni colpo**, non solo sul primo: è un
 > meccanismo diverso da quello di `Guard`/`Deflect`, e usa una funzione diversa. L'anti-spinta non ha limite
 > di distanza *nel codice*, ma **in v0.1 questo non è osservabile** — vedi la nota qui sotto. Il **blocco del
 > movimento** riusa `Status.Root`, quindi ferma anche lo scatto: chi si pianta per incassare non si riposiziona.
@@ -556,7 +556,7 @@ movimento volontario** dell'eroe.
 > ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
 > Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Hero.Riktor.Ram`
-> eredita i suoi `20 danni + Push 1`), `Hero.Muiren.PressureJet` e la variante `Hero.Muiren.CircularTide.Impact`.
+> eredita i suoi `200 danni + Push 1`), `Hero.Muiren.PressureJet` e la variante `Hero.Muiren.CircularTide.Impact`.
 > L'elenco è **esaustivo e senza eccezioni in tutto il progetto**: l'ultimo `Push 2` era `Guardian.Sweep`, ed
 > è sparito insieme agli archetipi legacy (`#426`, 2026-08-10) — quando questa nota è stata scritta esisteva
 > ancora, fuori dal roster, e la riga lo dichiarava come eccezione. Ora nessuna azione, in nessun catalogo,
@@ -703,11 +703,11 @@ dichiara un doppio codice `40/50`.
 
 | ActionId | Azione | Macro-fase | Cod. | Prio | Range | Effetto | CD |
 |---|---|---|---:|---:|---:|---|---:|
-| `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 20 | 1 |
+| `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 200 | 1 |
 | `Action.CreateWater` | Crea acqua | **Cleanup** | 50 | 60 | 4 | acqua raggio 1 | 2 |
 | `Action.Ignite` | Incendia | **Cleanup** | 50 | 60 | 4 | fuoco su cella | 2 |
 | `Action.CreateSmoke` | Crea fumo | **Cleanup** | 50 | 60 | 4 | fumo raggio 1, durata 2 turni | 2 |
-| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 20 danni, propagazione elettrica 12 | 2 |
+| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 200 danni, propagazione elettrica 120 | 2 |
 | `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 

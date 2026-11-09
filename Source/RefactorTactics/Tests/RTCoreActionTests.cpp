@@ -112,10 +112,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBasicAttackBandTest,
 bool FRTBasicAttackBandTest::RunTest(const FString&)
 {
 	// Tabella delle fasce (catalogo §1): piu' lontano si colpisce, meno si fa male.
-	TestEqual(TEXT("corpo a corpo (r1): 28"), URTCatalogLibrary::BasicAttackDamageForRange(1), 28);
-	TestEqual(TEXT("corto raggio (r3): 25"), URTCatalogLibrary::BasicAttackDamageForRange(3), 25);
-	TestEqual(TEXT("medio raggio (r4): 22"), URTCatalogLibrary::BasicAttackDamageForRange(4), 22);
-	TestEqual(TEXT("lungo raggio (r6): 20"), URTCatalogLibrary::BasicAttackDamageForRange(6), 20);
+	TestEqual(TEXT("corpo a corpo (r1): 280"), URTCatalogLibrary::BasicAttackDamageForRange(1), 280);
+	TestEqual(TEXT("corto raggio (r3): 250"), URTCatalogLibrary::BasicAttackDamageForRange(3), 250);
+	TestEqual(TEXT("medio raggio (r4): 220"), URTCatalogLibrary::BasicAttackDamageForRange(4), 220);
+	TestEqual(TEXT("lungo raggio (r6): 200"), URTCatalogLibrary::BasicAttackDamageForRange(6), 200);
 
 	// La curva non e' mai crescente: nessuna portata paga meno di una piu' corta.
 	for (int32 Range = 1; Range < 10; ++Range)
@@ -131,10 +131,10 @@ bool FRTBasicAttackBandTest::RunTest(const FString&)
 	TestEqual(TEXT("portata dell'arma"), Melee.RangeCells, 1);
 	TestEqual(TEXT("un solo effetto: il danno"), Melee.Effects.Num(), 1);
 	TestTrue(TEXT("ed e' il danno della fascia"), Melee.Effects.Num() == 1
-		&& Melee.Effects[0].Effect == ERTActionEffect::Damage && Melee.Effects[0].Amount == 28);
+		&& Melee.Effects[0].Effect == ERTActionEffect::Damage && Melee.Effects[0].Amount == 280);
 
 	const FRTActionDef Ranged = URTCatalogLibrary::MakeBasicAttack(6);
-	TestTrue(TEXT("a lungo raggio il danno scende"), Ranged.Effects.Num() == 1 && Ranged.Effects[0].Amount == 20);
+	TestTrue(TEXT("a lungo raggio il danno scende"), Ranged.Effects.Num() == 1 && Ranged.Effects[0].Amount == 200);
 
 	// Portata degenere: si ricade sul corpo a corpo invece di produrre un'arma a portata zero.
 	TestEqual(TEXT("portata 0 -> corpo a corpo"), URTCatalogLibrary::MakeBasicAttack(0).RangeCells, 1);
@@ -159,14 +159,14 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // il default di catalogo
 	const TArray<bool> Eleggibili = { true, true };
 
-	const TArray<FRTAttack> Colpi = { FRTAttack(1, 30, 0), FRTAttack(1, 30, 2) };
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 300, 0), FRTAttack(1, 300, 2) };
 	const TArray<FRTAttack> Guardati = URTCombatResolver::ApplyEligibleHitDelta(
 		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 
 	if (!TestEqual(TEXT("due colpi restano due"), Guardati.Num(), 2)) { return false; }
-	TestEqual(TEXT("il primo colpo e' ridotto di 15"), Guardati[0].Power, 15);
+	TestEqual(TEXT("il primo colpo e' ridotto di 150"), Guardati[0].Power, 150);
 	// 🔴 La riga che il nome vecchio negava: **anche il secondo**.
-	TestEqual(TEXT("e anche il secondo: la Guardia non vale una volta sola"), Guardati[1].Power, 15);
+	TestEqual(TEXT("e anche il secondo: la Guardia non vale una volta sola"), Guardati[1].Power, 150);
 
 	// Un colpo piu' debole della riduzione viene annullato, non trasformato in cura.
 	const TArray<FRTAttack> Piccolo = URTCombatResolver::ApplyEligibleHitDelta(
@@ -180,9 +180,9 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	Esposto.Init(0, 2);
 	Esposto[1] = URTCombatLibrary::ExposedFirstHitBonus;
 	const TArray<FRTAttack> Entrambi = URTCombatResolver::ApplyEligibleHitDelta(
-		URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 30, 0) }, Esposto),
+		URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 300, 0) }, Esposto),
 		Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
-	TestEqual(TEXT("esposto e in guardia: 30 + 5 - 15"), Entrambi[0].Power, 20);
+	TestEqual(TEXT("esposto e in guardia: 300 + 50 - 150"), Entrambi[0].Power, 200);
 
 	// L'azione che lo produce e' dati: Guard dichiara lo stato, non un numero nell'orchestratore.
 	const FRTActionDef Guard = CoreActionDef(TEXT("Action.Guard"));

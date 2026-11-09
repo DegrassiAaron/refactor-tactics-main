@@ -37,8 +37,8 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "DAV", "value": 90 },
-    { "type": "UnitHpEquals", "unit": "DIE", "value": 77 },
+    { "type": "UnitHpEquals", "unit": "DAV", "value": 900 },
+    { "type": "UnitHpEquals", "unit": "DIE", "value": 770 },
     { "type": "UnitFacing", "unit": "DAV", "value": "W" },
     { "type": "UnitFacing", "unit": "DIE", "value": "W" },
     { "type": "LogEventCount", "category": "Facing", "outcome": "RearHitBypassedGuard", "value": 1 },

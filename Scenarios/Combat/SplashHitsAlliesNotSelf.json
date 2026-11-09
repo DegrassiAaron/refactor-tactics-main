@@ -23,10 +23,10 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "B1", "value": 107 },
-    { "type": "UnitHpEquals", "unit": "B2", "value":  77 },
-    { "type": "UnitHpEquals", "unit": "A2", "value":  82 },
-    { "type": "UnitHpEquals", "unit": "A1", "value":  90 },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 1070 },
+    { "type": "UnitHpEquals", "unit": "B2", "value":  770 },
+    { "type": "UnitHpEquals", "unit": "A2", "value":  820 },
+    { "type": "UnitHpEquals", "unit": "A1", "value":  900 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

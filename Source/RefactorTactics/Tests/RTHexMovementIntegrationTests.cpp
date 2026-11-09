@@ -530,8 +530,8 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed aggiunge 5 al primo
 	// colpo diretto», non «il colpo fa 30».
 	const int32 FullHit = Foe->AttackPower;
-	TestEqual(TEXT("chi ha sprintato incassa FullHit + 5 dal primo colpo del turno seguente"),
-		HealthAfterSprint - Runner->Health, FullHit + 5);
+	TestEqual(TEXT("chi ha sprintato incassa FullHit + ExposedFirstHitBonus dal primo colpo del turno seguente"),
+		HealthAfterSprint - Runner->Health, FullHit + URTCombatLibrary::ExposedFirstHitBonus);
 
 	// Controprova: stessa unita', stesso colpo, ma senza Sprint nel turno precedente -> danno nominale.
 	// Senza di lei il `+5` potrebbe venire dall'attacco invece che dallo stato, e il test non lo saprebbe.
@@ -782,8 +782,8 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	// Ghiaccio -> Fuoco: la cella in cui si SCIVOLA brucia come quella in cui si entra camminando. Nessuno ha
 	// scritto la regola "ghiaccio piu' fuoco": e' la conseguenza di due terreni indipendenti sullo stesso path.
 	// Il turno intero, non il solo ingresso: 10 dal Fuoco + gli 8 di `Status.Burning` nel Cleanup (CP 8.2).
-	TestEqual(TEXT("10 danni dal Fuoco nella cella di arrivo della scivolata, piu' Burning"),
-		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
+	TestEqual(TEXT("100 danni dal Fuoco nella cella di arrivo della scivolata, piu' Burning"),
+		Mover->Health, StartHealth - 100 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
 	// #2253: lo scivolamento e' un EVENTO, e il replay deve nominarlo. Prima di questa riga il log diceva
@@ -949,8 +949,8 @@ bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
 
 	TestTrue(TEXT("il fuoco non ferma il movimento: arriva a destinazione"), Mover->Cell == FRTCellId(2, 0));
 	// 10 all'ingresso (CP 8.1) + 8 di `Status.Burning` nel Cleanup (CP 8.2): il turno costa 18 in tutto.
-	TestEqual(TEXT("10 danni dal Fuoco, piu' gli 8 di Burning nel Cleanup"),
-		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
+	TestEqual(TEXT("100 danni dal Fuoco, piu' gli 80 di Burning nel Cleanup"),
+		Mover->Health, StartHealth - 100 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato"), Mover->HasStatus(TAG_Status_Burning));
 
 	DestroyHexMoveWorld(World);
@@ -993,8 +993,8 @@ bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("lo scatto arriva a destinazione attraversando il fuoco"), Runner->Cell == FRTCellId(3, 0));
-	TestEqual(TEXT("10 danni dal Fuoco anche in scatto, piu' Burning nel Cleanup"),
-		Runner->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
+	TestEqual(TEXT("100 danni dal Fuoco anche in scatto, piu' Burning nel Cleanup"),
+		Runner->Health, StartHealth - 100 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato anche in scatto"), Runner->HasStatus(TAG_Status_Burning));
 
 	DestroyHexMoveWorld(World);
@@ -1037,7 +1037,7 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
-	constexpr int32 DannoIngresso = 10; // fuoco, all'ingresso nella cella
+	constexpr int32 DannoIngresso = 100; // fuoco, all'ingresso nella cella
 	const int32 StartHealth = Mover->Health;
 	if (!TestEqual(TEXT("premessa: l'unita' entra in campo con lo scudo base"),
 			Mover->Shield, URTCombatLibrary::BaseShield))

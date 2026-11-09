@@ -74,7 +74,7 @@ nello snapshot corrente · *incerto* = una cella potrebbe essere occupata o modi
 | 4 | `Push` verso una cella occupata | Nessuno spostamento illegale | 🟡 spinta esagonale fatta (CP 6.5), `Action.Push` da fare in E4 |
 | 5 | Acqua colpita da elettricità | Propagazione deterministica | ⏳ E8 (`PIE-V01-ELEC`) |
 | 6 | Fuoco colpito da acqua | Fuoco rimosso | ⏳ E8 (`PIE-V01-FIREWATER`) |
-| 7 | Basic Attack attraverso copertura bassa | Danno ridotto di 10 | ⏳ E9 (`PIE-V01-LOWCOVER`) |
+| 7 | Basic Attack attraverso copertura bassa | Danno ridotto di 100 | ⏳ E9 (`PIE-V01-LOWCOVER`) |
 | 8 | `Intercept` protegge l'alleato | L'intercettore diventa il bersaglio | ⏳ E5 (`PIE-V01-INTERCEPT`) |
 | 9 | AoE colpisce un alleato | Friendly fire applicato | ⏳ E4 (`PIE-V01-FF`) |
 | 10 | Il bersaglio si sposta prima dell'attacco | Fallback applicato | ⏳ E4 |

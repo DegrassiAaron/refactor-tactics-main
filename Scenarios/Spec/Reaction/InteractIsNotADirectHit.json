@@ -41,7 +41,7 @@
     { "_assertion": "LA REGOLA: nessuna attivazione, perche' l'interazione non e' un colpo.",
       "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 0 },
     { "_assertion": "Corroborazione: nessun contrattacco, quindi Branth resta pieno.",
-      "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+      "type": "UnitHpEquals", "unit": "B1", "value": 1200 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

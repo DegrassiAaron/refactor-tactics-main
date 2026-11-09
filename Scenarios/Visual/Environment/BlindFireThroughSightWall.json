@@ -51,7 +51,7 @@
     },
     {
       "_perche": "Nessuno e' stato colpito: MistVeil non e' un'aggressione e Overload e' stata scartata. Un danno qui direbbe che una delle due aree ha raggiunto Branth, cioe' che la geometria non e' quella dichiarata.",
-      "type": "UnitHpEquals", "unit": "B1", "value": 120
+      "type": "UnitHpEquals", "unit": "B1", "value": 1200
     },
     { "type": "UnitAlive", "unit": "B1", "value": true },
     { "type": "TurnsCompleted", "value": 2 }

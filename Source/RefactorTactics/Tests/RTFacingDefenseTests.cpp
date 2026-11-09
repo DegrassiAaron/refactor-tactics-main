@@ -176,7 +176,7 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 	// Attaccante a ovest, bersaglio in (2,0) con copertura bassa sul bordo W: il riparo e' interposto.
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(Defender, 0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 300));
 
 	// Difensore che GUARDA l'attaccante: la copertura vale.
 	{
@@ -188,7 +188,7 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 		SetArcLowCover(Map, Defender, ERTHexDirection::W);
 		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 		TestEqual(TEXT("di fronte: la copertura protegge"),
-			ArcPowerOn(Plan, 1), 30 - URTCombatLibrary::LowCoverDamageReduction);
+			ArcPowerOn(Plan, 1), 300 - URTCombatLibrary::LowCoverDamageReduction);
 	}
 
 	// Stessa scena, stesso riparo, stesso colpo: cambia SOLO da che parte guarda il difensore.
@@ -201,12 +201,12 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 		SetArcLowCover(Map, Defender, ERTHexDirection::W);
 		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
-		TestEqual(TEXT("alle spalle: la copertura non vale"), ArcPowerOn(Plan, 1), 30);
+		TestEqual(TEXT("alle spalle: la copertura non vale"), ArcPowerOn(Plan, 1), 300);
 		// Si TOGLIE una protezione, non si aggiunge un bonus: il danno e' quello pieno, non di piu'.
-		TestTrue(TEXT("nessun bonus di fianco"), ArcPowerOn(Plan, 1) <= 30);
+		TestTrue(TEXT("nessun bonus di fianco"), ArcPowerOn(Plan, 1) <= 300);
 		// Il DoD misura proprio questo: 10 danni in piu' su HP che vanno da 90 a 120.
 		TestEqual(TEXT("la differenza e' la riduzione di catalogo"),
-			30 - (30 - URTCombatLibrary::LowCoverDamageReduction), 10);
+			300 - (300 - URTCombatLibrary::LowCoverDamageReduction), 100);
 	}
 	return true;
 }
@@ -247,13 +247,13 @@ bool FRTCombatFlankAttackKeepsCoverTest::RunTest(const FString&)
 	Units.Add(ArcUnit(1, 1, FRTCellId(2, 0, 0), ERTHexDirection::SW));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(Units, 0, 1, 30));
+	Intents.Add(ArcIntent(Units, 0, 1, 300));
 
 	URTHexMapAsset* Map = MakeArcMap(3);
 	SetArcLowCover(Map, FRTCellId(2, 0, 0), ERTHexDirection::W);
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 	TestEqual(TEXT("di fianco ma dentro l'arco: la copertura tiene"),
-		ArcPowerOn(Plan, 1), 30 - URTCombatLibrary::LowCoverDamageReduction);
+		ArcPowerOn(Plan, 1), 300 - URTCombatLibrary::LowCoverDamageReduction);
 	return true;
 }
 
@@ -271,7 +271,7 @@ bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 	// qualcuno estendesse la penalita' direzionale oltre copertura e `Guard`, questo test cadrebbe.
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(Defender, 0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 300));
 
 	int32 FrontPower = -1;
 	int32 RearPower = -1;
@@ -287,16 +287,16 @@ bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 		(Pass == 0 ? FrontPower : RearPower) = ArcPowerOn(Plan, 1);
 	}
 
-	TestEqual(TEXT("senza copertura il colpo frontale fa danno pieno"), FrontPower, 30);
+	TestEqual(TEXT("senza copertura il colpo frontale fa danno pieno"), FrontPower, 300);
 	TestEqual(TEXT("e quello alle spalle lo stesso: non c'e' bonus di fianco"), RearPower, FrontPower);
 
 	// Lo SCUDO assorbe dopo, in `ApplyDamage`, che non ha e non deve avere un parametro di direzione: il colpo
 	// che gli arriva e' identico nei due casi, quindi lo e' anche cio' che resta.
-	const int32 Shield = 12;
-	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(FrontPower, ERTDamageSource::Direct, Shield, 0, 90);
-	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(RearPower, ERTDamageSource::Direct, Shield, 0, 90);
+	const int32 Shield = 120;
+	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(FrontPower, ERTDamageSource::Direct, Shield, 0, 900);
+	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(RearPower, ERTDamageSource::Direct, Shield, 0, 900);
 	TestEqual(TEXT("lo scudo lascia lo stesso residuo di HP"), Front.Health, Rear.Health);
-	TestEqual(TEXT("il conto e' quello del catalogo"), Front.Health, 90 - (30 - Shield));
+	TestEqual(TEXT("il conto e' quello del catalogo"), Front.Health, 900 - (300 - Shield));
 	return true;
 }
 
@@ -320,7 +320,7 @@ bool FRTCombatHitCarriesBypassedCoverTest::RunTest(const FString&)
 {
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(ArcIntent(Defender, 0, 1, 30));
+	Intents.Add(ArcIntent(Defender, 0, 1, 300));
 
 	auto BypassedOn = [](const FRTHexBlastPlan& Plan, int32 TargetId) -> int32
 	{
@@ -356,7 +356,7 @@ bool FRTCombatHitCarriesBypassedCoverTest::RunTest(const FString&)
 		TestEqual(TEXT("alle spalle: scavalcata la riduzione di catalogo"),
 			BypassedOn(Plan, 1), URTCombatLibrary::LowCoverDamageReduction);
 		// Il danno resta quello di sempre: il campo SPIEGA la sottrazione mancata, non ne aggiunge una.
-		TestEqual(TEXT("e il danno non cambia di un punto"), ArcPowerOn(Plan, 1), 30);
+		TestEqual(TEXT("e il danno non cambia di un punto"), ArcPowerOn(Plan, 1), 300);
 	}
 
 	// 3. Nessuna copertura: la traccia deve dire «annullata», non «valutata». Senza questo caso il campo
@@ -501,7 +501,7 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 	TestTrue(TEXT("le due difese tolgono qualcosa rispetto ai due colpi nudi"),
 		Taken > 0 && Taken < NominaleSenzaDifese);
 
-	TestEqual(TEXT("con Deflect che assorbe prima di Guard (D-312) il difensore incassa 16"), Taken, 16);
+	TestEqual(TEXT("con Deflect che assorbe prima di Guard (D-312) il difensore incassa 160"), Taken, 160);
 
 	return true;
 }
@@ -568,7 +568,7 @@ namespace
 		// `Action.BasicAttack` *«identita', fase, priorita' e fallback [...]; DANNO e PORTATA no»*, quindi
 		// `FirstDamage` risponde `0` e il ripiego `Power` resta `0`: l'area partiva, investiva il
 		// difensore e gli toglieva niente. L'ha intercettata la riga anti-vacuita' dei due test.
-		Area->Power = 20;
+		Area->Power = 200;
 
 		Lanciatore->PlannedAbilityIndex = Slot;
 		Lanciatore->PlannedAttackTarget = nullptr;

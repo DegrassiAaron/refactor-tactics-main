@@ -36,7 +36,7 @@ nel Cleanup prima del danno di `Burning`. Dettaglio in
 | `Terrain.Floor` | Pavimento | 1 MP | consentito | libera | nessuno |
 | `Terrain.Rough` | Accidentato | 2 MP | Dash/Charge **vietati** | libera | rallentamento |
 | `Terrain.ShallowWater` | Acqua bassa | 2 MP | consentito | libera | applica `Wet`, conduce elettricità |
-| `Terrain.Fire` | Fuoco | 2 MP | consentito | parziale | 10 danni all'ingresso, applica `Burning` |
+| `Terrain.Fire` | Fuoco | 2 MP | consentito | parziale | 100 danni all'ingresso, applica `Burning` |
 | `Terrain.Conductive` | Superficie metallica | 1 MP | consentito | libera | conduce elettricità |
 | `Terrain.Smoke` | Fumo | 1 MP | consentito | ridotta | applica `Obscured` |
 | `Terrain.Ice` | Ghiaccio | 1 MP | consentito (scivoloso) | libera | scivolamento (`Sliding`) |
@@ -60,8 +60,8 @@ stesso evento.
 
 ### Fuoco
 Interazioni: spegnere con acqua · propagare su vegetazione · alimentare con olio o gas · attraversare.
-Effetti all'ingresso di un'unità: **10 danni immediati** + `Burning`.
-`Burning`: **8 danni** durante il Cleanup, durata **2 turni**, **rimosso da `Wet`**.
+Effetti all'ingresso di un'unità: **100 danni immediati** + `Burning`.
+`Burning`: **80 danni** durante il Cleanup, durata **2 turni**, **rimosso da `Wet`**.
 
 ### Superficie conduttiva
 Interazioni: elettrificare · isolare · collegare a dispositivi.
@@ -113,7 +113,7 @@ costruzione).
 | Stato | Origine | Effetto | Durata |
 |---|---|---|---|
 | `Wet` | acqua bassa, `CreateWater`, Phase | conduce elettricità, rimuove `Burning` | finché sulla cella / **1 turno** se applicato da un'abilità (CP 8.2) |
-| `Burning` | fuoco, `Ignite` | 8 danni nel Cleanup | 2 turni, rimosso da `Wet` |
+| `Burning` | fuoco, `Ignite` | 80 danni nel Cleanup | 2 turni, rimosso da `Wet` |
 | ~~`Electrified`~~ | propagazione elettrica | danno dell'evento | ⚠️ **non è uno stato, ma è registrato**: la scarica è istantanea e `Status.Electrified` non viene mai applicato a un'unità — non entra in `StatusTurns`, non scade, nessuno lo revoca. ✅ Dal 2026-09-03 il TurnLog ne porta però una voce `Status` con esito `AppliedInstantly` per ogni unità raggiunta: la scarica non è più muta in un replay ([D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)) — [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6, [D-211](../decisions/RT_PDR_00_Decision_Log.md) |
 | `Obscured` | fumo | targeting limitato a 2 celle | finché nel fumo |
 | `Sliding` | ghiaccio | scivolamento di 1 cella | all'ingresso |

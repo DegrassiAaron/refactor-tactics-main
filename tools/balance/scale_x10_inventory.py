@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Inventario dei numeri che la passata ×10 di E53 (CP 53.3, D-589 (2)) deve moltiplicare.
+"""Inventario dei numeri sulla scala dei danni/HP di E53 (D-589 (2)): quelli che la passata ×10 (CP 53.3a, 2026-11-09) ha moltiplicato.
 
 Legge il repository e stampa, in Markdown, ogni letterale che oggi esprime HP, danno, cura, scudo o una
 riduzione piatta: effetti del catalogo (`ERTActionEffect::Damage|Heal|Shield, N`), `MaxHealth` e
 `GuardReduction` degli eroi, le costanti intere di `URTCombatLibrary`, le tabelle di `docs/balance/` con una
 colonna numerica, i golden e gli scenari con attese numeriche. E' una MISURA: non modifica nulla.
+
+⚠️ Dal 2026-11-09 la passata e' ESEGUITA (PR di CP 53.3a su #4013): la colonna «scala precedente» serve a
+rileggere golden e documenti storici scritti prima, non a pianificare una seconda moltiplicazione.
 
 Uso: python tools/balance/scale_x10_inventory.py [--json]
 """
@@ -67,13 +70,13 @@ def main(as_json):
     if as_json:
         print(json.dumps(inv, indent=2, ensure_ascii=False)); return 0
     print("## Effetti del catalogo con un numero (Damage, Heal, Shield)\n")
-    print("| Azione | Effetto | Oggi | ×10 |\n|---|---|---|---|")
+    print("| Azione | Effetto | Oggi | scala precedente (÷10) |\n|---|---|---|---|")
     for e in inv["effects"]:
-        print("| `%s` | %s | %d | %d |" % (e["action"], e["effect"], e["value"], e["value"] * 10))
+        print("| `%s` | %s | %d | %d |" % (e["action"], e["effect"], e["value"], e["value"] // 10))
     print("\n## Statistiche degli eroi\n")
-    print("| Eroe | Statistica | Oggi | ×10 |\n|---|---|---|---|")
+    print("| Eroe | Statistica | Oggi | scala precedente (÷10) |\n|---|---|---|---|")
     for h in inv["hero_stats"]:
-        print("| %s | `%s` | %d | %d |" % (h["hero"], h["stat"], h["value"], h["value"] * 10))
+        print("| %s | `%s` | %d | %d |" % (h["hero"], h["stat"], h["value"], h["value"] // 10))
     print("\n## Costanti intere di `URTCombatLibrary` (da leggere una per una: non tutte sono danni)\n")
     print("| Costante | Oggi |\n|---|---|")
     for c in inv["constants"]:

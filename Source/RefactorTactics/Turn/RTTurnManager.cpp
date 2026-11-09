@@ -547,7 +547,7 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGam
  * che possa portarlo. Un campo di catalogo senza consumatore e' il difetto che `PushResistance` documenta.
  * La revisione del valore resta materia `BAL-*`, la sua esistenza no.
  */
-static constexpr int32 RTFallDamage = 5;
+static constexpr int32 RTFallDamage = 50;
 
 void ARTTurnManager::ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhase InPhase)
 {

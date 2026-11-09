@@ -152,17 +152,17 @@
     {
       "type": "UnitHpEquals",
       "unit": "A1",
-      "value": 87
+      "value": 870
     },
     {
       "type": "UnitHpEquals",
       "unit": "B1",
-      "value": 84
+      "value": 840
     },
     {
       "type": "UnitHpEquals",
       "unit": "B2",
-      "value": 90
+      "value": 900
     },
     {
       "type": "UnitAlive",

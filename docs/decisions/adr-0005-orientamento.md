@@ -168,7 +168,7 @@ facing si ottiene il cono del facing **senza scrivere una seconda geometria** �
 #### 4a. Difesa — l'emisfero posteriore è scoperto
 
 Un colpo la cui origine **non** è nell'arco frontale della vittima **annulla** la riduzione da **copertura
-bassa** (−10) e da **`Action.Guard`** (−15). Nessun modificatore nuovo, nessun numero da bilanciare: si
+bassa** (−100) e da **`Action.Guard`** (−150). Nessun modificatore nuovo, nessun numero da bilanciare: si
 riusano valori già a catalogo, togliendo una protezione invece di aggiungere danno.
 
 Non cambia: `Deflect`, `Brace`, `Shield` e gli scudi restano validi da ogni direzione — proteggono la
@@ -402,7 +402,7 @@ con un premio leggibile, non solo un riposizionamento.
 - **`Facing` diventa un prerequisito di E13**: la vista a cono non si può costruire prima. La catena della
   v0.1 si allunga: `E16.1 → E13 → E14`;
 - la **difesa direzionale** tocca il combat math e va misurata: un colpo alle spalle su un bersaglio in
-  copertura passa da −10 a 0, cioè **10 danni in più** su HP che vanno da 90 a 120;
+  copertura passa da −100 a 0, cioè **100 danni in più** su HP che vanno da 900 a 1200;
 - i test del bot cambiano premessa **due volte**: con E13 (conoscenza parziale) e con il cono (il bot deve
   considerare da dove viene visto e da dove può essere colpito);
 - la rotazione dichiarata aggiunge un campo agli intenti, quindi alla privacy e alla serializzazione;
@@ -429,7 +429,7 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Facing.IntentIsTeamFiltered` | la rotazione **dichiarata** non raggiunge il client avversario |
 | `UI.IntentViewFieldsAreClassified` | ogni campo di `FRTIntentView` ha una classe di privacy **dichiarata**: un campo nuovo non classificato fa rosso (#2331) |
 | `UI.EnemyViewCarriesNoAllyOnlyField` | la riga sopra vale per **ogni** campo ally-only, non per i quattro di oggi — e i campi pubblici arrivano comunque a un avversario rivelato (#2331) |
-| `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −10 e −15 |
+| `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −100 e −150 |
 | `Combat.FlankAttackKeepsCover` | dai fianchi la copertura vale: l'arco frontale è quello di `HexCone`, non solo la direzione esatta |
 | `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |
 | `Vision.AwarenessWithinTwoCellsIgnoresFacing` | la consapevolezza ravvicinata vale in ogni direzione |

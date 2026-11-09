@@ -25,7 +25,7 @@ SVG generato                                   ← artefatto, mai sorgente
 La freccia non torna indietro. **Non si modifica un valore di gameplay perché un radar risulti più
 bello**, e non si aggiunge un asse perché un sistema nuovo sembra meritarlo (§5).
 
-Il motivo per cui la regola va scritta invece che sottintesa: HP 120, Move 5, Range 7 e Detection 40
+Il motivo per cui la regola va scritta invece che sottintesa: HP 1200, Move 5, Range 7 e Detection 40
 sono numeri **non comparabili**, e un radar che li mette sugli stessi raggi produce una forma che
 significa soltanto «quale unità di misura ha il numero più grande». I rating esistono per rendere
 comparabile ciò che nel gameplay non lo è, e questo li rende **utili alla lettura e inservibili al
@@ -79,7 +79,7 @@ strutturale.
 **`power` — quanto danno l'eroe produce per turno**, tenendo conto di quanto spesso può farlo:
 
 ```
-power_raw = Σ  danno_garantito(azione) × disponibilità(cooldown)      ancora: raw 100 = 10
+power_raw = Σ  danno_garantito(azione) × disponibilità(cooldown)      ancora: raw 1000 = 10
 ```
 
 Non è *burst*: un colpo enorme ogni tre turni non vale quanto uno ripetibile.
@@ -181,7 +181,7 @@ proprio perché **non** è di Gadget: è dell'azione core che sette abilità pot
 ⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
 del catalogo eroi cita anch'essa azioni core — `Hero.Aevik.ReactiveCapacitor` → `Action.Counter`,
 `Hero.Riktor.Interposition` → `Action.Intercept`, `Hero.Wraith.Deflection` → `Action.Deflect` — ma tiene i
-**propri numeri inline** (`scudo 15 e 10 danni`, `−20`). Quelle riusano la **semantica**, non i valori:
+**propri numeri inline** (`scudo 150 e 100 danni`, `−200`). Quelle riusano la **semantica**, non i valori:
 il parser non deve risolverle contro il catalogo azioni. Solo `` è `Action.X` `` delega il dato, e nel
 roster v0.1 compare **una volta sola**.
 
@@ -334,8 +334,8 @@ farebbe cambiare i rating degli eroi esistenti all'arrivo di un eroe nuovo (**E3
 §8 diventerebbe rosso senza che nessun dato competitivo sia cambiato. Lo spread resta un requisito da
 **verificare**, non da imporre.
 
-**L'ancora di `power` è `raw 100`**, cioè «uccide un eroe medio in un turno»: la salute del roster è
-`90/95/120/90`, media `98.75`, e `power_raw` è già danno per turno. Deriva da un dato del gioco, non da
+**L'ancora di `power` è `raw 1000`**, cioè «uccide un eroe medio in un turno»: la salute del roster è
+`900/950/1200/900`, media `987.5`, e `power_raw` è già danno per turno. Deriva da un dato del gioco, non da
 un numero scelto perché i conti tornassero.
 
 > **Implementazione**: `tools/radar/rubric.ts` (scala, ancore, peso del cooldown, `TBD`) e

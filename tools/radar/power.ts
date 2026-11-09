@@ -4,8 +4,8 @@ import type { AbilityInput, HeroInput } from './parse-catalog.ts';
 import { availabilityWeight, rate } from './rubric.ts';
 
 /** Ancora assoluta: `raw 100` = «uccide un eroe medio in un turno». Non e' scelta a mano — la salute
- *  del roster e' 90/95/120/90, media 98.75, e `power_raw` e' gia' danno per turno. */
-export const POWER_ANCHOR = 100;
+ *  del roster e' 900/950/1200/900, media 987.5, e `power_raw` e' gia' danno per turno. */
+export const POWER_ANCHOR = 1000;
 
 /** Denominatore dei pesi interi di `availabilityWeight`, piu' il fattore 10 con cui `power_raw` e'
  *  espresso in "danno per turno". Vedi `rubric.ts`.

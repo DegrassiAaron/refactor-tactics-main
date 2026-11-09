@@ -184,7 +184,7 @@ namespace RTOverwatchScenarioFixtures
 		{
 			if (Unit.Id == TEXT("M1"))
 			{
-				Unit.Health = 60;
+				Unit.Health = 600;
 			}
 		}
 

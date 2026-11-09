@@ -62,7 +62,7 @@ public:
 	static bool IsKnownElementId(const FName& ElementId);
 
 	/**
-	 * Costruisce **Aevik**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, **vista 7** (era 6,
+	 * Costruisce **Aevik**, tecnico della conduzione (catalogo eroi v0.1 §1): 900 HP, 5 MP, **vista 7** (era 6,
 	 * alzata da D-073 / #131: l'unico del roster che vede oltre il raggio 6), resistenza
 	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Muiren, CP 6.3). Nuova istanza a
 	 * ogni chiamata — stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`: il catalogo eroi non e' un
@@ -97,7 +97,7 @@ public:
 	static URTHeroData* MakeAevik();
 
 	/**
-	 * Costruisce **Muiren**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
+	 * Costruisce **Muiren**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 950 HP, 5 MP, vista 5, resistenza
 	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Aevik (stesso `Affinity.Electricity`),
 	 * cosi' la rivalita' fra i due e' un solo identificatore condiviso, non due nomi.
 	 *
@@ -124,14 +124,14 @@ public:
 	static URTHeroData* MakeMuiren();
 
 	/**
-	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
+	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 1200 HP, 4 MP, vista 5,
 	 * **resistenza push 0**, affinita' strutture, debolezza movimento — simmetrica a
 	 * Ivrin (CP 6.5), come Aevik/Muiren lo sono fra loro.
 	 *
 	 * ⚠️ **Era `1`, l'unico del roster, e questa riga lo ha dichiarato per piu' di quanto sia stato vero.**
 	 * D-075 (#402) l'ha azzerata il 2026-08-10: siccome ogni spinta del gioco vale 1 e `PushResistance` e'
 	 * una SOGLIA (D-038), il valore `1` non comprava stabilita' ma **immunita' totale a ogni spostamento**,
-	 * che nessuno aveva deciso. Cio' che Branth compra col movimento e la vista sono i 120 HP, e quelli non
+	 * che nessuno aveva deciso. Cio' che Branth compra col movimento e la vista sono i 1200 HP, e quelli non
 	 * dipendevano da questo campo. Il roster e' ora interamente a `0`: la meccanica e' **dormiente**, non
 	 * dimenticata — vedi il commento accanto al literal nel `.cpp`.
 	 *
@@ -145,7 +145,7 @@ public:
 	static URTHeroData* MakeBranth();
 
 	/**
-	 * Costruisce **Ivrin**, duellante predittivo (catalogo eroi v0.1 §4): **90 HP** (era 100, abbassata da
+	 * Costruisce **Ivrin**, duellante predittivo (catalogo eroi v0.1 §4): **900 HP** (era 1000 sulla scala ×10 di oggi, 100 allora; abbassata da
 	 * D-069 / #131 perche' «compra mobilita' con l'assenza di difese» sui numeri era falso), **6 MP** (il piu'
 	 * mobile), vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che
 	 * chiude il roster in due coppie (Aevik↔Muiren, Branth↔Ivrin).

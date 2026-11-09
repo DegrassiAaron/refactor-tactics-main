@@ -98,11 +98,11 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 	};
 	const FExpected Expected[] = {
 		{ TEXT("Action.MarkTarget"),      ERTMatchPhase::Blast, 40,  0, 1, ERTActionFallback::Cancel },
-		{ TEXT("Action.LineAttack"),      ERTMatchPhase::Blast, 55, 22, 1, ERTActionFallback::AttackCell },
-		{ TEXT("Action.PrecisionAttack"), ERTMatchPhase::Blast, 60, 24, 1, ERTActionFallback::Cancel },
-		{ TEXT("Action.CircularAoE"),     ERTMatchPhase::Blast, 65, 18, 2, ERTActionFallback::AttackCell },
-		{ TEXT("Action.HeavyAttack"),     ERTMatchPhase::Blast, 80, 35, 2, ERTActionFallback::Cancel },
-		{ TEXT("Action.SuppressiveLine"), ERTMatchPhase::Prep,  30, 16, 2, ERTActionFallback::Cancel },
+		{ TEXT("Action.LineAttack"),      ERTMatchPhase::Blast, 55, 220, 1, ERTActionFallback::AttackCell },
+		{ TEXT("Action.PrecisionAttack"), ERTMatchPhase::Blast, 60, 240, 1, ERTActionFallback::Cancel },
+		{ TEXT("Action.CircularAoE"),     ERTMatchPhase::Blast, 65, 180, 2, ERTActionFallback::AttackCell },
+		{ TEXT("Action.HeavyAttack"),     ERTMatchPhase::Blast, 80, 350, 2, ERTActionFallback::Cancel },
+		{ TEXT("Action.SuppressiveLine"), ERTMatchPhase::Prep,  30, 160, 2, ERTActionFallback::Cancel },
 	};
 
 	for (const FExpected& E : Expected)
@@ -168,11 +168,11 @@ bool FRTPrecisionAttackTest::RunTest(const FString&)
 	const FRTActionDef Short = URTCatalogLibrary::MakePrecisionAttack(3);
 	TestTrue(TEXT("un solo ActionId"), Short.ActionId == FName(TEXT("Action.PrecisionAttack")));
 	TestEqual(TEXT("arma a 3 -> portata 4"), Short.RangeCells, 4);
-	TestEqual(TEXT("danno fisso 24"), DeclaredDamage(Short), 24);
+	TestEqual(TEXT("danno fisso 240"), DeclaredDamage(Short), 240);
 
 	const FRTActionDef Long = URTCatalogLibrary::MakePrecisionAttack(6);
 	TestEqual(TEXT("arma a 6 -> portata 7"), Long.RangeCells, 7);
-	TestEqual(TEXT("il danno non cambia con la portata"), DeclaredDamage(Long), 24);
+	TestEqual(TEXT("il danno non cambia con la portata"), DeclaredDamage(Long), 240);
 
 	// Il bonus e' SEMPRE +1 sopra l'attacco base della stessa arma: e' l'identita' dell'azione.
 	for (int32 Weapon = 1; Weapon <= 6; ++Weapon)
@@ -236,7 +236,7 @@ bool FRTHeavyAttackInterruptedTest::RunTest(const FString&)
 
 	const TArray<FRTActionEvent> Normal = URTActionEffectLibrary::ProduceEvents(Heavy);
 	if (!TestEqual(TEXT("non interrotta: un evento di danno"), Normal.Num(), 1)) { return false; }
-	TestEqual(TEXT("e sono 35 danni"), Normal[0].Amount, 35);
+	TestEqual(TEXT("e sono 350 danni"), Normal[0].Amount, 350);
 
 	Heavy.bInterrupted = true;
 	const TArray<FRTActionEvent> Interrupted = URTActionEffectLibrary::ProduceEvents(Heavy);
@@ -466,7 +466,7 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	for (const FRTHexAttackHit& H : Plan.Hits)
 	{
 		HitIds.Add(H.TargetId);
-		TestEqual(TEXT("18 danni a testa"), H.Power, 18);
+		TestEqual(TEXT("180 danni a testa"), H.Power, 180);
 	}
 	TestTrue(TEXT("il nemico e' colpito"), HitIds.Contains(1));
 	TestTrue(TEXT("l'alleato dentro il raggio anche"), HitIds.Contains(2));
@@ -502,7 +502,7 @@ bool FRTSuppressiveLineTest::RunTest(const FString&)
 		Map, /*Owner*/ 0, /*OwnerTeam*/ 0, FRTCellId(0, 0), FRTCellId(1, 0),
 		Def.RangeCells, DeclaredDamage(Def));
 	TestEqual(TEXT("la linea controlla 5 celle"), Zone.Cells.Num(), 5);
-	TestEqual(TEXT("e infligge 16 danni"), Zone.Damage, 16);
+	TestEqual(TEXT("e infligge 160 danni"), Zone.Damage, 160);
 
 	// Due nemici entrano nella linea: scatta una SOLA volta, e la prende chi entra al passo piu' basso.
 	FRTSuppressionMover Late;
@@ -519,7 +519,7 @@ bool FRTSuppressiveLineTest::RunTest(const FString&)
 	TestTrue(TEXT("scatta"), Hit.IsValid());
 	TestEqual(TEXT("la prende chi entra prima"), Hit.VictimUnitId, 3);
 	TestEqual(TEXT("al passo 0"), Hit.StepIndex, 0);
-	TestEqual(TEXT("per 16 danni"), Hit.Damage, 16);
+	TestEqual(TEXT("per 160 danni"), Hit.Damage, 160);
 	TestTrue(TEXT("e resta nella cella appena raggiunta"), Hit.StopCell == FRTCellId(2, 0));
 
 	// Permutare l'ordine dei movimenti non cambia chi la prende: l'ordine e' totale (passo, poi UnitId), non
@@ -573,19 +573,19 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	// Nome vincolante della DoD. Il marchio vale per UN colpo: il secondo attacco alleato dello stesso turno
 	// arriva intero. Qui il marchio e' modellato come un delta di `ApplyFirstHitDelta` (in produzione ha un pass proprio nel Blast, `MarkSpentOn`), quindi "consumato" resta
 	// ordine-indipendente invece di diventare una corsa fra attaccanti.
-	TestEqual(TEXT("il marchio vale +6"), URTCombatLibrary::MarkedFirstHitBonus, 6);
+	TestEqual(TEXT("il marchio vale +60"), URTCombatLibrary::MarkedFirstHitBonus, 60);
 
 	TArray<int32> Delta;
 	Delta.Init(0, 3);
 	Delta[1] = URTCombatLibrary::MarkedFirstHitBonus;
 
-	const TArray<FRTAttack> Attacks = { FRTAttack(1, 20), FRTAttack(1, 20), FRTAttack(2, 20) };
+	const TArray<FRTAttack> Attacks = { FRTAttack(1, 200), FRTAttack(1, 200), FRTAttack(2, 200) };
 	const TArray<FRTAttack> Marked = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
 
 	if (!TestEqual(TEXT("tre colpi restano tre"), Marked.Num(), 3)) { return false; }
-	TestEqual(TEXT("il primo colpo sul marchiato: 20 + 6"), Marked[0].Power, 26);
-	TestEqual(TEXT("il secondo arriva intero: il marchio e' consumato"), Marked[1].Power, 20);
-	TestEqual(TEXT("chi non e' marchiato non c'entra"), Marked[2].Power, 20);
+	TestEqual(TEXT("il primo colpo sul marchiato: 200 + 60"), Marked[0].Power, 260);
+	TestEqual(TEXT("il secondo arriva intero: il marchio e' consumato"), Marked[1].Power, 200);
+	TestEqual(TEXT("chi non e' marchiato non c'entra"), Marked[2].Power, 200);
 
 	// Marchiato E in guardia: i due effetti si compongono, e l'esito e' prevedibile invece che una
 	// precedenza nascosta dell'uno sull'altro.
@@ -603,14 +603,14 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	{
 		const TArray<bool> Maschera = { bFrontale };
 		return URTCombatResolver::ApplyEligibleHitDelta(
-			URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 20) }, Marchio),
+			URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 200) }, Marchio),
 			Guardia, Maschera, URTCombatLibrary::GuardPerHitSource)[0].Power;
 	};
 
-	TestEqual(TEXT("marchiato e in guardia, colpo FRONTALE: 20 + 6 - 15"), Composto(true), 11);
+	TestEqual(TEXT("marchiato e in guardia, colpo FRONTALE: 200 + 60 - 150"), Composto(true), 110);
 	// 🔑 E il caso che la somma in un delta solo non sapeva esprimere: alle spalle la Guardia non vale, e
 	// il marchio si', quindi il colpo arriva PIU' forte del nominale.
-	TestEqual(TEXT("ma alle spalle la guardia non copre: 20 + 6"), Composto(false), 26);
+	TestEqual(TEXT("ma alle spalle la guardia non copre: 200 + 60"), Composto(false), 260);
 
 	// L'azione che lo produce e' DATI: dichiara uno stato, non un numero nell'orchestratore.
 	const FRTActionDef Mark = OffensiveDef(TEXT("Action.MarkTarget"));
