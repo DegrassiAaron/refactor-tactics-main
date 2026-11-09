@@ -27,7 +27,9 @@
 > ➕ **2026-11-08, [D-587](RT_PDR_00_Decision_Log.md)**: `MSP-2` è decisa. Il bonus vale dai **tre lati posteriori** (`Rear`, `RearLeft`, `RearRight`: lo stesso emisfero
 > di §4a, nessuna banda nuova), è un **valore per personaggio dell'attaccante** come la Guard di D-408, e si somma alla **Base prima della
 > mitigazione**: `Danno = (Base + Spalle) × Mod × 100/(100+DEF)` (D-589). La §4a resta: il retro continua a togliere copertura e Guard, e in più
-> aggiunge il bonus. I valori per personaggio sono `MSP-2.n`; finché non esistono, nessun colpo alle spalle fa più danno di oggi.
+> aggiunge il bonus. I valori per personaggio sono decisi da [D-599](RT_PDR_00_Decision_Log.md) (2026-11-09: tre fasce, 90 · 60 · 30 sulla scala ×10); finché E53 non li porta nel codice, nessun colpo alle spalle fa più danno di oggi.
+> ➕ **2026-11-09, [D-597](RT_PDR_00_Decision_Log.md)**: la §4a riceve una **seconda condizione**: un attaccante il cui `FRTCellId::Layer` è maggiore di quello del difensore annulla
+> la riduzione da copertura bassa, come il retro; **non** la Guard. Le due condizioni sono un «o»; il TurnLog porta la ragione della perdita. Non implementata: la §4a si riscrive con l'implementazione.
 
 ## Contesto
 
