@@ -115,12 +115,14 @@ namespace
 		}
 	}
 
-	// Scorciatoie, solo per tenere le 65 righe leggibili in una schermata.
-	constexpr ERTRispostaPerOsservatore Inv = ERTRispostaPerOsservatore::Invariante;
-	constexpr ERTRispostaPerOsservatore Var = ERTRispostaPerOsservatore::Varia;
-	constexpr ERTVerdetto Amm = ERTVerdetto::Ammesso;
-	constexpr ERTVerdetto Ris = ERTVerdetto::AmmessoConRiserva;
-	constexpr ERTVerdetto Rit = ERTVerdetto::DaRitirare;
+	// Scorciatoie, solo per tenere le righe della tabella leggibili in una schermata. Portano un prefisso
+	// perche' in una unity build un nome corto a livello di file finisce negli altri file dello stesso blob:
+	// `Var` ha gia' rotto `RTConsoleVariableGuardForTest.h` con C4459, errore per questo progetto.
+	constexpr ERTRispostaPerOsservatore CensInv = ERTRispostaPerOsservatore::Invariante;
+	constexpr ERTRispostaPerOsservatore CensVar = ERTRispostaPerOsservatore::Varia;
+	constexpr ERTVerdetto CensAmm = ERTVerdetto::Ammesso;
+	constexpr ERTVerdetto CensRis = ERTVerdetto::AmmessoConRiserva;
+	constexpr ERTVerdetto CensRit = ERTVerdetto::DaRitirare;
 
 	const FRTUnitFieldRule Campi[] = {
 	// ─── 1. IL PIANO — sedici campi che un grafo SCRIVE ────────────────────────────────────────────────
@@ -133,22 +135,22 @@ namespace
 	// — copre TRE campi di piano che ai Blueprint non sono esposti affatto (`PlannedReactionCondition`,
 	// `bMovePlanRejectedByOccupant`, `RejectedMoveDestination`). Quando qualcuno si e' posto la domanda, la
 	// risposta e' gia' stata tenerli fuori: il difetto non e' una scelta diversa, e' una scelta mai fatta.
-	{ TEXT("PlannedCell"),                Var, true,  TEXT("FRTIntentView"), Rit, TEXT("intento privato della squadra che lo dichiara; un grafo lo SCRIVE") },
-	{ TEXT("PlannedPath"),                Var, true,  TEXT("FRTIntentView"), Rit, TEXT("il percorso e' intento: `Reveal` lo espone, la porta decide a chi") },
-	{ TEXT("PlannedWaypoints"),           Var, true,  TEXT("FRTIntentView"), Rit, TEXT("copiati SOLO per un alleato, rivelato o meno (RTIntentPrivacyLibrary.cpp:70-77)") },
-	{ TEXT("PlannedMovementProfileId"),   Var, true,  nullptr                        , Rit, TEXT("profilo del movimento pianificato: intento") },
-	{ TEXT("PlannedAbilityIndex"),        Var, true,  TEXT("FRTIntentView"), Rit, TEXT("RTMatchStateHash.h:102-104 — «l'intento di usare un'abilita' ... e' privato della squadra che lo dichiara»") },
-	{ TEXT("PlannedAttackTarget"),        Var, true,  TEXT("FRTIntentView"), Rit, TEXT("unico TObjectPtr<ARTUnit> dell'header: da un'unita' si raggiunge un'altra unita' COMPLETA senza enumerare") },
-	{ TEXT("PlannedAttackCell"),          Var, true,  nullptr                        , Rit, TEXT("bersaglio dichiarato: intento") },
-	{ TEXT("bAttackTargetsCell"),         Var, true,  nullptr                        , Rit, TEXT("quale delle due forme di bersaglio: intento") },
-	{ TEXT("PlannedDashAbility"),         Var, true,  TEXT("FRTIntentView"), Rit, TEXT("lo scatto dichiarato: intento") },
-	{ TEXT("PlannedDashCell"),            Var, true,  TEXT("FRTIntentView"), Rit, TEXT("destinazione dello scatto: intento") },
-	{ TEXT("PlannedFacing"),              Var, true,  TEXT("FRTIntentView"), Rit, TEXT("RTMatchStateHash.h:70-72 — «E' il facing REALE, non `PlannedFacing`. Quello e' un intento»") },
-	{ TEXT("bDeclaresPlannedFacing"),     Var, true,  TEXT("FRTIntentView"), Rit, TEXT("che ci sia una rotazione dichiarata e' gia' informazione di piano") },
-	{ TEXT("PlannedCoverEdge"),           Var, true,  nullptr                        , Rit, TEXT("copertura scelta: intento") },
-	{ TEXT("bHasPlannedCoverEdge"),       Var, true,  nullptr                        , Rit, TEXT("che una copertura sia stata scelta e' gia' informazione di piano") },
-	{ TEXT("PlannedReactionAbility"),     Var, true,  TEXT("FRTIntentView"), Rit, TEXT("`ReactionName` si copia SOLO per un alleato") },
-	{ TEXT("PlannedCleansePriority"),     Var, true,  nullptr                        , Rit, TEXT("priorita' di bonifica dichiarata: intento") },
+	{ TEXT("PlannedCell"),                CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("intento privato della squadra che lo dichiara; un grafo lo SCRIVE") },
+	{ TEXT("PlannedPath"),                CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("il percorso e' intento: `Reveal` lo espone, la porta decide a chi") },
+	{ TEXT("PlannedWaypoints"),           CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("copiati SOLO per un alleato, rivelato o meno (RTIntentPrivacyLibrary.cpp:70-77)") },
+	{ TEXT("PlannedMovementProfileId"),   CensVar, true,  nullptr                        , CensRit, TEXT("profilo del movimento pianificato: intento") },
+	{ TEXT("PlannedAbilityIndex"),        CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("RTMatchStateHash.h:102-104 — «l'intento di usare un'abilita' ... e' privato della squadra che lo dichiara»") },
+	{ TEXT("PlannedAttackTarget"),        CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("unico TObjectPtr<ARTUnit> dell'header: da un'unita' si raggiunge un'altra unita' COMPLETA senza enumerare") },
+	{ TEXT("PlannedAttackCell"),          CensVar, true,  nullptr                        , CensRit, TEXT("bersaglio dichiarato: intento") },
+	{ TEXT("bAttackTargetsCell"),         CensVar, true,  nullptr                        , CensRit, TEXT("quale delle due forme di bersaglio: intento") },
+	{ TEXT("PlannedDashAbility"),         CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("lo scatto dichiarato: intento") },
+	{ TEXT("PlannedDashCell"),            CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("destinazione dello scatto: intento") },
+	{ TEXT("PlannedFacing"),              CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("RTMatchStateHash.h:70-72 — «E' il facing REALE, non `PlannedFacing`. Quello e' un intento»") },
+	{ TEXT("bDeclaresPlannedFacing"),     CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("che ci sia una rotazione dichiarata e' gia' informazione di piano") },
+	{ TEXT("PlannedCoverEdge"),           CensVar, true,  nullptr                        , CensRit, TEXT("copertura scelta: intento") },
+	{ TEXT("bHasPlannedCoverEdge"),       CensVar, true,  nullptr                        , CensRit, TEXT("che una copertura sia stata scelta e' gia' informazione di piano") },
+	{ TEXT("PlannedReactionAbility"),     CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("`ReactionName` si copia SOLO per un alleato") },
+	{ TEXT("PlannedCleansePriority"),     CensVar, true,  nullptr                        , CensRit, TEXT("priorita' di bonifica dichiarata: intento") },
 
 	// ─── 2. LA CELLA ───────────────────────────────────────────────────────────────────────────────────
 	// 🔑 L'UNICO dei 65 la cui risposta e' sbagliata anche per un osservatore AUTORIZZATO. Per gli altri
@@ -159,34 +161,34 @@ namespace
 	// (`Turn/RTMatchStateHash.cpp:224`) e dall'esterno la scrive solo il resolver
 	// (`Turn/RTTurnManager.cpp:2031`, `:4739`). Cio' che si ritira e' lo specificatore, e non tocca nessuno
 	// dei due — e' il punto (1) del costo misurato nella voce di decisione.
-	{ TEXT("Cell"),                       Var, false, TEXT("FRTKnowledgeEntry::Cell"), Rit, TEXT("il fatto che i cinque canali hanno perso, e l'unico il cui confine era gia' scritto, eseguibile e verde") },
+	{ TEXT("Cell"),                       CensVar, false, TEXT("FRTKnowledgeEntry::Cell"), CensRit, TEXT("il fatto che i cinque canali hanno perso, e l'unico il cui confine era gia' scritto, eseguibile e verde") },
 
 	// ─── 3. I TELL DEL TURNO, E LA CHIUSURA DEL PIANO — nessuna porta li consegna ──────────────────────
 	// Non dicono dov'e' ne' cosa fara': dicono che sta facendo qualcosa ADESSO, cioe' cio' che il velo esiste
 	// per chiudere. ⚠️ La riserva non e' un'ammissione: e' il debito nominato. Ritirarli oggi lascerebbe un
 	// consumatore senza sorgente, e il difetto e' che nessun DTO li consegna filtrati.
-	{ TEXT("bIsMovingVisually"),          Var, false, nullptr, Ris, TEXT("su un'unita' velata dice «si sta muovendo ora»; il grafo lavora gia' sulla COPIA (RTUnitAnimInstance.cpp:246-250) e il canale e' dichiarato in FRTPresentationBinding") },
-	{ TEXT("ReactionActivationsThisTurn"), Var, false, nullptr, Ris, TEXT("«ha reagito» su un'unita' che non vedi; nato per rendere D-092 osservabile (RTUnit.h:655-670), nessuna vista lo espone") },
-	{ TEXT("SelectedAbilityIndex"),       Var, false, nullptr, Ris, TEXT("l'armamento, cioe' un tell PRIMA della dichiarazione; e' anche la FORMA giusta — RO + ARTUnit::SelectAbility che valida e non e' UFUNCTION") },
-	{ TEXT("LastDamageToken"),            Var, false, nullptr, Ris, TEXT("«ha appena incassato N»; e' gia' un DTO e Transient fuori da ogni hash (RTUnit.h:1717-1721), ma su un velato resta un tell") },
-	{ TEXT("bTurnPlanDeclared"),          Var, false, nullptr, Ris, TEXT("RTUnit.h:578-581 — «leggerebbe il ritmo del tuo planning», e la stessa riga dichiara la porta mancante: «una proiezione da progettare in RTIntentPrivacyLibrary»") },
+	{ TEXT("bIsMovingVisually"),          CensVar, false, nullptr, CensRis, TEXT("su un'unita' velata dice «si sta muovendo ora»; il grafo lavora gia' sulla COPIA (RTUnitAnimInstance.cpp:246-250) e il canale e' dichiarato in FRTPresentationBinding") },
+	{ TEXT("ReactionActivationsThisTurn"), CensVar, false, nullptr, CensRis, TEXT("«ha reagito» su un'unita' che non vedi; nato per rendere D-092 osservabile (RTUnit.h:655-670), nessuna vista lo espone") },
+	{ TEXT("SelectedAbilityIndex"),       CensVar, false, nullptr, CensRis, TEXT("l'armamento, cioe' un tell PRIMA della dichiarazione; e' anche la FORMA giusta — RO + ARTUnit::SelectAbility che valida e non e' UFUNCTION") },
+	{ TEXT("LastDamageToken"),            CensVar, false, nullptr, CensRis, TEXT("«ha appena incassato N»; e' gia' un DTO e Transient fuori da ogni hash (RTUnit.h:1717-1721), ma su un velato resta un tell") },
+	{ TEXT("bTurnPlanDeclared"),          CensVar, false, nullptr, CensRis, TEXT("RTUnit.h:578-581 — «leggerebbe il ritmo del tuo planning», e la stessa riga dichiara la porta mancante: «una proiezione da progettare in RTIntentPrivacyLibrary»") },
 
 	// ─── 4. LE DUE LEVE DI SCRITTURA CHE NON SONO PIANO ────────────────────────────────────────────────
 	// 🔴 Non e' privacy, e' autorita'. Precedente gia' pagato in code review: `GuardReduction` fu declassato
 	// da `BlueprintReadWrite` perche' «sarebbe stato un canale per cui un Blueprint — anche di presentazione
 	// — muta un numero che `ARTTurnManager::ResolveCombatPasses` legge per decidere il danno ... e non
 	// lascerebbe traccia nel TurnLog» (`RTUnit.h:109-114`).
-	{ TEXT("ActiveVariantId"),            Inv, true,  nullptr, Rit, TEXT("ZERO scrittori di produzione e un solo lettore, RTTurnManager.cpp:3789, che da li' sceglie i Parameters della variante: un grafo che lo scrive cambia il danno") },
-	{ TEXT("bIsBotControlled"),           Inv, true,  nullptr, Rit, TEXT("decide CHI comanda l'unita'. ⛔ Si ritira il BlueprintReadWrite, NON l'EditAnywhere: e' cosi' che una mappa dichiara un'unita' da bot") },
+	{ TEXT("ActiveVariantId"),            CensInv, true,  nullptr, CensRit, TEXT("ZERO scrittori di produzione e un solo lettore, RTTurnManager.cpp:3789, che da li' sceglie i Parameters della variante: un grafo che lo scrive cambia il danno") },
+	{ TEXT("bIsBotControlled"),           CensInv, true,  nullptr, CensRit, TEXT("decide CHI comanda l'unita'. ⛔ Si ritira il BlueprintReadWrite, NON l'EditAnywhere: e' cosi' che una mappa dichiara un'unita' da bot") },
 
 	// ─── 5. LA CONDIZIONE — la porta la RIFIUTA per decisione ──────────────────────────────────────────
 	// ⛔ E nessun'altra la trasporta. `URTHudViewModel::BuildUnitCard` sembra la porta e non lo e': prende
 	// `const ARTUnit*` IN FIRMA e nel corpo non c'e' un solo controllo di conoscenza
 	// (`UI/RTHudViewModel.cpp:114-139`). Che gli HP nemici oggi non si vedano dipende dal CHIAMANTE
 	// (`ResolveObserverTeamIds`, `:743-746`), non dalla porta.
-	{ TEXT("Health"),                     Var, false, nullptr, Ris, TEXT("RTBotPlanningLibrary.cpp:417-420 — «gli HP correnti sarebbero la fuga esatta che il canary deve prendere»; RTKnowledgeView.h:53-55 la rifiuta per decisione") },
-	{ TEXT("Shield"),                     Var, false, nullptr, Ris, TEXT("stessa disciplina degli HP; entra nel digest (RTMatchStateHash.cpp:226) e nessuna vista filtrata lo porta") },
-	{ TEXT("TemporaryShield"),            Var, false, nullptr, Ris, TEXT("l'asimmetria LETTERALE della issue: private con AllowPrivateAccess, il C++ passa da GetTemporaryShield() (:831), il Blueprint legge il campo") },
+	{ TEXT("Health"),                     CensVar, false, nullptr, CensRis, TEXT("RTBotPlanningLibrary.cpp:417-420 — «gli HP correnti sarebbero la fuga esatta che il canary deve prendere»; RTKnowledgeView.h:53-55 la rifiuta per decisione") },
+	{ TEXT("Shield"),                     CensVar, false, nullptr, CensRis, TEXT("stessa disciplina degli HP; entra nel digest (RTMatchStateHash.cpp:226) e nessuna vista filtrata lo porta") },
+	{ TEXT("TemporaryShield"),            CensVar, false, nullptr, CensRis, TEXT("l'asimmetria LETTERALE della issue: private con AllowPrivateAccess, il C++ passa da GetTemporaryShield() (:831), il Blueprint legge il campo") },
 
 	// ─── 6. L'IDENTITA' — la porta la consegna con lo STESSO valore ────────────────────────────────────
 	// 🔑 La differenza col gruppo 2 e' il punto di tutto il censimento: qui la porta non cambia il VALORE,
@@ -194,11 +196,11 @@ namespace
 	// bot lo dice del ricordo: «Cio' che la squadra conosce di un ricordo e' l'IDENTITA' ... non la
 	// condizione» (`Bot/RTBotPlanningLibrary.cpp:418-419`). ∴ la fuga e' nel SOGGETTO, e il gate che la
 	// chiude e' quello sul gesto di acquisizione.
-	{ TEXT("StableUnitId"),               Inv, false, TEXT("FRTKnowledgeEntry"), Amm, TEXT("la porta lo consegna identico; e' anche la chiave con cui un ricordo risale a eroe e catalogo") },
-	{ TEXT("TeamId"),                     Inv, false, TEXT("FRTKnowledgeEntry"), Amm, TEXT("RTKnowledgeView.h:64-71 — «Non e' informazione nuova ... una voce che esiste e' una voce autorizzata»") },
-	{ TEXT("HeroId"),                     Inv, false, TEXT("FRTKnowledgeEntry"), Amm, TEXT("la porta lo consegna identico; e' anche l'ordine stabile del roster (RTScreenHudWidgets.cpp:146-149)") },
-	{ TEXT("HeroDisplayName"),            Inv, false, TEXT("FRTKnowledgeEntry"), Amm, TEXT("la porta lo consegna identico") },
-	{ TEXT("ControlGroup"),               Inv, false, nullptr, Amm, TEXT("fatto dell'ALLESTIMENTO, non del turno: «quale persona seduta in questa squadra comanda questa unita'» (RTUnit.h:71-82). La porta non lo porta perche' nessun consumatore lo chiede, non perche' lo rifiuti") },
+	{ TEXT("StableUnitId"),               CensInv, false, TEXT("FRTKnowledgeEntry"), CensAmm, TEXT("la porta lo consegna identico; e' anche la chiave con cui un ricordo risale a eroe e catalogo") },
+	{ TEXT("TeamId"),                     CensInv, false, TEXT("FRTKnowledgeEntry"), CensAmm, TEXT("RTKnowledgeView.h:64-71 — «Non e' informazione nuova ... una voce che esiste e' una voce autorizzata»") },
+	{ TEXT("HeroId"),                     CensInv, false, TEXT("FRTKnowledgeEntry"), CensAmm, TEXT("la porta lo consegna identico; e' anche l'ordine stabile del roster (RTScreenHudWidgets.cpp:146-149)") },
+	{ TEXT("HeroDisplayName"),            CensInv, false, TEXT("FRTKnowledgeEntry"), CensAmm, TEXT("la porta lo consegna identico") },
+	{ TEXT("ControlGroup"),               CensInv, false, nullptr, CensAmm, TEXT("fatto dell'ALLESTIMENTO, non del turno: «quale persona seduta in questa squadra comanda questa unita'» (RTUnit.h:71-82). La porta non lo porta perche' nessun consumatore lo chiede, non perche' lo rifiuti") },
 
 	// ─── 7. IL CATALOGO — dato che il progetto tratta come PUBBLICO, e legge non filtrato apposta ───────
 	// ⚠️ L'argomento NON e' «sono funzione di HeroId»: sarebbe falso per tre di essi, perche' `EquipLoadout`
@@ -206,20 +208,20 @@ namespace
 	// (`Unit/RTUnit.cpp:1662-1681`). L'argomento vero e' gia' eseguito: nel punto in cui il bot filtra TUTTO
 	// il resto per conoscenza, la portata la prende non filtrata e dichiara perche' —
 	// «gittate e forme sono catalogo, cioe' dato pubblico» (`Bot/RTBotPlanningLibrary.cpp:385`, `:396-397`).
-	{ TEXT("MaxHealth"),                  Inv, false, nullptr, Amm, TEXT("e' il valore PUBBLICO con cui il bot SOSTITUISCE gli HP che non ha diritto di sapere (RTBotPlanningLibrary.cpp:427)") },
-	{ TEXT("MoveRange"),                  Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[] (RTHeroDataBoundaryTests.cpp)") },
-	{ TEXT("AttackRange"),                Inv, false, nullptr, Amm, TEXT("il bot lo legge NON filtrato da un nemico e lo dichiara pubblico (RTBotPlanningLibrary.cpp:385)") },
-	{ TEXT("AttackPower"),                Inv, false, nullptr, Amm, TEXT("stesso specchio di AttackRange, ricalcolato da Abilities[0] dentro l'unita' (RTUnit.cpp:1676-1681)") },
-	{ TEXT("VisionRange"),                Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
-	{ TEXT("HearingThreshold"),           Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
-	{ TEXT("PushResistance"),             Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
-	{ TEXT("GuardReduction"),             Inv, false, nullptr, Amm, TEXT("catalogo [D-408]; la sua riga porta gia' il precedente sul perche' NON e' BlueprintReadWrite") },
-	{ TEXT("MoveEndPivotMaxSteps"),       Inv, false, nullptr, Amm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
-	{ TEXT("DashEndPivotMaxSteps"),       Inv, false, nullptr, Amm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
-	{ TEXT("Affinity"),                   Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
-	{ TEXT("Weakness"),                   Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
-	{ TEXT("ReactionProfileId"),          Inv, false, nullptr, Amm, TEXT("catalogo E14.7 [D-047]: destinazione dichiarata di Routes[]") },
-	{ TEXT("Abilities"),                  Inv, false, nullptr, Amm, TEXT("il kit e' pubblico quanto l'eroe. ⚠️ In produzione il campo non si legge: si passa da NumAbilities()/GetAbility() (RTTurnManager.cpp:973, :977)") },
+	{ TEXT("MaxHealth"),                  CensInv, false, nullptr, CensAmm, TEXT("e' il valore PUBBLICO con cui il bot SOSTITUISCE gli HP che non ha diritto di sapere (RTBotPlanningLibrary.cpp:427)") },
+	{ TEXT("MoveRange"),                  CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[] (RTHeroDataBoundaryTests.cpp)") },
+	{ TEXT("AttackRange"),                CensInv, false, nullptr, CensAmm, TEXT("il bot lo legge NON filtrato da un nemico e lo dichiara pubblico (RTBotPlanningLibrary.cpp:385)") },
+	{ TEXT("AttackPower"),                CensInv, false, nullptr, CensAmm, TEXT("stesso specchio di AttackRange, ricalcolato da Abilities[0] dentro l'unita' (RTUnit.cpp:1676-1681)") },
+	{ TEXT("VisionRange"),                CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
+	{ TEXT("HearingThreshold"),           CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
+	{ TEXT("PushResistance"),             CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
+	{ TEXT("GuardReduction"),             CensInv, false, nullptr, CensAmm, TEXT("catalogo [D-408]; la sua riga porta gia' il precedente sul perche' NON e' BlueprintReadWrite") },
+	{ TEXT("MoveEndPivotMaxSteps"),       CensInv, false, nullptr, CensAmm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
+	{ TEXT("DashEndPivotMaxSteps"),       CensInv, false, nullptr, CensAmm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
+	{ TEXT("Affinity"),                   CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
+	{ TEXT("Weakness"),                   CensInv, false, nullptr, CensAmm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
+	{ TEXT("ReactionProfileId"),          CensInv, false, nullptr, CensAmm, TEXT("catalogo E14.7 [D-047]: destinazione dichiarata di Routes[]") },
+	{ TEXT("Abilities"),                  CensInv, false, nullptr, CensAmm, TEXT("il kit e' pubblico quanto l'eroe. ⚠️ In produzione il campo non si legge: si passa da NumAbilities()/GetAbility() (RTTurnManager.cpp:973, :977)") },
 
 	// ─── 8. LA POSA PUBBLICA E LE COSTANTI DI RESA ─────────────────────────────────────────────────────
 	// ⚠️ `Facing` E' stato autorevole ed ENTRA nel digest (`RTMatchStateHash.cpp:230`) — e sta qui lo stesso,
@@ -227,16 +229,16 @@ namespace
 	// ortogonali. Questo censimento risponde a una sola delle due, e va detto invece che aggirato.
 	// Le altre nove sono costanti autorate: `grep -rn -- "->NOME" Source/` fuori da `Unit/RTUnit.*`, da
 	// `Tests/` e dalle righe di commento risponde ZERO per ciascuna.
-	{ TEXT("Facing"),                     Inv, false, TEXT("FRTIntentView"), Amm, TEXT("due permessi scritti: «posa attuale: si vede guardando l'unita'» (RTIntentPrivacyLibrary.cpp:64) e la lettura non filtrata del bot (RTBotPlanningLibrary.cpp:445-454)") },
-	{ TEXT("VisualZOffset"),              Inv, false, nullptr, Amm, TEXT("«SOLO l'offset di presentazione» (RTUnit.cpp:1161-1167); costante per eroe") },
-	{ TEXT("VisualRunSpeed"),             Inv, false, nullptr, Amm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("MeshYawOffset"),              Inv, false, nullptr, Amm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("UnitAnimClass"),              Inv, false, nullptr, Amm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("ContactGhostAnimClass"),      Inv, false, nullptr, Amm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("bFaceMovementDirection"),     Inv, false, nullptr, Amm, TEXT("dichiarato alla riga di Facing come cio' che «resta presentazione»; l'autorevole e' l'altro campo") },
-	{ TEXT("ForcedMeshLOD"),              Inv, false, nullptr, Amm, TEXT("taratura visiva autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("bShowFacingArrow"),           Inv, false, nullptr, Amm, TEXT("taratura visiva autorata; zero siti fuori da RTUnit.*") },
-	{ TEXT("OverlayWidgetClass"),         Inv, false, nullptr, Amm, TEXT("⛔ protected (RTUnit.h:1866): il BlueprintReadOnly e' l'unica porta esistente, e la sottoclasse Blueprint e' il consumatore previsto") },
+	{ TEXT("Facing"),                     CensInv, false, TEXT("FRTIntentView"), CensAmm, TEXT("due permessi scritti: «posa attuale: si vede guardando l'unita'» (RTIntentPrivacyLibrary.cpp:64) e la lettura non filtrata del bot (RTBotPlanningLibrary.cpp:445-454)") },
+	{ TEXT("VisualZOffset"),              CensInv, false, nullptr, CensAmm, TEXT("«SOLO l'offset di presentazione» (RTUnit.cpp:1161-1167); costante per eroe") },
+	{ TEXT("VisualRunSpeed"),             CensInv, false, nullptr, CensAmm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("MeshYawOffset"),              CensInv, false, nullptr, CensAmm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("UnitAnimClass"),              CensInv, false, nullptr, CensAmm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("ContactGhostAnimClass"),      CensInv, false, nullptr, CensAmm, TEXT("costante di resa autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("bFaceMovementDirection"),     CensInv, false, nullptr, CensAmm, TEXT("dichiarato alla riga di Facing come cio' che «resta presentazione»; l'autorevole e' l'altro campo") },
+	{ TEXT("ForcedMeshLOD"),              CensInv, false, nullptr, CensAmm, TEXT("taratura visiva autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("bShowFacingArrow"),           CensInv, false, nullptr, CensAmm, TEXT("taratura visiva autorata; zero siti fuori da RTUnit.*") },
+	{ TEXT("OverlayWidgetClass"),         CensInv, false, nullptr, CensAmm, TEXT("⛔ protected (RTUnit.h:1866): il BlueprintReadOnly e' l'unica porta esistente, e la sottoclasse Blueprint e' il consumatore previsto") },
 
 	// ─── 9. LE MANIGLIE AI COMPONENT ───────────────────────────────────────────────────────────────────
 	// ⚠️ OTTO dei nove sono protected (`:1750, 1753, 1767, 1784, 1799, 1803, 1841, 1857`, dopo il
@@ -246,15 +248,15 @@ namespace
 	// 🔑 Restano perche' ritirarle non comprerebbe niente: la trasformata di un componente e' la trasformata
 	// dell'Actor, e `AActor::K2_GetActorLocation` e' ereditata e BlueprintCallable. Il loro rischio si chiude
 	// sul GESTO che procura l'Actor, mai su un elenco di campi.
-	{ TEXT("SceneRoot"),                  Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("Mesh"),                       Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("TeamRing"),                   Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("SelectionRing"),              Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("LeftArm"),                    Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("RightArm"),                   Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("ContactGhost"),               Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
-	{ TEXT("FacingArrow"),                Inv, false, nullptr, Amm, TEXT("⚠️ l'unica delle nove che e' PUBBLICA (RTUnit.h:1137): per lei il BlueprintReadOnly non e' l'unica porta") },
-	{ TEXT("OverlayWidget"),              Inv, false, nullptr, Amm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("SceneRoot"),                  CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("Mesh"),                       CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("TeamRing"),                   CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("SelectionRing"),              CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("LeftArm"),                    CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("RightArm"),                   CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("ContactGhost"),               CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
+	{ TEXT("FacingArrow"),                CensInv, false, nullptr, CensAmm, TEXT("⚠️ l'unica delle nove che e' PUBBLICA (RTUnit.h:1137): per lei il BlueprintReadOnly non e' l'unica porta") },
+	{ TEXT("OverlayWidget"),              CensInv, false, nullptr, CensAmm, TEXT("maniglia a un componente: non consegna nulla che AActor non consegni gia'") },
 	};
 
 	const FRTUnitFieldRule* TrovaRiga(const FString& Nome)
@@ -292,12 +294,12 @@ namespace
 	};
 
 	const FRTUnitFunctionRule Funzioni[] = {
-	{ TEXT("PivotBudget"),        false, Amm, TEXT("BlueprintPure che compone due valori di catalogo (RTUnit.h:207-211): non legge stato di turno") },
-	{ TEXT("RechargeBaseShield"), true,  Rit, TEXT("🔴 BlueprintCallable che SCRIVE Shield (RTUnit.cpp:422), campo del digest: seconda autorita' su stato canonico, raggiungibile da un grafo") },
-	{ TEXT("PlayAttackMontage"),  false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
-	{ TEXT("PlayHitMontage"),     false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
-	{ TEXT("PlayDefeatMontage"),  false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
-	{ TEXT("PlayCastMontage"),    false, Amm, TEXT("BlueprintImplementableEvent (#3549): il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
+	{ TEXT("PivotBudget"),        false, CensAmm, TEXT("BlueprintPure che compone due valori di catalogo (RTUnit.h:207-211): non legge stato di turno") },
+	{ TEXT("RechargeBaseShield"), true,  CensRit, TEXT("🔴 BlueprintCallable che SCRIVE Shield (RTUnit.cpp:422), campo del digest: seconda autorita' su stato canonico, raggiungibile da un grafo") },
+	{ TEXT("PlayAttackMontage"),  false, CensAmm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
+	{ TEXT("PlayHitMontage"),     false, CensAmm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
+	{ TEXT("PlayDefeatMontage"),  false, CensAmm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
+	{ TEXT("PlayCastMontage"),    false, CensAmm, TEXT("BlueprintImplementableEvent (#3549): il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
 	};
 
 	const FRTUnitFunctionRule* TrovaFunzione(const FString& Nome)
