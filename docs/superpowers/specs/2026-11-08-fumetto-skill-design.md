@@ -82,7 +82,7 @@ esplicitamente la deduzione dal nome. Ogni attacco base d'eroe lo dichiara (`Mak
 L'evento porta già `BaseActionId` (`RTResolvedEvent.h:427`).
 
 **Il posto esiste.** Sopra ogni unità vive `ARTUnit::OverlayWidget`, un `UWidgetComponent` in **screen
-space** ancorato alla sommità dell'unità, `DrawSize` 220×90, pivot (0.5, 1), che nasce spento e che il velo
+space** ancorato alla sommità dell'unità, `DrawSize` 220×90 (stato misurato; oggi 220×200, vedi §4), pivot (0.5, 1), che nasce spento e che il velo
 accende (`Unit/RTUnit.cpp:176-230`; classe di default `/Game/RT/UI/Match/WBP_RT_UnitOverlay`). Il widget
 `URTUnitOverlayWidget` (`UI/RTUnitOverlayWidget.h:34`) porta `NameText`, `HealthBar`, `HealthText`,
 `ShieldBar`, `StatusBox` e `DamageTokenText` (`:159-204`): il **token di danno** è il precedente più vicino,

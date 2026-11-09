@@ -215,6 +215,48 @@ dove un test lo chiama senza costruire un widget. Il widget **posa** il risultat
 **Fuori perimetro in v0.1**: aggregazione dei colpi ravvicinati (v0.3, [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453)); il token per
 `ERTResolvedEventType::HazardDamage`, che non ha un istante di playback in cui essere giocato — è [#2505](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2505).
 
+### Il fumetto della skill sopra l'unità (`#4025`, [D-582](../../decisions/RT_PDR_00_Decision_Log.md) (3))
+
+Quando il playback mostra un'attivazione, sopra l'unità che la lancia compare per tre secondi il **nome della skill** in un fumetto da grido manga.
+Spec: [`2026-11-08-fumetto-skill-design.md`](../../superpowers/specs/2026-11-08-fumetto-skill-design.md) (decisioni A1–A8, regole R1–R11); issue
+[#4025](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4025). Solo presentazione: nessun campo entra in `MapState`, snapshot, TurnLog o `StateHash`.
+
+🔴 **Vive dentro la sovrapposizione, come il token, quindi eredita il velo per costruzione.** `SkillCalloutRoot`, `SkillCalloutText` e `SkillCalloutOutline` sono
+binding opzionali di `URTUnitOverlayWidget`: il velo che spegne l'intero componente spegne anche il fumetto. `ARTUnit::ShowSkillCallout` non rifà il giudizio —
+nessun controllo sul velo, come `ShowDamageToken` — e a monte il playback non fa arrivare a `ShowActivation` un `AbilityActivated` con
+`!SourceVerdict.AllowsTeam(ViewerTeamId)` (`ARTTurnManager::BeginPlayback` per Prep e Dash, `URTPlaybackLibrary::BuildBlastSequence` per il Blast). Un secondo
+giudizio di visibilità sarebbe una seconda fonte di verità.
+
+🔑 **Il tempo è quello del playback, non del frame: il token va a parete, il fumetto no.** Non ha un orologio suo e `NativeTick` non lo tocca. `ShowActivation` lo accende
+con `PlaybackElapsedTotal` come `StartAt`, e `ARTTurnManager::SyncSkillCalloutClocks` (da `TickPlayback`, coda della morte compresa) gli porta il valore a ogni passo.
+Opacità e scala sono funzioni pure di `Now − StartAt` (`URTHudViewModel::SkillCalloutAlpha` e `SkillCalloutScale`: pop da 1,15 a 1, dissolvenza negli ultimi istanti),
+per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
+
+- **si ferma** quando `TickPlayback` esce prima del sync: pausa del giocatore (`bPlaybackPaused`) e playback trattenuto da una finestra di reazione
+  (`bPlaybackHeldByWindow`); se la velocità del playback scende, dura di più a parete;
+- **uno step di `Next Action`** lo fa avanzare dello scarto mostrato, perché il sync segue la correzione di `PlaybackElapsedTotal`;
+- **si taglia solo alla fine vera**: `FinishPlayback` chiama `ClearSkillCallout` **dopo** il ramo `IsResolutionSuspended()`, che è la fine di un *prefisso* su una
+  finestra di reazione e non del turno. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi visibile e fermo mentre il giocatore decide;
+  passa di lì anche `SkipPlayback`. ⚠️ `ClearSkillCallout` chiude la vita e lascia il registro `ARTUnit::LastSkillCallout` (`LastSkillCalloutForTest`), leggibile senza widget.
+
+**Chi grida lo decide `URTHudViewModel::ActionShouts`**, funzione pura: `BaseActionId` vuoto **e** azione fuori dal catalogo core (`bIsCoreAction`, che `ShowActivation`
+calcola con `URTCatalogLibrary::FindCoreAction`). Gridano le skill di firma del kit; non gridano l'attacco base (`BaseActionId = Action.BasicAttack`), le generiche
+`Action.*` né le coperture, benché emettano tutte `AbilityActivated`. Servono entrambe le condizioni: `Action.Guard` non ha base ma è core, e un'azione d'eroe che è
+profilo di una generica non è core ma ha base. Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con `bFromFallback`.
+
+**Un fumetto per unità.** Una seconda attivazione lo sostituisce e riparte da zero, come `PushDamageToken`; unità diverse ne hanno vivi insieme, senza coda né
+de-sovrapposizione (A5), e la cadenza del playback non cambia. `ARTTurnManager::SkillCalloutUnits` tiene chi ne ha uno vivo.
+
+**Vista strategica.** Il fumetto è collassato (`ARTUnit::SetStrategicPresentation` lo inoltra al widget); tornando alla vista ravvicinata entro i tre secondi ricompare per il
+tempo che resta. L'informazione c'è già: la riga `Attiva:` del log a destra (`ShowActivation`), che è ciò che chiede D-582 (3).
+
+**Layout.** `ARTUnit` porta la `DrawSize` dell'overlay a **220×200** (era 220×90): fumetto, token di danno e riga di stati insieme. Il pivot resta `(0.5, 1)` e un
+`TopSpacer` in Fill nel `WBP_RT_UnitOverlay` impila il contenuto in basso: il fumetto **cresce verso l'alto** e non sposta nome e barra; una riga di stati in più spinge su
+nome e fumetto. ⚠️ I 200 sono una stima da metriche dei font, non una misura: la misura è della seduta PIE di `#4025`. Anche la **larghezza** è un vincolo: `SkillCalloutRoot`
+ha `MaxDesiredWidth` 190 perché il fumetto nasce a scala 1,15 e 190 × 1,15 = 218,5 ≤ 220; alzare quella scala oltre ~1,157 lo taglia ai lati al primo fotogramma del pop. Il
+contorno prende il colore di squadra su `SkillCalloutOutline`, posato dal C++ in `SetOverlayView`: il ponte MCP non sa creare il getter di una variabile-widget nel grafo del
+WBP, e un binding scritto lì resterebbe a mano.
+
 ## 4.2.2 Lo sguardo all'hover (`#3747`)
 
 Un riquadro sul canvas dell'HUD (`ARTHUD::DrawHUD`), ancorato alla testa dell'unità (alla sua cella animata in playback) o al centro della cella sotto il
