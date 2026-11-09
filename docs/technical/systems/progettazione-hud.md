@@ -227,8 +227,11 @@ nessun controllo sul velo, come `ShowDamageToken` — e a monte il playback non 
 `!SourceVerdict.AllowsTeam(ViewerTeamId)` (`ARTTurnManager::BeginPlayback` per Prep e Dash, `URTPlaybackLibrary::BuildBlastSequence` per il Blast). Un secondo
 giudizio di visibilità sarebbe una seconda fonte di verità.
 
-🔑 **Il tempo è quello del playback, non del frame: il token va a parete, il fumetto no.** Non ha un orologio suo e `NativeTick` non lo tocca. `ShowActivation` lo accende
-con `PlaybackElapsedTotal` come `StartAt`, e `ARTTurnManager::SyncSkillCalloutClocks` (da `TickPlayback`, coda della morte compresa) gli porta il valore a ogni passo.
+🔑 **Il tempo è quello del playback, non del frame: il token va a parete, il fumetto no.** Il widget non misura niente e `NativeTick` non lo tocca. L'orologio è
+`ARTTurnManager::SkillCalloutClock`: `ShowActivation` lo dà come `StartAt`, e `ARTTurnManager::SyncSkillCalloutClocks` (da `TickPlayback`, coda della morte compresa)
+gli porta il valore a ogni passo. ⚠️ **È un orologio del fumetto e non `PlaybackElapsedTotal`, per una ragione misurata** (review finale di `#4025`): avanza dello
+stesso passo e si corregge dello stesso scarto, ma `ConcludeResolution` azzera `PlaybackElapsedTotal` anche alla ripresa dopo una finestra di reazione, e con quel
+totale i fumetti accesi prima della finestra tornavano pieni e ingranditi. Il suo si azzera solo all'inizio del playback di un turno nuovo e alla fine vera.
 Opacità e scala sono funzioni pure di `Now − StartAt` (`URTHudViewModel::SkillCalloutAlpha` e `SkillCalloutScale`: pop da 1,15 a 1, dissolvenza negli ultimi istanti),
 per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
 
@@ -236,15 +239,21 @@ per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
   trattenuto da una finestra di reazione (`bPlaybackHeldByWindow`); se la velocità del playback scende, dura di più a parete. ⚠️ `ESC` **non** è una pausa del
   playback: apre il menu, che non sospende niente (`RTFrontendNavigator.h`), quindi il fumetto continua, come il playback (`Ruling` della spec, sotto A8,
   revocabile dall'autore);
-- **uno step di `Next Action`** lo fa avanzare dello scarto mostrato, perché il sync segue la correzione di `PlaybackElapsedTotal`;
+- **uno step di `Next Action`** lo fa avanzare dello scarto mostrato, perché il sync segue la correzione dello `Step`, che tocca i due orologi insieme;
+- **sopravvive alla finestra**: dopo la risposta, se resta playback, il fumetto riprende dal punto in cui si era fermato
+  (`RefactorTactics.Playback.SkillCallout.CalloutClockSurvivesTheReactionWindow`; a schermo `NOT RUN`, voce `PIE-HUD-FUMETTO` (i));
 - **si taglia solo alla fine vera**: `FinishPlayback` chiama `ClearSkillCallout` **dopo** il ramo `IsResolutionSuspended()`, che è la fine di un *prefisso* su una
   finestra di reazione e non del turno. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi visibile e fermo mentre il giocatore decide;
   passa di lì anche `SkipPlayback`. ⚠️ `ClearSkillCallout` chiude la vita e lascia il registro `ARTUnit::LastSkillCallout` (`LastSkillCalloutForTest`), leggibile senza widget.
 
-**Chi grida lo decide `URTHudViewModel::ActionShouts`**, funzione pura: `BaseActionId` vuoto **e** azione fuori dal catalogo core (`bIsCoreAction`, che `ShowActivation`
-calcola con `URTCatalogLibrary::FindCoreAction`). Gridano le skill di firma del kit; non gridano l'attacco base (`BaseActionId = Action.BasicAttack`), le generiche
-`Action.*` né le coperture, benché emettano tutte `AbilityActivated`. Servono entrambe le condizioni: `Action.Guard` non ha base ma è core, e un'azione d'eroe che è
-profilo di una generica non è core ma ha base. Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con `bFromFallback`.
+**Chi grida lo decide `URTHudViewModel::ActionShouts`**, funzione pura: `BaseActionId` vuoto **e** azione che non è né generica né d'equipaggiamento
+(`bIsGenericOrEquipment`, che `ShowActivation` calcola con `URTCatalogLibrary::FindCoreAction` e `URTCatalogLibrary::FindEquipment`). Gridano le skill di firma del kit;
+non gridano l'attacco base (`BaseActionId = Action.BasicAttack`), le generiche `Action.*`, le coperture né le azioni dei gadget e dei moduli di reazione del
+loadout, benché emettano tutte `AbilityActivated`. Servono entrambe le condizioni: `Action.Guard` non ha base ma è core, e un'azione d'eroe che è profilo di una
+generica non è core ma ha base. ⚠️ **L'equipaggiamento sta nel bool perché la base non lo esclude**: `MakeEquipmentAction` scrive `ActionId = EquipmentId` e copia
+dal core un `BaseActionId` vuoto, quindi senza la seconda domanda il loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth
+(review finale di `#4025`; A7 vuole solo le skill del kit). Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con
+`bFromFallback`, e `ARTUnit::ShowSkillCallout` scrive un `Warning` che nomina l'id (R3).
 
 **Un fumetto per unità.** Una seconda attivazione lo sostituisce e riparte da zero, come `PushDamageToken`; unità diverse ne hanno vivi insieme, senza coda né
 de-sovrapposizione (A5), e la cadenza del playback non cambia. `ARTTurnManager::SkillCalloutUnits` tiene chi ne ha uno vivo.
