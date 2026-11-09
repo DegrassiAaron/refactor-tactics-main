@@ -80,7 +80,7 @@
     { "type": "TurnsCompleted", "value": 5 },
 
     { "type": "UnitAtCell", "unit": "W_ELE", "cell": [0, 0, 0] },
-    { "type": "UnitHpEquals", "unit": "W_ELE", "value": 63 },
+    { "type": "UnitHpEquals", "unit": "W_ELE", "value": 630 },
 
     { "type": "UnitAtCell", "unit": "G_ICE", "cell": [-2, 1, 0] },
 
@@ -88,15 +88,15 @@
 
     { "type": "UnitAtCell", "unit": "R_ROU", "cell": [-3, -1, 0] },
     { "type": "UnitAtCell", "unit": "G_ROU", "cell": [-1, -1, 0] },
-    { "type": "UnitHpEquals", "unit": "G_ROU", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "G_ROU", "value": 900 },
 
     { "_assertion": "🔴 **IL TIRO E' STATO TENTATO E ANNULLATO**, e `UnitHpEquals R_SMO 120` qui sotto non lo distingue da un tiro mai partito — `#2492`. L'evento sì: `Fallback/Cancelled` con `ActionId = Hero.Aevik.ArcPulse`. ⚠️ **Questa riga discrimina META' di cio' che serve, e la differenza va detta invece che lasciata credere.** Dice *«il tiro e' partito e non e' arrivato»*; NON dice *«la causa e' il fumo»*, perche' il log esce come `azione annullata (fuori portata)` — l'effetto, non la causa. E' lo stesso difetto che la carica aveva prima di `#2684`, su un altro fenomeno, ed e' il residuo che `#2492` tiene aperto. Il giorno in cui il log nominera' il fumo, questa riga va stretta sulla causa. ⛔ Valore derivato dal contratto: un tiro dichiarato al T3, annullato.", "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Hero.Aevik.ArcPulse", "value": 1 },
 
-    { "type": "UnitHpEquals", "unit": "R_SMO", "value": 120 },
+    { "type": "UnitHpEquals", "unit": "R_SMO", "value": 1200 },
     { "type": "UnitAtCell", "unit": "G_SMO", "cell": [1, 4, 0] },
 
     { "type": "UnitAtCell", "unit": "W_FIRE", "cell": [0, -1, 0] },
-    { "type": "UnitHpEquals", "unit": "W_FIRE", "value": 61 },
+    { "type": "UnitHpEquals", "unit": "W_FIRE", "value": 610 },
     { "type": "UnitAlive", "unit": "W_FIRE", "value": true }
   ]
 }

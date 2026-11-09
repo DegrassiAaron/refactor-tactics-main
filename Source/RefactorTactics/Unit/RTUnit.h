@@ -116,7 +116,7 @@ public:
 	// regola competitiva (`CLAUDE.md` §5 e §7), e non lascerebbe traccia nel TurnLog. Trovato da una code
 	// review.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	int32 GuardReduction = 15;
+	int32 GuardReduction = 150;
 
 	/**
 	 * DEF, RES di default, RES per elemento e bonus alle spalle: copiati per valore da `URTHeroData` in
@@ -187,10 +187,10 @@ public:
 	FRTCellId PlannedCell;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 MaxHealth = 100;
+	int32 MaxHealth = 1000;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 Health = 100;
+	int32 Health = 1000;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 Shield = 0;

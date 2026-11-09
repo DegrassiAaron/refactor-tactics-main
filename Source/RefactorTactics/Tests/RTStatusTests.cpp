@@ -209,7 +209,7 @@ bool FRTStatusBurningDamagesInCleanupTest::RunTest(const FString&)
 	RunStatusTurn(TM);
 
 	TestTrue(TEXT("il fuoco ha acceso Burning"), Mover->HasStatus(TAG_Status_Burning));
-	TestEqual(TEXT("10 all'ingresso + 8 nel Cleanup"), Mover->Health, StartHealth - 18);
+	TestEqual(TEXT("100 all'ingresso + 80 nel Cleanup"), Mover->Health, StartHealth - 180);
 
 	DestroyStatusWorld(World);
 	return true;
@@ -249,7 +249,7 @@ bool FRTStatusBurningExpiresAfterTwoTurnsTest::RunTest(const FString&)
 	StandStill(Foe);
 	RunStatusTurn(TM); // turno 3: lo stato e' scaduto, nessun danno
 
-	TestEqual(TEXT("il secondo turno brucia ancora"), AfterSecond, AfterFirst - 8);
+	TestEqual(TEXT("il secondo turno brucia ancora"), AfterSecond, AfterFirst - URTCombatLibrary::BurningCleanupDamage);
 	TestFalse(TEXT("dopo due turni Burning e' scaduto"), Mover->HasStatus(TAG_Status_Burning));
 	TestEqual(TEXT("il terzo turno non brucia piu'"), Mover->Health, AfterSecond);
 
@@ -383,8 +383,8 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 		DestroyStatusWorld(World);
 		return false;
 	}
-	TestEqual(TEXT("24 dichiarati + 8 perche' il bersaglio e' bagnato"),
-		WetDamage, 24 + URTCombatLibrary::AevikWetDischargeBonus);
+	TestEqual(TEXT("240 dichiarati + 80 perche' il bersaglio e' bagnato"),
+		WetDamage, 240 + URTCombatLibrary::AevikWetDischargeBonus);
 
 	// Controprova nello stesso mondo: stesso attaccante, stessa azione, bersaglio ASCIUTTO -> nessun bonus.
 	//
@@ -399,7 +399,7 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	StandStill(DryTarget);
 	RunStatusTurn(TM);
 
-	TestEqual(TEXT("bersaglio asciutto: i 24 dichiarati e basta"), DryStart - DryTarget->Health, 24);
+	TestEqual(TEXT("bersaglio asciutto: i 240 dichiarati e basta"), DryStart - DryTarget->Health, 240);
 
 	DestroyStatusWorld(World);
 	return true;

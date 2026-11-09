@@ -50,15 +50,15 @@
     { "type": "UnitAlive", "unit": "F1", "value": true },
     {
       "_assertion": "L'acqua bagna e non ferisce: Aevik finisce con tutti i suoi punti ferita.",
-      "type": "UnitHpEquals", "unit": "F1", "value": 90
+      "type": "UnitHpEquals", "unit": "F1", "value": 900
     },
     {
       "_assertion": "90 - 10 (fuoco all'ingresso) - 8 - 8 (due Cleanup con `Burning`) = 64 a fine partita. Da solo non misura la durata (vedi `_nota_durata`).",
-      "type": "UnitHpEquals", "unit": "V1", "value": 64
+      "type": "UnitHpEquals", "unit": "V1", "value": 640
     },
     {
       "_assertion": "E 72 alla fine del PRIMO Cleanup: un colpo di `Burning` per Cleanup, non due nello stesso. Il confine e' esplicito (il Cleanup), il turno no: scatta alla prima chiusura, cioe' a fine T1, e non a fine scenario.",
-      "type": "UnitHpEquals", "unit": "V1", "value": 72, "at": "CleanupEnded"
+      "type": "UnitHpEquals", "unit": "V1", "value": 720, "at": "CleanupEnded"
     },
     {
       "_assertion": "I colpi di `Burning` sono voci `Combat/Hit` con la causa in `ActionId` (D-162): due, uno per Cleanup. E' la stessa forma che il Relay asserisce al suo T3.",
@@ -83,7 +83,7 @@
     },
     {
       "_assertion": "QUANDO scade: nel momento in cui entra la voce di scadenza, Ivrin ha gia' preso i suoi due colpi (64). Una scadenza scritta con lo stato ancora vivo, a fine T1, lo troverebbe a 72.",
-      "type": "UnitHpEquals", "unit": "V1", "value": 64,
+      "type": "UnitHpEquals", "unit": "V1", "value": 640,
       "afterEvent": { "category": "Status", "outcome": "Expired", "actionId": "Status.Burning", "unit": "V1" }
     },
 

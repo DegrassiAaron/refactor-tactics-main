@@ -2217,7 +2217,7 @@ bool FRTPushThroughFireTest::RunTest(const FString&)
 	// Cleanup (`URTCombatLibrary::BurningCleanupDamage`) — anche in quello del turno stesso, che gira dopo il
 	// Blast. Il conto atteso e' quindi la somma dei due, scritta come somma e non come `18`: un numero unico
 	// non direbbe quale dei due manca il giorno che il test diventa rosso.
-	const int32 ExpectedFireCost = 10 + URTCombatLibrary::BurningCleanupDamage;
+	const int32 ExpectedFireCost = 100 + URTCombatLibrary::BurningCleanupDamage;
 	TestEqual(TEXT("attraversare il fuoco costa l'ingresso piu' il Burning del Cleanup, e non li paga chi non lo attraversa"),
 		HealthOverClearGround - HealthThroughFire, ExpectedFireCost);
 	TestFalse(TEXT("su terreno libero nessuno brucia"), bClearBurning);

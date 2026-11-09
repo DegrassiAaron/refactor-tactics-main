@@ -27,7 +27,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "B1", "value": 120 },
+    { "type": "UnitHpEquals",  "unit": "B1", "value": 1200 },
     { "type": "UnitAtCell",    "unit": "F1", "cell": [1, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]

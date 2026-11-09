@@ -8,8 +8,8 @@ import { powerRating } from './power.ts';
 import { precisionRating } from './precision.ts';
 
 /** Ancore assolute (D-112). Derivate da grandezze del gioco, non scelte perche' i conti tornassero:
- *  la salute non supera i 150, il movimento composto non supera gli 80. */
-const DURABILITY_ANCHOR = 150;
+ *  la salute non supera i 1500, il movimento composto non supera gli 80. */
+const DURABILITY_ANCHOR = 1500;
 const MOBILITY_ANCHOR = 80;
 const CONTROL_ANCHOR = 30;
 const SUPPORT_ANCHOR = 25;

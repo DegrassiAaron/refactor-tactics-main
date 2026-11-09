@@ -100,9 +100,9 @@ bool FRTDamageEnvironmentalSkipsBaseTest::RunTest(const FString&)
 	// 5 di sola base, 8 di Burning: la base NON assorbe, tutti e 8 arrivano agli HP.
 	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
 		URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
-		/*Shield*/ URTCombatLibrary::BaseShield, /*TemporaryShield*/ 0, /*Health*/ 100);
+		/*Shield*/ URTCombatLibrary::BaseShield, /*TemporaryShield*/ 0, /*Health*/ 1000);
 	TestEqual(TEXT("la base resta intera"), R.Shield, URTCombatLibrary::BaseShield);
-	TestEqual(TEXT("HP 92"), R.Health, 92);
+	TestEqual(TEXT("HP 920"), R.Health, 920);
 	return true;
 }
 
@@ -116,10 +116,10 @@ bool FRTDamageEnvironmentalErodesTemporaryTest::RunTest(const FString&)
 	// `Burning` ignora ogni scudo, il rosso dice quale decisione si sta superando.
 	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
 		URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
-		/*Shield*/ 30, /*TemporaryShield*/ 25, /*Health*/ 100);
-	TestEqual(TEXT("temporaneo 17"), R.TemporaryShield, 17);
-	TestEqual(TEXT("la base resta intera"), R.Shield - R.TemporaryShield, 5);
-	TestEqual(TEXT("HP intatti"), R.Health, 100);
+		/*Shield*/ 300, /*TemporaryShield*/ 250, /*Health*/ 1000);
+	TestEqual(TEXT("temporaneo 170"), R.TemporaryShield, 170);
+	TestEqual(TEXT("la base resta intera"), R.Shield - R.TemporaryShield, 50);
+	TestEqual(TEXT("HP intatti"), R.Health, 1000);
 	return true;
 }
 

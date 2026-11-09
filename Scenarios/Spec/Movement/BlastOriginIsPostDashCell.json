@@ -43,7 +43,7 @@
 
   "expect": [
     { "_assertion": "🔴 L'ORACOLO. T1 perde 3 HP, quindi il colpo E' partito: la linea di tiro esisteva solo dalla cella dello scatto. Se il Blast avesse letto la posizione pre-Dash, la barriera avrebbe fermato il colpo e questo valore sarebbe 90 - che e' esattamente cio' che `Combat.BlockedByWall` misura sulla stessa arena senza scatto.",
-      "type": "UnitHpEquals", "unit": "T1", "value": 87 },
+      "type": "UnitHpEquals", "unit": "T1", "value": 870 },
 
     { "_assertion": "Lo scatto e' avvenuto, e si e' fermato dove dichiarato. Senza questa riga un T1 a 87 non distinguerebbe «il colpo parte dalla cella post-Dash» da «la barriera non ha mai bloccato niente».",
       "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },

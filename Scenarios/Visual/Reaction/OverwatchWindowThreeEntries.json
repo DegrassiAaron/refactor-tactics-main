@@ -21,8 +21,8 @@
   "units": [
     { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
     { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
-    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 0,  0, 0], "health": 40, "shield": 0 },
-    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-1,  0, 0], "health": 55, "shield": 0 },
+    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 0,  0, 0], "health": 400, "shield": 0 },
+    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-1,  0, 0], "health": 550, "shield": 0 },
     { "id": "B3", "hero": "Hero.Muiren", "team": 1, "cell": [-2,  0, 0], "shield": 0 }
   ],
 

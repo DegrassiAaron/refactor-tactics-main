@@ -20,7 +20,7 @@
   "units": [
     { "id": "BOT",  "hero": "Hero.Ivrin",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 1 },
     { "id": "SEEN", "hero": "Hero.Branth", "team": 0, "cell": [1, 0, 0] },
-    { "id": "BAIT", "hero": "Hero.Muiren",    "team": 0, "cell": [3, 0, 0], "health": 1, "shield": 0 }
+    { "id": "BAIT", "hero": "Hero.Muiren",    "team": 0, "cell": [3, 0, 0], "health": 10, "shield": 0 }
   ],
 
   "turns": [
@@ -31,7 +31,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "BAIT", "value": 1 },
+    { "type": "UnitHpEquals", "unit": "BAIT", "value": 10 },
     { "type": "UnitAlive", "unit": "BAIT", "value": true },
     { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
     { "type": "TurnsCompleted", "value": 1 }

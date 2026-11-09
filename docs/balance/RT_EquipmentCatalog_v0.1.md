@@ -22,12 +22,12 @@ Ogni eroe seleziona: **1 variante arma** + **1 gadget** + **1 modulo di reazione
 
 | WeaponId | Variante | Vantaggio | Svantaggio |
 |---|---|---|---|
-| `Weapon.Precision` | Precisione | +1 range | −4 danni |
+| `Weapon.Precision` | Precisione | +1 range | −40 danni |
 | `Weapon.Impact` | Impatto | applica `Push 1` | −1 range |
-| `Weapon.Overcharge` | Sovraccarico | **+18/+14/+8** per fascia *(D-090)* | **ricarica +2**: l'attacco base salta un turno |
-| `Weapon.Split` | Multiplo | bersaglio aggiuntivo | −6 danni |
-| `Weapon.Suppressive` | Soppressione | applica `Slow` | −5 danni |
-| `Weapon.Environmental` | Ambientale | ~~migliora gli hazard~~ — **non selezionabile in v0.1** *(D-100)* | −5 danni diretti |
+| `Weapon.Overcharge` | Sovraccarico | **+180/+140/+80** per fascia *(D-090)* | **ricarica +2**: l'attacco base salta un turno |
+| `Weapon.Split` | Multiplo | bersaglio aggiuntivo | −60 danni |
+| `Weapon.Suppressive` | Soppressione | applica `Slow` | −50 danni |
+| `Weapon.Environmental` | Ambientale | ~~migliora gli hazard~~ — **non selezionabile in v0.1** *(D-100)* | −50 danni diretti |
 
 > 🎚️ **Le fasce esistono nel codice dal 2026-08-25, i valori no** ([#509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/509)).
 > `ERTAttackDamageBand { Low, Medium, High }` e `URTEquipmentData::DamageDeltaByBand` sono in `Source/`, e
@@ -81,7 +81,7 @@ Tutti i gadget hanno **cooldown 3**.
 
 | GadgetId | Gadget | Effetto |
 |---|---|---|
-| `Gadget.Medkit` | Medkit | cura 18 |
+| `Gadget.Medkit` | Medkit | cura 180 |
 | `Gadget.BreachCharge` | Carica da breccia | 35 danni a una struttura |
 | `Gadget.Sprinkler` | Sprinkler | acqua raggio 1 |
 | `Gadget.Insulator` | Isolante | immunità a **una** propagazione elettrica |
@@ -120,8 +120,8 @@ Tutti i gadget hanno **cooldown 3**.
 | ReactionId | Reazione | Trigger | Effetto |
 |---|---|---|---|
 | `Reaction.EmergencyDash` | Dash d'emergenza | sei bersagliato | `Reposition 1` |
-| `Reaction.ReactiveShield` | Scudo reattivo | subisci danno | scudo 15 |
-| `Reaction.CounterShot` | Contrattacco | sei colpito | 14 danni |
+| `Reaction.ReactiveShield` | Scudo reattivo | subisci danno | scudo 150 |
+| `Reaction.CounterShot` | Contrattacco | sei colpito | 140 danni |
 | `Reaction.AllyIntercept` | Interposizione | un alleato è bersagliato | cambia bersaglio |
 | `Reaction.HazardEscape` | Fuga hazard | la cella diventa pericolosa | `Reposition 1` |
 | `Reaction.Cleanse` | Pulizia automatica | ricevi un controllo | rimuove lo stato |

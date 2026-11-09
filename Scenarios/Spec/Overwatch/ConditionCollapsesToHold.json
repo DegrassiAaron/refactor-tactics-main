@@ -57,7 +57,7 @@
 
     { "_assertion": "L'EFFETTO, misurato e non dedotto dal log: se l'Overwatch avesse sparato il movimento sarebbe stato TRONCATO nella cella raggiunta — e' la semantica che `HoldThenFire` dimostra sul FIRE. G1 arriva dove aveva chiesto di arrivare.",
       "type": "UnitAtCell", "unit": "G1", "cell": [-1, -1, 0] },
-    { "type": "UnitHpEquals", "unit": "G1", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "G1", "value": 900 },
 
     { "_assertion": "V1 non si e' mosso: il watcher spara da fermo, e una posizione diversa significherebbe che la fixture non e' quella descritta.",
       "type": "UnitAtCell", "unit": "V1", "cell": [2, -1, 0] },

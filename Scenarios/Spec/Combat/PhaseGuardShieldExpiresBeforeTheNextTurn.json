@@ -44,8 +44,8 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "PROTETTA", "value": 74 },
-    { "type": "UnitHpEquals", "unit": "NUDA",     "value": 58 },
+    { "type": "UnitHpEquals", "unit": "PROTETTA", "value": 740 },
+    { "type": "UnitHpEquals", "unit": "NUDA",     "value": 580 },
     { "type": "UnitAlive",    "unit": "PROTETTA", "value": true },
     { "type": "UnitAlive",    "unit": "NUDA",     "value": true }
   ]

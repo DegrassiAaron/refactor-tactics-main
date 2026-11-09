@@ -11,7 +11,7 @@ test('legge le quattro statistiche di Aevik dal catalogo', () => {
   const flux = heroes.find((h) => h.name === 'Aevik');
 
   assert.ok(flux, 'Aevik deve esistere nel catalogo');
-  assert.equal(flux.health, 90);
+  assert.equal(flux.health, 900);
   assert.equal(flux.movePoints, 5);
   assert.equal(flux.visionRange, 7);
   assert.equal(flux.pushResistance, 0);
@@ -23,7 +23,7 @@ test('legge le abilita di Aevik con danno e cooldown', () => {
   assert.equal(flux.abilities.length, 5);
 
   const arcPulse = flux.abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!;
-  assert.equal(arcPulse.damage, 22);
+  assert.equal(arcPulse.damage, 220);
   assert.equal(arcPulse.cooldown, 0);
   assert.equal(arcPulse.kind, 'attacco base');
 });
@@ -54,7 +54,7 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
 });
 
 test('una statistica rinominata fa fallire il parser nominando il campo', () => {
-  const rotto = readFileSync(HERO_CATALOG, 'utf8').replace('| Salute | 120 |', '| HP | 120 |');
+  const rotto = readFileSync(HERO_CATALOG, 'utf8').replace('| Salute | 1200 |', '| HP | 1200 |');
   const tmp = new URL('./catalogo-rotto.tmp.md', import.meta.url);
   writeFileSync(tmp, rotto);
 
@@ -70,7 +70,7 @@ test('risolve il rinvio `e Action.X` sul catalogo azioni (D-115)', () => {
   const node = flux.abilities.find((a) => a.id === 'Hero.Aevik.ConductiveNode')!;
 
   // Il catalogo eroi non porta il numero: viene da `Action.Electrify` (20 danni).
-  assert.equal(node.damage, 20);
+  assert.equal(node.damage, 200);
   assert.equal(node.delegatesTo, 'Action.Electrify');
 });
 
@@ -84,7 +84,7 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
   // Branth diventi invisibile al parser.
   // Il catalogo e' salvato con CRLF: la sostituzione non puo' assumere `\n`.
   const senzaBranth = readFileSync(HERO_CATALOG, 'utf8').replace(
-    /\| Statistica \| Valore \|(\r?\n\|---\|---:\|\r?\n\| Salute \| 120 \|)/,
+    /\| Statistica \| Valore \|(\r?\n\|---\|---:\|\r?\n\| Salute \| 1200 \|)/,
     '| Attributo | Valore |$1',
   );
   const tmp = new URL('./catalogo-corto.tmp.md', import.meta.url);
@@ -127,8 +127,8 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
   // il filtro le scarta comunque — questo caso le mette dove il filtro NON protegge, cioe' dentro
   // la tabella delle abilita'. Senza la precisione del pattern, `damage` diventerebbe 20.
   const sintetico = readFileSync(HERO_CATALOG, 'utf8').replace(
-    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |',
-    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 22 danni, riusa `Action.Electrify` | 0 |',
+    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 220 danni, range 4 | 0 |',
+    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 220 danni, riusa `Action.Electrify` | 0 |',
   );
   const tmp = new URL('./catalogo-riuso.tmp.md', import.meta.url);
   writeFileSync(tmp, sintetico);
@@ -139,7 +139,7 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
       .abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!;
 
     assert.equal(arcPulse.delegatesTo, null, 'citare non e delegare');
-    assert.equal(arcPulse.damage, 22, 'il danno resta quello inline, non quello dell azione core');
+    assert.equal(arcPulse.damage, 220, 'il danno resta quello inline, non quello dell azione core');
   } finally {
     rmSync(tmp);
   }
@@ -158,7 +158,7 @@ test('la tabella reazioni si unisce all abilita, senza duplicarla', () => {
   assert.deepEqual(capacitors[0].reaction, {
     coreSemantics: 'Action.Counter',
     status: 'ready',
-    note: 'scudo 15 **e** 10 danni all\'attaccante',
+    note: 'scudo 150 **e** 100 danni all\'attaccante',
   });
 });
 
@@ -186,7 +186,7 @@ test('una azione predittiva NON e una reazione, e la condizionalita viene dal Ti
   // della tabella reazioni: chi avesse riscritto quella cella avrebbe azzerato la condizionalita' del
   // payoff — 16 danni al posto di 0 nel `power` di Ivrin — senza toccare un numero.
   assert.equal(intercept.kind, 'predittiva');
-  assert.equal(intercept.damage, 16);
+  assert.equal(intercept.damage, 160);
 });
 
 test('un abilita che non e una reazione ha reaction null', () => {
@@ -199,8 +199,8 @@ test('il bonus condizionale esce come numero, separato dal danno garantito', () 
 
   // `24 danni, **+8 su bersaglio Wet**` -> garantito 24, condizionale 8.
   const linear = flux.abilities.find((a) => a.id === 'Hero.Aevik.LinearDischarge')!;
-  assert.equal(linear.damage, 24);
-  assert.equal(linear.conditionalBonus, 8);
+  assert.equal(linear.damage, 240);
+  assert.equal(linear.conditionalBonus, 80);
 
   // Chi non ha bonus condizionali lo dichiara con null, non con zero.
   assert.equal(flux.abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!.conditionalBonus, null);

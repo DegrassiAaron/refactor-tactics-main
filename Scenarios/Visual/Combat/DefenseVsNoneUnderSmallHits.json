@@ -65,9 +65,9 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "DG", "value": 120 },
-    { "type": "UnitHpEquals", "unit": "DB", "value": 120 },
-    { "type": "UnitHpEquals", "unit": "DN", "value": 101 },
+    { "type": "UnitHpEquals", "unit": "DG", "value": 1200 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 1200 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 1010 },
     { "type": "UnitAtCell", "unit": "DG", "cell": [0, 2, 0] },
     { "type": "UnitAtCell", "unit": "DB", "cell": [0, 0, 0] },
     { "type": "UnitAtCell", "unit": "DN", "cell": [0, -2, 0] },

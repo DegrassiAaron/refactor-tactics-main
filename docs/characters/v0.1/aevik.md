@@ -30,7 +30,7 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 | Dipendenze tecniche | Wet, electric propagation, device interactions |
 | Player question | Come preparo la conduzione migliore? |
 
-> **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, **vista 7**; bonus +8 di LinearDischarge contro Wet.
+> **Nota bilanciamento:** Canonico v0.1. 900 HP, 5 MP, **vista 7**; bonus +80 di LinearDischarge contro Wet.
 > La vista è salita da 6 a 7 il 2026-08-10 ([D-073](../../decisions/RT_PDR_00_Decision_Log.md), `#131`): è ciò
 > che toglie a Wraith la dominanza statistica su Aevik, e rende Aevik **l'unico del roster a vedere oltre il
 > raggio 6**.
@@ -81,7 +81,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Campo | Valore |
 | --- | --- |
-| HP | 90 |
+| HP | 900 |
 | Armatura | — |
 | Resistenza | — |
 | Movimento base | 5 |
@@ -95,7 +95,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Budget Punti | — |
 | Delta Budget | — |
 
-**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 90, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
+**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 900, Move 5. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
 
 ## Visione e stealth
 
@@ -182,7 +182,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Domanda | Risposta |
 | --- | --- |
-| Quando è la scelta corretta? | Quando `LinearDischarge` e `Overload` sono in ricarica e serve pressione affidabile a medio raggio. A 22 danni non è affatto debole: dopo il nerf di Riktor è il **più alto** dei quattro attacchi base |
+| Quando è la scelta corretta? | Quando `LinearDischarge` e `Overload` sono in ricarica e serve pressione affidabile a medio raggio. A 220 danni non è affatto debole: dopo il nerf di Riktor è il **più alto** dei quattro attacchi base |
 | Quando è inferiore a un'abilità firma? | Quando il bersaglio è **bagnato**: lì `LinearDischarge` vale 24 + 8 = 32 contro 22, e sprecare la finestra di `Wet` su un attacco base è l'errore tipico della coppia con Phase |
 | Che cosa risparmia? | Il cooldown di `LinearDischarge` per il turno in cui l'acqua ci sarà davvero |
 | Che counterplay esiste? | Quello ordinario — coperture, angoli, distanza. Non ha un counterplay proprio, perché non ha ancora un payload proprio |
@@ -202,7 +202,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 #### Descrizione
 
-Arc Pulse è l'attacco base affidabile di Aevik. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
+Arc Pulse è l'attacco base affidabile di Aevik. Infligge 220 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
 
 | Campo | Valore |
 | --- | --- |
@@ -326,7 +326,7 @@ Overload è l'AoE di Aevik: 18 danni, range 3, raggio 1 e cooldown 3. La specifi
 
 #### Descrizione
 
-Reactive Capacitor è la reazione difensiva/offensiva di Aevik. Quando subisce un attacco diretto, applica scudo 15 a Aevik e 10 danni all'attaccante, con cooldown 3.
+Reactive Capacitor è la reazione difensiva/offensiva di Aevik. Quando subisce un attacco diretto, applica scudo 150 a Aevik e 100 danni all'attaccante, con cooldown 3.
 
 | Campo | Valore |
 | --- | --- |
@@ -341,7 +341,7 @@ Reactive Capacitor è la reazione difensiva/offensiva di Aevik. Quando subisce u
 | Control Strength | 0 |
 | Durata (turni) | 0 |
 | Loss/Contact Policy | Reaction.Trigger.DirectHit |
-| Interazione terreno | Scudo 15 a sé + 10 danni all'attaccante |
+| Interazione terreno | Scudo 150 a sé + 100 danni all'attaccante |
 | Gameplay Tags | `Ability.Reaction.Counter` |
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
@@ -356,11 +356,11 @@ Nella v0.1 attuale è una reazione deterministica che riusa `Action.Counter`; no
 
 ### Descrizione delle reazioni
 
-- **`Hero.Aevik.ReactiveCapacitor`** — Si attiva quando Aevik subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
+- **`Hero.Aevik.ReactiveCapacitor`** — Si attiva quando Aevik subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 150 e 100 danni all'attaccante. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Hero.Aevik.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
+| `Hero.Aevik.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 150 + 100 danni all'attaccante | IMPLEMENTED |
 
 > `Hero.Aevik.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
 
@@ -374,8 +374,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 | Weapon.Impact | Weapon | Impatto | — | Applica Push 1 | −1 range | Attacco base | Scelta orizzontale | CANONICAL |
 | Weapon.Overcharge | Weapon | Sovraccarico | — | +6 danni | Cooldown +1 | Attacco base | Scelta orizzontale | CANONICAL |
 | Weapon.Split | Weapon | Multiplo | — | Bersaglio aggiuntivo | −6 danni | Attacco base | Scelta orizzontale | CANONICAL |
-| Weapon.Suppressive | Weapon | Soppressione | — | Applica Slow | −5 danni | Attacco base | Scelta orizzontale | CANONICAL |
-| Weapon.Environmental | Weapon | Ambientale | — | Migliora hazard | −5 danni diretti | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Suppressive | Weapon | Soppressione | — | Applica Slow | −50 danni | Attacco base | Scelta orizzontale | CANONICAL |
+| Weapon.Environmental | Weapon | Ambientale | — | Migliora hazard | −50 danni diretti | Attacco base | Scelta orizzontale | CANONICAL |
 | Gadget.Medkit | Aevik | Medkit | — | Cura 18 | — | Support | Cooldown 3 | CANONICAL |
 | Gadget.BreachCharge | Aevik | Carica da breccia | — | 35 danni a struttura | — | Map | Cooldown 3 | CANONICAL |
 | Gadget.Sprinkler | Aevik | Sprinkler | — | Acqua raggio 1 | — | Water combo | Cooldown 3 | CANONICAL |

@@ -150,15 +150,15 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(0, 1, 0), URTHeroCatalogLibrary::MakeBranth());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !A2 || !Lontana || !Nemico || !Morta || !TM) { return false; }
-		Curatrice->Health -= 10; A1->Health -= 40; A2->Health -= 40; Lontana->Health -= 40; Nemico->Health -= 40;
+		Curatrice->Health -= 100; A1->Health -= 400; A2->Health -= 400; Lontana->Health -= 400; Nemico->Health -= 400;
 		Morta->Health = 0;
 		const int32 PrimaC = Curatrice->Health, PrimaA1 = A1->Health, PrimaA2 = A2->Health, PrimaL = Lontana->Health, PrimaN = Nemico->Health;
 		const int32 Idx = PianificaTideSuCella(Curatrice, FRTCellId(1, 0, 0));
 		if (!TestTrue(TEXT("premessa: Muiren ha CircularTide"), Idx != INDEX_NONE)) { return false; }
 		RunHealTurn(TM);
-		TestEqual(TEXT("compagna A1 curata di 18"), A1->Health - PrimaA1, 18);
-		TestEqual(TEXT("compagna A2 curata di 18"), A2->Health - PrimaA2, 18);
-		TestEqual(TEXT("chi cura e' nel raggio: +10, tetto a MaxHealth"), Curatrice->Health - PrimaC, 10);
+		TestEqual(TEXT("compagna A1 curata di 180"), A1->Health - PrimaA1, 180);
+		TestEqual(TEXT("compagna A2 curata di 180"), A2->Health - PrimaA2, 180);
+		TestEqual(TEXT("chi cura e' nel raggio: +100, tetto a MaxHealth"), Curatrice->Health - PrimaC, 100);
 		TestEqual(TEXT("fuori raggio: invariata"), Lontana->Health, PrimaL);
 		TestEqual(TEXT("il nemico nel raggio non guarisce"), Nemico->Health, PrimaN);
 		TestEqual(TEXT("tre voci Healed"), ConteggioVoci(TM, ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Healed)), 3);
@@ -209,11 +209,11 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !Nemico || !TM) { return false; }
-		A1->Health -= 40;
+		A1->Health -= 400;
 		const int32 Prima = A1->Health;
 		PianificaTideSuUnita(Curatrice, A1);
 		RunHealTurn(TM);
-		TestEqual(TEXT("A1 curata di 18"), A1->Health - Prima, 18);
+		TestEqual(TEXT("A1 curata di 180"), A1->Health - Prima, 180);
 		const FRTResolvedEvent* Beat = AttivazioneDi(TM, Curatrice);
 		if (TestNotNull(TEXT("l'attivazione e' emessa"), Beat))
 		{
@@ -241,7 +241,7 @@ bool FRTTideHealsVariantAmountTest::RunTest(const FString&)
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(3, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !Nemico || !TM) { return false; }
-		A1->Health -= 40;
+		A1->Health -= 400;
 		const int32 Prima = A1->Health;
 		const FRTCellId CellaNemico = Nemico->Cell;
 		Curatrice->ActiveVariantId = FName(Variante);
@@ -251,9 +251,9 @@ bool FRTTideHealsVariantAmountTest::RunTest(const FString&)
 		TestTrue(TEXT("il nemico nel raggio non si sposta (R3: la spinta di Impact non passa dalle cure)"), Nemico->Cell == CellaNemico);
 		return true;
 	};
-	if (!Corsa(TEXT("Hero.Muiren.CircularTide.Healing"), 24)) { return false; }
-	if (!Corsa(TEXT("Hero.Muiren.CircularTide.Impact"), 10)) { return false; }
-	if (!Corsa(TEXT(""), 18)) { return false; }
+	if (!Corsa(TEXT("Hero.Muiren.CircularTide.Healing"), 240)) { return false; }
+	if (!Corsa(TEXT("Hero.Muiren.CircularTide.Impact"), 100)) { return false; }
+	if (!Corsa(TEXT(""), 180)) { return false; }
 	return true;
 }
 
@@ -393,8 +393,8 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeBranth());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Curatrice || !Puntato || !Vicino || !TM) { return false; }
-	Puntato->Health -= 40;
-	Vicino->Health -= 40;
+	Puntato->Health -= 400;
+	Vicino->Health -= 400;
 	const int32 PrimaP = Puntato->Health, PrimaV = Vicino->Health;
 
 	const int32 Idx = PianificaTideSuUnita(Curatrice, Puntato);
@@ -405,7 +405,7 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	RunHealTurn(TM);
 
 	if (!TestEqual(TEXT("premessa: l'alleato puntato e' davvero scattato via"), Puntato->Cell, Scattata)) { return false; }
-	TestEqual(TEXT("🔴 chi sta accanto alla cella puntata e' curato: l'area e' rimasta li'"), Vicino->Health - PrimaV, 18);
+	TestEqual(TEXT("🔴 chi sta accanto alla cella puntata e' curato: l'area e' rimasta li'"), Vicino->Health - PrimaV, 180);
 	TestEqual(TEXT("🔴 l'alleato scattato via e' uscito dall'area: niente cura"), Puntato->Health, PrimaP);
 	return true;
 }

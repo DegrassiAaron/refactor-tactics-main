@@ -113,7 +113,7 @@ namespace
 		return nullptr;
 	}
 
-	constexpr int32 PredInterceptDamage = 16; // dal catalogo eroi, non un numero di questo file
+	constexpr int32 PredInterceptDamage = 160; // dal catalogo eroi, non un numero di questo file
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveInterceptHitTest,

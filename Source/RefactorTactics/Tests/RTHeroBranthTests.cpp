@@ -36,7 +36,7 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Branth costruito"), Branth)) { return false; }
 
 	TestEqual(TEXT("HeroId"), Branth->HeroId, FName(TEXT("Hero.Branth")));
-	TestEqual(TEXT("salute"), Branth->MaxHealth, 120);
+	TestEqual(TEXT("salute"), Branth->MaxHealth, 1200);
 	TestEqual(TEXT("movimento"), Branth->MovePoints, 4);
 	TestEqual(TEXT("vista"), Branth->VisionRange, 5);
 	TestEqual(TEXT("affinita'"), Branth->Affinity, FName(TEXT("Affinity.Structures")));
@@ -47,7 +47,7 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("sei azioni"), Branth->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* ImpactShot = Branth->Actions[0];
-	TestEqual(TEXT("ImpactShot: 8 danni"), BranthEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
+	TestEqual(TEXT("ImpactShot: 80 danni"), BranthEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 80);
 	TestEqual(TEXT("ImpactShot: range 3"), ImpactShot->Def.RangeCells, 3);
 	TestEqual(TEXT("ImpactShot: nessuna ricarica (e' l'attacco base)"), ImpactShot->Def.CooldownTurns, 0);
 
@@ -72,7 +72,7 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 		URTCatalogLibrary::BasicAttackDamageForRange(3));
 
 	const URTActionData* Ram = Branth->Actions[3];
-	TestEqual(TEXT("Ram: 20 danni"), BranthEffectAmount(Ram->Def.Effects, ERTActionEffect::Damage), 20);
+	TestEqual(TEXT("Ram: 200 danni"), BranthEffectAmount(Ram->Def.Effects, ERTActionEffect::Damage), 200);
 	TestEqual(TEXT("Ram: Push 1"), BranthEffectAmount(Ram->Def.Effects, ERTActionEffect::Push), 1);
 	TestEqual(TEXT("Ram: cooldown 2"), Ram->Def.CooldownTurns, 2);
 

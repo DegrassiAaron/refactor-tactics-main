@@ -86,7 +86,7 @@ bool FRTTerrainCostsFromCatalogTest::RunTest(const FString&)
 	bool bFireAppliesBurning = false;
 	for (const FRTActionEffectSpec& Effect : Fire.OnEnterEffects)
 	{
-		if (Effect.Effect == ERTActionEffect::Damage && Effect.Amount == 10)
+		if (Effect.Effect == ERTActionEffect::Damage && Effect.Amount == 100)
 		{
 			bFireDealsDamage = true;
 		}
@@ -95,7 +95,7 @@ bool FRTTerrainCostsFromCatalogTest::RunTest(const FString&)
 			bFireAppliesBurning = true;
 		}
 	}
-	TestTrue(TEXT("Fire infligge 10 danni all'ingresso"), bFireDealsDamage);
+	TestTrue(TEXT("Fire infligge 100 danni all'ingresso"), bFireDealsDamage);
 	TestTrue(TEXT("Fire applica Burning per 2 turni"), bFireAppliesBurning);
 
 	return true;

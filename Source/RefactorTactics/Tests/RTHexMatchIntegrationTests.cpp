@@ -582,7 +582,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	TestEqual(TEXT("chi carica si ferma davanti al nemico"), Charger->Cell.ToString(), FRTCellId(2, 0, 0).ToString());
 
 	// E colpisce: gli effetti della carica sono dati del catalogo, applicati nel Blast (codice 20/30).
-	TestEqual(TEXT("l'impatto toglie 20 punti vita"), Target->Health, HealthBefore - 20);
+	TestEqual(TEXT("l'impatto toglie 200 punti vita"), Target->Health, HealthBefore - 200);
 	TestEqual(TEXT("e spinge il bersaglio di una cella"), Target->Cell.ToString(), FRTCellId(4, 0, 0).ToString());
 
 	DestroyHexMatchWorld(World);
@@ -641,7 +641,7 @@ bool FRTHexChargeOffAxesTest::RunTest(const FString&)
 
 	TestEqual(TEXT("chi carica si ferma davanti al nemico, in (-3,4)"),
 		Charger->Cell.ToString(), FRTCellId(-3, 4, 0).ToString());
-	TestEqual(TEXT("l'impatto toglie 20 punti vita"), Target->Health, HealthBefore - 20);
+	TestEqual(TEXT("l'impatto toglie 200 punti vita"), Target->Health, HealthBefore - 200);
 	TestEqual(TEXT("e spinge il bersaglio di una cella nella direzione dell'impatto: E, verso (-1,4)"),
 		Target->Cell.ToString(), FRTCellId(-1, 4, 0).ToString());
 	TestTrue(TEXT("il facing di chi ha caricato e' l'ultimo passo PERCORSO, (-3,3) -> (-3,4): SE"),

@@ -271,9 +271,9 @@ bool FRTCombatZeroDefenseAndRearLeaveHitsUntouchedTest::RunTest(const FString&)
 	// prima di CP 53.2c, voce per voce. E' la forma eseguibile del gate «golden byte-identici».
 	const FRTCellId Defender(2, 0, 0);
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(DefIntent(Defender, 0, 1, 30));
+	Intents.Add(DefIntent(Defender, 0, 1, 300));
 
-	// Frontale con copertura: 30 − copertura, due stadi (catalogo, copertura).
+	// Frontale con copertura: 300 − copertura, due stadi (catalogo, copertura).
 	{
 		TArray<FRTHexCombatUnit> Units;
 		Units.Add(DefUnit(0, 0, FRTCellId(0, 0, 0), ERTHexDirection::E));
@@ -281,7 +281,7 @@ bool FRTCombatZeroDefenseAndRearLeaveHitsUntouchedTest::RunTest(const FString&)
 		URTHexMapAsset* Map = MakeDefMap(3);
 		SetDefLowCover(Map, Defender, ERTHexDirection::W);
 		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
-		TestEqual(TEXT("30 − copertura"), DefPowerOn(Plan, 1), 30 - URTCombatLibrary::LowCoverDamageReduction);
+		TestEqual(TEXT("300 − copertura"), DefPowerOn(Plan, 1), 300 - URTCombatLibrary::LowCoverDamageReduction);
 		const FRTHexAttackHit* Hit = DefHitOn(Plan, 1);
 		if (TestNotNull(TEXT("il colpo c'e'"), Hit))
 		{
@@ -302,8 +302,8 @@ bool FRTCombatZeroDefenseAndRearLeaveHitsUntouchedTest::RunTest(const FString&)
 			}
 			if (Stages.Num() == 2)
 			{
-				TestEqual(TEXT("la copertura parte dal nominale, come prima"), Stages[1].Before, 30);
-				TestEqual(TEXT("e arriva al colpo"), Stages[1].After, 30 - URTCombatLibrary::LowCoverDamageReduction);
+				TestEqual(TEXT("la copertura parte dal nominale, come prima"), Stages[1].Before, 300);
+				TestEqual(TEXT("e arriva al colpo"), Stages[1].After, 300 - URTCombatLibrary::LowCoverDamageReduction);
 			}
 		}
 	}
@@ -316,7 +316,7 @@ bool FRTCombatZeroDefenseAndRearLeaveHitsUntouchedTest::RunTest(const FString&)
 		URTHexMapAsset* Map = MakeDefMap(3);
 		SetDefLowCover(Map, Defender, ERTHexDirection::W);
 		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
-		TestEqual(TEXT("alle spalle senza bonus: il colpo pieno, non di piu'"), DefPowerOn(Plan, 1), 30);
+		TestEqual(TEXT("alle spalle senza bonus: il colpo pieno, non di piu'"), DefPowerOn(Plan, 1), 300);
 	}
 	return true;
 }

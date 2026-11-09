@@ -385,8 +385,8 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 		if (Spec.Effect == ERTActionEffect::Shield) { ShieldAmount = Spec.Amount; }
 	}
 	const int32 CounterAmount = HeroReactDeclaredDamage(Capacitor);
-	TestEqual(TEXT("il catalogo dichiara lo scudo da 15"), ShieldAmount, 15);
-	TestEqual(TEXT("e i 10 danni all'attaccante"), CounterAmount, 10);
+	TestEqual(TEXT("il catalogo dichiara lo scudo da 150"), ShieldAmount, 150);
+	TestEqual(TEXT("e i 100 danni all'attaccante"), CounterAmount, 100);
 
 	Aevik->PlannedReactionAbility = HeroReactCapacitorIndex;
 	Aevik->PlannedAbilityIndex = INDEX_NONE;

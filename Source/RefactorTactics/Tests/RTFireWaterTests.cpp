@@ -642,7 +642,7 @@ bool FRTHazardPlaybackOnMoveTest::RunTest(const FString&)
 	TestEqual(TEXT("il soggetto e' chi SUBISCE"), Fiamma->TargetStableUnitId, Unit->StableUnitId);
 	// ⚠️ `0` = «nessuno» ([D-063]), non «l'unita' numero zero». Chi consuma deve leggerlo cosi'.
 	TestEqual(TEXT("nessun attaccante dichiarato"), Fiamma->SourceStableUnitId, 0);
-	TestEqual(TEXT("l'Amount della fiamma e' il danno NOMINALE del catalogo"), Fiamma->Amount, 10);
+	TestEqual(TEXT("l'Amount della fiamma e' il danno NOMINALE del catalogo"), Fiamma->Amount, 100);
 	TestEqual(TEXT("la cella e' quella che ha colpito"), Fiamma->Origin, FRTCellId(1, 0));
 
 	// ⚠️ **I due importi sono diversi, ed e' cio' che rende i due eventi non intercambiabili.** Se un giorno
@@ -737,7 +737,7 @@ bool FRTHazardPlaybackOnDashTest::RunTest(const FString&)
 	TestNull(TEXT("e NESSUNO porta Move, che sarebbe la costante plausibile"),
 		Eventi.FindByPredicate([](const FRTResolvedEvent& E) { return E.Phase == ERTMatchPhase::Move; }));
 	TestEqual(TEXT("il soggetto resta chi subisce"), Fiamma->TargetStableUnitId, Unit->StableUnitId);
-	TestEqual(TEXT("e l'Amount resta il nominale"), Fiamma->Amount, 10);
+	TestEqual(TEXT("e l'Amount resta il nominale"), Fiamma->Amount, 100);
 
 	DestroyFwWorld(World);
 	return true;
@@ -774,8 +774,8 @@ bool FRTHazardPlaybackTwoCellsTwoEventsTest::RunTest(const FString&)
 	// 20 danni in arrivo su due celle: senza margine l'unita' morirebbe a meta' strada e il test misurerebbe
 	// un'altra cosa. La salute si alza QUI e non nel catalogo, che resta il bilanciamento vero.
 	Unit->Shield = 0;
-	Unit->MaxHealth = 100;
-	Unit->Health = 100;
+	Unit->MaxHealth = 1000;
+	Unit->Health = 1000;
 
 	Unit->PlannedCell = FRTCellId(2, 0);
 	RunFwTurn(TM);
@@ -804,8 +804,8 @@ bool FRTHazardPlaybackTwoCellsTwoEventsTest::RunTest(const FString&)
 	}
 	// ⚠️ E sono due celle DIVERSE: due eventi sulla stessa cella sarebbero un doppio invio, non due colpi.
 	TestNotEqual(TEXT("e i due eventi nominano celle diverse"), DaTerreno[0].Origin, DaTerreno[1].Origin);
-	TestEqual(TEXT("entrambi portano il danno nominale"), DaTerreno[0].Amount, 10);
-	TestEqual(TEXT("entrambi portano il danno nominale"), DaTerreno[1].Amount, 10);
+	TestEqual(TEXT("entrambi portano il danno nominale"), DaTerreno[0].Amount, 100);
+	TestEqual(TEXT("entrambi portano il danno nominale"), DaTerreno[1].Amount, 100);
 
 	// La coerenza con l'altro canale regge anche sul numero, contando TUTTI i danni ambientali del turno.
 	TestEqual(TEXT("e il TurnLog ne registra quanti la timeline"),
@@ -1051,7 +1051,7 @@ bool FRTHazardPlaybackLethalIsDistinguishableTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("con il soggetto giusto"), Eventi[0].TargetStableUnitId, Unit->StableUnitId);
 	// ⚠️ Il NOMINALE, non i 4 HP realmente tolti: e' la convenzione, e cambiarla scollegherebbe i due canali.
-	TestEqual(TEXT("e l'Amount resta il nominale, non gli HP persi"), Eventi[0].Amount, 10);
+	TestEqual(TEXT("e l'Amount resta il nominale, non gli HP persi"), Eventi[0].Amount, 100);
 
 	// (2) L'esito letale vive sull'altro canale, e ci si legge.
 	bool bLetale = false;

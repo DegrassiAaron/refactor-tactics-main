@@ -13,7 +13,7 @@ test('il roster di oggi usa solo effetti del vocabolario', () => {
 });
 
 test('un effetto sconosciuto e un ERRORE, non uno zero silenzioso', () => {
-  const s = readFileSync(H, 'utf8').replace('18 danni, `Interrupt` sui dispositivi', '18 danni, `Confonde` i nemici');
+  const s = readFileSync(H, 'utf8').replace('180 danni, `Interrupt` sui dispositivi', '180 danni, `Confonde` i nemici');
   const tmp = new URL('./voc.tmp.md', import.meta.url);
   writeFileSync(tmp, s);
   try {
@@ -28,13 +28,13 @@ test('un effetto sconosciuto e un ERRORE, non uno zero silenzioso', () => {
 
 test('monotonia: aumentare un input non fa scendere il rating che ne dipende', () => {
   const base = parseHeroCatalog(H, A).find((x) => x.name === 'Muiren')!;
-  for (const [hp, atteso] of [[95, 7], [140, 9]] as const) {
+  for (const [hp, atteso] of [[950, 7], [1400, 9]] as const) {
     const h = { ...base, health: hp };
     assert.equal(profileAxes(h).durability, atteso, `durability a ${hp} HP`);
   }
   // Property: su tutto l'intervallo plausibile, mai decrescente.
   let prec = 0;
-  for (let hp = 60; hp <= 150; hp += 5) {
+  for (let hp = 600; hp <= 1500; hp += 50) {
     const r = profileAxes({ ...base, health: hp }).durability;
     assert.ok(r >= prec, `durability scende da ${prec} a ${r} a ${hp} HP`);
     prec = r;
@@ -44,7 +44,7 @@ test('monotonia: aumentare un input non fa scendere il rating che ne dipende', (
 test('sensibilita: il delta dichiarato muove l asse di almeno 1', () => {
   // La spec dichiara: 17 punti di Salute muovono `durability` di 1 (ancora 150 su nove passi).
   const base = parseHeroCatalog(H, A).find((x) => x.name === 'Muiren')!;
-  const a = profileAxes({ ...base, health: 95 }).durability;
-  const b = profileAxes({ ...base, health: 95 + 17 }).durability;
-  assert.ok(b >= a + 1, `+17 HP deve muovere durability: ${a} -> ${b}`);
+  const a = profileAxes({ ...base, health: 950 }).durability;
+  const b = profileAxes({ ...base, health: 950 + 170 }).durability;
+  assert.ok(b >= a + 1, `+170 HP deve muovere durability: ${a} -> ${b}`);
 });

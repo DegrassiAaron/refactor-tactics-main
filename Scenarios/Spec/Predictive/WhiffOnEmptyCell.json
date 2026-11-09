@@ -36,7 +36,7 @@
 
   "expect": [
     { "type": "UnitAtCell",     "unit": "R1", "cell": [-2, 1, 0] },
-    { "type": "UnitHpEquals",   "unit": "R1", "value": 95 },
+    { "type": "UnitHpEquals",   "unit": "R1", "value": 950 },
     { "type": "UnitAtCell",     "unit": "V1", "cell": [0, 0, 0] },
     { "type": "TurnsCompleted", "value": 2 }
   ]

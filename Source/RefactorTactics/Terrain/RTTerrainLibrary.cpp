@@ -47,7 +47,7 @@ TArray<FRTTerrainDef> URTTerrainLibrary::GetTerrainCatalog()
 		                     // sorgente; il workbook resta RESEARCH. Unico punto dove formula e decisione
 		                     // divergono, ed e' pinnato da `Noise.AttenuationBySurface`.
 	Catalog.Add(MakeTerrain(ERTHexSurface::Fire,         2, false, false, false, 0,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 10),
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 100),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Burning, 2) }, /*Slide*/ 0, /*Flammable*/ false,
 		/*NoiseDelta*/ 4));  // TERRAIN_FIRE (5): il fuoco copre quasi tutto
 	Catalog.Add(MakeTerrain(ERTHexSurface::Conductive,   1, false, false, true,  0, {}, /*Slide*/ 0, /*Flammable*/ false,

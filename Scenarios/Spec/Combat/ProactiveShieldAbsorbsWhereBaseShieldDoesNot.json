@@ -35,8 +35,8 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "CON",   "value": 95 },
-    { "type": "UnitHpEquals", "unit": "SENZA", "value": 79 },
+    { "type": "UnitHpEquals", "unit": "CON",   "value": 950 },
+    { "type": "UnitHpEquals", "unit": "SENZA", "value": 790 },
     { "type": "UnitAlive",    "unit": "CON",   "value": true },
     { "type": "UnitAlive",    "unit": "SENZA", "value": true }
   ]

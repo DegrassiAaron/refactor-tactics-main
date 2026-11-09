@@ -63,8 +63,8 @@
 
     { "_assertion": "L'avversario non si e' mosso e non ha subito nulla: il turno ha fatto una cosa sola.",
       "type": "UnitAtCell", "unit": "W1", "cell": [0, -3, 0] },
-    { "type": "UnitHpEquals", "unit": "W1", "value": 90 },
-    { "type": "UnitHpEquals", "unit": "R1", "value": 120 },
+    { "type": "UnitHpEquals", "unit": "W1", "value": 900 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 1200 },
 
     { "type": "TurnsCompleted", "value": 2 }
   ]
