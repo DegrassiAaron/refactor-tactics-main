@@ -10,6 +10,8 @@
 // FRTDamageTokenView: vive in un header PROPRIO perche' `RTUnit.h` possa includerlo senza tirarsi
 // dietro il view-model — e' incluso quasi ovunque, e ogni dipendenza aggiunta li' si paga in tutto il modulo.
 #include "UI/RTDamageTokenView.h"
+// FRTSkillCalloutView: stesso schema di FRTDamageTokenView, un header proprio, cosi' chi porta la vista non deve includere il view-model (#4025).
+#include "UI/RTSkillCalloutView.h"
 #include "Combat/RTHexCombatLibrary.h" // FRTBlastPreviewPlan: il piano dell'anteprima si traduce qui (#3620)
 // FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
 #include "UI/RTPlayerEvent.h"
@@ -2045,6 +2047,64 @@ public:
 	 * @param TargetStableUnitId   chi e' curato. `0` = nessuno ([D-063]).
 	 */
 	static FRTDamageTokenView BuildHealToken(int32 Amount, int32 TargetStableUnitId);
+
+	/**
+	 * Se un'azione GRIDA: vero solo per una skill di firma (`#4025`, R1b).
+	 *
+	 * 🔴 **Due condizioni, e servono entrambe.** `BaseActionId` vuoto dice che l'azione non e' una variante di
+	 * un'altra (`Hero.Branth.ImpactShot` ha base `Action.BasicAttack` e resta muta); `!bIsCoreAction` dice che
+	 * non e' una voce del catalogo core (`Action.Guard`, senza base, e' muta lo stesso). Con una sola delle due
+	 * griderebbero l'attacco base o la guardia ogni volta che vengono usati.
+	 *
+	 * 🔑 **Riceve gia' deciso se l'azione e' core**: il catalogo ha un suo owner e qui non nasce un secondo
+	 * lettore. Nessun campo nuovo in `FRTActionDef`. `ActionId` non entra nel giudizio, che e' tutto in base e
+	 * catalogo: lo porta la firma per tenere insieme le tre cose che il chiamante ha in mano.
+	 *
+	 * @param ActionId       l'azione che si giudica.
+	 * @param BaseActionId   la base da cui deriva (`FRTActionDef::BaseActionId`); `None` = non e' una variante.
+	 * @param bIsCoreAction  vero se l'azione sta nel catalogo core.
+	 */
+	static bool ActionShouts(const FName& ActionId, const FName& BaseActionId, bool bIsCoreAction);
+
+	/**
+	 * Il fumetto di una skill attivata: chi grida, che parola compare e da quando (`#4025`).
+	 *
+	 * 🔑 **Il testo viene dal kit.** `KitDisplayName` e' il nome che il kit da' alla skill, e compare cosi' com'e'.
+	 * Se manca (vuoto o di soli spazi, R3) il fumetto ripiega sull'ultimo segmento dell'id
+	 * (`Hero.Muiren.CircularTide` diventa `CircularTide`) e alza `bFromFallback`: una bolla vuota sopra la testa
+	 * di chi ha lanciato sarebbe peggio di un nome tecnico.
+	 *
+	 * ⚠️ **Non cerca un secondo nome da `BaseActionId`.** Una skill che grida non ha base (`ActionShouts`): il
+	 * secondo passo sarebbe vacuo, e un ramo che non puo' scattare e' un ramo che nessun test vede.
+	 *
+	 * ⛔ **Non decide SE gridare** (`ActionShouts`) **ne' SE mostrarlo** a chi guarda: il velo spegne l'overlay,
+	 * e un secondo giudizio qui sarebbe la divergenza che `#2246` ha appena tolto.
+	 *
+	 * @param KitDisplayName     il nome della skill nel kit; vuoto = ripiego.
+	 * @param ActionId           l'azione che grida.
+	 * @param SourceStableUnitId chi la lancia. `0` = nessuno ([D-063]).
+	 * @param StartAt            `ARTTurnManager::PlaybackElapsedTotal` alla comparsa.
+	 */
+	static FRTSkillCalloutView BuildSkillCallout(const FText& KitDisplayName, const FName& ActionId,
+		int32 SourceStableUnitId, float StartAt);
+
+	/**
+	 * L'opacita' del fumetto a `Elapsed` secondi dalla comparsa: piena, poi una coda lineare, poi finita.
+	 *
+	 * 🔑 **Pura sul tempo che riceve**: `Elapsed` e' `PlaybackElapsedTotal - StartAt`, mai un `DeltaTime` locale
+	 * (R4). La coda sono gli ultimi `FadeSeconds` di `Seconds`; prima e' 1, da `Seconds` in poi e' 0.
+	 *
+	 * ⚠️ **Due valori speciali, entrambi voluti.** `Seconds <= 0` e' 0: la durata zero e' il modo del designer
+	 * di spegnere il fumetto, non un fumetto «sempre pieno». `Elapsed < 0` e' 1: un fumetto registrato un attimo
+	 * prima che il tempo del playback lo raggiunga non deve nascere spento.
+	 */
+	static float SkillCalloutAlpha(float Elapsed, float Seconds, float FadeSeconds = 0.4f);
+
+	/**
+	 * La scala del fumetto a `Elapsed` secondi dalla comparsa: nasce ingrandito a 1,15 e si assesta a 1 in
+	 * `PopSeconds`, poi resta a 1 (`#4025`). Un `PopSeconds <= 0` e' nessun pop: scala 1 sempre.
+	 */
+	static float SkillCalloutScale(float Elapsed, float PopSeconds = 0.1f);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.
