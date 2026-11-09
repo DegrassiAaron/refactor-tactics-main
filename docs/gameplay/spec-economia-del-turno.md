@@ -411,6 +411,13 @@ della DoD di [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issue
 > Il valore `InsufficientMovementPoints` resta in coda a `ERTActionInvalidReason` **senza produttore**:
 > finisce come intero nel TurnLog, quindi rimuoverlo cambierebbe il significato delle tracce già scritte.
 
+✅ **2026-11-09 (E38 CP 38.6, #4012, [D-594](../decisions/RT_PDR_00_Decision_Log.md))**: la famiglia riceve in coda
+`OverBudget` — *«il piano supera il budget di Action Point»* — ed è il primo motivo **quantitativo** da quando D-190
+tolse `InsufficientMovementPoints`: ADR-0011 ha riaperto D-114, e `ValidatePlan` somma `FRTActionDef::ActionPointCost`
+contro `URTPlanValidationLibrary::ActionPointBudget` (6) **prima** di guardare gli slot, che restano in vigore finché il
+resolver accetta una azione per fase. §1–§3 di questa spec descrivono ancora il modello a slot e vanno riscritti con la
+consegna di E38; la precedenza dei motivi è nel docstring di `ValidatePlan`.
+
 ⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
 `InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena
 dichiarato inesistente; `OverwatchDisallowsVoluntaryDash` nomina un divieto che

@@ -294,7 +294,15 @@ enum class ERTActionInvalidReason : uint8
 	 * `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia gia'
 	 * archiviata che ne porti uno successivo.
 	 */
-	DashEdgeBlocked
+	DashEdgeBlocked,
+
+	/**
+	 * La somma dei costi in Action Point del piano supera il budget del turno ([D-594], E38 CP 38.6). In coda,
+	 * come ogni valore aggiunto: le tracce gia' scritte conservano il proprio significato. E' il primo motivo
+	 * QUANTITATIVO della famiglia da quando D-190 tolse `InsufficientMovementPoints`: ADR-0011 cambia il tipo
+	 * della legalita', e questo e' il valore che lo dice nel TurnLog.
+	 */
+	OverBudget
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

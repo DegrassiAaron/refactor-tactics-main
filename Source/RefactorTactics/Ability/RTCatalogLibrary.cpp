@@ -216,6 +216,30 @@ int32 URTCatalogLibrary::ResolutionPhaseCode(ERTResolutionPhase Phase)
 	return 60;
 }
 
+int32 URTCatalogLibrary::DefaultActionPointCost(const FRTActionDef& Def)
+{
+	if (Def.ActionId == FName(TEXT("Action.Wait")))
+	{
+		return 0;
+	}
+	if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		return ActionPointCostReaction;
+	}
+	switch (MapResolutionPhase(Def.ResolutionPhase))
+	{
+	case ERTMatchPhase::Prep:    return ActionPointCostPrep;
+	case ERTMatchPhase::Dash:    return ActionPointCostDash;
+	case ERTMatchPhase::Blast:   return ActionPointCostBlast;
+	case ERTMatchPhase::Move:    return ActionPointCostMove;
+	case ERTMatchPhase::Cleanup: return ActionPointCostCleanup;
+	default:
+		// `Planning` (lo Snapshot, che `ValidateActions` rifiuta comunque) e le fasi che non risolvono azioni:
+		// nessun costo da dichiarare, e il validatore dell'asserto lo segnala se una riga ci finisce.
+		return 0;
+	}
+}
+
 TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& Actions)
 {
 	TArray<FString> Errors;
@@ -253,6 +277,10 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		if (Action.CostMP < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: costo negativo (%d)"), *Where, Action.CostMP));
+		}
+		if (Action.ActionPointCost < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: costo in Action Point negativo (%d)"), *Where, Action.ActionPointCost));
 		}
 		if (Action.CooldownTurns < 0)
 		{
@@ -1104,6 +1132,8 @@ namespace
 		Def.MovementStyle = Movement;
 		// Chi corre a perdifiato non para: lo `Sprint` e' l'unica azione della v0.1 che nega la reazione.
 		Def.bAllowsReaction = (Id != FName(TEXT("Action.Sprint")));
+		// [D-594]: ogni riga dichiara il proprio costo AP; qui il default di classe, letto DOPO fase e slot.
+		Def.ActionPointCost = URTCatalogLibrary::DefaultActionPointCost(Def);
 		return Def;
 	}
 }

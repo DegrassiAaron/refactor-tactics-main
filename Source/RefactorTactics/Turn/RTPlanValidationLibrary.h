@@ -92,7 +92,15 @@ public:
 	 *
 	 * Precedenza dei motivi, deterministica e indipendente dall'ordine in cui il giocatore compone:
 	 *   1. `OnCooldown` — proprieta' INTRINSECA di una voce sola;
-	 *   2. `SlotOccupied` — proprieta' della COMBINAZIONE, quindi per ultima.
+	 *   2. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera `ActionPointBudget`);
+	 *      nomina la prima voce, nell'ordine canonico, che fa sforare la somma;
+	 *   3. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima.
+	 *
+	 * ⏳ **Il budget precede lo slot ed e' voluto** (E38 CP 38.6, #4012): ADR-0011 sostituira' gli slot con il
+	 * solo budget, quindi il motivo che sopravvivera' va letto per primo. Finche' il resolver accetta una azione
+	 * per fase, i due vincoli convivono: `Plan.LegalTodayStaysLegal` fissa che nessuna delle 23 forme legali con
+	 * gli slot sfora i 6 punti di D-594, e `Plan.SumOverBudgetIsRejected` che un piano da 8 punti e' rifiutato
+	 * prima che lo slot abbia voce.
 	 *
 	 * 🔴 **Erano tre fino a [D-190]**, e in mezzo stava `InsufficientMovementPoints`: la somma dei `CostMP`
 	 * del piano contro `MoveBudget`. E' uscito perche' era una SOTTRAZIONE, cioe' l'ultimo residuo del modello
@@ -115,6 +123,17 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static FRTPlanValidation ValidatePlan(const FRTHexSimUnit& Unit, const TArray<FRTPlannedAction>& Plan);
+
+	/**
+	 * Il budget di Action Point per unita' e per turno ([D-594] (1): 6). Costante e non dato dell'unita': D-265
+	 * esclude una risorsa universale da far crescere, e D-594 ha scelto UN numero per tutti. Il giorno in cui un
+	 * eroe ne avesse uno proprio, il valore passerebbe sull'unita' e questa costante diventerebbe il default.
+	 */
+	static constexpr int32 ActionPointBudget = 6;
+
+	/** La somma dei costi AP dichiarati dalle voci del piano (`FRTActionDef::ActionPointCost`, mai negativi). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static int32 ActionPointsSpent(const TArray<FRTPlannedAction>& Plan);
 
 	/** Quanti slot occupa un'azione: 0 per `None`, 2 per `MovementAndMain`, 1 per le altre. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")

@@ -23,6 +23,16 @@ namespace
 	}
 }
 
+int32 URTPlanValidationLibrary::ActionPointsSpent(const TArray<FRTPlannedAction>& Plan)
+{
+	int32 Spent = 0;
+	for (const FRTPlannedAction& Entry : Plan)
+	{
+		Spent += FMath::Max(0, Entry.Def.ActionPointCost);
+	}
+	return Spent;
+}
+
 int32 URTPlanValidationLibrary::SlotWidth(ERTActionSlot Slot)
 {
 	switch (Slot)
@@ -193,6 +203,19 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*
 	//
 	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
 	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
+	// [D-594] (E38 CP 38.6): la somma dei costi AP non supera il budget. Nell'ordine canonico, e' la prima voce
+	// che fa sforare a essere nominata: cosi' lo stesso piano composto in due sequenze accusa la stessa azione.
+	// Precede lo slot perche' e' il vincolo che ADR-0011 lascera' in piedi quando gli slot cadranno.
+	int32 Spent = 0;
+	for (const FRTPlannedAction& Entry : Ordered)
+	{
+		Spent += FMath::Max(0, Entry.Def.ActionPointCost);
+		if (Spent > ActionPointBudget)
+		{
+			return Reject(ERTActionInvalidReason::OverBudget, Entry.Def.ActionId);
+		}
+	}
+
 	FName MovementHolder;
 	FName MainHolder;
 	FName ReactionHolder;

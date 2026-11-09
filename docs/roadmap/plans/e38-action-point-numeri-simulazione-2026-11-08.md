@@ -91,12 +91,18 @@ Da scrivere **verdi sul modello a slot** dove possibile, così che diventino ros
 | Asserto | Che cosa fissa | Dove |
 |---|---|---|
 | `Plan.LegalTodayStaysLegal` | le 23 forme di §1 sono accettate dal validatore, prima e dopo | fixture: la lista stampata dal comando |
-| `Plan.SumOverBudgetIsRejected` | un piano la cui somma supera il budget è rifiutato con un reason code proprio | `ValidatePlan` |
+| `Plan.SumOverBudgetIsRejected` | un piano la cui somma supera il budget è rifiutato con un reason code proprio | `ValidatePlan` — ✅ verde dal 2026-11-09 (`OverBudget`, budget 6) |
 | `Resolution.SamePhaseOrderIsDeterministic` | due azioni della stessa unità nella stessa fase risolvono nello stesso ordine su due run con lo stesso snapshot (priorità del catalogo, poi criterio stabile) | resolver, TurnLog, hash |
 | `TurnLog.PlanIsAListNotThreeSlots` | il piano serializzato porta una lista di azioni con fase e costo, e la versione dello schema è avanzata | snapshot, replay |
-| `Catalog.EveryActionDeclaresACost` | nessuna riga del catalogo, universale o d'eroe, ha costo mancante o zero (salvo `Wait`) | catalogo |
+| `Catalog.EveryActionDeclaresACost` | nessuna riga del catalogo, universale o d'eroe, ha costo mancante o zero (salvo `Wait`) | catalogo — ✅ verde dal 2026-11-09 (`ActionPointCost`, D-594) |
 
 Il quinto non può essere verde oggi: è l'asserto che la voce dei numeri rende scrivibile.
+
+> ✅ **2026-11-09 (#4012)**: i cinque asserti esistono in `RTActionPointTests.cpp`. Due sono verdi sul merito (`SumOverBudgetIsRejected`,
+> `EveryActionDeclaresACost`); `SamePhaseOrderIsDeterministic`, `SameTriggerReactionOrderIsDeterministic` e `PlanIsAListNotThreeSlots`
+> non hanno ancora un soggetto (una azione per fase, una reazione armata, tre campi pianificati sull'unità) e sono scritti nella forma
+> **«limite di oggi, pinnato»**: verdi perché misurano che il limite c'è, rossi il giorno che il soggetto appare — invece di un rosso
+> «per costruzione» che renderebbe rossa la suite di chiunque. La scelta è dichiarata nella PR.
 
 ## 6. Limiti di questa misura
 

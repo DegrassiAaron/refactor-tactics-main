@@ -111,6 +111,9 @@ namespace
 		Action->Def.Effects = Effects;
 		Action->Def.Slot = Slot;
 		Action->Def.InterruptPolicy = Interrupt;
+		// [D-594]: la colonna di costo AP, default di classe (fase e slot gia' scritti). Un kit che marchi
+		// un'abilita' come Ultimate la sovrascrive a +1 nella propria riga, non qui.
+		Action->Def.ActionPointCost = URTCatalogLibrary::DefaultActionPointCost(Action->Def);
 
 		Action->RangeCells = Range;
 		Action->CooldownTurns = Cooldown;

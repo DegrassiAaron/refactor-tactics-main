@@ -419,6 +419,9 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::NoMap:          return TEXT("nessuna mappa autorevole");
 	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
+	// [D-594]: la somma dei costi AP del piano supera il budget del turno. Nomina il BUDGET e non l'azione, perche'
+	// il rimedio e' togliere qualcosa dal piano, non cambiare questa voce.
+	case ERTActionInvalidReason::OverBudget:     return TEXT("il piano supera il budget di Action Point");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
 	//
