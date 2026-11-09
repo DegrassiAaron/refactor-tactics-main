@@ -107,6 +107,21 @@ Alchimista del terreno: allaga le celle, alza rovi, trascina i nemici al centro 
 
 **Esito**: ⛔ **esce dal kit** ([D-596](../../decisions/RT_PDR_00_Decision_Log.md), 2026-11-09, `GDD-4` / [#4026](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4026)): la rianimazione non esiste, il K.O. è definitivo, e il Phase Lock non esiste. La riga resta qui come traccia dell'input scartato; la seconda Ultimate di The Fey è lavoro di `MSP-5.d` ([#4014](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4014)) a partire dalla sua Signature *Growth / Propagation*, non dal GDD.
 
+### Verdant Surge — `Hero.TheFey.VerdantSurge` (seconda Ultimate, proposta dell'assistente scelta dall'autore il 2026-11-09)
+
+| Campo | Valore |
+|---|---|
+| Fase | Prep (l'effetto risolve nel Cleanup di ogni turno, come le azioni ambientali) |
+| Elemento | `Element.Life` |
+| Costo AP / CD | da `D-594`: Ultimate = costo della fase + 1; cooldown al catalogo |
+| Forma | un seme su una cella alleata o vuota; area di raggio 1 |
+| Effetto | a ogni Cleanup, per due turni, cura gli alleati nell'area e applica `Element.Life` alle celle; il seme si **propaga** di una cella verso l'alleato più ferito |
+
+**Origine**: non viene dal GDD. Dopo [D-596](../../decisions/RT_PDR_00_Decision_Log.md) il kit tradotto aveva un'Ultimate sola; il concept è stato scelto dall'autore fra tre proposte dell'assistente
+(le altre: *Thornwall Bloom*, Prep, `Element.Earth`, una copertura con Integrity che cresce di una cella per turno; *Rot Spores*, Blast, `Element.Decay`, un'area che nega le cure e si allarga) a partire
+dalla Signature *Growth / Propagation* della [scheda candidata](../candidates/the-fey.md). **Primitive usate**: area, cura, applicazione di un elemento nel Cleanup, scelta deterministica del bersaglio
+della propagazione (l'alleato più ferito; a parità, lo `StableUnitId` minore). **Nessun numero**: cura per turno, durata e costo sono di `MSP-5.d` e del catalogo. **Scartato**: nulla, perché nulla viene dal GDD.
+
 ## Reazioni (lista, D-592)
 
 ### Thorned Carapace — `Hero.TheFey.ThornedCarapace`
@@ -137,7 +152,7 @@ Alchimista del terreno: allaga le celle, alza rovi, trascina i nemici al centro 
 |---|---|
 | Page Status | DESIGN_SPEC (input tradotto) |
 | Stats | INPUT (GDD §5.1) |
-| Abilities | TRANSLATED (3 + attacco base); 1 scartata da D-596 (Nature's Vengeance): la seconda Ultimate è da progettare |
+| Abilities | TRANSLATED (3 + attacco base); 1 scartata da D-596 (Nature's Vengeance); 1 proposta scelta dall'autore (Verdant Surge, senza numeri) |
 | Reactions | TRANSLATED (2) |
 | Numeri in vigore | **nessuno** |
 | Release | v0.2 (E35.2) |
