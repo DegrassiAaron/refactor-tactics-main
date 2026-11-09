@@ -1,5 +1,6 @@
 #include "UI/RTUnitOverlayWidget.h"
 
+#include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
@@ -95,6 +96,14 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 		// Fuori dai due avvisi il colore viene dalla vista, che lo ha derivato da `bIsAlly`: alleato o
 		// avversario **per chi guarda**, mai «team 0/team 1».
 		NameText->SetColorAndOpacity(FSlateColor(Colore));
+	}
+
+	if (SkillCalloutOutline)
+	{
+		// Il contorno del fumetto prende il colore di squadra **cosi' com'e'** nella vista, non quello del nome:
+		// l'avviso di fuoco amico o di bersaglio sovrascrive il NOME perche' parla del bersaglio, mentre il
+		// fumetto dice chi sta usando la skill e la squadra non cambia con il lock-in.
+		SkillCalloutOutline->SetBrushColor(View.TeamColor);
 	}
 
 	if (HealthBar)

@@ -6,6 +6,7 @@
 #include "UI/RTSkillCalloutView.h" // #4025: il fumetto attivo e' un membro per valore
 #include "RTUnitOverlayWidget.generated.h"
 
+class UBorder;
 class UHorizontalBox;
 class UProgressBar;
 class UTextBlock;
@@ -269,6 +270,23 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> SkillCalloutText;
 
+	/**
+	 * Il contorno scuro della bolla del fumetto (`#4025`): `SetOverlayView` ne posa il colore sul colore di
+	 * squadra, cosi' chi guarda capisce di chi e' la skill senza leggere il nome.
+	 *
+	 * 🔑 **Il colore lo mette il C++ e non il grafo del `WBP`**: il ponte MCP non sa creare il getter di una
+	 * variabile-widget nel grafo, quindi un binding scritto li' resterebbe a mano; e il C++ e' gia' l'unico
+	 * proprietario dei dati per-aggiornamento dell'overlay (nome, barre, stati ricevono la loro parte dalla
+	 * stessa vista, nello stesso punto). Un secondo canale per il colore sarebbe un secondo posto dove
+	 * dimenticarlo.
+	 *
+	 * ⚠️ **Opzionale come tutti gli altri**: senza, la bolla resta del colore autorato nell'asset e il fumetto
+	 * funziona uguale. Il colore e' quello di squadra e basta: non segue gli avvisi di fuoco amico o di bersaglio
+	 * che il nome ha — il fumetto parla della skill, non del bersaglio.
+	 */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UBorder> SkillCalloutOutline;
+
 	/** Quanto a lungo il token resta visibile prima di svanire. `0` lo spegne. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float DamageTokenSeconds = 0.9f;
@@ -288,7 +306,7 @@ protected:
 	 * Di quanto la barra si ingrandisce al culmine dell'enfasi.
 	 *
 	 * ⚠️ Piccolo apposta: sopra un cilindro la barra e' larga poche decine di pixel, e un'enfasi vistosa
-	 * uscirebbe dalla `DrawSize` di `220x90` che `ARTUnit` assegna al componente.
+	 * uscirebbe dalla `DrawSize` di `220x170` che `ARTUnit` assegna al componente.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float HealthPulseScale = 0.18f;

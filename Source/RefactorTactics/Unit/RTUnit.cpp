@@ -201,7 +201,17 @@ ARTUnit::ARTUnit()
 	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
 	// `#2288` chiede il PIE.
 	OverlayWidget->SetDrawAtDesiredSize(false);
-	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
+	// 🔑 **Alto 170 e non 90, e la ragione e' il fumetto della skill (`#4025`).** Il `WBP_RT_UnitOverlay` ha ora
+	// un fumetto SOPRA il nome: contorno, bolla e testo scalato, in una `SizeBox` che nasce `Collapsed`. Stimato
+	// dal designer, il contenuto sale a ~135 px senza icone di stato e a ~159 px con — e una `DrawSize` di 90
+	// taglia il fumetto proprio quando compare, senza errore e senza che un test headless lo veda.
+	//
+	// ⚠️ **Il widget e' piu' alto, la barra non si muove.** Nel `WBP` un `TopSpacer` in Fill assorbe lo spazio
+	// che il contenuto non usa, quindi nome, barra e stati restano ancorati al fondo come con i 90 di prima; e
+	// il pivot `(0.5, 1)` qui sotto fa crescere il widget verso l'ALTO, con il fondo fermo sull'ancora. I 170
+	// lasciano ~11 px di margine sul caso peggiore (con le icone): un fumetto piu' alto va misurato in PIE prima
+	// di alzare ancora questo numero.
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 170.f));
 	// Il fondo del widget poggia sull'ancora e il contenuto cresce verso l'alto: con l'ancora sulla testa,
 	// la sovrapposizione sta **subito sopra** l'unita', a una distanza che non cambia con la camera.
 	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f));
