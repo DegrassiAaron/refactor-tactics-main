@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/RTHudViewModel.h" // FRTUnitOverlayView: la vista arriva gia' composta, il widget non la calcola
+#include "UI/RTSkillCalloutView.h" // #4025: il fumetto attivo e' un membro per valore
 #include "RTUnitOverlayWidget.generated.h"
 
 class UHorizontalBox;
 class UProgressBar;
 class UTextBlock;
+class UWidget;
 class URTIconCatalogData;
 
 /**
@@ -132,6 +134,49 @@ public:
 	 */
 	static float FadeAlpha(float Elapsed, float Duration);
 
+	/**
+	 * Mostra il fumetto di una skill di firma sopra questa unita' (`#4025`): posa il testo in MAIUSCOLO, rende
+	 * visibile il root e porta il tempo del fumetto al suo `StartAt`, cosi' che nasca con il pop e non a meta'.
+	 *
+	 * 🔑 **Vive QUI, dentro questo widget, per la stessa ragione di PRIVACY del token di danno** (vedi
+	 * `PushDamageToken`): il velo spegne l'intero componente che ospita questa sovrapposizione, quindi il
+	 * fumetto di un nemico mai osservato non si vede e non rivela che esiste.
+	 *
+	 * ⛔ **Non applica niente e non tocca `View`.** L'attivazione e' gia' stata risolta; questa chiamata disegna
+	 * un fatto. Il maiuscolo e' presentazione e lo applica il widget: la vista porta il testo com'e' nel kit.
+	 *
+	 * ⚠️ Senza `SkillCalloutRoot` il widget non fa niente e non crasha: tutti i binding sono opzionali.
+	 */
+	void PushSkillCallout(const FRTSkillCalloutView& Callout);
+
+	/**
+	 * Porta al fumetto il tempo del playback (`ARTTurnManager::PlaybackElapsedTotal`) e ne ridisegna opacita' e
+	 * scala con le funzioni pure di `URTHudViewModel` (`SkillCalloutAlpha`, `SkillCalloutScale`).
+	 *
+	 * 🔴 **Il widget NON misura il tempo del fumetto**, e per questo `NativeTick` non lo tocca: un `DeltaTime`
+	 * locale farebbe seguire al fumetto il frame invece del playback, e un hitch lo allungherebbe rispetto alla
+	 * sequenza che commenta. Con `Alpha <= 0` il root si collassa: un fumetto trasparente ma presente occupa
+	 * ancora il layout.
+	 */
+	void SetSkillCalloutClock(float Now);
+
+	/**
+	 * Chiude la vita del fumetto: il root si collassa. Il testo resta, ma non si vede.
+	 *
+	 * ⚠️ Non azzera `ActiveCallout`: testo e `StartAt` restano, ma con la vita chiusa nessun nuovo tempo e nessun
+	 * ritorno dalla vista strategica lo riaccende. Solo un nuovo `PushSkillCallout` lo fa.
+	 */
+	void ClearSkillCallout();
+
+	/**
+	 * Dice al widget se la vista e' strategica: il fumetto resta collassato finche' lo e', e al ritorno in tattica
+	 * riapplica l'ultimo tempo ricevuto (`#4025`).
+	 *
+	 * ⚠️ **Non e' un giudizio di visibilita' per l'osservatore**: quello e' il velo, che spegne l'intero
+	 * componente. Questo e' solo il cambio di vista, inoltrato da `ARTUnit::SetStrategicPresentation`.
+	 */
+	void SetStrategicPresentation(bool bStrategic);
+
 	/** Vedi `FadeAlpha`: il tempo lo fa scorrere qui, e non decide **nessun** esito (invariante #1). */
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
@@ -203,9 +248,32 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> DamageTokenText;
 
+	/**
+	 * Il contenitore del fumetto della skill (`#4025`): e' lui che appare, si ingrandisce e si dissolve. **Un
+	 * `UWidget` qualunque**, perche' il layout puo' farne una bolla (bordo, immagine, testo) e al C++ serve solo
+	 * accenderlo, spegnerlo e darne opacita' e scala.
+	 *
+	 * ⚠️ **Opzionale come tutti gli altri**: senza questo elemento il fumetto non si vede e nessun test lo nota,
+	 * perche' il giudizio sta nelle funzioni pure e nel campo dell'unita'. Il `WBP_RT_UnitOverlay` si modifica
+	 * solo in Editor, dal clone principale: il C++ resta completo senza.
+	 */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> SkillCalloutRoot;
+
+	/** Il testo del fumetto, in maiuscolo. Opzionale: senza, il root si anima ma non dice niente. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> SkillCalloutText;
+
 	/** Quanto a lungo il token resta visibile prima di svanire. `0` lo spegne. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float DamageTokenSeconds = 0.9f;
+
+	/**
+	 * Quanto a lungo il fumetto della skill resta a schermo, contando dal suo `StartAt` sul tempo del playback.
+	 * `0` lo spegne (`SkillCalloutAlpha` risponde 0 per una durata non positiva).
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "RefactorTactics|HUD")
+	float SkillCalloutSeconds = 3.f;
 
 	/** Quanto dura l'enfasi della barra. `0` la spegne. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
@@ -235,4 +303,25 @@ private:
 	/** Se un'animazione e' in corso. Spente entrambe, `NativeTick` non tocca nulla. */
 	bool bTokenActive = false;
 	bool bPulseActive = false;
+
+	/**
+	 * Ridisegna visibilita', opacita' e scala del fumetto dallo stato che il widget tiene: l'unica funzione che
+	 * decide, chiamata da `PushSkillCallout`, `SetSkillCalloutClock`, `ClearSkillCallout` e
+	 * `SetStrategicPresentation`. Una sola porta, cosi' le quattro non possono divergere.
+	 */
+	void ApplySkillCalloutState();
+
+	/**
+	 * Il fumetto in corso e il tempo del playback che l'ultima chiamata ha portato. ⚠️ Nessuno dei due e' un
+	 * `DeltaTime`: `CalloutNow` lo scrive soltanto `SetSkillCalloutClock` (e `PushSkillCallout`, al `StartAt`).
+	 * Stato di sola presentazione, non `UPROPERTY`, fuori da ogni hash.
+	 */
+	FRTSkillCalloutView ActiveCallout;
+	float CalloutNow = 0.f;
+
+	/** Fra `PushSkillCallout` e `ClearSkillCallout`. */
+	bool bCalloutLive = false;
+
+	/** Scritto da `SetStrategicPresentation`: la vista strategica tiene il fumetto collassato. */
+	bool bStrategicPresentation = false;
 };

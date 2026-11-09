@@ -345,6 +345,42 @@ void ARTUnit::ShowHealToken(int32 Amount)
 	}
 }
 
+void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt)
+{
+	// #4025: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e'. Il nome lo da' il kit
+	// di QUESTA unita'; il giudizio sul ripiego e sul testo sta nella funzione pura.
+	LastSkillCallout = URTHudViewModel::BuildSkillCallout(KitDisplayNameFor(ActionId), ActionId, StableUnitId, StartAt);
+	bSkillCalloutLive = true;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->PushSkillCallout(LastSkillCallout);
+	}
+
+	// ⛔ Nessun controllo sul velo QUI, come in `ShowDamageToken` (vedi sopra): lo decide
+	// `ARTHUD::UpdateObserverVeil` spegnendo l'intero overlay, e il fumetto vive dentro quell'overlay.
+}
+
+void ARTUnit::SetSkillCalloutClock(float Now)
+{
+	// Il valore si registra SEMPRE, il widget lo riceve se c'e': e' il tempo del playback, non un conteggio
+	// dell'unita' — il fumetto non ha un `DeltaTime` suo.
+	LastSkillCalloutClock = Now;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->SetSkillCalloutClock(Now);
+	}
+}
+
+void ARTUnit::ClearSkillCallout()
+{
+	// ⚠️ Chiude la vita e NON il registro: `LastSkillCallout` resta leggibile a playback finito.
+	bSkillCalloutLive = false;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->ClearSkillCallout();
+	}
+}
+
 TSubclassOf<UAnimInstance> ARTUnit::ResolvedAnimClass() const
 {
 	// #3562 (`Q6` del piano): una classe nulla non lascia l'unita' ferma, ripiega sul grafo C++.
@@ -512,6 +548,15 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
 	}
 	bStrategicPresentation = bStrategic;
+
+	// #4025 (R8, D-582): la vista strategica NON spegne l'overlay — `OverlayWidget` dipende solo da `bRender` — quindi
+	// il fumetto non sparirebbe da solo. Il widget lo collassa finche' la vista e' strategica e al ritorno riapplica
+	// il tempo che aveva; nella strategica l'informazione sta nel log a destra (`Attiva:`). Qui si inoltra soltanto
+	// lo stato, non si giudica niente.
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->SetStrategicPresentation(bStrategic);
+	}
 
 	// #3647: il cilindro cambia posa con la presentazione — in piedi sulla cella in strategica, quella del Blueprint
 	// in tattica. La selezione resta (+15%), e l'offset dell'ultima posa graykit si somma.

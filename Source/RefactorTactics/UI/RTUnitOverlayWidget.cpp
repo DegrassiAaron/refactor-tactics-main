@@ -257,6 +257,66 @@ void URTUnitOverlayWidget::PushDamageToken(const FRTDamageTokenView& Token)
 	// token compare lo stesso — il fatto e' avvenuto — ma la barra tace, perche' non ha nulla da raccontare.
 }
 
+void URTUnitOverlayWidget::PushSkillCallout(const FRTSkillCalloutView& Callout)
+{
+	ActiveCallout = Callout;
+
+	// Il tempo riparte dall'origine del fumetto: `Elapsed = CalloutNow - StartAt = 0`, quindi nasce col pop e
+	// pieno di opacita'. Il resto del tempo lo porta `SetSkillCalloutClock`.
+	CalloutNow = Callout.StartAt;
+	bCalloutLive = true;
+
+	if (SkillCalloutText)
+	{
+		// Il maiuscolo e' presentazione e si applica QUI, al momento di posare il testo: la vista e il kit
+		// conservano il nome com'e' scritto.
+		SkillCalloutText->SetText(FText::FromString(Callout.Label.ToUpper()));
+	}
+
+	ApplySkillCalloutState();
+}
+
+void URTUnitOverlayWidget::SetSkillCalloutClock(float Now)
+{
+	CalloutNow = Now;
+	ApplySkillCalloutState();
+}
+
+void URTUnitOverlayWidget::ClearSkillCallout()
+{
+	bCalloutLive = false;
+	ApplySkillCalloutState();
+}
+
+void URTUnitOverlayWidget::SetStrategicPresentation(bool bStrategic)
+{
+	bStrategicPresentation = bStrategic;
+	ApplySkillCalloutState();
+}
+
+void URTUnitOverlayWidget::ApplySkillCalloutState()
+{
+	// Senza il root non c'e' niente da accendere: il widget degrada in silenzio, come ogni binding opzionale.
+	if (!SkillCalloutRoot)
+	{
+		return;
+	}
+
+	// 🔑 Le due curve sono le funzioni pure di `URTHudViewModel`, e il tempo e' quello che il playback ha portato:
+	// qui non si somma nessun `DeltaTime`.
+	const float Elapsed = CalloutNow - ActiveCallout.StartAt;
+	const float Alpha = URTHudViewModel::SkillCalloutAlpha(Elapsed, SkillCalloutSeconds);
+	const float Scale = URTHudViewModel::SkillCalloutScale(Elapsed);
+
+	SkillCalloutRoot->SetRenderOpacity(Alpha);
+	SkillCalloutRoot->SetRenderScale(FVector2D(Scale, Scale));
+
+	// Riposo COMPLETO e non trasparenza: un widget invisibile ma presente e' ancora un elemento nel layout, e
+	// sopra un cilindro lo spazio e' la risorsa scarsa.
+	const bool bHidden = !bCalloutLive || bStrategicPresentation || Alpha <= 0.f;
+	SkillCalloutRoot->SetVisibility(bHidden ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+}
+
 void URTUnitOverlayWidget::PulseHealthBar()
 {
 	PulseElapsed = 0.f;
@@ -271,6 +331,9 @@ void URTUnitOverlayWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	// vietato al resolver competitivo; questa e' presentazione pura, e cio' che misura e' per quanti
 	// fotogrammi una cifra resta a schermo. Un fotogramma perso allunga o accorcia un'animazione e **non
 	// cambia una virgola** di cio' che e' successo nel turno.
+	//
+	// ⚠️ Il fumetto della skill (`#4025`) NON scorre qui: il suo tempo e' quello del playback, che arriva da fuori
+	// con `SetSkillCalloutClock`. Un secondo orologio in questa funzione lo farebbe seguire al frame.
 
 	if (bTokenActive)
 	{

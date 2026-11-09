@@ -1,13 +1,21 @@
 // Il fumetto della skill (#4025), fetta 1: le funzioni PURE che decidono cosa dice e come si dissolve.
 //
-// Il widget e l'unita' non hanno copertura headless: `URTUnitOverlayWidget` e' un `UUserWidget` ([D-320]
-// punto 5), quindi ogni giudizio vive in `URTHudViewModel` e si prova qui, chiamandolo senza costruire niente.
+// Il widget non ha copertura headless: `URTUnitOverlayWidget` e' un `UUserWidget` ([D-320] punto 5), quindi
+// ogni giudizio vive in `URTHudViewModel` e si prova qui, chiamandolo senza costruire niente. L'UNITA' invece si
+// spawna in un mondo di prova: la seconda sezione di questo file fissa il suo canale (`ShowSkillCallout`,
+// `SetSkillCalloutClock`, `ClearSkillCallout`) leggendo `LastSkillCalloutForTest`, perche' senza widget
+// quel campo e' l'unico modo di vedere se il fumetto e' arrivato alla presentazione.
 // Cio' che questi test fissano e' il CONTRATTO del fumetto: chi grida, che parola compare, e le due curve del
 // tempo. Il tempo stesso non e' qui: lo detta `ARTTurnManager::PlaybackElapsedTotal`, mai un `DeltaTime` locale.
 
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
+#include "Kismet/GameplayStatics.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Unit/RTUnit.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTSkillCalloutView.h"
+#include "RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -141,6 +149,161 @@ bool FRTSkillCalloutScalePopsThenSettlesTest::RunTest(const FString&)
 	TestNearlyEqual(TEXT("dopo il pop resta a 1"), URTHudViewModel::SkillCalloutScale(2.f), 1.f, 0.01f);
 	TestNearlyEqual(TEXT("un tempo negativo e' la scala di nascita"), URTHudViewModel::SkillCalloutScale(-1.f), 1.15f, 0.01f);
 	TestNearlyEqual(TEXT("pop di durata zero: nessun pop, scala 1"), URTHudViewModel::SkillCalloutScale(0.f, 0.f), 1.f, 0.01f);
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// L'UNITA': il canale del fumetto, senza widget.
+// ------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** L'identita' con cui la fixture marca l'unita': diversa da 0 perche' lo 0 e' «nessuno» ([D-063]). */
+	constexpr int32 SkillCalloutProvaUnitId = 7;
+
+	/**
+	 * Un'unita' di Muiren in un mondo di prova (modello `SpawnBeatUnit`, `RTPlaybackActivationTests.cpp`).
+	 *
+	 * ⚠️ `StableUnitId` lo assegna `EnsureMatchRoster` a partita avviata: qui non c'e' una partita, quindi la
+	 * fixture lo scrive a mano. Lasciato a 0 il test che confronta chi grida con l'unita' sarebbe vacuo, perche'
+	 * `0 == 0` anche se il canale ignorasse l'id.
+	 */
+	ARTUnit* SpawnSkillCalloutUnit(UWorld* World)
+	{
+		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!Unit) { return nullptr; }
+		Unit->TeamId = 0;
+		Unit->bIsBotControlled = false;
+		Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeMuiren());
+		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
+		Unit->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		Unit->StableUnitId = SkillCalloutProvaUnitId;
+		return Unit;
+	}
+}
+
+/**
+ * Il campo si scrive SEMPRE, anche senza widget.
+ *
+ * 🔑 E' il punto di tutto il canale: in un mondo headless `GetOverlayWidgetObject()` risponde `nullptr`, e se la
+ * scrittura stesse dentro il controllo del widget nessun test potrebbe dire se il fumetto e' arrivato alla
+ * presentazione. La premessa lo misura invece di darlo per scontato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutUnitRecordsTheCalloutWithoutAWidgetTest,
+	"RefactorTactics.HudViewModel.SkillCallout.UnitRecordsTheCalloutWithoutAWidget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutUnitRecordsTheCalloutWithoutAWidgetTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Unit = SpawnSkillCalloutUnit(World);
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	TestNull(TEXT("premessa: in un mondo headless il widget non esiste"), Unit->GetOverlayWidgetObject());
+
+	const FName ActionId(TEXT("Hero.Muiren.TideGuard"));
+	Unit->ShowSkillCallout(ActionId, 2.f);
+
+	const FRTSkillCalloutView& Registrato = Unit->LastSkillCalloutForTest();
+	TestEqual(TEXT("l'azione registrata e' quella che grida"), Registrato.ActionId, ActionId);
+	TestFalse(TEXT("l'etichetta non e' vuota"), Registrato.Label.IsEmpty());
+	TestEqual(TEXT("l'etichetta e' il nome che il kit da' alla skill"),
+		Registrato.Label, Unit->KitDisplayNameFor(ActionId).ToString());
+	TestFalse(TEXT("il kit di Muiren nomina la skill: il ripiego non scatta"), Registrato.bFromFallback);
+	TestEqual(TEXT("chi grida e' questa unita'"), Registrato.SourceStableUnitId, SkillCalloutProvaUnitId);
+	TestNearlyEqual(TEXT("l'istante di comparsa e' quello passato"), Registrato.StartAt, 2.f, 0.0001f);
+	TestTrue(TEXT("il fumetto e' in vita"), Unit->IsSkillCalloutLive());
+
+	return true;
+}
+
+/**
+ * Un secondo fumetto sostituisce il primo: un fumetto per unita', il piu' recente.
+ *
+ * ⚠️ E' il limite «un evento, un token» che il token di danno ha gia' dichiarato, letto dalla parte del campo:
+ * il registro non e' una coda. Se due skill gridano nello stesso playback la seconda e' quella che si vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutSecondCalloutReplacesTheFirstTest,
+	"RefactorTactics.HudViewModel.SkillCallout.SecondCalloutReplacesTheFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutSecondCalloutReplacesTheFirstTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Unit = SpawnSkillCalloutUnit(World);
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	Unit->ShowSkillCallout(FName(TEXT("Hero.Muiren.TideGuard")), 2.f);
+	Unit->ShowSkillCallout(FName(TEXT("Hero.Muiren.CircularTide")), 2.5f);
+
+	TestEqual(TEXT("resta l'azione della seconda"),
+		Unit->LastSkillCalloutForTest().ActionId, FName(TEXT("Hero.Muiren.CircularTide")));
+	TestNearlyEqual(TEXT("e il suo istante di comparsa"), Unit->LastSkillCalloutForTest().StartAt, 2.5f, 0.0001f);
+	TestTrue(TEXT("il fumetto e' in vita"), Unit->IsSkillCalloutLive());
+
+	return true;
+}
+
+/**
+ * `ClearSkillCallout` chiude la VITA e lascia il REGISTRO.
+ *
+ * 🔑 Lo scopo del campo e' farsi leggere a playback finito: un test di partita guarda cosa l'unita' ha gridato
+ * dopo che la sequenza e' terminata. Se `Clear` azzerasse anche il registro, l'oracolo sparirebbe nel momento
+ * in cui serve, e il test passerebbe o fallirebbe a seconda di quando lo si legge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutClearKeepsTheRecordButEndsTheLifeTest,
+	"RefactorTactics.HudViewModel.SkillCallout.ClearKeepsTheRecordButEndsTheLife",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutClearKeepsTheRecordButEndsTheLifeTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Unit = SpawnSkillCalloutUnit(World);
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	TestFalse(TEXT("premessa: un'unita' nuova non ha un fumetto in vita"), Unit->IsSkillCalloutLive());
+
+	const FName ActionId(TEXT("Hero.Muiren.TideGuard"));
+	Unit->ShowSkillCallout(ActionId, 2.f);
+	TestTrue(TEXT("premessa: dopo Show il fumetto e' in vita"), Unit->IsSkillCalloutLive());
+
+	Unit->ClearSkillCallout();
+
+	TestFalse(TEXT("dopo Clear la vita e' finita"), Unit->IsSkillCalloutLive());
+	TestEqual(TEXT("ma il registro resta: l'azione e' ancora leggibile"),
+		Unit->LastSkillCalloutForTest().ActionId, ActionId);
+	TestFalse(TEXT("e anche l'etichetta"), Unit->LastSkillCalloutForTest().Label.IsEmpty());
+
+	return true;
+}
+
+/**
+ * Il tempo che l'unita' porta al widget viene registrato.
+ *
+ * ⚠️ L'unita' non misura il tempo: lo riceve dal chiamante (`PlaybackElapsedTotal`) e lo inoltra. Il registro
+ * dell'ultimo valore e' cio' che rende osservabile, senza widget, che il tempo sia davvero passato di qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutClockIsRecordedTest,
+	"RefactorTactics.HudViewModel.SkillCallout.ClockIsRecorded",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutClockIsRecordedTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Unit = SpawnSkillCalloutUnit(World);
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	Unit->SetSkillCalloutClock(4.2f);
+
+	TestNearlyEqual(TEXT("l'orologio registrato e' l'ultimo ricevuto"), Unit->SkillCalloutClockForTest(), 4.2f, 0.0001f);
 
 	return true;
 }
