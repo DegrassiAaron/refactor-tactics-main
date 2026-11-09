@@ -1,0 +1,58 @@
+{
+  "scenarioId": "Lab.T5.Fumetto4025",
+  "tags": ["lab", "visual", "fumetto", "4025"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+
+  "_nota": "Banco NON versionato della seduta visiva di #4025 (task 5). Squadra 0 = chi guarda, visionRange 0 (solo consapevolezza ravvicinata, 2 celle): B1 e B3 stanno a 2 celle da un alleato e si vedono, B2 sta a 4-5 celle e NON si vede. T1: due skill nello stesso Blast (A1 LinearDischarge blu, B1 Overload rosso), un attacco base (B3 ImpactShot), A1 grida + incassa + ha Wet; B2 non osservato usa Overload su una cella vuota. T2: altre due skill (per Tab). T3: una skill di Muiren (per la pausa). T4: A2 in Brace, B3 Ram su A2 -> finestra di reazione (Profile.Sidestep).",
+  "_nota_evidenza": "Conservato come evidenza di #4025 in docs/technical/evidence/4025/: il «NON versionato» del _nota valeva quando il banco stava solo in Saved/RTLab. Per rieseguirlo va copiato in Saved/RTLab/Scenarios/ del clone principale e caricato con -RTScenario=<scenarioId>.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0], "facing": "E", "visionRange": 0,
+      "statuses": [ { "tag": "Status.Wet", "turns": 6 } ] },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [-1, 2, 0], "facing": "E", "visionRange": 0 },
+    { "id": "B1", "hero": "Hero.Aevik",  "team": 1, "cell": [ 1, 0, 0], "facing": "W" },
+    { "id": "B3", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "B2", "hero": "Hero.Aevik",  "team": 1, "cell": [ 3, -3, 0], "facing": "SW" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — a, b, d, g, L1, L2, c, f",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.LinearDischarge", "target": "B1" },
+        { "unit": "B1", "ability": "Hero.Aevik.Overload", "target": "A1" },
+        { "unit": "B3", "ability": "Hero.Branth.ImpactShot", "target": "A2" },
+        { "unit": "B2", "ability": "Hero.Aevik.Overload", "targetCell": [3, 0, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — e, e' (Tab durante un fumetto vivo); c di nuovo",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.Overload", "target": "B1" },
+        { "unit": "B1", "ability": "Hero.Aevik.LinearDischarge", "target": "A1" },
+        { "unit": "B2", "ability": "Hero.Aevik.LinearDischarge", "targetCell": [3, -1, 0] }
+      ]
+    },
+    {
+      "_turno": "T3 — h (pausa del playback e ESC)",
+      "intents": [
+        { "unit": "A2", "ability": "Hero.Muiren.CircularTide", "target": "A1" },
+        { "unit": "B1", "ability": "Hero.Aevik.ArcPulse", "target": "A1" }
+      ]
+    },
+    {
+      "_turno": "T4 — i (finestra di reazione aperta da una skill nemica)",
+      "intents": [
+        { "unit": "A2", "ability": "Action.Brace" },
+        { "unit": "B3", "ability": "Hero.Branth.Ram", "target": "A2" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 4 }
+  ]
+}

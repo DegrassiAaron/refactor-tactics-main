@@ -7,6 +7,30 @@
 > Copre la **prima fetta**: il fumetto delle skill che si attivano. Le azioni bloccate come fumetto, che la
 > stessa domanda richiede, sono la fetta successiva (§9).
 >
+> ➕ **Implementato il 2026-11-09 su `feat/4025-fumetto-skill`** (⌫ *«non implementato», qui sopra, era lo stato
+> all'approvazione*): funzioni pure e vista `7d6c71355`; canale sull'unità e sull'overlay `496e4461d`, `cfaaaadef`;
+> cablaggio nel `TurnManager` con l'orologio del playback `99d6a2580`, `e480618fd`; unione di `origin/main`
+> `ec7355eae`; scorciatoie del censimento della superficie BP che la unity piena non compilava `d2abb275c`;
+> `WBP_RT_UnitOverlay` col fumetto `2ad1a8aa5`; `DrawSize` e contorno nel colore di squadra `0fd13f769`; censimento
+> dei tre widget del fumetto `ab05e9b55`; documentazione in `progettazione-hud.md` `4bd839cf1`; `DrawSize` 220×228
+> sulla misura della seduta visiva `5167ae133`. **Suite** `RefactorTactics` intera a `ab05e9b55`, build unity piena
+> senza esclusioni adattive: `Found 3702 automation tests`, 3702 `Result={Success}`, `TEST COMPLETE. EXIT CODE: 0`.
+> **Seduta visiva** del 2026-11-09 (finestra `-game`, non PIE; un passaggio indipendente che non ha scritto codice;
+> clone principale a `ab05e9b55`, L1 rimisurata a `5167ae133`):
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md), esiti nella voce `PIE-HUD-FUMETTO` di
+> [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), che è 🟡. Due `FAIL`: il punto (e) nella seconda
+> metà, perché il Registro a destra non porta la riga `Attiva:` (premessa di R8 falsa, seguito
+> [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)), ed è un buco della fetta, non del
+> fumetto; il punto (h) con `ESC`, perché `ESC` non ferma il playback: la premessa di A8 era imprecisa, e che il
+> fumetto continui col menu aperto è un `Ruling` (nota sotto A8). Manca il giudizio d'autore sulla resa (§5) e su
+> quel `Ruling`.
+> ➕ **Review finale del branch (2026-11-09), corretta in `22982c3ef`**: il fumetto ha un orologio suo
+> (`SkillCalloutClock`), perché `PlaybackElapsedTotal` torna a zero alla ripresa dopo una finestra di reazione (nota in
+> §2, R4); le azioni dell'equipaggiamento non gridano (nota sotto §3.2, R1b). La seduta visiva precede la correzione. Il
+> test della finestra non legava l'ascoltatore e non apriva la finestra: corretto in `d9531eb83`, mutazioni
+> dichiarate in `7bf3cb63a`. **Suite** `RefactorTactics` intera sul merge `edb759df2` (con `main` a `6b9c41f5f`):
+> 3721 `Result={Success}` su 3721, `TEST COMPLETE. EXIT CODE: 0`.
+>
 > **Stato misurato**: 2026-11-08, `main` = `e2fc03f09`; `Source/` identico sul branch di lavoro
 > (`git diff --stat main HEAD -- Source` vuoto) e su `origin/main` = `5eac6115e` del 2026-11-09
 > (`git diff --stat e2fc03f09 origin/main -- Source` vuoto). Ogni `file:riga` è stato letto su quel codice;
@@ -31,6 +55,18 @@
 | A6 | Perimetro | «parti solo dalle skill che vanno a segno»: la fetta copre le attivazioni, **non** le azioni bloccate. |
 | A7 | Quali azioni | Messo davanti al fatto che `AbilityActivated` esce anche per l'attacco base di ogni eroe, per Guardia, Irrigidimento, Guardia reattiva e per le coperture (§2): **«Solo le skill del kit»**, escluso l'attacco base e le azioni generiche. |
 | A8 | Orologio | Messo davanti al fatto che il playback si ferma (ESC, `Next Action`) e rallenta nella finestra di reazione (§2): **«Tempo del playback»**. In pausa il fumetto resta fermo; nello slow-motion dura di più a parete. |
+
+> ⚠️ **A8, misurato il 2026-11-09: `ESC` non ferma il playback.** Apre il menu di pausa, che «Non sospende niente»
+> (`Frontend/RTFrontendNavigator.h:290-310`: nessun `SetPause`, nessuna dilatazione del tempo, nessun flag nel
+> `TurnManager`). La pausa del playback è `K` (`ARTTurnManager::PausePlayback`, con i comandi di playback accesi,
+> `rt.Debug.PlaybackControls 1`). Il fumetto segue l'orologio del playback in entrambi i casi, fermo con `K` e in
+> corsa con `ESC` (seduta visiva, punto (h): [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+>
+> `Ruling` Leggere A8 come «il fumetto segue il playback, anche quando `ESC` non lo ferma» è una lettura di chi
+> scrive, non dell'autore, che aveva risposto a una premessa sbagliata. Costo se sbagliata: con il menu di `ESC`
+> aperto il fumetto continua e si dissolve dietro al menu, e chi torna alla partita non lo trova più. Se l'autore
+> vuole che `ESC` fermi tutto, è lavoro del frontend (oggi `ESC` «Non sospende niente», per scelta), non del fumetto,
+> che seguirebbe da sé un playback fermo.
 
 Decisioni precedenti che governano, già accettate:
 
@@ -64,11 +100,24 @@ giocatore ha messo in pausa (`bPlaybackPaused`, `RTTurnManager.cpp:9576`) e quan
 trattiene il playback parziale (`bPlaybackHeldByWindow`, `:9586`); il passo è `DeltaSeconds ×
 EffectivePlaybackSpeed(ViewerPlaybackSpeed)` (`:9590`), e la velocità scende durante la finestra
 (`RTTurnManager.h:1529-1536`, D-350). `PlaybackElapsedTotal` (`RTTurnManager.h:3950`) accumula quel passo
-(`:9604`, `:9614`), si corregge sugli step di `Next Action` (`:9624`), si **conserva** quando il playback
-riparte dopo una finestra (`BeginPlayback(bPreserveClock)`, `:8689`, `:8983`) e torna a zero all'inizio del
+(`:9604`, `:9614`), si corregge sugli step di `Next Action` (`:9624`), ~~si **conserva** quando il playback
+riparte dopo una finestra (`BeginPlayback(bPreserveClock)`, `:8689`, `:8983`)~~ (premessa falsa: nota qui sotto) e torna a zero all'inizio del
 turno. È il tempo «che si vede» (`:9597`). Le cue d'attivazione sulla mappa vivono già su questo orologio
 (`PushPlaybackCues` → `ActivationCuesAt(…, PlaybackPhaseElapsed, …)`, `:9321-9335`); il token di danno invece
 va a parete (`NativeTick`).
+
+> ⚠️ **«Si conserva quando il playback riparte dopo una finestra» è una premessa falsa per `PlaybackElapsedTotal`,
+> misurata per lettura nella review finale del 2026-11-09.** `BeginPlayback(true)` conserva il valore che trova, ma
+> alla RIPRESA ci si arriva da `ConcludeResolution` (chiamata dalla risposta alla finestra, in
+> `RTTurnManager_Movement.cpp`, con `bIsResolving` ancora vero), che **prima** azzera `PlaybackElapsedTotal`: il
+> valore conservato è già zero. Un fumetto acceso prima della finestra, con lo `StartAt` su quel tempo, alla ripresa
+> leggeva `Now − Start < 0`, cioè opacità 1 e scala 1,15: ogni fumetto del turno, anche già dissolto, tornava pieno e
+> ingrandito. Il fumetto ha quindi un **orologio suo**, `ARTTurnManager::SkillCalloutClock`: avanza dello stesso
+> passo e si corregge dello stesso scarto di `Next Action`, ma **non** lo azzera `ConcludeResolution`; torna a zero
+> solo all'inizio del playback di un turno nuovo (`BeginPlayback(false)`) e alla fine vera (`FinishPlayback`, dopo
+> il ramo sospeso). L'azzeramento condiviso resta com'è perché `PlaybackElapsedTotal` alimenta la barra e
+> `Pacing.Close` (TurnLog): la barra che torna a zero dopo una finestra è un difetto preesistente, in §9. Pinnato da
+> `RefactorTactics.Playback.SkillCallout.CalloutClockSurvivesTheReactionWindow`.
 
 **Il criterio «skill» esiste nel dato, non va dedotto dal nome.** `FRTActionDef::BaseActionId`
 (`Ability/RTActionDef.h:531-544`) dice *«di quale azione generica questa è un profilo … `None` per le azioni
@@ -82,7 +131,7 @@ esplicitamente la deduzione dal nome. Ogni attacco base d'eroe lo dichiara (`Mak
 L'evento porta già `BaseActionId` (`RTResolvedEvent.h:427`).
 
 **Il posto esiste.** Sopra ogni unità vive `ARTUnit::OverlayWidget`, un `UWidgetComponent` in **screen
-space** ancorato alla sommità dell'unità, `DrawSize` 220×90, pivot (0.5, 1), che nasce spento e che il velo
+space** ancorato alla sommità dell'unità, `DrawSize` 220×90 (stato misurato; oggi 220×228, vedi §4), pivot (0.5, 1), che nasce spento e che il velo
 accende (`Unit/RTUnit.cpp:176-230`; classe di default `/Game/RT/UI/Match/WBP_RT_UnitOverlay`). Il widget
 `URTUnitOverlayWidget` (`UI/RTUnitOverlayWidget.h:34`) porta `NameText`, `HealthBar`, `HealthText`,
 `ShieldBar`, `StatusBox` e `DamageTokenText` (`:159-204`): il **token di danno** è il precedente più vicino,
@@ -135,10 +184,10 @@ fumetti possono essere vivi insieme su unità diverse.
 | # | Regola | Fonte |
 |---|---|---|
 | R1 | Il fumetto nasce **solo** da `ShowActivation`, cioè da un `AbilityActivated` che il playback ha deciso di mostrare. Nessun altro produttore. | A1, D-582 privacy |
-| R1b | Grida **solo una skill del kit**: `BaseActionId == None` **e** `ActionId` non è un'azione del catalogo core. Quindi **non** gridano l'attacco base (`BaseActionId = Action.BasicAttack`), Guardia, Irrigidimento, Guardia reattiva, Interagisci, le coperture e ogni altra `Action.*`. `Ruling` Un'azione d'eroe che è **profilo** di una generica (`BaseActionId` valorizzato, come l'attacco base) non grida: è la generica con un nome. Costo se sbagliato: un eroe futuro con una «Guardia» firmata non grida. Il criterio è una funzione **pura** sui due `FName` più un bool «è core», con test. **Nessun campo nuovo** in `FRTActionDef`. | A7 |
+| R1b | Grida **solo una skill del kit**: `BaseActionId == None` **e** `ActionId` non è un'azione del catalogo core. Quindi **non** gridano l'attacco base (`BaseActionId = Action.BasicAttack`), Guardia, Irrigidimento, Guardia reattiva, Interagisci, le coperture e ogni altra `Action.*`. `Ruling` Un'azione d'eroe che è **profilo** di una generica (`BaseActionId` valorizzato, come l'attacco base) non grida: è la generica con un nome. Costo se sbagliato: un eroe futuro con una «Guardia» firmata non grida. Il criterio è una funzione **pura** sui due `FName` più un bool «è core», con test. **Nessun campo nuovo** in `FRTActionDef`. ⚠️ *Anche l'azione di un pezzo d'equipaggiamento non grida: nota sotto la tabella.* | A7 |
 | R2 | Il testo è il nome leggibile dell'azione: `KitDisplayNameFor(ActionId)`; se vuoto, `KitDisplayNameFor(BaseActionId)`. | A2 |
 | R3 | `Ruling` Se anche quello è vuoto, il fumetto mostra l'**ultimo segmento** di `ActionId` (per `Hero.Aevik.ArcPulse` → `ArcPulse`) e scrive una warning che nomina l'id. Costo se sbagliato: un identificatore inglese a schermo; l'alternativa, nessun fumetto, è un buco che nessun test vede, ed è la forma che il progetto scarta (`ResolveIcon`, `RTUnitOverlayWidget.h:148-156`). | — |
-| R4 | Durata **3,0 s di tempo del playback** dalla comparsa, poi il fumetto è **collassato**, non trasparente (come il token, `RTUnitOverlayWidget.cpp:285-291`). L'orologio è `PlaybackElapsedTotal`: alla comparsa si registra l'istante di partenza, e a ogni fotogramma la vita del fumetto è `Now − Start`. In **pausa** e nel **trattenimento** di una finestra il fumetto resta com'è; nello slow-motion dura di più a parete; uno step di `Next Action` lo fa avanzare dello scarto mostrato. Il valore 3,0 è una proprietà `EditDefaultsOnly` del widget; `0` lo spegne. Anche il pop di comparsa e la dissolvenza (§5) corrono su questo orologio. | A1, A8 |
+| R4 | Durata **3,0 s di tempo del playback** dalla comparsa, poi il fumetto è **collassato**, non trasparente (come il token, `RTUnitOverlayWidget.cpp:285-291`). L'orologio è `ARTTurnManager::SkillCalloutClock` (~~`PlaybackElapsedTotal`~~, che una finestra di reazione azzera: nota sotto la tabella), che avanza dello stesso passo del playback: alla comparsa si registra l'istante di partenza, e a ogni fotogramma la vita del fumetto è `Now − Start`. In **pausa** e nel **trattenimento** di una finestra il fumetto resta com'è; nello slow-motion dura di più a parete; uno step di `Next Action` lo fa avanzare dello scarto mostrato. Il valore 3,0 è una proprietà `EditDefaultsOnly` del widget; `0` lo spegne. Anche il pop di comparsa e la dissolvenza (§5) corrono su questo orologio. | A1, A8 |
 | R5 | `Ruling` Un'unità porta **un solo fumetto**: una seconda attivazione entro i 3 s **sostituisce** la prima e riparte da zero (specchio di `PushDamageToken`). Costo se sbagliato: nel Dash un'unità che attiva due skill nello stesso turno mostra solo la seconda; con `AttackShowSeconds` 0,5 s la prima è stata visibile almeno mezzo secondo. | — |
 | R6 | Più unità possono avere il fumetto vivo nello stesso istante. Nessuna coda, nessun rallentamento del playback, nessuna de-sovrapposizione. | A5 |
 | R7 | `Ruling` Alla **fine vera del playback** ogni fumetto ancora vivo viene **tagliato**: in `ARTTurnManager::FinishPlayback` (`RTTurnManager.cpp:10052`) **dopo** il ramo `IsResolutionSuspended()` (`:10064-10105`), che è la fine di un **prefisso** su una finestra di reazione e non del turno, e lì il playback resta trattenuto e poi riparte con `BeginPlayback(true)`. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi **fermo e visibile** mentre il giocatore decide (R4: l'orologio non avanza), ed è l'informazione su cui decide. Vale anche per il Skip. In pianificazione non c'è mai un fumetto. Costo se sbagliato nel verso opposto: un grido che resta sopra l'unità mentre il giocatore pianifica il turno dopo. | A1, A8 |
@@ -146,6 +195,33 @@ fumetti possono essere vivi insieme su unità diverse.
 | R9 | Il fumetto **vive dentro `WBP_RT_UnitOverlay`**, mai in un componente separato: eredita il velo per costruzione. | progettazione-hud.md:188-193 |
 | R10 | Il fumetto **non decide nulla**: nessun campo entra in `MapState`, snapshot, TurnLog o `StateHash`. Il tempo che consuma è quello del playback, che è già dichiarato presentazione e mai decisione (invariante #1). | AGENTS.md §3 |
 | R11 | `Ruling` Se `EmitAbilityActivated` viene emesso anche per un intento che poi risulta interrotto o bloccato, in questa fetta il fumetto **compare lo stesso**: è lo stesso beat su cui già suona la clip `Cast`, e distinguere i due casi è la fetta «azioni bloccate» (§9). Il builder **misura** se il caso esiste (`RTTurnManager_Blast.cpp`, `ApplyInterrupts`) e lo scrive nella DoD. Costo se sbagliato: un grido per una skill poi interrotta, coerente con la clip che già parte. | A6 |
+
+> ⚠️ **R8, misurato il 2026-11-09: la premessa è falsa.** In vista strategica il fumetto si collassa come la regola
+> dice, ma il Registro a destra **non** porta la riga `Attiva:`. La stringa va solo nel log del motore e in
+> `RecentEvents` (`ShowActivation` → `AddLogEvent`); `GetRecentEventsForTeam` non ha nessun chiamante nei sorgenti
+> non di test (`git grep -n GetRecentEventsForTeam -- Source` fuori dai `Tests/`); il Registro si compone dal
+> `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/RTHudViewModel.h:1360-1361`). Quindi
+> l'informazione che D-582 (3) vuole nella vista strategica oggi non c'è: seguito
+> [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+>
+> 🔎 **R11, misurato** (sul codice): un **attacco** interrotto non emette `AbilityActivated` e non grida (`ApplyInterrupts` → `InterruptedIntents`, da cui `EmitAttackIntentActivation` esce), uno degradato grida; una **cura** (`DeferredActivations`) non si attiva se il guaritore è stordito, e si attiva se è interrotto (una skill del kit, quindi, grida lo stesso), perché l'interruzione cerca le vittime solo fra gli intenti d'attacco. Le azioni bloccate come fumetto sono [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034).
+>
+> ⚠️ **R1b, review finale del 2026-11-09: l'equipaggiamento gridava.** `URTCatalogLibrary::MakeEquipmentAction`
+> scrive `ActionId = EquipmentId` (`Gadget.*`, `Reaction.*`) e copia dal core un `BaseActionId` vuoto; `FindCoreAction`
+> non conosce quell'id. Per le due condizioni di R1b un gadget era quindi una skill di firma, e con il loadout di
+> default (`EquipLoadout(DefaultLoadoutFor(…))`, come in partita) Muiren gridava «SPRINKLER» e Branth «COPERTURA
+> PORTATILE», contro A7 («solo le skill del kit») e contro il `Ruling` di R1b («la generica con un nome» non grida).
+> Corretto: grida solo un'azione che **non** è né core né concessa da un pezzo d'equipaggiamento
+> (`URTCatalogLibrary::FindEquipment(ActionId) != nullptr`); il bool di `ActionShouts` si chiama ora
+> `bIsGenericOrEquipment`. Pinnato da `RefactorTactics.Playback.SkillCallout.EquipmentActionDoesNotShout` (il loadout
+> vero di Branth) e da un caso in `HudViewModel.SkillCallout.ShoutsOnlyForASignatureSkill`. Costo se sbagliato: se
+> l'autore vuole che un gadget gridi, è una riga.
+>
+> ⚠️ **R4, review finale del 2026-11-09: l'orologio è `SkillCalloutClock`.** `PlaybackElapsedTotal` torna a zero alla
+> ripresa dopo una finestra di reazione (nota in §2), e i fumetti accesi prima tornavano pieni e ingranditi. Pausa,
+> trattenimento, slow-motion e `Next Action` valgono per il nuovo orologio come scritto in R4, perché ne segue passo e
+> correzione; cambia solo che sopravvive alla finestra.
 
 ### 3.3 Non-obiettivi
 
@@ -175,14 +251,14 @@ precedente più adatto.
 ```
 ARTTurnManager::ShowActivation(Ev)                              Turn/RTTurnManager.cpp:9039
   └─ se URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore)   NUOVO, pura (R1b)
-       Src->ShowSkillCallout(Ev.ActionId, Ev.BaseActionId, PlaybackElapsedTotal) NUOVO, Unit/RTUnit.{h,cpp}
+       Src->ShowSkillCallout(Ev.ActionId, Ev.BaseActionId, SkillCalloutClock)    NUOVO, Unit/RTUnit.{h,cpp}
          ├─ LastSkillCallout = URTHudViewModel::BuildSkillCallout(DisplayName, ActionId, StableUnitId, StartAt)
          │     (campo Transient, SEMPRE scritto: osservabile headless)            NUOVO, UI/RTHudViewModel
          └─ se c'è il widget: Overlay->PushSkillCallout(LastSkillCallout)        NUOVO, UI/RTUnitOverlayWidget
                ├─ SkillCalloutText / SkillCalloutRoot (BindWidgetOptional)          WBP_RT_UnitOverlay (asset)
                └─ SkillCalloutSeconds = 3.0 (EditDefaultsOnly)
 ARTTurnManager::TickPlayback (ogni fotogramma in cui l'orologio avanza)  RTTurnManager.cpp:9562
-  └─ per ogni unità con fumetto vivo: Overlay->SetPlaybackClock(PlaybackElapsedTotal)   NUOVO (R4)
+  └─ per ogni unità con fumetto vivo: Overlay->SetPlaybackClock(SkillCalloutClock)      NUOVO (R4)
        └─ il widget: Alpha = SkillCalloutAlpha(Now − Start, Seconds) (pura) → opacità/scala → Collapsed
           collassato finché bStrategic (R8)
 ARTTurnManager::FinishPlayback(), DOPO il ramo IsResolutionSuspended()   RTTurnManager.cpp:10105+
@@ -191,8 +267,12 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   └─ Overlay->SetStrategicPresentation(bStrategic)                NUOVO (R8)
 ```
 
+> ⚠️ Fino alla review finale del 2026-11-09 questa sezione e §8 nominavano `PlaybackElapsedTotal` come orologio del
+> fumetto; ora nominano `ARTTurnManager::SkillCalloutClock` (nota in §2). La regola «una sola fonte, nessun
+> `DeltaTime` locale» resta: la fonte è quell'orologio.
+
 - **`FRTSkillCalloutView`** (nuova struct, `UI/`): `SourceStableUnitId`, `ActionId`, `Label` (FString già
-  composto), `bFromFallback` (vero se R3 è scattata), `StartAt` (secondi di `PlaybackElapsedTotal` alla
+  composto), `bFromFallback` (vero se R3 è scattata), `StartAt` (secondi di `SkillCalloutClock` alla
   comparsa). Composta da una funzione **pura** con un test che chiama senza widget, come `BuildDamageToken`
   (`Tests/RTHudViewModelTests.cpp:1145`).
 - **Il tempo lo porta il TurnManager, il widget non lo misura.** È il modello delle cue (`PushPlaybackCues`),
@@ -200,15 +280,20 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   il tempo, il fumetto resta fermo, che è il comportamento voluto in pausa. Come `Now` arrivi al widget
   (spinta diretta dal TurnManager alle unità con fumetto vivo, oppure campo in `FRTUnitOverlayView` posato
   da `ARTHUD::UpdateObserverVeil` leggendo il TurnManager) è del builder (§8); la regola è **una sola fonte**,
-  `PlaybackElapsedTotal`.
+  `SkillCalloutClock`.
 - **`ActionShouts`** riceve «è core» come bool calcolato dal chiamante con `URTCatalogLibrary::FindCoreAction`
   (o un predicato equivalente già esistente): la funzione pura non dipende dal catalogo e si testa a tavolino
   sui tre casi (skill firma, attacco base, generica).
 - **Nessun controllo sul velo in `ShowSkillCallout`**, per la stessa ragione dichiarata in
   `ShowDamageToken` (`RTUnit.cpp:326-329`): il velo lo decide `UpdateObserverVeil` spegnendo l'overlay.
-- **Il `DrawSize` 220×90** potrebbe non bastare per il fumetto sopra nome e barra. Alzarlo è lecito e, col
-  pivot (0.5, 1), il contenuto cresce verso l'alto senza spostare la barra; il builder verifica che
-  `Tests/RTHudOverlayClampTests.cpp` non dipenda dal valore.
+- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×228. **Misurato** nella
+  seduta visiva di `#4025`, a 1920×1080: a 200, con fumetto, token di danno e una riga di stati insieme, il blocco
+  scendeva di 18 px per ~0,9 s; a 228 il salto è 0. Il contenuto di ≈ 218 px è **dedotto** (200 + 18), non
+  misurato; la stima da metriche dei font, ≈ 190, era troppo bassa; a 1440p e a 4K non c'è misura. Col pivot (0.5, 1) il widget
+  cresce verso l'alto, e il `TopSpacer` in Fill del WBP impila il contenuto in basso: rispetto al layout
+  impilato in alto l'ancoraggio cambia una volta, nome e barra stanno a distanza fissa sopra la testa, il
+  fumetto comparendo sale senza spostare la barra, e una riga di stati in più spinge su nome e fumetto.
+  `Tests/RTHudOverlayClampTests.cpp` non dipende dal valore.
 - **L'asset** `WBP_RT_UnitOverlay` si modifica **in Editor, dal clone principale** (CLAUDE.md §10); il C++
   deve restare completo anche se il WBP non porta i nuovi elementi (`BindWidgetOptional`, degrado
   dichiarato come per `DamageTokenText`).
@@ -261,6 +346,16 @@ correggerà lì.
 | Determinism / Replay / Privacy | Solo presentazione; nessun golden cambia. Il builder lo dimostra con la suite verde, non lo dichiara. | `N/A` con evidenza |
 | Packaged | Non richiesto a questa fetta; `G17` lo misura sul pacchetto. | `NOT RUN` dichiarato |
 
+> ⚠️ **Riga PIE, misurata nella seduta visiva del 2026-11-09** (`U99`;
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)): (e) è `FAIL` nella seconda metà, per la
+> premessa falsa di R8 (seguito [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)); (h)
+> com'è scritta non si può avere, perché `ESC` non ferma il playback (nota e `Ruling` sotto A8): si prova con la
+> pausa del playback (`K`), ed è `PASS`. Gli esiti di tutti i punti stanno nella voce `PIE-HUD-FUMETTO` di
+> [`test-manuali-pie.md`](../../technical/test-manuali-pie.md).
+> ⚠️ (i) misura il fumetto **durante** la finestra e la pianificazione dopo. Ciò che fa **dopo** la chiusura, quando
+> resta playback da mostrare, a schermo è `NOT RUN`: la seduta precede la correzione dell'orologio (nota in §2), e il
+> comportamento lo copre il test headless `Playback.SkillCallout.CalloutClockSurvivesTheReactionWindow`.
+
 Chi scrive il codice **non firma** il verdetto PIE sui punti (b) e (c): li rimisura una seconda passata su
 commit dichiarato (CLAUDE.md §6, §10).
 
@@ -272,7 +367,7 @@ commit dichiarato (CLAUDE.md §6, §10).
 - Se alzare `DrawSize` e di quanto; la posizione precisa del fumetto rispetto a `NameText`.
 - Come il widget conosce la vista strategica (chiamata da `SetStrategicPresentation` o campo in
   `FRTUnitOverlayView`): l'unica regola è che **non legga** lo stato da sé a ogni tick da fonti diverse.
-- Come `PlaybackElapsedTotal` arriva al widget a ogni fotogramma (§4): spinta dal TurnManager o campo nella
+- Come l'orologio del fumetto (`SkillCalloutClock`) arriva al widget a ogni fotogramma (§4): spinta dal TurnManager o campo nella
   vista dell'overlay; una sola fonte, nessun `DeltaTime` locale per la vita del fumetto.
 - Come il chiamante stabilisce «è core» per `ActionShouts` (`FindCoreAction` o un predicato già esistente nel
   catalogo).
@@ -287,7 +382,20 @@ commit dichiarato (CLAUDE.md §6, §10).
 
 - **Azioni bloccate come fumetto** (D-582 (3), seconda metà della domanda `fumetti`): richiede un evento o
   una voce per l'intento interrotto/cancellato e un testo («Bloccato!», o il nome barrato); lo stesso canale
-  di §4 con una `FRTSkillCalloutView` diversa.
+  di §4 con una `FRTSkillCalloutView` diversa. ➕ *Aperta come
+  [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034); la risposta misurata a R11 è sotto
+  §3.2.*
+- ➕ **La riga `Attiva:` nel Registro a destra** in vista strategica (D-582 (3)): la premessa di R8 era falsa, e
+  l'informazione oggi non c'è. Aperta come [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033).
+- ➕ **Un curatore interrotto si attiva lo stesso** (`ApplyInterrupts` cerca le vittime solo negli intenti
+  d'attacco; R11, sotto §3.2), quindi la sua skill grida: da verificare col dominio Combat se è voluto. È già scritto
+  in [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034), come domanda da chiarire prima di
+  decidere che cosa grida.
+- ➕ **La barra di avanzamento del playback torna a 0 dopo una finestra di reazione** (`ConcludeResolution` azzera
+  `PlaybackElapsedTotal` anche sulla ripresa): difetto preesistente, fuori fetta. Per lettura, lo stesso valore arriva
+  a `Pacing.Close` e alla riga `Risoluzione completata (…s)` in `ConcludeTurn`, che dopo una finestra contano solo il
+  tratto dopo la ripresa: la correzione tocca la misura del pacing e va fatta col dominio che la possiede. Il fumetto
+  non ne dipende più (nota in §2).
 - **«Qualche grido»**: un testo per skill oltre al nome (onomatopea, frase dell'eroe), in `URTActionData`.
 - **Localizzazione** dei nomi delle azioni (oggi `FText::FromString`).
 - **Leggibilità tattica**: la previsione dell'autore «vista la grandezza degli esagoni» si misura con
@@ -303,5 +411,6 @@ commit dichiarato (CLAUDE.md §6, §10).
   (`docs/roadmap/capability-roadmaps.md:193-211`).
 - **Issue**: da aprire, una sola, sotto `G17` ondata 2 (#3997 esegue il gate); titolo proposto
   `[V0.1][UI] Il fumetto della skill: un grido manga sopra l'unità all'attivazione (D-582 (3), fetta 1)`.
-  Nel corpo: questa spec, le regole R1–R11, la tabella §7 come DoD.
+  Nel corpo: questa spec, le regole R1–R11, la tabella §7 come DoD. ➕ *Aperta come
+  [#4025](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4025).*
 - **Branch**: dal nome della issue, PR verso `main`.

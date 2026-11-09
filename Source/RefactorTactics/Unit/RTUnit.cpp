@@ -201,7 +201,33 @@ ARTUnit::ARTUnit()
 	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
 	// `#2288` chiede il PIE.
 	OverlayWidget->SetDrawAtDesiredSize(false);
-	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
+	// 🔑 **Alto 228 e non 90, e la ragione e' il fumetto della skill (`#4025`).** Il `WBP_RT_UnitOverlay` ha ora
+	// un fumetto SOPRA il nome: contorno, bolla e testo scalato, in una `SizeBox` che nasce `Collapsed`.
+	//
+	// 🔴 **Che cosa e' misurato, e che cosa no.** MISURATO dalla seduta visiva di `#4025` (finestra `-game`,
+	// 1920x1080, due prove): a 200, con fumetto + token di danno + una riga di stati insieme, il blocco
+	// nome-barra-stati SCENDEVA di 18 px verso l'unita' per ~0,9 s, quanto dura il token, e poi tornava (la barra
+	// da y 626 a 644 e da 629 a 647); senza la riga di stati non succedeva. MISURATO anche il 228: rimisurato a
+	// `5167ae133`, il salto e' 0. DEDOTTO, non misurato: il contenuto di ~218 px (200 + 18), quindi ~10 px di
+	// margine. I ~190 che stimavano le metriche dei font (pila ~99 px, ~123 con le icone; fumetto ~+36; token
+	// ~+30) erano una sottostima. A 1440p e a 4K non c'e' misura.
+	//
+	// ⚠️ **Con i 90 di prima la pila sforava gia'**: ~99 / ~123 > 90 (stima), e `RootBox` impilava dall'alto,
+	// quindi a restare tagliati erano barra e stati, non il nome. Il fumetto, in cima, avrebbe solo peggiorato.
+	//
+	// 🔴 **Cosa cambia di posto, e cosa no.** Nel `WBP` un `TopSpacer` in Fill assorbe lo spazio che il contenuto
+	// non usa, e il pivot `(0.5, 1)` qui sotto tiene il fondo del widget fermo sull'ancora:
+	//   - rispetto al layout di prima l'ancoraggio e' cambiato UNA volta, da «impilato in alto» a «impilato in
+	//     basso»: nome e barra stanno ora a distanza fissa sopra la testa;
+	//   - quando compare il fumetto cresce verso l'ALTO e la barra non si muove;
+	//   - una riga di stati in piu' spinge su di una riga nome e fumetto — e' il prezzo dell'ancoraggio in basso;
+	//   - il numero e' ancorato a una misura (il salto a 200, assente a 228), non a una stima: un fumetto o un token piu'
+	//     alti, o una seconda riga di stati, vanno rimisurati nella seduta visiva prima di toccarlo.
+	//
+	// ⚠️ **Anche la LARGHEZZA e' un vincolo.** Il `WBP` limita `SkillCalloutRoot` a `MaxDesiredWidth` 190 perche'
+	// il fumetto nasce ingrandito: 190 × 1.15 (`SkillCalloutPopStartScale`, in `RTHudViewModel.cpp`) = 218.5 <= 220.
+	// Alzare quella scala sopra ~1.157 (220 / 190) taglia i lati del fumetto al primo fotogramma del pop.
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 228.f));
 	// Il fondo del widget poggia sull'ancora e il contenuto cresce verso l'alto: con l'ancora sulla testa,
 	// la sovrapposizione sta **subito sopra** l'unita', a una distanza che non cambia con la camera.
 	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f));
@@ -342,6 +368,50 @@ void ARTUnit::ShowHealToken(int32 Amount)
 		{
 			Overlay->PushDamageToken(LastDamageToken);
 		}
+	}
+}
+
+void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt)
+{
+	// #4025: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e'. Il nome lo da' il kit
+	// di QUESTA unita'; il giudizio sul ripiego e sul testo sta nella funzione pura.
+	LastSkillCallout = URTHudViewModel::BuildSkillCallout(KitDisplayNameFor(ActionId), ActionId, StableUnitId, StartAt);
+	if (LastSkillCallout.bFromFallback)
+	{
+		// R3: il kit non nomina questa skill e il fumetto mostra l'ultimo segmento dell'id, una parola tecnica. A schermo
+		// si legge come un nome qualunque: senza questa riga il buco nel catalogo resterebbe muto. Il log sta qui e non
+		// in `BuildSkillCallout`, che resta pura: la bandiera e' un campo apposta perche' il chiamante la legga.
+		UE_LOG(LogRT, Warning, TEXT("[RT] %s: il kit non nomina la skill %s, il fumetto ripiega su '%s'"),
+			*GetName(), *ActionId.ToString(), *LastSkillCallout.Label);
+	}
+	bSkillCalloutLive = true;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->PushSkillCallout(LastSkillCallout);
+	}
+
+	// ⛔ Nessun controllo sul velo QUI, come in `ShowDamageToken` (vedi sopra): lo decide
+	// `ARTHUD::UpdateObserverVeil` spegnendo l'intero overlay, e il fumetto vive dentro quell'overlay.
+}
+
+void ARTUnit::SetSkillCalloutClock(float Now)
+{
+	// Il valore si registra SEMPRE, il widget lo riceve se c'e': e' il tempo del playback, non un conteggio
+	// dell'unita' — il fumetto non ha un `DeltaTime` suo.
+	LastSkillCalloutClock = Now;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->SetSkillCalloutClock(Now);
+	}
+}
+
+void ARTUnit::ClearSkillCallout()
+{
+	// ⚠️ Chiude la vita e NON il registro: `LastSkillCallout` resta leggibile a playback finito.
+	bSkillCalloutLive = false;
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->ClearSkillCallout();
 	}
 }
 
@@ -512,6 +582,16 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 		return; // lo chiama l'HUD a ogni fotogramma: niente churn di stato render
 	}
 	bStrategicPresentation = bStrategic;
+
+	// #4025 (R8, D-582): la vista strategica NON spegne l'overlay — `OverlayWidget` dipende solo da `bRender` — quindi
+	// il fumetto non sparirebbe da solo. Il widget lo collassa finche' la vista e' strategica e al ritorno riapplica
+	// il tempo che aveva. ⚠️ Nella strategica l'informazione NON c'e' ancora: la riga `Attiva:` va nel log del motore e
+	// non nel registro a destra (premessa di R8 misurata falsa), e la riga del registro e' il follow-up #4033. Qui si
+	// inoltra soltanto lo stato, non si giudica niente.
+	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
+	{
+		Overlay->SetStrategicPresentation(bStrategic);
+	}
 
 	// #3647: il cilindro cambia posa con la presentazione — in piedi sulla cella in strategica, quella del Blueprint
 	// in tattica. La selezione resta (+15%), e l'offset dell'ultima posa graykit si somma.

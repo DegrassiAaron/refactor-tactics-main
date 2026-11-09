@@ -1448,6 +1448,95 @@ FRTDamageTokenView URTHudViewModel::BuildHealToken(int32 Amount, int32 TargetSta
 	return View;
 }
 
+namespace
+{
+	// La scala con cui il fumetto della skill nasce (#4025): il pop parte ingrandito e si assesta a 1.
+	//
+	// ⚠️ **Non alzarla senza guardare la larghezza dell'overlay.** `WBP_RT_UnitOverlay` limita `SkillCalloutRoot`
+	// a `MaxDesiredWidth` 190 e `ARTUnit` dichiara una `DrawSize` larga 220: 190 × 1.15 = 218.5 <= 220. Sopra
+	// ~1.157 (220 / 190) il fumetto, al picco del pop, esce dal widget e viene tagliato ai lati.
+	constexpr float SkillCalloutPopStartScale = 1.15f;
+}
+
+bool URTHudViewModel::ActionShouts(const FName& /*ActionId*/, const FName& BaseActionId, bool bIsGenericOrEquipment)
+{
+	// Grida una skill di FIRMA: non e' una variante di un'altra azione (nessuna base) e non e' ne' una generica del
+	// catalogo core ne' l'azione di un pezzo d'equipaggiamento. Servono entrambe: `Action.Guard` non ha base ed e' core,
+	// `Gadget.PortableCover` non ha base ed e' equipaggiamento, `Hero.Branth.ImpactShot` non e' nessuna delle due ma ha base.
+	return BaseActionId.IsNone() && !bIsGenericOrEquipment;
+}
+
+FRTSkillCalloutView URTHudViewModel::BuildSkillCallout(const FText& KitDisplayName, const FName& ActionId,
+	int32 SourceStableUnitId, float StartAt)
+{
+	FRTSkillCalloutView View;
+
+	// `0` e' «nessuno» ([D-063]): si conserva com'e', come fa `BuildDamageToken`. Nessun consumatore lo confronta — il
+	// fumetto vive nell'overlay dell'unita' che grida — e il campo viaggia per i test e la diagnostica.
+	View.SourceStableUnitId = SourceStableUnitId;
+	View.ActionId = ActionId;
+	View.StartAt = StartAt;
+
+	if (!KitDisplayName.IsEmptyOrWhitespace())
+	{
+		View.Label = KitDisplayName.ToString();
+	}
+	else
+	{
+		// R3: il kit non ha dato un nome. L'ultimo segmento dell'id e' un nome tecnico ma e' un nome; se l'id non
+		// ha punti il segmento e' l'id intero. Niente secondo tentativo da `BaseActionId`: una skill che grida
+		// non ha base, quindi sarebbe sempre vuoto.
+		const FString Id = ActionId.ToString();
+		int32 LastDot = INDEX_NONE;
+		View.Label = Id.FindLastChar(TEXT('.'), LastDot) ? Id.Mid(LastDot + 1) : Id;
+		View.bFromFallback = true;
+	}
+
+	return View;
+}
+
+float URTHudViewModel::SkillCalloutAlpha(float Elapsed, float Seconds, float FadeSeconds)
+{
+	// Durata zero (o negativa): fumetto spento. E' il valore con cui il designer lo disattiva.
+	if (Seconds <= 0.f)
+	{
+		return 0.f;
+	}
+	// Prima dell'inizio: pieno. `Elapsed` e' negativo se il fumetto e' registrato un attimo prima che il tempo
+	// del playback lo raggiunga, e nascere spento sarebbe un lampo.
+	if (Elapsed < 0.f)
+	{
+		return 1.f;
+	}
+	if (Elapsed >= Seconds)
+	{
+		return 0.f;
+	}
+
+	// La coda e' al piu' lunga quanto la vita intera: una dissolvenza maggiore della durata farebbe partire il
+	// fumetto gia' sbiadito.
+	const float Fade = FMath::Clamp(FadeSeconds, 0.f, Seconds);
+	const float FadeStart = Seconds - Fade;
+	if (Elapsed <= FadeStart)
+	{
+		return 1.f;
+	}
+	return (Seconds - Elapsed) / Fade;
+}
+
+float URTHudViewModel::SkillCalloutScale(float Elapsed, float PopSeconds)
+{
+	if (PopSeconds <= 0.f || Elapsed >= PopSeconds)
+	{
+		return 1.f;
+	}
+	if (Elapsed <= 0.f)
+	{
+		return SkillCalloutPopStartScale;
+	}
+	return FMath::Lerp(SkillCalloutPopStartScale, 1.f, Elapsed / PopSeconds);
+}
+
 TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray<AActor*>& Actors)
 {
 	TArray<FRTPlannedIntent> Authoritative;

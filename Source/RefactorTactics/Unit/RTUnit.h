@@ -11,6 +11,7 @@
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
 #include "UI/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
+#include "UI/RTSkillCalloutView.h" // #4025: il fumetto e' un membro per valore, quindi serve il tipo completo
 #include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
@@ -2192,6 +2193,85 @@ public:
 	 */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FRTDamageTokenView LastDamageToken;
+
+	/**
+	 * Mostra sopra questa unita' il fumetto di una skill di firma appena rivelata dal playback (`#4025`).
+	 *
+	 * 🔑 **Sta accanto a `ShowDamageToken` e ne ha la forma**, perche' e' la stessa cosa: una cue sull'unita' che
+	 * l'evento riguarda, chiamata dal `TurnManager` nel punto in cui l'attivazione viene rivelata. Il testo lo
+	 * compone `URTHudViewModel::BuildSkillCallout` col nome che il KIT di QUESTA unita' da' alla skill
+	 * (`KitDisplayNameFor`): un'altra unita' con la stessa azione potrebbe chiamarla in un altro modo.
+	 *
+	 * ⚠️ **Il tempo NON si misura qui.** `StartAt` e' `ARTTurnManager::SkillCalloutClock` alla comparsa e lo
+	 * scorrere lo porta `SetSkillCalloutClock`: il fumetto segue il tempo del playback e non quello del frame.
+	 * A differenza del token di danno, che conta i propri `DeltaTime`, qui un hitch o una pausa non lo allungano
+	 * ne' lo accorciano rispetto alla sequenza che sta commentando.
+	 *
+	 * ⚠️ **Un fumetto per unita'**: un secondo `ShowSkillCallout` sostituisce il primo, come per il token.
+	 *
+	 * ⛔ **Non decide SE gridare** (`URTHudViewModel::ActionShouts`) **ne' SE mostrarlo** a chi guarda: il velo
+	 * spegne l'overlay (`ARTHUD::UpdateObserverVeil`) e un secondo giudizio qui sarebbe la divergenza che `#2246`
+	 * ha appena tolto. Non applica niente: l'attivazione e' gia' stata risolta.
+	 *
+	 * ⚠️ **Un ripiego si dichiara nel log** (R3): se il kit non ha un nome per la skill, il fumetto mostra l'ultimo
+	 * segmento dell'id e qui esce un `Warning` che nomina l'id. La funzione pura resta pura: il log lo scrive chi la chiama.
+	 */
+	void ShowSkillCallout(const FName& ActionId, float StartAt);
+
+	/**
+	 * Porta al fumetto il tempo del playback (`ARTTurnManager::SkillCalloutClock`), e ne registra l'ultimo valore.
+	 *
+	 * 🔑 L'unita' non conta niente: inoltra. Il widget ricava da `Now - StartAt` l'opacita' e la scala con le
+	 * funzioni pure del view model, quindi ogni giudizio sul tempo resta in un posto che un test chiama senza
+	 * costruire un widget. Il valore registrato (`SkillCalloutClockForTest`) rende osservabile, senza rendering,
+	 * che il tempo sia davvero passato di qui.
+	 */
+	void SetSkillCalloutClock(float Now);
+
+	/**
+	 * Chiude la VITA del fumetto: il widget si collassa e `IsSkillCalloutLive` risponde falso.
+	 *
+	 * ⚠️ **Il registro resta** (`LastSkillCallout`): e' lo scopo del campo farsi leggere a playback finito, e
+	 * un `Clear` che lo azzerasse toglierebbe l'oracolo nel momento in cui serve.
+	 */
+	void ClearSkillCallout();
+
+	/** Vero fra `ShowSkillCallout` e `ClearSkillCallout`: il fumetto e' stato mostrato e non ancora chiuso. */
+	bool IsSkillCalloutLive() const { return bSkillCalloutLive; }
+
+	/** L'ultimo fumetto composto, per un test: vedi `LastSkillCallout`. Non e' una `UPROPERTY`. */
+	const FRTSkillCalloutView& LastSkillCalloutForTest() const { return LastSkillCallout; }
+
+	/** L'ultimo tempo ricevuto da `SetSkillCalloutClock`, per un test. Non e' una `UPROPERTY`. */
+	float SkillCalloutClockForTest() const { return LastSkillCalloutClock; }
+
+private:
+	/**
+	 * L'ultimo fumetto composto per questa unita', **di sola presentazione**.
+	 *
+	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering**, come `LastDamageToken`: in un mondo
+	 * headless `GetOverlayWidgetObject()` risponde `nullptr` e nessun test potrebbe dire se la skill e' arrivata
+	 * alla presentazione o si e' persa per strada. Un test lo legge con `LastSkillCalloutForTest`.
+	 *
+	 * ⛔ **`Transient`**: non entra in `MapState`, in nessuno snapshot, nel TurnLog ne' in `StateHash`.
+	 * Riprodurre lo stesso turno due volte lo riscrive due volte con lo stesso valore e **non cambia nessun
+	 * esito**.
+	 *
+	 * ⛔ **E non e' `BlueprintReadOnly`, a differenza di `LastDamageToken`, ed e' deliberato.** Un campo
+	 * visibile ai Blueprint su un'unita' velata e' un tell: un grafo potrebbe leggere COSA ha gridato un nemico
+	 * che chi guarda non ha mai osservato. `RefactorTactics.Unit.BlueprintSurfaceIsCensused` censisce ogni campo
+	 * esposto, e questo non deve entrarci.
+	 *
+	 * ⚠️ `ClearSkillCallout` NON lo azzera: chiude la vita e lascia il registro.
+	 */
+	UPROPERTY(Transient)
+	FRTSkillCalloutView LastSkillCallout;
+
+	/** Fra `ShowSkillCallout` e `ClearSkillCallout`. Stato di sola presentazione, fuori da ogni hash. */
+	bool bSkillCalloutLive = false;
+
+	/** L'ultimo valore di `SetSkillCalloutClock`. Fuori da ogni hash: e' un riflesso del tempo del playback. */
+	float LastSkillCalloutClock = 0.f;
 
 protected:
 

@@ -1,0 +1,50 @@
+{
+  "scenarioId": "Lab.T5.Fumetto4025b",
+  "tags": ["lab", "visual", "fumetto", "4025"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+
+  "_nota": "Banco NON versionato, secondo giro della seduta visiva di #4025 (task 5). Squadra 0 = chi guarda, visionRange 0 (solo consapevolezza ravvicinata, 2 celle). B2 (Muiren, squadra 1) sta a (3,-3), a 4-5 celle da ogni alleato: NON osservata; nel T1 si cura da sola (CircularTide sulla cella accanto (3,-2): l'area di raggio 1 la include; health 50): l'evento esiste nel TurnLog ma non deve arrivare a chi guarda. T1: a/h (pausa K a meta' vita del fumetto) e c. T2: i (A2 in Brace, B3 carica con Ram -> finestra di reazione del profilo Sidestep). T3: ESC durante un fumetto vivo.",
+  "_nota_evidenza": "Conservato come evidenza di #4025 in docs/technical/evidence/4025/: il «NON versionato» del _nota valeva quando il banco stava solo in Saved/RTLab. Per rieseguirlo va copiato in Saved/RTLab/Scenarios/ del clone principale e caricato con -RTScenario=<scenarioId>.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0], "facing": "E", "visionRange": 0,
+      "statuses": [ { "tag": "Status.Wet", "turns": 6 } ] },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [-1, 2, 0], "facing": "E", "visionRange": 0 },
+    { "id": "B1", "hero": "Hero.Aevik",  "team": 1, "cell": [ 1, 0, 0], "facing": "W" },
+    { "id": "B3", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "B2", "hero": "Hero.Muiren", "team": 1, "cell": [ 3, -3, 0], "facing": "SW", "health": 50 }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — a, h (pausa del playback a meta' vita), c (B2 si cura fuori vista), g",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.LinearDischarge", "target": "B1" },
+        { "unit": "B1", "ability": "Hero.Aevik.Overload", "target": "A1" },
+        { "unit": "B3", "ability": "Hero.Branth.ImpactShot", "target": "A2" },
+        { "unit": "B2", "ability": "Hero.Muiren.CircularTide", "targetCell": [3, -2, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — i: finestra di reazione aperta dalla carica di Ram su A2 in Brace",
+      "intents": [
+        { "unit": "A2", "ability": "Action.Brace" },
+        { "unit": "B3", "dash": "Hero.Branth.Ram", "dashTo": [-2, 2, 0] }
+      ]
+    },
+    {
+      "_turno": "T3 — ESC durante un fumetto vivo",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.Overload", "target": "B1" },
+        { "unit": "B1", "ability": "Hero.Aevik.LinearDischarge", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 3 }
+  ]
+}
