@@ -2044,6 +2044,11 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	PushResistance = Hero->PushResistance;
 	// [D-408]: il valore della Guardia e' un dato del personaggio, non piu' una costante condivisa.
 	GuardReduction = Hero->GuardReduction;
+	// E53 CP 53.2b ([D-589], [D-595], [D-599]): la difesa viaggia come la Guardia, per valore, dal catalogo all'unita'.
+	Defense = Hero->Defense;
+	ResistanceDefault = Hero->ResistanceDefault;
+	ElementResistance = Hero->ElementResistance;
+	RearBonus = Hero->RearBonus;
 	// ADR-0008 §1: senza queste due righe l'unita' resterebbe ai default 1/0 — cioe' applicherebbe ADR-0005
 	// a un eroe che dichiara altro, e sarebbe il difetto di #1605 spostato di un file invece che chiuso.
 	MoveEndPivotMaxSteps = Hero->MoveEndPivotMaxSteps;

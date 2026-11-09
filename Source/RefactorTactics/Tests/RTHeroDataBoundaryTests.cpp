@@ -62,6 +62,11 @@ namespace
 		// `ARTTurnManager`, che legge l'unita'. ⚠️ Il default sull'unita' NON e' zero (`15`, il default di
 		// catalogo), cosi' un'unita' senza eroe si comporta come prima della decisione.
 		{ TEXT("GuardReduction"),   TEXT("GuardReduction"),   ERTTransport::Exact,  nullptr },
+		// E53 CP 53.2b ([D-589], [D-595], [D-599]): quattro campi nuovi, copiati per valore come la Guardia.
+		{ TEXT("Defense"),          TEXT("Defense"),          ERTTransport::Exact,  nullptr },
+		{ TEXT("ResistanceDefault"), TEXT("ResistanceDefault"), ERTTransport::Exact, nullptr },
+		{ TEXT("ElementResistance"), TEXT("ElementResistance"), ERTTransport::Exact, nullptr },
+		{ TEXT("RearBonus"),        TEXT("RearBonus"),        ERTTransport::Exact,  nullptr },
 		// ADR-0008 §1 [#1605]. Trasportati per la stessa ragione di `HearingThreshold`: chi emette il
 		// verdetto sulla rotazione e' `ARTTurnManager`, che legge l'unita' — farlo risalire all'`HeroId`
 		// darebbe al resolver una dipendenza su `URTHeroCatalogLibrary` per un dato che l'unita' puo'

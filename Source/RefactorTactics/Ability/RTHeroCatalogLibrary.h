@@ -50,6 +50,18 @@ public:
 	static TArray<FString> ValidateHeroes(const TArray<const URTHeroData*>& Heroes);
 
 	/**
+	 * I dodici identificatori degli elementi ([D-588], [D-593]): `Element.Warp`, `Fire`, `Water`, `Earth`,
+	 * `Electric`, `Frost`, `Decay`, `Life`, `Arcane`, `Aegis`, `Air`, `Disintegration`. Nessun ordine ciclico
+	 * (D-588 (3)): l'ordine dell'array e' quello del catalogo delle coppie, una convenzione di scrittura.
+	 * E' vocabolario di design: nessun effetto di gioco nasce da qui, e il solo lettore oggi e' il validator
+	 * delle chiavi di `URTHeroData::ElementResistance` (E53 CP 53.2b).
+	 */
+	static const TArray<FName>& ElementIds();
+
+	/** Vero se `ElementId` e' uno dei dodici di `ElementIds()`. */
+	static bool IsKnownElementId(const FName& ElementId);
+
+	/**
 	 * Costruisce **Aevik**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, **vista 7** (era 6,
 	 * alzata da D-073 / #131: l'unico del roster che vede oltre il raggio 6), resistenza
 	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Muiren, CP 6.3). Nuova istanza a
