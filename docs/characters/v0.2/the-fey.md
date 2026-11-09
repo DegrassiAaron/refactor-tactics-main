@@ -105,7 +105,7 @@ Alchimista del terreno: allaga le celle, alza rovi, trascina i nemici al centro 
 | Costo AP / CD (GDD) | 3 / 3 · costo **non in vigore** |
 | Effetto (GDD) | rianima un alleato caduto al 25% degli HP in un bozzolo protettivo; l'alleato subisce Phase Lock |
 
-**Traduzione**: **nessuna oggi**. La rianimazione contraddice il K.O. definitivo del contratto e il Phase Lock non esiste: l'abilità resta **input** per una decisione d'autore («esiste la rianimazione?»), che non è in nessuna istruttoria aperta e va aperta come `GDD-4` se la si vuole. Senza quella decisione, The Fey ha un'Ultimate sola.
+**Traduzione**: **nessuna oggi**. La rianimazione contraddice il K.O. definitivo del contratto e il Phase Lock non esiste: l'abilità resta **input** per una decisione d'autore («esiste la rianimazione?»), aperta il 2026-11-09 come `GDD-4` ([#4026](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4026)). Senza quella decisione, The Fey ha un'Ultimate sola.
 
 ## Reazioni (lista, D-592)
 
