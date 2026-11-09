@@ -204,6 +204,21 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 		DamageTokenText->SetVisibility(ESlateVisibility::Collapsed);
 	}
 
+	// Lo stato di RIPOSO del fumetto della skill (`#4025`), riaffermato a ogni aggiornamento come quello del token.
+	//
+	// 🔑 **Serve perche' `ApplySkillCalloutState` gira solo su un evento** (`Push`, `Clock`, `Clear`, cambio di
+	// vista), e un'unita' che non ha mai gridato puo' non riceverne nessuno: l'orologio ha motivo di arrivare solo a
+	// chi ha un fumetto vivo. Senza questa riga un `WBP` il cui root nasce `Visible` mostrerebbe una bolla **vuota ma
+	// presente** sopra OGNI unita' dal primo fotogramma, fino al primo grido — che per molte non arriva mai.
+	//
+	// ⚠️ Non spegne un fumetto in corso: `bCalloutLive` lo protegge, e questa funzione gira **ogni** fotogramma
+	// (`ARTHUD::UpdateObserverVeil`). Per questo e' un `Collapsed` secco e non una chiamata a
+	// `ApplySkillCalloutState`: il riposo non ha bisogno di rileggere opacita' e scala a ogni giro.
+	if (SkillCalloutRoot && !bCalloutLive)
+	{
+		SkillCalloutRoot->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
 	// Il layout puo' aggiungere il suo; non e' piu' il canale del disegno.
 	OnOverlayUpdated();
 }

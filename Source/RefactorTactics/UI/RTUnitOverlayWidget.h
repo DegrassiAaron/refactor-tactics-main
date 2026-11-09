@@ -256,6 +256,11 @@ protected:
 	 * ⚠️ **Opzionale come tutti gli altri**: senza questo elemento il fumetto non si vede e nessun test lo nota,
 	 * perche' il giudizio sta nelle funzioni pure e nel campo dell'unita'. Il `WBP_RT_UnitOverlay` si modifica
 	 * solo in Editor, dal clone principale: il C++ resta completo senza.
+	 *
+	 * 🔴 **Requisito di designer: nel `WBP_RT_UnitOverlay` il root nasce `Collapsed`.** Il C++ lo riafferma a
+	 * ogni `SetOverlayView` finche' nessun fumetto e' vivo (come fa col token), quindi un root `Visible` non
+	 * sopravvive oltre il primo fotogramma, ma il primo resta visibile e l'asset non deve dipendere dal codice
+	 * per essere pulito in Editor. Il riposo dichiarato nell'asset e quello affermato dal codice si tengono entrambi.
 	 */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> SkillCalloutRoot;
