@@ -14,6 +14,11 @@
 > risorsa universale: l'Overclock resta fuori), [D-117](RT_PDR_00_Decision_Log.md) (costo per cella)
 > **Issue**: [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604) riaperta · epic **E38**
 > ➕ **Emendamento 2026-11-08 — [D-592](RT_PDR_00_Decision_Log.md)**: la conseguenza 4 è decisa, le reazioni sono una lista (vedi sotto).
+> ✅ **Primo pezzo implementato il 2026-11-09 (E38 CP 38.6, #4012)**: i numeri di [D-594](RT_PDR_00_Decision_Log.md) sono nel
+> catalogo (`FRTActionDef::ActionPointCost`, default di classe da `URTCatalogLibrary::DefaultActionPointCost`) e `ValidatePlan`
+> rifiuta la somma oltre 6 con `ERTActionInvalidReason::OverBudget`, **prima** dello slot occupato. Gli slot di D-028 restano
+> in vigore accanto al budget finché resolver, TurnLog e HUD non accettano una lista per fase: i quattro asserti di #4012
+> che hanno quel soggetto sono scritti nella forma «limite di oggi, pinnato», e diventano rossi il giorno che il soggetto appare.
 
 ## Contesto
 

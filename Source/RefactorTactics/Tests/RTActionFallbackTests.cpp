@@ -358,7 +358,7 @@ bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
 		TEXT("InsufficientMovementPoints"), TEXT("OnCooldown"), TEXT("Interrupted"), TEXT("NoEffect"),
 		TEXT("Neutralised"), TEXT("Unbalanced"), TEXT("DoorLocked"), TEXT("DoorDestroyed"),
 		TEXT("TerrainDeniesDash"), TEXT("DashNotAligned"), TEXT("DashPathBlocked"), TEXT("Stunned"),
-		TEXT("OtherLayer"), TEXT("DashEdgeBlocked") };
+		TEXT("OtherLayer"), TEXT("DashEdgeBlocked"), TEXT("OverBudget") }; // OverBudget: D-594, E38 CP 38.6
 
 	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
 	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }

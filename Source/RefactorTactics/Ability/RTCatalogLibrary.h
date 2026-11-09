@@ -109,6 +109,31 @@ public:
 	static ERTMatchPhase MapResolutionPhase(ERTResolutionPhase Phase);
 
 	/**
+	 * I costi di classe di [D-594] (E38 CP 38.6): il default di `FRTActionDef::ActionPointCost` per ogni riga che non
+	 * ne dichiara uno proprio. Costanti e non dati perche' sono la DECISIONE, non una taratura: una riga che vuole
+	 * costare diversamente lo scrive nella propria colonna, non qui.
+	 */
+	static constexpr int32 ActionPointCostPrep = 1;
+	static constexpr int32 ActionPointCostDash = 2;
+	static constexpr int32 ActionPointCostBlast = 2;
+	static constexpr int32 ActionPointCostMove = 2;
+	static constexpr int32 ActionPointCostReaction = 2;
+	/** Lettura dell'assistente in D-594 (4): le ambientali del Cleanup costano come le principali del Blast. */
+	static constexpr int32 ActionPointCostCleanup = 2;
+
+	/**
+	 * Il costo AP di classe di una riga ([D-594] (1)): la reazione (slot `Reaction`) 2; poi per macro-fase di
+	 * `MapResolutionPhase` — Prep 1, Dash 2, Blast 2, Move 2, Cleanup 2. `Action.Wait` e' l'unica riga a 0: non
+	 * e' un'azione, e' il turno che passa (il piano della simulazione lo esclude per nome).
+	 *
+	 * ⚠️ E' il DEFAULT, non la regola: `ShippedAction` e `MakeHeroAction` lo scrivono nella colonna al momento
+	 * della costruzione, e da li' in poi chi legge il costo legge la colonna. Le Ultimate (+1, D-594 (3)) non
+	 * passano di qui: sono una riga che dichiara un numero proprio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static int32 DefaultActionPointCost(const FRTActionDef& Def);
+
+	/**
 	 * I Reaction Profile del roster v0.1 (E14.7, [D-047] · `spec-reaction-clash-e14.md` §2.5).
 	 *
 	 * **Tre, non quattro**: `Profile.Grounding` (Aevik), `Profile.Sidestep` (Phase), `Profile.Glance`

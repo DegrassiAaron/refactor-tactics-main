@@ -606,6 +606,22 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 CooldownTurns = 0;
 
+	/**
+	 * Costo in **Action Point** ([D-594], ADR-0011; E38 CP 38.6): quanto questa riga sottrae al budget di 6 del
+	 * turno. Ogni riga lo DICHIARA, e il default e' la classe di fase — Prep 1 · Dash 2 · Blast 2 · Move 2 ·
+	 * reazione 2 · ambientali del Cleanup 2 (`URTCatalogLibrary::DefaultActionPointCost`); le abilita' marcate
+	 * forti costeranno un punto in piu' quando entreranno nel catalogo (D-594 (3)). `0` vale solo per `Action.Wait`:
+	 * su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
+	 *
+	 * ⚠️ **Non e' `CostMP`**: quello e' il modificatore per cella del terreno ([D-117], [D-190]). Due assi, come
+	 * D-584 (2) decide: gli AP dicono SE agisci e con che profilo, i Movement Point fin dove.
+	 *
+	 * ⏳ Finche' il resolver accetta una azione per fase, il budget si somma agli slot di D-028 invece di
+	 * sostituirli: `ValidatePlan` rifiuta prima la somma oltre 6 (`OverBudget`), poi lo slot occupato.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog", meta = (ClampMin = "0"))
+	int32 ActionPointCost = 0;
+
 	/** Cosa succede se l'azione non e' piu' eseguibile come pianificata. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTActionFallback Fallback = ERTActionFallback::Cancel;
