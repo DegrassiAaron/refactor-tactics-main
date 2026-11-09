@@ -9052,16 +9052,27 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 		// `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una sorgente non osservata (R9), e il
 		// velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
 		//
-		// 🔎 **R11, misurato su questo commit: un intento INTERROTTO non emette `AbilityActivated`, quindi non grida.**
-		// `ApplyInterrupts` mette l'intento cancellato in `Ctx.InterruptedIntents` (`RTTurnManager_Blast.cpp:1906`, il
-		// ramo `else` della policy `SuppressSecondary`), la chiama `RTTurnManager.cpp:6158` PRIMA del ciclo di emissione
-		// (`:6263`), e `EmitAttackIntentActivation` esce su `Ctx.InterruptedIntents.Contains(k)` (`:7361-7364`: «l'azione
-		// e' annullata, non attivata»). ⚠️ Il DEGRADATO invece (`DegradedIntents`, `Blast.cpp:1905`) non e' in quell'insieme:
-		// la sua azione e' avvenuta, monca, quindi si attiva e grida. Il fumetto eredita la risposta dell'evento e non
-		// ne scrive una sua: nessuna riga di codice qui dipende da R11.
+		// 🔎 **R11, misurato (righe di `RTTurnManager.cpp` e `RTTurnManager_Blast.cpp` al commit `99d6a2580`; il commit che
+		// ha riscritto questo commento sta piu' in basso di ogni riga citata, quindi non le sposta).** Il fumetto eredita
+		// la risposta dell'EVENTO `AbilityActivated` e non ne scrive una sua: nessuna riga di codice qui dipende da R11.
 		//
-		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza (`:430`), quindi
-		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
+		// - **ATTACCHI**: un intento INTERROTTO non emette `AbilityActivated`, quindi non grida. `ApplyInterrupts`
+		//   (chiamata `RTTurnManager.cpp:6159`) mette l'intento cancellato in `Ctx.InterruptedIntents`
+		//   (`RTTurnManager_Blast.cpp:1906`); il ciclo di emissione e' DOPO (`RTTurnManager.cpp:6264`,
+		//   `EmitAttackIntentActivation`), che esce su `Ctx.InterruptedIntents.Contains(k)` (`RTTurnManager.cpp:7362-7364`).
+		//   ⚠️ Il DEGRADATO (`SuppressSecondary`) va in `DegradedIntents` (`Blast.cpp:1905`), non li': la sua azione e'
+		//   avvenuta, monca, quindi si attiva e grida.
+		// - **CURE** (`DeferredActivations`, `Blast.cpp:984`; `ModifyArc` `:1249`; emissione `RTTurnManager.cpp:6259-6260`):
+		//   NON passano da `InterruptedIntents`, e l'emissione non lo legge. Un curatore STORDITO non si attiva: il rifiuto
+		//   (`Blast.cpp:906-912`, `RefuseMainActionIfStunned` e `continue`) sta PRIMA dell'accodamento (`:984`); `ModifyArc`
+		//   uguale (`:1138`), e un curatore morto esce prima ancora (`:891-893`). Un curatore INTERROTTO invece SI attiva
+		//   ancora: `ApplyInterrupts` sceglie le vittime fra `Intents[k]` con `AttackerId == Hit.TargetId`
+		//   (`Blast.cpp:1793`), e una cura non e' mai in `Intents` — `CollectHealActions` (`RTTurnManager.cpp:6122`)
+		//   azzera il piano (`Blast.cpp:944`) e `continue` prima di `CollectAttackIntents` (`RTTurnManager.cpp:6123`) — quindi
+		//   un `Action.Interrupt` su chi cura non ha niente da cancellare e la cura avviene.
+		//
+		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza
+		// (`RTTurnManager.cpp:431-434`), quindi `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
 		const bool bIsCore = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone();
 		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore))
 		{

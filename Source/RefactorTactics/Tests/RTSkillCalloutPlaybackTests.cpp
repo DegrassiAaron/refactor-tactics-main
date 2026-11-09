@@ -158,8 +158,8 @@ bool FRTSkillCalloutPlaybackSignatureShoutsTest::RunTest(const FString&)
 /**
  * La vita del fumetto e' il playback: acceso con l'orologio del playback, spento a fine turno — R4, R7.
  *
- * 🔑 `StartAt <= PlaybackElapsedTotal` dice che l'origine e' l'orologio del playback (non un contatore dell'unita'),
- * e `SkillCalloutClock >= StartAt` che gli e' arrivato. A fine playback la vita e' chiusa e la lista del manager
+ * 🔑 `StartAt == PlaybackElapsedTotal` (e `> 0`) dice che l'origine e' l'orologio del playback nell'istante della
+ * rivelazione (non un contatore dell'unita', non uno zero), e `SkillCalloutClock >= StartAt` che gli e' arrivato. A fine playback la vita e' chiusa e la lista del manager
  * vuota, ma il registro resta: e' lo scopo del campo farsi leggere dopo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackLiveThenClearedTest,
@@ -180,8 +180,14 @@ bool FRTSkillCalloutPlaybackLiveThenClearedTest::RunTest(const FString&)
 	}
 
 	const FRTSkillCalloutView Acceso = B.Scudo->LastSkillCalloutForTest();
-	TestTrue(TEXT("🔴 l'origine del fumetto e' l'orologio del playback (StartAt <= PlaybackElapsedTotal)"),
-		Acceso.StartAt <= B.TM->PlaybackElapsedTotalForTest());
+	// 🔴 **UGUALE, non `<=`**: `CorriFinoAlFumettoVivo` esce nel tick stesso della rivelazione, e dopo `ShowActivation`
+	// `PlaybackElapsedTotal` non cambia in quel tick, quindi l'origine del fumetto E' il totale di adesso. Con `<=` un
+	// `ShowSkillCallout(Ev.ActionId, 0.f)` restava verde (0 e' sempre minore o uguale), e nessun altro test legge `StartAt`.
+	// `> 0` perche' la rivelazione cade dopo il primo `Dt` (`TickPlayback` lo somma prima di rivelare): un `StartAt`
+	// a zero e' un'origine non portata, e `Equal` da solo non la distinguerebbe se il totale fosse a zero.
+	TestEqual(TEXT("🔴 l'origine del fumetto e' ESATTAMENTE l'orologio del playback (StartAt == PlaybackElapsedTotal)"),
+		Acceso.StartAt, B.TM->PlaybackElapsedTotalForTest());
+	TestTrue(TEXT("🔴 e non e' zero: la rivelazione cade dopo il primo tick (StartAt > 0)"), Acceso.StartAt > 0.f);
 	TestTrue(TEXT("🔴 e quell'orologio gli e' arrivato (clock >= StartAt)"),
 		B.Scudo->SkillCalloutClockForTest() >= Acceso.StartAt);
 	TestEqual(TEXT("il manager tiene l'unita' accesa nella sua lista"), B.TM->SkillCalloutUnitsForTest(), 1);
