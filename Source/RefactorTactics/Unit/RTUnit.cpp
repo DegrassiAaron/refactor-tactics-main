@@ -201,17 +201,28 @@ ARTUnit::ARTUnit()
 	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
 	// `#2288` chiede il PIE.
 	OverlayWidget->SetDrawAtDesiredSize(false);
-	// 🔑 **Alto 170 e non 90, e la ragione e' il fumetto della skill (`#4025`).** Il `WBP_RT_UnitOverlay` ha ora
-	// un fumetto SOPRA il nome: contorno, bolla e testo scalato, in una `SizeBox` che nasce `Collapsed`. Stimato
-	// dal designer, il contenuto sale a ~135 px senza icone di stato e a ~159 px con — e una `DrawSize` di 90
-	// taglia il fumetto proprio quando compare, senza errore e senza che un test headless lo veda.
+	// 🔑 **Alto 200 e non 90, e la ragione e' il fumetto della skill (`#4025`).** Il `WBP_RT_UnitOverlay` ha ora
+	// un fumetto SOPRA il nome: contorno, bolla e testo scalato, in una `SizeBox` che nasce `Collapsed`. Le
+	// altezze sono STIME da metriche dei font (2026-11-09), non misure: la pila senza fumetto sta attorno a ~99 px
+	// (~123 con una riga di icone di stato), il fumetto ne aggiunge ~36, quindi ~135 / ~159; il token di danno
+	// (font 26 con outline, 0,9 s a ogni colpo) ne aggiunge ~30. Il caso peggiore — fumetto + token + riga di
+	// stati — fa ~190: da qui i 200, con ~10 px di margine.
 	//
-	// ⚠️ **Il widget e' piu' alto, la barra non si muove.** Nel `WBP` un `TopSpacer` in Fill assorbe lo spazio
-	// che il contenuto non usa, quindi nome, barra e stati restano ancorati al fondo come con i 90 di prima; e
-	// il pivot `(0.5, 1)` qui sotto fa crescere il widget verso l'ALTO, con il fondo fermo sull'ancora. I 170
-	// lasciano ~11 px di margine sul caso peggiore (con le icone): un fumetto piu' alto va misurato in PIE prima
-	// di alzare ancora questo numero.
-	OverlayWidget->SetDrawSize(FVector2D(220.f, 170.f));
+	// ⚠️ **Con i 90 di prima la pila sforava gia'**: ~99 / ~123 > 90, e `RootBox` impilava dall'alto, quindi a
+	// restare tagliati erano barra e stati, non il nome. Il fumetto, in cima, avrebbe solo peggiorato.
+	//
+	// 🔴 **Cosa cambia di posto, e cosa no.** Nel `WBP` un `TopSpacer` in Fill assorbe lo spazio che il contenuto
+	// non usa, e il pivot `(0.5, 1)` qui sotto tiene il fondo del widget fermo sull'ancora:
+	//   - rispetto al layout di prima l'ancoraggio e' cambiato UNA volta, da «impilato in alto» a «impilato in
+	//     basso»: nome e barra stanno ora a distanza fissa sopra la testa;
+	//   - quando compare il fumetto cresce verso l'ALTO e la barra non si muove;
+	//   - una riga di stati in piu' spinge su di una riga nome e fumetto — e' il prezzo dell'ancoraggio in basso;
+	//   - le altezze sono stime: vanno misurate nella seduta visiva prima di toccare questo numero.
+	//
+	// ⚠️ **Anche la LARGHEZZA e' un vincolo.** Il `WBP` limita `SkillCalloutRoot` a `MaxDesiredWidth` 190 perche'
+	// il fumetto nasce ingrandito: 190 × 1.15 (`SkillCalloutPopStartScale`, in `RTHudViewModel.cpp`) = 218.5 <= 220.
+	// Alzare quella scala sopra ~1.157 (220 / 190) taglia i lati del fumetto al primo fotogramma del pop.
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 200.f));
 	// Il fondo del widget poggia sull'ancora e il contenuto cresce verso l'alto: con l'ancora sulla testa,
 	// la sovrapposizione sta **subito sopra** l'unita', a una distanza che non cambia con la camera.
 	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f));

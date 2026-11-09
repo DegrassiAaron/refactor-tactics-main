@@ -16,8 +16,10 @@
 #include "Misc/AutomationTest.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Components/Border.h"
 #include "Components/PanelWidget.h"
 #include "Components/ProgressBar.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "WidgetBlueprint.h"
@@ -94,12 +96,20 @@ bool FRTOverlayDamageTokenBindingTest::RunTest(const FString&)
 	// 🔑 **In cima, non in coda.** Il numero di un colpo si legge sopra l'unita'; in fondo finirebbe sotto
 	// le icone di stato, cioe' dove si guarda per sapere *cosa* si ha addosso e non *cosa e' appena
 	// successo*. Il posto e' una decisione, quindi si pinna.
+	//
+	// ⚠️ **«In cima» vale DOPO il `TopSpacer` (`#4025`).** Il primo figlio di `RootBox` e' ora uno spaziatore in
+	// Fill, che spinge la pila in basso e non porta contenuto: il token e' il primo figlio *con contenuto*, cioe'
+	// l'indice 1. Il test pinna entrambi, cosi' un riordino che metta qualcosa fra lo spaziatore e il token, o
+	// che lo tolga, si vede.
 	if (UPanelWidget* Parent = Token->GetParent())
 	{
 		TestEqual(TEXT("il contenitore e' RootBox"),
 			Parent->GetFName().ToString(), FString(TEXT("RootBox")));
-		TestEqual(TEXT("ed e' il primo figlio: il colpo si legge sopra, non sotto gli stati"),
-			Parent->GetChildIndex(Token), 0);
+		const UWidget* Primo = Parent->GetChildAt(0);
+		TestEqual(TEXT("il primo figlio e' TopSpacer: lo spaziatore che tiene la pila in basso"),
+			Primo ? Primo->GetFName().ToString() : FString(), FString(TEXT("TopSpacer")));
+		TestEqual(TEXT("e il token e' il primo dopo lo spaziatore: il colpo si legge sopra, non sotto gli stati"),
+			Parent->GetChildIndex(Token), 1);
 	}
 	else
 	{
@@ -112,15 +122,17 @@ bool FRTOverlayDamageTokenBindingTest::RunTest(const FString&)
 /**
  * **Ogni `BindWidgetOptional` di `URTUnitOverlayWidget` ha una controparte nell'asset.**
  *
- * 🔴 **Generalizza il difetto invece di guardarne un'istanza.** Il token e' solo l'ultimo di sei elementi
- * legati per nome; gli altri cinque non erano presidiati da nulla, e ognuno puo' sparire dall'asset — per
- * un rename, per un `-Force` che rigenera, per un merge — **senza che niente diventi rosso**. Chi lo
- * scopre e' chi guarda lo schermo, e solo se sa cosa cercare.
+ * 🔴 **Generalizza il difetto invece di guardarne un'istanza.** Il token e' stato il primo caso in cui un
+ * elemento legato per nome mancava dall'asset; gli altri non erano presidiati da nulla, e ognuno puo'
+ * sparire — per un rename, per un `-Force` che rigenera, per un merge — **senza che niente diventi
+ * rosso**. Chi lo scopre e' chi guarda lo schermo, e solo se sa cosa cercare. Vale anche per i tre del
+ * fumetto della skill (`#4025`): senza di loro il fumetto non si vede e nessun test lo nota.
  *
- * ⚠️ **Pinna una MISURA, non un'aspettativa.** I sei nomi sono quelli che il `.uasset` porta oggi
- * (verificati il 2026-09-06) e che il C++ dichiara. Se un elemento viene tolto per una ragione legittima —
- * com'e' successo a `EnergyBar` con `#2372` — si toglie **anche** la sua riga qui, e il diff mostra la
- * decisione. ⛔ Non si aggiorna il test per farlo tornare verde senza sapere chi l'ha tolto.
+ * ⚠️ **Pinna una MISURA, non un'aspettativa.** I nomi della tabella sono quelli che il `.uasset` porta oggi
+ * (i primi verificati il 2026-09-06, quelli del fumetto il 2026-11-09) e che il C++ dichiara. Se un elemento
+ * viene tolto per una ragione legittima — com'e' successo a `EnergyBar` con `#2372` — si toglie **anche**
+ * la sua riga qui, e il diff mostra la decisione. ⛔ Non si aggiorna il test per farlo tornare verde senza
+ * sapere chi l'ha tolto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayBoundWidgetsExistTest,
 	"RefactorTactics.Overlay.EveryBoundWidgetExistsInTheAsset",
@@ -136,13 +148,20 @@ bool FRTOverlayBoundWidgetsExistTest::RunTest(const FString&)
 	}
 
 	// Nome nell'asset -> classe che il C++ dichiara per quel binding.
+	//
+	// ⚠️ **Eccezione: `SkillCalloutRoot`.** Il C++ lo dichiara `UWidget` (gli serve solo accenderlo e scalarlo,
+	// e il layout puo' farne una bolla qualunque), ma qui si pinna la classe che l'asset porta davvero, una
+	// `USizeBox`: e' lei a tenere il limite di larghezza (`MaxDesiredWidth`) da cui dipende la `DrawSize`.
 	const TArray<TPair<const TCHAR*, UClass*>> Attesi =
 	{
-		{ TEXT("NameText"),        UTextBlock::StaticClass()   },
-		{ TEXT("HealthBar"),       UProgressBar::StaticClass() },
-		{ TEXT("HealthText"),      UTextBlock::StaticClass()   },
-		{ TEXT("ShieldBar"),       UProgressBar::StaticClass() },
-		{ TEXT("DamageTokenText"), UTextBlock::StaticClass()   },
+		{ TEXT("NameText"),            UTextBlock::StaticClass()   },
+		{ TEXT("HealthBar"),           UProgressBar::StaticClass() },
+		{ TEXT("HealthText"),          UTextBlock::StaticClass()   },
+		{ TEXT("ShieldBar"),           UProgressBar::StaticClass() },
+		{ TEXT("DamageTokenText"),     UTextBlock::StaticClass()   },
+		{ TEXT("SkillCalloutRoot"),    USizeBox::StaticClass()     },
+		{ TEXT("SkillCalloutText"),    UTextBlock::StaticClass()   },
+		{ TEXT("SkillCalloutOutline"), UBorder::StaticClass()      },
 	};
 
 	for (const TPair<const TCHAR*, UClass*>& Voce : Attesi)
@@ -167,6 +186,42 @@ bool FRTOverlayBoundWidgetsExistTest::RunTest(const FString&)
 		TestTrue(TEXT("'StatusBox' e' un contenitore"), StatusBox->IsA<UPanelWidget>());
 		TestTrue(TEXT("'StatusBox' e' una variabile"), StatusBox->bIsVariable);
 	}
+
+	return true;
+}
+
+/**
+ * Il fumetto della skill nasce **spento** (`#4025`).
+ *
+ * ⛔ **Non verifica che si veda**: nessun test headless puo'. Pinna l'unica condizione dell'asset che il C++
+ * da solo non puo' garantire al primo disegno — `SetOverlayView` riafferma `Collapsed` a ogni giro, ma il
+ * primo fotogramma viene prima di quel giro, e un root `Visible` mostrerebbe una bolla vuota sopra ogni
+ * unita' per un fotogramma. Il requisito sta anche nel commento di `SkillCalloutRoot`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlaySkillCalloutRootCollapsedTest,
+	"RefactorTactics.Overlay.SkillCalloutRootIsBornCollapsed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverlaySkillCalloutRootCollapsedTest::RunTest(const FString&)
+{
+	UWidgetBlueprint* Overlay = LoadTokenOverlayBlueprint();
+	UWidgetTree* Tree = Overlay ? ToRawPtr(Overlay->WidgetTree) : nullptr;
+	if (!TestNotNull(TEXT("l'overlay e' caricabile"), Overlay) ||
+		!TestNotNull(TEXT("l'overlay ha un widget tree"), Tree))
+	{
+		return false;
+	}
+
+	UWidget* Root = Tree->FindWidget(TEXT("SkillCalloutRoot"));
+	if (!TestNotNull(TEXT("'SkillCalloutRoot' esiste nell'asset"), Root))
+	{
+		// ⚠️ `return false` e non un proseguimento: senza l'elemento la riga sotto misurerebbe un nullptr.
+		return false;
+	}
+
+	// ⚠️ `Collapsed` e non `Hidden`: in una `UVerticalBox` un `Hidden` occuperebbe comunque il proprio
+	// spazio, e l'overlay a riposo sarebbe piu' alto di com'e' senza fumetto — la stessa ragione del token.
+	TestEqual(TEXT("nasce Collapsed: a riposo non occupa spazio"),
+		static_cast<int32>(Root->GetVisibility()), static_cast<int32>(ESlateVisibility::Collapsed));
 
 	return true;
 }

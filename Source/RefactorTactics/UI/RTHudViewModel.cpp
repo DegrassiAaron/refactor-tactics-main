@@ -1446,6 +1446,10 @@ FRTDamageTokenView URTHudViewModel::BuildHealToken(int32 Amount, int32 TargetSta
 namespace
 {
 	// La scala con cui il fumetto della skill nasce (#4025): il pop parte ingrandito e si assesta a 1.
+	//
+	// ⚠️ **Non alzarla senza guardare la larghezza dell'overlay.** `WBP_RT_UnitOverlay` limita `SkillCalloutRoot`
+	// a `MaxDesiredWidth` 190 e `ARTUnit` dichiara una `DrawSize` larga 220: 190 × 1.15 = 218.5 <= 220. Sopra
+	// ~1.157 (220 / 190) il fumetto, al picco del pop, esce dal widget e viene tagliato ai lati.
 	constexpr float SkillCalloutPopStartScale = 1.15f;
 }
 

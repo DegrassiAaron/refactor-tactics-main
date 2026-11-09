@@ -206,9 +206,12 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   sui tre casi (skill firma, attacco base, generica).
 - **Nessun controllo sul velo in `ShowSkillCallout`**, per la stessa ragione dichiarata in
   `ShowDamageToken` (`RTUnit.cpp:326-329`): il velo lo decide `UpdateObserverVeil` spegnendo l'overlay.
-- **Il `DrawSize` 220×90** potrebbe non bastare per il fumetto sopra nome e barra. Alzarlo è lecito e, col
-  pivot (0.5, 1), il contenuto cresce verso l'alto senza spostare la barra; il builder verifica che
-  `Tests/RTHudOverlayClampTests.cpp` non dipenda dal valore.
+- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×200 (fumetto + token di
+  danno + riga di stati ≈ 190, stima da metriche dei font, da misurare in PIE). Col pivot (0.5, 1) il widget
+  cresce verso l'alto, e il `TopSpacer` in Fill del WBP impila il contenuto in basso: rispetto al layout
+  impilato in alto l'ancoraggio cambia una volta, nome e barra stanno a distanza fissa sopra la testa, il
+  fumetto comparendo sale senza spostare la barra, e una riga di stati in più spinge su nome e fumetto.
+  `Tests/RTHudOverlayClampTests.cpp` non dipende dal valore.
 - **L'asset** `WBP_RT_UnitOverlay` si modifica **in Editor, dal clone principale** (CLAUDE.md §10); il C++
   deve restare completo anche se il WBP non porta i nuovi elementi (`BindWidgetOptional`, degrado
   dichiarato come per `DamageTokenText`).
