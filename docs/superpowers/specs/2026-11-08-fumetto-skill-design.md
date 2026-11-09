@@ -1,7 +1,7 @@
 # Il fumetto della skill — un grido manga sopra l'unità quando il playback mostra un'attivazione
 
-> **Statuto**: design **in bozza**, nato dal dialogo con l'autore del 2026-11-08 (`/sc:brainstorm`). **Non
-> approvato dall'autore il 2026-11-09 («procedi»), non implementato.** Issue [#4025](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4025). Realizza la domanda fissa `fumetti` di `G17`
+> **Statuto**: design nato dal dialogo con l'autore del 2026-11-08 (`/sc:brainstorm`), **approvato
+> dall'autore il 2026-11-09 («procedi»), non implementato.** Issue [#4025](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4025). Realizza la domanda fissa `fumetti` di `G17`
 > (ondata 2), decisa dall'autore in [`D-582`](../../decisions/RT_PDR_00_Decision_Log.md) (3) e descritta in
 > [`g17-domande-fisse-2026-11-05.md`](../../roadmap/plans/g17-domande-fisse-2026-11-05.md) (voce `fumetti`).
 > Copre la **prima fetta**: il fumetto delle skill che si attivano. Le azioni bloccate come fumetto, che la
