@@ -117,6 +117,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 GuardReduction = 15;
 
+	/**
+	 * DEF, RES di default, RES per elemento e bonus alle spalle: copiati per valore da `URTHeroData` in
+	 * `ConfigureFromHeroData`, come `GuardReduction` ([D-589], [D-595], [D-599]; E53 CP 53.2b). Tutti a zero
+	 * oggi, e a zero la formula di `URTCombatLibrary::MitigateDirectDamage` e' l'identita': il resolver li
+	 * leggera' da qui (CP 53.2c) senza che un golden cambi finche' CP 53.3 non porta i valori.
+	 * `BlueprintReadOnly` per la stessa ragione di `GuardReduction`: un numero che decide il danno non ha una
+	 * seconda autorita' in Blueprint.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 Defense = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 ResistanceDefault = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TMap<FName, int32> ElementResistance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 RearBonus = 0;
+
+	/** La RES verso un elemento: quella dichiarata per `ElementId`, altrimenti il default (D-595 (3)). */
+	int32 ResistanceAgainst(const FName& ElementId) const
+	{
+		if (const int32* Specific = ElementResistance.Find(ElementId))
+		{
+			return *Specific;
+		}
+		return ResistanceDefault;
+	}
+
 	/** Numero massimo di celle percorribili in un turno (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;

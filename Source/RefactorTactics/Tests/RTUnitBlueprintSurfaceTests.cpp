@@ -214,6 +214,12 @@ namespace
 	{ TEXT("HearingThreshold"),           Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
 	{ TEXT("PushResistance"),             Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
 	{ TEXT("GuardReduction"),             Inv, false, nullptr, Amm, TEXT("catalogo [D-408]; la sua riga porta gia' il precedente sul perche' NON e' BlueprintReadWrite") },
+	// E53 CP 53.2b ([D-589], [D-595], [D-599]): la difesa viaggia come la Guardia — dal catalogo, per valore,
+	// ReadOnly per la stessa ragione (un numero che decide il danno non ha una seconda autorita' in Blueprint).
+	{ TEXT("Defense"),                    Inv, false, nullptr, Amm, TEXT("catalogo [D-595]: destinazione dichiarata di Routes[]; zero finche' CP 53.3 non porta i valori") },
+	{ TEXT("ResistanceDefault"),          Inv, false, nullptr, Amm, TEXT("catalogo [D-595] (3): la RES unica come default per i dodici elementi; destinazione di Routes[]") },
+	{ TEXT("ElementResistance"),          Inv, false, nullptr, Amm, TEXT("catalogo [D-593]: RES per elemento, chiavi fra i dodici; destinazione di Routes[]") },
+	{ TEXT("RearBonus"),                  Inv, false, nullptr, Amm, TEXT("catalogo [D-587] (2), valori [D-599]: bonus alle spalle dell'attaccante; destinazione di Routes[]") },
 	{ TEXT("MoveEndPivotMaxSteps"),       Inv, false, nullptr, Amm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
 	{ TEXT("DashEndPivotMaxSteps"),       Inv, false, nullptr, Amm, TEXT("catalogo ADR-0008 §1: destinazione dichiarata di Routes[]") },
 	{ TEXT("Affinity"),                   Inv, false, nullptr, Amm, TEXT("catalogo: destinazione dichiarata di Routes[]") },
