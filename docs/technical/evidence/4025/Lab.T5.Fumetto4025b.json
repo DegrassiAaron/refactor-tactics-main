@@ -7,6 +7,7 @@
   "playerReactionWindows": true,
 
   "_nota": "Banco NON versionato, secondo giro della seduta visiva di #4025 (task 5). Squadra 0 = chi guarda, visionRange 0 (solo consapevolezza ravvicinata, 2 celle). B2 (Muiren, squadra 1) sta a (3,-3), a 4-5 celle da ogni alleato: NON osservata; nel T1 si cura da sola (CircularTide sulla cella accanto (3,-2): l'area di raggio 1 la include; health 50): l'evento esiste nel TurnLog ma non deve arrivare a chi guarda. T1: a/h (pausa K a meta' vita del fumetto) e c. T2: i (A2 in Brace, B3 carica con Ram -> finestra di reazione del profilo Sidestep). T3: ESC durante un fumetto vivo.",
+  "_nota_evidenza": "Conservato come evidenza di #4025 in docs/technical/evidence/4025/: il «NON versionato» del _nota valeva quando il banco stava solo in Saved/RTLab. Per rieseguirlo va copiato in Saved/RTLab/Scenarios/ del clone principale e caricato con -RTScenario=<scenarioId>.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0], "facing": "E", "visionRange": 0,

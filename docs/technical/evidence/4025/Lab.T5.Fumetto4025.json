@@ -7,6 +7,7 @@
   "playerReactionWindows": true,
 
   "_nota": "Banco NON versionato della seduta visiva di #4025 (task 5). Squadra 0 = chi guarda, visionRange 0 (solo consapevolezza ravvicinata, 2 celle): B1 e B3 stanno a 2 celle da un alleato e si vedono, B2 sta a 4-5 celle e NON si vede. T1: due skill nello stesso Blast (A1 LinearDischarge blu, B1 Overload rosso), un attacco base (B3 ImpactShot), A1 grida + incassa + ha Wet; B2 non osservato usa Overload su una cella vuota. T2: altre due skill (per Tab). T3: una skill di Muiren (per la pausa). T4: A2 in Brace, B3 Ram su A2 -> finestra di reazione (Profile.Sidestep).",
+  "_nota_evidenza": "Conservato come evidenza di #4025 in docs/technical/evidence/4025/: il «NON versionato» del _nota valeva quando il banco stava solo in Saved/RTLab. Per rieseguirlo va copiato in Saved/RTLab/Scenarios/ del clone principale e caricato con -RTScenario=<scenarioId>.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0], "facing": "E", "visionRange": 0,

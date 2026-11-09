@@ -204,12 +204,13 @@ ARTUnit::ARTUnit()
 	// 🔑 **Alto 228 e non 90, e la ragione e' il fumetto della skill (`#4025`).** Il `WBP_RT_UnitOverlay` ha ora
 	// un fumetto SOPRA il nome: contorno, bolla e testo scalato, in una `SizeBox` che nasce `Collapsed`.
 	//
-	// 🔴 **Il caso peggiore e' MISURATO, non stimato**: fumetto + token di danno + una riga di stati insieme
-	// fanno ~218 px. Lo ha misurato la seduta visiva di `#4025` (finestra `-game`, due prove): a 200 il blocco
+	// 🔴 **Che cosa e' misurato, e che cosa no.** MISURATO dalla seduta visiva di `#4025` (finestra `-game`,
+	// 1920x1080, due prove): a 200, con fumetto + token di danno + una riga di stati insieme, il blocco
 	// nome-barra-stati SCENDEVA di 18 px verso l'unita' per ~0,9 s, quanto dura il token, e poi tornava (la barra
-	// da y 626 a 644 e da 629 a 647). Senza la riga di stati non succedeva. I ~190 che stimavano le metriche dei
-	// font (pila ~99 px, ~123 con le icone; fumetto ~+36; token ~+30) erano una sottostima: i 228 danno ~10 px
-	// di margine sulla misura.
+	// da y 626 a 644 e da 629 a 647); senza la riga di stati non succedeva. MISURATO anche il 228: rimisurato a
+	// `5167ae133`, il salto e' 0. DEDOTTO, non misurato: il contenuto di ~218 px (200 + 18), quindi ~10 px di
+	// margine. I ~190 che stimavano le metriche dei font (pila ~99 px, ~123 con le icone; fumetto ~+36; token
+	// ~+30) erano una sottostima. A 1440p e a 4K non c'e' misura.
 	//
 	// ⚠️ **Con i 90 di prima la pila sforava gia'**: ~99 / ~123 > 90 (stima), e `RootBox` impilava dall'alto,
 	// quindi a restare tagliati erano barra e stati, non il nome. Il fumetto, in cima, avrebbe solo peggiorato.
@@ -220,7 +221,7 @@ ARTUnit::ARTUnit()
 	//     basso»: nome e barra stanno ora a distanza fissa sopra la testa;
 	//   - quando compare il fumetto cresce verso l'ALTO e la barra non si muove;
 	//   - una riga di stati in piu' spinge su di una riga nome e fumetto — e' il prezzo dell'ancoraggio in basso;
-	//   - il numero e' ancorato a una misura (il caso peggiore sopra), non a una stima: un fumetto o un token piu'
+	//   - il numero e' ancorato a una misura (il salto a 200, assente a 228), non a una stima: un fumetto o un token piu'
 	//     alti, o una seconda riga di stati, vanno rimisurati nella seduta visiva prima di toccarlo.
 	//
 	// ⚠️ **Anche la LARGHEZZA e' un vincolo.** Il `WBP` limita `SkillCalloutRoot` a `MaxDesiredWidth` 190 perche'

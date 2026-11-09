@@ -6614,9 +6614,11 @@ sessions:
       `Attiva:` che il Registro a destra non porta in vista strategica, #4034 la fetta delle azioni bloccate, #3997 la
       issue che esegue `G17`.
 
-      **Allestimento**: tre scenari del Lab, non versionati (`Saved/RTLab/Scenarios` del clone principale), copiati in
-      `docs/technical/evidence/4025/` (`Lab.T5.Fumetto4025.json`, `Lab.T5.Fumetto4025b.json`,
-      `Lab.T5.Fumetto4025c.json`); si caricano dalla riga di comando con `-RTScenario=<Id>`. Finestra `-game` (non la
+      **Allestimento**: tre scenari del Lab, scritti in `Saved/RTLab/Scenarios` del clone principale (non versionato) e
+      conservati come evidenza in `docs/technical/evidence/4025/` (`Lab.T5.Fumetto4025.json`,
+      `Lab.T5.Fumetto4025b.json`, `Lab.T5.Fumetto4025c.json`). Il loro `_nota` li dice «NON versionati» ed e' di prima
+      della copia; per rieseguirli vanno copiati in `Saved/RTLab/Scenarios/` del clone principale, come dice il loro
+      `_nota_evidenza`, e si caricano dalla riga di comando con `-RTScenario=<Id>`. Finestra `-game` (non la
       PIE dell'Editor) su `L_DevSandbox`, 1920x1080, con
       `-dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,t.MaxFPS=60`: i comandi di playback servono
       alla pausa con `K` e a far partire ogni playback fermo. Catture `PrintWindow` a raffica, input sintetico, camera a

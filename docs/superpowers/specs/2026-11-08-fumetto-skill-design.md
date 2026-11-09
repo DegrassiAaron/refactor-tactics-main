@@ -21,8 +21,9 @@
 > [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), che è 🟡. Due `FAIL`: il punto (e) nella seconda
 > metà, perché il Registro a destra non porta la riga `Attiva:` (premessa di R8 falsa, seguito
 > [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)), ed è un buco della fetta, non del
-> fumetto; il punto (h) con `ESC`, perché `ESC` non ferma il playback (nota sotto A8), ed è una premessa imprecisa
-> della spec, non un difetto. Manca il giudizio d'autore sulla resa (§5).
+> fumetto; il punto (h) con `ESC`, perché `ESC` non ferma il playback: la premessa di A8 era imprecisa, e che il
+> fumetto continui col menu aperto è un `Ruling` (nota sotto A8). Manca il giudizio d'autore sulla resa (§5) e su
+> quel `Ruling`.
 >
 > **Stato misurato**: 2026-11-08, `main` = `e2fc03f09`; `Source/` identico sul branch di lavoro
 > (`git diff --stat main HEAD -- Source` vuoto) e su `origin/main` = `5eac6115e` del 2026-11-09
@@ -52,9 +53,14 @@
 > ⚠️ **A8, misurato il 2026-11-09: `ESC` non ferma il playback.** Apre il menu di pausa, che «Non sospende niente»
 > (`Frontend/RTFrontendNavigator.h:290-310`: nessun `SetPause`, nessuna dilatazione del tempo, nessun flag nel
 > `TurnManager`). La pausa del playback è `K` (`ARTTurnManager::PausePlayback`, con i comandi di playback accesi,
-> `rt.Debug.PlaybackControls 1`). La decisione dell'autore non cambia: il fumetto segue l'orologio del playback in
-> entrambi i casi, fermo con `K` e in corsa con `ESC` (seduta visiva, punto (h):
-> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+> `rt.Debug.PlaybackControls 1`). Il fumetto segue l'orologio del playback in entrambi i casi, fermo con `K` e in
+> corsa con `ESC` (seduta visiva, punto (h): [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+>
+> `Ruling` Leggere A8 come «il fumetto segue il playback, anche quando `ESC` non lo ferma» è una lettura di chi
+> scrive, non dell'autore, che aveva risposto a una premessa sbagliata. Costo se sbagliata: con il menu di `ESC`
+> aperto il fumetto continua e si dissolve dietro al menu, e chi torna alla partita non lo trova più. Se l'autore
+> vuole che `ESC` fermi tutto, è lavoro del frontend (oggi `ESC` «Non sospende niente», per scelta), non del fumetto,
+> che seguirebbe da sé un playback fermo.
 
 Decisioni precedenti che governano, già accettate:
 
@@ -173,8 +179,8 @@ fumetti possono essere vivi insieme su unità diverse.
 
 > ⚠️ **R8, misurato il 2026-11-09: la premessa è falsa.** In vista strategica il fumetto si collassa come la regola
 > dice, ma il Registro a destra **non** porta la riga `Attiva:`. La stringa va solo nel log del motore e in
-> `RecentEvents` (`ShowActivation` → `AddLogEvent`); `GetRecentEventsForTeam` non ha chiamanti fuori da
-> `RTTurnManager.cpp` (`git grep -n GetRecentEventsForTeam -- Source` fuori dai `Tests/`); il Registro si compone dal
+> `RecentEvents` (`ShowActivation` → `AddLogEvent`); `GetRecentEventsForTeam` non ha nessun chiamante nei sorgenti
+> non di test (`git grep -n GetRecentEventsForTeam -- Source` fuori dai `Tests/`); il Registro si compone dal
 > `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/RTHudViewModel.h:1360-1361`). Quindi
 > l'informazione che D-582 (3) vuole nella vista strategica oggi non c'è: seguito
 > [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
@@ -241,9 +247,10 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   sui tre casi (skill firma, attacco base, generica).
 - **Nessun controllo sul velo in `ShowSkillCallout`**, per la stessa ragione dichiarata in
   `ShowDamageToken` (`RTUnit.cpp:326-329`): il velo lo decide `UpdateObserverVeil` spegnendo l'overlay.
-- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×228 (fumetto + token di
-  danno + riga di stati ≈ 218 px, **misurato** nella seduta visiva di `#4025`: a 200 il blocco scendeva di 18 px
-  per ~0,9 s; la stima da metriche dei font, ≈ 190, era troppo bassa). Col pivot (0.5, 1) il widget
+- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×228. **Misurato** nella
+  seduta visiva di `#4025`, a 1920×1080: a 200, con fumetto, token di danno e una riga di stati insieme, il blocco
+  scendeva di 18 px per ~0,9 s; a 228 il salto è 0. Il contenuto di ≈ 218 px è **dedotto** (200 + 18), non
+  misurato; la stima da metriche dei font, ≈ 190, era troppo bassa; a 1440p e a 4K non c'è misura. Col pivot (0.5, 1) il widget
   cresce verso l'alto, e il `TopSpacer` in Fill del WBP impila il contenuto in basso: rispetto al layout
   impilato in alto l'ancoraggio cambia una volta, nome e barra stanno a distanza fissa sopra la testa, il
   fumetto comparendo sale senza spostare la barra, e una riga di stati in più spinge su nome e fumetto.
@@ -303,8 +310,8 @@ correggerà lì.
 > ⚠️ **Riga PIE, misurata nella seduta visiva del 2026-11-09** (`U99`;
 > [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)): (e) è `FAIL` nella seconda metà, per la
 > premessa falsa di R8 (seguito [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033)); (h)
-> com'è scritta non si può avere, perché `ESC` non ferma il playback (nota sotto A8): si prova con la pausa del
-> playback (`K`), ed è `PASS`. Gli esiti di tutti i punti stanno nella voce `PIE-HUD-FUMETTO` di
+> com'è scritta non si può avere, perché `ESC` non ferma il playback (nota e `Ruling` sotto A8): si prova con la
+> pausa del playback (`K`), ed è `PASS`. Gli esiti di tutti i punti stanno nella voce `PIE-HUD-FUMETTO` di
 > [`test-manuali-pie.md`](../../technical/test-manuali-pie.md).
 
 Chi scrive il codice **non firma** il verdetto PIE sui punti (b) e (c): li rimisura una seconda passata su
@@ -338,6 +345,10 @@ commit dichiarato (CLAUDE.md §6, §10).
   §3.2.*
 - ➕ **La riga `Attiva:` nel Registro a destra** in vista strategica (D-582 (3)): la premessa di R8 era falsa, e
   l'informazione oggi non c'è. Aperta come [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033).
+- ➕ **Un curatore interrotto si attiva lo stesso** (`ApplyInterrupts` cerca le vittime solo negli intenti
+  d'attacco; R11, sotto §3.2), quindi la sua skill grida: da verificare col dominio Combat se è voluto. È già scritto
+  in [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034), come domanda da chiarire prima di
+  decidere che cosa grida.
 - **«Qualche grido»**: un testo per skill oltre al nome (onomatopea, frase dell'eroe), in `URTActionData`.
 - **Localizzazione** dei nomi delle azioni (oggi `FText::FromString`).
 - **Leggibilità tattica**: la previsione dell'autore «vista la grandezza degli esagoni» si misura con
@@ -353,5 +364,6 @@ commit dichiarato (CLAUDE.md §6, §10).
   (`docs/roadmap/capability-roadmaps.md:193-211`).
 - **Issue**: da aprire, una sola, sotto `G17` ondata 2 (#3997 esegue il gate); titolo proposto
   `[V0.1][UI] Il fumetto della skill: un grido manga sopra l'unità all'attivazione (D-582 (3), fetta 1)`.
-  Nel corpo: questa spec, le regole R1–R11, la tabella §7 come DoD.
+  Nel corpo: questa spec, le regole R1–R11, la tabella §7 come DoD. ➕ *Aperta come
+  [#4025](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4025).*
 - **Branch**: dal nome della issue, PR verso `main`.

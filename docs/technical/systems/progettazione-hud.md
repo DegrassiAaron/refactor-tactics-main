@@ -234,7 +234,8 @@ per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
 
 - **si ferma** quando `TickPlayback` esce prima del sync: pausa del playback (`bPlaybackPaused`, per esempio `K` con `rt.Debug.PlaybackControls 1`) e playback
   trattenuto da una finestra di reazione (`bPlaybackHeldByWindow`); se la velocità del playback scende, dura di più a parete. ⚠️ `ESC` **non** è una pausa del
-  playback: apre il menu, che non sospende niente (`RTFrontendNavigator.h`), quindi il fumetto continua, come il playback;
+  playback: apre il menu, che non sospende niente (`RTFrontendNavigator.h`), quindi il fumetto continua, come il playback (`Ruling` della spec, sotto A8,
+  revocabile dall'autore);
 - **uno step di `Next Action`** lo fa avanzare dello scarto mostrato, perché il sync segue la correzione di `PlaybackElapsedTotal`;
 - **si taglia solo alla fine vera**: `FinishPlayback` chiama `ClearSkillCallout` **dopo** il ramo `IsResolutionSuspended()`, che è la fine di un *prefisso* su una
   finestra di reazione e non del turno. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi visibile e fermo mentre il giocatore decide;
@@ -250,15 +251,16 @@ de-sovrapposizione (A5), e la cadenza del playback non cambia. `ARTTurnManager::
 
 **Vista strategica.** Il fumetto è collassato (`ARTUnit::SetStrategicPresentation` lo inoltra al widget); tornando alla vista ravvicinata entro i tre secondi ricompare per il
 tempo che resta (seduta visiva del 2026-11-09, anche per un fumetto nato durante la vista strategica). ⚠️ **L'informazione che D-582 (3) vuole nel log a destra oggi non
-c'è**: la riga `Attiva:` di `ShowActivation` va solo nel log del motore e in `RecentEvents` (`AddLogEvent`), `GetRecentEventsForTeam` non ha chiamanti fuori da
-`RTTurnManager.cpp`, e il Registro a destra si compone dal `TurnLog` tipizzato, dove il canale testuale non entra. Misurato nella stessa seduta: in vista strategica il
-Registro mostra i colpi e nessuna attivazione. Seguito: [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033). ⌫ *Questa riga diceva: «L'informazione
-c'è già: la riga `Attiva:` del log a destra (`ShowActivation`), che è ciò che chiede D-582 (3).» Era la premessa di R8 della spec, e non era vera.*
+c'è**: la riga `Attiva:` di `ShowActivation` va solo nel log del motore e in `RecentEvents` (`AddLogEvent`), `GetRecentEventsForTeam` non ha nessun chiamante nei
+sorgenti non di test, e il Registro a destra si compone dal `TurnLog` tipizzato, dove il canale testuale non entra. Misurato nella stessa seduta: in vista strategica il
+Registro mostra i colpi e nessuna attivazione. La spec (R8) dava quella riga per già presente: la premessa era falsa. Seguito:
+[#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033).
 
 **Layout.** `ARTUnit` porta la `DrawSize` dell'overlay a **220×228** (era 220×90): fumetto, token di danno e riga di stati insieme. Il pivot resta `(0.5, 1)` e un
 `TopSpacer` in Fill nel `WBP_RT_UnitOverlay` impila il contenuto in basso: il fumetto **cresce verso l'alto** e non sposta nome e barra; una riga di stati in più spinge su
-nome e fumetto. ⚠️ I 228 sono sulla **misura** della seduta visiva di `#4025`: con fumetto, token e una riga di stati insieme il contenuto fa ~218 px, e a 200 il blocco nome-barra-stati
-scendeva di 18 px per ~0,9 s (la stima da metriche dei font, ~190, era troppo bassa). Anche la **larghezza** è un vincolo: `SkillCalloutRoot`
+nome e fumetto. ⚠️ I 228 vengono dalla seduta visiva di `#4025`, a 1920×1080. **Misurato**: a 200, con fumetto, token e una riga di stati insieme, il blocco
+nome-barra-stati scendeva di 18 px per ~0,9 s; a 228 il salto è 0 (rimisura a `5167ae133`). **Dedotto, non misurato**: il contenuto di ~218 px (200 + 18). La stima da
+metriche dei font, ~190, era troppo bassa; a 1440p e a 4K non c'è misura. Anche la **larghezza** è un vincolo: `SkillCalloutRoot`
 ha `MaxDesiredWidth` 190 perché il fumetto nasce a scala 1,15 e 190 × 1,15 = 218,5 ≤ 220; alzare quella scala oltre ~1,157 lo taglia ai lati al primo fotogramma del pop. Il
 contorno prende il colore di squadra su `SkillCalloutOutline`, posato dal C++ in `SetOverlayView`: il ponte MCP non sa creare il getter di una variabile-widget nel grafo del
 WBP, e un binding scritto lì resterebbe a mano.
