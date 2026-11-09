@@ -115,8 +115,11 @@ namespace
 	 * `ConfigureFromHeroData` l'ha appena messa a zero, e la si sovrascrive dopo).
 	 *
 	 * Attaccante a OVEST del difensore, che GUARDA a ovest: colpo frontale, nessuna copertura (arena piena),
-	 * nessuno stato, scudo a zero (`ARTUnit::Shield` parte da 0 finche' `Action.Shield` non lo alza). Quindi con
-	 * DEF 0 gli HP persi sono la potenza nominale dell'attacco base, e con DEF 25 devono esserne la mitigazione.
+	 * nessuno stato. ⚠️ Lo scudo NON e' zero: a inizio turno `ARTUnit::RechargeBaseShield` arma
+	 * `URTCombatLibrary::BaseShield` su ogni unita' viva, e lo scudo assorbe prima degli HP. Quindi con DEF 0 gli
+	 * HP persi sono `P − BaseShield`, e con DEF 25 sono `floor(P × 100/125) − BaseShield`: il chiamante ricompone
+	 * `P` sommando lo scudo. (La prima stesura diceva «scudo a zero» e il test e' caduto per 11 contro 12:
+	 * l'attacco base vale 20 in questo banco, 15 e 11 sono i due HP persi.)
 	 *
 	 * `-1` = montaggio fallito, gia' segnalato da `Test`.
 	 */
@@ -467,8 +470,12 @@ bool FRTCombatInjectedDefenseReducesDamageInAFullTurnTest::RunTest(const FString
 
 	if (!TestTrue(TEXT("premessa: con DEF 0 l'attacco base fa danno"), ConZero > 0)) { return false; }
 	TestTrue(TEXT("la DEF iniettata riduce gli HP persi"), ConDEF25 < ConZero);
-	TestEqual(TEXT("ed e' la formula di D-589 sul colpo pieno: floor(Danno × 100/125)"),
-		ConDEF25, URTCombatLibrary::MitigateDirectDamage(ConZero, 0, 100, 25));
+
+	// Il colpo pieno e' HP persi + scudo base (assorbito prima degli HP); la DEF lo mitiga PRIMA dello scudo,
+	// come prima della copertura: `floor((HP + S) × 100/125) − S`.
+	const int32 ColpoPieno = ConZero + URTCombatLibrary::BaseShield;
+	TestEqual(TEXT("ed e' la formula di D-589 sul colpo pieno, al netto dello scudo base: floor((HP + S) × 100/125) − S"),
+		ConDEF25, URTCombatLibrary::MitigateDirectDamage(ColpoPieno, 0, 100, 25) - URTCombatLibrary::BaseShield);
 	return true;
 }
 

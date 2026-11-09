@@ -353,9 +353,16 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 
 	// [D-589] (CP 53.2c): anche DEF e spalle sono TARGET-DEPENDENT, per la stessa ragione della copertura qui
 	// sopra — la DEF e' dell'intercettore, e l'arco frontale da cui le spalle si giudicano e' il suo. Si
-	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione. Insieme si riallineano `NominalPower`
-	// e `CoverReduction`, che prima restavano quelli del bersaglio originale e facevano raccontare al breakdown
-	// una copertura che l'intercettore non aveva.
+	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione.
+	//
+	// ⚠️ **`CoverReduction` resta DELIBERATAMENTE quello del bersaglio originale**, ed e' un difetto latente
+	// che questo passo nomina e NON corregge. Il campo e' stantio dal giorno in cui e' nato (`#1951`): la
+	// funzione ricalcola `Power` e `CoverBypassedByFacing` per l'intercettore ma non lui, e
+	// `CoverReadTargetFacing` — che li somma per decidere se il facing e' stato letto — risponde quindi con la
+	// copertura della vittima precedente. Riallinearlo qui e' stato misurato (2026-11-09): cambia la traccia
+	// `UsedByBlast` del turno 6 di `RT_Showcase_Relay_v01` (l'`Interposition` della showcase), cioe' un golden,
+	// mentre il gate di CP 53.2c e' «golden byte-identici». La correzione e' lavoro a se', con la rigenerazione
+	// dichiarata nella sua PR: vedi il FOLLOW-UP nella PR di CP 53.2c su #4013.
 	int32 RearApplied = 0;
 	const int32 Mitigated = MitigatedHitPower(Attacker, NewTarget, Intent.Shape, Intent.TargetCell, Intent.Power,
 		RearApplied);
@@ -364,7 +371,6 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	Out.MitigatedPower = Mitigated;
 	Out.RearBonusApplied = RearApplied;
 	Out.DefenseApplied = NewTarget.Defense;
-	Out.CoverReduction = Reduction;
 	// La redirezione cambia il BERSAGLIO, quindi cambia anche la geometria della copertura: ricalcolare il
 	// danno e lasciare la vecchia attribuzione direzionale darebbe una traccia che parla della vittima
 	// precedente.
