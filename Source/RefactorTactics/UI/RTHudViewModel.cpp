@@ -1458,11 +1458,12 @@ namespace
 	constexpr float SkillCalloutPopStartScale = 1.15f;
 }
 
-bool URTHudViewModel::ActionShouts(const FName& /*ActionId*/, const FName& BaseActionId, bool bIsCoreAction)
+bool URTHudViewModel::ActionShouts(const FName& /*ActionId*/, const FName& BaseActionId, bool bIsGenericOrEquipment)
 {
-	// Grida una skill di FIRMA: non e' una variante di un'altra azione (nessuna base) e non sta nel catalogo
-	// core. Servono entrambe: `Action.Guard` non ha base ed e' core, `Hero.Branth.ImpactShot` non e' core ma ha base.
-	return BaseActionId.IsNone() && !bIsCoreAction;
+	// Grida una skill di FIRMA: non e' una variante di un'altra azione (nessuna base) e non e' ne' una generica del
+	// catalogo core ne' l'azione di un pezzo d'equipaggiamento. Servono entrambe: `Action.Guard` non ha base ed e' core,
+	// `Gadget.PortableCover` non ha base ed e' equipaggiamento, `Hero.Branth.ImpactShot` non e' nessuna delle due ma ha base.
+	return BaseActionId.IsNone() && !bIsGenericOrEquipment;
 }
 
 FRTSkillCalloutView URTHudViewModel::BuildSkillCallout(const FText& KitDisplayName, const FName& ActionId,
@@ -1470,8 +1471,8 @@ FRTSkillCalloutView URTHudViewModel::BuildSkillCallout(const FText& KitDisplayNa
 {
 	FRTSkillCalloutView View;
 
-	// `0` e' «nessuno» ([D-063]): si conserva com'e', come fa `BuildDamageToken`. Chi disegna confronta con lo
-	// `StableUnitId` della propria unita' e uno zero non combacia con nessuna.
+	// `0` e' «nessuno» ([D-063]): si conserva com'e', come fa `BuildDamageToken`. Nessun consumatore lo confronta — il
+	// fumetto vive nell'overlay dell'unita' che grida — e il campo viaggia per i test e la diagnostica.
 	View.SourceStableUnitId = SourceStableUnitId;
 	View.ActionId = ActionId;
 	View.StartAt = StartAt;

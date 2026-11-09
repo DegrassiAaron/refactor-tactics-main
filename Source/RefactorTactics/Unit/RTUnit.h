@@ -2202,7 +2202,7 @@ public:
 	 * compone `URTHudViewModel::BuildSkillCallout` col nome che il KIT di QUESTA unita' da' alla skill
 	 * (`KitDisplayNameFor`): un'altra unita' con la stessa azione potrebbe chiamarla in un altro modo.
 	 *
-	 * ⚠️ **Il tempo NON si misura qui.** `StartAt` e' `ARTTurnManager::PlaybackElapsedTotal` alla comparsa e lo
+	 * ⚠️ **Il tempo NON si misura qui.** `StartAt` e' `ARTTurnManager::SkillCalloutClock` alla comparsa e lo
 	 * scorrere lo porta `SetSkillCalloutClock`: il fumetto segue il tempo del playback e non quello del frame.
 	 * A differenza del token di danno, che conta i propri `DeltaTime`, qui un hitch o una pausa non lo allungano
 	 * ne' lo accorciano rispetto alla sequenza che sta commentando.
@@ -2212,11 +2212,14 @@ public:
 	 * ⛔ **Non decide SE gridare** (`URTHudViewModel::ActionShouts`) **ne' SE mostrarlo** a chi guarda: il velo
 	 * spegne l'overlay (`ARTHUD::UpdateObserverVeil`) e un secondo giudizio qui sarebbe la divergenza che `#2246`
 	 * ha appena tolto. Non applica niente: l'attivazione e' gia' stata risolta.
+	 *
+	 * ⚠️ **Un ripiego si dichiara nel log** (R3): se il kit non ha un nome per la skill, il fumetto mostra l'ultimo
+	 * segmento dell'id e qui esce un `Warning` che nomina l'id. La funzione pura resta pura: il log lo scrive chi la chiama.
 	 */
 	void ShowSkillCallout(const FName& ActionId, float StartAt);
 
 	/**
-	 * Porta al fumetto il tempo del playback (`ARTTurnManager::PlaybackElapsedTotal`), e ne registra l'ultimo valore.
+	 * Porta al fumetto il tempo del playback (`ARTTurnManager::SkillCalloutClock`), e ne registra l'ultimo valore.
 	 *
 	 * 🔑 L'unita' non conta niente: inoltra. Il widget ricava da `Now - StartAt` l'opacita' e la scala con le
 	 * funzioni pure del view model, quindi ogni giudizio sul tempo resta in un posto che un test chiama senza

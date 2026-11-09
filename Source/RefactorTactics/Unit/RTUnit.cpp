@@ -376,6 +376,14 @@ void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt)
 	// #4025: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e'. Il nome lo da' il kit
 	// di QUESTA unita'; il giudizio sul ripiego e sul testo sta nella funzione pura.
 	LastSkillCallout = URTHudViewModel::BuildSkillCallout(KitDisplayNameFor(ActionId), ActionId, StableUnitId, StartAt);
+	if (LastSkillCallout.bFromFallback)
+	{
+		// R3: il kit non nomina questa skill e il fumetto mostra l'ultimo segmento dell'id, una parola tecnica. A schermo
+		// si legge come un nome qualunque: senza questa riga il buco nel catalogo resterebbe muto. Il log sta qui e non
+		// in `BuildSkillCallout`, che resta pura: la bandiera e' un campo apposta perche' il chiamante la legga.
+		UE_LOG(LogRT, Warning, TEXT("[RT] %s: il kit non nomina la skill %s, il fumetto ripiega su '%s'"),
+			*GetName(), *ActionId.ToString(), *LastSkillCallout.Label);
+	}
 	bSkillCalloutLive = true;
 	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
 	{
@@ -577,8 +585,9 @@ void ARTUnit::SetStrategicPresentation(bool bStrategic, float ViewYawDegrees)
 
 	// #4025 (R8, D-582): la vista strategica NON spegne l'overlay — `OverlayWidget` dipende solo da `bRender` — quindi
 	// il fumetto non sparirebbe da solo. Il widget lo collassa finche' la vista e' strategica e al ritorno riapplica
-	// il tempo che aveva; nella strategica l'informazione sta nel log a destra (`Attiva:`). Qui si inoltra soltanto
-	// lo stato, non si giudica niente.
+	// il tempo che aveva. ⚠️ Nella strategica l'informazione NON c'e' ancora: la riga `Attiva:` va nel log del motore e
+	// non nel registro a destra (premessa di R8 misurata falsa), e la riga del registro e' il follow-up #4033. Qui si
+	// inoltra soltanto lo stato, non si giudica niente.
 	if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(GetOverlayWidgetObject()))
 	{
 		Overlay->SetStrategicPresentation(bStrategic);

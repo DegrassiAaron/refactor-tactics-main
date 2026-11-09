@@ -740,11 +740,18 @@ public:
 	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
 
 	/**
-	 * L'orologio TOTALE del playback (`PlaybackElapsedTotal`), lo stesso che il fumetto della skill riceve (#4025): con
-	 * `ARTUnit::SkillCalloutClockForTest` dice a un test che il tempo del fumetto e' questo e non un conteggio dell'unita'.
-	 * Solo test.
+	 * L'orologio TOTALE del playback (`PlaybackElapsedTotal`), quello della barra di avanzamento e di `Pacing.Close`.
+	 * ⚠️ **Non e' piu' l'orologio del fumetto** (#4025): quello e' `PlaybackSkillCalloutClockForTest`, perche' questo
+	 * torna a zero in `ConcludeResolution` anche quando il playback RIPRENDE dopo una finestra di reazione. Solo test.
 	 */
 	float PlaybackElapsedTotalForTest() const { return PlaybackElapsedTotal; }
+
+	/**
+	 * L'orologio del FUMETTO della skill (`SkillCalloutClock`, #4025): con `ARTUnit::SkillCalloutClockForTest` dice a un
+	 * test che il tempo del fumetto e' questo e non un conteggio dell'unita', e che sopravvive a una finestra di reazione.
+	 * Solo test.
+	 */
+	float PlaybackSkillCalloutClockForTest() const { return SkillCalloutClock; }
 
 	/**
 	 * Quante unita' hanno un fumetto di skill acceso e non ancora spento da `FinishPlayback` (#4025). Zero a fine turno
@@ -2828,7 +2835,7 @@ protected:
 	void ShowActivation(const FRTResolvedEvent& Ev);
 
 	/**
-	 * Porta ai fumetti di skill accesi il tempo del playback (`PlaybackElapsedTotal`) e toglie dalla lista le unita'
+	 * Porta ai fumetti di skill accesi il tempo del playback (`SkillCalloutClock`) e toglie dalla lista le unita'
 	 * che non esistono piu' (#4025, spec del fumetto R4/A8). ⚠️ **Non e' l'unico punto in cui il fumetto riceve
 	 * l'orologio**: alla comparsa lo riceve `ShowActivation`, e questo lo ripete a ogni tick in cui il tempo avanza.
 	 */
@@ -3969,6 +3976,23 @@ private:
 	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
+	/**
+	 * L'orologio del FUMETTO della skill (#4025, spec del fumetto R4/R7): tempo del playback, lo stesso `Dt` e la stessa
+	 * correzione dello `Step` di `PlaybackElapsedTotal` in `TickPlayback`, quindi la pausa e il trattenimento di una
+	 * finestra lo fermano come fermano l'altro.
+	 *
+	 * 🔴 **Esiste perche' `PlaybackElapsedTotal` non sopravvive a una finestra di reazione.** `ConcludeResolution` lo
+	 * azzera anche quando ci si arriva dalla RIPRESA dopo una finestra (`bIsResolving` vero), e `BeginPlayback(true)`
+	 * «conserva» un orologio gia' azzerato. I fumetti accesi prima della finestra hanno uno `StartAt` su quel tempo:
+	 * con il totale ripartito da zero `Now - StartAt` diventava negativo, e ogni fumetto del turno — anche quelli gia'
+	 * dissolti — tornava pieno e ingrandito. Cambiare l'azzeramento condiviso toccherebbe la barra e `Pacing.Close`
+	 * (TurnLog): fuori dalla fetta, quindi il fumetto ha un orologio suo.
+	 *
+	 * ⚠️ **Si azzera in due punti soltanto**: all'inizio del playback di un turno nuovo (`BeginPlayback(false)`) e alla
+	 * fine VERA del playback (`FinishPlayback`, dopo il ramo sospeso), dove si spengono i fumetti. Mai in
+	 * `ConcludeResolution`. Non e' una `UPROPERTY`: solo presentazione, fuori da snapshot, TurnLog e hash (R10).
+	 */
+	float SkillCalloutClock = 0.f;
 	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
 	/**
 	 * Le unita' che hanno un fumetto di skill acceso in questo turno (#4025): chi lo ha mostrato (`ShowActivation`),

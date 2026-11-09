@@ -11,8 +11,9 @@
  * cambiare per colpa sua, e se cambia il difetto e' altrove.
  *
  * 🔑 **Porta le cose che il widget non deve ricalcolare**: chi grida, che parola compare e da quando. Il tempo
- * di vita NON e' un campo: lo detta `ARTTurnManager::PlaybackElapsedTotal` meno `StartAt`, mai un `DeltaTime`
- * locale, cosi' il fumetto segue il tempo del playback e non quello del frame.
+ * di vita NON e' un campo: lo detta `ARTTurnManager::SkillCalloutClock` meno `StartAt`, mai un `DeltaTime`
+ * locale, cosi' il fumetto segue il tempo del playback e non quello del frame. ⚠️ Non `PlaybackElapsedTotal`: quello
+ * torna a zero alla ripresa dopo una finestra di reazione, e l'orologio del fumetto deve sopravvivergli.
  *
  * Costruttore e curve del tempo: `URTHudViewModel::BuildSkillCallout`, `SkillCalloutAlpha`, `SkillCalloutScale`.
  */
@@ -25,8 +26,11 @@ struct FRTSkillCalloutView
 	 * Chi GRIDA, come `ARTUnit::StableUnitId`.
 	 *
 	 * ⚠️ **`0` non e' l'unita' numero zero: e' «nessuno»** ([D-063]). `EnsureMatchRoster` assegna gli id a
-	 * partire da `1` e lascia lo zero libero apposta: un fumetto attribuito allo zero non combacia con nessuna
-	 * unita' e quindi non compare, che e' l'effetto voluto.
+	 * partire da `1` e lascia lo zero libero apposta.
+	 *
+	 * 🔎 **Nessun consumatore lo confronta**: il fumetto vive nell'overlay dell'unita' che lo grida, quindi a chi
+	 * disegnarlo lo decide la sede, non questo campo. Viaggia per i test e la diagnostica — dice chi ha gridato
+	 * senza risalire all'attore — e non decide se il fumetto compare.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 SourceStableUnitId = 0;
@@ -47,7 +51,7 @@ struct FRTSkillCalloutView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bFromFallback = false;
 
-	/** `PlaybackElapsedTotal` al momento della comparsa: l'origine del tempo di vita del fumetto. */
+	/** `ARTTurnManager::SkillCalloutClock` al momento della comparsa: l'origine del tempo di vita del fumetto. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float StartAt = 0.f;
 };

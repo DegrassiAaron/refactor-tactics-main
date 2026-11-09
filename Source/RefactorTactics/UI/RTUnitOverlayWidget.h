@@ -151,7 +151,7 @@ public:
 	void PushSkillCallout(const FRTSkillCalloutView& Callout);
 
 	/**
-	 * Porta al fumetto il tempo del playback (`ARTTurnManager::PlaybackElapsedTotal`) e ne ridisegna opacita' e
+	 * Porta al fumetto il tempo del playback (`ARTTurnManager::SkillCalloutClock`) e ne ridisegna opacita' e
 	 * scala con le funzioni pure di `URTHudViewModel` (`SkillCalloutAlpha`, `SkillCalloutScale`).
 	 *
 	 * 🔴 **Il widget NON misura il tempo del fumetto**, e per questo `NativeTick` non lo tocca: un `DeltaTime`
@@ -271,8 +271,9 @@ protected:
 	TObjectPtr<UTextBlock> SkillCalloutText;
 
 	/**
-	 * Il contorno scuro della bolla del fumetto (`#4025`): `SetOverlayView` ne posa il colore sul colore di
-	 * squadra, cosi' chi guarda capisce di chi e' la skill senza leggere il nome.
+	 * Il contorno della bolla del fumetto (`#4025`): prende il colore di squadra dal C++ — `SetOverlayView` ci posa
+	 * `View.TeamColor` — cosi' chi guarda capisce di chi e' la skill senza leggere il nome. Il colore autorato
+	 * nell'asset vale solo finche' la prima vista non arriva.
 	 *
 	 * 🔑 **Il colore lo mette il C++ e non il grafo del `WBP`**: il ponte MCP non sa creare il getter di una
 	 * variabile-widget nel grafo, quindi un binding scritto li' resterebbe a mano; e il C++ e' gia' l'unico

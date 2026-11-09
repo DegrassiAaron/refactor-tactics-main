@@ -2049,22 +2049,28 @@ public:
 	static FRTDamageTokenView BuildHealToken(int32 Amount, int32 TargetStableUnitId);
 
 	/**
-	 * Se un'azione GRIDA: vero solo per una skill di firma (`#4025`, R1b).
+	 * Se un'azione GRIDA: vero solo per una skill di firma del KIT (`#4025`, R1b, A7).
 	 *
 	 * 🔴 **Due condizioni, e servono entrambe.** `BaseActionId` vuoto dice che l'azione non e' una variante di
-	 * un'altra (`Hero.Branth.ImpactShot` ha base `Action.BasicAttack` e resta muta); `!bIsCoreAction` dice che
-	 * non e' una voce del catalogo core (`Action.Guard`, senza base, e' muta lo stesso). Con una sola delle due
-	 * griderebbero l'attacco base o la guardia ogni volta che vengono usati.
+	 * un'altra (`Hero.Branth.ImpactShot` ha base `Action.BasicAttack` e resta muta); `!bIsGenericOrEquipment` dice
+	 * che non e' una voce del catalogo core (`Action.Guard`, senza base, e' muta lo stesso) ne' l'azione concessa da
+	 * un pezzo d'equipaggiamento. Con una sola delle due griderebbero l'attacco base, la guardia o il gadget ogni
+	 * volta che vengono usati.
 	 *
-	 * 🔑 **Riceve gia' deciso se l'azione e' core**: il catalogo ha un suo owner e qui non nasce un secondo
-	 * lettore. Nessun campo nuovo in `FRTActionDef`. `ActionId` non entra nel giudizio, che e' tutto in base e
-	 * catalogo: lo porta la firma per tenere insieme le tre cose che il chiamante ha in mano.
+	 * ⚠️ **L'equipaggiamento sta nel secondo bool perche' la base non lo esclude.** `MakeEquipmentAction` scrive
+	 * `ActionId = EquipmentId` (`Gadget.Sprinkler`, `Reaction.Cleanse`) e copia dal core un `BaseActionId` vuoto: per
+	 * la prima condizione un gadget e' indistinguibile da una skill di firma, e lo dice solo il catalogo.
 	 *
-	 * @param ActionId       l'azione che si giudica.
-	 * @param BaseActionId   la base da cui deriva (`FRTActionDef::BaseActionId`); `None` = non e' una variante.
-	 * @param bIsCoreAction  vero se l'azione sta nel catalogo core.
+	 * 🔑 **Riceve gia' deciso se l'azione e' generica o d'equipaggiamento**: i cataloghi hanno un loro owner e qui non
+	 * nasce un secondo lettore. Nessun campo nuovo in `FRTActionDef`.
+	 *
+	 * @param ActionId               non entra nel giudizio, che e' tutto in base e cataloghi: resta nella firma per
+	 *                               simmetria col chiamante, che ha in mano l'evento intero.
+	 * @param BaseActionId           la base da cui deriva (`FRTActionDef::BaseActionId`); `None` = non e' una variante.
+	 * @param bIsGenericOrEquipment  vero se l'azione sta nel catalogo core (`URTCatalogLibrary::FindCoreAction`) o e'
+	 *                               concessa da un pezzo d'equipaggiamento (`URTCatalogLibrary::FindEquipment`).
 	 */
-	static bool ActionShouts(const FName& ActionId, const FName& BaseActionId, bool bIsCoreAction);
+	static bool ActionShouts(const FName& ActionId, const FName& BaseActionId, bool bIsGenericOrEquipment);
 
 	/**
 	 * Il fumetto di una skill attivata: chi grida, che parola compare e da quando (`#4025`).
@@ -2083,7 +2089,7 @@ public:
 	 * @param KitDisplayName     il nome della skill nel kit; vuoto = ripiego.
 	 * @param ActionId           l'azione che grida.
 	 * @param SourceStableUnitId chi la lancia. `0` = nessuno ([D-063]).
-	 * @param StartAt            `ARTTurnManager::PlaybackElapsedTotal` alla comparsa.
+	 * @param StartAt            `ARTTurnManager::SkillCalloutClock` alla comparsa.
 	 */
 	static FRTSkillCalloutView BuildSkillCallout(const FText& KitDisplayName, const FName& ActionId,
 		int32 SourceStableUnitId, float StartAt);
@@ -2091,7 +2097,7 @@ public:
 	/**
 	 * L'opacita' del fumetto a `Elapsed` secondi dalla comparsa: piena, poi una coda lineare, poi finita.
 	 *
-	 * 🔑 **Pura sul tempo che riceve**: `Elapsed` e' `PlaybackElapsedTotal - StartAt`, mai un `DeltaTime` locale
+	 * 🔑 **Pura sul tempo che riceve**: `Elapsed` e' `SkillCalloutClock - StartAt`, mai un `DeltaTime` locale
 	 * (R4). La coda sono gli ultimi `FadeSeconds` di `Seconds`; prima e' 1, da `Seconds` in poi e' 0.
 	 *
 	 * ⚠️ **Due valori speciali, entrambi voluti.** `Seconds <= 0` e' 0: la durata zero e' il modo del designer

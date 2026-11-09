@@ -6,7 +6,7 @@
 // `SetSkillCalloutClock`, `ClearSkillCallout`) leggendo `LastSkillCalloutForTest`, perche' senza widget
 // quel campo e' l'unico modo di vedere se il fumetto e' arrivato alla presentazione.
 // Cio' che questi test fissano e' il CONTRATTO del fumetto: chi grida, che parola compare, e le due curve del
-// tempo. Il tempo stesso non e' qui: lo detta `ARTTurnManager::PlaybackElapsedTotal`, mai un `DeltaTime` locale.
+// tempo. Il tempo stesso non e' qui: lo detta `ARTTurnManager::SkillCalloutClock`, mai un `DeltaTime` locale.
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
@@ -25,26 +25,31 @@
 /**
  * Grida solo una skill di FIRMA: nessun `BaseActionId` e fuori dal catalogo core (R1b).
  *
- * 🔴 L'ultima riga e' quella che da' senso alle altre: una variante di un'azione core (`Hero.X.Variant`
+ * 🔴 La quarta riga e' quella che da' senso alle altre: una variante di un'azione core (`Hero.X.Variant`
  * che deriva da `Action.Overwatch`) ha un `BaseActionId` e NON grida, anche se il suo id non e' nel
  * catalogo core. Chi guardasse solo l'id la farebbe gridare.
+ * 🔴 L'ultima e' l'equipaggiamento (A7): l'azione di un gadget ha la base VUOTA (`MakeEquipmentAction` la copia dal
+ * core) e non e' core, quindi solo il bool la tiene muta. La scena vera e' `Playback.SkillCallout.EquipmentActionDoesNotShout`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutShoutsOnlyForASignatureSkillTest,
 	"RefactorTactics.HudViewModel.SkillCallout.ShoutsOnlyForASignatureSkill",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSkillCalloutShoutsOnlyForASignatureSkillTest::RunTest(const FString&)
 {
-	TestTrue(TEXT("una skill di firma grida: nessuna base, non e' core"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Hero.Muiren.TideGuard")), NAME_None, /*bIsCoreAction=*/ false));
+	TestTrue(TEXT("una skill di firma grida: nessuna base, non e' generica ne' equipaggiamento"),
+		URTHudViewModel::ActionShouts(FName(TEXT("Hero.Muiren.TideGuard")), NAME_None, /*bIsGenericOrEquipment=*/ false));
 
 	TestFalse(TEXT("una variante con base non grida: e' l'attacco base con un altro nome"),
 		URTHudViewModel::ActionShouts(FName(TEXT("Hero.Branth.ImpactShot")), FName(TEXT("Action.BasicAttack")), false));
 
 	TestFalse(TEXT("un'azione del catalogo core non grida, anche senza base"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Action.Guard")), NAME_None, /*bIsCoreAction=*/ true));
+		URTHudViewModel::ActionShouts(FName(TEXT("Action.Guard")), NAME_None, /*bIsGenericOrEquipment=*/ true));
 
 	TestFalse(TEXT("(R1b) una variante di un'azione core non grida: la base la esclude"),
 		URTHudViewModel::ActionShouts(FName(TEXT("Hero.X.Variant")), FName(TEXT("Action.Overwatch")), false));
+
+	TestFalse(TEXT("(A7) l'azione di un gadget non grida: base vuota, ma e' equipaggiamento"),
+		URTHudViewModel::ActionShouts(FName(TEXT("Gadget.PortableCover")), NAME_None, /*bIsGenericOrEquipment=*/ true));
 
 	return true;
 }
@@ -124,7 +129,7 @@ bool FRTSkillCalloutAlphaIsFullThenFadesThenEndsTest::RunTest(const FString&)
 /**
  * Prima dell'inizio il fumetto e' pieno, non spento.
  *
- * ⚠️ `Elapsed` e' `PlaybackElapsedTotal - StartAt`: se il fumetto e' registrato un attimo PRIMA che il tempo
+ * ⚠️ `Elapsed` e' `SkillCalloutClock - StartAt`: se il fumetto e' registrato un attimo PRIMA che il tempo
  * del playback lo raggiunga, il valore e' negativo. Trattarlo come «finito» farebbe lampeggiare il fumetto
  * spento proprio nel frame in cui nasce.
  */
@@ -286,7 +291,7 @@ bool FRTSkillCalloutClearKeepsTheRecordButEndsTheLifeTest::RunTest(const FString
 /**
  * Il tempo che l'unita' porta al widget viene registrato.
  *
- * ⚠️ L'unita' non misura il tempo: lo riceve dal chiamante (`PlaybackElapsedTotal`) e lo inoltra. Il registro
+ * ⚠️ L'unita' non misura il tempo: lo riceve dal chiamante (`SkillCalloutClock`) e lo inoltra. Il registro
  * dell'ultimo valore e' cio' che rende osservabile, senza widget, che il tempo sia davvero passato di qui.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutClockIsRecordedTest,
@@ -305,6 +310,45 @@ bool FRTSkillCalloutClockIsRecordedTest::RunTest(const FString&)
 
 	TestNearlyEqual(TEXT("l'orologio registrato e' l'ultimo ricevuto"), Unit->SkillCalloutClockForTest(), 4.2f, 0.0001f);
 
+	return true;
+}
+
+/**
+ * Un ripiego si dichiara nel log, con l'id — R3.
+ *
+ * 🔑 Il fumetto ripiega sull'ultimo segmento dell'id quando il kit non nomina la skill: a schermo si legge come un nome
+ * qualunque, e senza un `Warning` il buco nel catalogo resterebbe muto. Il log lo scrive `ARTUnit::ShowSkillCallout`,
+ * il chiamante: `BuildSkillCallout` resta pura e consegna la bandiera.
+ * ⚠️ `AddExpectedMessagePlain` si valuta solo se il test non ha altri errori (memoria di progetto): la sua mutazione e'
+ * cambiare il TESTO del log lasciando il ripiego intatto. E nessuna descrizione di asserto qui cita la riga attesa, o
+ * l'asserto verrebbe inghiottito come messaggio atteso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutFallbackIsLoggedTest,
+	"RefactorTactics.HudViewModel.SkillCallout.FallbackIsLoggedWithTheId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutFallbackIsLoggedTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Unit = SpawnSkillCalloutUnit(World);
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	const FName SenzaNome(TEXT("Hero.Muiren.SkillSenzaNomeDiProva"));
+	if (!TestTrue(TEXT("⛔ premessa: il kit di Muiren non nomina l'id di prova"),
+			Unit->KitDisplayNameFor(SenzaNome).IsEmptyOrWhitespace()))
+	{
+		return false;
+	}
+	AddExpectedMessagePlain(TEXT("il kit non nomina la skill Hero.Muiren.SkillSenzaNomeDiProva"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, 1);
+
+	Unit->ShowSkillCallout(SenzaNome, 2.f);
+
+	TestTrue(TEXT("il fumetto e' un ripiego"), Unit->LastSkillCalloutForTest().bFromFallback);
+	TestEqual(TEXT("e mostra l'ultimo segmento dell'id"), Unit->LastSkillCalloutForTest().Label,
+		FString(TEXT("SkillSenzaNomeDiProva")));
 	return true;
 }
 

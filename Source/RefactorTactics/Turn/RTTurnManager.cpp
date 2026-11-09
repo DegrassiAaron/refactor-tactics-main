@@ -2220,6 +2220,11 @@ void ARTTurnManager::ConcludeResolution()
 
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
+	// ⚠️ **Ci si arriva anche dalla RIPRESA dopo una finestra di reazione**, a playback gia' in corso: allora questo
+	// azzera la barra a meta' turno (difetto preesistente, fuori dalla fetta di #4025). ⛔ **Qui NON si azzera
+	// `SkillCalloutClock`**: i fumetti accesi prima della finestra hanno l'origine su quel tempo, e azzerarlo li
+	// riaccenderebbe pieni e ingranditi alla ripresa (R4/R7). Il suo azzeramento sta in `BeginPlayback(false)` e in
+	// `FinishPlayback`.
 	PlaybackElapsedTotal = 0.f;
 	// Stessa ragione, stesso rischio: `PlaybackSlackScale` e' telemetria — `GetPlaybackSlackScale()` dice
 	// «il budget ha morso in questo round». `BeginPlayback` lo scrive DOPO le sue uscite anticipate (niente
@@ -8982,6 +8987,13 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// dentro sarebbe stato peggio che allargare di poco lo scope.
 	PlaybackTotalSeconds = BudgetedTotal;
 	PlaybackElapsedTotal = bPreserveClock ? ClockElapsedTotal : 0.f;
+	// #4025: l'orologio del fumetto riparte solo con il playback di un turno NUOVO. Estendendo dopo una finestra non si
+	// tocca: e' il punto della sua esistenza (vedi `SkillCalloutClock`), perche' `ClockElapsedTotal` qui sopra puo' gia'
+	// essere stato azzerato da `ConcludeResolution`.
+	if (!bPreserveClock)
+	{
+		SkillCalloutClock = 0.f;
+	}
 
 	// Estendendo si resta nella fase in corso; il clamp copre il caso in cui la timeline completa
 	// abbia meno fasi di quella parziale — non dovrebbe accadere, e un indice fuori range in
@@ -9047,39 +9059,46 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
 		Src->PlayPresentationRole(ERTPresentationRole::Cast, Ev.ActionId, Ev.BaseActionId);
 
-		// #4025: il FUMETTO della skill di firma. Chi grida lo decide `ActionShouts` (base vuota e fuori dal catalogo
-		// core, R1b); se mostrarlo a chi guarda NON si decide qui — il filtro di privacy sta a monte, in
-		// `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una sorgente non osservata (R9), e il
-		// velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
+		// #4025: il FUMETTO della skill di firma. Chi grida lo decide `ActionShouts` (base vuota, fuori dal catalogo
+		// core e non concessa da un pezzo d'equipaggiamento, R1b/A7); se mostrarlo a chi guarda NON si decide qui — il
+		// filtro di privacy sta a monte, in `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una
+		// sorgente non osservata (R9), e il velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
 		//
-		// 🔎 **R11, misurato (righe di `RTTurnManager.cpp` e `RTTurnManager_Blast.cpp` al commit `99d6a2580`; il commit che
-		// ha riscritto questo commento sta piu' in basso di ogni riga citata, quindi non le sposta).** Il fumetto eredita
-		// la risposta dell'EVENTO `AbilityActivated` e non ne scrive una sua: nessuna riga di codice qui dipende da R11.
+		// 🔎 **R11, misurato per lettura al commit `99d6a2580`; ancorato ai SIMBOLI, non alle righe**, che i merge di
+		// `main` spostano. Il fumetto eredita la risposta dell'EVENTO `AbilityActivated` e non ne scrive una sua: nessuna
+		// riga di codice qui dipende da R11.
 		//
-		// - **ATTACCHI**: un intento INTERROTTO non emette `AbilityActivated`, quindi non grida. `ApplyInterrupts`
-		//   (chiamata `RTTurnManager.cpp:6159`) mette l'intento cancellato in `Ctx.InterruptedIntents`
-		//   (`RTTurnManager_Blast.cpp:1906`); il ciclo di emissione e' DOPO (`RTTurnManager.cpp:6264`,
-		//   `EmitAttackIntentActivation`), che esce su `Ctx.InterruptedIntents.Contains(k)` (`RTTurnManager.cpp:7362-7364`).
-		//   ⚠️ Il DEGRADATO (`SuppressSecondary`) va in `DegradedIntents` (`Blast.cpp:1905`), non li': la sua azione e'
-		//   avvenuta, monca, quindi si attiva e grida.
-		// - **CURE** (`DeferredActivations`, `Blast.cpp:984`; `ModifyArc` `:1249`; emissione `RTTurnManager.cpp:6259-6260`):
-		//   NON passano da `InterruptedIntents`, e l'emissione non lo legge. Un curatore STORDITO non si attiva: il rifiuto
-		//   (`Blast.cpp:906-912`, `RefuseMainActionIfStunned` e `continue`) sta PRIMA dell'accodamento (`:984`); `ModifyArc`
-		//   uguale (`:1138`), e un curatore morto esce prima ancora (`:891-893`). Un curatore INTERROTTO invece SI attiva
-		//   ancora: `ApplyInterrupts` sceglie le vittime fra `Intents[k]` con `AttackerId == Hit.TargetId`
-		//   (`Blast.cpp:1793`), e una cura non e' mai in `Intents` — `CollectHealActions` (`RTTurnManager.cpp:6122`)
-		//   azzera il piano (`Blast.cpp:944`) e `continue` prima di `CollectAttackIntents` (`RTTurnManager.cpp:6123`) — quindi
-		//   un `Action.Interrupt` su chi cura non ha niente da cancellare e la cura avviene.
+		// - **ATTACCHI**: un intento INTERROTTO non emette `AbilityActivated`, quindi non grida. `ResolveCombatPasses`
+		//   chiama `ApplyInterrupts` (in `RTTurnManager_Blast.cpp`), che mette l'intento cancellato in
+		//   `Ctx.InterruptedIntents`; il ciclo di emissione della stessa `ResolveCombatPasses` viene DOPO, e
+		//   `EmitAttackIntentActivation` esce su `Ctx.InterruptedIntents.Contains(k)`.
+		//   ⚠️ Il DEGRADATO (`SuppressSecondary`) va in `Ctx.DegradedIntents`, non li': la sua azione e' avvenuta, monca,
+		//   quindi si attiva e grida.
+		// - **CURE** (`Ctx.DeferredActivations`, accodate da `CollectHealActions` e dal ramo `ModifyArc` di
+		//   `CollectAttackIntents`; emesse dal ciclo di `ResolveCombatPasses` con `EmitAbilityActivated`): NON passano da
+		//   `InterruptedIntents`, e l'emissione non lo legge. Un curatore STORDITO non si attiva: in `CollectHealActions` il
+		//   rifiuto (`RefuseMainActionIfStunned` e `continue`) sta PRIMA dell'accodamento, nel ramo `ModifyArc` uguale, e un
+		//   curatore morto esce prima ancora. Un curatore INTERROTTO invece SI attiva ancora: `ApplyInterrupts` sceglie le
+		//   vittime fra `Intents[k]` con `AttackerId == Hit.TargetId`, e una cura non e' mai in `Intents` —
+		//   `CollectHealActions` azzera il piano e `continue`, e `ResolveCombatPasses` la chiama prima di
+		//   `CollectAttackIntents` — quindi un `Action.Interrupt` su chi cura non ha niente da cancellare e la cura avviene.
 		//
-		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza
-		// (`RTTurnManager.cpp:431-434`), quindi `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
-		const bool bIsCore = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone();
-		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore))
+		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza, quindi
+		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
+		//
+		// 🔴 **L'equipaggiamento non grida** (A7: solo le skill del KIT; R1b: «la generica con un nome» non grida).
+		// `MakeEquipmentAction` scrive `ActionId = EquipmentId` (`Gadget.*`, `Reaction.*`) e copia dal core un
+		// `BaseActionId` vuoto: `FindCoreAction` non lo trova e la base non lo esclude, quindi senza la seconda domanda il
+		// loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth. La seconda domanda si fa
+		// solo se la prima risponde no: un'attivazione core non costruisce i cataloghi d'equipaggiamento.
+		const bool bIsGenericOrEquipment = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone()
+			|| URTCatalogLibrary::FindEquipment(Ev.ActionId) != nullptr;
+		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsGenericOrEquipment))
 		{
-			Src->ShowSkillCallout(Ev.ActionId, PlaybackElapsedTotal);
+			Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock);
 			// L'orologio ARRIVA con la comparsa, non al tick dopo: il registro dell'unita' tiene l'ultimo valore ricevuto,
 			// e fino al prossimo `SyncSkillCalloutClocks` conserverebbe quello di un fumetto (o di un turno) precedente.
-			Src->SetSkillCalloutClock(PlaybackElapsedTotal);
+			Src->SetSkillCalloutClock(SkillCalloutClock);
 			SkillCalloutUnits.AddUnique(Src);
 		}
 	}
@@ -9087,13 +9106,15 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 
 void ARTTurnManager::SyncSkillCalloutClocks()
 {
-	// Il tempo del fumetto e' `PlaybackElapsedTotal` e basta (R4, A8): nessun `DeltaTime` passa di qui. In pausa
+	// Il tempo del fumetto e' `SkillCalloutClock` e basta (R4, A8): nessun `DeltaTime` passa di qui. In pausa
 	// `TickPlayback` esce prima di arrivarci, quindi l'orologio non viene portato ed e' la regola, non un caso.
+	// ⛔ Non `PlaybackElapsedTotal`: `ConcludeResolution` lo azzera alla ripresa dopo una finestra di reazione, e i
+	// fumetti accesi prima tornerebbero pieni e ingranditi (vedi `SkillCalloutClock`).
 	for (int32 I = SkillCalloutUnits.Num() - 1; I >= 0; --I)
 	{
 		if (ARTUnit* const Unit = SkillCalloutUnits[I].Get())
 		{
-			Unit->SetSkillCalloutClock(PlaybackElapsedTotal);
+			Unit->SetSkillCalloutClock(SkillCalloutClock);
 		}
 		else
 		{
@@ -9657,7 +9678,9 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		PlaybackDefeatBeatRemaining -= Dt;
 		PlaybackElapsedTotal += Dt;
 		// #4025: la coda e' tempo che si vede, quindi il fumetto ancora acceso lo vive fino alla fine (pop, tenuta,
-		// dissolvenza) invece di restare fermo sull'ultimo valore finche' `FinishPlayback` non lo spegne.
+		// dissolvenza) invece di restare fermo sull'ultimo valore finche' `FinishPlayback` non lo spegne. Il suo orologio
+		// avanza dello STESSO `Dt` del totale: e' un altro accumulatore dello stesso tempo, non un altro tempo.
+		SkillCalloutClock += Dt;
 		SyncSkillCalloutClocks();
 		if (PlaybackDefeatBeatRemaining <= 0.f)
 		{
@@ -9669,6 +9692,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
+	SkillCalloutClock += Dt; // #4025: stesso passo del totale, ma sopravvive alla finestra di reazione (`SkillCalloutClock`)
 
 	// ⛔ **Lo `Step` si ferma AL confine, mai oltre.** Il tick puo' superarlo — il passo dipende dal frame
 	// rate — quindi si riporta indietro l'orologio della fase al confine esatto: senza, la stessa
@@ -9677,14 +9701,17 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	if (PlaybackStepTargetElapsed >= 0.f && PlaybackPhaseElapsed >= PlaybackStepTargetElapsed)
 	{
 		// `PlaybackElapsedTotal` si corregge dello stesso scarto: e' il tempo mostrato a chi guarda, e
-		// lasciarlo avanti direbbe che la riproduzione e' durata piu' di quanto si e' visto.
-		PlaybackElapsedTotal -= (PlaybackPhaseElapsed - PlaybackStepTargetElapsed);
+		// lasciarlo avanti direbbe che la riproduzione e' durata piu' di quanto si e' visto. L'orologio del fumetto
+		// (#4025) dello stesso scarto, per la stessa ragione: uno `Step` lo fa avanzare di cio' che si e' mostrato (R4).
+		const float ScartoOltreIlConfine = PlaybackPhaseElapsed - PlaybackStepTargetElapsed;
+		PlaybackElapsedTotal -= ScartoOltreIlConfine;
+		SkillCalloutClock -= ScartoOltreIlConfine;
 		PlaybackPhaseElapsed = PlaybackStepTargetElapsed;
 		PlaybackStepTargetElapsed = -1.f;
 		bPlaybackPaused = true;
 	}
 
-	// #4025: il fumetto della skill vive del tempo del playback, e questo e' il punto in cui `PlaybackElapsedTotal` e'
+	// #4025: il fumetto della skill vive del tempo del playback, e questo e' il punto in cui `SkillCalloutClock` e'
 	// definitivo per il tick — DOPO la correzione dello `Step`, che puo' riportarlo indietro. Il tick in pausa e'
 	// uscito all'inizio, quindi in pausa l'orologio del fumetto non viene portato: e' la regola, non un caso da gestire.
 	SyncSkillCalloutClocks();
@@ -10147,6 +10174,8 @@ void ARTTurnManager::FinishPlayback()
 			}
 			// La barra di avanzamento come al trattenimento naturale: in fondo al tratto parziale.
 			PlaybackElapsedTotal = FMath::Max(PlaybackElapsedTotal, PlaybackTotalSeconds);
+			// #4025: l'orologio del fumetto NO. Il tratto saltato non e' tempo che si e' visto (R4), quindi un fumetto
+			// acceso resta dov'era e la finestra lo trova fermo (R7), come al trattenimento naturale.
 			// ⚠️ **Limite dichiarato**: le rivelazioni del tratto saltato — attivazioni, colpi, impronte del Blast — non
 			// escono, come in ogni Skip. Chi salta ha scelto di non guardare, e la finestra resta l'unico punto in cui il
 			// gioco si ferma per lui. Con un `Brace`, quindi, la finestra si presenta senza aver mostrato il colpo che
@@ -10191,6 +10220,9 @@ void ARTTurnManager::FinishPlayback()
 		}
 	}
 	SkillCalloutUnits.Reset();
+	// E il loro orologio, che e' arrivato alla fine del turno insieme a loro. ⛔ Solo qui e in `BeginPlayback(false)`:
+	// il ramo sospeso qui sopra lo deve conservare, e `ConcludeResolution` non lo tocca (vedi `SkillCalloutClock`).
+	SkillCalloutClock = 0.f;
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
 	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'
