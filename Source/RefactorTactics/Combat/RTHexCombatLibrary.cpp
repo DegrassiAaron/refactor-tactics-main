@@ -312,6 +312,24 @@ bool URTHexCombatLibrary::CoverReadTargetFacing(const FRTHexAttackHit& Hit)
 	return (Hit.CoverReduction + Hit.CoverBypassedByFacing) > 0;
 }
 
+FRTCellId URTHexCombatLibrary::ImpactOriginOf(ERTAbilityShape Shape, const FRTCellId& AttackerCell,
+	const FRTCellId& AimCell)
+{
+	return Shape == ERTAbilityShape::Area ? AimCell : AttackerCell;
+}
+
+int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
+	ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied)
+{
+	// «Alle spalle» = fuori dall'arco frontale del BERSAGLIO, giudicato dall'origine d'impatto ([D-587] (1), D-126):
+	// la stessa relazione a sei lati che toglie copertura e Guardia. `IsInFrontalArc` risponde `true` sulla stessa
+	// cella — non c'e' un lato da cui il colpo arrivi — quindi li' nessun bonus.
+	const bool bRear = !IsInFrontalArc(Target.Cell, Target.Facing, ImpactOriginOf(Shape, Attacker.Cell, AimCell));
+	OutRearBonusApplied = bRear ? FMath::Max(0, Attacker.RearBonus) : 0;
+	return URTCombatLibrary::MitigateDirectDamage(BasePower, OutRearBonusApplied, /*ModPercent*/ 100,
+		FMath::Max(0, Target.Defense));
+}
+
 FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
 	const TArray<FRTHexCombatUnit>& Units, const TArray<FRTHexAttackIntent>& Intents,
 	const URTHexMapAsset* Map)
@@ -329,14 +347,28 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	}
 
 	const FRTHexAttackIntent& Intent = Intents[Hit.IntentIndex];
-	const int32 Reduction = EffectiveCoverReduction(Map, Units[Hit.AttackerId], Units[NewTargetId],
-		Intent.Shape);
-	Out.Power = FMath::Max(0, Intent.Power - Reduction);
+	const FRTHexCombatUnit& Attacker = Units[Hit.AttackerId];
+	const FRTHexCombatUnit& NewTarget = Units[NewTargetId];
+	const int32 Reduction = EffectiveCoverReduction(Map, Attacker, NewTarget, Intent.Shape);
+
+	// [D-589] (CP 53.2c): anche DEF e spalle sono TARGET-DEPENDENT, per la stessa ragione della copertura qui
+	// sopra — la DEF e' dell'intercettore, e l'arco frontale da cui le spalle si giudicano e' il suo. Si
+	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione. Insieme si riallineano `NominalPower`
+	// e `CoverReduction`, che prima restavano quelli del bersaglio originale e facevano raccontare al breakdown
+	// una copertura che l'intercettore non aveva.
+	int32 RearApplied = 0;
+	const int32 Mitigated = MitigatedHitPower(Attacker, NewTarget, Intent.Shape, Intent.TargetCell, Intent.Power,
+		RearApplied);
+	Out.Power = FMath::Max(0, Mitigated - Reduction);
+	Out.NominalPower = Intent.Power;
+	Out.MitigatedPower = Mitigated;
+	Out.RearBonusApplied = RearApplied;
+	Out.DefenseApplied = NewTarget.Defense;
+	Out.CoverReduction = Reduction;
 	// La redirezione cambia il BERSAGLIO, quindi cambia anche la geometria della copertura: ricalcolare il
 	// danno e lasciare la vecchia attribuzione direzionale darebbe una traccia che parla della vittima
 	// precedente.
-	const int32 Nominal = HexCoverDamageReduction(Map, Units[Hit.AttackerId].Cell, Units[NewTargetId].Cell,
-		Intent.Shape);
+	const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, NewTarget.Cell, Intent.Shape);
 	Out.CoverBypassedByFacing = FMath::Max(0, Nominal - Reduction);
 	return Out;
 }
@@ -720,10 +752,21 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// entrambe le figure — chi spara e chi subisce — e `EffectiveCoverReduction` non puo' dirlo da
 				// sola: restituisce `0` sia quando la copertura non c'e' sia quando la direzione l'ha tolta.
 				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
-				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
-					FMath::Max(0, Intent.Power - Reduction), IntentIdx,
+
+				// [D-589] (E53 CP 53.2c): spalle e DEF PRIMA della copertura, che resta piatta e si sottrae dopo. Con
+				// DEF e bonus a zero — tutto il roster, oggi — `Mitigated == Intent.Power` e il colpo e' identico a
+				// prima: lo pinnano i golden (`Simulation.GoldenCorpusMatches`) e
+				// `Combat.ZeroDefenseAndRearLeaveHitsUntouched`.
+				int32 RearApplied = 0;
+				const int32 Mitigated = MitigatedHitPower(Attacker, Other, Intent.Shape, AimCell, Intent.Power, RearApplied);
+				FRTHexAttackHit Hit(Intent.AttackerId, u,
+					FMath::Max(0, Mitigated - Reduction), IntentIdx,
 					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction),
-					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction));
+					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction);
+				Hit.MitigatedPower = Mitigated;
+				Hit.RearBonusApplied = RearApplied;
+				Hit.DefenseApplied = Other.Defense;
+				Plan.Hits.Add(MoveTemp(Hit));
 			}
 		}
 	}
@@ -873,10 +916,30 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 		// stadio che non si applica non deve comparire con operando zero.
 		Attack.Breakdown.Emplace(ERTDamageStage::Catalog, FName(TEXT("intent")),
 			ERTDamageOp::Add, Hit.NominalPower, 0, Hit.NominalPower);
+
+		// [D-589] (CP 53.2c): spalle e DEF stanno fra il catalogo e la copertura, nell'ordine in cui
+		// `CollectHexAttacks` li ha applicati. Compaiono SOLO se hanno mosso il numero (`#1951`): con il roster a
+		// zero il registro e' quello di prima, voce per voce. `Running` e' il valore che lo stadio successivo
+		// trova: parte dal nominale e, se un colpo e' stato costruito senza passare da `MitigatedHitPower`
+		// (i costruttori di `FRTHexAttackHit` lasciano `MitigatedPower` a 0), non lo legge mai.
+		int32 Running = Hit.NominalPower;
+		if (Hit.RearBonusApplied > 0)
+		{
+			const int32 After = Running + Hit.RearBonusApplied;
+			Attack.Breakdown.Emplace(ERTDamageStage::RearBonus, URTCombatLibrary::RearBonusSource,
+				ERTDamageOp::Add, Hit.RearBonusApplied, Running, After);
+			Running = After;
+		}
+		if (Hit.DefenseApplied > 0 && Hit.MitigatedPower != Running)
+		{
+			Attack.Breakdown.Emplace(ERTDamageStage::Defense, URTCombatLibrary::DefenseSource,
+				ERTDamageOp::Mitigate, Hit.DefenseApplied, Running, Hit.MitigatedPower);
+			Running = Hit.MitigatedPower;
+		}
 		if (Hit.CoverReduction > 0)
 		{
 			Attack.Breakdown.Emplace(ERTDamageStage::Cover, FName(TEXT("D-206 · copertura")),
-				ERTDamageOp::SubtractClamped, Hit.CoverReduction, Hit.NominalPower, Hit.Power);
+				ERTDamageOp::SubtractClamped, Hit.CoverReduction, Running, Hit.Power);
 		}
 
 		Attacks.Add(MoveTemp(Attack));

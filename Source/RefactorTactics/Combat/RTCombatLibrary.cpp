@@ -98,6 +98,8 @@ namespace
 const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
 const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));
 const FName URTCombatLibrary::GuardPerHitSource = FName(TEXT("D-408 · Status.Guarded"));
+const FName URTCombatLibrary::RearBonusSource = FName(TEXT("D-587 · spalle"));
+const FName URTCombatLibrary::DefenseSource = FName(TEXT("D-589 · DEF"));
 
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)

@@ -418,6 +418,14 @@ public:
 	static const FName GuardPerHitSource;
 
 	/**
+	 * Le provenienze dei due stadi di [D-589] (E53 CP 53.2c): il bonus alle spalle dell'attaccante ([D-587]) e la
+	 * DEF del bersaglio. Nel vocabolario di `FRTDamageStageEntry::SourceId`, come le altre di questa lista: la
+	 * decisione che governa lo stadio, non un nome nuovo.
+	 */
+	static const FName RearBonusSource;
+	static const FName DefenseSource;
+
+	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *

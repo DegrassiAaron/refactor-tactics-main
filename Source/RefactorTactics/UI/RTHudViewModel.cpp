@@ -581,6 +581,11 @@ TArray<FRTHexCombatUnit> URTHudViewModel::MakeHexCombatUnits(const TArray<ARTUni
 		HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
 		HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
 		HU.bAlive = Units[i] && Units[i]->IsAlive();
+		// [D-589] (CP 53.2c): la preview legge la stessa DEF e lo stesso bonus del Blast, cosi' un numero mostrato
+		// in planning e' quello che il resolver calcolera'. ⚠️ `Facing` qui NON e' copiato (scelta preesistente di
+		// questa funzione): finche' resta cosi', la preview non puo' sapere se un colpo arriva alle spalle.
+		HU.Defense = Units[i] ? Units[i]->Defense : 0;
+		HU.RearBonus = Units[i] ? Units[i]->RearBonus : 0;
 		HexUnits.Add(HU);
 	}
 	return HexUnits;
