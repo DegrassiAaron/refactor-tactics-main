@@ -128,6 +128,22 @@ FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Sour
 	return FRTDamageResult(NewHealth, NewBase + NewTemp, NewTemp);
 }
 
+int32 URTCombatLibrary::MitigateDirectDamage(int32 Base, int32 RearBonus, int32 ModPercent, int32 Defense)
+{
+	// Tutto in interi a 64 bit: (Base + Rear) × Mod × 100 sta largamente, e la divisione intera di valori
+	// non negativi E' il floor che D-595 (1) prescrive — una sola volta, dopo l'intero prodotto. Un
+	// `FMath::FloorToInt` su un double darebbe lo stesso numero qui, ma dipenderebbe dalla piattaforma
+	// per i casi al limite: il determinismo (CLAUDE.md §7) preferisce l'aritmetica intera.
+	const int64 SafeBase = FMath::Max(0, Base);
+	const int64 SafeRear = FMath::Max(0, RearBonus);
+	const int64 SafeMod = FMath::Max(0, ModPercent);
+	const int64 SafeDefense = FMath::Max(0, Defense);
+
+	const int64 Numerator = (SafeBase + SafeRear) * SafeMod * 100;
+	const int64 Denominator = 100 * (100 + SafeDefense);
+	return static_cast<int32>(Numerator / Denominator);
+}
+
 ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int32 HealthAfter, int32 AttackerDmgBonus)
 {
 	if (HealthBefore > 0 && HealthAfter <= 0) { return ERTCombatOutcome::Lethal; }

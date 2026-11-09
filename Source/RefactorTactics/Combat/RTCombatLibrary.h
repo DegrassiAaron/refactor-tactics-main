@@ -835,6 +835,33 @@ public:
 	static int32 EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus);
 
 	/**
+	 * La mitigazione moltiplicativa del danno diretto ([D-589], [D-595]; E53 CP 53.2):
+	 *
+	 *     floor( (Base + RearBonus) × ModPercent/100 × 100 / (100 + Defense) )
+	 *
+	 * calcolata in interi, con UN solo arrotondamento per difetto dopo il prodotto (D-595 (1)). E' la casa
+	 * unica della formula: copertura bassa e Guardia NON stanno qui, si sottraggono DOPO, piatte, dal
+	 * chiamante (D-589 (3), D-590 (3)) — `max(0, Mitigato − Copertura − Guard)`.
+	 *
+	 * - `RearBonus` e' il bonus alle spalle dell'ATTACCANTE ([D-587] (2)(3), valori [D-599]): si somma alla
+	 *   Base prima della mitigazione, quindi la difesa lo riduce come il resto del colpo. Di fronte vale 0.
+	 * - `ModPercent` e' il prodotto dei moltiplicatori di stato in centesimi (100 = nessuno; `Exposed` = 120,
+	 *   D-595 (2)). Si passa un intero perche' il resolver non usa virgola mobile (CLAUDE.md §7).
+	 * - `Defense` e' la DEF del bersaglio per il danno diretto, o la RES dell'elemento per quello elementale
+	 *   e ambientale (D-589 (1)): stessa forma, stessa funzione.
+	 *
+	 * ⚠️ **Nessun chiamante a runtime la usa ancora (CP 53.2 primo commit)**: con `Defense = 0` e
+	 * `ModPercent = 100` e' l'identita', e i test lo pinnano sui valori del catalogo di oggi. Entra nel
+	 * resolver con la passata ×10 (CP 53.3), quando DEF e RES esistono sull'unita'.
+	 *
+	 * Valori negativi: `Base`, `RearBonus` e `ModPercent` sotto zero valgono zero; `Defense` sotto zero
+	 * vale zero, perche' D-595 ha deciso solo valori non negativi — l'Armor «firmata» del PRD e' una
+	 * domanda per CP 53.3, non un comportamento che questa funzione inventi in silenzio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 MitigateDirectDamage(int32 Base, int32 RearBonus, int32 ModPercent, int32 Defense);
+
+	/**
 	 * Indici delle unita' "appena eliminate": vive (HP > 0) nello stato PRIMA e morte (HP <= 0) nello
 	 * stato DOPO. Serve al playback per sapere CHI muore ora (e generare l'evento Defeated) senza
 	 * ri-notificare chi era gia' morto. Confronto per indice, fino al minimo delle due lunghezze.
