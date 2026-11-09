@@ -512,6 +512,11 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 		HexUnit.Cell = Unit->Cell;
 		HexUnit.bAlive = Unit->IsAlive();
 		HexUnit.Facing = Unit->Facing; // CP 16.2: da che lato e' scoperta
+		// [D-589] (E53 CP 53.2c): la DEF mitiga PRIMA della copertura, che si sottrae in `CollectHexAttacks`, quindi
+		// viaggia nello snapshot come il facing; il bonus alle spalle e' dell'ATTACCANTE ([D-587]) e lo legge il
+		// colpo che parte da lui. Oggi entrambi sono a zero su tutto il roster: cambia la plumbing, non un numero.
+		HexUnit.Defense = Unit->Defense;
+		HexUnit.RearBonus = Unit->RearBonus;
 		Ctx.HexUnits.Add(HexUnit);
 	}
 }
