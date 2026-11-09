@@ -18,6 +18,7 @@
 #include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
 #include "Player/RTPlayerState.h" // TeamIdOf: l'unica porta per «di che squadra e' chi guarda» ([D-285])
 #include "Ability/RTCatalogLibrary.h"
+#include "UI/RTHudViewModel.h" // #4025: `ActionShouts` decide chi grida, il TurnManager non ne ha una copia
 #include "Ability/RTEquipmentData.h" // `EquipmentId`: distingue una reazione di loadout da una di kit
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -9045,6 +9046,48 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 	{
 		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
 		Src->PlayPresentationRole(ERTPresentationRole::Cast, Ev.ActionId, Ev.BaseActionId);
+
+		// #4025: il FUMETTO della skill di firma. Chi grida lo decide `ActionShouts` (base vuota e fuori dal catalogo
+		// core, R1b); se mostrarlo a chi guarda NON si decide qui — il filtro di privacy sta a monte, in
+		// `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una sorgente non osservata (R9), e il
+		// velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
+		//
+		// 🔎 **R11, misurato su questo commit: un intento INTERROTTO non emette `AbilityActivated`, quindi non grida.**
+		// `ApplyInterrupts` mette l'intento cancellato in `Ctx.InterruptedIntents` (`RTTurnManager_Blast.cpp:1906`, il
+		// ramo `else` della policy `SuppressSecondary`), la chiama `RTTurnManager.cpp:6158` PRIMA del ciclo di emissione
+		// (`:6263`), e `EmitAttackIntentActivation` esce su `Ctx.InterruptedIntents.Contains(k)` (`:7361-7364`: «l'azione
+		// e' annullata, non attivata»). ⚠️ Il DEGRADATO invece (`DegradedIntents`, `Blast.cpp:1905`) non e' in quell'insieme:
+		// la sua azione e' avvenuta, monca, quindi si attiva e grida. Il fumetto eredita la risposta dell'evento e non
+		// ne scrive una sua: nessuna riga di codice qui dipende da R11.
+		//
+		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza (`:430`), quindi
+		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
+		const bool bIsCore = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone();
+		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore))
+		{
+			Src->ShowSkillCallout(Ev.ActionId, PlaybackElapsedTotal);
+			// L'orologio ARRIVA con la comparsa, non al tick dopo: il registro dell'unita' tiene l'ultimo valore ricevuto,
+			// e fino al prossimo `SyncSkillCalloutClocks` conserverebbe quello di un fumetto (o di un turno) precedente.
+			Src->SetSkillCalloutClock(PlaybackElapsedTotal);
+			SkillCalloutUnits.AddUnique(Src);
+		}
+	}
+}
+
+void ARTTurnManager::SyncSkillCalloutClocks()
+{
+	// Il tempo del fumetto e' `PlaybackElapsedTotal` e basta (R4, A8): nessun `DeltaTime` passa di qui. In pausa
+	// `TickPlayback` esce prima di arrivarci, quindi l'orologio non viene portato ed e' la regola, non un caso.
+	for (int32 I = SkillCalloutUnits.Num() - 1; I >= 0; --I)
+	{
+		if (ARTUnit* const Unit = SkillCalloutUnits[I].Get())
+		{
+			Unit->SetSkillCalloutClock(PlaybackElapsedTotal);
+		}
+		else
+		{
+			SkillCalloutUnits.RemoveAt(I); // distrutta a meta' turno: niente da portare e niente da spegnere
+		}
 	}
 }
 
@@ -9602,6 +9645,9 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	{
 		PlaybackDefeatBeatRemaining -= Dt;
 		PlaybackElapsedTotal += Dt;
+		// #4025: la coda e' tempo che si vede, quindi il fumetto ancora acceso lo vive fino alla fine (pop, tenuta,
+		// dissolvenza) invece di restare fermo sull'ultimo valore finche' `FinishPlayback` non lo spegne.
+		SyncSkillCalloutClocks();
 		if (PlaybackDefeatBeatRemaining <= 0.f)
 		{
 			PlaybackDefeatBeatRemaining = 0.f;
@@ -9626,6 +9672,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		PlaybackStepTargetElapsed = -1.f;
 		bPlaybackPaused = true;
 	}
+
+	// #4025: il fumetto della skill vive del tempo del playback, e questo e' il punto in cui `PlaybackElapsedTotal` e'
+	// definitivo per il tick — DOPO la correzione dello `Step`, che puo' riportarlo indietro. Il tick in pausa e'
+	// uscito all'inizio, quindi in pausa l'orologio del fumetto non viene portato: e' la regola, non un caso da gestire.
+	SyncSkillCalloutClocks();
 
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	const float PhaseDur = DurationForPlaybackPhase(Ph);
@@ -10113,6 +10164,22 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackStopFromSource = 0;
 	PlaybackLastShownAction = NAME_None; // `#3292`: nemmeno l'atto in corso sopravvive al turno
 	PlaybackLastShownSource = 0; // #3549: la coppia si azzera insieme
+
+	// #4025 (spec del fumetto R7): **i fumetti delle skill si spengono QUI e non prima.** La posizione e' il punto:
+	// il ramo `IsResolutionSuspended()` qui sopra esce con `return`, perche' una finestra di reazione e' la fine di un
+	// PREFISSO del turno e non la fine del turno. Chi decide nella finestra deve ritrovare il fumetto dove l'ha
+	// lasciato — acceso e FERMO, perche' `TickPlayback` non gira finche' il playback e' trattenuto — e spegnerlo li'
+	// lo farebbe sparire proprio mentre il mondo si ferma su un momento di tensione. Si spegne alla fine VERA del turno
+	// e passa di qui anche `SkipPlayback`, che chiama questa funzione direttamente.
+	// ⚠️ `ClearSkillCallout` chiude la vita e lascia il registro (`LastSkillCalloutForTest`): e' lo scopo del campo.
+	for (const TWeakObjectPtr<ARTUnit>& CalloutUnit : SkillCalloutUnits)
+	{
+		if (ARTUnit* const Unit = CalloutUnit.Get())
+		{
+			Unit->ClearSkillCallout();
+		}
+	}
+	SkillCalloutUnits.Reset();
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
 	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'

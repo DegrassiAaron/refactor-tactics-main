@@ -739,6 +739,19 @@ public:
 	/** L'orologio della fase di playback (#3578): l'oracolo con cui i test confrontano `Alpha` con le formule. Solo test. */
 	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
 
+	/**
+	 * L'orologio TOTALE del playback (`PlaybackElapsedTotal`), lo stesso che il fumetto della skill riceve (#4025): con
+	 * `ARTUnit::SkillCalloutClockForTest` dice a un test che il tempo del fumetto e' questo e non un conteggio dell'unita'.
+	 * Solo test.
+	 */
+	float PlaybackElapsedTotalForTest() const { return PlaybackElapsedTotal; }
+
+	/**
+	 * Quante unita' hanno un fumetto di skill acceso e non ancora spento da `FinishPlayback` (#4025). Zero a fine turno
+	 * e per una sorgente non osservata. Solo test.
+	 */
+	int32 SkillCalloutUnitsForTest() const { return SkillCalloutUnits.Num(); }
+
 	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
 	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
 	{
@@ -2813,6 +2826,14 @@ protected:
 	 * `BuildBlastSequence`. La riga porta il verdetto CONGELATO nell'evento, non uno ricalcolato.
 	 */
 	void ShowActivation(const FRTResolvedEvent& Ev);
+
+	/**
+	 * Porta ai fumetti di skill accesi il tempo del playback (`PlaybackElapsedTotal`) e toglie dalla lista le unita'
+	 * che non esistono piu' (#4025, spec del fumetto R4/A8). ⚠️ **Non e' l'unico punto in cui il fumetto riceve
+	 * l'orologio**: alla comparsa lo riceve `ShowActivation`, e questo lo ripete a ogni tick in cui il tempo avanza.
+	 */
+	void SyncSkillCalloutClocks();
+
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -3949,6 +3970,15 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
+	/**
+	 * Le unita' che hanno un fumetto di skill acceso in questo turno (#4025): chi lo ha mostrato (`ShowActivation`),
+	 * a cui `TickPlayback` porta il tempo e che `FinishPlayback` spegne. Puntatori DEBOLI: un'unita' distrutta a meta'
+	 * turno non deve tenere il manager legato a un oggetto morto, e `SyncSkillCalloutClocks` la scarta.
+	 * ⚠️ **Sopravvive a `BeginPlayback` con `bPreserveClock`** (D-355: il playback riparte dopo una finestra di
+	 * reazione senza che il turno sia finito), quindi non lo si azzera li': solo `FinishPlayback`, sul ramo che
+	 * chiude il turno. Solo presentazione: fuori da snapshot, TurnLog e hash.
+	 */
+	TArray<TWeakObjectPtr<ARTUnit>> SkillCalloutUnits;
 	/**
 	 * Battiti gia' eseguiti nel Blast corrente, sulla SEQUENZA per intento (#3549 D5 con `#2454`): il `2k` RIVELA
 	 * l'elemento `k` — per un colpo e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che conta solo per un colpo.
