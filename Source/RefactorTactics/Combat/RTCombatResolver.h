@@ -83,11 +83,27 @@ enum class ERTDamageStage : uint8
 	/** Somma per bersaglio sullo stato iniziale (invariante #3). */
 	TargetSum,
 	/** Temporaneo → base → HP: la base ferma SOLO il danno diretto (`D-224`). */
-	ShieldAbsorption
+	ShieldAbsorption,
+	/**
+	 * Il bonus alle spalle dell'attaccante ([D-587]; E53 CP 53.2c): `Add` alla Base, PRIMA della DEF e della copertura.
+	 *
+	 * ⚠️ **In coda all'enum ma fra `Catalog` e `Cover` nell'applicazione**, ed e' voluto: i valori esistenti non si
+	 * spostano (un Blueprint o un lettore che li avesse presi come interi non cambia), e l'ordine di una traccia si
+	 * legge dall'INSERIMENTO — la regola gia' dichiarata sopra per `EveryHitDelta`/`AbsorptionPool`.
+	 */
+	RearBonus,
+	/**
+	 * La DEF del bersaglio ([D-589]): `Mitigate`, `After = floor(Before × 100 / (100 + DEF))`. Stessa collocazione
+	 * di `RearBonus`: dopo di lui e prima di `Cover` nella traccia.
+	 */
+	Defense
 };
 
 /**
- * LE CINQUE OPERAZIONI REALI della catena, e non ce ne sono altre — `#1951`.
+ * LE SEI OPERAZIONI REALI della catena, e non ce ne sono altre — `#1951`. ⏱️ *Erano cinque fino al 2026-11-09:
+ * `Mitigate` e' la forma moltiplicativa `100/(100+DEF)` di [D-589] (E53, CP 53.2c). Aggiungerla qui e' stato
+ * esattamente «cambiare la catena», come la riga sotto avverte — ed e' avvenuto con una decisione accettata, non
+ * per arricchire il registro.*
  *
  * ⛔ **Non esiste un solo moltiplicatore**, e i cinque tipi `Flat`/`Percent`/`Multiplier`/`Override`/`Clamp`
  * che un sistema di modificatori generico userebbe **non descrivono questo sistema**: la issue li mette
@@ -105,7 +121,12 @@ enum class ERTDamageOp : uint8
 	/** Somma per bersaglio. */
 	Sum,
 	/** Assorbimento a due strati (temporaneo, poi base). */
-	TwoLayerAbsorb
+	TwoLayerAbsorb,
+	/**
+	 * Mitigazione moltiplicativa di [D-589]: `After = floor(Before × 100 / (100 + Operand))`, con `Operand` = DEF.
+	 * Un solo arrotondamento, per difetto ([D-595] (1)); la casa del calcolo e' `URTCombatLibrary::MitigateDirectDamage`.
+	 */
+	Mitigate
 };
 
 /**

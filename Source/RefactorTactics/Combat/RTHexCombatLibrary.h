@@ -43,6 +43,27 @@ struct FRTHexCombatUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	ERTHexDirection Facing = ERTHexDirection::E;
 
+	/**
+	 * La DEF del bersaglio ([D-589], E53 CP 53.2c): mitiga il danno diretto con `100/(100+DEF)` **prima** della
+	 * copertura. Copia di `ARTUnit::Defense` nello snapshot del Blast, come `Facing`, e sta QUI perche' la copertura
+	 * si sottrae dentro `CollectHexAttacks`: D-589 vuole la difesa prima e le riduzioni piatte dopo, quindi la
+	 * difesa deve essere in mano a chi calcola il colpo. ⚠️ A zero su tutto il roster finche' CP 53.3c non porta
+	 * i valori di D-595: con `0` la formula e' l'identita' (`Combat.Formula.ZeroDefenseIsIdentity`) e nessun golden
+	 * si muove. La RES per elemento NON e' qui: il colpo non porta ancora un elemento, e senza quello non c'e'
+	 * niente da applicare.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 Defense = 0;
+
+	/**
+	 * Il bonus alle spalle dell'**attaccante** ([D-587], valori iniziali in [D-599]): si somma alla Base quando il
+	 * colpo arriva da fuori dell'arco frontale del bersaglio, con la stessa origine della Guardia (centro
+	 * d'impatto per un'area, altrimenti la cella di chi tira: `ImpactOriginOf`). E' dell'attaccante e non del
+	 * bersaglio — e' lui che «dichiara il proprio bonus» (D-587 (2)) — ed e' per questo che sta sull'unita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 RearBonus = 0;
+
 	FRTHexCombatUnit() = default;
 };
 
@@ -281,6 +302,27 @@ struct FRTHexAttackHit
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
 		, CoverBypassedByFacing(InCoverBypassed)
 		, NominalPower(InNominalPower), CoverReduction(InCoverReduction) {}
+
+	/**
+	 * Il colpo DOPO spalle e DEF e PRIMA della copertura ([D-589], CP 53.2c): e' il `Before` dello stadio `Cover`
+	 * nel breakdown. Uguale a `NominalPower` finche' DEF e bonus sono a zero. ⚠️ Un colpo costruito con i
+	 * costruttori sopra lo lascia a `0`: `ToAttacks` lo legge solo se `RearBonusApplied` o `DefenseApplied`
+	 * dicono che qualcosa e' stato applicato, altrimenti parte da `NominalPower` come prima.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 MitigatedPower = 0;
+
+	/**
+	 * Il bonus alle spalle APPLICATO a questo colpo: `0` se il colpo e' frontale o se l'attaccante non ne ha.
+	 * D-587 (2) chiede che il TurnLog porti il valore applicato «perche' non e' deducibile dall'azione»: la voce
+	 * nasce con i valori (CP 53.3c); qui il dato e' gia' pronto per lei.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 RearBonusApplied = 0;
+
+	/** La DEF del bersaglio letta per questo colpo ([D-589]). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 DefenseApplied = 0;
 };
 
 /**
@@ -792,6 +834,32 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static bool CoverReadTargetFacing(const FRTHexAttackHit& Hit);
+
+	/**
+	 * L'ORIGINE da cui un colpo «arriva» per i test direzionali, nella forma che `CollectHexAttacks` conosce: per
+	 * un'AREA il centro d'impatto (la cella mirata), altrimenti la cella di chi tira.
+	 *
+	 * 🔑 E' la stessa regola di `ResolveImpactOrigin` in `RTTurnManager.cpp` ([D-302] punto 3), che la Guardia usa
+	 * leggendo il footprint. Qui il footprint non serve perche' il centro e' ancora in mano. Due consumatori, una
+	 * regola: il bonus alle spalle ([D-587]) non deve scattare da un lato in cui la Guardia tiene, ne' tacere da
+	 * uno in cui la Guardia e' scavalcata — `Combat.AreaRearBonusUsesImpactCenter` lo pinna.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId ImpactOriginOf(ERTAbilityShape Shape, const FRTCellId& AttackerCell, const FRTCellId& AimCell);
+
+	/**
+	 * Spalle e DEF di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
+	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.Defense)`, dove «alle spalle» e'
+	 * «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
+	 *
+	 * `Mod` e' `100` finche' CP 53.3b non sposta `Exposed` e `Marked` dentro la formula: oggi restano delta piatti
+	 * applicati a valle (`ApplyFirstHitDelta`, `MarkSpentOn`). Con DEF e bonus a zero rende `BasePower` invariato,
+	 * ed e' l'invariante che tiene il corpus golden byte-identico in questo passo.
+	 *
+	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
+	 */
+	static int32 MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
+		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied);
 
 	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
