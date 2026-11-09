@@ -372,7 +372,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
 	Aevik->DisplayName = FText::FromString(TEXT("Aevik"));
-	Aevik->MaxHealth = 90;
+	Aevik->MaxHealth = 900;
 	Aevik->MovePoints = 5;
 	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Ivrin 100->90: quel calo aveva
 	// tolto la dominanza su Muiren e lasciato quella su **Aevik**, dove a parita' di salute e vista Ivrin
@@ -414,7 +414,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
 	Aevik->Actions.Add(MakeHeroAction(TEXT("Hero.Aevik.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 240) }, ERTAbilityShape::Line));
 
 	// Indice 2 — ConductiveNode. Cablata su `Action.Electrify` da D-046 (issue #282): numeri dal CORE, non
 	// nuovi — portata 4, propagazione 3, fase Environment. Il cooldown resta quello dell'eroe (2), come per
@@ -458,7 +458,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	// che un vincolo reale sparisce senza che nessuno lo tolga.
 	Aevik->Actions.Add(MakeHeroAction(TEXT("Hero.Aevik.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 180) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
 	// vedi sotto.
 
@@ -469,8 +469,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
 	AddAbility(Aevik, MakeHeroReactionFromCoreAction(TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Action.Counter"),
 		/*Cooldown*/ 3,
-		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
-		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 150),
+		  FRTActionEffectSpec(ERTActionEffect::Damage, 100) }));
 
 	// Variante di LinearDischarge (catalogo v0.1 §6, vincolo: una sola abilita' fondamentale con variante).
 	// Concentrata: +6 danni (30 totali), un solo bersaglio — "non si propaga" e' vero per costruzione, dato
@@ -491,7 +491,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	Concentrated.VariantId = TEXT("Hero.Aevik.LinearDischarge.Concentrated");
 	Concentrated.DisplayName = FText::FromString(TEXT("Scarica concentrata"));
 	Concentrated.Tradeoff = FText::FromString(TEXT("+6 danni (30 totali), ma non si propaga a un secondo bersaglio"));
-	Concentrated.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
+	Concentrated.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 300));
 
 	// Ramificata: -6 danni per bersaglio (18 ciascuno) MA un bersaglio aggiuntivo. Due eventi di danno
 	// separati rappresentano i due colpi: QUALE secondo nemico venga colpito e' targeting non ancora cablato
@@ -501,8 +501,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	Branched.VariantId = TEXT("Hero.Aevik.LinearDischarge.Branched");
 	Branched.DisplayName = FText::FromString(TEXT("Scarica ramificata"));
 	Branched.Tradeoff = FText::FromString(TEXT("un bersaglio aggiuntivo, ma -6 danni per bersaglio (18 ciascuno)"));
-	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
-	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
+	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 180));
+	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 180));
 
 	Aevik->Actions[1]->Variants.Add(Concentrated);
 	Aevik->Actions[1]->Variants.Add(Branched);
@@ -528,7 +528,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// ⛔ `Phase` resta ovunque significhi la **fase del turno**: `ERTMatchPhase`, `ERTResolutionPhase`,
 	// il parametro `Phase` di `MakeHeroAction` qui sopra, e `Hero.Ivrin.PhaseGuard` — «Guardia di fase».
 	Muiren->DisplayName = FText::FromString(TEXT("Muiren"));
-	Muiren->MaxHealth = 95;
+	Muiren->MaxHealth = 950;
 	Muiren->MovePoints = 5;
 	Muiren->VisionRange = 5;
 	Muiren->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
@@ -550,7 +550,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	Muiren->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Muiren.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
 		{
-			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
+			FRTActionEffectSpec(ERTActionEffect::Damage, 160),
 			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, /*Turni*/ 1),
 			FRTActionEffectSpec(ERTActionEffect::Push, 1),
 		}, ERTAbilityShape::Line));
@@ -585,7 +585,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	CircularTide->Def.RangeCells = 4;
 	CircularTide->RangeCells = 4; // specchio legacy, come `MakeHeroAction` lo scrive (`Def.RangeCells` -> `RangeCells`)
 	CircularTide->Def.Priority = 60;
-	CircularTide->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 18) };
+	CircularTide->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 180) };
 	// D-493 (#3609): l'AREA non aggancia. Il core `Action.Heal` dichiara l'aggancio (`AttackTarget`) perche' una cura
 	// singola si da' a qualcuno e lo segue; un'area agisce sulle celle attorno alla mira congelata al lock-in, come
 	// ogni altra azione ([D-419]), e l'alleato scattato via ne esce. `MakeHeroActionFromCore` ha copiato il valore
@@ -737,14 +737,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	Healing.VariantId = TEXT("Hero.Muiren.CircularTide.Healing");
 	Healing.DisplayName = FText::FromString(TEXT("Marea curativa"));
 	Healing.Tradeoff = FText::FromString(TEXT("cura 24 invece di 18, ma non applica Wet ai nemici"));
-	Healing.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 24));
+	Healing.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 240));
 
 	// Urto: cura 10 (meno della base) MA applica Push 1 ai nemici — meno supporto, piu' controllo.
 	FRTAbilityVariant Impact;
 	Impact.VariantId = TEXT("Hero.Muiren.CircularTide.Impact");
 	Impact.DisplayName = FText::FromString(TEXT("Marea d'urto"));
 	Impact.Tradeoff = FText::FromString(TEXT("cura solo 10, ma applica Push 1 ai nemici"));
-	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 10));
+	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 100));
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
 
 	Muiren->Actions[1]->Variants.Add(Healing);
@@ -758,7 +758,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	URTHeroData* Branth = NewObject<URTHeroData>();
 	Branth->HeroId = TEXT("Hero.Branth");
 	Branth->DisplayName = FText::FromString(TEXT("Branth")); // D-120: nome canonico; `Hero.Branth` resta lo Stable ID
-	Branth->MaxHealth = 120;
+	Branth->MaxHealth = 1200;
 	Branth->MovePoints = 4;
 	Branth->VisionRange = 5;
 	Branth->HearingThreshold = 3;  // D-041: come Phase — il piu' lento del roster sente arrivare.
@@ -813,7 +813,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	Branth->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Branth.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{
-			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
+			FRTActionEffectSpec(ERTActionEffect::Damage, 80),
 			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1),
 		}));
 
@@ -978,7 +978,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	// ⚠️ 90 toglie la dominanza su **Muiren** (-5 HP), NON quella su Aevik: a parita' di HP e vista resta +1 MP.
 	// Non e' una svista, e' il perimetro della decisione presa: il costo di Ivrin diventa visibile, ma il
 	// confronto Aevik/Ivrin resta da chiudere e vive in `#131`, che non si chiude qui.
-	Ivrin->MaxHealth = 90;
+	Ivrin->MaxHealth = 900;
 	Ivrin->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
 	Ivrin->VisionRange = 6;
 	Ivrin->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
@@ -1000,7 +1000,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
 	Ivrin->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Ivrin.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 210) }));
 
 	// Indice 1 — InterceptShot. 16 danni + stop del movimento a chi ENTRA nella cella controllata.
 	//
@@ -1016,7 +1016,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
 	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Ivrin.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 160) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::Main, ERTInterruptPolicy::None);
 	// I due campi che la rendono predittiva stanno nei DATI e non in un ramo del resolver: `LockCell` dice che
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
@@ -1043,7 +1043,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	// piano e chiesto a `URTPlanValidationLibrary::ValidatePlan` se fosse legale.
 	Ivrin->Actions.Add(MakeHeroAction(TEXT("Hero.Ivrin.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) },
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 200) },
 		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement));
 	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
 	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
@@ -1094,14 +1094,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	Precise.VariantId = TEXT("Hero.Ivrin.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
 	Precise.Tradeoff = FText::FromString(TEXT("20 danni invece di 16, ma controlla una sola cella"));
-	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 20));
+	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 200));
 	Precise.Parameters.Add(TEXT("ControlledCells"), 1);
 
 	FRTAbilityVariant Extended;
 	Extended.VariantId = TEXT("Hero.Ivrin.InterceptShot.Extended");
 	Extended.DisplayName = FText::FromString(TEXT("Intercetto esteso"));
 	Extended.Tradeoff = FText::FromString(TEXT("controlla una linea di 3 celle, ma solo 14 danni"));
-	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));
+	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 140));
 	Extended.Parameters.Add(TEXT("ControlledCells"), 3);
 
 	Ivrin->Actions[1]->Variants.Add(Precise);

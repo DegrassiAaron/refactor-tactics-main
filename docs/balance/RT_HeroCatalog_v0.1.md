@@ -51,9 +51,9 @@ sono cablate e verificate in partita.
 
 | Reazione | Semantica core riusata | Stato |
 |---|---|---|
-| `Hero.Aevik.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
+| `Hero.Aevik.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 150 **e** 100 danni all'attaccante |
 | `Hero.Branth.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
-| `Hero.Ivrin.Deflection` | `Action.Deflect` | ✅ pool da 20 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Hero.Ivrin.Deflection` | `Action.Deflect` | ✅ pool da 200 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Hero.Muiren.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
 La rinviata lo dichiara **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
@@ -91,7 +91,7 @@ nel vertical slice).
 
 | Statistica | Valore |
 |---|---:|
-| Salute | 90 |
+| Salute | 900 |
 | Movimento | 5 MP |
 | Range visivo | 7 — *era 6, alzata da [D-073](../decisions/RT_PDR_00_Decision_Log.md) (`#131`): è l'unico del roster che vede oltre il raggio 6* |
 | Resistenza Push | 0 |
@@ -100,11 +100,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
-| `Hero.Aevik.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
+| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 220 danni, range 4 | 0 |
+| `Hero.Aevik.LinearDischarge` | Scarica lineare | linea | 240 danni, **+80 su bersaglio `Wet`** | 2 |
 | `Hero.Aevik.ConductiveNode` | Nodo conduttivo | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
-| `Hero.Aevik.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
-| `Hero.Aevik.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
+| `Hero.Aevik.Overload` | Sovraccarico | AoE | 180 danni, `Interrupt` sui dispositivi | 3 |
+| `Hero.Aevik.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 150 e 100 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Aevik.LinearDischarge` è una
@@ -116,8 +116,8 @@ nel vertical slice).
 > invariate perché sono dati canonici e un rename richiede migrazione, non una PR documentale.
 
 **Variante di `LinearDischarge`**
-- *Scarica concentrata*: **+6 danni**, ma **non si propaga**.
-- *Scarica ramificata*: **bersaglio aggiuntivo**, ma **−6 danni per bersaglio**.
+- *Scarica concentrata*: **+60 danni**, ma **non si propaga**.
+- *Scarica ramificata*: **bersaglio aggiuntivo**, ma **−60 danni per bersaglio**.
 
 ---
 
@@ -127,7 +127,7 @@ nel vertical slice).
 
 | Statistica | Valore |
 |---|---:|
-| Salute | 95 |
+| Salute | 950 |
 | Movimento | 5 MP |
 | Range visivo | 5 |
 | Resistenza Push | 0 |
@@ -136,15 +136,15 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Muiren.PressureJet` | Getto in pressione | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
-| `Hero.Muiren.CircularTide` | Marea circolare | AoE | cura 18 agli alleati | 2 |
+| `Hero.Muiren.PressureJet` | Getto in pressione | linea | 160 danni, applica `Wet`, `Push 1` | 0 |
+| `Hero.Muiren.CircularTide` | Marea circolare | AoE | cura 180 agli alleati | 2 |
 | `Hero.Muiren.FluidTrail` | Scia fluida | dash | `Dash 3` | 2 |
 | `Hero.Muiren.MistVeil` | Velo di nebbia | AoE | crea fumo raggio 1 | 3 |
 | `Hero.Muiren.FlowReaction` | Flusso reattivo | reazione | `Reposition 1` dopo un attacco | 3 |
 
 **Variante di `CircularTide`**
-- *Marea curativa*: cura **24**, ma **non applica `Wet`** ai nemici (niente setup elettrico).
-- *Marea d'urto*: cura **10**, ma applica **`Push 1`** ai nemici.
+- *Marea curativa*: cura **240**, ma **non applica `Wet`** ai nemici (niente setup elettrico).
+- *Marea d'urto*: cura **100**, ma applica **`Push 1`** ai nemici.
 
 ---
 
@@ -154,7 +154,7 @@ nel vertical slice).
 
 | Statistica | Valore |
 |---|---:|
-| Salute | 120 |
+| Salute | 1200 |
 | Movimento | 4 MP |
 | Range visivo | 5 |
 | Resistenza Push | 0 — *era 1, l'unica del roster, azzerata da [D-075](../decisions/RT_PDR_00_Decision_Log.md) (`#402`): a soglia 1 era immunità totale, non stabilità — vedi §5* |
@@ -163,10 +163,10 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Branth.ImpactShot` | Colpo d'impatto | attacco base | 8 danni, range 3, applica `Slow` | 0 |
+| `Hero.Branth.ImpactShot` | Colpo d'impatto | attacco base | 80 danni, range 3, applica `Slow` | 0 |
 | `Hero.Branth.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
 | `Hero.Branth.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Hero.Branth.Ram` | Carica d'ariete | charge | 20 danni e `Push 1` | 2 |
+| `Hero.Branth.Ram` | Carica d'ariete | charge | 200 danni e `Push 1` | 2 |
 | `Hero.Branth.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
@@ -181,7 +181,7 @@ nel vertical slice).
 
 | Statistica | Valore |
 |---|---:|
-| Salute | 90 — *era 100, abbassata da [D-069](../decisions/RT_PDR_00_Decision_Log.md) (`#131`)* |
+| Salute | 900 — *era 1000 (100 sulla scala di allora), abbassata da [D-069](../decisions/RT_PDR_00_Decision_Log.md) (`#131`)* |
 | Movimento | 6 MP |
 | Range visivo | 6 |
 | Resistenza Push | 0 |
@@ -190,10 +190,10 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Ivrin.PulseShot` | Colpo a impulsi | attacco base | 21 danni, range 4 | 0 |
-| `Hero.Ivrin.InterceptShot` | Intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
-| `Hero.Ivrin.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
-| `Hero.Ivrin.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
+| `Hero.Ivrin.PulseShot` | Colpo a impulsi | attacco base | 210 danni, range 4 | 0 |
+| `Hero.Ivrin.InterceptShot` | Intercetto | predittiva | 160 danni e **stop del movimento** | 2 |
+| `Hero.Ivrin.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 200 danni attraversando | 2 |
+| `Hero.Ivrin.Deflection` | Deviazione | reazione | riduce il danno di 200 | 2 |
 | `Hero.Ivrin.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
 
 > ℹ️ **`InterceptShot` è di tipo `predittiva`, e il trigger non sta nella cella `Effetto`** — quella cella ha
@@ -209,8 +209,8 @@ nel vertical slice).
 > dominio: se cambi questa cella, esegui `node --test tools/radar/*.test.ts`.
 
 **Variante di `InterceptShot`**
-- *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.
-- *Intercetto esteso*: **14 danni**, ma controlla **una linea di 3 celle**.
+- *Intercetto preciso*: **200 danni**, ma controlla **una sola cella**.
+- *Intercetto esteso*: **140 danni**, ma controlla **una linea di 3 celle**.
 
 ---
 
@@ -251,10 +251,10 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 
 | Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |
 |---|---:|---:|---:|---:|---|---|
-| Aevik | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
-| Muiren | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
-| Branth | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
-| Ivrin | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
+| Aevik | 900 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
+| Muiren | 950 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
+| Branth | 1200 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
+| Ivrin | 900 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 
@@ -338,7 +338,7 @@ mezzo; Aevik ha il danno combo più alto.
 > fa cadere il test da solo, senza che nessuno debba ricordarsi di aggiungere una riga.
 >
 > La compensazione nelle **abilità** resta com'era e non era in discussione: Aevik ha il bonus combo più alto
-> del roster (+8 su `Wet`), Muiren la cura ad area.
+> del roster (+80 su `Wet`), Muiren la cura ad area.
 
 > ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Branth 1 → 0 di
 > resistenza alla spinta.** La decisione è del **2026-08-10** e `RTHeroCatalogLibrary.cpp` scrive `0` da

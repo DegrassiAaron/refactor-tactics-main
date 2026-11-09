@@ -42,8 +42,8 @@
     { "_assertion": "Nessuno si e' mosso e nessuno ha subito nulla: il turno non ha prodotto altri effetti di cui l'assenza sopra sia una conseguenza.",
       "type": "UnitAtCell", "unit": "R1", "cell": [0, 1, 0] },
     { "type": "UnitAtCell", "unit": "W1", "cell": [0, -3, 0] },
-    { "type": "UnitHpEquals", "unit": "R1", "value": 120 },
-    { "type": "UnitHpEquals", "unit": "W1", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 1200 },
+    { "type": "UnitHpEquals", "unit": "W1", "value": 900 },
 
     { "type": "TurnsCompleted", "value": 1 }
   ]

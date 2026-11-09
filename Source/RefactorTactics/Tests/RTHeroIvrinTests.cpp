@@ -36,7 +36,7 @@ bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Ivrin costruito"), Ivrin)) { return false; }
 
 	TestEqual(TEXT("HeroId"), Ivrin->HeroId, FName(TEXT("Hero.Ivrin")));
-	TestEqual(TEXT("salute"), Ivrin->MaxHealth, 90); // 100 -> 90 (#131): il costo statistico di Ivrin
+	TestEqual(TEXT("salute"), Ivrin->MaxHealth, 900); // 100 -> 90 (#131): il costo statistico di Ivrin
 	TestEqual(TEXT("movimento"), Ivrin->MovePoints, 6);
 	TestEqual(TEXT("vista"), Ivrin->VisionRange, 6);
 	TestEqual(TEXT("resistenza push"), Ivrin->PushResistance, 0);
@@ -46,14 +46,14 @@ bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Ivrin->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* PulseShot = Ivrin->Actions[0];
-	TestEqual(TEXT("PulseShot: 21 danni"), IvrinEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
+	TestEqual(TEXT("PulseShot: 210 danni"), IvrinEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 210);
 	TestEqual(TEXT("PulseShot: range 4"), PulseShot->Def.RangeCells, 4);
 	TestNotEqual(TEXT("non e' il danno generico della fascia medio raggio"),
 		IvrinEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(4));
 
 	const URTActionData* PassingBlade = Ivrin->Actions[2];
-	TestEqual(TEXT("PassingBlade: 20 danni"), IvrinEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
+	TestEqual(TEXT("PassingBlade: 200 danni"), IvrinEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 200);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
 
 	// Lo SLOT, che e' cio' che [D-191] ha deciso: e' un dash che fa danno a chi trapassa, non un attacco che
@@ -90,8 +90,8 @@ bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 	// qualunque riduzione >= 17, perche' i 2 residui finiscono interi nello scudo base. La meta' in partita
 	// la misura ora `Spec.Reaction.DeflectionReducesByTwenty`.
 	const URTActionData* Deflection = Ivrin->Actions[3];
-	TestEqual(TEXT("Deflection: un budget di 20 sui colpi del turno"),
-		IvrinEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
+	TestEqual(TEXT("Deflection: un budget di 200 sui colpi del turno"),
+		IvrinEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 200);
 	// ⚠️ **E NON dichiara anche uno scudo**, che sarebbe un'altra cosa: uno scudo assorbe e si
 	// consuma come oggetto proprio, questa e' un budget sul colpo. La riga sopra non copre il caso in cui
 	// i due effetti coesistano — li' leggerebbe ancora 20 e tacerebbe.
@@ -123,8 +123,8 @@ bool FRTIvrinInterceptShotStopsMovementTest::RunTest(const FString&)
 	// davvero chi entra?» resta quella, ed e' cambiata la risposta.
 	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeIvrin()->Actions[1];
 
-	TestEqual(TEXT("InterceptShot: 16 danni"),
-		IvrinEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
+	TestEqual(TEXT("InterceptShot: 160 danni"),
+		IvrinEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 160);
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
 	// Si dichiara nel Prep e si verifica al Move: la fase resta quella, e non e' interrompibile — un colpo
@@ -202,9 +202,9 @@ bool FRTIvrinVariantTradeoffTest::RunTest(const FString&)
 	const int32 PreciseCells = IvrinVariantParam(Precise, TEXT("ControlledCells"));
 	const int32 ExtendedCells = IvrinVariantParam(Extended, TEXT("ControlledCells"));
 
-	TestEqual(TEXT("preciso: 20 danni"), PreciseDamage, 20);
+	TestEqual(TEXT("preciso: 200 danni"), PreciseDamage, 200);
 	TestEqual(TEXT("preciso: una cella"), PreciseCells, 1);
-	TestEqual(TEXT("esteso: 14 danni"), ExtendedDamage, 14);
+	TestEqual(TEXT("esteso: 140 danni"), ExtendedDamage, 140);
 	TestEqual(TEXT("esteso: tre celle"), ExtendedCells, 3);
 
 	// La prova della DoD: il preciso vince sul danno, l'esteso sulla copertura dello spazio. Incrociate,
@@ -214,8 +214,8 @@ bool FRTIvrinVariantTradeoffTest::RunTest(const FString&)
 
 	// Nessuna e' un puro potenziamento della base (16 danni, una cella): il preciso paga in copertura, e
 	// l'esteso paga in danno.
-	TestTrue(TEXT("preciso: sopra la base nel danno"), PreciseDamage > 16);
-	TestTrue(TEXT("esteso: sotto la base nel danno"), ExtendedDamage < 16);
+	TestTrue(TEXT("preciso: sopra la base nel danno"), PreciseDamage > 160);
+	TestTrue(TEXT("esteso: sotto la base nel danno"), ExtendedDamage < 160);
 	return true;
 }
 

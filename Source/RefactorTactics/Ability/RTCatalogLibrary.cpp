@@ -301,8 +301,8 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 // riga e la riga del catalogo, e nessun test cade.
 ERTAttackDamageBand URTCatalogLibrary::DamageBandOf(int32 BaseDamage)
 {
-	if (BaseDamage >= 19) { return ERTAttackDamageBand::High; }
-	if (BaseDamage >= 11) { return ERTAttackDamageBand::Medium; }
+	if (BaseDamage >= 190) { return ERTAttackDamageBand::High; }
+	if (BaseDamage >= 110) { return ERTAttackDamageBand::Medium; }
 	return ERTAttackDamageBand::Low;
 }
 
@@ -381,7 +381,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Precision = WeaponVariant(TEXT("Weapon.Precision"), TEXT("Precisione"),
 		TEXT("+1 cella di portata"), TEXT("-4 danni"));
 	Precision->RangeDeltaCells = 1;
-	SetFlatDelta(Precision, -4);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
+	SetFlatDelta(Precision, -40);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Variants.Add(Precision);
 
 	// Impatto — spinge di 1, −1 portata. Comprare uno spostamento costa avvicinarsi.
@@ -410,7 +410,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	// ➕ Il `+6` di danno resta un intero unico ed e' un'ALTRA issue: #509 lo porta alle fasce (D-087).
 	URTEquipmentData* Overcharge = WeaponVariant(TEXT("Weapon.Overcharge"), TEXT("Sovraccarico"),
 		TEXT("+6 danni"), TEXT("+1 turno di ricarica: l'attacco base non e' piu' disponibile ogni turno"));
-	SetFlatDelta(Overcharge, 6);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
+	SetFlatDelta(Overcharge, 60);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Overcharge->CooldownDeltaTurns = 2;
 	Variants.Add(Overcharge);
 
@@ -418,7 +418,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Split = WeaponVariant(TEXT("Weapon.Split"), TEXT("Multiplo"),
 		TEXT("un bersaglio aggiuntivo (dichiarato: il motore v0.1 non ha cardinalita' dei bersagli)"),
 		TEXT("-6 danni"));
-	SetFlatDelta(Split, -6);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
+	SetFlatDelta(Split, -60);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Split->ExtraTargets = 1;
 	Variants.Add(Split);
 
@@ -426,7 +426,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
 	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
 		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
-	SetFlatDelta(Suppressive, -5);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
+	SetFlatDelta(Suppressive, -50);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Suppressive->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1));
 	Variants.Add(Suppressive);
 
@@ -437,7 +437,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Environmental = WeaponVariant(TEXT("Weapon.Environmental"), TEXT("Ambientale"),
 		TEXT("migliora gli hazard prodotti (dichiarato: nessun campo del catalogo lo esprime in v0.1)"),
 		TEXT("-5 danni diretti"));
-	SetFlatDelta(Environmental, -5);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
+	SetFlatDelta(Environmental, -50);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Variants.Add(Environmental);
 
 	return Variants;
@@ -467,7 +467,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	Gadgets.Add(Gadget(TEXT("Gadget.Medkit"), TEXT("Medkit"), TEXT("Action.Heal"),
 		TEXT("cura 18 punti a un alleato entro 3 celle, senza essere un curatore"),
 		TEXT("cura 18 invece dei 20 di Action.Heal, e si ricarica in 3 turni invece che in 1"),
-		{ FRTActionEffectSpec(ERTActionEffect::Heal, 18) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Heal, 180) }));
 
 	// `Gadget.BreachCharge` — 35 a una struttura. Costruito su `Action.HeavyAttack`, che e' l'unica azione
 	// core a dichiarare `DamageStructure`, ma ne SOSTITUISCE gli effetti: la carica da sfondamento apre muri,
@@ -551,7 +551,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	Modules.Add(Module(TEXT("Reaction.CounterShot"), TEXT("Contrattacco"), TEXT("Action.Counter"),
 		TEXT("14 danni a chi ti colpisce, senza spendere l'azione del turno"),
 		TEXT("14 danni invece dei 16 di Action.Counter, e occupa l'unico slot reazione"),
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 14) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 140) }));
 
 	// `Reaction.ReactiveShield` — scudo 15 quando subisci danno. Stesso trigger del contrattacco, effetto
 	// opposto: e' la prova che il regime non dipende dall'azione ma dai DATI (ADR-0004 §2), e che due moduli
@@ -563,7 +563,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	Modules.Add(Module(TEXT("Reaction.ReactiveShield"), TEXT("Scudo reattivo"), TEXT("Action.Counter"),
 		TEXT("15 punti scudo quando subisci un colpo diretto"),
 		TEXT("scudo 15 invece dei 25 di Action.Shield, che pero' va preparata in anticipo"),
-		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 150) }));
 
 	// `Reaction.AllyIntercept` — ti interponi al posto di un alleato bersagliato. E' l'unico dei tre che usa
 	// `AllyHitByDirectAttack`, e riusa `Action.Intercept` **senza effetti propri**: il suo esito non e' un
@@ -1399,7 +1399,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `ProduceEvents`. Il limite e' scritto sull'enum, dove si sceglie il valore.
 	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 200), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
 		ERTInterruptPolicy::SuppressSecondary, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
@@ -1436,7 +1436,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// AMMETTE, ed e' cio' che pinna `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne`.
 	Catalog.Add(ShippedAction(TEXT("Action.PrecisionAttack"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 240) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `HeavyAttack` — 35 danni e priorita' 80: risolve tardi, ed e' il prezzo che paga per essere il colpo
@@ -1447,7 +1447,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// diverse, ed e' per questo che sono due effetti dichiarati e non un numero solo.
 	Catalog.Add(ShippedAction(TEXT("Action.HeavyAttack"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35),
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 350),
 		  FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
@@ -1461,7 +1461,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// mezzo. La riga `LineResolution` qui sotto e' cio' che lo rende vero — la dichiarazione non basta.
 	Catalog.Add(ShippedAction(TEXT("Action.LineAttack"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 1, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 22) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 220) }));
 	Catalog.Last().LineResolution = ERTLineResolution::StopAtFirstTarget;
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
@@ -1475,7 +1475,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// avvenuto — `Aevik.Overload` aveva preso danno e raggio ma non il fuoco amico.
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 180) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `Mortar` — la PRIMA azione che fa DANNO senza aver bisogno della linea di tiro (`#2890`, [D-380]).
@@ -1501,7 +1501,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Hero.Aevik.Overload` e `Hero.Muiren.CircularTide` restano `Required`, che e' lo zero dell'enum.
 	Catalog.Add(ShippedAction(TEXT("Action.Mortar"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 120) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
 	// ➕ **Il mortaio non spara da vicino** (`#3093`, `D-532`): sotto 2 celle il colpo non nasce. E' l'unica azione
@@ -1525,7 +1525,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// al momento della pianificazione: ce l'ha chi ci cammina dentro.
 	Catalog.Add(ShippedAction(TEXT("Action.SuppressiveLine"), ERTResolutionPhase::Preparation, /*Priority*/ 30,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) },
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 160) },
 		ERTInterruptPolicy::None));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
@@ -1560,7 +1560,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Counter = ShippedAction(TEXT("Action.Counter"), ERTResolutionPhase::Control, /*Priority*/ 20,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTInterruptPolicy::InterruptBeforeEffect,
+			{ FRTActionEffectSpec(ERTActionEffect::Damage, 160) }, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Counter.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
 		Catalog.Add(Counter);
@@ -1679,7 +1679,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// controllo senza danno per costruzione — uno scudo assorbe danno, e Root/Slow non ne sono.
 	Catalog.Add(ShippedAction(TEXT("Action.Shield"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
 		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::Shield, 25) },
+		{ FRTActionEffectSpec(ERTActionEffect::Shield, 250) },
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
 	Catalog.Last().bSelfTarget = true; // come Guard e Brace: lo scudo lo prende chi la pianifica
 
@@ -1778,7 +1778,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Electrify = ShippedAction(TEXT("Action.Electrify"), ERTResolutionPhase::Environment,
 			/*Priority*/ 30, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) });
+			{ FRTActionEffectSpec(ERTActionEffect::Damage, 200) });
 		Electrify.PropagationLimit = 3;
 		Catalog.Add(Electrify);
 	}
@@ -1887,7 +1887,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Heal = ShippedAction(TEXT("Action.Heal"), ERTResolutionPhase::Attack, /*Priority*/ 70,
 			/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::AttackTarget,
-			{ FRTActionEffectSpec(ERTActionEffect::Heal, 20) });
+			{ FRTActionEffectSpec(ERTActionEffect::Heal, 200) });
 		Catalog.Add(Heal);
 	}
 
@@ -1896,13 +1896,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 
 int32 URTCatalogLibrary::BasicAttackDamageForRange(int32 WeaponRangeCells)
 {
-	// Tabella delle fasce (catalogo v0.1 §1): corpo a corpo 28/r1 · corto 25/r3 · medio 22/r4 · lungo 20/r6.
+	// Tabella delle fasce (catalogo v0.1 §1): corpo a corpo 280/r1 · corto 250/r3 · medio 220/r4 · lungo 200/r6 (scala ×10 di D-589, E53 CP 53.3a).
 	// Piu' lontano si colpisce, meno si fa male: e' la scelta orizzontale del catalogo, non una scala di potenza.
 	// Le portate intermedie ricadono nella fascia il cui limite le contiene (r2 -> corto, r5 -> lungo).
-	if (WeaponRangeCells <= 1) { return 28; }
-	if (WeaponRangeCells <= 3) { return 25; }
-	if (WeaponRangeCells <= 4) { return 22; }
-	return 20;
+	if (WeaponRangeCells <= 1) { return 280; }
+	if (WeaponRangeCells <= 3) { return 250; }
+	if (WeaponRangeCells <= 4) { return 220; }
+	return 200;
 }
 
 FRTActionDef URTCatalogLibrary::MakeBasicAttack(int32 WeaponRangeCells)

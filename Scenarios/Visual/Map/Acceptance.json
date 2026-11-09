@@ -64,10 +64,10 @@
 
     { "type": "UnitAtCell", "unit": "P_DOOR", "cell": [1, 1, 0] },
 
-    { "type": "UnitHpEquals", "unit": "G_COV", "value": 76 },
+    { "type": "UnitHpEquals", "unit": "G_COV", "value": 760 },
     { "type": "UnitAtCell", "unit": "G_COV", "cell": [0, 0, 0] },
 
-    { "type": "UnitHpEquals", "unit": "G_HIGH", "value": 53 },
+    { "type": "UnitHpEquals", "unit": "G_HIGH", "value": 530 },
     { "type": "UnitAlive", "unit": "G_HIGH", "value": true },
     { "type": "UnitAtCell", "unit": "G_HIGH", "cell": [1, 0, 0] }
   ]

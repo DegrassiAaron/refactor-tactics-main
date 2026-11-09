@@ -499,7 +499,7 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("la carica dichiara due effetti"), Charge.Effects.Num(), 2);
 	if (Charge.Effects.Num() == 2)
 	{
-		TestTrue(TEXT("20 danni"), Charge.Effects[0].Effect == ERTActionEffect::Damage && Charge.Effects[0].Amount == 20);
+		TestTrue(TEXT("200 danni"), Charge.Effects[0].Effect == ERTActionEffect::Damage && Charge.Effects[0].Amount == 200);
 		TestTrue(TEXT("e una spinta di 1"), Charge.Effects[1].Effect == ERTActionEffect::Push && Charge.Effects[1].Amount == 1);
 	}
 
@@ -568,8 +568,8 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 	TestEqual(TEXT("Action.Charge dichiara due effetti"), CoreCharge.Effects.Num(), 2);
 	if (CoreCharge.Effects.Num() == 2)
 	{
-		TestTrue(TEXT("20 danni d'impatto"),
-			CoreCharge.Effects[0].Effect == ERTActionEffect::Damage && CoreCharge.Effects[0].Amount == 20);
+		TestTrue(TEXT("200 danni d'impatto"),
+			CoreCharge.Effects[0].Effect == ERTActionEffect::Damage && CoreCharge.Effects[0].Amount == 200);
 		TestTrue(TEXT("e una spinta di 1"),
 			CoreCharge.Effects[1].Effect == ERTActionEffect::Push && CoreCharge.Effects[1].Amount == 1);
 	}

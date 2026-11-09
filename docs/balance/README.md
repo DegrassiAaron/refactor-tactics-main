@@ -1,11 +1,22 @@
 # Cataloghi di bilanciamento v0.1
 
-> `CANONICAL` per i **numeri** · **Ultimo aggiornamento**: 2026-08-08
+> `CANONICAL` per i **numeri** · **Ultimo aggiornamento**: 2026-11-09 (scala ×10)
 >
 > I valori vigenti della v0.1, in Markdown versionato e diffabile: il bilanciamento si revisiona in PR, non
 > riaprendo un PDF. Le **decisioni** restano nel canone
 > ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)); lo **stato di avanzamento** nella
 > [roadmap](../roadmap/roadmap-checkpoint.md) — questo README non lo duplica più.
+
+## ⚠️ Scala ×10 dal 2026-11-09 ([D-589](../decisions/RT_PDR_00_Decision_Log.md) (2), E53 CP 53.3a)
+
+Ogni **danno, cura, scudo, riduzione piatta e punto salute** di questi cataloghi è scritto sulla scala ×10
+della specifica: HP 900–1200, colpi 200–350, Guard 150, copertura bassa 100, scudo base 50. La passata è
+stata **una e atomica**: catalogo in codice, costanti di `URTCombatLibrary`, ancore dei radar, scenari
+(`"health"`) e corpus golden sono cambiati nello stesso commit. Un numero sulla scala vecchia letto in un
+documento **fuori** da questa cartella è prosa invecchiata, non una regola diversa: vince il catalogo.
+Non scalano: turni, celle, punti movimento, soglie di rumore, cooldown, e il canale delle **strutture**
+(`DamageStructure` e `Integrity` delle coperture restano sulla loro unità: è una lettura dell'assistente,
+dichiarata nella PR di CP 53.3a, non una decisione).
 
 ## ⚠️ Chi tocca una stat rigenera i radar, nello stesso commit
 

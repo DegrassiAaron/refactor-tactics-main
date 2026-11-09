@@ -133,7 +133,7 @@ bool FRTPrecisionRangeAndDamageTest::RunTest(const FString&)
 	// I delta si SOMMANO alla portata dell'arma, non la sostituiscono: la variante non sa quale attacco base
 	// sta modificando, e su un eroe con portata diversa deve valere «+1» e non «4».
 	TestEqual(TEXT("portata: +1 rispetto all'attacco base"), Modified.RangeCells, Base.RangeCells + 1);
-	TestEqual(TEXT("danno: -4 rispetto all'attacco base"), DirectDamage(Modified), DirectDamage(Base) - 4);
+	TestEqual(TEXT("danno: -40 rispetto all'attacco base"), DirectDamage(Modified), DirectDamage(Base) - 40);
 
 	// Cio' che la variante NON tocca deve restare identico: un modificatore che cambiasse fase o priorita'
 	// riscriverebbe l'azione invece di modificarla.
@@ -224,7 +224,7 @@ bool FRTSplitHasNoConsumerTest::RunTest(const FString&)
 	const FRTActionDef Base = IvrinBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Split);
 	TestEqual(TEXT("ma sull'azione prodotta si vede solo lo svantaggio"),
-		DirectDamage(Modified), DirectDamage(Base) - 6);
+		DirectDamage(Modified), DirectDamage(Base) - 60);
 
 	// La prova che la cardinalita' non e' cambiata e' che **non esiste un posto dove potrebbe cambiare**:
 	// `FRTActionDef` dichiara portata e raggio di superficie, mai un numero di bersagli (la forma vive su
@@ -324,7 +324,7 @@ bool FRTCounterShotUsesExistingTriggerTest::RunTest(const FString&)
 
 	// I numeri invece sono del MODULO: 14 contro i 16 del core. È ciò che `GrantedEffects` esiste per fare,
 	// e senza il quale l'unico modo di avere un valore diverso sarebbe una seconda azione nel catalogo.
-	TestEqual(TEXT("14 danni, non i 16 dell'azione core"), DirectDamage(Action->Def), 14);
+	TestEqual(TEXT("140 danni, non i 160 dell'azione core"), DirectDamage(Action->Def), 140);
 	TestNotEqual(TEXT("e infatti divergono, come dichiara il catalogo §3"),
 		DirectDamage(Action->Def), DirectDamage(Core));
 
@@ -338,9 +338,9 @@ bool FRTCounterShotUsesExistingTriggerTest::RunTest(const FString&)
 	bool bShields = false;
 	for (const FRTActionEffectSpec& Spec : ShieldAction->Def.Effects)
 	{
-		if (Spec.Effect == ERTActionEffect::Shield && Spec.Amount == 15) { bShields = true; }
+		if (Spec.Effect == ERTActionEffect::Shield && Spec.Amount == 150) { bShields = true; }
 	}
-	TestTrue(TEXT("para per 15"), bShields);
+	TestTrue(TEXT("para per 150"), bShields);
 	return true;
 }
 
@@ -619,7 +619,7 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	Curatore->Abilities.Add(Cura);
 	const int32 CuraIdx = Curatore->Abilities.Num() - 1;
 
-	Ferito->Health = FMath::Max(1, Ferito->Health - 40);
+	Ferito->Health = FMath::Max(1, Ferito->Health - 400);
 	const int32 SalutePrima = Ferito->Health;
 
 	Curatore->PlannedAbilityIndex = CuraIdx;
@@ -629,7 +629,7 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	RunEquipTurn(TM);
 
 	// I 18 del catalogo, applicati sul campo.
-	TestEqual(TEXT("il medkit cura l'alleato"), Ferito->Health - SalutePrima, 18);
+	TestEqual(TEXT("il medkit cura l'alleato"), Ferito->Health - SalutePrima, 180);
 
 	// E non lascia una voce che dia la colpa al bersaglio.
 	const bool bAnnullataSuAlleato = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
@@ -652,7 +652,7 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	if (TestNotNull(TEXT("la cura riuscita e' nel TurnLog"), Curata))
 	{
 		TestEqual(TEXT("e la voce nomina il GADGET"), Curata->ActionId, FName(TEXT("Gadget.Medkit")));
-		TestEqual(TEXT("con quanto ha curato davvero"), Curata->Amount, 18);
+		TestEqual(TEXT("con quanto ha curato davvero"), Curata->Amount, 180);
 	}
 
 	DestroyEquipWorld(World);
@@ -685,9 +685,9 @@ bool FRTGadgetNumbersMatchCatalogTest::RunTest(const FString&)
 	{
 		if (S.Effect == ERTActionEffect::Heal) { Heal = S.Amount; }
 	}
-	TestEqual(TEXT("Medkit: cura 18"), Heal, 18);
+	TestEqual(TEXT("Medkit: cura 180"), Heal, 180);
 	const FRTActionDef CoreHeal = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
-	TestNotEqual(TEXT("e diverge dai 20 del core, come dichiara il catalogo"),
+	TestNotEqual(TEXT("e diverge dai 200 del core, come dichiara il catalogo"),
 		Heal, [&CoreHeal]{ for (const FRTActionEffectSpec& S : CoreHeal.Effects)
 			{ if (S.Effect == ERTActionEffect::Heal) { return S.Amount; } } return 0; }());
 
@@ -1262,7 +1262,7 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	TestEqual(TEXT("lo specchio della portata segue Def"), Basic->RangeCells, Basic->Def.RangeCells);
 	TestEqual(TEXT("lo specchio della ricarica segue Def"), Basic->CooldownTurns, Basic->Def.CooldownTurns);
 	TestEqual(TEXT("Precision: la portata che il BOT legge e' cresciuta di 1"), Basic->RangeCells, RangePrima + 1);
-	TestEqual(TEXT("e la potenza che il bot legge e' scesa di 4"), Basic->Power, PowerPrima - 4);
+	TestEqual(TEXT("e la potenza che il bot legge e' scesa di 40"), Basic->Power, PowerPrima - 40);
 
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
@@ -1474,7 +1474,7 @@ bool FRTDamageBandFromBaseTest::RunTest(const FString&)
 	// bassa. Si verifica la monotonia su tutto l'intervallo utile invece di tre valori scelti a mano.
 	int32 Previous = static_cast<int32>(URTCatalogLibrary::DamageBandOf(0));
 	TArray<ERTAttackDamageBand> Seen;
-	for (int32 D = 0; D <= 40; ++D)
+	for (int32 D = 0; D <= 400; ++D)
 	{
 		const ERTAttackDamageBand Band = URTCatalogLibrary::DamageBandOf(D);
 		TestTrue(*FString::Printf(TEXT("danno %d: la fascia non scende risalendo il danno"), D),
@@ -1486,9 +1486,9 @@ bool FRTDamageBandFromBaseTest::RunTest(const FString&)
 
 	// Il roster reale cade in fasce diverse: e' la ragione per cui D-087 esiste. `ImpactShot` (8) e
 	// `ArcPulse` (22) non possono condividere un delta unico.
-	TestNotEqual(TEXT("un attacco da 8 e uno da 22 non stanno nella stessa fascia"),
-		static_cast<int32>(URTCatalogLibrary::DamageBandOf(8)),
-		static_cast<int32>(URTCatalogLibrary::DamageBandOf(22)));
+	TestNotEqual(TEXT("un attacco da 80 e uno da 220 non stanno nella stessa fascia"),
+		static_cast<int32>(URTCatalogLibrary::DamageBandOf(80)),
+		static_cast<int32>(URTCatalogLibrary::DamageBandOf(220)));
 
 	return true;
 }

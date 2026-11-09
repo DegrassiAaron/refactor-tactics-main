@@ -78,17 +78,17 @@
     {
       "type": "UnitHpEquals",
       "unit": "R1",
-      "value": 75
+      "value": 750
     },
     {
       "type": "UnitHpEquals",
       "unit": "B1",
-      "value": 108
+      "value": 1080
     },
     {
       "type": "UnitHpEquals",
       "unit": "V1",
-      "value":  90
+      "value":  900
     },
     {
       "type": "UnitAtCell",

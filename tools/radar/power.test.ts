@@ -21,7 +21,7 @@ const ability = (h: string, id: string) =>
 
 test('un bonus condizionato da uno stato non entra nel danno garantito', () => {
   // `24 danni, +8 su bersaglio Wet` -> 24, non 32.
-  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.LinearDischarge')), 24);
+  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.LinearDischarge')), 240);
 });
 
 test('un payoff condizionato da una previsione non entra affatto', () => {
@@ -31,12 +31,12 @@ test('un payoff condizionato da una previsione non entra affatto', () => {
 });
 
 test('un danno incondizionato entra per intero', () => {
-  assert.equal(guaranteedDamage(ability('Ivrin', 'Hero.Ivrin.PulseShot')), 21);
-  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.ConductiveNode')), 20);
+  assert.equal(guaranteedDamage(ability('Ivrin', 'Hero.Ivrin.PulseShot')), 210);
+  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.ConductiveNode')), 200);
 });
 
 test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
-  const atteso: Record<string, number> = { Aevik: 55.2, Ivrin: 31.0, Branth: 18.0, Muiren: 16.0 };
+  const atteso: Record<string, number> = { Aevik: 552, Ivrin: 310, Branth: 180, Muiren: 160 };
   for (const hero of roster()) {
     assert.equal(powerRaw(hero), atteso[hero.name], `${hero.name}`);
   }
@@ -52,7 +52,7 @@ test('la somma dei contributi ricostruisce ESATTAMENTE il power_raw PUBBLICATO',
   // contributi, confrontare i due lati sarebbe una tautologia — entrambi si muoverebbero insieme, e
   // il test resterebbe verde anche con la derivazione sbagliata. Misurato: mutando `weighted` in un
   // valore gia' diviso, un confronto con `powerRaw` NON cade; questo si'.
-  const pubblicato: Record<string, number> = { Aevik: 55.2, Ivrin: 31.0, Branth: 18.0, Muiren: 16.0 };
+  const pubblicato: Record<string, number> = { Aevik: 552, Ivrin: 310, Branth: 180, Muiren: 160 };
   for (const hero of roster()) {
     const somma = abilityContributions(hero).reduce((s, c) => s + c.weighted, 0);
     assert.equal(somma / POWER_WEIGHT_SCALE, pubblicato[hero.name], `${hero.name}`);
@@ -76,10 +76,10 @@ test('il contributo per-abilita resta INTERO, come la rubrica tiene interi i pes
 });
 
 test('due abilita di EROI DIVERSI con lo stesso peso valgono lo stesso, ed e la domanda di #2566', () => {
-  // `ConductiveNode` (Aevik), `Ram` (Branth) e `PassingBlade` (Ivrin) pesano tutte 6000: 20 danni
+  // `ConductiveNode` (Aevik), `Ram` (Branth) e `PassingBlade` (Ivrin) pesano tutte 60000: 200 danni
   // garantiti con cooldown 2. La metrica deve dirlo senza sapere di chi sono.
   const tutte = roster().flatMap(abilityContributions);
-  const seimila = tutte.filter((c) => c.weighted === 6000).map((c) => c.id);
+  const seimila = tutte.filter((c) => c.weighted === 60000).map((c) => c.id);
   assert.deepEqual(seimila.sort(), [
     'Hero.Aevik.ConductiveNode',
     'Hero.Branth.Ram',
@@ -87,7 +87,7 @@ test('due abilita di EROI DIVERSI con lo stesso peso valgono lo stesso, ed e la 
   ]);
   for (const id of seimila) {
     const c = tutte.find((x) => x.id === id)!;
-    assert.equal(contributionPerTurn(c), 10, id);
+    assert.equal(contributionPerTurn(c), 100, id);
   }
 });
 
@@ -107,8 +107,8 @@ test('l ancora dell EROE non si applica all abilita: comprimerebbe venti valori 
 test('ogni banda e DERIVATA dal roster e nomina le abilita che la producono', () => {
   const bande = abilityBands(roster());
   const base = bande.find((b) => b.kind === 'attacco base')!;
-  // Calcolata a mano dal catalogo: ImpactShot 8/turno, PulseShot 21, ArcPulse 22.
-  assert.deepEqual({ min: base.min, max: base.max }, { min: 8, max: 22 });
+  // Calcolata a mano dal catalogo: ImpactShot 80/turno, PulseShot 210, ArcPulse 220 (scala x10 di D-589).
+  assert.deepEqual({ min: base.min, max: base.max }, { min: 80, max: 220 });
   assert.deepEqual(base.from.slice().sort(), [
     'Hero.Aevik.ArcPulse',
     'Hero.Branth.ImpactShot',

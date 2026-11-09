@@ -196,8 +196,8 @@ bool FRTActionHealTest::RunTest(const FString&)
 {
 	// Le tre regole del catalogo §6, tutte insieme: cura 20 · non supera la salute massima · non rimuove stati.
 	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
-	TestEqual(TEXT("il catalogo dichiara 20"),
-		Def.Effects.Num() > 0 ? Def.Effects[0].Amount : 0, 20);
+	TestEqual(TEXT("il catalogo dichiara 200"),
+		Def.Effects.Num() > 0 ? Def.Effects[0].Amount : 0, 200);
 	TestEqual(TEXT("portata 3"), Def.RangeCells, 3);
 	TestTrue(TEXT("risolve nel Blast"),
 		URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Blast);
@@ -220,13 +220,13 @@ bool FRTActionHealTest::RunTest(const FString&)
 	}
 
 	// Ferita di 30 e uno stato addosso: la cura ne ripara 20 e **non** tocca lo stato.
-	Wounded->ApplyCombatState(Wounded->MaxHealth - 30, Wounded->Shield);
+	Wounded->ApplyCombatState(Wounded->MaxHealth - 300, Wounded->Shield);
 	Wounded->ApplyStatus(TAG_Status_Slow, 2);
 
 	PlanEnvAction(Medic, TEXT("Action.Heal"), Wounded);
 	RunEnvTurn(TM);
 
-	TestEqual(TEXT("cura 20"), Wounded->Health, Wounded->MaxHealth - 10);
+	TestEqual(TEXT("cura 200"), Wounded->Health, Wounded->MaxHealth - 100);
 	TestTrue(TEXT("non rimuove gli stati"), Wounded->HasStatus(TAG_Status_Slow));
 
 	// Seconda cura su chi e' quasi pieno: si ferma al massimo, non lo supera.
@@ -2938,7 +2938,7 @@ bool FRTBornSurfaceBurnsOccupantTest::RunTest(const FString&)
 	// Il numero non e' inventato: 10 d'ingresso dal catalogo terreni piu' il danno che `Burning` fa nello
 	// stesso Cleanup, perche' `ResolveEnvironment` gira PRIMA del ciclo che lo fa pagare. E' la stessa somma
 	// che paga chi ci entra col Move, quindi la regola resta una sola.
-	const int32 Atteso = 10 + URTCombatLibrary::BurningCleanupDamage;
+	const int32 Atteso = 100 + URTCombatLibrary::BurningCleanupDamage;
 	TestEqual(TEXT("e paga ingresso + bruciatura, come chi ci fosse entrato"), HpPrima - Target->Health, Atteso);
 
 	DestroyEnvWorld(World);
@@ -3109,7 +3109,7 @@ bool FRTHazardBurningLogTest::RunTest(const FString&)
 	// sotto i 18 HP avrebbe fatto flippare questo test su `Lethal`, per una modifica in un altro file.
 	// Il ramo che si verifica lo sceglie il test. Trovato in code review.
 	Target->Shield = 0;
-	Target->Health = 60;
+	Target->Health = 600;
 
 	const int32 HpPrima = Target->Health;
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
@@ -3189,7 +3189,7 @@ bool FRTHazardBurningLethalLogTest::RunTest(const FString&)
 	// `Health = 12` cade nell'unica finestra che serve: sopravvive al primo (12 - 10 = 2) e muore del
 	// secondo (2 - 8 < 0). Lo scudo va a zero, o assorbirebbe il colpo e il caso letale non si darebbe.
 	Target->Shield = 0;
-	Target->Health = 12;
+	Target->Health = 120;
 
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
 	RunEnvTurn(TM);
@@ -3244,8 +3244,8 @@ bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
 	// non assorbe piu' il danno ambientale, quindi un `Shield = 30` scritto a mano lascerebbe passare
 	// entrambi i colpi e questo test tornerebbe a misurare `Hit` — cioe' l'esatto ramo che NON vuole.
 	// Il temporaneo continua ad assorbire qualunque sorgente, ed e' quello che tiene vivo `ShieldAbsorbed`.
-	Target->Health = 40;
-	Target->AddTemporaryShield(30); // 10 all'ingresso + 8 nel Cleanup, e ne avanza
+	Target->Health = 400;
+	Target->AddTemporaryShield(300); // 100 all'ingresso + 80 nel Cleanup, e ne avanza
 
 	const int32 HpPrima = Target->Health;
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
@@ -3308,14 +3308,14 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 	// Punti vita fissati qui e non ereditati dal catalogo eroi: e' il ramo `Hit` che si vuole verificare,
 	// e un ribilanciamento non deve poterlo far diventare `Lethal` da un altro file.
 	Mover->Shield = 0;
-	Mover->Health = 60;
+	Mover->Health = 600;
 	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
 	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
 	Mover->PlannedCell = FRTCellId(2, 0);
 
 	RunEnvTurn(TM);
 
-	if (!TestTrue(TEXT("premessa: attraversando il fuoco ha perso HP"), Mover->Health < 60))
+	if (!TestTrue(TEXT("premessa: attraversando il fuoco ha perso HP"), Mover->Health < 600))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -3339,7 +3339,7 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 		// ciclo delle fasi esce su `Planning` e la Cleanup gira dopo.
 		TestEqual(TEXT("nella fase del movimento"), Voce.Phase, ERTMatchPhase::Move);
 		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
-		TestEqual(TEXT("il danno dichiarato dal catalogo terreni"), Voce.Amount, 10);
+		TestEqual(TEXT("il danno dichiarato dal catalogo terreni"), Voce.Amount, 100);
 		TestEqual(TEXT("il soggetto e' chi ci e' entrato"), Voce.UnitId, Mover->StableUnitId);
 		TestNotEqual(TEXT("e non lo zero del «nessuno»"), Voce.UnitId, 0);
 		// La cella che ha colpito: qui **e' davvero la causa**, al contrario del `Burning` che segue
@@ -3473,9 +3473,9 @@ bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
 	// 200/90 attraversava tutto il turno. Il ramo `ShieldAbsorbed` confronta con `MaxHealth`. I danni reali
 	// sono 18 e 21, quindi 60 basta con margine. Trovato in code review.
 	Incendiario->Shield = 0;
-	Incendiario->Health = 60;
+	Incendiario->Health = 600;
 	Bruciato->Shield = 0;
-	Bruciato->Health = 60;
+	Bruciato->Health = 600;
 
 	// Nello stesso turno: l'uno incendia l'altro, e l'altro colpisce con l'attacco base (slot 0).
 	PlanEnvAction(Incendiario, TEXT("Action.Ignite"), Bruciato);

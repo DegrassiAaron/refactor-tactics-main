@@ -1279,7 +1279,7 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
 	// --- 3. Il bersaglio incassa DANNO e SPINTA, con valori concreti -------------------------------
-	TestEqual(TEXT("il bersaglio incassa i 20 danni della carica"), Foe->Health, HealthBefore - 20);
+	TestEqual(TEXT("il bersaglio incassa i 200 danni della carica"), Foe->Health, HealthBefore - 200);
 	// Spinta 1 lungo la direzione della carica: da (2,0) verso est.
 	TestEqual(TEXT("e viene spinto di una cella"), Foe->Cell, FRTCellId(3, 0));
 	// La carica si FERMA addosso al nemico invece di attraversarlo: e' cio' che distingue
@@ -1348,7 +1348,7 @@ bool FRTHexBotChargeOffAxesTest::RunTest(const FString&)
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
-	TestEqual(TEXT("il bersaglio incassa i 20 danni della carica"), Foe->Health, HealthBefore - 20);
+	TestEqual(TEXT("il bersaglio incassa i 200 danni della carica"), Foe->Health, HealthBefore - 200);
 	TestEqual(TEXT("chi carica si ferma in (1,1), davanti a lui lungo la retta"), Bot->Cell, FRTCellId(1, 1));
 	TestEqual(TEXT("e il bersaglio e' spinto verso est, dalla cella d'arrivo: (3,1)"), Foe->Cell, FRTCellId(3, 1));
 

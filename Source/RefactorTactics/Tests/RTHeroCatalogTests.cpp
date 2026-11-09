@@ -118,10 +118,10 @@ bool FRTHeroBasicAttackByRangeBandTest::RunTest(const FString&)
 	// azioni v0.1 §1, non una seconda copia per gli eroi.
 	struct FBand { int32 Range; int32 ExpectedDamage; };
 	const FBand Bands[] = {
-		{ 1, 28 }, // corpo a corpo
-		{ 3, 25 }, // corto
-		{ 4, 22 }, // medio
-		{ 6, 20 }, // lungo
+		{ 1, 280 }, // corpo a corpo
+		{ 3, 250 }, // corto
+		{ 4, 220 }, // medio
+		{ 6, 200 }, // lungo
 	};
 
 	for (const FBand& Band : Bands)

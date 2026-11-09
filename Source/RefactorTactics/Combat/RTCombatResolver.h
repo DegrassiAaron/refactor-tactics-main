@@ -52,7 +52,7 @@ enum class ERTDamageStage : uint8
 	/** Copertura, per-colpo e direzionale: dipende da dove sta chi SUBISCE (`D-206`). */
 	Cover,
 	/**
-	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+5`. Vale una volta. ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
+	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+50`. Vale una volta. ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
 	 * (`RTTurnManager.cpp`, `MarkSpentOn`) che somma `+6` al `Power` del primo colpo qualificato nell'ordine canonico.
 	 * ⛔ **`Action.Deflect` NON e' piu' qui**: da [D-309] e' un pool e produce `AbsorptionPool`. La riga lo
 	 * nominava, e questo enum e' cio' che etichetta lo stadio nel breakdown di danno — cioe' l'unico posto
@@ -60,8 +60,8 @@ enum class ERTDamageStage : uint8
 	 */
 	FirstHitDelta,
 	/**
-	 * Delta su OGNI colpo: `Action.Brace` `-10`, senza il gate «una volta sola» (CP 5.2), e dal 2026-09-20 la `Guard`
-	 * (`Status.Guarded`, `-15` su ogni colpo FRONTALE, [D-408] + [D-206]) via `ApplyEligibleHitDelta`. A distinguerle e' il
+	 * Delta su OGNI colpo: `Action.Brace` `-100`, senza il gate «una volta sola» (CP 5.2), e dal 2026-09-20 la `Guard`
+	 * (`Status.Guarded`, `-150` su ogni colpo FRONTALE, [D-408] + [D-206]) via `ApplyEligibleHitDelta`. A distinguerle e' il
 	 * `SourceId` della voce, non lo stadio: `URTCombatLibrary::GuardPerHitSource`.
 	 */
 	EveryHitDelta,

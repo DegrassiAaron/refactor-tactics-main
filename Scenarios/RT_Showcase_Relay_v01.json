@@ -401,12 +401,12 @@
     {
       "type": "UnitHpEquals",
       "unit": "Gadget",
-      "value": 90
+      "value": 900
     },
     {
       "type": "UnitHpEquals",
       "unit": "Phase",
-      "value": 60,
+      "value": 600,
       "_assertion": "95 - (21 + 19 - 5): l'Overwatch di Ivrin al T4 (21) piu' `LinearDischarge` al T7 (19), meno lo scudo. ⚠️ Valeva 79 quando la partita si fermava a cinque turni: il T7 non era mai stato giocato."
     },
     {
@@ -482,7 +482,7 @@
     {
       "type": "UnitHpEquals",
       "unit": "Branth",
-      "value": 103,
+      "value": 1030,
       "_assertion": "120 - (22 - 5): `ArcPulse` pieno meno lo scudo. 🔴 **Pieno perche' Branth NON ha copertura**, ed e' il punto: la copertura sta su Ivrin, il bersaglio ORIGINALE. Un resolver che la conservasse invece di rivalutare la geometria su chi incassa davvero darebbe 22-10=12 danni, cioe' **113**. La distanza fra 103 e 113 e' tutto cio' che questo turno esiste per misurare (D-017)."
     },
     {

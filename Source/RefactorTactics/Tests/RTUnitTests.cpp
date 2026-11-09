@@ -697,21 +697,21 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
 	// proporzione allo scudo perso — comportamento gia' corretto prima di [D-224] e mai testato.
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->MaxHealth = 100;
-	Unit->Health = 100;
+	Unit->MaxHealth = 1000;
+	Unit->Health = 1000;
 	Unit->Shield = URTCombatLibrary::BaseShield;
 
-	Unit->AddTemporaryShield(25);
-	TestEqual(TEXT("totale 30"), Unit->Shield, 30);
+	Unit->AddTemporaryShield(250);
+	TestEqual(TEXT("totale 300"), Unit->Shield, 300);
 
 	const FRTDamageResult Colpo = URTCombatLibrary::ApplyDamage(
-		10, ERTDamageSource::Direct, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
+		100, ERTDamageSource::Direct, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
 	Unit->ApplyCombatState(Colpo.Health, Colpo.Shield);
-	TestEqual(TEXT("i dieci danni escono dal temporaneo"), Unit->GetTemporaryShield(), 15);
+	TestEqual(TEXT("i cento danni escono dal temporaneo"), Unit->GetTemporaryShield(), 150);
 
 	Unit->ExpireTemporaryShield();
 	TestEqual(TEXT("la base e' sopravvissuta alla scadenza"), Unit->Shield, URTCombatLibrary::BaseShield);
-	TestEqual(TEXT("HP intatti"), Unit->Health, 100);
+	TestEqual(TEXT("HP intatti"), Unit->Health, 1000);
 	return true;
 }
 

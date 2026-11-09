@@ -142,20 +142,20 @@ bool FRTCoverDirectionalDamageReductionTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 300));
 
 	URTHexMapAsset* Bare = MakeCoverMap(3);
 	const FRTHexBlastPlan Uncovered = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Bare);
-	TestEqual(TEXT("senza copertura: danno pieno"), CoverPowerOn(Uncovered, 1), 30);
+	TestEqual(TEXT("senza copertura: danno pieno"), CoverPowerOn(Uncovered, 1), 300);
 
 	URTHexMapAsset* Covered = MakeCoverMap(3);
 	SetLowCoverEdge(Covered, FRTCellId(2, 0), ERTHexDirection::W); // bordo verso l'attaccante
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Covered);
 
 	TestEqual(TEXT("il colpo avviene comunque"), Plan.Hits.Num(), 1);
-	TestEqual(TEXT("copertura bassa dal lato protetto: -10"),
-		CoverPowerOn(Plan, 1), 30 - URTCombatLibrary::LowCoverDamageReduction);
-	TestEqual(TEXT("la riduzione e' quella di catalogo"), URTCombatLibrary::LowCoverDamageReduction, 10);
+	TestEqual(TEXT("copertura bassa dal lato protetto: -100"),
+		CoverPowerOn(Plan, 1), 300 - URTCombatLibrary::LowCoverDamageReduction);
+	TestEqual(TEXT("la riduzione e' quella di catalogo"), URTCombatLibrary::LowCoverDamageReduction, 100);
 	return true;
 }
 
@@ -179,7 +179,7 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 300));
 
 	// Il colpo entra da W: ogni altro bordo non e' sulla traiettoria.
 	const ERTHexDirection WrongSides[] = { ERTHexDirection::E, ERTHexDirection::NW, ERTHexDirection::SW };
@@ -189,7 +189,7 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 		SetLowCoverEdge(Map, FRTCellId(2, 0), Edge);
 		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 		TestEqual(FString::Printf(TEXT("bordo %d non attraversato: danno pieno"), static_cast<int32>(Edge)),
-			CoverPowerOn(Plan, 1), 30);
+			CoverPowerOn(Plan, 1), 300);
 	}
 
 	// Copertura sulla cella SBAGLIATA (quella dell'attaccante, sul bordo verso il bersaglio): non protegge
@@ -197,7 +197,7 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 	URTHexMapAsset* Attackers = MakeCoverMap(3);
 	SetLowCoverEdge(Attackers, FRTCellId(0, 0), ERTHexDirection::E);
 	TestEqual(TEXT("copertura sulla cella dell'attaccante: danno pieno"),
-		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Attackers), 1), 30);
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Attackers), 1), 300);
 	return true;
 }
 
@@ -585,7 +585,7 @@ bool FRTCoverHeavyAttackBreachesTest::RunTest(const FString&)
 		if (Spec.Effect == ERTActionEffect::Damage) { UnitDamage = Spec.Amount; }
 		if (Spec.Effect == ERTActionEffect::DamageStructure) { StructureDamage = Spec.Amount; }
 	}
-	TestEqual(TEXT("35 contro un'unita'"), UnitDamage, 35);
+	TestEqual(TEXT("350 contro un'unita'"), UnitDamage, 350);
 	TestEqual(TEXT("20 contro una struttura"), StructureDamage, 20);
 
 	// Tre colpi per abbattere una copertura alta: e' il numero che i test di distruzione danno per buono.
@@ -674,27 +674,27 @@ bool FRTCoverAddThenRemoveTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 300));
 
 	URTHexMapAsset* Map = MakeCoverMap(3);
 	TestEqual(TEXT("prima: danno pieno"),
-		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 30);
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 300);
 
 	const int32 Before = Map->Revision;
 	TestTrue(TEXT("il pannello si erige sul bordo verso l'attaccante"),
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(2, 0), ERTHexDirection::W, ERTHexCoverType::Low, 30));
 	TestTrue(TEXT("erigerla incrementa la revisione"), Map->Revision > Before);
 
-	TestEqual(TEXT("il consumatore reale la legge: -10"),
+	TestEqual(TEXT("il consumatore reale la legge: -100"),
 		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1),
-		30 - URTCombatLibrary::LowCoverDamageReduction);
+		300 - URTCombatLibrary::LowCoverDamageReduction);
 
 	const int32 AfterCreate = Map->Revision;
 	TestTrue(TEXT("si toglie"),
 		URTHexCoverLibrary::RemoveCover(Map, FRTCellId(2, 0), ERTHexDirection::W));
 	TestTrue(TEXT("toglierla incrementa la revisione"), Map->Revision > AfterCreate);
 	TestEqual(TEXT("tolta: danno di nuovo pieno"),
-		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 30);
+		CoverPowerOn(URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 1), 300);
 
 	const int32 AfterRemove = Map->Revision;
 	TestFalse(TEXT("togliere un bordo scoperto non e' un evento"),
@@ -722,7 +722,7 @@ bool FRTCoverRuntimeCoverRearHitTest::RunTest(const FString&)
 {
 	TArray<FRTHexAttackIntent> Intents;
 	// Il difensore sta in (2,0) in entrambe le passate del lambda: cambia solo dove GUARDA.
-	Intents.Add(CoverIntent(FRTCellId(2, 0), 0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(FRTCellId(2, 0), 0, 1, ERTAbilityShape::Single, 5, 300));
 
 	// Stessa copertura, eretta a runtime sul bordo attraversato dal colpo: cambia SOLO dove guarda il difensore.
 	auto DamageWithFacing = [&Intents](ERTHexDirection Facing)
@@ -738,11 +738,11 @@ bool FRTCoverRuntimeCoverRearHitTest::RunTest(const FString&)
 
 	// L'attaccante e' a ovest: guardandolo, il riparo vale.
 	TestEqual(TEXT("difensore rivolto all'attaccante: la copertura vale"),
-		DamageWithFacing(ERTHexDirection::W), 30 - URTCombatLibrary::LowCoverDamageReduction);
+		DamageWithFacing(ERTHexDirection::W), 300 - URTCombatLibrary::LowCoverDamageReduction);
 
 	// Di spalle, la stessa copertura non ripara — come una qualunque disegnata sulla mappa (CP 16.2).
 	TestEqual(TEXT("colpo alle spalle: la copertura eretta in partita non protegge"),
-		DamageWithFacing(ERTHexDirection::E), 30);
+		DamageWithFacing(ERTHexDirection::E), 300);
 	return true;
 }
 

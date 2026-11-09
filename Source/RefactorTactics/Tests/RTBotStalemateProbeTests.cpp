@@ -263,9 +263,9 @@ bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
 	Ctx.Origin = SelfCell;
 	Ctx.Enemies.Add(EnemyCell);
 	Ctx.EnemyRanges.Add(4);
-	Ctx.EnemyHealth.Add(100);
+	Ctx.EnemyHealth.Add(1000);
 	Ctx.AttackRange = 4;   // `Hero.Aevik.ArcPulse`
-	Ctx.AttackDamage = 21; // `Hero.Ivrin.PulseShot`
+	Ctx.AttackDamage = 210; // `Hero.Ivrin.PulseShot`
 	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
 	AddInfo(FString::Printf(TEXT("standoff derivato da gittata %d: %d (0 = chiude la distanza)"),
@@ -371,7 +371,7 @@ bool FRTBotStalemateNoPerceivedEnemyTest::RunTest(const FString&)
 	FRTHexBotContext Ctx;
 	Ctx.Origin = SelfCell;
 	Ctx.AttackRange = 4;
-	Ctx.AttackDamage = 21;
+	Ctx.AttackDamage = 210;
 	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
 	const TArray<FRTHexBotPlan> Candidates = URTHexBotLibrary::BuildCandidates(Snapshot, 1, Ctx);
@@ -503,7 +503,7 @@ namespace
 			FRTHexBotContext Ctx;
 			Ctx.Origin = Self.Cell;
 			Ctx.AttackRange = 4;
-			Ctx.AttackDamage = 21;
+			Ctx.AttackDamage = 210;
 			Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
 			for (const FRTProbeUnit& Other : Units)
@@ -522,7 +522,7 @@ namespace
 				}
 				Ctx.Enemies.Add(KnownCell);
 				Ctx.EnemyRanges.Add(4);
-				Ctx.EnemyHealth.Add(100);
+				Ctx.EnemyHealth.Add(1000);
 			}
 			OutPerceived += Ctx.Enemies.Num();
 			Contexts.Add(Ctx);

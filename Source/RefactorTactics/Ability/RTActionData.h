@@ -121,7 +121,7 @@ public:
 
 	/** Danno inflitto. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	int32 Power = 30;
+	int32 Power = 300;
 
 	/** Forma dell'area colpita. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")

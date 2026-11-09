@@ -78,7 +78,7 @@
     {
       "type": "UnitHpEquals",
       "unit": "V1",
-      "value":  90
+      "value":  900
     },
     {
       "type": "UnitAtCell",

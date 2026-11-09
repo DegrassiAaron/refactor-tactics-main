@@ -115,9 +115,9 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
 	UWorld* World = RTWorkbenchRun::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	// 103 e' il numero del corpus: 120 di Branth, 22 dichiarati da ArcPulse, 5 fermati dallo scudo base.
+	// 1030 e' il numero del corpus: 1200 di Branth, 220 dichiarati da ArcPulse, 50 fermati dallo scudo base.
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(103), /*bTearDownAfter=*/ true);
+		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true);
 
 	TestEqual(TEXT("senza variante lo scenario passa con la salute canonica"),
 		Esito.Outcome, ERTTestOutcome::Pass);
@@ -134,7 +134,7 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
  * planning, snapshot, resolver — perche' non c'e' nessun'altra strada per cui quel numero possa arrivare
  * alla salute di B1.
  *
- * 32 anziche' 22, e lo scudo base ne ferma sempre 5: `120 - (32 - 5) = 93`.
+ * 320 anziche' 220, e lo scudo base ne ferma sempre 50: `1200 - (320 - 50) = 930`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkbenchVariantChangesTheOutcomeTest,
 	"RefactorTactics.Workbench.VariantChangesTheOutcome",
@@ -145,10 +145,10 @@ bool FRTWorkbenchVariantChangesTheOutcomeTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(93), /*bTearDownAfter=*/ true,
-		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 32));
+		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 320));
 
-	TestEqual(TEXT("con danno 32 la salute attesa e' 93, e lo scenario passa"),
+	TestEqual(TEXT("con danno 320 la salute attesa e' 930, e lo scenario passa"),
 		Esito.Outcome, ERTTestOutcome::Pass);
 
 	RTWorkbenchRun::DestroyWorld(World);
@@ -171,8 +171,8 @@ bool FRTWorkbenchVariantBreaksTheBaselineExpectationTest::RunTest(const FString&
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(103), /*bTearDownAfter=*/ true,
-		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 32));
+		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 320));
 
 	// `Fail` e non `Error`: lo scenario e' valido ed e' girato, l'assertion non regge. La distinzione e'
 	// quella che il formato tiene fra un difetto del GIOCO e un difetto del TEST.
@@ -207,7 +207,7 @@ bool FRTWorkbenchUnknownActionFailsBeforeTheFirstTurnTest::RunTest(const FString
 	Assurda.Overrides.Add(Ov);
 
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(103), /*bTearDownAfter=*/ true, Assurda);
+		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true, Assurda);
 
 	TestEqual(TEXT("la run si ferma con Error, non con Fail"), Esito.Outcome, ERTTestOutcome::Error);
 
@@ -230,12 +230,12 @@ bool FRTWorkbenchSameVariantSameResultTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
 	const FRTTestResult Prima = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(93), /*bTearDownAfter=*/ true,
-		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 32));
+		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 320));
 
 	const FRTTestResult Seconda = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(93), /*bTearDownAfter=*/ true,
-		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 32));
+		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 320));
 
 	TestEqual(TEXT("la prima run passa"), Prima.Outcome, ERTTestOutcome::Pass);
 	TestEqual(TEXT("la seconda pure"), Seconda.Outcome, ERTTestOutcome::Pass);
@@ -296,7 +296,7 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		return false;
 	}
 
-	FRTWorkbenchVariant V = RTWorkbenchRun::DannoArcPulse(TEXT("Test.DueIstanze"), 32);
+	FRTWorkbenchVariant V = RTWorkbenchRun::DannoArcPulse(TEXT("Test.DueIstanze"), 320);
 	FRTWorkbenchVariant Ripristino;
 	if (!TestEqual(TEXT("la variante si applica"),
 		URTWorkbenchVariantLibrary::Apply(V, Unione, Ripristino), ERTVariantApplyResult::Ok))
@@ -304,8 +304,8 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("la PRIMA istanza porta il valore nuovo"), PrimoArcPulse->Power, 32);
-	TestEqual(TEXT("e anche la SECONDA, che prima restava indietro"), SecondoArcPulse->Power, 32);
+	TestEqual(TEXT("la PRIMA istanza porta il valore nuovo"), PrimoArcPulse->Power, 320);
+	TestEqual(TEXT("e anche la SECONDA, che prima restava indietro"), SecondoArcPulse->Power, 320);
 
 	return true;
 }

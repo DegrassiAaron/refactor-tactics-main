@@ -18,11 +18,11 @@ test('--abilities stampa il contributo di ogni abilita del roster, con la propri
   // Le venti abilita' ci sono tutte: un elenco che ne perde una per strada e' peggio di nessun elenco.
   const righe = out.split('\n').filter((r) => /^\s*Hero\./.test(r));
   assert.equal(righe.length, 20, 'venti abilita nel catalogo, venti righe');
-  // Il confronto fra eroi diversi e' il punto: tre abilita' pesano 6000, cioe' 10 per turno.
+  // Il confronto fra eroi diversi e' il punto: tre abilita' pesano 60000, cioe' 100 per turno.
   for (const id of ['Hero.Aevik.ConductiveNode', 'Hero.Branth.Ram', 'Hero.Ivrin.PassingBlade']) {
     const riga = righe.find((r) => r.includes(id));
     assert.ok(riga, `${id} assente`);
-    assert.match(riga!, /\b10\b/, `${id}: il contributo per turno non si legge`);
+    assert.match(riga!, /\b100\b/, `${id}: il contributo per turno non si legge`);
   }
   // E la derivazione di ogni banda si legge nell'uscita, non nel sorgente.
   assert.match(out, /attacco base/);

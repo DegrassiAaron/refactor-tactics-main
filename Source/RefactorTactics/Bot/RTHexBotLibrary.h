@@ -208,7 +208,7 @@ struct FRTHexBotContext
 
 	// Pesi interi (bilanciabili senza toccare la logica; invariante #4: niente float). Default: il kill domina.
 	UPROPERTY() int32 WKill = 10000;
-	UPROPERTY() int32 WDamage = 10;
+	UPROPERTY() int32 WDamage = 1;
 	/**
 	 * Quota (percento) IN PIU' del valore di un colpo su un nemico che NON puo' scattare via (`EnemyCanEscape`
 	 * falso, #3229): danno e kill su di lui valgono `(100 + questa)`%. **Zero la spegne**: `FRTBotWeights`
@@ -229,7 +229,7 @@ struct FRTHexBotContext
 	 * alleato resta conveniente e prenderne uno solo non lo e'. E' un peso, non un veto: si tara senza
 	 * toccare la logica.
 	 */
-	UPROPERTY() int32 WAllyDamage = 10;
+	UPROPERTY() int32 WAllyDamage = 1;
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;

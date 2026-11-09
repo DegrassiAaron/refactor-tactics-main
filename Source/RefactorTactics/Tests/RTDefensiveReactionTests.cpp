@@ -178,7 +178,7 @@ bool FRTDefensivesMatchCatalogTest::RunTest(const FString&)
 	{
 		if (S.Effect == ERTActionEffect::Damage) { CounterDamage = S.Amount; }
 	}
-	TestEqual(TEXT("Counter: contrattacco da 16"), CounterDamage, 16);
+	TestEqual(TEXT("Counter: contrattacco da 160"), CounterDamage, 160);
 
 	const FRTActionDef Shield = URTCatalogLibrary::FindCoreAction(TEXT("Action.Shield"));
 	int32 ShieldAmount = 0;
@@ -186,7 +186,7 @@ bool FRTDefensivesMatchCatalogTest::RunTest(const FString&)
 	{
 		if (S.Effect == ERTActionEffect::Shield) { ShieldAmount = S.Amount; }
 	}
-	TestEqual(TEXT("Shield: 25 punti"), ShieldAmount, 25);
+	TestEqual(TEXT("Shield: 250 punti"), ShieldAmount, 250);
 
 	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
 	for (const FString& Err : Errors) { AddError(Err); }
@@ -227,7 +227,7 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 	RunDefTurn(TM);
 
 	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
-	TestEqual(TEXT("chi ha colpito incassa i 16 del contrattacco"), AttackerHealth - Attacker->Health, 16);
+	TestEqual(TEXT("chi ha colpito incassa i 160 del contrattacco"), AttackerHealth - Attacker->Health, 160);
 	TestEqual(TEXT("chi non ha colpito non viene contrattaccato"), Bystander->Health, BystanderHealth);
 
 	// 🔴 **La reazione ha un MOMENTO nel playback, non solo un esito nel log** (#2191).

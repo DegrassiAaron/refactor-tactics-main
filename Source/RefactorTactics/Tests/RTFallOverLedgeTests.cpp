@@ -1227,8 +1227,8 @@ bool FRTFallTwoFallersSameLandingTest::RunTest(const FString&)
 	TestEqual(TEXT("e B2 sul suo, che e' un'altra cella"), B2->Cell, FRTCellId(1, 1, 1));
 	TestEqual(TEXT("l'occupante di sotto non e' stato spostato"), Occupante->Cell, FRTCellId(1, 1, 0));
 	TestEqual(TEXT("e la caduta e' avvenuta ai fini degli effetti, per B1"),
-		LedgeFallDamage(TM, B1), 5);
-	TestEqual(TEXT("e per B2"), LedgeFallDamage(TM, B2), 5);
+		LedgeFallDamage(TM, B1), 50);
+	TestEqual(TEXT("e per B2"), LedgeFallDamage(TM, B2), 50);
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -1327,7 +1327,7 @@ bool FRTFallPrimaryAppliesEffectsTest::RunTest(const FString&)
 	RunLedgeTurn(TM);
 
 	TestEqual(TEXT("premessa: e' caduto sul primario"), Bersaglio->Cell, FRTCellId(1, 0, 0));
-	TestEqual(TEXT("ha perso 5 punti vita"), Bersaglio->Health, HpPrima - 5);
+	TestEqual(TEXT("ha perso 50 punti vita"), Bersaglio->Health, HpPrima - 50);
 	TestTrue(TEXT("ed e' scoperto"), Bersaglio->HasStatus(TAG_Status_Exposed));
 
 	DestroyLedgeWorld(World);
@@ -1360,10 +1360,10 @@ bool FRTFallOccupantTakesImpactTest::RunTest(const FString&)
 	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
 	RunLedgeTurn(TM);
 
-	TestEqual(TEXT("l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 5);
+	TestEqual(TEXT("l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 50);
 	TestFalse(TEXT("ma NON e' scoperto: non ha perso lui l'equilibrio"),
 		Occupante->HasStatus(TAG_Status_Exposed));
-	TestEqual(TEXT("e chi e' caduto ha comunque pagato"), Bersaglio->Health, HpBersaglio - 5);
+	TestEqual(TEXT("e chi e' caduto ha comunque pagato"), Bersaglio->Health, HpBersaglio - 50);
 	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
 
 	DestroyLedgeWorld(World);
@@ -1400,9 +1400,9 @@ bool FRTFallSaturatedAppliesEffectsTest::RunTest(const FString&)
 	RunLedgeTurn(TM);
 
 	TestEqual(TEXT("premessa: non e' sceso, resta sul ciglio"), Bersaglio->Cell, FRTCellId(1, 0, 1));
-	TestEqual(TEXT("ma la caduta E' avvenuta ai fini degli effetti"), Bersaglio->Health, HpBersaglio - 5);
+	TestEqual(TEXT("ma la caduta E' avvenuta ai fini degli effetti"), Bersaglio->Health, HpBersaglio - 50);
 	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
-	TestEqual(TEXT("e l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 5);
+	TestEqual(TEXT("e l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 50);
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -1433,7 +1433,7 @@ bool FRTFallNoLandingStillAppliesTest::RunTest(const FString&)
 	RunLedgeTurn(TM);
 
 	TestEqual(TEXT("premessa: sotto non c'era niente, resta sul ciglio"), Bersaglio->Cell, FRTCellId(1, 0, 1));
-	TestEqual(TEXT("e ha pagato lo stesso"), Bersaglio->Health, HpPrima - 5);
+	TestEqual(TEXT("e ha pagato lo stesso"), Bersaglio->Health, HpPrima - 50);
 	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
 
 	DestroyLedgeWorld(World);
@@ -1475,10 +1475,10 @@ bool FRTFallDamageIsEnvironmentalTest::RunTest(const FString&)
 	// 🔴 **Si misura la VOCE, non gli HP**, e la prima stesura sbagliava proprio qui: il bersaglio
 	// prende anche il colpo che l'ha spinto, e `FirstHitDelta` amplifica QUELLO se e' `Exposed`.
 	// Contro gli HP il test leggeva 10 e accusava la caduta di un +5 che era del colpo.
-	TestEqual(TEXT("la voce di caduta dice 5: Exposed non amplifica un danno ambientale"),
-		LedgeFallDamage(TM, Bersaglio), 5);
-	TestTrue(TEXT("e il totale non e' 5+5+5: il bonus e' stato speso una volta sola"),
-		Bersaglio->Health >= HpPrima - 10);
+	TestEqual(TEXT("la voce di caduta dice 50: Exposed non amplifica un danno ambientale"),
+		LedgeFallDamage(TM, Bersaglio), 50);
+	TestTrue(TEXT("e il totale non e' 50+50+50: il bonus e' stato speso una volta sola"),
+		Bersaglio->Health >= HpPrima - 100);
 
 	DestroyLedgeWorld(World);
 	return true;

@@ -30,7 +30,7 @@ Guardian/architetto del campo: crea e riconfigura coperture, controlla gli spazi
 | Dipendenze tecniche | Cover, structures, arc manipulation, intercept |
 | Player question | Quale spazio chiudo e chi proteggo? |
 
-> **Nota bilanciamento:** Canonico v0.1. 120 HP, 4 MP, vista 5, Push Resistance **0**: compra HP con mobilità
+> **Nota bilanciamento:** Canonico v0.1. 1200 HP, 4 MP, vista 5, Push Resistance **0**: compra HP con mobilità
 > ridotta. *Era `1` — l'unica del roster — fino a [D-075](../../decisions/RT_PDR_00_Decision_Log.md) (`#402`,
 > 2026-08-10): a soglia `1` non comprava stabilità, rendeva Riktor immune a ogni spinta del gioco.*
 
@@ -78,7 +78,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 | Campo | Valore |
 | --- | --- |
-| HP | 120 |
+| HP | 1200 |
 | Armatura | — |
 | Resistenza | — |
 | Movimento base | 4 |
@@ -92,7 +92,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 | Budget Punti | — |
 | Delta Budget | — |
 
-**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 120, Move 4. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
+**Stato dati:** `CANONICAL_PARTIAL` — Canonico: HP 1200, Move 4. Altri attributi di questa matrice non sono definiti nel catalogo v0.1.
 
 ## Visione e stealth
 

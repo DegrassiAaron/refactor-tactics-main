@@ -192,7 +192,7 @@ prima non contamina la seconda.
 | | |
 |---|---|
 | discesa | **non avviene** |
-| effetti | **si applicano**: 5 danni · `Exposed` (§5.1) |
+| effetti | **si applicano**: 50 danni · `Exposed` (§5.1) |
 | posizione | il **ciglio** (`LastStableCell`) se è libero, altrimenti l'unità resta dov'è |
 
 ⚠️ **Il ciglio è condizionale, e il ramo in più è voluto**: `LastStableCell` può essere occupata — da una
@@ -236,7 +236,7 @@ vanno risolte separatamente.
 🔑 **Il danno è minimo perché il prezzo è già pagato.** Far cadere qualcuno richiede una condizione
 posizionale rara: `Action.Push` ha **range 1**, **spinta 1** e **nessun danno proprio**, quindi il bersaglio
 deve essere **già** adiacente al bordo. E chi cade perde la posizione — scende di un piano e deve cercare un
-arco di risalita. **5 su 90-120 HP**, un quarto di `Charge`, dice *«è successo qualcosa»* senza spostare
+arco di risalita. **50 su 900-1200 HP**, un quarto di `Charge`, dice *«è successo qualcosa»* senza spostare
 l'aritmetica dello scontro.
 
 🔑 **La minaccia viene da `Exposed`, non dal danno**: *«+5 al primo danno diretto»* significa che chi ti

@@ -144,9 +144,9 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
-	TestEqual(TEXT("il bersaglio incassa il danno iniziale"), TargetBefore - Target->Health, 20);
+	TestEqual(TEXT("il bersaglio incassa il danno iniziale"), TargetBefore - Target->Health, 200);
 	TestEqual(TEXT("e l'elettricita' arriva a chi condivide la pozza, col danno propagato"),
-		BystanderBefore - Bystander->Health, 12);
+		BystanderBefore - Bystander->Health, 120);
 
 	// L'esito e' nel TurnLog con l'identita' dell'azione: un danno comparso su un'unita' mai bersagliata
 	// sarebbe inspiegabile nel replay.
@@ -343,7 +343,7 @@ bool FRTPropagationDeterministicOrderTest::RunTest(const FString&)
 	Units.Add(MakePropUnit(3, 1, FRTCellId(0, 1)));   // 1 passo, cella diversa
 
 	const TArray<FRTPropagationHit> Direct = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(0, 0), PropLimit(), 20, 12, Units);
+		Map, FRTCellId(0, 0), PropLimit(), 200, 120, Units);
 
 	TArray<FRTHexCombatUnit> Shuffled;
 	Shuffled.Add(Units[2]);
@@ -351,7 +351,7 @@ bool FRTPropagationDeterministicOrderTest::RunTest(const FString&)
 	Shuffled.Add(Units[3]);
 	Shuffled.Add(Units[1]);
 	const TArray<FRTPropagationHit> Permuted = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(0, 0), PropLimit(), 20, 12, Shuffled);
+		Map, FRTCellId(0, 0), PropLimit(), 200, 120, Shuffled);
 
 	TestEqual(TEXT("permutare l'input non cambia l'ordine dell'output"), PropHitIds(Direct), PropHitIds(Permuted));
 
@@ -387,7 +387,7 @@ bool FRTPropagationRespectsRangeLimitTest::RunTest(const FString&)
 	Units.Add(MakePropUnit(2, 1, FRTCellId(5, 0)));  // 4 passi: fuori
 
 	const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(1, 0), PropLimit(), 20, 12, Units);
+		Map, FRTCellId(1, 0), PropLimit(), 200, 120, Units);
 
 	TestEqual(TEXT("il limite del catalogo e' 3 passi"), PropLimit(), 3);
 	TestNotNull(TEXT("l'unita' a 3 passi e' colpita"), FindPropHit(Hits, 1));
@@ -414,7 +414,7 @@ bool FRTPropagationStopsAtNonConductiveTest::RunTest(const FString&)
 	Units.Add(MakePropUnit(2, 1, FRTCellId(3, 0)));  // nella seconda pozza, isolata
 
 	const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(1, 0), PropLimit(), 20, 12, Units);
+		Map, FRTCellId(1, 0), PropLimit(), 200, 120, Units);
 
 	TestEqual(TEXT("solo la sorgente e' colpita"), Hits.Num(), 1);
 	TestNotNull(TEXT("il bersaglio del colpo diretto"), FindPropHit(Hits, 0));
@@ -449,20 +449,20 @@ bool FRTPropagationDamageDiffersTest::RunTest(const FString&)
 	Units.Add(MakePropUnit(1, 1, FRTCellId(1, 0)));
 
 	const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(0, 0), PropLimit(), /*Initial*/ 20, /*Propagated*/ 12, Units);
+		Map, FRTCellId(0, 0), PropLimit(), /*Initial*/ 200, /*Propagated*/ 120, Units);
 
 	const FRTPropagationHit* Source = FindPropHit(Hits, 0);
 	const FRTPropagationHit* Reached = FindPropHit(Hits, 1);
 	if (TestNotNull(TEXT("sorgente colpita"), Source) && TestNotNull(TEXT("propagazione arrivata"), Reached))
 	{
-		TestEqual(TEXT("20 alla sorgente"), Source->Damage, 20);
-		TestEqual(TEXT("12 a chi la scarica raggiunge"), Reached->Damage, 12);
+		TestEqual(TEXT("200 alla sorgente"), Source->Damage, 200);
+		TestEqual(TEXT("120 a chi la scarica raggiunge"), Reached->Damage, 120);
 		TestEqual(TEXT("la sorgente e' a zero passi"), Source->Steps, 0);
 		TestEqual(TEXT("l'altro a uno"), Reached->Steps, 1);
 	}
 
 	// Il danno iniziale non e' un numero del test: viene dagli `Effects` dell'azione di catalogo.
-	TestEqual(TEXT("`Action.Electrify` dichiara 20 danni"), PropInitialDamage(), 20);
+	TestEqual(TEXT("`Action.Electrify` dichiara 200 danni"), PropInitialDamage(), 200);
 	return true;
 }
 
@@ -478,7 +478,7 @@ bool FRTPropagationNoMapFailsClosedTest::RunTest(const FString&)
 	Units.Add(MakePropUnit(1, 1, FRTCellId(1, 0)));
 
 	const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
-		nullptr, FRTCellId(0, 0), PropLimit(), 20, 12, Units);
+		nullptr, FRTCellId(0, 0), PropLimit(), 200, 120, Units);
 	TestEqual(TEXT("nessuna mappa, nessun colpo"), Hits.Num(), 0);
 
 	// Limite non positivo = nessuna propagazione (il validator del catalogo rifiuta gia' i negativi):
@@ -488,7 +488,7 @@ bool FRTPropagationNoMapFailsClosedTest::RunTest(const FString&)
 	Water.Add(FRTCellId(1, 0), ERTHexSurface::ShallowWater);
 	const URTHexMapAsset* Map = MakePropMap(/*Radius*/ 3, Water);
 	const TArray<FRTPropagationHit> NoSpread = URTTerrainLibrary::CollectElectricPropagation(
-		Map, FRTCellId(0, 0), /*MaxSteps*/ 0, 20, 12, Units);
+		Map, FRTCellId(0, 0), /*MaxSteps*/ 0, 200, 120, Units);
 	TestEqual(TEXT("limite 0: solo la sorgente"), NoSpread.Num(), 1);
 	return true;
 }

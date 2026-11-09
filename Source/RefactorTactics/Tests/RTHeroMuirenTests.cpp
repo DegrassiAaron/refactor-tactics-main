@@ -41,7 +41,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Muiren costruita"), Muiren)) { return false; }
 
 	TestEqual(TEXT("HeroId"), Muiren->HeroId, FName(TEXT("Hero.Muiren")));
-	TestEqual(TEXT("salute"), Muiren->MaxHealth, 95);
+	TestEqual(TEXT("salute"), Muiren->MaxHealth, 950);
 	TestEqual(TEXT("movimento"), Muiren->MovePoints, 5);
 	TestEqual(TEXT("vista"), Muiren->VisionRange, 5);
 	TestEqual(TEXT("resistenza push"), Muiren->PushResistance, 0);
@@ -52,7 +52,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Muiren->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* PressureJet = Muiren->Actions[0];
-	TestEqual(TEXT("PressureJet: 16 danni"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);
+	TestEqual(TEXT("PressureJet: 160 danni"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 160);
 	TestTrue(TEXT("PressureJet: applica Wet"), PhaseDeclaresEffect(PressureJet, ERTActionEffect::Status));
 	TestEqual(TEXT("PressureJet: Push 1"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Push), 1);
 	TestEqual(TEXT("PressureJet: nessuna ricarica (e' l'attacco base)"), PressureJet->Def.CooldownTurns, 0);
@@ -138,7 +138,7 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 
 	// Le assertion ancora vive del test precedente: la cura e i numeri di forma non cambiano.
 	TestTrue(TEXT("dichiara una cura"), PhaseDeclaresEffect(CircularTide, ERTActionEffect::Heal));
-	TestEqual(TEXT("cura 18"), PhaseEffectAmount(CircularTide->Def.Effects, ERTActionEffect::Heal), 18);
+	TestEqual(TEXT("cura 180"), PhaseEffectAmount(CircularTide->Def.Effects, ERTActionEffect::Heal), 180);
 	TestEqual(TEXT("portata 4"), CircularTide->Def.RangeCells, 4);
 	TestEqual(TEXT("cooldown 2"), CircularTide->Def.CooldownTurns, 2);
 	TestTrue(TEXT("area"), CircularTide->Shape == ERTAbilityShape::Area);
@@ -185,7 +185,7 @@ bool FRTPhaseTideDerivesFromHealTest::RunTest(const FString&)
 	if (Tide->Def.Effects.Num() == 1)
 	{
 		TestTrue(TEXT("e' una cura"), Tide->Def.Effects[0].Effect == ERTActionEffect::Heal);
-		TestEqual(TEXT("cura 18, non i 20 del core"), Tide->Def.Effects[0].Amount, 18);
+		TestEqual(TEXT("cura 180, non i 200 del core"), Tide->Def.Effects[0].Amount, 180);
 	}
 	TestTrue(TEXT("forma area"), Tide->Shape == ERTAbilityShape::Area);
 	TestEqual(TEXT("raggio 1"), Tide->AreaRadius, 1);
@@ -207,7 +207,7 @@ bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 	const FRTAbilityVariant& Healing = CircularTide->Variants[0];
 	const FRTAbilityVariant& Impact = CircularTide->Variants[1];
 
-	TestEqual(TEXT("curativa: cura 24"), PhaseEffectAmount(Healing.Effects, ERTActionEffect::Heal), 24);
+	TestEqual(TEXT("curativa: cura 240"), PhaseEffectAmount(Healing.Effects, ERTActionEffect::Heal), 240);
 	TestFalse(TEXT("curativa: nessun Wet ai nemici"), [&Healing] {
 		for (const FRTActionEffectSpec& Spec : Healing.Effects)
 		{
@@ -216,7 +216,7 @@ bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 		return false;
 	}());
 
-	TestEqual(TEXT("urto: cura 10"), PhaseEffectAmount(Impact.Effects, ERTActionEffect::Heal), 10);
+	TestEqual(TEXT("urto: cura 100"), PhaseEffectAmount(Impact.Effects, ERTActionEffect::Heal), 100);
 	TestEqual(TEXT("urto: Push 1"), PhaseEffectAmount(Impact.Effects, ERTActionEffect::Push), 1);
 
 	// La prova della DoD: la curativa vince sulla cura (24 > 10), l'urto vince sull'utilita' di controllo
@@ -229,8 +229,8 @@ bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 	TestTrue(TEXT("urto ha un vantaggio che la curativa non ha (Push)"), ImpactPush > 0);
 
 	// Ne' l'una ne' l'altra e' un puro potenziamento della base (18): entrambe cambiano qualcosa in cambio.
-	TestTrue(TEXT("curativa costa il setup Wet"), HealingAmount > 18);
-	TestTrue(TEXT("urto costa cura"), ImpactAmount < 18);
+	TestTrue(TEXT("curativa costa il setup Wet"), HealingAmount > 180);
+	TestTrue(TEXT("urto costa cura"), ImpactAmount < 180);
 	return true;
 }
 

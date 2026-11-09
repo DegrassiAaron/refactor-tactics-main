@@ -32,7 +32,7 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Aevik costruito"), Aevik)) { return false; }
 
 	TestEqual(TEXT("HeroId"), Aevik->HeroId, FName(TEXT("Hero.Aevik")));
-	TestEqual(TEXT("salute"), Aevik->MaxHealth, 90);
+	TestEqual(TEXT("salute"), Aevik->MaxHealth, 900);
 	TestEqual(TEXT("movimento"), Aevik->MovePoints, 5);
 	TestEqual(TEXT("vista"), Aevik->VisionRange, 7); // 6 -> 7 (#131, D-073): toglie l'ultima dominanza
 	TestEqual(TEXT("resistenza push"), Aevik->PushResistance, 0);
@@ -44,16 +44,16 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	const URTActionData* ArcPulse = Aevik->Actions[0];
 	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Hero.Aevik.ArcPulse")));
 	TestEqual(TEXT("ArcPulse: range 4"), ArcPulse->Def.RangeCells, 4);
-	TestEqual(TEXT("ArcPulse: 22 danni (fascia medio raggio)"), GadgetDeclaredDamage(ArcPulse), 22);
+	TestEqual(TEXT("ArcPulse: 220 danni (fascia medio raggio)"), GadgetDeclaredDamage(ArcPulse), 220);
 	TestEqual(TEXT("ArcPulse: nessuna ricarica (e' l'attacco base)"), ArcPulse->Def.CooldownTurns, 0);
 
 	const URTActionData* LinearDischarge = Aevik->Actions[1];
-	TestEqual(TEXT("LinearDischarge: 24 danni"), GadgetDeclaredDamage(LinearDischarge), 24);
+	TestEqual(TEXT("LinearDischarge: 240 danni"), GadgetDeclaredDamage(LinearDischarge), 240);
 	TestEqual(TEXT("LinearDischarge: cooldown 2"), LinearDischarge->Def.CooldownTurns, 2);
 	TestTrue(TEXT("LinearDischarge: forma a linea"), LinearDischarge->Shape == ERTAbilityShape::Line);
 
 	const URTActionData* Overload = Aevik->Actions[3];
-	TestEqual(TEXT("Overload: 18 danni"), GadgetDeclaredDamage(Overload), 18);
+	TestEqual(TEXT("Overload: 180 danni"), GadgetDeclaredDamage(Overload), 180);
 	TestEqual(TEXT("Overload: cooldown 3"), Overload->Def.CooldownTurns, 3);
 
 	// CP 6.7: la reazione e' cablata e dichiara DUE effetti (prima ne aveva uno, con il contrattacco
@@ -61,12 +61,12 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	const URTActionData* ReactiveCapacitor = Aevik->Actions[4];
 	if (TestEqual(TEXT("ReactiveCapacitor: due effetti"), ReactiveCapacitor->Def.Effects.Num(), 2))
 	{
-		TestTrue(TEXT("ReactiveCapacitor: scudo 15 a chi reagisce"),
+		TestTrue(TEXT("ReactiveCapacitor: scudo 150 a chi reagisce"),
 			ReactiveCapacitor->Def.Effects[0].Effect == ERTActionEffect::Shield
-			&& ReactiveCapacitor->Def.Effects[0].Amount == 15);
-		TestTrue(TEXT("ReactiveCapacitor: 10 danni a chi ha colpito"),
+			&& ReactiveCapacitor->Def.Effects[0].Amount == 150);
+		TestTrue(TEXT("ReactiveCapacitor: 100 danni a chi ha colpito"),
 			ReactiveCapacitor->Def.Effects[1].Effect == ERTActionEffect::Damage
-			&& ReactiveCapacitor->Def.Effects[1].Amount == 10);
+			&& ReactiveCapacitor->Def.Effects[1].Amount == 100);
 	}
 	TestEqual(TEXT("ReactiveCapacitor: cooldown 3"), ReactiveCapacitor->Def.CooldownTurns, 3);
 	TestTrue(TEXT("ReactiveCapacitor: occupa lo slot Reazione"),
@@ -106,19 +106,19 @@ bool FRTGadgetWetBonusTest::RunTest(const FString&)
 	// danno fisso): passa da `EffectiveAttackPower`, la stessa funzione del bonus di cella, riusata per un
 	// bonus di STATO invece che di terreno.
 	const int32 BaseDamage = GadgetDeclaredDamage(URTHeroCatalogLibrary::MakeAevik()->Actions[1]);
-	if (!TestEqual(TEXT("il danno base dichiarato e' 24"), BaseDamage, 24)) { return false; }
+	if (!TestEqual(TEXT("il danno base dichiarato e' 240"), BaseDamage, 240)) { return false; }
 
 	const int32 AgainstDry = URTCombatLibrary::EffectiveAttackPower(BaseDamage, /*OccupantDamageBonus*/ 0);
 	const int32 AgainstWet = URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::AevikWetDischargeBonus);
 
-	TestEqual(TEXT("bersaglio asciutto: 24"), AgainstDry, 24);
-	TestEqual(TEXT("bersaglio Wet: 24 + 8 = 32"), AgainstWet, 32);
-	TestEqual(TEXT("il bonus e' esattamente 8"), URTCombatLibrary::AevikWetDischargeBonus, 8);
+	TestEqual(TEXT("bersaglio asciutto: 240"), AgainstDry, 240);
+	TestEqual(TEXT("bersaglio Wet: 240 + 80 = 320"), AgainstWet, 320);
+	TestEqual(TEXT("il bonus e' esattamente 80"), URTCombatLibrary::AevikWetDischargeBonus, 80);
 
 	// Il bonus si somma a un altro bonus di cella (es. altura), non lo sostituisce: e' un caso normale di
 	// `EffectiveAttackPower`, non uno speciale per Wet.
 	TestEqual(TEXT("Wet + altura: si sommano"),
-		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::AevikWetDischargeBonus + 3), 35);
+		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::AevikWetDischargeBonus + 30), 350);
 
 	// Limite dichiarato: qui si verifica la FORMULA, non il resolver. Nessuna unita' legge ancora
 	// `Status.Wet` durante il Blast (`CollectHexAttacks` non conosce lo stato del bersaglio) — il bonus
@@ -144,13 +144,13 @@ bool FRTGadgetVariantTradeoffTest::RunTest(const FString&)
 	const FRTAbilityVariant& Branched = LinearDischarge->Variants[1];
 
 	TestEqual(TEXT("concentrata: un solo evento di danno"), Concentrated.Effects.Num(), 1);
-	TestEqual(TEXT("concentrata: 30 danni (24 + 6)"),
-		Concentrated.Effects.Num() > 0 ? Concentrated.Effects[0].Amount : 0, 30);
+	TestEqual(TEXT("concentrata: 300 danni (240 + 60)"),
+		Concentrated.Effects.Num() > 0 ? Concentrated.Effects[0].Amount : 0, 300);
 
 	TestEqual(TEXT("ramificata: due eventi di danno (due bersagli)"), Branched.Effects.Num(), 2);
 	for (const FRTActionEffectSpec& Spec : Branched.Effects)
 	{
-		TestEqual(TEXT("ramificata: 18 danni per bersaglio (24 - 6)"), Spec.Amount, 18);
+		TestEqual(TEXT("ramificata: 180 danni per bersaglio (240 - 60)"), Spec.Amount, 180);
 	}
 
 	// La prova della DoD: il danno per singolo bersaglio della concentrata (30) e' STRETTAMENTE maggiore di
@@ -166,8 +166,8 @@ bool FRTGadgetVariantTradeoffTest::RunTest(const FString&)
 		BranchedTotalIfBothLand > ConcentratedSingleTarget);
 
 	// Nessuna variante e' un puro potenziamento della base (24): entrambe cambiano qualcosa in cambio.
-	TestTrue(TEXT("concentrata costa la propagazione"), ConcentratedSingleTarget > 24);
-	TestTrue(TEXT("ramificata costa danno per bersaglio"), BranchedPerTarget < 24);
+	TestTrue(TEXT("concentrata costa la propagazione"), ConcentratedSingleTarget > 240);
+	TestTrue(TEXT("ramificata costa danno per bersaglio"), BranchedPerTarget < 240);
 	return true;
 }
 
