@@ -177,6 +177,23 @@ namespace
 
 }
 
+const TArray<FName>& URTHeroCatalogLibrary::ElementIds()
+{
+	// L'ordine e' quello di `docs/balance/RT_ElementPairCatalog_v0.1.md` ([D-593]); non e' un ordine ciclico.
+	static const TArray<FName> Ids = {
+		FName(TEXT("Element.Warp")), FName(TEXT("Element.Fire")), FName(TEXT("Element.Water")),
+		FName(TEXT("Element.Earth")), FName(TEXT("Element.Electric")), FName(TEXT("Element.Frost")),
+		FName(TEXT("Element.Decay")), FName(TEXT("Element.Life")), FName(TEXT("Element.Arcane")),
+		FName(TEXT("Element.Aegis")), FName(TEXT("Element.Air")), FName(TEXT("Element.Disintegration")),
+	};
+	return Ids;
+}
+
+bool URTHeroCatalogLibrary::IsKnownElementId(const FName& ElementId)
+{
+	return ElementIds().Contains(ElementId);
+}
+
 TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHeroData*>& Heroes)
 {
 	TArray<FString> Errors;
@@ -248,6 +265,37 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		if (Hero->PushResistance < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: resistenza push negativa (%d)"), *Where, Hero->PushResistance));
+		}
+		// E53 CP 53.2b: DEF, RES e bonus alle spalle entrano a zero ([D-595] (3), [D-599]). Un valore negativo
+		// non e' «amplificazione»: D-595 ha deciso solo valori non negativi, e `MitigateDirectDamage` li
+		// tratta come zero in silenzio — qui invece e' un errore con il nome dell'eroe, come per la Guardia.
+		if (Hero->Defense < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: difesa negativa (%d)"), *Where, Hero->Defense));
+		}
+		if (Hero->ResistanceDefault < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: resistenza di default negativa (%d)"), *Where, Hero->ResistanceDefault));
+		}
+		if (Hero->RearBonus < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: bonus alle spalle negativo (%d)"), *Where, Hero->RearBonus));
+		}
+		// Le chiavi della RES per elemento sono i dodici identificatori di [D-593]: una chiave fuori lista e'
+		// un refuso o un elemento che non esiste, e un validator che la lasciasse passare renderebbe il
+		// vocabolario una preferenza.
+		for (const TPair<FName, int32>& Pair : Hero->ElementResistance)
+		{
+			if (!IsKnownElementId(Pair.Key))
+			{
+				Errors.Add(FString::Printf(TEXT("%s: resistenza per un elemento sconosciuto (%s)"), *Where,
+					*Pair.Key.ToString()));
+			}
+			if (Pair.Value < 0)
+			{
+				Errors.Add(FString::Printf(TEXT("%s: resistenza negativa per %s (%d)"), *Where,
+					*Pair.Key.ToString(), Pair.Value));
+			}
 		}
 		// Soglia d'udito sulla scala 0-10 di D-041, la stessa dell'intensita' del rumore. Fuori scala non e'
 		// «un valore estremo»: sotto 0 l'eroe sentirebbe il silenzio, sopra 10 non sentirebbe un'esplosione —
