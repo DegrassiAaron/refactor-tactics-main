@@ -250,9 +250,10 @@ de-sovrapposizione (A5), e la cadenza del playback non cambia. `ARTTurnManager::
 **Vista strategica.** Il fumetto è collassato (`ARTUnit::SetStrategicPresentation` lo inoltra al widget); tornando alla vista ravvicinata entro i tre secondi ricompare per il
 tempo che resta. L'informazione c'è già: la riga `Attiva:` del log a destra (`ShowActivation`), che è ciò che chiede D-582 (3).
 
-**Layout.** `ARTUnit` porta la `DrawSize` dell'overlay a **220×200** (era 220×90): fumetto, token di danno e riga di stati insieme. Il pivot resta `(0.5, 1)` e un
+**Layout.** `ARTUnit` porta la `DrawSize` dell'overlay a **220×228** (era 220×90): fumetto, token di danno e riga di stati insieme. Il pivot resta `(0.5, 1)` e un
 `TopSpacer` in Fill nel `WBP_RT_UnitOverlay` impila il contenuto in basso: il fumetto **cresce verso l'alto** e non sposta nome e barra; una riga di stati in più spinge su
-nome e fumetto. ⚠️ I 200 sono una stima da metriche dei font, non una misura: la misura è della seduta PIE di `#4025`. Anche la **larghezza** è un vincolo: `SkillCalloutRoot`
+nome e fumetto. ⚠️ I 228 sono sulla **misura** della seduta visiva di `#4025`: con fumetto, token e una riga di stati insieme il contenuto fa ~218 px, e a 200 il blocco nome-barra-stati
+scendeva di 18 px per ~0,9 s (la stima da metriche dei font, ~190, era troppo bassa). Anche la **larghezza** è un vincolo: `SkillCalloutRoot`
 ha `MaxDesiredWidth` 190 perché il fumetto nasce a scala 1,15 e 190 × 1,15 = 218,5 ≤ 220; alzare quella scala oltre ~1,157 lo taglia ai lati al primo fotogramma del pop. Il
 contorno prende il colore di squadra su `SkillCalloutOutline`, posato dal C++ in `SetOverlayView`: il ponte MCP non sa creare il getter di una variabile-widget nel grafo del
 WBP, e un binding scritto lì resterebbe a mano.

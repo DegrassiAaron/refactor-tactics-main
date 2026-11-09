@@ -306,7 +306,7 @@ protected:
 	 * Di quanto la barra si ingrandisce al culmine dell'enfasi.
 	 *
 	 * ⚠️ Piccolo apposta: sopra un cilindro la barra e' larga poche decine di pixel, e un'enfasi vistosa
-	 * uscirebbe dalla `DrawSize` di `220x200` che `ARTUnit` assegna al componente.
+	 * uscirebbe dalla `DrawSize` di `220x228` che `ARTUnit` assegna al componente.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float HealthPulseScale = 0.18f;

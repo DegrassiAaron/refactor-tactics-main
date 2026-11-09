@@ -82,7 +82,7 @@ esplicitamente la deduzione dal nome. Ogni attacco base d'eroe lo dichiara (`Mak
 L'evento porta già `BaseActionId` (`RTResolvedEvent.h:427`).
 
 **Il posto esiste.** Sopra ogni unità vive `ARTUnit::OverlayWidget`, un `UWidgetComponent` in **screen
-space** ancorato alla sommità dell'unità, `DrawSize` 220×90 (stato misurato; oggi 220×200, vedi §4), pivot (0.5, 1), che nasce spento e che il velo
+space** ancorato alla sommità dell'unità, `DrawSize` 220×90 (stato misurato; oggi 220×228, vedi §4), pivot (0.5, 1), che nasce spento e che il velo
 accende (`Unit/RTUnit.cpp:176-230`; classe di default `/Game/RT/UI/Match/WBP_RT_UnitOverlay`). Il widget
 `URTUnitOverlayWidget` (`UI/RTUnitOverlayWidget.h:34`) porta `NameText`, `HealthBar`, `HealthText`,
 `ShieldBar`, `StatusBox` e `DamageTokenText` (`:159-204`): il **token di danno** è il precedente più vicino,
@@ -206,8 +206,9 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   sui tre casi (skill firma, attacco base, generica).
 - **Nessun controllo sul velo in `ShowSkillCallout`**, per la stessa ragione dichiarata in
   `ShowDamageToken` (`RTUnit.cpp:326-329`): il velo lo decide `UpdateObserverVeil` spegnendo l'overlay.
-- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×200 (fumetto + token di
-  danno + riga di stati ≈ 190, stima da metriche dei font, da misurare in PIE). Col pivot (0.5, 1) il widget
+- **Il `DrawSize` 220×90 non basta** per il fumetto sopra nome e barra: si alza a 220×228 (fumetto + token di
+  danno + riga di stati ≈ 218 px, **misurato** nella seduta visiva di `#4025`: a 200 il blocco scendeva di 18 px
+  per ~0,9 s; la stima da metriche dei font, ≈ 190, era troppo bassa). Col pivot (0.5, 1) il widget
   cresce verso l'alto, e il `TopSpacer` in Fill del WBP impila il contenuto in basso: rispetto al layout
   impilato in alto l'ancoraggio cambia una volta, nome e barra stanno a distanza fissa sopra la testa, il
   fumetto comparendo sale senza spostare la barra, e una riga di stati in più spinge su nome e fumetto.
