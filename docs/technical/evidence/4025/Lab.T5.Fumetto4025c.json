@@ -1,0 +1,31 @@
+{
+  "scenarioId": "Lab.T5.Fumetto4025c",
+  "tags": ["lab", "visual", "fumetto", "4025"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Banco NON versionato, terzo giro della seduta visiva di #4025 (task 5): un turno solo per il test ESC durante un fumetto vivo. Stessa geometria dei banchi a e b.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0], "facing": "E", "visionRange": 0,
+      "statuses": [ { "tag": "Status.Wet", "turns": 6 } ] },
+    { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [-1, 2, 0], "facing": "E", "visionRange": 0 },
+    { "id": "B1", "hero": "Hero.Aevik",  "team": 1, "cell": [ 1, 0, 0], "facing": "W" },
+    { "id": "B3", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 2, 0], "facing": "W", "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — ESC durante il fumetto di A1",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.LinearDischarge", "target": "B1" },
+        { "unit": "B1", "ability": "Hero.Aevik.Overload", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
