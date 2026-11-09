@@ -105,7 +105,7 @@ Alchimista del terreno: allaga le celle, alza rovi, trascina i nemici al centro 
 | Costo AP / CD (GDD) | 3 / 3 · costo **non in vigore** |
 | Effetto (GDD) | rianima un alleato caduto al 25% degli HP in un bozzolo protettivo; l'alleato subisce Phase Lock |
 
-**Traduzione**: **nessuna oggi**. La rianimazione contraddice il K.O. definitivo del contratto e il Phase Lock non esiste: l'abilità resta **input** per una decisione d'autore («esiste la rianimazione?»), aperta il 2026-11-09 come `GDD-4` ([#4026](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4026)). Senza quella decisione, The Fey ha un'Ultimate sola.
+**Esito**: ⛔ **esce dal kit** ([D-596](../../decisions/RT_PDR_00_Decision_Log.md), 2026-11-09, `GDD-4` / [#4026](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4026)): la rianimazione non esiste, il K.O. è definitivo, e il Phase Lock non esiste. La riga resta qui come traccia dell'input scartato; la seconda Ultimate di The Fey è lavoro di `MSP-5.d` ([#4014](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4014)) a partire dalla sua Signature *Growth / Propagation*, non dal GDD.
 
 ## Reazioni (lista, D-592)
 
@@ -137,7 +137,7 @@ Alchimista del terreno: allaga le celle, alza rovi, trascina i nemici al centro 
 |---|---|
 | Page Status | DESIGN_SPEC (input tradotto) |
 | Stats | INPUT (GDD §5.1) |
-| Abilities | TRANSLATED (3 + attacco base; 1 senza traduzione: Nature's Vengeance) |
+| Abilities | TRANSLATED (3 + attacco base); 1 scartata da D-596 (Nature's Vengeance): la seconda Ultimate è da progettare |
 | Reactions | TRANSLATED (2) |
 | Numeri in vigore | **nessuno** |
 | Release | v0.2 (E35.2) |
