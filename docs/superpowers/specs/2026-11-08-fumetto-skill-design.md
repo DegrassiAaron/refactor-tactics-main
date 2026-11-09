@@ -26,7 +26,10 @@
 > quel `Ruling`.
 > ➕ **Review finale del branch (2026-11-09), corretta in `22982c3ef`**: il fumetto ha un orologio suo
 > (`SkillCalloutClock`), perché `PlaybackElapsedTotal` torna a zero alla ripresa dopo una finestra di reazione (nota in
-> §2, R4); le azioni dell'equipaggiamento non gridano (nota sotto §3.2, R1b). La seduta visiva precede la correzione.
+> §2, R4); le azioni dell'equipaggiamento non gridano (nota sotto §3.2, R1b). La seduta visiva precede la correzione. Il
+> test della finestra non legava l'ascoltatore e non apriva la finestra: corretto in `d9531eb83`, mutazioni
+> dichiarate in `7bf3cb63a`. **Suite** `RefactorTactics` intera sul merge `edb759df2` (con `main` a `6b9c41f5f`):
+> 3721 `Result={Success}` su 3721, `TEST COMPLETE. EXIT CODE: 0`.
 >
 > **Stato misurato**: 2026-11-08, `main` = `e2fc03f09`; `Source/` identico sul branch di lavoro
 > (`git diff --stat main HEAD -- Source` vuoto) e su `origin/main` = `5eac6115e` del 2026-11-09
@@ -97,8 +100,8 @@ giocatore ha messo in pausa (`bPlaybackPaused`, `RTTurnManager.cpp:9576`) e quan
 trattiene il playback parziale (`bPlaybackHeldByWindow`, `:9586`); il passo è `DeltaSeconds ×
 EffectivePlaybackSpeed(ViewerPlaybackSpeed)` (`:9590`), e la velocità scende durante la finestra
 (`RTTurnManager.h:1529-1536`, D-350). `PlaybackElapsedTotal` (`RTTurnManager.h:3950`) accumula quel passo
-(`:9604`, `:9614`), si corregge sugli step di `Next Action` (`:9624`), si **conserva** quando il playback
-riparte dopo una finestra (`BeginPlayback(bPreserveClock)`, `:8689`, `:8983`) e torna a zero all'inizio del
+(`:9604`, `:9614`), si corregge sugli step di `Next Action` (`:9624`), ~~si **conserva** quando il playback
+riparte dopo una finestra (`BeginPlayback(bPreserveClock)`, `:8689`, `:8983`)~~ (premessa falsa: nota qui sotto) e torna a zero all'inizio del
 turno. È il tempo «che si vede» (`:9597`). Le cue d'attivazione sulla mappa vivono già su questo orologio
 (`PushPlaybackCues` → `ActivationCuesAt(…, PlaybackPhaseElapsed, …)`, `:9321-9335`); il token di danno invece
 va a parete (`NativeTick`).
@@ -184,7 +187,7 @@ fumetti possono essere vivi insieme su unità diverse.
 | R1b | Grida **solo una skill del kit**: `BaseActionId == None` **e** `ActionId` non è un'azione del catalogo core. Quindi **non** gridano l'attacco base (`BaseActionId = Action.BasicAttack`), Guardia, Irrigidimento, Guardia reattiva, Interagisci, le coperture e ogni altra `Action.*`. `Ruling` Un'azione d'eroe che è **profilo** di una generica (`BaseActionId` valorizzato, come l'attacco base) non grida: è la generica con un nome. Costo se sbagliato: un eroe futuro con una «Guardia» firmata non grida. Il criterio è una funzione **pura** sui due `FName` più un bool «è core», con test. **Nessun campo nuovo** in `FRTActionDef`. ⚠️ *Anche l'azione di un pezzo d'equipaggiamento non grida: nota sotto la tabella.* | A7 |
 | R2 | Il testo è il nome leggibile dell'azione: `KitDisplayNameFor(ActionId)`; se vuoto, `KitDisplayNameFor(BaseActionId)`. | A2 |
 | R3 | `Ruling` Se anche quello è vuoto, il fumetto mostra l'**ultimo segmento** di `ActionId` (per `Hero.Aevik.ArcPulse` → `ArcPulse`) e scrive una warning che nomina l'id. Costo se sbagliato: un identificatore inglese a schermo; l'alternativa, nessun fumetto, è un buco che nessun test vede, ed è la forma che il progetto scarta (`ResolveIcon`, `RTUnitOverlayWidget.h:148-156`). | — |
-| R4 | Durata **3,0 s di tempo del playback** dalla comparsa, poi il fumetto è **collassato**, non trasparente (come il token, `RTUnitOverlayWidget.cpp:285-291`). L'orologio è `PlaybackElapsedTotal`: alla comparsa si registra l'istante di partenza, e a ogni fotogramma la vita del fumetto è `Now − Start`. In **pausa** e nel **trattenimento** di una finestra il fumetto resta com'è; nello slow-motion dura di più a parete; uno step di `Next Action` lo fa avanzare dello scarto mostrato. Il valore 3,0 è una proprietà `EditDefaultsOnly` del widget; `0` lo spegne. Anche il pop di comparsa e la dissolvenza (§5) corrono su questo orologio. ⚠️ *Dalla review finale l'orologio è `SkillCalloutClock`, non `PlaybackElapsedTotal`, che una finestra di reazione azzera: nota sotto la tabella.* | A1, A8 |
+| R4 | Durata **3,0 s di tempo del playback** dalla comparsa, poi il fumetto è **collassato**, non trasparente (come il token, `RTUnitOverlayWidget.cpp:285-291`). L'orologio è `ARTTurnManager::SkillCalloutClock` (~~`PlaybackElapsedTotal`~~, che una finestra di reazione azzera: nota sotto la tabella), che avanza dello stesso passo del playback: alla comparsa si registra l'istante di partenza, e a ogni fotogramma la vita del fumetto è `Now − Start`. In **pausa** e nel **trattenimento** di una finestra il fumetto resta com'è; nello slow-motion dura di più a parete; uno step di `Next Action` lo fa avanzare dello scarto mostrato. Il valore 3,0 è una proprietà `EditDefaultsOnly` del widget; `0` lo spegne. Anche il pop di comparsa e la dissolvenza (§5) corrono su questo orologio. | A1, A8 |
 | R5 | `Ruling` Un'unità porta **un solo fumetto**: una seconda attivazione entro i 3 s **sostituisce** la prima e riparte da zero (specchio di `PushDamageToken`). Costo se sbagliato: nel Dash un'unità che attiva due skill nello stesso turno mostra solo la seconda; con `AttackShowSeconds` 0,5 s la prima è stata visibile almeno mezzo secondo. | — |
 | R6 | Più unità possono avere il fumetto vivo nello stesso istante. Nessuna coda, nessun rallentamento del playback, nessuna de-sovrapposizione. | A5 |
 | R7 | `Ruling` Alla **fine vera del playback** ogni fumetto ancora vivo viene **tagliato**: in `ARTTurnManager::FinishPlayback` (`RTTurnManager.cpp:10052`) **dopo** il ramo `IsResolutionSuspended()` (`:10064-10105`), che è la fine di un **prefisso** su una finestra di reazione e non del turno, e lì il playback resta trattenuto e poi riparte con `BeginPlayback(true)`. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi **fermo e visibile** mentre il giocatore decide (R4: l'orologio non avanza), ed è l'informazione su cui decide. Vale anche per il Skip. In pianificazione non c'è mai un fumetto. Costo se sbagliato nel verso opposto: un grido che resta sopra l'unità mentre il giocatore pianifica il turno dopo. | A1, A8 |
@@ -248,14 +251,14 @@ precedente più adatto.
 ```
 ARTTurnManager::ShowActivation(Ev)                              Turn/RTTurnManager.cpp:9039
   └─ se URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore)   NUOVO, pura (R1b)
-       Src->ShowSkillCallout(Ev.ActionId, Ev.BaseActionId, PlaybackElapsedTotal) NUOVO, Unit/RTUnit.{h,cpp}
+       Src->ShowSkillCallout(Ev.ActionId, Ev.BaseActionId, SkillCalloutClock)    NUOVO, Unit/RTUnit.{h,cpp}
          ├─ LastSkillCallout = URTHudViewModel::BuildSkillCallout(DisplayName, ActionId, StableUnitId, StartAt)
          │     (campo Transient, SEMPRE scritto: osservabile headless)            NUOVO, UI/RTHudViewModel
          └─ se c'è il widget: Overlay->PushSkillCallout(LastSkillCallout)        NUOVO, UI/RTUnitOverlayWidget
                ├─ SkillCalloutText / SkillCalloutRoot (BindWidgetOptional)          WBP_RT_UnitOverlay (asset)
                └─ SkillCalloutSeconds = 3.0 (EditDefaultsOnly)
 ARTTurnManager::TickPlayback (ogni fotogramma in cui l'orologio avanza)  RTTurnManager.cpp:9562
-  └─ per ogni unità con fumetto vivo: Overlay->SetPlaybackClock(PlaybackElapsedTotal)   NUOVO (R4)
+  └─ per ogni unità con fumetto vivo: Overlay->SetPlaybackClock(SkillCalloutClock)      NUOVO (R4)
        └─ il widget: Alpha = SkillCalloutAlpha(Now − Start, Seconds) (pura) → opacità/scala → Collapsed
           collassato finché bStrategic (R8)
 ARTTurnManager::FinishPlayback(), DOPO il ramo IsResolutionSuspended()   RTTurnManager.cpp:10105+
@@ -264,12 +267,12 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   └─ Overlay->SetStrategicPresentation(bStrategic)                NUOVO (R8)
 ```
 
-> ⚠️ Dove questa sezione e §8 dicono `PlaybackElapsedTotal` come orologio del fumetto, il codice usa
-> `ARTTurnManager::SkillCalloutClock` dalla review finale del 2026-11-09 (nota in §2). La regola «una sola fonte,
-> nessun `DeltaTime` locale» resta: la fonte è quell'orologio.
+> ⚠️ Fino alla review finale del 2026-11-09 questa sezione e §8 nominavano `PlaybackElapsedTotal` come orologio del
+> fumetto; ora nominano `ARTTurnManager::SkillCalloutClock` (nota in §2). La regola «una sola fonte, nessun
+> `DeltaTime` locale» resta: la fonte è quell'orologio.
 
 - **`FRTSkillCalloutView`** (nuova struct, `UI/`): `SourceStableUnitId`, `ActionId`, `Label` (FString già
-  composto), `bFromFallback` (vero se R3 è scattata), `StartAt` (secondi di `PlaybackElapsedTotal` alla
+  composto), `bFromFallback` (vero se R3 è scattata), `StartAt` (secondi di `SkillCalloutClock` alla
   comparsa). Composta da una funzione **pura** con un test che chiama senza widget, come `BuildDamageToken`
   (`Tests/RTHudViewModelTests.cpp:1145`).
 - **Il tempo lo porta il TurnManager, il widget non lo misura.** È il modello delle cue (`PushPlaybackCues`),
@@ -277,7 +280,7 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   il tempo, il fumetto resta fermo, che è il comportamento voluto in pausa. Come `Now` arrivi al widget
   (spinta diretta dal TurnManager alle unità con fumetto vivo, oppure campo in `FRTUnitOverlayView` posato
   da `ARTHUD::UpdateObserverVeil` leggendo il TurnManager) è del builder (§8); la regola è **una sola fonte**,
-  `PlaybackElapsedTotal`.
+  `SkillCalloutClock`.
 - **`ActionShouts`** riceve «è core» come bool calcolato dal chiamante con `URTCatalogLibrary::FindCoreAction`
   (o un predicato equivalente già esistente): la funzione pura non dipende dal catalogo e si testa a tavolino
   sui tre casi (skill firma, attacco base, generica).
@@ -364,7 +367,7 @@ commit dichiarato (CLAUDE.md §6, §10).
 - Se alzare `DrawSize` e di quanto; la posizione precisa del fumetto rispetto a `NameText`.
 - Come il widget conosce la vista strategica (chiamata da `SetStrategicPresentation` o campo in
   `FRTUnitOverlayView`): l'unica regola è che **non legga** lo stato da sé a ogni tick da fonti diverse.
-- Come `PlaybackElapsedTotal` arriva al widget a ogni fotogramma (§4): spinta dal TurnManager o campo nella
+- Come l'orologio del fumetto (`SkillCalloutClock`) arriva al widget a ogni fotogramma (§4): spinta dal TurnManager o campo nella
   vista dell'overlay; una sola fonte, nessun `DeltaTime` locale per la vita del fumetto.
 - Come il chiamante stabilisce «è core» per `ActionShouts` (`FindCoreAction` o un predicato già esistente nel
   catalogo).
