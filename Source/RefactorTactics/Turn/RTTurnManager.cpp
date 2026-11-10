@@ -6368,6 +6368,24 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		return PrecedeNelBlast(IntentDefs, HA.IntentIndex, HA.AttackerId, HB.IntentIndex, HB.AttackerId);
 	});
 
+	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto che fa danno a chi
+	// ha scattato allo scoperto, PRIMA della DEF e della copertura — cioe' ricalcolando il colpo del piano, dove spalle,
+	// DEF e nominale sono ancora noti. Viene PRIMA del marchio e del bonus condizionale, che sommano delta piatti a
+	// `Power` e non devono entrare nel prodotto. Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come
+	// per il marchio, e NON si consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
+	//
+	// ⏱️ *Fino al 2026-11-10 era un `+5` (poi `+50`) piatto sommato DOPO la copertura da `ApplyFirstHitDelta`, con il
+	// totale per bersaglio indipendente da quale colpo lo prendesse. Con un moltiplicatore il totale DIPENDE da quale
+	// colpo e' primo, ed e' per questo che il «primo» e' `HitOrder` — l'ordine canonico di ADR-0003 §3, lo stesso del
+	// marchio — e non l'ordine dell'array: una lettura dell'assistente su [D-595] (2), dichiarata nella PR di CP 53.3b.*
+	TArray<bool> bExposedByTarget;
+	bExposedByTarget.Init(false, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		bExposedByTarget[i] = Units[i] && Units[i]->HasStatus(TAG_Status_Exposed);
+	}
+	URTHexCombatLibrary::ApplyExposedToFirstHit(Plan.Hits, HitOrder, bExposedByTarget);
+
 	TSet<int32> MarkSpentOn;
 	for (int32 h : HitOrder)
 	{
@@ -6445,26 +6463,9 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		}
 	}
 
-	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
-	// (chi ha scattato allo scoperto) somma +5. Vale una volta sola, quindi il totale non dipende da quale
-	// colpo se lo prenda: e' un delta POSITIVO, e il clamp a zero di `ApplyFirstHitDelta` non lo tocca mai.
-	//
-	// ⚠️ `Status.Guarded` NON sta piu' qui ([D-292]). Con un delta NEGATIVO piu' grande del colpo che lo
-	// riceve, la riduzione che avanza si perdeva nel clamp, e quanta se ne perdesse dipendeva da quale colpo
-	// era primo: un bersaglio in Guardia colpito da 10 e da 30 incassava 30 o 25 a seconda dell'ordine
-	// dell'array. La Guardia passa ora da `ApplyEligibleHitDelta`, piu' sotto ([D-408]; era un POOL fra il
-	// 2026-08-31 e il 2026-09-20).
-	TArray<int32> FirstHitDelta;
-	FirstHitDelta.Init(0, Units.Num());
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		if (!Units[i]) { continue; }
-		if (Units[i]->HasStatus(TAG_Status_Exposed))
-		{
-			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
-		}
-		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia ha una sede propria, dopo questo ciclo.
-	}
+	// ⏱️ *Qui stava, fino al 2026-11-10, il delta di primo colpo di `Status.Exposed` (`ApplyFirstHitDelta`): e' diventato
+	// un moltiplicatore applicato sul piano, piu' sopra (CP 53.3b). `Status.Guarded` non sta qui dal 2026-09-20
+	// ([D-292] → [D-408]): la Guardia passa da `ApplyEligibleHitDelta`, piu' sotto. Nessun delta di primo colpo resta.*
 
 	// `Status.Guarded` ([D-408]): la Guardia riduce di una quota fissa OGNI colpo dell'arco FRONTALE —
 	// l'emisfero posteriore resta scoperto ([D-206]) — e il valore lo dichiara il personaggio
@@ -6481,7 +6482,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
 	// era esprimibile dentro il resolver.
 	// ⚠️ `bFrontalHit` e' indicizzato come `Plan.Hits`, ed e' lecito perche' `ToAttacks` mappa **1:1** e le
-	// funzioni che stanno in mezzo (`ApplyFirstHitDelta`, `ApplyDamageDelta`, `ApplyAbsorptionPool`) copiano l'array e
+	// funzioni che stanno in mezzo (`ApplyDamageDelta`, `ApplyAbsorptionPool`; `ApplyFirstHitDelta` fino al 2026-11-10) copiano l'array e
 	// toccano solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
 	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
 	// se la Guardia riducesse i colpi sbagliati.
@@ -6705,8 +6706,9 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// La riduzione della Guardia viene per ULTIMA, dopo i modificatori del danno: si clampa a 0 (una riduzione non cura),
-	// quindi applicata prima dei delta che AGGIUNGONO (`Status.Exposed`, `Status.Marked`) ne perderebbe l'avanzo — 10 meno
-	// 15 fa 0 e il +5 che segue lo riporta a 5, mentre 10 piu' 5 meno 15 fa 0.
+	// quindi applicata prima dei delta che AGGIUNGONO (`Status.Marked`, il bonus condizionale, e fino al 2026-11-10
+	// `Status.Exposed`) ne perderebbe l'avanzo — 100 meno 150 fa 0 e il +60 che segue lo riporta a 60, mentre 100 piu'
+	// 60 meno 150 fa 10. `Exposed` oggi moltiplica la Base PRIMA della DEF e della copertura (CP 53.3b), ancora piu' a monte.
 	// ⏱️ *Fino al 2026-09-20 la ragione era quella del pool ([D-292]): coprire cio' che resta, non il danno nominale.*
 	//
 	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
@@ -6721,7 +6723,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyEligibleHitDelta(
 		URTCombatResolver::ApplyAbsorptionPool(
 			URTCombatResolver::ApplyDamageDelta(
-				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+				URTHexCombatLibrary::ToAttacks(Plan), // senza `ApplyFirstHitDelta` dal CP 53.3b: `Exposed` e' gia' nel piano
 				EveryHitDelta),
 			DeflectPool, bDeflectEligible, URTCombatLibrary::ReactionReductionPoolSource),
 		GuardReductionByTarget, bFrontalHit, URTCombatLibrary::GuardPerHitSource);

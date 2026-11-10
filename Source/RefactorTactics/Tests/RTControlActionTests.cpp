@@ -879,7 +879,7 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
  *
  * `Action.Interrupt` dichiara cooldown 2 e non lo pagava mai: si poteva interrompere ogni singolo turno
  * (`#1444`). I suoi colpi escono da `Plan.Hits` col filtro di `ApplyInterrupts` — devono, o un colpo a
- * Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — e uscivano PRIMA che `ResolveCombat`
+ * Power 0 diventerebbe un `FRTAttack` (e fino al 2026-11-10 contava come «primo colpo» per `ApplyFirstHitDelta`) — e uscivano PRIMA che `ResolveCombat`
  * costruisse `Attackers` dai colpi sopravvissuti, che e' cio' da cui `MarkAttackerAbilitiesSpent` legge.
  * `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo copriva.
  *

@@ -36,7 +36,7 @@ formula è coperta da un test sulla funzione pura, e nessuno in partita gliene p
 |---|---|---|---|---|
 | `Root` | ✅ `RTGameplayTags.h:6` | `Action.Root`, `Guardian.Quake` | ✅ azzera movimento e scatto (`RTUnit.cpp:267,274`) | **completo** |
 | `Slow` | ✅ `:7` | `Action.Slow`, `Ranger.Burst` | ✅ +1 costo per cella (`RTTurnManager.cpp:1782`) | **completo** |
-| `Exposed` | ✅ `:9` | `Action.Sprint` (`RTCatalogLibrary.cpp:245`) | ✅ +5 al primo danno diretto (`RTTurnManager.cpp:1399`) | **completo** |
+| `Exposed` | ✅ `:9` | `Action.Sprint` (`RTCatalogLibrary.cpp:245`) | ✅ ×1,2 al primo danno diretto (`URTHexCombatLibrary::ApplyExposedToFirstHit`, [D-595](../decisions/RT_PDR_00_Decision_Log.md) (2); era +5 fino al 2026-11-10) | **completo** |
 | `Marked` | ✅ `:11` | `Action.MarkTarget` (`RTCatalogLibrary.cpp:381`) | ❌ **mai letto**: il loop `FirstHitDelta` legge solo `Exposed`/`Guarded` | **issue `#137`** |
 | `Wet` | ✅ `:16` | `ShallowWater` con durata **0** (`RTTerrainLibrary.cpp:33`), Phase con durata 1 | ❌ doppio buco: la durata 0 è scartata da `ApplyStatus`, e `GadgetWetDischargeBonus` compare **solo nei test** | **inerte** |
 | `Burning` | ✅ `:20` | `Fire`, durata 2 (`RTTerrainLibrary.cpp:36`) | ❌ il Cleanup non infligge alcun danno (`RTTurnManager.cpp:558-578`) | **inerte** |

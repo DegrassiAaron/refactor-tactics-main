@@ -239,7 +239,7 @@ deve essere **già** adiacente al bordo. E chi cade perde la posizione — scend
 arco di risalita. **50 su 900-1200 HP**, un quarto di `Charge`, dice *«è successo qualcosa»* senza spostare
 l'aritmetica dello scontro.
 
-🔑 **La minaccia viene da `Exposed`, non dal danno**: *«+5 al primo danno diretto»* significa che chi ti
+🔑 **La minaccia viene da `Exposed`, non dal danno**: *«×1,2 al primo danno diretto»* ([D-595](../decisions/RT_PDR_00_Decision_Log.md) (2); era +5) significa che chi ti
 butta giù ti **prepara per il colpo dopo**. Il bordo è pericoloso perché apre una combo. ⛔ `Slow` è stato
 scartato perché dimezzare il movimento di chi deve risalire punisce due volte sullo stesso asse.
 

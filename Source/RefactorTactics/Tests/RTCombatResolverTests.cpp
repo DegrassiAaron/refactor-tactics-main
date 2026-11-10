@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Algo/Reverse.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -73,42 +74,104 @@ bool FRTAttackOrderIndependentTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Status.Exposed` vale sul PRIMO colpo diretto, una volta per bersaglio — e dal 2026-11-10 e' un MOLTIPLICATORE 1,2
+ * in `Mod` ([D-595] (2); E53 CP 53.3b), applicato sul colpo del piano da `URTHexCombatLibrary::ApplyExposedToFirstHit`.
+ *
+ * ⏱️ *Fino a quel giorno il test misurava `ApplyFirstHitDelta` con un `+50` piatto, e asseriva che «invertendo l'ordine
+ * dei colpi il totale e' identico». Quella meta' NON vale piu' ed e' sostituita, non spenta: con un moltiplicatore il
+ * totale dipende da quale colpo e' primo, quindi cio' che si pinna e' che «primo» lo decide `HitOrder` — l'ordine
+ * canonico del Blast — e che lo stesso ordine da' lo stesso esito. Le proprieta' generiche di `ApplyFirstHitDelta`
+ * sono in `Combat.FirstHitDeltaAppliesOnceAndClamps`, sotto.*
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTExposedFirstHitTest,
 	"RefactorTactics.Status.Exposed.FirstDirectHitOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTExposedFirstHitTest::RunTest(const FString&)
 {
-	// U1 e' Exposed (ha scattato allo scoperto), U2 no. Tre colpi in arrivo: due su U1, uno su U2.
-	TArray<int32> Delta;
-	Delta.Init(0, 3);
-	Delta[1] = URTCombatLibrary::ExposedFirstHitBonus;
+	// U1 e' Exposed (ha scattato allo scoperto), U2 no. Tre colpi in arrivo: due su U1, uno su U2. Colpi del piano con
+	// nominale noto e DEF zero: `Mitigated == Nominal`, e il ×1,2 si legge a occhio.
+	auto Colpo = [](int32 Attacker, int32 Target, int32 Power, int32 Intent)
+	{
+		FRTHexAttackHit Hit(Attacker, Target, Power, Intent, /*CoverBypassed*/ 0, /*Nominal*/ Power, /*Cover*/ 0);
+		Hit.MitigatedPower = Power;
+		return Hit;
+	};
+	const TArray<FRTHexAttackHit> Hits = { Colpo(0, 1, 200, 0), Colpo(2, 1, 100, 1), Colpo(0, 2, 200, 2) };
+	const TArray<bool> Esposti = { false, true, false };
+	const TArray<int32> Ordine = { 0, 1, 2 };
 
-	const TArray<FRTAttack> Attacks = { FRTAttack(1, 200), FRTAttack(1, 100), FRTAttack(2, 200) };
-	const TArray<FRTAttack> Boosted = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
-
+	TArray<FRTHexAttackHit> Boosted = Hits;
+	const TArray<int32> Moltiplicati = URTHexCombatLibrary::ApplyExposedToFirstHit(Boosted, Ordine, Esposti);
 	if (!TestEqual(TEXT("nessun colpo si perde per strada"), Boosted.Num(), 3)) { return false; }
-	TestEqual(TEXT("il primo colpo su chi e' esposto prende +50"), Boosted[0].Power, 250);
+	TestEqual(TEXT("il primo colpo su chi e' esposto e' ×1,2: 200 → 240"), Boosted[0].Power, 240);
+	TestEqual(TEXT("e lo dichiara nel colpo"), Boosted[0].ModPercentApplied, URTCombatLibrary::ExposedModPercent);
+	TestEqual(TEXT("e nel mitigato"), Boosted[0].MitigatedPower, 240);
 	TestEqual(TEXT("il secondo colpo sullo stesso bersaglio NON lo prende: vale una volta sola"), Boosted[1].Power, 100);
 	TestEqual(TEXT("chi non e' esposto incassa il danno nominale"), Boosted[2].Power, 200);
+	TestTrue(TEXT("un solo colpo moltiplicato, ed e' il primo dell'ordine"),
+		Moltiplicati.Num() == 1 && Moltiplicati[0] == 0);
 
-	// Ordine-indipendenza (invariante #3): il TOTALE per bersaglio non cambia se i colpi arrivano in un altro
-	// ordine — cambia solo a quale colpo e' attribuito il bonus, e i danni si sommano.
-	TArray<FRTAttack> Reversed = Attacks;
-	Algo::Reverse(Reversed);
-	const TArray<FRTAttack> BoostedRev = URTCombatResolver::ApplyFirstHitDelta(Reversed, Delta);
+	// 🔴 **Il totale DIPENDE da quale colpo e' primo** — e' la differenza con il delta piatto di prima, ed e' voluta
+	// ([D-595] (2)): con l'ordine inverso il ×1,2 va al colpo da 100, e l'esposto incassa 320 invece di 340. Per questo
+	// «primo» e' l'ordine canonico del Blast (`HitOrder`), non quello dell'array: stesso ordine, stesso esito.
+	const TArray<int32> Inverso = { 2, 1, 0 };
+	TArray<FRTHexAttackHit> BoostedRev = Hits;
+	URTHexCombatLibrary::ApplyExposedToFirstHit(BoostedRev, Inverso, Esposti);
+	TestEqual(TEXT("con l'ordine inverso il moltiplicatore va all'altro colpo: 100 → 120"), BoostedRev[1].Power, 120);
+	TestEqual(TEXT("e il primo dell'array resta nominale"), BoostedRev[0].Power, 200);
 	int32 SumDirect = 0, SumReversed = 0;
-	for (const FRTAttack& A : Boosted)    { if (A.TargetIndex == 1) { SumDirect += A.Power; } }
-	for (const FRTAttack& A : BoostedRev) { if (A.TargetIndex == 1) { SumReversed += A.Power; } }
-	TestEqual(TEXT("danno totale sull'esposto: 200 + 100 + 50"), SumDirect, 350);
-	TestEqual(TEXT("invertendo l'ordine dei colpi il totale e' identico"), SumReversed, SumDirect);
+	for (const FRTHexAttackHit& H : Boosted)    { if (H.TargetId == 1) { SumDirect += H.Power; } }
+	for (const FRTHexAttackHit& H : BoostedRev) { if (H.TargetId == 1) { SumReversed += H.Power; } }
+	TestEqual(TEXT("ordine canonico: 240 + 100"), SumDirect, 340);
+	TestEqual(TEXT("ordine inverso: 200 + 120 — il totale NON e' piu' invariante alla permutazione"), SumReversed, 320);
+	TArray<FRTHexAttackHit> Ancora = Hits;
+	URTHexCombatLibrary::ApplyExposedToFirstHit(Ancora, Ordine, Esposti);
+	TestEqual(TEXT("stesso ordine, stesso esito"), Ancora[0].Power, Boosted[0].Power);
 
-	// Nessuno esposto: gli attacchi restano quelli dichiarati (nessun ritocco silenzioso).
-	TArray<int32> NoDelta;
-	NoDelta.Init(0, 3);
-	const TArray<FRTAttack> Untouched = URTCombatResolver::ApplyFirstHitDelta(Attacks, NoDelta);
+	// Nessuno esposto: i colpi restano quelli dichiarati (nessun ritocco silenzioso).
+	TArray<FRTHexAttackHit> Untouched = Hits;
+	const TArray<bool> Nessuno = { false, false, false };
+	URTHexCombatLibrary::ApplyExposedToFirstHit(Untouched, Ordine, Nessuno);
 	TestEqual(TEXT("senza stato il primo colpo non cambia"), Untouched[0].Power, 200);
+	TestEqual(TEXT("e il Mod resta 100"), Untouched[0].ModPercentApplied, 100);
 
-	// Un delta negativo (la Guardia di CP 4.4) puo' annullare un colpo, non curare il bersaglio.
+	// Un colpo azzerato dalla copertura non e' «danno ricevuto»: non spende lo stato, che va al colpo dopo.
+	TArray<FRTHexAttackHit> ConZero = Hits;
+	ConZero[0].Power = 0; // la copertura l'ha mangiato tutto
+	URTHexCombatLibrary::ApplyExposedToFirstHit(ConZero, Ordine, Esposti);
+	TestEqual(TEXT("il colpo a zero resta a zero"), ConZero[0].Power, 0);
+	TestEqual(TEXT("e il moltiplicatore va al primo che fa danno: 100 → 120"), ConZero[1].Power, 120);
+
+	// Bersaglio fuori dall'array degli stati, o ordine con un indice fuori dai colpi: nessun crash e nessuna modifica.
+	TArray<FRTHexAttackHit> Safe = Hits;
+	const TArray<bool> Corto = { false };
+	const TArray<int32> OrdineSporco = { 7, 0, 1, 2 };
+	URTHexCombatLibrary::ApplyExposedToFirstHit(Safe, OrdineSporco, Corto);
+	TestEqual(TEXT("indice fuori dagli stati: colpo invariato"), Safe[0].Power, 200);
+	return true;
+}
+
+/**
+ * `ApplyFirstHitDelta` resta nel contratto senza chiamanti di produzione (CP 53.3b): un delta piatto di primo colpo,
+ * una volta per bersaglio, con il clamp a zero. Le tre proprieta' che il test di `Exposed` gli pinnava restano qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFirstHitDeltaContractTest,
+	"RefactorTactics.Combat.FirstHitDeltaAppliesOnceAndClamps",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFirstHitDeltaContractTest::RunTest(const FString&)
+{
+	const TArray<FRTAttack> Attacks = { FRTAttack(1, 200), FRTAttack(1, 100), FRTAttack(2, 200) };
+	TArray<int32> Delta;
+	Delta.Init(0, 3);
+	Delta[1] = 50;
+	const TArray<FRTAttack> Boosted = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
+	if (!TestEqual(TEXT("nessun colpo si perde per strada"), Boosted.Num(), 3)) { return false; }
+	TestEqual(TEXT("il delta va al primo colpo del bersaglio"), Boosted[0].Power, 250);
+	TestEqual(TEXT("una volta sola"), Boosted[1].Power, 100);
+	TestEqual(TEXT("gli altri bersagli non cambiano"), Boosted[2].Power, 200);
+
+	// Un delta negativo puo' annullare un colpo, non curare il bersaglio.
 	TArray<int32> Guarded;
 	Guarded.Init(0, 3);
 	Guarded[1] = -500;

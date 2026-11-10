@@ -442,7 +442,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintAppliesExposedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 {
-	// Sprint (catalogo v0.1 §2): 8 MP e `Status.Exposed` fino al Cleanup, cioe' +5 al PRIMO danno diretto.
+	// Sprint (catalogo v0.1 §2): 8 MP e `Status.Exposed` fino al Cleanup, cioe' ×1,2 al PRIMO danno diretto ([D-595] (2)).
 	// Lo stato scade nel Cleanup dello stesso turno: si verifica quindi il suo EFFETTO — quanto incassa chi ha
 	// corso allo scoperto — invece del tag residuo a turno finito, che per definizione non c'e' piu'.
 	UWorld* World = MakeHexMoveWorld();
@@ -496,7 +496,7 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 		return false;
 	}
 
-	// 🔴 **Il +5 si misura sul turno DOPO, e questa e' la ragione per cui [D-116] porta `Exposed` a 2
+	// 🔴 **Il ×1,2 si misura sul turno DOPO, e questa e' la ragione per cui [D-116] porta `Exposed` a 2
 	// turni** (voce 4). Con lo Sprint in `NormalMovement` lo stato viene applicato **dopo** che tutti hanno
 	// sparato: con `Turni = 1` scadrebbe nel Cleanup immediatamente successivo senza che nessuna fase lo
 	// legga mai — *«lo spostamento di fase lo renderebbe inerte»*. Con `2` sopravvive al Cleanup e vale per
@@ -504,7 +504,7 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	//
 	// ⚠️ Prima della migrazione questo test misurava il colpo dello STESSO turno, perche' lo Sprint
 	// risolveva pre-Blast. L'asserzione e' la stessa proprieta' — «chi ha corso allo scoperto incassa
-	// +5» — spostata nel turno in cui ora e' osservabile.
+	// di piu' al primo colpo» — spostata nel turno in cui ora e' osservabile.
 	// 🔑 **Lo stato c'e' DAVVERO alla fine del turno che lo applica**, ed e' l'asserzione che separa i due
 	// modi di fallire: se cade qui il difetto e' in chi applica, se cade sul danno piu' sotto e' in chi
 	// legge. Senza, un rosso sul solo danno non direbbe quale dei due.
@@ -527,16 +527,18 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed aggiunge 5 al primo
-	// colpo diretto», non «il colpo fa 30».
+	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed moltiplica il primo colpo
+	// diretto per 1,2» ([D-595] (2), CP 53.3b), non «il colpo fa N». Con DEF zero e nessun bonus alle spalle la formula
+	// di [D-589] e' `floor(FullHit × 120/100)`, ed e' la stessa funzione che il pass del Blast chiama.
 	const int32 FullHit = Foe->AttackPower;
-	TestEqual(TEXT("chi ha sprintato incassa FullHit + ExposedFirstHitBonus dal primo colpo del turno seguente"),
-		HealthAfterSprint - Runner->Health, FullHit + URTCombatLibrary::ExposedFirstHitBonus);
+	TestEqual(TEXT("chi ha sprintato incassa floor(FullHit × 1,2) dal primo colpo del turno seguente"),
+		HealthAfterSprint - Runner->Health,
+		URTCombatLibrary::MitigateDirectDamage(FullHit, 0, URTCombatLibrary::ExposedModPercent, 0));
 
 	// Controprova: stessa unita', stesso colpo, ma senza Sprint nel turno precedente -> danno nominale.
-	// Senza di lei il `+5` potrebbe venire dall'attacco invece che dallo stato, e il test non lo saprebbe.
+	// Senza di lei il `×1,2` potrebbe venire dall'attacco invece che dallo stato, e il test non lo saprebbe.
 	// Lo scudo si azzera di nuovo per la ragione detta sopra: altrimenti la controprova misurerebbe
-	// `FullHit - 5` e passerebbe per il motivo sbagliato.
+	// `FullHit - BaseShield` e passerebbe per il motivo sbagliato.
 	Runner->ApplyCombatState(StartHealth, 0);
 	Runner->Shield = 0;
 	Runner->PlannedCell = Runner->Cell;

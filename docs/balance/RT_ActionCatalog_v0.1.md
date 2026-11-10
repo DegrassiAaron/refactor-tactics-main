@@ -371,10 +371,10 @@ non cambia *che cosa* ha speso.
 > La storia della sua cella «Slot» si legge ora accanto alla riga, in §2.1.
 
 **Sprint** — fornisce il **doppio** del budget dell'unità (×2, [D-427](../decisions/RT_PDR_00_Decision_Log.md); `10 · 10 · 8 · 12` sul roster spedito, dove l'assoluto `8` dava lo stesso numero a tutti) · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
-coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
+coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (il primo danno diretto di ogni Blast è **×1,2**, [D-595](../decisions/RT_PDR_00_Decision_Log.md) (2); era **+5**, poi **+50**, fino al 2026-11-10) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
-> era strutturale; adesso è `Exposed` (+5 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
+> era strutturale; adesso è `Exposed` (×1,2 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
 > in più di un `Move`. Se non basta, `Sprint` è un `Move` più lungo e basta — l'**upgrade puro** che D-015
 > vieta. Tracciato in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md)
 > §`BAL-1`, che dice **come misurarlo** (quante volte il bot lo sceglie quando era disponibile) invece di

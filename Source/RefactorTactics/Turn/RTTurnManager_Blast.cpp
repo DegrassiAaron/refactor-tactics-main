@@ -781,7 +781,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 	// 1. quel ciclo CONSUMA `PlannedAbilityIndex` (lo azzera appena letto, per ogni unita'): un pass successivo
 	//    non troverebbe piu' nulla da leggere — e' lo stesso tranello gia' incontrato con `Action.Interrupt`
 	//    al CP 4.7;
-	// 2. purificarsi da `Exposed` DOPO aver incassato il +5 che quello stato comporta non servirebbe a niente.
+	// 2. purificarsi da `Exposed` DOPO aver incassato il ×1,2 che quello stato comporta non servirebbe a niente.
 	//    Il catalogo le da' infatti codice 30 (controllo), non 40 (attacco): il controllo viene prima del danno.
 	//
 	// QUALE stato togliere lo dice il PIANO (`PlannedCleansePriority`), mai il resolver: si scorre la lista
@@ -2150,9 +2150,11 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	}
 
 	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
-	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
-	// consumando il bonus di Exposed su un colpo fantasma (il pass del marchio scarta gia' i colpi a Power 0) invece che sull'attacco vero
-	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli intenti interrotti, nello stesso filtro.
+	// e un colpo a Power 0 nell'array sarebbe comunque un colpo per chi li conta a valle (`Attackers`, che `ResolveCombat`
+	// costruisce dai colpi sopravvissuti). ⏱️ *Fino al 2026-11-10 contava anche come "primo colpo" per `ApplyFirstHitDelta`,
+	// consumando il bonus di `Exposed` su un colpo fantasma; dal CP 53.3b il pass di `Exposed` scarta da se' i colpi a
+	// Power 0, come fa quello del marchio, e il filtro resta per l'altra ragione.* Si toglie insieme ai colpi degli intenti
+	// interrotti, nello stesso filtro.
 	//
 	// ⚠️ Il filtro guarda l'INTENTO, non l'attaccante: cosi' un'azione non interrompibile della stessa unita'
 	// sopravvive, che e' cio' che `InterruptPolicy` dichiara (`#1437`).

@@ -100,6 +100,7 @@ const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 ·
 const FName URTCombatLibrary::GuardPerHitSource = FName(TEXT("D-408 · Status.Guarded"));
 const FName URTCombatLibrary::RearBonusSource = FName(TEXT("D-587 · spalle"));
 const FName URTCombatLibrary::DefenseSource = FName(TEXT("D-589 · DEF"));
+const FName URTCombatLibrary::ExposedModSource = FName(TEXT("D-595 · Exposed"));
 
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)
