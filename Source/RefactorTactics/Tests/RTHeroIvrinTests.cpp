@@ -270,9 +270,10 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	{
 		// A domina B: >= su tutte le statistiche base, e > su almeno una. Dal CP 53.3c le statistiche sono
 		// sette: alle quattro storiche si aggiungono DEF, RES di default e bonus alle spalle (tutte «piu' e'
-		// meglio»). ⚠️ Allargare l'insieme rende la dominanza PIU' difficile, non piu' facile: il test resta
-		// verde per costruzione se lo era prima, e la riga qui sotto esiste perche' un eroe nuovo (E35) non
-		// possa dominarne uno vecchio anche sulla difesa senza che qualcuno se ne accorga.
+		// meglio»). ⚠️ Non e' un controllo piu' forte ne' piu' debole del precedente: e' la relazione giusta su
+		// sette assi. PERDE i casi in cui A e' avanti sulle quattro storiche ma paga sulla difesa (non e'
+		// dominanza, e' un prezzo) e GUADAGNA quello in cui A pareggia le quattro e supera B sulla difesa, che
+		// sulle quattro sole passava inosservato. Sul roster di oggi nessuna coppia cade in nessuno dei due.
 		const bool bWeaklyBetter =
 			A->MaxHealth         >= B->MaxHealth &&
 			A->MovePoints        >= B->MovePoints &&

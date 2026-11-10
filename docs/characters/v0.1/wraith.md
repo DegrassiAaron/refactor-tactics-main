@@ -187,7 +187,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Wraith.MatchesCatalog` |
-| L'effetto si vede in partita | `Visual.Combat.Defeat` — 182 a turno contro la DEF 15 di Gadget, 132 dopo lo scudo base, per **sette** turni (D-224 lo ha allungato da quattro a sei, la DEF di E53 CP 53.3c a sette) · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
+| L'effetto si vede in partita | `Visual.Combat.Defeat` — 182 a turno contro la DEF 15 di Gadget, 132 dopo lo scudo base, per **sette** turni (D-224 lo ha allungato da quattro a sei, la DEF di E53 CP 53.3c a sette) · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 182 a 122 (DEF 15 di Gadget, copertura 60 di D-602): è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
 
 ## Abilità
 

@@ -285,8 +285,9 @@ public:
 	 *
 	 * 🔢 **100 dal 2026-11-10 ([D-602], E53 CP 53.3c)**: la passata ×10 l'aveva portato da 15 a 150 ([D-595] (4)
 	 * lo teneva «da tarare con la DEF in mano»). Con la DEF che mitiga PRIMA delle riduzioni piatte ([D-589] (3)),
-	 * 150 azzerava ogni colpo frontale del catalogo tranne `HeavyAttack`: la taratura lo porta a 100, e le
-	 * riduzioni piatte scalano meno di ×10 perche' la DEF fa gia' parte del loro lavoro.
+	 * 150 e lo scudo base lasciavano a zero quasi ogni colpo frontale sotto Guardia: restavano solo `HeavyAttack` e,
+	 * contro DEF 15, i colpi da 240 (8 HP). La taratura lo porta a 100, e le riduzioni piatte scalano meno di ×10
+	 * perche' la DEF fa gia' parte del loro lavoro.
 	 */
 	static constexpr int32 GuardReductionDefault = 100;
 

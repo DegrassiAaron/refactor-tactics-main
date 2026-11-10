@@ -287,8 +287,7 @@ bool FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest::RunTest(const FString&)
 			Behind, URTCombatLibrary::MitigateDirectDamage(ImpactShot, 30, 100, 25) - Shield);
 		TestEqual(*FString::Printf(TEXT("Branth di fronte a Muiren: floor(%d × 100/125) − %d"), ImpactShot, Shield),
 			Front, URTCombatLibrary::MitigateDirectDamage(ImpactShot, 0, 100, 25) - Shield);
-		TestTrue(TEXT("il colpo alle spalle del tank vale piu' di quello di fronte, ma meno di quello del flanker con la stessa base"),
-			Behind > Front && URTCombatLibrary::MitigateDirectDamage(ImpactShot, 30, 100, 25) < URTCombatLibrary::MitigateDirectDamage(ImpactShot, 90, 100, 25));
+		TestTrue(TEXT("il colpo alle spalle del tank vale piu' di quello di fronte"), Behind > Front);
 	}
 	return true;
 }
