@@ -21,7 +21,7 @@
 
   "_nota_via_l_avversario_inerte": "`Visual.Map.ClosedDoor` schiera un Branth a (4,0,0) che non fa niente: serve a quello scenario per avere due squadre in campo. Qui non serve — la squadra 1 ha gia' quattro unita' — e portarlo dentro avrebbe aggiunto una figura ferma di cui nessuno sa dire perche' e' li'. Una scena di acceptance si legge anche da cio' che NON contiene.",
 
-  "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 76` per i due colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 53` per i due colpi identici che l'altura NON differenzia. 🔑 **Il 53 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
+  "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 733` per i colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 586` per i due colpi identici che l'altura NON differenzia (E53 CP 53.3c: DEF 15, copertura 60, bonus alle spalle). 🔑 **Il 586 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
 
   "units": [
     { "id": "P_DOOR", "hero": "Hero.Muiren", "team": 0, "cell": [0, 1, 0] },
@@ -30,7 +30,7 @@
     { "id": "W_COV", "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0] },
     { "id": "R_COV", "hero": "Hero.Branth", "team": 1, "cell": [0, 2, 0], "loadout": [] },
 
-    { "id": "G_HIGH", "hero": "Hero.Aevik", "team": 0, "cell": [1, 0, 0] },
+    { "id": "G_HIGH", "hero": "Hero.Aevik", "team": 0, "cell": [1, 0, 0], "facing": "NE", "_facing": "⏱️ E53 CP 53.3c: come in `Visual.Map.HighGroundNoBonus`, a nord-est perche' entrambi i tiri cadano nell'arco frontale. Col facing di default la cresta colpiva alle spalle e il bonus alle spalle di Ivrin (90, [D-599]) faceva sembrare un bonus d'altura: 508 invece di 586." },
     { "id": "W_HI", "hero": "Hero.Ivrin", "team": 1, "cell": [2, -2, 0] },
     { "id": "W_LO", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] }
   ],
@@ -64,10 +64,10 @@
 
     { "type": "UnitAtCell", "unit": "P_DOOR", "cell": [1, 1, 0] },
 
-    { "type": "UnitHpEquals", "unit": "G_COV", "value": 760 },
+    { "type": "UnitHpEquals", "unit": "G_COV", "value": 733 },
     { "type": "UnitAtCell", "unit": "G_COV", "cell": [0, 0, 0] },
 
-    { "type": "UnitHpEquals", "unit": "G_HIGH", "value": 530 },
+    { "type": "UnitHpEquals", "unit": "G_HIGH", "value": 586 },
     { "type": "UnitAlive", "unit": "G_HIGH", "value": true },
     { "type": "UnitAtCell", "unit": "G_HIGH", "cell": [1, 0, 0] }
   ]

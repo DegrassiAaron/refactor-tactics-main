@@ -43,7 +43,7 @@
 
   "expect": [
     { "type": "UnitAlive",      "unit": "V1", "value": true },
-    { "type": "UnitHpEquals",   "unit": "V1", "value": 750 },
+    { "type": "UnitHpEquals",   "unit": "V1", "value": 777 },
     { "type": "UnitAtCell",     "unit": "B1", "cell": [1, 0, 0] },
     { "type": "UnitAtCell",     "unit": "V1", "cell": [3, 0, 0] },
     { "type": "TurnsCompleted", "value": 3 }

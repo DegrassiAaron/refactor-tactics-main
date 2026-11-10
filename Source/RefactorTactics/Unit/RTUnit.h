@@ -116,7 +116,7 @@ public:
 	// regola competitiva (`CLAUDE.md` §5 e §7), e non lascerebbe traccia nel TurnLog. Trovato da una code
 	// review.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	int32 GuardReduction = 150;
+	int32 GuardReduction = 100; // [D-602]; = URTCombatLibrary::GuardReductionDefault, che questo header non include
 
 	/**
 	 * DEF, RES di default, RES per elemento e bonus alle spalle: copiati per valore da `URTHeroData` in

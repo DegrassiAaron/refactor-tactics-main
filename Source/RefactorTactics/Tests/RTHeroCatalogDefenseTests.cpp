@@ -293,4 +293,31 @@ bool FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-602] (E53 CP 53.3c): copertura bassa 60, Guardia 100, Brace 60 — la taratura con la DEF in mano. I due default di
+ * `GuardReduction` (`URTHeroData` e `ARTUnit`) sono LETTERALI, perche' quegli header non includono `Combat/`: questo
+ * test e' cio' che impedisce loro di divergere dalla costante in silenzio. Ogni eroe del roster porta il default.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatFlatReductionsMatchD602Test,
+	"RefactorTactics.Combat.FlatReductionsMatchD602",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatFlatReductionsMatchD602Test::RunTest(const FString&)
+{
+	TestEqual(TEXT("copertura bassa 60"), URTCombatLibrary::LowCoverDamageReduction, 60);
+	TestEqual(TEXT("Guardia 100"), URTCombatLibrary::GuardReductionDefault, 100);
+	TestEqual(TEXT("Brace 60"), URTCombatLibrary::BraceDamageReduction, 60);
+	TestEqual(TEXT("il default di URTHeroData e' la costante"),
+		GetDefault<URTHeroData>()->GuardReduction, URTCombatLibrary::GuardReductionDefault);
+	TestEqual(TEXT("il default di ARTUnit e' la costante"),
+		GetDefault<ARTUnit>()->GuardReduction, URTCombatLibrary::GuardReductionDefault);
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		TestEqual(*FString::Printf(TEXT("%s porta la Guardia di default"), *Hero->HeroId.ToString()),
+			Hero->GuardReduction, URTCombatLibrary::GuardReductionDefault);
+	}
+	// La Guardia toglie piu' del Brace sull'arco frontale (D-408): la taratura conserva l'ordine.
+	TestTrue(TEXT("Guardia > Brace"), URTCombatLibrary::GuardReductionDefault > URTCombatLibrary::BraceDamageReduction);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

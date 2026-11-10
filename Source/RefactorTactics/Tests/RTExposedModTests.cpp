@@ -169,7 +169,7 @@ namespace
  * - 111 contro DEF 25: **106**, non 105 — `floor(111 × 1,2 × 100/125) = floor(106,56)` contro
  *   `floor(floor(111 × 100/125) × 1,2) = floor(88 × 1,2) = 105`: un solo arrotondamento, dopo il prodotto ([D-595] (1)),
  *   e il moltiplicatore PRIMA della DEF;
- * - 240 contro DEF 25 in copertura bassa frontale (100): **130** = 230 − 100, non `floor((192 − 100) × 1,2) = 110`:
+ * - 240 contro DEF 25 in copertura bassa frontale (60, [D-602]): **170** = 230 − 60, non `floor((192 − 60) × 1,2) = 158`:
  *   il moltiplicatore sta PRIMA della copertura, che resta piatta e si sottrae dopo ([D-589] (3)).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatExposedMultipliesBeforeDefenseTest,
@@ -201,7 +201,7 @@ bool FRTCombatExposedMultipliesBeforeDefenseTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("colpo 0"), A) || !TestNotNull(TEXT("colpo 2"), B) || !TestNotNull(TEXT("colpo 4"), C)) { return false; }
 	TestEqual(TEXT("premessa A: raccolto con la sola DEF, 240 → 192"), A->Power, 192);
 	TestEqual(TEXT("premessa B: 111 → 88"), B->Power, 88);
-	TestEqual(TEXT("premessa C: 192 − 100 di copertura = 92"), C->Power, 92);
+	TestEqual(TEXT("premessa C: 192 − copertura (60) = 132"), C->Power, 192 - URTCombatLibrary::LowCoverDamageReduction);
 	TestEqual(TEXT("premessa C: la copertura ha morso"), C->CoverReduction, URTCombatLibrary::LowCoverDamageReduction);
 
 	const TArray<bool> Esposto = { false, true, false, true, false, true };
@@ -214,8 +214,10 @@ bool FRTCombatExposedMultipliesBeforeDefenseTest::RunTest(const FString&)
 	TestEqual(TEXT("A — e il colpo dichiara il Mod 120"), A->ModPercentApplied, URTCombatLibrary::ExposedModPercent);
 	TestEqual(TEXT("A — la DEF letta non cambia"), A->DefenseApplied, 25);
 	TestEqual(TEXT("B — un solo floor dopo il prodotto: 106, non 105"), B->Power, 106);
-	TestEqual(TEXT("C — prima della copertura: 230 − 100 = 130, non floor(92 × 1,2) = 110"), C->Power, 130);
-	TestEqual(TEXT("C — il mitigato e' 230 e la copertura resta 100"), C->MitigatedPower, 230);
+	TestEqual(TEXT("C — prima della copertura: 230 − 60 = 170"), C->Power, 230 - URTCombatLibrary::LowCoverDamageReduction);
+	TestNotEqual(TEXT("C — non floor((192 − 60) × 1,2) = 158: il Mod sta prima della copertura"), C->Power,
+		(192 - URTCombatLibrary::LowCoverDamageReduction) * 120 / 100);
+	TestEqual(TEXT("C — il mitigato e' 230 e la copertura resta quella di catalogo"), C->MitigatedPower, 230);
 	TestEqual(TEXT("C — la copertura non e' stata toccata"), C->CoverReduction, URTCombatLibrary::LowCoverDamageReduction);
 	TestEqual(TEXT("tre colpi moltiplicati, uno per bersaglio"), Moltiplicati.Num(), 3);
 

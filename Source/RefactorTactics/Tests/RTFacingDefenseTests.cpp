@@ -209,9 +209,9 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 		TestEqual(TEXT("alle spalle: la copertura non vale"), ArcPowerOn(Plan, 1), 300);
 		// Si TOGLIE una protezione, non si aggiunge un bonus: il danno e' quello pieno, non di piu'.
 		TestTrue(TEXT("nessun bonus di fianco"), ArcPowerOn(Plan, 1) <= 300);
-		// Il DoD misura proprio questo: 10 danni in piu' su HP che vanno da 90 a 120.
+		// Il DoD misura proprio questo: la riduzione di catalogo in piu' (60 dal [D-602]) su HP che vanno da 900 a 1200.
 		TestEqual(TEXT("la differenza e' la riduzione di catalogo"),
-			300 - (300 - URTCombatLibrary::LowCoverDamageReduction), 100);
+			ArcPowerOn(Plan, 1) - (300 - URTCombatLibrary::LowCoverDamageReduction), URTCombatLibrary::LowCoverDamageReduction);
 	}
 	return true;
 }

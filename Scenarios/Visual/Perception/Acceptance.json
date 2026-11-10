@@ -61,7 +61,7 @@
     { "type": "UnitAtCell", "unit": "A2", "cell": [-3, 5, 0] },
     { "type": "UnitAtCell", "unit": "B1", "cell": [-1, -1, 0] },
     { "type": "UnitAtCell", "unit": "B2", "cell": [6, 0, 0] },
-    { "type": "UnitHpEquals", "unit": "B1", "value": 1030 },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 1057 },
     { "type": "UnitAlive", "unit": "B1", "value": true },
     { "type": "UnitAlive", "unit": "B2", "value": true }
   ]

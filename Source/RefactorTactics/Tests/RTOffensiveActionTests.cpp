@@ -607,7 +607,8 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 			Guardia, Maschera, URTCombatLibrary::GuardPerHitSource)[0].Power;
 	};
 
-	TestEqual(TEXT("marchiato e in guardia, colpo FRONTALE: 200 + 60 - 150"), Composto(true), 110);
+	TestEqual(TEXT("marchiato e in guardia, colpo FRONTALE: 200 + marchio - Guardia (200 + 60 - 100)"), Composto(true),
+		200 + URTCombatLibrary::MarkedFirstHitBonus - URTCombatLibrary::GuardReductionDefault);
 	// 🔑 E il caso che la somma in un delta solo non sapeva esprimere: alle spalle la Guardia non vale, e
 	// il marchio si', quindi il colpo arriva PIU' forte del nominale.
 	TestEqual(TEXT("ma alle spalle la guardia non copre: 200 + 60"), Composto(false), 260);

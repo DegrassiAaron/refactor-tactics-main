@@ -269,10 +269,11 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 > La formula è `URTCombatLibrary::MitigateDirectDamage`; la tabella di controllo di CP 53.1 si misura sul catalogo
 > reale in `RefactorTactics.Heroes.ControlTableHoldsOnTheRealCatalog`.
 >
-> ⚠️ **Copertura 100 e Guard 150 non sono ancora tarate con la DEF in mano** ([D-595](../decisions/RT_PDR_00_Decision_Log.md) (4)):
-> con questi valori un `HeavyAttack` (350) frontale su Branth in copertura bassa e in Guard fa `241 − 100 − 150 < 0`,
-> cioè **zero**; su Muiren 30, su Aevik e Ivrin 54. È il primo caso di controllo che D-595 (4) ha dichiarato per la
-> taratura, misurato qui e non deciso: i valori nuovi sono una `D-nnn` a parte.
+> 🔢 **Copertura, Guard e Brace sono tarate con la DEF in mano** ([D-602](../decisions/RT_PDR_00_Decision_Log.md),
+> stesso passo): copertura bassa **60**, Guard **100**, Brace **60**. Con i valori della passata ×10 (100 · 150 · 100)
+> un `HeavyAttack` (350) frontale su Branth in copertura bassa e in Guard faceva `241 − 100 − 150 < 0`, cioè zero; con
+> D-602 fa `241 − 60 − 100 = 81` prima dello scudo base. Era il primo caso di controllo che
+> [D-595](../decisions/RT_PDR_00_Decision_Log.md) (4) aveva dichiarato per la taratura.
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 

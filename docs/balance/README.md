@@ -10,7 +10,9 @@
 ## ⚠️ Scala ×10 dal 2026-11-09 ([D-589](../decisions/RT_PDR_00_Decision_Log.md) (2), E53 CP 53.3a)
 
 Ogni **danno, cura, scudo, riduzione piatta e punto salute** di questi cataloghi è scritto sulla scala ×10
-della specifica: HP 900–1200, colpi 200–350, Guard 150, copertura bassa 100, scudo base 50. La passata è
+della specifica: HP 900–1200, colpi 200–350, Guard 150, copertura bassa 100, scudo base 50 — e dal 2026-11-10
+[D-602](../decisions/RT_PDR_00_Decision_Log.md) tara le tre riduzioni piatte con la DEF in mano: **copertura bassa 60,
+Guard 100, Brace 60**. La passata è
 stata **una e atomica**: catalogo in codice, costanti di `URTCombatLibrary`, ancore dei radar, scenari
 (`"health"`) e corpus golden sono cambiati nello stesso commit. Un numero sulla scala vecchia letto in un
 documento **fuori** da questa cartella è prosa invecchiata, non una regola diversa: vince il catalogo.

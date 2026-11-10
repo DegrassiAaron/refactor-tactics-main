@@ -32,8 +32,8 @@
     { "type": "UnitAtCell",     "unit": "N2", "cell": [ 2, 0, 0] },
     { "type": "LogEventCount",  "category": "Combat", "outcome": "Hit", "actionId": "Hero.Branth.MortarShot", "value": 2 },
     { "type": "LogEventCount",  "category": "Combat", "outcome": "Hit", "actionId": "Hero.Aevik.Overload",    "value": 2 },
-    { "type": "UnitHpEquals",   "unit": "N1", "value": 650 },
-    { "type": "UnitHpEquals",   "unit": "N2", "value": 700 },
+    { "type": "UnitHpEquals",   "unit": "N1", "value": 690 },
+    { "type": "UnitHpEquals",   "unit": "N2", "value": 688 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

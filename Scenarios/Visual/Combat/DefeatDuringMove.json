@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "BANCO DI CONFRONTO per PIE-AS4c, e il gemello di Visual.Combat.Defeat. Stessi quattro eroi, stesse posizioni, stessi sei turni e gli stessi due colpi su Gadget: cambia UNA cosa, ed e' quella che si vuole isolare. All'ultimo turno Phase MUOVE, quindi PlaybackPhases contiene un Move DOPO il Blast in cui Gadget cade, e il montaggio di Death ha una finestra naturale in cui giocare.",
+  "_nota": "BANCO DI CONFRONTO per PIE-AS4c, e il gemello di Visual.Combat.Defeat. Stessi quattro eroi, stesse posizioni, stessi sette turni e gli stessi due colpi su Gadget: cambia UNA cosa, ed e' quella che si vuole isolare. All'ultimo turno Phase MUOVE, quindi PlaybackPhases contiene un Move DOPO il Blast in cui Gadget cade, e il montaggio di Death ha una finestra naturale in cui giocare.",
 
   "_nota_perche": "PlaybackPhases e' 'Prep -> Dash -> Blast -> Move' e non contiene MAI Cleanup (RTTurnManager: 'Cleanup: gia' applicato, nessun beat'). Chi cade nell'ULTIMA fase riprodotta vedrebbe FinishPlayback subito dopo l'annuncio, e il montaggio avrebbe finestra ZERO: e' esattamente il caso di Visual.Combat.Defeat, dove nessuno si muove. DefeatBeatSeconds (#2452) esiste per quel caso. Qui la finestra c'e' senza la coda, e il confronto fra i due banchi e' cio' che rende PIE-AS4c tarabile invece che indovinabile.",
 
@@ -13,7 +13,7 @@
 
   "_nota_riva": "Phase e' l'unica che si muove, e non e' decorazione: e' il suo movimento a creare la fase Move. Senza, questo scenario sarebbe identico a Visual.Combat.Defeat e non misurerebbe niente.",
 
-  "_nota_numeri": "I sei turni e i due colpi vengono da Visual.Combat.Defeat, dove sono MISURATI: lo scudo base assorbe 5 punti per turno e si ricarica nel Cleanup, quindi con quattro turni Gadget chiudeva a 18 HP invece che abbattuto (D-224). Non sono stati ricalcolati qui: sono la stessa aritmetica, e cambiarli scollegherebbe i due banchi proprio nel punto in cui devono restare confrontabili.",
+  "_nota_numeri": "I sei turni e i due colpi vengono da Visual.Combat.Defeat, dove sono MISURATI: lo scudo base assorbe 5 punti per turno e si ricarica nel Cleanup, quindi con quattro turni Gadget chiudeva a 18 HP invece che abbattuto (D-224). Non sono stati ricalcolati qui: sono la stessa aritmetica, e cambiarli scollegherebbe i due banchi proprio nel punto in cui devono restare confrontabili. ⏱️ **Sette dal 2026-11-10 (E53 CP 53.3c)**, come il gemello: con la DEF 15 di Gadget il sesto turno lo lascia a 39 HP, e il KO passa al settimo.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,  0, 0] },
@@ -55,7 +55,14 @@
       ]
     },
     {
-      "_turno": "T6 — QUI si guarda. Gadget cade nel Blast, e Phase cammina: la fase Move segue, e il montaggio di Death gioca dentro quella finestra invece di essere troncato da FinishPlayback.",
+      "_turno": "T6 — identico a Visual.Combat.Defeat: Gadget resta in piedi a 39 HP.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Ivrin.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T7 — QUI si guarda. Gadget cade nel Blast, e Phase cammina: la fase Move segue, e il montaggio di Death gioca dentro quella finestra invece di essere troncato da FinishPlayback. ⏱️ Era il T6 fino al CP 53.3c di E53.",
       "intents": [
         { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Ivrin.PulseShot",   "target": "F1" },
@@ -68,6 +75,6 @@
     { "type": "UnitAlive", "unit": "F1", "value": false },
     { "type": "UnitAlive", "unit": "R1", "value": true },
     { "type": "UnitAtCell", "unit": "R1", "cell": [-2, 1, 0] },
-    { "type": "TurnsCompleted", "value": 6 }
+    { "type": "TurnsCompleted", "value": 7 }
   ]
 }

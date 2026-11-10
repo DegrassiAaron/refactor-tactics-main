@@ -49,10 +49,10 @@
 
   "expect": [
     { "_assertion": "LA POSTURA GIUSTA. B1 guarda il tiratore: il pannello e' nell'arco frontale e vale. 21 - 10 di copertura - 5 di scudo base = 6 danni incassati su 120.",
-      "type": "UnitHpEquals", "unit": "B1", "value": 1140 },
+      "type": "UnitHpEquals", "unit": "B1", "value": 1166 },
 
     { "_assertion": "🔴 LA POSTURA SBAGLIATA, STESSA SCENA. B2 ha lo stesso pannello sullo stesso bordo e prende lo stesso colpo, ma guarda altrove: la copertura e' interposta e non vale niente (CP 16.2). 21 - 5 = 16 danni. La differenza con B1 - DIECI PUNTI - e' cio' che questo file misura, e nessun altro scenario del corpus lo dice in HP.",
-      "type": "UnitHpEquals", "unit": "B2", "value": 1040 },
+      "type": "UnitHpEquals", "unit": "B2", "value": 1044 },
 
     { "_assertion": "IL DISCRIMINANTE SUL LOG. Una sola voce di copertura annullata in tutto lo scenario, non due: se ne comparissero due, la scena di B1 non starebbe misurando una copertura che REGGE. E' la stessa assertion che regge la coppia `FrontHitOnCoverIsSilent`/`RearHitOnCoverIsTraced`, qui applicata alle due scene insieme.",
       "type": "LogEventCount", "category": "Facing", "outcome": "RearHitBypassedCover", "value": 1 },

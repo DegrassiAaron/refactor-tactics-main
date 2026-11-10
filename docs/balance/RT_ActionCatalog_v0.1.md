@@ -192,7 +192,7 @@ regola standard del vertical slice).
 | Medio raggio | 220 | 4 |
 | Lungo raggio | 200 | 6 |
 
-**Guard** — riduce di **150** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]) · resiste a una
+**Guard** — riduce di **100** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]; valore [D-602], era 150 dopo la scala ×10) · resiste a una
 spinta di 1 cella · termina nel Cleanup · **non** protegge dagli hazard ambientali già presenti.
 
 > ⏱️ **Riscritta il 2026-09-20 da [D-408]**, e la riga è stata sbagliata due volte prima: diceva «il **primo**
@@ -545,7 +545,7 @@ Il contrattacco entra **in coda** agli attacchi del Blast: non consuma i modific
 **Deflect** — riduce il danno diretto di **200**. Se il danno arriva a zero l'attacco è comunque considerato
 avvenuto (conta per trigger e marchi) · non riflette · non funziona contro AoE ambientali.
 
-**Brace** — impedisce la prima spinta · riduce di **10** tutti i danni diretti fino al Cleanup · **blocca il
+**Brace** — impedisce la prima spinta · riduce di **60** tutti i danni diretti fino al Cleanup ([D-602]; era 10 sulla scala vecchia) · **blocca il
 movimento volontario** dell'eroe.
 
 > Tre precisazioni di implementazione (CP 5.2). Il **-100 vale su ogni colpo**, non solo sul primo: è un
@@ -587,7 +587,7 @@ movimento volontario** dell'eroe.
 > non riesce a distinguere le due difese — non è presentazione e non sono i numeri.
 >
 > 🔴 **Ciò che distingue le due NON è più la forma, da [D-408] (2026-09-20): è la DIREZIONE.** Entrambe sono
-> ora riduzioni **per colpo** — `Guard` −15, `Brace` −10 — quindi sull'arco frontale `Guard` domina sempre, su
+> ora riduzioni **per colpo** — `Guard` −100, `Brace` −60 dal [D-602] (−15 e −10 sulla scala vecchia) — quindi sull'arco frontale `Guard` domina sempre, su
 > un colpo come su molti. Ciò che `Brace` ha e `Guard` no è l'**omnidirezionalità**: la Guardia non copre le
 > spalle ([D-206], `Spec.Facing.BackAttackIgnoresGuard`), il `Brace` sì.
 >

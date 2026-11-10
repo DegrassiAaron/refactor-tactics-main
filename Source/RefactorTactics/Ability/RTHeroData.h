@@ -97,10 +97,11 @@ public:
 	 * `Combat.GuardReductionIsPermutationInvariant`.
 	 *
 	 * ⛔ **Il numero per ciascun eroe e' TARATURA e la possiede `balance/`** ([D-282]): qui c'e' il
-	 * default di catalogo, ancora `URTCombatLibrary::GuardReductionDefault`.
+	 * default di catalogo, ancora `URTCombatLibrary::GuardReductionDefault` (100 dal [D-602], uguale per tutti e
+	 * quattro: nessun eroe ne dichiara uno proprio).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 GuardReduction = 150;
+	int32 GuardReduction = 100; // = URTCombatLibrary::GuardReductionDefault: l'header dei dati non include `Combat/`
 
 	/**
 	 * DEF del personaggio: la mitigazione moltiplicativa del danno DIRETTO, `100 / (100 + Defense)`

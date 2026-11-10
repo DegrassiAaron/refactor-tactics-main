@@ -63,8 +63,8 @@ enum class ERTDamageStage : uint8
 	 */
 	FirstHitDelta,
 	/**
-	 * Delta su OGNI colpo: `Action.Brace` `-100`, senza il gate «una volta sola» (CP 5.2), e dal 2026-09-20 la `Guard`
-	 * (`Status.Guarded`, `-150` su ogni colpo FRONTALE, [D-408] + [D-206]) via `ApplyEligibleHitDelta`. A distinguerle e' il
+	 * Delta su OGNI colpo: `Action.Brace` `-60`, senza il gate «una volta sola» (CP 5.2), e dal 2026-09-20 la `Guard`
+	 * (`Status.Guarded`, `-100` su ogni colpo FRONTALE, [D-408] + [D-206]; valori [D-602]) via `ApplyEligibleHitDelta`. A distinguerle e' il
 	 * `SourceId` della voce, non lo stadio: `URTCombatLibrary::GuardPerHitSource`.
 	 */
 	EveryHitDelta,
