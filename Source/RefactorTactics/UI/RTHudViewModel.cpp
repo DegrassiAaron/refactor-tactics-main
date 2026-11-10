@@ -1810,6 +1810,101 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	return Lines;
 }
 
+FText URTHudViewModel::ComposeActivationLineText(const FString& UnitLabel, const FText& KitName, FName ActionId)
+{
+	// Il nome del kit; se non c'e' (o e' di soli spazi), l'ultimo segmento dell'id cosi' com'e' (senza punti e' l'id
+	// intero). Come il ripiego di `BuildSkillCallout`, ma qui nessun maiuscolo: e' una riga di cronaca, non un grido.
+	FText Azione = KitName;
+	if (KitName.IsEmptyOrWhitespace())
+	{
+		const FString Id = ActionId.ToString();
+		int32 UltimoPunto = INDEX_NONE;
+		Azione = FText::FromString(Id.FindLastChar(TEXT('.'), UltimoPunto) ? Id.Mid(UltimoPunto + 1) : Id);
+	}
+	return FText::Format(LOCTEXT("ActivationLine", "{0} — {1}"), FText::FromString(UnitLabel), Azione);
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
+	const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines)
+{
+	// 1. Il pubblico. ⛔ Solo la chiave della squadra: il giudizio di conoscenza lo ha dato il playback quando ha mostrato
+	// l'attivazione (D-223), e rifarlo qui sarebbe un secondo contratto. Viene PRIMA dello spazio: un'attivazione altrui non
+	// deve consumare un posto che spetta a una mia.
+	TArray<const FRTActivationLine*> Tenute;
+	for (const FRTActivationLine& Attivazione : Activations)
+	{
+		if (ObserverTeamIds.Contains(Attivazione.ViewerTeamId))
+		{
+			Tenute.Add(&Attivazione);
+		}
+	}
+
+	// 2. Lo spazio che le righe d'esito lasciano. Mai negativo: le righe d'esito non si tagliano qui (R6), e con il
+	// tetto gia' pieno non entra nessuna attivazione. Se non bastano, escono le PIU' VECCHIE: le prime della lista.
+	const int32 Spazio = FMath::Max(0, MaxLines - ResultLines.Num());
+	Tenute.RemoveAt(0, FMath::Max(0, Tenute.Num() - Spazio));
+
+	// Niente da aggiungere: le righe d'esito escono com'erano, numeri compresi.
+	if (Tenute.Num() == 0)
+	{
+		return ResultLines;
+	}
+
+	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): una riga d'attivazione in
+	// testa con `TurnNumber` 0 darebbe un'intestazione «senza righe».
+	const int32 TurnoDelFeed = ResultLines.Num() > 0 ? ResultLines[0].TurnNumber : 0;
+
+	const auto FaRiga = [TurnoDelFeed](const FRTActivationLine& Attivazione)
+	{
+		FRTPlayerEventLineView Riga;
+		Riga.Text = Attivazione.Text;
+		Riga.Importance = ERTPlayerEventImportance::Important; // #1936 §D: l'uso di un'abilita' merita una riga
+		Riga.PrimaryStableUnitId = Attivazione.SourceStableUnitId;
+		Riga.Phase = Attivazione.Phase;
+		Riga.bHasBlocker = false;
+		Riga.bReaction = false;
+		Riga.TurnNumber = TurnoDelFeed;
+		return Riga;
+	};
+
+	// 3. L'ordine: subito prima della PRIMA riga d'esito della propria unita', nell'ordine della lista; le altre in fondo.
+	// Una voce di mondo (`INDEX_NONE`) non e' l'esito di nessuna unita': non attira niente.
+	TArray<FRTPlayerEventLineView> Unite;
+	Unite.Reserve(ResultLines.Num() + Tenute.Num());
+	TSet<int32> UnitaServite;
+	for (const FRTPlayerEventLineView& Esito : ResultLines)
+	{
+		if (Esito.PrimaryStableUnitId != INDEX_NONE && !UnitaServite.Contains(Esito.PrimaryStableUnitId))
+		{
+			UnitaServite.Add(Esito.PrimaryStableUnitId);
+			for (const FRTActivationLine* Attivazione : Tenute)
+			{
+				if (Attivazione->SourceStableUnitId == Esito.PrimaryStableUnitId)
+				{
+					Unite.Add(FaRiga(*Attivazione));
+				}
+			}
+		}
+		Unite.Add(Esito);
+	}
+	for (const FRTActivationLine* Attivazione : Tenute)
+	{
+		if (!UnitaServite.Contains(Attivazione->SourceStableUnitId))
+		{
+			Unite.Add(FaRiga(*Attivazione));
+		}
+	}
+
+	// 4. Il numero e' la posizione nella lista unita, come in `BuildPlayerEventFeed`: dal numero della prima riga d'esito, che
+	// in un feed tagliato non e' 1 (le righe tagliate tengono il loro numero), e da 1 se non ce ne sono.
+	const int32 Primo = ResultLines.Num() > 0 ? FMath::Max(1, ResultLines[0].Sequence) : 1;
+	for (int32 i = 0; i < Unite.Num(); ++i)
+	{
+		Unite[i].Sequence = Primo + i;
+	}
+	return Unite;
+}
+
 TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnManager,
 	const TArray<int32>& ObserverTeamIds)
 {
