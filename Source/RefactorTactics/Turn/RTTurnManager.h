@@ -1090,8 +1090,11 @@ public:
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
 
 	/**
-	 * Le righe del Registro per le attivazioni che il playback di questo turno ha MOSTRATO (#4033, [D-600] (1)), nell'ordine
-	 * in cui le ha mostrate. Sola lettura, per l'HUD (`URTHudViewModel::BuildPlayerEventFeed`) e per i test.
+	 * Le righe del Registro per le attivazioni che il playback di questo turno ha MOSTRATO (#4033, [D-600] (1)), e, alla fine
+	 * vera del playback, per quelle che avrebbe mostrato a chi guarda e che un salto ha lasciato senza riga (R8): queste non
+	 * sono state mostrate, le da' il recupero di `FinishPlayback`. Nell'ordine delle fasi del playback (Prep, Dash, Blast);
+	 * dentro una fase, nell'ordine in cui sono nate. Sola lettura, per l'HUD (`URTHudViewModel::BuildPlayerEventFeed`) e per i
+	 * test.
 	 *
 	 * 🔴 **Solo presentazione**: non e' il TurnLog, non entra in snapshot, replay, `StateHash` o replicazione. Vive quanto il
 	 * TurnLog (R7): si azzera con lui in `LockInAndResolve`, e resta leggibile nel Planning che segue.

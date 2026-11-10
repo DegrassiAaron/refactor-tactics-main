@@ -471,6 +471,8 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 			TM->SkipPlayback();
 		}
 		RigaAttFinoAllaFine(TM);
+		// ⛔ Le righe si contano a fine VERA, dove gira il recupero di R8: un playback ancora in corso le conterebbe a meta'.
+		if (!TestFalse(TEXT("⛔ premessa: il playback e' finito"), TM->IsResolving())) { return false; }
 
 		Out.RigheDelNemico = RigaAttConta(TM, Nemico, RigaAttPulseShot);
 		Out.RigheDelGadget = RigaAttConta(TM, Branth, RigaAttPortableCover);
@@ -532,6 +534,7 @@ bool FRTActivationLinePlaybackOutsideDominanceTest::RunTest(const FString&)
 	S.TM->RefreshTeamKnowledgeNow();
 	S.TM->LockInAndResolve();
 	RigaAttFinoAllaFine(S.TM);
+	if (!TestFalse(TEXT("⛔ premessa: il playback e' finito"), S.TM->IsResolving())) { return false; }
 
 	const TArray<FRTPlayerEventLineView> Feed = RigaAttFeed(S.TM, 0);
 	AddInfo(FString::Printf(TEXT("feed: %s"), *RigaAttFeedComeTesto(Feed)));
@@ -776,6 +779,167 @@ bool FRTActivationLinePlaybackSkipTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	const FName RigaAttBrace(TEXT("Action.Brace"));
+	const FName RigaAttPush(TEXT("Action.Push"));
+	const FName RigaAttFluidTrail(TEXT("Hero.Muiren.FluidTrail"));
+
+	/**
+	 * La scena di `Reactions.Brace.WindowSuspendsBlast` (`Tests/RTDefensiveReactionTests.cpp`), nella forma da playback di
+	 * `Playback.ActivationPrefixSurvivesASuspendedBlast`: l'Ivrin della squadra 0 si irrigidisce in Prep (`Action.Brace`, con
+	 * `Profile.Sidestep`) e il Branth della squadra 1, adiacente, lo spinge nel Blast (`Action.Push`): la spinta apre la
+	 * finestra e sospende il Blast. In piu', lontana, una Muiren della squadra 0 scatta di due celle con la scia: e'
+	 * l'attivazione di Dash. ⚠️ Mondo NON inizializzato: il viewer e' il ripiego a 0, la squadra di Bracer e Scattista.
+	 */
+	struct FRigaAttBrace
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Bracer = nullptr;
+		ARTUnit* Pusher = nullptr;
+		ARTUnit* Scattista = nullptr;
+	};
+
+	bool RigaAttMontaBrace(FAutomationTestBase& Test, FRigaAttBrace& Out)
+	{
+		Out.World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), Out.World)) { return false; }
+		RigaAttMappa(Out.World, 8);
+
+		Out.Bracer    = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		Out.Pusher    = RigaAttSpawn(Out.World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		Out.Scattista = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 3));
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Out.TM || !Out.Bracer || !Out.Pusher || !Out.Scattista) { return false; }
+
+		Out.Bracer->ReactionProfileId = TEXT("Profile.Sidestep"); // senza, la cardinalita' e' 1 e nessuna finestra e' dovuta
+		Out.Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Out.Bracer, TEXT("Action.Brace"), 3);
+		Out.Bracer->PlannedCell = Out.Bracer->Cell;
+		Out.Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Out.Pusher, TEXT("Action.Push"), 3);
+		Out.Pusher->PlannedAttackTarget = Out.Bracer;
+		Out.Pusher->PlannedCell = Out.Pusher->Cell;
+		Out.Scattista->PlannedDashAbility = RigaAttIndice(Out.Scattista, RigaAttFluidTrail);
+		Out.Scattista->PlannedDashCell = FRTCellId(-1, 3);
+		Out.Scattista->PlannedCell = Out.Scattista->Cell;
+		if (!Test.TestTrue(TEXT("⛔ premessa: il Bracer pianifica Action.Brace"), Out.Bracer->PlannedAbilityIndex != INDEX_NONE)
+			|| !Test.TestTrue(TEXT("⛔ premessa: il Pusher pianifica Action.Push"), Out.Pusher->PlannedAbilityIndex != INDEX_NONE)
+			|| !Test.TestTrue(TEXT("⛔ premessa: la Scattista pianifica la scia"), Out.Scattista->PlannedDashAbility != INDEX_NONE))
+		{
+			return false;
+		}
+
+		Out.TM->RefreshTeamKnowledgeNow();
+		return true;
+	}
+
+	/** Se la timeline ha l'attivazione di (fase, unita', azione). Da leggere DOPO `LockInAndResolve`. */
+	bool RigaAttAttivataIn(const ARTTurnManager* TM, ERTMatchPhase Fase, const ARTUnit* U, FName ActionId)
+	{
+		return TM->ResolvedTimelineForTest().ContainsByPredicate([Fase, U, ActionId](const FRTResolvedEvent& Ev)
+		{
+			return Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == Fase
+				&& Ev.SourceStableUnitId == U->StableUnitId && Ev.ActionId == ActionId;
+		});
+	}
+}
+
+/**
+ * Un salto durante Prep/Dash di un playback PARZIALE, con la finestra di reazione nel Blast, lascia le righe nell'ordine
+ * delle fasi del playback: Prep, Dash, Blast (R8; review finale di #4033).
+ *
+ * 🔑 Il salto cade prima che il playback abbia mostrato niente: passa dal ramo sospeso di `FinishPlayback`, che presenta la
+ * finestra e non da' righe (non e' una fine vera). Alla ripresa il playback mostra il Blast, quindi la riga della spinta
+ * NASCE per prima; quelle di Prep e Dash le da' il recupero alla fine vera, dopo. ⛔ Senza l'ordinamento per fase in
+ * `FinishPlayback` la lista finisce Blast -> Prep -> Dash, e questo test e' rosso: misurato togliendo la riga.
+ * ⛔ La finestra si apre solo con un ascoltatore legato a `OnReactionWindowOpened`, come in `WindowSuspendsBlast`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLinePlaybackSkipBeforeBraceTest,
+	"RefactorTactics.Playback.ActivationLine.SkipBeforeABraceWindowKeepsPlaybackOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLinePlaybackSkipBeforeBraceTest::RunTest(const FString&)
+{
+	FRigaAttBrace S;
+	const bool bOk = RigaAttMontaBrace(*this, S);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+	if (!bOk) { return false; }
+
+	// ⚠️ Lo slegamento e' dichiarato DOPO la distruzione del mondo, quindi gira PRIMA (ordine inverso degli scope exit).
+	int32 Presentazioni = 0;
+	FString RigheAllaPresentazione;
+	ARTTurnManager* const TM = S.TM;
+	S.TM->OnReactionWindowOpened.BindLambda(
+		[&Presentazioni, &RigheAllaPresentazione, TM](const FRTReactionWindowView&, int32)
+		{
+			++Presentazioni;
+			RigheAllaPresentazione = RigaAttElenco(TM->GetActivationLines());
+		});
+	ON_SCOPE_EXIT{ TM->OnReactionWindowOpened.Unbind(); };
+
+	S.TM->LockInAndResolve();
+
+	// ⛔ Le tre attivazioni, una per fase, tutte di squadre che chi guarda vede: l'ordine del playback e' questo.
+	const FString Attese = FString::Join(TArray<FString>{
+		RigaAttChiave(ERTMatchPhase::Prep, S.Bracer->StableUnitId, RigaAttBrace),
+		RigaAttChiave(ERTMatchPhase::Dash, S.Scattista->StableUnitId, RigaAttFluidTrail),
+		RigaAttChiave(ERTMatchPhase::Blast, S.Pusher->StableUnitId, RigaAttPush) }, TEXT(" | "));
+	if (!TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Prep (Action.Brace)"),
+			RigaAttAttivataIn(S.TM, ERTMatchPhase::Prep, S.Bracer, RigaAttBrace))
+		|| !TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Dash (la scia)"),
+			RigaAttAttivataIn(S.TM, ERTMatchPhase::Dash, S.Scattista, RigaAttFluidTrail))
+		|| !TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Blast (Action.Push)"),
+			RigaAttAttivataIn(S.TM, ERTMatchPhase::Blast, S.Pusher, RigaAttPush))
+		|| !TestTrue(TEXT("⛔ premessa: la resolution e' sospesa su una finestra"), S.TM->IsResolutionSuspended())
+		|| !TestTrue(TEXT("⛔ premessa: ed e' il Blast che si e' fermato"), S.TM->GetPhase() == ERTMatchPhase::Blast)
+		|| !TestTrue(TEXT("⛔ premessa: il playback parziale e' partito"), S.TM->IsResolving()))
+	{
+		return false;
+	}
+
+	// --- (1) il salto, prima che Prep e Dash siano mostrate -------------------------------------------------------------
+	const ERTMatchPhase FaseAlSalto = S.TM->GetPlaybackPhase();
+	if (!TestTrue(TEXT("⛔ premessa: il salto cade in Prep o in Dash"),
+			FaseAlSalto == ERTMatchPhase::Prep || FaseAlSalto == ERTMatchPhase::Dash)
+		|| !TestEqual(TEXT("⛔ premessa: al salto nessuna riga"), S.TM->GetActivationLines().Num(), 0)
+		|| !TestEqual(TEXT("⛔ premessa: al salto l'irrigidimento non e' stato mostrato (nessuna cue Cast)"),
+			S.Bracer->CastCuesPlayedForTest(), 0)
+		|| !TestEqual(TEXT("⛔ premessa: e nemmeno la scia"), S.Scattista->CastCuesPlayedForTest(), 0)
+		|| !TestEqual(TEXT("⛔ premessa: la finestra non e' ancora presentata"), Presentazioni, 0))
+	{
+		return false;
+	}
+	S.TM->SkipPlayback();
+	if (!TestEqual(TEXT("⛔ premessa: il salto ha presentato la finestra, una volta"), Presentazioni, 1)
+		|| !TestTrue(TEXT("⛔ premessa: e il playback e' trattenuto dalla finestra"), S.TM->IsPlaybackHeldByWindow())
+		|| !TestTrue(TEXT("⛔ premessa: la finestra attende"), S.TM->IsResolutionSuspended())
+		|| !TestEqual(TEXT("⛔ premessa: il ramo sospeso non e' una fine vera, nessuna riga alla presentazione (R8)"),
+			RigheAllaPresentazione, FString()))
+	{
+		return false;
+	}
+
+	// --- (2) la ripresa mostra il Blast, la fine vera recupera Prep e Dash ---------------------------------------------
+	for (int32 Scadenze = 0; Scadenze < 8 && S.TM->IsResolutionSuspended(); ++Scadenze)
+	{
+		S.TM->ExpireReactionWindow();
+	}
+	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), S.TM->IsResolutionSuspended())) { return false; }
+	RigaAttFinoAllaFine(S.TM);
+	if (!TestFalse(TEXT("⛔ premessa: il playback e' finito (fine VERA, col recupero di R8)"), S.TM->IsResolving())
+		|| !TestEqual(TEXT("⛔ premessa: la ripresa ha MOSTRATO la spinta: la sua riga e' nata da ShowActivation"),
+			S.Pusher->CastCuesPlayedForTest(), 1)
+		|| !TestEqual(TEXT("⛔ premessa: l'irrigidimento non e' mai stato mostrato: la sua riga e' del recupero, nato dopo"),
+			S.Bracer->CastCuesPlayedForTest(), 0)
+		|| !TestEqual(TEXT("⛔ premessa: e nemmeno la scia"), S.Scattista->CastCuesPlayedForTest(), 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("🔴 a fine vera le righe sono nell'ordine delle fasi del playback (Prep, Dash, Blast), una volta ciascuna"),
+		RigaAttElenco(S.TM->GetActivationLines()), Attese);
+	return true;
+}
+
 /**
  * Un turno SENZA playback (`bEnablePlayback` falso: `ConcludeResolution` passa a `ConcludeTurn` senza `BeginPlayback`) non
  * mostra le righe del turno prima (R7).
@@ -856,6 +1020,7 @@ bool FRTActivationLinePlaybackBothViewsTest::RunTest(const FString&)
 		S.TM->RefreshTeamKnowledgeNow();
 		S.TM->LockInAndResolve();
 		RigaAttFinoAllaFine(S.TM);
+		if (!TestFalse(TEXT("⛔ premessa: il playback e' finito"), S.TM->IsResolving())) { return false; }
 
 		const TArray<FRTPlayerEventLineView> Feed = RigaAttFeed(S.TM, 0);
 		OutFeed = RigaAttFeedComeTesto(Feed);

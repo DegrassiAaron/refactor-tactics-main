@@ -1921,6 +1921,12 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 	// La stessa PORTA del feed a schermo — la regola di `#3734` e, da #4033, le righe d'attivazione: senza, la diagnostica
 	// conterebbe righe diverse da quelle che il widget mostra, e indicherebbe lo strato sbagliato.
 	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(TurnManager, ObserverTeamIds);
+	// Le sole righe d'esito, come la stessa porta le calcola prima della fusione. La fusione non ne toglie nessuna (R6), quindi
+	// il resto del feed sono righe d'attivazione. ⛔ Il ramo 🔴 qui sotto parla del TurnLog e si decide su queste: deciso sul
+	// feed intero non scattava quando a schermo c'erano solo righe d'attivazione, e un TurnLog le cui voci non passano il
+	// filtro restava senza nome.
+	const int32 NumEsiti = BuildPlayerEventFeed(Log, ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds)).Num();
+	const int32 NumAttivazioni = Filtrato.Num() - NumEsiti;
 
 	FString Osservatori;
 	for (const int32 Id : ObserverTeamIds)
@@ -1928,9 +1934,10 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 		Osservatori += (Osservatori.IsEmpty() ? TEXT("") : TEXT(", ")) + FString::FromInt(Id);
 	}
 
+	// ⚠️ `righe dopo filtro=%d` resta com'e': la legge `UI.PlayerEventLog.APushAfterASuccessfulDashReachesTheFeed` (#3734).
 	Righe.Add(FString::Printf(
-		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d, budget=%d"),
-		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), MaxFeedLines));
+		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d (di cui attivazioni=%d), budget=%d"),
+		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), NumAttivazioni, MaxFeedLines));
 
 	// ⚠️ **Il TurnLog e' l'ULTIMO turno risolto, non la cronaca della partita**: `LockInAndResolve` lo azzera
 	// al commit e lo ripopola durante le fasi. Zero voci PRIMA della prima risoluzione e' lo stato corretto,
@@ -1944,8 +1951,9 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 		return Righe;
 	}
 
-	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non arriva niente.
-	if (Filtrato.Num() == 0)
+	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non ne arriva nessuna. ➕ #4033: si decide
+	// sulle righe d'esito; le righe d'attivazione, se ci sono, le conta la riga di testa.
+	if (Log.Num() > 0 && NumEsiti == 0)
 	{
 		Righe.Add(TEXT("[RT]   Il log ha voci ma NESSUNA passa il filtro dell'osservatore."));
 		Righe.Add(TEXT("[RT]   Se l'insieme degli osservatori qui sopra non e' quello atteso, la causa e' "

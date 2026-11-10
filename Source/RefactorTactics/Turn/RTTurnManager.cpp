@@ -10293,6 +10293,15 @@ void ARTTurnManager::FinishPlayback()
 			AddActivationLine(Ev, UnitByStableId(Ev.SourceStableUnitId));
 		}
 	}
+	// 🔴 **E la LISTA intera torna nell'ordine delle fasi del playback** (review finale di #4033, R8). Il recupero qui sopra e'
+	// in ordine, ma accoda: un salto durante Prep/Dash di un playback PARZIALE (finestra di reazione nel Blast) passa dal ramo
+	// sospeso, che non mostra niente; alla ripresa il playback mostra il Blast, e le righe di Prep e Dash nascevano qui DOPO le
+	// sue. L'ordinamento e' STABILE: dentro una fase resta l'ordine di nascita, cioe' quello in cui il playback le ha mostrate o
+	// il recupero le ha date. ⚠️ Si ordina per il valore di `ERTMatchPhase` perche' coincide con l'ordine del playback, misurato
+	// per lettura: l'enum dichiara `Planning, Prep, Dash, Blast, Move, Cleanup`, `URTTurnRules::NextPhase` (il passo di
+	// `RunPhaseLoop`) percorre le fasi in quell'ordine, e `BeginPlayback` costruisce `PlaybackPhases` Prep -> Dash -> Blast ->
+	// Move. Una riga ha la fase della sua attivazione, che e' Prep, Dash o Blast (le tre code qui sopra).
+	ActivationLines.StableSort([](const FRTActivationLine& A, const FRTActivationLine& B) { return A.Phase < B.Phase; });
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
 	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'

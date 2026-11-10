@@ -1471,6 +1471,11 @@ public:
 	 * ✅ **Le firme col manager la passano da sole** quando la sessione e' presidiata e chi guarda e' una squadra
 	 * sola; in sessione non presidiata (`IsUnattendedSession`) nessuna unita' e' «di chi guarda». Lo decide il
 	 * manager e non la taglia dell'insieme, che a fine autobattle puo' restringersi alla squadra rimasta in campo.
+	 *
+	 * ➕ **`AllowsTeam` qui sopra vale per le righe d'ESITO, quelle del TurnLog.** Le firme col manager fondono anche le righe
+	 * d'attivazione (`ARTTurnManager::GetActivationLines`, #4033, [D-600] (1)), che non ci ripassano: il loro pubblico e'
+	 * `ViewerTeamId`, la squadra per cui il playback le ha mostrate (R7b), e la loro privacy e' quella del playback, che a chi
+	 * guarda non mostra una sorgente non osservata (R2). Vedi `MergeActivationLines`.
 	 */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 		const TArray<int32>& ObserverTeamIds, int32 OwnTeamId = INDEX_NONE);
@@ -1478,6 +1483,7 @@ public:
 	/** La squadra di chi guarda per la regola di `#3734`, o `INDEX_NONE`: vedi `BuildPlayerEventFeed`. */
 	static int32 OwnTeamForFeed(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds);
 
+	/** Le righe d'esito del TurnLog come qui sopra, piu' le righe d'attivazione del playback: vedi il ➕ di #4033 qui sopra. */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 		const TArray<int32>& ObserverTeamIds);
 
