@@ -128,6 +128,11 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	TArray<FRTHexAttackHit> Ancora = Hits;
 	URTHexCombatLibrary::ApplyExposedToFirstHit(Ancora, Ordine, Esposti);
 	TestEqual(TEXT("stesso ordine, stesso esito"), Ancora[0].Power, Boosted[0].Power);
+	// Idempotente: un piano gia' moltiplicato non si moltiplica di nuovo, e il colpo gia' fatto conta come speso.
+	const TArray<int32> Seconda = URTHexCombatLibrary::ApplyExposedToFirstHit(Ancora, Ordine, Esposti);
+	TestEqual(TEXT("seconda chiamata: il primo colpo resta 240"), Ancora[0].Power, 240);
+	TestEqual(TEXT("seconda chiamata: il secondo non lo prende"), Ancora[1].Power, 100);
+	TestEqual(TEXT("seconda chiamata: nessun colpo moltiplicato"), Seconda.Num(), 0);
 
 	// Nessuno esposto: i colpi restano quelli dichiarati (nessun ritocco silenzioso).
 	TArray<FRTHexAttackHit> Untouched = Hits;

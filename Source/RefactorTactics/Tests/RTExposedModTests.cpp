@@ -273,8 +273,12 @@ bool FRTDamageBreakdownRecordsModBetweenRearAndDefenseTest::RunTest(const FStrin
 }
 
 /**
- * Lo stato dell'`ARTUnit` arriva al pass del Blast in un turno vero, e il moltiplicatore sta PRIMA della DEF anche li':
+ * Lo stato dell'`ARTUnit` arriva al pass del Blast in un turno vero e il vecchio `+50` non c'e' piu':
  * HP persi = `floor(P × 1,2 × 100/(100+DEF)) − BaseShield`, dove `P` e' il colpo pieno ricomposto dal caso base.
+ *
+ * ⚠️ **Questo test prova il CABLAGGIO, non l'ordine fra `Mod` e DEF**: con il `PulseShot` da 210 del banco, Mod
+ * prima o dopo la DEF 25 fa 201 in entrambi i versi. L'ordine lo pinna il caso B (111 → 106, non 105) del test sul
+ * piano, dove il numero e' scelto apposta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatExposedMultipliesInAFullTurnTest,
 	"RefactorTactics.Combat.ExposedMultipliesBeforeDefenseInAFullTurn",
@@ -292,7 +296,7 @@ bool FRTCombatExposedMultipliesInAFullTurnTest::RunTest(const FString&)
 	const int32 ColpoPieno = Nudo + URTCombatLibrary::BaseShield;
 	TestEqual(TEXT("floor(P × 1,2) − S"), Esposto,
 		URTCombatLibrary::MitigateDirectDamage(ColpoPieno, 0, URTCombatLibrary::ExposedModPercent, 0) - URTCombatLibrary::BaseShield);
-	TestEqual(TEXT("con DEF 25: floor(P × 1,2 × 100/125) − S, il moltiplicatore prima della DEF"), EspostoConDEF,
+	TestEqual(TEXT("con DEF 25: floor(P × 1,2 × 100/125) − S (il cablaggio; l'ordine lo pinna il caso 111 → 106)"), EspostoConDEF,
 		URTCombatLibrary::MitigateDirectDamage(ColpoPieno, 0, URTCombatLibrary::ExposedModPercent, 25) - URTCombatLibrary::BaseShield);
 	return true;
 }

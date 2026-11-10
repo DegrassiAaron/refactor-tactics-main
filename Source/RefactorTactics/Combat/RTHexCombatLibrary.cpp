@@ -395,6 +395,12 @@ TArray<int32> URTHexCombatLibrary::ApplyExposedToFirstHit(TArray<FRTHexAttackHit
 		{
 			continue;
 		}
+		if (Hit.ModPercentApplied == URTCombatLibrary::ExposedModPercent)
+		{
+			// Gia' moltiplicato: una seconda chiamata sullo stesso piano lo conta come speso e non somma due volte.
+			bSpent[Hit.TargetId] = true;
+			continue;
+		}
 
 		// La stessa formula della raccolta con il solo `Mod` diverso: si ricalcola da capo invece di moltiplicare
 		// `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)).

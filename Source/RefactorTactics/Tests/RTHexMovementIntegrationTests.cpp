@@ -459,7 +459,7 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// [D-224] «Il Ranger non ha scudo» qui sopra era una premessa VERA che e' diventata falsa: ora ogni
 	// unita' ne porta 5. Si azzera qui e non nell'helper perche' in questo file c'e' anche
 	// `Terrain.Fire.ErodesTemporaryShieldFirst`, che dello scudo base ha bisogno. La proprieta' in esame
-	// e' «Exposed aggiunge 5 al primo colpo», non l'assorbimento.
+	// e' «Exposed moltiplica il primo colpo per 1,2», non l'assorbimento.
 	Runner->Shield = 0;
 
 	const int32 StartHealth = Runner->Health;
