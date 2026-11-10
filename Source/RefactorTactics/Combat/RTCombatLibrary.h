@@ -868,13 +868,13 @@ public:
 	 * - `Defense` e' la DEF del bersaglio per il danno diretto, o la RES dell'elemento per quello elementale
 	 *   e ambientale (D-589 (1)): stessa forma, stessa funzione.
 	 *
-	 * ⚠️ **Nessun chiamante a runtime la usa ancora (CP 53.2 primo commit)**: con `Defense = 0` e
-	 * `ModPercent = 100` e' l'identita', e i test lo pinnano sui valori del catalogo di oggi. Entra nel
-	 * resolver con la passata ×10 (CP 53.3), quando DEF e RES esistono sull'unita'.
+	 * La chiama `URTHexCombatLibrary::MitigatedHitPower` nel punto in cui il colpo nasce (CP 53.2c), con la DEF
+	 * del bersaglio e il bonus dell'attaccante copiati dal catalogo (valori dal CP 53.3c); il pass di `Exposed`
+	 * la richiama con `ModPercent` 120 (CP 53.3b). Con `Defense = 0` e `ModPercent = 100` e' l'identita'.
 	 *
 	 * Valori negativi: `Base`, `RearBonus` e `ModPercent` sotto zero valgono zero; `Defense` sotto zero
 	 * vale zero, perche' D-595 ha deciso solo valori non negativi — l'Armor «firmata» del PRD e' una
-	 * domanda per CP 53.3, non un comportamento che questa funzione inventi in silenzio.
+	 * domanda per una decisione futura, non un comportamento che questa funzione inventi in silenzio.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 MitigateDirectDamage(int32 Base, int32 RearBonus, int32 ModPercent, int32 Defense);

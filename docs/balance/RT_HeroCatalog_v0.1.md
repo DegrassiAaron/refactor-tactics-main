@@ -249,12 +249,30 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 
 ## 5. Confronto rapido
 
-| Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |
-|---|---:|---:|---:|---:|---|---|
-| Aevik | 900 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
-| Muiren | 950 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
-| Branth | 1200 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
-| Ivrin | 900 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
+| Eroe | HP | MP | Vista | Push res. | DEF | RES | Spalle | Affinità | Identità in una riga |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| Aevik | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
+| Muiren | 950 | 5 | 5 | 0 | 25 | 40 | 60 | acqua | prepara il terreno agli altri e cura |
+| Branth | 1200 | 4 | 5 | 0 | 45 | 35 | 30 | strutture | cambia la forma della mappa, lento |
+| Ivrin | 900 | 6 | 6 | 0 | 15 | 20 | 90 | movimento | punisce chi si muove, il più mobile |
+
+> 🛡️ **`DEF`, `RES` e `Spalle` sono nel catalogo dal 2026-11-10 (E53 CP 53.3c, [#4013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4013)).**
+> `DEF` mitiga il danno diretto con `100/(100+DEF)` **prima** della copertura e della Guard, che restano piatte
+> ([D-589](../decisions/RT_PDR_00_Decision_Log.md) (1)(3)); `RES` è la resistenza di default per i dodici elementi di
+> [D-593](../decisions/RT_PDR_00_Decision_Log.md), con la stessa forma, e nessun eroe ne differenzia ancora uno;
+> `Spalle` è il bonus **dell'attaccante** che si somma alla Base quando il colpo arriva dai tre lati posteriori del
+> bersaglio ([D-587](../decisions/RT_PDR_00_Decision_Log.md) (2)(3)). I valori sono quelli che
+> [D-595](../decisions/RT_PDR_00_Decision_Log.md) (3) e [D-599](../decisions/RT_PDR_00_Decision_Log.md) hanno scelto per
+> lo slot del GDD che ciascuno diventerà con #4011: Aevik → Gadget (15 / 35, fascia standard 60), Muiren → Muriel
+> (25 / 40, 60), Branth → Riktor (45 / 35, tank 30), Ivrin → Kallari (15 / 20, flanker 90). Sono la **prima riga**
+> del catalogo, non quella definitiva: la taratura resta di questo documento ([D-282](../decisions/RT_PDR_00_Decision_Log.md)).
+> La formula è `URTCombatLibrary::MitigateDirectDamage`; la tabella di controllo di CP 53.1 si misura sul catalogo
+> reale in `RefactorTactics.Heroes.ControlTableHoldsOnTheRealCatalog`.
+>
+> ⚠️ **Copertura 100 e Guard 150 non sono ancora tarate con la DEF in mano** ([D-595](../decisions/RT_PDR_00_Decision_Log.md) (4)):
+> con questi valori un `HeavyAttack` (350) frontale su Branth in copertura bassa e in Guard fa `241 − 100 − 150 < 0`,
+> cioè **zero**; su Muiren 30, su Aevik e Ivrin 54. È il primo caso di controllo che D-595 (4) ha dichiarato per la
+> taratura, misurato qui e non deciso: i valori nuovi sono una `D-nnn` a parte.
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 

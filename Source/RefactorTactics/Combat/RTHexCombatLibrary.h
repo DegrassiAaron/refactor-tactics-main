@@ -47,10 +47,10 @@ struct FRTHexCombatUnit
 	 * La DEF del bersaglio ([D-589], E53 CP 53.2c): mitiga il danno diretto con `100/(100+DEF)` **prima** della
 	 * copertura. Copia di `ARTUnit::Defense` nello snapshot del Blast, come `Facing`, e sta QUI perche' la copertura
 	 * si sottrae dentro `CollectHexAttacks`: D-589 vuole la difesa prima e le riduzioni piatte dopo, quindi la
-	 * difesa deve essere in mano a chi calcola il colpo. ⚠️ A zero su tutto il roster finche' CP 53.3c non porta
-	 * i valori di D-595: con `0` la formula e' l'identita' (`Combat.Formula.ZeroDefenseIsIdentity`) e nessun golden
-	 * si muove. La RES per elemento NON e' qui: il colpo non porta ancora un elemento, e senza quello non c'e'
-	 * niente da applicare.
+	 * difesa deve essere in mano a chi calcola il colpo. I valori sono nel catalogo dal CP 53.3c ([D-595] (3):
+	 * Aevik 15, Muiren 25, Branth 45, Ivrin 15); con `0` la formula e' l'identita'
+	 * (`Combat.Formula.ZeroDefenseIsIdentity`). La RES per elemento NON e' qui: il colpo non porta ancora un
+	 * elemento, e senza quello non c'e' niente da applicare.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 Defense = 0;

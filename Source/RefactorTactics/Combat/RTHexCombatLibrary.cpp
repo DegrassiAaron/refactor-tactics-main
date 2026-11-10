@@ -324,6 +324,16 @@ int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, c
 	// «Alle spalle» = fuori dall'arco frontale del BERSAGLIO, giudicato dall'origine d'impatto ([D-587] (1), D-126):
 	// la stessa relazione a sei lati che toglie copertura e Guardia. `IsInFrontalArc` risponde `true` sulla stessa
 	// cella — non c'e' un lato da cui il colpo arrivi — quindi li' nessun bonus.
+	// 🔴 Un colpo SENZA Base non e' un colpo: `Action.Push`, i controlli e ogni intento a `Power` 0 passano di qui
+	// perche' dichiarano `bCountsAsAttack`, e il bonus alle spalle «si somma alla Base» ([D-587] (3)) — non la
+	// inventa. Fino al CP 53.3c questa riga non c'era e non serviva: con il bonus a zero nel catalogo una spinta
+	// alle spalle faceva `floor((0 + 0) × …) = 0`; con Ivrin a 90 faceva 78 danni a una spinta. Lo pinna
+	// `Combat.RearBonusNeedsADamagingBase`.
+	if (BasePower <= 0)
+	{
+		OutRearBonusApplied = 0;
+		return 0;
+	}
 	const bool bRear = !IsInFrontalArc(Target.Cell, Target.Facing, ImpactOriginOf(Shape, Attacker.Cell, AimCell));
 	OutRearBonusApplied = bRear ? FMath::Max(0, Attacker.RearBonus) : 0;
 	return URTCombatLibrary::MitigateDirectDamage(BasePower, OutRearBonusApplied, /*ModPercent*/ 100,
@@ -799,9 +809,9 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
 
 				// [D-589] (E53 CP 53.2c): spalle e DEF PRIMA della copertura, che resta piatta e si sottrae dopo. Con
-				// DEF e bonus a zero — tutto il roster, oggi — `Mitigated == Intent.Power` e il colpo e' identico a
-				// prima: lo pinnano i golden (`Simulation.GoldenCorpusMatches`) e
-				// `Combat.ZeroDefenseAndRearLeaveHitsUntouched`.
+				// DEF e bonus a zero `Mitigated == Intent.Power` (`Combat.ZeroDefenseAndRearLeaveHitsUntouched`); dal
+				// CP 53.3c il catalogo porta i valori di D-595 (3) e D-599, e i golden li incorporano
+				// (`Simulation.GoldenCorpusMatches`, rigenerati e dichiarati nella PR di quel passo).
 				int32 RearApplied = 0;
 				const int32 Mitigated = MitigatedHitPower(Attacker, Other, Intent.Shape, AimCell, Intent.Power, RearApplied);
 				FRTHexAttackHit Hit(Intent.AttackerId, u,

@@ -135,7 +135,7 @@ bool FRTFormulaZeroDefenseIsIdentity::RunTest(const FString&)
 	}
 	TestEqual(TEXT("zero resta zero"), Mitigate(0, 25), 0);
 	// Valori negativi valgono zero (dichiarato nella documentazione della funzione): una Base negativa non
-	// cura, una Defense negativa non amplifica finche' CP 53.3 non decide l'Armor firmata.
+	// cura, una Defense negativa non amplifica finche' una decisione non introduce l'Armor firmata del PRD.
 	TestEqual(TEXT("Base negativa → 0"), URTCombatLibrary::MitigateDirectDamage(-10, 0, 100, 0), 0);
 	TestEqual(TEXT("Defense negativa vale 0"), URTCombatLibrary::MitigateDirectDamage(240, 0, 100, -50), 240);
 	return true;

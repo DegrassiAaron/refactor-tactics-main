@@ -140,7 +140,7 @@ namespace
 		}
 
 		Difensore->Facing = ERTHexDirection::W; // guarda l'attaccante: nessun bonus alle spalle in gioco
-		Difensore->Defense = DefenderDefense;   // INIETTATA: il catalogo la tiene a zero fino a CP 53.3c
+		Difensore->Defense = DefenderDefense;   // INIETTATA: sovrascrive il 15 di Ivrin (CP 53.3c): qui si misura il pass
 		Difensore->PlannedAbilityIndex = INDEX_NONE;
 		if (bExposed)
 		{

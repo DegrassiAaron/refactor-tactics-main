@@ -106,10 +106,10 @@ public:
 	 * DEF del personaggio: la mitigazione moltiplicativa del danno DIRETTO, `100 / (100 + Defense)`
 	 * ([D-589] (1), [D-595] (3); E53 CP 53.2b). La formula vive in `URTCombatLibrary::MitigateDirectDamage`.
 	 *
-	 * ⏳ **Zero per tutti finche' CP 53.3 non porta i valori** (D-595 (3): Riktor 45, Steel 60, Kallari 15,
-	 * Feng Mao 35, Murdock 20, Gadget 15, Muriel 25, The Fey 20; i quattro a runtime prendono quelli dello
-	 * slot che diventeranno). A zero la mitigazione e' l'identita', ed e' cosi' che questo campo entra senza
-	 * cambiare un golden. ⛔ Il numero per eroe e' TARATURA e la possiede `balance/` ([D-282]).
+	 * Valori dal CP 53.3c (D-595 (3), gli otto del GDD: Riktor 45, Steel 60, Kallari 15, Feng Mao 35, Murdock 20,
+	 * Gadget 15, Muriel 25, The Fey 20; i quattro a runtime prendono quelli dello slot che diventeranno: Aevik 15,
+	 * Muiren 25, Branth 45, Ivrin 15). Fino a CP 53.3b era zero per tutti, cioe' l'identita': i campi sono entrati
+	 * prima dei numeri. ⛔ Il numero per eroe e' TARATURA e la possiede `balance/` ([D-282]).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 Defense = 0;
@@ -118,7 +118,8 @@ public:
 	 * RES di default per i dodici elementi ([D-593]): la mitigazione del danno ELEMENTALE e AMBIENTALE con la
 	 * stessa forma della DEF ([D-589] (1)). `ElementResistance` la sostituisce per il singolo elemento che vi
 	 * compare; per gli altri vale questo numero ([D-595] (3): «la RES unica come default per i dodici»).
-	 * Zero finche' CP 53.3 non porta i valori.
+	 * Valori dal CP 53.3c: Aevik 35, Muiren 40, Branth 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
+	 * porta ancora un elemento, quindi nessun chiamante la legge: e' un dato del catalogo in attesa del suo lettore.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 ResistanceDefault = 0;
@@ -134,8 +135,8 @@ public:
 	/**
 	 * Bonus alle spalle dell'ATTACCANTE ([D-587] (2)(3)): si somma alla Base del colpo PRIMA della mitigazione
 	 * quando il colpo arriva da uno dei tre lati posteriori del bersaglio (D-126), quindi la DEF lo riduce come
-	 * il resto. Valori iniziali [D-599]: flanker 90, standard 60, tank 30 sulla scala ×10 — zero finche' CP 53.3
-	 * non li porta. A zero nessun colpo alle spalle fa piu' danno di oggi.
+	 * il resto. Valori iniziali [D-599]: flanker 90, standard 60, tank 30 sulla scala ×10, nel catalogo dal
+	 * CP 53.3c (Ivrin 90; Aevik e Muiren 60; Branth 30). La fascia e' una convenzione di scrittura, non un campo.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RearBonus = 0;
