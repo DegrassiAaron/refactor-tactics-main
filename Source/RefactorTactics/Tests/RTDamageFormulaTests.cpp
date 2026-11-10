@@ -62,7 +62,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFormulaExposedMultipliesTheBase,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFormulaExposedMultipliesTheBase::RunTest(const FString&)
 {
-	TestEqual(TEXT("240 Exposed contro DEF 25"), URTCombatLibrary::MitigateDirectDamage(240, 0, 120, 25), 230);
+	TestEqual(TEXT("il catalogo dichiara 120 (CP 53.3b)"), URTCombatLibrary::ExposedModPercent, 120);
+	TestEqual(TEXT("240 Exposed contro DEF 25"),
+		URTCombatLibrary::MitigateDirectDamage(240, 0, URTCombatLibrary::ExposedModPercent, 25), 230);
 	// Il moltiplicatore agisce anche sul bonus alle spalle: (240 + 60) × 1,2 × 100 / 125 = 288.
 	TestEqual(TEXT("240 + 60 Exposed contro DEF 25"), URTCombatLibrary::MitigateDirectDamage(240, 60, 120, 25), 288);
 	// Un Mod a 100 e' neutro per costruzione.

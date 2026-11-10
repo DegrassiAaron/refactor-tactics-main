@@ -230,12 +230,19 @@ class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * `Status.Exposed`: +50 al PRIMO danno diretto ricevuto (catalogo v0.1 §2, `Action.Sprint`).
+	 * `Status.Exposed`: moltiplicatore **1,2** in `Mod` sul PRIMO colpo diretto che fa danno nel Blast ([D-595] (2);
+	 * E53 CP 53.3b), in centesimi come il `ModPercent` di `MitigateDirectDamage`. Lo applica
+	 * `URTHexCombatLibrary::ApplyExposedToFirstHit` al colpo del piano, PRIMA della DEF e della copertura:
+	 * `floor((Base + Spalle) × 120/100 × 100/(100 + DEF))`.
+	 *
+	 * ⏱️ *Fino al 2026-11-10 era `ExposedFirstHitBonus`, un `+5` piatto (poi `+50` con la scala ×10) sommato DOPO la
+	 * copertura da `ApplyFirstHitDelta`. [D-595] (2) l'ha scelto come moltiplicatore perche' conserva il caso medio
+	 * di allora (+21% su `PrecisionAttack`) ed e' coerente con [D-589] (3), che mette gli stati in `Mod`.*
 	 *
 	 * Costante nominata e non numero sparso nel resolver: e' un valore di catalogo, e quando gli stati
 	 * diventeranno dati (CP 8.2) sara' un campo dell'asset, non una modifica in tre punti.
 	 */
-	static constexpr int32 ExposedFirstHitBonus = 50;
+	static constexpr int32 ExposedModPercent = 120;
 
 	/**
 	 * `Action.Guard`: il **DEFAULT DI CATALOGO** della riduzione per colpo ([D-408] + [D-206]). Non
@@ -264,7 +271,8 @@ public:
 	 * la nuova. Il paragrafo che qui giustificava di tenerlo e' andato via con lui, come la clausola chiedeva.*
 	 *
 	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
-	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` (`Status.Marked` ha un pass proprio nel Blast).
+	 * `ApplyFirstHitDelta` — quest'ultima non ha piu' chiamanti di produzione dal 2026-11-10: `Status.Exposed` e' un
+	 * moltiplicatore applicato sul piano (`ApplyExposedToFirstHit`, CP 53.3b) e `Status.Marked` ha un pass proprio nel Blast.
 	 * ⏱️ *Questa riga diceva `ApplyAbsorptionPool` fino al 2026-09-20, ed era la meta' di commento che
 	 * [D-408] aveva lasciato indietro correggendo l'altra: chi la seguiva per trovare il consumatore
 	 * atterrava sul percorso del `Deflect`. Trovato da una code review — ed e' precisamente la deriva che il
@@ -424,6 +432,8 @@ public:
 	 */
 	static const FName RearBonusSource;
 	static const FName DefenseSource;
+	/** La provenienza dello stadio `Mod` ([D-589] (3)): oggi il solo `Exposed` 120 ([D-595] (2), CP 53.3b). */
+	static const FName ExposedModSource;
 
 	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
@@ -495,7 +505,7 @@ public:
 	/**
 	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +80 danni contro un bersaglio `Status.Wet`.
 	 *
-	 * A differenza di `Exposed`, NON passa da `ApplyFirstHitDelta` (e nemmeno `Marked` e la Guardia, che hanno una sede propria): il bonus non si consuma
+	 * A differenza di `Exposed` (un moltiplicatore sul SOLO primo colpo, `ApplyExposedToFirstHit`) — e come `Marked` e la Guardia, che hanno una sede propria — il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.

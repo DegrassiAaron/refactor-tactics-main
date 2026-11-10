@@ -379,6 +379,45 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	return Out;
 }
 
+TArray<int32> URTHexCombatLibrary::ApplyExposedToFirstHit(TArray<FRTHexAttackHit>& Hits, const TArray<int32>& HitOrder,
+	const TArray<bool>& bExposedByTarget)
+{
+	TArray<int32> Boosted;
+	// Chi l'ha gia' avuto: array parallelo ai bersagli, mai una TMap — a decidere e' `HitOrder` e basta.
+	TArray<bool> bSpent;
+	bSpent.Init(false, bExposedByTarget.Num());
+	for (int32 h : HitOrder)
+	{
+		if (!Hits.IsValidIndex(h)) { continue; }
+		FRTHexAttackHit& Hit = Hits[h];
+		if (Hit.Power <= 0 || Hit.NominalPower <= 0) { continue; } // «danno ricevuto»: un colpo azzerato non spende lo stato
+		if (!bExposedByTarget.IsValidIndex(Hit.TargetId) || !bExposedByTarget[Hit.TargetId] || bSpent[Hit.TargetId])
+		{
+			continue;
+		}
+		if (Hit.ModPercentApplied == URTCombatLibrary::ExposedModPercent)
+		{
+			// Gia' moltiplicato: una seconda chiamata sullo stesso piano lo conta come speso e non somma due volte.
+			bSpent[Hit.TargetId] = true;
+			continue;
+		}
+
+		// La stessa formula della raccolta con il solo `Mod` diverso: si ricalcola da capo invece di moltiplicare
+		// `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)).
+		const int32 Before = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
+			/*ModPercent*/ 100, Hit.DefenseApplied);
+		const int32 After = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
+			URTCombatLibrary::ExposedModPercent, Hit.DefenseApplied);
+		Hit.Power += After - Before;
+		Hit.MitigatedPower = After;
+		Hit.ModPercentApplied = URTCombatLibrary::ExposedModPercent;
+		bSpent[Hit.TargetId] = true;
+		Boosted.Add(h);
+	}
+	Boosted.Sort();
+	return Boosted;
+}
+
 FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombatUnit>& Units,
 	const TArray<FRTHexAttackIntent>& Intents, const URTHexMapAsset* Map)
 {
@@ -934,6 +973,17 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 			const int32 After = Running + Hit.RearBonusApplied;
 			Attack.Breakdown.Emplace(ERTDamageStage::RearBonus, URTCombatLibrary::RearBonusSource,
 				ERTDamageOp::Add, Hit.RearBonusApplied, Running, After);
+			Running = After;
+		}
+		// [D-595] (2) (CP 53.3b): il `Mod` di [D-589] (3) — oggi solo `Exposed` 120 sul primo colpo — sta fra le spalle e
+		// la DEF, come nella formula. `After` e' l'intermedio `floor(Running × Mod/100)`: l'arrotondamento vero e' uno solo,
+		// in fondo, e la voce `Defense` che segue atterra su `MitigatedPower` reale (differenza al piu' 1, nei rari casi in
+		// cui i due floor divergono). Senza DEF l'intermedio E' il valore reale.
+		if (Hit.ModPercentApplied > 0 && Hit.ModPercentApplied != 100)
+		{
+			const int32 After = static_cast<int32>((static_cast<int64>(Running) * Hit.ModPercentApplied) / 100);
+			Attack.Breakdown.Emplace(ERTDamageStage::Mod, URTCombatLibrary::ExposedModSource,
+				ERTDamageOp::Multiply, Hit.ModPercentApplied, Running, After);
 			Running = After;
 		}
 		if (Hit.DefenseApplied > 0 && Hit.MitigatedPower != Running)

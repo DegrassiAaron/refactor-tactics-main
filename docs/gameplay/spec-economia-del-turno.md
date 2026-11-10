@@ -67,7 +67,7 @@ regola.
 | Azione | Cosa guadagna | Cosa paga |
 |---|---|---|
 | `HeavyAttack` contro `PrecisionAttack` | **35** danni contro 24 | cooldown **2** contro 1 |
-| `Sprint` contro `Move` | 8 MP contro 5 | `Status.Exposed` (+5 al primo danno diretto) e nessuna reazione |
+| `Sprint` contro `Move` | 8 MP contro 5 | `Status.Exposed` (×1,2 al primo danno diretto, [D-595](../decisions/RT_PDR_00_Decision_Log.md) (2)) e nessuna reazione |
 | `Brace` | tiene da ogni lato, a ogni colpo | si radica da sé: `Root`, quindi non si muove |
 | `Charge` | ti porta addosso al bersaglio e lo colpisce | cooldown **2** contro l'1 del `Dash`, a parità di slot |
 

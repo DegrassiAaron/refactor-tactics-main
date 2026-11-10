@@ -32,7 +32,8 @@ struct FRTUnitCombatState
  * GLI STADI che un valore d'abilita' attraversa fra il catalogo e gli HP — `#1951`.
  *
  * 🔑 **Non e' un ordine nuovo: e' il nome di quello che gia' esiste.** La catena e' orchestrata in un
- * punto solo (`ARTTurnManager`, la composizione di `ApplyEligibleHitDelta(ApplyAbsorptionPool(ApplyDamageDelta(ApplyFirstHitDelta(...))))`)
+ * punto solo (`ARTTurnManager`, la composizione di `ApplyEligibleHitDelta(ApplyAbsorptionPool(ApplyDamageDelta(ToAttacks(Plan))))`;
+ * ⏱️ *fino al 2026-11-10 c'era `ApplyFirstHitDelta` in mezzo, per `Exposed`: da E53 CP 53.3b `Exposed` e' gia' nel piano*)
  * e ogni stadio e' motivato da una decisione accettata. Questo enum li rende **nominabili** perche' il
  * TurnLog possa registrarli; non decide niente.
  *
@@ -52,7 +53,9 @@ enum class ERTDamageStage : uint8
 	/** Copertura, per-colpo e direzionale: dipende da dove sta chi SUBISCE (`D-206`). */
 	Cover,
 	/**
-	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+50`. Vale una volta. ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
+	 * Delta di primo colpo per bersaglio. Vale una volta. ⏱️ *Era la sede di `Status.Exposed` (`+5`, poi `+50`) fino al 2026-11-10:
+	 * da E53 CP 53.3b `Exposed` e' un moltiplicatore nello stadio `Mod` ([D-595] (2)) e NESSUN delta di primo colpo esiste piu' in
+	 * produzione; lo stadio resta perche' l'enum e' append-only e `ApplyFirstHitDelta` resta nel contratto.* ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
 	 * (`RTTurnManager.cpp`, `MarkSpentOn`) che somma `+6` al `Power` del primo colpo qualificato nell'ordine canonico.
 	 * ⛔ **`Action.Deflect` NON e' piu' qui**: da [D-309] e' un pool e produce `AbsorptionPool`. La riga lo
 	 * nominava, e questo enum e' cio' che etichetta lo stadio nel breakdown di danno — cioe' l'unico posto
@@ -96,14 +99,27 @@ enum class ERTDamageStage : uint8
 	 * La DEF del bersaglio ([D-589]): `Mitigate`, `After = floor(Before × 100 / (100 + DEF))`. Stessa collocazione
 	 * di `RearBonus`: dopo di lui e prima di `Cover` nella traccia.
 	 */
-	Defense
+	Defense,
+	/**
+	 * Il `Mod` di [D-589] (3): il prodotto dei moltiplicatori di stato, in centesimi. Oggi UNO solo, `Status.Exposed` = 120
+	 * sul primo colpo diretto che fa danno ([D-595] (2); E53 CP 53.3b), scritto da `URTHexCombatLibrary::ApplyExposedToFirstHit`
+	 * sul colpo del piano e letto da `ToAttacks`. Operazione `Multiply`; nella traccia sta fra `RearBonus` e `Defense`, come nella
+	 * formula (in coda all'enum per la stessa ragione di quei due). `Status.Marked` NON e' qui: resta un delta piatto
+	 * (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore.
+	 *
+	 * ⚠️ L'arrotondamento della formula e' UNO, in fondo ([D-595] (1)): `After` di questa voce e' l'intermedio
+	 * `floor(Before × Mod/100)`, e la voce `Defense` che segue atterra sul valore reale (`MitigatedPower`). Nei rari casi in
+	 * cui i due floor non coincidono la differenza (al piu' 1) sta nella voce `Defense`; senza DEF l'intermedio E' il reale.
+	 */
+	Mod
 };
 
 /**
- * LE SEI OPERAZIONI REALI della catena, e non ce ne sono altre — `#1951`. ⏱️ *Erano cinque fino al 2026-11-09:
- * `Mitigate` e' la forma moltiplicativa `100/(100+DEF)` di [D-589] (E53, CP 53.2c). Aggiungerla qui e' stato
- * esattamente «cambiare la catena», come la riga sotto avverte — ed e' avvenuto con una decisione accettata, non
- * per arricchire il registro.*
+ * LE SETTE OPERAZIONI REALI della catena, e non ce ne sono altre — `#1951`. ⏱️ *Erano cinque fino al 2026-11-09 e
+ * sei fino al 2026-11-10: `Mitigate` e' la forma moltiplicativa `100/(100+DEF)` di [D-589] (E53, CP 53.2c) e
+ * `Multiply` e' il `Mod` di [D-589] (3) con il suo primo moltiplicatore, `Exposed` 120 ([D-595] (2), CP 53.3b).
+ * Aggiungerle qui e' stato esattamente «cambiare la catena», come la riga sotto avverte — ed e' avvenuto con una
+ * decisione accettata, non per arricchire il registro.*
  *
  * ⛔ **Non esiste un solo moltiplicatore**, e i cinque tipi `Flat`/`Percent`/`Multiplier`/`Override`/`Clamp`
  * che un sistema di modificatori generico userebbe **non descrivono questo sistema**: la issue li mette
@@ -126,7 +142,12 @@ enum class ERTDamageOp : uint8
 	 * Mitigazione moltiplicativa di [D-589]: `After = floor(Before × 100 / (100 + Operand))`, con `Operand` = DEF.
 	 * Un solo arrotondamento, per difetto ([D-595] (1)); la casa del calcolo e' `URTCombatLibrary::MitigateDirectDamage`.
 	 */
-	Mitigate
+	Mitigate,
+	/**
+	 * Moltiplicatore di stato in centesimi ([D-589] (3), [D-595] (2); E53 CP 53.3b): `After = floor(Before × Operand / 100)`,
+	 * con `Operand` = `Mod` (120 per `Exposed`). La sola voce che lo usa e' lo stadio `Mod`.
+	 */
+	Multiply
 };
 
 /**
@@ -261,8 +282,10 @@ public:
 		const TArray<FRTAttack>& Attacks, TMap<int32, FRTDamageBreakdown>& OutByTarget);
 
 	/**
-	 * Applica i modificatori che valgono UNA VOLTA SOLA per bersaglio: oggi `Status.Exposed` (+5 al primo
-	 * danno diretto ricevuto); la Guardia non passa piu' da qui (non da [D-292], e dal 2026-09-20 e' una riduzione per colpo, [D-408]). `DeltaByTarget[i]` e' il delta dell'unita' `i`
+	 * Applica un delta PIATTO che vale UNA VOLTA SOLA per bersaglio. ⏱️ *Fino al 2026-11-10 era la strada di
+	 * `Status.Exposed` (+5 al primo danno diretto, poi +50): da E53 CP 53.3b `Exposed` e' un moltiplicatore applicato sul
+	 * piano (`URTHexCombatLibrary::ApplyExposedToFirstHit`) e nessun chiamante di produzione passa piu' da qui; la funzione
+	 * resta nel contratto e nei test.* La Guardia non passa da qui (non da [D-292], e dal 2026-09-20 e' una riduzione per colpo, [D-408]). `DeltaByTarget[i]` e' il delta dell'unita' `i`
 	 * (0 = nessuno); un indice fuori dall'array vale 0.
 	 *
 	 * Il delta va al PRIMO colpo che quel bersaglio riceve nell'ordine dato. Poiche' `ResolveAttacks` somma i

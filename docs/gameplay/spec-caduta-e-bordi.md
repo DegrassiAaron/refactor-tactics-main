@@ -239,7 +239,7 @@ deve essere **già** adiacente al bordo. E chi cade perde la posizione — scend
 arco di risalita. **50 su 900-1200 HP**, un quarto di `Charge`, dice *«è successo qualcosa»* senza spostare
 l'aritmetica dello scontro.
 
-🔑 **La minaccia viene da `Exposed`, non dal danno**: *«+5 al primo danno diretto»* significa che chi ti
+🔑 **La minaccia viene da `Exposed`, non dal danno**: *«×1,2 al primo danno diretto»* ([D-595](../decisions/RT_PDR_00_Decision_Log.md) (2); era +5) significa che chi ti
 butta giù ti **prepara per il colpo dopo**. Il bordo è pericoloso perché apre una combo. ⛔ `Slow` è stato
 scartato perché dimezzare il movimento di chi deve risalire punisce due volte sullo stesso asse.
 
@@ -276,7 +276,7 @@ l'equivoco l'ha misurato.*
 avendo più una fase interposta davanti, ha ricevuto `Exposed` a **2 turni** nello stesso momento — D-116 voce
 4, *«un turno solo lo renderebbe inerte»* — cioè **la stessa ragione** che qui sotto giustifica il `2` dello
 slide su ghiaccio. La caduta continua a valere `1` perché risolve **nel** `Blast` e ha il resto del turno
-davanti a sé: lo misura end-to-end `Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5`.
+davanti a sé: lo misura end-to-end `Actions.Sprint.AppliesExposed`, che asserisce `floor(FullHit × 1,2)` (era `FullHit + 5` fino al 2026-11-10, [D-595](../decisions/RT_PDR_00_Decision_Log.md) (2)).
 
 ⚠️ **Ciò che è scaduto è il paragone, non la decisione**: `D-357` non cambia, e `Action.Sprint` ha smesso di
 essere l'esempio di *«a `1` basta»* per diventare quello di *«nel Move serve `2`»*. Aggiornato da
