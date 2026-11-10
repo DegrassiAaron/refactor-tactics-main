@@ -1850,11 +1850,10 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		return ResultLines;
 	}
 
-	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): una riga d'attivazione in
-	// testa con `TurnNumber` 0 darebbe un'intestazione «senza righe».
-	const int32 TurnoDelFeed = ResultLines.Num() > 0 ? ResultLines[0].TurnNumber : 0;
-
-	const auto FaRiga = [TurnoDelFeed](const FRTActivationLine& Attivazione)
+	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): ogni riga d'attivazione porta
+	// il PROPRIO turno, scritto quando e' nata. Copiarlo dalla prima riga d'esito darebbe 0 a un turno di sole attivazioni,
+	// e un'intestazione «senza righe».
+	const auto FaRiga = [](const FRTActivationLine& Attivazione)
 	{
 		FRTPlayerEventLineView Riga;
 		Riga.Text = Attivazione.Text;
@@ -1863,7 +1862,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		Riga.Phase = Attivazione.Phase;
 		Riga.bHasBlocker = false;
 		Riga.bReaction = false;
-		Riga.TurnNumber = TurnoDelFeed;
+		Riga.TurnNumber = Attivazione.TurnNumber;
 		return Riga;
 	};
 
@@ -1919,10 +1918,9 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 	}
 
 	const TArray<FRTTurnLogEntry>& Log = TurnManager->GetTurnLog();
-	// La stessa regola del feed a schermo (`#3734`): senza, la diagnostica conterebbe righe diverse da quelle che
-	// il widget mostra, e indicherebbe lo strato sbagliato.
-	const TArray<FRTPlayerEventLineView> Filtrato =
-		BuildPlayerEventFeed(Log, ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds));
+	// La stessa PORTA del feed a schermo — la regola di `#3734` e, da #4033, le righe d'attivazione: senza, la diagnostica
+	// conterebbe righe diverse da quelle che il widget mostra, e indicherebbe lo strato sbagliato.
+	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(TurnManager, ObserverTeamIds);
 
 	FString Osservatori;
 	for (const int32 Id : ObserverTeamIds)
@@ -1937,7 +1935,9 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 	// ⚠️ **Il TurnLog e' l'ULTIMO turno risolto, non la cronaca della partita**: `LockInAndResolve` lo azzera
 	// al commit e lo ripopola durante le fasi. Zero voci PRIMA della prima risoluzione e' lo stato corretto,
 	// e chiamarlo difetto manderebbe a cercare un guasto che non c'e'.
-	if (Log.Num() == 0)
+	// ➕ #4033: e solo se il feed e' davvero vuoto. Le righe d'attivazione non vengono dal TurnLog (`GetActivationLines`):
+	// con righe a schermo e log vuoto, sotto si elencano le righe che il widget mostra invece di dire «nessun turno».
+	if (Log.Num() == 0 && Filtrato.Num() == 0)
 	{
 		Righe.Add(TEXT("[RT]   Il TurnLog e' vuoto: nessun turno ancora risolto, oppure e' appena stato "
 					   "azzerato dal commit. Non e' un difetto finche' una risoluzione non e' avvenuta."));
@@ -1977,9 +1977,15 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 	const TArray<int32>& ObserverTeamIds)
 {
-	return TurnManager != nullptr
-		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds))
-		: TArray<FRTPlayerEventLineView>{};
+	if (TurnManager == nullptr)
+	{
+		return TArray<FRTPlayerEventLineView>{};
+	}
+	// Le righe d'esito come sempre, poi le righe d'attivazione che il playback ha mostrato (#4033, R6): la fusione non
+	// tocca le prime e filtra le seconde soltanto per la chiave del pubblico (R7b).
+	return MergeActivationLines(
+		BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds)),
+		TurnManager->GetActivationLines(), ObserverTeamIds, MaxFeedLines);
 }
 
 /**

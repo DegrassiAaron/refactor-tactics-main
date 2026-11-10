@@ -1194,7 +1194,8 @@ namespace
  * Un turno vero, dalla Pianificazione alla Pianificazione successiva, con il registro osservato a ogni passo. Le gambe:
  *   0. al primo turno non c'e' niente da rileggere: chiuso, e nessuna riga;
  *   1. in Risoluzione il registro e' quello di prima: «ROUND 01», senza «PRECEDENTE», e le righe portano il turno 1;
- *   2. a turno risolto (round 2) il registro e' APERTO, con le stesse righe, e l'intestazione dice il turno delle righe e
+ *   2. a turno risolto (round 2) il registro e' APERTO, con le righe dell'ultimo istante della Risoluzione (da #4033 vi
+ *      entrano anche le righe d'attivazione, mentre il playback le mostra), e l'intestazione dice il turno delle righe e
  *      che e' passato: «ROUND 01 · PRECEDENTE» — non il round corrente, 02;
  *   3. un giro di rilettura riusa le righe;
  *   4. al commit seguente le righe vecchie lasciano il posto a quelle del turno nuovo, e «PRECEDENTE» sparisce;
@@ -1248,7 +1249,15 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 	TestEqual(TEXT("premessa: le righe del primo turno portano il turno 1"), FeedDelTurno[0].TurnNumber, 1);
 
 	// --- 2. Il turno e' risolto: Pianificazione del turno 2 --------------------------------------------------------------
-	AdvanceUntilDone(TM);
+	// ➕ #4033 ([D-600] (1), R4 e R7): le righe d'attivazione entrano nel feed DURANTE la Risoluzione, nell'istante in cui il
+	// playback mostra l'attivazione, e restano nella Pianificazione. Le righe che la Pianificazione ritrova sono quindi quelle
+	// dell'ULTIMO istante della Risoluzione, non del primo (`FeedDelTurno`): si rilegge il feed a ogni passo finche' dura.
+	TArray<FRTPlayerEventLineView> FeedAFineRisoluzione = FeedDelTurno;
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+		if (TM->IsResolving()) { FeedAFineRisoluzione = Log->GetFeed(); }
+	}
 	if (!TestFalse(TEXT("premessa: la risoluzione e' finita"), TM->IsResolving())
 		|| !TestTrue(TEXT("premessa: si e' tornati in Pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning)
 		|| !TestEqual(TEXT("premessa: il round corrente e' il 2"), URTHudViewModel::BuildMatchHeader(TM).Round, 2))
@@ -1257,16 +1266,17 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 	}
 	Log->RefreshLook(/*bRereadFeed=*/ false);
 	TestTrue(TEXT("2: in Pianificazione, con un turno risolto, il registro e' aperto"), Visibile(Log->LogRoot));
-	TestEqual(TEXT("2: l'ingresso in Pianificazione rilegge il feed subito"), Log->GetLineWidgets().Num(), FeedDelTurno.Num());
+	TestEqual(TEXT("2: l'ingresso in Pianificazione rilegge il feed subito"), Log->GetLineWidgets().Num(),
+		FeedAFineRisoluzione.Num());
 	TestTrue(TEXT("2: l'intestazione dice il turno DELLE RIGHE e che e' passato, non il round corrente"),
 		Uguale(Intestazione(), TEXT("ROUND 01 \u00B7 PRECEDENTE")));
-	for (int32 i = 0; i < FeedDelTurno.Num() && i < Log->GetLineWidgets().Num(); ++i)
+	for (int32 i = 0; i < FeedAFineRisoluzione.Num() && i < Log->GetLineWidgets().Num(); ++i)
 	{
 		const URTPlayerEventLineWidget* Riga = Log->GetLineWidgets()[i];
 		if (!TestNotNull(*FString::Printf(TEXT("2: la riga %d esiste"), i), Riga)) { continue; }
 		TestEqual(*FString::Printf(TEXT("2: la riga %d e' del turno 1"), i), Riga->GetLine().TurnNumber, 1);
-		TestTrue(*FString::Printf(TEXT("2: la riga %d e' la stessa che si leggeva in Risoluzione"), i),
-			Riga->GetLine().Text.EqualTo(FeedDelTurno[i].Text));
+		TestTrue(*FString::Printf(TEXT("2: la riga %d e' la stessa che si leggeva a fine Risoluzione"), i),
+			Riga->GetLine().Text.EqualTo(FeedAFineRisoluzione[i].Text));
 	}
 
 	// --- 3. Un giro di rilettura riusa le righe ---------------------------------------------------------------------------

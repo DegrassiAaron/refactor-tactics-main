@@ -1220,12 +1220,21 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 		return false;
 	}
 
-	auto RigheDi = [](const TArray<FRTPlayerEventLineView>& Feed, const ARTUnit* U, FString& Testo) -> int32
+	// ➕ #4033 ([D-600] (1), R3): la riga d'attivazione dello scatto sta «a se'», FUORI dalla dominanza, e porta la stessa
+	// unita'. Cio' che questo test pinna e' la dominanza fra le righe d'ESITO — una per unita' — quindi le righe d'attivazione,
+	// che il manager tiene a parte (`GetActivationLines`), non si contano.
+	TSet<FString> TestiDelleAttivazioni;
+	for (const FRTActivationLine& Attivazione : TM->GetActivationLines()) { TestiDelleAttivazioni.Add(Attivazione.Text.ToString()); }
+	auto RigheDi = [&TestiDelleAttivazioni](const TArray<FRTPlayerEventLineView>& Feed, const ARTUnit* U, FString& Testo) -> int32
 	{
 		int32 Quante = 0;
 		for (const FRTPlayerEventLineView& Riga : Feed)
 		{
-			if (Riga.PrimaryStableUnitId == U->StableUnitId) { ++Quante; Testo = Riga.Text.ToString(); }
+			if (Riga.PrimaryStableUnitId == U->StableUnitId && !TestiDelleAttivazioni.Contains(Riga.Text.ToString()))
+			{
+				++Quante;
+				Testo = Riga.Text.ToString();
+			}
 		}
 		return Quante;
 	};

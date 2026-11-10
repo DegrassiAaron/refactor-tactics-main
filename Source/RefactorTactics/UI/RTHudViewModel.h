@@ -1546,8 +1546,9 @@ public:
 	 * nell'ordine della lista se sono piu' d'una; senza una riga d'esito della sua unita' va in fondo.
 	 *
 	 * `Sequence` e' la posizione nella lista unita, con la convenzione di `BuildPlayerEventFeed`: dal numero della prima riga
-	 * d'esito (1 se non ce ne sono). `TurnNumber` delle nuove righe e' quello delle righe d'esito: il feed e' di un turno solo
-	 * e il widget legge il turno dalla prima riga. Senza righe d'esito non c'e' un turno da copiare, ed e' `0`.
+	 * d'esito (1 se non ce ne sono). `TurnNumber` di ogni nuova riga e' quello della SUA attivazione
+	 * (`FRTActivationLine::TurnNumber`, scritto quando e' nata): il widget legge il turno dalla prima riga, e un turno di
+	 * sole attivazioni non ha una riga d'esito da cui copiarlo.
 	 *
 	 * @param ResultLines       le righe d'esito di `BuildPlayerEventFeed`, gia' tagliate a `MaxFeedLines`.
 	 * @param Activations       le righe d'attivazione del turno, in ordine di nascita.

@@ -30,6 +30,13 @@ struct FRTActivationLine
 	/** La squadra per cui il playback l'ha mostrata: la chiave del pubblico (#4033, R7b). */
 	int32 ViewerTeamId = INDEX_NONE;
 
+	/**
+	 * Il turno che il playback stava mostrando, lo stesso `TurnNumber` delle voci di TurnLog di quel turno. Il widget legge
+	 * il turno del feed dalla PRIMA riga (`Feed[0].TurnNumber`): un turno con sole attivazioni non ha una riga d'esito da
+	 * cui copiarlo, quindi la riga porta il suo.
+	 */
+	int32 TurnNumber = 0;
+
 	/** La frase gia' composta, «<unita'> — <azione>». */
 	FText Text;
 };

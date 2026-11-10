@@ -26,7 +26,7 @@ namespace
 	}
 
 	FRTActivationLine RigaAttAttivazione(int32 UnitId, const TCHAR* Testo, int32 Squadra = 0,
-		ERTMatchPhase Fase = ERTMatchPhase::Prep)
+		ERTMatchPhase Fase = ERTMatchPhase::Prep, int32 Turno = 0)
 	{
 		FRTActivationLine Attivazione;
 		Attivazione.SourceStableUnitId = UnitId;
@@ -34,6 +34,7 @@ namespace
 		Attivazione.Phase = Fase;
 		Attivazione.ViewerTeamId = Squadra;
 		Attivazione.Text = FText::FromString(Testo);
+		Attivazione.TurnNumber = Turno;
 		return Attivazione;
 	}
 
@@ -81,15 +82,19 @@ bool FRTActivationLineInsertsAboveTest::RunTest(const FString&)
 	return true;
 }
 
-/** La riga d'attivazione porta importanza, unita', fase e il turno del feed; non ha ostacolo e non e' una reazione (R5, R6). */
+/**
+ * La riga d'attivazione porta importanza, unita', fase e il PROPRIO turno; non ha ostacolo e non e' una reazione (R5, R6).
+ * ⚠️ Qui il turno della riga e quello degli esiti coincidono, come in partita (stessa vita, R7): da dove la fusione lo prenda
+ * lo pinna `OnlyActivationsCarryTheirTurn`, dove un esito da cui copiarlo non c'e'.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineRowFieldsTest,
-	"RefactorTactics.ActivationLine.RowCarriesItsFieldsAndTheFeedTurn",
+	"RefactorTactics.ActivationLine.RowCarriesItsFieldsAndItsTurn",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActivationLineRowFieldsTest::RunTest(const FString&)
 {
 	const TArray<FRTPlayerEventLineView> Esiti = { RigaAttEsito(1, RigaAttUnoColpita, 1, /*Turno*/ 5) };
 	const TArray<FRTActivationLine> Attivazioni = {
-		RigaAttAttivazione(1, TEXT("Kallari — Lama d'ombra"), 0, ERTMatchPhase::Blast) };
+		RigaAttAttivazione(1, TEXT("Kallari — Lama d'ombra"), 0, ERTMatchPhase::Blast, /*Turno*/ 5) };
 
 	const TArray<FRTPlayerEventLineView> Righe =
 		URTHudViewModel::MergeActivationLines(Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
@@ -104,7 +109,70 @@ bool FRTActivationLineRowFieldsTest::RunTest(const FString&)
 	TestFalse(TEXT("nessun ostacolo da marcare"), Riga.bHasBlocker);
 	TestFalse(TEXT("non e' una reazione"), Riga.bReaction);
 	// Il widget legge il turno del feed dalla PRIMA riga: una attivazione in testa con turno 0 spegnerebbe l'intestazione.
-	TestEqual(TEXT("il turno e' quello delle righe d'esito"), Riga.TurnNumber, 5);
+	TestEqual(TEXT("il turno e' quello della riga d'attivazione"), Riga.TurnNumber, 5);
+	return true;
+}
+
+/**
+ * Un feed di SOLE attivazioni porta il loro turno (#4033, Ruling sul `TurnNumber`): il widget legge l'intestazione da
+ * `Feed[0].TurnNumber`, e un turno in cui nessuna riga d'esito passa (soli movimenti, che il proiettore scarta) non deve
+ * dire «turno 0». Copiarlo dalla prima riga d'esito, che qui non c'e', darebbe 0.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineOnlyActivationsTurnTest,
+	"RefactorTactics.ActivationLine.OnlyActivationsCarryTheirTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineOnlyActivationsTurnTest::RunTest(const FString&)
+{
+	const TArray<FRTActivationLine> Attivazioni = {
+		RigaAttAttivazione(1, TEXT("Kallari — Lama d'ombra"), 0, ERTMatchPhase::Prep, /*Turno*/ 7),
+		RigaAttAttivazione(2, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast, /*Turno*/ 7) };
+
+	const TArray<FRTPlayerEventLineView> Righe = URTHudViewModel::MergeActivationLines(
+		TArray<FRTPlayerEventLineView>(), Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
+	if (!TestEqual(TEXT("premessa: le due attivazioni, nient'altro"), Righe.Num(), 2)) { return false; }
+
+	TestEqual(TEXT("🔴 la prima riga, da cui il widget legge l'intestazione, porta il turno 7"), Righe[0].TurnNumber, 7);
+	TestEqual(TEXT("e anche la seconda"), Righe[1].TurnNumber, 7);
+	return true;
+}
+
+/**
+ * Piu' righe d'esito della STESSA unita': l'attivazione compare una volta sola, sopra la PRIMA (R6). Il proiettore ne tiene
+ * di regola una per unita' (dominanza), ma la fusione non lo presume.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineSeveralResultsTest,
+	"RefactorTactics.ActivationLine.SeveralResultsOfOneUnitGetItOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineSeveralResultsTest::RunTest(const FString&)
+{
+	const TArray<FRTPlayerEventLineView> Esiti = {
+		RigaAttEsito(1, RigaAttUnoColpita, 1), RigaAttEsito(2, RigaAttDueCurata, 2), RigaAttEsito(1, TEXT("Eliminata"), 3) };
+	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(1, TEXT("Kallari — Lama d'ombra")) };
+
+	TestEqual(TEXT("una volta, sopra la prima riga di U1, e non anche sopra la seconda"),
+		RigaAttTesti(URTHudViewModel::MergeActivationLines(
+			Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines)),
+		FString(TEXT("Kallari — Lama d'ombra | Colpita — 13 | Curata — 5 | Eliminata")));
+	return true;
+}
+
+/**
+ * Un'attivazione senza sorgente nota (`INDEX_NONE`) accanto a una riga di mondo (`PrimaryStableUnitId == INDEX_NONE`) non
+ * le si aggancia: va in fondo (R6). Una voce di mondo non e' l'esito di nessuna unita', e «nessuna unita'» non e' un'unita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineWorldSourceTest,
+	"RefactorTactics.ActivationLine.WorldSourceGoesLastNotAttached",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineWorldSourceTest::RunTest(const FString&)
+{
+	const TArray<FRTPlayerEventLineView> Esiti = {
+		RigaAttEsito(INDEX_NONE, TEXT("Ambiente — 2"), 1), RigaAttEsito(1, RigaAttUnoColpita, 2) };
+	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(INDEX_NONE, TEXT("Senza sorgente")) };
+
+	TestEqual(TEXT("in fondo, non sopra la riga di mondo"),
+		RigaAttTesti(URTHudViewModel::MergeActivationLines(
+			Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines)),
+		FString(TEXT("Ambiente — 2 | Colpita — 13 | Senza sorgente")));
 	return true;
 }
 

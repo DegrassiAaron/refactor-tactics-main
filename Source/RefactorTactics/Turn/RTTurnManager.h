@@ -52,6 +52,7 @@ enum class ERTMovementAdvanceResult : uint8
 #include "Turn/RTReactionWindowView.h" // FRTReactionWindowView: il DTO che questo manager consegna alla presentazione
 #include "Turn/RTReactionPassResult.h" // FRTReactionPassResult/FRTDisplacementCause: cio' che il pass reazioni raccoglie
 #include "Turn/RTBlastContext.h" // FRTBlastContext: lo stato che i pass del Blast si passano l'un l'altro
+#include "UI/RTActivationLine.h" // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -1087,6 +1088,15 @@ public:
 
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
+
+	/**
+	 * Le righe del Registro per le attivazioni che il playback di questo turno ha MOSTRATO (#4033, [D-600] (1)), nell'ordine
+	 * in cui le ha mostrate. Sola lettura, per l'HUD (`URTHudViewModel::BuildPlayerEventFeed`) e per i test.
+	 *
+	 * 🔴 **Solo presentazione**: non e' il TurnLog, non entra in snapshot, replay, `StateHash` o replicazione. Vive quanto il
+	 * TurnLog (R7): si azzera con lui in `LockInAndResolve`, e resta leggibile nel Planning che segue.
+	 */
+	const TArray<FRTActivationLine>& GetActivationLines() const { return ActivationLines; }
 
 	/**
 	 * Le azioni che ogni squadra ha visto usare, sull'INTERA partita (`#3751`, F6): il `TurnLog` vive per turno,
@@ -2829,10 +2839,20 @@ protected:
 
 	/**
 	 * Il beat di un `AbilityActivated`: la clip del ruolo `Cast` sulla sorgente e la riga `Attiva:` del feed
-	 * (#3549, spec §2.3). ⛔ Non decide se mostrarlo: il filtro di privacy sta a monte, in `BeginPlayback` e in
-	 * `BuildBlastSequence`. La riga porta il verdetto CONGELATO nell'evento, non uno ricalcolato.
+	 * (#3549, spec §2.3), e la riga del Registro (#4033, `AddActivationLine`). ⛔ Non decide se mostrarlo: il filtro di
+	 * privacy sta a monte, in `BeginPlayback` e in `BuildBlastSequence`. La riga `Attiva:` porta il verdetto CONGELATO
+	 * nell'evento, non uno ricalcolato.
 	 */
 	void ShowActivation(const FRTResolvedEvent& Ev);
+
+	/**
+	 * La riga del Registro per un'attivazione mostrata (#4033, R1/R5/R7b): una sola per attivazione, con il testo composto
+	 * adesso dai campi di `Src`, la squadra di chi guarda (`PlaybackViewerTeamId`) e il turno del playback. Nessuna riga se
+	 * `Src` e' nullo o se l'attivazione ne ha gia' una (chiave `(fase, sorgente, azione)`: vedi la definizione).
+	 * ⛔ Non giudica la conoscenza: la chiamano solo `ShowActivation` e il recupero di fine playback (R8), che leggono le
+	 * liste gia' filtrate per chi guarda.
+	 */
+	void AddActivationLine(const FRTResolvedEvent& Ev, const ARTUnit* Src);
 
 	/**
 	 * Porta ai fumetti di skill accesi il tempo del playback (`SkillCalloutClock`) e toglie dalla lista le unita'
@@ -4003,6 +4023,13 @@ private:
 	 * chiude il turno. Solo presentazione: fuori da snapshot, TurnLog e hash.
 	 */
 	TArray<TWeakObjectPtr<ARTUnit>> SkillCalloutUnits;
+	/**
+	 * Le righe del Registro delle attivazioni mostrate in questo turno (#4033): vedi `GetActivationLines`. Le scrive soltanto
+	 * `AddActivationLine` — da `ShowActivation` e dal recupero di fine playback (R8) — e le azzera soltanto `LockInAndResolve`,
+	 * accanto a `TurnLog.Reset()` (R7). ⛔ Non `BeginPlayback`, che riparte anche dopo una finestra di reazione, non
+	 * `ConcludeResolution` e non `FinishPlayback`. Non e' una `UPROPERTY`: solo presentazione, fuori da snapshot e hash.
+	 */
+	TArray<FRTActivationLine> ActivationLines;
 	/**
 	 * Battiti gia' eseguiti nel Blast corrente, sulla SEQUENZA per intento (#3549 D5 con `#2454`): il `2k` RIVELA
 	 * l'elemento `k` — per un colpo e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che conta solo per un colpo.
