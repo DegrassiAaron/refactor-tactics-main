@@ -15,6 +15,7 @@
 #include "Combat/RTHexCombatLibrary.h" // FRTBlastPreviewPlan: il piano dell'anteprima si traduce qui (#3620)
 // FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
 #include "UI/RTPlayerEvent.h"
+#include "UI/RTActivationLine.h" // FRTActivationLine: la riga d'attivazione che il feed fonde fra gli esiti (#4033)
 #include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
 #include "RTHudViewModel.generated.h"
 
@@ -1470,6 +1471,11 @@ public:
 	 * ✅ **Le firme col manager la passano da sole** quando la sessione e' presidiata e chi guarda e' una squadra
 	 * sola; in sessione non presidiata (`IsUnattendedSession`) nessuna unita' e' «di chi guarda». Lo decide il
 	 * manager e non la taglia dell'insieme, che a fine autobattle puo' restringersi alla squadra rimasta in campo.
+	 *
+	 * ➕ **`AllowsTeam` qui sopra vale per le righe d'ESITO, quelle del TurnLog.** Le firme col manager fondono anche le righe
+	 * d'attivazione (`ARTTurnManager::GetActivationLines`, #4033, [D-600] (1)), che non ci ripassano: il loro pubblico e'
+	 * `ViewerTeamId`, la squadra per cui il playback le ha mostrate (R7b), e la loro privacy e' quella del playback, che a chi
+	 * guarda non mostra una sorgente non osservata (R2). Vedi `MergeActivationLines`.
 	 */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 		const TArray<int32>& ObserverTeamIds, int32 OwnTeamId = INDEX_NONE);
@@ -1477,6 +1483,7 @@ public:
 	/** La squadra di chi guarda per la regola di `#3734`, o `INDEX_NONE`: vedi `BuildPlayerEventFeed`. */
 	static int32 OwnTeamForFeed(const ARTTurnManager* TurnManager, const TArray<int32>& ObserverTeamIds);
 
+	/** Le righe d'esito del TurnLog come qui sopra, piu' le righe d'attivazione del playback: vedi il ➕ di #4033 qui sopra. */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 		const TArray<int32>& ObserverTeamIds);
 
@@ -1521,6 +1528,41 @@ public:
 	 * il test `EventFeedShowsOnlyWhatTheObserverMaySee` verifica che il testo non sia mai vuoto.
 	 */
 	static FText ComposePlayerEventText(const FRTPlayerEvent& Event);
+
+	/**
+	 * La frase di una riga d'attivazione, «<unita'> — <azione>» (#4033, R5), col trattino lungo come «Colpita — 13».
+	 *
+	 * L'azione e' il nome del kit; senza un nome leggibile (vuoto o di soli spazi) e' l'ultimo segmento dell'id **cosi'
+	 * com'e'**: il ripiego di `BuildSkillCallout`, ma senza maiuscolo, perche' il Registro non grida.
+	 */
+	static FText ComposeActivationLineText(const FString& UnitLabel, const FText& KitName, FName ActionId);
+
+	/**
+	 * Fonde le righe d'attivazione nelle righe d'esito del feed (#4033, R6 e R7b). Pura: non legge il mondo.
+	 *
+	 * 🔑 **Le righe d'esito restano intere, nel loro ordine e con il loro numero**: sono gia' tagliate come oggi, e
+	 * nessuna attivazione le spinge fuori. Le attivazioni occupano lo spazio che resta fino a `MaxLines` (mai negativo);
+	 * quando non basta escono le **piu' vecchie**, cioe' le prime della lista.
+	 *
+	 * ⛔ **Nessun secondo giudizio di conoscenza**: si tengono le attivazioni la cui `ViewerTeamId` e' fra gli osservatori
+	 * e basta. La squadra e' la chiave del pubblico, come quella della memoria del Registro; il verdetto lo ha gia' dato il
+	 * playback, a monte. Il pubblico si sceglie PRIMA dello spazio: un'attivazione altrui non consuma un posto.
+	 *
+	 * L'ordine: un'attivazione sta subito prima della prima riga d'esito della propria unita' (`PrimaryStableUnitId`),
+	 * nell'ordine della lista se sono piu' d'una; senza una riga d'esito della sua unita' va in fondo.
+	 *
+	 * `Sequence` e' la posizione nella lista unita, con la convenzione di `BuildPlayerEventFeed`: dal numero della prima riga
+	 * d'esito (1 se non ce ne sono). `TurnNumber` di ogni nuova riga e' quello della SUA attivazione
+	 * (`FRTActivationLine::TurnNumber`, scritto quando e' nata): il widget legge il turno dalla prima riga, e un turno di
+	 * sole attivazioni non ha una riga d'esito da cui copiarlo.
+	 *
+	 * @param ResultLines       le righe d'esito di `BuildPlayerEventFeed`, gia' tagliate a `MaxFeedLines`.
+	 * @param Activations       le righe d'attivazione del turno, in ordine di nascita.
+	 * @param ObserverTeamIds   chi guarda; vuoto -> nessuna attivazione (fail-closed).
+	 * @param MaxLines          il tetto del feed unito, di solito `MaxFeedLines`.
+	 */
+	static TArray<FRTPlayerEventLineView> MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
+		const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines);
 
 	/**
 	 * Il formato dichiara un limite di round? `RoundLimit == 0` significa «nessun limite dichiarato», e nominarlo

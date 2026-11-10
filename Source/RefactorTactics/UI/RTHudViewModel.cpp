@@ -1810,6 +1810,100 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	return Lines;
 }
 
+FText URTHudViewModel::ComposeActivationLineText(const FString& UnitLabel, const FText& KitName, FName ActionId)
+{
+	// Il nome del kit; se non c'e' (o e' di soli spazi), l'ultimo segmento dell'id cosi' com'e' (senza punti e' l'id
+	// intero). Come il ripiego di `BuildSkillCallout`, ma qui nessun maiuscolo: e' una riga di cronaca, non un grido.
+	FText Azione = KitName;
+	if (KitName.IsEmptyOrWhitespace())
+	{
+		const FString Id = ActionId.ToString();
+		int32 UltimoPunto = INDEX_NONE;
+		Azione = FText::FromString(Id.FindLastChar(TEXT('.'), UltimoPunto) ? Id.Mid(UltimoPunto + 1) : Id);
+	}
+	return FText::Format(LOCTEXT("ActivationLine", "{0} — {1}"), FText::FromString(UnitLabel), Azione);
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
+	const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines)
+{
+	// 1. Il pubblico. ⛔ Solo la chiave della squadra: il giudizio di conoscenza lo ha dato il playback quando ha mostrato
+	// l'attivazione (D-223), e rifarlo qui sarebbe un secondo contratto. Viene PRIMA dello spazio: un'attivazione altrui non
+	// deve consumare un posto che spetta a una mia.
+	TArray<const FRTActivationLine*> Tenute;
+	for (const FRTActivationLine& Attivazione : Activations)
+	{
+		if (ObserverTeamIds.Contains(Attivazione.ViewerTeamId))
+		{
+			Tenute.Add(&Attivazione);
+		}
+	}
+
+	// 2. Lo spazio che le righe d'esito lasciano. Mai negativo: le righe d'esito non si tagliano qui (R6), e con il
+	// tetto gia' pieno non entra nessuna attivazione. Se non bastano, escono le PIU' VECCHIE: le prime della lista.
+	const int32 Spazio = FMath::Max(0, MaxLines - ResultLines.Num());
+	Tenute.RemoveAt(0, FMath::Max(0, Tenute.Num() - Spazio));
+
+	// Niente da aggiungere: le righe d'esito escono com'erano, numeri compresi.
+	if (Tenute.Num() == 0)
+	{
+		return ResultLines;
+	}
+
+	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): ogni riga d'attivazione porta
+	// il PROPRIO turno, scritto quando e' nata. Copiarlo dalla prima riga d'esito darebbe 0 a un turno di sole attivazioni,
+	// e un'intestazione «senza righe».
+	const auto FaRiga = [](const FRTActivationLine& Attivazione)
+	{
+		FRTPlayerEventLineView Riga;
+		Riga.Text = Attivazione.Text;
+		Riga.Importance = ERTPlayerEventImportance::Important; // #1936 §D: l'uso di un'abilita' merita una riga
+		Riga.PrimaryStableUnitId = Attivazione.SourceStableUnitId;
+		Riga.Phase = Attivazione.Phase;
+		Riga.bHasBlocker = false;
+		Riga.bReaction = false;
+		Riga.TurnNumber = Attivazione.TurnNumber;
+		return Riga;
+	};
+
+	// 3. L'ordine: subito prima della PRIMA riga d'esito della propria unita', nell'ordine della lista; le altre in fondo.
+	// Una voce di mondo (`INDEX_NONE`) non e' l'esito di nessuna unita': non attira niente.
+	TArray<FRTPlayerEventLineView> Unite;
+	Unite.Reserve(ResultLines.Num() + Tenute.Num());
+	TSet<int32> UnitaServite;
+	for (const FRTPlayerEventLineView& Esito : ResultLines)
+	{
+		if (Esito.PrimaryStableUnitId != INDEX_NONE && !UnitaServite.Contains(Esito.PrimaryStableUnitId))
+		{
+			UnitaServite.Add(Esito.PrimaryStableUnitId);
+			for (const FRTActivationLine* Attivazione : Tenute)
+			{
+				if (Attivazione->SourceStableUnitId == Esito.PrimaryStableUnitId)
+				{
+					Unite.Add(FaRiga(*Attivazione));
+				}
+			}
+		}
+		Unite.Add(Esito);
+	}
+	for (const FRTActivationLine* Attivazione : Tenute)
+	{
+		if (!UnitaServite.Contains(Attivazione->SourceStableUnitId))
+		{
+			Unite.Add(FaRiga(*Attivazione));
+		}
+	}
+
+	// 4. Il numero e' la posizione nella lista unita, come in `BuildPlayerEventFeed`: dal numero della prima riga d'esito, che
+	// in un feed tagliato non e' 1 (le righe tagliate tengono il loro numero), e da 1 se non ce ne sono.
+	const int32 Primo = ResultLines.Num() > 0 ? FMath::Max(1, ResultLines[0].Sequence) : 1;
+	for (int32 i = 0; i < Unite.Num(); ++i)
+	{
+		Unite[i].Sequence = Primo + i;
+	}
+	return Unite;
+}
+
 TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnManager,
 	const TArray<int32>& ObserverTeamIds)
 {
@@ -1824,10 +1918,15 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 	}
 
 	const TArray<FRTTurnLogEntry>& Log = TurnManager->GetTurnLog();
-	// La stessa regola del feed a schermo (`#3734`): senza, la diagnostica conterebbe righe diverse da quelle che
-	// il widget mostra, e indicherebbe lo strato sbagliato.
-	const TArray<FRTPlayerEventLineView> Filtrato =
-		BuildPlayerEventFeed(Log, ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds));
+	// La stessa PORTA del feed a schermo — la regola di `#3734` e, da #4033, le righe d'attivazione: senza, la diagnostica
+	// conterebbe righe diverse da quelle che il widget mostra, e indicherebbe lo strato sbagliato.
+	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(TurnManager, ObserverTeamIds);
+	// Le sole righe d'esito, come la stessa porta le calcola prima della fusione. La fusione non ne toglie nessuna (R6), quindi
+	// il resto del feed sono righe d'attivazione. ⛔ Il ramo 🔴 qui sotto parla del TurnLog e si decide su queste: deciso sul
+	// feed intero non scattava quando a schermo c'erano solo righe d'attivazione, e un TurnLog le cui voci non passano il
+	// filtro restava senza nome.
+	const int32 NumEsiti = BuildPlayerEventFeed(Log, ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds)).Num();
+	const int32 NumAttivazioni = Filtrato.Num() - NumEsiti;
 
 	FString Osservatori;
 	for (const int32 Id : ObserverTeamIds)
@@ -1835,22 +1934,26 @@ TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnMan
 		Osservatori += (Osservatori.IsEmpty() ? TEXT("") : TEXT(", ")) + FString::FromInt(Id);
 	}
 
+	// ⚠️ `righe dopo filtro=%d` resta com'e': la legge `UI.PlayerEventLog.APushAfterASuccessfulDashReachesTheFeed` (#3734).
 	Righe.Add(FString::Printf(
-		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d, budget=%d"),
-		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), MaxFeedLines));
+		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d (di cui attivazioni=%d), budget=%d"),
+		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), NumAttivazioni, MaxFeedLines));
 
 	// ⚠️ **Il TurnLog e' l'ULTIMO turno risolto, non la cronaca della partita**: `LockInAndResolve` lo azzera
 	// al commit e lo ripopola durante le fasi. Zero voci PRIMA della prima risoluzione e' lo stato corretto,
 	// e chiamarlo difetto manderebbe a cercare un guasto che non c'e'.
-	if (Log.Num() == 0)
+	// ➕ #4033: e solo se il feed e' davvero vuoto. Le righe d'attivazione non vengono dal TurnLog (`GetActivationLines`):
+	// con righe a schermo e log vuoto, sotto si elencano le righe che il widget mostra invece di dire «nessun turno».
+	if (Log.Num() == 0 && Filtrato.Num() == 0)
 	{
 		Righe.Add(TEXT("[RT]   Il TurnLog e' vuoto: nessun turno ancora risolto, oppure e' appena stato "
 					   "azzerato dal commit. Non e' un difetto finche' una risoluzione non e' avvenuta."));
 		return Righe;
 	}
 
-	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non arriva niente.
-	if (Filtrato.Num() == 0)
+	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non ne arriva nessuna. ➕ #4033: si decide
+	// sulle righe d'esito; le righe d'attivazione, se ci sono, le conta la riga di testa.
+	if (Log.Num() > 0 && NumEsiti == 0)
 	{
 		Righe.Add(TEXT("[RT]   Il log ha voci ma NESSUNA passa il filtro dell'osservatore."));
 		Righe.Add(TEXT("[RT]   Se l'insieme degli osservatori qui sopra non e' quello atteso, la causa e' "
@@ -1882,9 +1985,15 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 	const TArray<int32>& ObserverTeamIds)
 {
-	return TurnManager != nullptr
-		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds))
-		: TArray<FRTPlayerEventLineView>{};
+	if (TurnManager == nullptr)
+	{
+		return TArray<FRTPlayerEventLineView>{};
+	}
+	// Le righe d'esito come sempre, poi le righe d'attivazione che il playback ha mostrato (#4033, R6): la fusione non
+	// tocca le prime e filtra le seconde soltanto per la chiave del pubblico (R7b).
+	return MergeActivationLines(
+		BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds, OwnTeamForFeed(TurnManager, ObserverTeamIds)),
+		TurnManager->GetActivationLines(), ObserverTeamIds, MaxFeedLines);
 }
 
 /**

@@ -1835,6 +1835,10 @@ void ARTTurnManager::LockInAndResolve()
 	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
 	ResolvedTimeline.Reset();
 	TurnLog.Reset();
+	// #4033 (R7): le righe d'attivazione del Registro vivono quanto il TurnLog, e si azzerano con lui. ⛔ Qui e non in
+	// `BeginPlayback`: un turno senza playback (`bEnablePlayback` falso, timeline vuota) non ci passa, e mostrerebbe quelle
+	// del turno prima; e la ripresa dopo una finestra di reazione (`BeginPlayback(true)`) le cancellerebbe a meta' turno.
+	ActivationLines.Reset();
 	bPrepActiveThisTurn = false;
 
 	// DOPO l'azzeramento e PRIMA delle fasi: il verdetto sul piano appartiene al turno che sta per
@@ -9056,6 +9060,9 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 	ARTUnit* const Src = UnitByStableId(Ev.SourceStableUnitId);
 	AddLogEvent(FString::Printf(TEXT("Attiva: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
 		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
+	// #4033 (R1, R2): la RIGA del Registro nasce qui, per OGNI attivazione mostrata e prima del ramo di `ActionShouts`, che
+	// decide il solo fumetto. Chi puo' vederla l'hanno gia' deciso `BeginPlayback` e `BuildBlastSequence`, come per il fumetto.
+	AddActivationLine(Ev, Src);
 	if (Src)
 	{
 		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
@@ -9104,6 +9111,43 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 			SkillCalloutUnits.AddUnique(Src);
 		}
 	}
+}
+
+void ARTTurnManager::AddActivationLine(const FRTResolvedEvent& Ev, const ARTUnit* Src)
+{
+	// R5: il testo si compone ADESSO, perche' qui c'e' l'unita'; dopo, la riga non legge piu' il mondo. Senza unita' non c'e'
+	// nessuno da nominare, e nessuna riga.
+	if (Src == nullptr)
+	{
+		return;
+	}
+
+	// 🔑 **Una riga per attivazione, e la chiave `(fase, sorgente, azione)` basta senza ordinale.** Misurato per lettura su
+	// questo commit: l'unico produttore di `AbilityActivated` e' `EmitAbilityActivated`, e ogni suo sito emette per il piano
+	// di UN'unita' in UNA fase — `PlannedAbilityIndex`, azzerato dal primo sito che lo consuma (Prep, Cleanse, cure,
+	// `CollectAttackIntents`), o `DashAbilityIdx` — mentre l'impatto di una carica non si riattiva nel Blast
+	// (`IntentAbilityIndex == INDEX_NONE`). Quindi un'unita' non attiva due volte la stessa azione nella stessa fase di un
+	// turno. Se un giorno potra' farlo, la chiave vorra' l'ordinale fra le attivazioni con la stessa terna.
+	// ⛔ Serve perche' la stessa attivazione ha due ingressi: `ShowActivation` e il recupero di fine playback (R8, che passa
+	// anche per le gia' mostrate), piu' un'eventuale `ShowActivation` ripetuta dopo una finestra di reazione.
+	const bool bGiaScritta = ActivationLines.ContainsByPredicate([&Ev](const FRTActivationLine& Riga)
+	{
+		return Riga.Phase == Ev.Phase && Riga.SourceStableUnitId == Ev.SourceStableUnitId && Riga.ActionId == Ev.ActionId;
+	});
+	if (bGiaScritta)
+	{
+		return;
+	}
+
+	FRTActivationLine& Riga = ActivationLines.AddDefaulted_GetRef();
+	Riga.SourceStableUnitId = Ev.SourceStableUnitId;
+	Riga.ActionId = Ev.ActionId;
+	Riga.Phase = Ev.Phase;
+	Riga.ViewerTeamId = PlaybackViewerTeamId; // R7b: la chiave del pubblico, non un verdetto di conoscenza
+	Riga.TurnNumber = TurnNumber; // lo stesso delle voci di TurnLog del turno: `ConcludeTurn` lo avanza DOPO il playback
+	Riga.Text = URTHudViewModel::ComposeActivationLineText(
+		ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
+		Ev.ActionId);
 }
 
 void ARTTurnManager::SyncSkillCalloutClocks()
@@ -10225,6 +10269,39 @@ void ARTTurnManager::FinishPlayback()
 	// E il loro orologio, che e' arrivato alla fine del turno insieme a loro. ⛔ Solo qui e in `BeginPlayback(false)`:
 	// il ramo sospeso qui sopra lo deve conservare, e `ConcludeResolution` non lo tocca (vedi `SkillCalloutClock`).
 	SkillCalloutClock = 0.f;
+
+	// #4033 (R8): **alla fine VERA ogni attivazione che il playback avrebbe mostrato a chi guarda ha la sua riga**, anche se
+	// si e' saltato. Solo la riga: nessuna clip, nessun fumetto, nessuna riga `Attiva:` — chi salta ha scelto di non guardare,
+	// e il Registro gli dice soltanto cosa e' partito. L'ordine e' quello del playback: Prep, Dash, poi la sequenza del Blast.
+	// ⛔ Le fonti sono le liste GIA' filtrate per chi guarda (`BeginPlayback`, `BuildBlastSequence`), non la timeline: nessun
+	// secondo giudizio di conoscenza (R2). Le gia' mostrate passano anche loro, e la chiave di `AddActivationLine` le scarta.
+	// ⚠️ Qui e non nel ramo sospeso qui sopra: una finestra di reazione non e' la fine del turno, e alla ripresa il playback
+	// mostrera' ancora il resto. Sta prima dell'azzeramento delle liste, piu' sotto.
+	for (const TArray<FRTResolvedEvent>* Coda : { &PlaybackActivationsPrep, &PlaybackActivationsDash })
+	{
+		for (const FRTResolvedEvent& Ev : *Coda)
+		{
+			AddActivationLine(Ev, UnitByStableId(Ev.SourceStableUnitId));
+		}
+	}
+	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
+	{
+		if (ResolvedTimeline.IsValidIndex(E.TimelineIndex)
+			&& ResolvedTimeline[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated)
+		{
+			const FRTResolvedEvent& Ev = ResolvedTimeline[E.TimelineIndex];
+			AddActivationLine(Ev, UnitByStableId(Ev.SourceStableUnitId));
+		}
+	}
+	// 🔴 **E la LISTA intera torna nell'ordine delle fasi del playback** (review finale di #4033, R8). Il recupero qui sopra e'
+	// in ordine, ma accoda: un salto durante Prep/Dash di un playback PARZIALE (finestra di reazione nel Blast) passa dal ramo
+	// sospeso, che non mostra niente; alla ripresa il playback mostra il Blast, e le righe di Prep e Dash nascevano qui DOPO le
+	// sue. L'ordinamento e' STABILE: dentro una fase resta l'ordine di nascita, cioe' quello in cui il playback le ha mostrate o
+	// il recupero le ha date. ⚠️ Si ordina per il valore di `ERTMatchPhase` perche' coincide con l'ordine del playback, misurato
+	// per lettura: l'enum dichiara `Planning, Prep, Dash, Blast, Move, Cleanup`, `URTTurnRules::NextPhase` (il passo di
+	// `RunPhaseLoop`) percorre le fasi in quell'ordine, e `BeginPlayback` costruisce `PlaybackPhases` Prep -> Dash -> Blast ->
+	// Move. Una riga ha la fase della sua attivazione, che e' Prep, Dash o Blast (le tre code qui sopra).
+	ActivationLines.StableSort([](const FRTActivationLine& A, const FRTActivationLine& B) { return A.Phase < B.Phase; });
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
 	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'

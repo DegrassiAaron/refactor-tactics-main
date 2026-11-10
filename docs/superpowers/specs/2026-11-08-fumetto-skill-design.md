@@ -203,7 +203,7 @@ fumetti possono essere vivi insieme su unità diverse.
 > `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/RTHudViewModel.h:1360-1361`). Quindi
 > l'informazione che D-582 (3) vuole nella vista strategica oggi non c'è: seguito
 > [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
-> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)).
+> [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)). ➕ *Chiusa da [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033): il Registro ha una riga «unità — azione» per ogni attivazione che il playback mostra, in vista tattica come in vista strategica ([spec](2026-11-10-registro-attivazione-design.md)).*
 >
 > 🔎 **R11, misurato** (sul codice): un **attacco** interrotto non emette `AbilityActivated` e non grida (`ApplyInterrupts` → `InterruptedIntents`, da cui `EmitAttackIntentActivation` esce), uno degradato grida; una **cura** (`DeferredActivations`) non si attiva se il guaritore è stordito, e si attiva se è interrotto (una skill del kit, quindi, grida lo stesso), perché l'interruzione cerca le vittime solo fra gli intenti d'attacco. Le azioni bloccate come fumetto sono [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034).
 >
@@ -386,7 +386,7 @@ commit dichiarato (CLAUDE.md §6, §10).
   [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034); la risposta misurata a R11 è sotto
   §3.2.*
 - ➕ **La riga `Attiva:` nel Registro a destra** in vista strategica (D-582 (3)): la premessa di R8 era falsa, e
-  l'informazione oggi non c'è. Aperta come [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033).
+  l'informazione oggi non c'è. Aperta come [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033). ➕ *Chiusa da [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033): il Registro ha una riga «unità — azione» per ogni attivazione che il playback mostra, in vista tattica come in vista strategica ([spec](2026-11-10-registro-attivazione-design.md)).*
 - ➕ **Un curatore interrotto si attiva lo stesso** (`ApplyInterrupts` cerca le vittime solo negli intenti
   d'attacco; R11, sotto §3.2), quindi la sua skill grida: da verificare col dominio Combat se è voluto. È già scritto
   in [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034), come domanda da chiarire prima di
