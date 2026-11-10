@@ -80,7 +80,7 @@
     { "type": "TurnsCompleted", "value": 5 },
 
     { "type": "UnitAtCell", "unit": "W_ELE", "cell": [0, 0, 0] },
-    { "type": "UnitHpEquals", "unit": "W_ELE", "value": 630 },
+    { "type": "UnitHpEquals", "unit": "W_ELE", "value": 662 },
 
     { "type": "UnitAtCell", "unit": "G_ICE", "cell": [-2, 1, 0] },
 
@@ -96,7 +96,7 @@
     { "type": "UnitAtCell", "unit": "G_SMO", "cell": [1, 4, 0] },
 
     { "type": "UnitAtCell", "unit": "W_FIRE", "cell": [0, -1, 0] },
-    { "type": "UnitHpEquals", "unit": "W_FIRE", "value": 610 },
+    { "type": "UnitHpEquals", "unit": "W_FIRE", "value": 579 },
     { "type": "UnitAlive", "unit": "W_FIRE", "value": true }
   ]
 }

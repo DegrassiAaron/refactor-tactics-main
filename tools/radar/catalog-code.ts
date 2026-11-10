@@ -65,7 +65,7 @@ const ACTION_CPP_REL = 'Source/RefactorTactics/Ability/RTCatalogLibrary.cpp';
 const ACTION_CATALOG = new URL('../../' + ACTION_CATALOG_REL, import.meta.url);
 const ACTION_CPP = new URL('../../' + ACTION_CPP_REL, import.meta.url);
 
-/** Le sei statistiche base di un eroe, come le dichiara una delle tre fonti. */
+/** Le statistiche base di un eroe, come le dichiara una delle fonti. */
 export interface HeroStats {
   health: number;
   movePoints: number;
@@ -75,6 +75,12 @@ export interface HeroStats {
   weakness: string;
   /** Soglia sotto la quale un rumore NON si sente: piu' bassa, meglio si sente (D-041, #686). */
   hearingThreshold: number;
+  /** DEF: mitiga il danno diretto con 100/(100+DEF) prima della copertura (D-589, D-595 (3); E53 CP 53.3c). */
+  defense: number;
+  /** RES di default per i dodici elementi (D-593, D-595 (3)). */
+  resistanceDefault: number;
+  /** Bonus alle spalle dell'ATTACCANTE, sommato alla Base prima della DEF (D-587, D-599). */
+  rearBonus: number;
 }
 
 /** Il campo C++ che porta ciascuna statistica. */
@@ -86,6 +92,9 @@ const CPP_FIELDS: Record<string, keyof HeroStats> = {
   Affinity: 'affinity',
   Weakness: 'weakness',
   HearingThreshold: 'hearingThreshold',
+  Defense: 'defense',
+  ResistanceDefault: 'resistanceDefault',
+  RearBonus: 'rearBonus',
 };
 
 /** `Aevik->MaxHealth = 90;` · `Aevik->Affinity = TEXT("Affinity.Electricity");`
@@ -243,15 +252,21 @@ export function parseCatalogSections(text: string): Map<string, Partial<HeroStat
   return out;
 }
 
-/** Le colonne della tabella §5, nell'ordine in cui compaiono. `Debolezza` non c'e': la tabella ne
- *  porta **cinque** dei sei campi, ed e' un fatto della sua forma, non una dimenticanza del parser. */
-const SUMMARY_COLUMNS: (keyof HeroStats)[] = [
-  'health',
-  'movePoints',
-  'visionRange',
-  'pushResistance',
-  'affinity',
-];
+/** Le colonne della tabella §5, per **etichetta d'intestazione**. `Debolezza` non c'e': e' un fatto della
+ *  forma della tabella, non una dimenticanza del parser. Fino al 2026-11-10 le colonne si leggevano per
+ *  POSIZIONE, e l'arrivo di `DEF`, `RES` e `Spalle` (E53 CP 53.3c) avrebbe spostato l'`Affinità` sotto un
+ *  numero: si legge l'intestazione e si lascia che la tabella aggiunga colonne senza rompere le vecchie.
+ *  Un'etichetta non in questa mappa (`Eroe`, `Identità in una riga`) non e' un campo e si ignora. */
+const SUMMARY_HEADERS: Record<string, keyof HeroStats> = {
+  HP: 'health',
+  MP: 'movePoints',
+  Vista: 'visionRange',
+  'Push res.': 'pushResistance',
+  DEF: 'defense',
+  RES: 'resistanceDefault',
+  Spalle: 'rearBonus',
+  Affinità: 'affinity',
+};
 
 /** La tabella `## 5. Confronto rapido`, che **ripete** i valori delle schede.
  *
@@ -272,26 +287,34 @@ export function parseSummaryTable(text: string): Map<string, Partial<HeroStats>>
   if (start === -1) return out;
   const end = lines.findIndex((l, i) => i > start && l.trim() === '');
 
-  for (const line of lines.slice(start, end === -1 ? undefined : end)) {
+  // L'intestazione decide quale colonna porta quale campo: `[indice di cella, campo]`.
+  const headerCells = lines[start]!.split('|').map((c) => c.trim());
+  const columns: [number, keyof HeroStats][] = [];
+  headerCells.forEach((label, i) => {
+    const field = SUMMARY_HEADERS[label];
+    if (field) columns.push([i, field]);
+  });
+
+  for (const line of lines.slice(start + 1, end === -1 ? undefined : end)) {
     const cells = line.split('|').map((c) => c.trim());
-    // `| Eroe | 90 | 5 | 7 | 0 | elettricità | identita' |` -> 8 celle con i due bordi vuoti.
-    if (cells.length < 8) continue;
+    // `| Eroe | 90 | 5 | 7 | 0 | elettricità | identita' |` -> 8 celle con i due bordi vuoti; con le tre
+    // colonne della difesa sono 11. Si chiede che la riga sia larga quanto l'intestazione.
+    if (cells.length < headerCells.length) continue;
     const hero = cells[1]!;
     // Discriminante STRUTTURALE, non lessicale: una riga di dati ha un intero in colonna `HP`.
-    // `| Eroe | HP | …` supererebbe un controllo sulla forma del nome — `Eroe` e' un `[A-Z][a-z]+`
-    // come `Aevik` — e il parser leggerebbe l'intestazione come un quinto eroe.
+    // `|---|---:|` non ce l'ha, e nemmeno una riga di prosa che cominci con `|`.
     if (!/^-?\d+$/.test(cells[2] ?? '')) continue;
 
     const stats: Partial<HeroStats> = {};
-    SUMMARY_COLUMNS.forEach((field, i) => {
-      const cell = cells[2 + i]!;
+    for (const [i, field] of columns) {
+      const cell = cells[i]!;
       if (field === 'affinity') {
         stats[field] = cellAffinity(cell, 'Affinità', hero);
       } else {
         const n = cell.match(/-?\d+/);
         if (n) stats[field] = Number(n[0]);
       }
-    });
+    }
     out.set(hero, stats);
   }
   return out;
@@ -319,6 +342,9 @@ const ALL_FIELDS: (keyof HeroStats)[] = [
   'affinity',
   'weakness',
   'hearingThreshold',
+  'defense',
+  'resistanceDefault',
+  'rearBonus',
 ];
 
 function count(m: Map<string, Partial<HeroStats>>): number {
@@ -519,13 +545,14 @@ function main() {
 
   const { divergences, coverage } = compare(sections, summary, cpp, perception, header);
 
-  // Ogni lato ha i propri campi: le schede ne portano sei, il confronto §5 cinque (niente `Debolezza`),
-  // §5.1 solo la soglia d'udito, il C++ tutti e sette.
+  // Ogni lato ha i propri campi: le schede ne portano sei, il confronto §5 otto (niente `Debolezza`, ma
+  // DEF, RES e spalle dal 2026-11-10), §5.1 solo la soglia d'udito, il C++ tutti e dieci, la docstring .h
+  // i quattro numerici storici.
   const want = {
     sections: EXPECT_HEROES * 6,
-    summary: EXPECT_HEROES * 5,
+    summary: EXPECT_HEROES * 8,
     perception: EXPECT_HEROES * 1,
-    cpp: EXPECT_HEROES * 7,
+    cpp: EXPECT_HEROES * 10,
     header: EXPECT_HEROES * 4,
   };
   const short: string[] = [];

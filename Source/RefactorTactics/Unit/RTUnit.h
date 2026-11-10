@@ -116,13 +116,13 @@ public:
 	// regola competitiva (`CLAUDE.md` §5 e §7), e non lascerebbe traccia nel TurnLog. Trovato da una code
 	// review.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
-	int32 GuardReduction = 150;
+	int32 GuardReduction = 100; // [D-602]; = URTCombatLibrary::GuardReductionDefault, che questo header non include
 
 	/**
 	 * DEF, RES di default, RES per elemento e bonus alle spalle: copiati per valore da `URTHeroData` in
-	 * `ConfigureFromHeroData`, come `GuardReduction` ([D-589], [D-595], [D-599]; E53 CP 53.2b). Tutti a zero
-	 * oggi, e a zero la formula di `URTCombatLibrary::MitigateDirectDamage` e' l'identita': il resolver li
-	 * leggera' da qui (CP 53.2c) senza che un golden cambi finche' CP 53.3 non porta i valori.
+	 * `ConfigureFromHeroData`, come `GuardReduction` ([D-589], [D-595], [D-599]; E53 CP 53.2b). Il Blast li copia
+	 * nello snapshot (`FRTHexCombatUnit`, CP 53.2c) e la formula di `URTCombatLibrary::MitigateDirectDamage` li
+	 * applica; i valori sono nel catalogo dal CP 53.3c (`RTHeroCatalogLibrary.cpp`).
 	 * `BlueprintReadOnly` per la stessa ragione di `GuardReduction`: un numero che decide il danno non ha una
 	 * seconda autorita' in Blueprint.
 	 */

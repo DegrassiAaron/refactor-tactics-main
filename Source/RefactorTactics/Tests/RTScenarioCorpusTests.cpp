@@ -148,6 +148,17 @@ bool FRTScenarioCorpusRunsTest::RunTest(const FString&)
 					}
 				}
 				AddError(FString::Printf(TEXT("%s: FAIL (difetto del GIOCO) — %s"), *Id, *First));
+				// Le ALTRE cadute, come informazione: un errore per scenario resta la regola (il rosso e' uno),
+				// ma un cambio di regola che sposta piu' attese dello stesso file (E53 CP 53.3c: DEF, D-602) si
+				// riallinea in una corsa sola invece che in una per attesa.
+				bool bFirstSeen = false;
+				for (const FRTAssertionResult& A : Result.Assertions)
+				{
+					if (A.bPassed) { continue; }
+					if (!bFirstSeen) { bFirstSeen = true; continue; }
+					AddInfo(FString::Printf(TEXT("%s: anche — %s — atteso %s, ottenuto %s (turno %d)"),
+						*Id, *A.Description, *A.Expected, *A.Actual, A.Turn));
+				}
 			}
 			break;
 

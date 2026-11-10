@@ -75,6 +75,11 @@ namespace
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
 		U->ConfigureFromHeroData(Hero);
+		// E53 CP 53.3c: il catalogo porta DEF e bonus alle spalle ([D-595] (3), [D-599]). Questo banco misura ALTRO,
+		// e i suoi numeri sono scritti sul colpo pieno: i due campi tornano a zero qui, e la difesa del catalogo
+		// la misura `RTHeroCatalogDefenseTests.cpp`. Non e' un'eccezione nascosta: e' il banco che dichiara la sua fixture.
+		U->Defense = 0;
+		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci

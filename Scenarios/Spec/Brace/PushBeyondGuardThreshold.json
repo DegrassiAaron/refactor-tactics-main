@@ -56,8 +56,8 @@
 
   "expect": [
     { "type": "UnitHpEquals", "unit": "DG", "value": 900 },
-    { "type": "UnitHpEquals", "unit": "DB", "value": 890 },
-    { "type": "UnitHpEquals", "unit": "DN", "value": 790 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 871 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 811 },
 
     { "type": "UnitAtCell", "unit": "DG", "cell": [-2,  1, 0] },
     { "type": "UnitAtCell", "unit": "DB", "cell": [ 0,  0, 0] },

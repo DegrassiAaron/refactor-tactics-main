@@ -1,8 +1,5 @@
 {
-  "_numeri_letti": {
-    "_nota_aritmetica":
-      "66 e' un CONTROFATTUALE dichiarato: e' il valore che si leggerebbe se la protezione non fosse applicata. L'attesa e' 76, e la nota lo scrive due righe sopra."
-  },
+  "_numeri_letti": {"_nota_aritmetica": "673 e 793 sono CONTROFATTUALI dichiarati: i valori che si leggerebbero se la protezione mancasse o valesse da ogni lato. L'attesa e' 733, e la nota lo scrive due righe sopra."},
   "scenarioId": "Visual.Map.LowCoverEdge",
   "tags": ["animation", "map", "combat", "gadget", "riktor", "wraith"],
   "version": 1,
@@ -13,7 +10,7 @@
 
   "_nota_chi_tira_da_nord": "Fino ad ADR-0007 era Branth a tirare da nord, e la riga di sopra diceva «ImpactShot 24 diventa 14». Con ImpactShot portato a 8 quel colpo NON misura piu' niente: la riduzione da copertura bassa e' 10, il danno viene troncato a zero (`FMath::Max(0, Power - Reduction)`) e una riduzione da 10, da 15 o da 40 darebbero lo stesso identico risultato. Uno scenario che non distingue la grandezza che dichiara di misurare e' peggio di uno assente, perche' resta verde. Da qui i due tiratori si scambiano di posto: dal lato riparato deve arrivare un colpo PIU' GRANDE della riduzione, e nel roster attuale l'unico attacco base che lo e' con margine leggibile e' PulseShot.",
 
-  "_nota_aritmetica": "La copertura bassa toglie 10 al danno diretto dal lato riparato: PulseShot 21 diventa 11, ImpactShot resta 8. Gadget 90 - (11 + 8 - 5 di scudo base, [D-224]) = 76. Se il primo run dice 66, la protezione non e' stata applicata; se dice 84, e' stata applicata anche al colpo da sud — i due controfattuali sono **derivati** con lo stesso scudo, non asseriti da un file — e sarebbe il difetto peggiore dei due, perche' una copertura che protegge da ogni lato non e' una copertura, e' HP in piu'. I tre numeri restano distinti, che e' l'unica ragione per cui questo scenario vale qualcosa.",
+  "_nota_aritmetica": "La copertura bassa toglie 60 al danno diretto dal lato riparato ([D-602]): PulseShot 210 contro la DEF 15 di Gadget vale 182 e diventa 122. ImpactShot arriva da sud, cioe' alle spalle di Gadget che guarda a nord, e porta il bonus alle spalle di Branth (30, [D-599]): `floor((80 + 30) × 100/115) = 95`. Gadget 900 - (122 + 95 - 50 di scudo base, [D-224]) = 733 (E53 CP 53.3c). Se il primo run dice 673, la protezione non e' stata applicata; se dice 793, e' stata applicata anche al colpo da sud — i due controfattuali sono **derivati** con lo stesso scudo, non asseriti da un file — e sarebbe il difetto peggiore dei due, perche' una copertura che protegge da ogni lato non e' una copertura, e' HP in piu'. I tre numeri restano distinti, che e' l'unica ragione per cui questo scenario vale qualcosa.",
 
   "_nota_lettura": "Il giocatore deve poter capire da DOVE e' conveniente avvicinarsi guardando la mappa, prima di sparare. Se il bordo riparato non si distingue dagli altri cinque, questa regola esiste solo nel TurnLog.",
 
@@ -39,7 +36,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "F1", "value": 760 },
+    { "type": "UnitHpEquals",  "unit": "F1", "value": 733 },
     { "type": "UnitAtCell",    "unit": "F1", "cell": [0, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]

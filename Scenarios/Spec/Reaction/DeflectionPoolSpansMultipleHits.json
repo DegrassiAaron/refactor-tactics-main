@@ -51,7 +51,7 @@
 
   "expect": [
     { "_assertion": "LA FORMA: 83 dice che l'avanzo del pool ha morso i colpi successivi. Con `ApplyFirstHitDelta` sarebbe 71, ed e' l'unica assertion del corpus che distingue le due regole su un turno vero.",
-      "type": "UnitHpEquals", "unit": "V", "value": 830 },
+      "type": "UnitHpEquals", "unit": "V", "value": 822 },
     { "_assertion": "E che la parata sia SCATTATA, separatamente dal numero: senza questa riga un turno in cui la reazione non parte affatto darebbe un altro numero e basta, senza dire perche'.",
       "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 1 },
     { "_assertion": "Il bersaglio non si e' mosso: con i loadout spogli non c'e' spinta, e se un giorno ce ne fosse una questa riga lo direbbe invece di lasciarla confondere col danno.",

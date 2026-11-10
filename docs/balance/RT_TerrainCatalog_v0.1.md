@@ -127,14 +127,14 @@ Gli stati non-ambientali (`Root`, `Exposed`, `Marked`, `Slow`) sono nel [catalog
 
 | StructureId | Elemento | Movimento | LOS | Integrità | Protezione |
 |---|---|---|---|---:|---|
-| `Structure.LowCover` | Copertura bassa | blocca l'arco | parziale | 30 | 10 |
+| `Structure.LowCover` | Copertura bassa | blocca l'arco | parziale | 30 | 60 |
 | `Structure.HighCover` | Copertura alta | blocca l'arco | bloccata | 50 | totale |
 | `Structure.Door` | Porta | variabile | variabile | 40 | variabile |
 | `Structure.Bridge` | Ponte | consente l'arco | libera | 40 | nessuna |
-| `Structure.KineticPanel` | Pannello temporaneo | blocca l'arco | parziale | 30 | 10 |
+| `Structure.KineticPanel` | Pannello temporaneo | blocca l'arco | parziale | 30 | 60 |
 
 **Copertura bassa** — è associata a uno **specifico bordo** della cella (direzionale): riduce il danno diretto di
-**10** solo dagli attacchi che attraversano quel bordo · non protegge da un attacco proveniente da un'altra
+**60** ([D-602](../decisions/RT_PDR_00_Decision_Log.md), dopo la DEF; era 10 sulla scala vecchia e 100 dopo la passata ×10) solo dagli attacchi che attraversano quel bordo · non protegge da un attacco proveniente da un'altra
 direzione · non protegge dagli AoE con centro sul lato protetto.
 
 **Copertura alta** — blocca movimento, linea di vista e proiettili · può essere distruttibile.

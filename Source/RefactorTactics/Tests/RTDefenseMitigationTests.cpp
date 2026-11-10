@@ -24,10 +24,13 @@
  *
  * `Danno = max(0, (Base + Spalle) × Mod × 100/(100+DEF) − Copertura − Guard)`: qui si prova il pezzo che
  * `CollectHexAttacks` possiede — spalle e DEF PRIMA della copertura — con valori INIETTATI sulle unita' del piano
- * e, in un caso, sull'`ARTUnit` di un turno intero. Il catalogo e' ancora a zero su tutti e quattro i campi
- * (CP 53.2b): nessun numero di gioco cambia con questo passo, e il controllo `ZeroDefenseAndRearLeaveHitsUntouched`
- * pinna proprio questo. I valori usati (210, 300, DEF 25, spalle 90) sono quelli della tabella di controllo di
- * [D-595] e degli esempi di [D-599]: `floor(300 × 100/125) = 240`, `floor(210 × 100/125) = 168`.
+ * e, in un caso, sull'`ARTUnit` di un turno intero. Quando questo file e' nato (CP 53.2c) il catalogo era a zero
+ * su tutti e quattro i campi e nessun numero di gioco cambiava; dal CP 53.3c il catalogo porta i valori di
+ * [D-595] (3) e [D-599], ma questi test continuano a COSTRUIRE le unita' del piano a mano e, nel turno intero, a
+ * sovrascrivere la DEF: provano il chiamante, non i numeri del catalogo, che pinna `RTHeroCatalogDefenseTests.cpp`.
+ * `ZeroDefenseAndRearLeaveHitsUntouched` resta il controllo che con i campi a zero la formula e' l'identita'.
+ * I valori usati (210, 300, DEF 25, spalle 90) sono quelli della tabella di controllo di [D-595] e degli esempi di
+ * [D-599]: `floor(300 × 100/125) = 240`, `floor(210 × 100/125) = 168`.
  *
  * ⚠️ **Perche' non basta `Combat.Formula.*`**: quei sette test provano la funzione pura. Questi provano che la
  * funzione sia CHIAMATA, con la DEF del bersaglio giusto e il bonus dell'attaccante giusto, dall'origine giusta,
@@ -143,7 +146,7 @@ namespace
 		}
 
 		Difensore->Facing = ERTHexDirection::W; // guarda l'attaccante: nessun bonus alle spalle in gioco
-		Difensore->Defense = DefenderDefense;   // INIETTATA: il catalogo la tiene a zero (CP 53.2b)
+		Difensore->Defense = DefenderDefense;   // INIETTATA: sovrascrive il 15 di Ivrin (CP 53.3c): qui si misura il chiamante
 		Difensore->PlannedAbilityIndex = INDEX_NONE;
 
 		Attaccante->PlannedAbilityIndex = 0; // attacco base (`Hero.Ivrin.PulseShot`)
@@ -453,6 +456,37 @@ bool FRTCombatAreaRearBonusUsesImpactCenterTest::RunTest(const FString&)
 		URTHexCombatLibrary::ImpactOriginOf(ERTAbilityShape::Area, Lanciatore, Centro) == Centro);
 	TestTrue(TEXT("ImpactOriginOf: singolo → attaccante"),
 		URTHexCombatLibrary::ImpactOriginOf(ERTAbilityShape::Single, Lanciatore, Centro) == Lanciatore);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatRearBonusNeedsADamagingBaseTest,
+	"RefactorTactics.Combat.RearBonusNeedsADamagingBase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatRearBonusNeedsADamagingBaseTest::RunTest(const FString&)
+{
+	// Emerso con i valori di CP 53.3c: una spinta (`Power` 0, `bCountsAsAttack`) tirata alle spalle da un attaccante
+	// con bonus 90 faceva `floor(90 × 100/115) = 78` danni. Il bonus si somma alla Base (D-587 (3)); senza Base non
+	// c'e' niente a cui sommarsi, e il colpo resta a zero — alle spalle come di fronte.
+	const FRTCellId Defender(0, 0, 0);
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(DefIntent(Defender, 0, 1, /*Power*/ 0));
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(DefUnit(0, 0, FRTCellId(-1, 0, 0), ERTHexDirection::E, /*Defense*/ 0, /*RearBonus*/ 90));
+	Units.Add(DefUnit(1, 1, Defender, ERTHexDirection::E, /*Defense*/ 15)); // da' le spalle all'attaccante
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, MakeDefMap(3));
+	const FRTHexAttackHit* Hit = DefHitOn(Plan, 1);
+	if (TestNotNull(TEXT("il colpo a potenza zero esiste nel piano (conta come attacco)"), Hit))
+	{
+		TestEqual(TEXT("alle spalle, senza Base: zero danni, non 78"), Hit->Power, 0);
+		TestEqual(TEXT("e nessun bonus applicato"), Hit->RearBonusApplied, 0);
+		TestEqual(TEXT("il mitigato e' zero"), Hit->MitigatedPower, 0);
+	}
+
+	// Controllo positivo dello stesso banco: con una Base, il bonus scatta.
+	Intents[0].Power = 210;
+	const FRTHexBlastPlan Con = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, MakeDefMap(3));
+	TestEqual(TEXT("con Base 210: (210 + 90) contro DEF 15 = 260"), DefPowerOn(Con, 1), 260);
 	return true;
 }
 

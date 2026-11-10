@@ -482,7 +482,7 @@
     {
       "type": "UnitHpEquals",
       "unit": "Branth",
-      "value": 1030,
+      "value": 1057,
       "_assertion": "120 - (22 - 5): `ArcPulse` pieno meno lo scudo. 🔴 **Pieno perche' Branth NON ha copertura**, ed e' il punto: la copertura sta su Ivrin, il bersaglio ORIGINALE. Un resolver che la conservasse invece di rivalutare la geometria su chi incassa davvero darebbe 22-10=12 danni, cioe' **113**. La distanza fra 103 e 113 e' tutto cio' che questo turno esiste per misurare (D-017)."
     },
     {

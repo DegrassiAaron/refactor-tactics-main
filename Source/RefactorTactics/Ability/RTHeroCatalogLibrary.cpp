@@ -269,7 +269,7 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		{
 			Errors.Add(FString::Printf(TEXT("%s: resistenza push negativa (%d)"), *Where, Hero->PushResistance));
 		}
-		// E53 CP 53.2b: DEF, RES e bonus alle spalle entrano a zero ([D-595] (3), [D-599]). Un valore negativo
+		// E53 CP 53.2b: DEF, RES e bonus alle spalle entrano a zero ([D-595] (3), [D-599]); CP 53.3c porta i valori. Un valore negativo
 		// non e' «amplificazione»: D-595 ha deciso solo valori non negativi, e `MitigateDirectDamage` li
 		// tratta come zero in silenzio — qui invece e' un errore con il nome dell'eroe, come per la Guardia.
 		if (Hero->Defense < 0)
@@ -391,6 +391,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 	Aevik->VisionRange = 7;
 	Aevik->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
 	Aevik->PushResistance = 0;
+	// E53 CP 53.3c ([D-595] (3), [D-599]): DEF, RES di default e bonus alle spalle dello slot del GDD che Aevik
+	// diventera' con #4011 — **Gadget**: DEF 15 / RES 35, fascia «standard» alle spalle 60. La RES vale per i dodici
+	// elementi di D-593 finche' una voce non ne differenzia uno (`ElementResistance` resta vuota). I quattro a
+	// runtime prendono i valori dello slot PRIMA del rename (D-595 (5)): DEF e RES sono dati del catalogo, il nome no.
+	// ⛔ Sono la PRIMA riga del catalogo, non quella definitiva: la taratura la possiede `balance/` ([D-282]).
+	Aevik->Defense = 15;
+	Aevik->ResistanceDefault = 35;
+	Aevik->RearBonus = 60;
 	// ADR-0008 §1 — «standard/tecnico» in entrambe le mobilita': 120 gradi a fine Move e a fine Dash.
 	// ⚠️ Ipotesi iniziale, non bilanciamento approvato: la fonte (handoff §23.1) la da' come «da
 	// scenario/playtest», e la taratura degli otto numeri e' lavoro separato (#1605 §Out of scope).
@@ -536,6 +544,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	Muiren->VisionRange = 5;
 	Muiren->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
 	Muiren->PushResistance = 0;
+	// E53 CP 53.3c ([D-595] (3), [D-599]): DEF, RES di default e bonus alle spalle dello slot del GDD che Muiren
+	// diventera' con #4011 — **Muriel**: DEF 25 / RES 40, fascia «standard» alle spalle 60. La RES vale per i dodici
+	// elementi di D-593 finche' una voce non ne differenzia uno (`ElementResistance` resta vuota). I quattro a
+	// runtime prendono i valori dello slot PRIMA del rename (D-595 (5)): DEF e RES sono dati del catalogo, il nome no.
+	// ⛔ Sono la PRIMA riga del catalogo, non quella definitiva: la taratura la possiede `balance/` ([D-282]).
+	Muiren->Defense = 25;
+	Muiren->ResistanceDefault = 40;
+	Muiren->RearBonus = 60;
 	// ADR-0008 §1 — Move «fluido» (120 gradi), Dash «molto manovrabile»: 3 step, cioe' qualsiasi facing.
 	// E' la coppia che dimostra da sola perche' i budget sono DUE e non uno.
 	Muiren->MoveEndPivotMaxSteps = 2;
@@ -778,6 +794,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
 	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
 	Branth->PushResistance = 0;
+	// E53 CP 53.3c ([D-595] (3), [D-599]): DEF, RES di default e bonus alle spalle dello slot del GDD che Branth
+	// diventera' con #4011 — **Riktor**: DEF 45 / RES 35, fascia «tank» alle spalle 30. La RES vale per i dodici
+	// elementi di D-593 finche' una voce non ne differenzia uno (`ElementResistance` resta vuota). I quattro a
+	// runtime prendono i valori dello slot PRIMA del rename (D-595 (5)): DEF e RES sono dati del catalogo, il nome no.
+	// ⛔ Sono la PRIMA riga del catalogo, non quella definitiva: la taratura la possiede `balance/` ([D-282]).
+	Branth->Defense = 45;
+	Branth->ResistanceDefault = 35;
+	Branth->RearBonus = 30;
 	// ADR-0008 §1 — «pesante, forte stabilita'»: 60 gradi a fine Move, e **zero** in Dash.
 	//
 	// 🔑 Lo `0` non viene dalla fonte, che dava «0-60 gradi» — un intervallo, non un valore — ed e' una
@@ -986,6 +1010,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	Ivrin->VisionRange = 6;
 	Ivrin->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
 	Ivrin->PushResistance = 0;
+	// E53 CP 53.3c ([D-595] (3), [D-599]): DEF, RES di default e bonus alle spalle dello slot del GDD che Ivrin
+	// diventera' con #4011 — **Kallari**: DEF 15 / RES 20, fascia «flanker» alle spalle 90. La RES vale per i dodici
+	// elementi di D-593 finche' una voce non ne differenzia uno (`ElementResistance` resta vuota). I quattro a
+	// runtime prendono i valori dello slot PRIMA del rename (D-595 (5)): DEF e RES sono dati del catalogo, il nome no.
+	// ⛔ Sono la PRIMA riga del catalogo, non quella definitiva: la taratura la possiede `balance/` ([D-282]).
+	Ivrin->Defense = 15;
+	Ivrin->ResistanceDefault = 20;
+	Ivrin->RearBonus = 90;
 	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
 	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Branth, e la scala esiste per
 	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'

@@ -5,8 +5,10 @@
 // di design: **il risultato cambia?**
 //
 // Lo scenario e' quello di `Scenarios/Combat/BasicAttack.json`, costruito in memoria con gli stessi numeri:
-// Aevik colpisce Branth a distanza 2 con `Hero.Aevik.ArcPulse` (22 danni), Branth parte da 120 e finisce
-// a 103 — i 5 che mancano sono lo scudo BASE di [D-224], che ferma solo il danno diretto.
+// Aevik colpisce Branth a distanza 2 con `Hero.Aevik.ArcPulse` (220 danni). Dal CP 53.3c di E53 il colpo passa
+// dalla formula di [D-589] con i numeri del catalogo: Aevik sta alle SPALLE di Branth (che guarda a est), quindi
+// entra il suo bonus alle spalle (60, [D-599]) e la DEF 45 di Branth ([D-595] (3)): `floor((220 + 60) × 100/145)
+// = 193`, meno lo scudo BASE di [D-224] (50) → Branth finisce a 1057. `SaluteDiB1` lo calcola dal catalogo.
 //
 // ⚠️ E' l'unico scenario del corpus che asserisce un DANNO invece di una posizione, cioe' esattamente cio'
 // che una variante numerica deve poter muovere. Per questo si riusa invece di inventarne uno.
@@ -18,6 +20,7 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTWorkbenchVariant.h"
+#include "Combat/RTCombatLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -37,6 +40,19 @@ namespace RTWorkbenchRun
 			Ctx.SetCurrentWorld(World);
 		}
 		return World;
+	}
+
+	/**
+	 * La salute di Branth dopo UN `ArcPulse` da `Danno`, dalla formula e dal catalogo: alle spalle (bonus di Aevik),
+	 * contro la DEF di Branth, meno lo scudo base. Il test chiede «il risultato cambia?», non «quanto vale la
+	 * formula»: calcolarlo qui tiene la domanda ferma quando cambiano i numeri del catalogo.
+	 */
+	int32 SaluteDiB1(int32 Danno)
+	{
+		const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+		const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+		return Branth->MaxHealth - (URTCombatLibrary::MitigateDirectDamage(Danno, Aevik->RearBonus, 100, Branth->Defense)
+			- URTCombatLibrary::BaseShield);
 	}
 
 	void DestroyWorld(UWorld* World)
@@ -115,9 +131,10 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
 	UWorld* World = RTWorkbenchRun::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	// 1030 e' il numero del corpus: 1200 di Branth, 220 dichiarati da ArcPulse, 50 fermati dallo scudo base.
+	// 1057 e' il numero del corpus (`Combat.BasicAttack`): 1200 di Branth, 220 di ArcPulse alle spalle, DEF 45, scudo 50.
+	TestEqual(TEXT("premessa: la baseline vale 1057"), RTWorkbenchRun::SaluteDiB1(220), 1057);
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true);
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(220)), /*bTearDownAfter=*/ true);
 
 	TestEqual(TEXT("senza variante lo scenario passa con la salute canonica"),
 		Esito.Outcome, ERTTestOutcome::Pass);
@@ -130,11 +147,11 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
  * **Con la variante il risultato cambia, e passa dal Resolver.**
  *
  * Il Workbench non applica danno: propone un numero, e il colpo lo risolve il gioco. Se questo test passa
- * mentre `NoVariantEqualsBaseline` passa a 103, l'override ha attraversato tutta la catena — kit, intent,
+ * mentre `NoVariantEqualsBaseline` passa a 1057, l'override ha attraversato tutta la catena — kit, intent,
  * planning, snapshot, resolver — perche' non c'e' nessun'altra strada per cui quel numero possa arrivare
  * alla salute di B1.
  *
- * 320 anziche' 220, e lo scudo base ne ferma sempre 50: `1200 - (320 - 50) = 930`.
+ * 320 anziche' 220, con lo stesso bonus alle spalle e la stessa DEF: `1200 - (floor(380 × 100/145) - 50) = 988`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkbenchVariantChangesTheOutcomeTest,
 	"RefactorTactics.Workbench.VariantChangesTheOutcome",
@@ -144,11 +161,12 @@ bool FRTWorkbenchVariantChangesTheOutcomeTest::RunTest(const FString&)
 	UWorld* World = RTWorkbenchRun::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
+	TestEqual(TEXT("premessa: con 320 la salute attesa e' 988"), RTWorkbenchRun::SaluteDiB1(320), 988);
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(320)), /*bTearDownAfter=*/ true,
 		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 320));
 
-	TestEqual(TEXT("con danno 320 la salute attesa e' 930, e lo scenario passa"),
+	TestEqual(TEXT("con danno 320 la salute attesa e' 988, e lo scenario passa"),
 		Esito.Outcome, ERTTestOutcome::Pass);
 
 	RTWorkbenchRun::DestroyWorld(World);
@@ -159,7 +177,7 @@ bool FRTWorkbenchVariantChangesTheOutcomeTest::RunTest(const FString&)
  * **Anti-vacuita' del test sopra**: la stessa variante contro l'aspettativa BASELINE deve **fallire**.
  *
  * Senza questo, `VariantChangesTheOutcome` sarebbe verde anche se la variante non arrivasse mai al resolver
- * e l'aspettativa a 93 fosse sbagliata per un'altra ragione. Qui si chiede il contrario: con la variante
+ * e l'aspettativa con la variante (988) fosse sbagliata per un'altra ragione. Qui si chiede il contrario: con la variante
  * attiva, il numero di prima non regge piu'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkbenchVariantBreaksTheBaselineExpectationTest,
@@ -171,7 +189,7 @@ bool FRTWorkbenchVariantBreaksTheBaselineExpectationTest::RunTest(const FString&
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(220)), /*bTearDownAfter=*/ true,
 		RTWorkbenchRun::DannoArcPulse(TEXT("Test.ArcPulse32"), 320));
 
 	// `Fail` e non `Error`: lo scenario e' valido ed e' girato, l'assertion non regge. La distinzione e'
@@ -207,7 +225,7 @@ bool FRTWorkbenchUnknownActionFailsBeforeTheFirstTurnTest::RunTest(const FString
 	Assurda.Overrides.Add(Ov);
 
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(1030), /*bTearDownAfter=*/ true, Assurda);
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(220)), /*bTearDownAfter=*/ true, Assurda);
 
 	TestEqual(TEXT("la run si ferma con Error, non con Fail"), Esito.Outcome, ERTTestOutcome::Error);
 
@@ -230,11 +248,11 @@ bool FRTWorkbenchSameVariantSameResultTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
 	const FRTTestResult Prima = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(320)), /*bTearDownAfter=*/ true,
 		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 320));
 
 	const FRTTestResult Seconda = URTScenarioRunner::RunSingle(World,
-		RTWorkbenchRun::BasicAttack(930), /*bTearDownAfter=*/ true,
+		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(320)), /*bTearDownAfter=*/ true,
 		RTWorkbenchRun::DannoArcPulse(TEXT("Test.Deterministica"), 320));
 
 	TestEqual(TEXT("la prima run passa"), Prima.Outcome, ERTTestOutcome::Pass);

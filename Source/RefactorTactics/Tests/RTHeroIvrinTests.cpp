@@ -236,7 +236,9 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	TestEqual(TEXT("il roster completo e' valido"), Errors.Num(), 0);
 
 	// Gli eroi sono DISTINGUIBILI: nessuna coppia condivide lo stesso profilo statistico. E' la prima meta'
-	// del gate («distinguibili da dati»).
+	// del gate («distinguibili da dati»). Dal CP 53.3c (E53, [D-595] (3), [D-599]) il profilo comprende anche
+	// DEF, RES di default e bonus alle spalle: sono statistiche base quanto le altre quattro, e un eroe nuovo
+	// che le condividesse tutte con un altro sarebbe lo stesso eroe con un altro nome.
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
 		for (int32 j = i + 1; j < Roster.Num(); ++j)
@@ -245,7 +247,10 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 				Roster[i]->MaxHealth == Roster[j]->MaxHealth &&
 				Roster[i]->MovePoints == Roster[j]->MovePoints &&
 				Roster[i]->VisionRange == Roster[j]->VisionRange &&
-				Roster[i]->PushResistance == Roster[j]->PushResistance;
+				Roster[i]->PushResistance == Roster[j]->PushResistance &&
+				Roster[i]->Defense == Roster[j]->Defense &&
+				Roster[i]->ResistanceDefault == Roster[j]->ResistanceDefault &&
+				Roster[i]->RearBonus == Roster[j]->RearBonus;
 			TestFalse(FString::Printf(TEXT("%s e %s hanno profili diversi"),
 				*Roster[i]->HeroId.ToString(), *Roster[j]->HeroId.ToString()), bIdenticalStats);
 		}
@@ -263,17 +268,28 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 
 	auto DominatesOnBaseStats = [](const URTHeroData* A, const URTHeroData* B)
 	{
-		// A domina B: >= su tutte e quattro le statistiche base, e > su almeno una.
+		// A domina B: >= su tutte le statistiche base, e > su almeno una. Dal CP 53.3c le statistiche sono
+		// sette: alle quattro storiche si aggiungono DEF, RES di default e bonus alle spalle (tutte «piu' e'
+		// meglio»). ⚠️ Non e' un controllo piu' forte ne' piu' debole del precedente: e' la relazione giusta su
+		// sette assi. PERDE i casi in cui A e' avanti sulle quattro storiche ma paga sulla difesa (non e'
+		// dominanza, e' un prezzo) e GUADAGNA quello in cui A pareggia le quattro e supera B sulla difesa, che
+		// sulle quattro sole passava inosservato. Sul roster di oggi nessuna coppia cade in nessuno dei due.
 		const bool bWeaklyBetter =
-			A->MaxHealth      >= B->MaxHealth &&
-			A->MovePoints     >= B->MovePoints &&
-			A->VisionRange    >= B->VisionRange &&
-			A->PushResistance >= B->PushResistance;
+			A->MaxHealth         >= B->MaxHealth &&
+			A->MovePoints        >= B->MovePoints &&
+			A->VisionRange       >= B->VisionRange &&
+			A->PushResistance    >= B->PushResistance &&
+			A->Defense           >= B->Defense &&
+			A->ResistanceDefault >= B->ResistanceDefault &&
+			A->RearBonus         >= B->RearBonus;
 		const bool bStrictlyBetterSomewhere =
-			A->MaxHealth      >  B->MaxHealth ||
-			A->MovePoints     >  B->MovePoints ||
-			A->VisionRange    >  B->VisionRange ||
-			A->PushResistance >  B->PushResistance;
+			A->MaxHealth         >  B->MaxHealth ||
+			A->MovePoints        >  B->MovePoints ||
+			A->VisionRange       >  B->VisionRange ||
+			A->PushResistance    >  B->PushResistance ||
+			A->Defense           >  B->Defense ||
+			A->ResistanceDefault >  B->ResistanceDefault ||
+			A->RearBonus         >  B->RearBonus;
 		return bWeaklyBetter && bStrictlyBetterSomewhere;
 	};
 

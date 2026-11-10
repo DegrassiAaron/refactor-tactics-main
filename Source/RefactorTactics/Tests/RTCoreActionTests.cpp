@@ -165,9 +165,11 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 
 	if (!TestEqual(TEXT("due colpi restano due"), Guardati.Num(), 2)) { return false; }
-	TestEqual(TEXT("il primo colpo e' ridotto di 150"), Guardati[0].Power, 150);
+	TestEqual(TEXT("il primo colpo e' ridotto della Guardia di catalogo (100, D-602)"), Guardati[0].Power,
+		300 - URTCombatLibrary::GuardReductionDefault);
 	// 🔴 La riga che il nome vecchio negava: **anche il secondo**.
-	TestEqual(TEXT("e anche il secondo: la Guardia non vale una volta sola"), Guardati[1].Power, 150);
+	TestEqual(TEXT("e anche il secondo: la Guardia non vale una volta sola"), Guardati[1].Power,
+		300 - URTCombatLibrary::GuardReductionDefault);
 
 	// Un colpo piu' debole della riduzione viene annullato, non trasformato in cura.
 	const TArray<FRTAttack> Piccolo = URTCombatResolver::ApplyEligibleHitDelta(
@@ -188,7 +190,8 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	const TArray<FRTAttack> Entrambi = URTCombatResolver::ApplyEligibleHitDelta(
 		URTHexCombatLibrary::ToAttacks(Piano),
 		Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
-	TestEqual(TEXT("esposto e in guardia: 300 × 1,2 - 150"), Entrambi[0].Power, 210);
+	TestEqual(TEXT("esposto e in guardia: 300 × 1,2 - Guardia (360 - 100 = 260)"), Entrambi[0].Power,
+		360 - URTCombatLibrary::GuardReductionDefault);
 
 	// L'azione che lo produce e' dati: Guard dichiara lo stato, non un numero nell'orchestratore.
 	const FRTActionDef Guard = CoreActionDef(TEXT("Action.Guard"));

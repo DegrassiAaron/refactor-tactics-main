@@ -114,6 +114,12 @@ bool FRTFormulaFlatReductionsApplyAfterMitigation::RunTest(const FString&)
 	TestEqual(TEXT("poi le riduzioni piatte"), FMath::Max(0, Mitigated - Cover - Guard), 9);
 	// Esempio 5 — il max(0, …) lavora: Mortar 120 contro DEF 60 con entrambe → 75 − 250 < 0 → 0.
 	TestEqual(TEXT("Mortar contro il muro fa zero"), FMath::Max(0, Mitigate(120, 60) - Cover - Guard), 0);
+	// [D-602] (CP 53.3c) ha tarato i due valori con la DEF in mano: copertura 60 e Guardia 100. Lo stesso esempio 3
+	// con i valori del catalogo vale 99, non 9 — ed e' la ragione della taratura.
+	TestEqual(TEXT("D-602: copertura e Guardia del catalogo sono 60 e 100"),
+		URTCombatLibrary::LowCoverDamageReduction * 1000 + URTCombatLibrary::GuardReductionDefault, 60 * 1000 + 100);
+	TestEqual(TEXT("esempio 3 con i valori di D-602: 259 − 60 − 100 = 99"),
+		FMath::Max(0, Mitigated - URTCombatLibrary::LowCoverDamageReduction - URTCombatLibrary::GuardReductionDefault), 99);
 	return true;
 }
 
@@ -135,7 +141,7 @@ bool FRTFormulaZeroDefenseIsIdentity::RunTest(const FString&)
 	}
 	TestEqual(TEXT("zero resta zero"), Mitigate(0, 25), 0);
 	// Valori negativi valgono zero (dichiarato nella documentazione della funzione): una Base negativa non
-	// cura, una Defense negativa non amplifica finche' CP 53.3 non decide l'Armor firmata.
+	// cura, una Defense negativa non amplifica finche' una decisione non introduce l'Armor firmata del PRD.
 	TestEqual(TEXT("Base negativa → 0"), URTCombatLibrary::MitigateDirectDamage(-10, 0, 100, 0), 0);
 	TestEqual(TEXT("Defense negativa vale 0"), URTCombatLibrary::MitigateDirectDamage(240, 0, 100, -50), 240);
 	return true;

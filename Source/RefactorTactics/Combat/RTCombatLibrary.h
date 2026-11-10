@@ -282,8 +282,14 @@ public:
 	 * `Spec.Combat.GuardSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
 	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
 	 * il 2026-09-20, di [D-408].
+	 *
+	 * 🔢 **100 dal 2026-11-10 ([D-602], E53 CP 53.3c)**: la passata ×10 l'aveva portato da 15 a 150 ([D-595] (4)
+	 * lo teneva «da tarare con la DEF in mano»). Con la DEF che mitiga PRIMA delle riduzioni piatte ([D-589] (3)),
+	 * 150 e lo scudo base lasciavano a zero quasi ogni colpo frontale sotto Guardia: restavano solo `HeavyAttack` e,
+	 * contro DEF 15, i colpi da 240 (8 HP). La taratura lo porta a 100, e le riduzioni piatte scalano meno di ×10
+	 * perche' la DEF fa gia' parte del loro lavoro.
 	 */
-	static constexpr int32 GuardReductionDefault = 150;
+	static constexpr int32 GuardReductionDefault = 100;
 
 	/**
 	 * `Status.Burning`: 8 danni nel Cleanup, per la durata dello stato (catalogo terreni §2, CP 8.2).
@@ -471,7 +477,8 @@ public:
 	static constexpr int32 DeflectDamageReduction = 200;
 
 	/**
-	 * `Action.Brace` (catalogo v0.1 §4): riduce di 100 OGNI danno diretto fino al Cleanup.
+	 * `Action.Brace` (catalogo v0.1 §4): riduce di 60 OGNI danno diretto fino al Cleanup ([D-602]: era 100 dopo la
+	 * passata ×10, 10 prima).
 	 *
 	 * A differenza di `Deflect` NON e' un POOL: quello ha un budget che si esaurisce ([D-309]), questo e' un
 	 * delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`, nessun gate "una volta sola".
@@ -479,7 +486,7 @@ public:
 	 * 🔴 **E dal 2026-09-20 NON e' piu' una differenza rispetto alla `Guard`, che e' la cosa da sapere qui.**
 	 * Questa riga diceva *«a differenza di `Guard`/`Deflect`… contro molti colpi piccoli la `Brace` non
 	 * finisce, un pool si'»*, e con [D-292] era il mestiere del `Brace`. [D-408] ritira il pool della
-	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (150 contro 100).
+	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (100 contro 60, [D-602]).
 	 * ∴ sull'arco frontale la `Guard` domina, e cio' che resta a separarle e' la **direzione** — la Guardia
 	 * copre il davanti ([D-206]), il `Brace` no ha clausola d'arco. ⚠️ **E' una conseguenza di
 	 * bilanciamento, e `BAL-1` e' aperta**: `docs/decisions/open/bal-1.md` la registra.
@@ -487,10 +494,11 @@ public:
 	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
 	 * regge lo stesso, ma il termine di paragone e' cambiato.*
 	 */
-	static constexpr int32 BraceDamageReduction = 100;
+	static constexpr int32 BraceDamageReduction = 60;
 
 	/**
-	 * Copertura bassa (catalogo v0.1, CP 9.1): riduce di 100 il danno diretto che ATTRAVERSA il bordo riparato.
+	 * Copertura bassa (catalogo v0.1, CP 9.1): riduce di 60 il danno diretto che ATTRAVERSA il bordo riparato
+	 * ([D-602], E53 CP 53.3c: era 100 dopo la passata ×10, 10 prima). Si sottrae DOPO la DEF ([D-589] (3)).
 	 *
 	 * Sta qui accanto a `Guard`/`Deflect`/`Brace` perche' e' la stessa famiglia di numeri — quanto danno
 	 * diretto si toglie — anche se la condizione che la attiva e' geometrica invece che di stato. Come `Brace`
@@ -500,7 +508,7 @@ public:
 	 * nascono nella cella. E non riduce le AREE: un'esplosione non e' un proiettile che si possa intercettare
 	 * con un muretto — vale anche quando il centro sta dal lato riparato.
 	 */
-	static constexpr int32 LowCoverDamageReduction = 100;
+	static constexpr int32 LowCoverDamageReduction = 60;
 
 	/**
 	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +80 danni contro un bersaglio `Status.Wet`.
@@ -868,13 +876,13 @@ public:
 	 * - `Defense` e' la DEF del bersaglio per il danno diretto, o la RES dell'elemento per quello elementale
 	 *   e ambientale (D-589 (1)): stessa forma, stessa funzione.
 	 *
-	 * ⚠️ **Nessun chiamante a runtime la usa ancora (CP 53.2 primo commit)**: con `Defense = 0` e
-	 * `ModPercent = 100` e' l'identita', e i test lo pinnano sui valori del catalogo di oggi. Entra nel
-	 * resolver con la passata ×10 (CP 53.3), quando DEF e RES esistono sull'unita'.
+	 * La chiama `URTHexCombatLibrary::MitigatedHitPower` nel punto in cui il colpo nasce (CP 53.2c), con la DEF
+	 * del bersaglio e il bonus dell'attaccante copiati dal catalogo (valori dal CP 53.3c); il pass di `Exposed`
+	 * la richiama con `ModPercent` 120 (CP 53.3b). Con `Defense = 0` e `ModPercent = 100` e' l'identita'.
 	 *
 	 * Valori negativi: `Base`, `RearBonus` e `ModPercent` sotto zero valgono zero; `Defense` sotto zero
 	 * vale zero, perche' D-595 ha deciso solo valori non negativi — l'Armor «firmata» del PRD e' una
-	 * domanda per CP 53.3, non un comportamento che questa funzione inventi in silenzio.
+	 * domanda per una decisione futura, non un comportamento che questa funzione inventi in silenzio.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 MitigateDirectDamage(int32 Base, int32 RearBonus, int32 ModPercent, int32 Defense);

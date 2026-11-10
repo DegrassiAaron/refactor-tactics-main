@@ -27,7 +27,7 @@
 > ➕ **2026-11-08, [D-587](RT_PDR_00_Decision_Log.md)**: `MSP-2` è decisa. Il bonus vale dai **tre lati posteriori** (`Rear`, `RearLeft`, `RearRight`: lo stesso emisfero
 > di §4a, nessuna banda nuova), è un **valore per personaggio dell'attaccante** come la Guard di D-408, e si somma alla **Base prima della
 > mitigazione**: `Danno = (Base + Spalle) × Mod × 100/(100+DEF)` (D-589). La §4a resta: il retro continua a togliere copertura e Guard, e in più
-> aggiunge il bonus. I valori per personaggio sono decisi da [D-599](RT_PDR_00_Decision_Log.md) (2026-11-09: tre fasce, 90 · 60 · 30 sulla scala ×10); finché E53 non li porta nel codice, nessun colpo alle spalle fa più danno di oggi.
+> aggiunge il bonus. I valori per personaggio sono decisi da [D-599](RT_PDR_00_Decision_Log.md) (2026-11-09: tre fasce, 90 · 60 · 30 sulla scala ×10) e dal 2026-11-10 sono nel catalogo eroi (E53 CP 53.3c): il colpo alle spalle li applica, e solo a un colpo che ha una Base.
 > ➕ **2026-11-09, [D-597](RT_PDR_00_Decision_Log.md)**: la §4a riceve una **seconda condizione**: un attaccante il cui `FRTCellId::Layer` è maggiore di quello del difensore annulla
 > la riduzione da copertura bassa, come il retro; **non** la Guard. Le due condizioni sono un «o»; il TurnLog porta la ragione della perdita. Non implementata: la §4a si riscrive con l'implementazione.
 
@@ -168,7 +168,7 @@ facing si ottiene il cono del facing **senza scrivere una seconda geometria** �
 #### 4a. Difesa — l'emisfero posteriore è scoperto
 
 Un colpo la cui origine **non** è nell'arco frontale della vittima **annulla** la riduzione da **copertura
-bassa** (−100) e da **`Action.Guard`** (−150). Nessun modificatore nuovo, nessun numero da bilanciare: si
+bassa** (−60) e da **`Action.Guard`** (−100; valori di [D-602](RT_PDR_00_Decision_Log.md), erano −100 e −150 dopo la scala ×10). Nessun modificatore nuovo, nessun numero da bilanciare: si
 riusano valori già a catalogo, togliendo una protezione invece di aggiungere danno.
 
 Non cambia: `Deflect`, `Brace`, `Shield` e gli scudi restano validi da ogni direzione — proteggono la
@@ -402,7 +402,7 @@ con un premio leggibile, non solo un riposizionamento.
 - **`Facing` diventa un prerequisito di E13**: la vista a cono non si può costruire prima. La catena della
   v0.1 si allunga: `E16.1 → E13 → E14`;
 - la **difesa direzionale** tocca il combat math e va misurata: un colpo alle spalle su un bersaglio in
-  copertura passa da −100 a 0, cioè **100 danni in più** su HP che vanno da 900 a 1200;
+  copertura passa da −60 a 0, cioè **60 danni in più** ([D-602](RT_PDR_00_Decision_Log.md)) su HP che vanno da 900 a 1200;
 - i test del bot cambiano premessa **due volte**: con E13 (conoscenza parziale) e con il cono (il bot deve
   considerare da dove viene visto e da dove può essere colpito);
 - la rotazione dichiarata aggiunge un campo agli intenti, quindi alla privacy e alla serializzazione;
@@ -429,7 +429,7 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Facing.IntentIsTeamFiltered` | la rotazione **dichiarata** non raggiunge il client avversario |
 | `UI.IntentViewFieldsAreClassified` | ogni campo di `FRTIntentView` ha una classe di privacy **dichiarata**: un campo nuovo non classificato fa rosso (#2331) |
 | `UI.EnemyViewCarriesNoAllyOnlyField` | la riga sopra vale per **ogni** campo ally-only, non per i quattro di oggi — e i campi pubblici arrivano comunque a un avversario rivelato (#2331) |
-| `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −100 e −150 |
+| `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −60 e −100 ([D-602](RT_PDR_00_Decision_Log.md)) |
 | `Combat.FlankAttackKeepsCover` | dai fianchi la copertura vale: l'arco frontale è quello di `HexCone`, non solo la direzione esatta |
 | `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |
 | `Vision.AwarenessWithinTwoCellsIgnoresFacing` | la consapevolezza ravvicinata vale in ogni direzione |

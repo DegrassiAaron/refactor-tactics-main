@@ -212,7 +212,8 @@ bool FRTGuardReductionPermutationTest::RunTest(const FString&)
 {
 	TArray<int32> Riduzione;
 	Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15, il default di catalogo
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // il default di catalogo (100, [D-602])
+	const int32 G = URTCombatLibrary::GuardReductionDefault;
 
 	// Due colpi frontali di taglia diversa: il caso ordinario di due attaccanti sullo stesso bersaglio.
 	const TArray<FRTAttack> Piccolo = { FRTAttack(1, 100, 0), FRTAttack(1, 300, 2) };
@@ -240,7 +241,10 @@ bool FRTGuardReductionPermutationTest::RunTest(const FString&)
 	// 🔴 **E il NUMERO e' quello nuovo, non quello del pool.** Col pool il totale era `40 - 15 = 25`: un
 	// tetto di 15 per l'intero turno. Con la riduzione per colpo il primo colpo si azzera (10 - 15 -> 0) e
 	// il secondo scende a 15, per un totale di **15**. E' il cambio di tetto che [D-408] dichiara VOLUTO.
-	TestEqual(TEXT("ogni colpo frontale e' ridotto: 0 + 150, non 400 - 150"), PiccoloPrima, 150);
+	// ⏱️ Con [D-602] (Guardia 100) il colpo da 100 si azzera esattamente e quello da 300 scende a 200: il pool darebbe 300.
+	TestEqual(TEXT("ogni colpo frontale e' ridotto: max(0, 100 - G) + (300 - G), non 400 - G"), PiccoloPrima,
+		FMath::Max(0, 100 - G) + (300 - G));
+	TestNotEqual(TEXT("e non e' il pool: 400 - G"), PiccoloPrima, 400 - G);
 	return true;
 }
 
@@ -324,7 +328,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReductionHasNoCeilingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardReductionHasNoCeilingTest::RunTest(const FString&)
 {
-	const int32 Valore = URTCombatLibrary::GuardReductionDefault;   // 15
+	const int32 Valore = URTCombatLibrary::GuardReductionDefault;
 	TArray<int32> Riduzione;  Riduzione.Init(0, 2);  Riduzione[1] = -Valore;
 	TArray<int32> Budget;     Budget.Init(0, 2);     Budget[1] = Valore;
 
@@ -347,7 +351,8 @@ bool FRTGuardReductionHasNoCeilingTest::RunTest(const FString&)
 
 	// Quattro colpi da 8: nominale 32. Il pool ne assorbe 15 in tutto -> 17. La riduzione ne toglie 8 per
 	// colpo (ciascuno si azzera, non cura) -> 0.
-	TestEqual(TEXT("il pool aveva un tetto: 320 nominali meno 150 di budget"), ConPool, 170);
+	TestTrue(TEXT("premessa: la Guardia e' grande quanto un colpo piccolo (80), cosi' ognuno si azzera"), Valore >= 80);
+	TestEqual(TEXT("il pool aveva un tetto: 320 nominali meno la Guardia di budget"), ConPool, 320 - Valore);
 	TestEqual(TEXT("la riduzione per colpo non ne ha: ogni colpo si azzera"), ConRiduzione, 0);
 
 	// ANTI-VACUITA': i due modelli DEVONO divergere qui, altrimenti il test non misura il cambio di tetto.
@@ -368,9 +373,10 @@ bool FRTGuardReductionSkipsBehindTest::RunTest(const FString&)
 {
 	TArray<int32> Riduzione;
 	Riduzione.Init(0, 2);
-	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // -15
+	Riduzione[1] = -URTCombatLibrary::GuardReductionDefault;   // [D-602]: 100
+	const int32 G = URTCombatLibrary::GuardReductionDefault;
 
-	// Colpo 0 dalle SPALLE (30), colpo 1 dal DAVANTI (20).
+	// Colpo 0 dalle SPALLE (300), colpo 1 dal DAVANTI (200).
 	const TArray<FRTAttack> Colpi = { FRTAttack(1, 300, 0), FRTAttack(1, 200, 2) };
 	const TArray<bool> Eleggibili = { false, true };
 
@@ -378,14 +384,14 @@ bool FRTGuardReductionSkipsBehindTest::RunTest(const FString&)
 		Colpi, Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource);
 
 	TestEqual(TEXT("il colpo alle spalle passa intero"), Out[0].Power, 300);
-	TestEqual(TEXT("il colpo frontale e' ridotto"), Out[1].Power, 50);
+	TestEqual(TEXT("il colpo frontale e' ridotto: 200 - G"), Out[1].Power, 200 - G);
 
 	// ANTI-VACUITA': se la maschera fosse ignorata, ANCHE il colpo alle spalle scenderebbe. I due asserti
 	// sopra distinguono i due casi solo se questo vale.
 	const TArray<bool> TuttiEleggibili = { true, true };
 	const TArray<FRTAttack> Ignorata = URTCombatResolver::ApplyEligibleHitDelta(
 		Colpi, Riduzione, TuttiEleggibili, URTCombatLibrary::GuardPerHitSource);
-	TestEqual(TEXT("ignorando la maschera anche il colpo alle spalle scenderebbe"), Ignorata[0].Power, 150);
+	TestEqual(TEXT("ignorando la maschera anche il colpo alle spalle scenderebbe: 300 - G"), Ignorata[0].Power, 300 - G);
 	return true;
 }
 
@@ -433,13 +439,14 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 	}
 
 	// ANTI-VACUITA': se la Guardia non togliesse niente, i due modelli coinciderebbero banalmente e le
-	// tre righe sopra non direbbero nulla. 30 e' la taglia piu' grande del ciclo.
+	// tre righe sopra non direbbero nulla. 300 e' la taglia piu' grande del ciclo.
 	{
 		TArray<int32> Riduzione; Riduzione.Init(0, 2); Riduzione[1] = -Valore;
 		const TArray<FRTAttack> Grosso = { FRTAttack(1, 300, 0) };
-		TestEqual(TEXT("e la Guardia toglie davvero qualcosa: 300 - 150"),
+		TestTrue(TEXT("premessa: la Guardia e' piu' piccola del colpo grosso"), Valore > 0 && Valore < 300);
+		TestEqual(TEXT("e la Guardia toglie davvero qualcosa: 300 - GuardReductionDefault"),
 			URTCombatResolver::ApplyEligibleHitDelta(
-				Grosso, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0].Power, 150);
+				Grosso, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0].Power, 300 - Valore);
 	}
 	return true;
 }

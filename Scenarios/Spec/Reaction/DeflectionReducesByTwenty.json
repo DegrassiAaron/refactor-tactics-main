@@ -28,7 +28,7 @@
   ],
   "expect": [
     { "_assertion": "IL NUMERO: 72 dipende dalla riduzione, e cambiarla lo sposta a 69. E' l'unica assertion del corpus che lo faccia su un turno vero.",
-      "type": "UnitHpEquals", "unit": "V1", "value": 720 },
+      "type": "UnitHpEquals", "unit": "V1", "value": 699 },
     { "_assertion": "E che la parata sia SCATTATA, separatamente dal numero: senza questa riga un turno in cui la reazione non parte affatto darebbe un altro numero e basta, senza dire perche'.",
       "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 1 },
     { "type": "UnitAlive", "unit": "V1", "value": true },

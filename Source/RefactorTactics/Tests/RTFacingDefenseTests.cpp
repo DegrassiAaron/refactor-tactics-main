@@ -114,6 +114,11 @@ namespace
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // il piano lo scriviamo noi: qui si prova la difesa, non il bot
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		// E53 CP 53.3c: il catalogo porta DEF e bonus alle spalle ([D-595] (3), [D-599]). Questo banco misura ALTRO,
+		// e i suoi numeri sono scritti sul colpo pieno: i due campi tornano a zero qui, e la difesa del catalogo
+		// la misura `RTHeroCatalogDefenseTests.cpp`. Non e' un'eccezione nascosta: e' il banco che dichiara la sua fixture.
+		U->Defense = 0;
+		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -204,9 +209,9 @@ bool FRTCombatBackAttackIgnoresCoverTest::RunTest(const FString&)
 		TestEqual(TEXT("alle spalle: la copertura non vale"), ArcPowerOn(Plan, 1), 300);
 		// Si TOGLIE una protezione, non si aggiunge un bonus: il danno e' quello pieno, non di piu'.
 		TestTrue(TEXT("nessun bonus di fianco"), ArcPowerOn(Plan, 1) <= 300);
-		// Il DoD misura proprio questo: 10 danni in piu' su HP che vanno da 90 a 120.
-		TestEqual(TEXT("la differenza e' la riduzione di catalogo"),
-			300 - (300 - URTCombatLibrary::LowCoverDamageReduction), 100);
+		// Il DoD misura proprio questo: la riduzione di catalogo in piu' (60 dal [D-602]) su HP che vanno da 900 a 1200.
+		TestEqual(TEXT("la differenza e' la riduzione di catalogo (60, D-602)"),
+			300 - (300 - URTCombatLibrary::LowCoverDamageReduction), 60);
 	}
 	return true;
 }

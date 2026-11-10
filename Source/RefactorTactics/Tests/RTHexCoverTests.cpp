@@ -153,9 +153,9 @@ bool FRTCoverDirectionalDamageReductionTest::RunTest(const FString&)
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Covered);
 
 	TestEqual(TEXT("il colpo avviene comunque"), Plan.Hits.Num(), 1);
-	TestEqual(TEXT("copertura bassa dal lato protetto: -100"),
+	TestEqual(TEXT("copertura bassa dal lato protetto: -60"),
 		CoverPowerOn(Plan, 1), 300 - URTCombatLibrary::LowCoverDamageReduction);
-	TestEqual(TEXT("la riduzione e' quella di catalogo"), URTCombatLibrary::LowCoverDamageReduction, 100);
+	TestEqual(TEXT("la riduzione e' quella di catalogo (D-602: 60)"), URTCombatLibrary::LowCoverDamageReduction, 60);
 	return true;
 }
 

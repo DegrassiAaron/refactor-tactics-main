@@ -83,6 +83,38 @@ test('la tabella di confronto §5 e una terza fonte, e puo divergere dalle sched
   assert.equal(rows.get('Branth')!.health, 120);
 });
 
+test('la tabella §5 porta anche DEF, RES e spalle, letti dall intestazione e non dalla posizione', () => {
+  // E53 CP 53.3c (D-595 (3), D-599): tre colonne in piu' fra `Push res.` e `Affinità`. Letta per
+  // posizione, l'`Affinità` sarebbe finita sotto il `15` della DEF e il parser avrebbe lanciato; letta
+  // dall'intestazione, la tabella vecchia (test sopra) e quella nuova si parsano entrambe.
+  const md = [
+    '## 5. Confronto rapido',
+    '',
+    '| Eroe | HP | MP | Vista | Push res. | DEF | RES | Spalle | Affinità | Identità in una riga |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---|---|',
+    '| Aevik | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, vede lontano |',
+    '| Ivrin | 900 | 6 | 6 | 0 | 15 | 20 | 90 | movimento | il piu mobile |',
+  ].join('\n');
+
+  const rows = parseSummaryTable(md);
+
+  assert.deepEqual(rows.get('Aevik'), {
+    health: 900, movePoints: 5, visionRange: 7, pushResistance: 0,
+    defense: 15, resistanceDefault: 35, rearBonus: 60, affinity: 'Affinity.Electricity',
+  });
+  assert.equal(rows.get('Ivrin')!.rearBonus, 90);
+});
+
+test('il C++ dichiara DEF, RES e spalle con gli stessi literal delle altre statistiche', () => {
+  const cpp = [
+    'Aevik->MaxHealth = 900;',
+    'Aevik->Defense = 15;',
+    'Aevik->ResistanceDefault = 35;',
+    'Aevik->RearBonus = 60;',
+  ].join('\n');
+  assert.deepEqual(parseCpp(cpp).get('Aevik'), { health: 900, defense: 15, resistanceDefault: 35, rearBonus: 60 });
+});
+
 const SEI = (over = {}) => ({
   health: 90, movePoints: 5, visionRange: 7, pushResistance: 0,
   affinity: 'Affinity.Electricity', weakness: 'Affinity.Water', ...over,

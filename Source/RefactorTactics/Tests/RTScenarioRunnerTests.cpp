@@ -1557,10 +1557,11 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 
 	// Le DUE meta' della stessa regola, separate: si arriva oltre, E chi sta in mezzo lo paga. Un test che
 	// verificasse solo la posizione passerebbe anche con i 20 danni mai applicati.
-	// [D-224] 80 e non 75: dei 20 della lama, 5 li ferma lo scudo base. Cio' che il test dimostra resta che
-	// chi sta in mezzo LI PAGA — un'unita' attraversata e illesa avrebbe ancora 95.
+	// E53 CP 53.3c: la lama (200) contro la DEF 25 di Phase vale `floor(200 × 100/125) = 160` — il colpo arriva dal
+	// davanti, perche' l'origine e' la cella d'arrivo (1,0) e Phase guarda a est — e lo scudo base ne ferma 50 ([D-224]):
+	// 950 - 110 = 840. Cio' che il test dimostra resta che chi sta in mezzo LI PAGA: illesa avrebbe ancora 950.
 	FRTTestExpectation E1; E1.Kind = ERTAssertionKind::UnitAtCell;   E1.UnitId = TEXT("V"); E1.Cell = FRTCellId(1, 0, 0);
-	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 800;
+	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 840;
 	S.Expect.Add(E1); S.Expect.Add(E2);
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
@@ -1612,9 +1613,11 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	T.Intents.Add(I);
 	S.Turns.Add(T);
 
-	// 95 meno i 18 dell'area, piu' i 5 che lo scudo base assorbe ([D-224]): Phase e' presa dal RAGGIO, non
-	// perche' la si sia bersagliata. Lo scudo non cambia CHI viene colpito, che e' la proprieta' in esame.
-	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 820;
+	// Phase e' presa dal RAGGIO, non perche' la si sia bersagliata. E53 CP 53.3c: il centro (0,0) le sta alle spalle
+	// (guarda a est), quindi entra il bonus alle spalle di Gadget (60, [D-599]) e la sua DEF 25:
+	// `floor((180 + 60) × 100/125) = 192`, meno lo scudo base 50 ([D-224]) → 950 - 142 = 808. Ne' la DEF ne' lo
+	// scudo cambiano CHI viene colpito, che e' la proprieta' in esame.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 808;
 	S.Expect.Add(E);
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
