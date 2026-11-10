@@ -230,7 +230,7 @@ I tag registrati sotto `Status.` in `Core/RTGameplayTags.cpp`: la stessa sorgent
 | `Root` | non può muoversi — ⚠️ **non è la radice dell'albero dei tag**, è l'immobilizzazione |
 | `Slow` | range di movimento dimezzato |
 | `Reveal` | intento visibile agli avversari |
-| `Exposed` | scoperta: +5 al primo danno diretto |
+| `Exposed` | scoperta: il primo danno diretto è ×1,2 |
 | `Guarded` | in guardia |
 | `Marked` | marcato |
 | `Wet` | bagnato |

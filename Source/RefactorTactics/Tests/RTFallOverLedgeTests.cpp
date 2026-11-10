@@ -235,7 +235,7 @@ namespace
 	 * L'importo della voce di danno da CADUTA di questa unita', o `-1` se non ce n'e' nessuna.
 	 *
 	 * 🔑 **Si legge dalla TRACCIA, non dagli HP.** Un'unita' che cade in un turno prende anche il
-	 * colpo che l'ha spinta, e `FirstHitDelta` amplifica QUEL colpo se e' `Exposed`: misurare la
+	 * colpo che l'ha spinta, e il pass di `Exposed` (`ApplyExposedToFirstHit`) amplifica QUEL colpo se e' `Exposed`: misurare la
 	 * differenza di HP misurerebbe la somma di due danni, non quello della caduta.
 	 */
 	int32 LedgeFallDamage(const ARTTurnManager* TM, const ARTUnit* Unit)
@@ -1301,9 +1301,9 @@ bool FRTFallTwoFallersOrderInvariantTest::RunTest(const FString&)
 // =========================================================================================================
 
 /**
- * Chi cade sul primario libero prende **5 danni** e il marchio `Exposed`.
+ * Chi cade sul primario libero prende **50 danni** (scala ×10) e il marchio `Exposed`.
  *
- * 🔑 **Cinque, e la scala e' quella di `Exposed` stesso** (+5 al primo danno diretto): la caduta dice
+ * 🔑 **Cinquanta, meno di un colpo base, e nessun moltiplicatore**: la caduta dice
  * *«e' successo qualcosa»* senza spostare l'aritmetica dello scontro, perche' il prezzo e' gia' pagato
  * dalla posizione e dalla rarita' della condizione — `Action.Push` ha range 1, spinta 1 e nessun danno
  * proprio, quindi il bersaglio deve essere GIA' sul ciglio ([D-357]).
@@ -1335,7 +1335,7 @@ bool FRTFallPrimaryAppliesEffectsTest::RunTest(const FString&)
 }
 
 /**
- * L'occupante centrato prende **5 danni**, e **non** `Exposed`.
+ * L'occupante centrato prende **50 danni**, e **non** `Exposed`.
  *
  * ⚠️ **L'asimmetria e' semantica, non un risparmio di taratura**: `Exposed` significa *«hai perso
  * l'equilibrio»*, e chi stava fermo non l'ha perso. Prende l'urto, non il marchio ([D-357]).
@@ -1443,9 +1443,9 @@ bool FRTFallNoLandingStillAppliesTest::RunTest(const FString&)
 /**
  * Il danno di caduta e' **ambientale**, non diretto: `Exposed` non lo amplifica.
  *
- * 🔴 **E' l'anti-vacuita' di D002.1, e senza di essa la scelta sarebbe invisibile.** `Exposed` da' *«+5 al
- * PRIMO danno DIRETTO»*: se la caduta fosse `Direct`, un'unita' gia' scoperta ne prenderebbe **10** invece
- * di 5 — e due cadute consecutive si sommerebbero. Con `Environmental` il marchio vale solo per il colpo
+ * 🔴 **E' l'anti-vacuita' di D002.1, e senza di essa la scelta sarebbe invisibile.** `Exposed` moltiplica *«il
+ * PRIMO danno DIRETTO»* per 1,2 ([D-595] (2)): se la caduta fosse `Direct`, un'unita' gia' scoperta ne prenderebbe **60** invece
+ * di 50 — e il colpo che segue arriverebbe nominale. Con `Environmental` il marchio vale solo per il colpo
  * che arriva dopo, che e' cio' che [D-357] costruisce.
  *
  * 🔑 Il bersaglio arriva **gia'** `Exposed`: il test lo mette a mano, perche' quello che misura e' come il
@@ -1473,8 +1473,8 @@ bool FRTFallDamageIsEnvironmentalTest::RunTest(const FString&)
 
 	TestEqual(TEXT("premessa: e' caduto"), Bersaglio->Cell, FRTCellId(1, 0, 0));
 	// 🔴 **Si misura la VOCE, non gli HP**, e la prima stesura sbagliava proprio qui: il bersaglio
-	// prende anche il colpo che l'ha spinto, e `FirstHitDelta` amplifica QUELLO se e' `Exposed`.
-	// Contro gli HP il test leggeva 10 e accusava la caduta di un +5 che era del colpo.
+	// prende anche il colpo che l'ha spinto, e il pass di `Exposed` amplifica QUELLO se e' `Exposed`.
+	// Contro gli HP il test leggeva la somma e accusava la caduta di un bonus che era del colpo.
 	TestEqual(TEXT("la voce di caduta dice 50: Exposed non amplifica un danno ambientale"),
 		LedgeFallDamage(TM, Bersaglio), 50);
 	TestTrue(TEXT("e il totale non e' 50+50+50: il bonus e' stato speso una volta sola"),

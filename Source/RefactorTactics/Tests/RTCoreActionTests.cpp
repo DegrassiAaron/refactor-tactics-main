@@ -3,6 +3,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTCombatResolver.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexCellData.h"
 #include "Turn/RTActionEffectLibrary.h"
@@ -173,16 +174,21 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 		{ FRTAttack(1, 10, 0) }, Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
 	TestEqual(TEXT("un colpo da 10 viene azzerato, non curato"), Piccolo[0].Power, 0);
 
-	// ⚠️ Guardia ED esposizione insieme **non si cumulano piu' in un delta solo**, e non e' una perdita di
-	// copertura: i due passano ora da funzioni diverse — `Status.Exposed` resta un delta di PRIMO colpo
-	// ([D-292] non l'ha toccato), la Guardia e' per-colpo. Si compongono in sequenza, come nel resolver.
-	TArray<int32> Esposto;
-	Esposto.Init(0, 2);
-	Esposto[1] = URTCombatLibrary::ExposedFirstHitBonus;
+	// ⚠️ Guardia ED esposizione insieme **non si cumulano in un delta solo**, e non e' una perdita di copertura: i
+	// due passano da sedi diverse — `Status.Exposed` e' un MOLTIPLICATORE 1,2 sul primo colpo del PIANO ([D-595] (2),
+	// CP 53.3b: `ApplyExposedToFirstHit`, prima di DEF e copertura), la Guardia e' una riduzione per-colpo sul
+	// `FRTAttack`. Si compongono in sequenza, come nel resolver: prima il prodotto, poi la riduzione piatta.
+	FRTHexAttackHit Colpo(/*Attacker*/ 0, /*Target*/ 1, 300, /*Intent*/ 0, /*CoverBypassed*/ 0, /*Nominal*/ 300, /*Cover*/ 0);
+	Colpo.MitigatedPower = 300;
+	FRTHexBlastPlan Piano;
+	Piano.Hits = { Colpo };
+	const TArray<int32> Ordine = { 0 };
+	const TArray<bool> Esposto = { false, true };
+	URTHexCombatLibrary::ApplyExposedToFirstHit(Piano.Hits, Ordine, Esposto);
 	const TArray<FRTAttack> Entrambi = URTCombatResolver::ApplyEligibleHitDelta(
-		URTCombatResolver::ApplyFirstHitDelta({ FRTAttack(1, 300, 0) }, Esposto),
+		URTHexCombatLibrary::ToAttacks(Piano),
 		Riduzione, { true }, URTCombatLibrary::GuardPerHitSource);
-	TestEqual(TEXT("esposto e in guardia: 300 + 50 - 150"), Entrambi[0].Power, 200);
+	TestEqual(TEXT("esposto e in guardia: 300 × 1,2 - 150"), Entrambi[0].Power, 210);
 
 	// L'azione che lo produce e' dati: Guard dichiara lo stato, non un numero nell'orchestratore.
 	const FRTActionDef Guard = CoreActionDef(TEXT("Action.Guard"));
@@ -407,9 +413,9 @@ bool FRTSprintExposedDurationTracksReaderPhaseTest::RunTest(const FString&)
 	//
 	// 🔑 **La regola, misurata da `#2725`.** `TickStatuses()` decrementa nel `Cleanup`, quindi `Turni = 1`
 	// basta **se e solo se** fra la fase che applica e il `Cleanup` c'e' una fase che LEGGE. Oggi Sprint e'
-	// `FastMovement` -> `Dash`, e il lettore di `Exposed` — `FirstHitDelta` in `ARTTurnManager` — sta nel
+	// `FastMovement` -> `Dash`, e il lettore di `Exposed` — il pass `ApplyExposedToFirstHit` in `ARTTurnManager` — sta nel
 	// `Blast`, che viene dopo: la fase interposta c'e', e `1` basta. Lo misura end-to-end
-	// `Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5` con la controprova senza Sprint.
+	// `Actions.Sprint.AppliesExposed`, che asserisce `floor(FullHit × 1,2)` con la controprova senza Sprint.
 	//
 	// ⛔ **Dopo [D-116] non bastera' piu', ed e' esattamente cio' che questo test sorveglia.** La migrazione
 	// porta Sprint a `NormalMovement` -> `Move`, che segue il `Blast`: da li' in poi nessuna fase legge piu'

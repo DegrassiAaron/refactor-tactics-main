@@ -323,6 +323,16 @@ struct FRTHexAttackHit
 	/** La DEF del bersaglio letta per questo colpo ([D-589]). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 DefenseApplied = 0;
+
+	/**
+	 * Il `Mod` di [D-589] (3) applicato a questo colpo, in centesimi: `100` = nessun moltiplicatore. Oggi l'unico valore
+	 * diverso e' `URTCombatLibrary::ExposedModPercent` (120) sul primo colpo diretto che fa danno a un bersaglio `Exposed`
+	 * ([D-595] (2); E53 CP 53.3b), scritto da `ApplyExposedToFirstHit` DOPO la raccolta: «primo» si decide sui colpi gia'
+	 * raccolti e gia' redirezionati (`Intercept`), nell'ordine canonico del Blast, e la raccolta non puo' saperlo.
+	 * `ToAttacks` lo legge per la voce `Mod` del breakdown.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 ModPercentApplied = 100;
 };
 
 /**
@@ -852,14 +862,40 @@ public:
 	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.Defense)`, dove «alle spalle» e'
 	 * «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
 	 *
-	 * `Mod` e' `100` finche' CP 53.3b non sposta `Exposed` e `Marked` dentro la formula: oggi restano delta piatti
-	 * applicati a valle (`ApplyFirstHitDelta`, `MarkSpentOn`). Con DEF e bonus a zero rende `BasePower` invariato,
-	 * ed e' l'invariante che tiene il corpus golden byte-identico in questo passo.
+	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
+	 * sul PRIMO colpo diretto, e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
+	 * Blast — lo applica `ApplyExposedToFirstHit` ricalcolando questa stessa formula con `ModPercent` 120. `Marked`
+	 * resta un delta piatto a valle (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore. Con DEF e
+	 * bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha tenuto il corpus golden byte-identico in CP 53.2c.
 	 *
 	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
 	 */
 	static int32 MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
 		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied);
+
+	/**
+	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto di ciascun bersaglio ([D-595] (2); E53
+	 * CP 53.3b). Per ogni bersaglio con `bExposedByTarget[TargetId]` vero, il primo colpo di `HitOrder` che gli FA danno
+	 * (`Power > 0`, lo stesso predicato del marchio) e che porta un nominale viene ricalcolato con la formula di [D-589]:
+	 * `M' = MitigateDirectDamage(NominalPower, RearBonusApplied, ExposedModPercent, DefenseApplied)`, `Power += M' − M`,
+	 * `MitigatedPower = M'`, `ModPercentApplied = 120`. Gli altri colpi non cambiano. Lo stato NON si consuma qui.
+	 *
+	 * 🔑 **«Primo» e' l'ordine canonico del Blast (`HitOrder`: priorita', poi ActionId → AttackerId → IntentIndex,
+	 * ADR-0003 §3), lo stesso che spende il marchio — e qui conta davvero.** Con un delta piatto il totale per bersaglio
+	 * non dipendeva da quale colpo lo prendesse; con un moltiplicatore SI' (il 20% di 200 non e' il 20% di 100). Il piano
+	 * e' deterministico perche' l'ordine lo e', non perche' il risultato sia invariante alla permutazione:
+	 * `Status.Exposed.FirstDirectHitOnly` pinna entrambe le meta'. E' una lettura dell'assistente su [D-595] (2).
+	 *
+	 * La differenza si somma a `Power` invece di ricalcolare `max(0, M' − Copertura)` perche' `CoverReduction` di un colpo
+	 * redirezionato e' stantio (`#4037`): sul primo colpo che fa danno la copertura non ha azzerato niente, quindi
+	 * `Power + (M' − M)` e' esattamente `max(0, M' − Copertura)`. Un colpo azzerato dalla copertura non spende lo stato:
+	 * non e' «danno ricevuto», e il moltiplicatore va al prossimo che ne fa.
+	 *
+	 * @param HitOrder  permutazione degli indici di `Hits` nell'ordine canonico; un indice fuori da `Hits` si salta.
+	 * @return gli indici (in `Hits`) dei colpi moltiplicati, crescenti.
+	 */
+	static TArray<int32> ApplyExposedToFirstHit(TArray<FRTHexAttackHit>& Hits, const TArray<int32>& HitOrder,
+		const TArray<bool>& bExposedByTarget);
 
 	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
