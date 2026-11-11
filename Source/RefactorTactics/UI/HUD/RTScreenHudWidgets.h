@@ -1273,11 +1273,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	bool IsPlanDeclared() const;
 
-	/** Il tasto di `Conferma`, da `ARTPlayerController::DeclarePlanHotkey()`: mai scritto nel grafo. */
+	/** Il tasto di `Conferma`, da `RTInputKeys::DeclarePlanHotkey()`: mai scritto nel grafo. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetConfirmKeyLabel() const;
 
-	/** Il tasto da tastiera di `Annulla`, da `ARTPlayerController::UndoKeyboardHotkey()`. */
+	/** Il tasto da tastiera di `Annulla`, da `RTInputKeys::UndoKeyboardHotkey()`. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetUndoKeyLabel() const;
 
@@ -2314,7 +2314,7 @@ public:
 
 	/**
 	 * Il tasto che sceglie questa opzione: il tasto del kit nella stessa posizione ([D-491]). Viene da
-	 * `ARTPlayerController::ReactionOptionKeyLabel`, cioe' dalla lista che mappa i tasti: il badge non puo' dire
+	 * `RTInputKeys::ReactionOptionKeyLabel`, cioe' dalla lista che mappa i tasti: il badge non puo' dire
 	 * un tasto diverso da quello che risponde.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")

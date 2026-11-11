@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Combat/RTRangeVerdict.h"       // FRTRangeSubject: i valori della portata di una skill in hover (#3750, fetta D)
 #include "Map/RTCellId.h"
-#include "Player/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
+#include "Player/Overlay/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
 #include "Player/RTPointerInteraction.h" // ERTPointerContext, ERTPointerTargetKind
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -37,7 +37,7 @@ enum class ERTPreviewSource : uint8
  * (CX-2 di `aree-di-contesto-spec-panel-2026-10-06.md`).
  *
  * 🔴 **Perche' esiste.** Le aree si accendevano per EVENTI, uno a uno: ogni setter nuovo era un innesco in piu' e un
- * punto in piu' da ricordarsi di spegnere. Il commento di `RefreshPlanningPreview` registra tre difetti della stessa
+ * punto in piu' da ricordarsi di spegnere. Il commento di `RTPlanningPreview::Refresh` registra tre difetti della stessa
  * classe — la rotta rimasta a schermo durante la risoluzione (`#2390`), il ventaglio riacceso dietro i risultati
  * (`#2555`), il tratto di LOS rimasto indefinitamente (`#3064`) — e ognuno era un'uscita che nessuno aveva elencato.
  *
@@ -80,7 +80,7 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 
 	/**
 	 * Il piano attivo (`D-255`). ⚠️ **Vive a livello dell'hover, non del piano**: decide quale cella sotto il cursore un click
-	 * seleziona, e `RefreshPlanningPreview` non lo legge — PageUp/PageDown non rifanno il ventaglio.
+	 * seleziona, e `RTPlanningPreview::Refresh` non lo legge — PageUp/PageDown non rifanno il ventaglio.
 	 */
 	int32 ActiveLayer = 0;
 

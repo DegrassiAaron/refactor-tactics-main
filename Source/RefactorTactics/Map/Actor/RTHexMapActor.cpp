@@ -1297,7 +1297,7 @@ void ARTHexMapActor::SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, 
 void ARTHexMapActor::ClearPlanningPreview()
 {
 	// Gli stessi setter di sempre, in UN punto: nessun effetto in piu' e nessuno in meno rispetto alle righe che
-	// stavano nel ramo `Unit == nullptr` di `RefreshPlanningPreview`, piu' il tratto di LOS che quel ramo non
+	// stavano nel ramo `Unit == nullptr` di `RTPlanningPreview::Refresh`, piu' il tratto di LOS che quel ramo non
 	// spegneva (`#3064`).
 	SetPreviewReachableCells(TArray<FRTCellId>());
 	SetPreviewRangeCells(TArray<FRTCellId>());

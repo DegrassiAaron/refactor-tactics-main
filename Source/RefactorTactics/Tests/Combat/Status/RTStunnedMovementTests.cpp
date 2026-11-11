@@ -495,7 +495,7 @@ namespace RTStunnedMovementTestsInternal
 			//
 			// ⚠️ **QUESTO E' UNO STATO DI FIXTURE, non di partita.** Il flag nasce qui da uno snapshot ONNISCIENTE (`RTObserver::Omniscient`),
 			// che porta anche il corpo del nemico che la squadra non vede. Il controller pianifica sullo snapshot PER OSSERVATORE
-			// (`PlanningSnapshotFor`, `RTPlayerController.cpp`), che i corpi ignoti non li porta: in gioco il rifiuto del click scatta
+			// (`RTPlanningSnapshot::For`), che i corpi ignoti non li porta: in gioco il rifiuto del click scatta
 			// solo per un bloccante gia' NOTO alla squadra. Il test prova la guardia in uno stato che il gioco non produce con un
 			// bloccante ignoto: serve a fissare che la guardia c'e' (il ramo e' raggiungibile con un bloccante noto, e la guardia non
 			// guarda la conoscenza), non a dire che la partita lo mostri.

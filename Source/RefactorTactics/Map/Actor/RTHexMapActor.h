@@ -1198,7 +1198,7 @@ public:
 	 * **Il RESET UNICO delle aree di pianificazione** — `#3511`. Spegne ventaglio, portata, area colpita con i suoi
 	 * alleati, mira, rotta, tratto di linea di tiro e timeline dei ghost, **in un punto solo**.
 	 *
-	 * 🔴 Esiste perche' l'elenco dei setter viveva nel ramo `Unit == nullptr` di `RefreshPlanningPreview`, e il
+	 * 🔴 Esiste perche' l'elenco dei setter viveva nel ramo `Unit == nullptr` di `RTPlanningPreview::Refresh`, e il
 	 * tratto di LOS non c'era: restava a schermo fino al click successivo (`#3064`). Chi aggiunge un'area di
 	 * pianificazione la spegne QUI, accanto al suo setter, e non in un chiamante da ricordare.
 	 *
@@ -1374,7 +1374,7 @@ protected:
 	 * La LINEA DI TIRO INTERROTTA, e dove si interrompe — `#2742`.
 	 *
 	 * 🔴 **Non e' una seconda linea accanto a quella di mira.** `AttackOriginAim` disegna gia' una spezzata
-	 * fra attaccante e bersaglio, ma solo quando il piano RIESCE: `OnSelect` chiama `RefreshPlanningPreview`
+	 * fra attaccante e bersaglio, ma solo quando il piano RIESCE: `OnSelect` chiama `RTPlanningPreview::Refresh`
 	 * nel ramo `bReady && Reason == Ok`. Quando la traiettoria e' interrotta non c'e' piano, quindi non c'e'
 	 * linea — ed e' precisamente il caso che il giocatore avrebbe bisogno di vedere.
 	 *

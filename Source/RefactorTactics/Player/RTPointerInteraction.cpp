@@ -232,6 +232,35 @@ FRTGlanceTarget URTPointerLibrary::ResolveGlanceTarget(int32 HitStableUnitId, bo
 	return T;
 }
 
+ERTPointerContext URTPointerLibrary::DeriveContext(const FRTPointerFacts& Facts)
+{
+	if (Facts.bModalOpen)
+	{
+		return ERTPointerContext::Modal;
+	}
+	if (Facts.bResolutionActive)
+	{
+		return ERTPointerContext::ResolutionPlayback;
+	}
+	if (!Facts.bHasSelection)
+	{
+		return ERTPointerContext::IdleSelection;
+	}
+	if (Facts.bDeclaringFacing)
+	{
+		return ERTPointerContext::Facing;
+	}
+	if (Facts.bArmedActionWantsTarget)
+	{
+		return ERTPointerContext::Targeting;
+	}
+	if (Facts.WaypointCount > 0)
+	{
+		return ERTPointerContext::Pathing;
+	}
+	return ERTPointerContext::Planning;
+}
+
 ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, bool bInspectorPinned,
 	int32 WaypointCount, bool bPhaseFocusPinned, bool bHasDeclaredFacing)
 {

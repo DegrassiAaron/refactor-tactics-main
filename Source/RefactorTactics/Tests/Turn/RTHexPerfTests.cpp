@@ -186,7 +186,7 @@ bool FRTHexResolverPerfTest::RunTest(const FString&)
  * ## Cosa misura, e perche' e' questo e non il disegno
  *
  * La riga della tabella KPI dice *«profiling della preview di pianificazione»*, e nel codice esistono due
- * cose diverse con quel nome: il **calcolo** (`RefreshPlanningPreview` -> snapshot, celle raggiungibili,
+ * cose diverse con quel nome: il **calcolo** (`RTPlanningPreview::Refresh` -> snapshot, celle raggiungibili,
  * celle colpite) e il **disegno** (`ARTHexMapActor::DrawPlanningPreview`, chiamato da `Tick`, piu' i mark di
  * `ARTHUD::DrawHUD`).
  *
@@ -199,14 +199,14 @@ bool FRTHexResolverPerfTest::RunTest(const FString&)
  *
  * ## Cosa NON e', dichiarato
  *
- * `RefreshPlanningPreview` vive in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile
- * da qui. Questo test misura le **tre funzioni che compongono il suo costo**, chiamate nello stesso ordine e
+ * Quando il test e' nato, `RTPlanningPreview::Refresh` viveva in un namespace anonimo dentro `RTPlayerController.cpp` e non
+ * era chiamabile da qui; da #4065 e' esportata, ma il test non e' cambiato. Questo test misura le **tre funzioni che compongono il suo costo**, chiamate nello stesso ordine e
  * con gli stessi argomenti; restano fuori l'orchestrazione (due `if` e due copie di array) e il passaggio
  * dei risultati all'actor di mappa. E' una misura del costo dominante, non della funzione intera — dirlo
  * conta, perche' un KPI che sembra misurare piu' di quanto misura e' il modo in cui un budget diventa falso.
  *
  * ⚠️ Non c'e' calcolo parallelo: le funzioni sono **le stesse** che decidono l'esito
- * (`ReachableCells`, `HexHitCells`), come impone il commento di `RefreshPlanningPreview`. Se un giorno la
+ * (`ReachableCells`, `HexHitCells`), come impone il commento di `RTPlanningPreview::Refresh`. Se un giorno la
  * preview cambiasse strada, questo test misurerebbe la strada vecchia — ed e' il motivo per cui il nome
  * delle tre funzioni sta scritto qui sopra invece che solo nel codice.
  */
@@ -231,7 +231,7 @@ bool FRTHexPlanningPreviewPerfTest::RunTest(const FString&)
 	{
 		const double Start = FPlatformTime::Seconds();
 
-		// La catena di `RefreshPlanningPreview`, nello stesso ordine.
+		// La catena di `RTPlanningPreview::Refresh`, nello stesso ordine.
 		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 		const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 1);
 		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(

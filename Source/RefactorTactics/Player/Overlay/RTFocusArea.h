@@ -65,7 +65,7 @@ struct REFACTORTACTICS_API FRTFocusMoveAreas
  *
  * 🔴 **Mai il piano.** Il budget e' il movimento base alle due bande fisse. NON la banda che il piano produce
  * (`ProfileForPlan`, da cui `ARTTurnManager::MakeSimUnit` ricava il budget dello snapshot): un'area che ne dipendesse
- * sarebbe un canale sul piano privato. Per la stessa ragione NON si passa da `PlanningSnapshotFor`, che e' comodo
+ * sarebbe un canale sul piano privato. Per la stessa ragione NON si passa da `RTPlanningSnapshot::For`, che e' comodo
  * (ha gia' budget e tetto) e legge il profilo dichiarato e la riserva del piano.
  *
  * 🔴 **Solo cio' che la squadra vede ADESSO, e le celle non in vista sono MURI NEL CALCOLO.** Ritagliare il risultato

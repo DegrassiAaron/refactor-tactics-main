@@ -8,7 +8,8 @@
 #include "Ability/Catalog/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
 #include "UI/Inspect/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
-#include "Player/RTPlayerController.h" // HotkeyLabelFor: il tasto si legge dalla tabella, generiche comprese (#2987, D-397)
+#include "Player/RTPlayerController.h" // PlayerCommandsAnyLiveUnit: chi puo' girare la manopola della velocita' ([D-350])
+#include "Player/Input/RTInputKeys.h" // HotkeyLabelFor: il tasto si legge dalla tabella, generiche comprese (#2987, D-397)
 #include "Turn/Reaction/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/Actions/RTIntentPrivacyLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
@@ -1005,7 +1006,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		{
 			FRTAbilityCooldownView Empty;
 			Empty.AbilityIndex = Index;
-			Empty.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(NAME_None, Index); // vuota non ha ActionId
+			Empty.HotkeyLabel = RTInputKeys::HotkeyLabelFor(NAME_None, Index); // vuota non ha ActionId
 			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
 			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
 			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
@@ -1019,7 +1020,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// La riga di catalogo viene dal catalogo (#3748); qui si somma cio' che la partita sa dell'unita'.
 		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Unit->ActiveVariantId);
 		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`).
-		View.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(Action->Def.ActionId, Index);
+		View.HotkeyLabel = RTInputKeys::HotkeyLabelFor(Action->Def.ActionId, Index);
 		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione e lo scatto.
 		View.bPlanned = (Unit->PlannedAbilityIndex == Index)
 			|| (Unit->PlannedReactionAbility == Index)
@@ -1185,7 +1186,7 @@ FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit
 	View.Label = MovementReadoutLabel(View.ProfileId);
 	// `PlannedMovementProfileId` porta SOLO la dichiarazione del giocatore (oggi `Sneak`, o vuoto): [D-425].
 	View.bSneakDeclared = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
-	View.SneakKeyLabel = ARTPlayerController::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	View.SneakKeyLabel = RTInputKeys::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
 	return View;
 }
 

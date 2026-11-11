@@ -1,9 +1,9 @@
-#include "Player/RTPlanningOverlay.h"
+#include "Player/Overlay/RTPlanningOverlay.h"
 
 bool FRTPlanningOverlayInputs::SamePlanLevel(const FRTPlanningOverlayInputs& Other) const
 {
 	// 🔑 **Il contesto entra come `ShowsAreas()`, non come valore**: `Planning`, `Pathing`, `Targeting` e `Facing` mostrano le
-	// stesse aree e `RefreshPlanningPreview` non legge `bDeclaringFacing`, quindi aprire e chiudere il selettore del verso
+	// stesse aree e `RTPlanningPreview::Refresh` non legge il selettore del verso, quindi aprire e chiudere il selettore del verso
 	// rifarebbe due volte, per niente, snapshot e flood fill (review di `#3511`). Cio' che il contesto cambia DAVVERO per il
 	// piano e' l'azione armata (che ha i suoi campi) e il passaggio fra mostrare e non mostrare (che e' qui).
 	return Unit == Other.Unit
