@@ -28,6 +28,27 @@ Mappa del modulo C++ `Source/RefactorTactics/` allo stato attuale. Per le decisi
 
 ## Mappa per cartella
 
+### La regola delle cartelle
+
+**Al massimo 15 file C++ per cartella** (`.h`, `.cpp`, `.inl`), su tutto `Source/`: è la decisione dell'autore del
+2026-11-11 ([#4061](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4061)). Una cartella che la supera si
+divide per **responsabilità**, non in ordine alfabetico: `Turn/` tiene alla radice il solo orchestratore, e il resto
+sta in `Actions/`, `Resolution/`, `Reaction/`, `Log/`, `Pacing/`, `Playback/` e `Format/`.
+
+- Un `.h` e il suo `.cpp` stanno **sempre insieme**. Nel modulo Editor, `Public/` e `Private/` si dividono con le
+  **stesse** sottocartelle: una feature, due metà.
+- **`Tests/` rispecchia il codice.** Un test sta nella cartella del codice che verifica (`Tests/Turn/Playback/`
+  per `Turn/Playback/`). Se la cartella speculare supera il tetto, si divide per tema (`Tests/UI/HUD/Intent/`).
+  Le fixture usate da più aree stanno in `Tests/Shared/`, e i gate sui test stessi in `Tests/Meta/`.
+- Le cartelle di **soli dati** (`Tests/Golden/`, `Tests/Fixtures/`) non contano: non sono codice.
+- Gli include si scrivono **dalla radice del modulo** (`"Turn/Resolution/RTHexSimLibrary.h"`), mai relativi alla
+  cartella del file. Così un file si sposta senza rompere chi lo include.
+- 🔴 **La regola ha un gate**: `python tools/architettura/mappa-cartelle.py --verifica` esce 1 se una cartella
+  supera il tetto. La mappa della riorganizzazione è `tools/architettura/mappa-cartelle-4061.json`, e
+  `sposta-cartelle.py <mappa> --solo-riferimenti` porta un branch nato prima ai percorsi nuovi.
+
+### Le cartelle
+
 | Cartella / file | Tipo | Responsabilità |
 |---|---|---|
 | `RefactorTactics.{h,cpp}` | Modulo | Primary game module + categoria log `LogRT` |

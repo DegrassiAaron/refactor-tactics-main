@@ -606,6 +606,8 @@ node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca un file di ARTTurnManager
                                                           # (Turn/RTTurnManager*, o chi ne definisce metodi)
+python tools/architettura/mappa-cartelle.py --verifica    # se la PR aggiunge o sposta file in Source/: al massimo
+                                                          # 15 file C++ per cartella (#4061)
 python tools/bot-competence/check.py --check              # lo schema, i suoi `consumers`, il roster,
                                                           # Scenarios/, o QUALUNQUE rinomina di un nome
                                                           # Automation citato: e' una lettura offline,

@@ -376,7 +376,12 @@ def main():
     if a.json:
         Path(a.json).write_text(json.dumps(mappa, indent=1, sort_keys=True), encoding="utf-8")
         print("mappa: %s" % a.json)
-    if a.verifica and (sopra or ignoti):
+    # 🔑 Dopo la riorganizzazione un test che la regola vorrebbe spostare e' un test lasciato nella radice di
+    # `Tests/`: rompe lo specchio in silenzio, ed e' l'erosione che questo gate esiste per fermare (#4061).
+    if mt:
+        print("test nella radice di Tests/, che vanno nella cartella del codice che verificano: %s"
+              % ", ".join(sorted(Path(v).name for v in mt)))
+    if a.verifica and (sopra or ignoti or mt):
         return 1
     return 0
 
