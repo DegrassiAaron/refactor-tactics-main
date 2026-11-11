@@ -24,6 +24,7 @@
 // #79: il diniego nasce nella PIANIFICAZIONE, e l'unico modo di produrlo e' passare dal controller.
 // Scrivere `PlannedPath` a mano misurerebbe il troncamento del resolver, che e' un altro meccanismo.
 #include "Player/RTPlayerController.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -157,8 +158,8 @@ bool FRTHexMoveReachesPlannedCellTest::RunTest(const FString&)
 
 	// Due celle a est lungo l'asse assiale: entro il budget, nessun ostacolo.
 	const FRTCellId Goal(2, -1);
-	Mover->PlannedCell = Goal;
-	Foe->PlannedCell = Foe->Cell; // fermo
+	Mover->SetPlannedCell(Goal);
+	Foe->SetPlannedCell(Foe->Cell); // fermo
 
 	RunTurn(TM);
 
@@ -189,7 +190,7 @@ bool FRTHexMoveRejectsOutOfBudgetTest::RunTest(const FString&)
 	const FRTCellId Start = Mover->Cell;
 
 	// Cella FUORI dalla mappa: la validazione autorevole non deve produrre alcun percorso.
-	Mover->PlannedCell = FRTCellId(50, -50);
+	Mover->SetPlannedCell(FRTCellId(50, -50));
 	RunTurn(TM);
 	TestTrue(TEXT("destinazione inesistente -> l'unita' resta ferma"), Mover->Cell == Start);
 
@@ -231,7 +232,7 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
-	Foe->PlannedCell = Foe->Cell;
+	Foe->SetPlannedCell(Foe->Cell);
 
 	// Sul corridoio costoso ogni cella vale 2: col budget B si arriva a B/2 celle e non a una in piu'.
 	// Era scritto «budget 5, quindi 2 celle e non 3»: i numeri del Ranger legacy. Derivarli tiene in piedi
@@ -241,7 +242,7 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	const FRTCellId TooFar(Reachable + 1, 0);
 	TestTrue(TEXT("premessa: la cella scelta costa piu' del budget"), 2 * (Reachable + 1) > Budget);
 
-	Mover->PlannedCell = TooFar;
+	Mover->SetPlannedCell(TooFar);
 	RunTurn(TM);
 	TestTrue(TEXT("una cella di troppo di terreno difficile costa piu' del budget: non ci arriva"),
 		!(Mover->Cell == TooFar));
@@ -250,8 +251,8 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	// Alla stessa distanza sul lato NORMALE (ovest, costo 1) ci arriva invece senza problemi: e' il COSTO a
 	// fermarla, non la distanza.
 	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
-	Mover->PlannedCell = FRTCellId(-3, 0); // 3 celle a costo 1
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(FRTCellId(-3, 0)); // 3 celle a costo 1
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 	TestTrue(TEXT("tre celle normali rientrano nello stesso budget"), Mover->Cell == FRTCellId(-3, 0));
 
@@ -283,9 +284,8 @@ bool FRTHexDashReachesCellTest::RunTest(const FString&)
 	}
 
 	const FRTCellId Goal(3, -3);
-	Runner->PlannedCell = Runner->Cell; // nessun movimento normale: si verifica solo lo scatto
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = Goal;
+	Runner->SetPlannedCell(Runner->Cell); // nessun movimento normale: si verifica solo lo scatto
+	Runner->SetPlannedDash(DashIdx, Goal);
 
 	RunTurn(TM);
 
@@ -311,9 +311,9 @@ bool FRTHexDashRejectsOutOfBudgetTest::RunTest(const FString&)
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
 	const FRTCellId Start = Runner->Cell;
-	Runner->PlannedCell = Start;
-	Runner->PlannedDashAbility = Runner->FindDashAbilityIndex();
-	Runner->PlannedDashCell = FRTCellId(7, 0); // distanza 7 > portata 5 dello scatto
+	Runner->SetPlannedCell(Start);
+	Runner->SetPlannedDash(Runner->FindDashAbilityIndex(), FRTCellId(7, 0));
+	 // distanza 7 > portata 5 dello scatto
 
 	RunTurn(TM);
 
@@ -341,8 +341,8 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 
 	const FRTCellId StartA = A->Cell;
 	const FRTCellId StartB = B->Cell;
-	A->PlannedCell = Contested;
-	B->PlannedCell = Contested;
+	A->SetPlannedCell(Contested);
+	B->SetPlannedCell(Contested);
 
 	RunTurn(TM);
 
@@ -410,10 +410,10 @@ bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 
 	// ⚠️ Il percorso deve essere ANCORATO (`PlannedPath[0] == Cell`), o il TurnManager ripiega su
 	// `PlannedCell` e il caso non si riproduce.
-	A->PlannedPath = { CellA, CellB };
-	A->PlannedCell = CellB;
-	B->PlannedPath = { CellB, CellA };
-	B->PlannedCell = CellA;
+	FRTUnitPlanTestAccess::SetPath(*A, { CellA, CellB });
+	A->SetPlannedCell(CellB);
+	FRTUnitPlanTestAccess::SetPath(*B, { CellB, CellA });
+	B->SetPlannedCell(CellA);
 
 	RunTurn(TM);
 
@@ -485,11 +485,11 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// la dichiarazione copriva la distanza sbagliata. Con `Base + 1` la premessa e' vera per costruzione.
 	const int32 OltreIlPasso = Runner->GetEffectiveMoveRange() + 1;
 	const FRTCellId Traguardo(8 - OltreIlPasso, 0);
-	Runner->PlannedCell = Traguardo;
+	Runner->SetPlannedCell(Traguardo);
 
 	// Turno 1: l'avversario non spara. Da `(8,0)` il Runner e' comunque fuori dalla portata 6 del Tiro, ed
 	// e' il punto — il colpo di QUESTO turno parte prima che lo Sprint muova.
-	Foe->PlannedCell = Foe->Cell;
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -525,10 +525,10 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	Runner->Shield = 0;
 
 	const int32 HealthAfterSprint = Runner->Health;
-	Runner->PlannedCell = Runner->Cell; // niente secondo scatto: lo stato in esame e' quello di prima
-	Foe->PlannedCell = Foe->Cell;
-	Foe->PlannedAbilityIndex = 0;                 // Tiro: da `(0,0)` a `(2,0)` sono due celle
-	Foe->PlannedAttackTarget = Runner;
+	Runner->SetPlannedCell(Runner->Cell); // niente secondo scatto: lo stato in esame e' quello di prima
+	Foe->SetPlannedCell(Foe->Cell);
+	Foe->SetPlannedMainAction(0);                 // Tiro: da `(0,0)` a `(2,0)` sono due celle
+	Foe->DeclareAttackOnUnit(Runner);
 
 	RunTurn(TM);
 
@@ -546,10 +546,10 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// `FullHit - BaseShield` e passerebbe per il motivo sbagliato.
 	Runner->ApplyCombatState(StartHealth, 0);
 	Runner->Shield = 0;
-	Runner->PlannedCell = Runner->Cell;
-	Foe->PlannedCell = Foe->Cell;
-	Foe->PlannedAbilityIndex = 0;
-	Foe->PlannedAttackTarget = Runner;
+	Runner->SetPlannedCell(Runner->Cell);
+	Foe->SetPlannedCell(Foe->Cell);
+	Foe->SetPlannedMainAction(0);
+	Foe->DeclareAttackOnUnit(Runner);
 
 	RunTurn(TM);
 
@@ -587,8 +587,8 @@ bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
 	// Un passo oltre `1x`: e' il minimo che produce la banda alta, e si ricava dall'eroe invece di
 	// essere scritto. Nessuna dichiarazione — [D-425]: e' la distanza a produrre la banda, e la voce
 	// del TurnLog la riceve da li'.
-	Runner->PlannedCell = FRTCellId(Runner->GetEffectiveMoveRange() + 1, 0);
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedCell(FRTCellId(Runner->GetEffectiveMoveRange() + 1, 0));
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -622,9 +622,9 @@ bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
 	// traccia di chi non sceglie, hash compreso.
 	ARTUnit* Walker = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2));
 	if (!Walker) { DestroyHexMoveWorld(World); return false; }
-	Walker->PlannedCell = FRTCellId(2, 2);
-	Runner->PlannedCell = Runner->Cell;
-	Foe->PlannedCell = Foe->Cell;
+	Walker->SetPlannedCell(FRTCellId(2, 2));
+	Runner->SetPlannedCell(Runner->Cell);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -675,10 +675,10 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	// attraverso verrebbe deviato o fermato — il test misurerebbe l'occupazione invece dello slot.
 	// La direzione opposta e' libera, e il colpo parte comunque dalla posizione INIZIALE ([D-116] voce 1).
 	const FRTCellId Traguardo(-(Runner->GetEffectiveMoveRange() + 1), 0);
-	Runner->PlannedCell = Traguardo;
-	Runner->PlannedAbilityIndex = 0;          // Tiro, portata 6
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedCell(Traguardo);
+	Runner->SetPlannedMainAction(0);          // Tiro, portata 6
+	Runner->DeclareAttackOnUnit(Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -778,8 +778,8 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 
 	// Arrivo su (2,0): costo 2, residuo IceBudget-2 >= 2 -> scivola di una cella nella direzione d'ingresso.
 	const int32 StartHealth = Mover->Health;
-	Mover->PlannedCell = FRTCellId(2, 0);
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(FRTCellId(2, 0));
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	TestTrue(TEXT("finire il Move sul ghiaccio porta una cella OLTRE la destinazione"),
@@ -823,8 +823,8 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la controprova arriva SU GHIACCIO"),
 		ArrivalData != nullptr && ArrivalData->Surface == ERTHexSurface::Ice);
 	Mover->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, 250.f);
-	Mover->PlannedCell = NoSlideTarget;
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(NoSlideTarget);
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == NoSlideTarget);
@@ -895,8 +895,8 @@ bool FRTIceSlideBlockedInMatchTest::RunTest(const FString&)
 		return false;
 	}
 
-	Mover->PlannedCell = FRTCellId(2, 0);
-	Blocker->PlannedCell = Blocker->Cell; // fermo: e' lui a impedire lo scivolamento
+	Mover->SetPlannedCell(FRTCellId(2, 0));
+	Blocker->SetPlannedCell(Blocker->Cell); // fermo: e' lui a impedire lo scivolamento
 	RunTurn(TM);
 
 	// PREMESSA MISURATA: l'unita' e' arrivata ESATTAMENTE dove il giocatore l'aveva mandata. E' la meta'
@@ -949,8 +949,8 @@ bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
 	const int32 StartHealth = Mover->Health;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunTurn(TM);
 
@@ -993,9 +993,8 @@ bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
 	}
 
 	const int32 StartHealth = Runner->Health;
-	Runner->PlannedCell = Runner->Cell; // nessun Move normale: il danno puo' venire solo dallo scatto
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->SetPlannedCell(Runner->Cell); // nessun Move normale: il danno puo' venire solo dallo scatto
+	Runner->SetPlannedDash(DashIdx, FRTCellId(3, 0));
 
 	RunTurn(TM);
 
@@ -1053,9 +1052,9 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 		return false;
 	}
 	Mover->AddTemporaryShield(DannoIngresso);
-	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction(); // nessuna azione: l'unica fonte di danno e' il terreno
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunTurn(TM);
 
@@ -1104,10 +1103,10 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	Foe->PlannedAbilityIndex = INDEX_NONE;
-	Foe->PlannedCell = Foe->Cell;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->ClearPlannedMainAction();
+	Foe->SetPlannedCell(Foe->Cell);
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunTurn(TM);
 
@@ -1136,12 +1135,12 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 
 	// Caso "entra e resta": stessa riga di log, ma qui lo stato regge il Cleanup. Le due meta' insieme
 	// escludono sia il log bugiardo sia lo stato che non si applica mai.
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(2, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
-	Foe->PlannedAbilityIndex = INDEX_NONE;
-	Foe->PlannedPath.Reset();
-	Foe->PlannedCell = Foe->Cell;
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(2, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
+	Foe->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::ResetPath(*Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	if (!TestEqual(TEXT("il secondo turno e' stato risolto: l'unita' e' nell'acqua"), Mover->Cell, FRTCellId(1, 0)))
@@ -1190,9 +1189,9 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	// cio' che succede quando la strada era libera al momento di pianificarla e si chiude durante il turno.
 	// Passando invece per `PlannedCell`, l'A* di pianificazione aggirerebbe l'ostacolo e non ci sarebbe alcun
 	// percorso bloccato da verificare.
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
-	Mover->PlannedCell = FRTCellId(3, 0);
-	Blocker->PlannedCell = Blocker->Cell;  // fermo: e' l'ostacolo
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+	Mover->SetPlannedCell(FRTCellId(3, 0));
+	Blocker->SetPlannedCell(Blocker->Cell);  // fermo: e' l'ostacolo
 
 	RunTurn(TM);
 
@@ -1240,8 +1239,8 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
-	A->PlannedCell = Contested;
-	B->PlannedCell = Contested;
+	A->SetPlannedCell(Contested);
+	B->SetPlannedCell(Contested);
 
 	RunTurn(TM);
 
@@ -1287,10 +1286,9 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
 
-	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedCell = FRTCellId(5, 0);   // e dopo lo scatto vorrebbe avanzare di due celle
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedDash(Runner->Abilities.Num() - 1, FRTCellId(3, 0));
+	Runner->SetPlannedCell(FRTCellId(5, 0));   // e dopo lo scatto vorrebbe avanzare di due celle
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1348,11 +1346,10 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
-	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
-	Runner->PlannedAbilityIndex = 0;          // l'attacco base, che dalla cella d'arrivo avrebbe il bersaglio a portata
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedDash(Runner->Abilities.Num() - 1, FRTCellId(DashTo, 0));
+	Runner->SetPlannedMainAction(0);          // l'attacco base, che dalla cella d'arrivo avrebbe il bersaglio a portata
+	Runner->DeclareAttackOnUnit(Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1407,11 +1404,10 @@ bool FRTNormalDashDoesNotDiscardTheMainSlotTest::RunTest(const FString&)
 
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
-	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
-	Runner->PlannedAbilityIndex = 0;          // l'attacco base, a portata dalla cella d'arrivo dello scatto
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedDash(Runner->Abilities.Num() - 1, FRTCellId(DashTo, 0));
+	Runner->SetPlannedMainAction(0);          // l'attacco base, a portata dalla cella d'arrivo dello scatto
+	Runner->DeclareAttackOnUnit(Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1476,11 +1472,10 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	}
 	const FName IdDellaPrincipale = Principale->Def.ActionId;
 
-	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
-	Runner->PlannedAbilityIndex = 0;   // l'attacco base, che lo scatto si portera' via
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedDash(Runner->Abilities.Num() - 1, FRTCellId(DashTo, 0));
+	Runner->SetPlannedMainAction(0);   // l'attacco base, che lo scatto si portera' via
+	Runner->DeclareAttackOnUnit(Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1561,13 +1556,12 @@ bool FRTHexMoveStationaryDeclaredRotationTest::RunTest(const FString&)
 	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
 
 	Sentry->Facing = ERTHexDirection::E;
-	Sentry->PlannedCell = Sentry->Cell; // ferma: sei direzioni legali
-	Foe->PlannedCell = Foe->Cell;
+	Sentry->SetPlannedCell(Sentry->Cell); // ferma: sei direzioni legali
+	Foe->SetPlannedCell(Foe->Cell);
 
 	// La dichiarazione: resto dove sono e mi giro a SW. Senza il consumo nel resolver questo campo non
 	// arriverebbe da nessuna parte e l'unita' finirebbe il turno guardando ancora a E.
-	Sentry->bDeclaresPlannedFacing = true;
-	Sentry->PlannedFacing = ERTHexDirection::SW;
+	Sentry->DeclarePlannedFacing(ERTHexDirection::SW);
 
 	RunTurn(TM);
 
@@ -1609,11 +1603,10 @@ bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
 	// per caso.
 	const FRTCellId Goal = URTHexLibrary::Neighbor(FRTCellId(0, 0), ERTHexDirection::E);
 	Mover->Facing = ERTHexDirection::NW; // di partenza: cosi' «rifiutata» non coincide con «invariata»
-	Mover->PlannedCell = Goal;
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(Goal);
+	Foe->SetPlannedCell(Foe->Cell);
 
-	Mover->bDeclaresPlannedFacing = true;
-	Mover->PlannedFacing = ERTHexDirection::W;
+	Mover->DeclarePlannedFacing(ERTHexDirection::W);
 
 	RunTurn(TM);
 
@@ -1645,10 +1638,9 @@ bool FRTHexMoveDeclarationDoesNotSurviveTurnTest::RunTest(const FString&)
 	if (!TM || !Sentry || !Foe) { DestroyHexMoveWorld(World); return false; }
 
 	Sentry->Facing = ERTHexDirection::E;
-	Sentry->PlannedCell = Sentry->Cell;
-	Foe->PlannedCell = Foe->Cell;
-	Sentry->bDeclaresPlannedFacing = true;
-	Sentry->PlannedFacing = ERTHexDirection::SW;
+	Sentry->SetPlannedCell(Sentry->Cell);
+	Foe->SetPlannedCell(Foe->Cell);
+	Sentry->DeclarePlannedFacing(ERTHexDirection::SW);
 
 	RunTurn(TM);
 	TestTrue(TEXT("primo turno: la rotazione si applica"), Sentry->Facing == ERTHexDirection::SW);
@@ -1663,8 +1655,8 @@ bool FRTHexMoveDeclarationDoesNotSurviveTurnTest::RunTest(const FString&)
 	//
 	// Il confronto e' con ZERO, non col conteggio del turno prima: `TurnLog` viene azzerato a ogni turno
 	// (`ARTTurnManager::LockInAndResolve`), quindi qui si legge il log del SOLO secondo turno.
-	Sentry->PlannedCell = Sentry->Cell;
-	Foe->PlannedCell = Foe->Cell;
+	Sentry->SetPlannedCell(Sentry->Cell);
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	TestTrue(TEXT("secondo turno: l'orientamento resta quello raggiunto"), Sentry->Facing == ERTHexDirection::SW);
@@ -1702,8 +1694,8 @@ bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
 	const FRTCellId Goal(2, -1);
-	Mover->PlannedCell = Goal;
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(Goal);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1775,11 +1767,10 @@ bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
 	// Senza lo scatto il colpo non partirebbe: e' cio' che rende il test discriminante invece che decorativo.
-	Runner->PlannedDashAbility = DashIdx;
-	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
-	Runner->PlannedAbilityIndex = 0;
-	Runner->PlannedAttackTarget = Foe;
-	Foe->PlannedCell = Foe->Cell;
+	Runner->SetPlannedDash(DashIdx, FRTCellId(DashTo, 0));
+	Runner->SetPlannedMainAction(0);
+	Runner->DeclareAttackOnUnit(Foe);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1839,10 +1830,10 @@ bool FRTMainLeavesMovementAvailableTest::RunTest(const FString&)
 
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
 
-	Shooter->PlannedAbilityIndex = 0; // attacco base dell'eroe
-	Shooter->PlannedAttackTarget = Foe;
-	Shooter->PlannedCell = MoveTo;
-	Foe->PlannedCell = Foe->Cell;
+	Shooter->SetPlannedMainAction(0); // attacco base dell'eroe
+	Shooter->DeclareAttackOnUnit(Foe);
+	Shooter->SetPlannedCell(MoveTo);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -1893,9 +1884,9 @@ bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
 	const FRTCellId MoverStart = Mover->Cell;
 	const FRTCellId AvversarioStart = Avversario->Cell;
 
-	Mover->PlannedCell = FRTCellId(2, -1);
-	Avversario->PlannedCell = FRTCellId(3, -2);
-	Fermo->PlannedCell = Fermo->Cell; // niente rotta: e' lui a disallineare l'indice
+	Mover->SetPlannedCell(FRTCellId(2, -1));
+	Avversario->SetPlannedCell(FRTCellId(3, -2));
+	Fermo->SetPlannedCell(Fermo->Cell); // niente rotta: e' lui a disallineare l'indice
 
 	RunTurn(TM);
 
@@ -1977,9 +1968,9 @@ bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
 	// trasformerebbe questo test in una misura di qualcos'altro senza dirlo.
 	A1->Facing = ERTHexDirection::E;
 
-	A1->PlannedCell = A1->Cell;        // l'osservatore resta fermo: la vista non si muove sotto i piedi
-	B1->PlannedCell = FRTCellId(5, 0); // (2,0) -> (5,0): direzione E pura, sempre entro VisionRange
-	B2->PlannedCell = FRTCellId(-8, 2); // (-8,0) -> (-8,1) -> (-8,2): distanza 8 da A1 a ogni passo
+	A1->SetPlannedCell(A1->Cell);        // l'osservatore resta fermo: la vista non si muove sotto i piedi
+	B1->SetPlannedCell(FRTCellId(5, 0)); // (2,0) -> (5,0): direzione E pura, sempre entro VisionRange
+	B2->SetPlannedCell(FRTCellId(-8, 2)); // (-8,0) -> (-8,1) -> (-8,2): distanza 8 da A1 a ogni passo
 
 	RunTurn(TM);
 
@@ -2067,8 +2058,8 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 	A->Facing = ERTHexDirection::E;
 
-	A->PlannedCell = A->Cell;
-	B->PlannedCell = FRTCellId(7, 0);
+	A->SetPlannedCell(A->Cell);
+	B->SetPlannedCell(FRTCellId(7, 0));
 
 	RunTurn(TM);
 
@@ -2194,8 +2185,8 @@ bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
 
 	// Piu' di un passo, cosi' il ciclo dei micro-step gira davvero e il contatore sale prima di essere
 	// rimesso a posto: con una cella sola il ripristino sarebbe verificato su un ciclo di lunghezza 1.
-	Mover->PlannedCell = FRTCellId(2, -1);
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(FRTCellId(2, -1));
+	Foe->SetPlannedCell(Foe->Cell);
 
 	RunTurn(TM);
 
@@ -2298,8 +2289,8 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 			return false;
 		}
 
-		Occupante->PlannedCell = Occupante->Cell; // ferma: e' l'occupazione, non una contesa
-		Ferma->PlannedCell = Ferma->Cell;
+		Occupante->SetPlannedCell(Occupante->Cell); // ferma: e' l'occupazione, non una contesa
+		Ferma->SetPlannedCell(Ferma->Cell);
 
 		// Il diniego si produce dal controller, che e' il sito reale della pianificazione.
 		PC->SelectActorForTest(Negata);
@@ -2421,8 +2412,8 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 	if (!TM || !Mover || !Occupante) { DestroyHexMoveWorld(World); return false; }
 
 	// La forma del piano del bot: la destinazione, e nient'altro.
-	Mover->PlannedCell = Occupata;
-	Occupante->PlannedCell = Occupante->Cell; // FERMO: e' l'occupazione, non una contesa
+	Mover->SetPlannedCell(Occupata);
+	Occupante->SetPlannedCell(Occupante->Cell); // FERMO: e' l'occupazione, non una contesa
 
 	// 🔑 LE DUE PREMESSE CHE DEFINISCONO IL CASO.
 	// La prima distingue questa strada da quella del player (che arriva con un percorso) e da
@@ -2554,8 +2545,8 @@ bool FRTIceSlidePlannedPrefixTest::RunTest(const FString&)
 		return false;
 	}
 
-	Mover->PlannedCell = FRTCellId(2, 0);
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(FRTCellId(2, 0));
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	// ⛔ PREMESSA: l'unita' e' davvero scivolata. Senza, il gate misurerebbe un movimento normale, dove
@@ -2624,8 +2615,8 @@ bool FRTPlainMovePlannedPrefixTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	Mover->PlannedCell = FRTCellId(2, 0);
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(FRTCellId(2, 0));
+	Foe->SetPlannedCell(Foe->Cell);
 	RunTurn(TM);
 
 	// ⛔ PREMESSA: e' arrivata ESATTAMENTE dove aveva chiesto — nessuna scivolata.
@@ -2694,8 +2685,8 @@ bool FRTInterruptedMovePlannedPrefixTest::RunTest(const FString&)
 	if (!TM || !Mover || !Rivale) { DestroyHexMoveWorld(World); return false; }
 
 	const FRTCellId Contesa(3, 0);
-	Mover->PlannedCell = Contesa;
-	Rivale->PlannedCell = Contesa; // la stessa cella: una delle due si fermera' prima
+	Mover->SetPlannedCell(Contesa);
+	Rivale->SetPlannedCell(Contesa); // la stessa cella: una delle due si fermera' prima
 	RunTurn(TM);
 
 	// ⛔ PREMESSA: **una** delle due si e' fermata prima della cella contesa. Senza, piano e rotta
@@ -2757,8 +2748,8 @@ namespace
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (Mover && Foe && TM)
 		{
-			Mover->PlannedCell = FRTCellId(3, 0, 1);
-			Foe->PlannedCell = Foe->Cell;
+			Mover->SetPlannedCell(FRTCellId(3, 0, 1));
+			Foe->SetPlannedCell(Foe->Cell);
 			RunTurn(TM);
 			Esito.Cella = Mover->Cell;
 			Esito.Salute = Mover->Health;
@@ -2899,9 +2890,9 @@ bool FRTHexMoveStrategicSeparationDuringPlaybackTest::RunTest(const FString&)
 	for (ARTUnit* U : { Mover, Sentinella, Foe }) { U->SetActorLocation(DoveLaCellaImpone(U, U->Cell, HexMap)); }
 
 	const FRTCellId Meta(3, 0, 1);
-	Mover->PlannedCell = Meta;
-	Sentinella->PlannedCell = Sentinella->Cell;
-	Foe->PlannedCell = Foe->Cell;
+	Mover->SetPlannedCell(Meta);
+	Sentinella->SetPlannedCell(Sentinella->Cell);
+	Foe->SetPlannedCell(Foe->Cell);
 
 	// Il turno parte, e si avanza finche' chi si muove e' a META' della salita sulla rampa (1,0,0) -> (2,0,1): la sua
 	// quota sopra il piano terra e' una frazione della quota dei piani, il caso che un arrotondamento al piano sbaglia.

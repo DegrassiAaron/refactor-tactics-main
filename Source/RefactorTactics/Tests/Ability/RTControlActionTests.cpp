@@ -20,6 +20,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -111,7 +112,7 @@ namespace
 		// traversate spurie e voci di TurnLog che nessun test ha chiesto. Neutralizzarlo qui vale per tutti
 		// gli spawn del file — l'alternativa era ripetere l'assegnazione a ogni chiamata e dimenticarla,
 		// che e' esattamente cio' che succedeva.
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -195,13 +196,13 @@ namespace
 		}
 
 		Out.InterruptIdx = RTAbilityFixtures::AddCoreAbility(Out.Interrupter, TEXT("Action.Interrupt"));
-		Out.Interrupter->PlannedAbilityIndex = Out.InterruptIdx;
-		Out.Interrupter->PlannedAttackTarget = Out.Attacker;
-		Out.Interrupter->PlannedCell = Out.Interrupter->Cell;
+		Out.Interrupter->SetPlannedMainAction(Out.InterruptIdx);
+		Out.Interrupter->DeclareAttackOnUnit(Out.Attacker);
+		Out.Interrupter->SetPlannedCell(Out.Interrupter->Cell);
 
-		Out.Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
-		Out.Attacker->PlannedAttackTarget = Out.Victim;
-		Out.Attacker->PlannedCell = Out.Attacker->Cell;
+		Out.Attacker->SetPlannedMainAction(0); // attacco base, interrompibile
+		Out.Attacker->DeclareAttackOnUnit(Out.Victim);
+		Out.Attacker->SetPlannedCell(Out.Attacker->Cell);
 		return true;
 	}
 
@@ -310,9 +311,9 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
 	}
 
 	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-	Pusher->PlannedAbilityIndex = PushIdx;
-	Pusher->PlannedAttackTarget = Victim;
-	Victim->PlannedAbilityIndex = INDEX_NONE;
+	Pusher->SetPlannedMainAction(PushIdx);
+	Pusher->DeclareAttackOnUnit(Victim);
+	Victim->ClearPlannedMainAction();
 
 	RunControlTurn(TM);
 
@@ -383,9 +384,9 @@ bool FRTPushResistanceIsAThresholdTest::RunTest(const FString&)
 		Ability->Power = 0;
 		Mover->Abilities.Add(Ability);
 
-		Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
-		Mover->PlannedAttackTarget = Victim;
-		Victim->PlannedAbilityIndex = INDEX_NONE;
+		Mover->SetPlannedMainAction(Mover->Abilities.Num() - 1);
+		Mover->DeclareAttackOnUnit(Victim);
+		Victim->ClearPlannedMainAction();
 
 		RunControlTurn(TM);
 
@@ -429,8 +430,8 @@ bool FRTPullTest::RunTest(const FString&)
 	}
 
 	const int32 PullIdx = RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull"));
-	Puller->PlannedAbilityIndex = PullIdx;
-	Puller->PlannedAttackTarget = Victim;
+	Puller->SetPlannedMainAction(PullIdx);
+	Puller->DeclareAttackOnUnit(Victim);
 
 	RunControlTurn(TM);
 
@@ -463,15 +464,15 @@ bool FRTRootCancelsRemainingStepsTest::RunTest(const FString&)
 	}
 
 	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-	Rooter->PlannedAbilityIndex = RootIdx;
-	Rooter->PlannedAttackTarget = Mover;
-	Rooter->PlannedCell = Rooter->Cell; // fermo: solo il Root
+	Rooter->SetPlannedMainAction(RootIdx);
+	Rooter->DeclareAttackOnUnit(Mover);
+	Rooter->SetPlannedCell(Rooter->Cell); // fermo: solo il Root
 
 	// Mover pianifica un percorso a waypoint di 3 celle, come farebbe un giocatore che clicca la destinazione.
-	Mover->PlannedWaypoints = { FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
-	Mover->PlannedCell = FRTCellId(3, 0);
-	Mover->PlannedAbilityIndex = INDEX_NONE;
+	FRTUnitPlanTestAccess::SetWaypoints(*Mover, { FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+	Mover->SetPlannedCell(FRTCellId(3, 0));
+	Mover->ClearPlannedMainAction();
 
 	RunControlTurn(TM);
 
@@ -506,14 +507,14 @@ bool FRTRootAllowsAttackTest::RunTest(const FString&)
 	}
 
 	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-	Rooter->PlannedAbilityIndex = RootIdx;
-	Rooter->PlannedAttackTarget = RootedAttacker;
-	Rooter->PlannedCell = Rooter->Cell;
+	Rooter->SetPlannedMainAction(RootIdx);
+	Rooter->DeclareAttackOnUnit(RootedAttacker);
+	Rooter->SetPlannedCell(Rooter->Cell);
 
 	const int32 HealthBefore = Enemy->Health;
-	RootedAttacker->PlannedAbilityIndex = 0; // attacco base dell'archetipo
-	RootedAttacker->PlannedAttackTarget = Enemy;
-	RootedAttacker->PlannedCell = RootedAttacker->Cell; // niente movimento: solo l'attacco
+	RootedAttacker->SetPlannedMainAction(0); // attacco base dell'archetipo
+	RootedAttacker->DeclareAttackOnUnit(Enemy);
+	RootedAttacker->SetPlannedCell(RootedAttacker->Cell); // niente movimento: solo l'attacco
 
 	RunControlTurn(TM);
 
@@ -566,9 +567,9 @@ bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
 	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
 	const int32 SaluteFerito = Ferito->Health;
 
-	Curatore->PlannedAbilityIndex = HealIdx;
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(HealIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	RunControlTurn(TM);
 
@@ -656,9 +657,9 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
 	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
 	const int32 SaluteFerito = Ferito->Health;
 
-	Curatore->PlannedAbilityIndex = HealIdx;
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(HealIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	RunControlTurn(TM);
 
@@ -723,9 +724,9 @@ bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
 	}
 
 	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
-	Curatore->PlannedAbilityIndex = HealIdx;
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(HealIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	// L'alleato cade PRIMA che la cura risolva. La cura e' gia' stata pianificata e validata.
 	Ferito->ApplyCombatState(0, 0);
@@ -803,14 +804,14 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 		URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 			<= Interrupter->Abilities[InterruptIdx]->Def.RangeCells);
-	Interrupter->PlannedAbilityIndex = InterruptIdx;
-	Interrupter->PlannedAttackTarget = Attacker;
-	Interrupter->PlannedCell = Interrupter->Cell;
+	Interrupter->SetPlannedMainAction(InterruptIdx);
+	Interrupter->DeclareAttackOnUnit(Attacker);
+	Interrupter->SetPlannedCell(Interrupter->Cell);
 
 	const int32 HealthBefore = Victim->Health;
-	Attacker->PlannedAbilityIndex = 0; // attacco base (Ranger.Shot): InterruptPolicy = InterruptBeforeEffect
-	Attacker->PlannedAttackTarget = Victim;
-	Attacker->PlannedCell = Attacker->Cell;
+	Attacker->SetPlannedMainAction(0); // attacco base (Ranger.Shot): InterruptPolicy = InterruptBeforeEffect
+	Attacker->DeclareAttackOnUnit(Victim);
+	Attacker->SetPlannedCell(Attacker->Cell);
 
 	// 🔴 **L'attacco base dell'eroe non dichiara un cooldown**, e senza questa riga il cooldown non e'
 	// OSSERVABILE: fino a `D-414` l'asserto qui sotto diceva «non e' scattato» e passava per assenza di
@@ -910,7 +911,7 @@ bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
 	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
 	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
 	Sc.Interrupter->Abilities[0] = Interrupt;
-	Sc.Interrupter->PlannedAbilityIndex = 0;
+	Sc.Interrupter->SetPlannedMainAction(0);
 
 	// `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio legacy
 	// che l'helper non copia, come non copia `RangeCells` e `Power`.
@@ -969,7 +970,7 @@ bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
 	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
 	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
 	Sc.Interrupter->Abilities[0] = Interrupt;
-	Sc.Interrupter->PlannedAbilityIndex = 0;
+	Sc.Interrupter->SetPlannedMainAction(0);
 	Interrupt->CooldownTurns = Interrupt->Def.CooldownTurns;
 
 	// 🔴 L'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
@@ -979,9 +980,8 @@ bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
 	// ⚠️ NON si uccide il bersaglio per ottenere lo stesso effetto: in quel caso `ValidateInstance`
 	// risponde `TargetDead` e l'intento non nasce affatto — l'azione viene annullata dal fallback, che e'
 	// un'altra regola. La prima stesura di questo test lo faceva e misurava il caso sbagliato.
-	Sc.Interrupter->PlannedAttackTarget = nullptr;
-	Sc.Interrupter->bAttackTargetsCell = true;
-	Sc.Interrupter->PlannedAttackCell = FRTCellId(2, 0); // adiacente, e vuota
+	Sc.Interrupter->DeclareAttackOnCell(FRTCellId(2, 0));
+	 // adiacente, e vuota
 
 	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
 	{
@@ -1037,15 +1037,15 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 		TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 			URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 				<= Interrupter->Abilities[Idx]->Def.RangeCells);
-		Interrupter->PlannedAbilityIndex = Idx;
-		Interrupter->PlannedAttackTarget = Attacker;
-		Interrupter->PlannedCell = Interrupter->Cell;
+		Interrupter->SetPlannedMainAction(Idx);
+		Interrupter->DeclareAttackOnUnit(Attacker);
+		Interrupter->SetPlannedCell(Interrupter->Cell);
 	}
 
 	const int32 HealthBefore = Victim->Health;
-	Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
-	Attacker->PlannedAttackTarget = Victim;
-	Attacker->PlannedCell = Attacker->Cell;
+	Attacker->SetPlannedMainAction(0); // attacco base, interrompibile
+	Attacker->DeclareAttackOnUnit(Victim);
+	Attacker->SetPlannedCell(Attacker->Cell);
 
 	RunControlTurn(TM);
 
@@ -1130,9 +1130,9 @@ namespace
 		if (C.bInterrompe)
 		{
 			const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
-			Interrupter->PlannedAbilityIndex = InterruptIdx;
-			Interrupter->PlannedAttackTarget = Agente;
-			Interrupter->PlannedCell = Interrupter->Cell;
+			Interrupter->SetPlannedMainAction(InterruptIdx);
+			Interrupter->DeclareAttackOnUnit(Agente);
+			Interrupter->SetPlannedCell(Interrupter->Cell);
 		}
 
 		// Il cooldown dell'attacco base va reso OSSERVABILE: l'eroe non ne dichiara uno (vedi
@@ -1144,8 +1144,8 @@ namespace
 			Attacco->Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
 		}
 
-		Agente->PlannedAbilityIndex = 0;
-		Agente->PlannedCell = Agente->Cell;
+		Agente->SetPlannedMainAction(0);
+		Agente->SetPlannedCell(Agente->Cell);
 		if (C.Mira == EMiraInterrotta::CellaFuoriPortata)
 		{
 			Agente->DeclareAttackOnCell(FRTCellId(-1, 0)); // a cinque celle: oltre la portata di quattro
@@ -1308,19 +1308,19 @@ bool FRTInterruptedActionPaysEvenIfItFallsTest::RunTest(const FString&)
 	}
 
 	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
-	Interrupter->PlannedAbilityIndex = InterruptIdx;
-	Interrupter->PlannedAttackTarget = Agente;
-	Interrupter->PlannedCell = Interrupter->Cell;
+	Interrupter->SetPlannedMainAction(InterruptIdx);
+	Interrupter->DeclareAttackOnUnit(Agente);
+	Interrupter->SetPlannedCell(Interrupter->Cell);
 
 	Agente->Abilities[0]->CooldownTurns = MinCooldownTurns;
-	Agente->PlannedAbilityIndex = 0;
+	Agente->SetPlannedMainAction(0);
 	Agente->DeclareAttackOnUnit(Victim);
-	Agente->PlannedCell = Agente->Cell;
+	Agente->SetPlannedCell(Agente->Cell);
 	Agente->Health = 1;
 
-	Carnefice->PlannedAbilityIndex = 0;
+	Carnefice->SetPlannedMainAction(0);
 	Carnefice->DeclareAttackOnUnit(Agente);
-	Carnefice->PlannedCell = Carnefice->Cell;
+	Carnefice->SetPlannedCell(Carnefice->Cell);
 
 	const int32 SaluteVittima = Victim->Health;
 	const TWeakObjectPtr<ARTUnit> AgenteDebole(Agente);
@@ -1382,19 +1382,19 @@ bool FRTCancelledInterrupterPaysTooTest::RunTest(const FString&)
 
 	// L'Interrupt nello SLOT 0, o il cooldown non e' osservabile (vedi `UseControlAbilityInSlot0`).
 	const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
-	A->PlannedAbilityIndex = IdxA;
-	A->PlannedAttackTarget = B;
-	A->PlannedCell = A->Cell;
+	A->SetPlannedMainAction(IdxA);
+	A->DeclareAttackOnUnit(B);
+	A->SetPlannedCell(A->Cell);
 
 	const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
-	B->PlannedAbilityIndex = IdxB;
-	B->PlannedAttackTarget = C;
-	B->PlannedCell = B->Cell;
+	B->SetPlannedMainAction(IdxB);
+	B->DeclareAttackOnUnit(C);
+	B->SetPlannedCell(B->Cell);
 
 	C->Abilities[0]->CooldownTurns = MinCooldownTurns;
-	C->PlannedAbilityIndex = 0;
-	C->PlannedAttackTarget = V;
-	C->PlannedCell = C->Cell;
+	C->SetPlannedMainAction(0);
+	C->DeclareAttackOnUnit(V);
+	C->SetPlannedCell(C->Cell);
 
 	const int32 SaluteV = V->Health;
 	RunControlTurn(TM);
@@ -1452,15 +1452,15 @@ bool FRTCancelledCellAimedInterrupterPaysTest::RunTest(const FString&)
 		if (bConA)
 		{
 			const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
-			A->PlannedAbilityIndex = IdxA;
-			A->PlannedAttackTarget = B;
-			A->PlannedCell = A->Cell;
+			A->SetPlannedMainAction(IdxA);
+			A->DeclareAttackOnUnit(B);
+			A->SetPlannedCell(A->Cell);
 		}
 
 		// L'Interrupt di B nello SLOT 0 (o il cooldown non e' osservabile), su una cella VUOTA adiacente.
 		const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
-		B->PlannedAbilityIndex = IdxB;
-		B->PlannedCell = B->Cell;
+		B->SetPlannedMainAction(IdxB);
+		B->SetPlannedCell(B->Cell);
 		B->DeclareAttackOnCell(FRTCellId(3, 0));
 
 		RunControlTurn(TM);
@@ -1576,12 +1576,11 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 				return false;
 			}
 			// Carica sul MOVIMENTO, ultimate sull'azione principale: due slot diversi ([D-191]).
-			Caricatore->PlannedDashAbility = ChargeIdx;
-			Caricatore->PlannedDashCell = Investito->Cell;
+			Caricatore->SetPlannedDash(ChargeIdx, Investito->Cell);
 		}
-		Caricatore->PlannedAbilityIndex = 0;
-		Caricatore->PlannedAttackTarget = Bersaglio;
-		Caricatore->PlannedCell = Caricatore->Cell;
+		Caricatore->SetPlannedMainAction(0);
+		Caricatore->DeclareAttackOnUnit(Bersaglio);
+		Caricatore->SetPlannedCell(Caricatore->Cell);
 
 		RunControlTurn(TM);
 
@@ -1677,10 +1676,9 @@ bool FRTChargeStandingUnitStaysPutUntilTheBlastTest::RunTest(const FString&)
 		DestroyControlWorld(World);
 		return false;
 	}
-	Caricatore->PlannedDashAbility = ChargeIdx;
-	Caricatore->PlannedDashCell = Fermo->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
-	Fermo->PlannedCell = Fermo->Cell;
+	Caricatore->SetPlannedDash(ChargeIdx, Fermo->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
+	Fermo->SetPlannedCell(Fermo->Cell);
 
 	// Lo stato dell'unita' ferma NELL'ISTANTE in cui il Dash si chiude: nessuna riga del Blast ha ancora girato.
 	bool bDashChiuso = false;
@@ -1787,18 +1785,18 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 		}
 
 		const int32 IdxA = RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Interrupt"));
-		A->PlannedAbilityIndex = IdxA;
-		A->PlannedAttackTarget = B;
-		A->PlannedCell = A->Cell;
+		A->SetPlannedMainAction(IdxA);
+		A->DeclareAttackOnUnit(B);
+		A->SetPlannedCell(A->Cell);
 
 		const int32 IdxB = RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Interrupt"));
-		B->PlannedAbilityIndex = IdxB;
-		B->PlannedAttackTarget = C;
-		B->PlannedCell = B->Cell;
+		B->SetPlannedMainAction(IdxB);
+		B->DeclareAttackOnUnit(C);
+		B->SetPlannedCell(B->Cell);
 
-		C->PlannedAbilityIndex = 0; // attacco base, interrompibile
-		C->PlannedAttackTarget = V;
-		C->PlannedCell = C->Cell;
+		C->SetPlannedMainAction(0); // attacco base, interrompibile
+		C->DeclareAttackOnUnit(V);
+		C->SetPlannedCell(C->Cell);
 
 		const int32 SaluteIniziale = V->Health;
 		RunControlTurn(TM);
@@ -1899,14 +1897,14 @@ bool FRTInterruptCycleNeutralisesTest::RunTest(const FString&)
 	}
 
 	const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
-	A->PlannedAbilityIndex = IdxA;
-	A->PlannedAttackTarget = B;
-	A->PlannedCell = A->Cell;
+	A->SetPlannedMainAction(IdxA);
+	A->DeclareAttackOnUnit(B);
+	A->SetPlannedCell(A->Cell);
 
 	const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
-	B->PlannedAbilityIndex = IdxB;
-	B->PlannedAttackTarget = A;
-	B->PlannedCell = B->Cell;
+	B->SetPlannedMainAction(IdxB);
+	B->DeclareAttackOnUnit(A);
+	B->SetPlannedCell(B->Cell);
 
 	RunControlTurn(TM);
 
@@ -1999,18 +1997,18 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 	}
 
 	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
-	Interrupter->PlannedAbilityIndex = InterruptIdx;
-	Interrupter->PlannedAttackTarget = Guarder;
-	Interrupter->PlannedCell = Interrupter->Cell;
+	Interrupter->SetPlannedMainAction(InterruptIdx);
+	Interrupter->DeclareAttackOnUnit(Guarder);
+	Interrupter->SetPlannedCell(Interrupter->Cell);
 
 	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Guarder, TEXT("Action.Guard"));
-	Guarder->PlannedAbilityIndex = GuardIdx;
-	Guarder->PlannedCell = Guarder->Cell;
+	Guarder->SetPlannedMainAction(GuardIdx);
+	Guarder->SetPlannedCell(Guarder->Cell);
 
 	const int32 HealthBefore = Guarder->Health;
-	Assailant->PlannedAbilityIndex = 0; // attacco base dell'eroe (indice 0, catalogo v0.1)
-	Assailant->PlannedAttackTarget = Guarder;
-	Assailant->PlannedCell = Assailant->Cell;
+	Assailant->SetPlannedMainAction(0); // attacco base dell'eroe (indice 0, catalogo v0.1)
+	Assailant->DeclareAttackOnUnit(Guarder);
+	Assailant->SetPlannedCell(Assailant->Cell);
 
 	RunControlTurn(TM);
 
@@ -2092,9 +2090,9 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 	}
 
 	const int32 SlowIdx = RTAbilityFixtures::AddCoreAbility(Slower, TEXT("Action.Slow"));
-	Slower->PlannedAbilityIndex = SlowIdx;
-	Slower->PlannedAttackTarget = Mover;
-	Slower->PlannedCell = Slower->Cell;
+	Slower->SetPlannedMainAction(SlowIdx);
+	Slower->DeclareAttackOnUnit(Mover);
+	Slower->SetPlannedCell(Slower->Cell);
 
 	// Rallentato: ogni cella costa 2 invece di 1, quindi con budget B si arriva a B/2 celle invece che a B.
 	// Il budget si LEGGE dall'unita': era scritto 5, il valore del Ranger legacy, e la proprieta' sotto
@@ -2103,16 +2101,16 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 	const int32 MaxCells = Budget / 2;
 	TestTrue(TEXT("il budget basta a distinguere rallentato da non rallentato"), MaxCells >= 1 && MaxCells < Budget);
 
-	Mover->PlannedWaypoints.Reset();
-	Mover->PlannedPath.Reset();
-	Mover->PlannedPath.Add(FRTCellId(0, 0));
+	FRTUnitPlanTestAccess::ResetWaypoints(*Mover);
+	FRTUnitPlanTestAccess::ResetPath(*Mover);
+	FRTUnitPlanTestAccess::AddPathCell(*Mover, FRTCellId(0, 0));
 	for (int32 Q = 1; Q <= Budget; ++Q)
 	{
-		Mover->PlannedWaypoints.Add(FRTCellId(Q, 0));
-		Mover->PlannedPath.Add(FRTCellId(Q, 0));
+		Mover->AddPlannedWaypoint(FRTCellId(Q, 0));
+		FRTUnitPlanTestAccess::AddPathCell(*Mover, FRTCellId(Q, 0));
 	}
-	Mover->PlannedCell = FRTCellId(Budget, 0);
-	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->SetPlannedCell(FRTCellId(Budget, 0));
+	Mover->ClearPlannedMainAction();
 
 	RunControlTurn(TM);
 
@@ -2187,10 +2185,10 @@ bool FRTPushThroughFireTest::RunTest(const FString&)
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
 		Mover->Abilities.Add(Ability);
-		Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
-		Mover->PlannedAttackTarget = Victim;
-		Victim->PlannedAbilityIndex = INDEX_NONE;
-		Victim->PlannedCell = Victim->Cell;
+		Mover->SetPlannedMainAction(Mover->Abilities.Num() - 1);
+		Mover->DeclareAttackOnUnit(Victim);
+		Victim->ClearPlannedMainAction();
+		Victim->SetPlannedCell(Victim->Cell);
 
 		RunControlTurn(TM);
 
@@ -2275,13 +2273,13 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	Ability->RangeCells = Ability->Def.RangeCells;
 	Ability->Power = 0;
 	Mover->Abilities.Add(Ability);
-	Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
-	Mover->PlannedAttackTarget = Victim;
+	Mover->SetPlannedMainAction(Mover->Abilities.Num() - 1);
+	Mover->DeclareAttackOnUnit(Victim);
 
 	// La vittima pianifica di andare a NORD-EST. Verra' spinta a EST nel Blast, e il Move risolve dopo.
 	const FRTCellId Goal(3, -2);
-	Victim->PlannedAbilityIndex = INDEX_NONE;
-	Victim->PlannedCell = Goal;
+	Victim->ClearPlannedMainAction();
+	Victim->SetPlannedCell(Goal);
 
 	RunControlTurn(TM);
 
@@ -2291,12 +2289,12 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	TestNotEqual(TEXT("premessa: la spinta l'ha davvero spostata"), DopoLaSpinta, FRTCellId(1, 0));
 
 	// 2. `#308`: il budget non e' stato speso. Senza spinta, il turno dopo ci arriva.
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedAttackTarget = nullptr;
-	Mover->PlannedCell = Mover->Cell;
-	Victim->PlannedAbilityIndex = INDEX_NONE;
-	Victim->PlannedPath.Reset();
-	Victim->PlannedCell = Goal;
+	Mover->ClearPlannedMainAction();
+	Mover->ClearPlannedAttack();
+	Mover->SetPlannedCell(Mover->Cell);
+	Victim->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::ResetPath(*Victim);
+	Victim->SetPlannedCell(Goal);
 
 	RunControlTurn(TM);
 
@@ -2492,14 +2490,14 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			if (C.bPurificaUnoStatoPosseduto)
 			{
 				Attore->ApplyStatus(TAG_Status_Root, 2);
-				Attore->PlannedCleansePriority = { TAG_Status_Root };
+				Attore->SetPlannedCleansePriority({ TAG_Status_Root });
 			}
 			else
 			{
-				Attore->PlannedCleansePriority = { TAG_Status_Exposed }; // dichiarato e non posseduto
+				Attore->SetPlannedCleansePriority({ TAG_Status_Exposed }); // dichiarato e non posseduto
 			}
-			Attore->PlannedAbilityIndex = Idx;
-			Attore->PlannedCell = Attore->Cell;
+			Attore->SetPlannedMainAction(Idx);
+			Attore->SetPlannedCell(Attore->Cell);
 			break;
 
 		case ESpesaMontaggio::Alleato:
@@ -2511,9 +2509,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				return false;
 			}
 			Alleato->Health = FMath::Max(1, Alleato->Health - 30);
-			Attore->PlannedAbilityIndex = Idx;
-			Attore->PlannedAttackTarget = Alleato;
-			Attore->PlannedCell = Attore->Cell;
+			Attore->SetPlannedMainAction(Idx);
+			Attore->DeclareAttackOnUnit(Alleato);
+			Attore->SetPlannedCell(Attore->Cell);
 			break;
 		}
 
@@ -2527,13 +2525,13 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			Attore->PlannedAbilityIndex = Idx;
-			Attore->PlannedAttackTarget = Attaccante;
-			Attore->PlannedCell = Attore->Cell;
+			Attore->SetPlannedMainAction(Idx);
+			Attore->DeclareAttackOnUnit(Attaccante);
+			Attore->SetPlannedCell(Attore->Cell);
 
-			Attaccante->PlannedAbilityIndex = 0; // attacco base, interrompibile
-			Attaccante->PlannedAttackTarget = Vittima;
-			Attaccante->PlannedCell = Attaccante->Cell;
+			Attaccante->SetPlannedMainAction(0); // attacco base, interrompibile
+			Attaccante->DeclareAttackOnUnit(Vittima);
+			Attaccante->SetPlannedCell(Attaccante->Cell);
 			break;
 		}
 
@@ -2546,9 +2544,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			Attore->PlannedAbilityIndex = Idx;
+			Attore->SetPlannedMainAction(Idx);
 			Attore->DeclareAttackOnCell(FRTCellId(C.Distanza, 0));
-			Attore->PlannedCell = Attore->Cell;
+			Attore->SetPlannedCell(Attore->Cell);
 			break;
 		}
 
@@ -2560,9 +2558,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			Attore->PlannedAbilityIndex = Idx;
-			Attore->PlannedAttackTarget = Nemico;
-			Attore->PlannedCell = Attore->Cell;
+			Attore->SetPlannedMainAction(Idx);
+			Attore->DeclareAttackOnUnit(Nemico);
+			Attore->SetPlannedCell(Attore->Cell);
 			break;
 		}
 		}
@@ -2599,9 +2597,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			Carnefice->PlannedAbilityIndex = 0; // attacco base dell'eroe
-			Carnefice->PlannedAttackTarget = Attore;
-			Carnefice->PlannedCell = Carnefice->Cell;
+			Carnefice->SetPlannedMainAction(0); // attacco base dell'eroe
+			Carnefice->DeclareAttackOnUnit(Attore);
+			Carnefice->SetPlannedCell(Carnefice->Cell);
 			Attore->Health = 1;
 		}
 
@@ -2695,17 +2693,17 @@ bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
 	}
 
 	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
-	Curatore->PlannedAbilityIndex = HealIdx;
-	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->SetPlannedMainAction(HealIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
 
 	// Entrambi cadono NELLO STESSO Blast in cui la cura era stata accettata: e' il caso che la voce
 	// `TargetDead` esiste per registrare, piu' la morte del curatore che la faceva sparire.
 	Curatore->Health = 1;
 	Ferito->Health = 1;
-	Boia1->PlannedAbilityIndex = 0; // attacco base dell'eroe
-	Boia1->PlannedAttackTarget = Curatore;
-	Boia2->PlannedAbilityIndex = 0;
-	Boia2->PlannedAttackTarget = Ferito;
+	Boia1->SetPlannedMainAction(0); // attacco base dell'eroe
+	Boia1->DeclareAttackOnUnit(Curatore);
+	Boia2->SetPlannedMainAction(0);
+	Boia2->DeclareAttackOnUnit(Ferito);
 
 	// ⚠️ **`StableUnitId` si legge DOPO il turno, non allo spawn**: lo assegna l'allestimento al lock-in, e
 	// prima vale **zero** per tutti. MISURATO: catturandolo qui il predicato cercava `UnitId == 0` e non
@@ -2809,12 +2807,12 @@ bool FRTHealArrivesAfterSimultaneousDamageTest::RunTest(const FString&)
 	}
 	Ferito->ApplyCombatState(Salute, 0);
 
-	Curatore->PlannedAbilityIndex = HealIdx;
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
-	Attaccante->PlannedAbilityIndex = AtkIdx;
-	Attaccante->PlannedAttackTarget = Ferito;
-	Attaccante->PlannedCell = Attaccante->Cell;
+	Curatore->SetPlannedMainAction(HealIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
+	Attaccante->SetPlannedMainAction(AtkIdx);
+	Attaccante->DeclareAttackOnUnit(Ferito);
+	Attaccante->SetPlannedCell(Attaccante->Cell);
 	const FRTCellId CellaFerito = Ferito->Cell;
 
 	RunControlTurn(TM);

@@ -49,6 +49,7 @@
 #include "Misc/OutputDevice.h"
 #include "Misc/OutputDeviceRedirector.h" // `#3748`: GLog, per contare le righe con cui un click rifiutato dice perche'
 #include "Misc/ScopeLock.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -261,12 +262,12 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 		URTHexVisionLibrary::HasLineOfSight(Arena, A_Shooter->Cell, B_Shooter->Cell));
 
 	// Squadra 0: uno attacca, l'altro si muove. Squadra 1: idem, nello stesso turno.
-	A_Shooter->PlannedAbilityIndex = 0;               // "Tiro"
-	A_Shooter->PlannedAttackTarget = B_Shooter;
-	A_Mover->PlannedCell = AMoverTo;
-	B_Shooter->PlannedAbilityIndex = 0;
-	B_Shooter->PlannedAttackTarget = A_Shooter;
-	B_Mover->PlannedCell = BMoverTo;
+	A_Shooter->SetPlannedMainAction(0);               // "Tiro"
+	A_Shooter->DeclareAttackOnUnit(B_Shooter);
+	A_Mover->SetPlannedCell(AMoverTo);
+	B_Shooter->SetPlannedMainAction(0);
+	B_Shooter->DeclareAttackOnUnit(A_Shooter);
+	B_Mover->SetPlannedCell(BMoverTo);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
@@ -427,7 +428,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: il grafo collega terra e piattaforma"),
 		URTHexPathLibrary::FindPath(Arena, Ground, Platform).Status == ERTHexPathStatus::Success);
 
-	Climber->PlannedCell = Platform;
+	Climber->SetPlannedCell(Platform);
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestTrue(TEXT("l'unita' e' salita sulla piattaforma"), Climber->Cell == Platform);
@@ -436,9 +437,9 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 	// Togliamo l'arco e riproviamo dalla stessa posizione: senza transizione non si sale.
 	Arena->RemoveTransition(Ground, Platform);
 	Climber->PlaceOnCell(Ground, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	Climber->PlannedWaypoints.Reset();
-	Climber->PlannedPath.Reset();
-	Climber->PlannedCell = Platform;
+	FRTUnitPlanTestAccess::ResetWaypoints(*Climber);
+	FRTUnitPlanTestAccess::ResetPath(*Climber);
+	Climber->SetPlannedCell(Platform);
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("senza la transizione l'unita' resta sul layer 0"), Climber->Cell.Layer, 0);
@@ -509,8 +510,8 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM) { DestroyHexMatchWorld(World); return false; }
 
-		Unit->PlannedDashAbility = DashIdx;
-		Unit->PlannedDashCell = FRTCellId(3, 0); // oltre il muro, in linea
+		Unit->SetPlannedDash(DashIdx, FRTCellId(3, 0));
+		 // oltre il muro, in linea
 		RTWorldFixtures::PlayOneTurn(TM);
 
 		// Il muro ferma la traiettoria: si arriva a (1,0), non a (3,0) girandoci attorno.
@@ -575,8 +576,8 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: dichiara lo stile carica"), Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 
 	const int32 HealthBefore = Target->Health;
-	Charger->PlannedDashAbility = ChargeIdx;
-	Charger->PlannedDashCell = Target->Cell; // si carica CONTRO il nemico
+	Charger->SetPlannedDash(ChargeIdx, Target->Cell);
+	 // si carica CONTRO il nemico
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Si ferma ADDOSSO: adiacente al bersaglio, non sopra e non oltre.
@@ -636,8 +637,7 @@ bool FRTHexChargeOffAxesTest::RunTest(const FString&)
 
 	const int32 HealthBefore = Target->Health;
 	Charger->Facing = ERTHexDirection::NW; // un verso che la carica non produce: distingue «gira» da «resta com'e'»
-	Charger->PlannedDashAbility = ChargeIdx;
-	Charger->PlannedDashCell = Target->Cell;
+	Charger->SetPlannedDash(ChargeIdx, Target->Cell);
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("chi carica si ferma davanti al nemico, in (-3,4)"),
@@ -699,8 +699,7 @@ bool FRTHexChargeEdgeTest::RunTest(const FString&)
 
 		const int32 HealthBefore = Target->Health;
 		const FRTCellId TargetCell = Target->Cell;
-		Charger->PlannedDashAbility = ChargeIdx;
-		Charger->PlannedDashCell = TargetCell;
+		Charger->SetPlannedDash(ChargeIdx, TargetCell);
 		RTWorldFixtures::PlayOneTurn(TM);
 
 		const TCHAR* Caso = bSulPrimoPasso ? TEXT("bordo sul primo passo") : TEXT("bordo a meta' retta");
@@ -774,8 +773,7 @@ bool FRTHexChargeBeyondRangeTest::RunTest(const FString&)
 
 	const int32 HealthBefore = Target->Health;
 	const FRTCellId TargetCell = Target->Cell;
-	Charger->PlannedDashAbility = ChargeIdx;
-	Charger->PlannedDashCell = TargetCell;
+	Charger->SetPlannedDash(ChargeIdx, TargetCell);
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("chi carica corre fino all'ultima cella della portata"),
@@ -866,8 +864,7 @@ bool FRTHexChargeBeyondRangeRevalidatedTest::RunTest(const FString&)
 			Map->SortCells();
 		}
 
-		Charger->PlannedDashAbility = ChargeIdx;
-		Charger->PlannedDashCell = Bersaglio;
+		Charger->SetPlannedDash(ChargeIdx, Bersaglio);
 		RTWorldFixtures::PlayOneTurn(TM);
 
 		const TCHAR* Caso = bCellaVuota ? TEXT("cella vuota") : TEXT("retta bloccata");
@@ -1019,11 +1016,10 @@ bool FRTHexGeometricDashRefusalHidesDestinationTest::RunTest(const FString&)
 			DestroyHexMatchWorld(World); return false;
 		}
 
-		Charger->PlannedDashAbility = ChargeIdx;
-		Charger->PlannedDashCell = Bersaglio;
+		Charger->SetPlannedDash(ChargeIdx, Bersaglio);
 		if (Casi[Indice].bConCamminata)
 		{
-			Charger->PlannedCell = Camminata;
+			Charger->SetPlannedCell(Camminata);
 		}
 		RTWorldFixtures::PlayOneTurn(TM);
 
@@ -1163,8 +1159,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la cella bloccata e' entro la portata dello scatto"),
 		URTHexLibrary::HexDistance(From, Blocked) <= Dash->Def.RangeCells);
 
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = Blocked;
+	Dasher->SetPlannedDash(DashIdx, Blocked);
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
@@ -1457,7 +1452,7 @@ bool FRTUnreadyKeepsThePlanTest::RunTest(const FString&)
 		if (U && !U->bIsBotControlled) { Umana = U; break; }
 	}
 	if (!TestNotNull(TEXT("l'unita' umana"), Umana)) { DestroyHexMatchWorld(World); return false; }
-	Umana->PlannedWaypoints.Add(FRTCellId(-2, 1));
+	Umana->AddPlannedWaypoint(FRTCellId(-2, 1));
 	const TArray<FRTCellId> PianoPrima = Umana->PlannedWaypoints;
 	if (!TestTrue(TEXT("il piano di partenza NON e' vuoto"), PianoPrima.Num() > 0))
 	{
@@ -1741,8 +1736,8 @@ namespace
 		// rotta e' quello buono; se nessuno la produce, l'anti-vacuita' del chiamante lo dichiara.
 		for (const FRTCellId& Step : URTHexLibrary::Neighbors(B.Mine->Cell))
 		{
-			B.Mine->PlannedWaypoints.Reset();
-			B.Mine->PlannedWaypoints.Add(Step);
+			FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
+			B.Mine->AddPlannedWaypoint(Step);
 			B.PC->RebuildPlannedPathForTest();
 			if (B.HexMap->NumPreviewPathCells() > 0)
 			{
@@ -1957,7 +1952,7 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 	const FRTCellId CellaPercorribile = B.Mine->PlannedWaypoints[0];
 
 	// CONTROLLO POSITIVO, come DELTA — in pianificazione il clic sulla mappa POSA un waypoint.
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RebuildPlannedPathForTest();
 	TestEqual(TEXT("controllo: si riparte da un piano vuoto"), B.Mine->PlannedWaypoints.Num(), 0);
 	B.PC->HandleClickOnCellForTest(CellaPercorribile);
@@ -2464,7 +2459,7 @@ bool FRTParticipantUnreadyClearsTheWholeParticipantTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
 
 	const FRTCellId Pianificata = URTHexLibrary::Neighbors(M.A->Cell)[0];
-	M.A->PlannedCell = Pianificata;
+	M.A->SetPlannedCell(Pianificata);
 
 	M.TM->DeclareParticipantReady(0, 0);
 	if (!TestTrue(TEXT("premessa: il countdown e' armato"), M.TM->IsReadyCountdownActive()))
@@ -2676,8 +2671,7 @@ namespace
 		}
 		if (ChargeIdx == INDEX_NONE) { return S; }
 
-		S.Charger->PlannedDashAbility = ChargeIdx;
-		S.Charger->PlannedDashCell = S.Target->Cell;
+		S.Charger->SetPlannedDash(ChargeIdx, S.Target->Cell);
 		S.bValid = true;
 		return S;
 	}
@@ -2877,7 +2871,7 @@ bool FRTPushWithoutDamageIsAnimatedTest::RunTest(const FString&)
 	// `Action.Push` si aggiunge all'istanza, come in tutti gli scenari che usano un'azione fuori dal kit
 	// dell'eroe. ⚠️ Lo slot 3, per non sovrascrivere l'attacco base — che non dev'essere pianificato.
 	RTAbilityFixtures::AddCoreAbilityInSlot(Spingitore, TEXT("Action.Push"), 3);
-	Spingitore->PlannedAbilityIndex = 3;
+	Spingitore->SetPlannedMainAction(3);
 	Spingitore->DeclareAttackOnUnit(Spinto);
 
 	TM->LockInAndResolve();
@@ -2962,9 +2956,9 @@ bool FRTTwoAttackersNetShareTest::RunTest(const FString&)
 	SecondoA->bIsBotControlled = false;
 	Bersaglio->bIsBotControlled = false;
 
-	PrimoA->PlannedAbilityIndex = 0;
+	PrimoA->SetPlannedMainAction(0);
 	PrimoA->DeclareAttackOnUnit(Bersaglio);
-	SecondoA->PlannedAbilityIndex = 0;
+	SecondoA->SetPlannedMainAction(0);
 	SecondoA->DeclareAttackOnUnit(Bersaglio);
 	Bersaglio->ClearPlannedAttack();
 
@@ -3051,9 +3045,9 @@ bool FRTTwoAttackersLethalEntryTest::RunTest(const FString&)
 	// Vita bassa quanto basta perche' i due colpi insieme la esauriscano: e' la scena che discrimina.
 	Bersaglio->Health = 20;
 
-	PrimoA->PlannedAbilityIndex = 0;
+	PrimoA->SetPlannedMainAction(0);
 	PrimoA->DeclareAttackOnUnit(Bersaglio);
-	SecondoA->PlannedAbilityIndex = 0;
+	SecondoA->SetPlannedMainAction(0);
 	SecondoA->DeclareAttackOnUnit(Bersaglio);
 	Bersaglio->ClearPlannedAttack();
 
@@ -3135,7 +3129,7 @@ bool FRTUndoButtonWithdrawsReadyTest::RunTest(const FString&)
 	PC->SelectActorForTest(Umana);
 	W->SetCommandControllerForTest(PC);
 
-	Umana->PlannedWaypoints.Add(FRTCellId(-2, 1));
+	Umana->AddPlannedWaypoint(FRTCellId(-2, 1));
 	const TArray<FRTCellId> PianoPrima = Umana->PlannedWaypoints;
 
 	// ⚠️ **Il Ready col GESTO del giocatore, non con `TM->RequestLockIn()`.** `Spazio` dichiara il Ready DEL
@@ -3206,8 +3200,8 @@ bool FRTHexChargeBeyondRangeInTheWayTest::RunTest(const FString&)
 	const int32 VitaInMezzo = InMezzo->Health;
 	const int32 VitaBersaglio = Bersaglio->Health;
 	const FRTCellId CellaBersaglio = Bersaglio->Cell;
-	Charger->PlannedDashAbility = ChargeIdx;
-	Charger->PlannedDashCell = CellaBersaglio; // come lo scrive il click, da [D-528]
+	Charger->SetPlannedDash(ChargeIdx, CellaBersaglio);
+	 // come lo scrive il click, da [D-528]
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("chi carica si ferma accanto a quello in mezzo"), Charger->Cell.ToString(), FRTCellId(1, 0, 0).ToString());
@@ -4554,10 +4548,10 @@ bool FRTFocusWiringNeverThePlanTest::RunTest(const FString&)
 	Planner.Edit = [](FRTLockInPreviewBench&, ARTUnit* Enemy)
 	{
 		// Il piano piu' pericoloso: waypoint, un'azione e il profilo di corsa dichiarato.
-		for (const FRTCellId& Step : URTHexLibrary::Neighbors(Enemy->Cell)) { Enemy->PlannedWaypoints.Add(Step); }
-		Enemy->PlannedAbilityIndex = 0;
-		Enemy->PlannedDashAbility = 1;
-		Enemy->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+		for (const FRTCellId& Step : URTHexLibrary::Neighbors(Enemy->Cell)) { Enemy->AddPlannedWaypoint(Step); }
+		Enemy->SetPlannedMainAction(0);
+		FRTUnitPlanTestAccess::SetDashAbility(*Enemy, 1);
+		Enemy->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSprint);
 	};
 	const FFwResult Planning = FwRun(*this, Planner);
 
@@ -4749,7 +4743,7 @@ bool FRTFocusWiringLifecycleTest::RunTest(const FString&)
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
 
 	// Mine selezionata e senza piano: `Planning`, e il ventaglio e' acceso (la sorgente e' il piano).
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning)
 		|| !TestTrue(TEXT("premessa: il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0))
@@ -4793,10 +4787,10 @@ bool FRTFocusWiringLifecycleTest::RunTest(const FString&)
 	TestEqual(TEXT("4: e il ventaglio cede di nuovo"), B.HexMap->NumPreviewReachableCells(), 0);
 
 	// 5. UN WAYPOINT e' un gesto di pianificazione: la revisione sale e l'area esce.
-	B.Mine->PlannedWaypoints.Add(URTHexLibrary::Neighbors(B.Mine->Cell)[0]);
+	B.Mine->AddPlannedWaypoint(URTHexLibrary::Neighbors(B.Mine->Cell)[0]);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	TestEqual(TEXT("5: un waypoint fa uscire l'area"), B.HexMap->GetPreviewFocusNormalCells().Num(), 0);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 
 	// 6. RMB con un fuoco attivo lo chiude (passo `Inspector` del Back) e tornano le anteprime di pianificazione.
@@ -4894,7 +4888,7 @@ bool FRTFocusWiringClickTest::RunTest(const FString&)
 	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
 	if (!TestNotNull(TEXT("il nemico del banco"), Enemy)) { DestroyHexMatchWorld(B.World); return false; }
 	B.TM->SetTeamKnowledgeForTest(FwAllSeen(B.HexMap->MapAsset));
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning))
 	{
@@ -5095,7 +5089,7 @@ namespace
 		Knowledge(K, B.Mine->Cell);
 		B.TM->SetTeamKnowledgeForTest(K);
 
-		B.Mine->PlannedWaypoints.Reset();
+		FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 		B.PC->RefreshPlanningOverlay(B.Mine);
 		B.PC->SetSkillHover(B.Mine, Skill);
 		B.PC->UpdatePlanningOverlay();
@@ -5170,7 +5164,7 @@ bool FRTSkillHoverThreeStatesTest::RunTest(const FString&)
 	K.ExploredCells.Remove(Hidden);
 	B.TM->SetTeamKnowledgeForTest(K);
 
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestEqual(TEXT("premessa: il contesto e' Planning"), B.PC->GetPointerContext(), ERTPointerContext::Planning))
 	{
@@ -5302,7 +5296,7 @@ bool FRTSkillHoverSourcesTest::RunTest(const FString&)
 	}
 	const FRTTeamKnowledge All = FwAllSeen(B.HexMap->MapAsset);
 	B.TM->SetTeamKnowledgeForTest(All);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	const auto SkillCells = [&B]()
 	{
@@ -5406,7 +5400,7 @@ bool FRTSkillHoverCountersTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: una skill che chiede un bersaglio"), Skill != INDEX_NONE)) { DestroyHexMatchWorld(B.World); return false; }
 	const FRTTeamKnowledge All = FwAllSeen(B.HexMap->MapAsset);
 	B.TM->SetTeamKnowledgeForTest(All);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	const int32 SelectedBefore = B.Mine->SelectedAbilityIndex;
 	const int32 WaypointsBefore = B.Mine->PlannedWaypoints.Num();
@@ -5479,8 +5473,7 @@ bool FRTSkillHoverDashOriginTest::RunTest(const FString&)
 		const FRTCellId Candidate = HvStep(M, HvDirs[D], 2);
 		if (Map->ContainsCell(Candidate)) { DashCell = Candidate; }
 	}
-	B.Mine->PlannedDashAbility = Dash;
-	B.Mine->PlannedDashCell = DashCell;
+	B.Mine->SetPlannedDash(Dash, DashCell);
 	if (!TestTrue(TEXT("premessa: lo scatto pianificato si applica, non e' una carica, e l'origine di mira e' il suo arrivo"),
 			!(DashCell == M) && B.Mine->PlannedDashApplies() && !B.Mine->PlannedDashIsCharge()
 			&& B.Mine->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell))
@@ -5491,7 +5484,7 @@ bool FRTSkillHoverDashOriginTest::RunTest(const FString&)
 
 	const FRTTeamKnowledge All = FwAllSeen(Map);
 	B.TM->SetTeamKnowledgeForTest(All);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestTrue(TEXT("premessa: prima dell'hover il ventaglio del piano e' acceso"), B.HexMap->NumPreviewReachableCells() > 0))
 	{
@@ -5598,7 +5591,7 @@ bool FRTSkillHoverStampTest::RunTest(const FString&)
 	const URTHexMapAsset* Map = B.HexMap->MapAsset;
 	const FRTCellId M = B.Mine->Cell;
 	const FRTTeamKnowledge All = FwAllSeen(Map);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 
 	// Una cella FUORI dalla portata (la prima della mappa a piu' di 5 passi) e una DENTRO (la prima a distanza 2 e in mappa).
 	FRTCellId Far = M;
@@ -5661,7 +5654,7 @@ bool FRTSkillHoverTeamGateTest::RunTest(const FString&)
 	// Il controllo positivo prima: la stessa preparazione su un'unita' PROPRIA mostra la portata. Senza, «niente sul nemico» potrebbe
 	// voler dire «la preparazione non funziona».
 	const int32 OwnSkill = HvPrepareTargetedSkill(B);
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	B.PC->SetSkillHover(B.Mine, OwnSkill);
 	B.PC->UpdatePlanningOverlay();
@@ -5763,8 +5756,7 @@ namespace
 			// Lo scatto di un'eroe puo' essere una carica (quello di Branth lo e'), e una carica non sposta l'origine di mira: sulla PROPRIA copia dei
 			// dati diventa uno scatto lineare. Cio' che si prova qui e' la regola dell'origine, non il catalogo.
 			const_cast<URTActionData*>(Candidate->GetAbility(Dash))->Def.MovementStyle = ERTMovementStyle::LinearDash;
-			Candidate->PlannedDashAbility = Dash;
-			Candidate->PlannedDashCell = DashCell;
+			Candidate->SetPlannedDash(Dash, DashCell);
 			const bool bShifts = !(DashCell == Candidate->Cell) && Candidate->PlannedDashApplies() && !Candidate->PlannedDashIsCharge()
 				&& Candidate->AimOriginFor(Ability->Def.ResolutionPhase) == DashCell;
 			const TArray<FRTCellId> View = FwSorted(URTCombatLibrary::TargetableRangeCells(Map, Candidate->Cell, 4, ERTLineOfSightPolicy::Required, 0));
@@ -5783,7 +5775,7 @@ namespace
 			}
 			else
 			{
-				Candidate->PlannedDashAbility = INDEX_NONE; // questo nemico non serve a questa prova
+				Candidate->ClearPlannedDash(); // questo nemico non serve a questa prova
 			}
 		}
 		return Found;
@@ -5823,7 +5815,7 @@ bool FRTSkillHoverOfInspectedEnemyTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("il nemico e' %s, la skill %d, l'origine del piano %s, quella della vista %s"),
 		*Enemy->HeroId.ToString(), Skill, *Found.PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
 
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("controllo positivo: senza hover la mappa non mostra nessuna portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);
@@ -5922,7 +5914,7 @@ bool FRTSkillHoverOfInspectedOwnUnitTest::RunTest(const FString&)
 		Map, Ally->AimOriginFor(Ability->Def.ResolutionPhase), 4, ERTLineOfSightPolicy::Required, 0));
 	TestTrue(TEXT("anti-vacuita': l'insieme atteso non e' vuoto"), Expected.Num() > 3);
 
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 
 	// Ne' selezionata ne' ispezionata: l'hover di una sua skill e' scartato, e la mappa non mostra niente.
@@ -5995,7 +5987,7 @@ bool FRTSkillHoverOfRememberedEnemyTest::RunTest(const FString&)
 		return false;
 	}
 
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	B.PC->PinInspectionForTest(Enemy);
 	B.PC->SetSkillHover(Enemy, Skill);
@@ -6309,14 +6301,14 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 		B.PC->SetInspectorPinned(false);
 		B.PC->EndFacingDeclaration();
 		B.Mine->SelectAbility(INDEX_NONE);
-		B.Mine->PlannedAbilityIndex = INDEX_NONE;
+		B.Mine->ClearPlannedMainAction();
 		B.Mine->ClearPlannedAttack();
-		B.Mine->bHasPlannedCoverEdge = false;
-		B.Mine->WaypointsAllaDichiarazione = INDEX_NONE;
-		B.Mine->PlannedMovementProfileId = NAME_None;
-		B.Mine->bDeclaresPlannedFacing = false;
+		B.Mine->ClearPlannedCoverEdge();
+		FRTUnitPlanTestAccess::SetWaypointsAllaDichiarazione(*B.Mine, INDEX_NONE);
+		B.Mine->SetPlannedMovementProfile(NAME_None);
+		B.Mine->RetractPlannedFacing();
 		B.Mine->SetTurnPlanDeclared(false);
-		B.Mine->PlannedWaypoints.Reset();
+		FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 		B.PC->RebuildPlannedPathForTest();
 	};
 	const auto Nothing = []() {};
@@ -6355,8 +6347,8 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 	Rows.Add({ TEXT("click sull'esagono finale (FacingHandlesClickOnFinalCell)"),
 		[&]()
 		{
-			B.Mine->PlannedWaypoints.Reset();
-			B.Mine->PlannedWaypoints.Add(Step);
+			FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
+			B.Mine->AddPlannedWaypoint(Step);
 			B.PC->RebuildPlannedPathForTest();
 			TestTrue(TEXT("premessa dell'esagono finale: l'unita' ha una destinazione e non e' ferma"), B.PC->FacingCellFor(B.Mine) == Step);
 		},
@@ -6974,7 +6966,7 @@ bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
 		return false;
 	}
 	Enemy->SelectedAbilityIndex = EnemyArmed;     // l'azione armata
-	Enemy->PlannedAbilityIndex = EnemyCooling;    // il piano, illegale
+	Enemy->SetPlannedMainAction(EnemyCooling);    // il piano, illegale
 	Enemy->ConsumeAbility(EnemyCooling);          // la ricarica vera
 	const TArray<FRTAbilityCooldownView> EnemyOwnBar = URTHudViewModel::BuildAbilityCooldowns(Enemy);
 	bool bEnemyOwnHotkey = false;
@@ -7462,7 +7454,7 @@ bool FRTSlotHoverOfReadOnlyBarTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("il nemico e' %s, la skill %d, l'origine del piano %s, quella della vista %s"),
 		*Enemy->HeroId.ToString(), Skill, *Found.PlannedOrigin.ToString(), *Enemy->Cell.ToString()));
 
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("controllo positivo: senza hover la mappa non mostra nessuna portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);
@@ -7534,7 +7526,7 @@ bool FRTReadOnlySlotHoverDoesNotOutliveBarTest::RunTest(const FString&)
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	B.PC->UpdatePlanningOverlay();
 	TestEqual(TEXT("premessa: senza hover la mappa non mostra nessuna portata di skill"), HvShownSkillCells(B.HexMap).Num(), 0);

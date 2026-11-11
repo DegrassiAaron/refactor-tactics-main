@@ -137,10 +137,9 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	TestTrue(TEXT("il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE);
 	if (DashIdx == INDEX_NONE) { DestroyPlaybackWorld(World); return false; }
 
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;          // attacco base
-	Dasher->PlannedAttackTarget = Target;
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);          // attacco base
+	Dasher->DeclareAttackOnUnit(Target);
 
 	TM->LockInAndResolve();
 
@@ -195,7 +194,7 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	if (!TM || !Mover || !Still) { DestroyPlaybackWorld(World); return false; }
 
 	// Solo Mover ha un piano di movimento; Still resta dov'e'.
-	Mover->PlannedCell = FRTCellId(4, 2);
+	Mover->SetPlannedCell(FRTCellId(4, 2));
 	TM->LockInAndResolve();
 
 	bool bStillEverRan = false;
@@ -267,8 +266,8 @@ bool FRTPlaybackShorterRouteStopsOnArrivalTest::RunTest(const FString&)
 		return false;
 	}
 
-	Long->PlannedCell = FRTCellId(6, 2);  // quattro segmenti
-	Short->PlannedCell = FRTCellId(3, 5); // uno
+	Long->SetPlannedCell(FRTCellId(6, 2));  // quattro segmenti
+	Short->SetPlannedCell(FRTCellId(3, 5)); // uno
 	TM->LockInAndResolve();
 
 	if (!TestTrue(TEXT("la fase Move viene riprodotta"), AdvanceUntilPhase(TM, TEXT("Move"))))
@@ -424,8 +423,8 @@ bool FRTPlaybackShortRouteArrivesFirstTest::RunTest(const FString&)
 	Lunga->MoveRange = 12;
 
 	// Righe diverse (`r` = 0 e 4): i due percorsi non si incrociano e nessuno deve deviare.
-	Corta->PlannedCell = FRTCellId(2, 0);   // 2 celle
-	Lunga->PlannedCell = FRTCellId(10, 4);  // 10 celle
+	Corta->SetPlannedCell(FRTCellId(2, 0));   // 2 celle
+	Lunga->SetPlannedCell(FRTCellId(10, 4));  // 10 celle
 
 	TM->LockInAndResolve();
 
@@ -541,11 +540,10 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 		DestroyPlaybackWorld(World);
 		return false;
 	}
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;          // attacco base
-	Dasher->PlannedAttackTarget = Target;
-	Target->PlannedCell = FRTCellId(4, 5); // la sua rotta si riproduce in Move, dopo il Blast che la colpisce
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);          // attacco base
+	Dasher->DeclareAttackOnUnit(Target);
+	Target->SetPlannedCell(FRTCellId(4, 5)); // la sua rotta si riproduce in Move, dopo il Blast che la colpisce
 
 	TestEqual(TEXT("prima del turno: nessuna fase riprodotta"),
 		Nome(URTHudViewModel::BuildMatchHeader(TM).PlaybackPhase), Nome(ERTMatchPhase::Planning));
@@ -719,11 +717,10 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 		DestroyPlaybackWorld(World);
 		return false;
 	}
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
-	Target->PlannedCell = FRTCellId(4, 5);
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
+	Target->SetPlannedCell(FRTCellId(4, 5));
 	TM->LockInAndResolve();
 
 	TSet<ERTMatchPhase> Viste;
@@ -861,11 +858,10 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 		DestroyPlaybackWorld(World);
 		return false;
 	}
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
-	Target->PlannedCell = FRTCellId(4, 5);
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
+	Target->SetPlannedCell(FRTCellId(4, 5));
 	TM->LockInAndResolve();
 
 	int32 TickRisoluzione = 0;
@@ -1139,10 +1135,9 @@ bool FRTEventLogLookTest::RunTest(const FString&)
 		DestroyPlaybackWorld(World);
 		return false;
 	}
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
 	{
@@ -1179,10 +1174,9 @@ namespace
 	{
 		const int32 DashIdx = Dasher->FindDashAbilityIndex();
 		if (DashIdx == INDEX_NONE) { return false; }
-		Dasher->PlannedDashAbility = DashIdx;
-		Dasher->PlannedDashCell = FRTCellId(3, 2);
-		Dasher->PlannedAbilityIndex = 0;
-		Dasher->PlannedAttackTarget = Target;
+		Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+		Dasher->SetPlannedMainAction(0);
+		Dasher->DeclareAttackOnUnit(Target);
 		return true;
 	}
 }
@@ -1296,8 +1290,8 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 		Visibile(SenzaPannello->LogRoot));
 
 	// --- 4. Il commit seguente: le righe vecchie lasciano il posto a quelle del turno nuovo ------------------------------
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: anche il secondo turno e' in risoluzione"), TM->IsResolving())) { return false; }
 	Log->RefreshLook(/*bRereadFeed=*/ false);
@@ -1317,7 +1311,7 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 	// --- 5. Un turno senza eventi visibili: le righe del turno 2 restano ---------------------------------------------------
 	AdvanceUntilDone(TM);
 	Dasher->ClearPlannedAttack();
-	Dasher->PlannedDashAbility = INDEX_NONE;
+	Dasher->ClearPlannedDash();
 	TM->LockInAndResolve(); // nessun piano: nessun evento che il proiettore lasci passare
 	AdvanceUntilDone(TM);
 	if (!TestTrue(TEXT("premessa: si e' tornati in Pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning && !TM->IsResolving())
@@ -1384,8 +1378,8 @@ bool FRTEventLogRememberedWhileResolvingTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: il turno 1 ha delle righe"), RigheDelTurno1 > 0)) { return false; }
 
 	// --- 2. Il turno 2 si risolve, e per chi guarda non ha eventi: restano le righe del turno 1 -------------------------------
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: il secondo turno e' in risoluzione"), TM->IsResolving())) { return false; }
 	FRTTurnLogEntry Avvicinamento;
@@ -1535,10 +1529,9 @@ bool FRTEventLogRewritesLineWhenCountIsUnchangedTest::RunTest(const FString&)
 	// --- Un turno vero, solo per entrare in Risoluzione ------------------------------------------------------------
 	const int32 DashIdx = Dasher->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("premessa: il Guardian ha un'abilita' di scatto"), DashIdx != INDEX_NONE)) { return false; }
-	Dasher->PlannedDashAbility = DashIdx;
-	Dasher->PlannedDashCell = FRTCellId(3, 2);
-	Dasher->PlannedAbilityIndex = 0;
-	Dasher->PlannedAttackTarget = Target;
+	Dasher->SetPlannedDash(DashIdx, FRTCellId(3, 2));
+	Dasher->SetPlannedMainAction(0);
+	Dasher->DeclareAttackOnUnit(Target);
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving())) { return false; }
 

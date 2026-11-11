@@ -25,6 +25,7 @@
 #include "Components/TextBlock.h"      // UTextBlock: un oggetto concreto e leggero per le chiavi stantie
 #include "UI/HUD/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 #include "Turn/Actions/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -274,12 +275,12 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 
 	// 2. Un PERCORSO occupa il movimento e non ha un ActionId: e' la distinzione che il tipo dichiara.
 	{
-		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
 		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
 		TestTrue(TEXT("un percorso occupa il movimento"), Slots.Movement.bOccupied);
 		TestTrue(TEXT("e non lo nomina: un percorso non e' un'azione scelta"),
 			Slots.Movement.ActionId.IsNone());
-		Unit->PlannedWaypoints.Reset();
+		FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
 	}
 
 	// 3. Un'azione principale occupa la principale, e la NOMINA.
@@ -292,13 +293,13 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 		}
 		if (TestTrue(TEXT("premessa: il kit ha un'azione principale"), MainIdx != INDEX_NONE))
 		{
-			Unit->PlannedAbilityIndex = MainIdx;
+			Unit->SetPlannedMainAction(MainIdx);
 			const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
 			TestTrue(TEXT("la principale risulta occupata"), Slots.Main.bOccupied);
 			TestEqual(TEXT("e porta l'ActionId dell'azione scelta"),
 				Slots.Main.ActionId, Unit->GetAbility(MainIdx)->Def.ActionId);
 			TestFalse(TEXT("il movimento resta libero: una Main non lo tocca"), Slots.Movement.bOccupied);
-			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedMainAction();
 		}
 	}
 
@@ -314,14 +315,14 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 		Unit->Abilities.Add(Sprint);
 		const int32 SprintIdx = Unit->NumAbilities() - 1;
 
-		Unit->PlannedAbilityIndex = SprintIdx;
+		Unit->SetPlannedMainAction(SprintIdx);
 		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
 		TestTrue(TEXT("MovementAndMain occupa la principale"), Slots.Main.bOccupied);
 		TestTrue(TEXT("e ANCHE il movimento"), Slots.Movement.bOccupied);
 		TestEqual(TEXT("il movimento e' nominato dalla stessa azione"),
 			Slots.Movement.ActionId, FName(TEXT("Test.SprintLike")));
 
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedMainAction();
 		Unit->Abilities.Pop();
 	}
 
@@ -335,7 +336,7 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 		}
 		if (TestTrue(TEXT("premessa: il kit ha una reazione"), ReactionIdx != INDEX_NONE))
 		{
-			Unit->PlannedReactionAbility = ReactionIdx;
+			Unit->SetPlannedReaction(ReactionIdx);
 			const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
 			TestTrue(TEXT("la reazione risulta armata"), Slots.Reaction.bOccupied);
 			TestFalse(TEXT("e non occupa il movimento"), Slots.Movement.bOccupied);
@@ -2202,7 +2203,7 @@ bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
 	}
 
 	// --- A. la principale pianificata si vede ----------------------------------------------------------
-	Unit->PlannedAbilityIndex = 1;
+	Unit->SetPlannedMainAction(1);
 	{
 		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
 		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(1)))
@@ -2212,8 +2213,8 @@ bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
 	}
 
 	// --- B. la REAZIONE pure, e vive in un campo suo ---------------------------------------------------
-	Unit->PlannedAbilityIndex = INDEX_NONE;
-	Unit->PlannedReactionAbility = 2;
+	Unit->ClearPlannedMainAction();
+	Unit->SetPlannedReaction(2);
 	{
 		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
 		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(2)))
@@ -2356,13 +2357,13 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 		// `HasPlannedNormalMove()` e' vero — `PlannedCell != Cell || PlannedPath.Num() > 1` — e quel
 		// predicato non guarda `PlannedWaypoints`. Il gesto reale scrive entrambi, e qui si fa lo stesso:
 		// dichiarare il solo waypoint verificherebbe uno stato che `HandleClickOnCell` non produce mai.
-		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+		Unit->SetPlannedCell(FRTCellId(1, 0, 0));
 		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
 		TestEqual(TEXT("un percorso senza scelta e' il profilo neutro"),
 			Slots.MovementProfileId, URTMovementProfileLibrary::ProfileMove);
-		Unit->PlannedWaypoints.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 
 	// 3. La banda DERIVATA arriva alla vista, e il gesto che si dichiara arriva con lei.
@@ -2374,22 +2375,22 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 	{
 		// a) la banda alta, prodotta da una destinazione oltre `1x` e da nessuna dichiarazione.
 		const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
-		Unit->PlannedWaypoints.Add(FRTCellId(Oltre, 0, 0));
-		Unit->PlannedCell = FRTCellId(Oltre, 0, 0);
+		Unit->AddPlannedWaypoint(FRTCellId(Oltre, 0, 0));
+		Unit->SetPlannedCell(FRTCellId(Oltre, 0, 0));
 		const FRTUnitSlotsView Corsa = URTHudViewModel::BuildUnitSlots(Unit);
 		TestEqual(TEXT("oltre 1x la vista legge Sprint, senza che nessuno l'abbia dichiarato"),
 			Corsa.MovementProfileId, URTMovementProfileLibrary::ProfileSprint);
 		TestTrue(TEXT("e nessuno ha dichiarato niente"), Unit->PlannedMovementProfileId.IsNone());
 
 		// b) lo `Sneak` dichiarato: e' un TETTO, quindi vince sulla distanza invece di esserne prodotto.
-		Unit->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSneak;
+		Unit->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSneak);
 		const FRTUnitSlotsView Furtiva = URTHudViewModel::BuildUnitSlots(Unit);
 		TestEqual(TEXT("lo Sneak dichiarato si vede, e copre la banda"),
 			Furtiva.MovementProfileId, URTMovementProfileLibrary::ProfileSneak);
 
-		Unit->PlannedMovementProfileId = NAME_None;
-		Unit->PlannedWaypoints.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		Unit->SetPlannedMovementProfile(NAME_None);
+		FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 
 	// 4. ⛔ Non autorizzato = nessun profilo. La vista di un'unita' non comandata non si COSTRUISCE, e il
@@ -3204,38 +3205,38 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 	// --- B. la banda derivata e la dichiarazione ---------------------------------------------------------------
 	Verifica(TEXT("B: senza piano"), Lib::ProfileStill);
 
-	Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-	Unit->PlannedCell = FRTCellId(1, 0, 0);
+	Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+	Unit->SetPlannedCell(FRTCellId(1, 0, 0));
 	Verifica(TEXT("B: un passo"), Lib::ProfileMove);
-	Unit->PlannedWaypoints.Reset();
+	FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
 
 	const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
-	Unit->PlannedWaypoints.Add(FRTCellId(Oltre, 0, 0));
-	Unit->PlannedCell = FRTCellId(Oltre, 0, 0);
+	Unit->AddPlannedWaypoint(FRTCellId(Oltre, 0, 0));
+	Unit->SetPlannedCell(FRTCellId(Oltre, 0, 0));
 	const FRTMovementReadoutView Corsa = Verifica(TEXT("B: oltre 1x"), Lib::ProfileSprint);
 	TestFalse(TEXT("B: la corsa non e' dichiarata"), Corsa.bSneakDeclared);
 
-	Unit->PlannedMovementProfileId = Lib::ProfileSneak;
+	Unit->SetPlannedMovementProfile(Lib::ProfileSneak);
 	const FRTMovementReadoutView Furtiva = Verifica(TEXT("B: Sneak dichiarato"), Lib::ProfileSneak);
 	TestTrue(TEXT("B: e il badge dice che e' dichiarato"), Furtiva.bSneakDeclared);
 	TestEqual(TEXT("B: il badge porta il tasto di SneakHotkey"),
 		Furtiva.SneakKeyLabel.ToString(), FString(TEXT("M")));
 
-	Unit->PlannedMovementProfileId = NAME_None;
-	Unit->PlannedWaypoints.Reset();
-	Unit->PlannedCell = Unit->Cell;
+	Unit->SetPlannedMovementProfile(NAME_None);
+	FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
+	Unit->SetPlannedCell(Unit->Cell);
 
 	// --- C. la riserva: Overwatch impone Withdraw ([D-070]) ------------------------------------------------------
 	const int32 OverwatchIdx = HudVmKitIndexOf(Unit, TEXT("Action.Overwatch"));
 	if (TestTrue(TEXT("C: premessa — Overwatch e' nel kit"), OverwatchIdx != INDEX_NONE))
 	{
-		Unit->PlannedAbilityIndex = OverwatchIdx;
-		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		Unit->SetPlannedMainAction(OverwatchIdx);
+		Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+		Unit->SetPlannedCell(FRTCellId(1, 0, 0));
 		Verifica(TEXT("C: Overwatch armata"), Lib::ProfileWithdraw);
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedWaypoints.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		Unit->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 
 	// --- D. privacy: un soggetto ISPEZIONATO non da' nessuna lettura ---------------------------------------------
@@ -3247,9 +3248,9 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 			// Il nemico ha un piano che si leggerebbe: Sneak dichiarato e un percorso DICHIARATO — waypoint e
 			// cella, come in `SlotsCarryTheMovementProfile`, cosi' una regressione leggerebbe `Sneak` e non
 			// `Still` (osservazione della revisione di #3470).
-			Nemico->PlannedMovementProfileId = Lib::ProfileSneak;
-			Nemico->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-			Nemico->PlannedCell = FRTCellId(1, 0, 0);
+			Nemico->SetPlannedMovementProfile(Lib::ProfileSneak);
+			Nemico->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+			Nemico->SetPlannedCell(FRTCellId(1, 0, 0));
 			Spia->SetInspectedUnitForTest(Nemico);
 
 			const FRTMovementReadoutView L = Spia->GetMovementReadout();
@@ -3475,10 +3476,10 @@ bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
 		int32 VociDiMovimento = 0;
 		const auto AzzeraIlPiano = [Unit]()
 		{
-			Unit->PlannedDashAbility = INDEX_NONE;
-			Unit->PlannedAbilityIndex = INDEX_NONE;
-			Unit->PlannedReactionAbility = INDEX_NONE;
-			Unit->PlannedCell = Unit->Cell;
+			Unit->ClearPlannedDash();
+			Unit->ClearPlannedMainAction();
+			Unit->SetPlannedReaction(INDEX_NONE);
+			Unit->SetPlannedCell(Unit->Cell);
 		};
 
 		// --- 1. e 2. ogni azione: ha un nome, lo slot lo porta, e la cascata la chiama col SUO nome --------------
@@ -3507,7 +3508,7 @@ bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
 
 			// Pianificata DA SOLA: una voce, la sua, e la cascata risponde col suo nome.
 			AzzeraIlPiano();
-			Unit->PlannedAbilityIndex = i;
+			Unit->SetPlannedMainAction(i);
 			const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Unit);
 			if (TestEqual(*(Quale + TEXT(": pianificata da sola e' l'unica voce del piano")), Piano.Num(), 1)
 				&& TestTrue(*(Quale + TEXT(": e la voce porta il suo id")), Piano[0].Def.ActionId == Azione->Def.ActionId))
@@ -3567,14 +3568,14 @@ bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
 		const FRTCellId Vicina(Unit->Cell.X + 1, Unit->Cell.Y, Unit->Cell.Layer);
 		const FRTCellId Lontana(Unit->Cell.X + 6, Unit->Cell.Y, Unit->Cell.Layer);
 
-		AzzeraIlPiano(); Unit->PlannedCell = Vicina;
+		AzzeraIlPiano(); Unit->SetPlannedCell(Vicina);
 		EsaminaIlPiano(TEXT("solo movimento, un passo"));
-		AzzeraIlPiano(); Unit->PlannedCell = Lontana;
+		AzzeraIlPiano(); Unit->SetPlannedCell(Lontana);
 		EsaminaIlPiano(TEXT("solo movimento, sei passi"));
-		AzzeraIlPiano(); Unit->PlannedAbilityIndex = Sorveglianza; Unit->PlannedCell = Vicina;
+		AzzeraIlPiano(); Unit->SetPlannedMainAction(Sorveglianza); Unit->SetPlannedCell(Vicina);
 		EsaminaIlPiano(TEXT("sorveglianza e movimento"));
-		AzzeraIlPiano(); Unit->PlannedDashAbility = Scatto; Unit->PlannedAbilityIndex = Altra;
-		Unit->PlannedReactionAbility = Sorveglianza; Unit->PlannedCell = Lontana;
+		AzzeraIlPiano(); FRTUnitPlanTestAccess::SetDashAbility(*Unit, Scatto); Unit->SetPlannedMainAction(Altra);
+		Unit->SetPlannedReaction(Sorveglianza); Unit->SetPlannedCell(Lontana);
 		EsaminaIlPiano(TEXT("scatto, principale, reazione e movimento insieme"));
 
 		// Anti-vacuita' PER EROE: una somma sul roster lascerebbe che un eroe senza soggetti fosse coperto dagli altri.

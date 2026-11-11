@@ -898,8 +898,7 @@ bool FRTChecksumSeesFacingTest::RunTest(const FString&)
 	// ⛔ `PlannedFacing` NON entra: e' un intento, e vive nella pianificazione privata della squadra.
 	// Se entrasse, questo checksum renderebbe confrontabile a chiunque cio' che l'avversario ha dichiarato.
 	Unit->Facing = ERTHexDirection::E;
-	Unit->bDeclaresPlannedFacing = true;
-	Unit->PlannedFacing = ERTHexDirection::NW;
+	Unit->DeclarePlannedFacing(ERTHexDirection::NW);
 	const uint32 HashWithPlan = URTMatchStateHashLibrary::HashMatchState(
 		nullptr, URTMatchStateHashLibrary::BuildUnitDigests(Units), NoScores);
 	TestEqual(TEXT("un facing PIANIFICATO non tocca il checksum di stato"), HashWithPlan, HashEast);

@@ -91,7 +91,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		U->Facing = Facing;
 		// [D-224] Scudo a zero: qui si misura una RIDUZIONE da copertura, e lo scudo base la sommerebbe a una
 		// seconda costante rendendo l'asserto illeggibile. Stessa scelta dei test predittivi, per lo stesso motivo.
@@ -154,7 +154,7 @@ namespace
 	{
 		const int32 Index = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), SlotIndex);
 		if (Index == INDEX_NONE) { return false; }
-		Watcher->PlannedAbilityIndex = Index;
+		Watcher->SetPlannedMainAction(Index);
 		return true;
 	}
 
@@ -259,7 +259,7 @@ namespace
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.Watcher || !Out.Mover || !Out.TM) { return false; }
 
-		Out.Mover->PlannedCell = Out.MoverDest;
+		Out.Mover->SetPlannedCell(Out.MoverDest);
 		return ArmRxCellOverwatch(Out.Watcher);
 	}
 }
@@ -441,14 +441,14 @@ bool FRTOverwatchMovingWatcherFiresFromCurrentCellTest::RunTest(const FString&)
 	// La zona segue il watcher ([D-169]) e il facing resta quello dichiarato all'armamento (ADR-0005 §4c),
 	// quindi da `WatcherDest` la linea guardata e' l'altra — ed e' quella in cui il mover entra.
 	const FRTCellId WatcherDest = URTHexLibrary::Neighbor(S.WatcherStart, ERTHexDirection::SE);
-	S.Watcher->PlannedCell = WatcherDest;
+	S.Watcher->SetPlannedCell(WatcherDest);
 
 	// Il mover entra nella linea che il watcher controllera' DOPO essersi spostato. Al micro-step entrambi
 	// si muovono, e `ResolveReactionBoundary` gira a valle: le posizioni sono gia' quelle nuove.
 	const FRTCellId MoverEntry = URTHexLibrary::Neighbor(WatcherDest, ERTHexDirection::W);
 	const FRTCellId MoverOrigin = URTHexLibrary::Neighbor(MoverEntry, ERTHexDirection::NW);
 	S.Mover->PlaceOnCell(MoverOrigin, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	S.Mover->PlannedCell = MoverEntry;
+	S.Mover->SetPlannedCell(MoverEntry);
 	// Il mover guarda verso il watcher NUOVO: fuori dall'arco frontale la copertura verrebbe annullata
 	// comunque, e i due mondi collasserebbero su zero.
 	S.Mover->Facing = ERTHexDirection::E;

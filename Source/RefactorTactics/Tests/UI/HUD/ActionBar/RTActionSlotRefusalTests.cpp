@@ -37,6 +37,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Tests/Shared/RTAbilityFixtures.h" // AddCoreAbility: lo slot di reazione del pannello si prova su un'azione vera (#3636)
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -384,14 +385,13 @@ bool FRTSlotRefusalDegradedPlanTest::RunTest(const FString&)
 		&& TestNotNull(TEXT("4: premessa — un arrivo da cui il bersaglio resta colpibile"), ArrivoBuono)
 		&& TestNotNull(TEXT("4: premessa — un arrivo da cui non lo e' piu'"), ArrivoCattivo))
 	{
-		B.Mine->PlannedDashAbility = Scatto;
+		B.Mine->SetPlannedDash(Scatto, *ArrivoBuono);
 
-		B.Mine->PlannedDashCell = *ArrivoBuono;
 		TestTrue(TEXT("4: premessa — lo scatto si applica"), B.Mine->PlannedDashApplies());
 		TestFalse(TEXT("4a: uno scatto che lascia il bersaglio colpibile non degrada il piano"),
 			Riga().bPlanDegraded);
 
-		B.Mine->PlannedDashCell = *ArrivoCattivo;
+		FRTUnitPlanTestAccess::SetDashCell(*B.Mine, *ArrivoCattivo);
 		TestTrue(TEXT("4: premessa — lo scatto si applica anche qui"), B.Mine->PlannedDashApplies());
 		TestTrue(TEXT("4b: uno scatto che porta fuori tiro degrada il piano accettato dal click"),
 			Riga().bPlanDegraded);
@@ -439,7 +439,7 @@ bool FRTSlotRefusalIllegalPlanTest::RunTest(const FString&)
 		return false;
 	}
 	const FName Colpevole = B.Mine->GetAbility(ConRicarica)->Def.ActionId;
-	B.Mine->PlannedAbilityIndex = ConRicarica;
+	B.Mine->SetPlannedMainAction(ConRicarica);
 
 	// --- 1. controllo: lo stesso piano, legale ------------------------------------------------------------
 	const FRTPlanValidation Legale = URTPlanValidationLibrary::ValidatePlan(
@@ -609,7 +609,7 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedAbilityIndex = ConRicarica;
+	B.Mine->SetPlannedMainAction(ConRicarica);
 	B.Mine->ConsumeAbility(ConRicarica);
 	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
 		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
@@ -645,7 +645,7 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 	TestEqual(TEXT("4: nessun Info"), Conteggi.Info, 0);
 
 	// --- 5. Il conflitto di slot piu' comune, scatto + movimento: il perche' nomina le due azioni per nome ---------
-	B.Mine->PlannedAbilityIndex = INDEX_NONE;
+	B.Mine->ClearPlannedMainAction();
 	B.Mine->ClearPlannedAttack();
 	int32 Scatto = INDEX_NONE;
 	for (int32 i = 0; i < B.Mine->NumAbilities(); ++i)
@@ -662,10 +662,9 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedDashAbility = Scatto;
-	B.Mine->PlannedDashCell = FRTCellId(-1, 1, 0);
+	B.Mine->SetPlannedDash(Scatto, FRTCellId(-1, 1, 0));
 	// Il movimento nel piano lo dice `HasPlannedNormalMove()`: la cella pianificata, non i waypoint.
-	B.Mine->PlannedCell = FRTCellId(0, -1, 0);
+	B.Mine->SetPlannedCell(FRTCellId(0, -1, 0));
 	const FRTPlanValidation Conflitto = URTPlanValidationLibrary::ValidatePlan(
 		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
 	if (!TestFalse(TEXT("premessa: scatto + movimento e' illegale"), Conflitto.bLegal)
@@ -730,9 +729,9 @@ bool FRTPlanWarningsWidgetsTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	B.Mine->SetPlannedMainAction(MiaRicarica);
 	B.Mine->ConsumeAbility(MiaRicarica);
-	B.Nemico->PlannedAbilityIndex = SuaRicarica;
+	B.Nemico->SetPlannedMainAction(SuaRicarica);
 	B.Nemico->ConsumeAbility(SuaRicarica);
 
 	FRTPlanWarningCounts Sua;
@@ -751,9 +750,9 @@ bool FRTPlanWarningsWidgetsTest::RunTest(const FString&)
 	// --- 2. La risoluzione -----------------------------------------------------------------------------------------
 	// Un piano che si risolve davvero: l'attacco sul nemico in vista, cosi' il playback dura qualche tick.
 	B.Mine->ClearPlannedAttack();
-	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
-	B.Mine->PlannedAttackTarget = B.Nemico;
-	B.Nemico->PlannedAbilityIndex = INDEX_NONE;
+	B.Mine->SetPlannedMainAction(GSlotRefusalAttacco);
+	B.Mine->DeclareAttackOnUnit(B.Nemico);
+	B.Nemico->ClearPlannedMainAction();
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
 	{
@@ -761,7 +760,7 @@ bool FRTPlanWarningsWidgetsTest::RunTest(const FString&)
 		return false;
 	}
 	// Il piano illegale scritto DURANTE la risoluzione: la vista diretta lo vede.
-	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	B.Mine->SetPlannedMainAction(MiaRicarica);
 	if (!TestTrue(TEXT("premessa: in risoluzione la vista diretta vede un avviso"),
 			URTHudViewModel::BuildPlanWarnings(B.Mine, Units).Num() > 0))
 	{
@@ -807,8 +806,8 @@ bool FRTPlanCommitHidesInResolutionTest::RunTest(const FString&)
 	TestTrue(TEXT("in Pianificazione il riquadro c'e'"),
 		Conferma->CommitRoot->GetVisibility() != ESlateVisibility::Collapsed);
 
-	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
-	B.Mine->PlannedAttackTarget = B.Nemico;
+	B.Mine->SetPlannedMainAction(GSlotRefusalAttacco);
+	B.Mine->DeclareAttackOnUnit(B.Nemico);
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: il turno e' in risoluzione"), TM->IsResolving()))
 	{
@@ -887,9 +886,9 @@ bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedAbilityIndex = MiaRicarica;
+	B.Mine->SetPlannedMainAction(MiaRicarica);
 	B.Mine->ConsumeAbility(MiaRicarica);
-	B.Nemico->PlannedAbilityIndex = SuaRicarica;
+	B.Nemico->SetPlannedMainAction(SuaRicarica);
 	B.Nemico->ConsumeAbility(SuaRicarica);
 	const URTActionData* Azione = B.Mine->GetAbility(MiaRicarica);
 
@@ -974,8 +973,8 @@ bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedWaypoints.Add(GSlotRefusalInVista);
-	B.Mine->PlannedReactionAbility = Contro;
+	B.Mine->AddPlannedWaypoint(GSlotRefusalInVista);
+	B.Mine->SetPlannedReaction(Contro);
 	P->RefreshLook();
 	const FRTUnitSlotsView ConPercorso = P->GetSlots();
 	TestTrue(TEXT("2b: premessa: il movimento e' un percorso, senza azione"),
@@ -987,8 +986,8 @@ bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
 	TestFalse(TEXT("2b: REAZIONE occupata non dice «—»"), Reazione.Equals(TEXT("—"), ESearchCase::CaseSensitive));
 	TestFalse(*FString::Printf(TEXT("2b: e non dice l'id grezzo (reso: «%s»)"), *Reazione), Reazione.Contains(TEXT("Action.")));
 	TestTrue(TEXT("2b: con la striscia della reazione"), P->ReactionChipStrip->GetBrushColor().Equals(ColoreDiFase(ERTActionPhaseMark::Reaction)));
-	B.Mine->PlannedWaypoints.Reset();
-	B.Mine->PlannedReactionAbility = INDEX_NONE;
+	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
+	B.Mine->SetPlannedReaction(INDEX_NONE);
 
 	// --- 3. L'ispezionata: un piano ce l'ha, ma il pannello non ne porta niente ----------------------------------------
 	FRTPlanWarningCounts Sua;
@@ -1023,16 +1022,16 @@ bool FRTPanelChipsAndWarningsTest::RunTest(const FString&)
 		return false;
 	}
 	B.Mine->ClearPlannedAttack();
-	B.Mine->PlannedAbilityIndex = GSlotRefusalAttacco;
-	B.Mine->PlannedAttackTarget = B.Nemico;
-	B.Nemico->PlannedAbilityIndex = INDEX_NONE;
+	B.Mine->SetPlannedMainAction(GSlotRefusalAttacco);
+	B.Mine->DeclareAttackOnUnit(B.Nemico);
+	B.Nemico->ClearPlannedMainAction();
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("4: premessa: il turno e' in risoluzione"), TM->IsResolving()))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedAbilityIndex = MiaRicarica; // la vista diretta vedrebbe un avviso: il pannello deve tacere lo stesso
+	B.Mine->SetPlannedMainAction(MiaRicarica); // la vista diretta vedrebbe un avviso: il pannello deve tacere lo stesso
 	P->RefreshLook(/*bRecountWarnings=*/ false);
 	TestTrue(TEXT("4: premessa: gli slot della comandata restano autorizzati — la causa e' la Risoluzione"), P->GetSlots().bAuthorized);
 	TestFalse(TEXT("4: in Risoluzione i chip si chiudono"), Visibile(P->PlanChipsBox));
@@ -1073,8 +1072,8 @@ bool FRTPanelSubjectCardTest::RunTest(const FString&)
 	const int32 MiaGuardia = RTAbilityFixtures::AddCoreAbility(B.Mine, TEXT("Action.Overwatch"));
 	const int32 SuaGuardia = RTAbilityFixtures::AddCoreAbility(B.Nemico, TEXT("Action.Overwatch"));
 	if (!TestTrue(TEXT("premessa: entrambe hanno l'Overwatch"), MiaGuardia != INDEX_NONE && SuaGuardia != INDEX_NONE)) { return false; }
-	B.Mine->PlannedAbilityIndex = MiaGuardia;
-	B.Nemico->PlannedAbilityIndex = SuaGuardia;
+	B.Mine->SetPlannedMainAction(MiaGuardia);
+	B.Nemico->SetPlannedMainAction(SuaGuardia);
 	// Il piano dell'avversaria ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento del passo 3
 	// sarebbe vero per caso.
 	if (!TestTrue(TEXT("premessa: il piano dell'avversaria arma una reazione"), URTHudViewModel::BuildUnitSlots(B.Nemico).bReactionArmed))

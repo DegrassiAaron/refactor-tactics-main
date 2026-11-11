@@ -74,7 +74,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin()); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo: i test guardano il Blast, non il movimento
+		U->SetPlannedCell(Cell); // fermo: i test guardano il Blast, non il movimento
 		return U;
 	}
 
@@ -137,11 +137,11 @@ bool FRTReactionSingleActivationTest::RunTest(const FString&)
 	}
 
 	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedReactionAbility = CounterIdx;
-	Reactor->PlannedAbilityIndex = INDEX_NONE; // niente azione principale: solo la reazione, pronta
+	Reactor->SetPlannedReaction(CounterIdx);
+	Reactor->ClearPlannedMainAction(); // niente azione principale: solo la reazione, pronta
 
-	Attacker->PlannedAbilityIndex = 0; // attacco base (Ranger.Shot, colpo singolo)
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0); // attacco base (Ranger.Shot, colpo singolo)
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunReactionTurn(TM);
 
@@ -176,8 +176,8 @@ bool FRTReactionNoTriggerLoggedTest::RunTest(const FString&)
 	}
 
 	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedReactionAbility = CounterIdx;
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(CounterIdx);
+	Reactor->ClearPlannedMainAction();
 
 	RunReactionTurn(TM);
 
@@ -213,13 +213,13 @@ bool FRTReactionMultipleTriggersStillOnceTest::RunTest(const FString&)
 	}
 
 	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedReactionAbility = CounterIdx;
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(CounterIdx);
+	Reactor->ClearPlannedMainAction();
 
-	AttackerA->PlannedAbilityIndex = 0;
-	AttackerA->PlannedAttackTarget = Reactor;
-	AttackerB->PlannedAbilityIndex = 0;
-	AttackerB->PlannedAttackTarget = Reactor;
+	AttackerA->SetPlannedMainAction(0);
+	AttackerA->DeclareAttackOnUnit(Reactor);
+	AttackerB->SetPlannedMainAction(0);
+	AttackerB->DeclareAttackOnUnit(Reactor);
 
 	RunReactionTurn(TM);
 
@@ -251,19 +251,19 @@ bool FRTReactionSprintBlocksTest::RunTest(const FString&)
 	}
 
 	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Sprinter, TEXT("Action.Counter"), 3);
-	Sprinter->PlannedReactionAbility = CounterIdx;
+	Sprinter->SetPlannedReaction(CounterIdx);
 
 	URTActionData* Sprint = NewObject<URTActionData>(Sprinter);
 	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	Sprinter->Abilities.Add(Sprint);
-	Sprinter->PlannedDashAbility = Sprinter->Abilities.Num() - 1;
-	Sprinter->PlannedDashCell = FRTCellId(1, 0); // scatto breve, resta a tiro dell'attaccante
-	Sprinter->PlannedAbilityIndex = INDEX_NONE;
-	Sprinter->PlannedCell = Sprinter->Cell;
+	Sprinter->SetPlannedDash(Sprinter->Abilities.Num() - 1, FRTCellId(1, 0));
+	 // scatto breve, resta a tiro dell'attaccante
+	Sprinter->ClearPlannedMainAction();
+	Sprinter->SetPlannedCell(Sprinter->Cell);
 
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Sprinter;
-	Attacker->PlannedCell = Attacker->Cell;
+	Attacker->SetPlannedMainAction(0);
+	Attacker->DeclareAttackOnUnit(Sprinter);
+	Attacker->SetPlannedCell(Attacker->Cell);
 
 	const int32 SaluteIniziale = Sprinter->Health;
 
@@ -306,13 +306,13 @@ bool FRTReactionSprintBlocksTest::RunTest(const FString&)
 	// proprieta'. Stessa unita', stesso colpo, senza Sprint: la reazione DEVE scattare. E' la disciplina di
 	// `Actions.Sprint.AppliesExposed`, che per la stessa ragione misura l'effetto con e senza.
 	Sprinter->ApplyCombatState(SaluteIniziale, Sprinter->Shield);
-	Sprinter->PlannedReactionAbility = CounterIdx;
-	Sprinter->PlannedDashAbility = INDEX_NONE; // niente Sprint, questa volta: e' l'unica differenza
-	Sprinter->PlannedAbilityIndex = INDEX_NONE;
-	Sprinter->PlannedCell = Sprinter->Cell;
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Sprinter;
-	Attacker->PlannedCell = Attacker->Cell;
+	Sprinter->SetPlannedReaction(CounterIdx);
+	Sprinter->ClearPlannedDash(); // niente Sprint, questa volta: e' l'unica differenza
+	Sprinter->ClearPlannedMainAction();
+	Sprinter->SetPlannedCell(Sprinter->Cell);
+	Attacker->SetPlannedMainAction(0);
+	Attacker->DeclareAttackOnUnit(Sprinter);
+	Attacker->SetPlannedCell(Attacker->Cell);
 
 	// ⚠️ E la controprova verifica la PROPRIA premessa: se il contrattacco fosse in ricarica, il verde
 	// sotto sarebbe un falso negativo dello stesso tipo che questa controprova esiste per escludere.
@@ -500,10 +500,10 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
 
-		Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-		Reactor->PlannedAbilityIndex = INDEX_NONE;
-		Attacker->PlannedAbilityIndex = 0;
-		Attacker->PlannedAttackTarget = Reactor;
+		Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
+		Reactor->ClearPlannedMainAction();
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
 		RunReactionTurn(TM);
 
 		const int32 Attivate = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated);
@@ -528,14 +528,14 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
 
-	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
+	Reactor->ClearPlannedMainAction();
 
 	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.
 	Reactor->ReactionActivationsThisTurn = 1;
 
-	Attacker->PlannedAbilityIndex = 0; // stesso colpo diretto della premessa
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0); // stesso colpo diretto della premessa
+	Attacker->DeclareAttackOnUnit(Reactor);
 	RunReactionTurn(TM);
 
 	TestEqual(TEXT("la seconda attivazione e' bloccata"),

@@ -119,12 +119,12 @@ namespace
 			return false;
 		}
 
-		Out.Scudo->PlannedAbilityIndex = RigaAttIndice(Out.Scudo, RigaAttTideGuard);
-		Out.Scudo->PlannedCell = Out.Scudo->Cell;
-		Out.Tiratore->PlannedAbilityIndex = 0;
-		Out.Tiratore->PlannedAttackTarget = Out.Bersaglio;
-		Out.Tiratore->PlannedCell = Out.Tiratore->Cell;
-		Out.Bersaglio->PlannedCell = Out.Bersaglio->Cell;
+		Out.Scudo->SetPlannedMainAction(RigaAttIndice(Out.Scudo, RigaAttTideGuard));
+		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
+		Out.Tiratore->SetPlannedMainAction(0);
+		Out.Tiratore->DeclareAttackOnUnit(Out.Bersaglio);
+		Out.Tiratore->SetPlannedCell(Out.Tiratore->Cell);
+		Out.Bersaglio->SetPlannedCell(Out.Bersaglio->Cell);
 
 		const URTActionData* AbilityTiratore = Out.Tiratore->GetAbility(0);
 		return Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->PlannedAbilityIndex != INDEX_NONE)
@@ -214,9 +214,9 @@ namespace
 	{
 		ARTUnit* Guardia = RigaAttSpawn(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Cell);
 		if (!Guardia) { return nullptr; }
-		Guardia->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3);
+		Guardia->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3));
 		Guardia->Facing = ERTHexDirection::W; // nessuno a ovest: niente da intercettare
-		Guardia->PlannedCell = Guardia->Cell;
+		Guardia->SetPlannedCell(Guardia->Cell);
 		return Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Guardia->PlannedAbilityIndex != INDEX_NONE)
 			? Guardia : nullptr;
 	}
@@ -230,13 +230,10 @@ namespace
 		const FRTCellId& CellaCopertura)
 	{
 		Geniere->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(HeroBranth->HeroId));
-		Geniere->PlannedAbilityIndex = RigaAttIndice(Geniere, RigaAttPortableCover);
-		Geniere->PlannedAttackTarget = nullptr;
-		Geniere->PlannedAttackCell = CellaCopertura;
-		Geniere->bAttackTargetsCell = true;
-		Geniere->PlannedCoverEdge = ERTHexDirection::W;
-		Geniere->bHasPlannedCoverEdge = true;
-		Geniere->PlannedCell = Geniere->Cell;
+		Geniere->SetPlannedMainAction(RigaAttIndice(Geniere, RigaAttPortableCover));
+		Geniere->DeclareAttackOnCell(CellaCopertura);
+		Geniere->DeclarePlannedCoverEdge(ERTHexDirection::W);
+		Geniere->SetPlannedCell(Geniere->Cell);
 		return Test.TestTrue(TEXT("⛔ premessa: il loadout di default di Branth concede Gadget.PortableCover"),
 			Geniere->PlannedAbilityIndex != INDEX_NONE);
 	}
@@ -444,9 +441,9 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("⛔ premessa: (1,0) e' un vicino di (0,0)"), Bordo != INDEX_NONE)) { return false; }
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 0), static_cast<ERTHexDirection>(Bordo), ERTHexCoverType::High, 100);
 
-		Nemico->PlannedAbilityIndex = RigaAttIndice(Nemico, RigaAttPulseShot);
-		Nemico->PlannedAttackTarget = Branth;
-		Nemico->PlannedCell = Nemico->Cell;
+		Nemico->SetPlannedMainAction(RigaAttIndice(Nemico, RigaAttPulseShot));
+		Nemico->DeclareAttackOnUnit(Branth);
+		Nemico->SetPlannedCell(Nemico->Cell);
 		if (!TestTrue(TEXT("⛔ premessa: l'Ivrin pianifica PulseShot"), Nemico->PlannedAbilityIndex != INDEX_NONE)
 			|| !RigaAttPianificaCopertura(*this, Branth, HeroBranth, FRTCellId(4, 0)))
 		{
@@ -611,13 +608,12 @@ namespace
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Mover || !Out.Guardia || !Out.Scudo) { return false; }
 
-		Out.Guardia->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Out.Guardia, TEXT("Action.Overwatch"), 3);
+		Out.Guardia->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Out.Guardia, TEXT("Action.Overwatch"), 3));
 		Out.Guardia->Facing = ERTHexDirection::W;
-		Out.Guardia->PlannedCell = Out.Guardia->Cell;
-		Out.Mover->PlannedCell = FRTCellId(2, 0);
-		Out.Scudo->PlannedCell = Out.Scudo->Cell;
-		Out.Scudo->PlannedAbilityIndex = RigaAttIndice(Out.Scudo, RigaAttTideGuard);
+		Out.Guardia->SetPlannedCell(Out.Guardia->Cell);
+		Out.Mover->SetPlannedCell(FRTCellId(2, 0));
+		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
+		Out.Scudo->SetPlannedMainAction(RigaAttIndice(Out.Scudo, RigaAttTideGuard));
 		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->PlannedAbilityIndex != INDEX_NONE)
 			|| !Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->PlannedAbilityIndex != INDEX_NONE))
 		{
@@ -819,14 +815,13 @@ namespace
 		if (!Out.TM || !Out.Bracer || !Out.Pusher || !Out.Scattista) { return false; }
 
 		Out.Bracer->ReactionProfileId = TEXT("Profile.Sidestep"); // senza, la cardinalita' e' 1 e nessuna finestra e' dovuta
-		Out.Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Out.Bracer, TEXT("Action.Brace"), 3);
-		Out.Bracer->PlannedCell = Out.Bracer->Cell;
-		Out.Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Out.Pusher, TEXT("Action.Push"), 3);
-		Out.Pusher->PlannedAttackTarget = Out.Bracer;
-		Out.Pusher->PlannedCell = Out.Pusher->Cell;
-		Out.Scattista->PlannedDashAbility = RigaAttIndice(Out.Scattista, RigaAttFluidTrail);
-		Out.Scattista->PlannedDashCell = FRTCellId(-1, 3);
-		Out.Scattista->PlannedCell = Out.Scattista->Cell;
+		Out.Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Out.Bracer, TEXT("Action.Brace"), 3));
+		Out.Bracer->SetPlannedCell(Out.Bracer->Cell);
+		Out.Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Out.Pusher, TEXT("Action.Push"), 3));
+		Out.Pusher->DeclareAttackOnUnit(Out.Bracer);
+		Out.Pusher->SetPlannedCell(Out.Pusher->Cell);
+		Out.Scattista->SetPlannedDash(RigaAttIndice(Out.Scattista, RigaAttFluidTrail), FRTCellId(-1, 3));
+		Out.Scattista->SetPlannedCell(Out.Scattista->Cell);
 		if (!Test.TestTrue(TEXT("⛔ premessa: il Bracer pianifica Action.Brace"), Out.Bracer->PlannedAbilityIndex != INDEX_NONE)
 			|| !Test.TestTrue(TEXT("⛔ premessa: il Pusher pianifica Action.Push"), Out.Pusher->PlannedAbilityIndex != INDEX_NONE)
 			|| !Test.TestTrue(TEXT("⛔ premessa: la Scattista pianifica la scia"), Out.Scattista->PlannedDashAbility != INDEX_NONE))

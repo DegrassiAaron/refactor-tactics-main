@@ -40,6 +40,7 @@
 #include "Turn/Playback/RTPlanPreview.h"         // [D-516]: la timeline del piano posata sulla mappa
 #include "Perception/RTEnemyArcLibrary.h"   // [D-528]: l'arco di un nemico sotto il cursore, che la carica armata non mostra
 #include "Perception/Veil/RTVisibilityBorder.h"  // [D-528]: i lati esposti con cui si costruisce un arco di prova
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -221,13 +222,13 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	const int32 LenTwo = Unit->PlannedPath.Num();
 
 	// Un annullamento: un waypoint in meno e percorso piu' corto.
-	Unit->PlannedWaypoints.Pop();
+	Unit->PopPlannedWaypoint();
 	PC->RebuildPlannedPathForTest();
 	TestEqual(TEXT("un waypoint dopo l'annullamento"), Unit->PlannedWaypoints.Num(), 1);
 	TestTrue(TEXT("il percorso si e' accorciato"), Unit->PlannedPath.Num() < LenTwo);
 
 	// Annullando l'ultimo: nessun movimento pianificato.
-	Unit->PlannedWaypoints.Pop();
+	Unit->PopPlannedWaypoint();
 	PC->RebuildPlannedPathForTest();
 	TestEqual(TEXT("nessun percorso pianificato"), Unit->PlannedPath.Num(), 0);
 	TestTrue(TEXT("la destinazione torna la cella attuale"), Unit->PlannedCell == Unit->Cell);
@@ -346,10 +347,10 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	TestTrue(TEXT("sotto Root il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
 	Charger->RemoveStatus(TAG_Status_Root);
 	PC->DispatchUnitClickForTest(Alleata, Charger);
-	Charger->bDeclaresPlannedFacing = true;
+	FRTUnitPlanTestAccess::SetDeclaresFacing(*Charger, true);
 	PC->DispatchUnitClickForTest(Enemy, Charger);
 	TestTrue(TEXT("col verso dichiarato il nemico si ispeziona"), PC->GetInspectedUnit() == Enemy);
-	Charger->bDeclaresPlannedFacing = false;
+	Charger->RetractPlannedFacing();
 	PC->DispatchUnitClickForTest(Alleata, Charger);
 
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
@@ -436,7 +437,7 @@ bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 		PC->IsFacingLegalForPlan(Charger, ERTHexDirection::NE));
 
 	// (3) La retta e' BLOCCATA da un terreno che nega la corsa: la carica e' rifiutata, e il nemico non si ispeziona.
-	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->ClearPlannedDash();
 	MakeInteractionRough(MapActor->MapAsset, FRTCellId(-3, 4, 0));
 	PC->SelectActorForTest(Charger);
 	Charger->SelectAbility(ChargeIdx);
@@ -540,13 +541,13 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 	PC->DispatchUnitClickForTest(Lontano, Charger);
 	TestTrue(TEXT("un nemico oltre la portata dietro un nemico noto entro la portata si pianifica ([D-528])"),
 		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Lontano->Cell);
-	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->ClearPlannedDash();
 	Charger->SelectAbility(ChargeIdx);
 	PC->DispatchUnitClickForTest(Vicino, Charger);
 	TestTrue(TEXT("controllo: il vicino, in portata, si carica"),
 		Charger->PlannedDashAbility == ChargeIdx && Charger->PlannedDashCell == Vicino->Cell);
 	// Si toglie il piano. Vicino e lontano stanno sulla diagonale SE, fuori dalla retta E del caso qui sotto.
-	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->ClearPlannedDash();
 	Charger->SelectAbility(ChargeIdx);
 
 	// Il caso della regola.
@@ -673,7 +674,7 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 		Arena->ContainsCell(Bloccata) && !Arena->FindCell(Bloccata)->bBlocksMovement
 		&& URTHexLibrary::HexDistance(Unit->Cell, Bloccata) == 3
 		&& !URTMovementActionLibrary::IsStraightLine(Unit->Cell, Bloccata, Distanza));
-	Unit->PlannedDashAbility = INDEX_NONE;
+	Unit->ClearPlannedDash();
 	Unit->SelectAbility(DashIdx); // riarmato: il click precedente puo' aver lasciato lo stato neutro
 	PC->HandleClickOnCell(Bloccata);
 	TestEqual(TEXT("una retta che passa da un muro non diventa un piano di scatto"),
@@ -696,7 +697,7 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	verify(URTHexLibrary::DirectionBetween(PrimaDelBordo, Aligned, Lato));
 	auto ClickConBordo = [&](auto&& PosaIlBordo) -> bool
 	{
-		Unit->PlannedDashAbility = INDEX_NONE;
+		Unit->ClearPlannedDash();
 		Unit->SelectAbility(DashIdx);
 		PosaIlBordo();
 		PC->HandleClickOnCell(Aligned);
@@ -1219,7 +1220,7 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 	// `ARTPlayerController::SelectAbilityForCurrent` (da `#3833` non piu' nei gestori di click come
 	// `HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al lock-in deve
 	// intercettare quando quel rifiuto non si e' applicato.
-	U->PlannedAbilityIndex = PanelIdx;
+	U->SetPlannedMainAction(PanelIdx);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -1311,9 +1312,8 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 			DestroyInteractionWorld(World);
 			return false;
 		}
-		U->PlannedDashAbility = DashIdx;
-		U->PlannedDashCell = FRTCellId(U->Cell.X, U->Cell.Y + 1);
-		U->PlannedCell = FRTCellId(U->Cell.X, U->Cell.Y + 2); // il movimento normale che rende il piano illegale
+		U->SetPlannedDash(DashIdx, FRTCellId(U->Cell.X, U->Cell.Y + 1));
+		U->SetPlannedCell(FRTCellId(U->Cell.X, U->Cell.Y + 2)); // il movimento normale che rende il piano illegale
 	}
 
 	TM->LockInAndResolve();
@@ -1950,7 +1950,7 @@ bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
 		PC->SelectUnit(Mia); // la strada vera, quella che `OnSelect` prende dopo il raycast
 		E.bSelezionata = (PC->GetSelectedUnit() == Mia);
 
-		Mia->PlannedWaypoints.Reset();
+		FRTUnitPlanTestAccess::ResetWaypoints(*Mia);
 		PC->HandleClickOnCell(Destinazione);
 		E.Waypoint = Mia->PlannedWaypoints.Num();
 		return E;
@@ -1974,9 +1974,9 @@ bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
 	//
 	// Ferma fra i due turni, la stessa destinazione resta valida per entrambi: e' cio' che rende i due
 	// esiti confrontabili.
-	Mia->PlannedWaypoints.Reset();
-	Mia->PlannedPath.Reset();
-	Mia->PlannedCell = Mia->Cell;
+	FRTUnitPlanTestAccess::ResetWaypoints(*Mia);
+	FRTUnitPlanTestAccess::ResetPath(*Mia);
+	Mia->SetPlannedCell(Mia->Cell);
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 	{
@@ -2145,7 +2145,7 @@ bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
 
 	PC->SelectActorForTest(Chi);
 	Chi->SelectAbility(INDEX_NONE); // movimento normale, non scatto: il ramo in esame e' quello dei waypoint
-	Occupante->PlannedCell = Occupante->Cell; // FERMA: e' l'occupazione, non una contesa
+	Occupante->SetPlannedCell(Occupante->Cell); // FERMA: e' l'occupazione, non una contesa
 
 	PC->HandleClickOnCell(Occupata);
 
@@ -2251,7 +2251,7 @@ bool FRTUndeclaredMoveDoesNotDeclareADenialTest::RunTest(const FString&)
 	// non selezionasse l'unita', proverebbe che un controller inerte non scrive nulla — vero e inutile.
 	PC->SelectActorForTest(Chi);
 	Chi->SelectAbility(INDEX_NONE);
-	Occupante->PlannedCell = Occupante->Cell;
+	Occupante->SetPlannedCell(Occupante->Cell);
 
 	// Nessun `HandleClickOnCell`: e' l'unica differenza rispetto al caso B.
 	if (!TestEqual(TEXT("premessa: nessun waypoint dichiarato"), Chi->PlannedWaypoints.Num(), 0))
@@ -2328,7 +2328,7 @@ bool FRTWaypointOnAnOccupantDoesNotDenyTest::RunTest(const FString&)
 
 	PC->SelectActorForTest(Chi);
 	Chi->SelectAbility(INDEX_NONE);
-	Occupante->PlannedCell = Occupante->Cell;
+	Occupante->SetPlannedCell(Occupante->Cell);
 
 	// 🔴 **LA SEQUENZA REALE DEL GIOCATORE E' CAMBIATA** ([D-446]). Era: *prova il varco occupato, se
 	// lo vede negare, e ripiega* — due clic di cui il primo veniva **scartato**, e il banco misurava che il
@@ -3740,7 +3740,7 @@ bool FRTEditedPlanIsNotResurrectedTest::RunTest(const FString&)
 	}
 
 	// Il giocatore tocca il piano dopo il troncamento.
-	B.Unit->PlannedWaypoints.Pop();
+	B.Unit->PopPlannedWaypoint();
 	const int32 Modificato = B.Unit->PlannedWaypoints.Num();
 
 	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
@@ -3792,12 +3792,12 @@ bool FRTOneCeilingDoesNotGiveBackTheOthersTest::RunTest(const FString&)
 	const TArray<FRTCellId> DopoLoSneak = { FRTCellId(-3, 0, 0), FRTCellId(-2, 0, 0) };
 
 	// Lo `Sneak` tronca: il piano passa da quattro waypoint a due, e la memoria porta i quattro.
-	B.Unit->PlannedWaypoints = DopoLoSneak;
+	FRTUnitPlanTestAccess::SetWaypoints(*B.Unit, DopoLoSneak);
 	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelloSneak);
 
 	// Poi la riserva tronca ancora: da due a uno, e la memoria porta i DUE - cioe' il piano gia' sgusciato.
 	const TArray<FRTCellId> DopoLaRiserva = { FRTCellId(-3, 0, 0) };
-	B.Unit->PlannedWaypoints = DopoLaRiserva;
+	FRTUnitPlanTestAccess::SetWaypoints(*B.Unit, DopoLaRiserva);
 	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileWithdraw, DopoLoSneak);
 
 	// 🔴 Disarmare restituisce il piano dello `Sneak`, non quello di partenza.
@@ -3834,7 +3834,7 @@ bool FRTWrongCeilingDoesNotEatTheMemoryTest::RunTest(const FString&)
 
 	const TArray<FRTCellId> Intero = {
 		FRTCellId(-3, 0, 0), FRTCellId(-2, 0, 0), FRTCellId(-1, 0, 0) };
-	B.Unit->PlannedWaypoints = { FRTCellId(-3, 0, 0) };
+	FRTUnitPlanTestAccess::SetWaypoints(*B.Unit, { FRTCellId(-3, 0, 0) });
 	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, Intero);
 
 	// Il tetto SBAGLIATO per primo: non restituisce...
@@ -3951,7 +3951,7 @@ bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
 	}
 
 	// Un lato dichiarato, come lo lascerebbe un'azione su bordo: il disarmo deve spegnere anche quello.
-	B.Unit->bHasPlannedCoverEdge = true;
+	FRTUnitPlanTestAccess::SetHasCoverEdge(*B.Unit, true);
 
 	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
 
@@ -4704,7 +4704,7 @@ bool FRTPlayerChargeInTheWayTest::RunTest(const FString&)
 	}
 
 	// (5) Il controllo positivo: A cliccato, a contatto. Stesso punto d'arresto, nessun avviso, nessun rosso.
-	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->ClearPlannedDash();
 	PC->SelectActorForTest(Charger);
 	Charger->SelectAbility(ChargeIdx);
 	PC->DispatchUnitClickForTest(A, Charger);
@@ -4903,11 +4903,11 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestFalse(TEXT("e non lo scrive nel piano"), Charger->bDeclaresPlannedFacing);
 	// Controllo positivo: senza una carica pianificata, un movimento in marcia manda il click sulla sua cella finale al selettore.
 	const int32 DashSalvato = Charger->PlannedDashAbility;
-	Charger->PlannedDashAbility = INDEX_NONE;
-	Charger->PlannedPath = { Charger->Cell, FRTCellId(0, -1, 0) };
+	Charger->ClearPlannedDash();
+	FRTUnitPlanTestAccess::SetPath(*Charger, { Charger->Cell, FRTCellId(0, -1, 0) });
 	TestTrue(TEXT("controllo: in marcia il click sulla cella finale va al selettore"), PC->FacingHandlesClickOnFinalCell(Charger));
-	Charger->PlannedPath.Reset();
-	Charger->PlannedDashAbility = DashSalvato;
+	FRTUnitPlanTestAccess::ResetPath(*Charger);
+	FRTUnitPlanTestAccess::SetDashAbility(*Charger, DashSalvato);
 
 	// Un click su un ALTRO nemico ripianifica: non e' un secondo click.
 	PC->DispatchUnitClickForTest(Secondo, Charger);
@@ -5041,7 +5041,7 @@ bool FRTPlayerChargeHoverTest::RunTest(const FString&)
 				&& Annuncio.DashStyle == ERTMovementStyle::LinearCharge);
 		}
 		// Si toglie il piano: il caso dopo parte da una carica armata e non ancora pianificata.
-		Charger->PlannedDashAbility = INDEX_NONE;
+		Charger->ClearPlannedDash();
 		Charger->SelectAbility(ChargeIdx);
 		return Annuncio;
 	};
@@ -5075,7 +5075,7 @@ bool FRTPlayerChargeHoverTest::RunTest(const FString&)
 	TestTrue(TEXT("gia' pianificata: l'hover non lo punta"), PC->HoveredArmedChargeTarget() == nullptr);
 	MapActor->SetHoveredCell(Dietro->Cell, true);
 	TestTrue(TEXT("ma un altro nemico si'"), PC->HoveredArmedChargeTarget() == Dietro);
-	Charger->PlannedDashAbility = INDEX_NONE;
+	Charger->ClearPlannedDash();
 
 	// Carica non armata.
 	Charger->SelectAbility(INDEX_NONE);

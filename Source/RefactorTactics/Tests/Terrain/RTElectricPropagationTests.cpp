@@ -117,7 +117,7 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	};
 
@@ -135,8 +135,8 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 
 	// `Action.Electrify` sostituisce lo scatto (indice 3): `AbilityCooldowns` non si allarga da solo.
 	RTAbilityFixtures::AddCoreAbilityInSlot(Caster, TEXT("Action.Electrify"), 3);
-	Caster->PlannedAbilityIndex = 3;
-	Caster->PlannedAttackTarget = Target;
+	Caster->SetPlannedMainAction(3);
+	Caster->DeclareAttackOnUnit(Target);
 
 	const int32 TargetBefore = Target->Health;
 	const int32 BystanderBefore = Bystander->Health;
@@ -213,7 +213,7 @@ bool FRTElectrifiedIsInstantLabelTest::RunTest(const FString&)
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	};
 
@@ -230,8 +230,8 @@ bool FRTElectrifiedIsInstantLabelTest::RunTest(const FString&)
 	}
 
 	RTAbilityFixtures::AddCoreAbilityInSlot(Caster, TEXT("Action.Electrify"), 3);
-	Caster->PlannedAbilityIndex = 3;
-	Caster->PlannedAttackTarget = Target;
+	Caster->SetPlannedMainAction(3);
+	Caster->DeclareAttackOnUnit(Target);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }

@@ -437,7 +437,7 @@ namespace
 		Unit->bIsBotControlled = false;
 		Unit->DispatchBeginPlay();
 		Unit->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		Unit->PlannedCell = Cell; // fermo: si misura la mira e il Blast, non il movimento
+		Unit->SetPlannedCell(Cell); // fermo: si misura la mira e il Blast, non il movimento
 		return Unit;
 	}
 

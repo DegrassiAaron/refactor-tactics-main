@@ -18,6 +18,7 @@
 #include "UI/HUD/RTHudViewModel.h"     // FRTAbilityCooldownView: le viste vengono dal dock, non da qui
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -648,12 +649,12 @@ bool FRTSneakBadgeParityTest::RunTest(const FString&)
 	}
 	if (TestTrue(TEXT("C: premessa — Overwatch e' nel kit"), OverwatchIdx != INDEX_NONE))
 	{
-		Unit->PlannedAbilityIndex = OverwatchIdx;
+		Unit->SetPlannedMainAction(OverwatchIdx);
 		Dock->ToggleSneak();
 		TestTrue(TEXT("C: con lo slot riservato il click non dichiara"), Unit->PlannedMovementProfileId.IsNone());
 		PC->ToggleSneakForTest();
 		TestTrue(TEXT("C: ed e' lo stesso rifiuto del tasto"), Unit->PlannedMovementProfileId.IsNone());
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedMainAction();
 	}
 
 	// D. senza controller il badge non fa nulla e non crolla
@@ -710,10 +711,10 @@ bool FRTPlanCommitParityTest::RunTest(const FString&)
 
 	// C. Annulla e il tasto smontano lo stesso livello del Back, dallo stesso stato
 	const TArray<FRTCellId> Piano = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
-	Unit->PlannedWaypoints = Piano;
+	FRTUnitPlanTestAccess::SetWaypoints(*Unit, Piano);
 	W->Undo();
 	const TArray<FRTCellId> DopoIlPulsante = Unit->PlannedWaypoints;
-	Unit->PlannedWaypoints = Piano;
+	FRTUnitPlanTestAccess::SetWaypoints(*Unit, Piano);
 	PC->OnUndoWaypointForTest();
 	const TArray<FRTCellId> DopoIlTasto = Unit->PlannedWaypoints;
 	TestTrue(TEXT("C: premessa — il Back ha smontato qualcosa"), DopoIlPulsante.Num() < Piano.Num());

@@ -512,10 +512,8 @@ bool FRTBlindFirePolicyReachesTheIntentTest::RunTest(const FString&)
 		Azione->Def.LineOfSightPolicy = Policy;
 
 		// Il piano e' quello che `HandleTargetCell` scrive: cella dichiarata, nessun bersaglio-unita'.
-		Shooter->PlannedAbilityIndex = Idx;
-		Shooter->PlannedAttackTarget = nullptr;
-		Shooter->PlannedAttackCell = FRTCellId(2, 0, 0);
-		Shooter->bAttackTargetsCell = true;
+		Shooter->SetPlannedMainAction(Idx);
+		Shooter->DeclareAttackOnCell(FRTCellId(2, 0, 0));
 
 		const int32 PrimaHP = Foe->Health;
 		const int32 PrimaScudo = Foe->Shield;
@@ -708,8 +706,8 @@ bool FRTBlindFireUnknownUnitStaysUntargetableTest::RunTest(const FString&)
 	}
 
 	// ── E da ignoto, no. Nemmeno adesso che esiste una policy che apre il tiro al buio.
-	B.Mine->PlannedAttackTarget = nullptr;
-	B.Mine->PlannedAbilityIndex = INDEX_NONE;
+	B.Mine->ClearPlannedAttack();
+	B.Mine->ClearPlannedMainAction();
 	Nemico->SetKnownToObserver(false);
 	B.PC->HandleClickOnUnitForTest(Nemico);
 	TestNull(TEXT("un'unita' ignota non diventa un bersaglio"), (void*)B.Mine->PlannedAttackTarget.Get());
@@ -818,7 +816,7 @@ bool FRTBlindFireVolumeAppearsInAGameTurnTest::RunTest(const FString&)
 
 	// Il piano e' quello che `HandleTargetCell` scrive: cella dichiarata, nessun bersaglio-unita'.
 	const FRTCellId Bersaglio(2, 0, 0);
-	Caster->PlannedAbilityIndex = Idx;
+	Caster->SetPlannedMainAction(Idx);
 	Caster->DeclareAttackOnCell(Bersaglio);
 
 	// ── Un turno INTERO, non una chiamata al velo: e' il punto del test.

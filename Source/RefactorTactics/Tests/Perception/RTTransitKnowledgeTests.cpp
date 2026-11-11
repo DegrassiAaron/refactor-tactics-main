@@ -133,7 +133,7 @@ bool FRTTransitRemembersTheCorridorTest::RunTest(const FString&)
 	const int32 Vista = Mover->VisionRange;
 
 	// Una rotta lunga, verso EST: la direzione opposta a quella in cui l'unita' sta guardando adesso.
-	Mover->PlannedCell = FRTCellId(0, 0);
+	Mover->SetPlannedCell(FRTCellId(0, 0));
 
 	RunTransitTurn(TM);
 
@@ -207,7 +207,7 @@ bool FRTTransitStandingStillAddsNothingTest::RunTest(const FString&)
 	if (!HexMap || !Fermo || !TM) { DestroyTransitWorld(World); return false; }
 
 	const URTHexMapAsset* Map = HexMap->MapAsset;
-	Fermo->PlannedCell = Fermo->Cell; // nessun movimento pianificato
+	Fermo->SetPlannedCell(Fermo->Cell); // nessun movimento pianificato
 
 	RunTransitTurn(TM);
 
@@ -260,8 +260,8 @@ bool FRTTransitDoesNotCreateContactsTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!HexMap || !Mover || !Nemico || !TM) { DestroyTransitWorld(World); return false; }
 
-	Mover->PlannedCell = FRTCellId(0, 0);
-	Nemico->PlannedCell = Nemico->Cell;
+	Mover->SetPlannedCell(FRTCellId(0, 0));
+	Nemico->SetPlannedCell(Nemico->Cell);
 
 	RunTransitTurn(TM);
 
@@ -319,7 +319,7 @@ bool FRTTransitDoesNotEnterTheStateHashTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!HexMap || !Mover || !TM) { DestroyTransitWorld(World); return false; }
 
-	Mover->PlannedCell = FRTCellId(0, 0);
+	Mover->SetPlannedCell(FRTCellId(0, 0));
 	RunTransitTurn(TM);
 
 	const TArray<ARTUnit*> Unita = { Mover };

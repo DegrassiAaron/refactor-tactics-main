@@ -75,7 +75,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
+		U->SetPlannedCell(Cell); // fermo: questi test guardano il Blast
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -166,13 +166,13 @@ bool FRTMultiEffectReactionTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = SetCompReaction(Reactor, Capacitor);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(SetCompReaction(Reactor, Capacitor));
+	Reactor->ClearPlannedMainAction();
 
 	const int32 ReactorBefore = Reactor->Health;
 	const int32 AttackerBefore = Attacker->Health;
-	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo da 25
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0); // attacco base, colpo singolo da 25
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunCompTurn(TM);
 
@@ -226,11 +226,11 @@ bool FRTHeroReactionIdentityTest::RunTest(const FString&)
 	TestTrue(TEXT("e occupa lo slot Reazione"), Deflection->Def.Slot == ERTActionSlot::Reaction);
 
 	const int32 ReactionIndex = SetCompReaction(Reactor, Deflection);
-	Reactor->PlannedReactionAbility = ReactionIndex;
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(ReactionIndex);
+	Reactor->ClearPlannedMainAction();
 
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0);
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunCompTurn(TM);
 
@@ -286,12 +286,12 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 		const FRTActionDef CoreDeflect = URTCatalogLibrary::FindCoreAction(TEXT("Action.Deflect"));
 		URTActionData* Reaction = URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(
 			FName(ActionId), TEXT("Action.Deflect"), CoreDeflect.CooldownTurns, CoreDeflect.Effects);
-		Reactor->PlannedReactionAbility = SetCompReaction(Reactor, Reaction);
-		Reactor->PlannedAbilityIndex = INDEX_NONE;
+		Reactor->SetPlannedReaction(SetCompReaction(Reactor, Reaction));
+		Reactor->ClearPlannedMainAction();
 
 		const int32 Before = Reactor->Health;
-		Attacker->PlannedAbilityIndex = 0;
-		Attacker->PlannedAttackTarget = Reactor;
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
 
 		RunCompTurn(TM);
 		const int32 Damage = Before - Reactor->Health;

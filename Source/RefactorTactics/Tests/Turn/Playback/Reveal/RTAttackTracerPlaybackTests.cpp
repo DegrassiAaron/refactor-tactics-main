@@ -47,16 +47,16 @@ namespace
 		ARTUnit* Bersaglio = SpawnBattitoUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Branth || !Bersaglio) { return nullptr; }
-		Branth->PlannedAbilityIndex = 0;
-		Branth->PlannedAttackTarget = Bersaglio;
-		Branth->PlannedCell = bConMove ? FRTCellId(1, 3) : Branth->Cell;
+		Branth->SetPlannedMainAction(0);
+		Branth->DeclareAttackOnUnit(Bersaglio);
+		Branth->SetPlannedCell(bConMove ? FRTCellId(1, 3) : Branth->Cell);
 		if (bDue)
 		{
 			ARTUnit* Aevik = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, 4));
 			if (!Aevik) { return nullptr; }
-			Aevik->PlannedAbilityIndex = 0;
-			Aevik->PlannedAttackTarget = Bersaglio;
-			Aevik->PlannedCell = Aevik->Cell;
+			Aevik->SetPlannedMainAction(0);
+			Aevik->DeclareAttackOnUnit(Bersaglio);
+			Aevik->SetPlannedCell(Aevik->Cell);
 		}
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
@@ -78,9 +78,9 @@ namespace
 		if (!TM || !Branth || !Ivrin) { return nullptr; }
 		Branth->Facing = ERTHexDirection::E;
 		Ivrin->Facing = ERTHexDirection::E;
-		Branth->PlannedAbilityIndex = 0; // Hero.Branth.ImpactShot, Single, portata 3
-		Branth->PlannedAttackTarget = Ivrin;
-		Branth->PlannedCell = Branth->Cell;
+		Branth->SetPlannedMainAction(0); // Hero.Branth.ImpactShot, Single, portata 3
+		Branth->DeclareAttackOnUnit(Ivrin);
+		Branth->SetPlannedCell(Branth->Cell);
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
@@ -100,9 +100,9 @@ namespace
 		if (!TM || !Muiren || !Ivrin) { return nullptr; }
 		Muiren->Facing = ERTHexDirection::E;
 		Ivrin->Facing = ERTHexDirection::E;
-		Muiren->PlannedAbilityIndex = 0; // Hero.Muiren.PressureJet, Line, portata 5
-		Muiren->PlannedAttackTarget = Ivrin;
-		Muiren->PlannedCell = Muiren->Cell;
+		Muiren->SetPlannedMainAction(0); // Hero.Muiren.PressureJet, Line, portata 5
+		Muiren->DeclareAttackOnUnit(Ivrin);
+		Muiren->SetPlannedCell(Muiren->Cell);
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}

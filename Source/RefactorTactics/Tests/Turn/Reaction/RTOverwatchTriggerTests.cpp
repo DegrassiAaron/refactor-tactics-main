@@ -52,6 +52,7 @@
 #include "Map/Actor/RTHexMapActor.h"
 #include "Tests/Shared/RTAbilityFixtures.h"          // [D-411]: `Action.Overwatch` e `Action.Sprint` installati come in partita
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2560,7 +2561,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		U->Facing = Facing;
 		return U;
 	}
@@ -2577,7 +2578,7 @@ namespace
 		if (!S.Watcher || !S.TM) { return false; }
 		const int32 Idx = RTAbilityFixtures::AddCoreAbilityInSlot(S.Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
 		if (Idx == INDEX_NONE) { return false; }
-		S.Watcher->PlannedAbilityIndex = Idx; // armare costa l'azione PRINCIPALE (catalogo §1)
+		S.Watcher->SetPlannedMainAction(Idx); // armare costa l'azione PRINCIPALE (catalogo §1)
 		return true;
 	}
 
@@ -2586,9 +2587,9 @@ namespace
 	{
 		ARTUnit* U = SpawnCadenzaUnit(S.World, 1, Path[0], ERTHexDirection::W);
 		if (!U) { return nullptr; }
-		U->PlannedAbilityIndex = INDEX_NONE;
-		U->PlannedPath = Path;
-		U->PlannedCell = Path.Last();
+		U->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::SetPath(*U, Path);
+		U->SetPlannedCell(Path.Last());
 		return U;
 	}
 
@@ -2804,8 +2805,8 @@ bool FRTOverwatchSprintThroughTheLineAsksOnceTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(S.World);
 		return false;
 	}
-	Corridore->PlannedAbilityIndex = INDEX_NONE;
-	Corridore->PlannedCell = FRTCellId(1, 0, 0);
+	Corridore->ClearPlannedMainAction();
+	Corridore->SetPlannedCell(FRTCellId(1, 0, 0));
 	const int32 Base = Corridore->GetEffectiveMoveRange();
 
 	const TSharedRef<FCadenzaDomande> Domande = LegaCadenzaDecisore(S.TM,

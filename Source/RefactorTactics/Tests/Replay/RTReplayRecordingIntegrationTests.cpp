@@ -21,6 +21,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -611,8 +612,8 @@ bool FRTReplayCostlyTerrainRoundTripTest::RunTest(const FString&)
 	TM->DispatchBeginPlay();
 
 	// Il mover attraversa la cella cara e prosegue: due archi, di cui uno da tre micro-step.
-	Mover->PlannedPath = { FRTCellId(-1, 0, 0), Costosa, FRTCellId(1, 0, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0, 0);
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(-1, 0, 0), Costosa, FRTCellId(1, 0, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0, 0));
 
 	// ⚠️ `ResolveMovement` e' `protected`. La terna pubblica — `Begin`/`Advance`/`Finish` — **e' cio' che
 	// quella funzione esegue**, e non una seconda implementazione: guidarla a mano da qui e' la stessa

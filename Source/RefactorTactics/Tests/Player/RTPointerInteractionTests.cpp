@@ -30,6 +30,7 @@
 #include "UI/HUD/RTHudViewModel.h"       // BuildAbilityCooldowns: cio' che il dock applica alla selezione (#2988)
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1204,8 +1205,7 @@ bool FRTDashFacingBudgetTest::RunTest(const FString&)
 	// Lo scatto si scrive sul piano direttamente: il soggetto e' il giudizio del verso, non la pianificazione dello
 	// scatto, che ha i suoi test.
 	const FRTCellId Arrivo = URTHexLibrary::Neighbor(URTHexLibrary::Neighbor(Unit->Cell, ERTHexDirection::E), ERTHexDirection::E);
-	Unit->PlannedDashAbility = Scatto;
-	Unit->PlannedDashCell = Arrivo;
+	Unit->SetPlannedDash(Scatto, Arrivo);
 	TestEqual(TEXT("la cella del verso e' l'arrivo dello scatto"), PC->FacingCellFor(Unit), Arrivo);
 
 	const ERTHexDirection Accanto = static_cast<ERTHexDirection>((static_cast<uint8>(ERTHexDirection::E) + 1) % 6);
@@ -1581,7 +1581,7 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	// 🔴 **Un percorso che CURVA**, cosi' il primo passo e l'ultimo NON coincidono: e' l'unico caso in cui
 	// l'assert distingue «guarda dove parte» da «guarda dove arrivera'». Su un percorso dritto le due
 	// risposte sono la stessa, e il test non proverebbe niente.
-	Unit->PlannedPath = { FRTCellId(0, 0, 0), FRTCellId(0, 1, 0), FRTCellId(1, 1, 0) };
+	FRTUnitPlanTestAccess::SetPath(*Unit, { FRTCellId(0, 0, 0), FRTCellId(0, 1, 0), FRTCellId(1, 1, 0) });
 
 	ERTHexDirection PrimoPasso = Unit->Facing;
 	TestTrue(TEXT("il primo passo ha una direzione"),
@@ -1656,10 +1656,9 @@ bool FRTPointerHoverNeverCommitsTest::RunTest(const FString&)
 
 	// LO STATO DECISO: le quattro cose che `#1614` elenca nella propria DoD.
 	Unit->Cell = FRTCellId(0, 0, 0);
-	Unit->PlannedWaypoints = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
-	Unit->PlannedAttackCell = FRTCellId(2, -1, 0);
-	Unit->bDeclaresPlannedFacing = true;
-	Unit->PlannedFacing = ERTHexDirection::NE;
+	FRTUnitPlanTestAccess::SetWaypoints(*Unit, { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) });
+	FRTUnitPlanTestAccess::SetAttackCell(*Unit, FRTCellId(2, -1, 0));
+	Unit->DeclarePlannedFacing(ERTHexDirection::NE);
 
 	const TArray<FRTCellId> WaypointsBefore = Unit->PlannedWaypoints;
 	const FRTCellId AttackBefore = Unit->PlannedAttackCell;
@@ -2461,13 +2460,12 @@ namespace
 
 		if (bWithPlan)
 		{
-			B.Mine->PlannedWaypoints.Add(FRTCellId(0, 0, 0));
-			B.Mine->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-			B.Mine->PlannedAbilityIndex = 0;
-			B.Mine->PlannedAttackTarget = B.Pinned;
-			B.Mine->PlannedAttackCell = FRTCellId(2, 0, 0);
-			B.Mine->bDeclaresPlannedFacing = true;
-			B.Mine->PlannedFacing = ERTHexDirection::SE;
+			B.Mine->AddPlannedWaypoint(FRTCellId(0, 0, 0));
+			B.Mine->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+			B.Mine->SetPlannedMainAction(0);
+			B.Mine->DeclareAttackOnUnit(B.Pinned);
+			FRTUnitPlanTestAccess::SetAttackCell(*B.Mine, FRTCellId(2, 0, 0));
+			B.Mine->DeclarePlannedFacing(ERTHexDirection::SE);
 		}
 
 		const FGcFootprint Start = GcCapture(B);

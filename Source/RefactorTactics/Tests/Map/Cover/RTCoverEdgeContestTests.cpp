@@ -243,7 +243,7 @@ namespace
 		Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		Unit->PlannedCell = Cell;
+		Unit->SetPlannedCell(Cell);
 		return Unit;
 	}
 
@@ -287,12 +287,9 @@ namespace
 	/** Il piano di una struttura di bordo: bersaglio-CELLA piu' il bordo, che a portata 3 non e' derivabile dalla coppia di celle. */
 	void CoverTieWritePlan(ARTUnit* Unit, const FRTCellId& AimCell, ERTHexDirection Edge)
 	{
-		Unit->PlannedAbilityIndex = CoverTieSlot;
-		Unit->PlannedAttackTarget = nullptr;
-		Unit->PlannedAttackCell = AimCell;
-		Unit->bAttackTargetsCell = true;
-		Unit->PlannedCoverEdge = Edge;
-		Unit->bHasPlannedCoverEdge = true;
+		Unit->SetPlannedMainAction(CoverTieSlot);
+		Unit->DeclareAttackOnCell(AimCell);
+		Unit->DeclarePlannedCoverEdge(Edge);
 	}
 
 	/** `Action.CreateCover` del catalogo core: erige, con l'integrita' di default per due turni. */

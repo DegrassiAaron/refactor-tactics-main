@@ -19,6 +19,7 @@
 #include "Unit/RTUnit.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -162,8 +163,7 @@ namespace
 			return false;
 		}
 
-		B.Mine->PlannedDashAbility = B.Scatto;
-		B.Mine->PlannedDashCell = GAimOriginScatto;
+		B.Mine->SetPlannedDash(B.Scatto, GAimOriginScatto);
 		return Test.TestTrue(TEXT("banco: lo scatto pianificato si applica"), B.Mine->PlannedDashApplies())
 			&& Test.TestFalse(TEXT("banco: e non e' una carica"), B.Mine->PlannedDashIsCharge());
 	}
@@ -580,16 +580,14 @@ bool FRTAimOriginChargeStaysOutTest::RunTest(const FString&)
 	}
 
 	// CONTROLLO — uno scatto che non e' una carica sposta l'origine di un Attack.
-	Muiren->PlannedDashAbility = Scia;
-	Muiren->PlannedDashCell = GAimOriginScatto;
+	Muiren->SetPlannedDash(Scia, GAimOriginScatto);
 	TestTrue(TEXT("controllo: lo scatto di Muiren si applica"), Muiren->PlannedDashApplies());
 	TestFalse(TEXT("controllo: e non e' una carica"), Muiren->PlannedDashIsCharge());
 	TestEqual(TEXT("controllo: un Attack di Muiren mira da dove lo scatto arriva"),
 		Muiren->AimOriginFor(ERTResolutionPhase::Attack), GAimOriginScatto);
 
 	// IL CUORE — la carica: si applica, e da li' non si mira.
-	Branth->PlannedDashAbility = Ariete;
-	Branth->PlannedDashCell = Bersaglio;
+	Branth->SetPlannedDash(Ariete, Bersaglio);
 	TestTrue(TEXT("la carica di Branth si applica"), Branth->PlannedDashApplies());
 	TestTrue(TEXT("ed e' riconosciuta come carica"), Branth->PlannedDashIsCharge());
 	TestEqual(TEXT("ma un Attack di Branth mira dalla cella corrente"),
@@ -632,10 +630,9 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
 	}
-	B.Mine->PlannedReactionAbility = Reazione;
-	B.Mine->PlannedAbilityIndex = B.Getto;
-	B.Mine->bAttackTargetsCell = true;
-	B.Mine->PlannedAttackCell = FRTCellId(-3, 0, 0);
+	B.Mine->SetPlannedReaction(Reazione);
+	B.Mine->SetPlannedMainAction(B.Getto);
+	B.Mine->DeclareAttackOnCell(FRTCellId(-3, 0, 0));
 	B.PC->SelectAbilityForCurrentForTest(B.Getto);
 	// La corsa va da (-1,0,0) a (2,0,0), quindi l'ultimo passo e' verso E. A fine corsa a budget il cono del verso
 	// e' di `MoveEndPivotMaxSteps` passi (Muiren: 2) attorno a E, e W, l'opposto, ne resta fuori; da fermo ogni verso
@@ -779,11 +776,11 @@ bool FRTAimOriginStunnedWalkDoesNotMoveTheFacingCellTest::RunTest(const FString&
 		return false;
 	}
 	// Nessuno scatto: un Move pianificato di due celle verso est, la forma che il controller scrive dopo un click.
-	B.Mine->PlannedDashAbility = INDEX_NONE;
+	B.Mine->ClearPlannedDash();
 	const FRTCellId Meta(1, 0, 0);
-	B.Mine->PlannedPath = { GAimOriginQui, FRTCellId(0, 0, 0), Meta };
-	B.Mine->PlannedWaypoints = { Meta };
-	B.Mine->PlannedCell = Meta;
+	FRTUnitPlanTestAccess::SetPath(*B.Mine, { GAimOriginQui, FRTCellId(0, 0, 0), Meta });
+	FRTUnitPlanTestAccess::SetWaypoints(*B.Mine, { Meta });
+	B.Mine->SetPlannedCell(Meta);
 	B.PC->SelectAbilityForCurrentForTest(B.Getto); // ridisegna l'anteprima
 	TestTrue(TEXT("premessa: il Move e' pianificato"), B.Mine->HasPlannedNormalMove());
 

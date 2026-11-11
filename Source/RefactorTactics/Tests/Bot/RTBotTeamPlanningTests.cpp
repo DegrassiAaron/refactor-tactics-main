@@ -189,7 +189,7 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = bBot;
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 }
@@ -477,9 +477,8 @@ bool FRTLockInValidatesBotPlansTooTest::RunTest(const FString&)
 	// Il piano incoerente: scatto piu' movimento normale, due azioni sullo slot Movimento. Le due celle
 	// sono DIVERSE di proposito: con la stessa cella, dopo lo scatto `Cell == PlannedCell` e il movimento
 	// normale diventa un no-op, quindi il turno non distinguerebbe piu' quale delle due azioni ha vinto.
-	Bot->PlannedDashAbility = DashIdx;
-	Bot->PlannedDashCell = CellaScatto;
-	Bot->PlannedCell = CellaMovimento;
+	Bot->SetPlannedDash(DashIdx, CellaScatto);
+	Bot->SetPlannedCell(CellaMovimento);
 	if (!TestTrue(TEXT("premessa: il piano dichiara un movimento normale"), Bot->HasPlannedNormalMove())
 		|| !TestTrue(TEXT("premessa: il piano non e' vuoto, quindi il validatore non lo salta"),
 			URTPlanValidationLibrary::MakePlanFor(Bot).Num() > 0))
@@ -529,7 +528,7 @@ bool FRTLockInStaysSilentOnALegalBotPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	Bot->PlannedCell = FRTCellId(-2, 1, 0); // un movimento e basta: nessuno scatto, nessun conflitto di slot
+	Bot->SetPlannedCell(FRTCellId(-2, 1, 0)); // un movimento e basta: nessuno scatto, nessun conflitto di slot
 
 	// (!) **Le premesse contro la vacuita', e non sono decorative**: `ValidatePlansAtLockIn` salta le unita'
 	// con un piano VUOTO (`if (Plan.Num() == 0) continue`). Senza queste tre righe, il giorno in cui il piano

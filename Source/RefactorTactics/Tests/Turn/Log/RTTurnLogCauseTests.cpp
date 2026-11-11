@@ -18,6 +18,7 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTEquipmentData.h" // `Reaction.Anchor` arriva dal catalogo equipaggiamento (CP 7.5, #505)
 #include "Turn/Reaction/RTReactionLibrary.h"  // ERTReactionOutcome: la voce dell'ancora dev'essere `Activated`
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -129,8 +130,8 @@ bool FRTCombatEntryNamesItsActionTest::RunTest(const FString&)
 	}
 
 	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-	Pusher->PlannedAbilityIndex = PushIdx;
-	Pusher->PlannedAttackTarget = PushVictim;
+	Pusher->SetPlannedMainAction(PushIdx);
+	Pusher->DeclareAttackOnUnit(PushVictim);
 
 	// Un'azione con identita' d'eroe, cosi' le due voci non possono essere confuse fra loro.
 	URTActionData* Shot = NewObject<URTActionData>(Shooter);
@@ -143,11 +144,11 @@ bool FRTCombatEntryNamesItsActionTest::RunTest(const FString&)
 	Shot->RangeCells = 4;
 	Shot->Power = 12;
 	Shooter->Abilities.Add(Shot);
-	Shooter->PlannedAbilityIndex = Shooter->Abilities.Num() - 1;
-	Shooter->PlannedAttackTarget = ShotVictim;
+	Shooter->SetPlannedMainAction(Shooter->Abilities.Num() - 1);
+	Shooter->DeclareAttackOnUnit(ShotVictim);
 
-	PushVictim->PlannedCell = PushVictim->Cell;
-	ShotVictim->PlannedCell = ShotVictim->Cell;
+	PushVictim->SetPlannedCell(PushVictim->Cell);
+	ShotVictim->SetPlannedCell(ShotVictim->Cell);
 
 	RunCauseTurn(TM);
 
@@ -220,9 +221,9 @@ bool FRTDisplacementHasCauseAndSourceTest::RunTest(const FString&)
 
 	Victim->PushResistance = 0; // la soglia deve cedere, o non c'e' spostamento da registrare
 	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-	Pusher->PlannedAbilityIndex = PushIdx;
-	Pusher->PlannedAttackTarget = Victim;
-	Victim->PlannedCell = Victim->Cell; // non si muove di sua volonta': cio' che accade e' solo la spinta
+	Pusher->SetPlannedMainAction(PushIdx);
+	Pusher->DeclareAttackOnUnit(Victim);
+	Victim->SetPlannedCell(Victim->Cell); // non si muove di sua volonta': cio' che accade e' solo la spinta
 
 	RunCauseTurn(TM);
 
@@ -320,14 +321,14 @@ bool FRTPushAndPullKeepTheirOwnCauseTest::RunTest(const FString&)
 	Victim->PushResistance = 0;
 
 	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-	Pusher->PlannedAbilityIndex = PushIdx;
-	Pusher->PlannedAttackTarget = Victim;
+	Pusher->SetPlannedMainAction(PushIdx);
+	Pusher->DeclareAttackOnUnit(Victim);
 
 	const int32 PullIdx = RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull"));
-	Puller->PlannedAbilityIndex = PullIdx;
-	Puller->PlannedAttackTarget = Victim;
+	Puller->SetPlannedMainAction(PullIdx);
+	Puller->DeclareAttackOnUnit(Victim);
 
-	Victim->PlannedCell = Victim->Cell;
+	Victim->SetPlannedCell(Victim->Cell);
 
 	RunCauseTurn(TM);
 
@@ -391,10 +392,9 @@ bool FRTDashLeavesAMoveEntryTest::RunTest(const FString&)
 	URTActionData* Dash = NewObject<URTActionData>(Runner);
 	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
-	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
+	Runner->SetPlannedDash(Runner->Abilities.Num() - 1, FRTCellId(3, 0));
 
-	Walker->PlannedCell = FRTCellId(1, 3);
+	Walker->SetPlannedCell(FRTCellId(1, 3));
 
 	RunCauseTurn(TM);
 
@@ -471,9 +471,9 @@ bool FRTBasicAttackProfilePairInLogTest::RunTest(const FString&)
 	Shot->Power = 12;
 	Attacker->Abilities.Add(Shot);
 
-	Attacker->PlannedAbilityIndex = Attacker->Abilities.Num() - 1;
-	Attacker->PlannedAttackTarget = Victim;
-	Victim->PlannedCell = Victim->Cell;
+	Attacker->SetPlannedMainAction(Attacker->Abilities.Num() - 1);
+	Attacker->DeclareAttackOnUnit(Victim);
+	Victim->SetPlannedCell(Victim->Cell);
 
 	RunCauseTurn(TM);
 
@@ -528,11 +528,11 @@ namespace
 	void PlanPushOn(ARTUnit* Pusher, ARTUnit* Victim)
 	{
 		if (!Pusher || !Victim) { return; }
-		Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-		Pusher->PlannedAttackTarget = Victim;
-		Pusher->PlannedCell = Pusher->Cell;
+		Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push")));
+		Pusher->DeclareAttackOnUnit(Victim);
+		Pusher->SetPlannedCell(Pusher->Cell);
 		Victim->PushResistance = 0; // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
-		Victim->PlannedCell = Victim->Cell;
+		Victim->SetPlannedCell(Victim->Cell);
 	}
 
 	/**
@@ -544,11 +544,11 @@ namespace
 	void PlanPullOn(ARTUnit* Puller, ARTUnit* Victim)
 	{
 		if (!Puller || !Victim) { return; }
-		Puller->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull"));
-		Puller->PlannedAttackTarget = Victim;
-		Puller->PlannedCell = Puller->Cell;
+		Puller->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull")));
+		Puller->DeclareAttackOnUnit(Victim);
+		Puller->SetPlannedCell(Puller->Cell);
 		Victim->PushResistance = 0; // stessa dichiarazione di `PlanPushOn`
-		Victim->PlannedCell = Victim->Cell;
+		Victim->SetPlannedCell(Victim->Cell);
 	}
 }
 
@@ -702,8 +702,8 @@ bool FRTGuardAndBraceAreDistinguishableInTheLogTest::RunTest(const FString&)
 	// Le difese si pianificano, non si iniettano: `Action.Guard` e `Action.Brace` sono azioni di controllo che
 	// risolvono prima del knockback, quindi lo stato c'e' quando la spinta lo interroga. `PlanPushOn` ha gia'
 	// scritto `PlannedCell`; qui si aggiunge l'abilita' e la si sceglie.
-	Guarder->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Guarder, TEXT("Action.Guard"));
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Bracer, TEXT("Action.Brace"));
+	Guarder->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Guarder, TEXT("Action.Guard")));
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Bracer, TEXT("Action.Brace")));
 
 	RunCauseTurn(TM);
 
@@ -973,7 +973,7 @@ bool FRTAnchorCancelsPushTest::RunTest(const FString&)
 		Reazione->Def.Slot == ERTActionSlot::Reaction
 		&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::AboutToBeDisplaced);
 	Victim->Abilities.Add(Reazione);
-	Victim->PlannedReactionAbility = Victim->Abilities.Num() - 1;
+	Victim->SetPlannedReaction(Victim->Abilities.Num() - 1);
 
 	PlanPushOn(Pusher, Victim);
 	RunCauseTurn(TM);
@@ -1043,7 +1043,7 @@ bool FRTAnchorCancelsPushTest::RunTest(const FString&)
 
 		URTActionData* Reazione2 = URTCatalogLibrary::MakeEquipmentAction(Anchor, Victim2);
 		Victim2->Abilities.Add(Reazione2);
-		Victim2->PlannedReactionAbility = Victim2->Abilities.Num() - 1;
+		Victim2->SetPlannedReaction(Victim2->Abilities.Num() - 1);
 
 		PlanPushOn(Left, Victim2);
 		PlanPushOn(Right, Victim2);
@@ -1112,7 +1112,7 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 	{
 		URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Cleanse, Unit);
 		Unit->Abilities.Add(Reazione);
-		Unit->PlannedReactionAbility = Unit->Abilities.Num() - 1;
+		Unit->SetPlannedReaction(Unit->Abilities.Num() - 1);
 		return Reazione;
 	};
 
@@ -1120,10 +1120,10 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 	// muove affatto) sia lo Slow (si muove meno).
 	auto PlanLongRun = [](ARTUnit* Unit)
 	{
-		Unit->PlannedWaypoints = { FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) };
-		Unit->PlannedPath = { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) };
-		Unit->PlannedCell = FRTCellId(0, 4);
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		FRTUnitPlanTestAccess::SetWaypoints(*Unit, { FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) });
+		FRTUnitPlanTestAccess::SetPath(*Unit, { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) });
+		Unit->SetPlannedCell(FRTCellId(0, 4));
+		Unit->ClearPlannedMainAction();
 	};
 
 	auto WasActivated = [](const ARTTurnManager* TM)
@@ -1149,9 +1149,9 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 		if (!Rooter || !Victim || !TM) { DestroyCauseWorld(World); return false; }
 
-		Rooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-		Rooter->PlannedAttackTarget = Victim;
-		Rooter->PlannedCell = Rooter->Cell;
+		Rooter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root")));
+		Rooter->DeclareAttackOnUnit(Victim);
+		Rooter->SetPlannedCell(Rooter->Cell);
 		PlanLongRun(Victim);
 		RunCauseTurn(TM);
 
@@ -1180,9 +1180,9 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 			Reazione->Def.Slot == ERTActionSlot::Reaction
 			&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::AboutToReceiveControl);
 
-		Rooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-		Rooter->PlannedAttackTarget = Victim;
-		Rooter->PlannedCell = Rooter->Cell;
+		Rooter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root")));
+		Rooter->DeclareAttackOnUnit(Victim);
+		Rooter->SetPlannedCell(Rooter->Cell);
 		PlanLongRun(Victim);
 		RunCauseTurn(TM);
 
@@ -1209,12 +1209,12 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 		if (!Rooter || !Slower || !Victim || !TM) { DestroyCauseWorld(World); return false; }
 
 		EquipCleanse(Victim);
-		Rooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-		Rooter->PlannedAttackTarget = Victim;
-		Rooter->PlannedCell = Rooter->Cell;
-		Slower->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Slower, TEXT("Action.Slow"));
-		Slower->PlannedAttackTarget = Victim;
-		Slower->PlannedCell = Slower->Cell;
+		Rooter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root")));
+		Rooter->DeclareAttackOnUnit(Victim);
+		Rooter->SetPlannedCell(Rooter->Cell);
+		Slower->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Slower, TEXT("Action.Slow")));
+		Slower->DeclareAttackOnUnit(Victim);
+		Slower->SetPlannedCell(Slower->Cell);
 		PlanLongRun(Victim);
 		RunCauseTurn(TM);
 
@@ -1243,9 +1243,9 @@ bool FRTCleanseCancelsControlTest::RunTest(const FString&)
 		// sotto test e' la REAZIONE, non il modo in cui lo stato ci e' finito.
 		Victim->ApplyStatus(TAG_Status_Root, /*Turni*/ 3);
 
-		Rooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-		Rooter->PlannedAttackTarget = Victim;
-		Rooter->PlannedCell = Rooter->Cell;
+		Rooter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root")));
+		Rooter->DeclareAttackOnUnit(Victim);
+		Rooter->SetPlannedCell(Rooter->Cell);
 		PlanLongRun(Victim);
 		RunCauseTurn(TM);
 

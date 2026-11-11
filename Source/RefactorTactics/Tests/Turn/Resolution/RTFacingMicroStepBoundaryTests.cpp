@@ -33,6 +33,7 @@
 #include "Turn/Log/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -77,7 +78,7 @@ namespace
 		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		U->Facing = Facing;
 		return U;
 	}
@@ -87,7 +88,7 @@ namespace
 	{
 		const int32 Index = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), SlotIndex);
 		if (Index == INDEX_NONE) { return false; }
-		Watcher->PlannedAbilityIndex = Index;
+		Watcher->SetPlannedMainAction(Index);
 		return true;
 	}
 
@@ -197,10 +198,9 @@ bool FRTFacingFinalPivotIsNotRetroactiveTest::RunTest(const FString&)
 		return false;
 	}
 
-	Mover->PlannedPath = { MoverStart, MoverEntry, MoverBeyond };
-	Mover->PlannedCell = MoverBeyond;
-	Mover->bDeclaresPlannedFacing = true;
-	Mover->PlannedFacing = ERTHexDirection::W;
+	FRTUnitPlanTestAccess::SetPath(*Mover, { MoverStart, MoverEntry, MoverBeyond });
+	Mover->SetPlannedCell(MoverBeyond);
+	Mover->DeclarePlannedFacing(ERTHexDirection::W);
 
 	if (!TestTrue(TEXT("l'Overwatch si arma"), ArmMsFacingOverwatch(Watcher)))
 	{
@@ -308,12 +308,12 @@ bool FRTOverwatchTriggerReadsMicroStepFacingTest::RunTest(const FString&)
 		{
 			// (3,4) -> (3,3) e' un passo `NW`: al boundary l'alleato guarda lungo la colonna e (3,0) gli
 			// cade davanti a distanza 3. Con il facing di PIAZZAMENTO (`E`) non ci cadrebbe.
-			Ally->PlannedPath = { AllyStart, AllySeat };
-			Ally->PlannedCell = AllySeat;
+			FRTUnitPlanTestAccess::SetPath(*Ally, { AllyStart, AllySeat });
+			Ally->SetPlannedCell(AllySeat);
 		}
 
-		OutTarget->PlannedPath = { TargetStart, TargetEntry };
-		OutTarget->PlannedCell = TargetEntry;
+		FRTUnitPlanTestAccess::SetPath(*OutTarget, { TargetStart, TargetEntry });
+		OutTarget->SetPlannedCell(TargetEntry);
 
 		if (!ArmMsFacingOverwatch(Watcher)) { return false; }
 		BindMsFacingFireDecider(OutTM);

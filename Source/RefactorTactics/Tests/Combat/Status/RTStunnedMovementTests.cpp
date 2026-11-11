@@ -56,6 +56,7 @@
 #include "Turn/Log/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -89,7 +90,7 @@ namespace RTStunnedMovementTestsInternal
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		// (0,0) e' una cella VERA: senza questa riga ogni unita' senza piano pianifica un movimento verso l'origine.
-		Unit->PlannedCell = Cell;
+		Unit->SetPlannedCell(Cell);
 		Unit->Shield = 0;
 		return Unit;
 	}
@@ -98,10 +99,10 @@ namespace RTStunnedMovementTestsInternal
 	void Stand(ARTUnit* Unit)
 	{
 		if (!Unit) { return; }
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedDashAbility = INDEX_NONE;
-		Unit->PlannedPath.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		Unit->ClearPlannedMainAction();
+		Unit->ClearPlannedDash();
+		FRTUnitPlanTestAccess::ResetPath(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 
 	void RunTurn(ARTTurnManager* TM)
@@ -175,18 +176,16 @@ namespace RTStunnedMovementTestsInternal
 		Azione->RangeCells = Def.RangeCells;
 		Azione->Power = 0;
 		Stunner->Abilities.Add(Azione);
-		Stunner->PlannedAbilityIndex = Stunner->Abilities.Num() - 1;
+		Stunner->SetPlannedMainAction(Stunner->Abilities.Num() - 1);
 		if (AtCell)
 		{
-			Stunner->PlannedAttackTarget = nullptr;
-			Stunner->PlannedAttackCell = *AtCell;
-			Stunner->bAttackTargetsCell = true;
+			Stunner->DeclareAttackOnCell(*AtCell);
 		}
 		else
 		{
-			Stunner->PlannedAttackTarget = Victim;
+			Stunner->DeclareAttackOnUnit(Victim);
 		}
-		Stunner->PlannedCell = Stunner->Cell;
+		Stunner->SetPlannedCell(Stunner->Cell);
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -360,9 +359,9 @@ namespace RTStunnedMovementTestsInternal
 		Azione->CooldownTurns = TestCooldown;
 
 		if (bStunned) { Runner->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
-		Runner->PlannedDashAbility = Slot;
+		FRTUnitPlanTestAccess::SetDashAbility(*Runner, Slot);
 		// La meta e' sempre a due celle: per la carica e' la cella del nemico (bersaglio), per il passaggio e' oltre di lui.
-		Runner->PlannedDashCell = Step2;
+		FRTUnitPlanTestAccess::SetDashCell(*Runner, Step2);
 		Out.bAppliesBefore = Runner->PlannedDashApplies();
 		Out.bMovesBefore = Runner->PlannedDashMoves();
 		Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la ricarica prima del turno e' zero"), *Label), Runner->GetAbilityCooldown(Slot), 0);
@@ -476,15 +475,15 @@ namespace RTStunnedMovementTestsInternal
 		switch (Form)
 		{
 		case EWalkForm::OneStep:
-			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
-			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
+			FRTUnitPlanTestAccess::SetPath(*Walker, { Home, FRTCellId(Home.X + 1, Home.Y) });
+			Walker->SetPlannedCell(FRTCellId(Home.X + 1, Home.Y));
 			break;
 		case EWalkForm::DestinationOnly:
-			Walker->PlannedCell = FRTCellId(Home.X + 2, Home.Y);
+			Walker->SetPlannedCell(FRTCellId(Home.X + 2, Home.Y));
 			break;
 		case EWalkForm::OccupiedTarget:
-			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
-			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
+			FRTUnitPlanTestAccess::SetPath(*Walker, { Home, FRTCellId(Home.X + 1, Home.Y) });
+			Walker->SetPlannedCell(FRTCellId(Home.X + 1, Home.Y));
 			break;
 		case EWalkForm::RejectedWaypoint:
 		{
@@ -503,8 +502,8 @@ namespace RTStunnedMovementTestsInternal
 			// Per questo il bloccante e' lontano e la PREMESSA qui sotto asserisce che la visione della squadra non contenga la sua cella:
 			// il contatto che la squadra puo' ricevere e' allora un URTO (`RevealByHit`) e non una vista (`Observe`, che riempie
 			// `Contacts` anche per i nemici visti: senza la premessa "contatto rivelato" sarebbe ambiguo).
-			Walker->PlannedPath = { Home, FRTCellId(Home.X + 1, Home.Y) };
-			Walker->PlannedCell = FRTCellId(Home.X + 1, Home.Y);
+			FRTUnitPlanTestAccess::SetPath(*Walker, { Home, FRTCellId(Home.X + 1, Home.Y) });
+			Walker->SetPlannedCell(FRTCellId(Home.X + 1, Home.Y));
 			TM->RefreshTeamKnowledgeNow();
 			Out.bBlockerVisibleBefore = TM->KnowledgeForTeamPublic(Walker->TeamId).VisibleCells.Contains(Foe->Cell);
 			Test.TestFalse(*FString::Printf(TEXT("%s: premessa: la visione della squadra non contiene la cella del bloccante prima del turno"), *Label),
@@ -521,9 +520,9 @@ namespace RTStunnedMovementTestsInternal
 		{
 			// Un passo OLTRE il Move neutro: la banda si legge dalla distanza pianificata (D-425).
 			const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
-			Walker->PlannedPath.Reset();
-			for (int32 Q = 0; Q <= Oltre; ++Q) { Walker->PlannedPath.Add(FRTCellId(Home.X + Q, Home.Y)); }
-			Walker->PlannedCell = Walker->PlannedPath.Last();
+			FRTUnitPlanTestAccess::ResetPath(*Walker);
+			for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Walker, FRTCellId(Home.X + Q, Home.Y)); }
+			Walker->SetPlannedCell(Walker->PlannedPath.Last());
 			break;
 		}
 		}
@@ -532,7 +531,7 @@ namespace RTStunnedMovementTestsInternal
 
 		// Il compagno cammina di due celle, sempre.
 		Out.MatePlanned = FRTCellId(MateHome.X + 2, MateHome.Y);
-		Mate->PlannedCell = Out.MatePlanned;
+		Mate->SetPlannedCell(Out.MatePlanned);
 
 		TArray<ARTUnit*> Ordine = { Mate, Walker, Foe };
 		URTActionQueueLibrary::SortUnitsForResolution(Ordine);
@@ -893,9 +892,9 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 		// Una corsa: un passo oltre il Move neutro (la banda `Sprint` si legge dalla distanza pianificata, D-425).
 		const FRTCellId From = Unit->Cell;
 		const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
-		Unit->PlannedPath.Reset();
-		for (int32 Q = 0; Q <= Oltre; ++Q) { Unit->PlannedPath.Add(FRTCellId(From.X + Q, From.Y)); }
-		Unit->PlannedCell = Unit->PlannedPath.Last();
+		FRTUnitPlanTestAccess::ResetPath(*Unit);
+		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Unit, FRTCellId(From.X + Q, From.Y)); }
+		Unit->SetPlannedCell(Unit->PlannedPath.Last());
 	};
 
 	auto Tally = [](const ARTTurnManager* TM, const ARTUnit* Unit, const FRTCellId& Start, FUnitTally& Out)
@@ -1058,9 +1057,9 @@ bool FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest::RunTest(const FString&)
 		T::Stand(Stunner);
 
 		const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
-		Walker->PlannedPath.Reset();
-		for (int32 Q = 0; Q <= Oltre; ++Q) { Walker->PlannedPath.Add(FRTCellId(T::Home.X + Q, T::Home.Y)); }
-		Walker->PlannedCell = Walker->PlannedPath.Last();
+		FRTUnitPlanTestAccess::ResetPath(*Walker);
+		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Walker, FRTCellId(T::Home.X + Q, T::Home.Y)); }
+		Walker->SetPlannedCell(Walker->PlannedPath.Last());
 		Walker->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 		if (bWithStunner) { T::GiveStunAction(Stunner, Walker); }
 		TestFalse(*FString::Printf(TEXT("%s: premessa: non e' stordita prima del turno (lo stun nasce nel Blast)"), Arm),
@@ -1135,9 +1134,9 @@ bool FRTStunnedForcedDisplacementDropsTheRunPlanTest::RunTest(const FString&)
 
 		// Una corsa, per una direzione diversa da quella della spinta: un passo oltre il Move neutro.
 		const int32 Oltre = Victim->GetEffectiveMoveRange() + 1;
-		Victim->PlannedPath.Reset();
-		for (int32 Q = 0; Q <= Oltre; ++Q) { Victim->PlannedPath.Add(FRTCellId(T::Home.X, T::Home.Y + Q)); }
-		Victim->PlannedCell = Victim->PlannedPath.Last();
+		FRTUnitPlanTestAccess::ResetPath(*Victim);
+		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Victim, FRTCellId(T::Home.X, T::Home.Y + Q)); }
+		Victim->SetPlannedCell(Victim->PlannedPath.Last());
 		const FRTCellId Goal = Victim->PlannedCell;
 		Victim->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
 		Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
@@ -1145,8 +1144,8 @@ bool FRTStunnedForcedDisplacementDropsTheRunPlanTest::RunTest(const FString&)
 			Victim->HasStatus(TAG_Status_Stunned) && Victim->HasStatus(TAG_Status_Unbalanced) && Victim->HasPlannedNormalMove());
 		if (bPushed)
 		{
-			Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
-			Pusher->PlannedAttackTarget = Victim;
+			Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push")));
+			Pusher->DeclareAttackOnUnit(Victim);
 			TestTrue(TEXT("spinta: premessa: lo spingitore ha la sua azione"), Pusher->PlannedAbilityIndex != INDEX_NONE);
 		}
 
@@ -1241,20 +1240,20 @@ bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
 			});
 		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), T::CoreSlot);
 		if (!TestTrue(TEXT("premessa: Action.Overwatch e' montata"), OverwatchIdx != INDEX_NONE)) { RTWorldFixtures::DestroyWorld(World); return false; }
-		Watcher->PlannedAbilityIndex = OverwatchIdx;
-		Watcher->PlannedCell = Watcher->Cell;
+		Watcher->SetPlannedMainAction(OverwatchIdx);
+		Watcher->SetPlannedCell(Watcher->Cell);
 
 		// Chi cammina verso il guardiano: piu' passi, cosi' che la numerazione dei micro-step si veda piu' in la' del primo.
-		Mover->PlannedPath = { FRTCellId(0, 3), FRTCellId(0, 2), FRTCellId(0, 1), FRTCellId(0, 0) };
-		Mover->PlannedCell = FRTCellId(0, 0);
+		FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 3), FRTCellId(0, 2), FRTCellId(0, 1), FRTCellId(0, 0) });
+		Mover->SetPlannedCell(FRTCellId(0, 0));
 
 		if (Sprinter)
 		{
 			T::Stand(Sprinter);
 			const int32 Oltre = Sprinter->GetEffectiveMoveRange() + 1;
-			Sprinter->PlannedPath.Reset();
-			for (int32 Q = 0; Q <= Oltre; ++Q) { Sprinter->PlannedPath.Add(FRTCellId(SprinterHome.X + Q, SprinterHome.Y)); }
-			Sprinter->PlannedCell = Sprinter->PlannedPath.Last();
+			FRTUnitPlanTestAccess::ResetPath(*Sprinter);
+			for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Sprinter, FRTCellId(SprinterHome.X + Q, SprinterHome.Y)); }
+			Sprinter->SetPlannedCell(Sprinter->PlannedPath.Last());
 			if (Kind == ESprinter::Stunned) { Sprinter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 			TestEqual(TEXT("premessa: lo sprintatore e' stordito solo nel braccio stordito"),
 				Sprinter->HasStatus(TAG_Status_Stunned), Kind == ESprinter::Stunned);
@@ -1394,9 +1393,8 @@ bool FRTStunnedTheStatusIsReadAtThePhaseTest::RunTest(const FString&)
 			RTWorldFixtures::DestroyWorld(R.World);
 			return false;
 		}
-		R.Dasher->PlannedDashAbility = R.DodgeSlot;
-		R.Dasher->PlannedDashCell = DasherT1;
-		R.Walker->PlannedCell = WalkerT1;
+		R.Dasher->SetPlannedDash(R.DodgeSlot, DasherT1);
+		R.Walker->SetPlannedCell(WalkerT1);
 		if (bWithStunners)
 		{
 			// Contro chi scatta si mira la cella d'arrivo; contro chi cammina (fermo fino al Move) basta l'unita'.
@@ -1437,9 +1435,8 @@ bool FRTStunnedTheStatusIsReadAtThePhaseTest::RunTest(const FString&)
 	// TURNO T+1 - lo stordimento dura due turni: negati entrambi. Nessuno stordente: non rinnovano lo stato.
 	T::Stand(R.StunnerOfDasher);
 	T::Stand(R.StunnerOfWalker);
-	R.Dasher->PlannedDashAbility = R.DodgeSlot;
-	R.Dasher->PlannedDashCell = DasherT2;
-	R.Walker->PlannedCell = WalkerT2;
+	R.Dasher->SetPlannedDash(R.DodgeSlot, DasherT2);
+	R.Walker->SetPlannedCell(WalkerT2);
 	TestTrue(TEXT("premessa: la ricarica di Dodge (1) e' scaduta nel Cleanup di T, lo scatto si applica"), R.Dasher->PlannedDashApplies());
 	TestTrue(TEXT("premessa: lo stordimento attraversa il Cleanup di T (dura due turni)"), R.Dasher->HasStatus(TAG_Status_Stunned) && R.Walker->HasStatus(TAG_Status_Stunned));
 	TestFalse(TEXT("e a T+1 lo scatto non sposta (anteprima e mira)"), R.Dasher->PlannedDashMoves());
@@ -1449,9 +1446,8 @@ bool FRTStunnedTheStatusIsReadAtThePhaseTest::RunTest(const FString&)
 	TestFalse(TEXT("premessa: lo stordimento scade nel Cleanup di T+1"), R.Dasher->HasStatus(TAG_Status_Stunned) || R.Walker->HasStatus(TAG_Status_Stunned));
 
 	// TURNO T+2 - scaduto: entrambi si muovono.
-	R.Dasher->PlannedDashAbility = R.DodgeSlot;
-	R.Dasher->PlannedDashCell = DasherT3;
-	R.Walker->PlannedCell = WalkerT3;
+	R.Dasher->SetPlannedDash(R.DodgeSlot, DasherT3);
+	R.Walker->SetPlannedCell(WalkerT3);
 	TestTrue(TEXT("premessa: Dodge si applica ancora (la ricarica del rifiuto di T+1 e' scaduta)"), R.Dasher->PlannedDashApplies());
 	T::RunTurn(R.TM);
 	TestEqual(TEXT("T+2: lo scatto riparte"), R.Dasher->Cell.ToString(), DasherT3.ToString());
@@ -1483,13 +1479,13 @@ bool FRTStunnedRootBornInTheBlastDeniesTheMoveTest::RunTest(const FString&)
 		if (!Walker || !Rooter || !TM) { RTWorldFixtures::DestroyWorld(World); return false; }
 		T::Stand(Walker);
 		T::Stand(Rooter);
-		Walker->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-		Walker->PlannedCell = FRTCellId(1, 0);
+		FRTUnitPlanTestAccess::SetPath(*Walker, { FRTCellId(0, 0), FRTCellId(1, 0) });
+		Walker->SetPlannedCell(FRTCellId(1, 0));
 		if (bRooter)
 		{
 			const int32 Idx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
-			Rooter->PlannedAbilityIndex = Idx;
-			Rooter->PlannedAttackTarget = Walker;
+			Rooter->SetPlannedMainAction(Idx);
+			Rooter->DeclareAttackOnUnit(Walker);
 		}
 		T::RunTurn(TM);
 
@@ -1551,8 +1547,8 @@ bool FRTStunnedForcedMovementIsNotDeniedTest::RunTest(const FString&)
 			T::Stand(Mover);
 			T::Stand(Victim);
 			Victim->PushResistance = 0;
-			Mover->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Mover, C.ActionId);
-			Mover->PlannedAttackTarget = Victim;
+			Mover->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Mover, C.ActionId));
+			Mover->DeclareAttackOnUnit(Victim);
 			if (bStunned) { Victim->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 			TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo dove il braccio lo dichiara"), C.ActionId),
 				Victim->HasStatus(TAG_Status_Stunned), bStunned);

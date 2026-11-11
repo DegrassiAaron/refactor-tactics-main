@@ -15,6 +15,7 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -69,7 +70,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -87,10 +88,10 @@ namespace
 		if (!Shooter || !Ivrin || !Shooter->Abilities.IsValidIndex(SlotIndex)) { return false; }
 
 		Shooter->Abilities[SlotIndex] = Ivrin->Actions[1]; // InterceptShot
-		Shooter->PlannedAbilityIndex = SlotIndex;
-		Shooter->bAttackTargetsCell = true;   // mira a una CELLA, non a un'unita': e' il punto
-		Shooter->PlannedAttackCell = LockedCell;
-		Shooter->PlannedAttackTarget = nullptr;
+		Shooter->SetPlannedMainAction(SlotIndex);
+		FRTUnitPlanTestAccess::SetAttackTargetsCell(*Shooter, true);   // mira a una CELLA, non a un'unita': e' il punto
+		FRTUnitPlanTestAccess::SetAttackCell(*Shooter, LockedCell);
+		Shooter->ClearPlannedAttack();
 		return true;
 	}
 
@@ -138,7 +139,7 @@ bool FRTPredictiveInterceptHitTest::RunTest(const FString&)
 	}
 
 	// Il Runner ATTRAVERSA la cella bloccata e vorrebbe proseguire fino a (1,0).
-	Runner->PlannedCell = FRTCellId(1, 0);
+	Runner->SetPlannedCell(FRTCellId(1, 0));
 	const int32 Before = Runner->Health;
 
 	RunPredTurn(TM);
@@ -202,7 +203,7 @@ bool FRTPredictiveTracesIncomingSideTest::RunTest(const FString&)
 		return false;
 	}
 
-	Runner->PlannedCell = FRTCellId(1, 0);
+	Runner->SetPlannedCell(FRTCellId(1, 0));
 	RunPredTurn(TM);
 
 	// PREMESSA: senza il colpo non c'e' nessuna voce da cercare, e il test resterebbe verde sul nulla.
@@ -277,7 +278,7 @@ bool FRTPredictiveInterceptMissTest::RunTest(const FString&)
 	}
 
 	// Il Runner DEVIA: non passa mai dalla cella prevista.
-	Runner->PlannedCell = Detour;
+	Runner->SetPlannedCell(Detour);
 	const int32 Before = Runner->Health;
 
 	RunPredTurn(TM);
@@ -324,7 +325,7 @@ bool FRTPredictiveCrossingNotPresenceTest::RunTest(const FString&)
 		return false;
 	}
 
-	Sitter->PlannedCell = Locked; // resta fermo
+	Sitter->SetPlannedCell(Locked); // resta fermo
 	const int32 Before = Sitter->Health;
 
 	RunPredTurn(TM);
@@ -401,7 +402,7 @@ bool FRTPredictiveCoverAppliesTest::RunTest(const FString&)
 		return false;
 	}
 
-	Runner->PlannedCell = FRTCellId(1, 0);
+	Runner->SetPlannedCell(FRTCellId(1, 0));
 	const int32 Before = Runner->Health;
 
 	// Diagnostica del SETUP, prima di girare il turno: se la riduzione fosse zero gia' qui, il test

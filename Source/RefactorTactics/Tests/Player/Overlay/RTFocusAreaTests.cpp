@@ -16,6 +16,7 @@
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -290,12 +291,12 @@ bool FRTFocusAreaNeverReadsThePlanTest::RunTest(const FString&)
 	}
 
 	// Il piano: waypoint lontani, un'azione pianificata e il profilo di corsa dichiarato.
-	Planner->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-	Planner->PlannedWaypoints.Add(FRTCellId(2, 0, 0));
-	Planner->PlannedWaypoints.Add(FRTCellId(3, 0, 0));
-	Planner->PlannedAbilityIndex = 0;
-	Planner->PlannedDashAbility = 1;
-	Planner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	Planner->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+	Planner->AddPlannedWaypoint(FRTCellId(2, 0, 0));
+	Planner->AddPlannedWaypoint(FRTCellId(3, 0, 0));
+	Planner->SetPlannedMainAction(0);
+	FRTUnitPlanTestAccess::SetDashAbility(*Planner, 1);
+	Planner->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSprint);
 
 	const FRTFocusMoveSubject A = URTFocusAreaLibrary::SubjectFor(Quiet);
 	const FRTFocusMoveSubject B = URTFocusAreaLibrary::SubjectFor(Planner);

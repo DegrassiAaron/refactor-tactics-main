@@ -156,10 +156,10 @@ namespace
 
 		Difensore->Facing = DefenderFacing;
 		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
-		Difensore->PlannedAbilityIndex = INDEX_NONE; // il difensore non fa nulla: incassa e basta
+		Difensore->ClearPlannedMainAction(); // il difensore non fa nulla: incassa e basta
 
-		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Ivrin.PulseShot`)
-		Attaccante->PlannedAttackTarget = Difensore;
+		Attaccante->SetPlannedMainAction(0); // indice 0 = attacco base (`Hero.Ivrin.PulseShot`)
+		Attaccante->DeclareAttackOnUnit(Difensore);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
@@ -481,14 +481,13 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 
 	Difensore->Facing = ERTHexDirection::W;
 	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
-	Difensore->PlannedReactionAbility =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Deflect"), 3);
-	Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta
+	Difensore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Deflect"), 3));
+	Difensore->ClearPlannedMainAction(); // incassa e basta
 
-	Frontale->PlannedAbilityIndex = 0;
-	Frontale->PlannedAttackTarget = Difensore;
-	AlleSpalle->PlannedAbilityIndex = 0;
-	AlleSpalle->PlannedAttackTarget = Difensore;
+	Frontale->SetPlannedMainAction(0);
+	Frontale->DeclareAttackOnUnit(Difensore);
+	AlleSpalle->SetPlannedMainAction(0);
+	AlleSpalle->DeclareAttackOnUnit(Difensore);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
@@ -554,7 +553,7 @@ namespace
 		// convenzione degli altri test di questo file.
 		Difensore->Facing = ERTHexDirection::W;
 		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
-		Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta: nessuna reazione da isolare
+		Difensore->ClearPlannedMainAction(); // incassa e basta: nessuna reazione da isolare
 
 		// Un'area montata sull'attacco base invece che pescata dal kit di un eroe: qui contano la FORMA e il
 		// raggio, non i numeri di bilanciamento di `Hero.Aevik.Overload`, e legare il test a quelli lo
@@ -575,10 +574,8 @@ namespace
 		// difensore e gli toglieva niente. L'ha intercettata la riga anti-vacuita' dei due test.
 		Area->Power = 200;
 
-		Lanciatore->PlannedAbilityIndex = Slot;
-		Lanciatore->PlannedAttackTarget = nullptr;
-		Lanciatore->PlannedAttackCell = ImpactCenter;
-		Lanciatore->bAttackTargetsCell = true;
+		Lanciatore->SetPlannedMainAction(Slot);
+		Lanciatore->DeclareAttackOnCell(ImpactCenter);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)

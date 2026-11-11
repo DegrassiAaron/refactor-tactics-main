@@ -428,9 +428,9 @@ public:
 	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
 	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
 	 *
-	 * ⚠️ I campi restano pubblici — i test li scrivono direttamente, e renderli privati e' la tappa dello struct
-	 * `FRTUnitPlan` (E50). La garanzia e' quindi che il **codice di gioco** passi di qui: la pinnano
-	 * `Plan.MindChangeRetiresTheOtherTarget` e, da #4068, `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
+	 * ⚠️ I campi restano pubblici: renderli privati e' la tappa dello struct `FRTUnitPlan` (E50, [D-608]). La garanzia e'
+	 * quindi che il modulo **passi di qui**, test compresi da #4076: la pinnano `Plan.MindChangeRetiresTheOtherTarget` e
+	 * `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
 	 */
 	void DeclareAttackOnUnit(ARTUnit* Target)
 	{
@@ -463,9 +463,10 @@ public:
 	// (controller, harness degli scenari, applicazione del piano del bot) e chi lo consuma (i resolver) passano di
 	// qui; prima scrivevano i campi a mano.
 	//
-	// ⚠️ **I campi restano pubblici**: i test li scrivono ancora, e spostarli e' la tappa dello struct `FRTUnitPlan`
-	// (E50, fetta 2). Fino ad allora la porta la pinna `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`, che fallisce se il
-	// codice di gioco torna a scrivere un campo del piano fuori da `ARTUnit`.
+	// ⚠️ **I campi restano pubblici**: spostarli e' la tappa dello struct `FRTUnitPlan` (E50, fetta 2, [D-608]). Fino ad
+	// allora la porta la pinna `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`, che fallisce se il modulo torna a scrivere
+	// un campo del piano fuori da `ARTUnit`. Dal #4076 vale anche per i test: dove nessuna operazione di qui produce lo
+	// stato che un test vuole, il test passa da `FRTUnitPlanTestAccess` (`Tests/Shared/RTUnitPlanTestAccess.h`).
 	//
 	// ⛔ **Nessuna regola di gioco qui dentro.** Sono le stesse assegnazioni di prima, raccolte: cosa armare, quando
 	// consumare, quale cella scegliere restano di chi chiama.
@@ -581,6 +582,12 @@ public:
 
 	/** Il profilo di movimento dichiarato ([D-425]): oggi solo `Sneak`, o nessuno. */
 	void SetPlannedMovementProfile(FName ProfileId) { PlannedMovementProfileId = ProfileId; }
+
+	/**
+	 * L'ordine in cui `Action.Cleanse` toglie gli stati (CP 5.2). ⚠️ Oggi lo dichiarano solo i test: nessun gesto del
+	 * giocatore ne' il bot lo scrivono ancora (#4076), com'era per la reazione prima di #4068.
+	 */
+	void SetPlannedCleansePriority(const TArray<FGameplayTag>& Priority) { PlannedCleansePriority = Priority; }
 
 	/**
 	 * **La fotografia della mira al lock-in** ([D-415]): con un bersaglio-UNITA', la sua cella di adesso. Il resolver

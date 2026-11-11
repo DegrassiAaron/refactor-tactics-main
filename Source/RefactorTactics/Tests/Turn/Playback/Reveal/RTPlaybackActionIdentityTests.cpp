@@ -126,9 +126,9 @@ bool FRTPlaybackResolvedEventActionIdentityTest::RunTest(const FString&)
 	if (!Colpo) { RTWorldFixtures::DestroyWorld(World); return false; }
 	const FName AzioneDelColpo = Colpo->Def.ActionId;
 
-	Attaccante->PlannedAbilityIndex = 0;
-	Attaccante->PlannedAttackTarget = Bersaglio;
-	Attaccante->PlannedCell = FRTCellId(2, 3); // si sposta dopo aver colpito
+	Attaccante->SetPlannedMainAction(0);
+	Attaccante->DeclareAttackOnUnit(Bersaglio);
+	Attaccante->SetPlannedCell(FRTCellId(2, 3)); // si sposta dopo aver colpito
 
 	TM->LockInAndResolve();
 
@@ -233,9 +233,9 @@ bool FRTPlaybackActionBoundaryOnARealTimelineTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attaccante || !Bersaglio) { RTWorldFixtures::DestroyWorld(World); return false; }
 
-	Attaccante->PlannedAbilityIndex = 0;
-	Attaccante->PlannedAttackTarget = Bersaglio;
-	Attaccante->PlannedCell = FRTCellId(2, 3);
+	Attaccante->SetPlannedMainAction(0);
+	Attaccante->DeclareAttackOnUnit(Bersaglio);
+	Attaccante->SetPlannedCell(FRTCellId(2, 3));
 
 	TM->LockInAndResolve();
 

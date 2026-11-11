@@ -95,13 +95,13 @@ namespace
 		{
 			if (Out.Scudo->GetAbility(i) && Out.Scudo->GetAbility(i)->Def.ActionId == FName(TEXT("Hero.Muiren.TideGuard")))
 			{
-				Out.Scudo->PlannedAbilityIndex = i;
+				Out.Scudo->SetPlannedMainAction(i);
 			}
 		}
-		Out.Scudo->PlannedCell = Out.Scudo->Cell;
-		Out.Tiratore->PlannedAbilityIndex = 0;
-		Out.Tiratore->PlannedAttackTarget = Bersaglio;
-		Out.Tiratore->PlannedCell = Out.Tiratore->Cell;
+		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
+		Out.Tiratore->SetPlannedMainAction(0);
+		Out.Tiratore->DeclareAttackOnUnit(Bersaglio);
+		Out.Tiratore->SetPlannedCell(Out.Tiratore->Cell);
 
 		Out.TM->RefreshTeamKnowledgeNow(); // la precondizione della Prep (spec §2.5)
 		return true;
@@ -303,11 +303,11 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 	if (!TM || !Bracer || !Pusher) { return false; }
 
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	int32 FinestreAperte = 0;
 	TM->OnReactionWindowOpened.BindLambda([&FinestreAperte](const FRTReactionWindowView&, int32) { ++FinestreAperte; });
@@ -396,9 +396,8 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
 
-	Caricatore->PlannedDashAbility = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 	if (!TestTrue(TEXT("premessa: Branth ha Ram"), Caricatore->PlannedDashAbility != INDEX_NONE)) { return false; }
 
 	TM->RefreshTeamKnowledgeNow();
@@ -476,9 +475,9 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("premessa: (1,0) e' un vicino di (0,0)"), Bordo != INDEX_NONE)) { return false; }
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 0), static_cast<ERTHexDirection>(Bordo), ERTHexCoverType::High, 100);
 
-		Tiratore->PlannedAbilityIndex = BeatIndiceAbilita(Tiratore, TEXT("Hero.Ivrin.PulseShot"));
-		Tiratore->PlannedAttackTarget = Bersaglio;
-		Tiratore->PlannedCell = Tiratore->Cell;
+		Tiratore->SetPlannedMainAction(BeatIndiceAbilita(Tiratore, TEXT("Hero.Ivrin.PulseShot")));
+		Tiratore->DeclareAttackOnUnit(Bersaglio);
+		Tiratore->SetPlannedCell(Tiratore->Cell);
 
 		TM->RefreshTeamKnowledgeNow();
 		// ⛔ Controllo positivo della premessa: la squadra 0 e' PRESENTE nella conoscenza — vede la propria cella.
@@ -532,9 +531,8 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
-	Caricatore->PlannedDashAbility = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
@@ -689,9 +687,8 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
 	const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
 	if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
-	Caricatore->PlannedDashAbility = IndiceRam;
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Caricatore->SetPlannedDash(IndiceRam, Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	TM->bRecordAttackBeatsForTest = true;
 	TM->RefreshTeamKnowledgeNow();
@@ -853,9 +850,8 @@ bool FRTPlaybackActivationCueAtTheSourceCellTest::RunTest(const FString&)
 		if (!TM || !Caricatore || !Bersaglio || !Mappa) { return false; }
 		const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
 		if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
-		Caricatore->PlannedDashAbility = IndiceRam;
-		Caricatore->PlannedDashCell = Bersaglio->Cell;
-		Caricatore->PlannedCell = Caricatore->Cell;
+		Caricatore->SetPlannedDash(IndiceRam, Bersaglio->Cell);
+		Caricatore->SetPlannedCell(Caricatore->Cell);
 		TM->RefreshTeamKnowledgeNow();
 		TM->LockInAndResolve();
 		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento

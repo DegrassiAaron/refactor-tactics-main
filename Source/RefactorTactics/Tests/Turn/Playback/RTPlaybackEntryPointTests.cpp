@@ -66,9 +66,9 @@ namespace
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Attaccante || !Bersaglio) { return nullptr; }
 
-		Attaccante->PlannedAbilityIndex = 0;
-		Attaccante->PlannedAttackTarget = Bersaglio;
-		Attaccante->PlannedCell = FRTCellId(2, 3);
+		Attaccante->SetPlannedMainAction(0);
+		Attaccante->DeclareAttackOnUnit(Bersaglio);
+		Attaccante->SetPlannedCell(FRTCellId(2, 3));
 		return TM;
 	}
 

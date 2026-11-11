@@ -42,6 +42,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -76,7 +77,7 @@ namespace
 		U->PlaceOnCell(Cell, FVector::ZeroVector, /*CellSize=*/ 100.f, /*LayerHeight=*/ 250.f);
 		// Senza, `PlannedCell` resta il default `(0,0,0)` — una cella VERA — e ogni unita' pianificherebbe
 		// un movimento verso l'origine che nessuno ha chiesto.
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
@@ -129,10 +130,10 @@ namespace
 			return Probe;
 		}
 
-		Mover->PlannedWaypoints = { Path[5] };
-		Mover->PlannedPath = Path;
-		Mover->PlannedCell = Path[5];
-		Mover->PlannedAbilityIndex = INDEX_NONE;
+		FRTUnitPlanTestAccess::SetWaypoints(*Mover, { Path[5] });
+		FRTUnitPlanTestAccess::SetPath(*Mover, Path);
+		Mover->SetPlannedCell(Path[5]);
+		Mover->ClearPlannedMainAction();
 
 		// I tre parametri sotto misura. Il resto resta ai default: cambiarne altri renderebbe i due casi
 		// diversi per piu' di una ragione, e la differenza non sarebbe piu' attribuibile.

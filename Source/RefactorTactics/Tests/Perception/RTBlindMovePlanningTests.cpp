@@ -22,6 +22,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h"
 #include "Engine/Engine.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -331,8 +332,8 @@ namespace
 		const FRTTeamKnowledge Known = TM->KnowledgeForTeamPublic(Unit->TeamId);
 		Out.bWallObserved = Known.VisibleCells.Contains(Wall) || Known.ExploredCells.Contains(Wall);
 
-		Unit->PlannedPath = PlannedPath;
-		Unit->PlannedCell = PlannedCell;
+		FRTUnitPlanTestAccess::SetPath(*Unit, PlannedPath);
+		Unit->SetPlannedCell(PlannedCell);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }

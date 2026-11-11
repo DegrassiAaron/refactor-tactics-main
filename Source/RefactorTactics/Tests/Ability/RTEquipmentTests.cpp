@@ -495,11 +495,11 @@ bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("l'attacco modificato dichiara due spinte separate"), PushSpecs, 2);
 
-	Muiren->PlannedAbilityIndex = 0;
-	Muiren->PlannedAttackTarget = Bersaglio;
-	Muiren->PlannedCell = Muiren->Cell;
-	Bersaglio->PlannedAbilityIndex = INDEX_NONE;
-	Bersaglio->PlannedCell = Bersaglio->Cell;
+	Muiren->SetPlannedMainAction(0);
+	Muiren->DeclareAttackOnUnit(Bersaglio);
+	Muiren->SetPlannedCell(Muiren->Cell);
+	Bersaglio->ClearPlannedMainAction();
+	Bersaglio->SetPlannedCell(Bersaglio->Cell);
 
 	RunEquipTurn(TM);
 
@@ -622,9 +622,9 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	Ferito->Health = FMath::Max(1, Ferito->Health - 400);
 	const int32 SalutePrima = Ferito->Health;
 
-	Curatore->PlannedAbilityIndex = CuraIdx;
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(CuraIdx);
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	RunEquipTurn(TM);
 
@@ -1187,11 +1187,11 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		{
 			EquipVariantOnBasicAttack(Muiren, Impact);
 			Guardato->ApplyStatus(TAG_Status_Guarded, 1);
-			Muiren->PlannedAbilityIndex = 0;
-			Muiren->PlannedAttackTarget = Guardato;
-			Muiren->PlannedCell = Muiren->Cell;
-			Guardato->PlannedAbilityIndex = INDEX_NONE;
-			Guardato->PlannedCell = Guardato->Cell;
+			Muiren->SetPlannedMainAction(0);
+			Muiren->DeclareAttackOnUnit(Guardato);
+			Muiren->SetPlannedCell(Muiren->Cell);
+			Guardato->ClearPlannedMainAction();
+			Guardato->SetPlannedCell(Guardato->Cell);
 			RunEquipTurn(TM);
 
 			TestTrue(TEXT("in guardia contro una spinta di 2: la guardia CEDE e l'unita' arretra"),
@@ -1213,11 +1213,11 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		{
 			EquipVariantOnBasicAttack(Muiren, Impact);
 			Piantato->ApplyStatus(TAG_Status_Braced, 1);
-			Muiren->PlannedAbilityIndex = 0;
-			Muiren->PlannedAttackTarget = Piantato;
-			Muiren->PlannedCell = Muiren->Cell;
-			Piantato->PlannedAbilityIndex = INDEX_NONE;
-			Piantato->PlannedCell = Piantato->Cell;
+			Muiren->SetPlannedMainAction(0);
+			Muiren->DeclareAttackOnUnit(Piantato);
+			Muiren->SetPlannedCell(Muiren->Cell);
+			Piantato->ClearPlannedMainAction();
+			Piantato->SetPlannedCell(Piantato->Cell);
 			RunEquipTurn(TM);
 
 			TestEqual(TEXT("in Brace contro la stessa spinta di 2: REGGE, e resta dov'e'"),
@@ -1322,13 +1322,13 @@ bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
 	// sono un array PARALLELO ad `Abilities`, e `SyncAbilityCooldowns` e' privata: si riallinea passando dal
 	// costruttore del kit, che e' anche il percorso che il gioco usa davvero.
 	Reattore->Abilities.Add(Reazione);
-	Reattore->PlannedReactionAbility = Reattore->Abilities.Num() - 1;
+	Reattore->SetPlannedReaction(Reattore->Abilities.Num() - 1);
 
-	Attaccante->PlannedAbilityIndex = 0;             // attacco base
-	Attaccante->PlannedAttackTarget = Reattore;
-	Attaccante->PlannedCell = Attaccante->Cell;
-	Reattore->PlannedAbilityIndex = INDEX_NONE;
-	Reattore->PlannedCell = Reattore->Cell;
+	Attaccante->SetPlannedMainAction(0);             // attacco base
+	Attaccante->DeclareAttackOnUnit(Reattore);
+	Attaccante->SetPlannedCell(Attaccante->Cell);
+	Reattore->ClearPlannedMainAction();
+	Reattore->SetPlannedCell(Reattore->Cell);
 
 	RunEquipTurn(TM);
 
@@ -1380,13 +1380,13 @@ bool FRTEmergencyDashKeepsTheOverwatchTest::RunTest(const FString&)
 	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Dash, Reattore);
 	if (!TestNotNull(TEXT("l'azione del modulo"), Reazione)) { DestroyEquipWorld(World); return false; }
 	Reattore->Abilities.Add(Reazione);
-	Reattore->PlannedReactionAbility = Reattore->Abilities.Num() - 1;
-	Reattore->PlannedAbilityIndex = Overwatch;
-	Reattore->PlannedCell = Reattore->Cell;
+	Reattore->SetPlannedReaction(Reattore->Abilities.Num() - 1);
+	Reattore->SetPlannedMainAction(Overwatch);
+	Reattore->SetPlannedCell(Reattore->Cell);
 
-	Attaccante->PlannedAbilityIndex = 0;             // attacco base
-	Attaccante->PlannedAttackTarget = Reattore;
-	Attaccante->PlannedCell = Attaccante->Cell;
+	Attaccante->SetPlannedMainAction(0);             // attacco base
+	Attaccante->DeclareAttackOnUnit(Reattore);
+	Attaccante->SetPlannedCell(Attaccante->Cell);
 
 	RunEquipTurn(TM);
 

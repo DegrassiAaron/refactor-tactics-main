@@ -33,6 +33,7 @@
 #include "Turn/RTTurnManager.h"
 #include "UI/HUD/RTHudViewModel.h" // BuildPlayerEventFeed: la porta da cui il widget legge il feed (#3081)
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -146,9 +147,9 @@ namespace
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		// Senza questa riga ogni unita' senza piano pianifica un movimento verso `(0,0,0)`, che e' una cella
 		// vera: traversate spurie e voci che nessun test ha chiesto.
-		U->PlannedCell = Cell;
-		U->PlannedAbilityIndex = INDEX_NONE;
-		U->PlannedPath.Reset();
+		U->SetPlannedCell(Cell);
+		U->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::ResetPath(*U);
 		U->Shield = 0;
 		U->PushResistance = 0;
 		return U;
@@ -189,9 +190,9 @@ namespace
 		Ability->RangeCells = Ability->Def.RangeCells;
 		Ability->Power = 0;
 		Attaccante->Abilities.Add(Ability);
-		Attaccante->PlannedAbilityIndex = Attaccante->Abilities.Num() - 1;
-		Attaccante->PlannedAttackTarget = Bersaglio;
-		Attaccante->PlannedCell = Attaccante->Cell;
+		Attaccante->SetPlannedMainAction(Attaccante->Abilities.Num() - 1);
+		Attaccante->DeclareAttackOnUnit(Bersaglio);
+		Attaccante->SetPlannedCell(Attaccante->Cell);
 	}
 
 	void RunLedgeTurn(ARTTurnManager* TM)
@@ -501,7 +502,7 @@ bool FRTFallCancelsVoluntaryPathTest::RunTest(const FString&)
 
 	// Il bersaglio aveva deciso di restare sulla passerella, all'estremita' est.
 	const FRTCellId Pianificata(1, 0, 1);
-	Bersaglio->PlannedCell = Pianificata;
+	Bersaglio->SetPlannedCell(Pianificata);
 
 	// 🔴 **E il piano va POPOLATO, non solo dichiarato.** Un `PlannedCell` da solo non esercita
 	// l'azzeramento: `PlannedPath` e `PlannedWaypoints` nascono vuoti, e asserire che siano vuoti dopo il
@@ -510,8 +511,8 @@ bool FRTFallCancelsVoluntaryPathTest::RunTest(const FString&)
 	// ⚠️ Il percorso e' ANCORATO alla cella corrente (`PlannedPath[0] == Cell`), che e' la forma che
 	// `ResolveMovement` pretende per percorrerlo: un percorso non ancorato verrebbe scartato da solo, e il
 	// test tornerebbe a misurare la propria fixture invece della regola.
-	Bersaglio->PlannedPath = { Bersaglio->Cell, Pianificata };
-	Bersaglio->PlannedWaypoints = { Pianificata };
+	FRTUnitPlanTestAccess::SetPath(*Bersaglio, { Bersaglio->Cell, Pianificata });
+	FRTUnitPlanTestAccess::SetWaypoints(*Bersaglio, { Pianificata });
 
 	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
 	RunLedgeTurn(TM);
@@ -1814,14 +1815,12 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 		// Chi arma: `Ivrin.InterceptShot` sulla cella bloccata, che sta sul SUO piano e alla sua portata
 		// (la guardia qui sopra lo misura). Nello slot 3 e non in coda: `AbilityCooldowns` non si allarga.
 		ChiArma->Abilities[3] = Ivrin->Actions[1];
-		ChiArma->PlannedAbilityIndex = 3;
-		ChiArma->bAttackTargetsCell = true;
-		ChiArma->PlannedAttackCell = Bloccata;
-		ChiArma->PlannedAttackTarget = nullptr;
+		ChiArma->SetPlannedMainAction(3);
+		ChiArma->DeclareAttackOnCell(Bloccata);
 
 		// Chi spinge: la spinta nel Blast, e nel Move il passo dentro la cella bloccata.
 		PlanLedgeShove(ChiSpinge, ChiArma, CelleDiSpinta);
-		ChiSpinge->PlannedCell = Bloccata;
+		ChiSpinge->SetPlannedCell(Bloccata);
 		const int32 Prima = ChiSpinge->Health;
 
 		RunLedgeTurn(TM);
@@ -2044,7 +2043,7 @@ bool FRTFallFeedSaysFallAfterAHitTest::RunTest(const FString&)
 		if (Azione && Azione->Def.ActionId == FName(TEXT("Hero.Ivrin.PulseShot"))) { Colpo = i; break; }
 	}
 	if (!TestTrue(TEXT("premessa: chi cadra' ha il suo attacco base"), Colpo != INDEX_NONE)) { DestroyLedgeWorld(World); return false; }
-	Bersaglio->PlannedAbilityIndex = Colpo;
+	Bersaglio->SetPlannedMainAction(Colpo);
 	Bersaglio->DeclareAttackOnUnit(Attaccante);
 	Bersaglio->Facing = ERTHexDirection::W;
 
