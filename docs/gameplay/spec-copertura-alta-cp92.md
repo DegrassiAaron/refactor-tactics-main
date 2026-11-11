@@ -6,7 +6,7 @@
 > fonte di stato.
 
 > **Stato**: chiuso il 2026-08-07 · **Issue**: [#70](https://github.com/DegrassiAaron/refactor-tactics-main/issues/70) · **Epic**: E9 (#23) · **Segue**: [CP 9.1](spec-copertura-cp91.md)
-> **Codice**: `Map/RTHexCoverLibrary.*` (nuovo), `Map/RTHexCellData.h`, `Map/RTHexVisionLibrary.cpp`, `Pathfinding/RTHexPathLibrary.cpp`, `Combat/RTHexCombatLibrary.*`, `Turn/{RTActionEvent.h, RTActionEffectLibrary.cpp, RTTurnLog.h, RTTurnManager.cpp}`, `Ability/RTCatalogLibrary.cpp`
+> **Codice**: `Map/Cover/RTHexCoverLibrary.*` (nuovo), `Map/RTHexCellData.h`, `Map/Vision/RTHexVisionLibrary.cpp`, `Pathfinding/RTHexPathLibrary.cpp`, `Combat/RTHexCombatLibrary.*`, `Turn/{RTActionEvent.h, RTActionEffectLibrary.cpp, RTTurnLog.h, RTTurnManager.cpp}`, `Ability/Catalog/RTCatalogLibrary.cpp`
 
 ## 1. Cosa fa
 

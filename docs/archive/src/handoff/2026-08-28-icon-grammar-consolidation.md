@@ -51,8 +51,8 @@ Devi consolidare nel repository **quattro cose distinte**:
 ## Canone runtime / owner esistenti
 
 - `docs/decisions/RT_PDR_00_Decision_Log.md`
-- `Source/RefactorTactics/UI/RTIconCatalogData.h`
-- `Source/RefactorTactics/UI/RTIconLibrary.cpp`
+- `Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h`
+- `Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp`
 - `docs/technical/tooling/brief-icone-v01.md`
 - `docs/technical/systems/progettazione-hud.md`
 
@@ -634,7 +634,7 @@ Prima del commit:
 
 ```bash
 # 1. Non sono nate categorie runtime per errore
-git diff -- Source/RefactorTactics/UI/RTIconCatalogData.h
+git diff -- Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h
 
 # 2. Nessun hardcode texture introdotto
 # usa i controlli già previsti dal progetto / grep mirato

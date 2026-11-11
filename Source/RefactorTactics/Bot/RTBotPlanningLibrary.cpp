@@ -3,15 +3,15 @@
 #include "Bot/RTBotPlanningLibrary.h"
 
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
-#include "Map/RTHexVisionLibrary.h"
-#include "Turn/RTMovementActionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
 #include "Perception/RTTeamKnowledge.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 
 FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 	const FRTHexSnapshot& BaseSnapshot,

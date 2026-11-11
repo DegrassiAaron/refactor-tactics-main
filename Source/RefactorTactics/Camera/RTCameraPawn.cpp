@@ -7,12 +7,12 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h" // #3661: il rettangolo del giocatore per l'aspetto del limite del pivot
 
-/** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
+/** Definita in `ScenarioHarness/Report/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
 /** Definita nello stesso file: scatto automatico per il confronto fra catture (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDownShot;
 #include "GameFramework/PlayerController.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerState.h" // squadra del giocatore da inquadrare all'avvio
 #include "Unit/RTUnit.h"

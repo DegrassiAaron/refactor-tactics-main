@@ -102,11 +102,11 @@ il risultato di quella ricerca alla data di questo documento.
 `Runtime → ViewModel sanitizzato → UMG` non è un requisito da introdurre: è il codice attuale.
 
 ```text
-Source/RefactorTactics/UI/RTHudViewModel.{h,cpp}
-Source/RefactorTactics/UI/RTIconLibrary.{h,cpp} + RTIconCatalogData.h   ← l'Icon Catalog
+Source/RefactorTactics/UI/HUD/RTHudViewModel.{h,cpp}
+Source/RefactorTactics/UI/Inspect/RTIconLibrary.{h,cpp} + RTIconCatalogData.h   ← l'Icon Catalog
 Source/RefactorTactics/Frontend/RTMatchResultViewModel.h
-Source/RefactorTactics/Replay/RTReplayViewModel.{h,cpp}
-Source/RefactorTactics/UI/RTScreenHudWidgets.h  → 7 classi base UMG
+Source/RefactorTactics/Replay/Viewer/RTReplayViewModel.{h,cpp}
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h  → 7 classi base UMG
 ```
 
 ### 4.2 Widget versionati: **15** `WBP_RT_*` — e la distribuzione è la mappa dei buchi
@@ -139,7 +139,7 @@ macro-fase: sono due assi.
 
 ### 4.5 La certezza esiste, e dichiararla mancante è un errore già registrato
 
-`ERTIntentCertainty` (`Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h:21`) ·
+`ERTIntentCertainty` (`Source/RefactorTactics/Turn/Actions/RTIntentPrivacyLibrary.h:21`) ·
 `ERTTargetKnowledge` · `ERTKnowledgeVisibility`, più `RTIntentPrivacyLibrary` e i suoi test.
 
 🔴 La nota di `G9` del **2026-08-24** ha già registrato questo identico difetto: *«tre di quelle quattro

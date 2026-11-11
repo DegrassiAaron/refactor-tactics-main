@@ -34,8 +34,8 @@
 ### Task 1: la dichiarazione del piano non è più bloccata dalla barra
 
 **Files:**
-- Modify: `Player/RTPlayerController.h/.cpp` (`ToggleTurnPlanDeclared` e i docstring di `IsPlanningWriteBlocked`/`WhyPlanningWriteIsBlocked`), `UI/RTScreenHudWidgets.cpp` (`URTPlanCommitWidget::RefreshButtons`)
-- Test: `Tests/RTHexMatchIntegrationTests.cpp`
+- Modify: `Player/RTPlayerController.h/.cpp` (`ToggleTurnPlanDeclared` e i docstring di `IsPlanningWriteBlocked`/`WhyPlanningWriteIsBlocked`), `UI/HUD/RTScreenHudWidgets.cpp` (`URTPlanCommitWidget::RefreshButtons`)
+- Test: `Tests/Turn/RTHexMatchIntegrationTests.cpp`
 
 **Interfaces:**
 - Consumes: `IsWorldReadOnly()`, `PercheIlMondoESoloLettura(Context)`, `IsDockReadOnly()` (base del widget).
@@ -50,7 +50,7 @@
 
 **Files:**
 - Modify: `Player/RTPlayerController.h/.cpp`
-- Test: `Tests/RTHexMatchIntegrationTests.cpp` (stessa fixture dei test della barra: `B.PC`, `PinInspectionForTest`)
+- Test: `Tests/Turn/RTHexMatchIntegrationTests.cpp` (stessa fixture dei test della barra: `B.PC`, `PinInspectionForTest`)
 
 **Interfaces:**
 - Consumes: `PinInspection`, `ApplyBack` (passo `Inspector`), `bDockFollowsInspection`, `EnsureTurnPresentationSubscriptions`.
@@ -63,8 +63,8 @@
 ### Task 3: il box di destra: testata compatta e dettagli della skill sotto il cursore
 
 **Files:**
-- Modify: `UI/RTInspect.h/.cpp` (`FRTInspectSubject`, `Compose`), `UI/RTHUD.h/.cpp` (`BuildInspectSubject`, `BuildInspectCard`), `UI/RTInspectCardWidget.h/.cpp`
-- Test: `Tests/RTInspectTests.cpp`, `Tests/RTInspectCardWidgetTests.cpp`, `Tests/RTSeenUseLedgerTests.cpp` (le righe «ricariche» si spostano nei dettagli)
+- Modify: `UI/Inspect/RTInspect.h/.cpp` (`FRTInspectSubject`, `Compose`), `UI/HUD/RTHUD.h/.cpp` (`BuildInspectSubject`, `BuildInspectCard`), `UI/Inspect/RTInspectCardWidget.h/.cpp`
+- Test: `Tests/UI/Inspect/RTInspectTests.cpp`, `Tests/UI/Inspect/RTInspectCardWidgetTests.cpp`, `Tests/Turn/Log/RTSeenUseLedgerTests.cpp` (le righe «ricariche» si spostano nei dettagli)
 
 **Interfaces:**
 - Consumes: `ARTPlayerController::GetSkillHoverUnit()` e `GetSkillHoverIndex()` (già esistono), `URTHudViewModel::BuildCatalogActionRow(Action, Index, NAME_None)`, `BuildCatalogTooltip`/`ComposeTooltipText`, `FRTInspectEquipmentLine`, `FRTInspectDeducedCooldown`, `URTInspectLibrary::MakeDeducedCooldown`, `FRTEquipmentPiece::GrantedActionId`.
@@ -128,7 +128,7 @@ Nomi e argomenti, nessun totale: i conteggi si rifanno con `python tools/suite/e
 - *Riga di stato del dock*: `UpdateTargetPrompt` segue ancora la selezione e può dire «Scegli un'azione» con la barra su un nemico (authoring del grafo nel clone principale, o `GetPointerContext`); invariato dal giro precedente.
 - *Il catalogo mentre si passa sullo slot*: `FindEquipment` rifà il catalogo a ogni chiamata, una per pezzo equipaggiato a ogni ricomposizione (5 Hz con il cursore sullo slot, più la ricomposizione immediata al cambio dell'hover): costo non misurato.
 - *La scheda di un'unità propria fissata*: il cursore su un suo slot mostra i dettagli anche lì (l'unità dello slot è il soggetto della scheda), e il box non porta la riga della variante che il tooltip dello slot ha; nessun effetto sulla privacy.
-- *Residuo dei rapporti dei Task*: l'assegnazione `InspectionTurn = TurnNumber;` nel rilascio è codice difensivo che nessun mutante prova; i docstring di `RTHexMatchIntegrationTests.cpp` che dicono «tre parti» e «tre letture» sono conteggi di struttura del test, non di dati (si trovano con `grep -n "Tre parti\|tre letture" Source/RefactorTactics/Tests/RTHexMatchIntegrationTests.cpp`). Il testo stantio dei rapporti (header di `RTInspect.h`, etichette dei test, commenti delle fixture, `RefreshButtons`, `HandleTeamKnowledgeRefreshed`, i seam di test) è stato corretto dalla review finale: vedi «Review finale».
+- *Residuo dei rapporti dei Task*: l'assegnazione `InspectionTurn = TurnNumber;` nel rilascio è codice difensivo che nessun mutante prova; i docstring di `RTHexMatchIntegrationTests.cpp` che dicono «tre parti» e «tre letture» sono conteggi di struttura del test, non di dati (si trovano con `grep -n "Tre parti\|tre letture" Source/RefactorTactics/Tests/Turn/RTHexMatchIntegrationTests.cpp`). Il testo stantio dei rapporti (header di `RTInspect.h`, etichette dei test, commenti delle fixture, `RefreshButtons`, `HandleTeamKnowledgeRefreshed`, i seam di test) è stato corretto dalla review finale: vedi «Review finale».
 - *Test*: `SeenUse.ARealSeenAttackLeavesARowAndAnUnseenOneDoesNot` confronta solo la posizione 0; l'oracolo del tooltip dei test ripete le chiamate di produzione (lo chiedeva il piano).
 - *D-562*: la colonna Stato non ha la clausola «valgono dal merge…» di D-552 (minore differito del giro precedente).
 - *Dal giro precedente*: restano aperti i «Minori rimasti aperti» del piano [`2026-10-30-barra-in-sola-lettura.md`](2026-10-30-barra-in-sola-lettura.md), salvo quelli marcati chiusi.

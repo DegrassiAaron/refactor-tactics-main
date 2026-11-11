@@ -100,7 +100,7 @@ hanno identità diverse e l'handoff §10 chiede esplicitamente policy separate:
 > delle altre tre identità (`Gadget → Aevik`, `Wraith → Ivrin`, `Phase → Muiren`) è in corso a fette, e
 > riallineare metà tabella la renderebbe meno leggibile di così. La corrispondenza con il catalogo è verificabile:
 > `Branth->MoveEndPivotMaxSteps = 1` e `Branth->DashEndPivotMaxSteps = 0` in
-> `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, cioè **gli stessi due numeri** della riga `Riktor`.
+> `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp`, cioè **gli stessi due numeri** della riga `Riktor`.
 > ⛔ **Il tetto residuo di `Hero.Riktor` non è zero e non deve diventarlo**: le occorrenze rimaste in `Source/`
 > sono menzioni legittime, e `RTLegacyIdentityRatchetTests.cpp` le pinna.
 
@@ -173,7 +173,7 @@ facing che l'unità assume soltanto perché sta camminando.
   > PR apriva come riga 66 di `DOC_CONFLICT_MATRIX.md` a proposito di `FR-RESOLVE-02`.
   >
   > ✅ **Aggiornamento, 2026-08-10 (CP 14.3, PR #494).** Il test **ora esiste**:
-  > `RefactorTactics.Overwatch.OpportunityLeaksNoFuture` in `Tests/RTReactionOpportunityTests.cpp`, e
+  > `RefactorTactics.Overwatch.OpportunityLeaksNoFuture` in `Tests/Turn/Reaction/RTReactionOpportunityTests.cpp`, e
   > `grep -rl OpportunityLeaksNoFuture Source/` restituisce quel file. Verifica che il DTO
   > `FRTReactionOpportunity` non esponga campi fuori da un elenco chiuso, interrogando la reflection.
   > ⚠️ Con una portata **piu' stretta** di quella che la prima stesura gli attribuiva: difende la **forma

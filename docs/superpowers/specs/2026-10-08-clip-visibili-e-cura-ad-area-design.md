@@ -107,8 +107,8 @@ posa in modo leggibile. Nel pack Gadget le varianti full-body esistono per gli a
 `LMB_Fire_B_Fast_V1`/`_Slow_V1`, `LMB_Fire_C_Fast_V1`/`_Slow_V1`) e non per i cast (`Ability_Q*`, `Throw_Ready*` sono
 tutte additive).
 
-Perché nessun test lo vede: `Unit.DefaultActionClipsResolveForEveryKitAbility` (`Tests/RTAnimChannelTests.cpp`) verifica
-che ogni path **risolva**; i gate di cook (`Tests/RTPackagingConfigTests.cpp`) che sia **raggiungibile**. Nessuno chiede
+Perché nessun test lo vede: `Unit.DefaultActionClipsResolveForEveryKitAbility` (`Tests/Unit/RTAnimChannelTests.cpp`) verifica
+che ogni path **risolva**; i gate di cook (`Tests/Unit/RTPackagingConfigTests.cpp`) che sia **raggiungibile**. Nessuno chiede
 se la sequenza sia additiva, e il runtime non lo chiede: `UAnimSequence::IsValidAdditive()` (`AnimSequence.cpp:2638-2663`: vero quando `AdditiveAnimType != AAT_None` **e**
 `RefPoseType` descrive una base valida — `ABPT_RefPose`, o `ABPT_AnimScaled`/`ABPT_AnimFrame` con `RefPoseSeq`, o
 `ABPT_LocalAnimFrame` con un `RefFrameIndex`; nel `default` risponde falso) esiste e non viene letto. ➕ rev. F1: è lo
@@ -125,12 +125,12 @@ nomi dei pack (nessuno le ha viste)»*.
 Perché: le cure passano da `CollectHealActions` (`Turn/RTTurnManager_Blast.cpp:494-608`), che raccoglie **solo** le azioni
 per cui `IsCoreAction(Heal->Def, ActionHeal)` (`:222-225`: `ActionId == Core || DerivedFromActionId == Core`) e cura **un**
 bersaglio (`PlannedAttackTarget`, o chi la pianifica; `:524`). `CircularTide` è costruita da zero con `MakeHeroAction`
-(`Ability/RTHeroCatalogLibrary.cpp:518-522`: fase `Attack`, priorità 60, portata 4, cooldown 2, `Area` raggio 1, un solo
+(`Ability/Catalog/RTHeroCatalogLibrary.cpp:518-522`: fase `Attack`, priorità 60, portata 4, cooldown 2, `Area` raggio 1, un solo
 effetto `Heal 18`) e non deriva da niente: finisce in `CollectAttackIntents`, dove un'area non colpisce gli alleati
 (`bFriendlyFire`) e l'effetto `Heal` non ha un consumatore. È il meccanismo di #1443 (`Gadget.Medkit` «curava zero»),
 chiuso lì guardando `DerivedFromActionId`; qui il campo è vuoto per dichiarazione
-(`Tests/RTHeroCatalogTests.cpp:628-672`: *«otto abilità non ereditano da nessuna azione core, e restano vuote:
-`LinearDischarge`, `Overload`, `CircularTide`, …»*). `Heroes.Phase.TideHealsWithoutWetting` (`Tests/RTHeroMuirenTests.cpp`)
+(`Tests/Ability/Catalog/RTHeroCatalogTests.cpp:628-672`: *«otto abilità non ereditano da nessuna azione core, e restano vuote:
+`LinearDischarge`, `Overload`, `CircularTide`, …»*). `Heroes.Phase.TideHealsWithoutWetting` (`Tests/Ability/RTHeroMuirenTests.cpp`)
 verifica la **dichiarazione** — *«Qui si verifica la dichiarazione, non l'applicazione»* — e resta verde. Le varianti
 `Hero.Muiren.CircularTide.Healing` (cura 24) e `.Impact` (cura 10 + spinta 1) ereditano il difetto.
 
@@ -141,24 +141,24 @@ verifica la **dichiarazione** — *«Qui si verifica la dichiarazione, non l'app
 **Catalogo.** `CircularTide` diventa
 `MakeHeroActionFromCore(TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal"), /*Cooldown*/ 2, ERTAbilityShape::Area, /*AreaRadius*/ 1)`
 (`RTHeroCatalogLibrary.cpp:1051-1066` copia fase, priorità, portata, fallback ed effetti del core, e scrive
-`DerivedFromActionId`, `bSelfTarget`, `LineOfSightPolicy`). `Action.Heal` (`Ability/RTCatalogLibrary.cpp:1834-1836`) porta
+`DerivedFromActionId`, `bSelfTarget`, `LineOfSightPolicy`). `Action.Heal` (`Ability/Catalog/RTCatalogLibrary.cpp:1834-1836`) porta
 fase `Attack`, priorità 70, portata 3, cooldown 1, `Heal 20`: i numeri **dell'eroe** restano quelli di oggi e si
 riscrivono dopo la derivazione, come `FluidTrail` fa con lo slot — ➕ rev. F5, **elenco chiuso**: `Def.RangeCells = 4` con lo specchio legacy `RangeCells`, `Def.Priority = 60`,
 `Def.Effects = { Heal 18 }`. **Niente altro**: `Power` resta 0 — viene dal solo `Damage`
 (`RTHeroCatalogLibrary.cpp:119-122`) e il bot lo legge come danno (`Bot/RTBotPlanningLibrary.cpp:856-858`); `Fallback`
 resta quello del core (`Cancel`: nessuno lo legge sul percorso delle cure) ed entra nell'asserto di
 `TideDerivesFromHeal` così com'è. `MakeHeroActionFromCore` può restituire `nullptr`: l'azione si aggiunge all'**indice 1**
-— `Muiren->Actions[1]` è indirizzato per indice dal catalogo (`:677-678`) e dai test (`Tests/RTHeroMuirenTests.cpp:137`,
+— `Muiren->Actions[1]` è indirizzato per indice dal catalogo (`:677-678`) e dai test (`Tests/Ability/RTHeroMuirenTests.cpp:137`,
 `:173`) — dentro un `if` con `check`, come il catalogo fa per le altre derivate.
 `Ruling R1`: la derivazione dice *da quale percorso passa*, non *con quali numeri* — costo se è sbagliata: tre numeri in
 più da tenere allineati a mano, pinnati da `TideHealsWithoutWetting`, che resta verde così com'è. Le due varianti non
-cambiano. `Tests/RTHeroCatalogTests.cpp:628-672` aggiunge la riga `{ Hero.Muiren.CircularTide, Action.Heal }` e il
+cambiano. `Tests/Ability/Catalog/RTHeroCatalogTests.cpp:628-672` aggiunge la riga `{ Hero.Muiren.CircularTide, Action.Heal }` e il
 commento passa da «otto» a «sette» proprie: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`,
 `PassingBlade`, `Feint`; ➕ rev. F5: i conteggi scritti a `:617` («undici») e `:665` («Undici derivate + otto proprie»)
 diventano «dodici» e «dodici derivate + sette proprie».
 
 ➕ rev. F11 — **gli altri consumatori di `DerivedFromActionId`**, che la derivazione tocca senza che nessuno glielo chieda:
-il ripiego d'icona (`UI/RTIconLibrary.cpp:131-138`) cade su `Action.Heal` se `CircularTide` non ha un glifo proprio; il
+il ripiego d'icona (`UI/Inspect/RTIconLibrary.cpp:131-138`) cade su `Action.Heal` se `CircularTide` non ha un glifo proprio; il
 generatore HUD (`tools/hud-assets/generate_hud_assets.py:2096-2105`) toglie dai glifi richiesti ogni abilità costruita
 con una fabbrica `FromCore`, e `tools/hud-assets/action_axes.py:269-287` legge fase ed effetti **del core** quando
 l'eroe li riscrive dopo la chiamata (qui: `Heal 20` invece di 18). Il piano rilancia il generatore e il gate delle icone
@@ -167,7 +167,7 @@ l'effetto, la riscrittura va dichiarata nel sorgente in una forma che il suo par
 nella stessa PR.
 
 **Percorso delle cure.** `CollectHealActions` impara la forma. Oggi: un bersaglio (`PlannedAttackTarget` o sé), controllo
-di portata, `Ctx.AddHeal` (`Turn/RTBlastContext.h:237`, cinque array paralleli), poi `ApplyPlannedHeals`
+di portata, `Ctx.AddHeal` (`Turn/Resolution/RTBlastContext.h:237`, cinque array paralleli), poi `ApplyPlannedHeals`
 (`Turn/RTTurnManager.cpp:2232-2320`): `Min(MaxHealth, Health + Amount)`, voce `Combat/Healed` con `Amount` = quanto
 curato davvero, evento `+N salute`. Con `Shape == Area`:
 
@@ -179,7 +179,7 @@ curato davvero, evento `+N salute`. Con `Shape == Area`:
    come oggi; per un'area la voce `OutOfRange` porta `TgtCell` = centro (per `Single` la cella del bersaglio, come oggi));
 3. i **destinatari** sono le unità della squadra di chi cura — chi cura compresa — con `HexDistance(Centro, U->Cell) <=
    AreaRadius`, nell'ordine di `Ctx.Units` (➕ rev. F3: è già l'ordine totale canonico, cella per prima,
-   `Turn/RTTurnManager_Blast.cpp:281` e `Turn/RTActionQueueLibrary.cpp:154`; un secondo ordinamento sarebbe una seconda
+   `Turn/RTTurnManager_Blast.cpp:281` e `Turn/Actions/RTActionQueueLibrary.cpp:154`; un secondo ordinamento sarebbe una seconda
    regola accanto alla sede unica di `#2922`). Un alleato **morto** nell'area entra come oggi un bersaglio morto di `Single`:
    `ApplyPlannedHeals` scrive `Fallback/TargetDead` (`Turn/RTTurnManager.cpp:2245-2290`) e non lo cura; non si filtra prima;
 4. per ciascuna, `Ctx.AddHeal(Unit, U, Amount, Unit->Cell, Def)`: una voce `Healed` per alleato, con il suo `Amount`
@@ -194,8 +194,8 @@ curato davvero, evento `+N salute`. Con `Shape == Area`:
    bersaglio) e ➕ rev. F8 `TargetStableUnitId` = quello del bersaglio pianificato se c'è, altrimenti `0` (il valore che
    l'`AbilityActivated` di un'area mirata a cella porta già); nessuna `AttackFootprint` (è un'impronta d'attacco: §6).
    ➕ rev. F4 — **`CONTRACT CONFLICT` con la spec del profilo FX**, deciso qui: la riga d'override approvata
-   `Hero.Muiren.CircularTide` = `Pulse / None / Marker / AreaPulse` (`Turn/RTPresentationBinding.cpp:498`, gemella in
-   `Tests/RTAbilityFxProfileTests.cpp:177`) assegna a questa abilità il `Marker` e l'onda d'area, che arrivano **solo** da
+   `Hero.Muiren.CircularTide` = `Pulse / None / Marker / AreaPulse` (`Turn/Playback/RTPresentationBinding.cpp:498`, gemella in
+   `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp:177`) assegna a questa abilità il `Marker` e l'onda d'area, che arrivano **solo** da
    un colpo (`RTPresentationBinding.cpp:36-39`): sul percorso delle cure sono dato morto. La riga diventa
    `Pulse / None / None / None` nella stessa PR, con la gemella nel test e una riga `⌫` nella spec del profilo FX §2.2; al
    cast si vede il `Pulse` (due esagoni che si stringono), che è ciò che §5.2 scena 3 giudica. `Ruling R7`: niente onda
@@ -207,7 +207,7 @@ curato davvero, evento `+N salute`. Con `Shape == Area`:
    costo: la variante cura 10 e non spinge, finché qualcuno non decide dove vive una spinta curativa.
 
 `Single` resta com'è: `Medkit` e `Action.Heal` non cambiano una riga di esito (`Equipment.MedkitHealsInMatch`,
-`Tests/RTEquipmentTests.cpp:576`, è il controllo di regressione).
+`Tests/Ability/RTEquipmentTests.cpp:576`, è il controllo di regressione).
 
 **Determinismo.** Le voci `Healed` entrano nel TurnLog, `Health` entra nello `StateHash`: l'esito di una partita con
 `CircularTide` **cambia per disegno** (prima non curava). Nessuno scenario del corpus la usa fuori da
@@ -270,7 +270,7 @@ if (Sequenza != nullptr && RefusesAdditive(Ruolo) && !URTUnitAnimInstance::IsPla
 | `Hero.Aevik.Overload` | Cast | `Throw_Ready` (additiva) | **riga tolta** → `Cast` del pack |
 | `Hero.Aevik.Overload` | Attack | `LMB_Fire_C` (additiva) | `LMB_Fire_C_Slow_V1` |
 
-La **seconda copia dichiarata** della tabella (`Tests/RTAnimChannelTests.cpp:168-172`, `ClipAtteseDefault`) cambia con
+La **seconda copia dichiarata** della tabella (`Tests/Unit/RTAnimChannelTests.cpp:168-172`, `ClipAtteseDefault`) cambia con
 lei: `nullptr` sui due cast. I tre path nuovi sono nell'elenco del disco misurato in `U70` (`PROBEPACK Gadget
 LMB_Fire_A_Slow_V1 full len=0.90`, `…_B_Slow_V1 full len=0.90`, `…_C_Slow_V1 full len=0.90`): entrano nel set richiesto
 del cook (D-262) al posto dei cinque che escono; `Packaging.RequiredActionClipsAreCooked` resta rosso per scelta di #3562
@@ -282,7 +282,7 @@ scegliere (§2.5).
 
 ⌫ **Coperto da `Unit.DefaultGestureClipsAreNotAdditive` di #3595** (sui gesti, non su `Hit`, che resta per evidenza).
 
-`Unit.DeclaredClipsAreNotAdditive` (`EditorContext`, `Tests/RTAnimChannelTests.cpp`): per ogni eroe del CDO di
+`Unit.DeclaredClipsAreNotAdditive` (`EditorContext`, `Tests/Unit/RTAnimChannelTests.cpp`): per ogni eroe del CDO di
 `URTUnitAnimInstance`, per ogni voce di `MakeClips` (`Idle`, `Move`, `Cast`, `Death` — **non** `Hit`, D3) e di
 `MakeActionClips`, `LoadSynchronous()` sul path; se **risolve**, `TestTrue(IsPlayableAsMontage)`; se non risolve, ➕ rev. F10: `N/A` (una riga
 `AddInfo`) **solo** se manca la cartella del pack (`Content/FabAsset/Paragon/Paragon<Pack>/`); se il pack c'è e il path
@@ -331,7 +331,7 @@ gate.
 l'unico rosso ammesso è `Packaging.RequiredActionClipsAreCooked` (ereditato, #3562). Famiglie che leggono i dati toccati e
 che il piano nomina una per una: `Heroes.*`, `Equipment.*` (`MedkitHealsInMatch` è la regressione di `Single`), `Actions.*`
 (`Actions.Heal.*`, `Actions.HeroKitsMatchTheirCatalogDef`), `Fx.*` (la gemella della riga d'override, F4), `AimOrigin.*`
-(`CellTargetAfterADashAimsFromTheDash`, `Tests/RTAimOriginTests.cpp:487-535`), `Icon*`/`Hud*`, `Bot.*`, `Unit.*`,
+(`CellTargetAfterADashAimsFromTheDash`, `Tests/UI/HUD/Intent/RTAimOriginTests.cpp:487-535`), `Icon*`/`Hud*`, `Bot.*`, `Unit.*`,
 `Playback.*`, `Anim.*`, `Packaging.*`, `Scenario.EveryShippedScenarioRuns` (con `ClipMuiren` a 78), `Determinism.*`.
 
 `Ruling R8` (➕ rev. F7, il bot): i passi dei candidati d'attacco (`Bot/RTBotPlanningLibrary.cpp`, «2) Attacco da FERMO»

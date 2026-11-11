@@ -86,13 +86,13 @@ docs/technical/systems/progettazione-hud.md
 docs/technical/architecture/spec-turnlog.md
 docs/roadmap/roadmap-v0.1.md
 docs/roadmap/roadmap-post-v0.1.md
-Source/RefactorTactics/UI/RTHUD.cpp
-Source/RefactorTactics/UI/RTHUD.h
-Source/RefactorTactics/UI/RTScreenHudWidgets.h
-Source/RefactorTactics/UI/RTScreenHudWidgets.cpp
-Source/RefactorTactics/Turn/RTTurnLog.h
+Source/RefactorTactics/UI/HUD/RTHUD.cpp
+Source/RefactorTactics/UI/HUD/RTHUD.h
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.cpp
+Source/RefactorTactics/Turn/Log/RTTurnLog.h
 Source/RefactorTactics/Turn/RTTurnManager.h
-Source/RefactorTactics/Tests/RTCombatLogTests.cpp
+Source/RefactorTactics/Tests/Turn/Log/RTCombatLogTests.cpp
 ```
 
 ## Ownership invariant
@@ -384,9 +384,9 @@ Use repository naming conventions if the live suite uses a different prefix.
 
 ## Suggested files
 
-- `Source/RefactorTactics/UI/RTHUD.{h,cpp}`
-- `Source/RefactorTactics/UI/RTScreenHudWidgets.{h,cpp}`
-- new `Source/RefactorTactics/UI/RTPlayerEvent*.{h,cpp}` if justified
+- `Source/RefactorTactics/UI/HUD/RTHUD.{h,cpp}`
+- `Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.{h,cpp}`
+- new `Source/RefactorTactics/UI/Feed/RTPlayerEvent*.{h,cpp}` if justified
 - tests under `Source/RefactorTactics/Tests/`
 - `Content/RT/UI/Match/WBP_RT_EventLog.uasset`
 - `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset`

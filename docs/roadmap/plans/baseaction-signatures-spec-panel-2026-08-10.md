@@ -94,7 +94,7 @@ eroe» è una **guideline di design leggibile e verificabile a occhio**: si tien
 Forced Movement, devia lateralmente la traiettoria*. Ma nel roster `Hero.Wraith.Deflection` **esiste già** e
 l'attore persegue un obiettivo diverso: **subire meno danno**.»
 
-Evidenza — `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:552-557` (CP 6.7):
+Evidenza — `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:552-557` (CP 6.7):
 
 > «REAZIONE cablata sulla semantica di `Action.Deflect`: **−20 sul colpo diretto** che l'ha innescata…
 > Stessa famiglia di `Action.Guard` (−15 al primo colpo) ma con un trigger invece di una stance.»

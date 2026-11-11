@@ -26,7 +26,7 @@
 > lo stato dell'ultimo lancio vive nel modello e si azzera a fine PIE (§3, criterio **(5)** della voce PIE);
 > [#3543](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3543) l'abbreviazione per segmenti
 > confronta solo gli Id versionati (§6); [#3544](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3544)
-> helper di test condivisi in `Tests/RTScenarioTestSupport.h` (§5.1). Il quinto candidato di #3532 —
+> helper di test condivisi in `Tests/Shared/RTScenarioTestSupport.h` (§5.1). Il quinto candidato di #3532 —
 > l'invariante dei gate nel codice invece che nei test — resta in §7.
 >
 > **Stato misurato**: 2026-10-07, `main` = `8286276e1`. Ogni riga `file:riga` qui sotto è stata letta su
@@ -100,10 +100,10 @@ azzerare la CVar**, che vive quanto il processo e dirotta in silenzio ogni Play 
 
 Tre pezzi di questo giro esistono già e non si parlano:
 
-- `URTAbilityLabLibrary::BuildFixture` (`Ability/RTAbilityLab.h`) costruisce uno scenario valido per
+- `URTAbilityLabLibrary::BuildFixture` (`Ability/Lab/RTAbilityLab.h`) costruisce uno scenario valido per
   qualunque abilità canonica, con Id `AbilityLab.<AbilityId>` e tag `ability-lab`
-  (`Ability/RTAbilityLab.cpp:251-254`). Fail-closed: un'abilità non canonica non produce una fixture a metà;
-- `URTScenarioLoader::SaveToFile` (dichiarata in `ScenarioHarness/RTScenarioLoader.h:171`,
+  (`Ability/Lab/RTAbilityLab.cpp:251-254`). Fail-closed: un'abilità non canonica non produce una fixture a metà;
+- `URTScenarioLoader::SaveToFile` (dichiarata in `ScenarioHarness/Authoring/RTScenarioLoader.h:171`,
   **implementata in `RTScenarioWriter.cpp`**) valida e scrive uno scenario; `URTScenarioIndex::Scan`
   indicizza ricorsivamente **una sola radice**, `FPaths::ProjectDir()/Scenarios`
   (`RTScenarioIndex.cpp:124-129`, `RTScenarioLoader.cpp:709-712`). Un Id dichiarato da più file è
@@ -228,15 +228,15 @@ valido: è il motivo per cui un `Set` a priorità `Console` scavalca il valore d
 
 | File | Cosa cambia |
 |---|---|
-| `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.{h,cpp}` | `ScenariosRoot()` resta. Si aggiunge `LabScenariosRoot()` → `FPaths::ProjectSavedDir()/RTLab/Scenarios`. (`SaveToFile` non si tocca: è dichiarata qui e implementata in `RTScenarioWriter.cpp`.) |
-| `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.{h,cpp}` | ➕ rev. `Scan` **invariata** (una radice). Nuova `ScanAll(OutProblems)` che legge entrambe; `ResolvePath`, `ListIds` e `ListTags` passano a `ScanAll`. Una radice assente non è un problema né una voce. Un Id presente in entrambe è un **duplicato**: `BuildFrom` lo segnala e `ResolvePath` lo rifiuta come «ambiguo», come già oggi dentro `Scenarios/`. Il messaggio «non trovato nell'indice (… sotto `<radice>`)» nomina entrambe le radici. |
-| `Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp` | ➕ rev. Due testi d'aiuto che nominano la sola `Scenarios/`: l'help di `rt.Test.List` («versionati in Scenarios/») e il messaggio «nessuno scenario in `<radice>`». |
-| `Source/RefactorTacticsEditor/Private/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva, **e verifica che l'Id risolva a quel file**. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
-| `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar (➕ fu. #3541: con `FRTLabCVarSnapshot`, `Set` esplicito a `max(SetByPrima, Code)`), chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. ➕ fu. (#3542) `CanLaunch(OutError)` espone le guardie prima di scrivere, e `Launch` accetta un `OnFinished` chiamato dopo il ripristino. Isolata perché nessun automation test la vede. |
-| `Source/RefactorTacticsEditor/Private/RTLabCVarSnapshot.{h,cpp}` (➕ fu. #3541) | Fotografia di una CVar: valore e `SetBy` alla cattura; `Apply`/`Restore` con un `Set` esplicito a `max(SetByPrima, Code)` e rilettura. Nessuna dipendenza da `GEditor`: verificabile headless. |
-| `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). ➕ fu. (#3542) Lo stato dell'ultimo lancio vive nel modello (`LaunchedScenarioId`, `WasLaunchFinished`): il pannello chiede `CanLaunch` **prima** di `PrepareForPie`, così non scrive se non può lanciare, e a fine PIE mostra «PIE terminato: le CVar sono tornate com'erano» — oppure «PIE terminato: il ripristino di una CVar NON ha preso, vedi il log» se una `Restore` non ha preso. L'ultimo gesto vince: una Run o una selezione fatta durante il PIE non viene scavalcata dalla fine del PIE (e in quel caso un ripristino fallito resta solo nel log). |
-| `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` | I test della seconda radice (§5). |
-| `Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp` | I test di `PrepareForPie` (§5). |
+| `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.{h,cpp}` | `ScenariosRoot()` resta. Si aggiunge `LabScenariosRoot()` → `FPaths::ProjectSavedDir()/RTLab/Scenarios`. (`SaveToFile` non si tocca: è dichiarata qui e implementata in `RTScenarioWriter.cpp`.) |
+| `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.{h,cpp}` | ➕ rev. `Scan` **invariata** (una radice). Nuova `ScanAll(OutProblems)` che legge entrambe; `ResolvePath`, `ListIds` e `ListTags` passano a `ScanAll`. Una radice assente non è un problema né una voce. Un Id presente in entrambe è un **duplicato**: `BuildFrom` lo segnala e `ResolvePath` lo rifiuta come «ambiguo», come già oggi dentro `Scenarios/`. Il messaggio «non trovato nell'indice (… sotto `<radice>`)» nomina entrambe le radici. |
+| `Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp` | ➕ rev. Due testi d'aiuto che nominano la sola `Scenarios/`: l'help di `rt.Test.List` («versionati in Scenarios/») e il messaggio «nessuno scenario in `<radice>`». |
+| `Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva, **e verifica che l'Id risolva a quel file**. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
+| `Source/RefactorTacticsEditor/Private/Lab/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar (➕ fu. #3541: con `FRTLabCVarSnapshot`, `Set` esplicito a `max(SetByPrima, Code)`), chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. ➕ fu. (#3542) `CanLaunch(OutError)` espone le guardie prima di scrivere, e `Launch` accetta un `OnFinished` chiamato dopo il ripristino. Isolata perché nessun automation test la vede. |
+| `Source/RefactorTacticsEditor/Private/Lab/RTLabCVarSnapshot.{h,cpp}` (➕ fu. #3541) | Fotografia di una CVar: valore e `SetBy` alla cattura; `Apply`/`Restore` con un `Set` esplicito a `max(SetByPrima, Code)` e rilettura. Nessuna dipendenza da `GEditor`: verificabile headless. |
+| `Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). ➕ fu. (#3542) Lo stato dell'ultimo lancio vive nel modello (`LaunchedScenarioId`, `WasLaunchFinished`): il pannello chiede `CanLaunch` **prima** di `PrepareForPie`, così non scrive se non può lanciare, e a fine PIE mostra «PIE terminato: le CVar sono tornate com'erano» — oppure «PIE terminato: il ripristino di una CVar NON ha preso, vedi il log» se una `Restore` non ha preso. L'ultimo gesto vince: una Run o una selezione fatta durante il PIE non viene scavalcata dalla fine del PIE (e in quel caso un ripristino fallito resta solo nel log). |
+| `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioIndexTests.cpp` | I test della seconda radice (§5). |
+| `Source/RefactorTacticsEditor/Private/Tests/Lab/RTLabViewModelTests.cpp` | I test di `PrepareForPie` (§5). |
 
 ⛔ **Nessun `.uasset`.** Nessuna modifica al TurnManager, al resolver, al formato scenario o al GameMode.
 ⛔ **`Scan` non cambia firma né semantica**: è la superficie che i gate sul corpus misurano.
@@ -287,7 +287,7 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | `RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun` · `LaunchFinishedClearsTheLaunchedId` | ➕ fu. (#3542) L'Id dell'ultimo lancio vive nel modello: lo azzerano selezione accettata, cambio di filtro, run e fine PIE; una selezione rifiutata **non** lo azzera; la fine del PIE **non** scavalca un gesto fatto durante il PIE (asserto (b), mutazione: senza la guardia cade); `LastLaunchRestored()` porta l'esito del ripristino (asserto (c)). |
 
 ➕ fu. (#3544) Gli helper di radice di prova, header di scenario e conteggi stanno in
-`Source/RefactorTactics/Tests/RTScenarioTestSupport.h` (namespace `RTScenarioTestSupport`), condivisi dai
+`Source/RefactorTactics/Tests/Shared/RTScenarioTestSupport.h` (namespace `RTScenarioTestSupport`), condivisi dai
 test dell'indice e del Lab: nessuna copia locale (`grep -n "FString LabRootDiProva" Source/**/*.cpp` → 0).
 
 🔴 **Controllo di mutazione dichiarato**: togliere la radice del Lab da `ScanAll` deve far diventare

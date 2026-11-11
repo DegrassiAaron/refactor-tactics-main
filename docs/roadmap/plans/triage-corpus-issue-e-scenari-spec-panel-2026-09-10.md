@@ -113,7 +113,7 @@ comparire fra i candidati di lavoro.
 **Entrambe le parti sono su `main`**, e il codice cita la issue per nome:
 
 ```bash
-grep -n "IsValidTeamId\|id unita' duplicato" Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+grep -n "IsValidTeamId\|id unita' duplicato" Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp
 ```
 
 - `RTScenarioLoader.cpp:2470` — `id unita' duplicato: '%s'` → AC4 soddisfatta;
@@ -153,7 +153,7 @@ gia' nominato: *«un campo presente e malformato non e' mai un campo assente»*.
 Verificato che il cluster e' **ancora reale** — `ParseCell` non e' stato toccato:
 
 ```bash
-sed -n '61,82p' Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+sed -n '61,82p' Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp
 ```
 
 controlla `Arr->Num() != 3` e poi chiama `AsNumber()` senza guardia: un elemento non numerico diventa
@@ -306,7 +306,7 @@ a grep-are una stringa che non esiste.
 - ⌫ **#2793 NON vi appartiene**, e la prima stesura di questo referto sbagliava a includerla. Il suo
   corpo dice *«il blocco non e' caduto, si e' spostato su BLIND-2 → OBS-1»*: a spostarsi e' il
   **bloccante**, non la premessa. Il difetto che il titolo enuncia e' ancora vero —
-  `URTHexSimLibrary::BlockedCellsFor` (`Turn/RTHexSimLibrary.cpp:31`) scorre `Snapshot.Occupancy` per
+  `URTHexSimLibrary::BlockedCellsFor` (`Turn/Resolution/RTHexSimLibrary.cpp:31`) scorre `Snapshot.Occupancy` per
   intero, e l'unico criterio di esclusione resta *«non sono io»*. **Nessuna modifica.**
 
 ∴ Un titolo si riscrive quando **enuncia** un fatto che la misura ha smentito. Non quando cambia cio' che

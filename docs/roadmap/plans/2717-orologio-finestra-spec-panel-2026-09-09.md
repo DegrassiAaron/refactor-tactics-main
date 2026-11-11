@@ -138,7 +138,7 @@ aprirlo.
 
 ✅ **E le finestre contested non sono un'ipotesi futura**: `FRTContestedBoundary`, `IsContested`,
 `SortParticipantsCanonically` e `ResolveContestedBoundary` esistono in
-`Turn/RTReactionOpportunityTypes.cpp`.
+`Turn/Reaction/RTReactionOpportunityTypes.cpp`.
 
 **KARL WIEGERS**: *«Il contratto non è sbagliato: è incompleto in un modo che l'implementazione
 erediterebbe. Un orologio scritto su "risposta → stop" rende la scadenza fissa un caso speciale da

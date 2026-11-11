@@ -293,7 +293,7 @@ velocità un ingresso ce l'ha, `Player/RTPlayerController.cpp:1939`. Delle tre v
 
 ### 6.4 E `Action` non attraversa il confine
 
-🔎 `grep -c "ActionId" Source/RefactorTactics/Turn/RTResolvedEvent.h` → **1**, ed è un **commento**
+🔎 `grep -c "ActionId" Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h` → **1**, ed è un **commento**
 (`:227`) che dichiara che `StatusTag` è *«copiato da `FRTTurnLogEntry::ActionId` […] nello stesso punto in
 cui la voce viene scritta»*.
 
@@ -408,7 +408,7 @@ fuori scope. Registrato in **#2858**.
 ### 9.3 Chi legge lo stato a simulazione ferma — ✅ **residuo ancora aperto, e ancoraggi scaduti**
 
 🔎 Nessun test in `Tests/` interroga l'HUD a resolution sospesa: i tre file che nominano
-`IsResolutionSuspended` sono di reazioni e movimento. E i siti che [D-356] cita — `UI/RTHUD.cpp:623`,
+`IsResolutionSuspended` sono di reazioni e movimento. E i siti che [D-356] cita — `UI/HUD/RTHUD.cpp:623`,
 `:974`, `RTTurnManager.cpp:7697` — sono **scaduti**: `RTHUD.cpp` è cresciuto con **#2697**, e i lettori veri
 oggi sono `:708`, `:750`, `:1130`, `:1179` e `RTTurnManager.cpp:8073`.
 

@@ -59,7 +59,7 @@ Su `d446a051`:
 | `CollapseProfile` | **0** |
 
 Le uniche «macerie» nel runtime sono una **metafora in un commento** su archi `Destroyed`
-(`Turn/RTTurnManager_Blast.cpp:1452`, `Tests/RTEnvironmentActionTests.cpp:834-838`): descrivono la prova che
+(`Turn/RTTurnManager_Blast.cpp:1452`, `Tests/Terrain/RTEnvironmentActionTests.cpp:834-838`): descrivono la prova che
 resta dopo un abbattimento, non un sistema di detriti.
 
 Su GitHub, `debris` · `rubble` · `detriti` · `macerie` · `crollo` · `collapse` restituivano **una sola** issue
@@ -75,8 +75,8 @@ Il consolidamento assegna a `#1733` l'invariante *«una `FRTCellId` non può ter
 istruisce a non duplicarne il fix.
 
 **Misura**: il branch remoto `docs/1733-spec-panel` — revisione chiusa, non mergiata al 2026-08-30 — misura
-che l'invariante **è già applicata** in `Turn/RTMovementActionLibrary.cpp:116-143`, pinnata da due test
-d'integrazione (`Tests/RTHexMatchIntegrationTests.cpp:125` e `:343`), e che **nessuna delle tre occorrenze**
+che l'invariante **è già applicata** in `Turn/Resolution/RTMovementActionLibrary.cpp:116-143`, pinnata da due test
+d'integrazione (`Tests/Turn/RTHexMatchIntegrationTests.cpp:125` e `:343`), e che **nessuna delle tre occorrenze**
 citate da `#1733` come prova è una sovrapposizione. Il difetto residuo è di **attribuzione nel TurnLog**.
 
 **Conseguenza**: `CP 51.1` non aspetta un fix di `#1733` e non lo duplica. Deve solo dimostrare che

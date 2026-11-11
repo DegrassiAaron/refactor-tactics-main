@@ -148,7 +148,7 @@ Roadmap §1.3: *«exact anchor granularity sul lato **non va inventata** durante
 definita dall'owner geometrico e testata»*. Mandato punto 7: *«Non inventare la granularità se HEAD non la
 decide già»*.
 
-**Misurato** in `Map/RTGeometryGrammar.h`:
+**Misurato** in `Map/Structure/RTGeometryGrammar.h`:
 
 ```cpp
 static constexpr int32 RT_GeometryQuanta    = 12;   // suddivisioni per PUNTO NOTEVOLE della direzione
@@ -172,7 +172,7 @@ granularità: è se un `SideAnchor` cada su un punto raggiungibile da `Axis × O
 Entrambi i kit pongono la «domanda obbligatoria» del PASSO 3 su
 `FRTGeometrySegment{Axis, Offset, AlongStart, AlongEnd}`.
 
-**Misurato** (`Map/RTGeometryGrammar.h`): la struttura ha **`Axis` · `Offset` · `AlongStart` · `AlongEnd` ·
+**Misurato** (`Map/Structure/RTGeometryGrammar.h`): la struttura ha **`Axis` · `Offset` · `AlongStart` · `AlongEnd` ·
 `Layer` · `WallType`**.
 
 **Fowler**: `Layer` non è un dettaglio in un gioco dichiarato **hex multilivello**, con
@@ -339,7 +339,7 @@ come tale: una correzione di stato non deve trascinare via un ragionamento che r
 ### ✅ L'azione 2 ha prodotto una misura che i kit chiedevano e non avevano
 
 La «domanda obbligatoria» del PASSO 3 — *«rappresenta davvero tutto lo scope `Center → SideAnchor`?»* — ha
-una risposta esatta in `Map/RTGeometryGrammar.h`, dove `RT_GeometryQuanta = 12` è **relativo al punto
+una risposta esatta in `Map/Structure/RTGeometryGrammar.h`, dove `RT_GeometryQuanta = 12` è **relativo al punto
 notevole della direzione**: *«`Q` quanti significano esattamente il punto notevole, che sia un vertice
 (raggio pieno) o un punto medio di lato (apotema)»*.
 

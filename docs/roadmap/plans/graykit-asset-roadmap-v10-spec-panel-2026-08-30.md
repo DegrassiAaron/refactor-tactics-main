@@ -57,7 +57,7 @@ ignorato, cioè committabile. Nessun untracked in `Content/`.
 
 ### 2.2 Come sono fatte
 
-`Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxMeshesCommandlet.cpp` — 518 righe,
+`Source/RefactorTacticsEditor/Private/Content/Build/RTBuildGrayboxMeshesCommandlet.cpp` — 518 righe,
 `-run=RTBuildGrayboxMeshes`, con `-DryRun`, `-Package=`, `-Only=`. È **`D-229`**: la geometria vive in una
 funzione che si diffa, il `.uasset` è il suo output.
 
@@ -74,7 +74,7 @@ funzione che si diffa, il `.uasset` è il suo output.
 
 ### 2.3 Cosa li protegge davvero
 
-Cinque test in `Source/RefactorTacticsEditor/Private/Tests/RTGrayboxMeshTests.cpp`, sotto il prefisso
+Cinque test in `Source/RefactorTacticsEditor/Private/Tests/Content/RTGrayboxMeshTests.cpp`, sotto il prefisso
 `RefactorTactics.Graybox.`:
 
 ```text

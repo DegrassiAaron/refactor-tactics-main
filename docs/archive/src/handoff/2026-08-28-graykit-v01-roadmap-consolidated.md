@@ -47,7 +47,7 @@ per-istanza a runtime, che `D-225` dichiara *«non stimato»* — non compare in
 si chiude con *«Zero numeri nuovi»*.
 
 🟠 Fra gli alti: la granularità d'anchor che il kit dice di non inventare **è già decisa**
-(`RT_GeometryQuanta = 12`, `Map/RTGeometryGrammar.h`); `FRTGeometrySegment` ha **sei** campi e non quattro —
+(`RT_GeometryQuanta = 12`, `Map/Structure/RTGeometryGrammar.h`); `FRTGeometrySegment` ha **sei** campi e non quattro —
 l'omesso è `Layer`, in un gioco hex multilivello; `GEO-4` esiste già completa e porta un collegamento a
 `#1392` che i kit non hanno.
 

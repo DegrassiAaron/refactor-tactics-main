@@ -1,0 +1,600 @@
+#include "Launcher/RTScenarioPreviewSubsystem.h"
+
+#include "Debug/RTDebugReportLibrary.h"
+
+#include "Launcher/RTScenarioPreviewActor.h"
+#include "Launcher/RTScenarioViewportModel.h"
+
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Editor.h"
+#include "Engine/World.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Perception/Veil/RTVisibilityBorder.h"
+#include "ScenarioHarness/Authoring/RTScenarioAuthoring.h"
+#include "ScenarioHarness/RTScenarioKnowledge.h"
+#include "ScenarioHarness/RTScenarioPlayback.h"
+#include "Replay/Viewer/RTReplayStateLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
+
+namespace
+{
+	/**
+	 * Quanto dura una fase alla velocita' scelta.
+	 *
+	 * ⚠️ **`Instant` non ha un moltiplicatore** e `SecondsMultiplier` risponde `0` proprio per non fingerne
+	 * uno: si chiede `IsInstant` prima, come quella libreria prescrive. Un prodotto cieco darebbe comunque
+	 * `0` qui — ma per coincidenza, e la prima velocita' istantanea con moltiplicatore diverso lo romperebbe
+	 * in silenzio.
+	 */
+	float SecondsPerPhaseAt(ERTPlaybackSpeed Velocita)
+	{
+		constexpr float Base = 1.5f; // il default del view model: `1x` non cambia niente
+		return URTPlaybackSpeedLibrary::IsInstant(Velocita)
+			? 0.f
+			: Base * URTPlaybackSpeedLibrary::SecondsMultiplier(Velocita);
+	}
+
+	/**
+	 * Il mondo su cui l'editor sta lavorando. `nullptr` in un contesto senza editor — un commandlet, o una
+	 * suite headless — ed e' un caso normale, non un errore: l'anteprima semplicemente non si posa.
+	 */
+	UWorld* EditorWorld()
+	{
+		return GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	}
+
+	/** Spawn transiente e fuori dall'outliner: l'anteprima non deve poter finire nel livello salvato. */
+	template <typename TActor>
+	TActor* SpawnPreviewActor(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+
+		FActorSpawnParameters Params;
+		Params.ObjectFlags = RF_Transient;
+		Params.bHideFromSceneOutliner = true;
+		Params.bTemporaryEditorActor = true;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		TActor* Spawned = World->SpawnActor<TActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+		if (Spawned)
+		{
+			// Il tag e' cio' che permette a `FindTargetMapActor` di non contare questi actor come "la mappa
+			// del livello". Senza, aprire un'anteprima spegne i tool di disegno in silenzio.
+			Spawned->Tags.AddUnique(ARTScenarioPreviewActor::PreviewTag);
+		}
+		return Spawned;
+	}
+}
+
+void URTScenarioPreviewSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// Togliere l'anteprima PRIMA che il mondo che la ospita venga distrutto. Vedi il campo `MapLoadHandle`
+	// per quale delegate e' e perche' non e' `OnMapOpened`.
+	MapLoadHandle = FEditorDelegates::OnMapLoad.AddUObject(this, &URTScenarioPreviewSubsystem::HandleMapLoad);
+}
+
+void URTScenarioPreviewSubsystem::Deinitialize()
+{
+	if (MapLoadHandle.IsValid())
+	{
+		FEditorDelegates::OnMapLoad.Remove(MapLoadHandle);
+		MapLoadHandle.Reset();
+	}
+	ClearPreview();
+	Super::Deinitialize();
+}
+
+void URTScenarioPreviewSubsystem::HandleMapLoad(const FString& /*Filename*/, FCanLoadMap& /*OutCanLoadMap*/)
+{
+	// ⛔ Non si tocca `OutCanLoadMap`: un'anteprima a schermo non e' una ragione per **vietare** il
+	// caricamento di un livello. Questo aggancio serve a farsi da parte, non a mettersi di traverso.
+	ClearPreview();
+}
+
+bool URTScenarioPreviewSubsystem::IsShowing() const
+{
+	// Con i deboli, «mostrato» vuol dire «l'attore esiste ANCORA»: se il mondo se l'e' portato via,
+	// l'anteprima non c'e' piu' davvero, e dirlo e' piu' onesto che ricordare un puntatore.
+	return PreviewUnits.IsValid() || PreviewMap.IsValid();
+}
+
+int32 URTScenarioPreviewSubsystem::NumUnitsShown() const
+{
+	return PreviewUnits.IsValid() ? PreviewUnits->NumMarkers() : 0;
+}
+
+void URTScenarioPreviewSubsystem::ClearPreview()
+{
+	// ⚠️ **`IsValid()` e non un semplice test di non-nullita'.** Con i puntatori deboli di `#2115` gli attori
+	// possono essere gia' morti col mondo che li conteneva, e chiamare `Destroy()` su un puntatore stantio
+	// sarebbe il crash che questa issue toglie, spostato di due righe. Il `Reset()` finale vale in entrambi
+	// i casi: se erano gia' andati, non resta niente da azzerare se non il nostro riferimento.
+	if (ARTScenarioPreviewActor* Units = PreviewUnits.Get())
+	{
+		Units->ClearUnits();
+		Units->ClearBorder();
+		Units->Destroy();
+	}
+	PreviewUnits.Reset();
+
+	if (ARTHexMapActor* Map = PreviewMap.Get())
+	{
+		Map->Destroy();
+	}
+	PreviewMap.Reset();
+	PreviewArena = nullptr;
+	AllUnits.Reset();
+	// La prospettiva torna al default del designer: aprire uno scenario nuovo con il filtro di quello
+	// precedente ancora attivo mostrerebbe una vista parziale che nessuno ha chiesto per questo file.
+	Perspective = RTScenarioKnowledge::OmniscientTeamId;
+	LayerReadout.Reset();
+
+	// ⚠️ **Anche il playback**, e non e' ridondanza con `ClosePlayback`: qui gli actor sono gia' distrutti e
+	// `AllUnits` gia' svuotato, quindi uno stato di playback sopravvissuto tradurrebbe una traccia contro
+	// uno scenario che non c'e' piu'. Si azzera **dopo** aver tolto tutto, e senza ridisegnare — non c'e'
+	// piu' niente su cui.
+	const bool bCeraUnaCorsa = bPlaybackOpen;
+
+	bPlaybackOpen = false;
+	PlaybackUnits.Reset();
+	PlaybackTrace.Reset();
+	PlaybackInitial.Reset();
+	PlaybackScenarioIds.Reset();
+
+	// 🔴 **Qui la corsa uscente si PROMUOVE, non si butta.** Il pulsante Run del pannello chiama
+	// `ShowScenario()` — che comincia proprio con questa funzione — e subito dopo `OpenPlayback()`. Una
+	// stesura che azzerasse qui perderebbe il paragone a OGNI corsa, e il verdetto di divergenza non
+	// partirebbe mai: e' il difetto trovato in review, e il test
+	// `DevSandboxLauncher.PlaybackComparesWithThePreviousRun` percorre esattamente questa via.
+	PromoteRunToComparison(bCeraUnaCorsa);
+}
+
+TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
+{
+	return RTScenarioKnowledge::TeamIds(AllUnits);
+}
+
+int32 URTScenarioPreviewSubsystem::NumBorderPanelsShown() const
+{
+	return PreviewUnits.IsValid() ? PreviewUnits->NumBorderPanels() : 0;
+}
+
+bool URTScenarioPreviewSubsystem::SetPerspective(int32 TeamId)
+{
+	if (!IsShowing())
+	{
+		return false; // niente a schermo: non c'e' una prospettiva da cambiare, e ricordarla sarebbe stato
+	}
+
+	Perspective = TeamId;
+	ApplyPerspective();
+	return true;
+}
+
+void URTScenarioPreviewSubsystem::ApplyPerspective()
+{
+	// I due attori si prendono UNA volta e si usano come puntatori normali: con i deboli di `#2115`, un
+	// `.Get()` per riga chiederebbe dieci volte la stessa domanda, e — peggio — lascerebbe pensare che la
+	// risposta possa cambiare a meta' funzione.
+	ARTHexMapActor* Map = PreviewMap.Get();
+	ARTScenarioPreviewActor* Units = PreviewUnits.Get();
+	if (!Map || !Units)
+	{
+		return;
+	}
+
+	// Il roster si chiede UNA volta per applicazione e si passa: `GetHeroRoster()` costruisce quattro
+	// `URTHeroData` con tutte le loro abilita' a ogni chiamata, e farlo per unita' le pagherebbe tutte per
+	// leggere un intero.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	// La conoscenza CANONICA: `Observe`, la stessa funzione che il TurnManager chiama in partita. In
+	// `Omniscient` non e' il filtro spento — e' la conoscenza che vede tutto, e il percorso qui sotto non ha
+	// rami.
+	// 🔴 **La sorgente e' il playback quando e' aperto**, e da qui in giu' non ci sono altri rami: la
+	// conoscenza, il velo, i marcatori e il confine si calcolano tutti sulle STESSE unita'. Un ramo che
+	// prendesse il playback per i marcatori e l'authoring per il velo disegnerebbe le unita' aggiornate
+	// sotto una nebbia ferma — il difetto che si vede solo a schermo, e solo se lo si cerca.
+	const TArray<FRTScenarioUnitView>& Sorgente = bPlaybackOpen ? PlaybackUnits : AllUnits;
+
+	const FRTTeamKnowledge Knowledge = RTScenarioKnowledge::ForTeam(
+		PreviewArena, Sorgente, Perspective, Roster);
+
+	// ⚠️ La precondizione di `ApplyKnowledgeVeil`: `InstanceCells` dev'essere derivato e nessun
+	// `RebuildInstances` deve stare fra il calcolo e l'applicazione. Qui la mappa e' gia' costruita e nessuno
+	// la ricostruisce in mezzo — se un giorno un tool lo facesse, e' questa funzione che va richiamata dopo.
+	Map->ApplyKnowledgeVeil(Knowledge);
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerHeight = 0.f;
+	Map->GetHexContext(Origin, HexSize, LayerHeight);
+
+	// 🔴 Il velo copre le cinque famiglie di istanze della MAPPA; i marcatori stanno su un altro actor e non
+	// li tocca. Senza questa riga un nemico mai visto resterebbe a schermo con la board velata intorno —
+	// l'hidden-state leak piu' facile da introdurre qui.
+	Units->ShowUnits(RTScenarioKnowledge::VisibleUnits(Sorgente, Knowledge),
+		Origin, HexSize, LayerHeight);
+
+	// Il confine di cio' che la squadra vede: dalla conoscenza canonica, non da una query propria.
+	Units->ShowBorder(URTVisibilityBorderLibrary::ExposedEdges(Knowledge.VisibleCells),
+		Origin, HexSize, LayerHeight);
+}
+
+// =====================================================================================================
+// Playback della risoluzione (`#1625`)
+// =====================================================================================================
+
+bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Authoring)
+{
+	ClosePlayback();
+
+	// Serve uno scenario GIA' mostrato: il playback muove i marcatori di quello, non ne apre un altro.
+	if (!Authoring || !IsShowing() || AllUnits.Num() == 0)
+	{
+		return false;
+	}
+
+	const TArray<FRTTurnTrace>& Tracce = Authoring->GetLastRunTraces();
+	if (Tracce.Num() == 0)
+	{
+		// Non si e' ancora corso. ⚠️ Non si apre un playback vuoto: sembrerebbe una partita in cui non e'
+		// successo niente, che e' un'affermazione diversa da «non c'e' una partita».
+		return false;
+	}
+
+	// 🔴 **Si decodifica QUI e una volta sola.** Le tracce restano byte nel draft proprio per non pagarle a
+	// chi vuole solo sapere se e' PASS; chi le vuole muovere le paga adesso, non a ogni cambio di posizione.
+	// ⚠️ **Due forme della stessa traccia, e servono entrambe.** `URTReplayStateLibrary::UnitsAtPosition`
+	// vuole la sequenza PIATTA — ricostruisce lo stato scorrendo le voci fino a un punto; il view model
+	// vuole quella PER TURNO — la sua navigazione indicizza i turni. Sono due viste sugli stessi dati,
+	// costruite in un giro solo perche' decodificare due volte costerebbe il doppio per niente.
+	TArray<FRTTurnLogEntry> Voci;
+	TArray<TArray<FRTTurnLogEntry>> PerTurno;
+	PerTurno.Reserve(Tracce.Num());
+	for (const FRTTurnTrace& T : Tracce)
+	{
+		TArray<FRTTurnLogEntry> DiQuestoTurno;
+		if (!URTTurnLogLibrary::DeserializeTurnLog(T.Bytes, DiQuestoTurno))
+		{
+			// Una traccia illeggibile ferma tutto: un playback a meta' mostrerebbe uno stato che la partita
+			// non ha mai attraversato, e nessuno saprebbe da quale turno in poi e' inventato.
+			return false;
+		}
+		Voci.Append(DiQuestoTurno);
+		PerTurno.Add(MoveTemp(DiQuestoTurno));
+	}
+
+	// 🔑 La navigazione si apre sulla STESSA traccia che si disegnera'. Se rifiuta, non si apre nemmeno
+	// il playback: marcatori che si muovono sotto controlli che non sanno dove sono e' peggio che non
+	// aprire, perche' il primo si vede e sembra funzionare.
+	if (!PlaybackVM.OpenFromTraces(MoveTemp(PerTurno)))
+	{
+		return false;
+	}
+	PlaybackVM.SecondsPerPhase = SecondsPerPhaseAt(PlaybackSpeed);
+
+	PlaybackTrace = MoveTemp(Voci);
+	PlaybackScenarioIds = Authoring->GetLastRunScenarioIds();
+	PlaybackInitial = RTScenarioPlayback::InitialStatesFromViews(AllUnits, PlaybackScenarioIds);
+
+	// 🔑 I boundary si calcolano UNA volta, all'apertura: la serie dipende dalla traccia e dallo
+	// schieramento, che da qui in poi non cambiano piu'. Ricalcolarla a ogni richiesta darebbe la stessa
+	// risposta pagandola ogni volta.
+	//
+	// ⚠️ `WithMicroStep` non e' un'assunzione: e' la versione che `SerializeTurnLog` scrive oggi
+	// (`RTTurnLogLibrary.cpp:1126`), e questa traccia l'ha appena prodotta il runner. Una traccia
+	// antecedente degraderebbe a un boundary per fase, che e' il comportamento dichiarato e non un errore.
+	PlaybackBoundaries = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		PreviewArena, PlaybackTrace, PlaybackInitial, ERTTurnLogFormatVersion::WithMicroStep);
+	PlaybackScenarioId = Authoring->GetDraft().GetScenario().ScenarioId;
+
+	bPlaybackOpen = true;
+
+	// All'inizio: turno 0, cioe' prima che qualunque voce sia stata applicata. E' la posa d'authoring, ma
+	// ottenuta per la STESSA strada delle altre posizioni — un caso speciale qui sarebbe la seconda strada
+	// che nessun test attraversa.
+	return SetPlaybackPosition(0, ERTMatchPhase::Cleanup);
+}
+
+void URTScenarioPreviewSubsystem::ClosePlayback()
+{
+	const bool bEra = bPlaybackOpen;
+
+	bPlaybackOpen = false;
+	PlaybackUnits.Reset();
+	PlaybackTrace.Reset();
+	PlaybackInitial.Reset();
+	PlaybackScenarioIds.Reset();
+
+	// Anche qui: chi smonta un playback aperto lo promuove. Il flag arriva da `bEra`, catturato in testa.
+	PromoteRunToComparison(bEra);
+
+	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
+	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
+	PlaybackVM = FRTReplayViewModel();
+
+	// Si ridisegna solo se c'era qualcosa da togliere: `ClosePlayback` e' chiamata anche da `OpenPlayback`
+	// e da `ClearPreview`, e in quei due casi un `ApplyPerspective` qui sarebbe una posa in piu' — su una
+	// preview che sta per essere ridisegnata o distrutta.
+	if (bEra && IsShowing())
+	{
+		ApplyPerspective();
+	}
+}
+
+bool URTScenarioPreviewSubsystem::SetPlaybackPosition(int32 TurnNumber, ERTMatchPhase Phase)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// Lo stato dalla traccia — che non riesegue niente — e poi la traduzione verso le viste d'authoring.
+	// ⚠️ I due passi sono separati e provati separatamente: il primo non conosce lo scenario, il secondo
+	// non conosce la simulazione, e i due spazi di id si incontrano solo nel secondo.
+	const TArray<FRTTracedUnitState> Stati =
+		URTReplayStateLibrary::UnitsAtPosition(PlaybackTrace, PlaybackInitial, TurnNumber, Phase);
+
+	PlaybackUnits = RTScenarioPlayback::ViewsAtTracedStates(AllUnits, Stati, PlaybackScenarioIds);
+
+	// Da `ApplyPerspective` e non da uno `ShowUnits` diretto: la conoscenza si ricalcola sulle NUOVE
+	// posizioni, quindi velo, marcatori e confine raccontano lo stesso istante.
+	ApplyPerspective();
+	return true;
+}
+
+// --- Trasporto (`#1625`, criterio 2) -----------------------------------------------------------------
+//
+// 🔴 **Da qui in giu' non si calcola nessuna fase e nessun turno.** Ogni funzione chiede a
+// `PlaybackVM` di spostarsi e poi applica cio' che dichiara. La regola e' verificabile per assenza: in
+// questo blocco non esiste aritmetica su `ERTMatchPhase` ne' su `TurnNumber`.
+
+bool URTScenarioPreviewSubsystem::ApplyPlaybackViewModelPosition()
+{
+	const FRTReplayPosition Posizione = PlaybackVM.Position();
+
+	// ⚠️ **Prima dell'inizio non c'e' un turno**, e chiederlo darebbe `0` — che qui sarebbe pure il valore
+	// giusto, ma per caso. Si guarda `State`, che e' il campo fatto per essere guardato: `HasTurn()` e'
+	// falso anche a fine partita, dove la posa da mostrare e' l'ultima e non la prima.
+	if (!Posizione.HasTurn())
+	{
+		// Turno 0 = nessuna voce applicata = la posa d'authoring, per la STESSA strada delle altre posizioni.
+		return SetPlaybackPosition(0, ERTMatchPhase::Cleanup);
+	}
+
+	return SetPlaybackPosition(Posizione.TurnNumber, Posizione.Phase);
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackStepPhase(bool bForward)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// Il passo lo fa il view model. Se dice di no — bordo raggiunto — non si ridisegna: ridisegnare la
+	// stessa posizione farebbe lampeggiare il campo per un comando che non ha fatto niente.
+	if (!(bForward ? PlaybackVM.StepPhaseForward() : PlaybackVM.StepPhaseBackward()))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackStepTurn(bool bForward)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	if (!(bForward ? PlaybackVM.StepTurnForward() : PlaybackVM.StepTurnBackward()))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackRewind()
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// ⚠️ `Rewind` ferma anche la riproduzione, ed e' il view model a deciderlo: `RESET` mentre si guarda
+	// deve tornare all'inizio E fermarsi, non ripartire da solo dall'inizio.
+	PlaybackVM.Rewind();
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::CanPlaybackStepPhase(bool bForward) const
+{
+	return bPlaybackOpen
+		&& (bForward ? PlaybackVM.CanStepPhaseForward() : PlaybackVM.CanStepPhaseBackward());
+}
+
+bool URTScenarioPreviewSubsystem::CanPlaybackStepTurn(bool bForward) const
+{
+	return bPlaybackOpen
+		&& (bForward ? PlaybackVM.CanStepTurnForward() : PlaybackVM.CanStepTurnBackward());
+}
+
+void URTScenarioPreviewSubsystem::PlaybackPlay()
+{
+	if (bPlaybackOpen)
+	{
+		PlaybackVM.Play();
+	}
+}
+
+void URTScenarioPreviewSubsystem::PlaybackPause()
+{
+	PlaybackVM.Pause();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackTick(float DeltaSeconds)
+{
+	if (!bPlaybackOpen || !PlaybackVM.IsPlaying())
+	{
+		return false;
+	}
+
+	// 🔑 `Tick` risponde `true` **solo quando la posizione e' cambiata**, e questa funzione riporta
+	// quella stessa risposta: chi la chiama a ogni frame ridisegna il campo quando c'e' qualcosa di nuovo,
+	// non sessanta volte al secondo per restare fermo.
+	if (!PlaybackVM.Tick(DeltaSeconds))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+void URTScenarioPreviewSubsystem::SetPlaybackSpeed(ERTPlaybackSpeed Speed)
+{
+	PlaybackSpeed = Speed;
+
+	// ⛔ Si scrive anche a playback chiuso, e deve: la velocita' e' una preferenza di chi guarda, non un
+	// attributo della corsa aperta. Sceglierla prima di aprire e vedersela ignorare sarebbe un difetto che
+	// si nota solo dopo, quando il playback parte alla velocita' sbagliata.
+	PlaybackVM.SecondsPerPhase = SecondsPerPhaseAt(PlaybackSpeed);
+}
+
+bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Authoring)
+{
+	// Il vuoto prima di tutto: qualunque via d'uscita qui sotto deve lasciare lo schermo senza uno scenario
+	// che non e' piu' quello selezionato.
+	ClearPreview();
+
+	if (!Authoring)
+	{
+		return false;
+	}
+
+	// L'arena canonica: la STESSA che il runner costruira'. Non si legge `Fixture`/`MapRadius` dal summary
+	// per rifarla qui — quella strada perde gli override di cella e mostrerebbe una mappa che non si gioca.
+	URTHexMapAsset* Arena = Authoring->BuildArena(GetTransientPackage());
+	if (!Arena)
+	{
+		return false;
+	}
+
+	// Il mondo si chiede DOPO: cosi' «facade chiusa» e «nessun mondo» restano due risposte distinte, e le
+	// prime due si possono provare headless.
+	UWorld* World = EditorWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	ARTHexMapActor* SpawnedMap = SpawnPreviewActor<ARTHexMapActor>(World);
+	PreviewMap = SpawnedMap;
+	if (!SpawnedMap)
+	{
+		return false;
+	}
+	SpawnedMap->MapAsset = Arena;
+	// Da qui in poi celle, rilievo, blocchi, bordi (copertura e porte) e glifi di superficie li disegna
+	// `ARTHexMapActor` con il kit che gia' usa: questa slice non ne aggiunge uno secondo.
+	SpawnedMap->RebuildInstances();
+
+	// Le due fotografie che la prospettiva (#1754) dovra' rileggere: la facade viene chiusa da chi l'ha
+	// aperta appena questa funzione ritorna, e chiederle di nuovo a lei significherebbe tenerla aperta.
+	PreviewArena = Arena;
+	AllUnits = Authoring->ListUnits();
+	LayerReadout = RTScenarioViewport::DescribeLayers(RTScenarioViewport::LayersInUse(AllUnits));
+
+	ARTScenarioPreviewActor* SpawnedUnits = SpawnPreviewActor<ARTScenarioPreviewActor>(World);
+	PreviewUnits = SpawnedUnits;
+	if (!SpawnedUnits)
+	{
+		// La mappa c'e' ma le unita' no: si toglie tutto invece di mostrare un'arena vuota che sembrerebbe
+		// uno scenario senza schieramento.
+		ClearPreview();
+		return false;
+	}
+
+	// Uno scenario si apre in `Omniscient`: il Tactical Designer e' omnisciente per costruzione, ed e' giusto
+	// che lo resti finche' qualcuno non chiede un'altra prospettiva. `ClearPreview` l'ha gia' rimesso li'.
+	//
+	// ⚠️ Anche questa prima posa passa da `ApplyPerspective`, e non da uno `ShowUnits` diretto: un percorso
+	// separato per il caso onnisciente sarebbe la seconda strada che nessun test attraversa, e divergerebbe
+	// dalla prima al primo cambiamento. L'origine e la scala le legge di li' da `GetHexContext`, che resta
+	// l'unico punto da cui passano le conversioni cella<->mondo.
+	ApplyPerspective();
+	return true;
+}
+
+TArray<FString> URTScenarioPreviewSubsystem::DescribePlaybackBoundaries() const
+{
+	// ⚠️ «Nessun playback» si DICE. Un array vuoto sarebbe indistinguibile da una corsa senza boundary.
+	if (!bPlaybackOpen)
+	{
+		return { TEXT("[RT] Nessun playback aperto: non c'e' nessuna corsa da misurare.") };
+	}
+
+	TArray<FString> Righe;
+
+	// ⚠️ **Uno schieramento iniziale vuoto non e' un dettaglio: rende la misura muta.**
+	// `InitialStatesFromViews` scarta in silenzio le viste che `PlaybackScenarioIds` non traduce, quindi
+	// puo' tornare vuoto. `ChecksumsAlongTrace` ricostruirebbe allora un roster vuoto a OGNI boundary,
+	// producendo lo stesso hash dappertutto: un elenco plausibile in cui nessun boundary discrimina, e un
+	// «coincidono» falso fra due corse diverse. Si dice, invece di lasciarlo sembrare una misura.
+	if (PlaybackInitial.Num() == 0 && PlaybackTrace.Num() > 0)
+	{
+		Righe.Add(TEXT("[RT] ⚠ Schieramento iniziale vuoto: i checksum sotto NON discriminano i boundary."));
+		Righe.Add(TEXT("[RT]   (nessuna vista d'authoring e' stata tradotta in uno StableUnitId)"));
+	}
+
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryChecksums(PlaybackBoundaries));
+
+	// 🔴 La domanda del designer dopo una modifica non e' «qual e' l'hash?» ma «DOVE e' cambiata la
+	// risoluzione?». E' la chiamata che toglie `DescribeDivergence` dalla condizione di funzione senza
+	// chiamanti di produzione (`#2486`).
+	if (!bHasPreviousRun)
+	{
+		return Righe;
+	}
+
+	// ⛔ Si confronta SOLO dentro lo stesso scenario. Due corse di scenari diversi non sono confrontabili, e
+	// un verdetto che le confrontasse nominerebbe un boundary vero dentro un'affermazione falsa.
+	if (PreviousRunScenarioId != PlaybackScenarioId)
+	{
+		Righe.Add(FString::Printf(
+			TEXT("[RT] La corsa precedente e' di un altro scenario (%s): non confrontabile."),
+			*PreviousRunScenarioId));
+		return Righe;
+	}
+
+	Righe.Add(TEXT("[RT] --- prima (corsa precedente) contro adesso (corsa corrente) ---"));
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryDivergence(
+		PreviousRunBoundaries, PlaybackBoundaries));
+
+	return Righe;
+}
+
+void URTScenarioPreviewSubsystem::PromoteRunToComparison(bool bWasOpen)
+{
+	// ⚠️ Il flag, e non «l'array e' pieno»: una corsa che ha prodotto ZERO boundary e' comunque una corsa,
+	// e distinguerla da «non ce n'e' mai stata una» e' il lavoro di `bHasPreviousRun`.
+	if (bWasOpen)
+	{
+		PreviousRunBoundaries = MoveTemp(PlaybackBoundaries);
+		PreviousRunScenarioId = PlaybackScenarioId;
+		bHasPreviousRun = true;
+	}
+
+	PlaybackBoundaries.Reset();
+	PlaybackScenarioId.Reset();
+}

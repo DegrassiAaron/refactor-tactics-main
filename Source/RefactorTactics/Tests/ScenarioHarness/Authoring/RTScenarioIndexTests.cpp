@@ -1,0 +1,671 @@
+// Indice degli scenari: risoluzione per ID, filtri per tag, redirect.
+//
+// Il grosso lavora su file FINTI passati a `BuildFrom`, non sul disco: cosi' i casi che contano — due file
+// che dichiarano lo stesso ID, un JSON rotto, una catena di redirect ciclica — si scrivono senza sporcare
+// `Scenarios/`, che deve restare la cartella degli scenari veri.
+//
+// Il solo test che tocca il disco e' quello sul corpus reale, ed e' anche il solo che possa accorgersi che
+// uno scenario committato oggi rompe l'indice.
+
+#include "Misc/AutomationTest.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "Tests/Shared/RTScenarioTestSupport.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
+	TPair<FString, FString> IndexFile(const TCHAR* Path, const TCHAR* Id, const TCHAR* Tags)
+	{
+		return TPair<FString, FString>(Path,
+			FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [%s] }"), Id, Tags));
+	}
+}
+
+/**
+ * T1 — L'indice risolve ogni scenario per il suo ID **indipendentemente dal percorso**.
+ *
+ * E' l'invariante che sostituisce «l'id e' il percorso»: due file in cartelle che non c'entrano niente con
+ * il loro ID devono essere trovati lo stesso. Se questo test fallisce, spostare uno scenario ne cambia
+ * l'identita' e siamo tornati al punto di partenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexBuildTest,
+	"RefactorTactics.ScenarioIndex.IdIsIndependentOfPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexBuildTest::RunTest(const FString&)
+{
+	const TArray<TPair<FString, FString>> Files = {
+		IndexFile(TEXT("/x/QualsiasiCartella/uno.json"),   TEXT("Reaction.Overwatch.Hold"), TEXT("\"reactions\", \"gadget\"")),
+		IndexFile(TEXT("/x/AltraCartella/due.json"),       TEXT("Movement.Basic"),          TEXT("\"movement\"")),
+	};
+
+	TArray<FString> Problems;
+	const TArray<FRTScenarioEntry> Entries = URTScenarioIndex::BuildFrom(Files, Problems);
+
+	TestEqual(TEXT("due voci indicizzate"), Entries.Num(), 2);
+	TestEqual(TEXT("nessun problema"), Problems.Num(), 0);
+
+	// Il nome del file non ha alcun rapporto con l'ID: e' esattamente cio' che deve funzionare.
+	const FRTScenarioEntry* Overwatch = Entries.FindByPredicate(
+		[](const FRTScenarioEntry& E) { return E.ScenarioId == TEXT("Reaction.Overwatch.Hold"); });
+	if (!TestNotNull(TEXT("scenario trovato per id, non per percorso"), Overwatch)) { return false; }
+	TestEqual(TEXT("porta il percorso del suo file"), Overwatch->Path, FString(TEXT("/x/QualsiasiCartella/uno.json")));
+	TestEqual(TEXT("due tag"), Overwatch->Tags.Num(), 2);
+	return true;
+}
+
+/**
+ * T2 — Due file che dichiarano lo stesso `scenarioId`.
+ *
+ * E' la classe di errore che questo indice **introduce**: finche' l'ID era il percorso, il filesystem la
+ * rendeva impossibile. Deve essere segnalata alla costruzione e rifiutata alla risoluzione — sceglierne uno
+ * in silenzio significherebbe eseguire uno scenario diverso da quello chiesto, che e' il difetto peggiore
+ * che un harness possa avere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexDuplicateIdTest,
+	"RefactorTactics.ScenarioIndex.DuplicateIdIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexDuplicateIdTest::RunTest(const FString&)
+{
+	const TArray<TPair<FString, FString>> Files = {
+		IndexFile(TEXT("/x/a.json"), TEXT("Movement.Basic"), TEXT("\"movement\"")),
+		IndexFile(TEXT("/x/b.json"), TEXT("Movement.Basic"), TEXT("\"combat\"")),
+	};
+
+	TArray<FString> Problems;
+	URTScenarioIndex::BuildFrom(Files, Problems);
+
+	if (!TestEqual(TEXT("un problema segnalato"), Problems.Num(), 1)) { return false; }
+	// Il messaggio deve nominare l'ID e i file: un «id duplicato» senza dire quali non fa risparmiare
+	// nemmeno la ricerca che si voleva evitare.
+	TestTrue(TEXT("il messaggio nomina l'id"), Problems[0].Contains(TEXT("Movement.Basic")));
+	TestTrue(TEXT("il messaggio nomina il primo file"), Problems[0].Contains(TEXT("a.json")));
+	TestTrue(TEXT("il messaggio nomina il secondo file"), Problems[0].Contains(TEXT("b.json")));
+	return true;
+}
+
+/** Un JSON rotto non deve far sparire gli altri scenari dall'indice: si segnala e si tira avanti. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexBrokenFileTest,
+	"RefactorTactics.ScenarioIndex.BrokenFileDoesNotHideTheOthers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexBrokenFileTest::RunTest(const FString&)
+{
+	TArray<TPair<FString, FString>> Files;
+	Files.Emplace(TEXT("/x/rotto.json"), TEXT("{ questo non e' json"));
+	Files.Add(IndexFile(TEXT("/x/sano.json"), TEXT("Movement.Basic"), TEXT("\"movement\"")));
+
+	TArray<FString> Problems;
+	const TArray<FRTScenarioEntry> Entries = URTScenarioIndex::BuildFrom(Files, Problems);
+
+	TestEqual(TEXT("lo scenario sano resta indicizzato"), Entries.Num(), 1);
+	TestEqual(TEXT("il file rotto e' segnalato"), Problems.Num(), 1);
+	TestTrue(TEXT("il problema nomina il file"), Problems[0].Contains(TEXT("rotto.json")));
+	return true;
+}
+
+/**
+ * T3 — Due filtri sono una **intersezione**, non una unione.
+ *
+ * E' la ragione per cui i filtri sono due: il caso che serve e' «reactions E gadget». Se questo test si
+ * rompesse restituendo l'unione, il filtro sembrerebbe funzionare (l'elenco cambia) mentre mostrerebbe
+ * piu' scenari invece di meno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexFilterIntersectionTest,
+	"RefactorTactics.ScenarioIndex.TwoFiltersIntersect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexFilterIntersectionTest::RunTest(const FString&)
+{
+	// Sul corpus reale, cosi' il test fallisce anche se qualcuno toglie i tag dagli scenari versionati.
+	const TArray<FString> Tutti     = URTScenarioIndex::ListIds(FString(), FString());
+	const TArray<FString> Movimento = URTScenarioIndex::ListIds(TEXT("movement"), FString());
+	const TArray<FString> Incrocio  = URTScenarioIndex::ListIds(TEXT("movement"), TEXT("core"));
+
+	TestTrue(TEXT("senza filtri si vede tutto"), Tutti.Num() > 0);
+	TestTrue(TEXT("un filtro restringe"), Movimento.Num() > 0 && Movimento.Num() < Tutti.Num());
+	TestTrue(TEXT("due filtri restringono ancora"), Incrocio.Num() > 0 && Incrocio.Num() < Movimento.Num());
+
+	TestTrue(TEXT("Movement.Basic e' movement+core"), Incrocio.Contains(TEXT("Movement.Basic")));
+	// `Movement.Blocked` e' taggato pathfinding, non core: deve cadere fuori dall'incrocio ma restare
+	// dentro il filtro singolo. E' il caso che distingue intersezione da unione.
+	TestTrue(TEXT("Movement.Blocked passa il filtro singolo"), Movimento.Contains(TEXT("Movement.Blocked")));
+	TestFalse(TEXT("Movement.Blocked non passa l'incrocio"), Incrocio.Contains(TEXT("Movement.Blocked")));
+	// Un tag di un'altra tipologia non deve trascinarsi dietro gli scenari di movimento.
+	TestFalse(TEXT("Combat.BasicAttack non e' movement"), Movimento.Contains(TEXT("Combat.BasicAttack")));
+	return true;
+}
+
+/**
+ * T4 — L'elenco **filtrato** ha ordine totale.
+ *
+ * `ListScenarioIds` ordinava gia' l'elenco pieno, ma il filtro e' codice nuovo e l'ordine con cui il
+ * filesystem restituisce i file non e' garantito. Una tendina che cambia ordine fra due aperture e' un modo
+ * silenzioso di far cliccare la voce sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexOrderTest,
+	"RefactorTactics.ScenarioIndex.FilteredListIsTotallyOrdered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexOrderTest::RunTest(const FString&)
+{
+	const TArray<FString> Ids = URTScenarioIndex::ListIds(TEXT("movement"), FString());
+	if (!TestTrue(TEXT("almeno due scenari da ordinare"), Ids.Num() >= 2)) { return false; }
+
+	for (int32 I = 1; I < Ids.Num(); ++I)
+	{
+		TestTrue(FString::Printf(TEXT("'%s' viene dopo '%s'"), *Ids[I], *Ids[I - 1]), Ids[I - 1] < Ids[I]);
+	}
+
+	// Stabile fra due chiamate: non basta che sia ordinato una volta.
+	TestEqual(TEXT("stesso elenco alla seconda chiamata"), URTScenarioIndex::ListIds(TEXT("movement"), FString()), Ids);
+
+	// Il vocabolario dei tag e' anch'esso ordinato, e contiene solo tag realmente presenti.
+	const TArray<FString> Tags = URTScenarioIndex::ListTags();
+	TestTrue(TEXT("il vocabolario non e' vuoto"), Tags.Num() > 0);
+	for (int32 I = 1; I < Tags.Num(); ++I)
+	{
+		TestTrue(FString::Printf(TEXT("tag '%s' dopo '%s'"), *Tags[I], *Tags[I - 1]), Tags[I - 1] < Tags[I]);
+	}
+	TestTrue(TEXT("'movement' e' nel vocabolario"), Tags.Contains(TEXT("movement")));
+	return true;
+}
+
+/**
+ * T5 — I redirect seguono la catena e non girano all'infinito.
+ *
+ * Un ciclo `a -> b -> a` in una tabella scritta a mano e' un errore plausibile, e un harness che si pianta
+ * su un file di configurazione e' peggio di uno che rifiuta l'ID.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexRedirectTest,
+	"RefactorTactics.ScenarioIndex.RedirectsFollowTheChain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexRedirectTest::RunTest(const FString&)
+{
+	TMap<FString, FString> Redirects;
+	Redirects.Add(TEXT("Vecchio.Nome"),    TEXT("Intermedio.Nome"));
+	Redirects.Add(TEXT("Intermedio.Nome"), TEXT("Movement.Basic"));
+
+	TestEqual(TEXT("catena seguita fino in fondo"),
+		URTScenarioIndex::ApplyRedirects(Redirects, TEXT("Vecchio.Nome")), FString(TEXT("Movement.Basic")));
+	TestEqual(TEXT("un id senza redirect resta se stesso"),
+		URTScenarioIndex::ApplyRedirects(Redirects, TEXT("Combat.BasicAttack")), FString(TEXT("Combat.BasicAttack")));
+
+	// Ciclo: deve terminare. Il valore restituito non e' interessante — che la chiamata ritorni lo e'.
+	TMap<FString, FString> Ciclo;
+	Ciclo.Add(TEXT("A"), TEXT("B"));
+	Ciclo.Add(TEXT("B"), TEXT("A"));
+	const FString Uscita = URTScenarioIndex::ApplyRedirects(Ciclo, TEXT("A"));
+	TestTrue(TEXT("un ciclo termina invece di girare"), Uscita == TEXT("A") || Uscita == TEXT("B"));
+
+	// Un ID vivo vince su un redirect rimasto indietro: se qualcuno riusasse un nome liberato, la tabella
+	// non deve dirottarlo altrove.
+	TMap<FString, FString> Obsoleto;
+	Obsoleto.Add(TEXT("Movement.Basic"), TEXT("Qualcos.Altro"));
+	FString Error;
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("Movement.Basic"), Error);
+	TestFalse(TEXT("Movement.Basic si risolve senza passare dai redirect"), Risolto.IsEmpty());
+	return true;
+}
+
+/** Un ID che non esiste produce un errore che dice DOVE si e' cercato, non un percorso inventato. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexUnknownIdTest,
+	"RefactorTactics.ScenarioIndex.UnknownIdFailsWithReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexUnknownIdTest::RunTest(const FString&)
+{
+	FString Error;
+	const FString Path = URTScenarioIndex::ResolvePath(TEXT("Non.Esiste.Affatto"), Error);
+
+	TestTrue(TEXT("nessun percorso restituito"), Path.IsEmpty());
+	TestFalse(TEXT("il motivo e' valorizzato"), Error.IsEmpty());
+	TestTrue(TEXT("il motivo nomina l'id cercato"), Error.Contains(TEXT("Non.Esiste.Affatto")));
+	TestTrue(TEXT("il motivo nomina la cartella"), Error.Contains(TEXT("Scenarios")));
+	return true;
+}
+
+/**
+ * T6 — Il corpus reale e' coerente: ogni scenario versionato porta almeno un tag e resta raggiungibile
+ * dall'elenco non filtrato, che e' quello che la tendina mostra quando i filtri sono vuoti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexShippedCorpusTest,
+	"RefactorTactics.ScenarioIndex.ShippedScenariosAreTagged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexShippedCorpusTest::RunTest(const FString&)
+{
+	TArray<FString> Problems;
+	const TArray<FRTScenarioEntry> Entries = URTScenarioIndex::Scan(Problems);
+
+	if (!TestTrue(TEXT("almeno uno scenario indicizzato"), Entries.Num() > 0)) { return false; }
+	if (Problems.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("l'indice ha %d problemi: %s"), Problems.Num(), *FString::Join(Problems, TEXT(" · "))));
+	}
+	TestEqual(TEXT("nessun problema nell'indice"), Problems.Num(), 0);
+
+	const TArray<FString> Elenco = URTScenarioIndex::ListIds(FString(), FString());
+	for (const FRTScenarioEntry& Entry : Entries)
+	{
+		TestTrue(FString::Printf(TEXT("%s ha almeno un tag"), *Entry.ScenarioId), Entry.Tags.Num() > 0);
+		TestTrue(FString::Printf(TEXT("%s compare nell'elenco non filtrato"), *Entry.ScenarioId),
+			Elenco.Contains(Entry.ScenarioId));
+	}
+
+	// La tabella di redirect non e' uno scenario: se comparisse qui, la scansione starebbe indicizzando
+	// file che non lo sono.
+	for (const FRTScenarioEntry& Entry : Entries)
+	{
+		TestFalse(TEXT("la tabella di redirect non e' indicizzata"),
+			Entry.Path.Contains(URTScenarioIndex::RedirectsFileName));
+	}
+
+	// `ListScenarioIds` del runner deve restare d'accordo con l'indice: e' cio' che usa la console.
+	TestEqual(TEXT("il runner elenca gli stessi id"), URTScenarioRunner::ListScenarioIds(), Elenco);
+	return true;
+}
+
+
+/**
+ * **Un ID si abbrevia dal fondo, per segmenti interi** (#2257).
+ *
+ * 🔴 Il difetto che chiude: `rt.Test.Run` voleva l'ID completo, e un errore di battitura **non produceva
+ * nessun errore visibile**. Il 2026-09-03 un `Visual.Enviorment.IceSlide` per `Environment` non ha trovato
+ * nulla, non ha protestato, e la partita normale è andata avanti col timer — chi guardava ha visto delle
+ * unità muoversi e ha creduto che lo scenario fosse partito.
+ *
+ * 🔑 **Perché il segmento e non la sottostringa, misurato sui 118 scenari del corpus**: l'ultimo segmento è
+ * univoco per **115**, e l'unico ambiguo è `Acceptance` (tre scenari). Una sigla auto-derivata dava invece
+ * **10 collisioni**, e una tabella di codici a mano sarebbe una seconda fonte che invecchia — la ragione è
+ * già scritta in `ARTGameMode::GetScenarioOptions`: *«un elenco che invecchia non può esistere»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexSegmentSuffixTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationIsASegmentSuffix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexSegmentSuffixTest::RunTest(const FString&)
+{
+	const FString Full = TEXT("Visual.Environment.IceSlide");
+
+	// Il caso d'uso: l'ultimo segmento basta, e i segmenti intermedi si aggiungono per disambiguare.
+	TestTrue(TEXT("l'ultimo segmento basta"), URTScenarioIndex::IsSegmentSuffix(Full, TEXT("IceSlide")));
+	TestTrue(TEXT("due segmenti dal fondo bastano"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Environment.IceSlide")));
+	TestTrue(TEXT("l'ID intero resta valido"), URTScenarioIndex::IsSegmentSuffix(Full, Full));
+
+	// ⛔ **Il confine è il SEGMENTO.** Senza queste righe la regola degenererebbe in una sottostringa, e
+	// `Ice` sceglierebbe in silenzio il giorno in cui nasce `IceBridge`.
+	TestFalse(TEXT("mezzo segmento non basta"), URTScenarioIndex::IsSegmentSuffix(Full, TEXT("ceSlide")));
+	TestFalse(TEXT("un segmento che non e' l'ultimo non basta"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Environment")));
+
+	// ⛔ **Si abbrevia dal FONDO, non dall'inizio.** Se si confrontasse dall'inizio, `Visual` risolverebbe
+	// uno qualunque dei quaranta scenari che cominciano così — cioè il difetto opposto a quello chiuso.
+	TestFalse(TEXT("il prefisso non e' un'abbreviazione"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Visual")));
+	TestFalse(TEXT("due segmenti dall'inizio non bastano"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Visual.Environment")));
+
+	// Un'abbreviazione più lunga dell'ID non può corrispondere: guardia sull'indice, non solo sul senso.
+	TestFalse(TEXT("un'abbreviazione piu' lunga dell'ID non corrisponde"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Extra.Visual.Environment.IceSlide")));
+	TestFalse(TEXT("vuota non corrisponde"), URTScenarioIndex::IsSegmentSuffix(Full, FString()));
+
+	// Maiuscole/minuscole: chi digita in console non deve indovinare il caso.
+	TestTrue(TEXT("il confronto ignora maiuscole e minuscole"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("iceslide")));
+	return true;
+}
+
+/**
+ * **Sul corpus VERO: un suffisso univoco risolve, uno ambiguo NON risolve e dice fra cosa scegliere.**
+ *
+ * ⚠️ Questo test legge gli scenari **dal disco**, ed è deliberato: la regola di confronto è già pinnata
+ * dal test qui sopra senza toccare il filesystem, e ciò che resta da provare è proprio l'innesto sul corpus
+ * reale — che `IceSlide` risolva *un solo* file, e che `Acceptance` ne trovi più d'uno.
+ *
+ * ⛔ **L'ambiguità dev'essere un ERRORE, non una scelta.** Un match che prendesse «il primo che trova»
+ * farebbe girare lo scenario sbagliato **senza dirlo**: peggio del typo che questa issue chiude, perché
+ * quello almeno non faceva nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexAbbreviationOnCorpusTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationResolvesOrRefuses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexAbbreviationOnCorpusTest::RunTest(const FString&)
+{
+	// ⛔ Anti-vacuità: senza il corpus, ogni asserzione sotto misurerebbe un indice vuoto e passerebbe per
+	// la ragione sbagliata.
+	FString Errore;
+	const FString PerEsteso = URTScenarioIndex::ResolvePath(TEXT("Visual.Environment.IceSlide"), Errore);
+	if (!TestFalse(TEXT("il corpus contiene lo scenario di riferimento"), PerEsteso.IsEmpty()))
+	{
+		AddError(FString::Printf(TEXT("indice non disponibile: %s"), *Errore));
+		return false;
+	}
+
+	// (1) Un suffisso univoco risolve **allo stesso file** dell'ID completo.
+	const FString PerAbbrev = URTScenarioIndex::ResolvePath(TEXT("IceSlide"), Errore);
+	TestEqual(TEXT("l'abbreviazione risolve allo stesso file dell'ID completo"), PerAbbrev, PerEsteso);
+
+	// (2) 🔑 Un suffisso **ambiguo** non risolve, e il messaggio nomina i candidati. `Acceptance` è
+	// ambiguo sul corpus vero — tre scenari lo dichiarano — quindi il caso non è fabbricato.
+	Errore.Reset();
+	const FString Ambigua = URTScenarioIndex::ResolvePath(TEXT("Acceptance"), Errore);
+	TestTrue(TEXT("un'abbreviazione ambigua NON risolve"), Ambigua.IsEmpty());
+	TestTrue(TEXT("e l'errore dice che e' ambigua"), Errore.Contains(TEXT("ambigu")));
+	TestTrue(TEXT("e nomina i candidati fra cui scegliere"), Errore.Contains(TEXT("Acceptance")));
+
+	// (3) ⛔ **L'ID esatto vince sempre.** È la garanzia che l'abbreviazione non dirotti un ID vivo, ed è la
+	// stessa regola che questa funzione applicava già ai redirect.
+	Errore.Reset();
+	const FString Esatto = URTScenarioIndex::ResolvePath(TEXT("Visual.Map.Acceptance"), Errore);
+	TestFalse(TEXT("un ID esatto risolve anche se il suo ultimo segmento e' ambiguo"), Esatto.IsEmpty());
+	return true;
+}
+
+/**
+ * La radice del Lab si vede da `ScanAll` e NON da `Scan` (spec §2 passo 2, §3).
+ *
+ * 🔑 Il «non da `Scan`» e' la meta' che protegge i gate sul corpus: `ShippedScenariosAreTagged` e
+ * `WriterRoundTripsShippedScenarios` passano da `Scan`, e un file stantio in `Saved/` di una macchina li
+ * farebbe rossi li' e verdi altrove.
+ * ✅ Validato per mutazione: togliere la radice del Lab da `ScanAll` deve far cadere il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexScanAllSeesTheLabRootTest,
+	"RefactorTactics.ScenarioIndex.ScanAllSeesTheLabRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Vista"));
+	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
+	ON_SCOPE_EXIT
+	{
+		URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+		IFileManager::Get().DeleteDirectory(*Root, false, true);
+	};
+
+	if (!TestTrue(TEXT("il file di prova si scrive"),
+		ScriviHeaderScenario(Root, TEXT("AbilityLab.Prova.json"), TEXT("AbilityLab.Prova"), TEXT("\"ability-lab\""))))
+	{
+		return false;
+	}
+
+	TArray<FString> ProblemiScan;
+	const TArray<FRTScenarioEntry> Versionati = URTScenarioIndex::Scan(ProblemiScan);
+
+	TArray<FString> ProblemiAll;
+	const TArray<FRTScenarioEntry> Tutti = URTScenarioIndex::ScanAll(ProblemiAll);
+	TestTrue(TEXT("ScanAll vede lo scenario del Lab"), ContieneId(Tutti, TEXT("AbilityLab.Prova")));
+	// Relativo a `Scan`, non assoluto: un corpus versionato sporco e' un difetto SUO, e qui si leggerebbe
+	// come un difetto di `ScanAll`.
+	TestEqual(TEXT("ScanAll non aggiunge problemi oltre a quelli di Scan"), ProblemiAll.Num(), ProblemiScan.Num());
+
+	const FRTScenarioEntry* Voce = Tutti.FindByPredicate(
+		[](const FRTScenarioEntry& E) { return E.ScenarioId == TEXT("AbilityLab.Prova"); });
+	if (Voce)
+	{
+		TestTrue(TEXT("il percorso e' sotto la radice del Lab"), Voce->Path.Contains(TEXT("RTLabIndex")));
+		TestTrue(TEXT("il tag e' letto"), Voce->Tags.Contains(TEXT("ability-lab")));
+	}
+
+	TestFalse(TEXT("Scan NON vede lo scenario del Lab"), ContieneId(Versionati, TEXT("AbilityLab.Prova")));
+
+	FString Errore;
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Prova"), Errore);
+	TestFalse(TEXT("ResolvePath trova lo scenario del Lab"), Risolto.IsEmpty());
+	TestTrue(TEXT("e il percorso e' quello del file scritto"),
+		FPaths::IsSamePath(Risolto, FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, TEXT("AbilityLab.Prova.json")))));
+	TestTrue(TEXT("ListIds elenca lo scenario del Lab"),
+		URTScenarioIndex::ListIds(FString(), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestTrue(TEXT("ListIds filtra per il suo tag"),
+		URTScenarioIndex::ListIds(TEXT("ability-lab"), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestTrue(TEXT("ListTags porta il tag del Lab"), URTScenarioIndex::ListTags().Contains(TEXT("ability-lab")));
+	// La tendina di `BP_GameMode` finisce in un `.uasset`: un Id del Lab salvato li' non risolverebbe altrove.
+	TestFalse(TEXT("ListVersionedIds NON elenca lo scenario del Lab"),
+		URTScenarioIndex::ListVersionedIds(FString(), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestFalse(TEXT("ListVersionedTags non porta il tag del Lab"),
+		URTScenarioIndex::ListVersionedTags().Contains(TEXT("ability-lab")));
+
+	// Rimosso il file, l'Id sparisce da `ScanAll`: niente cache fra una chiamata e l'altra.
+	IFileManager::Get().Delete(*FPaths::Combine(Root, TEXT("AbilityLab.Prova.json")));
+	TArray<FString> ProblemiDopo;
+	TestFalse(TEXT("rimosso il file, ScanAll non lo vede piu'"),
+		ContieneId(URTScenarioIndex::ScanAll(ProblemiDopo), TEXT("AbilityLab.Prova")));
+	Errore.Reset();
+	TestTrue(TEXT("rimosso il file, l'Id non risolve piu'"),
+		URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Prova"), Errore).IsEmpty());
+	TestTrue(TEXT("e l'errore nomina la radice del Lab"), Errore.Contains(TEXT("RTLabIndex")));
+	return true;
+}
+
+/** Radice del Lab mancante: nessun problema, nessuna voce in piu'. Le voci versionate sono le stesse di `Scan`, per Id. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootAbsentTest,
+	"RefactorTactics.ScenarioIndex.LabRootAbsentIsNotAnError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexLabRootAbsentTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("CheNonEsiste"));
+	IFileManager::Get().DeleteDirectory(*Root, false, true);
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
+	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
+
+	TArray<FString> ProblemiScan, ProblemiAll;
+	const TArray<FRTScenarioEntry> DaScan = URTScenarioIndex::Scan(ProblemiScan);
+	const TArray<FRTScenarioEntry> DaAll = URTScenarioIndex::ScanAll(ProblemiAll);
+
+	TestEqual(TEXT("ScanAll ha gli stessi problemi di Scan"), ProblemiAll, ProblemiScan);
+	// Confronto per Id, nei due versi, senza mai asserire un totale sul corpus.
+	for (const FRTScenarioEntry& E : DaScan)
+	{
+		TestTrue(FString::Printf(TEXT("%s di Scan e' anche in ScanAll"), *E.ScenarioId), ContieneId(DaAll, *E.ScenarioId));
+	}
+	for (const FRTScenarioEntry& E : DaAll)
+	{
+		TestTrue(FString::Printf(TEXT("%s di ScanAll e' anche in Scan"), *E.ScenarioId), ContieneId(DaScan, *E.ScenarioId));
+	}
+	return true;
+}
+
+/** Un file rotto nella radice del Lab e' un problema di `ScanAll`, non di `Scan`, e non nasconde gli altri. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootProblemsTest,
+	"RefactorTactics.ScenarioIndex.LabRootProblemsStayOutOfScan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Rotto"));
+	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
+	ON_SCOPE_EXIT
+	{
+		URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+		IFileManager::Get().DeleteDirectory(*Root, false, true);
+	};
+
+	FFileHelper::SaveStringToFile(TEXT("{ questo non e' json"), *FPaths::Combine(Root, TEXT("Rotto.json")));
+	ScriviHeaderScenario(Root, TEXT("AbilityLab.Sano.json"), TEXT("AbilityLab.Sano"), TEXT("\"ability-lab\""));
+
+	TArray<FString> ProblemiScan, ProblemiAll;
+	const TArray<FRTScenarioEntry> DaScan = URTScenarioIndex::Scan(ProblemiScan);
+	const TArray<FRTScenarioEntry> DaAll = URTScenarioIndex::ScanAll(ProblemiAll);
+
+	TestTrue(TEXT("ScanAll segnala il file rotto"), ProblemiAll.Num() > ProblemiScan.Num());
+	TestTrue(TEXT("ScanAll vede comunque il file sano"), ContieneId(DaAll, TEXT("AbilityLab.Sano")));
+	TestFalse(TEXT("Scan non vede nulla del Lab"), ContieneId(DaScan, TEXT("AbilityLab.Sano")));
+	return true;
+}
+
+/**
+ * Senza override, sotto automation la radice del Lab e' VUOTA (non esiste e nessuno puo' scriverla): i test che
+ * enumerano il corpus (`ListIds`/`ListTags`/`ResolvePath` passano da `ScanAll`) vedono la sola radice versionata
+ * anche su una macchina dove il banco ha lasciato un file in `Saved/RTLab`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootHiddenTest,
+	"RefactorTactics.ScenarioIndex.LabRootIsHiddenFromAutomationByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
+
+	// Controllo positivo della premessa: senza, i due asserti sulla radice non dimostrano niente.
+	TestTrue(TEXT("GIsAutomationTesting e' vero qui"), GIsAutomationTesting);
+
+	// 🔴 VUOTA, non «una cartella che non esiste»: un percorso reale e' scrivibile, e `PrepareForPie` lo
+	// avrebbe creato alla prima chiamata senza override, rendendo rosso questo test.
+	TestTrue(TEXT("sotto automation la radice del Lab e' VUOTA"), URTScenarioLoader::LabScenariosRoot().IsEmpty());
+
+	TArray<FString> ProblemiScan, ProblemiAll;
+	const TArray<FRTScenarioEntry> DaScan = URTScenarioIndex::Scan(ProblemiScan);
+	const TArray<FRTScenarioEntry> DaAll = URTScenarioIndex::ScanAll(ProblemiAll);
+	// Confronto per Id, nei due versi, senza mai asserire un totale sul corpus.
+	for (const FRTScenarioEntry& E : DaScan)
+	{
+		TestTrue(FString::Printf(TEXT("%s di Scan e' anche in ScanAll"), *E.ScenarioId), ContieneId(DaAll, *E.ScenarioId));
+	}
+	for (const FRTScenarioEntry& E : DaAll)
+	{
+		TestTrue(FString::Printf(TEXT("%s di ScanAll e' anche in Scan"), *E.ScenarioId), ContieneId(DaScan, *E.ScenarioId));
+	}
+	return true;
+}
+
+/**
+ * #3543 — l'abbreviazione per segmenti confronta solo gli Id **versionati**.
+ *
+ * Un file del Lab il cui Id finisce per lo stesso segmento di uno scenario versionato non deve rendere
+ * ambigua l'abbreviazione che, sul corpus versionato, e' univoca: l'Id esatto e i redirect vedono anche il
+ * Lab, l'abbreviazione no. Il caso di prova (`Deflection`) e' ricavato dal corpus, non assunto: se non
+ * fosse piu' univoco il test lo dice invece di passare su un'abbreviazione gia' ambigua.
+ * ✅ Validato per mutazione: far scorrere di nuovo `Entries` (ScanAll) invece delle sole voci versionate
+ * deve far cadere *«Deflection risolve»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexAbbreviationIgnoresLabTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationIgnoresTheLabRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexAbbreviationIgnoresLabTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+
+	// Il caso di prova dal corpus versionato, e deve essere UNO: altrimenti l'abbreviazione e' gia' ambigua
+	// senza il Lab e il test non dimostrerebbe nulla.
+	TArray<FString> Candidati;
+	for (const FString& Id : URTScenarioIndex::ListVersionedIds(FString(), FString()))
+	{
+		if (Id.EndsWith(TEXT(".Deflection")))
+		{
+			Candidati.Add(Id);
+		}
+	}
+	if (Candidati.Num() != 1)
+	{
+		AddError(FString::Printf(TEXT("il corpus versionato e' cambiato: gli Id che finiscono per .Deflection non sono piu' uno solo (%s) — scegli di nuovo il caso di prova"),
+			*FString::Join(Candidati, TEXT(", "))));
+		return false;
+	}
+
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabIndex"), TEXT("Abbrev"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+	if (!TestTrue(TEXT("il file di prova si scrive"),
+		ScriviHeaderScenario(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json"), TEXT("AbilityLab.Hero.Ivrin.Deflection"), TEXT("\"ability-lab\""))))
+	{
+		return false;
+	}
+
+	// Controllo positivo: l'Id esatto del Lab risolve, quindi il file e' davvero visibile alle ricerche.
+	FString Errore;
+	const FString DelLab = URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Hero.Ivrin.Deflection"), Errore);
+	TestTrue(TEXT("l'Id esatto del Lab risolve al file del Lab"),
+		!DelLab.IsEmpty() && FPaths::IsSamePath(DelLab,
+			FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json")))));
+
+	// L'abbreviazione: il Lab non la rende ambigua, e risolve al versionato.
+	Errore.Reset();
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("Deflection"), Errore);
+	TestFalse(*FString::Printf(TEXT("Deflection risolve (errore: %s)"), *Errore), Risolto.IsEmpty());
+	TestFalse(TEXT("e non risolve al file del Lab"), FPaths::IsSamePath(Risolto, DelLab));
+	// Lo STESSO file che l'Id completo del versionato risolve: un suffisso di nome non basta, perche' l'Id
+	// e' indipendente dal percorso (`IdIsIndependentOfPath`) e un file omonimo altrove passerebbe.
+	Errore.Reset();
+	const FString DelVersionato = URTScenarioIndex::ResolvePath(Candidati[0], Errore);
+	TestTrue(*FString::Printf(TEXT("e risolve al versionato %s"), *Candidati[0]),
+		!Risolto.IsEmpty() && !DelVersionato.IsEmpty() && FPaths::IsSamePath(Risolto, DelVersionato));
+	return true;
+}
+
+/**
+ * Ogni redirect del file SPEDITO porta a uno scenario vivo, e le cinque rinomine della Guardia ci sono — `#3223`.
+ *
+ * 🔴 **Rinominare uno scenario e' due gesti, e il secondo si dimentica**: cambiare `scenarioId` e aggiungere una
+ * riga a `Scenarios/_redirects.json` (`scenario-index-e-tag.md` §5). Senza la riga, ogni riferimento che non si
+ * puo' riscrivere — issue, PR, Decision Log, piani datati — smette di funzionare con `rt.Test.Scenario`: l'ID
+ * non risulta nell'indice e non c'e' nessun redirect che lo recuperi. Nessun altro test legge il file vero,
+ * perche' `RedirectsFollowTheChain` lavora su mappe costruite a mano.
+ *
+ * ⚠️ **`ResolvePath(Vecchio) == ResolvePath(Nuovo)` dimostra anche che il vecchio ID non e' piu' vivo**: un ID
+ * vivo vince sul redirect, quindi se un file con il vecchio nome esistesse ancora la risoluzione cadrebbe su di
+ * lui e le due stringhe sarebbero diverse.
+ *
+ * 🔑 **Le cinque coppie sono scritte qui e non lette dal file**, perche' leggerle dal file renderebbe il test
+ * verde con la tabella vuota. Il controllo generale in coda legge invece il file vero, voce per voce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexShippedRedirectsTest,
+	"RefactorTactics.ScenarioIndex.EveryShippedRedirectReachesALiveScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexShippedRedirectsTest::RunTest(const FString&)
+{
+	const TMap<FString, FString> Redirects = URTScenarioIndex::LoadRedirects();
+	// Anti-vacuita': con la tabella vuota il ciclo generale qui sotto non misurerebbe niente.
+	if (!TestTrue(TEXT("il file dei redirect spedito ha delle voci"), Redirects.Num() > 0))
+	{
+		return false;
+	}
+
+	// L'elenco completo degli ID, per l'esistenza ESATTA: `ResolvePath` non basta, vedi il ciclo generale.
+	const TArray<FString> Vivi = URTScenarioIndex::ListIds(FString(), FString());
+
+	const TArray<TPair<FString, FString>> Rinomine = {
+		{ TEXT("Spec.Brace.BraceWinsOnSecondHit"),                  TEXT("Spec.Brace.GuardWinsOnFrontalHits") },
+		{ TEXT("Visual.Combat.GuardReducesFirstHit"),               TEXT("Visual.Combat.GuardReducesEveryFrontalHit") },
+		{ TEXT("Spec.Combat.GuardPoolSpansMultipleHits"),           TEXT("Spec.Combat.GuardSpansMultipleHits") },
+		{ TEXT("Spec.Combat.AreaGuardFromImpactCenterKeepsPool"),   TEXT("Spec.Combat.AreaGuardFromImpactCenterHolds") },
+		{ TEXT("Visual.Combat.GuardVsBraceUnderSmallHits"),         TEXT("Visual.Combat.DefenseVsNoneUnderSmallHits") },
+	};
+	for (const TPair<FString, FString>& Coppia : Rinomine)
+	{
+		FString ErroreNuovo, ErroreVecchio;
+		const FString PercorsoNuovo = URTScenarioIndex::ResolvePath(Coppia.Value, ErroreNuovo);
+		const FString PercorsoVecchio = URTScenarioIndex::ResolvePath(Coppia.Key, ErroreVecchio);
+		TestFalse(*FString::Printf(TEXT("il nome nuovo %s esiste (%s)"), *Coppia.Value, *ErroreNuovo),
+			PercorsoNuovo.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("e %s e' un ID vivo scritto per intero, non un'abbreviazione"), *Coppia.Value),
+			Vivi.Contains(Coppia.Value));
+		TestEqual(*FString::Printf(TEXT("il nome vecchio %s porta allo stesso file di %s"), *Coppia.Key, *Coppia.Value),
+			PercorsoVecchio, PercorsoNuovo);
+	}
+
+	// Il controllo generale, sul file vero: nessuna voce deve restare appesa a un bersaglio che non c'e' piu'.
+	//
+	// 🔴 **Esistenza ESATTA, e non `ResolvePath(Finale)`.** `ResolvePath` rifa i redirect e prova anche
+	// l'abbreviazione per segmenti, quindi un bersaglio scritto senza prefisso (`BranthImpactShotSlows`) o una
+	// catena piu' lunga di `MaxRedirectHops` si risolverebbero QUI e non nell'harness, che parte dall'ID
+	// originale e si ferma. Misurato con un mutante: il bersaglio senza prefisso lasciava il test verde.
+	for (const TPair<FString, FString>& Voce : Redirects)
+	{
+		const FString Finale = URTScenarioIndex::ApplyRedirects(Redirects, Voce.Key);
+		TestTrue(*FString::Printf(TEXT("il redirect %s -> %s porta a un ID VIVO, scritto per intero"),
+				*Voce.Key, *Finale),
+			Vivi.Contains(Finale));
+		TestFalse(*FString::Printf(TEXT("e %s non e' a sua volta una chiave: la catena finisce entro i salti"), *Finale),
+			Redirects.Contains(Finale));
+	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

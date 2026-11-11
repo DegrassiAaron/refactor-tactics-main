@@ -33,7 +33,7 @@ non è la mappa che c'è già.
 
 ### 1.1 La barra di vita sopra il cilindro **esiste già**
 
-`ARTHUD::DrawHUD` (`Source/RefactorTactics/UI/RTHUD.cpp:424-640`) proietta la testa di ogni unità viva
+`ARTHUD::DrawHUD` (`Source/RefactorTactics/UI/HUD/RTHUD.cpp:424-640`) proietta la testa di ogni unità viva
 (`WorldHeadOffset`) e disegna in canvas screen-space:
 
 | Elemento | Riga | Nota |

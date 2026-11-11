@@ -95,7 +95,7 @@ caso diverso. Nessun requisito nuovo per #2403.
 
 ## 5. Il lavoro, dopo il panel
 
-1. **`Turn/RTTurnLog.h`** — cinque valori in coda: tre a `ERTMoveOutcome` da `D-352`
+1. **`Turn/Log/RTTurnLog.h`** — cinque valori in coda: tre a `ERTMoveOutcome` da `D-352`
    (`FellToAlternative`, `FellToLastStable`, `FellWithoutLanding`), uno da `D-354`
    (`StoppedByEdgeGuard`), e `EdgeGuard` in coda a `ERTDisplacementBlockReason`.
 2. **`Turn/RTTurnManager_Blast.cpp`** — `RisolviAtterraggio` sa già quale dei tre esiti ha preso: deve

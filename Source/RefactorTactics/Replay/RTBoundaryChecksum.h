@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Turn/RTTurnLog.h"           // FRTTurnLogEntry, ERTMatchPhase
-#include "Replay/RTReplayStateLibrary.h" // FRTTracedUnitState
+#include "Turn/Log/RTTurnLog.h"           // FRTTurnLogEntry, ERTMatchPhase
+#include "Replay/Viewer/RTReplayStateLibrary.h" // FRTTracedUnitState
 #include "RTBoundaryChecksum.generated.h"
 
 class URTHexMapAsset;

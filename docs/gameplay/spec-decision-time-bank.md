@@ -382,7 +382,7 @@ Il wall-clock non entra nel resolver. Il bank sopravvive a questo vincolo solo c
 > `DecisionTimingPolicy` è **wall-clock**, non regola: **non** entra in `URTMatchFormatData` e non contribuisce
 > ad alcun hash. Sta accanto a `PlanningSeconds` e `MaxPlaybackSeconds`.
 
-La regola esiste già, scritta in `Source/RefactorTactics/Turn/RTMatchFormatData.h`:
+La regola esiste già, scritta in `Source/RefactorTactics/Turn/Format/RTMatchFormatData.h`:
 
 > *«Contiene solo parametri di **REGOLA**: input deterministici da cui l'esito dipende. I tempi di parete
 > (`PlanningSeconds`, `MaxPlaybackSeconds`) **NON** stanno qui e restano `UPROPERTY` sul `TurnManager` —

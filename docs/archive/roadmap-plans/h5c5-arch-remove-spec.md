@@ -36,7 +36,7 @@ sopra** nel viewport. Fetta solo-editor + un piccolo refactor runtime; l'edit/ri
   — distanza minima tra il ray (semi-retta `Origin + t*Dir`, `t>=0`) e il segmento `A..B`. Pura, deterministica.
 
 ### 3.2 Refactor runtime (DRY, `ARTHexMapActor`)
-`Source/RefactorTactics/Map/RTHexMapActor.{h,cpp}`:
+`Source/RefactorTactics/Map/Actor/RTHexMapActor.{h,cpp}`:
 - `bool RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)` — estratto da
   `RemoveVerticalTransition`: `FScopedTransaction` `#if WITH_EDITOR` + `Modify` + `MapAsset->RemoveTransition(From,To,bBoth)`
   + (se rimosso) `MarkPackageDirty` + `RebuildInstances`; ritorna se ha rimosso. `RemoveVerticalTransition()` diventa wrapper.
@@ -63,7 +63,7 @@ sopra** nel viewport. Fetta solo-editor + un piccolo refactor runtime; l'edit/ri
 | **H5c.5b** Tool Remove | `ERTHexArchOp Operation`; branch Remove in `OnClicked` (hit-test + `RemoveTransitionData`) | Build Editor verde; in Remove, click su un arco lo rimuove; Undo lo ripristina |
 
 ## 6. Testing e Definition of Done
-- **Logica pura → test headless**: `RefactorTactics.Hex.DistanceRayToSegment` in `Source/RefactorTactics/Tests/RTHexTests.cpp`:
+- **Logica pura → test headless**: `RefactorTactics.Hex.DistanceRayToSegment` in `Source/RefactorTactics/Tests/Map/RTHexTests.cpp`:
   ray che interseca il segmento → ~0; ray parallelo a distanza D → ~D; punto di closest oltre un estremo → distanza
   dall'endpoint; degeneri (segmento di lunghezza 0 → distanza punto-ray). `RemoveTransition` già coperto da H4.
 - **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):

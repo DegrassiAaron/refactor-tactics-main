@@ -46,8 +46,8 @@ garantito.
 | File | Responsabilità |
 |---|---|
 | `Source/RefactorTactics/Player/RTPlayerState.h/.cpp` | il `TeamId` e il suo **unico** lettore |
-| `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp` | la terna che discrimina + il presidio di reflection |
-| `Source/RefactorTactics/Tests/RTWorldFixtures.h` | `MakePlayerOnTeam`, una sola sede |
+| `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp` | la terna che discrimina + il presidio di reflection |
+| `Source/RefactorTactics/Tests/Shared/RTWorldFixtures.h` | `MakePlayerOnTeam`, una sola sede |
 | `RTGameMode.h/.cpp` | `PlayerStateClass` e `AssignSeats` — composition root |
 | `Match/RTMatchBootstrapper.h/.cpp` | le `FRTMatchRules` risolte escono nell'esito |
 
@@ -57,7 +57,7 @@ garantito.
 
 **Files:**
 - Create: `Source/RefactorTactics/Player/RTPlayerState.h`, `Source/RefactorTactics/Player/RTPlayerState.cpp`
-- Test: `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`
+- Test: `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp`
 
 **Interfaces:**
 - Consumes: niente.
@@ -66,7 +66,7 @@ garantito.
 
 - [ ] **Passo 1: scrivi i tre test che falliscono**
 
-In `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`:
+In `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp`:
 
 ```cpp
 // L'identita' di squadra e' del PlayerState, e si legge da UNA porta sola.
@@ -82,7 +82,7 @@ In `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`:
 #include "GameFramework/PlayerState.h"
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
-#include "Tests/RTWorldFixtures.h"
+#include "Tests/Shared/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -261,7 +261,7 @@ mondo di prova sta creando un PlayerState: **fermati e rileggi §5 dello spec**,
 - [ ] **Passo 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Player/RTPlayerState.h Source/RefactorTactics/Player/RTPlayerState.cpp Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp
+git add Source/RefactorTactics/Player/RTPlayerState.h Source/RefactorTactics/Player/RTPlayerState.cpp Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp
 git commit -m "feat(player): l'identita' di squadra e' del PlayerState, con una porta sola"
 ```
 
@@ -270,8 +270,8 @@ git commit -m "feat(player): l'identita' di squadra e' del PlayerState, con una 
 ### Task 2: la fixture che garantisce la classe
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/RTWorldFixtures.h`
-- Test: `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`
+- Modify: `Source/RefactorTactics/Tests/Shared/RTWorldFixtures.h`
+- Test: `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp`
 
 **Interfaces:**
 - Consumes: `ARTPlayerState::AssignTeam`, `ARTPlayerState::TeamIdOf` (Task 1).
@@ -320,7 +320,7 @@ Attesa: `MakePlayerOnTeam` non è un membro di `RTWorldFixtures`.
 
 - [ ] **Passo 3: aggiungi la fixture**
 
-In `Source/RefactorTactics/Tests/RTWorldFixtures.h`, dentro `namespace RTWorldFixtures`, dopo
+In `Source/RefactorTactics/Tests/Shared/RTWorldFixtures.h`, dentro `namespace RTWorldFixtures`, dopo
 `DestroyWorld`. Aggiungi in testa al file `#include "Player/RTPlayerController.h"` e
 `#include "Player/RTPlayerState.h"`.
 
@@ -365,7 +365,7 @@ Attesa: `VALIDA`, 4/4, 0 fallimenti.
 - [ ] **Passo 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTWorldFixtures.h Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp
+git add Source/RefactorTactics/Tests/Shared/RTWorldFixtures.h Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp
 git commit -m "test(player): una fixture che garantisce la CLASSE del PlayerState, non solo la sua presenza"
 ```
 
@@ -376,9 +376,9 @@ git commit -m "test(player): una fixture che garantisce la CLASSE del PlayerStat
 **Files:**
 - Modify: `Source/RefactorTactics/Camera/RTCameraPawn.cpp` (`FrameOwnTeam`)
 - Modify: `Source/RefactorTactics/Player/RTPlayerController.cpp` (righe ~696 e ~716)
-- Modify: `Source/RefactorTactics/Perception/RTKnowledgeVeilPresenter.cpp` (`ViewerTeamId`)
-- Modify: `Source/RefactorTactics/UI/RTHUD.h`, `Source/RefactorTactics/UI/RTHUD.cpp`
-- Modify: `Source/RefactorTactics/Tests/RTHudViewerTeamTests.cpp`, `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`
+- Modify: `Source/RefactorTactics/Perception/Veil/RTKnowledgeVeilPresenter.cpp` (`ViewerTeamId`)
+- Modify: `Source/RefactorTactics/UI/HUD/RTHUD.h`, `Source/RefactorTactics/UI/HUD/RTHUD.cpp`
+- Modify: `Source/RefactorTactics/Tests/RTHudViewerTeamTests.cpp`, `Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp`
 
 **Interfaces:**
 - Consumes: `ARTPlayerState::TeamIdOf` (Task 1), `RTWorldFixtures::MakePlayerOnTeam` (Task 2).
@@ -386,8 +386,8 @@ git commit -m "test(player): una fixture che garantisce la CLASSE del PlayerStat
 
 - [ ] **Passo 1: sposta i due test dell'HUD sulla nuova porta**
 
-In `RTHudViewerTeamTests.cpp`: sostituisci `#include "UI/RTHUD.h"` con
-`#include "Player/RTPlayerState.h"` e `#include "Tests/RTWorldFixtures.h"`, e riscrivi i corpi:
+In `RTHudViewerTeamTests.cpp`: sostituisci `#include "UI/HUD/RTHUD.h"` con
+`#include "Player/RTPlayerState.h"` e `#include "Tests/Shared/RTWorldFixtures.h"`, e riscrivi i corpi:
 
 ```cpp
 	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
@@ -419,7 +419,7 @@ In `RTCameraPawnTests.cpp`, sostituisci le tre righe che spawnano il controller 
 	PC->Possess(Cam);
 ```
 
-Aggiungi `#include "Tests/RTWorldFixtures.h"` se assente. Aggiorna il commento che nomina
+Aggiungi `#include "Tests/Shared/RTWorldFixtures.h"` se assente. Aggiorna il commento che nomina
 `PlayerTeamId` in `ARTPlayerState::TeamIdOf`.
 
 - [ ] **Passo 3: compila e verifica che NON compili**
@@ -481,7 +481,7 @@ git commit -m "refactor(player): i cinque lettori passano da una porta sola, e V
 
 **Files:**
 - Modify: `Source/RefactorTactics/Player/RTPlayerController.h` (rimozione di `PlayerTeamId`)
-- Test: `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`
+- Test: `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp`
 
 **Interfaces:**
 - Consumes: tutto Task 3 (nessun lettore residuo).
@@ -562,7 +562,7 @@ git commit -m "refactor(player): via il campo editabile, e un presidio di reflec
 **Files:**
 - Modify: `Source/RefactorTactics/Match/RTMatchBootstrapper.h`, `Source/RefactorTactics/Match/RTMatchBootstrapper.cpp`
 - Modify: `Source/RefactorTactics/RTGameMode.h`, `Source/RefactorTactics/RTGameMode.cpp`
-- Test: `Source/RefactorTactics/Tests/RTPlayerIdentityTests.cpp`
+- Test: `Source/RefactorTactics/Tests/Player/RTPlayerIdentityTests.cpp`
 
 **Interfaces:**
 - Consumes: `ARTPlayerState::AssignTeam` (Task 1).
@@ -690,13 +690,13 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
 }
 ```
 
-⚠️ Include necessari per questi due test, in testa a `RTPlayerIdentityTests.cpp`: `Map/RTHexMapActor.h`,
-`Map/RTHexMapAsset.h`, `Turn/RTTurnManager.h`, `Turn/RTMatchSetupLibrary.h`, `Turn/RTMatchFormatData.h`,
+⚠️ Include necessari per questi due test, in testa a `RTPlayerIdentityTests.cpp`: `Map/Actor/RTHexMapActor.h`,
+`Map/RTHexMapAsset.h`, `Turn/RTTurnManager.h`, `Turn/Format/RTMatchSetupLibrary.h`, `Turn/Format/RTMatchFormatData.h`,
 `RTGameMode.h`.
 
 - [ ] **Passo 2: le regole escono nell'esito del bootstrapper**
 
-In `RTMatchBootstrapper.h`, aggiungi a `FRTMatchBootstrapOutcome` (e `#include "Turn/RTMatchFormatData.h"`):
+In `RTMatchBootstrapper.h`, aggiungi a `FRTMatchBootstrapOutcome` (e `#include "Turn/Format/RTMatchFormatData.h"`):
 
 ```cpp
 	/**
@@ -809,8 +809,8 @@ E in `SetupHexMatch`, dentro `if (Outcome.bModeLatched)`, dopo le due righe esis
 		AssignSeats();
 ```
 
-Aggiungi `#include "Player/RTPlayerState.h"` e `#include "Turn/RTMatchFormatData.h"` a `RTGameMode.cpp`,
-e `#include "Turn/RTMatchFormatData.h"` a `RTGameMode.h` (serve per il membro `FRTMatchRules`).
+Aggiungi `#include "Player/RTPlayerState.h"` e `#include "Turn/Format/RTMatchFormatData.h"` a `RTGameMode.cpp`,
+e `#include "Turn/Format/RTMatchFormatData.h"` a `RTGameMode.h` (serve per il membro `FRTMatchRules`).
 
 - [ ] **Passo 4: compila e lancia la suite INTERA**
 

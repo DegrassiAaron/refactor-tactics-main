@@ -51,7 +51,7 @@ I tre punti del codice che nominano l'enum, e cosa fanno **davvero**:
 
 | Dove | Che cosa fa |
 |---|---|
-| `CategoryForIcon()` — `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp:36` | ⛔ **Guardia fail-closed sull'output di `RequiredIconIds()`, non un filtro sul manifest.** Scorre le chiavi **richieste** (`:252`) e, se una non cominciasse per una categoria dell'enum, il commandlet **ABORTISCE** — `return 1` a `:260`, con *«e' un errore della chiave, non dell'import»*. Non scarta una voce: ferma la build del catalogo |
+| `CategoryForIcon()` — `Source/RefactorTacticsEditor/Private/Content/Build/RTBuildIconCatalogCommandlet.cpp:36` | ⛔ **Guardia fail-closed sull'output di `RequiredIconIds()`, non un filtro sul manifest.** Scorre le chiavi **richieste** (`:252`) e, se una non cominciasse per una categoria dell'enum, il commandlet **ABORTISCE** — `return 1` a `:260`, con *«e' un errore della chiave, non dell'import»*. Non scarta una voce: ferma la build del catalogo |
 | `URTIconLibrary::ValidateIconCatalog` | confronta il segmento dell'`IconId` con la `Category` **dichiarata nella voce**. ⚠️ **Sul catalogo generato è vero per costruzione**: il commandlet *deduce* la categoria dall'id invece di dichiararla — *«Dedurla qui invece di dichiararla evita l'unico errore che un catalogo scritto a mano fa davvero: chiave giusta, categoria sbagliata»*. Morde su un catalogo scritto a mano |
 | `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | dice se un capo è una categoria dichiarata. ⛔ **Non scarta niente**: a `:71` il falso fa cadere nel ramo che **ri-qualifica** il percorso sotto `Action.`. Solo `:136` (`MakeActionIconFallbackId`) restituisce `NAME_None` |
 
@@ -335,7 +335,7 @@ git grep -ohE '"<Segmento>\.[A-Za-z]+"' -- Source/ \
   ':!Source/RefactorTactics/Tests/' ':!Source/RefactorTacticsEditor/Private/Tests/' | sort -u
 
 # 🔴 E il RIBALTAMENTO, che e' la meta' che conta: lo stesso comando col nome che il codice usa
-git grep -ohE '"Reaction\.[A-Za-z]+"' -- Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | sort -u
+git grep -ohE '"Reaction\.[A-Za-z]+"' -- Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp | sort -u
 git grep -ownE 'VisionRange|NoiseAtCell|NoiseIdentificationLevel|ERTPredictiveOutcome' -- Source/ | head
 ```
 
@@ -349,7 +349,7 @@ git grep -ownE 'VisionRange|NoiseAtCell|NoiseIdentificationLevel|ERTPredictiveOu
 
 🔴 **La divergenza `Gadget` è a UN verso solo**: il manifest ha `Gadget.Anchor`, che il codice non ha.
 ⚠️ **La prima stesura ne dichiarava due**, contando anche un `Gadget.Mine` «del codice» — che vive solo in
-`Source/RefactorTacticsEditor/Private/Tests/RTLauncherScenarioBrowserTests.cpp`, cioè in una fixture.
+`Source/RefactorTacticsEditor/Private/Tests/Launcher/RTLauncherScenarioBrowserTests.cpp`, cioè in una fixture.
 L'errore veniva dal comando qui sopra prima che fosse corretto: escludeva **un** albero di test su due,
 e il secondo è esattamente quello che ospita quella riga. ⚠️ **`Gadget.Anchor` è anche una trappola
 di nome**: `Reaction.Anchor` e `Gadget.Anchor` sarebbero due cose diverse con lo stesso nome, e
@@ -371,7 +371,7 @@ seconda perché `Reaction` non è il posto. Nessuna delle due dice dove vanno.
 | **`Stat`** | 11 | ❌ **zero id**. Sono **letture numeriche**: `Cooldown` e `Range` sono campi di `FRTActionDef`, `Health` e `Shield` di `ARTUnit`. Un numero non ha una chiave — e D-231 colloca costo/cooldown/cariche fra i **satelliti della card** (cerchio, alto-sinistra, max 1). 🔴 **Ma gli undici nomi non sono omogenei**: `Vision` e `Noise` **esistono** come concetti di gioco fuori da quei due header — `VisionRange`, `NoiseAtCell`, `NoiseIdentificationLevel`, `NoiseType` — quindi «non è una chiave» non equivale a «non è una cosa» |
 | **`Decision`** | 2 | ❌ `FastAction` e `FastReaction` non esistono. L'enum che porta quel nome è `ERTReactionDecisionOutcome`, coi valori `Chosen`, `CollapsedByCondition`, `CollapsedTargetDown` (da [D-518](../../decisions/RT_PDR_00_Decision_Log.md)), `Immediate`, `NoDecider`, `Rejected`, `Timeout`. 🔴 Mapparci sopra due chiavi **perderebbe** gli altri esiti |
 | **`Timing`** | 3 | ❌ **zero tutte e tre**, per il criterio che questa pagina stessa dichiara. 🔴 *La prima stesura diceva «`Predictive` esiste davvero» citando `ERTPredictiveOutcome`/`ERTPredictiveTargeting`/`FRTPredictiveShot`: sono **tipi che contengono quella parola**, non id — non esiste nessun `Predictive.*`, e il criterio di §1 chiede l'id.* ⚠️ E il segmento è **assente dal CSV** (§2-quinquies): la sua popolazione dipende da quale manifest sia di record |
-| **`Result`** | 2 | ⚠️ **La domanda era posta sull'asse sbagliato.** 🔴 *La prima stesura ribaltava lo zero sul suffisso `Result` e concludeva «non esiste». Le chiavi dicono però «Mission Success / Mission Failure», e l'esito di partita **esiste ed è canonico** — sotto il nome `Outcome`, non `Result`.* Restano veri: gli `ERT*Result` sono specifici per dominio, e `UI.Icon.Objective` ha **zero** glifi nel manifest generato. 🔴 Ed è l'unica riga marcata **`CORE`** (§2-quinquies). 🔑 **Misurato il 2026-09-23, ed è il punto che mancava: l'arità non coincide.** `ERTMatchOutcome` (`Turn/RTTurnRules.h`) ha **quattro** valori — `InProgress`, `Team0Wins`, `Team1Wins`, `Draw` — e il manifest ne offre **due**, col linguaggio di una *missione* e non di una partita fra due squadre (`Team1Wins` è un `Failure` solo dal punto di vista di chi guarda). ⚠️ **E il quarto valore non ha glifo sotto nessun nome**: nel manifest `draw` compare **9** volte e sono **tutte** `"DrawAs": "Box (9-slice)"`, `tie` una dentro «tiene», `lose` due dentro «Closed» — il grep pieno era del termine sbagliato. ⛔ **E la superficie che lo mostrerebbe non mostra icone**: `WBP_RT_ResultScreen.uasset` nomina `Outcome` **12** volte e contiene **zero** occorrenze di `Icon`. Percio' la domanda non è dove vada `Result`: è come si mappino due chiavi su quattro valori, che è una scelta di **presentazione dell'esito** e appartiene a chi possiederà lo schermo di fine partita |
+| **`Result`** | 2 | ⚠️ **La domanda era posta sull'asse sbagliato.** 🔴 *La prima stesura ribaltava lo zero sul suffisso `Result` e concludeva «non esiste». Le chiavi dicono però «Mission Success / Mission Failure», e l'esito di partita **esiste ed è canonico** — sotto il nome `Outcome`, non `Result`.* Restano veri: gli `ERT*Result` sono specifici per dominio, e `UI.Icon.Objective` ha **zero** glifi nel manifest generato. 🔴 Ed è l'unica riga marcata **`CORE`** (§2-quinquies). 🔑 **Misurato il 2026-09-23, ed è il punto che mancava: l'arità non coincide.** `ERTMatchOutcome` (`Turn/Resolution/RTTurnRules.h`) ha **quattro** valori — `InProgress`, `Team0Wins`, `Team1Wins`, `Draw` — e il manifest ne offre **due**, col linguaggio di una *missione* e non di una partita fra due squadre (`Team1Wins` è un `Failure` solo dal punto di vista di chi guarda). ⚠️ **E il quarto valore non ha glifo sotto nessun nome**: nel manifest `draw` compare **9** volte e sono **tutte** `"DrawAs": "Box (9-slice)"`, `tie` una dentro «tiene», `lose` due dentro «Closed» — il grep pieno era del termine sbagliato. ⛔ **E la superficie che lo mostrerebbe non mostra icone**: `WBP_RT_ResultScreen.uasset` nomina `Outcome` **12** volte e contiene **zero** occorrenze di `Icon`. Percio' la domanda non è dove vada `Result`: è come si mappino due chiavi su quattro valori, che è una scelta di **presentazione dell'esito** e appartiene a chi possiederà lo schermo di fine partita |
 
 ⚠️ **Zero riscontri non è di per sé una risposta**, ed è il difetto che #1403 racconta: un test che cercava
 `MakeGenericActions` nel file sbagliato leggeva lo zero come *«non è generica»*. Qui la domanda è stata
@@ -411,11 +411,11 @@ di chiudere una riga di §5, la decisione è stata **dedotta invece che presa**.
 - [`brief-icone-v01.md`](brief-icone-v01.md) — quali chiavi servono alla v0.1 e di che colore sono
 - [`../systems/spec-icon-card-grammar.md`](../systems/spec-icon-card-grammar.md) — come si compone una card
   ([D-231](../../decisions/RT_PDR_00_Decision_Log.md)); dichiara `ERTIconCategory` fuori scope
-- `Source/RefactorTactics/UI/RTIconCatalogData.h` — l'enum e la regola di serializzazione
-- `Source/RefactorTactics/UI/RTIconLibrary.cpp` — `RequiredIconIds()` e `ValidateIconCatalog()`
-- 🔴 `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp` — `CategoryForIcon()`:
+- `Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h` — l'enum e la regola di serializzazione
+- `Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp` — `RequiredIconIds()` e `ValidateIconCatalog()`
+- 🔴 `Source/RefactorTacticsEditor/Private/Content/Build/RTBuildIconCatalogCommandlet.cpp` — `CategoryForIcon()`:
   **il punto che scarta davvero** una chiave col segmento fuori dall'enum. Vive in un altro modulo
-- `Source/RefactorTactics/Tests/RTIconCatalogTests.cpp` — `V01CategoriesPopulated` e gli altri gate
+- `Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp` — `V01CategoriesPopulated` e gli altri gate
 - `docs/research/design/icon/` — il materiale di design: **versionato, non vincolante** (`AGENTS.md` §2)
 - [#266](https://github.com/DegrassiAaron/refactor-tactics-main/issues/266) — CP 25.1, che porta a spec la
   tassonomia **dopo** che #637 l'ha decisa. Le due non si duplicano: #637 **decide**, #266 **specifica**

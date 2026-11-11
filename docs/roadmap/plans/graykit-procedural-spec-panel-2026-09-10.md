@@ -39,11 +39,11 @@ Tutte su `1a4206c7`, working tree pulito all'apertura.
 
 | # | Misura | Comando | Esito |
 |---|---|---|---|
-| M1 | valutazione a tempo normalizzato | lettura di `Turn/RTPlaybackLibrary.h` | ✅ **esiste**: `InterpolateAlongPath(Waypoints, Alpha)`, `RouteAlpha`, `AlphaAtMicroStep`, `PhaseTime` — funzioni pure |
+| M1 | valutazione a tempo normalizzato | lettura di `Turn/Playback/RTPlaybackLibrary.h` | ✅ **esiste**: `InterpolateAlongPath(Waypoints, Alpha)`, `RouteAlpha`, `AlphaAtMicroStep`, `PhaseTime` — funzioni pure |
 | M2 | il suo consumatore | `RTTurnManager.cpp:7728-7730` | `SetVisualLocation(InterpolateAlongPath(A.World, Alpha))` |
 | M3 | vocabolario dei ruoli | `Unit/RTPresentationRole.h` | `Idle`, `Move`, `Attack`, `Cast`, `Dash`, `Defend`, `Hit`, `Death`, `Fall` |
-| M4 | mapping azione → presentazione | `Turn/RTPresentationBinding.h` | ✅ `URTPresentationBindingLibrary`, [D-278], #1801 |
-| M5 | geometria tattica condivisa | `Map/RTOverlayArea.h`, `Map/RTOverlayPalette.h` | ✅ `FRTOverlayArea` + `ERTOverlayMeaning` + `ERTOverlayCertainty{Confirmed,Predicted}` |
+| M4 | mapping azione → presentazione | `Turn/Playback/RTPresentationBinding.h` | ✅ `URTPresentationBindingLibrary`, [D-278], #1801 |
+| M5 | geometria tattica condivisa | `Map/Actor/RTOverlayArea.h`, `Map/Actor/RTOverlayPalette.h` | ✅ `FRTOverlayArea` + `ERTOverlayMeaning` + `ERTOverlayCertainty{Confirmed,Predicted}` |
 | M6 | componenti visuali dell'unità | `Unit/RTUnit.cpp:57-201` | `Mesh`(Cylinder), `TeamRing`, `SelectionRing`, `FacingArrow`, `OverlayWidget`, `ContactGhost` |
 | M7 | bracci | `grep -rn 'LeftArm\|RightArm' Source/` | **0** — gap reale |
 | M8 | anchor nominati | `grep` sugli anchor del mandato | **0** — gap reale |
@@ -118,7 +118,7 @@ M7, M8 e M9 sono gap veri. Il commit consegna:
 |---|---|
 | `Unit/RTGraykitTypes.h` | `ERTGraykitAnchor` (i nove punti nominati), `ERTGraykitPart`, `ERTGraykitEasing`, `ERTGraykitOperator` (i sette di posa), `FRTGraykitPart`, `FRTGraykitPose`, `FRTGraykitOperator`, `ERTGraykitLocomotionStyle`, `FRTGraykitDescriptor` |
 | `Unit/RTGraykitLibrary.{h,cpp}` | `WindowAlpha`, `ApplyEasing`, `AnchorOffset`, `Evaluate`, `DescriptorForStyle`, `PoseDistance` |
-| `Tests/RTGraykitTests.cpp` | i sette test di §6 |
+| `Tests/Unit/RTGraykitTests.cpp` | i sette test di §6 |
 
 ### Le scelte che vale la pena rileggere
 

@@ -1,0 +1,455 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTCellId.h"
+#include "Pathfinding/RTHexPath.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "RTHexSimLibrary.generated.h"
+
+class URTHexMapAsset;
+
+/**
+ * Perche' una cella non e' un waypoint valido. Serve a dire nel log il motivo GIUSTO: "bloccata", "occupata" e
+ * "oltre il budget" sono tre difetti diversi da correggere per chi gioca, e accorparli rende il messaggio inutile.
+ * `Ok` significa che la cella in se' va bene: se il percorso composito fallisce comunque, il motivo e' il budget.
+ */
+UENUM(BlueprintType)
+enum class ERTHexWaypointReason : uint8
+{
+	Ok,
+	NotOnMap,        // la cella non esiste nella mappa
+	BlocksMovement,  // cella non percorribile (ostacolo)
+	Occupied         // occupata da un'ALTRA unita' (la propria non blocca)
+};
+
+/**
+ * Perche' una cella NON e' nel reachable set di un'unita' — la risposta che la sonda di movimento (#711) da'
+ * al designer che chiede *«perche' quella cella no»*.
+ *
+ * 🔑 **Non e' un secondo vocabolario, e' quello di sopra piu' le due voci che gli mancavano.** I primi tre
+ * motivi sono `ERTHexWaypointReason` e vengono DELEGATI: nessuna regola nuova su cosa renda una cella
+ * inutilizzabile. Le ultime due esistono perche' `ClassifyWaypointCell` risponde `Ok` sia a una cella troppo
+ * lontana sia a un'isola — corretto per il suo chiamante, che a quel punto sa che il rifiuto e' «di budget»,
+ * e insufficiente per una sonda, dove `Ok` di fronte a una cella esclusa non e' una risposta.
+ *
+ * ⚠️ **La differenza fra le due ultime non e' cosmetica**: `OutOfBudget` manda il designer ad alzare il
+ * movimento e la cella si apre, `NoRoute` gliela lascerebbe chiusa a qualunque budget — lì il difetto e'
+ * nella mappa, non nel profilo.
+ */
+UENUM(BlueprintType)
+enum class ERTHexProbeExclusion : uint8
+{
+	Reachable,       // la cella E' nel set: non c'e' niente da spiegare
+	NotOnMap,        // delegato a ClassifyWaypointCell
+	BlocksMovement,  // delegato a ClassifyWaypointCell
+	Occupied,        // delegato a ClassifyWaypointCell
+	OutOfBudget,     // un percorso esiste, ma costa piu' del MoveBudget dell'unita'
+	NoRoute          // nessun percorso, a qualunque costo: il grafo non collega le due celle
+};
+
+/**
+ * Ingredienti PURI della risoluzione di un turno su griglia esagonale: snapshot di inizio fase, occupazione,
+ * movement budget e collisioni simultanee. Nessun Actor, nessun DeltaTime, nessuna dipendenza dall'ordine di
+ * iterazione di TMap/TSet (i risultati sono ordinati con URTHexLibrary::StableLess).
+ *
+ * E' l'UNICO strato di risoluzione del movimento: il turn loop quadrato (Grid/ + URTMovementResolver) e'
+ * stato rimosso al CP 7.2, dopo che M6 ha portato la partita su esagoni. Il punto di ritorno resta il tag
+ * git `pre-hex-only`. Vedi docs/technical/systems/h6-hex-sim-spec.md.
+ */
+UCLASS()
+class REFACTORTACTICS_API URTHexSimLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Congela mappa, unita' e conoscenza a inizio fase, **per un osservatore dichiarato**: unita' ordinate
+	 * per UnitId, occupazione delle sole unita' VIVE che quell'osservatore conosce (a parita' di cella vince
+	 * l'UnitId minore), hash/revisione della mappa catturati. Deterministico: l'ordine dell'input non cambia
+	 * lo snapshot.
+	 *
+	 * 🔴 **`ObserverTeamId` NON ha un default, ed e' una scelta.** `BLIND-2` chiede che *«il vecchio ingresso
+	 * diventi difficile da usare per sbaglio, non solo sconsigliato»*: con un default, un chiamante che
+	 * dimentica l'osservatore continua a vedere l'autorevole e nessuno se ne accorge. Senza, ogni sito
+	 * **nomina la propria posizione** — `RTObserver::Omniscient` per la Resolution e per chi ha autorita',
+	 * un `TeamId` per chi pianifica.
+	 *
+	 * ⚠️ **E la conoscenza entra come INGRESSO, non come campo assegnato dopo.** Fino a [D-371] la si
+	 * attaccava allo snapshot gia' costruito, il che rendeva possibile una fotografia a meta': occupazione
+	 * decisa senza sapere chi guardava. Ora le due cose nascono insieme, che e' l'unico modo in cui il
+	 * filtro possa essere parte della costruzione invece che una passata successiva.
+	 */
+	static FRTHexSnapshot MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units,
+		const TArray<FRTTeamKnowledge>& TeamKnowledge, int32 ObserverTeamId);
+
+	/**
+	 * La fotografia di chi ha AUTORITA': nessun filtro, perche' nessuna squadra possiede questa vista.
+	 *
+	 * 🔑 **E' il default che `BLIND-2` vieta, reso impossibile da dimenticare: sta nel NOME.** Un parametro
+	 * con valore di default lascia che un chiamante distratto veda l'autorevole in silenzio; una funzione
+	 * che si chiama `Omniscient` costringe a scriverlo, e chi legge il sito di chiamata vede quale posizione
+	 * e' stata presa senza aprire questo header.
+	 *
+	 * ⚠️ **Chiamarla dalla PIANIFICAZIONE e' il difetto che [D-371] chiude**: li' serve `MakeSnapshot` con
+	 * il `TeamId` di chi pianifica. Qui stanno la Resolution, il bootstrap, gli strumenti d'autore e i
+	 * banchi che misurano la simulazione invece della privacy.
+	 */
+	static FRTHexSnapshot MakeSnapshotOmniscient(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units)
+	{
+		return MakeSnapshot(Map, Units, /*TeamKnowledge*/ {}, RTObserver::Omniscient);
+	}
+
+	/**
+	 * La stessa fotografia, **vista da un'altra posizione**: unita' e conoscenza identiche, occupazione
+	 * ricostruita per l'osservatore dichiarato.
+	 *
+	 * 🔑 **Serve dove una sola raccolta deve servire piu' osservatori**, e l'unico caso in produzione e' il
+	 * pianificatore dei bot: `PlanTurn` tiene gia' *«uno snapshot per squadra che ha almeno un bot»* perche'
+	 * i compagni si prenotano le celle a vicenda, e da [D-371] quello stesso snapshot deve anche **filtrare**.
+	 *
+	 * ⚠️ **Non e' l'uscita *(c)* che `BLIND-2` esclude.** Quella e' *«costruire la vista non autorizzata e
+	 * poi nasconderla»* — filtrare il RISULTATO di una query. Qui si ricostruisce l'**ingresso** prima che
+	 * qualunque primitiva lo legga: nessun ventaglio, nessun percorso e nessun reason code nasce dalla
+	 * fotografia onnisciente. ⛔ E resta vero soltanto finche' chi la usa non legge **anche** l'originale:
+	 * `BaseSnapshot.Occupancy` letta accanto a questa sarebbe la stessa fuga da un'altra porta.
+	 */
+	static FRTHexSnapshot AsObserver(const FRTHexSnapshot& Snapshot, int32 ObserverTeamId)
+	{
+		return MakeSnapshot(Snapshot.Map, Snapshot.Units, Snapshot.TeamKnowledge, ObserverTeamId);
+	}
+
+	/**
+	 * Errori strutturali dello snapshot (stessa forma di URTHexMapAsset::ValidateMap): due unita' vive sulla
+	 * stessa cella, unita' viva su cella assente dalla mappa, UnitId duplicati, MoveBudget negativo.
+	 */
+	static TArray<FString> ValidateSnapshot(const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * Vero se lo snapshot non e' piu' affidabile: mappa distrutta oppure hash/revisione cambiati dopo la
+	 * cattura (la mappa NON deve cambiare durante la risoluzione di un turno).
+	 */
+	static bool IsSnapshotStale(const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * La mappa su cui si pianifica un Move verso lo spazio **non osservato** ([D-372], `#2794`): copia di `Map` in cui
+	 * ogni cella che `Knowledge` non ha ne' in `VisibleCells` ne' in `ExploredCells` perde cio' che la renderebbe
+	 * diversa da una cella libera.
+	 *
+	 * Si svuotano `bBlocksMovement`, `bBlocksLineOfSight`, `Surface` (pavimento), `MoveCost` (1),
+	 * `OccupancySurcharge` (0), coperture, porte e guardie, e i muri interni della cella. **Non** si toccano le
+	 * `Transitions` fra piani: la forma della board e' pubblica ([D-373]) e la cella esiste sempre.
+	 *
+	 * 🔑 **L'insieme svuotato dipende solo da `Knowledge`**, mai da una unita' nemica: la firma non ne riceve.
+	 * ⚠️ **Le celle esplorate ma non visibili ora restano autorevoli** (`Q4`): un muro caduto o una porta aperta in una
+	 * cella ricordata si riflette nel percorso. E' un canale dichiarato, a termine, della natura di [D-465].
+	 *
+	 * Restituisce `nullptr` quando `Knowledge` non ha celle (nessun refresh ancora, o sessione senza `ARTGameMode`):
+	 * il chiamante pianifica su `Map`, come prima. La copia vive in `Outer` (o nel pacchetto transitorio): **chi la
+	 * chiede la tiene viva**.
+	 */
+	static URTHexMapAsset* MakeOptimisticPlanningMap(UObject* Outer, const URTHexMapAsset* Map,
+		const FRTTeamKnowledge& Knowledge);
+
+	/**
+	 * Vero se la cella e' percorribile per l'unita' indicata: esiste nella mappa, non blocca il movimento e non
+	 * e' occupata da un'unita' DIVERSA (un'unita' non blocca se stessa).
+	 */
+	static bool IsCellFree(const FRTHexSnapshot& Snapshot, const FRTCellId& Cell, int32 ForUnitId);
+
+	/**
+	 * Celle raggiungibili dall'unita' entro il suo MoveBudget (Dijkstra su costi interi, archi espliciti
+	 * inclusi), escluse quelle occupate da altre unita'. Include sempre la cella di partenza a costo 0.
+	 * Output ordinato per cella (StableLess) -> indipendente dall'ordine di TMap.
+	 */
+	static TArray<FRTHexReachableCell> ReachableCells(const FRTHexSnapshot& Snapshot, int32 UnitId);
+
+	/**
+	 * Celle raggiungibili DOPO aver percorso i waypoint indicati: partenza sulla punta del percorso, budget
+	 * ridotto di quanto il percorso ha gia' impegnato. E' il ventaglio che il giocatore deve vedere mentre
+	 * pianifica — «quanto mi resta», non «quanto avevo» (#877).
+	 *
+	 * Waypoint vuoti -> identica a `ReachableCells`. Piano RIFIUTATO da `BuildCompositeHexPath` (waypoint fuori
+	 * budget o irraggiungibile) -> identica a `ReachableCells`: non esiste una punta da cui ripartire, e il
+	 * piano in vigore e' «resto fermo».
+	 *
+	 * ⚠️ Deriva uno snapshot in cui l'unita' sta sulla punta: quella fotografia MENTE su dove si trova, ed e'
+	 * per questo che non esce da qui. Passarla a un consumatore che non sa di essere in un'ipotesi — il
+	 * TurnManager, l'area d'attacco — gli farebbe calcolare l'esito su una posizione che non e' ancora vera.
+	 *
+	 * Invariante (test `ReachableAfterPlanMatchesWaypointAcceptance`): una cella e' qui se e solo se
+	 * `BuildCompositeHexPath` la accetta come waypoint successivo. La zona mostrata e quella subita sono la
+	 * stessa, perche' entrambe escono da questa libreria.
+	 */
+	static TArray<FRTHexReachableCell> ReachableCellsAfterPlan(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Waypoints);
+
+	/**
+	 * Percorso dell'unita' verso Goal entro il suo MoveBudget, evitando le celle occupate da altre unita'
+	 * (goal occupato -> NoPath). UnitId sconosciuto -> StartInvalid.
+	 */
+	static FRTHexPathResult FindPathForUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal);
+
+	/**
+	 * Percorso che passa da OGNI waypoint nell'ordine dato, partendo dalla cella dell'unita': un tratto di A* per
+	 * waypoint, budget speso in modo cumulativo, celle occupate da altre unita' evitate. Se un tratto non entra
+	 * nel budget residuo o il waypoint non e' raggiungibile, l'intero percorso e' RIFIUTATO (Path vuoto, Status
+	 * del tratto che ha fallito): il chiamante scarta il waypoint appena aggiunto invece di pianificare un
+	 * percorso a meta'. Nessun waypoint -> Success con la sola cella di partenza, costo 0.
+	 */
+	static FRTHexPathResult BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Waypoints);
+
+	/**
+	 * Il PREFISSO di Path (partenza in Path[0] inclusa) ancora affrontabile entro il budget CORRENTE
+	 * dell'unita' in Snapshot: somma il costo di ogni cella (+ il suo `MoveCostModifier`) e si ferma dove il
+	 * budget finisce. Non valuta occupazione ne' blocchi — quelli li gestisce `ResolveHexPaths` sui
+	 * micro-step, walking il path che gli si da'.
+	 *
+	 * Serve a intercettare un piano scritto PRIMA che lo status dell'unita' cambiasse NELLO STESSO turno
+	 * (`Action.Root` azzera il budget, `Action.Slow` alza il costo per cella — CP 4.7): senza, un percorso
+	 * gia' calcolato (dai waypoint, o scritto a mano) verrebbe eseguito com'era, ignorando lo stato attuale.
+	 * Se il budget non e' cambiato da quando il piano e' stato scritto, il prefisso coincide con Path intero
+	 * — nessuna troncatura, nessun ricalcolo: e' cio' che lascia intatto un ostacolo posizionale (una cella
+	 * occupata a meta' via), che resta compito di `ResolveHexPaths`, non di questa funzione.
+	 *
+	 * Path vuoto -> Path vuoto. UnitId sconosciuto o mappa assente -> Path invariato (fail-open sul dato che
+	 * non si puo' verificare, non sul movimento: il chiamante ha gia' un piano, qui si puo' solo accorciarlo).
+	 */
+	static TArray<FRTCellId> TruncatePathToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Path);
+
+	/**
+	 * Il PREFISSO di Path ancora percorribile sulla TOPOLOGIA corrente della mappa dello snapshot: si ferma
+	 * PRIMA del primo passo che il grafo non consente piu'.
+	 *
+	 * Serve a intercettare un percorso validato quando la mappa era un'altra — una porta chiusa nel Blast, un
+	 * muro alzato — che `TruncatePathToBudget` non vede, perche' quella guarda il budget. Senza, un percorso
+	 * gia' pianificato attraverserebbe un varco che nel frattempo si e' chiuso: e' il «path fantasma» che
+	 * CP 9.3 esiste per impedire. Il movimento si FERMA all'ultima cella valida (`Fallback.Stop`), non si
+	 * annulla.
+	 *
+	 * Non duplica la regola dei bordi: CHIEDE AL GRAFO — un passo sopravvive solo se la destinazione compare
+	 * fra i `GraphNeighbors` della cella corrente. Con una sola domanda copre porte, muri, celle bloccate e
+	 * celle sparite, e restera' corretta quando gli archi cambieranno (CP 9.4).
+	 *
+	 * Path con meno di 2 celle -> invariato. Mappa assente -> Path invariato (fail-open sul dato non
+	 * verificabile: il chiamante ha gia' un piano, qui si puo' solo accorciarlo).
+	 */
+	static TArray<FRTCellId> TruncatePathToTopology(const FRTHexSnapshot& Snapshot,
+		const TArray<FRTCellId>& Path);
+
+	/**
+	 * Cosa non va nella cella indicata come waypoint per l'unita': fuori mappa, ostacolo, occupata da un'altra
+	 * unita' — oppure `Ok`, e allora un eventuale rifiuto del percorso e' questione di **budget**.
+	 * Serve a spiegare il rifiuto con il motivo giusto invece di elencarne tre.
+	 */
+	static ERTHexWaypointReason ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const FRTCellId& Cell);
+
+	/**
+	 * Il percorso fino a `Goal` RISALENDO i predecessori del reachable set — non una seconda ricerca.
+	 *
+	 * 🔴 **E' il criterio portante di #711.** Una sonda che chiamasse `FindPathForUnit` per ogni cella
+	 * sorvolata farebbe un A* per movimento del mouse, e il giorno in cui le due divergessero mostrerebbe un
+	 * percorso che l'unita' non fara'. `FRTHexReachableCell::FromCell` esiste gia' — e' arrivato col facing
+	 * (CP 13.5) — e contiene la risposta che il Dijkstra ha gia' calcolato.
+	 *
+	 * Uscita ordinata dalla cella di partenza a `Goal`, incluse: la stessa forma di `FRTHexPathResult::Path`,
+	 * e il test lo pinna contro quell'oracolo. `Goal` fuori dal set -> vuoto: meglio niente che un percorso
+	 * inventato per una cella dove l'unita' non arriva.
+	 */
+	static TArray<FRTCellId> ProbePathTo(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Goal);
+
+	/**
+	 * Perche' quella cella non e' raggiungibile — la meta' «e perche' no» della sonda di #711.
+	 *
+	 * Prende il set gia' calcolato invece di ricalcolarlo: la sonda lo tiene per l'unita' selezionata e lo
+	 * rifa' quando la mappa cambia, non a ogni cella sorvolata.
+	 *
+	 * ⛔ **Nessuna regola nuova qui dentro.** I tre motivi di cella vanno a `ClassifyWaypointCell`; la
+	 * distinzione fra «fuori budget» e «nessuna strada» si ottiene richiedendo lo stesso percorso al
+	 * pathfinder canonico **senza limite di costo** (`MaxCost == 0`), con gli stessi ostacoli dinamici che
+	 * `FindPathForUnit` usa. Se un giorno questa funzione contenesse una visita del grafo sua, sarebbe la
+	 * seconda ricerca che il divieto di #711 esiste per impedire.
+	 */
+	static ERTHexProbeExclusion ClassifyProbeCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell);
+
+	/**
+	 * Se Path termina su una cella Ice e il budget residuo dell'unita' (MoveBudget - costo del percorso) e'
+	 * >= 2, estende Path di una cella nella direzione dell'ultimo passo, **se quel passo e' percorribile**.
+	 * Altrimenti ritorna Path invariato.
+	 *
+	 * «Percorribile» sono DUE domande, e le fa entrambe (#2284): che il grafo offra l'arco — il che copre la
+	 * cella assente, `bBlocksMovement` e i muri o le porte sul BORDO — e che la cella d'arrivo si ATTRAVERSI
+	 * dalla direzione d'ingresso a quella d'uscita (geometria interna, #2100). Prima di #2284 guardava solo
+	 * `FindCell` e `bBlocksMovement`, e uno scivolamento poteva attraversare un muro: dentro `ResolveMovement`
+	 * il taglio a valle lo mascherava, ma questa funzione e' pura e i chiamanti diretti ricevevano il
+	 * percorso sbagliato. Path.Num() < 2, o l'ultimo passo non e' un vicino
+	 * diretto sullo stesso layer (es. arrivo via transizione), -> Path invariato.
+	 *
+	 * La cella aggiunta NON e' verificata per occupazione: il path esteso entra nel microstep di
+	 * ResolveHexPaths, che gestisce occupazione/collisione come qualunque altro passo pianificato — quindi
+	 * due unita' che scivolano verso la stessa cella libera sono gestite dal resolver esistente, non da
+	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su una mobilita' lineare
+	 * (`URTMovementActionLibrary::ResolveLinearMove`): lo Scatto non passa dal microstep condiviso, quindi
+	 * non avrebbe la stessa garanzia sotto collisione simultanea — vedi docs/gameplay/spec-terreni-e8.md §5.2.
+	 *
+	 * ⚠️ **Restituisce anche se il terreno lo abbia CHIESTO** (`FRTIceSlideResult::bSlideRequested`, `#2314`),
+	 * e non e' un dettaglio: il percorso invariato e' la risposta di sei uscite diverse, e chi chiama non
+	 * potrebbe distinguere «nessuno scivolamento da fare» da «scivolamento impedito da un muro». I due hanno
+	 * esiti diversi nel TurnLog — `Moved` contro `ERTMoveOutcome::SlideBlocked` — e la differenza non e'
+	 * ricostruibile a valle.
+	 */
+	static FRTIceSlideResult ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
+
+	/**
+	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),
+	 * con MICROSTEP sincroni: a ogni passo tutte le unita' avanzano di una cella e si risolvono le collisioni
+	 * (destinazione contesa -> contendenti fermi da li'; cella di un'unita' ferma -> bloccata; scambio diretto
+	 * -> consentito), finche' nessuno avanza. Punto fisso monotono: il risultato NON dipende dall'ordine
+	 * delle richieste. Eredita la semantica del resolver quadrato che ha sostituito (rimosso al CP 7.2).
+	 */
+	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths);
+
+	/**
+	 * Come `ResolveHexPaths`, con due dati per unita' (CP 4.8) che valgono SOLO per contendere una cella: la
+	 * precedenza dichiarata dall'azione (`FRTActionDef::Priority` del catalogo — numero PIU' BASSO vince, stessa
+	 * convenzione di `URTActionQueueLibrary`) e se la mobilita' e' LINEARE con impatto (`Action.Charge` e affini,
+	 * `URTMovementActionLibrary::IsLinear`).
+	 *
+	 * - Destinazione contesa fra priorita' diverse: la piu' bassa entra, le altre si fermano PRIMA
+	 *   (`BlockedByPriority`). A PARITA' di priorita' fra i contendenti, si torna al comportamento di base:
+	 *   tutti fermi (`BlockedContested`) — "Charge prevale su Move", non "il primo dell'array vince".
+	 * - Due mobilita' LINEARI che si scambierebbero la cella (l'una entra dove sta l'altra, e viceversa, nello
+	 *   stesso microstep) si fermano l'una davanti all'altra (`BlockedByImpact`) invece di attraversarsi: e'
+	 *   la lettura di uno scontro frontale fra due cariche opposte. Lo scambio fra mobilita' NON entrambe
+	 *   lineari resta consentito, come nella variante base.
+	 *
+	 * `bPassThrough` marca chi ATTRAVERSA le unita' ferme lungo la traiettoria (`ERTMovementStyle::LinearPass`,
+	 * la lama di Ivrin): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
+	 *
+	 * Resta un vincolo sulla cella FINALE: si passa in mezzo a qualcuno, non ci si ferma dentro. E resta
+	 * invariata la contesa fra due unita' in MOVIMENTO verso la stessa cella — attraversare chi sta fermo e
+	 * incrociare chi si muove sono due problemi diversi, e qui e' risolto solo il primo.
+	 *
+	 * `Priorities`/`bLinearMovers`/`bPassThrough` vuoti o piu' corti di `Paths` -> priorita' 0 (parita' con
+	 * tutti), non-lineare e non-attraversante per le unita' mancanti: con tutti vuoti il risultato e'
+	 * IDENTICO a `ResolveHexPaths(Paths)`.
+	 */
+	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers,
+		const TArray<bool>& bPassThrough = TArray<bool>(),
+		const TArray<int32>& Teams = TArray<int32>());
+
+	/**
+	 * Apre una risoluzione di movimento SOSPENDIBILE (CP 14.2): stesso input dei due `ResolveHexPaths`, ma
+	 * restituisce lo stato invece del risultato.
+	 *
+	 * I tre membri di questa terna — `BeginHexMovement`, `ResolveNextHexMicroStep`, `FinishHexMovement` —
+	 * **sono** cio' che `ResolveHexPaths` esegue: non e' una seconda implementazione da tenere allineata, e
+	 * per questo «i due percorsi danno lo stesso risultato» e' una proprieta' del codice, non una speranza.
+	 *
+	 * Serve a un Overwatch interattivo, che deve poter fermare il movimento **dentro** il calcolo. Chi non ha
+	 * bisogno di fermarlo continua a chiamare `ResolveHexPaths` e non si accorge di nulla.
+	 *
+	 * `Planned` dichiara quanto di ogni percorso il GIOCATORE aveva chiesto, contro quanto vi ha aggiunto il
+	 * terreno (`#2314`). Vuoto, piu' corto di `Paths`, o con `PlannedLength` a `0` -> «tutto pianificato,
+	 * nessuno scivolamento» per le unita' mancanti: con l'array vuoto la classificazione e' quella di sempre.
+	 * Lo compila `ARTTurnManager::ResolveMovement`, che e' il solo punto in cui i due pezzi sono distinguibili.
+	 *
+	 * `Cadences` dichiara, per unita', in quali sotto-passi del tick puo' avanzare ([D-428], che chiude
+	 * `SKB-2`). Vuoto o piu' corto di `Paths` -> **cadenza neutra** per chi manca, cioe' un passo per tick:
+	 * con l'array vuoto la sequenza di micro-step emessi e' identica a prima del calendario. Lo compila
+	 * `ARTTurnManager::ResolveMovement`, dove il profilo di movimento e' visibile e il resolver no.
+	 */
+	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
+		const TArray<bool>& bPassThrough = TArray<bool>(),
+		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>(),
+		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>(),
+		const TArray<int32>& Teams = TArray<int32>(),
+		const TArray<FRTMovementCadence>& Cadences = TArray<FRTMovementCadence>());
+
+	/**
+	 * Quanti microstep dura l'ingresso in `Cell` per l'unita' `UnitId` dello snapshot
+	 * ([D-381](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
+	 *
+	 * ```text
+	 * TraversalDurationTicks = TotalMoveCost(cella) + max(0, MoveCostModifier)
+	 * ```
+	 *
+	 * 🔑 **E' ancorata al COSTO D'INGRESSO, non agli MP consumati**, e la differenza non e' formale:
+	 * [D-117](../../../docs/decisions/RT_PDR_00_Decision_Log.md) separa il budget in passi e asperita' e
+	 * porta il costo per cella a `max(0, MoveCost - 1 + MoveCostModifier)`, cioe' **zero** sul terreno
+	 * normale. Una durata letta dagli MP renderebbe istantaneo l'attraversamento del `Floor`.
+	 * `FRTHexCellData::TotalMoveCost()` vale invece almeno `1` su ogni cella del catalogo, prima e dopo
+	 * quella separazione.
+	 *
+	 * Cella o unita' sconosciute -> `1`: si degrada al comportamento precedente, non si inventa una durata.
+	 */
+	static int32 TraversalDurationTicks(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Cell);
+
+	/**
+	 * Le durate di OGNI arco di `Path`, pronte per `BeginHexMovement`: un elemento per arco, quindi uno in
+	 * meno delle celle. `Path` piu' corto di due celle -> array vuoto.
+	 */
+	static TArray<int32> StepDurationsForPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Path, int32 PlannedLength = 0);
+
+	/**
+	 * Esegue UN microstep: tutte le unita' avanzano di una cella e si risolvono le collisioni.
+	 *
+	 * Ritorna **falso** quando nessuno si e' mosso, cioe' quando la risoluzione e' finita — ed e' allora che
+	 * gli `Outcome` vengono scritti, perche' il reason code finale dipende dalla posizione RAGGIUNTA e non si
+	 * puo' decidere a meta' strada. Chiamarlo ancora dopo la fine e' legale e non cambia nulla.
+	 *
+	 * Fra un microstep e il successivo lo stato e' consistente e si puo' leggere: e' il punto in cui un
+	 * decision boundary apre la sua finestra ([ADR-0004](../../../docs/decisions/adr-0004-finestre-di-reazione.md)).
+	 */
+	static bool ResolveNextHexMicroStep(FRTMovementResolutionState& State);
+
+	/** Esaurisce i microstep rimasti e restituisce i risultati. Su uno stato gia' finito non fa nulla. */
+	static TArray<FRTHexMoveResult> FinishHexMovement(FRTMovementResolutionState& State);
+
+	/**
+	 * Ferma `UnitId` dove si trova: il resto del suo percorso non verra' percorso (CP 14.5).
+	 *
+	 * E' la meta' mancante di CP 14.2. Quel checkpoint ha reso il ciclo **sospendibile** — si puo' fermare il
+	 * mondo fra un passo e l'altro — ma non ha dato modo di fermare **una** unita': senza, un `FIRE` che
+	 * tronca il movimento del bersaglio non ha come dirlo al resolver, e l'unico modo sarebbe correggere i
+	 * `Results` a movimento concluso, cioe' dopo che i micro-step successivi hanno gia' calcolato collisioni e
+	 * occupazioni con un'unita' che non doveva essere li'. E' precisamente cio' che il DoD chiede di evitare:
+	 * *«le collisioni dei micro-step successivi cambiano di conseguenza»*.
+	 *
+	 * Chiamarla fra un `ResolveNextHexMicroStep` e il successivo. Idempotente, e innocua su un'unita' gia'
+	 * ferma o su un indice non valido.
+	 *
+	 * ⚠️ `Reason` **sovrascrive** la memoria del primo congelamento, a differenza di cio' che accade dentro il
+	 * micro-step. Quella memoria esiste perche' i blocchi sono transitori — chi perde una cella contesa la
+	 * ritenta al passo dopo, e il motivo vero e' il primo — mentre un arresto chiesto da qui e' **terminale**:
+	 * e' l'ultima parola sul perche' quell'unita' non e' arrivata. Non sovrascriverlo produrrebbe un TurnLog
+	 * che attribuisce a «cella occupata» un'unita' fermata da un colpo.
+	 */
+	static void StopUnitInPlace(FRTMovementResolutionState& State, int32 UnitId, ERTMoveOutcome Reason);
+
+	/**
+	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input
+	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
+	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per
+	 * permutazione e' garantita a valle da URTTurnLogLibrary::SortTurnLog/HashTurnLog.
+	 *
+	 * `CauseActionId` dichiara **perche'** l'unita' si e' spostata (#307): `Action.Move` per il movimento
+	 * volontario, l'ActionId dello scatto o dell'azione che spinge negli altri casi. Viaggia nel campo
+	 * `ActionId`, che esiste gia' nella voce, e' gia' serializzato e gia' entra nell'hash — quindi la causa
+	 * non costa una migrazione di formato. Omesso, la voce resta identica a prima.
+	 *
+	 * `CausePriority` e' la priorita' intra-fase della stessa azione (CP 11.3, formato **v7**): con quale
+	 * precedenza quel movimento ha risolto rispetto agli altri della fase. Viene dal catalogo e non e'
+	 * ricalcolata qui — chi legge la traccia non deve caricare i data asset per sapere in che ordine il
+	 * turno ha risolto. Omessa vale `0`, che nel formato significa «non dichiarata».
+	 */
+	static TArray<FRTTurnLogEntry> BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<FRTHexMoveResult>& Results, FName CauseActionId = NAME_None, int32 CausePriority = 0);
+};

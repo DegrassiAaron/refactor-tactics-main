@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Perception/RTTeamKnowledge.h"
-#include "Turn/RTTurnLog.h"
+#include "Turn/Log/RTTurnLog.h"
 #include "RTReplayAuditLibrary.generated.h"
 
 /**

@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTMovementProfile.h"
-#include "Turn/RTPlanValidationLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h"
 #include "RTMovementProfileLibrary.generated.h"
 
 /**

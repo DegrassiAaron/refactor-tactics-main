@@ -53,7 +53,7 @@ essere lunga.
 
 ### 3.2 Cosa il Player espone davvero
 
-`Source/RefactorTactics/Replay/RTReplayPlayerLibrary.h` — quattro funzioni:
+`Source/RefactorTactics/Replay/Viewer/RTReplayPlayerLibrary.h` — quattro funzioni:
 
 | Funzione | Cosa fa |
 |---|---|
@@ -98,7 +98,7 @@ quello dell'**ultima fase emessa**, non quello del cursore.*
 
 ### 4.2 🔴 Due dei sette valori di `ERTMatchPhase` non sono raggiungibili
 
-`ERTMatchPhase` ha **sette** valori (`Turn/RTTurnRules.h:10-19`). `RTReplaySeekLibrary.h:70-71` dichiara,
+`ERTMatchPhase` ha **sette** valori (`Turn/Resolution/RTTurnRules.h:10-19`). `RTReplaySeekLibrary.h:70-71` dichiara,
 misurato: *«nessun punto del resolver emette voci con `Planning` o `MatchEnded`, quindi un seek a quelle
 due risponde sempre `PhaseNotFound`»*.
 
@@ -125,7 +125,7 @@ cinque fasi osservabili, non `ERTMatchPhase`.*
 ### 4.3 🟡 «cablaggio e leggibilità, non logica nuova» è falso in due punti
 
 **(a) Play/pausa non ha un supporto.** La tabella della issue assegna «interpolazione, durate, ritmo» a
-`URTPlaybackLibrary`. Quella libreria è **matematica pura senza stato** (`Turn/RTPlaybackLibrary.h:8-10`):
+`URTPlaybackLibrary`. Quella libreria è **matematica pura senza stato** (`Turn/Playback/RTPlaybackLibrary.h:8-10`):
 `DirectionYaw`, `InterpolateAlongPath`, `EstimatePlaybackSeconds`, `SpeedMultiplierForCap`. Non c'è
 clock, non c'è `bPlaying`, non c'è avanzamento nel tempo. Play/pausa **è stato nuovo**, e qualcuno deve
 possederlo.
@@ -137,7 +137,7 @@ repository ha già scelto due volte e per la stessa ragione.
 
 | Precedente | Cosa dichiara |
 |---|---|
-| `FRTMatchHeaderView` (`UI/RTHudViewModel.h:12-18`) | esiste perché *«il §4.1 di `progettazione-hud.md` vieta ai widget di ricalcolare»* |
+| `FRTMatchHeaderView` (`UI/HUD/RTHudViewModel.h:12-18`) | esiste perché *«il §4.1 di `progettazione-hud.md` vieta ai widget di ricalcolare»* |
 | `FRTScreenStack` (`Frontend/RTScreenStack.h`) | *«la navigazione non è UI: è una macchina a stati che governa la UI»* — 17 test, zero widget |
 
 Un `FRTReplayViewModel` che possieda posizione dichiarata, stato di riproduzione e abilitazione dei
@@ -180,7 +180,7 @@ violarla»*). Va scritto così, o finirà fra le verifiche manuali.
 
 > *«le icone e le etichette passano dal catalogo, **se a quel punto E20/E25 esistono**»*
 
-Esistono: `UI/RTIconCatalogData.h` e `UI/RTIconLibrary.h` sono su `main`, con `ValidateIconCatalog` e
+Esistono: `UI/Inspect/RTIconCatalogData.h` e `UI/Inspect/RTIconLibrary.h` sono su `main`, con `ValidateIconCatalog` e
 `FindMissingRequiredIcons`. Il condizionale è scaduto e va riscritto come obbligo — altrimenti resta una
 casella spuntabile a vuoto.
 

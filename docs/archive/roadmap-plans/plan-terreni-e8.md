@@ -44,14 +44,14 @@ call site di `MoveCost`/`bBlocksMovement` già esistenti.
 
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexCellData.h:8-18`
-- Modify: `Source/RefactorTactics/Tests/RTHexMapTests.cpp` (righe con `ERTHexSurface::Water/Normal/Mud`)
-- Modify: `Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp:173`
-- Modify: `Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp:119`
-- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp:95-101`
+- Modify: `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp` (righe con `ERTHexSurface::Water/Normal/Mud`)
+- Modify: `Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp:173`
+- Modify: `Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.cpp:119`
+- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp:95-101`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h:39`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h:41`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h:28`
-- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h:64,83` (aggiunto dopo la scoperta in Task 1 — mancava
+- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h:64,83` (aggiunto dopo la scoperta in Task 1 — mancava
   dal file list originale: `DemoSurface`/`PaintSurface` default a `ERTHexSurface::Normal`)
 
 **Interfaces:**
@@ -122,7 +122,7 @@ Expected: **stesso conteggio** di test verdi dello Step 1 (nessuna regressione, 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Map/RTHexCellData.h Source/RefactorTactics/Tests/RTHexMapTests.cpp Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h
+git add Source/RefactorTactics/Map/RTHexCellData.h Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.cpp Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h
 git commit -m "refactor(terreni): relabel ERTHexSurface sugli 8 terreni del catalogo (CP 8.1)"
 ```
 
@@ -173,10 +173,10 @@ git commit -m "feat(terreni): tag Status.Wet/Burning/Obscured per gli effetti de
 - Create: `Source/RefactorTactics/Terrain/RTTerrainData.h`
 - Create: `Source/RefactorTactics/Terrain/RTTerrainLibrary.h`
 - Create: `Source/RefactorTactics/Terrain/RTTerrainLibrary.cpp`
-- Test: `Source/RefactorTactics/Tests/RTTerrainTests.cpp`
+- Test: `Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp`
 
 **Interfaces:**
-- Consuma: `ERTHexSurface` (Task 1), `FRTActionEffectSpec`/`ERTActionEffect` (`Turn/RTActionEvent.h`,
+- Consuma: `ERTHexSurface` (Task 1), `FRTActionEffectSpec`/`ERTActionEffect` (`Turn/Actions/RTActionEvent.h`,
   esistente), `TAG_Status_Wet`/`TAG_Status_Burning`/`TAG_Status_Obscured` (Task 2).
 - Produce: `FRTTerrainDef`, `URTTerrainLibrary::GetTerrainCatalog() -> TArray<FRTTerrainDef>`,
   `URTTerrainLibrary::FindTerrainDef(ERTHexSurface) -> FRTTerrainDef`,
@@ -184,7 +184,7 @@ git commit -m "feat(terreni): tag Status.Wet/Burning/Obscured per gli effetti de
 
 - [ ] **Step 1: Scrivi i test falliti**
 
-`Source/RefactorTactics/Tests/RTTerrainTests.cpp`:
+`Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp`:
 ```cpp
 #include "Misc/AutomationTest.h"
 #include "Terrain/RTTerrainData.h"
@@ -267,7 +267,7 @@ Expected: **compilazione fallita** — `RTTerrainData.h`/`RTTerrainLibrary.h` no
 
 #include "CoreMinimal.h"
 #include "Map/RTHexCellData.h"
-#include "Turn/RTActionEvent.h"
+#include "Turn/Actions/RTActionEvent.h"
 #include "RTTerrainData.generated.h"
 
 /**
@@ -464,7 +464,7 @@ Expected: `RefactorTactics.Terrain.CostsFromCatalog`,
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Terrain/RTTerrainData.h Source/RefactorTactics/Terrain/RTTerrainLibrary.h Source/RefactorTactics/Terrain/RTTerrainLibrary.cpp Source/RefactorTactics/Tests/RTTerrainTests.cpp
+git add Source/RefactorTactics/Terrain/RTTerrainData.h Source/RefactorTactics/Terrain/RTTerrainLibrary.h Source/RefactorTactics/Terrain/RTTerrainLibrary.cpp Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp
 git commit -m "feat(terreni): catalogo FRTTerrainDef/URTTerrainLibrary per gli 8 terreni (CP 8.1)"
 ```
 
@@ -531,8 +531,8 @@ git commit -m "feat(terreni): il paint tool precompila MoveCost dal catalogo ter
 ### Task 5: Rough blocca Dash/Charge
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/RTHexSimLibrary.cpp:291`
-- Test: `Source/RefactorTactics/Tests/RTTerrainTests.cpp` (append)
+- Modify: `Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp:291`
+- Test: `Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp` (append)
 
 **Interfaces:**
 - Consuma: `URTTerrainLibrary::FindTerrainDef` (Task 3).
@@ -541,8 +541,8 @@ git commit -m "feat(terreni): il paint tool precompila MoveCost dal catalogo ter
 
 Append a `RTTerrainTests.cpp`:
 ```cpp
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 
@@ -614,7 +614,7 @@ Run: comando terreni. Expected: `Rough.BlocksDash` PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTHexSimLibrary.cpp Source/RefactorTactics/Tests/RTTerrainTests.cpp
+git add Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp
 git commit -m "feat(terreni): Rough blocca Dash/Charge, non il movimento normale (CP 8.1)"
 ```
 
@@ -623,13 +623,13 @@ git commit -m "feat(terreni): Rough blocca Dash/Charge, non il movimento normale
 ### Task 6: Scivolamento su Ice (solo Move normale)
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/RTHexSimLibrary.h`
-- Modify: `Source/RefactorTactics/Turn/RTHexSimLibrary.cpp`
+- Modify: `Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.h`
+- Modify: `Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:1174` (in `ResolveMovement`)
-- Test: `Source/RefactorTactics/Tests/RTTerrainTests.cpp` (append)
+- Test: `Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp` (append)
 
 **Interfaces:**
-- Consuma: `FRTHexSnapshot`, `FRTHexSimUnit` (`Turn/RTHexSim.h`, esistenti), `URTHexLibrary::AxialDirection`
+- Consuma: `FRTHexSnapshot`, `FRTHexSimUnit` (`Turn/Resolution/RTHexSim.h`, esistenti), `URTHexLibrary::AxialDirection`
   (`Map/RTHexLibrary.h`, esistente).
 - Produce: `URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot&, int32 UnitId, const TArray<FRTCellId>& Path) -> TArray<FRTCellId>`.
 
@@ -824,7 +824,7 @@ presente nel file). Se omesso per tempo, dichiararlo nella PR come verifica non 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTHexSimLibrary.h Source/RefactorTactics/Turn/RTHexSimLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTTerrainTests.cpp
+git add Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.h Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp
 git commit -m "feat(terreni): scivolamento su Ice per il movimento normale, riusa il microstep esistente (CP 8.1)"
 ```
 
@@ -835,7 +835,7 @@ git commit -m "feat(terreni): scivolamento su Ice per il movimento normale, rius
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (nuovo metodo privato)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:637-686` (`ResolveDash`), `:1219-1228` (`ResolveMovement`)
-- Test: `Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp` (append)
+- Test: `Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp` (append)
 
 **Interfaces:**
 - Consuma: `URTTerrainLibrary::FindTerrainDef` (Task 3), `URTCombatLibrary::ApplyDamage`
@@ -995,7 +995,7 @@ Run: comando terreni completo. Expected: tutti i test `RefactorTactics.Terrain.*
 - [ ] **Step 10: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp Source/RefactorTactics/Tests/RTTerrainTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp
 git commit -m "feat(terreni): danno e Burning del Fuoco all'ingresso, Move e Dash (CP 8.1)"
 ```
 
@@ -1005,7 +1005,7 @@ git commit -m "feat(terreni): danno e Burning del Fuoco all'ingresso, Move e Das
 
 **Files:**
 - Modify: `Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp` (`CollectHexAttacks`)
-- Test: `Source/RefactorTactics/Tests/RTTerrainTests.cpp` (append) o `RTHexCombatTests.cpp` se il pattern di
+- Test: `Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp` (append) o `RTHexCombatTests.cpp` se il pattern di
   setup del combat esiste già lì (verificare prima di scegliere il file: preferire quello con il setup più
   simile per non duplicare helper).
 
@@ -1125,7 +1125,7 @@ normale (bersagli fuori portata senza Fumo devono restare scartati come prima).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp Source/RefactorTactics/Tests/RTTerrainTests.cpp
+git add Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp Source/RefactorTactics/Tests/Terrain/RTTerrainTests.cpp
 git commit -m "feat(terreni): il Fumo limita il targeting a 2 celle lungo la linea di tiro (CP 8.1)"
 ```
 

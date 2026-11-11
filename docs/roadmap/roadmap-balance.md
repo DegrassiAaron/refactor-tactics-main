@@ -132,7 +132,7 @@ Questa è la metà dell'audit che conta: **gran parte del ciclo esiste**.
 |---|---|---|
 | dove vive l'override, e perché non nel formato scenario | #1982 | ✅ chiusa |
 | `FRTWorkbenchVariant` — `VariantId`, `Overrides`, `IsBaseline()` | #1988 | ✅ chiusa |
-| `Validate()` **prima** di scrivere · `OutRestore` come `Reset` | `Ability/RTWorkbenchVariant.h` | ✅ in `main` |
+| `Validate()` **prima** di scrivere · `OutRestore` come `Reset` | `Ability/Lab/RTWorkbenchVariant.h` | ✅ in `main` |
 | la variante raggiunge **ogni** unità che porta l'azione | #2004 | ✅ chiusa |
 | il readout espone il campo che il resolver legge | #1953 | ✅ chiusa |
 | il guardiano `Actions.HeroKitsMatchTheirCatalogDef` | #1963 | ✅ **esiste** |
@@ -142,14 +142,14 @@ Questa è la metà dell'audit che conta: **gran parte del ciclo esiste**.
 | la variante in PIE da `L_DevSandbox` | `RTScenarioSession::WorkbenchVariant` | ✅ in `main` |
 | formato scenario human-readable, versionato, diffabile | `FRTTestScenario` | ✅ **non si duplica, si estende** (`D-154` §4) |
 | corpus scenari | **133** file · **11** tipi di assertion · 8 corpora golden | ✅ |
-| checksum di stato finale | `Turn/RTMatchStateHash.h` | ✅ consumato da Runner/Session/Draft |
+| checksum di stato finale | `Turn/Log/RTMatchStateHash.h` | ✅ consumato da Runner/Session/Draft |
 | metriche derivate esplicite e testate | `tools/radar/{rubric,power,precision,profile,balance}.ts` | ✅ per **eroe** |
 | parità editor ↔ headless | `RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun` | ✅ test verde |
 | capability assente dichiarata dal turno | `Requires` → `ERTTestOutcome::Blocked` | ✅ esiste |
 | invariante interi del catalogo | `RefactorTactics.Catalog.NoFloatInIntegerFields` | ✅ per reflection |
 
 ⚠️ **Il referto del 2026-08-31 dichiarava assente `HeroKitsMatchTheirCatalogDef`.** Rimisurato il 2026-09-06:
-`FRTHeroKitsMatchTheirCatalogDefTest` **esiste** in `Source/RefactorTactics/Tests/RTActionMirrorFieldsTests.cpp`,
+`FRTHeroKitsMatchTheirCatalogDefTest` **esiste** in `Source/RefactorTactics/Tests/Ability/RTActionMirrorFieldsTests.cpp`,
 introdotto da #1963. Quel gap è chiuso, e non è stata aperta una issue per ripararlo.
 
 ---

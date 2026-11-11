@@ -180,8 +180,8 @@ lo è. Nessun conteggio è stato scritto nei documenti come se fosse una misura.
 
 | File | Cosa |
 |---|---|
-| `Tests/RTOccupancyFixtures.h` | Fixture 5 (`SegmentOnSectorBoundary`), 6 (`SegmentJustOffSectorBoundary`), più `WallOnHexEdge` / `WallOnHexEdgeInset` / `WallsOnConsecutiveEdges` |
-| `Tests/RTHexOccupancyTests.cpp` | `SegmentOnSectorBoundaryOccupiesBothAdjacentSectors` (asserisce) · `PerimeterWallsOccupancyIsRecorded` (misura, asserisce solo monotonia e sottoinsieme) |
+| `Tests/Map/Authoring/RTOccupancyFixtures.h` | Fixture 5 (`SegmentOnSectorBoundary`), 6 (`SegmentJustOffSectorBoundary`), più `WallOnHexEdge` / `WallOnHexEdgeInset` / `WallsOnConsecutiveEdges` |
+| `Tests/Map/RTHexOccupancyTests.cpp` | `SegmentOnSectorBoundaryOccupiesBothAdjacentSectors` (asserisce) · `PerimeterWallsOccupancyIsRecorded` (misura, asserisce solo monotonia e sottoinsieme) |
 
 ### ✅ Compilati ed eseguiti il 2026-08-13 — `MSE-2` è quantificata
 

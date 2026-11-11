@@ -35,9 +35,9 @@
 ### Task 1: la riga d'attivazione e la fusione nel feed (puro, senza mondo)
 
 **Files:**
-- Create: `Source/RefactorTactics/UI/RTActivationLine.h`
-- Modify: `Source/RefactorTactics/UI/RTHudViewModel.h`, `Source/RefactorTactics/UI/RTHudViewModel.cpp`
-- Test: `Source/RefactorTactics/Tests/RTActivationLineTests.cpp`
+- Create: `Source/RefactorTactics/UI/Feed/RTActivationLine.h`
+- Modify: `Source/RefactorTactics/UI/HUD/RTHudViewModel.h`, `Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp`
+- Test: `Source/RefactorTactics/Tests/UI/Feed/RTActivationLineTests.cpp`
 
 **Interfaces:**
 - Produces:
@@ -70,8 +70,8 @@
 ### Task 2: il TurnManager produce le righe e il feed le legge
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`, `Source/RefactorTactics/Turn/RTTurnManager.cpp`, `Source/RefactorTactics/UI/RTHudViewModel.cpp`
-- Test: `Source/RefactorTactics/Tests/RTActivationLinePlaybackTests.cpp` (fixture sul modello di `Tests/RTSkillCalloutPlaybackTests.cpp`: `CostruisciFumetto`, `CorriFinoAllaFineDelFumetto`, `MontaFinestraDelFumetto`; copia ciò che serve con nomi `RigaAtt*`, non includere l'altro file)
+- Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`, `Source/RefactorTactics/Turn/RTTurnManager.cpp`, `Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp`
+- Test: `Source/RefactorTactics/Tests/UI/Feed/RTActivationLinePlaybackTests.cpp` (fixture sul modello di `Tests/Turn/Playback/Reveal/RTSkillCalloutPlaybackTests.cpp`: `CostruisciFumetto`, `CorriFinoAllaFineDelFumetto`, `MontaFinestraDelFumetto`; copia ciò che serve con nomi `RigaAtt*`, non includere l'altro file)
 
 **Interfaces:**
 - Consumes: `FRTActivationLine`, `ComposeActivationLineText`, `MergeActivationLines` (Task 1).

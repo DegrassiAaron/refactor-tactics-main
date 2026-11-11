@@ -197,7 +197,7 @@ Audit sul codice reale.
 
 Esiste un Editor Mode:
 
-`Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`
+`Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp`
 
 Registra quattro tool:
 
@@ -217,7 +217,7 @@ Esistono quindi realmente:
 
 I comandi sono in:
 
-`Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`
+`Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`
 
 Semantica corrente:
 
@@ -493,7 +493,7 @@ Deve rifiutare almeno:
 > quel punto produce cover su un bordo hex, su due o su nessuno. È una domanda della **cottura** —
 > «come un angolo si proietta sui bordi canonici» — e va posta lì.
 >
-> Le fixture stanno in `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, che il Feature Registry
+> Le fixture stanno in `Source/RefactorTactics/Tests/Map/Authoring/RTOccupancyFixtures.h`, che il Feature Registry
 > destina esplicitamente anche a #620 e #621. Non creare un secondo set.
 >
 > ⚠️ Prima di scrivere la grammatica, leggi il blocco **D0-bis** in §16: gli assi che questa sezione

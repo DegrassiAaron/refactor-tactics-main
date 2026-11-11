@@ -81,7 +81,7 @@ e la linea di preview durante il drag del gizmo. *(Visibile mentre il tool è at
 
 ### 3.4 Refactor runtime (DRY)
 
-`Source/RefactorTactics/Map/RTHexMapActor.{h,cpp}`:
+`Source/RefactorTactics/Map/Actor/RTHexMapActor.{h,cpp}`:
 
 - `void AddTransitionData(const FRTCellId& From, const FRTCellId& To, int32 Cost, ERTHexTransitionKind Kind, bool bBidirectional)`
   — corpo estratto da `AddVerticalTransition` (validazione `ContainsCell(From)&&ContainsCell(To)`; `FScopedTransaction`
@@ -120,7 +120,7 @@ e la linea di preview durante il drag del gizmo. *(Visibile mentre il tool è at
 
 ## 6. Testing e Definition of Done
 
-- **Logica pura → test headless**: `RefactorTactics.Hex.WorldToLayer` in `Source/RefactorTactics/Tests/RTHexTests.cpp`
+- **Logica pura → test headless**: `RefactorTactics.Hex.WorldToLayer` in `Source/RefactorTactics/Tests/Map/RTHexTests.cpp`
   (in `RTHexTests.cpp`, dove vivono i test di `URTHexLibrary`): `LayerHeight<=0→0`; Z al centro di un layer → quel
   layer; **Z a metà tra due** → tie-break `floor(x+0.5)` fissato esplicitamente (es. `Z=OriginZ+1.5*LayerHeight → 2`,
   `Z=OriginZ−0.5*LayerHeight → 0`); Z negativo → layer negativo. `AddTransition`/validator già coperti da H4.

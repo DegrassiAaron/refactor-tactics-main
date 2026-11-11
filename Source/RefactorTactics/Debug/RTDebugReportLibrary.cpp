@@ -3,17 +3,17 @@
 #include "Core/RTEnumName.h"
 
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexCellVisibility.h"
-#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/Vision/RTHexCellVisibility.h"
+#include "Map/Cover/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h" // HasLineOfSight: la geometria non si riscrive qui (#3107)
+#include "Map/Vision/RTHexVisionLibrary.h" // HasLineOfSight: la geometria non si riscrive qui (#3107)
 #include "Replay/RTBoundaryChecksum.h"
 #include "Terrain/RTTerrainLibrary.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
-#include "Turn/RTIntentPrivacyLibrary.h"
-#include "Turn/RTTurnLog.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Turn/Actions/RTIntentPrivacyLibrary.h"
+#include "Turn/Log/RTTurnLog.h"
 
 namespace
 {

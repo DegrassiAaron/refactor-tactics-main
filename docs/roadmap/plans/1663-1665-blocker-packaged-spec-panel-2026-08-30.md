@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Stato**: revisione chiusa · **le tre azioni sono state applicate** su conferma d'autore
 > (§ [*il difetto strutturale*](#il-difetto-strutturale-che-vale-più-delle-otto-ac)) · **Data**: 2026-08-30
-> **HEAD**: `20d59973`, branch `diag/1665-istanze-board` · ⚠️ `Source/RefactorTactics/Map/RTHexMapActor.cpp`
+> **HEAD**: `20d59973`, branch `diag/1665-istanze-board` · ⚠️ `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`
 > è **modificato e non committato**: è la sonda viva di `#1665`, letta ma **non toccata**.
 > **Oggetto**: [`#1663`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1663) (animazioni
 > assenti nel pacchetto) e [`#1665`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1665)
@@ -65,7 +65,7 @@ raccomandazione che il commento stesso dà: *«un meccanismo che regge venti ass
 **Lisa Crispin · l'oracolo che c'è ed è cieco**
 
 ❌ **CRITICO · un test verde copre già questo path, e non può vedere il difetto.**
-`Tests/RTUnitTests.cpp:465-480` compone la stessa radice `/Game/FabAsset/Paragon/Paragon%s/…` e confronta,
+`Tests/Unit/RTUnitTests.cpp:465-480` compone la stessa radice `/Game/FabAsset/Paragon/Paragon%s/…` e confronta,
 eroe per eroe, la stringa del `ToSoftObjectPath()`. È un test **buono** — il commento spiega perché include
 il pack nell'asserto — ma verifica che il path sia **scritto giusto**, non che **risolva**; e gira in Editor,
 dove `Content/FabAsset/` è sul disco. ∴ resta verde per costruzione mentre il pacchetto degrada.
@@ -165,7 +165,7 @@ pacchetto, e da lì sono emersi questi due. Un gate 🟡 la cui riserva è scadu
 
 ## L'oracolo dei bounds — scritto, eseguito, **verde**, e l'ipotesi cade in Editor
 
-`Source/RefactorTactics/Tests/RTHexMapMeshBoundsTests.cpp`,
+`Source/RefactorTactics/Tests/Map/RTHexMapMeshBoundsTests.cpp`,
 `RefactorTactics.HexMapActor.ProceduralMeshBoundsContainTheirGeometry`. Copre le **tre** mesh procedurali
 dell'attore — prisma della cella, volume di conoscenza, glifo a 1–4 anelli — perché passano tutte per la
 stessa `BuildFromMeshDescriptions` con `bFastBuild`.

@@ -113,7 +113,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 **Conseguenze, lettura dell'assistente**
 
-- **La lista si ricava dall'enum `ERTActionInvalidReason`** (`Source/RefactorTactics/Turn/RTActionFallbackLibrary.h`) **al commit del candidate finale**, non da una memoria: l'enum cresce in coda per costruzione, e una lista scritta a mano invecchia in silenzio. I motivi che un giocatore non incontra (per esempio `NoMap`, difetto di configurazione; `NoEffect`, catalogo scritto male; `InsufficientMovementPoints`, senza produttore) restano fuori **con il perché dell'esclusione scritto accanto**.
+- **La lista si ricava dall'enum `ERTActionInvalidReason`** (`Source/RefactorTactics/Turn/Actions/RTActionFallbackLibrary.h`) **al commit del candidate finale**, non da una memoria: l'enum cresce in coda per costruzione, e una lista scritta a mano invecchia in silenzio. I motivi che un giocatore non incontra (per esempio `NoMap`, difetto di configurazione; `NoEffect`, catalogo scritto male; `InsufficientMovementPoints`, senza produttore) restano fuori **con il perché dell'esclusione scritto accanto**.
 - **Ogni motivo diventa una riga**: motivo · scenario `-RTScenario=<Id>` · *chi* (sì / no / non applicabile) · *perché* (sì / no) · che cosa hai visto, se la risposta è no.
 - **Un caso senza scenario, o non visto, non vale come sì**: `G17` non può essere verde.
 - **Gli scenari mancanti vanno scritti.** Nel corpus di `Scenarios/` nessun file nomina `Interrupt`, `Interrupted` o `Neutralised` (cercato con grep): il caso della tua scena non ha uno scenario. È lavoro nuovo, l'owner non è deciso e le issue nascono al punto 5 di [#3985](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3985).
@@ -123,7 +123,7 @@ Il nome fra apici è solo un'etichetta per correggere senza rinumerare. **Classe
 
 - Che `-RTScenario=<Id>` giri su un pacchetto candidate. È predisposto (`RTGameMode.cpp`, e `Scenarios/` è inclusa nel pacchetto da `Config/DefaultGame.ini`), ma non provato.
 - **Che uno scenario lanciato dal pacchetto mostri lo stesso HUD e la stessa presentazione di una partita.** Se mostra una vista diversa, la scheda misura una superficie che il giocatore non vede.
-- **Quanto della voce arrivi al `WBP_RT_CombatLog`.** Il testo del motivo `Interrupted` è «interrotta» e quello di `Neutralised` «neutralizzata da un'interruzione reciproca» (`Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp`); come la riga venga composta nel pannello non è stato verificato.
+- **Quanto della voce arrivi al `WBP_RT_CombatLog`.** Il testo del motivo `Interrupted` è «interrotta» e quello di `Neutralised` «neutralizzata da un'interruzione reciproca» (`Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp`); come la riga venga composta nel pannello non è stato verificato.
 
 **Misurato: il «chi» non è nel dato**
 

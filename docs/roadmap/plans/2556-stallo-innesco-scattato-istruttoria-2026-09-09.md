@@ -146,6 +146,6 @@ Le due uscite che #2556 elencava. **L'istruttoria le sconsiglia entrambe**, e la
 - [#2556](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2556) · [#2501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2501) · [#2629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2629) · [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551) · [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)
 - [`D-244`](../../decisions/RT_PDR_00_Decision_Log.md) · [`D-184`](../../decisions/RT_PDR_00_Decision_Log.md) · [`D-045`](../../decisions/RT_PDR_00_Decision_Log.md)
 - [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) → `BOT-STALL-1`
-- `Source/RefactorTactics/Tests/RTStallDefinitionMeasureTests.cpp` (la sonda a sei definizioni)
-- `Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp:1856-1870`, `:2140-2175` (l'oracolo `(b)` e il warning che ha previsto questo rosso)
-- `Source/RefactorTactics/Tests/RTAuthoredMapEngagementTests.cpp` (l'oracolo `(a)`)
+- `Source/RefactorTactics/Tests/Turn/Resolution/RTStallDefinitionMeasureTests.cpp` (la sonda a sei definizioni)
+- `Source/RefactorTactics/Tests/Player/RTMatchAutobattleTests.cpp:1856-1870`, `:2140-2175` (l'oracolo `(b)` e il warning che ha previsto questo rosso)
+- `Source/RefactorTactics/Tests/Turn/Format/RTAuthoredMapEngagementTests.cpp` (l'oracolo `(a)`)

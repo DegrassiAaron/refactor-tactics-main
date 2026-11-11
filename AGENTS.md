@@ -610,7 +610,7 @@ python tools/bot-competence/check.py --check              # lo schema, i suoi `c
                                                           # Scenarios/, o QUALUNQUE rinomina di un nome
                                                           # Automation citato: e' una lettura offline,
                                                           # nel dubbio si lancia
-python tools/hud-assets/color_metrics.py                  # se la PR tocca UI/RTHUD.cpp, le tabelle di
+python tools/hud-assets/color_metrics.py                  # se la PR tocca UI/HUD/RTHUD.cpp, le tabelle di
                                                           # colore di tools/hud-assets/, o un token di
                                                           # progettazione-hud.md §32 o di
                                                           # 02-color-system.md §2. Il referto LEGGE due

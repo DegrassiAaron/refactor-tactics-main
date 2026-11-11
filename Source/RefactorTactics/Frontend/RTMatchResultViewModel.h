@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "RTMatchResultViewModel.generated.h"
 
 /**

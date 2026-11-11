@@ -3,11 +3,11 @@
 #include "CoreMinimal.h"
 #include "Turn/Playback/RTPlaybackHost.h"    // FRTPlaybackHost, FRTPlaybackTuning: cio' che il playback chiede all'orchestratore
 #include "Turn/Playback/RTPlaybackSignals.h" // FRTPlaybackSignals: i delegate che trasmette
-#include "Turn/RTResolvedEvent.h"
-#include "Turn/RTPlaybackLibrary.h"          // FRTPhaseTime, FRTBlastSequenceElement, ERTPlaybackStopAt
-#include "Turn/RTTurnRules.h"                // ERTMatchPhase
+#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Turn/Playback/RTPlaybackLibrary.h"          // FRTPhaseTime, FRTBlastSequenceElement, ERTPlaybackStopAt
+#include "Turn/Resolution/RTTurnRules.h"                // ERTMatchPhase
 #include "Map/RTCellId.h"
-#include "UI/RTActivationLine.h"             // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
+#include "UI/Feed/RTActivationLine.h"             // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
 
 class ARTUnit;
 

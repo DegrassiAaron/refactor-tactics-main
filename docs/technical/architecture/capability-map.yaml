@@ -123,7 +123,7 @@ capabilities:
         - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
         - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
         - Source/RefactorTactics/Turn/RTTurnManagerInternal.h
-        - Source/RefactorTactics/Turn/RTTurnRules.h
+        - Source/RefactorTactics/Turn/Resolution/RTTurnRules.h
         - Source/RefactorTactics/RTGameMode.cpp
     issues: { open: [1818, 1821, 1816], closed: [2193] }
     consumers:
@@ -173,9 +173,9 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.h
-        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.cpp
-        - Source/RefactorTactics/Turn/RTActionQueue.h
+        - Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.cpp
+        - Source/RefactorTactics/Turn/Actions/RTActionQueue.h
         - Source/RefactorTactics/Player/RTPlayerController.cpp
     issues: { open: [2826, 2793, 2698, 2702, 607, 172], closed: [] }
     consumers:
@@ -215,12 +215,12 @@ capabilities:
       files:
         - Source/RefactorTactics/Ability/RTActionDef.h
         - Source/RefactorTactics/Ability/RTActionData.h
-        - Source/RefactorTactics/Ability/RTCatalogLibrary.h
-        - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
-        - Source/RefactorTactics/Turn/RTActionEvent.h
-        - Source/RefactorTactics/Turn/RTActionEffectLibrary.h
-        - Source/RefactorTactics/Turn/RTActionFallbackLibrary.h
-        - Source/RefactorTactics/Ability/RTActionReadout.h
+        - Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.h
+        - Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp
+        - Source/RefactorTactics/Turn/Actions/RTActionEvent.h
+        - Source/RefactorTactics/Turn/Actions/RTActionEffectLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTActionFallbackLibrary.h
+        - Source/RefactorTactics/Ability/Catalog/RTActionReadout.h
     issues: { open: [2827, 2578, 1803], closed: [] }
     consumers:
       - RT-CAP-ACTION-ECONOMY
@@ -254,9 +254,9 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.h
         - Source/RefactorTactics/Ability/RTActionDef.h
-        - Source/RefactorTactics/Turn/RTTurnRules.h
+        - Source/RefactorTactics/Turn/Resolution/RTTurnRules.h
     issues: { open: [609, 607, 2088], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-PLANNING, RT-CAP-SCREEN-HUD]
     dependencies: [RT-CAP-ACTION-MODEL]
@@ -284,10 +284,10 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTHexSim.h
-        - Source/RefactorTactics/Turn/RTHexSimLibrary.h
-        - Source/RefactorTactics/Turn/RTHexSimLibrary.cpp
-        - Source/RefactorTactics/Turn/RTMoveRoute.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSim.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp
+        - Source/RefactorTactics/Turn/Resolution/RTMoveRoute.h
         - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
     issues: { open: [2628, 2501, 2836], closed: [] }
     consumers:
@@ -321,8 +321,8 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTMovementActionLibrary.h
-        - Source/RefactorTactics/Turn/RTMovementActionLibrary.cpp
+        - Source/RefactorTactics/Turn/Resolution/RTMovementActionLibrary.h
+        - Source/RefactorTactics/Turn/Resolution/RTMovementActionLibrary.cpp
     issues: { open: [704, 2825, 3736, 3764], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-FACING, RT-CAP-MAP-TOPOLOGY]
@@ -346,8 +346,8 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTHexSimLibrary.cpp
-        - Source/RefactorTactics/Turn/RTMovementResolutionContext.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.cpp
+        - Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h
         - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
         - Source/RefactorTactics/Map/RTHexOccupancyLibrary.h
     issues: { open: [2629], closed: [2679] }
@@ -373,7 +373,7 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTFacingLibrary.h
+        - Source/RefactorTactics/Turn/Resolution/RTFacingLibrary.h
         - Source/RefactorTactics/World/RTGrayboxUnitFacingFixture.h
         - Source/RefactorTactics/Unit/RTUnit.h
     issues: { open: [2819, 2167, 1793], closed: [1800] }
@@ -436,12 +436,12 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTHexVisionLibrary.h
-        - Source/RefactorTactics/Map/RTHexVisionLibrary.cpp
-        - Source/RefactorTactics/Map/RTHexOcclusionLibrary.h
-        - Source/RefactorTactics/Map/RTSightLines.h
-        - Source/RefactorTactics/Map/RTSightLines.cpp
-        - Source/RefactorTactics/Map/RTHexLosConsole.h
+        - Source/RefactorTactics/Map/Vision/RTHexVisionLibrary.h
+        - Source/RefactorTactics/Map/Vision/RTHexVisionLibrary.cpp
+        - Source/RefactorTactics/Map/Vision/RTHexOcclusionLibrary.h
+        - Source/RefactorTactics/Map/Actor/RTSightLines.h
+        - Source/RefactorTactics/Map/Actor/RTSightLines.cpp
+        - Source/RefactorTactics/Map/Vision/RTHexLosConsole.h
     issues: { open: [2742, 1944, 2795], closed: [1712, 1755, 2035] }
     consumers:
       - RT-CAP-DEBUG-CONSOLE
@@ -459,7 +459,7 @@ capabilities:
     risks:
       - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura dava `presentation: missing` citando il
          TITOLO di #2742. Misurato sul codice: `5149867f feat(2742): la linea di tiro interrotta si
-         vede, e dove si interrompe` e' su `origin/main`, e `Map/RTHexMapActor.cpp:1291-1307`
+         vede, e dove si interrompe` e' su `origin/main`, e `Map/Actor/RTHexMapActor.cpp:1291-1307`
          disegna la linea con `URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision)` — senza un
          solo `FColor` letterale — con `Player/RTPlayerController.cpp` fra i consumatori. Il canale
          ESISTE; #2742 resta aperta per il residuo."
@@ -514,7 +514,7 @@ capabilities:
         - Source/RefactorTactics/Combat/RTCombatResolver.h
         - Source/RefactorTactics/Combat/RTCombatResolver.cpp
         - Source/RefactorTactics/Combat/RTCombatLibrary.cpp
-        - Source/RefactorTactics/Turn/RTCombatLog.h
+        - Source/RefactorTactics/Turn/Log/RTCombatLog.h
     issues: { open: [2586, 2589, 2588, 2658, 2798], closed: [1951] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT-FEEDBACK, RT-CAP-RESOLVED-TIMELINE]
     dependencies:
@@ -551,14 +551,14 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTReactionLibrary.h
-        - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
-        - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
-        - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
+        - Source/RefactorTactics/Turn/Reaction/RTReactionLibrary.h
+        - Source/RefactorTactics/Turn/Reaction/RTReactionLibrary.cpp
+        - Source/RefactorTactics/Turn/Reaction/RTReactionOpportunityTypes.h
+        - Source/RefactorTactics/Turn/Reaction/RTReactionOpportunityTypes.cpp
         - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
-        - Source/RefactorTactics/Turn/RTReactionPassResult.h
-        - Source/RefactorTactics/Turn/RTReactionWindowView.h
-        - Source/RefactorTactics/Turn/RTDeclaredCondition.h
+        - Source/RefactorTactics/Turn/Reaction/RTReactionPassResult.h
+        - Source/RefactorTactics/Turn/Reaction/RTReactionWindowView.h
+        - Source/RefactorTactics/Turn/Actions/RTDeclaredCondition.h
     issues: { open: [2462, 2516, 2795, 166, 314, 319], closed: [2717, 3745, 3771, 2367, 3132, 3788] }
     consumers:
       - RT-CAP-BOT-DECISION
@@ -606,9 +606,9 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTPredictiveLibrary.h
-        - Source/RefactorTactics/Turn/RTPredictiveLibrary.cpp
-        - Source/RefactorTactics/Turn/RTDeclaredCondition.h
+        - Source/RefactorTactics/Turn/Actions/RTPredictiveLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTPredictiveLibrary.cpp
+        - Source/RefactorTactics/Turn/Actions/RTDeclaredCondition.h
     issues: { open: [2795, 2367, 329, 330], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-LOS, RT-CAP-REACTIONS]
@@ -632,10 +632,10 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTHexCoverLibrary.h
-        - Source/RefactorTactics/Map/RTHexCoverLibrary.cpp
-        - Source/RefactorTactics/Map/RTHexCoverPlacementLibrary.h
-        - Source/RefactorTactics/Map/RTHexCoverPlacementLibrary.cpp
+        - Source/RefactorTactics/Map/Cover/RTHexCoverLibrary.h
+        - Source/RefactorTactics/Map/Cover/RTHexCoverLibrary.cpp
+        - Source/RefactorTactics/Map/Cover/RTHexCoverPlacementLibrary.h
+        - Source/RefactorTactics/Map/Cover/RTHexCoverPlacementLibrary.cpp
     issues: { open: [1833, 1829, 1831, 1317, 2341, 1561, 323], closed: [] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-LOS, RT-CAP-MAP-EDITOR, RT-CAP-TARGETING]
     dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-STRUCTURES]
@@ -691,7 +691,7 @@ capabilities:
     implementation:
       files:
         - Source/RefactorTactics/Core/RTGameplayTags.h
-        - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+        - Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp
     issues: { open: [435, 437, 441, 244, 2456, 2378], closed: [] }
     consumers: [RT-CAP-COMBAT, RT-CAP-COMBAT-FEEDBACK, RT-CAP-SCREEN-HUD]
     dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-TERRAIN-ENV, RT-CAP-TURNLOG]
@@ -718,10 +718,10 @@ capabilities:
       capability_view: CR-VERT
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTHexDoorLibrary.h
-        - Source/RefactorTactics/Map/RTHexArcLibrary.h
-        - Source/RefactorTactics/Map/RTStructuralBodyLibrary.h
-        - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
+        - Source/RefactorTactics/Map/Cover/RTHexDoorLibrary.h
+        - Source/RefactorTactics/Map/Vision/RTHexArcLibrary.h
+        - Source/RefactorTactics/Map/Structure/RTStructuralBodyLibrary.h
+        - Source/RefactorTactics/Map/Structure/RTStructureIdentityLibrary.h
         - Source/RefactorTactics/Core/RTTypes.h
     issues: { open: [324, 2828, 2827, 2731, 2761, 1850, 1848], closed: [] }
     consumers: [RT-CAP-COVER, RT-CAP-LOS, RT-CAP-MAP-EDITOR, RT-CAP-MOVEMENT-BUDGET, RT-CAP-VERTICALITY]
@@ -755,9 +755,9 @@ capabilities:
       capability_view: CR-VERT
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTHexLedgeLibrary.h
-        - Source/RefactorTactics/Map/RTHexLedgeLibrary.cpp
-        - Source/RefactorTactics/Turn/RTReactionPassResult.h
+        - Source/RefactorTactics/Map/Cover/RTHexLedgeLibrary.h
+        - Source/RefactorTactics/Map/Cover/RTHexLedgeLibrary.cpp
+        - Source/RefactorTactics/Turn/Reaction/RTReactionPassResult.h
     issues: { open: [2388, 2408, 2407, 2405, 2404], closed: [2401] }
     consumers: [RT-CAP-BOT-DECISION, RT-CAP-MAP-EDITOR, RT-CAP-PLAYBACK, RT-CAP-TURNLOG]
     dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-SIMULTANEOUS-MOVEMENT, RT-CAP-STRUCTURES]
@@ -782,10 +782,10 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTTurnRules.h
-        - Source/RefactorTactics/Turn/RTTurnRules.cpp
+        - Source/RefactorTactics/Turn/Resolution/RTTurnRules.h
+        - Source/RefactorTactics/Turn/Resolution/RTTurnRules.cpp
         - Source/RefactorTactics/Map/RTHexCellData.h
-        - Source/RefactorTacticsEditor/Private/Content/RTSetObjectiveCellCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Patch/RTSetObjectiveCellCommandlet.h
     issues: { open: [2281, 331, 332, 940], closed: [] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-BOT-DECISION, RT-CAP-FRONTEND-SHELL, RT-CAP-SCREEN-HUD]
     dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-TURN-LOOP]
@@ -811,10 +811,10 @@ capabilities:
       capability_view: CR-MATCH
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTMatchFormatData.h
-        - Source/RefactorTactics/Turn/RTMatchFormatLibrary.h
-        - Source/RefactorTactics/Turn/RTMatchFormatLibrary.cpp
-        - Source/RefactorTactics/Turn/RTMatchSetupLibrary.h
+        - Source/RefactorTactics/Turn/Format/RTMatchFormatData.h
+        - Source/RefactorTactics/Turn/Format/RTMatchFormatLibrary.h
+        - Source/RefactorTactics/Turn/Format/RTMatchFormatLibrary.cpp
+        - Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.h
     issues: { open: [325, 333, 221], closed: [] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCENARIO-HARNESS, RT-CAP-TURN-LOOP]
     dependencies: [RT-CAP-HERO-KIT]
@@ -866,7 +866,7 @@ capabilities:
     implementation:
       files:
         - Source/RefactorTactics/Perception/RTTeamKnowledge.h
-        - Source/RefactorTactics/Perception/RTVisibilityBorder.h
+        - Source/RefactorTactics/Perception/Veil/RTVisibilityBorder.h
         - Source/RefactorTactics/Perception/RTEnemyTacticalQuery.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioKnowledge.h
     issues: { open: [2731, 2632, 2597, 2485], closed: [1754] }
@@ -900,8 +900,8 @@ capabilities:
       capability_view: CR-NET
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
-        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+        - Source/RefactorTactics/Turn/Actions/RTIntentPrivacyLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTIntentPrivacyLibrary.cpp
         - Source/RefactorTactics/Core/RTServerOnlyGuard.h
         - Source/RefactorTactics/Core/RTServerOnlyGuard.cpp
     issues: { open: [784, 759, 1466, 2793], closed: [2331, 1496] }
@@ -940,9 +940,9 @@ capabilities:
     implementation:
       files:
         - Source/RefactorTactics/Ability/RTHeroData.h
-        - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
-        - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
-        - Source/RefactorTactics/Ability/RTHeroLab.h
+        - Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.h
+        - Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp
+        - Source/RefactorTactics/Ability/Lab/RTHeroLab.h
     issues: { open: [1408, 2297, 2291, 322, 2381], closed: [] }
     consumers:
       - RT-CAP-ACTION-MODEL
@@ -974,7 +974,7 @@ capabilities:
       files:
         - Source/RefactorTactics/Ability/RTEquipmentData.h
         - Source/RefactorTactics/Ability/RTActionData.h
-        - Source/RefactorTactics/Ability/RTWorkbenchVariant.h
+        - Source/RefactorTactics/Ability/Lab/RTWorkbenchVariant.h
     issues: { open: [1564, 2577], closed: [] }
     consumers: [RT-CAP-COMBAT, RT-CAP-HERO-PROFILE, RT-CAP-SKILL-WORKBENCH]
     dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-HERO-KIT]
@@ -1002,7 +1002,7 @@ capabilities:
         - Source/RefactorTactics/Map/RTHexLibrary.h
         - Source/RefactorTactics/Map/RTHexLibrary.cpp
         - Source/RefactorTactics/Map/RTHexMapAsset.h
-        - Source/RefactorTactics/Map/RTHexMapActor.h
+        - Source/RefactorTactics/Map/Actor/RTHexMapActor.h
         - Source/RefactorTactics/Map/RTHexCellData.h
         - Source/RefactorTactics/Map/RTHexMapCustomVersion.h
         - Source/RefactorTactics/Core/RTTypes.h
@@ -1058,7 +1058,7 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTHexSim.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSim.h
         - Source/RefactorTactics/Combat/RTHexCombatLibrary.h
         - Source/RefactorTactics/Turn/RTTurnManager.h   # MakeCurrentSnapshot
     issues: { open: [], closed: [] }
@@ -1092,9 +1092,9 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTActionQueueLibrary.h
-        - Source/RefactorTactics/Turn/RTActionQueueLibrary.cpp
-        - Source/RefactorTactics/Turn/RTActionQueue.h
+        - Source/RefactorTactics/Turn/Actions/RTActionQueueLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTActionQueueLibrary.cpp
+        - Source/RefactorTactics/Turn/Actions/RTActionQueue.h
     issues: { open: [], closed: [] }
     consumers: [RT-CAP-SIMULTANEOUS-MOVEMENT, RT-CAP-STATE-HASH, RT-CAP-TURN-LOOP, RT-CAP-TURNLOG]
     dependencies: [RT-CAP-SNAPSHOT]
@@ -1118,9 +1118,9 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTTurnLog.h
-        - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
-        - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
+        - Source/RefactorTactics/Turn/Log/RTTurnLog.h
+        - Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.h
+        - Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp
     issues: { open: [1392, 649, 805, 2516], closed: [1499, 307] }
     consumers:
       - RT-CAP-DEBUG-CONSOLE
@@ -1161,7 +1161,7 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTMatchStateHash.h
+        - Source/RefactorTactics/Turn/Log/RTMatchStateHash.h
         - Source/RefactorTactics/Replay/RTBoundaryChecksum.h
         - Source/RefactorTactics/Replay/RTBoundaryChecksum.cpp
     issues: { open: [2620], closed: [2189, 1800] }
@@ -1192,9 +1192,9 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTResolvedEvent.h
-        - Source/RefactorTactics/Turn/RTPresentationBinding.h
-        - Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+        - Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h
+        - Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h
+        - Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp
     issues: { open: [2453, 2828, 2505, 2457], closed: [2455] }
     consumers: [RT-CAP-ANIMATION-RUNTIME, RT-CAP-AUDIO, RT-CAP-COMBAT-FEEDBACK, RT-CAP-PLAYBACK, RT-CAP-VFX]
     dependencies: [RT-CAP-COMBAT, RT-CAP-TURNLOG]
@@ -1221,10 +1221,10 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
-        - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
-        - Source/RefactorTactics/Replay/RTPlaybackSpeed.h
-        - Source/RefactorTactics/Replay/RTPlaybackSpeed.cpp
+        - Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h
+        - Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp
+        - Source/RefactorTactics/Replay/Viewer/RTPlaybackSpeed.h
+        - Source/RefactorTactics/Replay/Viewer/RTPlaybackSpeed.cpp
     issues: { open: [1881, 2411], closed: [1878, 1879, 1880] }
     consumers:
       - RT-CAP-AUTOBATTLE
@@ -1272,8 +1272,8 @@ capabilities:
         - Source/RefactorTactics/Replay/RTReplayRecorderLibrary.h
         - Source/RefactorTactics/Replay/RTReplayRecorderLibrary.cpp
         - Source/RefactorTactics/Replay/RTReplayManifest.h
-        - Source/RefactorTactics/Turn/RTReplayRecording.h
-        - Source/RefactorTactics/Replay/RTReplayPlayerLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayRecording.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplayPlayerLibrary.h
     issues: { open: [813, 805, 2620], closed: [2286] }
     consumers: [RT-CAP-DEBUG-CONSOLE, RT-CAP-MATCH-HISTORY, RT-CAP-REPLAY-PRIVACY, RT-CAP-REPLAY-VIEWMODEL]
     dependencies: [RT-CAP-STATE-HASH, RT-CAP-TURNLOG]
@@ -1296,8 +1296,8 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Replay/RTReplaySeekLibrary.h
-        - Source/RefactorTactics/Replay/RTReplaySeekLibrary.cpp
+        - Source/RefactorTactics/Replay/Viewer/RTReplaySeekLibrary.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplaySeekLibrary.cpp
     issues: { open: [], closed: [415, 1880] }
     consumers: [RT-CAP-REPLAY-STATE, RT-CAP-REPLAY-VIEWMODEL, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-TURNLOG]
@@ -1321,8 +1321,8 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Replay/RTReplayStateLibrary.h
-        - Source/RefactorTactics/Replay/RTReplayStateLibrary.cpp
+        - Source/RefactorTactics/Replay/Viewer/RTReplayStateLibrary.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplayStateLibrary.cpp
     issues: { open: [], closed: [470, 1880] }
     consumers: [RT-CAP-REPLAY-VIEWMODEL, RT-CAP-STATE-HASH, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-REPLAY-SEEK, RT-CAP-TURNLOG]
@@ -1349,11 +1349,11 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Replay/RTReplayViewModel.h
-        - Source/RefactorTactics/Replay/RTReplayViewModel.cpp
-        - Source/RefactorTactics/Replay/RTReplayViewerSubsystem.h
-        - Source/RefactorTactics/Replay/RTReplayViewerSubsystem.cpp
-        - Source/RefactorTactics/Replay/RTReplayScreenWidgets.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplayViewModel.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplayViewModel.cpp
+        - Source/RefactorTactics/Replay/Viewer/RTReplayViewerSubsystem.h
+        - Source/RefactorTactics/Replay/Viewer/RTReplayViewerSubsystem.cpp
+        - Source/RefactorTactics/Replay/Viewer/RTReplayScreenWidgets.h
         - Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset
     issues: { open: [1625], closed: [472, 999] }
     consumers: [RT-CAP-FRONTEND-SHELL, RT-CAP-TACTICAL-DESIGNER]
@@ -1371,9 +1371,9 @@ capabilities:
     verification: { pie: [], packaged: [] }
     notes:
       - "FATTO: i consumatori di `FRTReplayViewModel` fuori dal core sono
-         `ScenarioHarness/RTScenarioAuthoring.h`, `ScenarioHarness/RTScenarioDraft.h`,
-         `RefactorTacticsEditor/Public/RTScenarioPreviewSubsystem.h` e
-         `RefactorTacticsEditor/Private/RTLauncherScenarioBrowser.h`. Il Tactical Designer
+         `ScenarioHarness/Authoring/RTScenarioAuthoring.h`, `ScenarioHarness/Authoring/RTScenarioDraft.h`,
+         `RefactorTacticsEditor/Public/Launcher/RTScenarioPreviewSubsystem.h` e
+         `RefactorTacticsEditor/Private/Launcher/RTLauncherScenarioBrowser.h`. Il Tactical Designer
          CONSUMA il ViewModel — nessun secondo resolver."
 
   - id: RT-CAP-REPLAY-PRIVACY
@@ -1437,10 +1437,10 @@ capabilities:
       capability_view: CR-REPLAY
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTPacing.h
-        - Source/RefactorTactics/Turn/RTPacingLibrary.h
-        - Source/RefactorTactics/Turn/RTPacingRecorder.h
-        - Source/RefactorTactics/Turn/RTPacingConsole.cpp
+        - Source/RefactorTactics/Turn/Pacing/RTPacing.h
+        - Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.h
+        - Source/RefactorTactics/Turn/Pacing/RTPacingRecorder.h
+        - Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp
     issues: { open: [1818, 2462], closed: [] }
     consumers: [RT-CAP-DEBUG-CONSOLE, RT-CAP-PLAYBACK]
     dependencies: [RT-CAP-TURN-LOOP]
@@ -1469,12 +1469,12 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/UI/RTHUD.h
-        - Source/RefactorTactics/UI/RTHUD.cpp
-        - Source/RefactorTactics/UI/RTScreenHudWidgets.h
-        - Source/RefactorTactics/UI/RTHudViewModel.h
-        - Source/RefactorTactics/UI/RTHudViewModel.cpp
-        - Source/RefactorTactics/UI/RTUnitOverlayWidget.h
+        - Source/RefactorTactics/UI/HUD/RTHUD.h
+        - Source/RefactorTactics/UI/HUD/RTHUD.cpp
+        - Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h
+        - Source/RefactorTactics/UI/HUD/RTHudViewModel.h
+        - Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp
+        - Source/RefactorTactics/UI/Feed/RTUnitOverlayWidget.h
         - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
         - Content/RT/UI/Match/WBP_RT_TurnHeader.uasset
         - Content/RT/UI/Match/WBP_RT_UnitOverlay.uasset
@@ -1525,12 +1525,12 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTOverlayArea.h
-        - Source/RefactorTactics/Map/RTOverlayPalette.h
-        - Source/RefactorTactics/Map/RTOverlayPalette.cpp
-        - Source/RefactorTactics/Map/RTHexMapActor.cpp   # DrawPlanningPreview
-        - Source/RefactorTactics/Map/RTHexOverlayConsole.cpp
-        - Source/RefactorTactics/Map/RTRegionBoundary.h
+        - Source/RefactorTactics/Map/Actor/RTOverlayArea.h
+        - Source/RefactorTactics/Map/Actor/RTOverlayPalette.h
+        - Source/RefactorTactics/Map/Actor/RTOverlayPalette.cpp
+        - Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp   # DrawPlanningPreview
+        - Source/RefactorTactics/Map/Actor/RTHexOverlayConsole.cpp
+        - Source/RefactorTactics/Map/Structure/RTRegionBoundary.h
     issues: { open: [1941, 1942, 1943, 1944, 2742, 1614, 921], closed: [] }
     consumers: [RT-CAP-FOG-PRESENTATION, RT-CAP-GRAYKIT-PLAYGROUND, RT-CAP-MAP-EDITOR, RT-CAP-TARGET-PREVIEW]
     dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-MAP-TOPOLOGY, RT-CAP-TERRAIN-ENV]
@@ -1556,10 +1556,10 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Map/RTHexMapActor.cpp   # DrawPlanningPreview
-        - Source/RefactorTactics/Map/RTOverlayArea.h
-        - Source/RefactorTactics/Turn/RTHexSimLibrary.h  # reachable set
-        - Source/RefactorTactics/Map/RTSightLines.h
+        - Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp   # DrawPlanningPreview
+        - Source/RefactorTactics/Map/Actor/RTOverlayArea.h
+        - Source/RefactorTactics/Turn/Resolution/RTHexSimLibrary.h  # reachable set
+        - Source/RefactorTactics/Map/Actor/RTSightLines.h
         - Source/RefactorTactics/Perception/RTEnemyTacticalQuery.h
     issues: { open: [2825, 2793, 2742, 2632, 2597, 1944, 607, 172], closed: [] }
     consumers: [RT-CAP-MAP-EDITOR, RT-CAP-SCREEN-HUD, RT-CAP-TACTICAL-DESIGNER]
@@ -1600,9 +1600,9 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/UI/RTPlayerEvent.h
-        - Source/RefactorTactics/UI/RTPlayerEventProjector.h
-        - Source/RefactorTactics/UI/RTPlayerEventProjector.cpp
+        - Source/RefactorTactics/UI/Feed/RTPlayerEvent.h
+        - Source/RefactorTactics/UI/Feed/RTPlayerEventProjector.h
+        - Source/RefactorTactics/UI/Feed/RTPlayerEventProjector.cpp
         - Content/RT/UI/Match/WBP_RT_EventLog.uasset
         - Content/RT/UI/Match/WBP_RT_EventLine.uasset
     issues: { open: [1937, 1936, 2697, 2281, 1392], closed: [] }
@@ -1617,9 +1617,9 @@ capabilities:
       - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura dava `presentation: missing` citando il
          TITOLO di #2697 — «i tre canali verso lo schermo hanno zero chiamanti fuori dai test» — e
          quel titolo descrive il difetto AL MOMENTO DELL'APERTURA, non oggi. Misurato sul codice:
-         `9169c2ff feat(2697): il feed arriva a schermo` e' su `origin/main`, `UI/RTHUD.cpp:994`
+         `9169c2ff feat(2697): il feed arriva a schermo` e' su `origin/main`, `UI/HUD/RTHUD.cpp:994`
          chiama `URTHudViewModel::BuildPlayerEventFeed(TurnManager, PlayerTeamId)` in PRODUZIONE, e
-         `UI/RTScreenHudWidgets.h:294` espone `GetFeed()` al widget UMG. Il canale ESISTE."
+         `UI/HUD/RTScreenHudWidgets.h:294` espone `GetFeed()` al widget UMG. Il canale ESISTE."
       - "#2697 resta APERTA per lo scope residuo, che questa mappa non ha misurato staticamente: si
          legge la issue, non il suo titolo."
     notes:
@@ -1638,10 +1638,10 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/UI/RTDamageTokenView.h
-        - Source/RefactorTactics/UI/RTUnitOverlayWidget.h
-        - Source/RefactorTactics/UI/RTUnitOverlayWidget.cpp
-        - Source/RefactorTacticsEditor/Private/Content/RTAddDamageTokenCommandlet.h
+        - Source/RefactorTactics/UI/Feed/RTDamageTokenView.h
+        - Source/RefactorTactics/UI/Feed/RTUnitOverlayWidget.h
+        - Source/RefactorTactics/UI/Feed/RTUnitOverlayWidget.cpp
+        - Source/RefactorTacticsEditor/Private/Content/Patch/RTAddDamageTokenCommandlet.h
     issues: { open: [2453, 2456, 2457, 2828, 2505, 2454, 3578], closed: [2455, 2288] }
     consumers: [RT-CAP-SCREEN-HUD]
     dependencies: [RT-CAP-COMBAT, RT-CAP-PLAYBACK, RT-CAP-RESOLVED-TIMELINE, RT-CAP-STATUS]
@@ -1675,7 +1675,7 @@ capabilities:
         - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
         - Source/RefactorTactics/Unit/RTUnitLayerOutline.h
         - Source/RefactorTactics/Unit/RTUnitLayerOutline.cpp
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildUnitOutlineMaterialCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildUnitOutlineMaterialCommandlet.h
         - Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
         - Content/RT/Characters/Shared/Materials/M_SelectionRing.uasset
         - Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset
@@ -1711,8 +1711,8 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogLibrary.h
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
-        - Source/RefactorTacticsEditor/Private/Content/RTSyncUnitAnimRefsCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Patch/RTSyncUnitAnimRefsCommandlet.h
         - Content/RT/Anim/ABP_RTUnitAuthored.uasset
     issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563, 3590] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
@@ -1739,7 +1739,7 @@ capabilities:
       spec: null
       adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-124 (fuori perimetro v0.1), D-278
       capability_view: CR-PRESENT
-    implementation: { files: [Source/RefactorTactics/Map/RTPlaybackTracer.h, Source/RefactorTactics/Turn/RTPresentationBinding.h, Source/RefactorTactics/Turn/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/RTHexMapActor.cpp] }
+    implementation: { files: [Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp] }
     issues: { open: [288, 2453, 2454, 3578], closed: [] }
     consumers: []
     dependencies: [RT-CAP-RESOLVED-TIMELINE]
@@ -1750,7 +1750,7 @@ capabilities:
          sfiorano dal lato animazione e cue."
     notes:
       - "🔑 MISURATO in questa passata: `git grep -il niagara origin/main -- 'Source/*'` da'
-         UN SOLO file, ed e' un COMMENTO — `Turn/RTPresentationBinding.h:51-52`, che dichiara
+         UN SOLO file, ed e' un COMMENTO — `Turn/Playback/RTPresentationBinding.h:51-52`, che dichiara
          *«`Content/` non contiene un solo asset Niagara»*. Zero e' il difetto, non un totale."
       - "Il legame dichiarativo *evento risolto → asset VFX/SFX* e' DECISO (`FX-1`, chiusa da
          D-278: dato dichiarativo, non branching Blueprint) e NON IMPLEMENTATO."
@@ -1806,9 +1806,9 @@ capabilities:
         - Source/RefactorTactics/Camera/RTCameraPawn.cpp
         - Source/RefactorTactics/Camera/RTCameraExposure.h
         - Source/RefactorTactics/Camera/RTCameraExposure.cpp
-        - Source/RefactorTactics/Map/RTLayerPresentation.h
-        - Source/RefactorTactics/Map/RTLayerPresentation.cpp
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildHexVolumeMaterialCommandlet.h
+        - Source/RefactorTactics/Map/Actor/RTLayerPresentation.h
+        - Source/RefactorTactics/Map/Actor/RTLayerPresentation.cpp
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildHexVolumeMaterialCommandlet.h
         - Content/RT/Core/Grid/M_HexVolume.uasset
     issues: { open: [1769, 1781, 1775, 1809, 1837, 1838], closed: [864, 1836, 3706, 3723] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
@@ -1833,10 +1833,10 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/Perception/RTKnowledgeVeilPresenter.h
-        - Source/RefactorTactics/Perception/RTVisibilityBorder.h
+        - Source/RefactorTactics/Perception/Veil/RTKnowledgeVeilPresenter.h
+        - Source/RefactorTactics/Perception/Veil/RTVisibilityBorder.h
         - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
-        - Source/RefactorTactics/Map/RTKnowledgeDebugConsole.cpp
+        - Source/RefactorTactics/Map/Vision/RTKnowledgeDebugConsole.cpp
     issues: { open: [2731, 1750], closed: [3763, 3761, 3762, 3760] }
     consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCREEN-HUD, RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-CHAR-PRESENTATION, RT-CAP-PERCEPTION, RT-CAP-TEAM-KNOWLEDGE, RT-CAP-WORLD-OVERLAY]
@@ -1860,9 +1860,9 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTactics/UI/RTIconLibrary.h
-        - Source/RefactorTactics/UI/RTIconCatalogData.h
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.h
+        - Source/RefactorTactics/UI/Inspect/RTIconLibrary.h
+        - Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildIconCatalogCommandlet.h
         - Content/RT/UI/DA_IconCatalog.uasset
     issues: { open: [217, 265], closed: [2537] }
     consumers: [RT-CAP-HERO-PROFILE, RT-CAP-SCREEN-HUD]
@@ -1889,10 +1889,10 @@ capabilities:
       capability_view: CR-CONTENT
     implementation:
       files:
-        - Source/RefactorTactics/UI/RTHeroProfileView.h
-        - Source/RefactorTactics/UI/RTHeroProfileLibrary.h
-        - Source/RefactorTactics/UI/RTHeroProfileWidget.h
-        - Source/RefactorTactics/UI/RTHeroRadarWidget.h
+        - Source/RefactorTactics/UI/HeroProfile/RTHeroProfileView.h
+        - Source/RefactorTactics/UI/HeroProfile/RTHeroProfileLibrary.h
+        - Source/RefactorTactics/UI/HeroProfile/RTHeroProfileWidget.h
+        - Source/RefactorTactics/UI/HeroProfile/RTHeroRadarWidget.h
         - Content/RT/UI/Profile/WBP_RT_HeroProfile.uasset
     issues: { open: [2652], closed: [] }
     consumers: [RT-CAP-FRONTEND-SHELL, RT-CAP-SCREEN-HUD]
@@ -2037,7 +2037,7 @@ capabilities:
     risks:
       - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura diceva che la proprieta' «la tiene SOLO
          la verifica di mutazione»: e' falso, ed era una premessa ereditata da `REP-2` invece che
-         misurata. `Tests/RTHexBotIntegrationTests.cpp:616` dichiara
+         misurata. `Tests/Bot/RTHexBotIntegrationTests.cpp:616` dichiara
          `RefactorTactics.HexBotPlay.HiddenEnemyFairness`, un CANARY DIFFERENZIALE — due partite
          identiche in tutto cio' che la squadra PUO' sapere e diverse solo in cio' che non puo', col
          piano che deve risultare identico. E' un gate di automation vivo."
@@ -2100,13 +2100,13 @@ capabilities:
       capability_view: CR-TD
     implementation:
       files:
-        - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioRunner.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioCoordinator.h
-        - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
-        - Source/RefactorTactics/ScenarioHarness/RTTestReportWriter.h
-        - Source/RefactorTactics/ScenarioHarness/RTScenarioAuthoring.h
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h
+        - Source/RefactorTactics/ScenarioHarness/Report/RTTestReportWriter.h
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioAuthoring.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioKnowledge.h
     issues: { open: [2702, 2714, 1515, 2701, 703, 785], closed: [2190] }
     consumers:
@@ -2151,11 +2151,11 @@ capabilities:
       capability_view: CR-TD
     implementation:
       files:
-        - Source/RefactorTactics/ScenarioHarness/RTScenarioDraft.h
-        - Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h
-        - Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioDraft.h
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.h
+        - Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioWriter.cpp
         - Source/RefactorTactics/ScenarioHarness/RTScenarioArena.h
-        - Source/RefactorTacticsEditor/Private/RTLauncherScenarioBrowser.h
+        - Source/RefactorTacticsEditor/Private/Launcher/RTLauncherScenarioBrowser.h
     issues: { open: [1628, 1564, 1405, 1809], closed: [1115, 1705, 1682, 2190] }
     consumers: [RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-SCENARIO-HARNESS]
@@ -2187,11 +2187,11 @@ capabilities:
       files:
         - Source/RefactorTactics/ScenarioHarness/RTScenarioPlayback.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioPlayback.cpp
-        - Source/RefactorTacticsEditor/Public/RTScenarioPreviewSubsystem.h
-        - Source/RefactorTacticsEditor/Public/RTScenarioViewportModel.h
-        - Source/RefactorTacticsEditor/Public/RTScenarioPreviewActor.h
-        - Source/RefactorTacticsEditor/Public/RTLauncherWorkspace.h
-        - Source/RefactorTacticsEditor/Private/SRTLauncherScenarioPanel.h
+        - Source/RefactorTacticsEditor/Public/Launcher/RTScenarioPreviewSubsystem.h
+        - Source/RefactorTacticsEditor/Public/Launcher/RTScenarioViewportModel.h
+        - Source/RefactorTacticsEditor/Public/Launcher/RTScenarioPreviewActor.h
+        - Source/RefactorTacticsEditor/Public/Launcher/RTLauncherWorkspace.h
+        - Source/RefactorTacticsEditor/Private/Launcher/SRTLauncherScenarioPanel.h
     issues: { open: [1105, 1625, 1628, 2802], closed: [1753, 1754, 1630, 1626, 1627, 1629] }
     consumers: []
     dependencies:
@@ -2236,20 +2236,20 @@ capabilities:
       capability_view: CR-TD
     implementation:
       files:
-        - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
-        - Source/RefactorTacticsEditor/Public/RTHexSelectionStore.h
-        - Source/RefactorTacticsEditor/Public/RTHexHoverGate.h
-        - Source/RefactorTacticsEditor/Public/RTHexLosReadout.h
-        - Source/RefactorTacticsEditor/Public/RTHexProbeReadout.h
-        - Source/RefactorTacticsEditor/Public/RTHexAnchorReadout.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorMode.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexSelectionStore.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexHoverGate.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexLosReadout.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexProbeReadout.h
+        - Source/RefactorTacticsEditor/Public/HexMode/RTHexAnchorReadout.h
         - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h
         - Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h
         - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.h
         - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.h
-        - Source/RefactorTactics/Map/RTGeometryBake.h
-        - Source/RefactorTactics/Map/RTGeometryGrammar.h
-        - Source/RefactorTactics/Map/RTMapEditLibrary.h
-        - Source/RefactorTacticsEditor/Private/Content/RTSetCellDoorCommandlet.h
+        - Source/RefactorTactics/Map/Structure/RTGeometryBake.h
+        - Source/RefactorTactics/Map/Structure/RTGeometryGrammar.h
+        - Source/RefactorTactics/Map/Authoring/RTMapEditLibrary.h
+        - Source/RefactorTacticsEditor/Private/Content/Patch/RTSetCellDoorCommandlet.h
     issues: { open: [1861, 1864, 1872, 1868, 1895, 1831, 1317, 1186, 921, 2802, 2330], closed: [621, 687, 711, 1755, 1893] }
     consumers: [RT-CAP-GRAYKIT-PLAYGROUND, RT-CAP-TACTICAL-DESIGNER]
     dependencies:
@@ -2289,10 +2289,10 @@ capabilities:
       capability_view: CR-PRESENT
     implementation:
       files:
-        - Source/RefactorTacticsEditor/Private/SRTAnimBrowserPanel.h
-        - Source/RefactorTacticsEditor/Private/SRTAnimPreviewViewport.h
-        - Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.h
-        - Source/RefactorTacticsEditor/Private/Tools/RTAnimScan.h
+        - Source/RefactorTacticsEditor/Private/Anim/SRTAnimBrowserPanel.h
+        - Source/RefactorTacticsEditor/Private/Anim/SRTAnimPreviewViewport.h
+        - Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.h
+        - Source/RefactorTacticsEditor/Private/Anim/RTAnimScan.h
         - Source/RefactorTactics/Unit/RTAnimCatalogLibrary.h
         - Data/Anim/AnimCatalog.json
     issues: { open: [2554, 2521], closed: [2443, 2445] }
@@ -2330,11 +2330,11 @@ capabilities:
       capability_view: CR-TD
     implementation:
       files:
-        - Source/RefactorTacticsEditor/Public/RTPlaygroundLayout.h
-        - Source/RefactorTacticsEditor/Public/RTPlaygroundPanelLibrary.h
+        - Source/RefactorTacticsEditor/Public/Lab/RTPlaygroundLayout.h
+        - Source/RefactorTacticsEditor/Public/Lab/RTPlaygroundPanelLibrary.h
         - Source/RefactorTactics/World/RTGrayboxUnitFacingFixture.h
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxFixturesCommandlet.h
-        - Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxMeshesCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildGrayboxFixturesCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/Build/RTBuildGrayboxMeshesCommandlet.h
         - Content/RT/Maps/Dev/L_GrayKitPlayground/L_GrayKitPlayground.umap
         - Content/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground.uasset
     issues: { open: [1990, 1993, 1095], closed: [1991, 1992] }
@@ -2362,14 +2362,14 @@ capabilities:
       files:
         - Source/RefactorTactics/Debug/RTDebugReportLibrary.h
         - Source/RefactorTactics/Debug/RTDebugConsole.cpp
-        - Source/RefactorTactics/Map/RTHexLosConsole.h
-        - Source/RefactorTactics/Map/RTKnowledgeDebugConsole.cpp
-        - Source/RefactorTactics/Map/RTHexOverlayConsole.cpp
-        - Source/RefactorTactics/Map/RTArenaCriteriaConsole.cpp
-        - Source/RefactorTactics/Turn/RTPacingConsole.cpp
-        - Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp
-        - Source/RefactorTactics/UI/RTHeroProfileConsole.cpp
-        - Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp
+        - Source/RefactorTactics/Map/Vision/RTHexLosConsole.h
+        - Source/RefactorTactics/Map/Vision/RTKnowledgeDebugConsole.cpp
+        - Source/RefactorTactics/Map/Actor/RTHexOverlayConsole.cpp
+        - Source/RefactorTactics/Map/Authoring/RTArenaCriteriaConsole.cpp
+        - Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp
+        - Source/RefactorTactics/Turn/Reaction/RTReactionConditionConsole.cpp
+        - Source/RefactorTactics/UI/HeroProfile/RTHeroProfileConsole.cpp
+        - Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp
     issues: { open: [2757, 2485], closed: [1712] }
     consumers: []
     dependencies:
@@ -2409,11 +2409,11 @@ capabilities:
       capability_view: CR-BALANCE
     implementation:
       files:
-        - Source/RefactorTactics/Ability/RTWorkbenchVariant.h
-        - Source/RefactorTactics/Ability/RTAbilityLab.h
-        - Source/RefactorTactics/Ability/RTHeroLab.h
-        - Source/RefactorTacticsEditor/Private/RTLabViewModel.h
-        - Source/RefactorTacticsEditor/Private/SRTLabPanel.h
+        - Source/RefactorTactics/Ability/Lab/RTWorkbenchVariant.h
+        - Source/RefactorTactics/Ability/Lab/RTAbilityLab.h
+        - Source/RefactorTactics/Ability/Lab/RTHeroLab.h
+        - Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.h
+        - Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.h
     issues: { open: [2565, 2577, 2576, 2579, 2578, 1950, 776, 403], closed: [] }
     consumers: []
     dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-EQUIPMENT-LOADOUT, RT-CAP-HERO-KIT, RT-CAP-SCENARIO-HARNESS]
@@ -2545,7 +2545,7 @@ capabilities:
       capability_view: CR-NET
     implementation:
       files:
-        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+        - Source/RefactorTactics/Turn/Actions/RTIntentPrivacyLibrary.h
         - Source/RefactorTactics/Replay/RTReplayPrivacyLibrary.h
     issues: { open: [759, 1805, 1466], closed: [1496] }
     consumers: [RT-CAP-PLAYER-EVENT-LOG, RT-CAP-REPLAY-PRIVACY]

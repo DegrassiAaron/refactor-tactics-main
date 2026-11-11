@@ -55,12 +55,12 @@ aspettarsi:
 | # | Il documento asserisce | Misurato a `bbf0d780` | |
 |---|---|---|---|
 | 1 | Repository `DegrassiAaron/refactor-tactics-main` | `gh repo view` → **esatto** | ✅ |
-| 2 | `URTScenarioAuthoring` è la porta canonica | `ScenarioHarness/RTScenarioAuthoring.h`, **35 `UFUNCTION`** | ✅ |
+| 2 | `URTScenarioAuthoring` è la porta canonica | `ScenarioHarness/Authoring/RTScenarioAuthoring.h`, **35 `UFUNCTION`** | ✅ |
 | 3 | Esiste un Scenario Index canonico | `URTScenarioIndex`, **8** test `RefactorTactics.ScenarioIndex.*` | ✅ |
-| 4 | `URTHexEditorMode` esiste e non va rinominato | `Source/RefactorTacticsEditor/Public/RTHexEditorMode.h` | ✅ |
+| 4 | `URTHexEditorMode` esiste e non va rinominato | `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorMode.h` | ✅ |
 | 5 | `GetLayers()` esiste e non va duplicato | `URTHexMapAsset::GetLayers()`, [`RTHexMapAsset.cpp:184`](../../../Source/RefactorTactics/Map/RTHexMapAsset.cpp) | ✅ |
 | 6 | Il modulo Editor **ha già** Automation Tests | **2**, `RefactorTactics.HexEditor.*` in `Private/Tests/` | ✅ |
-| 7 | `RunFromTheEditorMatchesTheHeadlessRun` è il guardiano da non duplicare | [`RTScenarioRunResetTests.cpp:91`](../../../Source/RefactorTactics/Tests/RTScenarioRunResetTests.cpp), verde | ✅ |
+| 7 | `RunFromTheEditorMatchesTheHeadlessRun` è il guardiano da non duplicare | [`RTScenarioRunResetTests.cpp:91`](../../../Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioRunResetTests.cpp), verde | ✅ |
 | 8 | `SetModeSettingsObject` (§5, riga 7 delle ricerche) | **0 occorrenze** in tutto `Source/` | ⛔ |
 
 E le tredici issue citate sono **tutte esatte**: #1105 `OPEN`, #1186 `OPEN`, #1625–#1631 `OPEN`, #1114–#1117
@@ -150,7 +150,7 @@ L'owner esiste, si chiama formato, ed è documentato:
 
 | | Dove |
 |---|---|
-| Asset sorgente | `URTMatchFormatData` — [`Turn/RTMatchFormatData.h`](../../../Source/RefactorTactics/Turn/RTMatchFormatData.h) |
+| Asset sorgente | `URTMatchFormatData` — [`Turn/Format/RTMatchFormatData.h`](../../../Source/RefactorTactics/Turn/Format/RTMatchFormatData.h) |
 | Regole risolte | `FRTMatchRules` — `FormatId · RoundLimit · ScoreToWin · UnitsPerTeam · UnitsPerPlayer · MapClass` |
 | Validazione | `URTMatchFormatLibrary::ValidateRules` · `ValidateFormat` · **`ValidateAgainstMap`** |
 | Copertura | **14** test `RefactorTactics.MatchFormat.*` |
@@ -303,7 +303,7 @@ Il documento apre il launcher su `L_DevSandbox` e ci mette in testa un readout `
 Misurato, quel readout sul primo avvio direbbe qualcosa di imbarazzante.
 
 Lo stato dei tre `URTHexMapAsset` versionati è scritto nel repository, misurato il 2026-08-24 dentro
-[`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp):
+[`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp):
 
 | Asset | Celle | Note |
 |---|---:|---|

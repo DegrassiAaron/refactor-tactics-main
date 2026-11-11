@@ -17,38 +17,38 @@
 
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnManagerInternal.h" // gli helper che piu' fasi condividono (#2679)
-#include "Turn/RTPacingLibrary.h"
-#include "Turn/RTPlaybackLibrary.h"
-#include "Turn/RTTurnLogLibrary.h"
-#include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
-#include "Turn/RTActionQueueLibrary.h"
-#include "Turn/RTActionEffectLibrary.h"
-#include "Turn/RTPlanValidationLibrary.h"
+#include "Turn/Pacing/RTPacingLibrary.h"
+#include "Turn/Playback/RTPlaybackLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
+#include "Turn/Actions/RTActionQueueLibrary.h"
+#include "Turn/Actions/RTActionEffectLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // la BANDA di [D-425], congelata a inizio risoluzione
-#include "Turn/RTActionFallbackLibrary.h"
-#include "Turn/RTMovementActionLibrary.h"
-#include "Turn/RTReactionLibrary.h"
-#include "Turn/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
-#include "Turn/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
+#include "Turn/Actions/RTActionFallbackLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
+#include "Turn/Reaction/RTReactionLibrary.h"
+#include "Turn/Actions/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
 #include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
 #include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
-#include "Map/RTHexCoverLibrary.h"
-#include "Map/RTHexArcLibrary.h"
-#include "Map/RTHexDoorLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/Vision/RTHexArcLibrary.h"
+#include "Map/Cover/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
-#include "Map/RTHexLedgeLibrary.h" // IsEdgeOpen/FindLandingCell: il vocabolario del bordo (#2401), consumato qui
+#include "Map/Cover/RTHexLedgeLibrary.h" // IsEdgeOpen/FindLandingCell: il vocabolario del bordo (#2401), consumato qui
 #include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: le celle RAGGIUNGIBILI, non i sei vicini geometrici
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Turn/RTFacingLibrary.h"
-#include "Turn/RTHexSimLibrary.h"
-#include "Map/RTHexMapActor.h"
+#include "Turn/Resolution/RTFacingLibrary.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
 #include "Core/RTTypes.h"
@@ -60,7 +60,7 @@
 #include "Misc/Paths.h"
 #include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayRecorderLibrary.h"
-#include "Turn/RTMatchStateHash.h"
+#include "Turn/Log/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
@@ -1165,7 +1165,7 @@ void ARTTurnManager::ResumeBlastResolution()
  * lascia il contesto vivo, esattamente come il primo.
  *
  * 🔎 **La prova che esiste, e fin dove arriva** (`#3082`). Il fatto e' esercitato da
- * `RefactorTactics.Movement.MicroStepBudgetSurvivesSuspension` (`Tests/RTMovementResumeTests.cpp`): due
+ * `RefactorTactics.Movement.MicroStepBudgetSurvivesSuspension` (`Tests/Turn/Resolution/RTMovementResumeTests.cpp`): due
  * watcher su un ingresso, e la seconda finestra si apre **dentro** il pump di ripresa. ⛔ Ma quel test usa
  * la doppia sospensione come **mezzo** per misurare il budget di micro-step, non come proprio oracolo.
  * Nessun test possiede oggi la sospensione ripetuta per suo conto — se quell'oracolo cambiasse, la

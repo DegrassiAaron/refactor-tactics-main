@@ -47,19 +47,19 @@ prima fetta #1817) e [`architecture-hardening-e50-rimisura-spec-panel-2026-09-03
 |---|---:|---|
 | `Turn/RTTurnManager.cpp` | 10 478 | orchestratore + resolver Prep/Dash/Combat |
 | `Player/RTPlayerController.cpp` | 6 094 | input, selezione, planning, camera, ispezione |
-| `Map/RTHexMapActor.cpp` | 4 951 | vista ISM della mappa + anteprime |
+| `Map/Actor/RTHexMapActor.cpp` | 4 951 | vista ISM della mappa + anteprime |
 | `Turn/RTTurnManager_Blast.cpp` | 4 158 | pass del Blast (`CollectAttackIntents`, `ApplyInterrupts`, `ApplyDisplacements`, `RunBlastReactions`); `ResolveCombatPasses` sta invece in `RTTurnManager.cpp:6113` |
 | `Turn/RTTurnManager.h` | 4 051 | la classe: 72 `UPROPERTY`, 51 `UFUNCTION`, 30 include |
-| `ScenarioHarness/RTScenarioLoader.cpp` | 3 620 | parser JSON degli scenari |
-| `UI/RTScreenHudWidgets.cpp` / `.h` | 2 995 / 2 429 | 15 `UCLASS` di widget in un solo header |
+| `ScenarioHarness/Authoring/RTScenarioLoader.cpp` | 3 620 | parser JSON degli scenari |
+| `UI/HUD/RTScreenHudWidgets.cpp` / `.h` | 2 995 / 2 429 | 15 `UCLASS` di widget in un solo header |
 | `ScenarioHarness/RTScenarioSession.cpp` | 2 894 | |
 | `Unit/RTUnit.h` / `.cpp` | 2 383 / 2 256 | 106 `UPROPERTY`: stato, piano e presentazione insieme |
-| `Turn/RTTurnLogLibrary.cpp` | 2 283 | hash, serializzazione, `DescribeEntry` (688 righe di testo) |
-| `Map/RTHexMapActor.h` | 2 173 | |
-| `Ability/RTCatalogLibrary.cpp` | 2 138 | `GetCoreActionCatalog`: 783 righe, 0 rami |
-| `Turn/RTHexSimLibrary.cpp` | 2 131 | |
-| `UI/RTHudViewModel.h` / `.cpp` | 2 087 / 2 040 | |
-| `UI/RTHUD.cpp` | 2 081 | `DrawHUD` 631 righe (#2184) |
+| `Turn/Log/RTTurnLogLibrary.cpp` | 2 283 | hash, serializzazione, `DescribeEntry` (688 righe di testo) |
+| `Map/Actor/RTHexMapActor.h` | 2 173 | |
+| `Ability/Catalog/RTCatalogLibrary.cpp` | 2 138 | `GetCoreActionCatalog`: 783 righe, 0 rami |
+| `Turn/Resolution/RTHexSimLibrary.cpp` | 2 131 | |
+| `UI/HUD/RTHudViewModel.h` / `.cpp` | 2 087 / 2 040 | |
+| `UI/HUD/RTHUD.cpp` | 2 081 | `DrawHUD` 631 righe (#2184) |
 | `Turn/RTTurnManager_Movement.cpp` | 2 055 | risoluzione del movimento **e** la macchina della finestra di reazione, compresa la ripresa del Blast (`ResumeBlastResolution`, `ResumeSuspendedResolution`, `SubmitReactionResponse`, `PumpReactionTriggers`): 19 definizioni `ARTTurnManager::` |
 | `Player/RTPlayerController.h` | 2 039 | |
 
@@ -133,11 +133,11 @@ Le prime: `ResolveCombatPasses` 1 235 righe e 93 rami; `RTBotPlanningLibrary.cpp
 | `PlannedAbilityIndex` indicizza l'ordine del catalogo? | **no**: indicizza il kit dell'unità (slot 1-4) | `RTUnit.h:305-316` |
 | Il corpus golden vede l'ordine di emissione? | **no**: `RTGoldenCorpusTests.cpp:778` → `CompareSerializedTraces` → `HashTurnLog(A) == HashTurnLog(B)` (`RTTurnLogLibrary.cpp:2043`), permutazione-invariante; nessun file di `Tests/Golden/` porta l'hash ordinato. ⚠️ Le righe :147 e :1106 dello stesso test nominano `HashTurnLogOrdered`: è `GoldenEntriesMatch`, un confronto **per voce**, non del corpus | `grep -rli OrderedHash Source/RefactorTactics/Tests/Golden \| wc -l` → 0; scenari: `ls Source/RefactorTactics/Tests/Golden \| wc -l` → 9 |
 | L'hash ordinato (D-062) esiste ed è persistito da qualche parte? | **sì**: `HashTurnLogOrdered` (`RTTurnLogLibrary.h:447`) è scritto **per turno** nel manifest replay, `OrderedHashPerTurn` (`RTReplayManifest.h:106`), da `RecordTurnToReplay`, e testato in `RTReplayRecordingIntegrationTests.cpp:142-148`. L'oracolo dell'ordine non va inventato: va applicato al corpus | `grep -n OrderedHashPerTurn Source/RefactorTactics/Replay/RTReplayManifest.h` |
-| I contesti dei resolver portano Actor? | **entrambi**, in misura diversa: Movement 1 (`TArray<TWeakObjectPtr<ARTUnit>> Units`, `:87`; `_Movement.cpp` li deferenzia, `grep -c 'Units\['` → 52), Blast 27. Lo strato senza Actor esiste solo per il Movement: `FRTMovementResolutionState` (`RTHexSim.h:348`), che il contesto **contiene** (`:68`) | `grep -c -E 'ARTUnit\*\|TWeakObjectPtr<ARTUnit>\|TObjectPtr<ARTUnit>' Source/RefactorTactics/Turn/RTMovementResolutionContext.h Source/RefactorTactics/Turn/RTBlastContext.h` → 1, 27 (il pattern `ARTUnit\*` da solo dà 0 e 27: non vede il `TWeakObjectPtr`) |
+| I contesti dei resolver portano Actor? | **entrambi**, in misura diversa: Movement 1 (`TArray<TWeakObjectPtr<ARTUnit>> Units`, `:87`; `_Movement.cpp` li deferenzia, `grep -c 'Units\['` → 52), Blast 27. Lo strato senza Actor esiste solo per il Movement: `FRTMovementResolutionState` (`RTHexSim.h:348`), che il contesto **contiene** (`:68`) | `grep -c -E 'ARTUnit\*\|TWeakObjectPtr<ARTUnit>\|TObjectPtr<ARTUnit>' Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h Source/RefactorTactics/Turn/Resolution/RTBlastContext.h` → 1, 27 (il pattern `ARTUnit\*` da solo dà 0 e 27: non vede il `TWeakObjectPtr`) |
 | Dove sta `ResolveCombatPasses` e chi chiama `RunReactionPass`? | `ResolveCombatPasses(FRTBlastContext&)` è in `RTTurnManager.cpp:6113` e nel suo corpo `RunReactionPass(` non compare; lo chiamano tre funzioni di `_Blast.cpp`: `RunBlastReactions` (:2386), `ApplyDisplacements` (:3217), `ApplyControlStatuses` (:4009). La **ripresa** (`ResumeBlastResolution`, `ResumeSuspendedResolution`) è definita in `_Movement.cpp` | `git grep -n 'ARTTurnManager::ResolveCombatPasses' -- 'Source/RefactorTactics/Turn/*.cpp'`; `grep -nE '^\s*[^/]*RunReactionPass\(' Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp` |
 | Valori di `ERTCombatOutcome` coperti dai test | 6 su 6 (`Hit`, `ShieldAbsorbed`, `Lethal`, `NoLineOfSight`, `TerrainBonus`, `Healed`), 122 riferimenti in 20 file | `git grep -ohE 'ERTCombatOutcome::[A-Za-z]+' Source/RefactorTactics/Tests/ \| sort -u` |
 | Cosa coprono i test sulla sospensione | la sospensione vista da input (`RTSuspendedResolutionInputTests`), HUD (`RTReactionWindowViewModelTests`), playback (`RTPlaybackActivationTests`, `RTAttackTracerPlaybackTests`), le controreazioni (`RTDefensiveReactionTests`) e la ripresa del **Movement** (`RTMovementResumeTests`: `WindowSuspendsResolution`, `ResolveMovementFingerprintIsStable`); **nessuno** caratterizza lo stato di `FRTBlastContext` attraverso `ResumeBlastResolution` | nomi dei test nei 6 file |
-| Un test vincola la classe madre dei `BP_Unit_*`? | **no**: `RTPackagingConfigTests` li nomina solo per clip e dipendenze di cook; nessun `IsChildOf`/`ParentClass` | `git grep -n 'BP_Unit_' -- Source/RefactorTactics/Tests/RTPackagingConfigTests.cpp` |
+| Un test vincola la classe madre dei `BP_Unit_*`? | **no**: `RTPackagingConfigTests` li nomina solo per clip e dipendenze di cook; nessun `IsChildOf`/`ParentClass` | `git grep -n 'BP_Unit_' -- Source/RefactorTactics/Tests/Unit/RTPackagingConfigTests.cpp` |
 | Include da `Turn/` verso `UI/`, `Player/`, `Camera/` | 2: `RTReactionConditionConsole.cpp:6` (`Player/RTPlayerController.h`) e `RTTurnManager.cpp:19` (`Player/RTPlayerState.h`, la porta `TeamIdOf` di D-285) | `git grep -n -E '#include "(UI\|Player\|Camera)/' -- Source/RefactorTactics/Turn` |
 | Guardie di autorità dentro i resolver | **nessuna**: `HasAuthority\|RTServerOnly` → `RTTurnManager.cpp` 1 (un commento), `_Blast.cpp` 0, `_Movement.cpp` 0. Spostare un resolver non perde una guardia, perché non c'è: l'autorità oggi è il fatto che il TurnManager è l'unico a chiamare | `grep -c -E 'HasAuthority\|RTServerOnly' <file>` |
 | Superficie Blueprint del TurnManager | 47 `BlueprintCallable`/`BlueprintPure` in `RTTurnManager.h`; stringhe `GetMatchResult` in `WBP_RT_ResultScreen` e `GetPhase` in `WBP_RT_ErrorModal`/`WBP_RT_LoadingScreen` (hit di stringa negli asset, non prova di chiamata) | `grep -cE 'BlueprintCallable\|BlueprintPure' Source/RefactorTactics/Turn/RTTurnManager.h` |
@@ -228,9 +228,9 @@ la misura. I disaccordi sono in §4.10.
   non fa rosso il golden se i 9 scenari non hanno quel caso. Criterio di Wiegers: per ogni campo spostato un
   test che lo **muta fra snapshot e risoluzione** e dimostra che il resolver legge lo snapshot.
 - **Misura**: `grep -c UPROPERTY Source/RefactorTactics/Unit/RTUnit.h` in discesa del numero di campi `Planned*`;
-  `git grep -c ARTUnit -- Source/RefactorTactics/Turn/RTActionQueueLibrary.h` da 7 a 0; le assegnazioni dirette
+  `git grep -c ARTUnit -- Source/RefactorTactics/Turn/Actions/RTActionQueueLibrary.h` da 7 a 0; le assegnazioni dirette
   `->Planned* =` fuori dai test (comando di §2.3: 23 + 19 + 18 + 7) a 0 fuori dal setter del piano, con le 25 dei
-  resolver classificate prima; `grep -c -E 'ARTUnit\*|TWeakObjectPtr<ARTUnit>' Source/RefactorTactics/Turn/RTBlastContext.h`
+  resolver classificate prima; `grep -c -E 'ARTUnit\*|TWeakObjectPtr<ARTUnit>' Source/RefactorTactics/Turn/Resolution/RTBlastContext.h`
   da 27 in giù; golden invariato;
   `git grep -c FClassFinder -- Source/RefactorTactics/RTGameMode.cpp` a 0. Costo dichiarato: 55 file di test
   nominano `PlannedAttackTarget`: la fetta del piano si fa a tappe, con il getter che resta.
@@ -486,7 +486,7 @@ test; `HashTurnLog`; il formato del TurnLog; la posizione di `Tests/`; la cartel
 | 1 | Oracolo dell'ordine di emissione applicato al corpus: il manifest replay (`OrderedHashPerTurn`, che esiste già) registrato per i 9 scenari golden e confrontato, con controllo positivo | `Tests/Golden/`, `RTGoldenCorpusTests.cpp`, riuso di `RecordTurnToReplay` | test rosso se si scambiano due voci dello stesso turno in memoria; verde su `main`; `grep -rli OrderedHash Source/RefactorTactics/Tests/Golden \| wc -l` > 0; nessun formato nuovo (`git grep -c OrderedHashPerTurn -- Source/RefactorTactics/Replay/RTReplayManifest.h` invariato) | — |
 | 2 | `FRTUnitPlan` (campi `Planned*` fuori da `ARTUnit`, `StableUnitId` al posto del puntatore, getter invariati) e il setter unico; le 25 scritture dei resolver classificate prima (fallback dichiarato o stato di fase) | `Unit/RTUnit.h`, `Player/RTPlayerController.cpp`, `ScenarioHarness/RTScenarioSession.cpp`, `Turn/RTTurnManager*.cpp` | `grep -c UPROPERTY RTUnit.h` in discesa; assegnazioni dirette `->Planned* =` fuori dai test (comando di §2.3) da 23 + 19 + 18 + 7 a 0; golden invariato; 55 file di test aggiornati a tappe | — |
 | 3 | Movement fuori: `ResolveMovement` e `FinishMovementResolution` (dove stanno i 6 siti di log) → `Turn/Resolution/RTMovementResolver.{h,cpp}` con `(FRTMovementResolutionContext&, emettitore&)`; l'emettitore nasce qui. **Fuori dalla fetta**: la macchina della finestra di reazione definita nello stesso file (19 definizioni, fra cui la ripresa del Blast), che resta nel TurnManager finché la fetta 10 non la reclama; `StepHexMovement` è già una funzione libera di `RTHexSimLibrary.cpp:1304` | `RTTurnManager_Movement.cpp`, `RTTurnManager.h` | definizioni `ARTTurnManager::` (comando di §2.2) da 172 a 170; `AddLogEvent\|AppendLogEntry` in `_Movement.cpp` a 0 e nel file nuovo a 6; `grep -c 'Units\['` nel file nuovo dichiarato (oggi 52 in `_Movement.cpp`: il contesto porta ancora `TWeakObjectPtr<ARTUnit>`); golden dell'insieme e `OrderedHashPerTurn` identici; `RTMovementResumeTests` verde | 0, 1 |
-| 4 | Catalogo azioni per famiglia + `ValidateCatalog` + test d'ordine degli `ActionId` e dei kit + test `Meta` contro `docs/balance` | `Ability/RTCatalogLibrary.cpp` | `GetCoreActionCatalog` fuori dalle 12 più lunghe; test `Catalog.OrderIsFrozen` verde; divergenza markdown/C++ a 0 | — |
+| 4 | Catalogo azioni per famiglia + `ValidateCatalog` + test d'ordine degli `ActionId` e dei kit + test `Meta` contro `docs/balance` | `Ability/Catalog/RTCatalogLibrary.cpp` | `GetCoreActionCatalog` fuori dalle 12 più lunghe; test `Catalog.OrderIsFrozen` verde; divergenza markdown/C++ a 0 | — |
 | 5 | `DA_Hero_*` generati e `PresentationClass` al posto di `FClassFinder` | `RTGameMode.cpp:593`, commandlet nuovo nel modulo Editor | `git grep -c FClassFinder -- Source/RefactorTactics/RTGameMode.cpp` a 0; `IsDataValid` su `URTHeroData`; conteggio asset = righe del catalogo | 4 |
 | 6 | Inventario dei 105 ganci `ForTest` in (a)/(b)/(c); i (c) in `URTScenarioAuthoring` (compreso `PlanBotsForTest` usato dall'harness); i (b) sotto accessor `friend` in `Tests/`, una classe per fetta | header di produzione | `grep -c 'ForTest('` per header in discesa; `grep -c friend` ≤ 1; nessun gancio chiamato dalla produzione (`git grep` di §2.4 a 0) | — |
 | 7 | PlayerController: test dei binding di Enhanced Input; camera inoltrata; sessione di planning fuori un gancio alla volta | `Player/RTPlayerController.cpp` | `grep -c 'ForTest('` da 36 in discesa; test senza `SpawnActor` sulle decisioni spostate; righe di `Player/` in calo | 2, 6 |

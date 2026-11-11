@@ -1,9 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ScenarioHarness/RTTestScenario.h"
-#include "ScenarioHarness/RTTestResult.h"
-#include "Turn/RTMatchStateHash.h" // FRTUnitStateDigest: lo stato d'ingresso del diff (#1630)
+#include "ScenarioHarness/Authoring/RTTestScenario.h"
+#include "ScenarioHarness/Report/RTTestResult.h"
+#include "Turn/Log/RTMatchStateHash.h" // FRTUnitStateDigest: lo stato d'ingresso del diff (#1630)
 
 /**
  * IL DIFF FRA DUE STATI, dichiarato qui perche' sia VERIFICABILE — `#1630`.
@@ -27,7 +27,7 @@ namespace RTScenarioStateDiff
 	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
 		const TArray<FRTUnitStateDigest>& After);
 }
-#include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
+#include "Ability/Lab/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
 #include "Templates/SubclassOf.h"         // HeroUnitClasses (#3586)
 
 class UWorld;

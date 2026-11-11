@@ -82,7 +82,7 @@ Sono **un solo pannello**, e si apre da:
 
 | cosa | valore | prova |
 |---|---|---|
-| `TabId` | `RTLab` | `Source/RefactorTacticsEditor/Private/SRTLabPanel.cpp:13` |
+| `TabId` | `RTLab` | `Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.cpp:13` |
 | etichetta | `Ability / Hero Lab` | `RefactorTacticsEditorModule.cpp` — `SetDisplayName(LOCTEXT("LabTitle", ...))` |
 | categoria | `Tools` | `.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())` |
 | è un **nomad tab** | sì, deliberatamente | `RegisterNomadTabSpawner(SRTLabPanel::TabId, ...)` a `:140`, e il commento a `:115` dice perché non è un'estensione di layout |
@@ -125,7 +125,7 @@ il suo ultimo commento elenca — [#2964](https://github.com/DegrassiAaron/refac
 rt.Debug.ScreenHud
 ```
 
-Il comando esiste (`Source/RefactorTactics/UI/RTScreenHudConsole.cpp`) e accetta un ritardo opzionale in
+Il comando esiste (`Source/RefactorTactics/UI/HUD/RTScreenHudConsole.cpp`) e accetta un ritardo opzionale in
 secondi — `rt.Debug.ScreenHud 5` differisce il rapporto, utile se il feed si popola dopo il primo turno.
 
 ⛔ **NON filtrare il log su `Feed:`.** Il rapporto emette un **blocco** di righe `[RT]`, e quelle che
@@ -172,7 +172,7 @@ Settantaquattro menzioni non-test, **zero** in un log. Quindi la correlazione si
    manifest.
 
 ⚠️ **`Outcome` nell'indice è un intero, non un nome**, e la legenda è l'ordine di `ERTMatchOutcome`
-(`Source/RefactorTactics/Turn/RTTurnRules.h`): `0` = `InProgress` — **la partita non è finita** — `1` =
+(`Source/RefactorTactics/Turn/Resolution/RTTurnRules.h`): `0` = `InProgress` — **la partita non è finita** — `1` =
 `Team0Wins`, `2` = `Team1Wins`, `3` = `Draw`. Un `Outcome : 0` è un secondo testimone indipendente che
 la partita non ha raggiunto un esito terminale, e in quel caso il passo 5 è ❌, non ✅ su un archivio
 preesistente.

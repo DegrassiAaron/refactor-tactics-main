@@ -30,11 +30,11 @@ Tutte le misure su `28df2a96` = `origin/main`, worktree pulito.
 |---|---|---|
 | Ownership su `Tests/{Core,Map,Path,Turn,Helpers}` | `Tests/` è **piatto**: 105 `.cpp`, 1 `.h`; uniche sottocartelle `Golden/Movement.Basic` e `Golden/Movement.Collision` | ❌ i path non esistono |
 | §1 «costruire il primo strato della macchina di test» | **859** test dichiarati in `Tests/`; `FRTCellId` nominato in **78** file di test | ❌ lo strato esiste |
-| A5 — `StateHash` | `Turn/RTMatchStateHash.{h,cpp}` + `RTMatchStateHashTests.cpp`; **87** occorrenze; consumato da `Replay/`, `ScenarioHarness/`, `RTTurnManager` | ✅ esiste |
+| A5 — `StateHash` | `Turn/Log/RTMatchStateHash.{h,cpp}` + `RTMatchStateHashTests.cpp`; **87** occorrenze; consumato da `Replay/`, `ScenarioHarness/`, `RTTurnManager` | ✅ esiste |
 | A5 — `LogHash` | **20** occorrenze, **tutte in `Tests/`**, zero produttori fuori. Il produttore reale è `URTTurnLogLibrary::HashTurnLog`, chiamato da 5 file | ⚠️ esiste la semantica, non il nome |
 | A6 — framework golden | `Tests/Golden/Movement.Basic` e `Tests/Golden/Movement.Collision` già a terra | ⚠️ da estendere, non da creare |
 | A7 — permutazioni | `Simulation.ChecksumStableAcrossPermutations`, `Simulation.StateHashDistinguishesOutcomes`, `Replay.Verifier.ResimulationIsDeterministic` in `RTSimulationDeterminismTests.cpp` | ✅ esistono |
-| A7 — «same seed → same output» | `ScenarioHarness/RTTestScenario.h:509` — «Seed dichiarato ma **non consumato**: oggi il progetto non ha alcun RNG»; idem `RTTestResult.h:74`. [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) §4.1: «Il `seed` non fa niente, e va bene così» | ❌ vacuo per costruzione |
+| A7 — «same seed → same output» | `ScenarioHarness/Authoring/RTTestScenario.h:509` — «Seed dichiarato ma **non consumato**: oggi il progetto non ha alcun RNG»; idem `RTTestResult.h:74`. [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) §4.1: «Il `seed` non fa niente, e va bene così» | ❌ vacuo per costruzione |
 | A2 — «se manca una convenzione chiara» | [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) (328 righe, spec del RT Scenario Test Harness), [`test-e-diagnosi.md`](../../technical/runbooks/test-e-diagnosi.md), [`RT_TestMatrix_v0.1.md`](../../balance/RT_TestMatrix_v0.1.md) | ❌ la convenzione ha già owner |
 | §11 «esegui la FAST suite se esiste» | nessuna FAST suite in `test-e-diagnosi.md`; `scripts/` sono 10 gate Python documentali, zero runner C++; `.github/workflows/` **assente** | ❌ non esiste |
 | §0 «verifica la versione UE bloccata» | `RefactorTactics.uproject` → `"EngineAssociation": "5.8"`; il prompt dice `5.8.1` due volte | ⚠️ due risposte |
@@ -48,7 +48,7 @@ Tutte le misure su `28df2a96` = `origin/main`, worktree pulito.
 
 **FOWLER** — Il documento definisce un confine per *cartella*, su cartelle che non esistono. Il
 repository definisce i confini **per file**: `../parallel-batch.yaml` elenca i
-test uno per uno, e registra esplicitamente il caso opposto — *«`Tests/RTCameraPawnTests.cpp` non è nel
+test uno per uno, e registra esplicitamente il caso opposto — *«`Tests/Camera/RTCameraPawnTests.cpp` non è nel
 `writable` di nessuna»*. Un confine dichiarato a una granularità diversa da quella del meccanismo non è
 un confine più largo: è un confine che non morde.
 

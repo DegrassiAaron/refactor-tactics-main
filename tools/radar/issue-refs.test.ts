@@ -43,7 +43,7 @@ test('il suffisso di riga e la punteggiatura non entrano nel percorso', () => {
 });
 
 test('brace e glob non sono percorsi letterali e vengono lasciati stare', () => {
-  assert.deepEqual(scanPaths('tocca `Source/RefactorTactics/UI/RTHUD.{h,cpp}`'), []);
+  assert.deepEqual(scanPaths('tocca `Source/RefactorTactics/UI/HUD/RTHUD.{h,cpp}`'), []);
   assert.deepEqual(scanPaths('il registro `docs/roadmap/feature-registry.*`'), []);
 });
 

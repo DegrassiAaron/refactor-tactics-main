@@ -1,0 +1,233 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "ScenarioHarness/Authoring/RTTestScenario.h"
+#include "RTScenarioLoader.generated.h"
+
+/**
+ * Caricamento e VALIDAZIONE degli scenari di test dal formato JSON.
+ *
+ * La validazione e' la meta' che conta: uno scenario che nomina un eroe inesistente o una cella fuori
+ * dall'arena deve fallire **subito e dicendo perche'**, non produrre un `Fail` di gioco che sembrerebbe una
+ * regressione. E' la distinzione `Error` vs `Fail` (§TEST AUTOMATICI del documento di specifica).
+ *
+ * Funzioni pure: nessun mondo, nessun Actor. Testabili headless.
+ */
+/**
+ * Lavoro gia' fatto che `ValidateUnitPlacement` puo' riusare invece di rifarlo per ogni unita'.
+ *
+ * ⚠️ **Non e' solo un'ottimizzazione: decide anche QUALE errore esce per primo.**
+ *
+ * Chi valida uno scenario intero scorre le unita' in ordine e accumula cio' che ha gia' visto; passando quegli
+ * insiemi, il controllo sui duplicati resta *«qualcuno PRIMA di me usava questo id»* — che e' la semantica
+ * storica, e determina quale unita' viene accusata quando un file ha piu' di un difetto. Senza di essi il
+ * confronto e' simmetrico (*«qualcun ALTRO lo usa»*), che e' cio' che serve a chi piazza una unita' sola e non
+ * ha un «prima».
+ *
+ * `KnownHeroes` esiste per una ragione piu' prosaica e piu' cara: `KnownHeroIds()` chiama `GetHeroRoster()`,
+ * che **costruisce quattro `URTHeroData` con tutte le loro abilita'** a ogni chiamata. Ricostruirlo per ogni
+ * unita' di ogni validazione e' il prezzo che questa struct evita.
+ */
+struct FRTUnitPlacementScratch
+{
+	/** Gli id del roster, gia' letti. `nullptr` -> `ValidateUnitPlacement` li rilegge da se'. */
+	const TSet<FName>* KnownHeroes = nullptr;
+
+	/** Gli id delle unita' che PRECEDONO quella in esame. `nullptr` -> confronto simmetrico su tutto l'array. */
+	const TSet<FString>* IdsBefore = nullptr;
+
+	/** Le celle delle unita' che precedono. `nullptr` -> come sopra. */
+	const TSet<FRTCellId>* CellsBefore = nullptr;
+};
+
+UCLASS()
+class REFACTORTACTICS_API URTScenarioLoader : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/** Versione massima del formato che questo loader sa leggere. Un file piu' nuovo viene rifiutato con un messaggio esplicito. */
+	// 1 → 2 con `#512`: la versione che ammette `decisions` a livello di turno. I 76 scenari esistenti
+	// restano a 1 e non si toccano — il gate confronta con `>`, quindi una versione piu' bassa e' sempre
+	// leggibile. Il verso che conta e' l'altro: una build vecchia deve RIFIUTARE uno scenario che non sa
+	// leggere invece di ignorarne i campi, e da `#926` gli scenari viaggiano dentro il pacchetto.
+	//
+	// 2 → 3 con `#314` fetta 4: `decisions.respond` accetta le risposte di un **Reaction Profile**
+	// (`Hold Ground`, `SIDESTEP`, …) oltre a `FIRE`/`HOLD`.
+	//
+	// ⚠️ **Il bump e' stato ARGOMENTATO e non dato per scontato, perche' il cambiamento e' solo espansivo**:
+	// nessun file `version: 2` valido oggi cambia significato, e la chiave `decisions` esisteva gia'. La
+	// ragione per cui si bumpa lo stesso e' il verso che conta — un file che usasse `respond: "SIDESTEP"`
+	// dichiarandosi `version: 2` verrebbe **accettato** da una build a `SupportedVersion = 2`, che poi lo
+	// rifiuterebbe con «risposta sconosciuta»: un messaggio che accusa il FILE mentre il difetto e' la build
+	// troppo vecchia. Con la `3` il rifiuto arriva dal gate di versione e dice la cosa giusta.
+	// 3 → 4 con `#957`: le chiavi del **free-run** (`freeRun`, `maxTurns`, `repeatCount`, `requires` di
+	// scenario). Il bump segue lo stesso ragionamento della `3`, e qui il verso che conta morde piu' forte:
+	// una build a `SupportedVersion = 3` **ignorerebbe** `freeRun` e leggerebbe un file con `turns` vuoto —
+	// cioe' uno scenario che verifica il solo stato iniziale. Non uscirebbe rosso: uscirebbe **verde**, senza
+	// aver giocato un turno. Un verde per assenza di partita e' il peggiore degli esiti, perche' nessuno va a
+	// guardarlo. Con la `4` il rifiuto arriva dal gate di versione e nomina la build.
+	// 4 → 5 con il **selettore semantico** delle `decisions` (`on`): una risposta dichiara QUALE finestra
+	// intende chiudere invece di prendere la prossima in ordine.
+	//
+	// ⚠️ Il bump segue lo stesso ragionamento della `3` e della `4`, e qui il verso che conta morde come per
+	// `freeRun`: una build a `SupportedVersion = 4` **ignorerebbe** `on` — la chiave e' sconosciuta al suo
+	// parser, che pero' la rifiuterebbe con «chiave sconosciuta 'on'», cioe' accusando il FILE mentre il
+	// difetto e' la build troppo vecchia. Peggio nel caso simmetrico: un loader che la ignorasse abbinerebbe
+	// le risposte **per ordine**, cioe' con la semantica che il selettore esiste per sostituire, e uno
+	// scenario che dichiara di rispondere a una finestra precisa risponderebbe a un'altra restando verde.
+	// Con la `5` il rifiuto arriva dal gate di versione e nomina la build.
+	// 5 → 6 con il **filtro di fase** sulle assertion del TurnLog (`phase` / `thenPhase`): un'assertion puo'
+	// chiedere che l'evento sia avvenuto in una macro-fase precisa.
+	//
+	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso morde come per `decisions`: una build a
+	// `SupportedVersion = 5` non conosce la chiave e la rifiuterebbe come sconosciuta, accusando il FILE
+	// mentre il difetto e' la build. Con la `6` il rifiuto arriva dal gate di versione e nomina la build.
+	// 6 → 7 con i **checkpoint** (`at`) e il selettore semantico `afterEvent` sulle assertion (`#2867`): una
+	// condizione puo' dichiarare a QUALE confine va verificata, invece che solo a fine turno.
+	//
+	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso che conta morde come per `freeRun` — cioe' nel
+	// modo peggiore. Una build a `SupportedVersion = 6` non conosce `at`, e `expect` fino a `#2867` non aveva
+	// un controllo di chiave sconosciuta: la chiave verrebbe **ignorata in silenzio**, e l'assertion si
+	// valuterebbe a fine turno. Un'assertion che chiede *«dov'era al Blast»* e riceve *«dov'e' a fine
+	// turno»* non esce rossa: esce **verde misurando un'altra cosa**. Con la `7` il rifiuto arriva dal gate
+	// di versione e nomina la build. (Il controllo di chiave sconosciuta su `expect` arriva con la stessa
+	// fetta, ma non protegge le build gia' spedite: quelle hanno solo il gate.)
+	static constexpr int32 SupportedVersion = 7;
+
+	/**
+	 * Interpreta il testo JSON di uno scenario.
+	 *
+	 * @return true se lo scenario e' valido e utilizzabile. In caso contrario `OutError` spiega **cosa** non va,
+	 *         in una riga leggibile da chi ha scritto il file (non uno stack trace).
+	 */
+	static bool LoadFromString(const FString& JsonText, FRTTestScenario& OutScenario, FString& OutError);
+
+	/** Come `LoadFromString`, leggendo da disco. Percorso mancante o illeggibile -> false con motivo. */
+	static bool LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError);
+
+	/**
+	 * Verifica la coerenza interna di uno scenario gia' interpretato: ID unita' univoci e non vuoti, eroi
+	 * esistenti nel catalogo, celle dentro l'arena, intent che nominano unita' dichiarate, assertion complete.
+	 * Separata dal parsing perche' vale anche per scenari costruiti da codice (i test del runner).
+	 */
+	static bool Validate(const FRTTestScenario& Scenario, FString& OutError);
+
+	/**
+	 * Le regole di piazzamento di **una** unita': id non vuoto e non duplicato, loadout legale, eroe esistente,
+	 * cella dentro l'arena, cella non gia' occupata, cella che non blocca il movimento, HP/scudo/vista coerenti.
+	 *
+	 * ⚠️ **Esiste perche' `Validate` risponde alla domanda sbagliata per un editor.** `Validate` giudica lo
+	 * scenario INTERO, e uno scenario in costruzione e' quasi sempre invalido — non ha ancora assertion, spesso
+	 * non ha ancora la seconda squadra. Usarlo come gate a ogni piazzamento renderebbe impossibile costruire uno
+	 * scenario: ogni `AddUnit` verrebbe rifiutato per qualcosa che non c'entra con l'unita' che si sta piazzando.
+	 *
+	 * L'alternativa era che l'editor si scrivesse i propri controlli, cioe' una **seconda copia** delle regole
+	 * che diverge dalla prima al primo campo aggiunto. Questa funzione e' l'estrazione che evita entrambe:
+	 * `ValidateScenarioUnits` la chiama in ciclo, l'authoring la chiama per una unita' sola, e la regola resta
+	 * scritta in un posto.
+	 *
+	 * @param IgnoreUnitIndex Indice in `Scenario.Units` da **saltare** nei confronti fra unita'. `INDEX_NONE` per
+	 *        una unita' che non e' ancora nell'array (piazzamento nuovo); l'indice dell'unita' stessa quando la
+	 *        si sta spostando o rivalidando, altrimenti collidera' con se' stessa e nessuno potra' mai muoversi.
+	 * @param Scratch Insiemi gia' calcolati dal chiamante, opzionale. Vedi `FRTUnitPlacementScratch`: chi valida
+	 *        uno scenario intero lo passa, chi piazza una unita' sola no.
+	 */
+	static bool ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
+		int32 IgnoreUnitIndex, FString& OutError, const struct FRTUnitPlacementScratch* Scratch = nullptr);
+
+	/**
+	 * Serializza uno scenario nel formato JSON che `LoadFromString` rilegge. Il verso mancante del loader.
+	 *
+	 * Sta qui, e non in un `URTScenarioWriter` a parte, per una ragione sola: **il formato ha un owner solo**.
+	 * Lettura e scrittura sono due meta' della stessa regola, e separarle in due classi renderebbe possibile
+	 * aggiungere una chiave da una parte e non dall'altra — che e' esattamente il difetto che un authoring
+	 * visuale introdurrebbe se dovesse conoscere il JSON da se'. L'implementazione vive in
+	 * `RTScenarioWriter.cpp` perche' il `.cpp` del loader ha gia' 1769 righe, ma la dichiarazione e' una.
+	 *
+	 * Chiama `Validate` **prima** di produrre qualunque testo: uno scenario invalido non viene serializzato a
+	 * meta'. In piu' verifica che la `version` dichiarata basti per le chiavi effettivamente usate — senza
+	 * quel controllo un round-trip potrebbe scrivere un file che il loader poi rifiuta, e uno scenario
+	 * costruito in memoria (dall'editor) e' l'unico posto da cui quello stato puo' arrivare.
+	 *
+	 * Forma canonica: campi in ordine fisso, default omessi, nessuna dipendenza dall'ordine di iterazione di
+	 * una `TMap`. Due scritture dello stesso scenario producono lo stesso testo.
+	 *
+	 * @return true se lo scenario e' stato serializzato. Altrimenti `OutError` nomina **il campo** che lo ha
+	 *         impedito, e `OutJson` resta intatto.
+	 */
+	static bool SaveToString(const FRTTestScenario& Scenario, FString& OutJson, FString& OutError);
+
+	/**
+	 * Come `SaveToString`, scrivendo su disco. La scrittura e' **esplicita**: nessun salvataggio implicito.
+	 *
+	 * Il file non viene toccato se lo scenario non passa `Validate` — un file a meta' e' peggio di un file
+	 * non scritto, perche' il secondo si nota subito.
+	 *
+	 * ⚠️ Il percorso NON influisce sullo `ScenarioId`: l'identita' e' dichiarata dal file, non dedotta dalla
+	 * cartella. Salvare altrove produce lo stesso `scenarioId` (`RTScenarioIndex.h` per il perche').
+	 */
+	static bool SaveToFile(const FRTTestScenario& Scenario, const FString& FilePath, FString& OutError);
+
+	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
+	static FString ScenariosRoot();
+
+	/**
+	 * Radice degli scenari **del Lab**: `<Saved>/RTLab/Scenarios/`. Non versionata (`Saved/` e' in `.gitignore`).
+	 *
+	 * 🔑 La legge `URTScenarioIndex::ScanAll` (quindi `ResolvePath`, `ListIds`, `ListTags`), non `Scan`.
+	 *
+	 * ⚠️ Ordine di risoluzione: (1) l'override di `SetLabScenariosRootOverrideForTest`, se non vuoto;
+	 * (2) **sotto automation** (`GIsAutomationTesting`) la stringa VUOTA — la radice non esiste e nessuno puo'
+	 * crearla o scriverci — cosi' i test che enumerano il corpus vedono la sola radice versionata e un file
+	 * stantio lasciato in `Saved/RTLab` non li rende rossi su una macchina e verdi su un'altra; (3) altrimenti
+	 * la radice vera. Un Editor interattivo e il PIE non sono automation: li' vale (3).
+	 * Chi scrive nella radice (`FRTLabViewModel::PrepareForPie`) rifiuta se e' vuota.
+	 */
+	static FString LabScenariosRoot();
+
+	/**
+	 * Sovrascrive `LabScenariosRoot()` per un test. Stringa vuota = nessun override.
+	 *
+	 * ⚠️ Chi la imposta la azzera con `ON_SCOPE_EXIT`: `Saved/RTLab` e' condiviso con l'Editor e non e'
+	 * un luogo di prova.
+	 */
+	static void SetLabScenariosRootOverrideForTest(const FString& Root);
+
+	/**
+	 * L'enum degli esiti che appartiene a una categoria del TurnLog: `ERTMoveOutcome` se `Move`,
+	 * `ERTEnvironmentOutcome` se `Environment`, e cosi' via. `nullptr` se la categoria non ne ha uno.
+	 *
+	 * Pubblica perche' la usano in due: il loader per tradurre i NOMI del JSON in valori, e la sessione per
+	 * ritradurli in nomi nei messaggi di fallimento. Con due copie, un esito aggiunto in coda comparirebbe da
+	 * una parte sola, e il report direbbe «esito 12» dove il file diceva `CoverExpired`.
+	 */
+	static const UEnum* OutcomeEnumForCategory(ERTLogCategory Category);
+
+	/** Nome leggibile di un evento del TurnLog: `Environment.BridgeRemoved`. Sconosciuto -> il valore grezzo. */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome);
+
+	/**
+	 * Come sopra, ma con il filtro per `ActionId` quando c'e': `Combat.Hit[Status.Burning]` (`#170`).
+	 *
+	 * ⚠️ **Il filtro entra nel NOME dell'evento e non solo nel confronto**, altrimenti due assertion che
+	 * differiscono soltanto per `ActionId` produrrebbero lo stesso messaggio di fallimento — e chi legge il
+	 * referto non saprebbe quale delle due e' caduta. `NAME_None` -> identica alla forma senza filtro.
+	 */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId);
+
+	/**
+	 * Come sopra, con il filtro di FASE quando c'e': `Combat.Hit@Blast` (`#2867`).
+	 *
+	 * ⚠️ **La fase entra nel NOME e non solo nel confronto**, per la stessa ragione di `ActionId`: due
+	 * assertion che differiscono soltanto per la fase produrrebbero altrimenti lo stesso messaggio di
+	 * fallimento, e chi legge il referto non saprebbe quale delle due e' caduta.
+	 */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId,
+		bool bHasPhase, ERTMatchPhase Phase);
+
+	// Il percorso di uno scenario NON si calcola più dal suo ID: dal momento che l'ID è dichiarato dal file
+	// e le cartelle sono libere, l'unico modo di sapere dove vive è chiederlo all'indice
+	// (`URTScenarioIndex::ResolvePath`). Vedi `RTScenarioIndex.h` per il perché.
+};

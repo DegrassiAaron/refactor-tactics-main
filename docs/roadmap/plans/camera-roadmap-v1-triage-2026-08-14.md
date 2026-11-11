@@ -8,7 +8,7 @@
 >
 > **Due affermazioni qui dentro sono invecchiate, ed erano vere quando furono scritte:**
 > §5 conta **quattro** automation test camera — al 2026-08-30 sono **19** (`RefactorTactics.Camera.*` in
-> [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp)); e tutto il §3 e
+> [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp)); e tutto il §3 e
 > il §6.1 ragionano su `docs/roadmap/feature-registry.yaml`, **file rimosso** da `26f6955a` con
 > [`D-181`](../../decisions/RT_PDR_00_Decision_Log.md). Il §6.1 — *«il registry dice la verità sulla
 > camera»* — descrive quindi una riparazione su un file che non esiste più: resta leggibile come storia,
@@ -123,7 +123,7 @@ documento owner nega già la minimap permanente, e per gli stessi motivi. Ciò c
 
 ## 5. Il difetto vero: il registry sottodichiara la camera
 
-[`../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp)
+[`../../../Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp)
 contiene **quattro** automation test:
 
 ```text

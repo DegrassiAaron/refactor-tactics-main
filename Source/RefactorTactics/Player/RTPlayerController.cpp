@@ -5,28 +5,28 @@
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
 #include "Map/RTHexLibrary.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 // `E-SOLID` fetta 4: il viewer del velo e' di questo controller, non della partita.
-#include "Perception/RTKnowledgeVeilPresenter.h"
+#include "Perception/Veil/RTKnowledgeVeilPresenter.h"
 #include "Perception/RTKnowledgeView.h" // FindEntry: la cella del soggetto a fuoco viene dalla voce della vista (#3750)
 // #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
-#include "UI/RTReactionWindowViewModel.h"
-#include "UI/RTInspect.h" // il cancello della scheda (#3748)
-#include "UI/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
+#include "UI/Reaction/RTReactionWindowViewModel.h"
+#include "UI/Inspect/RTInspect.h" // il cancello della scheda (#3748)
+#include "UI/HUD/RTHudViewModel.h" // MakeBlastPreviewPlan: la traduzione unita' -> anteprima e' una sola (#3620)
 #include "Pathfinding/RTHexPathLibrary.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h"
-#include "Turn/RTMovementActionLibrary.h"
-#include "Turn/RTIntentPrivacyLibrary.h" // FRTIntentView: cio' che il click sul nemico pianificherebbe, per l'hover ([D-528])
-#include "Turn/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
+#include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
+#include "Turn/Actions/RTIntentPrivacyLibrary.h" // FRTIntentView: cio' che il click sul nemico pianificherebbe, per l'hover ([D-528])
+#include "Turn/Resolution/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
 #include "Combat/RTCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
-#include "Map/RTSightLines.h"
+#include "Map/Actor/RTSightLines.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 // #971: la sessione non presidiata e' un fatto del GameMode (`IsAutobattleInEffect()`), non dell'unita'.
@@ -39,7 +39,7 @@
 #include "Engine/LocalPlayer.h"         // #3661: il rettangolo della scena e la sua view-projection
 #include "Engine/GameViewportClient.h"  // #3661: il viewport del giocatore, per GetProjectionData
 #include "SceneView.h"                  // #3661: FSceneViewProjectionData
-#include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
+#include "UI/HUD/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
 #include "Core/RTGameplayTags.h" // Unbalanced: [D-319] abbassa il TETTO, e il tetto si mostra qui
 #include "RefactorTactics.h"
@@ -51,7 +51,7 @@
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h" // TActorIterator: RefusalUnderPointerForArmed cerca le unita' NOTE sulla cella puntata
-#include "Turn/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
+#include "Turn/Playback/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
 
 namespace
 {
@@ -3068,7 +3068,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 
 		// 🔑 **Una destinazione di SCATTO e' un ordine, come un waypoint** (`#3400`). `ERTPlanningInput::Order`
-		// e' «abilita' **o destinazione**» (`Turn/RTPacing.h`), e i due rami qui sotto uscivano con `return`
+		// e' «abilita' **o destinazione**» (`Turn/Pacing/RTPacing.h`), e i due rami qui sotto uscivano con `return`
 		// prima dell'unica chiamata della funzione, che sta in coda al ramo del waypoint: una cella d'arrivo
 		// dichiarata con uno scatto non contava.
 		//
@@ -3236,7 +3236,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// ⚠️ **Il pacing sta QUI e non in cima alla funzione**, e la posizione è il contenuto della regola:
 	// un waypoint **rifiutato** non è un ordine impartito, è un tentativo respinto, e i suoi sei rami di
 	// uscita passano sopra questa riga. `ERTPlanningInput::Order` è documentato come «abilità **o
-	// destinazione**» (`Turn/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
+	// destinazione**» (`Turn/Pacing/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
 	// `OrderCount` restava 0 su un turno in cui il giocatore aveva dato una destinazione, e nessun test
 	// lo vedeva perché i contatori erano esercitati chiamando `RecordPlanningInput` a mano.
 	// Le destinazioni di SCATTO passano dalla stessa funzione più sopra, nei loro due rami: escono con

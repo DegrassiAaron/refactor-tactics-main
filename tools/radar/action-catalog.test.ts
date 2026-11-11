@@ -187,7 +187,7 @@ test('sul catalogo e sul C++ VERI il parser legge tutte le righe e tutte le voci
   // La controprova che le fixture qui sopra non stanno misurando un mondo inventato: gli stessi parser,
   // sui due file reali, non devono perdere per strada nessuna riga ne' nessuna chiamata.
   const md = readFileSync(fileURLToPath(new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url)), 'utf8');
-  const cpp = readFileSync(fileURLToPath(new URL('../../Source/RefactorTactics/Ability/RTCatalogLibrary.cpp', import.meta.url)), 'utf8');
+  const cpp = readFileSync(fileURLToPath(new URL('../../Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp', import.meta.url)), 'utf8');
   const core = coreCatalogBody(cpp);
 
   const rows = parseActionCatalog(md);

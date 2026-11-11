@@ -93,10 +93,10 @@ Ma il T8 chiede a **Phase** di segnare sul Relay, e:
 
 ```
 $ grep -rn "bIsObjective = true" Source/
-Source/RefactorTactics/Tests/RTObjectiveTests.cpp:52
-Source/RefactorTactics/Tests/RTObjectiveTests.cpp:169
-Source/RefactorTactics/Tests/RTObjectiveTests.cpp:394
-Source/RefactorTacticsEditor/Private/Content/RTSetObjectiveCellCommandlet.cpp:158
+Source/RefactorTactics/Tests/Turn/Format/RTObjectiveTests.cpp:52
+Source/RefactorTactics/Tests/Turn/Format/RTObjectiveTests.cpp:169
+Source/RefactorTactics/Tests/Turn/Format/RTObjectiveTests.cpp:394
+Source/RefactorTacticsEditor/Private/Content/Patch/RTSetObjectiveCellCommandlet.cpp:158
 ```
 
 **Nessun costruttore di arena posa un obiettivo** — `MakeShowcaseRelayBasinArena` compreso. Il

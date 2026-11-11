@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Turn/RTTurnRules.h" // ERTMatchPhase: la fase che il playback annuncia
+#include "Turn/Resolution/RTTurnRules.h" // ERTMatchPhase: la fase che il playback annuncia
 #include "RTPlaybackSignals.generated.h"
 
 class ARTUnit;

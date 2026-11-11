@@ -288,7 +288,7 @@ I criteri sono comandi, e i numeri di oggi sono la misura di partenza, non una s
 - [x] Le otto derivazioni di §3 dichiarano la loro origine
 - [x] `MakeHeroBasicAttack` **non è stata toccata**, e `BasicAttackDeclaresItsBaseAction` resta verde
       senza essere modificato — è la prova che le due semantiche non si sono sovrapposte
-- [x] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` resta
+- [x] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp` resta
       **6**, e il criterio che diceva «scende a 5» era **sbagliato**: `IgniteDef` è sparita come previsto,
       ma `MakeHeroActionFromCore` ha una `FindCoreAction` propria, quindi il totale non si muove. Il
       numero giusto da guardare sono le letture *nei chiamanti*, che scendono da **5** a **4** —

@@ -57,7 +57,7 @@ struct FRTTerrainDef
 };
 ```
 
-Riusa `FRTActionEffectSpec`/`ERTActionEffect` (`Turn/RTActionEvent.h`) invece di inventare un secondo
+Riusa `FRTActionEffectSpec`/`ERTActionEffect` (`Turn/Actions/RTActionEvent.h`) invece di inventare un secondo
 linguaggio di effetti: `Fire.OnEnterEffects = { {Damage,10}, {Status,TAG_Status_Burning,2} }`,
 `ShallowWater.OnEnterEffects = { {Status,TAG_Status_Wet,0} }` (durata 0 = "finché sulla cella", CP 8.2
 decide la semantica esatta di scadenza).
@@ -124,13 +124,13 @@ che da `1`/`false` statici — la libertà di override resta, ma il default arri
 Riferimenti a `ERTHexSurface::Normal/Water/Mud/Electrified` da correggere al nuovo nome (stesso ordinale,
 solo l'identificatore cambia):
 
-- `Tests/RTHexMapTests.cpp`, `Tests/RTHexMovementIntegrationTests.cpp` — fixture di test.
-- `Turn/RTMatchSetupLibrary.cpp` (arena demo: fascia "Mud" costo 3 → resta un valore **per-cella**
+- `Tests/Map/RTHexMapTests.cpp`, `Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp` — fixture di test.
+- `Turn/Format/RTMatchSetupLibrary.cpp` (arena demo: fascia "Mud" costo 3 → resta un valore **per-cella**
   legittimo, diverso dal default `Rough` costo 2 del catalogo). **Non è solo un rename**: dal Task 5 quella
   fascia eredita anche `bBlocksDashCharge` dal catalogo, quindi nell'arena demo — usata da `RTGameMode.cpp` e
   da 4 test d'integrazione — Scatto e Carica non la attraversano più. È un cambio di comportamento tattico
   voluto (la fascia diventa una barriera alla mobilità rapida, non solo costosa), non un effetto collaterale.
-- `RefactorTacticsEditor/Private/RTHexEditorClick.cpp` (switch colori overlay — guadagna i casi
+- `RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp` (switch colori overlay — guadagna i casi
   `Smoke`/`HighGround`).
 - `RefactorTacticsEditor/Private/Tools/{RTHexPaintTool,RTHexSelectTool,RTHexFillTool}.h` (default
   `ERTHexSurface::Normal` → `::Floor`).
@@ -139,7 +139,7 @@ solo l'identificatore cambia):
 
 ### 5.1 Dash/Charge bloccati da `Rough`
 
-`Turn/RTMovementActionLibrary.cpp` (`IsTraversableByStep`, usata da `ResolveLinearMove`): oltre al muro
+`Turn/Resolution/RTMovementActionLibrary.cpp` (`IsTraversableByStep`, usata da `ResolveLinearMove`): oltre al muro
 (`bBlocksMovement`) la cella è negata anche da
 `URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge`. Il movimento normale (`Action.Move`,
 pathfinding via `RTHexPathLibrary`) **non** è affetto: `Rough` resta attraversabile a piedi, costa solo di
@@ -236,7 +236,7 @@ difetto da correggere.
 
 Quando una risoluzione di movimento (Move/Dash) termina **o attraversa** una cella `Fire`, si applicano gli
 `OnEnterEffects` (Danno 10 + `Status.Burning` 2 turni) traducendoli in `FRTActionEvent` con la stessa
-libreria di traduzione usata dalle azioni (`Turn/RTActionEffectLibrary`), estraendo una funzione
+libreria di traduzione usata dalle azioni (`Turn/Actions/RTActionEffectLibrary`), estraendo una funzione
 "lista di `FRTActionEffectSpec` + `TargetUnitId` → eventi" che non richieda una `FRTActionInstance`
 completa (oggi `ProduceEvents` la richiede). Il dettaglio della funzione estratta è del piano
 d'implementazione, non di questo spec.
@@ -362,10 +362,10 @@ Aggiunti nella review finale di branch (2026-08-06), a chiusura dei difetti trov
 ## 8. File coinvolti
 
 `Terrain/RTTerrainData.h` (nuovo), `Terrain/RTTerrainLibrary.{h,cpp}` (nuovo), `Map/RTHexCellData.h`
-(relabel enum + 2 nuovi valori), `Turn/RTHexSimLibrary.cpp` (hook Dash/Charge + sliding),
-`Turn/RTActionEffectLibrary.{h,cpp}` (funzione di traduzione spec→eventi estratta),
+(relabel enum + 2 nuovi valori), `Turn/Resolution/RTHexSimLibrary.cpp` (hook Dash/Charge + sliding),
+`Turn/Actions/RTActionEffectLibrary.{h,cpp}` (funzione di traduzione spec→eventi estratta),
 `Terrain/RTTerrainLibrary.{h,cpp}::EffectiveTargetingRange` (cap targeting Smoke, in un posto solo) letta da
-`Combat/RTHexCombatLibrary.cpp`, `Combat/RTCombatLibrary.cpp`, `Turn/RTActionFallbackLibrary.cpp` e
+`Combat/RTHexCombatLibrary.cpp`, `Combat/RTCombatLibrary.cpp`, `Turn/Actions/RTActionFallbackLibrary.cpp` e
 `Bot/RTHexBotLibrary.cpp`, `Core/RTGameplayTags.{h,cpp}` (nuovi tag Wet/Burning/Obscured), tool editor
 (`RTHexPaintTool`, `RTHexEditorClick`, `RTHexSelectTool`, `RTHexFillTool`) per i default da catalogo e i
 nuovi colori overlay.

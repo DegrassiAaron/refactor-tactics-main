@@ -29,7 +29,7 @@ if (IsResolutionSuspended()) { BeginPartialPlayback(); return; }
 ConcludeResolution();
 ```
 
-Sequenza: `Planning → Prep → Dash → Blast → Move → Cleanup → Planning` (`Turn/RTTurnRules.cpp:3-16`).
+Sequenza: `Planning → Prep → Dash → Blast → Move → Cleanup → Planning` (`Turn/Resolution/RTTurnRules.cpp:3-16`).
 
 **Quando il movimento si sospende, il ciclo arriva comunque in fondo.** `ResolveMovement` ritorna
 normalmente, `Cleanup` non ha un ramo, `Planning` chiude il `while`. È la scorciatoia che #2679 ha usato:
@@ -63,8 +63,8 @@ accoppiano `IsResolving()`, e sbagliano già oggi:**
 
 | Sede | Cosa fa | Effetto durante l'attesa |
 |---|---|---|
-| `UI/RTHUD.cpp:974` | `switch (Header.Phase)` per il nome della fase | 🔴 stampa **«Pianificazione»** (o «Preparazione»/«Ready») mentre il giocatore ha davanti una finestra col countdown. Il ramo `default:` scriverebbe **«Risoluzione»**, che è la parola giusta |
-| `UI/RTHUD.cpp:623` | `GetPhase() == Planning` → disegna la traccia post-lock | 🔴 mostra il percorso dell'ultima risoluzione **sopra** un turno in corso |
+| `UI/HUD/RTHUD.cpp:974` | `switch (Header.Phase)` per il nome della fase | 🔴 stampa **«Pianificazione»** (o «Preparazione»/«Ready») mentre il giocatore ha davanti una finestra col countdown. Il ramo `default:` scriverebbe **«Risoluzione»**, che è la parola giusta |
+| `UI/HUD/RTHUD.cpp:623` | `GetPhase() == Planning` → disegna la traccia post-lock | 🔴 mostra il percorso dell'ultima risoluzione **sopra** un turno in corso |
 | `Turn/RTTurnManager.cpp:7697` | `RecordPlanningInput`: rifiuta se `Phase != Planning` | 🔴 **accetta** gli input del giocatore come input di pianificazione — telemetria di pacing sporca, e il pacing è ciò con cui si tara `D-348` |
 
 Protetti, invece: `RTHUD.cpp:665` (`== Planning && !IsResolving()`), `RTHudViewModel.cpp:48`

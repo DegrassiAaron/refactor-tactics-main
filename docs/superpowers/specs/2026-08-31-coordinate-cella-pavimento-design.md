@@ -47,7 +47,7 @@ e il meno) lo farebbe crescere per qualcosa che nessuna build di gioco monterà 
 ## 4. Architettura — due pezzi, e il confine fra loro
 
 ```text
-Source/RefactorTactics/Map/RTHexLabelLibrary        ← REGOLA: geometria pura, nessun world
+Source/RefactorTactics/Map/Actor/RTHexLabelLibrary        ← REGOLA: geometria pura, nessun world
         │  GlyphSegments(TCHAR) -> segmenti in [0..1]²
         │  BuildCellLabel(Cell, Origin, HexSize, LayerHeight) -> 3 run posate nel mondo
         ▼

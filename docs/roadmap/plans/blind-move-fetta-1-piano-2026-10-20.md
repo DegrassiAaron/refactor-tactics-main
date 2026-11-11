@@ -80,7 +80,7 @@ Il blocco che #2794 dichiarava (`BLIND-2` → `OBS-1`) è caduto: D-432 chiude `
 | Bot | fuori dalla fetta 1, sulla vista attuale, dichiarato nel Decision Log | da confermare |
 | **D-465 punto (3) contro questo piano** | due commit nello stesso merge, con emendamento esplicito | ✅ **risolto dall'autore il 2026-10-20** (D-534) |
 
-⛔ **Il conflitto.** D-465 dice che dal commit che porta la vista ottimistica a `FindPath`, click e portata ricevono la stessa vista, e che in quel commit si paga la riga di TurnLog per il tiro che il resolver scarta in silenzio in un Fumo ignoto, e il canary di #3270 si rovescia. Questo piano tiene il movimento (A–D) separato da click e portata (E). Ma `Player/RTPlayerController.cpp:2404` e `:5209` e `Turn/RTPlanPreview.cpp:237` passano la mappa a `ResolveLinearMove`: separare le due cose lascia un commit in cui il movimento è ottimistico e la mira no, cioè il canale che D-465 voleva chiudere insieme. Due uscite:
+⛔ **Il conflitto.** D-465 dice che dal commit che porta la vista ottimistica a `FindPath`, click e portata ricevono la stessa vista, e che in quel commit si paga la riga di TurnLog per il tiro che il resolver scarta in silenzio in un Fumo ignoto, e il canary di #3270 si rovescia. Questo piano tiene il movimento (A–D) separato da click e portata (E). Ma `Player/RTPlayerController.cpp:2404` e `:5209` e `Turn/Playback/RTPlanPreview.cpp:237` passano la mappa a `ResolveLinearMove`: separare le due cose lascia un commit in cui il movimento è ottimistico e la mira no, cioè il canale che D-465 voleva chiudere insieme. Due uscite:
 1. **Tutto in un commit** (A + E): rispetta D-465 alla lettera, ma tocca schema, replay e digest insieme alla geometria del Move.
 2. **Due commit con un'emendamento esplicito di D-465**: A–D prima, E dopo, e una riga nel Decision Log che dice che la finestra fra i due è voluta e quanto dura.
 
@@ -103,7 +103,7 @@ Non scelgo io fra le due: è una decisione dell'autore. ✅ **L'autore ha scelto
 
 | Fetta | Commit | Esito |
 |---|---|---|
-| **0** | — | Censimento: i siti che leggono `Snapshot.Map` per la pianificazione del Move sono in `Turn/RTHexSimLibrary.cpp`; quelli di Resolution (`RTTurnManager_Movement.cpp`, `RTTurnManager.cpp`) e dei bot (`RTBotPlanningLibrary.cpp`, `RTHexBotLibrary.cpp`) **non** sono stati toccati. Baseline: suite intera verde sul `main` di partenza |
+| **0** | — | Censimento: i siti che leggono `Snapshot.Map` per la pianificazione del Move sono in `Turn/Resolution/RTHexSimLibrary.cpp`; quelli di Resolution (`RTTurnManager_Movement.cpp`, `RTTurnManager.cpp`) e dei bot (`RTBotPlanningLibrary.cpp`, `RTHexBotLibrary.cpp`) **non** sono stati toccati. Baseline: suite intera verde sul `main` di partenza |
 | **A** | `PlanningMap` | `FRTHexSnapshot::PlanningMap`, `URTHexSimLibrary::MakeOptimisticPlanningMap`, `ARTTurnManager::AttachPlanningMap` chiamato da `PlanningSnapshotFor`. Test `BlindMove.OptimisticMapEmptiesOnlyTheNeverObserved` e `BlindMove.PlayerPlansThroughANeverObservedWall`; mutazioni «`PlanningMap = Map`», «solo `ExploredCells`» e «non svuotare `bBlocksMovement`» rosse |
 | **B** | test | `BlindMove.ResolutionStopsAtTheRealWallAndDoesNotReroute`: nessun codice nuovo, la Resolution gia' si fermava; il test pinna anche il limite dei bot. Mutazione «Resolution ricalcola sempre» rossa |
 | **C** | `BlockedByUnseenTerrain` | Nuovo esito in coda a `ERTMoveOutcome`, scelto dalla Resolution quando il passo negato porta in una cella ne' vista ne' ricordata. Test `BlindMove.UnseenWallStopsWithItsOwnReason`; due mutazioni rosse |

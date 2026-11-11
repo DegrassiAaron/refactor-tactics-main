@@ -13,7 +13,7 @@
  *
  * ⚠️ **Qui non c'e' layout.** Il `.uasset` `WBP_RT_*` fa aspetto e disposizione; questo file dichiara
  * **cosa il widget puo' leggere**, e soprattutto cosa non puo'. E' la stessa divisione di
- * `UI/RTScreenHudWidgets.h` (CP 11.7), applicata allo strato che vive **prima e dopo** la partita.
+ * `UI/HUD/RTScreenHudWidgets.h` (CP 11.7), applicata allo strato che vive **prima e dopo** la partita.
  *
  * Tre vincoli del DoD diventano proprieta' della **firma** invece che disciplina da ricordare:
  *

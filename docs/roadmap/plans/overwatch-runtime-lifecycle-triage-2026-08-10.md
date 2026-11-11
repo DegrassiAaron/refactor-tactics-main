@@ -43,7 +43,7 @@ eseguibili), **Crispin** (oracoli). Ogni rilievo porta l'evidenza misurata sul b
 Reposition con *"Sneak, Dash, ReactionMovement, Teleport"*. L'elenco omette l'unica cosa con cui si confonde
 davvero: **`Action.Reposition`, che esiste**.»
 
-Evidenza — `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:363-365` e
+Evidenza — `Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp:363-365` e
 [catalogo azioni](../../balance/RT_ActionCatalog_v0.1.md) §2.2:
 
 | | `Action.Reposition` (canone) | `Reposition` (sorgente §12) |

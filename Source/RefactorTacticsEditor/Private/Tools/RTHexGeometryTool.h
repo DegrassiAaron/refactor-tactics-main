@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BaseTools/ClickDragTool.h"
-#include "Map/RTGeometryGrammar.h"
+#include "Map/Structure/RTGeometryGrammar.h"
 #include "Map/RTHexCellData.h" // ERTHexCoverType
 #include "RTHexGeometryTool.generated.h"
 

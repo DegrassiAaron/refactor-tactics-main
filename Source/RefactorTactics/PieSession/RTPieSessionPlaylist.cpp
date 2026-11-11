@@ -2,7 +2,7 @@
 
 #include "Misc/FileHelper.h"
 #include "RefactorTactics.h" // LogRT
-#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 

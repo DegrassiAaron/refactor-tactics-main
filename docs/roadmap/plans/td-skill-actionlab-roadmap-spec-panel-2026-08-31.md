@@ -65,7 +65,7 @@ git rev-list --count HEAD..origin/main  -> 0
 |---|---|---|
 | `Flux.` in `Source/` | `rg -c "Flux\." Source` | **0 occorrenze, 0 file** |
 | `Hero.Aevik.ArcPulse` negli scenari | `rg -c "Hero\.Gadget\.ArcPulse" Scenarios` | **34 occorrenze in 21 file** |
-| Test di run/reset | `rg -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/RTScenarioRunResetTests.cpp` | **10** |
+| Test di run/reset | `rg -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioRunResetTests.cpp` | **10** |
 | Abilità Paragon di Gadget | `ls Content/FabAsset/Paragon/ParagonGadget/FX/Abilities` | `ElectroGate` · `Primary` · `RollingBot` · `StickyBomb` · `Ultimate` · `VisionBot` |
 | Clip di animazione Gadget | `find …/Heroes/Gadget/Animations -maxdepth 1 -type d` | solo `AimOffsets/` e `Blendspaces/` |
 
@@ -134,7 +134,7 @@ repeat» è `#1117`, ed è protetta da **dieci** test in `RTScenarioRunResetTest
 `FRTScenarioRunNeverShowsAStaleReportTest` (526) e
 `FRTScenarioRunReportDoesNotSurviveAScenarioChangeTest` (578) — che è esattamente il *«nessun residuo del run
 precedente»* della sua acceptance. Lo `StateHash` non è un concetto da introdurre: è
-`Source/RefactorTactics/Turn/RTMatchStateHash.{h,cpp}`, consumato da `RTScenarioRunner.cpp`,
+`Source/RefactorTactics/Turn/Log/RTMatchStateHash.{h,cpp}`, consumato da `RTScenarioRunner.cpp`,
 `RTScenarioSession.cpp` e `RTScenarioDraft.{h,cpp}`.
 
 ⚠️ **Il corpo di `#1105` dichiara `T0` consegnato *senza issue*** — la parità editor/headless su esito,

@@ -21,7 +21,7 @@
 - **Elenco chiuso delle riscritture** dopo la derivazione (spec §2.1, F5): `Def.RangeCells` e lo specchio `RangeCells`, `Def.Priority`, `Def.Effects`. `Power` resta 0. `Fallback` resta quello del core.
 - ⛔ **Nessun totale volatile** in commenti, documenti, celle PIE, YAML, issue, PR. ⛔ **Nessun glifo di stato (⏳ ✅ ❌ 🟡) accanto al nome di una voce PIE** in ciò che si pubblica su GitHub.
 - Stile: commenti in **italiano**, nella forma dei file toccati. Nomi dei test nelle famiglie esistenti: `RefactorTactics.Heroes.*`, `RefactorTactics.Bot.*`, `RefactorTactics.Fx.*`.
-- Line ending: i sorgenti e i documenti toccati sono **CRLF** (misurato con `file`: `Turn/RTTurnManager_Blast.cpp`, `Ability/RTHeroCatalogLibrary.cpp`, `Tests/RTEquipmentTests.cpp`, le spec). I file nuovi nascono CRLF. Gli scenari JSON in `Scenarios/Visual/Ability/` sono LF.
+- Line ending: i sorgenti e i documenti toccati sono **CRLF** (misurato con `file`: `Turn/RTTurnManager_Blast.cpp`, `Ability/Catalog/RTHeroCatalogLibrary.cpp`, `Tests/Ability/RTEquipmentTests.cpp`, le spec). I file nuovi nascono CRLF. Gli scenari JSON in `Scenarios/Visual/Ability/` sono LF.
 - Commit: `<type>(3593): <descrizione>`, chiuso da `Co-Authored-By: Claude <modello> <noreply@anthropic.com>` con il modello che ESEGUE il task. Un commit per task.
 - `<checkout>` = `D:/Repositories/rt-wt-sp5-clip`. `<scratchpad>` = `C:/Users/Utente/AppData/Local/Temp/claude/D--Repositories-refactor-tactics-main/62a8cd51-c2fa-4563-b0ae-d82c35e12f64/scratchpad/sp5`. I log vanno in `<scratchpad>/logs/`, mai nel repository.
 - **Motore uno per macchina**: prima di ogni build o run, `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine`. Un Editor interattivo di **un altro clone** non blocca una build qui; un processo che misura tempi sì. La sessione parallela ha dichiarato di non lanciare suite finché questa non dice «libero»; non serve aspettarla.
@@ -65,17 +65,17 @@ Le cinque condizioni che la spec implica e che nessun task esercita da solo, con
 ### Task 1: Catalogo e bot — `CircularTide` deriva da `Action.Heal`; il bot non la pianifica come attacco
 
 **Files:**
-- Modify: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:504-522` (la riga di `CircularTide`), `:660-680` (le varianti, indirizzate per indice)
-- Modify: `Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp:612-672` (`DerivedActionsDeclareTheirOrigin`: riga, conteggi, elenco delle proprie)
-- Modify: `Source/RefactorTactics/Tests/RTHeroMuirenTests.cpp` (nuovo test accanto a `TideHealsWithoutWetting`, `:137-160`)
+- Modify: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:504-522` (la riga di `CircularTide`), `:660-680` (le varianti, indirizzate per indice)
+- Modify: `Source/RefactorTactics/Tests/Ability/Catalog/RTHeroCatalogTests.cpp:612-672` (`DerivedActionsDeclareTheirOrigin`: riga, conteggi, elenco delle proprie)
+- Modify: `Source/RefactorTactics/Tests/Ability/RTHeroMuirenTests.cpp` (nuovo test accanto a `TideHealsWithoutWetting`, `:137-160`)
 - Modify: `Source/RefactorTactics/Bot/RTBotPlanningLibrary.cpp:850-858` (passo 2 dei candidati)
-- Modify: `Source/RefactorTactics/Tests/RTBotPlanningTests.cpp` (nuovo test, fixture `RTBotPlanningTestsInternal`)
+- Modify: `Source/RefactorTactics/Tests/Bot/RTBotPlanningTests.cpp` (nuovo test, fixture `RTBotPlanningTestsInternal`)
 
 **Interfaces:**
 - Consumes: `URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId, const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape, int32 AreaRadius)` (`RTHeroCatalogLibrary.cpp:1051-1066`: copia fase, priorità, portata, fallback, effetti del core; scrive `DerivedFromActionId`, `bSelfTarget`, `LineOfSightPolicy`; **non** copia `Slot` né `MovementStyle`); `MakeHeroAction` (`:88-125`) per gli specchi legacy.
 - Produces: `Muiren->Actions[1]` con `Def.DerivedFromActionId == Action.Heal`, `Def.RangeCells == 4`, `Def.Priority == 60`, `Def.Effects == {Heal 18}`, `Shape == Area`, `AreaRadius == 1`, `Def.Fallback == Cancel` (dal core), `Power == 0`.
 
-- [ ] **Step 1: Test del catalogo, rosso.** In `Tests/RTHeroMuirenTests.cpp`, dopo `FRTPhaseTideHealsWithoutWettingTest`:
+- [ ] **Step 1: Test del catalogo, rosso.** In `Tests/Ability/RTHeroMuirenTests.cpp`, dopo `FRTPhaseTideHealsWithoutWettingTest`:
 
 ```cpp
 /**
@@ -134,9 +134,9 @@ Build, poi `RunTests RefactorTactics.Heroes.Phase.TideDerivesFromHeal` → `Resu
 
 Rileggi `MakeHeroAction` (`:88-125`) e riscrivi **ogni** specchio legacy che quella funzione deriva da `RangeCells`, `Priority` o `Effects` (se ne scrive altri oltre a `RangeCells`, aggiungili qui con un commento che li nomina; `Power` no). Aggiorna il commento sopra la riga (`:504-517`) togliendo ciò che la derivazione rende falso. Build; Step 1 verde; `RunTests RefactorTactics.Heroes.Phase` tutto verde (`TideHealsWithoutWetting`, `VariantTradeoff` leggono `Actions[1]`).
 
-- [ ] **Step 3: `DerivedActionsDeclareTheirOrigin`.** In `Tests/RTHeroCatalogTests.cpp`, nella mappa `Atteso` di `DerivedActionsDeclareTheirOrigin` (cerca `Hero.Ivrin.PhaseGuard`), aggiungi la riga `{ TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal") },` con il commento `// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.`; nel commento sopra la mappa, «**undici** da [D-380]» diventa «**undici** da [D-380], **dodici** da #3593»; nel commento del ramo `else` l'elenco delle proprie perde `CircularTide` e diventa «**sette** abilità: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint`», e la somma «Undici derivate + otto proprie + quattro base = 23» diventa «Dodici derivate + sette proprie + quattro base = 23». `RunTests RefactorTactics.Heroes` verde.
+- [ ] **Step 3: `DerivedActionsDeclareTheirOrigin`.** In `Tests/Ability/Catalog/RTHeroCatalogTests.cpp`, nella mappa `Atteso` di `DerivedActionsDeclareTheirOrigin` (cerca `Hero.Ivrin.PhaseGuard`), aggiungi la riga `{ TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal") },` con il commento `// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.`; nel commento sopra la mappa, «**undici** da [D-380]» diventa «**undici** da [D-380], **dodici** da #3593»; nel commento del ramo `else` l'elenco delle proprie perde `CircularTide` e diventa «**sette** abilità: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint`», e la somma «Undici derivate + otto proprie + quattro base = 23» diventa «Dodici derivate + sette proprie + quattro base = 23». `RunTests RefactorTactics.Heroes` verde.
 
-- [ ] **Step 4: Test del bot, rosso.** In `Tests/RTBotPlanningTests.cpp`, accanto a `FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest` (`:267`), con gli stessi helper (`MakeFlatMap`, `MakeFacts`) e la stessa conoscenza piena (`FRTTeamKnowledge Vista` con `VisibleCells` sulla cella del nemico, `:306-335`):
+- [ ] **Step 4: Test del bot, rosso.** In `Tests/Bot/RTBotPlanningTests.cpp`, accanto a `FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest` (`:267`), con gli stessi helper (`MakeFlatMap`, `MakeFacts`) e la stessa conoscenza piena (`FRTTeamKnowledge Vista` con `VisibleCells` sulla cella del nemico, `:306-335`):
 
 ```cpp
 /**
@@ -215,13 +215,13 @@ Build; Step 4 verde; `RunTests RefactorTactics.Bot` verde.
 
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp:494-608` (`CollectHealActions`)
-- Create: `Source/RefactorTactics/Tests/RTHealAreaTests.cpp`
+- Create: `Source/RefactorTactics/Tests/Combat/Damage/RTHealAreaTests.cpp`
 
 **Interfaces:**
-- Consumes: `ARTUnit` — `PlannedAbilityIndex`, `PlannedAttackTarget`, `PlannedAttackCell`, `bAttackTargetsCell` (`Unit/RTUnit.h:306-397`: `DeclareAttackOnCell`, `DeclareAttackOnUnit`, `ClearPlannedAttack`), `ActiveVariantId` (`:332`), `GetAbility`, `CanUseAbility`, `IsAlive`, `Cell`, `TeamId`, `StableUnitId`, `Health`/`MaxHealth`; `URTActionData::FindVariant(FName)`, `FRTAbilityVariant::Effects`; `FRTBlastContext::AddHeal(Actor, Target, Amount, SourceCell, Def)` (`Turn/RTBlastContext.h:237`), `Ctx.MarkAbilitySpent(Unit, Idx)`, `Ctx.Units`; `MakeSupportFallback(Autore, Bersaglio, Def, Motivo)` (`RTTurnManager_Blast.cpp:241-255`); `EmitAbilityActivated(Source, Phase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape)` (`Turn/RTTurnManager.cpp:314`); `URTHexLibrary::HexDistance`.
+- Consumes: `ARTUnit` — `PlannedAbilityIndex`, `PlannedAttackTarget`, `PlannedAttackCell`, `bAttackTargetsCell` (`Unit/RTUnit.h:306-397`: `DeclareAttackOnCell`, `DeclareAttackOnUnit`, `ClearPlannedAttack`), `ActiveVariantId` (`:332`), `GetAbility`, `CanUseAbility`, `IsAlive`, `Cell`, `TeamId`, `StableUnitId`, `Health`/`MaxHealth`; `URTActionData::FindVariant(FName)`, `FRTAbilityVariant::Effects`; `FRTBlastContext::AddHeal(Actor, Target, Amount, SourceCell, Def)` (`Turn/Resolution/RTBlastContext.h:237`), `Ctx.MarkAbilitySpent(Unit, Idx)`, `Ctx.Units`; `MakeSupportFallback(Autore, Bersaglio, Def, Motivo)` (`RTTurnManager_Blast.cpp:241-255`); `EmitAbilityActivated(Source, Phase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape)` (`Turn/RTTurnManager.cpp:314`); `URTHexLibrary::HexDistance`.
 - Produces: per un'azione di cura con `Shape == Area`: N voci `Combat/Healed` (una per compagna nel raggio, cadaveri compresi che diventano `Fallback/TargetDead` in `ApplyPlannedHeals`), o una `Fallback/Cancelled` con `Amount == NoEffect` e `TgtCell == centro` se nessuno della squadra è nel raggio; un `AbilityActivated` con `Shape == Area`, `AimCell == centro`, `TargetStableUnitId` = bersaglio pianificato o 0; cooldown pagato in entrambi i casi.
 
-- [ ] **Step 1: La fixture e i tre test, rossi.** Crea `Tests/RTHealAreaTests.cpp` (CRLF). Riusa `Tests/RTWorldFixtures.h` (`RTWorldFixtures::MakeWorld`, `DestroyWorld`, `PlayOneTurn`: è ciò che `Tests/RTAbilityActivatedTests.cpp` usa — leggi lì come si spawnano mappa e unità) invece di copiare gli helper di `RTEquipmentTests.cpp`; dove serve un helper nuovo mettilo in un namespace **proprio** `RTHealAreaTestsInternal` (due namespace anonimi con lo stesso nome di funzione collidono in unity build). Nel codice dei test qui sotto `MakeHealWorld`/`SpawnHealMap`/`SpawnHealUnit`/`RunHealTurn`/`DestroyHealWorld` sono **segnaposto da sostituire** con gli equivalenti di `RTWorldFixtures` (o con wrapper sottili su di essi). ⚠️ **Ogni mondo ha un `Nemico` di squadra 1 lontano e senza intenti**: con una sola squadra la partita finisce per eliminazione. Aggiungi:
+- [ ] **Step 1: La fixture e i tre test, rossi.** Crea `Tests/Combat/Damage/RTHealAreaTests.cpp` (CRLF). Riusa `Tests/Shared/RTWorldFixtures.h` (`RTWorldFixtures::MakeWorld`, `DestroyWorld`, `PlayOneTurn`: è ciò che `Tests/Ability/RTAbilityActivatedTests.cpp` usa — leggi lì come si spawnano mappa e unità) invece di copiare gli helper di `RTEquipmentTests.cpp`; dove serve un helper nuovo mettilo in un namespace **proprio** `RTHealAreaTestsInternal` (due namespace anonimi con lo stesso nome di funzione collidono in unity build). Nel codice dei test qui sotto `MakeHealWorld`/`SpawnHealMap`/`SpawnHealUnit`/`RunHealTurn`/`DestroyHealWorld` sono **segnaposto da sostituire** con gli equivalenti di `RTWorldFixtures` (o con wrapper sottili su di essi). ⚠️ **Ogni mondo ha un `Nemico` di squadra 1 lontano e senza intenti**: con una sola squadra la partita finisce per eliminazione. Aggiungi:
 
 ```cpp
 	/** Pianifica CircularTide di `Curatrice` su una cella. L'indice 1 e' quello del catalogo (Task 1). */
@@ -485,8 +485,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 ### Task 3: La riga FX di `CircularTide` non promette un colpo (F4)
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/RTPresentationBinding.cpp:498`
-- Modify: `Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp:177`
+- Modify: `Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp:498`
+- Modify: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp:177`
 - Modify: `docs/superpowers/specs/2026-10-08-profilo-fx-per-abilita-design.md:319` (la riga della tabella) e `:792` (la nota)
 
 - [ ] **Step 1: Test rosso.** In `RTAbilityFxProfileTests.cpp:177`: `Attesi.Add(TEXT("Hero.Muiren.CircularTide"), FxP(FxA::Pulse, FxT::None, FxI::None, FxF::None));` con il commento `// #3593: una cura non ha un colpo, quindi ne' Marker ne' onda (spec SP5 F4, R7)`. Build; `RunTests RefactorTactics.Fx.DeclaredOverridesMatchTheProposal` → rosso.
@@ -528,5 +528,5 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 - **Copertura della spec**: §2.1 punti 1–6 → Task 2; R1/F5 → Task 1; R2 ribaltato → Task 2 (`TideOnEmptyAreaStillStarts`); R7/F4 → Task 3; R8 → Task 1; F8 (centro prima dell'azzeramento, `TargetStableUnitId`) → Task 2 Step 2; F11 → Task 4 Step 4; §2.5 → Task 4; §5.1 righe nuove → Task 1–3; §5.2 → Task 5 Step 5.
 - **Placeholder**: nessun «TBD»; `DeclareAttackOnCell`/`DeclareAttackOnUnit` (`Unit/RTUnit.h:384-397`), `Shape`/`AreaRadius` legacy su `URTActionData` (`Ability/RTActionData.h:128-132`), `FindVariant` (`:166`) e `ResolvedTimelineForTest` (`Turn/RTTurnManager.h:634`) sono stati letti.
-- **Tipi**: `ERTActionInvalidReason::{OutOfRange,NoEffect,TargetDead}` esistono (`Turn/RTActionFallbackLibrary.h`); `ERTCombatOutcome::Healed` e `ERTFallbackOutcome::Cancelled` sono usati da `ApplyPlannedHeals`; `FRTResolvedEvent::{Shape,AimCell,TargetStableUnitId,SourceStableUnitId}` esistono (`Turn/RTResolvedEvent.h`); `TM->ResolvedTimelineForTest()` e `TM->GetTurnLog()` esistono.
+- **Tipi**: `ERTActionInvalidReason::{OutOfRange,NoEffect,TargetDead}` esistono (`Turn/Actions/RTActionFallbackLibrary.h`); `ERTCombatOutcome::Healed` e `ERTFallbackOutcome::Cancelled` sono usati da `ApplyPlannedHeals`; `FRTResolvedEvent::{Shape,AimCell,TargetStableUnitId,SourceStableUnitId}` esistono (`Turn/Resolution/RTResolvedEvent.h`); `TM->ResolvedTimelineForTest()` e `TM->GetTurnLog()` esistono.
 - **Review Focus**: i cinque casi hanno un test nominato nel task che li possiede.

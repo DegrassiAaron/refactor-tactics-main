@@ -4,7 +4,7 @@
 // Dichiararne un secondo qui sarebbe la seconda copia della stessa convenzione, che
 // `spec-pointer-interaction.md` §4.9 vieta e che `#712` ha gia' pagato una volta.
 #include "Map/RTHexOccupancyLibrary.h"
-#include "Map/RTMapVisuals.h"   // RTCellPrismRadius: la mesh che CellVolumeTransform scala nasce con quel raggio
+#include "Map/Actor/RTMapVisuals.h"   // RTCellPrismRadius: la mesh che CellVolumeTransform scala nasce con quel raggio
 
 namespace
 {

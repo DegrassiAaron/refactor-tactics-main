@@ -35,7 +35,7 @@
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.h` (dichiarazione, dopo `CellsInLayer`, riga ~87)
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.cpp` (definizione; `#include "Map/RTHexLibrary.h"` già presente alla riga 2)
-- Test: `Source/RefactorTactics/Tests/RTHexMapTests.cpp` (nuovo `IMPLEMENT_SIMPLE_AUTOMATION_TEST`, prima di `#endif`)
+- Test: `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp` (nuovo `IMPLEMENT_SIMPLE_AUTOMATION_TEST`, prima di `#endif`)
 - Modify: `docs/design/test-manuali-pie.md:4` (bump contatore Automation: `92/92` → `93/93`, +1 test headless)
 
 **Interfaces:**
@@ -44,7 +44,7 @@
 
 - [ ] **Step 1: Scrivi il test che fallisce**
 
-In `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, subito prima della riga `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungi (riusa l'helper anonimo `Cell(X,Y,Layer)` già nel file):
+In `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`, subito prima della riga `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungi (riusa l'helper anonimo `Cell(X,Y,Layer)` già nel file):
 
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapFloodRegionTest,
@@ -165,7 +165,7 @@ In `docs/design/test-manuali-pie.md`, riga 4, aggiorna il conteggio dei test Aut
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Map/RTHexMapAsset.h Source/RefactorTactics/Map/RTHexMapAsset.cpp Source/RefactorTactics/Tests/RTHexMapTests.cpp docs/design/test-manuali-pie.md
+git add Source/RefactorTactics/Map/RTHexMapAsset.h Source/RefactorTactics/Map/RTHexMapAsset.cpp Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp docs/design/test-manuali-pie.md
 git commit -m "feat(hex): H5c.7a - URTHexMapAsset::FloodRegion (flood-fill same-layer/same-surface) + test"
 ```
 
@@ -176,9 +176,9 @@ git commit -m "feat(hex): H5c.7a - URTHexMapAsset::FloodRegion (flood-fill same-
 **Files:**
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h`
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.cpp`
-- Modify: `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h` (aggiungi `FillTool`, dopo `ArchTool`, riga ~22)
-- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp` (UI_COMMAND + `ToolCommands.Add`, dopo `ArchTool`, riga ~27)
-- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp` (include + `RegisterTool`, dopo la registrazione di `ArchTool`, riga ~30)
+- Modify: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h` (aggiungi `FillTool`, dopo `ArchTool`, riga ~22)
+- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp` (UI_COMMAND + `ToolCommands.Add`, dopo `ArchTool`, riga ~27)
+- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp` (include + `RegisterTool`, dopo la registrazione di `ArchTool`, riga ~30)
 
 **Interfaces:**
 - Consumes: `URTHexMapAsset::FloodRegion` (Task 1); `RTHexEditor::FindTargetMapActor(UWorld*)`, `RTHexEditor::ResolveClickedCell(UWorld*, ARTHexMapActor*, const FInputDeviceRay&, FRTCellId&, FVector&)`, `RTHexEditor::DrawHexMarker(FPrimitiveDrawInterface*, const FVector&, float, const FColor&)` (namespace `RTHexEditor` in `RTHexEditorClick.h`); `URTHexMapAsset::BeginStroke/PaintCellInStroke/EndStroke`; `ARTHexMapActor::RebuildInstances()`, `ARTHexMapActor::MapAsset`, `ARTHexMapActor::HexSize`.
@@ -271,7 +271,7 @@ Crea `Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.cpp`:
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "ScopedTransaction.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 
 #define LOCTEXT_NAMESPACE "URTHexFillTool"
@@ -355,7 +355,7 @@ void URTHexFillTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 - [ ] **Step 3: Dichiara il comando `FillTool`**
 
-In `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h`, subito dopo la dichiarazione di `ArchTool` (riga ~22), aggiungi:
+In `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h`, subito dopo la dichiarazione di `ArchTool` (riga ~22), aggiungi:
 
 ```cpp
 	TSharedPtr<FUICommandInfo> FillTool;
@@ -363,7 +363,7 @@ In `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h`, subito dopo 
 
 - [ ] **Step 4: Registra il `UI_COMMAND`**
 
-In `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`, subito dopo il blocco `ArchTool` (dopo `ToolCommands.Add(ArchTool);`, riga ~27), aggiungi:
+In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`, subito dopo il blocco `ArchTool` (dopo `ToolCommands.Add(ArchTool);`, riga ~27), aggiungi:
 
 ```cpp
 	UI_COMMAND(FillTool, "Fill", "Secchiello: riempie la regione contigua della stessa superficie col pennello corrente.",
@@ -373,7 +373,7 @@ In `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`, subito do
 
 - [ ] **Step 5: Registra il tool nel mode**
 
-In `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`:
+In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp`:
 1. dopo `#include "Tools/RTHexArchTool.h"` (riga ~7) aggiungi:
 ```cpp
 #include "Tools/RTHexFillTool.h"
@@ -403,7 +403,7 @@ In `docs/design/hex-map-roadmap.md` aggiorna la riga H5 aggiungendo `H5c.7 (floo
 Verifica che `RefactorTactics.uproject` non sia stato risporcato (`EngineAssociation` deve restare `"5.8"`; se un GUID è comparso: `git checkout -- RefactorTactics.uproject`).
 
 ```bash
-git add Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.cpp Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp docs/design/test-manuali-pie.md docs/design/hex-map-roadmap.md
+git add Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.cpp Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp docs/design/test-manuali-pie.md docs/design/hex-map-roadmap.md
 git commit -m "feat(hex): H5c.7b - tool secchiello URTHexFillTool (flood-fill via FloodRegion + stroke, un Undo)"
 ```
 

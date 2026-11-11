@@ -15,7 +15,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Bot/RTBotPlanning.h"
-#include "Turn/RTHexSim.h"
+#include "Turn/Resolution/RTHexSim.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "RTBotPlanningLibrary.generated.h"
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Turn/RTCombatLog.h"     // FRTLogSubject: il soggetto di una riga del log, passato per valore
-#include "Turn/RTResolvedEvent.h" // FRTResolvedEvent: la timeline che il playback riproduce
+#include "Turn/Log/RTCombatLog.h"     // FRTLogSubject: il soggetto di una riga del log, passato per valore
+#include "Turn/Resolution/RTResolvedEvent.h" // FRTResolvedEvent: la timeline che il playback riproduce
 
 class ARTUnit;
 class URTHexMapAsset;

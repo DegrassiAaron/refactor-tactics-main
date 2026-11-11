@@ -2,27 +2,27 @@
 #include "Camera/RTCameraPawn.h"
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
-#include "Turn/RTMatchFormatData.h"
-#include "UI/RTHUD.h"
-#include "Map/RTHexMapActor.h"
+#include "Turn/Format/RTMatchFormatData.h"
+#include "UI/HUD/RTHUD.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
 // `Map/RTHexLibrary.h` stava qui per lo `StableLess` sulle celle: l'ordine delle unita' passa dalla sede
 // unica (#2922) e questo file non lo chiama piu'.
-#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
+#include "Turn/Actions/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
 #include "Match/RTMatchBootstrapper.h"      // COME nasce una partita: qui resta il COSA e' stato chiesto
-#include "Perception/RTKnowledgeVeilPresenter.h" // il velo e' del client: qui resta il solo aggancio
+#include "Perception/Veil/RTKnowledgeVeilPresenter.h" // il velo e' del client: qui resta il solo aggancio
 // #2723: il view model della finestra e' del client per la stessa ragione — qui resta il solo aggancio,
 // e a differenza del velo NON ha un ripiego senza proprietario.
-#include "UI/RTReactionWindowViewModel.h"
+#include "UI/Reaction/RTReactionWindowViewModel.h"
 #include "Engine/GameInstance.h"
 #include "PieSession/RTPieSessionSubsystem.h"
 #include "PieSession/RTPieVerdictOverlay.h"
-#include "ScenarioHarness/RTScenarioIndex.h"
-#include "Ability/RTAbilityLab.h" // #3774: il passo del banco dentro il PIE
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+#include "Ability/Lab/RTAbilityLab.h" // #3774: il passo del banco dentro il PIE
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -183,7 +183,7 @@ TAutoConsoleVariable<FString> CVarRTTeam1Heroes(
 
 // --- L'INGRESSO DEI CONTROLLI DI PLAYBACK (`#2858`) --------------------------------------------------
 //
-// 🔴 **`#if !UE_BUILD_SHIPPING` sui punti nuovi, nella forma gia' in uso** — `Map/RTKnowledgeDebugConsole.cpp`
+// 🔴 **`#if !UE_BUILD_SHIPPING` sui punti nuovi, nella forma gia' in uso** — `Map/Vision/RTKnowledgeDebugConsole.cpp`
 // mette l'intero file dentro questa guardia, e `#2395` ha registrato cosa succede a un flag di debug che
 // esce dalla propria. Qui il file non e' interamente di debug, quindi la guardia avvolge le due variable
 // e i loro due punti di lettura, e nient'altro.
@@ -525,7 +525,7 @@ namespace RTRosterEntry
 	}
 }
 
-/** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
+/** Definita in ScenarioHarness/Report/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 /** Definita nello stesso file: la fixture per nome, che vince su `rt.Map.Source` (`#1290`). */
 extern TAutoConsoleVariable<FString> CVarRTMapFixture;
@@ -1767,7 +1767,7 @@ FString ARTGameMode::GetScenarioBannerText() const
 	if (ScenarioId.IsEmpty())
 	{
 		// ⚠️ **Questa funzione e' la banda dello STATO ANOMALO della sessione, non solo dello scenario**, e il
-		// nome porta ancora il primo dei due casi che serve. E' deliberato: `UI/RTHUD.cpp` legge di qui, ed e'
+		// nome porta ancora il primo dei due casi che serve. E' deliberato: `UI/HUD/RTHUD.cpp` legge di qui, ed e'
 		// nel `writable` di un'altra track (`client_tools`, #78) — rinominare il metodo significherebbe
 		// toccare un file che questa sessione non possiede, per un guadagno che e' solo di nome. Chi apre
 		// E47.2/E47.3, che quel file lo possiedono, ha qui la ragione per rinominarlo.

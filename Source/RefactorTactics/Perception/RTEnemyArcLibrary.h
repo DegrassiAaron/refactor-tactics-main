@@ -5,7 +5,7 @@
 #include "Map/RTCellId.h"
 #include "Perception/RTPerceptionLibrary.h" // FRTPerceiver: l'arco e' quello della percezione, non una seconda geometria
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: chi guarda, e che cosa conosce
-#include "Perception/RTVisibilityBorder.h" // FRTExposedEdge: il contorno dell'arco
+#include "Perception/Veil/RTVisibilityBorder.h" // FRTExposedEdge: il contorno dell'arco
 #include "RTEnemyArcLibrary.generated.h"
 
 class URTHexMapAsset;

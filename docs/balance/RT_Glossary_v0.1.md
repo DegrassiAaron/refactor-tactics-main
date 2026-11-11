@@ -12,7 +12,7 @@
 > - **Il testo è quello che il gioco mostrerà**, carattere per carattere, compreso l'apostrofo al posto
 >   dell'accento (`piu'`, `e'`), che è la convenzione del testo a schermo del progetto.
 > - **Le copie sono due**, questa e le tabelle in
->   [`RTGlossary.cpp`](../../Source/RefactorTactics/UI/RTGlossary.cpp). Il radar le confronta, e non dice quale
+>   [`RTGlossary.cpp`](../../Source/RefactorTactics/UI/Inspect/RTGlossary.cpp). Il radar le confronta, e non dice quale
 >   delle due correggere:
 >
 >   ```sh

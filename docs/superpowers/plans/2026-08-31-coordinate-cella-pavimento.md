@@ -31,10 +31,10 @@
 
 | File | Responsabilità |
 |---|---|
-| `Source/RefactorTactics/Map/RTHexLabel.h` | I tre tipi di dato: `FRTLabelStroke`, `FRTLabelGlyph`, `FRTCellLabel`. Nessuna funzione. |
-| `Source/RefactorTactics/Map/RTHexLabelLibrary.h/.cpp` | `GlyphStrokes` (forma dei caratteri) e `BuildCellLabel` (dove cadono). Pure. |
-| `Source/RefactorTactics/Tests/RTHexLabelTests.cpp` | I test delle due funzioni. |
-| `Source/RefactorTactics/Map/RTHexMapActor.h/.cpp` | Il `ULineBatchComponent` e la funzione che lo ripopola, sotto `WITH_EDITOR`. |
+| `Source/RefactorTactics/Map/Actor/RTHexLabel.h` | I tre tipi di dato: `FRTLabelStroke`, `FRTLabelGlyph`, `FRTCellLabel`. Nessuna funzione. |
+| `Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h/.cpp` | `GlyphStrokes` (forma dei caratteri) e `BuildCellLabel` (dove cadono). Pure. |
+| `Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp` | I test delle due funzioni. |
+| `Source/RefactorTactics/Map/Actor/RTHexMapActor.h/.cpp` | Il `ULineBatchComponent` e la funzione che lo ripopola, sotto `WITH_EDITOR`. |
 | `docs/technical/test-manuali-pie.md` | La voce `PIE-*` per il giudizio di leggibilità. |
 | `docs/roadmap/editor-sessions.yaml` | La seduta che la ospita. |
 
@@ -45,9 +45,9 @@ Task 1 e 2 stanno nel runtime e sono interamente misurabili. Task 3 è il guscio
 ### Task 1: il font a segmenti
 
 **Files:**
-- Create: `Source/RefactorTactics/Map/RTHexLabel.h`
-- Create: `Source/RefactorTactics/Map/RTHexLabelLibrary.h`, `Source/RefactorTactics/Map/RTHexLabelLibrary.cpp`
-- Test: `Source/RefactorTactics/Tests/RTHexLabelTests.cpp`
+- Create: `Source/RefactorTactics/Map/Actor/RTHexLabel.h`
+- Create: `Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h`, `Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.cpp`
+- Test: `Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp`
 
 **Interfaces:**
 - Consumes: niente.
@@ -57,12 +57,12 @@ Task 1 e 2 stanno nel runtime e sono interamente misurabili. Task 3 è il guscio
 
 - [ ] **Step 1: scrivi il test che fallisce**
 
-In `Source/RefactorTactics/Tests/RTHexLabelTests.cpp`:
+In `Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp`:
 
 ```cpp
 #include "Misc/AutomationTest.h"
-#include "Map/RTHexLabel.h"
-#include "Map/RTHexLabelLibrary.h"
+#include "Map/Actor/RTHexLabel.h"
+#include "Map/Actor/RTHexLabelLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -128,7 +128,7 @@ bool FRTHexLabelDigitsDifferTest::RunTest(const FString&)
 
 - [ ] **Step 2: crea i tipi e lo stub, perché il test compili e FALLISCA**
 
-`Source/RefactorTactics/Map/RTHexLabel.h`:
+`Source/RefactorTactics/Map/Actor/RTHexLabel.h`:
 
 ```cpp
 #pragma once
@@ -148,14 +148,14 @@ struct FRTLabelStroke
 };
 ```
 
-`Source/RefactorTactics/Map/RTHexLabelLibrary.h`:
+`Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h`:
 
 ```cpp
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Map/RTHexLabel.h"
+#include "Map/Actor/RTHexLabel.h"
 
 #include "RTHexLabelLibrary.generated.h"
 
@@ -181,10 +181,10 @@ public:
 };
 ```
 
-`Source/RefactorTactics/Map/RTHexLabelLibrary.cpp`:
+`Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.cpp`:
 
 ```cpp
-#include "Map/RTHexLabelLibrary.h"
+#include "Map/Actor/RTHexLabelLibrary.h"
 
 TArray<FRTLabelStroke> URTHexLabelLibrary::GlyphStrokes(TCHAR Character)
 {
@@ -213,7 +213,7 @@ Atteso: **2 test, 2 falliti**. `GlyphSetIsClosedAndNormalised` cade su *«'0' ha
 Sostituisci il corpo in `RTHexLabelLibrary.cpp`. Le cifre sono a **sette segmenti** — la forma da display digitale — perché è il minimo che distingue dieci cifre e resta leggibile a pochi pixel:
 
 ```cpp
-#include "Map/RTHexLabelLibrary.h"
+#include "Map/Actor/RTHexLabelLibrary.h"
 
 namespace
 {
@@ -274,8 +274,8 @@ Atteso: **2/2 passati**.
 - [ ] **Step 6: commit**
 
 ```bash
-git add Source/RefactorTactics/Map/RTHexLabel.h Source/RefactorTactics/Map/RTHexLabelLibrary.h \
-        Source/RefactorTactics/Map/RTHexLabelLibrary.cpp Source/RefactorTactics/Tests/RTHexLabelTests.cpp
+git add Source/RefactorTactics/Map/Actor/RTHexLabel.h Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h \
+        Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.cpp Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp
 git commit -m "feat(1920): il set chiuso dei caratteri della terna, e la forma che li distingue"
 ```
 
@@ -284,9 +284,9 @@ git commit -m "feat(1920): il set chiuso dei caratteri della terna, e la forma c
 ### Task 2: il layout dentro l'esagono
 
 **Files:**
-- Modify: `Source/RefactorTactics/Map/RTHexLabel.h` (aggiunge due struct)
-- Modify: `Source/RefactorTactics/Map/RTHexLabelLibrary.h/.cpp` (aggiunge `BuildCellLabel`)
-- Test: `Source/RefactorTactics/Tests/RTHexLabelTests.cpp` (aggiunge i test del layout)
+- Modify: `Source/RefactorTactics/Map/Actor/RTHexLabel.h` (aggiunge due struct)
+- Modify: `Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h/.cpp` (aggiunge `BuildCellLabel`)
+- Test: `Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp` (aggiunge i test del layout)
 
 **Interfaces:**
 - Consumes: `FRTLabelStroke` e `GlyphStrokes` dal Task 1. `URTHexLibrary::CellCorners(const FRTCellId&, const FVector&, float, float)` dal runtime esistente.
@@ -627,8 +627,8 @@ Poi **ripristina e ricompila**, e riverifica il verde: un binario mutato lasciat
 - [ ] **Step 7: commit**
 
 ```bash
-git add Source/RefactorTactics/Map/RTHexLabel.h Source/RefactorTactics/Map/RTHexLabelLibrary.h \
-        Source/RefactorTactics/Map/RTHexLabelLibrary.cpp Source/RefactorTactics/Tests/RTHexLabelTests.cpp
+git add Source/RefactorTactics/Map/Actor/RTHexLabel.h Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.h \
+        Source/RefactorTactics/Map/Actor/RTHexLabelLibrary.cpp Source/RefactorTactics/Tests/Map/Actor/RTHexLabelTests.cpp
 git commit -m "feat(1920): le tre run della terna, e il contenimento che ne dimensiona le cifre"
 ```
 
@@ -637,8 +637,8 @@ git commit -m "feat(1920): le tre run della terna, e il contenimento che ne dime
 ### Task 3: il guscio che le traccia
 
 **Files:**
-- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h` (un componente e una funzione, sotto `WITH_EDITOR`)
-- Modify: `Source/RefactorTactics/Map/RTHexMapActor.cpp`
+- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h` (un componente e una funzione, sotto `WITH_EDITOR`)
+- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`
 
 **Interfaces:**
 - Consumes: `URTHexLabelLibrary::BuildCellLabel` e `GlyphStrokes` dai Task 1-2.
@@ -741,8 +741,8 @@ Include da aggiungere in cima al `.cpp`:
 ```cpp
 #if WITH_EDITOR
 #include "Components/LineBatchComponent.h"
-#include "Map/RTHexLabel.h"
-#include "Map/RTHexLabelLibrary.h"
+#include "Map/Actor/RTHexLabel.h"
+#include "Map/Actor/RTHexLabelLibrary.h"
 #endif
 ```
 
@@ -775,7 +775,7 @@ Atteso: la suite intera **verde**, con i sei test di `HexLabel` dentro.
 - [ ] **Step 5: verifica per assenza che in gioco non esista**
 
 ```bash
-grep -n "CoordinateLabels" Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp
+grep -n "CoordinateLabels" Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp
 ```
 
 Atteso: ogni occorrenza è dentro un blocco `#if WITH_EDITOR`. Nessun riferimento fuori.
@@ -783,7 +783,7 @@ Atteso: ogni occorrenza è dentro un blocco `#if WITH_EDITOR`. Nessun riferiment
 - [ ] **Step 6: commit**
 
 ```bash
-git add Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp
+git add Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp
 git commit -m "feat(1920): il guscio d'editor traccia le terne, e si ripopola quando la mappa cambia"
 ```
 

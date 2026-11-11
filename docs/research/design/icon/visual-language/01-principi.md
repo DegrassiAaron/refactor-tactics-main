@@ -4,7 +4,7 @@
 > 2026-08-19, [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165))*. Il canone
 > dell'iconografia è
 > [D-031](../../../../decisions/RT_PDR_00_Decision_Log.md) e l'enum `ERTIconCategory` in
-> `Source/RefactorTactics/UI/RTIconCatalogData.h`. Dove questi documenti divergono dal codice o dal Decision
+> `Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h`. Dove questi documenti divergono dal codice o dal Decision
 > Log, **prevalgono codice e Decision Log**.
 >
 > **Ownership**: qui si definisce **come** un concetto viene rappresentato. **Dove e quando** un elemento

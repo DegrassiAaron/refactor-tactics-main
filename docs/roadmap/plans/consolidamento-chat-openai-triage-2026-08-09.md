@@ -116,7 +116,7 @@ Indipendente dal pacchetto, ma scoperto perché il Map Master §11 ripete l'affe
 `Action.Electrify`**, ed è **cablata nel codice**:
 
 ```
-Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:172
+Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:172
 // D-046: cablata su `Action.Electrify`.
 ```
 

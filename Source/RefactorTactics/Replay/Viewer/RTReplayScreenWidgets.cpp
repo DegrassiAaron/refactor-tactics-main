@@ -1,0 +1,389 @@
+#include "Replay/Viewer/RTReplayScreenWidgets.h"
+
+#include "Frontend/RTFrontendNavigator.h"
+#include "Frontend/RTFrontendScreenIds.h"
+#include "Replay/Viewer/RTReplayViewerSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "Debug/RTContextInspector.h" // DescribePublicEvent: la riga di una voce pubblica
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
+
+#define LOCTEXT_NAMESPACE "RefactorTactics"
+
+namespace
+{
+	/**
+	 * Il subsystem chiesto alla `GameInstance` del widget.
+	 *
+	 * ⚠️ `nullptr` non e' un caso da nascondere: un widget costruito fuori da una `GameInstance` — come in
+	 * un test che non allestisce l'host — non ha da chi farsi servire, e ogni chiamante di questo file
+	 * risponde con l'esito che quella condizione merita invece di crashare.
+	 */
+	template <typename T>
+	T* SubsystemOf(const UUserWidget* Widget)
+	{
+		const UGameInstance* GI = Widget ? Widget->GetGameInstance() : nullptr;
+		return GI ? GI->GetSubsystem<T>() : nullptr;
+	}
+}
+
+// =====================================================================================================
+// MatchHistory
+// =====================================================================================================
+
+URTReplayViewerSubsystem* URTMatchHistoryWidgetBase::Replay() const
+{
+	return SubsystemOf<URTReplayViewerSubsystem>(this);
+}
+
+URTFrontendNavigator* URTMatchHistoryWidgetBase::Navigator() const
+{
+	return SubsystemOf<URTFrontendNavigator>(this);
+}
+
+TArray<FRTMatchHistoryEntry> URTMatchHistoryWidgetBase::LoadMatches(bool& bOutReadFailed)
+{
+	TArray<FRTMatchHistoryEntry> Partite = LoadMatchesFrom(Replay(), bOutReadFailed);
+
+	// `IsEmpty()` risponde su cio' che si e' letto DAVVERO: su un fallimento la lista e' vuota, ma il
+	// messaggio «nessun replay» sarebbe una bugia — e i due stati hanno due messaggi diversi.
+	bLastLoadWasEmpty = !bOutReadFailed && Partite.Num() == 0;
+	return Partite;
+}
+
+TArray<FRTMatchHistoryEntry> URTMatchHistoryWidgetBase::LoadMatchesFrom(URTReplayViewerSubsystem* V,
+	bool& bOutReadFailed)
+{
+	TArray<FRTMatchHistoryEntry> Partite;
+
+	// ⚠️ **Senza subsystem e' un FALLIMENTO DI LETTURA, non una lista vuota**, e la differenza e' cio' che
+	// la schermata mostra: «non hai ancora giocato» contro «non ho potuto leggere». Confonderli farebbe
+	// sembrare vuota un'installazione piena di registrazioni.
+	bOutReadFailed = (V == nullptr) || !V->LoadMatchList(/*bNewestFirst=*/ true, Partite);
+	return Partite;
+}
+
+bool URTMatchHistoryWidgetBase::OpenMatch(const FGuid& MatchId)
+{
+	return SelectAndNavigate(Replay(), Navigator(), MatchId);
+}
+
+bool URTMatchHistoryWidgetBase::SelectAndNavigate(URTReplayViewerSubsystem* Replay,
+	URTFrontendNavigator* Navigator, const FGuid& MatchId)
+{
+	// Un `FGuid` invalido non arriva a `SelectMatch`: la selezione resterebbe «vuota» e il viewer si
+	// aprirebbe su niente, cioe' il dead-end che questa schermata esiste per non produrre.
+	if (Replay == nullptr || Navigator == nullptr || !MatchId.IsValid())
+	{
+		return false;
+	}
+
+	// 🔴 **PRIMA la selezione, POI la navigazione**, ed e' il contratto: `PushScreen` presenta il widget in
+	// modo SINCRONO, quindi il viewer consuma la selezione durante questa riga. Invertire darebbe un viewer
+	// che si apre su nulla — e il difetto non sarebbe intermittente: sarebbe sempre.
+	Replay->SelectMatch(MatchId);
+
+	const ERTNavResult Esito = Navigator->PushScreen(RTScreenIds::ReplayViewer);
+	if (Esito != ERTNavResult::Ok)
+	{
+		// ⚠️ **La selezione si ritira**, e non e' zelo: lasciata li', la prossima comparsa del viewer —
+		// magari per un'altra strada — aprirebbe una partita che nessuno ha scelto adesso. E' lo stesso
+		// motivo per cui la selezione si CONSUMA invece di leggersi.
+		Replay->ConsumeSelectedMatch();
+		return false;
+	}
+	return true;
+}
+
+ESlateVisibility URTMatchHistoryWidgetBase::GetEmptyNoticeVisibility() const
+{
+	return IsEmpty() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
+// =====================================================================================================
+// ReplayViewer
+// =====================================================================================================
+
+URTReplayViewerSubsystem* URTReplayViewerWidgetBase::Replay() const
+{
+	return SubsystemOf<URTReplayViewerSubsystem>(this);
+}
+
+URTFrontendNavigator* URTReplayViewerWidgetBase::Navigator() const
+{
+	return SubsystemOf<URTFrontendNavigator>(this);
+}
+
+ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelected()
+{
+	return OpenSelectedOn(Replay());
+}
+
+ERTReplayOpenResult URTReplayViewerWidgetBase::OpenSelectedOn(URTReplayViewerSubsystem* V)
+{
+	if (V == nullptr)
+	{
+		return ERTReplayOpenResult::ManifestUnreadable;
+	}
+
+	// Consuma: una selezione che sopravvivesse verrebbe riusata da una comparsa successiva, e il viewer
+	// riaprirebbe la partita di prima senza che nulla lo dica.
+	const FGuid Scelta = V->ConsumeSelectedMatch();
+	if (!Scelta.IsValid())
+	{
+		// ⚠️ **`ManifestUnreadable` e non un quinto esito**: non c'e' un archivio da leggere, ed e'
+		// esattamente cio' che quel valore significa. Inventare un `NoSelection` darebbe alla schermata un
+		// ramo in piu' da disegnare per una condizione che, se il flow e' corretto, non accade mai.
+		return ERTReplayOpenResult::ManifestUnreadable;
+	}
+
+	// Con gli occhi di chi l'ha giocata ([D-317]): l'osservatore lo dichiara l'archivio, e questa schermata
+	// non ha modo di conoscerlo.
+	return V->OpenMatchAsRecordedObserver(Scelta);
+}
+
+bool URTReplayViewerWidgetBase::Back()
+{
+	return BackToListOn(Replay(), Navigator());
+}
+
+bool URTReplayViewerWidgetBase::BackToListOn(URTReplayViewerSubsystem* V, URTFrontendNavigator* Nav)
+{
+	if (Nav == nullptr)
+	{
+		return false;
+	}
+
+	const ERTNavResult Esito = Nav->PopScreen();
+	if (Esito != ERTNavResult::Ok)
+	{
+		// L'archivio NON si chiude su una navigazione rifiutata: si resta nel viewer, e chiuderlo lascerebbe
+		// una schermata viva davanti a una sessione svuotata.
+		return false;
+	}
+
+	// Si e' usciti: le tracce si liberano. `FRTReplaySession::Traces` porta il TurnLog di **ogni** turno
+	// registrato, e un subsystem di `GameInstance` sopravvive a ogni caricamento di livello.
+	if (V)
+	{
+		V->Close();
+	}
+	return true;
+}
+
+FText URTMatchHistoryWidgetBase::GetEntryLabel(const FRTMatchHistoryEntry& Entry)
+{
+	// L'esito, nelle parole di chi guarda. `InProgress` in un archivio **chiuso** non e' uno stato: e' una
+	// partita che il registratore non ha visto finire, ed e' cio' che «interrotta» dice.
+	FText Esito;
+	switch (Entry.Outcome)
+	{
+	case ERTMatchOutcome::Team0Wins: Esito = LOCTEXT("MatchRowTeam0", "vince la squadra 0"); break;
+	case ERTMatchOutcome::Team1Wins: Esito = LOCTEXT("MatchRowTeam1", "vince la squadra 1"); break;
+	case ERTMatchOutcome::Draw:      Esito = LOCTEXT("MatchRowDraw", "pareggio"); break;
+	default:                         Esito = LOCTEXT("MatchRowUnfinished", "interrotta"); break;
+	}
+
+	// ⚠️ **La data si mostra locale, e il campo e' UTC.** `StartedUtc` e' l'ora dell'archivio — quella che
+	// entra nell'ordinamento e nel confronto fra registrazioni — e mostrarla cruda darebbe a chi gioca un
+	// orario che non e' quello del suo orologio. La conversione sta qui e non nel dato.
+	const FText Quando = FText::AsDateTime(Entry.StartedUtc, EDateTimeStyle::Short, EDateTimeStyle::Short);
+
+	const FText Base = FText::Format(
+		LOCTEXT("MatchRow", "{0} · {1} · {2} turni · {3}"),
+		Quando,
+		FText::FromName(Entry.FormatId),
+		FText::AsNumber(Entry.TurnCount),
+		Esito);
+
+	// 🔑 Un archivio non chiuso finisce **prima** di dove il suo `TurnCount` promette, e questa riga e'
+	// l'unico posto in cui lo si puo' sapere senza aprirlo: l'indice non guarda dentro le cartelle.
+	if (!Entry.bReplayComplete)
+	{
+		return FText::Format(LOCTEXT("MatchRowIncomplete", "{0} · registrazione incompleta"), Base);
+	}
+	return Base;
+}
+
+bool URTReplayViewerWidgetBase::TogglePlay()
+{
+	return TogglePlayOn(Replay());
+}
+
+bool URTReplayViewerWidgetBase::TogglePlayOn(URTReplayViewerSubsystem* V)
+{
+	if (V == nullptr)
+	{
+		return false;
+	}
+	if (V->IsPlaying())
+	{
+		V->Pause();
+	}
+	else
+	{
+		V->Play();
+	}
+	// Si risponde con lo stato DOPO, e non con quello chiesto: su una sequenza finita `Play` non parte, e un valore di ritorno
+	// che dicesse «avviato» confermerebbe una riproduzione che non c'e'.
+	return V->IsPlaying();
+}
+
+bool URTReplayViewerWidgetBase::TickPlaybackOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Il view model avanza solo se riceve il tempo, e ignora il tempo in pausa: la guardia e' sua, non si ripete qui.
+	return V != nullptr && V->Tick(DeltaSeconds);
+}
+
+FText URTReplayViewerWidgetBase::GetPlayPauseText(bool bPlaying)
+{
+	// L'AZIONE del prossimo click, non lo stato: «PAUSA» mentre riproduce, «PLAY» mentre e' fermo.
+	return bPlaying ? LOCTEXT("ReplayPause", "PAUSA") : LOCTEXT("ReplayPlay", "PLAY");
+}
+
+FText URTReplayViewerWidgetBase::ComposePhaseEntriesText(const TArray<FRTPublicReplayEntry>& Entries)
+{
+	if (Entries.IsEmpty())
+	{
+		return LOCTEXT("ReplayNoEntries", "Nessun evento in questa fase");
+	}
+
+	// Un tetto: il testo e' un blocco solo, e una fase con molte voci lo farebbe uscire dallo schermo.
+	constexpr int32 MaxRows = MaxPhaseEntryRows;
+	TArray<FString> Rows;
+	for (int32 i = 0; i < Entries.Num() && i < MaxRows; ++i)
+	{
+		// ⚠️ La riga e' quella dell'ispettore, `DescribePublicEvent`: colonne pubbliche, non una seconda traduzione in
+		// italiano dello stesso fatto. `DescribeEntry` leggerebbe campi che il replay non rende pubblici.
+		Rows.Add(URTContextInspectorLibrary::DescribePublicEvent(Entries[i]));
+	}
+	FString Joined = FString::Join(Rows, TEXT("\n"));
+	if (Entries.Num() > MaxRows)
+	{
+		// Senza separatori: `AsNumber` raggruppa le cifre, e «altre 1.234» accanto a un conteggio di righe si legge come un decimale.
+		FNumberFormattingOptions SenzaSeparatori;
+		SenzaSeparatori.UseGrouping = false;
+		Joined += TEXT("\n") + FText::Format(LOCTEXT("ReplayMoreEntries", "… e altre {0}"), FText::AsNumber(Entries.Num() - MaxRows, &SenzaSeparatori)).ToString();
+	}
+	return FText::FromString(Joined);
+}
+
+void URTReplayViewerWidgetBase::RefreshLookOn(URTReplayViewerSubsystem* V)
+{
+	// L'etichetta del pulsante indietro non dipende dal replay: si scrive una volta (#3868, il pulsante non ne aveva).
+	if (!bStaticLabelsWritten)
+	{
+		if (BackButtonLabel)
+		{
+			BackButtonLabel->SetText(LOCTEXT("ReplayBack", "INDIETRO"));
+		}
+		bStaticLabelsWritten = true;
+	}
+	if (V == nullptr)
+	{
+		// Senza subsystem non c'e' niente da riprodurre: il pulsante e' spento, e non resta acceso su un click che non fa
+		// niente (il criterio dei bordi di #472 vale anche qui).
+		if (PlayPauseButton)
+		{
+			PlayPauseButton->SetIsEnabled(false);
+		}
+		if (PlayPauseLabel)
+		{
+			PlayPauseLabel->SetText(GetPlayPauseText(false));
+		}
+		return;
+	}
+
+	// ⚠️ `GetCurrentPhaseEntries` rifa' un seek e alloca, e `CanStepPhaseForward` copia l'elenco delle fasi: si pagano per
+	// chiamata, quindi si leggono quando cambia la REVISIONE della posizione e non a ogni tick. Turno, fase e stato non bastano come
+	// chiave: le tracce pre-v6 dichiarano tutte turno 0, e un archivio riaperto puo' ritrovarsi alla stessa posizione con altre voci.
+	const uint32 Revision = V->GetPositionRevision();
+	if (!bLookRead || Revision != LookRevision)
+	{
+		bCanPlay = V->CanStepPhaseForward();
+		if (PhaseEntriesText)
+		{
+			// Senza una fase (prima dell'inizio, a sequenza finita, archivio non aperto) non c'e' una fase di cui dire che non
+			// ha eventi: il testo resta vuoto, invece di affermare una cosa falsa su una fase che non c'e'.
+			PhaseEntriesText->SetText(V->GetPosition().HasPhase()
+				? ComposePhaseEntriesText(V->GetCurrentPhaseEntries()) : FText::GetEmpty());
+		}
+		LookRevision = Revision;
+		bLookRead = true;
+	}
+
+	// ⚠️ **Disabilitato, non silenzioso** (il criterio dei bordi di #472, per cui esistono i `Can*`): su una sequenza
+	// finita, su un archivio non aperto o senza fasi `Play` non parte, e un pulsante acceso che non fa niente e' il difetto da
+	// evitare. In riproduzione resta acceso: e' il pulsante che mette in pausa.
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->SetIsEnabled(V->IsPlaying() || bCanPlay);
+	}
+	if (PlayPauseLabel)
+	{
+		PlayPauseLabel->SetText(GetPlayPauseText(V->IsPlaying()));
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeConstruct()
+{
+	Super::NativeConstruct();
+	if (PlayPauseButton)
+	{
+		PlayPauseButton->OnClicked.AddUniqueDynamic(this, &URTReplayViewerWidgetBase::HandlePlayPauseClicked);
+	}
+}
+
+void URTReplayViewerWidgetBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	TickOn(Replay(), InDeltaTime);
+}
+
+void URTReplayViewerWidgetBase::TickOn(URTReplayViewerSubsystem* V, float DeltaSeconds)
+{
+	// Un widget disabilitato sta sotto un modale (`SyncPresentation`): il tempo non scorre dove il giocatore non puo' arrivare
+	// al pulsante di pausa. Le porte si scrivono comunque.
+	if (GetIsEnabled())
+	{
+		TickPlaybackOn(V, DeltaSeconds);
+	}
+	RefreshLookOn(V);
+}
+
+void URTReplayViewerWidgetBase::HandlePlayPauseClicked()
+{
+	TogglePlay();
+}
+
+FText URTReplayViewerWidgetBase::GetOpenFailureText(ERTReplayOpenResult Result)
+{
+	switch (Result)
+	{
+	case ERTReplayOpenResult::Opened:
+		return FText::GetEmpty();
+
+	case ERTReplayOpenResult::ManifestUnreadable:
+		// Copre due condizioni che per chi guarda sono la stessa: l'archivio non c'e' piu' (l'indice per
+		// design non apre le cartelle, quindi una riga puo' puntare a una cancellata) oppure il suo header
+		// non e' leggibile da questo binario.
+		return LOCTEXT("ReplayOpenManifestUnreadable",
+			"Questa registrazione non è più leggibile: l'archivio è stato rimosso o è di una versione sconosciuta.");
+
+	case ERTReplayOpenResult::TopologyMismatch:
+		return LOCTEXT("ReplayOpenTopologyMismatch",
+			"Questa registrazione viene da una versione del gioco con una mappa diversa, e non può essere riprodotta.");
+
+	case ERTReplayOpenResult::TraceUnreadable:
+		return LOCTEXT("ReplayOpenTraceUnreadable",
+			"L'archivio è danneggiato: uno dei turni registrati non si rilegge.");
+
+	default:
+		// ⚠️ Nessun `default` silenzioso che restituisca vuoto: un esito aggiunto domani senza il suo testo
+		// darebbe una schermata muta su un fallimento, che e' il difetto di `#472` («i quattro esiti restano
+		// distinti») nella sua forma piu' subdola.
+		return LOCTEXT("ReplayOpenUnknown", "La registrazione non si è aperta, per un motivo non dichiarato.");
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

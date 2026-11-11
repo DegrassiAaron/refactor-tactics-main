@@ -1,10 +1,10 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexCoverLibrary.h"     // il bordo: l'unica sede di «cosa c'e' fra queste due celle» (`CP 9.2`)
-#include "Map/RTHexOcclusionLibrary.h" // la geometria intra-cella, LA STESSA che consuma la LoS (`D-269`)
+#include "Map/Cover/RTHexCoverLibrary.h"     // il bordo: l'unica sede di «cosa c'e' fra queste due celle» (`CP 9.2`)
+#include "Map/Vision/RTHexOcclusionLibrary.h" // la geometria intra-cella, LA STESSA che consuma la LoS (`D-269`)
 #include "Terrain/RTTerrainLibrary.h" // il cap di portata e' un dato del terreno (`#1085`)
-#include "Turn/RTMovementActionLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
 
 TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& Toward, int32 RangeCells)

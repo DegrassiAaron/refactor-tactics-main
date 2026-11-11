@@ -80,10 +80,10 @@ Dodici dei quattordici percorsi citati esistono; i due assenti sono esattamente 
 | `docs/technical/systems/progettazione-hud.md` | ✅ 1 906 righe |
 | `docs/technical/architecture/spec-turnlog.md` | ✅ 727 righe |
 | `docs/roadmap/roadmap-v0.1.md` · `roadmap-post-v0.1.md` | ✅ 2 069 · 1 375 righe |
-| `Source/…/UI/RTHUD.{h,cpp}` | ✅ 398 · 1 098 righe |
-| `Source/…/UI/RTScreenHudWidgets.{h,cpp}` | ✅ 346 · 281 righe |
-| `Source/…/Turn/RTTurnLog.h` · `RTTurnManager.h` | ✅ 1 051 · 1 803 righe |
-| `Source/…/Tests/RTCombatLogTests.cpp` | ✅ 1 169 righe |
+| `Source/…/UI/HUD/RTHUD.{h,cpp}` | ✅ 398 · 1 098 righe |
+| `Source/…/UI/HUD/RTScreenHudWidgets.{h,cpp}` | ✅ 346 · 281 righe |
+| `Source/…/Turn/Log/RTTurnLog.h` · `RTTurnManager.h` | ✅ 1 051 · 1 803 righe |
+| `Source/…/Tests/Turn/Log/RTCombatLogTests.cpp` | ✅ 1 169 righe |
 | `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` | ✅ esiste |
 | `docs/technical/systems/spec-player-event-log.md` | ⛔ **assente** — da creare, come dichiarato |
 | `Content/RT/UI/Match/WBP_RT_EventLog.uasset` | ⛔ **assente** — da creare, come dichiarato |

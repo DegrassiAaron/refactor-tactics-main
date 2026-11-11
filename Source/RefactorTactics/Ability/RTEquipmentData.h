@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "Turn/RTActionEvent.h" // FRTActionEffectSpec: una variante aggiunge effetti all'attacco base
+#include "Turn/Actions/RTActionEvent.h" // FRTActionEffectSpec: una variante aggiunge effetti all'attacco base
 #include "RTEquipmentData.generated.h"
 
 /** Categoria di equipaggiamento: uno slot per categoria, per eroe. */

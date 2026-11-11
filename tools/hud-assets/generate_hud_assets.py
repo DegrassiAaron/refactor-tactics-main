@@ -2047,10 +2047,10 @@ def g_warn_target_unknown() -> str:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SOURCES = {
-    "actions": REPO_ROOT / "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp",
+    "actions": REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp",
     "status": REPO_ROOT / "Source/RefactorTactics/Core/RTGameplayTags.cpp",
-    "heroes": REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp",
-    "library": REPO_ROOT / "Source/RefactorTactics/UI/RTIconLibrary.cpp",
+    "heroes": REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp",
+    "library": REPO_ROOT / "Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp",
 }
 
 
@@ -2638,7 +2638,7 @@ def check_colour_gates() -> list[str]:
     errors += [f"T9: {e}" for e in check_palette(PHASE_INK, hud_states, hud_surfaces)]
 
     # T9, l'altra meta' (D-234): sull'overlay del mondo lo stesso canale porta DUE assi — l'identita' di
-    # squadra e la fase della linea di scatto — e i loro colori si leggono da `UI/RTHUD.cpp`.
+    # squadra e la fase della linea di scatto — e i loro colori si leggono da `UI/HUD/RTHUD.cpp`.
     #
     # 🔴 **Fino a `#3626` questo gate NON la misurava**, e tre commenti dicevano di si': due in `RTHUD.cpp`
     # e uno in `RTHudIntentPresentationTests.cpp`. Il controllo viveva solo nel referto `color_metrics.py`

@@ -32,10 +32,10 @@
 
 | File | Responsabilità | Task |
 |---|---|---|
-| `Source/RefactorTactics/UI/RTHudZoneWidget.h` (nuovo) | `ERTHudZone` + dichiarazione `URTHudZoneWidget` | 1 |
-| `Source/RefactorTactics/UI/RTHudZoneWidget.cpp` (nuovo) | `BlockoutColor`, l'unica logica della classe | 1 |
-| `Source/RefactorTactics/Tests/RTHudZoneTests.cpp` (nuovo) | I test **puri** sulla classe: colori distinti, copertura dell'enum | 2 |
-| `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (modifica) | I due gate **sull'asset**: le otto zone ci sono, e stanno dove devono; poi il vocabolario di zone in `EveryZoneOwnerIsMountedByClass` e la pulizia del commento «sette widget» | 3, 4, 7 |
+| `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.h` (nuovo) | `ERTHudZone` + dichiarazione `URTHudZoneWidget` | 1 |
+| `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.cpp` (nuovo) | `BlockoutColor`, l'unica logica della classe | 1 |
+| `Source/RefactorTactics/Tests/UI/HUD/RTHudZoneTests.cpp` (nuovo) | I test **puri** sulla classe: colori distinti, copertura dell'enum | 2 |
+| `Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp` (modifica) | I due gate **sull'asset**: le otto zone ci sono, e stanno dove devono; poi il vocabolario di zone in `EveryZoneOwnerIsMountedByClass` e la pulizia del commento «sette widget» | 3, 4, 7 |
 | `Content/RT/UI/Match/WBP_RT_HudZone.uasset` (nuovo) | Il bordo e il `NamedSlot Content` | 5 |
 | `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` (modifica) | Le otto istanze e la migrazione degli inquilini | 6 |
 | `docs/technical/runbooks/guida-screen-hud-umg.md` (modifica) | §3 riscritto sulle otto zone | 7 |
@@ -49,8 +49,8 @@
 ### Task 1: `ERTHudZone` e `URTHudZoneWidget`
 
 **Files:**
-- Create: `Source/RefactorTactics/UI/RTHudZoneWidget.h`
-- Create: `Source/RefactorTactics/UI/RTHudZoneWidget.cpp`
+- Create: `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.h`
+- Create: `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.cpp`
 
 **Interfaces:**
 - Consumes: niente (è il primo task).
@@ -58,7 +58,7 @@
 
 - [ ] **Step 1: Scrivere l'header**
 
-Crea `Source/RefactorTactics/UI/RTHudZoneWidget.h`:
+Crea `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.h`:
 
 ```cpp
 #pragma once
@@ -155,10 +155,10 @@ public:
 
 - [ ] **Step 2: Scrivere l'implementazione**
 
-Crea `Source/RefactorTactics/UI/RTHudZoneWidget.cpp`:
+Crea `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.cpp`:
 
 ```cpp
-#include "UI/RTHudZoneWidget.h"
+#include "UI/HUD/RTHudZoneWidget.h"
 
 FLinearColor URTHudZoneWidget::BlockoutColor(ERTHudZone Zone)
 {
@@ -217,7 +217,7 @@ Atteso: `Build succeeded`. Un nuovo `UCLASS` in un file nuovo richiede la rigene
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Source/RefactorTactics/UI/RTHudZoneWidget.h Source/RefactorTactics/UI/RTHudZoneWidget.cpp
+git add Source/RefactorTactics/UI/HUD/RTHudZoneWidget.h Source/RefactorTactics/UI/HUD/RTHudZoneWidget.cpp
 git commit -m "feat(hud): una zona dello Screen HUD diventa una cosa che i test possono nominare
 
 Prima di questa classe una zona era un UCanvasPanelSlot con un nome scelto nel
@@ -236,7 +236,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 2: I test puri sulla classe
 
 **Files:**
-- Create: `Source/RefactorTactics/Tests/RTHudZoneTests.cpp`
+- Create: `Source/RefactorTactics/Tests/UI/HUD/RTHudZoneTests.cpp`
 
 **Interfaces:**
 - Consumes: `ERTHudZone`, `URTHudZoneWidget::BlockoutColor`, `URTHudZoneWidget::ZoneName` dal Task 1.
@@ -246,7 +246,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Scrivere i test**
 
-Crea `Source/RefactorTactics/Tests/RTHudZoneTests.cpp`:
+Crea `Source/RefactorTactics/Tests/UI/HUD/RTHudZoneTests.cpp`:
 
 ```cpp
 // Le otto zone dello Screen HUD, provate come CLASSE e non come albero.
@@ -257,7 +257,7 @@ Crea `Source/RefactorTactics/Tests/RTHudZoneTests.cpp`:
 // verde nessun task prima dell'authoring.
 
 #include "Misc/AutomationTest.h"
-#include "UI/RTHudZoneWidget.h"
+#include "UI/HUD/RTHudZoneWidget.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -361,7 +361,7 @@ Atteso: entrambi `Success`. Il report elenca le otto zone con i rispettivi RGB.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTHudZoneTests.cpp
+git add Source/RefactorTactics/Tests/UI/HUD/RTHudZoneTests.cpp
 git commit -m "test(hud): il blockout deve distinguere le zone, quindi i colori non possono coincidere
 
 Due test puri, che girano senza caricare nessun asset: le otto tinte sono
@@ -383,7 +383,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 3: Il gate «le otto zone ci sono, una volta ciascuna»
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (aggiunta in coda, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`)
+- Modify: `Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp` (aggiunta in coda, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`)
 
 **Interfaces:**
 - Consumes: `ERTHudZone`, `URTHudZoneWidget` dal Task 1; `RTWidgetAssetTest::LoadWidgetTree` dall'header già esistente; `TacticalHudPath` dal namespace anonimo in cima al file.
@@ -396,7 +396,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 In cima a `RTMatchWidgetAssetTests.cpp`, accanto agli altri include di `UI/`:
 
 ```cpp
-#include "UI/RTHudZoneWidget.h"
+#include "UI/HUD/RTHudZoneWidget.h"
 ```
 
 - [ ] **Step 2: Scrivere il test**
@@ -522,7 +522,7 @@ grep -E "TheEightZones|Test Completed|Failed" Saved/Logs/RefactorTactics.log | t
 - [ ] **Step 5: Commit (rosso, dichiarato)**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp
+git add Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp
 git commit -m "test(hud): il gate che chiede se le otto zone ci siano, e oggi risponde di no
 
 ROSSO DI PROPOSITO: l'asset non e' ancora rimontato, e questo test e' il gate che
@@ -543,7 +543,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ### Task 4: Il gate «le zone stanno dove devono»
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (aggiunta in coda)
+- Modify: `Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp` (aggiunta in coda)
 
 **Interfaces:**
 - Consumes: `ERTHudZone`, `URTHudZoneWidget` dal Task 1; il namespace `RTCenterFree` già presente nel file, con `RefWidth = 1920.f`, `RefHeight = 1080.f`, `FRect { Left, Top, Right, Bottom }`, `RettangoloDellaZona(const FAnchorData&)`, `Descrivi(const FRect&)`.
@@ -716,7 +716,7 @@ grep -E "Test Completed|Success|Fail" Saved/Logs/RefactorTactics.log | tail -30
 - [ ] **Step 5: Commit (rosso, dichiarato)**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp
+git add Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp
 git commit -m "test(hud): il gate che chiede DOVE stanno le zone, non solo se ci sono
 
 ROSSO DI PROPOSITO, come il precedente.
@@ -980,7 +980,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `docs/technical/runbooks/guida-screen-hud-umg.md` (§3)
-- Modify: `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (vocabolario zone in `EveryZoneOwnerIsMountedByClass`; pulizia del commento «sette widget»)
+- Modify: `Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp` (vocabolario zone in `EveryZoneOwnerIsMountedByClass`; pulizia del commento «sette widget»)
 
 **Interfaces:** nessuna.
 
@@ -1059,7 +1059,7 @@ Sostituire «i sette widget» con una formulazione che non conti a mano — ad e
 - [ ] **Step 5: Commit**
 
 ```bash
-git add docs/technical/runbooks/guida-screen-hud-umg.md Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp
+git add docs/technical/runbooks/guida-screen-hud-umg.md Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp
 git commit -m "docs(hud): la guida descrive le otto zone, e i gate parlano lo stesso vocabolario
 
 §3 diceva che il BOTTOM contiene WBP_RT_FastDecision a runtime. L'asset non lo

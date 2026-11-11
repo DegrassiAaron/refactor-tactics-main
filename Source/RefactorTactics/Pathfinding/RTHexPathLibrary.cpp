@@ -1,11 +1,11 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexCoverLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
-#include "Map/RTGeometryGrammar.h"
+#include "Map/Structure/RTGeometryGrammar.h"
 #include "Map/RTHexOccupancyLibrary.h"
-#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/Cover/RTHexCoverPlacementLibrary.h"
 #include "Algo/Reverse.h"
 
 

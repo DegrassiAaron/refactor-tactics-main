@@ -17,7 +17,7 @@
 costo, perché nessuno te lo dirà dopo.
 
 `MoveCost` (`Source/RefactorTactics/Map/RTHexCellData.h`) e `RoundLimit`
-(`Source/RefactorTactics/Turn/RTMatchFormatData.h`) sono `int32`. Nel pannello Details di Unreal il
+(`Source/RefactorTactics/Turn/Format/RTMatchFormatData.h`) sono `int32`. Nel pannello Details di Unreal il
 campo **accetta** che tu digiti `2.7` — `IsCharacterValid` ammette esplicitamente il punto — e il
 valore viene **distrutto prima** che qualunque `UPROPERTY` lo veda:
 `TDefaultNumericTypeInterface::FromString` fallisce il parse decimale per un tipo integrale, cade

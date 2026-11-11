@@ -129,10 +129,10 @@ test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
 >
 > | file | righe non-commento vs candidate |
 > |---|---|
-> | `Map/RTHexMapActor.cpp` | **0** |
-> | `Map/RTOverlayPalette.h` | **0** |
-> | `Tests/RTMovementResumeTests.cpp` | **0** |
-> | `Tests/RTGoldenCorpusTests.cpp` | **53** — ed è un file di **test** |
+> | `Map/Actor/RTHexMapActor.cpp` | **0** |
+> | `Map/Actor/RTOverlayPalette.h` | **0** |
+> | `Tests/Turn/Resolution/RTMovementResumeTests.cpp` | **0** |
+> | `Tests/Turn/Log/RTGoldenCorpusTests.cpp` | **53** — ed è un file di **test** |
 >
 > ✅ **Una partita non esegue i test**, quindi il binario di gioco si comporta come il candidate e le
 > sedute `G13`/`G16` **non** sono invalidate. ⛔ Fare checkout di `95eddfd37` per scrupolo costerebbe i
@@ -242,7 +242,7 @@ git log --oneline 2f765c08f..95eddfd37 -- Source/
 🔑 **E tocca il sistema che `G11` misura.** Il cronometraggio entra in `ResolveReactionBoundary` —
 chiamata da `Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp:421`, dentro la risoluzione del
 movimento — e in `PumpReactionTriggers`. I tre KPI che sono test Automation stanno in
-`Source/RefactorTactics/Tests/RTHexPerfTests.cpp`: `RefactorTactics.Perf.PathfindingMedian`,
+`Source/RefactorTactics/Tests/Turn/RTHexPerfTests.cpp`: `RefactorTactics.Perf.PathfindingMedian`,
 `RefactorTactics.Perf.PlanningPreviewMedian`, `RefactorTactics.Perf.TurnResolverMedian`. Il quarto è
 una cattura CSV sul pacchetto Development, che `G12` dichiara staged da `95eddfd37`.
 
@@ -382,7 +382,7 @@ git log -1 --oneline -- Content/RT/UI/Match/WBP_RT_EventLog.uasset
 
 ∴ la prima ipotesi è **falsa** — la correzione di `#2831` ha toccato proprio quell'asset, ed è
 l'ultimo commit che lo tocca. Scrivere prima il test headless che cammina il grafo (sul modello di
-`Source/RefactorTacticsEditor/Private/Tests/RTActionSlotClickWiringTests.cpp`) evita di spendere una
+`Source/RefactorTacticsEditor/Private/Tests/Wiring/RTActionSlotClickWiringTests.cpp`) evita di spendere una
 seduta d'Editor su un difetto inesistente.
 
 ⚠️ **E l'asserto va scritto nel verso giusto.** Nel grafo non esiste un nodo di sequenziamento — niente
@@ -396,7 +396,7 @@ visitare più successori. L'asserto opposto andrebbe rosso sul grafo **corretto*
 Il titolo dice *«i sei compositori di `ARTHUD` hanno zero consumatori»*. Oggi sono **cinque** senza
 consumatore — `ComposeMatchStatusLine`, `ComposeSlotLineStyle`, `ComposePreviewZoneLine`,
 `ComposePlaybackSpeedLabel`, `ComposeSlotLines` — mentre `ComposeAbilityLine` ha un chiamante di
-produzione reale a `Source/RefactorTactics/UI/RTScreenHudWidgets.cpp:613`, esposto come
+produzione reale a `Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.cpp:613`, esposto come
 `GetActionLine()` e pinnato per uguaglianza da
 `RefactorTactics.ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud`.
 

@@ -381,7 +381,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 
 **Implementato e verificato** (TDD per la logica pura, PIE+log per il wiring):
 
-- **AN.1** ✅ — `FRTResolvedEvent` (`Turn/RTResolvedEvent.h`) + timeline popolata in `LockInAndResolve`
+- **AN.1** ✅ — `FRTResolvedEvent` (`Turn/Resolution/RTResolvedEvent.h`) + timeline popolata in `LockInAndResolve`
   (eventi Move/Attack). Matematica pura in `URTPlaybackLibrary` (`InterpolateAlongPath`,
   `EstimatePlaybackSeconds`, `SpeedMultiplierForCap`) con **5 test** (`RTPlaybackLibraryTests.cpp`), RED→GREEN.
   > ⚠️ **Aggiornamento del 2026-08-31**: `EstimatePlaybackSeconds` **non esiste più**. Era la stima

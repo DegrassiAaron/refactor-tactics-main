@@ -8,9 +8,9 @@
 #include "Serialization/JsonWriter.h"
 
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Unit/RTUnitAnimInstance.h"   // RTClipIsAdditive, RTRoleWantsAFullBodyClip: lo stesso criterio del runtime (#3596)

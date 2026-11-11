@@ -159,7 +159,7 @@ I test Overwatch esistenti coprono l'**interruzione** — `Overwatch.FireTruncat
 🔎 **Misura aggiunta il 2026-08-31 su `188183b9`, e precisa la diagnosi del DoD.** Il difetto non è che
 manchi un test: è che manca il **produttore**. `URTFacingLibrary::ReadFacingForConsumer` esiste, il
 vocabolario esiste (`ERTFacingOutcome::UsedByBlast`, `UsedByOverwatch`), il mapper del log li descrive — e
-**nessun codice di gioco la chiama**. Lo dichiara il repository stesso in `Turn/RTTurnLog.h:659`:
+**nessun codice di gioco la chiama**. Lo dichiara il repository stesso in `Turn/Log/RTTurnLog.h:659`:
 *«`ReadFacingForConsumer` […] non ha nessun chiamante in gioco — solo due test. Quelle due voci non entrano
 in nessuna traccia reale.»*
 

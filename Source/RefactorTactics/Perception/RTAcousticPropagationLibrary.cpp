@@ -1,7 +1,7 @@
 #include "Perception/RTAcousticPropagationLibrary.h"
 
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexCoverLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Terrain/RTTerrainLibrary.h"

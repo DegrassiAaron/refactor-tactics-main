@@ -11,10 +11,10 @@
 
 | Anello | Dove | Stato |
 |---|---|---|
-| **Il produttore della LOS, uno solo** | `URTHexVisionLibrary::HasLineOfSight` · `DescribeLineOfSight` (`Map/RTHexVisionLibrary.h:126,151`) | ✅ esiste, con spec owner |
+| **Il produttore della LOS, uno solo** | `URTHexVisionLibrary::HasLineOfSight` · `DescribeLineOfSight` (`Map/Vision/RTHexVisionLibrary.h:126,151`) | ✅ esiste, con spec owner |
 | **Il risultato è già ricco** | `FRTLineOfSightResult`: `Block`, `BlockedAt`, `BlockedFrom`, `StepIndex` | ✅ dice **dove** e **di che tipo** |
 | **Il classificatore del bersaglio** | `URTCombatLibrary::ClassifyHexTargeting` → `Ok` · `OutOfRange` · `NoLineOfSight` · `NoMap` | ✅ **distingue già portata da copertura** |
-| **L'ispezione da console** | `rt.Debug.Los <fromQ> <fromR> <toQ> <toR>` (`Map/RTHexLosConsole.cpp`) | ✅ ma **stampa, non disegna** — per scelta dichiarata |
+| **L'ispezione da console** | `rt.Debug.Los <fromQ> <fromR> <toQ> <toR>` (`Map/Vision/RTHexLosConsole.cpp`) | ✅ ma **stampa, non disegna** — per scelta dichiarata |
 | **Il modello degli overlay** | **#1941** OVL-01, e la famiglia #1942 · #1943 · #1944 | 🔴 **aperta** |
 | **La resa attuale in pianificazione** | `DrawPlanningPreview`: cinque significati, cinque `FColor` **letterali** | ⚠️ senza modello |
 

@@ -81,7 +81,7 @@ Decisioni precedenti che governano, già accettate:
 ## 2. Il problema, misurato
 
 **Il momento esiste, il fumetto no.** Ogni intento con un `ActionId` emette `AbilityActivated`
-(`ERTResolvedEventType`, `Turn/RTResolvedEvent.h:160-177`; costruttore unico `EmitAbilityActivated`,
+(`ERTResolvedEventType`, `Turn/Resolution/RTResolvedEvent.h:160-177`; costruttore unico `EmitAbilityActivated`,
 `Turn/RTTurnManager.cpp:418-465`) in Prep, Dash e Blast, con `SourceStableUnitId`, `ActionId`,
 `BaseActionId`, `Origin` e il `SourceVerdict` di privacy congelato all'emissione (`RTResolvedEvent.h:283,
 :409, :427, :470, :338`). Il consumatore è `ARTTurnManager::ShowActivation` (`RTTurnManager.cpp:9039-9049`):
@@ -90,7 +90,7 @@ BaseActionId)`. Nessun testo compare sopra l'unità.
 
 **La cadenza.** Le attivazioni di Prep e Dash si svelano una per volta, `AttacksToShow(N, Elapsed,
 AttackShowSeconds)` = `Min(N, 1 + Floor(t / A))` (`RTTurnManager.cpp:9842-9853`,
-`Turn/RTPlaybackLibrary.h:174-188`); il Blast scorre una sequenza per atto allo stesso passo
+`Turn/Playback/RTPlaybackLibrary.h:174-188`); il Blast scorre una sequenza per atto allo stesso passo
 (`:9868-9886`). Tempi di default in `Turn/RTTurnManager.h`: `AttackShowSeconds` 0,50 s (`:1453`),
 `ActivationCueSeconds` 0,35 s (`:1469`), `PhaseBeatSeconds` 0,30 s (`:1449`). **Nessuna formula di durata
 della fase riserva tempo a un fumetto da 3 s**: sopravvive alla fase e, senza una regola, al playback.
@@ -123,9 +123,9 @@ va a parete (`NativeTick`).
 (`Ability/RTActionDef.h:531-544`) dice *«di quale azione generica questa è un profilo … `None` per le azioni
 che non sono profilo di niente: le generiche stesse, e le abilità firma»*; il doc-comment scarta
 esplicitamente la deduzione dal nome. Ogni attacco base d'eroe lo dichiara (`MakeHeroBasicAttack`,
-`Ability/RTHeroCatalogLibrary.cpp:163-168`, `BaseActionId = Action.BasicAttack`, pinnato da
+`Ability/Catalog/RTHeroCatalogLibrary.cpp:163-168`, `BaseActionId = Action.BasicAttack`, pinnato da
 `RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction`). Le generiche hanno `ActionId` nel catalogo core
-(`URTCatalogLibrary::FindCoreAction`, `Ability/RTCatalogLibrary.h:512`). I siti che emettono
+(`URTCatalogLibrary::FindCoreAction`, `Ability/Catalog/RTCatalogLibrary.h:512`). I siti che emettono
 `AbilityActivated` sono le coperture (`RTTurnManager.cpp:4567`, `:4676`), le generiche di Prep (`:4788`,
 `:4852`, `:4932`), il Dash (`:5487`), le reazioni (`:6258`) e ogni colpo del Blast con `ActionId` (`:7394`).
 L'evento porta già `BaseActionId` (`RTResolvedEvent.h:427`).
@@ -133,9 +133,9 @@ L'evento porta già `BaseActionId` (`RTResolvedEvent.h:427`).
 **Il posto esiste.** Sopra ogni unità vive `ARTUnit::OverlayWidget`, un `UWidgetComponent` in **screen
 space** ancorato alla sommità dell'unità, `DrawSize` 220×90 (stato misurato; oggi 220×228, vedi §4), pivot (0.5, 1), che nasce spento e che il velo
 accende (`Unit/RTUnit.cpp:176-230`; classe di default `/Game/RT/UI/Match/WBP_RT_UnitOverlay`). Il widget
-`URTUnitOverlayWidget` (`UI/RTUnitOverlayWidget.h:34`) porta `NameText`, `HealthBar`, `HealthText`,
+`URTUnitOverlayWidget` (`UI/Feed/RTUnitOverlayWidget.h:34`) porta `NameText`, `HealthBar`, `HealthText`,
 `ShieldBar`, `StatusBox` e `DamageTokenText` (`:159-204`): il **token di danno** è il precedente più vicino,
-`PushDamageToken` (`UI/RTUnitOverlayWidget.cpp:228-258`) posa un testo già composto, riparte da zero a ogni
+`PushDamageToken` (`UI/Feed/RTUnitOverlayWidget.cpp:228-258`) posa un testo già composto, riparte da zero a ogni
 evento («un evento, un token»), e `NativeTick` (`:266-291`) lo fa svanire in `DamageTokenSeconds` 0,9 s
 (`RTUnitOverlayWidget.h:208`) e poi lo **collassa**, non lo lascia trasparente.
 
@@ -150,18 +150,18 @@ playback solo se `Ev.SourceVerdict.AllowsTeam(ViewerTeamId)` (`RTTurnManager.cpp
 
 **Il cablaggio osservabile senza rendering ha un modello.** `ARTUnit::ShowDamageToken`
 (`RTUnit.cpp:310-330`) scrive **sempre** il campo `Transient` `LastDamageToken` (`RTUnit.h:2143-2164`),
-composto dalla funzione pura `URTHudViewModel::BuildDamageToken` (`UI/RTHudViewModel.cpp:1394`), e aggiorna
+composto dalla funzione pura `URTHudViewModel::BuildDamageToken` (`UI/HUD/RTHudViewModel.cpp:1394`), e aggiorna
 il widget **se c'è**; in un mondo headless il widget non c'è e il test legge il campo. Nessun controllo sul
 velo in quel punto, «ed è deliberato» (`:326-329`).
 
 **Il nome della skill esiste, cablato.** `FText URTActionData::DisplayName` (`Ability/RTActionData.h:105`),
 letto da `ARTUnit::KitDisplayNameFor(ActionId)` (`RTUnit.h:909`, `RTUnit.cpp:1930-1940`); i valori vengono
-da mappe C++ `FText::FromString` (`Ability/RTHeroCatalogLibrary.cpp:48-88` per gli eroi,
-`Ability/RTCatalogLibrary.cpp:2060-2071` per cinque generiche). Non è localizzabile, e per questa fetta
+da mappe C++ `FText::FromString` (`Ability/Catalog/RTHeroCatalogLibrary.cpp:48-88` per gli eroi,
+`Ability/Catalog/RTCatalogLibrary.cpp:2060-2071` per cinque generiche). Non è localizzabile, e per questa fetta
 basta (A2).
 
 **La vista strategica non spegne l'overlay.** `OverlayWidget` dipende solo da `bRender`;
-`ARTUnit::bStrategicPresentation` esiste (`RTUnit.cpp:505-520`, scritto dall'HUD a `UI/RTHUD.cpp:998`) ma non
+`ARTUnit::bStrategicPresentation` esiste (`RTUnit.cpp:505-520`, scritto dall'HUD a `UI/HUD/RTHUD.cpp:998`) ma non
 lo governa. Il fumetto deve spegnersi da solo per rispettare D-582.
 
 **Non esiste** nessun widget, asset o issue di tipo fumetto, callout o speech bubble (ricognizione su
@@ -200,7 +200,7 @@ fumetti possono essere vivi insieme su unità diverse.
 > dice, ma il Registro a destra **non** porta la riga `Attiva:`. La stringa va solo nel log del motore e in
 > `RecentEvents` (`ShowActivation` → `AddLogEvent`); `GetRecentEventsForTeam` non ha nessun chiamante nei sorgenti
 > non di test (`git grep -n GetRecentEventsForTeam -- Source` fuori dai `Tests/`); il Registro si compone dal
-> `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/RTHudViewModel.h:1360-1361`). Quindi
+> `TurnLog` tipizzato, e il canale testuale «non entra in questa catena» (`UI/HUD/RTHudViewModel.h:1360-1361`). Quindi
 > l'informazione che D-582 (3) vuole nella vista strategica oggi non c'è: seguito
 > [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
 > [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)). ➕ *Chiusa da [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033): il Registro ha una riga «unità — azione» per ogni attivazione che il playback mostra, in vista tattica come in vista strategica ([spec](2026-11-10-registro-attivazione-design.md)).*
@@ -230,7 +230,7 @@ fumetti possono essere vivi insieme su unità diverse.
 - Localizzazione dei nomi: i nomi restano le mappe C++ di oggi.
 - Cut-in, freeze-frame, onomatopee del «Master GDD» (D-591): input di ricerca, non requisito.
 - Cambiare la cadenza del playback (A5).
-- Replay Viewer: ha un tick proprio (`Replay/RTReplayScreenWidgets.cpp:232`) e non consuma
+- Replay Viewer: ha un tick proprio (`Replay/Viewer/RTReplayScreenWidgets.cpp:232`) e non consuma
   `AbilityActivated`; resta fuori.
 
 ### 3.4 Anti-obiettivi (cosa lo rende un fallimento anche se funziona)
@@ -253,8 +253,8 @@ ARTTurnManager::ShowActivation(Ev)                              Turn/RTTurnManag
   └─ se URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsCore)   NUOVO, pura (R1b)
        Src->ShowSkillCallout(Ev.ActionId, Ev.BaseActionId, SkillCalloutClock)    NUOVO, Unit/RTUnit.{h,cpp}
          ├─ LastSkillCallout = URTHudViewModel::BuildSkillCallout(DisplayName, ActionId, StableUnitId, StartAt)
-         │     (campo Transient, SEMPRE scritto: osservabile headless)            NUOVO, UI/RTHudViewModel
-         └─ se c'è il widget: Overlay->PushSkillCallout(LastSkillCallout)        NUOVO, UI/RTUnitOverlayWidget
+         │     (campo Transient, SEMPRE scritto: osservabile headless)            NUOVO, UI/HUD/RTHudViewModel
+         └─ se c'è il widget: Overlay->PushSkillCallout(LastSkillCallout)        NUOVO, UI/Feed/RTUnitOverlayWidget
                ├─ SkillCalloutText / SkillCalloutRoot (BindWidgetOptional)          WBP_RT_UnitOverlay (asset)
                └─ SkillCalloutSeconds = 3.0 (EditDefaultsOnly)
 ARTTurnManager::TickPlayback (ogni fotogramma in cui l'orologio avanza)  RTTurnManager.cpp:9562
@@ -274,7 +274,7 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
 - **`FRTSkillCalloutView`** (nuova struct, `UI/`): `SourceStableUnitId`, `ActionId`, `Label` (FString già
   composto), `bFromFallback` (vero se R3 è scattata), `StartAt` (secondi di `SkillCalloutClock` alla
   comparsa). Composta da una funzione **pura** con un test che chiama senza widget, come `BuildDamageToken`
-  (`Tests/RTHudViewModelTests.cpp:1145`).
+  (`Tests/UI/HUD/RTHudViewModelTests.cpp:1145`).
 - **Il tempo lo porta il TurnManager, il widget non lo misura.** È il modello delle cue (`PushPlaybackCues`),
   non quello del token: il widget riceve `Now` e calcola l'alpha con una funzione pura; se nessuno gli porta
   il tempo, il fumetto resta fermo, che è il comportamento voluto in pausa. Come `Now` arrivi al widget
@@ -293,7 +293,7 @@ ARTUnit::SetStrategicPresentation(bStrategic)                    RTUnit.cpp:505
   cresce verso l'alto, e il `TopSpacer` in Fill del WBP impila il contenuto in basso: rispetto al layout
   impilato in alto l'ancoraggio cambia una volta, nome e barra stanno a distanza fissa sopra la testa, il
   fumetto comparendo sale senza spostare la barra, e una riga di stati in più spinge su nome e fumetto.
-  `Tests/RTHudOverlayClampTests.cpp` non dipende dal valore.
+  `Tests/UI/HUD/Intent/RTHudOverlayClampTests.cpp` non dipende dal valore.
 - **L'asset** `WBP_RT_UnitOverlay` si modifica **in Editor, dal clone principale** (CLAUDE.md §10); il C++
   deve restare completo anche se il WBP non porta i nuovi elementi (`BindWidgetOptional`, degrado
   dichiarato come per `DamageTokenText`).
@@ -339,7 +339,7 @@ correggerà lì.
 | Gate | Cosa prova | Stato atteso alla PR |
 |---|---|---|
 | Automation, funzioni pure | `ActionShouts`: vero per una skill firma (`Hero.X.Y`, `BaseActionId` None, non core), falso per l'attacco base (`BaseActionId = Action.BasicAttack`), falso per una generica core (`Action.Guard`). `BuildSkillCallout`: nome dal kit; fallback a `BaseActionId`; fallback R3 con `bFromFallback`; `StableUnitId` conservato (`0` = nessuno, D-063); `StartAt` conservato. `SkillCalloutAlpha`: 1 nel pieno, 0 a `Seconds`, `Seconds <= 0` → 0 (come `FadeAlpha`). | `PASS` |
-| Automation, cablaggio headless | In una partita di test, dopo un playback con un `AbilityActivated` visibile di una **skill**, `LastSkillCallout` della sorgente porta quell'`ActionId` e uno `StartAt` coerente con l'orologio; un'attivazione **filtrata** dal verdetto non lo scrive; un **attacco base** mostrato non lo scrive. Modello: i test che leggono `LastDamageToken` (`Tests/RTHealAreaTests.cpp`, `Tests/RTMatchAutobattleTests.cpp`). | `PASS` |
+| Automation, cablaggio headless | In una partita di test, dopo un playback con un `AbilityActivated` visibile di una **skill**, `LastSkillCallout` della sorgente porta quell'`ActionId` e uno `StartAt` coerente con l'orologio; un'attivazione **filtrata** dal verdetto non lo scrive; un **attacco base** mostrato non lo scrive. Modello: i test che leggono `LastDamageToken` (`Tests/Combat/Damage/RTHealAreaTests.cpp`, `Tests/Player/RTMatchAutobattleTests.cpp`). | `PASS` |
 | Automation, suite intera | Nessuna regressione (`FindMissingBindings` in `RTPresentationBinding.cpp:273` se il builder registra il nuovo consumatore). | `PASS` |
 | Compile | Target Editor. | `PASS` |
 | PIE | Una partita in cui: (a) una skill propria mostra il fumetto per circa 3 s sopra il nome; (b) una skill nemica **visibile** lo mostra; (c) un nemico **non osservato** non mostra nulla; (d) due unità attivano nello stesso Blast e i due fumetti sono vivi insieme; (e) in vista strategica il fumetto sparisce e la riga `Attiva:` sta nel log; (f) a fine playback nessun fumetto resta in pianificazione; (g) un **attacco base** non grida ⌫ *(superato da [`D-604`](../../decisions/RT_PDR_00_Decision_Log.md): grida)*; (h) con ESC durante il playback il fumetto resta fermo e riprende con il playback; (i) se una skill nemica apre una finestra di reazione, il suo fumetto resta visibile per tutta la finestra. Registrata in `editor-sessions.yaml`. | `PASS` con catture |

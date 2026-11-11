@@ -176,7 +176,7 @@ Misurato su `origin/main`:
 
 | Fatto | Dove |
 |---|---|
-| `URTPlaybackLibrary::RouteAlpha(RouteSegments, PhaseElapsed, CellsPerSecond)` esiste | `Turn/RTPlaybackLibrary.h` |
+| `URTPlaybackLibrary::RouteAlpha(RouteSegments, PhaseElapsed, CellsPerSecond)` esiste | `Turn/Playback/RTPlaybackLibrary.h` |
 | è applicata per-anim in `TickPlayback`, con il `Blast` escluso **di proposito** | `Turn/RTTurnManager.cpp:7581-7606` |
 | commit che l'ha introdotta | `5f33c331` — *fix(2370): in parallelo e' partire insieme, non finire insieme*, **2026-09-05 00:39** |
 | issue owner | [`#2370`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2370) — **CLOSED**, PR `#2377` |

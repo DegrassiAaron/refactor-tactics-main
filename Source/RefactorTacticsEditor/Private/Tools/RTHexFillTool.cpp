@@ -1,9 +1,9 @@
 #include "Tools/RTHexFillTool.h"
-#include "RTHexEditorClick.h"
+#include "HexMode/RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "ScopedTransaction.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Terrain/RTTerrainLibrary.h"
 

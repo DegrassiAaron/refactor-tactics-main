@@ -9,7 +9,7 @@
 #include "Misc/EngineVersion.h"
 
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPath.h"
 #include "Pathfinding/RTHexPathLibrary.h"

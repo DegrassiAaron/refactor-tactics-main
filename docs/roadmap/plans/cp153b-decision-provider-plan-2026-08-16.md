@@ -23,8 +23,8 @@ Valgono per **ogni** task, senza ripeterli:
 
 - **Write-set.** Solo questi cinque path. Qualunque altro file è **STOP**, e si emenda
   `../parallel-batch.yaml` **prima** di scrivere, mai dopo:
-  `Source/RefactorTactics/ScenarioHarness/` · `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp` ·
-  `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp` · questo piano · il referto di design.
+  `Source/RefactorTactics/ScenarioHarness/` · `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp` ·
+  `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp` · questo piano · il referto di design.
 - **`Scenarios/` è `integration_only`.** In fase A **nessun JSON del corpus si tocca**: gli scenari di prova
   si costruiscono in memoria, come già fa `RefactorTactics.ShowcaseRelay.ScriptedInputsDriveMatch`.
 - **`DecisionBoundary` resta in `KnownUnavailableCapabilities()`** per tutta la fase A. Scoprirla è fase B:
@@ -81,13 +81,13 @@ L'esito sta nel log, **non** nello stdout: `grep -E "Test Completed|Success|Fail
 
 | File | Responsabilità | Task |
 |---|---|---|
-| `ScenarioHarness/RTTestScenario.h` | il tipo `FRTScenarioDecision` e il campo `Decisions` sul turno | 1 |
-| `ScenarioHarness/RTScenarioLoader.cpp` | parsing e **validazione** dello schema; `KnownTurnKeys` | 1, 2, 3 |
-| `ScenarioHarness/RTScenarioLoader.h` | `SupportedVersion` | 4 |
+| `ScenarioHarness/Authoring/RTTestScenario.h` | il tipo `FRTScenarioDecision` e il campo `Decisions` sul turno | 1 |
+| `ScenarioHarness/Authoring/RTScenarioLoader.cpp` | parsing e **validazione** dello schema; `KnownTurnKeys` | 1, 2, 3 |
+| `ScenarioHarness/Authoring/RTScenarioLoader.h` | `SupportedVersion` | 4 |
 | `ScenarioHarness/RTScenarioSession.h/.cpp` | bind, traduzione, coda, residuo, rifiuto, vocabolario | 5, 6, 7, 9, 10 |
-| `ScenarioHarness/RTTestResult.h` · `RTTestReportWriter.cpp` | contatori, token applicato, sorgente attiva | 5, 7 |
-| `Tests/RTScenarioLoaderTests.cpp` | schema, validazione, divisione del vocabolario | 1-4, 10 |
-| `Tests/RTShowcaseScenarioTests.cpp` | bind, coda, residuo, precedenza, rifiuto, mutazione | 5-9 |
+| `ScenarioHarness/Report/RTTestResult.h` · `RTTestReportWriter.cpp` | contatori, token applicato, sorgente attiva | 5, 7 |
+| `Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp` | schema, validazione, divisione del vocabolario | 1-4, 10 |
+| `Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp` | bind, coda, residuo, precedenza, rifiuto, mutazione | 5-9 |
 
 **Copertura del DoD** — sei voci, e dove ciascuna si chiude:
 
@@ -105,9 +105,9 @@ L'esito sta nel log, **non** nello stdout: `grep -E "Test Completed|Success|Fail
 ## Task 1: il tipo e il parsing minimo
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTTestScenario.h` (accanto a `FRTScenarioTurn`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` (ciclo dei turni, ~riga 326-353)
-- Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h` (accanto a `FRTScenarioTurn`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` (ciclo dei turni, ~riga 326-353)
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp`
 
 **Interfaces:**
 - Produce: `struct FRTScenarioDecision { FString Unit; FString Respond; FString Target; }` e
@@ -258,9 +258,9 @@ Atteso: `Success`. Se il turno non porta due decisioni, stampa `Error` e confron
 - [x] **Passo 6 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/RTTestScenario.h \
-        Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \
-        Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h \
+        Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp \
+        Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 git commit -m "feat(512): le decisioni di finestra sono un dato dello scenario, non un binding di test"
 ```
 
@@ -269,8 +269,8 @@ git commit -m "feat(512): le decisioni di finestra sono un dato dello scenario, 
 ## Task 2: la validazione dello schema
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` (il blocco del task 1)
-- Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` (il blocco del task 1)
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp`
 
 **Interfaces:**
 - Consuma: `FRTScenarioDecision` dal task 1.
@@ -405,8 +405,8 @@ deve essere diventato rosso.
 - [x] **Passo 5 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \
-        Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp \
+        Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 git commit -m "feat(512): uno scenario scritto male e' un errore leggibile, non un HOLD silenzioso"
 ```
 
@@ -418,8 +418,8 @@ Oggi il controllo sulle chiavi sconosciute esiste **solo dentro `intents`**. A l
 refuso `desicions` verrebbe ignorato, il turno cadrebbe su `HoldNoDecider` e resterebbe verde.
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` (ciclo dei turni)
-- Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` (ciclo dei turni)
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp`
 
 - [x] **Passo 1 — misura che il corpus regga, prima di scrivere**
 
@@ -529,8 +529,8 @@ misura del passo 1 è stata saltata.
 - [x] **Passo 6 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \
-        Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp \
+        Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 git commit -m "feat(512): un refuso a livello di turno smette di essere ignorato"
 ```
 
@@ -539,8 +539,8 @@ git commit -m "feat(512): un refuso a livello di turno smette di essere ignorato
 ## Task 4: `SupportedVersion` a 2
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h:24`
-- Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.h:24`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp`
 
 - [x] **Passo 1 — scrivi il test che fallisce**
 
@@ -600,8 +600,8 @@ Atteso: `Success`. Rilancia `RefactorTactics.Scenario` per intero.
 - [x] **Passo 5 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h \
-        Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.h \
+        Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 git commit -m "feat(512): il formato scenario dichiara la versione che ammette le decisioni"
 ```
 
@@ -644,7 +644,7 @@ Qui nasce il test che il DoD nomina per nome.
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h` (stato della coda)
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` (bind ~riga 495, unbind in `TearDown`)
-- Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 **Interfaces:**
 - Consuma: `FRTScenarioDecision`, `FRTScenarioTurn::Decisions` (task 1).
@@ -732,7 +732,7 @@ Atteso: **errore di compilazione** — `ScriptedDecisionsApplied` non esiste su 
 
 - [x] **Passo 3 — i due contatori nel referto**
 
-In `ScenarioHarness/RTTestResult.h`, dentro `FRTTestResult`:
+In `ScenarioHarness/Report/RTTestResult.h`, dentro `FRTTestResult`:
 
 ```cpp
 	/** Quante decisioni scriptate sono state effettivamente APPLICATE a una finestra. */
@@ -871,7 +871,7 @@ Entrambi devono restare verdi: `RTScenarioSession.cpp` alimenta `project-graph.j
 - [x] **Passo 8 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
 git commit -m "feat(512): il seam esisteva da CP 14.5 e nessuno lo bindava — ora lo scenario risponde"
 ```
 
@@ -906,7 +906,7 @@ git commit -m "feat(512): il seam esisteva da CP 14.5 e nessuno lo bindava — o
 
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp`
-- Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 - [x] **Passo 1 — scrivi il test che fallisce**
 
@@ -1058,7 +1058,7 @@ se lo è, il suo turno apriva più finestre di quante decisioni dichiarasse, e i
 - [x] **Passo 6 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
 git commit -m "feat(512): una decisione mai consumata fa cadere il turno invece di restare un avanzo"
 ```
 
@@ -1090,8 +1090,8 @@ git commit -m "feat(512): una decisione mai consumata fa cadere il turno invece 
 
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h/.cpp` (`DecisionSource`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/RTTestResult.h` · `RTTestReportWriter.cpp`
-- Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/Report/RTTestResult.h` · `RTTestReportWriter.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 - [x] **Passo 1 — scrivi il test che fallisce**
 
@@ -1178,7 +1178,7 @@ sbagliata e va detto invece che aggirato.
 - [x] **Passo 5 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
 git commit -m "feat(512): con due sorgenti, quale ha parlato si scrive invece di dedurlo"
 ```
 
@@ -1213,7 +1213,7 @@ rimosso in `DeriveOpportunityId`, tenuto verde pur non potendo fallire. La verif
 **comportamentale**: prova che il turno *dipende* dalla decisione.
 
 **Files:**
-- Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 - [x] **Passo 1 — scrivi il test**
 
@@ -1285,7 +1285,7 @@ TurnLog e cerca la voce della decisione.
 - [x] **Passo 3 — commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+git add Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
 git commit -m "test(512): la mutazione che prova che la decisione conta, invece del divieto che il tipo gia' impone"
 ```
 
@@ -1326,7 +1326,7 @@ La session deve leggerlo e farlo cadere.
 
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp`
-- Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 - [x] **Passo 1 — scrivi il test che fallisce**
 
@@ -1410,7 +1410,7 @@ A fine turno, prima del controllo sul residuo:
 ```
 
 ⚠️ **Verifica i nomi del TurnLog prima di scrivere**: `grep -n "struct FRTTurnLogEntry" -A 30
-Source/RefactorTactics/Turn/RTTurnLog.h` per il nome del campo (`Outcome`, `uint8`) e per come si distingue
+Source/RefactorTactics/Turn/Log/RTTurnLog.h` per il nome del campo (`Outcome`, `uint8`) e per come si distingue
 una voce di decisione dalle altre. Il ciclo qui sopra assume che `Outcome` sia significativo solo su quelle
 voci: se non è così, filtra prima per categoria. ⛔ `RTTurnLog.h` **non è nel write-set** — si legge, non si
 tocca.
@@ -1424,7 +1424,7 @@ motivo sbagliato. **È l'informazione più utile che questo task possa produrre.
 - [x] **Passo 5 — commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
 git commit -m "feat(512): una risposta rifiutata smette di essere indistinguibile da un HOLD scelto"
 ```
 
@@ -1462,7 +1462,7 @@ funzione, questa riga smette di essere vera e va divisa»* — e quel giorno è 
 
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp:40-53`
-- Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
+- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp`
 
 - [x] **Passo 1 — rimisura il grep che il commento nomina, invece di fidarti della prosa**
 
@@ -1550,7 +1550,7 @@ comportamento — se un file passa da `BLOCKED` a qualcos'altro, hai scoperto la
 ```bash
 python scripts/feature_registry.py generate --check
 python scripts/feature_registry.py shortlist --check
-git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 git commit -m "feat(512): Reaction si divide alla condizione che il suo commento aveva gia' scritto"
 ```
 

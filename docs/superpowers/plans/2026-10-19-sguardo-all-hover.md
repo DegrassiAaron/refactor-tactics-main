@@ -31,23 +31,23 @@ Citati per simbolo. Misurati da una ricognizione in sola lettura sul worktree.
 | `ARTPlayerController::PlayerTick` risolve solo una **cella** (`ResolveCellUnderCursor`) e chiama `ARTHexMapActor::SetHoveredCell`. Non costruisce `FRTPointerCandidates`, non conosce `bObserved` ne' `bCommandable` | `Player/RTPlayerController.cpp` |
 | `FRTPointerCandidates` e `ResolveTarget` sono usati al click, nel ramo `Targeting`, con candidati quasi vuoti (`bHasCell` e `Cell`). `bCommandable` (`URTCombatLibrary::CanPlayerControlUnitInGroup`) e `bObserved` (`ARTUnit::IsKnownToObserver`) compaiono in piu' punti del controller, non solo in `DispatchUnitClick` (`grep -cE "CanPlayerControlUnitInGroup\|IsKnownToObserver\(\)" Player/RTPlayerController.cpp` > 1). ➕ rev. | idem |
 | ➕ rev. **`bMapElement`, `bGhost` e `bHasEdge` non hanno nessun produttore fuori dai test**: compaiono solo nei rami di `ResolveTarget`. L'hover non sa trovare una porta, un obiettivo, un bordo o un ghost dal raggio: `grep -rnE "bMapElement\|bGhost\|bHasEdge" Source --include=*.cpp --include=*.h` esclusi `Tests/` e l'header | `Player/RTPointerInteraction.cpp` |
-| ➕ rev. L'HUD usa **due** fonti di conoscenza: `KnowledgeForTeamPublic` (canonica; `CurrentRefusedShotLine`) e `PlaybackKnowledgeForTeam` (le unita'; in playback ricalcola le celle in vista dalle pose animate) | `UI/RTHUD.cpp` |
-| ➕ rev. `FRTStatusBadgeView::Tag` e' un `FName`; `RTGlossary::KeyForStatus` vuole un `FGameplayTag` | `UI/RTHudViewModel.h`, `UI/RTGlossary.h` |
+| ➕ rev. L'HUD usa **due** fonti di conoscenza: `KnowledgeForTeamPublic` (canonica; `CurrentRefusedShotLine`) e `PlaybackKnowledgeForTeam` (le unita'; in playback ricalcola le celle in vista dalle pose animate) | `UI/HUD/RTHUD.cpp` |
+| ➕ rev. `FRTStatusBadgeView::Tag` e' un `FName`; `RTGlossary::KeyForStatus` vuole un `FGameplayTag` | `UI/HUD/RTHudViewModel.h`, `UI/Inspect/RTGlossary.h` |
 | ➕ rev. `ARTUnit::Facing` e' il verso *autorevole*, che a fine playback la mesh deve raggiungere: non e' misurato quando cambia rispetto al playback (come `Cell`, #3458) | `Unit/RTUnit.h` |
 | ➕ rev. `GetPointerContext` non sembra produrre `ReactionWindow` (da misurare nel Task 5): l'inerzia in finestra di reazione potrebbe essere solo nominale | `Player/RTPlayerController.cpp` |
-| ➕ rev. `BuildUnitOverlay` e' chiamata nel `Tick` della HUD, mentre il bersaglio arriva da `PlayerTick`: lo sguardo ha un fotogramma di ritardo, dichiarato | `UI/RTHUD.cpp` |
+| ➕ rev. `BuildUnitOverlay` e' chiamata nel `Tick` della HUD, mentre il bersaglio arriva da `PlayerTick`: lo sguardo ha un fotogramma di ritardo, dichiarato | `UI/HUD/RTHUD.cpp` |
 | **Non esiste un ritardo dell'hover** (grep su Dwell, HoverDelay, HoverTime: zero) | `Source/` |
-| `FRTUnitOverlayView` ha `DisplayName`, `Card`, `Statuses`, `TeamColor`, `bFriendlyFire`, `bTargeted`; la costruisce `URTHudViewModel::BuildUnitOverlay`; la applica `ARTHUD::UpdateObserverVeil` ogni fotogramma | `UI/RTHudViewModel.h/.cpp`, `UI/RTHUD.cpp` |
-| `URTUnitOverlayWidget` riempie in C++ `NameText` (nome, piu' `!` e `*` per fuoco amico e bersaglio) e `StatusBox` (caselle con `NewObject<UOverlay/UImage/UTextBlock>`); degli stati mostra icona e durata, **non il nome**. Il WBP esiste (`WBP_RT_UnitOverlay`) e carica da `ARTUnit` con `FClassFinder` | `UI/RTUnitOverlayWidget.*` |
-| Glossario: `RTGlossary::NameFor`, `EffectFor`, `KeyForStatus`, `KeyForSurface`, `KeyForCover`. **Nessun tetto di lunghezza dell'effetto**: `GlossaryCheckText` controlla non vuoto, ASCII, nessuna cifra, nessun nome di tag, punto finale | `UI/RTGlossary.*`, `Tests/RTGlossaryTests.cpp` |
-| `FRTKnowledgeEntry` ha `Visibility` (`Live` / `Remembered`); un'unita' ignota non ha voce. L'HUD costruisce la vista con `UvViewForObserver` (namespace anonimo in `RTHUD.cpp`); **il controller non ne ha una** | `Perception/RTKnowledgeView.h`, `UI/RTHUD.cpp` |
+| `FRTUnitOverlayView` ha `DisplayName`, `Card`, `Statuses`, `TeamColor`, `bFriendlyFire`, `bTargeted`; la costruisce `URTHudViewModel::BuildUnitOverlay`; la applica `ARTHUD::UpdateObserverVeil` ogni fotogramma | `UI/HUD/RTHudViewModel.h/.cpp`, `UI/HUD/RTHUD.cpp` |
+| `URTUnitOverlayWidget` riempie in C++ `NameText` (nome, piu' `!` e `*` per fuoco amico e bersaglio) e `StatusBox` (caselle con `NewObject<UOverlay/UImage/UTextBlock>`); degli stati mostra icona e durata, **non il nome**. Il WBP esiste (`WBP_RT_UnitOverlay`) e carica da `ARTUnit` con `FClassFinder` | `UI/Feed/RTUnitOverlayWidget.*` |
+| Glossario: `RTGlossary::NameFor`, `EffectFor`, `KeyForStatus`, `KeyForSurface`, `KeyForCover`. **Nessun tetto di lunghezza dell'effetto**: `GlossaryCheckText` controlla non vuoto, ASCII, nessuna cifra, nessun nome di tag, punto finale | `UI/Inspect/RTGlossary.*`, `Tests/UI/Inspect/RTGlossaryTests.cpp` |
+| `FRTKnowledgeEntry` ha `Visibility` (`Live` / `Remembered`); un'unita' ignota non ha voce. L'HUD costruisce la vista con `UvViewForObserver` (namespace anonimo in `RTHUD.cpp`); **il controller non ne ha una** | `Perception/RTKnowledgeView.h`, `UI/HUD/RTHUD.cpp` |
 | `FRTTeamKnowledge::VisibleCells` ed `ExploredCells` esistono; l'HUD le legge in `CurrentRefusedShotLine` con `KnowledgeForTeamPublic` | `Perception/RTTeamKnowledge.h` |
 | La cella: `FRTHexCellData` ha `Surface`, `TotalMoveCost()`, `bBlocksLineOfSight`, `bIsObjective`, `CoverOn(Edge)`, `DoorOn(Edge)`; si prende con `URTHexMapAsset::FindCell`. Il piano e' `FRTCellId::Layer`. **Lo stato di runtime di porte e obiettivo non ha un accessor sull'actor**: le porte si leggono dall'asset (`URTHexDoorLibrary`) | `Map/RTHexCellData.h`, `Map/RTHexMapAsset.h` |
 | `ARTUnit::Facing` e' il verso autorevole; **non c'e' un accessor "verso pubblico"** e la targa non lo mostra | `Unit/RTUnit.h` |
-| `ARTUnit::bKnownToObserver` nasce `true`; l'unico produttore e' `ARTHUD::UpdateObserverVeil` (`ShouldDrawUnitOverlay`). Il cancello di P2 e' la voce `Live`, non questo flag | `Unit/RTUnit.h`, `UI/RTHUD.cpp` |
-| Modelli di test: `Pointer.OutcomeSeparatesInspectFromSelect`, `Pointer.VeiledUnitIsIndistinguishableFromEmptyGround` (esito), `Debug.ContextViewCarriesNoRawTypes` (reflection con allowlist e anti-vacuita'), helper `RTTestReflection::ReflectedNames` / `Listed`, `ScreenHud.TenantsFitTheirBands` | `Tests/RTPointerInteractionTests.cpp`, `RTContextInspectorTests.cpp`, `RTReflectedFieldsForTest.h` |
+| `ARTUnit::bKnownToObserver` nasce `true`; l'unico produttore e' `ARTHUD::UpdateObserverVeil` (`ShouldDrawUnitOverlay`). Il cancello di P2 e' la voce `Live`, non questo flag | `Unit/RTUnit.h`, `UI/HUD/RTHUD.cpp` |
+| Modelli di test: `Pointer.OutcomeSeparatesInspectFromSelect`, `Pointer.VeiledUnitIsIndistinguishableFromEmptyGround` (esito), `Debug.ContextViewCarriesNoRawTypes` (reflection con allowlist e anti-vacuita'), helper `RTTestReflection::ReflectedNames` / `Listed`, `ScreenHud.TenantsFitTheirBands` | `Tests/Player/RTPointerInteractionTests.cpp`, `RTContextInspectorTests.cpp`, `RTReflectedFieldsForTest.h` |
 | Widget in C++ puro con posa come dato: `URTContextInspectorWidgetBase`, `URTPieVerdictOverlay` (`RebuildWidget`, `Placement()`) | `Debug/`, `PieSession/` |
-| Proiezione: `AHUD::Project` in `DrawHUD` con `HexCellWorld` e `WorldHeadOffset`; il fermo al viewport e' `ARTHUD::ClampOverlayAnchor`; rettangolo della scena `RTHudLayout::SceneRectPixels` | `UI/RTHUD.*`, `UI/RTHudLayout.h` |
+| Proiezione: `AHUD::Project` in `DrawHUD` con `HexCellWorld` e `WorldHeadOffset`; il fermo al viewport e' `ARTHUD::ClampOverlayAnchor`; rettangolo della scena `RTHudLayout::SceneRectPixels` | `UI/HUD/RTHUD.*`, `UI/HUD/RTHudLayout.h` |
 
 ## Rulings
 
@@ -88,7 +88,7 @@ Scelte di chi scrive. Quelle marcate **(A)** chiedono la parola dell'autore *pri
 
 ### Task 1: il risolutore dell'annotazione
 
-**Files:** `Player/RTPointerInteraction.h/.cpp` (aggiunta), `Tests/RTPointerInteractionTests.cpp` (aggiunta).
+**Files:** `Player/RTPointerInteraction.h/.cpp` (aggiunta), `Tests/Player/RTPointerInteractionTests.cpp` (aggiunta).
 
 **Interfaces:** produce `enum class ERTGlanceKind { None, Unit, MapElement, Cell }`, `struct FRTGlanceTarget { Kind; StableUnitId (int32, INDEX_NONE se assente); Cell; bHasCell }` e `URTPointerLibrary::ResolveGlanceTarget(int32 HitStableUnitId, bool bHasCell, const FRTCellId& Cell, bool bCellHasMapElement)`. Senza il contesto: lo sguardo ha un ordine solo (spec regola 1); quando si mostra e' di `ShouldShowGlance` (Task 5). Porta e obiettivo sono un genere solo, `MapElement`: il compositore li distingue leggendo la cella. **Fatto** (commit del Task 1). ➕ rev. Non prende `bUnitObserved` (P8) e non prende `FRTPointerCandidates`, che per l'hover non ha produttori (P9).
 
@@ -102,7 +102,7 @@ L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1
 
 ### Task 2: il soggetto pubblico e il compositore
 
-**Files:** `UI/RTGlance.h/.cpp` (nuovi), `Tests/RTGlanceTests.cpp` (nuovo).
+**Files:** `UI/Inspect/RTGlance.h/.cpp` (nuovi), `Tests/UI/Inspect/RTGlanceTests.cpp` (nuovo).
 
 **Interfaces:** `FRTGlanceUnitSubject` (nome, `FRTUnitCardView`, stati `FRTStatusBadgeView`, verso `ERTHexDirection`, cella, squadra), `FRTGlanceCellSubject` (cella, `Surface`, costo d'ingresso, piano, ripari per lato, `bBlocksLineOfSight`, obiettivo, porte), `FRTGlanceView` (`TArray<FString> Lines`, `bTruncated`), `URTGlanceLibrary::ComposeUnit` e `ComposeCell`. Funzioni pure, `static`, senza viewport.
 
@@ -117,7 +117,7 @@ L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1
 
 ### Task 3: il tetto di lunghezza di un effetto (P4, serve la parola dell'autore)
 
-**Files:** `Tests/RTGlossaryTests.cpp`, `UI/RTGlossary.h`.
+**Files:** `Tests/UI/Inspect/RTGlossaryTests.cpp`, `UI/Inspect/RTGlossary.h`.
 
 - [ ] **Step 1: misurare** la voce piu' lunga di `RTGlossary::Effects()`, con un comando riproducibile; riportare il numero all'autore con il valore proposto del tetto.
 - [ ] **Step 2: attendere il valore.** Senza, il task non procede. La DoD di #3747 lo lascia aperto *per scelta*.
@@ -126,7 +126,7 @@ L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1
 
 ### Task 4: il cancello di conoscenza, a mondi gemelli
 
-**Files:** `UI/RTHUD.cpp/.h` (due funzioni sottili che ricavano il soggetto), `Tests/RTGlanceTests.cpp`.
+**Files:** `UI/HUD/RTHUD.cpp/.h` (due funzioni sottili che ricavano il soggetto), `Tests/UI/Inspect/RTGlanceTests.cpp`.
 
 ➕ rev. Il cancello vive in **una** funzione pura, `URTGlanceLibrary::ResolveGlanceSubject(const FRTKnowledgeView& View, const FRTTeamKnowledge& Knowledge, const FRTGlanceTarget& Target)`, che fa il degrado di P10 e restituisce il soggetto pubblico o nulla. I test passano **da qui**, non dai soli costruttori di soggetto: il difetto (un `nullopt` dove ci vuole una cella) vive nel degrado. Due funzioni sottili fuori dalla pura leggono attore e mappa: `ARTHUD::BuildGlanceUnitSubject` e `BuildGlanceCellSubject`. Entrambe leggono `PlaybackKnowledgeForTeam` (P11).
 
@@ -139,7 +139,7 @@ L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1
 
 ### Task 5: il ritardo, l'inerzia e il collegamento
 
-**Files:** `Player/RTPlayerController.h/.cpp`, `UI/RTHUD.h/.cpp`, `Tests/RTPointerInteractionTests.cpp`.
+**Files:** `Player/RTPlayerController.h/.cpp`, `UI/HUD/RTHUD.h/.cpp`, `Tests/Player/RTPointerInteractionTests.cpp`.
 
 - [ ] **Step 1: ritardo come dato e stato del dwell** (P7). ➕ rev. Un piccolo stato puro `FRTGlanceDwell { Target; Elapsed }` con `Advance(const FRTGlanceTarget&, float Dt)`: **si azzera** quando cambia il bersaglio (unita' diversa, cella diversa, tipo diverso) e quando il cursore esce dal rettangolo della scena (`IsCursorInsideScene`). Test `Pointer.GlanceDwellRestartsWhenTheTargetChanges`: passare da un'unita' all'altra non mostra lo sguardo subito; mutazione: togliere il reset, rosso. Campo del ritardo `UPROPERTY(EditDefaultsOnly)`, default 0,3 s.
 - [ ] **Step 2: l'inerzia.** Funzione pura `ShouldShowGlance(ERTPointerContext, bool bSomeoneCommands, bool bDwellElapsed)`. Inerte in `Modal` e in `ReactionWindow`, e quando nessuno comanda; **acceso** in `IdleSelection`, `Planning`, `Targeting`, `Pathing`, `ResolutionPlayback`. `Facing`: l'annotazione di 4.1 per quel contesto e' un settore e non un'unita': **inerte**, dichiarato. `bSomeoneCommands` viene da `URTHudViewModel::ResolveObserverTeamIds` (regola 12 della spec: "stesso insieme di squadre del registro"), non da un solo `PlayerTeamId`. ➕ rev. Misurare se `GetPointerContext` produce davvero `ReactionWindow`; se no, l'inerzia in finestra di reazione e' provata solo sulla funzione pura e va scritto cosi' nella PR.
@@ -150,7 +150,7 @@ L'ordine e' quello della riga `IdleSelection` / `Planning` di 4.1 (spec regola 1
 
 ### Task 6: le superfici
 
-**Files:** `UI/RTHudViewModel.h/.cpp` (`FRTUnitOverlayView` guadagna `GlanceLines`), `UI/RTUnitOverlayWidget.cpp`, `UI/RTCellGlanceWidget.h/.cpp` (nuovo), `UI/RTHUD.cpp`, `Tests/RTHudScenarioTests.cpp`.
+**Files:** `UI/HUD/RTHudViewModel.h/.cpp` (`FRTUnitOverlayView` guadagna `GlanceLines`), `UI/Feed/RTUnitOverlayWidget.cpp`, `UI/RTCellGlanceWidget.h/.cpp` (nuovo), `UI/HUD/RTHUD.cpp`, `Tests/UI/HUD/RTHudScenarioTests.cpp`.
 
 - [ ] **Step 1: targa.** `BuildUnitOverlay` resta com'e' per le altre unita'; solo per quella sotto il cursore (dopo il ritardo) riempie `GlanceLines` dal compositore. `SetOverlayView` costruisce le righe in C++ (P3).
 - [ ] **Step 2: etichetta di cella.** Un widget unico che si sposta, `RebuildWidget` come `URTPieVerdictOverlay`, posa come dato; ancorato alla cella con `Project(HexCellWorld(...))` e tenuto dentro il rettangolo della scena con `ClampOverlayAnchor` e `RTHudLayout::SceneRectPixels`.

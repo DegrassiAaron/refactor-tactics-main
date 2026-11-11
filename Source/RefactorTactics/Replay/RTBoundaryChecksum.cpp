@@ -1,7 +1,7 @@
 #include "Replay/RTBoundaryChecksum.h"
 
-#include "Turn/RTMatchStateHash.h"
-#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/Log/RTMatchStateHash.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 
 FString FRTBoundaryChecksum::ToString() const
 {

@@ -184,7 +184,7 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 |---|---|
 | `Source/RefactorTactics/Public/Map/**` + `Private/Map/**` | `Source/RefactorTactics/Map/` (piatto) |
 | `Source/RefactorTactics/Public/Turn/**` + `Private/Turn/**` | `Source/RefactorTactics/Turn/` |
-| `Source/RefactorTactics/Public/Log/**` | *(nessuna)* — il TurnLog vive in `Turn/RTTurnLog.h` |
+| `Source/RefactorTactics/Public/Log/**` | *(nessuna)* — il TurnLog vive in `Turn/Log/RTTurnLog.h` |
 | `Source/RefactorTactics/Public/Planning/**`, `Reaction/**`, `Query/**`, `Presentation/**` | *(nessuna)* |
 | `Source/RefactorTactics/Private/Tests/{Map,Path,Turn,Resolver,Reaction,Replay}/**` | `Source/RefactorTactics/Tests/` — 88 file, unica sottocartella `Golden/` |
 | `Content/RefactorTactics/{UI,VFX,Input,Maps/Grid,Replay,Editor}/**` | `Content/RT/**` |

@@ -1,37 +1,37 @@
 #include "Turn/RTTurnManager.h"
 #include "Ability/RTMovementProfileLibrary.h"
-#include "Turn/RTPacingLibrary.h"
-#include "Turn/RTPlaybackLibrary.h"
-#include "Turn/RTTurnLogLibrary.h"
-#include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
-#include "Turn/RTActionQueueLibrary.h"
-#include "Turn/RTActionEffectLibrary.h"
-#include "Turn/RTActionFallbackLibrary.h"
-#include "Turn/RTMovementActionLibrary.h"
-#include "Turn/RTReactionLibrary.h"
-#include "Turn/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
-#include "Turn/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
+#include "Turn/Pacing/RTPacingLibrary.h"
+#include "Turn/Playback/RTPlaybackLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
+#include "Turn/Actions/RTActionQueueLibrary.h"
+#include "Turn/Actions/RTActionEffectLibrary.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
+#include "Turn/Reaction/RTReactionLibrary.h"
+#include "Turn/Actions/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
 #include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
 #include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
 #include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
 #include "Player/RTPlayerState.h" // TeamIdOf: l'unica porta per «di che squadra e' chi guarda» ([D-285])
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
-#include "Map/RTHexCoverLibrary.h"
-#include "Map/RTHexArcLibrary.h"
-#include "Map/RTHexDoorLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/Vision/RTHexArcLibrary.h"
+#include "Map/Cover/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTBotPlanningLibrary.h" // URTBotPlanningLibrary: la decisione dei bot vive fuori (#3013)
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Turn/RTFacingLibrary.h"
-#include "Map/RTHexVisionLibrary.h"
-#include "Turn/RTHexSimLibrary.h"
-#include "Map/RTHexMapActor.h"
+#include "Turn/Resolution/RTFacingLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
 #include "Core/RTTypes.h"
@@ -44,7 +44,7 @@
 #include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayAuditLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
-#include "Turn/RTMatchStateHash.h"
+#include "Turn/Log/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 #include "Turn/RTTurnManagerInternal.h" // gli helper che piu' fasi condividono (#2679)
@@ -1657,7 +1657,7 @@ float ARTTurnManager::GetPlanningTimeRemaining() const
  * 🔑 **E `Phase` resta la fase che si e' fermata**, che e' la seconda meta' di [D-356]: durante l'attesa
  * il gioco risponde `Blast` o `Move` invece di `Planning`. Non e' cosmesi — tre lettori interrogano la
  * fase senza accoppiarla a `IsResolving()`, e con `Planning` sbagliavano tutti e tre: l'header dell'HUD
- * scriveva «Pianificazione» col countdown a schermo (`UI/RTHUD.cpp`, ramo `default:` -> «Risoluzione»), la
+ * scriveva «Pianificazione» col countdown a schermo (`UI/HUD/RTHUD.cpp`, ramo `default:` -> «Risoluzione»), la
  * traccia post-lock si disegnava sopra un turno in corso, e `RecordPlanningInput` contava i click come
  * input di pianificazione — cioe' sporcava il pacing con cui si tara [D-348]. Nessuno dei tre e' stato
  * toccato: con la fase vera i loro `== Planning` sono falsi per costruzione.

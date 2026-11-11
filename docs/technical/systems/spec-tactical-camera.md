@@ -747,7 +747,7 @@ accessibilità esiste nel repository.
 
 | Livello | Stato |
 |---|---|
-| Automation | ✅ i test `RefactorTactics.Camera.*` in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp): quanti, lo dice `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`. ⌫ *Fino al 2026-10-15 questa cella diceva «28», un totale fermo al 2026-08-30* |
+| Automation | ✅ i test `RefactorTactics.Camera.*` in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp): quanti, lo dice `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp`. ⌫ *Fino al 2026-10-15 questa cella diceva «28», un totale fermo al 2026-08-30* |
 | PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` · ⏳ `PIE-CAM-HOME-CONTEXT` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)) · ⏳ `PIE-CAM-EDGE-PAN` ([#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838)) |
 | Scenari | ❌ **zero** — [`scenario-map.md`](../tooling/scenario-map.md) lo dichiara, con la motivazione |
 | Input | ✅ `PlayerInput.HotkeysDoNotCollide`, che **era citato e non esisteva** |

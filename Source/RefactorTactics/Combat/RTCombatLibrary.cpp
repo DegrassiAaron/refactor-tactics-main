@@ -1,8 +1,8 @@
 #include "Combat/RTCombatLibrary.h"
-#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il danno all'arco lo raccoglie il Blast
-#include "Map/RTHexArcLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h" // MapResolutionPhase: il danno all'arco lo raccoglie il Blast
+#include "Map/Vision/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace

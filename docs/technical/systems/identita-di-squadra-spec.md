@@ -13,8 +13,8 @@ leggono lo stesso campo:
 |---|---|
 | `Camera/RTCameraPawn.cpp` — `FrameOwnTeam` | quale squadra inquadrare all'avvio |
 | `Player/RTPlayerController.cpp` — due siti in `OnSelect` | cosa si può selezionare e comandare |
-| `Perception/RTKnowledgeVeilPresenter.cpp` — `ViewerTeamId` | di chi è la vista che il velo disegna |
-| `UI/RTHUD.cpp` — `ViewerTeamIdOf` | **sei** consumatori dell'HUD, **quattro** dei quali filtri di privacy |
+| `Perception/Veil/RTKnowledgeVeilPresenter.cpp` — `ViewerTeamId` | di chi è la vista che il velo disegna |
+| `UI/HUD/RTHUD.cpp` — `ViewerTeamIdOf` | **sei** consumatori dell'HUD, **quattro** dei quali filtri di privacy |
 
 Il campo è `ARTPlayerController::PlayerTeamId`, un `UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)` che vale
 `0` e che **nessuno assegna a runtime**. Con due client varrebbe `0` per entrambi: è il primo pezzo del
@@ -130,7 +130,7 @@ ramo, ed è lì che sta il suo valore.»*
 Questa fetta è quel giorno: `ARTGameMode::AssignSeats` deriva `SeatsPerTeam = UnitsPerTeam / UnitsPerPlayer`
 e assegna i posti di conseguenza. Il controllo vivo che lo dimostra è `Player.SeatCountFollowsUnitsPerPlayer`,
 non `MatchFormat.ResolverIsInvariantToControlCount` — quel test non attraversa `ARTGameMode` (lo dichiara il
-suo stesso docstring in `Tests/RTMatchFormatWorldTests.cpp`) e resterebbe verde anche cancellando
+suo stesso docstring in `Tests/Turn/Format/RTMatchFormatWorldTests.cpp`) e resterebbe verde anche cancellando
 `AssignSeats`: resta un tripwire sulla risoluzione, non un controllo su questo consumo.
 
 ## 5. Il ripiego headless, e il verde vacuo
@@ -223,8 +223,8 @@ nessuno»*: un test dentro la suite gira sempre, un gate a mano no.
 
 **Modificati**: `RTPlayerController.{h,cpp}` (campo rimosso, due letture) · `RTGameMode.{h,cpp}`
 (`PlayerStateClass`, `OnPostLogin`, `AssignSeats`) · `Match/RTMatchBootstrapper.h` (le regole nell'esito) ·
-`Camera/RTCameraPawn.cpp` · `Perception/RTKnowledgeVeilPresenter.cpp` · `UI/RTHUD.{h,cpp}`
-(`ViewerTeamIdOf` assorbita) · `Tests/RTCameraPawnTests.cpp` · `Tests/RTHudViewerTeamTests.cpp`.
+`Camera/RTCameraPawn.cpp` · `Perception/Veil/RTKnowledgeVeilPresenter.cpp` · `UI/HUD/RTHUD.{h,cpp}`
+(`ViewerTeamIdOf` assorbita) · `Tests/Camera/RTCameraPawnTests.cpp` · `Tests/RTHudViewerTeamTests.cpp`.
 
 **Nessun `.uasset`.**
 

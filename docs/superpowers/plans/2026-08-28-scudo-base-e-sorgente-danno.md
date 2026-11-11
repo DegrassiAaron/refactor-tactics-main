@@ -51,8 +51,8 @@ golden non cambia.
 - Modify: `Source/RefactorTactics/Combat/RTCombatLibrary.cpp:6-18` — implementazione
 - Modify: `Source/RefactorTactics/Combat/RTCombatResolver.cpp:21`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp` — righe 177, 1391, 2346, 4749, 5118
-- Test: `Source/RefactorTactics/Tests/RTCombatLibraryTests.cpp` — 4 chiamate esistenti + 5 test nuovi
-- Test: `Source/RefactorTactics/Tests/RTFacingDefenseTests.cpp:200-201` — 2 chiamate esistenti
+- Test: `Source/RefactorTactics/Tests/Combat/RTCombatLibraryTests.cpp` — 4 chiamate esistenti + 5 test nuovi
+- Test: `Source/RefactorTactics/Tests/Combat/Damage/RTFacingDefenseTests.cpp:200-201` — 2 chiamate esistenti
 
 **Interfaces:**
 - Produces: `ERTDamageSource { Direct, Environmental }`;
@@ -319,7 +319,7 @@ git commit -m "feat(D-224): il danno dichiara da dove viene, e ApplyDamage sa qu
 - Modify: `Source/RefactorTactics/Unit/RTUnit.h` — dichiarazione di `RechargeBaseShield`
 - Modify: `Source/RefactorTactics/Unit/RTUnit.cpp` — implementazione + `BeginPlay`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:1502` — la ricarica in coda al Cleanup
-- Test: `Source/RefactorTactics/Tests/RTUnitTests.cpp`
+- Test: `Source/RefactorTactics/Tests/Unit/RTUnitTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTCombatLibrary::BaseShield` (Task 1)
@@ -489,9 +489,9 @@ git commit -m "feat(D-224): ogni unita' entra in campo con 5 di scudo, e li ripr
 ### Task 3: `Action.Shield` nei kit di Phase e Wraith
 
 **Files:**
-- Modify: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` — dopo la riga 536 (Phase) e la 819 (Wraith)
-- Modify: `Source/RefactorTactics/Tests/RTCatalogTests.cpp:501` — rimozione della riga di esclusione
-- Test: `Source/RefactorTactics/Tests/RTCatalogTests.cpp`
+- Modify: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp` — dopo la riga 536 (Phase) e la 819 (Wraith)
+- Modify: `Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp:501` — rimozione della riga di esclusione
+- Test: `Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTHeroCatalogLibrary::MakeHeroActionFromCore(HeroActionId, CoreActionId, Cooldown, Shape, AreaRadius)`
@@ -609,7 +609,7 @@ Step 4 non è stata fatta.
 
 ```bash
 git branch --show-current
-git add Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp Source/RefactorTactics/Tests/RTCatalogTests.cpp
+git add Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp
 git commit -m "feat(D-224): Action.Shield trova i suoi portatori, uno per squadra"
 ```
 

@@ -91,7 +91,7 @@ git worktree list
 | `origin/main` a chiusura revisione | **`853e92b1`** | avanzato durante la sessione — la base della Wave 1 **non è più la punta** |
 | Working tree principale all'apertura | `chore/rt-terminals-multi-istanza` @ `6f6a9997` | 3 commit avanti su BASE |
 | Working tree principale a chiusura | `main` @ `853e92b1` | **il branch è cambiato sotto la revisione**, `D-222` |
-| Modifica non attribuita | `M Source/RefactorTactics/Tests/RTHexEdgeGuardTests.cpp` | 🔴 è **dentro il write-set dichiarato** della lane A |
+| Modifica non attribuita | `M Source/RefactorTactics/Tests/Turn/Reaction/RTHexEdgeGuardTests.cpp` | 🔴 è **dentro il write-set dichiarato** della lane A |
 | Lane B | `D:/Repositories/rt-wt-rt3b` @ `8a530c6e`, branch `feat/rt3b-graykit-animation-feasibility` | in volo, sul dominio **animazioni** |
 
 ⚠️ **La STOP CONDITION del §0 era già attiva all'apertura**, e il mandato non prevede un ramo d'uscita: dice
@@ -106,7 +106,7 @@ un'altra sessione.
 
 ## 3. `DG-2` — CP 25.2 è vivo, ed è di un'altra epic
 
-`Source/RefactorTactics/UI/RTIconCatalogData.h:130` prenota la catena di fallback per chiave:
+`Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h:130` prenota la catena di fallback per chiave:
 
 > *«Non è una catena di fallback per chiave: quella (`FallbackIconId` + controllo di ciclicità) è **CP 25.2**.»*
 

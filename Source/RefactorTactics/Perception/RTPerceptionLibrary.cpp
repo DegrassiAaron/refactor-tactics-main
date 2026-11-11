@@ -1,11 +1,11 @@
 #include "Perception/RTPerceptionLibrary.h"
 
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexCoverLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexOcclusionLibrary.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexOcclusionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace

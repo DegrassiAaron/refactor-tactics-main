@@ -37,13 +37,13 @@
 
 | File | Responsabilità |
 |---|---|
-| `Source/RefactorTactics/Turn/RTPacing.h` *(nuovo)* | Solo tipi: `ERTLockInSource`, `ERTPlanningInput`, `FRTPacingSample`, `FRTPacingSummary`. Nessuna funzione |
-| `Source/RefactorTactics/Turn/RTPacingLibrary.h/.cpp` *(nuovi)* | `URTPacingLibrary`: percentile, sommario, header e riga CSV. Tutto `static`, tutto puro |
-| `Source/RefactorTactics/Turn/RTPacingConsole.cpp` *(nuovo)* | Il solo comando `rt.Debug.Pacing`. Isolato perché è l'unico pezzo che dipende da `IConsoleManager` |
+| `Source/RefactorTactics/Turn/Pacing/RTPacing.h` *(nuovo)* | Solo tipi: `ERTLockInSource`, `ERTPlanningInput`, `FRTPacingSample`, `FRTPacingSummary`. Nessuna funzione |
+| `Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.h/.cpp` *(nuovi)* | `URTPacingLibrary`: percentile, sommario, header e riga CSV. Tutto `static`, tutto puro |
+| `Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp` *(nuovo)* | Il solo comando `rt.Debug.Pacing`. Isolato perché è l'unico pezzo che dipende da `IConsoleManager` |
 | `Source/RefactorTactics/Turn/RTTurnManager.h/.cpp` *(modifica)* | Sei agganci, accumulo, scrittura del file |
 | `Source/RefactorTactics/Player/RTPlayerController.cpp` *(modifica)* | Quattro chiamate a `RecordPlanningInput` |
-| `Source/RefactorTactics/Tests/RTPacingTests.cpp` *(nuovo)* | Test della libreria pura |
-| `Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp` *(nuovo)* | Test con `UWorld`, con helper propri come fanno già `RTHexBotIntegrationTests.cpp` e `RTHexCombatIntegrationTests.cpp` |
+| `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp` *(nuovo)* | Test della libreria pura |
+| `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp` *(nuovo)* | Test con `UWorld`, con helper propri come fanno già `RTHexBotIntegrationTests.cpp` e `RTHexCombatIntegrationTests.cpp` |
 | `docs/design/v0.1-definition-of-done.md` *(modifica)* | Riga KPI predisposta |
 | `docs/design/test-manuali-pie.md` *(modifica)* | Voce ⏳ per la verifica in PIE della Task 4 |
 
@@ -52,16 +52,16 @@
 ### Task 1: Tipi e sommario puro
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/RTPacing.h`
-- Create: `Source/RefactorTactics/Turn/RTPacingLibrary.h`
-- Create: `Source/RefactorTactics/Turn/RTPacingLibrary.cpp`
-- Create: `Source/RefactorTactics/Tests/RTPacingTests.cpp`
+- Create: `Source/RefactorTactics/Turn/Pacing/RTPacing.h`
+- Create: `Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.h`
+- Create: `Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.cpp`
+- Create: `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp`
 - Modify: `docs/design/spec-pacing-turno.md` (§5: rinomina di tre campi, vedi Step 7)
 
 **Interfaces:**
 - Produces: `enum class ERTLockInSource : uint8 { Input, Timeout }`; `enum class ERTPlanningInput : uint8 { Click, Selection, Order, Undo }`; `struct FRTPacingSample`; `struct FRTPacingSummary`; `URTPacingLibrary::PercentileNearestRank(const TArray<int32>& SortedValues, int32 Percentile) -> int32`; `URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample>& Samples, int32 CutoffWindowMs) -> FRTPacingSummary`.
 
-- [ ] **Step 1: Creare `Source/RefactorTactics/Turn/RTPacing.h`**
+- [ ] **Step 1: Creare `Source/RefactorTactics/Turn/Pacing/RTPacing.h`**
 
 ```cpp
 #pragma once
@@ -184,14 +184,14 @@ struct FRTPacingSummary
 };
 ```
 
-- [ ] **Step 2: Creare `Source/RefactorTactics/Turn/RTPacingLibrary.h`**
+- [ ] **Step 2: Creare `Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.h`**
 
 ```cpp
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Turn/RTPacing.h"
+#include "Turn/Pacing/RTPacing.h"
 #include "RTPacingLibrary.generated.h"
 
 /** Calcoli puri sulla telemetria di pacing (nessun Actor, nessun file, testabili headless). */
@@ -227,12 +227,12 @@ public:
 };
 ```
 
-- [ ] **Step 3: Scrivere i test che falliscono — `Source/RefactorTactics/Tests/RTPacingTests.cpp`**
+- [ ] **Step 3: Scrivere i test che falliscono — `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp`**
 
 ```cpp
 #include "Misc/AutomationTest.h"
-#include "Turn/RTPacing.h"
-#include "Turn/RTPacingLibrary.h"
+#include "Turn/Pacing/RTPacing.h"
+#include "Turn/Pacing/RTPacingLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -325,10 +325,10 @@ Run: `"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEdi
 
 Expected: **errore di link** su `URTPacingLibrary::PercentileNearestRank` e `SummarizeSamples` — dichiarate nell'header, non ancora definite. È il fallimento atteso: senza implementazione i test non possono nemmeno linkare.
 
-- [ ] **Step 5: Implementare `Source/RefactorTactics/Turn/RTPacingLibrary.cpp`**
+- [ ] **Step 5: Implementare `Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.cpp`**
 
 ```cpp
-#include "Turn/RTPacingLibrary.h"
+#include "Turn/Pacing/RTPacingLibrary.h"
 
 int32 URTPacingLibrary::PercentileNearestRank(const TArray<int32>& SortedValues, int32 Percentile)
 {
@@ -433,7 +433,7 @@ e aggiornare di conseguenza il blocco di §5 e la riga `SelectionChanges`/`Order
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPacing.h Source/RefactorTactics/Turn/RTPacingLibrary.h Source/RefactorTactics/Turn/RTPacingLibrary.cpp Source/RefactorTactics/Tests/RTPacingTests.cpp docs/design/spec-pacing-turno.md
+git add Source/RefactorTactics/Turn/Pacing/RTPacing.h Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.h Source/RefactorTactics/Turn/Pacing/RTPacingLibrary.cpp Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp docs/design/spec-pacing-turno.md
 git commit -m "feat(pacing): il sommario di una sessione, calcolato invece che stimato"
 ```
 
@@ -442,7 +442,7 @@ git commit -m "feat(pacing): il sommario di una sessione, calcolato invece che s
 ### Task 2: La riga CSV regge il locale
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/RTPacingTests.cpp`
+- Modify: `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTPacingLibrary::CsvHeader()`, `URTPacingLibrary::CsvRow(const FRTPacingSample&)` (Task 1).
@@ -507,7 +507,7 @@ Se il conteggio delle colonne fallisce, l'errore è in `CsvHeader()`/`CsvRow()` 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTPacingTests.cpp
+git add Source/RefactorTactics/Tests/Turn/Pacing/RTPacingTests.cpp
 git commit -m "test(pacing): la riga CSV non si spezza col locale italiano"
 ```
 
@@ -518,21 +518,21 @@ git commit -m "test(pacing): la riga CSV non si spezza col locale italiano"
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (righe 281, 299, 315, 385, 394, 1211)
-- Create: `Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp`
+- Create: `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp`
 
 **Interfaces:**
 - Consumes: `FRTPacingSample`, `ERTPlanningInput`, `ERTLockInSource` (Task 1).
 - Produces: `ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)`; `ARTTurnManager::GetPacingSamples() const -> const TArray<FRTPacingSample>&`; `ARTTurnManager::bRecordPacing` (bool, `EditAnywhere`); `ARTTurnManager::PacingTeamId` (int32, `EditAnywhere`, default 0).
 
-- [ ] **Step 1: Scrivere i test che falliscono — `Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp`**
+- [ ] **Step 1: Scrivere i test che falliscono — `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp`**
 
 ```cpp
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/RTPacing.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Pacing/RTPacing.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "Unit/RTUnit.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -715,7 +715,7 @@ Expected: errore di compilazione — `ARTTurnManager` non ha `RecordPlanningInpu
 Aggiungere l'include accanto agli altri in testa al file:
 
 ```cpp
-#include "Turn/RTPacing.h"
+#include "Turn/Pacing/RTPacing.h"
 ```
 
 Nella sezione `public:`, dopo `GetLastMoveRoutes()` (riga ~76):
@@ -761,7 +761,7 @@ Nella sezione `private:`, accanto agli altri helper (dopo `float DurationForPlay
 Aggiungere gli include in testa al file, accanto agli altri:
 
 ```cpp
-#include "Turn/RTPacingLibrary.h"
+#include "Turn/Pacing/RTPacingLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/DateTime.h"
@@ -926,7 +926,7 @@ Expected: nessun test preesistente fallisce. I nuovi campi hanno tutti un defaul
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp
 git commit -m "feat(pacing): il turno si misura da solo, un campione per turno"
 ```
 
@@ -1050,8 +1050,8 @@ git commit -m "feat(pacing): il controller dichiara gli input, il cronometro res
 ### Task 5: Lettura in gioco e prova dell'invariante
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/RTPacingConsole.cpp`
-- Modify: `Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp`
+- Create: `Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp`
+- Modify: `Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTPacingLibrary::SummarizeSamples` (Task 1), `ARTTurnManager::GetPacingSamples` e `bRecordPacing` (Task 3).
@@ -1115,7 +1115,7 @@ bool FRTPacingHashInvarianceTest::RunTest(const FString&)
 Aggiungere l'include in testa a `RTPacingIntegrationTests.cpp`, accanto agli altri:
 
 ```cpp
-#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 ```
 
 - [ ] **Step 2: Compilare ed eseguire — deve passare**
@@ -1125,13 +1125,13 @@ Expected: 7 test, 7 passati.
 
 Se gli hash divergono, **non è un test da aggiustare**: significa che qualcosa della sonda è finito in una decisione di gioco. Trovare il punto e toglierlo.
 
-- [ ] **Step 3: Creare `Source/RefactorTactics/Turn/RTPacingConsole.cpp`**
+- [ ] **Step 3: Creare `Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp`**
 
 ```cpp
 #include "CoreMinimal.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "Turn/RTPacingLibrary.h"
+#include "Turn/Pacing/RTPacingLibrary.h"
 #include "Turn/RTTurnManager.h"
 
 /**
@@ -1184,7 +1184,7 @@ Expected: **nessun** file sotto `Saved/` compare. `Saved/` è già escluso; se c
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPacingConsole.cpp Source/RefactorTactics/Tests/RTPacingIntegrationTests.cpp
+git add Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp Source/RefactorTactics/Tests/Turn/Pacing/RTPacingIntegrationTests.cpp
 git commit -m "feat(pacing): rt.Debug.Pacing legge la sessione, un test prova che non tocca il gioco"
 ```
 

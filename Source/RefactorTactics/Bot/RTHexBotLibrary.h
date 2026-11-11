@@ -4,8 +4,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Map/RTCellId.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: l'UNICO ingresso della decisione del bot
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: l'UNICO ingresso della decisione del bot
 #include "RTHexBotLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -507,7 +507,7 @@ public:
 	 *
 	 * ⛔ **Riporta PUNTI, non il termine di punteggio**, e la differenza e' l'unica cosa che rende la misura
 	 * possibile: `Facing`/`RearHitBypassedCover` porta in `Amount` i punti di riduzione scavalcati
-	 * (`Turn/RTTurnLog.h`, [D-199]). Confrontare `WDamage * punti` con dei punti darebbe un tasso dieci
+	 * (`Turn/Log/RTTurnLog.h`, [D-199]). Confrontare `WDamage * punti` con dei punti darebbe un tasso dieci
 	 * volte piu' grande del vero, e sarebbe plausibile.
 	 *
 	 * ⚠️ **Solo il verso OFFENSIVO.** Il simmetrico difensivo — la copertura che il bot butterebbe via

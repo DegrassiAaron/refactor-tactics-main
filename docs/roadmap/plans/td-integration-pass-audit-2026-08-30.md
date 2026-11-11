@@ -79,7 +79,7 @@ Le altre 18 coincidono con quanto dichiarato.
 | #1105 | OPEN | LINK_ONLY | OPEN | — | epic tooling, nessuna mutazione dovuta | `gh issue view 1105` |
 | #1678 | OPEN | LINK_ONLY | OPEN | #1105 | parent del launcher; #1705 è la slice che avanza | `gh issue view 1678` |
 | #1679 | «da verificare» | ALREADY_DONE | CLOSED | #1678 | contract L0 consegnato | stato live |
-| #1680 | CLOSED | REUSE | CLOSED | #1678 | il subsystem esiste e ha 5 test | `Source/RefactorTacticsEditor/Private/RTDevSandboxLauncherSubsystem.cpp` |
+| #1680 | CLOSED | REUSE | CLOSED | #1678 | il subsystem esiste e ha 5 test | `Source/RefactorTacticsEditor/Private/Launcher/RTDevSandboxLauncherSubsystem.cpp` |
 | #1681 | «da verificare» | ALREADY_DONE | CLOSED | #1678 | asse deciso, consumato da #1705 | stato live |
 | **#1705** | OPEN | **IMPLEMENT (R1)** | OPEN → PR | #1678 | è R1 | §4 di questo documento |
 | #1682 | OPEN | DEFER | OPEN | #1678 | fuori scope: R2 | dipende da #1705 |
@@ -115,10 +115,10 @@ Cosa è stato aggiunto, e dove passa il confine fra ciò che un test vede e ciò
 
 | File | Ruolo |
 |---|---|
-| `Public/RTLauncherScenarioBrowser.h` · `Private/RTLauncherScenarioBrowser.cpp` | **modello puro**: ricerca, classificazione del vuoto, readout. Nessun accesso al disco |
-| `Private/Tests/RTLauncherScenarioBrowserTests.cpp` | 5 test, namespace `RefactorTactics.DevSandboxLauncher.*` |
-| `Private/SRTLauncherScenarioPanel.h` · `.cpp` | il pannello Slate: dispone widget e chiama l'indice, nient'altro |
-| `Private/RTDevSandboxLauncherSubsystem.cpp` | il tab monta il pannello al posto del segnaposto di #1680 |
+| `Public/RTLauncherScenarioBrowser.h` · `Private/Launcher/RTLauncherScenarioBrowser.cpp` | **modello puro**: ricerca, classificazione del vuoto, readout. Nessun accesso al disco |
+| `Private/Tests/Launcher/RTLauncherScenarioBrowserTests.cpp` | 5 test, namespace `RefactorTactics.DevSandboxLauncher.*` |
+| `Private/Launcher/SRTLauncherScenarioPanel.h` · `.cpp` | il pannello Slate: dispone widget e chiama l'indice, nient'altro |
+| `Private/Launcher/RTDevSandboxLauncherSubsystem.cpp` | il tab monta il pannello al posto del segnaposto di #1680 |
 | `RefactorTacticsEditor.Build.cs` | `+ ToolWidgets` per `SSearchBox` |
 
 **Scelta portante**: la stessa di #1680 con `ShouldOpenFor`. Di una slice fatta di Slate, un automation

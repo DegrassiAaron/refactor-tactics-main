@@ -149,7 +149,7 @@ Voce (31 byte): `Phase`(1) + `Category`(1) + `Outcome`(1) + `SrcCell.X/Y/Layer` 
 
 Contratto: `HashTurnLog(in) == HashTurnLog(Load(Save(in)))`.
 
-## 5. Test — `Tests/RTTurnLogSerializationTests.cpp` (TDD RED→GREEN)
+## 5. Test — `Tests/Turn/Log/RTTurnLogSerializationTests.cpp` (TDD RED→GREEN)
 
 | Test | Comportamento |
 |---|---|
@@ -341,4 +341,4 @@ non significa «assente» ma **parziale** — l'archivio si apre e si riproduce 
 ## 9. Riferimenti
 
 - [`spec-turnlog.md`](spec-turnlog.md) — slice precedente (reason codes + hash).
-- Codice: `Source/RefactorTactics/Turn/RTTurnLog.h`, `RTTurnLogLibrary.h/.cpp`, `Tests/RTTurnLogSerializationTests.cpp`.
+- Codice: `Source/RefactorTactics/Turn/Log/RTTurnLog.h`, `RTTurnLogLibrary.h/.cpp`, `Tests/Turn/Log/RTTurnLogSerializationTests.cpp`.

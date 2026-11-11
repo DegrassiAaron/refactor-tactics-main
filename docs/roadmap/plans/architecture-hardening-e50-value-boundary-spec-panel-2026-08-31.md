@@ -134,12 +134,12 @@ lasciato al compilatore niente da dire il giorno in cui qualcuno assegna l'una a
 
 | File | Responsabilità |
 |---|---|
-| `Turn/RTResolvedEvent.h` | il fatto risolto diventa value type; **zero** riferimenti ad Actor nel codice |
+| `Turn/Resolution/RTResolvedEvent.h` | il fatto risolto diventa value type; **zero** riferimenti ad Actor nel codice |
 | `Turn/RTTurnManager.h` | `MatchRoster`, `UnitByStableId`, `RosterIndexForStableId` |
 | `Turn/RTTurnManager.cpp` | `EnsureMatchRoster` riempie l'indice; 5 siti di produzione; 4 regioni di consumo |
-| `Tests/RTAttackPlaybackProbeForTest.h` | contatori di risoluzione (additivi, non cambiano il probe esistente) |
-| `Tests/RTUnitIdentityTests.cpp` | 2 test **headless** |
-| `Tests/RTMatchAutobattleTests.cpp` | 1 test end-to-end |
+| `Tests/Turn/Playback/Reveal/RTAttackPlaybackProbeForTest.h` | contatori di risoluzione (additivi, non cambiano il probe esistente) |
+| `Tests/Unit/RTUnitIdentityTests.cpp` | 2 test **headless** |
+| `Tests/Player/RTMatchAutobattleTests.cpp` | 1 test end-to-end |
 
 ---
 

@@ -100,7 +100,7 @@ public class RefactorTactics : ModuleRules
 		// ∴ il prezzo della scelta e' che la guardia `#if WITH_DEV_AUTOMATION_TESTS` e' **obbligatoria** in
 		// ogni `.cpp` di `Tests/`, e che dimenticarla si vede **solo** compilando la Shipping. Il prezzo e'
 		// pagato da un oracolo, non dalla memoria di chi scrive: `RefactorTactics.Meta.TestGuardClosesAtEndOfFile`
-		// (`Tests/RTTestGuardTests.cpp`) fallisce nella suite Editor invece che alla prossima build di
+		// (`Tests/Meta/RTTestGuardTests.cpp`) fallisce nella suite Editor invece che alla prossima build di
 		// release. L'unita' di misura di quell'oracolo — i `.cpp`, non gli header — e' dichiarata nel suo
 		// docstring insieme alla ragione.
 	}

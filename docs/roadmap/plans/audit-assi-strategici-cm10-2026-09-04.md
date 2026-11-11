@@ -72,8 +72,8 @@ Il meccanismo è **completo**, non abbozzato:
 🔴 **Qui questo file diceva il falso, e la correzione è più interessante dell'errore.** La misura era:
 
 ```bash
-git grep -n "EnergyCost" -- Source/RefactorTactics/Ability/RTCatalogLibrary.cpp \
-                            Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp   # -> 0
+git grep -n "EnergyCost" -- Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp \
+                            Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp   # -> 0
 ```
 
 — e da quello zero si concludeva *«nessuna azione dichiara un costo in energia, `EnergyCost` è `0` ovunque»*.

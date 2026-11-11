@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Replay/RTReplayManifest.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "RTMatchHistoryLibrary.generated.h"
 
 /**

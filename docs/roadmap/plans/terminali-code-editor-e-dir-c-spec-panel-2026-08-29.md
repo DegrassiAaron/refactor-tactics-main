@@ -205,7 +205,7 @@ Il §4 del mandato CODE stabilisce la divisione:
 > Blueprint visuali graybox.»*
 
 Misurato, le mesh graybox sono **generate da un commandlet C++**, nel modulo Editor:
-[`RTBuildGrayboxMeshesCommandlet`](../../../Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxMeshesCommandlet.h),
+[`RTBuildGrayboxMeshesCommandlet`](../../../Source/RefactorTacticsEditor/Private/Content/Build/RTBuildGrayboxMeshesCommandlet.h),
 che le costruisce e le **salva** come `.uasset`. Il perché è nel suo header:
 
 > *«Perché **generate e non modellate** — è `D-229`: i budget di forma sono FRAZIONI (contratto graybox §6.3),

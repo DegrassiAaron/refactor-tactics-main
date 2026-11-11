@@ -91,7 +91,7 @@ che fa la PR #688, **aperta**»*.
 
 **#688 è mergiata.** Ha portato la **verifica, non la correzione**:
 `RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData`
-(`Source/RefactorTactics/Tests/RTHexMapTests.cpp:671`), col commento a `:664` che scrive l'esito — *«la
+(`Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp:671`), col commento a `:664` che scrive l'esito — *«la
 migrazione e' inerte»*. Il difetto è ora dimostrato sul binario e **nessuna** delle quattro direzioni è stata
 scelta.
 
@@ -166,7 +166,7 @@ Il confine ora è scritto in `#217`, e i due soggetti sono diversi:
 | **#637** | il **linguaggio** del manifest di design | **10** decisioni tassonomiche | E25 (`#265`), post-v0.1 |
 
 L'insieme è **derivato a runtime** da `URTIconLibrary::RequiredIconIds()`
-(`Source/RefactorTactics/UI/RTIconLibrary.cpp:27`), e `FindMissingRequiredIcons` vuoto è il gate.
+(`Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp:27`), e `FindMissingRequiredIcons` vuoto è il gate.
 
 > 🔴 **La prima stesura di questa sezione diceva «33», e l'ha trascritto.** È l'errore esatto che questo
 > referto rimprovera al sorgente, commesso mentre lo si rimproverava — e per la stessa ragione: la
@@ -178,7 +178,7 @@ L'insieme è **derivato a runtime** da `URTIconLibrary::RequiredIconIds()`
 > Le altre quattro categorie reggono: 4 · 11 · 3 · 6 verificate una per una. **Totale 60.**
 >
 > ```bash
-> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
+> sed -n '709,1172p' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
 > ```
 >
 > ⚠️ **Non è un numero cosmetico**: era già stato pubblicato su `#217` come confine di scope autorevole fra

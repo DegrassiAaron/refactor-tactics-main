@@ -156,7 +156,7 @@ WBP_RT_ActionSlot
 
 The C++ base class `URTTurnHeaderWidget` already exists in:
 
-`Source/RefactorTactics/UI/RTScreenHudWidgets.h`
+`Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h`
 
 and exposes sanitized header data through the existing HUD ViewModel.
 
@@ -258,12 +258,12 @@ Do not trust old issue prose when it conflicts with current code. The historical
 Verify current HEAD for:
 
 ```text
-Source/RefactorTactics/UI/RTScreenHudWidgets.h
-Source/RefactorTactics/UI/RTScreenHudWidgets.cpp
-Source/RefactorTactics/UI/RTHudViewModel.h
-Source/RefactorTactics/UI/RTHudViewModel.cpp
-Source/RefactorTactics/UI/RTHUD.h
-Source/RefactorTactics/UI/RTHUD.cpp
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.cpp
+Source/RefactorTactics/UI/HUD/RTHudViewModel.h
+Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp
+Source/RefactorTactics/UI/HUD/RTHUD.h
+Source/RefactorTactics/UI/HUD/RTHUD.cpp
 Source/RefactorTactics/Frontend/RTFrontendNavigator.h
 Source/RefactorTactics/Frontend/RTFrontendNavigator.cpp
 Config/DefaultGame.ini
@@ -686,10 +686,10 @@ Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset   # only if needed
 
 Possible C++ only if current HEAD lacks required presentation plumbing:
 ```text
-Source/RefactorTactics/UI/RTScreenHudWidgets.h
-Source/RefactorTactics/UI/RTScreenHudWidgets.cpp
-Source/RefactorTactics/UI/RTHudViewModel.h
-Source/RefactorTactics/UI/RTHudViewModel.cpp
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h
+Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.cpp
+Source/RefactorTactics/UI/HUD/RTHudViewModel.h
+Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp
 Source/RefactorTactics/Frontend/RTFrontendNavigator.h
 Source/RefactorTactics/Frontend/RTFrontendNavigator.cpp
 Source/RefactorTactics/Tests/...                 # targeted tests

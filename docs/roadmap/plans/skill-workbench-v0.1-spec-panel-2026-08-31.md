@@ -72,13 +72,13 @@ fatti** sul repository, e ognuno dei quattro, eseguito alla lettera, produce un 
 | Ordine canonico di risoluzione | `RTTurnManager.cpp:4660` + §10 | 🔵 **esiste — nove stadi**, un solo punto di orchestrazione, una decisione per stadio |
 | `MoveCostModifier` | `RTHexSim.h:43` | costo di **una cella**, non un modificatore d'abilità |
 | `FRTAbilityVariant` | `Ability/RTActionData.h:19` | **esiste** — `VariantId`, `Effects`, `Parameters` (`TMap<FName,int32>`) |
-| `FRTScenarioVariant` | `ScenarioHarness/RTTestScenario.h:486` | esiste, **solo celle**, limitazione deliberata |
+| `FRTScenarioVariant` | `ScenarioHarness/Authoring/RTTestScenario.h:486` | esiste, **solo celle**, limitazione deliberata |
 | Ability come asset? | `rg "NewObject<URTActionData>" Source` | costruite **in codice**; catalogo = `URTCatalogLibrary::GetCoreActionCatalog()` → `TArray<FRTActionDef>` |
 | Doppia casa numerica | `RTControlActionTests.cpp:131,892` | `URTActionData::CooldownTurns` è uno **«specchio legacy»** di `Def.CooldownTurns`, e `ConsumeAbility` legge **il primo** |
 | Invariante interi | `RTActionDef.h:281` | `RefactorTactics.Catalog.NoFloatInIntegerFields`, verificato per reflection |
 | `Requires` → `Blocked` | `RTTestScenario.h:37-49` | `ERTTestOutcome::{Pass,Fail,Error,Blocked}` — **esiste già** |
 | `RulesVersion` / `ContentHash` | `rg "ContentHash\|RulesVersion\|ContentVersion" Source` | **1 occorrenza**, un commento in `RTGoldenCorpusTests.cpp:39` che dice che *sarebbe* il loro mestiere |
-| `StateHash` | `Turn/RTMatchStateHash.h` | esiste — checksum di **stato finale**, consumato da Runner/Session/Draft |
+| `StateHash` | `Turn/Log/RTMatchStateHash.h` | esiste — checksum di **stato finale**, consumato da Runner/Session/Draft |
 
 Stato issue, letto lato server il 2026-08-31:
 

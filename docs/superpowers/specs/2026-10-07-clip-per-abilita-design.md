@@ -84,7 +84,7 @@
 (`Unit/RTUnitAnimInstance.h:184-185`); dentro, `PerRole: TMap<ERTPresentationRole, FRTAnimRoleClips>` (`:139-150`), ogni
 ruolo con `Variants` e un solo `ActiveClipVariant` (`:72-83`). `ActiveClipFor(HeroId, Role)` (`:197`, `.cpp:168-183`) è
 l'unico punto di risoluzione. Dal sotto-progetto 2 ogni abilità ha un **momento** (`AbilityActivated` → ruolo `Cast`) e
-l'evento porta `ActionId`/`BaseActionId` (`Turn/RTResolvedEvent.h:387, 405`), ma i due consumatori lo scartano:
+l'evento porta `ActionId`/`BaseActionId` (`Turn/Resolution/RTResolvedEvent.h:387, 405`), ma i due consumatori lo scartano:
 `ShowActivation` chiama `PlayPresentationRole(ERTPresentationRole::Cast)` (`Turn/RTTurnManager.cpp:8103`) e
 `LaunchPlaybackAttack` chiama `PlayPresentationRole(ERTPresentationRole::Attack)` (`:8289`). Il default C++ lega la clip
 `Cast` dei pack sia al ruolo `Attack` sia al ruolo `Cast` (`.cpp:57, 59`): ogni abilità di un eroe suona la stessa sequenza.
@@ -92,7 +92,7 @@ l'evento porta `ActionId`/`BaseActionId` (`Turn/RTResolvedEvent.h:387, 405`), ma
 **Il dato d'autore esiste, l'asse no.** `Data/Anim/AnimCatalog.json` (`formatVersion: 1`) è letto e scritto da
 `Unit/RTAnimCatalogLibrary.cpp` (parse `:394-426`, scrittura `:489-497`); `FRTAnimBinding { HeroId, Role, bActive }`
 (`Unit/RTAnimCatalogTypes.h:102-123`); il commandlet `RTBuildAnimBindings` traduce i binding nel CDO di
-`/Game/RT/Anim/ABP_RTUnitAuthored` (`RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.cpp:28-63,
+`/Game/RT/Anim/ABP_RTUnitAuthored` (`RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.cpp:28-63,
 157-163`); `ValidateCatalog` difende «una sola attiva» con chiave `(HeroId, Role)` (`RTAnimCatalogLibrary.cpp:608-629`). Il
 modello del browser ha `BindToRole`/`MakeActive`/`Unbind` con predicati su `(HeroId, Role)`
 (`RTAnimBrowserModel.cpp:175-176, 198, 226`); il pannello non li chiama (`SRTAnimBrowserPanel.cpp`: solo
@@ -167,7 +167,7 @@ al successivo; il risultato nullo finale degrada come oggi (`IsNull`/`LoadSynchr
 al BP con `nullptr` a `:766-779`). `ActionId`/`BaseActionId` vuoti saltano il proprio livello. `Ruling`: la seconda
 chiave si legge dall'**evento** (`Ev.BaseActionId`), mai derivata a valle (`RTResolvedEvent.h:393-397` lo vieta); con
 `BaseActionId == NAME_None` si passa al ruolo. ➕ rev. Fra le abilità degli eroi solo gli attacchi base hanno un
-`BaseActionId` (`MakeHeroBasicAttack`, `Ability/RTHeroCatalogLibrary.cpp:168, 353, 496, 740, 928`): oggi il livello
+`BaseActionId` (`MakeHeroBasicAttack`, `Ability/Catalog/RTHeroCatalogLibrary.cpp:168, 353, 496, 740, 928`): oggi il livello
 generico è raggiungibile da quelli soltanto; vale per ogni abilità che un domani lo dichiarerà.
 
 ```cpp
@@ -248,14 +248,14 @@ eroe: nasce un helper `MakeActionClips(Pack, { {ActionId, Role, Clip}, … })` c
 `MakeClips` (`:156-165`), una riga per voce. La clip di ruolo resta com'è (`Cast` = `Attack` = clip `Cast` del pack): è
 il ripiego. Il catalogo JSON, quando arriverà ai Blueprint (#3562), **fonde per pool** sopra questo default (§2.3).
 ➕ rev. I commenti da aggiornare: il commento-trappola di `RTUnitAnimInstance.cpp:43-47` (il ruolo `Cast` suona, e
-sopra di esso ci sono le clip per abilità), `Tests/RTUnitTests.cpp:611-612` («una clip diversa sul ruolo Cast è un
+sopra di esso ci sono le clip per abilità), `Tests/Unit/RTUnitTests.cpp:611-612` («una clip diversa sul ruolo Cast è un
 giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il commento di `ValidateCatalog`
 (`RTAnimCatalogLibrary.cpp:599`, «(eroe, ruolo)» → terna), quelli del commandlet (`:96`, `:126`, `:155-156`) e
 ➕ rev2. il messaggio del gate di cook (`RTPackagingConfigTests.cpp:728`), che cita ancora `#2444`: l'owner è `#3562`.
 
 ### 2.5 I gate
 
-- ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
+- ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/Unit/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
   `PerAction` (ogni (eroe, azione, ruolo) con variante attiva), con la provenienza `Hero.X / Action / Ruolo`; il conteggio
   anti-sottrazione conta le **terne** di entrambi i pool in un ciclo indipendente. ➕ rev. Il calcolo del set richiesto
   esce in un helper (`RequiredAnimationPackages(Cdo, OutProvenienza)`) con un **test proprio, verde**
@@ -269,10 +269,10 @@ giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il 
   `RefactorTactics.Packaging` prima e dopo il gate esteso, e si ripete col comando del runbook. Resta rosso finché i
   `BP_Unit_*` non referenziano le clip: owner [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562)
   (eredita #2444, chiusa). Dichiarato in §6; il messaggio del gate elenca i package per nome.
-- `Unit.CastRoleResolvesAClipForEveryHero` (`Tests/RTAnimChannelTests.cpp:313-330`): + «azione senza voce → ripiego sul ruolo».
-- `Unit.DiscreteRoleClipsMatchThePacks` (`Tests/RTUnitTests.cpp:553-620`): invariato (pinna `Cast == Attack` sul **ruolo**).
-- `Anim.Bindings.MapToCdo`, `Anim.Browser.BindingRules`, `Anim.Catalog.RejectsTwoActivePerRole` (`RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp:167, 228, 277`): estesi alla chiave nuova. ➕ rev. Il round-trip dei binding vive in `RTAnimBrowserModelTests.cpp:43-48`, non in `Tests/RTAnimCatalogTests.cpp` (che non ha binding): il test con `actionId` è **nuovo**, accanto a quello.
-- `Playback.ActivationPlaysTheCastCue` (`Tests/RTPlaybackActivationTests.cpp:124-148`): asserisce anche **quale** path.
+- `Unit.CastRoleResolvesAClipForEveryHero` (`Tests/Unit/RTAnimChannelTests.cpp:313-330`): + «azione senza voce → ripiego sul ruolo».
+- `Unit.DiscreteRoleClipsMatchThePacks` (`Tests/Unit/RTUnitTests.cpp:553-620`): invariato (pinna `Cast == Attack` sul **ruolo**).
+- `Anim.Bindings.MapToCdo`, `Anim.Browser.BindingRules`, `Anim.Catalog.RejectsTwoActivePerRole` (`RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp:167, 228, 277`): estesi alla chiave nuova. ➕ rev. Il round-trip dei binding vive in `RTAnimBrowserModelTests.cpp:43-48`, non in `Tests/Unit/RTAnimCatalogTests.cpp` (che non ha binding): il test con `actionId` è **nuovo**, accanto a quello.
+- `Playback.ActivationPlaysTheCastCue` (`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp:124-148`): asserisce anche **quale** path.
 - Non cambiano: `Unit.BlueprintSurfaceIsCensused` (nessuna UFUNCTION nuova né rinominata), D-278 (nessun tipo di evento nuovo).
 
 ### 2.6 La mappa abilità→clip (giudizio dell'autore)
@@ -466,7 +466,7 @@ l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverl
 - ➕ impl. `LastResolvedClipPaths` in `Unit/RTUnit.h` è dichiarata anche fuori da `WITH_DEV_AUTOMATION_TESTS`, come
   `CastCuesPlayed`.
 - ➕ impl. L'asserto sul `Cast` della carica in `Playback.ChargeImpactPlaysTheDashAttackClip`
-  (`Tests/RTPlaybackActivationTests.cpp`) non ha una prova di mutazione.
+  (`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`) non ha una prova di mutazione.
 - ➕ impl. La traccia `L0` di `LaunchPlaybackAttack` è scritta fuori da `if (AtkSrc)`: prova che la funzione è
   partita, non che abbia trovato la sorgente.
 - ➕ impl. Due righe con la stessa (abilità, beat) in `MakeActionClips` si sovrascriverebbero in silenzio.

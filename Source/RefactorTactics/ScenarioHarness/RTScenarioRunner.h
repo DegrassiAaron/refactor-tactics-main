@@ -2,9 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "ScenarioHarness/RTTestScenario.h"
-#include "ScenarioHarness/RTTestResult.h"
-#include "Ability/RTWorkbenchVariant.h" // il default della variante e' la baseline
+#include "ScenarioHarness/Authoring/RTTestScenario.h"
+#include "ScenarioHarness/Report/RTTestResult.h"
+#include "Ability/Lab/RTWorkbenchVariant.h" // il default della variante e' la baseline
 #include "RTScenarioRunner.generated.h"
 
 class UWorld;

@@ -1,0 +1,2953 @@
+// Loader degli scenari di test: interpretazione e VALIDAZIONE.
+//
+// La validazione e' la meta' che conta. Uno scenario che nomina un eroe inesistente deve produrre un ERROR
+// leggibile, non un FAIL di gioco: confondere «il test e' scritto male» con «il gioco e' rotto» fa perdere
+// piu' tempo di quanto il test ne faccia risparmiare.
+
+#include "Misc/AutomationTest.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioSession.h" // le due domande del vocabolario: noto e disponibile
+#include "Turn/Resolution/RTTurnRules.h" // #1515: il vincolo sulle squadre si CHIEDE a chi decide il vincitore
+#include "Perception/RTTeamKnowledge.h" // la bitmask di percezione: il candidato SBAGLIATO, e il test lo dice
+#include "Turn/Log/RTTurnLog.h" // gli esiti che le assertion sul log nominano per nome
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // TargetHealthAtOrBelowPercent: l'id della condizione sta nel gioco
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
+	//
+	// 🔴 **`B1` portava `"cell": [2, 0]`, ed e' stata cambiata il 2026-09-05 (`#2482`).** Era li' per
+	// esercitare il layer OPZIONALE — due elementi valevano `layer = 0` — e quella forma non esiste piu':
+	// `ParseCell` accetta un array di coordinate se e solo se ha esattamente tre elementi. La fixture non
+	// e' stata «riparata» aggiungendo uno zero per far tornare il verde: la forma che dimostrava e' stata
+	// DECISA fuori di qui — nell'arbitrato dell'issue, che sceglie il rifiuto perche' `[q, r]` con il layer
+	// dedotto e' la stessa classe di difetto dell'arita' non limitata, cioe' un input sotto-specificato che
+	// diventa una cella valida e forse sbagliata. Il caso a due elementi vive ora dove appartiene, fra i
+	// RIFIUTI: `FRTScenarioLoaderCellArityTest`.
+	//
+	// ⚠️ Era l'UNICA occorrenza a due elementi in tutto `Source/`, e il corpus non ne ha nessuna: la
+	// migrazione e' questa riga e nient'altro.
+	const TCHAR* ScenarioLoaderValidJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.Probe",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
+	}
+	)JSON");
+
+	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
+	//
+	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
+	// `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Aevik, Phase, Branth,
+	// Ivrin — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
+	// Un `Hero.Branth` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
+	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.Parse",
+	  "version": 2,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
+	  ],
+	  "turns": [ {
+	    "intents": [],
+	    "decisions": [
+	      { "unit": "A1", "respond": "FIRE", "target": "B1" },
+	      { "unit": "A1", "respond": "HOLD" }
+	    ]
+	  } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+}
+
+/** Il caso felice: uno scenario ben formato produce i dati attesi, tutte e tre le componenti della cella incluse. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderValidTest,
+	"RefactorTactics.Scenario.LoaderAcceptsValidScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderValidTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario valido accettato"), URTScenarioLoader::LoadFromString(ScenarioLoaderValidJson, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	TestEqual(TEXT("scenarioId"), Scenario.ScenarioId, TEXT("Movement.Probe"));
+	TestEqual(TEXT("due unita' schierate"), Scenario.Units.Num(), 2);
+	TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1);
+	TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1);
+
+	const FRTScenarioUnit* A1 = Scenario.FindUnit(TEXT("A1"));
+	if (!TestNotNull(TEXT("A1 trovata per id"), A1)) { return false; }
+	TestEqual(TEXT("A1 e' Aevik"), A1->HeroId, FName(TEXT("Hero.Aevik")));
+	TestEqual(TEXT("A1 parte da (-2,0,0)"), A1->Cell, FRTCellId(-2, 0, 0));
+
+	// 🔴 **Qui c'era «cella a due componenti -> layer 0», e non e' stata riscritta: e' stata SPOSTATA**
+	// (`#2482`). Cio' che quella riga garantiva — che `[2, 0]` si caricasse — e' precisamente cio' che il
+	// contratto ora vieta, quindi tenerla qui con uno zero in piu' avrebbe conservato la forma dell'assertion
+	// perdendone il mestiere: non dimostrerebbe piu' niente sul layer, perche' su una cella `[2, 0, 0]` un
+	// parser che ignorasse del tutto il terzo elemento darebbe lo stesso risultato. La coppia che il layer la
+	// misura davvero — tre elementi con `layer != 0` che arriva intatto, e due elementi rifiutati — sta in
+	// `FRTScenarioLoaderCellArityTest`.
+	const FRTScenarioUnit* B1 = Scenario.FindUnit(TEXT("B1"));
+	if (!TestNotNull(TEXT("B1 trovata"), B1)) { return false; }
+	TestEqual(TEXT("B1 parte da (2,0,0)"), B1->Cell, FRTCellId(2, 0, 0));
+
+	// Il seed non dichiarato resta 0: il campo esiste ma oggi NON viene consumato (nessun RNG nel progetto).
+	TestEqual(TEXT("seed assente -> 0"), Scenario.Seed, 0);
+	return true;
+}
+
+/** Ogni rifiuto deve dire COSA non va: un errore muto costringe a indovinare. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsTest,
+	"RefactorTactics.Scenario.LoaderRejectsWithClearReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const TCHAR* Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	Rejects(TEXT("{ non e' json }"), TEXT("JSON"), TEXT("testo non interpretabile"));
+
+	// Il caso che il documento di specifica sbagliava per primo: eroi inventati (Drift, Vex, Nyx).
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Drift","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("eroe sconosciuto"), TEXT("eroe inesistente"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("fuori dall'arena"), TEXT("cella fuori mappa"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"A","hero":"Hero.Muiren","team":1,"cell":[1,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("duplicato"), TEXT("id unita' duplicato"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Muiren","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("stessa cella"), TEXT("due unita' sovrapposte alla partenza"));
+
+	// #1515 — una squadra che la partita non conosce. Non e' pedanteria di formato: `GetTeamScore` risponde
+	// `0` a ogni indice diverso da 0 e 1, e l'hash di stato si costruisce da quei due soltanto, quindi uno
+	// scenario con `"team": 7` girerebbe producendo un esito che nessuno puo' riprodurre.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("squadra 7"), TEXT("squadra fuori dall'intervallo ammesso"));
+
+	// Anche il verso negativo: `TeamId` e' un `int32` libero, e `-1` non e' meno rotto di `7`.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":-1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("squadra -1"), TEXT("squadra negativa"));
+
+	// Uno scenario senza assertion passerebbe sempre: e' un test che non testa.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}]})"),
+		TEXT("nessuna assertion"), TEXT("scenario senza expect"));
+
+	// Un'assertion scritta male non deve essere IGNORATA: il test sembrerebbe passare.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitHasSuperpowers"}]})"),
+		TEXT("assertion sconosciuta"), TEXT("assertion non riconosciuta"));
+
+	// Intent su un'unita' mai schierata: errore di scrittura tipico, va colto subito.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"Z","move":[[1,0,0]]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("non schierata"), TEXT("intent su unita' inesistente"));
+
+	// Un formato piu' nuovo di quanto il loader sappia leggere non va interpretato a caso.
+	Rejects(TEXT(R"({"scenarioId":"X","version":99,"mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("non supportato"), TEXT("versione di formato futura"));
+
+	// Chiave di INTENT sconosciuta (CP 16.1). Prima veniva ignorata in silenzio, e uno scenario che chiedeva
+	// qualcosa che l'harness non sa fare girava verde verificando tutto tranne quello. Vale anche per un refuso
+	// su una chiave vera: `dashCell` al posto di `dashTo` e' l'errore che questo controllo coglie per primo.
+	//
+	// 🔴 **La fixture era `"facing":"NE"`, ed e' stata cambiata il 2026-08-13 perche' ha smesso di essere
+	// inventata.** Era stata scelta proprio perche' `facing` era l'esempio canonico di «cosa che l'harness non
+	// sa fare» — il commento del loader lo dice ancora: *«uno scenario che chiedeva un orientamento
+	// dichiarato, per dire»*. Con #291/#737 la chiave esiste, quindi quel JSON ora si CARICA e il test
+	// falliva chiedendo un rifiuto che non doveva piu' arrivare.
+	//
+	// Il test non aveva torto: la sua fixture dipendeva dall'ASSENZA di una feature, e nessun gate lo
+	// segnala. Sostituita con `dashCell`, il refuso che il commento qui sopra nomina da sempre — che ha il
+	// pregio di essere un errore realistico invece di una chiave impossibile, e nessuno ha in programma di
+	// implementarlo.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("chiave sconosciuta"), TEXT("chiave di intent inventata"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Branth","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Branth.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("chiave sconosciuta"), TEXT("refuso su una chiave vera"));
+
+	// Una direzione inventata in UnitFacing non deve diventare «guarda a est» per arrotondamento.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitFacing","unit":"A","value":"NNE"}]})"),
+		TEXT("direzione 'NNE' sconosciuta"), TEXT("direzione di facing inventata"));
+
+	return true;
+}
+
+/**
+ * OGNI scenario versionato in `Scenarios/` deve essere valido. E' la rete che impedisce di committare
+ * uno scenario rotto: senza, il difetto si scopre solo quando qualcuno prova a eseguirlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderShippedScenariosTest,
+	"RefactorTactics.Scenario.ShippedScenariosAreValid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderShippedScenariosTest::RunTest(const FString&)
+{
+	const FString Root = URTScenarioLoader::ScenariosRoot();
+	TArray<FString> Files;
+	IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.json"), /*Files=*/ true, /*Directories=*/ false);
+
+	if (!TestTrue(FString::Printf(TEXT("esiste almeno uno scenario in %s"), *Root), Files.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const FString& File : Files)
+	{
+		// I file `_*.json` non sono scenari (la tabella di redirect vive li' accanto): stessa convenzione
+		// che usa la scansione dell'indice, e va ripetuta qui o questo test fallirebbe sulla tabella.
+		if (FPaths::GetCleanFilename(File).StartsWith(TEXT("_")))
+		{
+			continue;
+		}
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromFile(File, Scenario, Error);
+		TestTrue(FString::Printf(TEXT("scenario valido: %s"), *FPaths::GetCleanFilename(File)), bOk);
+		if (!bOk)
+		{
+			AddError(FString::Printf(TEXT("%s -> %s"), *FPaths::GetCleanFilename(File), *Error));
+			continue;
+		}
+
+		// T1 — L'ID deve riportare a QUESTO file passando per l'indice: altrimenti `rt.Test.Run <id>` non
+		// troverebbe il file. Da quando le cartelle sono libere l'invariante non e' piu' «l'id e' il
+		// percorso» ma «l'id risolve al percorso», e questa e' piu' forte: fallisce anche quando due file
+		// dichiarano lo stesso ID, caso che il confronto con il percorso non poteva vedere.
+		FString ResolveError;
+		const FString Resolved = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ResolveError);
+		if (!TestFalse(FString::Printf(TEXT("%s: l'indice lo risolve"), *Scenario.ScenarioId), Resolved.IsEmpty()))
+		{
+			AddError(FString::Printf(TEXT("%s -> %s"), *Scenario.ScenarioId, *ResolveError));
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("%s: l'id risolve a questo file"), *Scenario.ScenarioId),
+			Resolved, FPaths::ConvertRelativePathToFull(File));
+	}
+	return true;
+}
+
+
+/**
+ * Le assertion sul TurnLog (#318): l'evento si nomina per NOME, e un nome sbagliato e' un ERRORE di scenario.
+ *
+ * Cio' che questo test sorveglia non e' il parsing in se' — sono venti righe — ma che i nomi si risolvano per
+ * RIFLESSIONE sull'enum invece che da una tabella scritta a mano. Con la tabella, aggiungere un esito al
+ * TurnLog lo renderebbe inscrivibile negli scenari finche' qualcuno non si ricorda di aggiornarla anche qui,
+ * e quel qualcuno non se ne ricorda: e' gia' successo in questo loader con la chiave `edge`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderLogAssertionsTest,
+	"RefactorTactics.Scenario.LoaderReadsLogAssertionsByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* ExpectJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.LogAssertions",
+		  "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ %s ]
+		})JSON"), ExpectJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Conteggio: nomi validi -> categoria ed esito risolti nei valori dell'enum.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Environment", "outcome": "BridgeRemoved", "value": 0 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventCount"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventCount);
+			TestTrue(TEXT("categoria Environment"), Scenario.Expect[0].LogCategory == ERTLogCategory::Environment);
+			TestEqual(TEXT("esito BridgeRemoved"),
+				static_cast<int32>(Scenario.Expect[0].LogOutcome),
+				static_cast<int32>(ERTEnvironmentOutcome::BridgeRemoved));
+			TestEqual(TEXT("value 0 e' un conteggio legittimo: asserisce l'ASSENZA"), Scenario.Expect[0].Value, 0);
+		}
+	}
+
+	// 2. `value` assente = 1, cioe' «l'evento c'e'». E' il caso piu' comune e scriverlo ogni volta sarebbe rumore.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		if (Load(TEXT(R"({ "type": "LogEventCount", "category": "Facing", "outcome": "DerivedFromMove" })"), Scenario, Error)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestEqual(TEXT("conteggio atteso implicito"), Scenario.Expect[0].Value, 1);
+		}
+	}
+
+	// 3. Ordine: due eventi, entrambi risolti.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventOrder", "category": "Facing", "outcome": "UsedByBlast", "thenCategory": "Facing", "thenOutcome": "DerivedFromMove" })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventOrder"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventOrder);
+			TestEqual(TEXT("primo evento"), static_cast<int32>(Scenario.Expect[0].LogOutcome),
+				static_cast<int32>(ERTFacingOutcome::UsedByBlast));
+			TestEqual(TEXT("secondo evento"), static_cast<int32>(Scenario.Expect[0].ThenOutcome),
+				static_cast<int32>(ERTFacingOutcome::DerivedFromMove));
+		}
+	}
+
+	// 4. Un esito che appartiene a UN'ALTRA categoria e' rifiutato. E' il caso che una tabella scritta a mano
+	//    sbaglierebbe piu' facilmente: `BridgeRemoved` esiste, ma non fra gli esiti di `Facing`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Facing", "outcome": "BridgeRemoved" })"),
+			Scenario, Error);
+		TestFalse(TEXT("esito di un'altra categoria: rifiutato"), bOk);
+		TestTrue(TEXT("e l'errore nomina la categoria, o si cerca il difetto nel posto sbagliato"),
+			Error.Contains(TEXT("Facing")));
+	}
+
+	// 5. Categoria inventata: rifiutata, con l'elenco di quelle previste.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventCount", "category": "Meteo", "outcome": "Pioggia" })"),
+			Scenario, Error);
+		TestFalse(TEXT("categoria inesistente: rifiutata"), bOk);
+		TestTrue(TEXT("l'errore elenca le categorie previste"), Error.Contains(TEXT("Environment")));
+	}
+
+	// 6. VALORE (#361): la terza primitiva di #318, sbloccata dalla decisione di formato di `spec-turnlog.md`
+	//    §4.2. `Amount` e' il payload numerico di ogni categoria, quindi l'assertion non e' del solo bank.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 24 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestTrue(TEXT("kind LogEventAmount"), Scenario.Expect[0].Kind == ERTAssertionKind::LogEventAmount);
+			TestTrue(TEXT("categoria Combat"), Scenario.Expect[0].LogCategory == ERTLogCategory::Combat);
+			TestEqual(TEXT("il valore atteso arriva dal JSON"), Scenario.Expect[0].Value, 24);
+		}
+	}
+
+	// 7. `value` OBBLIGATORIO, al contrario di `LogEventCount`: li' l'omissione ha un default sensato
+	//    («l'evento c'e'»), qui sarebbe un numero inventato dal parser, e uno scenario passerebbe senza dire
+	//    cosa si aspettava.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit" })"),
+			Scenario, Error);
+		TestFalse(TEXT("senza 'value' l'assertion e' rifiutata"), bOk);
+		TestTrue(TEXT("e l'errore nomina il campo mancante"), Error.Contains(TEXT("value")));
+	}
+
+	// 8. Un valore NEGATIVO e' legittimo qui, mentre `LogEventCount` lo rifiuta: un conteggio non puo' essere
+	//    negativo, un `Amount` si' — una differenza di punteggio o un delta lo sono.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": -3 })"),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("un Amount negativo si scrive (%s)"), *Error), bOk)
+			&& TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1))
+		{
+			TestEqual(TEXT("e arriva intatto"), Scenario.Expect[0].Value, -3);
+		}
+	}
+
+	return true;
+}
+
+/**
+ * CP 13.5 (#160): un'unita' puo' essere dichiarata guidata dal BOT, e la sua condizione iniziale scritta.
+ *
+ * Le due meta' del test sono asimmetriche e devono restarlo. Il PARSING e' banale — tre chiavi — mentre cio'
+ * che vale sono i due RIFIUTI: un intent scritto su un'unita' bot e un sentinella che si confonde con un
+ * valore chiesto davvero. Senza il primo, uno scenario dichiara una mossa e ne gioca un'altra restando verde
+ * quando le due combaciano per caso; senza il secondo, `"shield": 0` sarebbe indistinguibile da «shield non
+ * dichiarato» e un'esca con lo scudo del roster passerebbe per un'esca senza scudo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderBotUnitTest,
+	"RefactorTactics.Scenario.LoaderReadsBotUnitsAndCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* UnitsJson, const TCHAR* TurnsJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.BotUnits",
+		  "mapRadius": 3,
+		  "units": [ %s ],
+		  "turns": [ %s ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), UnitsJson, TurnsJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Le tre chiavi arrivano, e i default non cambiano per chi non le scrive.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
+			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0], "bot": true, "health": 7, "shield": 0, "visionRange": 1 })"),
+			TEXT(R"({ "intents": [] })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk))
+		{
+			const FRTScenarioUnit* A1 = Scenario.FindUnit(TEXT("A1"));
+			const FRTScenarioUnit* B1 = Scenario.FindUnit(TEXT("B1"));
+			if (TestNotNull(TEXT("A1"), A1) && TestNotNull(TEXT("B1"), B1))
+			{
+				TestFalse(TEXT("chi non dichiara `bot` non lo diventa"), A1->bBotControlled);
+				TestTrue(TEXT("B1 e' guidata dal bot"), B1->bBotControlled);
+				TestEqual(TEXT("health dichiarata"), B1->Health, 7);
+				// La riga che il sentinella `0` renderebbe impossibile: `shield: 0` e' una RICHIESTA.
+				TestEqual(TEXT("shield 0 e' un valore chiesto, non un campo assente"), B1->Shield, 0);
+				TestEqual(TEXT("vista dichiarata"), B1->VisionRange, 1);
+				TestEqual(TEXT("A1 non dichiara condizione: resta quella del roster"), A1->Health, -1);
+				TestEqual(TEXT("idem lo scudo"), A1->Shield, -1);
+				TestEqual(TEXT("idem la vista"), A1->VisionRange, -1);
+			}
+		}
+	}
+
+	// 2. Un intent su un'unita' bot e' un errore di SCRITTURA, non un piano.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0], "bot": true },
+			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] })"),
+			TEXT(R"({ "intents": [ { "unit": "A1", "move": [[0, 0, 0]] } ] })"), Scenario, Error);
+		TestFalse(TEXT("un intent su un'unita' bot e' rifiutato"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina l'unita' (%s)"), *Error), Error.Contains(TEXT("A1")));
+	}
+
+	// 3. Una salute a zero schiererebbe un cadavere.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0], "health": 0 })"),
+			TEXT(R"({ "intents": [] })"), Scenario, Error);
+		TestFalse(TEXT("health 0 e' rifiutata"), bOk);
+	}
+
+	return true;
+}
+
+/**
+ * CP 13.5 (#160): le VARIANTI, e i quattro modi in cui un canary differenziale puo' nascere gia' vuoto.
+ *
+ * Ognuno dei rifiuti qui sotto corrisponde a uno scenario che sarebbe stato **verde per sempre** senza mettere
+ * alla prova niente: un confronto fra una cosa sola, una variante che non cambia nulla, due varianti con lo
+ * stesso nome (il report non saprebbe dire quale e' rossa), e un'unita' spostata dove ce n'e' gia' un'altra.
+ * Sono la ragione per cui la validazione delle varianti sta nel loader e non nella buona volonta' di chi
+ * scrive lo scenario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderVariantsTest,
+	"RefactorTactics.Scenario.LoaderRejectsEmptyVariantComparisons",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderVariantsTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* VariantsJson, const TCHAR* SameJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.Variants",
+		  "mapRadius": 4,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  %s
+		  "variants": [ %s ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), SameJson, VariantsJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Il caso valido, che da' senso ai rifiuti sotto.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("due varianti valide (%s)"), *Error), bOk))
+		{
+			TestEqual(TEXT("due varianti lette"), Scenario.Variants.Num(), 2);
+			TestTrue(TEXT("il confronto e' richiesto"), Scenario.bExpectSameAcrossVariants);
+			if (Scenario.Variants.Num() == 2)
+			{
+				TestEqual(TEXT("la seconda sposta A1"), Scenario.Variants[1].Units[0].Cell, FRTCellId(-3, 0, 0));
+			}
+		}
+	}
+
+	// 2. Un confronto fra UNA cosa: verde per costruzione.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "name": "sola", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("una sola variante e' rifiutata"), bOk);
+	}
+
+	// 3. Una variante che non sposta niente: il suo TurnLog coincide senza aver provato nessun ingresso.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] }, { "name": "vuota", "units": [] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("una variante che non cambia nulla e' rifiutata"), bOk);
+	}
+
+	// 4. Due varianti con lo stesso nome: il report non saprebbe dire quale e' rossa.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [-2, 0, 0] } ] },
+			         { "name": "a", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("due varianti omonime sono rifiutate"), bOk);
+	}
+
+	// 5. Una variante che mette due unita' sulla stessa cella: e' invalida SOLO nella variante, cioe' nel
+	//    posto in cui la validazione dell'allestimento normale non guarda.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "A1", "cell": [1, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("A1 spostata sopra B1 e' rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la variante (%s)"), *Error), Error.Contains(TEXT("'a'")));
+	}
+
+	// 6. Una variante che sposta un'unita' inesistente.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(
+			TEXT(R"({ "name": "a", "units": [ { "id": "FANTASMA", "cell": [-2, 0, 0] } ] },
+			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
+			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
+		TestFalse(TEXT("spostare un'unita' non schierata e' rifiutato"), bOk);
+	}
+
+	return true;
+}
+
+/**
+ * La rotazione DICHIARATA nell'intent (D-020, #291): la chiave si legge, il flag distingue «E» dichiarato da
+ * «campo assente», e una direzione inventata viene rifiutata con un motivo.
+ *
+ * ⚠️ **Il flag e' la meta' che conta.** `ERTHexDirection::E` e' il valore di default del campo *e* una
+ * direzione legittima: senza `bDeclaresFacing` un intent che non nomina `facing` sarebbe indistinguibile da
+ * uno che chiede di girarsi a est, e ogni unita' di ogni scenario dichiarerebbe una rotazione senza saperlo.
+ * E' la stessa ragione per cui `TargetCell` ha `bTargetsCell` e `CoverEdge` ha `bHasCoverEdge`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDeclaredFacingTest,
+	"RefactorTactics.Scenario.LoaderReadsDeclaredFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* IntentJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.DeclaredFacing",
+		  "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
+		             { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] } ],
+		  "turns": [ { "requires": ["DeclaredRotation"], "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), IntentJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Dichiarata: arriva la direzione E si alza il flag.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "facing": "NW" })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestTrue(TEXT("un turno con un intent"),
+				Scenario.Turns.Num() == 1 && Scenario.Turns[0].Intents.Num() == 1))
+		{
+			const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+			TestTrue(TEXT("il flag dichiara che la rotazione c'e'"), Intent.bDeclaresFacing);
+			TestEqual(TEXT("ed e' quella scritta nel file"), Intent.Facing, ERTHexDirection::NW);
+		}
+	}
+
+	// 2. NON dichiarata: il flag resta falso. Senza questa meta' il caso 1 passerebbe anche con un flag
+	//    sempre vero, e ogni intent del repository si porterebbe dietro una rotazione mai chiesta.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "move": [[1, 0, 0]] })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& Scenario.Turns.Num() == 1 && Scenario.Turns[0].Intents.Num() == 1)
+		{
+			TestFalse(TEXT("senza la chiave, nessuna rotazione dichiarata"),
+				Scenario.Turns[0].Intents[0].bDeclaresFacing);
+		}
+	}
+
+	// 3. Direzione inventata: rifiutata con un motivo, non ricondotta silenziosamente a `E`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "facing": "NNE" })"), Scenario, Error);
+		TestFalse(TEXT("una direzione inesistente e' rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo la nomina (era: '%s')"), *Error),
+			Error.Contains(TEXT("NNE")));
+	}
+
+	return true;
+}
+
+/**
+ * Le decisioni di finestra si caricano come DATO, in ordine e col vocabolario dello scenario (CP 15.3
+ * meta' B, `#512`).
+ *
+ * L'ORDINE e' significativo: la coda si consuma in ordine di dichiarazione, e un abbinamento posizionale
+ * cambierebbe bersaglio quando cambia il movimento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsTest,
+	"RefactorTactics.Scenario.LoaderAcceptsDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario con decisions accettato"),
+		URTScenarioLoader::LoadFromString(ScenarioLoaderDecisionsJson, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)) { return false; }
+	const FRTScenarioTurn& T = Scenario.Turns[0];
+	if (!TestEqual(TEXT("due decisioni"), T.Decisions.Num(), 2)) { return false; }
+
+	TestEqual(TEXT("prima: unita'"),     T.Decisions[0].Unit,    FString(TEXT("A1")));
+	TestEqual(TEXT("prima: risposta"),   T.Decisions[0].Respond, FString(TEXT("FIRE")));
+	TestEqual(TEXT("prima: bersaglio"),  T.Decisions[0].Target,  FString(TEXT("B1")));
+	TestEqual(TEXT("seconda: risposta"), T.Decisions[1].Respond, FString(TEXT("HOLD")));
+	TestTrue(TEXT("HOLD non porta bersaglio"), T.Decisions[1].Target.IsEmpty());
+	return true;
+}
+
+/**
+ * La validazione e' la meta' che conta. Uno scenario scritto male deve produrre un ERROR leggibile, non un
+ * `HOLD` silenzioso: `HoldNoDecider` e' indistinguibile da «nessuno ha risposto», ed e' il modo in cui un
+ * refuso resta verde per sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsRejectTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
+{
+	auto Rifiuta = [this](const TCHAR* Cosa, const TCHAR* Decision, const TCHAR* Atteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Reject", "version": 2, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Decision);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bLoaded);
+		// Il messaggio deve NOMINARE il difetto: un rifiuto muto manda a cercare nel posto sbagliato.
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Cosa, Atteso, *Error),
+			Error.Contains(Atteso));
+	};
+
+	Rifiuta(TEXT("chiave sconosciuta"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "reason": "perche' si" })"), TEXT("reason"));
+	Rifiuta(TEXT("respond sconosciuto"),
+		TEXT(R"({ "unit": "A1", "respond": "MAYBE" })"), TEXT("MAYBE"));
+	Rifiuta(TEXT("FIRE senza bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE" })"), TEXT("target"));
+	Rifiuta(TEXT("HOLD con bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "target": "B1" })"), TEXT("B1"));
+	Rifiuta(TEXT("unita' non schierata"),
+		TEXT(R"({ "unit": "Z9", "respond": "HOLD" })"), TEXT("Z9"));
+	Rifiuta(TEXT("bersaglio non schierato"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE", "target": "Z9" })"), TEXT("Z9"));
+	return true;
+}
+
+/** Un refuso a livello di turno non deve essere ignorato: `desicions` non e' un commento. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderTurnKeysTest,
+	"RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
+{
+	// ⚠️ `expect` NON puo' essere vuoto: il loader lo rifiuta a monte («nessuna assertion dichiarata»), e
+	// un JSON di prova senza assertion farebbe passare il primo `TestFalse` per la ragione sbagliata e
+	// cadere il secondo caso per sempre. Il piano lo dichiara nei vincoli globali e lo violava qui.
+	const TCHAR* Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [], "desicions": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	TestFalse(TEXT("refuso di turno rifiutato"), URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+	// Il messaggio deve nominare LA CHIAVE: un rifiuto generico manda a cercare nel posto sbagliato, ed e'
+	// anche cio' che distingue questo controllo da quello — gia' esistente — sul contenuto di `intents`.
+	TestTrue(FString::Printf(TEXT("il messaggio nomina 'desicions' (era: '%s')"), *Error),
+		Error.Contains(TEXT("desicions")));
+
+	// E il commento resta un commento: `_turno` e `_nota` non devono cadere insieme al refuso.
+	const TCHAR* ConCommento = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+	FRTTestScenario ConCommentoScenario;
+	FString CommentoError;
+	if (!TestTrue(TEXT("i commenti di turno restano ammessi"),
+		URTScenarioLoader::LoadFromString(ConCommento, ConCommentoScenario, CommentoError)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *CommentoError));
+	}
+	return true;
+}
+
+/**
+ * Il formato cresce di una versione, e il gate serve nel verso che conta: una build VECCHIA deve
+ * **rifiutare** uno scenario che non sa leggere, non ignorarne i campi. Da `#926` gli scenari viaggiano
+ * dentro il pacchetto, quindi la coppia build/dato puo' disallinearsi davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderSupportsVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
+{
+	auto Prova = [this](int32 Versione, bool bAtteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestEqual(FString::Printf(TEXT("versione %d"), Versione), bLoaded, bAtteso);
+	};
+
+	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
+	Prova(2, true);   // la versione che dichiara `decisions`
+	// 🔁 **`3` e' passata da rifiutata ad accettata il 2026-08-19** (E14.7 fetta 4): e' la versione che
+	// ammette in `decisions.respond` le risposte di un Reaction Profile. Il numero si e' mosso di uno e il
+	// test **non** ha perso il proprio mestiere: il caso «il gate resta un gate» e' ora la riga sotto.
+	Prova(3, true);
+	// ⚠️ **La riga che conta e' questa, e va SEMPRE tenuta a `SupportedVersion + 1`**: senza, il test
+	// dimostrerebbe solo che le versioni note si caricano — cioe' niente sul gate. Il verso protetto e'
+	// quello dichiarato in `RTScenarioLoader.h`: una build vecchia deve RIFIUTARE uno scenario che non sa
+	// leggere invece di ignorarne i campi, e da `#926` gli scenari viaggiano dentro il pacchetto.
+	Prova(URTScenarioLoader::SupportedVersion + 1, false);
+	return true;
+}
+
+/**
+ * `loadout` ha **tre** forme, e la differenza fra due di esse è invisibile a un conteggio (#1054).
+ *
+ * - **assente** → l'unità riceve il default del suo eroe, cioè ciò che la partita monta;
+ * - **`[]`** → l'unità entra **spoglia**, e lo scenario lo sta dichiarando;
+ * - **lista** → quei pezzi, e vincono sul default.
+ *
+ * ⚠️ **Perché serve la seconda.** Quando `#1054` ha acceso i default anche nell'harness, cinque scenari
+ * hanno cambiato risultato — e quattro non avevano numeri sbagliati: avevano perso la **variabile che
+ * tenevano ferma**. `Spec.Brace.GuardAndBraceOnMixedHit` misura il confine Guard/Brace *con spinta 1*, e
+ * il default di Phase porta la spinta a 2: senza un modo di dire «questa unità entra spoglia», quello
+ * scenario non può più esistere — diventa il gemello di `PushBeyondGuardThreshold`.
+ *
+ * ⚠️ E `[]` **non** si distingue da assente contando gli elementi: entrambe danno `Loadout.Num() == 0`.
+ * È per questo che esiste `bLoadoutDeclared` invece di una condizione sul conteggio, ed è il difetto che
+ * questo test impedisce di reintrodurre — sarebbe silenzioso, perché il corpus resterebbe verde mentre
+ * quattro scenari misurano di nuovo la cosa sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoadoutThreeFormsTest,
+	"RefactorTactics.Scenario.LoadoutHasThreeForms",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoadoutThreeFormsTest::RunTest(const FString&)
+{
+	auto Carica = [this](const TCHAR* CampoLoadout, const TCHAR* Etichetta) -> FRTScenarioUnit
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Loadout.Forme", "version": 1, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0]%s } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), CampoLoadout);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!URTScenarioLoader::LoadFromString(*Json, Scenario, Error))
+		{
+			AddError(FString::Printf(TEXT("%s: caricamento fallito — %s"), Etichetta, *Error));
+			return FRTScenarioUnit();
+		}
+		if (Scenario.Units.Num() != 1)
+		{
+			AddError(FString::Printf(TEXT("%s: attesa una unita'"), Etichetta));
+			return FRTScenarioUnit();
+		}
+		return Scenario.Units[0];
+	};
+
+	// 1. Assente: nessuna dichiarazione, quindi la sessione userà il default dell'eroe.
+	const FRTScenarioUnit Assente = Carica(TEXT(""), TEXT("assente"));
+	TestFalse(TEXT("assente: non dichiarato"), Assente.bLoadoutDeclared);
+	TestEqual(TEXT("assente: lista vuota"), Assente.Loadout.Num(), 0);
+
+	// 2. Vuoto: DICHIARATO, e dichiarato vuoto. È la forma che il conteggio non distingue dalla prima.
+	const FRTScenarioUnit Vuoto = Carica(TEXT(", \"loadout\": []"), TEXT("vuoto"));
+	TestTrue(TEXT("vuoto: DICHIARATO"), Vuoto.bLoadoutDeclared);
+	TestEqual(TEXT("vuoto: lista vuota"), Vuoto.Loadout.Num(), 0);
+
+	// 3. Pieno: dichiarato con i pezzi. Un loadout legale, o `Validate` lo rifiuterebbe prima.
+	const FRTScenarioUnit Pieno = Carica(
+		TEXT(", \"loadout\": [\"Weapon.Impact\", \"Gadget.Medkit\", \"Reaction.Anchor\"]"), TEXT("pieno"));
+	TestTrue(TEXT("pieno: dichiarato"), Pieno.bLoadoutDeclared);
+	TestEqual(TEXT("pieno: tre pezzi"), Pieno.Loadout.Num(), 3);
+
+	// L'asserzione che rende il test non vacuo: le prime due sono indistinguibili SUL CONTEGGIO e distinte
+	// sul flag. Senza questa riga il test passerebbe anche con `bLoadoutDeclared` sempre falso.
+	TestNotEqual(TEXT("assente e vuoto si distinguono, e non per il numero di pezzi"),
+		Assente.bLoadoutDeclared, Vuoto.bLoadoutDeclared);
+	TestEqual(TEXT("...mentre il conteggio le direbbe uguali"), Assente.Loadout.Num(), Vuoto.Loadout.Num());
+	return true;
+}
+
+/**
+ * Il bump a 2 deve GATARE la feature per cui e' stato fatto, o non gatea niente.
+ *
+ * Trovato in code review: il solo controllo era `Version > SupportedVersion`, quindi un file `version: 1`
+ * con `decisions` veniva accettato. Spedito cosi', una build vecchia — che non conosce ne' la chiave ne' la
+ * versione — lo caricherebbe ignorando le decisioni e giocherebbe il turno non scriptato: il silenzio che
+ * il bump esiste per impedire.
+ *
+ * E una chiave `decisions` che non e' un array non deve sparire: supera il controllo sulle chiavi di turno,
+ * perche' la chiave e' nota, e senza questo verrebbe saltata da `TryGetArrayField` senza un errore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsNeedVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderRejectsDecisionsBelowVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsNeedVersionTwoTest::RunTest(const FString&)
+{
+	auto Carica = [](int32 Versione, const TCHAR* DecisionsField, FString& OutError)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.VersionGate", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [], %s } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione, DecisionsField);
+		FRTTestScenario Scenario;
+		return URTScenarioLoader::LoadFromString(*Json, Scenario, OutError);
+	};
+
+	const TCHAR* UnaDecisione = TEXT(R"("decisions": [ { "unit": "A1", "respond": "HOLD" } ])");
+
+	FString Error;
+	TestFalse(TEXT("version 1 con decisions e' rifiutato"), Carica(1, UnaDecisione, Error));
+	TestTrue(FString::Printf(TEXT("e il motivo nomina la versione (era: '%s')"), *Error),
+		Error.Contains(TEXT("version")));
+
+	Error.Reset();
+	TestTrue(FString::Printf(TEXT("version 2 con le stesse decisions e' accettato (errore: '%s')"), *Error),
+		Carica(2, UnaDecisione, Error));
+
+	// Una lista VUOTA non chiede nulla di nuovo: non deve costringere ad alzare la versione.
+	Error.Reset();
+	TestTrue(TEXT("version 1 con decisions vuote resta valida"),
+		Carica(1, TEXT(R"("decisions": [])"), Error));
+
+	Error.Reset();
+	TestFalse(TEXT("decisions non-array e' rifiutato"), Carica(2, TEXT(R"("decisions": {})"), Error));
+	TestTrue(FString::Printf(TEXT("e il motivo dice che serve un array (era: '%s')"), *Error),
+		Error.Contains(TEXT("array")));
+	return true;
+}
+
+/**
+ * `Reaction` e `DecisionBoundary` sono due nomi con due regimi, e il confine e' la CARDINALITA' — non due
+ * nomi per la stessa cosa. Il test esiste perche' la divisione, senza, vive solo in un commento: e un
+ * commento che dichiara la propria scadenza l'ha gia' mancata una volta.
+ *
+ * ⚠️ Servono ENTRAMBE le domande, e il piano ne faceva una sola. `IsKnownCapability` e' vera anche per le
+ * indisponibili — e' il suo scopo — quindi chiederla per `Reaction` e per `DecisionBoundary` avrebbe
+ * pinnato soltanto che i due nomi esistono, non che stanno da parti opposte. La divisione E' la coppia
+ * `noto` × `disponibile`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReactionSplitTest,
+	"RefactorTactics.Scenario.ReactionAndDecisionBoundaryAreDistinct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReactionSplitTest::RunTest(const FString&)
+{
+	// `Reaction` copre il regime E5 `AllowedResponses <= 1` ed e' DISPONIBILE: i tre scenari che la chiedono
+	// girano oggi.
+	TestTrue(TEXT("Reaction e' nota"), FRTScenarioSession::IsKnownCapability(TEXT("Reaction")));
+	TestTrue(TEXT("e disponibile"), FRTScenarioSession::IsAvailableCapability(TEXT("Reaction")));
+
+	// `DecisionBoundary` copre `>= 2`: nome NOTO — quindi un turno che lo chiede vale `Blocked`, non
+	// `Error`.
+	//
+	// 🔴 **La seconda asserzione diceva `TestFalse(... "ma NON e' disponibile in fase A")` ed e' caduta il
+	// 2026-08-16 con la fase B, che l'ha resa disponibile.** Il test dichiarava la propria scadenza nella
+	// stringa e l'ha rispettata. ⚠️ Ma il difetto non e' il valore, e' la DISCRIMINANTE: la divisione fra
+	// `Reaction` e `DecisionBoundary` non e' mai stata «una c'e' e l'altra no» — quello era un accidente
+	// della fase A. E' che sono due NOMI distinti per due regimi distinti (`AllowedResponses <= 1` contro
+	// `>= 2`), e resta vera ora che sono entrambe disponibili. Ripararla mettendo `TestTrue` avrebbe tenuto
+	// una discriminante che scade di nuovo alla prossima capability.
+	TestTrue(TEXT("DecisionBoundary e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("DecisionBoundary")));
+	TestTrue(TEXT("ed e' disponibile dalla fase B di #512"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("DecisionBoundary")));
+
+	// ⚠️ **La divisione e' che i due nomi sono DIVERSI, e questa riga e' cio' che lo rende falsificabile.**
+	// Con entrambe disponibili, le quattro asserzioni qui sopra passerebbero anche se `IsKnownCapability` /
+	// `IsAvailableCapability` ignorassero l'argomento e rispondessero sempre `true`: e' il test vacuo che
+	// questo repository chiama «un test che smette di verificare senza dirlo». Serve un nome NOTO e NON
+	// disponibile, e dev'essere `NeverAvailable` — il nome **riservato**, che per costruzione non atterra
+	// mai. 🔴 La prima stesura usava `ReactionProfile`: noto e non disponibile oggi, ma atterra con E14.7
+	// (`#314`), e da quel giorno questa coppia sarebbe tornata vacua senza che nulla diventasse rosso.
+	TestTrue(TEXT("NeverAvailable e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("NeverAvailable")));
+	TestFalse(TEXT("e NON e' disponibile: i due insiemi restano distinti"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("NeverAvailable")));
+
+	// ⛔ **Limite DICHIARATO, e vale la pena scriverlo invece di simularne la copertura.** Cio' che questo
+	// test verifica e' il VOCABOLARIO — quali nomi esistono e quali sono disponibili — non la cardinalita'
+	// che li distingue: `Reaction` copre `AllowedResponses <= 1` e `DecisionBoundary` copre `>= 2`, e quella
+	// non e' un campo interrogabile da qui. Chi collassasse i due nomi ai call site lascerebbe questo test
+	// verde. Il regime lo verificano gli SCENARI — `Spec.Overwatch.HoldThenFire` apre due finestre a una
+	// risposta ciascuna — e aggiungere qui un `TestNotEqual` fra due stringhe letterali darebbe l'apparenza
+	// della copertura senza poter fallire mai, che e' il difetto che questo file combatte da tre commit.
+
+	// E un nome inventato resta un errore di scrittura, non un'attesa: e' l'altra meta' del vocabolario.
+	TestFalse(TEXT("un nome inventato non e' noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("ReactionDecision")));
+	return true;
+}
+
+/**
+ * La CONDIZIONE dichiarata arriva dal JSON al piano ([D-109], #583).
+ *
+ * Legge i due campi che la compongono — quale condizione e con quale soglia — perche' sono cose diverse: un
+ * `id` giusto con un `param` perso in strada produrrebbe «spara sotto lo 0%», cioe' una condizione mai vera,
+ * e lo scenario direbbe di aver ristretto il fuoco mentre lo ha spento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDeclaredConditionTest,
+	"RefactorTactics.Scenario.LoaderReadsDeclaredCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDeclaredConditionTest::RunTest(const FString&)
+{
+	const FString Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Condition.Probe", "version": 2, "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+	  ],
+	  "turns": [ { "intents": [
+	    { "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Ivrin.Deflection",
+	      "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } },
+	    { "unit": "A1", "move": [[-1, 0, 0]] }
+	  ] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario con condition accettato"),
+		URTScenarioLoader::LoadFromString(*Json, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)) { return false; }
+	if (!TestEqual(TEXT("due intent"), Scenario.Turns[0].Intents.Num(), 2)) { return false; }
+
+	const FRTScenarioIntent& Watcher = Scenario.Turns[0].Intents[0];
+	TestTrue(TEXT("la condizione e' dichiarata"), Watcher.Condition.IsDeclared());
+	TestEqual(TEXT("con il proprio id"), Watcher.Condition.Id,
+		URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent());
+	// Il valore CONCRETO, non «diverso da zero»: e' la soglia, e un test che accettasse qualunque numero
+	// lascerebbe passare un parsing che legge il campo sbagliato.
+	TestEqual(TEXT("e la propria soglia"), Watcher.Condition.Param, 10);
+
+	// Chi NON la dichiara resta senza, e non eredita quella del vicino: `FRTScenarioIntent` e' per intent, ma
+	// il default va verificato invece che assunto — e' la meta' che un parsing sbagliato romperebbe in
+	// silenzio, dando a un'unita' una condizione che non ha chiesto.
+	TestFalse(TEXT("l'altro intent non ha condizione"), Scenario.Turns[0].Intents[1].Condition.IsDeclared());
+	return true;
+}
+
+/**
+ * Il rifiuto MOTIVATO di una condizione mal posta.
+ *
+ * Vale piu' del test qui sopra, e la ragione e' misurata: `ARTUnit::SetPlannedReactionCondition` restituisce
+ * `false` senza scrivere niente — nessun log, nessun errore. Una condizione rifiutata a valle produrrebbe uno
+ * scenario che gira SENZA condizione: l'opportunity non collassa, la finestra si apre, e chi legge vede solo
+ * un'assertion sugli HP che non torna. Il difetto arriva a valle travestito da regressione di gioco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderConditionRejectTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
+{
+	auto Rifiuta = [this](const TCHAR* Cosa, const TCHAR* Intent, const TCHAR* Atteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Condition.Reject", "version": 2, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Intent);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bLoaded);
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Cosa, Atteso, *Error),
+			Error.Contains(Atteso));
+	};
+
+	// 🔴 **Il caso che falliva DAVVERO in silenzio, e che questo test non copriva.** Gli altri sei
+	// esercitano strade che producono gia' un `OutError`; questa no. `TryGetObjectField` restituisce `false`
+	// per qualunque valore non-oggetto, `condition` e' una chiave NOTA quindi il gate delle chiavi
+	// sconosciute tace, e lo scenario girava SENZA condizione con l'autore che leggeva solo un'assertion del
+	// TurnLog caduta. La forma con la stringa e' anche la prima che verrebbe in mente: ogni altro campo
+	// dell'intent e' una stringa. Trovato dalla code review, non dal test che diceva di coprire il silenzio.
+	Rifiuta(TEXT("condition come stringa invece che oggetto"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": "TargetHealthAtOrBelowPercent" })"),
+		TEXT("oggetto"));
+	Rifiuta(TEXT("condition come numero"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection", "condition": 10 })"),
+		TEXT("oggetto"));
+
+	// Il gemello del `101` gia' coperto: `IsDeclaredConditionAllowed` chiede `Param >= 0` e la coppia
+	// verifica **entrambi** i lati del dominio, non solo quello a cui si pensa per primo.
+	Rifiuta(TEXT("soglia negativa"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": -1 } })"),
+		TEXT("-1"));
+
+	// ⚠️ **Il caso che morde davvero**, e non e' un caso di scuola: l'Overwatch costa l'azione PRINCIPALE,
+	// quindi un intent di solo-Overwatch con una condizione e' precisamente cio' che qualcuno scrivera' per
+	// primo leggendo [D-109]. `SetPlannedReactionCondition` lo rifiuterebbe in silenzio.
+	Rifiuta(TEXT("condizione senza reazione armata"),
+		TEXT(R"({ "unit": "V1", "ability": "Action.Overwatch",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } })"),
+		TEXT("reaction"));
+
+	// L'elenco delle condizioni ammesse e' CHIUSO e vive nel gioco: l'harness non puo' conoscerne una che il
+	// resolver non sa valutare, o produrrebbe un piano che il gioco scarta.
+	Rifiuta(TEXT("condizione inesistente"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetIsFlanked", "param": 1 } })"),
+		TEXT("TargetIsFlanked"));
+
+	// Oltre il 100% sarebbe sempre vera — una condizione che non condiziona.
+	Rifiuta(TEXT("soglia oltre il 100"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 101 } })"),
+		TEXT("101"));
+
+	// Gate `G7`: il confronto del gioco e' in aritmetica intera, quindi un `50.5` verrebbe troncato in
+	// silenzio e lo scenario descriverebbe una soglia che non e' la sua.
+	Rifiuta(TEXT("soglia in virgola mobile"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 50.5 } })"),
+		TEXT("INTERO"));
+
+	// 🔴 **Il caso che il controllo di interezza NON intercetta**, e per cui il range va verificato prima del
+	// cast: `1e20` E' un intero, quindi passa di li' senza un graffio, ma non entra in un `int32` — e
+	// `static_cast` di un double fuori scala e' undefined behavior. Il valore indefinito che ne esce
+	// arriverebbe a `IsDeclaredConditionAllowed`, che controlla `0..100`: se ci cadesse dentro per caso, lo
+	// scenario sarebbe ACCETTATO con una soglia diversa da quella scritta nel file. Silenziosamente, che e'
+	// il modo di fallire contro cui questo intero file esiste.
+	Rifiuta(TEXT("soglia fuori dalla scala di int32"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 1e20 } })"),
+		TEXT("fuori scala"));
+
+	// I due campi si chiedono ENTRAMBI: un default silenzioso su `param` significherebbe soglia 0, cioe' una
+	// condizione mai vera — il fuoco spento invece che ristretto.
+	Rifiuta(TEXT("condizione senza param"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent" } })"),
+		TEXT("param"));
+	Rifiuta(TEXT("condizione senza id"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection", "condition": { "param": 10 } })"),
+		TEXT("id"));
+
+	// 🔴 **Il difetto che questo test ha SCOPERTO, e che non riguarda solo la condizione.** Il blocco che
+	// valida l'abilita' fa `continue` per le azioni di Prep che risolvono su chi le usa — `Action.Overwatch`
+	// e' una di quelle — e un `continue` salta il RESTO del corpo del ciclo. Finche' la validazione della
+	// `reaction` e' stata piu' in basso, un intent che armava l'Overwatch poteva dichiarare una reazione
+	// INESISTENTE e passare in silenzio: esattamente il modo di fallire che il commento accanto a quella
+	// validazione dichiara di voler impedire. Questa riga lo pinna, e cade se qualcuno riordina i blocchi.
+	Rifiuta(TEXT("reazione inesistente insieme a un'azione di Prep"),
+		TEXT(R"({ "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Ivrin.NonEsiste" })"),
+		TEXT("NonEsiste"));
+	return true;
+}
+
+/**
+ * Le chiavi che cominciano per `_` sono COMMENTI anche dentro `expect`.
+ *
+ * ⚠️ **Oggi questo e' vero per ASSENZA di controllo, non per una regola**, ed e' la ragione per cui il test
+ * esiste: turni, decisioni e intent hanno ciascuno un elenco chiuso di chiavi note che ammette il prefisso
+ * `_` esplicitamente; `expect` no. `Spec.Overwatch.ConditionCollapsesToHold` mette la spiegazione di ogni
+ * assertion accanto all'assertion — dove serve a chi la modifichera' — e senza questa riga il giorno in cui
+ * qualcuno aggiungesse il quarto elenco quel file si romperebbe con «chiave sconosciuta: _assertion»,
+ * lontano da dove ha inserito la regola. Il test trasforma una convenzione accidentale in una garantita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderExpectCommentKeysTest,
+	"RefactorTactics.Scenario.LoaderTreatsUnderscoreKeysAsCommentsInExpect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderExpectCommentKeysTest::RunTest(const FString&)
+{
+	const FString Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.Comments", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [
+	    { "_assertion": "perche' questa assertion esiste", "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+	    { "type": "TurnsCompleted", "value": 1 }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("un commento dentro un'assertion non la invalida"),
+		URTScenarioLoader::LoadFromString(*Json, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+	// E il commento non diventa un'assertion in piu': due voci scritte, due lette.
+	TestEqual(TEXT("le assertion restano due"), Scenario.Expect.Num(), 2);
+	return true;
+}
+
+/**
+ * Il parsing dei due capi di un redirect, e il suo rifiuto (#1060).
+ *
+ * ⚠️ La meta' che conta e' la **seconda**: `unit` mancante deve essere un errore, non un id vuoto accettato
+ * in silenzio. Un'assertion che confronta una stringa vuota fallisce (o peggio passa) per un motivo che non
+ * e' quello scritto nello scenario — ed e' lo stesso argomento con cui `UnitHpEquals` rifiuta un `value`
+ * mancante invece di indovinare `0`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRedirectExpectTest,
+	"RefactorTactics.Scenario.LoaderParsesRedirectExpectations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRedirectExpectTest::RunTest(const FString&)
+{
+	const FString Ok = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.Redirect", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [
+	    { "type": "OriginalTargetEquals", "unit": "V1" },
+	    { "type": "EffectiveTargetEquals", "unit": "B1" }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("i due capi del redirect si leggono"),
+		URTScenarioLoader::LoadFromString(*Ok, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+	if (TestEqual(TEXT("due assertion lette"), Scenario.Expect.Num(), 2))
+	{
+		TestTrue(TEXT("la prima e' OriginalTargetEquals su V1"),
+			Scenario.Expect[0].Kind == ERTAssertionKind::OriginalTargetEquals
+			&& Scenario.Expect[0].UnitId == TEXT("V1"));
+		TestTrue(TEXT("la seconda e' EffectiveTargetEquals su B1"),
+			Scenario.Expect[1].Kind == ERTAssertionKind::EffectiveTargetEquals
+			&& Scenario.Expect[1].UnitId == TEXT("B1"));
+	}
+
+	// Senza `unit` non c'e' niente da confrontare: si rifiuta invece di accettare un id vuoto.
+	const FString NoUnit = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.RedirectNoUnit", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [ { "type": "EffectiveTargetEquals" } ]
+	}
+	)JSON");
+
+	FRTTestScenario Rejected;
+	FString RejectError;
+	TestFalse(TEXT("senza `unit` l'assertion non passa la lettura"),
+		URTScenarioLoader::LoadFromString(*NoUnit, Rejected, RejectError));
+	TestTrue(TEXT("e il messaggio nomina il campo mancante"),
+		RejectError.Contains(TEXT("unit")));
+	return true;
+}
+
+/**
+ * **IL VINCOLO SULLE SQUADRE E' DERIVATO, NON RISCRITTO** (#1515).
+ *
+ * L'AC chiedeva che l'intervallo venisse da *dove le squadre sono definite nel runtime*, e non da una
+ * costante `0..1` scritta nel loader. Questo test lo verifica **dal lato che conta**: non che il numero sia
+ * 2, ma che sia LO STESSO che decide chi vince.
+ *
+ * ⛔ **Perche' non `FRTKnowledgeVerdict::MaxTeamId`**, il candidato ovvio: vale **31** ed e' la capacita' di una
+ * bitmask di percezione — quanti indici quella maschera sa rappresentare, non quante squadre giocano.
+ * Derivare il vincolo da li' ammetterebbe `"team": 7`, cioe' esattamente il caso rotto che questa issue
+ * descrive. La riga qui sotto lo rende falsificabile invece di lasciarlo in un commento.
+ *
+ * ⚠️ **E non e' un vincolo di FORMATO**: 3v3 e 4v4 muovono le unita' per squadra (`UnitsPerTeam`), non il
+ * numero di squadre. Il formato competitivo resta aperto in `OPEN_DECISIONS` e questa riga non lo tocca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTeamConstraintIsDerivedTest,
+	"RefactorTactics.Scenario.TeamConstraintComesFromTheRuntime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTeamConstraintIsDerivedTest::RunTest(const FString&)
+{
+	// L'autorita': `URTTurnRules` e' la libreria che decide l'esito, e le sue firme conoscono due squadre.
+	TestEqual(TEXT("il runtime dichiara due squadre"), URTTurnRules::NumTeams, 2);
+	TestTrue(TEXT("la squadra 0 e' valida"), URTTurnRules::IsValidTeamId(0));
+	TestTrue(TEXT("la squadra 1 e' valida"), URTTurnRules::IsValidTeamId(1));
+	TestFalse(TEXT("la squadra 2 non lo e'"), URTTurnRules::IsValidTeamId(2));
+	TestFalse(TEXT("ne' la -1"), URTTurnRules::IsValidTeamId(-1));
+
+	// 🔴 **Il legame che rende la derivazione una derivazione**: la prima squadra che il vincolo rifiuta e'
+	// anche la prima per cui `EvaluateOutcome` non ha un caso. Se qualcuno introducesse una terza squadra
+	// nel runtime senza toccare questa costante, il loader continuerebbe a rifiutarla e questa riga direbbe
+	// dove guardare.
+	TestFalse(FString::Printf(
+		TEXT("la prima squadra fuori intervallo (%d) e' fuori anche per chi decide il vincitore"),
+		URTTurnRules::NumTeams), URTTurnRules::IsValidTeamId(URTTurnRules::NumTeams));
+
+	// ⛔ La bitmask di percezione dichiara un massimo MOLTO piu' largo: e' la prova che i due numeri
+	// rispondono a domande diverse, e che sceglierli l'uno per l'altro non e' un dettaglio.
+	TestTrue(FString::Printf(
+		TEXT("la bitmask di percezione ammette molto piu' delle squadre giocanti (%d contro %d)"),
+		FRTKnowledgeVerdict::MaxTeamId, URTTurnRules::NumTeams - 1),
+		FRTKnowledgeVerdict::MaxTeamId > URTTurnRules::NumTeams - 1);
+
+	// E il messaggio d'errore nomina l'unita' E il valore, come chiede il DoD.
+	FRTTestScenario Scenario;
+	FString Error;
+	const bool bOk = URTScenarioLoader::LoadFromString(
+		TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"Ribelle","hero":"Hero.Aevik","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		Scenario, Error);
+	TestFalse(TEXT("lo scenario con la squadra 7 e' rifiutato"), bOk);
+	TestTrue(FString::Printf(TEXT("l'errore nomina l'unita' (era: '%s')"), *Error),
+		Error.Contains(TEXT("Ribelle")));
+	TestTrue(FString::Printf(TEXT("e nomina il valore (era: '%s')"), *Error),
+		Error.Contains(TEXT("7")));
+
+	return true;
+}
+
+/**
+ * #1796 — una cella su un layer che l'arena NON ha viene rifiutata, e l'errore dice quale layer.
+ *
+ * 🔴 **Il difetto che chiude, e come e' stato trovato.** Il controllo di appartenenza era
+ * `HexDistance(Cella, FRTCellId(0, 0, Cella.Layer)) > MapRadius`: l'origine costruita **sul layer della
+ * cella stessa**, quindi il raggio misurato dentro quel piano e la domanda «quel piano esiste?» mai posta.
+ * Su un'arena piatta — che `MakeFlatArena` costruisce sul solo layer 0 — ogni layer diverso passava.
+ *
+ * Non e' teorico: `Spec.Hud.MatchWithTwoAllies` piazzava un'unita' su `L=-1` e girava, e i tre test HUD che
+ * lo consumano guardano il roster, non le posizioni. L'ha trovato un test sul corpus.
+ *
+ * ⛔ **La correzione OVVIA e sbagliata sarebbe «rifiuta i layer negativi»**, perche' il caso reale portava
+ * `-1`. Il penultimo blocco qui sotto la boccia: un `L=+7` sulla stessa arena piatta e' fuori mappa
+ * esattamente quanto un `-1`, e una regola sul segno lo lascerebbe entrare.
+ *
+ * ⛔ **La seconda correzione ovvia e sbagliata sarebbe «rifiuta ogni layer != 0»**, e l'ultimo blocco la
+ * boccia: con una FIXTURE l'arena puo' essere multilivello, ed e' la ragione per cui `FRTCellId` porta un
+ * layer. La regola distingue «layer che l'arena non ha» da «layer diverso da zero».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest,
+	"RefactorTactics.Scenario.LoaderRejectsLayerOutsideFlatArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const TCHAR* Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	auto Accepts = [this](const TCHAR* Json, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("%s: accettato (errore: '%s')"), What, *Error),
+			URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+	};
+
+	// --- 1. UNITA' su un layer che l'arena piatta non ha -------------------------------------------
+	// E' il caso reale, con lo stesso `L=-1` e la stessa coordinata planare VALIDA: `(-2,1)` sta dentro il
+	// raggio 3. Prima passava, ed e' il motivo per cui il messaggio deve nominare il layer invece di dire
+	// solo «fuori dall'arena» — su una planare giusta, quel messaggio manda a cercare il raggio.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[-2,1,-1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer -1"), TEXT("unita' su un layer inesistente"));
+
+	// --- 2. CELLA MODIFICATA sullo stesso difetto --------------------------------------------------
+	// Un ostacolo posato fuori mappa non blocca niente, e lo scenario verificherebbe una condizione che non
+	// ha mai creato.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"cells":[{"cell":[1,0,2],"blocksLineOfSight":true}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer 2"), TEXT("cella modificata su un layer inesistente"));
+
+	// --- 3. Il segno NON e' la regola --------------------------------------------------------------
+	// 🔴 Il blocco che boccia «rifiuta i layer negativi»: `+7` e' fuori mappa quanto `-1`.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,7]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer 7"), TEXT("unita' su un layer POSITIVO inesistente"));
+
+	// --- 4. Il layer 0 continua a passare, e il raggio resta la sua regola --------------------------
+	Accepts(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[-2,1,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("unita' sul layer 0, dentro il raggio"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("distanza"), TEXT("layer giusto ma fuori raggio: il motivo cambia"));
+
+	// --- 5. ⛔ Con una FIXTURE il multilivello resta legale -----------------------------------------
+	// 🔴 Il blocco che boccia «rifiuta ogni layer != 0». Con una fixture la forma non e' un raggio, e
+	// l'arena PUO' avere piu' piani: e' la ragione per cui `FRTCellId` porta un layer. Qui il loader non
+	// decide — la cella la verifica `FRTScenarioSession` sulla mappa vera.
+	Accepts(TEXT(R"({"scenarioId":"X","fixture":"TestArena","units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("fixture multilivello: il layer 1 non e' del loader"));
+
+	return true;
+}
+
+/**
+ * #2482 — UN ARRAY DI COORDINATE E' UNA CELLA **SE E SOLO SE** HA TRE ELEMENTI, E IL MESSAGGIO DICE QUANTI
+ * NE HA TROVATI.
+ *
+ * 🔑 **E' l'altra meta' del test qui sopra.** Quello chiede se la cella e' LEGALE sulla mappa — layer che
+ * l'arena non ha, raggio superato. Questo chiede se l'array e' una CELLA: il primo presuppone il secondo, e
+ * finche' il secondo non era una domanda il primo la riceveva gia' risposta male.
+ *
+ * 🔴 **Il difetto che chiude, e perche' non ha sintomi.** La guardia era solo sul basso (`Num() < 2`), con
+ * il terzo elemento letto `Num() >= 3 ? ... : 0`. Due forme passavano senza che nessuno le avesse decise:
+ * `[q, r]` diventava `layer = 0`, e `[q, r, layer, 7]` — una coordinata cubica scritta per abitudine, o un
+ * refuso — perdeva la coda in silenzio. Entrambe producono la stessa cosa: una cella **valida e sbagliata**.
+ * E uno scenario e' AUTOREVOLE per il gate, quindi quella cella non produce un rosso — produce un **verde su
+ * un'altra partita**, che e' il modo di fallire contro cui questo intero file esiste.
+ *
+ * ⛔ **La forma a due elementi e' rifiutata, e non e' una svista di questo test**: e' l'arbitrato scritto
+ * nell'handoff della wave. `[q, r]` col layer dedotto e' la STESSA classe di difetto dell'arita' non
+ * limitata, e il corpus non la usa mai (548 array di coordinate, tutti a tre elementi), quindi non c'e' un
+ * ramo utile da preservare. Se l'owner del formato la volesse ammessa, la sede e' l'issue: questa riga
+ * cadrebbe, e cadrebbe RUMOROSAMENTE, che e' il punto.
+ *
+ * ⚠️ **Perche' `mapRadius: 6` e gli id senza cifre.** L'assertion non legge un bool, legge il NUMERO dentro
+ * il messaggio, e quel numero deve poter arrivare da un posto solo. Sei non e' nessuna delle arita' provate
+ * (0, 1, 2, 3, 4, 5) e `ALFA` non porta cifre che un messaggio possa echeggiare: con `mapRadius: 3` un
+ * errore che nominasse il raggio farebbe passare «nomina la lunghezza attesa» senza che la nomini.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCellArityTest,
+	"RefactorTactics.Scenario.LoaderRejectsCellArityOtherThanThree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
+{
+	// Il campo `cell` e' un frammento, non un valore: serve poterlo OMETTERE del tutto per il caso «array
+	// assente», che e' un difetto diverso da «array di lunghezza sbagliata» e va misurato a parte.
+	auto Carica = [](const TCHAR* CampoCella, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Cell.Arity", "version": 1, "mapRadius": 6,
+		  "units": [ { "id": "ALFA", "hero": "Hero.Aevik", "team": 0%s } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), CampoCella);
+		return URTScenarioLoader::LoadFromString(*Json, Out, Error);
+	};
+
+	// --- 1. TRE elementi: il caso che da' senso a tutti i rifiuti sotto ----------------------------------
+	// ✅ Senza questa controprova le righe seguenti sarebbero compatibili con un loader che rifiuta sempre,
+	// e un `ParseCell` che tornasse `false` a ogni chiamata le farebbe passare tutte.
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(TEXT(", \"cell\": [0, 0, 0]"), S, E);
+		if (TestTrue(FString::Printf(TEXT("tre elementi: accettato (errore: '%s')"), *E), bOk)
+			&& TestEqual(TEXT("una unita' schierata"), S.Units.Num(), 1))
+		{
+			TestEqual(TEXT("e la cella e' quella scritta"), S.Units[0].Cell, FRTCellId(0, 0, 0));
+		}
+	}
+
+	// --- 2. BOUNDARY: 0, 1, 2, 4, 5 elementi -------------------------------------------------------------
+	// Le due arita' che mordono davvero sono agli estremi del vecchio comportamento: `2` era ACCETTATA con il
+	// layer dedotto, `4` era ACCETTATA con la coda scartata. `0`, `1` e `5` chiudono il resto del dominio —
+	// una guardia scritta come `Num() < 2 || Num() > 4` lascerebbe passare il quattro, e solo un intervallo
+	// esplorato da entrambi i lati lo dice.
+	//
+	// ⚠️ **Il messaggio, non il bool.** `TestFalse` da solo sarebbe soddisfatto da qualunque altro rifiuto —
+	// un eroe sconosciuto, un raggio superato — e un giorno in cui la cella smettesse di essere controllata
+	// resterebbe verde per il motivo sbagliato. Il numero TROVATO e' cio' che rende il rifiuto attribuibile a
+	// QUESTA guardia, ed e' anche il dato che a chi legge il log distingue un layer dimenticato da una
+	// coordinata cubica copiata: senza, il log dice che l'array e' sbagliato ma non di quanto.
+	struct FCasoArita
+	{
+		int32 Elementi;
+		const TCHAR* Campo;
+	};
+	const FCasoArita Rifiutate[] = {
+		{ 0, TEXT(", \"cell\": []") },
+		{ 1, TEXT(", \"cell\": [0]") },
+		{ 2, TEXT(", \"cell\": [0, 0]") },
+		// 🔑 Il caso che l'issue nomina alla lettera: `[0, 0, 0, 0]`.
+		{ 4, TEXT(", \"cell\": [0, 0, 0, 0]") },
+		{ 5, TEXT(", \"cell\": [0, 0, 0, 0, 0]") }
+	};
+
+	for (const FCasoArita& Caso : Rifiutate)
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(Caso.Campo, S, E);
+		TestFalse(FString::Printf(TEXT("%d elementi: rifiutato"), Caso.Elementi), bOk);
+		TestTrue(FString::Printf(TEXT("%d elementi: il motivo nomina la lunghezza TROVATA (era: '%s')"),
+			Caso.Elementi, *E), E.Contains(FString::FromInt(Caso.Elementi)));
+		TestTrue(FString::Printf(TEXT("%d elementi: e quella ATTESA (era: '%s')"),
+			Caso.Elementi, *E), E.Contains(TEXT("3")));
+	}
+
+	// --- 3. ARRAY ASSENTE: un difetto diverso, con un messaggio diverso ----------------------------------
+	// ⛔ Non si asserisce «trovati 0» qui: un campo che manca del tutto non ha lunghezza, e dirgli zero
+	// direbbe una cosa falsa su un array che non c'e'. Cio' che il contratto pretende e' che il rifiuto sia
+	// ATTRIBUIBILE — che dica DOVE — ed e' la stessa convenzione con cui questo file chiede altrove che «il
+	// motivo nomini l'unita'».
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(TEXT(""), S, E);
+		TestFalse(TEXT("cella assente: rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo dice dove (era: '%s')"), *E), E.Contains(TEXT("ALFA")));
+	}
+
+	// --- 4. NESSUN RIPIEGO: la terza componente si LEGGE, non si deduce ----------------------------------
+	// 🔑 **E' l'anti-vacuita' del caso felice.** Il punto 1 usa `[0, 0, 0]`, e su quella cella un parser che
+	// ignorasse del tutto il terzo elemento — scrivendo sempre `layer = 0` — darebbe esattamente lo stesso
+	// risultato: il test sarebbe verde senza che nessuno legga l'elemento che l'intera issue riguarda. Serve
+	// un `layer != 0` che arrivi intatto, e serve una FIXTURE perche' su un'arena a raggio il layer 1 non
+	// esiste (`#1796`, il test qui sopra).
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			TEXT(R"({"scenarioId":"Spec.Cell.Arity.Layer","fixture":"TestArena","units":[{"id":"ALFA","hero":"Hero.Aevik","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+			S, E);
+		if (TestTrue(FString::Printf(TEXT("tre elementi su una fixture multilivello (errore: '%s')"), *E), bOk)
+			&& TestEqual(TEXT("una unita' schierata"), S.Units.Num(), 1))
+		{
+			TestEqual(TEXT("il layer arriva DAL FILE, non da un default"), S.Units[0].Cell, FRTCellId(0, 0, 1));
+		}
+	}
+
+	// ⛔ **E il ripiego non c'e' nemmeno nell'altro verso**: la prova che `[0, 0, 0, 0]` non diventa
+	// `(0, 0, 0)` scartando la coda e' il rifiuto stesso del punto 2 — un ripiego avrebbe prodotto un
+	// caricamento RIUSCITO, e li' si asserisce che non riesce. Non si guarda `Scenario.Units` dopo un
+	// caricamento fallito: cio' che il loader lascia nell'uscita in caso di errore non e' promesso da
+	// nessuna parte, e un test che lo leggesse pinnerebbe un dettaglio invece del contratto.
+
+	return true;
+}
+
+/**
+ * #2482 — LA REGOLA VALE PER **OGNI** CAMPO CHE DICHIARA UNA CELLA, NON SOLO PER `units`.
+ *
+ * 🔑 **E' il criterio di copertura scritto come misura invece che come dichiarazione.** `ParseCell` ha NOVE
+ * punti di chiamata in `RTScenarioLoader.cpp` — `cells`, `interiorWalls`, `doors`, `units`, i passi di
+ * `move`, la cella di `expect UnitAtCell`, le unita' delle `variants`, e da `#2546` anche `targetCell` e
+ * `dashTo`. Questo test ne esercita **sette**, uno per blocco, con la stessa arita' rotta iniettata in un
+ * campo diverso ogni volta; i due nuovi hanno un test proprio,
+ * `Scenario.LoaderRejectsMalformedTargetCellAndDashTo`, perche' portano anche i rami «campo presente ma
+ * non consumato» che gli altri sette non hanno.
+ *
+ * ⚠️ **Il numero si RICONTA, non si eredita.** Questo commento ha detto «SETTE punti di chiamata» e «sono
+ * sette, non otto — l'ottava occorrenza e' la DEFINIZIONE» fino al 2026-09-08, quando `#2546` ne ha
+ * aggiunti due e i punti di chiamata sono diventati NOVE. ⌫ E questa riga ha spedito **10** come conteggio
+ * del `grep`, che ne conta **11**: la mia stessa passata aveva aggiunto una menzione in PROSA di
+ * `ParseCell` nel loader, e non l'ho ricontata. Il paragrafo che predica «il numero si riconta» ha
+ * ereditato un numero. La frase che spiegava come non farsi ingannare
+ * dal grep e' diventata essa stessa il numero sbagliato: un criterio di copertura scritto come costante
+ * invecchia come ogni altra costante.
+ *
+ * ⌫ **Questo blocco dichiarava `targetCell` e `dashTo` come «due campi che NON passano da `ParseCell`» e
+ * «un Finding aperto».** Il Finding era `#2546`, ed e' chiuso: entrambi passano da `ParseCell` dal
+ * 2026-09-08. La riga resta come registro del perche' quella lacuna fosse deliberata — stava fuori dal
+ * contratto della wave che ha scritto questo test, e un rosso su un ramo che nessuno aveva deciso di
+ * cambiare si sarebbe letto come regressione invece che come Finding.
+ *
+ * ⛔ **Ogni blocco porta la propria CONTROPROVA, e non e' cerimonia.** Le fixture di `interiorWalls` e
+ * `doors` sono costruite a mano qui dentro: senza un caricamento riuscito con `[0, 0, 0]`, un rifiuto
+ * potrebbe arrivare da un mio refuso in un campo vicino, e il test direbbe «l'arita' e' controllata» avendo
+ * misurato che ho scritto male un muro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCellArityEveryCallSiteTest,
+	"RefactorTactics.Scenario.EveryCellFieldRejectsWrongArity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCellArityEveryCallSiteTest::RunTest(const FString&)
+{
+	// Uno scenario con quattro fessure — le sezioni facoltative, la cella dell'unita', il passo di `move`,
+	// la cella dell'assertion — cosi' che ogni chiamante si eserciti cambiando UNA cosa sola. Nessuna cifra
+	// `3` o `4` compare nel modello: e' cio' che rende leggibile un numero trovato nel messaggio.
+	auto Base = [](const FString& Sezioni, const TCHAR* CellaUnita, const TCHAR* PassoMove, const TCHAR* CellaExpect)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Cell.Arity.CallSites", "version": 1, "mapRadius": 6,
+		  %s
+		  "units": [
+		    { "id": "ALFA", "hero": "Hero.Aevik", "team": 0, "cell": %s },
+		    { "id": "BETA", "hero": "Hero.Branth", "team": 1, "cell": [0, -6, 0] }
+		  ],
+		  "turns": [ { "intents": [ { "unit": "ALFA", "move": [ %s ] } ] } ],
+		  "expect": [ { "type": "UnitAtCell", "unit": "ALFA", "cell": %s },
+		              { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), *Sezioni, CellaUnita, PassoMove, CellaExpect);
+	};
+
+	auto Esercita = [this](const TCHAR* Chiamante, const FString& JsonBuono, const FString& JsonRotto)
+	{
+		// La controprova viene PRIMA, e per una ragione: se cade lei, il rifiuto sotto non dimostra niente.
+		//
+		// ⚠️ Il caricamento si esegue su una riga PROPRIA invece che dentro la `Printf`: l'ordine di
+		// valutazione degli argomenti non e' garantito, e il motivo del rifiuto verrebbe letto quando la
+		// stringa e' ancora vuota — cioe' proprio nel caso in cui serve.
+		{
+			FRTTestScenario S;
+			FString E;
+			const bool bOk = URTScenarioLoader::LoadFromString(*JsonBuono, S, E);
+			TestTrue(FString::Printf(TEXT("%s: con tre elementi lo scenario si carica (errore: '%s')"), Chiamante, *E), bOk);
+		}
+		{
+			FRTTestScenario S;
+			FString E;
+			const bool bOk = URTScenarioLoader::LoadFromString(*JsonRotto, S, E);
+			TestFalse(FString::Printf(TEXT("%s: con quattro elementi e' rifiutato"), Chiamante), bOk);
+			TestTrue(FString::Printf(TEXT("%s: il motivo nomina la lunghezza trovata (era: '%s')"), Chiamante, *E),
+				E.Contains(TEXT("4")));
+			TestTrue(FString::Printf(TEXT("%s: e quella attesa (era: '%s')"), Chiamante, *E),
+				E.Contains(TEXT("3")));
+		}
+	};
+
+	const TCHAR* Buona = TEXT("[0, 0, 0]");
+	const TCHAR* Rotta = TEXT("[0, 0, 0, 0]");
+	const FString NessunaSezione;
+
+	// --- 1. `cells` — la cella MODIFICATA. Un ostacolo posato su una cella dedotta non blocca cio' che lo
+	//        scenario crede di aver bloccato.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("cells": [ { "cell": %s, "blocksLineOfSight": true } ],)"), Cella);
+		};
+		Esercita(TEXT("cells"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 2. `interiorWalls` — la geometria intra-cella. Forma copiata da `Combat.BlockedByInteriorWall`,
+	//        che il test sul corpus tiene valido: una fixture inventata qui rischierebbe di far cadere la
+	//        controprova per un campo vicino invece che per l'arita'.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("interiorWalls": [ { "cell": %s, "axis": "Deg90", "offset": 0, "alongStart": -12, "alongEnd": 12, "type": "High", "stableId": "Muro_Prova" } ],)"), Cella);
+		};
+		Esercita(TEXT("interiorWalls"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 3. `doors` — forma copiata da `Spec.Map.InteractClosesOpenDoor`, che e' l'unica del corpus a
+	//        dichiarare una porta SENZA binding: e' la piu' piccola che si carichi.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("doors": [ { "cell": %s, "edge": "NE", "doorId": 1, "state": "Closed" } ],)"), Cella);
+		};
+		Esercita(TEXT("doors"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 4. `units` — lo schieramento, cioe' il chiamante che il corpus percorre 548 volte.
+	Esercita(TEXT("units"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Rotta, Buona, Buona));
+
+	// --- 5. I passi di `move` — ⚠️ il chiamante piu' esposto al refuso che l'issue descrive: un percorso e'
+	//        una LISTA di coordinate, ed e' scrivendone una in fila all'altra che si perde un elemento o se
+	//        ne aggiunge uno.
+	Esercita(TEXT("move"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Buona, Rotta, Buona));
+
+	// --- 6. `expect UnitAtCell` — 🔴 il chiamante che, sbagliato, mente nel verso peggiore: e' l'ASSERTION.
+	//        Una cella dedotta qui non rompe la partita, cambia cio' che le si chiede di dimostrare — e uno
+	//        scenario verde su un'altra domanda e' esattamente il difetto che l'issue nomina.
+	Esercita(TEXT("expect UnitAtCell"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Buona, Buona, Rotta));
+
+	// --- 7. Le unita' delle `variants` — il canary differenziale. ⚠️ Qui la cella buona NON puo' essere
+	//        `[0, 0, 0]`: una variante che non sposta nulla e' rifiutata a monte (e giustamente, e' un
+	//        confronto verde per costruzione), e la controprova cadrebbe per quel motivo invece che per
+	//        l'arita'. Si sposta ALFA su una cella libera, e la seconda variante su un'altra ancora.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("expectSameAcrossVariants": true, "variants": [ { "name": "a", "units": [ { "id": "ALFA", "cell": %s } ] }, { "name": "b", "units": [ { "id": "ALFA", "cell": [0, 1, 0] } ] } ],)"), Cella);
+		};
+		Esercita(TEXT("variants"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	return true;
+}
+
+/**
+ * UN TAG SCONOSCIUTO RIFIUTA LO SCENARIO, E IL MESSAGGIO LO NOMINA — `#1629`.
+ *
+ * 🔴 `FGameplayTag::RequestGameplayTag` con `ErrorIfNotFound=false` torna un tag **vuoto** senza
+ * lamentarsi, e un tag vuoto applicato non fa niente: senza questo rifiuto uno scenario con
+ * `"Status.Guarded1"` girerebbe **verde**, verificando l'assenza di un effetto che nessuno ha chiesto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownStatusIsRefusedTest,
+	"RefactorTactics.Scenario.UnknownStatusTagIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* Json, FRTTestScenario& Out, FString& Err)
+	{
+		return URTScenarioLoader::LoadFromString(Json, Out, Err);
+	};
+
+	FRTTestScenario Scenario;
+	FString Error;
+
+	const bool bBad = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Guarded1", "turns": 2 } ] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Scenario, Error);
+
+	TestFalse(TEXT("un tag sconosciuto rifiuta"), bBad);
+	TestTrue(FString::Printf(TEXT("e il messaggio lo nomina (era: '%s')"), *Error),
+		Error.Contains(TEXT("Status.Guarded1")));
+
+	// Uno status che dura zero turni non e' uno status.
+	FRTTestScenario Zero;
+	FString ZeroError;
+	const bool bZero = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Wet", "turns": 0 } ] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Zero, ZeroError);
+	TestFalse(TEXT("turns a zero rifiuta"), bZero);
+
+	// ✅ LA CONTROPROVA: un tag VALIDO si accetta. Senza, i due rifiuti sopra sarebbero compatibili con un
+	// loader che rifiuta sempre.
+	FRTTestScenario Good;
+	FString GoodError;
+	const bool bGood = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Wet", "turns": 2 } ] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Good, GoodError);
+	TestTrue(FString::Printf(TEXT("un tag valido si accetta (errore: '%s')"), *GoodError), bGood);
+
+	return true;
+}
+
+/**
+ * IL VOCABOLARIO DEL JSON E' QUELLO DEL RUNTIME, E NON CE N'E' UN SECONDO — `#1629`.
+ *
+ * 🔑 È il quarto criterio d'accettazione scritto come test invece che come `git grep`: ogni tag che il
+ * loader accetta **deve** essere uno di quelli che `Core/RTGameplayTags.cpp` dichiara. Se qualcuno
+ * aggiungesse una tabella di nomi per il formato scenario, questo test la troverebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStatusVocabularyIsTheRuntimeOneTest,
+	"RefactorTactics.Scenario.StatusVocabularyHasNoSecondTable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
+{
+	// Gli undici status che il runtime dichiara. Se il loader ne accettasse uno che non è qui, o ne
+	// rifiutasse uno che c'è, i due vocabolari sarebbero due.
+	const TCHAR* Known[] = {
+		TEXT("Status.Braced"), TEXT("Status.Burning"), TEXT("Status.Electrified"),
+		TEXT("Status.Exposed"), TEXT("Status.Guarded"), TEXT("Status.Marked"),
+		TEXT("Status.Obscured"), TEXT("Status.Reveal"), TEXT("Status.Root"),
+		TEXT("Status.Slow"), TEXT("Status.Wet")
+	};
+
+	for (const TCHAR* Name : Known)
+	{
+		const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(Name), /*ErrorIfNotFound=*/ false);
+		TestTrue(FString::Printf(TEXT("'%s' e' un tag del runtime"), Name), Tag.IsValid());
+
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 2,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
+		      "statuses": [ { "tag": "%s", "turns": 1 } ] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), Name);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("e il loader lo accetta: %s (%s)"), Name, *Error),
+			URTScenarioLoader::LoadFromString(*Json, Scenario, Error)))
+		{
+			continue;
+		}
+
+		// ⛔ **E lo CARICA davvero.** Senza questa riga il test sarebbe vacuo: passerebbe anche se il
+		// loader ignorasse il campo `statuses`, perche' un file che si accetta e un campo che arriva sono
+		// due cose diverse. Misurato: e' esattamente cosi' che questo test e' passato al primo giro,
+		// mentre gli altri due cadevano perche' il blocco del loader era finito dentro un ramo opzionale.
+		if (TestEqual(FString::Printf(TEXT("%s: uno status caricato"), Name),
+			Scenario.Units[0].Statuses.Num(), 1))
+		{
+			TestEqual(FString::Printf(TEXT("%s: col nome giusto"), Name),
+				Scenario.Units[0].Statuses[0].Tag, FName(Name));
+		}
+	}
+
+	return true;
+}
+
+/**
+ * UN'ABILITA' D'EROE CHE RISOLVE SU CHI LA USA E' ESPRIMIBILE — `#2283`.
+ *
+ * 🔑 **E' la meta' mancante del criterio di `EveryD025ActionIsExpressible` qui sotto**: quello copre le
+ * sette azioni GENERICHE, questo le azioni d'EROE che risolvono in Preparation su chi le arma. Fino al
+ * 2026-09-04 quella meta' non era esprimibile affatto, e il buco non aveva sintomi — si vedeva solo
+ * provando a scrivere lo scenario.
+ *
+ * ⛔ **Le due porte erano entrambe chiuse.** Senza `target`: *«l'abilita' non dichiara un bersaglio»*.
+ * Con `"target"` su se stessa: *«l'unita' bersaglia se stessa»*, dalla guardia che il suo stesso commento
+ * diceva di rilassare *«di PROPOSITO»* il giorno in cui un'abilita' del genere fosse esistita. Quel
+ * giorno e' il 2026-08-28 (`D-226`, `Action.Shield` prende due portatori) e nessuno l'ha preso.
+ *
+ * 🔑 **Il criterio e' il FLAG `bSelfTarget`, non la fase.** Una prima stesura di questo test passava
+ * deducendo «risolve su se'» da `ResolutionPhase == Prep`, ed era sbagliata: `Action.CreateCover` e'
+ * `Preparation` con portata 3 e uno `StructureOp`. Il punto 2 qui sotto e' esattamente quel caso, ed e'
+ * l'anti-vacuita' che serve — la precedente usava un attacco senza `DerivedFromActionId`, che non
+ * passava nemmeno dal codice nuovo e sarebbe rimasta verde sotto la mutazione.
+ *
+ * ⚠️ **La correzione non rilassa la guardia sull'auto-bersaglio**, che resta giusta: un'azione self
+ * semplicemente non dichiara bersaglio, quindi non ci ricade. Il test lo pinna sotto, al punto 3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioHeroSelfActionTest,
+	"RefactorTactics.Scenario.HeroActionOnSelfIsExpressible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
+{
+	auto Load = [](const FString& Intents, FRTTestScenario& OutScenario, FString& OutError) -> bool
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "P1", "hero": "Hero.Muiren", "team": 0, "cell": [-1,0,0] },
+		    { "id": "R1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Intents);
+		return URTScenarioLoader::LoadFromString(*Json, OutScenario, OutError);
+	};
+
+	// 1. Il caso: `Hero.Muiren.TideGuard` deriva da `Action.Shield`, che nel catalogo core e' `Preparation`.
+	//    Risolve su chi la arma, quindi non ha un bersaglio da dichiarare.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.TideGuard\" }"), S, Error);
+		if (!TestTrue(FString::Printf(TEXT("TideGuard senza bersaglio si esprime (errore: '%s')"), *Error), bLoaded))
+		{
+			return false;
+		}
+		if (TestTrue(TEXT("il turno porta l'intento"), S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0))
+		{
+			TestEqual(TEXT("con l'abilita' giusta"), S.Turns[0].Intents[0].Ability, FName(TEXT("Hero.Muiren.TideGuard")));
+			TestTrue(TEXT("e nessun bersaglio dichiarato"), S.Turns[0].Intents[0].Target.IsEmpty());
+		}
+	}
+
+	// 2. ANTI-VACUITA' DISCRIMINANTE: `Hero.Branth.KineticPanel` deriva da `Action.CreateCover`, che e'
+	//    `Preparation` come `Action.Shield` MA bersaglia una cella a portata 3 e non se stessa. Se il
+	//    criterio tornasse a essere la fase invece del flag, questo caso passerebbe e il pannello si
+	//    piazzerebbe senza dire dove: lo scenario girerebbe verde-o-rosso per il motivo sbagliato.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"R1\", \"ability\": \"Hero.Branth.KineticPanel\" }"), S, Error);
+		TestFalse(TEXT("un'azione d'eroe di Prep che NON e' self resta rifiutata"), bLoaded);
+		TestTrue(TEXT("e il motivo lo nomina"), Error.Contains(TEXT("bersaglio")));
+	}
+
+	// 2b. E un attacco d'eroe, che non deriva da nessun core: stessa attesa, altro percorso nel predicato.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.PressureJet\" }"), S, Error);
+		TestFalse(TEXT("un attacco d'eroe senza bersaglio resta rifiutato"), bLoaded);
+	}
+
+	// 3. La guardia sull'auto-bersaglio NON e' stata rilassata: dichiararlo esplicitamente resta un errore.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.TideGuard\", \"target\": \"P1\" }"), S, Error);
+		TestFalse(TEXT("bersagliare se stessi resta un errore"), bLoaded);
+		TestTrue(TEXT("e il motivo lo dice"), Error.Contains(TEXT("se stessa")));
+	}
+
+	return true;
+}
+
+/**
+ * LE SETTE AZIONI DI `D-025` SONO ESPRIMIBILI, E IL TEST DICE COME — `#1626`.
+ *
+ * 🔑 **È il criterio di copertura scritto come misura invece che come dichiarazione.** La issue chiede che
+ * per ciascuna si dica *«se è esprimibile e come»*: qui ciascuna è espressa davvero, e il file prodotto
+ * deve rileggersi identico. Una risposta scritta in prosa invecchia; questa cade.
+ *
+ * ⚠️ **`Wait` non ha un campo, e non è una lacuna**: si esprime OMETTENDO l'unità dagli intent del turno.
+ * `ApplyScenarioIntents` cicla sugli intent dichiarati, quindi un'unità che non compare non riceve ordini
+ * — che è precisamente l'attesa. Misurato: zero scenari usano `"Action.Wait"`, e zero intent portano il
+ * solo campo `unit`.
+ *
+ * ⛔ La forma di `Move` è il campo `move[]`, **non** `ability: "Action.Move"`: 48 scenari la usano così, e
+ * nessuno nell'altro modo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioD025CoverageTest,
+	"RefactorTactics.Scenario.EveryD025ActionIsExpressible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioD025CoverageTest::RunTest(const FString&)
+{
+	auto Loads = [this](const FString& Intents, const TCHAR* What) -> FRTTestScenario
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Intents);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("%s si esprime (errore: '%s')"), What, *Error),
+			URTScenarioLoader::LoadFromString(*Json, Scenario, Error));
+		return Scenario;
+	};
+
+	// 1. WAIT — l'unita' non compare fra gli intent. Nessun campo, e non e' un buco del formato.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"B1\", \"ability\": \"Action.Guard\" }"), TEXT("Wait (A1 omessa)"));
+		bool bA1Present = false;
+		if (S.Turns.Num() > 0)
+		{
+			for (const FRTScenarioIntent& I : S.Turns[0].Intents)
+			{
+				if (I.UnitId == TEXT("A1")) { bA1Present = true; }
+			}
+		}
+		TestFalse(TEXT("A1 non ha ordini: e' l'attesa"), bA1Present);
+	}
+
+	// 2. MOVE — il campo `move[]`, non un'abilita'.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"A1\", \"move\": [[0,0,0]] }"), TEXT("Move"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(TEXT("Move usa il percorso"), S.Turns[0].Intents[0].Move.Num(), 1);
+			TestTrue(TEXT("e nessuna abilita'"), S.Turns[0].Intents[0].Ability.IsNone());
+		}
+	}
+
+	// 3-4. GUARD e BRACE: `ability` e basta. Non hanno bersaglio, ed e' cio' che le distingue.
+	const TCHAR* Senza[] = { TEXT("Action.Guard"), TEXT("Action.Brace") };
+	for (const TCHAR* Action : Senza)
+	{
+		const FString Intent = FString::Printf(TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\" }"), Action);
+		const FRTTestScenario S = Loads(Intent, Action);
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(FString::Printf(TEXT("%s arriva nel campo ability"), Action),
+				S.Turns[0].Intents[0].Ability, FName(Action));
+			TestTrue(FString::Printf(TEXT("%s non ha bersaglio"), Action),
+				S.Turns[0].Intents[0].Target.IsEmpty());
+		}
+	}
+
+	// 5-6. BASICATTACK e INTERACT: `ability` **con** un bersaglio, e il loader lo ESIGE.
+	//
+	// 🔑 Misurato, non assunto: senza `target` il caricamento fallisce con *«l'abilita' 'X' non dichiara un
+	// bersaglio (campo target)»*. La copertura di un'azione non e' «il campo esiste», e' «l'azione si
+	// esprime con i suoi vincoli» — e questi vincoli il criterio 5 li deve riportare.
+	const TCHAR* ConBersaglio[] = { TEXT("Action.BasicAttack"), TEXT("Action.Interact") };
+	for (const TCHAR* Action : ConBersaglio)
+	{
+		const FString Intent = FString::Printf(
+			TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\", \"target\": \"B1\" }"), Action);
+		const FRTTestScenario S = Loads(Intent, Action);
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(FString::Printf(TEXT("%s arriva nel campo ability"), Action),
+				S.Turns[0].Intents[0].Ability, FName(Action));
+			TestEqual(FString::Printf(TEXT("%s porta il proprio bersaglio"), Action),
+				S.Turns[0].Intents[0].Target, FString(TEXT("B1")));
+		}
+
+		// ⛔ E senza bersaglio non si esprime: il rifiuto e' parte della copertura.
+		const FString Nudo = FString::Printf(TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\" }"), Action);
+		FRTTestScenario Rifiutato;
+		FString Errore;
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Nudo);
+		TestFalse(FString::Printf(TEXT("%s senza bersaglio e' rifiutata"), Action),
+			URTScenarioLoader::LoadFromString(*Json, Rifiutato, Errore));
+	}
+
+	// 7. OVERWATCH — si arma con `ability`, e **non** con `reaction`.
+	//
+	// 🔴 L'assunzione naturale e' sbagliata, ed e' misurata: `Scenarios/Spec/Overwatch/` lo arma con
+	// `ability`, e il campo `reaction` porta un'abilita' reattiva DIVERSA (p.es. `Hero.Ivrin.Deflection`).
+	// La ragione sta scritta in quello scenario: l'Overwatch costa l'azione **principale**, e
+	// `SetPlannedReactionCondition` rifiuta se `PlannedReactionAbility` e' `INDEX_NONE` — quindi un piano
+	// di solo-Overwatch non riesce a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo.
+	// E' un limite noto (`RTTurnManager.cpp`, ramo `Action.Overwatch`), non un difetto di questa slice.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.Overwatch\" }"),
+			TEXT("Overwatch"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(TEXT("Overwatch occupa lo slot PRINCIPALE"),
+				S.Turns[0].Intents[0].Ability, FName(TEXT("Action.Overwatch")));
+			TestTrue(TEXT("e non quello reattivo"), S.Turns[0].Intents[0].Reaction.IsNone());
+		}
+	}
+
+	// ⛔ E IL CASO CHE LA UI DEVE POTER ESPRIMERE: movimento e slot principale INSIEME, che il doc header
+	// della struct dichiara essere «la norma, non un caso limite».
+	{
+		const FRTTestScenario S = Loads(
+			TEXT("{ \"unit\": \"A1\", \"move\": [[0,0,0]], \"ability\": \"Action.BasicAttack\", \"target\": \"B1\" }"),
+			TEXT("movimento e azione insieme"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestTrue(TEXT("lo slot movimento e' pieno"), I.Move.Num() > 0);
+			TestFalse(TEXT("e anche quello principale"), I.Ability.IsNone());
+		}
+	}
+
+	return true;
+}
+
+/**
+ * UN BERSAGLIO SI DICE IN DUE MODI, E DICHIARARLI ENTRAMBI E' UN ERRORE — `#1626`.
+ *
+ * 🔑 «Le due forme non si contraddicono nel file prodotto» ha bisogno di una definizione di
+ * contraddizione, e questa è: `bTargetsCell` vero **con** un `Target` non vuoto — due bersagli dichiarati,
+ * e il runtime ne sceglierebbe uno senza che il file dica quale.
+ *
+ * ✅ Il loader lo rifiuta già; questo test lo rende un gate invece di una constatazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTargetFormsTest,
+	"RefactorTactics.Scenario.TargetIsUnitOrCellButNeverBoth",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTargetFormsTest::RunTest(const FString&)
+{
+	auto Try = [](const TCHAR* Intent, FRTTestScenario& Out, FString& Err)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), Intent);
+		return URTScenarioLoader::LoadFromString(*Json, Out, Err);
+	};
+
+	// Per UNITA'.
+	{
+		FRTTestScenario S; FString E;
+		if (TestTrue(FString::Printf(TEXT("bersaglio per unita' (%s)"), *E),
+			Try(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"target\": \"B1\" }"), S, E)))
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestEqual(TEXT("il bersaglio e' l'unita'"), I.Target, FString(TEXT("B1")));
+			TestFalse(TEXT("e non e' una cella"), I.bTargetsCell);
+		}
+	}
+
+	// Per CELLA.
+	{
+		FRTTestScenario S; FString E;
+		if (TestTrue(FString::Printf(TEXT("bersaglio per cella (%s)"), *E),
+			Try(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"targetCell\": [1,0,0] }"), S, E)))
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestTrue(TEXT("il flag della cella e' acceso"), I.bTargetsCell);
+			TestTrue(TEXT("e nessuna unita' e' nominata"), I.Target.IsEmpty());
+		}
+	}
+
+	// ⛔ ENTRAMBI: rifiutato, e il messaggio nomina il bersaglio in conflitto.
+	{
+		FRTTestScenario S; FString E;
+		const bool bOk = Try(
+			TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"target\": \"B1\", \"targetCell\": [1,0,0] }"),
+			S, E);
+		TestFalse(TEXT("due bersagli insieme sono rifiutati"), bOk);
+		TestTrue(FString::Printf(TEXT("e il messaggio nomina il conflitto (era: '%s')"), *E),
+			E.Contains(TEXT("targetCell")) || E.Contains(TEXT("B1")));
+	}
+
+	return true;
+}
+
+/**
+ * NESSUN ENUM D'AZIONE IN `ScenarioHarness/` — `#1626`.
+ *
+ * 🔑 Il vocabolario delle azioni è `Action.*` nei gameplay tag, e un `enum` parallelo nel formato scenario
+ * sarebbe la seconda tabella da tenere allineata alla prima. ⚠️ Il criterio è **già soddisfatto oggi**:
+ * questo test lo rende un gate invece di una constatazione, perché un criterio non protetto si perde al
+ * primo che arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoActionEnumTest,
+	"RefactorTactics.Scenario.HarnessHasNoParallelActionEnum",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoActionEnumTest::RunTest(const FString&)
+{
+	const FString Dir = FPaths::ProjectDir() / TEXT("Source/RefactorTactics/ScenarioHarness/");
+
+	// #4061: `ScenarioHarness/` ha sottocartelle (`Authoring/`, `Report/`), quindi la lettura e' RICORSIVA. Una
+	// `FindFiles` piatta vedrebbe solo gli header rimasti in radice, e il divieto passerebbe guardandone meno.
+	TArray<FString> Headers;
+	IFileManager::Get().FindFilesRecursive(Headers, *Dir, TEXT("*.h"), /*Files=*/ true, /*Directories=*/ false);
+	for (FString& H : Headers) { FPaths::MakePathRelativeTo(H, *Dir); }
+	Headers.Sort();
+	if (!TestTrue(FString::Printf(TEXT("gli header di ScenarioHarness si leggono (%d)"), Headers.Num()),
+		Headers.Num() > 0))
+	{
+		return false;
+	}
+
+	// I nomi che un enum d'azione avrebbe. Non si cerca «enum» in generale: `ScenarioHarness` ne ha di
+	// legittimi — l'esito di un test, lo stato di una sessione — e vietarli tutti sarebbe un criterio che
+	// boccia il codice sano.
+	const TCHAR* Suspicious[] = { TEXT("enum class ERTScenarioAction"), TEXT("enum class ERTAction"),
+		TEXT("enum class ERTIntentAction"), TEXT("enum class ERTActionKind") };
+
+	for (const FString& File : Headers)
+	{
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *(Dir + File)))
+		{
+			AddError(FString::Printf(TEXT("non ho potuto leggere %s: la misura non vale"), *File));
+			continue;
+		}
+		for (const TCHAR* Name : Suspicious)
+		{
+			TestFalse(FString::Printf(TEXT("%s non dichiara %s"), *File, Name), Text.Contains(Name));
+		}
+	}
+
+	return true;
+}
+
+/**
+ * `targetCell` e `dashTo` seguono lo STESSO contratto di ogni altra cella dello scenario (`#2546`).
+ *
+ * ## Il difetto che questi casi pinnano
+ *
+ * I due campi costruivano `FRTCellId` a mano, con una guardia propria e piu' debole di `ParseCell`:
+ * `targetCell` accettava `Num() >= 2` deducendo il layer a 0, `dashTo` rifiutava `< 2` e poi leggeva
+ * `Num() >= 3 ? [2] : 0`. Due arita' sbagliate su tre passavano, e la coda veniva scartata in silenzio.
+ *
+ * 🔴 **Il caso peggiore non era la coda scartata.** Con `"targetCell": [3]` **e** un `target` valido nello
+ * stesso intent: la `if` cadeva (un elemento solo), il ramo `else if` trovava il `target` e non emetteva
+ * NESSUN errore, `bTargetsCell` restava falso — e cosi' il controllo di ambiguita' di `Validate`, scritto
+ * per rifiutare «dichiara sia il bersaglio sia una cella», non aveva nulla da rifiutare. Lo scenario
+ * caricava verde e bersagliava la stringa al posto della cella che l'autore aveva scritto: non un rosso,
+ * **un verde su un'altra partita**.
+ *
+ * ## Perche' si legge il MESSAGGIO e non solo il bool
+ *
+ * Un `TestFalse` sul caricamento sarebbe verde anche se l'errore nominasse il campo sbagliato — ed e'
+ * precisamente cio' che succedeva: `"targetCell": [3]` senza `target` produceva «non dichiara un
+ * bersaglio», mandando chi legge a cercare un campo che aveva scritto. Il contratto di `#2546` e' che il
+ * messaggio nomini **il campo** e **la lunghezza trovata**, quindi e' quello che si asserisce.
+ *
+ * ⚠️ **`dashTo` ASSENTE conserva il proprio messaggio storico**, ed e' la decisione che lo scope della
+ * issue chiedeva di prendere e scrivere: «non dichiara una destinazione» e' vero per un campo che manca e
+ * falso per uno che c'e' malformato. I due rami sono separati, e l'ultimo caso qui sotto pinna che il
+ * primo non sia stato assorbito dal secondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderIntentCellArityTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedTargetCellAndDashTo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const FString& Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	// Due unita' e un'assertion: il minimo perche' lo scenario arrivi al parsing degli intent.
+	auto WithIntent = [](const FString& IntentBody) -> FString
+	{
+		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
+			TEXT(R"("units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"B","hero":"Hero.Muiren","team":1,"cell":[2,0,0]}],)")
+			TEXT(R"("turns":[{"intents":[%s]}],)")
+			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
+	};
+
+	// 🔑 **Le celle sono interne alla mappa (`mapRadius: 3`, e `(1,1)` dista 2), per igiene del banco.**
+	//
+	// ⌫ **Una stesura precedente di questo commento diceva che le celle fuori arena facevano rifiutare lo
+	// scenario «dalla validazione di mappa», e la spiegazione era FALSA quando fu scritta.** Misurato
+	// allora: `FlatArenaContains` era chiamata in tre punti soltanto — `cells`, le unita' di variante e
+	// `units` — e nessuno riguardava `targetCell` o `dashTo`.
+	//
+	// ⚠️ **Da `#2698` le celle dell'intent SONO validate contro l'arena**, in testa al ciclo di
+	// `ValidateScenarioTurns`, `bUsesFixture` escluso. La riga qui sopra resta perche' spiega perche' il
+	// banco e' costruito cosi', ma la sua conclusione non vale piu': oggi una cella fuori arena viene
+	// rifiutata, e il caso ha un proprietario — `Scenario.LoaderRejectsMalformedIntentFields`.
+	//
+	// La causa vera del vuoto era un'altra, ed era nel METODO: la prima mutazione M1 sostituiva solo la
+	// CONDIZIONE dell'`if` e lasciava dentro le chiamate a `ParseCell`, quindi la guardia mutata entrava e
+	// il fix rifiutava lo stesso. Il test non era vacuo — era la misura a non rimuovere il fix.
+	//
+	// ⌫ **Il difetto ADIACENTE che questa nota registrava e' stato chiuso da `#2698`.** Diceva: `Validate`
+	// porta il commento «una cella bersaglio segue le stesse regole di ogni altra cella dello scenario:
+	// fuori dall'arena e' un errore di scrittura» sopra un `continue` che **non controlla niente** — regola
+	// dichiarata e non applicata. Ora e' applicata, e i casi di questo banco restano dentro l'arena per la
+	// ragione per cui erano stati scelti: qui si misura l'ARITA', e una cella fuori arena farebbe cadere il
+	// test su un'altra guardia.
+	// ---- targetCell -------------------------------------------------------------------------------
+
+	// (1) Tre elementi: accettato. E' il controllo POSITIVO — senza, ogni riga sotto sarebbe verde anche
+	// se il loader rifiutasse qualunque `targetCell`, e il test non distinguerebbe una guardia da un muro.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,0,0]})")),
+			Scenario, Error);
+		// Le condizioni di forma si ASSERISCONO, non si usano come guardia muta: con un `&&` grezzo, un
+		// loader che emettesse due turni farebbe sparire l'assertion sulla cella senza un rosso, e il
+		// controllo positivo direbbe «accettato» avendo verificato il solo bool.
+		if (TestTrue(FString::Printf(TEXT("[q,r,layer] completo: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
+			TestTrue(TEXT("bersaglia una cella"), I.bTargetsCell);
+			TestEqual(TEXT("e la cella e' quella scritta"), I.TargetCell, FRTCellId(1, 0, 0));
+		}
+	}
+
+	// (2) Due elementi: il layer NON si deduce piu'.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1]})")),
+		TEXT("targetCell"), TEXT("targetCell con due elementi"));
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1]})")),
+		TEXT("trovati 2"), TEXT("targetCell con due elementi: la lunghezza e' nel messaggio"));
+
+	// (3) Quattro elementi: la coda non si scarta piu' in silenzio.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1,0,7]})")),
+		TEXT("trovati 4"), TEXT("targetCell con quattro elementi"));
+
+	// (4) Un elemento, senza `target`: l'errore nomina `targetCell` e non piu' il bersaglio mancante.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[3]})")),
+		TEXT("targetCell"), TEXT("targetCell con un elemento, senza target"));
+
+	// (5) 🔴 **Il caso che non emetteva NESSUN errore**: un elemento, accanto a un `target` valido.
+	//
+	// ⚠️ **Si asserisce «trovati 1», non «targetCell»**, ed e' la differenza fra pinnare l'arita' e non
+	// pinnare niente: anche il messaggio di ambiguita' di `Validate` — «dichiara sia il bersaglio 'B' sia
+	// una cella (target e targetCell insieme)» — contiene la parola `targetCell`. Con una regressione
+	// parziale che accettasse `Num() >= 1`, la cella diventerebbe (3,0,0), `bTargetsCell` passerebbe a vero
+	// e sarebbe `Validate` a rifiutare: `Contains("targetCell")` resterebbe VERO e questo caso — il caso
+	// per cui l'intera issue esiste — resterebbe verde mentre la regressione parte.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[3],"target":"B"})")),
+		TEXT("trovati 1"), TEXT("targetCell malformato accanto a un target valido"));
+
+	// ---- dashTo -----------------------------------------------------------------------------------
+
+	// (6) Due elementi: rifiutato, dove prima il layer veniva dedotto.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1]})")),
+		TEXT("trovati 2"), TEXT("dashTo con due elementi"));
+
+	// (7) Quattro elementi: rifiutato, dove prima la coda veniva scartata.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1,0,7]})")),
+		TEXT("trovati 4"), TEXT("dashTo con quattro elementi"));
+
+	// (8) ASSENTE: il messaggio storico resta, ed e' l'unico ramo che lo conserva. Senza questo caso il
+	// ramo dell'assenza potrebbe essere assorbito da quello del malformato senza che nulla diventi rosso.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade"})")),
+		TEXT("non dichiara una destinazione"), TEXT("dashTo assente: messaggio invariato"));
+
+	// (9) Il CONTROLLO POSITIVO di `dashTo`, per la stessa ragione del (1): senza, tutti i casi sopra
+	// resterebbero verdi anche se il ramo rifiutasse OGNI arita', e il test non distinguerebbe una guardia
+	// da un muro. Si verifica anche la cella prodotta, non solo il bool.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1,0]})")),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("dashTo [q,r,layer]: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			TestEqual(TEXT("e la destinazione e' quella scritta"),
+				Scenario.Turns[0].Intents[0].DashCell, FRTCellId(1, 1, 0));
+		}
+	}
+
+	// (10) Il messaggio nomina `dashTo` **e** viene dal ramo del MALFORMATO.
+	//
+	// ⚠️ **`Contains("dashTo")` da solo non basta, ed e' un oracolo piu' debole di quanto sembri**: lo
+	// contiene anche il messaggio storico dell'ASSENZA — «non dichiara una destinazione (campo dashTo)» —
+	// quindi questo caso non distinguerebbe i due rami che la issue chiede di separare. E lo contiene pure
+	// il messaggio delle chiavi sconosciute, che ENUMERA tutte le chiavi note. Si asserisce percio' una
+	// stringa che appartiene al solo `ParseCell`.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1]})")),
+		TEXT("dashTo: la cella deve essere"), TEXT("dashTo malformato: il messaggio viene dal ramo giusto"));
+
+	// ---- move: il TERZO campo di coordinate dello stesso intent ------------------------------------
+	//
+	// Portava la stessa guardia di presenza dei due qui sopra — `TryGetArrayField`, che risponde `false`
+	// sia per una chiave assente sia per una del tipo sbagliato — ed e' il caso in cui costa di piu':
+	// `move` e' l'unico dei tre a portare una LISTA di celle, quindi ha due modi di essere scritto male
+	// invece di uno. Il test gemello `Scenario.EveryCellFieldRejectsWrongArity` lo chiama gia' «il chiamante
+	// piu' esposto al refuso».
+
+	// (11) Controllo POSITIVO, prima dei rifiuti: senza, i due casi sotto resterebbero verdi anche se il
+	// ramo rifiutasse ogni `move`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","move":[[1,0,0],[1,1,0]]})")), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("move come lista di celle: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1)
+			&& TestEqual(TEXT("due passi"), Scenario.Turns[0].Intents[0].Move.Num(), 2))
+		{
+			TestEqual(TEXT("e il secondo passo e' quello scritto"),
+				Scenario.Turns[0].Intents[0].Move[1], FRTCellId(1, 1, 0));
+		}
+	}
+
+	// (12) 🔴 **Il refuso che spariva in silenzio**: la lista scritta come stringa. `TryGetArrayField`
+	// rispondeva `false`, il blocco veniva saltato, `Intent.Move` restava vuoto e nessun errore usciva —
+	// l'unita' non si muoveva e lo scenario caricava verde.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":"[[1,0,0]]"})")),
+		TEXT("move"), TEXT("move scritto come stringa invece che come lista"));
+
+	// (13) E un passo con arita' sbagliata resta rifiutato da `ParseCell`, come prima.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":[[1,0]]})")),
+		TEXT("trovati 2"), TEXT("move con un passo a due elementi"));
+
+	// ---- il TIPO sbagliato, non solo l'arita' ------------------------------------------------------
+	//
+	// Le tre guardie nuove hanno ciascuna due rami — «campo assente» e «campo presente ma non array» — e
+	// fino a qui solo quello di `move` era esercitato. Senza questi due casi, chi ricollassasse
+	// `HasField` + `TryGetArrayField` in una guardia sola su `targetCell` o `dashTo` li riporterebbe al
+	// silenzio che questa issue rimuove, e i casi sopra resterebbero tutti verdi.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":"1,0,0"})")),
+		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":"1,1,0"})")),
+		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));
+
+	// ⌫ **Qui stava un caso su `"dash": "None"`, rimosso col controllo che lo motivava.**
+	// ⚠️ E la sua rimozione lascia scoperto un difetto PREESISTENTE che vale la pena nominare:
+	// `FName(TEXT("None"))` **e'** `NAME_None`, quindi `{"dash":"None","dashTo":[1,1,0]}` si carica verde
+	// e a runtime `RTScenarioSession` salta il dash — `dashTo` viene letto e consumato da nessuno. Non e'
+	// stato introdotto da questa passata e non si chiude qui: chiuderlo chiede di decidere se `"None"` sia
+	// un identificatore legale o un refuso, e la sede della decisione e' un'issue.
+
+	return true;
+}
+
+/**
+ * **Ogni campo dell'intent distingue ASSENTE da PRESENTE-E-MALFORMATO** (`#2698`).
+ *
+ * 🔴 **Il difetto che questo test chiude non produceva un rosso: produceva un VERDE su un'altra partita.**
+ * `TryGetStringField` risponde `false` sia per una chiave assente sia per una del tipo sbagliato, quindi
+ * `"ability": ""` e `"ability": ["Hero.Aevik.ArcPulse"]` facevano saltare l'intero blocco in silenzio:
+ * l'unita' non usava nessuna abilita', lo scenario riportava `PASS`, e nessuno aveva scritto un test su
+ * quella partita. E' la stessa formula che `#2546` ha chiuso sui tre campi ARRAY, applicata ai campi
+ * STRINGA che fanno da guardia.
+ *
+ * 🔑 **Le decisioni non ovvie sono state prese misurando il writer e il corpus, non discutendole:**
+ *
+ *   * **stringa vuota** — `RTScenarioWriter` scrive ogni campo stringa sotto `!IsEmpty()` / `!IsNone()`,
+ *     quindi non la emette mai: rifiutarla non puo' rompere il round-trip;
+ *   * **`"None"`** (caso D.2) — `FName(TEXT("None"))` **e'** `NAME_None`, e la guardia d'esecuzione di
+ *     `RTScenarioSession` e' `!Intent.Dash.IsNone()`: il campo caricava verde e a runtime nessuno lo
+ *     consumava. Zero occorrenze nel corpus;
+ *   * **`"move": []`** (caso D.1) — il writer emette `move` sotto `if (Num() > 0)`, e
+ *     `grep -rn '"move"\s*:\s*\[\s*\]' Scenarios/` risponde **0**. Un'unita' ferma OMETTE il campo.
+ *
+ * ⛔ **Cio' che questo test NON chiede: il CONSUMO.** «Un `target` senza `ability` chi lo usa?» e' la
+ * domanda che il 2026-09-09 ha rotto il round-trip e i cui controlli sono stati ritirati — il writer
+ * emette davvero quella forma. Qui si guarda il tipo, non chi consuma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderIntentFieldFormTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedIntentFields",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderIntentFieldFormTest::RunTest(const FString&)
+{
+	auto WithIntent = [](const FString& IntentBody) -> FString
+	{
+		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
+			TEXT(R"("units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"B","hero":"Hero.Muiren","team":1,"cell":[2,0,0]}],)")
+			TEXT(R"("turns":[{"intents":[%s]}],)")
+			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
+	};
+
+	auto Rifiuta = [this](const FString& Json, const TCHAR* DeveCitare, const TCHAR* Cosa)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bOk);
+		// Il MESSAGGIO, non il bool: un rifiuto che non nomina il campo manda a cercare altrove, ed e'
+		// meta' del difetto che questa issue chiude.
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), Cosa, DeveCitare, *Error),
+			Error.Contains(DeveCitare));
+	};
+
+	// ── CONTROLLO POSITIVO, prima di tutto: senza, ogni rifiuto qui sotto sarebbe verde anche se il loader
+	//    rifiutasse QUALUNQUE intent, e il test non distinguerebbe una guardia da un muro.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","target":"B","facing":"NE"})")),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("l'intent ben formato si carica (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
+			TestEqual(TEXT("l'abilita' e' quella scritta"), I.Ability, FName(TEXT("Hero.Aevik.ArcPulse")));
+			TestEqual(TEXT("il bersaglio e' quello scritto"), I.Target, FString(TEXT("B")));
+			TestTrue(TEXT("la rotazione e' dichiarata"), I.bDeclaresFacing);
+		}
+	}
+
+	// ── A · i campi stringa: presente e malformato non e' assente.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":""})")),
+		TEXT("ability"), TEXT("ability stringa vuota"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":["Hero.Aevik.ArcPulse"]})")),
+		TEXT("ability"), TEXT("ability come array"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","facing":["NE"]})")),
+		TEXT("facing"), TEXT("facing come array"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","edge":42})")),
+		TEXT("edge"), TEXT("edge come numero"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","target":["B"]})")),
+		TEXT("target"), TEXT("target come array, e senza ability: il ramo che lo legge non lo vedeva"));
+
+	// ── D.2 · la sentinella che collide. Il campo caricava, `dashTo` veniva validato, e a runtime lo
+	//    scatto non avveniva: `FName("None")` E' `NAME_None`.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","dash":"None","dashTo":[1,0,0]})")),
+		TEXT("dash"), TEXT("dash uguale alla sentinella None"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"none","target":"B"})")),
+		TEXT("ability"), TEXT("ability 'none': il confronto FName e' case-insensitive"));
+
+	// ── D.1 · la lista vuota, che restava un no-op silenzioso accanto al tipo sbagliato gia' chiuso.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[]})")),
+		TEXT("move"), TEXT("move lista vuota"));
+
+	// ── B · il VALORE della cella, non la sua lunghezza. `AsNumber()` rispondeva 0 per ogni non-numero,
+	//    quindi questa forma diventava la cella (0,0,0) — dove l'unita' A gia' si trova.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":["1","0","0"]})")),
+		TEXT("non e' un numero"), TEXT("targetCell con componenti stringa"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1.5,0,0]})")),
+		TEXT("non e' un intero"), TEXT("targetCell con una componente frazionaria"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[[0,true,0]]})")),
+		TEXT("non e' un numero"), TEXT("move con una componente booleana"));
+
+	// ── C · la regola che era dichiarata in un commento sopra un `continue` che non controllava niente.
+	//    `(9,9,0)` dista 18 dal centro su `mapRadius: 3`.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[9,9,0]})")),
+		TEXT("fuori dall'arena"), TEXT("targetCell fuori dall'arena"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,0,4]})")),
+		TEXT("layer"), TEXT("targetCell su un layer che l'arena piatta non ha"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[[1,0,0],[9,9,0]]})")),
+		TEXT("move[1]"), TEXT("move fuori dall'arena: il messaggio nomina il passo"));
+
+	return true;
+}
+
+// --- i CONFINI delle assertion (`#2867`) -----------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCheckpointTest,
+	"RefactorTactics.Scenario.LoaderReadsAssertionCheckpoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCheckpointTest::RunTest(const FString&)
+{
+	const TCHAR* Scena = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Checkpoint.LoaderProbe",
+	  "version": 7,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+	  ],
+	  "expect": [
+	    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0], "at": "BlastEnded" },
+	    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+	    { "type": "UnitHpEquals", "unit": "B1", "value": 100,
+	      "afterEvent": { "category": "Combat", "unit": "A1" } }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario coi checkpoint si carica (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(Scena, Scenario, Error)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("tre assertion"), Scenario.Expect.Num(), 3)) { return false; }
+
+	TestTrue(TEXT("la prima dichiara un confine"), Scenario.Expect[0].bHasCheckpoint);
+	TestEqual(TEXT("ed e' BlastEnded"), Scenario.Expect[0].At, ERTScenarioCheckpoint::BlastEnded);
+
+	// 🔑 **`CleanupEnded` e' il default E un confine dichiarabile**: senza il booleano i due casi sarebbero
+	// indistinguibili, ed e' la ragione per cui il campo esiste. Qui la seconda non dichiara niente.
+	TestFalse(TEXT("la seconda non dichiara un confine"), Scenario.Expect[1].bHasCheckpoint);
+	TestEqual(TEXT("e vale il default"), Scenario.Expect[1].At, ERTScenarioCheckpoint::CleanupEnded);
+
+	TestTrue(TEXT("la terza dichiara un afterEvent"), Scenario.Expect[2].bHasAfterEvent);
+	TestTrue(TEXT("col criterio di categoria"), Scenario.Expect[2].AfterEvent.bHasCategory);
+	TestEqual(TEXT("che e' Combat"), Scenario.Expect[2].AfterEvent.Category, ERTLogCategory::Combat);
+	TestEqual(TEXT("e con chi ha agito"), Scenario.Expect[2].AfterEvent.Unit, TEXT("A1"));
+	TestFalse(TEXT("e nessun esito, che infatti non e' dichiarato"), Scenario.Expect[2].AfterEvent.bHasOutcome);
+
+	return true;
+}
+
+/**
+ * ⛔ **Il formato RIFIUTA un ancoraggio di presentazione, non lo scoraggia** — DoD di `#2867`.
+ *
+ * E' l'invariante 6 di `AGENTS.md` resa strutturale: se `at` accettasse stringhe libere, un `"afterFrame"`
+ * verrebbe letto e poi non corrisponderebbe mai a niente, cioe' l'assertion non si valuterebbe MAI e il
+ * referto tacerebbe. Il rifiuto arriva invece a caricamento, e nomina i confini legali.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsPresentationCheckpointTest,
+	"RefactorTactics.Scenario.LoaderRejectsPresentationCheckpoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsPresentationCheckpointTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const FString& ExpectEntry, const TCHAR* MustMention, const TCHAR* What)
+	{
+		const FString Json = FString::Printf(TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[%s]}"), *ExpectEntry);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	// I quattro ancoraggi che l'issue nomina per esteso. Nessuno e' un valore dell'enum, quindi nessuno passa.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"afterFrame"})"),
+		TEXT("checkpoint 'afterFrame' sconosciuto"), TEXT("ancoraggio a un frame"));
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"DeltaTime"})"),
+		TEXT("sconosciuto"), TEXT("ancoraggio a DeltaTime"));
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"OnAnimationEnded"})"),
+		TEXT("sconosciuto"), TEXT("ancoraggio a un callback di animazione"));
+	// ⚠️ **Una fase del GIOCO non e' un confine**: `Blast` e `BlastEnded` sono due vocabolari, e accettare il
+	// primo renderebbe ambiguo se si intenda l'inizio o la fine.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"Blast"})"),
+		TEXT("sconosciuto"), TEXT("nome di fase invece che di confine"));
+
+	// 🔴 **E la chiave sbagliata, che e' il caso peggiore**: fino a `#2867` `expect` non aveva un controllo di
+	// chiave sconosciuta, quindi un refuso veniva IGNORATO e l'assertion si valutava a fine turno — verde,
+	// misurando un altro momento.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"ate":"BlastEnded"})"),
+		TEXT("chiave sconosciuta 'ate'"), TEXT("refuso sulla chiave del confine"));
+
+	// Due risposte alla stessa domanda.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"at":"BlastEnded","afterEvent":{"category":"Combat"}})"),
+		TEXT("non convivono"), TEXT("'at' e 'afterEvent' insieme"));
+
+	// ⛔ Un selettore vuoto sarebbe l'indice posizionale travestito: corrisponderebbe al primo evento
+	// qualunque, cioe' a cio' che il resolver scrive per primo.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{}})"),
+		TEXT("senza criteri"), TEXT("selettore d'evento vuoto"));
+
+	// L'esito senza categoria non significa niente: lo stesso `uint8` e' un esito diverso per ogni famiglia.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{"outcome":"Hit"}})"),
+		TEXT("senza 'category'"), TEXT("esito senza categoria"));
+
+	// E l'indice, chiesto per nome: e' la lezione di #2863 e il formato non deve ammetterla al contrario.
+	Rejects(TEXT(R"({"type":"TurnsCompleted","value":1,"afterEvent":{"category":"Combat","index":3}})"),
+		TEXT("chiave sconosciuta 'index'"), TEXT("indice posizionale dentro afterEvent"));
+
+	// 🔴 **I CINQUE TIPI CHE LEGGONO IL TURNLOG, enumerati uno per uno.**
+	//
+	// Non e' pignoleria: un checkpoint legge lo STATO nell'istante del confine, mentre queste leggono il log
+	// accumulato, che si riempie quando il turno ha finito di risolvere — cioe' DOPO ogni confine di quel
+	// turno. Accettarle darebbe un'assertion valutata su un log a cui manca il turno corrente: verde o rossa
+	// sui turni precedenti, senza che niente lo dica.
+	//
+	// ⚠️ **L'elenco e' qui perche' quello nel loader puo' scadere**: un tipo nuovo che legga il log e non
+	// venga aggiunto a `ReadsTheTurnLog` tornerebbe ad accettare un confine che non sa onorare, e nessun
+	// altro gate se ne accorgerebbe.
+	{
+		const TCHAR* LogKinds[] = {
+			TEXT(R"("type":"LogEventCount","category":"Combat","outcome":"Hit","value":1)"),
+			TEXT(R"("type":"LogEventAmount","category":"Combat","outcome":"Hit","value":1)"),
+			TEXT(R"("type":"LogEventOrder","category":"Combat","outcome":"Hit","thenCategory":"Move","thenOutcome":"Moved")"),
+			TEXT(R"("type":"OriginalTargetEquals","unit":"A")"),
+			TEXT(R"("type":"EffectiveTargetEquals","unit":"A")")
+		};
+		for (const TCHAR* Kind : LogKinds)
+		{
+			Rejects(FString::Printf(TEXT("{%s,\"at\":\"BlastEnded\"}"), Kind),
+				TEXT("non puo' dichiarare 'at' o 'afterEvent'"),
+				TEXT("assertion di log con un confine di fase"));
+			Rejects(FString::Printf(TEXT("{%s,\"afterEvent\":{\"category\":\"Combat\"}}"), Kind),
+				TEXT("non puo' dichiarare 'at' o 'afterEvent'"),
+				TEXT("assertion di log con un afterEvent"));
+		}
+
+		// ✅ E il verso positivo, senza il quale il controllo qui sopra potrebbe passare per la ragione
+		// sbagliata — cioe' perche' quelle assertion sono rifiutate SEMPRE. Le stesse, senza confine, si
+		// caricano.
+		const FString Sana = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"LogEventCount\",\"category\":\"Combat\",\"outcome\":\"Hit\",\"value\":1}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("la stessa assertion SENZA confine si carica (%s)"), *Error),
+			URTScenarioLoader::LoadFromString(Sana, Scenario, Error));
+	}
+
+	// ✅ Un'assertion di STATO con `afterEvent` invece si carica: e' la strada che il messaggio d'errore
+	// indica, e se non funzionasse il rifiuto qui sopra manderebbe in un vicolo cieco.
+	{
+		const FString Sana = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":7,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"UnitAlive\",\"unit\":\"A\",\"value\":true,"
+			"\"afterEvent\":{\"category\":\"Combat\"}}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("un'assertion di stato con afterEvent si carica (%s)"), *Error),
+			URTScenarioLoader::LoadFromString(Sana, Scenario, Error));
+	}
+
+	// Un'unita' inesistente nel selettore: senza questo rifiuto il confine non passerebbe mai e il referto
+	// accuserebbe il GIOCO per un refuso nel FILE.
+	Rejects(TEXT(R"({"type":"UnitAlive","unit":"A","value":true,"afterEvent":{"category":"Combat","unit":"Fantasma"}})"),
+		TEXT("non e' schierata"), TEXT("unita' inesistente nel selettore"));
+
+	// Il GATE DI VERSIONE: la stessa assertion, su un file che si dichiara `6`.
+	{
+		const FString Json = TEXT(
+			"{\"scenarioId\":\"X\",\"version\":6,\"mapRadius\":3,"
+			"\"units\":[{\"id\":\"A\",\"hero\":\"Hero.Aevik\",\"team\":0,\"cell\":[0,0,0]}],"
+			"\"expect\":[{\"type\":\"TurnsCompleted\",\"value\":1,\"at\":\"BlastEnded\"}]}");
+		FRTTestScenario Scenario;
+		FString Error;
+		TestFalse(TEXT("un checkpoint su un file 'version: 6' e' rifiutato"),
+			URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la versione (era: '%s')"), *Error),
+			Error.Contains(TEXT("\"version\": 7")));
+	}
+
+	return true;
+}
+
+/**
+ * `playerReactionWindows` (`#3634`): si legge TIPIZZATA, e si rifiuta dove non puo' fare cio' che dice.
+ *
+ * Il campo apre al giocatore le finestre che nell'auto-run si rispondono da sole. Un tipo sbagliato letto come
+ * assenza, o una combinazione con `decisions` accettata, darebbe la stessa cosa: una seduta in cui la finestra
+ * non compare, e un'assenza a schermo che nessuno sa attribuire. Il rifiuto con `freeRun` sta accanto agli altri
+ * del free-run (`RTScenarioFreeRunTests.cpp`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.LoaderReadsPlayerReactionWindowsTypedAndAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	// `%s` e' la chiave intera, o niente; `%s` il blocco `decisions` del turno, o niente.
+	auto Json = [](const TCHAR* Chiave, const TCHAR* Decisioni)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.PlayerReactionWindows", "version": 2, "mapRadius": 3%s,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": []%s } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Chiave, Decisioni);
+	};
+
+	// Letta, e letta VERA: un test che controllasse solo «il file si carica» passerebbe con un loader che la ignora.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": true"), TEXT("")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("con la chiave a true si carica (%s)"), *Error), bLoaded);
+		TestTrue(TEXT("e il modello la porta"), Scenario.bPlayerReactionWindows);
+	}
+	// Assente: il comportamento di ogni altro scenario.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Json(TEXT(""), TEXT("")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("senza la chiave si carica (%s)"), *Error), bLoaded);
+		TestFalse(TEXT("e il default e' falso"), Scenario.bPlayerReactionWindows);
+	}
+	// Il tipo sbagliato non e' un'assenza, e non e' nemmeno un booleano: `TryGetBoolField` converterebbe entrambi.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": 1"), TEXT("")), Scenario, Error);
+		TestFalse(TEXT("il numero 1 e' rifiutato"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la chiave (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows")));
+	}
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": \"true\""), TEXT("")), Scenario, Error);
+		TestFalse(TEXT("la stringa \"true\" e' rifiutata"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina la chiave e il tipo (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows")) && Error.Contains(TEXT("booleano")));
+	}
+	// Con `decisions` la risposta avrebbe due autori.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"playerReactionWindows\": true"),
+				TEXT(R"(, "decisions": [ { "unit": "A1", "respond": "HOLD" } ])")), Scenario, Error);
+		TestFalse(TEXT("con decisions e' rifiutato"), bLoaded);
+		TestTrue(FString::Printf(TEXT("e il motivo nomina le due chiavi (era: '%s')"), *Error),
+			Error.Contains(TEXT("playerReactionWindows con decisions")));
+	}
+	// ⚠️ E le stesse `decisions` SENZA la chiave restano valide: e' cio' che rende il caso sopra attribuibile
+	// alla combinazione, e non a un blocco `decisions` scritto male.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(""), TEXT(R"(, "decisions": [ { "unit": "A1", "respond": "HOLD" } ])")), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("le stesse decisions senza la chiave si caricano (%s)"), *Error), bLoaded);
+	}
+	return true;
+}
+
+/**
+ * **Ogni chiave scalare accetta solo il proprio tipo JSON** (`#3668`).
+ *
+ * Il loader leggeva con i `TryGet*Field` dell'engine, che CONVERTONO e rispondono `true` comunque: `"freeRun": "yes"`
+ * caricava `true`, `"maxTurns": "4O"` caricava 4, un intero scritto `2.5` diventava 3. La disciplina «un tipo
+ * sbagliato non e' un'assenza» era scritta e non applicata.
+ *
+ * La tabella mette un valore del tipo sbagliato a ogni livello del formato — radice, unita', status, cella, intent,
+ * decisione, `requires` del turno, `expect`, elemento d'array — e chiede che il caricamento fallisca nominando la
+ * chiave. ⚠️ Ogni caso cambia UNA cosa rispetto a una base che si carica: e' il controllo positivo in testa, senza il
+ * quale un loader che rifiuta tutto passerebbe la tabella.
+ *
+ * 🔴 **I casi che contano sono quelli che il loader di prima ACCETTAVA**, e la prima stesura non li sceglieva cosi'.
+ * Misurato rimettendo le letture che convertono: `"freeRun": "yes"` restava rifiutato, ma perche' diventava un
+ * free-run che falliva altrove, e il messaggio nominava `freeRun` per caso. Un caso rifiutato per un'altra ragione
+ * prova il messaggio, non il lettore.
+ *
+ * 🔑 **Per questo ogni caso chiede il FRAMMENTO ESATTO del rifiuto di tipo** — `"intents: unit c'e'"`, non `"unit"`, che
+ * compare anche dentro «unita'». Un rifiuto arrivato da un altro controllo ha un altro testo, e il caso muore lo stesso:
+ * la review di #3670 ha trovato che una chiave sola nel messaggio lasciava vivi tre casi sotto la mutazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderScalarTypesTest,
+	"RefactorTactics.Scenario.LoaderRejectsMistypedScalarKeys",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
+{
+	// Le quattro parti variabili: chiavi di radice, campi di A1, il contenuto del turno, l'array `expect`.
+	auto Json = [](const TCHAR* Radice, const TCHAR* Unita, const TCHAR* Turno, const TCHAR* Expect)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Tipi"%s, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Aevik", "cell": [-2, 0, 0]%s },
+		    { "id": "B1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { %s } ],
+		  "expect": [ %s ]
+		}
+		)JSON"), Radice, Unita, Turno, Expect);
+	};
+	const TCHAR* Radice = TEXT(", \"version\": 2");
+	const TCHAR* Unita = TEXT(", \"team\": 0");
+	const TCHAR* Turno = TEXT("\"intents\": []");
+	const TCHAR* Expect = TEXT("{ \"type\": \"TurnsCompleted\", \"value\": 1 }");
+
+	// Il controllo positivo: la base si carica. Senza, un loader che rifiuta tutto passerebbe ogni riga sotto.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Json(Radice, Unita, Turno, Expect), Scenario, Error);
+		if (!TestTrue(FString::Printf(TEXT("la base si carica (%s)"), *Error), bLoaded))
+		{
+			return false;
+		}
+	}
+
+	struct FCaso
+	{
+		const TCHAR* Cosa;
+		FString Testo;
+		const TCHAR* Frammento;
+	};
+	const TArray<FCaso> Casi = {
+		// radice
+		{ TEXT("freeRun stringa (accettato prima: \"false\" era falso)"),
+			Json(TEXT(", \"version\": 2, \"freeRun\": \"false\""), Unita, Turno, Expect), TEXT("freeRun: il valore") },
+		{ TEXT("repeatCount stringa (accettato prima: \"1\" era 1)"),
+			Json(TEXT(", \"version\": 2, \"repeatCount\": \"1\""), Unita, Turno, Expect), TEXT("repeatCount: il valore") },
+		{ TEXT("previewUnit numero (accettato prima: diventava \"42\")"),
+			Json(TEXT(", \"version\": 2, \"previewUnit\": 42"), Unita, Turno, Expect), TEXT("scenario: previewUnit c'e'") },
+		{ TEXT("maxTurns stringa"), Json(TEXT(", \"version\": 4, \"maxTurns\": \"4O\""), Unita, Turno, Expect),
+			TEXT("maxTurns: il valore") },
+		{ TEXT("version stringa"), Json(TEXT(", \"version\": \"2\""), Unita, Turno, Expect), TEXT("scenario: version c'e'") },
+		{ TEXT("seed decimale"), Json(TEXT(", \"version\": 2, \"seed\": 2.5"), Unita, Turno, Expect), TEXT("scenario: seed c'e'") },
+		{ TEXT("seed null"), Json(TEXT(", \"version\": 2, \"seed\": null"), Unita, Turno, Expect), TEXT("scenario: seed c'e'") },
+		{ TEXT("expectSameAcrossVariants numero (accettato prima: 0 era falso)"),
+			Json(TEXT(", \"version\": 2, \"expectSameAcrossVariants\": 0"), Unita, Turno, Expect),
+			TEXT("scenario: expectSameAcrossVariants c'e'") },
+		{ TEXT("tag numero"), Json(TEXT(", \"version\": 2, \"tags\": [42]"), Unita, Turno, Expect),
+			TEXT("tags: ogni voce deve essere una stringa") },
+		// cella e legami
+		{ TEXT("blocksMovement stringa"),
+			Json(TEXT(", \"version\": 2, \"cells\": [ { \"cell\": [0, 1, 0], \"blocksMovement\": \"true\" } ]"),
+				Unita, Turno, Expect), TEXT("cells: blocksMovement c'e'") },
+		{ TEXT("bersaglio di un legame numero"),
+			Json(TEXT(", \"version\": 2, \"interactionBindings\": [ { \"source\": \"S1\", \"targets\": [42] } ]"),
+				Unita, Turno, Expect), TEXT("interactionBindings: un bersaglio di 'S1' non e' una stringa") },
+		// unita' e status
+		{ TEXT("team stringa"), Json(Radice, TEXT(", \"team\": \"0\""), Turno, Expect), TEXT("unita' 'A1': team c'e'") },
+		{ TEXT("bot numero"), Json(Radice, TEXT(", \"team\": 0, \"bot\": 1"), Turno, Expect), TEXT("unita' 'A1': bot c'e'") },
+		{ TEXT("health decimale"), Json(Radice, TEXT(", \"team\": 0, \"health\": 2.5"), Turno, Expect),
+			TEXT("unita' 'A1': health c'e'") },
+		{ TEXT("turns di uno status stringa"),
+			Json(Radice, TEXT(", \"team\": 0, \"statuses\": [ { \"tag\": \"Status.Prone\", \"turns\": \"2\" } ]"),
+				Turno, Expect), TEXT("status 'Status.Prone': turns c'e'") },
+		// turno
+		{ TEXT("unit di un intent numero"),
+			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": 42, \"move\": [[-1, 0, 0]] } ]"), Expect),
+			TEXT("intents: unit c'e'") },
+		{ TEXT("param di una condition stringa"),
+			Json(Radice, Unita, TEXT("\"intents\": [ { \"unit\": \"A1\", \"ability\": \"Action.Overwatch\", ")
+				TEXT("\"condition\": { \"id\": \"TargetHealthAtOrBelowPercent\", \"param\": \"50\" } } ]"), Expect),
+			TEXT("condition 'TargetHealthAtOrBelowPercent': param c'e'") },
+		{ TEXT("respond di una decisione numero"),
+			Json(Radice, Unita, TEXT("\"intents\": [], \"decisions\": [ { \"unit\": \"A1\", \"respond\": 1 } ]"), Expect),
+			TEXT("decisions: respond c'e'") },
+		{ TEXT("requires del turno numero"), Json(Radice, Unita, TEXT("\"intents\": [], \"requires\": [1]"), Expect),
+			TEXT("requires: ogni voce deve essere il nome di una capability") },
+		// expect
+		{ TEXT("value di TurnsCompleted stringa"),
+			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"TurnsCompleted\", \"value\": \"1\" }")),
+			TEXT("expect TurnsCompleted: value c'e'") },
+		{ TEXT("value di UnitAlive stringa"),
+			Json(Radice, Unita, Turno, TEXT("{ \"type\": \"UnitAlive\", \"unit\": \"A1\", \"value\": \"true\" }")),
+			TEXT("expect UnitAlive: value c'e'") },
+	};
+
+	for (const FCaso& Caso : Casi)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(Caso.Testo, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Caso.Cosa), bLoaded);
+		// ⚠️ Il messaggio dev'essere QUELLO del rifiuto di tipo, con contesto e chiave: un rifiuto arrivato da un altro
+		// controllo prova il messaggio di quel controllo, non il lettore.
+		TestTrue(FString::Printf(TEXT("%s: il motivo e' '%s' (era: '%s')"), Caso.Cosa, Caso.Frammento, *Error),
+			Error.Contains(Caso.Frammento, ESearchCase::CaseSensitive));
+	}
+
+	// E un intero scritto con il punto ma senza parte decimale E' un intero: il rigore e' sul tipo, non sulla grafia.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(
+			Json(TEXT(", \"version\": 2, \"seed\": 3.0"), Unita, Turno, Expect), Scenario, Error);
+		TestTrue(FString::Printf(TEXT("seed 3.0 si carica (%s)"), *Error), bLoaded);
+		TestEqual(TEXT("e vale 3"), Scenario.Seed, 3);
+	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

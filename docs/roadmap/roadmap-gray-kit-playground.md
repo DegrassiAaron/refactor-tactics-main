@@ -328,7 +328,7 @@ esiste invece di essere assorbita dalla suite.
 |---|---|---|
 | **cos'è** | una **fixture di dato** generata da codice | una **scena** versionata |
 | **porta** | celle, coperture, porte, superfici | attori, mesh, guide, signage |
-| **dove vive** | `Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp` | `Content/RT/Maps/Dev/` |
+| **dove vive** | `Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.cpp` | `Content/RT/Maps/Dev/` |
 | **limite dichiarato** | *«porta il DATO, non le mesh del kit»* | è precisamente ciò che posa le mesh |
 
 🔑 **Sono complementari, e la seconda chiude il buco che la prima dichiara.** La fixture ha tolto

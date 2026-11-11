@@ -29,7 +29,7 @@
 `#2742` è scritta come un'unica cosa: *«le linee di tiro non si vedono»*. Ma sono due responsabilità, e il repository ha già il pattern che le separa:
 
 ```cpp
-// UI/RTHUD.h — entrambe STATICHE e PURE, con il disegno altrove
+// UI/HUD/RTHUD.h — entrambe STATICHE e PURE, con il disegno altrove
 static void ComputePlannedHitMarks(const TArray<ARTUnit*>&, int32 PlayerTeamId, TSet<FRTCellId>&, TSet<FRTCellId>&);
 static void ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>&, TSet<FRTCellId>&);
 ```

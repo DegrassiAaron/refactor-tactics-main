@@ -52,7 +52,7 @@ glossario, così i documenti nuovi non moltiplicano i significati.
 | **Fast Reaction** | Scelta **live** provocata da un evento **esterno** (es. `FIRE`/`HOLD` dell'Overwatch) | [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) · [D-019](../decisions/RT_PDR_00_Decision_Log.md) |
 | **Fast Reaction** | Scelta live richiesta **dentro** la resolution a un decision boundary | ADR-0004, `FRTReactionOpportunity` |
 | **Overtime** | Prolungamento oltre il `RoundLimit` a punteggio pari | ⏳ non esiste |
-| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ✅ **esiste** — `URTMatchFormatData` (`Turn/RTMatchFormatData.h`): `FormatId`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`, `UnitsPerTeam`, `UnitsPerPlayer`, `MapClass`. ⏱️ *Rimisurata sull'header il 2026-08-17*: la riga citava `FormatVersion`, **rimosso** da [D-141](../decisions/RT_PDR_00_Decision_Log.md), e dichiarava mancanti `UnitsPerTeam` e la classe di mappa, **entrambe atterrate** con CP 19.1/19.2 il 2026-08-09. Era falsa in tre punti su tre |
+| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ✅ **esiste** — `URTMatchFormatData` (`Turn/Format/RTMatchFormatData.h`): `FormatId`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`, `UnitsPerTeam`, `UnitsPerPlayer`, `MapClass`. ⏱️ *Rimisurata sull'header il 2026-08-17*: la riga citava `FormatVersion`, **rimosso** da [D-141](../decisions/RT_PDR_00_Decision_Log.md), e dichiarava mancanti `UnitsPerTeam` e la classe di mappa, **entrambe atterrate** con CP 19.1/19.2 il 2026-08-09. Era falsa in tre punti su tre |
 | **Ruleset** | L'insieme di regole/policy che governa un Match Format | ⏳ non esiste |
 
 **«Turno» non va usato** in documenti nuovi per indicare «il giro di una singola unità»: quel concetto non
@@ -932,4 +932,4 @@ Sneak · Acoustic Mask.
 | Decision Log del PDR | [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) **D-010** |
 | Codice toccato dai parametri | `Turn/RTTurnManager.h:134` (`MaxPlaybackSeconds`), `:239` (`PlanningSeconds`) |
 | Forma della configurazione, DoD e test | issue `#185` — decisa il 2026-08-07, consumata da **CP 10.3** (`#76`) |
-| Precedenti citati in §16.3 | `Turn/RTHexSim.h` (snapshot), `Turn/RTTurnLog.h` (`ERTLogTopology`, versioni 1→3), `Turn/RTTurnLogLibrary.cpp` (`HashTurnLog`) |
+| Precedenti citati in §16.3 | `Turn/Resolution/RTHexSim.h` (snapshot), `Turn/Log/RTTurnLog.h` (`ERTLogTopology`, versioni 1→3), `Turn/Log/RTTurnLogLibrary.cpp` (`HashTurnLog`) |

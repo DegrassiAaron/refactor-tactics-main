@@ -59,8 +59,8 @@ niente. Mitigazione adottata in questo piano:
 | `Map/RTCellId.h` | unico tipo di coordinata del progetto (invariato) |
 | `Unit/RTUnit.h/.cpp` | posizione autorevole `FRTCellId Cell`; `PlaceOnCell`/`WorldForCell` su geometria esagonale |
 | `RTGameMode.h/.cpp` | allestisce da `ARTHexMapActor` + `URTHexMapAsset`; niente `ARTGridActor` nel flusso di partita |
-| `Turn/RTMatchSetupLibrary.h/.cpp` | **nuovo**: funzioni pure di allestimento (celle di partenza, occupazione) — testabili headless |
-| `Grid/RTGridLibrary.*`, `Turn/RTMovementResolver.*`, `Bot/RTBotLibrary.*`, `Combat/RTCombatLibrary.*`, `UI/RTHUD.cpp`, `Player/RTPlayerController.cpp`, `Turn/RTTurnManager.*`, `Turn/RTTurnLog.h`, `Turn/RTResolvedEvent.h` | firme migrate a `FRTCellId`, **semantica quadrata invariata** (migra in 6.2–6.4) |
+| `Turn/Format/RTMatchSetupLibrary.h/.cpp` | **nuovo**: funzioni pure di allestimento (celle di partenza, occupazione) — testabili headless |
+| `Grid/RTGridLibrary.*`, `Turn/RTMovementResolver.*`, `Bot/RTBotLibrary.*`, `Combat/RTCombatLibrary.*`, `UI/HUD/RTHUD.cpp`, `Player/RTPlayerController.cpp`, `Turn/RTTurnManager.*`, `Turn/Log/RTTurnLog.h`, `Turn/Resolution/RTResolvedEvent.h` | firme migrate a `FRTCellId`, **semantica quadrata invariata** (migra in 6.2–6.4) |
 | `Tests/*` | stessi casi, tipo aggiornato |
 
 Estensione misurata: **35 file** contengono `FRTGridCoord`, di cui 11 di test.
@@ -141,9 +141,9 @@ testuale **non** basta:
    default `0`), ma `FRTGridCoord(X, Y)` senza layer significava «piano implicito 0» mentre in `FRTCellId`
    il layer è esplicito. Nessuna modifica necessaria, ma non convertire i letterali a caso: mantenere gli
    stessi valori numerici, così i test esistenti restano confrontabili.
-2. **`URTHexSimLibrary::ToLogCoord`** (`Turn/RTHexSimLibrary.h:77`, `.cpp`): esisteva solo per convertire
+2. **`URTHexSimLibrary::ToLogCoord`** (`Turn/Resolution/RTHexSimLibrary.h:77`, `.cpp`): esisteva solo per convertire
    `FRTCellId` → tipo di log. Rimuoverla e aggiornare i chiamanti perché passino la cella direttamente.
-3. **`Turn/RTTurnLog.h`**: le entry del log cambiano tipo di campo ma **non** il layout binario (3 × `int32`
+3. **`Turn/Log/RTTurnLog.h`**: le entry del log cambiano tipo di campo ma **non** il layout binario (3 × `int32`
    in entrambi i casi). Il test `RefactorTactics.TurnLog.SquareBytesUnchanged` deve restare verde: se
    fallisce, la serializzazione è cambiata davvero e va indagata prima di proseguire (non «aggiustare» il test).
 
@@ -195,9 +195,9 @@ Il `GameMode` non deve contenere logica non testabile: le decisioni di allestime
 4 unità, come si ricostruisce l'occupazione) vivono in una libreria pura, verificabile headless.
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/RTMatchSetupLibrary.h`
-- Create: `Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp`
-- Test: `Source/RefactorTactics/Tests/RTMatchSetupTests.cpp`
+- Create: `Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.h`
+- Create: `Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.cpp`
+- Test: `Source/RefactorTactics/Tests/Turn/Format/RTMatchSetupTests.cpp`
 
 **Interfaces:**
 - Consuma: `URTHexMapAsset::CellsInLayer`, `URTHexMapAsset::FindCell`, `FRTHexCellData::bBlocksMovement`,
@@ -213,7 +213,7 @@ Il `GameMode` non deve contenere logica non testabile: le decisioni di allestime
 
 ```cpp
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 
@@ -349,7 +349,7 @@ public:
 - [ ] **Step 4: Scrivere l'implementazione**
 
 ```cpp
-#include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -417,7 +417,7 @@ Atteso: build `Succeeded`; suite `Success: 176`, `Fail: 0` (172 + 4 nuovi).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTMatchSetupLibrary.h Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp Source/RefactorTactics/Tests/RTMatchSetupTests.cpp
+git add Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.h Source/RefactorTactics/Turn/Format/RTMatchSetupLibrary.cpp Source/RefactorTactics/Tests/Turn/Format/RTMatchSetupTests.cpp
 git commit -m "feat(setup): libreria pura di allestimento su mappa esagonale"
 ```
 
@@ -428,7 +428,7 @@ git commit -m "feat(setup): libreria pura di allestimento su mappa esagonale"
 **Files:**
 - Modify: `Source/RefactorTactics/Unit/RTUnit.h` (firme di `PlaceOnCell`/`WorldForCell`)
 - Modify: `Source/RefactorTactics/Unit/RTUnit.cpp`
-- Test: `Source/RefactorTactics/Tests/RTUnitPlacementTests.cpp` (nuovo)
+- Test: `Source/RefactorTactics/Tests/Unit/RTUnitPlacementTests.cpp` (nuovo)
 
 **Interfaces:**
 - Consuma: `URTHexLibrary::AxialToWorld(const FRTCellId&, const FVector& Origin, float HexSize, float LayerHeight)`
@@ -506,7 +506,7 @@ Atteso: `Succeeded`; `Success: 177`, `Fail: 0`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Unit Source/RefactorTactics/Tests/RTUnitPlacementTests.cpp
+git add Source/RefactorTactics/Unit Source/RefactorTactics/Tests/Unit/RTUnitPlacementTests.cpp
 git commit -m "feat(unit): posizionamento sui centri esagonali via URTHexLibrary"
 ```
 
@@ -517,7 +517,7 @@ git commit -m "feat(unit): posizionamento sui centri esagonali via URTHexLibrary
 **Files:**
 - Modify: `Source/RefactorTactics/RTGameMode.h`
 - Modify: `Source/RefactorTactics/RTGameMode.cpp`
-- Test: `Source/RefactorTactics/Tests/RTMatchSetupWorldTests.cpp` (nuovo, test in `UWorld`)
+- Test: `Source/RefactorTactics/Tests/Turn/Format/RTMatchSetupWorldTests.cpp` (nuovo, test in `UWorld`)
 
 **Interfaces:**
 - Consuma: `URTMatchSetupLibrary::PickStartCells` (Task 2), `ARTUnit::PlaceOnCell` (Task 3),
@@ -527,14 +527,14 @@ git commit -m "feat(unit): posizionamento sui centri esagonali via URTHexLibrary
 - [ ] **Step 1: Scrivere il test in `UWorld` che fallisce**
 
 Il repo crea i world di test con `UWorld::CreateWorld` + `FWorldContext` (vedi
-`Tests/RTBotPlanningTests.cpp:20-38`), **non** con `FAutomationEditorCommonUtils`: seguire quel pattern e
+`Tests/Bot/RTBotPlanningTests.cpp:20-38`), **non** con `FAutomationEditorCommonUtils`: seguire quel pattern e
 distruggere sempre il world alla fine, anche sui rami di fallimento.
 
 ```cpp
 #include "Misc/AutomationTest.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Kismet/GameplayStatics.h"
@@ -666,7 +666,7 @@ Atteso: `Succeeded`; `Success: 178`, `Fail: 0`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Source/RefactorTactics/RTGameMode.h Source/RefactorTactics/RTGameMode.cpp Source/RefactorTactics/Tests/RTMatchSetupWorldTests.cpp
+git add Source/RefactorTactics/RTGameMode.h Source/RefactorTactics/RTGameMode.cpp Source/RefactorTactics/Tests/Turn/Format/RTMatchSetupWorldTests.cpp
 git commit -m "feat(match): il GameMode allestisce la partita dalla mappa esagonale"
 ```
 

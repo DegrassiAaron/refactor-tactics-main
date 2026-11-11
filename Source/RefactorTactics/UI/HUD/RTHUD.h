@@ -1,0 +1,1397 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/HUD.h"
+#include "Map/RTCellId.h"
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: l'esito gia' filtrato per l'osservatore (#2741)
+#include "Map/Vision/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto del blocco (#3085)
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
+#include "UI/Inspect/RTGlance.h" // i soggetti pubblici dello sguardo (#3747)
+#include "UI/Inspect/RTInspect.h" // il soggetto pubblico della scheda (#3748)
+#include "Turn/Log/RTSeenUseLedger.h" // FRTSeenUseLedger: le ricariche dedotte della scheda (#3751)
+#include "Turn/Resolution/RTTurnRules.h" // ERTMatchPhase: i cancelli di fase (#2184)
+#include "RTHUD.generated.h"
+
+/**
+ * I due tratti con cui un tiro rifiutato per copertura si mostra a schermo — `#3085`.
+ *
+ * 🔑 **Esiste perche' il messaggio di `#2741` dice che la linea e' interrotta e non da COSA.** E' il
+ * residuo *(c)* che `PIE-HEXPLAY-6` isola dal 2026-08-24: la riga del feed non nomina il muro
+ * (`RTTurnLogLibrary.cpp:329`), la forma lunga `(muro in ...)` vive solo nel combat log, e la
+ * comprensibilita' resta appesa al solo contorno marcato.
+ *
+ * ⛔ **Non e' un piano.** Il click rifiutato non scrive `PlannedAttackTarget` e non entra nello stato
+ * canonico: questo e' stato di PRESENTAZIONE, nasce da un click e muore col click seguente, esattamente
+ * come il messaggio che accompagna (`CLAUDE.md` §11).
+ */
+USTRUCT(BlueprintType)
+struct FRTRefusedShotLine
+{
+	GENERATED_BODY()
+
+	/** Falso quando non c'e' niente da disegnare: nessun rifiuto, nessun ostacolo, o ostacolo non conosciuto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bShow = false;
+
+	/** Il tiratore. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId From;
+
+	/** La cella in cui il tiro si ferma: `FRTLineOfSightResult::BlockedAt`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId BreakAt;
+
+	/** Il bersaglio VOLUTO, che il tiro non raggiunge. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId To;
+};
+
+/**
+ * Una riga del Canvas gia' decisa: cosa scrivere e di che colore.
+ *
+ * Tiene insieme testo e colore perche' nella barra abilita' le due cose sono decise dallo **stesso** stato
+ * e non sono separabili senza rileggerlo due volte: l'abilita' armata si distingue per il prefisso `> ` E
+ * per il bianco, e il fuoco amico cambia il colore della riga di zona senza cambiarne il testo.
+ *
+ * ⚠️ Testo VUOTO significa «non c'e' niente da mostrare», e non «mostra una riga vuota»: e' come la riga
+ * di zona dice che nessuna zona e' puntata.
+ */
+struct FRTHudTextLine
+{
+	FString Text;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
+/**
+ * Dove disegnare la sagoma dell'ultimo contatto, e a che turno risale — l'esito di
+ * `ARTHUD::ContactGhostTargetForUnit` quando c'e' davvero qualcosa da mostrare.
+ *
+ * `Cell` e' SEMPRE la cella del ricordo (`FRTKnowledgeEntry::Cell` per una voce `Remembered`): questo tipo
+ * non porta mai la posizione attuale dell'unita', perche' non la riceve nemmeno in ingresso.
+ */
+struct FRTContactGhostTarget
+{
+	FRTCellId Cell;
+	int32 ContactTurn = 0;
+};
+
+/**
+ * Come disegnare un intento, dato quanto e' certo (CP 11.2).
+ *
+ * ⚠️ **Non contiene il livello, e non e' una dimenticanza.** Se portasse anche `ERTIntentCertainty` il Canvas
+ * potrebbe fare `if (Style.Certainty == ...)` e la regola tornerebbe a vivere nel widget, che e' cio' che
+ * l'invariante #1 di questa issue vieta — *«la classificazione arriva dal resolver: la UI non ricalcola il
+ * perche'»*. Qui arriva il **cosa disegnare**, non il perche'.
+ *
+ * ═══ LA MATRICE, che e' la cosa che mancava alla grammatica del 2026-08-07 ═══
+ *
+ * Quella tabella assegna uno stile a ogni livello e **presuppone** che ogni livello abbia gli elementi su cui
+ * applicarlo. Misurato sul codice il 2026-08-19, non e' vero: quattro elementi su sei esistono per un livello
+ * solo, e non possono distinguere niente per costruzione.
+ *
+ *   elemento              condizione di disegno    livelli su cui puo' comparire
+ *   ────────────────────  ───────────────────────  ─────────────────────────────
+ *   etichetta             `bHasPlan`               Confirmed · Predicted · Uncertain
+ *   linea al bersaglio    `if (bHasTarget)`        Predicted · Uncertain
+ *   rotta                 `Rotta.bShow`            solo Uncertain
+ *   destinazione          `Rotta.bShow`            solo Uncertain
+ *   waypoint              movimento                solo Uncertain
+ *   preview scatto        `if (bDashing)`          solo Uncertain
+ *
+ * 🔴 **`Confirmed` non disegna NESSUNA linea**: e' fermo, senza bersaglio e senza scatto, quindi non entra in
+ * nessuno dei tre `if`. Gli resta l'etichetta. Ogni stile di linea assegnato a quel livello e' inosservabile —
+ * e per due riscritture di questa struct e' rimasto scritto lo stesso, perche' la matrice non c'era.
+ *
+ * ⌫ **La colonna «condizione» diceva `if (bMoving)` per rotta e destinazione**, ed e' rimasta indietro
+ * quando `#2184` ha portato quella decisione in `ComposePlannedRoute`. La condizione **non e' cambiata** —
+ * `Rotta.bShow` **e'** `View.bMoving` — ma il nome del sito si': una matrice normativa che punta a un `if`
+ * che non esiste piu' insegna a cercarlo dove non c'e'. La stessa riga vive in
+ * `docs/technical/systems/progettazione-hud.md` §16, aggiornata insieme a questa.
+ *
+ * ─── Cosa ne segue, e perche' questa struct e' piu' piccola di quella che sostituisce ───
+ *
+ * · **`Confirmed` e `Predicted` si distinguono gia' dal CONTENUTO dell'etichetta** — uno nomina un bersaglio,
+ *   l'altro no (`ComposeIntentLabel`). Non serve un canale grafico per loro, e cercarlo e' stato l'errore.
+ * · **Il tratteggio e' quindi LIBERO** per l'unico confronto grafico che esiste davvero, `Predicted` contro
+ *   `Uncertain` sulla linea al bersaglio. E' il confronto che il giocatore incontra nell'**87%** dei casi
+ *   (`Predicted` 51,1 % + `Uncertain` 36,1 % sulla distribuzione misurata), ed e' quello su cui la verifica
+ *   PIE del 2026-08-19 ha bocciato la resa precedente.
+ * · **Il colore NON e' un canale disponibile**: in questa HUD e' gia' l'identita' di squadra — ciano contro
+ *   giallo (`RTHUD.cpp`, il ramo `bOwn`). Una stesura precedente lo spendeva per la certezza, sbiadendo del
+ *   65 % la croma di **ogni** unita' in movimento; due semantiche sullo stesso canale, e la seconda pagata
+ *   dalla prima. Rimosso.
+ * · **Gli elementi mono-livello non si graduano.** Vale per rotta, destinazione, waypoint e preview dello
+ *   scatto: sono sempre `Uncertain`, quindi qualunque gradazione li' e' un simbolo che non varia — costa
+ *   leggibilita' e non informa. Scritto **una volta qui** invece di essere riscoperto elemento per elemento,
+ *   che e' come e' andata finora: tre volte, sullo stesso errore.
+ *
+ * ⚠️ **Manca l'«icona di squadra» che la grammatica assegna a «previsto»**, e non e' una rinegoziazione
+ * silenziosa: `ARTHUD` e' un Canvas che disegna testo, linee e rettangoli, e non ha un percorso per le icone
+ * del catalogo. Le tre chiavi ESISTONO gia' — `UI.Icon.Certainty.{Confirmed,Predicted,Uncertain}`, pretese da
+ * `RefactorTactics.IconCatalog.V01CategoriesPopulated` — e aggiungere qui un canale che nessuno disegna
+ * sarebbe un campo dichiarato, trasportato e mai letto. L'icona appartiene al layer widget (§4.1 di
+ * `progettazione-hud.md`, che e' **#613**), e la si aggiunge quando esiste chi la rende.
+ */
+/**
+ * La riga d'intento gia' decisa: se mostrarla, cosa scrivere, di che colore.
+ *
+ * ⚠️ `bShow` falso significa **nessuna riga**, e i campi accanto non vanno letti: non e' «una riga
+ * vuota». La distinzione conta perche' il caso piu' comune del gioco e' un'unita' propria senza ordini.
+ */
+struct FRTIntentPresentation
+{
+	bool bShow = false;
+
+	/** Completa, prefisso incluso. Vuota quando `bShow` e' falso. */
+	FString Label;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
+/**
+ * La rotta pianificata da disegnare: se mostrarla, e quali celle la compongono (#2184).
+ *
+ * 🔴 **`bShow` non e' «esiste una destinazione», ed e' la ragione per cui la decisione esiste.**
+ * Il modello deriva `bMoving` da `ARTUnit::HasPlannedNormalMove()`, cioe'
+ * `PlannedCell != Cell || PlannedPath.Num() > 1`. Quindi `bMoving` falso **implica** destinazione uguale
+ * alla cella e nessuna rotta: senza la decisione, il rettangolo di destinazione verrebbe disegnato
+ * **sulla cella dell'unita' stessa**, cioe' un marcatore di arrivo su ogni unita' ferma in campo.
+ *
+ * ⚠️ La rotta, invece, non si vedrebbe comunque: un percorso da una cella a se stessa e' lungo una cella
+ * e non produce nessun segmento. E' il rettangolo che la decisione protegge, non la linea — misurato
+ * leggendo i due rami, non dedotto dalla forma del codice.
+ */
+struct FRTPlannedRoutePresentation
+{
+	/** Vero se l'intento e' un movimento normale. ⚠️ Non «se esiste una destinazione»: vedi sopra. */
+	bool bShow = false;
+
+	/**
+	 * Le celle da unire, gia' scelte: la rotta composita se la vista ne porta una con almeno un
+	 * **segmento**, altrimenti quella ricalcolata. **Vuoto quando `bShow` e' falso.**
+	 *
+	 * ⚠️ **La soglia e' due celle, non una**: chi disegna unisce le celle a coppie partendo da `i = 1`,
+	 * quindi una rotta di una cella sola — la sola origine — non produce nessun segmento, e senza il
+	 * ricalcolo l'unita' resterebbe senza rotta visibile.
+	 */
+	TArray<FRTCellId> PathCells;
+};
+
+/**
+ * L'anteprima dello SCATTO: se mostrarla, e con quale traiettoria (#2184).
+ *
+ * 🔴 **`bShow` non e' un flag di presenza, e il campo del modello mente sul punto.**
+ * `ARTUnit::PlannedDashCell` si dichiara «valida solo se `PlannedDashAbility` e' impostata», ma nessuno
+ * la azzera: `ARTTurnManager` consuma l'**abilita'** a fine turno (`PlannedDashAbility = INDEX_NONE`) e
+ * lascia la cella dov'e', e il modello la copia **incondizionatamente**. Con `bDashing` falso il payload
+ * resta quindi valorizzato — alla destinazione dello scatto appena eseguito, o a `(0,0,0)` — e senza la
+ * decisione si disegnerebbe un rettangolo verde su quella cella, piu' la linea che ci porta.
+ *
+ * ⌫ La verifica di chiusura del 2026-09-24 aveva classificato `bDashing` **guardia**, sulla fede del
+ * commento del campo. E' la stessa forma di `bMoving`, gia' giudicata decisione: un payload opzionale non
+ * e' leggibile a flag spento, questo lo e' ed e' attivamente sbagliato.
+ */
+/**
+ * La geometria da cui nasce ogni conversione cella → schermo di questa HUD (#2184).
+ *
+ * 🔴 **`Map == nullptr` significa DUE cose, e confonderle e' un difetto muto.**
+ * `ARTHexMapActor::GetHexContext` rende l'asset, ma scrive i tre valori **anche** quando l'asset manca:
+ * li prende dall'attore, che in graybox e' la fonte giusta. Gli stati sono quindi **tre**, non due:
+ *
+ *     nessun attore        -> ripieghi `(0, 150, 250)`: geometria INVENTATA
+ *     attore senza asset   -> geometria VERA, dai campi dell'attore (graybox)
+ *     attore con asset     -> geometria VERA, dall'asset autorevole
+ *
+ * `bFromWorld` separa il primo dagli altri due. Chi volesse turare il buco con un `if (Map)` spegnerebbe
+ * anche il graybox, dove la geometria e' valida — ed e' la ragione per cui questo flag esiste separato.
+ */
+/**
+ * Un rettangolo di marcatore su una cella d'intento: dove, quanto grande, di che colore.
+ *
+ * 🔑 **`HalfSize` e non `Size`, perche' e' la mezza-dimensione a essere usata DUE volte** — una per
+ * l'angolo alto-sinistro e una per il lato — e il rettangolo e' centrato solo finche' le due coincidono.
+ * Erano quattro letterali per marcatore (`12`, `12`, `24`, `24`) e ora sono un numero solo: il lato si
+ * ricava, non si riscrive.
+ */
+struct FRTIntentMarker
+{
+	/** La cella su cui cade il marcatore. */
+	FRTCellId Cell;
+
+	/** Meta' lato, in pixel di schermo. Il lato e' il doppio, per costruzione. */
+	float HalfSize = 0.f;
+
+	/** Tinta gia' risolta, opacita' compresa. */
+	FLinearColor Color = FLinearColor::White;
+};
+
+struct FRTHudHexGeometry
+{
+	/** L'attore mappa esiste: i tre valori vengono dal mondo, non dai ripieghi. */
+	bool bFromWorld = false;
+
+	// ⚠️ I default SONO i ripieghi: senza attore la struct nasce gia' nello stato giusto, e nessun
+	// chiamante deve ricordarsene.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+
+	/** L'asset autorevole. ⚠️ Puo' essere nullo **anche** con `bFromWorld` vero: e' il caso graybox. */
+	const class URTHexMapAsset* Map = nullptr;
+};
+
+struct FRTDashPreview
+{
+	/** Vero se l'unita' ha uno scatto pianificato ADESSO — non «se la cella di scatto e' valorizzata». */
+	bool bShow = false;
+
+	/**
+	 * La traiettoria come la fase Dash la ESEGUIRA' (#142). **Vuota quando `bShow` e' falso.**
+	 *
+	 * 🔑 Una mobilita' **lineare** va dritta e non gira gli angoli; una a budget segue il grafo.
+	 * Disegnare l'A* per uno scatto lineare mostrerebbe un percorso curvo attorno a un ostacolo che in
+	 * realta' lo ferma — e la leggibilita' tattica e' un pilastro, non un dettaglio estetico.
+	 *
+	 * ⚠️ E' l'unico sito di `URTMovementActionLibrary::IsLinear` che decide un **disegno**: gli altri
+	 * stanno nel controller, nei bot e nella query tattica, cioe' dal lato che la regola la esegue. Se le
+	 * due letture divergessero, l'anteprima prometterebbe una traiettoria che la risoluzione non fa.
+	 */
+	TArray<FRTCellId> PathCells;
+
+	/**
+	 * [D-516] Quanti tratti di `PathCells` la corsa PERCORRE, quando non li percorre tutti: il tratto
+	 * `PathCells[i - 1] -> PathCells[i]` e' corsa se `i <= ReachSegments`. Oltre — una carica col bersaglio fuori
+	 * portata — e' la retta che la carica non fara', fino al nemico.
+	 *
+	 * ⚠️ **`INDEX_NONE` vuol dire «tutta la traiettoria»**, ed e' il default: chi costruisce la struttura senza
+	 * `ComposeDashPreview` e non scrive questo campo ottiene una corsa intera, non una tutta rossa (review della PR
+	 * #3767, quando il default era `0`).
+	 */
+	int32 ReachSegments = INDEX_NONE;
+
+	/**
+	 * [D-528] Vero se il tratto che resta dopo `ReachSegments` e' cio' che la carica NON fara' (si disegna tratteggiato, in rosso).
+	 * Falso quando la corsa finisce a contatto col bersaglio scelto: il tratto fino a lui e' l'urto, non un mancato arrivo.
+	 * Default vero: e' il significato che `ReachSegments` aveva ([D-516]), e chi non scrive il campo lo conserva.
+	 */
+	bool bShowsMiss = true;
+
+	/** [D-516] Vero se resta un tratto che la corsa non fa: lo si disegna tratteggiato, in rosso. */
+	bool HasShortfall() const { return ReachSegments != INDEX_NONE && ReachSegments < PathCells.Num() - 1; }
+
+	/** [D-516] Dove la corsa si ferma: l'ultima cella della portata, o la fine della traiettoria. Invalida senza. */
+	FRTCellId StopCell() const
+	{
+		return HasShortfall() ? PathCells[ReachSegments] : (PathCells.Num() > 0 ? PathCells.Last() : FRTCellId());
+	}
+
+	/**
+	 * [#2184 fetta 13] L'ultimo tratto di `PathCells` che si disegna come corsa piena: quanti la corsa ne percorre se
+	 * non li percorre tutti, altrimenti tutta la traiettoria. Con una traiettoria vuota e' `-1`, e il ciclo che lo
+	 * consuma non gira.
+	 */
+	int32 LastRunSegment() const;
+
+	/**
+	 * [#2184 fetta 13] La cella del quadrato di destinazione: dove la corsa si ferma se manca la portata, altrimenti la
+	 * cella che il giocatore ha scelto. `ChosenCell` e' `View.DashCell`, che la struttura non conosce.
+	 */
+	FRTCellId DestinationMarkerCell(const FRTCellId& ChosenCell) const;
+};
+
+/**
+ * [#2184 fetta 13] Quali strati di `DrawHUD` dipendono dalla fase, decisi qui e non in tre siti.
+ *
+ * Erano tre confronti scritti a mano su `TurnManager->GetPhase()`, in tre siti diversi, e **non sono lo
+ * stesso confronto**: la traccia dell'ultima risoluzione resta visibile durante il playback, gli intenti
+ * pianificati no.
+ *
+ * ⚠️ **E' lo stato di fatto, non una regola dichiarata desiderabile.** [D-356] elenca la traccia sopra un
+ * turno in corso fra i difetti, e la chiude per la sola sospensione (con `Phase` a `Blast`/`Move` il
+ * `== Planning` e' falso). Se il playback ordinario debba nasconderla non lo decide questa estrazione, che
+ * la registra com'e': pinnarla rende visibile la scelta a chi un giorno la cambia.
+ *
+ * Il default e' tutto falso: e' quello che torna senza un `ARTTurnManager`. Oggi e' inerte, perche' i siti di
+ * `DrawHUD` tengono `TurnManager &&` (lo leggono nel corpo), ed e' pinnato lo stesso.
+ */
+struct FRTHudPhaseGates
+{
+	/** La traccia dell'ultima risoluzione (grigia, sotto le anteprime). Vale in `Planning`, anche a playback in corso. */
+	bool bShowPostLockTrail = false;
+
+	/** Gli intenti pianificati. Vale in `Planning` e NON durante il playback. */
+	bool bShowPlannedIntents = false;
+
+	/** Il pannello di fine partita. Vale solo a partita finita, qualunque cosa dica il playback. */
+	bool bShowMatchEndPanel = false;
+};
+
+struct FRTIntentCertaintyStyle
+{
+	/**
+	 * Peso del tratto, in pixel. Accompagna il tratteggio sull'unico confronto grafico che esiste
+	 * (`Predicted` contro `Uncertain`), e non lo porta da solo.
+	 *
+	 * 🔴 **Da solo NON distingue due livelli: misurato in PIE il 2026-08-19.** Una stesura precedente
+	 * affidava proprio a questo campo — `2,0` contro `1,25` px — piu' la densita' del tratteggio l'intero
+	 * confronto, e il verdetto di chi guardava e' stato *«si somigliano troppo»*. Resta come **rinforzo**:
+	 * spinge nella stessa direzione del canale che decide, e se un giorno restasse solo lui il test cade.
+	 *
+	 * ⚠️ Non e' un'opacita', e una stesura ancora precedente lo era: `GhostOpacity`, moltiplicato nell'alpha.
+	 * Su una linea di Canvas non ha **alcun** effetto — `AHUD::DrawLine` costruisce un `FCanvasLineItem`
+	 * (*«blend mode will be disregarded … only `SE_BLEND_Opaque`»*) che finisce in
+	 * `FBatchedElements::AddLine`, il quale forza `OpaqueColor.A = 1`. Lo spessore invece l'engine lo
+	 * rispetta. Chi tocca questa resa lo sappia prima di provarci.
+	 *
+	 * ⚠️ **I default sono quelli del livello INCERTO**, per lo stesso principio per cui
+	 * `ERTIntentCertainty::Unknown` vale zero: una struct che nessuno ha popolato non deve affermare la
+	 * garanzia piu' forte del dominio.
+	 */
+	float LineThickness = 1.25f;
+
+	/**
+	 * Frazione ACCESA di ogni tratto, fra 0 e 1: `1` linea continua, valori bassi un segno piu' rado.
+	 *
+	 * ⚠️ **Da solo non distingue due livelli**: fra `0,5` e `0,3` di acceso, su tratti di un paio di pixel,
+	 * l'occhio non legge una differenza — misurato in PIE il 2026-08-19. Lavora insieme a `DashPeriodPx`.
+	 */
+	float DashDutyCycle = 0.35f;
+
+	/**
+	 * Lunghezza in pixel di UN periodo del segno (tratto acceso + spazio), misurata **sullo schermo**.
+	 *
+	 * ✅ **E' questo campo, insieme al duty, a separare «tratteggiata» da «puntinata/fading»** — i due stili
+	 * distinti che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`, e che due stesure
+	 * precedenti avevano reso **entrambi** come lo stesso tratteggio, dovendo poi cercare un secondo canale
+	 * per distinguerli. Un periodo lungo con duty alto da' **trattini**; un periodo corto con duty basso da'
+	 * **punti**. La differenza si legge da lontano e non spende ne' il colore ne' l'opacita'.
+	 *
+	 * ⚠️ **In pixel di schermo, non nel mondo**: un segno calcolato in world space si infittisce con la
+	 * distanza fino a tornare pieno, cioe' i due stili convergerebbero sulle unita' lontane — che e'
+	 * esattamente il caso in cui il giocatore ha piu' bisogno di distinguerli.
+	 */
+	float DashPeriodPx = 7.f;
+
+	/**
+	 * La linea che accompagna l'intento va tratteggiata invece che piena.
+	 *
+	 * ✅ **E' IL canale che decide, ed e' l'unico verificato da un occhio umano**: la seduta PIE del
+	 * 2026-08-19 ha riportato *«le linee tratteggiate si vedevano»*. Separa `Predicted` — collegamento al
+	 * bersaglio **pieno**, il piano vale nello snapshot corrente — da `Uncertain`, dove ogni linea e'
+	 * tratteggiata perche' quel piano dipende da una scelta che l'avversario puo' ancora fare.
+	 *
+	 * 🔴 **La stesura precedente lo dava a ENTRAMBI, ed e' per questo che i due livelli si somigliavano.**
+	 * Un canale che vale per tutti e due i termini di un confronto non lo decide, e restava solo un pixel di
+	 * spessore a separarli. Il tratteggio e' libero proprio perche' `Confirmed` non disegna nessuna linea —
+	 * vedi la matrice sull'intestazione della struct: quel livello non entra in nessuno dei tre `if` che
+	 * disegnano geometria, quindi non c'e' nessuno da cui doverlo distinguere qui.
+	 *
+	 * ⚠️ **Su `Uncertain` vale anche per la rotta, e li' NON distingue niente**: le rotte sono incerte per
+	 * costruzione. Non e' una gradazione mascherata, e' un'affermazione vera su una classe intera — «un
+	 * percorso e' sempre contendibile» — che costa nulla perche' non toglie leggibilita' a un confronto che
+	 * non esiste. Diverso dal graduarne il colore, che toglieva croma senza dire niente.
+	 */
+	bool bDashedLine = true;
+
+	/**
+	 * L'etichetta porta il `?`. La grammatica lo da' al solo livello incerto.
+	 *
+	 * ⚠️ **Un `bool` e non la stringa da appendere**: questa funzione gira una volta per vista visibile per
+	 * frame dentro `DrawHUD`, e un `FString` allocherebbe ogni volta per un valore con due stati. Il glifo
+	 * vive in un posto solo, dentro `ComposeIntentLabel`.
+	 */
+	bool bUncertaintyMark = true;
+
+	/**
+	 * Una reazione e' armata, e va resa con la grammatica «incerto» qualunque sia il livello del PIANO.
+	 *
+	 * 🔴 **Si abilita su `ReactionName`, mai su un livello della reazione**, e la ragione e' scritta sul DTO:
+	 * `ReactionCertainty` e' uscito da `FRTIntentView` il 2026-08-16 perche' non ha mai potuto assumere un
+	 * secondo valore, e finche' esisteva il suo default `Confirmed` significava insieme «nessuna reazione» e
+	 * «reazione certa» — una UI che lo leggesse senza controllare prima il nome disegnerebbe una reazione
+	 * confermata dove non ce n'e' nessuna. Il nome vuoto e' l'unico segnale che distingue i due casi.
+	 */
+	bool bReactionArmed = false;
+};
+
+/**
+ * HUD disegnato in C++ (nessun asset UMG): barra HP/scudo sopra ogni unita' viva
+ * e, a partita conclusa, il messaggio di esito al centro dello schermo.
+ */
+UCLASS()
+class REFACTORTACTICS_API ARTHUD : public AHUD
+{
+	GENERATED_BODY()
+
+public:
+	ARTHUD();
+
+	virtual void DrawHUD() override;
+
+	/**
+	 * Esegue il driver del velo (`UpdateObserverVeil`) una volta per fotogramma.
+	 *
+	 * 🔴 **Esiste perche' l'applicazione del velo NON e' disegno.** Fino a `#2246` viveva dentro il ciclo di
+	 * `DrawHUD`, che comincia con `if (!Canvas) { return; }`: senza un canvas nessuno spegneva i nemici non
+	 * osservati, e `bKnownToObserver` nasce `true`. Cioe' *«il driver non ha girato»* e *«tutto e' noto»*
+	 * producevano lo stesso schermo, e nessun test li distingueva.
+	 */
+	virtual void Tick(float DeltaSeconds) override;
+
+	/**
+	 * Applica al mondo cio' che l'osservatore locale sa: accende e spegne i modelli
+	 * (`ARTUnit::SetKnownToObserver`) e pilota la sagoma dell'ultimo contatto (CP 13.5).
+	 *
+	 * 🔴 **Non disegna niente, ed e' il punto.** Nel ciclo di `DrawHUD` questi due gesti stavano accanto al
+	 * disegno delle barre e ne condividevano il destino: chi avesse spostato la sovrapposizione altrove — la
+	 * migrazione a `WidgetComponent` che `#613` prepara — se li sarebbe portati via in silenzio, e i nemici
+	 * non osservati sarebbero rimasti **visibili**. Un difetto di privacy (`AGENTS.md` §4), non estetico.
+	 *
+	 * 🔑 **Perche' sull'HUD e non su un attore condiviso.** Il velo e' relativo a UN osservatore: il team
+	 * si legge da `ARTPlayerState::TeamIdOf(GetOwningPlayerController())`, che senza controller ripiega su
+	 * `0`. Un `AGameState` o un subsystem di mondo non hanno un osservatore da cui derivarlo, e la risposta
+	 * dovrebbe comunque essere per-giocatore — oltre al fatto che `#1820` tiene fuori dal perimetro un
+	 * contenitore di stato pubblico. L'HUD e' gia' per-player e conosce gia' quel team.
+	 *
+	 * ⚠️ **CONSUMA i due giudizi, non li rifa'**: `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`
+	 * restano l'unica definizione delle due regole.
+	 *
+	 * ⚠️ **Pubblica per essere interrogabile senza aspettare un fotogramma**: `DrawHUD` non ha copertura
+	 * headless, ed e' esattamente il motivo per cui cio' che si puo' sbagliare esce di li'.
+	 */
+	void UpdateObserverVeil();
+
+	/**
+	 * Chi verrebbe colpito dai piani d'attacco **delle proprie unita'**: celle bersagliate e, fra queste,
+	 * quelle occupate da un ALLEATO — il fuoco amico.
+	 *
+	 * Si calcola dai PIANI e non dall'anteprima. La differenza non e' interna: l'anteprima appartiene
+	 * all'unita' **selezionata**, quindi l'avviso di fuoco amico spariva appena si selezionava qualcun altro
+	 * — per esempio per muoverlo, cioe' mentre si finisce il turno. E' l'opposto di cio' che l'avviso serve a
+	 * fare: «un alleato dentro l'area va visto PRIMA del lock-in». Segnalato in PIE il 2026-08-09
+	 * (`PIE-PREVIEW-PERSIST`).
+	 *
+	 * Statica e senza accesso alla selezione **di proposito**: l'indipendenza dalla selezione diventa cosi'
+	 * una proprieta' della firma, non una disciplina da ricordare.
+	 *
+	 * Legge solo i piani di `PlayerTeamId` (invariante #6, privacy dell'intento): i piani avversari non
+	 * entrano, nemmeno per dedurne una cella.
+	 */
+	static void ComputePlannedHitMarks(const TArray<class ARTUnit*>& Units, int32 PlayerTeamId,
+		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
+
+	/**
+	 * I sei vertici-mondo del contorno con cui si marca una cella — `#3077`.
+	 *
+	 * ⛔ **Delega a `URTHexLibrary::CellCorners` e non riscrive la trigonometria**, che e' esattamente cio'
+	 * che il contratto di quella funzione prescrive: *«chi disegna il prisma chiama questa»*, e
+	 * `AxialToWorld` piu' `HexCorners` restano **gli unici due posti** in cui la convenzione pointy-top e'
+	 * scritta.
+	 *
+	 * 🔴 **Esiste perche' qui la trigonometria ERA riscritta, e sbagliata**: `60 * I` invece di `60 * I - 30`
+	 * disegnava un flat-top su una griglia pointy-top, trenta gradi fuori. Il contorno tagliava i lati della
+	 * cella invece di seguirli, e quattro sedute PIE non l'hanno preso perche' nessun test guardava DOVE
+	 * cadono i vertici — solo che fossero sei.
+	 */
+	static TArray<FVector> CellOutlineWorld(const FRTCellId& Cell, const FVector& Origin,
+		float HexSize, float LayerHeight);
+
+	/**
+	 * I due tratti del tiro rifiutato per copertura, in CELLE — `#3085`.
+	 *
+	 * Pieno da `From` a `BreakAt`, tratteggiato da `BreakAt` a `To`: il primo dice dove il tiro arriva, il
+	 * secondo dove voleva arrivare. ⛔ **Celle e non pixel**: la proiezione appartiene a `DrawHUD`, e una
+	 * firma che parlasse di schermo non sarebbe verificabile senza un viewport.
+	 */
+	static FRTRefusedShotLine ComputeRefusedShotLine(
+		ERTTargetRefusal Refusal, const FRTLineOfSightResult& Los,
+		const FRTCellId& From, const FRTCellId& To, const TSet<FRTCellId>& KnownCells);
+
+	/**
+	 * Registra il rifiuto di bersaglio da mostrare a chi gioca — `#2741`.
+	 *
+	 * ⛔ **Riceve un esito GIA' filtrato per l'osservatore** (`URTCombatLibrary::RefusalForObserver`), e non
+	 * rifiltra: e' la stessa disciplina di `ComputeBlockerMarks`, dove la difesa sta nella sorgente e un
+	 * secondo contratto di conoscenza sarebbe il difetto.
+	 *
+	 * ⚠️ **Nessun timer, nessun `DeltaTime`.** Il messaggio vive finche' il giocatore non fa un altro click:
+	 * e' stato di presentazione, e la sua durata e' un fatto dell'input, non del tempo (`CLAUDE.md` §11).
+	 *
+	 * @param Refusal         l'esito gia' filtrato per l'osservatore
+	 * @param EffectiveRange  la portata DAVVERO applicata dal classificatore, per il solo esito
+	 *                        `Range` (`#2800`). `INDEX_NONE` quando non c'e' un limite da mostrare.
+	 * @param Los             l'esito geometrico della linea, per mostrare DOVE il tiro si ferma (`#3085`).
+	 *                        Il default e' un esito senza blocco: e' il caso del reset a ogni click, dove
+	 *                        non c'e' niente da disegnare.
+	 * @param From            il tiratore, e `To` il bersaglio voluto. Servono solo al tratto di `#3085`.
+	 */
+	void SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange,
+		const FRTLineOfSightResult& Los = FRTLineOfSightResult(),
+		const FRTCellId& From = FRTCellId(0, 0, INDEX_NONE),
+		const FRTCellId& To = FRTCellId(0, 0, INDEX_NONE));
+
+	/**
+	 * L'ultimo rifiuto mostrato al giocatore — `CP 11.5` (`#172`).
+	 *
+	 * 🔑 **Esiste perche' la timeline del piano lo TRASPORTI invece di ricalcolarlo.** Classificare una
+	 * seconda volta dentro l'anteprima significherebbe riscrivere un percorso privacy-critico: il rifiuto
+	 * nasce da `ClassifyHexTargeting` **piu'** il flag di conoscenza dell'osservatore, e una copia che
+	 * dimenticasse il secondo rivelerebbe la presenza di un nemico velato ([D-225]).
+	 *
+	 * ⚠️ **E' gia' filtrato**: cio' che si legge qui e' cio' che il giocatore sta gia' vedendo, non lo stato
+	 * interno. Non c'e' niente da filtrare una seconda volta, e non si deve.
+	 */
+	ERTTargetRefusal GetLastTargetRefusal() const { return LastRefusal; }
+
+	/**
+	 * Il testo di un rifiuto — e cio' che NON ha un testo, che e' il punto (`#2741`).
+	 *
+	 * ⛔ **`Nothing` e `None` restituiscono entrambi la stringa VUOTA, e devono restituire la stessa cosa.**
+	 * Se `Nothing` avesse una frase — anche vaga — quella frase comparirebbe dove sta un nemico velato e non
+	 * dove la cella e' davvero vuota: la differenza fra «un messaggio» e «nessun messaggio» sarebbe essa
+	 * stessa il canale ([D-225]). Statica e pura perche' sia verificabile senza aprire un viewport, come
+	 * `ComputeBlockerMarks`.
+	 */
+	static FString RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange);
+
+	/**
+	 * Il testo del rifiuto CORRENTE, composto dallo stato di presentazione — `#2800`.
+	 *
+	 * 🔑 **E' la sorgente che il disegno usa**, non una seconda composizione a uso dei test: un accessor
+	 * parallelo passerebbe anche se `DrawHUD` leggesse altro, ed e' esattamente il difetto che un test
+	 * sul solo campo non vedrebbe.
+	 */
+	FString CurrentRefusalText() const;
+
+	/**
+	 * Il TRATTO RIFIUTATO che l'osservatore puo' vedere, composto dallo stato corrente — `#3064`.
+	 *
+	 * 🔑 **E' a `ComputeRefusedShotLine` cio' che `CurrentRefusalText()` e' a `RefusalText`**: la statica dice
+	 * la regola, questa la applica allo stato che il giocatore sta gia' guardando. Ed e' la sorgente che il
+	 * disegno usa davvero — `DrawHUD` chiama questa e non ricompone l'insieme per conto suo — perche' un
+	 * accessor parallelo passerebbe anche se il disegno leggesse altro.
+	 *
+	 * 🔴 **Nasce perche' la conoscenza abbia UN lettore, e non due.** `#3064` deve accendere la stessa linea
+	 * troncata anche nel mondo (`ARTHexMapActor::SetPreviewSightBlock`), e chi la accende e'
+	 * `ARTPlayerController`, che non legge la conoscenza di squadra da nessuna parte. Fargliela leggere per
+	 * comporre un `TSet` avrebbe aperto un secondo lettore di un canale non filtrato: il controller chiede
+	 * invece il risultato **gia' deciso**, e non maneggia conoscenza affatto.
+	 *
+	 * ⛔ **E cosi' il tratto 2D del Canvas e la linea 3D nel mondo diventano due RESE di una sola decisione —
+	 * sul percorso a CELLA.** I due canali filtravano per criteri diversi: `ComputeRefusedShotLine` nega la
+	 * rottura su un ostacolo che l'osservatore non ha **mai visto**, mentre il canale del mondo filtrava solo
+	 * la conoscenza del BERSAGLIO (`URTSightLineLibrary::AuthorizedSightLines`) e l'ostacolo non lo guardava.
+	 * Sul percorso a unita' la differenza si vedeva poco — `Cover` arriva solo per un bersaglio gia' noto;
+	 * sul percorso a CELLA sarebbe diventata la regola, perche' li' `Cover` e' qualunque cella dietro un muro.
+	 *
+	 * ⚠️ **Il sito a UNITA' non e' stato migrato, e la divergenza li' resta aperta**: continua a derivare la
+	 * linea 3D da `AuthorizedSightLines`, che filtra il bersaglio e non l'ostacolo. E' un residuo
+	 * PREESISTENTE, dichiarato fuori scope in `#3064` perche' cambierebbe un comportamento oggi visibile e
+	 * vuole una verifica PIE: ha issue propria. Chi legge questo docstring non concluda che sia chiusa.
+	 *
+	 * ⚠️ **Fail-closed senza `ARTTurnManager`**: la conoscenza e' sua, e la sua assenza vale «non disegnare»,
+	 * non «disegna tutto». Stessa scelta di `AuthorizedSightLines` senza mappa.
+	 */
+	FRTRefusedShotLine CurrentRefusedShotLine() const;
+	/**
+	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
+	 *
+	 * 🔑 **E' la meta' «riferimento video» del verdetto d'autore**: *«non si capisce perche' non parte, non
+	 * ci sono riferimenti video, solo log»*. La riga del feed dice **che** il tiro non e' partito; questo
+	 * dice **dove**, nel posto in cui il giocatore sta gia' guardando — e senza stampargli addosso
+	 * `(q=..,r=..,L=..)`, che `#1936` §A tiene fuori dallo schermo.
+	 *
+	 * ⛔ **Nessun filtro di conoscenza qui, ed e' voluto.** Le righe arrivano gia' autorizzate da
+	 * `URTHudViewModel::BuildPlayerEventFeed`; riapplicare una regola di privacy sarebbe un secondo
+	 * contratto di conoscenza. Questa funzione legge `bHasBlocker` e deduplica, e nient'altro.
+	 *
+	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura
+	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
+	 * qui e' la **sentinella**, che nessuna proprieta' della cella riconosce (`FRTCellId::IsValid()` e' stato tolto in D-530).
+	 */
+
+	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,
+		TSet<FRTCellId>& OutBlockerCells);
+
+	/**
+	 * Se l'overlay di un'unita' (nome, barra HP, scudo) va disegnato per questo osservatore.
+	 *
+	 * Statica e PURA: `DrawHUD` non ha test, quindi la decisione vive qui dove si puo' interrogare — e' la
+	 * stessa strada di `ComputePlannedHitMarks`.
+	 *
+	 * ⚠️ La propria squadra si disegna SEMPRE, anche senza una voce nella vista: nascondere il proprio
+	 * schieramento a se' stessi non e' conoscenza parziale, e' un difetto.
+	 *
+	 * 🔴 **Serve una voce `Live`, non una voce qualsiasi.** Un nemico `Remembered` ha una voce — la porta
+	 * gliela costruisce apposta — ma la sua cella e' quella del CONTATTO: disegnare il personaggio vero
+	 * significherebbe mostrarlo alla posizione ATTUALE mentre la sagoma lo mostra al ricordo, cioe' due
+	 * copie della stessa unita'. Questo predicato e' **complementare** a `ContactGhostTargetForUnit`: per
+	 * la stessa voce esattamente uno dei due risponde di si'.
+	 *
+	 * Prende `Entry` gia' cercata (`URTKnowledgeViewLibrary::FindEntry`), non la `FRTKnowledgeView` intera:
+	 * `DrawHUD` cerca la voce UNA volta per unita' e la passa qui e a `ContactGhostTargetForUnit`, invece di
+	 * interrogare la vista due volte per la stessa domanda.
+	 */
+	static bool ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
+
+	/**
+	 * Lo stencil del contorno che dice il piano di un'unita' ([D-508], #3705), per QUESTO osservatore.
+	 *
+	 * Statica e PURA come `ShouldDrawUnitOverlay`, che consuma: chi non si disegna non ha contorno.
+	 *
+	 * ⛔ **Per un nemico il piano e' quello della VISTA (`Entry->Cell`), mai quello dell'attore.** Per questo la
+	 * funzione non riceve l'unita': `OwnLayer` e' il piano della cella di un'unita' PROPRIA, e per un nemico non
+	 * viene letto. Un contorno ricavato dalla cella vera direbbe la quota di chi l'osservatore non vede.
+	 *
+	 * @param bEnabled la leva `rt.Unit.LayerOutline`: spenta, nessuna unita' entra nel custom depth.
+	 */
+	static uint8 UnitOutlineStencilForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam, int32 OwnLayer,
+		int32 ActiveLayer, bool bMultiLayer, bool bEnabled);
+
+	/**
+	 * Dove e quando disegnare la sagoma dell'ultimo contatto per un'unita' (Task 6b/CP 13.5), o nessun
+	 * valore se non c'e' nulla da mostrare — spegnere e' la risposta di default.
+	 *
+	 * Statica e PURA, sullo stesso modello di `ShouldDrawUnitOverlay`: `DrawHUD` non ha test, quindi la
+	 * decisione vive qui dove si puo' interrogare senza montare un HUD — ed e' la porta il cui difetto
+	 * originale era proprio «nessun chiamante» (ebfee2a9): sagoma testata ma mai cablata.
+	 *
+	 * Un valore esce SOLO se `!bIsOwnTeam && Entry && Entry->Visibility == Remembered`, e porta
+	 * `Entry->Cell`/`Entry->ContactTurn` — MAI una posizione attuale, perche' questa funzione non la riceve
+	 * nemmeno in ingresso: non puo' leggere per sbaglio `Unit->Cell` perche' non ha un `Unit` da leggere.
+	 *
+	 * `bIsOwnTeam` decide PRIMA di guardare `Entry`: la propria squadra non si ricorda mai se stessa, anche
+	 * se la voce fosse (per un difetto altrove) `Remembered`.
+	 */
+	static TOptional<FRTContactGhostTarget> ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
+
+	/**
+	 * Vincola l'ancora di una sovrapposizione ai bordi del viewport.
+	 *
+	 * Serve perche' l'ancora nasce da un punto in WORLD space (`ActorLocation + WorldHeadOffset`) che viene
+	 * proiettato: un offset fisso nel mondo produce uno spostamento **variabile** sullo schermo, tanto piu'
+	 * grande quanto l'unita' e' vicina alla camera. Senza vincolo la sovrapposizione di un'unita' vicina
+	 * finisce sopra il bordo e sparisce — nome **e** barre insieme, perche' condividono questa ancora.
+	 * Osservato in PIE il 2026-08-13 (`PIE-NAME`), diagnosticato in #729.
+	 *
+	 * ⚠️ **Sceglie di ancorare al margine, non di nascondere.** Il motivo per cui l'etichetta esiste e' che
+	 * quattro cilindri identici rendono impossibile dire chi sta facendo cosa: un'etichetta appiccicata al
+	 * bordo si legge ancora e conserva il colore di squadra, una assente no. La via alternativa — offset
+	 * costante in *screen* space invece che nel mondo — e' stata scartata perche' smetterebbe di seguire
+	 * l'altezza dell'unita' e finirebbe **sopra la mesh** da vicino.
+	 *
+	 * @param Anchor      punto desiderato: X centro del blocco, Y riga della barra HP.
+	 * @param HalfWidth   meta' larghezza del blocco piu' largo (barra o nome).
+	 * @param AboveAnchor quanto il blocco sale sopra `Anchor.Y` (nome e status).
+	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (la barra).
+	 * @param Viewport    dimensioni del canvas.
+	 * @param Margin      distanza minima dal bordo.
+	 *
+	 * Se il blocco e' piu' grande del viewport il vincolo e' insoddisfacibile: si preferisce il bordo
+	 * **superiore/sinistro**, perche' il nome sta in alto ed e' la parte che identifica l'unita'.
+	 */
+	static FVector2D ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
+		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
+
+	/**
+	 * Le due letture dello sguardo (#3747): dall'attore e dalla mappa ai SOGGETTI pubblici. Sono sottili apposta: non
+	 * decidono cosa si puo' dire (il cancello e' di `URTGlanceLibrary::ResolveGlance`), leggono e basta.
+	 *
+	 * @param bShowFacing  spento in `ResolutionPlayback` finche' non e' misurato quando `Facing` cambia (P12).
+	 */
+	/** Dove si ancora il riquadro: per un'unita' la cella ANIMATA se c'e' (in playback `Cell` e' la destinazione), per una cella la sua. */
+	static FRTCellId GlanceAnchorCell(bool bForUnit, bool bHasAnimated, const FRTCellId& Animated,
+		const FRTCellId& UnitCell, const FRTCellId& TargetCell);
+	static FRTGlanceUnitSubject BuildGlanceUnitSubject(const class ARTUnit* Unit, bool bShowFacing);
+	/**
+	 * L'UNICA funzione che legge l'attore di un'unita' per la scheda (#3748, P1). Del nemico ricava solo cio' che e'
+	 * pubblico: carta e stati (quelli della targa), verso, equipaggiamento. Piano, slot, azione armata e ricariche vere non
+	 * hanno un percorso per arrivare qui. ⛔ Il kit non c'e': lo mostra la barra delle skill dell'unita' cliccata, in sola
+	 * lettura (`URTHudViewModel::BuildPublicBar`), non la scheda.
+	 *
+	 * `SeenUses` (#3751, F6): cio' che la squadra `PlayerTeamId` ha visto usare, da `ARTTurnManager::GetSeenUses()`.
+	 * Con un'unita' di un'ALTRA squadra riempie `DeducedCooldowns`; senza (`nullptr`) o per un'unita' della propria
+	 * squadra il campo resta vuoto. Le ricariche vere dell'avversario (`AbilityCooldowns`) non vengono lette.
+	 *
+	 * `HoverAbilityIndex` (#3748, decisione d'autore del 2026-10-31): la posizione di kit sotto il cursore, o `INDEX_NONE`. Riempie
+	 * `HoveredSkill` dalla riga di catalogo di quella posizione (`BuildCatalogActionRow` con `NAME_None`, `BuildCatalogTooltip`), con i
+	 * pezzi che la riguardano e la stima se la squadra l'ha vista usare. ⛔ Un indice negativo, fuori kit o su una posizione senza azione
+	 * da' un `HoveredSkill` VUOTO: l'indice non si legge mai senza essere controllato (`ARTUnit::GetAbility`).
+	 */
+	static FRTInspectSubject BuildInspectSubject(const class ARTUnit* Unit, int32 PlayerTeamId, bool bShowFacing,
+		const FRTSeenUseLedger* SeenUses = nullptr, int32 HoverAbilityIndex = INDEX_NONE);
+
+	/**
+	 * LA SCHEDA di un'unita' ispezionata, gia' composta (#3748): il pannello la chiede e la disegna, non ricalcola.
+	 *
+	 * 🔑 **Il cancello viene PRIMA del soggetto.** La vista e' quella del velo (`BuildObserverKnowledgeView`) e il cancello e' una
+	 * voce `Live` (P2): se non c'e', l'attore del nemico non viene nemmeno letto e la scheda e' vuota, uguale a quella di una cella
+	 * vuota. Senza manager o senza unita' e' vuota allo stesso modo. Il verso segue la targa (`!IsResolving()`, P12) e le ricariche
+	 * dedotte vengono dal registro di quella squadra.
+	 *
+	 * @param Units  le unita' in campo, da cui si costruisce la vista di conoscenza (ordine stabile, come nel resto dell'HUD).
+	 * @param HoverAbilityIndex  la posizione di kit di QUESTA unita' sotto il cursore, o `INDEX_NONE`: vedi `BuildInspectSubject`. Il
+	 *                           chiamante lo passa solo se l'hover e' di questa unita' (il pannello lo verifica), non quello di un'altra.
+	 */
+	static FRTInspectView BuildInspectCard(const class ARTTurnManager* TurnManager, const class ARTUnit* Unit,
+		const TArray<class ARTUnit*>& Units, int32 PlayerTeamId, int32 HoverAbilityIndex = INDEX_NONE);
+	static FRTGlanceCellSubject BuildGlanceCellSubject(const class URTHexMapAsset* Map, const FRTCellId& Cell);
+
+	/**
+	 * 🔑 **Le due metriche dell'etichetta d'intento, e il motivo per cui hanno un NOME.**
+	 *
+	 * Erano quattro letterali dentro `DrawHUD`, a coppie che **dovevano coincidere per costruzione** e
+	 * che nulla legava (#2184):
+	 *
+	 *     36.f    la banda riservata sopra l'ancora  E  lo scarto con cui il testo viene scritto
+	 *     0.85f   la scala con cui il testo e' MISURATO  E  quella con cui e' DISEGNATO
+	 *
+	 * ⛔ **Se una coppia divergesse il difetto sarebbe muto, e gia' pagato**: con una banda diversa dallo
+	 * scarto l'etichetta esce dal viewport — cioe' torna il difetto di `#729`, che `ClampOverlayAnchor`
+	 * e' stato scritto per chiudere; con due scale diverse `LabelW` misura un testo e ne viene disegnato
+	 * un altro, e il centraggio sbaglia di quanto le due differiscono.
+	 *
+	 * 🔑 **Un nome solo per ogni coppia toglie il modo in cui la divergenza succede davvero**, cioe' per
+	 * distrazione: non c'e' piu' un secondo numero da ricordarsi di aggiornare. ⛔ Non la rende
+	 * *impossibile* — riscrivere un letterale dove c'e' un nome compila ancora, ed e' la mutazione 1 di
+	 * `RTHudIntentLabelPlacementTests.cpp`, che infatti cade. Le due difese sono diverse e servono
+	 * entrambe: il nome copre la svista, il test al bordo copre il gesto deliberato.
+	 */
+	static constexpr float IntentLabelAbove = 36.f;
+	static constexpr float IntentLabelScale = 0.85f;
+
+	/**
+	 * Dove va scritta l'etichetta d'intento: angolo alto-sinistro del testo, gia' vincolato al viewport.
+	 *
+	 * 🔑 **Esiste perche' `IntentLabelAbove` sia nominato UNA volta sola.** Le due occorrenze — la banda
+	 * riservata che si chiede a `ClampOverlayAnchor` e lo scarto con cui il testo risale dall'ancora —
+	 * devono coincidere per costruzione, e finche' stavano in due punti di `DrawHUD` nulla lo imponeva.
+	 * Qui sono tre righe adiacenti che leggono lo stesso nome: la divergenza smette di essere qualcosa
+	 * che si fa per distrazione e diventa qualcosa che si deve scrivere apposta.
+	 *
+	 * ⚠️ **Centra sulla larghezza del TESTO, ma riserva quella del blocco piu' largo.** Sono due mezze
+	 * larghezze diverse e non e' una svista: il vincolo al bordo deve tenere dentro anche la barra
+	 * (`BarWidth`), mentre il centraggio riguarda solo la stringa che si disegna.
+	 *
+	 * @param HeadScreen  proiezione della testa dell'unita', in pixel.
+	 * @param LabelWidth  larghezza del testo, misurata a `IntentLabelScale`.
+	 * @param BarWidth    larghezza della barra sotto l'etichetta: entra solo nel vincolo al bordo.
+	 * @param Viewport    dimensioni del canvas.
+	 */
+	static FVector2D ComposeIntentLabelPlacement(const FVector2D& HeadScreen, float LabelWidth,
+		float BarWidth, const FVector2D& Viewport);
+
+	/**
+	 * Come si legge l'ANDATURA dello slot movimento, o un testo **vuoto** quando non c'e' niente da dire
+	 * (`#1410` `AC-1`, [D-425]).
+	 *
+	 * ```
+	 * Still  · Move  ->  «»               il cammino non si nomina
+	 * Sprint            ->  «percorso, di corsa»
+	 * Sneak             ->  «percorso, furtivo»
+	 * Withdraw          ->  «ripiegamento»
+	 * ```
+	 *
+	 * 🔑 **Restituisce il descrittore INTERO dello slot, non un suffisso da incollare.** E' cio' che rende
+	 * il `Withdraw` esprimibile senza un secondo ramo nel compositore: il ripiegamento non e' un percorso
+	 * con un aggettivo, e' un'altra cosa. Una funzione che rendesse *«di corsa»* costringerebbe chi la usa a
+	 * sapere quando concatenare e quando sostituire — cioe' a riscrivere qui meta' della regola.
+	 *
+	 * ⛔ **Il cammino e il fermo rendono VUOTO, ed e' la meta' che conta.** `Move` e' il caso normale:
+	 * nominarlo aggiungerebbe una parola a ogni unita' di ogni turno e renderebbe l'andatura una cosa da
+	 * leggere invece che da notare. Si scrive solo cio' che devia — la stessa disciplina con cui la voce di
+	 * TurnLog del neutro resta `Action.Move`. Il vuoto e' un valore di ritorno legittimo, non un errore, e
+	 * il chiamante ricade sul descrittore che aveva prima.
+	 *
+	 * ⚠️ **La differenza fra DICHIARATO e DERIVATO non la porta questa stringa**, ed e' una scelta:
+	 * `Sneak` lo si e' premuto, `Sprint` lo si e' causato cliccando lontano, e a distinguerli e' il gesto.
+	 * Un marcatore tipografico sarebbe un vocabolario nuovo su una superficie sola. ⏳ Il rischio dichiarato
+	 * e' che qualcuno cerchi un tasto per *«di corsa»*: se il playtest lo mostra, la sede da cambiare e'
+	 * questa funzione e nessun'altra.
+	 */
+	static FText DescribeMovementProfile(FName MovementProfileId);
+
+	/**
+	 * Che cosa RIEMPIE uno slot: il nome dell'azione che lo occupa, il ripiego di chi lo occupa senza
+	 * nome, o «libero».
+	 *
+	 * `BusyWithoutName` arriva da fuori perche' il ripiego non e' lo stesso per i tre slot: sul movimento
+	 * e' un percorso tracciato a waypoint — il caso piu' comune del gioco — mentre su principale e reazione
+	 * un'occupazione senza azione non ha un nome proprio, e chiamarla «percorso» mentirebbe.
+	 *
+	 * ⛔ **Rende il CONTENUTO, non la riga**: l'etichetta «Movimento: » la aggiunge chi compone una riga, e
+	 * il pannello UMG non ne ha una — i suoi tre `TextBlock` mostrano il solo valore.
+	 */
+	static FText DescribeSlotContents(const struct FRTPlannedSlotView& Slot, const FText& BusyWithoutName);
+
+	/**
+	 * Che cosa riempie lo slot MOVIMENTO, andatura compresa (`#1410` `AC-1`, [D-425]).
+	 *
+	 * 🔑 **E' la sede UNICA, e la sua ragione e' un difetto misurato.** Il chip MOVIMENTO del pannello UMG
+	 * (`URTSelectedUnitPanelWidget::RefreshLook`, dalla seduta `U76`) la usa: prima il pannello
+	 * legava `GetSlots()` e mostrava il `DisplayName` grezzo mentre il Canvas componeva la riga, cioe' due
+	 * rese dello stesso fatto che divergevano gia' — e l'andatura avrebbe aggiunto la terza. Il Canvas e'
+	 * uscito con #1936 e `ComposeSlotLines` con lui (D-538): oggi la resa e' una sola.
+	 *
+	 * ⚠️ **L'andatura RAFFINA il ripiego, non lo scavalca**: un'azione che occupa lo slot resta chiamata
+	 * col proprio nome. L'andatura parla del movimento senza nome, che e' il caso di cui [D-425] si occupa.
+	 */
+	static FText DescribeMovementSlot(const struct FRTUnitSlotsView& Slots);
+
+	/**
+	 * La headline di fine partita: l'esito e la VIA che l'ha determinato, in quest'ordine (CP 10.3).
+	 *
+	 * 🔴 La regola non e' che i due pezzi esistano — `URTTurnRules::DescribeOutcome` e
+	 * `DescribeEndReason` esistono da sempre — e' che compaiano **entrambi, in quest'ordine e separati**:
+	 * «Vince il team 0» da solo non distingue un'eliminazione da un vantaggio allo scadere dei round.
+	 *
+	 * ⚠️ **Con un esito `InProgress` rende una frase senza senso** («Partita in corso - nessuna via»), ed
+	 * e' stato di fatto e non regola: `DrawHUD` la chiama solo dietro `PhaseGates.bShowMatchEndPanel` (cioe' `Phase == MatchEnded`), quindi il
+	 * caso e' irraggiungibile — ma il gate e la composizione stanno in due posti. Vedi il test omonimo.
+	 */
+	static FString ComposeMatchEndHeadline(const struct FRTMatchResult& Result);
+
+	/**
+	 * 🔑 **Le metriche del pannello di fine partita, e le TRE coppie che dovevano coincidere.**
+	 *
+	 * Erano letterali dentro `DrawHUD` (#2184), e tre di loro comparivano due volte ciascuna:
+	 *
+	 *     0.4f    l'ancora verticale dell'intestazione  E  quella da cui l'istruzione scende
+	 *     0.5f    la mezzeria su cui si centra l'intestazione  E  quella dell'istruzione
+	 *     2.f     la scala con cui l'intestazione e' MISURATA  E  quella con cui e' DISEGNATA
+	 *     1.2f    lo stesso, per l'istruzione
+	 *
+	 * ⛔ **Una divergenza sarebbe muta e visibile solo a partita finita**: con due ancore diverse le due
+	 * righe si separano di mezzo schermo, con due mezzerie diverse smettono di condividere l'asse e il
+	 * pannello si legge storto. Nessun test le raggiungeva — `RTHudEndAndSlotTests` copre la funzione
+	 * pura che compone il TESTO, mai la posa.
+	 *
+	 * ⚠️ **`MatchEndAnchorY` e `MatchEndCentre` sono protette anche da `ComposeMatchEndPanelPlacement`**,
+	 * che le legge una volta sola; le due scale no — le loro occorrenze sono `GetTextSize` e `DrawText`,
+	 * membri di `AHUD` che vogliono canvas e font, e nessuna domanda headless le interroga. Quelle sono
+	 * protette dal **nome**, non da un test, ed e' lo stesso argomento gia' scritto per `IntentLabelScale`.
+	 */
+	static constexpr float MatchEndAnchorY = 0.4f;
+	static constexpr float MatchEndCentre = 0.5f;
+	static constexpr float MatchEndLineGapPx = 8.f;
+	static constexpr float MatchEndHeadlineScale = 2.f;
+	static constexpr float MatchEndRestartScale = 1.2f;
+
+	/**
+	 * ⚠️ **L'istruzione nomina un tasto che vive altrove.** `ARTPlayerController` lega il riavvio a `R`
+	 * (`MapKey(RestartAction, EKeys::R)`): se quella legatura cambia, questo testo mente e niente lo
+	 * segnala. Il nome non chiude l'accoppiamento — lo rende **visibile**, che e' il massimo ottenibile
+	 * finche' le due sedi restano due.
+	 */
+	static constexpr const TCHAR* MatchEndRestartPrompt = TEXT("premi R per rigiocare");
+
+	/**
+	 * `#3795`: il vuoto fra il bordo alto del dock e il fondo della riga del passo del banco, in UNITA' SLATE.
+	 * Il dock e' una fascia in unita' Slate (`RTHudLayout::Bands().Bottom`) e cresce con la scala dell'interfaccia: un
+	 * inset in pixel fissi finiva dentro il dock a 1440p e a 4K (review di #3822).
+	 */
+	static constexpr float LabStepAboveDockSlate = 16.f;
+
+	/**
+	 * `#3795` — dove va la seconda riga del banco Ability Lab («BANCO i/n · ...»), angolo alto-sinistro in pixel.
+	 *
+	 * In basso al centro, SOPRA il dock, e non sotto la banda: li' le etichette delle unita' (widget sopra il canvas, a
+	 * ridosso del centro dell'inquadratura del banco) la coprivano (PIE del 2026-10-15). Il dock viene dalla fascia
+	 * bassa e dalla scala dell'interfaccia, le stesse che usa la scena. Una funzione pura perche' la regola da pinnare
+	 * e' «non nella fascia alta e non dentro il dock»: un test headless la interroga a piu' risoluzioni.
+	 */
+	static FVector2f ComposeLabStepLinePlacement(const FVector2f& Viewport, const FVector2f& TextSize);
+
+	/** Il grigio dell'istruzione di riavvio: piu' spenta dell'esito, che e' bianco pieno. */
+	static const FLinearColor MatchEndRestartInk;
+
+	/** Dove cadono le due righe del pannello di fine partita, in pixel di schermo. */
+	struct FRTMatchEndPanelPlacement
+	{
+		/** Angolo alto-sinistro dell'intestazione. */
+		FVector2f Headline = FVector2f::ZeroVector;
+
+		/** Angolo alto-sinistro dell'istruzione di riavvio. */
+		FVector2f Restart = FVector2f::ZeroVector;
+	};
+
+	/**
+	 * Dove vanno le due righe del pannello di fine partita.
+	 *
+	 * 🔑 **L'ancora verticale compare UNA volta**, e l'istruzione sta sotto l'intestazione per
+	 * costruzione — non perche' due letterali scritti in due righe diverse continuino a coincidere.
+	 *
+	 * ⚠️ **In `float`, non in `FVector2D`, e non e' un dettaglio.** `FVector2D` e' a doppia precisione;
+	 * la catena di oggi passa da `Canvas->SizeX` (`int32`), da `GetTextSize` (`float&`) e finisce in
+	 * `DrawText` (`float`), arrotondando a ogni passo. Calcolare in `double` e riconsegnare potrebbe
+	 * differire di un ULP: sarebbe invarianza sperata invece che dimostrata.
+	 *
+	 * ⛔ **Non vincola al viewport, e NON va aggiunto qui.** Con un'intestazione piu' larga del canvas la
+	 * X diventa negativa e il testo esce dal bordo — come oggi. Aggiungere `ClampOverlayAnchor` mentre si
+	 * estrae sarebbe cambiare cio' che si vede, che lo Scope di #2184 vieta. Il caso e' pinnato com'e'.
+	 *
+	 * @param Viewport      dimensioni del canvas, in pixel.
+	 * @param HeadlineSize  larghezza E altezza dell'intestazione, misurate a `MatchEndHeadlineScale`.
+	 * @param RestartWidth  larghezza dell'istruzione, misurata a `MatchEndRestartScale`.
+	 */
+	static FRTMatchEndPanelPlacement ComposeMatchEndPanelPlacement(const FVector2f& Viewport,
+		const FVector2f& HeadlineSize, float RestartWidth);
+
+	/**
+	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
+	 *
+	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Prende la VISTA, non l'unita'.** `FRTAbilityCooldownView` porta gia' `TurnsRemaining` e
+	 * `bUsableNow`, che il Canvas rileggeva da `ARTUnit::GetAbilityCooldown` e `CanUseAbility` — e
+	 * `WBP_RT_ActionSlot` consuma gli stessi due campi: con entrambi i layer accesi erano due sorgenti per
+	 * un dato solo, rese nello stesso fotogramma.
+	 *
+	 * ⚠️ **Quel Canvas e' uscito** (#1936). Questa resta pura e testata perche' e' da qui che lo Screen HUD
+	 * in UMG (#613) prendera' testo e colore; finche' #613 non la consuma, il suo unico chiamante sono i
+	 * test.
+	 *
+	 * @param bArmed  l'abilita' scelta adesso (`ARTUnit::SelectedAbilityIndex`). E' SELEZIONE, non stato
+	 *                dell'abilita', e per questo non sta nella vista.
+	 */
+	static FRTHudTextLine ComposeAbilityLine(const struct FRTAbilityCooldownView& Ability, bool bArmed);
+
+	/**
+	 * Come rendere un intento, dato il livello di certezza che la vista **porta gia' calcolato** (CP 11.2).
+	 *
+	 * ⚠️ **Legge `View.Certainty` e non lo ricalcola**, ed e' il primo invariante della issue: `ClassifyPlan`
+	 * vive in `URTIntentPrivacyLibrary` perche' e' il simulatore a decidere, e una seconda copia della regola
+	 * dentro la HUD divergerebbe senza che nessun test se ne accorga — il precedente e' `IsIntentVisibleTo`
+	 * (#507). Qui non c'e' nessun `bMoving`, nessun `bHasTarget`: se comparissero, sarebbe la regola riscritta.
+	 *
+	 * ⚠️ **`Unknown` non ha una resa propria e riceve la piu' PRUDENTE**, cioe' quella del livello incerto.
+	 * L'enum lo dichiara — *«un `Unknown` che arriva alla presentazione e' un difetto a monte»* — e il difetto
+	 * non si ripara qui; si evita solo di **premiarlo**. Un campo mai calcolato che ereditasse la resa piena
+	 * affermerebbe a schermo la garanzia piu' forte del dominio, che e' esattamente il difetto per cui
+	 * `Unknown` vale zero. Distinguerlo *visivamente* da `Uncertain` chiederebbe una quarta grammatica per uno
+	 * stato che non deve arrivare a schermo, e il catalogo icone ne pretende **tre** apposta.
+	 *
+	 * Statica e pura come `ComputePlannedHitMarks`: cosi' i tre livelli si verificano senza montare una partita, che
+	 * e' cio' che il DoD chiede quando dice «un test headless su `ARTHUD`».
+	 */
+	static FRTIntentCertaintyStyle ComposeIntentCertaintyStyle(const struct FRTIntentView& View);
+
+	/**
+	 * I segmenti ACCESI di una linea tratteggiata, in coordinate schermo, gia' pronti da disegnare.
+	 *
+	 * ⚠️ **Statica e non una lambda dentro `DrawHUD`, dopo che la code review ha notato che l'unica geometria
+	 * nuova era l'unica parte senza test.** Il conteggio dei tratti, il rapporto acceso/spento e il tetto qui
+	 * sotto sono decisioni verificabili, e questa classe tiene le decisioni verificabili nelle statiche —
+	 * `ClampOverlayAnchor`, `ComputePlannedHitMarks`.
+	 *
+	 * 🔴 **Il tetto sul numero di tratti non e' prudenza: senza, un solo segmento poteva costare centinaia di
+	 * migliaia di `DrawLine` in un frame.** `UCanvas::Project` divide per una `W` che viene solo *clampata* a
+	 * `UE_KINDA_SMALL_NUMBER`, quindi una cella pochi centimetri davanti al piano della camera supera il test
+	 * `Z > 0` e proietta a coordinate dell'ordine di `1e6`: `Len / PeriodPx` dava decine di migliaia di
+	 * iterazioni per segmento, per ogni segmento, per ogni frame. Prima di questo lavoro la stessa geometria
+	 * costava esattamente **una** `DrawLine`, quindi sarebbe stata una regressione introdotta da qui.
+	 *
+	 * @param DutyCycle frazione accesa di ogni periodo (`FRTIntentCertaintyStyle::DashDutyCycle`); `>= 1`
+	 *                  restituisce il segmento intero, cioe' la linea piena.
+	 * @param PeriodPx  lunghezza di un periodo in pixel di schermo (`FRTIntentCertaintyStyle::DashPeriodPx`).
+	 *                  E' cio' che separa **trattini** (periodo lungo) da **punti** (periodo corto), i due
+	 *                  stili che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`.
+	 */
+	/**
+	 * ⛔ **`DutyCycle` arriva INTATTO da `ComposeIntentCertaintyStyle`, e chi chiama non lo riscrive.**
+	 *
+	 * Fino al 2026-09-24 `DrawHUD` passava `S.bDashedLine ? S.DashDutyCycle : 1.f`: era la **terza** copia
+	 * della regola «linea non tratteggiata ⇒ ciclo pieno», e l'unica delle tre senza test, perche'
+	 * `DrawHUD` non ha copertura headless. Le altre due sono qui — `DutyCycle >= 1.f` rende il segmento
+	 * unico — e nel composer, che nel ramo `Confirmed` scrive `bDashedLine = false` **insieme a**
+	 * `DashDutyCycle = 1.f`.
+	 *
+	 * Verificato sui tre rami del composer e sui default della struct: non esiste uno stato in cui
+	 * `bDashedLine` sia falso e il ciclo valga altro che `1.f`, quindi quel ternario rendeva **sempre**
+	 * `S.DashDutyCycle`. Era inerte, non innocuo: al primo livello con `bDashedLine = false` e ciclo
+	 * minore di uno — cio' che il `default:` del composer e' scritto per accogliere — avrebbe
+	 * sovrascritto in silenzio la statica testata, e nessun test sarebbe caduto (#2184).
+	 */
+	/**
+	 * Il tratteggio a CONTEGGIO FISSO: divide il segmento in `Spans` parti uguali e accende le pari.
+	 *
+	 * ⛔ **Non e' `ComposeDashSegments` con altri argomenti, e l'aritmetica lo dimostra.** Quella divide
+	 * per un periodo in PIXEL, questa per un numero di parti. Chiedendole lo stesso disegno —
+	 * `ComposeDashSegments(A, B, 0.5f, Len * 2.f / 7.f)` — si ottiene `Steps = RoundToInt(3.5) = 4`, e
+	 * con `T1 = (s + 0.5) / 4` l'ultimo tratto finisce a **0,875** invece che sul punto d'arrivo. Sono
+	 * due disegni diversi: unificarle sposterebbe i pixel, che lo Scope di #2184 vieta.
+	 *
+	 * 🔑 **`Spans` dispari fa iniziare E finire acceso**, perche' si accendono gli indici pari e l'ultimo
+	 * indice pari e' `Spans - 1`, che arriva a `Spans / Spans = 1`. Con un conteggio pari il tratteggio
+	 * finirebbe spento, e la linea sembrerebbe interrompersi prima del bersaglio.
+	 *
+	 * @param A      punto di partenza in pixel.
+	 * @param B      punto d'arrivo in pixel.
+	 * @param Spans  in quante parti dividere; `<= 0` rende un elenco vuoto.
+	 */
+	static TArray<TPair<FVector2D, FVector2D>> ComposeCountedDashSegments(const FVector2D& A,
+		const FVector2D& B, int32 Spans);
+
+	/**
+	 * 🔑 **Quanti tratti ha il tiro rifiutato, e perche' e' DISPARI.**
+	 *
+	 * Era un `constexpr` dentro `DrawHUD` (#2184): una politica di disegno che nessun test raggiungeva,
+	 * perche' non sta in un ramo e le enumerazioni di questa issue contano i rami.
+	 */
+	static constexpr int32 BlockedShotDashSpans = 7;
+
+	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
+		float DutyCycle, float PeriodPx);
+
+	/**
+	 * L'etichetta dell'intento, composta per intero: azione, bersaglio, `?` del livello e reazione armata.
+	 *
+	 * ⚠️ **Esiste perche' il `?` NON puo' vivere in una format string dentro `DrawHUD`.** La voce di DoD
+	 * *«la presenza di una reazione armata e' resa con la grammatica incerto»* stava in un
+	 * `Printf(TEXT("  (reazione: %s ?)"))` che nessun test headless raggiungeva: togliendo quel `?` la suite
+	 * restava verde e la voce smetteva di essere soddisfatta. Trovato dalla code review — ed era anche un
+	 * pezzo di grammatica visiva tornato dentro il widget, cioe' l'invariante #1 violata dalla porta di
+	 * servizio.
+	 */
+	static FString ComposeIntentLabel(const struct FRTIntentView& View, const FRTIntentCertaintyStyle& Style);
+
+	/**
+	 * Chi ha una riga d'intento sopra la testa, con che etichetta completa e di che colore.
+	 *
+	 * Statica e PURA sul modello di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Non tocca la geometria, e non e' un caso.** Le tre decisioni dipendono dalla sola vista:
+	 * `bOwn` e' `View.bIsAlly`, e «ha un piano» e' un `||` di cinque suoi campi. Nel `DrawHUD` erano scritte
+	 * in mezzo alla proiezione, il che le faceva sembrare intrecciate con lei — non lo erano.
+	 *
+	 * 🔴 **L'asimmetria e' la regola, non una svista**: si salta l'unita' PROPRIA senza ordini, mai un
+	 * nemico rivelato. Per lui l'informazione non e' «cosa fara'», e' «lo sto vedendo».
+	 *
+	 * ⛔ Il CORPO dell'etichetta resta di `ComposeIntentLabel`, che questa chiama: qui si aggiunge solo il
+	 * prefisso, che prima era deciso in `DrawHUD` e quindi scoperto. L'etichetta completa ha ora una sede sola.
+	 *
+	 * @param bIsSelected  l'unita' che il giocatore sta pianificando ADESSO (`#3115`).
+	 *
+	 * 🔴 **E' un parametro, non un campo della vista, ed e' il punto architetturale della issue.**
+	 * `FilterForTeam` risponde a *«cosa ho diritto di sapere»*; *«quale sto pianificando»* e' stato LOCALE
+	 * di selezione. Metterlo in `FRTIntentView` aggiungerebbe una seconda risposta alla domanda che
+	 * `ARTPlayerState::TeamIdOf` possiede — il debito che [`D-242`] punto (5) ha chiuso — e spedirebbe in
+	 * rete un dato che non attraversa la rete.
+	 *
+	 * ⚠️ **Default `false`, e serve a una cosa sola**: i due test che pinnano la resa a due classi
+	 * continuano a compilare senza che il loro corpo cambi. Un terzo stato non deve poter entrare di
+	 * soppiatto in una sede che ne dichiarava due.
+	 */
+	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
+		const FRTIntentCertaintyStyle& Style, bool bIsSelected = false);
+
+	/**
+	 * 🔑 **Da quale prospettiva si chiedono le viste d'intento** — la decisione che decide *quali* piani
+	 * compaiono a schermo (#2184).
+	 *
+	 * Sessione **presidiata** → una sola domanda, quella dell'osservatore che gioca: `FilterForTeam` sceglie
+	 * cosa ha diritto di sapere, e un piano avversario non rivelato **non compare fra le viste**. Non e' un
+	 * occultamento grafico: il dato non arriva proprio (invariante #6).
+	 *
+	 * Sessione **non presidiata** → una domanda **per unita'**, dalla prospettiva della squadra che la
+	 * possiede. Entrambe le squadre sono bot e nessuno gioca, quindi chi guarda e' autorizzato a vedere
+	 * tutto (`#2386`); ma l'autorizzazione non ammorbidisce il filtro — si fanno piu' domande a cui il
+	 * filtro risponde di si'.
+	 *
+	 * ⛔ **La domanda per unita' non e' una domanda per squadra, e la differenza e' una reticenza che si
+	 * misura.** `FilterForTeam` concede all'osservatore gli alleati **e** gli avversari `bRevealed`: due
+	 * domande di squadra su tutto l'insieme farebbero comparire **due volte** ogni unita' rivelata. Chiedendo
+	 * dalla prospettiva del proprietario, ogni unita' compare una volta sola e nella sua forma piena — quella
+	 * alleata, che porta anche reazione e waypoint.
+	 *
+	 * ⚠️ **`FilterForTeam` non si tocca.** Questa funzione decide *chi chiede*, non *cosa l'osservatore ha
+	 * diritto di sapere*: quella risposta resta in `URTIntentPrivacyLibrary`, e `ARTPlayerState::TeamIdOf`
+	 * resta l'unica porta per «di chi e' la vista» ([`D-285`], che le da' quel nome assorbendo
+	 * `ARTHUD::ViewerTeamIdOf`; il debito che ha chiuso — il letterale `PlayerTeamId = 0` che alimentava
+	 * quattro filtri di privacy — e' [`D-242`] punto 5).
+	 *
+	 * ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di entrambe
+	 * le squadre e' un client che li POSSIEDE: la' questa raccolta dovra' essere lato server, o non esistere.
+	 *
+	 * @param Authoritative       i piani autorevoli, nell'ordine in cui il modello li costruisce
+	 * @param PlayerTeamId        la squadra dell'osservatore che gioca; ignorata se `bUnattendedSession`
+	 * @param bUnattendedSession  il dato della sessione, che `RTMatchBootstrapper` scrive da `bAutobattle`
+	 * @return le viste da disegnare, **nell'ordine d'ingresso**
+	 */
+	static TArray<struct FRTIntentView> ComposeVisibleIntentViews(
+		const TArray<struct FRTPlannedIntent>& Authoritative, int32 PlayerTeamId, bool bUnattendedSession);
+
+	/**
+	 * La rotta pianificata: se disegnarla, e con quali celle (#2184).
+	 *
+	 * 🔑 **Le due decisioni stanno insieme perche' la seconda ha senso solo dentro la prima**: non si
+	 * sceglie la sorgente di una rotta che non si disegna.
+	 *
+	 * ⚠️ **`Map` e' un parametro, e questo NON toglie purezza.** `URTHexPathLibrary::FindPath` e' a sua
+	 * volta una statica che prende la mappa come argomento: passarla qui tiene la funzione interrogabile
+	 * senza montare un HUD — un `URTHexMapAsset` si costruisce con
+	 * `URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), N)`, che non vuole nessun mondo.
+	 *
+	 * ⌫ Una prima stesura lasciava il ricalcolo fuori, sostenendo che «una funzione che legge la mappa non
+	 * e' pura», e restituiva due booleani. Era falso — e costava un ternario che restava in `DrawHUD`.
+	 * Corretto in code review.
+	 *
+	 * @param Map  puo' essere nullo: `FindPath` lo gestisce, e il risultato e' una rotta vuota.
+	 */
+	/**
+	 * 🔑 **Quali celle di un intento prendono un rettangolo, e con quale forma.**
+	 *
+	 * Tre regole che stavano dentro `DrawHUD` in mezzo al tracciamento (#2184):
+	 *
+	 *   - la **destinazione** ha un rettangolo solo se la rotta si mostra — non perche' esista una cella,
+	 *     che e' l'errore documentato da `ComposePlannedRoute`: `PlannedCell` resta valorizzata anche a
+	 *     piano concluso;
+	 *   - i **waypoint** ce l'hanno sempre, perche' la vista li porta solo per le unita' proprie;
+	 *   - ⛔ **nessuno dei due e' graduato dalla certezza**, e la prima stesura graduava la destinazione
+	 *     sbagliando due volte: quel blocco vive dentro `bMoving`, e `ClassifyPlan` rende `Uncertain`
+	 *     ogni volta che `bMoving` — il livello sarebbe **sempre** lo stesso, quindi attenuare non
+	 *     distingue niente e toglie leggibilita'. Il rettangolo passava da alpha `0.35` a `0.105`, in
+	 *     permanenza, per ogni unita' in movimento.
+	 *
+	 * ⚠️ **L'ORDINE dell'elenco e' parte del contratto**: destinazione prima, waypoint dopo, perche' e'
+	 * l'ordine in cui venivano disegnati e un rettangolo che passa sopra un altro si vede.
+	 *
+	 * @param View          l'intento da cui leggere destinazione e waypoint.
+	 * @param bRouteShown   il verdetto di `ComposePlannedRoute`: senza, la destinazione non compare.
+	 * @param IntentColor   la tinta dell'intento, gia' risolta da `ComposeIntentPresentation`.
+	 */
+	static TArray<FRTIntentMarker> ComposeIntentMarkers(const struct FRTIntentView& View,
+		bool bRouteShown, const FLinearColor& IntentColor);
+
+	/** Meta' lato del rettangolo di destinazione, in pixel. Il lato e' il doppio. */
+	static constexpr float DestinationMarkerHalfPx = 12.f;
+
+	/** Opacita' del rettangolo di destinazione: attenuato rispetto alla linea, ma NON per certezza. */
+	static constexpr float DestinationMarkerAlpha = 0.35f;
+
+	/** Meta' lato del marcatore di waypoint: piu' piccolo della destinazione, e a tinta piena. */
+	static constexpr float WaypointMarkerHalfPx = 5.f;
+
+	static FRTPlannedRoutePresentation ComposePlannedRoute(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
+
+	/**
+	 * L'anteprima dello scatto: se mostrarla, e con quali celle (#2184).
+	 *
+	 * 🔑 **Stessa forma di `ComposePlannedRoute`, e non e' un caso**: `Map` e' un parametro, e
+	 * `URTHexPathLibrary::FindPath` lo prende a sua volta. La verifica di chiusura aveva escluso questo
+	 * ternario come «scelta geometrica non estraibile» — ma la mossa era gia' stata fatta cinquanta righe
+	 * sopra, e l'esclusione non reggeva.
+	 *
+	 * @param Map  puo' essere nullo: il ramo a budget rende una traiettoria vuota, quello lineare no —
+	 *             `HexLine` non consulta la mappa. Chi disegna tiene comunque la propria guardia.
+	 */
+	static FRTDashPreview ComposeDashPreview(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
+
+	/**
+	 * La geometria della mappa, coi suoi ripieghi e con lo stato che li distingue (#2184).
+	 *
+	 * ⚠️ **I tre ripieghi erano tre letterali dentro `DrawHUD`** — `ZeroVector`, `150.f`, `250.f` — e
+	 * nessuno li misurava, perche' non erano protetti da nessun condizionale e ogni verifica di chiusura
+	 * aveva guardato i **rami**. Sono ora i default della struct, e un test li interroga.
+	 *
+	 * 🔴 **`bFromWorld` ha permesso di chiudere un difetto MUTO, e chi legge il diff deve saperlo: in un
+	 * caso cambia cio' che si vede.** La traccia post-lock leggeva i tre valori **senza controllare
+	 * niente**: senza attore mappa non spariva, si disegnava ai ripieghi — scala inventata, attorno
+	 * all'origine del mondo. Nessun test poteva vederlo, perche' `DrawHUD` non ha copertura headless.
+	 *
+	 * ⛔ **E la guardia non poteva essere `if (Map)`**: in graybox l'asset e' nullo ma la geometria e'
+	 * quella vera dell'attore, e spegnere li' avrebbe tolto la traccia dove funziona. Gli stati sono
+	 * tre; questo flag separa il solo caso rotto.
+	 *
+	 * @param HexMap  puo' essere nullo: la geometria torna ai ripieghi e `bFromWorld` resta falso.
+	 */
+	static FRTHudHexGeometry ComposeHexGeometry(const class ARTHexMapActor* HexMap);
+
+	/**
+	 * Quali strati dipendono dalla fase (#2184, fetta 13). `bResolving` e' `ARTTurnManager::IsResolving()`: il
+	 * playback in corso, che NON e' una fase — durante il playback `GetPhase()` puo' gia' dire `Planning`, ed e'
+	 * per questo che il cancello degli intenti vuole entrambi. Chi non ha un `TurnManager` non la chiama e usa il
+	 * default della struct, tutto falso.
+	 */
+	static FRTHudPhaseGates ComposeHudPhaseGates(ERTMatchPhase Phase, bool bResolving);
+
+	/**
+	 * Se un intento e' quello che il giocatore sta pianificando ADESSO (#2184, fetta 13): c'e' una selezione E il
+	 * proprietario sta nella cella selezionata. E' l'unico produttore del flag che sceglie `[PIANO *]` o `[PIANO]`,
+	 * cioe' il testo. Si identifica per CELLA e non per pointer; `SelectedCell` non significa niente se
+	 * `bHasSelection` e' falso.
+	 */
+	static bool ComposeIntentIsSelected(bool bHasSelection, const FRTCellId& SelectedCell, const FRTCellId& OwnerCell);
+
+	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
+	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
+	// il colore in questa HUD e' **gia'** l'identita' di squadra (ciano contro giallo), quindi la certezza
+	// glielo toglieva; veniva applicata anche alle **rotte**, che sono `Uncertain` per costruzione, cioe'
+	// spendeva il 65 % della croma di ogni unita' in movimento senza distinguere niente; e l'engine ha gia'
+	// `FLinearColor::Desaturate`, che non si poteva riusare perche' lerpa **anche l'alpha** verso zero —
+	// resuscitando l'illusione che tutto questo lavoro esiste per evitare.
+	// Il confronto che serviva lo porta ora il tratteggio, che e' libero e che in PIE si vede.
+
+	/**
+	 * La velocita' successiva sulla scala `x1 · x2 · x4` (CP 47.7, #1015).
+	 *
+	 * ⚠️ **Totale, e non per prudenza: il valore di partenza non e' sotto il controllo dell'HUD.**
+	 * `ViewerPlaybackSpeed` e' `EditAnywhere` e `BlueprintReadWrite` — nei dettagli dell'attore, o in un
+	 * Blueprint scritto prima di questo checkpoint, ci puo' essere `3` o `0`. La regola e' una sola e
+	 * copre insieme il ciclo e le guardie: **la piu' piccola velocita' legale strettamente maggiore di
+	 * quella corrente, e se non esiste si torna a `x1`**. Un «raddoppia e a 8 riparti» darebbe `6` da un
+	 * `3`, cioe' una velocita' che #955 non ha deciso.
+	 *
+	 * La scala vive QUI e non nel modello perche' e' vocabolario di presentazione: il simulatore accetta
+	 * qualunque float positivo, ed e' il controllo a scegliere quali tre offrire.
+	 */
+	static float NextViewerPlaybackSpeed(float Current);
+
+	/**
+	 * Se `Speed` e' uno dei valori della scala `x1 · x2 · x4` (`#2748`).
+	 *
+	 * Esiste perche' la scala ha ora un secondo ingresso — `rt.Debug.PlaybackSpeed`, la velocita' INIZIALE — e
+	 * chi lo applica deve porre la stessa domanda del tasto invece di tenere una seconda lista: la tabella
+	 * resta una, in `RTHUD.cpp`.
+	 */
+	static bool IsOnViewerPlaybackScale(float Speed);
+
+	/**
+	 * L'etichetta del controllo: la velocita' con cui la riproduzione scorre.
+	 *
+	 * ⚠️ **Un numero solo, e dal 2026-09-02 e' vero** (`#1878`). Ne mostrava due — `x2 -> x3 (tetto)` —
+	 * perche' il tetto di durata poteva accelerare lo schermo per conto suo, e la sola scelta avrebbe
+	 * contraddetto il ritmo: era il criterio 2 di CP 47.7 (`#1015`). Quel secondo numero non esiste piu'
+	 * perche' non esiste piu' la sua causa: il budget comprime le attese e non tocca la velocita'. Se un
+	 * giorno un secondo fattore tornasse, torna anche il ramo a due numeri — non prima.
+	 *
+	 * Quanto il budget stia comprimendo resta osservabile da `ARTTurnManager::GetPlaybackSlackScale()`,
+	 * ma e' telemetria di pacing, non una velocita' da mostrare accanto alla manopola.
+	 *
+	 * ⚠️ **Non ricompone: interroga.** Il numero viene da `URTPlaybackLibrary::EffectivePlaybackSpeed`,
+	 * la stessa funzione che `TickPlayback` usa per scorrere. Rifare il conto qui dentro creerebbe la
+	 * seconda verita' che si scollega al primo cambio di regola.
+	 *
+	 * @param ViewerSpeed la scelta di chi guarda. Non positiva = «non scelta», letta come `x1`.
+	 */
+	static FString ComposePlaybackSpeedLabel(float ViewerSpeed);
+
+	/**
+	 * Il suggerimento del gesto che vale ORA: quale tasto premere, a seconda di dove si trova il turno
+	 * (D-538, #2764) - e SOLO se quel tasto fa qualcosa.
+	 *
+	 * ```
+	 * Risoluzione            ->  `[46%]  (Spazio: salta)`   /  `[46%]` se Spazio e' inerte
+	 * Finestra di preparaz.  ->  `(P: pausa)`  /  `(P: riprendi)`
+	 * Countdown del Ready    ->  `(RMB: annulla)`           /  vuoto se RMB e' inerte
+	 * altrimenti             ->  vuoto
+	 * ```
+	 *
+	 * 🔑 **E' la sede UNICA di queste quattro stringhe.** L'header UMG (`URTTurnHeaderWidget`) le mostra da
+	 * solo, e due copie del testo sarebbero due occasioni di divergere: la divergenza non fallisce nessun test, mostra
+	 * solo un tasto sbagliato. Perche' esiste e cosa c'era prima (la riga di stato, ritirata) sta in D-538 e D-539.
+	 *
+	 * 🔴 **Un suggerimento che nomina un tasto inerte e' peggio di nessun suggerimento** (revisione di #3847):
+	 * `Spazio` non salta in autobattle (`OnLockIn` esce prima, per non tagliare la registrazione) e `RMB` non
+	 * annulla il Ready (non c'e' un umano che possa disdire). Il testo dipende quindi da `Gestures`, che chi chiama
+	 * legge con `URTHudViewModel::ReadLiveGestures`. `P` non ne dipende: e' vivo sempre.
+	 *
+	 * ⚠️ **Il gesto si NOMINA, e cambia con lo stato**: un `P: pausa` su una finestra gia' ferma direbbe di fare
+	 * cio' che si e' appena fatto. Un HUD non ha un hover su cui passare il mouse: una scorciatoia non scritta e'
+	 * una scorciatoia che non esiste.
+	 *
+	 * ⚠️ **Le tre condizioni sono mutuamente esclusive per costruzione** (vedi `FRTMatchHeaderView`), e l'ordine
+	 * qui e' la risoluzione, poi la preparazione, poi il Ready: la stessa precedenza di `URTHudViewModel::ComposePhaseWord`.
+	 *
+	 * @param PlaybackProgress01  avanzamento in `[0,1]`, letto solo in Risoluzione. Il clamp e' QUI e non nel
+	 *                            chiamante: questa e' una statica PUBBLICA, e un `Elapsed/Total` grezzo puo' essere
+	 *                            fuori scala o NaN. Un NaN si legge come `0`: `FMath::Clamp` lo lascerebbe passare
+	 *                            come `1` e la barra direbbe `[100%]`, cioe' una riproduzione finita.
+	 * @param Gestures            quali tasti fanno qualcosa adesso: li legge `URTHudViewModel::ReadLiveGestures`.
+	 */
+	static FString ComposeControlHint(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
+		const struct FRTLiveGestures& Gestures);
+
+	/**
+	 * Il suggerimento e il controllo di velocita' in una riga sola:
+	 * `[46%]  (Spazio: salta)  -  Velocità: x2 (V)`  /  `Velocità: x1`.
+	 *
+	 * 🔑 **La velocita' si nomina SEMPRE, anche fuori dalla risoluzione, ed e' una decisione d'autore antica**
+	 * (CP 47.7, #1015): chi guarda una partita non presidiata sceglie il ritmo PRIMA che il round parta, e una
+	 * manopola che compare solo mentre scorre costringe a inseguirla. Il Canvas che la disegnava e' uscito con
+	 * #1936 lasciando `V` e `Spazio` senza etichetta; l'header UMG la riprende da qui.
+	 *
+	 * 🔴 **Il tasto `(V)` si nomina solo se `Gestures.bSpeed`**: da una partita presidiata la manopola e' spenta
+	 * ([D-350], la velocita' e' di chi osserva) e il valore va comunque letto - e' quello che la finestra di
+	 * reazione impone - ma senza promettere un tasto che non risponde.
+	 *
+	 * @param ViewerSpeed  la scelta di chi guarda (`ARTTurnManager::ViewerPlaybackSpeed`). Non positiva = `x1`.
+	 * @param Gestures     quali tasti fanno qualcosa adesso.
+	 */
+	static FString ComposeControlLabel(const struct FRTMatchHeaderView& Header, float PlaybackProgress01,
+		float ViewerSpeed, const struct FRTLiveGestures& Gestures);
+
+private:
+	/**
+	 * L'ultimo rifiuto di bersaglio, gia' filtrato per l'osservatore — `#2741`.
+	 *
+	 * ⚠️ **Stato di PRESENTAZIONE**: nasce da un click e muore col click seguente. Non entra nel `TurnLog`,
+	 * non tocca lo snapshot, e non ha durata propria — la simulazione non ricorda nulla perche' un
+	 * messaggio resti a schermo.
+	 */
+	ERTTargetRefusal LastRefusal = ERTTargetRefusal::None;
+
+	/**
+	 * La geometria dell'ultimo rifiuto: dove la linea si e' fermata — `#3085`.
+	 *
+	 * 🔑 **Vive nello stesso istante di `LastRefusal`, e non e' un secondo canale.** `SetTargetRefusal` li
+	 * scrive insieme per la stessa ragione per cui `LastRefusalRange` lo fa: *«non esiste un istante in cui
+	 * vengano da due decisioni diverse»*. Un secondo setter permetterebbe uno stato in cui il messaggio dice
+	 * «Coperto» e la linea indica il muro di un click precedente.
+	 */
+	FRTLineOfSightResult LastRefusalLos;
+
+	/** Il tiratore e il bersaglio VOLUTO dell'ultimo rifiuto — `#3085`. Sentinella: `Layer == INDEX_NONE`. */
+	FRTCellId LastRefusalFrom = FRTCellId(0, 0, INDEX_NONE);
+	FRTCellId LastRefusalTo = FRTCellId(0, 0, INDEX_NONE);
+
+	/**
+	 * La portata APPLICATA dell'ultimo rifiuto per distanza — `#2800`.
+	 *
+	 * 🔑 Non e' `RangeCells`: e' il numero che il classificatore ha davvero usato, cappato dal terreno
+	 * (`EffectiveTargetingRange`). Mostrare la dichiarata rimetterebbe a schermo l'inganno che `#2766`
+	 * ha appena tolto dal log.
+	 *
+	 * ⚠️ `INDEX_NONE` quando l'ultimo esito non e' `Range`: non c'e' un limite da mostrare, e un valore
+	 * residuo del click precedente sarebbe un numero vero riferito a un'altra domanda.
+	 */
+	int32 LastRefusalRange = INDEX_NONE;
+
+	// ⌫ **Qui stava anche `LastRefusalCell`, e non c'e' piu'.** Registrava la cella del bersaglio cliccato
+	// — inclusa quella di un nemico che l'osservatore non conosce — per «ancorarvi il messaggio», ma nessuno
+	// la leggeva: stato morto che portava un dato sensibile in attesa di un consumatore. Quando il messaggio
+	// dovra' indicare la cella che interrompe la linea, quella cella e' gia' prodotta e gia' autorizzata da
+	// `ComputeBlockerMarks` (`#2697`), e si consuma da li' invece di ricopiarla qui.
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
+	float BarWidth = 64.f;
+
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
+	float BarHeight = 8.f;
+
+	/** Altezza (uu) sopra l'origine dell'unita' a cui ancorare la barra. */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
+	float WorldHeadOffset = 200.f;
+
+	/** Scala del testo del riquadro dello sguardo (#3747). */
+	static constexpr float GlanceScale = 0.9f;
+
+	/** Larghezza di andata a capo del riquadro, in caratteri: l'effetto piu' lungo del glossario va su pochi righi. */
+	static constexpr int32 GlanceWrapChars = 48;
+};

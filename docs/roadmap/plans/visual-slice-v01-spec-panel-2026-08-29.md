@@ -91,8 +91,8 @@ E il meccanismo che il nodo chiede di implementare esiste, con il nome che il no
 | Cosa il nodo chiede | Dove è già | Prova |
 |---|---|---|
 | `RingCount` **derivato**, non serializzato | `URTHexLibrary::SurfaceRingCount(ERTHexSurface)` | `Map/RTHexLibrary.cpp:249` · `.h:250` — è una funzione della superficie, esattamente la forma richiesta |
-| Il glifo ad anelli concentrici | `ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)` | `Map/RTHexMapActor.cpp:137`, con cache per `RingCount` e `RTGlyphMaxRings` |
-| *«Riusa/estendi il test owner `Hex.SurfaceColorsAreDistinguishable` o nome corrente»* | **quel nome esatto** | `Tests/RTHexTests.cpp:646`, e alle righe 724/731 confronta `SurfaceRingCount` fra coppie di superfici — cioè il gate copre già il canale non cromatico |
+| Il glifo ad anelli concentrici | `ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)` | `Map/Actor/RTHexMapActor.cpp:137`, con cache per `RingCount` e `RTGlyphMaxRings` |
+| *«Riusa/estendi il test owner `Hex.SurfaceColorsAreDistinguishable` o nome corrente»* | **quel nome esatto** | `Tests/Map/RTHexTests.cpp:646`, e alle righe 724/731 confronta `SurfaceRingCount` fra coppie di superfici — cioè il gate copre già il canale non cromatico |
 
 ∴ Il «delta reale ancora aperto» è **vuoto**. Il nodo 5 non è una semplificazione: è un invito a estendere
 un gate che già verifica ciò che il nodo vuole garantire.
@@ -153,10 +153,10 @@ Misurato con `git ls-files Content/RT/World/Graybox/`:
 | Wall Full · Wall Broken · Pillar/Block · Door Frame | ❌ **assenti** |
 | `M_GBX_Master` + Material Instance | ❌ **assenti** |
 
-E non sono asset autorati a mano: `Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxMeshesCommandlet.cpp`
+E non sono asset autorati a mano: `Source/RefactorTacticsEditor/Private/Content/Build/RTBuildGrayboxMeshesCommandlet.cpp`
 li **genera**, con una tabella (righe 373–378) che mappa nome → sottocartella → builder, e un commento a
 riga 359 che cita `D-173` come autorità sulla struttura. Esiste anche il suo gate,
-`Source/RefactorTacticsEditor/Private/Tests/RTGrayboxMeshTests.cpp`.
+`Source/RefactorTacticsEditor/Private/Tests/Content/RTGrayboxMeshTests.cpp`.
 
 ∴ `NEW-01` non è da scartare — **è da riscrivere come delta di quattro mesh più il materiale**, e il suo
 primo passo non è «crea asset via Editor» ma «aggiungi quattro builder alla tabella del commandlet». Il kit
@@ -180,12 +180,12 @@ Ciò che il kit lascia fuori è ciò per cui la issue vale:
 |---|---|
 | La misura datata e ancorata: *«2026-08-28 su `9018b5c3`»*, tre buchi numerati con i comandi che li producono | *«Verifica che `ApplyKnowledgeVeil` esista e che non abbia consumer reali»* |
 | Una **tabella di tre uscite** — A `MakeCurrentSnapshot` (già pubblica, già usata a `RTPlayerController.cpp:66`), B accessore stretto, C payload nel delegate — con **C scartata e la ragione scritta**: sceglierebbe il team per conto di tutti, cioè ciò che `D-227` vieta alla firma | *«Scegli la via minima: snapshot pubblico già esistente, oppure accessor stretto se il costo è misurato»* — due delle tre, senza la ragione dello scarto |
-| Il **precedente da non ripetere**, misurato: `ARTHUD` chiama `ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, …)` a `UI/RTHUD.cpp:391` con lo zero cablato, mentre `ARTPlayerController::PlayerTeamId` esiste a `Player/RTPlayerController.h:29` | — |
+| Il **precedente da non ripetere**, misurato: `ARTHUD` chiama `ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, …)` a `UI/HUD/RTHUD.cpp:391` con lo zero cablato, mentre `ARTPlayerController::PlayerTeamId` esiste a `Player/RTPlayerController.h:29` | — |
 | La correzione di una propria prima stesura: *«aveva cercato un `GetSnapshot` che non esiste e concluso dall'assenza del nome l'assenza della cosa»* | — |
 | Il pattern da riusare con la sua ragione: `AddUniqueDynamic` a `Frontend/RTFrontendGameMode.cpp:108`, *«perché `BeginPlay` può correre più di una volta sullo stesso GameMode in editor»* | *«Usa `AddUniqueDynamic` se il delegate è dinamico e il pattern esistente lo richiede»* |
 
 Il fatto architetturale su cui il nodo poggia è **vero e verificato**: `git grep ApplyKnowledgeVeil -- Source`
-fuori da `Map/RTHexMapActor.{h,cpp}` dà solo `Tests/RTVeilTests.cpp`, più due menzioni **in commento** in
+fuori da `Map/Actor/RTHexMapActor.{h,cpp}` dà solo `Tests/Perception/Veil/RTVeilTests.cpp`, più due menzioni **in commento** in
 `RTKnowledgeDebugConsole.cpp` e `RTTurnManager.h:577`. Zero chiamanti di produzione, come la issue dichiara.
 
 ∴ `SUPERSEDED` in senso stretto no — il lavoro è aperto — ma il nodo **non va usato al posto della issue**:
@@ -208,8 +208,8 @@ E il nodo 13 (`#220`, icone) presuppone un mondo anteriore a due issue chiuse:
 - **`#1608`** *«main è rosso: `WBP_RT_ActionDock` cerca `IconCatalog`, rinominata in `ReceivedCatalog`»* — CLOSED.
 
 Il wiring che il nodo 13 chiama «mancante» ha una storia di regressioni, il che significa che è stato
-costruito. `Source/RefactorTactics/UI/RTIconLibrary.{h,cpp}`, `RTIconCatalogData.h`,
-`Content/RT/UI/DA_IconCatalog.uasset`, `Tests/RTIconCatalogTests.cpp` e `Tests/RTScreenHudWidgetTests.cpp`
+costruito. `Source/RefactorTactics/UI/Inspect/RTIconLibrary.{h,cpp}`, `RTIconCatalogData.h`,
+`Content/RT/UI/DA_IconCatalog.uasset`, `Tests/UI/Inspect/RTIconCatalogTests.cpp` e `Tests/UI/HUD/RTScreenHudWidgetTests.cpp`
 esistono tutti; esiste anche `RTBuildIconCatalogCommandlet`.
 
 ⚠️ Il nodo 13 nomina il test `ScreenHud.WidgetApiExposesNoTexture` *«o nome corrente»*. Il file

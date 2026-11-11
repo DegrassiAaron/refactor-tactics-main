@@ -93,7 +93,7 @@ Source/RefactorTactics/Map/RTCellId.h
 Source/RefactorTactics/Map/RTHexCellData.h
 Source/RefactorTactics/Map/RTHexLibrary.*
 Source/RefactorTactics/Map/RTHexMapAsset.*
-Source/RefactorTactics/Map/RTHexMapActor.*
+Source/RefactorTactics/Map/Actor/RTHexMapActor.*
 Source/RefactorTactics/Player/RTPlayerController.*
 Source/RefactorTactics/Tests/*
 ```

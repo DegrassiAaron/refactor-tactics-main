@@ -240,13 +240,13 @@ Il repository applica già questo vincolo in una forma più forte di una raccoma
 
 > **La logica pura vive nel modulo runtime, e l'editor la chiama.**
 
-Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i suoi due test sono
+Non è teorico: lo snap del gesto d'autore vive in `Map/Structure/RTGeometryGrammar` e i suoi due test sono
 `RefactorTactics.GeometryGrammar.Snap*`, benché il gesto sia interamente d'editor.
 
 > 🔴 **La ragione che quasi tutti danno per questa regola è FALSA dal 2026-08-16, ed è già costata quattro
 > volte.** La formulazione corrente in tre punti del repository è *«in `Source/RefactorTacticsEditor/` non
 > esiste alcun test — `find … -iname "*test*"` è vuoto»*. **Misurato il 2026-08-17: restituisce due voci**,
-> `Private/Tests/` e `Private/Tests/RTHexToolPropertiesTests.cpp`, con **due** test — arrivati con `#993`.
+> `Private/Tests/` e `Private/Tests/HexMode/RTHexToolPropertiesTests.cpp`, con **due** test — arrivati con `#993`.
 >
 > Il file di test lo dice da sé, e vale la pena citarlo perché nomina il difetto per quello che è:
 >

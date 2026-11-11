@@ -26,14 +26,14 @@
 
 | Affermazione della issue | Misura |
 |---|---|
-| `Profile.Sidestep` ha `SIDESTEP` con `SelfReposition` | ✅ `Ability/RTCatalogLibrary.cpp:53-54` |
-| Phase usa quel profilo | ✅ `Ability/RTHeroCatalogLibrary.cpp:445` |
-| `BraceExecutableResponses` filtra per effetti → cardinalità 2 | ✅ `Ability/RTCatalogLibrary.cpp:98-111` |
+| `Profile.Sidestep` ha `SIDESTEP` con `SelfReposition` | ✅ `Ability/Catalog/RTCatalogLibrary.cpp:53-54` |
+| Phase usa quel profilo | ✅ `Ability/Catalog/RTHeroCatalogLibrary.cpp:445` |
+| `BraceExecutableResponses` filtra per effetti → cardinalità 2 | ✅ `Ability/Catalog/RTCatalogLibrary.cpp:98-111` |
 | Il `Brace` chiama `AskReactionDecision` **diretta**, fuori dal pump | ✅ `Turn/RTTurnManager_Blast.cpp:2304` |
 | Esito `NoDecider` → `SafeResponse` | ✅ `Turn/RTTurnManager.cpp:6534-6535`, con la ragione a `:6531-6533` |
 | `ApplyDisplacements` = **670** righe (1928→2597), decisione al **56 %** | ✅ misurato |
-| `FRTBlastContext` dichiara di **non** sopravvivere alla fase | ✅ `Turn/RTBlastContext.h:50-53` |
-| `FRTMovementResolutionState` era già sospendibile, con input copiati | ✅ `Turn/RTHexSim.h:195-201` |
+| `FRTBlastContext` dichiara di **non** sopravvivere alla fase | ✅ `Turn/Resolution/RTBlastContext.h:50-53` |
+| `FRTMovementResolutionState` era già sospendibile, con input copiati | ✅ `Turn/Resolution/RTHexSim.h:195-201` |
 | `Move` è l'ultima fase, ed è la scorciatoia che #2679 ha usato | ✅ `Turn/RTTurnManager.cpp:1854-1860` |
 
 ✅ **E il primo criterio di DoD ha già assorbito la lezione di #2679.** Là il panel dovette invertire
@@ -202,7 +202,7 @@ La issue confronta correttamente le due strutture sul **ciclo di vita**. Manca i
 | Indicizzazione per unità | per indice | `TMap<ARTUnit*, …>` × **9** |
 | Sopravvive a un frame | ✅ per costruzione | ⛔ mai fatto |
 
-`FRTMovementResolutionContext` usa i weak pointer e dichiara perché (`Turn/RTMovementResolutionContext.h:78`).
+`FRTMovementResolutionContext` usa i weak pointer e dichiara perché (`Turn/Resolution/RTMovementResolutionContext.h:78`).
 `FRTBlastContext` usa `ARTUnit*` **come chiave di `TMap`** — `KnockFrom`, `KnockDist`, `KnockCount`,
 `PullToward`, `PullDist`, `PullCount`, `PushCause`, `PullCause`, `IndexOf`.
 
@@ -320,7 +320,7 @@ però *«un nemico che la **spinga** durante il Blast»* senza nominarlo, e chi 
 ricostruirlo dal catalogo.
 
 Misurato: nel roster canonico l'unica spinta **ostile** disponibile è **`Hero.Branth.Ram`**
-(`Ability/RTHeroCatalogLibrary.cpp:720-729` — i numeri nel commento a `:720`, l'identificatore a `:728`),
+(`Ability/Catalog/RTHeroCatalogLibrary.cpp:720-729` — i numeri nel commento a `:720`, l'identificatore a `:728`),
 che è `Action.Charge` — 20 danni + `Push 1` — e il cui impatto entra nel Blast via
 `AppendChargeImpactIntents` (`Turn/RTTurnManager.cpp:5146`). Le altre due sorgenti di `Push` del roster
 (`Hero.Muiren.PressureJet`, la variante `CircularTide.Impact`) appartengono a **Phase stessa**, quindi
@@ -353,7 +353,7 @@ if (T->HasStatus(TAG_Status_Braced) && !T->HasStatus(TAG_Status_Unbalanced))
 ```
 `Turn/RTTurnManager_Blast.cpp:2248`
 
-`Status.Braced` lo concede **solo** `Action.Brace` (`Ability/RTCatalogLibrary.cpp:1465-1467`, fase
+`Status.Braced` lo concede **solo** `Action.Brace` (`Ability/Catalog/RTCatalogLibrary.cpp:1465-1467`, fase
 `Preparation`, 1 turno). Quindi **Phase deve aver pianificato `Action.Brace` in quel turno**: senza, il ramo
 non si apre, nessuna finestra è dovuta, e non c'è alcun difetto da osservare.
 

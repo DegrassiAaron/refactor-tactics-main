@@ -17,7 +17,7 @@
 > cambiarli lo dice in §9, e il cambio avviene nei loro file, col lavoro.
 >
 > **Stato misurato**: ricognizione su `origin/main` = `77146b271`, riletta su `4e6d198cd` il 2026-10-13. Fra i due
-> commit cambiano `UI/RTHudViewModel.*` ([#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629))
+> commit cambiano `UI/HUD/RTHudViewModel.*` ([#3629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3629))
 > e `Perception/RTPerceptionLibrary.cpp` ([#3741](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3741),
 > [D-510](../../decisions/RT_PDR_00_Decision_Log.md)). Tutto è letto dal codice: **nessuna verifica a schermo**
 > (PIE `NOT RUN`). I fatti sono citati per **simbolo**, non per riga; chi rilegge più tardi rimisura. Nessun totale
@@ -173,7 +173,7 @@ orbita. Il modificatore della camera è `Alt` (`CameraModifierAction`), con la f
 | le voci autorizzate a un osservatore | ➕ rev2. `URTPlayerEventProjector::IsAuthorized`, sulle voci del TurnLog; `URTTurnLogLibrary::IsSubjectTheSufferer` |
 | la targa sopra l'unità | `URTUnitOverlayWidget`, `FRTUnitOverlayView` ([D-320](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | le fasce dell'HUD e il rettangolo della scena | `FRTHudBands`, `RTHudLayout` ([D-497](../../decisions/RT_PDR_00_Decision_Log.md)) |
-| lo stile «non certo» sulla mappa | `Predicted` e `Uncertain` in `Map/RTOverlayArea.h` |
+| lo stile «non certo» sulla mappa | `Predicted` e `Uncertain` in `Map/Actor/RTOverlayArea.h` |
 
 ---
 
@@ -707,7 +707,7 @@ del registro. ➕ rev4. Le regole 15 e 16 e la riscrittura di 7, 13 e 14 sono il
 - `progettazione-hud.md` §6 e §18: l'inquilino di `MiddleRight` e il contenuto dell'inspector.
 - [D-458](../../decisions/RT_PDR_00_Decision_Log.md): il testo nomina `Alt` + destro per il dolly. ➕ rev2. E
   [D-499](../../decisions/RT_PDR_00_Decision_Log.md), punto 3, nomina `Alt` + click.
-- ➕ rev2. `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp`: il test che pinna `CameraModifierAction`
+- ➕ rev2. `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp`: il test che pinna `CameraModifierAction`
   su entrambi gli `Alt`.
 - ➕ rev2. I commenti che chiamano fuga il kit di un'avversaria: su `InspectedUnit` e `GetInspectedUnit`
   (`Player/RTPlayerController.h`), in `DispatchUnitClick` (`Player/RTPlayerController.cpp`), in `ResolveOutcome`
@@ -851,7 +851,7 @@ codice da chi scrive prima di entrare nel testo.
 | | Gravità | Difetto | Seconda fonte | Dove è corretto |
 |---|---|---|---|---|
 | **A1** | critico | L'area di un nemico avrebbe letto la banda del suo piano | `ARTTurnManager::MakeSimUnit` | §1.2, P3, `S8`, §9.3 voce 4 |
-| **A2** | critico | P3 e P7 dicevano «celle note», che comprende le esplorate: una porta aperta fuori vista avrebbe cambiato area e verdetto | D-227; `UI/RTPlayerEvent.h` | §4, P3, P7, R12, §11 |
+| **A2** | critico | P3 e P7 dicevano «celle note», che comprende le esplorate: una porta aperta fuori vista avrebbe cambiato area e verdetto | D-227; `UI/Feed/RTPlayerEvent.h` | §4, P3, P7, R12, §11 |
 | **A3** | critico | Il flag di conoscenza nasce acceso: usato come cancello, mostra ogni nemico fino al primo aggiornamento del velo | `ARTUnit::bKnownToObserver`; D-466 | §1.2, §1.4, P2, §7, §11 |
 | **A4** | critico | «Ordine dello sguardo uguale in ogni contesto» contraddiceva §4.1 e la colonna Hover del contratto, e D-128 | `spec-pointer-interaction.md` | §3 regola 1, tabella degli esiti, R3, §9.3 voce 5 |
 | **A5** | importante | Il proiettore del registro non può essere la fonte delle ricariche dedotte | `URTPlayerEventProjector::Project`; `IsSubjectTheSufferer` | §1.2, P4, R8, §6.1, §6.4 |

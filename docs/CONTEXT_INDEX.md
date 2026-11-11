@@ -324,7 +324,7 @@ Carica:
 - `Scenarios/`
 - `Source/RefactorTactics/ScenarioHarness/`
 - `Source/RefactorTactics/Tests/RTScenario*.cpp`
-- `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
+- `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 Uno scenario `BLOCKED` è valido come specifica anticipata; `FAIL` indica un difetto del gioco; `ERROR` un problema dello scenario/harness.
 
@@ -349,7 +349,7 @@ Carica:
   `ScenicBufferArea`, `CameraTravelBounds`, `VisualBackgroundBounds`), i limiti viewport-aware, il
   linguaggio del bordo
 - `Source/RefactorTactics/Camera/RTCameraPawn.h` — l'unico posto in cui la camera è già decisa
-- `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`
+- `Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp`
 
 La camera è **presentation-only** (`D-143`): non decide LOS, targeting, cover, pathfinding né validità di
 cella. Il triage `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` è **storia**, non owner

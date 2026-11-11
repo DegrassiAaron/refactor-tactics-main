@@ -369,7 +369,7 @@ Le guide verticali del volume sono **riferimenti di modellazione**, e non sono c
 
 🔑 **`0.06 H` è entrato il 2026-08-29 con [`D-240`](../../decisions/RT_PDR_00_Decision_Log.md), e non è una
 guida di modellazione come le altre quattro: è una misura del CODICE**, `RTCellThicknessInH` in
-[`Map/RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h). Sta in questa tabella perché è la
+[`Map/Actor/RTMapVisuals.h`](../../../Source/RefactorTactics/Map/Actor/RTMapVisuals.h). Sta in questa tabella perché è la
 quota su cui ogni altra si appoggia — la faccia del tile è il piano d'appoggio reale, non lo zero teorico —
 e perché il difetto che l'ha prodotta è esattamente quello che questa sezione descrive.
 
@@ -565,7 +565,7 @@ stesura di questa nota le dichiarava storiche tutte e tre — trovato nel panel 
 
 **«Distrutto» NON è in questa scaletta, e a toglierlo è `D-175`.** Non è una lettura del dato di mappa: è la
 transizione `ERTEnvironmentOutcome::CoverDestroyed`
-([`RTTurnLog.h`](../../../Source/RefactorTactics/Turn/RTTurnLog.h)), che vive nel TurnLog. Il presentatore che
+([`RTTurnLog.h`](../../../Source/RefactorTactics/Turn/Log/RTTurnLog.h)), che vive nel TurnLog. Il presentatore che
 deve cambiare geometria — macerie invece del pannello — la prende **da lì**, non dall'assenza dell'entry.
 
 > 🔴 **Questa è la TERZA stesura, e la seconda sbagliava il dominio in due modi che si sommano — trovati
@@ -585,7 +585,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > | Percorso | Come l'entry sparisce | Esito loggato |
 > |---|---|---|
-> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
+> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../../Source/RefactorTactics/Map/Cover/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
 > | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
 > | `Reconfigure` sposta il pannello su un altro bordo | `URTHexCoverLibrary::RemoveCover` | `CoverMoved` |
 >
@@ -596,7 +596,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > di mappa, a fase conclusa, non ne conserva **nessuno**.
 >
 > ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `BakeCell`
-> ([`RTGeometryBake.cpp`](../../../Source/RefactorTactics/Map/RTGeometryBake.cpp)) scarta le coperture
+> ([`RTGeometryBake.cpp`](../../../Source/RefactorTactics/Map/Structure/RTGeometryBake.cpp)) scarta le coperture
 > `bGenerated` al rebake, quindi toglie entry senza che nessuno le abbia colpite. È **authoring**: il suo
 > unico chiamante fuori dai test è `RTHexGeometryTool`, nel modulo Editor, e non logga nessun
 > `ERTEnvironmentOutcome`. Non indebolisce la conclusione — è dichiarato perché chi cerca dove le entry
@@ -631,7 +631,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > *(2)* **`Intatto` era `Integrity == DefaultIntegrity(Type)`, e non copriva i valori SOPRA il catalogo.**
 > `Hero.Riktor.KineticPanel.Reinforced` ne produce uno oggi: dichiara `Integrity` **45** nei propri
-> `Parameters` ([`RTHeroCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)),
+> `Parameters` ([`RTHeroCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp)),
 > e `ARTTurnManager` lo applica con `AddCover(..., ERTHexCoverType::Low, Op.Integrity)` — dove
 > `DefaultIntegrity(Low)` è `30`. Un pannello rinforzato a `45` non era intatto, non era danneggiato e non
 > era critico: **nessuno stato da renderizzare**. Con `altrimenti` è intatto, che è ciò che è.
@@ -643,7 +643,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > *(3)* **`Distrutto ⟺ bDestroyed` non era osservabile, e `bDestroyed` non è un «esito enumerato».** È un
 > `bool` su una struct di **ritorno** (`FRTCoverDamageResult`,
-> [`RTHexCoverLibrary.h`](../../../Source/RefactorTactics/Map/RTHexCoverLibrary.h)), valorizzato e seguito
+> [`RTHexCoverLibrary.h`](../../../Source/RefactorTactics/Map/Cover/RTHexCoverLibrary.h)), valorizzato e seguito
 > immediatamente da `Updated.Covers.RemoveAt(I)`: a fase conclusa l'entry **non esiste più** nella cella,
 > quindi chi legge il dato di mappa non può osservarlo mai. `bDestroyed` è il segnale dell'**evento**, e
 > vive nel TurnLog di quel turno. La frase «esito enumerato» era una trascrizione di questa sezione, e la
@@ -661,7 +661,7 @@ due numeri scollegati. La regola è in **aritmetica intera**: nessun float, ness
 concordare fra chi modella e chi legge.
 
 **Perché ⅓, e cosa la misura dimostra davvero.** `Action.HeavyAttack` fa `20` di `DamageStructure`
-([`RTHexCoverTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
+([`RTHexCoverTests.cpp`](../../../Source/RefactorTactics/Tests/Map/Cover/RTHexCoverTests.cpp)), quindi le sequenze reali
 sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **sull'ultimo passo prima di zero su
 entrambi i tipi**, cioè significa *un altro colpo e cade*. La misura **esclude ¼**: lì una `Low` a `10` resta
 «ridotta» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
@@ -719,7 +719,7 @@ sopravvivono al cambio di tipo. La regola è `FRTHexCover::RealignedIntegrity`, 
 conserva l'intento. Il verso scelto sbaglia in modo **reversibile**.
 
 **L'oracolo resta, e non è ridondante.** `RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog`
-([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp)) conta le coperture degli
+([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp)) conta le coperture degli
 asset versionati e fallisce sulla prima che nasca sotto il proprio catalogo. ⛔ **Guarda ciò che il
 meccanismo non può vedere**: i `.uasset` già scritti, che nessuna migrazione visita, e le coperture prodotte
 da vie che non passano dal pannello dei dettagli.

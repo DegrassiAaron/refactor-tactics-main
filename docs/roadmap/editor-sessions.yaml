@@ -2051,7 +2051,7 @@ sessions:
       cella rialzata.
       · ✅ **La costante dello spessore e' raggiungibile** da
       [#983](https://github.com/DegrassiAaron/refactor-tactics-main/issues/983): `RTCellTopZ` e' uscito dal
-      namespace anonimo e vive in `Map/RTMapVisuals.h`, quindi si include invece di ricopiarlo. Le due copie
+      namespace anonimo e vive in `Map/Actor/RTMapVisuals.h`, quindi si include invece di ricopiarlo. Le due copie
       che esistevano in `Source/` sono sparite — il test non ne confronta piu' una a mano con l'altra — e la
       disuguaglianza degli anelli e' uno `static_assert`. ⚠️ Resta vero l'avviso qui sopra, che e' un'altra
       cosa: la quota della faccia **non e' una costante sola**, perche' su una cella elevata ci si somma
@@ -6280,7 +6280,7 @@ sessions:
       - ⚠️ **Commit misurato, e non è `main`**: il binario (DLL del 18/10 10:52:50) l'ha compilato un'altra sessione sul
         clone principale, da `issue/3793-retta-libera` `bd0a44580`, su base `067068358`. I sorgenti non di test che
         differiscono fra `067068358` e `bd0a44580` stanno in `Bot/`, `Perception/`, `Player/`, `Turn/`, `Unit/` e
-        `UI/RTHUD.cpp`. Le righe che nominano `reaction`, `overwatch`, `HoldResp` o `TriggerNames` nel diff di
+        `UI/HUD/RTHUD.cpp`. Le righe che nominano `reaction`, `overwatch`, `HoldResp` o `TriggerNames` nel diff di
         `RTTurnManager.cpp`, `RTTurnLogLibrary.cpp`, `RTFacingLibrary.cpp` e `RTHUD.cpp` sono zero
         (`git diff -U0 067068358 bd0a44580 -- <i quattro file>`, righe `+`/`-`, poi `grep -ci`). `RTReactionResponseText.cpp`
         non compare nel diff. Non è una misura su `main`: chi vuole il commit esatto rifà le due raffiche dopo il merge di
@@ -6671,7 +6671,7 @@ not_schedulable:
     oracle: >-
       gh issue view 2454 --json state   ·  e la dichiarazione nel codice, che nomina anche le due voci:
       grep -n "MakePendingPresentation(ERTResolvedEventType::ReactionResolved" -A4
-      Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+      Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp
     revisit_when: "la cue di `ReactionResolved` nasce (#2454), e il binding smette di essere `Pending`"
 
   - check: PIE-VIS-INTERPOSE
@@ -6835,7 +6835,7 @@ not_schedulable:
     oracle: >-
       gh issue view 2505 --json state → OPEN (2026-10-29)   ·  e la misura: git grep -n
       "MakePendingPresentation(ERTResolvedEventType::HazardDamage" --
-      Source/RefactorTactics/Turn/RTPresentationBinding.cpp → una riga. Controllo positivo: la stessa forma
+      Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp → una riga. Controllo positivo: la stessa forma
       con `ReactionResolved` → una riga
     revisit_when: "#2505 chiusa: `HazardDamage` ha un istante in cui giocare una cue e il binding smette di essere `Pending`"
 

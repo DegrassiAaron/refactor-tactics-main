@@ -1,17 +1,17 @@
 #include "Match/RTMatchBootstrapper.h"
 
-#include "Ability/RTCatalogLibrary.h" // DefaultLoadoutFor: l'equipaggiamento con cui un eroe entra in partita
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h" // DefaultLoadoutFor: l'equipaggiamento con cui un eroe entra in partita
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Engine/World.h"
 #include "Frontend/RTStartupReport.h"
 #include "Kismet/GameplayStatics.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "RefactorTactics.h" // LogRT
-#include "Turn/RTMatchFormatData.h"
-#include "Turn/RTMatchFormatLibrary.h"
-#include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/Format/RTMatchFormatData.h"
+#include "Turn/Format/RTMatchFormatLibrary.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 

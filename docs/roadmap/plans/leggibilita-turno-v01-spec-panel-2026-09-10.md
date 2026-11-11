@@ -9,7 +9,7 @@
 > Nygard (produttori senza consumatori) · Adzic (falsificabilità).
 > **Base misurata**: `origin/main` = `4fdb01a0b1d169963d5ae4ce364f5814d247567f` — `2026-09-10 00:49 +0200`.
 > ⚠️ **`origin/main` si è mosso durante la sessione** — `07ccb918`, su cui questo referto è ribasato.
-> Rimisurato il delta: fra i file citati in §1 cambiano solo `UI/RTHudViewModel.{h,cpp}`, che nessuna misura
+> Rimisurato il delta: fra i file citati in §1 cambiano solo `UI/HUD/RTHudViewModel.{h,cpp}`, che nessuna misura
 > qui nomina, e `docs/decisions/`. **Le misure di §1 reggono su entrambi gli sha**; il contatore `D-nnn` no,
 > ed è stato riassegnato sulla misura nuova (§7).
 > **Working tree**: `D:/Repositories/refactor-tactics-designer`, branch `docs/leggibilita-turno-v01`, pulito.
@@ -34,7 +34,7 @@ Il kit chiedeva di non trattarle come aggiornate. Rimisurate una per una sullo s
 | Nessun `HandleTargetObject` nel controller | ✅ **regge** | esistono `HandleTargetCell` (`:2527`), `HandleTargetEdge` (`:2593`), `HandleClickOnUnit` (`:1385`), `HandleClickOnCell` (`:1597`), `HandleFacingSector` |
 | Il click su un oggetto non produce un riferimento logico stabile nel piano | ✅ **regge, ed è dichiarato** | `FRTPointerCandidates::bMapElement` è un **`bool`**, non un id. Il commento lo dice: *«in v0.1 non si introduce un `MapElementId` generico … L'identità stabile è E23 (#324)»* (`RTPointerInteraction.h:120-127`) |
 | `HeavyAttack` dichiara `DamageStructure`, ma il danno colpisce la prima struttura sulla traiettoria | ✅ **regge** | `Combat/RTHexCombatLibrary.cpp:394` — `FirstCoveredEdge(Map, Attacker.Cell, AimCell, …)` → `AccumulateStructureHit` |
-| `Action.Interact` lavora su un bordo, non è un attacco generico | ✅ **regge** | `Ability/RTCatalogLibrary.cpp:1156` — *«`TargetKindForAction` forza il targeting a…»* |
+| `Action.Interact` lavora su un bordo, non è un attacco generico | ✅ **regge** | `Ability/Catalog/RTCatalogLibrary.cpp:1156` — *«`TargetKindForAction` forza il targeting a…»* |
 
 ⚠️ **Una correzione al kit, e non è un dettaglio.** Il kit lascia intendere che il danno strutturale «finisca»
 sulla prima struttura per approssimazione. Non è così: la raccolta avviene **prima** del controllo sulla linea
@@ -46,7 +46,7 @@ ripiego. Chi costruirà il targeting diretto non la sostituisce: **le affianca**
 
 | Premessa del kit | Verdetto | Evidenza |
 |---|---|---|
-| `URTActionSlotWidget` espone azione, icona, cooldown, stato armato | ✅ **regge** | `UI/RTScreenHudWidgets.h:388-460` — `Action`, `bArmed`, `ReceivedCatalog`, `GetResolvedIcon`, `GetIconId` |
+| `URTActionSlotWidget` espone azione, icona, cooldown, stato armato | ✅ **regge** | `UI/HUD/RTScreenHudWidgets.h:388-460` — `Action`, `bArmed`, `ReceivedCatalog`, `GetResolvedIcon`, `GetIconId` |
 | Nessuna funzione player-facing per armare cliccando lo slot | ✅ **regge, ed è più netto** | vedi §1.5 |
 | Generiche via hotkey `G` `B` `C` `X` | 🟡 **regge, ma sono cinque** | `Player/RTPlayerController.cpp:251-256` — `G` Guard · `B` Brace · `C` Overwatch · `X` Interact · **`Z` Wait**. Il kit ne ha persa una |
 | Abilità via tasti numerici | ✅ **regge** | `OnAbility1`…`OnAbility10` → `SelectAbilityForCurrent(0…9)` (`:2104-2113`) |
@@ -54,7 +54,7 @@ ripiego. Chi costruirà il targeting diretto non la sostituisce: **le affianca**
 
 ### 1.3 Presentazione
 
-`URTPresentationBindingLibrary::DeclaredBindings()` (`Turn/RTPresentationBinding.cpp`), rimisurata:
+`URTPresentationBindingLibrary::DeclaredBindings()` (`Turn/Playback/RTPresentationBinding.cpp`), rimisurata:
 
 | `ERTResolvedEventType` | Dichiarazione | `PendingOwner` |
 |---|---|---|
@@ -145,11 +145,11 @@ dock no.
 
 ### 1.6 Un terzo rilievo — un colpo alla struttura non ha un momento
 
-`ERTResolvedEventType` (`Turn/RTResolvedEvent.h:15`) dichiara `Move`, `Attack`, `HazardDamage`, `Defeated`,
+`ERTResolvedEventType` (`Turn/Resolution/RTResolvedEvent.h:15`) dichiara `Move`, `Attack`, `HazardDamage`, `Defeated`,
 `AttackFootprint`, `ReactionResolved`, `StatusChanged`. **Nessun valore per la struttura.**
 
-Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, coi campi `From · To · Amount · AttackerId` — normalizzati da `URTHexLibrary::StableLess`
-— cioè **un bordo**) e il TurnLog ha `CoverDestroyed` (`Turn/RTTurnLog.h:249`). Ma fra i due non passa nessun
+Il danno c'è (`FRTStructureHit`, `Map/Cover/RTHexCoverLibrary.h:17`, coi campi `From · To · Amount · AttackerId` — normalizzati da `URTHexLibrary::StableLess`
+— cioè **un bordo**) e il TurnLog ha `CoverDestroyed` (`Turn/Log/RTTurnLog.h:249`). Ma fra i due non passa nessun
 `ResolvedEvent`, quindi **il playback non ha un istante in cui mostrare il colpo alla struttura**.
 
 🔑 È **esattamente** la forma di `#2505`, che per `HazardDamage` scrive: *«il produttore ESISTE … ciò che manca
@@ -207,8 +207,8 @@ sbloccasse l'altra.
 
 ```
 git grep -n "URTPlayerEventProjector::Project" 07ccb918 -- Source/ | grep -v Tests/
-→ UI/RTHudViewModel.cpp:527, dentro BuildPlayerEventFeed
-   └─ chiamata da UI/RTHUD.cpp:994 e da UI/RTScreenHudWidgets.cpp:242 — entrambe di produzione
+→ UI/HUD/RTHudViewModel.cpp:527, dentro BuildPlayerEventFeed
+   └─ chiamata da UI/HUD/RTHUD.cpp:994 e da UI/HUD/RTScreenHudWidgets.cpp:242 — entrambe di produzione
 ```
 
 🔑 **E `#2697` lo registra già come fatto**, in una casella spuntata del proprio corpo:
@@ -496,7 +496,7 @@ git show $SHA:Source/RefactorTactics/Player/RTPointerInteraction.cpp | sed -n '4
 git show $SHA:Source/RefactorTactics/Player/RTPointerInteraction.h   | sed -n '57,70p'   # l'enum: Object e' a 68
 git show $SHA:Source/RefactorTactics/Player/RTPlayerController.h     | sed -n '585,600p'
 git show $SHA:Source/RefactorTactics/Unit/RTPresentationRole.h       | sed -n '24,36p'   # fino a Fall, che e' a 36
-git show $SHA:Source/RefactorTactics/Turn/RTResolvedEvent.h          | grep -nE "^\s+(Move|Attack|HazardDamage|Defeated|AttackFootprint|ReactionResolved|StatusChanged)[,;]?$"
-git grep -n "MakePendingPresentation" $SHA -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+git show $SHA:Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h          | grep -nE "^\s+(Move|Attack|HazardDamage|Defeated|AttackFootprint|ReactionResolved|StatusChanged)[,;]?$"
+git grep -n "MakePendingPresentation" $SHA -- Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp
 git grep -n "URTPlayerEventProjector::Project" $SHA -- Source/ | grep -v Tests/   # §2.2
 ```

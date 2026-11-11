@@ -59,7 +59,7 @@ Sorgente  : untracked in radice (`git status --porcelain` → `??`)
 | `#14` `#26` `#166` `#613` `#778` `#1105` | idem | ✅ tutte **OPEN**; `#1105` **senza milestone** — coerente con `out_of_release_scope` |
 | «esiste una vista coerente v0.1→v1.0» (§1, obiettivo 1) | `head` del file | 🔴 **già consegnato il 2026-08-28** |
 | «Complete Match» ha un owner su GitHub (§6, focus P0) | `gh issue list --search "Complete Match"` | 🔴 **zero issue**. Nei docs vive come *WAVE 2* di [`../roadmap-main-v0.1.md`](../roadmap-main-v0.1.md) e in due handoff `DIR-C` — **è `G10`**, vedi F-05 |
-| Il **pareggio** è un esito terminale del dominio | `ERTMatchOutcome` in `Turn/RTTurnRules.h:23` | ✅ `Draw` esiste, con via `RoundLimit` distinta dall'esito |
+| Il **pareggio** è un esito terminale del dominio | `ERTMatchOutcome` in `Turn/Resolution/RTTurnRules.h:23` | ✅ `Draw` esiste, con via `RoundLimit` distinta dall'esito |
 | Il pareggio è presentabile | `MatchResultDrawHasNoWinner` · `RTFrontendNavigationTests` | ✅ `bHasWinner=false`, `bIsFinished=true`, e naviga a Result |
 | `G10` copre il pareggio | lettura del DoD | 🔴 **no**: dice *«dall'avvio alla vittoria»* — vedi F-05 |
 | I gate `G1…G14` esistono e sono riconciliati (§10, §20) | lettura del DoD | ✅ esistono, **con evidenza datata e rimisurata il 2026-08-29** |
@@ -182,7 +182,7 @@ il gate non nomina:
 
 | Livello | Misura su `76aec5dd` | Esito |
 |---|---|---|
-| Dominio | `ERTMatchOutcome { InProgress · Team0Wins · Team1Wins · **Draw** }` — `Turn/RTTurnRules.h:23` | ✅ tre esiti terminali |
+| Dominio | `ERTMatchOutcome { InProgress · Team0Wins · Team1Wins · **Draw** }` — `Turn/Resolution/RTTurnRules.h:23` | ✅ tre esiti terminali |
 | Via | `ERTMatchEndReason { None · Elimination · Objective · **RoundLimit** }`, separata **apposta** dall'esito | ✅ il pareggio ha una via nominata |
 | Presentazione | `MatchResultDrawHasNoWinner`: `bHasWinner = false` **e** `bIsFinished = true` | ✅ un pareggio *è* una partita finita |
 | Frontend | `RTFrontendNavigationTests` naviga a Result con `Outcome = Draw` | ✅ arriva a Result |
@@ -251,7 +251,7 @@ che `G10` chiede»*:
 | File | Cosa è cambiato | Cosa **non** è cambiato |
 |---|---|---|
 | `Scenarios/AutoBattle/ArenaV01.json` (#1670) | la `_nota_terminazione` distingue regola ed evidenza, e cita `D-184` | ogni campo di dato: **una riga**, e il file resta JSON valido a 16 chiavi |
-| `Source/RefactorTactics/Tests/RTScenarioFreeRunTests.cpp` (questo commit) | il docstring dichiara che l'esclusione del pareggio è una **scelta di evidenza**, che il test è deliberatamente più stretto del gate, e porta il `⌫` sulla formulazione precedente | il **nome**, l'asserzione, il comportamento — il diff tocca **solo righe di commento** |
+| `Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioFreeRunTests.cpp` (questo commit) | il docstring dichiara che l'esclusione del pareggio è una **scelta di evidenza**, che il test è deliberatamente più stretto del gate, e porta il `⌫` sulla formulazione precedente | il **nome**, l'asserzione, il comportamento — il diff tocca **solo righe di commento** |
 
 ⚠️ **Il riallineamento del JSON ha dovuto fondersi con `49881f11`**, che nel frattempo aveva rimisurato lo
 scenario dal pacchetto: **turno 22, non 19**. La nota conserva entrambe le cose — la rimisura con `seed 0` e

@@ -305,7 +305,7 @@ requisito** a «lo sistemeremo con la UI».
 > col nome. ② **La riga «DTO verso l'avversario» accredita la copertura al test sbagliato**, ed è quello più
 > debole dei due: `OpportunityLeaksNoFuture` protegge la **forma del tipo** — l'elenco chiuso dei campi — non
 > il **destinatario**. Il filtro per destinatario esiste, è `URTReactionWindowLibrary::FilterWindowForTeam`
-> (`Turn/RTReactionWindowView.h`), consegna all'avversario una vista **vuota** con fail-closed su
+> (`Turn/Reaction/RTReactionWindowView.h`), consegna all'avversario una vista **vuota** con fail-closed su
 > `INDEX_NONE` prima della regola, ed è coperto da `Reactions.WindowViewHiddenFromEnemyTeam` e
 > `Reactions.WindowViewClosedForUnresolvedTeam`. Il livello DTO è quindi **più** solido di come questa
 > sezione lo racconta — ma citare solo il primo manda chi verifica a cercare il filtro dove non c'è.

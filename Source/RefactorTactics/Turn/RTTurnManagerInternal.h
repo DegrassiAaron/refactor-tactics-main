@@ -2,11 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
-#include "Turn/RTHexSim.h"
+#include "Turn/Resolution/RTHexSim.h"
 #include "Perception/RTPerceptionLibrary.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
-#include "Turn/RTFacingLibrary.h"
+#include "Turn/Resolution/RTFacingLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapAsset.h"
 

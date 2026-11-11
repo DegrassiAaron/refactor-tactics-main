@@ -1,0 +1,194 @@
+#include "Map/Vision/RTHexArcLibrary.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
+
+namespace
+{
+	/** Il collegamento fra `A` e `B` in uno dei due versi: l'unica definizione di «questa coppia», per il danno e per la lettura. */
+	bool LinksPair(const FRTHexEdge& Edge, const FRTCellId& A, const FRTCellId& B)
+	{
+		return (Edge.From == A && Edge.To == B) || (Edge.From == B && Edge.To == A);
+	}
+
+	/**
+	 * I DUE versi dello stesso ponte. `AddTransition` bidirezionale ne scrive due, e chi comanda «spegnilo»
+	 * non deve sapere quale dei due e' stato scritto per primo: senza questa raccolta si potrebbe spegnere
+	 * l'andata e lasciare aperto il ritorno, cioe' un ponte percorribile in un senso solo per errore.
+	 */
+	TArray<FRTHexEdge> BothWays(const URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B)
+	{
+		TArray<FRTHexEdge> Found;
+		if (Map == nullptr)
+		{
+			return Found;
+		}
+		for (const FRTHexEdge& Edge : Map->Transitions)
+		{
+			if (LinksPair(Edge, A, B))
+			{
+				Found.Add(Edge);
+			}
+		}
+		// Ordine canonico: da qui escono voci di TurnLog.
+		Found.Sort([](const FRTHexEdge& X, const FRTHexEdge& Y)
+		{
+			if (!(X.From == Y.From)) { return URTHexLibrary::StableLess(X.From, Y.From); }
+			return URTHexLibrary::StableLess(X.To, Y.To);
+		});
+		return Found;
+	}
+
+	/**
+	 * Un arco crollato non incassa altro. E' la regola dello stato di `DamageArc`, con un nome perche' la pianificazione
+	 * la pone prima della risoluzione (`HasDamageableArc`, [D-540]): scritta due volte direbbe due volte la stessa cosa.
+	 */
+	bool CanTakeDamage(const FRTHexEdge& Edge)
+	{
+		return Edge.State != ERTHexArcState::Destroyed;
+	}
+
+	FRTArcChange MakeChange(const FRTHexEdge& Edge)
+	{
+		FRTArcChange Change;
+		Change.From = Edge.From;
+		Change.To = Edge.To;
+		Change.State = Edge.State;
+		Change.RemainingIntegrity = Edge.Integrity;
+		Change.bBroken = Edge.State != ERTHexArcState::Active;
+		return Change;
+	}
+}
+
+const FRTHexEdge* URTHexArcLibrary::FindArc(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	if (Map == nullptr)
+	{
+		return nullptr;
+	}
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (Edge.From == From && Edge.To == To)
+		{
+			return &Edge;
+		}
+	}
+	return nullptr;
+}
+
+bool URTHexArcLibrary::IsArcTraversable(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+{
+	const FRTHexEdge* Edge = FindArc(Map, From, To);
+	return Edge != nullptr && Edge->State == ERTHexArcState::Active;
+}
+
+bool URTHexArcLibrary::ArcConductsElectricity(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	// Un ponte SPENTO non conduce, per quanto dichiari la conduttivita': non c'e' collegamento da risalire.
+	const FRTHexEdge* Edge = FindArc(Map, From, To);
+	return Edge != nullptr && Edge->State == ERTHexArcState::Active && Edge->bConductsElectricity;
+}
+
+TArray<FRTArcChange> URTHexArcLibrary::SetArcState(URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, ERTHexArcState State)
+{
+	TArray<FRTArcChange> Changes;
+	if (Map == nullptr)
+	{
+		return Changes;
+	}
+
+	TArray<FRTHexEdge> Updated;
+	for (FRTHexEdge Edge : BothWays(Map, From, To))
+	{
+		if (Edge.State == State)
+		{
+			continue; // gia' li': non e' un cambio, e la revisione non deve muoversi
+		}
+		if (Edge.State == ERTHexArcState::Destroyed)
+		{
+			continue; // terminale: un ponte abbattuto non si riattiva
+		}
+		Edge.State = State;
+		Updated.Add(Edge);
+		Changes.Add(MakeChange(Edge));
+	}
+
+	// UNA sola revisione per il ponte: due archi, un evento (stessa regola del portone di CP 9.3).
+	Map->UpdateTransitions(Updated);
+	return Changes;
+}
+
+bool URTHexArcLibrary::HasDamageableArc(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+	// Una domanda di esistenza, posta per frame dal puntatore: niente raccolta ne' ordinamento, esce al primo arco che
+	// incassa. Coppia e stato sono le stesse definizioni di `DamageArc` (`LinksPair`, `CanTakeDamage`).
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (LinksPair(Edge, From, To) && CanTakeDamage(Edge))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, int32 Amount)
+{
+	TArray<FRTArcChange> Changes;
+	if (Map == nullptr || Amount <= 0)
+	{
+		return Changes;
+	}
+
+	TArray<FRTHexEdge> Updated;
+	for (FRTHexEdge Edge : BothWays(Map, From, To))
+	{
+		if (!CanTakeDamage(Edge))
+		{
+			continue; // gia' crollato: non incassa altro
+		}
+		Edge.Integrity -= Amount;
+		if (Edge.Integrity <= 0)
+		{
+			Edge.Integrity = 0;
+			Edge.State = ERTHexArcState::Destroyed;
+		}
+		Updated.Add(Edge);
+		Changes.Add(MakeChange(Edge));
+	}
+
+	Map->UpdateTransitions(Updated);
+	return Changes;
+}
+
+int32 URTHexArcLibrary::TransitionLayerSpan(const FRTCellId& From, const FRTCellId& To)
+{
+	// ⚠️ **Il conto si fa in `int64`, e non e' pedanteria: in `int32` il verdetto si INVERTE ai limiti.**
+	// `FRTCellId::Layer` e' `int32` e `FMath::Abs` e' `(A < 0) ? -A : A`, ma l'opposto di `MIN_int32` non e'
+	// rappresentabile — quindi `Abs` di quel valore resta **negativo**, e il `<= 1` che decide la legalita'
+	// dichiarerebbe **legale** il salto piu' grande possibile, con entrambi gli strati zitti. Nessun piano
+	// reale ci arriva; cio' che conta e' che il predicato non risponda il CONTRARIO dove smette di contare.
+	const int64 Span = FMath::Abs(static_cast<int64>(To.Layer) - static_cast<int64>(From.Layer));
+	return static_cast<int32>(FMath::Min<int64>(Span, MAX_int32));
+}
+
+bool URTHexArcLibrary::IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
+	ERTHexTransitionKind Kind)
+{
+	// v0.1: solo la scala e' vincolata. La domanda aperta e' `MAP-5`, e l'innesco che la fa riaprire e'
+	// il test che pinna la grammatica dell'enum — non questo commento. Il perche' sta nell'header.
+	if (Kind != ERTHexTransitionKind::Stair)
+	{
+		return true;
+	}
+	// `<= 1` e non `== 1`: lo span zero e' legale perche' `Stair` e' il `Kind` di DEFAULT — vietarlo
+	// renderebbe illegale ogni transizione scritta senza scegliere un tipo. Il difetto e' il salto.
+	return TransitionLayerSpan(From, To) <= 1;
+}

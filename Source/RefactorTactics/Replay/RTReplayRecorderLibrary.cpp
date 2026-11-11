@@ -1,6 +1,6 @@
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayPrivacyLibrary.h" // FilterEntriesForObserver: il confine per le VOCI ([D-316])
-#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 #include "Dom/JsonObject.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"

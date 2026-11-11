@@ -72,7 +72,7 @@ dichiara di `#80` che *«nessuno degli otto `rt.Debug.*` nominati esiste»* — 
 
 ## 3. Il reperto che precede tutto: la Shipping non compila
 
-`bKnowledgeDebug` è dichiarato in `Source/RefactorTactics/Map/RTHexMapActor.h:685` **dentro**
+`bKnowledgeDebug` è dichiarato in `Source/RefactorTactics/Map/Actor/RTHexMapActor.h:685` **dentro**
 `#if !UE_BUILD_SHIPPING`, ed è letto e scritto a profondità di guardia **zero** in
 `RTHexMapActor.cpp:1426` e `:1430`.
 
@@ -80,7 +80,7 @@ Misurato **staticamente**, contando le direttive del preprocessore riga per riga
 
 ```bash
 awk 'NR<=1440{if(/^#if/){d++} if(/^#endif/){d--} if(NR==560||NR==682||NR==1426){print NR": depth="d}}' \
-  Source/RefactorTactics/Map/RTHexMapActor.cpp
+  Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp
 # 560: depth=1   1426: depth=0
 ```
 
@@ -111,7 +111,7 @@ prima è una decisione.
 
 ```cpp
 /** Punteggio obiettivo che chiude la partita. 0 = nessuna vittoria per obiettivo in questo formato. */
-int32 ScoreToWin = 0;                       // Source/RefactorTactics/Turn/RTMatchFormatData.h:130
+int32 ScoreToWin = 0;                       // Source/RefactorTactics/Turn/Format/RTMatchFormatData.h:130
 ```
 
 Lo zero non è un difetto: il codice lo documenta come **scelta legittima di formato**, e
@@ -124,7 +124,7 @@ farla esercitare da una partita umana dal pacchetto — `G13` resta letterale (*
 *«non presidiata»*) ma la cattura è **unilaterale**, perché nessuno la contende. *(c)* tirare dentro `E26`.
 
 **Scelta: *(a)*.** Costo accettato: la v0.1 spedisce una condizione di vittoria che **esiste nel codice** —
-`ERTMatchOutcome::Objective`, `Turn/RTTurnRules.h:44` — e che nessuno percorre. Va **dichiarata** fra i limiti
+`ERTMatchOutcome::Objective`, `Turn/Resolution/RTTurnRules.h:44` — e che nessuno percorre. Va **dichiarata** fra i limiti
 noti, non taciuta.
 
 ---
@@ -260,7 +260,7 @@ relativi al **registro**, non a questo file.
 ### `D-338`
 
 ```markdown
-| **D-338** | **LA «VIA A PUNTI» ESCE DAL PERIMETRO VERIFICABILE DELLA v0.1: la riserva di `G13` si riscrive, e il gate smette di chiedere che sia esercitata.** Chiude la metà decisionale della riserva del 2026-08-10; la metà residua — l'esecuzione di `PIE-V01-BOARD` — resta lavoro, non domanda. **(1) Il dato che decide.** `URTMatchFormatData::ScoreToWin` vale **0** nella configurazione spedita, e il codice documenta lo zero come scelta legittima di formato: *«0 = nessuna vittoria per obiettivo in questo formato»* (`Turn/RTMatchFormatData.h:130`); `RTMatchFormatLibrary.cpp:24` rifiuta i soli valori **negativi**. ∴ il gate chiedeva di dimostrare una via che il formato spedito **disabilita**. **(2) Chi la percorrerebbe non è della v0.1.** Il bot non cerca l'obiettivo: è `E26` *Tactical Bot v1* ([#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326)), **v0.2**. Esercitare la via avrebbe richiesto una delle due cose che questa voce rifiuta — accendere `ScoreToWin` e farla catturare da una partita umana **non contesa**, oppure anticipare `E26`. **(3) Cosa NON si decide.** ⛔ La via **resta nel codice**: `ERTMatchOutcome::Objective` (`Turn/RTTurnRules.h:44`) e `ResolveObjectiveControl` (`:222`) non si rimuovono, e i loro test restano. ⛔ Non si decide se la v0.2 la accenda. ⛔ Non si tocca `RoundLimit`, né [D-184](RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere. **(4) Il costo, accettato.** La v0.1 spedisce una condizione di vittoria che esiste e che nessuno percorre. ⚠️ **Va dichiarata fra i limiti aperti che il DoD di [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) pretende** — *«i limiti aperti della v0.1 sono dichiarati»* — e non taciuta: un gate riscritto senza la ragione scritta accanto è indistinguibile da un gate abbassato | **Accettata** — **decisione d'autore** *(2026-09-06)*, presa in sessione di spec panel sulla rotta di chiusura della v0.1. Referto: [`../roadmap/plans/chiusura-v01-decisioni-e-milestone-spec-panel-2026-09-06.md`](../roadmap/plans/chiusura-v01-decisioni-e-milestone-spec-panel-2026-09-06.md) §4. ⚠️ **Il numero è il primo libero, verificato nei tre posti che la nota su `D-304` prescrive**, su `origin/main` = `9da33c59`: registro a `D-337`; **2** PR aperte, nessuna assegna un `D-3nn`; **5** branch remoti, massimo `D-337`. ⛔ **La citazione `D-337…D-340` nella nota di `D-336` NON è una rivendicazione**: registra che quei numeri erano liberi a quella misura, ed è la distinzione che la nota su `D-322` impone | `G13`, [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85), `PIE-V01-PACKAGED`. ⛔ **Nessuna riga di `Source/` toccata**: cambia il perimetro del gate, non il codice. ➡️ **Richiede**: la cella `G13` di [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §3 riscritta con la ragione, e la voce fra i limiti noti di `#85` |
+| **D-338** | **LA «VIA A PUNTI» ESCE DAL PERIMETRO VERIFICABILE DELLA v0.1: la riserva di `G13` si riscrive, e il gate smette di chiedere che sia esercitata.** Chiude la metà decisionale della riserva del 2026-08-10; la metà residua — l'esecuzione di `PIE-V01-BOARD` — resta lavoro, non domanda. **(1) Il dato che decide.** `URTMatchFormatData::ScoreToWin` vale **0** nella configurazione spedita, e il codice documenta lo zero come scelta legittima di formato: *«0 = nessuna vittoria per obiettivo in questo formato»* (`Turn/Format/RTMatchFormatData.h:130`); `RTMatchFormatLibrary.cpp:24` rifiuta i soli valori **negativi**. ∴ il gate chiedeva di dimostrare una via che il formato spedito **disabilita**. **(2) Chi la percorrerebbe non è della v0.1.** Il bot non cerca l'obiettivo: è `E26` *Tactical Bot v1* ([#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326)), **v0.2**. Esercitare la via avrebbe richiesto una delle due cose che questa voce rifiuta — accendere `ScoreToWin` e farla catturare da una partita umana **non contesa**, oppure anticipare `E26`. **(3) Cosa NON si decide.** ⛔ La via **resta nel codice**: `ERTMatchOutcome::Objective` (`Turn/Resolution/RTTurnRules.h:44`) e `ResolveObjectiveControl` (`:222`) non si rimuovono, e i loro test restano. ⛔ Non si decide se la v0.2 la accenda. ⛔ Non si tocca `RoundLimit`, né [D-184](RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere. **(4) Il costo, accettato.** La v0.1 spedisce una condizione di vittoria che esiste e che nessuno percorre. ⚠️ **Va dichiarata fra i limiti aperti che il DoD di [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) pretende** — *«i limiti aperti della v0.1 sono dichiarati»* — e non taciuta: un gate riscritto senza la ragione scritta accanto è indistinguibile da un gate abbassato | **Accettata** — **decisione d'autore** *(2026-09-06)*, presa in sessione di spec panel sulla rotta di chiusura della v0.1. Referto: [`../roadmap/plans/chiusura-v01-decisioni-e-milestone-spec-panel-2026-09-06.md`](../roadmap/plans/chiusura-v01-decisioni-e-milestone-spec-panel-2026-09-06.md) §4. ⚠️ **Il numero è il primo libero, verificato nei tre posti che la nota su `D-304` prescrive**, su `origin/main` = `9da33c59`: registro a `D-337`; **2** PR aperte, nessuna assegna un `D-3nn`; **5** branch remoti, massimo `D-337`. ⛔ **La citazione `D-337…D-340` nella nota di `D-336` NON è una rivendicazione**: registra che quei numeri erano liberi a quella misura, ed è la distinzione che la nota su `D-322` impone | `G13`, [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85), `PIE-V01-PACKAGED`. ⛔ **Nessuna riga di `Source/` toccata**: cambia il perimetro del gate, non il codice. ➡️ **Richiede**: la cella `G13` di [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §3 riscritta con la ragione, e la voce fra i limiti noti di `#85` |
 ```
 
 ### `D-339`

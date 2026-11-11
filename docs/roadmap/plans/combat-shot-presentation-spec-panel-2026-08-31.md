@@ -60,7 +60,7 @@ Lo scope candidato chiede quattro rese e una garanzia:
 
 > *«`FRTResolvedEvent` resta il confine simulazione → presentazione»*
 
-**Misurato — `Source/RefactorTactics/Turn/RTResolvedEvent.h:40-76`:**
+**Misurato — `Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h:40-76`:**
 
 | Campo | Tipo | Nota del sorgente |
 |---|---|---|

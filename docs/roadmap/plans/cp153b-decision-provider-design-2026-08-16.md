@@ -89,7 +89,7 @@ il modo in cui uno scenario dice una cosa e ne verifica un'altra.
 usata che nomina quell'unità**. Non per ordine di apertura: l'ordine dei micro-step cambia quando cambia il
 movimento, e una coda posizionale risponderebbe per un'altra unità **in silenzio**.
 
-**Tipi** (`ScenarioHarness/RTTestScenario.h`): `FRTScenarioDecision { Unit, Respond, Target }` e
+**Tipi** (`ScenarioHarness/Authoring/RTTestScenario.h`): `FRTScenarioDecision { Unit, Respond, Target }` e
 `TArray<FRTScenarioDecision> Decisions` su `FRTScenarioTurn`, accanto a `Requires`.
 
 **Loader** (`RTScenarioLoader.cpp`, dentro il ciclo dei turni):
@@ -124,7 +124,7 @@ dichiarata nel commento e non in un test che non può fallire.
 
 ### 3.4 La provenienza va nel referto, non nel TurnLog
 
-`ERTReactionDecisionOutcome` vive in `Turn/RTTurnLog.h` con **7** consumatori in `RTTurnLogLibrary.cpp`:
+`ERTReactionDecisionOutcome` vive in `Turn/Log/RTTurnLog.h` con **7** consumatori in `RTTurnLogLibrary.cpp`:
 nessuno dei due nel write-set, e toccare il log serializzato muove i golden.
 
 E non serve: al replay serve **quale** decisione, non **chi** l'ha fornita. La prima è stato di gioco, la
@@ -197,12 +197,12 @@ Emendato **prima** di scrivere, con la PR [#979](https://github.com/DegrassiAaro
 
 ```
 Source/RefactorTactics/ScenarioHarness/
-Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp
+Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioLoaderTests.cpp
 docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
 ```
 
-Escono `Turn/RTTurnManager.{h,cpp}` e `Turn/RTReactionOpportunityTypes.{h,cpp}`: erano una prenotazione e
+Escono `Turn/RTTurnManager.{h,cpp}` e `Turn/Reaction/RTReactionOpportunityTypes.{h,cpp}`: erano una prenotazione e
 non un vincolo. Il referto entra come **file** e non come cartella — `docs/roadmap/plans/` è scritta in
 questo momento da quattro branch remoti e da un worktree con un referto *untracked*.
 

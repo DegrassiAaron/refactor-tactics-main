@@ -421,8 +421,8 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 Due file, e il totale **si misura sul branch** invece di stare scritto qui:
 
 ```
-grep -c 'RefactorTactics.HexBot\.'     Source/RefactorTactics/Tests/RTHexBotTests.cpp
-grep -c 'RefactorTactics.HexBotPlay\.' Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+grep -c 'RefactorTactics.HexBot\.'     Source/RefactorTactics/Tests/Bot/RTHexBotTests.cpp
+grep -c 'RefactorTactics.HexBotPlay\.' Source/RefactorTactics/Tests/Bot/RTHexBotIntegrationTests.cpp
 ```
 
 Sono l'unica prova di ciò che questa spec afferma.
@@ -438,12 +438,12 @@ Sono l'unica prova di ciò che questa spec afferma.
 > invece che contati. In un documento la cui unica funzione è essere l'evidenza, un totale non misurato è il
 > difetto peggiore possibile.
 
-### `Tests/RTHexBotTests.cpp` — `RefactorTactics.HexBot.*` (logica pura)
+### `Tests/Bot/RTHexBotTests.cpp` — `RefactorTactics.HexBot.*` (logica pura)
 
 > ⚠️ *Il totale non si scrive più qui.* Era «18» e il file ne conteneva già 23 prima di questa riga: un
 > numero fissato a mano invecchia al primo test aggiunto, e in un documento che esiste per essere
 > l'evidenza è il difetto peggiore. Si conta sul branch:
-> `grep -c 'RefactorTactics.HexBot\.' Source/RefactorTactics/Tests/RTHexBotTests.cpp`.
+> `grep -c 'RefactorTactics.HexBot\.' Source/RefactorTactics/Tests/Bot/RTHexBotTests.cpp`.
 
 | Test | Cosa dimostra |
 |---|---|
@@ -468,7 +468,7 @@ Sono l'unica prova di ciò che questa spec afferma.
 | `KiteCellMaximizesDistance` | la fuga massimizza la distanza dalla minaccia |
 | `KiteCellStaysLegal` | la fuga non esce dalle celle raggiungibili |
 
-### `Tests/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (7, su partita)
+### `Tests/Bot/RTHexBotIntegrationTests.cpp` — `RefactorTactics.HexBotPlay.*` (7, su partita)
 
 | Test | Cosa dimostra |
 |---|---|

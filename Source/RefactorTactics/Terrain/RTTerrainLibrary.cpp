@@ -1,5 +1,5 @@
 #include "Terrain/RTTerrainLibrary.h"
-#include "Map/RTHexArcLibrary.h"
+#include "Map/Vision/RTHexArcLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"

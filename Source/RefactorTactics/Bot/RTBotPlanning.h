@@ -21,7 +21,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
-#include "Turn/RTHexSim.h"
+#include "Turn/Resolution/RTHexSim.h"
 #include "Replay/RTReplayAuditLibrary.h"
 #include "RTBotPlanning.generated.h"
 

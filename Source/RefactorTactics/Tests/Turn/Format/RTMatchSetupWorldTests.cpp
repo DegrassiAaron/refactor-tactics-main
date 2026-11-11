@@ -1,0 +1,552 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "RTGameMode.h"
+#include "Unit/RTUnit.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
+#include "Engine/Engine.h"
+#include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
+#include "Tests/Shared/RTConsoleVariableGuardForTest.h"
+
+// La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
+// distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
+// Aggiunta con #923, dopo che lo stesso difetto ha rotto la build Shipping due volte (2026-08-09 e
+// 2026-08-15) senza che la suite, che gira sul target Editor, se ne accorgesse.
+#if WITH_DEV_AUTOMATION_TESTS
+
+/** Definite in ScenarioHarness/Report/RTTestConsole.cpp. */
+extern TAutoConsoleVariable<FString> CVarRTMapSource;
+extern TAutoConsoleVariable<FString> CVarRTMapFixture;
+
+/** Definita in RTGameMode.cpp, non in RTTestConsole.cpp come le due qui sopra. */
+extern TAutoConsoleVariable<int32> CVarRTDemoArenaRadius;
+
+namespace
+{
+	/**
+	 * Imposta `rt.Map.Source` per la durata di uno scope e la RIPRISTINA uscendo.
+	 *
+	 * Una console variable dura quanto il processo: lasciarla impostata scavalcherebbe la proprieta' in ogni
+	 * test successivo, e il rosso comparirebbe altrove — dove nessuno lo collega a questo file.
+	 *
+	 * ⚠️ **Il corpo sta in `RTConsoleVariableGuardForTest.h` da #2235**: la scrittura a `ECVF_SetByCode`
+	 * perdeva in silenzio contro un valore digitato in console, e queste tre guardie erano tre copie dello
+	 * stesso difetto. Qui resta il solo nome, che e' cio' che i test leggono.
+	 */
+	struct FRTMapSourceCVarGuard : RTTestConsoleVariable::TGuardia<FString>
+	{
+		explicit FRTMapSourceCVarGuard(const TCHAR* Value)
+			: TGuardia(*CVarRTMapSource.AsVariable(), FString(Value)) {}
+	};
+
+	/**
+	 * Stessa forma della guardia qui sopra, per la console variable del RAGGIO. Serve un ripristino
+	 * esplicito e non un valore fisso: una console variable dura quanto il processo dell'editor, quindi
+	 * un test che la lasciasse accesa cambierebbe l'allestimento di ogni test successivo della suite.
+	 */
+	struct FRTDemoArenaRadiusCVarGuard : RTTestConsoleVariable::TGuardia<int32>
+	{
+		explicit FRTDemoArenaRadiusCVarGuard(int32 Value)
+			: TGuardia(*CVarRTDemoArenaRadius.AsVariable(), Value) {}
+	};
+
+	/**
+	 * `rt.Map.Fixture` VINCE su `rt.Map.Source` e sulla proprieta' (`RTMatchBootstrapper.cpp:59`), e il
+	 * registro delle PIE istruisce a impostarla a mano prima di un Play. Un test che allestisce una
+	 * partita senza azzerarla misurerebbe la fixture di chi ha usato l'editor prima, non il proprio caso.
+	 *
+	 * 🔑 **Ed e' il caso che rende #2235 concreta proprio qui**: la variabile che il registro PIE chiede di
+	 * digitare a mano e' la stessa che questa guardia deve poter azzerare. A `ECVF_SetByCode` non ci
+	 * riusciva, e il test misurava la fixture di chi aveva usato l'editor prima.
+	 */
+	struct FRTMapFixtureCVarGuard : RTTestConsoleVariable::TGuardia<FString>
+	{
+		explicit FRTMapFixtureCVarGuard(const TCHAR* Value)
+			: TGuardia(*CVarRTMapFixture.AsVariable(), FString(Value)) {}
+	};
+}
+
+namespace
+{
+	/** Come in RTBotPlanningTests: World di gioco minimale, senza tick ne' rendering. */
+	UWorld* MakeSetupWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroySetupWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	/** Mappa esagonale di prova: esagono pieno di raggio Radius sul layer 0. */
+	URTHexMapAsset* MakeHexMap(int32 Radius)
+	{
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+		return M;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeHexSetupTest,
+	"RefactorTactics.MatchSetup.GameModeSpawnsOnHexMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeHexSetupTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	URTHexMapAsset* Map = MakeHexMap(/*Radius=*/ 2);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	int32 Team0 = 0;
+	TSet<FRTCellId> Occupied;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+		Team0 += (It->TeamId == 0) ? 1 : 0;
+		Occupied.Add(It->Cell);
+		TestTrue(TEXT("l'unita' sta su una cella della mappa"), Map->ContainsCell(It->Cell));
+	}
+
+	TestEqual(TEXT("board 2v2"), NumUnits, 4);
+	TestEqual(TEXT("due unita' per squadra"), Team0, 2);
+	TestEqual(TEXT("nessuna sovrapposizione di partenza"), Occupied.Num(), 4);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeSkipsSetupWithUnitsTest,
+	"RefactorTactics.MatchSetup.GameModeSkipsWhenLevelHasUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeSkipsSetupWithUnitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = MakeHexMap(/*Radius=*/ 2);
+
+	// Un'unita' gia' posata a mano nel livello: l'allestimento automatico non deve aggiungerne altre.
+	World->SpawnActor<ARTUnit>();
+
+	World->SpawnActor<ARTGameMode>()->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+	}
+	TestEqual(TEXT("nessun allestimento sopra le unita' esistenti"), NumUnits, 1);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/**
+ * Un asset mappa ASSEGNATO ma VUOTO deve comportarsi come "nessuna mappa d'autore": si gioca sull'arena di
+ * ripiego. Difetto reale osservato in PIE su L_DevSandbox — il cui DA_HexMap_Sandbox si e' ritrovato a 0 celle:
+ * il ripiego guardava solo `!MapAsset` (puntatore nullo), quindi non scattava e la partita non si allestiva.
+ * Sintomo per chi gioca: viewport nera, nessuna unita', pareggio immediato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeFallbackOnEmptyAssetTest,
+	"RefactorTactics.MatchSetup.GameModeFallsBackOnEmptyMapAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeFallbackOnEmptyAssetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	// Asset presente ma senza celle: il puntatore non e' nullo, quindi il vecchio controllo lo lasciava passare.
+	URTHexMapAsset* Empty = NewObject<URTHexMapAsset>();
+	TestEqual(TEXT("premessa: l'asset e' vuoto"), Empty->NumCells(), 0);
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Empty;
+
+	World->SpawnActor<ARTGameMode>()->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+		TestTrue(TEXT("l'unita' sta su una cella della mappa in uso"),
+			MapActor->MapAsset && MapActor->MapAsset->ContainsCell(It->Cell));
+	}
+	TestEqual(TEXT("board 2v2 sull'arena di ripiego"), NumUnits, 4);
+	TestTrue(TEXT("la mappa in uso ha celle"),
+		MapActor->MapAsset && MapActor->MapAsset->NumCells() > 0);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** L'opt-out resta: con DemoArenaRadius = 0 non si inventa nessuna arena. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeNoFallbackWhenDisabledTest,
+	"RefactorTactics.MatchSetup.GameModeNoFallbackWhenRadiusZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeNoFallbackWhenDisabledTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = NewObject<URTHexMapAsset>(); // vuoto
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->DemoArenaRadius = 0; // ripiego disattivato
+	GameMode->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+	}
+	TestEqual(TEXT("ripiego disattivato -> nessuna unita'"), NumUnits, 0);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeNoSetupOnTinyMapTest,
+	"RefactorTactics.MatchSetup.GameModeSkipsWhenMapTooSmall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeNoSetupOnTinyMapTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World))
+	{
+		return false;
+	}
+
+	// Tre celle per quattro unita': non si allestisce una partita a meta'.
+	URTHexMapAsset* Tiny = NewObject<URTHexMapAsset>();
+	Tiny->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	Tiny->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 0)));
+	Tiny->AddOrUpdateCell(FRTHexCellData(FRTCellId(2, 0, 0)));
+	Tiny->SortCells();
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Tiny;
+
+	World->SpawnActor<ARTGameMode>()->SetupHexMatch(MapActor);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		++NumUnits;
+	}
+	TestEqual(TEXT("mappa troppo piccola -> nessuna unita'"), NumUnits, 0);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/**
+ * La sorgente della mappa e' una SCELTA, non una catena di flag: `MapSource` decide da dove arriva l'arena su
+ * cui si gioca. Le voci generate valgono anche se il livello porta una mappa d'autore — sceglierle
+ * esplicitamente significa volerle, e il log lo dichiara — mentre il default resta la mappa del livello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceConsoleOverrideTest,
+	"RefactorTactics.MatchSetup.MapSourceConsoleVariableOverridesProperty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceConsoleOverrideTest::RunTest(const FString&)
+{
+	// La proprieta' `MapSource` vive nei Class Defaults di `BP_GameMode`, cioe' in un `.uasset`: cambiarla
+	// richiede l'editor. `rt.Map.Source` la scavalca da riga di comando — ed e' cio' che serve a verificare
+	// una build pacchettizzata senza aprire l'editor (CP 12.5).
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	// La proprieta' dice «arena generata», come fa oggi il Blueprint...
+	GameMode->MapSource = ERTMapSource::GeneratedTestArena;
+
+	{
+		// ...ma la console variable dice «mappa del livello», e vince.
+		FRTMapSourceCVarGuard Guard(TEXT("LevelAsset"));
+		GameMode->SetupHexMatch(MapActor);
+		// Confronto sul CONTENUTO e non sul puntatore: da CP 8.4 la partita lavora su una COPIA della mappa
+		// d'autore, perche' il terreno dinamico la modifica e l'asset su disco non deve cambiare.
+		TestTrue(TEXT("la console variable vince: la mappa in uso e' quella d'autore"),
+			MapActor->MapAsset && MapActor->MapAsset->ComputeHash() == Authored->ComputeHash());
+	}
+
+	// Un valore sconosciuto NON ripiega in silenzio su un default arbitrario: tiene la proprieta'.
+	{
+		MapActor->MapAsset = Authored;
+		FRTMapSourceCVarGuard Guard(TEXT("NonEsiste"));
+		TestEqual(TEXT("un valore sconosciuto lascia in vigore la proprieta'"),
+			GameMode->ResolveMapSource(), ERTMapSource::GeneratedTestArena);
+	}
+
+	// E svuotandola si torna alla proprieta', senza residui fra un Play e l'altro.
+	TestEqual(TEXT("senza console variable vale la proprieta'"),
+		GameMode->ResolveMapSource(), ERTMapSource::GeneratedTestArena);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceTestArenaTest,
+	"RefactorTactics.MatchSetup.MapSourceTestArenaWinsOverLevelAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceTestArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Il livello porta una mappa d'autore VALIDA: la scelta esplicita deve comunque prevalere.
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MapSource = ERTMapSource::GeneratedTestArena;
+	GameMode->SetupHexMatch(MapActor);
+
+	TestTrue(TEXT("la mappa d'autore e' stata sostituita"), MapActor->MapAsset != Authored);
+	if (!TestNotNull(TEXT("mappa in uso presente"), MapActor->MapAsset.Get())) { DestroySetupWorld(World); return false; }
+
+	// Le caratteristiche della mappa di prova: ostacoli e piattaforma su un secondo layer.
+	int32 BlocksMove = 0;
+	int32 Layer1 = 0;
+	for (const FRTHexCellData& Cell : MapActor->MapAsset->Cells)
+	{
+		BlocksMove += Cell.bBlocksMovement ? 1 : 0;
+		Layer1     += (Cell.Id.Layer == 1) ? 1 : 0;
+	}
+	TestTrue(TEXT("la mappa in uso ha ostacoli"), BlocksMove >= 3);
+	TestTrue(TEXT("la mappa in uso ha un secondo layer"), Layer1 >= 4);
+
+	int32 NumUnits = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It) { ++NumUnits; }
+	TestEqual(TEXT("la partita 2v2 si allestisce sulla mappa di prova"), NumUnits, 4);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** Arena di ripiego scelta esplicitamente: pavimento liscio del raggio indicato, nessun ostacolo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceDemoArenaTest,
+	"RefactorTactics.MatchSetup.MapSourceDemoArenaIsPlainFloor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceDemoArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	GameMode->MapSource = ERTMapSource::GeneratedDemoArena;
+	GameMode->DemoArenaRadius = 3;
+	GameMode->SetupHexMatch(MapActor);
+
+	if (!TestNotNull(TEXT("arena generata"), MapActor->MapAsset.Get())) { DestroySetupWorld(World); return false; }
+	int32 BlocksMove = 0;
+	for (const FRTHexCellData& Cell : MapActor->MapAsset->Cells) { BlocksMove += Cell.bBlocksMovement ? 1 : 0; }
+	TestEqual(TEXT("il ripiego e' pavimento liscio"), BlocksMove, 0);
+	TestEqual(TEXT("raggio 3 -> 37 celle"), MapActor->MapAsset->NumCells(), 37);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/** Default: la mappa del livello si usa COM'E', senza sostituzioni silenziose. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeMapSourceLevelAssetTest,
+	"RefactorTactics.MatchSetup.MapSourceLevelAssetKeepsAuthoredMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeMapSourceLevelAssetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	URTHexMapAsset* Authored = MakeHexMap(/*Radius=*/ 2);
+	MapActor->MapAsset = Authored;
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	TestTrue(TEXT("il default e' la mappa del livello"), GameMode->MapSource == ERTMapSource::LevelAsset);
+	GameMode->SetupHexMatch(MapActor);
+
+	// CP 8.4: la partita ora lavora su una COPIA della mappa d'autore, perche' il terreno dinamico la modifica
+	// (fuoco, acqua) e l'asset su disco non deve cambiare. Il test passa quindi dall'identita' del puntatore al
+	// CONTENUTO: quello che il checkpoint garantiva — «la mappa d'autore non viene rimpiazzata dall'arena
+	// demo» — resta verificato, e in piu' si verifica che la copia sia fedele.
+	TestNotNull(TEXT("la mappa e' allestita"), MapActor->MapAsset.Get());
+	TestTrue(TEXT("la mappa d'autore NON viene sostituita da un'altra arena"),
+		MapActor->MapAsset && MapActor->MapAsset->ComputeHash() == Authored->ComputeHash());
+	TestTrue(TEXT("ma e' una copia di lavoro: l'asset d'autore non viene modificato dalla partita"),
+		MapActor->MapAsset != Authored);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+
+/**
+ * Il RAGGIO dell'arena generata si sceglie da fuori, come le altre quattro voci d'allestimento.
+ *
+ * `DemoArenaRadius` era l'unico parametro dell'allestimento senza resolver: si leggeva nudo dalla
+ * proprieta', quindi si poteva cambiare **solo** aprendo `BP_GameMode` nell'editor, cioe' modificando un
+ * `.uasset`. Le altre quattro — sorgente mappa, scenario, autobattle, alleati bot — hanno tutte la stessa
+ * scala console variable > proprieta', e questa la completa (#2219).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeDemoArenaRadiusOverrideTest,
+	"RefactorTactics.MatchSetup.DemoArenaRadiusConsoleVariableOverridesProperty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeDemoArenaRadiusOverrideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode)) { DestroySetupWorld(World); return false; }
+
+	GameMode->DemoArenaRadius = 2;
+
+	// Sentinella: `-1` non e' «raggio -1», e' «non impostata». Vale la proprieta'.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(-1);
+		TestEqual(TEXT("senza console variable vale la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 2);
+	}
+
+	// La console variable scavalca, ed e' l'intento di QUESTO avvio. L'annuncio non e' decorativo:
+	// senza questa attesa, cancellare il blocco di log lascerebbe il test verde, e il comportamento che il
+	// commento del resolver chiama la lezione costosa resterebbe senza guardiano.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(3);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=3 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
+		TestEqual(TEXT("la console variable scavalca la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 3);
+	}
+
+	// Zero e' un valore LEGITTIMO e non la sentinella: e' l'opt-out dal ripiego, gia' pinnato da
+	// `GameModeNoFallbackWhenRadiusZero`. Se `0` fosse trattato come «non impostata» quel comportamento
+	// diventerebbe irraggiungibile dalla console.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(0);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=0 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
+		TestEqual(TEXT("zero e' un valore, non la sentinella"),
+			GameMode->ResolveDemoArenaRadius(), 0);
+	}
+
+	// Il tetto: un refuso alla console non costruisce tre milioni di celle.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(1000);
+		AddExpectedError(TEXT("supera il tetto di 100: ridotto a 100"),
+			EAutomationExpectedErrorFlags::Contains, 1);
+		TestEqual(TEXT("oltre il tetto si riduce, e lo dice"),
+			GameMode->ResolveDemoArenaRadius(), 100);
+	}
+
+	// Tolta la console, la proprieta' torna a valere: la precedenza non l'ha consumata.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(-1);
+		TestEqual(TEXT("tolta la console, vale di nuovo la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 2);
+	}
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/**
+ * E il raggio scelto ARRIVA alle celle, che e' un'altra affermazione.
+ *
+ * ⚠️ Il test qui sopra prova che il resolver *risponde*; questo prova che qualcuno lo *chiama*. Sono due
+ * cose diverse, e la seconda e' quella che difende la decisione: `Config.DemoArenaRadius` si costruisce in
+ * `SetupHexMatch`, e finche' quella riga legge la proprieta' nuda il resolver puo' essere giusto e non
+ * servire a niente. Mutazione che lo dimostra: rimettere `Config.DemoArenaRadius = DemoArenaRadius;` e
+ * questo test cade da solo, mentre quello sopra resta verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeDemoArenaRadiusReachesArenaTest,
+	"RefactorTactics.MatchSetup.DemoArenaRadiusReachesTheGeneratedArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeDemoArenaRadiusReachesArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// I due conteggi sono literal, come in `MapSourceDemoArenaIsPlainFloor`: un esagono pieno di raggio R
+	// ha 3R(R+1)+1 celle, quindi 19 per il raggio della proprieta' e 37 per quello della console.
+	// Sono diversi, ed e' l'anti-vacuita' di questo test: se coincidessero, il confronto in fondo
+	// passerebbe con qualunque raggio venisse usato.
+	// ⚠️ Prima erano due `MakeFlatArena` costruite qui: due `UObject` nel transient package tenuti da
+	// puntatori C++ attraverso `SetupHexMatch`, quindi non protetti dal garbage collector.
+	static constexpr int32 CellsAtRadiusTwo   = 19;
+	static constexpr int32 CellsAtRadiusThree = 37;
+	static_assert(CellsAtRadiusTwo != CellsAtRadiusThree, "il confronto in fondo non discriminerebbe");
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), MapActor) || !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		DestroySetupWorld(World);
+		return false;
+	}
+
+	// L'arena generata e' scelta esplicitamente: qui non si misura la precedenza fra mappa d'autore e
+	// ripiego, che resta quella di `MapSourceLevelAssetKeepsAuthoredMap`.
+	GameMode->MapSource = ERTMapSource::GeneratedDemoArena;
+	GameMode->DemoArenaRadius = 2;
+
+	// ⚠️ Le altre due console variable dell'allestimento vanno azzerate, non lasciate al caso:
+	// `rt.Map.Source` scavalca `MapSource`, e `rt.Map.Fixture` vince su entrambi e ritorna PRIMA che il
+	// raggio sia letto. Con una delle due accesa da una sessione precedente questo test fallirebbe
+	// indicando il resolver del raggio, che non e' cio' che si sarebbe rotto.
+	{
+		FRTMapSourceCVarGuard SourceGuard(TEXT(""));
+		FRTMapFixtureCVarGuard FixtureGuard(TEXT(""));
+		FRTDemoArenaRadiusCVarGuard Guard(3);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=3 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
+		GameMode->SetupHexMatch(MapActor);
+		TestEqual(TEXT("l'arena in uso ha il raggio della CONSOLE, non quello della proprieta'"),
+			MapActor->MapAsset ? MapActor->MapAsset->NumCells() : -1, CellsAtRadiusThree);
+	}
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
+// invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
+// `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+#endif // WITH_DEV_AUTOMATION_TESTS

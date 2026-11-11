@@ -4,7 +4,7 @@
 
 **Goal:** ogni `AbilityActivated` disegna sulla cella della sorgente il segnale di attivazione del suo profilo (`Ring`, `Pulse`, `Flash`); ogni `Attack` disegna all'arrivo il `Marker` sulla vittima e, una volta per impronta, la cue d'impronta (`AreaPulse` sul centro, `ConeSweep` lungo l'asse); il tracer degli attacchi diventa **un caso** del profilo (`Zigzag` per `Hero.Aevik.LinearDischarge`, `None` per `Ram`/`PassingBlade`/`Action.Charge`) con il **volo deciso dalla sola forma di default** (R13) e nessun profilo per gli attacchi legacy senza id (R12). Tutto con primitive del line batcher (D-467), nessun asset (D-124), dichiarato in D-278.
 
-**Architecture:** il profilo (`FRTAbilityFxProfile`, quattro enum) vive accanto al tracer in `Map/RTPlaybackTracer.h`; la tabella (default per forma, righe d'override approvate in D5, ripiego `ActionId → BaseActionId → forma`) è un gruppo di funzioni statiche C++ in `URTPresentationBindingLibrary`. La matematica è pura in `URTPlaybackLibrary`: idoneità al volo, stile del tracer, `TracerPolyline` per lo `Zigzag`, le durate con i tetti di R2, le cue per evento con i loro verdetti, l'associazione impronta → primo colpo (`FootprintFxForSequence`, R14) e la geometria (`CueSegments`). `ARTTurnManager::PushPlaybackCues(Phase)`, gemella di `PushPlaybackTracers`, consegna in blocco a un canale nuovo di `ARTHexMapActor` (`SetPlaybackCues`/`ClearPlaybackCues`/`GetPlaybackCues`), che disegna con `DisegnaLineaAnteprima`. Il produttore cambia in un punto solo: `EmitAbilityActivated` scrive `Ev.Origin`.
+**Architecture:** il profilo (`FRTAbilityFxProfile`, quattro enum) vive accanto al tracer in `Turn/Playback/RTPlaybackTracer.h`; la tabella (default per forma, righe d'override approvate in D5, ripiego `ActionId → BaseActionId → forma`) è un gruppo di funzioni statiche C++ in `URTPresentationBindingLibrary`. La matematica è pura in `URTPlaybackLibrary`: idoneità al volo, stile del tracer, `TracerPolyline` per lo `Zigzag`, le durate con i tetti di R2, le cue per evento con i loro verdetti, l'associazione impronta → primo colpo (`FootprintFxForSequence`, R14) e la geometria (`CueSegments`). `ARTTurnManager::PushPlaybackCues(Phase)`, gemella di `PushPlaybackTracers`, consegna in blocco a un canale nuovo di `ARTHexMapActor` (`SetPlaybackCues`/`ClearPlaybackCues`/`GetPlaybackCues`), che disegna con `DisegnaLineaAnteprima`. Il produttore cambia in un punto solo: `EmitAbilityActivated` scrive `Ev.Origin`.
 
 **Tech Stack:** Unreal Engine 5.8.1, C++ (modulo `RefactorTactics`), Automation Test framework, scenari JSON in `Scenarios/`, registro PIE in Markdown, sedute in YAML.
 
@@ -16,10 +16,10 @@
 
 - Engine: **UE 5.8.1** in `D:/EpicGames/UE_5.8`. Nessun aggiornamento di Engine, plugin o dipendenze.
 - ⛔ **Nessun `.uasset`**, nessun Blueprint, nessun Niagara/Cascade (D-124), nessun authoring nel clone principale. Gli FX sono linee del line batcher.
-- ⛔ **Nessun `DrawDebug*`** (D-467): ogni linea passa da `DisegnaLineaAnteprima` (`Map/RTHexMapActor.cpp:1422-1435`), che tace sul server dedicato.
-- ⛔ **Nessuna `UFUNCTION` nuova né rinominata, nessuna `UPROPERTY` nuova su `ARTUnit`**: `Unit.BlueprintSurfaceIsCensused` (`Tests/RTUnitBlueprintSurfaceTests.cpp:317`) non cambia. Le funzioni nuove di `URTPresentationBindingLibrary` e `URTPlaybackLibrary` sono **statiche C++ non `UFUNCTION`**, come `TracerSegment` (`Turn/RTPlaybackLibrary.h:238`). Le due manopole nuove sono `UPROPERTY` di `ARTTurnManager` (R2), non di `ARTUnit`.
+- ⛔ **Nessun `DrawDebug*`** (D-467): ogni linea passa da `DisegnaLineaAnteprima` (`Map/Actor/RTHexMapActor.cpp:1422-1435`), che tace sul server dedicato.
+- ⛔ **Nessuna `UFUNCTION` nuova né rinominata, nessuna `UPROPERTY` nuova su `ARTUnit`**: `Unit.BlueprintSurfaceIsCensused` (`Tests/Terrain/RTUnitBlueprintSurfaceTests.cpp:317`) non cambia. Le funzioni nuove di `URTPresentationBindingLibrary` e `URTPlaybackLibrary` sono **statiche C++ non `UFUNCTION`**, come `TracerSegment` (`Turn/Playback/RTPlaybackLibrary.h:238`). Le due manopole nuove sono `UPROPERTY` di `ARTTurnManager` (R2), non di `ARTUnit`.
 - ⛔ **`Play*Montage` invariati** e nessuna clip toccata: le cue sono funzione dell'orologio del playback (`PlaybackPhaseElapsed`) e del cursore (`BlastBeatsDone` nel Blast, `ActivationsShown` in Prep e Dash), **mai** di un anim notify né della durata di una clip (R6).
-- ⛔ **Nessun dato nuovo in snapshot, TurnLog, `StateHash` o replay**, nessun tipo di evento nuovo. L'unico campo scritto in più è `Ev.Origin` di `AbilityActivated`, su `FRTResolvedEvent` che è `RTServerOnly` (`Turn/RTResolvedEvent.h:241`): `Determinism.FxFieldsStayOutOfHashes` (Task 3) lo **dimostra** con lo stesso metodo di `Determinism.HitGeometryStaysOutOfHashes` (`Tests/RTAttackTracerTests.cpp:214`).
+- ⛔ **Nessun dato nuovo in snapshot, TurnLog, `StateHash` o replay**, nessun tipo di evento nuovo. L'unico campo scritto in più è `Ev.Origin` di `AbilityActivated`, su `FRTResolvedEvent` che è `RTServerOnly` (`Turn/Resolution/RTResolvedEvent.h:241`): `Determinism.FxFieldsStayOutOfHashes` (Task 3) lo **dimostra** con lo stesso metodo di `Determinism.HitGeometryStaysOutOfHashes` (`Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp:214`).
 - ⛔ **Il canale è la geometria, mai il solo colore** (#2453): ogni cue usa `URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack)` (R1, nessun significato nuovo) e gli stili si separano per numero di segmenti, distanza dall'ancora o estensione verticale — pinnato da `Fx.CueStylesDifferByGeometry`.
 - **Un evento → un segnale**: `Activation` da `AbilityActivated`, `Tracer` e `Impact` da ogni `Attack`, `Footprint` dall'`AttackFootprint` del suo atto, consegnata dal primo `Attack` che la segue (spec §2.1, tabella dei campi).
 - **Privacy fail-closed** (`CLAUDE.md` §7): cue d'attivazione dietro `SourceVerdict` (R7), `Marker` dietro `ImpactVerdict`, tracer dietro `FromVerdict ∧ ImpactVerdict` (invariato), `AreaPulse`/`ConeSweep` dietro `FromVerdict` del colpo. Il ritmo (volo) non legge chi guarda: **stesso volo a parità di indice nella sequenza** (➕ rev2.; l'indice dipende dalle attivazioni che chi guarda vede, `Turn/RTTurnManager.cpp:7952-7956`).
@@ -27,8 +27,8 @@
 - **Ordinamento solo esplicito**: nessun esito dipende dall'ordine di iterazione di un `TMap`/`TSet`. Le mappe nuove (`DeclaredFxOverrides`, le impronte aperte di `FootprintFxForSequence`) si usano solo con `Find`/`Add`/`Remove`; l'ordine delle righe è quello di `DeclaredFxOverrideRows()`.
 - ⛔ **Nessun totale volatile** in commenti, documenti, celle del registro PIE, YAML, issue, PR (`AGENTS.md` §14): niente «N righe d'override», «N abilità». I conteggi di un test restano nel test; le misure di un passaggio si scrivono col comando che le produce.
 - ⛔ **Nessun glifo di stato (⏳ ✅ ❌ 🟡) accanto al nome di una voce PIE in ciò che si pubblica su GitHub**: issue, titolo e corpo della PR, commenti, messaggi di commit. Lo stato si scrive **in parole** (`PIE: NOT RUN`). Il glifo resta solo nella cella di stato del registro `test-manuali-pie.md` (Task 7).
-- Stile: commenti in **italiano**, nella forma dei file toccati (🔴 ⚠️ 🔑 ⛔ ✅ ⏱️ dove il file li usa). Nomi dei test nelle famiglie esistenti `RefactorTactics.<Famiglia>.<Nome>`: `Playback`/`Privacy` (`Tests/RTPlaybackLibraryTests.cpp`, `Tests/RTPlaybackActivationTests.cpp`, `Tests/RTAttackTracerPlaybackTests.cpp`), `Determinism` (`Tests/RTAttackTracerTests.cpp`), `HexMapActor` (`Tests/RTHexMapActorTests.cpp`), `Preview` (`Tests/RTPreviewLineBatcherTests.cpp`), `Presentation` (`Tests/RTPresentationBindingTests.cpp`), più `Fx` (nuova, spec §2.8) per le funzioni pure del profilo nel file nuovo `Tests/RTAbilityFxProfileTests.cpp`. Helper dei test con nomi **distinti per file** (unity build). ➕ piano. Il brief proponeva nomi `Presentation.FxProfile…`/`Playback.CuesAreAFunctionOfTheClock`: vincono i nomi di spec §5.1, che è l'autorità.
-- Line ending: sorgenti, Markdown e YAML toccati sono **CRLF** (misurato con `file`: `Turn/RTPlaybackLibrary.cpp`, `docs/technical/test-manuali-pie.md`, `docs/roadmap/editor-sessions.yaml`, `docs/technical/architecture/capability-map.yaml`). I file nuovi (`Tests/RTAbilityFxProfileTests.cpp`) nascono CRLF; lo scenario JSON nuovo segue `Scenarios/Visual/Ability/CastBeat.json` (`file` → `JSON text data`, misuralo e rispettalo). Dopo ogni modifica: `file <percorso>` dice la stessa cosa di prima. ⛔ Niente `sed -i` sui file CRLF.
+- Stile: commenti in **italiano**, nella forma dei file toccati (🔴 ⚠️ 🔑 ⛔ ✅ ⏱️ dove il file li usa). Nomi dei test nelle famiglie esistenti `RefactorTactics.<Famiglia>.<Nome>`: `Playback`/`Privacy` (`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`, `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`, `Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`), `Determinism` (`Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp`), `HexMapActor` (`Tests/Map/Actor/RTHexMapActorTests.cpp`), `Preview` (`Tests/Map/Actor/RTPreviewLineBatcherTests.cpp`), `Presentation` (`Tests/Turn/Playback/RTPresentationBindingTests.cpp`), più `Fx` (nuova, spec §2.8) per le funzioni pure del profilo nel file nuovo `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`. Helper dei test con nomi **distinti per file** (unity build). ➕ piano. Il brief proponeva nomi `Presentation.FxProfile…`/`Playback.CuesAreAFunctionOfTheClock`: vincono i nomi di spec §5.1, che è l'autorità.
+- Line ending: sorgenti, Markdown e YAML toccati sono **CRLF** (misurato con `file`: `Turn/Playback/RTPlaybackLibrary.cpp`, `docs/technical/test-manuali-pie.md`, `docs/roadmap/editor-sessions.yaml`, `docs/technical/architecture/capability-map.yaml`). I file nuovi (`Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`) nascono CRLF; lo scenario JSON nuovo segue `Scenarios/Visual/Ability/CastBeat.json` (`file` → `JSON text data`, misuralo e rispettalo). Dopo ogni modifica: `file <percorso>` dice la stessa cosa di prima. ⛔ Niente `sed -i` sui file CRLF.
 - Commit: `<type>(3578): <descrizione>`, chiuso da `Co-Authored-By: Claude <modello> <noreply@anthropic.com>`. Un commit per task. ⚠️ **Il trailer nomina il modello che ESEGUE il task**: l'implementatore sostituisce `<modello>` con il proprio in ogni blocco.
 - Branch: `issue/3578-profilo-fx-per-abilita`, da `origin/main` (Task 0). `3578` è il numero della issue aperta nel Task 0 sotto #2453, e si sostituisce ovunque compaia (codice, commenti, documenti).
 - `<checkout>` = la cartella in cui sta il branch. `<scratchpad>` = la cartella scratchpad della sessione.
@@ -45,9 +45,9 @@
   Un esito vale **solo** se il log porta `**** TEST COMPLETE`. Conteggio (Git Bash): `grep -c '\*\*\*\* TEST COMPLETE' <log>` (atteso 1), `grep -c 'Result={Success}' <log>`, `grep -c 'Result={Fail}' <log>` (atteso 0). Un rosso si legge con `grep -n 'Result={Fail}' -A3 <log>`.
 - **Una mutazione** è: modifica della riga indicata, build, test indicato, `Result={Fail}` sull'asserto indicato, ripristino **dopo il commit** del task (`git checkout -- <file>`, `git diff` vuoto), build, verde. Se una mutazione **non** fa cadere il test, ci si ferma: il test è vacuo, e si riporta — non si allenta l'asserto. Dove una mutazione fa cadere **più** test del dichiarato, lo step li elenca tutti (➕ rev2.) e la PR li riporta.
 - **Le quattro trappole delle fixture di playback** (memoria di progetto), e come le tratta questo piano:
-  1. **Il viewer è la squadra 0 senza `World->InitializeActorsForPlay(FURL())`**: `GetPlayerController(this, 0)` è nullo e `TeamIdOf` ripiega su 0. I test con viewer ≠ 0 usano **solo** `CostruisciBeat` (`Tests/RTPlaybackActivationTests.cpp:63-107`), che inizializza il mondo e **asserisce** il viewer letto (`:91-98`); i test con viewer 0 usano il ripiego e lo dicono.
+  1. **Il viewer è la squadra 0 senza `World->InitializeActorsForPlay(FURL())`**: `GetPlayerController(this, 0)` è nullo e `TeamIdOf` ripiega su 0. I test con viewer ≠ 0 usano **solo** `CostruisciBeat` (`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp:63-107`), che inizializza il mondo e **asserisce** il viewer letto (`:91-98`); i test con viewer 0 usano il ripiego e lo dicono.
   2. **`StableUnitId` vale 0 prima del turno**: gli eventi della timeline si cercano per `SourceStableUnitId == Unit->StableUnitId` **dopo** `LockInAndResolve()`, mai prima.
-  3. **Lo StateHash pendente è 0 senza registrazione**: `Determinism.FxFieldsStayOutOfHashes` calcola lo hash con `HashMatchState` + `BuildUnitDigests`, come `Tests/RTAttackTracerTests.cpp:243-252`, e asserisce lo hash non nullo.
+  3. **Lo StateHash pendente è 0 senza registrazione**: `Determinism.FxFieldsStayOutOfHashes` calcola lo hash con `HashMatchState` + `BuildUnitDigests`, come `Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp:243-252`, e asserisce lo hash non nullo.
   4. **La finestra di reazione si apre solo con un delegate legato** (`OnReactionWindowOpened.IsBound()`): nessuna fixture di questo piano apre finestre; la misura di `ReactiveCapacitor` (Task 4 Step 1) lo tiene presente e non conclude «nessun `Attack`» da un turno in cui la reazione si è decisa da sola.
 
 ## Review Focus
@@ -186,13 +186,13 @@ EOF
 ### Task 1: Il profilo e la tabella — tipi, default, override approvati, ripiego (puri)
 
 **Files:**
-- Modify: `Map/RTPlaybackTracer.h:13-22` (`Zigzag` in coda a `ERTTracerStyle`) e in coda al file dopo `FRTPlaybackTracer` (`:30-46`): gli enum e le struct nuove
-- Modify: `Turn/RTPresentationBinding.h:5` (include) e `:257-259` (dichiarazioni prima della `};` di `URTPresentationBindingLibrary`)
-- Modify: `Turn/RTPresentationBinding.cpp` in coda (`:445`): le definizioni
-- Create: `Tests/RTAbilityFxProfileTests.cpp`
+- Modify: `Turn/Playback/RTPlaybackTracer.h:13-22` (`Zigzag` in coda a `ERTTracerStyle`) e in coda al file dopo `FRTPlaybackTracer` (`:30-46`): gli enum e le struct nuove
+- Modify: `Turn/Playback/RTPresentationBinding.h:5` (include) e `:257-259` (dichiarazioni prima della `};` di `URTPresentationBindingLibrary`)
+- Modify: `Turn/Playback/RTPresentationBinding.cpp` in coda (`:445`): le definizioni
+- Create: `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`
 
 **Interfaces:**
-- Produces (in `Map/RTPlaybackTracer.h`):
+- Produces (in `Turn/Playback/RTPlaybackTracer.h`):
   ```cpp
   enum class ERTTracerStyle : uint8 { None, Projectile, Jet, Zigzag };
   enum class ERTActivationFxStyle : uint8 { None, Ring, Pulse, Flash };
@@ -211,7 +211,7 @@ EOF
   static FRTAbilityFxProfile FxProfileForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides, FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
   static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
   ```
-- Consumes: `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/RTHeroCatalogLibrary.h:161`), `URTHeroData::Actions` (`Ability/RTHeroData.h:164`), `URTActionData::Shape` (`Ability/RTActionData.h:128`), `FRTActionDef::ActionId`/`BaseActionId` (`Ability/RTActionDef.h:513`, `:528`).
+- Consumes: `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/Catalog/RTHeroCatalogLibrary.h:161`), `URTHeroData::Actions` (`Ability/RTHeroData.h:164`), `URTActionData::Shape` (`Ability/RTActionData.h:128`), `FRTActionDef::ActionId`/`BaseActionId` (`Ability/RTActionDef.h:513`, `:528`).
 
 ➕ piano. `FRTPlaybackCue` e `ERTPlaybackCueKind` nascono qui (sono tipi, non comportamento) perché i Task 3, 4 e 5 li consumano con la stessa firma; nessun codice li usa prima del Task 3.
 
@@ -220,17 +220,17 @@ EOF
 ```bash
 git grep -n "ERTAbilityShape::Cone" -- Source ':!Source/RefactorTactics/Tests'
 git grep -n "case ERTTracerStyle" -- Source
-grep -ohE 'TEXT\("Hero\.(Aevik|Muiren|Branth|Ivrin)\.[A-Za-z]+"\)' Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp | sort -u
+grep -ohE 'TEXT\("Hero\.(Aevik|Muiren|Branth|Ivrin)\.[A-Za-z]+"\)' Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp | sort -u
 ```
 
-Attesi: il primo risponde solo `Combat/RTHexCombatLibrary.cpp:42` e `UI/RTHudViewModel.cpp:464` (il `Cone` senza contenuto, spec §1); il secondo **nessuna** riga (nessuno `switch` da completare per `Zigzag`: `TracerSegment` usa `if`, `Turn/RTPlaybackLibrary.cpp:56-77`; misurato in pianificazione); il terzo contiene ogni `ActionId` `Hero.*` delle righe d'override qui sotto. Se una premessa cade, ci si ferma e si riporta.
+Attesi: il primo risponde solo `Combat/RTHexCombatLibrary.cpp:42` e `UI/HUD/RTHudViewModel.cpp:464` (il `Cone` senza contenuto, spec §1); il secondo **nessuna** riga (nessuno `switch` da completare per `Zigzag`: `TracerSegment` usa `if`, `Turn/Playback/RTPlaybackLibrary.cpp:56-77`; misurato in pianificazione); il terzo contiene ogni `ActionId` `Hero.*` delle righe d'override qui sotto. Se una premessa cade, ci si ferma e si riporta.
 
 - [ ] **Step 1: I test rossi**
 
-Crea `Tests/RTAbilityFxProfileTests.cpp`. ⚠️ Uno strumento di scrittura produce LF: subito dopo la creazione converti a CRLF e verifica con `file` → `with CRLF line terminators`:
+Crea `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`. ⚠️ Uno strumento di scrittura produce LF: subito dopo la creazione converti a CRLF e verifica con `file` → `with CRLF line terminators`:
 
 ```powershell
-$f = "<checkout>/Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp"
+$f = "<checkout>/Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp"
 $t = [IO.File]::ReadAllText($f) -replace "`r`n","`n" -replace "`n","`r`n"
 [IO.File]::WriteAllText($f, $t, [Text.UTF8Encoding]::new($false))
 ```
@@ -246,11 +246,11 @@ Il contenuto:
 // ⚠️ Nomi distinti per file: in unity build i test condividono la translation unit.
 
 #include "Misc/AutomationTest.h"
-#include "Map/RTPlaybackTracer.h"
-#include "Turn/RTPresentationBinding.h"
-#include "Turn/RTPlaybackLibrary.h"
-#include "Turn/RTResolvedEvent.h"
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Turn/Playback/RTPlaybackTracer.h"
+#include "Turn/Playback/RTPresentationBinding.h"
+#include "Turn/Playback/RTPlaybackLibrary.h"
+#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Perception/RTTeamKnowledge.h"
@@ -486,7 +486,7 @@ Run: build. Expected: **rosso di compilazione** — `FRTAbilityFxProfile`, `ERTA
 
 - [ ] **Step 3: I tipi**
 
-`Map/RTPlaybackTracer.h`, in `ERTTracerStyle` dopo `Jet,` (`:21`):
+`Turn/Playback/RTPlaybackTracer.h`, in `ERTTracerStyle` dopo `Jet,` (`:21`):
 
 ```cpp
 	/**
@@ -600,11 +600,11 @@ struct FRTPlaybackCue
 
 - [ ] **Step 4: La tabella**
 
-`Turn/RTPresentationBinding.h`, dopo `#include "Turn/RTResolvedEvent.h"` (`:5`):
+`Turn/Playback/RTPresentationBinding.h`, dopo `#include "Turn/Resolution/RTResolvedEvent.h"` (`:5`):
 
 ```cpp
 // #3578: il profilo FX vive accanto al tracer (`FRTAbilityFxProfile`). Header di soli tipi di valore.
-#include "Map/RTPlaybackTracer.h"
+#include "Turn/Playback/RTPlaybackTracer.h"
 ```
 
 Dopo la dichiarazione di `StyleForMovement` (`:257-258`), prima della `};` della classe (`:259`):
@@ -646,7 +646,7 @@ Dopo la dichiarazione di `StyleForMovement` (`:257-258`), prima della `};` della
 	static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
 ```
 
-`Turn/RTPresentationBinding.cpp`, in coda al file (dopo `:445`):
+`Turn/Playback/RTPresentationBinding.cpp`, in coda al file (dopo `:445`):
 
 ```cpp
 
@@ -762,7 +762,7 @@ Run: build; test `RefactorTactics.Fx`, log `<scratchpad>/t1-fx.log`. Expected: i
 - [ ] **Step 6: Commit, poi mutazioni (1), (2), (3), (4), (18), (P1)**
 
 ```bash
-git add Source/RefactorTactics/Map/RTPlaybackTracer.h Source/RefactorTactics/Turn/RTPresentationBinding.h Source/RefactorTactics/Turn/RTPresentationBinding.cpp Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp
+git add Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp
 git commit -F - <<'EOF'
 feat(3578): il profilo FX per abilita' — tipi, default per forma, override approvati, ripiego ActionId/BaseActionId/forma
 
@@ -770,9 +770,9 @@ Co-Authored-By: Claude <modello> <noreply@anthropic.com>
 EOF
 ```
 
-Ogni mutazione: modifica, build, test `RefactorTactics.Fx`, `Result={Fail}` sull'asserto indicato, `git checkout -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp`, build, verde.
+Ogni mutazione: modifica, build, test `RefactorTactics.Fx`, `Result={Fail}` sull'asserto indicato, `git checkout -- Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp`, build, verde.
 
-1. In `DefaultFxProfileFor`, `case ERTAbilityShape::Line:` → `ERTTracerStyle::Jet` diventa `ERTTracerStyle::Projectile`. Cade `Fx.DefaultProfileFollowsShape` «🔴 Line → Jet». (Dal Task 2 cade anche `Playback.TracerStyleFollowsShapeForBasicAttack` «Line -> getto», `Tests/RTPlaybackLibraryTests.cpp:428-429`: lo si ripete al Task 2 Step 7, ➕ rev2.)
+1. In `DefaultFxProfileFor`, `case ERTAbilityShape::Line:` → `ERTTracerStyle::Jet` diventa `ERTTracerStyle::Projectile`. Cade `Fx.DefaultProfileFollowsShape` «🔴 Line → Jet». (Dal Task 2 cade anche `Playback.TracerStyleFollowsShapeForBasicAttack` «Line -> getto», `Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:428-429`: lo si ripete al Task 2 Step 7, ➕ rev2.)
 2. In `FxProfileForIn`, sposta `return DefaultFxProfileFor(Shape);` subito dopo la guardia R12, prima di `if (!ActionId.IsNone())`. Cade `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 ActionId vince». ➕ esecuzione (Task 1). Alla lettera **non compila**: il codice dopo il `return` è irraggiungibile, e `C4702` in questo progetto è un errore. La forma eseguita, con la stessa semantica, è una guardia sempre vera subito dopo la guardia R12: `if (Overrides.Num() >= 0) { return DefaultFxProfileFor(Shape); }`. Cadono **tre** test, perché leggono la forma al posto della riga: `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 ActionId vince», `Fx.BaseActionOverrideWinsOverShapeDefault` e `Fx.DeclaredOverridesMatchTheProposal`.
 3. In `FxProfileForIn`, cancella il blocco `if (!BaseActionId.IsNone()) { … }`. Cadono `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 senza ActionId in tabella, vince BaseActionId» **e** `Fx.BaseActionOverrideWinsOverShapeDefault` «🔴 una carica senza riga propria…».
 4. In `DeclaredFxOverrideRows`, cancella `Riga(TEXT("Hero.Muiren.TideGuard"), …);`. Cade `Fx.DeclaredOverridesMatchTheProposal` «Hero.Muiren.TideGuard: il profilo e' quello approvato».
@@ -784,11 +784,11 @@ P1. In `DeclaredFxOverrideRows`, duplica la riga di `Hero.Ivrin.Feint`. Cade `Fx
 ### Task 2: Il tracer segue il profilo — volo dalla forma (R13), disegno dall'override, `Zigzag` puro
 
 **Files:**
-- Modify: `Turn/RTPlaybackLibrary.h:276-288` (commenti e dichiarazioni di `IsTracerEligible`/`TracerStyleFor`, «PROVVISORIA» `⌫`) e, dopo `:288`, le dichiarazioni nuove
-- Modify: `Turn/RTPlaybackLibrary.cpp:1` (include) e `:130-148` (i due corpi), più le definizioni nuove dopo `:148`
+- Modify: `Turn/Playback/RTPlaybackLibrary.h:276-288` (commenti e dichiarazioni di `IsTracerEligible`/`TracerStyleFor`, «PROVVISORIA» `⌫`) e, dopo `:288`, le dichiarazioni nuove
+- Modify: `Turn/Playback/RTPlaybackLibrary.cpp:1` (include) e `:130-148` (i due corpi), più le definizioni nuove dopo `:148`
 - Modify: `Turn/RTTurnManager.h:685` (seam `PlaybackPhaseElapsedForTest`)
 - Modify: `Turn/RTTurnManager.cpp:7951-7959` (il commento del volo: idoneità = forma di default)
-- Test: `Tests/RTPlaybackLibraryTests.cpp` (include `:1-5`; riscrittura dichiarata di `:433-438`; test nuovi dopo la `}` di `FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest::RunTest`, `:500`), `Tests/RTAbilityFxProfileTests.cpp` (un asserto in `Fx.NoActionNoProfile`), `Tests/RTPlaybackActivationTests.cpp` (un test prima di `#endif`, `:688`)
+- Test: `Tests/Turn/Playback/RTPlaybackLibraryTests.cpp` (include `:1-5`; riscrittura dichiarata di `:433-438`; test nuovi dopo la `}` di `FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest::RunTest`, `:500`), `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp` (un asserto in `Fx.NoActionNoProfile`), `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp` (un test prima di `#endif`, `:688`)
 
 **Interfaces:**
 - Produces (statiche C++ in `URTPlaybackLibrary`):
@@ -810,21 +810,21 @@ git grep -ln "EnsureDefaultAbilities\|AttackBeatTraceForTest\|NumPlaybackTracers
 git grep -n "Hero.Branth.Ram\|Action.Charge\|Hero.Aevik.LinearDischarge\|Hero.Ivrin.PassingBlade" -- Source/RefactorTactics/Tests
 ```
 
-Alla re-review il secondo dava `RTPlaybackActivationTests.cpp:363`, `:497`, `:637`, `:650` e `RTPlaybackStopPredicateTests.cpp:975`. ➕ esecuzione (Task 2). All'esecuzione dava **anche** `Tests/RTAbilityActivatedTests.cpp` (righe con `Hero.Branth.Ram`): test `Turn.*` sulla timeline risolta, nessun tick del playback. E R13 dà un volo a **ogni** `Attack` con un id e forma di default `Single`/`Line`, non ai soli nomi del grep (`Ram`, `Charge`, `LinearDischarge`, `PassingBlade`): il filtro di questo step e dello Step 6 si è allargato alle famiglie `Playback`, `Privacy`, `Reactions`, `Turn`, `HexMatch`, `HexBotPlay`, `Actions`, `HexBlast`, `HexMapActor`, senza differenze d'esito. Rileggi **ogni** occorrenza e annota in `<scratchpad>/t2-ritmo.md` se asserisce un istante del Blast (un tick, un `L<i>`/`A<i>` in un tick dato, una durata). Poi lancia i file che ne contengono, **prima** del codice:
+Alla re-review il secondo dava `RTPlaybackActivationTests.cpp:363`, `:497`, `:637`, `:650` e `RTPlaybackStopPredicateTests.cpp:975`. ➕ esecuzione (Task 2). All'esecuzione dava **anche** `Tests/Ability/RTAbilityActivatedTests.cpp` (righe con `Hero.Branth.Ram`): test `Turn.*` sulla timeline risolta, nessun tick del playback. E R13 dà un volo a **ogni** `Attack` con un id e forma di default `Single`/`Line`, non ai soli nomi del grep (`Ram`, `Charge`, `LinearDischarge`, `PassingBlade`): il filtro di questo step e dello Step 6 si è allargato alle famiglie `Playback`, `Privacy`, `Reactions`, `Turn`, `HexMatch`, `HexBotPlay`, `Actions`, `HexBlast`, `HexMapActor`, senza differenze d'esito. Rileggi **ogni** occorrenza e annota in `<scratchpad>/t2-ritmo.md` se asserisce un istante del Blast (un tick, un `L<i>`/`A<i>` in un tick dato, una durata). Poi lancia i file che ne contengono, **prima** del codice:
 
 ```text
 RefactorTactics.Playback.ActivationPlaysTheCastCue+RefactorTactics.Playback.DashStepLandsOnCellsAfterTheActivations+RefactorTactics.Playback.DashPhaseOpensForActivationsOnly+RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip+RefactorTactics.Playback.NextActionStopsOnPrepAndDashActivations+RefactorTactics.Playback.NextActionStopsAtTheActionBoundary+RefactorTactics.Playback.NextActionDoesNotStopTwiceWithinOneIntent+RefactorTactics.Playback.PhaseEndNetStopsWithThePause+RefactorTactics.Playback.NextPhaseStopsAtThePhaseBoundary+RefactorTactics.Playback.Tracer+RefactorTactics.Playback.HitArrivesAfterTheLaunch+RefactorTactics.Playback.AttackBeatsStayOrderedInOneTick+RefactorTactics.Privacy.UnseenAttacker+RefactorTactics.Playback.EveryAttackArrivesByPhaseEnd+RefactorTactics.Playback.EveryChannelIsFullyRevealedByPhaseEnd
 ```
 
-(log `<scratchpad>/t2-prima.log`; i cinque nomi `NextAction…`/`PhaseEndNet…`/`NextPhase…` sono i test di `Tests/RTPlaybackStopPredicateTests.cpp` — nessuno comincia con `Stop`, misurato in review; la riga `:975` sta in uno di loro e usa `Ram` nel Dash. Rimisura l'elenco con `grep -n '"RefactorTactics\.' Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp` e aggiungi un nome nuovo se ce n'è). Annota esiti per nome: lo Step 6 li rilancia e confronta.
+(log `<scratchpad>/t2-prima.log`; i cinque nomi `NextAction…`/`PhaseEndNet…`/`NextPhase…` sono i test di `Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp` — nessuno comincia con `Stop`, misurato in review; la riga `:975` sta in uno di loro e usa `Ram` nel Dash. Rimisura l'elenco con `grep -n '"RefactorTactics\.' Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp` e aggiungi un nome nuovo se ce n'è). Annota esiti per nome: lo Step 6 li rilancia e confronta.
 
 - [ ] **Step 1: I test rossi**
 
-`Tests/RTPlaybackLibraryTests.cpp`, dopo `#include "Turn/RTTurnRules.h"` (`:5`):
+`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`, dopo `#include "Turn/Resolution/RTTurnRules.h"` (`:5`):
 
 ```cpp
-#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX, la tabella e il default per forma
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Turn/Playback/RTPresentationBinding.h" // #3578: il profilo FX, la tabella e il default per forma
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 ```
@@ -898,7 +898,7 @@ bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
 
 /**
  * D5/R3 come REGOLA: per ogni attacco base del roster (lista = funzione del catalogo, `MakeHeroBasicAttack` scrive
- * `BaseActionId`, `Ability/RTHeroCatalogLibrary.cpp:162-168`) il tracer e' il default della forma e volo e stile sono
+ * `BaseActionId`, `Ability/Catalog/RTHeroCatalogLibrary.cpp:162-168`) il tracer e' il default della forma e volo e stile sono
  * quelli di prima di #3578.
  * ✅ Validato per mutazione (6): un override `Zigzag` su `PressureJet` (righe E copia del test della tabella).
  */
@@ -1025,7 +1025,7 @@ bool FRTPlaybackTracerZigzagGrowsAsAPrefixTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTAbilityFxProfileTests.cpp`, in `FRTFxNoActionNoProfileTest::RunTest`, prima di `return true;` (mutazione (22), ➕ rev2.):
+`Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, in `FRTFxNoActionNoProfileTest::RunTest`, prima di `return true;` (mutazione (22), ➕ rev2.):
 
 ```cpp
 
@@ -1043,7 +1043,7 @@ bool FRTPlaybackTracerZigzagGrowsAsAPrefixTest::RunTest(const FString&)
 	TestTrue(TEXT("controllo: con un id la stessa geometria e' idonea"), URTPlaybackLibrary::IsTracerEligible(ConId));
 ```
 
-`Tests/RTPlaybackActivationTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS` (`:688`):
+`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS` (`:688`):
 
 ```cpp
 
@@ -1101,11 +1101,11 @@ Run: build. Expected: **rosso di compilazione** — `TracerStyleForIn`, `TracerP
 
 - [ ] **Step 3: Idoneità e stile**
 
-`Turn/RTPlaybackLibrary.cpp`, dopo `#include "Turn/RTPlaybackLibrary.h"` (`:1`):
+`Turn/Playback/RTPlaybackLibrary.cpp`, dopo `#include "Turn/Playback/RTPlaybackLibrary.h"` (`:1`):
 
 ```cpp
 
-#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
+#include "Turn/Playback/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
 ```
 
 Sostituisci i corpi di `IsTracerEligible` e `TracerStyleFor` (`:130-148`, ancora: `static const FName BasicAttack(TEXT("Action.BasicAttack"));`) con:
@@ -1175,7 +1175,7 @@ void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& Fro
 }
 ```
 
-`Turn/RTPlaybackLibrary.h`, sostituisci i due commenti `:276-288` (ancora: `Idoneita' PROVVISORIA e dichiarata`) con:
+`Turn/Playback/RTPlaybackLibrary.h`, sostituisci i due commenti `:276-288` (ancora: `Idoneita' PROVVISORIA e dichiarata`) con:
 
 ```cpp
 	/**
@@ -1206,7 +1206,7 @@ void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& Fro
 		float HexSize, TArray<FVector>& OutPoints);
 ```
 
-`URTPlaybackLibrary.h` include già `Map/RTPlaybackTracer.h` (`:5`), quindi `FRTAbilityFxProfile` è visibile.
+`URTPlaybackLibrary.h` include già `Turn/Playback/RTPlaybackTracer.h` (`:5`), quindi `FRTAbilityFxProfile` è visibile.
 
 `Turn/RTTurnManager.h`, dopo `int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }` (`:685`):
 
@@ -1238,7 +1238,7 @@ Rilancia il filtro dello Step 0, log `<scratchpad>/t2-dopo.log`, e confronta per
 - [ ] **Step 7: Commit, poi mutazioni (5), (6), (17), (19), (22), e (1) ripetuta**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp
+git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp
 git commit -F - <<'EOF'
 feat(3578): il tracer segue il profilo FX — volo dalla forma di default, disegno dall'override, zigzag puro
 
@@ -1265,10 +1265,10 @@ Ogni mutazione: modifica, build, filtro `RefactorTactics.Fx+RefactorTactics.Play
 - Modify: `Turn/RTTurnManager.cpp:337-346` (`EmitAbilityActivated`: `Ev.Origin` e il soggetto letto una volta, ancora `Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Source));` a `:344`)
 - Modify: `Turn/RTTurnManager.cpp:8853-8862` (ramo Prep/Dash del tick), `:8874` (`ON_SCOPE_EXIT` del Blast), `:8932-8940` e `:8963-8967` (spegnimento a fine fase), `:9193` e `:9199` (`FinishPlayback`), e dopo `:8366` (`PushPlaybackCues`, accanto a `PushPlaybackTracers`)
 - Modify: `Turn/RTTurnManager.h:636-640` (gancio `bSkipFxFieldsForTest`), `:1316-1318` (due manopole), `:2441-2447` (dichiarazione), `:3480-3485` (flag del canale)
-- Modify: `Turn/RTPlaybackLibrary.h` (dopo `TracerPolyline`, Task 2) e `.cpp` (dopo `TracerPolyline`)
-- Modify: `Turn/RTResolvedEvent.h:407-409` (nota dei campi: `Origin` anche per `AbilityActivated`) e `:436-444` (commento di `Origin`)
-- Modify: `Map/RTHexMapActor.h:917-930` (il canale) e `:1095` (il membro); `Map/RTHexMapActor.cpp:1093-1108` (`HasAnythingToDraw`) e dopo `:1188` (`Set`/`Clear`)
-- Test: `Tests/RTAbilityFxProfileTests.cpp`, `Tests/RTPlaybackActivationTests.cpp`, `Tests/RTAttackTracerTests.cpp` (prima di `#endif`, `:270`), `Tests/RTHexMapActorTests.cpp` (prima di `#endif`, `:2169`)
+- Modify: `Turn/Playback/RTPlaybackLibrary.h` (dopo `TracerPolyline`, Task 2) e `.cpp` (dopo `TracerPolyline`)
+- Modify: `Turn/Resolution/RTResolvedEvent.h:407-409` (nota dei campi: `Origin` anche per `AbilityActivated`) e `:436-444` (commento di `Origin`)
+- Modify: `Map/Actor/RTHexMapActor.h:917-930` (il canale) e `:1095` (il membro); `Map/Actor/RTHexMapActor.cpp:1093-1108` (`HasAnythingToDraw`) e dopo `:1188` (`Set`/`Clear`)
+- Test: `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`, `Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp` (prima di `#endif`, `:270`), `Tests/Map/Actor/RTHexMapActorTests.cpp` (prima di `#endif`, `:2169`)
 
 **Interfaces:**
 - Produces (statiche C++ in `URTPlaybackLibrary`):
@@ -1283,13 +1283,13 @@ Ogni mutazione: modifica, build, filtro `RefactorTactics.Fx+RefactorTactics.Play
   ```
 - Produces (in `ARTTurnManager`): `float ActivationCueSeconds = 0.35f;`, `float ImpactCueSeconds = 0.20f;` (`UPROPERTY`), `bool bSkipFxFieldsForTest = false;`, `void PushPlaybackCues(ERTMatchPhase Phase);`, `bool bPlaybackCueChannelFull = false;`
 - Produces (in `ARTHexMapActor`): `void SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues);`, `void ClearPlaybackCues();`, `int32 NumPlaybackCues() const;`, `const TArray<FRTPlaybackCue>& GetPlaybackCues() const;`
-- Consumes: `FRTPlaybackCue`, `ERTPlaybackCueKind` (Task 1); `FxProfileFor` (Task 1); `AttackLaunchSeconds` (`Turn/RTPlaybackLibrary.h:256`); `FRTLogSubject::Unit`, `GetFactCell` (`Turn/RTCombatLog.h:26`, `:82`).
+- Consumes: `FRTPlaybackCue`, `ERTPlaybackCueKind` (Task 1); `FxProfileFor` (Task 1); `AttackLaunchSeconds` (`Turn/Playback/RTPlaybackLibrary.h:256`); `FRTLogSubject::Unit`, `GetFactCell` (`Turn/Log/RTCombatLog.h:26`, `:82`).
 
 ➕ piano. (i) `PushPlaybackCues` prende la fase come argomento (la spec scrive `PushPlaybackCues()`): `TickPlayback` la conosce già come `Ph`, e un secondo modo di leggerla sarebbe una seconda risposta. (ii) Il canale della mappa (`Set`/`Clear`/`Get`, `HasAnythingToDraw`, mutazione (15)) sta **qui** e non nel Task 5: il test d'attivazione ne è il primo lettore; il Task 5 ne fa il **disegno**. (iii) Le due manopole nascono insieme (R2 è una coppia); `ImpactCueSeconds` ha il primo lettore nel Task 4. (iv) Le manopole usano gli specificatori **delle vicine reali** (`Turn/RTTurnManager.h:1305-1318`: `EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback"`, **senza** `meta = (ClampMin…)`): la spec (F18) chiede «gli stessi specificatori delle vicine» e cita un `meta` che le vicine non hanno; vince la regola, non la citazione. Il taglio a zero lo fa `ActivationCueDuration`.
 
 - [ ] **Step 1: I test rossi**
 
-`Tests/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
+`Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
 
 ```cpp
 
@@ -1346,7 +1346,7 @@ bool FRTPrivacyActivationCueNeedsTheSourceTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTPlaybackActivationTests.cpp`: nel namespace anonimo, prima della sua `}` di chiusura (`:138`, ancora: `.PerAction.FindOrAdd(ActionId).PerRole.Add(Ruolo, Pool);` seguita da `}` e `}`), aggiungi:
+`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`: nel namespace anonimo, prima della sua `}` di chiusura (`:138`, ancora: `.PerAction.FindOrAdd(ActionId).PerRole.Add(Ruolo, Pool);` seguita da `}` e `}`), aggiungi:
 
 ```cpp
 
@@ -1538,7 +1538,7 @@ bool FRTPrivacyHiddenSourceDeliversNoActivationCueTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTAttackTracerTests.cpp`, prima di `#endif` (`:270`):
+`Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp`, prima di `#endif` (`:270`):
 
 ```cpp
 
@@ -1607,7 +1607,7 @@ bool FRTDeterminismFxFieldsOutOfHashesTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTHexMapActorTests.cpp`, in coda al file, subito prima di `#endif // WITH_DEV_AUTOMATION_TESTS` (`:2169`; rimisura con `grep -n "^#endif" Source/RefactorTactics/Tests/RTHexMapActorTests.cpp | tail -1`). ⚠️ La `}` di `:2167` chiude il `RunTest` dell'ultimo test, non un namespace: il namespace anonimo degli helper (`MakeMapActorWorld`, `SpawnMapActor`, `MakeActorTestAsset`) chiude a `:352`, e i test stanno fuori da esso. Il test nuovo va **dopo** quella `}` e **prima** di `#endif`:
+`Tests/Map/Actor/RTHexMapActorTests.cpp`, in coda al file, subito prima di `#endif // WITH_DEV_AUTOMATION_TESTS` (`:2169`; rimisura con `grep -n "^#endif" Source/RefactorTactics/Tests/Map/Actor/RTHexMapActorTests.cpp | tail -1`). ⚠️ La `}` di `:2167` chiude il `RunTest` dell'ultimo test, non un namespace: il namespace anonimo degli helper (`MakeMapActorWorld`, `SpawnMapActor`, `MakeActorTestAsset`) chiude a `:352`, e i test stanno fuori da esso. Il test nuovo va **dopo** quella `}` e **prima** di `#endif`:
 
 ```cpp
 
@@ -1707,7 +1707,7 @@ Run: build. Expected: **rosso di compilazione** — `ActivationCueFor`, `Activat
 	bool bSkipFxFieldsForTest = false;
 ```
 
-`Turn/RTResolvedEvent.h`, nella nota dei campi (`:407-409`, ancora: `\`AimCell\` e \`Shape\` anche per \`AbilityActivated\` (#3549)`), sostituisci `//     \`AimCell\` e \`Shape\` anche per \`AbilityActivated\` (#3549). Gli altri campi: vuoti/di default per ogni` con:
+`Turn/Resolution/RTResolvedEvent.h`, nella nota dei campi (`:407-409`, ancora: `\`AimCell\` e \`Shape\` anche per \`AbilityActivated\` (#3549)`), sostituisci `//     \`AimCell\` e \`Shape\` anche per \`AbilityActivated\` (#3549). Gli altri campi: vuoti/di default per ogni` con:
 
 ```cpp
 	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549), e `Origin` anche per `AbilityActivated` (#3578: la
@@ -1724,7 +1724,7 @@ e nel commento di `Origin` (`:436-442`), dopo la riga `ragione per cui \`FRTBlas
 
 - [ ] **Step 4: La cue pura**
 
-`Turn/RTPlaybackLibrary.h`, dopo la dichiarazione di `TracerPolyline` (Task 2):
+`Turn/Playback/RTPlaybackLibrary.h`, dopo la dichiarazione di `TracerPolyline` (Task 2):
 
 ```cpp
 
@@ -1751,7 +1751,7 @@ e nel commento di `Origin` (`:436-442`), dopo la riga `ragione per cui \`FRTBlas
 		float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
 ```
 
-`Turn/RTPlaybackLibrary.cpp`, dopo `TracerPolyline`:
+`Turn/Playback/RTPlaybackLibrary.cpp`, dopo `TracerPolyline`:
 
 ```cpp
 
@@ -1835,7 +1835,7 @@ void URTPlaybackLibrary::BlastActivationCuesAt(const TArray<FRTResolvedEvent>& T
 
 - [ ] **Step 5: Il canale della mappa**
 
-`Map/RTHexMapActor.h`, dopo `const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }` (`:930`):
+`Map/Actor/RTHexMapActor.h`, dopo `const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }` (`:930`):
 
 ```cpp
 
@@ -1863,7 +1863,7 @@ Dopo `TArray<FRTPlaybackTracer> PlaybackTracers;` (`:1095`):
 	TArray<FRTPlaybackCue> PlaybackCues;
 ```
 
-`Map/RTHexMapActor.cpp`, in `HasAnythingToDraw` dopo `|| PlaybackTracers.Num() > 0` (`:1105`):
+`Map/Actor/RTHexMapActor.cpp`, in `HasAnythingToDraw` dopo `|| PlaybackTracers.Num() > 0` (`:1105`):
 
 ```cpp
 		|| PlaybackCues.Num() > 0
@@ -2008,12 +2008,12 @@ e dopo `bPlaybackTracerChannelFull = false;` (`:9199`):
 
 - [ ] **Step 7: Build e verde**
 
-Run: build; test `RefactorTactics.Privacy.ActivationCueNeedsTheSource+RefactorTactics.Playback.ActivationCueAtTheSourceCell+RefactorTactics.Privacy.HiddenSourceDeliversNoActivationCue+RefactorTactics.Determinism.FxFieldsStayOutOfHashes+RefactorTactics.HexMapActor.PlaybackCueIsItsOwnChannel`, log `<scratchpad>/t3-verde.log`. Expected: verdi. Poi `RefactorTactics.Playback+RefactorTactics.Determinism+RefactorTactics.HexMapActor+RefactorTactics.Unit.BlueprintSurfaceIsCensused`, log `<scratchpad>/t3-gate.log`: verdi (`Unit.BlueprintSurfaceIsCensused` invariato: nessuna proprietà nuova su `ARTUnit`). Se `ActivationCueAtTheSourceCell` fallisce su una **premessa** (la carica non parte, `Ev.Origin == Caricatore->Cell`), non si allenta: si estende la fixture (cella di partenza più lontana, `PlannedDashCell` letto da `Turn.ChargeActivatesInDashNotInBlast`, `Tests/RTAbilityActivatedTests.cpp`) finché la premessa vale.
+Run: build; test `RefactorTactics.Privacy.ActivationCueNeedsTheSource+RefactorTactics.Playback.ActivationCueAtTheSourceCell+RefactorTactics.Privacy.HiddenSourceDeliversNoActivationCue+RefactorTactics.Determinism.FxFieldsStayOutOfHashes+RefactorTactics.HexMapActor.PlaybackCueIsItsOwnChannel`, log `<scratchpad>/t3-verde.log`. Expected: verdi. Poi `RefactorTactics.Playback+RefactorTactics.Determinism+RefactorTactics.HexMapActor+RefactorTactics.Unit.BlueprintSurfaceIsCensused`, log `<scratchpad>/t3-gate.log`: verdi (`Unit.BlueprintSurfaceIsCensused` invariato: nessuna proprietà nuova su `ARTUnit`). Se `ActivationCueAtTheSourceCell` fallisce su una **premessa** (la carica non parte, `Ev.Origin == Caricatore->Cell`), non si allenta: si estende la fixture (cella di partenza più lontana, `PlannedDashCell` letto da `Turn.ChargeActivatesInDashNotInBlast`, `Tests/Ability/RTAbilityActivatedTests.cpp`) finché la premessa vale.
 
 - [ ] **Step 8: Commit, poi mutazioni (7), (8), (15), (P5)**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTResolvedEvent.h Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp Source/RefactorTactics/Tests/RTAttackTracerTests.cpp Source/RefactorTactics/Tests/RTHexMapActorTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp Source/RefactorTactics/Tests/Map/Actor/RTHexMapActorTests.cpp
 git commit -F - <<'EOF'
 feat(3578): il segnale di attivazione — Ev.Origin dal produttore, la cue del profilo dietro SourceVerdict, il canale di mappa
 
@@ -2037,11 +2037,11 @@ P5. In `HasAnythingToDraw`, cancella `|| PlaybackCues.Num() > 0`. Stesso test: c
 ### Task 4: Le cue di colpo — `Marker` all'arrivo, `AreaPulse`/`ConeSweep` una volta per impronta, R14
 
 **Files:**
-- Modify: `Turn/RTPlaybackLibrary.h` / `.cpp` (dopo `BlastActivationCuesAt`, Task 3; include di `RefactorTactics.h` per `LogRT`)
+- Modify: `Turn/Playback/RTPlaybackLibrary.h` / `.cpp` (dopo `BlastActivationCuesAt`, Task 3; include di `RefactorTactics.h` per `LogRT`)
 - Modify: `Turn/RTTurnManager.h:3486-3490` (membro `PlaybackBlastFootprintFx` accanto a `PlaybackBlastFlights`)
 - Modify: `Turn/RTTurnManager.cpp:7969-7975` (calcolo accanto ai voli in `BeginPlayback`), `PushPlaybackCues` (Task 3), `:9187` (reset in `FinishPlayback`), `:6374-6377` (commento `⌫`)
-- Modify: `Turn/RTResolvedEvent.h:196-197` e `:205-207` (commenti `⌫`: il `FromVerdict` del centro ora serve)
-- Test: `Tests/RTAbilityFxProfileTests.cpp`, `Tests/RTAttackTracerPlaybackTests.cpp` (include `:1-14`, test prima di `#endif`, `:365`)
+- Modify: `Turn/Resolution/RTResolvedEvent.h:196-197` e `:205-207` (commenti `⌫`: il `FromVerdict` del centro ora serve)
+- Test: `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, `Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp` (include `:1-14`, test prima di `#endif`, `:365`)
 
 **Interfaces:**
 - Produces (statiche C++ in `URTPlaybackLibrary`):
@@ -2060,11 +2060,11 @@ P5. In `HasAnythingToDraw`, cancella `|| PlaybackCues.Num() > 0`. Stesso test: c
 - [ ] **Step 0: Misure (F22 e la cura ad area) — sola lettura, esito nel report e nella PR**
 
 1. **`Hero.Aevik.ReactiveCapacitor` emette `Attack`? — CONFERMA: l'esito è già misurato (review del piano).** Il contrattacco **non** emette un evento `Attack`: l'unico `Ev.Type = ERTResolvedEventType::Attack` del Blast è a `Turn/RTTurnManager.cpp:6357`, nel ciclo sui colpi del **piano**; i contrattacchi entrano negli array dei colpi **dopo** (`:6460-6468`: `Attacks.Add(Counter.Attack)`, `AttackSrc.Add(Counter.SourceCell)`, …; commento a `:6470`). `Action.Counter` ha portata 0 e trigger `HitByDirectAttack`. La conferma sono due righe: `grep -n "ERTResolvedEventType::Attack;" Source/RefactorTactics/Turn/RTTurnManager.cpp` (atteso: la sola `:6357`) e `grep -n "Reactions.CounterAttacks" Source/RefactorTactics/Turn/RTTurnManager.cpp` (atteso: il `for` a `:6460`, dopo la `}` del ciclo dei colpi). Esito in `<scratchpad>/t4-misure.md` con le righe. **Azione: nessuna riga d'override, nessun `Tracer = None`** — `ReactiveCapacitor` non ha un colpo da disegnare; la PR lo dichiara come chiusura di F22. Se la conferma fallisce (il contrattacco è diventato un `Attack`), ci si ferma e si riporta: la riga è una decisione dell'autore.
-2. **`Hero.Muiren.CircularTide` emette `Attack` e `AttackFootprint`?** (`Ability/RTHeroCatalogLibrary.cpp:518-522`, fase `Attack`, priorità 60; variante `Healing` a `:664`). Leggi gli effetti e, se serve, il ciclo dell'impronta (`Turn/RTTurnManager.cpp:5598-5611`). Esito in `<scratchpad>/t4-misure.md`: se la cura non emette `Attack`, il suo `AreaPulse` non ha consumatore (spec §7, follow-up), e la PR lo dice; nessun codice cambia qui.
+2. **`Hero.Muiren.CircularTide` emette `Attack` e `AttackFootprint`?** (`Ability/Catalog/RTHeroCatalogLibrary.cpp:518-522`, fase `Attack`, priorità 60; variante `Healing` a `:664`). Leggi gli effetti e, se serve, il ciclo dell'impronta (`Turn/RTTurnManager.cpp:5598-5611`). Esito in `<scratchpad>/t4-misure.md`: se la cura non emette `Attack`, il suo `AreaPulse` non ha consumatore (spec §7, follow-up), e la PR lo dice; nessun codice cambia qui.
 
 - [ ] **Step 1: I test rossi**
 
-`Tests/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
+`Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
 
 ```cpp
 
@@ -2361,11 +2361,11 @@ bool FRTPlaybackFxCuesNeverOverlapInTheBlastTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTAttackTracerPlaybackTests.cpp`, dopo `#include "RTAttackPlaybackProbeForTest.h"` (`:14`):
+`Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`, dopo `#include "RTAttackPlaybackProbeForTest.h"` (`:14`):
 
 ```cpp
 #include "EngineUtils.h" // #3578: `TActorIterator`, per ritrovare l'attaccante della fixture
-#include "Turn/RTResolvedEvent.h"
+#include "Turn/Resolution/RTResolvedEvent.h"
 ```
 
 Nel namespace anonimo, prima della `}` che lo chiude (dopo `TickOfBeat`, `:102`):
@@ -2627,13 +2627,13 @@ Run: build. Expected: **rosso di compilazione** — `ImpactCueFor`, `FootprintCu
 
 - [ ] **Step 3: Le funzioni pure**
 
-`Turn/RTPlaybackLibrary.cpp`, dopo l'include del Task 2:
+`Turn/Playback/RTPlaybackLibrary.cpp`, dopo l'include del Task 2:
 
 ```cpp
 #include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
 ```
 
-`Turn/RTPlaybackLibrary.h`, dopo `BlastActivationCuesAt` (Task 3):
+`Turn/Playback/RTPlaybackLibrary.h`, dopo `BlastActivationCuesAt` (Task 3):
 
 ```cpp
 
@@ -2672,7 +2672,7 @@ Run: build. Expected: **rosso di compilazione** — `ImpactCueFor`, `FootprintCu
 		float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
 ```
 
-`Turn/RTPlaybackLibrary.cpp`, dopo `BlastActivationCuesAt`:
+`Turn/Playback/RTPlaybackLibrary.cpp`, dopo `BlastActivationCuesAt`:
 
 ```cpp
 
@@ -2856,7 +2856,7 @@ In `FinishPlayback`, dopo `PlaybackBlastFlights.Reset();` (`:9187`):
 		// alla squadra dell'attaccante e, per le altre, solo se vedono il centro.
 ```
 
-`Turn/RTResolvedEvent.h:196-197`: `irrilevante finche' \`Area\` non e' idonea al tracer, ma e' il significato del campo.` diventa `da #3578 e' il centro dell'\`AreaPulse\` (spec «il profilo FX» §2.4).`; `:205-207`, in coda al commento di `FromVerdict`: `Da #3578 e' il verdetto dell'\`AreaPulse\`.`
+`Turn/Resolution/RTResolvedEvent.h:196-197`: `irrilevante finche' \`Area\` non e' idonea al tracer, ma e' il significato del campo.` diventa `da #3578 e' il centro dell'\`AreaPulse\` (spec «il profilo FX» §2.4).`; `:205-207`, in coda al commento di `FromVerdict`: `Da #3578 e' il verdetto dell'\`AreaPulse\`.`
 
 - [ ] **Step 6: Build e verde**
 
@@ -2869,7 +2869,7 @@ Run: `RefactorTactics.Playback+RefactorTactics.Privacy+RefactorTactics.Determini
 - [ ] **Step 8: Commit, poi mutazioni (9), (10), (11), (12), (13), (14), (16), (21), (P3), (P4)**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTResolvedEvent.h Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp
+git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp
 git commit -F - <<'EOF'
 feat(3578): le cue di colpo — Marker all'arrivo di ogni colpo, AreaPulse e ConeSweep una volta per impronta (R14)
 
@@ -2907,10 +2907,10 @@ P4. In `ImpactCueFor`, cancella `|| !Atk.HitGeometry.bResolved`. Test `RefactorT
 ### Task 5: Il disegno sulla mappa e D-278 — `CueSegments`, lo `Zigzag` disegnato, le voci dichiarate
 
 **Files:**
-- Modify: `Turn/RTPlaybackLibrary.h` / `.cpp` (`CueSegments`, dopo `BlastHitCuesAt`)
-- Modify: `Map/RTHexMapActor.cpp:172-179` (costanti graybox) e `:1659-1679` (il disegno: `Zigzag` nel ciclo dei tracer, poi le cue)
-- Modify: `Turn/RTPresentationBinding.cpp:36-42` (voce `Attack`) e `:265-272` (voce `AbilityActivated`)
-- Test: `Tests/RTAbilityFxProfileTests.cpp`, `Tests/RTPreviewLineBatcherTests.cpp` (prima di `#endif`, `:186`), `Tests/RTPresentationBindingTests.cpp` (prima di `#endif`, `:777`)
+- Modify: `Turn/Playback/RTPlaybackLibrary.h` / `.cpp` (`CueSegments`, dopo `BlastHitCuesAt`)
+- Modify: `Map/Actor/RTHexMapActor.cpp:172-179` (costanti graybox) e `:1659-1679` (il disegno: `Zigzag` nel ciclo dei tracer, poi le cue)
+- Modify: `Turn/Playback/RTPresentationBinding.cpp:36-42` (voce `Attack`) e `:265-272` (voce `AbilityActivated`)
+- Test: `Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, `Tests/Map/Actor/RTPreviewLineBatcherTests.cpp` (prima di `#endif`, `:186`), `Tests/Turn/Playback/RTPresentationBindingTests.cpp` (prima di `#endif`, `:777`)
 
 **Interfaces:**
 - Produces (statica C++ in `URTPlaybackLibrary`):
@@ -2918,7 +2918,7 @@ P4. In `ImpactCueFor`, cancella `|| !Atk.HitGeometry.bResolved`. Test `RefactorT
   static void CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize, float Alpha,
       TArray<FVector>& OutStarts, TArray<FVector>& OutEnds);
   ```
-- Consumes: `FRTPlaybackCue` (Task 1), `GetPlaybackCues`/`PlaybackCues` (Task 3), `TracerPolyline` (Task 2), `FootprintCueFor`/`FootprintFxForSequence` (Task 4), `DisegnaLineaAnteprima` (`Map/RTHexMapActor.cpp:1422-1435`), `URTOverlayPalette::ColorFor` (`Map/RTOverlayPalette.h`).
+- Consumes: `FRTPlaybackCue` (Task 1), `GetPlaybackCues`/`PlaybackCues` (Task 3), `TracerPolyline` (Task 2), `FootprintCueFor`/`FootprintFxForSequence` (Task 4), `DisegnaLineaAnteprima` (`Map/Actor/RTHexMapActor.cpp:1422-1435`), `URTOverlayPalette::ColorFor` (`Map/Actor/RTOverlayPalette.h`).
 
 La geometria (spec §2.1, F7, F21), con `s = HexSize`, vertici dell'esagono a `30° + 60°·i` nel piano:
 
@@ -2936,7 +2936,7 @@ Le coppie con lo stesso numero di segmenti (`Ring`/`Flash`, `Pulse`/`AreaPulse`)
 
 - [ ] **Step 1: I test rossi**
 
-`Tests/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
+`Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp`, prima di `// --- I test dei Task 3, 4 e 5 si aggiungono QUI`:
 
 ```cpp
 
@@ -3037,7 +3037,7 @@ bool FRTFxConeSweepAxisIsTheAimTest::RunTest(const FString&)
 
 ➕ esecuzione (Task 5, commit `e835c5fdd`). Con i letterali `float` della prima stesura il test non compilava: `C2666`, perché `FVector::Dist` e `FVector::Y` sono `double` (LWC) e `TestEqual(double, float, float)` è ambiguo. Il blocco qui sopra porta già i letterali `double`; asserti e tolleranze sono gli stessi.
 
-`Tests/RTPreviewLineBatcherTests.cpp`, prima di `#endif` (`:186`):
+`Tests/Map/Actor/RTPreviewLineBatcherTests.cpp`, prima di `#endif` (`:186`):
 
 ```cpp
 
@@ -3099,7 +3099,7 @@ bool FRTPreviewFxCuesDrawWithDebugDrawingOffTest::RunTest(const FString&)
 }
 ```
 
-`Tests/RTPresentationBindingTests.cpp`, prima di `#endif` (`:777`):
+`Tests/Turn/Playback/RTPresentationBindingTests.cpp`, prima di `#endif` (`:777`):
 
 ```cpp
 
@@ -3140,7 +3140,7 @@ Run: build. Expected: **rosso di compilazione** — `URTPlaybackLibrary::CueSegm
 
 - [ ] **Step 3: La geometria pura**
 
-`Turn/RTPlaybackLibrary.h`, dopo `BlastHitCuesAt`:
+`Turn/Playback/RTPlaybackLibrary.h`, dopo `BlastHitCuesAt`:
 
 ```cpp
 
@@ -3153,7 +3153,7 @@ Run: build. Expected: **rosso di compilazione** — `URTPlaybackLibrary::CueSegm
 		TArray<FVector>& OutStarts, TArray<FVector>& OutEnds);
 ```
 
-`Turn/RTPlaybackLibrary.cpp`, dopo `BlastHitCuesAt`:
+`Turn/Playback/RTPlaybackLibrary.cpp`, dopo `BlastHitCuesAt`:
 
 ```cpp
 
@@ -3238,7 +3238,7 @@ void URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind Kind, const FVector& At,
 
 - [ ] **Step 4: Il disegno**
 
-`Map/RTHexMapActor.cpp`, dopo `constexpr float RTTracerJetThickness = 7.f;` (`:179`):
+`Map/Actor/RTHexMapActor.cpp`, dopo `constexpr float RTTracerJetThickness = 7.f;` (`:179`):
 
 ```cpp
 
@@ -3309,7 +3309,7 @@ Subito dopo la `}` che chiude `if (PlaybackTracers.Num() > 0)` (`:1679`):
 
 - [ ] **Step 5: D-278**
 
-`Turn/RTPresentationBinding.cpp`, voce `Attack`: il commento `:36-38` (da `// \`#2454\`: \`SetPlaybackTracers\` — il tracer fra lancio e arrivo, solo per gli attacchi base` a `\`Playback.TracerIsInFlightBetweenLaunchAndArrival\`.`) diventa:
+`Turn/Playback/RTPresentationBinding.cpp`, voce `Attack`: il commento `:36-38` (da `// \`#2454\`: \`SetPlaybackTracers\` — il tracer fra lancio e arrivo, solo per gli attacchi base` a `\`Playback.TracerIsInFlightBetweenLaunchAndArrival\`.`) diventa:
 
 ```cpp
 	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, secondo il profilo FX (#3578: il volo dalla forma di
@@ -3334,12 +3334,12 @@ e `{ FName(TEXT("PlayCastMontage")) }));` (`:272`) diventa `{ FName(TEXT("PlayCa
 
 - [ ] **Step 6: Build e verde**
 
-Run: build; test `RefactorTactics.Fx+RefactorTactics.Preview+RefactorTactics.Presentation+RefactorTactics.HexMapActor`, log `<scratchpad>/t5-verde.log`. Expected: verdi, compresi `Preview.TracerDrawsWithDebugDrawingOff` e `Presentation.*` esistenti invariati (nessun test esistente pinna l'elenco delle cue di `Attack` o di `AbilityActivated`: `grep -n "SetPlaybackTracers\|PlayCastMontage" Source/RefactorTactics/Tests/RTPresentationBindingTests.cpp` lo conferma, misurato in pianificazione: solo commenti).
+Run: build; test `RefactorTactics.Fx+RefactorTactics.Preview+RefactorTactics.Presentation+RefactorTactics.HexMapActor`, log `<scratchpad>/t5-verde.log`. Expected: verdi, compresi `Preview.TracerDrawsWithDebugDrawingOff` e `Presentation.*` esistenti invariati (nessun test esistente pinna l'elenco delle cue di `Attack` o di `AbilityActivated`: `grep -n "SetPlaybackTracers\|PlayCastMontage" Source/RefactorTactics/Tests/Turn/Playback/RTPresentationBindingTests.cpp` lo conferma, misurato in pianificazione: solo commenti).
 
 - [ ] **Step 7: Commit, poi mutazioni (20), (P2)**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/RTHexMapActor.cpp Source/RefactorTactics/Turn/RTPresentationBinding.cpp Source/RefactorTactics/Tests/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/RTPreviewLineBatcherTests.cpp Source/RefactorTactics/Tests/RTPresentationBindingTests.cpp
+git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAbilityFxProfileTests.cpp Source/RefactorTactics/Tests/Map/Actor/RTPreviewLineBatcherTests.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPresentationBindingTests.cpp
 git commit -F - <<'EOF'
 feat(3578): il disegno delle cue FX e dello zigzag col line batcher; D-278 dichiara SetPlaybackCues per Attack e AbilityActivated
 
@@ -3402,7 +3402,7 @@ P2. In `DeclaredBindings`, la voce `AbilityActivated` torna `{ FName(TEXT("PlayC
 
 - [ ] **Step 2: Il run headless fissa celle ed `expect`**
 
-Run: test `RefactorTactics.Scenario.EveryShippedScenarioRuns`, log `<scratchpad>/t6-scenari.log`. Verifica che lo scenario sia stato **caricato e giocato**: `grep -n "Visual.Ability.FxProfile" <scratchpad>/t6-scenari.log` deve dare almeno una riga; se il test filtra il corpus `Visual.*`, cerca il test che li esegue (`grep -n "Visual" Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`) e lancia quello. Poi misura **dal log o dalla timeline** che: (a) MortarShot abbia colpito **due** vittime (due `Attack` con la chiave di Branth) e Overload abbia un'impronta e almeno un colpo; (b) le celle di `expect` siano quelle vere a fine turno. La portata (3) e il raggio (1) di MortarShot sono misurati in review (`Ability/RTHeroCatalogLibrary.cpp:828-831`), e la sintassi `targetCell` è quella di `Scenarios/Spec/Combat/AreaGuardFromImpactCenterIsBypassed.json:26`; il run resta necessario per i colpi e le spinte. Se un colpo non parte, o un'area tocca un alleato (`Scenarios/Combat/FriendlyFire.json`), sposta B1/A1 e riscrivi `_nota_geometria`. Aggiungi agli `expect` le celle di N1/N2 dopo eventuali spinte, **misurate** (la fixture vuole `units` **e** `expect` di cui ogni riga sia una misura). Esito finale: `Result={Success}` sullo scenario.
+Run: test `RefactorTactics.Scenario.EveryShippedScenarioRuns`, log `<scratchpad>/t6-scenari.log`. Verifica che lo scenario sia stato **caricato e giocato**: `grep -n "Visual.Ability.FxProfile" <scratchpad>/t6-scenari.log` deve dare almeno una riga; se il test filtra il corpus `Visual.*`, cerca il test che li esegue (`grep -n "Visual" Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioCorpusTests.cpp Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`) e lancia quello. Poi misura **dal log o dalla timeline** che: (a) MortarShot abbia colpito **due** vittime (due `Attack` con la chiave di Branth) e Overload abbia un'impronta e almeno un colpo; (b) le celle di `expect` siano quelle vere a fine turno. La portata (3) e il raggio (1) di MortarShot sono misurati in review (`Ability/Catalog/RTHeroCatalogLibrary.cpp:828-831`), e la sintassi `targetCell` è quella di `Scenarios/Spec/Combat/AreaGuardFromImpactCenterIsBypassed.json:26`; il run resta necessario per i colpi e le spinte. Se un colpo non parte, o un'area tocca un alleato (`Scenarios/Combat/FriendlyFire.json`), sposta B1/A1 e riscrivi `_nota_geometria`. Aggiungi agli `expect` le celle di N1/N2 dopo eventuali spinte, **misurate** (la fixture vuole `units` **e** `expect` di cui ogni riga sia una misura). Esito finale: `Result={Success}` sullo scenario.
 
 - [ ] **Step 3: La voce nell'indice degli scenari**
 
@@ -3509,7 +3509,7 @@ Verifica: rilancia il comando python — l'ultimo id è `U71`, il secondo numero
 `RT-CAP-VFX` (`:1707-1735`):
 - `name: VFX (Niagara)` → `name: VFX (line batcher in v0.1; Niagara fuori, D-124)`
 - `status: { implementation: missing, validation: missing, presentation: missing }` → `status: { implementation: partial, validation: partial, presentation: missing }` (`presentation` resta `missing` finché `PIE-FX-ABILITA` non ha un verdetto)
-- `implementation: { files: [] }` → `implementation: { files: [Source/RefactorTactics/Map/RTPlaybackTracer.h, Source/RefactorTactics/Turn/RTPresentationBinding.h, Source/RefactorTactics/Turn/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/RTHexMapActor.cpp] }`
+- `implementation: { files: [] }` → `implementation: { files: [Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp] }`
 - `issues: { open: [288, 2453], closed: [] }` → `issues: { open: [288, 2453, 2454, 3578], closed: [] }`
 - `tests: { automation: [], … }` → `tests: { automation: ["RefactorTactics.Fx.*", "RefactorTactics.Playback.*", "RefactorTactics.Privacy.*", "RefactorTactics.HexMapActor.*", "RefactorTactics.Preview.*", "RefactorTactics.Presentation.*", "RefactorTactics.Determinism.*"], scenarios: ["Visual.Ability.FxProfile"], mutation: [] }`
 - `verification: { pie: [], packaged: [] }` → `verification: { pie: [PIE-V01-TRACER, PIE-FX-ABILITA], packaged: [] }`
@@ -3578,7 +3578,7 @@ EOF
 
 Il parent è `main` (`git config branch.issue/3578-profilo-fx-per-abilita.parent`). Corpo in `<scratchpad>/pr-fx.md`, `--body-file`, con:
 - cosa: profilo, tabella, tracer come caso del profilo, attivazione, cue di colpo, canale, D-278, scenario;
-- **l'eccezione dichiarata**: `Playback.TracerStyleFollowsShapeForBasicAttack` (`Tests/RTPlaybackLibraryTests.cpp`) è riscritto sull'asserto di `PassingBlade` — da `IsTracerEligible == false` a «idonea al volo, `TracerStyleFor == None`», più la variante a tabella iniettata — perché R13 separa volo e disegno; nessun altro test esistente è riscritto (o, se il Task 2 Step 6 ne ha trovato uno, la seconda eccezione col suo perché);
+- **l'eccezione dichiarata**: `Playback.TracerStyleFollowsShapeForBasicAttack` (`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`) è riscritto sull'asserto di `PassingBlade` — da `IsTracerEligible == false` a «idonea al volo, `TracerStyleFor == None`», più la variante a tabella iniettata — perché R13 separa volo e disegno; nessun altro test esistente è riscritto (o, se il Task 2 Step 6 ne ha trovato uno, la seconda eccezione col suo perché);
 - i gate eseguiti (`PASS` col nome del log e lo SHA); il confronto prima/dopo del Task 2 Step 0/6; `Determinism.FxFieldsStayOutOfHashes` dichiarato **tripwire** (oggi nessun hash legge `ResolvedTimeline`);
 - le mutazioni (1)–(22) e (P1)–(P5) con i test caduti, compresi quelli **in più** del dichiarato (➕ rev2.);
 - gli esiti delle misure del Task 4 Step 0 (`ReactiveCapacitor`, `CircularTide`) con `file:riga`;

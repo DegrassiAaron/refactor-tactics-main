@@ -93,7 +93,7 @@ esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS l
 > del Blast può differire da quello del Dash e da quello finale. Resta vero che il facing **finale** (dopo il
 > `Move`) è quello che si eredita nel round successivo, ed è la scommessa che il giocatore deve poter vedere.
 
-**C6 — Il lavoro era già cominciato altrove, ed è stato incorporato.** `Tests/RTPlanningPreviewTests.cpp` è in
+**C6 — Il lavoro era già cominciato altrove, ed è stato incorporato.** `Tests/Player/RTPlanningPreviewTests.cpp` è in
 `main` con la famiglia `Preview.*` (`HitCellsMatchCombatShape`, `AllyInAreaIsFlagged`,
 `ClearedWhenPlanIsCancelled`, `ReachableCellsArePassedThrough`), insieme alle modifiche di `ARTHexMapActor`. È
 lo **stesso asse** dei CP qui sotto — celle colpite, alleato nell'area, pulizia su annullamento — e va esteso,

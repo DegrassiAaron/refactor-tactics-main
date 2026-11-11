@@ -74,13 +74,13 @@ La colonna «misura» è la prova, non l'impressione.
 
 | L'issue afferma | Esito | Misura su `71261937` |
 |---|---|---|
-| `ValidateSnapshot` ha 0 chiamanti nel percorso di partita | ✅ **confermato** | 5 siti in `Tests/RTHexSimTests.cpp`, 1 in `Debug/RTDebugReportLibrary.cpp:215`, **nessun altro** |
+| `ValidateSnapshot` ha 0 chiamanti nel percorso di partita | ✅ **confermato** | 5 siti in `Tests/Turn/Resolution/RTHexSimTests.cpp`, 1 in `Debug/RTDebugReportLibrary.cpp:215`, **nessun altro** |
 | Il rifiuto del waypoint nomina chi pianifica | ✅ **confermato** | `Player/RTPlayerController.cpp:1006` stampa `*SelectedUnit->GetName()`, come gli altri due rami del `switch` |
 | «L'occupancy blocca il Move normale… queste non le blocca» | ❌ **contraddetto** | la funzione che risolve entrambe le abilità le blocca: `RTMovementActionLibrary.cpp:116-143` |
 | «Un `LinearCharge` deve fermarsi *sulla* o *adiacente*? — va deciso» | ❌ **già deciso** | `Result.Final = Current` (`RTMovementActionLibrary.cpp:143`) — cella **precedente** |
 | …e non è solo codice | ❌ **già pinnato da un test** | `RefactorTactics.HexMatch.ChargeStopsOnEnemyAndHits` asserisce `Charger->Cell == (2,0,0)` con il bersaglio su `(3,0)` |
 | «Un Dash che attraversa può *terminare* su occupata? — va deciso» | ❌ **già deciso e motivato** | `RTMovementActionLibrary.cpp:116` — il ramo pass-through vale solo `K < Distance` |
-| DoD #5: serve un test headless che giochi una partita e verifichi l'invariante | ❌ **esiste già due volte** | `Tests/RTHexMatchIntegrationTests.cpp:125` e `:343`, **stessi due eroi, stessa arena** |
+| DoD #5: serve un test headless che giochi una partita e verifichi l'invariante | ❌ **esiste già due volte** | `Tests/Turn/RTHexMatchIntegrationTests.cpp:125` e `:343`, **stessi due eroi, stessa arena** |
 
 ---
 
@@ -91,7 +91,7 @@ La colonna «misura» è la prova, non l'impressione.
 **Crispin.** *«Prima di chiedere un test nuovo, chiedete perché quello vecchio tace. Un test che dovrebbe
 rompersi e non si rompe è un difetto più grave del bug che stava cercando.»*
 
-`Source/RefactorTactics/Tests/RTHexMatchIntegrationTests.cpp` contiene **due** cicli che giocano una partita
+`Source/RefactorTactics/Tests/Turn/RTHexMatchIntegrationTests.cpp` contiene **due** cicli che giocano una partita
 completa e asseriscono l'invariante turno per turno:
 
 | Test | Riga | Setup | Turni |
@@ -122,7 +122,7 @@ estendi quel test»*.
 🔴 **E sta già succedendo, mentre questo referto veniva scritto.** Misurato il 2026-08-30: esiste un worktree
 `D:/Repositories/rt-wt-overlap` sul branch `test/unita-sovrapposte`, che sta scrivendo un test **nuovo** —
 `RefactorTactics.Match.Autobattle.NoTwoUnitsShareACell` — invece di estendere i due che ci sono. Al momento
-della misura non compila (`RTAuthoredMapEngagementTests.cpp:614`, manca `#include "Turn/RTMatchSetupLibrary.h"`)
+della misura non compila (`RTAuthoredMapEngagementTests.cpp:614`, manca `#include "Turn/Format/RTMatchSetupLibrary.h"`)
 e la sua `rt-suite` è uscita `2` dopo 768 s di attesa, con **tre** checkout in coda sullo stesso motore — la
 dimostrazione operativa di ciò che [`CLAUDE.md`](../../../CLAUDE.md) §7 dichiara sui worktree. Il test non è
 ancora su `main` (`grep` su `71261937`: nessuna occorrenza).
@@ -138,11 +138,11 @@ partita lo pinna. Ma la prosa che lo descrive esiste in **due versioni che si co
 | Sede | Riga | Testo | Dice |
 |---|---:|---|---|
 | `Ability/RTActionDef.h` | 212 | «si ferma **SUL** primo nemico incontrato e lo colpisce» | sopra |
-| `Turn/RTMovementActionLibrary.h` (`ERTLinearStop::Impact`) | 23 | «Fermata **SUL** primo nemico incontrato» | sopra |
-| `Turn/RTMovementActionLibrary.h` (`ResolveLinearMove`) | 100 | «si ferma **lì davanti** e lo segnala come impatto» | adiacente |
-| `Turn/RTMovementActionLibrary.h` (`IsLinearReachable`) | 124 | «esito `Impact`, **cella precedente**» | adiacente |
-| `Turn/RTMovementActionLibrary.cpp` | 143 | `Result.Final = Current;` | **adiacente** ← autorità |
-| `Tests/RTHexMatchIntegrationTests.cpp` | 553 | `TestEqual(«chi carica si ferma davanti al nemico», …, (2,0,0))` | **adiacente** ← pinnato |
+| `Turn/Resolution/RTMovementActionLibrary.h` (`ERTLinearStop::Impact`) | 23 | «Fermata **SUL** primo nemico incontrato» | sopra |
+| `Turn/Resolution/RTMovementActionLibrary.h` (`ResolveLinearMove`) | 100 | «si ferma **lì davanti** e lo segnala come impatto» | adiacente |
+| `Turn/Resolution/RTMovementActionLibrary.h` (`IsLinearReachable`) | 124 | «esito `Impact`, **cella precedente**» | adiacente |
+| `Turn/Resolution/RTMovementActionLibrary.cpp` | 143 | `Result.Final = Current;` | **adiacente** ← autorità |
+| `Tests/Turn/RTHexMatchIntegrationTests.cpp` | 553 | `TestEqual(«chi carica si ferma davanti al nemico», …, (2,0,0))` | **adiacente** ← pinnato |
 
 Il test disambigua anche la parola che l'issue chiama ambigua, e lo fa in un commento: *«Si ferma ADDOSSO:
 adiacente al bersaglio, non sopra e non oltre.»*
@@ -241,7 +241,7 @@ il DoD non specifica:
   `ResolveHexPaths`**, dove il fatto nasce;
 - **cosa fa quando fallisce** — `UE_LOG(Error)`, `ensureMsgf`, `checkf`? In PIE un `ensure` ferma il
   playtest, un log passa inosservato: sarebbe **lo stesso difetto** che l'issue denuncia, con una riga in più;
-- **chi** — `MakeSnapshot` (`Turn/RTHexSimLibrary.cpp:48-51`) sa già che sta scartando un errore strutturale,
+- **chi** — `MakeSnapshot` (`Turn/Resolution/RTHexSimLibrary.cpp:48-51`) sa già che sta scartando un errore strutturale,
   e lo scrive nel proprio commento. È l'unico punto in cui l'informazione esiste ed è anche l'unico che la
   butta via.
 

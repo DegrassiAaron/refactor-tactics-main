@@ -17,7 +17,7 @@
 - Il tempo del fumetto è **solo** `ARTTurnManager::PlaybackElapsedTotal` (R4, A8); nessun `DeltaTime` locale per la sua vita.
 - Grida solo se `BaseActionId.IsNone()` **e** `ActionId` non è nel catalogo core (R1b, A7). Nessun campo nuovo in `FRTActionDef`.
 - Durata 3,0 s (`EditDefaultsOnly`, `0` spegne); pop 0,1 s da scala 1,15; dissolvenza negli ultimi 0,4 s (R4, §5).
-- Nomi `UPROPERTY` nuovi su `ARTUnit` **non** `BlueprintReadOnly`: `RefactorTactics.Unit.BlueprintSurfaceIsCensused` (`Tests/RTUnitBlueprintSurfaceTests.cpp:316`) censisce ogni campo esposto ai Blueprint, e un tell su un'unità velata è il difetto che quel test esiste per fermare.
+- Nomi `UPROPERTY` nuovi su `ARTUnit` **non** `BlueprintReadOnly`: `RefactorTactics.Unit.BlueprintSurfaceIsCensused` (`Tests/Terrain/RTUnitBlueprintSurfaceTests.cpp:316`) censisce ogni campo esposto ai Blueprint, e un tell su un'unità velata è il difetto che quel test esiste per fermare.
 - `WBP_RT_UnitOverlay.uasset` si modifica **solo in Editor, dal clone principale** (CLAUDE.md §10); il C++ resta completo senza i nuovi elementi (`BindWidgetOptional`).
 - Unity build: nomi unici per file nei namespace anonimi dei test (`// ⚠️ Nomi distinti per file`).
 - Motore uno per macchina: prima di build, suite o PIE leggi `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine`; headless con `-abslog` nello scratchpad di sessione (AGENTS.md §11).
@@ -46,9 +46,9 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 ### Task 1: le tre funzioni pure e la vista del fumetto
 
 **Files:**
-- Create: `Source/RefactorTactics/UI/RTSkillCalloutView.h`
-- Modify: `Source/RefactorTactics/UI/RTHudViewModel.h` (accanto a `BuildHealToken`, `:2047`), `Source/RefactorTactics/UI/RTHudViewModel.cpp` (accanto a `BuildDamageToken`, `:1394`)
-- Test: `Source/RefactorTactics/Tests/RTSkillCalloutTests.cpp` (nuovo)
+- Create: `Source/RefactorTactics/UI/Feed/RTSkillCalloutView.h`
+- Modify: `Source/RefactorTactics/UI/HUD/RTHudViewModel.h` (accanto a `BuildHealToken`, `:2047`), `Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp` (accanto a `BuildDamageToken`, `:1394`)
+- Test: `Source/RefactorTactics/Tests/UI/Feed/RTSkillCalloutTests.cpp` (nuovo)
 
 **Interfaces:**
 - Produces:
@@ -66,7 +66,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
   static float URTHudViewModel::SkillCalloutScale(float Elapsed, float PopSeconds = 0.1f); // 1.15 → 1.0
   ```
 
-- [ ] **Step 1: scrivi i test che falliscono** in `Tests/RTSkillCalloutTests.cpp`, flag `EditorContext | EngineFilter`, nomi `RefactorTactics.HudViewModel.SkillCallout.*`:
+- [ ] **Step 1: scrivi i test che falliscono** in `Tests/UI/Feed/RTSkillCalloutTests.cpp`, flag `EditorContext | EngineFilter`, nomi `RefactorTactics.HudViewModel.SkillCallout.*`:
   - `ShoutsOnlyForASignatureSkill`: `ActionShouts("Hero.Muiren.TideGuard", NAME_None, false)` → true; `ActionShouts("Hero.Branth.ImpactShot", "Action.BasicAttack", false)` → false; `ActionShouts("Action.Guard", NAME_None, true)` → false; `ActionShouts("Hero.X.Variant", "Action.Overwatch", false)` → false (Ruling R1b).
   - `LabelComesFromTheKit`: `BuildSkillCallout(FText::FromString("Marea circolare"), "Hero.Muiren.CircularTide", 3, 1.25f)` → `Label == "Marea circolare"`, `bFromFallback == false`, `SourceStableUnitId == 3`, `StartAt == 1.25f`, `ActionId == "Hero.Muiren.CircularTide"`.
   - `FallsBackToTheLastIdSegment`: con `FText::GetEmpty()` → `Label == "CircularTide"`, `bFromFallback == true`; con `FText::FromString("   ")` → stesso esito.
@@ -76,7 +76,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 
 - [ ] **Step 2: build e run per vedere i test fallire**: la build fallisce per simboli mancanti, che qui equivale al rosso atteso. Annota l'errore.
 
-- [ ] **Step 3: implementa** la struct in `RTSkillCalloutView.h` (include guard `#pragma once`, `RTSkillCalloutView.generated.h`, `UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")` su ogni campo, doc-comment che dichiara «solo presentazione, nessun hash») e le quattro statiche in `URTHudViewModel`. `ActionShouts` è `BaseActionId.IsNone() && !bIsCoreAction`. `BuildSkillCallout`: `Label` = `KitDisplayName.ToString()` se `!IsEmptyOrWhitespace()`, altrimenti il testo dopo l'ultimo `.` di `ActionId.ToString()` (tutto l'id se non c'è un punto) e `bFromFallback = true`. `SkillCalloutAlpha`: `Seconds <= 0` → 0; `Elapsed < 0` → 1; `Elapsed >= Seconds` → 0; nella coda `[Seconds − FadeSeconds, Seconds)` lineare da 1 a 0; altrove 1. `SkillCalloutScale`: `PopSeconds <= 0` → 1; `Elapsed <= 0` → 1.15; lineare fino a 1 a `PopSeconds`; oltre 1. Include `UI/RTSkillCalloutView.h` in `RTHudViewModel.h` accanto a `RTDamageTokenView.h` (`:12`).
+- [ ] **Step 3: implementa** la struct in `RTSkillCalloutView.h` (include guard `#pragma once`, `RTSkillCalloutView.generated.h`, `UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")` su ogni campo, doc-comment che dichiara «solo presentazione, nessun hash») e le quattro statiche in `URTHudViewModel`. `ActionShouts` è `BaseActionId.IsNone() && !bIsCoreAction`. `BuildSkillCallout`: `Label` = `KitDisplayName.ToString()` se `!IsEmptyOrWhitespace()`, altrimenti il testo dopo l'ultimo `.` di `ActionId.ToString()` (tutto l'id se non c'è un punto) e `bFromFallback = true`. `SkillCalloutAlpha`: `Seconds <= 0` → 0; `Elapsed < 0` → 1; `Elapsed >= Seconds` → 0; nella coda `[Seconds − FadeSeconds, Seconds)` lineare da 1 a 0; altrove 1. `SkillCalloutScale`: `PopSeconds <= 0` → 1; `Elapsed <= 0` → 1.15; lineare fino a 1 a `PopSeconds`; oltre 1. Include `UI/Feed/RTSkillCalloutView.h` in `RTHudViewModel.h` accanto a `RTDamageTokenView.h` (`:12`).
 
 - [ ] **Step 4: build `Result: Succeeded`, suite `RefactorTactics.HudViewModel.SkillCallout`** → sei test `Result={Success}`.
 
@@ -88,8 +88,8 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 
 **Files:**
 - Modify: `Source/RefactorTactics/Unit/RTUnit.h` (accanto a `ShowHealToken`/`LastDamageToken`, `:2138-2164`), `Source/RefactorTactics/Unit/RTUnit.cpp` (accanto a `ShowHealToken`, `:333-346`; `SetStrategicPresentation`, `:505`)
-- Modify: `Source/RefactorTactics/UI/RTUnitOverlayWidget.h` (binding accanto a `DamageTokenText`, `:204`; proprietà accanto a `DamageTokenSeconds`, `:208`), `Source/RefactorTactics/UI/RTUnitOverlayWidget.cpp`
-- Test: `Source/RefactorTactics/Tests/RTSkillCalloutTests.cpp` (stesso file, sezione «unità»)
+- Modify: `Source/RefactorTactics/UI/Feed/RTUnitOverlayWidget.h` (binding accanto a `DamageTokenText`, `:204`; proprietà accanto a `DamageTokenSeconds`, `:208`), `Source/RefactorTactics/UI/Feed/RTUnitOverlayWidget.cpp`
+- Test: `Source/RefactorTactics/Tests/UI/Feed/RTSkillCalloutTests.cpp` (stesso file, sezione «unità»)
 
 **Interfaces:**
 - Consumes: Task 1.
@@ -114,7 +114,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
   UPROPERTY(meta=(BindWidgetOptional)) TObjectPtr<UTextBlock> SkillCalloutText;
   ```
 
-- [ ] **Step 1: scrivi i test che falliscono**, nello stesso file, con una fixture locale che spawna un `ARTUnit` configurato da `URTHeroCatalogLibrary::MakeMuiren()` in un `RTWorldFixtures::MakeWorld()` (modello `SpawnBeatUnit`, `Tests/RTPlaybackActivationTests.cpp:51-61`):
+- [ ] **Step 1: scrivi i test che falliscono**, nello stesso file, con una fixture locale che spawna un `ARTUnit` configurato da `URTHeroCatalogLibrary::MakeMuiren()` in un `RTWorldFixtures::MakeWorld()` (modello `SpawnBeatUnit`, `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp:51-61`):
   - `UnitRecordsTheCalloutWithoutAWidget`: `ShowSkillCallout("Hero.Muiren.TideGuard", 2.f)` → `LastSkillCalloutForTest().ActionId == "Hero.Muiren.TideGuard"`, `.Label` non vuota e `!bFromFallback` (il kit di Muiren ha il nome), `.StartAt == 2.f`, `IsSkillCalloutLive()` true.
   - `SecondCalloutReplacesTheFirst`: due `ShowSkillCallout` (TideGuard a 2.f, poi CircularTide a 2.5f) → `ActionId` della seconda, `StartAt == 2.5f`.
   - `ClearKeepsTheRecordButEndsTheLife`: dopo `ShowSkillCallout` poi `ClearSkillCallout()` → `IsSkillCalloutLive()` false, `LastSkillCalloutForTest().ActionId` ancora valorizzato.
@@ -136,10 +136,10 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (dichiarazioni accanto a `ShowActivation`, `:2815`; stato accanto a `ActivationsShown`, `:3951`), `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`ShowActivation`, `:9039-9049`; `TickPlayback` dopo `PlaybackElapsedTotal += Dt`, `:9614`; `FinishPlayback` dopo il ramo `IsResolutionSuspended()`, cioè dopo `:10105`, prima o accanto a `PlaybackLastShownAction = NAME_None`)
-- Test: `Source/RefactorTactics/Tests/RTSkillCalloutPlaybackTests.cpp` (nuovo; fixture copiata da `FRTBeatDiProva`/`CostruisciBeat`/`FinoAllaFineDelPlayback`, `Tests/RTPlaybackActivationTests.cpp:42-116`, con nomi locali diversi)
+- Test: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTSkillCalloutPlaybackTests.cpp` (nuovo; fixture copiata da `FRTBeatDiProva`/`CostruisciBeat`/`FinoAllaFineDelPlayback`, `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp:42-116`, con nomi locali diversi)
 
 **Interfaces:**
-- Consumes: `ARTUnit::ShowSkillCallout / SetSkillCalloutClock / ClearSkillCallout / IsSkillCalloutLive / LastSkillCalloutForTest / SkillCalloutClockForTest` (Task 2); `URTHudViewModel::ActionShouts` (Task 1); `URTCatalogLibrary::FindCoreAction` (`Ability/RTCatalogLibrary.h:512`, ritorna `FRTActionDef()` con `ActionId` None se assente).
+- Consumes: `ARTUnit::ShowSkillCallout / SetSkillCalloutClock / ClearSkillCallout / IsSkillCalloutLive / LastSkillCalloutForTest / SkillCalloutClockForTest` (Task 2); `URTHudViewModel::ActionShouts` (Task 1); `URTCatalogLibrary::FindCoreAction` (`Ability/Catalog/RTCatalogLibrary.h:512`, ritorna `FRTActionDef()` con `ActionId` None se assente).
 - Produces: `TArray<TWeakObjectPtr<ARTUnit>> SkillCalloutUnits;` (privato) e `int32 SkillCalloutUnitsForTest() const`.
 
 - [ ] **Step 1: scrivi i test che falliscono**, `RefactorTactics.Playback.SkillCallout.*`. La fixture ha Scudo (Muiren, `Hero.Muiren.TideGuard` in Prep: skill firma) e Tiratore (Branth, indice 0 = `Hero.Branth.ImpactShot`: attacco base) della squadra 0, un bersaglio della squadra 1, viewer della squadra data.
@@ -147,7 +147,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
   - `LiveDuringPlaybackClearedWhenPlaybackEnds` (viewer 0): tick di 0,05 s uno alla volta finché `Scudo->IsSkillCalloutLive()` diventa vero (entro 400 tick, altrimenti fallisce); in quell'istante `Scudo->LastSkillCalloutForTest().StartAt` è `<= TM->PlaybackElapsedTotalForTest()` (accessor nuovo, accanto a `PlaybackPhaseElapsedForTest`, `RTTurnManager.h:740`) e `Scudo->SkillCalloutClockForTest()` è `>= StartAt`; poi corsa a fine playback → `IsSkillCalloutLive()` falso, `TM->SkillCalloutUnitsForTest() == 0`, e `ActionId` ancora valorizzato.
   - `HiddenSourceDoesNotShout` (viewer 7): a fine playback `Scudo->LastSkillCalloutForTest().ActionId.IsNone()` (il filtro `SourceVerdict` di `BeginPlayback` non la fa arrivare a `ShowActivation`).
   - `SkipClearsEveryCallout` (viewer 0): tick finché `Scudo->IsSkillCalloutLive()`, poi `TM->SkipPlayback()` (`RTTurnManager.h:1053`) e corsa a fine → falso, lista vuota.
-  - `PausedClockDoesNotAdvanceTheCallout` (viewer 0): tick finché live, leggi `SkillCalloutClockForTest()`, `TM->PausePlayback()` (`RTTurnManager.h:859`, come `Tests/RTPlaybackControlsTests.cpp:54`), tick 10 volte → il clock dell'unità è **uguale** a prima; `TM->ResumePlayback()` (`:863`), tick 1 → maggiore.
+  - `PausedClockDoesNotAdvanceTheCallout` (viewer 0): tick finché live, leggi `SkillCalloutClockForTest()`, `TM->PausePlayback()` (`RTTurnManager.h:859`, come `Tests/Turn/Playback/RTPlaybackControlsTests.cpp:54`), tick 10 volte → il clock dell'unità è **uguale** a prima; `TM->ResumePlayback()` (`:863`), tick 1 → maggiore.
 
 - [ ] **Step 2: build → rosso.**
 
@@ -155,7 +155,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 
 - [ ] **Step 3b: misura R11.** Leggi `ApplyInterrupts` in `Turn/RTTurnManager_Blast.cpp` (commenti a `:228` e `:263`) e il sito `RTTurnManager.cpp:7394`: un intento interrotto emette comunque `AbilityActivated`? Scrivi la risposta, con `file:riga`, in un commento sopra la chiamata a `ShowSkillCallout` e nella DoD della issue (`gh issue edit 4025 --body-file`). Nessun codice cambia in questa fetta qualunque sia la risposta (spec R11).
 
-- [ ] **Step 4: build `Result: Succeeded`; suite `RefactorTactics.Playback`** → i cinque nuovi test verdi e nessun rosso fra quelli esistenti; `FindMissingBindings` (`Turn/RTPresentationBinding.cpp:273`): se il gate pretende un consumatore registrato per `AbilityActivated`, aggiungi `ShowSkillCallout` alla lista di `:276` e rilancia.
+- [ ] **Step 4: build `Result: Succeeded`; suite `RefactorTactics.Playback`** → i cinque nuovi test verdi e nessun rosso fra quelli esistenti; `FindMissingBindings` (`Turn/Playback/RTPresentationBinding.cpp:273`): se il gate pretende un consumatore registrato per `AbilityActivated`, aggiungi `ShowSkillCallout` alla lista di `:276` e rilancia.
 
 - [ ] **Step 5: commit** `feat(turn): il playback accende il fumetto di una skill firma, gli porta l'orologio e lo spegne a fine turno (#4025)`.
 
@@ -166,7 +166,7 @@ atteso: ogni test del filtro con `Result={Success}` nel log; un test assente dal
 **Files:**
 - Modify (Editor, clone principale): `Content/RT/UI/Match/WBP_RT_UnitOverlay.uasset`
 - Modify (se serve): `Source/RefactorTactics/Unit/RTUnit.cpp:204` (`SetDrawSize(220, 90)`)
-- Test esistente da tenere verde: `Tests/RTHudOverlayClampTests.cpp` (se legge il `DrawSize`)
+- Test esistente da tenere verde: `Tests/UI/HUD/Intent/RTHudOverlayClampTests.cpp` (se legge il `DrawSize`)
 
 **Interfaces:**
 - Consumes: i binding `SkillCalloutRoot`, `SkillCalloutText` e la proprietà `SkillCalloutSeconds` di Task 2.

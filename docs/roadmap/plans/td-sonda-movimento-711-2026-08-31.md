@@ -121,10 +121,10 @@ percorso scritto a mano: e' `FindPathForUnit`.
 
 | File | Cosa |
 |---|---|
-| `Public/RTHexProbeReadout.h` · `Private/RTHexProbeReadout.cpp` | cosa il pannello **scrive**, e quando richiede |
-| `Public/RTHexHoverGate.h` · `Private/RTHexHoverGate.cpp` | il gate dell'hover, **estratto** da #1755 |
+| `Public/HexMode/RTHexProbeReadout.h` · `Private/HexMode/RTHexProbeReadout.cpp` | cosa il pannello **scrive**, e quando richiede |
+| `Public/HexMode/RTHexHoverGate.h` · `Private/HexMode/RTHexHoverGate.cpp` | il gate dell'hover, **estratto** da #1755 |
 | `Private/Tools/RTHexProbeTool.{h,cpp}` | il settimo tool: un guscio |
-| `Private/Tests/RTHexProbeReadoutTests.cpp` | 4 test |
+| `Private/Tests/HexMode/RTHexProbeReadoutTests.cpp` | 4 test |
 | mode · commands | il tool entra nella palette |
 
 ⚠️ **Il divieto di #711 diceva *«`Source/RefactorTacticsEditor/` non ha test (misurato)»*, e quella misura e'

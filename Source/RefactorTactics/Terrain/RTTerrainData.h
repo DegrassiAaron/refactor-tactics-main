@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTHexCellData.h"
-#include "Turn/RTActionEvent.h"
+#include "Turn/Actions/RTActionEvent.h"
 #include "RTTerrainData.generated.h"
 
 /**

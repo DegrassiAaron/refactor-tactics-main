@@ -90,7 +90,7 @@ La chiave `(SourceStableUnitId, ActionId)` non basta a ricondurre un colpo al su
 ### 1.2 Il ritmo del Blast
 
 `URTPlaybackLibrary::AttacksToShow(N, t, A) = Min(N, 1 + Floor(Max(0,t) / A))`, con `A = AttackShowSeconds =
-0.50` (`Turn/RTTurnManager.h:1265`, `Turn/RTPlaybackLibrary.cpp:31-45`). Il colpo *k* esce a `k·A`; la fase dura
+0.50` (`Turn/RTTurnManager.h:1265`, `Turn/Playback/RTPlaybackLibrary.cpp:31-45`). Il colpo *k* esce a `k·A`; la fase dura
 `Max(1, Max(colpi, muri, impronte))·A` contro la spinta, con `Slack = 0` (`PhaseTime`,
 `RTPlaybackLibrary.cpp:111-123`), e il budget non comprime il Blast (`RTTurnManager.cpp:8886-8901`).
 
@@ -110,7 +110,7 @@ Un solo contatore, `AttacksShown`, guida oggi sia il ciclo (`:8451-8477`) sia la
   (`RTTurnManager.cpp:7699-7714`).
 - I fatti puntuali si congelano con `FreezeVerdictFor` (`:275-312`), che passa a
   `URTTeamKnowledgeLibrary::FreezeVerdict(TeamKnowledgeState, …)` con la **cella del fatto** portata dal soggetto
-  (`FRTLogSubject::UnitAt`, `Turn/RTCombatLog.h:41`).
+  (`FRTLogSubject::UnitAt`, `Turn/Log/RTCombatLog.h:41`).
 - `RevealHitTargetsToAttackers` (D-380) gira **prima** del ciclo dei colpi (`:5483`): quando il verdetto della
   vittima si congela, chi l'ha colpita la conosce già.
 - `ResolvedTimeline` **non entra** in `StateHash` né nel formato di replay (`:2831-2833`).
@@ -126,7 +126,7 @@ Un evento `Attack` ha un tracer quando **tutte** valgono:
 
 1. ➕ rev. `ActionId == Action.BasicAttack` **oppure** `BaseActionId == Action.BasicAttack` — la fetta è degli
    attacchi base, come chiesto: i profili d'eroe portano la base nel secondo campo
-   (`Ability/RTHeroCatalogLibrary.cpp:168`), l'azione generica nel primo (`Ability/RTCatalogLibrary.cpp:1226`).
+   (`Ability/Catalog/RTHeroCatalogLibrary.cpp:168`), l'azione generica nel primo (`Ability/Catalog/RTCatalogLibrary.cpp:1226`).
    Le altre azioni restano come oggi. ⚠️ È un'idoneità **provvisoria e dichiarata**: la sostituisce la tabella del
    sotto-progetto 4.
    ⌫ Superata da [#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578) ([spec del profilo FX](2026-10-08-profilo-fx-per-abilita-design.md) §2.2, R12, R13): il volo è la forma di default di un'azione con un id; un
@@ -244,13 +244,13 @@ struct FRTHitGeometry
 
 | File | Cosa cambia |
 |---|---|
-| `Turn/RTResolvedEvent.h` | `FRTHitGeometry`, il campo `HitGeometry`, `RTServerOnly` sul tipo, l'intestazione di `Shape` |
+| `Turn/Resolution/RTResolvedEvent.h` | `FRTHitGeometry`, il campo `HitGeometry`, `RTServerOnly` sul tipo, l'intestazione di `Shape` |
 | `Turn/RTTurnManager.cpp` (emissione `Attack`, `:6254-6276`) | `Shape` dall'intento; `HitGeometry` da `ResolveImpactOrigin`, `HexUnits[Hit.TargetId].Cell` e due `FreezeVerdictFor` |
-| `Map/RTPlaybackTracer.h` *(nuovo)* | `ERTTracerStyle` (`None` / `Projectile` / `Jet`) e `FRTPlaybackTracer` (estremi in celle, avanzamento, stile) |
-| `Turn/RTPlaybackLibrary.{h,cpp}` | **pure**: `TracerSegment(Style, Da, A, Alpha, Dardo)`, `TracerFlightFor(bEligible, F, A)`, `AttackBeatSeconds(Beat, A, Flights)`, `AttackBeatsDue(t, A, Flights)`, `TracerAlpha(...)`, `IsTracerEligible(Ev)`, `TracerStyleFor(Ev, ViewerTeamId)` |
+| `Turn/Playback/RTPlaybackTracer.h` *(nuovo)* | `ERTTracerStyle` (`None` / `Projectile` / `Jet`) e `FRTPlaybackTracer` (estremi in celle, avanzamento, stile) |
+| `Turn/Playback/RTPlaybackLibrary.{h,cpp}` | **pure**: `TracerSegment(Style, Da, A, Alpha, Dardo)`, `TracerFlightFor(bEligible, F, A)`, `AttackBeatSeconds(Beat, A, Flights)`, `AttackBeatsDue(t, A, Flights)`, `TracerAlpha(...)`, `IsTracerEligible(Ev)`, `TracerStyleFor(Ev, ViewerTeamId)` |
 | `Turn/RTTurnManager.{h,cpp}` (tick del Blast) | ➕ rev. `AttacksShown` cede il posto a **un cursore di battiti**, azzerato in `EnterPlaybackPhase` (`:7982`) e in `FinishPlayback`, **mai** in `BeginPlayback` (l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`); `ON_SCOPE_EXIT` che consegna i tracer; rete di finalizzazione per battiti; canale spento a fine Blast |
-| `Map/RTHexMapActor.{h,cpp}` | canale `SetPlaybackTracers` / `ClearPlaybackTracers`, disegnato nel `Tick` con `DisegnaLineaAnteprima`, incluso in `HasAnythingToDraw` (`:1084-1097`) — separato dal canale dell'impronta come quello lo è dall'anteprima |
-| `Turn/RTPresentationBinding.cpp` | la voce `Attack` dichiara anche `SetPlaybackTracers` |
+| `Map/Actor/RTHexMapActor.{h,cpp}` | canale `SetPlaybackTracers` / `ClearPlaybackTracers`, disegnato nel `Tick` con `DisegnaLineaAnteprima`, incluso in `HasAnythingToDraw` (`:1084-1097`) — separato dal canale dell'impronta come quello lo è dall'anteprima |
+| `Turn/Playback/RTPresentationBinding.cpp` | la voce `Attack` dichiara anche `SetPlaybackTracers` |
 | test (§6), `docs/technical/test-manuali-pie.md` e `docs/roadmap/editor-sessions.yaml` (voce `PIE-V01-TRACER`, scritta **con** la feature) | |
 
 ⛔ Nessun `.uasset`. Nessun cambio a resolver, LOS, `HexHitCells`, catalogo o formato scenario. La presentazione

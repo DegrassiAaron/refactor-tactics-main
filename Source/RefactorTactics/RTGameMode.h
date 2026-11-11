@@ -16,7 +16,7 @@
 #include "ScenarioHarness/RTScenarioCoordinator.h"
 // `FRTMatchRules`, per il membro `AssignedRules`: e' un valore, non un puntatore, quindi la sola forward
 // declaration di `URTMatchFormatData` piu' sotto non basterebbe.
-#include "Turn/RTMatchFormatData.h"
+#include "Turn/Format/RTMatchFormatData.h"
 #include "RTGameMode.generated.h"
 
 class ARTUnit;

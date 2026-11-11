@@ -127,11 +127,11 @@ Portare almeno queste righe a:
 
 È falso su HEAD. La ricerca codice trova `FAutoConsoleCommand` almeno in:
 
-- `Source/RefactorTactics/Turn/RTPacingConsole.cpp`
-- `Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp`
-- `Source/RefactorTactics/Map/RTHexOverlayConsole.cpp`
-- `Source/RefactorTactics/Map/RTArenaCriteriaConsole.cpp`
-- `Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp`
+- `Source/RefactorTactics/Turn/Pacing/RTPacingConsole.cpp`
+- `Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp`
+- `Source/RefactorTactics/Map/Actor/RTHexOverlayConsole.cpp`
+- `Source/RefactorTactics/Map/Authoring/RTArenaCriteriaConsole.cpp`
+- `Source/RefactorTactics/Turn/Reaction/RTReactionConditionConsole.cpp`
 
 ## Checklist E11 da riallineare
 

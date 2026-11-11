@@ -61,8 +61,8 @@ def golden_files():
 
 def main(as_json):
     inv = {
-        "effects": effects("Source/RefactorTactics/Ability/RTCatalogLibrary.cpp") + effects("Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp"),
-        "hero_stats": hero_stats("Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp"),
+        "effects": effects("Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp") + effects("Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp"),
+        "hero_stats": hero_stats("Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp"),
         "constants": combat_constants("Source/RefactorTactics/Combat/RTCombatLibrary.h"),
         "balance_rows": {f: balance_rows("docs/balance/" + f) for f in sorted(os.listdir(os.path.join(ROOT, "docs", "balance"))) if f.endswith(".md")},
         "golden": golden_files(),

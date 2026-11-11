@@ -20,7 +20,7 @@ dichiarate qui come `BLOCCO` o `PROPOSTA`, non applicate in silenzio.
 
 ### 1.1 Il formato esiste ed è alla `version: 4`
 
-`FRTTestScenario` ([`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h))
+`FRTTestScenario` ([`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h))
 porta già tutte le regioni del mandato:
 
 | Regione chiesta | Dove sta |
@@ -306,14 +306,14 @@ replay, non all'harness.
 
 | File | Cosa |
 |---|---|
-| `ScenarioHarness/RTTestScenario.h` | `FRTScenarioOpportunitySelector` + `On`/`bHasSelector` su `FRTScenarioDecision` |
-| `ScenarioHarness/RTScenarioLoader.h` | `SupportedVersion` 4 → 5, con l'argomento del verso |
-| `ScenarioHarness/RTScenarioLoader.cpp` | parsing di `on`, chiavi note, forma e gate di versione in `ValidateDecisionForm` (condivisa fra parser e `Validate`), `triggerUnit` schierato in entrambi |
-| `ScenarioHarness/RTScenarioWriter.cpp` | serializzazione di `on`, `MinimumVersionFor` |
+| `ScenarioHarness/Authoring/RTTestScenario.h` | `FRTScenarioOpportunitySelector` + `On`/`bHasSelector` su `FRTScenarioDecision` |
+| `ScenarioHarness/Authoring/RTScenarioLoader.h` | `SupportedVersion` 4 → 5, con l'argomento del verso |
+| `ScenarioHarness/Authoring/RTScenarioLoader.cpp` | parsing di `on`, chiavi note, forma e gate di versione in `ValidateDecisionForm` (condivisa fra parser e `Validate`), `triggerUnit` schierato in entrambi |
+| `ScenarioHarness/Authoring/RTScenarioWriter.cpp` | serializzazione di `on`, `MinimumVersionFor` |
 | `ScenarioHarness/RTScenarioSession.cpp` | matching semantico, errore di ambiguità, messaggio del residuo |
-| `ScenarioHarness/RTScenarioDraft.cpp` | il ritiro di un'unità conta anche `on.triggerUnit` fra i riferimenti appesi |
-| `Tests/RTScenarioDecisionSelectorTests.cpp` | **nuovo** — quattro test |
-| `Tests/RTScenarioWriterTests.cpp` | il selettore entra nel comparatore del round-trip |
+| `ScenarioHarness/Authoring/RTScenarioDraft.cpp` | il ritiro di un'unità conta anche `on.triggerUnit` fra i riferimenti appesi |
+| `Tests/ScenarioHarness/RTScenarioDecisionSelectorTests.cpp` | **nuovo** — quattro test |
+| `Tests/ScenarioHarness/Authoring/RTScenarioWriterTests.cpp` | il selettore entra nel comparatore del round-trip |
 
 ---
 

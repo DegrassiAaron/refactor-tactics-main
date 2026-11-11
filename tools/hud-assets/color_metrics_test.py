@@ -8,7 +8,7 @@ delle tabelle di colore del generatore coi documenti che ne sono owner (#3627).
 
 Solo libreria standard, come il modulo che provano.
 
-Perche' esistono. Il referto legge due righe di `UI/RTHUD.cpp` per FORMA, e il 2026-09-04 `#2184` ne ha
+Perche' esistono. Il referto legge due righe di `UI/HUD/RTHUD.cpp` per FORMA, e il 2026-09-04 `#2184` ne ha
 riscritta una: da allora `color_metrics.py` usciva con un errore esplicito, e nessuno lo lanciava. Un
 errore forte in uno script che nessuno esegue e' un errore silenzioso.
 
@@ -276,7 +276,7 @@ class IlRefertoDistingueIDueRossi(unittest.TestCase):
         fedele_ui, fedele_sem = documenti_fedeli()
         with tempfile.TemporaryDirectory() as tmp:
             if rthud_cpp is not None:
-                file = pathlib.Path(tmp) / "Source" / "RefactorTactics" / "UI" / "RTHUD.cpp"
+                file = pathlib.Path(tmp) / "Source" / "RefactorTactics" / "UI" / "HUD" / "RTHUD.cpp"
                 file.parent.mkdir(parents=True)
                 file.write_text(rthud_cpp, encoding="utf-8")
             for relativo, testo, fedele in ((cm.HUD_STYLE_DOC, ui, fedele_ui), (cm.SEMANTIC_DOC, sem, fedele_sem)):
@@ -630,7 +630,7 @@ class IlGeneratoreChiamaIControlli(unittest.TestCase):
         fedele_ui, _ = documenti_fedeli()
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            for relativo, testo in (("Source/RefactorTactics/UI/RTHUD.cpp", rthud()), (cm.HUD_STYLE_DOC, fedele_ui)):
+            for relativo, testo in (("Source/RefactorTactics/UI/HUD/RTHUD.cpp", rthud()), (cm.HUD_STYLE_DOC, fedele_ui)):
                 file = root / relativo
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.write_text(testo, encoding="utf-8")

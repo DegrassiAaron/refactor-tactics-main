@@ -15,7 +15,7 @@ class UWorld;
  * metodo** — gli basta tenere un `TWeakObjectPtr` e passarlo altrove — paga comunque l'header intero, e
  * ogni modifica a quell'header lo ricompila.
  *
- * Misurato il 2026-09-03: dei 12 file di produzione che lo includono, `UI/RTScreenHudWidgets.cpp` usa il
+ * Misurato il 2026-09-03: dei 12 file di produzione che lo includono, `UI/HUD/RTScreenHudWidgets.cpp` usa il
  * tipo in tre punti — la ricerca, la firma di `SetMatchContextForTest`, il membro — e **non chiama un solo
  * metodo**. Per lui l'header e' interamente costo.
  *
@@ -29,7 +29,7 @@ class UWorld;
  * 🔴 **Ed e' una funzione LIBERA, non una `UBlueprintFunctionLibrary`, contro l'abitudine del modulo.**
  * Il pattern qui e' `UCLASS` + statiche, e questa e' l'unica `REFACTORTACTICS_API` su una funzione libera
  * del modulo — quindi la deroga va motivata invece di lasciarla notare. Una libreria Blueprint che
- * rendesse un `ARTTurnManager*` lo **esporrebbe ai Blueprint**, e l'header di `UI/RTScreenHudWidgets`
+ * rendesse un `ARTTurnManager*` lo **esporrebbe ai Blueprint**, e l'header di `UI/HUD/RTScreenHudWidgets`
  * dichiara la regola opposta: *«non c'e' un accessor che dia l'`ARTTurnManager` o un `ARTUnit` a un
  * Blueprint»*. Esporlo per alleggerire un include sarebbe pagare un confine di privacy con un tempo di
  * compilazione.
@@ -42,7 +42,7 @@ class UWorld;
  * ⚠️ **Con un `ARTTurnManager*` il file compilava lo stesso, ma per un accidente della unity build**:
  * il tipo completo arrivava da un `.cpp` vicino nello stesso blob. Appena UBT estrae il file dal blob —
  * cosa che fa da sola per ogni file modificato di recente — la compilazione cade con `C2679` su
- * `WeakObjectPtrTemplates.h`. Misurato il 2026-09-04 su `UI/RTScreenHudWidgets.cpp` al contenuto di #2217,
+ * `WeakObjectPtrTemplates.h`. Misurato il 2026-09-04 su `UI/HUD/RTScreenHudWidgets.cpp` al contenuto di #2217,
  * con una sola riga di commento aggiunta per forzarne la compilazione isolata. La copia
  * `TWeakObjectPtr` → `TWeakObjectPtr` non tocca `T` e non vuole niente.
  *

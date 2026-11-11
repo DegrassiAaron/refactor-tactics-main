@@ -1,10 +1,10 @@
 #include "Tools/RTHexArchTool.h"
-#include "RTHexEditorClick.h"
+#include "HexMode/RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
-#include "Map/RTHexArcLibrary.h"
-#include "Map/RTHexMapActor.h"
+#include "Map/Vision/RTHexArcLibrary.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "InteractiveGizmoManager.h"
@@ -12,9 +12,9 @@
 #include "BaseGizmos/CombinedTransformGizmo.h"
 #include "InteractiveGizmo.h" // ETransformGizmoSubElements
 #include "Map/RTHexCellData.h" // ERTHexTransitionKind
-#include "Map/RTMapEditLibrary.h"        // DeleteElement: la REGOLA della cancellazione, una sola (#1864)
-#include "Map/RTMapDependencyLibrary.h"  // FRTMapElementHandle
-#include "RTHexSelectionStore.h"         // la selezione condivisa
+#include "Map/Authoring/RTMapEditLibrary.h"        // DeleteElement: la REGOLA della cancellazione, una sola (#1864)
+#include "Map/Authoring/RTMapDependencyLibrary.h"  // FRTMapElementHandle
+#include "HexMode/RTHexSelectionStore.h"         // la selezione condivisa
 #include "Editor.h"                      // GEditor
 #include "ScopedTransaction.h"           // una gesture = un Undo
 #include "Framework/Application/SlateApplication.h" // Ctrl accumula, come in Select

@@ -67,7 +67,7 @@ sia **solo** una fase finale. Non lo è, e il runtime lo dimostra da prima che q
 
 I due ruoli **non sono due sistemi**: sono lo stesso ambiente letto in due momenti, e il secondo non è una
 generalizzazione del primo. La prova che la distinzione è reale sta in
-[`ERTReactionPassPoint`](../../Source/RefactorTactics/Turn/RTReactionLibrary.h): il valore
+[`ERTReactionPassPoint`](../../Source/RefactorTactics/Turn/Reaction/RTReactionLibrary.h): il valore
 `CleanupSurfaceBirth` esiste **apposta** per la finestra fra una superficie che nasce e il danno che infligge
 — *«l'unico punto fuori dal Blast»* — e senza di essa `Reaction.HazardEscape` reagirebbe a una cella che
 diventerà pericolosa una fase dopo ([D-092](../decisions/RT_PDR_00_Decision_Log.md),

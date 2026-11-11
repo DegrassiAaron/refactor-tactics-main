@@ -112,7 +112,7 @@ Tre sorgenti, e **il più specifico vince** (`ARTGameMode::ResolveScenarioToRun`
 | | Sorgente | Come |
 |---|---|---|
 | 1 | riga di comando | `-dpcvars=rt.Test.Scenario=<Id>` |
-| 2 | console | `rt.Test.Scenario <Id>` — CVar, `ScenarioHarness/RTTestConsole.cpp:25` |
+| 2 | console | `rt.Test.Scenario <Id>` — CVar, `ScenarioHarness/Report/RTTestConsole.cpp:25` |
 | 3 | proprietà del GameMode | Details → categoria `RefactorTactics\|Test` → **`Scenario To Run`** |
 
 ✅ **Per una seduta a mano conviene la (3), e la ragione è misurata**: il menu a tendina fa **scegliere**
@@ -245,9 +245,9 @@ Queste tre metà sono coperte headless e rigiudicarle a schermo è tempo speso d
 
 | Domanda | Oracolo |
 |---|---|
-| la riga nomina la cella che ha fermato il tiro | `CombatLog.SightBlockerAppearsInTheLine` — `Tests/RTCombatLogTests.cpp:1848` |
-| quella cella **e nessun'altra** è marcata | `HUD.BlockerMarksOnlyNameableCells` — `Tests/RTHUDMarksTests.cpp:256` |
-| il feed è montato nell'albero della HUD | `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — `Tests/RTMatchWidgetAssetTests.cpp:822` |
+| la riga nomina la cella che ha fermato il tiro | `CombatLog.SightBlockerAppearsInTheLine` — `Tests/Turn/Log/RTCombatLogTests.cpp:1848` |
+| quella cella **e nessun'altra** è marcata | `HUD.BlockerMarksOnlyNameableCells` — `Tests/UI/HUD/Intent/RTHUDMarksTests.cpp:256` |
+| il feed è montato nell'albero della HUD | `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — `Tests/UI/HUD/RTMatchWidgetAssetTests.cpp:822` |
 
 Resta **una domanda sola** che vuole un occhio, ed è quella del passo ① punto 3.
 

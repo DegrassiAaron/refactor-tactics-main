@@ -70,7 +70,7 @@ durante la risoluzione, salta il playback (`:472`). Resta scoperto il taglio —
 |---|---|---|
 | **D1** | Le reazioni **restano pre-committed**; nessuna finestra interattiva nel resolver | CP 5.1 (`#50`) lo richiede esplicitamente («senza attese nel resolver», test `Reactions.NoResolverWait`); l'invariante #3 vieta `Delay`/timeline nel resolver; `spec-anima-risoluzione.md:14` mette stack e Reaction Points fuori MVP salvo ADR dedicato |
 | **D2** | `PlanningSeconds` resta una **costante**, ma tarata su **dato misurato** | Un timer adattivo per squadra sarebbe asimmetrico: in PvP (M10) la sua durata diventerebbe un canale che rivela lo stato avversario, contro l'invariante #6 |
-| **D3** | La telemetria vive in un **canale separato dal TurnLog** | `FRTTurnLogEntry` è composto di soli interi e `HashTurnLog` è un FNV-1a su quei campi con round-trip garantito (`Turn/RTTurnLogLibrary.h:38-57`): è la base del KPI di replay divergence. Un tempo di parete lì dentro lo renderebbe non deterministico |
+| **D3** | La telemetria vive in un **canale separato dal TurnLog** | `FRTTurnLogEntry` è composto di soli interi e `HashTurnLog` è un FNV-1a su quei campi con round-trip garantito (`Turn/Log/RTTurnLogLibrary.h:38-57`): è la base del KPI di replay divergence. Un tempo di parete lì dentro lo renderebbe non deterministico |
 | **D4** | Il dato è tutto **intero, in millisecondi** | La formattazione di un `float` in CSV con locale italiano produce la virgola decimale, che collide col separatore; e gli interi rendono i test esatti invece che a tolleranza |
 | **D5** | Il campione registra **`MsSinceLastInput` al lock-in** | Senza, «taglio» e «attesa a vuoto» sono indistinguibili pur avendo cure opposte (§7) |
 | **D6** | Questa fetta **non cambia** `PlanningSeconds` | Consegnare la sonda e il valore nuovo insieme renderebbe impossibile dire se il turno è migliorato o se è solo cambiato il metro. Stesso ragionamento di D7 nella spec E4 |
@@ -84,8 +84,8 @@ introdurne uno per un solo caso d'uso creerebbe un paradigma isolato.
 
 | Pezzo | File | Natura | Responsabilità |
 |---|---|---|---|
-| `FRTPacingSample` | `Turn/RTPacing.h` | struct puro | Un turno misurato. Nessun metodo, nessuna dipendenza |
-| `URTPacingLibrary` | `Turn/RTPacingLibrary.h/.cpp` | statica pura | Percentili, conteggi, riga CSV. Testabile headless |
+| `FRTPacingSample` | `Turn/Pacing/RTPacing.h` | struct puro | Un turno misurato. Nessun metodo, nessuna dipendenza |
+| `URTPacingLibrary` | `Turn/Pacing/RTPacingLibrary.h/.cpp` | statica pura | Percentili, conteggi, riga CSV. Testabile headless |
 | `ARTTurnManager` | esistente | impuro | Cronometra, accumula, appende il file. Non calcola niente |
 
 Sta in `Turn/` e non in una cartella nuova: è pacing del turno, e il codice è raggruppato per dominio
@@ -121,7 +121,7 @@ Definizioni che non devono restare a interpretazione:
 |---|---|
 | `ActionsAvailable` | Somma delle azioni selezionabili dalle unità **vive della squadra del giocatore**, escluse quelle in cooldown |
 | `SelectionCount` | Quante volte il giocatore ha selezionato un'unità nel turno |
-| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno. Conta **gesti**, non lunghezza del piano, e i gesti non contano tutti con la stessa regola. **La pressione di un tasto abilità conta appena raggiunge un'unità selezionata**, prima di ogni validazione: anche se quella posizione del kit è vuota, e anche se è un disarmo ([#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971)). **Un bersaglio, un waypoint, la destinazione di uno scatto e un verso dichiarato contano solo se accettati**: un tentativo respinto — cella bloccata, fuori budget, non allineata — non conta. ∴ tre waypoint valgono tre; uno scatto pianificato vale almeno due, la pressione e la destinazione; e una destinazione cambiata conta di nuovo, anche se nel piano ne resta una ([#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400)). ⚠️ Che lo scatto valga due e non uno è la lettura di `Turn/RTPacing.h` («abilità **o** destinazione»), non una decisione d'autore: nel referto del 2026-10-13 è `P2`, e non è stata chiesta |
+| `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno. Conta **gesti**, non lunghezza del piano, e i gesti non contano tutti con la stessa regola. **La pressione di un tasto abilità conta appena raggiunge un'unità selezionata**, prima di ogni validazione: anche se quella posizione del kit è vuota, e anche se è un disarmo ([#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971)). **Un bersaglio, un waypoint, la destinazione di uno scatto e un verso dichiarato contano solo se accettati**: un tentativo respinto — cella bloccata, fuori budget, non allineata — non conta. ∴ tre waypoint valgono tre; uno scatto pianificato vale almeno due, la pressione e la destinazione; e una destinazione cambiata conta di nuovo, anche se nel piano ne resta una ([#3400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3400)). ⚠️ Che lo scatto valga due e non uno è la lettura di `Turn/Pacing/RTPacing.h` («abilità **o** destinazione»), non una decisione d'autore: nel referto del 2026-10-13 è `P2`, e non è stata chiesta |
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
 | `ReactionWindowsOpened` | Finestre di reazione che hanno **occupato** la squadra misurata nel turno, derivate dal TurnLog (`ERTLogCategory::ReactionDecision`). ⚠️ **Non** tutte le voci: `Immediate`, `CollapsedByCondition` e `CollapsedTargetDown` ([D-518](../decisions/RT_PDR_00_Decision_Log.md): il `FIRE` su un bersaglio già abbattuto non si offre) sono commit immediati, e `NoDecider` è la finestra che nessuno ha aspettato — l'unità umana senza UI, cioè ogni finestra del giocatore finché CP 14.6 non consegna l'interfaccia. Il tetto di attesa è `finestre × FastReactionDuration` (`URTPacingLibrary::ReactionDecisionSecondsUpperBound`) e vale se ognuna arriva a scadenza |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |
@@ -314,7 +314,7 @@ Conviene quindi che la sonda esista **prima** che E4 chiuda, per avere un prima 
 
 - Timer e playback: `Source/RefactorTactics/Turn/RTTurnManager.h:106-114, 200`, `RTTurnManager.cpp:281-320, 394, 1170-1219`
 - Lock-in e skip da input: `Source/RefactorTactics/Player/RTPlayerController.cpp:189-196, 469-477`
-- Hash e serializzazione del TurnLog: `Source/RefactorTactics/Turn/RTTurnLogLibrary.h:38-67`
+- Hash e serializzazione del TurnLog: `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.h:38-67`
 - Reazioni pre-committed: issue `#50` (CP 5.1), DoD «senza attese nel resolver»
 - KPI di macchina: issue `#41` (CP 3.3) · tabella in [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) §4
 - Durata della partita in round (problema distinto): issue `#96` · [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md)

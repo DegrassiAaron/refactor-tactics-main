@@ -668,11 +668,11 @@
 
 ## 2026-10-13 — Il referto dei colori dell'overlay torna a girare, e ha un comando che lo lancia
 
-**Origine**: [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626). `tools/hud-assets/color_metrics.py` leggeva una riga di `UI/RTHUD.cpp` nella forma che aveva prima del 2026-09-04: da allora usciva con un errore esplicito, e nessun comando lo lanciava.
+**Origine**: [#3626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3626). `tools/hud-assets/color_metrics.py` leggeva una riga di `UI/HUD/RTHUD.cpp` nella forma che aveva prima del 2026-09-04: da allora usciva con un errore esplicito, e nessun comando lo lanciava.
 
 | Dove | Che cosa |
 |---|---|
-| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: `color_metrics.py` fra i controlli noti, quando la PR tocca `UI/RTHUD.cpp` o le tabelle di colore, coi suoi due codici d'uscita; la sua prova fra quelle che sanno fallire |
+| [`../AGENTS.md`](../AGENTS.md) | §9, *Tooling locale*: `color_metrics.py` fra i controlli noti, quando la PR tocca `UI/HUD/RTHUD.cpp` o le tabelle di colore, coi suoi due codici d'uscita; la sua prova fra quelle che sanno fallire |
 | [`technical/systems/spec-icon-card-grammar.md`](technical/systems/spec-icon-card-grammar.md) | accanto ai comandi del referto: `T9` misura anche l'overlay del mondo leggendo due righe di `RTHUD.cpp` per forma; fino al 2026-10-13 non lo faceva; i codici d'uscita e il comando della prova |
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-234` annotata: la coppia fase `Dash` / identità di squadra, che la voce dichiarava non misurata da nessun gate, ora la misura `T9` |
 
@@ -742,7 +742,7 @@
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | `D-508` annotata: le famiglie, la forza, l'ordine nel materiale |
 | [`technical/tooling/asset-map.md`](technical/tooling/asset-map.md) | `M_HexVolume`, generato dal commandlet |
 | [`technical/tooling/scenario-map.md`](technical/tooling/scenario-map.md) | `Visual.Map.LayerVolumes`, sulla fixture `LayerYard` |
-| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | la tinta dei volumi in `Map/RTLayerPresentation`, e la ricetta del materiale |
+| [`technical/architecture/architettura-codice.md`](technical/architecture/architettura-codice.md) | la tinta dei volumi in `Map/Actor/RTLayerPresentation`, e la ricetta del materiale |
 | [`technical/architecture/capability-map.yaml`](technical/architecture/capability-map.yaml) | `RT-CAP-CAMERA`: i file, i test, lo scenario e la voce PIE della tinta |
 | [`roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md`](roadmap/plans/bordi-del-piano-brainstorm-2026-10-12.md) | §7: lo stato di #3706 |
 
@@ -1497,7 +1497,7 @@ centro e a destra»* — passata da uno spec panel e misurata su `origin/main` =
 | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-454** (`Brace` è il dodicesimo comando), **D-455** (il gruppo si deriva, precisato alla registrazione), **D-456** (la fascia bassa è una zona sola, della barra). D-407 annotata, non riscritta |
 | [`gameplay/spec-barra-comandi.md`](gameplay/spec-barra-comandi.md) | dodici comandi; la riga di `Brace` in §1 e §3 |
 | [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §6.3, §6.4, §6.6, §6.7 e §6.8 allineate a D-456: timeline in `TopCenter`, Confirm · Undo in `TopRight`, la lettura del movimento all'estremità destra della barra |
-| `Source/RefactorTactics/UI/RTHudViewModel.*` | `ERTActionGroup` e `FRTAbilityCooldownView::Group` — [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468) |
+| `Source/RefactorTactics/UI/HUD/RTHudViewModel.*` | `ERTActionGroup` e `FRTAbilityCooldownView::Group` — [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468) |
 
 ⛔ **`guida-screen-hud-umg.md` §3 NON cambia qui**: descrive l'albero che il `.uasset` contiene, e l'albero
 cambia con [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469), nello stesso commit dell'asset.
@@ -1516,7 +1516,7 @@ panel e misurato su `origin/main` = `77d253f70`. Referto:
 |---|---|
 | [`research/design/hud/skill-bar-2026-10/`](research/design/hud/skill-bar-2026-10/) | La sorgente di design, `PROPOSTA`: specifica visiva, token, comandi di Aevik, le tavole `immagini/01..08` e sorgente del canvas. Il work order resta fuori ([`AGENTS.md`](../AGENTS.md) §8) |
 | [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U61`: lo slot dice la fase, e i suoi stati reggono la scala di grigi |
-| `Source/RefactorTactics/UI/RTHudViewModel.*` | `Phase`, `PhaseMark` e `PhaseLabel` nella vista della dock — [#3465](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3465) |
+| `Source/RefactorTactics/UI/HUD/RTHudViewModel.*` | `Phase`, `PhaseMark` e `PhaseLabel` nella vista della dock — [#3465](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3465) |
 
 ### 🔴 Il work order chiedeva una cosa già fatta e una contraria al canone
 
@@ -2144,7 +2144,7 @@ sembrati coperti: il verde diceva soltanto che il JSON era ben formato.
 
 | File | Modifica |
 |---|---|
-| `Tests/RTScenarioCorpusTests.cpp` | **nuovo** — `Scenario.EveryShippedScenarioRuns` scopre il corpus dall'indice e lo esegue tutto; `Scenario.ExpectedFailScenariosReallyFail` verifica che i dichiarati-rossi lo siano davvero |
+| `Tests/ScenarioHarness/RTScenarioCorpusTests.cpp` | **nuovo** — `Scenario.EveryShippedScenarioRuns` scopre il corpus dall'indice e lo esegue tutto; `Scenario.ExpectedFailScenariosReallyFail` verifica che i dichiarati-rossi lo siano davvero |
 | `Scenarios/Spec/**` | **5 scenari-specifica**: Overwatch, Objective, Predictive, Perception, CreateCover |
 | [`technical/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | §6-bis: il corpus come test, gli scenari-spec, e tre lacune dichiarate |
 | [`technical/scenario-index-e-tag.md`](technical/tooling/scenario-index-e-tag.md) | vocabolario 20 → **22** (`perception`, `spec`) |

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Perception/RTTeamKnowledge.h"
-#include "ScenarioHarness/RTScenarioDraft.h"
+#include "ScenarioHarness/Authoring/RTScenarioDraft.h"
 
 class URTHeroData;
 class URTHexMapAsset;

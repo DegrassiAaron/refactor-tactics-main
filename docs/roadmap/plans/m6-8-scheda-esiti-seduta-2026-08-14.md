@@ -227,7 +227,7 @@ scatto **magenta**, traccia **grigia** post-lock sui centri esagonali e coincide
 reason code con coordinate assiali; **`Home`** ricentra.
 - Esito: 🔴 **la voce non è eseguibile come dichiarata, e va spaccata in due.** Riferito in seduta:
   *«l'HUD so già che non c'è»* — verificato sul codice, ed è vero per una ragione strutturale:
-  · `UI/RTScreenHudWidgets.h` dichiara **sette classi base C++** e scrive lui stesso che *«qui non c'è
+  · `UI/HUD/RTScreenHudWidgets.h` dichiara **sette classi base C++** e scrive lui stesso che *«qui non c'è
     layout: il `.uasset` `WBP_RT_*` fa aspetto e disposizione»*;
   · **`Content/RT/UI` non esiste** e nessun `.uasset` di UI è tracciato — la stessa forma dei `BP_Unit_*`
     che diventano cilindri;

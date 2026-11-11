@@ -1,0 +1,1653 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Ability/RTActionData.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
+#include "Turn/RTTurnManager.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
+#include "Unit/RTUnit.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/Engine.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Bot/RTHexBotLibrary.h"
+
+/**
+ * Pianificazione dei bot su griglia esagonale (CP 6.6): ARTTurnManager::PlanBots passa da URTHexBotLibrary,
+ * quindi le mosse proposte nascono da ReachableCells e non possono essere illegali sulla mappa esagonale.
+ * Le guardie del quadrato (supporto, panico del kiter) restano nel TurnManager e vanno verificate qui.
+ */
+namespace
+{
+	UWorld* MakeHexBotWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyHexBotWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	URTHexMapAsset* SpawnHexBotMap(UWorld* World, int32 Radius)
+	{
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return M;
+	}
+
+	ARTUnit* SpawnHexBotUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell, bool bBot)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->bIsBotControlled = bBot;
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		return U;
+	}
+
+	/**
+	 * La MIRA dichiarata dal bot, in qualunque delle due forme: cella (`bAttackTargetsCell`, la forma (1a) di
+	 * #3229, quella di oggi) o unita' (chi aggancia). `false` = nessun attacco dichiarato.
+	 *
+	 * 🔴 **Esiste perche' i test che leggevano solo `PlannedAttackTarget` sarebbero passati A VUOTO** dal giorno
+	 * in cui il bot ha cominciato a dichiarare la cella: `if (Bot->PlannedAttackTarget)` salta in silenzio il
+	 * blocco che controlla portata e nemico, e il test resta verde senza misurare niente.
+	 */
+	bool DeclaredAim(const ARTUnit* Bot, FRTCellId& OutAim)
+	{
+		if (!Bot) { return false; }
+		if (Bot->bAttackTargetsCell) { OutAim = Bot->PlannedAttackCell; return true; }
+		if (Bot->PlannedAttackTarget) { OutAim = Bot->PlannedAttackTarget->Cell; return true; }
+		return false;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotLegalMovesTest,
+	"RefactorTactics.HexBotPlay.PlansOnlyLegalMoves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotLegalMovesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Map = SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// 2v2: due bot contro due unita' del giocatore, in posizioni oblique (dove Manhattan e distanza
+	// esagonale divergono e il pathfinding quadrato proporrebbe celle fuori dalla mappa).
+	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, -3), /*bBot*/ true);
+	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-3, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyHexBotWorld(World); return false; }
+
+	TM->PlanBotsForTest();
+
+	TArray<ARTUnit*> Bots;
+	Bots.Add(BotA);
+	Bots.Add(BotB);
+
+	// Senza questa verifica il test passerebbe anche con un pianificatore che non fa NULLA: restare fermi
+	// e' sempre legale. I bot partono a distanza 6 dai nemici, fuori dalla portata di entrambi gli archetipi,
+	// quindi ciascuno deve muoversi (o scattare).
+	//
+	// ⚠️ **Da CP 13.5 il MOTIVO per cui si muovono e' cambiato, e va scritto o il test mente sul proprio
+	// oggetto**: distanza 6 e' anche fuori VISTA, quindi nessuno dei due bot conosce un nemico e non si sta
+	// «avvicinando» a niente — si muove per la condotta di ricerca (`PlanBots`, ramo «nessun contatto»). Cio'
+	// che questo test verifica resta la LEGALITA' del piano, che e' il suo nome; il fatto che il piano esista
+	// e' ora pinnato da `SeeksContactWithoutKnowledge`, che lo verifica per quello che e'.
+	for (ARTUnit* Bot : Bots)
+	{
+		FRTCellId Ignorata;
+		const bool bActs = !(Bot->PlannedCell == Bot->Cell)
+			|| Bot->PlannedDashAbility != INDEX_NONE
+			|| DeclaredAim(Bot, Ignorata);
+		TestTrue(TEXT("il bot pianifica qualcosa invece di restare immobile"), bActs);
+	}
+
+	for (ARTUnit* Bot : Bots)
+	{
+		// Mossa legale sulla griglia ESAGONALE: cella esistente, entro il budget di movimento, non occupata.
+		TestTrue(TEXT("la destinazione esiste nella mappa esagonale"), Map->ContainsCell(Bot->PlannedCell));
+		TestTrue(TEXT("la destinazione e' entro il budget di movimento"),
+			URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedCell) <= Bot->GetEffectiveMoveRange());
+
+		if (Bot->PlannedDashAbility != INDEX_NONE)
+		{
+			const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"),
+				Dash && URTCatalogLibrary::IsFastMovement(Dash->Def));
+			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->PlannedDashCell));
+			TestTrue(TEXT("la cella di scatto e' entro la portata dello scatto"),
+				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
+		}
+
+		FRTCellId Mira;
+		if (DeclaredAim(Bot, Mira))
+		{
+			// La mira e' su un NEMICO: su un'unita' dichiarata lo si legge da lei, su una cella dichiarata da chi
+			// la occupa — qui i nemici sono visti, quindi la cella conosciuta e' quella vera.
+			bool bSuUnNemico = Bot->PlannedAttackTarget && Bot->PlannedAttackTarget->TeamId != Bot->TeamId;
+			TArray<AActor*> Tutte;
+			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Tutte);
+			for (const AActor* A : Tutte)
+			{
+				const ARTUnit* U = Cast<ARTUnit>(A);
+				if (Bot->bAttackTargetsCell && U && U->TeamId != Bot->TeamId && U->Cell == Mira) { bSuUnNemico = true; }
+			}
+			TestTrue(TEXT("il bersaglio e' un nemico"), bSuUnNemico);
+			// L'attacco parte dalla cella in cui il bot si trovera' nel Blast: quella attuale, o quella
+			// post-scatto se ha pianificato uno scatto (il Dash precede il Blast).
+			const FRTCellId FiringCell = Bot->PlannedDashAbility != INDEX_NONE ? Bot->PlannedDashCell : Bot->Cell;
+			const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+			TestTrue(TEXT("il bersaglio e' entro la portata dalla cella di tiro"),
+				Ability && URTHexLibrary::HexDistance(FiringCell, Mira) <= Ability->RangeCells);
+		}
+	}
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotTuningTest,
+	"RefactorTactics.HexBotPlay.WThreatTuning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotTuningTest::RunTest(const FString&)
+{
+	// I pesi UPROPERTY del TurnManager devono arrivare al contesto del bot: cambiandoli cambia la scelta
+	// senza ricompilare (è ciò che rende possibile il tuning in PIE, PIE-BU2b).
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	// Senza lo scatto (Carica): il riposizionamento rapido mascherebbe l'effetto del peso sul movimento.
+	const int32 DashIdx = Bot->FindDashAbilityIndex();
+	if (DashIdx != INDEX_NONE) { Bot->Abilities.RemoveAt(DashIdx); }
+
+	TM->WThreat = 100000; // avanzare espone -> resta lontano
+	TM->PlanBotsForTest();
+	const int32 DistHighThreat = URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell);
+
+	TM->WThreat = 0;      // la minaccia non conta -> la mischia chiude la distanza
+	TM->PlanBotsForTest();
+	const int32 DistLowThreat = URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell);
+
+	TestTrue(TEXT("WThreat basso avvicina il Guardian al nemico piu' che WThreat alto"),
+		DistLowThreat < DistHighThreat);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotDashThreatTest,
+	"RefactorTactics.HexBotPlay.DashRespectsThreat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotDashThreatTest::RunTest(const FString&)
+{
+	// Col dash disponibile: con la minaccia alta il bot NON scatta in una cella esposta. Si verifica la
+	// posizione EFFETTIVA (cella di scatto se scatta, altrimenti quella di movimento).
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true); // con Carica
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(5, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	auto Effective = [](const ARTUnit* U) -> FRTCellId
+	{
+		return (U->PlannedDashAbility != INDEX_NONE) ? U->PlannedDashCell : U->PlannedCell;
+	};
+
+	TM->WThreat = 100000; // scattare in una cella esposta deve essere rifiutato
+	TM->PlanBotsForTest();
+	const int32 DistHigh = URTHexLibrary::HexDistance(Effective(Bot), Foe->Cell);
+
+	TM->WThreat = 0;      // minaccia ignorata: il bot chiude col dash
+	TM->PlanBotsForTest();
+	const int32 DistLow = URTHexLibrary::HexDistance(Effective(Bot), Foe->Cell);
+
+	TestTrue(TEXT("col dash: WThreat alto tiene il bot piu' lontano (niente scatto in cella esposta)"),
+		DistLow < DistHigh);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+/**
+ * Il piano del bot non investe il compagno (#213).
+ *
+ * Il secondo anello del cablaggio: `PlanBots` deve popolare `FRTHexBotContext::Allies` e passare la FORMA
+ * dell'azione, altrimenti ogni attacco viene pesato come un colpo singolo e il collaterale resta invisibile.
+ *
+ * La verifica e' sul comportamento osservabile e non sull'abilita' scelta: qualunque cosa il bot pianifichi,
+ * le celle investite non devono contenere il compagno. L'assert speculare — senza il compagno in mezzo il
+ * bot ATTACCA — impedisce che il test passi per il motivo sbagliato, cioe' un bot che non attacca mai.
+ */
+namespace
+{
+	/** Celle investite dal piano principale del bot, o vuoto se non ha pianificato un attacco. */
+	TArray<FRTCellId> PlannedHitCells(ARTUnit* Bot)
+	{
+		TArray<FRTCellId> Out;
+		FRTCellId Mira;
+		if (!DeclaredAim(Bot, Mira) || Bot->PlannedAbilityIndex == INDEX_NONE)
+		{
+			return Out;
+		}
+		const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+		if (!Ability)
+		{
+			return Out;
+		}
+		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
+			Mira, Ability->RangeCells, Ability->AreaRadius);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSparesAllyTest,
+	"RefactorTactics.HexBotPlay.PlanDoesNotBlastDyingAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSparesAllyTest::RunTest(const FString&)
+{
+	// --- Caso 1: il compagno morente sta fra il bot e il nemico ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		// Morente: il collaterale sul compagno diventa LETALE, quindi il piano che lo investe e' nettamente
+		// peggiore di qualunque alternativa. Con HP pieni la penalita' proporzionale potrebbe pareggiare.
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		const TArray<FRTCellId> Hit = PlannedHitCells(Bot);
+		TestFalse(TEXT("il piano del bot non investe il compagno morente"), Hit.Contains(Ally->Cell));
+
+		DestroyHexBotWorld(World);
+	}
+
+	// --- Caso 2 (speculare): stesso setup, compagno FUORI dalla traiettoria ---
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, -4), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
+
+		Ally->Health = 10;
+		Ally->Shield = 0;
+
+		TM->PlanBotsForTest();
+
+		// Se qui il bot non offendesse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
+		// mai, non perche' risparmia il compagno.
+		//
+		// «Offende» comprende la CARICA, e non e' un dettaglio: Branth ha `Ram` (20 danni piu' spinta) oltre
+		// a `ImpactShot` (8), quindi caricare vale di piu' e l'utility la sceglie — `score=90` contro `80`.
+		// La carica pero' passa da `PlannedDashAbility`, non da `PlannedAttackTarget`, e guardare solo il
+		// secondo faceva sembrare passivo un bot che stava scegliendo la mossa piu' aggressiva che aveva.
+		//
+		// L'asserzione stretta ha retto finche' fra le candidate c'era `Action.Wait` con 30 danni fittizi a
+		// portata 5 (i default legacy di `URTActionData`, che `MakeGenericActions` non sovrascriveva): quella
+		// vinceva sempre ed era un attacco «normale», quindi `PlannedAttackTarget` risultava valorizzato.
+		const bool bChargesTarget = Bot->PlannedDashAbility != INDEX_NONE
+			&& Bot->Abilities.IsValidIndex(Bot->PlannedDashAbility)
+			&& Bot->Abilities[Bot->PlannedDashAbility]
+			&& Bot->Abilities[Bot->PlannedDashAbility]->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+		FRTCellId Mira;
+		TestTrue(TEXT("con il compagno fuori mira il bot offende davvero (attacco o carica)"),
+			DeclaredAim(Bot, Mira) || bChargesTarget);
+
+		DestroyHexBotWorld(World);
+	}
+
+	return true;
+}
+
+/**
+ * Il bot filtra le proprie candidate con lo STESSO codice che la fase Dash usa per eseguirle (issue #140).
+ *
+ * Il test vive a livello di `PlanBots` — non della libreria — perche' e' li' che la coerenza si puo' rompere:
+ * la portata letta dal catalogo, l'instradamento per stile di movimento, l'insieme dei nemici. Un test che
+ * confronta il predicato con la funzione su cui e' definito non potrebbe accorgersi di un refuso in nessuna
+ * di quelle tre righe.
+ *
+ * Lo scenario e' quello che PRIMA del consolidamento faceva divergere i due strati: un corridoio di acqua
+ * bassa (costo 2). Il vecchio filtro del bot contava il COSTO del terreno, il resolver conta le CELLE — e il
+ * catalogo azioni dice che le mobilita' lineari non si riducono col terreno. Su questa mappa il bot si
+ * negava scatti che il resolver avrebbe eseguito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotDashAgreesWithResolverTest,
+	"RefactorTactics.HexBotPlay.DashPlanIsExecutableOnCostlyTerrain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	URTHexMapAsset* Map = SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Acqua bassa (costo 2) su tutta la mappa tranne il bordo: qualunque direzione lo scatto prenda, il
+	// terreno e' caro. E' cio' che discrimina "portata in celle" da "portata in punti movimento".
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+	{
+		FRTHexCellData Water(Id);
+		Water.Surface = ERTHexSurface::ShallowWater;
+		Water.MoveCost = 2;
+		Map->AddOrUpdateCell(Water);
+	}
+	Map->SortCells();
+
+	// Un kiter con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che mette davvero in
+	// moto il ramo che questo test deve coprire (col nemico lontano il bot spara e basta).
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
+
+	// Lo standoff non si dichiara piu' qui: il bot lo DERIVA dalla portata dell'attacco base, e Phase —
+	// `PressureJet`, portata 5 — e' l'unica kiter del roster. Lo scenario e' «il kiter fugge», quindi senza
+	// un'unita' che il kiting lo produca davvero il bot resterebbe fermo e questa guardia non guarderebbe
+	// niente. La premessa qui sotto lo verifica invece di darlo per scontato.
+	// ADDOSSO davvero: a distanza 1 la violazione dello standoff e' massima, e la ritirata immediata scatta
+	// (soglia: meta' standoff). Stava a 2, che con lo standoff 4 del Ranger legacy era dentro la soglia;
+	// con i 3 di Phase non lo e' piu', e il bot si sarebbe limitato a riguadagnare UNA cella — comportamento
+	// corretto, ma non lo scenario che questo test deve coprire.
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	// Lo scenario chiede un'unita' che sia kiter E abbia uno scatto, e nel roster v0.1 nessuno e' entrambe
+	// le cose: Phase e' l'unica kiter (portata 5) ma il suo kit non ha mobilita' rapide, Ivrin ha
+	// `PassingBlade` ma con portata 4 non e' kiter. Lo scatto glielo da' il test, dal catalogo GENERICO —
+	// non e' un numero inventato, e' `Action.Dodge` cosi' come lo spedisce il gioco.
+	URTActionData* Sprint = NewObject<URTActionData>(Bot);
+	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
+	Sprint->RangeCells = Sprint->Def.RangeCells;
+	Sprint->Power = 0;
+	Bot->Abilities.Add(Sprint);
+
+	// Lo scatto dichiara di essere LINEARE: e' il ramo che il consolidamento ha unificato. La linearita' si
+	// VERIFICA sul dato del catalogo, non si impone qui: imponendola (come faceva questo test fino a #142)
+	// la guardia sarebbe rimasta verde anche se lo scatto fosse tornato senza stile.
+	const int32 DashIdx = Bot->FindDashAbilityIndex();
+	if (!TestTrue(TEXT("premessa: chi fugge ha una mobilita' rapida"), DashIdx != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	URTActionData* DashAb = Bot->GetAbility(DashIdx);
+	if (!TestTrue(TEXT("premessa: lo scatto e' lineare"),
+		DashAb && URTMovementActionLibrary::IsLinear(DashAb->Def.MovementStyle)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TM->PlanBotsForTest();
+
+	// Se il bot non scatta, il test non prova nulla: e' un fallimento dello SCENARIO, non un successo.
+	// Meglio accorgersene subito che scoprire fra sei mesi che questa guardia non guardava niente.
+	if (!TestTrue(TEXT("lo scenario mette davvero in moto uno scatto del bot"),
+		Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// Il piano del bot deve essere ESEGUIBILE: e' la definizione operativa di "i due strati concordano".
+	TArray<ARTUnit*> Units;
+	FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
+	const int32 BotIdx = Units.IndexOfByKey(Bot);
+	if (!TestTrue(TEXT("il bot e' nello snapshot"), BotIdx != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TSet<int32> Hostiles;
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i] && Units[i]->TeamId != Bot->TeamId) { Hostiles.Add(i); }
+	}
+
+	const int32 Declared = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
+	const int32 Range = Bot->GetEffectiveDashRange(Declared);
+	const FRTLinearMoveResult Resolved = URTMovementActionLibrary::ResolveLinearMove(
+		Snapshot.Map, Bot->Cell, Bot->PlannedDashCell, Range,
+		DashAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+
+	TestTrue(TEXT("lo scatto pianificato dal bot arriva dove il bot lo ha pianificato"),
+		Resolved.Final == Bot->PlannedDashCell);
+
+	// E deve poterlo pianificare LONTANO quanto il resolver lo porterebbe. E' la parte che discrimina: le
+	// candidate nascono da un Dijkstra sui punti movimento, quindi finche' il budget dello scatto vi finiva
+	// dentro come se fossero MP, su acqua (costo 2) il bot non vedeva nulla oltre meta' portata — e nessun
+	// filtro puo' recuperare una candidata che non e' mai nata. Il kiter fugge il piu' lontano possibile:
+	// se la distanza si ferma a portata/costo, la troncatura e' tornata.
+	const int32 Fled = URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell);
+	AddInfo(FString::Printf(TEXT("fuga di %d celle su portata %d (terreno costo 2)"), Fled, Range));
+	TestTrue(TEXT("la fuga non e' troncata dal costo del terreno"), Fled > Range / 2);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSupportTest,
+	"RefactorTactics.HexBotPlay.UsesSupportWhenHurt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSupportTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Unita' ferita sotto meta' HP: usa un'abilita' self-target invece di attaccare.
+	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	// Il supporto su se stessi lo dichiara il TEST, non l'eroe: `bSelfTarget` non e' impostato da nessuna
+	// azione del roster — era `Guardian.Barrier`, sparita con gli archetipi legacy. La proprieta' in esame e'
+	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
+	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
+	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
+	// Deve CURARE, non solo essere su di se' ne' genericamente difendere: il ramo del bot chiede un effetto
+	// `Heal`. Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' il
+	// ripristino: `Guard` applica uno stato difensivo e non rimette in piedi nessuno.
+	//
+	// 🔴 **Era +40 di SCUDO, come `Guardian.Barrier`, ed e' diventata cura il 2026-09-04** (`#2283`).
+	// Non e' il test adattato alla sua implementazione: e' la stessa proprieta' misurata su un effetto che
+	// la regge. La condizione d'ingresso del ramo e' `Health * 2 < MaxHealth`, e uno scudo temporaneo non
+	// la scioglie — scade nel Cleanup senza toccare `Health`. Questo test dura UN turno, quindi non
+	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Ivrin ferma
+	// 5 turni contro un limite di 4, con quattro test di partita rossi a cascata).
+	//
+	// ⚠️ Chi volesse riaprire il ramo allo scudo — `#464`, v0.2 — non cambi solo questa riga: serve
+	// prima togliere al ramo il `continue` incondizionato, o dargli un criterio di ripetizione. Con lo
+	// scudo, questo test resta verde e la partita si pianta lo stesso.
+	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
+	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
+	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
+	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
+	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 40));
+	SelfSupport->bSelfTarget = true;
+	SelfSupport->RangeCells = 0;
+	SelfSupport->Power = 0;
+	Hurt->Abilities.Add(SelfSupport);
+
+	Hurt->ApplyCombatState(/*Health*/ 20, /*Shield*/ 0); // ben sotto meta' dei suoi HP massimi
+
+	TM->PlanBotsForTest();
+
+	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
+	TestTrue(TEXT("pianifica l'abilita' che lo rimette in piedi, non una qualunque su di se'"),
+		Planned && Planned->Def.ActionId == FName(TEXT("Test.SelfSupport")));
+	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
+
+	// 🔴 **E il ramo LASCIA TRACCIA** (`#464`). Senza questa asserzione la riga di log non ha nessun gate:
+	// cancellarla dal planner lascia la suite verde, e il ramo torna a essere invisibile — cioe' allo
+	// stato che ha permesso alla regressione di `#2283` di arrivare a quattro test di partita rossi a
+	// cascata invece che a una riga.
+	//
+	// ⚠️ **Si filtra sull'ActionId, non sulla frase.** `Test.SelfSupport` e' l'azione che questo test
+	// costruisce, quindi l'asserzione cade se la riga sparisce o se smette di nominare l'azione scelta —
+	// che e' il suo contenuto informativo — e NON cade per una riformulazione del testo attorno. Una
+	// stringa intera copiata qui sarebbe un secondo posto in cui la frase vive.
+	int32 RigheDelRamo = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("Test.SelfSupport")) && Evento.Contains(*Hurt->GetName()))
+		{
+			++RigheDelRamo;
+		}
+	}
+	TestEqual(TEXT("il ramo difensivo scrive una riga, e una sola"), RigheDelRamo, 1);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * La fuga del kiter, in partita. Torna dopo la rimozione degli archetipi legacy (#426): l'unita' non e' piu'
+ * il `Ranger` con `KiteStandoff = 4` scritto addosso, ma **Phase**, che lo standoff se lo guadagna dalla
+ * portata del proprio attacco base — `PressureJet` tira a 5, e `DeriveKiteStandoff` ne fa 3.
+ *
+ * E' la differenza che conta: prima il comportamento esisteva perche' un archetipo lo dichiarava, adesso
+ * perche' un eroe del roster ha i numeri per produrlo. Se un domani nessuno li avesse piu', questo test
+ * diventerebbe rosso invece di restare verde su un'unita' inventata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPanicTest,
+	"RefactorTactics.HexBotPlay.KiterFleesWhenThreatened",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPanicTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
+
+	// La minaccia si posiziona a meta' dello standoff DERIVATO, che e' la soglia della ritirata immediata.
+	// Era a distanza 2, calcolata sullo standoff 4 del Ranger legacy: Phase ne ha 3, quindi la soglia e' 1 e
+	// a distanza 2 il panico non sarebbe scattato — il test avrebbe misurato un bot che sta fermo.
+	const int32 Standoff = URTHexBotLibrary::DeriveKiteStandoff(Kiter->AttackRange);
+	if (!TestTrue(TEXT("premessa: chi fugge e' un kiter (standoff derivato > 0)"), Standoff > 0))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(),
+		FRTCellId(FMath::Max(1, Standoff / 2), 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Melee) { DestroyHexBotWorld(World); return false; }
+
+	TestTrue(TEXT("premessa: la minaccia e' entro meta' standoff"),
+		URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell) <= Standoff / 2);
+
+	TM->PlanBotsForTest();
+
+	// La fuga puo' avvenire col movimento normale o con lo scatto difensivo: conta il risultato.
+	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
+	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
+		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CP 13.5 — il bot pianifica sulla CONOSCENZA della sua squadra (#160, RT-FEAT-BOT-FAIRNESS)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	/** Il piano di un bot, ridotto a cio' che il resolver poi eseguira'. Confrontabile fra due partite. */
+	struct FRTBotPlanFingerprint
+	{
+		FRTCellId Cell;
+		/**
+		 * Il bersaglio come CELLA, non come identita'.
+		 *
+		 * ⚠️ La prima stesura usava `StableUnitId` e faceva fallire il canary **senza che ci fosse una fuga**:
+		 * `MatchRosterLess` ordina il roster per `(TeamId, cella)`, quindi spostare il nemico NASCOSTO
+		 * rinumera anche quello VISIBILE — in una partita il bersaglio era `2`, nell'altra `1`, e i due piani
+		 * risultavano diversi pur essendo lo stesso piano. L'identita' e' deterministica *dentro* una
+		 * partita e non e' confrontabile *fra* due partite diverse.
+		 * La cella lo e', perche' il nemico visibile sta nello stesso posto in entrambe — e conserva il
+		 * potere del test: se il bot bersagliasse quello nascosto, le due celle differirebbero.
+		 */
+		FRTCellId AttackTargetCell;
+		bool bHasAttackTarget = false;
+		int32 AbilityIndex = INDEX_NONE;
+		int32 DashAbility = INDEX_NONE;
+		FRTCellId DashCell;
+
+		/**
+		 * Lo slot REAZIONE, aggiunto con [D-268] (`#1802`).
+		 *
+		 * 🔴 **Senza, il canary non guardava l'uscita piu' nuova di `PlanBots`.** Da quando la reazione si
+		 * sceglie col punteggio, la scelta dipende dalla conoscenza — quindi e' proprio il tipo di uscita che
+		 * questo test esiste per sorvegliare. La mutazione che lo dimostra: far leggere a `ScoreReaction` la
+		 * cella VERA di ogni nemico vivo invece di `Ctx.Enemies` — onniscienza piena — e con la vecchia
+		 * impronta il canary restava verde.
+		 */
+		int32 ReactionAbility = INDEX_NONE;
+
+		bool operator==(const FRTBotPlanFingerprint& O) const
+		{
+			return Cell == O.Cell && bHasAttackTarget == O.bHasAttackTarget
+				&& (!bHasAttackTarget || AttackTargetCell == O.AttackTargetCell)
+				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell
+				&& ReactionAbility == O.ReactionAbility;
+		}
+	};
+
+	FRTBotPlanFingerprint FingerprintOfBotPlan(const ARTUnit* Bot)
+	{
+		FRTBotPlanFingerprint F;
+		if (!Bot) { return F; }
+		F.Cell = Bot->PlannedCell;
+		F.bHasAttackTarget = Bot->PlannedAttackTarget != nullptr;
+		if (Bot->PlannedAttackTarget) { F.AttackTargetCell = Bot->PlannedAttackTarget->Cell; }
+		F.AbilityIndex = Bot->PlannedAbilityIndex;
+		F.DashAbility = Bot->PlannedDashAbility;
+		F.DashCell = Bot->PlannedDashCell;
+		F.ReactionAbility = Bot->PlannedReactionAbility;
+		return F;
+	}
+}
+
+/**
+ * CANARY DELL'ONNISCIENZA — il gate di `RT-FEAT-BOT-FAIRNESS`.
+ *
+ * Due partite identiche in tutto cio' che la squadra del bot PUO' sapere, e diverse solo in cio' che non
+ * puo': la posizione di un nemico fuori vista, da un lato nella prima e dall'altro nella seconda. Il piano
+ * deve essere lo stesso.
+ *
+ * E' l'unico controllo che un bot onnisciente non puo' superare, ed e' per questo che esiste. Un bot che
+ * legge lo stato autorevole non fallisce, non va in crash e produce piani *sensati*: una review lo prende
+ * solo se qualcuno rilegge la riga giusta di `PlanBots`, cioe' finche' qualcuno si ricorda di guardare.
+ * Questo test misura l'unica cosa che l'onniscienza non sa falsificare — l'INDIPENDENZA dell'esito da
+ * un'informazione che non si dovrebbe avere.
+ *
+ * Vale anche come promessa pubblicata: la pagina Wiki `avversario-bot` dice al giocatore «il bot non vede
+ * piu' di te». Senza questo test quella frase e' prosa.
+ *
+ * ⌫ **Qui viveva il principio che [D-371] ha RITIRATO** (2026-09-10): *«l'OCCUPAZIONE resta legittimamente
+ * globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra
+ * sa, e il giocatore umano ha lo stesso vincolo»*. `BLIND-1` e' chiusa con l'uscita *(c)*, **filtrata
+ * OVUNQUE, bot compreso**: una divergenza dei piani per occupazione ignota non e' legittima, e' il difetto.
+ * Il perche' sta in [D-371], non qui — questo docstring ne era la sede, e smette di esserlo.
+ *
+ * ⚠️ **La premessa resta com'era — nascosto lontano dal corridoio, distanza 6 con vista 3 — come LIMITE
+ * DICHIARATO e non come difesa.** Il filtro che [D-371] adotta e' in vigore da [D-432] (`#3260`): a
+ * impedire di portare il nascosto dentro il corridoio non e' piu' il filtro che manca, e' la geometria di
+ * questo banco — la rotta del bot e' piu' corta della sua vista (vedi il record nel corpo del test).
+ * ⏱️ *Fino al 2026-10-12 questo paragrafo diceva che il filtro non era ancora implementato e che `BLIND-2`
+ * era aperta: entrambe le cose erano cadute il 2026-09-21.*
+ *
+ * 🔑 **E il caso che la premessa esclude NON e' scoperto**: per il bot lo misurano, qui sotto,
+ * `HexBotPlay.ThreeWorldsAgreeOnTheBotPlan` (la cella d'arrivo) e
+ * `HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan` (la cella dello scatto); per chi pianifica a mano,
+ * `BlindActions.ThreeWorldsAgreeOnTheRefusalSymbol` (`Tests/Perception/RTBlindActionsLeakMeasureTests.cpp`). ⚠️ I canary
+ * del ventaglio e del percorso di quel file non possono piu' cadere da [D-445]/[D-446]: la rotta attraversa
+ * i corpi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
+	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
+{
+	// Una partita: bot e nemico visibile sempre uguali, nemico NASCOSTO nella cella indicata.
+	auto PlanWithHiddenAt = [](const FRTCellId& HiddenCell, bool& bOutSetupOk) -> FRTBotPlanFingerprint
+	{
+		bOutSetupOk = false;
+		FRTBotPlanFingerprint Empty;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return Empty; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), HiddenCell, /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
+
+		// Vista corta e DICHIARATA nel test: cosi' la premessa non dipende dai numeri di bilanciamento del
+		// roster, che cambiano (D-073 ha appena portato Aevik a 7).
+		Bot->VisionRange = 3;
+
+		const bool bSeen = URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange;
+		const bool bHidden = URTHexLibrary::HexDistance(Bot->Cell, Hidden->Cell) > Bot->VisionRange;
+		if (!bSeen || !bHidden) { DestroyHexBotWorld(World); return Empty; }
+
+		TM->PlanBotsForTest();
+		const FRTBotPlanFingerprint F = FingerprintOfBotPlan(Bot);
+		DestroyHexBotWorld(World);
+		bOutSetupOk = true;
+		return F;
+	};
+
+	bool bLeftOk = false;
+	bool bRightOk = false;
+	// ⌫ **Provato a portare la premessa DENTRO il corridoio il 2026-09-21, e la misura lo ha bocciato.**
+	// [D-371] denuncia queste due celle — lati opposti, lontane dal corridoio d'azione — perche' *«un test
+	// che difende una posizione evitando il caso in cui quella posizione conta non e' una difesa»*. Col
+	// filtro di `#2793` in vigore il caso e' finalmente misurabile, e i due nascosti sono stati spostati a
+	// `(4,0)` e `(4,-1)`: distanza 4 contro vista 3, sulla direttrice del movimento. **VERDE — e verde anche
+	// con il filtro MUTATO a spento**, cioe' vacuo. Il motivo e' strutturale e vale la pena scriverlo:
+	//
+	// 🔴 **Cio' che e' abbastanza vicino da deviare una rotta corta e' abbastanza vicino da VEDERSI.** Il
+	// bot a `(0,0)` si ferma sul nemico visto a `(2,0)`; la sua rotta non arriva mai a distanza 4, e un
+	// nascosto piazzato dove la rotta arriva sarebbe dentro la vista. Perche' l'occupazione morda serve una
+	// rotta **piu' lunga della vista** — cioe' l'esplorazione, che questo banco esclude per premessa.
+	//
+	// ✅ **Il caso non e' scoperto: lo misura `RefactorTactics.BlindActions.*`**, dove chi pianifica ha
+	// budget per un ventaglio di raggio 4+ e i nascosti stanno **sulla direttrice diretta** — ventaglio
+	// 61/61/61 e costo 4/4/4 a filtro acceso, e tre canary rossi a filtro mutato. La premessa qui resta
+	// quella, come **limite dichiarato** che rimanda li', e non come difesa di una posizione ritirata.
+	// ⏱️ *Rimisurato il 2026-10-12: «tre canary rossi a filtro mutato» valeva il 2026-09-21. Da [D-445]/[D-446]
+	// a filtro spento cade solo `ThreeWorldsAgreeOnTheRefusalSymbol`; il caso del bot lo coprono i due test
+	// qui sotto.*
+	const FRTBotPlanFingerprint Left = PlanWithHiddenAt(FRTCellId(-6, 3), bLeftOk);
+	const FRTBotPlanFingerprint Right = PlanWithHiddenAt(FRTCellId(6, -3), bRightOk);
+
+	if (!TestTrue(TEXT("premessa: entrambe le partite allestite, uno visto e uno fuori vista"), bLeftOk && bRightOk))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il piano del bot NON dipende da dove sta il nemico che non vede"), Left == Right);
+
+	// Senza questa riga il test passerebbe anche con un bot che non pianifica niente in nessuna delle due:
+	// due «fermo» sono identici, e l'uguaglianza non proverebbe nulla.
+	const bool bDidSomething = !(Left.Cell == FRTCellId(0, 0))
+		|| Left.bHasAttackTarget
+		|| Left.DashAbility != INDEX_NONE;
+	TestTrue(TEXT("premessa: nelle due partite il bot ha davvero pianificato qualcosa"), bDidSomething);
+	return true;
+}
+
+/**
+ * [D-371] (c), `#2793` — **il piano del bot non dipende da chi sta, non visto, sulla cella dove arriverebbe.**
+ *
+ * 🔑 **E' il caso che `HiddenEnemyFairness` non puo' misurare**, per la ragione scritta li': con un nemico visto
+ * a due celle la rotta del bot e' piu' corta della sua vista, e niente di ignoto puo' starle in fondo. Qui il bot
+ * non vede nessuno e CERCA: va verso il centro — geometria pubblica, la condotta di
+ * `SeeksContactWithoutKnowledge` — e spende tutto il budget lungo la fila `r = 0`.
+ *
+ * 🔴 **Il canale e' la CELLA D'ARRIVO, non la rotta.** Da [D-445] e [D-446] nessuna unita' e' un ostacolo per il
+ * percorso: i corpi si attraversano, e la cella occupata si puo' dichiarare come scommessa. Ma il bot non
+ * scommette — *«il giocatore puo' scommettere, il bot no»* — e torna indietro *«fino all'ultimo passo LIBERO»*
+ * leggendo l'occupazione del proprio snapshot. Un bot che conoscesse il corpo sulla cella d'arrivo si fermerebbe
+ * un passo prima; con due corpi, due passi prima. Chi non li conosce pianifica lo stesso arrivo.
+ *
+ * ⌫ **Due stesure di questo test erano vacue, e lo ha detto la mutazione.** La prima metteva i nascosti A META'
+ * rotta, a cinque celle dal centro: il filtro spento lasciava il test verde, perche' la rotta i corpi li
+ * attraversa. La seconda allungava la rotta oltre il budget, con i nascosti ancora a meta': stessa ragione. La
+ * premessa scritta in testa — *«un corpo in mezzo costringe ad aggirarlo»* — era vera fino al 2026-10-01 e
+ * falsa dopo. ✅ Con i nascosti sulla cella d'arrivo, la mutazione che rende onnisciente lo snapshot di squadra
+ * (`RTBotPlanningLibrary.cpp`, `AsObserver`) fa cadere entrambi gli asserti.
+ *
+ * Tre mondi identici per conoscenza autorizzata — gli stessi due nemici, sempre fuori vista — e diversi solo
+ * per DOVE stanno: lontano (`A`), uno sulla cella d'arrivo (`B`), due sulle ultime due celle (`C`). Il bot parte
+ * a «budget + 2» dal centro, cosi' l'arrivo e' dove finisce il budget e non dipende dal bilanciamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotThreeWorldsAgreeOnThePlanTest,
+	"RefactorTactics.HexBotPlay.ThreeWorldsAgreeOnTheBotPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotThreeWorldsAgreeOnThePlanTest::RunTest(const FString&)
+{
+	const int32 Vista = 2; // dichiarata qui: la premessa non dipende dal bilanciamento del roster
+	const int32 Budget = URTHeroCatalogLibrary::MakeIvrin()->MovePoints;
+	const int32 Raggio = Budget + 3;
+	const FRTCellId Partenza(Budget + 2, 0);       // due celle oltre il budget: il centro non si raggiunge
+	const FRTCellId Arrivo(Partenza.X - Budget, 0); // dove finisce il budget lungo la fila
+	const FRTCellId Penultima(Arrivo.X + 1, 0);
+	const FRTCellId Lontano1(-Raggio, 4);
+	const FRTCellId Lontano2(-Raggio, Raggio);
+	// I nascosti stanno a `Budget` e `Budget - 1` celle dal bot: fuori vista solo se il budget supera la vista
+	// di almeno due. Asserito, perche' con un eroe piu' lento il test diventerebbe un altro test.
+	if (!TestTrue(TEXT("premessa: le ultime due celle della rotta sono oltre la vista"), Budget - 1 > Vista))
+	{
+		return false;
+	}
+
+	struct FMondo
+	{
+		FRTBotPlanFingerprint Piano;
+		bool bOk = false;
+	};
+	auto Pianifica = [&](const FRTCellId& Nascosto1, const FRTCellId& Nascosto2) -> FMondo
+	{
+		FMondo M;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return M; }
+		SpawnHexBotMap(World, Raggio);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Partenza, /*bBot*/ true);
+		ARTUnit* N1 = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Nascosto1, /*bBot*/ false);
+		ARTUnit* N2 = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), Nascosto2, /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !N1 || !N2) { DestroyHexBotWorld(World); return M; }
+		Bot->VisionRange = Vista;
+		// In OGNI mondo i due nemici sono fuori vista: e' cio' che rende i tre mondi uguali per chi pianifica.
+		if (URTHexLibrary::HexDistance(Bot->Cell, N1->Cell) <= Vista || URTHexLibrary::HexDistance(Bot->Cell, N2->Cell) <= Vista)
+		{
+			DestroyHexBotWorld(World);
+			return M;
+		}
+		TM->PlanBotsForTest();
+		M.Piano = FingerprintOfBotPlan(Bot);
+		DestroyHexBotWorld(World);
+		M.bOk = true;
+		return M;
+	};
+
+	const FMondo A = Pianifica(Lontano1, Lontano2);
+	const FMondo B = Pianifica(Arrivo, Lontano2);
+	const FMondo C = Pianifica(Arrivo, Penultima);
+	if (!TestTrue(TEXT("premessa: i tre mondi sono allestiti, coi nemici fuori vista"), A.bOk && B.bOk && C.bOk))
+	{
+		return false;
+	}
+	auto Descrivi = [](const FRTBotPlanFingerprint& P)
+	{
+		return FString::Printf(TEXT("cella (%d,%d) scatto %d verso (%d,%d) azione %d"),
+			P.Cell.X, P.Cell.Y, P.DashAbility, P.DashCell.X, P.DashCell.Y, P.AbilityIndex);
+	};
+	AddInfo(FString::Printf(TEXT("A: %s | B: %s | C: %s"), *Descrivi(A.Piano), *Descrivi(B.Piano), *Descrivi(C.Piano)));
+
+	// ⛔ **La premessa che rende il test capace di fallire**: nel mondo senza nessuno il bot arriva ESATTAMENTE
+	// sulla cella dove gli altri due mondi mettono il nascosto. Se arrivasse altrove, quel corpo non starebbe sul
+	// suo ultimo passo e l'uguaglianza sarebbe gratis.
+	if (!TestTrue(*FString::Printf(TEXT("⛔ premessa: il bot arriva sulla cella del nascosto — arrivo (%d,%d), attesa (%d,%d)"),
+				A.Piano.Cell.X, A.Piano.Cell.Y, Arrivo.X, Arrivo.Y),
+			A.Piano.Cell == Arrivo))
+	{
+		return false;
+	}
+
+	TestTrue(*FString::Printf(TEXT("🔴 un nemico ignoto sulla cella d'arrivo non cambia il piano — A: %s · B: %s"),
+			*Descrivi(A.Piano), *Descrivi(B.Piano)), A.Piano == B.Piano);
+	TestTrue(*FString::Printf(TEXT("🔴 ne' due sulle ultime due celle — A: %s · C: %s"), *Descrivi(A.Piano), *Descrivi(C.Piano)),
+		A.Piano == C.Piano);
+	return true;
+}
+
+/**
+ * [D-371] (c), `#2793` — **lo SCATTO del bot non dipende da chi sta, non visto, sulla cella dove scatterebbe.**
+ *
+ * 🔑 **E' la seconda sede del filtro nel pianificatore, e nessun test la toccava.** Lo scatto e la carica non
+ * leggono lo snapshot di squadra ma la base senza prenotazioni (`BaseFiltrata`, `RTBotPlanningLibrary.cpp`),
+ * filtrata con una chiamata sua: renderla onnisciente lasciava verde ogni test del bot. E li' un corpo conta
+ * ancora per intero — `IsLinearReachable` e `ResolveLinearMove` trattano un occupante come un corpo solido.
+ *
+ * 🔑 **La cella del nascosto non e' scritta a mano: la sceglie il bot.** Si pianifica prima il mondo senza
+ * nessuno, si legge dove il kiter scatta per fuggire, e nel secondo mondo il nemico ignoto sta proprio li'. La
+ * geometria della fuga puo' cambiare col bilanciamento; il test la segue, e le premesse dicono se regge ancora:
+ * il bot deve scattare, e la cella dello scatto deve stare oltre la vista.
+ *
+ * ✅ Validato per mutazione: con `BaseFiltrata` onnisciente il bot del secondo mondo rinuncia allo scatto e si
+ * muove altrove, e cade questo test e solo questo. Con lo snapshot di SQUADRA onnisciente questo resta verde e
+ * cade `ThreeWorldsAgreeOnTheBotPlan`: le due sedi del filtro hanno un test ciascuna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenBodyOnTheDashCellTest,
+	"RefactorTactics.HexBotPlay.HiddenBodyOnTheDashCellDoesNotChangeThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotHiddenBodyOnTheDashCellTest::RunTest(const FString&)
+{
+	const int32 Vista = 2; // la minaccia nota sta dentro, la cella dello scatto deve stare fuori
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Lontano(6, -6);
+
+	struct FMondo
+	{
+		FRTBotPlanFingerprint Piano;
+		bool bOk = false;
+	};
+	auto Pianifica = [&](const FRTCellId& Nascosto) -> FMondo
+	{
+		FMondo M;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return M; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+		ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), Partenza, /*bBot*/ true);
+		if (!Kiter) { DestroyHexBotWorld(World); return M; }
+		// La minaccia NOTA, entro meta' dello standoff derivato: la soglia della ritirata immediata, come in
+		// `KiterFleesWhenThreatened`.
+		const int32 Standoff = URTHexBotLibrary::DeriveKiteStandoff(Kiter->AttackRange);
+		ARTUnit* Minaccia = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(),
+			FRTCellId(FMath::Max(1, Standoff / 2), 0), /*bBot*/ false);
+		ARTUnit* Ignoto = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Nascosto, /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Minaccia || !Ignoto) { DestroyHexBotWorld(World); return M; }
+		Kiter->VisionRange = Vista;
+		const bool bMinacciaVista = URTHexLibrary::HexDistance(Kiter->Cell, Minaccia->Cell) <= Vista;
+		const bool bIgnotoFuori = URTHexLibrary::HexDistance(Kiter->Cell, Ignoto->Cell) > Vista;
+		if (!bMinacciaVista || !bIgnotoFuori) { DestroyHexBotWorld(World); return M; }
+		TM->PlanBotsForTest();
+		M.Piano = FingerprintOfBotPlan(Kiter);
+		DestroyHexBotWorld(World);
+		M.bOk = true;
+		return M;
+	};
+	auto Descrivi = [](const FRTBotPlanFingerprint& P)
+	{
+		return FString::Printf(TEXT("cella (%d,%d) scatto %d verso (%d,%d) azione %d"),
+			P.Cell.X, P.Cell.Y, P.DashAbility, P.DashCell.X, P.DashCell.Y, P.AbilityIndex);
+	};
+
+	const FMondo A = Pianifica(Lontano);
+	if (!TestTrue(TEXT("premessa: il mondo senza nessuno e' allestito"), A.bOk)) { return false; }
+	AddInfo(FString::Printf(TEXT("A: %s"), *Descrivi(A.Piano)));
+	// ⛔ Le due premesse che rendono il test capace di fallire, e che dicono quando ha smesso di misurare.
+	if (!TestTrue(*FString::Printf(TEXT("⛔ premessa: il kiter fugge con lo SCATTO (%s)"), *Descrivi(A.Piano)),
+			A.Piano.DashAbility != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTCellId Scatto = A.Piano.DashCell;
+	if (!TestTrue(*FString::Printf(TEXT("⛔ premessa: la cella dello scatto (%d,%d) sta oltre la vista"), Scatto.X, Scatto.Y),
+			URTHexLibrary::HexDistance(Partenza, Scatto) > Vista && !(Scatto == Lontano)))
+	{
+		return false;
+	}
+
+	const FMondo B = Pianifica(Scatto);
+	if (!TestTrue(TEXT("premessa: il mondo col nascosto sulla cella dello scatto e' allestito"), B.bOk)) { return false; }
+	AddInfo(FString::Printf(TEXT("B: %s"), *Descrivi(B.Piano)));
+	TestTrue(*FString::Printf(TEXT("🔴 un nemico ignoto sulla cella dello scatto non cambia il piano — A: %s · B: %s"),
+			*Descrivi(A.Piano), *Descrivi(B.Piano)), A.Piano == B.Piano);
+	return true;
+}
+
+/**
+ * Il bot non bersaglia cio' che la sua squadra non conosce.
+ *
+ * Complementare al canary: quello dimostra che l'esito non DIPENDE dall'ignoto, questo che l'ignoto non
+ * viene proprio scelto.
+ *
+ * ⚠️ **L'allestimento e' costruito perche' il test possa FALLIRE, ed e' la parte che conta.** La prima
+ * stesura metteva l'ignoto a distanza 6, cioe' fuori portata d'attacco: rimettendo l'onniscienza per
+ * mutazione il test restava VERDE, perche' un bot onnisciente non lo avrebbe bersagliato comunque —
+ * misurava la portata, non la conoscenza.
+ * Qui l'ignoto e' dentro la portata **e quasi morto**: `WKill` domina di due ordini di grandezza, quindi un
+ * bot che lo vedesse lo sceglierebbe di sicuro. Il verde significa che non lo vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPartialKnowledgeTest,
+	"RefactorTactics.HexBotPlay.PlansOnPartialKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
+	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Seen || !Unknown) { DestroyHexBotWorld(World); return false; }
+
+	// Vista di UNA cella: vede il vicino, non l'altro. Dichiarata qui e non ereditata dal roster, che cambia.
+	Bot->VisionRange = 1;
+	// Quasi morto: e' l'esca. `WKill` vale 10000 contro `WDamage` 10 — se il bot lo vedesse, lo sceglierebbe.
+	Unknown->Health = 1;
+	Unknown->Shield = 0;
+
+	TestTrue(TEXT("premessa: il vicino e' visto"),
+		URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange);
+	TestTrue(TEXT("premessa: l'esca e' FUORI VISTA"),
+		URTHexLibrary::HexDistance(Bot->Cell, Unknown->Cell) > Bot->VisionRange);
+	TestTrue(TEXT("premessa: ma e' DENTRO la portata d'attacco, altrimenti il test non puo' fallire"),
+		URTHexLibrary::HexDistance(Bot->Cell, Unknown->Cell) <= Bot->AttackRange);
+
+	TM->PlanBotsForTest();
+
+	TestTrue(TEXT("il bot non bersaglia l'unita' che la squadra non conosce, nemmeno se e' un kill facile"),
+		Bot->PlannedAttackTarget != Unknown);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * Senza NESSUN contatto il bot cerca, non si ferma.
+ *
+ * Pinna la condotta che ha salvato `HexMatch.PlaysToCompletion`: con la conoscenza parziale due squadre che
+ * non si vedono possono aspettarsi per sempre, e la partita non finisce. E' il primo turno di ogni partita
+ * su una mappa piu' larga della vista, cioe' il caso normale — non un caso limite.
+ *
+ * Il test non pretende una ricerca *intelligente*: pretende che il bot si MUOVA e che si avvicini al centro,
+ * che e' geometria pubblica. I goal veri (`SecureObjective`, `GatherInformation`) sono E26.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSeeksContactTest,
+	"RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSeeksContactTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	// ⚠️ **La geometria e' scelta perche' il test possa DISCRIMINARE, ed e' una correzione di code review.**
+	// La prima stesura metteva bot e nemico agli ANTIPODI attraverso il centro: la' «vai verso il centro» e
+	// «vai verso il nemico» sono la stessa direzione, quindi il test restava verde anche rimettendo
+	// l'onniscienza — misurava un movimento, non la condotta di ricerca. Verificato per mutazione.
+	// Qui il nemico sta su un lato e il centro dall'altro rispetto al bot: le due direzioni DIVERGONO, e
+	// avvicinarsi al centro e' incompatibile con l'avvicinarsi al nemico.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Bot->VisionRange = 3;
+	const int32 Before = URTHexLibrary::HexDistance(Bot->Cell, FRTCellId(0, 0));
+	TestTrue(TEXT("premessa: il nemico e' fuori vista"),
+		URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->VisionRange);
+
+	TM->PlanBotsForTest();
+
+	const int32 ToFoeBefore = URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell);
+
+	TestTrue(TEXT("senza contatti il bot si muove invece di restare fermo"), !(Bot->PlannedCell == Bot->Cell));
+	TestTrue(TEXT("e si avvicina al centro della mappa"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, FRTCellId(0, 0)) < Before);
+	// Il discriminante: un bot che vedesse il nemico si avvicinerebbe a LUI, non al centro.
+	TestTrue(TEXT("e NON si avvicina al nemico che non conosce"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell) >= ToFoeBefore);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+/**
+ * IL RICORDO: il bot agisce sulla cella dell'ULTIMO CONTATTO, non su quella vera.
+ *
+ * ⚠️ **Questo test copre il ramo che gli altri tre non potevano raggiungere, ed e' il piu' delicato della
+ * feature.** `ERTTargetKnowledge::CellOnly` esiste solo dopo DUE osservazioni — vista in una, persa nella
+ * successiva — mentre gli altri test pianificano una volta sola e quindi vedono soltanto `Allowed` o
+ * `Rejected`. Trovato in code review: senza di lui si poteva cancellare l'intero `case CellOnly:` da
+ * `PlanBots` e la suite restava verde.
+ *
+ * L'allestimento e' costruito perche' **solo la memoria** possa spiegare l'esito:
+ *
+ * ```
+ *   turno 1   Foe a (3,0)   distanza 3 <= vista 3      -> visto, contatto registrato
+ *   poi       Foe a (-6,3)  distanza 6  > vista 3      -> perso di vista
+ *   turno 2   il ricordo dice ancora (3,0), che e' dentro la portata d'attacco (4)
+ *             la posizione VERA e' a distanza 6, cioe' FUORI portata
+ * ```
+ *
+ * Quindi: se il bot pianifica un attacco, lo ha pianificato **sulla memoria**. Un bot che leggesse la
+ * posizione vera non attaccherebbe (fuori portata); un bot a cui si togliesse il ramo `CellOnly` non
+ * avrebbe nemmeno il bersaglio in `Ctx.Enemies`. Il test cade in entrambi i casi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotRemembersLastKnownTest,
+	"RefactorTactics.HexBotPlay.ActsOnLastKnownCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Bot->VisionRange = 3;
+	const FRTCellId Remembered(3, 0);
+	const FRTCellId Truth(-6, 3);
+
+	if (!TestTrue(TEXT("premessa: al primo sguardo il nemico e' visibile"),
+		URTHexLibrary::HexDistance(Bot->Cell, Remembered) <= Bot->VisionRange)
+		|| !TestTrue(TEXT("premessa: il ricordo sara' DENTRO la portata d'attacco"),
+			URTHexLibrary::HexDistance(Bot->Cell, Remembered) <= Bot->AttackRange))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// PRIMA osservazione: il contatto entra nella conoscenza di squadra.
+	TM->PlanBotsForTest();
+
+	// Il nemico se ne va dove nessuno lo vede. Il ricordo resta.
+	Foe->PlaceOnCell(Truth, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Foe->PlannedCell = Truth;
+
+	if (!TestTrue(TEXT("premessa: ora e' fuori vista"),
+		URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->VisionRange)
+		|| !TestTrue(TEXT("premessa: e la posizione VERA e' fuori portata, cosi' solo la memoria puo' spiegare un attacco"),
+			URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->AttackRange))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// SECONDA osservazione: qui `ClassifyTarget` restituisce `CellOnly`, che nessun altro test raggiunge.
+	TM->PlanBotsForTest();
+
+	// (1a) di #3229: il bot dichiara la CELLA, come un giocatore — e la cella e' il RICORDO. ⌫ *Fino al
+	// 2026-10-10 dichiarava l'unita' (`PlannedAttackTarget == Foe`), e dal lock-in di [D-415] la mira si
+	// sarebbe congelata sulla posizione VERA, fuori portata: il piano nato in portata dal ricordo moriva
+	// «fuori portata». Misurato sull'arena generata, e il motivo per cui (1a) non e' solo igiene.*
+	TestTrue(TEXT("il bot agisce sul contatto ricordato invece di ignorarlo: dichiara un attacco a cella"),
+		Bot->bAttackTargetsCell);
+	TestEqual(TEXT("e la cella e' il RICORDO, non la posizione vera"), Bot->PlannedAttackCell, Remembered);
+
+	// E non lo insegue dove si trova davvero: se lo facesse, si muoverebbe verso la cella vera.
+	TestTrue(TEXT("e non si avvicina alla posizione vera, che non conosce"),
+		URTHexLibrary::HexDistance(Bot->PlannedCell, Truth)
+			>= URTHexLibrary::HexDistance(Bot->Cell, Truth));
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `#601` — il BOT arma la reazione che ha.
+//
+// E' la meta' del produttore che nessuno scenario copre: uno scenario dichiara la reazione da se' (chiave
+// `reaction`), quindi passerebbe anche se il bot non la armasse mai. Senza questo test, la ragione per cui
+// `ReactionPlanning` e' diventata una capability disponibile — «esiste un produttore nel gioco» — resterebbe
+// un'affermazione senza verifica.
+//
+// Il costo di non averlo e' concreto: meta' delle unita' della v0.1 sono bot, e se non armassero mai una
+// reazione i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in partita.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotArmsItsReactionTest,
+	"RefactorTactics.Bot.ArmsItsReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotArmsItsReactionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Branth porta una reazione nel kit: una del roster vero, non costruita qui.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Bot || !Nemico || !TM) { DestroyHexBotWorld(World); return false; }
+
+	// Premessa: il bot possiede davvero una reazione. Senza, «non l'ha armata» sarebbe l'esito di un kit vuoto,
+	// e il test passerebbe per la ragione sbagliata il giorno in cui il roster cambia.
+	int32 Reazioni = 0;
+	for (int32 I = 0; I < Bot->NumAbilities(); ++I)
+	{
+		const URTActionData* A = Bot->GetAbility(I);
+		if (A && A->Def.Slot == ERTActionSlot::Reaction) { ++Reazioni; }
+	}
+	if (!TestTrue(TEXT("premessa: il bot ha almeno una reazione nel kit"), Reazioni > 0))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("prima della pianificazione lo slot e' vuoto"),
+		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE));
+
+	TM->PlanBotsForTest();
+
+	if (!TestNotEqual(TEXT("il bot ha armato la sua reazione"),
+		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// E ha armato una REAZIONE, non un'azione qualunque finita nello slot sbagliato.
+	const URTActionData* Armata = Bot->GetAbility(Bot->PlannedReactionAbility);
+	TestTrue(TEXT("ed e' davvero una reazione"),
+		Armata != nullptr && Armata->Def.Slot == ERTActionSlot::Reaction);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * IL BOT CARICA, E IL BERSAGLIO INCASSA — `#880`, la terza voce di DoD di `#145`.
+ *
+ * `#145` fu chiusa dichiaratamente nella sua «forma minima»: il bot sa proporre una carica, ma nessun test
+ * la vedeva **arrivare a segno**. La misura del 2026-08-14: in questo file dodici test, nessuno sulla
+ * carica, e l'unico punto che la nomina sta dentro `PlanDoesNotBlastDyingAlly` come un `||` —
+ * *«attacco **o** carica»* — che passa anche se il bot non carica affatto. E si ferma alla
+ * pianificazione: nessun test del bot risolve un turno.
+ *
+ * ⚠️ **Il confine con `HexMatch.ChargeStopsOnEnemyAndHits`, che copre l'altra meta'.** Quel test esiste
+ * (`RTHexMatchIntegrationTests.cpp`) ed e' quello che il DoD di `#145` citava col nome di allora,
+ * `GuardianChargeStopsOnEnemyAndHits`: e' stato **rinominato** quando `Guardian.*` e' uscito dal roster,
+ * non cancellato. Verifica gia' arresto, 20 danni e spinta — ma **col piano scritto a mano**
+ * (`Charger->PlannedDashCell = Target->Cell`) e `bIsBotControlled = false`, dichiarato nel suo stesso
+ * commento: *«i piani li scrive il test, non l'utility del bot»*.
+ *
+ * Quello che nessuno copriva, ed e' la ragione per cui questo test esiste, e' l'**anello fra i due**: che
+ * sia il BOT a scegliere la carica da solo, e che quella scelta arrivi a segno in un turno risolto.
+ *
+ * ⚠️ **Il piano non viene imposto**: nessuna scrittura di `PlannedDashCell` o `PlannedDashAbility`. Il bot
+ * sceglie da solo, e il test verifica prima *che* abbia scelto una carica, poi *cosa* produce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargeLandsTest,
+	"RefactorTactics.HexBotPlay.ChargeItPlannedActuallyLands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargeLandsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Stessa geometria di `PlanDoesNotBlastDyingAlly` caso 2, dove la carica e' gia' misurata come la mossa
+	// che l'utility preferisce: Branth ha `Ram` (20 + spinta 1) contro `ImpactShot` (8).
+	// Nessun alleato in scena: qui non si misura il collaterale, e un terzo attore aggiungerebbe solo un
+	// modo per cui il piano potrebbe cambiare senza che il test lo dica.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Foe->Shield = 0;          // il danno si legge sulla salute, senza passare da uno scudo
+	Foe->PushResistance = 0;  // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
+	const int32 HealthBefore = Foe->Health;
+
+	TM->PlanBotsForTest();
+
+	// --- 1. Il bot ha scelto una CARICA, e l'ha scelta da solo -------------------------------------
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	if (!TestTrue(TEXT("ed e' una carica, non uno scatto qualunque"),
+		Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	// Una carica punta la cella OCCUPATA dal bersaglio: e' la differenza fra caricare e riposizionarsi.
+	TestEqual(TEXT("e punta la cella del nemico"), Bot->PlannedDashCell, FRTCellId(2, 0));
+
+	// --- 2. Il turno viene RISOLTO, non solo pianificato -------------------------------------------
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// --- 3. Il bersaglio incassa DANNO e SPINTA, con valori concreti -------------------------------
+	TestEqual(TEXT("il bersaglio incassa i 200 danni della carica"), Foe->Health, HealthBefore - 200);
+	// Spinta 1 lungo la direzione della carica: da (2,0) verso est.
+	TestEqual(TEXT("e viene spinto di una cella"), Foe->Cell, FRTCellId(3, 0));
+	// La carica si FERMA addosso al nemico invece di attraversarlo: e' cio' che distingue
+	// `LinearCharge` da `LinearDash`, ed e' un dato del catalogo, non un `if` sull'ActionId.
+	TestEqual(TEXT("e chi carica si ferma davanti alla cella di partenza del bersaglio"),
+		Bot->Cell, FRTCellId(1, 0));
+
+	// --- 4. Il TurnLog nomina la carica ------------------------------------------------------------
+	int32 ChargeEntries = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ++ChargeEntries; }
+	}
+	TestTrue(TEXT("il TurnLog registra la carica col suo ActionId"), ChargeEntries > 0);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+/**
+ * [D-523] / [D-524] (`#3793`) — **il bot carica anche un nemico fuori dalle sei direzioni**, perche' legge la stessa
+ * funzione del giocatore e del resolver. Stessa scena di `ChargeItPlannedActuallyLands`, ma il nemico sta in `(2,1)`:
+ * distanza 3, la portata di `Hero.Branth.Ram`, e scarto `(+2,+1)` che nessuna delle sei direzioni contiene.
+ *
+ * ⚠️ **Il piano non viene imposto**, come nel gemello: il bot sceglie da solo la carica, e il test verifica prima
+ * *che* l'abbia scelta, poi *cosa* produce un turno risolto. La retta e' `(0,0)`, `(1,0)`, `(1,1)`, `(2,1)`: chi carica
+ * si ferma in `(1,1)`, l'impatto parte da li' verso est, e il bersaglio finisce in `(3,1)`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargeOffAxesTest,
+	"RefactorTactics.HexBotPlay.ChargeOnAnEnemyOffTheAxesLands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargeOffAxesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 1), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	int32 Distanza = 0;
+	TestFalse(TEXT("premessa: il nemico non e' su una delle sei direzioni"),
+		URTMovementActionLibrary::IsStraightLine(Bot->Cell, Foe->Cell, Distanza));
+
+	Foe->Shield = 0;
+	Foe->PushResistance = 0;
+	const int32 HealthBefore = Foe->Health;
+
+	TM->PlanBotsForTest();
+
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	if (!TestTrue(TEXT("ed e' una carica"), Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("punta la cella del nemico fuori asse"), Bot->PlannedDashCell, FRTCellId(2, 1));
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	TestEqual(TEXT("il bersaglio incassa i 200 danni della carica"), Foe->Health, HealthBefore - 200);
+	TestEqual(TEXT("chi carica si ferma in (1,1), davanti a lui lungo la retta"), Bot->Cell, FRTCellId(1, 1));
+	TestEqual(TEXT("e il bersaglio e' spinto verso est, dalla cella d'arrivo: (3,1)"), Foe->Cell, FRTCellId(3, 1));
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Il bot decide una finestra di reazione con la SOLA opportunity sanitizzata (CP 14.5).
+ *
+ * ⚠️ La proprieta' vera non la dimostra questo test: la dimostra la **firma**.
+ * `URTHexBotLibrary::DecideReactionResponse` riceve un `FRTReactionOpportunity` e nient'altro — niente mappa,
+ * niente snapshot, niente percorsi — e quel tipo ha un elenco CHIUSO di campi verificato per riflessione da
+ * `Overwatch.OpportunityLeaksNoFuture`. Il futuro non e' raggiungibile nemmeno volendo, e «restituisce
+ * subito» e' l'unica cosa che una funzione senza `UWorld` e senza timer possa fare.
+ *
+ * Cio' che il test aggiunge e' che la decisione sia **legale, deterministica e non vacua**: una funzione che
+ * rispondesse sempre `HOLD` soddisferebbe la garanzia strutturale senza far mai reagire nessuno, ed e' il modo
+ * piu' facile di avere un bot «sicuro» e inerte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDecidesWithoutFutureKnowledgeTest,
+	"RefactorTactics.Bot.DecidesWithoutFutureKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
+{
+	const FString Hold = URTReactionOpportunityLibrary::HoldResponse();
+
+	// Due bersagli piu' `HOLD`: e' la finestra vera dell'Overwatch.
+	FRTReactionOpportunity TwoTargets;
+	TwoTargets.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(4),
+		URTReactionOpportunityLibrary::FireResponse(7),
+		Hold };
+
+	const FString Chosen = URTHexBotLibrary::DecideReactionResponse(TwoTargets);
+
+	// 1. La risposta e' LEGALE. Un bot che inventa una risposta verrebbe rifiutato dall'orchestratore, e la
+	//    finestra si chiuderebbe in `HoldRejected` senza che nessuno se ne accorga in partita.
+	TestTrue(TEXT("la risposta e' fra quelle legali"),
+		URTReactionOpportunityLibrary::IsResponseAllowed(TwoTargets, Chosen));
+
+	// 2. NON e' vacua: con dei bersagli legali il bot spara. E' cio' che distingue una politica da un rifiuto.
+	TestEqual(TEXT("con bersagli legali il bot spara al primo"),
+		Chosen, URTReactionOpportunityLibrary::FireResponse(4));
+
+	// 3. E' DETERMINISTICA e non dipende dall'ordine in cui le risposte sono state costruite: `FIRE:4` resta
+	//    la scelta anche se l'elenco arriva al contrario. Senza, due esecuzioni dello stesso turno potrebbero
+	//    sparare a due bersagli diversi — e il replay non sarebbe piu' riproducibile.
+	FRTReactionOpportunity Reversed;
+	Reversed.AllowedResponses = {
+		Hold,
+		URTReactionOpportunityLibrary::FireResponse(7),
+		URTReactionOpportunityLibrary::FireResponse(4) };
+	// ⚠️ Qui la politica sceglie «il primo `FIRE:` dell'elenco», quindi su un elenco permutato sceglie `7`.
+	//    NON e' un difetto della politica: `AllowedResponses` e' costruito da `BuildOverwatchTriggers`, che
+	//    ordina i bersagli per `UnitId` crescente PRIMA di scriverli — l'elenco permutato non e' uno stato che
+	//    il gioco possa produrre. Cio' che il test fissa e' che la politica sia una funzione dell'elenco
+	//    ricevuto e non abbia stato proprio: chiamarla due volte sullo stesso ingresso da' lo stesso esito.
+	TestEqual(TEXT("chiamarla due volte sullo stesso ingresso da' lo stesso esito"),
+		URTHexBotLibrary::DecideReactionResponse(Reversed),
+		URTHexBotLibrary::DecideReactionResponse(Reversed));
+
+	// 4. Senza bersagli legali risponde `HOLD` ESPLICITO, non una stringa vuota: vuota significa «non ho
+	//    risposto», cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
+	FRTReactionOpportunity HoldOnly;
+	HoldOnly.AllowedResponses = { Hold };
+	const FString NoTargets = URTHexBotLibrary::DecideReactionResponse(HoldOnly);
+	TestEqual(TEXT("senza bersagli risponde HOLD"), NoTargets, Hold);
+	TestFalse(TEXT("e non lascia la risposta vuota, che sarebbe una scadenza"), NoTargets.IsEmpty());
+
+	return true;
+}
+
+
+/**
+ * Il bot passa dal validatore del piano, e i suoi piani sono LEGALI (DoD di CP 38.2, [#605]).
+ *
+ * La riga della DoD dice: *«il bot passa dallo stesso punto: una validazione che il bot aggira non e' una
+ * regola»*. Fino a oggi non ci passava nessuno — `URTPlanValidationLibrary::ValidatePlan` era invocabile
+ * solo dai test, perche' mancava il modo di COMPORRE un piano da cio' che il gioco scrive. Con
+ * `MakePlanFor` quel modo esiste, e questo test e' la prima misura: il pianificatore del bot produce
+ * combinazioni che il validatore accetta?
+ *
+ * Si misura su piu' turni e su ENTRAMBE le squadre, perche' i rami del pianificatore si scelgono a seconda
+ * della distanza dal nemico: un turno solo esercita il ramo d'apertura e nient'altro.
+ *
+ * ⚠️ Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
+ * giorno cade, quello che serve sapere e' quale combinazione il bot ha composto — non che «il bot sbaglia».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlansAreLegalTest,
+	"RefactorTactics.HexBotPlay.PlansPassPlanValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	// 2v2 interamente sotto bot: si misura il pianificatore, non la reazione del bot a un umano.
+	TArray<ARTUnit*> Bots;
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 1), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -1), /*bBot*/ true));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
+
+	const UEnum* ReasonEnum = StaticEnum<ERTActionInvalidReason>();
+	int32 PianiEsaminati = 0;
+	int32 PianiConVoci = 0;
+	int32 PianiConMovimentoEPrincipale = 0;
+	int32 Illegali = 0;
+
+	// Sei turni: abbastanza per attraversare l'avvicinamento, l'ingaggio e lo scambio di colpi.
+	for (int32 Turno = 1; Turno <= 6; ++Turno)
+	{
+		TM->PlanBotsForTest();
+
+		for (ARTUnit* Bot : Bots)
+		{
+			if (!Bot || !Bot->IsAlive())
+			{
+				continue;
+			}
+			const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Bot);
+			++PianiEsaminati;
+			if (Piano.Num() > 0)
+			{
+				++PianiConVoci;
+			}
+
+			// La combinazione su cui `SlotOccupied` puo' scattare: movimento E principale nello stesso piano.
+			// Contarla e' cio' che rende la misura una misura — vedi la premessa in fondo.
+			bool bHaMovimento = false;
+			bool bHaPrincipale = false;
+			for (const FRTPlannedAction& Voce : Piano)
+			{
+				bHaMovimento |= URTCatalogLibrary::TakesMovementSlot(Voce.Def);
+				bHaPrincipale |= URTCatalogLibrary::TakesMainSlot(Voce.Def);
+			}
+			if (bHaMovimento && bHaPrincipale)
+			{
+				++PianiConMovimentoEPrincipale;
+			}
+
+			const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
+				FRTHexSimUnit(0, Bot->Cell, Bot->GetEffectiveMoveRange(), /*bAlive*/ true), Piano);
+			if (!Verdetto.bLegal)
+			{
+				++Illegali;
+				FString Voci;
+				for (const FRTPlannedAction& Voce : Piano)
+				{
+					Voci += FString::Printf(TEXT("%s(slot %d) "), *Voce.Def.ActionId.ToString(),
+						static_cast<int32>(Voce.Def.Slot));
+				}
+				AddError(FString::Printf(
+					TEXT("turno %d, %s: piano ILLEGALE (%s su '%s'). Voci: %s"),
+					Turno, *Bot->GetName(),
+					ReasonEnum ? *ReasonEnum->GetNameStringByValue(static_cast<int64>(Verdetto.Reason))
+						: TEXT("?"),
+					*Verdetto.OffendingActionId.ToString(), *Voci));
+			}
+		}
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("MISURA: %d piani esaminati, %d con almeno una voce, %d con movimento E principale, %d illegali"),
+		PianiEsaminati, PianiConVoci, PianiConMovimentoEPrincipale, Illegali));
+
+	// 🔴 La premessa e' su `PianiConMovimentoEPrincipale`, non su `PianiConVoci`, e la differenza non e'
+	// pedanteria: `PlanBots` arma una REAZIONE a ogni bot al primo turno, quindi ogni piano ha almeno una
+	// voce comunque — e con quella premessa il test sarebbe restato verde anche cancellando meta'
+	// `MakePlanFor`. `SlotOccupied` puo' scattare solo quando due voci si contendono uno slot, quindi cio'
+	// che va garantito e' che i piani esaminati contengano DAVVERO la combinazione in esame.
+	TestTrue(TEXT("premessa: almeno un piano porta movimento E principale insieme"),
+		PianiConMovimentoEPrincipale > 0);
+	TestEqual(TEXT("nessun piano del bot e' illegale"), Illegali, 0);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+
+/**
+ * **Il bot preferisce la reazione di KIT, e ripiega sul modulo di loadout quando quella è in ricarica.**
+ *
+ * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
+ * dell'ordine degli indici ([D-220], `#1403`). Prima di [D-218] ogni eroe portava una reazione sola e la
+ * domanda non si poneva; oggi Branth porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
+ *
+ * 🔴 **Da [D-268] (`#1802`) questo test misura lo SPAREGGIO, non la politica, e la differenza va detta.**
+ * La regola non è più «prima il kit»: è «punteggio più alto, e a parità esatta il kit». Qui i due candidati
+ * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Branth
+ * sta a `(2,-3)` e Ivrin a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
+ * `Ctx.Enemies` è vuoto; non c'è un secondo alleato, quindi `Ctx.Allies` è vuoto; e `Reaction.Cleanse` ha
+ * trigger `AboutToReceiveControl`, che vale zero per dichiarazione.
+ *
+ * ⚠️ **Spostare uno spawn di due celle, alzare il raggio o aggiungere un compagno cambia la premessa**, e
+ * questo test comincerebbe a misurare il punteggio credendo di misurare lo spareggio. La regola che rende
+ * la premessa vera — «tutti-zero riproduce il comportamento di prima» — la pinna
+ * `HexBot.ReactionAllZeroScoresKeepTodayBehaviour`, headless e senza geometria.
+ *
+ * 🔴 **Due righe, e servono entrambe.** Una sola pinnerebbe metà della regola:
+ * - con il kit **pronto** si arma il kit — e senza questa riga, invertire la preferenza resterebbe verde;
+ * - con il kit **in ricarica** si arma il modulo — e senza questa, il modulo potrebbe non essere
+ *   raggiungibile affatto e nessuno se ne accorgerebbe.
+ *
+ * ⚠️ **La premessa asserisce che entrambe siano USABILI nel primo caso**, non che siano due: `PlanBots`
+ * filtra su `CanUseAbility`, quindi con il kit già in ricarica il primo caso passerebbe **anche invertendo
+ * la regola** — l'oracolo sarebbe soddisfatto senza che una scelta sia mai avvenuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPrefersTheKitReactionTest,
+	"RefactorTactics.HexBotPlay.BotPrefersTheKitReactionAndFallsBackToTheModule",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// ⚠️ **La mappa serve, e la prima stesura di questo test l'aveva persa copiando**: senza,
+	// `MakeCurrentSnapshot` non trova un `ARTHexMapActor` e consegna `Map == nullptr`. Il pianificatore
+	// cade nel ramo «nessun nemico da ingaggiare» e salta raggiungibilita', bersagli e scatto — il blocco
+	// delle reazioni gira lo stesso, quindi il test sarebbe **verde in un mondo degenere**.
+	SpawnHexBotMap(World, 5);
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bot"), Bot) || !TestNotNull(TEXT("Nemico"), Nemico) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// Il loadout di default di Branth: da [D-218] il modulo è `Reaction.Cleanse`.
+	Bot->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(FName(TEXT("Hero.Branth"))));
+
+	// Si individuano le due reazioni per ORIGINE, come fa il resolver: chiedendo al catalogo, non all'indice.
+	int32 IdxKit = INDEX_NONE;
+	int32 IdxModulo = INDEX_NONE;
+	for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+	{
+		const URTActionData* A = Bot->GetAbility(R);
+		if (!A || A->Def.Slot != ERTActionSlot::Reaction) { continue; }
+		// 🔴 **La stessa domanda che fa il resolver**: «e' un id di equipaggiamento?», su TUTTI i cataloghi.
+		// Un predicato piu' stretto o piu' largo di quello di produzione classificherebbe la stessa abilita'
+		// in un secchio diverso, e il test cadrebbe su una regola che il codice sta rispettando.
+		const bool bDalLoadout = URTCatalogLibrary::FindEquipment(A->Def.ActionId) != nullptr;
+		int32& Slot = bDalLoadout ? IdxModulo : IdxKit;
+		if (Slot == INDEX_NONE) { Slot = R; }
+	}
+
+	// 🔴 La premessa: **entrambe utilizzabili**. Senza, `PlanBots` non sceglie — scarta.
+	if (!TestNotEqual(TEXT("premessa: c'e' una reazione di kit"), IdxKit, static_cast<int32>(INDEX_NONE))
+		|| !TestNotEqual(TEXT("premessa: c'e' un modulo di loadout"), IdxModulo, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: la reazione di kit e' utilizzabile"), Bot->CanUseAbility(IdxKit))
+		|| !TestTrue(TEXT("premessa: il modulo e' utilizzabile"), Bot->CanUseAbility(IdxModulo)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// --- Caso 1: entrambe pronte -> vince il KIT ------------------------------------------------------
+	TM->PlanBotsForTest();
+	AddInfo(FString::Printf(TEXT("kit pronto -> armato indice %d (kit=%d modulo=%d)"),
+		Bot->PlannedReactionAbility, IdxKit, IdxModulo));
+	TestEqual(TEXT("con entrambe pronte il bot arma la reazione di KIT"),
+		Bot->PlannedReactionAbility, IdxKit);
+
+	// --- Caso 2: il kit in ricarica -> ripiega sul MODULO ---------------------------------------------
+	// Si brucia la reazione di kit come fa il resolver quando scatta, invece di scrivere il cooldown a mano:
+	// `ConsumeAbility` è la stessa porta che `RunReactionPass` attraversa.
+	Bot->ConsumeAbility(IdxKit);
+	// La porta e' `ClearReactionPlan`, non il campo: [D-109] le ha messe insieme perche' separarle
+	// «rimetterebbe in gioco una condizione orfana che il prossimo armamento erediterebbe». Scrivere
+	// `PlannedReactionAbility` a mano qui contraddiceva la riga sopra, che usa `ConsumeAbility` proprio
+	// per passare dalla porta di produzione.
+	Bot->ClearReactionPlan();
+	if (!TestFalse(TEXT("premessa: ora la reazione di kit e' in ricarica"), Bot->CanUseAbility(IdxKit))
+		|| !TestTrue(TEXT("premessa: il modulo e' ancora utilizzabile"), Bot->CanUseAbility(IdxModulo)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TM->PlanBotsForTest();
+	AddInfo(FString::Printf(TEXT("kit in ricarica -> armato indice %d"), Bot->PlannedReactionAbility));
+	TestEqual(TEXT("con il kit in ricarica il bot ripiega sul MODULO di loadout"),
+		Bot->PlannedReactionAbility, IdxModulo);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

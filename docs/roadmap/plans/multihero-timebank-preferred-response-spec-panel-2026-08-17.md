@@ -141,7 +141,7 @@ allegata — non come issue, perché è una **domanda**, non un deliverable: cam
 `Decision/BankAfter`»*). Ciò che è atterrato con CP 14.5 è però:
 
 ```
-Source/RefactorTactics/Turn/RTTurnLog.h:17
+Source/RefactorTactics/Turn/Log/RTTurnLog.h:17
     enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision };
 ```
 
@@ -200,7 +200,7 @@ Il kit dice bene: *«il conteggio usa le Hero realmente assegnate/controllate pe
 teorica del roster»*. Il dato che esiste oggi è però un altro:
 
 ```
-Source/RefactorTactics/Turn/RTMatchFormatData.h:47
+Source/RefactorTactics/Turn/Format/RTMatchFormatData.h:47
     int32 UnitsPerTeam = 0;   // unità per SQUADRA
 ```
 

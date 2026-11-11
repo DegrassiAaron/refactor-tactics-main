@@ -46,7 +46,7 @@ una finestra (risolve il requisito vero) senza comparire a chi apre Unreal per a
 
 | # | Fatto | Misura | |
 |---|---|---|---|
-| 1 | Il tab esiste ed è un nomad | `RegisterNomadTabSpawner(TabId, …)`, [`RTDevSandboxLauncherSubsystem.cpp:67`](../../../Source/RefactorTacticsEditor/Private/RTDevSandboxLauncherSubsystem.cpp) | ✅ |
+| 1 | Il tab esiste ed è un nomad | `RegisterNomadTabSpawner(TabId, …)`, [`RTDevSandboxLauncherSubsystem.cpp:67`](../../../Source/RefactorTacticsEditor/Private/Launcher/RTDevSandboxLauncherSubsystem.cpp) | ✅ |
 | 2 | Il display name è `Tactical Designer` | `.SetDisplayName(LOCTEXT("TabTitle", "Tactical Designer"))`, riga 70 | ✅ |
 | 3 | Vive sotto *Window → Tools* | `.SetGroup(…GetToolsCategory())`, riga 72 | ✅ |
 | 4 | Nessuna posizione nel layout è mai dichiarata | `grep -c "FLayoutExtender\|OnRegisterLayoutExtensions" Source/` → **0** | ✅ |

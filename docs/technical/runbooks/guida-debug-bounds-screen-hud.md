@@ -78,7 +78,7 @@ Gli asset dello Screen HUD sono in `Content/RT/UI/Match/`: `WBP_RT_TacticalHUD`,
 ⚠️ **In questo repository i `.uasset` sono versionati.** Verificabile con
 `git ls-files Content/RT/UI/Match/`. Ne discende che ogni modifica di debug è un commit binario: non
 diffabile, non mergiabile, e visibile a chiunque faccia `git pull`. Il commento in
-`Source/RefactorTactics/UI/RTScreenHudWidgets.h` che afferma il contrario è `IMPLEMENTATION DRIFT` ed è
+`Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h` che afferma il contrario è `IMPLEMENTATION DRIFT` ed è
 tracciato a parte.
 
 ### 1.1 Il sospetto da sciogliere prima di disegnare qualsiasi bordo
@@ -163,7 +163,7 @@ X 384 .. 1551,36      Y 205,2 .. 885,6       (1167,36 × 680,4)
 ```
 
 Non è un numero sacro: è un numero **scritto**, e sta in un posto solo, `FRTHudBands` in
-`Source/RefactorTactics/UI/RTHudLayout.h`. I test lo leggono di lì (`RTCenterFree::SceneKeepOut`), a quattro
+`Source/RefactorTactics/UI/HUD/RTHudLayout.h`. I test lo leggono di lì (`RTCenterFree::SceneKeepOut`), a quattro
 risoluzioni, senza costanti proprie.
 
 ⌫ *Fino al 2026-10-11 era il **60% × 60% centrato**, `X 384 .. 1536 · Y 216 .. 864`, una costante dei test
@@ -174,7 +174,7 @@ risoluzioni, senza costanti proprie.
 ⌫ *Il gate si chiamava `PanelsLeaveTheCenterFree` fino al 2026-10-11 (#3661).*
 
 `RefactorTactics.ScreenHud.PanelsLeaveTheSceneFree` (in
-`Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`) misura le zone del Canvas radice con la stessa
+`Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp`) misura le zone del Canvas radice con la stessa
 formula che `SConstraintCanvas::OnArrangeChildren` applica a runtime, e fallisce nominando la zona che
 invade e di quanto.
 ✅ **Ha trovato un difetto alla prima esecuzione** — `ZoneBottom` fuori viewport (§1.2), corretta da

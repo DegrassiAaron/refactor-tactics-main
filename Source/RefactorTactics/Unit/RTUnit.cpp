@@ -1,15 +1,15 @@
 #include "Unit/RTUnit.h"
-#include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: la validazione sta in un posto solo
-#include "Turn/RTHexSimLibrary.h" // #79: ClassifyWaypointCell classifica il rifiuto, qui non si decide nulla
-#include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: la validazione sta in un posto solo
+#include "Turn/Resolution/RTHexSimLibrary.h" // #79: ClassifyWaypointCell classifica il rifiuto, qui non si decide nulla
+#include "Turn/Playback/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
 #include "Unit/RTGraykitLibrary.h" // #2880: gli anchor dei bracci si risolvono da li', non da numeri qui
 #include "Unit/RTUnitLayerOutline.h" // #3705: lo stencil del contorno che dice il piano
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h" // AimOriginCell: l'origine di mira ha una regola sola ([D-464])
-#include "Turn/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
+#include "Turn/Resolution/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
@@ -26,8 +26,8 @@
 #include "Unit/RTContactGhostAnimInstance.h" // #1750: il grafo a un nodo che applica la posa ricordata
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
-#include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
-#include "UI/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
+#include "UI/Feed/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
+#include "UI/HUD/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
 
 ARTUnit::ARTUnit()
 {

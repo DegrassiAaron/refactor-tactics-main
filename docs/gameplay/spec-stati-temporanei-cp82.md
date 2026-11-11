@@ -273,7 +273,7 @@ marchio — eliminando il setup artificiale che era stato dichiarato come limite
 `Unit/RTUnit.{h,cpp}` (sentinella, revoca, tick) · `Turn/RTTurnManager.cpp` (Cleanup, `FirstHitDelta`,
 `ApplyTerrainOnEnterEffects`) · `Combat/RTCombatResolver.{h,cpp}` (delta per squadra del marcatore) ·
 `Core/RTGameplayTags.{h,cpp}` (`Electrified`) · `Terrain/RTTerrainLibrary.cpp` (durate sentinella) ·
-`Tests/RTStatusTests.cpp` (nuovo) · `docs/balance/RT_TerrainCatalog_v0.1.md` ·
+`Tests/Combat/Status/RTStatusTests.cpp` (nuovo) · `docs/balance/RT_TerrainCatalog_v0.1.md` ·
 `docs/gameplay/spec-terreni-e8.md` · `docs/roadmap/roadmap-v0.1.md` · `docs/roadmap/roadmap-checkpoint.md`.
 
 ## 8. Rischi

@@ -1893,7 +1893,7 @@ Source/RefactorTactics/Private/Map/RTMapGeometry.cpp
 Source/RefactorTactics/Public/Unit/RTUnitState.h
 Source/RefactorTactics/Public/Planning/RTIntent.h
 Source/RefactorTactics/Public/Turn/RTTurnEvent.h
-Source/RefactorTactics/Tests/RTFacingTests.cpp
+Source/RefactorTactics/Tests/Turn/Resolution/RTFacingTests.cpp
 ```
 
 Do not create a `UFacingComponent` unless runtime/presentation needs prove that a component adds value.

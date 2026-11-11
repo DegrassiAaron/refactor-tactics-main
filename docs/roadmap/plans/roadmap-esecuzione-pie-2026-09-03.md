@@ -214,9 +214,9 @@ che la applica.
 lo risolve **prima**:
 
 ```bash
-grep -n 'Action.Sprint"), ERTResolutionPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+grep -n 'Action.Sprint"), ERTResolutionPhase' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp
 #   -> ERTResolutionPhase::FastMovement                                    (riga 1065)
-grep -n 'FastMovement:   return ERTMatchPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+grep -n 'FastMovement:   return ERTMatchPhase' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp
 #   -> ERTMatchPhase::Dash — «la mobilita' rapida precede il Blast»        (riga 177)
 ```
 
