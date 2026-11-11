@@ -6599,7 +6599,7 @@ sessions:
     unblocked_by: []
     shares_setup_with: []
     verifies: [PIE-HUD-FUMETTO]
-    issues: [4025, 4033, 4034, 3997]
+    issues: [4025, 4033, 4034, 4059, 3997]
     done_when: >-
       la voce `PIE-HUD-FUMETTO` ha nel registro un esito per ogni criterio, e il giudizio dell'autore sulla resa, dato a
       schermo o sulle tavole
@@ -6634,6 +6634,11 @@ sessions:
       a `ab05e9b55` (un criterio rimisurato a `5167ae133`): tavole e banchi in
       `docs/technical/evidence/4025/seduta-pilotata-2026-11-09.md`. **Il giudizio d'autore non c'e'**, e la seduta resta
       aperta per quello e per cio' che la cella della voce dichiara `NOT RUN`.
+
+      ➕ **#4059 (2026-11-11)**: con `D-604` e `D-605` il criterio (g) cambia, e (j) e (k) sono nuovi: gridano anche
+      l'attacco base, le generiche e l'equipaggiamento, e le reazioni nel loro momento. I tre banchi di #4025 non hanno
+      una reazione che scatta: per (j) servono un Contrattacco colpito, un Brace col profilo `Profile.Sidestep` spinto
+      con la finestra, un Overwatch che spara e una fuga dal pericolo (`Reaction.HazardEscape` sotto un `Action.Ignite`).
 
       Lo stato della voce vive in `test-manuali-pie.md`, che ne e' l'unico owner (R-6): qui solo l'allestimento.
 

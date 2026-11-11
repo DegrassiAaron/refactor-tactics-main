@@ -4,7 +4,7 @@
 > Misure sul codice: lettura di `origin/main` = `297c1454c` il 2026-11-11, nulla eseguito.
 > ⚠️ **I percorsi di `Source/` sono quelli di prima della riorganizzazione delle cartelle**, in corso in un'altra sessione mentre questa spec si scrive. Dopo il suo merge i file cambiano cartella; i simboli no, e la spec li nomina per simbolo.
 >
-> **Statuto**: non implementata.
+> **Statuto**: implementata in [#4059](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4059) (§8). ⌫ *Allora: «non implementata».*
 
 ## 1. Intento
 
@@ -51,6 +51,7 @@
 - **La riga d'esito della fuga** (`ReactionFired`, dal TurnLog) resta marcata BLAST per R7; la sua riga d'attivazione è CLEANUP.
 - **L'istante del colpo dell'Overwatch** rivela, a chi vede il watcher, anche quando il bersaglio è arrivato su quella cella. Non è un'informazione nuova: la voce di TurnLog del watcher porta già la cella del bersaglio e il micro-passo, sotto lo stesso verdetto.
 - **La fuga di `EmergencyDash`** passa da `ApplyForcedDisplacement` con fase Dash ma scrive Blast. R7 cambia solo la fuga del Cleanup.
+- **Le morti del Cleanup** si annunciano alla fine della fase Cleanup del playback, quando c'e', come quelle delle altre fasi. Senza la fase restano al recupero di fine playback, come prima di #4059.
 
 ## 5. Architettura
 
@@ -100,3 +101,25 @@
 - **Privacy:** i test di R3.
 - **PIE:** le voci `PIE-HUD-FUMETTO` e `PIE-HUD-REGISTRO-ATTIVA` si rimisurano. Diventano giudicabili anche `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE`, che aspettavano un momento per la reazione (`RTPresentationBinding.cpp`).
 - **Packaged:** `NOT RUN`, lo misura `G17`.
+
+## 8. Implementazione (#4059)
+
+- **Dove vivono le regole.**
+  - R1: `URTHudViewModel::ActionShouts(const FName&)`.
+  - R3 e R4: `SourceVerdict` e `TriggerAttackerStableUnitId` nei tre punti che emettono `ReactionResolved` nel Blast: `RunReactionPass`, `ResolveInterceptions` e la decisione del Brace in `ApplyDisplacements`. Per l'Ancoraggio chi spinge arriva da un campo nuovo di `FRTReactionTriggerHit`, `HitAttacker`, letto solo dalla presentazione. `TriggeredBy` resta `INDEX_NONE`, perché gli effetti non devono colpire nessuno.
+  - R4: `URTPlaybackLibrary::BuildBlastSequence` mette la reazione subito dopo il colpo d'ancora, anche quando il colpo è nel prefisso congelato, e segna l'elemento con `bAttachedToHit`. Una reazione senza un colpo sul reattore è un atto a sé, e apre la fase Blast anche da sola: il regista la conta fra le attivazioni del Blast.
+  - R6: l'evento nasce nel ramo FIRE di `ApplyReactionDecision`, con `ReactionRouteCellIndex = Entered.Num()`. Il playback lo rivela all'istante `indice / PlaybackCellsPerSecond`, più l'inizio dell'animazione del bersaglio quando un'estensione l'ha aggiunta. Il già mostrato si tiene per chiave `(chi reagisce, azione)`, non per indice di timeline.
+  - R7: la fase dell'evento nel passo delle reazioni, e nello spostamento forzato per il solo Cleanup. Il parametro di fase di `ApplyForcedDisplacement` c'era già (`InPhase`), e non tocca la voce di TurnLog. `PhaseTime(Cleanup)` segue il Dash, e senza reazioni né rotte vale zero.
+  - R9 e R10: `FinishPlayback` e `NotePlaybackActShown`.
+- **I test, coi nomi che hanno** (i nomi di §6 erano indicativi).
+  - Chi grida: `HudViewModel.SkillCallout.ShoutsUnlessMoveOrInteract`, `Playback.SkillCallout.SignatureSkillAndBaseAttackBothShout`, `Playback.SkillCallout.EquipmentActionShouts` e gli asserti sul fumetto di `Playback.ActivationLine.EveryActionKindHasALine`.
+  - Un'azione muta nel playback vero, che `EveryActionKindHasALine` non ha più: `Playback.SkillCallout.InteractDoesNotShout`.
+  - Le reazioni del Blast: `Playback.SkillCallout.ReactionShoutsWhenTheHitArrives` (il Contrattacco) e, come controllo, `Playback.SkillCallout.InterposeShoutsWhenTheRedirectedHitArrives`.
+  - La privacy: `Playback.SkillCallout.HiddenReactorDoesNotShout`. Il reattore non sta dietro un muro alto: è colpito a una cella alle spalle di chi spara, fuori dalla vista della sua squadra. Il verdetto è quindi quello della percezione, e lo stesso turno visto dalla squadra di chi reagisce è il controllo positivo.
+  - Il Brace, l'Overwatch e la fuga: `Playback.SkillCallout.BraceResponseShoutsAfterTheWindow`, `Playback.SkillCallout.OverwatchShotShoutsAtTheTargetCell`, `Playback.SkillCallout.OverwatchShotShoutsForAnUnseenTarget` e `Playback.SkillCallout.HazardEscapeShoutsAfterTheMove`.
+  - Il salto: `Playback.SkillCallout.SkipKeepsTheReactionLines`, nella famiglia del fumetto e non in quella del Registro, perché usa le sue scene.
+  - Puri: `Playback.BlastSequenceReactionFollowsTheHitOfItsTrigger`, `Playback.BlastSequenceReactionWithoutTriggerAnchorsToTheFirstHit`, `Playback.BlastSequenceLeavesOutAHiddenReaction`, `Playback.BlastSequenceReactionAfterAFrozenHitLeadsTheResume` e `Playback.PhaseTimeCleanupFollowsTheDash`.
+  - L'Ancoraggio: un asserto in `Equipment.Anchor.CancelsPush`, sull'evento che nomina chi spinge.
+  - Riscritti: `Playback.PhaseTimeSplitsShownFromSlack` e `Playback.PhaseDurationIsOneBeatWithoutMotion` (il Cleanup), `Playback.ActivationLine.SkipBeforeABraceWindowKeepsPlaybackOrder` (la riga della risposta del Brace), il censimento `Presentation.AbsenceCensusIsPinned` e il commento di `HudViewModel.MatchHeaderCarriesThePlayedPhase`.
+- **Verifica di mutazione** (2026-11-11, una build con sei guasti indipendenti): ogni guasto ha fatto cadere il suo test sull'asserto atteso. I guasti: l'istante del colpo dell'Overwatch a zero, la risposta del Brace tolta, la fuga lasciata in fase Blast, l'ancora che ignora chi ha innescato, il verdetto tolto dal passo delle reazioni, `Action.Interact` tolta dai muti.
+- **Suite intera** `RefactorTactics` verde a `e9b68f89a` (2026-11-11): test trovati, avviati e completati coincidono, nessun rosso. Ne fanno parte i golden del TurnLog, che R7 non deve toccare.
