@@ -662,8 +662,9 @@ public:
 	 * Pubblico per i test (#4052): `NativeTick` e' protetta e vuole una geometria.
 	 *
 	 * 🔑 Rilegge a 5 Hz, e SUBITO quando il numero delle righe d'attivazione del manager cambia ([D-603] (1)): la riga che
-	 * `ShowActivation` scrive compare nello stesso frame del fumetto, invece che fino a 0,2 s dopo. Il resto del feed resta
-	 * a 5 Hz. ⚠️ Il conteggio e' di tutte le squadre ed e' solo il segnale: le righe da mostrare le filtra `GetFeed`.
+	 * `ShowActivation` scrive compare nel primo giro del widget dopo di lei, invece che fino a 0,2 s dopo. Che a schermo sia
+	 * lo stesso frame del fumetto lo misura la voce `PIE-HUD-REGISTRO-ATTIVA` (lettura (4)(a) di D-603). Il resto del feed
+	 * resta a 5 Hz. ⚠️ Il conteggio e' di tutte le squadre ed e' solo il segnale: le righe da mostrare le filtra `GetFeed`.
 	 */
 	void TickFeed(float DeltaSeconds);
 

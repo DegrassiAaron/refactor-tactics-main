@@ -2990,8 +2990,9 @@ void URTPlayerEventLogWidget::NativeTick(const FGeometry& MyGeometry, float InDe
 
 void URTPlayerEventLogWidget::TickFeed(float DeltaSeconds)
 {
-	// [D-603] (1), #4052: una riga d'attivazione nata in questo frame si mostra adesso, nello stesso frame del fumetto che
-	// `ShowActivation` ha fatto partire. Il resto del feed si rilegge a 5 Hz, come prima. Il conteggio cambia anche quando il
+	// [D-603] (1), #4052: una riga d'attivazione nata da `ShowActivation` si mostra nel primo giro del widget dopo di lei,
+	// insieme al fumetto che la stessa chiamata ha fatto partire; che a schermo sia lo stesso frame lo misura la voce PIE. Il
+	// resto del feed si rilegge a 5 Hz, come prima. Il conteggio cambia anche quando il
 	// commit del turno azzera le righe: una rilettura in piu', innocua.
 	SecondsSinceFeedReread += DeltaSeconds;
 	const int32 Attivazioni = URTHudViewModel::CountActivationLines(GetTurnManager());

@@ -288,6 +288,18 @@ bool FRTActivationLineOutOfPhaseOrderTest::RunTest(const FString&)
 			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
 			  RigaAttAttivazione(5, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) }),
 		FString(TEXT("Stato cambiato | Branth — Copertura portatile | Colpita — 13 | Ivrin — Scarica")));
+
+	// 4. Il tetto toglie le attivazioni piu' vecchie PRIMA dell'ordine: con due posti liberi restano le due piu' giovani,
+	// ciascuna in fondo alla sua fase.
+	TestEqual(TEXT("col tetto escono le piu' vecchie, e le rimaste vanno ognuna in fondo alla sua fase"),
+		RigaAttTesti(URTHudViewModel::MergeActivationLines(
+			{ RigaAttEsitoInFase(1, TEXT("Stato cambiato"), 1, ERTMatchPhase::Prep),
+			  RigaAttEsitoInFase(2, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) },
+			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			  RigaAttAttivazione(5, TEXT("Kallari — Scatto")),
+			  RigaAttAttivazione(6, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) },
+			TArray<int32>{ 0 }, /*MaxLines=*/ 4)),
+		FString(TEXT("Stato cambiato | Kallari — Scatto | Colpita — 13 | Ivrin — Scarica")));
 	return true;
 }
 
