@@ -717,7 +717,7 @@ dichiara un doppio codice `40/50`.
 >
 > Le due righe dicevano `Blast (+Cleanup)` · `40/50`, un modello che il codice non realizza: tutte e
 > quattro le ambientali sono costruite con `ERTResolutionPhase::Environment` e nient'altro
-> (`grep -A1 'ShippedAction(TEXT("Action.<nome>")' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp`), e la
+> (`grep -A1 'ShippedAction(TEXT("Action.<nome>")' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp`), e la
 > superficie nasce nello stesso passaggio in cui l'azione risolve (`ARTTurnManager::ResolveEnvironment`, che la
 > applica con `ApplyDynamicSurface`), senza un momento «propagazione» distinto. L'autore ha allineato il catalogo
 > al codice e non il contrario: se mai servisse un effetto nel Blast prima della propagazione, riapre come

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Turn/RTTurnLog.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "RTReplayManifest.generated.h"
 
 /**

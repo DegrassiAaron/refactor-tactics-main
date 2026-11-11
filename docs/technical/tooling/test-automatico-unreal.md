@@ -224,7 +224,7 @@ si aspettava costringe a rieseguire il test per capire — e a quel punto tanto 
 
 ## 6. `PASS` · `FAIL` · `ERROR` · `BLOCKED` — e perché sono quattro
 
-`ERTTestOutcome`, in [`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h):
+`ERTTestOutcome`, in [`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h):
 
 | Esito | Significato | Di chi è il difetto |
 |---|---|---|

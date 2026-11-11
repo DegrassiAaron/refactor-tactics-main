@@ -88,7 +88,7 @@ enum class ERTGraykitEasing : uint8
  *
  * - `Line`, `Arrow`, `Arc`, `Ring`, `Cone`, `Disc`, `Beam` non sono pose, sono **geometrie tattiche**, e
  *   hanno gia' un owner: `FRTOverlayArea` con `ERTOverlayMeaning` ed `ERTOverlayCertainty`
- *   (`Map/RTOverlayArea.h`, `Map/RTOverlayPalette.h`). Reimplementarle qui e' esattamente cio' che il
+ *   (`Map/Actor/RTOverlayArea.h`, `Map/Actor/RTOverlayPalette.h`). Reimplementarle qui e' esattamente cio' che il
  *   mandato vieta quando scrive *«Graykit e Tactical HUD non devono implementare geometrie tattiche
  *   duplicate»*. Il modo di rispettare quella riga e' **non aggiungerle a questo enum**.
  * - `Trail`, `Ghost`, `ImpactBurst` non sono pose ma **emissioni**: producono elementi che sopravvivono al

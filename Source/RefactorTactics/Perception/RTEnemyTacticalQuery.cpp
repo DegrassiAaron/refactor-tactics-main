@@ -1,17 +1,17 @@
 #include "Perception/RTEnemyTacticalQuery.h"
 
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTMovementProfile.h"
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
-#include "Turn/RTMovementActionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTMovementActionLibrary.h"
 
 namespace
 {

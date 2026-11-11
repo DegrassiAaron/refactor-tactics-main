@@ -140,7 +140,7 @@ guardandola.
 
 ## 4. `URTHudZoneWidget` — la zona diventa una cosa che i test possono nominare
 
-File nuovo: `Source/RefactorTactics/UI/RTHudZoneWidget.h` / `.cpp`. **Non** dentro
+File nuovo: `Source/RefactorTactics/UI/HUD/RTHudZoneWidget.h` / `.cpp`. **Non** dentro
 `RTScreenHudWidgets.h`, che è già a 826 righe e ospita sei classi non imparentate.
 
 ```cpp

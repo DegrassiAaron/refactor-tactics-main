@@ -38,7 +38,7 @@ volta**, perché sono due domande diverse e un comando solo risponde alla prima:
 
 ```sh
 git grep -h -o '"RefactorTactics\.Frontend\.[A-Za-z0-9_]*"' -- Source/RefactorTactics/Tests | sort -u | wc -l   # 74
-git grep -h -o '"RefactorTactics\.Frontend\.[A-Za-z0-9_]*"' -- Source/RefactorTactics/Tests/RTFrontendPauseTests.cpp | sort -u | wc -l   # 14
+git grep -h -o '"RefactorTactics\.Frontend\.[A-Za-z0-9_]*"' -- Source/RefactorTactics/Tests/Frontend/RTFrontendPauseTests.cpp | sort -u | wc -l   # 14
 ```
 
 Quello che nessun test può dire è se un bordo di focus si vede, ed è la ragione per cui questa guida esiste.

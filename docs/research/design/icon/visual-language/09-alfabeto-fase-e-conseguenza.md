@@ -29,7 +29,7 @@ Verification done. Here is the specification.
 >
 > ⚠️ E il colore **non sostituisce** il marker: il vincolo grayscale impone che la fase resti leggibile senza
 > tinta, quindi il colore è ridondanza deliberata.
- Il canone dell'iconografia resta **D-031** + `ERTIconCategory` (`Source/RefactorTactics/UI/RTIconCatalogData.h:19-45`). Dove questo documento diverge dal codice o dal Decision Log, vincono codice e Decision Log (`01-principi.md`, statuto).
+ Il canone dell'iconografia resta **D-031** + `ERTIconCategory` (`Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h:19-45`). Dove questo documento diverge dal codice o dal Decision Log, vincono codice e Decision Log (`01-principi.md`, statuto).
 
 **Owner**: *come* fase ed effetto sono rappresentati. *Dove e quando* compaiono resta di `progettazione-hud.md` §7/§31/§49. Nessuna regola vive in due posti.
 
@@ -236,7 +236,7 @@ Registro: **tre pip pieni**, HARM, DISPLACE, STATE. BODY spento.
 Il canale a cui si rinuncia vale quanto quelli usati: ogni asse non codificato è spazio che resta al verbo e una collisione che non si apre.
 
 **4.1 `ERTAbilityShape` — la forma.** Tre ragioni indipendenti, ognuna sufficiente.
-- *È già disegnata, meglio.* `ARTHUD::ComputePlannedHitMarks` (`UI/RTHUD.cpp:69-79`) legge `Shape`, `RangeCells`, `AreaRadius` e chiama `URTHexCombatLibrary::HexHitCells`. La forma è resa **come celle reali sulla mappa**, a piena fedeltà. Codificarla in 6 unità di glifo è una miniatura peggiore dell'originale.
+- *È già disegnata, meglio.* `ARTHUD::ComputePlannedHitMarks` (`UI/HUD/RTHUD.cpp:69-79`) legge `Shape`, `RangeCells`, `AreaRadius` e chiama `URTHexCombatLibrary::HexHitCells`. La forma è resa **come celle reali sulla mappa**, a piena fedeltà. Codificarla in 6 unità di glifo è una miniatura peggiore dell'originale.
 - *Per gran parte del catalogo è già il verbo.* `LineAttack` = Line, `CircularAoE` = Area, `Overwatch`/`ModifyArc` = Cone, `PrecisionAttack` = Single. Il glifo la dice già.
 - *È l'unico asse che non sta sul `Def`.* Vive su `URTActionData::Shape` (`RTActionData.h:118`), non in `FRTActionDef`. Costa il puntatore all'istanza e non si recupera da un `ActionId`.
 

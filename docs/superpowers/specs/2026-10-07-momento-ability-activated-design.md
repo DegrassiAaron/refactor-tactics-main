@@ -35,7 +35,7 @@ scelte di chi scrive la spec, revocabili dall'autore, e ognuna dice cosa costa s
 ## 1. Il problema, misurato
 
 **Un'abilità senza colpo non ha un istante.** La timeline di playback (`FRTResolvedEvent`,
-`Turn/RTResolvedEvent.h:15-159`) nasce solo da colpi, impronte, stati, reazioni, strutture, archi e
+`Turn/Resolution/RTResolvedEvent.h:15-159`) nasce solo da colpi, impronte, stati, reazioni, strutture, archi e
 movimenti. Nella fase Blast gli eventi che entrano in timeline sono `Attack` (per vittima), `AttackFootprint`
 (`Turn/RTTurnManager.cpp:5526`), `ReactionResolved` (`:5228`, `Turn/RTTurnManager_Blast.cpp:1547`),
 `StructureHit` e `Defeated` (`:6437`); Heal, Cleanse, ModifyArc e Interrupt **non producono alcun evento**.
@@ -51,7 +51,7 @@ Idle, Move, Attack, Hit, Death (`Unit/RTUnitAnimInstance.cpp:52-62`) e la clip d
 è legata al ruolo **`Attack`** (`:157-164`, trappola dichiarata a `:43-47`).
 
 **Il playback non ha un posto per un beat di Prep, e nel Blast non garantisce l'ordine per intento.** La Prep
-è solo `Slack` comprimibile fino a zero (`Turn/RTPlaybackLibrary.cpp:125-129`, `RTTurnManager.cpp:8886-8899`)
+è solo `Slack` comprimibile fino a zero (`Turn/Playback/RTPlaybackLibrary.cpp:125-129`, `RTTurnManager.cpp:8886-8899`)
 e `TickPlayback` non ha un ramo Prep. Il Blast svela impronte, muri e colpi su **tre canali paralleli** con
 contatori indipendenti e la stessa `AttacksToShow` (`RTTurnManager.cpp:8422-8506`): «l'attivazione precede
 il colpo dello stesso intento» non discende dall'ordine delle code. ➕ rev. Le fasi **nascono** solo da ciò
@@ -67,7 +67,7 @@ Dash: il ciclo che emette il `Move` di fase Dash (`:4829-4876`) e quello che app
 *«una SEQUENZA»* nell'ordine del catalogo: `ResolveCleanseActions` (`:5436`), `CollectHealActions`,
 `CollectAttackIntents`, `AppendChargeImpactIntents`, poi `ApplyInterrupts`/`ResolveInterceptions`,
 `RunBlastReactions`, `ApplyEnvironmentChanges` (`:5487`) e le impronte (`:5503`). ➕ rev. **Non tutto passa da
-`Ctx.Intents`**: le cure stanno in `HealDefs` (`Turn/RTBlastContext.h:211-245`), le Cleanse si risolvono in
+`Ctx.Intents`**: le cure stanno in `HealDefs` (`Turn/Resolution/RTBlastContext.h:211-245`), le Cleanse si risolvono in
 `ResolveCleanseActions` (`RTTurnManager_Blast.cpp:412`), e `ModifyArc` è intercettata **prima** della raccolta
 e finisce in `PendingArcOps` con un `continue` (`:659-708`), applicata più tardi in ordine canonico
 (`:2005-2017`). Gli impatti di carica entrano in `Ctx.Intents` da `AppendChargeImpactIntents` con
@@ -188,20 +188,20 @@ filtra solo `IsFastMovement`, e `Wait` (fallback `Stop`, che produce effetti) ar
 L'esclusione è quindi **per filtro di fase**, in `EmitAttackIntentActivations` (da #3582 `EmitAttackIntentActivation`,
 un intento per chiamata): salta gli intenti il cui
 `MapResolutionPhase(Def.ResolutionPhase)` è `Move` — `Action.Wait` (risolve in `NormalMovement`,
-`Ability/RTCatalogLibrary.cpp:1184`), `Sprint`, `Withdraw` e il `Move` normale. È il criterio che D1
+`Ability/Catalog/RTCatalogLibrary.cpp:1184`), `Sprint`, `Withdraw` e il `Move` normale. È il criterio che D1
 nomina. Mutazione dichiarata: filtro disattivato → cade «`Action.Wait` non si attiva». Restano fuori per
 costruzione le abilità di fase Cleanup/Environment (`RTTurnManager_Blast.cpp:628-637`), che non sono
 intenti di Prep, Dash o Blast, e le **reazioni**, il cui momento è `ReactionResolved` (#2191).
 
 Ordinamento: solo da `SortUnitsForResolution`, `SortActionInstances`, `IntentIndex` e l'ordine dei pass, mai
 da `TMap`/`TSet`/Actor. La timeline resta fuori da TurnLog, snapshot e `StateHash`
-(`RTTurnManager.cpp:2831-2833`, `Turn/RTTurnLog.h:827-829`): un evento in più non muove nessun hash, e
-`Match.Autobattle.DeterminismIsIndependentOfPlayback` resta il gate. ⚠️ `Turn/RTMatchStateHash.h` senza
+(`RTTurnManager.cpp:2831-2833`, `Turn/Log/RTTurnLog.h:827-829`): un evento in più non muove nessun hash, e
+`Match.Autobattle.DeterminismIsIndependentOfPlayback` resta il gate. ⚠️ `Turn/Log/RTMatchStateHash.h` senza
 occorrenze della timeline: `NOT RUN` dal panel, da misurare nel piano con `grep -n ResolvedTimeline`.
 
 ### 2.3 Cosa suona (D2)
 
-- Voce D-278 in `URTPresentationBindingLibrary::DeclaredBindings()` (`Turn/RTPresentationBinding.cpp`):
+- Voce D-278 in `URTPresentationBindingLibrary::DeclaredBindings()` (`Turn/Playback/RTPresentationBinding.cpp`):
   `AbilityActivated` → `Cues { PlayCastMontage }`. ➕ rev. Il gate `FindMissingBindings` (`:356-363`)
   verifica solo che la cue dichiarata non sia `NAME_None`; il commento a `:113-116` è una convenzione, non una
   misura. Che la cue venga **chiamata** lo prova un test di playback (§5.1), non il gate.
@@ -217,7 +217,7 @@ occorrenze della timeline: `NOT RUN` dal panel, da misurare nel piano con `grep 
   stessa sequenza in **due momenti diversi**; la differenziazione per abilità è il sotto-progetto 3, e un
   eventuale rimpiazzo della clip del ruolo `Attack` è un giudizio umano da catalogo (ANIM CORE). Il
   commento-trappola di `:43-47` va riscritto.
-- `Presentation.EnumSizeIsPinned` passa da 9 (`Tests/RTPresentationBindingTests.cpp:69-70`) a 10 con una
+- `Presentation.EnumSizeIsPinned` passa da 9 (`Tests/Turn/Playback/RTPresentationBindingTests.cpp:69-70`) a 10 con una
   riga di storia; `AbsenceCensusIsPinned` (4 in attesa, 0 decise, `:478`, `:492`) non cambia conteggio e
   asserisce owner vuoto per `AbilityActivated`, come fa per `AttackFootprint` e `StructureHit` (`:503-522`).
 - Il feed di sviluppo riceve una riga `Attiva: <unità> -> <ActionId>` con `AddLogEvent(…,
@@ -395,9 +395,9 @@ tabella esista in quella forma).
 ### 5.1 Automation, headless
 
 Fixture: `RTWorldFixtures::MakeWorld`, piano scritto a mano, `LockInAndResolve`,
-`ResolvedTimelineForTest()` (`Tests/RTPlaybackActionIdentityTests.cpp:108-136`). ➕ rev. Il turno di
+`ResolvedTimelineForTest()` (`Tests/Turn/Playback/Reveal/RTPlaybackActionIdentityTests.cpp:108-136`). ➕ rev. Il turno di
 `IsEmittedOncePerIntent` vuole **tre** unità, perché lo scatto spende il movimento (D-028). Il viewer dei test
-di playback: `SpawnActor<ARTPlayerController>()` come in `Tests/RTBlindFireTests.cpp:132`; senza un
+di playback: `SpawnActor<ARTPlayerController>()` come in `Tests/Perception/RTBlindFireTests.cpp:132`; senza un
 `ARTPlayerState` assegnato, `ARTPlayerState::TeamIdOf` ripiega su `0` (`Player/RTPlayerState.cpp:5-12`), quindi
 per un viewer di squadra diversa da 0 il test assegna un `ARTPlayerState` esplicito. Precondizione dei test
 di privacy: `TeamKnowledgeState` popolato (refresh eseguito), verificato da un controllo positivo in cui
@@ -418,7 +418,7 @@ l'attivazione della squadra del viewer **è** visibile.
 | `Playback.BlastSequenceIsOrderedPerIntent` (puro) | Timeline sintetica con due intenti aggressivi: `A1 F1 H1 H1 A2 F2 H2`; un `Attack` senza attivazione è un atto proprio alla sua prima apparizione; `ArcHit` assente. Mutazione: raggruppare per tipo invece che per chiave fa cadere l'asserto. |
 | `Playback.BlastSequencePrefixIsStableUnderExtension` (puro, ➕ rev.) | `BuildBlastSequence(T2, S1, N, V)` con `T2 = T1 + eventi` riproduce i primi `N` elementi di `S1` e accoda i nuovi; un evento nuovo con chiave già aperta si unisce al suo gruppo oltre il prefisso (Ruling H). |
 | `Playback.BlastPhaseOpensForActivationsOnly` (puro, ➕ rev.) | `BlastPhaseIsActive(0,false,0,0,1)` è vero; `(0,false,0,0,0)` falso. |
-| `Playback.NextActionDoesNotStopTwiceWithinOneIntent` (esteso, in `Tests/RTPlaybackStopPredicateTests.cpp:604-680`) | Attivazione + impronta + colpo dello stesso intento = **una** fermata; due cure consecutive da unità diverse = **due**. |
+| `Playback.NextActionDoesNotStopTwiceWithinOneIntent` (esteso, in `Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp:604-680`) | Attivazione + impronta + colpo dello stesso intento = **una** fermata; due cure consecutive da unità diverse = **due**. |
 | `Playback.HiddenSourceHasNoActivationBeat` | Sorgente non osservata dal viewer: l'attivazione non entra nelle code; osservata: entra. Mutazione: togliere il filtro fa cadere il primo ramo. |
 | `Playback.HiddenActivationStillKeysItsAct` (puro, ➕ review PR #3561) | Un muro in testa e l'attivazione di X nascosta al viewer: A prima di X anche per chi non la vede (chiave = attivazione, non muro); l'attivazione nascosta non entra; senza muro lo stesso ordine. Mutazione: chiave solo dalle visibili → X davanti ad A. |
 | `Playback.UnknownSourceDoesNotOpenAnAct` (puro, ➕ review PR #3561) | `Attack(S, X)` poi `StructureHit(0, X)`: nessun confine; `Attack(T, X)`: confine. `NextActionBoundary` tiene la sorgente nota oltre lo `0`. Mutazione: togliere `!= 0` → cade il primo. |

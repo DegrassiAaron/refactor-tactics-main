@@ -98,7 +98,7 @@ Sono scritte qui perché ognuna ha già prodotto un difetto reale in questo repo
 
 1. 🔴 **Nessuna quota in centimetri assoluti.** Tutto ciò che si posa sulla faccia di una cella sta **sopra
    `RTCellTopZ`** (`7,5` uu) e riusa le costanti di `RTHexMapActor.cpp:124-128`.
-   [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h) dichiara che *«chi disegna qualcosa
+   [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/Actor/RTMapVisuals.h) dichiara che *«chi disegna qualcosa
    SOTTO `RTCellTopZ` lo disegna dentro un volume opaco»* e registra **due** episodi; un terzo è nella voce
    `PIE-DEBUG-CELLS` di [`test-manuali-pie.md`](../../technical/test-manuali-pie.md) — contorno a `z = 2.0`
    contro faccia a `2.5`, *«sepolto nella mesh»*. ⚠️ **E `RTCellTopZ` è salito da `2,5` a `7,5` il

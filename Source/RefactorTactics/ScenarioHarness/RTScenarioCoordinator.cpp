@@ -1,12 +1,12 @@
 #include "ScenarioHarness/RTScenarioCoordinator.h"
 
 #include "RefactorTactics.h" // LogRT
-#include "ScenarioHarness/RTScenarioIndex.h"
-#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioSession.h"
-#include "ScenarioHarness/RTTestReportWriter.h"
-#include "ScenarioHarness/RTTestResult.h"
-#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/Report/RTTestReportWriter.h"
+#include "ScenarioHarness/Report/RTTestResult.h"
+#include "ScenarioHarness/Authoring/RTTestScenario.h"
 
 ERTScenarioStart FRTScenarioCoordinator::Start(UWorld* World, const FString& ScenarioId,
 	const FString& SourceLabel, float InTurnPauseSeconds, const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses)

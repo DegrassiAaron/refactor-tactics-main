@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Replay/RTReplayStateLibrary.h" // FRTTracedUnitState
-#include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
+#include "Replay/Viewer/RTReplayStateLibrary.h" // FRTTracedUnitState
+#include "ScenarioHarness/Authoring/RTScenarioDraft.h" // FRTScenarioUnitView
 
 /**
  * Il ponte fra **la traccia** e **le viste d'authoring**: dove disegnare le unita' a un punto del playback

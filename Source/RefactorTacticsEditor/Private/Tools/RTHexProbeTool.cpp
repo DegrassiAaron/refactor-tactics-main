@@ -1,18 +1,18 @@
 #include "Tools/RTHexProbeTool.h"
 
-#include "RTHexEditorClick.h"
-#include "RTHexProbeReadout.h"
+#include "HexMode/RTHexEditorClick.h"
+#include "HexMode/RTHexProbeReadout.h"
 
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "BaseBehaviors/MouseHoverBehavior.h"
 #include "InteractiveToolManager.h"
 #include "Map/RTHexLibrary.h"      // AxialToWorld: dove DISEGNARE, non cosa decidere
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
 #include "ToolContextInterfaces.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 
 #define LOCTEXT_NAMESPACE "URTHexProbeTool"
 

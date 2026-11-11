@@ -1034,7 +1034,7 @@ Ognuna è costata tempo almeno una volta.
 
 # esiti e conteggio
 grep -aE "Test Completed. Result=" Saved/Logs/RefactorTactics.log
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' --include='*.cpp' Source/RefactorTactics/Tests | tr -d '"' | sort -u | wc -l
 
 # ultimo report di uno scenario
 ls -t Saved/RTTests/Movement.Basic/ | head -1

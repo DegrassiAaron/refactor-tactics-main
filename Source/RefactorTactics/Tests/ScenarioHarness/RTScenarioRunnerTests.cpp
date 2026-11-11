@@ -1,0 +1,2577 @@
+// Runner degli scenari + report.
+//
+// I due test che contano davvero sono la coppia PASS/FAIL: un harness che sa dire solo «verde» non serve a
+// niente, perche' il suo lavoro comincia quando qualcosa si rompe. Il test del FAIL verifica che il report
+// dica **cosa** ci si aspettava e **cosa** e' successo, non solo che e' fallito.
+
+#include "Misc/AutomationTest.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTScenarioSession.h"
+#include "Player/RTPlayerController.h"
+#include "Turn/Reaction/RTReactionWindowView.h" // la firma dello slot della finestra: `playerReactionWindows` (#3634)
+#include "Map/Actor/RTHexMapActor.h"
+#include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
+#include "EngineUtils.h" // TActorIterator: il conteggio di `#2223`
+#include "ScenarioHarness/Report/RTTestReportWriter.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
+	UWorld* MakeRunnerWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyRunnerWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	/** Carica uno scenario versionato per ID; fallisce il test se manca (e' un ERROR d'ambiente, non un FAIL). */
+	bool LoadShippedScenario(FAutomationTestBase& Test, const TCHAR* ScenarioId, FRTTestScenario& Out)
+	{
+		FString Error;
+		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Out, Error))
+		{
+			Test.AddError(FString::Printf(TEXT("scenario '%s' non caricabile (%s): %s"), ScenarioId, *Path, *Error));
+			return false;
+		}
+		return true;
+	}
+}
+
+/**
+ * Movement.Basic esegue e PASSA: l'unita' finisce sulla cella dichiarata, passando dal percorso di gioco
+ * reale (piano -> LockInAndResolve -> resolver), non da un `SetActorLocation`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerMovementBasicTest,
+	"RefactorTactics.Scenario.RunnerMovementBasicPasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerMovementBasicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("un turno giocato"), Result.TurnsPlayed, 1);
+	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
+	TestTrue(TEXT("almeno una assertion valutata"), Result.Assertions.Num() > 0);
+
+	// L'unita' si e' MOSSA davvero: se il runner non avesse toccato il gioco, l'actual sarebbe la cella di
+	// partenza. Questo distingue «il test passa» da «il test non ha fatto niente».
+	const FRTAssertionResult* AtCell = Result.Assertions.FindByPredicate(
+		[](const FRTAssertionResult& A) { return A.Kind == ERTAssertionKind::UnitAtCell; });
+	if (TestNotNull(TEXT("c'e' una assertion UnitAtCell"), AtCell))
+	{
+		TestEqual(TEXT("l'unita' e' sulla cella attesa"), AtCell->Actual, AtCell->Expected);
+		TestNotEqual(TEXT("e non e' rimasta alla partenza"), AtCell->Actual, FRTCellId(-2, 0, 0).ToString());
+	}
+	return true;
+}
+
+/**
+ * Il FAIL intenzionale: la simulazione va a termine, l'aspettativa non e' soddisfatta, e il report lo dice
+ * con expected/actual. E' `Fail`, **non** `Error`: il gioco ha funzionato, e' l'aspettativa a non tornare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerDiagnosesFailureTest,
+	"RefactorTactics.Scenario.RunnerDiagnosesFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerDiagnosesFailureTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.BasicFailsOnPurpose"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito FAIL (non ERROR: la simulazione e' andata a termine)"),
+		Result.OutcomeString(), FString(TEXT("FAIL")));
+	TestEqual(TEXT("nessun messaggio d'errore infrastrutturale"), Result.ErrorMessage, FString());
+	TestEqual(TEXT("una assertion fallita"), Result.FailedCount(), 1);
+
+	// Il punto del test: il report DIAGNOSTICA invece di dire solo «fallito».
+	const FRTAssertionResult* Failed = Result.Assertions.FindByPredicate(
+		[](const FRTAssertionResult& A) { return !A.bPassed; });
+	if (TestNotNull(TEXT("c'e' una assertion fallita"), Failed))
+	{
+		TestFalse(TEXT("l'atteso e' riportato"), Failed->Expected.IsEmpty());
+		TestFalse(TEXT("l'osservato e' riportato"), Failed->Actual.IsEmpty());
+		TestNotEqual(TEXT("atteso e osservato differiscono davvero"), Failed->Expected, Failed->Actual);
+		TestFalse(TEXT("si sa quale assertion era"), Failed->Description.IsEmpty());
+	}
+	return true;
+}
+
+/** Uno scenario invalido produce ERROR, mai FAIL: chi legge deve sapere che il difetto e' nel test. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerInvalidIsErrorTest,
+	"RefactorTactics.Scenario.RunnerInvalidScenarioIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerInvalidIsErrorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario Broken;
+	Broken.ScenarioId = TEXT("Broken.NoUnits");
+	Broken.MapRadius = 3; // nessuna unita', nessuna assertion
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Broken);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito ERROR"), Result.OutcomeString(), FString(TEXT("ERROR")));
+	TestFalse(TEXT("il motivo e' riportato"), Result.ErrorMessage.IsEmpty());
+	TestEqual(TEXT("nessuna assertion valutata"), Result.Assertions.Num(), 0);
+	return true;
+}
+
+/** Il report contiene cio' che serve a diagnosticare senza aprire il log del motore. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReportContentTest,
+	"RefactorTactics.Scenario.ReportIsSelfSufficient",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReportContentTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.BasicFailsOnPurpose"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	const FString Json = URTTestReportWriter::ToJson(Result, TEXT("test-run"));
+
+	// Si verifica il JSON PARSATO, non con grep di stringhe: un test che cerca `"result":"FAIL"` si rompe
+	// appena il writer cambia spaziatura, e fallirebbe per un motivo che non c'entra con cio' che verifica.
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+	if (!TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		AddError(FString::Printf(TEXT("contenuto: %s"), *Json));
+		return false;
+	}
+
+	int32 Schema = 0;
+	TestTrue(TEXT("dichiara la versione dello schema"), Root->TryGetNumberField(TEXT("schemaVersion"), Schema));
+	TestEqual(TEXT("schema alla versione corrente"), Schema, URTTestReportWriter::SchemaVersion);
+
+	FString Field;
+	TestTrue(TEXT("dice quale scenario"), Root->TryGetStringField(TEXT("scenario"), Field));
+	TestEqual(TEXT("scenario giusto"), Field, FString(TEXT("Movement.BasicFailsOnPurpose")));
+	TestTrue(TEXT("dice l'esito"), Root->TryGetStringField(TEXT("result"), Field));
+	TestEqual(TEXT("esito FAIL"), Field, FString(TEXT("FAIL")));
+
+	int32 Turns = -1;
+	TestTrue(TEXT("riporta i turni giocati"), Root->TryGetNumberField(TEXT("turnsPlayed"), Turns));
+	TestTrue(TEXT("almeno un turno"), Turns >= 1);
+
+	int32 SeedField = -1;
+	TestTrue(TEXT("riporta il seed dichiarato"), Root->TryGetNumberField(TEXT("seed"), SeedField));
+
+	// Le assertion fallite hanno un campo DEDICATO: chi diagnostica non deve filtrare l'elenco completo.
+	const TArray<TSharedPtr<FJsonValue>>* Failures = nullptr;
+	if (TestTrue(TEXT("elenca le assertion fallite"), Root->TryGetArrayField(TEXT("failures"), Failures)))
+	{
+		TestEqual(TEXT("una sola fallita"), Failures->Num(), 1);
+		const TSharedPtr<FJsonObject> First = (*Failures)[0]->AsObject();
+		if (TestTrue(TEXT("la voce e' un oggetto"), First.IsValid()))
+		{
+			FString Expected, Actual;
+			TestTrue(TEXT("riporta l'atteso"), First->TryGetStringField(TEXT("expected"), Expected));
+			TestTrue(TEXT("riporta l'osservato"), First->TryGetStringField(TEXT("actual"), Actual));
+			TestNotEqual(TEXT("atteso e osservato differiscono"), Expected, Actual);
+		}
+	}
+
+	// Un report di FAIL non deve portare il campo `error`, che appartiene solo agli ERROR: se ci fosse,
+	// chi legge non saprebbe piu' distinguere un difetto del gioco da uno del test.
+	TestFalse(TEXT("un FAIL non ha il campo error"), Root->HasField(TEXT("error")));
+
+	// E su disco: la cartella della run esiste e il file e' leggibile.
+	FString Dir, Error;
+	if (TestTrue(TEXT("report scritto su disco"), URTTestReportWriter::Write(Result, TEXT("selftest"), Dir, Error)))
+	{
+		FString Loaded;
+		TestTrue(TEXT("result.json rileggibile"),
+			FFileHelper::LoadFileToString(Loaded, *FPaths::Combine(Dir, TEXT("result.json"))));
+		TestFalse(TEXT("non e' vuoto"), Loaded.IsEmpty());
+	}
+	else
+	{
+		AddError(Error);
+	}
+	return true;
+}
+
+/**
+ * Le due durate arrivano nel referto **separate** (#1671).
+ *
+ * Il valore non e' in nessuna delle due da sola: e' nella loro differenza. Un `simulationSeconds` fermo con
+ * un `wallClockSeconds` che raddoppia dice «la macchina e' carica»; il contrario dice «il gioco ha cambiato
+ * comportamento», ed e' l'unico dei due casi che riguardi il codice. Con un numero solo — o con un rapporto
+ * gia' calcolato — nessuna delle due letture sarebbe possibile.
+ *
+ * ⚠️ **Si asserisce che siano DUE campi, non che valgano qualcosa in particolare**: il tempo di parete non ha
+ * un valore atteso, e pretenderlo renderebbe questo test rosso a giorni alterni per una ragione che non e' il
+ * gioco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReportDurationsTest,
+	"RefactorTactics.Scenario.DurationsAreReportedSeparately",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReportDurationsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	// La premessa: se la simulazione non ha fatto un passo, l'uguaglianza sotto sarebbe vera per assenza e
+	// questo test non direbbe niente su nessun campo.
+	TestTrue(FString::Printf(TEXT("la simulazione ha girato (%.2f s simulati)"), Result.SimulationSeconds),
+		Result.SimulationSeconds > 0.f);
+
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(
+		URTTestReportWriter::ToJson(Result, TEXT("test-run")));
+	if (!TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		return false;
+	}
+
+	double Simulated = -1.0;
+	double WallClock = -1.0;
+	TestTrue(TEXT("il referto riporta il tempo simulato"),
+		Root->TryGetNumberField(TEXT("simulationSeconds"), Simulated));
+	TestTrue(TEXT("il referto riporta il tempo di parete"),
+		Root->TryGetNumberField(TEXT("wallClockSeconds"), WallClock));
+
+	// Due CAMPI, non uno: e' esattamente cio' che la issue chiede e che il referto non sapeva dire.
+	TestTrue(TEXT("il tempo simulato e' quello del risultato"),
+		FMath::IsNearlyEqual(static_cast<float>(Simulated), Result.SimulationSeconds, 0.001f));
+	TestTrue(TEXT("il tempo di parete e' quello del risultato"),
+		FMath::IsNearlyEqual(static_cast<float>(WallClock), Result.WallClockSeconds, 0.001f));
+	return true;
+}
+
+/**
+ * 🔴 Il tempo **simulato** e' deterministico; quello di parete non lo e', e questo test asserisce solo il primo.
+ *
+ * E' la ragione per cui i due campi esistono separati invece che come una durata sola. `simulationSeconds`
+ * conta gli step di un ciclo a passo fisso: stesso scenario ⇒ stesso numero di step ⇒ stesso valore, su
+ * qualunque macchina. `wallClockSeconds` dipende dal carico — e su questo repository piu' sessioni
+ * condividono la working directory (**D-222**), quindi puo' variare del doppio fra due run consecutive.
+ *
+ * ⚠️ **Su `wallClockSeconds` non c'e' e non ci sara' un `TestEqual`.** Un test che pretendesse due tempi di
+ * parete uguali sarebbe rosso per il carico della macchina — un rosso che accusa il gioco di un difetto
+ * dell'ambiente, che e' la peggiore delle diagnosi sbagliate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSimulationTimeDeterministicTest,
+	"RefactorTactics.Scenario.SimulationTimeIsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSimulationTimeDeterministicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	float First = -1.f;
+	float Second = -2.f;
+	for (int32 Run = 0; Run < 2; ++Run)
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+		(Run == 0 ? First : Second) = Result.SimulationSeconds;
+	}
+
+	// La premessa, di nuovo esplicita: due zeri sarebbero identici senza che nulla sia stato simulato.
+	if (!TestTrue(FString::Printf(TEXT("la prima run ha simulato qualcosa (%.2f s)"), First), First > 0.f))
+	{
+		return false;
+	}
+	TestEqual(TEXT("due run dello stesso scenario simulano lo stesso tempo"), Second, First);
+	return true;
+}
+
+/**
+ * `RunById` e' il punto d'ingresso di console e auto-run: carica per ID, esegue e **scrive il report**.
+ * Va coperto qui perche' i comandi console non sono verificabili headless senza caricare una mappa, e la
+ * parte che conta — «eseguire lascia sempre una traccia leggibile» — e' in questa funzione, non nel comando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunByIdWritesReportTest,
+	"RefactorTactics.Scenario.RunByIdWritesReport",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunByIdWritesReportTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("Movement.Basic"), ReportDir);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	if (TestFalse(TEXT("la cartella della run e' stata creata"), ReportDir.IsEmpty()))
+	{
+		FString Json;
+		TestTrue(TEXT("result.json esiste ed e' leggibile"),
+			FFileHelper::LoadFileToString(Json, *FPaths::Combine(ReportDir, TEXT("result.json"))));
+		TestTrue(TEXT("il report parla dello scenario giusto"), Json.Contains(TEXT("Movement.Basic")));
+	}
+
+	// Anche un ID inesistente deve lasciare un report: e' il caso in cui si ha piu' bisogno di sapere perche'.
+	UWorld* World2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), World2)) { return false; }
+	FString MissingDir;
+	const FRTTestResult Missing = URTScenarioRunner::RunById(World2, TEXT("Non.Esiste"), MissingDir);
+	DestroyRunnerWorld(World2);
+
+	TestEqual(TEXT("scenario inesistente -> ERROR"), Missing.OutcomeString(), FString(TEXT("ERROR")));
+	TestTrue(TEXT("l'errore dice DOVE ha cercato"), Missing.ErrorMessage.Contains(TEXT("Non")));
+	return true;
+}
+
+/** L'elenco degli scenari deriva dai file: l'ID e' il percorso, quindi non esiste un indice da mantenere. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioListIdsTest,
+	"RefactorTactics.Scenario.ListIdsFromFiles",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioListIdsTest::RunTest(const FString&)
+{
+	const TArray<FString> Ids = URTScenarioRunner::ListScenarioIds();
+	TestTrue(TEXT("almeno uno scenario trovato"), Ids.Num() > 0);
+	TestTrue(TEXT("Movement.Basic e' nell'elenco"), Ids.Contains(TEXT("Movement.Basic")));
+	TestTrue(TEXT("il FAIL intenzionale e' nell'elenco"), Ids.Contains(TEXT("Movement.BasicFailsOnPurpose")));
+	return true;
+}
+
+/**
+ * `Movement.Blocked`: un muro di ostacoli separa l'unita' dalla destinazione. Il percorso non esiste, quindi
+ * il piano viene rifiutato e l'unita' resta dov'e'. Il turno si chiude comunque: un piano impossibile non
+ * blocca la partita, e nessuno attraversa l'ostacolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementBlockedTest,
+	"RefactorTactics.Scenario.RunnerMovementBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementBlockedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Blocked"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara degli ostacoli"), Scenario.Cells.Num() > 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: l'unita' resta ferma, come previsto"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("il turno si e' chiuso lo stesso"), Result.TurnsPlayed, 1);
+	return true;
+}
+
+/**
+ * `Movement.Collision`: due unita' verso la stessa cella si fermano ENTRAMBE. E' anche il caso in cui
+ * l'ordine dell'array non deve poter decidere: se lo decidesse, una delle due entrerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementCollisionTest,
+	"RefactorTactics.Scenario.RunnerMovementCollision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementCollisionTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: destinazione contesa, entrambe ferme"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Le due assertion di posizione devono essere ENTRAMBE verdi: se una sola unita' fosse entrata, il
+	// contested avrebbe scelto un vincitore - cioe' l'ordine dell'array avrebbe deciso l'esito.
+	int32 Positions = 0;
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitAtCell) { ++Positions; TestTrue(A.Description, A.bPassed); }
+	}
+	TestEqual(TEXT("verificate le posizioni di entrambe"), Positions, 2);
+	return true;
+}
+
+/** Le celle modificate dallo scenario finiscono davvero nell'arena: senza, l'ostacolo non bloccherebbe nulla. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellOverridesApplyTest,
+	"RefactorTactics.Scenario.CellOverridesReachTheArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
+{
+	// Scenario costruito qui: la stessa destinazione, una volta libera e una volta murata. Se gli override
+	// non arrivassero all'arena, i due casi darebbero lo STESSO risultato - ed e' esattamente cio' che il
+	// confronto smaschera.
+	auto MakeScenario = [](bool bWall)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bWall ? TEXT("Probe.Walled") : TEXT("Probe.Open");
+		S.MapRadius = 3;
+		FRTScenarioUnit U;
+		U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Aevik"); U.TeamId = 0; U.Cell = FRTCellId(-2, 0, 0);
+		S.Units.Add(U);
+		if (bWall)
+		{
+			// Muro sulla colonna q=-1. In coordinate assiali il raggio limita anche r: per q=-1 l'intervallo
+			// valido e' [-2, 3], non [-3, 3]. Sforarlo faceva rifiutare lo scenario dalla validazione con un
+			// ERROR - correttamente, ed e' cosi' che questo test si e' accorto di essere scritto male.
+			for (int32 R = -2; R <= 3; ++R)
+			{
+				FRTScenarioCell C; C.Cell = FRTCellId(-1, R, 0); C.bBlocksMovement = true; S.Cells.Add(C);
+			}
+		}
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Move.Add(FRTCellId(0, 0, 0));
+		T.Intents.Add(I); S.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("A1"); E.Cell = FRTCellId(0, 0, 0);
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Open = URTScenarioRunner::Run(W1, MakeScenario(false));
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult Walled = URTScenarioRunner::Run(W2, MakeScenario(true));
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("senza muro l'unita' arriva"), Open.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("con il muro NON arriva"), Walled.OutcomeString(), FString(TEXT("FAIL")));
+	return true;
+}
+
+/**
+ * `Movement.SwapRejectedByPlanning`: due unita' adiacenti SI SCAMBIANO di posto.
+ *
+ * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. Oggi la
+ * pianificazione accetta una destinazione occupata ([D-446]) e il resolver esegue lo scambio ([D-445]).
+ *
+ * 🔴 **Aggiornato il 2026-10-01, e la riga che lo prescriveva era scritta QUI.** Diceva: *«se un
+ * giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera' rosso:
+ * e' il segnale che si vuole, non un fastidio da mettere a tacere»*. E' successo, nel modo esatto in cui
+ * era previsto — il planner e' cambiato — e il rosso e' stato letto come segnale.
+ *
+ * 🔑 **Il test aveva attraversato DUE inversioni, e la prima e' la ragione per cui vale la pena
+ * tenerlo.** Il 2026-08-31 (`#1922`) il resolver consentiva lo scambio e il planner no: le due regole
+ * insieme rendevano lo scambio **irraggiungibile dal gioco**, ed era il tipo di difetto che solo un test
+ * d'integrazione puo' mostrare, perche' entrambe guardate da sole erano verdi e sensate. La risposta di
+ * allora fu far bloccare anche il resolver; [D-445]/[D-446] hanno scelto l'altra, e le due regole
+ * concordano di nuovo — dalla parte opposta.
+ *
+ * ⚠️ **E lo stesso impegno vale ancora, col segno girato**: se un giorno lo scambio dovesse tornare
+ * impossibile, questo test diventera' rosso, e sara' di nuovo il segnale e non il fastidio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSwapRejectedTest,
+	"RefactorTactics.Scenario.RunnerSwapRejectedByPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.SwapRejectedByPlanning"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: le due si scambiano di posto (comportamento attuale)"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * `Movement.LongWalk`: due unita' attraversano l'arena, tre celle per turno, per due turni.
+ *
+ * Esiste per essere GUARDATO in PIE (`PIE-TEST-VISUAL`): su una cella sola non si distingue un'animazione da
+ * un teletrasporto. Ma resta un test normale, non uno scenario di serie B — se il movimento multi-cella su
+ * piu' turni si rompesse, questo lo direbbe prima che qualcuno se ne accorga a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLongWalkTest,
+	"RefactorTactics.Scenario.RunnerLongWalk",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLongWalkTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.LongWalk"), Scenario)) { return false; }
+	TestEqual(TEXT("sono due turni, non uno"), Scenario.Turns.Num(), 2);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("due turni giocati"), Result.TurnsPlayed, 2);
+
+	// Entrambe hanno percorso la loro strada: se una fosse rimasta indietro, l'assertion di posizione lo dice
+	// con la cella dove si e' fermata — che e' il primo posto dove guardare se un giorno diventasse rosso.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitAtCell)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.BasicAttack`: il primo scenario che verifica un DANNO invece di una posizione.
+ *
+ * Aevik colpisce Branth con `Aevik.ArcPulse` (22 danni, portata 4) a distanza 2: Branth scende da 120 a 98.
+ * I numeri vengono dal catalogo eroi v0.1 — se qualcuno li cambia senza aggiornare il catalogo, questo
+ * diventa rosso, ed e' il punto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatBasicAttackTest,
+	"RefactorTactics.Scenario.RunnerCombatBasicAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatBasicAttackTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni assertion sugli HP deve essere verde: se il colpo non fosse partito, il bersaglio sarebbe a 120 e
+	// l'`actual` lo direbbe — e' il primo posto dove guardare se un giorno diventasse rosso.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.FriendlyFire`: l'area di Aevik prende anche Phase, perche' Phase e' adiacente al bersaglio.
+ *
+ * E' il test che il difetto del 2026-08-08 avrebbe fatto cadere, e che non esisteva. Il flag
+ * `bFriendlyFire` viveva solo sull'archetipo `Action.CircularAoE` — ormai test-only — e nessuno l'aveva
+ * copiato su `Aevik.Overload`: in partita nessuna area poteva colpire un compagno, mentre l'anteprima
+ * segnalava l'alleato in arancione. Il resolver era corretto rispetto al dato; mancava il dato.
+ *
+ * Serve INSIEME al test sul catalogo (`Heroes.AreaFriendlyFireIsDeclaredOnTheRoster`), non al suo posto:
+ * quello pinna il dato, questo pinna che il dato arrivi fino al danno passando dal percorso di gioco reale.
+ * Con il solo test sul catalogo, un impianto rotto fra flag e resolver resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatFriendlyFireTest,
+	"RefactorTactics.Scenario.RunnerCombatFriendlyFire",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatFriendlyFireTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Se il fuoco amico tornasse spento, l'alleata resterebbe a 95 invece che a 77 e l'`actual` lo direbbe:
+	// e' l'unica assertion di questo scenario che distingue «l'area funziona» da «l'area risparmia i propri».
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `previewUnit` e' PRESENTAZIONE: non puo' spostare un esito.
+ *
+ * Il campo esiste perche' l'anteprima della zona colpita la produce il player controller sull'unita'
+ * selezionata, non il resolver: uno scenario, da solo, mostra l'esito e mai l'intenzione. Ma un campo dello
+ * scenario che tocca lo stato delle unita' — sia pure in anticipo e con gli stessi valori — e' esattamente
+ * il genere di scorciatoia che finisce per decidere una partita senza che nessuno se ne accorga.
+ *
+ * Qui si confronta lo stesso scenario con e senza il campo: stesso esito e stesso `StateHash`. Headless non
+ * c'e' nessun controller, quindi il ramo della selezione non gira nemmeno — ed e' proprio quello che rende
+ * la garanzia solida invece che sperata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewUnitIsPresentationOnlyTest,
+	"RefactorTactics.Scenario.PreviewUnitDoesNotChangeTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewUnitIsPresentationOnlyTest::RunTest(const FString&)
+{
+	FRTTestScenario WithPreview;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), WithPreview)) { return false; }
+	if (!TestFalse(TEXT("lo scenario versionato dichiara previewUnit"), WithPreview.PreviewUnit.IsEmpty()))
+	{
+		return false;
+	}
+
+	FRTTestScenario Without = WithPreview;
+	Without.PreviewUnit.Reset();
+
+	UWorld* WorldA = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world A"), WorldA)) { return false; }
+	const FRTTestResult ResultA = URTScenarioRunner::Run(WorldA, WithPreview);
+	DestroyRunnerWorld(WorldA);
+
+	UWorld* WorldB = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world B"), WorldB)) { return false; }
+	const FRTTestResult ResultB = URTScenarioRunner::Run(WorldB, Without);
+	DestroyRunnerWorld(WorldB);
+
+	TestEqual(TEXT("stesso esito"), ResultA.OutcomeString(), ResultB.OutcomeString());
+	TestEqual(TEXT("stesso stato finale (StateHash)"), ResultA.StateHash, ResultB.StateHash);
+	TestEqual(TEXT("stessi turni giocati"), ResultA.TurnsPlayed, ResultB.TurnsPlayed);
+	// Un hash a zero significa «non eseguito»: senza questo controllo il test passerebbe confrontando
+	// due nulla.
+	TestTrue(TEXT("lo scenario e' stato davvero eseguito"), ResultA.StateHash != 0);
+	return true;
+}
+
+/**
+ * `previewUnit` accende DAVVERO l'anteprima, alleato compreso.
+ *
+ * E' il test che mancava, ed e' il motivo per cui il difetto e' arrivato fino allo schermo dell'utente. Il
+ * primo tentativo selezionava chiamando `HandleClickOnUnit(Unit)`, che **non seleziona**: presuppone una
+ * selezione e tratta l'argomento come BERSAGLIO, quindi usciva subito. Non compariva niente, e il log
+ * dichiarava successo perche' stampava dopo la chiamata senza verificarla.
+ *
+ * Avevo dichiarato questo ramo «non coperto e non copribile, headless non c'e' un controller». Era falso:
+ * un player controller si spawna anche in un mondo di test, e con lui il ramo si esercita per intero. La
+ * lacuna non era nella tecnica, era nella mia assunzione.
+ *
+ * Verifica il RISULTATO osservabile — le celle che l'anteprima ha acceso sulla mappa — non il fatto che una
+ * funzione sia stata chiamata: e' la differenza fra provare che si vede e provare che si e' provato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewUnitLightsThePreviewTest,
+	"RefactorTactics.Scenario.PreviewUnitActuallyLightsTheAreaAndTheAlly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewUnitLightsThePreviewTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Senza controller il ramo dell'anteprima non gira: spawnarlo E' il test.
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("player controller"), PC)) { DestroyRunnerWorld(World); return false; }
+
+	FRTScenarioSession Session;
+	const bool bStarted = Session.Start(World, Scenario);
+	if (!TestTrue(TEXT("la sessione parte"), bStarted))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+	if (!TestNotNull(TEXT("mappa esagonale"), HexMap)) { DestroyRunnerWorld(World); return false; }
+
+	const int32 Hit = HexMap->NumPreviewHitCells();
+	const int32 Ally = HexMap->NumPreviewAllyHitCells();
+	DestroyRunnerWorld(World);
+
+	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: un numero maggiore di uno distingue
+	// «l'area c'e'» da «e' stato puntato un bersaglio singolo».
+	TestTrue(FString::Printf(TEXT("l'anteprima ha acceso l'area (celle: %d)"), Hit), Hit > 1);
+	// L'ARANCIONE: e' l'informazione per cui questo scenario esiste.
+	TestEqual(TEXT("l'alleata nell'area e' segnalata"), Ally, 1);
+	return true;
+}
+
+/**
+ * `playerReactionWindows` apre la finestra al CONTROLLER, e solo dove c'e' (`#3634`).
+ *
+ * E' la premessa che il banco `Visual.Reaction.OverwatchWindow` non puo' scrivere fra le proprie `expect`:
+ * headless la decisione esce `NoDecider`, in PIE esce `Timeout` o `Chosen`, e un'assertion su uno dei tre sarebbe
+ * rossa negli altri due modi di eseguire lo stesso file. Qui i due modi si eseguono entrambi, con le assertion
+ * aggiunte in memoria, e un controller spawnato e' cio' che distingue l'uno dall'altro — come per `previewUnit`.
+ *
+ * 🔑 **Il caso col controller e' la prova che la finestra si e' davvero APERTA**: `Timeout` nasce da una risposta
+ * vuota, e le sue strade sono tre — la scadenza (`ExpireReactionWindow`), un `SubmitReactionResponse` vuoto, un
+ * decisore legato che non risponde. Qui le ultime due non esistono: nessuno invia risposte, e il loader vieta
+ * `decisions` con la chiave, quindi `DecisionSource` resta `none`. Resta l'orologio di una finestra sospesa. Senza
+ * aggancio la stessa guardia esce `NoDecider`, ed e' il terzo caso: controller presente, chiave tolta — il
+ * comportamento di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPlayerReactionWindowsTest,
+	"RefactorTactics.Scenario.PlayerReactionWindowsOpenToTheController",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPlayerReactionWindowsTest::RunTest(const FString&)
+{
+	FRTTestScenario Banco;
+	if (!LoadShippedScenario(*this, TEXT("Visual.Reaction.OverwatchWindow"), Banco)) { return false; }
+	if (!TestTrue(TEXT("premessa: il banco dichiara playerReactionWindows"), Banco.bPlayerReactionWindows))
+	{
+		return false;
+	}
+
+	// Il banco con le tre assertion che lui non puo' portare: quante decisioni per ciascuno dei tre esiti.
+	auto ConGliEsiti = [](FRTTestScenario S, int32 NoDecider, int32 Timeout)
+	{
+		auto Conta = [&S](ERTReactionDecisionOutcome Esito, int32 Valore)
+		{
+			FRTTestExpectation E;
+			E.Kind = ERTAssertionKind::LogEventCount;
+			E.LogCategory = ERTLogCategory::ReactionDecision;
+			E.LogOutcome = static_cast<uint8>(Esito);
+			E.Value = Valore;
+			S.Expect.Add(E);
+		};
+		Conta(ERTReactionDecisionOutcome::NoDecider, NoDecider);
+		Conta(ERTReactionDecisionOutcome::Timeout, Timeout);
+		Conta(ERTReactionDecisionOutcome::Chosen, 0);
+		return S;
+	};
+
+	auto Esegui = [this](const TCHAR* Caso, const FRTTestScenario& S, bool bConController)
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(FString::Printf(TEXT("%s: world"), Caso), World)) { return; }
+		if (bConController)
+		{
+			TestNotNull(FString::Printf(TEXT("%s: player controller"), Caso), World->SpawnActor<ARTPlayerController>());
+		}
+		const FRTTestResult R = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		TestEqual(FString::Printf(TEXT("%s: esito (%s%s)"), Caso, *R.ErrorMessage, *R.BlockedReason),
+			R.OutcomeString(), FString(TEXT("PASS")));
+		for (const FRTAssertionResult& A : R.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				AddError(FString::Printf(TEXT("%s: %s — atteso %s, ottenuto %s"), Caso, *A.Description, *A.Expected,
+					*A.Actual));
+			}
+		}
+	};
+
+	Esegui(TEXT("headless, senza controller"), ConGliEsiti(Banco, /*NoDecider=*/ 1, /*Timeout=*/ 0), false);
+	Esegui(TEXT("con il controller: la finestra si apre e scade"), ConGliEsiti(Banco, 0, 1), true);
+	{
+		FRTTestScenario Senza = Banco;
+		Senza.bPlayerReactionWindows = false;
+		Esegui(TEXT("con il controller ma senza la chiave"), ConGliEsiti(Senza, 1, 0), true);
+	}
+
+	// ➕ **Il banco della ripresa (`#3666`)**: Ivrin entra nella linea, e al secondo passo ci entra Branth — da [D-411]
+	// un nemico gia' chiesto non torna, e fino al 2026-10-15 era Ivrin a entrarci due volte. Le finestre sono DUE. Col
+	// controller scadono entrambe, e la seconda scade solo se si e' presentata: prima della presentazione il suo
+	// orologio non corre. E' la premessa di cio' che `PIE-V01-RXPLAYBACK` guarda su quel banco.
+	{
+		FRTTestScenario Ripresa;
+		if (LoadShippedScenario(*this, TEXT("Visual.Reaction.OverwatchWindowResume"), Ripresa)
+			&& TestTrue(TEXT("premessa: anche il banco della ripresa dichiara playerReactionWindows"),
+				Ripresa.bPlayerReactionWindows))
+		{
+			Esegui(TEXT("ripresa, headless"), ConGliEsiti(Ripresa, /*NoDecider=*/ 2, /*Timeout=*/ 0), false);
+			Esegui(TEXT("ripresa, con il controller: due finestre si aprono e scadono"),
+				ConGliEsiti(Ripresa, /*NoDecider=*/ 0, /*Timeout=*/ 2), true);
+		}
+	}
+
+	// --- lo SLOT: chi lo lega lo sgancia, e uno slot altrui non si tocca -----------------------------------
+	//
+	// ⚠️ Dal distruttore e non da `TearDown`: quello distrugge anche il turn manager, e lo slot da guardare
+	// sparirebbe con lui. Il distruttore sgancia e basta, e il manager resta da interrogare.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("slot: world"), World)) { return false; }
+		World->SpawnActor<ARTPlayerController>();
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(); // la sessione riusa quello che trova
+		if (!TestNotNull(TEXT("slot: turn manager"), TM)) { DestroyRunnerWorld(World); return false; }
+
+		{
+			FRTScenarioSession Session;
+			if (TestTrue(TEXT("slot: la sessione parte"), Session.Start(World, Banco)))
+			{
+				TestTrue(TEXT("slot: dopo Start la finestra e' agganciata"), TM->OnReactionWindowOpened.IsBound());
+			}
+		}
+		TestFalse(TEXT("slot: la sessione distrutta la sgancia"), TM->OnReactionWindowOpened.IsBound());
+
+		// Uno slot gia' occupato e' di chi l'ha occupato: la sessione non lo sovrascrive e non lo sgancia.
+		bool bChiamatoIlMio = false;
+		TM->OnReactionWindowOpened.BindLambda(
+			[&bChiamatoIlMio](const FRTReactionWindowView&, int32) { bChiamatoIlMio = true; });
+		{
+			FRTScenarioSession Session;
+			Session.Start(World, Banco);
+		}
+		TestTrue(TEXT("slot altrui: dopo la sessione e' ancora legato"), TM->OnReactionWindowOpened.IsBound());
+		TM->OnReactionWindowOpened.ExecuteIfBound(FRTReactionWindowView(), INDEX_NONE);
+		TestTrue(TEXT("slot altrui: ed e' ancora il MIO, non il view model"), bChiamatoIlMio);
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyRunnerWorld(World);
+	}
+	return true;
+}
+
+/**
+ * `Combat.BlockedByWall`: lo stesso attacco, con un muro in mezzo, NON arriva.
+ *
+ * E' il complemento necessario del test sopra. Da solo, «l'attacco fa 22 danni» non distingue un gioco che
+ * rispetta la copertura da uno che spara attraverso i muri: servono entrambi, e devono usare la stessa
+ * abilita' e la stessa coppia di eroi, altrimenti si confronterebbero due cose diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatBlockedTest,
+	"RefactorTactics.Scenario.RunnerCombatBlockedByWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatBlockedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByWall"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara un muro"), Scenario.Cells.Num() > 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: il muro ferma il colpo"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * Il DANNO e' davvero il discrimine fra i due scenari.
+ *
+ * I due test sopra passano entrambi, ma da soli non provano che sia il MURO a fare la differenza: se
+ * l'attacco non partisse mai — abilita' sbagliata, bersaglio nullo, intent ignorato — sarebbero verdi lo
+ * stesso, perche' «120 HP» e' anche il risultato di «non e' successo niente». Qui si confrontano i due
+ * stati finali e si pretende che DIFFERISCANO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWallActuallyBlocksTest,
+	"RefactorTactics.Scenario.WallIsWhatStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
+{
+	FRTTestScenario Open, Walled;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Open)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByWall"), Walled)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult OpenResult = URTScenarioRunner::Run(W1, Open);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult WalledResult = URTScenarioRunner::Run(W2, Walled);
+	DestroyRunnerWorld(W2);
+
+	// Stati finali diversi -> hash diversi. Se fossero uguali, l'attacco non starebbe facendo niente in
+	// NESSUNO dei due casi, e i due test verdi sopra non proverebbero nulla.
+	TestNotEqual(TEXT("con e senza muro producono stati diversi"), OpenResult.StateHash, WalledResult.StateHash);
+	return true;
+}
+
+/**
+ * `Combat.BlockedByInteriorWall`: il muro che ferma il colpo sta DENTRO una cella, non su un bordo e non
+ * come proprieta' della cella — `D-269`/`D-270`, `#1830`.
+ *
+ * 🔑 **E' la stessa coppia di test di `BlockedByWall`, e per la stessa ragione.** «Branth resta a 120 HP» e'
+ * anche il risultato di «non e' successo niente»: il secondo test pretende che lo stato finale DIFFERISCA da
+ * quello di `Combat.BasicAttack`, cosi' che a essere verificato sia il muro e non l'immobilita'.
+ *
+ * ⚠️ Le tre celle attraversate restano **pavimento libero**: nessuna porta `bBlocksLineOfSight`. Se il colpo
+ * si ferma, si ferma per la geometria intra-cella — che e' l'unica cosa che questo scenario aggiunge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInteriorWallBlocksTest,
+	"RefactorTactics.Scenario.RunnerCombatBlockedByInteriorWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInteriorWallBlocksTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByInteriorWall"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara un muro INTERNO"), Scenario.InteriorWalls.Num() > 0);
+	TestEqual(TEXT("e nessuna cella che blocchi la vista"), Scenario.Cells.Num(), 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: la geometria interna ferma il colpo"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * E' il muro INTERNO a fermare il colpo, non un attacco che non parte mai.
+ *
+ * 🔴 **Il confronto di hash che usa il test gemello su `BlockedByWall` qui NON servirebbe**, ed e' bene
+ * scriverlo: da `#1830` la geometria intra-cella entra in `URTMatchStateHash`, quindi due partite che
+ * differiscono per un muro hanno hash diversi **anche se il colpo si comportasse allo stesso modo**. Un
+ * `TestNotEqual` sugli hash sarebbe verde per costruzione: proverebbe che ho aggiunto un muro, non che
+ * qualcuno l'ha sbattuto.
+ *
+ * 🔑 La discriminante e' il **tipo** del muro. Stesso file, stessa abilita', stesse celle, stesso segmento:
+ * si abbassa `High` a `Low`, che per `D-271` e' copertura parziale e **non** occlude, e l'esito deve
+ * ribaltarsi — le `expect` dello scenario pretendono Branth illeso, e con un muretto il colpo arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInteriorWallIsWhatStopsTest,
+	"RefactorTactics.Scenario.InteriorWallIsWhatStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInteriorWallIsWhatStopsTest::RunTest(const FString&)
+{
+	FRTTestScenario Walled;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByInteriorWall"), Walled)) { return false; }
+	if (!TestTrue(TEXT("lo scenario porta un muro"), Walled.InteriorWalls.Num() == 1)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult HighResult = URTScenarioRunner::Run(W1, Walled);
+	DestroyRunnerWorld(W1);
+	TestEqual(TEXT("col muro ALTO Branth resta illeso"), HighResult.OutcomeString(), FString(TEXT("PASS")));
+
+	// L'unica differenza: il muro diventa un muretto. Non occlude, quindi il colpo arriva e le assertion
+	// dello scenario — che pretendono 120 HP — devono FALLIRE.
+	FRTTestScenario Lowered = Walled;
+	Lowered.InteriorWalls[0].Segment.WallType = ERTHexCoverType::Low;
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult LowResult = URTScenarioRunner::Run(W2, Lowered);
+	DestroyRunnerWorld(W2);
+
+	if (LowResult.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la variante col muretto e' andata in ERROR: %s"), *LowResult.ErrorMessage));
+		return false;
+	}
+	TestNotEqual(TEXT("col MURETTO il colpo arriva, e le expect cadono"),
+		LowResult.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * Esegue uno scenario e riporta OGNI assertion sugli HP con il suo `actual`.
+ *
+ * Il nome e' prolisso di proposito: la unity build fonde piu' file in una sola unita' di traduzione, e un
+ * helper con un nome ovvio (`RunAndCheck`) collide col primo omonimo di un altro file di test — e' gia'
+ * successo con tre helper insieme. Neppure un namespace anonimo protegge: fusi nella stessa TU, due namespace
+ * anonimi sono lo STESSO namespace.
+ */
+static bool RunScenarioAndReportHpAssertions(FAutomationTestBase& Test, const TCHAR* ScenarioId)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(Test, ScenarioId, Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!Test.TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS: %s"), ScenarioId, *Result.ErrorMessage));
+		return false;
+	}
+	Test.TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// Ogni HP atteso col suo valore reale: quando uno di questi diventa rosso, il messaggio dice gia' di
+	// quanto ha sbagliato, senza bisogno di rieseguire lo scenario a mano.
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		if (A.Kind == ERTAssertionKind::UnitHpEquals)
+		{
+			Test.TestTrue(FString::Printf(TEXT("%s -> %s (atteso %s)"), *A.Description, *A.Actual, *A.Expected), A.bPassed);
+		}
+	}
+	return true;
+}
+
+/**
+ * `Combat.SplashHitsAlliesNotSelf`: l'area colpisce chiunque ci sia dentro, tranne chi la lancia.
+ *
+ * Col fuoco amico attivo «l'alleato incassa» non e' piu' una notizia: lo e' il fatto che l'ATTACCANTE no,
+ * pur stando dentro la propria esplosione. Lo scenario lo mette apposta nel raggio, cosi' l'esclusione e'
+ * verificata come regola (`u == AttackerId`) e non come geografia: piazzandolo lontano, quell'assert
+ * sarebbe verde anche in un gioco che si fa male da solo appena qualcuno gli si avvicina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSplashHitsAlliesTest,
+	"RefactorTactics.Scenario.RunnerSplashHitsAlliesNotSelf",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSplashHitsAlliesTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.SplashHitsAlliesNotSelf"));
+}
+
+/**
+ * `Combat.LineHitsThrough`: la forma Line colpisce la traiettoria, non il bersaglio.
+ *
+ * B2 sta fra attaccante e bersaglio e non e' nominata da nessun intent. Se scende, la linea e' stata risolta
+ * come linea; se resta piena mentre B1 scende, il gioco sta trattando `ERTAbilityShape::Line` come un colpo
+ * singolo — un difetto che nessuno scenario a due unita' puo' vedere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLineHitsThroughTest,
+	"RefactorTactics.Scenario.RunnerLineHitsThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLineHitsThroughTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.LineHitsThrough"));
+}
+
+/**
+ * Le forme colpiscono DAVVERO piu' di una cella.
+ *
+ * Controprova delle due sopra, nello spirito di `WallIsWhatStopsTheShot`. I numeri attesi negli scenari li ho
+ * scritti io: se avessi sbagliato la geometria e messo B2 fuori dall'area, avrei scritto «B2 resta piena» e il
+ * test sarebbe verde lo stesso, documentando una forma che non funziona. Qui la domanda e' posta al gioco e
+ * non allo scenario: quante unita' hanno perso HP? Se la risposta fosse 1, entrambe le forme starebbero
+ * degenerando in un colpo singolo, e i due test sopra passerebbero ugualmente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShapesHitMoreThanOneTest,
+	"RefactorTactics.Scenario.ShapesHitMoreThanOneUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
+{
+	for (const TCHAR* Id : { TEXT("Combat.SplashHitsAlliesNotSelf"), TEXT("Combat.LineHitsThrough") })
+	{
+		FRTTestScenario Scenario;
+		if (!LoadShippedScenario(*this, Id, Scenario)) { return false; }
+
+		// Quante unita' lo scenario si aspetta di vedere ferite, secondo i suoi stessi numeri? Conta le
+		// UnitHpEquals il cui valore atteso e' sotto la salute massima dell'eroe schierato.
+		const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+		int32 ExpectedWounded = 0;
+		for (const FRTTestExpectation& A : Scenario.Expect)
+		{
+			if (A.Kind != ERTAssertionKind::UnitHpEquals) { continue; }
+			for (const FRTScenarioUnit& U : Scenario.Units)
+			{
+				if (U.Id != A.UnitId) { continue; }
+				for (const URTHeroData* Hero : Roster)
+				{
+					if (Hero != nullptr && Hero->HeroId == U.HeroId && A.Value < Hero->MaxHealth)
+					{
+						++ExpectedWounded;
+					}
+				}
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: la forma deve ferire piu' di una unita' (attese %d)"), Id, ExpectedWounded),
+			ExpectedWounded >= 2);
+	}
+	return true;
+}
+
+/**
+ * `Combat.CounterStrikesBack`: una reazione ARMATA scatta e colpisce chi ha colpito.
+ *
+ * Il numero che conta e' quello di Branth: 110 invece di 120, senza che nessun intent glielo abbia fatto
+ * fare. E' l'unico effetto del turno che nessuno ha chiesto esplicitamente, quindi l'unico che puo' venire
+ * solo dalla reazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCounterStrikesBackTest,
+	"RefactorTactics.Scenario.RunnerCounterStrikesBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCounterStrikesBackTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.CounterStrikesBack"));
+}
+
+/** `Combat.NoCounterWhenUnarmed`: senza armarla, la stessa reazione non scatta. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoCounterUnarmedTest,
+	"RefactorTactics.Scenario.RunnerNoCounterWhenUnarmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoCounterUnarmedTest::RunTest(const FString&)
+{
+	return RunScenarioAndReportHpAssertions(*this, TEXT("Combat.NoCounterWhenUnarmed"));
+}
+
+/**
+ * E' l'ARMARLA a fare la differenza, non qualcos'altro.
+ *
+ * Stessa forma di `WallIsWhatStopsTheShot`. I due test sopra sono verdi anche in un gioco dove la reazione
+ * non esiste e Branth non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
+ * gioco dove la reazione scatta SEMPRE, se per caso i numeri attesi fossero stati scritti su quel
+ * comportamento. Qui si confrontano i due stati finali e si pretende che differiscano: l'unica riga diversa
+ * fra i due scenari e' il campo `reaction`, quindi la differenza non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioArmingIsWhatFiresTest,
+	"RefactorTactics.Scenario.ArmingIsWhatFiresTheReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioArmingIsWhatFiresTest::RunTest(const FString&)
+{
+	FRTTestScenario Armed, Unarmed;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Armed)) { return false; }
+	if (!LoadShippedScenario(*this, TEXT("Combat.NoCounterWhenUnarmed"), Unarmed)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult ArmedResult = URTScenarioRunner::Run(W1, Armed);
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult UnarmedResult = URTScenarioRunner::Run(W2, Unarmed);
+	DestroyRunnerWorld(W2);
+
+	TestNotEqual(TEXT("armata e disarmata producono stati diversi"), ArmedResult.StateHash, UnarmedResult.StateHash);
+	return true;
+}
+
+/**
+ * Armare qualcosa che NON e' una reazione viene rifiutato, con un motivo.
+ *
+ * E' il modo di fallire peggiore che ci sia in questo campo: `Aevik.ArcPulse` in `reaction` non scatterebbe
+ * mai e non produrrebbe nessun errore: lo scenario girerebbe, l'assertion sui danni fallirebbe, e chi legge
+ * cercherebbe una regressione del combattimento invece di una riga sbagliata nel JSON.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBadReactionRejectedTest,
+	"RefactorTactics.Scenario.NonReactionCannotBeArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Scenario)) { return false; }
+
+	// Un'abilita' che Aevik POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
+	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Hero.Aevik.ArcPulse"));
+
+	FString Error;
+	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
+	TestTrue(TEXT("il motivo nomina lo slot"), Error.Contains(TEXT("non e' una reazione")));
+
+	// E la reazione VERA continua a passare: il controllo rifiuta ciò che deve, non tutto.
+	FRTTestScenario Good;
+	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Good)) { return false; }
+	FString NoError;
+	TestTrue(TEXT("la reazione vera resta valida"), URTScenarioLoader::Validate(Good, NoError));
+	return true;
+}
+
+
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAbilityNotInKitTest,
+	"RefactorTactics.Scenario.ActionNotInHeroKitIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
+{
+	// Il log d'errore e' PARTE del comportamento voluto: chi guarda la console deve vederlo. Dichiararlo
+	// atteso evita che l'automation lo scambi per un errore del test — e al tempo stesso lo pretende: se il
+	// codice smettesse di loggarlo, questo test fallirebbe per errore atteso mai arrivato.
+	AddExpectedError(TEXT("non possiede l'abilita'"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AbilityNotInKit");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik");    A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	// `Phase.CircularTide` esiste nel catalogo, ma NON e' nel kit di Aevik. E' il caso interessante: un id
+	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
+	FRTScenarioTurn T;
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Hero.Muiren.CircularTide"); I.Target = TEXT("B1");
+	T.Intents.Add(I); S.Turns.Add(T);
+
+	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
+	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Hero.Muiren.CircularTide")));
+	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
+	return true;
+}
+
+// =====================================================================================================
+// #3773 — una MOBILITA' dichiarata come abilita' e' un errore di scrittura, non un turno in cui non succede niente.
+
+/**
+ * `ability` che nomina un'azione di movimento finisce in ERROR, e la stessa azione scritta come `dash` gira.
+ *
+ * Prima la sessione la scriveva come principale (`PlannedAbilityIndex`), il turno la ignorava in silenzio e
+ * l'unita' restava ferma: e' cosi' che il banco Ability Lab ha mostrato `Hero.Ivrin.PassingBlade` senza che
+ * Ivrin si muovesse, con la scena superata (`TurnsCompleted` era la sua sola assertion). L'id del caso e'
+ * quello osservato in seduta.
+ *
+ * ⚠️ **La seconda meta' non e' decorazione**: senza di lei il test sarebbe verde anche su una sessione che
+ * rifiutasse lo scatto in OGNI forma — cioe' su un harness che ha smesso di eseguire gli scatti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioMovementDeclaredAsAbilityIsErrorTest,
+	"RefactorTactics.Scenario.MovementDeclaredAsAbilityIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioMovementDeclaredAsAbilityIsErrorTest::RunTest(const FString&)
+{
+	AddExpectedError(TEXT("e' una mobilita'"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	auto Posa = []()
+	{
+		FRTTestScenario S;
+		S.MapRadius = 4;
+		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Ivrin");  V.TeamId = 0; V.Cell = FRTCellId(0, 0, 0);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+		S.Units.Add(V); S.Units.Add(B);
+		return S;
+	};
+
+	// --- la forma sbagliata: lo scatto nel campo dell'abilita', contro un bersaglio ---------------------------
+	FRTTestScenario Sbagliato = Posa();
+	Sbagliato.ScenarioId = TEXT("Probe.DashAsAbility");
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("V1"); I.Ability = TEXT("Hero.Ivrin.PassingBlade"); I.Target = TEXT("B1");
+		T.Intents.Add(I); Sbagliato.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1;
+		Sbagliato.Expect.Add(E);
+	}
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Rifiutato = URTScenarioRunner::Run(W1, Sbagliato);
+	DestroyRunnerWorld(W1);
+
+	TestEqual(TEXT("esito ERROR, non PASS"), Rifiutato.OutcomeString(), FString(TEXT("ERROR")));
+	TestTrue(TEXT("il messaggio nomina l'azione"), Rifiutato.ErrorMessage.Contains(TEXT("Hero.Ivrin.PassingBlade")));
+	TestTrue(TEXT("e dice come si scrive"), Rifiutato.ErrorMessage.Contains(TEXT("dash")));
+
+	// --- la forma giusta: la stessa azione come scatto, con la cella d'arrivo oltre il bersaglio --------------
+	FRTTestScenario Giusto = Posa();
+	Giusto.ScenarioId = TEXT("Probe.DashAsDash");
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I; I.UnitId = TEXT("V1"); I.Dash = TEXT("Hero.Ivrin.PassingBlade"); I.DashCell = FRTCellId(3, 0, 0);
+		T.Intents.Add(I); Giusto.Turns.Add(T);
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("V1"); E.Cell = FRTCellId(3, 0, 0);
+		Giusto.Expect.Add(E);
+	}
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult Eseguito = URTScenarioRunner::Run(W2, Giusto);
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("lo scatto scritto come scatto passa, e Ivrin arriva"), Eseguito.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
+// S2-2 — un bersaglio gia' abbattuto e' un esito di GIOCO, non un errore. Ma va detto.
+//
+// Prima veniva scartato in silenzio: l'intent spariva, l'assertion successiva cadeva, e il report non
+// dava alcun appiglio per capire perche'. Non e' ERROR (lo scenario e' scritto bene, e' la partita ad
+// essere andata cosi') e non e' FAIL di per se': e' una NOTA, che spiega un risultato altrimenti muto.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDeadTargetTest,
+	"RefactorTactics.Scenario.DeadTargetIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDeadTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.DeadTarget");
+	S.MapRadius = 4;
+	// Due contro uno, a distanza di tiro. Il bersaglio ha 90-120 HP e ogni colpo ne toglie 20-28: il numero
+	// di turni non e' scelto per essere esatto ma per avere MARGINE. Se un giorno il bilanciamento cambiasse
+	// tanto da non bastare, a cadere sarebbe la precondizione qui sotto — con un messaggio che lo dice,
+	// invece di un fallimento misterioso sulla nota.
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Ivrin"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
+	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Muiren");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
+	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
+	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
+	// turno che non e' avvenuto invece del silenzio del report. E' costato una run per accorgersene.
+	FRTScenarioUnit D; D.Id = TEXT("B2"); D.HeroId = TEXT("Hero.Branth"); D.TeamId = 1; D.Cell = FRTCellId(4, 0, 0);
+	S.Units.Add(A); S.Units.Add(B); S.Units.Add(C); S.Units.Add(D);
+
+	// Otto turni di fuoco concentrato, poi un nono in cui si spara a un morto.
+	for (int32 Turn = 0; Turn < 9; ++Turn)
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Hero.Aevik.ArcPulse"); I1.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Hero.Ivrin.PulseShot");   I2.Target = TEXT("B1");
+		T.Intents.Add(I1); T.Intents.Add(I2);
+		S.Turns.Add(T);
+	}
+
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("B1"); E.Value = 0;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	// Precondizione, non l'oggetto del test: senza un morto non c'e' niente da riportare.
+	TestEqual(TEXT("il bersaglio e' stato abbattuto"), Result.OutcomeString(), FString(TEXT("PASS")));
+
+	// L'oggetto del test: il report DICE che si e' sparato a un morto, invece di tacere.
+	bool bMentionsDeadTarget = false;
+	for (const FString& Note : Result.Notes)
+	{
+		bMentionsDeadTarget |= Note.Contains(TEXT("B1"));
+	}
+	TestTrue(TEXT("il report annota il bersaglio gia' abbattuto"), bMentionsDeadTarget);
+
+	// E la nota deve arrivare fino a `result.json`, che e' il file che qualcuno legge davvero. Senza questa
+	// verifica il writer potrebbe smettere di serializzarla e nessun test se ne accorgerebbe: una nota che
+	// esiste solo in memoria e' esattamente il dato che nessuno consuma.
+	const FString Json = URTTestReportWriter::ToJson(Result, TEXT("test-run"));
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+	if (TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* NotesJson = nullptr;
+		if (TestTrue(TEXT("il JSON porta le note"), Root->TryGetArrayField(TEXT("notes"), NotesJson)))
+		{
+			bool bJsonMentions = false;
+			for (const TSharedPtr<FJsonValue>& V : *NotesJson)
+			{
+				bJsonMentions |= V->AsString().Contains(TEXT("B1"));
+			}
+			TestTrue(TEXT("e la nota nomina il bersaglio abbattuto"), bJsonMentions);
+		}
+	}
+	return true;
+}
+
+// =====================================================================================================
+// S2-2 — lo slot DASH negli intent.
+//
+// Finche' l'intent aveva un solo campo per l'azione, una mobilita' rapida non era esprimibile: lo scenario
+// poteva dire «attacca» o «muoviti», mai «scatta». Il turno 3 dello showcase chiede proprio quello, e senza
+// questo slot resterebbe scritto e mai giocato.
+//
+// L'ordine con SLOT-2 non era negoziabile: aggiungere questo campo PRIMA che D-028 fosse nel codice avrebbe
+// significato scrivere scenari in cui lo scatto occupa la principale, e riscriverli tutti dopo.
+//
+// Lo stesso scenario gira DUE volte, con e senza il campo `dash`. Un test che guardasse solo la posizione
+// finale del caso "con" non distinguerebbe uno scatto eseguito da un movimento normale arrivato li' per
+// altra via: il confronto e' cio' che rende l'assertion discriminante.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDashIntentTest,
+	"RefactorTactics.Scenario.DashIntentResolvesInDashPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDashIntentTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bWithDash)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bWithDash ? TEXT("Probe.DashDeclared") : TEXT("Probe.DashOmitted");
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
+		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
+		S.Units.Add(A); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("V");
+		if (bWithDash)
+		{
+			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearPass` e ATTRAVERSA cio' che
+			// incontra, colpendolo per 20. Metterci in mezzo un'unita' verificherebbe la semantica dello
+			// stile — e le toglierebbe 20 punti — non lo slot dell'intent, che e' cio' che si prova qui.
+			//
+			// 🔴 Questa riga diceva `LinearDash` e «si FERMA su cio' che incontra», ed era falsa in
+			// entrambe le meta': lo stile e' `LinearPass` dal 2026-08-08. Peggio, la motivazione dell'allestimento
+			// era rovesciata — chi ci ragionasse sopra per modificare lo scenario partirebbe dalla semantica
+			// sbagliata. Corretta con [D-191], che su quella distinzione fonda il criterio dello slot.
+			I.Dash = TEXT("Hero.Ivrin.PassingBlade");
+			I.DashCell = FRTCellId(1, 0, 0);
+		}
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAtCell; E.UnitId = TEXT("V");
+		E.Cell = bWithDash ? FRTCellId(1, 0, 0) : FRTCellId(-2, 0, 0);
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult WithDash = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult NoDash = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	if (WithDash.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *WithDash.ErrorMessage));
+		return false;
+	}
+
+	TestEqual(TEXT("con `dash` l'unita' scatta a destinazione"), WithDash.OutcomeString(), FString(TEXT("PASS")));
+	// Senza il campo, la stessa unita' nello stesso scenario NON si muove: e' cio' che dimostra che a spostarla
+	// e' stato l'intent di scatto e non il movimento normale.
+	TestEqual(TEXT("senza `dash` resta ferma"), NoDash.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
+// MOB-1 — i 20 danni di `PassingBlade` hanno finalmente un momento in cui applicarsi.
+//
+// Il test della libreria (`Movement.PassGoesThroughUnitsAndRecordsThem`) verifica CHI viene attraversato.
+// Questo verifica che l'attraversamento produca DANNO in partita: sono due cose diverse, e una lista di
+// unita' attraversate che nessuno legge sarebbe di nuovo un dato senza consumatore.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPassingBladeTest,
+	"RefactorTactics.Scenario.PassingBladeHitsWhoItCrosses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPassingBladeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.PassingBlade");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	// Phase e' IN MEZZO: la lama le passa attraverso e prosegue.
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("V");
+	I.Dash = TEXT("Hero.Ivrin.PassingBlade");
+	I.DashCell = FRTCellId(1, 0, 0);   // oltre Phase
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// Le DUE meta' della stessa regola, separate: si arriva oltre, E chi sta in mezzo lo paga. Un test che
+	// verificasse solo la posizione passerebbe anche con i 20 danni mai applicati.
+	// E53 CP 53.3c: la lama (200) contro la DEF 25 di Phase vale `floor(200 × 100/125) = 160` — il colpo arriva dal
+	// davanti, perche' l'origine e' la cella d'arrivo (1,0) e Phase guarda a est — e lo scudo base ne ferma 50 ([D-224]):
+	// 950 - 110 = 840. Cio' che il test dimostra resta che chi sta in mezzo LI PAGA: illesa avrebbe ancora 950.
+	FRTTestExpectation E1; E1.Kind = ERTAssertionKind::UnitAtCell;   E1.UnitId = TEXT("V"); E1.Cell = FRTCellId(1, 0, 0);
+	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 840;
+	S.Expect.Add(E1); S.Expect.Add(E2);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("la lama attraversa e colpisce"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+// =====================================================================================================
+// S2-2c — bersagliare una CELLA e non un'unita'.
+//
+// Il modello a valle lo sa gia' fare: `FRTActionInstance` ha `TargetUnitId` **e** `TargetCell`, e il
+// resolver gestisce il bersaglio-cella (fallback `AttackCell`, strutture di CP 9.2). Il buco e' nel PIANO:
+// `PlannedAttackTarget` e' un'unita', e il limite era gia' dichiarato in `RTTurnManager` (CP 8.3).
+//
+// La cella e' VUOTA e il nemico ADIACENTE: e' cio' che rende il test discriminante. Centrando l'area su una
+// cella occupata, lo stesso danno arriverebbe anche bersagliando l'unita' — il test misurerebbe una
+// coincidenza invece della regola.
+
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCellTargetTest,
+	"RefactorTactics.Scenario.CellTargetedAbilityAppliesToCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCellTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.CellTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Hero.Aevik.Overload");        // AoE raggio 1, 180 danni, portata 3
+	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Phase
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+
+	// Phase e' presa dal RAGGIO, non perche' la si sia bersagliata. E53 CP 53.3c: il centro (0,0) le sta alle spalle
+	// (guarda a est), quindi entra il bonus alle spalle di Gadget (60, [D-599]) e la sua DEF 25:
+	// `floor((180 + 60) × 100/125) = 192`, meno lo scudo base 50 ([D-224]) → 950 - 142 = 808. Ne' la DEF ne' lo
+	// scudo cambiano CHI viene colpito, che e' la proprieta' in esame.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 808;
+	S.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("l'area centrata su una cella vuota prende chi le sta accanto"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAmbiguousTargetTest,
+	"RefactorTactics.Scenario.TargetAndTargetCellIsError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
+{
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.AmbiguousTarget");
+	S.MapRadius = 4;
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	S.Units.Add(A); S.Units.Add(B);
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent I;
+	I.UnitId = TEXT("F");
+	I.Ability = TEXT("Hero.Aevik.Overload");
+	I.Target = TEXT("R");                 // entrambi
+	I.TargetCell = FRTCellId(0, 0, 0);
+	I.bTargetsCell = true;
+	T.Intents.Add(I);
+	S.Turns.Add(T);
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitAlive; E.UnitId = TEXT("R"); E.Value = 1;
+	S.Expect.Add(E);
+
+	// La validazione e' PURA: non serve un mondo per sapere che lo scenario e' ambiguo, e prenderlo qui
+	// significa prenderlo prima di aver speso un turno di simulazione.
+	FString Error;
+	TestFalse(TEXT("uno scenario ambiguo non passa la validazione"), URTScenarioLoader::Validate(S, Error));
+	TestTrue(TEXT("e il motivo nomina il bersaglio doppio"),
+		Error.Contains(TEXT("target")) || Error.Contains(TEXT("bersaglio")));
+	return true;
+}
+
+
+namespace
+{
+	/**
+	 * Interposizione: Aevik spara a Ivrin, Branth si mette in mezzo. E' la fixture di `Visual.Reaction.
+	 * Interposition`, costruita in memoria perche' `Scenarios/` e' `integration_only`.
+	 */
+	FRTTestScenario MakeRedirectScenario()
+	{
+		FRTTestScenario S;
+		S.ScenarioId = TEXT("Probe.RedirectVocabulary");
+		S.MapRadius = 4;
+
+		FRTScenarioUnit F; F.Id = TEXT("F1"); F.HeroId = TEXT("Hero.Aevik"); F.TeamId = 0; F.Cell = FRTCellId(0, 0, 0);
+		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Ivrin"); V.TeamId = 1; V.Cell = FRTCellId(2, 0, 0);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1; B.Cell = FRTCellId(2, 1, 0);
+		S.Units.Add(F); S.Units.Add(V); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		T.Requires.Add(TEXT("Reaction"));
+		FRTScenarioIntent Arm;  Arm.UnitId = TEXT("B1"); Arm.Reaction = TEXT("Hero.Branth.Interposition");
+		FRTScenarioIntent Shot; Shot.UnitId = TEXT("F1"); Shot.Ability = TEXT("Hero.Aevik.ArcPulse"); Shot.Target = TEXT("V1");
+		T.Intents.Add(Arm); T.Intents.Add(Shot);
+		S.Turns.Add(T);
+		return S;
+	}
+}
+
+/**
+ * Il vocabolario del REDIRECT: `OriginalTargetEquals` ed `EffectiveTargetEquals` (#1060).
+ *
+ * La feature esiste in `main` dal `#200` — `URTHexCombatLibrary` rivalida la geometria sul bersaglio
+ * effettivo, con tre test che la pinnano — ma **nessuno scenario poteva verificarla**: il TurnLog non
+ * nominava il bersaglio originale, e le due assertion non esistevano. Questo test copre il vocabolario, che
+ * e' cio' che `#170` (CP 15.4) dichiara come proprio unico collo di bottiglia.
+ *
+ * ⚠️ **E' scritto come coppia PASS/FAIL, non come singolo verde**, per la ragione che l'intestazione di
+ * questo file dichiara: un'assertion che non sa fallire non verifica niente. La seconda meta' scambia i due
+ * capi del trasferimento — `Original` su chi ha incassato, `Effective` su chi era bersagliato — e pretende
+ * `FAIL`. Senza, entrambe le assertion passerebbero anche se leggessero lo stesso campo, che e' precisamente
+ * l'errore che la spec del T6 avverte di evitare quando chiede un test **discriminante**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRedirectVocabularyTest,
+	"RefactorTactics.Scenario.RedirectVocabularyNamesBothEnds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRedirectVocabularyTest::RunTest(const FString&)
+{
+	// (a) I due capi dichiarati GIUSTI: Ivrin era il bersaglio, Branth l'ha incassato.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+		FRTTestScenario S = MakeRedirectScenario();
+		FRTTestExpectation Orig; Orig.Kind = ERTAssertionKind::OriginalTargetEquals; Orig.UnitId = TEXT("V1");
+		FRTTestExpectation Eff;  Eff.Kind  = ERTAssertionKind::EffectiveTargetEquals; Eff.UnitId  = TEXT("B1");
+		S.Expect.Add(Orig); S.Expect.Add(Eff);
+
+		const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+			return false;
+		}
+		TestEqual(TEXT("il redirect nomina entrambi i capi: originale V1, effettivo B1"),
+			Result.OutcomeString(), FString(TEXT("PASS")));
+	}
+
+	// (b) I due capi SCAMBIATI: deve fallire. E' la meta' che rende il test discriminante.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world (b)"), World)) { return false; }
+
+		FRTTestScenario S = MakeRedirectScenario();
+		FRTTestExpectation Orig; Orig.Kind = ERTAssertionKind::OriginalTargetEquals; Orig.UnitId = TEXT("B1");
+		FRTTestExpectation Eff;  Eff.Kind  = ERTAssertionKind::EffectiveTargetEquals; Eff.UnitId  = TEXT("V1");
+		S.Expect.Add(Orig); S.Expect.Add(Eff);
+
+		const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("ERROR invece di eseguire (b): %s"), *Result.ErrorMessage));
+			return false;
+		}
+		TestEqual(TEXT("scambiando i due capi lo scenario FALLISCE: le assertion discriminano"),
+			Result.OutcomeString(), FString(TEXT("FAIL")));
+	}
+
+	return true;
+}
+
+
+// ⚠️ **L'`#endif` della guardia sta in FONDO al file, e non qui.** Stava qui, e i un test qui sotto
+// (#1154, entrato il 2026-08-24 con la PR #1312) sono finiti FUORI: in Editor e in Development `WITH_DEV_AUTOMATION_TESTS`
+// vale 1 e nessuno se ne accorge, in **Shipping** vale 0 — gli helper del namespace anonimo spariscono, i
+// test restano, e la build muore con `C3861: identificatore non trovato`. Chi aggiunge un test in fondo a
+// questo file scrive DOPO l'ultima riga: e' il posto naturale, quindi la guardia deve chiudersi li'.
+
+/**
+ * **`FindLatestRunDirectory` restituisce la run piu' recente NEL TEMPO, non l'ultima per nome** (#1154).
+ *
+ * 🔴 **La cartella con un nome non-timestamp e' l'ingrediente che fa cadere il test sull'implementazione
+ * vecchia, e senza di lei il test passerebbe comunque**: fra soli nomi `YYYYMMDD-hhmmss` l'ordine
+ * lessicografico coincide con quello cronologico, ed e' esattamente la ragione per cui il difetto e'
+ * sopravvissuto fino al 2026-08-17. `selftest` comincia per `s`, che in ASCII viene dopo `2`: ordinando per
+ * nome era l'ultima per costruzione, e lo sarebbe rimasta per qualunque timestamp futuro.
+ *
+ * ⚠️ **Verificato per mutazione**: rimettendo `Runs.Sort(); return Runs.Last();` questo test cade con
+ * `selftest` al posto della run recente. Non e' dedotto — e' il criterio di accettazione dell'issue.
+ *
+ * ⚠️ Scrive sotto `Saved/RTTests/`, che non e' versionato, e **cancella l'albero** alla fine: un residuo
+ * qui non e' innocuo, perche' e' precisamente una cartella in piu' in mezzo alle run vere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLatestRunIsTheMostRecentTest,
+	"RefactorTactics.Scenario.LatestRunIsTheMostRecentNotTheLastByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLatestRunIsTheMostRecentTest::RunTest(const FString&)
+{
+	IFileManager& Fs = IFileManager::Get();
+	const FString ScenarioId = TEXT("RefactorTactics.Probe.LatestRunDirectory");
+	const FString ScenarioDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTTests"), ScenarioId);
+	Fs.DeleteDirectory(*ScenarioDir, /*RequireExists=*/ false, /*Tree=*/ true);
+
+	// Tre run: due col nome a timestamp e una col nome a mano. `Recente` e' la piu' nuova nel tempo, e
+	// `selftest` e' quella che l'ordinamento per nome sceglierebbe.
+	const FDateTime Adesso = FDateTime::UtcNow();
+	struct FRun { const TCHAR* Nome; FTimespan Eta; };
+	const FRun Runs[] = {
+		{ TEXT("20260808-145922"), FTimespan::FromDays(9) },
+		{ TEXT("selftest"),        FTimespan::FromDays(2) },
+		{ TEXT("20260817-172722"), FTimespan::FromMinutes(1) },
+	};
+	for (const FRun& Run : Runs)
+	{
+		const FString Dir = FPaths::Combine(ScenarioDir, Run.Nome);
+		if (!TestTrue(FString::Printf(TEXT("cartella creata: %s"), Run.Nome), Fs.MakeDirectory(*Dir, true)))
+		{
+			return false;
+		}
+		const FString Report = FPaths::Combine(Dir, TEXT("result.json"));
+		if (!TestTrue(TEXT("report scritto"), FFileHelper::SaveStringToFile(FString(TEXT("{}")), *Report)))
+		{
+			return false;
+		}
+		Fs.SetTimeStamp(*Report, Adesso - Run.Eta);
+	}
+
+	const FString Trovata = URTTestReportWriter::FindLatestRunDirectory(ScenarioId);
+	TestEqual(TEXT("torna la run piu' recente nel tempo"),
+		FPaths::GetCleanFilename(Trovata), FString(TEXT("20260817-172722")));
+	// La riga che falsifica l'implementazione vecchia, scritta a parte perche' e' quella che conta.
+	TestNotEqual(TEXT("e NON l'ultima in ordine di nome"),
+		FPaths::GetCleanFilename(Trovata), FString(TEXT("selftest")));
+
+	// Una cartella senza `result.json` non e' una run stampabile: `DumpResult` andrebbe a leggere il nulla.
+	const FString Vuota = FPaths::Combine(ScenarioDir, TEXT("99999999-999999"));
+	Fs.MakeDirectory(*Vuota, true);
+	TestEqual(TEXT("una cartella senza report non vince, per quanto il suo nome sia alto"),
+		FPaths::GetCleanFilename(URTTestReportWriter::FindLatestRunDirectory(ScenarioId)),
+		FString(TEXT("20260817-172722")));
+
+	// Nessuna run: percorso vuoto, non una cartella inventata.
+	Fs.DeleteDirectory(*ScenarioDir, /*RequireExists=*/ false, /*Tree=*/ true);
+	TestTrue(TEXT("senza run il percorso e' vuoto"),
+		URTTestReportWriter::FindLatestRunDirectory(ScenarioId).IsEmpty());
+	return true;
+}
+
+/**
+ * IL TEMPO SIMULATO SI ASSERISCE PER UGUAGLIANZA, QUELLO DI PARETE NO — `#1671`.
+ *
+ * 🔑 **È la proprietà che rende utile la coppia.** `simulationSeconds` è `step × 0.05`: due run dello stesso
+ * scenario ne eseguono gli stessi step, quindi il numero è **identico** — e la differenza fra i due campi
+ * diventa leggibile. Un `simulationSeconds` fermo con un `wallClockSeconds` che raddoppia dice *«la macchina
+ * è carica»*; il contrario dice *«il gioco ha cambiato comportamento»*. Se anche il primo ballasse, nessuna
+ * delle due letture sarebbe possibile.
+ *
+ * ⚠️ **Sul tempo di parete non si asserisce l'uguaglianza, ed è deliberato**: dipende dalla macchina, dal
+ * carico e da chi altro sta compilando — su questo repository, dove più sessioni condividono la working
+ * directory (`D-222`), un'asserzione del genere sarebbe un oracolo che cambia risposta senza che il gioco
+ * cambi. Si asserisce che **esista**, non quanto valga.
+ *
+ * ⛔ E nessuna delle due entra in `StateHash`: misurato, zero occorrenze in `RTMatchStateHash.cpp` e nel
+ * TurnLog. Il test lo pinna dal verso osservabile — l'hash delle due run coincide, e coinciderebbe anche se
+ * il tempo di parete fosse diverso, com'è quasi certamente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSimulationTimeIsDeterministicTest,
+	"RefactorTactics.Scenario.SimulationTimeIsDeterministicWallClockIsNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSimulationTimeIsDeterministicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	FRTTestResult First, Second;
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world della prima run"), World)) { return false; }
+		First = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+	}
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world della seconda run"), World)) { return false; }
+		Second = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+	}
+
+	// ⚠️ Prima che l'uguaglianza significhi qualcosa: due zeri sono uguali per costruzione, e un test che
+	// confrontasse due simulazioni mai partite sarebbe verde senza misurare niente.
+	if (!TestTrue(FString::Printf(TEXT("la prima run ha simulato qualcosa (%.2f s)"), First.SimulationSeconds),
+		First.SimulationSeconds > 0.f))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("due run dello stesso scenario simulano lo stesso tempo"),
+		Second.SimulationSeconds, First.SimulationSeconds);
+
+	// La controprova che stiano davvero eseguendo la stessa simulazione, e non due cose diverse che per caso
+	// durano uguale.
+	TestEqual(TEXT("e sono la stessa simulazione: stesso stato finale"), Second.StateHash, First.StateHash);
+	TestEqual(TEXT("e stesso numero di turni"), Second.TurnsPlayed, First.TurnsPlayed);
+
+	// Il tempo di parete ESISTE — non si asserisce quanto valga, per la ragione nel commento sopra.
+	TestTrue(TEXT("la prima run ha un tempo di parete"), First.WallClockSeconds > 0.f);
+	TestTrue(TEXT("e anche la seconda"), Second.WallClockSeconds > 0.f);
+
+	return true;
+}
+
+/**
+ * UNO STATUS DICHIARATO E' ATTIVO DAL PRIMO TURNO — `#1629`.
+ *
+ * 🔑 **«Verificato nel TurnLog, non solo nel file»** è il criterio per intero, ed è la differenza fra un
+ * campo che si CARICA e un campo che FUNZIONA: un test che leggesse `Scenario.Units[0].Statuses` sarebbe
+ * verde con un loader corretto e un'arena che ignora il campo.
+ *
+ * ⚠️ Si asserisce anche che l'altra unità **non** lo abbia: senza quel controllo, un runtime che
+ * applicasse `Guarded` a chiunque supererebbe la prova.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInitialStatusIsActiveTest,
+	"RefactorTactics.Scenario.InitialStatusIsActiveFromTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInitialStatusIsActiveTest::RunTest(const FString&)
+{
+	const TCHAR* Json = TEXT(R"JSON({
+	  "scenarioId": "Spec.Status.Initial", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 } ] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario si carica (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(Json, Scenario, Error)))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("A1 porta uno status dichiarato"), Scenario.Units[0].Statuses.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ed e' quello scritto"), Scenario.Units[0].Statuses[0].Tag, FName(TEXT("Status.Guarded")));
+	TestEqual(TEXT("con la sua durata"), Scenario.Units[0].Statuses[0].Turns, 3);
+	TestEqual(TEXT("controllo: B1 non ne ha"), Scenario.Units[1].Statuses.Num(), 0);
+
+	// ⛔ E ORA IL PUNTO: che il runtime lo APPLICHI. Il file lo dice, la partita lo deve fare.
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	TestNotEqual(TEXT("l'allestimento non e' fallito"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestEqual(TEXT("e un turno e' stato giocato"), Result.TurnsPlayed, 1);
+
+	// 🔴 **E ORA LA PARTE CHE CONTA, ed e' stata aggiunta dopo una verifica di mutazione.**
+	//
+	// La prima stesura si fermava alle due righe qui sopra, e disattivando `ApplyStatus` nella sessione
+	// restava **VERDE**: verificava che lo scenario si CARICASSE e che la run non fallisse, non che lo
+	// status venisse applicato. Misurato, non temuto.
+	//
+	// 🔑 Il checksum di stato porta gli `Statuses` di ogni unita' (`FRTUnitStateDigest`), quindi due
+	// run identiche in tutto tranne che negli status iniziali devono dare hash **diversi**. Se
+	// `ApplyStatus` non viene chiamata, i due stati coincidono e questa riga cade.
+	FRTTestScenario Senza = Scenario;
+	Senza.Units[0].Statuses.Reset();
+
+	UWorld* PlainWorld = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world della run senza status"), PlainWorld)) { return false; }
+	const FRTTestResult Plain = URTScenarioRunner::Run(PlainWorld, Senza);
+	DestroyRunnerWorld(PlainWorld);
+
+	TestNotEqual(TEXT("lo status cambia lo stato della partita: il checksum differisce"),
+		Result.StateHash, Plain.StateHash);
+
+	// ⚠️ La controprova che l'hash non sia semplicemente instabile: due run dello **stesso**
+	// scenario devono coincidere, o la riga sopra sarebbe vera per rumore invece che per lo status.
+	UWorld* AgainWorld = MakeRunnerWorld();
+	if (TestNotNull(TEXT("world della ripetizione"), AgainWorld))
+	{
+		const FRTTestResult Again = URTScenarioRunner::Run(AgainWorld, Scenario);
+		DestroyRunnerWorld(AgainWorld);
+		TestEqual(TEXT("e lo stesso scenario da' lo stesso checksum"), Again.StateHash, Result.StateHash);
+	}
+
+	return true;
+}
+
+
+/**
+ * **Due scenari di seguito nello stesso mondo lasciano in campo solo il secondo** (`#2223`).
+ *
+ * 🔴 **E' il caso del PIE, ed e' l'unico in cui il difetto esiste.** Fuori dal PIE ogni corsa riceve un
+ * `UWorld` temporaneo e parte pulita per costruzione; in PIE il mondo e' quello della sessione e non si puo'
+ * ricreare, quindi il secondo scenario si sommava al primo e cio' che si misurava era il residuo. Questo
+ * test riproduce quella condizione **riusando lo stesso mondo**, che e' precisamente cio' che gli altri
+ * test di questo file non fanno.
+ *
+ * ⛔ **La meta' che conta di piu' e' l'unita' ESTRANEA.** In PIE lo scenario gira dentro una partita, e
+ * sgomberare *«tutte le `ARTUnit` del mondo»* la distruggerebbe: sarebbe un rimedio peggiore del difetto, e
+ * un test che contasse solo le unita' di scenario lo direbbe verde. Qui un'unita' non marcata sta in campo
+ * per tutte e due le corse e **deve sopravvivere**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResidueBetweenRunsTest,
+	"RefactorTactics.Scenario.Runner.ConsecutiveRunsLeaveOnlyTheLastUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResidueBetweenRunsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	auto Conta = [World](bool bSoloMarcate)
+	{
+		int32 N = 0;
+		for (TActorIterator<ARTUnit> It(World); It; ++It)
+		{
+			if (!IsValid(*It)) { continue; }
+			if (!bSoloMarcate || It->ActorHasTag(FRTScenarioSession::SpawnedByScenarioTag)) { ++N; }
+		}
+		return N;
+	};
+
+	FRTTestScenario Primo, Secondo;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Primo)
+		|| !LoadShippedScenario(*this, TEXT("Movement.Basic"), Secondo))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// ⛔ L'unita' che NON appartiene a nessuno scenario: sta per la partita che in PIE ospita la corsa.
+	ARTUnit* Estranea = World->SpawnActor<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("l'unita' estranea si posa"), Estranea))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+	TestFalse(TEXT("e non porta il marchio dello scenario"),
+		Estranea->ActorHasTag(FRTScenarioSession::SpawnedByScenarioTag));
+
+	// --- prima corsa ----------------------------------------------------------------------------------
+	URTScenarioRunner::Run(World, Primo);
+	const int32 DopoPrimo = Conta(/*bSoloMarcate=*/ true);
+
+	// ⛔ ANTI-VACUITA': senza unita' marcate dopo la prima corsa, il confronto sotto sarebbe vero per
+	// assenza — e passerebbe anche su un harness che non spawna niente.
+	if (!TestTrue(TEXT("la prima corsa ha posato delle unita'"), DopoPrimo > 0))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// --- seconda corsa, STESSO mondo ------------------------------------------------------------------
+	URTScenarioRunner::Run(World, Secondo);
+	const int32 DopoSecondo = Conta(/*bSoloMarcate=*/ true);
+
+	// Il numero atteso e' quello dichiarato dal SECONDO scenario, non la somma dei due.
+	TestEqual(TEXT("in campo restano le unita' del secondo scenario, non la somma"),
+		DopoSecondo, Secondo.Units.Num());
+
+	// 🔴 La riga che vale il test: senza il difetto, questo numero sarebbe la somma.
+	TestNotEqual(TEXT("e infatti NON e' la somma delle due corse"),
+		DopoSecondo, DopoPrimo + Secondo.Units.Num());
+
+	// --- ⛔ e la partita che ospitava la corsa e' ancora viva -------------------------------------------
+	TestTrue(TEXT("l'unita' NON marcata sopravvive a entrambe le corse"), IsValid(Estranea));
+	TestEqual(TEXT("e il totale in campo la comprende"), Conta(/*bSoloMarcate=*/ false), DopoSecondo + 1);
+
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+
+/**
+ * 🔴 **Il banco a corridoio: il corpus esercita TERRENO COSTOSO** (`#2914`).
+ *
+ * Fino a `Movement.CostlyCorridor` un solo scenario in tutto `Scenarios/` dichiarava `moveCost`
+ * (`AutoBattle/Obstacles.json`), e non era fra i golden: ogni traccia di riferimento girava su pavimento a
+ * costo `1`, dove ogni arco dura un micro-step e il resolver si comporta come prima di [D-381]. Il corpus
+ * **non era verde perche' la durata variabile fosse gratuita: era verde perche' non la vedeva.**
+ *
+ * 🔑 **Come discrimina, dato che un `expect` non puo' asserire un micro-step.** Le assertion dello harness
+ * sono `UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing`, `LogEvent*` e
+ * `*TargetEquals`: nessuna parla di tempo. Lo scenario costruisce quindi un caso in cui il **tempo cambia
+ * l'esito**, e l'esito si legge dalla cella finale:
+ *
+ * ```text
+ * X:  [-2,0] -> [-1,0] -> [0,0]      costi 1 + 1     su T al micro-step 2
+ * Y:  [ 2,0] -> [ 1,0] -> [0,0]      costi 3 + 1     si affaccia su T al micro-step 4, e la trova occupata
+ * ```
+ *
+ * **Con** le durate X e' su `T` e Y resta su `[1,0]`. **Senza** — un arco, un micro-step — entrambe puntano
+ * a `T` allo stesso passo, la destinazione e' CONTESA a parita' di priorita', e si fermano tutte e due:
+ * X resterebbe su `[-1,0]`.
+ *
+ * ⚠️ **L'asserzione anti-vacuita' e' la seconda, non la prima.** «X e' su `T`» passerebbe anche per un
+ * resolver che non ha mai guardato le durate ma ha risolto la contesa in un altro modo; «X non e' rimasta
+ * su `[-1,0]`» nomina il valore che il modello SBAGLIATO produce, ed e' quella che cade sotto mutazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCostlyCorridorTest,
+	"RefactorTactics.Scenario.CostlyCorridorSeesTheDuration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.CostlyCorridor"), Scenario)) { return false; }
+
+	// 🔑 **La premessa nomina LA cella che guida l'esito, non un conteggio** (`#2955`). `[1,0]` e' il costo
+	// che fa arrivare `Y` tardi: e' l'unica cella da cui dipende il discriminatore, e un conteggio generico
+	// (`>= 2`) resterebbe verde se qualcuno spostasse il costo altrove — o lo soddisfarebbe con la cella
+	// decorativa della corsia di `S`.
+	//
+	// ⚠️ **E se cade, il test SI FERMA.** Continuare produrrebbe una seconda ondata di rossi — lo scenario
+	// fallisce, l'esito non e' PASS, l'assertion su `X` non torna — e chi legge dovrebbe capire da solo quale
+	// e' la causa e quali le conseguenze. E' la forma che il resto di questo file usa gia'.
+	const FRTScenarioCell* Gate = Scenario.Cells.FindByPredicate(
+		[](const FRTScenarioCell& C) { return C.Cell == FRTCellId(1, 0, 0); });
+	if (!TestNotNull(TEXT("premessa: il banco dichiara la cella che fa tardare Y"), Gate)) { return false; }
+	if (!TestTrue(TEXT("premessa: e quella cella costa piu' di un micro-step"), Gate->MoveCost > 1))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	// ⚠️ **`Blocked` ha un ramo suo, e non e' pedanteria** (`#2955`): li' `Assertions` e' VUOTO — la sessione
+	// salta il ciclo degli expect — quindi «nessuna assertion fallita: 0» passerebbe **a vuoto**, e il
+	// referto direbbe solo «atteso PASS, ottenuto BLOCKED» senza la ragione. E' la forma che
+	// `AnchorScenarioMustPass` usa in `RTScenarioCorpusTests.cpp`.
+	if (Result.Outcome == ERTTestOutcome::Blocked)
+	{
+		AddError(FString::Printf(TEXT("BLOCKED invece di PASS: %s"), *Result.BlockedReason));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
+
+	// 🔴 **Il discriminatore vive nell'`expect` del JSON, non qui, e questo blocco esiste per una cosa sola:
+	// accorgersi se qualcuno lo TOGLIE** (`#2955`).
+	//
+	// La prima stesura asseriva anche `Actual == (0,0)` e `Actual != (-1,0)`, e presentava la seconda come
+	// «anti-vacuita'». 🔴 **Era falso**: le due leggono la STESSA stringa, quindi la disuguaglianza e'
+	// implicata dall'uguaglianza e non puo' cadere da sola. Sotto mutazione infatti cadevano insieme,
+	// con `esito PASS` e `nessuna assertion fallita` — quattro rossi, non uno.
+	//
+	// Cio' che `FailedCount() == 0` gia' garantisce e' che `X` sia dove l'`expect` dice; cio' che NON
+	// garantisce e' che quell'`expect` esista ancora.
+	//
+	// ⚠️ **La descrizione porta un PREFISSO di ripetizione**, e il confronto deve saperlo (`#2955`): con
+	// `repeatCount` il runner aggrega le run e rinomina ogni assertion in `[run N] UnitAtCell(X)`
+	// (`RTScenarioRunner.cpp:299`). Un confronto esatto con `UnitAtCell(X)` non trova piu' niente — ed e'
+	// esattamente il rosso che questo test ha dato quando `repeatCount` e' entrato.
+	//
+	// ⛔ **E `Contains(TEXT("X"))` non e' l'alternativa**: sarebbe un confronto di UNA lettera, per giunta
+	// case-insensitive, che aggancerebbe in silenzio l'unita' sbagliata al primo `Ex`, `X2` o `EX1`. Il
+	// suffisso e' cio' che identifica l'unita', e il prefisso cio' che identifica la run.
+	const FRTAssertionResult* XCell = Result.Assertions.FindByPredicate(
+		[](const FRTAssertionResult& A)
+		{
+			return A.Kind == ERTAssertionKind::UnitAtCell && A.Description.EndsWith(TEXT("UnitAtCell(X)"));
+		});
+	TestNotNull(TEXT("l'expect che porta il discriminatore e' ancora nel banco"), XCell);
+
+	// 🔑 **Il determinismo ha un oracolo, non una speranza** (`#2955`). `repeatCount` fa rieseguire lo
+	// scenario e confrontare le run fra loro, ma il **sommario non conta** quelle assertion — `PASS (5/5)`
+	// mostra i soli `expect` dichiarati, e lo stesso vale per `Spec.Harness.RepeatedRunsAgree`, che ne
+	// dichiara 4 e ne riporta 4 pur girando cinque volte. ∴ togliere `repeatCount` dal JSON non cambierebbe
+	// nulla di visibile: il banco resterebbe verde e smetterebbe in silenzio di misurare il determinismo.
+	//
+	// ⚠️ Questa e' la sola copertura di corpus sulle **durate variabili**, che cambiano il numero di
+	// micro-step per turno — cioe' proprio la superficie dove `FRTTurnLogEntry::MicroStepIndex` e
+	// `FRTReactionOpportunityKey` vivono.
+	const bool bHasHashComparison = Result.Assertions.ContainsByPredicate(
+		[](const FRTAssertionResult& A) { return A.Description.Contains(TEXT("SameStateHashAcrossRuns")); });
+	TestTrue(TEXT("le run ripetute si confrontano davvero sullo StateHash"), bHasHashComparison);
+
+	const bool bHasLogComparison = Result.Assertions.ContainsByPredicate(
+		[](const FRTAssertionResult& A) { return A.Description.Contains(TEXT("SameTurnLogAcrossRuns")); });
+	TestTrue(TEXT("e sul TurnLog"), bHasLogComparison);
+	return true;
+}
+
+// ⚠️ **L'`#endif` della guardia deve restare l'ULTIMA riga del file** (`#2955`).
+// Ci sono cascato due volte in due giorni: `#2940` ha aggiunto il blocco di `#2914` dopo l'`#endif` in
+// `RTHexSimTests.cpp`, e `#2955` ha ripetuto l'errore qui. In Editor e Development
+// `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
+// namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
+// non vede niente di tutto questo.
+// --- i CONFINI, in esecuzione (`#2867`) ------------------------------------------------------------------
+
+/**
+ * Un checkpoint di fase LEGGE uno stato che il solo stato finale non porta piu'.
+ *
+ * 🔑 **Il test e' un CONFRONTO, non un'asserzione singola**, ed e' l'unico modo di dimostrare che il
+ * checkpoint aggiunge qualcosa: la stessa domanda — dov'e' A1 — posta a due confini deve dare due risposte
+ * diverse. Se un giorno il checkpoint smettesse di leggere il confine e leggesse la fine del turno, le due
+ * risposte coinciderebbero e questo test cadrebbe; un test che guardasse solo `BlastEnded` resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointReadsPhaseBoundaryTest,
+	"RefactorTactics.Scenario.CheckpointReadsThePhaseBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointReadsPhaseBoundaryTest::RunTest(const FString&)
+{
+	// A1 colpisce da (-1,0,0) e poi arretra a (-2,0,0). Gli attacchi usano la posizione PRIMA del movimento,
+	// quindi i due confini vedono due celle diverse. Allestimento di `Combat.BasicAttack`, che e' versionato
+	// e verde: l'unica differenza e' il `move`.
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove");
+	S.Version = 7;
+	S.MapRadius = 4;
+	{
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+	}
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		I.Move.Add(FRTCellId(-2, 0, 0));
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+	}
+	{
+		// Al confine del Blast: dove ha colpito.
+		FRTTestExpectation AtBlast;
+		AtBlast.Kind = ERTAssertionKind::UnitAtCell;
+		AtBlast.UnitId = TEXT("A1");
+		AtBlast.Cell = FRTCellId(-1, 0, 0);
+		AtBlast.At = ERTScenarioCheckpoint::BlastEnded;
+		AtBlast.bHasCheckpoint = true;
+		S.Expect.Add(AtBlast);
+
+		// A fine turno: dove e' arrivata. La stessa domanda, l'altra risposta.
+		FRTTestExpectation AtEnd;
+		AtEnd.Kind = ERTAssertionKind::UnitAtCell;
+		AtEnd.UnitId = TEXT("A1");
+		AtEnd.Cell = FRTCellId(-2, 0, 0);
+		S.Expect.Add(AtEnd);
+	}
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("lo scenario passa"), Result.OutcomeString(), FString(TEXT("PASS")));
+	if (!TestEqual(TEXT("due assertion nel referto"), Result.Assertions.Num(), 2)) { return false; }
+
+	// Il referto NOMINA il confine: senza, due assertion identiche a due momenti diversi sarebbero
+	// indistinguibili in un log, e chi legge un rosso non saprebbe quale delle due e' caduta.
+	int32 Nominate = 0;
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		TestTrue(A.Description, A.bPassed);
+		if (A.Description.Contains(TEXT("BlastEnded"))) { ++Nominate; }
+	}
+	TestEqual(TEXT("una sola assertion nomina il confine"), Nominate, 1);
+
+	// 🔴 **La controprova che rende il test non vacuo**: se il checkpoint leggesse la fine del turno invece
+	// del confine, la cella sarebbe (-2,0,0) e la prima assertion cadrebbe. Lo si verifica chiedendo al
+	// confine la cella FINALE e pretendendo un FAIL — una scena in cui il verde sarebbe il difetto.
+	FRTTestScenario Confusa = S;
+	Confusa.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove.Confusa");
+	Confusa.Expect[0].Cell = FRTCellId(-2, 0, 0); // la cella di FINE turno, chiesta al confine del Blast
+
+	UWorld* World2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), World2)) { return false; }
+	const FRTTestResult Sbagliata = URTScenarioRunner::Run(World2, Confusa);
+	DestroyRunnerWorld(World2);
+
+	TestEqual(TEXT("chiedere la cella finale al confine del Blast FALLISCE"),
+		Sbagliata.OutcomeString(), FString(TEXT("FAIL")));
+
+	return true;
+}
+
+/**
+ * `afterEvent` si aggancia al PRIMO evento che soddisfa il selettore, e un confine mai raggiunto e' un FAIL.
+ *
+ * 🔴 **La seconda meta' e' la piu' importante**: senza, un'assertion che nomina un evento mai avvenuto
+ * sparirebbe dal referto — zero assertion cadute, `PASS`. Un verde per assenza di misura e' l'esito
+ * peggiore, perche' nessuno va a guardarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointAfterEventTest,
+	"RefactorTactics.Scenario.CheckpointEvaluatesAfterASelectedEvent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointAfterEventTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bReachable)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bReachable ? TEXT("Probe.AfterEvent.Reached") : TEXT("Probe.AfterEvent.Never");
+		S.Version = 7;
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::UnitAlive;
+		E.UnitId = TEXT("B1");
+		E.Value = 1;
+		E.bHasAfterEvent = true;
+		E.AfterEvent.bHasCategory = true;
+		// `Combat` avviene davvero; `Objective` in questa scena non esiste — non c'e' nessuna cella
+		// contendibile — quindi il selettore non sara' mai soddisfatto.
+		E.AfterEvent.Category = bReachable ? ERTLogCategory::Combat : ERTLogCategory::Objective;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Raggiunto = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	TestEqual(TEXT("l'evento avviene e l'assertion si valuta"), Raggiunto.OutcomeString(), FString(TEXT("PASS")));
+	if (TestEqual(TEXT("una assertion"), Raggiunto.Assertions.Num(), 1))
+	{
+		TestTrue(TEXT("e il referto nomina il selettore"),
+			Raggiunto.Assertions[0].Description.Contains(TEXT("afterEvent")));
+	}
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult MaiRaggiunto = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("un confine mai raggiunto e' un FAIL, non un silenzio"),
+		MaiRaggiunto.OutcomeString(), FString(TEXT("FAIL")));
+	if (TestEqual(TEXT("e compare comunque nel referto"), MaiRaggiunto.Assertions.Num(), 1))
+	{
+		TestFalse(TEXT("caduta"), MaiRaggiunto.Assertions[0].bPassed);
+		TestTrue(FString::Printf(TEXT("e dice PERCHE' (era: '%s')"), *MaiRaggiunto.Assertions[0].Actual),
+			MaiRaggiunto.Assertions[0].Actual.Contains(TEXT("nessun evento")));
+	}
+
+	return true;
+}
+
+/**
+ * Un playback FERMO non consuma il tetto di `MaxResolveTicks` — `#3488`.
+ *
+ * `RTGameMode.cpp` promette che il banco non scade: in `Resolving` la sessione aspetta `!IsResolving()`, e un
+ * playback fermo da chi guarda la fa ASPETTARE. Il tetto contava invece ogni passo, anche a playback fermo,
+ * e in PIE uno scenario con `rt.Debug.PlaybackStartPaused` finiva in ERROR dopo circa nove secondi — due
+ * volte nella seduta del 2026-10-04, su `Visual.Perception.RevealDuringMove`.
+ *
+ * Qui il playback parte fermo e ci resta oltre il tetto: la sessione deve aspettare, non chiudersi. Poi lo si
+ * riprende, e lo scenario deve finire come senza pausa. ⚠️ Il controllo che il playback sia stato DAVVERO
+ * fermo e' cio' che rende il test non vacuo: senza, sarebbe verde anche su un mondo in cui `StartPaused` non
+ * attecchisce e la sessione finisce prima del tetto per conto suo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest,
+	"RefactorTactics.Scenario.PausedPlaybackDoesNotSpendTheResolveCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+
+	// L'ordine non e' libero: `StartPaused` vale solo con i controlli abilitati.
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo);
+	TestFalse(TEXT("a playback fermo, oltre il tetto, la sessione aspetta invece di chiudersi in ERROR"),
+		Session.IsFinished());
+
+	// Ripreso — a ogni turno, perche' `StartPaused` fa partire fermo OGNI playback — lo scenario si chiude.
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks * 4 && !Session.IsFinished(); ++I)
+	{
+		if (TM->IsPlaybackPaused()) { TM->ResumePlayback(); }
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+	}
+	TestTrue(TEXT("ripreso il playback, lo scenario finisce"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("e finisce in PASS (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Pass);
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il tetto RESTA per una risoluzione che non avanza senza che nessuno l'abbia fermata — `#3488`, controllo.
+ *
+ * E' la meta' che il fix non deve togliere: una run non presidiata che si blocca deve ancora FALLIRE, non
+ * girare all'infinito. Qui nessuno fa avanzare il turn manager (`bPumpTurnManager` falso, in un mondo che non
+ * ticca), quindi la risoluzione resta aperta, e il playback NON e' in pausa. Senza questo test, un fix che
+ * togliesse il tetto del tutto sarebbe verde sul test sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStuckResolutionStillHitsTheCapTest,
+	"RefactorTactics.Scenario.StuckResolutionStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStuckResolutionStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("la risoluzione bloccata chiude la sessione"), Session.IsFinished());
+	TestTrue(TEXT("in ERROR"), Session.GetResult().Outcome == ERTTestOutcome::Error);
+	TestTrue(FString::Printf(TEXT("per il tetto (era: '%s')"), *Session.GetResult().ErrorMessage),
+		Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Esente e' lo STATO di pausa, non la POLITICA — `#3488`, dalla revisione di #3493.
+ *
+ * Il fix esenta i passi in cui il playback e' fermo ORA (`IsPlaybackPaused`). Un fix che esentasse invece
+ * ogni sessione in cui i playback partono fermi (`DoesPlaybackStartPaused`) passerebbe entrambi i test
+ * sopra, e toglierebbe il tetto proprio alle sedute: ripreso il playback, una risoluzione che si inceppa
+ * aspetterebbe per sempre. Qui il playback parte fermo, si riprende, e poi nessuno fa avanzare il turn
+ * manager — non e' in pausa, e' bloccato: il tetto deve tornare a contare e chiudere in ERROR.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResumedStuckPlaybackStillHitsTheCapTest,
+	"RefactorTactics.Scenario.ResumedStuckPlaybackStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResumedStuckPlaybackStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	// Fermo, oltre il tetto: aspetta.
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	if (!TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo)
+		|| !TestFalse(TEXT("fermo, la sessione aspetta"), Session.IsFinished()))
+	{
+		Session.TearDown();
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// Ripreso, ma nessuno fa avanzare il turn manager: non e' in pausa, e' bloccato.
+	TM->ResumePlayback();
+	TestFalse(TEXT("ripreso, il playback non e' piu' in pausa"), TM->IsPlaybackPaused());
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("il tetto torna a contare e chiude la sessione"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("in ERROR per il tetto (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Error
+			&& Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il runner sincrono dice PERCHE' una sessione non finita si e' fermata — `#3488`, dalla revisione di #3493.
+ *
+ * Prima del fix una sessione ferma la chiudeva il tetto del TURNO, con un messaggio. Ora un playback fermo
+ * non lo consuma, e in una run sincrona — la console `rt.Test.Run`, che gira nel mondo PIE con il turn
+ * manager del GameMode e quindi con le CVar del playback — la ferma solo il tetto esterno del runner. L'esito
+ * restava `Error` per default, ma con `ErrorMessage` vuoto: un ERROR muto, che non dice dove guardare.
+ *
+ * Qui il mondo ha gia' un turn manager col playback fermo, e la sessione lo riusa: nessuno lo riprende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest,
+	"RefactorTactics.Scenario.RunnerSaysWhyAnUnfinishedSessionStopped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Il turn manager c'e' gia', e la sessione lo riusa invece di crearne un altro.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	TestTrue(TEXT("in ERROR"), Result.Outcome == ERTTestOutcome::Error);
+	TestFalse(TEXT("e il motivo non e' vuoto"), Result.ErrorMessage.IsEmpty());
+	TestTrue(FString::Printf(TEXT("e dice che la sessione non e' finita (era: '%s')"), *Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("non e' finita")));
+
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

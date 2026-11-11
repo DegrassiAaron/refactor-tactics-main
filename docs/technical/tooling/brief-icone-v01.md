@@ -176,7 +176,7 @@ Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro
 > | | **33** | **60** | |
 >
 > ```bash
-> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
+> sed -n '709,1172p' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
 > ```
 >
 > ⚠️ **Conseguenza di scope, non nota a margine**: il gate di `#219` è `FindMissingRequiredIcons` **vuoto**, e
@@ -211,7 +211,7 @@ qualcosa che nessuno può pianificare.
 > è stato **trascritto** invece che derivato. L'elenco vivo:
 >
 > ```bash
-> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp \
+> sed -n '709,1172p' Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp \
 >   | grep -oE 'TEXT\("Action\.[A-Za-z0-9.]+"\)' | sort -u
 > ```
 

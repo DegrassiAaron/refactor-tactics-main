@@ -5,13 +5,13 @@
 #include "GameplayTagContainer.h"
 #include "Core/RTTypes.h"
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
-#include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
-#include "Turn/RTMovementActionLibrary.h" // FRTChargeRun: dove si ferma la carica pianificata ([D-528]) e' un membro per valore
+#include "Turn/Actions/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
+#include "Turn/Resolution/RTMovementActionLibrary.h" // FRTChargeRun: dove si ferma la carica pianificata ([D-528]) e' un membro per valore
 #include "Selection/RTSelectable.h"
-#include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
+#include "Map/Actor/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
-#include "UI/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
-#include "UI/RTSkillCalloutView.h" // #4025: il fumetto e' un membro per valore, quindi serve il tipo completo
+#include "UI/Feed/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
+#include "UI/Feed/RTSkillCalloutView.h" // #4025: il fumetto e' un membro per valore, quindi serve il tipo completo
 #include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
@@ -30,7 +30,7 @@ class UMaterialInterface;
 class URTActionData;
 class URTHeroData;
 // Snapshot autorevole di inizio fase: entra SOLO nella firma di `NoteMovePlanRejection`, per valore di
-// riferimento e senza UPROPERTY. E' una struct C++ pura di `Turn/RTHexSim.h`, quindi la dichiarazione avanti
+// riferimento e senza UPROPERTY. E' una struct C++ pura di `Turn/Resolution/RTHexSim.h`, quindi la dichiarazione avanti
 // basta e non tira lo strato di simulazione dentro l'header dell'Actor.
 struct FRTHexSnapshot;
 
@@ -1761,7 +1761,7 @@ public:
 	 *
 	 * 🔴 **Non e' un margine estetico: e' un vincolo geometrico, e sbagliarlo rende l'anello INVISIBILE.**
 	 * Il tile della cella e' il prisma di `GetCellPrismMesh` schiacciato da `RTCellFlatScale`, quindi la sua
-	 * faccia superiore sta a `RTCellTopZ` — meta' spessore — sopra il centro cella (`Map/RTMapVisuals.h`).
+	 * faccia superiore sta a `RTCellTopZ` — meta' spessore — sopra il centro cella (`Map/Actor/RTMapVisuals.h`).
 	 * L'anello e' un cilindro engine con scala Z `0.02`, cioe' semi-altezza `50 * 0.02 = 1.0`: perche' la
 	 * sua faccia superiore emerga dal tile serve
 	 *
@@ -1770,7 +1770,7 @@ public:
 	 * `6.8` lascia **0.3** di margine, lo stesso che questa costante ha sempre tenuto.
 	 *
 	 * ⏱️ **Valeva `1.8` fino al 2026-08-28**, quando la faccia del tile stava a `2.5` e la soglia era
-	 * `1.5`. Lo spessore della cella e' passato da `5` a `15` uu (`0.06 H`, `Map/RTMapVisuals.h`) e questa
+	 * `1.5`. Lo spessore della cella e' passato da `5` a `15` uu (`0.06 H`, `Map/Actor/RTMapVisuals.h`) e questa
 	 * costante e' l'UNICA quota del progetto che ha dovuto seguirlo a mano: tutte le altre — i quattro lift
 	 * di `RTHexMapActor.cpp`, `RTLastContactGhostZ`, i pannelli di muro, il rilievo — sono scritte come
 	 * `RTCellTopZ + k` e sono salite da sole. ✅ **E non e' stato necessario accorgersene**: lo
@@ -1784,7 +1784,7 @@ public:
 	 * davvero»* — trovato in code review, non a schermo.
 	 *
 	 * ✅ **Il legame con `RTCellTopZ` lo verifica ora il compilatore** (#983): quella costante e' uscita dal
-	 * namespace anonimo di `RTHexMapActor.cpp` ed e' in `Map/RTMapVisuals.h`, quindi la disuguaglianza qui
+	 * namespace anonimo di `RTHexMapActor.cpp` ed e' in `Map/Actor/RTMapVisuals.h`, quindi la disuguaglianza qui
 	 * sopra si puo' asserire invece di raccontarla. Prima questa riga diceva che il legame *non* era
 	 * verificato e rimandava a #983, e il numero `2.5` viveva in un commento su entrambi i lati.
 	 */

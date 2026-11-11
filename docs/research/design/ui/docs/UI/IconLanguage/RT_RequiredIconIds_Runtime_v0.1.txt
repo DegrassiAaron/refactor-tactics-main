@@ -1,6 +1,6 @@
 # RT_RequiredIconIds_Runtime_v0.1.txt
 # DERIVAZIONE STATICA dal sorgente, NON esecuzione runtime.
-# Fonte: Source/RefactorTactics/UI/RTIconLibrary.cpp:27-140
+# Fonte: Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp:27-140
 # Repo: DegrassiAaron/refactor-tactics-main@main, albero b1e2544dc945
 # ATTENZIONE: RequiredIconIds() non e' stata eseguita. Vedi STOP-1 nel report.
 #

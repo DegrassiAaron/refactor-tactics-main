@@ -51,8 +51,8 @@ import {
 } from './action-catalog.ts';
 
 const CATALOG_REL = 'docs/balance/RT_HeroCatalog_v0.1.md';
-const CPP_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp';
-const HEADER_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h';
+const CPP_REL = 'Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp';
+const HEADER_REL = 'Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.h';
 const HERO_CATALOG = new URL('../../' + CATALOG_REL, import.meta.url);
 const CPP_SOURCE = new URL('../../' + CPP_REL, import.meta.url);
 const CPP_HEADER = new URL('../../' + HEADER_REL, import.meta.url);
@@ -61,7 +61,7 @@ const CPP_HEADER = new URL('../../' + HEADER_REL, import.meta.url);
  *  guardava. La logica sta in `action-catalog.ts` perche' il catalogo delle azioni ha piu' tabelle con
  *  intestazioni diverse, e mescolarla qui avrebbe reso illeggibili entrambe. */
 const ACTION_CATALOG_REL = 'docs/balance/RT_ActionCatalog_v0.1.md';
-const ACTION_CPP_REL = 'Source/RefactorTactics/Ability/RTCatalogLibrary.cpp';
+const ACTION_CPP_REL = 'Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp';
 const ACTION_CATALOG = new URL('../../' + ACTION_CATALOG_REL, import.meta.url);
 const ACTION_CPP = new URL('../../' + ACTION_CPP_REL, import.meta.url);
 

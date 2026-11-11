@@ -215,7 +215,7 @@ def senza_commenti(testo: str) -> str:
 
 def eroi_dal_catalogo(radice: str) -> set[str]:
     """Gli id del roster da `URTHeroCatalogLibrary::GetHeroIds`, non da un elenco riscritto qui."""
-    p = os.path.join(radice, "Source", "RefactorTactics", "Ability", "RTHeroCatalogLibrary.cpp")
+    p = os.path.join(radice, "Source", "RefactorTactics", "Ability", "Catalog", "RTHeroCatalogLibrary.cpp")
     with open(p, encoding="utf-8", errors="replace") as f:
         testo = f.read()
     corpo = corpo_di(testo, re.compile(r"GetHeroIds\s*\(\s*\)\s*"))

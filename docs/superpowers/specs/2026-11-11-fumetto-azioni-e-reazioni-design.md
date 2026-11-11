@@ -12,8 +12,8 @@
 
 ## 2. Il punto di partenza (misurato)
 
-- **Chi grida.** `URTHudViewModel::ActionShouts` (`UI/RTHudViewModel.cpp`) risponde `BaseActionId.IsNone() && !bIsGenericOrEquipment`. `FRTPlaybackDirector::ShowActivation` (`Turn/Playback/RTPlaybackDirector.cpp`) calcola il bool con `FindCoreAction` e `FindEquipment`. A `ShowActivation` arrivano solo gli eventi `AbilityActivated`.
-- **Le reazioni che hanno un evento.** `ReactionResolved` nasce solo in `ARTTurnManager::RunReactionPass` e in `ARTTurnManager::ResolveInterceptions`, sempre con `Phase = Blast`. Nessuno dei due punti scrive `SourceVerdict`, e un verdetto vuoto vale «nessuno». Il playback lo scarta: `RTRangoNellAtto` (`Turn/RTPlaybackLibrary.cpp`) gli dà −1, e `BuildBlastSequence` lascia fuori i ranghi negativi. In `RTPresentationBinding.cpp` è `PendingPresentation` (#2454).
+- **Chi grida.** `URTHudViewModel::ActionShouts` (`UI/HUD/RTHudViewModel.cpp`) risponde `BaseActionId.IsNone() && !bIsGenericOrEquipment`. `FRTPlaybackDirector::ShowActivation` (`Turn/Playback/RTPlaybackDirector.cpp`) calcola il bool con `FindCoreAction` e `FindEquipment`. A `ShowActivation` arrivano solo gli eventi `AbilityActivated`.
+- **Le reazioni che hanno un evento.** `ReactionResolved` nasce solo in `ARTTurnManager::RunReactionPass` e in `ARTTurnManager::ResolveInterceptions`, sempre con `Phase = Blast`. Nessuno dei due punti scrive `SourceVerdict`, e un verdetto vuoto vale «nessuno». Il playback lo scarta: `RTRangoNellAtto` (`Turn/Playback/RTPlaybackLibrary.cpp`) gli dà −1, e `BuildBlastSequence` lascia fuori i ranghi negativi. In `RTPresentationBinding.cpp` è `PendingPresentation` (#2454).
 - **I punti del passo delle reazioni**, nell'ordine della timeline:
   - interposizione (`ResolveInterceptions`) e `BlastHits` (Counter, Deflect, i moduli `Reaction.CounterShot`, `ReactiveShield`, `EmergencyDash`, le reazioni del kit) escono **prima** dell'attivazione e del colpo che le innescano;
   - `BlastDisplacement` (Anchor) e `BlastStatus` (Cleanse) escono dopo i colpi;
@@ -54,7 +54,7 @@
 
 ## 5. Architettura
 
-- **`UI/RTHudViewModel`.** `ActionShouts(const FName& ActionId)`, pura, con l'elenco dei quattro id.
+- **`UI/HUD/RTHudViewModel`.** `ActionShouts(const FName& ActionId)`, pura, con l'elenco dei quattro id.
 - **`Turn/Playback/RTPlaybackDirector`.**
   - `ShowActivation` perde il calcolo di `bIsGenericOrEquipment`.
   - `ShowReaction(const FRTResolvedEvent&)`, gemella di `ShowActivation` per R8.
@@ -62,16 +62,16 @@
   - La coda e la rivelazione del Move (R6).
   - La fase Cleanup (R7): classificazione delle animazioni, apertura, `EnterPlaybackPhase`, rami di movimento, rete di fine fase.
   - Il recupero di R9 in `FinishPlayback`.
-- **`Turn/RTPlaybackLibrary`.**
+- **`Turn/Playback/RTPlaybackLibrary`.**
   - `RTRangoNellAtto` e `BuildBlastSequence`: il rango e l'ancoraggio di R4, il filtro di R3, il prefisso congelato.
   - `PhaseTime(Cleanup)`.
-- **`Turn/RTResolvedEvent.h`.** Due campi, con le sentinelle documentate: l'attaccante che ha innescato una reazione (R4) e l'indice di cella del bersaglio dell'Overwatch (R6).
+- **`Turn/Resolution/RTResolvedEvent.h`.** Due campi, con le sentinelle documentate: l'attaccante che ha innescato una reazione (R4) e l'indice di cella del bersaglio dell'Overwatch (R6).
 - **`Turn/RTTurnManager*`.**
   - Il verdetto nei due punti che emettono `ReactionResolved` (R3).
   - La fase Cleanup degli eventi della fuga (R7), con un parametro di fase per l'evento in `ApplyForcedDisplacement` che non cambia la voce di TurnLog.
   - L'evento del Brace (R5).
   - L'evento dell'Overwatch (R6).
-- **`Turn/RTPresentationBinding.cpp`.** R11.
+- **`Turn/Playback/RTPresentationBinding.cpp`.** R11.
 
 ## 6. Test (nomi indicativi, nelle famiglie esistenti)
 

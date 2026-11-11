@@ -167,10 +167,10 @@ davanti a un `ApplyStatus(Tag, 1)`, cioè davanti alla soluzione che §D6 esiste
 |---|---|
 | `Terrain/RTTerrainData.h` | `FRTPropagationHit` (unità, passi, danno, cella) |
 | `Terrain/RTTerrainLibrary.{h,cpp}` | `CollectElectricPropagation`: BFS puro, ordine totale |
-| `Ability/RTCatalogLibrary.cpp` | `Action.Electrify` nel catalogo core, `PropagationLimit = 3` |
+| `Ability/Catalog/RTCatalogLibrary.cpp` | `Action.Electrify` nel catalogo core, `PropagationLimit = 3` |
 | `Combat/RTCombatLibrary.h` | `PropagatedElectricDamage = 12` |
 | `Turn/RTTurnManager.{h,cpp}` | `ResolveEnvironment` nel Cleanup; le azioni ambientali non vengono più consumate dal Blast |
-| `Tests/RTElectricPropagationTests.cpp` (nuovo) | i sette test |
+| `Tests/Terrain/RTElectricPropagationTests.cpp` (nuovo) | i sette test |
 
 ## 7. Rischi
 

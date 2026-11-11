@@ -1,0 +1,2553 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/RTTurnManager.h"
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Unit/RTUnit.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/Cover/RTHexDoorLibrary.h"
+#include "Map/RTHexLibrary.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h"
+#include "Map/Vision/RTHexArcLibrary.h" // FindArc: il ponte che incassa mentre il colpo non parte ([D-509])
+#include "Ability/RTActionData.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Tests/Shared/RTAbilityFixtures.h"
+#include "Combat/RTCombatLibrary.h"
+#include "Core/RTGameplayTags.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/Engine.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+
+// La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
+// distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
+// Aggiunta con #923, dopo che lo stesso difetto ha rotto la build Shipping due volte (2026-08-09 e
+// 2026-08-15) senza che la suite, che gira sul target Editor, se ne accorgesse.
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Combat end-to-end su griglia esagonale (CP 6.4): la fase Blast valida portata e linea di tiro sulla
+ * MAPPA esagonale (URTHexVisionLibrary) e risolve le forme con le primitive hex, non con la griglia
+ * quadrata. I piani si scrivono a mano sui campi Planned*, cosi' il test programma il turno.
+ */
+namespace
+{
+	UWorld* MakeHexBlastWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyHexBlastWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	/** Mappa esagonale di prova nel livello; le celle in SightBlockers bloccano la linea di tiro. */
+	ARTHexMapActor* SpawnHexBlastMap(UWorld* World, int32 Radius, const TArray<FRTCellId>& SightBlockers = TArray<FRTCellId>())
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			FRTHexCellData Data(Id);
+			Data.bBlocksLineOfSight = SightBlockers.Contains(Id);
+			M->AddOrUpdateCell(Data);
+		}
+		M->SortCells();
+
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return Actor;
+	}
+
+	ARTUnit* SpawnHexBlastUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false; // niente decisioni del bot in mezzo
+		U->ConfigureFromHeroData(Hero);
+		// E53 CP 53.3c: il catalogo porta DEF e bonus alle spalle ([D-595] (3), [D-599]). Questo banco misura ALTRO,
+		// e i suoi numeri sono scritti sul colpo pieno: i due campi tornano a zero qui, e la difesa del catalogo
+		// la misura `RTHeroCatalogDefenseTests.cpp`. Non e' un'eccezione nascosta: e' il banco che dichiara la sua fixture.
+		U->Defense = 0;
+		U->RearBonus = 0;
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell; // fermo: il test verifica il Blast, non il movimento
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
+		return U;
+	}
+
+	/** L'azione cercata per `ActionId`, mai per indice: un letterale direbbe «la nona voce apre le porte». */
+	int32 FindAbilityByActionId(const ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		for (int32 i = 0; i < Unit->Abilities.Num(); ++i)
+		{
+			if (Unit->Abilities[i] && Unit->Abilities[i]->Def.ActionId == FName(ActionId))
+			{
+				return i;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/** Una porta CHIUSA su un bordo di `Cell`. Le tre chiamate di seguito sono un rito, non una scelta. */
+	/** Una porta in uno stato QUALUNQUE: la commutazione di `#2380` ha quattro sorgenti da provare. */
+	void AddDoor(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge, ERTHexDoorState State)
+	{
+		FRTHexCellData Data = *MapActor->MapAsset->FindCell(Cell);
+		Data.Doors.Add(FRTHexDoor(Edge, State));
+		MapActor->MapAsset->AddOrUpdateCell(Data);
+		MapActor->MapAsset->SortCells();
+	}
+
+	void AddClosedDoor(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge)
+	{
+		AddDoor(MapActor, Cell, Edge, ERTHexDoorState::Closed);
+	}
+
+	/** Quante voci di ambiente di un certo esito porta il log: le tre assertion di `#2380` contano queste. */
+	int32 CountEnvironmentOutcome(const ARTTurnManager* TM, ERTEnvironmentOutcome Outcome)
+	{
+		int32 Count = 0;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Environment
+				&& Entry.Outcome == static_cast<uint8>(Outcome))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	/** Quanti rifiuti `Fallback/Cancelled` con un dato reason code. */
+	int32 CountRefusals(const ARTTurnManager* TM, ERTActionInvalidReason Reason)
+	{
+		int32 Count = 0;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Fallback
+				&& Entry.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& Entry.Amount == static_cast<int32>(Reason))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	/**
+	 * Il piano di un'azione a BORDO **come lo costruisce il puntatore**, e non come farebbe comodo:
+	 * `ARTPlayerController::HandleTargetEdge(Cell, Edge)` scrive `PlannedAttackCell = Cell` e
+	 * `PlannedCoverEdge = Edge`, cioe' **il bordo appartiene alla cella cliccata**.
+	 *
+	 * 🔴 Esiste perche' i primi due test di CP 10.1 costruivano il piano a mano con l'ancoraggio
+	 * sbagliato — il bordo riferito alla cella dell'ATTACCANTE — e verificavano quindi la stessa assunzione
+	 * errata dell'implementazione, restando verdi su un difetto che in partita avrebbe rifiutato ogni
+	 * apertura di porta. Una fixture che replica l'assunzione invece del contratto non prova niente.
+	 */
+	void PlanEdgeAction(ARTUnit* Unit, int32 AbilityIndex, const FRTCellId& TargetCell, ERTHexDirection Edge)
+	{
+		Unit->PlannedAbilityIndex = AbilityIndex;
+		Unit->PlannedAttackTarget = nullptr;
+		Unit->PlannedAttackCell = TargetCell;
+		Unit->bAttackTargetsCell = true;
+		Unit->PlannedCoverEdge = Edge;
+		Unit->bHasPlannedCoverEdge = true;
+	}
+
+	void RunBlastTurn(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	/** Quante voci di combattimento col dato esito compaiono nel TurnLog. */
+	int32 CountCombatOutcome(const ARTTurnManager* TM, ERTCombatOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Combat && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastDealsDamageTest,
+	"RefactorTactics.HexBlast.AttackDealsDamageOnHexMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	// Attacco base dell'eroe (indice 0). Bersaglio a distanza esagonale 3, vista libera.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 HealthBefore = Foe->Health;
+	const int32 ShieldBefore = Foe->Shield;
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("il bersaglio ha incassato il colpo"), Foe->Shield < ShieldBefore || Foe->Health < HealthBefore);
+	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «lo scudo assorbe per primo».
+	const int32 FullHit = Shooter->AttackPower;
+	// ⚠️ [D-224] L'assorbimento NON si legge piu' dallo scudo a fine turno: `RechargeBaseShield` gira nel
+	// Cleanup, quindi ogni unita' viva chiude il turno con lo scudo base pieno qualunque cosa abbia incassato.
+	// Cio' che resta osservabile — ed e' la proprieta' in esame — sono gli HP.
+	TestEqual(TEXT("gli HP dicono quanto ha assorbito lo scudo"),
+		Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
+	TestEqual(TEXT("e a fine turno lo scudo base e' tornato pieno"),
+		Foe->Shield, URTCombatLibrary::BaseShield);
+	TestTrue(TEXT("il TurnLog registra il colpo"), CountCombatOutcome(TM, ERTCombatOutcome::Hit) >= 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastBlockedBySightTest,
+	"RefactorTactics.HexBlast.NoLineOfSightOnHexMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Muro esagonale sulla traiettoria (0,0) -> (3,0): la LOS deve essere valutata sull'ASSET della mappa.
+	TArray<FRTCellId> Walls;
+	Walls.Add(FRTCellId(1, 0));
+	Walls.Add(FRTCellId(2, 0));
+	SpawnHexBlastMap(World, /*Radius=*/ 6, Walls);
+
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 HealthBefore = Foe->Health;
+	const int32 ShieldBefore = Foe->Shield;
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("nessun danno attraverso la copertura"), Foe->Health, HealthBefore);
+	// [D-224] Non si confronta con `ShieldBefore`: la ricarica del Cleanup renderebbe verde questo asserto
+	// anche se lo scudo fosse stato consumato e poi ripristinato. Il colpo che non parte si dimostra con gli
+	// HP intatti qui sopra e con la voce `NoLineOfSight` qui sotto.
+	TestEqual(TEXT("a fine turno lo scudo base e' pieno"), Foe->Shield, URTCombatLibrary::BaseShield);
+	TestEqual(TEXT("il TurnLog spiega il perche' (nessuna linea di tiro)"),
+		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastOutOfRangeTest,
+	"RefactorTactics.HexBlast.OutOfHexRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 9);
+
+	// Distanza ESAGONALE 8 > portata 6 del "Tiro": la portata si misura in celle esagonali, non in Manhattan.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 HealthBefore = Foe->Health;
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("fuori portata: nessun danno"), Foe->Health, HealthBefore);
+	TestEqual(TEXT("fuori portata non e' un problema di linea di tiro"),
+		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastFallbackLoggedTest,
+	"RefactorTactics.Actions.Fallback.CancelIsLoggedInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
+{
+	// ⌫ **Fino al 2026-10-09 questo test misurava il fallback su un bersaglio che SCAPPAVA con uno scatto
+	// dopo il lock-in, «quando l'attacco risolve il bersaglio se n'e' andato».** Da [D-415] quella scena non
+	// e' piu' un fallback: la mira si congela al lock-in e il colpo cade dove e' stato puntato, in portata,
+	// senza raggiungere nessuno. Il fallback `Cancel` resta — e resta da registrare col motivo — per il
+	// bersaglio che e' fuori portata GIA' in pianificazione. Le due scene stanno qui una accanto all'altra,
+	// perche' la differenza fra loro e' esattamente la regola.
+	const auto CountFallbacks = [](const ARTTurnManager* TM, const FName& AzioneAttesa,
+		int32& OutFallbacks, int32& OutOutOfRange, int32& OutConIdentita)
+	{
+		OutFallbacks = OutOutOfRange = OutConIdentita = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback) { continue; }
+			++OutFallbacks;
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+			{
+				++OutOutOfRange;
+			}
+			// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
+			// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
+			// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
+			// resterebbe verde.
+			if (E.ActionId == AzioneAttesa) { ++OutConIdentita; }
+		}
+	};
+
+	// --- Scena 1: fuori portata in PIANIFICAZIONE -> fallback `Cancel`, registrato col motivo ----------------
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 9);
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0)); // Spazzata, portata 3
+		ARTUnit* Far = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(6, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Far) { DestroyHexBlastWorld(World); return false; }
+
+		TestTrue(TEXT("premessa: il bersaglio e' oltre la portata gia' in pianificazione"),
+			URTHexLibrary::HexDistance(Far->Cell, Attacker->Cell) > Attacker->AttackRange);
+
+		const int32 HealthBefore = Far->Health;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Far;
+		// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
+		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+			? Attacker->Abilities[0]->Def.ActionId : FName();
+
+		RunBlastTurn(TM);
+
+		TestEqual(TEXT("l'attacco non lo raggiunge"), Far->Health, HealthBefore);
+		int32 Fallbacks, OutOfRangeReasons, ConIdentitaGiusta;
+		CountFallbacks(TM, AzionePianificata, Fallbacks, OutOfRangeReasons, ConIdentitaGiusta);
+		TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
+		TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+		// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+		// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+		// unita' nello stesso turno erano indistinguibili.
+		TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
+			ConIdentitaGiusta, 1);
+
+		// E lo dice anche il combat log della HUD, non solo il log autoritativo.
+		bool bInCombatLog = false;
+		for (const FString& Line : TM->GetRecentEvents())
+		{
+			if (Line.Contains(TEXT("annullata")) && Line.Contains(TEXT("fuori portata"))) { bInCombatLog = true; }
+		}
+		TestTrue(TEXT("il combat log lo mostra a chi gioca"), bInCombatLog);
+		DestroyHexBlastWorld(World);
+	}
+
+	// --- Scena 2: in portata al lock-in, SCAPPA nel Dash -> nessun fallback: la mira congelata era buona -----
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 9);
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
+
+		const int32 HealthBefore = Runner->Health;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Runner;
+		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+			? Attacker->Abilities[0]->Def.ActionId : FName();
+
+		// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto, oltre quella di chi attacca.
+		const int32 DashIdx = Runner->FindDashAbilityIndex();
+		if (!TestTrue(TEXT("premessa: chi scappa ha uno scatto"), Runner->Abilities.IsValidIndex(DashIdx)))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+		const int32 DashRange = Runner->Abilities[DashIdx] ? Runner->Abilities[DashIdx]->RangeCells : 0;
+		const FRTCellId Escape(2 + DashRange, 0);
+		TestTrue(TEXT("premessa: la fuga porta oltre la portata di chi attacca"),
+			URTHexLibrary::HexDistance(Escape, Attacker->Cell) > Attacker->AttackRange);
+		Runner->PlannedDashAbility = DashIdx;
+		Runner->PlannedDashCell = Escape;
+
+		RunBlastTurn(TM);
+
+		TestTrue(TEXT("il bersaglio si e' spostato prima del Blast"), Runner->Cell == Escape);
+		TestEqual(TEXT("[D-415] il colpo cade sulla cella mirata: chi e' scappato non viene raggiunto"),
+			Runner->Health, HealthBefore);
+		int32 Fallbacks, OutOfRangeReasons, ConIdentitaGiusta;
+		CountFallbacks(TM, AzionePianificata, Fallbacks, OutOfRangeReasons, ConIdentitaGiusta);
+		TestEqual(TEXT("[D-415] e NON e' un fallback: la mira congelata era in portata, l'azione e' partita"),
+			Fallbacks, 0);
+		DestroyHexBlastWorld(World);
+	}
+	return true;
+}
+
+namespace
+{
+	/** Un attacco di prova che spinge di N celle: serve a distinguere la spinta da 1 da quella piu' forte. */
+	int32 AddPushAbility(ARTUnit* Unit, int32 PushCells)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def.ActionId = TEXT("Action.TestPush");
+		Action->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		Action->Def.RangeCells = 3;
+		Action->Def.Fallback = ERTActionFallback::Cancel;
+		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 10));
+		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, PushCells));
+		Action->Def.bCountsAsAttack = true; // aggressione: da [`INT-8`] va dichiarata
+		Action->RangeCells = 3;
+		Action->Power = 10;
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReducesDamageInMatchTest,
+	"RefactorTactics.Actions.Guard.ReducesDirectDamageInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
+{
+	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno riduce di 15 i colpi
+	// dell'arco frontale ([D-408]).
+	//
+	// ⏱️ **Il nome ha perso «First» il 2026-09-20, e il test non e' cambiato: e' il punto.** Con UN solo
+	// colpo sopra la soglia i tre modelli — delta sul primo colpo, pool di [D-292], riduzione per colpo di
+	// [D-408] — danno lo **stesso** numero, ed e' la ragione per cui questo test non e' mai diventato rosso
+	// pur avendo descritto per due volte una regola che non esisteva piu'. ⚠️ Quello che misura e' il
+	// percorso END-TO-END — Prep, Blast, HP — non la forma della mitigazione: quella la misurano
+	// `Combat.GuardReductionHasNoCeiling` e `Spec.Combat.GuardSpansMultipleHits`.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0)); // Tiro: 25 danni
+	if (Shooter) { Shooter->Facing = ERTHexDirection::W; }
+	// Guarda il proprio bersaglio: da CP 13.2 il targeting consuma la conoscenza, e un tiratore rivolto
+	// altrove non VEDE cio' che sta a piu' di due celle. In partita l'orientamento lo deriva il movimento;
+	// qui l'unita' e' ferma, quindi lo si dichiara.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 StartHealth = Defender->Health;
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAbilityIndex = GuardIdx;
+	Defender->PlannedAttackTarget = Defender; // su se stessi: la guardia si prepara addosso
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	// Il danno pieno lo dichiara l'attacco base di CHI SPARA, non un numero scritto qui: la proprieta' sotto
+	// esame e' «Guard toglie 15 a un colpo frontale», e deve reggere qualunque eroe schieri il test.
+	// Prima era `25`, il danno del Ranger legacy, e cambiare unita' faceva cadere il test su un dettaglio
+	// che non stava verificando.
+	const int32 FullHit = Shooter->AttackPower;
+	TestEqual(TEXT("in guardia un colpo frontale fa FullHit - GuardReductionDefault"), StartHealth - Defender->Health, FullHit - URTCombatLibrary::GuardReductionDefault);
+
+	// Controprova: senza guardia lo stesso tiro arriva intero.
+	Defender->ApplyCombatState(StartHealth, 0);
+	Defender->PlannedAbilityIndex = INDEX_NONE;
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("senza guardia il colpo arriva intero: la riduzione viene dallo stato"),
+		StartHealth - Defender->Health, FullHit);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardResistsPushTest,
+	"RefactorTactics.Actions.Guard.ResistsSinglePush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardResistsPushTest::RunTest(const FString&)
+{
+	// La guardia regge UNA cella di spinta, non piu': non e' un'ancora.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 Push1 = AddPushAbility(Pusher, /*PushCells=*/ 1);
+	const FRTCellId Start = Defender->Cell;
+
+	Defender->PlannedAbilityIndex = GuardIdx;
+	Defender->PlannedAttackTarget = Defender;
+	Pusher->PlannedAbilityIndex = Push1;
+	Pusher->PlannedAttackTarget = Defender;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("in guardia, una spinta di 1 cella non sposta"), Defender->Cell == Start);
+
+	// Una spinta piu' forte passa comunque: la guardia attutisce, non ancora.
+	Defender->PlaceOnCell(Start, FVector::ZeroVector, 100.f, 250.f);
+	Defender->PlannedCell = Start;
+	Defender->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAttackTarget = Defender;
+	Pusher->PlannedAbilityIndex = AddPushAbility(Pusher, /*PushCells=*/ 2);
+	Pusher->PlannedAttackTarget = Defender;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("una spinta di 2 celle sposta anche chi e' in guardia"), !(Defender->Cell == Start));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactInBlastTest,
+	"RefactorTactics.Actions.Charge.ImpactResolvesInBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactInBlastTest::RunTest(const FString&)
+{
+	// La carica in partita: il MOVIMENTO risolve nella fase Dash, il COLPO nel Blast (codice 20/30 del
+	// catalogo). Si verifica che accadano entrambe le cose e nell'ordine giusto — l'unita' si ferma davanti al
+	// bersaglio, e il bersaglio incassa 20 danni piu' una spinta di 1.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
+
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa 200 danni, applicati nel Blast"), VictimHealth - Victim->Health, 200);
+	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Un `Action.Interrupt` non ANNULLA l'impatto di una carica: da [D-300] lo DEGRADA.**
+ *
+ * Il movimento della carica avviene nella fase Dash; l'impatto entra nel Blast come intento a portata 1.
+ * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resterebbe
+ * dove la carica l'ha portata e perderebbe il colpo. Quell'obiezione regge ancora, ed e' la ragione per cui
+ * l'impatto e' rimasto immune fino al 2026-08-31.
+ *
+ * 🔴 **Cosa e' cambiato, e perche' il nome del test resta vero.** `Action.Charge` dichiara
+ * `ERTInterruptPolicy::SuppressSecondary` (`#1955`): l'Interrupt adesso RAGGIUNGE l'impatto, ma invece di
+ * cancellarlo gli toglie gli effetti oltre il primo. L'impatto **sopravvive** — il danno arriva — e cade
+ * la **spinta**. Il test asseriva entrambe; ora asserisce il danno e il contrario della spinta.
+ *
+ * ⚠️ Prima di `#1437` l'impatto sopravviveva per una ragione **accidentale**: il ciclo si fermava al primo
+ * intento della vittima. E' la storia che spiega perche' questo caso va asserito e non dato per scontato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactSurvivesInterruptTest,
+	"RefactorTactics.Actions.Charge.ImpactSurvivesInterrupt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
+	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
+
+	// ⚠️ Il `Power` lo azzera la fixture derivandolo dal catalogo. Prima questo sito copiava la sola
+	// portata, quindi `Power` restava al default legacy **30**: `Action.Interrupt` non dichiara `Damage`,
+	// e il resolver ricade sullo specchio. L'interruttore infliggeva trenta danni al caricatore che
+	// nessuna riga di catalogo autorizza — invisibile qui perche' il test guarda la salute della VITTIMA,
+	// non quella del caricatore (#1588).
+	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Charger;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: la carica si e' mossa e si e' fermata davanti al bersaglio"),
+		Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
+		VictimHealth - Victim->Health, 200);
+
+	// 🔴 **La meta' che [D-300] rovescia**: la vittima NON viene spinta. Senza interruzione finirebbe a
+	// (3,0), e a dirlo e' il test gemello `Charge.ImpactResolvesInBlast` — che asserisce la spinta con la
+	// stessa fixture e resta la controprova di questa riga.
+	TestTrue(TEXT("ma non viene spinta: SuppressSecondary toglie il secondo effetto"),
+		Victim->Cell == FRTCellId(2, 0));
+
+	// E nessuna voce dice che l'abbia annullata: degradare non e' cancellare, e il TurnLog deve saperlo
+	// distinguere. Una voce `Cancelled` qui direbbe che l'azione non e' avvenuta, ed e' falso.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestFalse(TEXT("e il TurnLog non registra un'interruzione: e' degradata, non annullata"),
+		bAnnullata);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeHeadOnStopsTest,
+	"RefactorTactics.Actions.Charge.HeadOnStops",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
+{
+	// Nome vincolante del catalogo v0.1 (CP 4.8). Due cariche OPPOSTE (nessun bersaglio e' fermo: e' l'altra
+	// carica) a distanza dispari (3 celle, la portata dichiarata): senza la protezione dallo scontro frontale,
+	// il resolver a microstep le lascerebbe scambiarsi la cella di mezzo (`scambio diretto -> consentito`, la
+	// regola di base per il Move) e ciascuna finirebbe adiacente al bersaglio DALL'ALTRO lato, infliggendo
+	// comunque danno — le due si sarebbero attraversate senza mai scontrarsi davvero. Qui devono fermarsi
+	// l'una davanti all'altra, senza completare l'impatto: nessun danno, nessuna spinta.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
+
+	RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Charge"));
+
+	RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Charge"));
+
+	const int32 HealthA = A->Health;
+	const int32 HealthB = B->Health;
+	A->PlannedDashAbility = A->Abilities.Num() - 1;
+	A->PlannedDashCell = FRTCellId(3, 0); // dritto verso B, esattamente la portata (3)
+	B->PlannedDashAbility = B->Abilities.Num() - 1;
+	B->PlannedDashCell = FRTCellId(0, 0); // dritto verso A, esattamente la portata (3)
+
+	RunBlastTurn(TM);
+
+	// Ciascuna avanza di UNA cella (non tre): si fermano l'una davanti all'altra, adiacenti, senza scambiarsi
+	// i lati e senza mai completare l'impatto.
+	TestTrue(TEXT("A si ferma a meta' strada, non attraversa B"), A->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("B si ferma a meta' strada, non attraversa A"), B->Cell == FRTCellId(2, 0));
+	TestEqual(TEXT("nessun danno a A: lo scontro frontale non e' un impatto riuscito"), A->Health, HealthA);
+	TestEqual(TEXT("nessun danno a B: lo scontro frontale non e' un impatto riuscito"), B->Health, HealthB);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsAoEFriendlyFireInMatchTest,
+	"RefactorTactics.Actions.AoE.FriendlyFireInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
+{
+	// `Action.CircularAoE` dichiara `bFriendlyFire = true` (`RTCatalogLibrary.cpp:361`) e il resolver puro lo
+	// rispetta (`Actions.AoE.FriendlyFire`) — ma finora `ARTTurnManager` non copiava mai il flag nell'intento,
+	// che nasce con `bFriendlyFire = false`: in partita nessuna area ha mai colpito un alleato.
+	//
+	// Il test e' d'INTEGRAZIONE per costruzione: la versione pura passava gia' e non poteva vedere il difetto.
+	// La specifica delle Delayed Actions (§3.3) elenca la "friendly fire policy" fra i campi che ogni azione
+	// deve dichiarare in planning: se il dato c'e' ma il resolver non lo legge, la policy non esiste.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0)); // adiacente al centro
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Thrower || !Foe || !Ally) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Area = NewObject<URTActionData>(Thrower);
+	Area->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.CircularAoE")));
+	Area->RangeCells = Area->Def.RangeCells;
+	Area->Shape = ERTAbilityShape::Area;
+	Area->AreaRadius = 1;
+	Area->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Area->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Area->Power = Spec.Amount; break; }
+	}
+	const int32 AreaIdx = Thrower->Abilities.Add(Area);
+
+	Foe->Shield = 0;
+	Ally->Shield = 0;
+	const int32 FoeStart = Foe->Health;
+	const int32 AllyStart = Ally->Health;
+
+	Thrower->PlannedAbilityIndex = AreaIdx;
+	Thrower->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	if (!TestEqual(TEXT("premessa: il nemico al centro incassa l'area"), FoeStart - Foe->Health, Area->Power))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("l'alleato adiacente incassa il fuoco amico dichiarato dal catalogo"),
+		AllyStart - Ally->Health, Area->Power);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsMarkTargetReachesTargetTest,
+	"RefactorTactics.Actions.MarkTarget.ReachesTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
+{
+	// `Action.MarkTarget` dichiara `Range 0` = «portata del portatore» (stessa convenzione di
+	// `Action.PrecisionAttack`, «range dell'arma +1»). Il ponte che traduce quello 0 copriva pero' le sole
+	// azioni senza `ActionId`: l'istanza si validava a portata 0 e degradava sempre al fallback `Cancel`,
+	// quindi il marchio non raggiungeva mai un bersaglio distante. Corretto al CP 8.2.
+	//
+	// L'osservabile non e' il tag a fine turno (durata 1: scade nel Cleanup dello stesso turno) ma il suo
+	// EFFETTO: il +6 sul colpo dell'alleato, che arriva solo se il marchio e' stato davvero applicato.
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0)); // a 3 celle dal marcatore
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Marker || !Ally || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	// Azioni dal catalogo, senza toccare le portate: e' esattamente il caso che prima non funzionava.
+	URTActionData* Mark = NewObject<URTActionData>(Marker);
+	Mark->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.MarkTarget")));
+	// `MarkTarget` non fa danno: il catalogo non dichiara alcun effetto `Damage`. Il campo legacy `Power`
+	// dell'asset (default 30) e' il ripiego per le abilita' NON catalogate e va azzerato qui, altrimenti il
+	// marcatore infliggerebbe 30 danni che il catalogo non prevede.
+	Mark->Power = 0;
+	const int32 MarkIdx = Marker->Abilities.Add(Mark);
+
+	URTActionData* Shot = NewObject<URTActionData>(Ally);
+	Shot->Def = URTCatalogLibrary::FindCoreAction(FName(TEXT("Action.PrecisionAttack")));
+	Shot->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Shot->Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Shot->Power = Spec.Amount; break; }
+	}
+	const int32 ShotIdx = Ally->Abilities.Add(Shot);
+
+	TestEqual(TEXT("il catalogo dichiara 0 = portata del portatore"), Mark->Def.RangeCells, 0);
+
+	Foe->Shield = 0;
+	const int32 FoeStart = Foe->Health;
+
+	Marker->PlannedAbilityIndex = MarkIdx;
+	Marker->PlannedAttackTarget = Foe;
+	Ally->PlannedAbilityIndex = ShotIdx;
+	Ally->PlannedAttackTarget = Foe;
+
+	RunBlastTurn(TM);
+
+	// 24 del colpo + 6 del marchio: il marchio e' arrivato a 3 celle, e il pass a priorita' lo ha speso.
+	TestEqual(TEXT("il marchio ha raggiunto il bersaglio distante e ha dato il suo +6"),
+		FoeStart - Foe->Health, Shot->Power + URTCombatLibrary::MarkedFirstHitBonus);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Il pezzo che i test puri non possono dare: che in PARTITA il danno alle strutture venga davvero raccolto,
+ * applicato e SCRITTO nel TurnLog. Senza, `ApplyStructureDamage` potrebbe essere corretta e non venire
+ * chiamata da nessuno - il difetto ricorrente di questi checkpoint.
+ *
+ * Scena: muro alto sul bordo fra l'attaccante e il bersaglio. Il colpo non arriva a nessuno (la barriera
+ * toglie la linea di tiro), ma la barriera incassa: e' l'unico modo che l'attaccante ha di aprirsi la strada.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCoverDestructionLoggedTest,
+	"RefactorTactics.Cover.Destruction.LoggedInPlayedTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Muro alto sul bordo W di (1,0): separa (0,0) da (1,0), e con esse l'attaccante dal bersaglio.
+	const FRTCellId Walled(1, 0);
+	FRTHexCellData WithWall = *MapActor->MapAsset->FindCell(Walled);
+	WithWall.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(WithWall);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Breacher || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
+	// perche' l'archetipo di prova non ha `HeavyAttack` fra le sue).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+
+	const int32 HealthBefore = Foe->Health;
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("il muro ha fermato il colpo: il bersaglio e' intatto"), Foe->Health, HealthBefore);
+
+	// Il dato e' stato scalato sulla COPIA di lavoro della mappa, quella su cui gira la partita.
+	const FRTHexCellData* After = MapActor->MapAsset->FindCell(Walled);
+	TestTrue(TEXT("la copertura e' ancora in piedi, danneggiata"),
+		After && After->Covers.Num() == 1 && After->Covers[0].Integrity == 30);
+
+	// E il TurnLog lo dice, col bordo scritto come coppia di celle.
+	int32 Logged = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::CoverDamaged))
+		{
+			++Logged;
+			TestTrue(TEXT("la voce indica il bordo colpito"),
+				Entry.SrcCell == Walled && Entry.TgtCell == FRTCellId(0, 0));
+			TestEqual(TEXT("e l'integrita' residua"), Entry.Amount, 30);
+		}
+	}
+	TestEqual(TEXT("una voce di copertura danneggiata"), Logged, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **L'attacco base MIRA dietro il muro, e il muro lo FERMA** — D-490, che precisa [D-415] punto 3 e [D-418]
+ * punto 3 (#3608).
+ *
+ * Le due meta' della policy `BlindAimDirect`, sulla stessa scena di `Cover.Destruction.LoggedInPlayedTurn`:
+ * - in PIANIFICAZIONE la cella oltre il muro non si rifiuta — mentre un'azione `Required` sulla stessa geometria
+ *   si', ed e' il controllo positivo che il muro c'e';
+ * - in RISOLUZIONE il colpo, dichiarato sulla CELLA come farebbe chi mira al buio, viaggia dritto: il muro lo
+ *   ferma, il TurnLog dice «nessuna linea di tiro», e chi sta dietro resta intatto. Il muro si danneggia solo
+ *   se l'azione dichiara `DamageStructure`, come per `Required` — l'attacco base spedito non lo dichiara.
+ *
+ * ⛔ **Il mortaio fa l'opposto**, ed e' la differenza che [D-418] (3) fa pagare: `NotRequired` passa sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBasicAttackBlindAimDirectPathTest,
+	"RefactorTactics.BlindFire.BasicAttackAimsBehindAWallAndTheWallStopsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBasicAttackBlindAimDirectPathTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Muro alto sul bordo W di (1,0): separa (0,0) da (2,0).
+	const FRTCellId Walled(1, 0);
+	FRTHexCellData WithWall = *MapActor->MapAsset->FindCell(Walled);
+	WithWall.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+	MapActor->MapAsset->AddOrUpdateCell(WithWall);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Base = Shooter->Abilities.IsValidIndex(0) ? Shooter->Abilities[0].Get() : nullptr;
+	if (!TestTrue(TEXT("premessa: l'indice 0 e' l'attacco base, con la policy del catalogo (D-490)"),
+			Base && Base->Def.BaseActionId == FName(TEXT("Action.BasicAttack"))
+			&& Base->Def.LineOfSightPolicy == ERTLineOfSightPolicy::BlindAimDirect))
+	{
+		DestroyHexBlastWorld(World); return false;
+	}
+
+	// PIANIFICAZIONE — la licenza di mira.
+	const URTHexMapAsset* Map = MapActor->MapAsset;
+	TestEqual(TEXT("controllo positivo: un'azione Required oltre il muro e' rifiutata"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Foe->Cell, Base->RangeCells, ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::NoLineOfSight);
+	TestEqual(TEXT("🔴 l'attacco base oltre il muro NON e' rifiutato: mira al buio"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Foe->Cell, Base->RangeCells, Base->Def.LineOfSightPolicy),
+		ERTHexTargetReason::Ok);
+
+	// RISOLUZIONE — la traiettoria, con l'attacco base COSI' COME E' SPEDITO. ⌫ *La prima stesura aggiungeva
+	// `DamageStructure` all'azione per vedere il muro danneggiato: misurava la meccanica del muro, non l'attacco
+	// base, che quell'effetto non lo dichiara — trovato dalla review indipendente di #3608. Un ostacolo si
+	// danneggia solo se l'azione lo dichiara, come per `Required`; quel caso e' di `Cover.Destruction.*`.*
+	Shooter->PlannedAbilityIndex = 0;
+	Shooter->DeclareAttackOnCell(Foe->Cell);
+	const int32 HealthBefore = Foe->Health;
+	const int32 IntegritaPrima = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("🔴 il muro ha fermato il colpo: chi sta dietro e' intatto (traiettoria diretta)"), Foe->Health, HealthBefore);
+	TestEqual(TEXT("e il TurnLog lo dice: nessuna linea di tiro"),
+		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 1);
+	const FRTHexCellData* After = MapActor->MapAsset->FindCell(Walled);
+	TestTrue(TEXT("il muro resta integro: l'attacco base non dichiara DamageStructure"),
+		After && After->Covers.Num() == 1 && After->Covers[0].Integrity == IntegritaPrima);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Il difetto che CP 9.3 esiste per impedire, e che nessun test puro sul pathfinding puo' trovare: il percorso
+ * del Move e' stato validato PRIMA, al momento del click, e `ResolveMovement` lo esegue com'e'. Se una porta si
+ * chiude nel Blast — cioe' a meta' turno — un percorso che la attraversava produrrebbe un passo fantasma.
+ *
+ * Scena: porta aperta sul bordo (1,0)<->(2,0). Il Mover ha gia' pianificato (0,0) -> (1,0) -> (2,0). Il Closer,
+ * dall'altro lato, spara verso di lui: la sua azione dichiara `SetDoorState` e la prima porta sulla linea di
+ * tiro si chiude a fase conclusa. Il Move che segue deve fermarsi PRIMA del varco (`Fallback.Stop`), non
+ * attraversarlo e non annullarsi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDoorClosingStopsMovementTest,
+	"RefactorTactics.Structures.Door.ClosingStopsMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Porta APERTA sul bordo E di (1,0): separa (1,0) da (2,0) quando sara' chiusa.
+	const FRTCellId Hinge(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Open));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0));
+	if (Closer) { Closer->Facing = ERTHexDirection::W; } // vedi CP 13.2: guarda chi vuole bloccare
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
+
+	// Il percorso e' gia' validato: con la porta aperta lo era davvero, ed e' esattamente il punto.
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	TestTrue(TEXT("con la porta aperta il passo esisteva"),
+		!URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, FRTCellId(1, 0), FRTCellId(2, 0)));
+
+	// L'azione dichiara di chiudere la prima porta sulla propria linea di tiro (qui la si simula
+	// sull'istanza: l'azione di catalogo che apre e chiude porte e' CP 10.1).
+	Closer->Abilities[0]->Def.Effects.Add(
+		FRTActionEffectSpec(ERTActionEffect::SetDoorState,
+			static_cast<int32>(ERTHexDoorState::Closed)));
+	Closer->PlannedAbilityIndex = 0;
+	Closer->PlannedAttackTarget = Mover;
+
+	RunBlastTurn(TM);
+
+	// 1. La porta si e' chiusa sulla copia di lavoro della mappa (non sull'asset su disco).
+	TestTrue(TEXT("la porta e' chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, FRTCellId(1, 0), FRTCellId(2, 0)));
+
+	// 2. Il movimento si e' FERMATO prima del varco, non annullato: l'unita' e' avanzata di una cella.
+	TestTrue(TEXT("l'unita' si e' fermata davanti alla porta"), Mover->Cell == FRTCellId(1, 0));
+
+	// 3. Il TurnLog dice entrambe le cose, con il bordo scritto come coppia di celle.
+	int32 DoorEntries = 0;
+	int32 StoppedEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorClosed))
+		{
+			++DoorEntries;
+			TestTrue(TEXT("la voce indica il bordo della porta"),
+				(Entry.SrcCell == FRTCellId(1, 0) && Entry.TgtCell == FRTCellId(2, 0))
+				|| (Entry.SrcCell == FRTCellId(2, 0) && Entry.TgtCell == FRTCellId(1, 0)));
+		}
+		if (Entry.Category == ERTLogCategory::Move
+			&& Entry.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByTopology))
+		{
+			++StoppedEntries;
+			TestTrue(TEXT("il reason code riporta partenza e arrivo veri"),
+				Entry.SrcCell == FRTCellId(0, 0) && Entry.TgtCell == FRTCellId(1, 0));
+		}
+	}
+	TestEqual(TEXT("una voce di porta chiusa"), DoorEntries, 1);
+	TestEqual(TEXT("una voce di movimento fermato dalla topologia"), StoppedEntries, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * `Action.Interact` PORTATA DAL KIT apre una porta: la generica di D-025 arriva fino al dato di mappa.
+ *
+ * E' il test che mancava quando `Interact` e' entrata fra le generiche (2026-08-26). Il ramo delle porte era
+ * gia' coperto — `Structures.Door.ClosingStopsMovement`, qui sopra — ma con l'effetto **simulato**
+ * sull'istanza (`Abilities[0]->Def.Effects.Add(...)`), e il suo commento lo dichiara: *«l'azione di catalogo
+ * che apre e chiude porte e' CP 10.1»*. Da [D-148]/[D-151] quell'azione di catalogo esiste, e nessun test
+ * verificava la catena a partire da cio' che un'unita' porta davvero.
+ *
+ * Cosa cade se la catena si rompe, ed e' il motivo per cui il test tocca quattro anelli e non uno:
+ *   kit          `MakeGenericActions` smette di accodare `Interact`  -> l'azione non si trova nel kit
+ *   traduzione   `ARTTurnManager` non alza piu' `bChangesDoor`       -> nessuna op raccolta
+ *   raccolta     `URTHexCombatLibrary` perde il ramo delle porte     -> nessuna op raccolta
+ *   applicazione `URTHexDoorLibrary::SetDoorState` non apre          -> il passaggio resta bloccato
+ *
+ * ⚠️ L'azione si cerca per `ActionId`, mai per indice: un letterale direbbe *«la nona voce apre le porte»*
+ * invece di *«l'unita' porta Interact»*, e resterebbe verde se qualcuno la togliesse dalle generiche
+ * lasciando nove voci nel kit.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractFromKitOpensDoorTest,
+	"RefactorTactics.Structures.Door.InteractFromKitOpensDoor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Porta CHIUSA sul bordo E di (0,0): separa (0,0) da (1,0), che sono adiacenti — la portata di `Interact`
+	// e' 1 (D-149), quindi la cella oltre la porta e' l'unico bersaglio che l'azione puo' avere.
+	const FRTCellId Hinge(0, 0);
+	const FRTCellId Beyond(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Hinge);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestTrue(TEXT("all'inizio la porta blocca il passaggio"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	int32 InteractIdx = INDEX_NONE;
+	for (int32 i = 0; i < Opener->Abilities.Num(); ++i)
+	{
+		if (Opener->Abilities[i] && Opener->Abilities[i]->Def.ActionId == FName(TEXT("Action.Interact")))
+		{
+			InteractIdx = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit: e' una generica (D-025)"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false; // senza l'azione nel kit il resto del test misurerebbe un'altra cosa
+	}
+
+	Opener->PlannedAbilityIndex = InteractIdx;
+	Opener->PlannedAttackTarget = nullptr;
+	Opener->PlannedAttackCell = Beyond;
+	Opener->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
+
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("la porta e' aperta: il passaggio non e' piu' bloccato"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	// Il TurnLog lo dice, col bordo scritto come coppia di celle: senza questa meta' il test non
+	// distinguerebbe «la porta si e' aperta» da «la porta non c'era».
+	int32 DoorOpenedEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpenedEntries;
+			TestTrue(TEXT("la voce indica il bordo della porta"),
+				(Entry.SrcCell == Hinge && Entry.TgtCell == Beyond)
+				|| (Entry.SrcCell == Beyond && Entry.TgtCell == Hinge));
+		}
+	}
+	TestEqual(TEXT("una voce di porta aperta"), DoorOpenedEntries, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Un `Interact` dichiarato su un bordo **senza porta** viene RIFIUTATO, e il rifiuto finisce in traccia
+ * (CP 10.1, `#74`).
+ *
+ * ⛔ **Prima non succedeva niente, in silenzio.** E' il difetto che [D-149] registra dopo il proprio merge:
+ * *«la decisione resta valida — la portata e' giusta — la sua giustificazione tecnica no, e il divario fra
+ * bordo cliccato e bordo agito e' un difetto aperto»*. `FirstDoorEdge` cammina la traiettoria e guarda il
+ * solo bordo condiviso con la cella bersaglio; se il giocatore ne clicca un altro dei sei, l'operazione o
+ * non trova nulla — e il turno passa senza una voce — o trova **un'altra porta** e apre quella.
+ *
+ * 🔴 **Il piano si costruisce con `PlanEdgeAction`, che replica il puntatore.** La prima stesura lo scriveva
+ * a mano ancorando il bordo alla cella dell'ATTACCANTE, cioe' con la stessa assunzione sbagliata
+ * dell'implementazione: verde su un difetto che in partita avrebbe rifiutato ogni apertura di porta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractDoorlessEdgeRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnDoorlessEdgeIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractDoorlessEdgeRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// L'unita' sta in (0,0). La porta e' sul bordo W della cella (1,0), cioe' fra (1,0) e (0,0): e' quella
+	// che il giocatore potrebbe aprire. Ne dichiarera' un'altra della stessa cella — il bordo E, che da'
+	// su (2,0) e non ha nessuna porta.
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit: e' una generica (D-025)"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("premessa: la porta cliccabile blocca il passaggio"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+
+	// Il bordo E di (1,0): un'altra delle sei facce, e li' non c'e' niente.
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::E);
+
+	RunBlastTurn(TM);
+
+	// 🔴 La meta' che conta: la porta su W **non si apre**. Prima si apriva — la traiettoria la trovava, e
+	// il bordo che il giocatore aveva scelto non arrivava fin li'.
+	TestTrue(TEXT("la porta su un bordo che nessuno ha dichiarato resta chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+
+	int32 DoorOpened = 0;
+	int32 RefusedNoEffect = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpened;
+		}
+		if (Entry.Category == ERTLogCategory::Fallback
+			&& Entry.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::NoEffect)
+			&& Entry.ActionId == FName(TEXT("Action.Interact")))
+		{
+			++RefusedNoEffect;
+			// La coppia di celle E' il bordo rifiutato: senza, due rifiuti su bordi diversi della stessa
+			// cella sarebbero righe identiche ([D-196]).
+			TestTrue(TEXT("la voce nomina il bordo DICHIARATO, non la cella mirata"),
+				Entry.SrcCell == Target && Entry.TgtCell == URTHexLibrary::Neighbor(Target, ERTHexDirection::E));
+		}
+	}
+
+	TestEqual(TEXT("nessuna porta aperta"), DoorOpened, 0);
+	// E il rifiuto e' REGISTRATO: senza questa riga il test non distinguerebbe «rifiutata» da «sparita».
+	TestEqual(TEXT("una voce di rifiuto con reason code NoEffect"), RefusedNoEffect, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Con due porte sulla stessa cella, `Interact` agisce su **quella dichiarata** e non su quella che la
+ * traiettoria incontra per prima (CP 10.1, `#74`).
+ *
+ * 🔴 **E' il difetto peggiore dei due**, e non produceva silenzio ma un esito sbagliato: la traiettoria
+ * verso la cella bersaglio trova la porta sul bordo condiviso e apriva quella — un'altra porta, in un'altra
+ * direzione, senza che niente lo dicesse. Un test che guardasse solo «una porta si e' aperta» sarebbe
+ * rimasto verde su entrambe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractUsesDeclaredEdgeTest,
+	"RefactorTactics.Structures.Door.InteractActsOnTheDeclaredEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// DUE porte chiuse sulla cella bersaglio: una sul bordo W — quello condiviso con chi agisce, cioe'
+	// quello che la traiettoria incontra — e una sul bordo E, dall'altra parte. E' la configurazione che
+	// distingue «apre la porta» da «apre LA porta giusta».
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	const FRTCellId BeyondEast = URTHexLibrary::Neighbor(Target, ERTHexDirection::E);
+	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
+	AddClosedDoor(MapActor, Target, ERTHexDirection::E);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestTrue(TEXT("premessa: entrambe le porte bloccano"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target)
+		&& URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Target, BeyondEast));
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	// Si dichiara il bordo E: quello LONTANO, che la traiettoria non incontra.
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::E);
+
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("si apre la porta DICHIARATA (E)"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Target, BeyondEast));
+	// L'altra meta', e senza di lei il test passerebbe anche se si aprissero entrambe.
+	TestTrue(TEXT("e quella sulla traiettoria (W) resta chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+
+	int32 DoorOpened = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpened;
+			TestTrue(TEXT("e la voce nomina il bordo E, non quello della traiettoria"),
+				(Entry.SrcCell == Target && Entry.TgtCell == BeyondEast)
+				|| (Entry.SrcCell == BeyondEast && Entry.TgtCell == Target));
+		}
+	}
+	TestEqual(TEXT("una sola porta aperta"), DoorOpened, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
+// invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
+// `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * [D-300] **La separazione fra cancellato e degradato non degrada chi va cancellato.**
+ *
+ * Controprova indispensabile di `ImpactSurvivesInterrupt`: se il passo (b) di `#1955` mettesse fra i
+ * degradati ogni intento interrotto invece dei soli `SuppressSecondary`, questo caso diventerebbe rosso e
+ * quello verde — e nessun'altra asserzione se ne accorgerebbe. Un'azione con `InterruptBeforeEffect`
+ * interrotta continua a non produrre **NULLA**.
+ *
+ * Il soggetto e' un attacco pianificato normale (`Action.BasicAttack`, policy di default), interrotto da
+ * un avversario adiacente: la vittima designata non deve perdere salute, e il TurnLog **deve** registrare
+ * l'interruzione — al contrario del caso degradato, dove quella voce non c'e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptStillCancelsWholeActionTest,
+	"RefactorTactics.Actions.Interrupt.StillCancelsAnInterruptBeforeEffectAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	// ⚠️ `Action.LineAttack` e non `Action.BasicAttack`: l'attacco base prende la portata dall'ARMA, e la
+	// fixture non ne monta una — il colpo cadeva «fuori portata» prima ancora di essere interrotto, e la
+	// prima asserzione era verde per la ragione sbagliata (danno zero per assenza, non per interruzione).
+	// `LineAttack` dichiara portata 5 nel catalogo, quindi il colpo parte davvero. Trovato dal test stesso,
+	// rosso alla prima esecuzione.
+	RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+
+	// La premessa del test, misurata invece che assunta: se un giorno `LineAttack` cambiasse policy, questo
+	// test misurerebbe il caso sbagliato restando verde.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Linea = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.LineAttack")); });
+	if (!TestNotNull(TEXT("Action.LineAttack e' nel catalogo"), Linea)
+		|| !TestEqual(TEXT("premessa: e' InterruptBeforeEffect, cioe' si CANCELLA"), Linea->InterruptPolicy,
+			ERTInterruptPolicy::InterruptBeforeEffect))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 VictimHealth = Victim->Health;
+	Attacker->PlannedAbilityIndex = Attacker->Abilities.Num() - 1;
+	Attacker->PlannedAttackTarget = Victim;
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Attacker;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("l'azione cancellata non fa danno: tutto o niente"), Victim->Health, VictimHealth);
+
+	// 🔴 **E il TurnLog e' cio' che distingue «cancellata» da «mai partita»**: senza questa riga un
+	// colpo fuori portata darebbe lo stesso zero danni e il test sarebbe verde per la ragione sbagliata.
+	// E' esattamente com'era prima del fix della fixture qui sopra.
+
+	// E qui la voce `Cancelled` CI DEVE essere: e' cio' che distingue un'azione annullata da una degradata.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestTrue(TEXT("e il TurnLog registra l'interruzione, al contrario del caso degradato"), bAnnullata);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+
+/**
+ * `Action.Interact` su una porta APERTA la CHIUDE ([`INT-7`] chiusa, `#2380`).
+ *
+ * E' il verso che fino al 2026-09-05 non esisteva: [D-151] limitava l'azione a chiedere `Open`, quindi una
+ * porta gia' aperta era un no-op silenzioso — `CanTransition` restituisce `false` quando `Current == Wanted`.
+ *
+ * ⚠️ Il gemello `InteractFromKitOpensDoor` (verso opposto) resta e non e' ridondante: insieme provano che la
+ * commutazione e' una commutazione, e non un `Closed` assoluto travestito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractTogglesOpenDoorClosedTest,
+	"RefactorTactics.Structures.Door.InteractTogglesOpenDoorClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
+
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Closer || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestFalse(TEXT("premessa: la porta e' APERTA e il bordo si attraversa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+
+	const int32 InteractIdx = FindAbilityByActionId(Closer, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Closer, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("la porta si e' CHIUSA: il bordo non si attraversa piu'"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+	// Le due meta' insieme: senza il conteggio, «bloccato» non distinguerebbe una porta chiusa da una
+	// porta rimasta aperta con un muro comparso altrove.
+	TestEqual(TEXT("una voce di porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 1);
+	TestEqual(TEXT("e nessuna di porta aperta"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **IL BERSAGLIO DELLA COMMUTAZIONE SI RISOLVE UNA VOLTA SOLA, DALLO STATO PRE-BLAST** ([`INT-7`],
+ * `#2380`). E' il test che rende corretta l'implementazione, e la sua FORMA e' costata due errori.
+ *
+ * ⛔ **Primo errore — quello che la DoD della issue chiedeva.** Diceva: *«due unita' che commutano la stessa
+ * porta nello stesso turno producono lo stesso esito qualunque sia il loro ordine»*. L'ordine-indipendenza
+ * **non discrimina**: due commutatori identici sono simmetrici, quindi scambiarli non cambia niente
+ * nemmeno per un'implementazione sbagliata. Serve asserire il VALORE.
+ *
+ * ⛔ **Secondo errore — asserire il valore sulla porta sbagliata, e l'ha trovato la verifica di mutazione.**
+ * La prima stesura partiva da una porta `Open`, e il mutante «risolvi per-operazione» le passava **verde**:
+ *
+ *   partenza `Open`   corretto: entrambi vogliono `Closed`      -> fusione `Closed`  -> porta CHIUSA
+ *                     mutante:  il secondo vede `Closed`, vuole `Open` -> fusione **`Closed`** -> porta CHIUSA
+ *
+ * Identici. **La fusione per restrittivita' di `ApplyDoorOps` MASCHERA il difetto in quella direzione**,
+ * perche' a parita' di bordo vince lo stato piu' restrittivo e `Closed` e' proprio quello che il mutante
+ * produce per sbaglio. Misurato il 2026-09-05: mutante applicato, `Structures.Door` **17/17 verdi**.
+ *
+ * 🔑 **A discriminare e' la partenza `Closed`**, dove la restrittivita' lavora nel verso opposto:
+ *
+ *   partenza `Closed` corretto: entrambi vogliono `Open`        -> fusione `Open`    -> porta APERTA
+ *                     mutante:  il secondo vede `Open`, vuole `Closed` -> fusione **`Closed`** -> NON CAMBIA NULLA
+ *
+ * Il mutante non solo sbaglia: non produce **nessuna** voce di ambiente, perche' `CanTransition` rifiuta
+ * `Closed -> Closed`. `DoorOpened == 1` contro `0` e' lo scarto piu' largo che questo sottosistema possa
+ * dare.
+ *
+ * ∴ il test misura **entrambe** le direzioni — la seconda perche' e' il comportamento, la prima perche' e'
+ * la prova — e in ciascuna anche l'ordine, che resta una proprieta' vera benche' non discriminante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexToggleResolvesOncePreBlastTest,
+	"RefactorTactics.Structures.Door.ToggleTargetResolvesOncePreBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
+{
+	// Due unita' della stessa squadra, entrambe adiacenti alla cella bersaglio, che dichiarano lo STESSO
+	// bordo. `bSwapped` inverte l'ordine di spawn, che e' l'ordine con cui gli intenti entrano nell'array.
+	auto RunWithOrder = [this](ERTHexDoorState Initial, bool bSwapped, bool& bOutBlocked,
+		int32& OutClosedEntries, int32& OutOpenedEntries) -> bool
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+		const FRTCellId West(0, 0);
+		const FRTCellId Target(1, 0);
+		const FRTCellId East(2, 0);
+		AddDoor(MapActor, Target, ERTHexDirection::W, Initial);
+
+		ARTUnit* First = nullptr;
+		ARTUnit* Second = nullptr;
+		if (bSwapped)
+		{
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), East);
+			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), West);
+		}
+		else
+		{
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), West);
+			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), East);
+		}
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !First || !Second || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+		if (!TestEqual(TEXT("premessa: la porta parte dallo stato dichiarato"),
+			static_cast<int32>(URTHexDoorLibrary::DoorBetween(MapActor->MapAsset, West, Target)),
+			static_cast<int32>(Initial)))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+
+		const int32 FirstIdx = FindAbilityByActionId(First, TEXT("Action.Interact"));
+		const int32 SecondIdx = FindAbilityByActionId(Second, TEXT("Action.Interact"));
+		if (!TestTrue(TEXT("entrambe portano `Action.Interact`"),
+			FirstIdx != INDEX_NONE && SecondIdx != INDEX_NONE))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+
+		// Lo STESSO bordo, dichiarato da tutte e due: `(1,0)` verso `W`, cioe' il bordo `(1,0)-(0,0)`.
+		PlanEdgeAction(First, FirstIdx, Target, ERTHexDirection::W);
+		PlanEdgeAction(Second, SecondIdx, Target, ERTHexDirection::W);
+
+		RunBlastTurn(TM);
+
+		bOutBlocked = URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, West, Target);
+		OutClosedEntries = CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed);
+		OutOpenedEntries = CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened);
+
+		DestroyHexBlastWorld(World);
+		return true;
+	};
+
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// 🔴 IL DISCRIMINANTE: si parte da `Closed`. Per-operazione la fusione sceglierebbe `Closed` e la porta
+	// non si aprirebbe affatto — zero voci, non una voce sbagliata.
+	bool bBlockedA = false, bBlockedB = false;
+	int32 ClosedA = 0, OpenedA = 0, ClosedB = 0, OpenedB = 0;
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ false, bBlockedA, ClosedA, OpenedA))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ true, bBlockedB, ClosedB, OpenedB))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("due commutatori su una porta CHIUSA la APRONO"), bBlockedA);
+	TestEqual(TEXT("e il cambio e' UNO SOLO: la fusione per bordo di ApplyDoorOps"), OpenedA, 1);
+	TestEqual(TEXT("e nessuno la richiude nello stesso turno"), ClosedA, 0);
+
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Closed)"), bBlockedB, bBlockedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedB, OpenedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedB, ClosedA);
+
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// Il verso opposto: e' il COMPORTAMENTO, e resta misurato. Non discrimina il mutante — la fusione lo
+	// maschera — ed e' scritto qui sopra perche' nessuno lo riscopra a caro prezzo una seconda volta.
+	bool bBlockedC = false, bBlockedD = false;
+	int32 ClosedC = 0, OpenedC = 0, ClosedD = 0, OpenedD = 0;
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ false, bBlockedC, ClosedC, OpenedC))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ true, bBlockedD, ClosedD, OpenedD))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("due commutatori su una porta APERTA la CHIUDONO"), bBlockedC);
+	TestEqual(TEXT("un solo cambio"), ClosedC, 1);
+	TestEqual(TEXT("e nessuna riapertura"), OpenedC, 0);
+
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Open)"), bBlockedD, bBlockedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedD, ClosedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedD, OpenedC);
+
+	return true;
+}
+
+/**
+ * `Interact` su una porta `Locked` RIFIUTA, con un reason code proprio ([`INT-7`], `#2380`).
+ *
+ * 🔑 **E' cio' che tiene chiuso il buco `Locked -> Closed` senza toccare `CanTransition`.** Quella
+ * transizione e' AMMESSA un livello sotto — toglierebbe il lock, e da `Closed` la porta si apre — e [D-151]
+ * la teneva fuori portata limitando l'azione ad `Open`. La commutazione si definisce solo su
+ * `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida: stessa tecnica, verso nuovo.
+ *
+ * ⚠️ Senza l'assertion sullo STATO il test sarebbe verde anche se il lock fosse stato tolto e la porta
+ * lasciata `Closed`: da fuori bloccherebbe lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractOnLockedDoorRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnLockedDoorIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractOnLockedDoorRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Locked);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	// 🔴 Lo STATO, non solo il blocco: il percorso `Locked -> Closed` bloccherebbe uguale, e avrebbe tolto
+	// il lock. E' il difetto che [D-151] esisteva per impedire.
+	TestEqual(TEXT("la porta e' ancora BLOCCATA, non solo chiusa"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(MapActor->MapAsset, Standing, Target)),
+		static_cast<int32>(ERTHexDoorState::Locked));
+	TestEqual(TEXT("nessuna porta aperta"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened), 0);
+	TestEqual(TEXT("nessuna porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 0);
+	// E il rifiuto e' OSSERVABILE, col motivo giusto: senza, «non e' successo niente» sarebbe
+	// indistinguibile da «l'azione e' sparita».
+	TestEqual(TEXT("un rifiuto con reason code DoorLocked"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorLocked), 1);
+	// E NON quello del bordo vuoto: la porta c'era.
+	TestEqual(TEXT("e non e' NoEffect: la porta c'era"),
+		CountRefusals(TM, ERTActionInvalidReason::NoEffect), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * `Interact` su una porta `Destroyed` RIFIUTA, con un reason code **diverso** da quello di `Locked`
+ * ([`INT-7`], `#2380`).
+ *
+ * 🔴 **E' il caso che un'implementazione ragionevole perde in silenzio.** La via naturale per leggere lo
+ * stato di un bordo e' `URTHexDoorLibrary::DoorBetween`, che pero' risponde alla domanda della TRAVERSATA:
+ * `Restriction(Destroyed)` vale **zero come `Open`**, perche' per chi ci deve passare una porta sfondata e
+ * un varco libero sono la stessa cosa. Leggendo di li', la commutazione vedrebbe `Open`, chiederebbe
+ * `Closed`, e `CanTransition` — per cui `Destroyed` e' terminale — la scarterebbe **senza nessuna voce**:
+ * il giocatore ha premuto e il TurnLog non ha niente da dire. Il resolver legge percio' la porta
+ * DICHIARATA (`FindDoorOnEdge`), non lo stato di traversata.
+ *
+ * ⚠️ Il reason code e' distinto da `DoorLocked` perche' i due rimedi sono diversi: `Locked` ha l'apertura
+ * autorizzata di CP 10.1 davanti a se', `Destroyed` non ha piu' niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractOnDestroyedDoorRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnDestroyedDoorIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Destroyed);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("una porta sfondata non torna a bloccare"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+	TestEqual(TEXT("nessuna voce di porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 0);
+	// 🔴 La riga che cadrebbe leggendo `DoorBetween`: il rifiuto sarebbe SILENZIOSO.
+	TestEqual(TEXT("un rifiuto con reason code DoorDestroyed"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorDestroyed), 1);
+	// E DISTINTO da quello di `Locked`: e' cio' che rende «reason code distinti» una cosa misurabile.
+	TestEqual(TEXT("e non quello di Locked"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorLocked), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * `Action.LineAttack` colpisce il PRIMO bersaglio valido sulla direzione, non quello puntato (`#2929`, [D-386]).
+ *
+ * 🔴 **Il difetto che questo test esiste per prendere.** Il catalogo dichiara l'azione come *«22 danni al
+ * PRIMO bersaglio valido su una delle sei direzioni»* e nomina il resolver che lo farebbe
+ * (`URTOffensiveActionLibrary::ResolveLineAttack`). Quel resolver non aveva chiamanti di produzione, e
+ * l'intento nasceva `ERTAbilityShape::Single` perche' `FRTActionDef` non porta uno `Shape`: il colpo
+ * arrivava alla cella puntata **scavalcando** chi stava in mezzo.
+ *
+ * ⚠️ **Due nemici allineati e si punta il LONTANO**: e' l'unica configurazione che distingue le due
+ * semantiche. Con un bersaglio solo, «primo bersaglio» e «bersaglio puntato» coincidono e il test sarebbe
+ * verde col difetto.
+ *
+ * ⛔ La linea di tiro NON e' la variabile: la mappa non ha celle che bloccano, quindi `(2,0)` e' un
+ * bersaglio legittimo anche prima del fix. Cio' che cambia e' CHI incassa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLineAttackStopsAtFirstTargetTest,
+	"RefactorTactics.Combat.LineAttackStopsAtFirstTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLineAttackStopsAtFirstTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Near     = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
+	ARTUnit* Far      = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attacker || !Near || !Far) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 Idx = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+
+	// La premessa, misurata invece che assunta: se il catalogo cambiasse portata o danno, questo test
+	// misurerebbe il caso sbagliato restando verde.
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+	if (!TestEqual(TEXT("premessa: portata 5, quindi (2,0) e' raggiungibile"), Def.RangeCells, 5)
+		|| !TestTrue(TEXT("premessa: l'azione dichiara un danno"), URTCatalogLibrary::FirstDamage(Def) > 0))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 NearHealthBefore = Near->Health;
+	const int32 FarHealthBefore  = Far->Health;
+
+	Attacker->PlannedAbilityIndex = Idx;
+	Attacker->PlannedAttackTarget = Far; // si punta il LONTANO, di proposito
+
+	RunBlastTurn(TM);
+
+	// 🔑 Le due meta' della stessa proprieta': la linea si ferma sul primo, quindi il primo la prende e il
+	// secondo no. Separate perche' falliscono per ragioni diverse e il messaggio deve dirlo.
+	TestTrue(TEXT("il bersaglio VICINO incassa il colpo: la linea si ferma su di lui"),
+		Near->Health < NearHealthBefore);
+	TestEqual(TEXT("il bersaglio LONTANO non viene scavalcato"), Far->Health, FarHealthBefore);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// [D-415] punto (2) — LA MIRA SI FISSA IN PLANNING E NON INSEGUE
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * **Il bersaglio si sposta e il colpo NON lo segue: cade dove era stato puntato** ([D-415]).
+ *
+ * 🔑 **E' la meta' che la decisione esiste per ottenere.** Fino al 2026-09-20 `CollectHexAttacks` leggeva
+ * `Units[Intent.TargetId].Cell`, cioe' lo stato del **Blast** — dopo il movimento: chi sparava colpiva una
+ * posizione che al momento di decidere non esisteva. In una fase simultanea questo rende la mira
+ * indecidibile, perche' nessuno puo' pianificare contro una cella che l'avversario sceglie dopo.
+ *
+ * 🔴 **Il bersaglio si sposta nel DASH, e non e' un dettaglio della fixture: e' l'unico modo di
+ * esercitare la regola.** `ResolveCombat()` gira nella fase `Blast`, `ResolveMovement()` nella fase `Move`
+ * che viene **dopo** — *«gli attacchi usano la posizione PRIMA del movimento»*, dice `RTTurnManager.cpp`.
+ * Quindi per il movimento normale la mira non inseguiva **gia' prima** di [D-415]: a inseguire era solo chi
+ * si sposta PRIMA del Blast, cioe' il Dash (`FastMovement`), le spinte e le reazioni.
+ *
+ * ⚠️ *La prima stesura di questo test faceva spostare il bersaglio con `PlannedCell` e lo vedeva incassare
+ * lo stesso: aveva misurato l'ordine delle fasi, non la regola. Il fallimento era del test.*
+ *
+ * ⚠️ **Il controllo positivo non e' decorativo**: senza, il test resterebbe verde anche se il colpo non
+ * partisse affatto — fuori portata, linea bloccata, azione annullata. La stessa scena **senza** lo scatto
+ * deve ferire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimDoesNotFollowTest,
+	"RefactorTactics.Combat.Aim.PlannedAimDoesNotFollowTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimDoesNotFollowTest::RunTest(const FString&)
+{
+	// La stessa scena due volte: nella prima il bersaglio resta fermo, nella seconda SCATTA di una cella.
+	// L'unica variabile e' quello scatto.
+	//
+	// 🔴 **E l'ATTIVAZIONE dichiara la stessa mira da cui parte il colpo**: `OutMiraAttivata` e' la cella
+	// dell'`AbilityActivated` del tiratore nel Blast. ⌫ *Fino alla code review di #3230 l'evento portava
+	// `Bersaglio->Cell`, la cella viva: dopo lo scatto dichiarava una mira che il colpo non usava.*
+	auto DannoSubito = [this](bool bIlBersaglioSiSposta, FRTCellId& OutMiraAttivata, int32& OutAttivazioni) -> int32
+	{
+		OutAttivazioni = 0;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return -1; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return -1; }
+
+		const int32 Prima = Foe->Health;
+		Shooter->PlannedAbilityIndex = 0;             // attacco base: forma `Single`
+		Shooter->PlannedAttackTarget = Foe;
+		if (bIlBersaglioSiSposta)
+		{
+			// `Action.Reposition`: uno scatto SENZA impatto ne' effetti, cosi' l'unica cosa che cambia e'
+			// dove sta il bersaglio quando il Blast risolve. Una carica porterebbe anche il proprio danno.
+			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+			Foe->PlannedDashAbility = Scatto;
+			Foe->PlannedDashCell = FRTCellId(3, -1);  // un passo di lato, fuori dalla cella mirata
+		}
+
+		RunBlastTurn(TM);
+
+		// L'identita' stabile si legge DOPO il turno: il roster la assegna al lock-in.
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Blast
+				&& Ev.SourceStableUnitId == Shooter->StableUnitId)
+			{
+				OutMiraAttivata = Ev.AimCell;
+				++OutAttivazioni;
+			}
+		}
+
+		const int32 Danno = Prima - Foe->Health;
+		const bool bSiEMosso = (Foe->Cell != FRTCellId(3, 0));
+		DestroyHexBlastWorld(World);
+		// Se il movimento non fosse avvenuto, il caso "si sposta" misurerebbe il caso "fermo".
+		return (bIlBersaglioSiSposta && !bSiEMosso) ? -1 : Danno;
+	};
+
+	FRTCellId MiraFermo, MiraSpostato;
+	int32 AttivazioniFermo = 0, AttivazioniSpostato = 0;
+	const int32 Fermo = DannoSubito(/*bIlBersaglioSiSposta=*/ false, MiraFermo, AttivazioniFermo);
+	const int32 Spostato = DannoSubito(/*bIlBersaglioSiSposta=*/ true, MiraSpostato, AttivazioniSpostato);
+
+	// CONTROLLO POSITIVO: la scena spara davvero, e il passo di lato e' davvero avvenuto (il `-1`).
+	if (!TestTrue(TEXT("controllo positivo: fermo, il bersaglio incassa"), Fermo > 0)) { return false; }
+	if (!TestTrue(TEXT("premessa: il bersaglio si e' davvero spostato"), Spostato >= 0)) { return false; }
+
+	TestEqual(TEXT("spostandosi non viene seguito: il colpo cade sulla cella mirata"), Spostato, 0);
+
+	// L'attivazione: una sola per scena (il colpo PARTE anche quando va a vuoto), e sulla cella mirata.
+	// Nella scena «fermo» cella viva e mira coincidono, quindi e' il controllo positivo della lettura.
+	TestEqual(TEXT("controllo positivo: fermo, un'attivazione del tiratore nel Blast"), AttivazioniFermo, 1);
+	TestEqual(TEXT("controllo positivo: fermo, l'attivazione mira il bersaglio"), MiraFermo, FRTCellId(3, 0));
+	TestEqual(TEXT("spostato, un'attivazione del tiratore nel Blast"), AttivazioniSpostato, 1);
+	TestEqual(TEXT("🔴 spostato, l'attivazione dichiara la mira congelata, non la cella dello scatto"),
+		MiraSpostato, FRTCellId(3, 0));
+	return true;
+}
+
+/**
+ * **Chi spara si gira verso la MIRA congelata, non verso dove il bersaglio e' scattato** ([D-415], [D-020]).
+ *
+ * 🔴 **Trovato dalla code review di #3230**: il riorientamento di D-020 leggeva `Target->Cell` dopo lo scatto,
+ * mentre il colpo partiva verso `PlannedAimCell`. Chi sparava guardava dove il bersaglio era andato e sparava
+ * dove era stato — e il facing decide la copertura direzionale (CP 16.2), quindi non e' cosmesi.
+ *
+ * Stessa scena di `PlannedAimDoesNotFollowTheTarget`, con lo scatto scelto in modo che la direzione verso la
+ * cella viva e quella verso la mira DIFFERISCANO (controllo positivo, misurato con `DirectionTowards`):
+ * il facing finale del tiratore nella scena «scattato» deve essere quello della scena «fermo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimReorientationFacesTheFrozenAimTest,
+	"RefactorTactics.Combat.Aim.ReorientationFacesTheFrozenAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
+{
+	const FRTCellId Tiratore(0, 0);
+	const FRTCellId Mira(3, 0);
+	const FRTCellId Scattato(3, -2); // due celle in linea da (3,0), fuori dall'asse della mira
+
+	// Controllo positivo sulla geometria: le due direzioni devono differire, o il test sarebbe vacuo.
+	ERTHexDirection VersoMira = ERTHexDirection::E;
+	ERTHexDirection VersoScattato = ERTHexDirection::E;
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la mira"), URTHexLibrary::DirectionTowards(Tiratore, Mira, VersoMira))) { return false; }
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la cella dello scatto"), URTHexLibrary::DirectionTowards(Tiratore, Scattato, VersoScattato))) { return false; }
+	if (!TestTrue(TEXT("controllo positivo: le due direzioni differiscono"), VersoMira != VersoScattato)) { return false; }
+
+	// 🔴 **E il tiratore PARTE girato altrove**, o «guarda la mira» sarebbe vero senza che D-020 agisca: il
+	// facing di default di `ARTUnit` e' `E`, che e' proprio `VersoMira`. ⌫ *Fino alla review del delta di #3230
+	// (2026-10-10) il test partiva da `E`, e uccideva solo la regressione «si gira verso la cella viva».*
+	constexpr ERTHexDirection Partenza = ERTHexDirection::W;
+	if (!TestTrue(TEXT("controllo positivo: si parte da una direzione che non e' ne' la mira ne' lo scatto"),
+		Partenza != VersoMira && Partenza != VersoScattato)) { return false; }
+
+	auto FacingFinale = [this, &Tiratore, &Mira, &Scattato, Partenza](bool bIlBersaglioSiSposta, ERTHexDirection& OutFacing) -> bool
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Tiratore);
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Mira);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+		Shooter->Facing = Partenza;
+		Shooter->PlannedAbilityIndex = 0;
+		Shooter->PlannedAttackTarget = Foe;
+		if (bIlBersaglioSiSposta)
+		{
+			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+			Foe->PlannedDashAbility = Scatto;
+			Foe->PlannedDashCell = Scattato;
+		}
+		RunBlastTurn(TM);
+
+		const bool bPremessa = !bIlBersaglioSiSposta || Foe->Cell == Scattato;
+		OutFacing = Shooter->Facing;
+		DestroyHexBlastWorld(World);
+		return bPremessa;
+	};
+
+	ERTHexDirection Fermo = ERTHexDirection::E;
+	ERTHexDirection Spostato = ERTHexDirection::E;
+	if (!TestTrue(TEXT("scena ferma"), FacingFinale(false, Fermo))) { return false; }
+	if (!TestTrue(TEXT("premessa: il bersaglio e' davvero scattato dove previsto"), FacingFinale(true, Spostato))) { return false; }
+
+	TestTrue(TEXT("fermo: il tiratore guarda la mira (D-020)"), Fermo == VersoMira);
+	TestTrue(TEXT("scattato: il tiratore guarda ancora la mira congelata, non la cella viva ([D-415])"),
+		Spostato == VersoMira);
+	TestTrue(TEXT("e le due scene coincidono nel facing"), Spostato == Fermo);
+	return true;
+}
+
+/**
+ * **Anche un attacco dichiarato su una CELLA gira chi lo usa verso la cella** (D-020, #3229).
+ *
+ * 🔴 **Trovato dalla review indipendente di #3229**: il ramo di D-020 chiedeva un bersaglio-unita', e un
+ * attacco a cella non riorientava nessuno. Da quando i bot dichiarano la cella che conoscono, avrebbero smesso
+ * di girarsi verso cio' che colpiscono — e il facing decide la difesa direzionale (CP 16.2).
+ *
+ * Il tiratore parte girato a `W`, dalla parte opposta della cella: «guarda la cella» non puo' essere vero senza
+ * che il riorientamento agisca (controllo positivo misurato con `DirectionTowards`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellAttackFacesTheDeclaredCellTest,
+	"RefactorTactics.Combat.Aim.CellAttackFacesTheDeclaredCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellAttackFacesTheDeclaredCellTest::RunTest(const FString&)
+{
+	const FRTCellId Tiratore(0, 0);
+	const FRTCellId Cella(3, 0);
+	constexpr ERTHexDirection Partenza = ERTHexDirection::W;
+	ERTHexDirection VersoCella = Partenza;
+	if (!TestTrue(TEXT("premessa: esiste una direzione verso la cella"), URTHexLibrary::DirectionTowards(Tiratore, Cella, VersoCella))
+		|| !TestTrue(TEXT("controllo positivo: si parte da una direzione che non e' quella della cella"), VersoCella != Partenza))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Tiratore);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Cella);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	Shooter->Facing = Partenza;
+	Shooter->PlannedAbilityIndex = 0;          // attacco base
+	Shooter->DeclareAttackOnCell(Cella);       // la forma che il bot usa da #3229
+	const int32 Prima = Foe->Health;
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: il colpo e' partito sulla cella (il nemico che ci sta incassa)"), Foe->Health < Prima);
+	TestTrue(TEXT("🔴 il tiratore guarda la cella dichiarata (D-020)"), Shooter->Facing == VersoCella);
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Il corollario: spostarsi NON basta a salvarsi da un'area** ([D-415]).
+ *
+ * 🔑 **Regge senza codice nuovo, ed e' la cosa da non rompere.** `CollectHexAttacks` sceglie chi colpire
+ * **geometricamente** — ogni unita' viva su una cella investita — e non dall'identita' del bersaglio
+ * dichiarato. La mira congelata decide **dove** cade l'area; chi ci finisce dentro lo decide la scena.
+ *
+ * ⚠️ Senza questo test, «la mira non insegue» si leggerebbe come «chi si muove non viene colpito», che e'
+ * falso e sarebbe una regola di gioco diversa.
+ *
+ * 🔴 **Lo spostamento e' uno SCATTO, e la prima stesura sbagliava qui.** Usava `PlannedCell`, cioe' il
+ * movimento normale, che risolve nella fase `Move` — **dopo** il Blast. Il bersaglio era quindi ancora
+ * sulla cella mirata quando l'area cadeva, e il test passava dimostrando che il centro colpisce il proprio
+ * centro: vero, vacuo, e muto sulla proprieta' in esame. Il controllo sulla cella non lo prendeva perche'
+ * guardava la posizione a FINE TURNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAreaStillCatchesMoverTest,
+	"RefactorTactics.Combat.Aim.MovedTargetIsStillHitInsideTheArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	// ⚠️ **Aevik, e l'area viene dal suo KIT, non da `Action.CircularAoE`**: la voce di catalogo dichiara
+	// identita', fase e portata, ma **non** forma e raggio — quelli stanno sull'abilita' dell'eroe. Montare
+	// l'azione di catalogo dava una forma `Single`, e il test passava perche' il centro colpisce il proprio
+	// centro. `Hero.Aevik.Overload`: `Area`, raggio 1, portata 3.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 Area = FindAbilityByActionId(Shooter, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("premessa: l'eroe porta l'area nel kit"), Area != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: ed e' davvero un'AREA di raggio 1"),
+		Shooter->Abilities[Area] && Shooter->Abilities[Area]->Shape == ERTAbilityShape::Area
+		&& Shooter->Abilities[Area]->AreaRadius == 1))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 Prima = Foe->Health;
+	Shooter->PlannedAbilityIndex = Area;
+	Shooter->PlannedAttackTarget = Foe;
+
+	// Uno scatto di lato PRIMA del Blast: fuori dalla cella mirata, DENTRO il raggio 1 che le sta attorno.
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+	Foe->PlannedDashAbility = Scatto;
+	Foe->PlannedDashCell = FRTCellId(3, -1);
+
+	RunBlastTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: il bersaglio si e' davvero spostato"), Foe->Cell == FRTCellId(3, -1)))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: e la nuova cella e' adiacente a quella mirata"),
+		URTHexLibrary::HexDistance(FRTCellId(3, 0), Foe->Cell) == 1))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("l'area cade dove era stata puntata e lo prende lo stesso"), Prima - Foe->Health > 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **L'uscita che [D-415] nomina: chi DICHIARA di agganciare continua a seguire** — e oggi sono `Action.Interrupt`
+ * e `Action.Heal` (D-493, #3609: *«il cura ha un tipo di tiro diverso da un normale shoot»*).
+ *
+ * 🔑 **La dichiarazione e' `ERTActionFallback::AttackTarget`**, documentata nell'enum come *«Segue il
+ * bersaglio, se ancora valido»*. Prima di `D-415` era un valore **morto**: zero azioni lo usavano.
+ *
+ * ⛔ **E dichiararlo non cambia il ripiego di nessuno**, che e' la ragione per cui questa uscita e' a costo
+ * zero: il ramo `AttackTarget` di `URTActionFallbackLibrary` annulla esattamente come `Cancel` — *«qui il
+ * bersaglio NON e' valido, quindi non c'e' nessuno da seguire»* — e questo test lo **misura** invece di
+ * fidarsi del commento.
+ *
+ * ⚠️ **L'elenco esatto dei nomi e' anti-deriva**: l'aggancio e' precisamente cio' che `D-415` toglie al resto,
+ * e ogni dichiarante va motivato accanto alla sua riga di catalogo. Se questo test diventa rosso, qualcuno ne
+ * ha aggiunto uno: la domanda non e' come farlo tornare verde, e' se quella riga fosse voluta. ⌫ *Fino a
+ * #3609 l'elenco era il solo `Action.Interrupt`.*
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimTrackingIsDeclaredTest,
+	"RefactorTactics.Combat.Aim.OnlyDeclaredTrackersFollowTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
+{
+	const TArray<FRTActionDef> Catalogo = URTCatalogLibrary::GetCoreActionCatalog();
+
+	TArray<FName> Agganciano;
+	for (const FRTActionDef& A : Catalogo)
+	{
+		if (A.Fallback == ERTActionFallback::AttackTarget) { Agganciano.Add(A.ActionId); }
+	}
+
+	// ⚠️ I NOMI e non il conteggio: un totale direbbe «sono tre» senza dire quale sia arrivata.
+	Agganciano.Sort(FNameLexicalLess());
+	const TArray<FName> Attesi = { FName(TEXT("Action.Heal")), FName(TEXT("Action.Interrupt")) };
+	if (!TestTrue(TEXT("dichiarano di agganciare esattamente la cura e l'interruzione"), Agganciano == Attesi))
+	{
+		for (const FName& Id : Agganciano) { AddError(FString::Printf(TEXT("dichiara aggancio: %s"), *Id.ToString())); }
+		return false;
+	}
+
+	// ⚠️ ANTI-VACUITA' del confronto sopra: se il catalogo fosse vuoto o il campo non fosse letto, il
+	// conteggio a 1 non direbbe niente. `Cancel` resta il default, e la stragrande maggioranza lo porta.
+	int32 Annullano = 0;
+	for (const FRTActionDef& A : Catalogo)
+	{
+		if (A.Fallback == ERTActionFallback::Cancel) { ++Annullano; }
+	}
+	TestTrue(TEXT("controllo positivo: `Cancel` resta il default, e il campo si legge davvero"), Annullano > 1);
+
+	// 🔴 E LA PARTE CHE RENDE L'USCITA A COSTO ZERO: come RIPIEGO, `AttackTarget` annulla come `Cancel`.
+	// Misurato, non dedotto dal commento.
+	FRTActionInstance Persa;
+	Persa.Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interrupt"));
+	Persa.SourceUnitId = 0;
+	Persa.TargetUnitId = INDEX_NONE;   // il bersaglio non c'e' piu': e' il caso del ripiego
+	const FRTFallbackResult Esito = URTActionFallbackLibrary::ApplyFallback(
+		Persa, ERTActionInvalidReason::TargetGone);
+	TestEqual(TEXT("come ripiego, agganciare annulla esattamente come `Cancel`"),
+		Esito.Applied, ERTActionFallback::Cancel);
+	TestFalse(TEXT("e non produce effetti"), Esito.bProducesEffects);
+	return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// [D-509] — LA REGOLA DEL PIANO VALE PER OGNI COLPO, e in un turno risolto lascia una voce
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+namespace
+{
+	/** Le voci `Fallback`/`Cancelled` con `OtherLayer` di questa unita', e l'ultima trovata. */
+	int32 CountPlaneRefusals(const ARTTurnManager* TM, const ARTUnit* Unit, FRTTurnLogEntry* OutLast = nullptr)
+	{
+		int32 Count = 0;
+		if (!TM || !Unit) { return Count; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OtherLayer)
+				&& E.UnitId == Unit->StableUnitId)
+			{
+				++Count;
+				if (OutLast) { *OutLast = E; }
+			}
+		}
+		return Count;
+	}
+}
+
+/**
+ * **Una mira fra piani che arriva alla risoluzione NON colpisce, e il turno dice perche'** ([D-509], `#2951`).
+ *
+ * 🔑 **Passa dal `TurnManager`, non dalle librerie**, per la ragione di [D-036]: `ValidateInstance` e
+ * `CollectHexAttacks` hanno il loro test puro, e una funzione pura puo' essere verde mentre nessuno ne legge
+ * l'esito. Era gia' successo qui: [D-393] spuntava *«i chiamanti leggono l'esito»*, ed era vero — lo
+ * leggevano e lo buttavano.
+ *
+ * ⚠️ **Il piano si scrive a mano, saltando il gate dell'INTERFACCIA.** `ClassifyHexTargeting` la chiamano
+ * il controller del giocatore e, col suo specchio, il bot; la validazione al lock-in
+ * (`URTPlanValidationLibrary`) il bersaglio non lo classifica. ∴ per un piano che arrivi senza passare
+ * dall'interfaccia — uno scenario scritto a mano oggi, un client domani — la risoluzione e' la SOLA sede
+ * autorevole che applica la regola: `CLIENT PROPOSES -> SERVER VALIDATES`. Non e' una rete per i banchi
+ * di prova.
+ *
+ * 🔴 **Si asserisce il MOTIVO, non solo l'assenza di danno.** Un bersaglio illeso lo produce anche un colpo
+ * fuori portata, una linea bloccata, un bersaglio ignoto: l'unica cosa che distingue questa regola e' la
+ * voce `Fallback`/`Cancelled` con `Amount = OtherLayer`. E i due modi di dichiarare la mira arrivano al
+ * canale per due strade — l'unita' passando da `ValidateInstance`, che il Blast non deve trasformare in un
+ * fallback; la cella direttamente — quindi si provano tutti e due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAcrossLayersIsRefusedInResolutionTest,
+	"RefactorTactics.Combat.Aim.AcrossLayersIsRefusedAndDeclaredInResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAcrossLayersIsRefusedInResolutionTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 Danno = 0;          // PV persi dal bersaglio
+		int32 RifiutiDiPiano = 0; // voci Fallback/Cancelled con Amount = OtherLayer, del tiratore
+		FRTTurnLogEntry Rifiuto;
+	};
+
+	auto Gioca = [](int32 PianoDelBersaglio, bool bMiraACella) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		// La piattaforma ESISTE: senza la cella il bersaglio starebbe nel vuoto, e il test misurerebbe quello.
+		const FRTCellId DoveStaIlBersaglio(3, 0, PianoDelBersaglio);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaIlBersaglio));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), DoveStaIlBersaglio);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
+
+		const int32 Prima = Foe->Health;
+		Shooter->PlannedAbilityIndex = 0; // attacco base: forma `Single`
+		if (bMiraACella)
+		{
+			Shooter->PlannedAttackTarget = nullptr;
+			Shooter->PlannedAttackCell = DoveStaIlBersaglio;
+			Shooter->bAttackTargetsCell = true;
+		}
+		else
+		{
+			Shooter->PlannedAttackTarget = Foe;
+		}
+
+		RunBlastTurn(TM);
+
+		Out.Danno = Prima - Foe->Health;
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Shooter, &Out.Rifiuto);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	for (const bool bMiraACella : { false, true })
+	{
+		const TCHAR* Modo = bMiraACella ? TEXT("mira a CELLA") : TEXT("mira a UNITA'");
+
+		// Controllo positivo: stesso piano, stessa scena. Deve ferire, e non deve esserci nessun rifiuto.
+		const FEsito Piano = Gioca(/*PianoDelBersaglio=*/ 0, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (stesso piano)"), Modo), Piano.bValido)) { return false; }
+		TestTrue(FString::Printf(TEXT("%s — controllo: sullo stesso piano il colpo ferisce (danno %d)"), Modo, Piano.Danno),
+			Piano.Danno > 0);
+		TestEqual(FString::Printf(TEXT("%s — controllo: e nessuna voce di rifiuto per piano"), Modo),
+			Piano.RifiutiDiPiano, 0);
+
+		// Il caso: il bersaglio sta una piattaforma sopra. Stessa colonna di celle, stessa distanza.
+		const FEsito Sopra = Gioca(/*PianoDelBersaglio=*/ 1, bMiraACella);
+		if (!TestTrue(FString::Printf(TEXT("%s — banco (altro piano)"), Modo), Sopra.bValido)) { return false; }
+		TestEqual(FString::Printf(TEXT("%s — su un altro piano il colpo non ferisce"), Modo), Sopra.Danno, 0);
+		if (TestEqual(FString::Printf(TEXT("%s — e il turno lo DICHIARA: una voce Fallback/Cancelled con OtherLayer"), Modo),
+			Sopra.RifiutiDiPiano, 1))
+		{
+			TestTrue(FString::Printf(TEXT("%s — la voce dice DOVE puntava il colpo"), Modo),
+				Sopra.Rifiuto.TgtCell == FRTCellId(3, 0, 1));
+			TestTrue(FString::Printf(TEXT("%s — e DA DOVE"), Modo), Sopra.Rifiuto.SrcCell == FRTCellId(0, 0, 0));
+			TestFalse(FString::Printf(TEXT("%s — e QUALE azione"), Modo), Sopra.Rifiuto.ActionId.IsNone());
+			TestTrue(FString::Printf(TEXT("%s — nella fase in cui sarebbe risolta"), Modo),
+				Sopra.Rifiuto.Phase == ERTMatchPhase::Blast);
+		}
+	}
+	return true;
+}
+
+/**
+ * **Il ripiego su CELLA non scavalca la regola del piano, e il turno lo dice con due voci vere** ([D-509]).
+ *
+ * `ValidateInstance` giudica vita e squadra PRIMA della geometria: un'azione puntata su un ALLEATO esce
+ * `TargetFriendly` senza che nessuno abbia guardato dove sta. Se dichiara `AttackCell` il ripiego tiene la
+ * cella — e la cella puo' stare su un altro piano. Il colpo sulla cella e' un colpo: la raccolta lo ferma, e
+ * il turno porta DUE voci — il ripiego dichiarato, e il colpo che non parte perche' la cella e' su un altro
+ * piano. E' la stessa coppia che lascia un ripiego fermato da un muro (`AttackedCell`, poi `NoLineOfSight`).
+ *
+ * 🔴 **Senza la seconda voce il turno mentirebbe**: direbbe «colpisce la cella pianificata» di un colpo che
+ * non c'e' stato. L'ha segnalato la review indipendente; la prima correzione riscriveva la voce del ripiego,
+ * questa la lascia vera e ne aggiunge una.
+ *
+ * ⛔ Il controllo positivo misura la premessa: sullo stesso piano la stessa azione sullo stesso alleato
+ * ripiega davvero sulla cella, e non c'e' nessun rifiuto. Senza, il caso sarebbe verde anche se il ripiego
+ * non esistesse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellFallbackInheritsThePlaneRuleTest,
+	"RefactorTactics.Combat.Aim.CellFallbackAcrossLayersLeavesTheRefusalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellFallbackInheritsThePlaneRuleTest::RunTest(const FString&)
+{
+	struct FEsito
+	{
+		bool bValido = false;
+		int32 RipieghiSullaCella = 0;  // voci Fallback con esito AttackedCell, di chi attacca
+		int32 PerBersaglioAlleato = 0; // …di cui col motivo TargetFriendly
+		int32 RifiutiDiPiano = 0;      // voci Fallback/Cancelled con OtherLayer, di chi attacca
+		int32 DannoAllAlleato = 0;
+	};
+
+	auto Gioca = [](int32 PianoDellAlleato) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		const FRTCellId DoveStaLAlleato(2, 0, PianoDellAlleato);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(DoveStaLAlleato));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Alleato = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), DoveStaLAlleato);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Alleato) { DestroyHexBlastWorld(World); return Out; }
+
+		// `Action.LineAttack` dichiara `Fallback.AttackCell`: la premessa e' del catalogo, e si misura.
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+		if (Def.Fallback != ERTActionFallback::AttackCell)
+		{
+			DestroyHexBlastWorld(World);
+			return Out;
+		}
+		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+		Attacker->PlannedAttackTarget = Alleato;
+		const int32 Prima = Alleato->Health;
+
+		RunBlastTurn(TM);
+
+		Out.DannoAllAlleato = Prima - Alleato->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Fallback || E.UnitId != Attacker->StableUnitId) { continue; }
+			if (E.Outcome == static_cast<uint8>(ERTFallbackOutcome::AttackedCell))
+			{
+				++Out.RipieghiSullaCella;
+				if (E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetFriendly)) { ++Out.PerBersaglioAlleato; }
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Attacker);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	// Controllo: alleato sullo stesso piano. Il ripiego parte, e non c'e' nessun rifiuto per piano.
+	const FEsito Piano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano), e premessa di catalogo: l'azione dichiara AttackCell"), Piano.bValido))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: il ripiego sulla cella e' dichiarato"), Piano.RipieghiSullaCella, 1);
+	TestEqual(TEXT("controllo: col motivo del bersaglio alleato"), Piano.PerBersaglioAlleato, 1);
+	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Piano.RifiutiDiPiano, 0);
+
+	// Il caso: lo stesso alleato una piattaforma sopra.
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("su un altro piano il ripiego e' dichiarato come prima"), Sopra.RipieghiSullaCella, 1);
+	TestEqual(TEXT("…e accanto c'e' la voce che dice che il colpo sulla cella NON e' partito, e perche'"),
+		Sopra.RifiutiDiPiano, 1);
+	TestEqual(TEXT("…e l'alleato sull'altro piano non perde un punto"), Sopra.DannoAllAlleato, 0);
+	return true;
+}
+
+/**
+ * **Mirando all'altro capo di un ponte, il ponte incassa e chi ci sta sopra no** ([D-509], CP 9.4).
+ *
+ * 🔴 **E' il caso che la prima stesura di [D-509] rompeva, e l'ha trovato la suite intera.** Il danno a un
+ * arco fra due piani nasce, per progetto, da un'azione che dichiara `DamageStructure` e mira all'altro capo:
+ * la coppia (chi tira, mira) identifica l'arco. Annullare a monte l'azione con la mira su un altro piano
+ * spegneva i ponti — sei test rossi, `Structures.Bridge.*` e `Turn.ArcHit*`.
+ *
+ * 🔑 **Le due meta' insieme, perche' ognuna da sola e' la regola sbagliata.** «Il colpo non parte» senza «il
+ * ponte incassa» e' la prima stesura. «Il ponte incassa» senza «il colpo non parte» e' il codice di prima di
+ * [D-509], dove chi stava sul ponte veniva ferito da un piano sotto.
+ *
+ * ⚠️ **Non decide se il ponte DEBBA incassare da un altro piano**: pinna che questa PR non l'ha cambiato. Se
+ * la regola del piano valga anche per cio' che un colpo non e' — strutture, porte, archi — e' la domanda
+ * aperta `VERT-4`; e dall'INTERFACCIA questa mira non si puo' nemmeno dichiarare da [D-393] in poi, che e'
+ * parte della stessa domanda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAcrossABridgeHitsTheBridgeNotTheUnitTest,
+	"RefactorTactics.Combat.Aim.AcrossABridgeTheBridgeIsHitAndTheUnitIsNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAcrossABridgeHitsTheBridgeNotTheUnitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	const FRTCellId Ground(0, 0, 0);
+	const FRTCellId Upper(1, 0, 1);
+	MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Upper));
+	MapActor->MapAsset->SortCells();
+	MapActor->MapAsset->AddTransition(Ground, Upper, /*Cost*/ 1, ERTHexTransitionKind::Bridge,
+		/*bBidirectional*/ true);
+
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Ground);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Upper);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	const FRTHexEdge* Prima = MapActor->MapAsset ? URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper) : nullptr;
+	if (!TM || !Breacher || !Foe || !TestNotNull(TEXT("premessa: il ponte c'e'"), Prima))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	const int32 IntegritaPrima = Prima->Integrity;
+
+	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
+	// come fa `Structures.Bridge.DamagedInPlayedTurn`).
+	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
+	Breacher->PlannedAbilityIndex = 0;
+	Breacher->PlannedAttackTarget = Foe;
+	const int32 SalutePrima = Foe->Health;
+
+	RunBlastTurn(TM);
+
+	// (1) Il COLPO non parte: e' [D-509].
+	TestEqual(TEXT("chi sta sul ponte, un piano sopra, non perde un punto"), SalutePrima - Foe->Health, 0);
+	TestEqual(TEXT("e il turno dichiara il colpo fermato per piano"), CountPlaneRefusals(TM, Breacher), 1);
+
+	// (2) Il PONTE incassa come prima: e' CP 9.4, e questa PR non lo tocca.
+	const FRTHexEdge* Dopo = URTHexArcLibrary::FindArc(MapActor->MapAsset, Ground, Upper);
+	if (TestNotNull(TEXT("il ponte c'e' ancora"), Dopo))
+	{
+		TestEqual(TEXT("e ha incassato il danno alle strutture dell'azione"), IntegritaPrima - Dopo->Integrity, 20);
+	}
+	int32 VociDelPonte = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Environment
+			&& E.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::BridgeDamaged))
+		{
+			++VociDelPonte;
+		}
+	}
+	TestEqual(TEXT("con le sue due voci, una per verso"), VociDelPonte, 2);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Un'azione interrotta che mirava a un altro piano lascia UN motivo, non due** ([D-509]).
+ *
+ * Il rifiuto per piano e' una voce `Fallback`/`Cancelled`, come quelle delle porte: un'azione interrotta nello
+ * stesso Blast ne porterebbe due — annullata da un avversario, e annullata perche' mirava a un altro piano.
+ * `ApplyInterrupts` la toglie dal canale, con la regola che vale gia' per i rifiuti delle porte: vince cio'
+ * che l'ha fermata per primo.
+ *
+ * ⛔ **Il controllo e' la stessa scena senza chi interrompe**: li' la voce di piano c'e'. Senza, «zero voci
+ * di piano» lo darebbe anche un'azione mai partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedAimAcrossLayersLeavesOneReasonTest,
+	"RefactorTactics.Combat.Aim.InterruptedAimAcrossLayersLeavesOneReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedAimAcrossLayersLeavesOneReasonTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Interrotte = 0; int32 RifiutiDiPiano = 0; };
+	auto Gioca = [](bool bConChiInterrompe) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		const FRTCellId Sopra(1, 0, 1);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Sopra));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Sopra);
+		ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return Out; }
+
+		// `Action.LineAttack`: si cancella se interrotta, come in `Actions.Interrupt.StillCancels…`.
+		const FRTActionDef Linea = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+		if (Linea.InterruptPolicy != ERTInterruptPolicy::InterruptBeforeEffect) { DestroyHexBlastWorld(World); return Out; }
+
+		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+		Attacker->PlannedAttackTarget = Victim; // un piano sopra
+		if (bConChiInterrompe)
+		{
+			Interrupter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+			Interrupter->PlannedAttackTarget = Attacker; // sullo stesso piano, adiacente
+		}
+
+		RunBlastTurn(TM);
+
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Attacker->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted))
+			{
+				++Out.Interrotte;
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Attacker);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	const FEsito Sola = Gioca(/*bConChiInterrompe=*/ false);
+	if (!TestTrue(TEXT("banco (senza interruzione), e premessa: l'azione si cancella se interrotta"), Sola.bValido))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: senza interruzione la voce di piano c'e'"), Sola.RifiutiDiPiano, 1);
+	TestEqual(TEXT("controllo: e nessuna voce di interruzione"), Sola.Interrotte, 0);
+
+	const FEsito Interrotta = Gioca(/*bConChiInterrompe=*/ true);
+	if (!TestTrue(TEXT("banco (con interruzione)"), Interrotta.bValido)) { return false; }
+	TestEqual(TEXT("premessa: l'azione e' stata interrotta"), Interrotta.Interrotte, 1);
+	TestEqual(TEXT("un'azione interrotta non porta ANCHE il motivo del piano"), Interrotta.RifiutiDiPiano, 0);
+	return true;
+}
+
+/**
+ * **La conoscenza viene prima del piano: di un'unita' ignota non si dice su che piano sta** ([D-509], CP 13.2).
+ *
+ * 🔴 **Il difetto che la terza review ha trovato nel rifacimento.** Per fermare il colpo senza annullare
+ * l'azione, il piano e' stato messo fra i motivi che il Blast lascia alla raccolta — e il controllo di
+ * conoscenza girava solo quando la geometria rispondeva `None`. ∴ un bersaglio-unita' IGNOTO alla squadra,
+ * su un altro piano, non usciva piu' `TargetUnknown` come prima di [D-509]: usciva «la mira e' su un altro
+ * piano», con la sua cella nella voce. Di un'unita' che la squadra non conosce, e' dire dove sta.
+ *
+ * 🔑 **Le due scene sono identiche tranne il piano del bersaglio**, e l'esito deve essere lo stesso: ignoto.
+ * La scena sullo stesso piano e' anche la premessa — prova che il bersaglio e' DAVVERO ignoto, cioe' che il
+ * banco non sta misurando un bersaglio visto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnknownTargetOnAnotherLayerStaysUnknownTest,
+	"RefactorTactics.Combat.Aim.UnknownTargetOnAnotherLayerStaysUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnknownTargetOnAnotherLayerStaysUnknownTest::RunTest(const FString&)
+{
+	struct FEsito { bool bValido = false; int32 Ignoti = 0; int32 RifiutiDiPiano = 0; int32 Danno = 0; };
+	auto Gioca = [](int32 PianoDelBersaglio) -> FEsito
+	{
+		FEsito Out;
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return Out; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 6);
+		// Alle SPALLE di chi tira, oltre la consapevolezza ravvicinata: e' cio' che lo rende ignoto.
+		const FRTCellId Dietro(-5, 0, PianoDelBersaglio);
+		MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(Dietro));
+		MapActor->MapAsset->SortCells();
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), Dietro);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
+		Shooter->Facing = ERTHexDirection::E; // guarda dall'altra parte
+
+		const int32 Prima = Foe->Health;
+		// `Action.LineAttack`: portata dichiarata dal catalogo, cosi' il bersaglio e' a tiro e la portata
+		// non c'entra.
+		Shooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Shooter, TEXT("Action.LineAttack"));
+		Shooter->PlannedAttackTarget = Foe;
+
+		RunBlastTurn(TM);
+
+		Out.Danno = Prima - Foe->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Shooter->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetUnknown))
+			{
+				++Out.Ignoti;
+			}
+		}
+		Out.RifiutiDiPiano = CountPlaneRefusals(TM, Shooter);
+		Out.bValido = true;
+		DestroyHexBlastWorld(World);
+		return Out;
+	};
+
+	// La premessa: sullo stesso piano il bersaglio alle spalle e' ignoto, e l'azione esce per quello.
+	const FEsito SulPiano = Gioca(0);
+	if (!TestTrue(TEXT("banco (stesso piano)"), SulPiano.bValido)) { return false; }
+	if (!TestEqual(TEXT("premessa: il bersaglio alle spalle e' IGNOTO alla squadra"), SulPiano.Ignoti, 1))
+	{
+		return false; // senza la premessa il caso misurerebbe un bersaglio visto
+	}
+	TestEqual(TEXT("premessa: e non viene ferito"), SulPiano.Danno, 0);
+
+	// Il caso: lo stesso bersaglio ignoto, una piattaforma sopra.
+	const FEsito Sopra = Gioca(1);
+	if (!TestTrue(TEXT("banco (altro piano)"), Sopra.bValido)) { return false; }
+	TestEqual(TEXT("un bersaglio ignoto su un altro piano resta IGNOTO"), Sopra.Ignoti, 1);
+	TestEqual(TEXT("…e il turno NON dice che sta su un altro piano"), Sopra.RifiutiDiPiano, 0);
+	TestEqual(TEXT("…e non viene ferito"), Sopra.Danno, 0);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

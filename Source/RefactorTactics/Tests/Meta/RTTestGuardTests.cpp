@@ -1,0 +1,1081 @@
+#include "HAL/FileManager.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	/**
+	 * I moduli che hanno una cartella di test, cioe' il perimetro degli oracoli di questo file.
+	 *
+	 * 🔑 **Tre dei quattro oracoli misurano proprieta' che NON dipendono dal modulo** — una guardia che deve
+	 * chiudere in fondo al file, un helper anonimo che collide sotto unity, un header che non deve dichiarare
+	 * test — e fino a #3036 le misuravano su meta' del codice: `Source/RefactorTacticsEditor/Private/Tests`
+	 * contiene dichiarazioni di Automation, e nessun oracolo guardava li'. Il modulo Editor era conforme il
+	 * giorno in cui #3036 e' stata aperta, ma quella era una fotografia — nulla impediva che domani non lo
+	 * fosse.
+	 *
+	 * ⛔ **Il quarto, `RuntimeTestsAvoidEditorOnlyApi`, resta sul solo runtime, e non e' una svista.** La
+	 * proprieta' che misura e' *«i test del RUNTIME non chiamano API che esistono solo `WITH_EDITOR`»*:
+	 * guardare la sola cartella del runtime **e' la definizione**, non il suo perimetro mancato. Estenderlo
+	 * al modulo Editor lo renderebbe falso per costruzione, perche' li' quell'API e' l'oggetto del test.
+	 */
+	struct FRTModuloDiTest
+	{
+		const TCHAR* Nome;
+		const TCHAR* CartellaRelativa;
+	};
+
+	const FRTModuloDiTest RTModuliDiTest[] = {
+		{ TEXT("RefactorTactics"),       TEXT("Source/RefactorTactics/Tests") },
+		{ TEXT("RefactorTacticsEditor"), TEXT("Source/RefactorTacticsEditor/Private/Tests") },
+	};
+
+	/** Il modulo runtime, per l'unico oracolo il cui soggetto e' quel modulo invece della forma dei file. */
+	const TCHAR* const RTModuloRuntime = TEXT("RefactorTactics");
+
+	/** Un sorgente di test con il suo contenuto: il soggetto comune degli oracoli di questo file. */
+	struct FRTSorgenteDiTest
+	{
+		FString Modulo;
+		FString Nome;
+		FString Testo;
+
+		/**
+		 * ⚠️ **Da #3036 il nome del file non identifica piu' il file da solo**: i moduli sono due, e nulla
+		 * vieta che lo stesso nome compaia in entrambi. Oggi nessuno lo fa —
+		 * `comm -12 <(find Source/RefactorTactics/Tests -name '*.cpp' -exec basename {} \; | sort) <(find
+		 * Source/RefactorTacticsEditor/Private/Tests -name '*.cpp' -exec basename {} \; | sort)` non risponde
+		 * niente (ricorsivo da #4061: la forma con `ls .../Tests/*.cpp` ora risponde vuoto per costruzione) — ma il giorno in cui accadesse, un rosso che nomina `Nome` manderebbe a cercare il difetto
+		 * nel file sbagliato. Ogni messaggio d'errore di questo file passa di qui invece che da `Nome`.
+		 */
+		FString Etichetta() const { return FString::Printf(TEXT("%s/%s"), *Modulo, *Nome); }
+	};
+
+	/**
+	 * Elenca e legge i sorgenti di `Tests/` che corrispondono a `Wildcard`, **una volta sola per wildcard**.
+	 *
+	 * ⚠️ Gli oracoli di questo file ispezionano lo stesso corpus, e prima di #2136 ne duplicavano enumerazione
+	 * e lettura carattere per carattere: ~198 letture sincrone in piu' a ogni suite, e soprattutto **due copie
+	 * della regola che definisce il soggetto**, da tenere allineate a mano. Chi allargasse lo scope di un
+	 * oracolo e non dell'altro non riceverebbe nessun segnale.
+	 *
+	 * 🔑 **Il wildcard e' un PARAMETRO e non una seconda funzione**, per la stessa ragione: #950 ha aggiunto un
+	 * oracolo sugli header, e copiare il corpo per cambiare `*.cpp` in `*.h` avrebbe ricreato esattamente la
+	 * duplicazione che #2136 aveva tolto — chi domani rendesse la scansione ricorsiva, o aggiungesse `.inl`,
+	 * dovrebbe ricordarsi di farlo due volte. E' il rilievo della code review di #950.
+	 *
+	 * ⛔ **La cache NON si invalida durante il processo**, ed e' un limite condiviso da tutti i consumatori: in
+	 * una sessione Editor lunga, chi modifica un file di `Tests/` e rilancia la suite **senza riavviare** viene
+	 * misurato sul testo letto la prima volta. Per una run headless — come girano i gate — il processo nasce e
+	 * muore con la run, quindi la finestra non esiste. Dichiarato qui invece di lasciarlo scoprire a chi
+	 * vedrebbe un verde su un difetto appena scritto.
+	 *
+	 * ⚠️ **Ritorna un RIFERIMENTO**: la copia per valore duplicava l'intero corpus a ogni chiamata, cioe' tre
+	 * volte per run sui `.cpp` — proprio la lettura che questa funzione esiste per evitare.
+	 *
+	 * 🔑 **Legge TUTTI i moduli di `RTModuliDiTest`, e la selezione e' del consumatore** (#3036). Il filtro
+	 * per modulo sta in `RTSorgentiDelModulo` e lo usa il solo oracolo la cui proprieta' dipende dal modulo:
+	 * mettere il filtro qui avrebbe richiesto due funzioni, cioe' la duplicazione che #2136 aveva tolto.
+	 */
+	const TArray<FRTSorgenteDiTest>& RTLeggiSorgentiDeiTest(FAutomationTestBase& Test, const TCHAR* Wildcard)
+	{
+		static TMap<FString, TArray<FRTSorgenteDiTest>> Cache;
+		if (const TArray<FRTSorgenteDiTest>* Gia = Cache.Find(Wildcard))
+		{
+			return *Gia;
+		}
+
+		TArray<FRTSorgenteDiTest> Sorgenti;
+		for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
+		{
+			const FString Cartella = FPaths::Combine(FPaths::ProjectDir(), Modulo.CartellaRelativa);
+			// #4061: `Tests/` si divide in sottocartelle che rispecchiano il codice, quindi la lettura e' RICORSIVA.
+			// ⛔ Una `FindFiles` piatta leggerebbe solo i file rimasti in radice, e ogni oracolo di questo file
+			// passerebbe guardando quasi niente. `Nome` resta relativo a `Cartella` (`Combat/RTHexCombatTests.cpp`).
+			TArray<FString> Nomi;
+			IFileManager::Get().FindFilesRecursive(Nomi, *Cartella, Wildcard, /*Files*/ true, /*Dirs*/ false);
+			for (FString& Pieno : Nomi) { FPaths::MakePathRelativeTo(Pieno, *(Cartella / TEXT(""))); }
+			Nomi.Sort();
+
+			Sorgenti.Reserve(Sorgenti.Num() + Nomi.Num());
+			for (const FString& Nome : Nomi)
+			{
+				FString Testo;
+				if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+				{
+					Test.AddError(FString::Printf(TEXT("%s/%s non si legge"), Modulo.Nome, *Nome));
+					continue;
+				}
+				Sorgenti.Add({ Modulo.Nome, Nome, MoveTemp(Testo) });
+			}
+		}
+		return Cache.Add(Wildcard, MoveTemp(Sorgenti));
+	}
+
+	/**
+	 * I sorgenti di **un solo** modulo, per l'oracolo la cui proprieta' e' relativa al modulo.
+	 *
+	 * ⚠️ Ritorna puntatori dentro l'array della cache, che vive per tutto il processo: la scelta e' la stessa
+	 * del riferimento restituito sopra — non duplicare il corpus — e vale finche' nessuno invalida la cache,
+	 * cosa che questo file non fa (vedi il limite dichiarato in `RTLeggiSorgentiDeiTest`).
+	 */
+	TArray<const FRTSorgenteDiTest*> RTSorgentiDelModulo(const TArray<FRTSorgenteDiTest>& Tutti, const TCHAR* Modulo)
+	{
+		TArray<const FRTSorgenteDiTest*> Filtrati;
+		for (const FRTSorgenteDiTest& Sorgente : Tutti)
+		{
+			if (Sorgente.Modulo == Modulo)
+			{
+				Filtrati.Add(&Sorgente);
+			}
+		}
+		return Filtrati;
+	}
+
+	/**
+	 * **Ogni modulo contribuisce almeno un `.cpp` al corpus.**
+	 *
+	 * ⛔ **E' l'anti-vacuita' che #3036 richiede, ed e' il difetto stesso nella forma in cui si
+	 * ripresenterebbe.** Un `Sorgenti.Num() > 0` complessivo e' verde anche quando un modulo sparisce: se
+	 * domani la cartella del modulo Editor cambiasse nome, `FindFiles` non troverebbe niente li', i tre
+	 * oracoli tornerebbero a guardare meta' del codice e **nessuno suonerebbe**. E' esattamente lo stato che
+	 * questa issue ha corretto.
+	 *
+	 * ⚠️ **Vale per i `.cpp` e non per gli header**, e la differenza e' misurata: al 2026-09-18
+	 * `ls Source/RefactorTacticsEditor/Private/Tests/*.h` non risponde niente — il modulo Editor non ha
+	 * header di test. Pretenderlo renderebbe rosso un oracolo su un corpus legittimo.
+	 */
+	bool RTOgniModuloHaSorgenti(FAutomationTestBase& Test, const TArray<FRTSorgenteDiTest>& Sorgenti)
+	{
+		bool bTutti = true;
+		for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
+		{
+			const int32 Quanti = RTSorgentiDelModulo(Sorgenti, Modulo.Nome).Num();
+			if (Quanti == 0)
+			{
+				bTutti = false;
+				Test.AddError(FString::Printf(
+					TEXT("il modulo %s non ha contribuito nessun sorgente: la cartella attesa e' %s. ")
+					TEXT("Finche' resta cosi' questo oracolo guarda meta' del codice e resta verde — ")
+					TEXT("e' il difetto di #3036, non un dettaglio di enumerazione."),
+					Modulo.Nome, Modulo.CartellaRelativa));
+			}
+		}
+		return bTutti;
+	}
+}
+
+/**
+ * **In ogni file di `Tests/`, la guardia `WITH_DEV_AUTOMATION_TESTS` si chiude in FONDO al file.**
+ *
+ * 🔴 **Questo oracolo esiste perche' il difetto e' successo DUE VOLTE in due giorni, per mano diversa.**
+ * `RTFrontendNavigationTests.cpp` (2026-08-23, PR #1292) e `RTScenarioRunnerTests.cpp` (2026-08-24, PR #1312)
+ * hanno entrambi ricevuto test nuovi scritti **dopo** l'`#endif`, che stava a meta' di un file da 1300 righe.
+ * Non e' distrazione: chi aggiunge un test lo scrive **in fondo**, che e' il posto naturale — e li' la guardia
+ * era gia' chiusa.
+ *
+ * ⚠️ **E nessuno se ne accorge, perche' solo la SHIPPING lo rivela.** In Editor e in Development
+ * `WITH_DEV_AUTOMATION_TESTS` vale 1: il codice fuori dalla guardia compila, i test girano, la suite e' verde.
+ * In Shipping vale 0 — gli helper del namespace anonimo spariscono, i test restano, e la build muore con
+ * `C3861: identificatore non trovato`. Il primo dei due casi e' sopravvissuto a un merge, il secondo a un
+ * altro, e li ha trovati il gate `G1` di release, che e' l'unica cosa che builda in Shipping.
+ *
+ * ∴ l'oracolo non guarda il comportamento del gioco: guarda **la forma dei file di test**, che e' cio' che
+ * si e' rotto. Costa una lettura di directory e fallisce **subito**, invece che alla prossima build di
+ * release.
+ *
+ * ⚠️ **Se non trova i sorgenti FALLISCE**, e non e' pignoleria: un oracolo che perde il proprio soggetto e
+ * resta verde e' peggio di un oracolo assente. Il test e' `EditorContext`, quindi gira dove i sorgenti ci
+ * sono per costruzione — a partire da questo file, che e' uno dei suoi soggetti.
+ *
+ * ---
+ *
+ * 🔑 **L'UNITA' DI MISURA, scelta invece che lasciata a due letture (#950).** Il DoD di #923 ne portava due
+ * incompatibili nello stesso elenco: *«nessuna **riga** di `Tests/` resta fuori»* accanto a *«nessun file ha
+ * righe dopo il proprio `#endif`»*. La prima misura **ogni riga della cartella**, header compresi; la seconda
+ * misura **i `.cpp`**. Fino a oggi nessuna delle due era dichiarata vincente, e la prossima misura sarebbe
+ * stata ambigua quanto quella precedente.
+ *
+ * ✅ **Vince la seconda, e questo oracolo e' la sua forma eseguibile**: il soggetto sono i **`.cpp`** di
+ * `Tests/`; la regola e' che la guardia, dove c'e', chiuda in fondo al file.
+ *
+ * ⛔ **Gli header sono FUORI dal criterio per una ragione misurata, non per comodita'.** I `.cpp` li includono
+ * **fuori** dalla propria guardia — campionato su `RTHexOccupancyTests.cpp:4,18`, `RTShowcaseScenarioTests.cpp:2`,
+ * `RTVeilTests.cpp:14`, `RTStress4v4Tests.cpp:14`, dove l'`#if` apre rispettivamente alle righe 20, 40, 21, 31.
+ * ∴ il contenuto di un header di fixture **e' compilato in ogni target**, Shipping inclusa, e racchiuderlo in
+ * `#if WITH_DEV_AUTOMATION_TESTS` non lo proteggerebbe da niente che oggi lo minacci: lo renderebbe vuoto
+ * proprio dove serve che compili. Un header e' quindi tenuto a una regola **diversa** — compilare senza la
+ * macro — non alla stessa.
+ *
+ * ⚠️ **E la regola diversa non e' «nessuna regola»**: cio' che un header non puo' fare e' **dichiarare un
+ * test**, perche' quella dichiarazione sfuggirebbe a questo oracolo pur essendo esattamente il difetto che
+ * cerca. Quella meta' e' `RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest`, in fondo a questo file.
+ *
+ * ⚠️ **Resta a giudizio una cosa sola, e va detta**: che un header non usi un simbolo che in Shipping non
+ * esiste. Oggi il caso limite e' `RTWidgetAssetTestHelpers.h`, che include `Misc/AutomationTest.h` e prende
+ * un `FAutomationTestBase&` **senza guardia** — e compila perche' `class FAutomationTestBase`
+ * (`Core/Public/Misc/AutomationTest.h:1594`, UE 5.8) sta **fuori** da `WITH_AUTOMATION_TESTS`. Regge su una
+ * proprieta' dell'Engine, non su una scelta di questo repository: se un aggiornamento la spostasse dentro la
+ * guardia, quel file romperebbe la Shipping e nessun oracolo qui lo vedrebbe — solo `G1`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestGuardClosesAtEndOfFileTest,
+	"RefactorTactics.Meta.TestGuardClosesAtEndOfFile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
+{
+	const TArray<FRTSorgenteDiTest>& Sorgenti = RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"));
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
+	{
+		return false;
+	}
+	if (!RTOgniModuloHaSorgenti(*this, Sorgenti))
+	{
+		return false;
+	}
+
+	const FString Guardia = TEXT("#endif // WITH_DEV_AUTOMATION_TESTS");
+	int32 ConGuardia = 0;
+	int32 Difettosi = 0;
+
+	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
+	{
+		const int32 Pos = Sorgente.Testo.Find(Guardia, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		if (Pos == INDEX_NONE)
+		{
+			// Un file senza la guardia non e' un difetto di questo oracolo: non tutti i file di `Tests/` sono
+			// suite di automation — ci sono fixture e helper condivisi che vivono fuori dalla macro.
+			continue;
+		}
+
+		++ConGuardia;
+		const FString Coda = Sorgente.Testo.Mid(Pos + Guardia.Len()).TrimStartAndEnd();
+		if (!Coda.IsEmpty())
+		{
+			++Difettosi;
+			AddError(FString::Printf(
+				TEXT("%s: dopo l'#endif della guardia restano %d caratteri di codice. In Shipping quel codice ")
+				TEXT("resta senza gli helper che la guardia racchiude, e la build non compila. L'#endif va ")
+				TEXT("in fondo al file."), *Sorgente.Etichetta(), Coda.Len()));
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("file di test ispezionati: %d, di cui con la guardia: %d"),
+		Sorgenti.Num(), ConGuardia));
+
+	// La guardia anti-vacuita': se un giorno nessun file portasse piu' quella riga, questo test starebbe
+	// guardando il nulla e continuerebbe a passare.
+	TestTrue(TEXT("almeno un file porta la guardia"), ConGuardia > 0);
+	TestEqual(TEXT("nessun codice vive fuori dalla guardia"), Difettosi, 0);
+	return true;
+}
+
+/**
+ * **Nessun test del modulo RUNTIME chiama API che esistono solo `WITH_EDITOR`.**
+ *
+ * 🔴 **Anche questo oracolo esiste perche' il difetto e' successo DUE VOLTE**, e la seconda con l'avviso
+ * gia' scritto venti righe piu' su nello stesso file. `RTGrayboxFixtureTests.cpp` ha chiamato
+ * `RerunConstructionScripts` — che `Actor.h:3417` dichiara dentro `#if WITH_EDITOR` — prima con `#2072`,
+ * e poi di nuovo il 2026-09-02 con `#2094`.
+ *
+ * ⚠️ **E nessuna suite lo rivela, perche' `rt-suite` gira sul target EDITOR.** Li' `WITH_EDITOR` vale 1:
+ * il file compila, i test girano, 1819 su 1819 sono verdi. Il target **gioco** — quello che `BuildCookRun`
+ * costruisce — non viene toccato da nessuna misura quotidiana, e li' la build muore con
+ * `C2039: 'RerunConstructionScripts': non e' un membro`. La prima volta ha reso **nessun pacchetto
+ * costruibile**; la seconda l'ha scoperta il packaging di `#1804`, per caso.
+ *
+ * ∴ un commento non e' un gate: l'avviso c'era, ed e' stato riletto e riscritto da chi ha rifatto lo stesso
+ * errore. Questo lo trova alla prima `rt-suite` invece che al prossimo pacchetto.
+ *
+ * ⛔ **Cerca la forma di CHIAMATA (`->Nome(`), non il nome**: il nome compare nei commenti che spiegano la
+ * trappola — compresi quelli di questo test — e un oracolo che li contasse sarebbe rosso per sempre,
+ * quindi disattivato entro un giorno.
+ *
+ * ---
+ *
+ * 🔴 **I TRE LIMITI, trovati in code review (#2136) e dichiarati invece che nascosti.** Contano perche'
+ * questo test e' facile da leggere come *"nessun test runtime usa API di solo editor"*, e non e' cio' che
+ * misura:
+ *
+ * 1. **La lista ha UN nome, e la sua classe di difetti ne ha almeno DUE.** L'altro e' `GetBoolMetaData`
+ *    (`UObject/Class.h:256`, sotto `#if WITH_METADATA`): il 2026-08-29 sei asserzioni in tre file hanno
+ *    fatto fallire `RefactorTactics Win64 Development` esattamente cosi' — lo registra il gate `G1` di
+ *    `docs/roadmap/v0.1-definition-of-done.md`, che conclude *"nessun oracolo copre ancora questa forma"*.
+ *    ⛔ **E non e' aggiungibile qui**, non per pigrizia: quelle sei chiamate esistono ancora, corrette e
+ *    racchiuse in `#if WITH_METADATA`. Una ricerca testuale non distingue una chiamata guardata da una
+ *    nuda, quindi aggiungere il nome renderebbe il test rosso su codice giusto — e un oracolo rosso su
+ *    codice giusto viene spento entro un giorno. Distinguerle vuol dire leggere i `#if`, cioe' un parser
+ *    del preprocessore: piu' di quanto questo oracolo sia.
+ *    ∴ **cio' che copre davvero quella forma resta `G1`**, cioe' buildare il target gioco. Questo test
+ *    riduce la frequenza del difetto noto, non la classe.
+ * 2. **Vede solo `->Nome(`.** `Fixture.RerunConstructionScripts()`, `(*Ptr).RerunConstructionScripts()`,
+ *    una chiamata non qualificata da dentro un `AActor`, o anche solo uno spazio prima della parentesi,
+ *    passano — e rompono il target gioco allo stesso identico modo. E' il prezzo dichiarato del punto
+ *    precedente: allargare il pattern lo avvicina al nome nudo, che e' rosso per sempre.
+ * 3. **Guarda `Source/RefactorTactics/Tests` e le sue sottocartelle** (ricorsivo da #4061). Il difetto pero' non e' dei test: e' del
+ *    **modulo runtime**, e la stessa chiamata in `World/`, `Map/` o `Unit/` produce lo stesso pacchetto
+ *    impossibile da costruire. L'oracolo sta all'altitudine dei due file che si sono rotti, non a quella
+ *    del guasto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRuntimeTestsAvoidEditorOnlyApiTest,
+	"RefactorTactics.Meta.RuntimeTestsAvoidEditorOnlyApi",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
+{
+	// ⛔ **Il SOLO modulo runtime, e non e' il perimetro dimenticato di #3036: e' la definizione.** Gli altri
+	// tre oracoli di questo file hanno allargato il proprio soggetto a entrambi i moduli perche' misurano la
+	// forma dei file, che non dipende dal modulo. Questo misura *«i test del RUNTIME non chiamano API che
+	// esistono solo `WITH_EDITOR`»*: nel modulo Editor quell'API e' l'oggetto del test, quindi guardarlo
+	// renderebbe l'oracolo rosso su codice corretto — falso per costruzione, cioe' spento entro un giorno.
+	const TArray<FRTSorgenteDiTest>& Tutti = RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"));
+	const TArray<const FRTSorgenteDiTest*> Sorgenti = RTSorgentiDelModulo(Tutti, RTModuloRuntime);
+
+	// ⚠️ Se non trova i sorgenti FALLISCE: un oracolo che perde il proprio soggetto e resta verde e' peggio
+	// di un oracolo assente. Stessa disciplina del test qui sopra — e qui il filtro per modulo aggiunge un
+	// modo di perderlo che prima non esisteva, se la cartella del runtime cambiasse nome.
+	if (!TestTrue(TEXT("i sorgenti dei test del runtime sono leggibili"), Sorgenti.Num() > 0))
+	{
+		return false;
+	}
+
+	// La lista e' corta di proposito: ci sta cio' che ha gia' morso, non tutto cio' che potrebbe.
+	// `Actor.h:3417` per il primo — se un giorno se ne aggiunge un altro, si aggiunge qui con la sua storia.
+	// ⛔ Perche' `GetBoolMetaData` NON e' qui, vedi il punto 1 del docstring: non e' una dimenticanza.
+	const TCHAR* SoloEditor[] = { TEXT("RerunConstructionScripts") };
+
+	// 🔑 **Il controllo POSITIVO, che il test gemello ha e questo non aveva.** Li' e' `ConGuardia > 0`; qui
+	// non puo' esserlo, perche' il conteggio che questo test vuole e' **zero** — e uno zero non distingue
+	// "nessuno chiama quell'API" da "il pattern non sa piu' riconoscerla". Un rename lato motore, o una
+	// mano sulla `Printf` qui sotto, renderebbero l'oracolo cieco **e verde**. Una riga campione lo
+	// falsifica: se smette di corrispondere, il test e' rosso prima di poter mentire.
+	for (const TCHAR* Api : SoloEditor)
+	{
+		const FString Campione = FString::Printf(TEXT("\tAttore->%s();"), Api);
+		const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
+		if (!TestTrue(FString::Printf(TEXT("il pattern riconosce la forma che cerca (%s)"), Api),
+			Campione.Contains(Chiamata, ESearchCase::CaseSensitive)))
+		{
+			return false;
+		}
+	}
+
+	int32 Difettosi = 0;
+	for (const FRTSorgenteDiTest* Sorgente : Sorgenti)
+	{
+		for (const TCHAR* Api : SoloEditor)
+		{
+			const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
+			if (Sorgente->Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
+			{
+				++Difettosi;
+				AddError(FString::Printf(
+					TEXT("%s chiama %s, che esiste solo WITH_EDITOR: il target gioco non compilera' e ")
+					TEXT("nessun pacchetto sara' costruibile. Usa OnConstruction(GetTransform())."),
+					*Sorgente->Etichetta(), Api));
+			}
+		}
+	}
+
+	TestEqual(TEXT("nessun test runtime chiama API di solo editor"), Difettosi, 0);
+	return true;
+}
+
+
+namespace
+{
+	/** Una funzione libera trovata in un namespace anonimo: `Nome(tipo,tipo)` e dove sta. */
+	struct FRTAnonymousSignature
+	{
+		/** La chiave del confronto: senza spazi, cosi' `const UWidget *` e `const UWidget*` coincidono. */
+		FString Key;
+		/** La stessa firma come l'ha scritta l'autore: e' cio' che va nel messaggio d'errore. */
+		FString Readable;
+		FString File;
+		int32 Line = 0;
+	};
+
+	/** Le parole che aprono una parentesi senza essere una definizione di funzione. */
+	bool RTIsKeyword(const FString& Name)
+	{
+		static const TCHAR* const Words[] = {
+			TEXT("if"), TEXT("for"), TEXT("while"), TEXT("switch"), TEXT("return"), TEXT("sizeof"),
+			TEXT("catch"), TEXT("do"), TEXT("else"), TEXT("TEXT"), TEXT("check"), TEXT("ensure"),
+			TEXT("NSLOCTEXT"), TEXT("LOCTEXT")
+		};
+		for (const TCHAR* const Word : Words)
+		{
+			if (Name == Word)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * I soli TIPI dei parametri, senza i loro nomi: e' cio' che decide l'overload, ed e' quindi cio' che
+	 * decide la collisione. `const`, `*` e `&` restano — due firme che differiscono li' sono overload diversi.
+	 *
+	 * ⚠️ **Il nome del parametro si toglie anche quando `*` o `&` gli e' incollato.** `const TCHAR *Path` e
+	 * `const TCHAR* Path` sono la **stessa** firma per il compilatore: senza questo, la prima produceva la
+	 * chiave `constTCHAR*Path` e la seconda `constTCHAR*`, e due file scritti nei due stili collidevano in
+	 * build restando verdi qui.
+	 *
+	 * ⛔ **Non gestisce gli argomenti di default**, ed e' un limite dichiarato: `const TCHAR* Id = TEXT("x")`
+	 * finisce nella chiave col proprio valore, quindi la stessa funzione dichiarata con e senza default da'
+	 * due chiavi. Toglierli richiede di riconoscere una espressione arbitraria dopo `=`, cioe' piu' di quanto
+	 * questo oracolo sia. Misurato sul corpus del 2026-09-05: **zero** definizioni in namespace anonimo con
+	 * argomenti di default.
+	 */
+	FString RTParameterTypes(const FString& Parameters)
+	{
+		TArray<FString> Pieces;
+		Parameters.ParseIntoArray(Pieces, TEXT(","), /*InCullEmpty*/ true);
+
+		TArray<FString> Types;
+		for (FString Piece : Pieces)
+		{
+			Piece.TrimStartAndEndInline();
+
+			// Il nome del parametro e' l'ultimo identificatore. Si cerca all'indietro finche' i caratteri
+			// sono alfanumerici, e si toglie solo se davanti resta qualcosa — cioe' un tipo.
+			int32 Start = Piece.Len();
+			while (Start > 0)
+			{
+				const TCHAR Previous = Piece[Start - 1];
+				if (FChar::IsAlnum(Previous) || Previous == TCHAR('_'))
+				{
+					--Start;
+					continue;
+				}
+				break;
+			}
+			if (Start > 0 && Start < Piece.Len())
+			{
+				const TCHAR Before = Piece[Start - 1];
+				// `int32 Value` (spazio) ma anche `const TCHAR *Path` / `FString &Out`: in tutti e tre il
+				// nome e' un'appendice del tipo, non parte di esso.
+				if (Before == TCHAR(' ') || Before == TCHAR('*') || Before == TCHAR('&'))
+				{
+					Piece = Piece.Left(Start);
+				}
+			}
+
+			Piece.TrimStartAndEndInline();
+			Piece.ReplaceInline(TEXT(" "), TEXT(""));
+			Types.Add(Piece);
+		}
+		return FString::Join(Types, TEXT(","));
+	}
+
+	/**
+	 * La riga con il contenuto di `"..."`, `'...'` e dei COMMENTI sostituito da spazi.
+	 *
+	 * ⛔ **Le graffe dentro un letterale o un commento non sono graffe**, e ignorarlo falsa la profondita' per
+	 * tutto cio' che segue nel file. Misurato: prima di questa funzione **un solo** file del corpus derivava,
+	 * ed era `RTTestGuardTests.cpp` — cioe' questo, perche' i suoi docstring citano `namespace {` e
+	 * `TEXT('{')`. L'oracolo era **cieco sul proprio sorgente**, e verde.
+	 *
+	 * ⚠️ `bInBlockComment` attraversa le righe: un `/* ... *\/` che si apre e chiude altrove non lascia
+	 * graffe orfane dietro di se'.
+	 */
+	FString RTWithoutLiteralsAndComments(const FString& Line, bool& bInBlockComment)
+	{
+		FString Out;
+		Out.Reserve(Line.Len());
+		for (int32 Index = 0; Index < Line.Len(); ++Index)
+		{
+			const TCHAR Current = Line[Index];
+			const TCHAR Next = (Index + 1 < Line.Len()) ? Line[Index + 1] : TCHAR('\0');
+
+			if (bInBlockComment)
+			{
+				if (Current == TCHAR('*') && Next == TCHAR('/'))
+				{
+					bInBlockComment = false;
+					++Index;
+				}
+				continue;
+			}
+			if (Current == TCHAR('/') && Next == TCHAR('*'))
+			{
+				bInBlockComment = true;
+				++Index;
+				continue;
+			}
+			if (Current == TCHAR('/') && Next == TCHAR('/'))
+			{
+				break; // commento di riga: il resto non esiste
+			}
+			if (Current == TCHAR('"') || Current == TCHAR('\''))
+			{
+				// Il letterale diventa uno spazio: la riga resta allineata come lunghezza logica.
+				Out.AppendChar(TCHAR(' '));
+				for (++Index; Index < Line.Len(); ++Index)
+				{
+					if (Line[Index] == TCHAR('\\'))
+					{
+						++Index;
+						continue;
+					}
+					if (Line[Index] == Current)
+					{
+						break;
+					}
+				}
+				continue;
+			}
+			Out.AppendChar(Current);
+		}
+		return Out;
+	}
+
+	/**
+	 * Le righe di un sorgente che DICHIARANO un test, con il numero di riga di ciascuna.
+	 *
+	 * 🔑 **Il criterio e' «la riga, tolti letterali e commenti, comincia con una macro di dichiarazione».**
+	 * Tre scelte, tutte per non avere ne' falsi verdi ne' falsi rossi — e tutte e tre sono rilievi della code
+	 * review di #950 sulla prima stesura:
+	 *
+	 * 1. ⛔ **Toglie i commenti con `RTWithoutLiteralsAndComments`, non guardando come la riga COMINCIA.** Un
+	 *    controllo per prefisso e' cieco in due direzioni opposte: una dichiarazione preceduta sulla stessa
+	 *    riga da un commento di blocco gia' chiuso verrebbe scartata — **falso verde sul difetto che l'oracolo
+	 *    cerca** — e una riga dentro un docstring scritta senza l'asterisco di continuazione verrebbe contata
+	 *    — **falso rosso su codice giusto**. L'helper porta `bInBlockComment` fra le righe, che e' l'unico
+	 *    modo di saperlo.
+	 * 2. ⛔ **`ESearchCase::CaseSensitive` esplicito.** `FString::StartsWith` e `Contains` hanno default
+	 *    `ESearchCase::IgnoreCase` (`Containers/UnrealString.h.inl:1505` e `:1177`, UE 5.8): senza, un
+	 *    `Implement_RTProbe(...)` con la parola `automation_test` accanto sarebbe una dichiarazione. Gli altri
+	 *    oracoli di questo file lo passano esplicito, e questo ora fa lo stesso.
+	 * 3. 🔑 **Copre anche le macro SPEC**, che dichiarano un test **senza** il prefisso `IMPLEMENT_`:
+	 *    `DEFINE_SPEC` e `BEGIN_DEFINE_SPEC` (`Misc/AutomationTest.h:4339` e `:4346`). Misurato il 2026-09-12:
+	 *    `grep -rc "DEFINE_SPEC" Source/` non trova nulla, quindi e' copertura di una forma **non ancora
+	 *    usata** — cioe' quella che nessuno penserebbe a controllare.
+	 *
+	 * ⚠️ **`IMPLEMENT_` da solo non basta**, e non e' teoria: il repository ha `IMPLEMENT_MODULE` e
+	 * `IMPLEMENT_PRIMARY_GAME_MODULE`, che non dichiarano test. Il secondo controllo su `AUTOMATION_TEST` e'
+	 * cio' che li lascia passare.
+	 */
+	void RTDichiarazioniDiTest(const FRTSorgenteDiTest& Sorgente, TArray<int32>& OutRighe)
+	{
+		static const TCHAR* const Macro[] = {
+			TEXT("IMPLEMENT_"), TEXT("DEFINE_SPEC"), TEXT("BEGIN_DEFINE_SPEC")
+		};
+
+		TArray<FString> Righe;
+		Sorgente.Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+
+		bool bInBlockComment = false;
+		for (int32 Indice = 0; Indice < Righe.Num(); ++Indice)
+		{
+			const FString Nuda = RTWithoutLiteralsAndComments(Righe[Indice], bInBlockComment).TrimStartAndEnd();
+			for (const TCHAR* const Prefisso : Macro)
+			{
+				if (!Nuda.StartsWith(Prefisso, ESearchCase::CaseSensitive))
+				{
+					continue;
+				}
+				if (Nuda.StartsWith(TEXT("IMPLEMENT_"), ESearchCase::CaseSensitive)
+					&& !Nuda.Contains(TEXT("AUTOMATION_TEST"), ESearchCase::CaseSensitive))
+				{
+					continue;
+				}
+				OutRighe.Add(Indice + 1);
+				break;
+			}
+		}
+	}
+
+	/**
+	 * Vero se il testo davanti al nome somiglia a un **tipo di ritorno**, non a un pezzo di espressione.
+	 *
+	 * ⛔ **Senza questo, `return Foo(x)` spezzata a capo e' indistinguibile da una definizione.** Misurate sul
+	 * corpus: `return AnchorCellCenter(Ref.Cell)` e `return BlueprintPropertyCarriesTexture(AsMap->KeyProp)`
+	 * venivano estratte come firme. Due file con la stessa continuazione avrebbero reso il gate **rosso su
+	 * codice giusto** — cioe' spento entro un giorno, che e' il modo noto in cui un gate muore.
+	 */
+	bool RTLooksLikeReturnType(const FString& Prefix)
+	{
+		const FString Trimmed = Prefix.TrimStartAndEnd();
+		if (Trimmed.IsEmpty())
+		{
+			return false;
+		}
+		static const TCHAR* const Forbidden[] = {
+			TEXT("return"), TEXT("="), TEXT(","), TEXT("||"), TEXT("&&"),
+			TEXT("+"), TEXT("?"), TEXT(":"), TEXT("!")
+		};
+		for (const TCHAR* const Word : Forbidden)
+		{
+			if (Trimmed.Contains(Word, ESearchCase::CaseSensitive))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Estrae le firme delle funzioni libere definite nei namespace anonimi di un sorgente.
+	 *
+	 * 🔑 **Una funzione libera sta a profondita' ESATTAMENTE 1**, cioe' direttamente dentro il namespace
+	 * anonimo; un membro di `struct` sta a 2 o piu'. E' la regola che sostituisce un contatore di
+	 * `struct`/`class`, e non e' una semplificazione estetica: quel contatore non tornava a zero ne' dopo una
+	 * struct **annidata** ne' dopo una scritta **su una riga sola** (`Delta == 0`, quindi nessun decremento),
+	 * e da li' in poi l'estrattore restava cieco — verde, e senza dirlo. Misurate due occorrenze reali:
+	 * `FRTProbeUnit` in `RTBotStalemateProbeTests.cpp` nascondeva `MakeProbeRoster()`, `FRTBasinRow` in
+	 * `RTShowcaseScenarioTests.cpp` nascondeva `BasinRows()`.
+	 *
+	 * ⚠️ Riconosce **entrambi** gli stili di graffa. Quello di questo repository e' `namespace` e `{` su righe
+	 * diverse — **161 file su 200**, e **zero** usano `namespace {` in linea: quel ramo esiste per non
+	 * dipendere da una convenzione, non perche' sia esercitato dal corpus.
+	 */
+	void RTExtractAnonymousSignatures(const FString& FileName, const FString& Text,
+		TArray<FRTAnonymousSignature>& Out)
+	{
+		TArray<FString> Lines;
+		Text.ParseIntoArrayLines(Lines, /*InCullEmpty*/ false);
+
+		bool bInsideAnonymous = false;
+		bool bInBlockComment = false;
+		int32 Depth = 0;
+
+		for (int32 Index = 0; Index < Lines.Num(); ++Index)
+		{
+			// Letterali e commenti via PRIMA di qualunque conteggio: vedi `RTWithoutLiteralsAndComments`.
+			const FString Line = RTWithoutLiteralsAndComments(Lines[Index], bInBlockComment).TrimStartAndEnd();
+
+			if (!bInsideAnonymous)
+			{
+				const bool bSameLine = (Line == TEXT("namespace {"));
+				bool bAllman = false;
+				if (!bSameLine && Line == TEXT("namespace") && Index + 1 < Lines.Num())
+				{
+					bool bLookahead = bInBlockComment;
+					bAllman = RTWithoutLiteralsAndComments(Lines[Index + 1], bLookahead).TrimStartAndEnd()
+						== TEXT("{");
+				}
+				if (bSameLine || bAllman)
+				{
+					bInsideAnonymous = true;
+					Depth = 1;
+					if (bAllman)
+					{
+						++Index;
+					}
+				}
+				continue;
+			}
+
+			int32 Delta = 0;
+			for (const TCHAR Character : Line)
+			{
+				Delta += (Character == TCHAR('{')) ? 1 : ((Character == TCHAR('}')) ? -1 : 0);
+			}
+
+			// La profondita' PRIMA della riga: la firma di una funzione libera si trova a 1, sia che la
+			// graffa apra sulla stessa riga sia che apra sotto.
+			const int32 DepthBefore = Depth;
+			Depth += Delta;
+			if (Depth <= 0)
+			{
+				bInsideAnonymous = false;
+				continue;
+			}
+			if (DepthBefore != 1 || Line.IsEmpty() || Line.StartsWith(TEXT("#")))
+			{
+				continue;
+			}
+
+			int32 Open = INDEX_NONE;
+			if (!Line.FindChar(TCHAR('('), Open) || Open == 0)
+			{
+				continue;
+			}
+			const int32 Close = Line.Find(TEXT(")"), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Close < Open)
+			{
+				continue;
+			}
+
+			// Dopo la parentesi chiusa: solo la graffa o niente. Una chiamata finisce con `;` ed esce di qui.
+			const FString Tail = Line.Mid(Close + 1).TrimStartAndEnd();
+			if (!Tail.IsEmpty() && Tail != TEXT("{"))
+			{
+				continue;
+			}
+
+			// Il nome e' l'identificatore che precede la parentesi; davanti deve esserci un tipo di ritorno.
+			int32 Start = Open;
+			while (Start > 0)
+			{
+				const TCHAR Previous = Line[Start - 1];
+				if (FChar::IsAlnum(Previous) || Previous == TCHAR('_'))
+				{
+					--Start;
+					continue;
+				}
+				break;
+			}
+			if (Start == Open || Start == 0 || !RTLooksLikeReturnType(Line.Left(Start)))
+			{
+				continue;
+			}
+
+			const FString Name = Line.Mid(Start, Open - Start);
+			if (Name.IsEmpty() || RTIsKeyword(Name))
+			{
+				continue;
+			}
+
+			const FString Parameters = Line.Mid(Open + 1, Close - Open - 1);
+			FRTAnonymousSignature Found;
+			Found.Key = FString::Printf(TEXT("%s(%s)"), *Name, *RTParameterTypes(Parameters));
+			Found.Readable = FString::Printf(TEXT("%s(%s)"), *Name, *Parameters.TrimStartAndEnd());
+			Found.File = FileName;
+			Found.Line = Index + 1;
+			Out.Add(MoveTemp(Found));
+		}
+	}
+}
+
+/**
+ * **Nessuna funzione libera in namespace anonimo ha nome E firma uguali a una di un altro file.**
+ *
+ * 🔴 **Questo oracolo esiste perche' il difetto ha fermato `main` il 2026-09-05** (#2397): `StandStill(ARTUnit*)`
+ * era definita in namespace anonimo sia in `RTStatusTests.cpp` sia in `RTUnbalancedProneTests.cpp`. In C++ e'
+ * legale — due unita' di traduzione separate, internal linkage — ma la **unity build** le concatena nello
+ * stesso blob, e li' due definizioni identiche sono `C2084`, piu' una cascata di `C2264` su ogni chiamata
+ * (tredici, quel giorno).
+ *
+ * 🔑 **Il compilatore, nella build di chi introduce il difetto, e' cieco per costruzione.**
+ * `bUseAdaptiveUnityBuild` e' `true` di default e UBT usa `git status` per il working set: il file che stai
+ * modificando viene **escluso dal blob**, quindi compila. Esplode per il prossimo, il cui working set e'
+ * diverso. ∴ non e' che «il raggruppamento cambia»: e' che l'unica build in cui il difetto sarebbe visibile
+ * e' quella che nessuno esegue.
+ *
+ * ⚠️ **E la collisione dipende dal blob, non solo dai nomi**: al 2026-09-05 `RTStatusTests` sta nel blob 19 e
+ * `RTUnbalancedProneTests` nel 20 — le due `StandStill` **non** collidere­bbero oggi. Un difetto armato che
+ * non spara resta un difetto: e' il motivo per cui l'oracolo e' statico e non «prova a compilare».
+ *
+ * ---
+ *
+ * 🔑 **Le TRE condizioni, che sono la specifica.** Una `C2084` le richiede tutte insieme, e un gate che ne
+ * verificasse meno sarebbe rosso su codice giusto — cioe' spento entro un giorno:
+ *
+ * 1. **stesso modulo** — l'unity blob non attraversa i moduli. ⚠️ **Da #3036 NON e' piu' garantita dal
+ *    soggetto**: il corpus porta entrambi i moduli, e la condizione e' diventata un raggruppamento
+ *    esplicito nel loop. Due omonime, una per modulo, restano legali e non devono produrre un rosso.
+ * 2. **stessa firma** — nome **e** tipi dei parametri. Due omonime con parametri diversi sono **overload
+ *    legali**: confrontare i soli nomi darebbe **25** candidati contro **5** firme reali (misurato).
+ * 3. **funzione libera** — i membri di `struct`/`class` non collidono mai fra loro.
+ *
+ * ---
+ *
+ * ⚠️ **I SETTE LIMITI, misurati e dichiarati invece che scoperti dopo.** Questo test e' facile da leggere come
+ * *«nessuna collisione di unity build»*, e non e' cio' che misura:
+ *
+ * 1. **Guarda le cartelle `Tests`, non tutto il modulo.** L'unity blob contiene **anche** `Turn/`, `Map/`,
+ *    `Unit/`: un helper di test e uno di produzione con la stessa firma collidono allo stesso modo.
+ *    Allargare il perimetro significa cambiare `RTModuliDiTest`, che ha altri consumatori.
+ * 2. ⌫ **«Il modulo `RefactorTacticsEditor` non e' coperto» era vero fino a #3036**, e quella riga stava
+ *    qui a dichiararlo: il modulo poteva collidere con se stesso e nessun oracolo guardava. Ora e' nel
+ *    corpus, raggruppato per modulo. Cio' che resta scoperto e' il punto 1 — i sorgenti **fuori** dalle
+ *    cartelle `Tests`, in entrambi i moduli.
+ * 3. **Solo `*.cpp`.** ⛔ **Gli header di `Tests/` sono fuori, e sono quindici** — compreso
+ *    `RTWidgetAssetTestHelpers.h`, nato con questo stesso oracolo. Una funzione **non** `inline` in un header
+ *    incluso da due `.cpp` e' una ridefinizione nello stesso blob: e' la stessa `C2084` e questo test non la
+ *    vede. Chi aggiunge helper in header li scriva `inline` o in un namespace nominato.
+ * 4. **Solo funzioni.** Variabili, costanti e tipi omonimi seguono la stessa regola e non sono coperti.
+ * 5. **Solo firme su UNA riga**, e non sono poche: misurate il 2026-09-05, **60** definizioni su ~730 stanno
+ *    su piu' righe — l'**8%**, e sono gli helper piu' grossi. Il numero sta qui invece di *«sono poche»*
+ *    perche' un limite non misurato non e' un limite dichiarato.
+ * 6. **Le definizioni con il corpo sulla stessa riga** (`int32 Foo() { return 1; }`) non sono viste: l'ultima
+ *    `)` cade dentro il corpo, quindi la coda non e' ne' vuota ne' `{`. Sono i nomi corti e generici, cioe'
+ *    proprio quelli che un secondo file ricrea.
+ * 7. **Le funzioni `static` a scope di file** hanno anch'esse internal linkage e collidono identicamente, ma
+ *    stanno fuori da ogni `namespace {` e questo estrattore non le guarda. Misurate: **5** nel corpus.
+ *
+ * ⛔ **La guardia anti-vacuita' e' obbligatoria qui piu' che altrove**, perche' il conteggio atteso e' **zero**
+ * — e uno zero non distingue *«non ci sono collisioni»* da *«l'estrattore non riconosce piu' un namespace
+ * anonimo»*. Il campione sintetico porta quattro casi: due firme che **devono** essere estratte e due esche
+ * che **non** devono esserlo (una continuazione `return`, un membro di `struct` scritta su una riga sola).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnonymousHelpersDoNotCollideTest,
+	"RefactorTactics.Meta.AnonymousHelpersDoNotCollideUnderUnity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
+{
+	// ⛔ Il controllo POSITIVO viene prima di tutto: se l'estrattore e' cieco, il conteggio zero piu' sotto
+	// sarebbe verde e falso. Il campione porta lo stile di graffa di questo repository, che e' il tranello.
+	{
+		const FString Sample =
+			TEXT("namespace\n")
+			TEXT("{\n")
+			TEXT("\tstruct FRTSampleRecord { int32 Id; int32 Team; };\n")
+			TEXT("\n")
+			TEXT("\tvoid RTSampleToExtract(int32 Value)\n")
+			TEXT("\t{\n")
+			TEXT("\t}\n")
+			TEXT("\n")
+			TEXT("\tint32 RTSampleWithContinuation()\n")
+			TEXT("\t{\n")
+			TEXT("\t\treturn RTSampleToExtract(0)\n")
+			TEXT("\t\t\t+ 1;\n")
+			TEXT("\t}\n")
+			TEXT("}\n");
+
+		TArray<FRTAnonymousSignature> Extracted;
+		RTExtractAnonymousSignatures(TEXT("<sample>"), Sample, Extracted);
+
+		// Due firme libere; la struct su una riga sola non deve congelare nulla, e il `return` non e' una
+		// definizione. E' il caso che una prima stesura sbagliava in tre modi diversi.
+		if (!TestEqual(TEXT("il campione produce due firme libere"), Extracted.Num(), 2))
+		{
+			for (const FRTAnonymousSignature& Signature : Extracted)
+			{
+				AddError(FString::Printf(TEXT("estratta inattesa: %s"), *Signature.Key));
+			}
+			return false;
+		}
+		if (!TestEqual(TEXT("la prima e' la funzione libera dopo la struct di una riga"),
+			Extracted[0].Key, FString(TEXT("RTSampleToExtract(int32)"))))
+		{
+			return false;
+		}
+		if (!TestEqual(TEXT("la seconda e' quella con la continuazione, non il suo `return`"),
+			Extracted[1].Key, FString(TEXT("RTSampleWithContinuation()"))))
+		{
+			return false;
+		}
+
+		// La normalizzazione: `*` incollato al nome non deve cambiare la chiave.
+		if (!TestEqual(TEXT("`const TCHAR *Path` e `const TCHAR* Path` hanno la stessa chiave"),
+			RTParameterTypes(TEXT("const TCHAR *Path")), RTParameterTypes(TEXT("const TCHAR* Path"))))
+		{
+			return false;
+		}
+	}
+
+	const TArray<FRTSorgenteDiTest>& Sorgenti = RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"));
+
+	// ⚠️ Se non trova i sorgenti FALLISCE: stessa disciplina dei due oracoli qui sopra.
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
+	{
+		return false;
+	}
+	if (!RTOgniModuloHaSorgenti(*this, Sorgenti))
+	{
+		return false;
+	}
+
+	// ⛔ **Il confronto e' PER MODULO, e non e' una raffinatezza (#3036).** L'unity blob non attraversa i
+	// moduli — e' la condizione 1 del docstring — quindi due omonime, una per modulo, sono legali: unirle in
+	// un corpus solo darebbe un rosso su codice corretto, cioe' il gate spento entro un giorno. Prima di
+	// #3036 il raggruppamento era implicito perche' il soggetto era un modulo solo; ora e' scritto.
+	int32 Collisions = 0;
+	int32 FirmeTotali = 0;
+	for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
+	{
+		TArray<FRTAnonymousSignature> DelModulo;
+		for (const FRTSorgenteDiTest* Sorgente : RTSorgentiDelModulo(Sorgenti, Modulo.Nome))
+		{
+			RTExtractAnonymousSignatures(Sorgente->Etichetta(), Sorgente->Testo, DelModulo);
+		}
+
+		// La stessa firma nello stesso file e' un'altra cosa (overload dichiarato e definito, o una svista che
+		// il compilatore prende da solo): qui interessa solo cio' che attraversa due unita' di traduzione.
+		TMap<FString, TArray<FRTAnonymousSignature>> ByKey;
+		for (const FRTAnonymousSignature& Signature : DelModulo)
+		{
+			ByKey.FindOrAdd(Signature.Key).Add(Signature);
+		}
+
+		for (const TPair<FString, TArray<FRTAnonymousSignature>>& Entry : ByKey)
+		{
+			TSet<FString> DistinctFiles;
+			for (const FRTAnonymousSignature& Signature : Entry.Value)
+			{
+				DistinctFiles.Add(Signature.File);
+			}
+			if (DistinctFiles.Num() < 2)
+			{
+				continue;
+			}
+
+			++Collisions;
+			FString Where;
+			for (const FRTAnonymousSignature& Signature : Entry.Value)
+			{
+				Where += FString::Printf(TEXT("\n    %s:%d"), *Signature.File, Signature.Line);
+			}
+			AddError(FString::Printf(
+				TEXT("%s e' definita in namespace anonimo in %d file diversi del modulo %s:%s\n")
+				TEXT("  Il namespace anonimo NON protegge sotto unity build: le due definizioni finiscono nello ")
+				TEXT("stesso blob e la compilazione muore con C2084, piu' un C2264 per ogni chiamata. Rinomina ")
+				TEXT("quella del file piu' recente, oppure — se i CORPI sono identici — spostala in un header ")
+				TEXT("condiviso con namespace NOMINATO e funzioni `inline`. Se i corpi differiscono NON ")
+				TEXT("unificarle: vedi #2397."),
+				*Entry.Value[0].Readable, DistinctFiles.Num(), Modulo.Nome, *Where));
+		}
+
+		AddInfo(FString::Printf(TEXT("%s: firme in namespace anonimo: %d"), Modulo.Nome, DelModulo.Num()));
+
+		// Secondo controllo positivo, e vale PER MODULO: un modulo i cui file non producono piu' nessuna
+		// firma non e' sorvegliato, e il conteggio complessivo lo nasconderebbe dietro l'altro.
+		TestTrue(FString::Printf(TEXT("il modulo %s contiene firme in namespace anonimo"), Modulo.Nome),
+			DelModulo.Num() > 0);
+		FirmeTotali += DelModulo.Num();
+	}
+
+	AddInfo(FString::Printf(TEXT("file ispezionati: %d, firme in namespace anonimo: %d"),
+		Sorgenti.Num(), FirmeTotali));
+
+	TestEqual(TEXT("nessuna firma anonima e' definita in due file dello stesso modulo"), Collisions, 0);
+	return true;
+}
+
+/**
+ * **Nessun HEADER di `Tests/` dichiara un test.**
+ *
+ * 🔑 **E' la meta' eseguibile dell'unita' di misura scelta in #950**, e non ha senso da sola: il gemello
+ * `TestGuardClosesAtEndOfFile` guarda i **`.cpp`** — `RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"))` — quindi
+ * una dichiarazione scritta in un header **non la vede nessuno**. Sarebbe il difetto esatto che quell'oracolo
+ * cerca, nell'unico posto dove non guarda.
+ *
+ * ---
+ *
+ * 🔴 **COSA ROMPE DAVVERO, letto nella macro invece che dedotto — e NON e' la Shipping.** La prima stesura di
+ * questo docstring diceva «romperebbe la sola Shipping», cioe' l'invariante **al contrario**, e la code review
+ * di #950 l'ha falsificato:
+ *
+ * | Configurazione | `WITH_AUTOMATION_WORKER` | Cosa emette `IMPLEMENT_SIMPLE_AUTOMATION_TEST` | Header incluso da due `.cpp` |
+ * |---|---|---|---|
+ * | Shipping | **0** (`Misc/Build.h:127`) | solo `..._PRIVATE`, cioe' la **definizione di classe** (`AutomationTest.h:4367`) | ✅ **compila**: una classe in un header `#pragma once` e' ODR-legale, e nessuno la referenzia |
+ * | Editor / Development | **1** | anche l'**istanza in namespace anonimo** (`AutomationTest.h:4297-4302`) | 🔴 **rompe**: due oggetti omonimi in namespace anonimo — sotto unity build la stessa `C2084`/`C2086` che `AnonymousHelpersDoNotCollideUnderUnity` presidia — e lo stesso nome di test registrato due volte |
+ *
+ * ∴ il difetto e' **piu' vicino** di quanto la prima stesura credesse, non piu' lontano: lo incontra chi
+ * lavora, non chi impacchetta. Il che rende questo oracolo piu' utile, non meno — ma la ragione scritta
+ * doveva essere quella vera, e sbagliarla avrebbe mandato chi legge a cercare il rosso nel posto sbagliato.
+ *
+ * ⚠️ **L'altra meta' del criterio resta valida per la ragione che aveva**: un header di `Tests/` e' compilato
+ * in **ogni** target, perche' i `.cpp` lo includono FUORI dalla propria guardia. Deve quindi compilare senza
+ * `WITH_DEV_AUTOMATION_TESTS`, e racchiuderlo nella guardia lo renderebbe vuoto proprio dove serve che
+ * compili. Vedi il docstring di `TestGuardClosesAtEndOfFile`.
+ *
+ * ---
+ *
+ * ⛔ **Il controllo POSITIVO e' obbligatorio, perche' il conteggio atteso e' ZERO**, e uno zero non distingue
+ * «nessun header dichiara test» da «lo scanner non riconosce piu' niente». ⚠️ **E non basta provare il
+ * predicato in isolamento**: la code review di #950 ha osservato che cosi' restano cieche l'enumerazione, la
+ * divisione in righe e il ramo che riporta — si potrebbe invertire il test del loop e avere comunque verde. Il
+ * campione qui sotto passa quindi per **lo stesso codice** che percorre il corpus, come fa il fratello
+ * `AnonymousHelpersDoNotCollideUnderUnity`.
+ *
+ * ⚠️ **I limiti, dichiarati invece che scoperti dopo:**
+ *
+ * 1. **Riconosce la macro SCRITTA**, non una generata da un'altra macro. Un `#define` che la avvolgesse
+ *    passerebbe: espandere macro e' un preprocessore, cioe' piu' di quanto questo oracolo sia.
+ * 2. **Guarda le cartelle `Tests` dei due moduli, sottocartelle comprese** (#3036; ricorsivo da #4061). E' lo stesso perimetro di
+ *    `TestGuardClosesAtEndOfFile` e `AnonymousHelpersDoNotCollideUnderUnity`; `RuntimeTestsAvoidEditorOnlyApi`
+ *    ha il **solo** runtime, e li' e' la definizione della proprieta', non un perimetro piu' stretto.
+ *    ⚠️ Al 2026-09-18 il modulo Editor non ha header di test, quindi su questo oracolo il suo contributo e'
+ *    vuoto: e' il motivo per cui l'anti-vacuita' per modulo vale per i `.cpp` e non per gli header.
+ * 3. **Non dice nulla sul CONTENUTO di un header.** Che non usi un simbolo assente in Shipping resta a
+ *    giudizio — vedi il caso `RTWidgetAssetTestHelpers.h` nel docstring del gemello.
+ * 4. **Eredita la cache non invalidata** di `RTLeggiSorgentiDeiTest`: in una sessione Editor lunga misura il
+ *    testo letto la prima volta. Per una run headless la finestra non esiste.
+ * 5. 🔴 **Il suo rosso arriva dentro la suite, insieme agli altri.** #950 registra che il 2026-09-10 un rosso
+ *    di `TestGuardClosesAtEndOfFile` — diagnostico, con file, misura e target — e' stato **attribuito male**
+ *    perche' arrivava in un elenco di quattro, e il difetto e' rimasto su `main` un giorno. Questo oracolo
+ *    eredita quel salto: un controllo isolato, eseguito **prima** della suite, e' l'unica cosa che lo
+ *    eviterebbe, e non e' quello che sta qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestHeadersDeclareNoAutomationTestTest,
+	"RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTestHeadersDeclareNoAutomationTestTest::RunTest(const FString&)
+{
+	// ⛔ Il controllo positivo viene PRIMA, e passa per lo STESSO scanner che percorrera' il corpus: se fosse
+	// cieco — o se il loop qui sotto smettesse di riportare — lo zero finale sarebbe verde e falso.
+	{
+		// ⚠️ Il primo campo e' il MODULO da #3036: senza, l'inizializzazione aggregata farebbe scivolare il
+		// testo dentro `Nome` e lascerebbe `Testo` vuoto — lo scanner non troverebbe niente e il controllo
+		// positivo cadrebbe, che e' il modo giusto di fallire ma non il posto giusto dove scoprirlo.
+		const FRTSorgenteDiTest Campione = { TEXT("<modulo>"), TEXT("<campione>"), FString(
+			TEXT("#pragma once\n")
+			TEXT("// IMPLEMENT_SIMPLE_AUTOMATION_TEST in un commento di riga: non e' una dichiarazione\n")
+			TEXT("/*\n")
+			TEXT("IMPLEMENT_SIMPLE_AUTOMATION_TEST dentro un blocco, senza asterisco di continuazione\n")
+			TEXT("*/\n")
+			TEXT("IMPLEMENT_MODULE(FDefaultModuleImpl, RTEsca)\n")
+			TEXT("IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCampione, \"A.B\", Flags)\n")
+			TEXT("\tBEGIN_DEFINE_SPEC(FRTCampioneSpec, \"A.C\", Flags)\n")) };
+
+		TArray<int32> Trovate;
+		RTDichiarazioniDiTest(Campione, Trovate);
+
+		// Due dichiarazioni vere, alle righe 7 e 8; quattro esche prima, nell'ordine: un commento di riga; una
+		// riga DENTRO un blocco commento scritta senza asterisco (che un controllo per prefisso avrebbe
+		// contato); la riga che CHIUDE il blocco; e una `IMPLEMENT_` che non e' un test — il repository ne ha
+		// davvero, `IMPLEMENT_MODULE` e `IMPLEMENT_PRIMARY_GAME_MODULE`.
+		if (!TestEqual(TEXT("il campione produce due dichiarazioni"), Trovate.Num(), 2))
+		{
+			for (const int32 Riga : Trovate)
+			{
+				AddError(FString::Printf(TEXT("riga riportata inattesa: %d"), Riga));
+			}
+			return false;
+		}
+		if (!TestEqual(TEXT("la prima e' la macro di test, non la IMPLEMENT_MODULE che la precede"), Trovate[0], 7))
+		{
+			return false;
+		}
+		if (!TestEqual(TEXT("la seconda e' la macro SPEC, indentata"), Trovate[1], 8))
+		{
+			return false;
+		}
+	}
+
+	const TArray<FRTSorgenteDiTest>& Header = RTLeggiSorgentiDeiTest(*this, TEXT("*.h"));
+
+	// ⚠️ Stessa disciplina degli altri: un oracolo che perde il proprio soggetto e resta verde e' peggio di un
+	// oracolo assente. `Tests/` contiene header per costruzione — a partire dalle fixture che i `.cpp` di
+	// questa stessa cartella includono.
+	//
+	// ⛔ **Qui NON si chiede che ogni modulo contribuisca**, a differenza dei tre oracoli sui `.cpp`: al
+	// 2026-09-18 `ls Source/RefactorTacticsEditor/Private/Tests/*.h` non risponde niente, e il modulo Editor
+	// non ha header di test. Pretenderlo sarebbe un rosso su un corpus legittimo. ∴ se un header comparisse
+	// li' domani, questo oracolo lo guarda gia' — e' il perimetro che #3036 ha allargato — ma la sua assenza
+	// non e' un difetto.
+	if (!TestTrue(TEXT("gli header dei test sono leggibili"), Header.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 Difettosi = 0;
+	for (const FRTSorgenteDiTest& Sorgente : Header)
+	{
+		TArray<int32> Trovate;
+		RTDichiarazioniDiTest(Sorgente, Trovate);
+		for (const int32 Riga : Trovate)
+		{
+			++Difettosi;
+			AddError(FString::Printf(
+				TEXT("%s:%d dichiara un test in un HEADER. Nessun oracolo guarda li': ")
+				TEXT("`TestGuardClosesAtEndOfFile` legge i `.cpp`. E in Editor e Development la macro emette ")
+				TEXT("anche l'istanza in namespace anonimo: un header incluso da due `.cpp` la duplica nello ")
+				TEXT("stesso unity blob e registra lo stesso nome di test due volte. Sposta la dichiarazione ")
+				TEXT("nel `.cpp` che la usa, dentro `#if WITH_DEV_AUTOMATION_TESTS`."),
+				*Sorgente.Etichetta(), Riga));
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("header di test ispezionati: %d"), Header.Num()));
+	TestEqual(TEXT("nessun header dichiara un test"), Difettosi, 0);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

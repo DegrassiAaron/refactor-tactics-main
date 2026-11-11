@@ -94,11 +94,11 @@ la prima e il log troncato sembra verde.
 
 | File | Responsabilità in questo piano |
 |---|---|
-| `Source/RefactorTactics/Turn/RTPlanValidationLibrary.h` | `FRTPlanValidation` guadagna `HolderActionId`: chi teneva già lo slot |
-| `Source/RefactorTactics/Turn/RTPlanValidationLibrary.cpp` | `Reject` e il loop degli slot tracciano il detentore per slot |
-| `Source/RefactorTactics/Turn/RTTurnLogLibrary.h` / `.cpp` | `DescribeInvalidReason` diventa pubblica e condivisa; `DescribeEntry` mostra la rotta scartata |
+| `Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.h` | `FRTPlanValidation` guadagna `HolderActionId`: chi teneva già lo slot |
+| `Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.cpp` | `Reject` e il loop degli slot tracciano il detentore per slot |
+| `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.h` / `.cpp` | `DescribeInvalidReason` diventa pubblica e condivisa; `DescribeEntry` mostra la rotta scartata |
 | `Source/RefactorTactics/Turn/RTTurnManager.cpp` | messaggio di lock-in; `SrcCell` di partenza; voce per lo slot principale |
-| `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp` | tutti i test di questo piano — ha già gli helper, non se ne creano di nuovi |
+| `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp` | tutti i test di questo piano — ha già gli helper, non se ne creano di nuovi |
 | `docs/decisions/RT_PDR_00_Decision_Log.md` | `D-194` allineata a D-a, D-b, D-c |
 | `docs/technical/architecture/spec-turnlog.md` | famiglie di voci e semantica dei campi |
 
@@ -115,7 +115,7 @@ chiamata — e **zero** test. La riga di #605 che questa PR chiude si può cance
 accorga.
 
 **File:**
-- Modifica: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp` (in coda, prima di
+- Modifica: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp` (in coda, prima di
   `#endif // WITH_DEV_AUTOMATION_TESTS`)
 
 **Interfacce:**
@@ -256,7 +256,7 @@ Rimetti la chiamata, ricompila, riesegui: entrambi `Success`.
 - [ ] **Step 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
+git add Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp
 git commit -m "test(605): il validatore al lock-in non aveva un test, e si poteva cancellare"
 ```
 
@@ -269,12 +269,12 @@ Implementa **D-b**. Oggi il messaggio stampa `Verdict.OffendingActionId` — per
 altrimenti in prosa italiana.
 
 **File:**
-- Modifica: `Source/RefactorTactics/Turn/RTPlanValidationLibrary.h` (struct `FRTPlanValidation`, riga ~43)
-- Modifica: `Source/RefactorTactics/Turn/RTPlanValidationLibrary.cpp` (`Reject`, riga ~10; loop degli slot,
+- Modifica: `Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.h` (struct `FRTPlanValidation`, riga ~43)
+- Modifica: `Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.cpp` (`Reject`, riga ~10; loop degli slot,
   righe ~138-158)
-- Modifica: `Source/RefactorTactics/Turn/RTTurnLogLibrary.h` / `.cpp` (estrazione di `DescribeInvalidReason`)
+- Modifica: `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.h` / `.cpp` (estrazione di `DescribeInvalidReason`)
 - Modifica: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`AddLogEvent` del lock-in, riga ~1975)
-- Modifica: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp`
+- Modifica: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp`
 
 **Interfacce:**
 - Consuma: `FRTPlanValidation { bool bLegal; ERTActionInvalidReason Reason; FName OffendingActionId; }`
@@ -516,12 +516,12 @@ Compila ed esegui i test mirati. Atteso: `LockInNamesBothActions` `Success`, e i
 - [ ] **Step 8: commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTPlanValidationLibrary.h \
-        Source/RefactorTactics/Turn/RTPlanValidationLibrary.cpp \
-        Source/RefactorTactics/Turn/RTTurnLogLibrary.h \
-        Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp \
+git add Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.h \
+        Source/RefactorTactics/Turn/Actions/RTPlanValidationLibrary.cpp \
+        Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.h \
+        Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp \
         Source/RefactorTactics/Turn/RTTurnManager.cpp \
-        Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
+        Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp
 git commit -m "fix(605): il rifiuto al lock-in nominava l'azione che esegue"
 ```
 
@@ -534,7 +534,7 @@ Implementa **D-a**.
 **File:**
 - Modifica: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`ResolveDash`, il blocco `Superseded` intorno a
   riga 3320-3340)
-- Modifica: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp`
+- Modifica: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp`
   (`FRTDashSupersedesTheNormalMoveTest`)
 - Modifica: `docs/decisions/RT_PDR_00_Decision_Log.md` (`D-194`)
 - Modifica: `docs/technical/architecture/spec-turnlog.md`
@@ -620,7 +620,7 @@ Attesi entrambi: exit `0`.
 
 ```bash
 git add Source/RefactorTactics/Turn/RTTurnManager.cpp \
-        Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp \
+        Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp \
         docs/decisions/RT_PDR_00_Decision_Log.md \
         docs/technical/architecture/spec-turnlog.md
 git commit -m "fix(605): SrcCell e' la cella di partenza, ed e' la chiave su cui il harness filtra"
@@ -635,8 +635,8 @@ solo `SrcCell`, e la destinazione mai raggiunta — *«il dato che rende la voce
 non compare mai.
 
 **File:**
-- Modifica: `Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp` (riga ~285)
-- Modifica: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp`
+- Modifica: `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp` (riga ~285)
+- Modifica: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp`
 
 **Interfacce:**
 - Consuma: `URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry&)` → `FString`
@@ -701,8 +701,8 @@ Compila, esegui i test mirati: tutti `Success`.
 - [ ] **Step 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp \
-        Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
+git add Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp \
+        Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp
 git commit -m "fix(605): la voce nascondeva la destinazione per cui esiste"
 ```
 
@@ -715,7 +715,7 @@ Tre rilievi che stanno insieme perché toccano lo stesso blocco: nessun test dif
 secondo quando è il terzo.
 
 **File:**
-- Modifica: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp` (asserzioni + commento riga ~358)
+- Modifica: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp` (asserzioni + commento riga ~358)
 - Modifica: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`FindCoreAction` fuori dal loop)
 
 **Interfacce:**
@@ -783,7 +783,7 @@ Atteso: `Found` = `Test Completed`, zero fail.
 - [ ] **Step 7: commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp \
+git add Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp \
         Source/RefactorTactics/Turn/RTTurnManager.cpp
 git commit -m "test(605): Amount e Priority non li difendeva nessuno"
 ```
@@ -801,7 +801,7 @@ differenza del movimento, dove il resolver fa comunque muovere l'unità).
 
 **File:**
 - Modifica: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (il ramo `MovementAndMain`, riga ~3371)
-- Modifica: `Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp` (accanto a
+- Modifica: `Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp` (accanto a
   `FRTKitDeclaredBothSlotsTest`, riga ~913)
 - Modifica: `docs/decisions/RT_PDR_00_Decision_Log.md` (`D-194`)
 - Modifica: `docs/technical/architecture/spec-turnlog.md`
@@ -999,7 +999,7 @@ node tools/radar/doc-tables.ts --check
 
 ```bash
 git add Source/RefactorTactics/Turn/RTTurnManager.cpp \
-        Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp \
+        Source/RefactorTactics/Tests/Turn/Resolution/RTHexMovementIntegrationTests.cpp \
         docs/decisions/RT_PDR_00_Decision_Log.md \
         docs/technical/architecture/spec-turnlog.md
 git commit -m "feat(605): anche lo slot principale dichiara cio' che perde"

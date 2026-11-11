@@ -1,0 +1,513 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h" // StableLess: l'ordine canonico di ExploredCells
+#include "Map/RTHexMapAsset.h"
+#include "Perception/RTTeamKnowledge.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * CP 13.2 — il targeting CONSUMA la conoscenza (#157).
+ *
+ * CP 13.1 aveva costruito la vista; qui la vista comincia a **decidere**. Le quattro proprieta' della DoD
+ * sono quattro test perche' sono quattro regole indipendenti, e verificarne tre lascerebbe la quarta libera
+ * di essere sbagliata senza che nulla lo dica.
+ *
+ * Tutto puro e headless: nessun Actor, nessun `UWorld`. La regola vive in `URTTeamKnowledgeLibrary`, e il
+ * resolver la chiama — non la riscrive. E' la lezione di #507, applicata prima invece che dopo.
+ */
+
+namespace
+{
+	/** Arena piena di raggio N sul layer 0. Nome distinto per file: la unity build condivide la TU. */
+	URTHexMapAsset* MakeKnowledgeMap(int32 Radius)
+	{
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+		return M;
+	}
+
+	FRTPerceiver KnowledgeWatcher(const FRTCellId& Cell, ERTHexDirection Facing, int32 VisionRange = 5)
+	{
+		FRTPerceiver P;
+		P.Cell = Cell;
+		P.Facing = Facing;
+		P.VisionRange = VisionRange;
+		return P;
+	}
+
+	/** Un avversario dove si trova ORA: il `TurnNumber` in ingresso lo ignora `Observe`. */
+	FRTLastKnownContact EnemyAt(int32 StableUnitId, const FRTCellId& Cell)
+	{
+		return FRTLastKnownContact(StableUnitId, Cell, /*ignorato*/ 0);
+	}
+
+	/**
+	 * Squadra 0 con un solo osservatore all'origine, che guarda DOVE si dice. Esiste per `ExploredCells`:
+	 * la memoria del terreno si vede solo girando lo sguardo, perche' finche' la direzione non cambia
+	 * `VisibleCells` ed `ExploredCells` coincidono e un test non potrebbe distinguerle.
+	 */
+	FRTTeamKnowledge ObserveFacing(const URTHexMapAsset* Map, int32 TurnNumber, ERTHexDirection Facing,
+		const TArray<FRTLastKnownContact>& Enemies, const FRTTeamKnowledge& Previous)
+	{
+		const TArray<FRTPerceiver> Team = { KnowledgeWatcher(FRTCellId(0, 0), Facing) };
+		return URTTeamKnowledgeLibrary::Observe(Map, /*TeamId*/ 0, TurnNumber, Team, Enemies, Previous);
+	}
+
+	/** Squadra 0 con un solo osservatore, che guarda a est dall'origine. */
+	FRTTeamKnowledge ObserveEast(const URTHexMapAsset* Map, int32 TurnNumber,
+		const TArray<FRTLastKnownContact>& Enemies, const FRTTeamKnowledge& Previous)
+	{
+		const TArray<FRTPerceiver> Team = { KnowledgeWatcher(FRTCellId(0, 0), ERTHexDirection::E) };
+		return URTTeamKnowledgeLibrary::Observe(Map, /*TeamId*/ 0, TurnNumber, Team, Enemies, Previous);
+	}
+}
+
+/**
+ * Prima regola: **non si spara a cio' che la squadra non conosce.**
+ *
+ * Il caso e' costruito perche' la GEOMETRIA sia perfetta — bersaglio a portata, nessun muro, nessun fumo — e
+ * a mancare sia solo la conoscenza. Senza questa cura il test passerebbe anche con una regola che rifiuta per
+ * distanza, e non direbbe niente su cio' che deve verificare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeCannotTargetUnknownTest,
+	"RefactorTactics.Vision.CannotTargetUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeCannotTargetUnknownTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeKnowledgeMap(8);
+
+	// Il nemico #7 sta DIETRO l'osservatore, fuori dall'arco frontale e oltre la consapevolezza ravvicinata.
+	const FRTCellId Behind(-5, 0);
+	const FRTTeamKnowledge Knowledge = ObserveEast(Map, /*Turno*/ 1, { EnemyAt(7, Behind) }, FRTTeamKnowledge());
+
+	// Premessa: la squadra davvero non lo vede. Se lo vedesse, il rifiuto qui sotto sarebbe una coincidenza.
+	if (!TestFalse(TEXT("premessa: la cella del nemico non e' vista"), Knowledge.VisibleCells.Contains(Behind)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("nessun ricordo di lui: e' Hidden"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(Knowledge, 7, Behind)),
+		static_cast<int32>(ERTAwareness::Hidden));
+
+	TestEqual(TEXT("un bersaglio ignoto e' RIFIUTATO"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(Knowledge, 7, /*TeamNemico*/ 1, Behind)),
+		static_cast<int32>(ERTTargetKnowledge::Rejected));
+
+	// Il gemello di controllo, nella stessa conoscenza: un nemico VISTO resta bersagliabile. Senza, il test
+	// passerebbe anche con una regola che rifiuta sempre — cioe' con il gioco rotto.
+	const FRTCellId Ahead(3, 0);
+	const FRTTeamKnowledge Seen = ObserveEast(Map, 1, { EnemyAt(9, Ahead) }, FRTTeamKnowledge());
+	if (!TestTrue(TEXT("premessa del controllo: questa cella e' vista"), Seen.VisibleCells.Contains(Ahead)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("un bersaglio visto e' AMMESSO"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(Seen, 9, 1, Ahead)),
+		static_cast<int32>(ERTTargetKnowledge::Allowed));
+
+	// Un ALLEATO non passa dalla conoscenza: si cura chi si conosce per appartenenza. Verificato sulla stessa
+	// cella che per un nemico era rifiutata, cosi' l'unica variabile e' la squadra.
+	TestEqual(TEXT("un alleato fuori vista resta bersagliabile (cure, scudi)"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(Knowledge, 7, /*TeamProprio*/ 0, Behind)),
+		static_cast<int32>(ERTTargetKnowledge::Allowed));
+	return true;
+}
+
+/**
+ * Seconda regola: un contatto **incerto** e' bersagliabile per CELLA, mai per unita'.
+ *
+ * La differenza non e' formale. Mirare all'unita' significa che il colpo la SEGUE dove si e' spostata, cioe'
+ * consuma una posizione che la squadra non conosce; mirare alla cella significa colpire dove il ricordo dice,
+ * e trovare terra battuta se il bersaglio si e' mosso. La seconda e' conoscenza parziale, la prima e' una
+ * fuga di posizione con un altro nome.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeUncertainTargetsCellTest,
+	"RefactorTactics.Vision.UncertainTargetsCellNotUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeUncertainTargetsCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeKnowledgeMap(8);
+
+	// Turno 1: il nemico #4 e' in vista, davanti.
+	const FRTCellId SeenAt(3, 0);
+	const FRTTeamKnowledge T1 = ObserveEast(Map, 1, { EnemyAt(4, SeenAt) }, FRTTeamKnowledge());
+	if (!TestTrue(TEXT("premessa: al turno 1 e' visto"), T1.VisibleCells.Contains(SeenAt))) { return false; }
+
+	// Turno 2: si e' spostato DIETRO l'osservatore. Non e' piu' visto, ma il ricordo del turno 1 e' ancora vivo.
+	const FRTCellId MovedTo(-5, 0);
+	const FRTTeamKnowledge T2 = ObserveEast(Map, 2, { EnemyAt(4, MovedTo) }, T1);
+	if (!TestFalse(TEXT("premessa: al turno 2 non e' piu' visto"), T2.VisibleCells.Contains(MovedTo)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("resta un contatto INCERTO, non ignoto"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(T2, 4, MovedTo)),
+		static_cast<int32>(ERTAwareness::Uncertain));
+	TestEqual(TEXT("bersagliabile per CELLA, non per unita'"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(T2, 4, 1, MovedTo)),
+		static_cast<int32>(ERTTargetKnowledge::CellOnly));
+
+	// E la cella e' quella del RICORDO, non quella attuale. E' l'assertion che vale l'intero test: se qui
+	// comparisse `MovedTo`, la memoria starebbe seguendo l'unita' e non ricordandola.
+	FRTCellId Aimed;
+	if (TestTrue(TEXT("il ricordo ha una cella"), URTTeamKnowledgeLibrary::LastKnownCell(T2, 4, Aimed)))
+	{
+		TestTrue(TEXT("si mira DOVE ERA, non dove e'"), Aimed == SeenAt);
+		TestFalse(TEXT("la posizione attuale non trapela"), Aimed == MovedTo);
+	}
+	return true;
+}
+
+/**
+ * Terza regola: **l'avvistamento di un alleato estende il targeting della squadra.**
+ *
+ * Non e' una regola in piu': e' una conseguenza di dove vive il dato (D-043, la conoscenza e' di squadra). Il
+ * test la fissa lo stesso, perche' una futura ottimizzazione «ognuno vede per se'» la romperebbe in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeAllySpottingExtendsTest,
+	"RefactorTactics.Vision.AllySpottingExtendsTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeAllySpottingExtendsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeKnowledgeMap(8);
+	const FRTCellId Enemy(-5, 0); // dietro il primo osservatore, davanti al secondo
+
+	// Da solo, chi guarda a est non lo vede: e' il caso gia' fissato da `CannotTargetUnknown`.
+	const FRTTeamKnowledge Alone = ObserveEast(Map, 1, { EnemyAt(7, Enemy) }, FRTTeamKnowledge());
+	if (!TestEqual(TEXT("premessa: da solo non lo puo' bersagliare"),
+			static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(Alone, 7, 1, Enemy)),
+			static_cast<int32>(ERTTargetKnowledge::Rejected)))
+	{
+		return false;
+	}
+
+	// Stesso osservatore, piu' un COMPAGNO che guarda a ovest. L'attaccante non ha cambiato posizione ne'
+	// orientamento: cambia solo che la squadra, nel suo insieme, adesso vede.
+	const TArray<FRTPerceiver> Pair = {
+		KnowledgeWatcher(FRTCellId(0, 0), ERTHexDirection::E),
+		KnowledgeWatcher(FRTCellId(-2, 0), ERTHexDirection::W)
+	};
+	const FRTTeamKnowledge Together = URTTeamKnowledgeLibrary::Observe(Map, 0, 1, Pair,
+		{ EnemyAt(7, Enemy) }, FRTTeamKnowledge());
+
+	TestTrue(TEXT("la squadra ora vede quella cella"), Together.VisibleCells.Contains(Enemy));
+	TestEqual(TEXT("e chiunque della squadra puo' bersagliarlo"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(Together, 7, 1, Enemy)),
+		static_cast<int32>(ERTTargetKnowledge::Allowed));
+
+	// Invariante #3: permutare gli osservatori non cambia nulla. `TeamVisibleCells` passa da un TSet, il cui
+	// ordine dipende dall'hash — senza l'ordinamento canonico questa uguaglianza salterebbe.
+	const TArray<FRTPerceiver> Swapped = { Pair[1], Pair[0] };
+	const FRTTeamKnowledge Other = URTTeamKnowledgeLibrary::Observe(Map, 0, 1, Swapped,
+		{ EnemyAt(7, Enemy) }, FRTTeamKnowledge());
+	TestEqual(TEXT("permutare gli osservatori non cambia la conoscenza"),
+		Other.VisibleCells, Together.VisibleCells);
+	return true;
+}
+
+/**
+ * Quarta regola: il ricordo **scade dopo un turno**.
+ *
+ * E' la meta' che rende la memoria un'informazione e non un secondo canale di vista permanente. Il test la
+ * misura sul confine — vivo al turno successivo, morto a quello dopo — perche' e' li' che un `<` scritto `<=`
+ * cambia la regola senza rompere nulla di visibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeLastContactExpiresTest,
+	"RefactorTactics.Vision.LastContactExpiresAfterOneTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeLastContactExpiresTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeKnowledgeMap(8);
+	const FRTCellId SeenAt(3, 0);
+	const FRTCellId Hiding(-5, 0);
+
+	// Turno 1 — visto.
+	const FRTTeamKnowledge T1 = ObserveEast(Map, 1, { EnemyAt(4, SeenAt) }, FRTTeamKnowledge());
+	TestEqual(TEXT("turno 1: un contatto"), T1.Contacts.Num(), 1);
+	TestEqual(TEXT("turno 1: Detected"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(T1, 4, SeenAt)),
+		static_cast<int32>(ERTAwareness::Detected));
+
+	// Turno 2 — sparito dalla vista: il ricordo REGGE. E' la persistenza «1 turno».
+	const FRTTeamKnowledge T2 = ObserveEast(Map, 2, { EnemyAt(4, Hiding) }, T1);
+	TestEqual(TEXT("turno 2: il ricordo e' ancora vivo"), T2.Contacts.Num(), 1);
+	TestEqual(TEXT("turno 2: Uncertain"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(T2, 4, Hiding)),
+		static_cast<int32>(ERTAwareness::Uncertain));
+
+	// Turno 3 — il ricordo SCADE: due turni dopo l'avvistamento non resta niente.
+	const FRTTeamKnowledge T3 = ObserveEast(Map, 3, { EnemyAt(4, Hiding) }, T2);
+	TestEqual(TEXT("turno 3: nessun ricordo"), T3.Contacts.Num(), 0);
+	TestEqual(TEXT("turno 3: torna Hidden"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(T3, 4, Hiding)),
+		static_cast<int32>(ERTAwareness::Hidden));
+	TestEqual(TEXT("turno 3: non e' piu' un bersaglio"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::ClassifyTarget(T3, 4, 1, Hiding)),
+		static_cast<int32>(ERTTargetKnowledge::Rejected));
+
+	// Rivedendolo, il ricordo RINASCE fresco e con la cella NUOVA: un contatto attuale sovrascrive la
+	// memoria, invece di affiancarsi e lasciare due verita' sulla stessa unita'.
+	const FRTTeamKnowledge T4 = ObserveEast(Map, 4, { EnemyAt(4, SeenAt) }, T3);
+	TestEqual(TEXT("turno 4: rivisto, un solo contatto"), T4.Contacts.Num(), 1);
+	TestEqual(TEXT("turno 4: e il contatto e' di questo turno"), T4.Contacts[0].TurnNumber, 4);
+
+	// ⚠️ Una conoscenza di VERSIONE ignota si scarta invece di essere reinterpretata. Senza questo ramo un
+	// campo aggiunto domani produrrebbe ricordi plausibili e sbagliati, che nessuno segnalerebbe.
+	FRTTeamKnowledge Futura = T4;
+	Futura.Version = FRTTeamKnowledge::CurrentVersion + 1;
+	const FRTTeamKnowledge FromFuture = ObserveEast(Map, 5, { EnemyAt(4, Hiding) }, Futura);
+	TestEqual(TEXT("una memoria di versione ignota non viene ereditata"), FromFuture.Contacts.Num(), 0);
+	TestEqual(TEXT("e leggerla direttamente e' fail-closed"),
+		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(Futura, 4, SeenAt)),
+		static_cast<int32>(ERTAwareness::Hidden));
+	return true;
+}
+
+/**
+ * [D-227] — **il terreno esplorato resta noto, e non scade.**
+ *
+ * `Contacts` e `ExploredCells` sono due memorie con due leggi diverse, e la differenza non e' un dettaglio:
+ * un contatto scade dopo `ContactLifetimeTurns` perche' **l'unita' si muove**, e un ricordo che sopravvivesse
+ * sarebbe la vista sotto mentite spoglie. Il terreno **non si muove**, quindi dimenticarlo sarebbe una regola
+ * nuova invece che una conseguenza.
+ *
+ * ⚠️ **Il turno 4 e' il punto del test, non un contorno.** Senza di lui, un'implementazione che riusasse la
+ * scadenza dei contatti — la simmetria che viene naturale scrivere — passerebbe verde: fino al turno 2 le due
+ * leggi danno lo stesso risultato, e solo oltre `ContactLifetimeTurns` divergono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTeamKnowledgeRemembersExploredCells,
+	"RefactorTactics.Perception.KnowledgeRemembersExploredCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTeamKnowledgeRemembersExploredCells::RunTest(const FString& Parameters)
+{
+	const URTHexMapAsset* Map = MakeKnowledgeMap(6);
+	TestNotNull(TEXT("mappa"), Map);
+	if (!Map)
+	{
+		return false;
+	}
+
+	// Turno 1: si guarda a EST. Cio' che si vede e' anche cio' che si e' esplorato — le due memorie coincidono,
+	// ed e' la ragione per cui il test non puo' fermarsi qui.
+	const FRTTeamKnowledge T1 = ObserveFacing(Map, 1, ERTHexDirection::E, {}, FRTTeamKnowledge());
+	TestTrue(TEXT("turno 1: si vede qualcosa"), T1.VisibleCells.Num() > 0);
+	TestEqual(TEXT("turno 1: esplorato == visto"), T1.ExploredCells.Num(), T1.VisibleCells.Num());
+
+	const TSet<FRTCellId> VisteAEst(T1.VisibleCells);
+
+	// Turno 2: lo sguardo gira a OVEST. Le celle a est ESCONO dalla vista, e sono quelle su cui il test decide.
+	const FRTTeamKnowledge T2 = ObserveFacing(Map, 2, ERTHexDirection::W, {}, T1);
+
+	int32 UsciteDallaVista = 0;
+	for (const FRTCellId& Cell : VisteAEst)
+	{
+		if (!T2.VisibleCells.Contains(Cell))
+		{
+			++UsciteDallaVista;
+			TestTrue(TEXT("turno 2: una cella uscita dalla vista resta ESPLORATA"), T2.ExploredCells.Contains(Cell));
+		}
+	}
+	// Anti-vacuita': se girando lo sguardo non uscisse dalla vista nemmeno una cella, il ciclo sopra non
+	// asserirebbe niente e il test sarebbe verde senza aver misurato nulla.
+	TestTrue(TEXT("girando lo sguardo qualcosa esce davvero dalla vista"), UsciteDallaVista > 0);
+	TestTrue(TEXT("turno 2: la memoria e' CRESCIUTA"), T2.ExploredCells.Num() > T1.ExploredCells.Num());
+
+	// L'invariante che tiene insieme le due: cio' che si vede ora e' sempre anche esplorato.
+	for (const FRTCellId& Cell : T2.VisibleCells)
+	{
+		TestTrue(TEXT("VisibleCells e' sempre un sottoinsieme di ExploredCells"), T2.ExploredCells.Contains(Cell));
+	}
+
+	// ⚠️ Turno 4 — OLTRE `ContactLifetimeTurns`. Qui le due leggi divergono: un contatto del turno 1 sarebbe
+	// gia' scaduto da un pezzo, il terreno del turno 1 no. E' cio' che questo test esiste per fissare.
+	const FRTTeamKnowledge T3 = ObserveFacing(Map, 3, ERTHexDirection::W, {}, T2);
+	const FRTTeamKnowledge T4 = ObserveFacing(Map, 4, ERTHexDirection::W, {}, T3);
+	for (const FRTCellId& Cell : VisteAEst)
+	{
+		TestTrue(TEXT("turno 4: il terreno esplorato NON scade come un contatto"), T4.ExploredCells.Contains(Cell));
+	}
+	TestTrue(TEXT("turno 4: la memoria non si e' ristretta"), T4.ExploredCells.Num() >= T2.ExploredCells.Num());
+
+	// Ordine canonico e nessun duplicato: la memoria entra nello snapshot, e un ordine dipendente dall'hash
+	// farebbe divergere due tracce serializzate senza che nessuna asserzione lo dica (invariante #3).
+	for (int32 i = 1; i < T4.ExploredCells.Num(); ++i)
+	{
+		TestTrue(TEXT("ExploredCells e' ordinata con StableLess"),
+			URTHexLibrary::StableLess(T4.ExploredCells[i - 1], T4.ExploredCells[i]));
+	}
+	TestEqual(TEXT("nessuna cella compare due volte"),
+		TSet<FRTCellId>(T4.ExploredCells).Num(), T4.ExploredCells.Num());
+
+	// Fail-closed, come per i contatti: una memoria di versione ignota non si eredita. Per il terreno
+	// significa che la mappa si richiude — ed e' il comportamento coerente, non un effetto collaterale:
+	// una conoscenza illeggibile non concede nulla, nemmeno la geometria.
+	FRTTeamKnowledge Futura = T4;
+	Futura.Version = FRTTeamKnowledge::CurrentVersion + 1;
+	const FRTTeamKnowledge DalFuturo = ObserveFacing(Map, 5, ERTHexDirection::W, {}, Futura);
+	TestEqual(TEXT("versione ignota: il terreno esplorato non viene ereditato"),
+		DalFuturo.ExploredCells.Num(), DalFuturo.VisibleCells.Num());
+	return true;
+}
+
+
+/**
+ * `#1525` — il troncamento al tratto osservato, sul predicato PURO che lo decide.
+ *
+ * 🔴 **Perche' i casi sono cinque e non uno.** `ObservedPrefixLength` ha due consumatori — la traccia
+ * post-lock (`VisibleTrailFor`, `#1497`) e il modello animato (`BeginPlayback`, `#1525`) — e ognuna delle
+ * cinque proprieta' e' una regola indipendente: verificarne quattro lascerebbe la quinta libera di essere
+ * sbagliata senza che nulla lo dica.
+ *
+ * ✅ **Verifica di mutazione ESEGUITA** (DoD di `#1525`), e ha corretto questa stessa riga. Sostituendo
+ * il `return i` con un `continue` in `ObservedPrefixLength` e ricompilando, cadono **QUATTRO** test su
+ * cinque — `TroncaAlTrattoOsservato`, `TroncaNonFiltra`, `NonMostraLaPartenzaNonOsservata` e
+ * `FailClosedSuTeamFuoriIntervallo` — mentre `FailClosedSuRottaMalformata` resta verde, perche' il suo
+ * fail-closed scatta **prima** del ciclo.
+ *
+ * 🔴 **La prima stesura di questo commento diceva che ne sarebbe caduto UNO SOLO, ed era una
+ * previsione scritta per plausibilita' invece che misurata.** E' esattamente il motivo per cui il DoD
+ * chiede la mutazione: la copertura reale era piu' larga di quella che l'autore credeva di avere, e
+ * saperlo cambia quali test si possono togliere in futuro. Misurato il 2026-08-30: `16/16 completati,
+ * 4 fallimenti`, `HEAD 42f33ba2`.
+ *
+ * ⚠️ **La seconda mutazione, invece, ha confermato la previsione**: togliendo
+ * `Ev.CellVerdicts = Tracked.CellVerdicts;` dal sito del Move cade **solo**
+ * `RefactorTactics.HexMatch.PlaybackEventCarriesKnowledgeVerdicts` e questi cinque restano **verdi** — che
+ * e' la ragione per cui quel test esiste separatamente da loro.
+ */
+namespace
+{
+	/** Un verdetto che concede alle sole squadre elencate. */
+	FRTKnowledgeVerdict VerdictFor(const TArray<int32>& Teams)
+	{
+		FRTKnowledgeVerdict V;
+		for (const int32 T : Teams) { V.AllowTeam(T); }
+		return V;
+	}
+
+	/** Rotta di N celle in linea, con i verdetti dati cella per cella. */
+	void MakeRoute(int32 N, TArray<FRTCellId>& OutCells)
+	{
+		OutCells.Reset();
+		for (int32 i = 0; i < N; ++i) { OutCells.Add(FRTCellId(i, 0, 0)); }
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackObservedPrefixTest,
+	"RefactorTactics.Vision.PlaybackTroncaAlTrattoOsservato",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackObservedPrefixTest::RunTest(const FString&)
+{
+	TArray<FRTCellId> Cells;
+	MakeRoute(5, Cells);
+
+	// A B osservate, C D no, E di nuovo si': e' il caso del preview della decisione d'autore.
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({0, 1}), VerdictFor({0, 1}), VerdictFor({1}), VerdictFor({1}), VerdictFor({0, 1})
+	};
+
+	TestEqual(TEXT("la squadra 0 vede solo il prefisso osservato, non la coda dopo il buco"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 2);
+
+	TestEqual(TEXT("la squadra 1, che ha osservato tutto, vede la rotta intera"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 1), 5);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTruncateNotFilterTest,
+	"RefactorTactics.Vision.PlaybackTroncaNonFiltra",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTruncateNotFilterTest::RunTest(const FString&)
+{
+	// 🔴 **Il caso piu' diretto della distinzione `return`/`continue`** — non l'unico che la prende:
+	// la mutazione ne fa cadere quattro (vedi il blocco in testa). Con un `continue` al posto del `return`, la
+	// risposta sarebbe 3 — le tre celle concesse — e il modello salterebbe da B a E attraversando in linea
+	// retta proprio le due celle che il verdetto nega. La lunghezza corretta e' 2: ci si ferma al buco.
+	TArray<FRTCellId> Cells;
+	MakeRoute(5, Cells);
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({0}), VerdictFor({0}), VerdictFor({1}), VerdictFor({1}), VerdictFor({0})
+	};
+
+	TestEqual(TEXT("si TRONCA al primo buco: la cella concessa DOPO il buco non si conta"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 2);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFailClosedTest,
+	"RefactorTactics.Vision.PlaybackFailClosedSuRottaMalformata",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFailClosedTest::RunTest(const FString&)
+{
+	TArray<FRTCellId> Cells;
+	MakeRoute(4, Cells);
+
+	// Verdetti in numero diverso dalle celle: e' il caso che un `Cells.Add` futuro senza il verdetto
+	// corrispondente produrrebbe. Non si indovina e non si legge fuori: non si mostra niente.
+	const TArray<FRTKnowledgeVerdict> TroppoPochi = { VerdictFor({0}), VerdictFor({0}) };
+	TestEqual(TEXT("verdetti in difetto: zero, non due"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TroppoPochi, 0), 0);
+
+	TestEqual(TEXT("nessun verdetto: zero, e vale anche per la squadra che avrebbe visto tutto"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TArray<FRTKnowledgeVerdict>(), 0), 0);
+
+	// Una rotta vuota e' allineata con verdetti vuoti: zero senza che sia un fallimento.
+	TestEqual(TEXT("rotta vuota: zero"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(TArray<FRTCellId>(), TArray<FRTKnowledgeVerdict>(), 0), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFirstCellDeniedTest,
+	"RefactorTactics.Vision.PlaybackNonMostraLaPartenzaNonOsservata",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFirstCellDeniedTest::RunTest(const FString&)
+{
+	// 🔴 **Il caso che il posizionamento sullo start renderebbe un leak.** Se la PARTENZA non e' osservata,
+	// il prefisso e' zero: `BeginPlayback` non crea l'anim e — soprattutto — non chiama `SetVisualLocation`
+	// sulla cella di partenza. Piazzare li' il modello rivelerebbe da dove il nemico e' uscito, e lo
+	// farebbe proprio quando la sua destinazione e' visibile e `bKnownToObserver` lo lascia acceso.
+	TArray<FRTCellId> Cells;
+	MakeRoute(3, Cells);
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({1}), VerdictFor({0, 1}), VerdictFor({0, 1})
+	};
+
+	TestEqual(TEXT("partenza negata: zero, anche se il resto della rotta e' concesso"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackOutOfRangeTeamTest,
+	"RefactorTactics.Vision.PlaybackFailClosedSuTeamFuoriIntervallo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackOutOfRangeTeamTest::RunTest(const FString&)
+{
+	// Un `TeamId` che il verdetto non sa rappresentare non legge il bit di qualcun altro: `AllowsTeam` e'
+	// fail-closed, e questa e' la prova che il troncamento eredita quella proprieta' invece di aggirarla.
+	TArray<FRTCellId> Cells;
+	MakeRoute(3, Cells);
+	const TArray<FRTKnowledgeVerdict> TuttiVedono = {
+		FRTKnowledgeVerdict::Everyone(), FRTKnowledgeVerdict::Everyone(), FRTKnowledgeVerdict::Everyone()
+	};
+
+	TestEqual(TEXT("`Everyone()` concede a una squadra valida"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, 1), 3);
+
+	TestEqual(TEXT("TeamId negativo: zero, non una lettura fuori"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, -1), 0);
+
+	TestEqual(TEXT("TeamId oltre MaxTeamId: zero"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, FRTKnowledgeVerdict::MaxTeamId + 1), 0);
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

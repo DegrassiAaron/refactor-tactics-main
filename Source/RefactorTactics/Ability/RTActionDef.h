@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTHexCellData.h"
 #include "GameplayTagContainer.h"
-#include "Turn/RTActionEvent.h"
+#include "Turn/Actions/RTActionEvent.h"
 #include "RTActionDef.generated.h"
 
 /**

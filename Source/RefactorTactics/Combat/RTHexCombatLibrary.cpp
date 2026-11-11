@@ -1,11 +1,11 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Combat/RTCombatLibrary.h"
-#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: l'origine di mira dipende dalla fase ([D-464])
+#include "Ability/Catalog/RTCatalogLibrary.h" // MapResolutionPhase: l'origine di mira dipende dalla fase ([D-464])
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h"
-#include "Map/RTStructureIdentityLibrary.h" // il ponte fra il bordo puntato e il nome che il grafo lega (`#833`)
+#include "Map/Vision/RTHexVisionLibrary.h"
+#include "Map/Structure/RTStructureIdentityLibrary.h" // il ponte fra il bordo puntato e il nome che il grafo lega (`#833`)
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace

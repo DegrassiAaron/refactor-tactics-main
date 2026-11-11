@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "Map/RTMapSource.h"
-#include "Turn/RTMatchFormatData.h"
+#include "Turn/Format/RTMatchFormatData.h"
 
 class ARTHexMapActor;
 class ARTTurnManager;

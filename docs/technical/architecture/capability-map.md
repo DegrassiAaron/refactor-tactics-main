@@ -52,9 +52,9 @@ già indirizzati nel codice su `origin/main`**:
 
 | Claim ritirato | Cosa dice invece il codice |
 |---|---|
-| *«#2697: il feed del giocatore ha zero chiamanti fuori dai test»* | `9169c2ff feat(2697): il feed arriva a schermo` è su `main`; [`RTHUD.cpp`](../../../Source/RefactorTactics/UI/RTHUD.cpp) `:994` chiama `BuildPlayerEventFeed` in produzione e [`RTScreenHudWidgets.h`](../../../Source/RefactorTactics/UI/RTScreenHudWidgets.h) `:294` espone `GetFeed()` |
-| *«#2742: la LOS non ha un canale verso lo schermo»* | `5149867f feat(2742)` è su `main`; [`RTHexMapActor.cpp`](../../../Source/RefactorTactics/Map/RTHexMapActor.cpp) `:1291-1307` disegna la linea con `ColorFor(ERTOverlayMeaning::Vision)` |
-| *«#2554: l'anteprima dell'Anim Browser non si anima e non inquadra»* | `f29dd374` è antenato di `main`; [`SRTAnimPreviewViewport.cpp`](../../../Source/RefactorTacticsEditor/Private/SRTAnimPreviewViewport.cpp) fa override di `Tick` → `World->Tick(...)` e chiama `FocusViewportOnBox` |
+| *«#2697: il feed del giocatore ha zero chiamanti fuori dai test»* | `9169c2ff feat(2697): il feed arriva a schermo` è su `main`; [`RTHUD.cpp`](../../../Source/RefactorTactics/UI/HUD/RTHUD.cpp) `:994` chiama `BuildPlayerEventFeed` in produzione e [`RTScreenHudWidgets.h`](../../../Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h) `:294` espone `GetFeed()` |
+| *«#2742: la LOS non ha un canale verso lo schermo»* | `5149867f feat(2742)` è su `main`; [`RTHexMapActor.cpp`](../../../Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp) `:1291-1307` disegna la linea con `ColorFor(ERTOverlayMeaning::Vision)` |
+| *«#2554: l'anteprima dell'Anim Browser non si anima e non inquadra»* | `f29dd374` è antenato di `main`; [`SRTAnimPreviewViewport.cpp`](../../../Source/RefactorTacticsEditor/Private/Anim/SRTAnimPreviewViewport.cpp) fa override di `Tick` → `World->Tick(...)` e chiama `FocusViewportOnBox` |
 
 **La regola che ne segue**, e che vale per ogni futura modifica di questo file: nessun campo `status` si
 deriva da un titolo. Si deriva da (1) il simbolo nel codice e i suoi chiamanti **fuori dai test**, (2)
@@ -558,7 +558,7 @@ Solo problemi **verificati**. Ogni riga porta la misura o la issue che la dichia
 | Capability | Cosa manca | Evidenza |
 |---|---|---|
 | `RT-CAP-AUDIO` | **nessuna epic, nessuna spec, nessuna issue aperta** | `git grep -lE 'SoundBase\|UAudioComponent\|PlaySound' origin/main -- 'Source/*'` → **0 file**. Il Domain 10 *«Audio & Feedback»* di `CLAUDE.md` §12 non ha controparte nel codice |
-| `RT-CAP-VFX` | nessuna epic proprietaria | `git grep -il niagara origin/main -- 'Source/*'` → **1 file, ed è un commento**: [`RTPresentationBinding.h`](../../../Source/RefactorTactics/Turn/RTPresentationBinding.h) dichiara che *«`Content/` non contiene un solo asset Niagara»*. La decisione *evento → asset* è **presa** (`FX-1`, chiusa da `D-278`) e non implementata; #288 e #2453 la sfiorano dai lati adiacenti |
+| `RT-CAP-VFX` | nessuna epic proprietaria | `git grep -il niagara origin/main -- 'Source/*'` → **1 file, ed è un commento**: [`RTPresentationBinding.h`](../../../Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h) dichiara che *«`Content/` non contiene un solo asset Niagara»*. La decisione *evento → asset* è **presa** (`FX-1`, chiusa da `D-278`) e non implementata; #288 e #2453 la sfiorano dai lati adiacenti |
 
 ➕ **Il gap ha una forma più precisa di «non c'è niente», e il panel l'ha misurata.** Il **seam esiste**:
 [`RTTurnManager.h`](../../../Source/RefactorTactics/Turn/RTTurnManager.h) `:183-187` dichiara quattro
@@ -579,7 +579,7 @@ misura di assenza; undici lo sono abbastanza da scriverlo.
 | `RT-CAP-RESOLVED-TIMELINE` | `ERTResolvedEventType` **non ha un valore per la struttura** e `HazardDamage` non ha una fase che lo riproduca | #2828 · #2505 — due assenze nello stesso enum, che è il vocabolario della presentazione: ciò che non ha un valore **non ha un momento** |
 | `RT-CAP-STRUCTURES` | `Action.ModifyArc` è **senza owner nel roster per decisione** (`D-046`) | #2549: nessuna unità può provocare il crollo del ponte ⇒ la terza parte del criterio di `PIE-HEXPLAY-8` **non è osservabile**. ✅ **E dal 2026-09-12 questo NON blocca più `G9`** (`D-402`, #2911): quella parte è uscita dal criterio — **non dalla copertura**, che resta in `Structures.Bridge.RemovalBreaksPath`, `Structures.Bridge.NoTeleportOnRemoval` e `HexMove.ClimbsOnlyThroughTransition` — e il subset `RELEASE-V01` è `17 ✅ · 0 · 0`. ⌫ **Questa riga diceva *«`G9` non può raggiungere ✅ finché regge `D-046`»*, e `D-402` l'ha resa falsa lasciando `D-046` in vigore**: il gate non era bloccato dalla decisione, era bloccato da un criterio che chiedeva un'osservazione impossibile. Trovato in code review sulla PR che introduce `D-402` |
 | `RT-CAP-TARGETING` | `TargetKindForAction` non produce mai `Object`: il ramo è **morto** | #2827 |
-| `RT-CAP-STATUS` | il motore **non ha immunità per categoria**; il framework è E36, v0.2 | commenti in [`RTCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTCatalogLibrary.cpp) righe 512 e 822 |
+| `RT-CAP-STATUS` | il motore **non ha immunità per categoria**; il framework è E36, v0.2 | commenti in [`RTCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp) righe 512 e 822 |
 | `RT-CAP-SKILL-WORKBENCH` | il dato della variante è consegnato e **non ha un ingresso** | #2577 · il diff baseline↔variante è #2576 |
 | `RT-CAP-REPLICATION` | trasporto assente **per scope dichiarato** | `DOREPLIFETIME` in 2 file, `GetLifetimeReplicatedProps` in 1, `UFUNCTION(Server` in **0** |
 
@@ -602,7 +602,7 @@ misura di assenza; undici lo sono abbastanza da scriverlo.
 |---|---|---|
 | `RT-CAP-SKILL-WORKBENCH` | il dato della variante **non ha nessuna superficie d'Editor o di UI** | misurato sul codice, non sul titolo di #2577: i consumatori di `FRTWorkbenchVariant` sono `RTScenarioRunner.*`, `RTScenarioSession.*`, `RTUnit.cpp` e due file di test. `SRTLabPanel` esiste ma è il pannello dell'Ability/Hero Lab sulle ability **canoniche** |
 | `RT-CAP-LOS` | ⌫ **Superato il 2026-09-12**: diceva *«`PIE-HEXPLAY-6` è l'unica voce ❌ del subset `RELEASE-V01`, con causa indeterminata»*. La voce è ✅ — seduta convocata da [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `runId 20260912-141110`, verdetto d'autore `PASS` — e il subset non ha più voci fallite | 🔴 **Il residuo non è il canale, è la frase**: il testo player-facing dice *«nessuna linea di tiro»* e **non nomina** l'ostacolo, quindi la comprensibilità poggia sul marcatore — che è ruotato di 30° ([#3077](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3077)) |
-| `RT-CAP-WORLD-OVERLAY` | Vision d'area, Hazard, Objective, Invalid **non hanno un produttore** | scritto nell'enum stesso: [`RTOverlayArea.h`](../../../Source/RefactorTactics/Map/RTOverlayArea.h) — *«non sono dimenticate: non hanno un produttore»*. Owner che le apre: #1944. ⌫ *Ability Range ne è uscita il 2026-10-06 con [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507): la portata dell'azione armata, in targeting* |
+| `RT-CAP-WORLD-OVERLAY` | Vision d'area, Hazard, Objective, Invalid **non hanno un produttore** | scritto nell'enum stesso: [`RTOverlayArea.h`](../../../Source/RefactorTactics/Map/Actor/RTOverlayArea.h) — *«non sono dimenticate: non hanno un produttore»*. Owner che le apre: #1944. ⌫ *Ability Range ne è uscita il 2026-10-06 con [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507): la portata dell'azione armata, in targeting* |
 | `RT-CAP-VERTICALITY` | la minaccia di caduta **non è leggibile in pianificazione**, e nel caso saturo l'esito non si spiega | #2405 |
 | `RT-CAP-TURNLOG` | il colpo di boundary rispetta la copertura **e nessuno lo dice** | #1392 · #649 — la regola decide e la traccia tace |
 | `RT-CAP-ANIMATION-RUNTIME` | il grafo ha **due sequence player** e consuma `Idle` e `Move` **e nient'altro** | [`RTPresentationRole.h`](../../../Source/RefactorTactics/Unit/RTPresentationRole.h): gli altri ruoli sono **vocabolario**, non clip che il runtime suona |
@@ -645,8 +645,8 @@ scritti in C++ o in `.ini`, che è precisamente il buco che il riquadro qui sott
 
 | Orfano | Dove | Perché conta |
 |---|---|---|
-| `RT-FEAT-*` | `docs/OPEN_DECISIONS.md` · `docs/DOC_CONFLICT_MATRIX.md` · [`RTCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTCatalogLibrary.cpp) · [`RTHexBotLibrary.h`](../../../Source/RefactorTactics/Bot/RTHexBotLibrary.h) · [`RTTurnManager.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager.cpp) · tre file di `Tests/` · `Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json` | Il registry è uscito con `D-181` (`26f6955a`). Gli ID **rimasti nel codice sono citazioni storiche leggibili** (nominano il buco che uno scenario ha chiuso); quelli in `OPEN_DECISIONS.md` sono usati come **argomento corrente** — *«`RT-FEAT-ACTION-SUPERS` è `IMPLEMENTING` con sei gate `partial`»* — cioè leggono uno stato da una fonte che non esiste più |
-| `HUD Canvas legacy` | [`RTHUD.cpp`](../../../Source/RefactorTactics/UI/RTHUD.cpp) | Non è orfano *ancora*: è il ramo che #613 e #1936 devono spegnere. Finché entrambi vivono, due superfici disegnano lo stesso stato — e #2184 misura che `DrawHUD` è *«la terza funzione più costosa, e l'unica alta fuori dai resolver»* |
+| `RT-FEAT-*` | `docs/OPEN_DECISIONS.md` · `docs/DOC_CONFLICT_MATRIX.md` · [`RTCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp) · [`RTHexBotLibrary.h`](../../../Source/RefactorTactics/Bot/RTHexBotLibrary.h) · [`RTTurnManager.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager.cpp) · tre file di `Tests/` · `Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json` | Il registry è uscito con `D-181` (`26f6955a`). Gli ID **rimasti nel codice sono citazioni storiche leggibili** (nominano il buco che uno scenario ha chiuso); quelli in `OPEN_DECISIONS.md` sono usati come **argomento corrente** — *«`RT-FEAT-ACTION-SUPERS` è `IMPLEMENTING` con sei gate `partial`»* — cioè leggono uno stato da una fonte che non esiste più |
+| `HUD Canvas legacy` | [`RTHUD.cpp`](../../../Source/RefactorTactics/UI/HUD/RTHUD.cpp) | Non è orfano *ancora*: è il ramo che #613 e #1936 devono spegnere. Finché entrambi vivono, due superfici disegnano lo stesso stato — e #2184 misura che `DrawHUD` è *«la terza funzione più costosa, e l'unica alta fuori dai resolver»* |
 
 ---
 
@@ -681,7 +681,7 @@ Ogni riga della baseline del mandato, misurata invece che assunta.
 `FATTO`, verificato uno per uno:
 
 - **micro-step indirizzabile**: `URTReplayStateLibrary::UnitsAtBoundary` esiste
-  ([`RTReplayStateLibrary.h`](../../../Source/RefactorTactics/Replay/RTReplayStateLibrary.h)) e
+  ([`RTReplayStateLibrary.h`](../../../Source/RefactorTactics/Replay/Viewer/RTReplayStateLibrary.h)) e
   `UnitsAtPosition` vi delega con `MicroStepIndex = INDEX_NONE`. #1880 **chiusa**;
 - **`UnitsAtBoundary`**: presente in cinque file di `Source/`, consumato da `RTBoundaryChecksum.cpp`;
 - **state reconstruction**: `FRTTracedUnitState` è dichiaratamente uno stato **di presentazione**
@@ -734,11 +734,11 @@ I difetti **verificati** dell'harness sono al §6.3: #2702, #2714, #1515, #2701.
 
 | Cosa esiste | Dove |
 |---|---|
-| pannello browser | [`SRTAnimBrowserPanel.h`](../../../Source/RefactorTacticsEditor/Private/SRTAnimBrowserPanel.h) |
-| viewport d'anteprima | [`SRTAnimPreviewViewport.h`](../../../Source/RefactorTacticsEditor/Private/SRTAnimPreviewViewport.h) |
-| modello separato dal widget, per essere misurabile | [`RTAnimBrowserModel.h`](../../../Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.h) |
+| pannello browser | [`SRTAnimBrowserPanel.h`](../../../Source/RefactorTacticsEditor/Private/Anim/SRTAnimBrowserPanel.h) |
+| viewport d'anteprima | [`SRTAnimPreviewViewport.h`](../../../Source/RefactorTacticsEditor/Private/Anim/SRTAnimPreviewViewport.h) |
+| modello separato dal widget, per essere misurabile | [`RTAnimBrowserModel.h`](../../../Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.h) |
 | catalogo versionato | `Data/Anim/AnimCatalog.json` + [`RTAnimCatalogLibrary.h`](../../../Source/RefactorTactics/Unit/RTAnimCatalogLibrary.h) |
-| ponte verso il runtime | [`RTBuildAnimBindingsCommandlet.h`](../../../Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h) |
+| ponte verso il runtime | [`RTBuildAnimBindingsCommandlet.h`](../../../Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.h) |
 | test | `RTAnimBrowserModelTests.cpp` · `RTAnimScanTests.cpp` · `RefactorTactics.Anim.*` |
 | issue di consegna | #2443 **chiusa** · #2445 **chiusa** |
 

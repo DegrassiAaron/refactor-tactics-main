@@ -3,8 +3,8 @@
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexMapAsset.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 #include "Unit/RTUnit.h"
 
 namespace

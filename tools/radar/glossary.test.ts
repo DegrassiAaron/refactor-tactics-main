@@ -4,7 +4,7 @@ import { confronta } from './glossary.ts';
 
 /** Le forme sono copiate dai due file veri — la tabella C++ e il documento — non inventate. */
 const CPP = [
-  '#include "UI/RTGlossary.h"',
+  '#include "UI/Inspect/RTGlossary.h"',
   '// Le voci della v0.1.',
   'const TArray<TPair<FName, FString>>& RTGlossary::Names()',
   '{',

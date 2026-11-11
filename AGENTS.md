@@ -606,11 +606,13 @@ node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca un file di ARTTurnManager
                                                           # (Turn/RTTurnManager*, o chi ne definisce metodi)
+python tools/architettura/mappa-cartelle.py --verifica    # se la PR aggiunge o sposta file in Source/: al massimo
+                                                          # 15 file C++ per cartella (#4061)
 python tools/bot-competence/check.py --check              # lo schema, i suoi `consumers`, il roster,
                                                           # Scenarios/, o QUALUNQUE rinomina di un nome
                                                           # Automation citato: e' una lettura offline,
                                                           # nel dubbio si lancia
-python tools/hud-assets/color_metrics.py                  # se la PR tocca UI/RTHUD.cpp, le tabelle di
+python tools/hud-assets/color_metrics.py                  # se la PR tocca UI/HUD/RTHUD.cpp, le tabelle di
                                                           # colore di tools/hud-assets/, o un token di
                                                           # progettazione-hud.md §32 o di
                                                           # 02-color-system.md §2. Il referto LEGGE due
@@ -639,6 +641,8 @@ perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue
 ```powershell
 python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri dell'audit di agosto;
                                                              # quanti casi lo dice il comando
+python tools/architettura/mappa-cartelle.py --autotest       # alberi sintetici: verdi e mutazioni che
+                                                             # devono uscire 1 (D-606)
 python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
 python -m unittest discover -s tools/hud-assets -p "*_test.py"   # la lettura di RTHUD.cpp: la forma attuale
                                                              # si legge, quella vecchia e una inventata no.

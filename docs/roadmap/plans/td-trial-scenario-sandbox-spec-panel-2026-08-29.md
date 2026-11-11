@@ -341,7 +341,7 @@ delle due dica quale sia la più recente.
 | M1 | ADR-0010 scrive *«diciannove `UFUNCTION`»* su `URTReplayViewerSubsystem` | misurate **36**. Un numero con una data, scaduto in due giorni. Non cambia la tesi dell'ADR |
 | M2 | Il §0.9 vieta di riesumare il Feature Registry, **senza qualificatori** | e #1105 lo porta in testa (`Feature ID: RT-FEAT-TOOL-*`), quindi è **già dentro il divieto**: il §8, che riscrive l'epic, lo applica senza bisogno di estenderlo. 🔵 *Questa riga diceva «vieta nei documenti … il divieto va esteso all'epic»: il «nei documenti» non è nel prompt, e il lavoro che ne seguiva era creato dal misquote* |
 | M3 | Il §13 chiede di cercare link rotti «con gli strumenti presenti nel repo» | `tools/radar/doc-links.ts --check` esiste, e cammina il **filesystem**: in regime **D-222** un verde su working directory condivisa non prova che l'albero regga. Va dichiarato l'albero su cui si misura |
-| M4 | Il gate `T0` chiede `Editor Run == Headless Run` | ✅ **esiste ed è verde**: `RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun` ([`RTScenarioRunResetTests.cpp:91`](../../../Source/RefactorTactics/Tests/RTScenarioRunResetTests.cpp)) esegue lo stesso scenario per `URTScenarioRunner::Run` e per `URTScenarioAuthoring::Run` e confronta esito, turni, passed/failed e **StateHash**. Il suo commento lo chiama *«la dimostrazione dell'assenza del secondo simulatore»*, ed è arrivato con #1117. 🔴 **Questa riga diceva «non esiste: nessun test confronta le due esecuzioni», ed era falsa** — trovata in code review. Era l'errore peggiore del referto: dichiarare assente una prova esistente manda ad aprire lavoro già consegnato, che è precisamente ciò che la §16 del prompt vieta |
+| M4 | Il gate `T0` chiede `Editor Run == Headless Run` | ✅ **esiste ed è verde**: `RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun` ([`RTScenarioRunResetTests.cpp:91`](../../../Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioRunResetTests.cpp)) esegue lo stesso scenario per `URTScenarioRunner::Run` e per `URTScenarioAuthoring::Run` e confronta esito, turni, passed/failed e **StateHash**. Il suo commento lo chiama *«la dimostrazione dell'assenza del secondo simulatore»*, ed è arrivato con #1117. 🔴 **Questa riga diceva «non esiste: nessun test confronta le due esecuzioni», ed era falsa** — trovata in code review. Era l'errore peggiore del referto: dichiarare assente una prova esistente manda ad aprire lavoro già consegnato, che è precisamente ciò che la §16 del prompt vieta |
 | M5 | Il §T5 elenca i gap del formato (status iniziali, ambiente, seed, override) | confermati dallo spec §5 e da #1105. ⚠️ `Seed` è un caso a parte: è *«dichiarato e NON consumato»* — authorarlo nella UI prima che il runtime lo consumi darebbe al designer una leva che non muove niente |
 
 ---
@@ -401,7 +401,7 @@ Non è un difetto del prompt, ed è la cosa più utile emersa dall'intera passat
 verificando un'affermazione del §3 di questo referto.
 
 `RTTestScenario.h` dichiara **nove** struct del formato. L'array `MustStayInternal` di
-[`RTScenarioAuthoringTests.cpp:275`](../../../Source/RefactorTactics/Tests/RTScenarioAuthoringTests.cpp) ne
+[`RTScenarioAuthoringTests.cpp:275`](../../../Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioAuthoringTests.cpp) ne
 elenca **otto**:
 
 ```text

@@ -231,7 +231,7 @@ PATTERNS_FLUSSO = (
 #
 # Il comando che trova i file classificati male:
 #
-#     for f in Source/RefactorTactics/Tests/*.cpp; do
+#     for f in $(find Source/RefactorTactics/Tests -name "*.cpp"); do
 #       grep -q "SpawnActor" "$f" \
 #         && ! grep -qE "RunTurn|LockInAndResolve|->Tick\(|URTScenarioRunner::|FRTScenarioSession" "$f" \
 #         && grep -qE "RunScenarioIsolated|PlayOneTurn" "$f" && basename "$f"; done
@@ -574,16 +574,20 @@ def misura(radice, soglia):
     m["turnmanager_metodi_definiti"] = len(definiti)
 
     metodi = set()
-    for p in (radice / "Source/RefactorTactics/Turn").glob("*.cpp"):
+    # #4061: `Turn/` ha sottocartelle. La lettura e' ricorsiva, e l'insieme e' quello di prima: i file che
+    # menzionano `ARTTurnManager::` fuori dall'orchestratore stavano tutti direttamente in `Turn/` (misurato).
+    for p in (radice / "Source/RefactorTactics/Turn").rglob("*.cpp"):
         metodi.update(RE_METODO_TM.findall("\n".join(leggi(p))))
     m["turnmanager_metodi"] = len(metodi)
 
     # Le fixture di header che girano il flusso: si scoprono una volta e valgono per tutti i file.
     fixture = set()
-    for p in sorted((radice / "Source/RefactorTactics/Tests").glob("*.h")):
+    # #4061: `Tests/` rispecchia il codice in sottocartelle. Ricorsiva, o conterebbe solo i file rimasti in radice:
+    # le cartelle di soli dati (`Golden/`, `Fixtures/`) non hanno `.h` ne' `.cpp`, quindi non entrano.
+    for p in sorted((radice / "Source/RefactorTactics/Tests").rglob("*.h")):
         fixture |= fixture_di_flusso("\n".join(leggi(p)))
 
-    test_file = sorted((radice / "Source/RefactorTactics/Tests").glob("*.cpp"))
+    test_file = sorted((radice / "Source/RefactorTactics/Tests").rglob("*.cpp"))
     nomi = set()
     con_mondo = 0
     con_tm = 0

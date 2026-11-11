@@ -1,0 +1,2131 @@
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Algo/Reverse.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapAsset.h"
+#include "Pathfinding/RTHexPathLibrary.h"
+#include "Perception/RTTeamKnowledge.h" // ClassifyTarget: la SEDE UNICA del predicato di conoscenza ([D-223])
+#include "Terrain/RTTerrainLibrary.h"
+
+namespace
+{
+	const FRTHexSimUnit* FindUnit(const FRTHexSnapshot& Snapshot, int32 UnitId)
+	{
+		return Snapshot.Units.FindByPredicate([UnitId](const FRTHexSimUnit& U) { return U.UnitId == UnitId; });
+	}
+
+	/**
+	 * La voce del reachable set per quella cella, o `nullptr`.
+	 *
+	 * Ricerca LINEARE di proposito: il set esce da `ReachableCells` ordinato per `StableLess`, e una binary
+	 * search sarebbe piu' veloce — ma tacerebbe su un set non ordinato, restituendo `nullptr` per una cella
+	 * che c'e'. La sonda ne chiama una per cella sorvolata, su un insieme grande quanto un budget di
+	 * movimento: la differenza non si misura, l'errore silenzioso si', e sarebbe un «quella cella no» detto
+	 * di una cella raggiungibile.
+	 */
+	const FRTHexReachableCell* FindReachable(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell)
+	{
+		return Reachable.FindByPredicate([&Cell](const FRTHexReachableCell& R) { return R.Cell == Cell; });
+	}
+
+	/**
+	 * Due squadre sono ALLEATE? — `#2984`, [D-396]. **L'unica sede del predicato.**
+	 *
+	 * ⚠️ Una squadra non dichiarata (`INDEX_NONE`) non e' alleata di nessuno, **nemmeno di un'altra
+	 * non dichiarata**: il permesso si concede, non si deduce dall'assenza di dato.
+	 *
+	 * ⛔ Vive qui, e non una copia per consumatore, perche' i due lati che lo interrogano — il resolver
+	 * su `FRTMovementResolutionState` e il pathfinder su `FRTHexSnapshot` — non condividono un tipo, e
+	 * riscriverlo due volte e' esattamente il modo in cui uno dei due smette di seguire l'altro.
+	 */
+	bool TeamsAreAllied(int32 A, int32 B)
+	{
+		return A != INDEX_NONE && A == B;
+	}
+
+	/**
+	 * Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa).
+	 *
+	 * 🔴 **NESSUNA unita' e' un ostacolo per la ROTTA; chiunque lo resta come DESTINAZIONE** —
+	 * [D-445]. E' lo specchio, nel pathfinder, di cio' che il resolver fa: *se il resolver lascia passare
+	 * e il pathfinder no, il bot continua a evitare rotte che il gioco permette* — e quella frase, scritta
+	 * qui per le compagne, descriveva alla lettera lo stato in cui questa funzione si e' trovata per
+	 * mezz'ora il 2026-10-01: il resolver era gia' passato a [D-445] e questa no.
+	 *
+	 * ⏱️ *Fino al 2026-10-01 l'esenzione era delle sole COMPAGNE* (`#2984`, [D-396]), specchio del
+	 * permesso di squadra che `StepHexMovement` concedeva allora. [D-445] ha tolto il blocco a tutti, e
+	 * l'esenzione si e' allargata con esso: non e' un rilassamento del pathfinder, e' la stessa regola.
+	 *
+	 * 🔑 **E il difetto che questa simmetria previene si misura, non si argomenta**:
+	 * `Scenario.RunnerSwapRejectedByPlanning` restava **VERDE** col solo resolver cambiato — *«entrambe
+	 * restano ferme»* — perche' il planner rifiutava il percorso prima che il resolver lo vedesse. La
+	 * regola c'era nel codice autoritativo e **non si sentiva in partita**.
+	 *
+	 * ⛔ **`Goal` esiste per la meta' che non va persa, e oggi vale per TUTTI.** Togliendo le unita'
+	 * dagli ostacoli senza
+	 * proteggere la destinazione, l'A* sceglierebbe la cella di un'altra unita' come arrivo — e il resolver
+	 * la rifiuterebbe, perche' l'arco termina su una cella **libera** ([D-398]): il bot proporrebbe una
+	 * mossa illegale. Chi non ha una destinazione — `ReachableCells` — passa `nullptr` e filtra il
+	 * RISULTATO, che e' la stessa regola detta dall'altro lato.
+	 *
+	 * ⚠️ Squadra non dichiarata (`INDEX_NONE`) = nessuna alleanza, come nel resolver.
+	 */
+	TSet<FRTCellId> BlockedCellsFor(const FRTHexSnapshot& Snapshot, int32 ForUnitId,
+		const FRTCellId* Goal = nullptr)
+	{
+		TSet<FRTCellId> Out;
+		for (const TPair<FRTCellId, int32>& Entry : Snapshot.Occupancy)
+		{
+			if (Entry.Value == ForUnitId)
+			{
+				continue;
+			}
+			// 🔴 [D-446]: **nemmeno la destinazione e' un ostacolo.** Dichiarare una cella occupata e' una
+			// SCOMMESSA: se chi la tiene se ne va, ci si arriva; se resta, in risoluzione si e' bloccati. Il
+			// planner non deve sapere quale dei due, ed e' il punto — saperlo significherebbe leggere il piano
+			// avversario, che e' esattamente cio' che la simultaneita' esiste per nascondere.
+			//
+			// ⚠️ **Quindi nessuna cella occupata da un'unita' e' piu' un ostacolo dinamico**, e questa funzione
+			// restituisce sempre l'insieme vuoto. Non viene rimossa qui: la firma e' consumata da quattro siti e
+			// il suo ritiro va fatto in una passata che li tocchi tutti, con la sua misura.
+			continue;
+		}
+		return Out;
+	}
+}
+
+FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units,
+	const TArray<FRTTeamKnowledge>& TeamKnowledge, int32 ObserverTeamId)
+{
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.TeamKnowledge = TeamKnowledge;
+	Snapshot.ObserverTeamId = ObserverTeamId;
+
+	// La conoscenza con cui filtrare, cercata UNA volta prima del ciclo.
+	//
+	// ⚠️ **Un osservatore nominato che non ha una voce di conoscenza vale «non sa niente», e il verso e'
+	// scelto.** L'alternativa — nessuna voce quindi nessun filtro — sarebbe un **fail-open**: la stessa
+	// forma di difetto che `#1499` ha chiuso sul default di `AddLogEvent`, dove l'assenza di una
+	// dichiarazione lasciava passare tutto. Qui l'assenza di conoscenza significa letteralmente conoscenza
+	// vuota, che e' anche cio' che `FRTTeamKnowledge` costruita per default dice di se'.
+	const bool bOsservatoreOnnisciente = (ObserverTeamId == RTObserver::Omniscient);
+	static const FRTTeamKnowledge ConoscenzaVuota;
+	const FRTTeamKnowledge* ConoscenzaOsservatore = &ConoscenzaVuota;
+	if (!bOsservatoreOnnisciente)
+	{
+		if (const FRTTeamKnowledge* Trovata = TeamKnowledge.FindByPredicate(
+			[ObserverTeamId](const FRTTeamKnowledge& K) { return K.TeamId == ObserverTeamId; }))
+		{
+			ConoscenzaOsservatore = Trovata;
+		}
+	}
+
+	if (Map)
+	{
+		Snapshot.MapHash = Map->ComputeHash();
+		Snapshot.Revision = Map->Revision;
+	}
+
+	// Ordine stabile: UnitId, poi cella (l'ordine dell'input non deve influenzare lo snapshot).
+	Snapshot.Units = Units;
+	Snapshot.Units.Sort([](const FRTHexSimUnit& A, const FRTHexSimUnit& B)
+	{
+		return A.UnitId != B.UnitId ? A.UnitId < B.UnitId : URTHexLibrary::StableLess(A.Cell, B.Cell);
+	});
+
+	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore.
+	//
+	// 🔴 **E la sovrapposizione si REGISTRA, invece di sparire** (#1970). Il commento qui diceva che era «un
+	// errore strutturale, segnalato da `ValidateSnapshot`» — e in partita `ValidateSnapshot` non lo chiamava
+	// nessuno: cinque test e un report di debug su richiesta esplicita. L'invariante era dichiarata e non la
+	// guardava nessuno, quindi la condizione poteva accadere senza che niente lo dicesse.
+	//
+	// ⚠️ **Costo zero: il ramo che scarta e' gia' il rilevatore.** Non c'e' una seconda passata e non si
+	// chiama `ValidateSnapshot` — che rivaliderebbe TUTTO lo snapshot su un percorso che
+	// `ARTPlayerController` attraversa a ogni interazione di pianificazione.
+	//
+	// ⛔ Qui non si LOGGA, e non e' timidezza: questa funzione e' pura e non sa se sta servendo una
+	// risoluzione autoritativa o un'anteprima del cursore. Un log qui dentro sparerebbe centinaia di righe
+	// identiche al secondo. Il fatto entra nel dato; a dirlo e' chi ha l'autorita' per sapere che conta.
+	for (const FRTHexSimUnit& Unit : Snapshot.Units)
+	{
+		if (!Unit.bAlive)
+		{
+			continue; // un cadavere non occupa, e non e' una sovrapposizione: `ApplyCombatState` lo dichiara
+		}
+
+		// 🔴 **IL FILTRO DI [D-371]: un corpo che l'osservatore non conosce non occupa la SUA cella.**
+		//
+		// Qui, e non dentro `BlockedCellsFor`, perche' `ARTTurnManager::ResolveMovement` chiama
+		// `FindPathForUnit` nella **Resolution**: un filtro cieco la' renderebbe cieco il resolver. La
+		// Resolution costruisce la propria fotografia con `RTObserver::Omniscient` e questo ramo non scatta.
+		//
+		// ⚠️ **E' «non costruire la vista», non «costruirla e nasconderla»** (`#1805`): la cella del
+		// nascosto non entra MAI in `Occupancy`, quindi nessuno dei tre siti che la leggono
+		// — `BlockedCellsFor`, il filtro di risultato di `ReachableCells`, `ClassifyWaypointCell` —
+		// puo' riderivarla. Filtrare a valle sarebbe l'uscita *(c)* che `BLIND-2` esclude per nome.
+		//
+		// 🔑 **Tre risposte, non due, e la terza e' quella che rende il filtro GIOCABILE.**
+		//
+		//   `Rejected`  ignoto      -> non occupa NIENTE: e' la fuga che questa voce chiude;
+		//   `Allowed`   visto       -> occupa la propria cella, come sempre;
+		//   `CellOnly`  ricordato   -> occupa la cella **RICORDATA**, non quella attuale.
+		//
+		// 🔴 **La terza non e' un compromesso: e' la credenza VERA dell'osservatore.** Far occupare la cella
+		// attuale di un ricordo rivelerebbe esattamente la posizione che non ha; non farlo occupare niente
+		// direbbe *«dove l'ho visto un attimo fa e' libero»*, che e' falso per chi guarda. La cella ricordata
+		// e' l'unica delle tre che non mente in nessuna direzione. ⛔ E non rivela nulla: quel dato
+		// l'osservatore lo ha gia'.
+		//
+		// ⚠️ **Senza questo ramo il diniego non insegnerebbe niente**, e l'anteprima resterebbe in livelock:
+		// un urto rivela un contatto (`RevealByHit`), un contatto e' `CellOnly`, e un `CellOnly` che non
+		// occupa fa ripianificare lo stesso percorso il turno dopo. Misurato sui bot come *«0 colpi in 12
+		// turni»*. Le due meta' servono **entrambe**.
+		FRTCellId CellaOccupata = Unit.Cell;
+		if (!bOsservatoreOnnisciente && Unit.TeamId != Snapshot.ObserverTeamId)
+		{
+			const ERTTargetKnowledge Conoscenza = URTTeamKnowledgeLibrary::ClassifyTarget(
+				*ConoscenzaOsservatore, Unit.StableUnitId, Unit.TeamId, Unit.Cell);
+			if (Conoscenza == ERTTargetKnowledge::Rejected)
+			{
+				continue;
+			}
+			if (Conoscenza == ERTTargetKnowledge::CellOnly
+				&& !URTTeamKnowledgeLibrary::LastKnownCell(
+					*ConoscenzaOsservatore, Unit.StableUnitId, CellaOccupata))
+			{
+				continue; // un ricordo senza cella non e' un ostacolo
+			}
+		}
+
+		if (const int32* Occupante = Snapshot.Occupancy.Find(CellaOccupata))
+		{
+			FRTHexOverlap& Overlap = Snapshot.Overlaps.AddDefaulted_GetRef();
+			Overlap.Cell = CellaOccupata;
+			Overlap.DiscardedUnitId = Unit.UnitId;
+			Overlap.KeptUnitId = *Occupante;
+			continue;
+		}
+
+		Snapshot.Occupancy.Add(CellaOccupata, Unit.UnitId);
+	}
+	return Snapshot;
+}
+
+TArray<FString> URTHexSimLibrary::ValidateSnapshot(const FRTHexSnapshot& Snapshot)
+{
+	TArray<FString> Errors;
+	if (!Snapshot.Map)
+	{
+		Errors.Add(TEXT("Snapshot senza mappa."));
+		return Errors;
+	}
+
+	TSet<int32> SeenIds;
+	TMap<FRTCellId, int32> CellOwner;
+	for (const FRTHexSimUnit& Unit : Snapshot.Units)
+	{
+		if (SeenIds.Contains(Unit.UnitId))
+		{
+			Errors.Add(FString::Printf(TEXT("UnitId duplicato: %d."), Unit.UnitId));
+		}
+		SeenIds.Add(Unit.UnitId);
+
+		if (Unit.MoveBudget < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("Unita' %d: MoveBudget negativo (%d)."), Unit.UnitId, Unit.MoveBudget));
+		}
+
+		if (!Unit.bAlive)
+		{
+			continue; // le unita' eliminate non occupano e non devono stare sulla mappa
+		}
+
+		if (!Snapshot.Map->ContainsCell(Unit.Cell))
+		{
+			Errors.Add(FString::Printf(TEXT("Unita' %d su cella assente dalla mappa: %s."),
+				Unit.UnitId, *Unit.Cell.ToString()));
+		}
+
+		if (const int32* Other = CellOwner.Find(Unit.Cell))
+		{
+			Errors.Add(FString::Printf(TEXT("Celle sovrapposte: unita' %d e %d su %s."),
+				*Other, Unit.UnitId, *Unit.Cell.ToString()));
+		}
+		else
+		{
+			CellOwner.Add(Unit.Cell, Unit.UnitId);
+		}
+	}
+	return Errors;
+}
+
+bool URTHexSimLibrary::IsSnapshotStale(const FRTHexSnapshot& Snapshot)
+{
+	if (!Snapshot.Map)
+	{
+		return true;
+	}
+	return Snapshot.Map->ComputeHash() != Snapshot.MapHash || Snapshot.Map->Revision != Snapshot.Revision;
+}
+
+URTHexMapAsset* URTHexSimLibrary::MakeOptimisticPlanningMap(UObject* Outer, const URTHexMapAsset* Map,
+	const FRTTeamKnowledge& Knowledge)
+{
+	if (!Map || (Knowledge.VisibleCells.Num() == 0 && Knowledge.ExploredCells.Num() == 0))
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Copia = DuplicateObject<URTHexMapAsset>(Map, Outer ? Outer : GetTransientPackage());
+	if (!Copia)
+	{
+		return nullptr;
+	}
+
+	// ⚠️ L'unione e' obbligatoria: `ExploredCells` e' un sovrainsieme di `VisibleCells` solo dopo il refresh della
+	// conoscenza, e prima di quello la cella sotto i piedi di chi pianifica e' solo visibile.
+	TSet<FRTCellId> Note(Knowledge.ExploredCells);
+	Note.Append(Knowledge.VisibleCells);
+
+	// In loco e non con `AddOrUpdateCell`: l'`Id` non cambia, l'indice per cella resta valido e la copia non ha un
+	// registro di modifiche da tenere (stessa scelta di `URTEnemyArcLibrary::KnownTerrainMap`).
+	for (FRTHexCellData& Cella : Copia->Cells)
+	{
+		if (Note.Contains(Cella.Id))
+		{
+			continue;
+		}
+		Cella.bBlocksMovement = false;
+		Cella.bBlocksLineOfSight = false;
+		Cella.Surface = ERTHexSurface::Floor;
+		Cella.MoveCost = 1;
+		Cella.OccupancySurcharge = 0;
+		Cella.Covers.Reset();
+		Cella.Doors.Reset();
+		Cella.Guards.Reset();
+	}
+	Copia->InteriorWalls.RemoveAll([&Note](const FRTHexInteriorWall& W) { return !Note.Contains(W.Cell); });
+	return Copia;
+}
+
+bool URTHexSimLibrary::IsCellFree(const FRTHexSnapshot& Snapshot, const FRTCellId& Cell, int32 ForUnitId)
+{
+	if (!Snapshot.MapForPlanning())
+	{
+		return false;
+	}
+	const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell);
+	if (!Data || Data->bBlocksMovement)
+	{
+		return false;
+	}
+	const int32* Occupant = Snapshot.Occupancy.Find(Cell);
+	return Occupant == nullptr || *Occupant == ForUnitId;
+}
+
+TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapshot& Snapshot, int32 UnitId)
+{
+	TArray<FRTHexReachableCell> Out;
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit || !Snapshot.MapForPlanning()->ContainsCell(Unit->Cell))
+	{
+		return Out;
+	}
+
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
+
+	// Dijkstra su costi interi: estrazione del minimo con tie-break sull'ID (nessuna dipendenza dall'ordine di TMap).
+	// 🔴 **Lo stato e' (cella, lato d'ingresso)**, come nell'A* — #2100. La portata DEVE usare la
+	// stessa regola del percorso: se divergessero, l'overlay illuminerebbe celle che il pathfinding non sa
+	// raggiungere, e il giocatore vedrebbe una destinazione su cui non puo' andare.
+	// Con `RT_NoEntrySide` su ogni cella priva di geometria interna la chiave resta 1:1 con la cella, e
+	// l'ordine di visita e il tie-break di parita' non cambiano di un passo.
+	TMap<FRTPathNode, int32> Dist;
+	// Predecessore di ogni cella: serve al FACING, che deriva dall'ultimo passo (CP 13.5). La partenza e'
+	// predecessore di se stessa — chi non si muove non ha un «da dove», e il suo orientamento non cambia.
+	TMap<FRTPathNode, FRTPathNode> From;
+	TArray<FRTPathNode> Frontier;
+	TSet<FRTPathNode> Closed;
+
+	const FRTPathNode StartNode{ Unit->Cell, RT_NoEntrySide };
+	Dist.Add(StartNode, 0);
+	From.Add(StartNode, StartNode);
+	Frontier.Add(StartNode);
+
+	while (Frontier.Num() > 0)
+	{
+		int32 BestIdx = 0;
+		for (int32 I = 1; I < Frontier.Num(); ++I)
+		{
+			const int32 D = Dist[Frontier[I]];
+			const int32 BestD = Dist[Frontier[BestIdx]];
+			if (D < BestD || (D == BestD && NodeStableLess(Frontier[I], Frontier[BestIdx])))
+			{
+				BestIdx = I;
+			}
+		}
+
+		const FRTPathNode Current = Frontier[BestIdx];
+		Frontier.RemoveAt(BestIdx);
+		if (Closed.Contains(Current))
+		{
+			continue; // gia' finalizzata (duplicato nella frontiera)
+		}
+		Closed.Add(Current);
+
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.MapForPlanning(), Current.Cell))
+		{
+			if (Blocked.Contains(Step.Key))
+			{
+				continue; // occupata da un'altra unita'
+			}
+
+			// La traversata intra-cella, con la stessa regola dell'A* (#2100).
+			if (Current.Entry != RT_NoEntrySide)
+			{
+				ERTHexDirection ExitDir = ERTHexDirection::E;
+				if (URTHexLibrary::DirectionBetween(Current.Cell, Step.Key, ExitDir)
+					&& !URTHexPathLibrary::CanTransitCell(Snapshot.MapForPlanning(), Current.Cell,
+						static_cast<ERTHexDirection>(Current.Entry), ExitDir))
+				{
+					continue; // geometria interna: le due sponde non si parlano
+				}
+			}
+
+			const int32 Tentative = Dist[Current] + Step.Value + FMath::Max(0, Unit->MoveCostModifier);
+			if (Tentative > Budget)
+			{
+				continue; // fuori dal budget di movimento
+			}
+			const FRTPathNode Next{ Step.Key, EntrySideOf(Snapshot.MapForPlanning(), Step.Key, Current.Cell) };
+			const int32* Existing = Dist.Find(Next);
+			if (!Existing || Tentative < *Existing)
+			{
+				Dist.Add(Next, Tentative);
+				From.Add(Next, Current);
+				Frontier.Add(Next);
+			}
+			else if (Tentative == *Existing)
+			{
+				// PARITA' di costo: due percorsi ugualmente economici arrivano sulla stessa cella, e il facing
+				// che se ne deriva dipende da quale si sceglie. Il tie-break e' esplicito e sull'ID, come quello
+				// dell'estrazione: senza, il predecessore lo deciderebbe l'ordine di visita — cioe' un dettaglio
+				// che nessuno ha dichiarato, e che il resolver non e' tenuto a riprodurre.
+				const FRTPathNode* Prev = From.Find(Next);
+				if (Prev && NodeStableLess(Current, *Prev))
+				{
+					From.Add(Next, Current);
+				}
+			}
+		}
+	}
+
+	// ⚠️ **La ricerca distingue i nodi, l'uscita no**: il contratto di questa funzione e' una voce per
+	// CELLA. Due nodi della stessa cella — entrata da lati diversi — si collassano tenendo il costo
+	// minore, e a parita' il predecessore che `NodeStableLess` mette prima: lo stesso criterio del ramo
+	// di parita' qui sopra, applicato una seconda volta perche' qui la collisione e' fra nodi e non fra
+	// cammini. Su una cella senza geometria il nodo e' uno solo e il collasso e' l'identita'.
+	TMap<FRTCellId, TPair<int32, FRTCellId>> Best; // cella -> (costo, predecessore)
+	for (const TPair<FRTPathNode, int32>& Entry : Dist)
+	{
+		const FRTPathNode* Prev = From.Find(Entry.Key);
+		const FRTCellId PrevCell = Prev ? Prev->Cell : Entry.Key.Cell;
+
+		if (TPair<int32, FRTCellId>* Existing = Best.Find(Entry.Key.Cell))
+		{
+			if (Entry.Value < Existing->Key
+				|| (Entry.Value == Existing->Key && URTHexLibrary::StableLess(PrevCell, Existing->Value)))
+			{
+				*Existing = TPair<int32, FRTCellId>(Entry.Value, PrevCell);
+			}
+		}
+		else
+		{
+			Best.Add(Entry.Key.Cell, TPair<int32, FRTCellId>(Entry.Value, PrevCell));
+		}
+	}
+
+	Out.Reserve(Best.Num());
+	for (const TPair<FRTCellId, TPair<int32, FRTCellId>>& Entry : Best)
+	{
+		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value.Key, Entry.Value.Value));
+	}
+	// 🔴 **Il ventaglio include le celle occupate, e qui non si filtra niente** ([D-446]).
+	//
+	// ⏱️ *Fino al 2026-10-01 un ciclo toglieva da `Out` ogni cella di un'altra unita'*, e il suo
+	// commento diceva di se stesso cio' che serve per capirlo: *«e' l'altra meta' di `Goal` in
+	// `BlockedCellsFor`»*. [D-446] ha ritirato quel `Goal` — la destinazione occupata e' una scommessa, non
+	// un rifiuto — e una meta' ritirata lascia viva la gemella, che continua a dire la regola morta da un
+	// altro lato. **E' cosi' che si misura**: non rileggendo il codice, ma guardando il banco che pinna
+	// l'accordo fra i due lati, `ReachableAfterPlanMatchesWaypointAcceptance`, che e' andato rosso con
+	// *«(-1,0,L0): nel fan=no, accettata=si»*.
+	//
+	// 🔑 **Fan e accettazione DEVONO coincidere**, ed e' l'unica ragione per cui questo punto e'
+	// delicato: l'overlay illumina cio' che il clic accetta. Divergere in un verso illumina celle su cui
+	// non si puo' andare; divergere nell'altro — quello che il filtro produceva — nasconde celle su cui
+	// si puo'. [D-289] resta intatto: vieta la co-occupazione a RISOLUZIONE, e non ha mai detto che una
+	// cella occupata non si possa dichiarare.
+	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
+	{
+		return URTHexLibrary::StableLess(A.Cell, B.Cell);
+	});
+	return Out;
+}
+
+TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCellsAfterPlan(const FRTHexSnapshot& Snapshot,
+	int32 UnitId, const TArray<FRTCellId>& Waypoints)
+{
+	// Nessun piano: il ventaglio pieno dalla posizione reale. E' il caso di gran lunga piu' frequente —
+	// unita' appena selezionata — e non deve pagare nulla.
+	if (Waypoints.Num() == 0)
+	{
+		return ReachableCells(Snapshot, UnitId);
+	}
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Unit)
+	{
+		return ReachableCells(Snapshot, UnitId); // unita' sconosciuta: risponde lei, con un insieme vuoto
+	}
+
+	// Il piano si CHIEDE alla funzione che lo decide davvero. Ricalcolarlo qui sarebbe il secondo pathfinder
+	// che l'anteprima non puo' permettersi: il giocatore vedrebbe una zona e ne subirebbe un'altra.
+	const FRTHexPathResult Plan = BuildCompositeHexPath(Snapshot, UnitId, Waypoints);
+	if (Plan.Status != ERTHexPathStatus::Success || Plan.Path.Num() == 0)
+	{
+		// Piano rifiutato in blocco: non esiste una punta da cui ripartire, e quello in vigore e' «resto
+		// fermo». Il fan torna pieno insieme al piano, non resta appeso all'ultimo valido.
+		return ReachableCells(Snapshot, UnitId);
+	}
+
+	// Fotografia DERIVATA: la sola unita' selezionata sta sulla punta, col budget che le resta. `TotalCost`
+	// porta gia' dentro il `MoveCostModifier` dello Slow (`BuildCompositeHexPath` lo passa all'A*), quindi la
+	// sottrazione non lo conta due volte.
+	TArray<FRTHexSimUnit> Planned = Snapshot.Units;
+	for (FRTHexSimUnit& Sim : Planned)
+	{
+		if (Sim.UnitId == UnitId)
+		{
+			Sim.Cell = Plan.Path.Last();
+			Sim.MoveBudget = FMath::Max(0, Sim.MoveBudget - Plan.TotalCost);
+			break;
+		}
+	}
+
+	// Ricostruita con `MakeSnapshot` e non a mano: l'occupazione va ricalcolata coerentemente con la nuova
+	// posizione, ed e' lei la funzione che sa come.
+	//
+	// 🔴 **E la fotografia derivata EREDITA l'osservatore, non nasce onnisciente** ([D-371]). Perderlo qui
+	// sarebbe il difetto piu' difficile da vedere di tutta questa voce: il ventaglio del primo clic
+	// risulterebbe filtrato e quello dopo un waypoint no, cioe' l'anteprima rivelerebbe la posizione
+	// nascosta **solo a chi pianifica in due tempi**. `TeamKnowledge` viaggia con lui, perche' senza non
+	// c'e' niente con cui filtrare.
+	FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned,
+		Snapshot.TeamKnowledge, Snapshot.ObserverTeamId);
+	// La vista ottimistica del Move viaggia con la fotografia derivata: perderla qui farebbe leggere il ventaglio
+	// dopo un waypoint su una mappa diversa da quella del primo clic ([D-372]).
+	Derived.PlanningMap = Snapshot.PlanningMap;
+
+	// ⚠️ `Derived` muore qui dentro, ed e' deliberato: dice che l'unita' e' su una cella dove non e' ancora
+	// arrivata. Per il fan e' l'ipotesi giusta; per chiunque altro sarebbe una bugia.
+	return ReachableCells(Derived, UnitId);
+}
+
+FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal)
+{
+	FRTHexPathResult Result;
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit)
+	{
+		Result.Status = ERTHexPathStatus::StartInvalid;
+		return Result;
+	}
+
+	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
+	if (Budget <= 0)
+	{
+		// MaxCost == 0 significa "illimitato" per l'A*: il caso "immobile" va gestito qui.
+		if (Goal == Unit->Cell && Snapshot.MapForPlanning()->ContainsCell(Goal))
+		{
+			Result.Status = ERTHexPathStatus::Success;
+			Result.Path.Add(Goal);
+		}
+		else
+		{
+			Result.Status = Snapshot.MapForPlanning()->ContainsCell(Goal) ? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
+		}
+		return Result;
+	}
+
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Goal);
+	return URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Unit->Cell, Goal, &Blocked, Budget,
+		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
+}
+
+namespace
+{
+/**
+ * Il passo `From -> To` e' percorribile? Due domande, e vanno fatte entrambe (#2284):
+ *
+ * 1. il GRAFO offre ancora quell'arco — copre la cella assente, `bBlocksMovement` e la copertura alta o la
+ *    porta chiusa sul BORDO (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga);
+ * 2. la cella `From` si ATTRAVERSA da dove si e' arrivati a dove si va — la geometria interna di `#2100`,
+ *    che il grafo non vede perche' guarda i bordi e non l'interno.
+ *
+ * ⚠️ **DUE LIMITI, entrambi ereditati da `GraphNeighbors` e non chiusi qui.** Il suo ramo degli ARCHI
+ * espliciti controlla `FindCell` e `bBlocksMovement` ma **non** `BlocksTraversal`: una mappa che dichiara
+ * un arco attivo sopra un bordo con copertura alta lo rende comunque percorribile, e lo scivolamento
+ * passerebbe. E `CameFrom` non valido fa cadere la sola verifica intra-cella, cioe' fallisce APERTO: oggi
+ * il solo chiamante lo passa sempre valido — `ApplyIceSliding` ha gia' verificato layer e adiacenza — ma
+ * un secondo chiamante che scrivesse `FRTCellId()` non se ne accorgerebbe. Entrambi sono di
+ * `GraphNeighbors` e del suo contratto, non di questa funzione.
+ *
+ * Esiste come funzione e non come due copie perche' la seconda era gia' stata dimenticata una volta: la
+ * prima stesura di `#2284` chiedeva solo al grafo, e uno scivolamento attraversava i muri INTERNI dopo
+ * averne appena chiuso il caso sui bordi.
+ */
+bool StepIsWalkable(const URTHexMapAsset* Map, const FRTCellId& CameFrom, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	bool bOnGraph = false;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		if (Step.Key == To)
+		{
+			bOnGraph = true;
+			break;
+		}
+	}
+	if (!bOnGraph)
+	{
+		return false;
+	}
+
+	// `CameFrom` invalido significa «nessun predecessore»: non c'e' una traversata da validare.
+	ERTHexDirection EntryDir = ERTHexDirection::E;
+	ERTHexDirection ExitDir = ERTHexDirection::E;
+	if (URTHexLibrary::DirectionBetween(From, CameFrom, EntryDir)
+		&& URTHexLibrary::DirectionBetween(From, To, ExitDir))
+	{
+		return URTHexPathLibrary::CanTransitCell(Map, From, EntryDir, ExitDir);
+	}
+	return true;
+}
+} // namespace
+
+FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
+{
+	// Il percorso invariato e' la risposta di ogni uscita negativa; cio' che le distingue e'
+	// `bSlideRequested`, che si alza SOLO quando il terreno ha davvero chiesto lo scivolamento (`#2314`).
+	FRTIceSlideResult Result;
+	Result.Path = Path;
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit || Path.Num() < 2)
+	{
+		return Result;
+	}
+
+	// Regola dal CATALOGO, non dall'enum: e' un dato del terreno come il costo e il blocco allo scatto. Con
+	// `SlideCells <= 0` non si scivola.
+	//
+	// ✅ **Da `#2253` il campo e' un CONTATORE**, e il limite che il suo commento dichiarava al CP 8.1 —
+	// *«letto come un booleano»* — e' caduto: si srotolano `SlideCells` passi, piu' quelli che l'unita'
+	// porta con se' (`ExtraSlideCells`, oggi `Status.Unbalanced`).
+	const FRTCellId LastCell = Path.Last();
+	const FRTHexCellData* LastData = Snapshot.MapForPlanning()->FindCell(LastCell);
+	const int32 TerrainSlide = LastData
+		? URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells : 0;
+	if (TerrainSlide <= 0)
+	{
+		return Result; // il terreno non chiede nessuno scivolamento: non c'e' niente da impedire
+	}
+	// ⚠️ **L'extra si somma solo dove il terreno gia' fa scivolare.** Uno sbilanciato che finisce su una
+	// cella normale non scivola affatto: `ExtraSlideCells` amplifica un effetto, non lo crea — altrimenti
+	// `Unbalanced` diventerebbe una sorgente di scivolamento e la catena si autoalimenterebbe fuori dal
+	// ghiaccio, che non e' cio' che [D-319] descrive.
+	const int32 TotalSlide = TerrainSlide + FMath::Max(0, Unit->ExtraSlideCells);
+
+	// Stessa formula di TruncatePathToBudget: costo della cella PIU' il modificatore dell'unita' (`Slow` lo
+	// alza, CP 4.7). Sommare il solo MoveCost sottostimerebbe la spesa di chi e' rallentato, e lo si vedrebbe
+	// scivolare con un budget che in realta' aveva gia' finito.
+	int32 PathCost = 0;
+	const int32 ExtraPerCell = FMath::Max(0, Unit->MoveCostModifier);
+	for (int32 I = 1; I < Path.Num(); ++I)
+	{
+		const FRTHexCellData* StepData = Snapshot.MapForPlanning()->FindCell(Path[I]);
+		PathCost += (StepData ? StepData->TotalMoveCost() : 0) + ExtraPerCell;
+	}
+	if (Unit->MoveBudget - PathCost < 2)
+	{
+		// La soglia fa parte della REGOLA, non e' un ostacolo: sotto i 2 MP residui il terreno non chiede
+		// nulla. Alzare `bSlideRequested` qui direbbe «scivolamento impedito» a chi ha solo finito il budget.
+		return Result;
+	}
+
+	const FRTCellId PrevCell = Path[Path.Num() - 2];
+	if (PrevCell.Layer != LastCell.Layer)
+	{
+		return Result; // arrivo via transizione: nessuna "direzione" da cui scivolare
+	}
+
+	const int32 StepQ = LastCell.X - PrevCell.X;
+	const int32 StepR = LastCell.Y - PrevCell.Y;
+	FIntPoint Dir(0, 0);
+	bool bValidDirection = false;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FIntPoint Candidate = URTHexLibrary::AxialDirection(static_cast<ERTHexDirection>(D));
+		if (Candidate.X == StepQ && Candidate.Y == StepR)
+		{
+			Dir = Candidate;
+			bValidDirection = true;
+			break;
+		}
+	}
+	if (!bValidDirection)
+	{
+		return Result; // ultimo passo non e' un vicino diretto: la regola non ha una direzione su cui applicarsi
+	}
+
+	// Da qui in poi il terreno HA chiesto lo scivolamento: superficie scivolosa, budget residuo sufficiente,
+	// direzione esistente. Cio' che resta da stabilire e' soltanto QUANTE celle vengano percorse — zero
+	// compreso, ed e' la distinzione per cui questo campo esiste (`#2314`): con zero celle accodate il
+	// percorso torna identico a quello ricevuto, cioe' alla risposta di ogni altra uscita negativa.
+	Result.bSlideRequested = true;
+
+	// Si srotola una cella per volta nella STESSA direzione, e ogni passo risponde alla stessa domanda del
+	// primo. Un ciclo e non una moltiplicazione: la seconda cella puo' essere un muro mentre la prima e'
+	// libera, e in quel caso lo scivolamento e' PARZIALE — l'unita' percorre quella che c'e' e si ferma.
+	//
+	// Il PASSO, non solo la cella (#2284). `StepIsWalkable` copre in una domanda sola cio' che prima erano
+	// due controlli separati e incompleti: la cella assente e `bBlocksMovement` — che `GraphNeighbors` gia'
+	// implica — piu' i muri sul BORDO e la geometria INTERNA della cella d'arrivo, che nessuno guardava.
+	//
+	// ⚠️ **Non e' il controllo che `spec-terreni-e8.md` §5.2 dichiara di NON fare.** Quella riga rinuncia
+	// all'OCCUPAZIONE — chi sta nella cella — ed e' corretta: il microstep di `ResolveHexPaths` la gestisce
+	// come per qualunque altro passo. La percorribilita' e' un'altra domanda, e la spec non la nominava:
+	// dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e pubblica, e chi
+	// la chiama direttamente riceveva il muro attraversato.
+	//
+	// ⚠️ **La DIREZIONE non si ricalcola a ogni passo**, e non e' una semplificazione: uno scivolamento e'
+	// un solo evento con una sola inerzia. Ricalcolarla dall'ultimo passo darebbe lo stesso risultato —
+	// `Dir` e' costante per costruzione — ma inviterebbe il prossimo lettore a credere che una curva sia
+	// possibile.
+	FRTCellId FromCell = PrevCell;
+	FRTCellId AtCell = LastCell;
+	for (int32 Step = 0; Step < TotalSlide; ++Step)
+	{
+		const FRTCellId SlideCell(AtCell.X + Dir.X, AtCell.Y + Dir.Y, AtCell.Layer);
+		if (!StepIsWalkable(Snapshot.MapForPlanning(), FromCell, AtCell, SlideCell))
+		{
+			// Un muro fra la cella corrente e la successiva: si ferma qui, e cio' che ha gia' fatto vale.
+			// Se si ferma al PRIMO passo il percorso resta quello ricevuto, e `bSlideRequested` diventa
+			// l'unica traccia che lo scivolamento sia stato IMPEDITO invece che non richiesto — perderla
+			// e' la mutazione che `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked` rileva (`#2314`).
+			break;
+		}
+		Result.Path.Add(SlideCell);
+		FromCell = AtCell;
+		AtCell = SlideCell;
+	}
+	return Result;
+}
+
+ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const FRTCellId& Cell)
+{
+	if (!Snapshot.MapForPlanning() || !Snapshot.MapForPlanning()->ContainsCell(Cell))
+	{
+		return ERTHexWaypointReason::NotOnMap;
+	}
+	if (const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell))
+	{
+		if (Data->bBlocksMovement)
+		{
+			return ERTHexWaypointReason::BlocksMovement;
+		}
+	}
+	// Un'unita' non blocca se stessa: la propria cella e' un waypoint legittimo (annulla il movimento).
+	if (const int32* Occupant = Snapshot.Occupancy.Find(Cell))
+	{
+		if (*Occupant != UnitId)
+		{
+			return ERTHexWaypointReason::Occupied;
+		}
+	}
+	return ERTHexWaypointReason::Ok;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::ProbePathTo(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Goal)
+{
+	TArray<FRTCellId> Out;
+	if (!FindReachable(Reachable, Goal))
+	{
+		return Out; // fuori dal set: non c'e' un percorso da mostrare
+	}
+
+	// Risalita dei predecessori. La partenza e' predecessore di se stessa (`ReachableCells`), ed e' la
+	// condizione d'arresto: non serve conoscere quale sia la cella dell'unita'.
+	FRTCellId Current = Goal;
+	for (int32 Steps = 0; Steps <= Reachable.Num(); ++Steps)
+	{
+		Out.Add(Current);
+
+		const FRTHexReachableCell* Node = FindReachable(Reachable, Current);
+		if (!Node || Node->FromCell == Current)
+		{
+			Algo::Reverse(Out);
+			return Out; // arrivati alla partenza
+		}
+		Current = Node->FromCell;
+	}
+
+	// Piu' passi che celle nel set: la catena dei predecessori non e' un albero radicato nella partenza.
+	// Un Dijkstra non lo produce, quindi qui il dato in ingresso non viene da `ReachableCells` — e mezzo
+	// percorso disegnato sarebbe una risposta inventata. Meglio nessuna.
+	return {};
+}
+
+ERTHexProbeExclusion URTHexSimLibrary::ClassifyProbeCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell)
+{
+	if (FindReachable(Reachable, Cell))
+	{
+		return ERTHexProbeExclusion::Reachable;
+	}
+
+	// I motivi che riguardano la CELLA sono gia' di qualcun altro.
+	//
+	// 🔴 **`Occupied` non e' piu' un'esclusione, e non si gira piu'** ([D-446]). Una cella occupata si
+	// puo' dichiarare, quindi non e' un motivo per cui una cella sta FUORI dal ventaglio — che e' l'unica
+	// domanda a cui questa funzione risponde.
+	//
+	// ⚠️ **E lasciarla avrebbe prodotto una risposta SBAGLIATA, non solo inerte.** Una cella occupata
+	// e **fuori budget** non entra nel ventaglio per il budget; con la vecchia riga avrebbe risposto
+	// *occupata*, mandando chi legge a cercare la causa in un posto dove non c'e'. Senza la riga la domanda
+	// cade dove e' sempre stata giusta: il ramo budget/strada qui sotto.
+	//
+	// ⛔ `ClassifyWaypointCell` continua a rispondere `Occupied`, e non e' un'incoerenza: li' e' il
+	// **vocabolario del diniego**, che il TurnManager legge a risoluzione per dire *«ho provato e me
+	// l'hanno negato»* (`#79`). Il diniego e' vivo; l'esclusione dal ventaglio no.
+	switch (ClassifyWaypointCell(Snapshot, UnitId, Cell))
+	{
+	case ERTHexWaypointReason::NotOnMap:       return ERTHexProbeExclusion::NotOnMap;
+	case ERTHexWaypointReason::BlocksMovement: return ERTHexProbeExclusion::BlocksMovement;
+	case ERTHexWaypointReason::Occupied:       break;
+	case ERTHexWaypointReason::Ok:             break;
+	}
+
+	// La cella in se' va bene ed e' fuori dal set: o manca il movimento, o manca la strada. La domanda si
+	// gira al pathfinder canonico SENZA limite di costo (`MaxCost == 0`) e con gli stessi ostacoli dinamici
+	// di `FindPathForUnit`: se a budget illimitato un percorso esiste, allora mancava solo il budget.
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit)
+	{
+		return ERTHexProbeExclusion::NoRoute;
+	}
+
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Cell);
+	const FRTHexPathResult Unlimited = URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Unit->Cell, Cell,
+		&Blocked, /*MaxCost=*/ 0, /*MaxNodes=*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
+
+	return Unlimited.Status == ERTHexPathStatus::Success
+		? ERTHexProbeExclusion::OutOfBudget
+		: ERTHexProbeExclusion::NoRoute;
+}
+
+FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTCellId>& Waypoints)
+{
+	FRTHexPathResult Result;
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit)
+	{
+		Result.Status = ERTHexPathStatus::StartInvalid;
+		return Result;
+	}
+
+	Result.Status = ERTHexPathStatus::Success;
+	Result.Path.Add(Unit->Cell);
+
+	// L'ultimo waypoint E' la destinazione del percorso composito: e' quello da proteggere, non i
+	// waypoint intermedi, che sono celle di passaggio come tutte le altre ([D-396]).
+	const FRTCellId* FinalGoal = Waypoints.Num() > 0 ? &Waypoints.Last() : nullptr;
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, FinalGoal);
+	int32 Remaining = FMath::Max(0, Unit->MoveBudget);
+	FRTCellId Current = Unit->Cell;
+
+	for (const FRTCellId& Waypoint : Waypoints)
+	{
+		if (Waypoint == Current)
+		{
+			continue; // click ripetuto sulla stessa cella: tratto a costo zero, niente da accodare
+		}
+		if (Remaining <= 0)
+		{
+			// MaxCost == 0 significa "illimitato" per l'A*: senza budget residuo non si chiama.
+			FRTHexPathResult Rejected;
+			Rejected.Status = Snapshot.MapForPlanning()->ContainsCell(Waypoint)
+				? ERTHexPathStatus::NoPath : ERTHexPathStatus::GoalInvalid;
+			return Rejected;
+		}
+
+		const FRTHexPathResult Leg = URTHexPathLibrary::FindPathAvoiding(Snapshot.MapForPlanning(), Current, Waypoint, &Blocked,
+			Remaining, /*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
+		if (Leg.Status != ERTHexPathStatus::Success)
+		{
+			return Leg; // rifiuto dell'INTERO percorso (Path vuoto): il chiamante scarta il waypoint aggiunto
+		}
+
+		// Leg.Path parte da Current, che e' gia' l'ultima cella accumulata: la giunzione non si duplica.
+		for (int32 i = 1; i < Leg.Path.Num(); ++i)
+		{
+			Result.Path.Add(Leg.Path[i]);
+		}
+		Result.TotalCost += Leg.TotalCost;
+		Result.NodesVisited += Leg.NodesVisited;
+		Remaining -= Leg.TotalCost;
+		Current = Waypoint;
+	}
+
+	return Result;
+}
+
+int32 URTHexSimLibrary::TraversalDurationTicks(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const FRTCellId& Cell)
+{
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit)
+	{
+		return 1; // dato non verificabile: si degrada al comportamento precedente, non si inventa una durata
+	}
+
+	const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Cell);
+	if (!Data)
+	{
+		return 1;
+	}
+
+	// 🔑 **La stessa lettura del costo che fa `TruncatePathToBudget`**, e non e' una coincidenza da
+	// conservare a mano: se le due divergessero, il budget direbbe che un percorso e' affrontabile e la
+	// durata lo misurerebbe su un'altra scala.
+	//
+	// ⚠️ **Due eccezioni, ed entrambe sono fail-safe deliberati** (`#2940`): una cella **fuori mappa** costa
+	// `0` di budget e `1` microstep — li' non c'e' un dato da leggere, e il budget sceglie di non far pagare
+	// mentre il tempo sceglie di non annullare il passo; una cella con `MoveCost` e sovrapprezzo a **zero**
+	// costa `0` di budget e `1` microstep, per il clamp qui sotto. Chi confronta le due funzioni le trova, e
+	// non deve «allinearle»: sono divergenze scritte, non derive.
+	//
+	// ⚠️ **Ancorata a `TotalMoveCost`, non agli MP consumati** ([D-381]): [D-117] porta il costo per cella a
+	// `max(0, MoveCost - 1 + MoveCostModifier)`, cioe' ZERO sul terreno normale, e una durata letta da li'
+	// renderebbe istantaneo l'attraversamento del `Floor`. `TotalMoveCost()` vale almeno `1` su ogni cella
+	// del catalogo, prima e dopo quella separazione: la linea di base che `D-117` sottrae riguarda il
+	// PREZZO, non il TEMPO.
+	return FMath::Max(1, Data->TotalMoveCost() + FMath::Max(0, Unit->MoveCostModifier));
+}
+
+TArray<int32> URTHexSimLibrary::StepDurationsForPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTCellId>& Path, int32 PlannedLength)
+{
+	TArray<int32> Durations;
+	if (Path.Num() < 2)
+	{
+		return Durations; // nessun arco da percorrere: niente da temporizzare
+	}
+
+	// 🔑 **Gli archi oltre il prefisso PIANIFICATO valgono un microstep, sempre** ([D-384], `#2940`).
+	// La coda di un percorso puo' essere uno SCIVOLAMENTO che il terreno ha imposto (`ApplyIceSliding`), e
+	// quello e' spostamento **subito**: `D-384` dice che il `Forced` non legge il costo del terreno, perche'
+	// *«una durata derivata dal costo farebbe pagare a chi e' spinto il prezzo di una scelta che non ha
+	// fatto»*. Senza questa riga chi scivola su terreno difficile pagherebbe due o tre microstep — e sotto
+	// [D-382] terrebbe occupata la propria cella d'origine per tutto quel tempo.
+	//
+	// `PlannedLength` conta le CELLE, partenza inclusa, quindi l'ultimo arco pianificato ha indice
+	// `PlannedLength - 2`. Valore `<= 0` -> «tutto pianificato», che e' il caso di ogni chiamante che non
+	// passa dai terreni.
+	const int32 LastPlannedArc = PlannedLength > 0 ? (PlannedLength - 2) : (Path.Num() - 2);
+
+	Durations.Reserve(Path.Num() - 1);
+	for (int32 k = 1; k < Path.Num(); ++k)
+	{
+		// La durata di un arco e' quella della cella in cui si ENTRA: e' l'ingresso a costare, non l'uscita.
+		Durations.Add((k - 1) <= LastPlannedArc
+			? TraversalDurationTicks(Snapshot, UnitId, Path[k])
+			: 1);
+	}
+	return Durations;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::TruncatePathToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTCellId>& Path)
+{
+	if (Path.Num() == 0)
+	{
+		return Path;
+	}
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.MapForPlanning() || !Unit)
+	{
+		return Path; // dato non verificabile: si lascia il piano invariato, non lo si annulla ne' lo si taglia a caso
+	}
+
+	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
+	const int32 ExtraPerCell = FMath::Max(0, Unit->MoveCostModifier);
+
+	TArray<FRTCellId> Truncated;
+	Truncated.Add(Path[0]);
+	int32 Spent = 0;
+
+	for (int32 k = 1; k < Path.Num(); ++k)
+	{
+		const FRTHexCellData* Data = Snapshot.MapForPlanning()->FindCell(Path[k]);
+		const int32 StepCost = (Data ? Data->TotalMoveCost() : 0) + ExtraPerCell;
+		if (Spent + StepCost > Budget)
+		{
+			break; // il budget finisce qui: il resto del piano non e' piu' affrontabile con lo stato attuale
+		}
+		Spent += StepCost;
+		Truncated.Add(Path[k]);
+	}
+	return Truncated;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot& Snapshot,
+	const TArray<FRTCellId>& Path)
+{
+	if (!Snapshot.MapForPlanning() || Path.Num() < 2)
+	{
+		return Path; // dato non verificabile, o niente da camminare
+	}
+
+	TArray<FRTCellId> Walkable;
+	Walkable.Add(Path[0]);
+	for (int32 k = 1; k < Path.Num(); ++k)
+	{
+		// Stessa domanda dello scivolamento, stessa funzione (#2284): `StepIsWalkable` fa il controllo sul
+		// grafo e quello sulla traversata intra-cella, che qui erano due blocchi separati. Il predecessore
+		// esiste solo da `k >= 2`; al primo passo non c'e' traversata da validare, e la funzione lo gestisce.
+		const FRTCellId CameFrom = (k >= 2) ? Path[k - 2] : Path[k - 1];
+		if (!StepIsWalkable(Snapshot.MapForPlanning(), CameFrom, Path[k - 1], Path[k]))
+		{
+			break; // la topologia e' cambiata da quando il piano e' stato scritto, o il piano attraversava un muro
+		}
+
+		Walkable.Add(Path[k]);
+	}
+	return Walkable;
+}
+
+namespace
+{
+	// Un solo microstep, letto e scritto sullo STATO invece che sulle variabili locali di un ciclo. Il corpo
+	// e' rimasto quello che era: CP 14.2 sposta il confine della funzione, non una riga di regola.
+	/**
+	 * Durata dell'arco `StepIndex` di `UnitIdx`, in microstep ([D-381]).
+	 *
+	 * Assente, fuori intervallo o `<= 0` -> `1`: e' il fail-safe che rende `ResolveHexPaths(Paths)` senza
+	 * durate identico al resolver di prima di `#2914`, e non un caso da gestire dai chiamanti.
+	 */
+	int32 DurationOfStep(const FRTMovementResolutionState& State, int32 UnitIdx, int32 StepIndex)
+	{
+		if (!State.StepDurations.IsValidIndex(UnitIdx) || !State.StepDurations[UnitIdx].IsValidIndex(StepIndex))
+		{
+			return 1;
+		}
+		return FMath::Max(1, State.StepDurations[UnitIdx][StepIndex]);
+	}
+
+	/**
+	 * CHI e' fermo su `Cell`, se qualcuno lo e' — indice dell'unita', o `INDEX_NONE`. Diversa da
+	 * `UnitIdx`, e letta da `Pos`, lo stato stabile del micro-step.
+	 *
+	 * ➕ **Restituisce CHI, non SE** (`#2984`): chi apre l'arco deve poter chiedere a quell'occupante se
+	 * e' una compagna, e un `bool` glielo nasconderebbe.
+	 *
+	 * 🔴 **FERMA, non semplicemente presente, e la differenza e' la catena del ciclo.** Un arco scavalca le
+	 * celle che copre, e quelle celle non compaiono in `Target`: la catena `target -> occupante` non le vede
+	 * ([D-398] §9b, il rischio che quella voce si era dichiarata). Scavalcando un'unita' che si MUOVE si
+	 * perderebbe lo scambio che quella catena esiste per prendere — misurato:
+	 * `HexSim.ResolveCrossWhilePassingThrough` cade, e i due si incrociano invece di bloccarsi.
+	 *
+	 * 🔑 **E la restrizione non costa niente al difetto che [D-398] chiude**: quel difetto e' fermarsi
+	 * addosso a chi non se ne andra' mai, cioe' precisamente a un'unita' ferma. Chi si muove libera la cella
+	 * da solo, e se non ci riesce il blocco normale ferma chi arriva — su una cella legittima.
+	 */
+	int32 StationaryOccupantAt(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
+	{
+		for (int32 j = 0; j < State.Pos.Num(); ++j)
+		{
+			if (j != UnitIdx && State.Done.IsValidIndex(j) && State.Done[j] && State.Pos[j] == Cell)
+			{
+				return j;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/**
+	 * CHI c'e' su `Cell`, fermo o in movimento -- [D-443], `#3408`.
+	 *
+	 * [chiave] **Esiste ACCANTO a `StationaryOccupantAt` e non al suo posto, ed e' l'intera sicurezza
+	 * dell'atto.** Le due domande hanno due usi distinti dentro `BeginArcIfNeeded`:
+	 *   - questa alimenta il **ciclo di salto**: quali celle l'arco puo' SCAVALCARE;
+	 *   - `StationaryOccupantAt` alimenta la **guardia terminale**: dove l'arco puo' FINIRE.
+	 *
+	 * [STOP] **Usare questa anche nella guardia riaprirebbe [D-399] S2.** La garanzia che quella voce ha
+	 * misurato e' che il terminus di un arco sia una cella che *nessuno lascera' mai*: `Done` e' quella
+	 * garanzia, e `Pos` no. L'arco e' irrevocabile, quindi il terminus deve reggere per tutta la sua
+	 * durata e non solo all'apertura.
+	 */
+	int32 AnyOccupantAt(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
+	{
+		for (int32 j = 0; j < State.Pos.Num(); ++j)
+		{
+			if (j != UnitIdx && State.Pos[j] == Cell)
+			{
+				return j;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/**
+	 * Due unita' del resolver sono COMPAGNE? — `#2984`. Il predicato e' `TeamsAreAllied`; qui si
+	 * aggiunge solo la lettura dell'array.
+	 *
+	 * ⚠️ `Teams` vuoto — ogni chiamante che non sa di questo campo — e' *nessuna squadra
+	 * dichiarata*, quindi nessuna alleanza e comportamento identico a prima di questa issue.
+	 */
+	bool AreAllies(const FRTMovementResolutionState& State, int32 A, int32 B)
+	{
+		if (!State.Teams.IsValidIndex(A) || !State.Teams.IsValidIndex(B))
+		{
+			return false;
+		}
+		return TeamsAreAllied(State.Teams[A], State.Teams[B]);
+	}
+
+	/**
+	 * Apre l'arco di `UnitIdx`, se non ne ha gia' uno in corso — `#3012`, [D-398].
+	 *
+	 * 🔑 **L'arco copre le celle occupate CONSECUTIVE piu' la prima libera**, e si apre solo se quella
+	 * cella esiste dentro il percorso. Se non esiste, l'arco torna a un passo solo e il blocco normale
+	 * ferma l'unita' prima: e' un rifiuto, non un errore.
+	 *
+	 * ⛔ **Cosi' la co-occupazione a riposo diventa IRRAPPRESENTABILE** invece di essere vietata dopo
+	 * essere stata prodotta. Il guardiano che c'era — attraversa *«solo se quella cella non e' la sua
+	 * ULTIMA»* — proteggeva la destinazione **pianificata**, mentre un'unita' bloccata piu' avanti si ferma
+	 * dove **sta**: le due coincidono solo se il piano viene eseguito fino in fondo (`#3012`).
+	 *
+	 * ⚠️ **La durata e' la SOMMA** di quelle dei passi coperti ([D-398] §7a): pagarne una sola
+	 * renderebbe l'attraversamento un modo di muoversi piu' in fretta, che nessuno ha deciso.
+	 */
+	void BeginArcIfNeeded(FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Prog.IsValidIndex(UnitIdx)
+			|| !State.Paths.IsValidIndex(UnitIdx) || State.Done[UnitIdx])
+		{
+			return;
+		}
+		if (State.ArcEnd[UnitIdx] > State.Prog[UnitIdx])
+		{
+			return; // arco gia' aperto: la sua durata si sta ancora pagando
+		}
+
+		const TArray<FRTCellId>& Path = State.Paths[UnitIdx];
+		const int32 Next = State.Prog[UnitIdx] + 1;
+		if (!Path.IsValidIndex(Next))
+		{
+			return;
+		}
+
+		// 🔴 **NESSUNA UNITA' BLOCCA IL TRANSITO DI UN'ALTRA** ([D-445]): l'arco scavalca chiunque
+		// trovi per strada — compagna o avversaria, ferma o in movimento — e si ferma alla prima cella
+		// libera. Il corpo non ha piu' bisogno di sapere di chi sia l'occupante, e infatti non lo chiede.
+		//
+		// ⏱️ *Fino al 2026-10-01 qui vivevano DUE permessi*: lo **stile** (`LinearPass`) attraversava chi
+		// era fermo, la **squadra** attraversava una compagna qualunque ([D-396] su [D-398], [D-443]). Erano
+		// tenuti distinti di proposito — appiattirli avrebbe reso un `LinearPass` capace di attraversare
+		// un'avversaria perche' una compagna stava altrove — e la distinzione e' caduta con la regola, non
+		// con un refactor: se nessuno blocca, non c'e' piu' niente da distinguere.
+		//
+		// ⛔ **Cio' che NON e' caduto e' la guardia del TERMINUS**, qui sotto: si attraversa chiunque, non
+		// ci si **ferma** su una cella che qualcuno non lascera'. E' [D-289] — uno slot di occupazione
+		// autorevole per `FRTCellId` — e questa regola non la tocca.
+		//
+		// ⛔ La prima stesura di `#2984` metteva il permesso delle compagne come un `continue` DENTRO il
+		// ciclo di blocco, quando l'attraversamento era ancora un'eccezione al bersaglio. Con [D-398] non lo
+		// e' piu': e' la **forma dell'arco**, e un'eccezione nel ciclo reintrodurrebbe l'istante sopra
+		// l'occupante che [D-399] ha reso irrappresentabile.
+		int32 End = Next;
+		while (Path.IsValidIndex(End))
+		{
+			// Il ciclo di salto legge soltanto SE la cella e' occupata: da chi, non importa piu' ([D-445]).
+			if (AnyOccupantAt(State, UnitIdx, Path[End]) == INDEX_NONE)
+			{
+				break; // libera: e' qui che l'arco termina
+			}
+			++End;
+		}
+		if (!Path.IsValidIndex(End) || StationaryOccupantAt(State, UnitIdx, Path[End]) != INDEX_NONE)
+		{
+			End = Next; // nessuna cella libera a valle: non si attraversa affatto
+		}
+		State.ArcEnd[UnitIdx] = End;
+
+		int32 Durata = 0;
+		for (int32 k = Next; k <= End; ++k)
+		{
+			Durata += DurationOfStep(State, UnitIdx, k - 1);
+		}
+		State.StepRemaining[UnitIdx] = FMath::Max(1, Durata);
+	}
+
+	/**
+	 * A quale indice l'arco di `UnitIdx` potrebbe ESTENDERSI oltre il proprio terminus, o `INDEX_NONE`
+	 * se non puo' — [D-443], atto (B).
+	 *
+	 * [chiave] **Non modifica niente: risponde.** Il sollievo della contesa deve sapere CHI puo' cedere
+	 * la cella prima di decidere chi la tiene, e deciderlo mutando gli archi uno alla volta renderebbe
+	 * l'esito dipendente dall'ordine delle unita'.
+	 *
+	 * [STOP] **Usa gli stessi due lettori di `BeginArcIfNeeded`, e nello stesso modo**: `AnyOccupantAt`
+	 * per il salto, `StationaryOccupantAt` per il terminus. Divergere qui vorrebbe dire che un arco
+	 * esteso dal sollievo potrebbe finire dove uno esteso normalmente non finirebbe.
+	 */
+	int32 ExtendedArcEnd(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Paths.IsValidIndex(UnitIdx))
+		{
+			return INDEX_NONE;
+		}
+		const TArray<FRTCellId>& Path = State.Paths[UnitIdx];
+		int32 End = State.ArcEnd[UnitIdx] + 1;
+		while (Path.IsValidIndex(End))
+		{
+			const int32 Occupante = AnyOccupantAt(State, UnitIdx, Path[End]);
+			if (Occupante == INDEX_NONE)
+			{
+				break;
+			}
+			// [D-445]: nessuno blocca il transito, quindi non c'e' piu' un caso in cui si <<sbatte>> a valle.
+			// L'uscita per `INDEX_NONE` resta sopra, dove il percorso finisce senza una cella libera.
+			++End;
+		}
+		// [STOP] **Il fallimento NON ripiega**, ed e' la condizione 1 dell'atto (B): un ripiego a `Next`
+		// riporterebbe il bersaglio su una cella occupata e produrrebbe un blocco permanente. Chi non puo'
+		// allungare diventa il KEEPER, e la sua risposta e' `INDEX_NONE`.
+		if (!Path.IsValidIndex(End) || StationaryOccupantAt(State, UnitIdx, Path[End]) != INDEX_NONE)
+		{
+			return INDEX_NONE;
+		}
+		return End;
+	}
+
+	/** Microstep ancora da pagare per l'arco in corso di `UnitIdx`. Non inizializzato -> `1`. */
+	int32 RemainingForStep(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		return State.StepRemaining.IsValidIndex(UnitIdx)
+			? FMath::Max(1, State.StepRemaining[UnitIdx])
+			: 1;
+	}
+
+	/** La cadenza di `UnitIdx`. Non dichiarata, o con valori assurdi -> NEUTRA (`{1, 1}`). */
+	FRTMovementCadence CadenceOf(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		if (!State.Cadences.IsValidIndex(UnitIdx))
+		{
+			return FRTMovementCadence(); // `{1, 1}`: il comportamento di prima di [D-428], per costruzione
+		}
+		FRTMovementCadence Cadence = State.Cadences[UnitIdx];
+		// 🔑 **Il clamp sta QUI e in nessun altro posto, e stavolta e' vero.** La stesura precedente lo
+		// dichiarava mentre ne teneva un secondo nel calcolo di `SubStepsPerTick`, per giunta con un
+		// minimo diverso — quindi le due sedi divergevano proprio sul valore che la prima ammetteva e la
+		// seconda no. Ora quel calcolo passa da questa funzione. Trovato in code review.
+		Cadence.StepsPerTick = FMath::Clamp(Cadence.StepsPerTick, 1, FRTMovementCadence::MaxStepsPerTick);
+		// ⛔ Anche `TickPeriod` ha un tetto: senza, il minimo comune multiplo dei periodi cresce col loro
+		// prodotto e trabocca. `<= 0` renderebbe inoltre il modulo indefinito.
+		Cadence.TickPeriod = FMath::Clamp(Cadence.TickPeriod, 1, FRTMovementCadence::MaxTickPeriod);
+		return Cadence;
+	}
+
+	/**
+	 * Se `UnitIdx` puo' avanzare nel sotto-passo che il calendario indica adesso ([D-428]).
+	 *
+	 * 🔑 **Funzione PURA di `(cadenza, indice)`**: non legge lo stato dell'unita', non tiene contatori, non
+	 * dipende da chi e' passato prima. E' cio' che rende l'ordine deterministico senza violare [D-293].
+	 */
+	bool EligibleNow(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		const FRTMovementCadence Cadence = CadenceOf(State, UnitIdx);
+		const int32 PerTick = FMath::Max(1, State.SubStepsPerTick);
+		const int32 SottoPasso = State.CalendarIndex % PerTick;
+		const int32 Tick = State.CalendarIndex / PerTick;
+		return SottoPasso < Cadence.StepsPerTick && (Tick % Cadence.TickPeriod) == 0;
+	}
+
+	/** C'e' almeno un'unita' che non ha finito il proprio percorso. */
+	bool AnyLive(const FRTMovementResolutionState& State)
+	{
+		for (int32 i = 0; i < State.Num(); ++i)
+		{
+			if (State.Done.IsValidIndex(i) && !State.Done[i]) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Quanti sotto-passi copre un giro completo del calendario: oltre questo, la sequenza si ripete.
+	 *
+	 * ⛔ **Serve come LIMITE, non come ottimizzazione.** Il ciclo che cerca il prossimo sotto-passo utile
+	 * deve fermarsi: se in un giro intero nessuno e' eleggibile, nessuno lo sara' mai piu' — o sono tutti
+	 * finiti, o restano solo profili `Still`. Senza il limite quel ciclo non terminerebbe.
+	 */
+	int32 ComputeCalendarPeriod(const FRTMovementResolutionState& State)
+	{
+		int32 Periodi = 1;
+		for (int32 i = 0; i < State.Num(); ++i)
+		{
+			const int32 P = CadenceOf(State, i).TickPeriod;   // gia' limitato da `MaxTickPeriod`
+			// mcm(a, b) = a * b / MCD(a, b). Col tetto su `TickPeriod` il prodotto resta piccolo.
+			Periodi = (Periodi / FMath::GreatestCommonDivisor(Periodi, P)) * P;
+		}
+		return Periodi * FMath::Max(1, State.SubStepsPerTick);
+	}
+
+	bool StepHexMovement(FRTMovementResolutionState& State)
+	{
+		const int32 N = State.Num();
+
+		// ⛔ **I sotto-passi inerti si EMETTONO, non si saltano** ([D-428]).
+		//
+		// 🔴 **La prima stesura li saltava, e rendeva la cadenza inosservabile.** Saltare un sotto-passo in
+		// cui nessuno e' eleggibile fa avanzare uno `Sneak` da solo a ogni micro-step emesso, esattamente
+		// come un `Move`: `TickPeriod` smette di avere effetto, e l'indice d'ingresso in una zona
+		// sorvegliata cambia quando un'unita' ESTRANEA finisce il proprio percorso e smette di tenere vivo
+		// un sotto-passo. `SKB-2` nominava quell'esito come competitivo. Trovato in code review.
+		//
+		// ✅ **E il corpus golden resta fermo lo stesso**, per una ragione diversa e piu' solida: con sole
+		// cadenze neutre `SubStepsPerTick` vale `1` e ogni unita' e' eleggibile a ogni sotto-passo, quindi
+		// non esistono sotto-passi inerti da emettere. La sequenza cambia **solo** per partite con cadenze
+		// non neutre, che oggi non esistono perche' erano proprio cio' che `SKB-2` bloccava.
+		if (!AnyLive(State))
+		{
+			// ⚠️ **Si contano comunque, e non e' un dettaglio.** Prima di [D-428] il corpo girava sempre e
+			// `MicroStepIndex` cresceva anche sul giro terminale; uscire di qui senza incrementarlo avrebbe
+			// reso il contatore piu' basso di uno nel caso «sono arrivati tutti» e invariato nel caso
+			// «qualcuno e' bloccato», cioe' un valore il cui significato dipende da COME e' finita.
+			// `ResolveNextHexMicroStep` marca `bFinished` su questo `false` e non richiama piu', quindi
+			// l'incremento avviene una volta sola. Trovato in code review.
+			++State.MicroStepIndex;
+			++State.CalendarIndex;
+			return false;
+		}
+
+		// Priorita' 0 (parita' con tutti) e non-lineare per chi non ha un valore dichiarato: con entrambi gli
+		// array vuoti l'esito e' identico alla variante senza priorita'.
+		auto PriorityOf = [&State](int32 i) { return State.Priorities.IsValidIndex(i) ? State.Priorities[i] : 0; };
+		auto IsLinearMover = [&State](int32 i) { return State.bLinearMovers.IsValidIndex(i) && State.bLinearMovers[i]; };
+		// ⛔ **`bPassThrough` non ha piu' un consumatore in questo resolver** ([D-445]): alimentava i due
+		// archi, e il transito ora e' libero per tutti. Il campo resta nello stato e nella firma pubblica di
+		// `ResolveHexPaths` perche' il suo produttore e' `ERTMovementStyle::LinearPass`, il cui ritiro e' una
+		// decisione di **catalogo** aperta come `MOV-14` in `docs/OPEN_DECISIONS.md` — non una conseguenza
+		// automatica di questa.
+		//
+		// ⚠️ **La lambda che lo leggeva e' uscita con i suoi chiamanti**: tenerla avrebbe lasciato un
+		// lettore senza lettura, che e' la forma peggiore — sembra che qualcuno la consulti.
+
+		const TArray<TArray<FRTCellId>>& Paths = State.Paths;
+		TArray<FRTCellId>& Pos = State.Pos;
+		TArray<int32>& Prog = State.Prog;
+		TArray<bool>& Done = State.Done;
+		TArray<ERTMoveOutcome>& BlockReason = State.BlockReason;
+		TArray<bool>& ReasonLocked = State.ReasonLocked;
+		TArray<FRTHexMoveResult>& Results = State.Results;
+
+		{
+			TArray<FRTCellId> Target; Target.SetNum(N);
+			// `Moving` = IMPEGNATA: ha un arco in corso, che lo completi in questo microstep o no. E' cio' che
+			// la catena del ciclo deve vedere ([D-383]): un'unita' in transito ha gia' dichiarato dove va, e
+			// toglierla dalla catena spezzerebbe un head-on a durate diverse in due reason code diversi.
+			TArray<bool> Moving;      Moving.SetNum(N);
+			// `Arriving` = completa l'arco QUI. Solo queste contendono una cella e solo queste liberano la
+			// propria: chi e' in transito occupa ancora l'origine ([D-382]).
+			TArray<bool> Arriving;    Arriving.SetNum(N);
+			// ➕ `Advancing` = **progredisce in QUESTO sotto-passo** ([D-428]).
+			//
+			// 🔴 **E' un terzo flag e non una ridefinizione di `Moving`, e la differenza e' misurata.** La
+			// prima stesura aveva reso `Moving` «ha un arco aperto»: due consumatori leggono ancora
+			// «si muovera'» — `bTransientBlock = Moving[j]`, che senza di quello latcha un blocco
+			// transitorio in `ReasonLocked`, e il ramo head-on, che senza di quello smette di emettere
+			// `BlockedByImpact`. Trovati in code review.
+			//
+			// ∴ `Moving` resta **viva**, `Advancing` decide chi avanza. La catena del ciclo e i reason code
+			// leggono la prima; il progresso legge la seconda.
+			TArray<bool> Advancing;   Advancing.SetNum(N);
+
+			// ⏱️ *Qui viveva `RiprenderaDopo`, una bandiera «riprendera' in un micro-step
+			// successivo», aggiunta il 2026-10-01 come **prima** correzione dello scambio con durate
+			// sfasate* ([D-446]). Serviva a non far fissare il motivo a chi era bloccato da una partner
+			// appena congelata.
+			//
+			// 🔴 **E' stata MISURATA MORTA appena la seconda correzione e' arrivata.** L'esenzione
+			// della coppia reciproca — piu' in basso, nel test del blocco — impedisce che la partner si
+			// congeli, quindi non esiste piu' nessuno che legga un congelato e ne fissi il motivo.
+			// Mutazione: tolto il `|| RiprenderaDopo[j]` dal calcolo di `bTransientBlock`, la suite
+			// intera resta **verde** (2817 trovati, 2817 completati, nessun rosso). Una bandiera che
+			// nessuna misura difende e' dato senza consumatore, e si toglie.
+			// ➕ **L'arco si apre QUI, prima del punto fisso** (`#3012`, [D-398]). Un passaggio dedicato, su
+			// `Pos` ancora stabile: calcolarlo dentro il ciclo d'avanzamento leggerebbe posizioni aggiornate a
+			// meta' e l'esito dipenderebbe dall'ordine delle unita'.
+			for (int32 i = 0; i < N; ++i)
+			{
+				// ➕ **Il calendario decide in quali sotto-passi un'unita' PROGREDISCE** ([D-428]) — aprendo
+				// un arco nuovo o pagando la durata di uno gia' aperto.
+				//
+				// ⛔ **Anche la CONTINUAZIONE e' soggetta al calendario, e la prima stesura la esentava.**
+				// Sembrava la lettura giusta di [D-381] — «un passo iniziato arriva in fondo» — e produceva
+				// invece il suo opposto: un arco che paga su ogni sotto-passo completa un attraversamento da
+				// 2 micro-step nello stesso tick di uno da 1, cioe' il terreno smette di rallentare. Con uno
+				// `Sprint` vivo, costo 1 e costo 2 arrivavano allo STESSO micro-step. Trovato in code review.
+				//
+				// ∴ i due si compongono cosi': il calendario dice **quando** puoi spendere un sotto-passo,
+				// `D-381` **quanti** te ne costa l'arco. Il terreno puo' solo abbassare la cadenza.
+				if (EligibleNow(State, i))
+				{
+					BeginArcIfNeeded(State, i);
+				}
+			}
+
+			// [D-443] atto (B) — IL SOLLIEVO DELLA CONTESA FRA ALLEATI.
+			//
+			// [chiave] **Qui e non altrove, e la collocazione E' una delle tre condizioni.** Gli archi sono
+			// appena stati aperti e `Pos`/`ArcEnd` sono stabili; `Target` e `Arriving` si calcolano subito
+			// sotto, quindi la catena del ciclo vedra' gli archi DEFINITIVI. Applicarlo dentro il punto fisso
+			// lo renderebbe dipendente dall'ordine; applicarlo dopo farebbe vedere alla catena archi stantii,
+			// e una rotazione in corridoio diventerebbe uno scambio.
+			//
+			// [!]. **`Arriving` non si puo' usare: nasce sotto.** La popolazione si deriva da
+			// `RemainingForStep`, che e' l'espressione da cui `Arriving` stesso viene calcolato.
+			//
+			// [STOP] **Termina, e la ragione e' strutturale**: ogni sollievo INCREMENTA un `ArcEnd`, che e'
+			// limitato dalla lunghezza del percorso. Nessun arco si accorcia e nessuno si abbandona, quindi
+			// non esiste lo stato da cui ricalcolare lo stesso arco all'infinito.
+			{
+				auto ArrivaOra = [&State, &Done](int32 u)
+				{
+					return !Done[u] && State.ArcEnd.IsValidIndex(u) && State.Prog.IsValidIndex(u)
+						&& State.ArcEnd[u] > State.Prog[u] && State.Paths.IsValidIndex(u)
+						&& State.Paths[u].IsValidIndex(State.ArcEnd[u])
+						&& EligibleNow(State, u) && RemainingForStep(State, u) <= 1;
+				};
+				auto TerminusDi = [&State](int32 u) { return State.Paths[u][State.ArcEnd[u]]; };
+				
+				bool bCambiato = true;
+				while (bCambiato)
+				{
+					bCambiato = false;
+					// [!]. **Una tornata scandisce TUTTE le celle e poi applica**, invece di ricominciare a ogni
+					// estensione. La prima stesura rilanciava la scansione a ogni cambio e costava 3,5x sulla suite
+					// intera (590 s contro 170 s, misurato) — e il budget del resolver e' un gate.
+					TArray<int32> DaEstendere;
+					TArray<int32> EndNuovo;
+					TSet<int32> Deciso;
+					for (int32 i = 0; i < N; ++i)
+					{
+						if (!ArrivaOra(i) || Deciso.Contains(i))
+						{
+							continue;
+						}
+						const FRTCellId Contesa = TerminusDi(i);
+						
+						TArray<int32> Contendenti;
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (ArrivaOra(j) && TerminusDi(j) == Contesa)
+							{
+								Contendenti.Add(j);
+							}
+						}
+						for (int32 u : Contendenti)
+						{
+							Deciso.Add(u);
+						}
+						if (Contendenti.Num() < 2)
+						{
+							continue;
+						}
+						
+						// [STOP] **Il gate sull'alleanza, e vale a COPPIE.** Se una sola coppia non e' alleata, la
+						// contesa resta quella di oggi: `D-443` concede agli alleati, non allenta la contesa.
+						bool bTutteAlleate = true;
+						for (int32 a = 0; a < Contendenti.Num() && bTutteAlleate; ++a)
+						{
+							for (int32 b = a + 1; b < Contendenti.Num() && bTutteAlleate; ++b)
+							{
+								// 🔑 **QUESTO `AreAllies` sopravvive a [D-445], e la ragione va detta**: quella
+								// decisione ha tolto il blocco dal **transito**, e dichiara intatta la guardia del
+								// **terminus**. Il sollievo della contesa e' terminus, non transito: non e' <<non ti
+								// blocco>>, e' <<ti cedo la cella>>, cioe' cooperazione. Si cede il passo a una
+								// compagna; a un'avversaria no, e nessuna decisione ha detto il contrario.
+								bTutteAlleate = AreAllies(State, Contendenti[a], Contendenti[b]);
+							}
+						}
+						if (!bTutteAlleate)
+						{
+							continue;
+						}
+						
+						TArray<int32> NuoviEnd;
+						NuoviEnd.Reserve(Contendenti.Num());
+						int32 SenzaUscita = 0;
+						for (int32 u : Contendenti)
+						{
+							const int32 Esteso = ExtendedArcEnd(State, u);
+							NuoviEnd.Add(Esteso);
+							if (Esteso == INDEX_NONE)
+							{
+								++SenzaUscita;
+							}
+						}
+						
+						// [chiave] **Tre casi disgiunti, sul NUMERO di contendenti senza uscita a valle.**
+						// >= 2: nessun sollievo. E' la regola che esiste gia' — due contendenti per una cella libera
+						//       danno `BlockedContested`, ed e' l'esito atteso dichiarato di `PIE-HEXPLAY-5` e [D-289].
+						//       Il sollievo apre una via dove ce n'e' una; dove non ce n'e', non inventa un vincitore.
+						// == 1: quella tiene la cella, le altre allungano.
+						// == 0: tiene la minima per `StableLess`, che e' l'unico spareggio deterministico disponibile.
+						if (SenzaUscita >= 2)
+						{
+							continue;
+						}
+						
+						int32 Keeper = INDEX_NONE;
+						if (SenzaUscita == 1)
+						{
+							for (int32 k = 0; k < Contendenti.Num(); ++k)
+							{
+								if (NuoviEnd[k] == INDEX_NONE)
+								{
+									Keeper = Contendenti[k];
+								}
+							}
+						}
+						else
+						{
+							for (int32 u : Contendenti)
+							{
+								if (Keeper == INDEX_NONE || URTHexLibrary::StableLess(Pos[u], Pos[Keeper]))
+								{
+									Keeper = u;
+								}
+							}
+						}
+						
+						for (int32 k = 0; k < Contendenti.Num(); ++k)
+						{
+							const int32 u = Contendenti[k];
+							if (u == Keeper || NuoviEnd[k] == INDEX_NONE)
+							{
+								continue;
+							}
+							// [STOP] **Si ACCODA, non si muta.** Mutare `ArcEnd` dentro la scansione farebbe leggere alle
+							// celle successive archi aggiornati a meta', e l'esito dipenderebbe dall'ordine delle unita'.
+							DaEstendere.Add(u);
+							EndNuovo.Add(NuoviEnd[k]);
+						}
+					}
+
+					// ---- L'applicazione, su decisioni prese tutte su stato stabile. ----
+					for (int32 k = 0; k < DaEstendere.Num(); ++k)
+					{
+						const int32 u = DaEstendere[k];
+						State.ArcEnd[u] = EndNuovo[k];
+						// [!]. **`StepRemaining` e' la SOMMA delle durate coperte** ([D-398] S7a): l'allungamento non
+						// regala velocita', e chi cede arriva quando sarebbe arrivato in due archi.
+						int32 Durata = 0;
+						for (int32 s = State.Prog[u] + 1; s <= EndNuovo[k]; ++s)
+						{
+							Durata += DurationOfStep(State, u, s - 1);
+						}
+						State.StepRemaining[u] = FMath::Max(1, Durata);
+						bCambiato = true;
+					}
+				}
+			}
+			for (int32 i = 0; i < N; ++i)
+			{
+				// `Moving` = **VIVA**: ha ancora percorso davanti, che avanzi in questo sotto-passo o no. E'
+				// il significato che la catena del ciclo, il ramo head-on e `bTransientBlock` leggono.
+				Moving[i] = !Done[i];
+				// `Advancing` = progredisce QUI: ha un arco aperto **ed e' il suo sotto-passo**.
+				Advancing[i] = Moving[i] && State.ArcEnd.IsValidIndex(i) && State.ArcEnd[i] > State.Prog[i]
+					&& EligibleNow(State, i);
+				// 🔑 Il bersaglio e' la FINE DELL'ARCO, non il passo successivo: e' l'unica cella su cui
+				// l'unita' comparira', ed e' libera per costruzione quando l'arco attraversa qualcuno.
+				//
+				// ⚠️ Chi non avanza ha per bersaglio la PROPRIA cella: non contende niente e non figura come
+				// se la stesse liberando, ma continua a occuparla — che e' cio' che un blocco deve vedere.
+				Target[i] = Advancing[i] ? Paths[i][State.ArcEnd[i]] : Pos[i];
+				Arriving[i] = Advancing[i] && RemainingForStep(State, i) <= 1;
+			}
+
+			// Punto fisso del microstep: si puo' solo passare da "in movimento" a "fermo" (monotono) -> l'esito
+			// non dipende dall'ordine delle richieste.
+			bool bChanged = true;
+			while (bChanged)
+			{
+				bChanged = false;
+				TArray<int32> ToFreeze;
+				for (int32 i = 0; i < N; ++i)
+				{
+					if (!Moving[i])
+					{
+						continue;
+					}
+
+					bool bBlocked = false;
+					ERTMoveOutcome Reason = ERTMoveOutcome::BlockedByUnit;
+
+					// 🔑 **Un blocco causato da chi sta ATTRAVERSANDO e' TRANSITORIO, e non deve fissare il
+					// motivo** (`#2940`). La memoria del primo congelamento (`ReasonLocked`, sotto) esiste
+					// perche' il punto fisso e' monotono: un blocker `!Moving` non riparte mai, quindi il primo
+					// motivo era anche l'ultimo. Con le durate variabili non e' piu' vero — chi e' in transito
+					// libera la cella quando completa l'arco — e latchare qui produrrebbe l'inversione che
+					// `BeginHexMovement` dichiara di voler impedire: un inseguitore fermato un microstep da un
+					// compagno di passaggio, e poi battuto sulla cella da una `Charge` con priorita' migliore,
+					// finirebbe nel TurnLog come «cella occupata» invece che «priorita' avversa».
+					bool bTransientBlock = false;
+
+					// Destinazione contesa: 2+ unita' in movimento verso la stessa cella. A parita' di
+					// priorita' fra i contendenti (compreso il caso senza priorita' dichiarata) tutti fermi,
+					// come nella variante base; a priorita' diverse, solo la piu' bassa fra i contendenti
+					// entra, le altre perdono la cella.
+					// ⚠️ **Contendono solo le unita' che ARRIVANO in questo microstep** (`#2914`). Due unita'
+					// dirette alla stessa cella con durate diverse non si contendono niente: la prima entra, e
+					// la seconda trovera' la cella occupata quando ci arrivera' — che e' il ramo dell'unita'
+					// ferma, con il suo reason. Contarle qui produrrebbe una contesa fra chi e' gia' dentro e
+					// chi arriva tre microstep dopo.
+					int32 Contenders = 0;
+					int32 MinPriority = 0;
+					if (Arriving[i])
+					{
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (Arriving[j] && Target[j] == Target[i])
+							{
+								MinPriority = (Contenders == 0) ? PriorityOf(j) : FMath::Min(MinPriority, PriorityOf(j));
+								++Contenders;
+							}
+						}
+					}
+					if (Contenders >= 2)
+					{
+						int32 Winners = 0;
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (Arriving[j] && Target[j] == Target[i] && PriorityOf(j) == MinPriority)
+							{
+								++Winners;
+							}
+						}
+						if (Winners >= 2 || PriorityOf(i) != MinPriority)
+						{
+							bBlocked = true;
+							Reason = (Winners >= 2) ? ERTMoveOutcome::BlockedContested : ERTMoveOutcome::BlockedByPriority;
+						}
+					}
+
+					// Scontro frontale: due mobilita' LINEARI (Action.Charge e affini) che si scambierebbero la
+					// cella nello stesso microstep (l'una entra dove sta l'altra, e viceversa) si fermano
+					// l'una davanti all'altra invece di attraversarsi. Lo scambio fra mobilita' non entrambe
+					// lineari resta consentito (comportamento di base, invariato).
+					if (!bBlocked && IsLinearMover(i))
+					{
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (j != i && Moving[j] && IsLinearMover(j) && Target[i] == Pos[j] && Target[j] == Pos[i])
+							{
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByImpact;
+								break;
+							}
+						}
+					}
+
+					// Ciclo chiuso fra unita' in MOVIMENTO: uno scambio `A↔B` o una catena `A→B→C→A` in cui
+					// ognuna punta alla cella occupata dalla successiva e l'ultima punta alla prima (#1922, D-295).
+					//
+					// 🔑 Si segue la CATENA, non si confrontano le coppie. Un convoy a coda libera
+					// (`A→B→C→libera`) ha la stessa forma — ognuno punta a un altro in movimento, nessuno e' fermo —
+					// e differisce SOLO per l'ultima cella: la regola «se il mio target e' la posizione di un altro
+					// mover, blocca» supererebbe il test del ciclo e ucciderebbe il convoy, che deve avanzare.
+					//
+					// ⚠️ DOPO lo scontro frontale, mai prima: due mobilita' LINEARI che si scambiano hanno gia' il
+					// loro reason (`BlockedByImpact`, CP 4.8), che `ResolveHeadOnBlocksLinearSwap` asserisce per nome.
+					//
+					// `bPassThrough` non entra: governa il ramo dell'unita' FERMA qui sotto, e un'unita' che sta solo
+					// transitando chiude comunque il ciclo — non si passa attraverso qualcuno che nello stesso
+					// istante sta venendo verso di noi.
+					// [D-443] **DUE FASI, e separarle e' il contenuto dell'atto.** La passeggiata raccoglie gli anelli
+					// e non emette verdetti; il verdetto si legge dopo, sulla catena CHIUSA.
+					//
+					// [STOP] **Un'uscita anticipata su un anello alleato PERDEREBBE I NEMICI**, e il commento qui sopra
+					// lo vieta per nome: *<<si segue la CATENA, non si confrontano le coppie>>*. Chi parte da un nemico
+					// due salti prima tornerebbe `Moved`, e il convoy morirebbe con lui.
+					// 🔴 **IL CICLO NON BLOCCA PIU' NESSUNO, E IL SUO VERDETTO E' USCITO DI QUI** ([D-445]).
+					//
+					// ⏱️ *Fino al 2026-10-01 qui c'erano DUE FASI* ([D-443]): si camminava la catena accumulando se
+					// tutti gli anelli fossero alleati, e sulla catena CHIUSA si emetteva `BlockedByCycle` quando ne
+					// esisteva uno non alleato. La formulazione era *<<ESISTE un anello non alleato>>* e non *<<tutti
+					// non alleati>>*, perche' un ciclo di lunghezza dispari fra due squadre ne contiene sempre uno
+					// monocromatico.
+					//
+					// 🔑 **Con [D-445] quella domanda non distingue piu' niente**: nessuna unita' blocca il transito di
+					// nessun'altra, quindi l'appartenenza di squadra degli anelli non cambia nessun esito. Il ciclo
+					//
+					// ⚠️ **Cio' che NON segue e' che una catena chiusa ruoti sempre**, e la prima stesura di [D-445] lo
+					// dichiarava per errore. Misurato: ruota col solo arrivo SINCRONO — con durate sfalsate chi arriva
+					// presto trova l'altra ancora a meta' arco, la guardia del terminus scatta (`!Arriving[j]`) e
+					// l'esito e' `BlockedByUnit`. Il transito e' libero; la simultaneita' d'arrivo resta la condizione.
+					// esce invece di restare: un calcolo il cui esito non puo' cambiare e' codice morto, e nel
+					// resolver autoritativo e' peggio che altrove — chi legge lo scambia per una regola viva.
+					//
+					// ⛔ **Conseguenza da decidere altrove, non qui**: `ERTMoveOutcome::BlockedByCycle` non ha piu' un
+					// produttore. Non viene rimosso in questa passata — e' un valore di enum che vive nel TurnLog e
+					// nei formati persistiti, e ritirarlo e' una decisione sul formato, non una conseguenza di questa.
+					//
+					// ⚠️ **Cio' che continua a bloccare e' il TERMINUS**, nel ramo qui sotto: chi punta alla cella di
+					// un'unita' che RESTA non ci arriva. E' [D-289], e questa regola non lo tocca.
+
+					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
+					//
+					// ⌫ **QUI C'ERA IL PERMESSO D'ATTRAVERSAMENTO, ed e' sparito** (`#3012`, [D-398]). Diceva:
+					// *«chi ATTRAVERSA ci passa in mezzo, ma solo se quella cella non e' la sua ULTIMA»*, e
+					// avvertiva che un'eccezione avrebbe reso possibili due unita' nella stessa cella.
+					//
+					// 🔴 **L'eccezione non e' mai stata fatta, e le due unita' erano possibili lo stesso.**
+					// Il guardiano proteggeva la destinazione **pianificata**, mentre un'unita' bloccata piu'
+					// avanti si ferma dove **sta**: `Results[i].Final = Pos[i]`. Misurato su `origin/main`
+					// `1b9f6f36` — un `LinearPass` che attraversa e poi trova la destinazione occupata finisce
+					// addosso a chi aveva attraversato.
+					//
+					// 🔑 Ora non serve piu' nessun permesso QUI: `Target[i]` e' la fine di un arco che
+					// termina su una cella **libera** ([D-398]), quindi un occupante fermo non e' mai il
+					// bersaglio e non c'e' niente da ignorare. Lo stato illecito e' irrappresentabile invece che
+					// vietato dopo essere stato prodotto.
+					// ⚠️ **`!Arriving[j]`, non `!Moving[j]`** (`#2914`): un'unita' IN TRANSITO non ha ancora
+					// lasciato la propria cella, quindi la occupa esattamente come una ferma. E' la meta'
+					// osservabile di [D-382] — *«un'unita' lenta tappa il corridoio per l'intera durata del
+					// passo»* — e senza di essa un inseguitore entrerebbe dentro chi sta ancora uscendo.
+					if (!bBlocked)
+					{
+						for (int32 j = 0; j < N; ++j)
+						{
+							// 🔴 **LA COPPIA RECIPROCA NON SI BLOCCA A VICENDA MENTRE UNA DELLE DUE E' A META'
+							// ARCO** ([D-446], 2026-10-01). `j` punta alla MIA cella e io alla sua: `j` non la sta
+							// occupando per restarci, la sta occupando **aspettando me**.
+							//
+							// 🔑 **Senza, lo scambio con durate sfalsate si chiudeva in un CASCADE, non in un
+							// blocco.** Durate 4 e 1: al primo micro-step la veloce arriva, trova la lenta ancora sulla
+							// propria origine e si congela — corretto. Ma congelarsi le toglie `Arriving`, e al giro
+							// successivo del punto fisso la **lenta** vedeva `!Arriving[veloce]` sulla propria
+							// destinazione e si congelava a sua volta, pur avendo tre tick d'arco davanti. Nessuno dei
+							// due avanzava, `bAnyMoved` restava falso, e `ResolveNextHexMicroStep` dichiarava la
+							// risoluzione **finita** al primo micro-step, con due `BlockedByUnit`.
+							//
+							// ⚠️ **La condizione e' DOPPIA, e la prima stesura ne aveva messa una sola.** Avevo
+							// scritto `Arriving[i]` da solo — *chi non e' arrivato non contende* — ed e' una frase
+							// vera che produce un difetto: esenta anche chi segue qualcuno in un **convoglio**, che
+							// allora paga i tick del proprio arco mentre aspetta e parte in anticipo. Misurato:
+							// `ConvoyOnCostlyTerrainSerializes` e' andato rosso con *«B arriva al 3» to be 3, but it
+							// was 2*, cioe' la serializzazione che [D-382] impone era sparita. Serve ANCHE che `j`
+							// voglia la mia cella: in un convoglio non la vuole, vuole quella davanti.
+							//
+							// ⛔ **Non allenta [D-289].** Quando anche io divento `Arriving`, `j` lo e' pure — il
+							// suo arco e' fermo da prima — e lo scambio passa dal ramo che gia' esisteva per le durate
+							// simmetriche. Due unita' sulla stessa cella restano irrappresentabili.
+							const bool bAttesaReciproca = !Arriving[i] && Target.IsValidIndex(j) && Target[j] == Pos[i];
+							if (j != i && !Arriving[j] && !bAttesaReciproca && Pos[j] == Target[i])
+							{
+								// ⌫ **E QUI NON C'E' NEMMENO IL PERMESSO DELLE COMPAGNE** (`#2984`, [D-396]). La sua
+								// prima stesura lo metteva proprio in questo punto, come un `continue` per occupante,
+								// perche' il permesso dello stile viveva accanto nella forma `!bFinalStep`. Entrambi
+								// sono risaliti a `BeginArcIfNeeded`: se una compagna e' attraversabile, l'arco la
+								// scavalca e non e' mai il bersaglio; se non lo e', il blocco qui sotto e' quello
+								// giusto. ⛔ Reintrodurre un'eccezione qui rimetterebbe in circolo l'istante in cui
+								// due unita' stanno sulla stessa cella, che [D-398] e [D-399] rendono
+								// irrappresentabile ([D-289]).
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByUnit;
+								// In transito = ancora in movimento, quindi la cella si liberera'.
+								bTransientBlock = Moving[j];
+								break;
+							}
+						}
+					}
+					if (bBlocked)
+					{
+						ToFreeze.Add(i);
+						if (!ReasonLocked[i])
+						{
+							// Il motivo si registra sempre: se l'unita' non ripartisse piu', questo resta
+							// l'ultima cosa vera che le e' successa.
+							BlockReason[i] = Reason;
+							// Ma si FISSA solo se il blocco e' definitivo. Vedi `bTransientBlock` sopra.
+							ReasonLocked[i] = !bTransientBlock;
+						}
+					}
+				}
+				for (int32 Idx : ToFreeze)
+				{
+					Moving[Idx] = false;
+					// Anche da `Arriving`, o una bloccata continuerebbe a contendere la cella che non prende e a
+					// figurare come se stesse liberando la propria.
+					Arriving[Idx] = false;
+					// E da `Advancing`, o il ciclo d'avanzamento le pagherebbe comunque un micro-step di arco.
+					Advancing[Idx] = false;
+					bChanged = true;
+				}
+			}
+
+			// Applica i movimenti del microstep.
+			//
+			// 🔑 **`bAnyMoved` significa «qualcuno ha PROGREDITO», non «qualcuno ha cambiato cella»** (`#2914`).
+			// Un'unita' in transito paga un microstep del proprio arco senza muoversi: se non contasse, la
+			// risoluzione si dichiarerebbe finita mentre un attraversamento e' a meta'.
+			bool bAnyMoved = false;
+			for (int32 i = 0; i < N; ++i)
+			{
+				// `Advancing` e non `Moving`: chi e' viva ma fuori dal proprio sotto-passo non paga nulla.
+				if (!Advancing[i])
+				{
+					continue;
+				}
+				if (!Arriving[i])
+				{
+					// In transito: si paga un microstep e si resta dove si e' ([D-382]). `Entered` NON cresce,
+					// ed e' cio' che tiene l'Overwatch legato all'INGRESSO in una cella: `MovedUnitIds` e'
+					// misurato sulla crescita di `Entered`, quindi un transito non arma nessun trigger.
+					--State.StepRemaining[i];
+					bAnyMoved = true;
+					continue;
+				}
+				Pos[i] = Target[i];
+				// ➕ `Entered` cresce su OGNI cella dell'arco (`#3012`, [D-398] §7b), non solo sull'arrivo:
+				// l'unita' vi e' passata davvero, e su questa crescita e' misurato `MovedUnitIds`, che arma i
+				// trigger d'Overwatch. Tacere le celle attraversate le renderebbe invisibili a una reazione.
+				for (int32 k = Prog[i] + 1; k <= State.ArcEnd[i]; ++k)
+				{
+					Results[i].Entered.Add(Paths[i][k]);
+				}
+				Results[i].Final = Target[i];
+				Prog[i] = State.ArcEnd[i];
+				if (Prog[i] >= Paths[i].Num() - 1)
+				{
+					Done[i] = true;
+				}
+				// ⚠️ L'arco successivo NON si apre qui: `ArcEnd == Prog` lo segnala, e `BeginArcIfNeeded` lo
+				// calcolera' al prossimo micro-step, quando `Pos` sara' di nuovo stabile per tutti.
+				bAnyMoved = true;
+			}
+			++State.MicroStepIndex;
+			// Il calendario avanza SEMPRE, anche quando il sotto-passo non ha mosso nessuno: e' un orologio,
+			// non un contatore di eventi. `MicroStepIndex` resta cio' che conta i micro-step **emessi**.
+			++State.CalendarIndex;
+
+			// 🔑 **«Nessuno si e' mosso» non significa piu' «e' finita»** ([D-428]): con una cadenza non
+			// neutra esistono sotto-passi legittimamente inerti, e fermarsi al primo troncherebbe il
+			// movimento a meta'. Si finisce quando l'inerzia dura un GIRO COMPLETO di calendario — oltre il
+			// quale la sequenza si ripete, quindi chi non si e' mosso non si muovera' piu'.
+			//
+			// ⚠️ Con sole cadenze neutre il periodo vale `1`, quindi il primo sotto-passo inerte chiude la
+			// risoluzione: identico a prima di [D-428].
+			State.IdleSubSteps = bAnyMoved ? 0 : State.IdleSubSteps + 1;
+			return bAnyMoved || (AnyLive(State) && State.IdleSubSteps < State.CalendarPeriodCached);
+		}
+	}
+
+	// Reason code finale: dipende solo dai dati PER-UNITA' dello stato — `Paths`, `Planned`, il progresso e
+	// `BlockReason` — quindi e' indipendente dall'ordine di iterazione, e anche da QUANTI microstep sono
+	// serviti e da dove il chiamante li ha interrotti.
+	//
+	// 🔑 **Il criterio e' il PROGRESSO, non la coordinata finale** (`#2314`). Prima era
+	// `Final == Paths.Last()`, ed e' sbagliato due volte: verso il basso perche' il percorso esteso dal
+	// terreno ha un'ultima cella che il giocatore non ha mai chiesto — chi non riesce a scivolare risultava
+	// «fermato» pur essendo arrivato; e verso l'alto perche' un percorso puo' RIVISITARE una cella
+	// (`{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando i segmenti A* senza deduplicare):
+	// un'unita' bloccata a un terzo di strada, ferma su `B`, soddisfaceva l'uguaglianza e veniva registrata
+	// come arrivata. `Prog[i]` e' l'indice raggiunto DENTRO `Paths[i]`, quindi non ha nessuna delle due
+	// ambiguita'. Vale `Prog[i] == Results[i].Entered.Num()` per costruzione — i microstep li incrementano
+	// insieme — e si usa `Prog` perche' e' il cursore sul percorso, che e' cio' di cui si parla qui.
+	void FinalizeHexMovementOutcomes(FRTMovementResolutionState& State)
+	{
+		for (int32 i = 0; i < State.Num(); ++i)
+		{
+			if (State.Paths[i].Num() <= 1)
+			{
+				State.Results[i].Outcome = ERTMoveOutcome::Stayed;
+				continue;
+			}
+
+			const FRTPlannedMovement& Plan = State.Planned[i];
+
+			// Passi che il giocatore aveva chiesto. `PlannedLength` conta le celle, partenza inclusa.
+			const int32 PlannedSteps = Plan.PlannedLength - 1;
+
+			if (State.Prog[i] < PlannedSteps)
+			{
+				// ⚠️ PRECEDENZA: non ha completato cio' che aveva chiesto. Qualunque cosa il terreno volesse
+				// fare dopo e' irrilevante — cio' che il giocatore ha visto e' l'arresto, e il suo motivo e'
+				// la spiegazione piu' vicina.
+				State.Results[i].Outcome = State.BlockReason[i];
+				continue;
+			}
+
+			// Celle di scivolamento davvero percorse: quanto il progresso eccede il piano del giocatore.
+			const int32 SlideCellsWalked = State.Prog[i] - PlannedSteps;
+			if (SlideCellsWalked > 0)
+			{
+				// Lo scivolamento e' AVVENUTO, anche se poi qualcosa ha fermato l'unita' prima di esaurire
+				// l'estensione. Non e' `SlideBlocked`: `D-319` fa dipendere `Status.Unbalanced` dall'essere
+				// stati spostati dall'ambiente, e uno spostamento parziale e' comunque uno spostamento.
+				State.Results[i].Outcome = ERTMoveOutcome::Slid;
+			}
+			else if (Plan.bSlideRequested)
+			{
+				// Arrivata dove voleva, e il terreno voleva portarla oltre senza riuscirci — che il percorso
+				// sia stato esteso o no. `bSlideRequested` copre ENTRAMBI i modi in cui lo scivolamento puo'
+				// mancare, ed e' l'unica condizione che serve: il muro davanti alla prima cella (percorso
+				// invariato) e la cella accodata che nessun passo ha raggiunto (percorso esteso, `Prog`
+				// fermo al piano). Una seconda guardia su `Paths.Num() > PlannedLength` sarebbe morta —
+				// `ApplyIceSliding` alza il flag PRIMA di accodare, quindi una cella di scivolamento nel
+				// percorso implica il flag — e un lettore la crederebbe necessaria.
+				State.Results[i].Outcome = ERTMoveOutcome::SlideBlocked;
+			}
+			else
+			{
+				State.Results[i].Outcome = ERTMoveOutcome::Moved;
+			}
+		}
+	}
+}
+
+FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
+	const TArray<FRTPlannedMovement>& Planned, const TArray<TArray<int32>>& StepDurations,
+	const TArray<int32>& Teams, const TArray<FRTMovementCadence>& Cadences)
+{
+	FRTMovementResolutionState State;
+	State.Paths = Paths;
+	State.Priorities = Priorities;
+	State.bLinearMovers = bLinearMovers;
+	State.bPassThrough = bPassThrough;
+	State.Teams = Teams;
+	State.StepDurations = StepDurations;
+	State.Cadences = Cadences;
+
+	const int32 N = Paths.Num();
+
+	// Chi non dichiara nulla ha chiesto TUTTO il percorso e nessuno scivolamento: e' il caso di ogni
+	// chiamante che non passa dai terreni, e con quel riempimento la classificazione e' identica a com'era
+	// prima di `#2314`. Un `PlannedLength` fuori intervallo si riporta dentro invece di essere creduto: un
+	// valore piu' lungo del percorso renderebbe irraggiungibile la destinazione pianificata, e uno < 1
+	// farebbe conteggiare come scivolamento la partenza.
+	State.Planned = Planned;
+	State.Planned.SetNum(N);
+	for (int32 i = 0; i < N; ++i)
+	{
+		FRTPlannedMovement& Plan = State.Planned[i];
+		// `Min` e non `Clamp`: con un percorso vuoto `Clamp(X, 1, 0)` restituirebbe **0** — minimo maggiore
+		// del massimo — cioe' un piano di lunghezza negativa in passi, innocuo oggi solo perche' la guardia
+		// `Paths.Num() <= 1 -> Stayed` gira prima. Un valore piu' lungo del percorso resta da riportare
+		// dentro: renderebbe la destinazione pianificata irraggiungibile, e ogni arrivo un blocco.
+		Plan.PlannedLength = Plan.PlannedLength <= 0
+			? Paths[i].Num()
+			: FMath::Min(Plan.PlannedLength, Paths[i].Num());
+	}
+	State.Results.SetNum(N);
+	State.Pos.SetNum(N);
+	State.Prog.SetNum(N);
+	State.Done.SetNum(N);
+	// 🔴 **Un `StepDurations` presente ma INCOMPLETO non deve degradare in silenzio** (`#2940`).
+	// `DurationOfStep` ha un fail-safe a `1` per l'array assente — che e' il contratto legacy, e va bene —
+	// ma lo stesso fail-safe rendeva **invisibile** un cablaggio rotto: sostituire la riga che produce le
+	// durate con un array vuoto lasciava l'intera suite verde. Chi passa le durate deve passarle tutte.
+	if (StepDurations.Num() > 0)
+	{
+		ensureMsgf(StepDurations.Num() == N,
+			TEXT("StepDurations ha %d voci per %d unita': il cablaggio non e' allineato"),
+			StepDurations.Num(), N);
+		for (int32 i = 0; i < FMath::Min(StepDurations.Num(), N); ++i)
+		{
+			const int32 Arcs = FMath::Max(0, Paths[i].Num() - 1);
+			ensureMsgf(StepDurations[i].Num() == Arcs,
+				TEXT("unita' %d: %d durate per %d archi"), i, StepDurations[i].Num(), Arcs);
+		}
+	}
+
+	// ➕ **La dimensione del tick si DERIVA dai partecipanti** ([D-428]): tanti sotto-passi quanti ne chiede
+	// il profilo piu' veloce presente, e almeno uno. Con sole cadenze neutre vale `1`, quindi ogni unita' e'
+	// eleggibile a ogni micro-step e la risoluzione e' quella di prima del calendario, per costruzione.
+	//
+	// 🔴 **Il ciclo e' limitato da `N`, e l'array si controlla — la stesura precedente faceva ne' l'uno ne'
+	// l'altro.** Un `Cadences` piu' lungo di `Paths` — un chiamante che lo dimensiona sul roster mentre i
+	// percorsi vengono da un sottoinsieme filtrato — allargava il tick per conto di un'unita' **che non e'
+	// nella risoluzione**: ogni `Move` presente diventava eleggibile a sotto-passi alterni, raddoppiando i
+	// propri micro-step emessi e spostando ogni `MicroStepIndex` del TurnLog. E' esattamente la deriva del
+	// digest che il punto (3) di [D-428] esiste per impedire. Trovato in code review.
+	//
+	// ⚠️ La guardia e' il gemello di quella di `StepDurations` qui sopra, e per la stessa ragione: un
+	// cablaggio disallineato va **detto**, non assorbito.
+	if (Cadences.Num() > 0)
+	{
+		ensureMsgf(Cadences.Num() == N,
+			TEXT("Cadences ha %d voci per %d unita': il cablaggio non e' allineato"),
+			Cadences.Num(), N);
+	}
+	State.SubStepsPerTick = 1;
+	for (int32 i = 0; i < FMath::Min(Cadences.Num(), N); ++i)
+	{
+		// Da `CadenceOf`, che e' l'unica sede del clamp: leggere `Cadences[i]` grezzo qui rimetterebbe la
+		// seconda sede che la code review ha trovato divergente.
+		State.SubStepsPerTick = FMath::Max(State.SubStepsPerTick, CadenceOf(State, i).StepsPerTick);
+	}
+	// E il periodo, una volta sola: dipende da `Cadences` e `SubStepsPerTick`, che il ciclo non tocca.
+	State.CalendarPeriodCached = ComputeCalendarPeriod(State);
+
+	State.StepRemaining.SetNum(N);
+	State.ArcEnd.SetNum(N);
+	for (int32 i = 0; i < N; ++i)
+	{
+		State.Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
+		State.Prog[i] = 0;
+		State.Done[i] = Paths[i].Num() <= 1;
+		State.Results[i].Final = State.Pos[i];
+		// Il primo arco parte con la propria durata; senza `StepDurations` vale `1` per ogni arco, e il
+		// resolver si comporta esattamente come prima di `#2914`.
+		State.StepRemaining[i] = DurationOfStep(State, i, 0);
+		// ⚠️ `ArcEnd == Prog` = nessun arco aperto. Il primo lo apre `BeginArcIfNeeded` al primo
+		// micro-step, quando tutte le posizioni sono state scritte: aprirlo qui leggerebbe un `Pos` che
+		// questo stesso ciclo sta ancora riempiendo (`#3012`).
+		State.ArcEnd[i] = 0;
+	}
+
+	// Motivo del PRIMO congelamento per unita' (reason code del TurnLog): resta quello, anche se un
+	// microstep successivo la bloccherebbe per un motivo diverso. Senza questa "memoria", una Move che
+	// perde la cella contesa contro una Charge con priorita' migliore (CP 4.8) - e la RITENTA al
+	// microstep successivo, perche' non e' mai arrivata a destinazione - la troverebbe occupata dalla
+	// Charge ormai ferma li', e il motivo diventerebbe "cella occupata" invece di "priorita' avversa":
+	// vero all'ULTIMO microstep, ma non la causa reale per cui non e' mai entrata.
+	State.BlockReason.Init(ERTMoveOutcome::BlockedByUnit, N);
+	State.ReasonLocked.Init(false, N);
+
+	return State;
+}
+
+bool URTHexSimLibrary::ResolveNextHexMicroStep(FRTMovementResolutionState& State)
+{
+	if (State.bFinished)
+	{
+		// Idempotente dopo la fine: chiamarlo ancora non muove nulla e non riscrive `Results`. Serve a chi
+		// pilota il ciclo da fuori - una finestra di reazione - e non ha modo di sapere se era l'ultimo giro.
+		return false;
+	}
+
+	const bool bAnyMoved = StepHexMovement(State);
+	if (!bAnyMoved)
+	{
+		State.bFinished = true;
+		FinalizeHexMovementOutcomes(State);
+	}
+	return bAnyMoved;
+}
+
+void URTHexSimLibrary::StopUnitInPlace(FRTMovementResolutionState& State, int32 UnitId, ERTMoveOutcome Reason)
+{
+	if (!State.Done.IsValidIndex(UnitId))
+	{
+		return; // indice non valido: non c'e' un'unita' da fermare, e inventarne una sarebbe peggio
+	}
+
+	// `Done` e' cio' che il microstep legge (`Moving[i] = !Done[i]`): da qui in poi questa unita' non avanza.
+	// ⚠️ **E dal calendario di [D-428] `Moving` non e' piu' l'unico cancello**: `Advancing` decide chi
+	// progredisce in QUESTO sotto-passo, e un'unita' viva ma fuori dal proprio sotto-passo sta gia' fuori
+	// da `Advancing` pur restando in `Moving`. Marcare `Done` resta sufficiente a fermarla per sempre —
+	// e' il caso che questa funzione tratta — ma non e' piu' l'unico modo in cui un'unita' puo' non
+	// avanzare. Trovato in code review.
+	State.Done[UnitId] = true;
+
+	// La posizione corrente E' quella finale. `Pos` e `Results[].Final` sono gia' allineati dal microstep
+	// appena eseguito — non si riscrive `Entered`, perche' le celle attraversate fin qui sono state
+	// attraversate davvero, ed e' esattamente cio' che il TurnLog deve raccontare.
+	State.Results[UnitId].Final = State.Pos[UnitId];
+
+	// Terminale, quindi vince sulla memoria del primo congelamento: vedi il commento nell'header.
+	State.BlockReason[UnitId] = Reason;
+	State.ReasonLocked[UnitId] = true;
+}
+
+TArray<FRTHexMoveResult> URTHexSimLibrary::FinishHexMovement(FRTMovementResolutionState& State)
+{
+	// Chi salta il ciclo e chiede il risultato subito ottiene comunque una risposta coerente: il movimento si
+	// esaurisce, non resta a meta'. Senza, un chiamante distratto leggerebbe `Outcome` non ancora scritti.
+	while (ResolveNextHexMicroStep(State)) {}
+	return State.Results;
+}
+
+TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
+{
+	return ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>(), TArray<int32>());
+}
+
+TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
+	const TArray<int32>& Teams)
+{
+	// `initialize -> while(!finished) step -> result`: la via a passi e quella in blocco sono LO STESSO
+	// codice, non due algoritmi che qualcuno dovra' tenere allineati. E' la condizione per cui CP 14.2 puo'
+	// dichiarare "nessun comportamento cambia" invece di sperarlo.
+	FRTMovementResolutionState State = BeginHexMovement(Paths, Priorities, bLinearMovers, bPassThrough,
+		TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), Teams);
+	return FinishHexMovement(State);
+}
+
+TArray<FRTTurnLogEntry> URTHexSimLibrary::BuildMoveLog(const TArray<TArray<FRTCellId>>& Paths,
+	const TArray<FRTHexMoveResult>& Results, FName CauseActionId, int32 CausePriority)
+{
+	TArray<FRTTurnLogEntry> Log;
+	const int32 N = FMath::Min(Paths.Num(), Results.Num());
+	Log.Reserve(N);
+
+	for (int32 i = 0; i < N; ++i)
+	{
+		// Chiave stabile dell'unita' nel turno: la sua cella di PARTENZA (max 1 unita' per cella), mai un pointer.
+		const FRTCellId Start = Paths[i].Num() > 0 ? Paths[i][0] : Results[i].Final;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Move;
+		Entry.Category = ERTLogCategory::Move;
+		Entry.Outcome = static_cast<uint8>(Results[i].Outcome);
+		// La cella entra nel log com'e': i tre interi sono q, r e Layer e la topologia e' dichiarata dal
+		// formato (ERTLogTopology::Hex), non da una reinterpretazione qui.
+		Entry.SrcCell = Start;
+		Entry.TgtCell = Results[i].Final;
+		Entry.Amount = Results[i].Entered.Num(); // celle effettivamente percorse
+		// PERCHE' si e' spostata (#307): il log diceva CHE e con quale esito, non per quale causa. Uno
+		// spostamento senza sorgente e' indistinguibile da un difetto del resolver.
+		Entry.ActionId = CauseActionId;
+		Entry.Priority = CausePriority; // con quale precedenza il movimento ha risolto (CP 11.3, formato v7)
+		Log.Add(Entry);
+	}
+	return Log;
+}

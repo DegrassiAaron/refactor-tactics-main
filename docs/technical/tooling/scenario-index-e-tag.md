@@ -121,7 +121,7 @@ domanda «cosa ho già dichiarato e non ho ancora fatto».
 
 ## 4. L'indice
 
-`URTScenarioIndex` — `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h`
+`URTScenarioIndex` — `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.h`
 
 ```
 Scenarios/**/*.json   (esclusi i file _*)

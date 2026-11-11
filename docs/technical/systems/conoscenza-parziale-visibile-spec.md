@@ -98,7 +98,7 @@ specchiata può averne un'altra: lo misura `Vision.AcrossLayers.TwoLayersOfRiseC
 ### 1.2 La presentazione non la usa — e non è che non possa
 
 `git grep -c -E "Awareness|TeamKnowledge|VisibleCells|HasLineOfSight"` sui path presentazionali
-(`UI/`, `Player/`, `Unit/`, `Camera/`, `Selection/`, `Replay/`, `Map/RTHexMapActor.cpp`) → **zero ovunque**.
+(`UI/`, `Player/`, `Unit/`, `Camera/`, `Selection/`, `Replay/`, `Map/Actor/RTHexMapActor.cpp`) → **zero ovunque**.
 
 > 🔁 **Rimisurato il 2026-09-23: quello zero era il difetto del 2026-08-26, e oggi il titolo di questa
 > sezione è falso.** Lo **stesso comando, sullo stesso scope**, non risponde più zero — e i riscontri non
@@ -229,7 +229,7 @@ vive dentro `PlanBots()`, che `StartPlanningTimer` chiama a ogni turno.
 | # | Decisione | Conseguenza |
 |---|---|---|
 | **S1** | **Due fette: prima le unità, poi il terreno** | Questa spec è la prima. La fog sul terreno è §10 |
-| **S2** | **Vista e rumore nella stessa fetta** | Si tocca il TurnLog: **la prossima versione di formato libera** e golden da rigenerare. 🔁 *Qui c'era scritto `11`, e il 2026-09-23 era già **spesa e persistita nei golden**: gli enumeratori di `ERTTurnLogFormatVersion` sono andati oltre. Il numero non si aggiorna — si legge dall'ultimo enumeratore del `enum class ERTTurnLogFormatVersion` in `Turn/RTTurnLog.h` immediatamente prima del merge, come per i `D-nnn` (§7)* |
+| **S2** | **Vista e rumore nella stessa fetta** | Si tocca il TurnLog: **la prossima versione di formato libera** e golden da rigenerare. 🔁 *Qui c'era scritto `11`, e il 2026-09-23 era già **spesa e persistita nei golden**: gli enumeratori di `ERTTurnLogFormatVersion` sono andati oltre. Il numero non si aggiorna — si legge dall'ultimo enumeratore del `enum class ERTTurnLogFormatVersion` in `Turn/Log/RTTurnLog.h` immediatamente prima del merge, come per i `D-nnn` (§7)* |
 | **S3** | **`AE-8` si chiude con una regola derivata**, non con sei numeri scelti a tavolino | §6.1. Un solo numero nuovo in tutto |
 | **S4** | **Il ricordo è una sagoma semitrasparente dell'eroe** nella cella dell'ultimo contatto | Legge tutti e tre i campi di `FRTLastKnownContact`: chi, dove, quando scade |
 | **S5** | **Velo permanente** sulle celle fuori da `VisibleCells`, ottenuto **moltiplicando l'RGB in scrittura** | Nessun `.uasset` da toccare per il velo; il gate dei colori va esteso (§8) |
@@ -461,13 +461,13 @@ misura più niente — e non perché la cifra sia cambiata: l'ordine che conta �
 le tre stanno scritte.)*
 
 ⚠️ **`ClassifyTarget` vuole un terzo ingresso che il TurnLog non aveva**: `TargetTeamId`. Misurato
-allora: `TeamId` compariva **0** volte in `Turn/RTTurnLog.h`.
+allora: `TeamId` compariva **0** volte in `Turn/Log/RTTurnLog.h`.
 
 ➕ **⌫ Quello zero oggi è FALSO, e ribalta la tesi del paragrafo che lo usa** *(rimisurato il 2026-09-21,
-`#3253`)*: `Turn/RTTurnLog.h` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
+`#3253`)*: `Turn/Log/RTTurnLog.h` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
 il file stesso descrive come *«i tre soli ingressi che `FreezeVerdict` legge»*. Il TurnLog ha
 **esattamente** il terzo ingresso che questo paragrafo dichiara mancante. Si conta con
-`grep -c TeamId Source/RefactorTactics/Turn/RTTurnLog.h`.
+`grep -c TeamId Source/RefactorTactics/Turn/Log/RTTurnLog.h`.
 
 🔴 **Chi implementa deve dichiarare, per questo canale, quale conoscenza e quale cella entrano nel calcolo.**
 È la sola parte della decisione che il codice non risolve da solo, e le vie che lascia aperte — accettare per
@@ -618,7 +618,7 @@ Quattro consumatori della stessa porta, in ordine di costo crescente.
 
 > ✅ **`A1` è chiusa, e la frase qui sopra contiene DUE affermazioni cadute, non una.** (1) Il conteggio
 > dei `case` non è più otto — si rilegge con
-> `git grep -c 'case ERTActionInvalidReason' -- Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp`, ed è un
+> `git grep -c 'case ERTActionInvalidReason' -- Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp`, ed è un
 > numero destinato a crescere a ogni motivo nuovo: non va aggiornato, va letto. (2) `TargetUnknown` **ha**
 > il suo `case` — *«bersaglio ignoto alla squadra»* — col proprio oracolo,
 > `RefactorTactics.TurnLog.TargetUnknownIsDescribed`. ⚠️ Chi correggesse solo la seconda lascerebbe in
@@ -678,7 +678,7 @@ senza un percorso di ritorno. Serve un `SetKnownToObserver(bool)` reversibile, c
 proxy di click.
 
 > ✅ **`A3` è chiusa: `ARTUnit::SetKnownToObserver` esiste**, col nome esatto proposto qui, ha un chiamante
-> di produzione in `ARTHUD::UpdateObserverVeil`, test propri in `Tests/RTUnitVisibilityTests.cpp`, e la
+> di produzione in `ARTHUD::UpdateObserverVeil`, test propri in `Tests/Map/Vision/RTUnitVisibilityTests.cpp`, e la
 > catena fino a `ARTUnit::RefreshComponentVisibility` è documentata. ➕ La metà diagnostica di questo
 > paragrafo — *«`SpawnActor<ARTUnit>` esiste solo in `Tests/`»* — **regge tuttora**, rimisurata.
 
@@ -710,7 +710,7 @@ un'identità che nessuno possiede. Il rumore ha la sua grammatica, ed è un'area
 
 **Quota**: ogni decoro a terra deve stare sopra `RTCellTopZ` (2,5 uu) — chi disegna sotto quella soglia
 disegna dentro un cilindro opaco. Le quote già assegnate sono 0,3 / 0,5 / 1,5 / 2,5; il marker del ricordo
-ne prende una nuova, **dichiarata in `Map/RTMapVisuals.h`** come le altre, non ricopiata.
+ne prende una nuova, **dichiarata in `Map/Actor/RTMapVisuals.h`** come le altre, non ricopiata.
 
 ### A5 — Editor
 
@@ -831,7 +831,7 @@ della mappa:
 > 🔴 residui descrivono un progetto, non il codice**: non c'è `ClearInstances`, non c'è un componente
 > `Fog`, e il materiale proprio *«che resta»* non è mai servito, perché il velo non disegna niente di nuovo.
 > 📌 Le famiglie di istanze che il velo tocca **si contano dal corpo della funzione**
-> (`git grep -c 'VeilInstances(' -- Source/RefactorTactics/Map/RTHexMapActor.cpp`), non da un elenco in
+> (`git grep -c 'VeilInstances(' -- Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`), non da un elenco in
 > prosa: è la classe di numero che invecchia da sola.
 
 1. costruisce un `TSet<FRTCellId>` da `VisibleCells`;
@@ -882,10 +882,10 @@ durante il match»* è uno dei due punti che il brief §9 dichiara **obbligatori
 
 ### 5.5 ➖ Il gate sulla leggibilità non va più esteso
 
-`RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (in `Tests/RTHexTests.cpp`) confronta
+`RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (in `Tests/Map/RTHexTests.cpp`) confronta
 `URTHexLibrary::SurfaceColor(All[I])` contro `SurfaceColor(All[J])`: misura il colore **non velato**.
 
-> 📌 **Ripuntato il 2026-09-23**: qui c'era `Tests/RTHexTests.cpp:646`, scivolata di duecento righe. Il
+> 📌 **Ripuntato il 2026-09-23**: qui c'era `Tests/Map/RTHexTests.cpp:646`, scivolata di duecento righe. Il
 > puntatore non rompeva, **deviava** — atterrava dentro il commento di un altro test, su una frase che
 > sembra pertinente. Il nome Automation basta a localizzarlo, quindi la forma di
 > [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md) (1)(a) qui è gratis.
@@ -905,7 +905,7 @@ serve**, e non perché la si rinvii: perché la classe di difetto non esiste pi�
 > non velato lo manca **per costruzione**.
 >
 > ✅ **E l'estensione non è da fare: è fatta.** Si chiama
-> `RefactorTactics.Hex.VeiledSurfaceColorsAreDistinguishable`, sta in `Tests/RTVeilTests.cpp`, e il suo
+> `RefactorTactics.Hex.VeiledSurfaceColorsAreDistinguishable`, sta in `Tests/Perception/Veil/RTVeilTests.cpp`, e il suo
 > docstring apre dichiarando proprio questo buco: *«resta verde mentre la leggibilità del terreno ricordato
 > cala, ed è il buco che questo test chiude»*.
 
@@ -1464,8 +1464,8 @@ note.
 
 | Divergenza | Misura |
 |---|---|
-| Il DoD di #159 dice *«`ERTLogCategory` ha oggi **sette** valori»* | 🔁 *(rimisurato il 2026-09-23: ne aveva **dieci** quando questa riga fu scritta, e l'elenco qui accanto non porta più l'ultimo enumeratore. Non si aggiorna la cifra — si legge l'`enum class ERTLogCategory` in `Turn/RTTurnLog.h`, che è di una riga sola)* Ne ha più di sette: `Move · Combat · Fallback · Reaction · Environment · Facing · Predictive · ReactionDecision · ReactionClash · Status` |
-| Il DoD di #159 dice che la versione di formato *«sale da `WithPriority = 7` a **8**»* | 🔴 **La correzione era essa stessa già scaduta, ed è la più pericolosa del lotto in esecuzione**: diceva *«l'ultima è `WithReactionResponse = 10`, la prossima libera è **11**»*, e `11` è già **speso e persistito nei golden** — come lo sono i due dopo. ⛔ Un numero di versione non si aggiorna in prosa: si legge dall'ultimo enumeratore di `ERTTurnLogFormatVersion` in `Turn/RTTurnLog.h` immediatamente prima del merge *(rimisurato il 2026-09-23)* |
+| Il DoD di #159 dice *«`ERTLogCategory` ha oggi **sette** valori»* | 🔁 *(rimisurato il 2026-09-23: ne aveva **dieci** quando questa riga fu scritta, e l'elenco qui accanto non porta più l'ultimo enumeratore. Non si aggiorna la cifra — si legge l'`enum class ERTLogCategory` in `Turn/Log/RTTurnLog.h`, che è di una riga sola)* Ne ha più di sette: `Move · Combat · Fallback · Reaction · Environment · Facing · Predictive · ReactionDecision · ReactionClash · Status` |
+| Il DoD di #159 dice che la versione di formato *«sale da `WithPriority = 7` a **8**»* | 🔴 **La correzione era essa stessa già scaduta, ed è la più pericolosa del lotto in esecuzione**: diceva *«l'ultima è `WithReactionResponse = 10`, la prossima libera è **11**»*, e `11` è già **speso e persistito nei golden** — come lo sono i due dopo. ⛔ Un numero di versione non si aggiorna in prosa: si legge dall'ultimo enumeratore di `ERTTurnLogFormatVersion` in `Turn/Log/RTTurnLog.h` immediatamente prima del merge *(rimisurato il 2026-09-23)* |
 | La prosa di D-113 dice *«margine ≤ 0 → nessun contatto»* | `IsAudible` è `ReceivedNoise > 0 && ReceivedNoise >= HearingThreshold`, e D-041 concorda col codice (§7) |
 | `docs/roadmap/v0.1-issue-plan.md` §#159 elenca meno caselle della issue | La issue su GitHub ne ha di più: il file locale è **stantio**, e di quanto lo dice `gh issue view 159 --json body -q .body \| grep -c '^- \[ \]'` contro il paragrafo locale. **Autorità = GitHub**. 🔁 *(Qui c'erano «6» e «9» con «stantio di tre»: il secondo numero era già cresciuto al 2026-09-23, quindi anche la differenza era sbagliata. Due totali volatili e la loro sottrazione — la forma che invecchia più in fretta di tutte)* |
 | Il commento su `Action.Wait` dice che il silenzio non produce un evento udibile | Falso su superficie a delta positivo (§6.3) |

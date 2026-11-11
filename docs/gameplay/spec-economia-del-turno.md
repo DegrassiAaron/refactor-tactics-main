@@ -368,7 +368,7 @@ nello scope di E38.
 
 ## 5. Reason code: si estendono le famiglie, non se ne crea una
 
-La famiglia da estendere è **`ERTActionInvalidReason`** (`Turn/RTActionFallbackLibrary.h`), che già
+La famiglia da estendere è **`ERTActionInvalidReason`** (`Turn/Actions/RTActionFallbackLibrary.h`), che già
 significa *«questa azione pianificata non è più eseguibile»* — `TargetGone · TargetDead · TargetFriendly ·
 OutOfRange · NoLineOfSight · NoMap · TargetUnknown` — e che porta già scritta, nel commento dell'ultimo
 valore, l'invariante che serve: *«Valore aggiunto in coda: le tracce già scritte conservano il proprio

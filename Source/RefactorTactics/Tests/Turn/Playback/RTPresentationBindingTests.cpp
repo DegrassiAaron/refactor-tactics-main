@@ -1,0 +1,808 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/Playback/RTPresentationBinding.h"
+#include "Turn/Resolution/RTTurnRules.h" // ERTMatchPhase
+#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Core/RTGameplayTags.h" // #2881: TAG_Status_Slow / TAG_Status_Root
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	/**
+	 * Una voce con cue, per costruire tabelle di prova **a mano**.
+	 *
+	 * 🔴 **A mano, e non derivandola da `DeclaredBindings()`.** E' la lezione che il gate delle icone ha
+	 * pagato con una code review: la' un'assertion diceva «un catalogo che copre l'insieme richiesto non ha
+	 * mancanze», ma il catalogo era costruito da `RequiredIconIds()` e confrontato con un gate che itera
+	 * `RequiredIconIds()` — vera per costruzione, qualunque cosa facesse la derivazione. Qui la simmetria
+	 * sarebbe ancora piu' naturale (tabella derivata dall'enum, gate che itera l'enum), quindi le tabelle di
+	 * prova di questo file non chiamano mai la tabella vera. Nome distinto per file (unity build).
+	 */
+	FRTPresentationBinding PresBindingWithCue(ERTResolvedEventType Type)
+	{
+		return FRTPresentationBinding(Type, { FName(TEXT("CueDiProva")) });
+	}
+
+	/** Tutti i tipi dell'enum, letti dalla reflection: serve a costruire tabelle complete o bucate. */
+	TArray<ERTResolvedEventType> PresAllEventTypes()
+	{
+		TArray<ERTResolvedEventType> Out;
+		if (const UEnum* Enum = StaticEnum<ERTResolvedEventType>())
+		{
+			for (int32 I = 0; I < Enum->NumEnums() - 1; ++I)
+			{
+				Out.Add(static_cast<ERTResolvedEventType>(Enum->GetValueByIndex(I)));
+			}
+		}
+		return Out;
+	}
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Il conteggio dei tipi e' PINNATO: aggiungerne uno rompe questa riga, non un ciclo
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationEnumSizeIsPinnedTest,
+	"RefactorTactics.Presentation.EnumSizeIsPinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
+{
+	// 🔑 Questo test non protegge un numero: protegge un MOMENTO. Chi aggiunge un valore a
+	// `ERTResolvedEventType` vede fallire una riga che lo nomina, invece di scoprire mesi dopo che l'evento
+	// non si vedeva. Il gate vero copre il valore nuovo per costruzione; questa riga fa in modo che
+	// qualcuno se ne ACCORGA e vada a dichiararne la presentazione.
+	//
+	// La storia del numero, che e' il curriculum della riga:
+	//   4 -> 5   2026-08-31   `AttackFootprint`   ([D-301], #1945)
+	//   5 -> 6   2026-09-04   `ReactionResolved`  (#2191)
+	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
+	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
+	//   8 -> 9   2026-09-24   `ArcHit`            (#3280, [D-437])
+	//   9 -> 10  2026-10-07   `AbilityActivated`  (#3549, il momento: entra CON cue, `PlayCastMontage`)
+	//  10 -> 11  2026-10-12   `Healed`            (#3600, [D-505]: entra CON cue, `ShowHealToken`)
+	// Quattro volte su quattro e' fallita per prima e ha mandato a dichiarare la presentazione del valore
+	// nuovo — l'ultima compresa: `ArcHit` e' entrato in `DeclaredBindings()` come voce IN ATTESA con owner
+	// `#3293` perche' questa riga ha chiesto conto del nono valore.
+	//
+	// ⚠️ **Il messaggio elencava i valori per nome e si e' scollato dal numero**: diceva *«dichiara cinque
+	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
+	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
+	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
+	TestEqual(TEXT("ERTResolvedEventType dichiara undici valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 11);
+
+	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
+	// fallirebbe per il motivo sbagliato.
+	TestNotNull(TEXT("StaticEnum<ERTResolvedEventType>() risolve"), StaticEnum<ERTResolvedEventType>());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// La tabella vera copre ogni tipo
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationEveryEventTypeIsCoveredTest,
+	"RefactorTactics.Presentation.EveryEventTypeIsCovered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationEveryEventTypeIsCoveredTest::RunTest(const FString&)
+{
+	const TArray<FString> Missing =
+		URTPresentationBindingLibrary::FindMissingBindings(URTPresentationBindingLibrary::DeclaredBindings());
+
+	// Il messaggio porta le mancanze: un gate che dice solo «fallito» costringe a rileggere la tabella.
+	TestEqual(*FString::Printf(TEXT("nessun tipo scoperto (mancanti: %s)"),
+		Missing.Num() > 0 ? *FString::Join(Missing, TEXT(" | ")) : TEXT("-")), Missing.Num(), 0);
+
+	// La tabella dichiara esattamente un tipo per voce: se qualcuno ne aggiungesse una senza togliere la
+	// vecchia, `FindMissingBindings` lo direbbe come ambiguita', ma questa riga lo dice prima e meglio.
+	TestEqual(TEXT("una voce per tipo"),
+		URTPresentationBindingLibrary::DeclaredBindings().Num(),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// 🔴 Il test che il gate NON puo' passare per omissione: una voce tolta produce ESATTAMENTE quella mancanza
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationMissingEntryIsReportedTest,
+	"RefactorTactics.Presentation.MissingEntryIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationMissingEntryIsReportedTest::RunTest(const FString&)
+{
+	// Tabella costruita a mano, completa TRANNE `Attack`. Non deriva dalla tabella vera: se derivasse, il
+	// test resterebbe verde anche con un gate che non guarda niente.
+	TArray<FRTPresentationBinding> Bucata;
+	for (const ERTResolvedEventType Type : PresAllEventTypes())
+	{
+		if (Type != ERTResolvedEventType::Attack)
+		{
+			Bucata.Add(PresBindingWithCue(Type));
+		}
+	}
+
+	const TArray<FString> Missing = URTPresentationBindingLibrary::FindMissingBindings(Bucata);
+
+	// «Esattamente una», non «almeno una»: cade in due modi opposti — se il gate smette di vedere la
+	// mancanza diventa 0, se comincia a vederne dove non ci sono diventa piu' di 1.
+	TestEqual(TEXT("togliere Attack produce esattamente una mancanza"), Missing.Num(), 1);
+	if (Missing.Num() == 1)
+	{
+		TestTrue(*FString::Printf(TEXT("la mancanza nomina Attack (e' invece: %s)"), *Missing[0]),
+			Missing[0].StartsWith(TEXT("Attack")));
+	}
+	else
+	{
+		// ⚠️ Senza questo ramo il test uscirebbe MUTO quando il conteggio e' diverso da 1, e un'uscita
+		// anticipata senza assertion viene riportata come Success.
+		AddError(FString::Printf(TEXT("mancanze inattese: %s"), *FString::Join(Missing, TEXT(" | "))));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Un binding ASSENTE non e' «zero mancanze»: e' la mancanza totale
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationEmptyBindingReportsEveryTypeTest,
+	"RefactorTactics.Presentation.EmptyBindingReportsEveryType",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationEmptyBindingReportsEveryTypeTest::RunTest(const FString&)
+{
+	// 🔴 E' il caso peggiore, ed e' quello in cui un gate scritto con leggerezza tace: nessuna voce da
+	// controllare, nessun errore da riportare. Qui la risposta e' l'opposto.
+	const TArray<FString> Missing =
+		URTPresentationBindingLibrary::FindMissingBindings(TArray<FRTPresentationBinding>());
+
+	TestEqual(TEXT("una tabella vuota lascia scoperti TUTTI i tipi"),
+		Missing.Num(), URTPresentationBindingLibrary::DeclaredEventTypeCount());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Le tre forme di dichiarazione che NON coprono
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationHollowDeclarationsDoNotCoverTest,
+	"RefactorTactics.Presentation.HollowDeclarationsDoNotCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationHollowDeclarationsDoNotCoverTest::RunTest(const FString&)
+{
+	const TArray<ERTResolvedEventType> AllTypes = PresAllEventTypes();
+
+	// Costruisce una tabella completa in cui SOLO `Move` e' dichiarato nel modo sbagliato, cosi' l'unica
+	// mancanza attesa e' quella: se ne comparissero altre, il difetto sarebbe nel gate e non nel caso.
+	auto TabellaCon = [&AllTypes](const FRTPresentationBinding& Storta)
+	{
+		TArray<FRTPresentationBinding> T;
+		for (const ERTResolvedEventType Type : AllTypes)
+		{
+			T.Add(Type == ERTResolvedEventType::Move ? Storta : PresBindingWithCue(Type));
+		}
+		return T;
+	};
+
+	// (a) Voce `Cues` senza alcuna cue: dichiarata, e non copre nulla.
+	{
+		FRTPresentationBinding Vuota;
+		Vuota.Type = ERTResolvedEventType::Move;
+		Vuota.Kind = ERTPresentationKind::Cues;
+		const TArray<FString> Missing = URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(Vuota));
+		TestEqual(TEXT("(a) una voce con cue vuote non copre"), Missing.Num(), 1);
+	}
+
+	// (b) Cue dichiarate ma tutte `NAME_None`: e' il widget dichiarato e mai disegnato.
+	{
+		FRTPresentationBinding SoloNone(ERTResolvedEventType::Move, { NAME_None, NAME_None });
+		const TArray<FString> Missing = URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(SoloNone));
+		TestEqual(TEXT("(b) cue tutte NAME_None non coprono"), Missing.Num(), 1);
+	}
+
+	// (c) `NoPresentation` senza motivo: e' il default implicito che `D-278` vieta, scritto a mano.
+	{
+		const FRTPresentationBinding Muta =
+			FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::Move, TEXT("   "));
+		const TArray<FString> Missing = URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(Muta));
+		TestEqual(TEXT("(c) NoPresentation senza motivo non copre"), Missing.Num(), 1);
+	}
+
+	// (d) Controprova: `NoPresentation` CON motivo copre. Senza questa riga le tre sopra proverebbero solo
+	//     che il gate si lamenta, non che sa distinguere.
+	{
+		const FRTPresentationBinding Dichiarata = FRTPresentationBinding::MakeNoPresentation(
+			ERTResolvedEventType::Move, TEXT("motivo scritto"));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(Dichiarata));
+		TestEqual(TEXT("(d) NoPresentation con motivo copre"), Missing.Num(), 0);
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Due voci per lo stesso tipo: un'ambiguita' non e' una dichiarazione
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationDuplicateDeclarationIsAmbiguousTest,
+	"RefactorTactics.Presentation.DuplicateDeclarationIsAmbiguous",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationDuplicateDeclarationIsAmbiguousTest::RunTest(const FString&)
+{
+	// Tabella completa PIU' un doppione di `Defeated`. Entrambe le voci sono valide prese da sole: e'
+	// proprio il caso in cui un gate che si ferma alla prima corrispondenza direbbe «coperto».
+	TArray<FRTPresentationBinding> ConDoppione;
+	for (const ERTResolvedEventType Type : PresAllEventTypes())
+	{
+		ConDoppione.Add(PresBindingWithCue(Type));
+	}
+	ConDoppione.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
+		{ FName(TEXT("UnAltraCue")) }));
+
+	const TArray<FString> Missing = URTPresentationBindingLibrary::FindMissingBindings(ConDoppione);
+
+	TestEqual(TEXT("un tipo dichiarato due volte e' segnalato"), Missing.Num(), 1);
+	if (Missing.Num() == 1)
+	{
+		TestTrue(*FString::Printf(TEXT("la segnalazione nomina Defeated (e' invece: %s)"), *Missing[0]),
+			Missing[0].StartsWith(TEXT("Defeated")));
+	}
+	else
+	{
+		AddError(FString::Printf(TEXT("mancanze inattese: %s"), *FString::Join(Missing, TEXT(" | "))));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Determinismo: stesso ingresso, stessa uscita nello stesso ordine
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationResultIsDeterministicTest,
+	"RefactorTactics.Presentation.ResultIsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationResultIsDeterministicTest::RunTest(const FString&)
+{
+	// Una tabella vuota lascia scoperti tutti i tipi: e' l'ingresso che produce l'uscita piu' lunga, quindi
+	// quello su cui un ordine instabile si vedrebbe.
+	const TArray<FString> Primo =
+		URTPresentationBindingLibrary::FindMissingBindings(TArray<FRTPresentationBinding>());
+	const TArray<FString> Secondo =
+		URTPresentationBindingLibrary::FindMissingBindings(TArray<FRTPresentationBinding>());
+
+	TestEqual(TEXT("stesso numero di mancanze"), Secondo.Num(), Primo.Num());
+	TestEqual(TEXT("stesso ordine, riga per riga"),
+		FString::Join(Secondo, TEXT("|")), FString::Join(Primo, TEXT("|")));
+
+	// 🔑 E l'ordine e' quello dell'ENUM, non quello di arrivo: l'uscita non dipende da come e' scritta la
+	// tabella in ingresso. Si verifica dando le voci in ordine inverso e osservando che le mancanze
+	// prodotte dai tipi restanti conservino l'ordine dei valori.
+	TArray<FRTPresentationBinding> SoloUltimo;
+	SoloUltimo.Add(PresBindingWithCue(ERTResolvedEventType::Defeated));
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(SoloUltimo);
+	TestEqual(TEXT("gli altri tipi restano scoperti"),
+		Mancanti.Num(), URTPresentationBindingLibrary::DeclaredEventTypeCount() - 1);
+	if (Mancanti.Num() >= 3)
+	{
+		// L'ordine e' quello dei VALORI, e `Defeated` - l'unico dichiarato - non compare: le tre mancanze
+		// che lo precedono restano nella loro sequenza anche se l'enum cresce in coda.
+		TestTrue(TEXT("l'ordine segue l'enum: Move, Attack, HazardDamage"),
+			Mancanti[0].StartsWith(TEXT("Move"))
+			&& Mancanti[1].StartsWith(TEXT("Attack"))
+			&& Mancanti[2].StartsWith(TEXT("HazardDamage")));
+		TestFalse(TEXT("il tipo dichiarato non e' fra le mancanze"),
+			Mancanti.ContainsByPredicate([](const FString& M) { return M.StartsWith(TEXT("Defeated")); }));
+	}
+	else
+	{
+		AddError(FString::Printf(TEXT("mancanze inattese: %s"), *FString::Join(Mancanti, TEXT(" | "))));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// La clausola di `HazardDamage` e' parte della dichiarazione, non un commento
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationHazardDamageIsDeclaredSilentTest,
+	"RefactorTactics.Presentation.HazardDamageIsDeclaredSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Hazard = Reale.FindByPredicate(
+		[](const FRTPresentationBinding& B) { return B.Type == ERTResolvedEventType::HazardDamage; });
+
+	if (!Hazard)
+	{
+		// ⚠️ `AddError` e non un `return` muto: uscire senza asserire verrebbe riportato come Success.
+		AddError(TEXT("HazardDamage non e' dichiarato nella tabella"));
+		return true;
+	}
+
+	// 🔁 **Dal 2026-09-05 e' `PendingPresentation`, per decisione d'autore.** `#2460` l'aveva lasciata
+	// `NoPresentation` dichiarando la scelta deliberata, ma il suo stesso motivo diceva *«la cue e' lavoro
+	// di #2455»*: sotto la tassonomia di `#2483` le due clausole si contraddicono, e la contraddizione e'
+	// stata portata all'autore invece che risolta a intuito.
+	//
+	// ⛔ **Il nome del test resta vero**: `PendingPresentation` dichiara comunque che l'evento NON si
+	// mostra. Cio' che aggiunge e' chi lo mostrera'.
+	//
+	// ⚠️ **Il test PRECEDENTE sarebbe rimasto verde sulla contraddizione**, perche' guardava
+	// `Kind == NoPresentation` e due sottostringhe che la voce nuova conserva. E' lo stesso difetto che
+	// questo file ha gia' documentato per il predicato `Rationale.Contains("produttore")`: un guardiano che
+	// passa su una stringa che afferma altro non e' un guardiano.
+	TestTrue(TEXT("HazardDamage non si mostra, ed e' un'attesa dichiarata"),
+		Hazard->Kind == ERTPresentationKind::PendingPresentation);
+
+	// 🔑 **L'owner e' `#2505` e non piu' `#2455`, e il cambio e' il meccanismo che funziona.** La decisione
+	// d'autore aveva nominato `#2455` perche' era la issue che stava per disegnare il feedback di
+	// combattimento; misurando, quella issue ha scoperto che questo evento **non ha un istante** in cui una
+	// cue possa essere giocata, ha consegnato il token per `Attack` — che un beat ce l'ha — e ha aperto
+	// `#2505` per costruire quello che manca. Il promemoria non e' vissuto in una frase: e' stato questo
+	// censimento a convocare la revisione.
+	TestEqual(TEXT("e la cue la deve #2505, non una issue che ha gia' chiuso"),
+		Hazard->PendingOwner, FString(TEXT("#2505")));
+
+	// Il motivo dichiara che il produttore ESISTE: il predicato di `#2460` resta valido e va conservato,
+	// perche' e' cio' che impedisce di tornare a credere che l'evento sia muto.
+	TestTrue(TEXT("il motivo dichiara che il produttore esiste, non che manca"),
+		Hazard->Rationale.Contains(TEXT("produttore ESISTE")));
+
+	// ⚠️ **Non si cerca l'owner nel MOTIVO**: e' un campo, e cercarlo in una stringa libera tornerebbe a
+	// misurare la prosa — il difetto che questo file documenta due volte. L'assertion sull'owner sta sopra,
+	// sul campo. Qui resta cio' che solo il motivo puo' dire: **perche'** oggi non si disegna.
+	//
+	// 🔴 **E cio' che manca non e' il dato ma l'ISTANTE**, che e' l'informazione nuova e la sola che spiega
+	// perche' la cue non e' nata insieme a quella di `Attack`: `BeginPlayback` non consuma questo tipo, e
+	// `PlaybackPhases` non contiene mai `Cleanup`.
+	TestTrue(TEXT("il motivo dichiara che manca l'ISTANTE, non il dato"),
+		Hazard->Rationale.Contains(TEXT("ISTANTE")));
+
+	// ⚠️ **E che la morte da hazard non ha un beat proprio.** Misurato in `#2460`: `Defeated` lo emette solo
+	// `ResolveCombatPasses`, sul Blast. La voce lo dichiara perche' chi costruira' la cue non dia per
+	// scontato un momento di morte che non esiste — era precisamente l'errore della stesura precedente.
+	TestTrue(TEXT("il motivo avverte che la morte da hazard non emette Defeated"),
+		Hazard->Rationale.Contains(TEXT("non emette Defeated")));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * `PendingPresentation` ben formata COPRE; senza owner o senza motivo NON copre (`#2483`).
+ *
+ * 🔑 **La controprova non e' decorativa.** Senza il caso (c) i due sopra proverebbero solo che il gate si
+ * lamenta, non che sa **distinguere** una voce in attesa legittima da una malformata — ed e' esattamente la
+ * forma che il caso (d) di `HollowDeclarationsDoNotCover` usa gia' per `NoPresentation`.
+ *
+ * ⛔ Se una voce in attesa ben formata NON coprisse, la pressione sarebbe a cancellare la distinzione per
+ * tornare verdi, e il gate tornerebbe a misurare niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationPendingNeedsOwnerAndRationaleTest,
+	"RefactorTactics.Presentation.PendingNeedsOwnerAndRationale",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationPendingNeedsOwnerAndRationaleTest::RunTest(const FString&)
+{
+	const TArray<ERTResolvedEventType> AllTypes = PresAllEventTypes();
+
+	// Tabella completa in cui SOLO `Move` e' dichiarato nel modo in esame: l'unica mancanza attesa e' quella.
+	auto TabellaCon = [&AllTypes](const FRTPresentationBinding& InEsame)
+	{
+		TArray<FRTPresentationBinding> T;
+		for (const ERTResolvedEventType Type : AllTypes)
+		{
+			T.Add(Type == ERTResolvedEventType::Move ? InEsame : PresBindingWithCue(Type));
+		}
+		return T;
+	};
+
+	// (a) In attesa senza owner: la promessa che nessuno puo' riscuotere.
+	{
+		const FRTPresentationBinding SenzaOwner = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("motivo scritto"), TEXT("   "));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(SenzaOwner));
+		TestEqual(TEXT("(a) PendingPresentation senza owner non copre"), Missing.Num(), 1);
+	}
+
+	// (b) In attesa senza motivo: vale la stessa regola di `NoPresentation`, e non e' assorbita da (a).
+	{
+		const FRTPresentationBinding SenzaMotivo = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("  "), TEXT("#2454"));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(SenzaMotivo));
+		TestEqual(TEXT("(b) PendingPresentation senza motivo non copre"), Missing.Num(), 1);
+	}
+
+	// (c) Controprova: ben formata, COPRE.
+	{
+		const FRTPresentationBinding BenFormata = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("motivo scritto"), TEXT("#2454"));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(BenFormata));
+		TestEqual(TEXT("(c) PendingPresentation con motivo e owner copre"), Missing.Num(), 0);
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il censimento delle assenze e' PINNATO: quante decise, quante in attesa, e ogni in-attesa nomina l'owner.
+ *
+ * 🔴 **E' il test che rende falsificabile la classificazione, e senza di esso `#2483` non consegna niente.**
+ * I due test sopra provano che il *gate* sa distinguere; questo prova che le voci *reali* sono classificate.
+ * Declassare `ReactionResolved` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
+ * voce resterebbe ben formata — e la distinzione morirebbe in silenzio. Qui diventa rossa.
+ *
+ * ⚠️ **I numeri sono un'osservazione, non una derivazione**, e vanno **rimisurati** se il censimento cambia
+ * per una ragione legittima — non aggiornati d'ufficio al numero nuovo. Chi li cambia dichiari perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationAbsenceCensusIsPinnedTest,
+	"RefactorTactics.Presentation.AbsenceCensusIsPinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	int32 Decise = 0;
+	int32 InAttesa = 0;
+	int32 InAttesaSenzaOwner = 0;
+	for (const FRTPresentationBinding& B : Reale)
+	{
+		if (B.Kind == ERTPresentationKind::NoPresentation) { ++Decise; }
+		else if (B.Kind == ERTPresentationKind::PendingPresentation)
+		{
+			++InAttesa;
+			if (B.PendingOwner.TrimStartAndEnd().IsEmpty()) { ++InAttesaSenzaOwner; }
+		}
+	}
+
+	// 🔴 **Rimisurato il 2026-09-05: zero decise, quattro in attesa** — `HazardDamage` e' passata a
+	// `PendingPresentation`, e con lei l'ultima assenza decisa e' sparita.
+	//
+	// 🔑 **Il numero dice qualcosa di vero sulla v0.1.** Dei sette tipi, tre hanno cue e **quattro sono in
+	// attesa**: in questa release nulla e' invisibile *per scelta definitiva* — e' solo non ancora
+	// disegnato. ⛔ Il valore `NoPresentation` resta nel contratto ed e' esercitato dai test di questo file:
+	// serve al primo evento che si decidera' di non mostrare mai.
+	//
+	// ⚠️ **Se questa riga tornasse a 1, qualcuno avra' preso quella decisione: la si cerchi.** Non si
+	// aggiorna il numero — si cerca chi l'ha deciso e perche'.
+	TestEqual(TEXT("nessuna assenza e' DECISA in v0.1"), Decise, 0);
+	// ⌫ **Erano quattro fino al 2026-09-10.** `AttackFootprint` ha una cue (`#2454`): l'evento entra nel
+	// playback e il cancello della fase Blast conta anche le impronte. ⚠️ Se questa riga risale, qualcuno
+	// ha rimesso in attesa una voce sciolta: si cerchi chi, non si aggiorni il numero.
+	// ✅ **Invariato all'arrivo di `StructureHit` (`#2828`), ed e' un'osservazione, non un'omissione**: la
+	// voce nasce **con cue** (`AddPlaybackStructureHit`), quindi non entra fra le attese. ⚠️ Se qualcuno la
+	// declassasse a `PendingPresentation` questa riga diventerebbe rossa — che e' esattamente il servizio
+	// che il pin rende.
+	// 🔴 **Rimisurato il 2026-09-24: da tre a QUATTRO, e il motivo e' dichiarato invece che aggiornato
+	// d'ufficio.** `ArcHit` (`#3280`, [D-437]) nasce **in attesa**, all'opposto di `StructureHit`: li' il
+	// segno si posa su un lato fra due esagoni che esistono a schermo, qui a runtime **nessuno disegna gli
+	// archi** — lo misura `#1768`, e inventare una cue su una geometria assente e' cio' che `#2483` vieta.
+	// ⚠️ La riga risale, e questa volta e' corretto: cio' che il pin vieta e' rimettere in attesa una voce
+	// gia' **sciolta**, non dichiarare in attesa una voce che nasce senza cue.
+	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
+	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
+
+	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
+	// loro, e «chi chiude #2454 sa quale riga lo riguarda» tornerebbe a non essere vero.
+	auto OwnerDi = [&Reale](ERTResolvedEventType Type) -> FString
+	{
+		const FRTPresentationBinding* B = Reale.FindByPredicate(
+			[Type](const FRTPresentationBinding& X) { return X.Type == Type; });
+		return B ? B->PendingOwner : FString();
+	};
+	TestEqual(TEXT("HazardDamage attende #2505"),
+		OwnerDi(ERTResolvedEventType::HazardDamage), FString(TEXT("#2505")));
+	// ✅ `AttackFootprint` non e' piu' in attesa: ha cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto
+	// e' cio' che impedisce di rimetterla in attesa in silenzio.
+	TestEqual(TEXT("AttackFootprint non attende piu' nessuno"),
+		OwnerDi(ERTResolvedEventType::AttackFootprint), FString());
+	TestEqual(TEXT("ReactionResolved attende #2454"),
+		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
+	TestEqual(TEXT("StatusChanged attende #2456"),
+		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
+	// ✅ `StructureHit` nasce con cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto e' cio' che impedisce
+	// di rimetterla in attesa in silenzio — stessa forma della riga di `AttackFootprint` qui sopra.
+	TestEqual(TEXT("StructureHit non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::StructureHit), FString());
+	// ✅ `AbilityActivated` nasce con cue (`PlayCastMontage`, #3549): NON e' in attesa, quindi non ha un
+	// `PendingOwner`. Il conteggio delle attese qui sopra resta quello di prima, ed e' la prova che la voce
+	// non e' stata dichiarata in attesa per comodita'.
+	TestEqual(TEXT("AbilityActivated non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::AbilityActivated), FString());
+	// ⚠️ **L'owner e' una issue che ESISTE e ha una dipendenza dichiarata**: `#3293` possiede la cue
+	// dell'arco ed e' bloccata da `#1768`, che possiede *«un arco si vede in PIE»*. Un owner inventato
+	// sarebbe una promessa che nessuno puo' riscuotere, cioe' il difetto che `PendingOwner` esiste per
+	// impedire.
+	TestEqual(TEXT("ArcHit attende #3293"),
+		OwnerDi(ERTResolvedEventType::ArcHit), FString(TEXT("#3293")));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo alla STRUTTURA ha la sua riga, e il censimento la vede — `#2828`.
+ *
+ * 🔴 **Prima non mancava una cue: mancava la RIGA, e con lei la possibilita' stessa di dichiarare
+ * un'assenza.** `ERTResolvedEventType` non aveva un valore per la struttura, quindi `DeclaredBindings()`
+ * non aveva una voce a cui appendere nulla, quindi `Presentation.AbsenceCensusIsPinned` — il gate che
+ * sorveglia proprio le assenze — **non aveva niente da sorvegliare**. Un muro poteva cadere e la timeline
+ * non lo sapeva, e nessun test poteva accorgersene: un'assenza che nessun censimento vede e' peggio di una
+ * dichiarata, perche' e' invisibile.
+ *
+ * ⚠️ **Questo test non chiede che esista una cue qualsiasi: chiede che sia QUELLA.** Asserire il solo
+ * `Kind == Cues` lascerebbe verde una voce che nomina un effetto mai scritto — la lista di intenzioni che
+ * `#2483` vieta. Il nome asserito qui e' una funzione che il C++ chiama davvero
+ * (`ARTHexMapActor::AddPlaybackStructureHit`, invocata da `ARTTurnManager::AdvanceBlastSequence` — ⏱️ *fino a
+ * #3549 da `RevealPlaybackStructureHits`, poi da `RevealBlastSequence` fino al merge di `#2454`*).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStructureHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.StructureHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationStructureHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::StructureHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo a struttura ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("e la riga ha una CUE, non un'attesa"), Voce->Kind, ERTPresentationKind::Cues);
+	// ⛔ Il nome, non solo il numero: una cue inventata passerebbe un `Num() > 0` e mentirebbe al gate.
+	TestTrue(TEXT("e la cue e' AddPlaybackStructureHit, che il C++ chiama davvero"),
+		Voce->Cues.Contains(FName(TEXT("AddPlaybackStructureHit"))));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina StructureHit: %s"), *M),
+			M.Contains(TEXT("StructureHit")));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo all'ARCO ha la sua riga, e il censimento la vede — `#3280`, [D-437].
+ *
+ * 🔴 **Gemello del gate sopra, e l'asimmetria fra i due e' il punto.** `StructureHit` nasce **con cue**
+ * perche' un bordo di copertura e' un lato fra due esagoni che esistono a schermo; `ArcHit` nasce **in
+ * attesa** perche' a runtime **nessuno disegna gli archi** — lo possiede e lo misura `#1768`. ⛔ Una cue
+ * inventata su una geometria che non c'e' e' precisamente cio' che `#2483` vieta, e un test che si
+ * accontentasse di `Kind == Cues` la incoraggerebbe.
+ *
+ * ⚠️ **Quindi qui si asserisce il contrario del gemello: che la cue NON ci sia, e che l'attesa sia
+ * dichiarata bene.** Un'attesa senza owner e senza motivo e' una promessa che nessuno puo' riscuotere, ed e'
+ * lo stato da cui questa issue e' nata: prima di `ArcHit` non c'era nemmeno una riga a cui appendere
+ * un'assenza, quindi `AbsenceCensusIsPinned` non aveva niente da sorvegliare.
+ *
+ * ⚠️ **Il giorno in cui `#3293` scrivera' la cue, questo gate diventera' rosso.** E' voluto: chi scioglie
+ * l'attesa deve passare di qui, aggiornare questa riga e quella del censimento — non scoprire mesi dopo che
+ * l'evento era rimasto in attesa di se stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationArcHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.ArcHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationArcHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::ArcHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo all'arco ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	// ⛔ **In ATTESA e non con cue**, all'opposto del gemello: a runtime nessuno disegna gli archi.
+	TestEqual(TEXT("la riga dichiara un'attesa, non una cue"), Voce->Kind,
+		ERTPresentationKind::PendingPresentation);
+	TestTrue(TEXT("⛔ e non nomina nessuna cue: non ce n'e' una da nominare"), Voce->Cues.Num() == 0);
+
+	// 🔑 **L'attesa e' riscuotibile**: ha un owner reale e un motivo. Senza questi due, «in attesa» e' solo
+	// un modo educato di dire «invisibile».
+	TestEqual(TEXT("l'owner e' #3293, che possiede la cue dell'arco"), Voce->PendingOwner,
+		FString(TEXT("#3293")));
+	TestTrue(TEXT("e il motivo e' scritto, non vuoto"),
+		!Voce->Rationale.TrimStartAndEnd().IsEmpty());
+	// ⚠️ **Il motivo nomina il prerequisito**, che e' l'informazione senza la quale `#3293` ripartirebbe da
+	// zero: la cue non si puo' scrivere finche' un arco non si vede.
+	TestTrue(TEXT("e nomina #1768, il prerequisito che blocca la cue"),
+		Voce->Rationale.Contains(TEXT("#1768")));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina ArcHit: %s"), *M),
+			M.Contains(TEXT("ArcHit")));
+	}
+
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// L'andatura di una fase (#2881): tabella completa, purezza, e le due esclusioni difese.
+// ---------------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStyleForMovementIsTotalTest,
+	"RefactorTactics.Presentation.AndaturaPerFase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTPresentationStyleForMovementIsTotalTest::RunTest(const FString& Parameters)
+{
+	// 🔑 Solo il Dash corre. E' la sola riga di questa tabella che porta informazione.
+	TestEqual(TEXT("Dash -> Run"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, {}), ERTGraykitLocomotionStyle::Run);
+
+	// ⚠️ Il Blast MUOVE le unita' (knockback) e resta `Normal`: un knockback non e' una corsa, e' uno
+	// spostamento subito. E' il caso che una scorciatoia «se si muove allora corre» sbaglierebbe.
+	TestEqual(TEXT("Move -> Normal"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, {}), ERTGraykitLocomotionStyle::Normal);
+	TestEqual(TEXT("Blast -> Normal (il knockback non e' una corsa)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Blast, {}), ERTGraykitLocomotionStyle::Normal);
+
+	// La funzione e' TOTALE: si itera l'enum vero, non una lista scritta a mano — stessa disciplina del gate
+	// di `DeclaredBindings`. Un valore aggiunto domani e' coperto per costruzione.
+	const UEnum* PhaseEnum = StaticEnum<ERTMatchPhase>();
+	if (!TestNotNull(TEXT("reflection di ERTMatchPhase"), PhaseEnum))
+	{
+		return false;
+	}
+
+	const int32 PhaseCount = PhaseEnum->NumEnums() - 1; // l'ultima e' il _MAX sintetico di UHT
+	for (int32 i = 0; i < PhaseCount; ++i)
+	{
+		const ERTMatchPhase Phase = static_cast<ERTMatchPhase>(PhaseEnum->GetValueByIndex(i));
+		const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForMovement(Phase, {});
+
+		// ⛔ **Le esclusioni, difese per OGNI ingresso** — ma una delle due e' cambiata di natura con
+		// `#2881`, e va letta per quello che ora dice.
+		//
+		// 🔑 `Reduced` non e' piu' irraggiungibile: e' irraggiungibile **DALLA SOLA FASE**. Prima
+		// l'esclusione era assoluta perche' il dato non esisteva (`#3117` lo ha consegnato); ora la
+		// proprieta' difesa e' piu' stretta e piu' utile — nessuna fase, da sola, puo' produrre un'andatura
+		// ridotta. Un giorno in cui il `Blast` cominciasse a dedurla dal knockback, questo cadrebbe.
+		TestTrue(FString::Printf(TEXT("la fase %s, SENZA stati, non produce Reduced"),
+			*PhaseEnum->GetNameStringByIndex(i)),
+			Style != ERTGraykitLocomotionStyle::Reduced);
+		// ⛔ `Stealth` resta escluso SENZA condizioni, e per un motivo diverso da quello di `Reduced`: non
+		// gli manca un dato, gli manca un richiedente — `MovementProfile.Sneak` e' dichiarato senza numeri
+		// (`AE-5`) e non e' pianificabile. Nessuno stato lo produce, nessuna fase lo produce.
+		TestTrue(FString::Printf(TEXT("la fase %s non produce Stealth"), *PhaseEnum->GetNameStringByIndex(i)),
+			Style != ERTGraykitLocomotionStyle::Stealth);
+
+		// Purezza: due chiamate coincidono, perche' non si legge nessuno stato.
+		TestEqual(FString::Printf(TEXT("la fase %s da' sempre lo stesso stile"), *PhaseEnum->GetNameStringByIndex(i)),
+			URTPresentationBindingLibrary::StyleForMovement(Phase, {}), Style);
+	}
+
+	// Un valore fuori dall'enum ricade su `Normal` senza crash: e' cio' che arriva da una build piu' nuova.
+	TestEqual(TEXT("una fase sconosciuta ricade su Normal"),
+		URTPresentationBindingLibrary::StyleForMovement(static_cast<ERTMatchPhase>(200), {}),
+		ERTGraykitLocomotionStyle::Normal);
+
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+/**
+ * `#2881` — uno stato che riduce il movimento batte la fase, e non qualunque stato lo fa.
+ *
+ * 🔑 **Gli stati arrivano dall'EVENTO, non dall'unita'** (`#3117`): e' cio' che rende la scelta una
+ * funzione del tempo normalizzato invece che dell'istante di playback. Qui si misura la regola; che il
+ * dato sia uno snapshot lo misura `RefactorTactics.Status.MoveEventCarriesStatusesAtActionTime`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationReducedBeatsRunTest,
+	"RefactorTactics.Presentation.AndaturaRidottaBatteLaCorsa",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTPresentationReducedBeatsRunTest::RunTest(const FString& Parameters)
+{
+	const FName Slow = TAG_Status_Slow.GetTag().GetTagName();
+	const FName Root = TAG_Status_Root.GetTag().GetTagName();
+
+	// Il caso base: rallentata mentre si muove normalmente.
+	TestEqual(TEXT("Move + Slow -> Reduced"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, { Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// 🔑 **La precedenza, che e' la sola riga di design di questa funzione.** Un'unita' rallentata che
+	// scatta scatta MENO: renderla con la corsa piena direbbe al giocatore il contrario di cio' che la
+	// simulazione ha appena applicato. Se un giorno si decidesse che lo scatto vince, e' QUI che si vede.
+	TestEqual(TEXT("Dash + Slow -> Reduced (lo stato del corpo batte la fase)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// ⛔ **Anti-vacuita': non e' «un qualunque stato riduce».** Senza questa, un'implementazione che
+	// tornasse `Reduced` appena l'array non e' vuoto passerebbe le due righe qui sopra.
+	TestEqual(TEXT("Dash + uno stato che non riduce -> Run"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { FName(TEXT("Status.Wet")) }),
+		ERTGraykitLocomotionStyle::Run);
+	TestEqual(TEXT("Dash senza stati -> Run (il comportamento di prima, intatto)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, {}),
+		ERTGraykitLocomotionStyle::Run);
+
+	// ⛔ `Root` NON riduce: azzera il budget, quindi l'unita' non si muove e non c'e' un'anim da rendere.
+	// Un'andatura per chi sta fermo sarebbe un segnale senza referente.
+	TestEqual(TEXT("Move + Root -> Normal (Root non e' un'andatura ridotta)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, { Root }),
+		ERTGraykitLocomotionStyle::Normal);
+
+	// Lo stato che riduce vince anche se non e' il primo dell'elenco: l'ordine di
+	// `GetActiveStatusNames` e' un contratto, ma questa regola non deve dipenderne.
+	TestEqual(TEXT("l'ordine nell'elenco non cambia l'esito"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Root, FName(TEXT("Status.Wet")), Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// Purezza: due chiamate identiche coincidono.
+	TestEqual(TEXT("due chiamate identiche coincidono"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }));
+
+	// ⛔ `Stealth` resta irraggiungibile anche per questa via: nessuno stato lo produce.
+	TestNotEqual(TEXT("nessuno stato produce Stealth"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow, Root }),
+		ERTGraykitLocomotionStyle::Stealth);
+
+	return true;
+}
+
+/**
+ * D-278 (#3578, spec «il profilo FX» §2.5): le voci `Attack` e `AbilityActivated` dichiarano `SetPlaybackCues`.
+ * ⚠️ Il gate `FindMissingBindings` conta i nomi, non le chiamate: QUALE cue e su QUALE cella lo dicono i test di
+ * `Playback.*` che leggono `GetPlaybackCues()`. `AttackFootprint` NON guadagna la cue: la consegna il colpo.
+ * ✅ Validato per mutazione (P2): `SetPlaybackCues` tolto da `AbilityActivated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationFxCueIsDeclaredTest,
+	"RefactorTactics.Presentation.FxCueIsDeclaredForAttackAndActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationFxCueIsDeclaredTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Tabella = URTPresentationBindingLibrary::DeclaredBindings();
+	const FName Cue(TEXT("SetPlaybackCues"));
+	for (const ERTResolvedEventType Tipo : { ERTResolvedEventType::Attack, ERTResolvedEventType::AbilityActivated })
+	{
+		const FRTPresentationBinding* Voce = Tabella.FindByPredicate([Tipo](const FRTPresentationBinding& B) { return B.Type == Tipo; });
+		if (!TestNotNull(FString::Printf(TEXT("premessa: la voce %s"), *URTPresentationBindingLibrary::EventTypeName(Tipo)), Voce)) { return false; }
+		TestTrue(FString::Printf(TEXT("🔴 %s dichiara SetPlaybackCues"), *URTPresentationBindingLibrary::EventTypeName(Tipo)),
+			Voce->Cues.Contains(Cue));
+	}
+	const FRTPresentationBinding* Impronta = Tabella.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::AttackFootprint;
+	});
+	TestTrue(TEXT("AttackFootprint non dichiara la cue: la consegna il colpo che la consuma"),
+		Impronta != nullptr && !Impronta->Cues.Contains(Cue));
+	TestEqual(TEXT("e il gate resta senza mancanze"), URTPresentationBindingLibrary::FindMissingBindings(Tabella).Num(), 0);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

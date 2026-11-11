@@ -119,7 +119,7 @@ Le tre azioni che creano superfici hanno la loro chiave (`UI.Icon.Action.CreateW
 Il brief chiede evidenza da codice eseguibile. **Non posso compilare né eseguire Unreal** (STOP-2). Ma questa specifica domanda si chiude con evidenza statica conclusiva, e la riporto insieme al suo limite.
 
 **Evidenza 1 — l'add è incondizionato.**
-`Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:1179`:
+`Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp:1179`:
 
 ```cpp
 Catalog.Add(ShippedAction(TEXT("Action.Dodge"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,

@@ -97,18 +97,18 @@
 
 **Nessun segnale visivo di attivazione esiste.** `ShowActivation` (`Turn/RTTurnManager.cpp:8096-8106`) scrive la riga
 `Attiva:` e suona la clip `Cast` (`:8104`); null'altro. La voce D-278 di `AbilityActivated` dichiara solo
-`PlayCastMontage` (`Turn/RTPresentationBinding.cpp:271-272`) e il commento accanto (`:265-267`) lascia il ring/pulse a
+`PlayCastMontage` (`Turn/Playback/RTPresentationBinding.cpp:271-272`) e il commento accanto (`:265-267`) lascia il ring/pulse a
 #2454. Il momento esiste (sotto-progetto 2), la clip per abilità esiste (sotto-progetto 3): sul terreno non si vede
 niente.
 
 **Il tracer è l'unico FX del colpo, ed è cablato sugli attacchi base.** `IsTracerEligible`
-(`Turn/RTPlaybackLibrary.cpp:130-137`) pretende `ActionId` o `BaseActionId` == `Action.BasicAttack`, `Shape` `Single`
+(`Turn/Playback/RTPlaybackLibrary.cpp:130-137`) pretende `ActionId` o `BaseActionId` == `Action.BasicAttack`, `Shape` `Single`
 o `Line` e `HitGeometry.bResolved`; il suo commento la dichiara *«PROVVISORIA … la sostituisce la tabella `ActionId ->
-profilo` del sotto-progetto 4»* (`Turn/RTPlaybackLibrary.h:277-282`). `TracerStyleFor` (`.cpp:139-148`) sceglie lo stile
-**solo dalla forma** (`:147`). `ERTTracerStyle` ha `None`, `Projectile`, `Jet` (`Map/RTPlaybackTracer.h:13-22`). Il
-disegno vive in `ARTHexMapActor` (`Map/RTHexMapActor.cpp:1659-1679`), col colore
+profilo` del sotto-progetto 4»* (`Turn/Playback/RTPlaybackLibrary.h:277-282`). `TracerStyleFor` (`.cpp:139-148`) sceglie lo stile
+**solo dalla forma** (`:147`). `ERTTracerStyle` ha `None`, `Projectile`, `Jet` (`Turn/Playback/RTPlaybackTracer.h:13-22`). Il
+disegno vive in `ARTHexMapActor` (`Map/Actor/RTHexMapActor.cpp:1659-1679`), col colore
 `URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack)`, costanti graybox a `:176-179`, canale
-`SetPlaybackTracers`/`ClearPlaybackTracers` (`:1178-1188`, dichiarato in `Map/RTHexMapActor.h:917-930`).
+`SetPlaybackTracers`/`ClearPlaybackTracers` (`:1178-1188`, dichiarato in `Map/Actor/RTHexMapActor.h:917-930`).
 
 **Il colpo non ha un momento d'impatto disegnato.** All'arrivo (`ArrivePlaybackAttack`, `RTTurnManager.cpp:8296-8322`)
 suonano `Hit`, il numero e `OnAttackResolved`; sulla cella non resta nulla. `Area` e `Cone` non hanno nessuna cue di
@@ -125,7 +125,7 @@ attivazioni escono una per volta con `AttacksToShow` sullo stesso `A` (`:8853-88
 **I dati dell'evento.** `AbilityActivated` porta `ActionId`, `BaseActionId`, `AimCell`, `Shape` e `SourceVerdict`
 (emissione `RTTurnManager.cpp:333-346`; `SourceVerdict` a `:344`), **non** la cella della sorgente. `Attack` porta
 `Shape` dall'intento e `HitGeometry` (`:6378-6392`), con `From` da `ResolveImpactOrigin` — che per un'`Area` rende il
-**centro** d'impatto, `Footprint->AimCell` (`:2566-2579`; avvertenza in `Turn/RTResolvedEvent.h:196-197` e `:205-207`) —
+**centro** d'impatto, `Footprint->AimCell` (`:2566-2579`; avvertenza in `Turn/Resolution/RTResolvedEvent.h:196-197` e `:205-207`) —
 **non** l'`AimCell`: la nota di `RTResolvedEvent.h:407-408` dichiara `AimCell` solo per `AttackFootprint` e
 `AbilityActivated`. `FRTResolvedEvent` e `FRTHitGeometry` sono `RTServerOnly` (`RTResolvedEvent.h:185`, `:241`).
 ➕ rev. (F5) **L'impronta li porta già**: ogni `AttackFootprint`, uno per intento, scrive `Origin = Footprint.Origin` e
@@ -133,12 +133,12 @@ attivazioni escono una per volta con `AttacksToShow` sullo stesso `A` (`:8853-88
 atto (spec del momento §2.4). `ResolvedTimeline` non entra in `StateHash` né nel replay (panel: `RTTurnManager.cpp:2866`,
 `:2952`, `:3019`, `:3111`).
 
-**La forma di ogni abilità del roster**, misurata su `Ability/RTHeroCatalogLibrary.cpp` (righe in §2.2): attacchi base
+**La forma di ogni abilità del roster**, misurata su `Ability/Catalog/RTHeroCatalogLibrary.cpp` (righe in §2.2): attacchi base
 `Single` tranne `Hero.Muiren.PressureJet` (`Line`); `Hero.Aevik.LinearDischarge` `Line`; `Hero.Aevik.Overload`,
 `Hero.Muiren.CircularTide`, `Hero.Muiren.MistVeil`, `Hero.Branth.MortarShot` `Area` raggio 1; ogni altra `Single` (il
-default di `MakeHeroAction`, `:99`, e di `MakeHeroActionFromCore`, `Ability/RTHeroCatalogLibrary.h:223-224`).
+default di `MakeHeroAction`, `:99`, e di `MakeHeroActionFromCore`, `Ability/Catalog/RTHeroCatalogLibrary.h:223-224`).
 🔴 **Nessuna azione dichiara `Cone`**: `git grep -n "ERTAbilityShape::Cone" -- Source ':!Source/RefactorTactics/Tests'`
-risponde solo `Combat/RTHexCombatLibrary.cpp:42` (la geometria) e `UI/RTHudViewModel.cpp:464` (l'etichetta). Lo zero è
+risponde solo `Combat/RTHexCombatLibrary.cpp:42` (la geometria) e `UI/HUD/RTHudViewModel.cpp:464` (l'etichetta). Lo zero è
 il difetto, non un totale: `Cone` non ha contenuto in partita (§3, §6).
 
 **Le regole del canale.** D-124 (`docs/decisions/RT_PDR_00_Decision_Log.md:178`): dentro *«eventi `Cast / Hit /
@@ -154,7 +154,7 @@ playtest.
 ### 2.1 Il profilo
 
 ```cpp
-// Map/RTPlaybackTracer.h — lo stesso file del tracer: e' la presentazione di playback IN CELLE.
+// Turn/Playback/RTPlaybackTracer.h — lo stesso file del tracer: e' la presentazione di playback IN CELLE.
 
 UENUM(BlueprintType)
 enum class ERTTracerStyle : uint8
@@ -244,7 +244,7 @@ elementi diversi non si sovrappongono, e il tracer finisce dove comincia la cue 
 
 ### 2.2 La tabella e la mappa degli override (giudizio dell'autore)
 
-In `Turn/RTPresentationBinding.{h,cpp}`, accanto a `DeclaredBindings`, funzioni **statiche C++, non `UFUNCTION`**:
+In `Turn/Playback/RTPresentationBinding.{h,cpp}`, accanto a `DeclaredBindings`, funzioni **statiche C++, non `UFUNCTION`**:
 
 ```cpp
 static FRTAbilityFxProfile MakeFxProfile(ERTActivationFxStyle, ERTTracerStyle, ERTImpactFxStyle, ERTFootprintFxStyle);
@@ -373,7 +373,7 @@ le giudica `PIE-FX-ABILITA`. ⌫ *«la voce del tracer resta senza verdetto»*.
 **Dove.** Sulla cella della sorgente **nell'istante in cui agisce**, mai dalla posizione dell'attore. `Ruling` R5:
 l'emettitore di `AbilityActivated` (`RTTurnManager.cpp:333-346`) scrive `Ev.Origin`, il campo che sull'impronta significa
 già *«da dove il colpo è partito»* (`RTResolvedEvent.h:436-444`). ➕ rev. (F16) **Il soggetto si legge una volta**, come
-`FRTLogSubject::GetFactCell` chiede (`Turn/RTCombatLog.h:82`, *«un solo accesso»*):
+`FRTLogSubject::GetFactCell` chiede (`Turn/Log/RTCombatLog.h:82`, *«un solo accesso»*):
 
 ```cpp
 const FRTLogSubject Soggetto = FRTLogSubject::Unit(Source);
@@ -468,11 +468,11 @@ abilità per turno); se un giorno un'unità avrà due intenti della stessa azion
   resta nel profilo (D1, D4) **senza contenuto nel catalogo** (§1): si prova headless con un evento costruito dal test.
 
 **Come viaggiano verso la mappa.** `Ruling` R10: **un canale nuovo, uno solo**, accanto a quello del tracer, che
-**resta com'è** (`HexMapActor.PlaybackTracerIsItsOwnChannel`, `Tests/RTHexMapActorTests.cpp:1846`). Costo: due consegne
+**resta com'è** (`HexMapActor.PlaybackTracerIsItsOwnChannel`, `Tests/Map/Actor/RTHexMapActorTests.cpp:1846`). Costo: due consegne
 per tick nel Blast. ➕ rev. (panel, Fowler c) Il record ha **un** campo di tipo, non un'unione con un invariante:
 
 ```cpp
-// Map/RTPlaybackTracer.h
+// Turn/Playback/RTPlaybackTracer.h
 UENUM() enum class ERTPlaybackCueKind : uint8 { Ring, Pulse, Flash, Marker, AreaPulse, ConeSweep };
 
 USTRUCT()
@@ -567,8 +567,8 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 - **Capability map** (`docs/technical/architecture/capability-map.yaml`):
   - `RT-CAP-VFX` (`:1707-1735`): `name` «VFX (line batcher in v0.1; Niagara fuori, D-124)»; `status.implementation`
     `partial`, `validation` `partial`, `presentation` `missing` finché `PIE-FX-ABILITA` non ha un verdetto;
-    `implementation.files` = `Map/RTPlaybackTracer.h`, `Turn/RTPresentationBinding.{h,cpp}`,
-    `Turn/RTPlaybackLibrary.{h,cpp}`, `Map/RTHexMapActor.cpp`; `issues.open` + `2454` e la issue di SP4;
+    `implementation.files` = `Turn/Playback/RTPlaybackTracer.h`, `Turn/Playback/RTPresentationBinding.{h,cpp}`,
+    `Turn/Playback/RTPlaybackLibrary.{h,cpp}`, `Map/Actor/RTHexMapActor.cpp`; `issues.open` + `2454` e la issue di SP4;
     `tests.automation` i prefissi qui sopra; `verification.pie` `[PIE-V01-TRACER, PIE-FX-ABILITA]`. `owner.epic` **resta
     `null`**: assegnarla è una decisione di ownership (il rischio `OWNER GAP` si restringe, non si chiude).
   - `RT-CAP-COMBAT-FEEDBACK` (`:1610-1641`): `issues.open` + `2454` e la issue di SP4; `verification.pie` le stesse due
@@ -652,8 +652,8 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 | `Fx.DeclaredOverridesMatchTheProposal` | Per ogni abilità del roster (lista attesa = **funzione** di `URTHeroCatalogLibrary`) il profilo è quello della tabella di §2.2, ricopiata nel test come seconda copia dichiarata; ➕ rev. nessuna riga dà `Tracer != None` a una forma che non ne ha di default (R13). Mutazione (4). ➕ esecuzione (R15): scorre anche il catalogo core filtrato su `bCountsAsAttack` — a contatto (`RangeCells == 1`) la riga gemella e nessun proiettile, a distanza senza riga il tracer di default — e scrive «colpo core …» nel log per ognuna; validato togliendo la riga `Action.Root` (cade «🔴 Action.Root (core, a contatto): nessun proiettile»). |
 | ➕ rev. `Fx.DeclaredOverridesHaveNoDuplicateKeys` (F17) | `DeclaredFxOverrideRows()` non ha due righe con la stessa chiave: in un `TMap` letterale una duplicata vincerebbe in silenzio. |
 | ➕ rev. `Fx.CueStylesDifferByGeometry` (F7) | Per ogni coppia di stili distinti fra `Ring`, `Pulse`, `Flash`, `Marker`, `AreaPulse`, `ConeSweep`, a `α = 0.5` su una cella di prova, `CueSegments` dà insiemi che differiscono per **numero** di segmenti, oppure di almeno `0.1 s` nella distanza massima o minima dall'ancora, oppure nell'estensione verticale. Mutazione (20). |
-| ➕ rev. `Playback.BasicAttackTracersEqualShapeDefault` (F10) | Per ogni azione del roster con `BaseActionId == Action.BasicAttack` (lista **funzione** del catalogo: `MakeHeroBasicAttack` la scrive, `Ability/RTHeroCatalogLibrary.cpp:165-168`), `FxProfileFor(...).Tracer == DefaultFxProfileFor(Shape).Tracer` e il volo è quello di oggi. È R3/D5 come **regola**. Mutazione (6). |
-| `Playback.TracerStyleFollowsShapeForBasicAttack` *(esistente, `Tests/RTPlaybackLibraryTests.cpp:421-455`)* | ➕ rev. **Cambia, dichiarato.** L'evento di prova è `Hero.Ivrin.PulseShot` (`:407-408`), senza override, e quegli asserti restano verdi. L'asserto su `PassingBlade` (`:436-438`, `IsTracerEligible == false`) **cade** con R13: `PassingBlade` è idonea al volo (forma `Single`) e il suo stile è `None` per override. Il piano lo riscrive su `TracerStyleFor(...) == None` e lo dichiara nella PR. ⚠️ Da SP4 quell'asserto regge su una riga **giudicata** della tabella (panel). ➕ rev2. Perciò gli si affianca la **variante a tabella iniettata**, come R11 della spec della clip: con `FxProfileForIn` e una tabella di prova che dà `Tracer = None` a un'azione `Single` sintetica, il volo resta quello della forma e lo stile è `None`. Il meccanismo è provato senza dipendere da una riga giudicata. |
+| ➕ rev. `Playback.BasicAttackTracersEqualShapeDefault` (F10) | Per ogni azione del roster con `BaseActionId == Action.BasicAttack` (lista **funzione** del catalogo: `MakeHeroBasicAttack` la scrive, `Ability/Catalog/RTHeroCatalogLibrary.cpp:165-168`), `FxProfileFor(...).Tracer == DefaultFxProfileFor(Shape).Tracer` e il volo è quello di oggi. È R3/D5 come **regola**. Mutazione (6). |
+| `Playback.TracerStyleFollowsShapeForBasicAttack` *(esistente, `Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:421-455`)* | ➕ rev. **Cambia, dichiarato.** L'evento di prova è `Hero.Ivrin.PulseShot` (`:407-408`), senza override, e quegli asserti restano verdi. L'asserto su `PassingBlade` (`:436-438`, `IsTracerEligible == false`) **cade** con R13: `PassingBlade` è idonea al volo (forma `Single`) e il suo stile è `None` per override. Il piano lo riscrive su `TracerStyleFor(...) == None` e lo dichiara nella PR. ⚠️ Da SP4 quell'asserto regge su una riga **giudicata** della tabella (panel). ➕ rev2. Perciò gli si affianca la **variante a tabella iniettata**, come R11 della spec della clip: con `FxProfileForIn` e una tabella di prova che dà `Tracer = None` a un'azione `Single` sintetica, il volo resta quello della forma e lo stile è `None`. Il meccanismo è provato senza dipendere da una riga giudicata. |
 | `Playback.TracerFollowsTheProfile` | `Hero.Aevik.LinearDischarge` (`Line`, non base) è idonea e dà `Zigzag`; `Hero.Branth.Ram` e `Action.Charge` sono idonee al volo e danno `None`. Mutazione (5). |
 | ➕ rev. `Privacy.FlightDependsOnShapeNotOverride` (F9) | `PlaybackBlastFlights` di un `Ram` e di un `ImpactShot` con la stessa `A`: uguali. Mutazione (17). |
 | `Playback.BasicAttackTracerIsUnchanged` | Sulla fixture di `RTPlaybackActivationTests.cpp` (`ImpactShot`), a metà volo, `GetPlaybackTracers()` ha **un** tracer con `From`, `To`, `Style = Projectile` e `Alpha` uguali a quelli delle formule di oggi. ➕ esecuzione: pin d'istanza, nessuna mutazione dell'elenco qui sotto lo fa cadere; lo valida la mutazione del fix del Task 2, `T.Style = ERTTracerStyle::Jet` in `ARTTurnManager::PushPlaybackTracers` (cade «🔴 Style = Projectile», e con lui `Playback.TracerIsInFlightBetweenLaunchAndArrival`). |
@@ -671,7 +671,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 | `Playback.FxCuesNeverOverlapInTheBlast` | ➕ rev. (panel, Wiegers) Sulla griglia dichiarata `A ∈ {0.1, 0.5, 1.0}`, `F ∈ {0, A/4, A/2, A}`, `ActivationCueSeconds` e `ImpactCueSeconds ∈ {0, A/2, 2A}`, con sequenze miste: le finestre di elementi diversi sono disgiunte e ordinate, l'ultima finisce entro `N·A`. Mutazione (13). |
 | `Playback.FxCuesAreAFunctionOfTheClock` | Lo stesso turno con un tick unico fino a `t` e con tick da `1/60 s` fino a `t`, con `t` dentro la finestra di una cue: stesse cue, `Alpha` uguale entro `1e-3`. Mutazione (14). |
 | `HexMapActor.PlaybackCueIsItsOwnChannel` | `SetPlaybackCues` **sostituisce**, `ClearPlaybackCues` spegne, non tocca tracer, impronta né anteprima. Mutazione (15). |
-| `Preview.FxCuesDrawWithDebugDrawingOff` | Col debug spento ogni cue scrive le sue linee nel batcher `Foreground` col colore `Attack` (gemello di `Preview.TracerDrawsWithDebugDrawingOff`, `Tests/RTPreviewLineBatcherTests.cpp:143-146`). |
+| `Preview.FxCuesDrawWithDebugDrawingOff` | Col debug spento ogni cue scrive le sue linee nel batcher `Foreground` col colore `Attack` (gemello di `Preview.TracerDrawsWithDebugDrawingOff`, `Tests/Map/Actor/RTPreviewLineBatcherTests.cpp:143-146`). |
 | ➕ rev. `Playback.CueChannelClearsOnSkip` (F2) | `SkipPlayback` chiamato a metà della finestra di un `Marker` (premessa asserita: canale **non** vuoto un tick prima): dopo, canale vuoto; e a fine Prep, Dash e Blast il canale è vuoto. Mutazione (16). |
 | `Determinism.FxFieldsStayOutOfHashes` | Gemello di `Determinism.HitGeometryStaysOutOfHashes` (`RTAttackTracerTests.cpp:214`). ➕ rev. (F20) Gancio `bool bSkipFxFieldsForTest`, semplice e non `UPROPERTY`, accanto a `bSkipHitGeometryForTest` (`RTTurnManager.h:636-640`): lascia vuoto `Origin` di `AbilityActivated`, l'unico campo nuovo. Con e senza, `StateHash` e `HashTurnLog` dello stesso turno sono identici; controllo positivo che il gancio agisca. |
 | `Presentation.FxCueIsDeclaredForAttackAndActivation` | Le voci `Attack` e `AbilityActivated` dichiarano `SetPlaybackCues`. |
@@ -681,7 +681,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 🔴 **Controlli di mutazione** (ognuno visto rosso sull'asserto nominato, poi ripristinato; il codice nuovo si nomina per
 funzione, quello esistente per `file:riga`):
 
-1. In `DefaultFxProfileFor`, la riga `Line` dà `Tracer = Projectile` → cade `Fx.DefaultProfileFollowsShape` («`Line` → `Jet`»), ➕ rev2. e anche `Playback.TracerStyleFollowsShapeForBasicAttack` (`Tests/RTPlaybackLibraryTests.cpp:428-429`, «Line -> getto»).
+1. In `DefaultFxProfileFor`, la riga `Line` dà `Tracer = Projectile` → cade `Fx.DefaultProfileFollowsShape` («`Line` → `Jet`»), ➕ rev2. e anche `Playback.TracerStyleFollowsShapeForBasicAttack` (`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:428-429`, «Line -> getto»).
 2. In `FxProfileForIn`, la forma letta prima di `ActionId` → cade `Fx.ProfileFallsBackActionThenBaseThenShape` («`ActionId` vince»). ➕ esecuzione: spostare il `return` lascia codice irraggiungibile, e `C4702` qui è un errore; la forma eseguita è una guardia sempre vera subito dopo la guardia R12, `if (Overrides.Num() >= 0) { return DefaultFxProfileFor(Shape); }`. Cadono **tre** test, perché leggono la forma al posto della riga: `Fx.ProfileFallsBackActionThenBaseThenShape`, `Fx.BaseActionOverrideWinsOverShapeDefault` e `Fx.DeclaredOverridesMatchTheProposal`.
 3. In `FxProfileForIn`, il livello `BaseActionId` saltato → cade lo stesso test («senza `ActionId`, vince `BaseActionId`»).
 4. Una riga tolta da `DeclaredFxOverrideRows` → cade `Fx.DeclaredOverridesMatchTheProposal` (la riga attesa dalla copia).
@@ -705,13 +705,13 @@ funzione, quello esistente per `file:riga`):
 22. ➕ rev2. In `IsTracerEligible`, la clausola R12 (`!(ActionId.IsNone() && BaseActionId.IsNone())`) tolta → cade `Fx.NoActionNoProfile` sull'asserto «`IsTracerEligible` falso anche con geometria risolta»: la forma `Single` di default ha un tracer, quindi il legacy riprenderebbe il volo.
 
 ⛔ **Gate che devono restare verdi senza modifiche** (se uno cambia, la ragione va nella PR; ➕ rev. F8: dopo la misura
-di §2.8): i test del tracer (`Tests/RTPlaybackLibraryTests.cpp:287`, `:319`, `:346`, `:376`, `:457`, `:484`, `:1331`;
-`Tests/RTAttackTracerPlaybackTests.cpp`; `Tests/RTAttackTracerTests.cpp`), `HexMapActor.PlaybackTracerIsItsOwnChannel`,
-`Preview.TracerDrawsWithDebugDrawingOff`, `Tests/RTPlaybackActivationTests.cpp`, `Tests/RTPlaybackStopPredicateTests.cpp`,
-`Tests/RTPlaybackBudgetIntegrationTests.cpp`, `Presentation.*`, `Privacy.ServerOnlyTypesAreNotReplicated`,
+di §2.8): i test del tracer (`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:287`, `:319`, `:346`, `:376`, `:457`, `:484`, `:1331`;
+`Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`; `Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp`), `HexMapActor.PlaybackTracerIsItsOwnChannel`,
+`Preview.TracerDrawsWithDebugDrawingOff`, `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`, `Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp`,
+`Tests/Turn/Playback/RTPlaybackBudgetIntegrationTests.cpp`, `Presentation.*`, `Privacy.ServerOnlyTypesAreNotReplicated`,
 `Unit.BlueprintSurfaceIsCensused`, la suite di determinismo e replay. L'eccezione dichiarata è
 `Playback.TracerStyleFollowsShapeForBasicAttack` (`:421`), qui sopra. ➕ rev. (F13)
-`Privacy.TracerRhythmIsTheSameForEveryViewer` (`Tests/RTPlaybackLibraryTests.cpp:484-485`) resta verde: l'idoneità non
+`Privacy.TracerRhythmIsTheSameForEveryViewer` (`Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:484-485`) resta verde: l'idoneità non
 legge chi guarda. Il ritmo **cambia** per i colpi non base con un id e forma `Single`/`Line` (`LinearDischarge`, `Ram`,
 `PassingBlade`): il loro arrivo cade prima del lancio successivo per costruzione (`F_eff ≤ A/2`).
 

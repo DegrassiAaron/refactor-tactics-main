@@ -300,7 +300,7 @@ def _linear_to_hex(triple: tuple[float, float, float]) -> str:
     """`FLinearColor` porta valori LINEARI, la palette e' in sRGB.
 
     Confrontarli senza codificare darebbe numeri sbagliati e **plausibili**: il ciano di squadra e'
-    `#7CF3FF`, non `#33E6FF`. E' lo stesso errore che `Map/RTHexMapActor.cpp:909` documenta al
+    `#7CF3FF`, non `#33E6FF`. E' lo stesso errore che `Map/Actor/RTHexMapActor.cpp:909` documenta al
     contrario — *«dividere per 255 darebbe tinte slavate»*.
     """
     return "#" + "".join(f"{round(_to_srgb(c) * 255):02X}" for c in triple)
@@ -535,7 +535,7 @@ def overlay_colors(repo_root=None) -> tuple[dict, dict]:
     `parse_overlay_colors`. `repo_root` serve alla prova, che lo punta a un albero finto.
     """
     root = REPO_ROOT if repo_root is None else repo_root
-    text = (root / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
+    text = (root / "Source/RefactorTactics/UI/HUD/RTHUD.cpp").read_text(encoding="utf-8")
     return parse_overlay_colors(text)
 
 

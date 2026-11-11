@@ -8,10 +8,10 @@
 #include "ScenarioHarness/RTScenarioArena.h"
 
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTGeometryBake.h"
-#include "Map/RTGeometryGrammar.h"
-#include "ScenarioHarness/RTTestScenario.h"
-#include "Turn/RTMatchSetupLibrary.h"
+#include "Map/Structure/RTGeometryBake.h"
+#include "Map/Structure/RTGeometryGrammar.h"
+#include "ScenarioHarness/Authoring/RTTestScenario.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
 
 URTHexMapAsset* URTScenarioArenaLibrary::BuildArena(const FRTTestScenario& Scenario, UObject* Outer)
 {

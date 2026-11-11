@@ -10,7 +10,7 @@
 > - **Il testo è quello che il gioco mostra**, carattere per carattere, compreso l'apostrofo al posto
 >   dell'accento (`piu'`, `e'`), che è la convenzione del testo a schermo del progetto.
 > - **Le copie sono due**, questa e la tabella in
->   [`RTActionDescriptions.cpp`](../../Source/RefactorTactics/Ability/RTActionDescriptions.cpp). Il radar le
+>   [`RTActionDescriptions.cpp`](../../Source/RefactorTactics/Ability/Catalog/RTActionDescriptions.cpp). Il radar le
 >   confronta, e non dice quale delle due correggere:
 >
 >   ```sh

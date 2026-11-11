@@ -3,8 +3,8 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
-#include "Turn/RTTurnLog.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "RTReplayPrivacyLibrary.generated.h"
 
 /**

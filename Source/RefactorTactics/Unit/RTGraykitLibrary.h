@@ -16,7 +16,7 @@
  * incrementale non ha nessuna delle due proprieta', ed e' precisamente la forma che il mandato esclude.
  *
  * ⛔ **Non e' un secondo owner del pacing.** Il tempo normalizzato lo produce `URTPlaybackLibrary`
- * (`Turn/RTPlaybackLibrary.h`): `RouteAlpha` per la fase di movimento, `AlphaAtMicroStep` per il passo
+ * (`Turn/Playback/RTPlaybackLibrary.h`): `RouteAlpha` per la fase di movimento, `AlphaAtMicroStep` per il passo
  * discreto, `PhaseTime` per la fase. Questa libreria **consuma** quell'alpha e non ne calcola uno proprio —
  * se lo facesse, due orologi governerebbero la stessa risoluzione e il primo cambio di velocita' di playback
  * li sfaserebbe.

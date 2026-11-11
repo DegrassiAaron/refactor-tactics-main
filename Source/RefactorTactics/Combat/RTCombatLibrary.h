@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/RTTypes.h"
-#include "Turn/RTTurnLog.h"
+#include "Turn/Log/RTTurnLog.h"
 // `ERTLineOfSightPolicy` vive col DATO che la dichiara (`FRTActionDef`), non accanto al gate che la applica:
 // il requisito e' una proprieta' dell'azione (`#2870`). La dipendenza e' la stessa che `RTHexCombatLibrary.h`
 // ha gia' su `Ability/RTActionData.h`, e non introduce cicli — `RTActionDef.h` non risale a Combat.
@@ -12,7 +12,7 @@
 // geometria che lo spiega nascono dallo stesso click e viaggiano insieme (`#3085`). Nessun ciclo, e per la
 // stessa ragione gia' scritta sopra per `RTActionDef.h`: `RTHexVisionLibrary.h` include soltanto
 // `CoreMinimal`, la libreria Blueprint e `Map/RTCellId.h`, e non risale a `Combat/`.
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "RTCombatLibrary.generated.h"
 
 class URTHexMapAsset;

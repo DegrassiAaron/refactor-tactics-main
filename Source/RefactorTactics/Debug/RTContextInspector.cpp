@@ -3,8 +3,8 @@
 #include "Core/RTEnumName.h"
 #include "Map/RTHexCellData.h"
 #include "Replay/RTReplayPrivacyLibrary.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTTurnLog.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Log/RTTurnLog.h"
 
 #include "Styling/CoreStyle.h"
 #include "Widgets/Layout/SBorder.h"

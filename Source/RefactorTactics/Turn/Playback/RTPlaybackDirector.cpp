@@ -1,13 +1,13 @@
 #include "Turn/Playback/RTPlaybackDirector.h"
-#include "Turn/RTPlaybackLibrary.h"
+#include "Turn/Playback/RTPlaybackLibrary.h"
 #include "Unit/RTGraykitLibrary.h"      // #2880: la posa si valuta sullo stesso Alpha del movimento
-#include "Turn/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
+#include "Turn/Playback/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
 #include "Player/RTPlayerState.h"       // TeamIdOf: l'unica porta per sapere di che squadra e' chi guarda ([D-285])
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
-#include "UI/RTHudViewModel.h"          // #4025: `ActionShouts` decide chi grida; il testo della riga del Registro
-#include "Map/RTHexMapActor.h"
+#include "UI/HUD/RTHudViewModel.h"          // #4025: `ActionShouts` decide chi grida; il testo della riga del Registro
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Unit/RTUnit.h"

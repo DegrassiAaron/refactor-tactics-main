@@ -152,7 +152,7 @@ L'architettura corrente è valida. Il lavoro è ridurre progressivamente hotspot
 | `Source/RefactorTactics/Turn/RTTurnManager.cpp` | **6002** | 5988 | 6002 | il più grande del repository, 3,2× il secondo sorgente non-test |
 | `docs/roadmap/parallel-batch.yaml` | **5353** | 5188 | 5227 · 5305 | lockfile che è diventato anche diario |
 | `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` | **1645** | 1645 | 1645 | |
-| `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` | **1459** | 1459 | 1459 | **quarto candidato**, non nominato dalla stesura di root |
+| `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` | **1459** | 1459 | 1459 | **quarto candidato**, non nominato dalla stesura di root |
 | `Source/RefactorTactics/RTGameMode.cpp` | **1050** | 1050 | 1050 | |
 
 Le tre colonne coprono **poche ore della stessa giornata**. I due file che si muovono sono i due che questo
@@ -330,11 +330,11 @@ e non da un handler col nome dell'azione.
 
 Resta misurato oggi, e resta **dentro** il DoD di #833:
 
-- `SetDoorState` esiste ed è applicato (`Turn/RTActionEffectLibrary.cpp`), ma
+- `SetDoorState` esiste ed è applicato (`Turn/Actions/RTActionEffectLibrary.cpp`), ma
   `git grep SetDoorState -- Source/RefactorTactics/Ability/` dà **zero**: nessuna azione di catalogo né
   abilità del roster lo dichiara;
 - `Action.Interact` è a catalogo (fase `Blast`, priorità 80, portata 1, slot `Main`) e **inerte**, perché la
-  lista di effetti è `{}` — pinnato da `TestActionIsInert` in `Tests/RTCoreActionTests.cpp`.
+  lista di effetti è `{}` — pinnato da `TestActionIsInert` in `Tests/Ability/RTCoreActionTests.cpp`.
 
 🔴 **Correzione: «#833 abilita T5 dello showcase» è FALSO, e questa pagina lo affermava.** L'affermazione
 veniva dall'handoff di root ed è stata ereditata senza misurarla — lo stesso difetto che §0.7 denuncia.
@@ -943,7 +943,7 @@ ore, quindi la rimisura non è un consiglio.
 - [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp` ≤ **4875** *(era 6002)*
 - [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp` ≤ **1318** *(file nuovo)*
 - [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` ≤ **1653** *(era 1645)*
-- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` ≤ **1556** *(era 1459)*
+- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` ≤ **1556** *(era 1459)*
 
 > 🔴 **Due delle nuove soglie sono più ALTE delle vecchie, ed è un dato del piano, non una sconfitta
 > nascosta.** Estrarre funzioni aggiunge firme, doc-comment e preamboli: il Loader guadagna 97 righe per
@@ -1246,9 +1246,9 @@ Le tre funzioni più grandi del repository non esistono più. La più grande ogg
 | `Turn/RTTurnManager.cpp` | 6002 | **4875** | −1127 |
 | `Turn/RTTurnManager.h` | 1065 | 1094 | +29 |
 | `Turn/RTTurnManager_Blast.cpp` | — | 1318 | nuovo |
-| `Turn/RTBlastContext.h` | — | 174 | nuovo |
-| `Turn/RTReactionPassResult.h` | — | 91 | nuovo |
-| `ScenarioHarness/RTScenarioLoader.cpp` | 1459 | 1556 | +97 |
+| `Turn/Resolution/RTBlastContext.h` | — | 174 | nuovo |
+| `Turn/Reaction/RTReactionPassResult.h` | — | 91 | nuovo |
+| `ScenarioHarness/Authoring/RTScenarioLoader.cpp` | 1459 | 1556 | +97 |
 | `ScenarioHarness/RTScenarioSession.cpp` | 1645 | 1653 | +8 |
 | `ScenarioHarness/RTScenarioSession.h` | 241 | 255 | +14 |
 | **Totale** | **10412** | **11016** | **+604** |

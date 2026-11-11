@@ -1,0 +1,900 @@
+#include "Turn/Reaction/RTReactionOpportunityTypes.h"
+
+#include "Map/Vision/RTHexVisionLibrary.h"
+
+FString URTReactionOpportunityLibrary::DeriveOpportunityId(const FRTReactionOpportunityKey& Key)
+{
+	// Il separatore e' `|` e non il punto della notazione `Turn.MacroPhase.MicroStep.OwnerId.ReactionDefId.Seq`
+	// del checkpoint: quella nomina i CAMPI, non il carattere. Il punto compare gia' dentro `ReactionDefId`
+	// (`Action.Counter`), quindi userebbe lo stesso separatore dei campi e renderebbe possibile una coppia di
+	// chiavi diverse con lo stesso id. Costa un carattere evitarlo.
+	//
+	// `MacroPhase` entra come intero. `ERTMatchPhase` e' l'enum delle sei macro-fasi del turno, che il
+	// progetto non riordina — l'ordine E' la sequenza del turno, quindi cambiarlo sarebbe una modifica alle
+	// regole prima che al formato. Un valore nuovo va comunque aggiunto in CODA: gli id gia' registrati non
+	// devono cambiare significato.
+	//
+	// `ReactionDefId` viene normalizzato a minuscole. ⚠️ **In questa build e' un no-op, misurato**: una code
+	// review aveva segnalato che `FName::ToString()` restituisce la casing dell'ISTANZA — quindi due punti del
+	// codice che l'engine considera la stessa azione avrebbero prodotto due id diversi. Verificato: qui
+	// `ToString()` restituisce gia' minuscolo, e un test costruito per dimostrare la divergenza non e' riuscito
+	// nemmeno a costruirne la premessa (`ToString() != ToString().ToLower()` era falso). Il test e' stato
+	// rimosso invece che tenuto verde: non poteva fallire.
+	//
+	// La chiamata resta perche' e' gratis e la premessa della review tornerebbe VERA con
+	// `WITH_CASE_PRESERVING_NAME` attivo — e in quel caso l'id dipenderebbe dalla casing del primo chiamante,
+	// cioe' dall'ordine di caricamento. Non e' pinnata da un test, e va detto: in questa configurazione la
+	// premessa non e' costruibile.
+	return FString::Printf(TEXT("T%d|P%d|M%d|U%d|%s|S%d"),
+		Key.TurnNumber,
+		static_cast<int32>(Key.MacroPhase),
+		Key.MicroStepIndex,
+		Key.OwnerId,
+		*Key.ReactionDefId.ToString().ToLower(),
+		Key.Seq);
+}
+
+FName URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent()
+{
+	static const FName Id(TEXT("TargetHealthAtOrBelowPercent"));
+	return Id;
+}
+
+bool URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(const FRTDeclaredCondition& Condition)
+{
+	// Elenco CHIUSO e nel codice: la v0.1 ne ammette una sola ([D-109]). Un id assente — compreso `NAME_None`,
+	// cioe' «nessuna condizione» — non e' una condizione valida: chi non dichiara non passa di qui.
+	static const TSet<FName> Allowed = { TargetHealthAtOrBelowPercent() };
+	if (!Allowed.Contains(Condition.Id))
+	{
+		return false;
+	}
+
+	// Percentuale INTERA. `100` resta ammessa: e' «spara comunque», cioe' l'assenza di restrizione detta come
+	// condizione, e vietarla costringerebbe a cancellare la condizione per ottenere lo stesso effetto. Oltre il
+	// 100 sarebbe sempre vera — una condizione che non condiziona, peggio di nessuna condizione.
+	return Condition.Param >= 0 && Condition.Param <= 100;
+}
+
+bool URTReactionOpportunityLibrary::RequiresDecisionBoundary(const FRTReactionOpportunity& Opportunity)
+{
+	// ADR-0004 §2, e nient'altro. La soglia e' `>= 2` e non `> 0`: una sola risposta legale non e' una scelta,
+	// quindi non c'e' niente da chiedere e il commit e' immediato — e' il caso degenere in cui vivono le
+	// reazioni E5 (`Counter`, `Deflect`, `Shield`, `Cleanse`, e `Brace` col suo profilo base).
+	return Opportunity.AllowedResponses.Num() >= 2;
+}
+
+int32 URTReactionOpportunityLibrary::RemoveFireResponsesWhere(FRTReactionOpportunity& InOut,
+	TFunctionRef<bool(int32 TargetUnitId)> bRemove)
+{
+	// `RemoveAll` conserva l'ordine di cio' che resta: la finestra mostra le risposte rimaste come le mostrava.
+	return InOut.AllowedResponses.RemoveAll([&bRemove](const FString& Response)
+	{
+		const int32 TargetUnitId = FireResponseTarget(Response);
+		return TargetUnitId != INDEX_NONE && bRemove(TargetUnitId);
+	});
+}
+
+int32 URTReactionOpportunityLibrary::RebuildFireResponses(FRTReactionOpportunity& InOut,
+	TConstArrayView<int32> TriggerUnitIds, const FRTDeclaredCondition& Condition,
+	const TMap<int32, FRTTargetVitals>& VitalsNow, TFunctionRef<bool(int32 TargetUnitId)> bStanding)
+{
+	// Crescente per id, come in `BuildOverwatchTriggers`: l'ordine delle risposte e' una funzione dello stato, e non
+	// di come il chiamante ha conservato chi e' entrato.
+	TArray<int32> Targets;
+	Targets.Append(TriggerUnitIds.GetData(), TriggerUnitIds.Num());
+	Targets.Sort();
+
+	TArray<FString> Fires;
+	int32 Standing = 0;
+	for (const int32 TargetId : Targets)
+	{
+		if (!bStanding(TargetId))
+		{
+			continue; // [D-518]: a terra non si spara, e la condizione non si chiede nemmeno
+		}
+		++Standing;
+		if (IsConditionSatisfied(Condition, VitalsNow.Find(TargetId)))
+		{
+			Fires.Add(FireResponse(TargetId));
+		}
+	}
+
+	// Via tutti i `FIRE` — passando da `RemoveFireResponsesWhere`, che usa l'unico parser del formato — e i nuovi in
+	// testa: `HOLD` e ogni risposta che non e' un `FIRE` restano in coda, nell'ordine in cui erano.
+	RemoveFireResponsesWhere(InOut, [](int32) { return true; });
+	InOut.AllowedResponses.Insert(Fires, 0);
+	return Standing;
+}
+
+const TArray<FName>& URTReactionOpportunityLibrary::BoundaryCapableReactionIds()
+{
+	// ⚠️ **Elenco chiuso e scritto qui, non derivato dal catalogo**, e il perche' sta nel docstring: il
+	// catalogo delle reaction e' piu' LARGO di questo insieme, e usarlo renderebbe il gate piu' permissivo
+	// del gioco. I due valori sono i soli che un produttore emette oggi — misurato con
+	// `grep -rn "ReactionDefId = " Source/RefactorTactics --include=*.cpp`, che fuori dai test da' due punti:
+	// `RTTurnManager_Movement.cpp` (l'Overwatch armato, via `Armed.ActionId`) e `RTTurnManager_Blast.cpp`
+	// (il ramo `Brace`, letterale).
+	//
+	// 🔑 **Che questo elenco resti allineato non lo garantisce il commento: lo garantiscono gli scenari.**
+	// `Spec.Overwatch.HoldThenFire` e `Spec.Brace.ProfileChangesResponse` nominano la propria reaction nel
+	// selettore delle `decisions`, quindi se un produttore cambiasse `ActionId` quei file uscirebbero rossi
+	// — il loro selettore non troverebbe piu' nessuna finestra. E' il pin che un test con i valori ripetuti
+	// non darebbe: quello resterebbe verde confermando se stesso.
+	static const TArray<FName> Ids = {
+		FName(TEXT("Action.Overwatch")),
+		FName(TEXT("Action.Brace")),
+	};
+	return Ids;
+}
+
+bool URTReactionOpportunityLibrary::IsBoundaryCapableReaction(const FName& ReactionId)
+{
+	return !ReactionId.IsNone() && BoundaryCapableReactionIds().Contains(ReactionId);
+}
+
+FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
+{
+	// Il bersaglio sta DENTRO la risposta e non in un campo parallelo: `AllowedResponses` e' gia' l'elenco
+	// delle scelte legali, e una seconda lista di bersagli allineata per indice sarebbe una struttura che si
+	// puo' disallineare. Qui `FIRE:7` significa una cosa sola.
+	return FString::Printf(TEXT("FIRE:%d"), TargetUnitId);
+}
+
+TArray<int32> URTReactionOpportunityLibrary::OfferedFireTargets(const FRTReactionOpportunity& Opportunity)
+{
+	return OfferedFireTargets(Opportunity.AllowedResponses);
+}
+
+TArray<int32> URTReactionOpportunityLibrary::OfferedFireTargets(const TArray<FString>& Responses)
+{
+	TArray<int32> Offerti;
+	for (const FString& Response : Responses)
+	{
+		const int32 Bersaglio = FireResponseTarget(Response);
+		if (Bersaglio != INDEX_NONE)
+		{
+			Offerti.Add(Bersaglio);
+		}
+	}
+	return Offerti;
+}
+
+int32 URTReactionOpportunityLibrary::FireResponseTarget(const FString& Response)
+{
+	// Il prefisso si ricava dalla funzione che lo SCRIVE, non da una seconda costante: `FireResponse(0)` da'
+	// «FIRE:0», e togliere l'ultimo carattere lascia «FIRE:». Con una `TEXT("FIRE:")` scritta qui, cambiare il
+	// formato in un posto solo lo spezzerebbe nell'altro senza che niente smetta di compilare.
+	static const FString Prefix = FireResponse(0).LeftChop(1);
+
+	if (!Response.StartsWith(Prefix, ESearchCase::CaseSensitive))
+	{
+		return INDEX_NONE; // `HOLD`, o qualunque altra cosa: non c'e' un bersaglio, e non e' un errore
+	}
+
+	const FString Digits = Response.RightChop(Prefix.Len());
+	if (Digits.IsEmpty() || !Digits.IsNumeric())
+	{
+		// `FIRE:` senza numero, o con qualcosa che numero non e'. `Atoi` darebbe 0, che e' un UnitId valido:
+		// sarebbe una risposta malformata che spara alla prima unita' invece di essere rifiutata.
+		return INDEX_NONE;
+	}
+
+	return FCString::Atoi(*Digits);
+}
+
+bool URTReactionOpportunityLibrary::IsResponseAllowed(const FRTReactionOpportunity& Opportunity,
+	const FString& Response)
+{
+	// Confronto ESATTO e case-sensitive: `AllowedResponses` e' un elenco chiuso costruito dal produttore, e
+	// una tolleranza qui — trim, case-insensitive, prefisso — significherebbe accettare risposte che quel
+	// produttore non ha mai offerto.
+	return Opportunity.AllowedResponses.ContainsByPredicate([&Response](const FString& Allowed)
+	{
+		return Allowed.Equals(Response, ESearchCase::CaseSensitive);
+	});
+}
+
+int32 URTReactionOpportunityLibrary::CountParticipantsWithChoice(const FRTContestedBoundary& Boundary)
+{
+	int32 WithChoice = 0;
+	for (const FRTReactionParticipant& P : Boundary.Participants)
+	{
+		// La stessa domanda che si fa per il single-responder, e non una seconda regola: «questo partecipante
+		// ha davvero una scelta?». Riusarla e' cio' che tiene UNA sola definizione di cardinalita' nel gioco.
+		if (RequiresDecisionBoundary(P.Opportunity))
+		{
+			++WithChoice;
+		}
+	}
+	return WithChoice;
+}
+
+bool URTReactionOpportunityLibrary::IsContested(const FRTContestedBoundary& Boundary)
+{
+	// DUE, non «almeno uno»: §3.2 e' esplicita in negativo — se una delle due risposte e' di fatto obbligata,
+	// l'opportunity NON e' contested e si degrada a single-responder. Senza questo `>= 2` un attacco base
+	// diventerebbe un Clash appena qualcuno arma un `Brace`, che e' il caso che la spec esclude per primo.
+	return CountParticipantsWithChoice(Boundary) >= 2;
+}
+
+void URTReactionOpportunityLibrary::SortParticipantsCanonically(FRTContestedBoundary& Boundary)
+{
+	// `StableSort` e non `Sort`: a parita' di criterio l'ordine dev'essere quello d'ingresso e non uno
+	// qualunque, o due esecuzioni identiche potrebbero registrare i due lock in ordine diverso — che e'
+	// precisamente la dipendenza dal tempo reale che §7.3 esiste per escludere.
+	Boundary.Participants.StableSort([](const FRTReactionParticipant& A, const FRTReactionParticipant& B)
+	{
+		return A.UnitId < B.UnitId;
+	});
+}
+
+int32 URTReactionOpportunityLibrary::CompareGrammarIntents(ERTGrammarIntent A, ERTGrammarIntent B)
+{
+	if (A == B)
+	{
+		return 0; // pareggio: intenzioni uguali. §5 dice che il Tie non e' un fallimento, e si applica UNA volta
+	}
+
+	// Il ciclo, scritto per intero invece che con aritmetica modulare: `(A - B + 3) % 3` darebbe la stessa
+	// risposta e non direbbe QUALE regola sta applicando. Tre righe leggibili valgono piu' di una furba, e il
+	// giorno in cui il playtest cambia una relazione si cambia la riga che la porta.
+	const bool bAWins =
+		(A == ERTGrammarIntent::Read  && B == ERTGrammarIntent::Stand) ||
+		(A == ERTGrammarIntent::Stand && B == ERTGrammarIntent::Shift) ||
+		(A == ERTGrammarIntent::Shift && B == ERTGrammarIntent::Read);
+
+	return bAWins ? 1 : -1;
+}
+
+FRTClashResolution URTReactionOpportunityLibrary::ResolveContestedBoundary(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks)
+{
+	FRTClashResolution Out;
+
+	// --- 1. Il lock di ciascun PARTECIPANTE, non di ciascun messaggio ---------------------------------
+	//
+	// Si parte dai partecipanti dichiarati e si cerca il loro lock, invece di iterare i lock: un lock di chi
+	// non partecipa non deve poter aprire un reveal, e un lock duplicato non deve valere due volte. La
+	// cardinalita' del reveal e' una proprieta' del boundary, non di quanti messaggi sono arrivati.
+	//
+	// Si tiene il PRIMO lock di ciascuno: un secondo lock dello stesso partecipante sarebbe un ripensamento
+	// dopo il vincolo, e il vincolo e' il punto — «lock» significa che la scelta non si cambia piu'.
+	TArray<int32> Ids;
+	TArray<ERTGrammarIntent> Intents;
+	for (const FRTReactionParticipant& P : Boundary.Participants)
+	{
+		const FRTContestedLock* Found = Locks.FindByPredicate(
+			[&P](const FRTContestedLock& L) { return L.UnitId == P.UnitId; });
+
+		if (Found == nullptr)
+		{
+			// Manca almeno un lock: NIENTE si rivela. E' la scadenza fissa di §7.1 resa una proprieta' dei
+			// dati — chi chiama non ha un esito parziale da cui dedurre che l'altro ha gia' scelto.
+			return Out;
+		}
+
+		Ids.Add(P.UnitId);
+		Intents.Add(Found->Intent);
+	}
+
+	if (Ids.Num() < 2)
+	{
+		// Un boundary con meno di due partecipanti non e' un Clash e non ha niente da confrontare. Non e' un
+		// errore: e' il single-responder, che si risolve altrove con `AskReactionDecision`.
+		return Out;
+	}
+
+	// --- 2. Ordine CANONICO, non di arrivo (§7.3) -----------------------------------------------------
+	//
+	// Si ordinano gli indici e non gli array in parallelo: due `StableSort` indipendenti su due array
+	// potrebbero disallinearsi, ed e' il tipo di difetto che non si vede finche' i due partecipanti non
+	// hanno intenti diversi.
+	TArray<int32> Order;
+	for (int32 I = 0; I < Ids.Num(); ++I) { Order.Add(I); }
+	Order.StableSort([&Ids](int32 A, int32 B) { return Ids[A] < Ids[B]; });
+
+	// --- 3. Il confronto, e il pareggio applicato UNA volta --------------------------------------------
+	//
+	// Con due partecipanti la matrice di [D-049] decide; con piu' di due il confronto a coppie non e'
+	// definito dalla spec, e qui **non si inventa**: si rivela il pareggio per tutti, che e' l'esito neutro
+	// gia' previsto da §5. Il giorno in cui un boundary a tre esistera', la regola si decide li' e non si
+	// eredita da un'implementazione che nessuno ha discusso.
+	Out.bRevealed = true;
+	for (int32 I : Order)
+	{
+		Out.UnitIds.Add(Ids[I]);
+	}
+
+	if (Ids.Num() == 2)
+	{
+		const int32 FirstIdx = Order[0];
+		const int32 SecondIdx = Order[1];
+		const int32 Cmp = CompareGrammarIntents(Intents[FirstIdx], Intents[SecondIdx]);
+
+		if (Cmp > 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+		}
+		else if (Cmp < 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+		}
+		else
+		{
+			// Pari per entrambi, e **una volta sola**: il Tie non e' un fallimento di nessuno dei due (§5),
+			// quindi non produce due applicazioni dello stesso effetto.
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+	else
+	{
+		for (int32 I = 0; I < Ids.Num(); ++I)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+
+	return Out;
+}
+
+TArray<FRTManeuverDef> URTReactionOpportunityLibrary::GetManeuverCatalog()
+{
+	// Le quattro maneuver che il roster v0.1 puo' esprimere: la universale piu' le tre dei profili di
+	// [D-047]. Gli id coincidono con le stringhe di `AllowedResponses` — cercare il significato di una
+	// risposta e' guardare qui, non appaiare due liste per indice.
+	//
+	// ⚠️ **Le liste di effetti sono VUOTE, e non e' un lavoro lasciato a meta'**: §2.5 dice che resistenza
+	// del `Brace`, Charge del `Grounding` e ampiezza della deviazione sono bilanciamento e si restringono al
+	// playtest. Un esito senza effetti e' un esito che non applica niente, ed e' quello che serve perche' il
+	// Clash giri prima che i numeri esistano. Scriverne di inventati sarebbe peggio che lasciarli vuoti:
+	// diventerebbero il riferimento contro cui il playtest si confronta.
+	//
+	// `GLANCE LEFT` e `GLANCE RIGHT` sono DUE maneuver e non una con un parametro: §6 dice che la direzione
+	// e' un payload quando serve, ma qui le due sono gia' due risposte legali distinte in `AllowedResponses`
+	// — e la cardinalita' di `Profile.Glance` (3) dipende proprio da questo.
+	return {
+		{ FName(TEXT("Hold Ground")),  ERTGrammarIntent::Stand },
+		{ FName(TEXT("GROUND")),       ERTGrammarIntent::Stand, /*bHasCost=*/ true },
+		{ FName(TEXT("SIDESTEP")),     ERTGrammarIntent::Shift },
+		{ FName(TEXT("GLANCE LEFT")),  ERTGrammarIntent::Read },
+		{ FName(TEXT("GLANCE RIGHT")), ERTGrammarIntent::Read }
+	};
+}
+
+FRTManeuverDef URTReactionOpportunityLibrary::FindManeuver(const FName& ManeuverId)
+{
+	for (const FRTManeuverDef& M : GetManeuverCatalog())
+	{
+		if (M.ManeuverId == ManeuverId)
+		{
+			return M;
+		}
+	}
+
+	// Sconosciuta: `STAND` senza effetti. Non applica niente e non vince nulla — inventarle un esito
+	// farebbe accadere in partita qualcosa che nessuno ha dichiarato.
+	return FRTManeuverDef(ManeuverId, ERTGrammarIntent::Stand);
+}
+
+TArray<FRTActionEffectSpec> URTReactionOpportunityLibrary::EffectsForOutcome(
+	const FRTManeuverDef& Maneuver, ERTClashOutcome Outcome)
+{
+	switch (Outcome)
+	{
+	case ERTClashOutcome::Win:  return Maneuver.WinEffects;
+	case ERTClashOutcome::Tie:  return Maneuver.TieEffects;
+	case ERTClashOutcome::Lose: return Maneuver.LoseEffects;
+	}
+
+	// Funzione TOTALE: un caso per ogni valore dell'enum, nessun `default` che nasconda un esito nuovo.
+	// Se un quarto esito nascesse, questo `return` non lo coprirebbe in silenzio — il compilatore avverte.
+	return TArray<FRTActionEffectSpec>();
+}
+
+TArray<int32> URTReactionOpportunityLibrary::UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<int32> Consuming;
+
+	// Prima del reveal non si consuma niente: il costo e' un effetto osservabile quanto un esito, e pagarlo
+	// in anticipo direbbe che qualcuno ha lockato. §7.1 esiste per non dirlo.
+	if (!Resolution.bRevealed)
+	{
+		return Consuming;
+	}
+
+	// Si itera l'ordine CANONICO della risoluzione, non l'array dei lock: cosi' l'elenco di chi paga non
+	// dipende dall'ordine di arrivo — che e' la stessa ragione per cui le voci di log sono ordinate.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		const int32 UnitId = Resolution.UnitIds[I];
+		const FRTContestedLock* Lock = Locks.FindByPredicate(
+			[UnitId](const FRTContestedLock& L) { return L.UnitId == UnitId; });
+
+		if (Lock == nullptr || !Lock->bManeuverHasCost)
+		{
+			continue; // niente lock, o maneuver gratuita: non c'e' risorsa da spendere
+		}
+
+		// ⛔ **L'esito NON entra nella decisione, salvo la policy dichiarata dalla maneuver.** Chi perde paga
+		// come chi vince: e' la regola di §9, e toglierla renderebbe il Clash una scommessa gratuita.
+		const bool bLost = Resolution.Outcomes.IsValidIndex(I)
+			&& Resolution.Outcomes[I] == ERTClashOutcome::Lose;
+
+		if (bLost && Lock->bRefundIfLost)
+		{
+			continue; // la maneuver ha dichiarato di rimborsare: e' l'eccezione, non il default
+		}
+
+		Consuming.Add(UnitId);
+	}
+
+	return Consuming;
+}
+
+TArray<FRTTurnLogEntry> URTReactionOpportunityLibrary::MakeClashLogEntries(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<FRTTurnLogEntry> Entries;
+
+	// Prima del reveal il boundary non lascia UNA voce: §10 dice che nessun evento di scelta si pubblica
+	// prima. Scrivere `ChoiceLocked` all'arrivo del lock renderebbe l'ORDINE del log una misura di chi ha
+	// deciso per primo — la latenza come informazione, che §7.1 nega.
+	if (!Resolution.bRevealed)
+	{
+		return Entries;
+	}
+
+	const FString OpportunityId = DeriveOpportunityId(Boundary.Key);
+
+	// Ogni voce nasce dalla stessa base: la categoria e l'identita' del boundary sono comuni, e ripeterle a
+	// mano sei volte e' il modo in cui una di esse finisce diversa dalle altre.
+	auto MakeEntry = [&](ERTClashLogEvent Event, int32 UnitId) -> FRTTurnLogEntry
+	{
+		FRTTurnLogEntry E;
+		E.Phase = Boundary.Key.MacroPhase;
+		E.Category = ERTLogCategory::ReactionClash;
+		E.Outcome = static_cast<uint8>(Event);
+		E.OpportunityId = OpportunityId;
+		E.ActionId = Boundary.Key.ReactionDefId;
+		E.TurnNumber = Boundary.Key.TurnNumber;
+		E.UnitId = UnitId;
+		return E;
+	};
+
+	// 1. L'apertura, con la cardinalita' in `Amount`: quante persone avevano davvero una scelta.
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OpportunityCreated, Boundary.Key.OwnerId);
+		E.Amount = CountParticipantsWithChoice(Boundary);
+		Entries.Add(E);
+	}
+
+	// 2. I lock, UNO PER PARTECIPANTE e in ordine canonico. Sono scritti adesso, non quando sono arrivati.
+	for (int32 UnitId : Resolution.UnitIds)
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::ChoiceLocked, UnitId));
+	}
+
+	// 3. Il reveal.
+	Entries.Add(MakeEntry(ERTClashLogEvent::Revealed, Boundary.Key.OwnerId));
+
+	// 4. Il confronto: i due contendenti in una voce sola, cosi' il log dice CONTRO CHI si e' misurato
+	// ciascuno senza che il lettore debba appaiare due righe.
+	if (Resolution.UnitIds.Num() == 2)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::Compared, Resolution.UnitIds[0]);
+		E.SelectedTargetUnitId = Resolution.UnitIds[1];
+		Entries.Add(E);
+	}
+
+	// 5. L'esito di ciascuno, con `ERTClashOutcome` in `Amount`.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OutcomeResolved, Resolution.UnitIds[I]);
+		E.Amount = Resolution.Outcomes.IsValidIndex(I) ? static_cast<int32>(Resolution.Outcomes[I]) : 0;
+		Entries.Add(E);
+	}
+
+    // 6. Il costo, per chi lo paga. Nessuna voce per chi non ha costo: una riga `CostConsumed` con importo
+	// zero direbbe che qualcosa e' stato speso, e non e' vero.
+	for (int32 UnitId : UnitsConsumingCost(Locks, Resolution))
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::CostConsumed, UnitId));
+	}
+
+	return Entries;
+}
+
+FString URTReactionOpportunityLibrary::SafeResponse(const FRTReactionOpportunity& Opportunity)
+{
+	// `HOLD` PRIMA di tutto, e l'ordine dei due rami e' la regola: e' cio' che garantisce che una finestra
+	// scaduta non spari mai. Cercarla invece di prendere la prima e' necessario perche' nell'Overwatch `HOLD`
+	// e' in CODA, dopo i `FIRE:` — «la prima risposta» li' sarebbe uno sparo.
+	if (IsResponseAllowed(Opportunity, HoldResponse()))
+	{
+		return HoldResponse();
+	}
+
+	// Nessun `HOLD` nel vocabolario: e' il `Brace`, che chiama la propria scelta sicura `Hold Ground` e la
+	// tiene in testa proprio per questo ([D-047] §2.1, e il commento di `BraceAllowedResponses` lo dichiara).
+	// ⚠️ La responsabilita' si sposta su chi COSTRUISCE le risposte: un produttore futuro che mettesse in
+	// testa una risposta costosa la renderebbe l'esito di ogni scadenza. E' il vincolo che sostituisce la
+	// vecchia costante, e va detto qui perche' e' l'unico posto da cui si vede.
+	if (Opportunity.AllowedResponses.Num() > 0)
+	{
+		return Opportunity.AllowedResponses[0];
+	}
+
+	// Zero risposte: non c'e' una prima da prendere. Non e' un caso da gestire con un'invenzione — con zero
+	// risposte `RequiresDecisionBoundary` e' falso e quella finestra non si e' mai aperta.
+	return HoldResponse();
+}
+
+FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity& Opportunity)
+{
+	// PURA: lo scadere applica la scelta sicura, che per ogni finestra dell'Overwatch e' `HOLD` — mai `FIRE`,
+	// perche' consuma una risorsa irreversibile e un input mancato non deve spenderla (ADR-0004 §3). La
+	// garanzia sta in `SafeResponse`, non in una costante scritta qui.
+	return FRTReactionDecision(SafeResponse(Opportunity), ERTReactionDecisionOutcome::Timeout);
+}
+
+bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondition& Condition,
+	const FRTTargetVitals* Vitals)
+{
+	if (!Condition.IsDeclared())
+	{
+		return true; // chi non pone condizioni non restringe nulla: e' il comportamento di sempre
+	}
+
+	// Una condizione che il gioco non conosce non e' valutabile, quindi non autorizza niente. Puo' arrivare
+	// qui da un piano salvato prima che il catalogo cambiasse: trattarla come vera cambierebbe l'esito della
+	// partita in silenzio, e in una direzione che il giocatore non ha chiesto.
+	if (!IsDeclaredConditionAllowed(Condition))
+	{
+		return false;
+	}
+
+	// Dato mancante o incoerente: stessa scelta fail-closed di `TeamAwareness`. Offrire `FIRE` qui
+	// significherebbe sparare su una condizione che nessuno ha verificato.
+	if (!Vitals || Vitals->MaxHealth <= 0)
+	{
+		return false;
+	}
+
+	// `Health / MaxHealth <= Param / 100` senza divisioni: aritmetica INTERA, perche' `G7` vieta i float e
+	// una soglia in virgola mobile li farebbe rientrare proprio nel punto che decide chi viene colpito.
+	return Vitals->Health * 100 <= Vitals->MaxHealth * Condition.Param;
+}
+
+ERTOverwatchMoverCheck URTReactionOpportunityLibrary::CheckMoverAgainstWatcher(const URTHexMapAsset* Map,
+	const FRTOverwatchWatcher& Watcher, const TSet<FRTCellId>& Controlled, int32 MoverUnitId, int32 MoverTeamId,
+	const FRTCellId& Cell)
+{
+	if (MoverTeamId == Watcher.Zone.OwnerTeamId || MoverUnitId == Watcher.Zone.OwnerUnitId)
+	{
+		return ERTOverwatchMoverCheck::NotAnEnemy; // l'Overwatch non scatta sui propri, come la linea di soppressione
+	}
+
+	// 1) `TargetInsideArea` — la cella APPENA RAGGIUNTA, cioe' dopo l'ingresso valido: stessa convenzione di
+	//    `ResolveSuppression`, dove la vittima resta nella cella in cui e' entrata.
+	if (!Controlled.Contains(Cell))
+	{
+		return ERTOverwatchMoverCheck::NotInLine;
+	}
+
+	// 2) `TargetDetected` — livello `Rilevato` e non «visibile» (ADR-0004 §6). Un contatto `Uncertain` — fumo oltre 2
+	//    celle, o solo rumore — non arma il trigger: e' informazione, non un bersaglio. `FindRef` su chiave assente da'
+	//    `Hidden`, che e' il default giusto.
+	if (Watcher.TeamAwareness.FindRef(MoverUnitId) != ERTAwareness::Detected)
+	{
+		return ERTOverwatchMoverCheck::NotPerceived;
+	}
+
+	// 3) `HasLineOfSight` — ricontrollata sulla cella raggiunta, non sulla cella di partenza del turno: un bersaglio che
+	//    entra nella zona dietro una copertura alta non e' ingaggiabile. Senza mappa non e' calcolabile: fail-closed.
+	if (!Map || !URTHexVisionLibrary::HasLineOfSight(Map, Watcher.OwnerCell, Cell))
+	{
+		return ERTOverwatchMoverCheck::NoLineOfSight;
+	}
+
+	return ERTOverwatchMoverCheck::Engageable;
+}
+
+TArray<FRTOverwatchSilence> URTReactionOpportunityLibrary::ClassifyOverwatchSilences(const URTHexMapAsset* Map,
+	const FRTOverwatchWatcher& Watcher, ERTOverwatchSilenceReason StateReason, const FRTCellId& FacingCell,
+	const TArray<FRTSuppressionMover>& Movers)
+{
+	TArray<FRTOverwatchSilence> Silences;
+
+	// La linea vuota di un watcher ARMATO e' un silenzio a se' (`ZoneEmpty`): nessuno puo' entrarci, quindi non si
+	// aspetta un mover. Quella di un watcher che non puo' rispondere non dice niente — nessuno ci entra.
+	if (Watcher.Zone.Cells.Num() == 0)
+	{
+		if (StateReason == ERTOverwatchSilenceReason::None)
+		{
+			FRTOverwatchSilence S;
+			S.Reason = ERTOverwatchSilenceReason::ZoneEmpty;
+			S.FactCell = FacingCell;
+			Silences.Add(S);
+		}
+		return Silences;
+	}
+
+	// Crescente per `UnitId` dentro ogni passo: l'ordine e' quello dello stato, non quello in cui il chiamante ha
+	// raccolto i mover — e decide QUALE cella resta nella voce, quando il registro ne tiene una sola per motivo.
+	TArray<const FRTSuppressionMover*> Ordered;
+	int32 MaxSteps = 0;
+	for (const FRTSuppressionMover& Mover : Movers)
+	{
+		Ordered.Add(&Mover);
+		MaxSteps = FMath::Max(MaxSteps, Mover.Path.Num());
+	}
+	Ordered.Sort([](const FRTSuppressionMover& A, const FRTSuppressionMover& B) { return A.UnitId < B.UnitId; });
+
+	const TSet<FRTCellId> Controlled(Watcher.Zone.Cells);
+	for (int32 Step = 0; Step < MaxSteps; ++Step)
+	{
+		for (const FRTSuppressionMover* Mover : Ordered)
+		{
+			if (!Mover->Path.IsValidIndex(Step))
+			{
+				continue;
+			}
+			// [D-411] Un nemico gia' chiesto ha avuto la sua risposta: non e' un silenzio, e non deve consumare il motivo di
+			// un nemico che la domanda non l'ha avuta (review della PR #3787).
+			if (Watcher.AlreadyAskedUnitIds.Contains(Mover->UnitId))
+			{
+				continue;
+			}
+			const FRTCellId& Cell = Mover->Path[Step];
+			const ERTOverwatchMoverCheck Check =
+				CheckMoverAgainstWatcher(Map, Watcher, Controlled, Mover->UnitId, Mover->TeamId, Cell);
+
+			ERTOverwatchSilenceReason Reason = ERTOverwatchSilenceReason::None;
+			if (StateReason != ERTOverwatchSilenceReason::None)
+			{
+				// Famiglia A con un mover: solo un nemico che la squadra ha RILEVATO. Uno non rilevato non c'e', per
+				// la squadra, e la voce non deve farlo comparire.
+				if (Check == ERTOverwatchMoverCheck::NoLineOfSight || Check == ERTOverwatchMoverCheck::Engageable)
+				{
+					Reason = StateReason;
+				}
+			}
+			else if (Check == ERTOverwatchMoverCheck::NotPerceived)
+			{
+				Reason = ERTOverwatchSilenceReason::NotPerceived;
+			}
+			else if (Check == ERTOverwatchMoverCheck::NoLineOfSight)
+			{
+				Reason = ERTOverwatchSilenceReason::NoLineOfSight;
+			}
+
+			if (Reason != ERTOverwatchSilenceReason::None)
+			{
+				FRTOverwatchSilence S;
+				S.Reason = Reason;
+				S.FactCell = Cell;
+				S.MoverUnitId = Mover->UnitId;
+				Silences.Add(S);
+			}
+		}
+	}
+	return Silences;
+}
+
+ERTPlanVerdict URTReactionOpportunityLibrary::SilencePlanVerdict(ERTOverwatchSilenceReason Reason)
+{
+	return Reason == ERTOverwatchSilenceReason::NotPerceived ? ERTPlanVerdict::AuditOnly : ERTPlanVerdict::OwnerTeam;
+}
+
+FRTKnowledgeVerdict URTReactionOpportunityLibrary::SilenceReaders(ERTOverwatchSilenceReason Reason, int32 OwnerTeamId)
+{
+	return URTTeamKnowledgeLibrary::FreezePlanVerdict(SilencePlanVerdict(Reason), OwnerTeamId);
+}
+
+// Un bit per motivo in un `uint8`: ogni valore deve stare sotto l'ottavo bit. Un motivo oltre il settimo renderebbe il
+// bit zero, e la regola «al piu' una voce per motivo» cadrebbe senza che niente lo dica. `Count` segue l'ultimo valore.
+static_assert(static_cast<uint8>(ERTOverwatchSilenceReason::Count) <= 8,
+	"ERTOverwatchSilenceReason non sta piu' in FRTArmedOverwatch::ReportedSilenceReasons (uint8): allargare il campo");
+
+uint8 URTReactionOpportunityLibrary::SilenceReasonBit(ERTOverwatchSilenceReason Reason)
+{
+	return static_cast<uint8>(1u << static_cast<uint8>(Reason));
+}
+
+TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTriggers(const URTHexMapAsset* Map,
+	int32 TurnNumber, const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
+	const TMap<int32, FRTTargetVitals>& TargetVitals, int32 FirstMicroStepIndex)
+{
+	TArray<FRTOverwatchTrigger> Triggers;
+
+	// Fail-closed: la LOS e' una delle quattro condizioni, e senza mappa autorevole non e' calcolabile. Un
+	// `Map` nullo non deve produrre trigger «per difetto» — sarebbe un Overwatch che spara al buio.
+	if (!Map)
+	{
+		return Triggers;
+	}
+
+	/**
+	 * I cinque tie-break di ADR-0004 §4 viaggiano ACCANTO al trigger mentre lo si ordina, e non dentro.
+	 *
+	 * ⚠️ La prima stesura li ritrovava con una `TMap<OwnerId, const FRTOverwatchWatcher*>`, ed era un difetto:
+	 * un'unita' puo' avere **due reaction armate** — e' esattamente il caso che ADR-0004 §4 chiama «piu'
+	 * reazioni distinte nello stesso micro-step». Con la mappa, la seconda `Add` sovrascriveva la prima, e
+	 * ENTRAMBI i trigger si ordinavano coi tie-break dell'ULTIMO watcher inserito: cioe' in base all'ordine
+	 * dell'array `Watchers`, che e' precisamente la dipendenza che questo ordinamento esiste per togliere.
+	 */
+	struct FPendingOverwatchTrigger
+	{
+		FRTOverwatchTrigger Trigger;
+		int32 ReactionPriority = 0;
+		int32 AbilityPriority = 0;
+		int32 UnitInitiative = 0;
+		int32 StableUnitId = INDEX_NONE;
+		int32 ReactionInstanceId = INDEX_NONE;
+	};
+	TArray<FPendingOverwatchTrigger> Pending;
+
+	for (const FRTOverwatchWatcher& Watcher : Watchers)
+	{
+		if (!Watcher.bArmed || Watcher.Zone.Cells.Num() == 0)
+		{
+			continue; // `ReactionStillArmed` falso, o una zona mai preparata: niente da controllare
+		}
+
+		// `TSet` per l'APPARTENENZA, mai per l'ordine (invariante #3): l'ordine di scansione e' quello dei
+		// micro-step, che i percorsi dichiarano.
+		const TSet<FRTCellId> Controlled(Watcher.Zone.Cells);
+
+		// [D-411] Chi questo watcher ha gia' chiesto non torna bersaglio. La memoria la porta il chiamante: la funzione
+		// non ne aggiunge, e una seconda copia della regola qui dentro potrebbe divergere dal pompaggio (review della PR
+		// #3787).
+		const TSet<int32> Chiesti(Watcher.AlreadyAskedUnitIds);
+
+		// Quanti micro-step ha il piu' lungo dei percorsi: il trigger si valuta a OGNI passo, e il ciclo
+		// esterno e' il passo — non il mover. E' cio' che rende «piu' bersagli nello stesso micro-step» una
+		// sola opportunity invece di due, senza un secondo raggruppamento a valle.
+		int32 MaxSteps = 0;
+		for (const FRTSuppressionMover& Mover : Movers)
+		{
+			MaxSteps = FMath::Max(MaxSteps, Mover.Path.Num());
+		}
+
+		for (int32 Step = 0; Step < MaxSteps; ++Step)
+		{
+			TArray<int32> TargetsThisStep;
+
+			for (const FRTSuppressionMover& Mover : Movers)
+			{
+				if (!Mover.Path.IsValidIndex(Step))
+				{
+					continue; // percorso gia' finito: questa unita' non e' in movimento a questo passo
+				}
+				if (Chiesti.Contains(Mover.UnitId))
+				{
+					continue; // [D-411]: gia' chiesto in questo turno, la risposta c'e' stata
+				}
+
+				// Le condizioni del trigger vivono in `CheckMoverAgainstWatcher`, che il registro dei silenzi
+				// ([D-349]) legge con le stesse parole: qui si tengono i soli ingaggiabili.
+				if (CheckMoverAgainstWatcher(Map, Watcher, Controlled, Mover.UnitId, Mover.TeamId, Mover.Path[Step])
+					!= ERTOverwatchMoverCheck::Engageable)
+				{
+					continue;
+				}
+
+				TargetsThisStep.Add(Mover.UnitId);
+			}
+
+			if (TargetsThisStep.Num() == 0)
+			{
+				continue;
+			}
+
+			// Ordine dei bersagli DENTRO l'opportunity: crescente per `UnitId`. Serve a rendere
+			// `AllowedResponses` una funzione dello stato — permutare `Movers` non deve riordinare le
+			// risposte, o due esecuzioni dello stesso scenario darebbero due DTO diversi.
+			TargetsThisStep.Sort();
+
+			FRTOverwatchTrigger Trigger;
+			Trigger.TargetUnitIds = TargetsThisStep;
+
+			Trigger.Opportunity.Key.TurnNumber = TurnNumber;
+			Trigger.Opportunity.Key.MacroPhase = ERTMatchPhase::Move; // l'Overwatch scatta sui micro-step del Move
+			// `Step` e' relativo ai `Movers` ricevuti; l'indice della CHIAVE e' quello del turno. Coincidono
+			// solo quando il chiamante passa i percorsi interi — vedi `FirstMicroStepIndex` nell'header.
+			Trigger.Opportunity.Key.MicroStepIndex = FirstMicroStepIndex + Step;
+			Trigger.Opportunity.Key.OwnerId = Watcher.Zone.OwnerUnitId;
+			Trigger.Opportunity.Key.ReactionDefId = Watcher.ReactionDefId;
+			// `Seq` NON si assegna qui: dipenderebbe dall'ordine di `Watchers`. Si assegna dopo
+			// l'ordinamento totale, scorrendo il risultato — vedi in fondo.
+
+			// La condizione dichiarata in pianificazione RIDUCE le risposte legali ([D-012], [D-109]). Filtra
+			// le risposte, non i bersagli: il trigger e' scattato davvero — quelle unita' sono entrate nella
+			// zona e sono state rilevate — e `TargetUnitIds` continua a dire chi e' passato. Se la riduzione
+			// lascia il solo `HOLD`, `RequiresDecisionBoundary` diventa falso e il commit e' immediato: e' cosi'
+			// che il regime *Conditional* emerge dai dati, senza un enum di policy parallelo.
+			//
+			// `HOLD` in coda ed e' SEMPRE presente: senza di lei un bersaglio solo darebbe cardinalita' 1,
+			// cioe' un commit automatico — l'Overwatch sparerebbe da solo. La scelta di non sparare e' una
+			// risposta legale quanto le altre (ADR-0004 §3: `Timeout -> HOLD`).
+			//
+			// 🔑 **I `FIRE` li scrive `RebuildFireResponses`, la stessa funzione che il pompaggio richiama quando
+			// chiede** ([D-522], `#3771`). Due copie della regola — ordine, condizione, `HOLD` in coda — potrebbero
+			// divergere, e la promessa «con le vitals dell'ingresso la ricostruzione ridà le stesse risposte»
+			// diventerebbe falsa senza che niente diventi rosso. Qui «in piedi» vale sempre vero, com'era prima: questa
+			// funzione non lo ha mai chiesto, e chi cade fra l'ingresso e la domanda lo toglie il pompaggio ([D-518]).
+			Trigger.Opportunity.AllowedResponses.Add(HoldResponse());
+			RebuildFireResponses(Trigger.Opportunity, TargetsThisStep, Watcher.DeclaredCondition, TargetVitals,
+				[](int32) { return true; });
+
+			FPendingOverwatchTrigger P;
+			P.Trigger = MoveTemp(Trigger);
+			P.ReactionPriority   = Watcher.ReactionPriority;
+			P.AbilityPriority    = Watcher.AbilityPriority;
+			P.UnitInitiative     = Watcher.UnitInitiative;
+			P.StableUnitId       = Watcher.StableUnitId;
+			P.ReactionInstanceId = Watcher.ReactionInstanceId;
+			Pending.Add(MoveTemp(P));
+		}
+	}
+
+	// Ordine TOTALE fra reazioni diverse (ADR-0004 §4). Il micro-step viene per primo perche' e' il tempo
+	// della risoluzione; i cinque criteri seguono nell'ordine dell'ADR, e l'ultimo — `ReactionInstanceId` —
+	// e' quello che garantisce che due elementi non restino mai indistinguibili. Se restassero, a deciderli
+	// sarebbe l'ordine di `Watchers`, cioe' il caso.
+	Pending.Sort([](const FPendingOverwatchTrigger& A, const FPendingOverwatchTrigger& B)
+	{
+		if (A.Trigger.Opportunity.Key.MicroStepIndex != B.Trigger.Opportunity.Key.MicroStepIndex)
+		{
+			return A.Trigger.Opportunity.Key.MicroStepIndex < B.Trigger.Opportunity.Key.MicroStepIndex;
+		}
+		if (A.ReactionPriority != B.ReactionPriority)     { return A.ReactionPriority < B.ReactionPriority; }
+		if (A.AbilityPriority != B.AbilityPriority)       { return A.AbilityPriority < B.AbilityPriority; }
+		if (A.UnitInitiative != B.UnitInitiative)         { return A.UnitInitiative < B.UnitInitiative; }
+		if (A.StableUnitId != B.StableUnitId)             { return A.StableUnitId < B.StableUnitId; }
+		return A.ReactionInstanceId < B.ReactionInstanceId;
+	});
+
+	/**
+	 * `Seq` si assegna QUI, sul risultato gia' ordinato, e non durante la costruzione.
+	 *
+	 * ⚠️ La prima stesura lo lasciava a `0` con la motivazione «un watcher apre al massimo una opportunity per
+	 * micro-step». Vera, e irrilevante: la chiave non identifica il WATCHER, identifica
+	 * `(Turn, MacroPhase, MicroStep, OwnerId, ReactionDefId, Seq)`. Due reaction della **stessa unita'** con lo
+	 * **stesso** `ReactionDefId` — due istanze, che e' il motivo per cui `ReactionInstanceId` esiste —
+	 * producevano due chiavi IDENTICHE, quindi lo stesso `OpportunityId`: il replay avrebbe attribuito a una
+	 * la decisione dell'altra. E' il difetto che CP 14.3 esiste per impedire, e la doc di `Seq` lo nomina
+	 * parola per parola: «la stessa unita', la stessa reaction, lo stesso micro-step, due volte».
+	 *
+	 * Assegnarlo DOPO l'ordinamento e' cio' che lo rende una funzione dello stato: sull'array non ordinato
+	 * dipenderebbe da come il chiamante ha costruito `Watchers`.
+	 */
+	Triggers.Reserve(Pending.Num());
+	for (int32 I = 0; I < Pending.Num(); ++I)
+	{
+		const FRTReactionOpportunityKey& Cur = Pending[I].Trigger.Opportunity.Key;
+		int32 Seq = 0;
+		for (int32 J = 0; J < I; ++J)
+		{
+			const FRTReactionOpportunityKey& Prev = Pending[J].Trigger.Opportunity.Key;
+			if (Prev.TurnNumber == Cur.TurnNumber
+				&& Prev.MacroPhase == Cur.MacroPhase
+				&& Prev.MicroStepIndex == Cur.MicroStepIndex
+				&& Prev.OwnerId == Cur.OwnerId
+				&& Prev.ReactionDefId == Cur.ReactionDefId)
+			{
+				++Seq; // `Seq` escluso dal confronto: e' il campo che si sta assegnando
+			}
+		}
+		Pending[I].Trigger.Opportunity.Key.Seq = Seq;
+		Triggers.Add(MoveTemp(Pending[I].Trigger));
+	}
+
+	return Triggers;
+}

@@ -31,7 +31,7 @@
 > | «la copertura **non** riduce il danno, blocca la LOS ⇒ attacco scartato» | **Dipende dal tipo**: la copertura **bassa riduce** il danno (CP 9.1), la copertura **alta blocca** il bordo (CP 9.2). La riduzione decade se il colpo arriva fuori dall'arco frontale ([ADR-0005](../../decisions/adr-0005-orientamento.md) §4a) |
 > | «l'unico modificatore di danno è l'**altura** (`EffectiveAttackPower`, +danno)» | **Falso oggi.** `OccupantDamageBonus` è un parametro **generico** e ogni call site runtime passa `0` — verificato il 2026-08-08 in `RTTurnManager.cpp`. La quota **non** dà danno ([D-024](../../decisions/RT_PDR_00_Decision_Log.md)): vale per geometria |
 >
-> **Categorie e outcome correnti** (da `Turn/RTTurnLog.h`, non da memoria):
+> **Categorie e outcome correnti** (da `Turn/Log/RTTurnLog.h`, non da memoria):
 > `ERTLogCategory = { Move, Combat, Fallback, Reaction, Environment }` ·
 > `ERTEnvironmentOutcome = { SurfaceChanged, SurfaceRestored, SurfaceRejected, SurfaceExtinguished, CoverDamaged, CoverDestroyed }`.
 >
@@ -144,7 +144,7 @@ da stato pre/post + bonus) e in parte **wiring** nell'Actor (`NoLineOfSight` = a
 
 ---
 
-## 4. Componenti — nuovo file `Turn/RTTurnLog.h`
+## 4. Componenti — nuovo file `Turn/Log/RTTurnLog.h`
 
 ```cpp
 UENUM(BlueprintType) enum class ERTLogCategory : uint8 { Move, Combat };
@@ -344,7 +344,7 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 > ✅ **Confermata il 2026-08-17 — [D-166](../../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
 > con il codice.** Con **CP 14.5** è atterrata in coda a `ERTLogCategory` una categoria di nome simile,
 > `ReactionDecision`, già serializzata e presente in cinque call site — **tre letture** e **due scritture**.
-> 🔴 **La divergenza è durata TRE giorni, non uno**: `git log -S ReactionDecision -- Source/RefactorTactics/Turn/RTTurnLog.h`
+> 🔴 **La divergenza è durata TRE giorni, non uno**: `git log -S ReactionDecision -- Source/RefactorTactics/Turn/Log/RTTurnLog.h`
 > dà un solo commit, `75039d93` del **2026-08-14**, e la riconciliazione è del **2026-08-17**. La prima
 > stesura diceva «per un giorno», che è vero della *riga di conflitto* — aperta e chiusa lo stesso giorno —
 > e falso dello scarto fra spec e codice, cioè di ciò di cui questa frase parla. Corretto in code review, e
@@ -768,7 +768,7 @@ in testa alle due righe il lettore le attribuisce comunque alla stessa unità, c
 
 ## 8. Testing & Definition of Done
 
-Test in `Tests/RTTurnLogTests.cpp` (movimento + permutazione) e `Tests/RTCombatLibraryTests.cpp` (classify combat).
+Test in `Tests/RTTurnLogTests.cpp` (movimento + permutazione) e `Tests/Combat/RTCombatLibraryTests.cpp` (classify combat).
 
 - Movimento: 2 unità verso la stessa cella → **entrambe** `BlockedContested`; A↔B → `Moved` (scambio); destinazione
   dietro un'unità ferma → `BlockedByUnit`; path libero → `Moved`; path<2 → `Stayed`; permutare i path → log identico.
@@ -783,10 +783,10 @@ nell'entry/ordinamento ☐ `spec`/roadmap aggiornate ☐ nessun file generato/se
 
 ## 9. File coinvolti
 
-**Nuovi**: `Turn/RTTurnLog.h`, `Tests/RTTurnLogTests.cpp`, questa spec.
+**Nuovi**: `Turn/Log/RTTurnLog.h`, `Tests/RTTurnLogTests.cpp`, questa spec.
 **Modificati**: `Turn/RTMovementResolver.h/.cpp` (`FRTPathResult.Outcome`), `Combat/RTCombatLibrary.h/.cpp`
 (`ClassifyCombatOutcome`), `Turn/RTTurnManager.h/.cpp` (TurnLog + `GetTurnLog()` + `NoLineOfSight` + `AddLogEvent` arricchito),
-`Tests/RTCombatLibraryTests.cpp`.
+`Tests/Combat/RTCombatLibraryTests.cpp`.
 
 ---
 

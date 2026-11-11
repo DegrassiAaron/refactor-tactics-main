@@ -2,8 +2,8 @@
 #include "EngineUtils.h" // TActorIterator: lo sgombero di `#2223` percorre il mondo
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
-#include "Turn/RTMatchStateHash.h"
-#include "Turn/RTMatchFormatLibrary.h" // il formato GIA' registrato con cui si dichiara l'archivio (#3035)
+#include "Turn/Log/RTMatchStateHash.h"
+#include "Turn/Format/RTMatchFormatLibrary.h" // il formato GIA' registrato con cui si dichiara l'archivio (#3035)
 
 namespace RTScenarioStateDiff
 {
@@ -159,26 +159,26 @@ namespace RTScenarioStateDiff
 		return Result;
 	}
 }
-#include "Turn/RTTurnLogLibrary.h"
-#include "ScenarioHarness/RTScenarioLoader.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
-#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
-#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: un'azione di Prep non ha un bersaglio da dichiarare
-#include "Map/RTHexMapActor.h"
+#include "Ability/Catalog/RTCatalogLibrary.h" // MapResolutionPhase: un'azione di Prep non ha un bersaglio da dichiarare
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTHexSimLibrary.h"
-#include "Turn/RTMatchSetupLibrary.h"
-#include "Turn/RTReactionOpportunityTypes.h" // HoldResponse/FireResponse: la traduzione nel token del gioco
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // HoldResponse/FireResponse: la traduzione nel token del gioco
 #include "Turn/RTTurnManager.h"
-#include "Turn/RTTurnRules.h"
+#include "Turn/Resolution/RTTurnRules.h"
 #include "Unit/RTUnit.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
-#include "UI/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
+#include "UI/Reaction/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"

@@ -4,10 +4,10 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
-#include "Turn/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
+#include "Turn/Resolution/RTHexSimLibrary.h"
 #include "Pathfinding/RTHexPath.h" // ERTHexPathStatus: una prenotazione fallita si distingue da una vuota
 #include "Pathfinding/RTHexPathLibrary.h" // `GraphNeighbors`: l'avvicinamento si misura in PASSI sul grafo (#1287 strato 1)
 #include "RefactorTactics.h"       // LogRT

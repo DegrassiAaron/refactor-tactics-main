@@ -272,8 +272,8 @@ movimento → TurnLog`. **NON rifarlo.**
 
 | Simbolo | Dove |
 |---|---|
-| `RefactorTactics.Scenario.OverwatchHoldThenFireConsumesBothDecisions` | `Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp:585` |
-| `RefactorTactics.ShowcaseRelay.DecisionProviderIsInjectable` | `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp:1025` |
+| `RefactorTactics.Scenario.OverwatchHoldThenFireConsumesBothDecisions` | `Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioCorpusTests.cpp:585` |
+| `RefactorTactics.ShowcaseRelay.DecisionProviderIsInjectable` | `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp:1025` |
 
 Quindi il decisore iniettabile dell'harness **c'è**, `Spec.Overwatch.HoldThenFire` **si esegue**, e ciò che
 resta di CP 14.6 sono le voci qui sotto. `roadmap-v0.1.md:161` dice ancora il contrario: **segnalalo
@@ -417,7 +417,7 @@ NON:  decision recorded -> open live prompt -> ask provider again
 |---|---|---|
 | `RecordedDecisions` — lookup, reset e scrittura | `Turn/RTTurnManager.cpp` | `grep -n "RecordedDecisions" Source/RefactorTactics/Turn/RTTurnManager.cpp` |
 | `ARTTurnManager::ReportOrphanRecordedDecisions()` | `Turn/RTTurnManager.cpp` · `.h` | idem |
-| consumo nei test di determinismo | `Tests/RTSimulationDeterminismTests.cpp` | `grep -n "ReportOrphanRecordedDecisions" Source/` |
+| consumo nei test di determinismo | `Tests/Turn/Log/RTSimulationDeterminismTests.cpp` | `grep -n "ReportOrphanRecordedDecisions" Source/` |
 
 ⚠️ **Qui i numeri di riga non ci sono apposta.** Durante la stesura di questo documento sono slittati di due
 in meno di un'ora: un altro lavoro stava committando sullo stesso file. Cerca per **simbolo**.
@@ -448,7 +448,7 @@ Stato reale *(misurato)*, `roadmap-v0.1.md:801-803`:
 | **10.2** | ⏳ | **Obiettivo contestabile**: si contesta anche con `Wait`, la verifica avviene nel **Cleanup**, contestazione paritaria = nessun progresso | `Objectives.ContestedNoProgress`, `Objectives.CheckedInCleanup` |
 | **10.3** | ✅ | **Fine partita a tre vie**: eliminazione, obiettivo, `RoundLimit` da formato; parità = pareggio dichiarato | **27 test `Match*.*`** |
 
-Quindi *winner/draw* e *match-end reason* **sono chiusi** — `Turn/RTTurnRules.*`, `Turn/RTMatchFormatData.h`,
+Quindi *winner/draw* e *match-end reason* **sono chiusi** — `Turn/Resolution/RTTurnRules.*`, `Turn/Format/RTMatchFormatData.h`,
 voce `PIE-V01-MATCHEND` registrata. Il residuo di E10 è una riga sola nella roadmap: *«⏳ nessun oggetto da
 attivare in mappa»*.
 

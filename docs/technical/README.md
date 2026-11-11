@@ -70,7 +70,7 @@ riga»**, ed è la correzione che questa sezione porta.
 >
 > Il primo comando dà **185** file. Il secondo ne isola **quindici fuori da `docs/`**, e sono la ragione
 > per cui lo spostamento non appartiene a un mandato documentale:
-> `Source/RefactorTactics/Camera/RTCameraPawn.h` · `Source/RefactorTactics/Tests/RTFrontendWidgetAssetTests.cpp` ·
+> `Source/RefactorTactics/Camera/RTCameraPawn.h` · `Source/RefactorTactics/Tests/Frontend/RTFrontendWidgetAssetTests.cpp` ·
 > cinque `Scenarios/Visual/**/*.json` · `tools/editor-sessions/{README.md,build_agenda.py,pie_status.py,registry.py}` ·
 > `tools/radar/doc-tables.ts` · `AGENTS.md` · `.gitignore` ·
 > `.claude/skills/worktree-issue-runner/SKILL.md`.

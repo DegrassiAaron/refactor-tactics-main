@@ -173,7 +173,7 @@ static constexpr int32 CurrentFormatVersion = 10;
 I campi della cella stanno in `FRTHexCellData` (`Map/RTHexCellData.h`): **leggili e mappa quelli reali**. Non
 inventare un campo `standable` se il dato si chiama diversamente.
 
-**Actor di mappa** — `Source/RefactorTactics/Map/RTHexMapActor.h`
+**Actor di mappa** — `Source/RefactorTactics/Map/Actor/RTHexMapActor.h`
 
 ```cpp
 static ARTHexMapActor* FindInWorld(const UWorld* World);
@@ -201,7 +201,7 @@ A* deterministico, **costi interi**, tie-break sull'ID cella, nessuna dipendenza
 🔴 `ERTHexPathStatus` **è già il modello d'errore del pathfinding**: non inventarne un secondo, mappalo.
 
 **Test** — 1218 macro automation nel repo (`git grep -c "IMPLEMENT_SIMPLE_AUTOMATION_TEST\|IMPLEMENT_COMPLEX_AUTOMATION_TEST" -- Source`).
-Convenzione reale del nome (da `Tests/RTHexPathTests.cpp`):
+Convenzione reale del nome (da `Tests/Pathfinding/RTHexPathTests.cpp`):
 
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPathSimpleTest,
@@ -333,7 +333,7 @@ Editor-only · localhost-only · development-only · nessuna dipendenza nel runt
 ```
 
 Non esporre: `CanonicalIntentStore`, intenti della squadra avversaria (esiste
-`Turn/RTIntentPrivacyLibrary.h` e i suoi test: il progetto tratta la privacy degli intenti come invariante),
+`Turn/Actions/RTIntentPrivacyLibrary.h` e i suoi test: il progetto tratta la privacy degli intenti come invariante),
 token, credenziali, variabili d'ambiente, filesystem arbitrario, shell, socket arbitrari, API runtime
 competitive.
 

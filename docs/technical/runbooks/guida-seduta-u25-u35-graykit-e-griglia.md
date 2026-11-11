@@ -226,7 +226,7 @@ Quattro giudizi, tutti su `PIE-GRID-CONFINE`:
 | **B4** | La griglia **non copre** l'anteprima di pianificazione, che le sta sopra (`RTLiftPreview = +2,5` contro `RTLiftCellBorder = +0,4`) |
 
 > 🔑 **Se uno dei quattro cade, il numero da ritarare è `RTCellBorderThickness`** in
-> [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h). Vale `0.02` per **scelta motivata,
+> [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/Actor/RTMapVisuals.h). Vale `0.02` per **scelta motivata,
 > non per misura**: nessun test può dire se un bordo si legge, ed è questa seduta l'oracolo.
 >
 > ⛔ **Non riguardare ciò che l'automation copre già.** Che il toggle non muti snapshot, TurnLog o graph

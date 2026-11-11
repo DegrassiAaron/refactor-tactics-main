@@ -9,7 +9,7 @@
  *
  * ## Il duplicato che questo header chiude
  *
- * `EnumName` esisteva in `Turn/RTTurnLogLibrary.cpp` e in `Debug/RTDebugReportLibrary.cpp`, entrambe come
+ * `EnumName` esisteva in `Turn/Log/RTTurnLogLibrary.cpp` e in `Debug/RTDebugReportLibrary.cpp`, entrambe come
  * `template <typename TEnum> FString EnumName(TEnum)` in un namespace ANONIMO. UE compila piu' `.cpp` in
  * un'unica translation unit, e i namespace anonimi di quei file diventano lo stesso namespace: due omonimi
  * sono una ridefinizione, e la compilazione muore appena il raggruppamento li mette insieme (#1548, stessa

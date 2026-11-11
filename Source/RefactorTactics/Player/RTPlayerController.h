@@ -73,7 +73,7 @@ public:
 	 *
 	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale al proprio `ARTPlayerState` da
 	 * `GetOuter()`, quindi questo presenter non tiene una seconda sede del valore da tenere allineata.
-	 * Una seconda sede esiste altrove — `UI/RTScreenHudWidgets::PlayerTeamId`, catturata una volta in
+	 * Una seconda sede esiste altrove — `UI/HUD/RTScreenHudWidgets::PlayerTeamId`, catturata una volta in
 	 * `AcquireMatchContext` — ed e' uno snapshot dichiarato, non una svista di questa fetta.
 	 *
 	 * ⚠️ **Non lo aggancia il controller**, e non e' una svista: il `TurnManager` puo' non esistere ancora

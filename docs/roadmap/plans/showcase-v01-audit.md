@@ -160,7 +160,7 @@ Ordinato **secondo la roadmap reale**, non per dominio: ogni voce è una fetta v
 | **Scope** | Campo `mapId` in `FRTTestScenario`; risoluzione nome → fixture in `URTScenarioLoader`; `mapRadius`/`cells[]` restano validi e si applicano **sopra** la fixture |
 | **Non-goals** | Caricare `.umap`; un registry generico di mappe |
 | **Dipende da** | ✅ `MakeShowcaseRelayBasinArena` |
-| **File** | `ScenarioHarness/RTTestScenario.h`, `RTScenarioLoader.*` |
+| **File** | `ScenarioHarness/Authoring/RTTestScenario.h`, `RTScenarioLoader.*` |
 | **Acceptance** | Uno scenario con `mapId` sconosciuto è **`ERROR`**, non `FAIL`; con `mapId` valido l'arena coincide cella per cella con la fixture |
 | **Test** | `Scenario.LoaderResolvesNamedMap`, `Scenario.LoaderRejectsUnknownMapId` |
 | **Commit** | `feat(harness): scenari che riferiscono una fixture di mappa per nome` |

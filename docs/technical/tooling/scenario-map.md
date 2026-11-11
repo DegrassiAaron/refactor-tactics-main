@@ -379,7 +379,7 @@ auto-giudicante, cioè l'esatto contrario di ciò che è. Il percorso qui **non 
 
 **Il nome determina la cartella.** Misurato sul corpus: `scenarioId` ↔ percorso coincidono **96 volte su 96**,
 senza una sola eccezione — eredità del disegno in cui *l'ID era il percorso*, come ricorda
-[`RTScenarioIndex.cpp`](../../../Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp) là dove introduce
+[`RTScenarioIndex.cpp`](../../../Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.cpp) là dove introduce
 il presidio sui duplicati (*«finché l'ID era il percorso il filesystem la rendeva impossibile»*). Il secondo
 segmento è **sempre un dominio** — `Combat`, `Map`, `Environment`, `Movement`, `Reaction`, `Core`, `Input` —
 mai una milestone. Quindi:
@@ -1332,7 +1332,7 @@ grep -rl "<Simbolo>" Source/ --include=*.h --include=*.cpp | grep -v '/Tests/'
 
 # (2) un automation test NOMINA il soggetto — per la camera:
 grep -oE '"RefactorTactics\.Camera\.[A-Za-z0-9.]+"' \
-     Source/RefactorTactics/Tests/RTCameraPawnTests.cpp | sort -u
+     Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp | sort -u
 ```
 
 ⚠️ **La gamba (2) si misura sul NOME del test, non sul simbolo dentro il file di test**, e la differenza

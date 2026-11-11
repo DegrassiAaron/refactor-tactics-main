@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CATALOG_CPP = REPO_ROOT / "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp"
+CATALOG_CPP = REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp"
 
 # La firma da cui si legge tutto (`RTCatalogLibrary.cpp`, namespace anonimo):
 #
@@ -198,7 +198,7 @@ if __name__ == "__main__":
 # (`MakeHeroReactionFromCoreAction`). Un parser che leggesse solo i letterali darebbe `None` a nove
 # ability su venti e sembrerebbe funzionare. Qui i riferimenti si risolvono.
 
-HERO_CPP = REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp"
+HERO_CPP = REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp"
 
 
 def _core_action_vars(text: str) -> dict[str, str]:
@@ -311,8 +311,8 @@ def hero_ability_axes() -> dict[str, dict]:
 # parser che guardasse solo le chiamate non lo troverebbe mai — e non fallirebbe: direbbe zero.
 
 SURFACE_SOURCES = (
-    REPO_ROOT / "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp",
-    REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp",
+    REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp",
+    REPO_ROOT / "Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp",
 )
 
 

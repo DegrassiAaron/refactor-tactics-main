@@ -255,7 +255,7 @@ PRECONDIZIONE DI APERTURA (bloccante)
     M Content/RT/Core/Framework/BP_GameMode.uasset
     M Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
     M Content/RT/UI/Framework/WBP_RT_MenuEntry.uasset
-    M Source/RefactorTactics/Tests/RTFrontendWidgetAssetTests.cpp
+    M Source/RefactorTactics/Tests/Frontend/RTFrontendWidgetAssetTests.cpp
     D  8 file .md/.png in radice
   Nota: BP_GameMode e WBP_RT_ErrorModal sono sulla rotta di questa passata.
   Committarli o scartarli è una decisione umana, non un dettaglio.

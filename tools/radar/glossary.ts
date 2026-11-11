@@ -50,7 +50,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 
   const esito = confronta(
     dallaRadice('docs/balance/RT_Glossary_v0.1.md'),
-    dallaRadice('Source/RefactorTactics/UI/RTGlossary.cpp'),
+    dallaRadice('Source/RefactorTactics/UI/Inspect/RTGlossary.cpp'),
   );
   console.error(`copertura: ${esito.righe} righe nel documento · ${esito.nomi} nomi e ${esito.effetti} effetti in C++`);
 

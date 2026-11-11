@@ -61,7 +61,7 @@ Move · scivolamento                          Blast · push/pull
 ```
 
 La distinzione fra le due cause **ha già un tipo**: `ERTDisplacementCause`
-([`RTFacingLibrary.h:19`](../../Source/RefactorTactics/Turn/RTFacingLibrary.h)) porta `Forced` e
+([`RTFacingLibrary.h:19`](../../Source/RefactorTactics/Turn/Resolution/RTFacingLibrary.h)) porta `Forced` e
 `Environmental`, con il commento che li motiva — *«una spinta ha una sorgente verso cui girarsi, uno
 scivolamento no»*.
 

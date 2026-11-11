@@ -156,7 +156,7 @@ MUTAZIONI = [
         "id": "0-taratura",
         "titolo": "sopprimere la guardia del parapetto",
         "prova": "che QUESTO strumento sa distinguere un verde da un rosso (#2401, codice esistente)",
-        "file": "Source/RefactorTactics/Map/RTHexLedgeLibrary.cpp",
+        "file": "Source/RefactorTactics/Map/Cover/RTHexLedgeLibrary.cpp",
         "cerca": r"if \(Data->HasGuardOn\(Edge\)\)",
         "sostituisci": "if (false && Data->HasGuardOn(Edge))",
         "bersagli": ["RefactorTactics.Map.OpenEdge.GuardSuppressesOpenness"],

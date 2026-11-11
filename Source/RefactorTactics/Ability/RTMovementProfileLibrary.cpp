@@ -1,5 +1,5 @@
 #include "Ability/RTMovementProfileLibrary.h"
-#include "Ability/RTCatalogLibrary.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
 
 const FName URTMovementProfileLibrary::ProfileStill(TEXT("MovementProfile.Still"));
 const FName URTMovementProfileLibrary::ProfileMove(TEXT("MovementProfile.Move"));

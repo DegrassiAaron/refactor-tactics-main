@@ -1,9 +1,9 @@
 #include "Tools/RTHexPaintTool.h"
-#include "RTHexEditorClick.h"
+#include "HexMode/RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "InputState.h" // FInputDeviceRay / FInputRayHit
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h" // HexArea
 #include "Terrain/RTTerrainLibrary.h"

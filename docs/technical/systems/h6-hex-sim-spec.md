@@ -27,7 +27,7 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
 
 | # | Decisione | Motivo |
 |---|-----------|--------|
-| D1 | **Strato hex parallelo** in `Turn/RTHexSim*` su `FRTCellId`; `Grid/` e `ARTTurnManager` **intatti** | Il quadrato resta base di rollback (ADR-0002); zero rischio di regressione sui test esistenti. Lo switch del TurnManager è uno slice successivo. |
+| D1 | **Strato hex parallelo** in `Turn/Resolution/RTHexSim*` su `FRTCellId`; `Grid/` e `ARTTurnManager` **intatti** | Il quadrato resta base di rollback (ADR-0002); zero rischio di regressione sui test esistenti. Lo switch del TurnManager è uno slice successivo. |
 | D2 | Lo snapshot **copia l'occupazione** ma **referenzia** la mappa (puntatore + `MapHash` + `Revision`) | L'occupazione cambia durante la fase → va congelata. La mappa è immutabile per tutto il turno: copiarla a ogni fase sarebbe costoso. `IsSnapshotStale` rileva la violazione invece di ignorarla. |
 | D3 | `FRTHexSnapshot` è uno **struct C++ puro** (non `USTRUCT`), vita = una risoluzione di fase | Contiene un puntatore non-`UPROPERTY` all'asset: renderlo esposto inviterebbe a conservarlo oltre la fase (rischio GC). Le funzioni sono `static` non-`UFUNCTION`, come `URTHexPathLibrary::GraphNeighbors`. |
 | D4 | Identità dell'unità = **`UnitId` intero stabile**, mai un pointer | Determinismo e replay (stesso criterio del TurnLog, che usa la cella di partenza come chiave). |
@@ -37,7 +37,7 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
 
 ## 3. Architettura
 
-### 3.1 Tipi — `Source/RefactorTactics/Turn/RTHexSim.h`
+### 3.1 Tipi — `Source/RefactorTactics/Turn/Resolution/RTHexSim.h`
 
 - `FRTHexSimUnit` (`USTRUCT`) — `UnitId` (int32), `Cell` (`FRTCellId`), `bAlive`, `MoveBudget` (costo massimo
   spendibile nel turno; 0 = immobile).
@@ -47,7 +47,7 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
   `Outcome` (`ERTMoveOutcome`, riusato dal TurnLog: Stayed/Moved/BlockedContested/BlockedByUnit).
 - `FRTHexReachableCell` (`USTRUCT`) — `Cell` + `Cost` (costo cumulato dalla partenza).
 
-### 3.2 Funzioni — `Turn/RTHexSimLibrary.{h,cpp}` (pure, statiche)
+### 3.2 Funzioni — `Turn/Resolution/RTHexSimLibrary.{h,cpp}` (pure, statiche)
 
 | Funzione | Comportamento |
 |---|---|
@@ -65,7 +65,7 @@ Fuori da questo slice: il wiring in `ARTTurnManager` (che resta quadrato finché
 `FindPath` diventa una chiamata con `Blocked = nullptr` (comportamento invariato, coperto dai test `RefactorTactics.HexPath.*`
 esistenti). Motivo: l'occupazione è dinamica e non appartiene all'asset mappa.
 
-## 4. Test — `Tests/RTHexSimTests.cpp` (TDD RED→GREEN), prefisso `RefactorTactics.HexSim.*`
+## 4. Test — `Tests/Turn/Resolution/RTHexSimTests.cpp` (TDD RED→GREEN), prefisso `RefactorTactics.HexSim.*`
 
 | Test | Comportamento |
 |---|---|
@@ -171,5 +171,5 @@ hazard di superficie.
 
 - [`hex-map-roadmap.md`](../../roadmap/hex-map-roadmap.md) — milestone H6 · [`adr-0002-griglia-esagonale.md`](../../decisions/adr-0002-griglia-esagonale.md)
 - Codice esistente riusato: `Pathfinding/RTHexPathLibrary` (A*, `GraphNeighbors`), `Map/RTHexMapAsset`
-  (`ComputeHash`, `Revision`, `FindCell`), `Turn/RTTurnLog.h` (`ERTMoveOutcome`).
+  (`ComputeHash`, `Revision`, `FindCell`), `Turn/Log/RTTurnLog.h` (`ERTMoveOutcome`).
 - Riferimento di semantica per i microstep: `Turn/RTMovementResolver.cpp` (versione quadrata).

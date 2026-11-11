@@ -178,7 +178,7 @@ Modello di risoluzione **raccomandato** — non normativo, e il più semplice a 
 LastStableCell → caduta candidata → risolvi effetti ed esito → committa la posizione finale
 ```
 
-⚠️ **L'invariante non è coperto oggi.** Dei **14** test di `Tests/RTFallOverLedgeTests.cpp`,
+⚠️ **L'invariante non è coperto oggi.** Dei **14** test di `Tests/Map/Cover/RTFallOverLedgeTests.cpp`,
 `Fall.NeverOverlaps` (riga 641) mette in scena **una** caduta e un occupante fermo; nessuno ha **due** unità
 che cadono nello stesso Blast. Lo chiude `Fall.TwoFallersSameLandingIsDeterministic`, con la mutazione
 corrispondente nel gate [#2406](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2406).
@@ -296,7 +296,7 @@ testabile finché quel dato non esiste, e un test che lo asserisse misurerebbe l
 
 > 🔴 **La formula precedente si è auto-invalidata, e la correzione è la formula.** Diceva *«zero occorrenze
 > in `Source/`»*; misurato su `13ddc500`, `FallDamage` è a zero ma `FallEffects` e `ImpactEffects` hanno
-> **una occorrenza ciascuna** — `Tests/RTFallOverLedgeTests.cpp:12`, il commento che ripete questa stessa
+> **una occorrenza ciascuna** — `Tests/Map/Cover/RTFallOverLedgeTests.cpp:12`, il commento che ripete questa stessa
 > frase. È il difetto che [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) rileva
 > per `FastReactionDuration` (*«una sola occorrenza, dentro un commento»*), e la forma che regge nel tempo
 > è quella usata dal Decision Log: **le sole occorrenze sono le note che lo dichiarano**.

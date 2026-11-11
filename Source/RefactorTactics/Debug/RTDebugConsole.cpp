@@ -5,7 +5,7 @@
 // contenuto sia verificabile headless mentre un `FAutoConsoleCommand` non lo e'.
 //
 // ⚠️ **`rt.Debug.DrawCells` e `rt.Debug.Pacing` NON stanno qui**, e non e' una dimenticanza: vivono in
-// `Map/RTHexOverlayConsole.cpp` e `Turn/RTPacingConsole.cpp`, dov'e' il dominio che ispezionano — il
+// `Map/Actor/RTHexOverlayConsole.cpp` e `Turn/Pacing/RTPacingConsole.cpp`, dov'e' il dominio che ispezionano — il
 // precedente del repository, cinque file su cinque. Il gate «gli otto comandi esistono» non si verifica
 // guardando questa cartella ma interrogando il namespace a runtime:
 // `RefactorTactics.Debug.NamespaceDeclaresAllCommands`.
@@ -19,19 +19,19 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/RTPlayerState.h" // TeamIdOf: l'osservatore e' la squadra di chi gioca (#3107)
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTGeometryGrammar.h"
-#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/Structure/RTGeometryGrammar.h"
+#include "Map/Cover/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Misc/FileHelper.h"
-#include "Turn/RTHexSim.h"
-#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
-#include "UI/RTHudViewModel.h"
+#include "Turn/Resolution/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
+#include "UI/HUD/RTHudViewModel.h"
 #include "Unit/RTUnit.h"
 
 namespace
@@ -151,7 +151,7 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 	}
 	TArray<AActor*> Actors;
 	// ✅ **Passa dal confine della RACCOLTA di [#1500]: e' la stessa identica sequenza di `ARTHUD::DrawHUD`**
-	// (`UI/RTHUD.cpp:853-854`, `:952`) — `TArray<AActor*>`, nessuna conversione, nessun campo letto, unico
+	// (`UI/HUD/RTHUD.cpp:853-854`, `:952`) — `TArray<AActor*>`, nessuna conversione, nessun campo letto, unico
 	// consumatore `BuildAuthoritativeIntents` — e un solo gesto sostitutivo coprirebbe entrambi. Il filtro c'e'
 	// e sta a valle, dentro `URTDebugReportLibrary::DescribeIntents`, che compone da `FilterForTeam`
 	// (`Debug/RTDebugReportLibrary.cpp:38`), la riga che il commento a `:33-35` chiama «il checkpoint intero».
@@ -188,7 +188,7 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 // 🔴 **Stampano, non disegnano — e va detto qui invece che scoperto in PIE.** Una stesura precedente di
 // questa intestazione affermava che «accendono il disegno»: falso, nessuno dei tre tocca uno stato di
 // overlay. L'unico comando che disegna davvero e' `rt.Debug.DrawCells`, che chiama
-// `SetCellOverlayEnabled` (`Map/RTHexOverlayConsole.cpp`).
+// `SetCellOverlayEnabled` (`Map/Actor/RTHexOverlayConsole.cpp`).
 //
 // ⏳ **Conseguenza dichiarata**: il DoD di #80 chiede comandi che disegnino, e `PIE-V01-DEBUG` lo
 // verifichera' a schermo. Per `DrawPaths`, `DrawCover` e `DrawResolution` quel lavoro **non e' fatto**:

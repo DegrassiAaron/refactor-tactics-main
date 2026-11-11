@@ -119,7 +119,7 @@ dead-end che §3.2 vieta. Il percorso di ritorno esiste in entrambi i sensi — 
 `ReturnMain` svuota — quindi l'invariante 2 regge senza eccezioni.
 
 ⚠️ **Il viewer non possiede la riproduzione**: posizione, ritmo e abilitazione dei comandi stanno nel
-view model di `#472` (`Replay/RTReplayViewModel.h`), che si prova senza widget. È la stessa separazione
+view model di `#472` (`Replay/Viewer/RTReplayViewModel.h`), che si prova senza widget. È la stessa separazione
 di `FRTScreenStack` rispetto ai widget di navigazione — *la logica che governa la UI non è UI* — e vale
 qui per la stessa ragione: senza, i criteri di R6 sarebbero verificabili solo a schermo.
 

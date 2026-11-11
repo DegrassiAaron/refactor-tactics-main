@@ -7,7 +7,7 @@
 // `FRTGeometrySegment` per i muri interni (#712). ⚠️ L'inclusione va in QUESTA direzione e non nell'altra:
 // `RTGeometryGrammar.h` include gia' `RTHexCellData.h`, quindi mettere un segmento dentro la cella
 // chiuderebbe un ciclo. E' il motivo per cui i muri interni vivono sull'ASSET e non sulla cella.
-#include "Map/RTGeometryGrammar.h"
+#include "Map/Structure/RTGeometryGrammar.h"
 #include "RTHexMapAsset.generated.h"
 
 /**

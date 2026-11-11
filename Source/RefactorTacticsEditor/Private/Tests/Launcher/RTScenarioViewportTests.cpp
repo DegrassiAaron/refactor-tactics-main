@@ -1,0 +1,633 @@
+#include "Misc/AutomationTest.h"
+
+#include "GameFramework/Actor.h"
+#include "UObject/UnrealType.h"
+#include "Launcher/RTScenarioPreviewSubsystem.h"
+#include "Launcher/RTScenarioViewportModel.h"
+#include "Unit/RTUnit.h" // ARTUnit::TeamColorFor, per il criterio 5
+
+#include "Editor.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/Actor/RTMapVisuals.h"
+#include "Map/RTHexMapAsset.h"
+#include "ScenarioHarness/Authoring/RTScenarioAuthoring.h"
+#include "ScenarioHarness/Authoring/RTScenarioDraft.h"
+#include "ScenarioHarness/Authoring/RTScenarioIndex.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Lo stato iniziale dello scenario nel viewport (#1753).
+ *
+ * ⛔ **Cosa questi test NON coprono, e non e' una lacuna da riempire con un'asserzione finta.** Che il
+ * graybox si legga, che una copertura alta si distingua da una bassa, che la porta chiusa si distingua
+ * dall'aperta e che il cuneo dica davvero l'orientamento sono giudizi su cio' che appare a schermo: nessun
+ * automation test li vede, e restano voce di seduta. Qui c'e' cio' che, sbagliato, produce un viewport
+ * **plausibile e falso** — la posizione, la rotazione, il layer.
+ */
+
+namespace
+{
+	/** I parametri geometrici di una mappa qualunque: origine non banale, per non nascondere un offset perso. */
+	const FVector TestOrigin(1000.f, -250.f, 40.f);
+	constexpr float TestHexSize = 150.f;   // il valore corrente del progetto (D-163)
+	constexpr float TestLayerHeight = 250.f;
+}
+
+/**
+ * Il marcatore sta SOPRA la faccia della cella, non dentro il prisma.
+ *
+ * 🔴 E' il difetto che `RTMapVisuals.h` documenta essere gia' costato **due volte**: qualcosa disegnato
+ * sotto `RTCellTopZ` finisce dentro un volume opaco, e a schermo non si distingue da qualcosa che non e'
+ * stato disegnato affatto — con la suite verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportMarkerSitsOnTheCellTest,
+	"RefactorTactics.DevSandboxLauncher.MarkerSitsOnTheCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportMarkerSitsOnTheCellTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(2, -1, 0);
+	const FTransform T = RTScenarioViewport::MarkerTransform(
+		Cell, ERTHexDirection::E, TestOrigin, TestHexSize, TestLayerHeight);
+
+	const FVector Center = URTHexLibrary::AxialToWorld(Cell, TestOrigin, TestHexSize, TestLayerHeight);
+
+	TestTrue(TEXT("planarmente e' il centro della cella, non un vicino"),
+		FVector2D(T.GetLocation() - Center).IsNearlyZero());
+	TestEqual(TEXT("e sta esattamente sulla faccia superiore del prisma"),
+		static_cast<float>(T.GetLocation().Z - Center.Z), RTCellTopZ, 0.01f);
+	TestTrue(TEXT("scala unitaria: la taglia la decide chi disegna"),
+		T.GetScale3D().Equals(FVector::OneVector));
+	return true;
+}
+
+/**
+ * Il marcatore GUARDA il vicino che il facing nomina — tutte e sei le direzioni.
+ *
+ * ⚠️ **L'oracolo e' il vicino, non un angolo scritto nel test.** Asserire «E vale 0 gradi» ricopierebbe qui
+ * la convenzione degli assi, e il giorno in cui `AxialDirection` cambiasse il test resterebbe verde
+ * confermando la convenzione vecchia. Qui si chiede invece: proiettando in avanti dal centro, si finisce
+ * piu' vicino al vicino nominato che a ogni altro? Quella domanda sopravvive a un cambio di assi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportMarkerFacesItsNeighbourTest,
+	"RefactorTactics.DevSandboxLauncher.MarkerFacesItsNeighbour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportMarkerFacesItsNeighbourTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const FVector Center = URTHexLibrary::AxialToWorld(Cell, TestOrigin, TestHexSize, TestLayerHeight);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Facing = static_cast<ERTHexDirection>(D);
+		const FTransform T = RTScenarioViewport::MarkerTransform(
+			Cell, Facing, TestOrigin, TestHexSize, TestLayerHeight);
+
+		// Un passo avanti lungo il forward del marcatore, alla distanza di un vicino.
+		const FVector Ahead = Center + T.GetRotation().GetForwardVector() * (TestHexSize * 1.7320508f);
+
+		int32 Nearest = INDEX_NONE;
+		double Best = TNumericLimits<double>::Max();
+		for (int32 N = 0; N < 6; ++N)
+		{
+			const FRTCellId Candidate = URTHexLibrary::Neighbor(Cell, static_cast<ERTHexDirection>(N));
+			const FVector Pos = URTHexLibrary::AxialToWorld(Candidate, TestOrigin, TestHexSize, TestLayerHeight);
+			const double Dist = FVector::DistSquared(FVector(Ahead.X, Ahead.Y, Pos.Z), Pos);
+			if (Dist < Best)
+			{
+				Best = Dist;
+				Nearest = N;
+			}
+		}
+
+		TestEqual(*FString::Printf(TEXT("la direzione %d punta al proprio vicino"), D), Nearest, D);
+	}
+	return true;
+}
+
+/**
+ * Il LAYER non si perde: due celle con lo stesso `X/Y` e piano diverso sono due marcatori distinti.
+ *
+ * Un viewport che le fondesse mostrerebbe una sola unita' dove ce ne sono due, e nessun errore lo direbbe:
+ * la lettura resterebbe coerente e sbagliata su ponte, tetto e tunnel.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportMarkerKeepsTheLayerTest,
+	"RefactorTactics.DevSandboxLauncher.MarkerKeepsTheLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportMarkerKeepsTheLayerTest::RunTest(const FString&)
+{
+	const FTransform Ground = RTScenarioViewport::MarkerTransform(
+		FRTCellId(1, 1, 0), ERTHexDirection::E, TestOrigin, TestHexSize, TestLayerHeight);
+	const FTransform Above = RTScenarioViewport::MarkerTransform(
+		FRTCellId(1, 1, 1), ERTHexDirection::E, TestOrigin, TestHexSize, TestLayerHeight);
+
+	TestTrue(TEXT("stesso X/Y: planarmente coincidono"),
+		FVector2D(Above.GetLocation() - Ground.GetLocation()).IsNearlyZero());
+	TestEqual(TEXT("e sono separati da un layer esatto"),
+		static_cast<float>(Above.GetLocation().Z - Ground.GetLocation().Z), TestLayerHeight, 0.01f);
+	return true;
+}
+
+/** I piani occupati si dichiarano ordinati, senza ripetizioni, e nella forma che si legge. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportDeclaresItsLayersTest,
+	"RefactorTactics.DevSandboxLauncher.ViewportDeclaresItsLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportDeclaresItsLayersTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("nessuna unita': lo dice invece di tacere"),
+		RTScenarioViewport::DescribeLayers(RTScenarioViewport::LayersInUse({})), FString(TEXT("nessun layer")));
+
+	TArray<FRTScenarioUnitView> Units;
+	FRTScenarioUnitView A; A.Cell = FRTCellId(0, 0, 1); Units.Add(A);
+	FRTScenarioUnitView B; B.Cell = FRTCellId(1, 0, 0); Units.Add(B);
+	FRTScenarioUnitView C; C.Cell = FRTCellId(2, 0, 1); Units.Add(C); // ripete il layer 1
+
+	const TArray<int32> Layers = RTScenarioViewport::LayersInUse(Units);
+	TestEqual(TEXT("due piani distinti, non tre"), Layers.Num(), 2);
+	TestEqual(TEXT("crescenti e non nell'ordine del file"), Layers[0], 0);
+	TestEqual(TEXT("il secondo e' il layer 1"), Layers[1], 1);
+	TestEqual(TEXT("e si leggono"), RTScenarioViewport::DescribeLayers(Layers), FString(TEXT("L0, L1")));
+	return true;
+}
+
+/**
+ * Le squadre si distinguono per RAGGIO, e il raggio piu' grande sta dentro la cella.
+ *
+ * 🔴 Il colore non e' un'opzione oggi: il kit graybox esce con lo **slot materiale vuoto** (#1714), quindi
+ * due squadre colorate diversamente sarebbero identiche a schermo e ogni test resterebbe verde. Una
+ * differenza di dimensione si vede senza materiali — ma solo finche' non invade le celle vicine, ed e' cio'
+ * che la seconda meta' di questo test misura invece di supporre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportTeamsDifferByShapeTest,
+	"RefactorTactics.DevSandboxLauncher.TeamsDifferByShape",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportTeamsDifferByShapeTest::RunTest(const FString&)
+{
+	TestNotEqual(TEXT("squadra 0 e squadra 1 non hanno lo stesso anello"),
+		RTScenarioViewport::TeamRingScale(0), RTScenarioViewport::TeamRingScale(1));
+	TestEqual(TEXT("la squadra 0 riusa il raggio di ARTUnit::TeamRing"),
+		RTScenarioViewport::TeamRingScale(0), 1.6f, 0.001f);
+	TestEqual(TEXT("oltre la quarta squadra si FERMA invece di riavvolgersi sulla prima"),
+		RTScenarioViewport::TeamRingScale(9), RTScenarioViewport::MaxTeamRingScale(), 0.001f);
+	TestEqual(TEXT("una squadra negativa ripiega sulla prima invece di leggere fuori"),
+		RTScenarioViewport::TeamRingScale(-3), RTScenarioViewport::TeamRingScale(0), 0.001f);
+
+	// Il vincolo fisico: due anelli su celle adiacenti non si devono toccare. Il passo della griglia si
+    // MISURA dai due centri invece di scrivere `sqrt(3) * HexSize` a mano.
+	const FVector Here = URTHexLibrary::AxialToWorld(FRTCellId(0, 0), TestOrigin, TestHexSize, TestLayerHeight);
+	const FVector Next = URTHexLibrary::AxialToWorld(FRTCellId(1, 0), TestOrigin, TestHexSize, TestLayerHeight);
+	const double Step = FVector::Dist2D(Here, Next);
+
+	// L'anello e' un cilindro engine (raggio 50 a scala 1) in scala ASSOLUTA, come in `ARTUnit`.
+	const double LargestRadius = RTScenarioViewport::MaxTeamRingScale() * 50.0;
+	TestTrue(TEXT("l'anello piu' grande non invade la cella vicina"), 2.0 * LargestRadius < Step);
+	return true;
+}
+
+/**
+ * Il sottosistema NON mostra nulla quando non c'e' niente da mostrare, e i due «niente» restano distinti.
+ *
+ * ⚠️ Il caso che conta e' il secondo: una facade **chiusa** deve dare `false` e lasciare lo schermo vuoto.
+ * Un'anteprima che sopravvive alla chiusura mostra uno scenario che il pannello non sta piu' dicendo, ed e'
+ * il modo in cui una lente diventa una bugia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportRefusesWithoutAScenarioTest,
+	"RefactorTactics.DevSandboxLauncher.PreviewRefusesWithoutAScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportRefusesWithoutAScenarioTest::RunTest(const FString&)
+{
+	if (!TestNotNull(TEXT("GEditor esiste nel contesto editor"), GEditor))
+	{
+		return false;
+	}
+
+	URTScenarioPreviewSubsystem* Preview = GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>();
+	if (!TestNotNull(TEXT("il sottosistema d'anteprima e' registrato"), Preview))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("senza facade non si mostra niente"), Preview->ShowScenario(nullptr));
+	TestFalse(TEXT("e non resta niente a schermo"), Preview->IsShowing());
+
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("facade CHIUSA: nessuna anteprima"), Preview->ShowScenario(Authoring));
+	TestFalse(TEXT("e nemmeno un residuo"), Preview->IsShowing());
+	TestEqual(TEXT("nessun marcatore"), Preview->NumUnitsShown(), 0);
+
+	Preview->ClearPreview();
+	return true;
+}
+
+/**
+ * Il giro vero: uno scenario del corpus produce **un marcatore per unita' dichiarata**.
+ *
+ * 🔑 **L'oracolo e' la facade, non un numero scritto qui.** `ListUnits().Num()` e' cio' che il file dichiara;
+ * confrontarlo con i marcatori posati prende il difetto che conta — un'unita' che non arriva a schermo, o
+ * una che arriva due volte perche' la posa e' incrementale invece che ricostruita.
+ *
+ * ⚠️ **Non asserisce che si VEDA**: asserisce che sia stata posata. La leggibilita' e' di seduta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportShowsEveryDeclaredUnitTest,
+	"RefactorTactics.DevSandboxLauncher.PreviewShowsEveryDeclaredUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportShowsEveryDeclaredUnitTest::RunTest(const FString&)
+{
+	if (!TestNotNull(TEXT("GEditor esiste nel contesto editor"), GEditor))
+	{
+		return false;
+	}
+	URTScenarioPreviewSubsystem* Preview = GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>();
+	if (!TestNotNull(TEXT("il sottosistema d'anteprima e' registrato"), Preview))
+	{
+		return false;
+	}
+
+	// Uno scenario del corpus con piu' di due unita': lo si CERCA invece di cablarne l'id, perche' un id
+	// scritto qui lega il test a un file che qualcuno puo' rinominare.
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+
+	int32 Expected = 0;
+	FString ChosenId;
+	for (const FString& Id : URTScenarioAuthoring::ListScenarioIds(FString(), FString()))
+	{
+		FString OpenError;
+		if (Authoring->OpenById(Id, OpenError) != ERTScenarioAuthoringResult::Success)
+		{
+			continue;
+		}
+		if (Authoring->ListUnits().Num() > 2)
+		{
+			Expected = Authoring->ListUnits().Num();
+			ChosenId = Id;
+			break;
+		}
+		Authoring->Close();
+	}
+
+	if (!TestTrue(TEXT("il corpus offre uno scenario con piu' di due unita'"), Expected > 2))
+	{
+		return false;
+	}
+
+	const bool bShown = Preview->ShowScenario(Authoring);
+	Authoring->Close();
+
+	if (!TestTrue(*FString::Printf(TEXT("l'anteprima di '%s' si posa"), *ChosenId), bShown))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("un marcatore per ogni unita' dichiarata, ne' uno di piu' ne' uno di meno"),
+		Preview->NumUnitsShown(), Expected);
+	TestTrue(TEXT("e dichiara su quale piano sta ragionando"), !Preview->GetLayerReadout().IsEmpty());
+
+	// Riposare lo stesso scenario non deve raddoppiare i marcatori: la posa si RICOSTRUISCE.
+	FString Reopen;
+	Authoring->OpenById(ChosenId, Reopen);
+	Preview->ShowScenario(Authoring);
+	Authoring->Close();
+	TestEqual(TEXT("riaprendo, i marcatori non si sommano ai precedenti"),
+		Preview->NumUnitsShown(), Expected);
+
+	Preview->ClearPreview();
+	TestFalse(TEXT("e si tolgono tutti"), Preview->IsShowing());
+	return true;
+}
+
+/**
+ * Su **ogni** scenario spedito, i marcatori sono tanti quante le unita' — e stanno su celle che l'arena ha.
+ *
+ * 🔑 **Due difetti in una proprieta' sola, e nessuno dei due si vedrebbe a schermo.**
+ *
+ * 1. *Una cella che l'arena non contiene*: il marcatore galleggerebbe sopra il vuoto. A occhio si legge come
+ *    un'unita' «un po' fuori», che e' indistinguibile da una mappa disegnata male.
+ * 2. *Due marcatori nella stessa posizione*: succede se la mappatura **perde il layer**. Due unita' su
+ *    `(3,4,L0)` e `(3,4,L1)` sono due unita', e fuse in una il viewport ne mostra una sola — senza errori,
+ *    senza differenze visibili, e con la suite verde.
+ *
+ * Contare le posizioni DISTINTE prende entrambi con un'asserzione, ed e' il corpus a fornire i casi invece
+ * di me: 92 scenari scritti da chi non stava pensando a questo test.
+ *
+ * ⚠️ **Che una cella sia legale lo decide il RUNTIME** (`URTScenarioLoader::ValidateUnitPlacement`), non
+ * questo test: qui non si riafferma quella regola, si verifica che la PRESENTAZIONE non perda per strada
+ * cio' che il dato dichiara. Se un giorno fallisse, la domanda giusta e' «la mappatura ha perso qualcosa?»,
+ * non «la validazione e' rotta?».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportEveryShippedScenarioMapsCleanlyTest,
+	"RefactorTactics.DevSandboxLauncher.EveryShippedScenarioMapsCleanly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportEveryShippedScenarioMapsCleanlyTest::RunTest(const FString&)
+{
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+
+	const TArray<FString> Ids = URTScenarioAuthoring::ListScenarioIds(FString(), FString());
+	if (!TestTrue(TEXT("il corpus non e' vuoto"), Ids.Num() > 10))
+	{
+		return false;
+	}
+
+	int32 Examined = 0;
+	int32 Skipped = 0;
+	int32 TotalUnits = 0;
+	TArray<FString> OffMap;
+	TArray<FString> Fused;
+
+	for (const FString& Id : Ids)
+	{
+		FString OpenError;
+		if (Authoring->OpenById(Id, OpenError) != ERTScenarioAuthoringResult::Success)
+		{
+			// Uno scenario illeggibile e' un difetto SUO, e ha gia' i propri test: qui si conta e si va
+			// avanti, invece di far fallire questo per un motivo che non lo riguarda.
+			++Skipped;
+			continue;
+		}
+
+		const URTHexMapAsset* Arena = Authoring->BuildArena(GetTransientPackage());
+		const TArray<FRTScenarioUnitView> Units = Authoring->ListUnits();
+
+		if (Arena && Units.Num() > 0)
+		{
+			FVector Origin = FVector::ZeroVector;
+			const float HexSize = Arena->HexSize;
+			const float LayerHeight = Arena->LayerHeight;
+
+			TSet<FVector> Positions;
+			for (const FRTScenarioUnitView& Unit : Units)
+			{
+				if (Arena->FindCell(Unit.Cell) == nullptr)
+				{
+					OffMap.Add(FString::Printf(TEXT("%s: %s"), *Id, *Unit.Cell.ToString()));
+				}
+				Positions.Add(RTScenarioViewport::MarkerTransform(
+					Unit.Cell, Unit.Facing, Origin, HexSize, LayerHeight).GetLocation());
+			}
+
+			if (Positions.Num() != Units.Num())
+			{
+				Fused.Add(FString::Printf(TEXT("%s: %d unita' -> %d posizioni"),
+					*Id, Units.Num(), Positions.Num()));
+			}
+
+			TotalUnits += Units.Num();
+			++Examined;
+		}
+
+		Authoring->Close();
+	}
+
+	// ⛔ Nessun limite silenzioso: quanto si e' guardato, e quanto si e' saltato, si LEGGE.
+	AddInfo(FString::Printf(TEXT("%d scenari esaminati, %d saltati (non apribili), %d unita' in totale"),
+		Examined, Skipped, TotalUnits));
+
+	TestTrue(TEXT("il corpus ha davvero prodotto scenari con unita'"), Examined > 10 && TotalUnits > 20);
+
+	TestEqual(*FString::Printf(TEXT("nessuna unita' fuori dall'arena (%s)"),
+		OffMap.Num() ? *FString::Join(OffMap, TEXT(" · ")) : TEXT("")), OffMap.Num(), 0);
+
+	TestEqual(*FString::Printf(TEXT("nessun marcatore fuso (%s)"),
+		Fused.Num() ? *FString::Join(Fused, TEXT(" · ")) : TEXT("")), Fused.Num(), 0);
+	return true;
+}
+
+/**
+ * IL SOTTOSISTEMA NON POSSIEDE ATTORI DI LIVELLO — `#2115`.
+ *
+ * 🔴 **Il crash che questa regola previene è stato vero**: con un'anteprima a schermo, aprire un altro
+ * livello terminava l'editor con `World Memory Leaks`. La catena, dal log del 2026-09-02:
+ *
+ *     UnrealEdEngine::AddReferencedObjects( RTScenarioPreviewSubsystem )
+ *       -> URTScenarioPreviewSubsystem::PreviewUnits = RTScenarioPreviewActor
+ *        -> ARTScenarioPreviewActor:: = Level ...PersistentLevel
+ *         -> ULevel:: = World L_GrayKitPlayground
+ *             ^ This reference is preventing the old World from being GC'd ^
+ *
+ * 🔑 **Perché per riflessione e non «apri un livello e guarda».** `ShowScenario` sceglie il mondo da sé —
+ * `GEditor->GetEditorWorldContext().World()` — quindi un test non può fornirne uno usa-e-getta né
+ * distruggerlo, e distruggere quello dell'editor dentro una suite non è un'opzione. Ciò che si può
+ * misurare è la **regola** invece del suo sintomo: un `UEditorSubsystem` sopravvive a ogni mondo, quindi
+ * non può tenere forte un attore che vive nel livello.
+ *
+ * ⚠️ E vale anche per la proprietà che qualcuno aggiungerà domani: il test non nomina i due campi di oggi,
+ * itera su tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewOwnsNoActorTest,
+	"RefactorTactics.Editor.PreviewSubsystemHoldsNoStrongActorReference",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewOwnsNoActorTest::RunTest(const FString&)
+{
+	UClass* Subsystem = URTScenarioPreviewSubsystem::StaticClass();
+	if (!TestNotNull(TEXT("il sottosistema esiste come UClass"), Subsystem))
+	{
+		return false;
+	}
+
+	int32 Inspected = 0;
+	for (TFieldIterator<FObjectProperty> It(Subsystem); It; ++It)
+	{
+		const FObjectProperty* Prop = *It;
+		if (!Prop || !Prop->PropertyClass)
+		{
+			continue;
+		}
+		++Inspected;
+		const bool bIsActor = Prop->PropertyClass->IsChildOf(AActor::StaticClass());
+		TestFalse(*FString::Printf(
+			TEXT("'%s' e' un riferimento FORTE a %s: un UEditorSubsystem che possiede un attore di livello ")
+			TEXT("tiene in vita il mondo, e cambiare mappa fa crashare l'editor (#2115)"),
+			*Prop->GetName(), *Prop->PropertyClass->GetName()), bIsActor);
+	}
+
+	// ⚠️ Senza questa riga il test sarebbe verde anche se l'iterazione non vedesse niente — che e' il modo
+	// piu' silenzioso in cui un gate strutturale smette di guardare.
+	TestTrue(FString::Printf(TEXT("qualche UPROPERTY oggetto e' stata ispezionata (%d)"), Inspected),
+		Inspected > 0);
+	return true;
+}
+
+/**
+ * L'ANTEPRIMA SI TOGLIE PRIMA CHE IL MONDO MUOIA — `#2115`.
+ *
+ * 🔑 `FEditorDelegates::OnMapLoad` è trasmesso da `FEditorFileUtils::LoadMap` (`FileHelpers.cpp:3238`),
+ * **prima** che il comando di mappa avvii `Map_Load → EditorDestroyWorld`. È l'aggancio che arriva in
+ * tempo; ⚠️ `OnMapOpened` — quello che il launcher usa già — scatta a mondo nuovo pronto, cioè **dopo** il
+ * punto in cui si moriva.
+ *
+ * ⛔ **Questo non è ciò che impedisce il crash**, e confonderli sarebbe pericoloso: il crash lo impedisce
+ * il possesso debole, su ogni strada. `OnMapLoad` è trasmesso solo da `LoadMap`, quindi una mappa aperta
+ * da console lo salterebbe. Questo test copre la cortesia — non lasciare a schermo l'anteprima del livello
+ * che si sta abbandonando — e la sua assenza non sarebbe un crash, sarebbe una bugia a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewClearsOnMapLoadTest,
+	"RefactorTactics.Editor.PreviewClearsWhenTheMapIsAboutToChange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewClearsOnMapLoadTest::RunTest(const FString&)
+{
+	if (!TestNotNull(TEXT("GEditor esiste nel contesto editor"), GEditor))
+	{
+		return false;
+	}
+	URTScenarioPreviewSubsystem* Preview = GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>();
+	if (!TestNotNull(TEXT("il sottosistema d'anteprima e' registrato"), Preview))
+	{
+		return false;
+	}
+
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	FString Error;
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+	// Il primo scenario del corpus che si apre: nominarne uno a mano legherebbe il test a un file che
+	// domani puo' cambiare nome, ed e' la stessa scelta degli altri test di questo file.
+	bool bOpened = false;
+	for (const FString& Id : URTScenarioAuthoring::ListScenarioIds(FString(), FString()))
+	{
+		if (Authoring->OpenById(Id, Error) == ERTScenarioAuthoringResult::Success)
+		{
+			bOpened = true;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("uno scenario del corpus si apre"), bOpened))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// ⚠️ Se l'anteprima non parte, il resto del test non misura niente: senza qualcosa a schermo, «tolta»
+	// e' vero per default. E' la stessa trappola del test di invarianza senza effetto.
+	if (!TestTrue(TEXT("l'anteprima e' a schermo prima del cambio mappa"), Preview->ShowScenario(Authoring)))
+	{
+		Preview->ClearPreview();
+		return false;
+	}
+	TestTrue(TEXT("e IsShowing lo conferma"), Preview->IsShowing());
+
+	// L'editor annuncia che sta per caricare un'altra mappa.
+	FCanLoadMap CanLoad;
+	FEditorDelegates::OnMapLoad.Broadcast(TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena"), CanLoad);
+
+	TestFalse(TEXT("l'anteprima si e' tolta da sola"), Preview->IsShowing());
+	TestEqual(TEXT("e non e' rimasto un marcatore"), Preview->NumUnitsShown(), 0);
+
+	// ⛔ E l'annuncio non e' stato usato per VIETARE il caricamento: farsi da parte, non mettersi di traverso.
+	TestTrue(TEXT("il caricamento resta permesso"), CanLoad.Get());
+
+	Preview->ClearPreview();
+	return true;
+}
+
+/**
+ * Il corpo dell'unita' dichiara la sua squadra col COLORE, e non lo inventa (#3104).
+ *
+ * 🔴 **La seduta `U44` del 2026-09-12 e' stata giudicata ❌** — *«si vedono dei cilindri grigi che si
+ * muovono nell'editor, non si capisce»* — e la causa era misurata nel codice: l'anteprima posava istanze
+ * di mesh engine **senza materiale**, e l'unica differenza fra due squadre era il RAGGIO di un anello.
+ *
+ * ⚠️ **Cosa questo test NON puo' dire, ed e' la meta' che conta.** Che a schermo si veda un azzurro e un
+ * rosso e' un giudizio percettivo su un viewport d'Editor: lo chiude la riesecuzione di `U44`, non un
+ * automation test. Qui si misura che i colori **siano decisi, distinti e presi dall'owner giusto** —
+ * cioe' cio' che puo' sbagliare in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportTeamBodyColorTest,
+	"RefactorTactics.ScenarioViewport.TeamBodyColorNamesTheSide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportTeamBodyColorTest::RunTest(const FString&)
+{
+	// --- criterio 1: due squadre non si leggono uguali ---------------------------------------------
+	//
+	// ⛔ **L'oracolo e' una DISTANZA, non una disuguaglianza.** Due colori possono differire di un bit ed
+	// essere indistinguibili a occhio: passerebbero `!=` e fallirebbero la seduta, cioe' il test direbbe
+	// verde proprio sul difetto che esiste per bloccare. La soglia e' la stessa famiglia di
+	// `RefactorTactics.Hex.SurfaceColorsAreDistinguishable` — somma delle differenze per canale.
+	auto Distanza = [](const FLinearColor& A, const FLinearColor& B)
+	{
+		return FMath::Abs(A.R - B.R) + FMath::Abs(A.G - B.G) + FMath::Abs(A.B - B.B);
+	};
+
+	const FLinearColor Zero = RTScenarioViewport::TeamBodyColor(0);
+	const FLinearColor Uno = RTScenarioViewport::TeamBodyColor(1);
+
+	TestTrue(FString::Printf(TEXT("le due squadre si distinguono: distanza %.2f"), Distanza(Zero, Uno)),
+		Distanza(Zero, Uno) > 0.4f);
+
+	// --- criterio 2: nessuna coppia collide, fino all'ultima squadra distinta ------------------------
+	TArray<FLinearColor> Tavolozza;
+	for (int32 Team = 0; Team < 4; ++Team)
+	{
+		Tavolozza.Add(RTScenarioViewport::TeamBodyColor(Team));
+	}
+
+	for (int32 A = 0; A < Tavolozza.Num(); ++A)
+	{
+		for (int32 B = A + 1; B < Tavolozza.Num(); ++B)
+		{
+			TestTrue(FString::Printf(TEXT("le squadre %d e %d non collidono: distanza %.2f"),
+					A, B, Distanza(Tavolozza[A], Tavolozza[B])),
+				Distanza(Tavolozza[A], Tavolozza[B]) > 0.25f);
+		}
+	}
+
+	// --- criterio 3: nessun colore e' il GRIGIO che la seduta ha bocciato ----------------------------
+	//
+	// 🎯 Il difetto verbatim era «cilindri **grigi**». Un colore i cui tre canali coincidono e' grigio, e
+	// sarebbe la stessa schermata con un altro nome.
+	for (int32 Team = 0; Team < Tavolozza.Num(); ++Team)
+	{
+		const FLinearColor C = Tavolozza[Team];
+		const float Spread = FMath::Max3(C.R, C.G, C.B) - FMath::Min3(C.R, C.G, C.B);
+		TestTrue(FString::Printf(TEXT("il colore della squadra %d non e' un grigio: spread %.2f"), Team, Spread),
+			Spread > 0.15f);
+	}
+
+	// --- criterio 4: si FERMA invece di riavvolgersi -------------------------------------------------
+	//
+	// ⚠️ Con il modulo, la squadra oltre l'ultima tornerebbe al colore della `0`: due squadre che si
+	// SCAMBIANO il colore, che e' peggio di due che lo condividono — la prima si legge sbagliata, la
+	// seconda si legge ambigua. E' la stessa scelta gia' fatta su `TeamRingScale`.
+	TestEqual(TEXT("oltre l'ultima squadra il colore si ferma"),
+		RTScenarioViewport::TeamBodyColor(9).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(3).ToFColor(true));
+
+	TestNotEqual(TEXT("e non torna a quello della squadra 0"),
+		RTScenarioViewport::TeamBodyColor(9).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(0).ToFColor(true));
+
+	// Un id negativo non e' un caso previsto dal formato, e non deve produrre un indice fuori range.
+	TestEqual(TEXT("un id negativo non esce dalla tavolozza"),
+		RTScenarioViewport::TeamBodyColor(-3).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(0).ToFColor(true));
+
+	// --- criterio 5: le prime due VENGONO dal HUD, non da una tabella parallela ----------------------
+	//
+	// 🔑 **E' l'asserzione che impedisce la seconda autorita'.** Se un giorno il HUD cambiasse i suoi due
+	// colori e l'anteprima no, i due schermi direbbero cose diverse sulla stessa squadra — in silenzio, e
+	// nessun altro controllo lo vedrebbe. Qui si ricostruisce la chiamata del HUD e si confronta.
+	const FLinearColor HudZero = ARTUnit::TeamColorFor(0,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+	const FLinearColor HudUno = ARTUnit::TeamColorFor(1,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+
+	TestEqual(TEXT("la squadra 0 porta l'azzurro del HUD"), Zero.ToFColor(true), HudZero.ToFColor(true));
+	TestEqual(TEXT("la squadra 1 porta il rosso del HUD"), Uno.ToFColor(true), HudUno.ToFColor(true));
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

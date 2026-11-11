@@ -80,3 +80,4 @@ Dove sono finiti:
 | `docs/archive/pdr-v0.1/RT_PDR_NN_*.pdf` | [`pdr-v0.1/RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione `PDR-NN` |
 | `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../research/prd/`](../research/prd/), quattro documenti tematici |
 | `docs/src/prd/sequenza-risoluzione-turno.pdf` | [`gameplay/sequenza-turno-exploratory.md`](gameplay/sequenza-turno-exploratory.md) — c'era già |
+| un file C++ di `Source/` citato col percorso di prima del 2026-11-11 (`Turn/RTHexSimLibrary.cpp`, `Tests/RTVeilTests.cpp`, …) | la sede di oggi in `tools/architettura/mappa-cartelle-4061.json`, la mappa vecchio → nuovo della riorganizzazione delle cartelle ([`D-606`](../decisions/RT_PDR_00_Decision_Log.md), [#4061](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4061)) |

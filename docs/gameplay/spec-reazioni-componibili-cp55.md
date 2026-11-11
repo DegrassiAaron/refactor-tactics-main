@@ -171,14 +171,14 @@ l'azione core.
 
 | File | Modifica |
 |---|---|
-| `Turn/RTActionEvent.h` | `ERTActionEffect::DamageReduction` (in coda all'enum) |
-| `Turn/RTActionEffectLibrary.cpp` | traduzione del nuovo effetto |
-| `Turn/RTReactionLibrary.{h,cpp}` | `BuildReactionEvents` + regola di bersaglio per tipo |
+| `Turn/Actions/RTActionEvent.h` | `ERTActionEffect::DamageReduction` (in coda all'enum) |
+| `Turn/Actions/RTActionEffectLibrary.cpp` | traduzione del nuovo effetto |
+| `Turn/Reaction/RTReactionLibrary.{h,cpp}` | `BuildReactionEvents` + regola di bersaglio per tipo |
 | `Turn/RTTurnManager.cpp` | pass delle reazioni senza rami su ActionId; scudo prima della risoluzione; identità nelle due voci di log |
-| `Turn/RTTurnLog.h`, `Turn/RTTurnLogLibrary.cpp` | campo `ActionId`, ordine, hash, formato v3, descrizione |
-| `Ability/RTCatalogLibrary.cpp` | `Action.Deflect` dichiara la propria riduzione |
-| `Ability/RTHeroCatalogLibrary.{h,cpp}` | `MakeHeroReactionFromCoreAction` |
-| `Tests/RTComposableReactionTests.cpp` (nuovo), `Tests/RTTurnLogSerializationTests.cpp` | i cinque test |
+| `Turn/Log/RTTurnLog.h`, `Turn/Log/RTTurnLogLibrary.cpp` | campo `ActionId`, ordine, hash, formato v3, descrizione |
+| `Ability/Catalog/RTCatalogLibrary.cpp` | `Action.Deflect` dichiara la propria riduzione |
+| `Ability/Catalog/RTHeroCatalogLibrary.{h,cpp}` | `MakeHeroReactionFromCoreAction` |
+| `Tests/Turn/Reaction/RTComposableReactionTests.cpp` (nuovo), `Tests/Turn/Log/RTTurnLogSerializationTests.cpp` | i cinque test |
 
 ## 7. Rischi
 

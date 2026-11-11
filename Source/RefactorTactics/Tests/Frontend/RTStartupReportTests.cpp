@@ -1,0 +1,862 @@
+// CP 46.2 (#937) — gli esiti d'avvio e le fasi di caricamento.
+//
+// Questi test provano il **vocabolario**, che e' la parte istruita prima di scrivere il codice: quali
+// esiti esistono, quali sono fatali, e come si comporta un report che ne accumula piu' d'uno.
+//
+// La forma segue quella di `RTFrontendNavigationTests.cpp`: tipi puri, nessun mondo, nessun widget.
+
+#include "Misc/AutomationTest.h"
+#include "Frontend/RTStartupReport.h"
+#include "Frontend/RTFrontendWidgets.h"
+#include "Tests/Shared/RTWorldFixtures.h"
+#include "RTGameMode.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h" // #1921: il caso «asset presente e VUOTO» va costruito, non evocato
+#include "Engine/World.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	/**
+	 * Tutti i valori dell'enum, scritti a mano **di proposito**.
+	 *
+	 * ⚠️ E' l'unico modo per accorgersi che qualcuno ne ha aggiunto uno: `StaticEnum()` conta i valori
+	 * reali, questa lista conta quelli che i test conoscono, e il confronto fra i due numeri e' cio' che
+	 * rende il «nessun esito resta non classificato» una misura invece di una speranza.
+	 */
+	const ERTStartupOutcome AllOutcomes[] = {
+		ERTStartupOutcome::Ok,
+		ERTStartupOutcome::FormatAssetInvalid,
+		ERTStartupOutcome::ShippedFormatInvalid,
+		ERTStartupOutcome::FormatMapMismatch,
+		ERTStartupOutcome::RosterHeroMissing,
+		// I due di CP 46.4 (#939): fatali, perche' senza livello o senza consumatore la partita non parte
+		// e non c'e' ripiego — a differenza di `LevelMapMissing`, che l'arena demo sostituisce.
+		ERTStartupOutcome::MatchLevelUnset,
+		ERTStartupOutcome::MatchRequestNotConsumed,
+		ERTStartupOutcome::UsingTestArena,
+		ERTStartupOutcome::UsingDemoArena,
+		ERTStartupOutcome::LevelMapMissing,
+		// #1921: il gemello. `LevelMapMissing` diceva «assente o senza celle» e copriva due condizioni che
+		// mandano a correggere cose opposte — ed e' la SECONDA quella che si verifica davvero.
+		ERTStartupOutcome::LevelMapEmpty,
+		ERTStartupOutcome::UsingFallbackFormat,
+		ERTStartupOutcome::NoTurnManager,
+		// I due di CP 46.6 (#941), gemelli dei precedenti dall'altro capo del ciclo: senza livello del
+		// frontend non c'e' dove tornare, e senza consumatore il ritorno non avviene. Nessuno dei due ha un
+		// ripiego, quindi sono fatali come `MatchLevelUnset`.
+		//
+		// 🔑 **Il controllo in fondo a questo file li ha pretesi**, ed e' esattamente il suo lavoro:
+		// aggiunti all'enum e dimenticati qui, la suite e' diventata rossa con «i test conoscono TUTTI i
+		// valori dell'enum: 12, ma era 14». Senza, avrebbe continuato a dire «ogni esito» provandone dodici.
+		ERTStartupOutcome::FrontendLevelUnset,
+		ERTStartupOutcome::FrontendReturnNotConsumed,
+		// I due di `#2748`: la formazione non e' onorabile. Fatali, senza ripiego.
+		ERTStartupOutcome::RosterCountMismatch,
+		ERTStartupOutcome::RosterHeroRepeated
+	};
+}
+
+/**
+ * **Ogni esito appartiene a esattamente una categoria: `Ok`, fatale o degradato.**
+ *
+ * E' la proprieta' da cui dipende tutto il resto — `IsFatal` sceglie fra modale e banner, e un esito che
+ * non cadesse in nessuna delle tre non verrebbe mostrato **da nessuna parte**: il difetto peggiore
+ * possibile per un vocabolario che esiste per rendere visibile cio' che prima stava solo nel log.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupOutcomeIsAlwaysClassifiedTest,
+	"RefactorTactics.Startup.EveryOutcomeIsExactlyOneCategory",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupOutcomeIsAlwaysClassifiedTest::RunTest(const FString&)
+{
+	for (const ERTStartupOutcome Outcome : AllOutcomes)
+	{
+		const bool bOk = (Outcome == ERTStartupOutcome::Ok);
+		const bool bFatal = URTStartupReportLibrary::IsFatal(Outcome);
+		const bool bDegraded = URTStartupReportLibrary::IsDegraded(Outcome);
+
+		const int32 Categories = (bOk ? 1 : 0) + (bFatal ? 1 : 0) + (bDegraded ? 1 : 0);
+		if (!TestEqual(*FString::Printf(TEXT("esito %d in una sola categoria"), (int32)Outcome),
+			Categories, 1))
+		{
+			return false;
+		}
+	}
+
+	// 🔑 **Il controllo che rende vero il precedente anche domani.** Senza, aggiungere un nono esito e
+	// dimenticarlo in `AllOutcomes` lascerebbe il test verde: proverebbe otto casi su nove e direbbe
+	// «ogni esito», che e' la classe di bugia che questo repository paga piu' spesso.
+	const UEnum* EnumType = StaticEnum<ERTStartupOutcome>();
+	if (TestNotNull(TEXT("l'enum e' riflesso"), EnumType))
+	{
+		// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+		TestEqual(TEXT("i test conoscono TUTTI i valori dell'enum"),
+			EnumType->NumEnums() - 1, (int32)UE_ARRAY_COUNT(AllOutcomes));
+	}
+
+	return true;
+}
+
+/**
+ * I tre fatali sono **esattamente** quelli in cui `ApplyMatchFormat` restituisce `false`.
+ *
+ * Il numero non e' arbitrario: e' misurato su `RTGameMode.cpp`, dove i `return false` sono tre. Se un
+ * giorno diventassero quattro, questo test cade e chiede di aggiornare il vocabolario — che e' il suo
+ * lavoro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupFatalSetTest,
+	"RefactorTactics.Startup.FatalOutcomesRefuseToStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupFatalSetTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("formato assegnato invalido"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::FormatAssetInvalid));
+	TestTrue(TEXT("formato spedito invalido"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::ShippedFormatInvalid));
+	TestTrue(TEXT("formato e mappa non combaciano"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::FormatMapMismatch));
+	// ⚠️ Il quarto, da #1069. Il nome del test diceva «TheThree» e sarebbe diventato falso qui: un numero
+	// nel nome di un elenco che cresce mente al primo esito nuovo, e questo e' il primo.
+	TestTrue(TEXT("eroe della formazione fuori catalogo"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterHeroMissing));
+	// I due di `#2748`: stessa famiglia, stessa ragione — una formazione che nessuno puo' onorare.
+	TestTrue(TEXT("formazione di lunghezza diversa dal formato"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterCountMismatch));
+	TestTrue(TEXT("eroe ripetuto nella formazione"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterHeroRepeated));
+
+	// I ripieghi NON sono fatali: e' la meta' che il DoD originale non vedeva, e che un modale
+	// nasconderebbe dietro un pulsante `BACK` invece di mostrarla in partita.
+	TestFalse(TEXT("arena di prova"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingTestArena));
+	TestFalse(TEXT("arena demo"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingDemoArena));
+	TestFalse(TEXT("mappa assente"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("mappa vuota"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapEmpty));
+	TestFalse(TEXT("formato di ripiego"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingFallbackFormat));
+	TestFalse(TEXT("nessun turn manager"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::NoTurnManager));
+
+	TestFalse(TEXT("Ok non e' fatale"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::Ok));
+	TestFalse(TEXT("ne' degradato"), URTStartupReportLibrary::IsDegraded(ERTStartupOutcome::Ok));
+
+	return true;
+}
+
+/**
+ * **Un avvio accumula piu' ripieghi, e il banner deve mostrarli tutti.**
+ *
+ * E' il caso reale delle due riserve di `G13`: arena di PROVA **e** formato di RIPIEGO nella stessa
+ * partita. Mostrarne uno solo nasconderebbe l'altro — ed e' esattamente il motivo per cui il 2026-08-10
+ * nessuno se n'era accorto guardando lo schermo: le due cause stavano in due righe di log diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupCollectsEveryDegradationTest,
+	"RefactorTactics.Startup.ReportKeepsEveryDegradation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupCollectsEveryDegradationTest::RunTest(const FString&)
+{
+	FRTStartupReport Report;
+
+	TestFalse(TEXT("un report vuoto non ha degradazioni"),
+		URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("ne' fatali"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	// Il caso di `G13`, quello vero.
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Report.Add(ERTStartupOutcome::UsingFallbackFormat, TEXT("Format.Fallback"));
+
+	TestEqual(TEXT("due note, non una"), Report.Notes.Num(), 2);
+	TestTrue(TEXT("il banner ha qualcosa da dire"), URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("ma nessun modale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	// L'ordine e' quello in cui le condizioni si sono presentate: la mappa prima del formato, come
+	// nell'allestimento. Un banner che le riordinasse racconterebbe una sequenza che non e' avvenuta.
+	TestEqual(TEXT("prima la mappa"), Report.Notes[0].Outcome, ERTStartupOutcome::UsingTestArena);
+	TestEqual(TEXT("poi il formato"), Report.Notes[1].Outcome, ERTStartupOutcome::UsingFallbackFormat);
+
+	// Il dettaglio viaggia con la nota: e' prodotto da chi rileva, non ricomposto da chi mostra.
+	TestEqual(TEXT("il dettaglio e' trasportato"), Report.Notes[0].Detail, FString(TEXT("120 celle")));
+
+	return true;
+}
+
+/**
+ * `Add(Ok)` non produce una nota: `Ok` e' l'assenza di condizioni, non una condizione.
+ *
+ * Senza questa guardia ogni passo riuscito lascerebbe una riga, e il banner mostrerebbe un elenco di
+ * successi — cioe' rumore esattamente dove serve il segnale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupOkIsNotANoteTest,
+	"RefactorTactics.Startup.OkDoesNotBecomeANote",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupOkIsNotANoteTest::RunTest(const FString&)
+{
+	FRTStartupReport Report;
+	Report.Add(ERTStartupOutcome::Ok);
+	Report.Add(ERTStartupOutcome::Ok, TEXT("tutto bene"));
+
+	TestEqual(TEXT("nessuna nota"), Report.Notes.Num(), 0);
+	TestFalse(TEXT("niente banner"), URTStartupReportLibrary::HasDegradation(Report));
+
+	return true;
+}
+
+/**
+ * Un fatale si trova anche se **non e' il primo**: l'ordine delle note e' quello dell'allestimento, e la
+ * mappa si risolve prima del formato — quindi un ripiego di mappa precede quasi sempre il rifiuto del
+ * formato.
+ *
+ * Se `FindFatal` guardasse solo la prima nota, la partita mostrerebbe il **banner** di un ripiego mentre
+ * in realta' non e' partita affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupFatalFoundAfterDegradationTest,
+	"RefactorTactics.Startup.FatalIsFoundEvenAfterADegradation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupFatalFoundAfterDegradationTest::RunTest(const FString&)
+{
+	FRTStartupReport Report;
+	Report.Add(ERTStartupOutcome::LevelMapEmpty, TEXT("0 celle")); // #1921: «0 celle» e' LevelMapEmpty
+	Report.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2"));
+
+	TestEqual(TEXT("il fatale si trova"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::FormatMapMismatch);
+	TestTrue(TEXT("e la degradazione resta registrata"),
+		URTStartupReportLibrary::HasDegradation(Report));
+
+	return true;
+}
+
+/**
+ * Ogni esito non-`Ok` ha un testo: e' la riga che il banner o il modale mostrano.
+ *
+ * ⚠️ Il testo nasce nella libreria, **non nel widget**. E' la ragione per cui questo vocabolario esiste:
+ * un widget libero di comporre la frase sarebbe una seconda autorita' su *perche'* qualcosa non e'
+ * partito, e potrebbe dire una cosa diversa dal log a parita' di causa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupEveryOutcomeHasTextTest,
+	"RefactorTactics.Startup.EveryOutcomeHasReadableText",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupEveryOutcomeHasTextTest::RunTest(const FString&)
+{
+	for (const ERTStartupOutcome Outcome : AllOutcomes)
+	{
+		const FText Text = URTStartupReportLibrary::DescribeOutcome(Outcome);
+
+		if (Outcome == ERTStartupOutcome::Ok)
+		{
+			TestTrue(TEXT("Ok non ha niente da dire"), Text.IsEmpty());
+			continue;
+		}
+
+		if (!TestFalse(*FString::Printf(TEXT("l'esito %d ha un testo"), (int32)Outcome), Text.IsEmpty()))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Le fasi di caricamento sono un **ordine**, non un insieme: `Idle` precede `Map`, che precede
+ * `Scenario`, che precede `Bots`, che precede `Ready`.
+ *
+ * L'ordine e' quello dell'allestimento reale in `BeginPlay` — mappa, formato, unita' — ed e' cio' che
+ * permette a un test di asserire che le fasi siano state emesse **nella sequenza giusta** invece che solo
+ * emesse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadPhaseOrderTest,
+	"RefactorTactics.Startup.LoadPhasesAreOrdered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadPhaseOrderTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("Idle < Map"), (uint8)ERTLoadPhase::Idle < (uint8)ERTLoadPhase::Map);
+	TestTrue(TEXT("Map < Scenario"), (uint8)ERTLoadPhase::Map < (uint8)ERTLoadPhase::Scenario);
+	TestTrue(TEXT("Scenario < Bots"), (uint8)ERTLoadPhase::Scenario < (uint8)ERTLoadPhase::Bots);
+	TestTrue(TEXT("Bots < Ready"), (uint8)ERTLoadPhase::Bots < (uint8)ERTLoadPhase::Ready);
+
+	FRTStartupReport Report;
+	TestEqual(TEXT("un report nasce Idle"), Report.Phase, ERTLoadPhase::Idle);
+
+	Report.Phase = ERTLoadPhase::Ready;
+	Report.Reset();
+	TestEqual(TEXT("e Reset lo riporta a Idle"), Report.Phase, ERTLoadPhase::Idle);
+	TestEqual(TEXT("svuotando le note"), Report.Notes.Num(), 0);
+
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Il PRODUTTORE. I test qui sopra provano il vocabolario; questi provano che qualcuno lo riempia —
+// che e' la meta' che il repository ha gia' pagato piu' volte: un dato dichiarato, trasportato e
+// mai prodotto.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * **Un GameMode appena costruito non dichiara niente.**
+ *
+ * Il rapporto nasce vuoto e in `Idle`: se nascesse `Ready`, o con una nota, il banner comparirebbe prima
+ * che l'allestimento sia successo — cioe' mentirebbe nel verso peggiore, quello che fa perdere tempo a
+ * cercare una causa che non c'e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupGameModeStartsSilentTest,
+	"RefactorTactics.Startup.FreshGameModeReportsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupGameModeStartsSilentTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+	TestEqual(TEXT("nessuna nota"), Report.Notes.Num(), 0);
+	TestEqual(TEXT("fase Idle"), Report.Phase, ERTLoadPhase::Idle);
+	TestFalse(TEXT("niente banner"), URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("niente modale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Due ripieghi nella stessa partita, entrambi dichiarati.**
+ *
+ * E' la proprieta' per cui le note sono una **lista**: un allestimento accumula condizioni, e mostrarne
+ * una sola nasconderebbe l'altra. Qui la coppia e' *mappa assente* + *nessun TurnManager*, entrambe
+ * raggiunte davvero da `SetupHexMatch` in un mondo di prova.
+ *
+ * 🔴 **La prima stesura di questo test usava una coppia diversa e la premessa era falsa**: credevo che
+ * senza `MatchFormat` si arrivasse al **formato di ripiego**, e il test lo asseriva. Non ci si arriva —
+ * `FindShippedFormat` trova `Format.Skirmish2v2`, **spedito da C++** dal commit `9f44570d`, quindi il
+ * ramo `UsingFallbackFormat` richiede *anche* che non esista un formato spedito. Il test rosso l'ha
+ * detto; la premessa era plausibile e sbagliata.
+ *
+ * ⚠️ Questo test non passa per l'HUD: prova che il **dato** esista. Che il banner lo disegni e' di
+ * `PIE-V01-FRONTEND-ERROR`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupReportsBothG13ReservesTest,
+	"RefactorTactics.Startup.BothFallbacksAreReportedTogether",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupReportsBothG13ReservesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Mappa senza asset -> ripiego sull'arena demo. E nel mondo di prova non c'e' nessun `ARTTurnManager`,
+	// quindi il formato risolve ma non ha destinatario: due condizioni distinte, entrambe reali.
+	HexMap->MapAsset = nullptr;
+
+	GameMode->SetupHexMatch(HexMap);
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+
+	TestTrue(TEXT("il banner ha qualcosa da dire"), URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("ma la partita e' partita: nessun fatale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	// Le DUE condizioni, non una. E' il punto del test.
+	bool bMapFallback = false;
+	bool bNoTurnManager = false;
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		// #1921: `LevelMapEmpty` e' un ripiego di MAPPA quanto il fratello. Qui il caso costruito e'
+		// «nessun asset», quindi oggi passa da `LevelMapMissing`; ometterlo renderebbe questo test cieco
+		// al giorno in cui il setup cambiasse, che e' il modo in cui un oracolo smette di guardare.
+		bMapFallback |= (Note.Outcome == ERTStartupOutcome::LevelMapMissing
+			|| Note.Outcome == ERTStartupOutcome::LevelMapEmpty
+			|| Note.Outcome == ERTStartupOutcome::UsingTestArena
+			|| Note.Outcome == ERTStartupOutcome::UsingDemoArena);
+		bNoTurnManager |= (Note.Outcome == ERTStartupOutcome::NoTurnManager);
+	}
+
+	TestTrue(TEXT("il ripiego di MAPPA e' dichiarato"), bMapFallback);
+	TestTrue(TEXT("e anche l'assenza del TurnManager"), bNoTurnManager);
+	TestTrue(TEXT("due note distinte, non una"), Report.Notes.Num() >= 2);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Le fasi avanzano, e `Ready` non significa «senza problemi».**
+ *
+ * E' la distinzione che rende il rapporto utile: un allestimento puo' arrivare in fondo **e** portare due
+ * ripieghi. Se `Ready` implicasse «tutto a posto», il banner non avrebbe motivo di esistere proprio nel
+ * caso per cui e' stato costruito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupPhaseReachesReadyWithNotesTest,
+	"RefactorTactics.Startup.ReadyDoesNotMeanClean",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupPhaseReachesReadyWithNotesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = nullptr;
+	GameMode->SetupHexMatch(HexMap);
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+
+	TestEqual(TEXT("l'allestimento e' arrivato in fondo"), Report.Phase, ERTLoadPhase::Ready);
+	TestTrue(TEXT("**e** porta condizioni degradate"), URTStartupReportLibrary::HasDegradation(Report));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Un secondo allestimento non eredita le note del primo.**
+ *
+ * `Play Again` ripercorre `SetupHexMatch` nella stessa sessione: senza il reset, il banner mostrerebbe
+ * condizioni della partita precedente — che e' un dato falso con l'aria di essere aggiornato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupSecondSetupResetsTest,
+	"RefactorTactics.Startup.SecondSetupDoesNotInheritNotes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupSecondSetupResetsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = nullptr;
+	GameMode->SetupHexMatch(HexMap);
+	const int32 FirstCount = GameMode->GetStartupReport().Notes.Num();
+	TestTrue(TEXT("il primo allestimento ha prodotto note"), FirstCount > 0);
+
+	GameMode->SetupHexMatch(HexMap);
+
+	// ⚠️ **Si asserisce «non accumula», non «stesso numero»**, e la differenza l'ha trovata il test rosso:
+	// la prima chiamata **crea** l'arena di ripiego e la lascia su `HexMap->MapAsset`, quindi la seconda
+	// trova una mappa valida e non ripiega piu'. Il conteggio *deve* scendere — pretendere che resti
+	// uguale sarebbe asserire che il mondo non cambia fra due allestimenti, che e' falso e non e' cio' che
+	// questo test difende.
+	TestTrue(TEXT("il secondo NON accumula sopra il primo"),
+		GameMode->GetStartupReport().Notes.Num() <= FirstCount);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Le CLASSI BASE dei widget. Provano la superficie: cosa un Blueprint puo' leggere, e cosa non trova
+// perche' non esiste. Il layout sta nel `.uasset` e resta a `PIE-V01-FRONTEND-ERROR`, per costruzione.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * La schermata d'attesa **si spegne da sola** su `Idle` e su `Ready`.
+ *
+ * `IsLoading()` e' la condizione con cui il Blueprint si mostra: se fosse vera anche a `Ready`, la
+ * schermata di caricamento resterebbe sopra la partita — il dead-end piu' banale e piu' facile da
+ * introdurre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadingWidgetHidesWhenIdleOrReadyTest,
+	"RefactorTactics.Frontend.LoadingScreenIsSilentWhenThereIsNoWait",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadingWidgetHidesWhenIdleOrReadyTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTLoadingScreenWidgetBase* Widget = NewObject<URTLoadingScreenWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Widget)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	TestFalse(TEXT("appena costruito non sta caricando"), Widget->IsLoading());
+	TestTrue(TEXT("e non ha niente da dire"), Widget->GetPhaseText().IsEmpty());
+
+	Widget->SetPhase(ERTLoadPhase::Map);
+	TestTrue(TEXT("durante la mappa sta caricando"), Widget->IsLoading());
+	TestFalse(TEXT("e ha una riga"), Widget->GetPhaseText().IsEmpty());
+
+	Widget->SetPhase(ERTLoadPhase::Ready);
+	TestFalse(TEXT("a partita pronta si spegne"), Widget->IsLoading());
+	TestTrue(TEXT("e torna muto"), Widget->GetPhaseText().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Ogni fase d'attesa ha una riga, e le due fasi che **non** sono attese non ce l'hanno.
+ *
+ * E' la stessa proprieta' di `EveryOutcomeHasReadableText` applicata alle fasi: un widget che ricevesse
+ * una fase senza testo mostrerebbe una schermata vuota, che e' peggio di nessuna schermata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadingWidgetHasTextForEveryWaitTest,
+	"RefactorTactics.Frontend.EveryWaitingPhaseHasText",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadingWidgetHasTextForEveryWaitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTLoadingScreenWidgetBase* Widget = NewObject<URTLoadingScreenWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Widget)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const ERTLoadPhase Waiting[] = { ERTLoadPhase::Map, ERTLoadPhase::Scenario, ERTLoadPhase::Bots };
+	for (const ERTLoadPhase Phase : Waiting)
+	{
+		Widget->SetPhase(Phase);
+		if (!TestFalse(*FString::Printf(TEXT("la fase %d ha un testo"), (int32)Phase),
+			Widget->GetPhaseText().IsEmpty()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il modale rifiuta di armarsi su un ripiego.**
+ *
+ * E' il difetto del DoD originale reso impossibile: un modale che dicesse «non si e' potuto partire»
+ * sopra una partita che sta girando. Il filtro vive nella classe base, non nel Blueprint — un Blueprint
+ * puo' dimenticarlo, una firma no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTErrorModalRefusesDegradationTest,
+	"RefactorTactics.Frontend.ErrorModalOnlyArmsOnFatal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTErrorModalRefusesDegradationTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Modal)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	TestFalse(TEXT("nasce disarmato"), Modal->IsArmed());
+
+	// Un ripiego non lo arma.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::UsingTestArena, TEXT("120 celle")));
+	TestFalse(TEXT("un ripiego NON arma il modale"), Modal->IsArmed());
+	TestTrue(TEXT("e non lascia una causa"), Modal->GetReasonText().IsEmpty());
+
+	// Un fatale si'.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2")));
+	TestTrue(TEXT("un fatale lo arma"), Modal->IsArmed());
+	TestEqual(TEXT("con l'esito giusto"), Modal->GetOutcome(), ERTStartupOutcome::FormatMapMismatch);
+	TestFalse(TEXT("e una causa leggibile"), Modal->GetReasonText().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il banner elenca tutte le degradazioni e nessun fatale.**
+ *
+ * Le due meta' della stessa regola: mostrarne una sola nasconderebbe l'altra, e mostrare un fatale
+ * significherebbe disegnare un banner sopra una partita che non esiste.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBannerListsEveryDegradationTest,
+	"RefactorTactics.Frontend.BannerListsEveryDegradationAndNoFatal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBannerListsEveryDegradationTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTFallbackBannerWidgetBase* Banner = NewObject<URTFallbackBannerWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Banner)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	FRTStartupReport Report;
+	Banner->SetFromReport(Report);
+	TestFalse(TEXT("un report pulito non accende il banner"), Banner->HasAnything());
+
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Report.Add(ERTStartupOutcome::NoTurnManager, TEXT("Format.Skirmish2v2"));
+	Report.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("non deve comparire"));
+
+	Banner->SetFromReport(Report);
+
+	TestTrue(TEXT("il banner si accende"), Banner->HasAnything());
+	TestEqual(TEXT("DUE righe: i due ripieghi, non il fatale"), Banner->GetLines().Num(), 2);
+
+	// Il fatale non deve comparire fra le righe.
+	for (const FText& Line : Banner->GetLines())
+	{
+		if (!TestFalse(TEXT("nessuna riga viene dal fatale"),
+			Line.ToString().Contains(TEXT("non deve comparire"))))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// Un secondo riempimento sostituisce, non accumula: e' lo stesso difetto del `Reset()` del report,
+	// un gradino piu' in la'.
+	Banner->SetFromReport(Report);
+	TestEqual(TEXT("ancora due righe, non quattro"), Banner->GetLines().Num(), 2);
+
+	// ⚠️ **Il testo unico deve contenere DUE righe**, cioe' esattamente un `\n`. E' la stessa proprieta'
+	// del punto sopra vista da chi guarda lo schermo: un accessor che restituisse solo la prima riga
+	// passerebbe tutti i test sull'array e nasconderebbe meta' del problema a chi apre il gioco.
+	const FString Joined = Banner->GetLinesAsText().ToString();
+	int32 NewLines = 0;
+	for (const TCHAR C : Joined) { if (C == TEXT('\n')) { ++NewLines; } }
+	TestEqual(TEXT("due righe => un solo a capo"), NewLines, 1);
+	TestFalse(TEXT("e il testo non e' vuoto"), Joined.IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Ogni `bool` e la sua visibilita' dicono la stessa cosa.**
+ *
+ * I tre widget espongono una coppia ciascuno — `IsLoading`/`GetLoadingVisibility`,
+ * `IsArmed`/`GetModalVisibility`, `HasAnything`/`GetBannerVisibility` — e le due meta' esistono perche'
+ * il binding di `Visibility` non accetta un `bool`. Sono **due modi di leggere lo stesso stato**, ed e'
+ * esattamente la condizione in cui due copie divergono: qualcuno cambia la condizione da una parte e
+ * l'altra resta indietro, e a schermo compare un widget che dice di non avere niente da dire.
+ *
+ * Il test lega le due meta' invece di fidarsi che restino allineate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendVisibilityMatchesStateTest,
+	"RefactorTactics.Frontend.VisibilityNeverDisagreesWithState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendVisibilityMatchesStateTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// ── Loading: la visibilita' segue `IsLoading()` in tutte e cinque le fasi ──────────────────────
+	URTLoadingScreenWidgetBase* Loading = NewObject<URTLoadingScreenWidgetBase>(World);
+	const ERTLoadPhase Phases[] = { ERTLoadPhase::Idle, ERTLoadPhase::Map, ERTLoadPhase::Scenario,
+									ERTLoadPhase::Bots, ERTLoadPhase::Ready };
+	for (const ERTLoadPhase Phase : Phases)
+	{
+		Loading->SetPhase(Phase);
+		const ESlateVisibility Expected =
+			Loading->IsLoading() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+		if (!TestEqual(*FString::Printf(TEXT("fase %d: visibilita' coerente"), (int32)Phase),
+			Loading->GetLoadingVisibility(), Expected))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// ── Modale: disarmato -> Collapsed, armato -> Visible ─────────────────────────────────────────
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+	TestEqual(TEXT("disarmato: collassato"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	// Un ripiego NON lo arma, quindi non lo rende nemmeno visibile: le due meta' restano d'accordo
+	// anche sul caso che `ShowFor` rifiuta.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::UsingTestArena));
+	TestEqual(TEXT("un ripiego non lo mostra"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::FormatAssetInvalid, TEXT("dettaglio")));
+	TestTrue(TEXT("armato"), Modal->IsArmed());
+	TestEqual(TEXT("e visibile"), Modal->GetModalVisibility(), ESlateVisibility::Visible);
+
+	// `DETAILS` segue il dettaglio, che in Shipping non esiste: qui il test gira in Development, dove
+	// la stringa c'e'.
+	TestEqual(TEXT("il pulsante DETAILS segue ShouldShowDetails"),
+		Modal->GetDetailsVisibility(),
+		Modal->ShouldShowDetails() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	// ── Banner: la visibilita' segue `HasAnything()` ───────────────────────────────────────────────
+	URTFallbackBannerWidgetBase* Banner = NewObject<URTFallbackBannerWidgetBase>(World);
+	TestEqual(TEXT("banner vuoto: collassato"),
+		Banner->GetBannerVisibility(), ESlateVisibility::Collapsed);
+
+	FRTStartupReport Report;
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Banner->SetFromReport(Report);
+	TestTrue(TEXT("ora ha qualcosa"), Banner->HasAnything());
+	TestEqual(TEXT("ed e' visibile"), Banner->GetBannerVisibility(), ESlateVisibility::Visible);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il modale si arma dal rapporto, e sceglie da sé la nota fatale.**
+ *
+ * E' la forma che serve in gioco: chi lo mostra ha in mano il rapporto del `GameMode`, non una nota
+ * isolata. Il test verifica anche il caso che conta di più — un rapporto con **due degradazioni e un
+ * fatale in mezzo**: il modale deve trovare il fatale, non la prima nota che incontra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTModalArmsFromReportTest,
+	"RefactorTactics.Frontend.ModalArmsItselfFromTheReport",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTModalArmsFromReportTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+
+	// Un rapporto di soli ripieghi non arma niente: la partita e' partita.
+	FRTStartupReport OnlyDegraded;
+	OnlyDegraded.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	OnlyDegraded.Add(ERTStartupOutcome::NoTurnManager, TEXT("Format.Skirmish2v2"));
+	Modal->ShowFromReport(OnlyDegraded);
+	TestFalse(TEXT("solo ripieghi: il modale resta disarmato"), Modal->IsArmed());
+
+	// Un fatale **in mezzo** a due degradazioni: va trovato lui, non la prima nota.
+	FRTStartupReport WithFatal;
+	WithFatal.Add(ERTStartupOutcome::LevelMapEmpty, TEXT("0 celle")); // #1921: il nome combacia col dettaglio
+	WithFatal.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2"));
+	WithFatal.Add(ERTStartupOutcome::NoTurnManager, TEXT("dopo"));
+
+	URTErrorModalWidgetBase* Modal2 = NewObject<URTErrorModalWidgetBase>(World);
+	Modal2->ShowFromReport(WithFatal);
+
+	TestTrue(TEXT("armato"), Modal2->IsArmed());
+	TestEqual(TEXT("e ha preso il FATALE, non la prima nota"),
+		Modal2->GetOutcome(), ERTStartupOutcome::FormatMapMismatch);
+	TestEqual(TEXT("col suo dettaglio"), Modal2->GetDetail(), FString(TEXT("Standard su mappa 2v2")));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `ShowForOutcome` esiste perche' `FRTStartupNote` **non e' costruibile da Blueprint** — i suoi campi
+ * sono `BlueprintReadOnly`, quindi il nodo `Make` non serve a niente.
+ *
+ * Senza questa funzione il modale non sarebbe armabile da un Blueprint, e quindi **non sarebbe provabile
+ * in PIE** finche' non esiste il codice che lo arma davvero. Il test verifica che erediti il filtro
+ * invece di scavalcarlo: e' la scorciatoia piu' facile da sbagliare, perche' scrive i campi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTModalShowForOutcomeKeepsTheFilterTest,
+	"RefactorTactics.Frontend.ShowForOutcomeStillRefusesDegradation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTModalShowForOutcomeKeepsTheFilterTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+
+	Modal->ShowForOutcome(ERTStartupOutcome::UsingDemoArena, TEXT("non deve armare"));
+	TestFalse(TEXT("un ripiego non arma nemmeno da qui"), Modal->IsArmed());
+
+	Modal->ShowForOutcome(ERTStartupOutcome::ShippedFormatInvalid, TEXT("prova"));
+	TestTrue(TEXT("un fatale si'"), Modal->IsArmed());
+	TestEqual(TEXT("con l'esito giusto"), Modal->GetOutcome(), ERTStartupOutcome::ShippedFormatInvalid);
+	TestEqual(TEXT("e il dettaglio"), Modal->GetDetail(), FString(TEXT("prova")));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **`MapAsset` assente e `MapAsset` vuoto sono due esiti diversi** (#1921).
+ *
+ * 🔴 **E' l'oracolo che non esisteva, ed e' il motivo per cui il difetto e' sopravvissuto.** Fino a qui
+ * `LevelMapMissing` si documentava *«assente o senza celle»*: un valore solo per due condizioni che
+ * mandano a correggere cose opposte — la' manca l'actor, qui c'e' e la sua mappa e' vuota. Nessun test
+ * chiedeva quale dei due fosse, quindi fonderli non rompeva niente.
+ *
+ * ⚠️ **Il caso vuoto e' l'unico che si verifica davvero**, ed e' documentato come osservato in PIE su
+ * `L_DevSandbox`. Il caso assente e' quello che il vocabolario nominava.
+ *
+ * ⛔ Non prova il ripiego, che **non cambia**: entrambi ripiegano sull'arena demo e restano degradati.
+ * Prova cio' che viene DETTO, che e' l'unica cosa che #1921 tocca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupMissingAndEmptyMapAreDistinctTest,
+	"RefactorTactics.Startup.MissingMapAssetIsNotAnEmptyMapAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupMissingAndEmptyMapAreDistinctTest::RunTest(const FString&)
+{
+	// Un piccolo aiuto locale invece di due blocchi copiati: la differenza fra i due casi deve restare
+	// leggibile in due righe, altrimenti il test prova la propria impalcatura.
+	auto OutcomesFor = [this](bool bAssignEmptyAsset, TArray<ERTStartupOutcome>& OutOutcomes) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+		if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+
+		// L'UNICA differenza fra i due casi. `NewObject` senza celle e' esattamente la condizione osservata:
+		// l'actor c'e', il suo asset c'e', e non contiene niente.
+		HexMap->MapAsset = bAssignEmptyAsset ? NewObject<URTHexMapAsset>(HexMap) : nullptr;
+
+		GameMode->SetupHexMatch(HexMap);
+
+		for (const FRTStartupNote& Note : GameMode->GetStartupReport().Notes)
+		{
+			OutOutcomes.Add(Note.Outcome);
+		}
+
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	TArray<ERTStartupOutcome> SenzaAsset;
+	TArray<ERTStartupOutcome> AssetVuoto;
+	if (!OutcomesFor(false, SenzaAsset) || !OutcomesFor(true, AssetVuoto))
+	{
+		return false;
+	}
+
+	// 🔑 Il cuore: ciascuno porta il PROPRIO esito, e non quello del fratello. Asserire solo la presenza
+	// lascerebbe passare un'implementazione che li aggiunge entrambi ogni volta.
+	TestTrue(TEXT("senza MapAsset -> LevelMapMissing"),
+		SenzaAsset.Contains(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("senza MapAsset -> e NON LevelMapEmpty"),
+		SenzaAsset.Contains(ERTStartupOutcome::LevelMapEmpty));
+
+	TestTrue(TEXT("MapAsset vuoto -> LevelMapEmpty"),
+		AssetVuoto.Contains(ERTStartupOutcome::LevelMapEmpty));
+	TestFalse(TEXT("MapAsset vuoto -> e NON LevelMapMissing"),
+		AssetVuoto.Contains(ERTStartupOutcome::LevelMapMissing));
+
+	// Il ripiego non cambia: nessuno dei due e' fatale, entrambi sono degradati.
+	TestFalse(TEXT("assente non e' fatale"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("vuoto non e' fatale"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapEmpty));
+	TestTrue(TEXT("assente e' degradato"),
+		URTStartupReportLibrary::IsDegraded(ERTStartupOutcome::LevelMapMissing));
+	TestTrue(TEXT("vuoto e' degradato"),
+		URTStartupReportLibrary::IsDegraded(ERTStartupOutcome::LevelMapEmpty));
+
+	// E i due testi non sono lo stesso testo: se lo fossero, l'enum sarebbe sdoppiato e il banner no.
+	TestNotEqual(TEXT("e i due dicono cose diverse"),
+		URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome::LevelMapMissing).ToString(),
+		URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome::LevelMapEmpty).ToString());
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

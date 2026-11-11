@@ -16,17 +16,17 @@ date: 2026-08-30T07:41:12Z
 
 | Screen | Repo files |
 | --- | --- |
-| RefactorTactics Step 06b Mapping Freeze.dc.html | Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/UI/RTIconCatalogData.h, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
-| docs/UI/IconLanguage/RT_IconCoverage_61_v0.1.csv | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
-| docs/UI/IconLanguage/RT_IconVisual_24_v0.1.csv | Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp |
-| docs/UI/IconLanguage/RT_IconRuntimeMapping_Freeze_v0.1.md | Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/RTIconCatalogData.h, Content/Icons/LEGGIMI.md |
-| RefactorTactics Step 06 Runtime Mapping.dc.html | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/UI/RTIconLibrary.h, Source/RefactorTactics/UI/RTIconCatalogData.h, Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp, Content/Icons/LEGGIMI.md |
-| RefactorTactics Step 05 Repository Audit.dc.html | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/UI/RTIconCatalogData.h, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp, Content/Icons/LEGGIMI.md, Content/Icons/manifest.json |
-| docs/UI/IconLanguage/RT_IconRuntimeMapping_v0.1.csv | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
-| docs/UI/IconLanguage/RT_RequiredIconIds_Runtime_v0.1.txt | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/Ability/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
-| docs/UI/IconLanguage/RT_IconRuntimeMapping_Implementation_v0.1.md | Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/RTIconCatalogData.h, Content/Icons/LEGGIMI.md |
-| docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.csv | Source/RefactorTactics/UI/RTIconLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
-| docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.md | Source/RefactorTactics/UI/RTIconLibrary.h, Source/RefactorTactics/UI/RTIconCatalogData.h, Source/RefactorTactics/Tests/RTIconCatalogTests.cpp, Content/Icons/LEGGIMI.md |
+| RefactorTactics Step 06b Mapping Freeze.dc.html | Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
+| docs/UI/IconLanguage/RT_IconCoverage_61_v0.1.csv | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
+| docs/UI/IconLanguage/RT_IconVisual_24_v0.1.csv | Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp |
+| docs/UI/IconLanguage/RT_IconRuntimeMapping_Freeze_v0.1.md | Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Content/Icons/LEGGIMI.md |
+| RefactorTactics Step 06 Runtime Mapping.dc.html | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/UI/Inspect/RTIconLibrary.h, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp, Content/Icons/LEGGIMI.md |
+| RefactorTactics Step 05 Repository Audit.dc.html | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp, Content/Icons/LEGGIMI.md, Content/Icons/manifest.json |
+| docs/UI/IconLanguage/RT_IconRuntimeMapping_v0.1.csv | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
+| docs/UI/IconLanguage/RT_RequiredIconIds_Runtime_v0.1.txt | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
+| docs/UI/IconLanguage/RT_IconRuntimeMapping_Implementation_v0.1.md | Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Content/Icons/LEGGIMI.md |
+| docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.csv | Source/RefactorTactics/UI/Inspect/RTIconLibrary.cpp, Source/RefactorTactics/Core/RTGameplayTags.cpp |
+| docs/UI/IconLanguage/RT_IconRuntimeMapping_Audit_v0.1.md | Source/RefactorTactics/UI/Inspect/RTIconLibrary.h, Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h, Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp, Content/Icons/LEGGIMI.md |
 
 ## Sync history
 

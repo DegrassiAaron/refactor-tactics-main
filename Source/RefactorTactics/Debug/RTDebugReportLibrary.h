@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h" // FRTCellId nelle strutture di sonda (#3107)
-#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 #include "RTDebugReportLibrary.generated.h"
 
 struct FRTPlannedIntent;

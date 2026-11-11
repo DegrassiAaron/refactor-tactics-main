@@ -1,0 +1,203 @@
+#include "Lab/RTLabViewModel.h"
+
+#include "ScenarioHarness/RTScenarioRunner.h"
+
+void FRTLabViewModel::SetHeroFilter(const FName& InHeroId)
+{
+	if (HeroFilter == InHeroId)
+	{
+		return;
+	}
+
+	HeroFilter = InHeroId;
+	// Il filtro e' cambiato davvero (il ritorno anticipato sopra lascia l'Id dov'e'): e' un gesto.
+	ClearLaunchStatus();
+
+	// La selezione sopravvive al cambio di filtro **solo** se e' ancora visibile. Senza questa riga il
+	// pannello mostrerebbe il readout di un'ability che non appartiene al kit elencato: numeri veri, che
+	// pero' non rispondono a cio' che si sta guardando.
+	if (!SelectedAbility.IsNone() && !IsVisible(SelectedAbility))
+	{
+		SelectedAbility = NAME_None;
+		// Anche l'esito era di quell'ability: lasciarlo sarebbe un TurnLog orfano sotto un selettore vuoto.
+		Result = FRTLabRunResult();
+	}
+}
+
+TArray<FRTAbilityLabEntry> FRTLabViewModel::VisibleAbilities() const
+{
+	// Il filtro non e' una condizione dentro un elenco costruito qui: sono le due funzioni canoniche, e
+	// la seconda e' gia' un filtro sulla prima.
+	return HasHeroFilter()
+		? URTHeroLabLibrary::ListHeroKit(HeroFilter)
+		: URTAbilityLabLibrary::ListCanonicalAbilities();
+}
+
+bool FRTLabViewModel::GetHeroReadout(FRTHeroLabEntry& OutHero) const
+{
+	if (!HasHeroFilter())
+	{
+		return false;
+	}
+	return URTHeroLabLibrary::FindHero(HeroFilter, OutHero);
+}
+
+FRTLabViewModel::EFilterState FRTLabViewModel::DescribeFilterState(FRTHeroLabEntry& OutHero) const
+{
+	if (!HasHeroFilter())
+	{
+		return EFilterState::NoFilter;
+	}
+	if (!URTHeroLabLibrary::FindHero(HeroFilter, OutHero))
+	{
+		return EFilterState::UnknownHeroId;
+	}
+	// ⚠️ Il conteggio si chiede a `VisibleAbilities()`, che e' cio' che il selettore mostra davvero --
+	// non a `OutHero.DeclaredAbilityCount`, che e' un campo del catalogo. I due possono divergere, e la
+	// domanda di questa funzione e' **perche' la lista e' vuota**, non quante voci il catalogo dichiari.
+	return VisibleAbilities().Num() == 0
+		? EFilterState::HeroWithEmptyKit
+		: EFilterState::HeroWithKit;
+}
+
+bool FRTLabViewModel::IsVisible(const FName& AbilityId) const
+{
+	if (AbilityId.IsNone())
+	{
+		return false;
+	}
+	for (const FRTAbilityLabEntry& Entry : VisibleAbilities())
+	{
+		if (Entry.AbilityId == AbilityId)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FRTLabViewModel::SelectAbility(const FName& InAbilityId)
+{
+	// ⛔ Fuori dall'elenco visibile si rifiuta, e la selezione precedente **resta**. Un rifiuto che
+	// azzerasse la selezione punirebbe il click sbagliato con la perdita di quello giusto di prima.
+	if (!IsVisible(InAbilityId))
+	{
+		return false;
+	}
+
+	SelectedAbility = InAbilityId;
+	Result = FRTLabRunResult();
+	ClearLaunchStatus();
+	return true;
+}
+
+void FRTLabViewModel::ClearLaunchStatus()
+{
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunched(const FString& Id)
+{
+	LaunchedId = Id;
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunchFinished(bool bRestored)
+{
+	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui —
+	// ma solo per un ripristino riuscito. Un ripristino FALLITO si registra sempre: le CVar sono rimaste sul
+	// valore del banco, e il PIE successivo giocherebbe lo scenario sbagliato; tacerlo perche' l'utente ha
+	// cliccato altro nasconderebbe l'unico segnale.
+	if (LaunchedId.IsEmpty() && bRestored)
+	{
+		return;
+	}
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = true;
+	bLastRestoreOk = bRestored;
+}
+
+ERTActionReadoutResult FRTLabViewModel::DescribeSelection(TArray<FRTActionParameterView>& OutParameters) const
+{
+	// Delega intera: il readout ha una casa sola, e sa dire da dove ogni numero viene.
+	return URTAbilityLabLibrary::DescribeAbility(SelectedAbility, OutParameters);
+}
+
+bool FRTLabViewModel::BuildScenario(FRTTestScenario& OutScenario, FString& OutError) const
+{
+	if (SelectedAbility.IsNone())
+	{
+		OutError = TEXT("Nessuna ability selezionata: non c'e' niente da eseguire.");
+		return false;
+	}
+
+	// Le due sole strade, e nessuna terza. Con il filtro passa dalla verifica d'appartenenza di #2600,
+	// che poi delega alla stessa `BuildFixture` dell'altro ramo.
+	return HasHeroFilter()
+		? URTHeroLabLibrary::BuildHeroFixture(HeroFilter, SelectedAbility, Spec, OutScenario, OutError)
+		: URTAbilityLabLibrary::BuildFixture(SelectedAbility, Spec, OutScenario, OutError);
+}
+
+bool FRTLabViewModel::Run(UWorld* World, FString& OutError)
+{
+	Result = FRTLabRunResult();
+	// Una run e' un gesto: la riga di stato mostra l'esito di questa, non il lancio PIE di prima.
+	ClearLaunchStatus();
+
+	if (!World)
+	{
+		OutError = TEXT("Nessun mondo su cui eseguire la fixture.");
+		Result.Error = OutError;
+		return false;
+	}
+
+	FRTTestScenario Scenario;
+	if (!BuildScenario(Scenario, OutError))
+	{
+		// Fail closed e **visibile**: l'errore finisce nell'esito, non solo nel valore di ritorno. Un
+		// pannello che ignorasse il ritorno mostrerebbe altrimenti l'esito della run precedente.
+		Result.Error = OutError;
+		return false;
+	}
+
+	const FRTTestResult RunResult = URTScenarioRunner::Run(World, Scenario);
+
+	Result.bHasRun = true;
+	Result.Outcome = RunResult.OutcomeString();
+	Result.Error = RunResult.ErrorMessage;
+	Result.TurnsPlayed = RunResult.TurnsPlayed;
+	// Il before/after e il TurnLog sono quelli che il runner produce: nessuna riga composta qui.
+	Result.Diffs = RunResult.StateDiff;
+	Result.TurnLogLines = URTAbilityLabLibrary::DescribeRunTurnLog(RunResult);
+
+	if (RunResult.Outcome == ERTTestOutcome::Error)
+	{
+		OutError = RunResult.ErrorMessage;
+		return false;
+	}
+
+	return true;
+}
+
+bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
+{
+	OutScenarioId.Reset();
+	OutError.Reset();
+
+	FRTTestScenario Scenario;
+	if (!BuildScenario(Scenario, OutError))
+	{
+		return false;
+	}
+
+	// Scrittura e verifica d'indice stanno nel runtime da `#3774`: le usa anche il passo del banco dentro il PIE,
+	// e una seconda copia qui sarebbe il secondo costruttore di scene che il Lab non deve avere.
+	if (!URTAbilityLabLibrary::WriteLabScenario(Scenario, OutError))
+	{
+		return false;
+	}
+
+	OutScenarioId = Scenario.ScenarioId;
+	return true;
+}

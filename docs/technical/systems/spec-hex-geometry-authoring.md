@@ -187,7 +187,7 @@ dalle altre.
 > asseribile — due regole diverse producono messaggi simili e il test dovrebbe confrontare stringhe.
 
 I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryViolation` e
-`URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
+`URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/Structure/RTGeometryGrammar.h`. Lo stato di avanzamento
 vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
 #### 3.3.1 I due strati, applicati: una scala collega solo layer adiacenti — `#1869`, `MAP-5`
@@ -947,7 +947,7 @@ l'aggiunta che accumula senza duplicati.
 
 **Le fixture geometriche non sono scenari.** Segmento, angolo, footprint solido e footprint void sono
 l'ingresso di una funzione pura e vivono in
-[`RTOccupancyFixtures.h`](../../../Source/RefactorTactics/Tests/RTOccupancyFixtures.h); uno scenario JSON esiste
+[`RTOccupancyFixtures.h`](../../../Source/RefactorTactics/Tests/Map/Authoring/RTOccupancyFixtures.h); uno scenario JSON esiste
 solo per dimostrare un comportamento **di partita** — per esempio che un'unità non attraversa un muro cotto.
 
 Non estendere lo schema dello Scenario Harness per infilarci input d'editor.

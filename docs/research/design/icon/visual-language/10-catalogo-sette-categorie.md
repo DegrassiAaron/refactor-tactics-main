@@ -9,7 +9,7 @@
 > `Objective` e `Coordination` restano vuote, ed e' un esito dichiarato.
 
 
-**Che cos'è questa lista.** Il piano di disegno per le sette categorie non popolate, ricavato da sette censimenti separati e ripulito dai doppioni. **Non è un innesto da fare oggi nel catalogo v0.1**: `RefactorTactics.IconCatalog.V01CategoriesPopulated` (`Source/RefactorTactics/Tests/RTIconCatalogTests.cpp:142-151`) fallisce se una chiave di queste sette compare in `RequiredIconIds()`, e `roadmap-post-v0.1.md:378-384` le assegna a **E25**. Aprire la lista richiede una voce nel Decision Log, non una decisione di illustrazione.
+**Che cos'è questa lista.** Il piano di disegno per le sette categorie non popolate, ricavato da sette censimenti separati e ripulito dai doppioni. **Non è un innesto da fare oggi nel catalogo v0.1**: `RefactorTactics.IconCatalog.V01CategoriesPopulated` (`Source/RefactorTactics/Tests/UI/Inspect/RTIconCatalogTests.cpp:142-151`) fallisce se una chiave di queste sette compare in `RequiredIconIds()`, e `roadmap-post-v0.1.md:378-384` le assegna a **E25**. Aprire la lista richiede una voce nel Decision Log, non una decisione di illustrazione.
 
 **Misura di partenza, rifatta su questo branch** (non copiata dalla roadmap): `URTIconLibrary::RequiredIconIds()` produce oggi **61** chiavi — 4 Phase + 37 azioni di `GetCoreActionCatalog()` + 11 tag `Status.*` + 3 Certainty + 6 Identity. Le cinque abilità di Gadget non sono in quell'elenco: `RequiredIconIds()` deriva le azioni dal catalogo core, non dai kit d'eroe.
 

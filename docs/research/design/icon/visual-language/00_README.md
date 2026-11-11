@@ -5,7 +5,7 @@
 > «§34»: la cartella si chiama `docs/research/` dal 2026-08-19 — #1165 — e `AGENTS.md` ha **undici**
 > sezioni, quindi la §34 non c'era neanche allora.)* Il canone dell'iconografia è
 > [D-031](../../../../decisions/RT_PDR_00_Decision_Log.md) più l'enum `ERTIconCategory` in
-> `Source/RefactorTactics/UI/RTIconCatalogData.h`. Dove questi file divergono dal codice o dal Decision Log,
+> `Source/RefactorTactics/UI/Inspect/RTIconCatalogData.h`. Dove questi file divergono dal codice o dal Decision Log,
 > prevalgono codice e Decision Log.
 
 ## Documentazione consolidata

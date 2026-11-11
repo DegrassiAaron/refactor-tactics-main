@@ -53,11 +53,11 @@ Il documento (§3.2) chiede quattro boundary nominati: `EndPrep · EndDash · En
 
 Corrispondenza con il codice attuale (verificata sul branch, non ipotizzata):
 
-- `ERTMatchPhase` (`Turn/RTTurnRules.h:9`) dichiara già `Planning · Prep · Dash · Blast · Move · Cleanup ·
+- `ERTMatchPhase` (`Turn/Resolution/RTTurnRules.h:9`) dichiara già `Planning · Prep · Dash · Blast · Move · Cleanup ·
   MatchEnded`: i quattro boundary sono le **uscite** delle prime quattro fasi attive, non un enum nuovo.
 - Il resolver applica già le fasi in sequenza in `ARTTurnManager` con un `do/while` sulle macro-fasi: un
   boundary è il punto fra un `Resolve*` e il successivo.
-- `Turn/RTActionQueue.h` + `RTActionQueueLibrary` esistono e ordinano le azioni per fase e priorità: la coda
+- `Turn/Actions/RTActionQueue.h` + `RTActionQueueLibrary` esistono e ordinano le azioni per fase e priorità: la coda
   delle Delayed Actions **estende** questa, non ne affianca una seconda (vincolo §23 del documento).
 
 ## 3. Dati e policy da adottare così come sono
@@ -105,7 +105,7 @@ iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](../roadma
 1. ~~**Il documento dà per esistente più di quanto esista.** §23 elenca `RTReactionLibrary` fra i sistemi
    presenti: nel repo **non c'è** un file con quel nome.~~
    > ⚠️ **Rettifica del 2026-08-07**: questa osservazione era **sbagliata già quando è stata scritta**.
-   > `Turn/RTReactionLibrary.{h,cpp}` **esiste**, è l'epic **E5** (27 test) ed è dichiarato ✅ in
+   > `Turn/Reaction/RTReactionLibrary.{h,cpp}` **esiste**, è l'epic **E5** (27 test) ed è dichiarato ✅ in
    > [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §2 nella stessa giornata. Il documento sorgente aveva
    > ragione. La lezione resta ma si rovescia: **verificare i nomi reali vale in entrambe le direzioni** —
    > negare l'esistenza di un sistema porta a ricostruirlo, che è il doppio del danno.

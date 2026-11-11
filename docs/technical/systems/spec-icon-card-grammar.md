@@ -92,7 +92,7 @@ assi ([D-234](../../decisions/RT_PDR_00_Decision_Log.md)), e i criteri sono tre:
 l'inchiostro che la palette le assegna, non un altro; la fase non si confonde con l'identità di squadra; le
 due identità — le proprie unità e il nemico rivelato — non si confondono fra loro.
 
-I colori si leggono da due righe di `UI/RTHUD.cpp` **per forma**: l'assegnazione dell'identità dentro
+I colori si leggono da due righe di `UI/HUD/RTHUD.cpp` **per forma**: l'assegnazione dell'identità dentro
 `ARTHUD::ComposeIntentPresentation` e la dichiarazione di `DashColor`. Si misurano solo **letterali** di
 colore: un colore calcolato, un ternario annidato o una seconda scrittura del campo sono un errore di
 lettura, non una misura del primo colore che capita. I commenti e il contenuto delle stringhe si scartano

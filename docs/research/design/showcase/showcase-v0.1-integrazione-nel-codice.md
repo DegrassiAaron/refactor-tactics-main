@@ -159,7 +159,7 @@ File chiave:
 - `Map/RTCellId.h`
 - `Map/RTHexCellData.h`
 - `Map/RTHexMapAsset.*`
-- `Map/RTHexMapActor.*`
+- `Map/Actor/RTHexMapActor.*`
 - `Pathfinding/RTHexPathLibrary.*`
 
 Superfici correnti:
@@ -310,10 +310,10 @@ File:
 
 - `Ability/RTActionDef.h`
 - `Ability/RTActionData.h`
-- `Ability/RTCatalogLibrary.*`
-- `Turn/RTActionQueue.*`
-- `Turn/RTActionEffectLibrary.*`
-- `Turn/RTActionFallbackLibrary.*`
+- `Ability/Catalog/RTCatalogLibrary.*`
+- `Turn/Actions/RTActionQueue.*`
+- `Turn/Actions/RTActionEffectLibrary.*`
+- `Turn/Actions/RTActionFallbackLibrary.*`
 
 ## 4.1 Macro-fasi
 
@@ -422,8 +422,8 @@ L'obiettivo del motore azioni è precisamente evitare questo.
 
 File:
 
-- `Turn/RTReactionLibrary.h`
-- `Turn/RTReactionLibrary.cpp`
+- `Turn/Reaction/RTReactionLibrary.h`
+- `Turn/Reaction/RTReactionLibrary.cpp`
 - `Turn/RTTurnManager.cpp`
 - `Unit/RTUnit.h`
 - test:
@@ -1542,8 +1542,8 @@ RT_Showcase_Relay_v01_Lite
 
 File probabili:
 
-- `Turn/RTMatchSetupLibrary.*`
-- nuovo test `Tests/RTShowcaseScenarioTests.cpp`
+- `Turn/Format/RTMatchSetupLibrary.*`
+- nuovo test `Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 - documento `docs/design/showcase-v0.1.md`
 
 Fare:

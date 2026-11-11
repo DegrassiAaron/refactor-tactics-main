@@ -100,7 +100,7 @@ che comanda finché dura»*.
 
 ### 2.2 L'elenco degli ingressi ha già un oracolo, e va citato invece di ricopiato
 
-`RefactorTactics.GameMode.*` in `Tests/RTShippedGameModeTests.cpp` enumera **per riflessione** le proprietà
+`RefactorTactics.GameMode.*` in `Tests/Frontend/RTShippedGameModeTests.cpp` enumera **per riflessione** le proprietà
 editabili di `ARTGameMode` e pretende che ognuna stia in un insieme **deliberato**. Il suo commento dichiara
 la stessa disciplina che questo documento adotta:
 

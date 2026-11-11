@@ -56,7 +56,7 @@ l'archetipo, bonus di elevazione, scelta deterministica.
   per ciascun nemico entro `AttackRange` e con LOS da quella cella.
 - `PlanUnit(Snapshot, UnitId, Context)` — `ChooseBestPlan(BuildCandidates(...))`.
 
-## 4. Test — `Tests/RTHexBotTests.cpp`, prefisso `RefactorTactics.HexBot.*`
+## 4. Test — `Tests/Bot/RTHexBotTests.cpp`, prefisso `RefactorTactics.HexBot.*`
 
 | Test | Comportamento |
 |---|---|

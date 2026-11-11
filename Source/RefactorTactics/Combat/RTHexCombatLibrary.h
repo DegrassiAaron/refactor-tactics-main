@@ -5,8 +5,8 @@
 #include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Map/RTCellId.h"
-#include "Map/RTHexCoverLibrary.h"
-#include "Map/RTHexDoorLibrary.h"
+#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/Cover/RTHexDoorLibrary.h"
 #include "RTHexCombatLibrary.generated.h"
 
 class URTHexMapAsset;

@@ -1,14 +1,14 @@
 #include "Tools/RTHexLosTool.h"
 
-#include "RTHexEditorClick.h"
-#include "RTHexLosReadout.h"
+#include "HexMode/RTHexEditorClick.h"
+#include "HexMode/RTHexLosReadout.h"
 
 #include "BaseBehaviors/MouseHoverBehavior.h"
 #include "InteractiveToolManager.h"
 #include "Map/RTHexLibrary.h"      // AxialToWorld: dove DISEGNARE il punto di blocco, non come deciderlo
-#include "Map/RTHexMapActor.h"
+#include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexVisionLibrary.h"
+#include "Map/Vision/RTHexVisionLibrary.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
 #include "ToolContextInterfaces.h"
 

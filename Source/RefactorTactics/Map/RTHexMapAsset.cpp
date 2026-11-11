@@ -1,23 +1,23 @@
 #include "Map/RTHexMapAsset.h"
-#include "Map/RTHexArcLibrary.h"
+#include "Map/Vision/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapCustomVersion.h"
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
 // e' l'unico punto di lettura da nome a struttura (#832), e un secondo validator sarebbe una doppia verita'.
-#include "Map/RTStructureIdentityLibrary.h"
-#include "Map/RTMapEditLibrary.h"  // DeleteElement: la cascata di una cella cancellata (#3322)
+#include "Map/Structure/RTStructureIdentityLibrary.h"
+#include "Map/Authoring/RTMapEditLibrary.h"  // DeleteElement: la cascata di una cella cancellata (#3322)
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
-#include "Map/RTGeometryBake.h"
-#include "Map/RTGeometryGrammar.h"  // le validazioni geometriche delle regioni No-Walk (#1868)
+#include "Map/Structure/RTGeometryBake.h"
+#include "Map/Structure/RTGeometryGrammar.h"  // le validazioni geometriche delle regioni No-Walk (#1868)
 // Le regole di topologia di `#1832` chiamano le stesse funzioni della cottura invece di rifarle: se questa
 // misurasse la calpestabilita' diversamente da `DeriveStandability`, il validator segnalerebbe celle che il
 // bake considera sane — cioe' due verita' sulla stessa regola.
-#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/Cover/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 // L'atterraggio isolato (`#2404`) si misura col vocabolario del bordo di `#2401` e col grafo tattico, e
 // non con una terza lettura della mappa scritta qui: `IsEdgeOpen`/`FindLandingCell` dicono dove si cade,
 // `GraphNeighbors` dice che cosa e' raggiungibile da li'.
-#include "Map/RTHexLedgeLibrary.h"
+#include "Map/Cover/RTHexLedgeLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Serialization/CustomVersion.h"
 

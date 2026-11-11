@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BaseTools/ClickDragTool.h"
-#include "Map/RTHexMapActor.h" // ERTRebuildFamily: la maschera che il pennello passa al rebuild
+#include "Map/Actor/RTHexMapActor.h" // ERTRebuildFamily: la maschera che il pennello passa al rebuild
 #include "Map/RTHexCellData.h" // FRTCellId + ERTHexSurface (brush)
 #include "ScopedTransaction.h" // TUniquePtr<FScopedTransaction> membro
 #include "RTHexPaintTool.generated.h"

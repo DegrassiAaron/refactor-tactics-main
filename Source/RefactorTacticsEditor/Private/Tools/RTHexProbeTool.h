@@ -5,7 +5,7 @@
 #include "BaseTools/SingleClickTool.h"
 #include "InteractiveToolBuilder.h"
 #include "Map/RTCellId.h"
-#include "Turn/RTHexSim.h"
+#include "Turn/Resolution/RTHexSim.h"
 
 #include "RTHexProbeTool.generated.h"
 

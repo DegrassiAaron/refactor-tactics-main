@@ -86,7 +86,7 @@ namespace
 	 *
 	 * ⚠️ **La mappa e' un giudizio dell'autore, scelto dai NOMI** (spec §2.6, approvata il 2026-10-07): la seduta
 	 * `PIE-CLIP-ABILITA` puo' cambiarne ogni riga. Chi la cambia cambia anche la seconda copia dichiarata,
-	 * `ClipAtteseDefault` in `Tests/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
+	 * `ClipAtteseDefault` in `Tests/Unit/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
 	 * entrare qui (spec §2.6, che porta il comando di misura): i nomi non si deducono.
 	 * 🔴 **E nessuna clip e' additiva** (#3590): un nome che esiste non basta, perche' su un gesto un'additiva suona e
 	 * non si vede. Lo presidia `Unit.DefaultGestureClipsAreNotAdditive`, che legge l'asset dove i pack ci sono.

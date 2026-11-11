@@ -104,14 +104,14 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 
 | Area | Disponibile | Dove |
 |---|---|---|
-| Allestimento | `ARTGameMode` cerca/crea `ARTHexMapActor`, crea `ARTTurnManager`, chiama `SetupHexMatch`; supporta `LevelAsset`, `GeneratedDemoArena`, `GeneratedTestArena`; roster dal catalogo eroi; Team 1 marcato bot | `RTGameMode.{h,cpp}`, `Turn/RTMatchSetupLibrary.*` |
+| Allestimento | `ARTGameMode` cerca/crea `ARTHexMapActor`, crea `ARTTurnManager`, chiama `SetupHexMatch`; supporta `LevelAsset`, `GeneratedDemoArena`, `GeneratedTestArena`; roster dal catalogo eroi; Team 1 marcato bot | `RTGameMode.{h,cpp}`, `Turn/Format/RTMatchSetupLibrary.*` |
 | Substrato | griglia esagonale multilivello, A\* a costi interi, transizioni (`Stair`, `Ramp`, `Bridge`, `Tunnel`, `Elevator`, `Jump`) | `Map/`, `Pathfinding/` |
-| Turno | `Prep → Dash → Blast → Move → Cleanup`; snapshot, collisioni simultanee, micro-step, TurnLog con hash e serializzazione versionata | `Turn/RTHexSimLibrary.*`, `Turn/RTTurnLog*` |
-| Azioni | `FRTActionDef` con `ActionId`, fase, priorità, range, costo, cooldown, `Fallback`, `Slot`, `MovementStyle`, `Effects`, `bAllowsReaction`, `InterruptPolicy` | `Ability/`, `Turn/RTActionQueue*` |
-| Reazioni | Counter, Deflect, Brace, Shield, Cleanse, **Intercept** (con pass dedicato **prima** delle altre: cambia il bersaglio del colpo) | `Turn/RTReactionLibrary.*` |
-| Terreni | 8 superfici; **Rough** (costo alto, blocca Dash/Charge), **Fire** (10 danni on-enter + `Burning`), **Smoke** (cap targeting a 2), **ShallowWater**/**Conductive** (conducibilità dichiarata), **Ice** (scivolamento di 1 cella nel Move con ≥ 2 MP), **HighGround** (dato) | `Map/RTHexCellData.h`, `Turn/RTHexSimLibrary.*` |
+| Turno | `Prep → Dash → Blast → Move → Cleanup`; snapshot, collisioni simultanee, micro-step, TurnLog con hash e serializzazione versionata | `Turn/Resolution/RTHexSimLibrary.*`, `Turn/Log/RTTurnLog*` |
+| Azioni | `FRTActionDef` con `ActionId`, fase, priorità, range, costo, cooldown, `Fallback`, `Slot`, `MovementStyle`, `Effects`, `bAllowsReaction`, `InterruptPolicy` | `Ability/`, `Turn/Actions/RTActionQueue*` |
+| Reazioni | Counter, Deflect, Brace, Shield, Cleanse, **Intercept** (con pass dedicato **prima** delle altre: cambia il bersaglio del colpo) | `Turn/Reaction/RTReactionLibrary.*` |
+| Terreni | 8 superfici; **Rough** (costo alto, blocca Dash/Charge), **Fire** (10 danni on-enter + `Burning`), **Smoke** (cap targeting a 2), **ShallowWater**/**Conductive** (conducibilità dichiarata), **Ice** (scivolamento di 1 cella nel Move con ≥ 2 MP), **HighGround** (dato) | `Map/RTHexCellData.h`, `Turn/Resolution/RTHexSimLibrary.*` |
 | Zone controllate | `FRTSuppressiveZone`, `FRTSuppressionMover`, `ResolveSuppression`: celle controllate, path a micro-step, primo nemico che entra, ordine totale `StepIndex → UnitId`, una sola attivazione, stop del movimento | `Combat/RTOffensiveActionLibrary.*` |
-| Privacy | `FRTPlannedIntent → FilterForTeam → FRTIntentView`: l'HUD **non riceve** il piano avversario, non lo nasconde | `Turn/RTIntentPrivacyLibrary.*` |
+| Privacy | `FRTPlannedIntent → FilterForTeam → FRTIntentView`: l'HUD **non riceve** il piano avversario, non lo nasconde | `Turn/Actions/RTIntentPrivacyLibrary.*` |
 | Bot | utility su hex, candidate da `ReachableCells`, pesi tunabili | `Bot/RTHexBotLibrary.*` |
 
 **Limiti noti del canone corrente**, da non scambiare per bug:
@@ -120,7 +120,7 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - 🔴 **`Action.Cleanse` — la Principale — non è fra ciò su cui la showcase può appoggiarsi.** La riga
   «Reazioni» qui sopra la elenca, e quella misura è del **2026-08-08**: il **2026-08-30**
   ⚠️ **E quella riga nomina due cose diverse con una parola sola**: la sua colonna «Dove» punta a
-  `Turn/RTReactionLibrary.*`, dove vive il Cleanse **reattivo**; l'attiva si risolve altrove (`ResolveCleanseActions`,
+  `Turn/Reaction/RTReactionLibrary.*`, dove vive il Cleanse **reattivo**; l'attiva si risolve altrove (`ResolveCleanseActions`,
   `Turn/RTTurnManager_Blast.cpp`). Questo limite parla **solo** della Principale.
   [D-264](../decisions/RT_PDR_00_Decision_Log.md) l'ha tolta dalla v0.1 (`#1403`), e `PlannedCleansePriority`
   non avrà un produttore. ⛔ Resta invece il Cleanse **reattivo** — `Reaction.Cleanse`, modulo di default di

@@ -3,7 +3,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
-#include "Turn/RTHexSimLibrary.h"
+#include "Turn/Resolution/RTHexSimLibrary.h"
 
 URTHexMapAsset* URTRangeVerdictLibrary::MakeVisibleOnlyNeutralMap(UObject* Outer, const URTHexMapAsset* Map,
 	const FRTTeamKnowledge& Knowledge)

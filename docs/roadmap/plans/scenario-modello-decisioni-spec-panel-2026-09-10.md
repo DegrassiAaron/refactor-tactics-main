@@ -20,7 +20,7 @@ dichiarate qui come `BLOCCO` o `PROPOSTA`, non applicate in silenzio.
 
 ### 1.1 Il formato esiste ed è alla `version: 4`
 
-`FRTTestScenario` ([`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h))
+`FRTTestScenario` ([`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h))
 porta già tutte le regioni del mandato:
 
 | Regione chiesta | Dove sta |

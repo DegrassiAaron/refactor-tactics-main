@@ -3,7 +3,7 @@
 #include "PieSession/RTPieSessionWriter.h"
 #include "Misc/Paths.h"
 #include "RefactorTactics.h" // LogRT
-#include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/Report/RTTestResult.h"
 
 FString URTPieSessionSubsystem::ScenarioImposedBy(const URTPieSessionSubsystem* Conduttore)
 {

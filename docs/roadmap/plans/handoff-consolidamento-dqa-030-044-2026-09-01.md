@@ -65,7 +65,7 @@ altro nome. Questa tavola chiude quella distanza.
 
 L'handoff d'autore proponeva `BlockedByMovementCycle` e autorizzava esplicitamente il riuso di *«un reason
 code semanticamente equivalente»*. Quel codice **esiste** e si chiama
-[`ERTMoveOutcome::BlockedByCycle`](../../../Source/RefactorTactics/Turn/RTTurnLog.h) — aggiunto **in coda**
+[`ERTMoveOutcome::BlockedByCycle`](../../../Source/RefactorTactics/Turn/Log/RTTurnLog.h) — aggiunto **in coda**
 all'enum secondo la disciplina che quel file impone, con la motivazione del perché non riusa
 `BlockedContested` (*«dice due unità verso la stessa cella; in un ciclo le celle sono distinte»*),
 `BlockedByUnit` (*«dice un'unità ferma; in un ciclo sono tutte in movimento»*) né `BlockedByImpact`.

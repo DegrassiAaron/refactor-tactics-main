@@ -198,12 +198,12 @@ e `Result: Succeeded` verificato sull'output completo della build — le due lez
 
 | File | Modifica |
 |---|---|
-| `Turn/RTTurnLog.h` | `ERTLogCategory::Environment`, `ERTEnvironmentOutcome` |
+| `Turn/Log/RTTurnLog.h` | `ERTLogCategory::Environment`, `ERTEnvironmentOutcome` |
 | `Terrain/RTTerrainData.h`, `RTTerrainLibrary.cpp` | `bIsFlammable` nel catalogo (Floor, Rough) |
-| `Ability/RTCatalogLibrary.cpp` | `Action.Ignite`, `Action.CreateWater` |
+| `Ability/Catalog/RTCatalogLibrary.cpp` | `Action.Ignite`, `Action.CreateWater` |
 | `Turn/RTTurnManager.{h,cpp}` | `DynamicSurfaces`, `ApplyDynamicSurface`, `TickDynamicSurfaces`, cablaggio nel Cleanup |
 | `RTGameMode.cpp` | copia di lavoro della mappa d'autore |
-| `Tests/RTFireWaterTests.cpp` (nuovo), `Tests/RTMatchSetupWorldTests.cpp` | i tre test + quello sostituito |
+| `Tests/Terrain/RTFireWaterTests.cpp` (nuovo), `Tests/Turn/Format/RTMatchSetupWorldTests.cpp` | i tre test + quello sostituito |
 
 ## 6. Rischi
 

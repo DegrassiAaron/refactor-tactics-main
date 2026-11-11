@@ -102,10 +102,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const dallaRadice = (p: string) => readFileSync(fileURLToPath(new URL(`../../${p}`, import.meta.url)), 'utf8');
 
   const righe = docRows(dallaRadice('docs/balance/RT_ActionDescriptions_v0.1.md'));
-  const frasi = cppPairs(dallaRadice('Source/RefactorTactics/Ability/RTActionDescriptions.cpp'), 'RTActionDescriptions::All()');
+  const frasi = cppPairs(dallaRadice('Source/RefactorTactics/Ability/Catalog/RTActionDescriptions.cpp'), 'RTActionDescriptions::All()');
   const nomi = [
-    ...cppPairs(dallaRadice('Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp'), 'FText HeroActionDisplayName('),
-    ...cppPairs(dallaRadice('Source/RefactorTactics/Ability/RTCatalogLibrary.cpp'), 'FText GenericActionDisplayName('),
+    ...cppPairs(dallaRadice('Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp'), 'FText HeroActionDisplayName('),
+    ...cppPairs(dallaRadice('Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp'), 'FText GenericActionDisplayName('),
   ];
   console.error(`copertura: ${righe.length} righe nel documento · ${frasi.length} frasi e ${nomi.length} nomi in C++`);
 

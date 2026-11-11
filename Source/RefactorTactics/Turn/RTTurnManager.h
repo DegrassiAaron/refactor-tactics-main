@@ -5,18 +5,18 @@
 #include "Core/RTTypes.h"
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: il combat log filtra da qui, non da un secondo canale
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
-#include "Turn/RTTurnRules.h"
-#include "Turn/RTResolvedEvent.h"
+#include "Turn/Resolution/RTTurnRules.h"
+#include "Turn/Resolution/RTResolvedEvent.h"
 #include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
-#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
-#include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
-#include "Turn/RTTurnLog.h"
-#include "Turn/RTSeenUseLedger.h" // FRTSeenUseLedger: cio' che ogni squadra ha visto usare, per le ricariche dedotte (#3751)
-#include "Turn/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
+#include "Turn/Resolution/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
+#include "Turn/Log/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Log/RTSeenUseLedger.h" // FRTSeenUseLedger: cio' che ogni squadra ha visto usare, per le ricariche dedotte (#3751)
+#include "Replay/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
-#include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
-#include "Turn/RTMovementResolutionContext.h" // FRTMovementResolutionContext: la risoluzione che attraversa piu' frame (#2679)
+#include "Turn/Resolution/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
+#include "Turn/Resolution/RTMovementResolutionContext.h" // FRTMovementResolutionContext: la risoluzione che attraversa piu' frame (#2679)
 
 /**
  * L'esito di un passo di risoluzione del movimento (`#2679` fetta 1).
@@ -40,20 +40,20 @@ enum class ERTMovementAdvanceResult : uint8
 	 */
 	Suspended,
 };
-#include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
-#include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
-#include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
+#include "Turn/Pacing/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
+#include "Turn/Pacing/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
+#include "Turn/Playback/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
 #include "Turn/Playback/RTPlaybackDirector.h" // FRTPlaybackDirector: il playback di presentazione vive fuori (#4057)
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
-#include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
-#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: l'Overwatch armato porta con se' la condizione dichiarata
-#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity/FRTReactionDecision: le firme del boundary li usano
-#include "Turn/RTReactionWindowView.h" // FRTReactionWindowView: il DTO che questo manager consegna alla presentazione
-#include "Turn/RTReactionPassResult.h" // FRTReactionPassResult/FRTDisplacementCause: cio' che il pass reazioni raccoglie
-#include "Turn/RTBlastContext.h" // FRTBlastContext: lo stato che i pass del Blast si passano l'un l'altro
-#include "UI/RTActivationLine.h" // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
+#include "Turn/Reaction/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
+#include "Turn/Actions/RTDeclaredCondition.h" // FRTDeclaredCondition: l'Overwatch armato porta con se' la condizione dichiarata
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // FRTReactionOpportunity/FRTReactionDecision: le firme del boundary li usano
+#include "Turn/Reaction/RTReactionWindowView.h" // FRTReactionWindowView: il DTO che questo manager consegna alla presentazione
+#include "Turn/Reaction/RTReactionPassResult.h" // FRTReactionPassResult/FRTDisplacementCause: cio' che il pass reazioni raccoglie
+#include "Turn/Resolution/RTBlastContext.h" // FRTBlastContext: lo stato che i pass del Blast si passano l'un l'altro
+#include "UI/Feed/RTActivationLine.h" // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -295,10 +295,10 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FRTPhaseClosedSignature, ERTMatchPhase /* Cl
  */
 DECLARE_MULTICAST_DELEGATE_OneParam(FRTLogEntryAppendedSignature, const FRTTurnLogEntry& /* Entry */);
 
-// `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/RTCombatLog.h` da `#1818`: chiunque volesse una
+// `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/Log/RTCombatLog.h` da `#1818`: chiunque volesse una
 // riga di log doveva includere QUESTO header per una struct di tre campi.
 
-// `FRTMoveRoute` vive in `Turn/RTMoveRoute.h` da `#1818`, col filtro `URTMoveRouteLibrary`.
+// `FRTMoveRoute` vive in `Turn/Resolution/RTMoveRoute.h` da `#1818`, col filtro `URTMoveRouteLibrary`.
 
 /**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,

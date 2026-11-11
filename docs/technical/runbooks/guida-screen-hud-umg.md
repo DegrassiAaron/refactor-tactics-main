@@ -23,7 +23,7 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 
 | Pezzo | Dove | Stato |
 |---|---|---|
-| Classi base C++ dei widget | `Source/RefactorTactics/UI/RTScreenHudWidgets.h` | ✅ |
+| Classi base C++ dei widget | `Source/RefactorTactics/UI/HUD/RTScreenHudWidgets.h` | ✅ |
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
@@ -99,7 +99,7 @@ Le zone stanno su **quattro fasce attorno alla scena**: le tre celle alte, le du
 intera**. La scena 3D si rende **solo** nel rettangolo che le fasce lasciano libero ([D-497](../../decisions/RT_PDR_00_Decision_Log.md),
 [#3661](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3661)): fuori c'è l'HUD, e un click lì non raggiunge il mondo.
 
-🔑 **Le fasce sono un dato di runtime, in unità Slate**: `FRTHudBands` in `Source/RefactorTactics/UI/RTHudLayout.h`.
+🔑 **Le fasce sono un dato di runtime, in unità Slate**: `FRTHudBands` in `Source/RefactorTactics/UI/HUD/RTHudLayout.h`.
 Sono la misura dei loro inquilini, e a 1920×1080 valgono le frazioni di D-497 (la bassa, emendata da [D-549](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 | Fascia | Unità Slate | A 1920×1080 | Chi la misura |
@@ -479,7 +479,7 @@ loro la finestra resta quella dei tre binding qui sopra, che **non si toccano**.
 | `AccentStrip` | `Border` | `BrushColor` `Violet`: la striscia a sinistra |
 | `CountdownBar` | `ProgressBar` | la frazione di `Get Countdown Fraction`, riempimento `White`. Il fondo della barra (`Frame_Off`) sta nell'asset |
 | `SafeOutcomeText` | `TextBlock` | «Allo scadere: HOLD», da `Get Safe Outcome Text` |
-| `SubtitleText` | `TextBlock` | il sottotitolo, da `Get Subtitle Text`, in `Text_Secondary`: «Ivrin è entrato nell'area controllata», «Ivrin ti spinge», «Un nemico ti spinge». Senza una frase il C++ lo mette `Collapsed`. Sta sotto `PromptText`, nella colonna del titolo, in Exo2 Regular 10,5 (i 14 px della tavola E a scala 0,75), aggiunta dal clone principale con [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667). La controlla la riga `SubtitleText` nell'elenco `Finestra` di `ScreenHud.ActionBarDeclaresTheNamedPorts` (`Tests/RTMatchWidgetAssetTests.cpp`): senza, un nome sbagliato resterebbe spento in silenzio |
+| `SubtitleText` | `TextBlock` | il sottotitolo, da `Get Subtitle Text`, in `Text_Secondary`: «Ivrin è entrato nell'area controllata», «Ivrin ti spinge», «Un nemico ti spinge». Senza una frase il C++ lo mette `Collapsed`. Sta sotto `PromptText`, nella colonna del titolo, in Exo2 Regular 10,5 (i 14 px della tavola E a scala 0,75), aggiunta dal clone principale con [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667). La controlla la riga `SubtitleText` nell'elenco `Finestra` di `ScreenHud.ActionBarDeclaresTheNamedPorts` (`Tests/UI/HUD/RTMatchWidgetAssetTests.cpp`): senza, un nome sbagliato resterebbe spento in silenzio |
 
 Due letture nuove: **`Get Countdown Fraction`**, il residuo autorevole sulla durata (da 1 a 0, negativo senza
 finestra), e **`Get Safe Outcome Text`**, col nome della `SafeResponse`: nel `Brace` dice «HOLD GROUND». E una
@@ -532,7 +532,7 @@ Blueprint — è che quel dato non deve arrivare al widget, oppure va aggiunto a
 ```
 
 E la riga del gate è atterrata **con** l'asset, in quattro siti di
-`Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`:
+`Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp`:
 
 ```cpp
 const TCHAR* const FastDecisionPath =

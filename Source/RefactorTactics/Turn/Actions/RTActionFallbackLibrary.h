@@ -1,0 +1,377 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "Ability/RTActionDef.h"
+#include "Combat/RTHexCombatLibrary.h"
+#include "Turn/Actions/RTActionQueue.h"
+#include "Turn/Log/RTTurnLog.h"
+#include "RTActionFallbackLibrary.generated.h"
+
+class URTHexMapAsset;
+
+/**
+ * Perche' un'azione pianificata non e' piu' eseguibile al momento della risoluzione. E' il "reason code" del
+ * fallback: senza, il log direbbe che l'azione e' stata annullata senza dire da cosa — e chi gioca non
+ * imparerebbe nulla da un turno andato storto.
+ */
+UENUM(BlueprintType)
+enum class ERTActionInvalidReason : uint8
+{
+	/** L'azione e' eseguibile come pianificata. */
+	None,
+	/** Il bersaglio non esiste piu' nel turno (rimosso, o mai indicato). */
+	TargetGone,
+	/** Il bersaglio e' stato eliminato prima che l'azione risolvesse. */
+	TargetDead,
+	/** Il bersaglio e' un alleato: le azioni offensive del vertical slice non colpiscono la propria squadra. */
+	TargetFriendly,
+	/**
+	 * Il bersaglio si e' allontanato oltre la portata dichiarata.
+	 *
+	 * E, da [D-516], il bersaglio di una CARICA pianificato in linea ma oltre la portata: la carica corre fino alla
+	 * portata e la traccia la scrive `ERTFallbackOutcome::Stopped` con questo motivo. Il rimedio e' lo stesso —
+	 * avvicinarsi —, ed e' cio' che separa questo motivo da `DashNotAligned`.
+	 */
+	OutOfRange,
+	/** In portata, ma la traiettoria e' bloccata. */
+	NoLineOfSight,
+	/** Nessuna mappa autorevole: non si valida (fail-closed, difetto di configurazione del livello). */
+	NoMap,
+	/**
+	 * Il bersaglio e' IGNOTO alla squadra dell'attaccante (CP 13.2): nessuno lo vede e non ne resta un
+	 * ricordo vivo. Non e' un difetto di geometria — portata e traiettoria possono essere perfette — ma di
+	 * CONOSCENZA, ed e' per questo che ha un motivo proprio invece di riusare `TargetGone`: quello dice «non
+	 * c'e' piu'», questo dice «per te non c'e' mai stato».
+	 *
+	 * Valore aggiunto in coda: le tracce gia' scritte conservano il proprio significato.
+	 */
+	TargetUnknown,
+
+
+	/**
+	 * Lo slot che l'azione occupa e' gia' preso da un'altra voce dello stesso piano (CP 38.2).
+	 *
+	 * E' la forma CORRETTA del vincolo che il kit d'autore del 2026-08-12 proponeva come regola a se'
+	 * (`OverwatchDisallowsVoluntaryDash`): D-070 dichiara che quel divieto non serve, perche' chi riserva
+	 * lo slot movimento non VIETA lo scatto — semplicemente non ha piu' lo slot. Un motivo solo copre
+	 * `Sprint`+principale, due principali e scatto+movimento, invece di una regola per combinazione.
+	 */
+	SlotOccupied,
+
+	/**
+	 * Il costo in Movement Point del piano supera il budget dell'unita'.
+	 *
+	 * 🔴 **Nessuno lo produce, ed e' una decisione: [D-190].** Il ramo che lo emetteva — la somma dei
+	 * `CostMP` del piano contro `MoveBudget`, in `URTPlanValidationLibrary::ValidatePlan` — e' uscito perche'
+	 * era una SOTTRAZIONE, e [D-114] ha stabilito che qui la legalita' e' STRUTTURALE. Il limite di movimento
+	 * resta applicato dal pathfinding in pianificazione (`ARTPlayerController::HandleClickOnCell`), che
+	 * rifiuta il waypoint e dice anche quanto era gia' speso — un rifiuto piu' preciso di questo, perche'
+	 * nomina la cella invece del piano.
+	 *
+	 * ⚠️ **Il valore non si rimuove.** Finisce come intero nel TurnLog (`FRTTurnLogEntry::Amount`), quindi
+	 * togliere la voce sposterebbe `OnCooldown` di uno e cambierebbe il significato delle tracce gia'
+	 * scritte. Resta in coda senza produttore: e' il prezzo di un enum serializzato, e si paga una volta.
+	 */
+	InsufficientMovementPoints,
+
+	/** L'abilita' non e' ancora ripetibile: il cooldown residuo e' maggiore di zero. */
+	OnCooldown,
+
+	/**
+	 * L'azione e' stata INTERROTTA da un'altra unita' (`Action.Interrupt`, CP 5.4).
+	 *
+	 * Motivo proprio e non `TargetGone`: non e' mancato niente al bersaglio ne' alla geometria — l'azione
+	 * era valida e qualcuno l'ha fermata. E' l'unico motivo di questo enum che ha un AUTORE.
+	 *
+	 * 🔴 **In CODA, e non e' pedanteria.** La prima stesura di `#1412` punto 4 lo aveva messo dopo
+	 * `TargetUnknown`, e questo enum viaggia come intero grezzo in `FRTTurnLogEntry::Amount`: inserirlo in
+	 * mezzo rinumerava `SlotOccupied` 8->9, `InsufficientMovementPoints` 9->10 e `OnCooldown` 10->11, cioe'
+	 * cambiava il SIGNIFICATO di ogni traccia gia' scritta che portasse uno di quei motivi — un cambio
+	 * d'identita' in piu' rispetto ai tre che [D-196] dichiara, e per giunta silenzioso, perche' ogni test
+	 * usa i nomi simbolici e nessun golden porta quelle voci. Trovato in code review.
+	 *
+	 * E' lo stesso divieto che il commento di `InsufficientMovementPoints` scrive per se': togliere o
+	 * spostare una voce sposta le successive.
+	 */
+	Interrupted,
+
+	/**
+	 * L'azione era VALIDA e non ha prodotto effetti utili (`#1437`).
+	 *
+	 * Non e' un difetto di geometria ne' di conoscenza: bersaglio giusto, portata giusta, e nessun effetto
+	 * da applicare — una cura marcata tale i cui `Effects` non portano un `Heal` utile, per esempio da un
+	 * data asset scritto male o da un equipaggiamento che li ha sostituiti. Ha un motivo proprio perche'
+	 * `None` significa «l'azione e' eseguibile» e la resa generica direbbe «non eseguibile», che qui e'
+	 * falso in tutti e due i versi.
+	 *
+	 * ⚠️ In CODA come `Interrupted`: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e
+	 * inserirne uno in mezzo cambierebbe il significato delle tracce gia' scritte.
+	 */
+	NoEffect,
+
+	/**
+	 * L'azione e' partita, ha raggiunto il bersaglio, e un'altra azione l'ha resa priva di effetto
+	 * **senza cancellarla** (`#1460`, [D-203]).
+	 *
+	 * L'unico produttore in v0.1 sono due `Action.Interrupt` reciproci: [D-202] li lascia entrambi
+	 * **inefficaci** — un ciclo non ha radice, e ogni tie-break sarebbe arbitrario — quindi nessuno dei due
+	 * cancella e le due azioni originali procedono. Chi ha speso l'Interrupt ha pagato e non ha ottenuto
+	 * niente, e senza questa voce quel turno non lasciava **nessuna** traccia autoritativa.
+	 *
+	 * ⚠️ **Non e' `NoEffect`**, e la distinzione e' quella che `#1430` ha appena pagato per un'altra
+	 * coppia: `NoEffect` dice che l'azione non aveva niente da applicare — un catalogo scritto male, uno
+	 * stato che non c'era. Qui l'azione aveva esattamente qualcosa da applicare, ed e' stata neutralizzata
+	 * da cio' che stava annullando. Metterle sotto lo stesso motivo rifarebbe due significati per una
+	 * coppia sola.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted` e `NoEffect` prima: il motivo viaggia in `Amount`, un `int32`
+	 * serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono riscrivendo il significato di
+	 * ogni traccia archiviata. Lezione gia' pagata inserendo `Interrupted` a meta' di questo stesso enum.
+	 */
+	Neutralised,
+
+	/**
+	 * Chi ha perso l'equilibrio non corre: `Status.Unbalanced` rifiuta la mobilita' rapida a BUDGET
+	 * ([D-319], `#2253`) — oggi il solo `Action.Sprint`.
+	 *
+	 * 🔑 **Il criterio e' `ERTMovementStyle::Budget` dentro `FastMovement`, non l'`ActionId`.** Una
+	 * mobilita' a budget attraversa celle scelte una per una nel momento in cui si corre; una LINEARE
+	 * (`Dash`, `Charge`, `Leap`, `Reposition`) e' uno slancio in una direzione, deciso prima e pagato tutto
+	 * insieme. E' la seconda che uno sbilanciato puo' ancora fare, ed e' anche il modo in cui il divieto
+	 * resta vero per la prossima azione a budget che qualcuno aggiungera' — un `if` sull'`ActionId` la
+	 * lascerebbe fuori senza che nulla diventi rosso.
+	 *
+	 * ⚠️ **Rifiuto in VALIDAZIONE, non scarto muto alla risoluzione**: l'azione lascia una voce
+	 * `Fallback`/`Cancelled` che nomina questa causa, e chi rilegge il turno vede *perche'* la corsa non
+	 * c'e' stata invece di un buco. Il costo e' il valore qui sotto; l'alternativa chiedeva un evento nuovo.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect` e `Neutralised` prima: il motivo viaggia come intero
+	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia
+	 * gia' archiviata che ne porti uno successivo.
+	 */
+	Unbalanced,
+
+	/**
+	 * La porta puntata e' `Locked`: la commutazione di [`INT-7`] (`#2380`) la RIFIUTA invece di toccarla.
+	 *
+	 * 🔑 **E' cio' che tiene chiuso il buco `Locked -> Closed` senza toccare `CanTransition`.** Quella
+	 * transizione e' AMMESSA un livello sotto — a una porta bloccata toglierebbe il lock, e da `Closed` si
+	 * apre — e [D-151] la teneva fuori portata limitando `Action.Interact` ad `Open`. La commutazione si
+	 * definisce solo su `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida: il guard sta
+	 * nell'azione, come allora.
+	 *
+	 * ⚠️ Motivo PROPRIO e non `NoEffect`: li' l'azione non aveva niente su cui agire, qui aveva esattamente
+	 * qualcosa e la regola lo vieta. Il giocatore che legge il turno deve poter distinguere «non c'era
+	 * nessuna porta» da «c'era, ed e' bloccata»: e' l'apertura autorizzata di CP 10.1 che gli serve, non un
+	 * bordo diverso.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect` e `Neutralised` prima: il motivo viaggia come intero
+	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia
+	 * gia' archiviata.
+	 */
+	DoorLocked,
+
+	/**
+	 * La porta puntata e' `Destroyed`: non c'e' piu' niente da commutare (`#2380`).
+	 *
+	 * ⚠️ **Distinto da `DoorLocked`, e la distinzione e' misurabile**: `Destroyed` e' TERMINALE — nessuna
+	 * transizione ne esce, mai, e nessuna apertura autorizzata la riporta indietro — mentre `Locked` e' uno
+	 * stato da cui CP 10.1 fara' uscire chi ha l'autorizzazione. Un solo motivo per i due direbbe al
+	 * giocatore che le due situazioni hanno lo stesso rimedio.
+	 *
+	 * ⚠️ In coda, per la ragione scritta su `DoorLocked`.
+	 */
+	DoorDestroyed,
+	/**
+	 * La traiettoria dello scatto passa da un terreno che NEGA la mobilita' rapida pur restando
+	 * percorribile a piedi (`bBlocksDashCharge`, E8/CP 8.1): oggi l'accidentato.
+	 *
+	 * 🔑 **Non e' `OutOfRange` e non e' un blocco di traiettoria**, ed e' la ragione per cui ha un motivo
+	 * proprio: la portata bastava e la via esiste — quello che non si puo' fare e' **percorrerla di
+	 * corsa**. Le altre due manderebbero a cercare rispettivamente un bersaglio troppo lontano e un muro,
+	 * e il rimedio vero (aggirare il rough, o andarci a piedi pagando il costo doppio) non si deduce da
+	 * nessuna delle due.
+	 *
+	 * ⚠️ In coda, per la ragione scritta su `DoorLocked`: le tracce gia' scritte non cambiano significato.
+	 */
+	TerrainDeniesDash,
+	/**
+	 * La mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`): la destinazione non ha una retta — sta
+	 * su un altro piano — oppure e' oltre la portata dell'azione. Per una carica oltre la portata non vale piu':
+	 * corre fino alla portata ([D-516], `OutOfRange`), salvo che le due condizioni di [D-516] non reggano (nessun
+	 * nemico sulla cella, o una retta che il terreno o un lato chiudono), e allora e' di nuovo questo motivo.
+	 *
+	 * ⚠️ **Il NOME e' rimasto, il significato no** ([D-524]). Fino al 2026-10-18 diceva «la destinazione non sta su una
+	 * delle sei direzioni assiali»; da quando «in linea» e' la retta libera fra i centri ogni cella dello stesso piano
+	 * ha una retta, e l'allineamento non e' piu' un vincolo. Il motivo viaggia come intero grezzo in
+	 * `FRTTurnLogEntry::Amount`, quindi rinominarlo avrebbe toccato il codice senza toccare nessuna traccia: si e'
+	 * scelto di aggiornare il significato e il testo (`DescribeInvalidReason`), non l'identificatore.
+	 *
+	 * Distinto da `OutOfRange`, che parla di un BERSAGLIO allontanatosi: qui non c'e' un bersaglio che si
+	 * e' mosso, c'e' una geometria che l'azione non ammette — e il rimedio e' scegliere un'altra cella,
+	 * non avvicinarsi.
+	 */
+	DashNotAligned,
+	/**
+	 * La traiettoria dello scatto e' interrotta da un muro, dal bordo della mappa o da un'unita' prima di
+	 * aver percorso anche un solo passo (`ERTLinearStop::BlockedByTerrain` / `BlockedByUnit`).
+	 *
+	 * ⚠️ **Non distingue muro da unita' di proposito**: `FRTTurnLogEntry::Amount` porta il motivo e non
+	 * un secondo dato, e dire CHI blocca chiederebbe un'identita' che questa voce non trasporta — la
+	 * stessa clausola con cui `ERTMoveOutcome::SlideBlocked` rinuncia a nominare la causa.
+	 */
+	DashPathBlocked,
+	/**
+	 * Chi e' **stordito** non agisce e non si muove: `Status.Stunned` nega l'**azione principale** per la propria durata
+	 * ([D-416], `#3142`) e, da [D-569] (`#3973`), il **movimento volontario**.
+	 *
+	 * 🔑 **Motivo PROPRIO e non `Unbalanced`**, benche' entrambi nascano da uno stato di controllo: quello
+	 * dice *«hai perso l'equilibrio, non puoi CORRERE»* e lascia intatta l'azione; questo dice *«non puoi
+	 * AGIRE»*. Sono due divieti diversi, e un motivo solo per entrambi manderebbe il giocatore a cercare il
+	 * rimedio sbagliato.
+	 *
+	 * ⌫ *Fino al 2026-11-03 questa riga diceva «Non dice niente sul movimento», la distinzione da `Root` che [D-416] (1) metteva per
+	 * iscritto, e «resta permessa la mobilita' che prende il SOLO slot movimento» ([D-567]).* [D-569] l'ha ribaltata: una stordita
+	 * non compie nessun movimento volontario, e il rifiuto del movimento esce con questo stesso motivo — in fase `Dash` per ogni
+	 * mobilita' (`ResolveDash`, qualunque slot occupi; il rifiuto paga la ricarica come ogni altro, [D-563] (2)) e in fase `Move`
+	 * per il camminare (`BeginMovementResolution`, ricarica zero). `Root` resta un'altra sede (azzera un budget e non scrive questa
+	 * voce) e il movimento FORZATO non passa di qui.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked` e le altre prima: il
+	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
+	 * significato di ogni traccia gia' archiviata che ne porti uno successivo.
+	 */
+	Stunned,
+
+	/**
+	 * La mira sta su un `Layer` diverso da quello di chi tira: **la regola del piano vale per ogni colpo**,
+	 * non solo per la mira ([D-393], [D-509], `#2951`).
+	 *
+	 * 🔑 **E' il gemello di RISOLUZIONE di `ERTHexTargetReason::OtherLayer`.** Quello e' una classificazione
+	 * di pianificazione e nel TurnLog non entra ([D-393] punto 5, pinnato da
+	 * `Meta.TargetingRefusalStaysOutOfCanonicalState`); questo e' il motivo con cui un colpo arrivato fino
+	 * alla risoluzione con una mira fra piani **non parte e lo dichiara**. Fino a [D-509]
+	 * `ValidateInstance` leggeva il verdetto del classificatore riconoscendone UN solo valore, e questo
+	 * cadeva nel ramo «valido»: `Single` e `Area` colpivano fra piani, `Line` mancava senza una voce.
+	 *
+	 * ⛔ **Non e' `OutOfRange`**, per la ragione scritta su `ERTHexTargetReason::OtherLayer`: `HexDistance`
+	 * ignora il `Layer`, e «fuori portata» direbbe di avvicinarsi a una cosa che nessun avvicinamento
+	 * sistema. Il rimedio e' cambiare piano, e si cambia piano MUOVENDOSI.
+	 *
+	 * 🔑 **Si comporta come `NoLineOfSight`, non come gli altri motivi.** Il Blast non applica un fallback:
+	 * lo lascia alla raccolta dei colpi, che ferma il COLPO (`FRTHexBlastPlan::OtherLayerIntents`) e lascia
+	 * proseguire cio' che un colpo non e' — il danno a una struttura, l'ordine a una porta, il danno a un
+	 * arco. E' la forma che il muro alto aveva gia': ferma il tiro, e resta l'unico bersaglio possibile.
+	 * ⚠️ Non e' un dettaglio: il danno a un PONTE fra due piani nasce, per progetto (CP 9.4), da un'azione
+	 * che mira all'altro capo dell'arco. Annullare l'azione intera lo spegnerebbe — la prima stesura di
+	 * [D-509] lo faceva, e l'hanno trovato sei test della suite intera.
+	 *
+	 * Due produttori: il Blast, per ogni intento d'attacco che la raccolta ferma per piano
+	 * (`ARTTurnManager::LogBlockedIntents`), e il boundary predittivo
+	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
+	 * ⛔ Non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
+	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non porta
+	 * un motivo. E non lo produce cio' che un colpo non e' — la cura, `ModifyArc`, le azioni ambientali:
+	 * per loro la domanda e' aperta (`VERT-4` in `docs/OPEN_DECISIONS.md`).
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked`, `Stunned` e le altre
+	 * prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo
+	 * riscrive il significato di ogni traccia gia' archiviata che ne porti uno successivo. In coda il
+	 * formato serializzato non cambia versione, e le tracce gia' scritte si leggono come prima.
+	 */
+	OtherLayer,
+
+	/**
+	 * La traiettoria dello scatto e' fermata da un BORDO prima del primo passo: copertura alta, porta chiusa o
+	 * bloccata (`URTHexCoverLibrary::BlocksTraversal`, [D-524] (5)).
+	 *
+	 * 🔑 **Motivo PROPRIO e non `DashPathBlocked`**, che dichiara di non distinguere muro da unita': li' la
+	 * causa e' una CELLA, qui e' il bordo fra due celle entrambe libere. Chi rilegge il turno andrebbe a
+	 * cercare un muro che non c'e', ed e' il difetto che `TerrainDeniesDash` ha gia' pagato per il terreno.
+	 *
+	 * ⚠️ **In coda**, per la ragione scritta su `DoorLocked`: il motivo viaggia come intero grezzo in
+	 * `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia gia'
+	 * archiviata che ne porti uno successivo.
+	 */
+	DashEdgeBlocked,
+
+	/**
+	 * La somma dei costi in Action Point del piano supera il budget del turno ([D-594], E38 CP 38.6). In coda,
+	 * come ogni valore aggiunto: le tracce gia' scritte conservano il proprio significato. E' il primo motivo
+	 * QUANTITATIVO della famiglia da quando D-190 tolse `InsufficientMovementPoints`: ADR-0011 cambia il tipo
+	 * della legalita', e questo e' il valore che lo dice nel TurnLog.
+	 */
+	OverBudget
+};
+
+/** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */
+USTRUCT(BlueprintType)
+struct FRTFallbackResult
+{
+	GENERATED_BODY()
+
+	/** L'istanza da eseguire al posto di quella pianificata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	FRTActionInstance Instance;
+
+	/** Il fallback effettivamente applicato (quello dichiarato, o `Cancel` se non praticabile in v0.1). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	ERTActionFallback Applied = ERTActionFallback::Cancel;
+
+	/** Falso se l'azione non produce piu' alcun effetto (`Cancel`, e `Wait` che occupa lo slot e basta). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	bool bProducesEffects = false;
+
+	FRTFallbackResult() = default;
+};
+
+/**
+ * Validazione delle azioni pianificate e applicazione del fallback DICHIARATO dal catalogo.
+ *
+ * Sta in un posto solo (spec E4 §D5): concentrare la domanda «e se il bersaglio non c'e' piu'?» evita che
+ * ogni effetto se la rifaccia per conto suo, con risposte diverse. Funzioni pure: nessun Actor, nessun UWorld.
+ */
+UCLASS()
+class REFACTORTACTICS_API URTActionFallbackLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Perche' l'istanza non e' piu' eseguibile, valutata sullo stato CONGELATO della fase (invariante #3).
+	 * Ordine dei controlli: esistenza -> vita -> squadra -> portata -> piano -> linea di tiro. E' l'ordine
+	 * in cui i motivi si escludono a vicenda, e da esso dipende quale reason code finisce nel log. Il piano
+	 * sta fra portata e linea di tiro perche' e' li' che lo mette `ClassifyHexTargeting`: la risoluzione
+	 * pone la domanda della pianificazione nello stesso ordine ([D-509]).
+	 *
+	 * Le azioni senza bersaglio (movimento, supporto su se stessi) sono sempre valide qui: il loro esito lo
+	 * decide il resolver del movimento, non la geometria del tiro.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static ERTActionInvalidReason ValidateInstance(const FRTActionInstance& Instance,
+		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
+
+	/**
+	 * L'azione da eseguire quando la validazione fallisce, secondo il `Fallback` dichiarato dall'azione.
+	 *
+	 * - `Cancel` — non esegue nulla (attacchi diretti e cure).
+	 * - `AttackCell` — perde il bersaglio ma colpisce la CELLA pianificata (AoE).
+	 * - `AttackTarget` — segue il bersaglio se e' ancora valido; se il motivo dice che non lo e', annulla.
+	 * - `Stop` — l'azione di movimento procede fino all'ultima cella valida: e' il resolver a fermarla, qui
+	 *   l'istanza resta intatta.
+	 * - `Wait` — sostituisce l'azione con `Action.Wait`, che occupa lo slot e non fa nulla.
+	 * - `BasicAttack` — **non praticabile in v0.1**: sceglierebbe «il bersaglio valido piu' vicino», cioe' il
+	 *   targeting automatico che il catalogo §17 elenca fra gli errori da evitare. Degrada a `Cancel`, e il
+	 *   risultato lo DICHIARA (`Applied`), invece di fingere di aver fatto qualcosa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Actions")
+	static FRTFallbackResult ApplyFallback(const FRTActionInstance& Instance, ERTActionInvalidReason Reason);
+
+	/**
+	 * Come si registra nel TurnLog il fallback APPLICATO. Funzione totale: un fallback senza esito
+	 * corrispondente sarebbe un'azione che sparisce dal log, cioe' il difetto che CP 4.3 va a chiudere.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static ERTFallbackOutcome ToLogOutcome(ERTActionFallback Fallback);
+};

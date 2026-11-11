@@ -1,0 +1,2617 @@
+#include "Misc/AutomationTest.h"
+#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Ability/RTActionData.h"
+#include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Combat/RTCombatLibrary.h"
+#include "Combat/RTCombatResolver.h"
+#include "Core/RTGameplayTags.h"
+#include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
+#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Turn/Resolution/RTFacingLibrary.h" // ERTRelativeDirection: il lato che la voce direzionale porta in `Amount`
+#include "Turn/Reaction/RTReactionLibrary.h"
+#include "Turn/Reaction/RTReactionOpportunityTypes.h" // RequiresDecisionBoundary: la cardinalita' del profilo la decide LEI
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Log/RTTurnLogLibrary.h" // IsSubjectTheSufferer: la tassonomia delle voci si CHIEDE, non si deduce
+#include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
+#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Turn/Playback/Reveal/RTDefeatPresentationProbeForTest.h" // #3666: le morti del Blast annunciate una volta
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Le cinque difensive del catalogo v0.1 §4 (CP 5.2). ATTENZIONE alla colonna «Slot»: solo `Counter` e
+ * `Deflect` sono REAZIONI (slot dedicato, trigger sullo snapshot del Blast); `Brace`, `Shield` e `Cleanse`
+ * sono azioni PRINCIPALI che si dichiarano e basta. Stare nella stessa sezione del catalogo non le rende
+ * lo stesso tipo di cosa.
+ */
+namespace
+{
+	UWorld* MakeDefWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyDefWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	ARTHexMapActor* SpawnDefMap(UWorld* World, int32 Radius = 6)
+	{
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return Actor;
+	}
+
+	/** Ranger: attacco base a colpo SINGOLO da 25, portata 6 — il "danno diretto" su cui i trigger reagiscono. */
+	ARTUnit* SpawnDefUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		// E53 CP 53.3c: il catalogo porta DEF e bonus alle spalle ([D-595] (3), [D-599]). Questo banco misura ALTRO,
+		// e i suoi numeri sono scritti sul colpo pieno: i due campi tornano a zero qui, e la difesa del catalogo
+		// la misura `RTHeroCatalogDefenseTests.cpp`. Non e' un'eccezione nascosta: e' il banco che dichiara la sua fixture.
+		U->Defense = 0;
+		U->RearBonus = 0;
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
+		return U;
+	}
+
+	/** Il colpo pieno dell'attacco base, dal catalogo: era scritto `25`, il Tiro del Ranger legacy. */
+	int32 DefFullHit()
+	{
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeIvrin();
+		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
+	}
+
+	/**
+	 * Sostituisce lo scatto del Ranger (indice 3) invece di accodare: `AbilityCooldowns` e' dimensionato sul
+	 * conteggio originale delle abilita' e non si allarga da solo. Specchia anche i campi legacy che
+	 * `ARTTurnManager` legge ancora (`CooldownTurns`/`RangeCells`), come fa `MakeHeroAction` per gli eroi, e
+	 * azzera `Power` (default legacy 30) per le azioni che non dichiarano danno.
+	 */
+
+	void RunDefTurn(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	int32 CountDefensiveReactionOutcome(const ARTTurnManager* TM, ERTReactionOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Reaction && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
+	}
+
+	int32 CountCombatEntries(const ARTTurnManager* TM)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Combat) { ++N; }
+		}
+		return N;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefensivesMatchCatalogTest,
+	"RefactorTactics.Reactions.DefensivesMatchCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefensivesMatchCatalogTest::RunTest(const FString&)
+{
+	// Numeri e SLOT della tabella §4. Lo slot e' la parte che si sbaglia piu' facilmente: tre delle cinque
+	// difensive sono azioni principali, non reazioni.
+	struct FExpected { const TCHAR* Id; int32 Priority; int32 Cooldown; ERTActionSlot Slot; ERTMatchPhase Phase; };
+	const FExpected Expected[] = {
+		{ TEXT("Action.Deflect"), 15, 2, ERTActionSlot::Reaction, ERTMatchPhase::Blast },
+		{ TEXT("Action.Counter"), 20, 2, ERTActionSlot::Reaction, ERTMatchPhase::Blast },
+		{ TEXT("Action.Cleanse"), 25, 2, ERTActionSlot::Main,     ERTMatchPhase::Blast },
+		{ TEXT("Action.Brace"),   30, 1, ERTActionSlot::Main,     ERTMatchPhase::Prep  },
+		{ TEXT("Action.Shield"),  35, 2, ERTActionSlot::Main,     ERTMatchPhase::Prep  },
+	};
+
+	for (const FExpected& E : Expected)
+	{
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(E.Id));
+		if (!TestTrue(FString::Printf(TEXT("%s e' nel catalogo"), E.Id), Def.ActionId == FName(E.Id))) { continue; }
+		TestEqual(FString::Printf(TEXT("%s: priorita'"), E.Id), Def.Priority, E.Priority);
+		TestEqual(FString::Printf(TEXT("%s: cooldown"), E.Id), Def.CooldownTurns, E.Cooldown);
+		TestTrue(FString::Printf(TEXT("%s: slot"), E.Id), Def.Slot == E.Slot);
+		TestTrue(FString::Printf(TEXT("%s: macro-fase"), E.Id),
+			URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == E.Phase);
+	}
+
+	// Solo le reazioni dichiarano un trigger; le principali no — altrimenti il loop delle reazioni le
+	// raccoglierebbe per sbaglio.
+	TestTrue(TEXT("Counter ha un trigger"),
+		URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter")).ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
+	TestTrue(TEXT("Deflect ha un trigger"),
+		URTCatalogLibrary::FindCoreAction(TEXT("Action.Deflect")).ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
+	// 🔁 **Sostituita con E14.7 ([D-047]).** Diceva «Brace non e' una reazione: nessun trigger», e il FATTO
+	// resta vero — `ReactionTrigger` e' `None` — ma la conclusione no: dal Reaction Profile il `Brace` **e'**
+	// l'accesso a una reazione, solo che non scatta su un evento. Non ha un trigger perche' e' il giocatore
+	// ad armarla in `Prep`, non perche' non reagisca a niente.
+	// ⚠️ L'asserzione non si cancella: senza, il giorno in cui qualcuno desse al `Brace` un
+	// `ERTReactionTrigger` il loop delle reazioni comincerebbe a raccoglierlo per conto suo, e nessun test lo
+	// direbbe. Cambia cio' che il messaggio **insegna**, non cio' che il codice controlla.
+	TestTrue(TEXT("Brace non scatta su un evento: lo arma il giocatore, quindi nessun trigger"),
+		URTCatalogLibrary::FindCoreAction(TEXT("Action.Brace")).ReactionTrigger == ERTReactionTrigger::None);
+
+	// I numeri che il catalogo dichiara come effetti stanno nei DATI, non in una costante del resolver.
+	const FRTActionDef Counter = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+	int32 CounterDamage = 0;
+	for (const FRTActionEffectSpec& S : Counter.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Damage) { CounterDamage = S.Amount; }
+	}
+	TestEqual(TEXT("Counter: contrattacco da 160"), CounterDamage, 160);
+
+	const FRTActionDef Shield = URTCatalogLibrary::FindCoreAction(TEXT("Action.Shield"));
+	int32 ShieldAmount = 0;
+	for (const FRTActionEffectSpec& S : Shield.Effects)
+	{
+		if (S.Effect == ERTActionEffect::Shield) { ShieldAmount = S.Amount; }
+	}
+	TestEqual(TEXT("Shield: 250 punti"), ShieldAmount, 250);
+
+	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
+	for (const FString& Err : Errors) { AddError(Err); }
+	TestEqual(TEXT("le azioni generiche restano valide"), Errors.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterDealsDamageTest,
+	"RefactorTactics.Reactions.Counter.DealsDamageToAttacker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCounterDealsDamageTest::RunTest(const FString&)
+{
+	// Counter esegue un attacco da 16 contro CHI ha colpito. Il bersaglio del contrattacco non e' una scelta
+	// del resolver: e' l'attaccante che ha innescato il trigger.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Reactor = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* Bystander = SpawnDefUnit(World, 1, FRTCellId(-1, 0)); // non colpisce: non deve incassare nulla
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Reactor"), Reactor) || !TestNotNull(TEXT("Attacker"), Attacker)
+		|| !TestNotNull(TEXT("Bystander"), Bystander) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+
+	const int32 AttackerHealth = Attacker->Health;
+	const int32 BystanderHealth = Bystander->Health;
+	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	Attacker->PlannedAttackTarget = Reactor;
+
+	RunDefTurn(TM);
+
+	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("chi ha colpito incassa i 160 del contrattacco"), AttackerHealth - Attacker->Health, 160);
+	TestEqual(TEXT("chi non ha colpito non viene contrattaccato"), Bystander->Health, BystanderHealth);
+
+	// 🔴 **La reazione ha un MOMENTO nel playback, non solo un esito nel log** (#2191).
+	//
+	// Prima di questo evento una difesa riuscita non era distinguibile a schermo da un attacco debole:
+	// restava la sola barra che scende poco. `PIE-VIS-DEFLECT` esiste per escludere proprio quella
+	// lettura, e senza un istante proprio nella timeline non era osservabile.
+	//
+	// ⚠️ **Asserisce il SOGGETTO, non solo il conteggio**: l'evento nasce con chi reagisce nel
+	// soggetto e chi ha innescato nel bersaglio. Contare senza guardare di chi sia darebbe verde anche
+	// se i due fossero invertiti — ed e' l'errore piu' facile da fare in un'emissione con due id.
+	TestEqual(TEXT("chi reagisce ha un evento di reazione risolta"),
+		TM->ResolvedReactionCountForTest(Reactor->StableUnitId), 1);
+	TestEqual(TEXT("chi ha innescato NON ne ha uno: il soggetto e' chi reagisce"),
+		TM->ResolvedReactionCountForTest(Attacker->StableUnitId), 0);
+	// ⛔ E chi non c'entra non ne ha: senza questa riga, un'emissione che sparasse un evento per ogni
+	// unita' in campo passerebbe le due asserzioni qui sopra.
+	TestEqual(TEXT("chi non e' coinvolto non ne ha nessuno"),
+		TM->ResolvedReactionCountForTest(Bystander->StableUnitId), 0);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Il contrattacco porta la voce direzionale, e la porta sul SUO bersaglio** (`#2128`, [D-126]).
+ *
+ * Il ciclo su `Plan.Hits` che emette `HitCameFromSide` non vede i contrattacchi: al momento in cui gira, quei
+ * colpi non sono ancora in `Attacks`. Fino al 2026-09-03 un consumatore che contasse una voce direzionale per
+ * colpo subito non le trovava per le reazioni, **e nulla diventava rosso**.
+ *
+ * 🔑 **L'oracolo e' il LATO, e i due lati sono DIVERSI apposta.** Il reattore incassa alle spalle (`Rear`)
+ * perche' guarda dalla parte opposta; chi l'ha colpito incassa il contrattacco di fronte (`Front`), perche' il
+ * targeting l'aveva gia' girato verso il proprio bersaglio. Con due lati uguali il test passerebbe anche se
+ * una delle due voci mancasse e l'altra fosse contata due volte — e passerebbe pure con un `Amount` mai
+ * scritto, visto che `Front` vale zero. Le voci si identificano per `UnitId`: contarle e basta non direbbe
+ * **su chi** sono finite.
+ *
+ * ⚠️ **La simmetria del duello frontale e' una trappola misurata.** Con entrambe le unita' al facing di
+ * default i due lati risultano entrambi `Front`: `FacingAfterPrepActionTargeting` gira l'attaccante verso il
+ * bersaglio prima che il colpo risolva, quindi in un duello si guardano per costruzione. La prima stesura di
+ * questo test ci e' cascata e attendeva `Rear` dove il gioco dice — correttamente — `Front`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterTracesIncomingSideTest,
+	"RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCounterTracesIncomingSideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	// Affiancate lungo `E`. Il REATTORE guarda a `W`, cioe' dalla parte opposta a chi lo colpira'.
+	//
+	// ⚠️ **La simmetria va rotta a mano, ed e' una scoperta misurata, non una precauzione.** Con entrambe al
+	// facing di default (`E`) i due lati risultano ENTRAMBI `Front`, e non per un difetto: chi attacca viene
+	// girato verso il proprio bersaglio da `FacingAfterPrepActionTargeting` (voce `TargetingReoriented`)
+	// **prima** che il colpo risolva, quindi in un duello frontale si guardano per costruzione. Un test
+	// scritto su quella geometria asserirebbe `0` da entrambe le parti — cioe' passerebbe anche se `Amount`
+	// non fosse mai stato scritto, visto che `Front` vale zero.
+	ARTUnit* Reactor = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Reactor"), Reactor) || !TestNotNull(TEXT("Attacker"), Attacker)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Il reattore non ha un'azione con bersaglio, quindi nessun targeting lo rigira: conserva questo facing
+	// fino al colpo, e lo incassa alle spalle.
+	Reactor->Facing = ERTHexDirection::W;
+
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	Attacker->PlannedAttackTarget = Reactor;
+
+	RunDefTurn(TM);
+
+	// PREMESSA, non conclusione: senza contrattacco non c'e' la seconda voce da cercare, e un test che non lo
+	// verificasse resterebbe verde sul nulla trovando zero voci e attendendone zero.
+	if (!TestEqual(TEXT("premessa: la reazione si e' attivata"),
+		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Le voci direzionali, indicizzate per SOGGETTO. `UnitId` porta lo `StableUnitId` di chi ha subito.
+	TMap<int32, int32> SideByUnit;
+	int32 Direzionali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide))
+		{
+			++Direzionali;
+			SideByUnit.Add(E.UnitId, E.Amount);
+
+			// 🔴 La privacy della voce, su OGNI voce: la cella di chi colpisce non c'e', e i due campi
+			// portano entrambi il difensore. E' l'invariante che `MakeHitCameFromSideEntry` centralizza.
+			TestTrue(TEXT("SrcCell e TgtCell portano entrambi il difensore"), E.SrcCell == E.TgtCell);
+		}
+	}
+
+	TestEqual(TEXT("due colpi risolti, due voci direzionali"), Direzionali, 2);
+
+	const int32* LatoSuReactor = SideByUnit.Find(Reactor->StableUnitId);
+	const int32* LatoSuAttacker = SideByUnit.Find(Attacker->StableUnitId);
+
+	if (TestNotNull(TEXT("il colpo che innesca ha lasciato la voce sul reattore"), LatoSuReactor)
+		&& TestNotNull(TEXT("il CONTRATTACCO ha lasciato la voce su chi aveva colpito"), LatoSuAttacker))
+	{
+		// Reactor guarda a W (3) e il colpo arriva da (1,0), cioe' dallo spicchio E (0): relativo
+		// (0 - 3 + 6) % 6 = 3.
+		TestEqual(TEXT("il reattore l'ha preso alle spalle"),
+			*LatoSuReactor, static_cast<int32>(ERTRelativeDirection::Rear));
+		// Attacker e' stato girato verso il proprio bersaglio dal targeting, quindi guarda a W (3), e il
+		// contrattacco gli arriva da (0,0), cioe' dallo spicchio W (3): relativo 0. Chi colpisce alle spalle
+		// incassa il colpo di ritorno in faccia — ed e' la geometria del gioco, non un caso scelto.
+		TestEqual(TEXT("chi ha colpito incassa il contrattacco di fronte"),
+			*LatoSuAttacker, static_cast<int32>(ERTRelativeDirection::Front));
+		// ⚠️ E i due lati DIVERGONO: senza questa riga il test passerebbe anche con due voci identiche finite
+		// per sbaglio sulla stessa unita' e contate come due.
+		TestNotEqual(TEXT("i due lati sono diversi"), *LatoSuReactor, *LatoSuAttacker);
+	}
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Due contrattacchi nello stesso Blast tengono ciascuno la PROPRIA origine e il PROPRIO autore** (`#2587`).
+ *
+ * Fino al 2026-09-06 il pass usciva con SEI array paralleli — colpo, cella, `ActionId`, `BaseActionId`,
+ * priorita', autore — e il commento della struct dichiarava il rischio invece di toglierlo:
+ * *«disallinearli attribuirebbe un contrattacco all'unita' sbagliata»*. Nessun test lo copriva, perche' con
+ * UN solo contrattacco in scena ogni permutazione dei sei array da' lo stesso risultato: servono DUE record
+ * perche' uno scambio sia osservabile.
+ *
+ * 🔑 **L'oracolo evita la geometria di proposito.** La voce `Combat` del TurnLog porta gia' quattro dei
+ * cinque satelliti — `SrcCell`, `ActionId`, `BaseActionId`, `Priority` — e come SOGGETTO l'autore del colpo
+ * (`RTTurnManager.cpp`, il ciclo che emette le voci d'attacco). Confrontarli non richiede di ragionare sugli
+ * spicchi dell'esagono, ed e' esattamente cio' che un disallineamento romperebbe: il colpo di A verrebbe
+ * registrato con l'identita' di B.
+ *
+ * ⚠️ **Le due scene sono duelli INDIPENDENTI e non un 2v2.** Ogni attaccante ha il proprio bersaglio: senza
+ * questo i due contrattacchi potrebbero puntare la stessa unita' e le due voci diventerebbero
+ * indistinguibili — il test resterebbe verde su uno scambio.
+ *
+ * 🔴 **La prima stesura vedeva DUE satelliti su cinque, e diceva di vederli tutti.** Dava a entrambi i
+ * reattori `Action.Counter`, quindi `ActionId`, `BaseActionId` e `Priority` erano IDENTICI fra i due record:
+ * scambiarli era un no-op che nessuna assertion poteva rilevare, e `ActionId` era per giunta usato come
+ * FILTRO invece che come oggetto della prova. Restavano coperti solo `SourceCell` e l'autore. Trovato da
+ * VALIDATION (`counter-attack-record/1-F5`) — ed erano tre dei sei campi che gli array paralleli
+ * disallineavano.
+ *
+ * 🔑 **Percio' le due identita' sono IMPOSTE nella fixture, e non e' un trucco.** Il catalogo non produce
+ * due reazioni a danno distinguibili: `Reaction.CounterShot` eredita da `Action.Counter` **fase, priorita' e
+ * trigger** (`MakeEquipmentAction`: `Def = Core`, poi cambiano solo `ActionId` e gli effetti), quindi
+ * `Priority` resterebbe `20` per entrambe. Scriverle a mano e' l'unico modo di avere due record che
+ * DIFFERISCONO in tutti e cinque i campi — ed e' l'idioma gia' in uso qui (`RTTurnLogCauseTests.cpp`).
+ * I valori restano quelli veri del dominio: `Reaction.CounterShot` e' un modulo reale, e la sua generica
+ * e' davvero `Action.Counter` (D-033).
+ *
+ * 🔴 **Anti-vacuita', per chi lo modifica**: scambiare fra loro DUE QUALUNQUE dei cinque satelliti dei due
+ * record — `SourceCell`, `ActionId`, `BaseActionId`, `Priority`, `Actor` — deve far fallire l'assertion
+ * corrispondente, mentre le due voci restano due. Se uno scambio non produce rosso, quel campo non e'
+ * coperto: e' esattamente il difetto che questa stesura ripara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoCountersKeepOwnOriginTest,
+	"RefactorTactics.Reactions.Counter.TwoCountersKeepTheirOwnOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	// Due duelli lontani fra loro: stessa geometria del duello singolo, traslata di tre celle.
+	ARTUnit* ReactorA = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* AttackerA = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* ReactorB = SpawnDefUnit(World, 0, FRTCellId(0, 3));
+	ARTUnit* AttackerB = SpawnDefUnit(World, 1, FRTCellId(1, 3));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("ReactorA"), ReactorA) || !TestNotNull(TEXT("AttackerA"), AttackerA)
+		|| !TestNotNull(TEXT("ReactorB"), ReactorB) || !TestNotNull(TEXT("AttackerB"), AttackerB)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	ReactorA->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorA, TEXT("Action.Counter"), 3);
+	ReactorA->PlannedAbilityIndex = INDEX_NONE;
+	ReactorB->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorB, TEXT("Action.Counter"), 3);
+	ReactorB->PlannedAbilityIndex = INDEX_NONE;
+
+	// Le due identita', DIVERSE in tutti e tre i campi: senza, scambiarle e' un no-op invisibile.
+	const FName IdAzioneA(TEXT("Action.Counter"));
+	const FName BaseAzioneA = NAME_None;               // il core non e' profilo di nessuna generica
+	const int32 PrioritaA = 20;                        // quella del catalogo per `Action.Counter`
+	const FName IdAzioneB(TEXT("Reaction.CounterShot"));
+	const FName BaseAzioneB(TEXT("Action.Counter"));   // il modulo E' un profilo del core (D-033)
+	const int32 PrioritaB = 21;
+
+	if (!ReactorA->Abilities.IsValidIndex(ReactorA->PlannedReactionAbility)
+		|| !ReactorB->Abilities.IsValidIndex(ReactorB->PlannedReactionAbility))
+	{
+		AddError(TEXT("la reazione non e' finita nello slot atteso: la fixture non descrive la scena"));
+		DestroyDefWorld(World);
+		return false;
+	}
+	URTActionData* AzioneA = ReactorA->Abilities[ReactorA->PlannedReactionAbility];
+	URTActionData* AzioneB = ReactorB->Abilities[ReactorB->PlannedReactionAbility];
+	AzioneA->Def.ActionId = IdAzioneA;
+	AzioneA->Def.BaseActionId = BaseAzioneA;
+	AzioneA->Def.Priority = PrioritaA;
+	AzioneB->Def.ActionId = IdAzioneB;
+	AzioneB->Def.BaseActionId = BaseAzioneB;
+	AzioneB->Def.Priority = PrioritaB;
+
+	// Ogni attaccante il PROPRIO bersaglio: e' cio' che rende le due coppie distinguibili.
+	AttackerA->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	AttackerA->PlannedAttackTarget = ReactorA;
+	AttackerB->PlannedAbilityIndex = 0;
+	AttackerB->PlannedAttackTarget = ReactorB;
+
+	// Catturate PRIMA del turno: nessuno si muove qui, ma leggerle dopo confonderebbe «dov'era quando ha
+	// contrattaccato» con «dov'e' adesso», che e' la stessa distinzione per cui il record porta la cella.
+	const FRTCellId CellaReactorA = ReactorA->Cell;
+	const FRTCellId CellaReactorB = ReactorB->Cell;
+	const FRTCellId CellaAttackerA = AttackerA->Cell;
+	const FRTCellId CellaAttackerB = AttackerB->Cell;
+
+	// 🔑 **LA PREMESSA CHE IL TEST DAVA PER SCONTATA, misurata PRIMA del turno e non dopo.**
+	//
+	// `ARTTurnManager::EnsureMatchRoster` costruisce il roster con `UGameplayStatics::GetAllActorsOfClass`
+	// in testa a `LockInAndResolve` e **non filtra i vivi** (lo dichiara). Quindi il roster vede il mondo
+	// com'e' ADESSO, e un'unita' in piu' — sopravvissuta a una fixture vicina, o spawnata per sbaglio —
+	// fa slittare ogni `StableUnitId`.
+	//
+	// ⛔ **Misurarlo dopo `RunDefTurn` sarebbe cieco proprio sul caso da prendere**: `ConcludeTurn` chiama
+	// `DestroyDefeatedUnits`, che distrugge chi ha finito i punti vita. Un'intrusa presente al roster e
+	// morta nel turno avrebbe gia' spostato gli id e non comparirebbe piu' nel conteggio. Trovato in code
+	// review.
+	//
+	// ⛔ Non e' un numero volatile: e' la cardinalita' di QUESTA scena, dichiarata dai quattro
+	// `SpawnDefUnit` qui sopra, in questa stessa funzione.
+	{
+		TArray<AActor*> UnitaNelMondo;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), UnitaNelMondo);
+		if (!TestEqual(TEXT("premessa: al roster il mondo contiene le sole unita' di questa scena"),
+			UnitaNelMondo.Num(), 4))
+		{
+			DestroyDefWorld(World);
+			return false;
+		}
+	}
+
+	RunDefTurn(TM);
+
+	// ⚠️ E gli ID DOPO, che e' l'opposto delle celle e non una svista (`#2612`): `StableUnitId` nasce a
+	// **0** per tutti (`RTUnit.h`, `int32 StableUnitId = 0`) e lo assegna `EnsureMatchRoster()` dentro il
+	// turno — `RTTurnManager.cpp` lo dice gia': «al primo turno ogni `StableUnitId` valeva ancora 0».
+	// Leggerli prima catturava due zeri e li confrontava con gli autori veri, `1` e `2`: il test nasceva
+	// rosso, e la simmetria con le celle qui sopra e' precisamente cio' che lo ha fatto sembrare giusto.
+	// Le celle vanno lette prima perche' il turno le CAMBIA; gli id dopo perche' il turno li CREA.
+	// ⚠️ **`IsValid` e non un accesso diretto, sui QUATTRO**: `ConcludeTurn` chiama `DestroyDefeatedUnits`,
+	// che distrugge chi ha finito i punti vita. Oggi nessuno cade — un colpo solo contro i 90 di Ivrin — ma
+	// una taratura del danno base, o un secondo attaccante nella fixture, renderebbero queste righe letture
+	// attraverso un Actor distrutto. I test vicini lo dichiarano gia' (`RTControlActionTests.cpp`, che NON
+	// rilegge lo stato dopo il turno per questa ragione). Trovato in code review.
+	if (!TestTrue(TEXT("premessa: le quattro unita' sono sopravvissute al turno"),
+		IsValid(ReactorA) && IsValid(ReactorB) && IsValid(AttackerA) && IsValid(AttackerB)))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+	const int32 IdReactorA = ReactorA->StableUnitId;
+	const int32 IdReactorB = ReactorB->StableUnitId;
+	const int32 IdAttackerA = AttackerA->StableUnitId;
+	const int32 IdAttackerB = AttackerB->StableUnitId;
+
+	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi sarebbero tutti
+	// `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro zero», cioe'
+	// verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
+	//
+	// ⛔ **Quattro id DISTINTI e non `1..4`, ed e' una scelta.** La numerazione assoluta verrebbe
+	// dall'ordine di `MatchRosterLess` — squadra, cella, nome dell'Actor — che e' un contratto di cui
+	// questo test non e' il proprietario: lo possiede gia'
+	// `Match.Autobattle.DeterminismSurvivesUnitPermutation`, il cui commento dichiara *«tolto il `Sort`,
+	// questo test diventa rosso e nessun altro se ne accorge»*. Pinnare qui `1..4` renderebbe rosso un test
+	// sull'AUTORE del contrattacco il giorno in cui qualcuno cambiasse legittimamente quell'ordine. Cio'
+	// che serve qui e' la proprieta' relativa: quattro identita' diverse, cosi' che i confronti piu' sotto
+	// distinguano davvero. Trovato in code review.
+	{
+		const TSet<int32> Identita = { IdReactorA, IdReactorB, IdAttackerA, IdAttackerB };
+		const bool bAssegnati = TestFalse(TEXT("premessa: il roster ha assegnato gli id"), Identita.Contains(0));
+		const bool bDistinti = TestEqual(
+			TEXT("premessa: le quattro unita' hanno quattro identita' distinte"), Identita.Num(), 4);
+		if (!bAssegnati || !bDistinti)
+		{
+			// Uscita ANTICIPATA, come le altre premesse: con le identita' collassate i confronti
+			// sull'autore non misurano piu' cio' che dichiarano, e lasciarli girare aggiungerebbe rossi
+			// derivati a un rosso che ha gia' detto la propria causa.
+			DestroyDefWorld(World);
+			return false;
+		}
+	}
+
+	// PREMESSA, non conclusione: con zero contrattacchi «ogni origine e' quella giusta» e' vero e vuoto.
+	if (!TestEqual(TEXT("premessa: entrambe le reazioni si sono attivate"),
+		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 2))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// 🔑 **L'ancora e' il BERSAGLIO, non un satellite.** `TgtCell` deriva da `Attacks[a].TargetIndex`, cioe'
+	// dal colpo stesso: e' l'unico campo che un disallineamento dei satelliti non puo' spostare, quindi e' il
+	// riferimento rispetto a cui gli altri cinque vanno verificati. I colpi di PARTENZA lasciano voci
+	// speculari — bersaglio il reattore — e non collidono con questa selezione.
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const FRTTurnLogEntry* VoceA = nullptr;
+	const FRTTurnLogEntry* VoceB = nullptr;
+	// ⚠️ **NE' l'ultima NE' la prima: la selezione non e' una scommessa sull'ordine.** Questo ciclo
+	// assegnava `VoceA = &E` a ogni corrispondenza, quindi vinceva l'ULTIMA; scegliere la prima sarebbe la
+	// stessa scommessa girata. Il problema vero e' che non tutte le voci `Combat` su quella cella sono
+	// contrattacchi: `Caduta`, `Hazard` e `Status.Burning` mettono in `UnitId` **chi subisce**, e una di
+	// esse su quel bersaglio farebbe confrontare i satelliti di un record che non e' il colpo di ritorno.
+	//
+	// 🔑 **La discriminante esiste gia' in produzione e si CHIEDE**: `URTTurnLogLibrary::IsSubjectTheSufferer`
+	// porta quella tassonomia in un posto solo, ed e' scritta per evitare che un consumatore debba
+	// «ricordarsi di averla letta». Usarla qui rende la scelta deterministica invece che posizionale.
+	// Trovato in code review.
+	int32 VociSuA = 0;
+	int32 VociSuB = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.Category != ERTLogCategory::Combat) { continue; }
+		if (URTTurnLogLibrary::IsSubjectTheSufferer(E)) { continue; } // non e' un colpo inferto: non e' un contrattacco
+		if (E.TgtCell == CellaAttackerA) { VoceA = &E; ++VociSuA; }
+		if (E.TgtCell == CellaAttackerB) { VoceB = &E; ++VociSuB; }
+	}
+
+	// Una per bersaglio, che e' piu' forte di «due in tutto»: quest'ultima resterebbe vera con due voci su A
+	// e nessuna su B, cioe' proprio sulla scena che il test esiste per escludere.
+	//
+	// ⛔ **Uscita ANTICIPATA anche qui**, come per le altre premesse: con due voci sullo stesso bersaglio
+	// non si sa QUALE si stia confrontando, e lasciar girare i cinque satelliti produrrebbe cinque rossi
+	// che nominano il campo — esattamente cio' che questa guardia esiste per sostituire. Trovato in code
+	// review: la guardia c'era e l'uscita no.
+	const bool bUnaSuA = TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito A"), VociSuA, 1);
+	const bool bUnaSuB = TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito B"), VociSuB, 1);
+	if (!bUnaSuA || !bUnaSuB
+		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito A ha lasciato una voce"), VoceA)
+		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito B ha lasciato una voce"), VoceB))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// TUTTI E CINQUE i satelliti, uno per riga: un fallimento dice QUALE campo si e' disallineato, che una
+	// tupla confrontata in blocco non direbbe.
+	TestTrue(TEXT("A: l'origine e' la cella di A"), VoceA->SrcCell == CellaReactorA);
+	TestEqual(TEXT("A: l'ActionId e' quello della reazione di A"), VoceA->ActionId, IdAzioneA);
+	TestEqual(TEXT("A: la generica e' quella di A"), VoceA->BaseActionId, BaseAzioneA);
+	TestEqual(TEXT("A: la priorita' e' quella di A"), VoceA->Priority, PrioritaA);
+	TestEqual(TEXT("A: l'autore e' A"), VoceA->UnitId, IdReactorA);
+
+	TestTrue(TEXT("B: l'origine e' la cella di B"), VoceB->SrcCell == CellaReactorB);
+	TestEqual(TEXT("B: l'ActionId e' quello della reazione di B"), VoceB->ActionId, IdAzioneB);
+	TestEqual(TEXT("B: la generica e' quella di B"), VoceB->BaseActionId, BaseAzioneB);
+	TestEqual(TEXT("B: la priorita' e' quella di B"), VoceB->Priority, PrioritaB);
+	TestEqual(TEXT("B: l'autore e' B"), VoceB->UnitId, IdReactorB);
+
+	// E le due identita' DIVERGONO davvero: senza queste righe il test resterebbe verde su una fixture che
+	// dia per sbaglio gli stessi valori a entrambi, cioe' sulla condizione che lo rendeva cieco.
+	TestNotEqual(TEXT("i due autori sono unita' diverse"), VoceA->UnitId, VoceB->UnitId);
+	TestNotEqual(TEXT("i due ActionId sono diversi"), VoceA->ActionId, VoceB->ActionId);
+	TestNotEqual(TEXT("le due generiche sono diverse"), VoceA->BaseActionId, VoceB->BaseActionId);
+	TestNotEqual(TEXT("le due priorita' sono diverse"), VoceA->Priority, VoceB->Priority);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **I mondi di questa fixture sono ISOLATI fra un test e il successivo** (`#2657`).
+ *
+ * 🔑 **Perche' e' un test e non una riga di commento.** `#2657` ipotizzava che il rosso a intermittenza di
+ * `TwoCountersKeepTheirOwnOrigin` venisse da unita' sopravvissute allo smontaggio di un mondo precedente:
+ * entrerebbero in `EnsureMatchRoster` — che costruisce il roster con `GetAllActorsOfClass` e **non** filtra
+ * i vivi — e farebbero slittare gli `StableUnitId`. L'ipotesi e' plausibile a leggerla, e il modo di
+ * chiuderla e' misurarla.
+ *
+ * ⚠️ **Il punto delicato e' il GC, e per questo la prova sta qui e non in un ragionamento.**
+ * `DestroyDefWorld` chiama `UWorld::DestroyWorld`, che smonta il mondo ma **non** raccoglie subito gli
+ * Actor: fra un test e il successivo quegli oggetti sono ancora in memoria. La domanda vera non e' «sono
+ * stati distrutti» ma «il mondo NUOVO li vede», e `TActorIterator` itera i livelli del mondo che gli si
+ * passa — non la memoria.
+ *
+ * 🔴 **Ogni zero ha accanto un CONTROLLO POSITIVO, e non e' decorazione.** Senza, uno zero non
+ * distinguerebbe «il mondo nuovo e' pulito» da «questa sonda non sa contare»: una `GetAllActorsOfClass`
+ * chiamata male risponde zero in entrambi i casi.
+ *
+ * **I casi misurati sono DUE**, e il secondo e' quello che conta:
+ *
+ * 1. smontaggio regolare — `DestroyDefWorld` e poi un mondo nuovo;
+ * 2. ⚠️ **il mondo precedente resta VIVO** mentre nasce il successivo. E' la forma che `#2657` descrive
+ *    — *«dipende da QUANDO il mondo precedente viene davvero smontato»* — e la si produce senza volerlo:
+ *    un test che fallisce una premessa ed esce **senza** chiamare `DestroyDefWorld` lascia dietro un
+ *    `UWorld` vivo e il suo `FWorldContext` registrato in `GEngine`. Questo file ha sette uscite
+ *    anticipate. Misurare il solo caso 1 avrebbe certificato quello che non era mai stato in dubbio.
+ *
+ * ⛔ **Cio' che questo test NON copre.** Certifica `MakeDefWorld`/`DestroyDefWorld`, che sono la copia
+ * LOCALE di questa fixture. La sede condivisa e' `RTWorldFixtures::MakeWorld`/`DestroyWorld`, nata per
+ * togliere di mezzo 43 copie come questa, e la sua `DestroyWorld` e' la forma **piu' forte** — smonta il
+ * mondo anche con `GEngine` nullo, *«perche' un `UWorld` orfano e' una perdita silenziosa e il contesto
+ * mancante no»*, mentre la copia qui sopra avvolge entrambe le chiamate in `if (World && GEngine)`.
+ * Migrare questo file alla fixture condivisa comprerebbe la proprieta' una volta per tutti ed e'
+ * fuori dallo scope di `#2657`: va chiesto a chi possiede quella migrazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefFixtureIsolatesWorldsTest,
+	"RefactorTactics.Reactions.Counter.FixtureIsolatesItsWorlds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefFixtureIsolatesWorldsTest::RunTest(const FString&)
+{
+	// ── Caso 1: smontaggio REGOLARE ────────────────────────────────────────────────────────────────
+	UWorld* Primo = MakeDefWorld();
+	if (!TestNotNull(TEXT("primo mondo"), Primo)) { return false; }
+	// `TestNotNull` sulla mappa, e non e' pedanteria in QUESTO test: `SpawnDefMap` dereferenzia il
+	// risultato di `SpawnActor` senza guardia, e un mondo mal costruito e' proprio l'ingresso che questo
+	// test esiste per sondare. Altrove il rischio e' teorico; qui no. Trovato in code review.
+	if (!TestNotNull(TEXT("mappa del primo mondo"), SpawnDefMap(Primo)))
+	{
+		DestroyDefWorld(Primo);
+		return false;
+	}
+	ARTUnit* UnoA = SpawnDefUnit(Primo, 0, FRTCellId(0, 0));
+	ARTUnit* UnoB = SpawnDefUnit(Primo, 1, FRTCellId(1, 0));
+	if (!TestNotNull(TEXT("unita' del primo mondo"), UnoA) || !TestNotNull(TEXT("seconda unita'"), UnoB))
+	{
+		DestroyDefWorld(Primo);
+		return false;
+	}
+
+	TArray<AActor*> NelPrimo;
+	UGameplayStatics::GetAllActorsOfClass(Primo, ARTUnit::StaticClass(), NelPrimo);
+	TestEqual(TEXT("controllo positivo: nel primo mondo la sonda vede le sue due unita'"), NelPrimo.Num(), 2);
+
+	DestroyDefWorld(Primo);
+
+	// Nessun `CollectGarbage` qui, ed e' deliberato: il caso da provare e' proprio quello in cui il GC
+	// **non** e' ancora passato, che e' la condizione normale di una corsa ristretta — poche allocazioni,
+	// nessuna pressione, nessuna raccolta fra un test e l'altro.
+	UWorld* Secondo = MakeDefWorld();
+	if (!TestNotNull(TEXT("secondo mondo"), Secondo)) { return false; }
+	if (!TestNotNull(TEXT("mappa del secondo mondo"), SpawnDefMap(Secondo)))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+
+	TArray<AActor*> NelSecondo;
+	UGameplayStatics::GetAllActorsOfClass(Secondo, ARTUnit::StaticClass(), NelSecondo);
+	TestEqual(TEXT("dopo uno smontaggio regolare il mondo nuovo non eredita nulla"), NelSecondo.Num(), 0);
+
+	// ── Caso 2: il mondo precedente NON viene smontato ─────────────────────────────────────────────
+	//
+	// 🔴 **E' la forma pericolosa, ed e' quella che #2657 descrive**: *«dipende da QUANDO il mondo
+	// precedente viene davvero smontato»*. Un test che fallisce una premessa ed esce senza chiamare
+	// `DestroyDefWorld` lascia dietro un `UWorld` vivo **e** il suo `FWorldContext` registrato in
+	// `GEngine` — e questo file ha sette uscite anticipate. Misurare il solo smontaggio felice avrebbe
+	// certificato il caso che non e' mai stato in dubbio. Trovato in code review.
+	//
+	// Qui `Secondo` resta VIVO mentre nasce `Terzo`, e si smontano entrambi alla fine.
+	ARTUnit* DueA = SpawnDefUnit(Secondo, 0, FRTCellId(0, 0));
+	if (!TestNotNull(TEXT("unita' del secondo mondo"), DueA))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+
+	UWorld* Terzo = MakeDefWorld();
+	if (!TestNotNull(TEXT("terzo mondo"), Terzo))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+	if (!TestNotNull(TEXT("mappa del terzo mondo"), SpawnDefMap(Terzo)))
+	{
+		DestroyDefWorld(Terzo);
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+
+	TArray<AActor*> NelTerzo;
+	UGameplayStatics::GetAllActorsOfClass(Terzo, ARTUnit::StaticClass(), NelTerzo);
+	TestEqual(TEXT("un mondo precedente ancora VIVO non entra nel mondo nuovo"), NelTerzo.Num(), 0);
+
+	// Controllo positivo del caso 2: il mondo lasciato in piedi vede ancora la propria unita'. Senza,
+	// lo zero qui sopra non distinguerebbe «isolati» da «l'unita' non era mai stata spawnata».
+	TArray<AActor*> AncoraNelSecondo;
+	UGameplayStatics::GetAllActorsOfClass(Secondo, ARTUnit::StaticClass(), AncoraNelSecondo);
+	TestEqual(TEXT("controllo positivo: il mondo non smontato tiene ancora la sua unita'"),
+		AncoraNelSecondo.Num(), 1);
+
+	DestroyDefWorld(Terzo);
+	DestroyDefWorld(Secondo);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterIgnoresEnvironmentalTest,
+	"RefactorTactics.Reactions.Counter.IgnoresEnvironmentalDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCounterIgnoresEnvironmentalTest::RunTest(const FString&)
+{
+	// Nome vincolante della DoD. Il danno AMBIENTALE non esiste ancora (epic E8/CP 8.2: nessun hazard applica
+	// danno oggi), quindi la clausola si verifica per come e' COSTRUITO il trigger, non simulando un hazard
+	// che non c'e': `HitByDirectAttack` guarda solo i colpi di `Plan.Hits` con intento a forma `Single`.
+	// Un danno che non nasce da un colpo diretto non entra in quell'array e non puo' innescare la reazione.
+	//
+	// Il caso piu' vicino che oggi si puo' davvero costruire e' un'AREA: danno reale, stesso bersaglio, ma non
+	// un attacco diretto. Deve lasciare la reazione ferma.
+	TArray<FRTHexAttackHit> Hits;
+	Hits.Add(FRTHexAttackHit(/*Attacker*/ 1, /*Target*/ 0, /*Power*/ 18, /*IntentIndex*/ 0));
+
+	TArray<FRTHexAttackIntent> AreaIntents;
+	FRTHexAttackIntent Area;
+	Area.AttackerId = 1;
+	Area.TargetId = 0;
+	Area.Shape = ERTAbilityShape::Area;
+	AreaIntents.Add(Area);
+
+	TestEqual(TEXT("un'area che ferisce non innesca il contrattacco"),
+		URTReactionLibrary::FindTriggeringAttacker(ERTReactionTrigger::HitByDirectAttack, 0, Hits, AreaIntents),
+		static_cast<int32>(INDEX_NONE));
+
+	// Nessun colpo affatto (il caso in cui finira' il danno ambientale quando E8 lo introdurra'): nessun
+	// trigger, senza bisogno di sapere da dove venga il danno.
+	TestEqual(TEXT("danno che non passa da un colpo raccolto: nessun trigger"),
+		URTReactionLibrary::FindTriggeringAttacker(ERTReactionTrigger::HitByDirectAttack, 0, {}, {}),
+		static_cast<int32>(INDEX_NONE));
+
+	// Controprova: lo stesso colpo, dichiarato diretto, innesca e identifica l'attaccante.
+	TArray<FRTHexAttackIntent> DirectIntents;
+	FRTHexAttackIntent Direct;
+	Direct.AttackerId = 1;
+	Direct.TargetId = 0;
+	Direct.Shape = ERTAbilityShape::Single;
+	DirectIntents.Add(Direct);
+	TestEqual(TEXT("un colpo diretto innesca, e sa chi e' stato"),
+		URTReactionLibrary::FindTriggeringAttacker(ERTReactionTrigger::HitByDirectAttack, 0, Hits, DirectIntents), 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeflectReducesDamageTest,
+	"RefactorTactics.Reactions.Deflect.ReducesDirectDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeflectReducesDamageTest::RunTest(const FString&)
+{
+	// -20 sul colpo diretto che ha innescato la reazione: 25 del Tiro -> 5.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Reactor = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Reactor"), Reactor) || !TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+
+	const int32 Before = Reactor->Health;
+	Attacker->PlannedAbilityIndex = 0; // Tiro: 25 danni
+	Attacker->PlannedAttackTarget = Reactor;
+
+	RunDefTurn(TM);
+
+	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+	TestEqual(TEXT("Deflect toglie la sua riduzione al colpo pieno"), Before - Reactor->Health,
+		DefFullHit() - URTCombatLibrary::DeflectDamageReduction);
+	TestEqual(TEXT("non riflette: chi ha colpito non incassa nulla"), Attacker->Health, Attacker->MaxHealth);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeflectZeroDamageStillHitsTest,
+	"RefactorTactics.Reactions.Deflect.ZeroDamageStillHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeflectZeroDamageStillHitsTest::RunTest(const FString&)
+{
+	// Nome vincolante della DoD. "Se il danno arriva a zero l'attacco e' comunque considerato avvenuto (conta
+	// per trigger e marchi)": il clamp e' sul VALORE, non sulla voce — il colpo resta nell'array, quindi
+	// continua a comparire nel TurnLog e a innescare le reazioni. Verificato al livello puro (dove il caso
+	// "danno azzerato" si costruisce esattamente) e poi in partita.
+	TArray<FRTAttack> Attacks;
+	Attacks.Add(FRTAttack(/*Target*/ 0, /*Power*/ 15)); // meno dei 20 di Deflect: si azzera
+
+	TArray<int32> Delta;
+	Delta.Init(0, 1);
+	Delta[0] = -URTCombatLibrary::DeflectDamageReduction;
+
+	const TArray<FRTAttack> Reduced = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
+	TestEqual(TEXT("il colpo NON sparisce dall'array"), Reduced.Num(), 1);
+	TestEqual(TEXT("il danno e' azzerato, non negativo"), Reduced[0].Power, 0);
+	TestEqual(TEXT("resta lo stesso bersaglio"), Reduced[0].TargetIndex, 0);
+
+	// In partita: un colpo azzerato da Deflect e' comunque un colpo avvenuto, quindi lascia la sua voce di
+	// combattimento nel TurnLog — che e' il modo in cui "conta per trigger e marchi" e' osservabile oggi.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Reactor = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Reactor"), Reactor) || !TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	// Guardia ADDOSSO al deflettore: -15 (Guard) -20 (Deflect) su un colpo da 25 -> ampiamente sotto zero.
+	Reactor->ApplyStatus(TAG_Status_Guarded, 1);
+
+	const int32 Before = Reactor->Health;
+	Attacker->PlannedAbilityIndex = 0;
+	Attacker->PlannedAttackTarget = Reactor;
+
+	RunDefTurn(TM);
+
+	TestEqual(TEXT("danno azzerato: nessun HP perso"), Reactor->Health, Before);
+	TestTrue(TEXT("l'attacco resta registrato come avvenuto nel TurnLog"), CountCombatEntries(TM) >= 1);
+	TestEqual(TEXT("e la reazione risulta comunque attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceTest,
+	"RefactorTactics.Reactions.Brace.ReducesEveryHitAndBlocksPush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceTest::RunTest(const FString&)
+{
+	// Le tre promesse di Brace in un turno solo: -10 su OGNI danno diretto (non solo il primo, che e' cio' che
+	// lo distingue da Guard), spinta bloccata, movimento volontario bloccato.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* AttackerA = SpawnDefUnit(World, 1, FRTCellId(2, 0));
+	ARTUnit* AttackerB = SpawnDefUnit(World, 1, FRTCellId(-2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("AttackerA"), AttackerA)
+		|| !TestNotNull(TEXT("AttackerB"), AttackerB) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Brace e' un'azione PRINCIPALE di Prep: si pianifica come tale, non nello slot reazione.
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = FRTCellId(3, 0); // proverebbe a muoversi: Brace deve impedirglielo
+
+	const int32 Before = Bracer->Health;
+	AttackerA->PlannedAbilityIndex = 0; // Tiro 25
+	AttackerA->PlannedAttackTarget = Bracer;
+	AttackerB->PlannedAbilityIndex = 0; // Tiro 25
+	AttackerB->PlannedAttackTarget = Bracer;
+
+	RunDefTurn(TM);
+
+	// DUE colpi pieni, ridotti ENTRAMBI: con la meccanica "solo il primo" il totale sarebbe piu' alto di
+	// una riduzione. Il colpo pieno si legge dal catalogo, la proprieta' e' «Brace vale su ogni colpo».
+	TestEqual(TEXT("la riduzione vale su OGNI colpo, non solo sul primo"), Before - Bracer->Health,
+		2 * (DefFullHit() - URTCombatLibrary::BraceDamageReduction));
+	TestTrue(TEXT("il movimento volontario e' bloccato"), Bracer->Cell == FRTCellId(0, 0));
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBlocksPushTest,
+	"RefactorTactics.Reactions.Brace.BlocksFirstPush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBlocksPushTest::RunTest(const FString&)
+{
+	// "Impedisce la prima spinta", senza il limite di 1 cella che vincola Guard: qui la spinta e' di DUE celle
+	// (Action.Push ne fa 1; si usa la Spazzata del Guardian, che ne dichiara 2) e Brace la annulla comunque.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	RunDefTurn(TM);
+
+	TestTrue(TEXT("irrigidito: la spinta non lo sposta"), Bracer->Cell == FRTCellId(0, 0));
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **La finestra del `Brace` ferma il Blast, e la ripresa non lo riesegue** (`#2692`, [D-355], [D-356]).
+ *
+ * 🔴 **E' il difetto che #2692 esiste per chiudere.** Con una UI legata, un'unita' il cui profilo di
+ * reazione offre una risposta con effetti — `Profile.Sidestep` — deve poter SCEGLIERE quando viene
+ * spinta. Fino al 2026-09-09 il `Brace` chiamava `AskReactionDecision` diretta: esito `NoDecider`,
+ * `Hold Ground` applicata, e il giocatore perdeva una scelta che il gioco gli doveva.
+ *
+ * 🔑 **Tre cose in un test solo**, perche' separarle darebbe tre test che passano su un turno rotto:
+ * la finestra si apre, la fase si FERMA — `Muiren` resta `Blast`, [D-356] — e alla chiusura il turno
+ * arriva in fondo con la spinta applicata **una volta sola**.
+ *
+ * ⚠️ **`Action.Push` spinge di 1 e il profilo base non basta**: con `Hold Ground` sola la cardinalita' e'
+ * 1, `RequiresDecisionBoundary` e' falso e nessuna finestra e' dovuta — per costruzione, non per difetto.
+ * Il profilo va assegnato, ed e' la stessa precondizione che la voce PIE dichiara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowSuspendsBlastTest,
+	"RefactorTactics.Reactions.Brace.WindowSuspendsBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Le tre precondizioni del ramo, tutte necessarie: lo stato lo concede `Action.Brace`, la cardinalita'
+	// viene dal profilo, e un bot non riceve finestre.
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	// ⛔ **Si misura DENTRO il delegate, non dopo**: cio' che [D-355] chiede e' che il giocatore abbia gia'
+	// visto qualcosa NELL'ISTANTE in cui gli si chiede di scegliere. Leggere la timeline a finestra chiusa
+	// risponderebbe a una domanda diversa.
+	int32 Aperte = 0;
+	int32 TimelineAllApertura = -1;
+	bool bTrattenutoAllApertura = false;
+	float ResiduoAllApertura = -1.f;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte, &TimelineAllApertura, &bTrattenutoAllApertura, &ResiduoAllApertura, TM](
+			const FRTReactionWindowView&, int32)
+		{
+			++Aperte;
+			TimelineAllApertura = TM->ResolvedTimelineCountForTest();
+			bTrattenutoAllApertura = TM->IsPlaybackHeldByWindow();
+			ResiduoAllApertura = TM->GetOpenReactionWindowRemainingSeconds();
+		});
+
+	const FRTCellId Partenza = Bracer->Cell;
+	TM->LockInAndResolve();
+	// 🔑 **`#3666`, il gemello del sito dell'Overwatch**: la finestra si presenta quando il playback ha mostrato il
+	// colpo che sta per spingere, non quando il Blast si sospende. Subito dopo il lock-in non e' ancora arrivata.
+	TestEqual(TEXT("🔴 subito dopo il lock-in la finestra del Brace NON e' ancora presentata"), Aperte, 0);
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+	TestTrue(TEXT("🔴 alla presentazione il playback e' TRATTENUTO: ha mostrato tutto il risolto"), bTrattenutoAllApertura);
+	TestEqual(TEXT("e la finestra ha la sua durata intera"), ResiduoAllApertura, TM->GetFastReactionDuration(), 0.001f);
+
+	// 🔑 **(1) La finestra si e' aperta**, e con essa la scelta che prima non arrivava.
+	TestEqual(TEXT("si e' aperta UNA finestra del Brace"), Aperte, 1);
+
+	// 🔑 **(2) La fase si e' fermata.** `IsResolutionSuspended` copre il Blast, e `Muiren` resta la fase
+	// che si e' fermata invece di tornare a `Planning` ([D-356]): senza, `Move` si risolverebbe su un
+	// Blast applicato a meta'.
+	TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e la fase dichiarata e' quella che si e' fermata"),
+		TM->GetPhase(), ERTMatchPhase::Blast);
+
+	// 🔑 **(2-bis) Lo schermo non era vuoto** ([D-355], criterio C2 dello spec panel). `ResolveCombatPasses`
+	// ha gia' emesso le impronte dei colpi quando il `Brace` sospende, quindi il giocatore ha visto il colpo
+	// che sta per spingerlo. ⚠️ La spinta NON c'e', e non e' una lacuna: e' cio' su cui gli si sta chiedendo
+	// di decidere.
+	TestTrue(FString::Printf(TEXT("la timeline non era vuota quando la finestra si e' aperta (%d eventi)"),
+		TimelineAllApertura), TimelineAllApertura > 0);
+
+	// 🔑 **(3) La chiusura riprende il turno**, e la spinta non si riapplica: `Hold Ground` allo scadere
+	// tiene la cella, ed e' l'esito che il profilo garantisce.
+	int32 Scadenze = 0;
+	while (TM->IsResolutionSuspended() && Scadenze < 8)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+	}
+	TestFalse(TEXT("chiusa la finestra, la resolution non e' piu' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il ciclo delle fasi e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// ⛔ **Il difetto strutturale che questa fetta rischiava**: una ripresa che rieseguisse il Blast
+	// dall'inizio spingerebbe due volte. `Hold Ground` non sposta, quindi la cella di partenza e' la
+	// prova che nessuno ha applicato la spinta due volte ne' una volta di troppo.
+	TestTrue(TEXT("irrigidito: la spinta non lo ha spostato, e non e' stata riapplicata"),
+		Bracer->Cell == Partenza);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Il Blast esteso dopo una finestra non rigioca i colpi** (`#2454`, spec §5).
+ *
+ * 🔑 Il cursore dei battiti si azzera in `EnterPlaybackPhase` e in `FinishPlayback`, MAI in `BeginPlayback`:
+ * l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`, e un azzeramento li' farebbe arrivare due volte
+ * i colpi gia' mostrati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceExtendedBlastDoesNotReplayHitsTest,
+	"RefactorTactics.Reactions.Brace.ExtendedBlastDoesNotReplayHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->bEnablePlayback = true;
+	TM->bRecordAttackBeatsForTest = true;
+	// ⚠️ **Senza un delegate legato la finestra non si apre**: e' una delle condizioni del ramo che sospende
+	// (`OnReactionWindowOpened.IsBound()`, `RTTurnManager_Blast.cpp`), come in `WindowSuspendsBlast`. Misurato:
+	// senza questa riga la premessa qui sotto cade.
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->SetFastReactionDuration(60.f); // vedi il ciclo qui sotto: la finestra non deve scadere prima dell'arrivo
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+	if (!TestTrue(TEXT("premessa: la finestra ha sospeso il Blast"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+	// Il playback avanza sulla timeline parziale finche' il colpo arriva, e solo finche' la finestra e' aperta.
+	// ⏱️ *La stesura di `#2454` faceva venti tick fissi, cioe' un secondo: con la sequenza per intento di #3549 il
+	// colpo esce dopo l'attivazione e l'impronta del suo atto, e — a finestra aperta il playback va al rallentatore
+	// di [D-350] — il suo arrivo cadeva DOPO la scadenza della finestra di default.* Per questo la finestra si
+	// allunga qui sotto: la domanda del test e' il cursore all'estensione, non la durata della finestra. La guardia
+	// su `IsResolutionSuspended` tiene la premessa onesta: un arrivo dopo la scadenza sarebbe gia' nell'estensione.
+	for (int32 I = 0; I < 600 && TM->IsResolutionSuspended() && !TM->AttackBeatTraceForTest().Contains(TEXT("A0")); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	// 🔑 **Premessa, non decorazione**: senza un arrivo PRIMA dell'estensione il test non attraversa niente — un
+	// cursore azzerato alla ripresa non avrebbe colpi gia' mostrati da rigiocare, e il verde sarebbe vacuo.
+	if (!TestTrue(TEXT("premessa: il colpo e' arrivato sulla timeline parziale, prima dell'estensione"),
+		TM->AttackBeatTraceForTest().Contains(TEXT("A0"))))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+	for (int32 Scadenze = 0; TM->IsResolutionSuspended() && Scadenze < 8; ++Scadenze) { TM->ExpireReactionWindow(); }
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// Ogni battito al piu' una volta: nessun lancio e nessun arrivo ripetuto dall'estensione.
+	TSet<FString> Unici;
+	for (const FString& B : TM->AttackBeatTraceForTest()) { Unici.Add(B); }
+	TestEqual(TEXT("nessun battito ripetuto"), Unici.Num(), TM->AttackBeatTraceForTest().Num());
+	TestEqual(TEXT("e ogni colpo e' arrivato"),
+		TM->AttackBeatTraceForTest().FilterByPredicate([](const FString& B) { return B.StartsWith(TEXT("A")); }).Num(),
+		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Attack));
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **La finestra scade da sola, senza che nessuno la chiuda a mano** (`#2717`).
+ *
+ * 🔴 **E' il difetto che #2717 esiste per chiudere, e i test lo mascheravano.** `#2679` e `#2692` hanno
+ * costruito la sospensione ai due siti, ma `OpenWindowElapsed` era azzerato in quattro punti e
+ * incrementato in **zero**, e `ExpireReactionWindow` non aveva chiamanti di produzione: il giorno in cui
+ * qualcosa avesse legato `OnReactionWindowOpened`, la prima finestra aperta avrebbe fermato il turno
+ * **per sempre**. Non si vedeva perche' ogni test chiamava `ExpireReactionWindow()` a mano — la suite
+ * faceva da orologio al posto del gioco.
+ *
+ * 🔑 **Questo test non la chiama.** Fa passare il tempo con `Tick` e basta, che e' cio' che il gioco fa.
+ *
+ * ⚠️ **Il tick e' quello dell'Actor, non del playback**: la finestra puo' aprirsi senza che il playback
+ * sia mai partito, e l'orologio deve girare lo stesso. Qui il mondo di prova non avvia il playback, quindi
+ * il caso e' proprio quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowExpiresOnItsOwnTest,
+	"RefactorTactics.Reactions.Brace.WindowExpiresOnItsOwn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	// Una durata corta rende il test rapido senza cambiare la regola: la finestra scade a
+	// `GetFastReactionDuration()`, qualunque sia il valore. E' un setting di partita ([D-348]), non una
+	// costante — ed e' precisamente perche' e' un setting che il test puo' abbassarlo.
+	TM->SetFastReactionDuration(0.5f);
+
+	bool bAperta = false;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&bAperta](const FRTReactionWindowView&, int32) { bAperta = true; });
+
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+
+	if (!TestTrue(TEXT("la finestra si e' aperta"), bAperta)
+		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// ⛔ **Un tick solo non deve bastare**: con `0,5 s` di durata e `0,05 s` di passo servono dieci giri, e
+	// se la finestra si chiudesse al primo significherebbe che qualcuno scade senza guardare l'orologio.
+	TM->Tick(0.05f);
+	TestTrue(TEXT("dopo un tick breve la finestra e' ANCORA aperta"), TM->IsResolutionSuspended());
+
+	// 🔑 **LA PROVA.** Nessuno chiama `ExpireReactionWindow`: passa solo il tempo, come in partita.
+	int32 Tick = 0;
+	while (TM->IsResolutionSuspended() && Tick < 200)
+	{
+		TM->Tick(0.05f);
+		++Tick;
+	}
+
+	TestFalse(TEXT("la finestra e' scaduta DA SOLA, senza che nessuno la chiudesse"),
+		TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il turno e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// La scadenza applica la risposta sicura: `Hold Ground` tiene la cella.
+	TestTrue(TEXT("allo scadere vale `Hold Ground`: la spinta non lo ha spostato"),
+		Bracer->Cell == FRTCellId(0, 0));
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **La pausa del giocatore non ferma il countdown** ([D-351], `#2717`).
+ *
+ * 🔴 **Era vero per costruzione e non lo sorvegliava nessuno.** `TickReactionWindow` sta in `Tick` **prima**
+ * di `TickPlayback`, quindi il `return` su `bPlaybackPaused` non lo raggiunge — ma quella proprieta' regge
+ * solo finche' nessuno sposta la chiamata, ed e' precisamente la mossa che sembra naturale a chi legge
+ * «tick» e pensa «playback».
+ *
+ * 🔑 **La regola non e' di comodo**: [D-351] la fa discendere da `RTFrontendNavigator.h`, dove ESC
+ * *«non sospende niente»* perche' *«cio' che in rete non potra' esistere e' fermare il tempo di tutti»*.
+ * Un countdown che si ferma col menu e' un giocatore che si prende tempo togliendolo all'avversario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWindowClockIgnoresPauseTest,
+	"RefactorTactics.Reactions.Brace.PauseDoesNotStopTheClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWindowClockIgnoresPauseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->SetFastReactionDuration(0.5f);
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+
+	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// ➕ E l'id della finestra si legge anche quando e' il `Brace` ad attendere (`#2692`): l'accessore era
+	// rimasto sul solo movimento, e rispondeva «nessuna finestra» mentre una era aperta.
+	TestTrue(TEXT("l'id della finestra del Brace e' leggibile"),
+		!TM->GetOpenReactionWindowId().IsEmpty());
+
+	// 🔑 **LA PROVA.** In pausa, e il tempo passa lo stesso.
+	TM->PausePlayback();
+
+	int32 Tick = 0;
+	while (TM->IsResolutionSuspended() && Tick < 200)
+	{
+		TM->Tick(0.05f);
+		++Tick;
+	}
+
+	TestFalse(TEXT("in pausa la finestra scade lo stesso"), TM->IsResolutionSuspended());
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Una risposta non lascia una scadenza in ritardo** (`#2717`).
+ *
+ * 🔴 **L'altra meta' che era vera per costruzione**: `CloseBraceWindow` azzera `OpenWindowOpportunityId`, e
+ * `TickReactionWindow` cerca proprio quello — quindi dopo una risposta l'orologio non trova piu' nulla da
+ * far scorrere. Senza questo test, un rientro futuro che dimenticasse di azzerare l'id produrrebbe una
+ * scadenza su una finestra gia' chiusa: `ExpireReactionWindow` chiamata su un turno concluso, con tutto
+ * cio' che ne segue.
+ *
+ * 🔑 **Si misura sul TurnLog**, non sul solo `IsResolutionSuspended`: una seconda chiusura potrebbe
+ * scrivere una seconda voce di decisione, ed e' il sintomo che si vedrebbe nel replay.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnsweredWindowHasNoLateExpiryTest,
+	"RefactorTactics.Reactions.Brace.AnsweredWindowHasNoLateExpiry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnsweredWindowHasNoLateExpiryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->SetFastReactionDuration(0.5f);
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM); // #3666: la finestra si presenta al trattenimento
+
+	const FString IdFinestra = TM->GetOpenReactionWindowId();
+	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended())
+		|| !TestTrue(TEXT("la finestra ha un'identita'"), !IdFinestra.IsEmpty()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Si risponde SUBITO, ben prima della scadenza.
+	TM->SubmitReactionResponse(IdFinestra, TEXT("Hold Ground"));
+	TestFalse(TEXT("la risposta ha chiuso la finestra"), TM->IsResolutionSuspended());
+
+	const int32 VociDopoLaRisposta = TM->GetTurnLog().Num();
+
+	// 🔑 **LA PROVA.** Passa molto piu' tempo della durata della finestra: se l'orologio fosse rimasto
+	// armato, qui scatterebbe una scadenza su una finestra che non esiste piu'.
+	for (int32 I = 0; I < 100; ++I)
+	{
+		TM->Tick(0.05f);
+	}
+
+	TestFalse(TEXT("nessuna sospensione risorge dopo la risposta"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il TurnLog non cresce: nessuna seconda chiusura"),
+		TM->GetTurnLog().Num(), VociDopoLaRisposta);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShieldTest,
+	"RefactorTactics.Reactions.Shield.AbsorbsBeforeHealth",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShieldTest::RunTest(const FString&)
+{
+	// 25 punti di scudo consumati PRIMA della salute. Riusa lo stesso `AddTemporaryShield` di Guardian.Barrier:
+	// qui si verifica che l'azione sia cablata, non che il meccanismo di scudo funzioni (quello ha gia' i suoi test).
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Shielded = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Shielded"), Shielded) || !TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Il Ranger parte senza scudo: quello che si vede dopo viene tutto dall'azione.
+	TestEqual(TEXT("il Ranger parte senza scudo"), Shielded->Shield, 0);
+
+	Shielded->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Shielded, TEXT("Action.Shield"), 3);
+	Shielded->PlannedCell = Shielded->Cell;
+
+	const int32 BeforeHealth = Shielded->Health;
+	Attacker->PlannedAbilityIndex = 0; // Tiro: 25 danni, esattamente quanto lo scudo
+	Attacker->PlannedAttackTarget = Shielded;
+
+	RunDefTurn(TM);
+
+	TestEqual(TEXT("i 25 danni finiscono sullo scudo, non sugli HP"), Shielded->Health, BeforeHealth);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCleanseTest,
+	"RefactorTactics.Reactions.Cleanse.RemovesOneDeclaredStatus",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCleanseTest::RunTest(const FString&)
+{
+	// Rimuove UNO stato, e lo sceglie il PIANO: si scorre `PlannedCleansePriority` e si toglie il primo
+	// presente. L'unita' ne porta due, la lista ne mette uno solo davanti -> l'altro resta.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Cleanser = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Cleanser"), Cleanser) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Cleanser->ApplyStatus(TAG_Status_Root, 3);
+	Cleanser->ApplyStatus(TAG_Status_Marked, 3);
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
+	Cleanser->PlannedCell = Cleanser->Cell;
+	// L'ordine dichiarato mette Marked davanti: e' quello che deve sparire, non Root.
+	Cleanser->PlannedCleansePriority = { TAG_Status_Marked, TAG_Status_Root };
+
+	RunDefTurn(TM);
+
+	TestFalse(TEXT("il primo stato della lista e' stato purificato"), Cleanser->HasStatus(TAG_Status_Marked));
+	TestTrue(TEXT("UNO solo: il secondo resta"), Cleanser->HasStatus(TAG_Status_Root));
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCleanseNoImplicitChoiceTest,
+	"RefactorTactics.Reactions.Cleanse.NoImplicitChoice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
+{
+	// "La priorita' di rimozione e' scelta dal giocatore DURANTE il planning (non a runtime: nessuna scelta
+	// implicita)". Senza ordine dichiarato non si rimuove nulla: il resolver non indovina al posto suo,
+	// nemmeno quando ci sarebbe un solo candidato ovvio.
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Cleanser = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Cleanser"), Cleanser) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Cleanser->ApplyStatus(TAG_Status_Root, 3);
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
+	Cleanser->PlannedCell = Cleanser->Cell;
+	Cleanser->PlannedCleansePriority.Reset(); // nessuna scelta dichiarata
+
+	RunDefTurn(TM);
+
+	TestTrue(TEXT("nessun ordine dichiarato: lo stato resta, il resolver non sceglie"),
+		Cleanser->HasStatus(TAG_Status_Root));
+
+	// Controprova sullo stato NON elencato: dichiarare una lista che non contiene lo stato posseduto non
+	// autorizza a togliere quello che c'e'.
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
+	Cleanser->PlannedCell = Cleanser->Cell;
+	Cleanser->PlannedCleansePriority = { TAG_Status_Exposed }; // che l'unita' non ha
+
+	RunDefTurn(TM);
+
+	TestTrue(TEXT("si toglie solo cio' che il piano elenca"), Cleanser->HasStatus(TAG_Status_Root));
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTApplyDamageDeltaTest,
+	"RefactorTactics.Combat.ApplyDamageDeltaHitsEveryAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTApplyDamageDeltaTest::RunTest(const FString&)
+{
+	// La differenza fra le due funzioni, isolata: stesso input, stesso delta, esiti diversi. E' l'unica
+	// ragione per cui `ApplyDamageDelta` esiste invece di un parametro su `ApplyFirstHitDelta`.
+	TArray<FRTAttack> Attacks;
+	Attacks.Add(FRTAttack(/*Target*/ 0, /*Power*/ 25));
+	Attacks.Add(FRTAttack(/*Target*/ 0, /*Power*/ 25));
+	Attacks.Add(FRTAttack(/*Target*/ 1, /*Power*/ 25)); // altro bersaglio: non deve essere toccato
+
+	TArray<int32> Delta;
+	Delta.Init(0, 2);
+	Delta[0] = -10;
+
+	const TArray<FRTAttack> Every = URTCombatResolver::ApplyDamageDelta(Attacks, Delta);
+	TestEqual(TEXT("ogni colpo del bersaglio e' ridotto (1/2)"), Every[0].Power, 15);
+	TestEqual(TEXT("ogni colpo del bersaglio e' ridotto (2/2)"), Every[1].Power, 15);
+	TestEqual(TEXT("un altro bersaglio non e' toccato"), Every[2].Power, 25);
+
+	const TArray<FRTAttack> First = URTCombatResolver::ApplyFirstHitDelta(Attacks, Delta);
+	TestEqual(TEXT("a confronto, il 'primo colpo' riduce solo quello"), First[0].Power, 15);
+	TestEqual(TEXT("e lascia intero il secondo"), First[1].Power, 25);
+
+	// Un delta che supera il danno azzera senza andare sotto zero, e non cancella la voce.
+	TArray<int32> Huge;
+	Huge.Init(0, 2);
+	Huge[0] = -100;
+	const TArray<FRTAttack> Clamped = URTCombatResolver::ApplyDamageDelta(Attacks, Huge);
+	TestEqual(TEXT("il danno si azzera, non diventa negativo"), Clamped[0].Power, 0);
+	TestEqual(TEXT("e il colpo resta nell'array"), Clamped.Num(), 3);
+
+	return true;
+}
+
+
+// ─── E14.7 · Reaction Profile ([D-047]) ─────────────────────────────────────────────────────────────────
+
+/**
+ * Col **profilo base** il `Brace` ha **una** risposta legale, quindi nessun boundary si apre ([D-047] §2.3).
+ *
+ * E' la voce di DoD che protegge tutto cio' che e' verde oggi: se il profilo base aprisse una finestra, ogni
+ * `Brace` della v0.1 diventerebbe un prompt e la resolution rallenterebbe per ogni unita' che si copre.
+ *
+ * ⚠️ La verifica passa da `RequiresDecisionBoundary` — la stessa funzione che il resolver interroga — e non
+ * da un conteggio scritto qui: un test che contasse `Num() == 1` per conto proprio resterebbe verde anche se
+ * la regola del boundary cambiasse soglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBaseProfileSingleResponseTest,
+	"RefactorTactics.Reactions.Brace.BaseProfileHasSingleResponse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBaseProfileSingleResponseTest::RunTest(const FString&)
+{
+	const TArray<FString> Base = URTCatalogLibrary::BraceAllowedResponses(NAME_None);
+
+	TestEqual(TEXT("il profilo base offre una sola risposta"), Base.Num(), 1);
+	TestEqual(TEXT("ed e' `Hold Ground`, la risposta universale"), Base[0], FString(TEXT("Hold Ground")));
+
+	FRTReactionOpportunity Opp;
+	Opp.AllowedResponses = Base;
+	TestFalse(TEXT("quindi nessun decision boundary si apre"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp));
+
+	// Un profilo SCONOSCIUTO da' lo stesso esito, ed e' fail-closed nel verso giusto: un piano salvato prima
+	// che il catalogo cambiasse non deve poter aprire una finestra su scelte che il gioco non ha piu'.
+	const TArray<FString> Unknown = URTCatalogLibrary::BraceAllowedResponses(TEXT("Profile.NonEsiste"));
+	TestEqual(TEXT("un profilo sconosciuto ricade sul base"), Unknown.Num(), 1);
+
+	return true;
+}
+
+/**
+ * Un profilo d'eroe con una **seconda** risposta porta la cardinalita' a >= 2 e apre la finestra con la
+ * regola che ADR-0004 §2 **ha gia'** ([D-047] §2.3): nessuna regola nuova, nessun enum di tipo.
+ *
+ * I tre profili del roster si verificano **uno per uno con la propria cardinalita' attesa**, e non «almeno
+ * due»: `Profile.Glance` ne porta **due** di extra, quindi 3, ed e' l'unico. Un test che chiedesse solo
+ * `>= 2` non distinguerebbe Glance da Sidestep, e la differenza e' l'unica cosa che quel profilo aggiunge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceRicherProfileOpensWindowTest,
+	"RefactorTactics.Reactions.Brace.RicherProfileOpensWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceRicherProfileOpensWindowTest::RunTest(const FString&)
+{
+	struct FCase { const TCHAR* ProfileId; int32 Expected; };
+	const FCase Cases[] = {
+		{ TEXT("Profile.Grounding"), 2 },
+		{ TEXT("Profile.Sidestep"),  2 },
+		{ TEXT("Profile.Glance"),    3 },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		const TArray<FString> Responses = URTCatalogLibrary::BraceAllowedResponses(FName(C.ProfileId));
+		TestEqual(FString::Printf(TEXT("%s: cardinalita'"), C.ProfileId), Responses.Num(), C.Expected);
+
+		// `Hold Ground` resta la prima e non viene sostituita: un profilo AGGIUNGE, non rimpiazza.
+		TestEqual(FString::Printf(TEXT("%s: `Hold Ground` resta la risposta universale"), C.ProfileId),
+			Responses[0], FString(TEXT("Hold Ground")));
+
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = Responses;
+		TestTrue(FString::Printf(TEXT("%s: apre il decision boundary"), C.ProfileId),
+			URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp));
+	}
+
+	// Il catalogo ne dichiara TRE, e il conteggio e' parte della verifica: un quarto profilo comparso senza
+	// una decisione sarebbe un eroe che apre una finestra che nessuno ha discusso.
+	TestEqual(TEXT("il catalogo dichiara tre profili"),
+		URTCatalogLibrary::GetReactionProfileCatalog().Num(), 3);
+
+	return true;
+}
+
+/**
+ * **Branth non ha un profilo, e nessuna finestra si apre per lui** ([D-047] §2.5).
+ *
+ * E' la baseline con cui CP 14.6 confronta gli altri tre quando misura il pacing, e va pinnata: se un giorno
+ * qualcuno gliene assegnasse uno, il caso «un eroe senza finestra» sparirebbe dal roster e la misura del
+ * pacing perderebbe il proprio controllo — senza che nulla diventi rosso.
+ *
+ * ⚠️ Il test verifica **entrambe** le metà: che Branth non ne abbia uno, e che gli altri tre sì. Solo la
+ * prima passerebbe anche su un roster in cui nessuno ha un profilo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBranthHasNoProfileTest,
+	"RefactorTactics.Reactions.Brace.BranthHasNoProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBranthHasNoProfileTest::RunTest(const FString&)
+{
+	int32 WithProfile = 0;
+	int32 WithoutProfile = 0;
+
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+
+		const TArray<FString> Responses = URTCatalogLibrary::BraceAllowedResponses(Hero->ReactionProfileId);
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = Responses;
+		const bool bOpens = URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp);
+
+		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		{
+			TestTrue(TEXT("Branth non dichiara un profilo"), Hero->ReactionProfileId.IsNone());
+			TestFalse(TEXT("e il suo `Brace` non apre nessuna finestra"), bOpens);
+		}
+
+		if (bOpens) { ++WithProfile; } else { ++WithoutProfile; }
+	}
+
+	// L'altra meta': tre eroi APRONO la finestra. Senza, «Branth non ne ha uno» sarebbe vero anche su un
+	// roster in cui il profilo non esiste per nessuno — cioe' su una feature che non e' stata costruita.
+	TestEqual(TEXT("tre eroi del roster aprono la finestra sul `Brace`"), WithProfile, 3);
+	TestEqual(TEXT("e uno solo non la apre"), WithoutProfile, 1);
+
+	return true;
+}
+
+/**
+ * **Cio' che il profilo DICHIARA e cio' che il gioco sa ESEGUIRE oggi non coincidono, e la distanza si
+ * misura** ([D-132] contro `spec-reaction-clash-e14.md` §2.5).
+ *
+ * Non e' un difetto da correggere qui: `Profile.Grounding` e `Profile.Glance` sono contenuto **deciso**,
+ * mentre «Charge del `Grounding`» e «ampiezza della deviazione» sono dichiarati **aperti** dalla stessa spec.
+ * Finche' lo restano, quelle due risposte non hanno effetti e il resolver non le offre — offrire una scelta
+ * che non sa applicare significherebbe fermare la resolution per non fare niente.
+ *
+ * ⚠️ **Questo test e' scritto per DIVENTARE ROSSO quando una delle due voci si chiude**, ed e' il suo scopo:
+ * chi aggiunge gli effetti a `GROUND` aggiorna qui il conteggio e trova, nella riga accanto, che deve anche
+ * togliere la voce da `OPEN_DECISIONS.md`. Un test che dicesse solo `>= 1` lascerebbe la chiusura passare in
+ * silenzio, e la distanza fra i due elenchi tornerebbe implicita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDeclaredIsNotYetExecutableTest,
+	"RefactorTactics.Reactions.Brace.DeclaredIsNotYetExecutable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDeclaredIsNotYetExecutableTest::RunTest(const FString&)
+{
+	struct FCase { const TCHAR* ProfileId; int32 Declared; int32 Executable; const TCHAR* Why; };
+	const FCase Cases[] = {
+		{ TEXT("Profile.Grounding"), 2, 1, TEXT("Charge del Grounding: aperta, spec §2.5") },
+		{ TEXT("Profile.Sidestep"),  2, 2, TEXT("decisa da BAS-4: SelfReposition 1") },
+		{ TEXT("Profile.Glance"),    3, 1, TEXT("ampiezza della deviazione: aperta, spec §2.5") },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		const FName Id(C.ProfileId);
+		TestEqual(FString::Printf(TEXT("%s: dichiarate (%s)"), C.ProfileId, C.Why),
+			URTCatalogLibrary::BraceAllowedResponses(Id).Num(), C.Declared);
+		TestEqual(FString::Printf(TEXT("%s: eseguibili"), C.ProfileId),
+			URTCatalogLibrary::BraceExecutableResponses(Id).Num(), C.Executable);
+
+		// `Hold Ground` apre entrambi gli elenchi e non ha effetti propri: il suo esito e' il ramo
+		// `Status.Braced` del resolver, che gira da CP 5.2 e che [D-047] dichiara invariato.
+		TestEqual(FString::Printf(TEXT("%s: `Hold Ground` non passa dal motore effetti"), C.ProfileId),
+			URTCatalogLibrary::BraceResponseEffects(Id, TEXT("Hold Ground")).Num(), 0);
+	}
+
+	// La meta' che conta per il resolver: **solo** Sidestep apre davvero una finestra oggi. Un test che
+	// contasse le sole cardinalita' dichiarate resterebbe verde anche se il cablaggio non esistesse.
+	int32 OpensInPlay = 0;
+	for (const FCase& C : Cases)
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(FName(C.ProfileId));
+		if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp)) { ++OpensInPlay; }
+	}
+	TestEqual(TEXT("un solo profilo su tre apre la finestra in partita"), OpensInPlay, 1);
+
+	// E l'effetto di `SIDESTEP` e' la primitiva esistente, non una nuova: `SelfReposition 1`, la stessa che
+	// `Reaction.EmergencyDash` e `Reaction.HazardEscape` portano da D-093. Se qualcuno la sostituisse con un
+	// effetto proprio, il ramo del resolver che la legge continuerebbe a funzionare e la ragione per cui
+	// «nessun numero nuovo entra» sarebbe falsa senza che nulla diventi rosso.
+	const TArray<FRTActionEffectSpec> Sidestep =
+		URTCatalogLibrary::BraceResponseEffects(TEXT("Profile.Sidestep"), TEXT("SIDESTEP"));
+	if (TestEqual(TEXT("SIDESTEP dichiara un solo effetto"), Sidestep.Num(), 1))
+	{
+		TestTrue(TEXT("ed e' `SelfReposition`"), Sidestep[0].Effect == ERTActionEffect::SelfReposition);
+		TestEqual(TEXT("di una cella, come EmergencyDash e HazardEscape"), Sidestep[0].Amount, 1);
+	}
+
+	return true;
+}
+
+
+namespace
+{
+	/** Come `SpawnDefUnit`, ma l'eroe lo sceglie il chiamante: il profilo di reazione viene da li'. */
+	ARTUnit* SpawnDefHeroUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, const URTHeroData* Hero)
+	{
+		if (!World || !Hero) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(Hero);
+		// E53 CP 53.3c: il catalogo porta DEF e bonus alle spalle ([D-595] (3), [D-599]). Questo banco misura ALTRO,
+		// e i suoi numeri sono scritti sul colpo pieno: i due campi tornano a zero qui, e la difesa del catalogo
+		// la misura `RTHeroCatalogDefenseTests.cpp`. Non e' un'eccezione nascosta: e' il banco che dichiara la sua fixture.
+		U->Defense = 0;
+		U->RearBonus = 0;
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
+		return U;
+	}
+
+	/**
+	 * Un Blast in cui `Attaccante` spinge `Difensore`, che e' in `Brace`. **Una sola fixture per entrambe le
+	 * famiglie di test del `Brace`**, e i tre puntatori dicono cosa serve a chi chiama.
+	 *
+	 * 🔴 **Erano DUE funzioni quasi identiche**, e una code review ha misurato il costo: ~35 righe uguali —
+	 * mondo, mappa, due spawn, l'abilita', lo stato `Braced`, il giro del turno, la distruzione — che
+	 * differivano solo per come si ottiene la risposta. Qualunque modifica alla fixture (l'id della spinta, la
+	 * cella di partenza, la durata di `Status.Braced`) andava fatta due volte, e farla una sola volta avrebbe
+	 * lasciato le due famiglie a esercitare **setup diversi restando entrambe verdi**.
+	 *
+	 * `Trace` non nullo = **replay**: le decisioni si armano da li' e **nessun decisore viene collegato**, che
+	 * e' la condizione del Verifier — se il replay tornasse a chiedere a qualcuno non starebbe verificando la
+	 * traccia, la starebbe riscrivendo.
+	 *
+	 * Restituisce la cella in cui il difensore finisce, e `bOutRan` dice se il turno e' **davvero girato**.
+	 *
+	 * 🔴 **`bOutRan` esiste perche' senza di lui un fallimento di fixture passava per un successo.** La
+	 * versione precedente restituiva `FRTCellId()` — cioe' `(0,0,0)` — quando mondo, unita' o turn manager non
+	 * si costruivano, e l'asserzione che conta e' `ConScarto != Start`: il sentinella la **soddisfa**, quindi
+	 * «il difensore lascia la cella» diventava verde senza che nessuno si fosse mosso. I due casi
+	 * `Hold Ground` sarebbero caduti al posto suo, facendo leggere una fixture rotta come un difetto del
+	 * `Brace`: il rosso sarebbe arrivato, ma indicando la cosa sbagliata.
+	 */
+	FRTCellId RunBraceTurn(const URTHeroData* DefenderHero, const TCHAR* Response,
+		const TArray<FRTTurnLogEntry>* Trace, int32* OutPrompts, TArray<FRTTurnLogEntry>* OutTrace,
+		bool& bOutRan, TArray<FString>* OutDivergences = nullptr, bool bDefenderArmsOverwatch = false)
+	{
+		if (OutPrompts) { *OutPrompts = 0; }
+		if (OutTrace) { OutTrace->Reset(); }
+		if (OutDivergences) { OutDivergences->Reset(); }
+		bOutRan = false;
+
+		UWorld* World = MakeDefWorld();
+		if (!World) { return FRTCellId(); }
+		SpawnDefMap(World);
+
+		ARTUnit* Attaccante = SpawnDefUnit(World, 0, FRTCellId(0, 0, 0));
+		ARTUnit* Difensore  = SpawnDefHeroUnit(World, 1, FRTCellId(1, 0, 0), DefenderHero);
+		ARTTurnManager* TM  = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		FRTCellId Result;
+		if (Attaccante && Difensore && TM)
+		{
+			const int32 Push = RTAbilityFixtures::AddCoreAbilityInSlot(Attaccante, TEXT("Action.Push"), 3);
+			Attaccante->PlannedAbilityIndex = Push;
+			Attaccante->PlannedAttackTarget = Difensore;
+			Difensore->ApplyStatus(TAG_Status_Braced, 1);
+			Difensore->PlannedAbilityIndex = INDEX_NONE;
+			// [D-366]: il difensore puo' anche avere un Overwatch armato con l'azione principale. Lo slot reazione e'
+			// un altro, e il `Brace` qui e' gia' lo stato.
+			if (bDefenderArmsOverwatch)
+			{
+				Difensore->PlannedAbilityIndex =
+					RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Overwatch"), 3);
+			}
+
+			if (Trace && Trace->Num() > 0)
+			{
+				TM->ArmRecordedReactionDecisions(*Trace);
+			}
+			else if (Response)
+			{
+				TM->ReactionDecider.BindLambda(
+					[Response, OutPrompts](const FRTReactionOpportunity&, int32) -> FString
+					{
+						// Conta le volte in cui la finestra ha chiesto davvero: e' la differenza fra «si apre»
+						// e «si committa da sola», che il solo esito non distingue.
+						if (OutPrompts) { ++(*OutPrompts); }
+						return FString(Response);
+					});
+			}
+
+			RunDefTurn(TM);
+			Result = Difensore->Cell;
+			if (OutTrace) { *OutTrace = TM->GetTurnLog(); }
+			// Il verdetto del Verifier esce con la cella: e' l'unico modo per distinguere «la traccia copriva
+			// la finestra» da «non la copriva e il ripiego e' finito per caso nello stesso posto». Senza,
+			// un test sul solo esito posizionale sarebbe verde anche col canale di verifica rotto.
+			if (OutDivergences) { *OutDivergences = TM->GetVerificationDivergences(); }
+			bOutRan = true; // il turno e' girato davvero: da qui in poi `Result` e' una misura, non un default
+		}
+
+		DestroyDefWorld(World);
+		return Result;
+	}
+
+	/** Il caso «gioca e conta i prompt», che e' quello della maggior parte dei test del `Brace`. */
+	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts,
+		bool& bOutRan)
+	{
+		return RunBraceTurn(DefenderHero, Response, /*Trace*/ nullptr, &OutPrompts, /*OutTrace*/ nullptr,
+			bOutRan);
+	}
+}
+
+/**
+ * 🔵 **Il Reaction Profile ha un consumatore in PARTITA** ([D-047], fetta 3 di E14.7).
+ *
+ * Fino al 2026-08-19 `BraceAllowedResponses` aveva **zero** chiamanti fuori dai test e
+ * `ARTUnit::ReactionProfileId` era trasportato e mai letto: un dato con produttore e senza consumatore, che
+ * e' il difetto che `#583` chiama per nome — «supera ogni test unitario, e il gioco non avra' mai una
+ * condizione da valutare». Questo test e' la prova che il profilo attraversa il resolver.
+ *
+ * ⚠️ **Le tre meta' non sono ridondanti, e nessuna da sola dimostra la proprieta'**:
+ * · con `SIDESTEP` il difensore si muove — se mancasse, il profilo sarebbe letto e ignorato;
+ * · con `Hold Ground` resta — se mancasse, «si e' mosso» proverebbe solo che la spinta lo ha spostato, cioe'
+ *   che il `Brace` ha smesso di funzionare;
+ * · **senza decisore** resta, e la finestra non e' stata chiesta a nessuno — e' il fail-closed di ADR-0004
+ *   §3 applicato al `Brace`: la scelta sicura e' `Hold Ground`, non il `HOLD` dell'Overwatch, che qui non
+ *   sarebbe nemmeno una risposta legale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceProfileDecidesInPlayTest,
+	"RefactorTactics.Reactions.Brace.ProfileDecidesInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
+{
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
+	if (!TestTrue(TEXT("e il profilo e' quello atteso"),
+		Muiren->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
+
+	const FRTCellId Start(1, 0, 0);
+
+	int32 PromptsSidestep = 0; bool bRanSidestep = false;
+	const FRTCellId ConScarto = RunBracePushTurn(Muiren, TEXT("SIDESTEP"), PromptsSidestep, bRanSidestep);
+	// ⚠️ `bRan` PRIMA della cella, e non e' pedanteria: con la fixture rotta il valore di ritorno e' `(0,0,0)`,
+	// che soddisfa `!= Start` — l'asserzione sotto sarebbe verde senza che nessuno si sia mosso.
+	TestTrue(TEXT("il turno con `SIDESTEP` e' girato davvero"), bRanSidestep);
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), ConScarto != Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta una volta"), PromptsSidestep, 1);
+
+	int32 PromptsHold = 0; bool bRanHold = false;
+	const FRTCellId ConHold = RunBracePushTurn(Muiren, TEXT("Hold Ground"), PromptsHold, bRanHold);
+	TestTrue(TEXT("il turno con `Hold Ground` e' girato davvero"), bRanHold);
+	TestTrue(TEXT("con `Hold Ground` resta dov'era"), ConHold == Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta anche qui"), PromptsHold, 1);
+
+	int32 PromptsNessuno = 0; bool bRanNessuno = false;
+	const FRTCellId SenzaDecisore = RunBracePushTurn(Muiren, nullptr, PromptsNessuno, bRanNessuno);
+	TestTrue(TEXT("il turno senza decisore e' girato davvero"), bRanNessuno);
+	TestTrue(TEXT("senza decisore la scelta sicura tiene la posizione"), SenzaDecisore == Start);
+	TestEqual(TEXT("e nessuno e' stato interrogato"), PromptsNessuno, 0);
+
+	// 🔴 **La meta' che distingue «il profilo ha deciso» da «il `Brace` non si e' applicato», e senza la quale
+	// tutto il resto e' ambiguo.** Con una spinta di **1** la cella dello scarto coincide con quella in cui
+	// l'unita' sarebbe finita **subendo** la spinta: `SelfReposition` allontana lungo la stessa linea. Quindi
+	// «R1 si e' mosso» da solo NON prova che abbia scelto — proverebbe la stessa cosa se il ramo `Braced` non
+	// esistesse affatto. Il discriminante e' il **conteggio dei prompt**, che senza finestra resta a zero.
+	//
+	// ⚠️ E' il difetto che la code review ha trovato nello scenario gemello, dove la sola misura e' la cella:
+	// li' rimuovere il ramo `Braced` lascia tutte le assertion verdi. Qui no, ed e' questa riga a impedirlo —
+	// motivo per cui il test unitario e lo scenario non sono ridondanti.
+	TestEqual(TEXT("e la cella dello scarto coincide con quella della spinta subita (spinta 1): "
+		"e' il conteggio dei prompt a dire che c'e' stata una scelta"),
+		PromptsSidestep, 1);
+
+	// **La baseline**: Branth non ha un profilo, quindi nessuna finestra si apre per lui e il decisore non
+	// viene mai chiamato — nemmeno se ne colleghi uno che risponderebbe `SIDESTEP`. E' la meta' che protegge
+	// tutto cio' che e' verde oggi: se il profilo base aprisse un prompt, ogni `Brace` della v0.1 ne
+	// aprirebbe uno.
+	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	if (TestNotNull(TEXT("Branth"), Branth))
+	{
+		int32 PromptsBranth = 0; bool bRanBranth = false;
+		const FRTCellId Piantato = RunBracePushTurn(Branth, TEXT("SIDESTEP"), PromptsBranth, bRanBranth);
+		TestTrue(TEXT("il turno di Branth e' girato davvero"), bRanBranth);
+		TestTrue(TEXT("Branth tiene la cella col comportamento base"), Piantato == Start);
+		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsBranth, 0);
+	}
+
+	// 🔴 **Ivrin e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
+	// dichiara **tre** risposte ([D-132]) e nessuna delle due extra ha effetti, quindi le eseguibili sono
+	// una sola e nessuna finestra si apre. Con `BraceAllowedResponses` al posto di `BraceExecutableResponses`
+	// il resolver aprirebbe qui un prompt su `GLANCE LEFT`, che poi non saprebbe applicare — e senza questa
+	// meta' la sostituzione resterebbe verde, perche' l'unita' finirebbe comunque ferma.
+	const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+	if (TestNotNull(TEXT("Ivrin"), Ivrin))
+	{
+		int32 PromptsIvrin = 0; bool bRanIvrin = false;
+		const FRTCellId Fermo = RunBracePushTurn(Ivrin, TEXT("GLANCE LEFT"), PromptsIvrin, bRanIvrin);
+		TestTrue(TEXT("il turno di Ivrin e' girato davvero"), bRanIvrin);
+		TestEqual(TEXT("nessuna finestra per un profilo senza effetti dichiarati"), PromptsIvrin, 0);
+		TestTrue(TEXT("e il `Brace` di Ivrin regge come sempre"), Fermo == Start);
+	}
+
+	return true;
+}
+
+/**
+ * [D-366] Lo SCARTO del `Brace` non disarma l'Overwatch: e' una reazione scelta, non uno spostamento forzato
+ * (decisione d'autore del 2026-10-15).
+ *
+ * 🔑 **Passa dalla stessa primitiva della spinta** (`ApplyForcedDisplacement`), e la review della PR #3783 lo ha
+ * trovato: senza l'eccezione, chi ha un Overwatch armato e sceglie lo scarto lo perdeva, e `Hold Ground` diventava
+ * sempre la scelta migliore. E' lo stesso argomento per cui lo scarto non fa cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSidestepKeepsTheOverwatchTest,
+	"RefactorTactics.Reactions.Brace.SidestepKeepsTheOverwatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSidestepKeepsTheOverwatchTest::RunTest(const FString&)
+{
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
+
+	int32 Prompts = 0;
+	bool bRan = false;
+	TArray<FRTTurnLogEntry> Trace;
+	const FRTCellId Finale = RunBraceTurn(Muiren, TEXT("SIDESTEP"), /*Trace*/ nullptr, &Prompts, &Trace, bRan,
+		/*OutDivergences*/ nullptr, /*bDefenderArmsOverwatch=*/ true);
+
+	TestTrue(TEXT("premessa: il turno e' girato davvero"), bRan);
+	TestEqual(TEXT("premessa: la finestra del `Brace` e' stata chiesta"), Prompts, 1);
+	TestTrue(TEXT("premessa: con `SIDESTEP` il difensore ha lasciato la cella"), Finale != FRTCellId(1, 0, 0));
+
+	int32 Disarmi = 0;
+	for (const FRTTurnLogEntry& E : Trace)
+	{
+		if (E.Category == ERTLogCategory::Reaction
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Disarmed)
+		{
+			++Disarmi;
+		}
+	}
+	// 🔴 IL PUNTO: lo scarto e' passato dalla primitiva dello spostamento, e l'Overwatch e' ancora armato.
+	TestEqual(TEXT("lo scarto non disarma l'Overwatch: nessuna voce `Disarmed`"), Disarmi, 0);
+	return true;
+}
+
+/**
+ * 🔴 **`SIDESTEP` esce dalla LINEA di spinta, e non la percorre** ([D-047] §2.5-bis).
+ *
+ * E' la correzione di un difetto di **design**, non di codice: fino al 2026-08-19 lo scarto usava
+ * `HexKnockbackDestination`, che allontana dall'attaccante — cioe' mandava l'unita' **dove la spinta voleva
+ * mandarla**. Siccome il ramo `Status.Braced` blocca gia' la spinta a *qualunque* distanza, `Hold Ground`
+ * teneva la cella e `SIDESTEP` la cedeva, con lo **stesso danno**: una risposta strettamente dominata, cioe'
+ * un boundary che costa un prompt e non compra niente.
+ *
+ * ⚠️ **Questo test asserisce la proprieta' che rende la scelta una scelta**, e non una cella particolare: la
+ * destinazione **non sta sulla linea** — ne' dove la spinta spinge, ne' da dove arriva. Pinnare una cella
+ * fissa avrebbe legato il test all'ordine canonico invece che alla regola, e sarebbe diventato rosso a ogni
+ * riordino delle direzioni senza che nulla di sbagliato fosse accaduto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSidestepLeavesTheLineTest,
+	"RefactorTactics.Reactions.Brace.SidestepLeavesThePushLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSidestepLeavesTheLineTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnDefMap(World, 6);
+	const URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+	if (!TestNotNull(TEXT("mappa"), (void*)Map)) { DestroyDefWorld(World); return false; }
+
+	// Spinta da ovest verso est: chi spinge e' a (-1,0), il bersaglio a (0,0).
+	const FRTCellId PushFrom(-1, 0, 0);
+	const FRTCellId Target(0, 0, 0);
+
+	ERTHexDirection PushDir;
+	if (!TestTrue(TEXT("la linea di spinta ha una direzione"),
+		URTHexLibrary::DirectionTowards(PushFrom, Target, PushDir)))
+	{
+		DestroyDefWorld(World); return false;
+	}
+	const FRTCellId Ahead  = URTHexLibrary::Neighbor(Target, PushDir);
+	const FRTCellId Behind = URTHexLibrary::Neighbor(Target, URTHexLibrary::OppositeDirection(PushDir));
+
+	// (a) Campo libero: lo scarto esiste e NON sta sulla linea. E' la proprieta' che il difetto violava.
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, /*Occupied*/ {});
+
+		TestTrue(TEXT("lo scarto porta via dalla cella"), Escape != Target);
+		TestTrue(TEXT("e NON dove la spinta spingeva"), Escape != Ahead);
+		TestTrue(TEXT("ne' verso chi spinge"), Escape != Behind);
+		TestTrue(TEXT("resta comunque adiacente"),
+			URTHexLibrary::Neighbors(Target).Contains(Escape));
+	}
+
+	// (b) **Il facing decide**, come per `Reaction.HazardEscape`: lo stesso identico caso con due
+	// orientamenti diversi da' due scarti diversi. Senza questa meta', «esce dalla linea» sarebbe compatibile
+	// con un ordine canonico che ignora il giocatore.
+	{
+		const FRTCellId VersoNE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, {});
+		const FRTCellId VersoSE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::SE, {});
+
+		TestTrue(TEXT("guardando a NE si scarta a NE"),
+			VersoNE == URTHexLibrary::Neighbor(Target, ERTHexDirection::NE));
+		TestTrue(TEXT("guardando a SE si scarta a SE"),
+			VersoSE == URTHexLibrary::Neighbor(Target, ERTHexDirection::SE));
+		TestTrue(TEXT("e i due esiti differiscono davvero"), VersoNE != VersoSE);
+	}
+
+	// (c) **Il facing punta SULLA linea**: non si puo' obbedire, e si ripiega sull'ordine canonico — che e'
+	// comunque fuori dalla linea. E' il caso che distingue «preferisci il facing» da «segui il facing».
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, PushDir, {});
+
+		TestTrue(TEXT("il facing sulla linea non viene obbedito"), Escape != Ahead);
+		TestTrue(TEXT("e nemmeno il suo opposto"), Escape != Behind);
+		TestTrue(TEXT("ma uno scarto si trova lo stesso"), Escape != Target);
+	}
+
+	// (d) **Tutte le uscite occupate**: si ripiega su `Hold Ground`, e chi chiama lo legge da `== From`.
+	// ⚠️ Si occupano i QUATTRO fuori linea; `Ahead` e `Behind` restano liberi di proposito — se la funzione
+	// li offrisse come scarto, questo caso passerebbe comunque e il difetto originale tornerebbe da qui.
+	{
+		TArray<FRTCellId> Occupied;
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(Target))
+		{
+			if (N != Ahead && N != Behind) { Occupied.Add(N); }
+		}
+		TestEqual(TEXT("le uscite fuori linea sono quattro"), Occupied.Num(), 4);
+
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, Occupied);
+		TestTrue(TEXT("senza uscite si tiene la posizione, non si ripiega sulla linea"), Escape == Target);
+	}
+
+	// (e) Fail-closed senza mappa autorevole, come `FindEscapeCell`.
+	TestTrue(TEXT("senza mappa non si scarta"),
+		URTReactionLibrary::FindSidestepCell(nullptr, Target, PushFrom, ERTHexDirection::NE, {}) == Target);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * 🔵 **Il GIRO COMPLETO: la decisione del `Brace` entra nel TurnLog e il replay la riapplica.** È la
+ * proprietà per cui la v10 del formato esiste, e nessuna delle sue due metà da sola la dimostra.
+ *
+ * Fino al 2026-08-19 la decisione non lasciava traccia: in ri-simulazione `ArmRecordedReactionDecisions` non
+ * trovava la chiave, segnalava «finestra non coperta dalla traccia» e applicava la scelta sicura — l'unità
+ * che aveva scartato **restava ferma nel replay**, e il Verifier accusava la traccia di un difetto dello
+ * *scrittore*.
+ *
+ * ⚠️ **Il replay gira SENZA decisore collegato**, ed è la condizione che rende il test una verifica e non una
+ * ripetizione: se tornasse a chiedere a qualcuno non starebbe verificando la traccia, la starebbe
+ * riscrivendo. Tutto ciò che sa della scelta deve venire dai byte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDecisionRoundTripsThroughTraceTest,
+	"RefactorTactics.Reactions.Brace.DecisionRoundTripsThroughTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
+{
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
+	const FRTCellId Start(1, 0, 0);
+
+	// --- 1. La partita: si sceglie `SIDESTEP`, e la traccia se ne accorge --------------------------------
+	TArray<FRTTurnLogEntry> Traccia;
+	bool bRan = false;
+	const FRTCellId Originale = RunBraceTurn(Muiren, TEXT("SIDESTEP"), /*Trace*/ nullptr, /*OutPrompts*/ nullptr, &Traccia, bRan);
+
+	if (!TestTrue(TEXT("il turno originale e' girato"), bRan)) { return false; }
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), Originale != Start);
+
+	// La voce esiste, ed e' quella giusta: categoria, esito e **token**. Senza il token la riga successiva
+	// sarebbe verde con una traccia che non dice quale risposta sia stata scelta.
+	const FRTTurnLogEntry* Voce = Traccia.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	if (!TestNotNull(TEXT("la decisione del `Brace` e' nel TurnLog"), (void*)Voce)) { return false; }
+	// ⚠️ **Dal 2026-08-29 a distinguere lo scarto dal tenere la cella e' il TOKEN, non l'esito** (`#1118`):
+	// la ragione e' `Chosen` in entrambi i casi — si e' scelto — e l'asserzione che conta e' la riga sotto.
+	TestEqual(TEXT("la ragione dice che si e' scelto"), Voce->Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::Chosen));
+	TestEqual(TEXT("e il token distingue lo scarto dal tenere la cella"), Voce->ReactionResponse,
+		FString(TEXT("SIDESTEP")));
+
+	// --- 2. Il replay: stessa traccia, NESSUN decisore, stesso esito -------------------------------------
+	TArray<FRTTurnLogEntry> TracciaReplay;
+	bool bRanReplay = false;
+	TArray<FString> Divergenze;
+	const FRTCellId Replay = RunBraceTurn(Muiren, /*Response*/ nullptr, &Traccia, nullptr, &TracciaReplay,
+		bRanReplay, &Divergenze);
+
+	if (!TestTrue(TEXT("il replay e' girato"), bRanReplay)) { return false; }
+	TestTrue(TEXT("IL PUNTO: il replay riapplica lo scarto, non la scelta sicura"), Replay == Originale);
+	TestTrue(TEXT("e quindi non e' rimasto fermo"), Replay != Start);
+	// ⚠️ **La cella da sola non basta**, ed e' il rilievo di una code review: se un domani
+	// `DeriveOpportunityId` divergesse fra scrittura e replay — un campo nuovo nella chiave, un altro spazio
+	// di id — `AskReactionDecision` prenderebbe il ramo «finestra non coperta» e ripiegherebbe sulla scelta
+	// sicura. Le due asserzioni sopra resterebbero vere ogni volta che il ripiego finisce nella stessa cella,
+	// mentre il canale di verifica e' rotto. Il verdetto va letto.
+	TestEqual(TEXT("e il Verifier non segnala NIENTE: la traccia copriva davvero la finestra"),
+		Divergenze.Num(), 0);
+
+	// --- 3. La META' NEGATIVA, senza cui il test sopra sarebbe verde anche col token ignorato ------------
+	// La stessa traccia **privata del token**: è ciò che una v9 porterebbe. La ricostruzione dà `HOLD`, che
+	// per una finestra di `Brace` non è legale — quindi il replay NON deve riapplicare lo scarto.
+	TArray<FRTTurnLogEntry> SenzaToken = Traccia;
+	for (FRTTurnLogEntry& E : SenzaToken)
+	{
+		E.ReactionResponse.Empty();
+	}
+	TArray<FRTTurnLogEntry> Ignorata;
+	bool bRanSenza = false;
+	TArray<FString> DivergenzeSenza;
+	const FRTCellId SenzaTokenCell = RunBraceTurn(Muiren, nullptr, &SenzaToken, nullptr, &Ignorata, bRanSenza,
+		&DivergenzeSenza);
+
+	TestTrue(TEXT("il turno senza token e' girato"), bRanSenza);
+	TestTrue(TEXT("senza token lo scarto NON si riapplica: il token e' cio' che porta l'informazione"),
+		SenzaTokenCell == Start);
+	// E il Verifier lo DICHIARA invece di lasciarlo dedurre dalla cella: la ricostruzione produce `HOLD`, che
+	// per questa finestra non e' legale. E' l'altro verso dell'asserzione sulle divergenze qui sopra — insieme
+	// dimostrano che quel conteggio misura qualcosa, invece di essere zero per costruzione.
+	TestTrue(TEXT("e il Verifier segnala la risposta registrata come illegale"), DivergenzeSenza.Num() > 0);
+
+	// --- 4. **Una lacuna della traccia NON si ripulisce da sola** ----------------------------------------
+	// Traccia non vuota — quindi si e' in ri-simulazione — ma che NON copre questa finestra: il resolver
+	// prende il ramo «finestra non coperta», segnala la divergenza e ripiega sulla scelta sicura.
+	//
+	// 🔴 **Il punto e' cosa NON deve finire nel TurnLog del replay.** Scrivendo li' una voce completa, quella
+	// finestra risulterebbe coperta: ridando il log del replay al Verifier, `ArmRecordedReactionDecisions`
+	// troverebbe la chiave e la corsa uscirebbe **pulita** — una traccia nota come incompleta si sarebbe
+	// lavata da sola in un giro. Una lacuna che sparisce e' peggio di una lacuna. Trovato da una code review.
+	FRTTurnLogEntry AltraFinestra;
+	AltraFinestra.Category = ERTLogCategory::ReactionDecision;
+	AltraFinestra.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+	AltraFinestra.ReactionResponse = URTReactionOpportunityLibrary::HoldResponse();
+	AltraFinestra.OpportunityId = TEXT("T9|P9|M9|U9|action.inesistente|S9");
+	const TArray<FRTTurnLogEntry> TracciaEstranea = { AltraFinestra };
+
+	TArray<FRTTurnLogEntry> LogDelReplay;
+	TArray<FString> DivergenzeLacuna;
+	bool bRanLacuna = false;
+	RunBraceTurn(Muiren, nullptr, &TracciaEstranea, nullptr, &LogDelReplay, bRanLacuna, &DivergenzeLacuna);
+
+	TestTrue(TEXT("il turno con traccia estranea e' girato"), bRanLacuna);
+	TestTrue(TEXT("il Verifier dichiara la finestra non coperta"), DivergenzeLacuna.Num() > 0);
+
+	const bool bHaScrittoLaLacuna = LogDelReplay.ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	TestFalse(TEXT("e il log del replay NON registra la finestra scoperta come se fosse stata decisa"),
+		bHaScrittoLaLacuna);
+
+	return true;
+}
+
+/**
+ * 🔴 **Il BOT deve poter rispondere a una finestra di `Brace`, e la sua risposta dev'essere LEGALE.**
+ *
+ * `URTHexBotLibrary::DecideReactionResponse` cerca un `FIRE:` e altrimenti ripiega sulla scelta sicura. Fino
+ * al 2026-08-19 quel ripiego era la **costante** `HOLD`, che per una finestra di `Brace` non e' fra le
+ * `AllowedResponses` — `{Hold Ground, SIDESTEP}` — quindi il resolver la rifiutava con `HoldRejected`, cioe'
+ * l'esito riservato a una risposta **stale o inventata**. In v0.1, che e' **2v2 offline vs bot**, ogni
+ * unita' del bot in `Brace` con un profilo cadeva in quel caso: non un caso limite, il caso normale.
+ *
+ * ⚠️ **Il test verifica l'esito e non solo la stringa**: una risposta «giusta» che il resolver rifiuta
+ * produce lo stesso spostamento (nessuno) di una accettata, quindi guardare la cella non distinguerebbe il
+ * difetto. Cio' che cambia e' `ERTReactionDecisionOutcome`, ed e' quello che si legge qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBotAnswerIsLegalTest,
+	"RefactorTactics.Reactions.Brace.BotAnswerIsLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
+{
+	// La finestra che il `Brace` di Muiren apre davvero, costruita dal catalogo e non a mano: se domani il
+	// vocabolario cambiasse, questo test cambierebbe con lui invece di pinnare una stringa morta.
+	FRTReactionOpportunity Opp;
+	Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(TEXT("Profile.Sidestep"));
+	if (!TestTrue(TEXT("la finestra del `Brace` si apre davvero"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp))) { return false; }
+
+	const FString BotAnswer = URTHexBotLibrary::DecideReactionResponse(Opp);
+
+	TestTrue(TEXT("il bot risponde qualcosa"), !BotAnswer.IsEmpty());
+	TestTrue(TEXT("e la sua risposta e' LEGALE per quella finestra"),
+		URTReactionOpportunityLibrary::IsResponseAllowed(Opp, BotAnswer));
+	TestEqual(TEXT("ed e' la scelta sicura, cioe' `Hold Ground` e non `HOLD`"),
+		BotAnswer, FString(TEXT("Hold Ground")));
+
+	// L'altra meta': sull'Overwatch **niente cambia**. La stessa funzione, con un vocabolario che contiene
+	// `HOLD`, continua a preferire il `FIRE:` disponibile — la correzione non ha spostato il comportamento
+	// del bot dove funzionava.
+	FRTReactionOpportunity Overwatch;
+	Overwatch.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(3),
+		URTReactionOpportunityLibrary::HoldResponse()
+	};
+	TestEqual(TEXT("sull'Overwatch il bot spara come sempre"),
+		URTHexBotLibrary::DecideReactionResponse(Overwatch),
+		URTReactionOpportunityLibrary::FireResponse(3));
+
+	return true;
+}
+
+/**
+ * **Il modulo reazione di default non duplica la reazione che l'eroe ha già nel kit.**
+ *
+ * Uno slot di loadout speso su una capacità che l'eroe possiede già non è una scelta: è una voce in più
+ * nella lista, e il giocatore che arma l'una o l'altra ottiene la stessa cosa. Trovato misurando `#1403`:
+ * `Hero.Branth.Interposition` e `Reaction.AllyIntercept` erano **entrambi** costruiti su `Action.Intercept`.
+ *
+ * ⚠️ **A tabella, e la forma è la lezione di [D-201]**: il difetto era su **due** eroi su quattro, e
+ * correggerne uno solo avrebbe reso quello l'eccezione mentre l'altro restava. Una riga per eroe, e chi
+ * resta duplicato deve dichiararsi.
+ *
+ * ⚠️ **`DerivedFromActionId` e non `ActionId`**: sia `MakeHeroReactionFromCoreAction` sia
+ * `MakeEquipmentAction` riscrivono il nome e conservano la derivazione ([D-195], `#1443`). Confrontare i
+ * nomi darebbe sempre «diversi», e il test sarebbe verde per costruzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultReactionModuleIsNotADuplicateTest,
+	"RefactorTactics.Equipment.DefaultReactionModuleIsNotADuplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* HeroId;
+		const URTHeroData* (*Make)();
+		bool bDuplicatoDichiarato; //< eccezione nota, con la sua ragione qui sotto
+		const TCHAR* Nota;
+	};
+
+	const FCaso Casi[] = {
+		{ TEXT("Hero.Aevik"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeAevik(); },
+		  true,
+		  TEXT("⚠️ DUPLICATO DICHIARATO: `ReactiveShield` e `ReactiveCapacitor` sono entrambi `Action.Counter`. "
+		       "Non corretto insieme a Branth perche' il loadout di Aevik e' comunque VUOTO — `Gadget.Insulator` "
+		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
+		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
+		{ TEXT("Hero.Muiren"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeMuiren(); },
+		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
+		{ TEXT("Hero.Branth"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeBranth(); },
+		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },
+		{ TEXT("Hero.Ivrin"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeIvrin(); },
+		  false, TEXT("`EmergencyDash` (Counter) contro `Deflection` di kit (Deflect)") },
+	};
+
+	for (const FCaso& C : Casi)
+	{
+		const URTHeroData* Hero = C.Make();
+		if (!TestNotNull(*FString::Printf(TEXT("%s: dato d'eroe"), C.HeroId), Hero)) { continue; }
+
+		// La reazione che l'eroe porta nel proprio kit, se ne ha una.
+		FName CoreDelKit;
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (A && A->Def.Slot == ERTActionSlot::Reaction)
+			{
+				CoreDelKit = A->Def.DerivedFromActionId;
+				break;
+			}
+		}
+
+		const FName ModuloId = URTCatalogLibrary::DefaultReactionModuleFor(FName(C.HeroId));
+		const URTEquipmentData* Modulo = URTCatalogLibrary::FindEquipment(ModuloId);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo prescritto e' spedito (%s)"),
+			C.HeroId, *ModuloId.ToString()), Modulo))
+		{
+			continue;
+		}
+
+		const URTActionData* Concessa = URTCatalogLibrary::MakeEquipmentAction(Modulo, GetTransientPackage());
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo concede un'azione"), C.HeroId), Concessa))
+		{
+			continue;
+		}
+		const FName CoreDelModulo = Concessa->Def.DerivedFromActionId;
+
+		AddInfo(FString::Printf(TEXT("%s: kit=%s modulo=%s (%s) — %s"),
+			C.HeroId, *CoreDelKit.ToString(), *ModuloId.ToString(), *CoreDelModulo.ToString(), C.Nota));
+
+		// Un eroe senza reazione di kit non puo' duplicare niente: la riga passa per costruzione, ed e'
+		// giusto che ci sia lo stesso — il giorno in cui quell'eroe ne acquista una, la tabella se ne accorge.
+		if (CoreDelKit.IsNone()) { continue; }
+
+		const bool bDuplicato = (CoreDelKit == CoreDelModulo);
+		TestEqual(*FString::Printf(TEXT("%s: lo slot di loadout non spende su cio' che l'eroe ha gia'"), C.HeroId),
+			bDuplicato, C.bDuplicatoDichiarato);
+	}
+
+	return true;
+}
+
+
+// =====================================================================================================================
+// `#3666`: il playback ESTESO dopo la finestra del `Brace`. Da `#3666` si risponde a playback trattenuto, cioe' a
+// Blast gia' mostrato per intero: tre cose che prima capitavano solo a una risposta tardiva ora capitano a tutte.
+// =====================================================================================================================
+
+namespace RTEstensioneDopoIlBrace
+{
+	/** Il montaggio di `Reactions.Brace.WindowSuspendsBlast`: un `Brace` con `Profile.Sidestep` spinto da un `Push`. */
+	struct FMontaggio
+	{
+		UWorld* World = nullptr;
+		ARTUnit* Bracer = nullptr;
+		ARTUnit* Pusher = nullptr;
+		ARTTurnManager* TM = nullptr;
+	};
+
+	bool Monta(FAutomationTestBase& Test, FMontaggio& M)
+	{
+		M.World = MakeDefWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), M.World)) { return false; }
+		SpawnDefMap(M.World, /*Radius*/ 8);
+		M.Bracer = SpawnDefUnit(M.World, 0, FRTCellId(0, 0));
+		M.Pusher = SpawnDefUnit(M.World, 1, FRTCellId(1, 0));
+		M.TM = M.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(TEXT("Bracer"), M.Bracer) || !Test.TestNotNull(TEXT("Pusher"), M.Pusher)
+			|| !Test.TestNotNull(TEXT("TM"), M.TM))
+		{
+			return false;
+		}
+		M.Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+		M.Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Bracer, TEXT("Action.Brace"), 3);
+		M.Bracer->PlannedCell = M.Bracer->Cell;
+		M.Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Pusher, TEXT("Action.Push"), 3);
+		M.Pusher->PlannedAttackTarget = M.Bracer;
+		M.Pusher->PlannedCell = M.Pusher->Cell;
+		// Il ramo interattivo vuole un decisore legato (`IsBound()`): qui basta che ci sia.
+		M.TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+		return true;
+	}
+
+	/** Lock-in e pompa fino alla presentazione: la finestra e' davanti al giocatore, il Blast e' gia' mostrato. */
+	bool FinoAllaPresentazione(FAutomationTestBase& Test, FMontaggio& M)
+	{
+		M.TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(M.TM);
+		return Test.TestTrue(TEXT("⛔ premessa: la finestra del Brace e' presentata"), M.TM->IsReactionWindowPresented())
+			&& Test.TestTrue(TEXT("⛔ premessa: e il playback e' trattenuto, col Blast mostrato"),
+				M.TM->IsPlaybackHeldByWindow());
+	}
+
+	/**
+	 * Il centro di una cella nel contesto della MAPPA, cioe' dove le anim del playback posano le unita'. ⚠️ Non
+	 * `GetActorLocation` dopo `SpawnDefUnit`: la fixture piazza con un esagono da 100 e la mappa di prova lo ha da
+	 * 150, quindi fuori dall'origine i due punti non coincidono.
+	 */
+	FVector CentroDellaCella(const FMontaggio& M, const ARTUnit* Unit, const FRTCellId& Cella)
+	{
+		FVector Origine = FVector::ZeroVector;
+		float Esagono = 0.f;
+		float Piano = 0.f;
+		if (const ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(M.World))
+		{
+			Mappa->GetHexContext(Origine, Esagono, Piano);
+		}
+		return Unit->WorldForCell(Cella, Origine, Esagono, Piano);
+	}
+
+	void Smonta(FMontaggio& M)
+	{
+		if (M.TM) { M.TM->OnReactionWindowOpened.Unbind(); }
+		DestroyDefWorld(M.World);
+	}
+}
+
+/**
+ * **Lo scarto `SIDESTEP` si vede scorrere, anche se si risponde a Blast gia' mostrato** (`#3666`).
+ *
+ * 🔴 **Il difetto, misurato con una diagnosi sullo stesso montaggio** (tre istanti di risposta, passo 0,05 s):
+ * prima del playback lo scarto scorreva con 27 fotogrammi intermedi; a Blast in corso — la risposta di prima di
+ * `#3666` — saltava al 24 % e scorreva il resto; alla presentazione — la risposta di `#3666` — **zero** fotogrammi
+ * intermedi, a destinazione in un colpo. L'anim nuova nasceva sull'alpha di una fase gia' consumata, e la fase non
+ * durava un istante di piu'.
+ *
+ * ⛔ **Tre asserti, e ognuno coglie un modo diverso di sbagliare**: il primo campione sulla partenza (senza la posa
+ * iniziale la resolution ha gia' portato l'Actor a destinazione, e per un fotogramma si vede l'arrivo), i fotogrammi
+ * intermedi (senza `StartElapsed` sono zero), l'avanzamento senza ritorni (un alpha sbagliato salterebbe avanti e
+ * indietro).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceSidestepIsAnimatedTest,
+	"RefactorTactics.Reactions.Brace.SidestepAnswerIsAnimated",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceSidestepIsAnimatedTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+
+	const FRTCellId Partenza = M.Bracer->Cell;
+	const FVector P0 = RTEstensioneDopoIlBrace::CentroDellaCella(M, M.Bracer, Partenza);
+	M.TM->SubmitReactionResponse(M.TM->GetOpenReactionWindowId(), TEXT("SIDESTEP"));
+	if (!TestTrue(TEXT("⛔ premessa: con SIDESTEP il difensore lascia la cella"), M.Bracer->Cell != Partenza)
+		|| !TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
+	{
+		return false;
+	}
+
+	TArray<FVector> Pose;
+	Pose.Add(M.Bracer->GetActorLocation());
+	for (int32 I = 0; I < 400 && M.TM->IsResolving(); ++I)
+	{
+		M.TM->Tick(0.05f);
+		Pose.Add(M.Bracer->GetActorLocation());
+	}
+	const FVector P1 = M.Bracer->GetActorLocation();
+	const float Distanza = FVector::Dist2D(P0, P1);
+	if (!TestTrue(FString::Printf(TEXT("⛔ premessa: lo scarto si vede a fine playback (%.1f cm)"), Distanza),
+		Distanza > 1.f))
+	{
+		return false;
+	}
+
+	TArray<float> Frazioni;
+	int32 Intermedi = 0;
+	for (const FVector& P : Pose)
+	{
+		Frazioni.Add(FVector::Dist2D(P0, P) / Distanza);
+		Intermedi += (Frazioni.Last() > 0.05f && Frazioni.Last() < 0.95f) ? 1 : 0;
+	}
+	AddInfo(FString::Printf(TEXT("scarto: %d fotogrammi intermedi su %d, primo campione %.2f"), Intermedi,
+		Frazioni.Num(), Frazioni[0]));
+
+	TestTrue(FString::Printf(TEXT("🔴 subito dopo la risposta il difensore e' ancora sulla partenza (%.2f)"),
+		Frazioni[0]), Frazioni[0] < 0.05f);
+	TestTrue(FString::Printf(TEXT("🔴 lo scarto SCORRE: fotogrammi intermedi (%d)"), Intermedi), Intermedi >= 3);
+	for (int32 I = 1; I < Frazioni.Num(); ++I)
+	{
+		if (Frazioni[I] < Frazioni[I - 1] - 0.01f)
+		{
+			AddError(FString::Printf(TEXT("lo scarto torna indietro al campione %d (%.2f dopo %.2f)"), I,
+				Frazioni[I], Frazioni[I - 1]));
+			break;
+		}
+	}
+	TestEqual(TEXT("e finisce sulla cella logica"), Frazioni.Last(), 1.f, 0.01f);
+	return true;
+}
+
+/**
+ * **Il Move dopo il Blast del `Brace` comincia dal suo inizio** (`#3666`).
+ *
+ * 🔴 **Il difetto**: estendendo, `BeginPlayback(true)` riportava l'indice di fase dentro la lista nuova con un clamp.
+ * Al trattenimento l'indice e' oltre l'ultima fase PARZIALE — qui il Blast — e nella lista completa quell'indice e' il
+ * Move, che la timeline parziale non aveva: il Move partiva con l'orologio del Blast (circa 1,5 s) e senza
+ * `EnterPlaybackPhase`, e chi si muoveva saltava avanti. Da `#3666` si risponde sempre a playback trattenuto, quindi
+ * succedeva a ogni finestra del `Brace` con qualcuno che si muove dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceMoveAfterTheWindowStartsFromZeroTest,
+	"RefactorTactics.Reactions.Brace.MovePhaseAfterTheWindowStartsFromZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceMoveAfterTheWindowStartsFromZeroTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+
+	// Chi cammina nel Move, lontano dalla spinta: la timeline parziale non ha Move, quella completa si'.
+	ARTUnit* Camminatore = SpawnDefUnit(M.World, 0, FRTCellId(-3, 0));
+	if (!TestNotNull(TEXT("Camminatore"), Camminatore)) { return false; }
+	Camminatore->PlannedCell = FRTCellId(-3, -1);
+
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+	// ⚠️ **La partenza nel contesto della MAPPA** (`CentroDellaCella`): in (-3,0) il punto dove la fixture ha posato
+	// l'Actor dista mezza cella, e la frazione misurata da li' era falsa (misurato: 0,58 a orologio zero).
+	const FVector Partenza = RTEstensioneDopoIlBrace::CentroDellaCella(M, Camminatore, FRTCellId(-3, 0));
+
+	M.TM->ExpireReactionWindow(); // la scelta sicura, `Hold Ground`: nessuno scarto, il Blast non ha altro da mostrare
+	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), M.TM->IsResolutionSuspended()))
+	{
+		return false;
+	}
+
+	bool bVistoIlMove = false;
+	float OrologioAlPrimoMove = -1.f;
+	float FrazioneAlPrimoMove = -1.f;
+	FVector Arrivo = FVector::ZeroVector;
+	for (int32 I = 0; I <= 400 && M.TM->IsResolving(); ++I)
+	{
+		if (!bVistoIlMove && M.TM->GetPlaybackPhaseName() == TEXT("Move"))
+		{
+			bVistoIlMove = true;
+			OrologioAlPrimoMove = M.TM->PlaybackPhaseElapsedForTest();
+			FrazioneAlPrimoMove = FVector::Dist2D(Partenza, Camminatore->GetActorLocation());
+		}
+		M.TM->Tick(0.05f);
+	}
+	Arrivo = Camminatore->GetActorLocation();
+	const float Passo = FVector::Dist2D(Partenza, Arrivo);
+	if (!TestTrue(TEXT("⛔ premessa: il playback ha riprodotto il Move dopo la finestra"), bVistoIlMove)
+		|| !TestTrue(FString::Printf(TEXT("⛔ premessa: il camminatore si e' mosso (%.1f cm)"), Passo), Passo > 1.f))
+	{
+		return false;
+	}
+	FrazioneAlPrimoMove /= Passo;
+
+	TestTrue(FString::Printf(TEXT("🔴 il Move entra con l'orologio a zero, non con quello del Blast (%.3f)"),
+		OrologioAlPrimoMove), OrologioAlPrimoMove <= 0.051f);
+	TestTrue(FString::Printf(TEXT("🔴 e il camminatore parte dalla sua cella, non a meta' strada (%.2f)"),
+		FrazioneAlPrimoMove), FrazioneAlPrimoMove < 0.5f);
+	return true;
+}
+
+/**
+ * **Una morte nel Blast si annuncia una volta sola, anche se il Blast si richiude dopo la finestra** (`#3666`).
+ *
+ * 🔴 **Il difetto**: la morte e' fra i fatti del Blast che escono PRIMA della sospensione, quindi si annuncia alla
+ * prima chiusura della fase, prima del trattenimento. Estendendo, `BeginPlayback(true)` azzerava il marcatore
+ * `PlaybackDefeatShown`, e la fase ripresa — che si richiude — la annunciava di nuovo: un secondo `Death` e un
+ * secondo `OnUnitDefeated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDefeatAnnouncedOnceTest,
+	"RefactorTactics.Reactions.Brace.DefeatInTheBlastIsAnnouncedOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDefeatAnnouncedOnceTest::RunTest(const FString&)
+{
+	RTEstensioneDopoIlBrace::FMontaggio M;
+	ON_SCOPE_EXIT{ RTEstensioneDopoIlBrace::Smonta(M); };
+	if (!RTEstensioneDopoIlBrace::Monta(*this, M)) { return false; }
+
+	// Una morte nello stesso Blast, lontano dalla spinta: l'attacco base del `Carnefice` sulla `Vittima` a 1 HP.
+	ARTUnit* Vittima = SpawnDefUnit(M.World, 0, FRTCellId(0, 3));
+	ARTUnit* Carnefice = SpawnDefUnit(M.World, 1, FRTCellId(2, 3));
+	if (!TestNotNull(TEXT("Vittima"), Vittima) || !TestNotNull(TEXT("Carnefice"), Carnefice)) { return false; }
+	Vittima->Health = 1;
+	Vittima->Shield = 0;
+	Carnefice->PlannedAbilityIndex = 0;
+	Carnefice->PlannedAttackTarget = Vittima;
+
+	URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
+	M.TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);
+
+	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
+	const int32 AnnunciAlTrattenimento = Sonda->Announcements;
+
+	M.TM->ExpireReactionWindow();
+	for (int32 I = 0; I < 400 && M.TM->IsResolving(); ++I)
+	{
+		M.TM->Tick(0.05f);
+	}
+
+	AddInfo(FString::Printf(TEXT("annunci: %d al trattenimento, %d a fine playback (%s)"), AnnunciAlTrattenimento,
+		Sonda->Announcements, *FString::Join(Sonda->AnnouncedNames, TEXT(", "))));
+	if (!TestEqual(TEXT("⛔ premessa: la morte e' annunciata PRIMA del trattenimento — e' un fatto del Blast parziale"),
+		AnnunciAlTrattenimento, 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 e non si riannuncia quando il Blast si richiude dopo la finestra"), Sonda->Announcements, 1);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
