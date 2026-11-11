@@ -858,6 +858,7 @@ namespace
  * NASCE per prima; quelle di Prep e Dash le da' il recupero alla fine vera, dopo. ⛔ Senza l'ordinamento per fase in
  * `FinishPlayback` la lista finisce Blast -> Prep -> Dash, e questo test e' rosso: misurato togliendo la riga.
  * ⛔ La finestra si apre solo con un ascoltatore legato a `OnReactionWindowOpened`, come in `WindowSuspendsBlast`.
+ * ➕ #4059 (R5, [D-604] (3)): dopo la spinta, la riga della RISPOSTA del Brace, in fase Blast. La mostra la ripresa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLinePlaybackSkipBeforeBraceTest,
 	"RefactorTactics.Playback.ActivationLine.SkipBeforeABraceWindowKeepsPlaybackOrder",
@@ -887,7 +888,8 @@ bool FRTActivationLinePlaybackSkipBeforeBraceTest::RunTest(const FString&)
 	const FString Attese = FString::Join(TArray<FString>{
 		RigaAttChiave(ERTMatchPhase::Prep, S.Bracer->StableUnitId, RigaAttBrace),
 		RigaAttChiave(ERTMatchPhase::Dash, S.Scattista->StableUnitId, RigaAttFluidTrail),
-		RigaAttChiave(ERTMatchPhase::Blast, S.Pusher->StableUnitId, RigaAttPush) }, TEXT(" | "));
+		RigaAttChiave(ERTMatchPhase::Blast, S.Pusher->StableUnitId, RigaAttPush),
+		RigaAttChiave(ERTMatchPhase::Blast, S.Bracer->StableUnitId, RigaAttBrace) }, TEXT(" | ")); // #4059: la risposta
 	if (!TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Prep (Action.Brace)"),
 			RigaAttAttivataIn(S.TM, ERTMatchPhase::Prep, S.Bracer, RigaAttBrace))
 		|| !TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Dash (la scia)"),
@@ -940,7 +942,7 @@ bool FRTActivationLinePlaybackSkipBeforeBraceTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("🔴 a fine vera le righe sono nell'ordine delle fasi del playback (Prep, Dash, Blast), una volta ciascuna"),
+	TestEqual(TEXT("🔴 a fine vera le righe sono nell'ordine delle fasi del playback (Prep, Dash, Blast con la risposta), una volta ciascuna"),
 		RigaAttElenco(S.TM->GetActivationLines()), Attese);
 	return true;
 }

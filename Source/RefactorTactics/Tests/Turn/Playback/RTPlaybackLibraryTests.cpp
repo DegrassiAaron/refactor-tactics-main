@@ -213,8 +213,11 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 		// Prep/Cleanup: un beat.
 		TestTrue(TEXT("Prep valeva 0,3 s e vale 0,3 s"), FMath::IsNearlyEqual(
 			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Prep, 3, 2, 2.f, 0.5f, 0.3f), 0.3f, RTTol));
-		TestTrue(TEXT("Cleanup valeva 0,3 s e vale 0,3 s"), FMath::IsNearlyEqual(
-			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Cleanup, 3, 2, 2.f, 0.5f, 0.3f), 0.3f, RTTol));
+		// 🔴 **Rimisurato il 2026-11-11, e il motivo e' dichiarato** (#4059, R7 della spec del fumetto per azioni e
+		// reazioni): il Cleanup segue il Dash, e qui sono 3 celle a 2 celle/s. ⏱️ *Fino a #4059 valeva un beat, 0,3 s: il
+		// playback non aveva una fase Cleanup.*
+		TestTrue(TEXT("Cleanup vale 1,5 s, come il Dash"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Cleanup, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
 	}
 
 	return true;
@@ -821,9 +824,34 @@ bool FRTPlaybackPhaseDurationBeatTest::RunTest(const FString&)
 	TestTrue(TEXT("Prep = un beat"),
 		FMath::IsNearlyEqual(URTPlaybackLibrary::PhaseDuration(
 			ERTMatchPhase::Prep, 5, 5, 8.f, 0.5f, 0.2f), 0.2f, RTTol));
-	TestTrue(TEXT("Cleanup = un beat"),
+	// #4059 (R7): il Cleanup senza reazioni ne' rotte vale ZERO, e il playback non apre la fase. ⏱️ *Fino a #4059 qui c'era
+	// «Cleanup = un beat».*
+	TestTrue(TEXT("Cleanup senza reazioni ne' rotte = zero"),
 		FMath::IsNearlyEqual(URTPlaybackLibrary::PhaseDuration(
-			ERTMatchPhase::Cleanup, 0, 0, 8.f, 0.5f, 0.2f), 0.2f, RTTol));
+			ERTMatchPhase::Cleanup, 0, 0, 8.f, 0.5f, 0.2f), 0.f, RTTol));
+	return true;
+}
+
+/**
+ * Il Cleanup del playback segue il Dash: prima le reazioni, poi le rotte — R7 della spec di #4059, [D-605] (3).
+ *
+ * 🔑 Una fuga dal pericolo (una reazione) e la sua rotta di 2 celle: la reazione si mostra in `AttackShowSeconds`, che e' il
+ * `Lead` dopo cui parte la rotta, e la rotta corre a 2 celle/s. Tutto mostrato, niente da comprimere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeCleanupFollowsTheDashTest,
+	"RefactorTactics.Playback.PhaseTimeCleanupFollowsTheDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseTimeCleanupFollowsTheDashTest::RunTest(const FString&)
+{
+	const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+		ERTMatchPhase::Cleanup, /*MaxSeg*/ 2, /*Reazioni*/ 1, /*Sequenza*/ 0, /*CellsPerSec*/ 2.f, /*Show*/ 0.5f, /*Beat*/ 0.3f);
+	TestTrue(TEXT("🔴 prima la reazione: il Lead e' il suo tempo"), FMath::IsNearlyEqual(T.Lead, 0.5f, RTTol));
+	TestTrue(TEXT("🔴 poi la rotta: 0,5 + 2/2 = 1,5 s mostrati"), FMath::IsNearlyEqual(T.Shown, 1.5f, RTTol));
+	TestTrue(TEXT("e nessuno slack: il Cleanup mostra qualcosa"), FMath::IsNearlyEqual(T.Slack, 0.f, RTTol));
+	const FRTPhaseTime Dash = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 2, 1, 0, 2.f, 0.5f, 0.3f);
+	TestTrue(TEXT("✅ ed e' la stessa forma del Dash"),
+		FMath::IsNearlyEqual(T.Lead, Dash.Lead, RTTol) && FMath::IsNearlyEqual(T.Shown, Dash.Shown, RTTol)
+		&& FMath::IsNearlyEqual(T.Slack, Dash.Slack, RTTol));
 	return true;
 }
 

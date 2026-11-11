@@ -120,6 +120,13 @@ private:
 	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
 
 	/**
+	 * Rivela le reazioni della fase Move giunte al loro istante (`At <= UpTo`), una volta sola ciascuna; `true` se un
+	 * confine d'atto ha messo in pausa (#4059, R6 e R10). ⛔ Come `RevealPlaybackActivations`, ogni chiamante esce dal tick
+	 * su `true`.
+	 */
+	bool RevealPlaybackMoveReactions(float UpTo);
+
+	/**
 	 * Percorre la sequenza di Blast sul cursore dei battiti fino a `BeatsTarget` (#3549 D5 con `#2454`); `true` se il
 	 * tick deve uscire: un confine d'atto ha messo in pausa, o un ascoltatore di `OnAttackResolved` ha chiuso il
 	 * playback.
@@ -379,6 +386,34 @@ private:
 	 */
 	TArray<FRTResolvedEvent> PlaybackActivationsPrep;
 	TArray<FRTResolvedEvent> PlaybackActivationsDash;
+
+	/**
+	 * #4059 (R6 della spec del fumetto per azioni e reazioni): le reazioni della fase Move che chi guarda ha il diritto di
+	 * vedere — il colpo dell'Overwatch — con l'istante della fase in cui si rivelano, quello in cui il bersaglio arriva
+	 * sulla cella del colpo (`ReactionRouteCellIndex / PlaybackCellsPerSecond`). In ordine d'istante. Le costruisce
+	 * `BeginPlayback`, anche estendendo.
+	 */
+	struct FRTPlaybackMoveReaction
+	{
+		FRTResolvedEvent Ev;
+		float At = 0.f;
+	};
+	TArray<FRTPlaybackMoveReaction> PlaybackReactionsMove;
+
+	/**
+	 * Le reazioni della fase Move gia' mostrate, per `(chi reagisce, azione)`: un watcher spara una volta per turno
+	 * (ADR-0004 §8). ⚠️ **Per chiave e non per indice di timeline**: `EmitMoveEvents` toglie e riaccoda gli eventi `Move`
+	 * a ogni ripresa, e gli indici di cio' che segue si spostano. Sopravvive all'estensione dopo una finestra; si azzera
+	 * con il playback di un turno nuovo e alla fine vera.
+	 */
+	TSet<TPair<int32, FName>> PlaybackReactionsMoveShown;
+
+	/**
+	 * #4059 (R7 della spec del fumetto per azioni e reazioni): le reazioni del CLEANUP che chi guarda ha il diritto di
+	 * vedere — la fuga dal pericolo — in ordine di timeline. Si rivelano come le attivazioni del Dash, una ogni
+	 * `AttackShowSeconds`, prima delle rotte della fase; il contatore e' `ActivationsShown`.
+	 */
+	TArray<FRTResolvedEvent> PlaybackReactionsCleanup;
 
 	/**
 	 * Il Blast come UNA sequenza per intento (#3549, D5): attivazione, impronte, muri, colpi, un atto dopo

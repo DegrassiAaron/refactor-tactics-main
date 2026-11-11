@@ -36,6 +36,8 @@
 #include "Map/RTHexCellData.h"            // #4059: la porta chiusa dell'interazione
 #include "Map/Cover/RTHexCoverLibrary.h"  // #4059: la premessa che la porta si e' aperta
 #include "UI/Feed/RTActivationLine.h"     // #4059: le righe del Registro delle reazioni
+#include "Map/RTHexLibrary.h"                // #4059: la cella da cui il bersaglio dell'Overwatch entra nella linea
+#include "Ability/RTEquipmentData.h"             // #4059: `Reaction.HazardEscape`, il modulo della fuga dal pericolo
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -663,12 +665,13 @@ namespace
 		return Out;
 	}
 
-	/** L'indice nella timeline del primo evento di quel tipo con quella sorgente (e quel bersaglio, se non `0`). */
-	int32 FumettoIndiceDi(const ARTTurnManager* TM, ERTResolvedEventType Type, int32 Sorgente, int32 Bersaglio = 0)
+	/** L'indice nella timeline del primo evento di quel tipo e quella fase, con quella sorgente (e quel bersaglio, se non `0`). */
+	int32 FumettoIndiceDi(const ARTTurnManager* TM, ERTResolvedEventType Type, int32 Sorgente, int32 Bersaglio = 0,
+		ERTMatchPhase Fase = ERTMatchPhase::Blast)
 	{
-		return TM->ResolvedTimelineForTest().IndexOfByPredicate([Type, Sorgente, Bersaglio](const FRTResolvedEvent& E)
+		return TM->ResolvedTimelineForTest().IndexOfByPredicate([Type, Sorgente, Bersaglio, Fase](const FRTResolvedEvent& E)
 		{
-			return E.Type == Type && E.Phase == ERTMatchPhase::Blast && E.SourceStableUnitId == Sorgente
+			return E.Type == Type && E.Phase == Fase && E.SourceStableUnitId == Sorgente
 				&& (Bersaglio == 0 || E.TargetStableUnitId == Bersaglio);
 		});
 	}
@@ -979,6 +982,547 @@ bool FRTSkillCalloutPlaybackHiddenReactorTest::RunTest(const FString&)
 	TestTrue(TEXT("✅ per la squadra 1 la reazione e' nella sequenza"), Squadra1.bNellaSequenza);
 	TestEqual(TEXT("✅ grida il Contrattacco"), Squadra1.Fumetto, Counter);
 	TestEqual(TEXT("✅ e ha la sua riga"), Squadra1.Righe, 1);
+	return true;
+}
+
+/**
+ * La risposta del Brace grida dopo la finestra, come primo elemento oltre il prefisso gia' mostrato — R5 e R4 della spec
+ * di #4059, [D-605] (2).
+ *
+ * 🔑 La scena di `Reactions.Brace.WindowSuspendsBlast`: il Bracer (squadra 0, quella di chi guarda) col profilo
+ * `Profile.Sidestep` e il Pusher (squadra 1) che lo spinge. La finestra si presenta a prefisso mostrato per intero
+ * (`#3666`): la spinta e' gia' a schermo, e la risposta non e' ancora decisa. Alla ripresa nasce il `ReactionResolved`
+ * del Brace, ancorato al colpo di chi spinge, che sta nel prefisso.
+ * 🔴 Alla presentazione non c'e' nessuna riga del Brace in fase Blast (c'e' quella di Prep, dove il Brace si e' attivato);
+ * dopo la ripresa la riga arriva quando il playback ha rivelato UN elemento oltre il prefisso, e il fumetto e' nuovo.
+ * ⛔ E l'evento nasce una volta sola, anche se il Blast si e' sospeso e ripreso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackBraceAfterWindowTest,
+	"RefactorTactics.Playback.SkillCallout.BraceResponseShoutsAfterTheWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackBraceAfterWindowTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = M;
+
+	// Il viewer e' il ripiego a 0 (mondo non inizializzato): la squadra del Bracer.
+	ARTUnit* Bracer = SpawnReattoreFumetto(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnReattoreFumetto(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bracer || !Pusher) { return false; }
+
+	const FName Brace(TEXT("Action.Brace"));
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep"); // due risposte: la finestra si apre
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+
+	const auto RigheDelBraceNelBlast = [TM, Bracer, &Brace]()
+	{
+		int32 N = 0;
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.SourceStableUnitId == Bracer->StableUnitId && Riga.ActionId == Brace
+				&& Riga.Phase == ERTMatchPhase::Blast)
+			{
+				++N;
+			}
+		}
+		return N;
+	};
+
+	int32 Presentazioni = 0;
+	int32 RigheAllaPresentazione = INDEX_NONE;
+	TM->OnReactionWindowOpened.BindLambda([&Presentazioni, &RigheAllaPresentazione, &RigheDelBraceNelBlast](
+		const FRTReactionWindowView&, int32)
+	{
+		++Presentazioni;
+		RigheAllaPresentazione = RigheDelBraceNelBlast();
+	});
+	ON_SCOPE_EXIT{ TM->OnReactionWindowOpened.Unbind(); };
+
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ premessa: la resolution e' sospesa sulla finestra del Brace"), TM->IsResolutionSuspended())
+		|| !TestTrue(TEXT("⛔ premessa: la finestra si presenta pompando il playback"),
+			RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM))
+		|| !TestEqual(TEXT("⛔ premessa: presentata una volta"), Presentazioni, 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 alla presentazione nessuna riga del Brace in fase Blast: la risposta non e' ancora decisa"),
+		RigheAllaPresentazione, 0);
+	const int32 Mostrati = TM->PlaybackBlastShownForTest();
+	const float FumettoPrimaStartAt = Bracer->LastSkillCalloutForTest().StartAt;
+
+	for (int32 Scadenze = 0; Scadenze < 8 && TM->IsResolutionSuspended(); ++Scadenze)
+	{
+		TM->ExpireReactionWindow();
+	}
+	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), TM->IsResolutionSuspended())) { return false; }
+
+	const int32 IdxReazione = FumettoIndiceDi(TM, ERTResolvedEventType::ReactionResolved, Bracer->StableUnitId);
+	if (!TestTrue(TEXT("⛔ premessa: alla ripresa e' nato il ReactionResolved del Brace"), IdxReazione != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTResolvedEvent Reazione = TM->ResolvedTimelineForTest()[IdxReazione];
+	TestEqual(TEXT("🔴 (R5) l'azione e' il Brace"), Reazione.ActionId, Brace);
+	TestEqual(TEXT("🔴 (R4) e nomina chi spinge"), Reazione.TriggerAttackerStableUnitId, Pusher->StableUnitId);
+	TestTrue(TEXT("🔴 (R3) e porta un verdetto che la lascia vedere alla squadra del Bracer"),
+		Reazione.SourceVerdict.AllowsTeam(0));
+
+	int32 MostratiAllaRiga = INDEX_NONE;
+	for (int32 I = 0; I < 400 && TM->IsResolving() && MostratiAllaRiga == INDEX_NONE; ++I)
+	{
+		TM->Tick(0.05f);
+		if (RigheDelBraceNelBlast() > 0) { MostratiAllaRiga = TM->PlaybackBlastShownForTest(); }
+	}
+	if (!TestTrue(TEXT("🔴 dopo la ripresa la riga del Brace in fase Blast arriva durante il playback"),
+			MostratiAllaRiga != INDEX_NONE))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 (R4) ed e' il primo elemento oltre il prefisso mostrato prima della finestra"),
+		MostratiAllaRiga, Mostrati + 1);
+	TestEqual(TEXT("e il fumetto del Bracer e' quello del Brace"), Bracer->LastSkillCalloutForTest().ActionId, Brace);
+	TestTrue(TEXT("🔴 ed e' un fumetto NUOVO, non quello dell'attivazione in Prep"),
+		Bracer->LastSkillCalloutForTest().StartAt > FumettoPrimaStartAt);
+
+	CorriFinoAllaFineDelFumetto(TM);
+	int32 Reazioni = 0;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.Type == ERTResolvedEventType::ReactionResolved && Ev.SourceStableUnitId == Bracer->StableUnitId) { ++Reazioni; }
+	}
+	TestEqual(TEXT("⛔ l'evento del Brace nasce una volta sola, anche col Blast sospeso e ripreso"), Reazioni, 1);
+	TestEqual(TEXT("e la riga del Brace in fase Blast e' una"), RigheDelBraceNelBlast(), 1);
+	return true;
+}
+
+namespace
+{
+	/** La scena del colpo dell'Overwatch (#4059, R6): la geometria di `BuildRxCellStage` in `RTReactionMicroStepCellTests.cpp`. */
+	struct FRTOverwatchDelFumetto
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Watcher = nullptr; // squadra 1, quella di chi guarda: guarda a ovest da (3,0)
+		ARTUnit* Mover = nullptr;   // squadra 0: entra nella linea in (1,0) con un passo
+		ARTUnit* Runner = nullptr;  // squadra 1, lontano: allunga la fase Move, quando c'e'
+	};
+
+	bool MontaOverwatchDelFumetto(FAutomationTestBase& Test, int32 VistaDelWatcher, bool bConCorridore,
+		FRTOverwatchDelFumetto& Out)
+	{
+		Out.World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), Out.World)) { return false; }
+		Out.World->InitializeActorsForPlay(FURL()); // il viewer della squadra 1 deve esistere per il TurnManager
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+		ARTHexMapActor* MapActor = Out.World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = M;
+
+		const FRTCellId Destinazione(1, 0, 0);                                                  // dentro la linea guardata
+		const FRTCellId Partenza = URTHexLibrary::Neighbor(Destinazione, ERTHexDirection::SW); // fuori, adiacente
+		Out.Watcher = SpawnReattoreFumetto(Out.World, 1, FRTCellId(3, 0, 0));
+		Out.Mover = SpawnReattoreFumetto(Out.World, 0, Partenza);
+		if (bConCorridore) { Out.Runner = SpawnReattoreFumetto(Out.World, 1, FRTCellId(-3, -3, 0)); }
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(Out.World, 1);
+		if (!Out.TM || !Out.Watcher || !Out.Mover || !Viewer || (bConCorridore && !Out.Runner)) { return false; }
+		if (!Test.TestEqual(TEXT("⛔ premessa: il TurnManager legge la squadra del watcher"),
+				ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(Out.TM, 0)), 1))
+		{
+			return false;
+		}
+
+		Out.Watcher->Facing = ERTHexDirection::W;
+		Out.Watcher->VisionRange = VistaDelWatcher;
+		Out.Watcher->PlannedAbilityIndex =
+			RTAbilityFixtures::AddCoreAbilityInSlot(Out.Watcher, TEXT("Action.Overwatch"), 3);
+		Out.Mover->Facing = ERTHexDirection::E;
+		Out.Mover->PlannedCell = Destinazione;
+		if (Out.Runner) { Out.Runner->PlannedCell = FRTCellId(2, -3, 0); }
+		if (!Test.TestTrue(TEXT("⛔ premessa: il watcher arma l'Overwatch"), Out.Watcher->PlannedAbilityIndex != INDEX_NONE))
+		{
+			return false;
+		}
+		// Il watcher spara alla prima finestra che glielo consente: la forma di `BindRxCellFireDecider`.
+		Out.TM->ReactionDecider.BindLambda([](const FRTReactionOpportunity& Opportunity, int32) -> FString
+		{
+			for (const FString& Response : Opportunity.AllowedResponses)
+			{
+				if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE) { return Response; }
+			}
+			return FString();
+		});
+		Out.TM->RefreshTeamKnowledgeNow();
+		return true;
+	}
+
+	/** Le righe del Registro del watcher per l'Overwatch nella fase Move: quella del COLPO (l'armamento e' in Prep). */
+	int32 RigheDelColpoDiOverwatch(const ARTTurnManager* TM, const ARTUnit* Watcher)
+	{
+		int32 N = 0;
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.SourceStableUnitId == Watcher->StableUnitId && Riga.ActionId == FName(TEXT("Action.Overwatch"))
+				&& Riga.Phase == ERTMatchPhase::Move)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+}
+
+/**
+ * Il colpo dell'Overwatch grida quando il bersaglio arriva sulla cella del colpo — R6 della spec di #4059, [D-605] (2).
+ *
+ * 🔑 La geometria di `Reactions.VerdictFreezesOnTheImpactCell`, con la vista piena: il Mover (squadra 0) entra con un passo
+ * nella linea del watcher (squadra 1, quella di chi guarda) e il watcher spara. Un Runner della squadra 1 corre lontano e
+ * allunga la fase Move, cosi' il fumetto nasce DENTRO la fase e non dalla rete di fine fase.
+ * 🔴 La riga del colpo (fase Move) arriva nel tick in cui l'animazione del Mover raggiunge la cella del colpo, e il
+ * fumetto del watcher e' nuovo: l'Overwatch aveva gia' gridato in Prep, quando si e' armato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackOverwatchAtTheCellTest,
+	"RefactorTactics.Playback.SkillCallout.OverwatchShotShoutsAtTheTargetCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackOverwatchAtTheCellTest::RunTest(const FString&)
+{
+	FRTOverwatchDelFumetto S;
+	const bool bOk = MontaOverwatchDelFumetto(*this, /*Vista*/ 6, /*bConCorridore*/ true, S);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+	if (!bOk) { return false; }
+
+	S.TM->LockInAndResolve();
+	const FName Overwatch(TEXT("Action.Overwatch"));
+	const int32 IdxReazione = FumettoIndiceDi(S.TM, ERTResolvedEventType::ReactionResolved, S.Watcher->StableUnitId,
+		S.Mover->StableUnitId, ERTMatchPhase::Move);
+	if (!TestTrue(TEXT("⛔ premessa: l'Overwatch ha sparato (c'e' il suo ReactionResolved, in fase Move)"),
+			IdxReazione != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTResolvedEvent Reazione = S.TM->ResolvedTimelineForTest()[IdxReazione];
+	TestEqual(TEXT("🔴 (R6) l'evento porta la cella del colpo nella rotta del bersaglio: dopo un passo"),
+		Reazione.ReactionRouteCellIndex, 1);
+	TestEqual(TEXT("(R6) e l'azione armata"), Reazione.ActionId, Overwatch);
+	TestTrue(TEXT("🔴 (R3) e un verdetto che lascia vedere il colpo alla squadra del watcher"),
+		Reazione.SourceVerdict.AllowsTeam(1));
+
+	bool bAnimVista = false;
+	int32 CellaAllaRiga = INDEX_NONE;
+	ERTMatchPhase FaseAllaRiga = ERTMatchPhase::Planning;
+	float StartAtPrima = -1.f;
+	for (int32 I = 0; I < 400 && S.TM->IsResolving(); ++I)
+	{
+		S.TM->Tick(0.05f);
+		const int32 Cella = S.TM->PlaybackAnimCellIndexForTest(S.Mover);
+		if (S.TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Move && Cella != INDEX_NONE) { bAnimVista = true; }
+		if (RigheDelColpoDiOverwatch(S.TM, S.Watcher) == 0)
+		{
+			StartAtPrima = S.Watcher->LastSkillCalloutForTest().StartAt;
+		}
+		else if (FaseAllaRiga == ERTMatchPhase::Planning)
+		{
+			CellaAllaRiga = Cella;
+			FaseAllaRiga = S.TM->CurrentPlaybackPhaseForTest();
+		}
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il Mover ha un'animazione visibile nella fase Move"), bAnimVista)
+		|| !TestEqual(TEXT("⛔ premessa: la riga del colpo e' nata dentro la fase Move, non dalla rete o dal recupero"),
+			FaseAllaRiga, ERTMatchPhase::Move))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 (R6) la riga del colpo nasce quando il Mover arriva sulla cella del colpo"),
+		CellaAllaRiga, Reazione.ReactionRouteCellIndex);
+	TestEqual(TEXT("🔴 e il fumetto del watcher e' quello dell'Overwatch"), S.Watcher->LastSkillCalloutForTest().ActionId,
+		Overwatch);
+	TestTrue(TEXT("🔴 ed e' NUOVO: non quello dell'armamento in Prep"),
+		S.Watcher->LastSkillCalloutForTest().StartAt > StartAtPrima);
+	TestEqual(TEXT("e la riga del colpo e' una"), RigheDelColpoDiOverwatch(S.TM, S.Watcher), 1);
+	return true;
+}
+
+/**
+ * Il colpo dell'Overwatch grida anche quando il bersaglio non ha un'animazione visibile — R6 della spec di #4059.
+ *
+ * 🔑 La stessa scena con la vista del watcher ridotta a due celle (`Reactions.VerdictFreezesOnTheImpactCell`): il Mover
+ * parte da una cella che la squadra 1 non vede, quindi il prefisso osservato della sua rotta e' vuoto e il playback non lo
+ * anima. Il colpo, sulla cella in vista, la squadra 1 lo vede. Senza il Runner nessuna rotta visibile apre la fase Move:
+ * la apre la reazione.
+ * 🔴 Il fumetto del watcher nasce nel playback — e' nuovo rispetto a quello dell'armamento, e il recupero di fine playback
+ * non accende fumetti — e la riga del colpo c'e', in fase Move.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackOverwatchUnseenTargetTest,
+	"RefactorTactics.Playback.SkillCallout.OverwatchShotShoutsForAnUnseenTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackOverwatchUnseenTargetTest::RunTest(const FString&)
+{
+	FRTOverwatchDelFumetto S;
+	const bool bOk = MontaOverwatchDelFumetto(*this, /*Vista*/ 2, /*bConCorridore*/ false, S);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+	if (!bOk) { return false; }
+
+	S.TM->LockInAndResolve();
+	const FName Overwatch(TEXT("Action.Overwatch"));
+	const int32 IdxReazione = FumettoIndiceDi(S.TM, ERTResolvedEventType::ReactionResolved, S.Watcher->StableUnitId,
+		S.Mover->StableUnitId, ERTMatchPhase::Move);
+	if (!TestTrue(TEXT("⛔ premessa: l'Overwatch ha sparato (c'e' il suo ReactionResolved, in fase Move)"),
+			IdxReazione != INDEX_NONE)
+		|| !TestTrue(TEXT("⛔ premessa: e la squadra del watcher puo' vederlo"),
+			S.TM->ResolvedTimelineForTest()[IdxReazione].SourceVerdict.AllowsTeam(1)))
+	{
+		return false;
+	}
+
+	bool bAnimVista = false;
+	bool bFaseMoveVista = false;
+	float StartAtPrima = -1.f;
+	for (int32 I = 0; I < 400 && S.TM->IsResolving(); ++I)
+	{
+		S.TM->Tick(0.05f);
+		if (S.TM->PlaybackAnimCellIndexForTest(S.Mover) != INDEX_NONE) { bAnimVista = true; }
+		if (S.TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Move) { bFaseMoveVista = true; }
+		if (RigheDelColpoDiOverwatch(S.TM, S.Watcher) == 0)
+		{
+			StartAtPrima = S.Watcher->LastSkillCalloutForTest().StartAt;
+		}
+	}
+	if (!TestFalse(TEXT("⛔ premessa: il Mover non ha un'animazione visibile a chi guarda"), bAnimVista))
+	{
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("fase Move osservata a fine tick: %s"), bFaseMoveVista ? TEXT("si'") : TEXT("no")));
+	TestEqual(TEXT("🔴 (R6) la riga del colpo c'e', in fase Move"), RigheDelColpoDiOverwatch(S.TM, S.Watcher), 1);
+	TestEqual(TEXT("🔴 e il fumetto del watcher e' quello dell'Overwatch"), S.Watcher->LastSkillCalloutForTest().ActionId,
+		Overwatch);
+	TestTrue(TEXT("🔴 ed e' nato nel playback: e' nuovo rispetto all'armamento, e il recupero non accende fumetti"),
+		S.Watcher->LastSkillCalloutForTest().StartAt > StartAtPrima);
+	return true;
+}
+
+namespace
+{
+	/** La scena della fuga dal pericolo (#4059, R7): quella di `Equipment.HazardEscape.FleesBeforeDamage`. */
+	struct FRTFugaDelFumetto
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Fuggitivo = nullptr; // squadra 1, quella di chi guarda: il fuoco nasce sotto di lui
+		ARTUnit* Corridore = nullptr; // squadra 1, lontano: c'e' un movimento, e la fuga viene dopo
+	};
+
+	const FName FugaDelFumetto(TEXT("Reaction.HazardEscape"));
+
+	bool MontaFugaDelFumetto(FAutomationTestBase& Test, FRTFugaDelFumetto& Out)
+	{
+		const URTEquipmentData* Modulo = nullptr;
+		for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+		{
+			if (M && M->EquipmentId == FugaDelFumetto) { Modulo = M; break; }
+		}
+		if (!Test.TestNotNull(TEXT("⛔ premessa: `Reaction.HazardEscape` e' nel catalogo dei moduli"), Modulo)) { return false; }
+
+		Out.World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), Out.World)) { return false; }
+		Out.World->InitializeActorsForPlay(FURL()); // il viewer della squadra 1 deve esistere per il TurnManager
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+		ARTHexMapActor* MapActor = Out.World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = M;
+
+		ARTUnit* Incendiario = SpawnReattoreFumetto(Out.World, 0, FRTCellId(0, 0));
+		Out.Fuggitivo = SpawnReattoreFumetto(Out.World, 1, FRTCellId(2, 0));
+		Out.Corridore = SpawnReattoreFumetto(Out.World, 1, FRTCellId(-3, -3, 0));
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(Out.World, 1);
+		if (!Out.TM || !Incendiario || !Out.Fuggitivo || !Out.Corridore || !Viewer) { return false; }
+		if (!Test.TestEqual(TEXT("⛔ premessa: il TurnManager legge la squadra del Fuggitivo"),
+				ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(Out.TM, 0)), 1))
+		{
+			return false;
+		}
+
+		URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Modulo, Out.Fuggitivo);
+		if (!Test.TestNotNull(TEXT("⛔ premessa: il modulo concede un'azione"), Reazione)) { return false; }
+		Out.Fuggitivo->Abilities.Add(Reazione);
+		Out.Fuggitivo->PlannedReactionAbility = Out.Fuggitivo->Abilities.Num() - 1;
+		Out.Fuggitivo->Facing = ERTHexDirection::W; // fugge verso (1,0), la cella che ha davanti
+		Incendiario->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Incendiario, TEXT("Action.Ignite"), 3);
+		Incendiario->PlannedAttackTarget = Out.Fuggitivo;
+		Out.Corridore->PlannedCell = FRTCellId(-1, -3, 0);
+		Out.TM->RefreshTeamKnowledgeNow();
+		return true;
+	}
+
+	/** Le righe del Registro del Fuggitivo per la fuga nella fase Cleanup. */
+	int32 RigheDellaFuga(const ARTTurnManager* TM, const ARTUnit* Fuggitivo)
+	{
+		int32 N = 0;
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.SourceStableUnitId == Fuggitivo->StableUnitId && Riga.ActionId == FugaDelFumetto
+				&& Riga.Phase == ERTMatchPhase::Cleanup)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+}
+
+/**
+ * La fuga dal pericolo grida nel Cleanup, dopo il movimento, e la sua rotta parte dopo il fumetto — R7 della spec di #4059,
+ * [D-605] (3) «Al momento giusto, dopo».
+ *
+ * 🔑 La scena di `Equipment.HazardEscape.FleesBeforeDamage`: l'Incendiario (squadra 0) accende il fuoco sotto il Fuggitivo
+ * (squadra 1, quella di chi guarda), che col modulo fugge nel Cleanup. Il Corridore della squadra 1 si muove: la fase Move
+ * c'e', e la fuga deve venire DOPO.
+ * 🔴 Gli eventi della fuga sono in fase Cleanup, la voce di TurnLog no (resta Blast: la fase entra nell'hash). La riga della
+ * fuga nasce nella fase Cleanup, che il playback mostra dopo il Move, e il Fuggitivo comincia a correre solo dopo la riga:
+ * prima le reazioni, poi le rotte, come nel Dash.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackHazardEscapeTest,
+	"RefactorTactics.Playback.SkillCallout.HazardEscapeShoutsAfterTheMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackHazardEscapeTest::RunTest(const FString&)
+{
+	FRTFugaDelFumetto S;
+	const bool bOk = MontaFugaDelFumetto(*this, S);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+	if (!bOk) { return false; }
+
+	S.TM->LockInAndResolve();
+	const int32 IdxReazione = FumettoIndiceDi(S.TM, ERTResolvedEventType::ReactionResolved, S.Fuggitivo->StableUnitId, 0,
+		ERTMatchPhase::Cleanup);
+	const int32 IdxRotta = FumettoIndiceDi(S.TM, ERTResolvedEventType::Move, S.Fuggitivo->StableUnitId, 0,
+		ERTMatchPhase::Cleanup);
+	TestTrue(TEXT("🔴 (R7) l'evento della reazione della fuga e' in fase Cleanup"), IdxReazione != INDEX_NONE);
+	TestTrue(TEXT("🔴 (R7) e anche quello della sua rotta"), IdxRotta != INDEX_NONE);
+	if (IdxReazione == INDEX_NONE || IdxRotta == INDEX_NONE) { return false; }
+	TestEqual(TEXT("e la reazione e' la fuga"), S.TM->ResolvedTimelineForTest()[IdxReazione].ActionId, FugaDelFumetto);
+	const FRTTurnLogEntry* Voce = S.TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Reaction && E.ActionId == FugaDelFumetto
+			&& E.Outcome == static_cast<uint8>(ERTReactionOutcome::Activated);
+	});
+	if (TestNotNull(TEXT("⛔ premessa: la voce di TurnLog della fuga c'e'"), Voce))
+	{
+		TestEqual(TEXT("⛔ ([D-605] (4)(b)) e resta in fase Blast: la fase entra nell'hash del TurnLog"),
+			Voce->Phase, ERTMatchPhase::Blast);
+	}
+
+	TArray<ERTMatchPhase> Fasi;
+	ERTMatchPhase FaseAllaRiga = ERTMatchPhase::Planning;
+	bool bCorsaDopoLaRiga = false;
+	bool bCorsaPrimaDellaRiga = false;
+	for (int32 I = 0; I < 400 && S.TM->IsResolving(); ++I)
+	{
+		S.TM->Tick(0.05f);
+		const ERTMatchPhase Fase = S.TM->CurrentPlaybackPhaseForTest();
+		if (Fasi.Num() == 0 || Fasi.Last() != Fase) { Fasi.Add(Fase); }
+		const bool bRiga = RigheDellaFuga(S.TM, S.Fuggitivo) > 0;
+		if (bRiga && FaseAllaRiga == ERTMatchPhase::Planning) { FaseAllaRiga = Fase; }
+		if (Fase == ERTMatchPhase::Cleanup && S.Fuggitivo->bIsMovingVisually)
+		{
+			(bRiga ? bCorsaDopoLaRiga : bCorsaPrimaDellaRiga) = true;
+		}
+	}
+	const int32 PosMove = Fasi.IndexOfByKey(ERTMatchPhase::Move);
+	const int32 PosCleanup = Fasi.IndexOfByKey(ERTMatchPhase::Cleanup);
+	if (!TestTrue(TEXT("⛔ premessa: il playback ha mostrato il Move"), PosMove != INDEX_NONE)) { return false; }
+	TestTrue(TEXT("🔴 (R7) e poi il Cleanup, dopo il Move"), PosCleanup != INDEX_NONE && PosCleanup > PosMove);
+	TestEqual(TEXT("🔴 la riga della fuga nasce nella fase Cleanup"), FaseAllaRiga, ERTMatchPhase::Cleanup);
+	TestTrue(TEXT("🔴 il Fuggitivo corre nel Cleanup"), bCorsaDopoLaRiga);
+	TestFalse(TEXT("🔴 e non prima del fumetto: prima le reazioni, poi le rotte"), bCorsaPrimaDellaRiga);
+	TestEqual(TEXT("e il fumetto e' quello della fuga"), S.Fuggitivo->LastSkillCalloutForTest().ActionId, FugaDelFumetto);
+	TestEqual(TEXT("e la riga della fuga e' una"), RigheDellaFuga(S.TM, S.Fuggitivo), 1);
+	return true;
+}
+
+/**
+ * Il salto lascia la riga di ogni reazione scattata, in ogni fase e una volta sola — R9 della spec di #4059.
+ *
+ * 🔑 Tre scene, una per coda: il Contrattacco (Blast), il colpo dell'Overwatch (Move), la fuga dal pericolo (Cleanup). Il
+ * Contrattacco e la fuga si saltano subito: la riga la da' il recupero di fine playback, che non accende fumetti. L'Overwatch
+ * si salta DOPO che il colpo e' stato mostrato: il recupero non deve dare un doppione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackSkipKeepsReactionLinesTest,
+	"RefactorTactics.Playback.SkillCallout.SkipKeepsTheReactionLines",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackSkipKeepsReactionLinesTest::RunTest(const FString&)
+{
+	// --- (1) Blast: il Contrattacco, saltato subito ---------------------------------------------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = M;
+		// Il viewer e' il ripiego a 0 (mondo non inizializzato): la squadra del Reattore.
+		ARTUnit* Reattore = SpawnReattoreFumetto(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attaccante = SpawnReattoreFumetto(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Reattore || !Attaccante) { return false; }
+		const FName Counter(TEXT("Action.Counter"));
+		Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
+		Attaccante->PlannedAbilityIndex = 0;
+		Attaccante->PlannedAttackTarget = Reattore;
+		TM->RefreshTeamKnowledgeNow();
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ premessa (Blast): il Contrattacco e' scattato"),
+				FumettoIndiceDi(TM, ERTResolvedEventType::ReactionResolved, Reattore->StableUnitId) != INDEX_NONE)
+			|| !TestTrue(TEXT("⛔ premessa (Blast): il playback e' in corso"), TM->IsResolving()))
+		{
+			return false;
+		}
+		TM->SkipPlayback();
+		CorriFinoAllaFineDelFumetto(TM);
+		TestEqual(TEXT("🔴 (Blast) dopo il salto la riga del Contrattacco c'e', una"), FumettoRigheDi(TM, Reattore, Counter), 1);
+		TestTrue(TEXT("e il salto non accende il fumetto"), Reattore->LastSkillCalloutForTest().ActionId.IsNone());
+	}
+
+	// --- (2) Move: l'Overwatch, saltato dopo che il colpo e' stato mostrato --------------------------------------------
+	{
+		FRTOverwatchDelFumetto S;
+		const bool bOk = MontaOverwatchDelFumetto(*this, /*Vista*/ 6, /*bConCorridore*/ true, S);
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+		if (!bOk) { return false; }
+		S.TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && S.TM->IsResolving() && RigheDelColpoDiOverwatch(S.TM, S.Watcher) == 0; ++I)
+		{
+			S.TM->Tick(0.05f);
+		}
+		if (!TestEqual(TEXT("⛔ premessa (Move): il colpo e' stato mostrato"), RigheDelColpoDiOverwatch(S.TM, S.Watcher), 1)
+			|| !TestTrue(TEXT("⛔ premessa (Move): e il playback e' ancora in corso"), S.TM->IsResolving()))
+		{
+			return false;
+		}
+		S.TM->SkipPlayback();
+		CorriFinoAllaFineDelFumetto(S.TM);
+		TestEqual(TEXT("🔴 (Move) dopo il salto la riga del colpo e' ancora una: niente doppioni"),
+			RigheDelColpoDiOverwatch(S.TM, S.Watcher), 1);
+	}
+
+	// --- (3) Cleanup: la fuga, saltata subito ---------------------------------------------------------------------------
+	{
+		FRTFugaDelFumetto S;
+		const bool bOk = MontaFugaDelFumetto(*this, S);
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+		if (!bOk) { return false; }
+		S.TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ premessa (Cleanup): il playback e' in corso"), S.TM->IsResolving())) { return false; }
+		S.TM->SkipPlayback();
+		CorriFinoAllaFineDelFumetto(S.TM);
+		TestEqual(TEXT("🔴 (Cleanup) dopo il salto la riga della fuga c'e', una"), RigheDellaFuga(S.TM, S.Fuggitivo), 1);
+	}
 	return true;
 }
 

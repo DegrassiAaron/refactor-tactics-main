@@ -569,9 +569,16 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 		Out.Slack = PhaseBeatSeconds;
 		break;
 
+	case ERTMatchPhase::Cleanup:
+		// #4059 (R7, [D-605] (3)): il modello del Dash. Prima le reazioni (la fuga dal pericolo), una ogni `AttackShowSeconds`,
+		// poi le rotte. Tutto mostrato; senza reazioni ne' rotte vale zero, e il playback non apre la fase.
+		// ⏱️ *Fino a #4059 il Cleanup era un beat comprimibile, come il Planning: il playback non aveva una fase Cleanup.*
+		Out.Lead = ActivationTime;
+		Out.Shown = ActivationTime + MoveTime;
+		break;
+
 	default:
-		// Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il
-		// budget puo' togliere.
+		// Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il budget puo' togliere.
 		Out.Slack = PhaseBeatSeconds;
 		break;
 	}

@@ -3637,6 +3637,28 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					AppendLogEntry(BraceEntry, T);
 				}
 
+				// #4059 (R5 della spec del fumetto per azioni e reazioni, [D-605] (2)): il MOMENTO della risposta, per la
+				// presentazione. Nasce qui, a decisione presa — `Hold Ground` o lo scarto, con o senza finestra — e una volta
+				// sola: il ramo della finestra esce piu' sopra prima di arrivarci, e il rientro rifa' questo bersaglio con la
+				// risposta in mano. Chi spinge e' uno solo per costruzione (il ciclo prende i bersagli spinti da ESATTAMENTE
+				// un attaccante), e `KnockAttackerId` lo tiene. ⛔ Non entra nel TurnLog: `FRTResolvedEvent` e' presentazione.
+				{
+					const int32* IndiceDiChiSpinge = Ctx.KnockAttackerId.Find(T);
+					const ARTUnit* const ChiSpinge = (IndiceDiChiSpinge && Units.IsValidIndex(*IndiceDiChiSpinge))
+						? Units[*IndiceDiChiSpinge] : nullptr;
+					FRTResolvedEvent Ev;
+					Ev.Phase = ERTMatchPhase::Blast;
+					Ev.Type = ERTResolvedEventType::ReactionResolved;
+					Ev.SourceStableUnitId = T->StableUnitId;
+					Ev.TargetStableUnitId = IsValid(ChiSpinge) ? ChiSpinge->StableUnitId : 0;
+					Ev.TriggerAttackerStableUnitId = Ev.TargetStableUnitId;
+					Ev.Origin = T->Cell;
+					Ev.ActionId = BraceOpportunity.Key.ReactionDefId; // `Action.Brace`, dalla chiave come la voce qui sopra
+					// R3: lo stesso soggetto della voce di TurnLog della decisione (`AppendLogEntry(BraceEntry, T)`).
+					Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(T));
+					ResolvedTimeline.Add(MoveTemp(Ev));
+				}
+
 				// La risposta si traduce in primitive del catalogo effetti (`spec-reaction-clash-e14.md` §5) e
 				// non in un ramo per token: un `if (Response == "SIDESTEP")` qui sarebbe il branch per eroe che
 				// [D-047] esiste per togliere, scritto una riga sotto la funzione che lo evita.

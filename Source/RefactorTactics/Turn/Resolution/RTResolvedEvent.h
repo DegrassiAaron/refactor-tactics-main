@@ -301,8 +301,9 @@ struct FRTResolvedEvent
 	 *
 	 * ⚠️ **Non e' `TargetStableUnitId`, anche se nel `BlastHits` coincide.** Nell'interposizione `TargetStableUnitId` e'
 	 * l'alleato PROTETTO (il verso del trasferimento, `#2191`), e il colpo da cui la reazione dipende e' di un terzo. Per
-	 * l'Ancoraggio, la Purificazione e la fuga dal pericolo vale `0`: il resolver non ha un attaccante da passare, e il
-	 * playback ripiega sul primo colpo sul reattore.
+	 * il Brace e per l'Ancoraggio e' chi spinge (`Ctx.KnockAttackerId`, dove la spinta e' una sola). Per la Purificazione e
+	 * la fuga dal pericolo vale `0`: il resolver non ha un attaccante da passare, e il playback ripiega sul primo colpo sul
+	 * reattore. Per il colpo dell'Overwatch vale `0`: non sta nel Blast, e si rivela per `ReactionRouteCellIndex`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 TriggerAttackerStableUnitId = 0;

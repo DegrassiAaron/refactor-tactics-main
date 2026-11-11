@@ -555,7 +555,7 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 	TSet<ERTMatchPhase> Mostrate;
 	int32 Tick = 0;
 	int32 DiversaDallaSorgente = 0;  // il campo dice altro da `GetPlaybackPhase()`
-	int32 Cleanup = 0;               // `PlaybackPhases` non contiene mai `Cleanup`
+	int32 Cleanup = 0;               // il turno non ha reazioni del Cleanup: la fase non nasce (#4059, R7)
 	int32 DiversaDallaLogica = 0;    // la distinzione che D-479 punto 2 misura
 	for (; Tick < 600 && TM->IsResolving(); ++Tick)
 	{

@@ -2298,10 +2298,13 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		DisarmOverwatchOnForcedDisplacement(Unit, OldCell, NewCell, InPhase);
 	}
 
-	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
+	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast, o nel Cleanup per la fuga dal
+	// pericolo (#4059, R7).
 	{
 		FRTResolvedEvent Ev;
-		Ev.Phase = ERTMatchPhase::Blast;
+		// ⛔ Cambia fase solo il Cleanup: la fuga di `EmergencyDash` arriva con `Dash` e resta nel Blast (limite dichiarato
+		// della spec di #4059). La voce di TurnLog al passo 3 non cambia.
+		Ev.Phase = (InPhase == ERTMatchPhase::Cleanup) ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Move;
 		Ev.SourceStableUnitId = Unit->StableUnitId;
 		Ev.Path = Path;
@@ -5892,7 +5895,10 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			// replay rilegge. Verificato prima di aggiungerlo, come `#2191` prescriveva.
 			{
 				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
+				// #4059 (R7, [D-605] (3)): la fase dell'EVENTO e' quella del punto del passo — la fuga del Cleanup si mostra
+				// nel Cleanup, dopo il movimento. ⛔ La voce di TurnLog qui sopra resta `Blast`: la fase entra nell'hash del
+				// TurnLog (lettura (4)(b) di [D-605]), e l'evento e' presentazione.
+				Ev.Phase = (Point == ERTReactionPassPoint::CleanupSurfaceBirth) ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
 				Ev.Type = ERTResolvedEventType::ReactionResolved;
 				// ✅ **Validato per mutazione**: invertiti i due id, `Reactions.Counter.DealsDamageToAttacker`
 				// cade con *«chi reagisce ha un evento di reazione risolta: atteso 1, ottenuto 0»*.
@@ -8486,6 +8492,26 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// il bersaglio resta nella cella raggiunta, e le collisioni dei micro-step successivi cambiano di
 	// conseguenza perche' quell'unita' non e' piu' dove sarebbe arrivata.
 	URTHexSimLibrary::StopUnitInPlace(State, TargetIdx, ERTMoveOutcome::StoppedByOverwatch);
+
+	// #4059 (R6 della spec del fumetto per azioni e reazioni, [D-605] (2)): il MOMENTO del colpo, per la presentazione. Il
+	// playback lo rivela nella fase Move quando il bersaglio arriva sulla cella del colpo, e l'indice di quella cella nella
+	// sua rotta e' quante celle ha gia' ENTRATO (la partenza e' l'indice 0). ⚠️ Un indice di ROTTA e non di timeline:
+	// `EmitMoveEvents` toglie e riaccoda gli eventi `Move` a ogni ripresa. ⛔ Non entra nel TurnLog.
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Move;
+		Ev.Type = ERTResolvedEventType::ReactionResolved;
+		Ev.SourceStableUnitId = WatchOwner->StableUnitId;
+		Ev.TargetStableUnitId = Target->StableUnitId;
+		Ev.Origin = State.Pos[OwnerIdx];
+		Ev.ActionId = Armed.ActionId;
+		Ev.BaseActionId = Armed.BaseActionId;
+		Ev.ReactionRouteCellIndex = State.Results.IsValidIndex(TargetIdx)
+			? State.Results[TargetIdx].Entered.Num() : INDEX_NONE;
+		// R3: lo stesso soggetto della voce della decisione, scritta poco sotto — il watcher sulla cella del micro-step.
+		Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
+		ResolvedTimeline.Add(MoveTemp(Ev));
+	}
 
 	Entry.Amount = Dealt;  // il danno EFFETTIVO: con la copertura diverge da quello dichiarato (#888)
 	Entry.SelectedTargetUnitId = TargetIdx;
