@@ -1,0 +1,202 @@
+{
+  "scenarioId": "Lab.T5.Registro4033",
+  "tags": [
+    "lab",
+    "visual",
+    "registro",
+    "4033"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "playerReactionWindows": true,
+  "_nota": "Banco della seduta di PIE-HUD-REGISTRO-ATTIVA (#4033, D-600 (1)). Stessa geometria dei banchi Lab.T5.Fumetto4025*, piu' A3: un Branth alleato SENZA loadout dichiarato, quindi col loadout di default dell'eroe, che porta Gadget.PortableCover (RTCatalogLibrary.cpp, tabella dei gadget di default). Squadra 0 = chi guarda, visionRange 0 (consapevolezza ravvicinata, 2 celle). B2 sta a 4-5 celle da ogni alleato e NON si vede. T1: criteri (a), (b), (c), (d) per l'attacco base nemico. T2: criterio (d) per il gadget, l'azione generica e l'attacco base proprio. T3: fuori dai criteri della voce, il salto prima di una finestra di reazione (R8 della spec di #4033). T4, ultimo: criteri (e) e (f), salto del playback con almeno tre attivazioni visibili.",
+  "_nota_evidenza": "Conservato come evidenza di #4033 in docs/technical/evidence/4033/ (seduta del 2026-11-10). Per rieseguirlo va copiato in Saved/RTLab/Scenarios/ del clone principale e caricato con -RTScenario=Lab.T5.Registro4033; la riga di comando completa e' nell'evidenza. Il secondo giro accende i comandi di playback con -DPCVars=rt.Debug.PlaybackControls=1: con -ExecCmds la CVar arriva dopo l'avvio dello scenario, che la legge una volta sola.",
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Aevik",
+      "team": 0,
+      "cell": [
+        -1,
+        0,
+        0
+      ],
+      "facing": "E",
+      "visionRange": 0
+    },
+    {
+      "id": "A2",
+      "hero": "Hero.Muiren",
+      "team": 0,
+      "cell": [
+        -1,
+        2,
+        0
+      ],
+      "facing": "E",
+      "visionRange": 0
+    },
+    {
+      "id": "A3",
+      "hero": "Hero.Branth",
+      "team": 0,
+      "cell": [
+        -2,
+        0,
+        0
+      ],
+      "facing": "E",
+      "visionRange": 0
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Aevik",
+      "team": 1,
+      "cell": [
+        1,
+        0,
+        0
+      ],
+      "facing": "W"
+    },
+    {
+      "id": "B3",
+      "hero": "Hero.Branth",
+      "team": 1,
+      "cell": [
+        1,
+        2,
+        0
+      ],
+      "facing": "W",
+      "loadout": []
+    },
+    {
+      "id": "B2",
+      "hero": "Hero.Muiren",
+      "team": 1,
+      "cell": [
+        3,
+        -3,
+        0
+      ],
+      "facing": "SW",
+      "health": 50
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 - (a) riga di A1 sopra la sua riga d'esito, (b) skill nemica visibile, (c) B2 si cura fuori vista, (d) attacco base nemico con la riga e senza fumetto",
+      "intents": [
+        {
+          "unit": "A1",
+          "ability": "Hero.Aevik.LinearDischarge",
+          "target": "B1"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Aevik.Overload",
+          "target": "A1"
+        },
+        {
+          "unit": "B3",
+          "ability": "Hero.Branth.ImpactShot",
+          "target": "A2"
+        },
+        {
+          "unit": "B2",
+          "ability": "Hero.Muiren.CircularTide",
+          "targetCell": [
+            3,
+            -2,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "_turno": "T2 - (d) gadget (A3, PortableCover in Prep), azione generica (A2, Brace), attacco base proprio (A1, ArcPulse): righe senza fumetto",
+      "intents": [
+        {
+          "unit": "A3",
+          "ability": "Gadget.PortableCover",
+          "targetCell": [
+            -2,
+            0,
+            0
+          ],
+          "edge": "W"
+        },
+        {
+          "unit": "A2",
+          "ability": "Action.Brace"
+        },
+        {
+          "unit": "A1",
+          "ability": "Hero.Aevik.ArcPulse",
+          "target": "B1"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Aevik.Overload",
+          "target": "A1"
+        }
+      ]
+    },
+    {
+      "_turno": "T3 - fuori criterio: Spazio prima della finestra aperta dalla carica di Ram su A2 in Brace (R8: il ramo sospeso non e' una fine vera)",
+      "intents": [
+        {
+          "unit": "A2",
+          "ability": "Action.Brace"
+        },
+        {
+          "unit": "A1",
+          "ability": "Hero.Aevik.LinearDischarge",
+          "target": "B1"
+        },
+        {
+          "unit": "B3",
+          "dash": "Hero.Branth.Ram",
+          "dashTo": [
+            -2,
+            2,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "_turno": "T4 - (e) Spazio a meta' playback: a fine playback una riga per ogni attivazione visibile, nessuna doppia; (f) le righe restano nel Planning dopo; e' l'ultimo turno, quindi a scenario finito la partita resta in Pianificazione e (f) si guarda con calma",
+      "intents": [
+        {
+          "unit": "A1",
+          "ability": "Hero.Aevik.Overload",
+          "target": "B1"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Aevik.LinearDischarge",
+          "target": "A1"
+        },
+        {
+          "unit": "A2",
+          "ability": "Hero.Muiren.CircularTide",
+          "target": "A1"
+        },
+        {
+          "unit": "B3",
+          "ability": "Hero.Branth.ImpactShot",
+          "target": "A2"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "TurnsCompleted",
+      "value": 4
+    }
+  ]
+}
