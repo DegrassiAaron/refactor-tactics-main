@@ -180,8 +180,7 @@ bool FRTFacingDeclaration::HandleSector(FRTFacingHost& Host, ERTHexDirection Sec
 		return false;
 	}
 
-	Unit->PlannedFacing = Sector;
-	Unit->bDeclaresPlannedFacing = true;
+	Unit->DeclarePlannedFacing(Sector);
 	bDeclaring = false;
 	HoverSector.Reset(); // la mesh va sul verso dichiarato, qui sotto
 
@@ -316,7 +315,7 @@ void FRTFacingDeclaration::CancelDeclared(const FRTFacingHost& Host, ARTUnit* Un
 	{
 		return;
 	}
-	Unit->bDeclaresPlannedFacing = false;
+	Unit->RetractPlannedFacing();
 	PreviewPlanned(Host, Unit);
 	UE_LOG(LogRT, Log, TEXT("[RT] %s: verso dichiarato annullato (%s) — il movimento e' di nuovo aperto"),
 		*Unit->GetName(), Perche);

@@ -1449,8 +1449,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// Si scrive il PIANO, non l'esito: traiettoria, ostacoli e chi viene attraversato li decide il
 				// resolver in fase Dash. Anticiparli qui significherebbe verificare le regole della sessione
 				// invece di quelle del gioco.
-				Unit->PlannedDashAbility = DashIndex;
-				Unit->PlannedDashCell = Intent.DashCell;
+				Unit->SetPlannedDash(DashIndex, Intent.DashCell);
 			}
 		}
 
@@ -1501,7 +1500,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
 				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Branth si mette in guardia
 				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
-				Unit->PlannedAbilityIndex = AbilityIndex;
+				Unit->SetPlannedMainAction(AbilityIndex);
 			}
 			else if (!Target || !Target->IsAlive())
 			{
@@ -1519,8 +1518,10 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			}
 			else
 			{
-				Unit->PlannedAbilityIndex = AbilityIndex;
-				Unit->PlannedAttackTarget = Target;
+				Unit->SetPlannedMainAction(AbilityIndex);
+				// #4068: la porta del controller e del bot. Ritira anche la mira a cella, che `BeginTurn` ha gia' spento
+				// (`ClearPlannedAttack`): misurato sui 164 scenari, nessuno da' due intenti alla stessa unita' nello stesso turno.
+				Unit->DeclareAttackOnUnit(Target);
 			}
 		}
 		else if (!Intent.Ability.IsNone() && Intent.bTargetsCell)
@@ -1542,18 +1543,15 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			}
 			else
 			{
-				Unit->PlannedAbilityIndex = AbilityIndex;
-				Unit->PlannedAttackTarget = nullptr;
-				Unit->PlannedAttackCell = Intent.TargetCell;
-				Unit->bAttackTargetsCell = true;
+				Unit->SetPlannedMainAction(AbilityIndex);
+				Unit->DeclareAttackOnCell(Intent.TargetCell);
 
 				// Il BORDO, per le azioni che agiscono su una struttura di bordo (CP 9.5). Si scrive solo se
 				// lo scenario lo dichiara: senza flag, il resolver rifiuta con `CoverRejected` invece di
 				// scegliere un lato — ed e' cio' che deve succedere se il file lo dimentica.
 				if (Intent.bHasCoverEdge)
 				{
-					Unit->PlannedCoverEdge = Intent.CoverEdge;
-					Unit->bHasPlannedCoverEdge = true;
+					Unit->DeclarePlannedCoverEdge(Intent.CoverEdge);
 				}
 			}
 		}
@@ -1569,7 +1567,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				const URTActionData* Action = Unit->GetAbility(I);
 				if (Action && Action->Def.ActionId == Intent.Reaction)
 				{
-					Unit->PlannedReactionAbility = I;
+					Unit->SetPlannedReaction(I);
 					break;
 				}
 			}
@@ -1615,8 +1613,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		// non sarebbe scrivibile: verificherebbe che l'harness sa contare, non che il gioco sa rifiutare.
 		if (Intent.bDeclaresFacing)
 		{
-			Unit->PlannedFacing = Intent.Facing;
-			Unit->bDeclaresPlannedFacing = true;
+			Unit->DeclarePlannedFacing(Intent.Facing);
 		}
 
 		if (Intent.Move.Num() == 0)
@@ -1638,9 +1635,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);
 		if (Path.Path.Num() >= 2)
 		{
-			Unit->PlannedWaypoints = Intent.Move;
-			Unit->PlannedPath = Path.Path;
-			Unit->PlannedCell = Path.Path.Last();
+			Unit->SetPlannedMove(Intent.Move, Path.Path);
 			// #79, caso C: un piano valido cancella un rifiuto precedente. Vale qui per la stessa ragione per
 			// cui vale nel controller — l'esito da spiegare e' quello del piano FINALE, non di un tentativo
 			// intermedio — e uno scenario a piu' turni e' esattamente il posto in cui un residuo di turno
@@ -1743,19 +1738,17 @@ void FRTScenarioSession::BeginTurn()
 	{
 		if (ARTUnit* U = Pair.Value.Get())
 		{
-			U->PlannedCell = U->Cell;
-			U->PlannedPath.Reset();
-			U->PlannedWaypoints.Reset();
+			U->ClearPlannedMove();
 			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
 			// nei turni successivi senza che lo scenario glielo chieda.
-			U->PlannedAbilityIndex = INDEX_NONE;
+			U->ClearPlannedMainAction();
 			// TUTTE le forme del piano d'attacco in una chiamata: unita', cella e mira congelata ([D-415]).
 			// ⌫ *Erano due assegnazioni a mano, e il giorno in cui il piano ha preso un terzo campo
 			// (`bHasPlannedAim`) qui e' rimasto appeso — trovato dalla code review di #3230.*
 			U->ClearPlannedAttack();
 			// E il BORDO dichiarato: senza, un pannello eretto al turno 1 lascerebbe il lato scritto nel piano
 			// e un'azione di struttura del turno 3 lo troverebbe gia' pronto senza averlo chiesto.
-			U->bHasPlannedCoverEdge = false;
+			U->ClearPlannedCoverEdge();
 			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
 			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
 			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
@@ -2660,12 +2653,10 @@ void FRTScenarioSession::Finish()
 	{
 		if (ARTUnit* U = Pair.Value.Get())
 		{
-			U->PlannedCell = U->Cell;
-			U->PlannedPath.Reset();
-			U->PlannedWaypoints.Reset();
+			U->ClearPlannedMove();
 			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
 			// nei turni successivi senza che lo scenario glielo chieda.
-			U->PlannedAbilityIndex = INDEX_NONE;
+			U->ClearPlannedMainAction();
 			// Tutte le forme del piano d'attacco, come al reset fra i turni: qui mancava anche
 			// `bAttackTargetsCell`, quindi una mira a CELLA sopravviveva alla fine dello scenario.
 			U->ClearPlannedAttack();

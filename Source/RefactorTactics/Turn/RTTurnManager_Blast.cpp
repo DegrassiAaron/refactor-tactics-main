@@ -822,7 +822,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{
 			Ctx.MarkAbilitySpent(Unit, CleanseIdx);
-			Unit->PlannedAbilityIndex = INDEX_NONE; // consumata nel turno, come ogni principale che non parte
+			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
 			Unit->ClearPlannedAttack();
 			continue;
 		}
@@ -850,7 +850,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// `Ruling` della predittiva senza cella. ⛔ Nessuna condizione su `Removed`.
 		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Cleanse->Def.ActionId, Cleanse->Def.BaseActionId,
 			Unit->StableUnitId, Unit->Cell, ERTAbilityShape::Single);
-		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
+		Unit->ClearPlannedMainAction(); // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->ClearPlannedAttack();
 
 		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
@@ -912,7 +912,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{
 			Ctx.MarkAbilitySpent(Unit, HealIdx);
-			Unit->PlannedAbilityIndex = INDEX_NONE; // consumata nel turno, come ogni principale che non parte
+			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 			continue;
 		}
@@ -945,7 +945,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
 		// cui questa raccolta viene prima.
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedMainAction();
 		Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
@@ -1159,7 +1159,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				Ctx.MarkAbilitySpent(Unit, Unit->PlannedAbilityIndex);
 			}
 			Unit->ClearPlannedAttack();
-			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, come ogni principale che non parte
+			Unit->ClearPlannedMainAction(); // consumato nel turno, come ogni principale che non parte
 			continue;
 		}
 
@@ -1179,7 +1179,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			const FRTCellId ArcAim = Unit->ResolutionAimCell(PlannedNow->Def.DeclaresTracking());
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
-			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
+			Unit->ClearPlannedMainAction(); // consumato nel turno, attivata o no
 
 			// ➕ **2026-11-03, [D-571] (RIC-3) causa (d)**: il bersaglio-unita' GIA' MORTO. Il click ha accettato un piano su un
 			// bersaglio vivo e noto, e la morte e' un fatto di risoluzione — come la cura su un alleato caduto ([D-197]).
@@ -1284,7 +1284,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		const bool bAggancia = Ability && Ability->Def.DeclaresTracking();
 		const FRTCellId AimCell = Unit->ResolutionAimCell(bAggancia);
 		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedMainAction();
 
 		if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || !Unit->CanUseAbility(AbilityIndex))
 		{
