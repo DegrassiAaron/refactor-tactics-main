@@ -6,6 +6,7 @@
 #include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "RTGameMode.h"
 #include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
@@ -1298,7 +1299,7 @@ bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
 			Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), i);
 		if (!TestNotNull(*FString::Printf(TEXT("il bottone %d e' stato costruito"), i), Bottone)) { continue; }
 		TestEqual(*FString::Printf(TEXT("il badge del bottone %d e' il tasto della posizione %d"), i, i),
-			Bottone->GetKeyLabel().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+			Bottone->GetKeyLabel().ToString(), RTInputKeys::ReactionOptionKeyLabel(i).ToString());
 		TestFalse(*FString::Printf(TEXT("il bottone %d ha un tasto"), i), Bottone->GetKeyLabel().IsEmpty());
 		TestFalse(*FString::Printf(TEXT("il bottone %d ha una frase"), i), Bottone->GetOptionDescription().IsEmpty());
 		if (URTReactionOpportunityLibrary::FireResponseTarget(Vista.Options[i].Response) != INDEX_NONE)
@@ -1317,9 +1318,9 @@ bool FRTReactionHotkeyChoosesOptionTest::RunTest(const FString&)
 	// --- 2-bis. LE LETTERE GENERICHE non scelgono un'opzione -------------------------------------------------
 	PC->SelectActorForTest(Watcher);
 	int32 LetterePremute = 0;
-	for (int32 Riga = 0; Riga < ARTPlayerController::GenericHotkeys().Num(); ++Riga)
+	for (int32 Riga = 0; Riga < RTInputKeys::GenericHotkeys().Num(); ++Riga)
 	{
-		const FName Generica = ARTPlayerController::GenericHotkeys()[Riga].Key;
+		const FName Generica = RTInputKeys::GenericHotkeys()[Riga].Key;
 		bool bNelKit = false;
 		for (int32 i = 0; i < Watcher->NumAbilities(); ++i)
 		{
@@ -1406,15 +1407,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionOptionKeyLabelTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTReactionOptionKeyLabelTest::RunTest(const FString&)
 {
-	const TArray<FKey>& Tasti = ARTPlayerController::AbilityHotkeys();
+	const TArray<FKey>& Tasti = RTInputKeys::AbilityHotkeys();
 	if (!TestTrue(TEXT("premessa: il kit ha dei tasti"), Tasti.Num() > 0)) { return false; }
 	for (int32 i = 0; i < Tasti.Num(); ++i)
 	{
 		TestEqual(*FString::Printf(TEXT("l'opzione %d si sceglie col tasto %s"), i, *Tasti[i].ToString()),
-			ARTPlayerController::ReactionOptionKeyLabel(i).ToString(), Tasti[i].GetDisplayName(false).ToString());
+			RTInputKeys::ReactionOptionKeyLabel(i).ToString(), Tasti[i].GetDisplayName(false).ToString());
 	}
-	TestTrue(TEXT("oltre l'ultimo tasto nessun badge"), ARTPlayerController::ReactionOptionKeyLabel(Tasti.Num()).IsEmpty());
-	TestTrue(TEXT("e nemmeno prima del primo"), ARTPlayerController::ReactionOptionKeyLabel(INDEX_NONE).IsEmpty());
+	TestTrue(TEXT("oltre l'ultimo tasto nessun badge"), RTInputKeys::ReactionOptionKeyLabel(Tasti.Num()).IsEmpty());
+	TestTrue(TEXT("e nemmeno prima del primo"), RTInputKeys::ReactionOptionKeyLabel(INDEX_NONE).IsEmpty());
 	return true;
 }
 
@@ -2489,7 +2490,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 
 		const FString Etichetta = FString::Printf(TEXT("C[%d] %s"), i, *Risposta);
 		TestEqual(*(Etichetta + TEXT(": il badge e' il tasto del kit in quella posizione")),
-			Opzione->KeyText->GetText().ToString(), ARTPlayerController::ReactionOptionKeyLabel(i).ToString());
+			Opzione->KeyText->GetText().ToString(), RTInputKeys::ReactionOptionKeyLabel(i).ToString());
 		TestFalse(*(Etichetta + TEXT(": e non e' vuoto")), Opzione->KeyText->GetText().IsEmpty());
 		// La frase della tavola E (`#3667`): chi spara nomina il bersaglio. In una finestra dell'Overwatch le risposte
 		// sono solo queste due specie. ⏱️ L'`HOLD` diceva «Non attaccare», come la tavola; dal 2026-10-15 dice chi lascia

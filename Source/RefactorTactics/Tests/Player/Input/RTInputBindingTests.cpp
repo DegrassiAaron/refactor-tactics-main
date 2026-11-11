@@ -27,6 +27,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/Actor/RTHexMapActor.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Unit/RTUnit.h"
@@ -89,11 +90,11 @@ namespace
 			TEXT("IA_LabStepPrevious:Started"), TEXT("IA_LabStepNext:Started"),
 			TEXT("IA_Pause:Started"),
 		};
-		for (int32 I = 0; I < ARTPlayerController::AbilityHotkeys().Num(); ++I)
+		for (int32 I = 0; I < RTInputKeys::AbilityHotkeys().Num(); ++I)
 		{
 			Attese.Add(FString::Printf(TEXT("IA_Ability%d:Started"), I + 1));
 		}
-		for (int32 I = 0; I < ARTPlayerController::GenericHotkeys().Num(); ++I)
+		for (int32 I = 0; I < RTInputKeys::GenericHotkeys().Num(); ++I)
 		{
 			Attese.Add(FString::Printf(TEXT("IA_Generic%d:Started"), I + 1));
 		}
@@ -407,11 +408,11 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 	// Dieci posizioni dello stesso attacco a bersaglio: armarlo non pianifica niente da solo, e l'indice armato resta
 	// quello della posizione. Poi le generiche, in coda come in partita.
 	Mia->Abilities.Reset();
-	for (int32 I = 0; I < ARTPlayerController::AbilityHotkeys().Num(); ++I)
+	for (int32 I = 0; I < RTInputKeys::AbilityHotkeys().Num(); ++I)
 	{
 		RTAbilityFixtures::AddCoreAbility(Mia, TEXT("Action.BasicAttack"));
 	}
-	for (const TPair<FName, FKey>& Generica : ARTPlayerController::GenericHotkeys())
+	for (const TPair<FName, FKey>& Generica : RTInputKeys::GenericHotkeys())
 	{
 		RTAbilityFixtures::AddCoreAbility(Mia, *Generica.Key.ToString());
 	}
@@ -428,7 +429,7 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 		return Mia->SelectedAbilityIndex == Index || Mia->PlannedAbilityIndex == Index || Mia->PlannedReactionAbility == Index;
 	};
 
-	for (int32 I = 0; I < ARTPlayerController::AbilityHotkeys().Num(); ++I)
+	for (int32 I = 0; I < RTInputKeys::AbilityHotkeys().Num(); ++I)
 	{
 		Reset();
 		const FString Nome = FString::Printf(TEXT("IA_Ability%d"), I + 1);
@@ -437,9 +438,9 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%s arma la posizione %d"), *Nome, I), Mia->SelectedAbilityIndex, I);
 	}
 
-	for (int32 Riga = 0; Riga < ARTPlayerController::GenericHotkeys().Num(); ++Riga)
+	for (int32 Riga = 0; Riga < RTInputKeys::GenericHotkeys().Num(); ++Riga)
 	{
-		const FName Id = ARTPlayerController::GenericHotkeys()[Riga].Key;
+		const FName Id = RTInputKeys::GenericHotkeys()[Riga].Key;
 		int32 Indice = INDEX_NONE;
 		for (int32 I = 0; I < Mia->NumAbilities(); ++I)
 		{

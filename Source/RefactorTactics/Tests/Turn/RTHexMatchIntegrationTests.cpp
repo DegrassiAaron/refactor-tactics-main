@@ -28,6 +28,7 @@
 #include "Ability/RTMovementProfileLibrary.h" // ProfileSneak: `Sneak` durante il playback non si dichiara (#3510)
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Player/RTPlayerState.h"      // `#3748`: TeamIdOf / ControlGroupOf, per misurare chi il giocatore comanda
 #include "UI/HUD/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Components/Button.h"     // `#3748`: i pulsanti di Conferma e Annulla, per leggerne l'abilitazione
@@ -6263,7 +6264,7 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 
 	// Una generica che arma: si prova per posizione di `GenericHotkeys()` e si prende la prima che porta davvero l'unita' a `SelectedAbilityIndex`.
 	int32 GenericSlot = INDEX_NONE;
-	for (int32 Slot = 0; Slot < ARTPlayerController::GenericHotkeys().Num() && GenericSlot == INDEX_NONE; ++Slot)
+	for (int32 Slot = 0; Slot < RTInputKeys::GenericHotkeys().Num() && GenericSlot == INDEX_NONE; ++Slot)
 	{
 		B.PC->PressGenericHotkeyForTest(Slot);
 		if (B.Mine->SelectedAbilityIndex != INDEX_NONE) { GenericSlot = Slot; }

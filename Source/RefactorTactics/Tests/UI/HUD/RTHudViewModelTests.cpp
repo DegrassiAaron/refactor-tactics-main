@@ -14,7 +14,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
-#include "Player/RTPlayerController.h" // AbilityHotkeys / HotkeyLabelFor: l ORACOLO del tasto (#2987)
+#include "Player/Input/RTInputKeys.h" // AbilityHotkeys / HotkeyLabelFor: l ORACOLO del tasto (#2987); fino a #4065 stavano nel controller
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
@@ -1858,7 +1858,7 @@ bool FRTHudFeedStateNamesItsOwnCauseTest::RunTest(const FString&)
 /**
  * 🔴 **IL TASTO SI LEGGE DALLA TABELLA DEI BINDING, E NON SI CALCOLA DALL'INDICE** (`#2987`).
  *
- * 🔑 **L'oracolo e' l'UGUAGLIANZA con `ARTPlayerController::AbilityHotkeys()`**, e la scelta e' il punto
+ * 🔑 **L'oracolo e' l'UGUAGLIANZA con `RTInputKeys::AbilityHotkeys()`**, e la scelta e' il punto
  * del test. Confrontare con una stringa attesa — `"1"`, `"0"` — rifarebbe qui la traduzione da tasto a
  * etichetta, cioe' creerebbe la seconda verita' che questa issue esiste per togliere: due composizioni che
  * divergono al primo cambio di tabella, e un test verde su entrambe.
@@ -1899,8 +1899,8 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
 	// ⌫ **Questo ciclo attendeva il numero per OGNI posizione, e la decisione l'ha superato**: misurato,
 	// la posizione 5 portava `Z` dove il test chiedeva `6`. Non era un difetto del codice — era il test a
 	// pinnare una regola che nel frattempo era stata decisa diversamente.
-	const TArray<FKey>& Tabella = ARTPlayerController::AbilityHotkeys();
-	const TArray<TPair<FName, FKey>>& Generiche = ARTPlayerController::GenericHotkeys();
+	const TArray<FKey>& Tabella = RTInputKeys::AbilityHotkeys();
+	const TArray<TPair<FName, FKey>>& Generiche = RTInputKeys::GenericHotkeys();
 
 	int32 GenericheViste = 0;
 
@@ -1947,9 +1947,9 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
 	// ⚠️ Si interroga la funzione e non la vista: serve un indice che la tabella non copre, e costruire
 	// un'unita' con undici voci di kit misurerebbe la composizione del kit invece di questa regola.
 	TestTrue(TEXT("C: una posizione oltre la fila dei numeri non porta nessun tasto"),
-		ARTPlayerController::HotkeyLabelFor(NAME_None, Tabella.Num()).IsEmpty());
+		RTInputKeys::HotkeyLabelFor(NAME_None, Tabella.Num()).IsEmpty());
 	TestTrue(TEXT("C: e un indice negativo nemmeno"),
-		ARTPlayerController::HotkeyLabelFor(NAME_None, INDEX_NONE).IsEmpty());
+		RTInputKeys::HotkeyLabelFor(NAME_None, INDEX_NONE).IsEmpty());
 
 	DestroyHudVmWorld(World);
 	return true;

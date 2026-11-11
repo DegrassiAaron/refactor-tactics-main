@@ -7,6 +7,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Unit/RTUnit.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -719,17 +720,17 @@ bool FRTPlanCommitParityTest::RunTest(const FString&)
 	TestTrue(TEXT("C: pulsante e tasto lasciano lo stesso piano"), DopoIlPulsante == DopoIlTasto);
 
 	// D. le etichette vengono dalle sedi dei tasti, e quelle sedi sono i tasti di D-458
-	TestEqual(TEXT("D: il tasto di Conferma e' Invio"), ARTPlayerController::DeclarePlanHotkey(), EKeys::Enter);
-	TestEqual(TEXT("D: il tasto di Annulla e' BackSpace"), ARTPlayerController::UndoKeyboardHotkey(), EKeys::BackSpace);
+	TestEqual(TEXT("D: il tasto di Conferma e' Invio"), RTInputKeys::DeclarePlanHotkey(), EKeys::Enter);
+	TestEqual(TEXT("D: il tasto di Annulla e' BackSpace"), RTInputKeys::UndoKeyboardHotkey(), EKeys::BackSpace);
 	// [D-496] (#3633): l'etichetta e' il nome del BADGE del tasto mappato, in italiano. Fino a #3633 era il nome
 	// dell'engine («Enter»); la sede resta il tasto, e la tabella ne traduce soltanto il nome.
 	TestEqual(TEXT("D: l'etichetta di Conferma e' il badge del suo tasto"), W->GetConfirmKeyLabel().ToString(),
-		ARTPlayerController::KeyBadgeLabel(EKeys::Enter).ToString());
+		RTInputKeys::KeyBadgeLabel(EKeys::Enter).ToString());
 	// ⚠️ CaseSensitive: `TestEqual` su `FString` ignora le maiuscole, e «Invio» passerebbe.
 	TestTrue(TEXT("D: e il badge di Invio dice INVIO, in maiuscolo"),
 		W->GetConfirmKeyLabel().ToString().Equals(TEXT("INVIO"), ESearchCase::CaseSensitive));
 	TestEqual(TEXT("D: l'etichetta di Annulla e' il badge del suo tasto"), W->GetUndoKeyLabel().ToString(),
-		ARTPlayerController::KeyBadgeLabel(EKeys::BackSpace).ToString());
+		RTInputKeys::KeyBadgeLabel(EKeys::BackSpace).ToString());
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -757,7 +758,7 @@ bool FRTKeyBadgeLabelTableTest::RunTest(const FString&)
 	};
 	for (const FAttesa& A : Attese)
 	{
-		const FString Reso = ARTPlayerController::KeyBadgeLabel(A.Tasto).ToString();
+		const FString Reso = RTInputKeys::KeyBadgeLabel(A.Tasto).ToString();
 		TestTrue(*FString::Printf(TEXT("%s -> %s (reso: «%s»)"), *A.Tasto.ToString(), A.Badge, *Reso),
 			Reso.Equals(A.Badge, ESearchCase::CaseSensitive));
 	}
@@ -768,7 +769,7 @@ bool FRTKeyBadgeLabelTableTest::RunTest(const FString&)
 	if (TestFalse(*FString::Printf(TEXT("premessa: il nome dell'engine ha delle minuscole («%s»)"), *NomeEngine),
 			NomeEngine.Equals(NomeEngine.ToUpper(), ESearchCase::CaseSensitive)))
 	{
-		const FString Ripiego = ARTPlayerController::KeyBadgeLabel(EKeys::LeftShift).ToString();
+		const FString Ripiego = RTInputKeys::KeyBadgeLabel(EKeys::LeftShift).ToString();
 		TestTrue(*FString::Printf(TEXT("un tasto fuori tabella e' il nome dell'engine in maiuscolo (reso: «%s»)"), *Ripiego),
 			Ripiego.Equals(NomeEngine.ToUpper(), ESearchCase::CaseSensitive));
 	}

@@ -2,6 +2,7 @@
 
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
 // 🔴 **`Turn/RTTurnManager.h` NON serve piu', e la storia va tenuta perche' il difetto era vero.**
@@ -851,12 +852,12 @@ bool URTPlanCommitWidget::IsPlanDeclared() const
 FText URTPlanCommitWidget::GetConfirmKeyLabel() const
 {
 	// [D-496]: il nome del badge, dal tasto vero della mappatura.
-	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::DeclarePlanHotkey());
+	return RTInputKeys::KeyBadgeLabel(RTInputKeys::DeclarePlanHotkey());
 }
 
 FText URTPlanCommitWidget::GetUndoKeyLabel() const
 {
-	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::UndoKeyboardHotkey());
+	return RTInputKeys::KeyBadgeLabel(RTInputKeys::UndoKeyboardHotkey());
 }
 
 void URTPlanCommitWidget::BindNamedButtons()
@@ -1910,7 +1911,7 @@ FText URTActionSlotWidget::GetActionLine() const
 	// stringa. `ComposeAbilityLine` sa gia' che il numero e' 1-based perche' e' il TASTO che il giocatore
 	// preme, e non l'indice del kit — e il dock mostra solo il kit numerato (`BuildAbilityCooldowns`), quindi
 	// quel numero e' davvero il tasto che arma questo slot. I cinque generici — `G` `B` `C` `X` `Z` di
-	// `ARTPlayerController::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
+	// `RTInputKeys::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
 	return FText::FromString(ARTHUD::ComposeAbilityLine(Action, bArmed).Text);
 }
 
@@ -2258,7 +2259,7 @@ FText URTFastDecisionOptionWidget::GetOptionDescription() const
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const
 {
-	return ARTPlayerController::ReactionOptionKeyLabel(OptionIndex);
+	return RTInputKeys::ReactionOptionKeyLabel(OptionIndex);
 }
 
 void URTFastDecisionOptionWidget::Choose()

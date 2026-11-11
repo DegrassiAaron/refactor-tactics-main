@@ -1,5 +1,6 @@
 ﻿#include "Player/RTPlayerController.h"
 #include "Player/RTInputMode.h" // il modo di input del gioco: una funzione, due chiamanti (#2989)
+#include "Player/Input/RTInputKeys.h" // le tabelle dei tasti: una sede, letta dalla mappatura, dai binding e dall'HUD (#4065)
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
@@ -503,143 +504,6 @@ namespace
 	}
 }
 
-const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
-{
-	// `1`..`9` piu' `0`: dieci posizioni, che e' quanto basta al kit di oggi — cinque voci d'eroe piu' le
-	// cinque generiche di D-025. Non e' un numero scelto per stare largo: e' la dimensione misurata del kit,
-	// e il test che la difende confronta le due cose invece di fidarsi di questo commento.
-	//
-	// ⚠️ Nessuno di questi tasti collide: mappati altrove sono A D E F Q R S T V W, Home, Escape, BackSpace,
-	// Spazio e i pulsanti del mouse. Verificato sull'elenco completo dei `MapKey` di `BuildInputMappings`.
-	static const TArray<FKey> Hotkeys = {
-		EKeys::One,  EKeys::Two,   EKeys::Three, EKeys::Four, EKeys::Five,
-		EKeys::Six,  EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
-	return Hotkeys;
-}
-
-const FKey& ARTPlayerController::SneakHotkey()
-{
-	// `M` per «muoversi piano»: non collide con nessun altro `MapKey` di `BuildInputMappings`, e il controllo
-	// che lo prova e' `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero e non questa riga.
-	static const FKey Tasto = EKeys::M;
-	return Tasto;
-}
-
-const FKey& ARTPlayerController::DeclarePlanHotkey()
-{
-	static const FKey Tasto = EKeys::Enter;
-	return Tasto;
-}
-
-const FKey& ARTPlayerController::UndoKeyboardHotkey()
-{
-	static const FKey Tasto = EKeys::BackSpace;
-	return Tasto;
-}
-
-const FKey& ARTPlayerController::StrategicViewHotkey()
-{
-	static const FKey Tasto = EKeys::Tab;
-	return Tasto;
-}
-
-const FKey& ARTPlayerController::CycleSelectionHotkey()
-{
-	// `N` per «next». Libero in `BuildInputMappings` quando D-488 l'ha scelto (misurato su `ae805683a`), e
-	// a tenerlo libero non e' questa riga ma `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero.
-	static const FKey Tasto = EKeys::N;
-	return Tasto;
-}
-
-FText ARTPlayerController::KeyBadgeLabel(const FKey& Key)
-{
-	// [D-496]: i tasti che un badge dell'HUD mostra per nome. Le cifre e le lettere restano quelle dell'engine.
-	struct FVoce { FKey Tasto; const TCHAR* Nome; };
-	static const FVoce Voci[] = {
-		{ EKeys::Enter,     TEXT("INVIO") },
-		{ EKeys::BackSpace, TEXT("BACKSPACE") },
-		{ EKeys::Escape,    TEXT("ESC") },
-		{ EKeys::SpaceBar,  TEXT("SPAZIO") },
-		{ EKeys::Tab,       TEXT("TAB") },
-	};
-	for (const FVoce& Voce : Voci)
-	{
-		if (Voce.Tasto == Key)
-		{
-			return FText::FromString(Voce.Nome);
-		}
-	}
-	return FText::FromString(Key.GetDisplayName(/*bLongDisplayName=*/ false).ToString().ToUpper());
-}
-
-FText ARTPlayerController::ReactionOptionKeyLabel(int32 OptionIndex)
-{
-	return AbilityHotkeys().IsValidIndex(OptionIndex)
-		? AbilityHotkeys()[OptionIndex].GetDisplayName(/*bLongDisplayName=*/ false)
-		: FText::GetEmpty();
-}
-
-FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
-{
-	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
-	// `SelectAbilityForCurrent(5)`, `OnGeneric1` da `SelectAbilityByIdForCurrent` — quindi la domanda non e'
-	// quale funzioni, ma quale si MOSTRA. Il numero e' legato alla posizione, la lettera all'`ActionId`, e la
-	// posizione cambia col kit dell'eroe: *«una barra che rinumerasse le generiche insegnerebbe una mappa che
-	// scade»*.
-	//
-	// ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato. E' l'estensione
-	// alla presentazione della disciplina che `PlayerInput.GenericHotkeyResolvesByNameNotPosition` pinna gia'
-	// sull'input.
-	if (!ActionId.IsNone())
-	{
-		for (const TPair<FName, FKey>& Generica : GenericHotkeys())
-		{
-			if (Generica.Key == ActionId)
-			{
-				return Generica.Value.GetDisplayName(/*bLongDisplayName=*/ false);
-			}
-		}
-	}
-
-
-	// 🔑 **Si INTERROGA la tabella, e il vuoto fuori range e' la meta' che conta.** Un `Index + 1` risponde
-	// a qualunque indice — anche a quelli che nessun tasto raggiunge — e quella e' esattamente la risposta
-	// che non esiste. Qui `IsValidIndex` e' il confine, ed e' lo stesso della bindatura.
-	if (!AbilityHotkeys().IsValidIndex(KitIndex))
-	{
-		return FText::GetEmpty();
-	}
-
-	// `bLongDisplayName = false`: si vuole cio' che sta su uno slot largo un'icona — `0`, non `Zero`.
-	return AbilityHotkeys()[KitIndex].GetDisplayName(/*bLongDisplayName=*/ false);
-}
-
-const TArray<TPair<FName, FKey>>& ARTPlayerController::GenericHotkeys()
-{
-	// Le cinque generiche di D-025 che entrano nel kit, ognuna col suo tasto STABILE: non cambiano da eroe
-	// a eroe, quindi non hanno ragione di occupare una posizione della fila dei numeri.
-	//
-	// 🔴 **Questa tabella e' la ragione per cui un eroe puo' portare una sesta azione.** Prima le generiche
-	// stavano nei numeri, il kit faceva undici voci contro dieci tasti, e la sesta abilita' finiva in una
-	// posizione che il giocatore non poteva premere: raggiungibile per il gate del catalogo — che conta i
-	// kit, non i tasti — e impremibile in partita. Un verde che mente.
-	//
-	// ⚠️ **I tasti sono scelti per la MANO, non per l'iniziale.** `O` sarebbe mnemonico per Overwatch e `I`
-	// per Interact, ma stanno dall'altra parte della tastiera: queste si premono mentre la sinistra guida
-	// la camera su `WASD`. `G` e `B` cadono bene e sono anche mnemonici; `C`, `X` e `Z` sono vicini e liberi.
-	//
-	// ⚠️ **Nessuno di questi collide**: mappati altrove sono `A D E F Q R S T V W`, `Home`, `Escape`,
-	// `BackSpace`, `Spazio`, i pulsanti del mouse e le dieci cifre. Verificato sull'elenco completo dei
-	// `MapKey` di `BuildInputMappings`, ed e' un controllo che `PlayerInput.HotkeysDoNotCollide` rifa'.
-	static const TArray<TPair<FName, FKey>> Hotkeys = {
-		{ TEXT("Action.Guard"),     EKeys::G },
-		{ TEXT("Action.Brace"),     EKeys::B },
-		{ TEXT("Action.Overwatch"), EKeys::C },
-		{ TEXT("Action.Interact"),  EKeys::X },
-		{ TEXT("Action.Wait"),      EKeys::Z } };
-	return Hotkeys;
-}
-
 void ARTPlayerController::BuildInputMappings()
 {
 	if (MappingContext)
@@ -687,7 +551,7 @@ void ARTPlayerController::BuildInputMappings()
 	// Una `UInputAction` per posizione del kit: quante siano lo dice `AbilityHotkeys()`, che e' la stessa
 	// lista che mappa i tasti e che il test interroga. Aggiungere un tasto e' una riga LI', non qui.
 	AbilityActions.Reset();
-	for (int32 i = 0; i < AbilityHotkeys().Num(); ++i)
+	for (int32 i = 0; i < RTInputKeys::AbilityHotkeys().Num(); ++i)
 	{
 		UInputAction* Action = NewObject<UInputAction>(this, *FString::Printf(TEXT("IA_Ability%d"), i + 1));
 		Action->ValueType = EInputActionValueType::Boolean;
@@ -697,7 +561,7 @@ void ARTPlayerController::BuildInputMappings()
 	// Una `UInputAction` per azione generica. Stesso schema dei numeri, altro criterio: qui l'indice e' la
 	// riga di `GenericHotkeys()`, non una posizione del kit.
 	GenericActions.Reset();
-	for (int32 i = 0; i < GenericHotkeys().Num(); ++i)
+	for (int32 i = 0; i < RTInputKeys::GenericHotkeys().Num(); ++i)
 	{
 		UInputAction* Action = NewObject<UInputAction>(this, *FString::Printf(TEXT("IA_Generic%d"), i + 1));
 		Action->ValueType = EInputActionValueType::Boolean;
@@ -805,33 +669,33 @@ void ARTPlayerController::BuildInputMappings()
 	// generiche accodate (D-025), quindi con `1`..`4` il giocatore raggiungeva la meta' scarsa di cio' che
 	// possedeva — `Overwatch`, `Guard`, `Brace`, `Wait`, `Interact` e la reazione di tre eroi su quattro
 	// restavano irraggiungibili mentre il bot le usava ([#1409], [#1034]).
-	for (int32 i = 0; i < AbilityHotkeys().Num() && i < AbilityActions.Num(); ++i)
+	for (int32 i = 0; i < RTInputKeys::AbilityHotkeys().Num() && i < AbilityActions.Num(); ++i)
 	{
-		MappingContext->MapKey(AbilityActions[i], AbilityHotkeys()[i]);
+		MappingContext->MapKey(AbilityActions[i], RTInputKeys::AbilityHotkeys()[i]);
 	}
 
 	// Selezione delle GENERICHE per nome: `G`uard, `B`race, Overwatch, Interact, Wait. Il tasto sceglie
 	// un'AZIONE, non una posizione — vedi `GenericHotkeys()` per il perche' la differenza conti.
-	for (int32 i = 0; i < GenericHotkeys().Num() && i < GenericActions.Num(); ++i)
+	for (int32 i = 0; i < RTInputKeys::GenericHotkeys().Num() && i < GenericActions.Num(); ++i)
 	{
-		MappingContext->MapKey(GenericActions[i], GenericHotkeys()[i].Value);
+		MappingContext->MapKey(GenericActions[i], RTInputKeys::GenericHotkeys()[i].Value);
 	}
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
-	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
+	MappingContext->MapKey(UndoAction, RTInputKeys::UndoKeyboardHotkey());
 
 	// `N` — il ciclo di selezione (`#3145`), e `TAB` — la vista strategica (D-488). Le due righe stanno
 	// insieme perche' D-488 vuole il cambio nello stesso commit: separate, `Tab` farebbe due cose o nessuna.
 	// Nessun altro `MapKey` le rivendica, e a verificarlo non e' un elenco scritto a mano ma
 	// `PlayerInput.HotkeysDoNotCollide`, che interroga il `UInputMappingContext` REALE.
-	MappingContext->MapKey(CycleSelectionAction, CycleSelectionHotkey());
-	MappingContext->MapKey(StrategicViewAction, StrategicViewHotkey());
+	MappingContext->MapKey(CycleSelectionAction, RTInputKeys::CycleSelectionHotkey());
+	MappingContext->MapKey(StrategicViewAction, RTInputKeys::StrategicViewHotkey());
 
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
 	// fanno cose diverse vanno su tasti che non si sfiorano.
-	MappingContext->MapKey(DeclarePlanAction, DeclarePlanHotkey());
+	MappingContext->MapKey(DeclarePlanAction, RTInputKeys::DeclarePlanHotkey());
 
 	// `Home` — l'inquadratura di recupero, contestuale (#1837): selezione, poi squadra, poi centro griglia, con
 	// orientamento e zoom di default. La gerarchia sta in `ARTCameraPawn::FrameHome`.
@@ -873,7 +737,7 @@ void ARTPlayerController::BuildInputMappings()
 	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
 	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
 	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
-	MappingContext->MapKey(SneakAction, SneakHotkey());
+	MappingContext->MapKey(SneakAction, RTInputKeys::SneakHotkey());
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//
@@ -4090,11 +3954,11 @@ void ARTPlayerController::OnGeneric5(const FInputActionValue& Value) { SelectGen
 
 void ARTPlayerController::SelectGenericSlot(int32 Slot)
 {
-	if (!GenericHotkeys().IsValidIndex(Slot))
+	if (!RTInputKeys::GenericHotkeys().IsValidIndex(Slot))
 	{
 		return;
 	}
-	SelectAbilityByIdForCurrent(GenericHotkeys()[Slot].Key);
+	SelectAbilityByIdForCurrent(RTInputKeys::GenericHotkeys()[Slot].Key);
 }
 
 void ARTPlayerController::SelectAbilityByIdForCurrent(const FName& ActionId)
