@@ -64,7 +64,7 @@ Due letture che la meccanica non decide:
   * «Branth — Copertura portatile» sta in fondo al Registro, sotto la riga BLAST di T2 (`tav_d_senza_fumetto.jpg`, f043).
   * È ciò che R6 della spec fa con una riga d'attivazione la cui unità non ha una riga d'esito nel turno. La riga «L'ambiente cambia» (la copertura eretta), per R6, non è la riga d'esito di Branth.
   * Ne esce una riga PREP sotto una riga BLAST. R6 è una lettura dell'assistente, ribaltabile, e questa è la domanda di giudizio della voce sull'ordine.
-* ➕ **Decise dall'autore il 2026-11-11** in [`D-603`](../../../decisions/RT_PDR_00_Decision_Log.md): la riga compare nello stesso frame del fumetto, e la riga del gadget va in fondo alla sua fase, prima delle righe della fase dopo. La causa del ritardo, letta poi sul codice e non misurata a parte, è la rilettura del feed a 5 Hz (`URTPlayerEventLogWidget::NativeTick`). Non ancora implementata: [#4052](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4052).
+* ➕ **Decise dall'autore il 2026-11-11** in [`D-603`](../../../decisions/RT_PDR_00_Decision_Log.md): la riga compare nello stesso frame del fumetto, e la riga del gadget va in fondo alla sua fase, prima delle righe della fase dopo. La causa del ritardo, letta poi sul codice e non misurata a parte, è la rilettura del feed a 5 Hz (`URTPlayerEventLogWidget::NativeTick`). Implementata in [#4052](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4052).
 
 ## Che cosa le tavole NON mostrano
 
