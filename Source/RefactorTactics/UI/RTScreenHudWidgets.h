@@ -645,16 +645,27 @@ public:
 	 * Scrive radice, round e righe: una per voce di `GetFeed()`, nell'ordine del feed; le righe che ci sono si riusano.
 	 * Il modo lo decide `URTHudViewModel::EventLogModeFor`: in Risoluzione e in Pianificazione le righe si costruiscono, e in
 	 * Pianificazione il registro e' aperto solo se il feed ne ha. Chiuso, il lavoro sarebbe per niente.
-	 * La chiama `NativeTick`; i test la chiamano a mano.
+	 * La chiama `TickFeed`, da `NativeTick`; i test la chiamano a mano.
 	 *
 	 * 🔴 **Ogni giro rilegge il `TurnLog` e riproietta per gli osservatori di quel momento.** L'unica copia di righe gia'
 	 * proiettate che sopravvive e' `Memory` — le ultime non vuote, per un turno senza eventi visibili — e vale solo per la
 	 * stessa chiave (manager, osservatori, squadra): con un'altra si butta ([D-548] (2) e (4)).
 	 *
-	 * @param bRereadFeed  rileggere il feed. `NativeTick` lo fa a 5 Hz, come gli avvisi del pannello: `GetFeed` copia e
-	 *                     proietta il log del turno. A ogni cambio di modo si rilegge subito.
+	 * @param bRereadFeed  rileggere il feed. `TickFeed` lo fa a 5 Hz, come gli avvisi del pannello: `GetFeed` copia e
+	 *                     proietta il log del turno. A ogni cambio di modo si rilegge subito, e cosi' nel giro in cui nasce
+	 *                     una riga d'attivazione ([D-603] (1), #4052).
 	 */
 	void RefreshLook(bool bRereadFeed = true);
+
+	/**
+	 * Il giro di `NativeTick` senza la geometria: conta il tempo, decide se rileggere il feed e chiama `RefreshLook`.
+	 * Pubblico per i test (#4052): `NativeTick` e' protetta e vuole una geometria.
+	 *
+	 * 🔑 Rilegge a 5 Hz, e SUBITO quando il numero delle righe d'attivazione del manager cambia ([D-603] (1)): la riga che
+	 * `ShowActivation` scrive compare nello stesso frame del fumetto, invece che fino a 0,2 s dopo. Il resto del feed resta
+	 * a 5 Hz. ⚠️ Il conteggio e' di tutte le squadre ed e' solo il segnale: le righe da mostrare le filtra `GetFeed`.
+	 */
+	void TickFeed(float DeltaSeconds);
 
 	/** Le righe costruite, nell'ordine del feed (per i test). */
 	const TArray<TObjectPtr<URTPlayerEventLineWidget>>& GetLineWidgets() const { return LineWidgets; }
@@ -670,6 +681,9 @@ private:
 	TArray<TObjectPtr<URTPlayerEventLineWidget>> LineWidgets;
 
 	float SecondsSinceFeedReread = 1.f; // il primo tick rilegge subito
+
+	/** Le righe d'attivazione del manager all'ultima rilettura di `TickFeed`: quando il numero cambia si rilegge (#4052). */
+	int32 SeenActivationLines = INDEX_NONE;
 	ERTEventLogMode LastMode = ERTEventLogMode::Hidden;
 
 	/**

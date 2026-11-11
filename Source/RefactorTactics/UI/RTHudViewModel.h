@@ -1549,7 +1549,12 @@ public:
 	 * playback, a monte. Il pubblico si sceglie PRIMA dello spazio: un'attivazione altrui non consuma un posto.
 	 *
 	 * L'ordine: un'attivazione sta subito prima della prima riga d'esito della propria unita' (`PrimaryStableUnitId`),
-	 * nell'ordine della lista se sono piu' d'una; senza una riga d'esito della sua unita' va in fondo.
+	 * nell'ordine della lista se sono piu' d'una. Senza una riga d'esito della sua unita' va in fondo alla sua fase, prima
+	 * delle righe della fase dopo ([D-603] (2), #4052): subito dopo l'ultima riga d'esito la cui fase non viene dopo la sua,
+	 * e in cima se non ce n'e' nessuna. ⚠️ «L'ultima» e non «prima della prima riga di una fase dopo»: le righe d'esito non
+	 * sono sempre in ordine di fase, perche' una riga tiene il posto del primo evento della sua unita' e porta la fase della
+	 * voce che la domina (`URTPlayerEventProjector::Project`); e' la lettura (4)(b) di D-603, ribaltabile. Piu' attivazioni
+	 * nello stesso posto restano nell'ordine in cui sono nate.
 	 *
 	 * `Sequence` e' la posizione nella lista unita, con la convenzione di `BuildPlayerEventFeed`: dal numero della prima riga
 	 * d'esito (1 se non ce ne sono). `TurnNumber` di ogni nuova riga e' quello della SUA attivazione
@@ -1563,6 +1568,15 @@ public:
 	 */
 	static TArray<FRTPlayerEventLineView> MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
 		const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines);
+
+	/**
+	 * Quante righe d'attivazione tiene il manager nel turno, di tutte le squadre (#4052, [D-603] (1)). Senza manager, 0.
+	 *
+	 * ⛔ **Non e' un dato da mostrare**: il Registro lo confronta con l'ultimo che ha visto, e quando cambia rilegge il feed
+	 * nel giro stesso invece di aspettare i 5 Hz. Cio' che si vede passa ancora da `BuildPlayerEventFeed`, che filtra per chi
+	 * guarda. La domanda sta qui perche' il widget non include l'header del manager (#2257).
+	 */
+	static int32 CountActivationLines(const ARTTurnManager* TurnManager);
 
 	/**
 	 * Il formato dichiara un limite di round? `RoundLimit == 0` significa «nessun limite dichiarato», e nominarlo
