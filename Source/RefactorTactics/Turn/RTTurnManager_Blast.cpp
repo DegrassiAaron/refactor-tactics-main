@@ -2310,6 +2310,17 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 				Ev.Type = ERTResolvedEventType::ReactionResolved;
 				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
 				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				// #4059 (R4): l'attaccante del colpo DEVIATO, non il bersaglio originale. Il playback mette il fumetto di chi
+				// si interpone subito dopo quel colpo, che ora arriva su di lui. ⚠️ Un indice in `Units`: convertito come
+				// `TargetStableUnitId` qui sopra.
+				{
+					const int32 Attaccante = Plan.Hits[HitIdx].AttackerId;
+					Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Attaccante) && Units[Attaccante]
+						? Units[Attaccante]->StableUnitId : 0;
+				}
+				// #4059 (R3): chi puo' vedere che si e' interposto, congelato come la voce di TurnLog qui sotto
+				// (`AppendLogEntry(Entry, Unit)`).
+				Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
 				// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
 				// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Branth.Interposition`
 				// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
@@ -3222,7 +3233,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	if (bPrimoGiro)
 	{
 	RunReactionPass(ERTReactionPassPoint::BlastDisplacement,
-		[&Units, &KnockCount, &PullCount](int32 SelfId, ERTReactionTrigger)
+		[&Units, &KnockCount, &PullCount, &Ctx](int32 SelfId, ERTReactionTrigger)
 		{
 			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
 			const int32* Pushes = Self ? KnockCount.Find(Self) : nullptr;
@@ -3242,8 +3253,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// difensivi non ne hanno bisogno — `BuildReactionEvents` scarta gli offensivi.
 			// ⏱️ *Fino a `#3667` questa riga diceva che di uno spostamento si conosce solo la cella di
 			// provenienza. Da allora `Ctx.KnockAttackerId` tiene chi spinge, per la finestra del `Brace`: qui non
-			// lo si legge, perche' vale dove `KnockCount` e' uno e questo ramo gira anche con due.*
-			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
+			// lo si legge per gli effetti, perche' vale dove `KnockCount` e' uno e questo ramo gira anche con due.*
+			// #4059 (R4): lo legge il FUMETTO, e solo dove la spinta e' una — l'attaccante dopo il cui colpo l'Ancoraggio
+			// si accende. Una trazione non lo registra, e resta `INDEX_NONE`.
+			const int32* ChiSpinge = (Self && Pushes && *Pushes == 1) ? Ctx.KnockAttackerId.Find(Self) : nullptr;
+			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE, ChiSpinge ? *ChiSpinge : INDEX_NONE };
 		},
 		Units, States, Map, DisplacementReactions);
 	}

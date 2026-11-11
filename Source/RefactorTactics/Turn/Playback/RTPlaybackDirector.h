@@ -201,6 +201,14 @@ private:
 	void AddActivationLine(const FRTResolvedEvent& Ev, const ARTUnit* Src);
 
 	/**
+	 * Il momento di una REAZIONE che scatta (#4059, [D-604], [D-605], spec «fumetto per azioni e reazioni» R8): la riga
+	 * `Reagisce:` del feed, la riga d'attivazione del Registro (`AddActivationLine`, stessa chiave) e il fumetto, se
+	 * l'azione grida (`URTHudViewModel::ActionShouts`: nessuna reazione del catalogo e' muta). ⛔ Come `ShowActivation`, non decide se mostrarla: il
+	 * verdetto lo ha letto chi l'ha messa in coda (`BuildBlastSequence` per il Blast).
+	 */
+	void ShowReaction(const FRTResolvedEvent& Ev);
+
+	/**
 	 * Porta ai fumetti di skill accesi il tempo del playback (`SkillCalloutClock`) e toglie dalla lista le unita'
 	 * che non esistono piu' (#4025, spec del fumetto R4/A8). ⚠️ **Non e' l'unico punto in cui il fumetto riceve
 	 * l'orologio**: alla comparsa lo riceve `ShowActivation`, e questo lo ripete a ogni tick in cui il tempo avanza.

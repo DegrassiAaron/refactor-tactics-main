@@ -2292,4 +2292,154 @@ bool FRTPlaybackHealedJoinsItsActTest::RunTest(const FString&)
 	return true;
 }
 
+// --- Le reazioni del Blast (#4059, R3 e R4 della spec del fumetto per azioni e reazioni) -----------------------------
+
+namespace
+{
+	/** Una reazione del Blast: chi reagisce, l'azione, chi l'ha innescata. Nome distinto per l'unity build. */
+	FRTResolvedEvent SeqReazione(int32 Reattore, const TCHAR* Azione, int32 ChiHaInnescato, bool bNascosta = false)
+	{
+		FRTResolvedEvent Ev = SeqEvento(ERTResolvedEventType::ReactionResolved, Reattore, Azione, bNascosta);
+		Ev.TargetStableUnitId = ChiHaInnescato;
+		Ev.TriggerAttackerStableUnitId = ChiHaInnescato;
+		return Ev;
+	}
+
+	/** Un colpo del Blast di `Sorgente` su `Bersaglio`. */
+	FRTResolvedEvent SeqColpo(int32 Sorgente, const TCHAR* Azione, int32 Bersaglio)
+	{
+		FRTResolvedEvent Ev = SeqEvento(ERTResolvedEventType::Attack, Sorgente, Azione);
+		Ev.TargetStableUnitId = Bersaglio;
+		return Ev;
+	}
+
+	/** Gli elementi della sequenza attaccati a un colpo, per indice di timeline. */
+	TArray<int32> SeqAttaccati(const TArray<FRTBlastSequenceElement>& S)
+	{
+		TArray<int32> Out;
+		for (const FRTBlastSequenceElement& E : S)
+		{
+			if (E.bAttachedToHit) { Out.Add(E.TimelineIndex); }
+		}
+		return Out;
+	}
+}
+
+/**
+ * Una reazione del Blast esce subito dopo il colpo di CHI L'HA INNESCATA sul reattore — R4, [D-605] (1).
+ *
+ * 🔑 Due attaccanti colpiscono il reattore 3: prima l'1 (atto A), poi il 2 (atto B), che lo colpisce due volte. La reazione
+ * nomina il 2. Nella timeline sta in TESTA, come in un turno vero: il passo delle reazioni gira sui colpi raccolti, prima
+ * che i colpi si emettano. 🔴 Ancorata al primo colpo sul reattore uscirebbe dopo quello dell'1 (`{1, 3, 0, 2, 4, 5}`): e'
+ * la mutazione che il campo `TriggerAttackerStableUnitId` esiste per escludere. ⛔ E dopo il PRIMO colpo del 2, non
+ * dopo l'ultimo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceReactionFollowsItsTriggerTest,
+	"RefactorTactics.Playback.BlastSequenceReactionFollowsTheHitOfItsTrigger",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceReactionFollowsItsTriggerTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqReazione(3, TEXT("Action.Counter"), /*innescata da*/ 2));      // 0  R3
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A"))); // 1  A1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B"))); // 2  A2
+	T.Add(SeqColpo(1, TEXT("A"), /*su*/ 3));                                // 3  H1 sul reattore
+	T.Add(SeqColpo(2, TEXT("B"), /*su*/ 3));                                // 4  H2 sul reattore, il primo
+	T.Add(SeqColpo(2, TEXT("B"), /*su*/ 3));                                // 5  H2 sul reattore, il secondo
+
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0);
+	TestEqual(TEXT("🔴 A1 H1 | A2 H2 R3 H2: la reazione segue il primo colpo di chi l'ha innescata"),
+		SeqIndici(S), TArray<int32>({ 1, 3, 2, 4, 0, 5 }));
+	TestEqual(TEXT("e solo lei e' attaccata a un colpo"), SeqAttaccati(S), TArray<int32>({ 0 }));
+	return true;
+}
+
+/**
+ * Senza chi l'ha innescata l'ancora e' il primo colpo sul reattore; senza nessun colpo, la reazione e' un atto a se' — R4.
+ *
+ * 🔑 Due reazioni con l'attaccante `0` ([D-063]: nessuno), come la Purificazione. La prima (reattore 3) ha due colpi sul
+ * reattore e si attacca al primo in ordine di TIMELINE (indice 2, dell'attaccante 2), anche se il suo atto viene dopo
+ * quello dell'1. La seconda (reattore 5) non ha colpi: resta un atto suo, ordinato alla sua prima apparizione, e non e'
+ * attaccata a niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceReactionWithoutTriggerTest,
+	"RefactorTactics.Playback.BlastSequenceReactionWithoutTriggerAnchorsToTheFirstHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceReactionWithoutTriggerTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A"))); // 0  A1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B"))); // 1  A2
+	T.Add(SeqColpo(2, TEXT("B"), /*su*/ 3));                                // 2  H2 sul reattore 3: il primo in timeline
+	T.Add(SeqColpo(1, TEXT("A"), /*su*/ 3));                                // 3  H1 sul reattore 3
+	T.Add(SeqReazione(3, TEXT("Reaction.Cleanse"), /*nessuno*/ 0));         // 4  R3
+	T.Add(SeqReazione(5, TEXT("Reaction.Cleanse"), /*nessuno*/ 0));         // 5  R5, nessun colpo su di lui
+	T.Add(SeqColpo(1, TEXT("A"), /*su*/ 9));                                // 6  H1 su un altro
+
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0);
+	TestEqual(TEXT("🔴 A1 H1 H1 | A2 H2 R3 | R5: ancora al primo colpo in timeline, poi l'atto a se'"),
+		SeqIndici(S), TArray<int32>({ 0, 3, 6, 1, 2, 4, 5 }));
+	TestEqual(TEXT("⛔ e' attaccata solo la prima: quella senza colpi no"), SeqAttaccati(S), TArray<int32>({ 4 }));
+	return true;
+}
+
+/**
+ * Una reazione che chi guarda non ha il diritto di vedere non entra nella sequenza — R3.
+ *
+ * 🔑 Stessa timeline, due viewer: la reazione la vede solo la squadra 1. Per la squadra 0 la sequenza e' quella senza la
+ * reazione, senza un buco al suo posto, come per un'attivazione nascosta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceHiddenReactionTest,
+	"RefactorTactics.Playback.BlastSequenceLeavesOutAHiddenReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceHiddenReactionTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqReazione(3, TEXT("Action.Counter"), /*innescata da*/ 1, /*bNascosta*/ true)); // 0
+	T[0].SourceVerdict.AllowTeam(1); // la reazione la vede solo la squadra 1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));                // 1
+	T.Add(SeqColpo(1, TEXT("A"), /*su*/ 3));                                               // 2
+
+	TestEqual(TEXT("✅ la squadra 1 la vede, dopo il colpo"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 1)), TArray<int32>({ 1, 2, 0 }));
+	TestEqual(TEXT("🔴 la squadra 0 no, e non resta un buco"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0)), TArray<int32>({ 1, 2 }));
+	return true;
+}
+
+/**
+ * Una reazione ancorata a un colpo GIA' MOSTRATO esce fra i primi elementi dopo il prefisso — R4, D-355.
+ *
+ * 🔑 La finestra di reazione: il playback ha mostrato l'atto A per intero (prefisso congelato di 2), poi la ripresa accoda
+ * alla timeline l'atto B e la reazione del reattore 3 al colpo di A (il Brace con la finestra, R5). Il prefisso resta
+ * verbatim, e la reazione esce per prima dopo di lui, prima dell'atto B. ✅ E la sequenza nuova e' idempotente per ogni
+ * prefisso (Ruling H): `Build(T2, S2, k) == S2`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceReactionAfterFrozenHitTest,
+	"RefactorTactics.Playback.BlastSequenceReactionAfterAFrozenHitLeadsTheResume",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceReactionAfterFrozenHitTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T1;
+	T1.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A"))); // 0
+	T1.Add(SeqColpo(1, TEXT("A"), /*su*/ 3));                                // 1
+	const TArray<FRTBlastSequenceElement> S1 = URTPlaybackLibrary::BuildBlastSequence(T1, {}, 0, 0);
+	if (!TestEqual(TEXT("⛔ premessa: S1 = A H"), SeqIndici(S1), TArray<int32>({ 0, 1 }))) { return false; }
+
+	TArray<FRTResolvedEvent> T2 = T1;
+	T2.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B"))); // 2
+	T2.Add(SeqColpo(2, TEXT("B"), /*su*/ 4));                                // 3
+	T2.Add(SeqReazione(3, TEXT("Action.Brace"), /*innescata da*/ 1));       // 4: nata alla ripresa
+
+	const TArray<FRTBlastSequenceElement> S2 = URTPlaybackLibrary::BuildBlastSequence(T2, S1, /*Mostrati*/ 2, 0);
+	TestEqual(TEXT("🔴 il prefisso verbatim, poi la reazione, poi l'atto B"), SeqIndici(S2), TArray<int32>({ 0, 1, 4, 2, 3 }));
+	TestEqual(TEXT("e la reazione e' attaccata al colpo del prefisso"), SeqAttaccati(S2), TArray<int32>({ 4 }));
+	for (int32 k = 0; k <= S2.Num(); ++k)
+	{
+		TestTrue(*FString::Printf(TEXT("🔴 Build(T2, S2, %d) == S2"), k),
+			URTPlaybackLibrary::BuildBlastSequence(T2, S2, k, 0) == S2);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

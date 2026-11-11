@@ -1010,6 +1010,20 @@ bool FRTAnchorCancelsPushTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("il TurnLog registra l'ancora come ATTIVATA, non come non scattata"), bAttivata);
 
+	// #4059 (R4): l'evento di PRESENTAZIONE della reazione nomina chi spinge, anche se gli effetti non nominano nessuno
+	// (`TriggeredBy` resta `INDEX_NONE` per l'Ancoraggio): e' il colpo dopo il quale si accende il fumetto.
+	{
+		const FRTResolvedEvent* Evento = TM->ResolvedTimelineForTest().FindByPredicate([Victim](const FRTResolvedEvent& Ev)
+		{
+			return Ev.Type == ERTResolvedEventType::ReactionResolved && Ev.SourceStableUnitId == Victim->StableUnitId;
+		});
+		if (TestNotNull(TEXT("l'ancora ha il suo evento di reazione risolta"), Evento))
+		{
+			TestEqual(TEXT("🔴 (#4059, R4) e l'evento nomina chi spinge"),
+				Evento->TriggerAttackerStableUnitId, Pusher->StableUnitId);
+		}
+	}
+
 	DestroyCauseWorld(World);
 
 	// --- E non si spende per una spinta che la geometria ferma da sola ------------------------------

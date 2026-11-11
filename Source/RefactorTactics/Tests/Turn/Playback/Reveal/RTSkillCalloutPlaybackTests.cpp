@@ -8,10 +8,11 @@
 // quel file per il perche' di `InitializeActorsForPlay` e di `MakePlayerOnTeam`), copiata con nomi locali
 // DIVERSI perche' in unity build i namespace anonimi di due file condividono la translation unit.
 // ⛔ Lo Scudo (Muiren) pianifica `Hero.Muiren.TideGuard` in Prep: una skill di firma, `BaseActionId` vuoto. Il
-// Tiratore (Branth) pianifica l'indice 0, `Hero.Branth.ImpactShot`: una variante dell'attacco base. Il primo grida,
-// il secondo no, e il test di controllo e' la stessa scena: stesso turno, stesso playback, due esiti.
-// ⚠️ Due scene in piu', ciascuna col suo montaggio: la finestra di reazione (l'orologio del fumetto sopravvive alla
-// ripresa, R4/R7) e il loadout di Branth (l'equipaggiamento non grida, A7/R1b).
+// Tiratore (Branth) pianifica l'indice 0, `Hero.Branth.ImpactShot`: una variante dell'attacco base. Con [D-604] gridano
+// entrambi; fino a #4059 gridava solo il primo.
+// ⚠️ Altre scene, ciascuna col suo montaggio: la finestra di reazione (l'orologio del fumetto sopravvive alla ripresa,
+// R4/R7), il loadout di Branth (l'equipaggiamento grida), l'interazione (l'azione del Blast che non grida) e le reazioni
+// del Blast (#4059: il fumetto all'arrivo del colpo, e niente per chi guarda senza vedere chi reagisce).
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
@@ -32,6 +33,9 @@
 #include "Tests/Shared/RTReactionWindowFixtures.h"  // #3666: la finestra si presenta al trattenimento del playback
 #include "UI/HUD/RTHudViewModel.h"               // SkillCalloutAlpha: l'opacita' che il widget ricaverebbe dall'orologio
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Map/RTHexCellData.h"            // #4059: la porta chiusa dell'interazione
+#include "Map/Cover/RTHexCoverLibrary.h"  // #4059: la premessa che la porta si e' aperta
+#include "UI/Feed/RTActivationLine.h"     // #4059: le righe del Registro delle reazioni
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -104,8 +108,8 @@ namespace
 
 		Out.TM->RefreshTeamKnowledgeNow(); // la precondizione della Prep (spec §2.5)
 
-		// ⛔ Premesse sul GATE, non sul playback: il test positivo e il suo controllo valgono solo se le due azioni
-		// stanno davvero dalle due parti di `ActionShouts` (base vuota e non core / con base).
+		// ⛔ Premesse sulle FAMIGLIE, non sul playback: la scena vale solo se le due azioni sono davvero una skill di firma
+		// (base vuota) e una variante dell'attacco base (con base), quella che fino a #4059 non gridava.
 		const URTActionData* AbilityScudo = Out.Scudo->GetAbility(Out.Scudo->PlannedAbilityIndex);
 		const URTActionData* AbilityTiratore = Out.Tiratore->GetAbility(0);
 		if (!Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"),
@@ -134,13 +138,15 @@ namespace
 }
 
 /**
- * Chi grida: la skill di firma si, l'attacco base no — R1b.
+ * Chi grida: la skill di firma e l'attacco base, tutti e due — [D-604] (4), R1 della spec di #4059.
  *
- * ⛔ Controllo positivo nella stessa scena: il Tiratore ATTIVA davvero (la sua cue Cast e' suonata), quindi la sua
- * assenza di fumetto e' il gate di `ActionShouts` e non un'attivazione che non e' mai arrivata a `ShowActivation`.
+ * 🔑 Il Tiratore pianifica `Hero.Branth.ImpactShot`, una variante dell'attacco base: fino a #4059 restava muto, e ora il
+ * suo fumetto porta la SUA azione, attribuita a lui. ⛔ La sua cue Cast e' suonata una volta: il fumetto e' quello della
+ * sua attivazione.
+ * ⏱️ *Fino a #4059 questo test si chiamava `SignatureSkillShoutsAndBaseAttackDoesNot` e asseriva che il Tiratore tacesse.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackSignatureShoutsTest,
-	"RefactorTactics.Playback.SkillCallout.SignatureSkillShoutsAndBaseAttackDoesNot",
+	"RefactorTactics.Playback.SkillCallout.SignatureSkillAndBaseAttackBothShout",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSkillCalloutPlaybackSignatureShoutsTest::RunTest(const FString&)
 {
@@ -155,10 +161,12 @@ bool FRTSkillCalloutPlaybackSignatureShoutsTest::RunTest(const FString&)
 	TestEqual(TEXT("🔴 lo Scudo ha gridato TideGuard"), B.Scudo->LastSkillCalloutForTest().ActionId, AzioneFirmaFumetto);
 	TestEqual(TEXT("e il fumetto e' attribuito allo Scudo"),
 		B.Scudo->LastSkillCalloutForTest().SourceStableUnitId, B.Scudo->StableUnitId);
-	TestTrue(TEXT("⛔ controllo positivo: il Tiratore ha attivato (la cue Cast e' suonata)"),
+	TestTrue(TEXT("⛔ il Tiratore ha attivato una volta (la cue Cast e' suonata)"),
 		B.Tiratore->CastCuesPlayedForTest() == 1);
-	TestTrue(TEXT("🔴 ma ImpactShot ha una base, quindi non grida"),
-		B.Tiratore->LastSkillCalloutForTest().ActionId.IsNone());
+	TestEqual(TEXT("🔴 e ImpactShot, con la sua base, grida anche lui"),
+		B.Tiratore->LastSkillCalloutForTest().ActionId, FName(TEXT("Hero.Branth.ImpactShot")));
+	TestEqual(TEXT("e il fumetto e' attribuito al Tiratore"),
+		B.Tiratore->LastSkillCalloutForTest().SourceStableUnitId, B.Tiratore->StableUnitId);
 	return true;
 }
 
@@ -216,7 +224,7 @@ bool FRTSkillCalloutPlaybackLiveThenClearedTest::RunTest(const FString&)
  *
  * 🔑 Nessun secondo giudizio di visibilita' nel fumetto: il filtro `SourceVerdict` di `BeginPlayback` non fa
  * arrivare l'attivazione a `ShowActivation`, e senza `ShowActivation` non esiste ne' registro ne' vita.
- * ✅ Il controllo positivo e' `SignatureSkillShoutsAndBaseAttackDoesNot`: stessa scena, viewer della squadra 0.
+ * ✅ Il controllo positivo e' `SignatureSkillAndBaseAttackBothShout`: stessa scena, viewer della squadra 0.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackHiddenSourceTest,
 	"RefactorTactics.Playback.SkillCallout.HiddenSourceDoesNotShout",
@@ -233,6 +241,8 @@ bool FRTSkillCalloutPlaybackHiddenSourceTest::RunTest(const FString&)
 
 	TestTrue(TEXT("⛔ sorgente non osservata: nessun fumetto registrato"),
 		B.Scudo->LastSkillCalloutForTest().ActionId.IsNone());
+	TestTrue(TEXT("⛔ e nemmeno per il Tiratore, che con [D-604] griderebbe"),
+		B.Tiratore->LastSkillCalloutForTest().ActionId.IsNone());
 	TestFalse(TEXT("e nessuna vita"), B.Scudo->IsSkillCalloutLive());
 	TestEqual(TEXT("e nessuna unita' accesa nel manager"), B.TM->SkillCalloutUnitsForTest(), 0);
 	return true;
@@ -497,19 +507,20 @@ bool FRTSkillCalloutPlaybackClockSurvivesTheWindowTest::RunTest(const FString&)
 }
 
 /**
- * L'azione di un pezzo d'equipaggiamento non grida — A7, R1b (final review di #4025, IMPORTANT 1).
+ * L'azione di un pezzo d'equipaggiamento grida — [D-604] (1), R1 della spec di #4059.
  *
- * 🔴 **Il difetto**: `MakeEquipmentAction` scrive `ActionId = EquipmentId` e copia dal core un `BaseActionId` vuoto,
- * e `FindCoreAction` non conosce `Gadget.PortableCover`: per base e catalogo core il gadget era una skill di firma, e
- * con il loadout di DEFAULT (`EquipLoadout(DefaultLoadoutFor(...))`, come `RTMatchBootstrapper`) Branth gridava
- * «COPERTURA PORTATILE». Le tre premesse sotto misurano che il gate di prima l'avrebbe fatto gridare.
- * ⛔ Controllo positivo nella stessa scena: la cue Cast di Branth e' suonata, quindi l'attivazione e' arrivata a
- * `ShowActivation` e l'assenza di fumetto e' il gate, non un'attivazione persa.
+ * 🔑 **E' il caso che la regola vecchia escludeva con una seconda domanda**: `MakeEquipmentAction` scrive
+ * `ActionId = EquipmentId` e copia dal core un `BaseActionId` vuoto, e `FindCoreAction` non conosce `Gadget.PortableCover`.
+ * Le tre premesse sotto lo misurano. Con [D-604] la domanda non serve piu': col loadout di DEFAULT
+ * (`EquipLoadout(DefaultLoadoutFor(...))`, come `RTMatchBootstrapper`) Branth grida il suo gadget.
+ * ⛔ Nella stessa scena la cue Cast di Branth e' suonata una volta: il fumetto e' quello del gadget.
+ * ⏱️ *Fino a #4059 questo test si chiamava `EquipmentActionDoesNotShout` e asseriva il contrario (A7 della spec del
+ * fumetto, final review di #4025).*
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackEquipmentIsSilentTest,
-	"RefactorTactics.Playback.SkillCallout.EquipmentActionDoesNotShout",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackEquipmentShoutsTest,
+	"RefactorTactics.Playback.SkillCallout.EquipmentActionShouts",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillCalloutPlaybackEquipmentIsSilentTest::RunTest(const FString&)
+bool FRTSkillCalloutPlaybackEquipmentShoutsTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -540,7 +551,7 @@ bool FRTSkillCalloutPlaybackEquipmentIsSilentTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	// ⛔ Le premesse del DIFETTO: con base e catalogo core soltanto, questa azione griderebbe.
+	// ⛔ Le premesse del caso: base vuota, fuori dal catalogo core, dentro quello d'equipaggiamento.
 	if (!TestTrue(TEXT("⛔ premessa: l'azione del gadget non ha una base"),
 			Branth->GetAbility(Indice)->Def.BaseActionId.IsNone())
 		|| !TestTrue(TEXT("⛔ premessa: e il catalogo core non la conosce"),
@@ -567,7 +578,407 @@ bool FRTSkillCalloutPlaybackEquipmentIsSilentTest::RunTest(const FString&)
 
 	TestEqual(TEXT("⛔ controllo positivo: Branth ha attivato il gadget (la cue Cast e' suonata)"),
 		Branth->CastCuesPlayedForTest(), 1);
-	TestTrue(TEXT("🔴 ma l'azione d'equipaggiamento non grida"), Branth->LastSkillCalloutForTest().ActionId.IsNone());
+	TestEqual(TEXT("🔴 e l'azione d'equipaggiamento grida, col suo id"), Branth->LastSkillCalloutForTest().ActionId, Gadget);
+	TestEqual(TEXT("e il fumetto e' attribuito a Branth"),
+		Branth->LastSkillCalloutForTest().SourceStableUnitId, Branth->StableUnitId);
+	return true;
+}
+
+namespace
+{
+	/** Le righe d'attivazione del Registro di un'unita' per un'azione. Nome distinto per l'unity build. */
+	int32 FumettoRigheDi(const ARTTurnManager* TM, const ARTUnit* U, const FName& Azione)
+	{
+		int32 N = 0;
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.SourceStableUnitId == U->StableUnitId && Riga.ActionId == Azione) { ++N; }
+		}
+		return N;
+	}
+
+	/** Un Ivrin senza difese fisse e fermo: la forma di `SpawnDefUnit` in `Tests/Turn/Reaction/RTDefensiveReactionTests.cpp`. */
+	ARTUnit* SpawnReattoreFumetto(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	{
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		U->Defense = 0;
+		U->RearBonus = 0;
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		U->Shield = 0;
+		return U;
+	}
+
+	/** Cio' che il playback ha mostrato di una reazione del Blast, tick per tick (#4059, R4). */
+	struct FRTFumettoAlColpo
+	{
+		TArray<int32> Sequenza;            // i `TimelineIndex` della sequenza del Blast, letti appena contiene il colpo
+		bool bArrivoVisto = false;         // la traccia dei battiti ha registrato l'arrivo del colpo d'ancora
+		bool bVistoVivo = false;           // il fumetto di chi reagisce e' stato vivo
+		bool bVivoPrimaDellArrivo = false; // ...in un tick in cui il colpo non era ancora arrivato
+	};
+
+	/**
+	 * Corre il playback fino alla fine guardando, a ogni tick, il fumetto di `Reattore` e l'arrivo del colpo `IdxColpo`.
+	 * 🔑 L'arrivo si legge dalla traccia dei battiti (`bRecordAttackBeatsForTest`: `A<ordinale>`), e l'ordinale e' quello di
+	 * `BlastAttackOrdinal`, cioe' i colpi che lo precedono nella sequenza. La sequenza la costruisce il playback, quindi la
+	 * si legge al primo tick in cui contiene il colpo.
+	 */
+	FRTFumettoAlColpo CorriGuardandoIlFumettoAlColpo(ARTTurnManager* TM, const ARTUnit* Reattore, int32 IdxColpo)
+	{
+		FRTFumettoAlColpo Out;
+		FString Arrivo;
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+			if (Arrivo.IsEmpty())
+			{
+				const TArray<int32> Sequenza = TM->PlaybackBlastSequenceIndicesForTest();
+				const int32 Pos = Sequenza.IndexOfByKey(IdxColpo);
+				if (Pos != INDEX_NONE)
+				{
+					Out.Sequenza = Sequenza;
+					const TArray<FRTResolvedEvent>& T = TM->ResolvedTimelineForTest();
+					int32 Ordinale = 0;
+					for (int32 K = 0; K < Pos; ++K)
+					{
+						if (T.IsValidIndex(Sequenza[K]) && T[Sequenza[K]].Type == ERTResolvedEventType::Attack) { ++Ordinale; }
+					}
+					Arrivo = FString::Printf(TEXT("A%d"), Ordinale);
+				}
+			}
+			const bool bArrivato = !Arrivo.IsEmpty() && TM->AttackBeatTraceForTest().Contains(Arrivo);
+			Out.bArrivoVisto |= bArrivato;
+			if (Reattore->IsSkillCalloutLive())
+			{
+				Out.bVistoVivo = true;
+				Out.bVivoPrimaDellArrivo |= !bArrivato;
+			}
+		}
+		return Out;
+	}
+
+	/** L'indice nella timeline del primo evento di quel tipo con quella sorgente (e quel bersaglio, se non `0`). */
+	int32 FumettoIndiceDi(const ARTTurnManager* TM, ERTResolvedEventType Type, int32 Sorgente, int32 Bersaglio = 0)
+	{
+		return TM->ResolvedTimelineForTest().IndexOfByPredicate([Type, Sorgente, Bersaglio](const FRTResolvedEvent& E)
+		{
+			return E.Type == Type && E.Phase == ERTMatchPhase::Blast && E.SourceStableUnitId == Sorgente
+				&& (Bersaglio == 0 || E.TargetStableUnitId == Bersaglio);
+		});
+	}
+}
+
+/**
+ * L'interazione non grida, e ha la sua riga — [D-604] (1), R1 della spec di #4059.
+ *
+ * 🔑 E' l'unica azione muta che arriva al playback come attivazione: `Action.Interact` risolve nel Blast
+ * (`ERTResolutionPhase::Attack`), mentre `Move`, `Sprint` e `Withdraw` risolvono nel Move, ed `EmitAttackIntentActivation`
+ * salta quella fase. La scena e' quella di `Structures.Door.InteractFromKitOpensDoor`: una porta chiusa sul bordo E di (0,0).
+ * ⛔ Due controlli nella stessa scena: la cue Cast e' suonata e la riga d'attivazione c'e', quindi l'attivazione e' arrivata
+ * a `ShowActivation` e l'assenza di fumetto e' `ActionShouts`, non un'attivazione persa. E' anche il contrasto che
+ * `Playback.ActivationLine.EveryActionKindHasALine` non ha piu': la riga non dipende dal fumetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackInteractIsSilentTest,
+	"RefactorTactics.Playback.SkillCallout.InteractDoesNotShout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = M;
+
+	// Porta CHIUSA sul bordo E di (0,0): la portata di `Interact` e' 1 ([D-149]), e (1,0) e' la cella oltre la porta.
+	const FRTCellId Cardine(0, 0);
+	const FRTCellId Oltre(1, 0);
+	const FRTHexCellData* Dati = M->FindCell(Cardine);
+	if (!TestNotNull(TEXT("⛔ premessa: la cella della porta esiste"), Dati)) { return false; }
+	FRTHexCellData ConPorta = *Dati;
+	ConPorta.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	M->AddOrUpdateCell(ConPorta);
+	M->SortCells();
+	if (!TestTrue(TEXT("⛔ premessa: all'inizio la porta blocca il passaggio"),
+			URTHexCoverLibrary::BlocksTraversal(M, Cardine, Oltre)))
+	{
+		return false;
+	}
+
+	// Il viewer e' il ripiego a 0 (mondo non inizializzato), la squadra di chi apre.
+	ARTUnit* Apre = SpawnUnitaFumetto(World, 0, URTHeroCatalogLibrary::MakeAevik(), Cardine);
+	ARTUnit* Nemico = SpawnUnitaFumetto(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Apre || !Nemico) { return false; }
+
+	const FName Interact(TEXT("Action.Interact"));
+	int32 Indice = INDEX_NONE;
+	for (int32 i = 0; i < Apre->NumAbilities(); ++i)
+	{
+		if (Apre->GetAbility(i) && Apre->GetAbility(i)->Def.ActionId == Interact) { Indice = i; }
+	}
+	if (!TestTrue(TEXT("⛔ premessa: Aevik porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
+	Apre->PlannedAbilityIndex = Indice;
+	Apre->PlannedAttackTarget = nullptr;
+	Apre->PlannedAttackCell = Oltre;
+	Apre->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno
+	Apre->PlannedCell = Apre->Cell;
+	Nemico->PlannedCell = Nemico->Cell;
+
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+	CorriFinoAllaFineDelFumetto(TM);
+
+	if (!TestFalse(TEXT("⛔ premessa: la porta si e' aperta, quindi l'interazione e' avvenuta"),
+			URTHexCoverLibrary::BlocksTraversal(M, Cardine, Oltre)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("⛔ controllo: l'interazione si e' attivata nel playback (la cue Cast e' suonata)"),
+		Apre->CastCuesPlayedForTest(), 1);
+	TestEqual(TEXT("⛔ controllo: e ha la sua riga d'attivazione"), FumettoRigheDi(TM, Apre, Interact), 1);
+	TestTrue(TEXT("🔴 ma l'interazione non grida"), Apre->LastSkillCalloutForTest().ActionId.IsNone());
+	return true;
+}
+
+/**
+ * Una reazione del Blast grida all'arrivo del colpo che l'ha innescata — R4 della spec di #4059, [D-605] (1).
+ *
+ * 🔑 La scena di `Reactions.Counter.DealsDamageToAttacker`: il Reattore (squadra 0, quella di chi guarda) arma
+ * `Action.Counter`, e l'Attaccante (squadra 1) gli spara col suo attacco base. Nella timeline il `ReactionResolved` nasce
+ * PRIMA del colpo, perche' il passo delle reazioni gira sui colpi raccolti; nella sequenza del Blast sta subito DOPO.
+ * 🔴 A ogni tick: il fumetto del Reattore non e' mai vivo prima che la traccia registri l'arrivo del colpo, e si accende.
+ * ⛔ Le premesse misurano i due campi che fino a #4059 l'evento non portava: chi ha innescato (R4) e il verdetto (R3). Il
+ * caso in cui chi ha innescato non e' il bersaglio dell'evento e' `InterposeShoutsWhenTheRedirectedHitArrives`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackReactionAtTheHitTest,
+	"RefactorTactics.Playback.SkillCallout.ReactionShoutsWhenTheHitArrives",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackReactionAtTheHitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = M;
+
+	// Il viewer e' il ripiego a 0 (mondo non inizializzato): la squadra del Reattore.
+	ARTUnit* Reattore = SpawnReattoreFumetto(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attaccante = SpawnReattoreFumetto(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Reattore || !Attaccante) { return false; }
+
+	const FName Counter(TEXT("Action.Counter"));
+	Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
+	Reattore->PlannedAbilityIndex = INDEX_NONE;
+	Attaccante->PlannedAbilityIndex = 0; // l'attacco base, colpo singolo
+	Attaccante->PlannedAttackTarget = Reattore;
+	TM->bRecordAttackBeatsForTest = true;
+
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+
+	const int32 IdxReazione = FumettoIndiceDi(TM, ERTResolvedEventType::ReactionResolved, Reattore->StableUnitId);
+	const int32 IdxColpo = FumettoIndiceDi(TM, ERTResolvedEventType::Attack, Attaccante->StableUnitId, Reattore->StableUnitId);
+	if (!TestTrue(TEXT("⛔ premessa: il Contrattacco e' scattato (c'e' il suo ReactionResolved)"), IdxReazione != INDEX_NONE)
+		|| !TestTrue(TEXT("⛔ premessa: e c'e' il colpo dell'Attaccante sul Reattore"), IdxColpo != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTResolvedEvent Reazione = TM->ResolvedTimelineForTest()[IdxReazione];
+	TestEqual(TEXT("🔴 (R4) l'evento nomina chi ha innescato"), Reazione.TriggerAttackerStableUnitId, Attaccante->StableUnitId);
+	TestTrue(TEXT("🔴 (R3) e porta un verdetto che lascia vedere la reazione alla squadra del Reattore"),
+		Reazione.SourceVerdict.AllowsTeam(0));
+	AddInfo(FString::Printf(TEXT("timeline: reazione %d, colpo %d"), IdxReazione, IdxColpo));
+
+	const FRTFumettoAlColpo Visto = CorriGuardandoIlFumettoAlColpo(TM, Reattore, IdxColpo);
+	const int32 PosColpo = Visto.Sequenza.IndexOfByKey(IdxColpo);
+	if (!TestTrue(TEXT("⛔ premessa: la sequenza del Blast contiene il colpo, e il suo arrivo e' stato visto"),
+			PosColpo != INDEX_NONE && Visto.bArrivoVisto))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 (R4) nella sequenza la reazione segue SUBITO il colpo che l'ha innescata"),
+		Visto.Sequenza.IndexOfByKey(IdxReazione), PosColpo + 1);
+	TestTrue(TEXT("⛔ premessa: il fumetto del Reattore si e' acceso durante il playback"), Visto.bVistoVivo);
+	TestFalse(TEXT("🔴 e mai prima che il colpo arrivasse"), Visto.bVivoPrimaDellArrivo);
+	TestEqual(TEXT("🔴 il fumetto e' quello del Contrattacco"), Reattore->LastSkillCalloutForTest().ActionId, Counter);
+	TestEqual(TEXT("e il Reattore ha la sua riga d'attivazione, una"), FumettoRigheDi(TM, Reattore, Counter), 1);
+	return true;
+}
+
+/**
+ * Un'interposizione grida all'arrivo del colpo deviato, e chi ha innescato NON e' il bersaglio dell'evento — R4.
+ *
+ * 🔑 La scena di `Reactions.Intercept`: il Salvatore (squadra 0) si mette davanti all'Alleato e prende il colpo
+ * dell'Attaccante. L'evento nasce in `ResolveInterceptions`, non nel passo delle reazioni, e il suo `TargetStableUnitId` e'
+ * l'Alleato protetto: e' per questo che chi ha innescato ha un campo suo. L'ancora e' il colpo dell'Attaccante sul
+ * Salvatore, il bersaglio FINALE.
+ * ⚠️ In questa scena un'ancora sbagliata ripiegherebbe sul primo colpo sul Salvatore, che e' lo stesso: a distinguere i due
+ * casi e' `Playback.BlastSequenceReactionFollowsTheHitOfItsTrigger`, con due attaccanti. Qui si misura l'evento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackInterposeAtTheHitTest,
+	"RefactorTactics.Playback.SkillCallout.InterposeShoutsWhenTheRedirectedHitArrives",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackInterposeAtTheHitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = M;
+
+	// Il viewer e' il ripiego a 0 (mondo non inizializzato): la squadra del Salvatore.
+	ARTUnit* Attaccante = SpawnReattoreFumetto(World, 1, FRTCellId(4, 0));
+	ARTUnit* Alleato = SpawnReattoreFumetto(World, 0, FRTCellId(0, 0));
+	ARTUnit* Salvatore = SpawnReattoreFumetto(World, 0, FRTCellId(1, 0)); // adiacente all'Alleato: entro le 2 celle
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Alleato || !Salvatore) { return false; }
+	Attaccante->Facing = ERTHexDirection::W; // si spara a cio' che si vede (CP 13.2)
+
+	const FName Intercept(TEXT("Action.Intercept"));
+	Salvatore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Salvatore, TEXT("Action.Intercept"), 3);
+	Salvatore->PlannedAbilityIndex = INDEX_NONE;
+	Attaccante->PlannedAbilityIndex = 0; // l'attacco base, colpo singolo
+	Attaccante->PlannedAttackTarget = Alleato;
+	TM->bRecordAttackBeatsForTest = true;
+
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+
+	const int32 IdxReazione = FumettoIndiceDi(TM, ERTResolvedEventType::ReactionResolved, Salvatore->StableUnitId);
+	const int32 IdxColpo = FumettoIndiceDi(TM, ERTResolvedEventType::Attack, Attaccante->StableUnitId, Salvatore->StableUnitId);
+	if (!TestTrue(TEXT("⛔ premessa: l'interposizione e' scattata (c'e' il suo ReactionResolved)"), IdxReazione != INDEX_NONE)
+		|| !TestTrue(TEXT("⛔ premessa: e c'e' il colpo dell'Attaccante sul Salvatore, il bersaglio finale"),
+			IdxColpo != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTResolvedEvent Reazione = TM->ResolvedTimelineForTest()[IdxReazione];
+	TestEqual(TEXT("🔴 (R4) l'evento nomina chi ha innescato: l'Attaccante"),
+		Reazione.TriggerAttackerStableUnitId, Attaccante->StableUnitId);
+	TestEqual(TEXT("⛔ e il suo bersaglio resta l'Alleato protetto"), Reazione.TargetStableUnitId, Alleato->StableUnitId);
+	TestTrue(TEXT("🔴 (R3) e porta un verdetto che lascia vedere la reazione alla squadra del Salvatore"),
+		Reazione.SourceVerdict.AllowsTeam(0));
+
+	const FRTFumettoAlColpo Visto = CorriGuardandoIlFumettoAlColpo(TM, Salvatore, IdxColpo);
+	const int32 PosColpo = Visto.Sequenza.IndexOfByKey(IdxColpo);
+	if (!TestTrue(TEXT("⛔ premessa: la sequenza del Blast contiene il colpo, e il suo arrivo e' stato visto"),
+			PosColpo != INDEX_NONE && Visto.bArrivoVisto))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 (R4) nella sequenza l'interposizione segue SUBITO il colpo deviato"),
+		Visto.Sequenza.IndexOfByKey(IdxReazione), PosColpo + 1);
+	TestTrue(TEXT("⛔ premessa: il fumetto del Salvatore si e' acceso durante il playback"), Visto.bVistoVivo);
+	TestFalse(TEXT("🔴 e mai prima che il colpo arrivasse"), Visto.bVivoPrimaDellArrivo);
+	TestEqual(TEXT("🔴 il fumetto e' quello dell'interposizione"), Salvatore->LastSkillCalloutForTest().ActionId, Intercept);
+	TestEqual(TEXT("e il Salvatore ha la sua riga d'attivazione, una"), FumettoRigheDi(TM, Salvatore, Intercept), 1);
+	return true;
+}
+
+/**
+ * La reazione di un nemico che chi guarda non vede non grida e non ha riga — R3 della spec di #4059.
+ *
+ * 🔑 L'Attaccante (squadra 0) guarda a ovest e spara col suo attacco base a una CELLA alle sue spalle, a tre celle: fuori
+ * dal suo arco frontale e oltre la consapevolezza ravvicinata (`URTPerceptionLibrary::CloseAwarenessRange`). Li' c'e' il
+ * Reattore (squadra 1) col Contrattacco armato: la squadra 0 non lo vede, il colpo lo raggiunge e la reazione scatta.
+ * ⛔ Il verdetto e' quello della PERCEZIONE, non il fail-closed di una squadra assente: la squadra 0 e' in campo, e la
+ * premessa lo misura sull'evento. ✅ Controllo positivo: lo stesso turno visto dalla squadra 1 ha fumetto e riga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutPlaybackHiddenReactorTest,
+	"RefactorTactics.Playback.SkillCallout.HiddenReactorDoesNotShout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSkillCalloutPlaybackHiddenReactorTest::RunTest(const FString&)
+{
+	struct FRTGiroDelReattore
+	{
+		bool bScattata = false;
+		bool bVerdettoSquadra0 = true;
+		bool bVerdettoSquadra1 = false;
+		bool bNellaSequenza = false;
+		FName Fumetto;
+		int32 Righe = INDEX_NONE;
+	};
+	const FName Counter(TEXT("Action.Counter"));
+
+	const auto Gira = [this, &Counter](int32 SquadraDelViewer, FRTGiroDelReattore& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		World->InitializeActorsForPlay(FURL()); // il viewer deve esistere per il TurnManager
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = M;
+
+		ARTUnit* Attaccante = SpawnReattoreFumetto(World, 0, FRTCellId(0, 0));
+		ARTUnit* Reattore = SpawnReattoreFumetto(World, 1, FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(World, SquadraDelViewer);
+		if (!TM || !Attaccante || !Reattore || !Viewer) { return false; }
+		if (!TestEqual(TEXT("⛔ premessa: il TurnManager legge la squadra del viewer della fixture"),
+				ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(TM, 0)), SquadraDelViewer))
+		{
+			return false;
+		}
+
+		Attaccante->Facing = ERTHexDirection::W; // le spalle al Reattore, che sta a est
+		Attaccante->PlannedAbilityIndex = 0;     // l'attacco base
+		Attaccante->PlannedAttackTarget = nullptr;
+		Attaccante->PlannedAttackCell = Reattore->Cell;
+		Attaccante->bAttackTargetsCell = true;   // una CELLA: un'unita' che la squadra non vede non si puo' mirare
+		Reattore->Facing = ERTHexDirection::W;
+		Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
+		Reattore->PlannedAbilityIndex = INDEX_NONE;
+
+		TM->RefreshTeamKnowledgeNow();
+		TM->LockInAndResolve();
+		const int32 IdxReazione = FumettoIndiceDi(TM, ERTResolvedEventType::ReactionResolved, Reattore->StableUnitId);
+		Out.bScattata = (IdxReazione != INDEX_NONE);
+		if (Out.bScattata)
+		{
+			const FRTResolvedEvent Reazione = TM->ResolvedTimelineForTest()[IdxReazione];
+			Out.bVerdettoSquadra0 = Reazione.SourceVerdict.AllowsTeam(0);
+			Out.bVerdettoSquadra1 = Reazione.SourceVerdict.AllowsTeam(1);
+		}
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+			if (Out.bScattata && TM->PlaybackBlastSequenceIndicesForTest().Contains(IdxReazione)) { Out.bNellaSequenza = true; }
+		}
+		if (!TestFalse(TEXT("⛔ premessa: il playback e' finito"), TM->IsResolving())) { return false; }
+		Out.Fumetto = Reattore->LastSkillCalloutForTest().ActionId;
+		Out.Righe = FumettoRigheDi(TM, Reattore, Counter);
+		return true;
+	};
+
+	FRTGiroDelReattore Squadra0;
+	FRTGiroDelReattore Squadra1;
+	if (!Gira(0, Squadra0) || !Gira(1, Squadra1)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: il Contrattacco e' scattato (il colpo alla cella lo ha raggiunto)"),
+			Squadra0.bScattata && Squadra1.bScattata)
+		|| !TestFalse(TEXT("⛔ premessa: il verdetto della reazione non la lascia vedere alla squadra 0"),
+			Squadra0.bVerdettoSquadra0)
+		|| !TestTrue(TEXT("⛔ premessa: e la lascia vedere alla squadra 1, quella di chi reagisce"),
+			Squadra1.bVerdettoSquadra1))
+	{
+		return false;
+	}
+	TestFalse(TEXT("🔴 per la squadra 0 la reazione non entra nella sequenza del Blast"), Squadra0.bNellaSequenza);
+	TestTrue(TEXT("🔴 non grida"), Squadra0.Fumetto.IsNone());
+	TestEqual(TEXT("🔴 e non ha riga"), Squadra0.Righe, 0);
+	TestTrue(TEXT("✅ per la squadra 1 la reazione e' nella sequenza"), Squadra1.bNellaSequenza);
+	TestEqual(TEXT("✅ grida il Contrattacco"), Squadra1.Fumetto, Counter);
+	TestEqual(TEXT("✅ e ha la sua riga"), Squadra1.Righe, 1);
 	return true;
 }
 

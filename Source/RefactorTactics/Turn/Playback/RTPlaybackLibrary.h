@@ -131,6 +131,11 @@ struct FRTBlastSequenceElement
 	int32 TimelineIndex = INDEX_NONE;
 	int32 SourceStableUnitId = 0; // cache di `Timeline[TimelineIndex].SourceStableUnitId`
 	FName ActionId;               // cache di `Timeline[TimelineIndex].ActionId`
+	/**
+	 * #4059 (R4, R10): una reazione messa subito dopo il colpo che l'ha innescata, DENTRO l'atto di quel colpo. Non e' un
+	 * confine d'azione: il playback non la passa al predicato di `Next Action`. `false` per ogni altro elemento.
+	 */
+	bool bAttachedToHit = false;
 
 	bool operator==(const FRTBlastSequenceElement& Other) const
 	{

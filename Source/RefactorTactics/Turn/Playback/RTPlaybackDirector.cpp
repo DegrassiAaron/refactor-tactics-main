@@ -4,7 +4,6 @@
 #include "Turn/Playback/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
 #include "Player/RTPlayerState.h"       // TeamIdOf: l'unica porta per sapere di che squadra e' chi guarda ([D-285])
-#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
 #include "UI/HUD/RTHudViewModel.h"          // #4025: `ActionShouts` decide chi grida; il testo della riga del Registro
 #include "Map/Actor/RTHexMapActor.h"
@@ -506,8 +505,8 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
 		Src->PlayPresentationRole(ERTPresentationRole::Cast, Ev.ActionId, Ev.BaseActionId);
 
-		// #4025: il FUMETTO della skill di firma. Chi grida lo decide `ActionShouts` (base vuota, fuori dal catalogo
-		// core e non concessa da un pezzo d'equipaggiamento, R1b/A7); se mostrarlo a chi guarda NON si decide qui — il
+		// #4025, [D-604]: il FUMETTO. Chi grida lo decide `ActionShouts`: ogni azione tranne il movimento e l'interazione
+		// (R1 della spec di #4059). Se mostrarlo a chi guarda NON si decide qui — il
 		// filtro di privacy sta a monte, in `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una
 		// sorgente non osservata (R9), e il velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
 		//
@@ -533,14 +532,11 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza, quindi
 		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
 		//
-		// 🔴 **L'equipaggiamento non grida** (A7: solo le skill del KIT; R1b: «la generica con un nome» non grida).
-		// `MakeEquipmentAction` scrive `ActionId = EquipmentId` (`Gadget.*`, `Reaction.*`) e copia dal core un
-		// `BaseActionId` vuoto: `FindCoreAction` non lo trova e la base non lo esclude, quindi senza la seconda domanda il
-		// loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth. La seconda domanda si fa
-		// solo se la prima risponde no: un'attivazione core non costruisce i cataloghi d'equipaggiamento.
-		const bool bIsGenericOrEquipment = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone()
-			|| URTCatalogLibrary::FindEquipment(Ev.ActionId) != nullptr;
-		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsGenericOrEquipment))
+		// ⌫ *Fino a #4059 gridava la sola skill di firma del kit (A7 e R1b della spec del fumetto): base vuota, e ne'
+		// generica del catalogo core ne' equipaggiamento. L'equipaggiamento chiedeva una seconda domanda, perche'
+		// `MakeEquipmentAction` copia dal core una base vuota: senza, il loadout di default faceva gridare «SPRINKLER» a
+		// Muiren. Con [D-604] gridano tutte tranne il movimento e l'interazione, e le due domande sono sparite.*
+		if (URTHudViewModel::ActionShouts(Ev.ActionId))
 		{
 			Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock);
 			// L'orologio ARRIVA con la comparsa, non al tick dopo: il registro dell'unita' tiene l'ultimo valore ricevuto,
@@ -548,6 +544,23 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 			Src->SetSkillCalloutClock(SkillCalloutClock);
 			SkillCalloutUnits.AddUnique(Src);
 		}
+	}
+}
+
+void FRTPlaybackDirector::ShowReaction(const FRTResolvedEvent& Ev)
+{
+	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
+	// La riga del feed porta il verdetto CONGELATO nell'evento (R3), come quella di `ShowActivation`.
+	Host->AddLogEvent(FString::Printf(TEXT("Reagisce: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
+		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
+	// [D-604] (3): una reazione che scatta ha la sua riga d'attivazione, con la stessa chiave anti-doppione.
+	AddActivationLine(Ev, Src);
+	if (Src && URTHudViewModel::ActionShouts(Ev.ActionId))
+	{
+		// Stesso orologio e stessa vita dei fumetti delle attivazioni: un'unita' che ha gia' un fumetto lo vede sostituito.
+		Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock);
+		Src->SetSkillCalloutClock(SkillCalloutClock);
+		SkillCalloutUnits.AddUnique(Src);
 	}
 }
 
@@ -738,6 +751,15 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		{
 		case ERTResolvedEventType::AbilityActivated:
 			ShowActivation(Ev);
+			break;
+		case ERTResolvedEventType::ReactionResolved:
+			// #4059 (R4, R8): il fumetto e la riga della reazione, al battito dopo l'arrivo del colpo che l'ha innescata.
+			ShowReaction(Ev);
+			// R10: dentro l'atto di quel colpo non e' un confine — `Next Action` non si ferma su chi reagisce.
+			if (PlaybackBlastSequence.IsValidIndex(Elemento) && PlaybackBlastSequence[Elemento].bAttachedToHit)
+			{
+				continue;
+			}
 			break;
 		case ERTResolvedEventType::AttackFootprint:
 			// ⛔ Le celle COSI' COME ARRIVANO ([D-301]): `HexHitCells` le ha gia' prodotte nell'ordine stabile di
@@ -1724,8 +1746,10 @@ void FRTPlaybackDirector::FinishPlayback()
 	}
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
+		// #4059 (R9): anche le reazioni della sequenza, gia' filtrate per chi guarda da `BuildBlastSequence`.
 		if (Timeline().IsValidIndex(E.TimelineIndex)
-			&& Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated)
+			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ReactionResolved))
 		{
 			const FRTResolvedEvent& Ev = Timeline()[E.TimelineIndex];
 			AddActivationLine(Ev, Host->UnitByStableId(Ev.SourceStableUnitId));

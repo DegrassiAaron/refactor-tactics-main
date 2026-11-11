@@ -23,34 +23,44 @@
 // file portano il prefisso `FRTSkillCallout`.
 
 /**
- * Grida solo una skill di FIRMA: nessun `BaseActionId` e fuori dal catalogo core (R1b).
+ * Grida ogni azione tranne il movimento e l'interazione — R1 della spec di #4059, [D-604] (1), (4), (5).
  *
- * 🔴 La quarta riga e' quella che da' senso alle altre: una variante di un'azione core (`Hero.X.Variant`
- * che deriva da `Action.Overwatch`) ha un `BaseActionId` e NON grida, anche se il suo id non e' nel
- * catalogo core. Chi guardasse solo l'id la farebbe gridare.
- * 🔴 L'ultima e' l'equipaggiamento (A7): l'azione di un gadget ha la base VUOTA (`MakeEquipmentAction` la copia dal
- * core) e non e' core, quindi solo il bool la tiene muta. La scena vera e' `Playback.SkillCallout.EquipmentActionDoesNotShout`.
+ * 🔑 **Il criterio e' l'`ActionId`, e la prova sono le righe che fino a #4059 rispondevano no**: l'attacco base e la sua
+ * variante, le azioni generiche del catalogo core, una variante di una generica, l'equipaggiamento. Gridano tutte.
+ * ⛔ I muti sono quattro nomi, e le righe di `Dodge`, `Leap`, `Reposition` e `FluidTrail` (una skill del kit che scatta)
+ * sono il controllo: una regola che rendesse muto ogni movimento le farebbe cadere. La scena con un'interazione vera e'
+ * `Playback.SkillCallout.InteractDoesNotShout`.
+ * ⏱️ *Fino a #4059 questo test si chiamava `ShoutsOnlyForASignatureSkill` e fissava la regola opposta.*
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutShoutsOnlyForASignatureSkillTest,
-	"RefactorTactics.HudViewModel.SkillCallout.ShoutsOnlyForASignatureSkill",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillCalloutShoutsUnlessMoveOrInteractTest,
+	"RefactorTactics.HudViewModel.SkillCallout.ShoutsUnlessMoveOrInteract",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSkillCalloutShoutsOnlyForASignatureSkillTest::RunTest(const FString&)
+bool FRTSkillCalloutShoutsUnlessMoveOrInteractTest::RunTest(const FString&)
 {
-	TestTrue(TEXT("una skill di firma grida: nessuna base, non e' generica ne' equipaggiamento"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Hero.Muiren.TideGuard")), NAME_None, /*bIsGenericOrEquipment=*/ false));
+	const TCHAR* Gridano[] = {
+		TEXT("Hero.Muiren.TideGuard"),  // una skill di firma del kit
+		TEXT("Hero.Muiren.FluidTrail"), // una skill del kit che scatta
+		TEXT("Action.BasicAttack"),     // l'attacco base ([D-604] (4))
+		TEXT("Hero.Branth.ImpactShot"), // la sua variante, con la base
+		TEXT("Action.Guard"),           // un'azione generica del catalogo core
+		TEXT("Action.Overwatch"),       // un'altra, che si arma in Prep
+		TEXT("Hero.X.Variant"),         // una variante di una generica
+		TEXT("Gadget.PortableCover"),   // l'azione di un pezzo d'equipaggiamento
+		TEXT("Action.Counter"),         // una reazione che scatta
+		TEXT("Action.Dodge"),           // la sola mobilita' grida ([D-604] (5))
+		TEXT("Action.Leap"),
+		TEXT("Action.Reposition"),
+	};
+	for (const TCHAR* Id : Gridano)
+	{
+		TestTrue(FString::Printf(TEXT("%s grida"), Id), URTHudViewModel::ActionShouts(FName(Id)));
+	}
 
-	TestFalse(TEXT("una variante con base non grida: e' l'attacco base con un altro nome"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Hero.Branth.ImpactShot")), FName(TEXT("Action.BasicAttack")), false));
-
-	TestFalse(TEXT("un'azione del catalogo core non grida, anche senza base"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Action.Guard")), NAME_None, /*bIsGenericOrEquipment=*/ true));
-
-	TestFalse(TEXT("(R1b) una variante di un'azione core non grida: la base la esclude"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Hero.X.Variant")), FName(TEXT("Action.Overwatch")), false));
-
-	TestFalse(TEXT("(A7) l'azione di un gadget non grida: base vuota, ma e' equipaggiamento"),
-		URTHudViewModel::ActionShouts(FName(TEXT("Gadget.PortableCover")), NAME_None, /*bIsGenericOrEquipment=*/ true));
-
+	const TCHAR* Muti[] = { TEXT("Action.Move"), TEXT("Action.Sprint"), TEXT("Action.Withdraw"), TEXT("Action.Interact") };
+	for (const TCHAR* Id : Muti)
+	{
+		TestFalse(FString::Printf(TEXT("🔴 %s non grida"), Id), URTHudViewModel::ActionShouts(FName(Id)));
+	}
 	return true;
 }
 

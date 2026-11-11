@@ -294,6 +294,27 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 TargetStableUnitId = 0;
 
+	/**
+	 * Solo `ReactionResolved` (#4059, [D-605]): l'attaccante che ha innescato la reazione, come `StableUnitId`. `0` = nessuno
+	 * ([D-063]). Il playback mette il fumetto e la riga della reazione subito dopo il colpo di QUESTO attaccante sul
+	 * reattore (spec `2026-11-11-fumetto-azioni-e-reazioni-design.md`, R4).
+	 *
+	 * ⚠️ **Non e' `TargetStableUnitId`, anche se nel `BlastHits` coincide.** Nell'interposizione `TargetStableUnitId` e'
+	 * l'alleato PROTETTO (il verso del trasferimento, `#2191`), e il colpo da cui la reazione dipende e' di un terzo. Per
+	 * l'Ancoraggio, la Purificazione e la fuga dal pericolo vale `0`: il resolver non ha un attaccante da passare, e il
+	 * playback ripiega sul primo colpo sul reattore.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	int32 TriggerAttackerStableUnitId = 0;
+
+	/**
+	 * Solo il `ReactionResolved` del colpo dell'Overwatch (#4059, R6): l'indice di cella della rotta del BERSAGLIO quando il
+	 * colpo parte (`Entered.Num()` del suo stato di movimento). `INDEX_NONE` = nessuno. Il playback rivela il fumetto del
+	 * watcher quando la fase Move arriva a quella cella.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	int32 ReactionRouteCellIndex = INDEX_NONE;
+
 	/** Per Move: la rotta in celle (start incluso + celle attraversate, in ordine). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	TArray<FRTCellId> Path;

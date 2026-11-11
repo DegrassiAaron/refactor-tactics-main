@@ -5904,6 +5904,18 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 				Ev.TargetStableUnitId = Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy]
 					? Units[TriggeredBy]->StableUnitId : 0;
 				Ev.Origin = Unit->Cell;
+				// #4059 (R4): chi ha innescato, per mettere il fumetto subito dopo il SUO colpo sul reattore. Di norma e' lo
+				// stesso `TargetStableUnitId`. Non coincide per l'Ancoraggio, che negli effetti non nomina nessuno ma sa chi
+				// spinge (`HitAttacker`), e per l'interposizione, che ha il suo evento in `ResolveInterceptions`.
+				{
+					const int32 Innesco = (Hit.HitAttacker != INDEX_NONE) ? Hit.HitAttacker : TriggeredBy;
+					Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Innesco) && Units[Innesco]
+						? Units[Innesco]->StableUnitId : 0;
+				}
+				// #4059 (R3): CHI PUO' VEDERE la reazione, congelato adesso come la voce di TurnLog scritta poco sotto
+				// (`AppendLogEntry(Entry, Unit)`, stesso soggetto, stessa cella, stessa conoscenza). ⏱️ *Fino a #4059 questo
+				// campo restava vuoto, cioe' «nessuno»: nessuno lo leggeva, e il playback scartava l'evento.*
+				Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
 				// 🔴 **QUALE reazione e' scattata, e fino a `#2857` questo campo non c'era** — per una
 				// ragione che era vera e che ha smesso di esserlo. `#2191` aveva scritto qui *«nessun
 				// `ActionId`: lo dice gia' il TurnLog, e aggiungerlo creerebbe una seconda fonte»*, ed era

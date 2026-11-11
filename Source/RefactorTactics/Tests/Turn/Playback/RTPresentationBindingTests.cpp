@@ -441,7 +441,7 @@ bool FRTPresentationPendingNeedsOwnerAndRationaleTest::RunTest(const FString&)
  *
  * 🔴 **E' il test che rende falsificabile la classificazione, e senza di esso `#2483` non consegna niente.**
  * I due test sopra provano che il *gate* sa distinguere; questo prova che le voci *reali* sono classificate.
- * Declassare `ReactionResolved` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
+ * Declassare `StatusChanged` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
  * voce resterebbe ben formata — e la distinzione morirebbe in silenzio. Qui diventa rossa.
  *
  * ⚠️ **I numeri sono un'osservazione, non una derivazione**, e vanno **rimisurati** se il censimento cambia
@@ -491,7 +491,10 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// archi** — lo misura `#1768`, e inventare una cue su una geometria assente e' cio' che `#2483` vieta.
 	// ⚠️ La riga risale, e questa volta e' corretto: cio' che il pin vieta e' rimettere in attesa una voce
 	// gia' **sciolta**, non dichiarare in attesa una voce che nasce senza cue.
-	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
+	// 🔴 **Rimisurato il 2026-11-11: da quattro a TRE, e il motivo e' dichiarato** (#4059, [D-604]): `ReactionResolved` ha
+	// una cue — il fumetto sopra chi reagisce e la riga d'attivazione del Registro — e non e' piu' in attesa. E' il verso
+	// che il pin ammette: una voce che si scioglie, non una che torna in attesa.
+	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
 	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
@@ -508,8 +511,18 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// e' cio' che impedisce di rimetterla in attesa in silenzio.
 	TestEqual(TEXT("AttackFootprint non attende piu' nessuno"),
 		OwnerDi(ERTResolvedEventType::AttackFootprint), FString());
-	TestEqual(TEXT("ReactionResolved attende #2454"),
-		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
+	// ✅ `ReactionResolved` non e' piu' in attesa (#4059): ha cue, quindi NON ha un `PendingOwner`. ⏱️ *Fino a #4059
+	// attendeva `#2454`.*
+	TestEqual(TEXT("ReactionResolved non attende piu' nessuno"),
+		OwnerDi(ERTResolvedEventType::ReactionResolved), FString());
+	{
+		const FRTPresentationBinding* Reazione = Reale.FindByPredicate(
+			[](const FRTPresentationBinding& X) { return X.Type == ERTResolvedEventType::ReactionResolved; });
+		TestTrue(TEXT("🔴 e la sua riga nomina le cue che il playback chiama: il fumetto e la riga del Registro"),
+			Reazione != nullptr && Reazione->Kind == ERTPresentationKind::Cues
+			&& Reazione->Cues.Contains(FName(TEXT("ShowSkillCallout")))
+			&& Reazione->Cues.Contains(FName(TEXT("AddActivationLine"))));
+	}
 	TestEqual(TEXT("StatusChanged attende #2456"),
 		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
 	// ✅ `StructureHit` nasce con cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto e' cio' che impedisce
