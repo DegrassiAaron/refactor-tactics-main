@@ -104,6 +104,20 @@ public:
 	static constexpr int32 MaxResolveTicks = 900;
 
 	/**
+	 * Il tetto di `FRTScenarioSession`, in frame, per una scena che chi guarda ha RALLENTATO: `MaxResolveTicks` diviso
+	 * per la velocita' del banco Ability Lab ([D-607] (1), `#4071`), e `MaxResolveTicks` fuori dal banco.
+	 *
+	 * 🔑 **Il tetto della sessione si spende in frame, e a x0,5 lo stesso turno ne consuma il doppio.** Misurato su un
+	 * log PIE del 2026-10-18: `AbilityLab.Hero.Ivrin.PassingBlade` risolveva in 247 frame per ~3,6 s di playback a x1,
+	 * circa 68 fps. A quel ritmo `900` frame sono ~13 s reali, e a x0,5 una scena da piu' di ~6,6 s a x1 chiuderebbe in
+	 * ERROR a meta' playback; a un frame rate piu' alto, prima. E' la ragione di `#3488`: un turno che chi guarda
+	 * rallenta non e' appeso.
+	 * ⚠️ **Si allunga, non sparisce**: una risoluzione bloccata nel banco chiude ancora in ERROR, al doppio dei frame.
+	 * ⛔ Solo sotto `1`: il banco non accelera, e un valore non positivo vuol dire «fuori dal banco».
+	 */
+	static int32 LiveResolveTickCap(float BenchPlaybackSpeed);
+
+	/**
 	 * Tetto di turni che un FILE non puo' superare: uno scenario non deve poter girare all'infinito.
 	 *
 	 * 🔴 **Questo commento diceva «oltre il quale il runner si ferma dichiarando `Error`», ed era falso**:

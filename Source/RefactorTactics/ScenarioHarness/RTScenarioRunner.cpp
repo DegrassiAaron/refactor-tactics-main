@@ -702,6 +702,13 @@ FRTTestResult URTScenarioRunner::RunById(UWorld* World, const FString& ScenarioI
 	return Result;
 }
 
+int32 URTScenarioRunner::LiveResolveTickCap(float BenchPlaybackSpeed)
+{
+	return (BenchPlaybackSpeed > 0.f && BenchPlaybackSpeed < 1.f)
+		? FMath::CeilToInt(static_cast<float>(MaxResolveTicks) / BenchPlaybackSpeed)
+		: MaxResolveTicks;
+}
+
 TArray<FString> URTScenarioRunner::ListScenarioIds()
 {
 	// L'ID non si deduce piu' dal percorso: lo dichiara il file, e l'indice lo legge. Cosi' spostare uno

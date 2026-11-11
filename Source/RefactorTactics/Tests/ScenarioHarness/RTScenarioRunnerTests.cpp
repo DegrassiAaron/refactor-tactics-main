@@ -18,6 +18,7 @@
 #include "ScenarioHarness/Report/RTTestReportWriter.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/Lab/RTAbilityLab.h" // la velocita' del banco: `LiveResolveTickCap` (#4071)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/Paths.h"
@@ -2462,6 +2463,94 @@ bool FRTScenarioStuckResolutionStillHitsTheCapTest::RunTest(const FString&)
 	TestTrue(TEXT("in ERROR"), Session.GetResult().Outcome == ERTTestOutcome::Error);
 	TestTrue(FString::Printf(TEXT("per il tetto (era: '%s')"), *Session.GetResult().ErrorMessage),
 		Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il tetto della sessione si allunga con la velocita' del banco, e solo sotto `1` — [D-607] (1), `#4071`.
+ *
+ * Fuori dal banco (`0`, o un valore negativo), a x1 e sopra il tetto e' quello di sempre: il banco non accelera, e
+ * un tetto piu' corto a x2 chiuderebbe in ERROR una scena che oggi passa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBenchSpeedLengthensTheLiveResolveCapTest,
+	"RefactorTactics.Scenario.BenchSpeedLengthensTheLiveResolveCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBenchSpeedLengthensTheLiveResolveCapTest::RunTest(const FString&)
+{
+	const int32 Base = URTScenarioRunner::MaxResolveTicks;
+	TestEqual(TEXT("fuori dal banco (0) il tetto e' quello di sempre"), URTScenarioRunner::LiveResolveTickCap(0.f), Base);
+	TestEqual(TEXT("un valore negativo e' fuori dal banco"), URTScenarioRunner::LiveResolveTickCap(-0.5f), Base);
+	TestEqual(TEXT("a x1 non cambia"), URTScenarioRunner::LiveResolveTickCap(1.f), Base);
+	TestEqual(TEXT("a x2 non si accorcia"), URTScenarioRunner::LiveResolveTickCap(2.f), Base);
+	TestEqual(TEXT("a x0,5 e' il doppio"), URTScenarioRunner::LiveResolveTickCap(0.5f), Base * 2);
+	TestEqual(TEXT("ed e' la velocita' che il banco scrive"),
+		URTScenarioRunner::LiveResolveTickCap(URTAbilityLabLibrary::BenchPlaybackSpeed()), Base * 2);
+	return true;
+}
+
+/**
+ * Nel banco a x0,5 una risoluzione bloccata chiude ancora in ERROR, ma al tetto lungo — [D-607] (1), `#4071`.
+ *
+ * Le due meta' servono tutte e due. Oltre `MaxResolveTicks` la sessione deve essere ancora aperta e stare
+ * risolvendo: prova che il tetto si e' allungato, e senza un turno a x0,5 di una scena lunga morirebbe a meta'
+ * playback. Oltre il tetto lungo deve chiudersi in ERROR, e il messaggio deve nominare quel tetto: prova che il
+ * tetto c'e' ancora, come vuole `#3488`. Il mondo non ticca e `bPumpTurnManager` e' falso, come in
+ * `StuckResolutionStillHitsTheCap`: la risoluzione resta aperta senza che nessuno l'abbia fermata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStuckResolutionInTheBenchHitsTheLongerCapTest,
+	"RefactorTactics.Scenario.StuckResolutionInTheBenchHitsTheLongerCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStuckResolutionInTheBenchHitsTheLongerCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+
+	// Cio' che `ARTGameMode::ApplyPlaybackControlCVars` scrive quando una scena del banco parte a x0,5.
+	TM->BenchPlaybackSpeed = URTAbilityLabLibrary::BenchPlaybackSpeed();
+	const int32 Tetto = URTScenarioRunner::LiveResolveTickCap(TM->BenchPlaybackSpeed);
+	if (!TestTrue(TEXT("il tetto del banco e' piu' lungo di quello di sempre"), Tetto > URTScenarioRunner::MaxResolveTicks + 100))
+	{
+		Session.TearDown();
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestFalse(TEXT("oltre il tetto di sempre la sessione del banco e' ancora aperta"), Session.IsFinished());
+	TestTrue(TEXT("e sta risolvendo: non e' ferma prima del turno"), TM->IsResolving());
+
+	for (int32 I = 0; I < Tetto && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("oltre il tetto lungo la sessione si chiude"), Session.IsFinished());
+	const FString AttesoNelMessaggio = FString::Printf(TEXT("entro %d passi"), Tetto);
+	TestTrue(FString::Printf(TEXT("in ERROR, col tetto lungo nel messaggio (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Error
+			&& Session.GetResult().ErrorMessage.Contains(AttesoNelMessaggio));
 
 	Session.TearDown();
 	DestroyRunnerWorld(World);

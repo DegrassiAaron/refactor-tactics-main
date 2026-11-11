@@ -1946,13 +1946,17 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 		// ancora arrivare al tetto. ⛔ Il prezzo e' quello gia' dichiarato: una run non presidiata col playback
 		// fermo aspetta, e nel runner sincrono la ferma il tetto esterno (`MaxSteps`), con l'esito di default
 		// `Error`.
+		//
+		// ➕ **E nel banco a x0,5 il tetto e' il doppio** ([D-607] (1), `#4071`): si spende in frame, e un turno
+		// rallentato da chi guarda ne consuma il doppio. Si allunga, non sparisce (`LiveResolveTickCap`).
 		const bool bFermoDaChiGuarda = TM->IsPlaybackPaused();
-		if (!bFermoDaChiGuarda && ++ResolveTicks > URTScenarioRunner::MaxResolveTicks)
+		const int32 Tetto = URTScenarioRunner::LiveResolveTickCap(TM->BenchPlaybackSpeed);
+		if (!bFermoDaChiGuarda && ++ResolveTicks > Tetto)
 		{
 			Result.Outcome = ERTTestOutcome::Error;
 			Result.ErrorMessage = FString::Printf(
 				TEXT("il turno %d non ha finito di risolvere entro %d passi"),
-				TurnIndex + 1, URTScenarioRunner::MaxResolveTicks);
+				TurnIndex + 1, Tetto);
 			StopReplayRecording();
 			State = EState::Finished;
 		}

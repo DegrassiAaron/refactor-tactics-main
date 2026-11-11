@@ -24,6 +24,7 @@
 #include "Turn/Actions/RTActionEvent.h"         // FRTActionEffectSpec: la premessa «quell'attacco spinge» (#3667)
 #include "Turn/Actions/RTActionQueueLibrary.h"   // SortUnitsForResolution: l'ordine in cui il resolver tiene le unita' (#3667)
 #include "Unit/RTUnit.h"
+#include "Ability/Lab/RTAbilityLab.h"   // #4071: la velocita' del banco, [D-607]
 #include "UI/HUD/RTUIPalette.h"         // i colori della resa della tavola E (#3634)
 #include "Components/Border.h"
 #include "Components/ProgressBar.h"
@@ -1139,6 +1140,84 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
  * cambio di taratura. Asserisce le due proprieta' che sono contratto: **rallentato mentre attende**
  * (`< 1`), e **esattamente 1** quando non attende piu'.
  */
+/**
+ * Nel banco Ability Lab la finestra si chiude tornando alla velocita' del banco, x0,5 — [D-607] (1), `#4071`.
+ *
+ * 🔑 Il banco di `SlowMotionRestoresOnBothExits`, con la velocita' che il GameMode scrive quando una scena del banco
+ * parte a x0,5 (`BenchPlaybackSpeed`). Mentre la finestra attende resta il rallentamento di sempre; alla risposta, e
+ * alla scadenza, si torna a x0,5 e non a x1. ✅ Il controllo e' `SlowMotionRestoresOnBothExits`: senza banco, a x1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionSlowMotionRestoresTheBenchSpeedTest,
+	"RefactorTactics.Reactions.SlowMotionRestoresTheBenchSpeedInTheBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionSlowMotionRestoresTheBenchSpeedTest::RunTest(const FString&)
+{
+	auto Esegui = [this](bool bRispondi, const TCHAR* Etichetta)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return; }
+		InitVmWorld(World);
+		SpawnVmMap(World);
+
+		ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+		ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+		if (!TM || !GameMode || !PC) { RTWorldFixtures::DestroyWorld(World); return; }
+
+		ArmOverwatchScenario(Mover, Watcher);
+		GameMode->HookReactionWindow();
+		URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
+
+		// La scena del banco parte a x0,5: e' cio' che `ApplyPlaybackControlCVars` scrive, misurato a parte in
+		// `Match.Autobattle.InitialPlaybackSpeedComesFromTheConsoleOnlyWhereTheKnobIsLive`.
+		const float Banco = URTAbilityLabLibrary::BenchPlaybackSpeed();
+		TM->ViewerPlaybackSpeed = Banco;
+		TM->BenchPlaybackSpeed = Banco;
+
+		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa — una finestra attende"), Etichetta),
+				TM->IsResolutionSuspended()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return;
+		}
+		const FString IdAperta = TM->GetOpenReactionWindowId();
+		TM->Tick(0.01f);
+		TestTrue(*FString::Printf(TEXT("%s: mentre la finestra attende resta il rallentamento della finestra"), Etichetta),
+			FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, TM->ReactionWindowPlaybackSpeed, 1e-3f));
+
+		if (bRispondi)
+		{
+			ViewModel->SubmitResponse(ViewModel->GetWindow().SafeResponse);
+			TM->Tick(0.01f);
+		}
+		else
+		{
+			int32 Giri = 0;
+			while (TM->GetOpenReactionWindowId() == IdAperta && Giri < 2000)
+			{
+				TM->Tick(0.01f);
+				++Giri;
+			}
+		}
+
+		if (TestTrue(*FString::Printf(TEXT("%s: premessa — nessuna finestra attende piu'"), Etichetta),
+				TM->GetOpenReactionWindowId().IsEmpty()))
+		{
+			TestTrue(*FString::Printf(TEXT("%s: 🔴 chiusa la finestra il banco torna a x0,5, non a x1"), Etichetta),
+				FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, Banco, 1e-3f));
+		}
+		RTWorldFixtures::DestroyWorld(World);
+	};
+
+	Esegui(/*bRispondi=*/ true, TEXT("risposta"));
+	Esegui(/*bRispondi=*/ false, TEXT("scadenza"));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionSlowMotionRestoresTest,
 	"RefactorTactics.Reactions.SlowMotionRestoresOnBothExits",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
