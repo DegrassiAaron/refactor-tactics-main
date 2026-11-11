@@ -954,117 +954,123 @@ void ARTPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	BuildInputMappings();
-
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
-		EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan);
-		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
-		// `Started` e non `Triggered`: la rotazione e' a SCATTI di `YawStep`, quindi deve avvenire una volta
-		// per pressione. Con `Triggered` un tasto tenuto giu' avrebbe girato la vista di 45 gradi per frame.
-		EIC->BindAction(RotateAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRotate);
-
-		// #863 — l'orbita continua ha bisogno di `Triggered` (ogni frame in cui il mouse si muove), non di
-		// `Started`: `Started` scatta una volta sola all'inizio del gesto, che e' giusto per un tasto e
-		// sbagliato per un trascinamento.
-		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Started, this, &ARTPlayerController::OnOrbitPressed);
-		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
-		// ⚠️ **Anche `Canceled`, e non e' pedanteria**: se il trigger viene annullato — rimozione del
-		// mapping context, cambio pawn, un `FlushPressedKeys` parziale — `Completed` non arriva. Senza
-		// questa riga `bOrbiting` resterebbe armato e da quel momento **ogni** movimento del mouse
-		// ruoterebbe la camera senza che nessun tasto sia premuto. Trovato in code review.
-		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnOrbitReleased);
-		EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
-		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
-		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
-		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
-		// La tabella che lega tasto e handler sta QUI e in nessun altro posto. Un handler per posizione
-		// perche' `FInputActionValue` porta il valore e non l'azione che l'ha prodotto: senza la bindatura,
-		// l'indice non arriverebbe da nessuna parte.
-		typedef void (ARTPlayerController::*FAbilityHandler)(const FInputActionValue&);
-		static const FAbilityHandler Handlers[] = {
-			&ARTPlayerController::OnAbility1, &ARTPlayerController::OnAbility2,
-			&ARTPlayerController::OnAbility3, &ARTPlayerController::OnAbility4,
-			&ARTPlayerController::OnAbility5, &ARTPlayerController::OnAbility6,
-			&ARTPlayerController::OnAbility7, &ARTPlayerController::OnAbility8,
-			&ARTPlayerController::OnAbility9, &ARTPlayerController::OnAbility10 };
-		const int32 NumHandlers = UE_ARRAY_COUNT(Handlers);
-		for (int32 i = 0; i < AbilityActions.Num() && i < NumHandlers; ++i)
-		{
-			EIC->BindAction(AbilityActions[i], ETriggerEvent::Started, this, Handlers[i]);
-		}
-		// Un tasto senza handler non si bindera' in silenzio: il ciclo si ferma al piu' corto dei due, e
-		// questa riga lo DICE invece di lasciarlo dedurre da un tasto che non fa niente.
-		if (AbilityActions.Num() > NumHandlers)
-		{
-			UE_LOG(LogRT, Warning,
-				TEXT("[RT] %d tasti abilita' mappati ma solo %d handler: le posizioni oltre la %d non rispondono"),
-				AbilityActions.Num(), NumHandlers, NumHandlers);
-		}
-		// Le generiche, stessa forma e stessa guardia: la tabella sta qui, gli `ActionId` in `GenericHotkeys()`.
-		static const FAbilityHandler GenericHandlers[] = {
-			&ARTPlayerController::OnGeneric1, &ARTPlayerController::OnGeneric2,
-			&ARTPlayerController::OnGeneric3, &ARTPlayerController::OnGeneric4,
-			&ARTPlayerController::OnGeneric5 };
-		const int32 NumGenericHandlers = UE_ARRAY_COUNT(GenericHandlers);
-		for (int32 i = 0; i < GenericActions.Num() && i < NumGenericHandlers; ++i)
-		{
-			EIC->BindAction(GenericActions[i], ETriggerEvent::Started, this, GenericHandlers[i]);
-		}
-		// Stessa ragione di sopra, e qui morde prima: aggiungere una generica al catalogo (`D-025`) senza
-		// aggiungere il suo handler la lascerebbe con un tasto che non fa niente, e il kit tornerebbe ad
-		// avere una voce irraggiungibile — il difetto che questa tabella esiste per chiudere.
-		if (GenericActions.Num() > NumGenericHandlers)
-		{
-			UE_LOG(LogRT, Warning,
-				TEXT("[RT] %d tasti generici mappati ma solo %d handler: le generiche oltre la %d non rispondono"),
-				GenericActions.Num(), NumGenericHandlers, NumGenericHandlers);
-		}
-		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
-		// #1772 — il rilascio del destro chiude il dolly. Serve un `Completed` perche' senza, `Ctrl`+`RMB`
-		// resterebbe armato e ogni movimento del mouse continuerebbe a zoomare.
-		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
-		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
-		EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
-		EIC->BindAction(StrategicViewAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleStrategicView);
-		EIC->BindAction(DeclarePlanAction, ETriggerEvent::Started, this, &ARTPlayerController::OnDeclarePlan);
-		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
-
-		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
-		// `OrbitModifierAction`: se la finestra perde il fuoco col modificatore premuto — un clic fuori, un
-		// cambio di finestra — il rilascio non arriva mai e il modificatore resterebbe armato per sempre.
-		EIC->BindAction(CameraModifierAction, ETriggerEvent::Started, this,
-			&ARTPlayerController::OnCameraModifierPressed);
-		EIC->BindAction(CameraModifierAction, ETriggerEvent::Completed, this,
-			&ARTPlayerController::OnCameraModifierReleased);
-		EIC->BindAction(CameraModifierAction, ETriggerEvent::Canceled, this,
-			&ARTPlayerController::OnCameraModifierReleased);
-
-		EIC->BindAction(LayerUpAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerUp);
-		EIC->BindAction(LayerDownAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerDown);
-
-		// #1772 — il rilascio del sinistro chiude il gesto `Ctrl`+`LMB`: sotto soglia e' un Set Pivot,
-		// sopra e' stata un'orbita e non deve produrre altro.
-		EIC->BindAction(SelectAction, ETriggerEvent::Completed, this,
-			&ARTPlayerController::OnSelectReleased);
-		EIC->BindAction(SelectAction, ETriggerEvent::Canceled, this,
-			&ARTPlayerController::OnSelectReleased);
-		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
-		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
-		EIC->BindAction(SneakAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleSneak);
-		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
-		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
-		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
-		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
-		EIC->BindAction(LabStepPreviousAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepPrevious);
-		EIC->BindAction(LabStepNextAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepNext);
-		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
-		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
+		BindInputActions(*EIC);
 	}
 	else
 	{
 		UE_LOG(LogRT, Error, TEXT("[RT] InputComponent non e' un UEnhancedInputComponent"));
 	}
+}
+
+void ARTPlayerController::BindInputActions(UEnhancedInputComponent& Component)
+{
+	BuildInputMappings();
+
+	UEnhancedInputComponent* EIC = &Component;
+	EIC->BindAction(PanAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnPan);
+	EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnZoom);
+	// `Started` e non `Triggered`: la rotazione e' a SCATTI di `YawStep`, quindi deve avvenire una volta
+	// per pressione. Con `Triggered` un tasto tenuto giu' avrebbe girato la vista di 45 gradi per frame.
+	EIC->BindAction(RotateAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRotate);
+
+	// #863 — l'orbita continua ha bisogno di `Triggered` (ogni frame in cui il mouse si muove), non di
+	// `Started`: `Started` scatta una volta sola all'inizio del gesto, che e' giusto per un tasto e
+	// sbagliato per un trascinamento.
+	EIC->BindAction(OrbitModifierAction, ETriggerEvent::Started, this, &ARTPlayerController::OnOrbitPressed);
+	EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
+	// ⚠️ **Anche `Canceled`, e non e' pedanteria**: se il trigger viene annullato — rimozione del
+	// mapping context, cambio pawn, un `FlushPressedKeys` parziale — `Completed` non arriva. Senza
+	// questa riga `bOrbiting` resterebbe armato e da quel momento **ogni** movimento del mouse
+	// ruoterebbe la camera senza che nessun tasto sia premuto. Trovato in code review.
+	EIC->BindAction(OrbitModifierAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnOrbitReleased);
+	EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
+	EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
+	EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
+	EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
+	// La tabella che lega tasto e handler sta QUI e in nessun altro posto. Un handler per posizione
+	// perche' `FInputActionValue` porta il valore e non l'azione che l'ha prodotto: senza la bindatura,
+	// l'indice non arriverebbe da nessuna parte.
+	typedef void (ARTPlayerController::*FAbilityHandler)(const FInputActionValue&);
+	static const FAbilityHandler Handlers[] = {
+		&ARTPlayerController::OnAbility1, &ARTPlayerController::OnAbility2,
+		&ARTPlayerController::OnAbility3, &ARTPlayerController::OnAbility4,
+		&ARTPlayerController::OnAbility5, &ARTPlayerController::OnAbility6,
+		&ARTPlayerController::OnAbility7, &ARTPlayerController::OnAbility8,
+		&ARTPlayerController::OnAbility9, &ARTPlayerController::OnAbility10 };
+	const int32 NumHandlers = UE_ARRAY_COUNT(Handlers);
+	for (int32 i = 0; i < AbilityActions.Num() && i < NumHandlers; ++i)
+	{
+		EIC->BindAction(AbilityActions[i], ETriggerEvent::Started, this, Handlers[i]);
+	}
+	// Un tasto senza handler non si bindera' in silenzio: il ciclo si ferma al piu' corto dei due, e
+	// questa riga lo DICE invece di lasciarlo dedurre da un tasto che non fa niente.
+	if (AbilityActions.Num() > NumHandlers)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] %d tasti abilita' mappati ma solo %d handler: le posizioni oltre la %d non rispondono"),
+			AbilityActions.Num(), NumHandlers, NumHandlers);
+	}
+	// Le generiche, stessa forma e stessa guardia: la tabella sta qui, gli `ActionId` in `GenericHotkeys()`.
+	static const FAbilityHandler GenericHandlers[] = {
+		&ARTPlayerController::OnGeneric1, &ARTPlayerController::OnGeneric2,
+		&ARTPlayerController::OnGeneric3, &ARTPlayerController::OnGeneric4,
+		&ARTPlayerController::OnGeneric5 };
+	const int32 NumGenericHandlers = UE_ARRAY_COUNT(GenericHandlers);
+	for (int32 i = 0; i < GenericActions.Num() && i < NumGenericHandlers; ++i)
+	{
+		EIC->BindAction(GenericActions[i], ETriggerEvent::Started, this, GenericHandlers[i]);
+	}
+	// Stessa ragione di sopra, e qui morde prima: aggiungere una generica al catalogo (`D-025`) senza
+	// aggiungere il suo handler la lascerebbe con un tasto che non fa niente, e il kit tornerebbe ad
+	// avere una voce irraggiungibile — il difetto che questa tabella esiste per chiudere.
+	if (GenericActions.Num() > NumGenericHandlers)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] %d tasti generici mappati ma solo %d handler: le generiche oltre la %d non rispondono"),
+			GenericActions.Num(), NumGenericHandlers, NumGenericHandlers);
+	}
+	EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
+	// #1772 — il rilascio del destro chiude il dolly. Serve un `Completed` perche' senza, `Ctrl`+`RMB`
+	// resterebbe armato e ogni movimento del mouse continuerebbe a zoomare.
+	EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
+	EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
+	EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
+	EIC->BindAction(StrategicViewAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleStrategicView);
+	EIC->BindAction(DeclarePlanAction, ETriggerEvent::Started, this, &ARTPlayerController::OnDeclarePlan);
+	EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
+
+	// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
+	// `OrbitModifierAction`: se la finestra perde il fuoco col modificatore premuto — un clic fuori, un
+	// cambio di finestra — il rilascio non arriva mai e il modificatore resterebbe armato per sempre.
+	EIC->BindAction(CameraModifierAction, ETriggerEvent::Started, this,
+		&ARTPlayerController::OnCameraModifierPressed);
+	EIC->BindAction(CameraModifierAction, ETriggerEvent::Completed, this,
+		&ARTPlayerController::OnCameraModifierReleased);
+	EIC->BindAction(CameraModifierAction, ETriggerEvent::Canceled, this,
+		&ARTPlayerController::OnCameraModifierReleased);
+
+	EIC->BindAction(LayerUpAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerUp);
+	EIC->BindAction(LayerDownAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerDown);
+
+	// #1772 — il rilascio del sinistro chiude il gesto `Ctrl`+`LMB`: sotto soglia e' un Set Pivot,
+	// sopra e' stata un'orbita e non deve produrre altro.
+	EIC->BindAction(SelectAction, ETriggerEvent::Completed, this,
+		&ARTPlayerController::OnSelectReleased);
+	EIC->BindAction(SelectAction, ETriggerEvent::Canceled, this,
+		&ARTPlayerController::OnSelectReleased);
+	EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
+	EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
+	EIC->BindAction(SneakAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleSneak);
+	// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
+	// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
+	EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
+	EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
+	EIC->BindAction(LabStepPreviousAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepPrevious);
+	EIC->BindAction(LabStepNextAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepNext);
+	EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
+	EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 }
 
 void ARTPlayerController::PlayerTick(float DeltaTime)

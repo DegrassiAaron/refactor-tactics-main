@@ -183,6 +183,17 @@ public:
 		return MappingContext;
 	}
 
+	/**
+	 * **Lega ogni azione di Enhanced Input al suo handler**, sul componente dato (#4065). Costruisce prima le azioni,
+	 * se mancano.
+	 *
+	 * La chiama `SetupInputComponent` col componente del giocatore. E' pubblica perche' la tabella azione → evento →
+	 * handler e' cio' che si rompe in silenzio quando un handler si sposta: compila, e il tasto non fa niente.
+	 * `PlayerInput.EveryActionIsBoundOnItsEvents` la esercita su un componente costruito dal test, e ne esegue i
+	 * binding attraverso il delegate vero.
+	 */
+	void BindInputActions(class UEnhancedInputComponent& Component);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
