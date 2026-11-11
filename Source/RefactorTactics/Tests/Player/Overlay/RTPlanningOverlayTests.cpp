@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Player/RTPlanningOverlay.h"
+#include "Player/Overlay/RTPlanningOverlay.h"
 #include "UObject/Package.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

@@ -3,8 +3,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/RTTypes.h"
-#include "Player/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
+#include "Player/Overlay/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
+#include "Camera/RTCameraGestures.h" // i gesti della camera: il controller li possiede e li inoltra (#4065)
+#include "Player/Planning/RTFacingDeclaration.h" // la dichiarazione del verso: il controller la possiede e la inoltra (#4065)
+#include "Player/Planning/RTFacingHost.h"        // cio' che la dichiarazione del verso chiede al controller
+#include "Player/Overlay/RTPlanningOverlayArbiter.h" // l'arbitro delle aree di pianificazione (#4065)
+#include "Player/Overlay/RTPlanningOverlayHost.h"    // cio' che l'arbitro chiede al controller
 #include "RTPlayerController.generated.h"
 
 enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
@@ -42,23 +47,12 @@ enum class ERTAbilityRequestSource : uint8
 	Dock     // la porta di `#2826`: un click su uno slot
 };
 
-/** `#1838` — gli stati dell'edge pan, per il log delle transizioni. Un enum e non un testo: la macchina non dipende da come e' scritto il messaggio. */
-enum class ERTEdgePanState : uint8
-{
-	Rest,
-	Active,
-	RefusedSwitch,
-	RefusedBlocked,
-	RefusedGesture,
-	RefusedKeys,
-};
-
 /**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
 UCLASS()
-class REFACTORTACTICS_API ARTPlayerController : public APlayerController
+class REFACTORTACTICS_API ARTPlayerController : public APlayerController, public FRTFacingHost, public FRTPlanningOverlayHost
 {
 	GENERATED_BODY()
 
@@ -182,6 +176,17 @@ public:
 		BuildInputMappings();
 		return MappingContext;
 	}
+
+	/**
+	 * **Lega ogni azione di Enhanced Input al suo handler**, sul componente dato (#4065). Costruisce prima le azioni,
+	 * se mancano.
+	 *
+	 * La chiama `SetupInputComponent` col componente del giocatore. E' pubblica perche' la tabella azione → evento →
+	 * handler e' cio' che si rompe in silenzio quando un handler si sposta: compila, e il tasto non fa niente.
+	 * `PlayerInput.EveryActionIsBoundOnItsEvents` la esercita su un componente costruito dal test, e ne esegue i
+	 * binding attraverso il delegate vero.
+	 */
+	void BindInputActions(class UEnhancedInputComponent& Component);
 
 protected:
 	virtual void BeginPlay() override;
@@ -447,22 +452,20 @@ protected:
 	TWeakObjectPtr<class ARTUnit> InspectedUnit;
 
 	void OnPan(const FInputActionValue& Value);
-	/** Il corpo di `OnPan` con il tempo passato (#3792): `WASD` e' un ingresso a velocita'. */
-	void ApplyKeyPan(const FVector2D& Axis, float DeltaTime);
 	void OnZoom(const FInputActionValue& Value);
-	/**
-	 * Il corpo di `OnZoom` con la domanda «il cursore e' nella scena?» gia' risolta (`#3748`). Sopra una fascia l'HUD ha il
-	 * puntatore e la rotella non zooma il mondo, come un click sulla fascia non diventa una cella ([D-497] (1), `#3661`).
-	 */
-	void ApplyZoom(float Axis, bool bCursorInsideScene);
 	void OnRotate(const FInputActionValue& Value);
 
-	/** #863 — orbita continua. `bOrbiting` distingue «il mouse si muove» da «il giocatore sta orbitando». */
+	/** #863 — orbita continua: il tasto centrale arma, il mouse guida. Lo stato e' in `CameraGestures`. */
 	void OnOrbit(const FInputActionValue& Value);
 	void OnOrbitPressed(const FInputActionValue& Value);
 	void OnOrbitReleased(const FInputActionValue& Value);
 
-	bool bOrbiting = false;
+	/**
+	 * **I gesti della camera** (#4065, S3): lo stato dei tasti tenuti e l'aritmetica che trasforma un movimento del
+	 * puntatore in orbita, dolly, pan o peek. Le funzioni camera di questo controller inoltrano, e leggono dal mondo solo
+	 * cio' che i gesti non possono sapere.
+	 */
+	FRTCameraGestures CameraGestures;
 
 	// --- #1771 / #1772 · il modificatore camera e i suoi gesti -------------------------------------
 
@@ -472,24 +475,6 @@ protected:
 	void OnUndoReleased(const FInputActionValue& Value);
 	void OnLayerUp(const FInputActionValue& Value);
 	void OnLayerDown(const FInputActionValue& Value);
-
-	/** `Ctrl` tenuto: arma i gesti camera. */
-	bool bCameraModifier = false;
-
-	/** `Ctrl`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
-	bool bModifierPrimaryDown = false;
-
-	/** `Ctrl`+`RMB` in corso: dolly. Sopprime l'`UndoAction` per tutta la durata del gesto. */
-	bool bModifierSecondaryDown = false;
-
-	/**
-	 * Quanta strada ha percorso il puntatore da quando `Ctrl`+`LMB` e' stato premuto.
-	 *
-	 * 🔑 **E' cio' che separa un click da un drag**, e la separazione dev'essere netta: superata la soglia
-	 * il gesto e' un'orbita e il click **non si emette piu'**, altrimenti un trascinamento lungo
-	 * produrrebbe anche un set-pivot al rilascio — due operazioni da un gesto solo.
-	 */
-	float ModifierPrimaryDragDistance = 0.f;
 
 	/**
 	 * Soglia in pixel oltre la quale `Ctrl`+`LMB` e' un trascinamento e non un click.
@@ -546,15 +531,6 @@ protected:
 	 */
 	void UpdateEdgePan(float DeltaTime);
 
-	/** Il corpo di `UpdateEdgePan`, con cursore e viewport passati: ritorna se la camera si e' mossa. */
-	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime);
-
-	/** L'ultimo stato dell'edge pan scritto nel log: si scrive solo quando cambia, non a ogni fotogramma. */
-	ERTEdgePanState LastEdgePanState = ERTEdgePanState::Rest;
-
-	/** Un tasto del pan ha mosso la vista in questo fotogramma: l'edge pan cede. Lo alza `OnPan`, lo consuma `ApplyEdgePanFrom`. */
-	bool bKeyPanThisFrame = false;
-
 	// --- #1773 · doppio click = Select + Focus ------------------------------------------------------
 
 	/**
@@ -578,68 +554,12 @@ protected:
 		meta = (ClampMin = "0.05"))
 	float DoubleClickInterval = 0.3f;
 
-	/**
-	 * Instrada un movimento del puntatore al gesto camera armato, se ce n'e' uno.
-	 *
-	 * Ritorna `true` se il movimento e' stato consumato: cosi' l'orbita di `#863` resta il ramo di
-	 * default e non deve conoscere i gesti nuovi.
-	 */
-	bool RouteCameraGesture(const FVector2D& Delta);
-
 public:
-	/** Stato dei gesti camera, per i test: nessuno di questi ha un viewport da interrogare. */
-	void SetCameraModifierForTest(bool bDown) { bCameraModifier = bDown; }
-	bool IsCameraModifierForTest() const { return bCameraModifier; }
-	void SetModifierPrimaryDownForTest(bool bDown, float Distance = 0.f)
-	{
-		bModifierPrimaryDown = bDown;
-		ModifierPrimaryDragDistance = Distance;
-	}
-	float GetModifierPrimaryDragDistanceForTest() const { return ModifierPrimaryDragDistance; }
-	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
-	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
-	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
-	/** `#1838`: l'edge pan con cursore e viewport iniettati — in headless un viewport non esiste. */
-	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime = 1.f / 60.f) { return ApplyEdgePanFrom(Cursor, ViewportSize, DeltaTime); }
+	/** I gesti della camera, per chi li guida senza un tasto: i test, che non hanno un viewport. */
+	FRTCameraGestures& GetCameraGestures() { return CameraGestures; }
 
-	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
-	void PanForTest(const FVector2D& Axis, float DeltaTime = 1.f / 60.f);
-
-	/**
-	 * `#3748`: la rotella dal gestore vero, che chiede al viewport dov'e' il cursore. Headless un viewport non c'e', quindi il
-	 * cursore non e' nella scena e non zooma: prova che `OnZoom` passa dalla domanda e non da una costante.
-	 */
-	void ZoomForTest(float Axis);
-
-	/** `#3748`: lo zoom con la posizione del cursore iniettata, il solo modo di provare il ramo «dentro la scena» senza un viewport. */
-	void ApplyZoomForTest(float Axis, bool bCursorInsideScene) { ApplyZoom(Axis, bCursorInsideScene); }
-
-	/**
-	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
-	 * e' in corso. «Bloccante» e' `IsGameplayInputBlocked()`, cioe' il contratto del puntatore (#705): si legge,
-	 * non si duplica.
-	 */
-	static bool EdgePanAllowed(bool bGameplayInputBlocked, bool bCameraGestureActive)
-	{
-		return !bGameplayInputBlocked && !bCameraGestureActive;
-	}
-	/**
-	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
-	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.
-	 */
-	void RecenterForTest();
-
-protected:
-
-public:
-	/**
-	 * L'orbita a partire da un delta di mouse, senza `FInputActionValue` (per i test).
-	 *
-	 * Stessa disciplina di `FocusCameraOnUnit` e `HandleClickOnUnitForTest`: la **decisione** — quale asse
-	 * guida cosa — si verifica headless; l'handler resta il solo punto che decide *quando*. Senza questo,
-	 * scambiare `Delta.X` con `Delta.Y` non farebbe cadere niente.
-	 */
-	void OrbitCameraForTest(const FVector2D& Delta);
+	/** La taratura dei gesti, dalle proprieta' `EditAnywhere` qui sopra. Il controller la passa ai gesti a ogni movimento. */
+	FRTCameraGestureTuning GetCameraGestureTuning() const;
 
 	/**
 	 * La riga di diagnosi di un waypoint rifiutato: **quale** motivo, e chi sono i soggetti in gioco
@@ -651,11 +571,11 @@ public:
 	 * *di chi e' il piano* e non nominano nessun secondo attore — ed e' per questo che il difetto era
 	 * invisibile: tre righe su quattro erano giuste.
 	 *
-	 * Statica e testabile per la stessa disciplina di `OrbitCameraForTest`: finche' il testo nasceva dentro
+	 * Statica e testabile per la stessa disciplina di `FRTCameraGestures::Orbit`: finche' il testo nasceva dentro
 	 * `HandleClickOnCell`, verificarlo voleva un click, e nessun test lo esercitava.
 	 *
 	 * @param Snapshot     lo snapshot di pianificazione; `Occupancy` porta l'id dell'occupante.
-	 * @param Units        gli Actor **agli stessi indici** dello snapshot (`PlanningSnapshotFor`).
+	 * @param Units        gli Actor **agli stessi indici** dello snapshot (`RTPlanningSnapshot::For`).
 	 *                     ⚠️ Quegli id sono INDICI nell'array delle unita' vive, non `StableUnitId`.
 	 * @param PlannerIndex l'indice di chi sta pianificando: la sua cella non e' «occupata» per lui.
 	 * @param Cell         la cella cliccata.
@@ -703,12 +623,6 @@ public:
 	static int32 TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
 		TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath);
 
-	/** Arma o disarma il gesto, come farebbe il tasto centrale (per i test). */
-	void SetOrbitingForTest(bool bInOrbiting) { bOrbiting = bInOrbiting; }
-
-	/** Se il gesto e' armato. Serve a verificare che il rilascio lo chiuda davvero. */
-	bool IsOrbitingForTest() const { return bOrbiting; }
-
 	/**
 	 * Porta la velocita' di riproduzione al passo successivo della scala (CP 47.7, #1015).
 	 *
@@ -741,46 +655,6 @@ public:
 	void CyclePlaybackSpeed();
 
 	/**
-	 * I tasti che armano una POSIZIONE del kit, in ordine: l'indice nell'elenco **e'** l'indice nel kit
-	 * dell'unita' selezionata. Dieci, `1`..`9` piu' `0`.
-	 *
-	 * ⚠️ **E' la sorgente unica del conteggio**, ed e' il motivo per cui esiste come funzione invece che
-	 * come sequenza di `MapKey` scritti a mano: la mappatura la percorre, la bindatura la percorre, e un
-	 * test puo' chiedere *«quante posizioni raggiunge l'input?»* senza confrontare un letterale che
-	 * invecchia al primo tasto aggiunto. Interrogata da `PlayerInput.EveryKitEntryIsReachable`.
-	 *
-	 * Il tasto sceglie una **posizione**, non un'azione: quale abilita' occupi l'indice N dipende dall'eroe.
-	 */
-	static const TArray<FKey>& AbilityHotkeys();
-
-	/**
-	 * L'ETICHETTA del tasto che arma questa voce di kit, o testo **vuoto** se nessun tasto la raggiunge
-	 * (`#2987`, estesa da [D-397] §4).
-	 *
-	 * 🔴 **Esiste perche' quell'etichetta veniva CALCOLATA invece che letta, e per l'ultima posizione era
-	 * falsa.** `ARTHUD::ComposeAbilityLine` scriveva `AbilityIndex + 1`, quindi per la posizione `9` — che
-	 * `AbilityHotkeys()` chiude con `EKeys::Zero` — la riga diceva **«10.»** mentre il tasto e' **`0`**.
-	 * L'aritmetica e la tabella erano due verita', e divergevano proprio dove il giocatore non ha un
-	 * secondo modo di scoprirlo.
-	 *
-	 * ⚠️ **Il vuoto e' un risultato, non un errore.** Il commento di `GenericHotkeys()` dichiara il caso:
-	 * *«un eroe con sei azioni porta il kit a undici voci contro i dieci tasti numerici»*. L'undicesima
-	 * posizione non ha un tasto, e mostrare `11.` la annuncerebbe come premibile — la forma scritta del
-	 * *«verde che mente»* che quel commento gia' nomina.
-	 *
-	 * 🔑 **L'ordine di risoluzione e' `GenericHotkeys()` per `ActionId` -> `AbilityHotkeys()` per posizione
-	 * -> vuoto, e lo fissa [D-397] §4.** `Action.Wait` si arma con `Z` **e** col numero della propria
-	 * posizione; si mostra la lettera perche' e' legata all'`ActionId`, mentre il numero dipende da quante
-	 * azioni porta l'eroe — *«una barra che rinumerasse le generiche insegnerebbe una mappa che scade»*.
-	 *
-	 * ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato.
-	 *
-	 * ⚠️ Restituisce l'etichetta della `FKey`, non una stringa composta qui: la traduzione da tasto a nome
-	 * visibile appartiene all'engine, e ricomporla sarebbe la seconda verita' daccapo.
-	 */
-	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
-
-	/**
 	 * Fra queste unita', ce n'e' una **viva** che `PlayerTeamId` comanda (e non e' un bot)?
 	 *
 	 * E' la domanda di `LocalUnitCanReceiveReactionWindow` con le unita' PASSATE invece che cercate nel mondo, e
@@ -790,72 +664,6 @@ public:
 	 * Falso su una lista vuota: senza unita' non c'e' nessun decisore da proteggere, e la manopola resta girabile.
 	 */
 	static bool PlayerCommandsAnyLiveUnit(int32 PlayerTeamId, const TArray<ARTUnit*>& Units);
-
-	/**
-	 * Il tasto che sceglie l'opzione in posizione `OptionIndex` di una finestra di reazione ([D-491], #3615): il
-	 * tasto del kit nella stessa posizione, `AbilityHotkeys()[OptionIndex]`. Vuoto oltre l'ultimo tasto.
-	 *
-	 * 🔑 Viene dalla lista che mappa i tasti, come `HotkeyLabelFor`: il badge e il tasto che risponde non possono
-	 * dire due cose diverse.
-	 */
-	static FText ReactionOptionKeyLabel(int32 OptionIndex);
-
-	/**
-	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
-	 * risolvono per **nome** invece che per posizione.
-	 *
-	 * 🔴 **Il nome non e' un vezzo, e' l'unica forma corretta.** Le generiche sono ACCODATE al kit
-	 * (`ARTUnit::EnsureDefaultAbilities`), quindi il loro indice dipende da quante azioni porta l'eroe: con
-	 * cinque stanno a `5..9`, con sei a `6..10`. Un tasto legato a una posizione fissa punterebbe a cose
-	 * diverse su eroi diversi — e su quello che ne ha una in piu' punterebbe a un'abilita' d'eroe.
-	 *
-	 * ⚠️ **Perche' esistono**: dieci posizioni non bastano piu'. Un eroe con sei azioni porta il kit a
-	 * **undici** voci contro i dieci tasti numerici, e `PlayerInput.EveryKitEntryIsReachable` lo dichiara.
-	 * Togliendo le cinque generiche dalla fila dei numeri, quella fila torna a servire i soli eroi.
-	 */
-	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
-
-	/**
-	 * Il tasto che DICHIARA `Sneak` ([D-425]): l'unico profilo di movimento che si dichiara invece di derivarsi.
-	 *
-	 * 🔑 **Una sede sola, letta da due parti** (`#3470`): `BuildInputMappings` ci lega `IA_DeclareSneak`, e la
-	 * lettura del movimento nella barra lo mostra come badge. Scritto due volte, il giorno in cui qualcuno
-	 * rimappa il gesto la barra continuerebbe a dire `M` per un tasto che non fa piu' niente.
-	 * `PlayerInput.SneakIsMappedOnTheKeyTheBarShows` lo pinna sul contesto di input reale.
-	 */
-	static const FKey& SneakHotkey();
-
-	/**
-	 * Il tasto che DICHIARA il piano dell'unita' selezionata (`Invio`, #3145) — lo stesso gesto che il pulsante
-	 * `Conferma` della HUD inoltra ([D-458]). Una sede sola, letta dalla mappatura e dall'etichetta del pulsante.
-	 */
-	static const FKey& DeclarePlanHotkey();
-
-	/**
-	 * Il tasto da tastiera del Back (`BackSpace`), gemello del tasto destro — lo stesso gesto che il pulsante
-	 * `Annulla` della HUD inoltra ([D-458]). ⚠️ Il destro resta mappato a parte: e' anche il dolly della camera
-	 * con `Ctrl`, e un pulsante non ha un modificatore da tenere.
-	 */
-	static const FKey& UndoKeyboardHotkey();
-
-	/**
-	 * Il tasto della vista strategica (`Tab`, [D-488]) e quello del ciclo della selezione (`N`, [D-421]).
-	 *
-	 * 🔑 **Sono una coppia, e una sede sola li tiene insieme**: D-488 sposta il ciclo da `Tab` a `N` nello
-	 * stesso commit che lega `Tab`, perche' separati, per un commit, `Tab` farebbe due cose oppure nessuna.
-	 * `PlayerInput.StrategicViewIsOnTabAndSelectionCycleOnN` li pinna sul contesto di input reale.
-	 */
-	static const FKey& StrategicViewHotkey();
-	static const FKey& CycleSelectionHotkey();
-
-	/**
-	 * Il nome che un BADGE scrive per un tasto ([D-496], #3633): in italiano per i tasti che l'HUD mostra in un
-	 * badge (`Enter` -> «INVIO», `BackSpace` -> «BACKSPACE»), altrimenti il nome dell'engine in maiuscolo.
-	 *
-	 * 🔑 **Riceve il tasto, non un nome**: il badge legge sempre il tasto vero della mappatura, e questa tabella
-	 * ne traduce soltanto l'etichetta. Un tasto rimappato cambia il badge senza toccare la tabella.
-	 */
-	static FText KeyBadgeLabel(const FKey& Key);
 
 private:
 	void OnSelect(const FInputActionValue& Value);
@@ -1157,7 +965,7 @@ public:
 	 * dell'HUD (`ReleaseInspectionUnlessLive`), e fino ad allora un nemico uscito di vista resta il soggetto. Il cancello lo applica il CONSUMATORE,
 	 * a ogni lettura, con una voce `Live` nella vista di chi guarda (`URTInspectLibrary::LiveEntry`): lo fa `URTScreenHudWidgetBase::GetDockUnit`,
 	 * da cui il dock deve leggere. Lo slot non conosce il manager e legge da qui: il suo divario dura al piu' un fotogramma ed e' sicuro (il
-	 * controller rifiuta di scrivere, e il cancello dell'hover in `GatherSkillHoverInputs` scarta un nemico senza voce `Live`).
+	 * controller rifiuta di scrivere, e il cancello dell'hover in `FRTPlanningOverlayArbiter::GatherSkillHover` scarta un nemico senza voce `Live`).
 	 */
 	const class ARTUnit* GetDockUnit() const;
 
@@ -1228,32 +1036,15 @@ public:
 	 */
 	void PinInspectionForTest(class ARTUnit* Unit) { PinInspection(Unit); }
 
-	/**
-	 * **IL SEGNALE DELL'HOVER SU UNA SKILL** (`#3750`, fetta D): lo slot della barra lo manda quando il cursore ci entra.
-	 * Dice solo QUALE skill di QUALE unita'; non scrive la mappa, non calcola niente: lo fa l'arbitro, al tick, dagli
-	 * ingressi (`FRTPlanningOverlayInputs::ActiveSource`).
-	 *
-	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
-	 * `ClearSkillHover`, e allora torna la sorgente di prima.
-	 *
-	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata mentre la barra la segue** (`#3748`): la barra propria e' di
-	 * chi si comanda, la barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del
-	 * risolutore degli ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata (`bDockFollowsInspection` e pin), non di
-	 * questa porta: l'hover di un'altra unita' non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione
-	 * di quella unita'). Anche l'hover dell'unita' ispezionata cade quando la barra torna alla selezione (`SelectUnit`), benche' la scheda resti
-	 * fissata: la barra non e' piu' sua, e Slate non manda l'uscita a uno slot che il dock ricostruisce.
-	 */
+	/** Il segnale dell'hover su una skill, dallo slot della barra (`#3750`, fetta D). La regola: `FRTPlanningOverlayArbiter::SetSkillHover`. */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
-	/**
-	 * Il cursore e' uscito dalla skill. **Spegne solo se l'hover registrato e' proprio quello** (stessa unita', stesso indice):
-	 * l'uscita dallo slot A puo' arrivare dopo l'ingresso nello slot B, e non deve cancellare B.
-	 */
+	/** Il cursore e' uscito dalla skill: spegne solo se l'hover registrato e' proprio quello. */
 	void ClearSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
 	/** Per i test e la diagnostica: l'hover registrato. `INDEX_NONE` se nessuno. */
-	int32 GetSkillHoverIndex() const { return SkillHoverIndex; }
-	const class ARTUnit* GetSkillHoverUnit() const; // nel .cpp: il puntatore debole vuole il tipo completo
+	int32 GetSkillHoverIndex() const { return Overlay.GetSkillHoverIndex(); }
+	const class ARTUnit* GetSkillHoverUnit() const;
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/** Un fotogramma di `PlayerTick`, che e' protetto: `#3511` prova che il confronto delle aree di pianificazione vi e' cablato. */
@@ -1309,7 +1100,7 @@ public:
 	 *
 	 * 🔑 **Su quella cella il click ispeziona, e non sceglie un verso.** Per una carica `FacingCellFor` e' la cella del bersaglio —
 	 * `PlannedDashCell` —, quindi il selettore del verso si apriva sull'esagono del nemico: un secondo click, con il raggio sulla mesh o sul
-	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`TryHandleFacingClickUnderCursor`). Una carica non ha
+	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`FRTFacingDeclaration::TryHandleClickUnderCursor`). Una carica non ha
 	 * un verso da scegliere ([D-524] (4)): chi apre il selettore chiede prima a questa funzione, e se risponde un nemico il click e' suo.
 	 */
 	const class ARTUnit* PlannedChargeTargetAt(const class ARTUnit* Unit, const FRTCellId& Cell) const;
@@ -1448,11 +1239,9 @@ public:
 	 * `PlannedWaypoints` sarebbe una copia che diverge, ed e' il difetto che questo repository paga di
 	 * continuo con i totali scritti a mano. Qui il contesto e' una *lettura* di quei tre, piu' la fase.
 	 *
-	 * ⚠️ **Due contesti non sono ancora producibili, e non e' una svista.** `ReactionWindow` e `Modal`
-	 * esistono nell'enum e in `URTPointerLibrary::ResolveBack` — che li ordina correttamente — ma nessuno li
-	 * produce: la finestra di reazione e' **E14** e il modale e' **#613**. Aggiungere qui un flag che nessuno
-	 * scrive avrebbe creato un campo senza produttore, che e' il difetto che CP 11.8 ha appena finito di
-	 * documentare. Quando quegli owner arrivano, aggiungono il proprio ramo qui.
+	 * 🔑 **Qui si raccolgono i fatti (`FRTPointerFacts`); l'ordine lo decide `URTPointerLibrary::DeriveContext`**
+	 * (#4065), che lo documenta e ha test senza mondo. `Modal` ha un produttore dal menu di pausa (CP 46.6);
+	 * `ReactionWindow` no, ed e' E14.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerContext GetPointerContext() const;
@@ -1684,109 +1473,52 @@ public:
 	 */
 	bool HandleTargetEdge(const FRTCellId& Cell, ERTHexDirection Edge);
 
-	/**
-	 * `Facing` -> `PlannedFacing` + `bDeclaresPlannedFacing`. Chiude l'anello che #291 aveva lasciato aperto:
-	 * le regole della rotazione dichiarata esistevano e nessun input le raggiungeva.
-	 *
-	 * ⚠️ Rifiuta un settore **illegale** invece di correggerlo in silenzio: e' la regola di
-	 * `URTFacingLibrary`, e qui la si chiede, non la si riscrive.
-	 * @return true se la rotazione e' stata dichiarata.
-	 */
-	bool HandleFacingSector(ERTHexDirection Sector);
+	// ---- Il verso finale ([D-367], [D-462], [D-463], `#291`) -------------------------------------------------------------
+	//
+	// #4065 (S4): la regola e lo stato del selettore stanno in `FRTFacingDeclaration`, che documenta ogni funzione. Qui
+	// restano le facciate che chiamano da fuori — test, harness — con le firme di prima.
+
+	/** `Facing` -> `PlannedFacing` + `bDeclaresPlannedFacing`; un settore illegale e' rifiutato, mai corretto. */
+	bool HandleFacingSector(ERTHexDirection Sector) { return Facing.HandleSector(*this, Sector); }
 
 	/** Entra nel contesto `Facing` (l'unita' selezionata deve esserci). */
-	void BeginFacingDeclaration();
-
-	/**
-	 * Il SECONDO CLICK sull'esagono finale sceglie il verso ([D-367], [D-462], `#291`): `Cell` deve essere la cella
-	 * finale del movimento pianificato, e `Sector` il lato puntato. Dichiara il verso e **chiude il movimento**:
-	 * da quel momento un click su un'altra cella non aggiunge waypoint, finche' un Back non lo riapre.
-	 *
-	 * ⚠️ **Da fermo serve il selettore aperto** (`TryOpenFacingSelector`): la propria cella non e' una destinazione,
-	 * e un click su di essa senza il primo gesto sarebbe una selezione, non una scelta di verso.
-	 * ⛔ Un settore illegale per il budget di pivot e' rifiutato, mai corretto ([D-367]).
-	 * @return true se il verso e' stato dichiarato.
-	 */
-	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector);
-
-	/**
-	 * Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento: la propria da fermo ([D-462] punto
-	 * 4), la destinazione in marcia ([D-463]). Lo chiamano il click sull'unita' gia' selezionata (con la sua cella,
-	 * quindi solo da fermo) e il click sulla cella finale.
-	 *
-	 * 🔑 **Aperta, chiude il movimento**: ogni click e' una direzione finche' non si sceglie un verso o un Back la
-	 * chiude ([D-463]).
-	 * @return true se il selettore e' stato aperto.
-	 */
-	bool TryOpenFacingSelector(const FRTCellId& ClickedCell);
-
-	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
-	FRTCellId FacingCellFor(const ARTUnit* Unit) const;
-
-	/**
-	 * Ruota la MESH verso il facing che l'unita' avra' a fine mossa: la rotazione dichiarata se c'e',
-	 * altrimenti quella derivata dal percorso pianificato, altrimenti l'orientamento attuale.
-	 *
-	 * ⚠️ **Solo presentazione, e in ANTICIPO.** Il facing logico non cambia in pianificazione — lo scrive
-	 * il resolver a fine Move — quindi fra qui e la risoluzione la mesh mostra un orientamento che le regole
-	 * non hanno ancora. E' la stessa natura del percorso verde e del ventaglio: un'anteprima del piano, non
-	 * lo stato. `PIE-FACING-1` chiede che mesh e regola coincidano **a fine playback**, ed e' li' che il
-	 * TurnManager le riallinea.
-	 *
-	 * Senza, il giocatore pianifica un percorso, non vede cambiare niente, e a fine risoluzione l'unita'
-	 * scatta a un orientamento che non ha mai visto arrivare — che a schermo si legge come casuale.
-	 */
-	void PreviewPlannedFacing(ARTUnit* Unit) const;
-
-	/** Ruota la MESH verso `Direction`, dalla geometria della cella. Solo presentazione: non tocca il piano. */
-	void PreviewFacingToward(ARTUnit* Unit, ERTHexDirection Direction) const;
-
-	/**
-	 * L'hover del selettore aperto ([D-367]: *«l'hover ne anticipa il settore e la rotazione visuale senza mutare lo
-	 * stato autorevole»*): la mesh si gira verso il lato **legale** sotto il cursore, e torna al verso pianificato
-	 * quando il cursore esce o il selettore si chiude. ⚠️ Un lato illegale non ruota: non e' interattivo.
-	 *
-	 * Il raggio arriva da fuori perche' il test possa darlo senza un viewport; in partita lo da' `PlayerTick`.
-	 */
-	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir);
-
-	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
-	TOptional<ERTHexDirection> GetFacingHoverSector() const { return FacingHoverSector; }
+	void BeginFacingDeclaration() { Facing.Begin(*this); }
 
 	/** Esce da `Facing` senza dichiarare nulla. */
-	void EndFacingDeclaration();
+	void EndFacingDeclaration() { Facing.End(*this); }
 
-	/** Stile e rotta del movimento pianificato su cui si giudica il verso: come li applichera' il resolver (`#291`). */
-	void PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle, TArray<FRTCellId>& OutPath) const;
+	/** Il SECONDO CLICK sull'esagono finale sceglie il verso, e chiude il movimento. */
+	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector) { return Facing.HandleClick(*this, Cell, Sector); }
 
-	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
-	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const;
+	/** Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento. */
+	bool TryOpenFacingSelector(const FRTCellId& ClickedCell) { return Facing.TryOpenSelector(*this, ClickedCell); }
 
-	/** Cancella il verso dichiarato e riapre il movimento, dicendo perche'. Niente se non c'era un verso. */
-	void CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche);
+	/** Un click sull'esagono finale va al selettore del verso? La decisione PRIMA del raggio ([D-528] (3), #3748). */
+	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const { return Facing.HandlesClickOnFinalCell(*this, Unit); }
 
-	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
-	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
+	/** L'hover del selettore aperto: il raggio arriva da fuori perche' il test possa darlo senza un viewport. */
+	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir)
+	{
+		Facing.UpdateHoverFromRay(*this, bHasRay, RayOrigin, RayDir);
+	}
 
-	/**
-	 * La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio: un click sull'esagono finale va al selettore del verso?
-	 * Estratta perche' il raggio ha bisogno del cursore e non gira headless, e questa decisione e' la meta' che conta: [D-528] (3).
-	 *
-	 * 🔴 Per una carica l'esagono finale e' quello del nemico puntato, e `OnSelect` manda quel click al selettore PRIMA della matrice delle
-	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
-	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
-	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
-	 *
-	 * ➕ `#3748`: falsa anche con il piano non scrivibile (`IsPlanningWriteBlocked`). Con la barra su un nemico il click sull'unita' propria
-	 * selezionata non va al selettore ma alla selezione, che riporta la barra.
-	 */
-	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
-
-	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
-	static constexpr float FacingDeadZoneFraction = 0.3f;
+	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
+	TOptional<ERTHexDirection> GetFacingHoverSector() const { return Facing.GetHoverSector(); }
 
 	/** Vero mentre si sta dichiarando una rotazione. */
-	bool IsDeclaringFacing() const { return bDeclaringFacing; }
+	bool IsDeclaringFacing() const { return Facing.IsDeclaring(); }
+
+	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
+	FRTCellId FacingCellFor(const ARTUnit* Unit) const { return FRTFacingDeclaration::CellFor(Unit); }
+
+	/** Ruota la MESH verso il facing che l'unita' avra' a fine mossa. Solo presentazione, e in anticipo. */
+	void PreviewPlannedFacing(ARTUnit* Unit) const { FRTFacingDeclaration::PreviewPlanned(*this, Unit); }
+
+	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
+	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const
+	{
+		return FRTFacingDeclaration::IsLegalForPlan(*this, Unit, Sector);
+	}
 
 	/**
 	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
@@ -1806,56 +1538,41 @@ public:
 	void SetPhaseFocusPinned(bool bPinned) { bPhaseFocusPinned = bPinned; }
 	bool IsPhaseFocusPinned() const { return bPhaseFocusPinned; }
 
-	/**
-	 * **L'INGRESSO UNICO delle aree di pianificazione** — `#3511` (CX-2 di `aree-di-contesto-spec-panel-2026-10-06.md`).
-	 *
-	 * Confronta gli ingressi di adesso (`FRTPlanningOverlayInputs`) con quelli dell'ultimo calcolo e rifa' qualcosa
-	 * **solo se sono cambiati**: a ingressi invariati non ricalcola niente. Lo chiama `PlayerTick` a ogni fotogramma,
-	 * subito dopo aver posato l'hover, e un test lo chiama senza `PlayerTick`.
-	 *
-	 * 🔑 **Due contatori, perche' sono due domande.** `GetPlanningOverlayComputations` conta i cambi di QUALUNQUE ingresso;
-	 * `GetPlanningOverlayPlanComputations` solo quelli che rifanno ventaglio e portata, cioe' tutti tranne il cambio
-	 * della sola cella sotto il cursore. Il secondo e' il criterio di `#711`: *«nessun produttore all'hover ricalcola il
-	 * reachable set»*, e un test lo pinna.
-	 *
-	 * ⚠️ **Spegne anche, dallo stato**: se `ShowsAreas()` e' falso (commit, playback, `Modal`, KO, fine partita) azzera
-	 * ogni area. L'uscita che qualcuno dimentica di elencare si corregge al tick successivo.
-	 *
-	 * @param KnownHexMap la mappa, se il chiamante l'ha gia' cercata (`PlayerTick`): evita una seconda ricerca di actor.
-	 */
+	// ---- Le aree di pianificazione (#3511, #3750) — #4065 (S5): l'arbitro e' `FRTPlanningOverlayArbiter`, che documenta
+	// la regola; qui le facciate con le firme di prima.
+
+	/** Il confronto di ogni fotogramma: rifa' le aree solo se un ingresso e' cambiato, e le spegne dallo stato. */
 	void UpdatePlanningOverlay(class ARTHexMapActor* KnownHexMap = nullptr);
 
-	/**
-	 * Il piano di `Unit` e' cambiato (o e' cambiata l'unita'): ricalcola SUBITO le aree. `Unit == nullptr` le spegne.
-	 *
-	 * 🔑 **Sostituisce le chiamate dirette a `RefreshPlanningPreview`**: sale `PlanRevision`, perche' un waypoint
-	 * aggiunto non cambia nessun altro ingresso, e passa per lo stesso confronto e lo stesso reset di `UpdatePlanningOverlay`.
-	 * Il tick successivo trova gli ingressi uguali e non rifa' niente.
-	 *
-	 * ⚠️ **`nullptr` spegne SUBITO, ma non decide lo stato**: se l'unita' selezionata e' viva e si sta pianificando, il tick
-	 * successivo vede che le aree si mostrano e le riaccende. I due chiamanti con `nullptr` — commit e fine partita — sono in
-	 * uno stato che dice il contrario (`ResolutionPlayback`, `bMatchEnded`), ed e' per questo che il reset non si ripete.
-	 */
+	/** Il piano di `Unit` e' cambiato: ricalcola SUBITO le aree. `Unit == nullptr` le spegne. */
 	void RefreshPlanningOverlay(const ARTUnit* Unit);
 
 	/** Quanti calcoli hanno fatto gli ingressi cambiati dall'inizio (`#3511`). Per i test e la diagnostica. */
-	int32 GetPlanningOverlayComputations() const { return PlanningOverlayComputations; }
+	int32 GetPlanningOverlayComputations() const { return Overlay.GetComputations(); }
 
 	/** ...di questi, quanti hanno rifatto ventaglio e portata: i cambi della sola cella non ci sono. */
-	int32 GetPlanningOverlayPlanComputations() const { return PlanningOverlayPlanComputations; }
+	int32 GetPlanningOverlayPlanComputations() const { return Overlay.GetPlanComputations(); }
 
 protected:
-	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
 	FRTGlanceDwell GlanceDwell;
 	FRTGlanceTarget GlanceTarget;
 
 	/** Calcola il bersaglio grezzo sotto il cursore (unita' colpita, cella, porta/obiettivo) e avanza lo sguardo. */
 	void UpdateGlance(float DeltaSeconds, bool bCellResolved, const FRTCellId& Cell, const class URTHexMapAsset* Map);
 
-	bool bDeclaringFacing = false;
+	/** La dichiarazione del verso (#4065, S4): il selettore e il lato sotto il cursore. Le facciate pubbliche la inoltrano. */
+	FRTFacingDeclaration Facing;
 
-	/** Il lato verso cui l'hover ha girato la mesh: vuoto quando la mesh mostra il verso pianificato. */
-	TOptional<ERTHexDirection> FacingHoverSector;
+	// FRTFacingHost: cio' che la dichiarazione del verso chiede al controller, e nient'altro. Le ragioni stanno in `RTFacingHost.h`.
+	virtual UWorld* GetFacingWorld() const override;
+	virtual ARTUnit* GetFacingUnit() const override;
+	virtual bool IsFacingWriteBlocked() const override;
+	virtual bool IsFacingInputInert() const override;
+	virtual ERTPointerContext GetFacingPointerContext() const override;
+	virtual ERTPointerTargetKind GetFacingTargetKind() const override;
+	virtual bool IsFacingChargeTargetAt(const ARTUnit* Unit, const FRTCellId& Cell) const override;
+	virtual void RecordFacingOrder() override;
+	virtual bool DeprojectFacingCursor(FVector& OutOrigin, FVector& OutDirection) const override;
 
 	bool bInspectorPinned = false;
 
@@ -1892,7 +1609,7 @@ private:
 	 * selezionata; il ciclo `N` con una sola comandabile esce prima di `SelectUnit` e lo spegne da se' (`CycleSelection`).
 	 *
 	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera). ⚠️ Non e' piu' un caso il click che il selettore
-	 * del verso consumava prima della selezione (`TryHandleFacingClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
+	 * del verso consumava prima della selezione (`FRTFacingDeclaration::TryHandleClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
 	 * risponde no (`IsPlanningWriteBlocked`), e il click cade nella selezione. ⚠️ E non si
 	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente. L'unica
 	 * eccezione e' la caduta al turno nuovo (`ReleaseInspectionForNewTurn`), che azzera tutto e tre insieme.
@@ -1932,66 +1649,20 @@ private:
 	 */
 	bool IsUnitCommandedByThisPlayer(const class ARTUnit* Unit) const;
 
-	/** Gli ingressi dell'ultimo calcolo delle aree di pianificazione (`#3511`), e se ce n'e' stato uno. */
-	FRTPlanningOverlayInputs LastPlanningOverlayInputs;
-	bool bHasPlanningOverlayInputs = false;
+	/** L'arbitro delle aree di pianificazione (#4065, S5): ingressi, confronto, sorgente, hover della skill. */
+	FRTPlanningOverlayArbiter Overlay;
 
-	/** Sale a ogni `RefreshPlanningOverlay`: il piano cambia senza che nessun altro ingresso lo dica. */
-	int32 PlanningOverlayRevision = 0;
-
-	int32 PlanningOverlayComputations = 0;
-	int32 PlanningOverlayPlanComputations = 0;
-
-	/** Gli ingressi di adesso per `Unit` (la selezionata, o quella che il chiamante dichiara). Non scrive niente. */
-	FRTPlanningOverlayInputs GatherPlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap) const;
-
-	/**
-	 * **Il cancello del fuoco** (`#3750`, P2): riempie `FocusSubject`, `FocusMove` e `FocusKnowledgeStamp` se l'unita'
-	 * ispezionata e' un NEMICO VIVO con una voce `Live` nella vista di chi guarda, e non tocca niente altrimenti.
-	 *
-	 * 🔴 **Il cancello e' qui e non nell'HUD**, anche se l'HUD rilascia gia' l'ispezione di chi non e' piu' `Live`
-	 * (`ReleaseInspectionUnlessLive`): quella arriva al tick dell'HUD, e fra il tick in cui il nemico esce di vista e il
-	 * suo l'area mostrerebbe a un osservatore cio' che non vede. La vista e' la stessa del velo
-	 * (`URTHudViewModel::BuildObserverKnowledgeView`), e la cella del soggetto viene dalla SUA VOCE, non dall'attore.
-	 * ⛔ Non guarda `ARTUnit::IsKnownToObserver()`, che nasce vero.
-	 *
-	 * Costa una ricerca di unita' e la costruzione della vista, e solo quando c'e' un'unita' ispezionata.
-	 */
-	void GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const;
-
-	/**
-	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
-	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda) o di quella a FUOCO
-	 * (ispezionata e fissata, `#3748`), viva, se chiede un bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da
-	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di un'unita' ispezionata (lo slot della
-	 * barra in sola lettura) scrive anche `bSkillHoverOfInspected`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
-	 *
-	 * 🔴 **L'origine di un'unita' propria e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con
-	 * quello dell'azione armata: e' un dato PROPRIO (il suo scatto pianificato). **Per un nemico a fuoco e' la cella della VOCE DELLA
-	 * VISTA, mai il piano**: `AimOriginFor` leggerebbe lo scatto pianificato del nemico e la portata mostrerebbe da dove mirera'. Il
-	 * cancello e' quello del fuoco: una voce `Live` nella vista di chi guarda.
-	 */
-	void GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const;
-
-	/** L'hover registrato dallo slot: quale unita' e quale posizione di kit. Vedi `SetSkillHover`. */
-	TWeakObjectPtr<const ARTUnit> SkillHoverUnit;
-	int32 SkillHoverIndex = INDEX_NONE;
-
-	/**
-	 * Gli ingressi, pronti per il confronto: raccolti, con il fuoco passato dal cancello e dal latch (`FocusLatch`), e
-	 * **normalizzati** — i campi del fuoco valgono i default quando l'area non e' sulla mappa. Scrive il latch, quindi non e'
-	 * `const`; non scrive niente sulla mappa.
-	 */
-	FRTPlanningOverlayInputs ResolvePlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap);
-
-	/** Quante volte `PinInspection` ha fissato dall'inizio: e' cio' che riporta l'area del fuoco, anche sulla stessa unita'. */
-	int32 InspectionPinSerial = 0;
-
-	/** L'area del fuoco e' ancora sulla mappa? (#3750) */
-	FRTFocusLatch FocusLatch;
-
-	/** Confronta, e se cambiano calcola o spegne. L'unico punto che tocca `RefreshPlanningPreview`. */
-	void ApplyPlanningOverlay(class ARTHexMapActor* HexMap, const ARTUnit* Unit, const FRTPlanningOverlayInputs& Inputs);
+	// FRTPlanningOverlayHost: cio' che l'arbitro chiede al controller, e nient'altro. Le ragioni stanno in `RTPlanningOverlayHost.h`.
+	virtual UWorld* GetOverlayWorld() const override;
+	virtual const ARTUnit* GetOverlayUnit() const override;
+	virtual ERTPointerContext GetOverlayPointerContext() const override;
+	virtual ERTPointerTargetKind GetOverlayTargetKind() const override;
+	virtual TOptional<ERTHexDirection> GetOverlayFacingSector() const override;
+	virtual int32 GetOverlayActiveLayer() const override;
+	virtual int32 GetOverlayObserverTeamId() const override;
+	virtual const ARTUnit* GetOverlayInspectedUnit() const override;
+	virtual bool IsOverlayInspectorPinned() const override;
+	virtual bool DoesOverlayDockFollowInspection() const override;
 
 private:
 	/**

@@ -5,6 +5,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/Log/RTTurnLog.h"
 #include "Turn/Log/RTTurnLogLibrary.h"
@@ -427,7 +428,7 @@ bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 	// (2) Il verso dopo la carica e' l'ULTIMO PASSO PERCORSO: la carica si ferma in (-3,4), dopo (-3,3), cioe' SE.
 	// Verso Muiren (E) non e' l'ultimo passo percorso: e' la direzione dell'impatto, e il facing non la usa. ⚠️ Il
 	// facing di partenza e' un altro (`NW`) per distinguere questo caso dal «resta com'e'» di una rotta vuota, che e'
-	// quanto `PlannedMovementForFacing` rispondeva su un bersaglio fuori asse.
+	// quanto `FRTFacingDeclaration::PlannedMovement` rispondeva su un bersaglio fuori asse.
 	Charger->Facing = ERTHexDirection::NW;
 	TestTrue(TEXT("il verso SE, ultimo passo della rotta percorsa, e' legale"),
 		PC->IsFacingLegalForPlan(Charger, ERTHexDirection::SE));
@@ -1364,7 +1365,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputEveryKitEntryIsReachableTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
 {
-	const TArray<FKey>& Hotkeys = ARTPlayerController::AbilityHotkeys();
+	const TArray<FKey>& Hotkeys = RTInputKeys::AbilityHotkeys();
 	const int32 Generiche = URTCatalogLibrary::GetGenericActionIds().Num();
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 
@@ -1380,7 +1381,7 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
 	// voci tornerebbe vero anche se un'abilita' d'eroe finisse oltre la decima posizione, dove nessun numero
 	// la raggiunge. Si guarda voce per voce, ognuna col canale che la serve davvero.
 	TSet<FName> GenericheConTasto;
-	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	for (const TPair<FName, FKey>& Riga : RTInputKeys::GenericHotkeys())
 	{
 		GenericheConTasto.Add(Riga.Key);
 	}
@@ -1421,7 +1422,7 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
 	// I tasti generici entrano nello STESSO insieme, e non in uno separato: una `G` che servisse sia una
 	// posizione sia una generica sarebbe la stessa collisione silenziosa, e due controlli distinti non la
 	// vedrebbero. E' il verso che copre l'aggiunta di un tasto qualsiasi da una delle due parti.
-	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	for (const TPair<FName, FKey>& Riga : RTInputKeys::GenericHotkeys())
 	{
 		bool bGiaPresente = false;
 		Distinti.Add(Riga.Value, &bGiaPresente);
@@ -1461,7 +1462,7 @@ bool FRTPlayerInputGenericResolvesByNameTest::RunTest(const FString&)
 		return false;
 	}
 
-	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	for (const TPair<FName, FKey>& Riga : RTInputKeys::GenericHotkeys())
 	{
 		TSet<int32> IndiciTrovati;
 		for (const URTHeroData* Hero : Roster)
@@ -1621,7 +1622,7 @@ bool FRTPlayerInputLabStepKeysTest::RunTest(const FString&)
 
 /**
  * Il tasto del modificatore vive in un punto solo: i due `MapKey` di `BuildInputMappings`. Tutta la
- * famiglia di gesti legge poi `bCameraModifier`, quindi questo test e' l'unico posto in cui «quale tasto»
+ * famiglia di gesti legge poi `FRTCameraGestures::IsModifierDown`, quindi questo test e' l'unico posto in cui «quale tasto»
  * si puo' asserire.
  *
  * Tre cose, e la terza e' quella che D-514 chiede con le parole «i due `Alt` non sono piu' mappati».
@@ -1775,7 +1776,7 @@ bool FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest::RunTest(const FStri
  *
  * ⚠️ L'id in `Occupancy` e' l'**indice** nell'array delle unita' vive, non uno `StableUnitId`: qui gli
  * indici dello snapshot e quelli di `Units` combaciano per costruzione, che e' esattamente il contratto che
- * `PlanningSnapshotFor` garantisce in partita.
+ * `RTPlanningSnapshot::For` garantisce in partita.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaypointRejectionNamesOccupantTest,
 	"RefactorTactics.PlayerInput.WaypointRejectionNamesTheOccupant",
@@ -3018,7 +3019,7 @@ bool FRTNakedPlanningReachesTwiceTheBaseTest::RunTest(const FString&)
  * `AC-1` di `#1410`: dichiarare `Sneak` **ridisegna le celle raggiungibili**, subito.
  *
  * Trovato in PIE dall'utente il 2026-09-17: *«se premo M gli esagoni verdi non cambiano immediatamente»*.
- * La causa era che `RefreshPlanningPreview` viveva nel solo ramo del TRONCAMENTO, e i due rami che escono
+ * La causa era che `RTPlanningPreview::Refresh` viveva nel solo ramo del TRONCAMENTO, e i due rami che escono
  * prima — piano vuoto, e percorso che ci sta gia' — lo saltavano. Il primo e' il caso normale: chi preme
  * `M` prima di cliccare vedeva le celle del tetto VECCHIO.
  *
@@ -3394,9 +3395,9 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 /**
  * ARMARE UN'AZIONE CHE RISERVA LO SLOT RESTRINGE IL VENTAGLIO **SUBITO** — `#3418`.
  *
- * 🔑 **Il difetto era di ORDINE, non di calcolo.** `ArmKitAbility` chiamava `RefreshPlanningPreview`
+ * 🔑 **Il difetto era di ORDINE, non di calcolo.** `ArmKitAbility` chiamava `RTPlanningPreview::Refresh`
  * dodici righe **sopra** `Unit->PlannedAbilityIndex = Index`, e il ventaglio verde si ricava dal tetto che
- * `PlanningSnapshotFor` legge da `ReservedProfileForPlan(MakePlanFor(Unit))` — cioe' **dal piano**. Disegnato
+ * `RTPlanningSnapshot::For` legge da `ReservedProfileForPlan(MakePlanFor(Unit))` — cioe' **dal piano**. Disegnato
  * prima della scrittura, il piano non conteneva ancora l'azione: nessun tetto, verde intero. Col percorso
  * ciano gia' troncato dalla riga sopra, le due meta' della stessa anteprima dicevano cose diverse nello
  * stesso fotogramma.
@@ -4451,7 +4452,7 @@ bool FRTBackOnATargetingKeepsThePlanTest::RunTest(const FString&)
  * `#3470` — IL TASTO CHE LA BARRA MOSTRA PER `Sneak` E' QUELLO CHE IL CONTESTO DI INPUT LEGA DAVVERO.
  *
  * 🔑 **Interroga il `UInputMappingContext` reale**, come `HotkeysDoNotCollide`: la barra legge
- * `ARTPlayerController::SneakHotkey()`, e questo test prova che la stessa sede alimenta `IA_DeclareSneak`. Se
+ * `RTInputKeys::SneakHotkey()`, e questo test prova che la stessa sede alimenta `IA_DeclareSneak`. Se
  * qualcuno rimappasse il gesto scrivendo un tasto a mano in `BuildInputMappings`, la barra direbbe `M` per un
  * tasto morto — e questo diventerebbe rosso.
  */
@@ -4486,11 +4487,11 @@ bool FRTPlayerInputSneakKeyTest::RunTest(const FString&)
 			if (TastiDiSneak.Num() == 1)
 			{
 				TestEqual(TEXT("ed e' SneakHotkey(), cioe' quello che la barra mostra"),
-					TastiDiSneak[0], ARTPlayerController::SneakHotkey());
+					TastiDiSneak[0], RTInputKeys::SneakHotkey());
 			}
 			// L'etichetta che la barra stampa, scritta a mano: il controllo positivo dell'uguaglianza sopra.
 			TestEqual(TEXT("l'etichetta del tasto e' M"),
-				ARTPlayerController::SneakHotkey().GetDisplayName(false).ToString(), FString(TEXT("M")));
+				RTInputKeys::SneakHotkey().GetDisplayName(false).ToString(), FString(TEXT("M")));
 		}
 	}
 
@@ -4538,17 +4539,17 @@ bool FRTPlayerInputStrategicViewKeyTest::RunTest(const FString&)
 			if (TastiDellaVista.Num() == 1)
 			{
 				TestEqual(TEXT("la vista strategica e' su StrategicViewHotkey()"),
-					TastiDellaVista[0], ARTPlayerController::StrategicViewHotkey());
+					TastiDellaVista[0], RTInputKeys::StrategicViewHotkey());
 			}
 			if (TastiDelCiclo.Num() == 1)
 			{
 				TestEqual(TEXT("il ciclo e' su CycleSelectionHotkey()"),
-					TastiDelCiclo[0], ARTPlayerController::CycleSelectionHotkey());
+					TastiDelCiclo[0], RTInputKeys::CycleSelectionHotkey());
 			}
 			// I tasti scritti a mano: il controllo positivo delle due uguaglianze sopra, che da sole
 			// resterebbero vere anche se le due sedi si scambiassero i tasti.
-			TestEqual(TEXT("la vista strategica e' su Tab"), ARTPlayerController::StrategicViewHotkey(), EKeys::Tab);
-			TestEqual(TEXT("il ciclo della selezione e' su N"), ARTPlayerController::CycleSelectionHotkey(), EKeys::N);
+			TestEqual(TEXT("la vista strategica e' su Tab"), RTInputKeys::StrategicViewHotkey(), EKeys::Tab);
+			TestEqual(TEXT("il ciclo della selezione e' su N"), RTInputKeys::CycleSelectionHotkey(), EKeys::N);
 		}
 	}
 
@@ -4593,10 +4594,10 @@ bool FRTPlayerInputCommitKeysTest::RunTest(const FString&)
 			if (Dichiara.Num() == 1)
 			{
 				TestEqual(TEXT("ed e' DeclarePlanHotkey(), cioe' quello che Conferma mostra"),
-					Dichiara[0], ARTPlayerController::DeclarePlanHotkey());
+					Dichiara[0], RTInputKeys::DeclarePlanHotkey());
 			}
 			TestTrue(TEXT("IA_UndoWaypoint e' legata a UndoKeyboardHotkey(), cioe' quello che Annulla mostra"),
-				Indietro.Contains(ARTPlayerController::UndoKeyboardHotkey()));
+				Indietro.Contains(RTInputKeys::UndoKeyboardHotkey()));
 			TestTrue(TEXT("e resta legata anche al tasto destro: il pulsante non toglie il gesto"),
 				Indietro.Contains(EKeys::RightMouseButton));
 		}
@@ -4887,7 +4888,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("la scheda resta sul nemico mentre la barra torna alla propria unita'"), PC->GetInspectedUnit() == Primo && !PC->IsPlanningWriteBlocked());
 
 	// Il click VERO passa da `OnSelect`, che manda un click sull'esagono finale al selettore PRIMA della matrice delle unita'
-	// (`TryHandleFacingClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
+	// (`FRTFacingDeclaration::TryHandleClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
 	// non gira headless, ma chiede alla stessa funzione di `TryOpenFacingSelector`, che qui si prova direttamente. ⚠️ Questa riga e'
 	// stata trovata dalla tavola di `PIE-V01-CHARGEHOVER`: i click di prima, che entravano da `DispatchUnitClick` e `HandleClickOnCell`,
 	// non passavano di li'.
@@ -4895,7 +4896,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("un'altra cella no"), PC->PlannedChargeTargetAt(Charger, Secondo->Cell) == nullptr);
 	TestFalse(TEXT("il selettore non si apre sull'esagono del nemico puntato"), PC->TryOpenFacingSelector(Primo->Cell));
 	TestFalse(TEXT("e non resta aperto"), PC->IsDeclaringFacing());
-	// La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio. ⚠️ Era la meta' non coperta: i rami `Center` e `Side` consumano il
+	// La decisione di `FRTFacingDeclaration::TryHandleClickUnderCursor` PRIMA del raggio. ⚠️ Era la meta' non coperta: i rami `Center` e `Side` consumano il
 	// click comunque, quindi senza questa risposta il secondo click non arriva mai alla matrice delle unita' e resta morto (revisione di #3821).
 	TestFalse(TEXT("il click sull'esagono del nemico puntato non va al selettore del verso"), PC->FacingHandlesClickOnFinalCell(Charger));
 	TestFalse(TEXT("un click diretto su un lato di quell'esagono non dichiara un verso"), PC->HandleFacingClick(Primo->Cell, ERTHexDirection::E));

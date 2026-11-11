@@ -260,12 +260,61 @@ struct REFACTORTACTICS_API FRTGlanceDwell
 	bool HasElapsed(float DelaySeconds) const { return Target.IsValid() && Elapsed >= DelaySeconds; }
 };
 
+/**
+ * I FATTI da cui si deriva il contesto del puntatore (#4065, S2).
+ *
+ * Il controller li raccoglie dal mondo — il navigatore del frontend, il `TurnManager`, l'unita' selezionata — e
+ * `URTPointerLibrary::DeriveContext` decide l'ordine. Separati, l'ordine si prova senza un mondo.
+ */
+struct REFACTORTACTICS_API FRTPointerFacts
+{
+	/** Una schermata modale copre la partita: il menu di pausa (CP 46.6). */
+	bool bModalOpen = false;
+
+	/** La risoluzione scorre (il playback) o e' sospesa su una finestra di reazione (`#3837`). */
+	bool bResolutionActive = false;
+
+	/** C'e' un'unita' selezionata. */
+	bool bHasSelection = false;
+
+	/** Il selettore del verso e' aperto. */
+	bool bDeclaringFacing = false;
+
+	/** L'unita' selezionata ha armata un'azione che chiede un bersaglio. La mobilita' rapida no: chiede una destinazione. */
+	bool bArmedActionWantsTarget = false;
+
+	/** I waypoint posati dall'unita' selezionata. */
+	int32 WaypointCount = 0;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTPointerLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
+	/**
+	 * **Il contesto del puntatore, dai fatti** (#4065, S2). La precedenza e' quella del contratto
+	 * (`spec-pointer-interaction.md`): `Modal/Reaction UI > HUD > world`.
+	 *
+	 *   1. `Modal`: con la pausa a schermo nessun click raggiunge il mondo, qualunque cosa sia selezionata;
+	 *   2. `ResolutionPlayback`: dal primo segmento risolto al Cleanup nessun input cambia il piano, e lo stesso
+	 *      vale con la risoluzione sospesa su una finestra di reazione;
+	 *   3. `IdleSelection`, senza un'unita' selezionata: nient'altro conta;
+	 *   4. `Facing`, col selettore del verso aperto;
+	 *   5. `Targeting`, con un'azione armata che chiede un bersaglio;
+	 *   6. `Pathing`, con almeno un waypoint;
+	 *   7. `Planning`, lo stato NEUTRO di D-128: un click su un nemico ISPEZIONA e non pianifica.
+	 *
+	 * ⚠️ **`ReactionWindow` non esce mai di qui.** La finestra di reazione e' E14; una risoluzione sospesa su una
+	 * finestra da' `ResolutionPlayback`, il valore che quella finestra ha sempre avuto col playback acceso.
+	 * `ResolveBack` manderebbe `ReactionWindow` a `ReactionFallback`, che nessuno ha implementato.
+	 *
+	 * ⚠️ **`MatchEnded` non e' un contesto**: il contratto ne dichiara otto e non un nono. A partita finita il puntatore
+	 * resta in `IdleSelection`/`Planning`, e a rifiutare e' lo snapshot del `TurnManager`, a valle.
+	 */
+	static ERTPointerContext DeriveContext(const FRTPointerFacts& Facts);
+
 	/**
 	 * Che forma di bersaglio chiede questa azione. **Derivata dal catalogo, non un campo nuovo**: aggiungere
 	 * un `TargetKind` al dato avrebbe creato una seconda fonte di verita' accanto a `Shape`/`StructureOp`, che

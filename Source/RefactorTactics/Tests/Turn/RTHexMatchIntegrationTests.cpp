@@ -28,6 +28,7 @@
 #include "Ability/RTMovementProfileLibrary.h" // ProfileSneak: `Sneak` durante il playback non si dichiara (#3510)
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Player/RTPlayerState.h"      // `#3748`: TeamIdOf / ControlGroupOf, per misurare chi il giocatore comanda
 #include "UI/HUD/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Components/Button.h"     // `#3748`: i pulsanti di Conferma e Annulla, per leggerne l'abilitazione
@@ -40,7 +41,7 @@
 #include "Engine/GameInstance.h"
 #include "Core/RTGameplayTags.h"     // `#3750`: Slow e Unbalanced, gli stati pubblici che l'area del fuoco riporta
 #include "Perception/RTTeamKnowledge.h" // `#3750`: la conoscenza di squadra si dichiara nel banco
-#include "Player/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
+#include "Player/Overlay/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
 #include "EngineUtils.h"               // TActorIterator: la seconda unita' propria del banco
 #include "Perception/RTKnowledgeView.h" // `#3748`: la voce `Remembered` di un nemico solo ricordato
 #include "UI/HUD/RTHudViewModel.h"         // `#3748`: BuildObserverKnowledgeView, la vista da cui decide il cancello
@@ -1652,9 +1653,10 @@ bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
 // pianificazione resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
 //
 // 🔑 **Il soggetto qui e' `ARTPlayerController` insieme ad `ARTHexMapActor`, non il delegate.** Lo stato
-// osservabile sono i contatori dell'anteprima, perche' il produttore reale (`RefreshPlanningPreview`) vive
-// in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile da un test — limite gia'
-// dichiarato in `RTBlastPreviewTests.cpp:6`. Si osserva l'EFFETTO sui setter della mappa.
+// osservabile sono i contatori dell'anteprima: si osserva l'EFFETTO sui setter della mappa, passando dal controller.
+// ⏱️ *Fino a #4065 era anche l'unica via*: il produttore reale viveva in un namespace anonimo dentro
+// `RTPlayerController.cpp` e non era chiamabile da un test (`RTBlastPreviewTests.cpp:6`). Oggi e'
+// `RTPlanningPreview::Refresh`, esportata.
 //
 // ⚠️ **Le superfici dell'anteprima sono TRE e vanno guardate tutte**: il ventaglio raggiungibile, l'area
 // colpita e la **rotta**. Un test che guardasse solo la prima resterebbe verde con la traccia ciano del
@@ -4179,7 +4181,7 @@ bool FRTDisarmingAReactionKeepsAnIndependentMainActionTest::RunTest(const FStrin
 }
 
 // =====================================================================================================
-// `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
+// `#3892` — la ROTTA si scrive da UN punto: `RTPlanningPreview::Refresh`.
 // =====================================================================================================
 
 namespace
@@ -4916,7 +4918,7 @@ bool FRTFocusWiringClickTest::RunTest(const FString&)
  * **`#3750` — le altre unita' non cambiano l'area.** L'occupazione non entra nel ventaglio (D-445, D-446), e un nemico non
  * osservato non puo' cambiarla (P2). Un mondo con unita' proprie e un secondo nemico DENTRO l'area, e un terzo nemico non
  * osservato nel buio, da' la stessa area del mondo vuoto. Una regressione verso uno snapshot con tutte le unita' (come fa
- * `PlanningSnapshotFor`) sarebbe verde senza questo gemello (rilievo della review).
+ * `RTPlanningSnapshot::For`) sarebbe verde senza questo gemello (rilievo della review).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringCrowdTest,
 	"RefactorTactics.FocusWiring.OtherUnitsDoNotChangeTheArea",
@@ -5847,7 +5849,7 @@ bool FRTSkillHoverOfInspectedEnemyTest::RunTest(const FString&)
 /**
  * **`#3748` — senza nessuna selezione la skill di un'unita' ispezionata mostra la portata lo stesso.** `IdleSelection` e' il contesto in cui
  * un click su un nemico lo ispeziona: l'arbitro non chiede un'unita' comandata per l'hover di un'unita' ispezionata, e
- * `RefreshPlanningPreview` disegna la portata anche con `Unit == nullptr`.
+ * `RTPlanningPreview::Refresh` disegna la portata anche con `Unit == nullptr`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfInspectedNoSelectionTest,
 	"RefactorTactics.SkillHover.TheSkillOfAnInspectedUnitShowsItsRangeWithoutAnySelection",
@@ -6263,7 +6265,7 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 
 	// Una generica che arma: si prova per posizione di `GenericHotkeys()` e si prende la prima che porta davvero l'unita' a `SelectedAbilityIndex`.
 	int32 GenericSlot = INDEX_NONE;
-	for (int32 Slot = 0; Slot < ARTPlayerController::GenericHotkeys().Num() && GenericSlot == INDEX_NONE; ++Slot)
+	for (int32 Slot = 0; Slot < RTInputKeys::GenericHotkeys().Num() && GenericSlot == INDEX_NONE; ++Slot)
 	{
 		B.PC->PressGenericHotkeyForTest(Slot);
 		if (B.Mine->SelectedAbilityIndex != INDEX_NONE) { GenericSlot = Slot; }

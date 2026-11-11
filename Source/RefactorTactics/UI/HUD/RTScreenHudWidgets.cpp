@@ -2,6 +2,7 @@
 
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Input/RTInputKeys.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
 // 🔴 **`Turn/RTTurnManager.h` NON serve piu', e la storia va tenuta perche' il difetto era vero.**
@@ -851,12 +852,12 @@ bool URTPlanCommitWidget::IsPlanDeclared() const
 FText URTPlanCommitWidget::GetConfirmKeyLabel() const
 {
 	// [D-496]: il nome del badge, dal tasto vero della mappatura.
-	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::DeclarePlanHotkey());
+	return RTInputKeys::KeyBadgeLabel(RTInputKeys::DeclarePlanHotkey());
 }
 
 FText URTPlanCommitWidget::GetUndoKeyLabel() const
 {
-	return ARTPlayerController::KeyBadgeLabel(ARTPlayerController::UndoKeyboardHotkey());
+	return RTInputKeys::KeyBadgeLabel(RTInputKeys::UndoKeyboardHotkey());
 }
 
 void URTPlanCommitWidget::BindNamedButtons()
@@ -1299,7 +1300,7 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// ⚠️ **Il controller e non la base del dock**: lo slot e' uno `UUserWidget` e non conosce il manager, quindi non puo' applicare il cancello
 	// `Live` che il dock applica (`URTScreenHudWidgetBase::GetDockUnit`). Il divario dura al piu' un fotogramma — la scheda si rilascia al tick
 	// dell'HUD e il dock riassegna lo slot a ogni frame — ed e' sicuro: nel frattempo il controller rifiuta di scrivere il piano, e l'hover di
-	// un nemico senza voce `Live` lo scarta il suo stesso cancello (`GatherSkillHoverInputs`).
+	// un nemico senza voce `Live` lo scarta il suo stesso cancello (`FRTPlanningOverlayArbiter::GatherSkillHover`).
 	//
 	// ⛔ **Vincolo per chi cambia l'innesco del dock** (review di `#2989`): questa e' l'UNICA scrittura di
 	// `BuiltForUnit`, quindi il dock deve richiamare `SetAction` dopo OGNI cambio di selezione. Oggi lo fa
@@ -1769,7 +1770,7 @@ void URTActionSlotWidget::HoverBegin()
 		// di log a ogni slot attraversato sarebbe rumore.
 		//
 		// ➕ `#3748`: l'unita' dell'hover e' il soggetto della BARRA (`GetDockUnit`), che con la barra in sola lettura e' il nemico fissato. La
-		// portata e il cancello `Live` li decide il controller (`GatherSkillHoverInputs`): lo slot dice quale skill di quale unita', e basta.
+		// portata e il cancello `Live` li decide l'arbitro delle aree del controller (`FRTPlanningOverlayArbiter::GatherSkillHover`): lo slot dice quale skill di quale unita', e basta.
 		const ARTUnit* Soggetto = PC->GetDockUnit();
 		if (Soggetto != nullptr && BuiltForUnit.Get() == Soggetto)
 		{
@@ -1910,7 +1911,7 @@ FText URTActionSlotWidget::GetActionLine() const
 	// stringa. `ComposeAbilityLine` sa gia' che il numero e' 1-based perche' e' il TASTO che il giocatore
 	// preme, e non l'indice del kit — e il dock mostra solo il kit numerato (`BuildAbilityCooldowns`), quindi
 	// quel numero e' davvero il tasto che arma questo slot. I cinque generici — `G` `B` `C` `X` `Z` di
-	// `ARTPlayerController::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
+	// `RTInputKeys::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
 	return FText::FromString(ARTHUD::ComposeAbilityLine(Action, bArmed).Text);
 }
 
@@ -2258,7 +2259,7 @@ FText URTFastDecisionOptionWidget::GetOptionDescription() const
 
 FText URTFastDecisionOptionWidget::GetKeyLabel() const
 {
-	return ARTPlayerController::ReactionOptionKeyLabel(OptionIndex);
+	return RTInputKeys::ReactionOptionKeyLabel(OptionIndex);
 }
 
 void URTFastDecisionOptionWidget::Choose()

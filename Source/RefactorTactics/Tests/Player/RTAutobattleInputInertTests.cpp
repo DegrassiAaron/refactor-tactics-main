@@ -35,6 +35,7 @@
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
 #include "Tests/Shared/RTConsoleVariableGuardForTest.h"
+#include "Tests/Shared/RTInputBindingFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -571,8 +572,10 @@ bool FRTAutobattleCameraStaysAliveTest::RunTest(const FString&)
 	}
 
 	const float Yaw0 = Cam->GetCameraYaw();
-	B.PC->SetOrbitingForTest(true);
-	B.PC->OrbitCameraForTest(FVector2D(30.f, 0.f));
+	// Dal binding vero (#4065): il tasto centrale arma, il mouse guida, come in partita.
+	UEnhancedInputComponent* Input = RTInputBindingFixtures::BindInput(*B.PC);
+	RTInputBindingFixtures::Fire(*Input, TEXT("IA_OrbitModifier"), ETriggerEvent::Started, FInputActionValue(true));
+	RTInputBindingFixtures::Fire(*Input, TEXT("IA_Orbit"), ETriggerEvent::Triggered, FInputActionValue(FVector2D(30.f, 0.f)));
 	TestNotEqual(TEXT("con la partita non presidiata la telecamera risponde ancora"),
 		Cam->GetCameraYaw(), Yaw0);
 

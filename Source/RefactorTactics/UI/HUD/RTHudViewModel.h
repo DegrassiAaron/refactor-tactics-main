@@ -397,7 +397,7 @@ struct FRTMovementReadoutView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bSneakDeclared = false;
 
-	/** Il tasto che dichiara `Sneak`, da `ARTPlayerController::SneakHotkey()`: mai scritto nel grafo. */
+	/** Il tasto che dichiara `Sneak`, da `RTInputKeys::SneakHotkey()`: mai scritto nel grafo. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText SneakKeyLabel;
 };
@@ -635,7 +635,7 @@ struct FRTAbilityCooldownView
 	 * undici voci contro i dieci tasti numerici»*. Chi disegna mostra il tasto **solo** se c'e'.
 	 *
 	 * ✅ **Porta il tasto GENERICO** (`G` `B` `C` `X` `Z`) per le generiche: [D-397] punto 4 ha deciso che
-	 * un'universale mostra la propria lettera, e `ARTPlayerController::HotkeyLabelFor` risolve
+	 * un'universale mostra la propria lettera, e `RTInputKeys::HotkeyLabelFor` risolve
 	 * `GenericHotkeys()` per `ActionId` prima della fila dei numeri.
 	 * ⌫ *Fino al 2026-10-04 questo commento diceva il contrario — «non porta il tasto generico, decisione
 	 * aperta in `#2990`» — dopo che `#2990` era stata chiusa e il codice aveva gia' cambiato risposta.*

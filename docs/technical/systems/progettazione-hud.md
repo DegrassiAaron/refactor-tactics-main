@@ -1318,7 +1318,7 @@ com'era. Replica la cornice, il titolo e le righe del registro, e non allarga la
   una skill sotto il cursore: lasciare lo slot li azzera, e non si arriva sul box con la rotella.
 * **Consuma il tasto sinistro e la rotella, non il destro**: il click sul pannello non raggiunge la mappa e la rotella
   scorre la scheda; il destro resta del controller perché è quello che chiude, anche col cursore sopra. Sopra una
-  fascia dell'HUD la rotella non zooma più il mondo (`ARTPlayerController::ApplyZoom`): vale per ogni fascia, non solo
+  fascia dell'HUD la rotella non zooma più il mondo (`FRTCameraGestures::Zoom`): vale per ogni fascia, non solo
   per la scheda.
 * **Le righe della scheda sono testo e basta** (`URTInspectLineWidget`, `SelfHitTestInvisible`): non hanno hover né
   una posizione di kit. ⌫ *Fino al 2026-10-30 «passare sulla riga di una skill ne mostrava la portata»*: il produttore
@@ -1366,7 +1366,7 @@ movimento è non autorizzato e nessuna riga porta il rifiuto sotto il puntatore.
   lettura, e `Conferma` è acceso quando c'è un'unità selezionata, come prima di #3748. Rischio noto: `Invio` è un toggle, e premuto
   mentre si guarda un nemico può ritrattare la dichiarazione della propria unità.
 * **Passare su uno slot ne mostra la portata**, da `SetSkillHover` come per la barra propria. Per un nemico a fuoco
-  l'origine è la cella della voce della vista, mai il piano (`GatherSkillHoverInputs`); funziona anche senza selezione, e
+  l'origine è la cella della voce della vista, mai il piano (`FRTPlanningOverlayArbiter::GatherSkillHover`); funziona anche senza selezione, e
   non in `ResolutionPlayback`, dove le aree di pianificazione sono spente.
 
 **Nessun `.uasset` nuovo**: il grafo di `WBP_RT_ActionDock` costruisce gli slot da `GetActionsInReadingOrder()` e

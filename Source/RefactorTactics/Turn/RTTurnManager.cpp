@@ -7581,7 +7581,7 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 	// 🔑 **Qui va la BANDA, non il TETTO, e la distinzione e' misurata invece che preferita.** [D-425]
 	// distingue cio' che si **dichiara** — un tetto, *fin dove posso arrivare* — da cio' che si **deriva**
 	// — una banda, *quanto ho effettivamente chiesto*. Il tetto e' il permesso di PIANIFICARE e vive dove
-	// si pianifica (`PlanningSnapshotFor`); qui il piano e' gia' scritto, e il numero giusto e' quello che
+	// si pianifica (`RTPlanningSnapshot::For`); qui il piano e' gia' scritto, e il numero giusto e' quello che
 	// descrive il piano.
 	//
 	// 🔴 **Il tetto qui renderebbe FALSO il punto (6) della decisione che lo introduce.** Misurato sul

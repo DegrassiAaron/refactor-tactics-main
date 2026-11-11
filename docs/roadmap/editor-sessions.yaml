@@ -715,7 +715,7 @@ sessions:
       🔄 **Dal 2026-10-13 il modificatore della camera e' `Ctrl`** (`D-514`, #3749): i gesti che queste note
       chiamano `Alt`+`LMB` e `Alt`+`RMB` si eseguono con `Ctrl`. Le note restano come furono scritte il
       2026-08-30. E oggi il precision pan col modificatore **esiste**
-      (`ARTPlayerController::RouteCameraGesture`, col tasto centrale tenuto): il percorso di `PIE-PC-GYM`
+      (`FRTCameraGestures::Route`, col tasto centrale tenuto): il percorso di `PIE-PC-GYM`
       non lo esercita ancora.
 
   - id: U23

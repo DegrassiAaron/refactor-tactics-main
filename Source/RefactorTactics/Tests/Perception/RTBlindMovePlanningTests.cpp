@@ -154,7 +154,7 @@ bool FRTBlindMoveOptimisticMapEmptiesOnlyTheNeverObservedTest::RunTest(const FSt
  *
  * 🔴 **E' il canary di `BlindActions.NeverObservedWallBendsTheLitPath` letto dall'altra parte.** Quel banco misura
  * una fotografia senza `PlanningMap`, cioe' la vista dei bot e della Resolution, e resta verde; questo misura la
- * fotografia che `PlanningSnapshotFor` consegna al giocatore. Qui il muro in `BlindMoveWall` e' mai osservato e la
+ * fotografia che `RTPlanningSnapshot::For` consegna al giocatore. Qui il muro in `BlindMoveWall` e' mai osservato e la
  * meta oltre di lui pure: sulla mappa autorevole il tracciato lo aggira (costo +1), sulla mappa ottimistica lo
  * attraversa.
  *

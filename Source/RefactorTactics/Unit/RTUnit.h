@@ -1086,7 +1086,7 @@ public:
 	 *
 	 * 🔑 **Una regola, tanti lettori**: il resolver (`BeginMovementResolution`, che scrive la voce di rifiuto, e `ResolveDash`, che
 	 * per questa unita' non scrive quella di `Unbalanced`), l'anteprima del Move (`FRTPlanPreviewInput::bMoveResolves`) e il verso
-	 * dichiarato (`ARTPlayerController::FacingCellFor`, `PlannedMovementForFacing`). Il movimento FORZATO non passa da qui.
+	 * dichiarato (`ARTPlayerController::FacingCellFor`, `FRTFacingDeclaration::PlannedMovement`). Il movimento FORZATO non passa da qui.
 	 */
 	bool PlannedNormalMoveDeniedByStun() const;
 
