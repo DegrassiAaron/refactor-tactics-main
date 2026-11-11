@@ -730,17 +730,25 @@ bool FRTPlaybackDirector::RevealPlaybackActivations(const TArray<FRTResolvedEven
 
 bool FRTPlaybackDirector::RevealPlaybackMoveReactions(float UpTo)
 {
-	for (const FRTPlaybackMoveReaction& R : PlaybackReactionsMove)
+	// ⚠️ Per indice e con una COPIA dell'evento (review di #4066): `ShowReaction` scrive nel feed, e un ascoltatore puo'
+	// chiudere il playback — `SkipPlayback` → `FinishPlayback` svuota questa coda — come nella guardia di rientranza di
+	// `AdvanceBlastSequence` (`#2454`). Un range-for avrebbe continuato su un array svuotato.
+	for (int32 I = 0; I < PlaybackReactionsMove.Num(); ++I)
 	{
-		const TPair<int32, FName> Chiave(R.Ev.SourceStableUnitId, R.Ev.ActionId);
-		if (R.At > UpTo || PlaybackReactionsMoveShown.Contains(Chiave))
+		const FRTResolvedEvent Ev = PlaybackReactionsMove[I].Ev;
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		if (PlaybackReactionsMove[I].At > UpTo || PlaybackReactionsMoveShown.Contains(Chiave))
 		{
 			continue;
 		}
 		PlaybackReactionsMoveShown.Add(Chiave);
-		ShowReaction(R.Ev);
+		ShowReaction(Ev);
+		if (!Host->IsPlaybackResolving())
+		{
+			return true; // chiuso da un ascoltatore: niente da rileggere
+		}
 		// R10: una reazione del Move e' un atto a se', e `Next Action` ci si ferma.
-		if (NotePlaybackActShown(R.Ev))
+		if (NotePlaybackActShown(Ev))
 		{
 			return true;
 		}
@@ -1150,7 +1158,13 @@ void FRTPlaybackDirector::StepMicroStep()
 	// rotte, o `Step` si fermerebbe a meta' di un segmento. Fuori dal Dash l'anticipo e' zero e la formula e'
 	// quella di prima.
 	const float Anticipo = FMath::Clamp(PhaseTimeForPlaybackPhase(PlaybackPhases[PlaybackPhaseIdx]).Lead, 0.f, Durata);
-	const float DurataRotte = Durata - Anticipo;
+	// #4059 (review di #4066): dove le rotte corrono per percorso — ogni fase tranne il Blast, che ha l'alpha di fase — il loro
+	// tratto dura `Passi / PlaybackCellsPerSecond` anche quando la fase dura di piu', per il tempo di lettura di un colpo
+	// dell'Overwatch (R6). Contare i confini sulla durata intera fermerebbe lo `Step` a meta' di un segmento.
+	const float DurataPercorsi =
+		(PlaybackPhases[PlaybackPhaseIdx] != ERTMatchPhase::Blast && Tuning().PlaybackCellsPerSecond > 0.f)
+		? Passi / Tuning().PlaybackCellsPerSecond : TNumericLimits<float>::Max();
+	const float DurataRotte = FMath::Min(Durata - Anticipo, DurataPercorsi);
 	if (DurataRotte <= 0.f)
 	{
 		bPlaybackPaused = true;
@@ -1162,6 +1176,12 @@ void FRTPlaybackDirector::StepMicroStep()
 
 	// Il confine in SECONDI, calcolato ora: il tick ci arriva senza sapere quanti frame servono.
 	PlaybackStepTargetElapsed = Anticipo + AlphaTarget * DurataRotte;
+	// #4059: oltre l'ultimo confine delle rotte — nel tempo di lettura di un colpo — il prossimo confine e' la fine della fase.
+	// ⛔ Mai un confine gia' alle spalle: il tick riporterebbe indietro l'orologio fino a lui.
+	if (PlaybackStepTargetElapsed <= PlaybackPhaseElapsed)
+	{
+		PlaybackStepTargetElapsed = Durata;
+	}
 	bPlaybackPaused = false; // si riparte, ma solo fino al confine
 }
 
@@ -1718,9 +1738,9 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		// quella vecchia, a guardare un'immagine che dice il contrario del comando che ha premuto.
 		//
 		// 🔑 **Vale anche per `NextAction`, e non e' un ripiego.** Il tempo del playback scorre per fase, e
-		// un cambio di fase e' sempre anche un cambio d'atto: la fase `Move` contiene il solo `Action.Move`,
-		// e nessun atto attraversa due fasi. Un `Next Action` armato durante il `Move` non ha colpi da
-		// aspettare — il suo prossimo atto E' la fase seguente.
+		// un cambio di fase e' sempre anche un cambio d'atto: la fase `Move` contiene `Action.Move` e, da #4059, il
+		// colpo dell'Overwatch, un atto suo su cui `RevealPlaybackMoveReactions` gia' si ferma; e nessun atto
+		// attraversa due fasi. Finiti quelli, il prossimo atto di un `Next Action` armato nel `Move` E' la fase seguente.
 		//
 		// ⛔ **Senza un predicato armato non si ferma niente**: e' la riga che tiene questo comando dalla
 		// parte giusta di [D-355], che vieta a una fase di acquisire una ragione di fermarsi *per
@@ -1924,8 +1944,8 @@ void FRTPlaybackDirector::FinishPlayback()
 	// Fine della presentazione di morte. Da #2452 questo e' l'UNICO punto che nasconde, e le due cose che fa
 	// sono distinte:
 	//
-	//   1. il **catch-all dell'annuncio** — chi e' caduto in una fase che non e' stata riprodotta (`Cleanup`
-	//      non e' mai una fase di playback) o quando la risoluzione e' stata saltata. Qui il montaggio ha
+	//   1. il **catch-all dell'annuncio** — chi e' caduto in una fase che non e' stata riprodotta (il `Cleanup`
+	//      lo e' solo con una sua reazione visibile, da #4059) o quando la risoluzione e' stata saltata. Qui il montaggio ha
 	//      finestra ZERO: e' il limite residuo dichiarato in #2452;
 	//   2. la **sparizione**, che vale per tutti — annunciati qui o in una fase precedente.
 	//
@@ -2101,12 +2121,16 @@ FRTPhaseTime FRTPlaybackDirector::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhas
 			}
 		}
 	}
-	// #4059 (R6): il Move dura almeno fino all'istante della sua reazione piu' tarda. In `Shown`: mostra qualcosa.
+	// #4059 (R6): il Move dura almeno fino all'istante della sua reazione piu' tarda, PIU' il tempo di un elemento
+	// (`AttackShowSeconds`): come nelle altre fasi, un fatto rivelato ha il suo tempo di lettura prima che la fase si chiuda.
+	// ⏱️ *Fino alla review di #4066 la fase finiva all'istante della reazione: un colpo sull'ultima cella della rotta piu'
+	// lunga — il caso tipico — nasceva nel tick che chiude la fase, e a fine playback il fumetto si spegneva nello stesso
+	// tick.* In `Shown`: mostra qualcosa.
 	if (InPhase == ERTMatchPhase::Move)
 	{
 		for (const FRTPlaybackMoveReaction& R : PlaybackReactionsMove)
 		{
-			T.Shown = FMath::Max(T.Shown, R.At);
+			T.Shown = FMath::Max(T.Shown, R.At + FMath::Max(0.f, Tuning().AttackShowSeconds));
 		}
 	}
 	return T;

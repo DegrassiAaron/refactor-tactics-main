@@ -61,7 +61,8 @@ struct FRTMatchHeaderView
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
 
 	/**
-	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast o Move, mai `Cleanup`.
+	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast, Move e, da #4059, Cleanup, quando una
+	 * sua reazione e' visibile a chi guarda ([D-605] (3); l'header non ha una cella per lei, limite dichiarato).
 	 * `Planning` fuori dal playback. E' la cella attiva dell'header in Risoluzione.
 	 *
 	 * 🔑 **Due campi, perche' sono due domande.** Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima

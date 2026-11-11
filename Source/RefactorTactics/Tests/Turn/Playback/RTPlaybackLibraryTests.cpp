@@ -210,7 +210,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 		// Blast: Max(2 colpi x 0,5 = 1,0 ; spinta 1,5) = 1,5.
 		TestTrue(TEXT("Blast valeva 1,5 s e vale 1,5 s"), FMath::IsNearlyEqual(
 			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Blast, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
-		// Prep/Cleanup: un beat.
+		// Prep: un beat. Il Cleanup, qui sotto, segue il Dash da #4059.
 		TestTrue(TEXT("Prep valeva 0,3 s e vale 0,3 s"), FMath::IsNearlyEqual(
 			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Prep, 3, 2, 2.f, 0.5f, 0.3f), 0.3f, RTTol));
 		// 🔴 **Rimisurato il 2026-11-11, e il motivo e' dichiarato** (#4059, R7 della spec del fumetto per azioni e
