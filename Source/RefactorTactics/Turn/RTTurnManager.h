@@ -43,6 +43,7 @@ enum class ERTMovementAdvanceResult : uint8
 #include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
+#include "Turn/Playback/RTPlaybackDirector.h" // FRTPlaybackDirector: il playback di presentazione vive fuori (#4057)
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
@@ -224,12 +225,6 @@ struct FRTArmedOverwatch
 	FRTArmedOverwatch() = default;
 };
 
-// Delegate per la presentazione in Blueprint (camera/VFX/SFX): il playback riproduce eventi gia' risolti.
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTPhasePlaybackSignature, ERTMatchPhase, Phase);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTUnitPlaybackSignature, ARTUnit*, Unit);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRTAttackPlaybackSignature, ARTUnit*, Source, ARTUnit*, Target, int32, Amount);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
-
 /**
  * La conoscenza di squadra e' stata rinfrescata: chi la DISEGNA puo' rileggerla ([D-227], `#1467`).
  *
@@ -239,15 +234,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
  * tempo reale invece dello stato del turno, ed e' cio' che `Veil.FollowsRefreshPoints` esiste per impedire.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, int32, TurnNumber);
-
-/**
- * Il playback ha attraversato un confine di micro-step (`#2876`): le pose ANIMATE sono cambiate.
- *
- * ⛔ **Non porta la conoscenza nel payload**, come `FRTTeamKnowledgeRefreshedSignature` e per la stessa
- * ragione registrata in [D-227]: sceglierebbe la squadra per conto di tutti i subscriber. Chi ascolta
- * chiede `PlaybackKnowledgeForTeam` per la squadra che gli compete.
- */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackStepSignature);
 
 /**
  * La partita è finita, con il verdetto e lo stato che lo motiva (CP 46.5, `#940`).
@@ -320,7 +306,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FRTLogEntryAppendedSignature, const FRTTurnL
  * L'animazione legge eventi gia' risolti: non decide nulla (invariante #1).
  */
 UCLASS()
-class REFACTORTACTICS_API ARTTurnManager : public AActor
+class REFACTORTACTICS_API ARTTurnManager : public AActor, public FRTPlaybackHost
 {
 	GENERATED_BODY()
 
@@ -706,7 +692,7 @@ public:
 	 * si esercita. Simula una fase accorciata, che e' il caso per cui la rete esiste.
 	 */
 	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
-	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
+	const TArray<FString>& AttackBeatTraceForTest() const { return Playback.AttackBeatTraceForTest(); }
 
 	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test: e' `GetPlaybackPhase()`. */
 	ERTMatchPhase CurrentPlaybackPhaseForTest() const { return GetPlaybackPhase(); }
@@ -735,38 +721,33 @@ public:
 	 * Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355 (#3549). Un
 	 * colpo lanciato e non ancora arrivato ne fa gia' parte (`#2454`).
 	 */
-	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
+	int32 PlaybackBlastShownForTest() const { return Playback.PlaybackBlastShownForTest(); }
 
 	/** L'orologio della fase di playback (#3578): l'oracolo con cui i test confrontano `Alpha` con le formule. Solo test. */
-	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
+	float PlaybackPhaseElapsedForTest() const { return Playback.PlaybackPhaseElapsedForTest(); }
 
 	/**
 	 * L'orologio TOTALE del playback (`PlaybackElapsedTotal`), quello della barra di avanzamento e di `Pacing.Close`.
 	 * ⚠️ **Non e' piu' l'orologio del fumetto** (#4025): quello e' `PlaybackSkillCalloutClockForTest`, perche' questo
 	 * torna a zero in `ConcludeResolution` anche quando il playback RIPRENDE dopo una finestra di reazione. Solo test.
 	 */
-	float PlaybackElapsedTotalForTest() const { return PlaybackElapsedTotal; }
+	float PlaybackElapsedTotalForTest() const { return Playback.GetElapsedTotal(); }
 
 	/**
 	 * L'orologio del FUMETTO della skill (`SkillCalloutClock`, #4025): con `ARTUnit::SkillCalloutClockForTest` dice a un
 	 * test che il tempo del fumetto e' questo e non un conteggio dell'unita', e che sopravvive a una finestra di reazione.
 	 * Solo test.
 	 */
-	float PlaybackSkillCalloutClockForTest() const { return SkillCalloutClock; }
+	float PlaybackSkillCalloutClockForTest() const { return Playback.PlaybackSkillCalloutClockForTest(); }
 
 	/**
 	 * Quante unita' hanno un fumetto di skill acceso e non ancora spento da `FinishPlayback` (#4025). Zero a fine turno
 	 * e per una sorgente non osservata. Solo test.
 	 */
-	int32 SkillCalloutUnitsForTest() const { return SkillCalloutUnits.Num(); }
+	int32 SkillCalloutUnitsForTest() const { return Playback.SkillCalloutUnitsForTest(); }
 
 	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
-	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
-	{
-		TArray<int32> Out;
-		for (const FRTBlastSequenceElement& E : PlaybackBlastSequence) { Out.Add(E.TimelineIndex); }
-		return Out;
-	}
+	TArray<int32> PlaybackBlastSequenceIndicesForTest() const { return Playback.PlaybackBlastSequenceIndicesForTest(); }
 
 	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
@@ -837,7 +818,7 @@ public:
 
 	/** `true` se Pause/Step sono disponibili in questa sessione. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
+	bool ArePlaybackControlsEnabled() const { return Playback.ArePlaybackControlsEnabled(); }
 
 	/**
 	 * Fa **cominciare in pausa** ogni playback di questa sessione (`#2858`), così che il primo confine
@@ -857,7 +838,7 @@ public:
 
 	/** `true` se ogni playback di questa sessione comincia fermo (`#2858`). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	bool DoesPlaybackStartPaused() const { return bStartPlaybackPaused; }
+	bool DoesPlaybackStartPaused() const { return Playback.DoesPlaybackStartPaused(); }
 
 	/**
 	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
@@ -929,11 +910,11 @@ public:
 
 	/** Il predicato attualmente armato, o `None`. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	ERTPlaybackStopAt GetArmedPlaybackStop() const { return PlaybackStopAt; }
+	ERTPlaybackStopAt GetArmedPlaybackStop() const { return Playback.GetArmedPlaybackStop(); }
 
 	/** `true` se la riproduzione e' ferma (diagnostica, UI e test). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	bool IsPlaybackPaused() const { return bPlaybackPaused; }
+	bool IsPlaybackPaused() const { return Playback.IsPlaybackPaused(); }
 
 	/**
 	 * Quanti micro-step contiene la fase di playback in corso: il **massimo** fra i percorsi delle unita'
@@ -1080,8 +1061,6 @@ public:
 	 */
 	TArray<FString> GetRecentEvents() const;
 
-
-
 	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FString> GetRecentEventsForTeam(int32 ObserverTeamId) const;
@@ -1099,7 +1078,7 @@ public:
 	 * 🔴 **Solo presentazione**: non e' il TurnLog, non entra in snapshot, replay, `StateHash` o replicazione. Vive quanto il
 	 * TurnLog (R7): si azzera con lui in `LockInAndResolve`, e resta leggibile nel Planning che segue.
 	 */
-	const TArray<FRTActivationLine>& GetActivationLines() const { return ActivationLines; }
+	const TArray<FRTActivationLine>& GetActivationLines() const { return Playback.GetActivationLines(); }
 
 	/**
 	 * Le azioni che ogni squadra ha visto usare, sull'INTERA partita (`#3751`, F6): il `TurnLog` vive per turno,
@@ -1403,7 +1382,6 @@ public:
 	/** Ogni voce del TurnLog, appena scritta. Vedi `FRTLogEntryAppendedSignature`. */
 	FRTLogEntryAppendedSignature OnLogEntryAppended;
 
-
 	/** Il piano e' committato e la risoluzione comincia (`#2193`). Vedi `FRTLockInCommittedSignature`. */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Turn")
 	FRTLockInCommittedSignature OnLockInCommitted;
@@ -1475,7 +1453,7 @@ public:
 	float FinalPivotSeconds = 0.25f;
 
 	/** Vero mentre un pivot finale di presentazione sta girando (`#2167`). */
-	bool IsPresentationPivotRunning() const { return PivotAnims.Num() > 0; }
+	bool IsPresentationPivotRunning() const { return Playback.IsPresentationPivotRunning(); }
 
 	/** Pausa tra una fase e la successiva (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
@@ -1595,7 +1573,7 @@ public:
 	 * Resta esposto come **telemetria di pacing** — dice se il budget ha morso, cosa che il criterio 2 di
 	 * CP 47.7 (`#1015`) chiedeva di non nascondere. ⚠️ Presentazione: fuori da `StateHash` e dal TurnLog.
 	 */
-	float GetPlaybackSlackScale() const { return PlaybackSlackScale; }
+	float GetPlaybackSlackScale() const { return Playback.GetPlaybackSlackScale(); }
 
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
@@ -1907,7 +1885,7 @@ public:
 	void TickReactionWindowPresentation();
 
 	/** Esegue `OnReactionWindowOpened` per la finestra in attesa, se il playback e' sul suo confine (`#3666`). */
-	void PresentPendingReactionWindow();
+	void PresentPendingReactionWindow() override;
 
 	void RunPhaseLoop();
 
@@ -2472,7 +2450,7 @@ public:
 	bool IsReactionWindowPresented() const { return bReactionWindowPresented; }
 
 	/** Vero se il playback parziale si e' trattenuto su una finestra (`#2679`). Per i test di `#3666`. */
-	bool IsPlaybackHeldByWindow() const { return bPlaybackHeldByWindow; }
+	bool IsPlaybackHeldByWindow() const { return Playback.IsPlaybackHeldByWindow(); }
 
 	/**
 	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).
@@ -2757,133 +2735,13 @@ protected:
 	 * autorevole (o dall'actor, se l'asset manca). Unico punto da cui passano tutte le conversioni cella->mondo,
 	 * cosi' risoluzione e playback non possono divergere di scala. Ritorna l'asset (nullptr se non c'e' mappa).
 	 */
-	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const;
+	const URTHexMapAsset* GetHexContext(FVector& OutOrigin, float& OutHexSize, float& OutLayerHeight) const override;
 
 	/** Termina il turno: se la partita e' decisa la chiude, altrimenti riapre la pianificazione. */
-	void ConcludeTurn();
+	void ConcludeTurn() override;
 
 	/** Distrugge definitivamente le unita' morte (morte visiva differita): chiamato a fine turno. */
 	void DestroyDefeatedUnits();
-
-	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
-	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
-	void BeginPlayback(bool bPreserveClock = false);
-
-	/**
-	 * Rivela le attivazioni fino a `UpTo`, in ordine di timeline; `true` se un confine d'atto ha messo in
-	 * pausa (#3549). ⚠️ Si ferma **dopo** aver mostrato il fatto, come `#2855` prescrive: quelle che il tick
-	 * avrebbe ancora rivelato restano per la ripresa. ⛔ Ogni chiamante esce dal tick su `true` — il ramo per tick
-	 * e la rete di fine fase — o il passaggio alla fase dopo perderebbe le attivazioni in coda.
-	 */
-	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
-
-	/**
-	 * Percorre la sequenza di Blast sul cursore dei battiti fino a `BeatsTarget` (#3549 D5 con `#2454`); `true` se il
-	 * tick deve uscire: un confine d'atto ha messo in pausa, o un ascoltatore di `OnAttackResolved` ha chiuso il
-	 * playback.
-	 *
-	 * 🔑 **Un cursore solo, `BlastBeatsDone`, sugli elementi della sequenza**: il battito `2k` RIVELA l'elemento `k`
-	 * — un ramo per tipo; per un `Attack` e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che fa qualcosa solo per un
-	 * `Attack` (`Hit`, numero, `Colpo:`, `OnAttackResolved`). Il volo e' `PlaybackBlastFlights[k]`, zero per ogni
-	 * altro tipo, quindi l'elemento `k` esce a `k·A` come con `AttacksToShow` e l'arrivo cade prima di `k+1`.
-	 * ⛔ Due cursori — la sequenza da una parte, i colpi dall'altra — in un tick lungo rivelerebbero l'elemento dopo
-	 * prima dell'arrivo del colpo: e' la stessa ragione per cui `#2454` ne ha uno.
-	 *
-	 * ⛔ **Non riordina, non aggrega e non ricalcola**: l'ordine e' quello che `BuildBlastSequence` ha deciso, le
-	 * celle dell'impronta e il bordo del muro si LEGGONO dall'evento (`#2454`, `#2828`).
-	 * ⚠️ Il confine `Next Action` di un colpo cade al suo ARRIVO (`#2454`), quello di ogni altro elemento alla
-	 * rivelazione: un colpo e' mostrato quando arriva.
-	 */
-	bool AdvanceBlastSequence(int32 BeatsTarget);
-
-	/** Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355. */
-	int32 BlastElementsShown() const { return (BlastBeatsDone + 1) / 2; }
-
-	/** Il numero d'ordine del colpo fra i soli `Attack` della sequenza, per la traccia dei battiti dei test. */
-	int32 BlastAttackOrdinal(int32 SequenceIndex) const;
-
-	/** Aggiorna l'atto in corso e consuma un `Next Action` armato: la regola e' `IsActBoundary` (#3292, #3549). */
-	bool NotePlaybackActShown(const FRTResolvedEvent& Ev);
-
-	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. `AttackOrdinal` serve solo alla traccia. */
-	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
-	/**
-	 * L'ARRIVO di un colpo (`#2454`): la riga `Colpo:`, `Hit`, numero e `OnAttackResolved`.
-	 * ⚠️ **Scrive la riga anche dalla rete di fine fase** (#3549, spec «il momento» §6): la rete percorre lo
-	 * stesso cursore del ciclo, e un recupero che tacesse il feed sarebbe una seconda versione dello stesso fatto.
-	 * ⛔ Trasmette `OnAttackResolved`: un ascoltatore puo' chiudere il playback, e chi chiama lo verifica prima di
-	 * rileggere qualunque stato del playback.
-	 */
-	void ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
-
-	/**
-	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: l'elemento dopo
-	 * segue l'arrivo del colpo. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
-	 * ⚠️ Non tocca la mappa se non c'e' nulla in volo e l'ultima consegna era gia' vuota (`bPlaybackTracerChannelFull`).
-	 */
-	void PushPlaybackTracers();
-
-	/**
-	 * Consegna alla mappa le cue del profilo FX della fase (#3578, spec §2.4): Prep e Dash dalle code di attivazione,
-	 * il Blast dalla sequenza e dal cursore dei battiti. Gemella di `PushPlaybackTracers`, con un flag gemello: non tocca
-	 * la mappa se non c'e' nulla da dire e l'ultima consegna era gia' vuota (`bPlaybackCueChannelFull`).
-	 */
-	void PushPlaybackCues(ERTMatchPhase InPhase);
-
-	/**
-	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
-	 *
-	 * 🔑 **Esiste perche' i siti che la chiamano sono piu' d'uno** — `NotePlaybackActShown`, per ogni fatto che
-	 * il playback rivela, e il cambio di fase — e quattro righe ripetute sono altrettante occasioni di
-	 * dimenticarne una. ⏱️ *Fino a #3549 erano i tre canali del `Blast`.* ⚠️ `PlaybackStepTargetElapsed = -1`
-	 * e' quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
-	 */
-	void PausePlaybackAtActBoundary();
-
-	/**
-	 * Il beat di un `AbilityActivated`: la clip del ruolo `Cast` sulla sorgente e la riga `Attiva:` del feed
-	 * (#3549, spec §2.3), e la riga del Registro (#4033, `AddActivationLine`). ⛔ Non decide se mostrarlo: il filtro di
-	 * privacy sta a monte, in `BeginPlayback` e in `BuildBlastSequence`. La riga `Attiva:` porta il verdetto CONGELATO
-	 * nell'evento, non uno ricalcolato.
-	 */
-	void ShowActivation(const FRTResolvedEvent& Ev);
-
-	/**
-	 * La riga del Registro per un'attivazione mostrata (#4033, R1/R5/R7b): una sola per attivazione, con il testo composto
-	 * adesso dai campi di `Src`, la squadra di chi guarda (`PlaybackViewerTeamId`) e il turno del playback. Nessuna riga se
-	 * `Src` e' nullo o se l'attivazione ne ha gia' una (chiave `(fase, sorgente, azione)`: vedi la definizione).
-	 * ⛔ Non giudica la conoscenza: la chiamano solo `ShowActivation` e il recupero di fine playback (R8), che leggono le
-	 * liste gia' filtrate per chi guarda.
-	 */
-	void AddActivationLine(const FRTResolvedEvent& Ev, const ARTUnit* Src);
-
-	/**
-	 * Porta ai fumetti di skill accesi il tempo del playback (`SkillCalloutClock`) e toglie dalla lista le unita'
-	 * che non esistono piu' (#4025, spec del fumetto R4/A8). ⚠️ **Non e' l'unico punto in cui il fumetto riceve
-	 * l'orologio**: alla comparsa lo riceve `ShowActivation`, e questo lo ripete a ogni tick in cui il tempo avanza.
-	 */
-	void SyncSkillCalloutClocks();
-
-	void EnterPlaybackPhase();
-	void TickPlayback(float DeltaSeconds);
-	void FinishPlayback();
-
-	/** Avvia, o riavvia dallo yaw attuale, il pivot finale di `Unit` verso `ToYaw` (`#2167`). */
-	void StartPresentationPivot(ARTUnit* Unit, float ToYaw);
-	/** Fa girare i pivot in corso. Gira a ogni tick, anche a playback finito: il pivot dura oltre la fase. */
-	void TickPresentationPivots(float DeltaSeconds);
-	/** Lo yaw del facing LOGICO dell'unita' sulla sua cella: dove la mesh deve finire. */
-	float FinalFacingYaw(const ARTUnit* Unit) const;
-	/**
-	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
-	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
-	 * `URTPlaybackLibrary::PhaseTime`. ⚠️ Porta anche l'anticipo delle attivazioni (`Lead`), che le rotte del Dash, la
-	 * corsa rinviata e `StepMicroStep` leggono da qui (review della PR #3561).
-	 */
-	FRTPhaseTime PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const;
-
-	/** La durata della fase come sara' riprodotta: locomozione intatta, attese scalate dal budget. */
-	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
 
 	// --- Sonda di pacing ------------------------------------------------------------------------
 	/**
@@ -2915,7 +2773,6 @@ protected:
 	 */
 	bool bUnattendedSession = false;
 
-
 	/**
 	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
 	 * combat log della HUD col suo SOGGETTO.
@@ -2939,7 +2796,7 @@ protected:
 	 * Il censimento — quanti siti, su quali file — si rimisura sul branch: un numero letterale in un
 	 * commento invecchia al primo sito aggiunto e nessuno lo rilegge.
 	 */
-	void AddLogEvent(const FString& Message, FRTLogSubject Subject);
+	void AddLogEvent(const FString& Message, FRTLogSubject Subject) override;
 
 	/**
 	 * Il verdetto di [D-223] per un soggetto, calcolato ADESSO sulla conoscenza corrente di tutte le squadre.
@@ -3335,40 +3192,12 @@ protected:
 	TArray<FRTTeamKnowledge> PlaybackKnowledgeState;
 
 	/**
-	 * L'indice di cella su cui ogni anim si trovava all'ultimo fotogramma, parallelo a `MoveAnims`.
-	 *
-	 * E' cio' che rende osservabile il **confine** di micro-step: senza, «l'unita' e' a meta' fra due celle»
-	 * e «l'unita' e' appena entrata in una cella nuova» sarebbero lo stesso frame.
-	 */
-	TArray<int32> PlaybackAnimCellIndex;
-
-	/** Lo yaw con cui ogni anim entra in scena, preso al suo PRIMO tick (`#2167`); `TNumericLimits<float>::Max()` = non ancora. */
-	TArray<float> PlaybackAnimEntryYaw;
-
-	/** Vero quando l'anim e' arrivata e ha passato la posa al pivot finale (`#2167`). */
-	TArray<bool> PlaybackAnimArrived;
-
-	/** Un pivot finale di presentazione: l'unita' gira sul posto da `From` a `To` (`#2167`). */
-	struct FRTPivotAnim
-	{
-		TWeakObjectPtr<ARTUnit> Unit;
-		float From = 0.f;
-		float To = 0.f;
-		float Elapsed = 0.f;
-	};
-	TArray<FRTPivotAnim> PivotAnims;
-
-	/** Vero mentre `FinishPlayback` arriva da `SkipPlayback`: saltare scatta, non anima. */
-	bool bFinishingBySkip = false;
-
-	/**
 	 * Ricalcola `PlaybackKnowledgeState` dalle pose animate correnti e risponde **se qualcosa e' cambiato**.
 	 *
 	 * ⚠️ Chiamata solo quando un'anim ha attraversato un confine di cella: fra due confini le pose sono le
 	 * stesse celle, quindi il ricalcolo darebbe lo stesso insieme e il costo sarebbe per niente.
 	 */
-	bool AdvancePlaybackKnowledge();
-
+	bool AdvancePlaybackKnowledge() override;
 
 	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
 	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
@@ -3650,7 +3479,7 @@ protected:
 	 * ([D-063], nessuna unita' dichiarata), id fuori dal roster congelato (unita' spawnata dopo), unita'
 	 * gia' distrutta. E' lo stesso `nullptr` che rispondeva `TWeakObjectPtr::Get()` prima di questa fetta.
 	 */
-	ARTUnit* UnitByStableId(int32 StableUnitId) const;
+	ARTUnit* UnitByStableId(int32 StableUnitId) const override;
 
 	/**
 	 * Dice le sovrapposizioni che lo snapshot ha registrato, **una volta per turno ciascuna** (`#1970`).
@@ -3774,109 +3603,14 @@ protected:
 	TSet<TWeakObjectPtr<ARTUnit>> ReactionBlockedThisTurn;
 
 private:
-	/** Animazione di movimento di una singola unita': waypoint gia' convertiti in mondo + fase (Dash/Move). */
-	struct FRTMoveAnim
-	{
-		TWeakObjectPtr<ARTUnit> Unit;
-		TArray<FVector> World; // start + celle attraversate, in coordinate mondo
-
-		/**
-		 * Le stesse pose di `World`, in celle (`#2876`). Parallelo e della **stessa lunghezza**: e' la
-		 * copia troncata dal prefisso osservabile, non la rotta reale.
-		 *
-		 * 🔴 **Il troncamento e' il punto.** `World` nasce gia' tagliato da
-		 * `URTTeamKnowledgeLibrary::ObservedPrefixLength`, e chi ricava la visibilita' durante il playback
-		 * deve guardare **cio' che l'anim disegna**, non dove l'unita' e' passata davvero. Un secondo array
-		 * costruito dalla rotta piena rivelerebbe esattamente il tratto che [D-223] tronca.
-		 */
-		TArray<FRTCellId> Cells;
-
-		ERTMatchPhase Phase = ERTMatchPhase::Move; // fase in cui va riprodotta (Dash o Move)
-
-		// `#3117`: gli stati che l'unita' portava QUANDO si e' mossa, copiati dall'evento risolto.
-		// ⛔ **Non si rilegge `Unit` per averli**, benche' sia proprio li' sopra: darebbe lo stato al
-		// momento del playback, e la posa smetterebbe di essere una funzione del solo tempo normalizzato.
-		TArray<FName> SourceStatusNames;
-
-		/**
-		 * Quante celle di `Cells` appartengono al PIANO di chi si muove — `#3263`. Oltre c'e' l'estensione
-		 * che il terreno ha imposto: uno scivolamento su ghiaccio.
-		 *
-		 * 🔴 **Troncato come `World` e `Cells`, e per la stessa ragione.** Se il prefisso osservato taglia
-		 * la rotta, il numero di celle pianificate **visibili** puo' essere minore di quello reale: un
-		 * valore non troncato direbbe a chi disegna che l'unita' aveva pianificato oltre cio' che si vede
-		 * — che e' esattamente il tratto che [D-223] nasconde.
-		 *
-		 * ⚠️ `0` significa «tutto pianificato», la stessa convenzione dell'evento da cui viene.
-		 */
-		int32 PlannedLength = 0;
-
-		/**
-		 * Da quando, sull'orologio della fase, l'anim comincia — `#3666`. `0` per tutte, tranne quelle che
-		 * un'estensione (`BeginPlayback(true)`) aggiunge alla fase che si stava mostrando: per loro e' l'istante
-		 * dell'estensione, e corrono alla velocita' di rotta da li'.
-		 *
-		 * 🔴 **Senza, un'anim nuova si animava sull'orologio di una fase gia' mostrata.** Da `#3666` si risponde
-		 * a una finestra a playback trattenuto, cioe' a fase finita: lo scarto `SIDESTEP` del `Brace` nasceva con
-		 * l'alpha di fase gia' a `1` e scattava a destinazione in un fotogramma (misurato: zero fotogrammi
-		 * intermedi). Prima di `#3666` la risposta arrivava a Blast in corso, e saltava a meta' strada.
-		 */
-		float StartElapsed = 0.f;
-	};
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */
 	TArray<FRTResolvedEvent> ResolvedTimeline;
 
-	// Stato runtime del playback.
+	// Lo stato del turno che il playback scrive o legge, ma che appartiene all'orchestratore: il resto del playback
+	// vive in `Playback` (#4057).
 	bool bIsResolving = false;
 	bool bPrepActiveThisTurn = false;
-
-	/**
-	 * 🔴 **Pause/Step sono NEGATI finche' qualcuno non li abilita, e il default e' la regola** (`#1879`).
-	 *
-	 * La matrice delle modalita' di `#1879` vieta Pause e Step nel **PvP live competitivo**: l'autorita' non
-	 * puo' essere fermata localmente da un client, e la deducibilita' del ritmo ha gia' un proprietario
-	 * (`#759`).
-	 *
-	 * ⚠️ **Quella modalita' non esiste ancora nel codice** — `ERTMatchMode`, `bCompetitive`, `bIsPvP`:
-	 * zero occorrenze su `origin/main`, coerente con l'assenza di replica di rete misurata su `#1805`.
-	 * ⛔ Inventarla per poterla negare sarebbe fabbricare una dipendenza. Il divieto si ottiene invece
-	 * **per costruzione**: chi non abilita esplicitamente questi controlli non li ha. Il giorno in cui il
-	 * PvP live esistera' sara' gia' fuori, senza che nessuno debba ricordarsi di escluderlo — che e' la
-	 * differenza fra un fail-closed e una convenzione.
-	 */
-	bool bPlaybackControlsEnabled = false;
-
-	/**
-	 * Ogni playback di questa sessione comincia fermo (`#2858`).
-	 *
-	 * ⚠️ **Separato da `bPlaybackPaused`, che e' lo stato corrente.** Questo e' una **politica di sessione**
-	 * — vale per ogni turno finche' non la si spegne — mentre quello dice se l'immagine e' ferma **adesso**.
-	 * Fonderli renderebbe `ResumePlayback` una revoca della politica: si riprenderebbe una volta e il turno
-	 * dopo ripartirebbe da solo, che e' l'opposto di cio' che chiede chi sta ispezionando.
-	 *
-	 * ⛔ Nasce `false` come `bPlaybackControlsEnabled`, e come quello non si accende da se'.
-	 */
-	bool bStartPlaybackPaused = false;
-
-	/**
-	 * Il playback e' fermo.
-	 *
-	 * ⚠️ **Ferma la PRESENTAZIONE.** Questa riga aggiungeva *«la risoluzione e' gia' avvenuta per intero»*, e
-	 * dal 2026-09-08 non e' piu' vero (`#2679` fetta 3, [D-355]): con una finestra di reazione aperta il
-	 * playback mostra un turno **risolto a meta'**, e cio' che lo tiene fermo in quel caso non e' questo flag
-	 * ma `bPlaybackHeldByWindow`. I due sono separati apposta — vedi la sua dichiarazione.
-	 */
-	bool bPlaybackPaused = false;
-
-	/**
-	 * Il playback ha mostrato tutto cio' che la resolution ha risolto, e ATTENDE una finestra (#2679).
-	 *
-	 * ⛔ **Non e' `bPlaybackPaused`, e tenerli separati e' la scelta**: quella e' la pausa del giocatore, ha
-	 * i suoi comandi e un suo significato. Con un flag solo, un `ResumePlayback` durante una finestra
-	 * farebbe ripartire un playback che non ha nulla da mostrare.
-	 */
-	bool bPlaybackHeldByWindow = false;
 
 	/**
 	 * La finestra sospesa e non ancora presentata (`#3666`): la vista e' costruita ALLA SOSPENSIONE, dove lo
@@ -3895,15 +3629,6 @@ private:
 	 * il playback resterebbe trattenuto sul PRIMO ingresso mentre la finestra chiede del secondo.
 	 */
 	bool bPartialPlaybackNeedsExtension = false;
-
-	/**
-	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.
-	 *
-	 * 🔑 **Un tempo e non un contatore di frame**: il confine si calcola una volta, alla pressione, e il
-	 * tick ci arriva senza sapere quanti frame servono. Un «avanza per N tick» dipenderebbe dal frame rate,
-	 * e la stessa pressione fermerebbe il playback in punti diversi su macchine diverse.
-	 */
-	float PlaybackStepTargetElapsed = -1.f;
 
 	/** Esito + via calcolati nel Cleanup e consumati da ConcludeTurn (che chiude o apre il round dopo). */
 	FRTMatchResult PendingResult;
@@ -3944,192 +3669,23 @@ private:
 	TMap<int32, int32> BotIdleTurns;
 	TMap<int32, int32> BotIdleRound;
 
-	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
-	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
+	// --- Il playback di presentazione (#4057) ------------------------------------------------------------------------
+	/**
+	 * Il playback vive QUI DENTRO, non in questa classe: stato, orologio, cursori e uscite verso gli Actor sono in
+	 * `FRTPlaybackDirector` (`Turn/Playback/`). Al TurnManager restano le facciate pubbliche, i delegate, le manopole, il
+	 * `Tick` che smista e la chiusura del turno.
+	 */
+	FRTPlaybackDirector Playback;
 
-	/**
-	 * Le attivazioni VISIBILI di Prep e di Dash, in ordine di timeline (#3549, spec §2.4). Una sorgente che
-	 * chi guarda non ha il diritto di vedere non entra: tutto o niente (D6).
-	 */
-	TArray<FRTResolvedEvent> PlaybackActivationsPrep;
-	TArray<FRTResolvedEvent> PlaybackActivationsDash;
-
-	/**
-	 * Il Blast come UNA sequenza per intento (#3549, D5): attivazione, impronte, muri, colpi, un atto dopo
-	 * l'altro. 🔴 Sostituisce i canali paralleli di prima (colpi, impronte da #2454, muri da #2828), che si
-	 * svelavano con contatori indipendenti: «l'attivazione precede il colpo dello stesso intento» non
-	 * discendeva dall'ordine delle code. La costruisce `URTPlaybackLibrary::BuildBlastSequence`.
-	 *
-	 * ⚠️ **Un elemento e' un indice di timeline, e il tipo lo DICHIARA l'evento.** `AdvanceBlastSequence` sceglie
-	 * la cue per `Type` — un `Attack` per VITTIMA, un'impronta per INTENTO ([D-301]: l'area su sole celle vuote
-	 * ha un'impronta e zero colpi), un muro per BORDO — e non chiede mai a un colpo se sia un muro: e' la logica
-	 * nella presentazione che [D-278] vieta, e la ragione per cui i muri avevano un array proprio.
-	 * ⚠️ **Non si azzera in `BeginPlayback`**: estendendo (D-355) e' il `Previous` della ricostruzione. La
-	 * svuota `FinishPlayback`.
-	 */
-	TArray<FRTBlastSequenceElement> PlaybackBlastSequence;
-
-	/**
-	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
-	 *
-	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
-	 * l'idempotenza dell'annuncio veniva dall'hide stesso: si nascondeva l'unita' e la si riconosceva
-	 * «gia' mostrata» perche' era nascosta. Ma nascondere PRIMA di `PlayDefeatMontage()` rendeva il
-	 * montaggio `Death` invisibile, quindi l'hide si e' spostato a `FinishPlayback` — e senza un
-	 * marcatore proprio il catch-all rifarebbe partire il montaggio e ribroadcasterebbe
-	 * `OnUnitDefeated` sulla stessa unita'.
-	 *
-	 * ⚠️ **Non se ne itera mai l'ordine** (solo `Contains`/`Add`): l'invariante «niente dipendenza
-	 * dall'ordine di un container hash» resta intatta.
-	 */
-	TSet<int32> PlaybackDefeatShown;
-
-	/**
-	 * Secondi che restano alla coda finale della morte, `0` quando non e' in corso (#2452).
-	 *
-	 * Quando l'ultima fase si chiude su un'eliminazione il playback NON finisce: entra qui, e
-	 * `FinishPlayback` arriva allo scadere. ⚠️ `SkipPlayback` la scavalca — chiama `FinishPlayback`
-	 * direttamente — ed e' voluto: chi salta la risoluzione non vuole aspettare una coda.
-	 */
-	float PlaybackDefeatBeatRemaining = 0.f;
-
-	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
-	int32 PlaybackPhaseIdx = 0;
-	float PlaybackPhaseElapsed = 0.f;
-	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
-	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
-	float PlaybackElapsedTotal = 0.f;
-	/**
-	 * L'orologio del FUMETTO della skill (#4025, spec del fumetto R4/R7): tempo del playback, lo stesso `Dt` e la stessa
-	 * correzione dello `Step` di `PlaybackElapsedTotal` in `TickPlayback`, quindi la pausa e il trattenimento di una
-	 * finestra lo fermano come fermano l'altro.
-	 *
-	 * 🔴 **Esiste perche' `PlaybackElapsedTotal` non sopravvive a una finestra di reazione.** `ConcludeResolution` lo
-	 * azzera anche quando ci si arriva dalla RIPRESA dopo una finestra (`bIsResolving` vero), e `BeginPlayback(true)`
-	 * «conserva» un orologio gia' azzerato. I fumetti accesi prima della finestra hanno uno `StartAt` su quel tempo:
-	 * con il totale ripartito da zero `Now - StartAt` diventava negativo, e ogni fumetto del turno — anche quelli gia'
-	 * dissolti — tornava pieno e ingrandito. Cambiare l'azzeramento condiviso toccherebbe la barra e `Pacing.Close`
-	 * (TurnLog): fuori dalla fetta, quindi il fumetto ha un orologio suo.
-	 *
-	 * ⚠️ **Si azzera in due punti soltanto**: all'inizio del playback di un turno nuovo (`BeginPlayback(false)`) e alla
-	 * fine VERA del playback (`FinishPlayback`, dopo il ramo sospeso), dove si spengono i fumetti. Mai in
-	 * `ConcludeResolution`. Non e' una `UPROPERTY`: solo presentazione, fuori da snapshot, TurnLog e hash (R10).
-	 */
-	float SkillCalloutClock = 0.f;
-	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
-	/**
-	 * Le unita' che hanno un fumetto di skill acceso in questo turno (#4025): chi lo ha mostrato (`ShowActivation`),
-	 * a cui `TickPlayback` porta il tempo e che `FinishPlayback` spegne. Puntatori DEBOLI: un'unita' distrutta a meta'
-	 * turno non deve tenere il manager legato a un oggetto morto, e `SyncSkillCalloutClocks` la scarta.
-	 * ⚠️ **Sopravvive a `BeginPlayback` con `bPreserveClock`** (D-355: il playback riparte dopo una finestra di
-	 * reazione senza che il turno sia finito), quindi non lo si azzera li': solo `FinishPlayback`, sul ramo che
-	 * chiude il turno. Solo presentazione: fuori da snapshot, TurnLog e hash.
-	 */
-	TArray<TWeakObjectPtr<ARTUnit>> SkillCalloutUnits;
-	/**
-	 * Le righe del Registro delle attivazioni mostrate in questo turno (#4033): vedi `GetActivationLines`. Le scrive soltanto
-	 * `AddActivationLine` — da `ShowActivation` e dal recupero di fine playback (R8) — e le azzera soltanto `LockInAndResolve`,
-	 * accanto a `TurnLog.Reset()` (R7). ⛔ Non `BeginPlayback`, che riparte anche dopo una finestra di reazione, non
-	 * `ConcludeResolution` e non `FinishPlayback`. Non e' una `UPROPERTY`: solo presentazione, fuori da snapshot e hash.
-	 */
-	TArray<FRTActivationLine> ActivationLines;
-	/**
-	 * Battiti gia' eseguiti nel Blast corrente, sulla SEQUENZA per intento (#3549 D5 con `#2454`): il `2k` RIVELA
-	 * l'elemento `k` — per un colpo e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che conta solo per un colpo.
-	 * ⛔ Un cursore solo: due contatori separati, in un tick lungo, rivelerebbero l'elemento `k+1` prima dell'arrivo
-	 * di `k`. `BlastElementsShown()` ne deriva il prefisso congelato di D-355. Si azzera in `EnterPlaybackPhase` e
-	 * in `FinishPlayback`, MAI in `BeginPlayback` (l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`).
-	 * ⏱️ *Fino al merge di #2454 in #3549 erano due: `BlastShown` sulla sequenza e `AttackBeatsDone` sui soli colpi.*
-	 */
-	int32 BlastBeatsDone = 0;
-	/**
-	 * `true` se l'ultima consegna a `ARTHexMapActor::SetPlaybackTracers` non era vuota (`#2454`): permette a
-	 * `PushPlaybackTracers` di non toccare la mappa a ogni tick quando non c'e' nulla in volo e nulla da spegnere.
-	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
-	 */
-	bool bPlaybackTracerChannelFull = false;
-	/** #3578: come `bPlaybackTracerChannelFull`, per `SetPlaybackCues`. Si azzera dove il canale si spegne. */
-	bool bPlaybackCueChannelFull = false;
-	/**
-	 * Il volo di ogni elemento, parallelo a `PlaybackBlastSequence` (`URTPlaybackLibrary::TracerFlightFor`): zero per
-	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.
-	 */
-	TArray<float> PlaybackBlastFlights;
-	/**
-	 * #3578: per ogni elemento di `PlaybackBlastSequence`, l'indice di timeline dell'impronta che consuma (o
-	 * `INDEX_NONE`), da `URTPlaybackLibrary::FootprintFxForSequence`. Parallelo alla sequenza come i voli, e come loro si
-	 * ricalcola anche estendendo: funzione pura degli eventi.
-	 */
-	TArray<int32> PlaybackBlastFootprintFx;
-	/**
-	 * La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer E, tramite le attivazioni che
-	 * ha il diritto di vedere, l'indice di un colpo nella sequenza di Blast — quindi il suo istante. Il ritmo e' lo
-	 * stesso solo fra squadre con la stessa conoscenza (`CONTRACT CONFLICT` risolto dalla spec del momento §2.4).
-	 */
-	int32 PlaybackViewerTeamId = 0;
-	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
-	TArray<FString> AttackBeatTrace;
-
-	/**
-	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.
-	 *
-	 * ⚠️ **Vive accanto a `bPlaybackPaused` e non dentro**: la pausa e' uno STATO — ci si e' fermati — e
-	 * questo e' un'INTENZIONE — ci si fermera'. Fonderli renderebbe impossibile distinguere «fermo perche'
-	 * qualcuno ha premuto Pause» da «in corsa verso un confine», che e' proprio cio' che chi guarda deve
-	 * poter leggere sulla riga di stato.
-	 */
-	ERTPlaybackStopAt PlaybackStopAt = ERTPlaybackStopAt::None;
-
-	/**
-	 * L'azione in corso quando `NextAction` e' stato armato: il termine di paragone del confine.
-	 *
-	 * 🔑 **Congelata all'ARMAMENTO e non riletta a ogni tick.** E' la stessa regola di `StepMicroStep`, che
-	 * calcola il proprio confine *«alla pressione e in secondi, non in tick»*: un paragone ricalcolato
-	 * mentre il playback scorre inseguirebbe il proprio bersaglio e non si fermerebbe mai.
-	 *
-	 * ⚠️ `NAME_None` significa «nessun atto in corso», ed e' il valore giusto quando si arma prima che un
-	 * colpo sia stato mostrato: il primo atto che passa e' allora gia' un confine — la stessa semantica
-	 * che `URTPlaybackLibrary::NextActionBoundary` da' a un indice negativo.
-	 */
-	FName PlaybackStopFromAction;
-
-	/**
-	 * La sorgente dell'atto in corso all'armamento: con `PlaybackStopFromAction` e' la COPPIA del confine (#3549).
-	 * ⚠️ `0` = nessuna sorgente: e' la sentinella dello STATO, diversa dal default `-1` di
-	 * `URTPlaybackLibrary::IsActBoundary`, che significa «sorgente non dichiarata» e riporta il criterio storico.
-	 */
-	int32 PlaybackStopFromSource = 0;
-
-	/**
-	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque fase e da qualunque tipo — `#3292`, `#3549`.
-	 *
-	 * 🔴 **Esiste perche' l'atto in corso si leggeva da un canale solo, ed era la terza faccia dello stesso
-	 * difetto.** `RequestPlaybackStopAt` congelava `PlaybackAttacks[AttacksShown - 1]`: ∴ dopo essersi
-	 * fermati su un'IMPRONTA, il paragone tornava all'ultimo colpo — un'azione **precedente** — e il colpo
-	 * dello stesso intento che seguiva sembrava aprire un atto nuovo. Due fermate dentro un intento solo,
-	 * che e' precisamente cio' che `#3292` esclude.
-	 *
-	 * ⚠️ **Lo aggiorna `NotePlaybackActShown` quando si mostra un fatto con un'azione** — attivazioni di Prep e
-	 * Dash, elementi della sequenza di Blast (#3549; ⏱️ *prima i tre canali del Blast*) — e **solo** allora: un
-	 * `NAME_None` non cambia l'atto in corso. E' la stessa scelta della scansione all'indietro di
-	 * `NextActionBoundary`, che salta i vuoti invece di lasciarsene azzerare.
-	 *
-	 * ⛔ **Non e' `PlaybackStopFromAction`**, benche' si somiglino: quella e' congelata all'armamento e non
-	 * si muove piu'; questa segue la riproduzione. Fonderle riporterebbe il paragone a inseguire il proprio
-	 * bersaglio, che e' il difetto che il congelamento esiste per evitare.
-	 */
-	FName PlaybackLastShownAction;
-
-	/**
-	 * La sorgente dell'atto MOSTRATO in corso: con `PlaybackLastShownAction` e' l'atto in corso (#3549).
-	 * ⚠️ `0` = nessuna sorgente, sentinella dello stato, diversa dal default `-1` della funzione (`IsActBoundary`).
-	 * 🔑 Un fatto con sorgente `0` (non attribuibile, [D-063]) non la sovrascrive; un cambio d'azione la riparte
-	 * (review della PR #3561, `NotePlaybackActShown`).
-	 */
-	int32 PlaybackLastShownSource = 0;
-
-	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
-	FVector PBOrigin = FVector::ZeroVector;
-	float PBCellSize = 200.f;
-	float PBLayerHeight = 0.f;
+	// FRTPlaybackHost: cio' che il director chiede all'orchestratore, e nient'altro. Le ragioni stanno in `RTPlaybackHost.h`.
+	virtual UWorld* GetPlaybackWorld() const override;
+	virtual FRTPlaybackTuning GetPlaybackTuning() const override;
+	virtual const TArray<FRTResolvedEvent>& GetPlaybackTimeline() const override;
+	virtual bool IsPrepActiveThisTurn() const override;
+	virtual int32 GetPlaybackTurnNumber() const override;
+	virtual bool IsPlaybackResolving() const override;
+	virtual void SetPlaybackResolving(bool bResolving) override;
+	virtual void SetPlaybackTickEnabled(bool bEnabled) override;
+	virtual bool IsPlaybackResolutionSuspended() const override;
+	virtual void MarkPlaybackSkipped() override;
 };
