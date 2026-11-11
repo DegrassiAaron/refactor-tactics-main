@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/RTTypes.h"
-#include "Player/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
+#include "Player/Overlay/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "Camera/RTCameraGestures.h" // i gesti della camera: il controller li possiede e li inoltra (#4065)
 #include "Player/Planning/RTFacingDeclaration.h" // la dichiarazione del verso: il controller la possiede e la inoltra (#4065)

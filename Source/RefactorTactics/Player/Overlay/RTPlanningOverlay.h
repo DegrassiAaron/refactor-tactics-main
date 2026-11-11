@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Combat/RTRangeVerdict.h"       // FRTRangeSubject: i valori della portata di una skill in hover (#3750, fetta D)
 #include "Map/RTCellId.h"
-#include "Player/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
+#include "Player/Overlay/RTFocusArea.h"          // FRTFocusMoveSubject: i valori del soggetto a fuoco (#3750)
 #include "Player/RTPointerInteraction.h" // ERTPointerContext, ERTPointerTargetKind
 #include "UObject/WeakObjectPtrTemplates.h"
 

@@ -41,7 +41,7 @@
 #include "Engine/GameInstance.h"
 #include "Core/RTGameplayTags.h"     // `#3750`: Slow e Unbalanced, gli stati pubblici che l'area del fuoco riporta
 #include "Perception/RTTeamKnowledge.h" // `#3750`: la conoscenza di squadra si dichiara nel banco
-#include "Player/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
+#include "Player/Overlay/RTFocusArea.h"        // `#3750`: l'oracolo dell'area si calcola con la distanza, non con la libreria
 #include "EngineUtils.h"               // TActorIterator: la seconda unita' propria del banco
 #include "Perception/RTKnowledgeView.h" // `#3748`: la voce `Remembered` di un nemico solo ricordato
 #include "UI/HUD/RTHudViewModel.h"         // `#3748`: BuildObserverKnowledgeView, la vista da cui decide il cancello

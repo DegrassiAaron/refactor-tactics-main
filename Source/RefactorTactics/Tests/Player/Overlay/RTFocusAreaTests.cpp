@@ -12,7 +12,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTTeamKnowledge.h"
-#include "Player/RTFocusArea.h"
+#include "Player/Overlay/RTFocusArea.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Tests/Shared/RTWorldFixtures.h"
