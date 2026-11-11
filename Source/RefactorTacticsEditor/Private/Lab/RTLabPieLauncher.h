@@ -24,7 +24,7 @@ public:
 	 * Valore e priorita' precedenti vengono catturati e **ripristinati** al primo fra `EndPIE` e `CancelPIE`.
 	 *
 	 * ⛔ Rifiuta, senza lasciare niente cambiato, se: PIE e' gia' in corso o gia' richiesto (in coda per il
-	 * tick successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; una delle due scritture
+	 * tick successivo: `IsPlaySessionInProgress`); una delle tre CVar non si trova; una delle tre scritture
 	 * non prende (CVar `ReadOnly`, valore non parsabile); un lancio precedente e' ancora in attesa di
 	 * ripristino.
 	 *

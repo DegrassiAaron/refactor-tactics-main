@@ -1126,21 +1126,6 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **LA SLOW-MOTION SI RIPRISTINA SU ENTRAMBE LE USCITE** ([`D-350`], `#166`, voce 11).
- *
- * 🔑 **Il difetto che questo test esiste per impedire non e' «la slow-motion non parte»: e' «non
- * finisce».** Le uscite di una finestra sono quattro — risposta e scadenza, per il movimento e per il
- * `Brace` — e un ripristino scritto su ognuna e' disciplina in quattro posti. Dimenticarne uno lascia la
- * partita al 35% **per il resto del match**, e si manifesta solo dopo quella particolare uscita.
- *
- * ⚠️ **Percio' il ramo che conta e' la SCADENZA**, non la risposta: e' quella che un giocatore nota meno,
- * riproduce peggio, e che una correzione frettolosa dimentica per prima.
- *
- * ⛔ Il test NON asserisce il valore `0.35`: e' una manopola di pacing, e fissarlo qui renderebbe rosso un
- * cambio di taratura. Asserisce le due proprieta' che sono contratto: **rallentato mentre attende**
- * (`< 1`), e **esattamente 1** quando non attende piu'.
- */
-/**
  * Nel banco Ability Lab la finestra si chiude tornando alla velocita' del banco, x0,5 — [D-607] (1), `#4071`.
  *
  * 🔑 Il banco di `SlowMotionRestoresOnBothExits`, con la velocita' che il GameMode scrive quando una scena del banco
@@ -1218,6 +1203,21 @@ bool FRTReactionSlowMotionRestoresTheBenchSpeedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **LA SLOW-MOTION SI RIPRISTINA SU ENTRAMBE LE USCITE** ([`D-350`], `#166`, voce 11).
+ *
+ * 🔑 **Il difetto che questo test esiste per impedire non e' «la slow-motion non parte»: e' «non
+ * finisce».** Le uscite di una finestra sono quattro — risposta e scadenza, per il movimento e per il
+ * `Brace` — e un ripristino scritto su ognuna e' disciplina in quattro posti. Dimenticarne uno lascia la
+ * partita al 35% **per il resto del match**, e si manifesta solo dopo quella particolare uscita.
+ *
+ * ⚠️ **Percio' il ramo che conta e' la SCADENZA**, non la risposta: e' quella che un giocatore nota meno,
+ * riproduce peggio, e che una correzione frettolosa dimentica per prima.
+ *
+ * ⛔ Il test NON asserisce il valore `0.35`: e' una manopola di pacing, e fissarlo qui renderebbe rosso un
+ * cambio di taratura. Asserisce le due proprieta' che sono contratto: **rallentato mentre attende**
+ * (`< 1`), e **esattamente 1** quando non attende piu'.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionSlowMotionRestoresTest,
 	"RefactorTactics.Reactions.SlowMotionRestoresOnBothExits",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

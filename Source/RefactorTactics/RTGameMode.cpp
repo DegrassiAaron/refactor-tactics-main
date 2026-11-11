@@ -223,13 +223,18 @@ TAutoConsoleVariable<int32> CVarRTPlaybackStartPaused(
  * reazione puo' aprirsi il tasto e' inerte (`#2733`) e [D-350] riporta comunque la velocita' a `x1`, quindi
  * una preferenza impostata qui verrebbe scavalcata alla prima finestra senza che nessuno lo dica.
  *
+ * ➕ **Salvo nel banco Ability Lab** ([D-607] (1), `#4071`): in una scena del banco vale anche x0,5, fuori dalla
+ * scala e senza autobattle. La scrive il pannello del Lab, e li' una finestra di reazione si chiude tornando a
+ * x0,5 (`ARTTurnManager::BenchPlaybackSpeed`).
+ *
  * ⛔ **Sola presentazione**, come la manopola: `StateHash` e TurnLog non la vedono (`#955`).
  */
 TAutoConsoleVariable<float> CVarRTPlaybackSpeed(
 	TEXT("rt.Debug.PlaybackSpeed"),
 	0.f,
 	TEXT("Developer: velocita' INIZIALE del playback della risoluzione, sulla scala del tasto (1, 2, 4). "
-		 "0 = non impostata: si parte a x1. Vale in sessione non presidiata. Sola presentazione: StateHash e "
+		 "0 = non impostata: si parte a x1. Vale in sessione non presidiata; nel banco Ability Lab vale anche 0.5, "
+		 "senza autobattle (D-607). Sola presentazione: StateHash e "
 		 "TurnLog non cambiano."),
 	ECVF_Default);
 #endif // !UE_BUILD_SHIPPING

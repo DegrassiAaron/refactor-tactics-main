@@ -119,8 +119,8 @@ TSharedRef<SWidget> SRTLabPanel::CostruisciEsecuzione()
 		SNew(SButton)
 		.Text(LOCTEXT("EseguiInPie", "Esegui in PIE"))
 		.ToolTipText(LOCTEXT("EseguiInPieTip",
-			"Salva la fixture in Saved/RTLab/Scenarios, imposta rt.Test.Scenario e avvia PIE su L_DevSandbox. "
-			"Le CVar tornano com'erano a fine PIE."))
+			"Salva la fixture in Saved/RTLab/Scenarios, imposta rt.Test.Scenario e avvia PIE su L_DevSandbox, "
+			"con il playback a x0,5. Le CVar tornano com'erano a fine PIE."))
 		.OnClicked(this, &SRTLabPanel::OnEseguiInPie)
 	];
 }
