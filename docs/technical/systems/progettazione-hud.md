@@ -252,7 +252,7 @@ non gridano l'attacco base (`BaseActionId = Action.BasicAttack`), le generiche `
 loadout, benché emettano tutte `AbilityActivated`. Servono entrambe le condizioni: `Action.Guard` non ha base ma è core, e un'azione d'eroe che è profilo di una
 generica non è core ma ha base. ⚠️ **L'equipaggiamento sta nel bool perché la base non lo esclude**: `MakeEquipmentAction` scrive `ActionId = EquipmentId` e copia
 dal core un `BaseActionId` vuoto, quindi senza la seconda domanda il loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth
-(review finale di `#4025`; A7 vuole solo le skill del kit). Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con
+(review finale di `#4025`; A7 vuole solo le skill del kit). ⌫ *A7 è superata da [`D-604`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-11-11): gridano tutte le azioni tranne `Action.Move`, `Action.Sprint`, `Action.Withdraw` e `Action.Interact`, attacco base compreso, e gridano le reazioni che scattano; non ancora implementata.* Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con
 `bFromFallback`, e `ARTUnit::ShowSkillCallout` scrive un `Warning` che nomina l'id (R3).
 
 **Un fumetto per unità.** Una seconda attivazione lo sostituisce e riparte da zero, come `PushDamageToken`; unità diverse ne hanno vivi insieme, senza coda né
