@@ -1223,12 +1223,9 @@ void ARTTurnManager::PlanBots()
 		ARTUnit* Bot = Units[Piano.UnitIndex];
 		if (!Bot) { continue; }
 
-		Bot->PlannedCell = Piano.PlannedCell;
-		Bot->PlannedPath = Piano.PlannedPath;
-		Bot->PlannedWaypoints = Piano.PlannedWaypoints;
-		Bot->PlannedAbilityIndex = Piano.PlannedAbilityIndex;
-		Bot->PlannedDashAbility = Piano.PlannedDashAbility;
-		Bot->PlannedDashCell = Piano.PlannedDashCell;
+		Bot->SetPlannedDestination(Piano.PlannedCell, Piano.PlannedPath, Piano.PlannedWaypoints);
+		Bot->SetPlannedMainAction(Piano.PlannedAbilityIndex);
+		Bot->SetPlannedDash(Piano.PlannedDashAbility, Piano.PlannedDashCell);
 
 		// ⛔ **Anche la reazione passa dalla FUNZIONE, e per la stessa ragione dell'attacco.**
 		// `ClearReactionPlan()` azzera DUE campi — `PlannedReactionAbility` e `PlannedReactionCondition` —
@@ -1239,7 +1236,7 @@ void ARTTurnManager::PlanBots()
 		Bot->ClearReactionPlan();
 		if (Piano.PlannedReactionAbility != INDEX_NONE)
 		{
-			Bot->PlannedReactionAbility = Piano.PlannedReactionAbility;
+			Bot->SetPlannedReaction(Piano.PlannedReactionAbility);
 		}
 
 		// ⛔ **Il bersaglio passa dalla funzione, non dal campo** (`#2884`): `PlannedAttackTarget` e
@@ -1763,12 +1760,7 @@ void ARTTurnManager::LockInAndResolve()
 		{
 			if (!IsValid(PlanningUnit)) { continue; }
 
-			const ARTUnit* AimedAt = PlanningUnit->PlannedAttackTarget;
-			PlanningUnit->bHasPlannedAim = IsValid(AimedAt) && !PlanningUnit->bAttackTargetsCell;
-			if (PlanningUnit->bHasPlannedAim)
-			{
-				PlanningUnit->PlannedAimCell = AimedAt->Cell;
-			}
+			PlanningUnit->FreezePlannedAim();
 		}
 	}
 
@@ -2406,11 +2398,10 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// punto in cui `C` andra' scritto e' questo.
 	const bool bPrimaDelMove = InPhase < ERTMatchPhase::Move;
 
-	Unit->PlannedPath.Reset();
-	Unit->PlannedWaypoints.Reset();
+	Unit->ClearPlannedRoute();
 	if (bPrimaDelMove || Unit->PlannedCell == OldCell)
 	{
-		Unit->PlannedCell = NewCell;
+		Unit->SetPlannedCell(NewCell);
 	}
 }
 
@@ -3631,7 +3622,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// funzione unica e PRIMA dell'azzeramento qui sotto. Le ambientali risolvono in Cleanup, dopo il Dash E dopo il
 		// Move: leggendo la cella viva inseguivano anche il movimento normale. ⌫ *Fino a #3609 `Target->Cell`.*
 		const FRTCellId Mira = Caster->ResolutionAimCell(Ability->Def.DeclaresTracking());
-		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
+		Caster->ClearPlannedMainAction(); // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->ClearPlannedAttack();
 
 		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' uno dei siti che la negano — gli altri
@@ -4420,9 +4411,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		const FRTCellId TargetCell = Unit->ResolutionAimCell(Def.DeclaresTracking());
 		const bool bHasTarget = bTargetsCell || Unit->PlannedAttackTarget != nullptr;
 
-		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedMainAction();
 		Unit->ClearPlannedAttack();
-		Unit->bHasPlannedCoverEdge = false;
+		Unit->ClearPlannedCoverEdge();
 		if (!Unit->CanUseAbility(Index)) { continue; }
 
 		// 🔴 **`Status.Stunned` NEGA L'AZIONE PRINCIPALE** ([D-416] (1), `#3142`), e le strutture di bordo sono principali di
@@ -4764,7 +4755,7 @@ void ARTTurnManager::ResolvePrep()
 			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
 			// di sempre per il Prep: scrittura immediata, come per l'Overwatch e la predittiva che armano.
 			Unit->ConsumeAbility(Index);
-			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedMainAction();
 			Unit->ClearPlannedAttack();
 			continue;
 		}
@@ -4804,7 +4795,7 @@ void ARTTurnManager::ResolvePrep()
 			// L'abilita' e' comunque SPESA: chi ha scommesso ha pagato il cooldown, che la previsione sia
 			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
 			Unit->ConsumeAbility(Index);
-			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedMainAction();
 			Unit->ClearPlannedAttack();
 			continue;
 		}
@@ -4865,7 +4856,7 @@ void ARTTurnManager::ResolvePrep()
 			EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId,
 				Unit->StableUnitId, Unit->Cell, Ability->Shape);
 			Unit->ConsumeAbility(Index);
-			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedMainAction();
 			Unit->ClearPlannedAttack();
 			continue;
 		}
@@ -4945,7 +4936,7 @@ void ARTTurnManager::ResolvePrep()
 		EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Instance.Def.ActionId, Instance.Def.BaseActionId,
 			Unit->StableUnitId, Unit->Cell, Usata ? Usata->Shape : ERTAbilityShape::Single);
 		Unit->ConsumeAbility(Unit->PlannedAbilityIndex);
-		Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
+		Unit->ClearPlannedMainAction(); // consumato in Prep
 		Unit->ClearPlannedAttack();
 	}
 }
@@ -5168,7 +5159,7 @@ void ARTTurnManager::ResolveDash()
 		const bool bNegatoDalloStato = Unit->PlannedDashDeniedByStatus();
 		// [D-567]: idem per lo stordimento, che legge `PlannedDashAbility` come il rifiuto dello stato.
 		const bool bNegatoDalloStordimento = Unit->PlannedDashDeniedByStun();
-		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
+		Unit->ClearPlannedDash(); // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
 		if (!bDashApplies)
@@ -5705,9 +5696,7 @@ void ARTTurnManager::ResolveDash()
 			AppendLogEntry(Superseded, Unit);
 		}
 
-		Unit->PlannedPath.Reset();
-		Unit->PlannedWaypoints.Reset();
-		Unit->PlannedCell = Final;
+		Unit->RebasePlannedMove(Final);
 
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
@@ -5775,7 +5764,7 @@ void ARTTurnManager::ResolveDash()
 				}
 			}
 
-			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
+			Unit->ClearPlannedMainAction(); // lo slot principale e' speso
 			Unit->ClearPlannedAttack();
 		}
 

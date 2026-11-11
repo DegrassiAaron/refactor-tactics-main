@@ -428,9 +428,9 @@ public:
 	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
 	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
 	 *
-	 * ⚠️ I campi restano pubblici — l'harness degli scenari e i test li scrivono direttamente, e renderli
-	 * privati sarebbe una migrazione che non appartiene a questa correzione. La garanzia e' quindi che il
-	 * **codice di gioco** passi di qui, ed e' `Plan.MindChangeRetiresTheOtherTarget` a pinnarla.
+	 * ⚠️ I campi restano pubblici — i test li scrivono direttamente, e renderli privati e' la tappa dello struct
+	 * `FRTUnitPlan` (E50). La garanzia e' quindi che il **codice di gioco** passi di qui: la pinnano
+	 * `Plan.MindChangeRetiresTheOtherTarget` e, da #4068, `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
 	 */
 	void DeclareAttackOnUnit(ARTUnit* Target)
 	{
@@ -453,6 +453,147 @@ public:
 		PlannedAttackTarget = nullptr;
 		bAttackTargetsCell = false;
 		bHasPlannedAim = false;   // [D-415]: la mira congelata muore col piano che la conteneva
+	}
+
+	// ---- Le scritture del piano (#4068) ----------------------------------------------------------------------
+	//
+	// 🔑 **Una porta per ogni OPERAZIONE sul piano, non un setter per campo.** L'operazione e' cio' che il piano deve
+	// garantire: armare la principale segna anche quanti waypoint c'erano (il Back lo rilegge), il disarmo spegne
+	// indice, bersaglio, bordo e quel segno insieme, il consumo di un resolver azzera e basta. Chi propone il piano
+	// (controller, harness degli scenari, applicazione del piano del bot) e chi lo consuma (i resolver) passano di
+	// qui; prima scrivevano i campi a mano.
+	//
+	// ⚠️ **I campi restano pubblici**: i test li scrivono ancora, e spostarli e' la tappa dello struct `FRTUnitPlan`
+	// (E50, fetta 2). Fino ad allora la porta la pinna `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`, che fallisce se il
+	// codice di gioco torna a scrivere un campo del piano fuori da `ARTUnit`.
+	//
+	// ⛔ **Nessuna regola di gioco qui dentro.** Sono le stesse assegnazioni di prima, raccolte: cosa armare, quando
+	// consumare, quale cella scegliere restano di chi chiama.
+
+	/** Il giocatore arma la principale: l'indice, e quanti waypoint c'erano in quel momento (`#3501`: il Back lo rilegge). */
+	void DeclarePlannedMainAction(int32 AbilityIndex)
+	{
+		PlannedAbilityIndex = AbilityIndex;
+		WaypointsAllaDichiarazione = PlannedWaypoints.Num();
+	}
+
+	/** La principale, senza il segno per il Back: l'harness degli scenari e l'applicazione del piano del bot. */
+	void SetPlannedMainAction(int32 AbilityIndex) { PlannedAbilityIndex = AbilityIndex; }
+
+	/** La principale non c'e' piu': consumata da un resolver, o azzerata a inizio turno. Il bersaglio lo spegne chi chiama. */
+	void ClearPlannedMainAction() { PlannedAbilityIndex = INDEX_NONE; }
+
+	/** Il giocatore disarma la principale: indice, bersaglio, bordo dichiarato e segno per il Back, insieme. */
+	void DisarmPlannedMainAction()
+	{
+		PlannedAbilityIndex = INDEX_NONE;
+		ClearPlannedAttack();
+		bHasPlannedCoverEdge = false;
+		WaypointsAllaDichiarazione = INDEX_NONE;
+	}
+
+	/** Lo scatto: l'abilita' e la cella d'arrivo. */
+	void SetPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
+	{
+		PlannedDashAbility = AbilityIndex;
+		PlannedDashCell = DashCell;
+	}
+
+	/** Lo scatto e' consumato (valido o no). ⚠️ La cella resta: e' valida solo con l'abilita' impostata, e nessuno la azzera. */
+	void ClearPlannedDash() { PlannedDashAbility = INDEX_NONE; }
+
+	/** Il giocatore arma la reazione: l'indice, e quanti waypoint c'erano in quel momento. */
+	void ArmPlannedReaction(int32 AbilityIndex)
+	{
+		PlannedReactionAbility = AbilityIndex;
+		WaypointsAllaReazione = PlannedWaypoints.Num();
+	}
+
+	/** La reazione, senza il segno per il Back: l'harness e il bot. */
+	void SetPlannedReaction(int32 AbilityIndex) { PlannedReactionAbility = AbilityIndex; }
+
+	void AddPlannedWaypoint(const FRTCellId& Waypoint) { PlannedWaypoints.Add(Waypoint); }
+	void PopPlannedWaypoint() { PlannedWaypoints.Pop(); }
+
+	/** Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. */
+	void SetPlannedRoute(const TArray<FRTCellId>& Route)
+	{
+		PlannedPath = Route;
+		PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
+	}
+
+	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. */
+	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route)
+	{
+		PlannedWaypoints = Waypoints;
+		SetPlannedRoute(Route);
+	}
+
+	/** Il piano del bot: una DESTINAZIONE, che non si ricava dal percorso (il bot non pianifica a waypoint). */
+	void SetPlannedDestination(const FRTCellId& Destination, const TArray<FRTCellId>& Route, const TArray<FRTCellId>& Waypoints)
+	{
+		PlannedCell = Destination;
+		PlannedPath = Route;
+		PlannedWaypoints = Waypoints;
+	}
+
+	/** Percorso e waypoint spenti; la cella d'arrivo resta. */
+	void ClearPlannedRoute()
+	{
+		PlannedPath.Reset();
+		PlannedWaypoints.Reset();
+	}
+
+	/** Il piano di movimento ripiantato su `At`: niente percorso, niente waypoint, arrivo li'. */
+	void RebasePlannedMove(const FRTCellId& At)
+	{
+		ClearPlannedRoute();
+		PlannedCell = At;
+	}
+
+	/** Nessun movimento: si resta dove si e'. */
+	void ClearPlannedMove() { RebasePlannedMove(Cell); }
+
+	/** La sola cella d'arrivo (un resolver che la sposta con l'unita', [D-045]). */
+	void SetPlannedCell(const FRTCellId& NewCell) { PlannedCell = NewCell; }
+
+	/** Il verso dichiarato ([D-367]): chiude il movimento. */
+	void DeclarePlannedFacing(ERTHexDirection Direction)
+	{
+		PlannedFacing = Direction;
+		bDeclaresPlannedFacing = true;
+	}
+
+	/**
+	 * Il giocatore ritira il verso dichiarato, e il movimento si riapre. ⚠️ Non e' `ClearDeclaredFacing`: quella e' del
+	 * resolver, e azzera anche la traccia del movimento eseguito nel turno.
+	 */
+	void RetractPlannedFacing() { bDeclaresPlannedFacing = false; }
+
+	/** Il bordo su cui agisce un'azione di struttura (CP 9.5). */
+	void DeclarePlannedCoverEdge(ERTHexDirection Edge)
+	{
+		PlannedCoverEdge = Edge;
+		bHasPlannedCoverEdge = true;
+	}
+
+	void ClearPlannedCoverEdge() { bHasPlannedCoverEdge = false; }
+
+	/** Il profilo di movimento dichiarato ([D-425]): oggi solo `Sneak`, o nessuno. */
+	void SetPlannedMovementProfile(FName ProfileId) { PlannedMovementProfileId = ProfileId; }
+
+	/**
+	 * **La fotografia della mira al lock-in** ([D-415]): con un bersaglio-UNITA', la sua cella di adesso. Il resolver
+	 * mirera' li' anche se il bersaglio si muove prima del Blast. Il perche' sta al chiamante, `LockInAndResolve`.
+	 */
+	void FreezePlannedAim()
+	{
+		const ARTUnit* AimedAt = PlannedAttackTarget;
+		bHasPlannedAim = IsValid(AimedAt) && !bAttackTargetsCell;
+		if (bHasPlannedAim)
+		{
+			PlannedAimCell = AimedAt->Cell;
+		}
 	}
 
 	/**

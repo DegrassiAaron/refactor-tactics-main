@@ -1582,9 +1582,7 @@ void ARTUnit::ScordaTroncamentoDelTetto()
 void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
 {
 	Cell = InCell;        // posizione AUTOREVOLE (invariante #2: il FVector sotto e' solo rendering)
-	PlannedCell = InCell; // dopo un movimento, il piano riparte dalla cella attuale
-	PlannedPath.Reset();      // il percorso composito e' consumato
-	PlannedWaypoints.Reset(); // e i suoi waypoint
+	RebasePlannedMove(InCell); // dopo un movimento il piano riparte dalla cella attuale: percorso e waypoint consumati
 	// Il rifiuto e' parte del piano e si consuma con lui (#79): chi e' stato spostato non porta al turno
 	// successivo la destinazione che gli era stata negata in QUESTO. Vale per ogni scrittore di `Cell`, non
 	// solo per la fase Move — spinte e teletrasporti passano di qui e azzerano gia' gli altri campi del piano.
