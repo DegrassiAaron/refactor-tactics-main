@@ -10,8 +10,8 @@
 //   2. l'EFFETTO: i binding della camera e del kit si eseguono attraverso il delegate vero, con un valore e un
 //      evento costruiti dal test, e si guarda cosa cambia sulla camera o sull'unita'.
 //
-// ⚠️ **Cosa NON copre.** Il passo tasto → azione resta dei test che leggono il mapping context. Lo zoom della rotella
-// non si esegue: senza viewport `IsCursorInsideScene()` e' falso e lo zoom, per contratto, non parte. Il dolly
+// ⚠️ **Cosa NON copre.** Il passo tasto → azione resta dei test che leggono il mapping context. Della rotella si prova
+// solo il verso negativo: senza viewport `IsCursorInsideScene()` e' falso e lo zoom, per contratto, non parte. Il dolly
 // (`Ctrl` + destro) vuole `IsInputKeyDown(RightMouseButton)`, che senza `PlayerInput` e' falso. Le loro coppie stanno
 // comunque nella tabella.
 
@@ -29,6 +29,7 @@
 #include "Player/RTPlayerController.h"
 #include "Player/Input/RTInputKeys.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Shared/RTInputBindingFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -37,24 +38,6 @@
 
 namespace
 {
-	/**
-	 * Un'istanza d'azione con l'evento e il valore scelti dal test.
-	 *
-	 * `FInputActionInstance` li tiene `protected`, e a riempirli in partita e' `UEnhancedPlayerInput`. Un tipo
-	 * derivato e' l'accesso che l'header lascia, e il binding lo riceve com'e': `Execute` passa `GetValue()` al
-	 * delegate, e `GetValue()` restituisce il valore vero (`EnhancedInput.bAlwaysGetRealValueFromActionInstanceData`
-	 * vale 1 di default).
-	 */
-	struct FRTBindingActionInstanceForTest : public FInputActionInstance
-	{
-		FRTBindingActionInstanceForTest(const UInputAction* Action, ETriggerEvent Event, const FInputActionValue& InValue)
-			: FInputActionInstance(Action)
-		{
-			TriggerEvent = Event;
-			Value = InValue;
-		}
-	};
-
 	FString BindingEventName(ETriggerEvent Event)
 	{
 		return StaticEnum<ETriggerEvent>()->GetNameStringByValue(static_cast<int64>(Event));
@@ -99,39 +82,6 @@ namespace
 			Attese.Add(FString::Printf(TEXT("IA_Generic%d:Started"), I + 1));
 		}
 		return Attese;
-	}
-
-	const UInputAction* BindingActionNamed(const UEnhancedInputComponent& Component, const TCHAR* Name)
-	{
-		for (const TUniquePtr<FEnhancedInputActionEventBinding>& Binding : Component.GetActionEventBindings())
-		{
-			if (Binding && Binding->GetAction() && Binding->GetAction()->GetName() == Name)
-			{
-				return Binding->GetAction();
-			}
-		}
-		return nullptr;
-	}
-
-	/** Esegue i binding dell'azione col nome dato su quell'evento, come farebbe il giocatore. Restituisce quanti ne ha eseguiti. */
-	int32 BindingFire(const UEnhancedInputComponent& Component, const TCHAR* Name, ETriggerEvent Event,
-		const FInputActionValue& Value = FInputActionValue())
-	{
-		const UInputAction* Action = BindingActionNamed(Component, Name);
-		if (!Action)
-		{
-			return 0;
-		}
-		int32 Eseguiti = 0;
-		for (const TUniquePtr<FEnhancedInputActionEventBinding>& Binding : Component.GetActionEventBindings())
-		{
-			if (Binding && Binding->GetAction() == Action && Binding->GetTriggerEvent() == Event)
-			{
-				Binding->Execute(FRTBindingActionInstanceForTest(Action, Event, Value));
-				++Eseguiti;
-			}
-		}
-		return Eseguiti;
 	}
 
 	/** Mappa piatta di raggio 2 attorno a una cella lontana dall'origine: `Home` ha un centro a cui tornare. */
@@ -183,8 +133,7 @@ namespace
 				return false;
 			}
 			PC->Possess(Cam);
-			Input = NewObject<UEnhancedInputComponent>(PC);
-			PC->BindInputActions(*Input);
+			Input = RTInputBindingFixtures::BindInput(*PC);
 			return Test.TestTrue(TEXT("premessa: il controller possiede la camera"), PC->GetPawn() == Cam);
 		}
 
@@ -287,8 +236,8 @@ bool FRTInputBindingCameraTest::RunTest(const FString&)
 	B.Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
 	const auto Fire = [&](const TCHAR* Name, ETriggerEvent Event, const FInputActionValue& Value)
 	{
-		TestEqual(FString::Printf(TEXT("%s esegue un binding"), *BindingPair(BindingActionNamed(*B.Input, Name), Event)),
-			BindingFire(*B.Input, Name, Event, Value), 1);
+		TestEqual(FString::Printf(TEXT("%s esegue un binding"), *BindingPair(RTInputBindingFixtures::ActionNamed(*B.Input, Name), Event)),
+			RTInputBindingFixtures::Fire(*B.Input, Name, Event, Value), 1);
 	};
 
 	// Q/E: la rotazione a scatti.
@@ -335,8 +284,9 @@ bool FRTInputBindingCameraTest::RunTest(const FString&)
 	TestTrue(TEXT("annullato Ctrl, il mouse non sposta il peek"), B.Cam->GetPeekOffset().Equals(Peek));
 
 	// `Ctrl` + sinistro trascinato oltre la soglia orbita; il rilascio (o l'annullamento) del sinistro chiude il gesto.
-	B.PC->SetClickDragThresholdForTest(4.f);
+	// Il trascinamento e' lungo quanto basta a superare la soglia di default.
 	const FVector2D Lungo(50.f, 0.f);
+	TestTrue(TEXT("premessa: il trascinamento supera la soglia del click"), Lungo.Size() > B.PC->GetCameraGestureTuning().ClickDragThreshold);
 	const auto CtrlLeftDrag = [&](ETriggerEvent Fine, const TCHAR* Nome)
 	{
 		Fire(TEXT("IA_CameraModifier"), ETriggerEvent::Started, FInputActionValue(true));
@@ -352,6 +302,12 @@ bool FRTInputBindingCameraTest::RunTest(const FString&)
 	};
 	CtrlLeftDrag(ETriggerEvent::Completed, TEXT("rilascio"));
 	CtrlLeftDrag(ETriggerEvent::Canceled, TEXT("annullamento"));
+
+	// La rotella: in headless non c'e' viewport, il cursore non e' nella scena, e lo zoom non parte. Che il ramo
+	// «dentro la scena» zoomi lo prova `PlayerInput.WheelZoomsTheWorldOnlyInsideTheScene`, sui gesti.
+	const float Braccio = B.Cam->GetZoomAlpha();
+	Fire(TEXT("IA_Zoom"), ETriggerEvent::Triggered, FInputActionValue(1.f));
+	TestEqual(TEXT("senza viewport la rotella non zooma"), B.Cam->GetZoomAlpha(), Braccio);
 
 	// `Tab`: la vista strategica, avanti e indietro.
 	const bool bStrategica = B.Cam->IsStrategicView();
@@ -434,7 +390,7 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 		Reset();
 		const FString Nome = FString::Printf(TEXT("IA_Ability%d"), I + 1);
 		TestEqual(FString::Printf(TEXT("%s esegue un binding"), *Nome),
-			BindingFire(*B.Input, *Nome, ETriggerEvent::Started, FInputActionValue(true)), 1);
+			RTInputBindingFixtures::Fire(*B.Input, *Nome, ETriggerEvent::Started, FInputActionValue(true)), 1);
 		TestEqual(FString::Printf(TEXT("%s arma la posizione %d"), *Nome, I), Mia->SelectedAbilityIndex, I);
 	}
 
@@ -453,7 +409,7 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 		Reset();
 		const FString Nome = FString::Printf(TEXT("IA_Generic%d"), Riga + 1);
 		TestEqual(FString::Printf(TEXT("%s esegue un binding"), *Nome),
-			BindingFire(*B.Input, *Nome, ETriggerEvent::Started, FInputActionValue(true)), 1);
+			RTInputBindingFixtures::Fire(*B.Input, *Nome, ETriggerEvent::Started, FInputActionValue(true)), 1);
 		TestTrue(FString::Printf(TEXT("%s arma %s (posizione %d)"), *Nome, *Id.ToString(), Indice), Touched(Indice));
 	}
 	return true;

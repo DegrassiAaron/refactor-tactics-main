@@ -5,6 +5,7 @@
 #include "Core/RTTypes.h"
 #include "Player/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
+#include "Camera/RTCameraGestures.h" // i gesti della camera: il controller li possiede e li inoltra (#4065)
 #include "RTPlayerController.generated.h"
 
 enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
@@ -40,17 +41,6 @@ enum class ERTAbilityRequestSource : uint8
 {
 	Hotkey,  // i dieci tasti del kit e le cinque generiche
 	Dock     // la porta di `#2826`: un click su uno slot
-};
-
-/** `#1838` — gli stati dell'edge pan, per il log delle transizioni. Un enum e non un testo: la macchina non dipende da come e' scritto il messaggio. */
-enum class ERTEdgePanState : uint8
-{
-	Rest,
-	Active,
-	RefusedSwitch,
-	RefusedBlocked,
-	RefusedGesture,
-	RefusedKeys,
 };
 
 /**
@@ -458,22 +448,20 @@ protected:
 	TWeakObjectPtr<class ARTUnit> InspectedUnit;
 
 	void OnPan(const FInputActionValue& Value);
-	/** Il corpo di `OnPan` con il tempo passato (#3792): `WASD` e' un ingresso a velocita'. */
-	void ApplyKeyPan(const FVector2D& Axis, float DeltaTime);
 	void OnZoom(const FInputActionValue& Value);
-	/**
-	 * Il corpo di `OnZoom` con la domanda «il cursore e' nella scena?» gia' risolta (`#3748`). Sopra una fascia l'HUD ha il
-	 * puntatore e la rotella non zooma il mondo, come un click sulla fascia non diventa una cella ([D-497] (1), `#3661`).
-	 */
-	void ApplyZoom(float Axis, bool bCursorInsideScene);
 	void OnRotate(const FInputActionValue& Value);
 
-	/** #863 — orbita continua. `bOrbiting` distingue «il mouse si muove» da «il giocatore sta orbitando». */
+	/** #863 — orbita continua: il tasto centrale arma, il mouse guida. Lo stato e' in `CameraGestures`. */
 	void OnOrbit(const FInputActionValue& Value);
 	void OnOrbitPressed(const FInputActionValue& Value);
 	void OnOrbitReleased(const FInputActionValue& Value);
 
-	bool bOrbiting = false;
+	/**
+	 * **I gesti della camera** (#4065, S3): lo stato dei tasti tenuti e l'aritmetica che trasforma un movimento del
+	 * puntatore in orbita, dolly, pan o peek. Le funzioni camera di questo controller inoltrano, e leggono dal mondo solo
+	 * cio' che i gesti non possono sapere.
+	 */
+	FRTCameraGestures CameraGestures;
 
 	// --- #1771 / #1772 · il modificatore camera e i suoi gesti -------------------------------------
 
@@ -483,24 +471,6 @@ protected:
 	void OnUndoReleased(const FInputActionValue& Value);
 	void OnLayerUp(const FInputActionValue& Value);
 	void OnLayerDown(const FInputActionValue& Value);
-
-	/** `Ctrl` tenuto: arma i gesti camera. */
-	bool bCameraModifier = false;
-
-	/** `Ctrl`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
-	bool bModifierPrimaryDown = false;
-
-	/** `Ctrl`+`RMB` in corso: dolly. Sopprime l'`UndoAction` per tutta la durata del gesto. */
-	bool bModifierSecondaryDown = false;
-
-	/**
-	 * Quanta strada ha percorso il puntatore da quando `Ctrl`+`LMB` e' stato premuto.
-	 *
-	 * 🔑 **E' cio' che separa un click da un drag**, e la separazione dev'essere netta: superata la soglia
-	 * il gesto e' un'orbita e il click **non si emette piu'**, altrimenti un trascinamento lungo
-	 * produrrebbe anche un set-pivot al rilascio — due operazioni da un gesto solo.
-	 */
-	float ModifierPrimaryDragDistance = 0.f;
 
 	/**
 	 * Soglia in pixel oltre la quale `Ctrl`+`LMB` e' un trascinamento e non un click.
@@ -557,15 +527,6 @@ protected:
 	 */
 	void UpdateEdgePan(float DeltaTime);
 
-	/** Il corpo di `UpdateEdgePan`, con cursore e viewport passati: ritorna se la camera si e' mossa. */
-	bool ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime);
-
-	/** L'ultimo stato dell'edge pan scritto nel log: si scrive solo quando cambia, non a ogni fotogramma. */
-	ERTEdgePanState LastEdgePanState = ERTEdgePanState::Rest;
-
-	/** Un tasto del pan ha mosso la vista in questo fotogramma: l'edge pan cede. Lo alza `OnPan`, lo consuma `ApplyEdgePanFrom`. */
-	bool bKeyPanThisFrame = false;
-
 	// --- #1773 · doppio click = Select + Focus ------------------------------------------------------
 
 	/**
@@ -589,68 +550,12 @@ protected:
 		meta = (ClampMin = "0.05"))
 	float DoubleClickInterval = 0.3f;
 
-	/**
-	 * Instrada un movimento del puntatore al gesto camera armato, se ce n'e' uno.
-	 *
-	 * Ritorna `true` se il movimento e' stato consumato: cosi' l'orbita di `#863` resta il ramo di
-	 * default e non deve conoscere i gesti nuovi.
-	 */
-	bool RouteCameraGesture(const FVector2D& Delta);
-
 public:
-	/** Stato dei gesti camera, per i test: nessuno di questi ha un viewport da interrogare. */
-	void SetCameraModifierForTest(bool bDown) { bCameraModifier = bDown; }
-	bool IsCameraModifierForTest() const { return bCameraModifier; }
-	void SetModifierPrimaryDownForTest(bool bDown, float Distance = 0.f)
-	{
-		bModifierPrimaryDown = bDown;
-		ModifierPrimaryDragDistance = Distance;
-	}
-	float GetModifierPrimaryDragDistanceForTest() const { return ModifierPrimaryDragDistance; }
-	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
-	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
-	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
-	/** `#1838`: l'edge pan con cursore e viewport iniettati — in headless un viewport non esiste. */
-	bool UpdateEdgePanForTest(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime = 1.f / 60.f) { return ApplyEdgePanFrom(Cursor, ViewportSize, DeltaTime); }
+	/** I gesti della camera, per chi li guida senza un tasto: i test, che non hanno un viewport. */
+	FRTCameraGestures& GetCameraGestures() { return CameraGestures; }
 
-	/** `#1838`: un fotogramma di `WASD` dal gestore vero, per provare che i tasti hanno la precedenza sull'edge pan. */
-	void PanForTest(const FVector2D& Axis, float DeltaTime = 1.f / 60.f);
-
-	/**
-	 * `#3748`: la rotella dal gestore vero, che chiede al viewport dov'e' il cursore. Headless un viewport non c'e', quindi il
-	 * cursore non e' nella scena e non zooma: prova che `OnZoom` passa dalla domanda e non da una costante.
-	 */
-	void ZoomForTest(float Axis);
-
-	/** `#3748`: lo zoom con la posizione del cursore iniettata, il solo modo di provare il ramo «dentro la scena» senza un viewport. */
-	void ApplyZoomForTest(float Axis, bool bCursorInsideScene) { ApplyZoom(Axis, bCursorInsideScene); }
-
-	/**
-	 * `#1838` — l'edge pan si attiva solo se nessuna schermata bloccante copre la partita e nessun gesto camera
-	 * e' in corso. «Bloccante» e' `IsGameplayInputBlocked()`, cioe' il contratto del puntatore (#705): si legge,
-	 * non si duplica.
-	 */
-	static bool EdgePanAllowed(bool bGameplayInputBlocked, bool bCameraGestureActive)
-	{
-		return !bGameplayInputBlocked && !bCameraGestureActive;
-	}
-	/**
-	 * `#1837`: il tasto `Home` dal suo gestore vero. Esiste perche' i test di `FrameHome` provano la camera, non
-	 * il cablaggio: un `OnRecenter` rimasto su `RecenterView` li lascerebbe tutti verdi.
-	 */
-	void RecenterForTest();
-
-protected:
-
-public:
-	/**
-	 * L'orbita a partire da un delta di mouse, senza `FInputActionValue` (per i test).
-	 *
-	 * Stessa disciplina di `FocusCameraOnUnit` e `HandleClickOnUnitForTest`: la **decisione** — quale asse
-	 * guida cosa — si verifica headless; l'handler resta il solo punto che decide *quando*. Senza questo,
-	 * scambiare `Delta.X` con `Delta.Y` non farebbe cadere niente.
-	 */
-	void OrbitCameraForTest(const FVector2D& Delta);
+	/** La taratura dei gesti, dalle proprieta' `EditAnywhere` qui sopra. Il controller la passa ai gesti a ogni movimento. */
+	FRTCameraGestureTuning GetCameraGestureTuning() const;
 
 	/**
 	 * La riga di diagnosi di un waypoint rifiutato: **quale** motivo, e chi sono i soggetti in gioco
@@ -662,7 +567,7 @@ public:
 	 * *di chi e' il piano* e non nominano nessun secondo attore — ed e' per questo che il difetto era
 	 * invisibile: tre righe su quattro erano giuste.
 	 *
-	 * Statica e testabile per la stessa disciplina di `OrbitCameraForTest`: finche' il testo nasceva dentro
+	 * Statica e testabile per la stessa disciplina di `FRTCameraGestures::Orbit`: finche' il testo nasceva dentro
 	 * `HandleClickOnCell`, verificarlo voleva un click, e nessun test lo esercitava.
 	 *
 	 * @param Snapshot     lo snapshot di pianificazione; `Occupancy` porta l'id dell'occupante.
@@ -713,12 +618,6 @@ public:
 	 */
 	static int32 TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
 		TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath);
-
-	/** Arma o disarma il gesto, come farebbe il tasto centrale (per i test). */
-	void SetOrbitingForTest(bool bInOrbiting) { bOrbiting = bInOrbiting; }
-
-	/** Se il gesto e' armato. Serve a verificare che il rilascio lo chiuda davvero. */
-	bool IsOrbitingForTest() const { return bOrbiting; }
 
 	/**
 	 * Porta la velocita' di riproduzione al passo successivo della scala (CP 47.7, #1015).

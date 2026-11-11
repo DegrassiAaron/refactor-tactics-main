@@ -846,7 +846,7 @@ void ARTPlayerController::BindInputActions(UEnhancedInputComponent& Component)
 	EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
 	// ⚠️ **Anche `Canceled`, e non e' pedanteria**: se il trigger viene annullato — rimozione del
 	// mapping context, cambio pawn, un `FlushPressedKeys` parziale — `Completed` non arriva. Senza
-	// questa riga `bOrbiting` resterebbe armato e da quel momento **ogni** movimento del mouse
+	// questa riga l'orbita resterebbe armata e da quel momento **ogni** movimento del mouse
 	// ruoterebbe la camera senza che nessun tasto sia premuto. Trovato in code review.
 	EIC->BindAction(OrbitModifierAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnOrbitReleased);
 	EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
@@ -1214,21 +1214,12 @@ bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutH
 
 void ARTPlayerController::OnCameraModifierPressed(const FInputActionValue& Value)
 {
-	bCameraModifier = true;
+	CameraGestures.PressModifier();
 }
 
 void ARTPlayerController::OnCameraModifierReleased(const FInputActionValue& Value)
 {
-	bCameraModifier = false;
-
-	// I gesti armati cadono con il modificatore: senza, rilasciare `Ctrl` tenendo il tasto del mouse
-	// lascerebbe il gesto attivo e il movimento successivo orbiterebbe senza modificatore.
-	bModifierPrimaryDown = false;
-	bModifierSecondaryDown = false;
-	ModifierPrimaryDragDistance = 0.f;
-
-	// ⚠️ Il peek **non** si azzera qui: rientra progressivamente in `UpdatePeekReturn`. Azzerarlo di colpo
-	// farebbe saltare la vista, ed e' esattamente cio' che il rientro esiste per evitare.
+	CameraGestures.ReleaseModifier();
 }
 
 void ARTPlayerController::OnLayerUp(const FInputActionValue& Value)
@@ -1243,30 +1234,13 @@ void ARTPlayerController::OnLayerDown(const FInputActionValue& Value)
 
 void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 {
-	if (!bModifierPrimaryDown)
+	// #4065 (S3): cosa e' stato il gesto — click, trascinamento, o niente — lo decide `FRTCameraGestures::ReleasePrimary`,
+	// che disarma anche sotto una modale. Qui resta la meta' che legge il mondo: il Set Pivot.
+	if (!CameraGestures.IsPrimaryDown())
 	{
 		return; // rilascio di un click di selezione normale: non e' un gesto camera
 	}
-
-	// 🔴 **Il gesto puo' finire dentro una modale aperta a meta'** (code review, 2026-08-30): si preme
-	// il modificatore col sinistro mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
-	// guardia il Set Pivot spostava la camera dietro la schermata. Lo stato del gesto si disarma comunque,
-	// altrimenti resterebbe armato per sempre.
-	if (IsGameplayInputBlocked())
-	{
-		bModifierPrimaryDown = false;
-		ModifierPrimaryDragDistance = 0.f;
-		return;
-	}
-
-	const bool bWasDrag = ModifierPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f);
-	bModifierPrimaryDown = false;
-	ModifierPrimaryDragDistance = 0.f;
-
-	// 🔑 **Un gesto, una operazione.** Se ha superato la soglia era un'orbita, e il Set Pivot non si emette:
-	// altrimenti un trascinamento lungo produrrebbe *anche* uno spostamento del pivot al rilascio, cioe'
-	// due comandi da un movimento solo.
-	if (bWasDrag)
+	if (CameraGestures.ReleasePrimary(IsGameplayInputBlocked(), ClickDragThreshold) != ERTPrimaryRelease::Click)
 	{
 		return;
 	}
@@ -1299,103 +1273,15 @@ void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 
 void ARTPlayerController::OnUndoReleased(const FInputActionValue& Value)
 {
-	bModifierSecondaryDown = false;
-}
-
-bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
-{
-	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
-	if (!Cam)
-	{
-		return false;
-	}
-
-	// ⚠️ **Nessuna guardia su `IsGameplayInputBlocked` qui, ed e' deliberato lasciarlo com'e'.** Il
-	// movimento del mouse arriva da `OnOrbit`, che non l'ha mai avuta: con una modale aperta l'orbita di
-	// `#863` si e' sempre mossa. Aggiungerla ai soli gesti nuovi darebbe due comportamenti diversi per lo
-	// stesso gesto a seconda del tasto premuto, e cambiarla per tutti e' una modifica al comportamento
-	// pre-esistente che questa issue non ha misurato. Il ramo bloccato e' quello che **inizia** un gesto
-	// (`OnSelect`), che e' dove il blocco serve davvero.
-
-	// `Ctrl`+`LMB`: si accumula la strada percorsa **prima** di decidere. Sotto la soglia non si orbita
-	// ancora — altrimenti un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set
-	// pivot arriverebbe su un'inquadratura gia' cambiata.
-	if (bModifierPrimaryDown)
-	{
-		ModifierPrimaryDragDistance += Delta.Size();
-		if (ModifierPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f))
-		{
-			Cam->AddOrbit(Delta.X, Delta.Y);
-		}
-		return true;
-	}
-
-	// `Ctrl`+`RMB`: dolly. Il verticale, perche' e' il gesto che tutti gli editor 3D usano per avvicinare.
-	//
-	// 🔴 **`Delta` e' in PIXEL, `AddZoom` moltiplica per `ZoomStep` (150), e il gesto era inusabile**
-	// (code review, 2026-08-30): un movimento ordinario di 10 px/frame cambiava il braccio di 1500 unita',
-	// cioe' quasi mezzo intervallo `[100, 4000]` in un frame. La rotella consegna ±1 e per quella
-	// `ZoomStep` e' tarato; un delta di puntatore no. `DollySensitivity` fa la conversione, come
-	// `PeekSensitivity` la fa per il peek e `PrecisionPanScale` per il pan.
-	if (bModifierSecondaryDown)
-	{
-		Cam->AddZoom(Delta.Y * FMath::Max(DollySensitivity, 0.f));
-		return true;
-	}
-
-	if (!bCameraModifier)
-	{
-		return false; // nessun gesto `Ctrl` armato: se ne occupa l'orbita di #863
-	}
-
-	// `Ctrl`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
-	//
-	// 🔴 **Era piu' VELOCE del pan che doveva raffinare** (code review, 2026-08-30). `AddPlanarMovement`
-	// si aspetta un valore d'ASSE — `WASD` consegna 1, cioe' 25 unita' per frame (`PanUnitDistance`) — mentre qui
-	// arrivava un delta in **pixel**: 10 px/frame davano `10 * 0.25 * 25 = 62,5` unita', due volte e mezzo
-	// la tastiera. Un gesto chiamato «precision» che si muove piu' in fretta di quello grezzo non e' una
-	// taratura sbagliata: e' un'unita' di misura sbagliata, e `PrecisionPanScale` clampato a `1.0` non
-	// poteva ripararlo. `PixelsPerPanUnit` fa la conversione **prima** che la scala si applichi.
-	if (bOrbiting)
-	{
-		const float ToAxis = 1.f / FMath::Max(PixelsPerPanUnit, 1.f);
-		Cam->AddPlanarMovement(FVector2D(Delta.X, -Delta.Y) * ToAxis
-			* FMath::Clamp(PrecisionPanScale, 0.01f, 1.f));
-		return true;
-	}
-
-	// `Ctrl` da solo: peek. Un offset **temporaneo** verso la direzione del cursore, in coordinate della
-	// vista — come il pan, e per la stessa ragione: chi guida pensa in «su, giu', destra, sinistra»
-	// rispetto a cio' che vede, non in assi della mappa.
-	const float Yaw = Cam->GetCameraYaw();
-	const FVector Forward = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::ForwardVector);
-	const FVector Right   = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::RightVector);
-	const FVector Wanted  = Cam->GetPeekOffset()
-		+ (Right * Delta.X - Forward * Delta.Y) * FMath::Max(PeekSensitivity, 0.f);
-	Cam->SetPeekOffset(FVector(Wanted.X, Wanted.Y, 0.f)); // il peek scorre sul piano, non solleva la vista
-	return true;
+	CameraGestures.ReleaseSecondary();
 }
 
 void ARTPlayerController::UpdatePeekReturn(float DeltaTime)
 {
-	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
-	if (!Cam || bCameraModifier)
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		return; // con `Ctrl` premuto il peek e' guidato dal giocatore: non gli si tira contro
+		CameraGestures.UpdatePeekReturn(*Cam, DeltaTime, PeekReturnSpeed);
 	}
-
-	const FVector Current = Cam->GetPeekOffset();
-	if (Current.IsNearlyZero())
-	{
-		return;
-	}
-
-	// Rientro esponenziale, con una soglia di arresto: senza, l'offset si avvicina a zero senza mai
-	// arrivarci e la camera resterebbe per sempre a frazioni di unita' dal proprio pivot — vero per il
-	// motore, invisibile a schermo, e sufficiente a far fallire un confronto esatto.
-	const float Alpha = FMath::Clamp(FMath::Max(PeekReturnSpeed, 0.f) * DeltaTime, 0.f, 1.f);
-	const FVector Next = FMath::Lerp(Current, FVector::ZeroVector, Alpha);
-	Cam->SetPeekOffset(Next.SizeSquared() < 1.0 ? FVector::ZeroVector : Next);
 }
 
 void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
@@ -1627,80 +1513,8 @@ void ARTPlayerController::UpdateEdgePan(float DeltaTime)
 	{
 		GetViewportSize(Width, Height);
 	}
-	ApplyEdgePanFrom(bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0), FVector2D(Width, Height), DeltaTime);
-}
-
-bool ARTPlayerController::ApplyEdgePanFrom(const FVector2D& Cursor, const FVector2D& ViewportSize, float DeltaTime)
-{
-	// I tasti del pan hanno gia' mosso la vista in questo fotogramma? Si legge e si consuma qui, all'inizio,
-	// perche' questa funzione gira una volta per `PlayerTick`, dopo l'input.
-	const bool bKeysPanned = bKeyPanThisFrame;
-	bKeyPanThisFrame = false;
-
-	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
-	if (!Cam)
-	{
-		return false;
-	}
-
-	// 🔑 A riposo il lavoro e' questo e basta: un asse calcolato, e uno stato che non cambia. Niente
-	// stringhe, niente contesto del puntatore, niente log.
-	const FVector2D Axis = ARTCameraPawn::ComputeEdgePanAxis(Cursor, ViewportSize, Cam->GetEdgePanBandPixels());
-	ERTEdgePanState State = ERTEdgePanState::Rest;
-	bool bMoved = false;
-	FVector Before = FVector::ZeroVector;
-	if (!Axis.IsNearlyZero())
-	{
-		if (!Cam->IsEdgePanEnabled())
-		{
-			State = ERTEdgePanState::RefusedSwitch;
-		}
-		// ⚠️ **Un'eccezione voluta a `IsGameplayInputBlocked`**, che non blocca la camera: `WASD`, zoom e
-		// orbita restano vivi sotto un modale perche' non toccano il piano. L'edge pan e' diverso: lo guida il
-		// CURSORE, e con un modale aperto il cursore sta sul modale (criterio 8 di #1838). Il predicato si
-		// legge, non si riscrive: se un giorno «bloccato» si allarga, l'edge pan lo segue.
-		else if (const bool bBlocked = IsGameplayInputBlocked(); !EdgePanAllowed(bBlocked, bOrbiting || bCameraModifier))
-		{
-			State = bBlocked ? ERTEdgePanState::RefusedBlocked : ERTEdgePanState::RefusedGesture;
-		}
-		// Con un tasto del pan premuto vincono i tasti: due ingressi nello stesso fotogramma sommerebbero due
-		// `AddPlanarMovement`, cioe' il doppio della velocita' di `WASD` (rilievo di review).
-		else if (bKeysPanned)
-		{
-			State = ERTEdgePanState::RefusedKeys;
-		}
-		else
-		{
-			Before = Cam->GetCameraPivot();
-			bMoved = Cam->ApplyEdgePan(Axis, DeltaTime);
-			State = ERTEdgePanState::Active;
-		}
-	}
-
-	// Il log scrive le TRANSIZIONI, non i fotogrammi.
-	if (State != LastEdgePanState)
-	{
-		const TCHAR* Text = State == ERTEdgePanState::Rest ? TEXT("fermo")
-			: State == ERTEdgePanState::RefusedSwitch ? TEXT("rifiutato: interruttore spento")
-			: State == ERTEdgePanState::RefusedBlocked ? TEXT("rifiutato: modale aperto")
-			: State == ERTEdgePanState::RefusedGesture ? TEXT("rifiutato: gesto camera in corso")
-			: State == ERTEdgePanState::RefusedKeys ? TEXT("rifiutato: i tasti del pan hanno la precedenza")
-			: TEXT("attivo");
-		UE_LOG(LogRT, Verbose, TEXT("[RT] Edge pan: %s (asse %.2f, %.2f; %.1f uu nel primo fotogramma)"),
-			Text, Axis.X, Axis.Y, State == ERTEdgePanState::Active ? FVector::Dist2D(Cam->GetCameraPivot(), Before) : 0.0);
-		LastEdgePanState = State;
-	}
-	return bMoved;
-}
-
-void ARTPlayerController::PanForTest(const FVector2D& Axis, float DeltaTime)
-{
-	ApplyKeyPan(Axis, DeltaTime);
-}
-
-void ARTPlayerController::RecenterForTest()
-{
-	OnRecenter(FInputActionValue());
+	CameraGestures.ApplyEdgePan(Cast<ARTCameraPawn>(GetPawn()), bHasCursor ? FVector2D(X, Y) : FVector2D(-1.0, -1.0),
+		FVector2D(Width, Height), DeltaTime, [this]() { return IsGameplayInputBlocked(); });
 }
 
 void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
@@ -1747,73 +1561,38 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		const UWorld* World = GetWorld();
-		ApplyKeyPan(Value.Get<FVector2D>(), World ? World->GetDeltaSeconds() : 0.f);
-	}
-}
-
-void ARTPlayerController::ApplyKeyPan(const FVector2D& Axis, float DeltaTime)
-{
-	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
-	{
-		// #3792: `WASD` e' un ingresso a velocita', come l'edge pan: la distanza dipende dal tempo del fotogramma.
-		Cam->AddPlanarVelocity(Axis, DeltaTime);
-		// #1838: in questo fotogramma i tasti hanno mosso la vista, e l'edge pan non deve sommarsi.
-		bKeyPanThisFrame |= !Axis.IsNearlyZero();
+		CameraGestures.KeyPan(*Cam, Value.Get<FVector2D>(), World ? World->GetDeltaSeconds() : 0.f);
 	}
 }
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
-	ApplyZoom(Value.Get<float>(), IsCursorInsideScene());
-}
-
-void ARTPlayerController::ZoomForTest(float Axis)
-{
-	OnZoom(FInputActionValue(Axis));
-}
-
-void ARTPlayerController::ApplyZoom(float Axis, bool bCursorInsideScene)
-{
-	// Sopra una fascia dell'HUD la rotella e' dell'HUD (spec dell'ispettore §3 regola 6): la scheda scorre, il mondo resta.
-	// ⚠️ `false` anche senza viewport o con la proiezione fallita (headless, primi fotogrammi): da li' lo zoom non parte.
-	// `ZoomAction` e' legata alla sola rotella, quindi non c'e' uno zoom da tastiera che questo ramo spenga.
-	if (!bCursorInsideScene)
-	{
-		return;
-	}
-
 	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
 	if (!Cam)
 	{
 		return;
 	}
 
-	// L'ancora e' la **CELLA** sotto il cursore, convertita col centro del piano — non il punto d'impatto
-	// del raycast.
-	//
-	// 🔴 La prima stesura passava `Hit.ImpactPoint`, ed era lo stesso difetto di `#887` ripetuto in questo
-	// file: se il cursore sta su un'unita', l'impatto e' sul cilindro, **180 unita' sopra il piano**
-	// (`UnitHalfHeight` + `VisualZOffset`). A pitch -40° quella quota si traduce in ~215 unita' di scarto
-	// orizzontale — **oltre una cella**, cioe' piu' del doppio della tolleranza di mezza cella che il DoD
-	// e il nome del test dichiarano. Trovato in code review.
-	//
-	// ➕ E la cella e' gia' calcolata: `PlayerTick` traccia sotto il cursore a ogni frame e la memorizza
-	// con `SetHoveredCell`. Rifare il raycast qui sarebbe lavoro doppio per un dato peggiore.
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	// #4065 (S3): qui si leggono i due fatti del mondo — il cursore e' nella scena? su quale cella? — e la regola sta in
+	// `FRTCameraGestures::Zoom`. ⚠️ La cella e' gia' calcolata: `PlayerTick` traccia sotto il cursore a ogni frame e la
+	// memorizza con `SetHoveredCell`. Rifare il raycast qui sarebbe lavoro doppio per un dato peggiore.
+	const bool bInsideScene = IsCursorInsideScene();
+	FVector Anchor = FVector::ZeroVector;
+	bool bHasAnchor = false;
+	if (bInsideScene)
 	{
-		if (HexMap->IsHoveredCellValid())
+		if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 		{
-			FVector Origin; float HexSize; float LayerHeight;
-			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
-			Cam->ZoomTowards(Axis,
-				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
-			return;
+			if (HexMap->IsHoveredCellValid())
+			{
+				FVector Origin; float HexSize; float LayerHeight;
+				HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+				Anchor = URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight);
+				bHasAnchor = true;
+			}
 		}
 	}
-
-	// Il cursore e' nella scena ma non su una cella valida (fuori mappa): si zooma sul centro, com'e'
-	// sempre stato. Meglio di non zoomare.
-	Cam->AddZoom(Axis);
+	FRTCameraGestures::Zoom(*Cam, Value.Get<float>(), bInsideScene, bHasAnchor ? &Anchor : nullptr);
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)
@@ -1826,51 +1605,34 @@ void ARTPlayerController::OnRotate(const FInputActionValue& Value)
 
 void ARTPlayerController::OnOrbitPressed(const FInputActionValue& Value)
 {
-	bOrbiting = true;
+	CameraGestures.PressOrbit();
 }
 
 void ARTPlayerController::OnOrbitReleased(const FInputActionValue& Value)
 {
-	// ⚠️ Nessuno snap al rilascio: la spec lo vieta esplicitamente. Chi si e' fermato *fra* due file di
-	// celle — il caso d'uso per cui `D-142` tiene lo step a 45° — vedrebbe la vista scattare via da sola.
-	bOrbiting = false;
+	CameraGestures.ReleaseOrbit();
 }
 
 void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
 {
-	const FVector2D Delta = Value.Get<FVector2D>();
-
-	// #1772 — i gesti `Ctrl` hanno la precedenza e **consumano** il movimento. Cosi' l'orbita di #863 resta
-	// il ramo di default e non deve sapere che i gesti nuovi esistono: e' la stessa disciplina per cui
-	// `OrbitCameraForTest` porta con se' la propria guardia invece di lasciarla al chiamante.
-	if (RouteCameraGesture(Delta))
-	{
-		return;
-	}
-	OrbitCameraForTest(Delta);
-}
-
-void ARTPlayerController::OrbitCameraForTest(const FVector2D& Delta)
-{
-	// 🔴 **La guardia sta QUI, non nel chiamante.** L'estrazione l'aveva lasciata in `OnOrbit`, quindi il
-	// percorso testabile scavalcava proprio il gate che doveva verificare — e il test l'ha fatto cadere
-	// alla prima esecuzione. Una decisione estratta per essere verificabile deve portarsi dietro **tutta**
-	// la decisione, altrimenti il test misura una funzione che in partita non esiste.
-	//
-	// Il movimento del mouse arriva a ogni frame: senza questa riga la vista ruoterebbe di continuo, senza
-	// che nessuno abbia chiesto di orbitare.
-	if (!bOrbiting)
-	{
-		return;
-	}
+	// #1772 — i gesti `Ctrl` hanno la precedenza e **consumano** il movimento; senza, e' l'orbita di #863. La regola e'
+	// `FRTCameraGestures::MoveMouse` (#4065, S3).
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		// X orizzontale → yaw, Y verticale → pitch. **Una sola** scrittura di trasformata: chiamare i due
-		// `Add*` in fila aggiornerebbe il braccio due volte per frame di trascinamento.
-		// Il verso verticale e' una preferenza del pawn (`bInvertOrbitPitch`), non una costante decisa qui:
-		// vedi la nota su quel campo — il default non e' stato verificato con le mani.
-		Cam->AddOrbit(Delta.X, Delta.Y);
+		CameraGestures.MoveMouse(*Cam, Value.Get<FVector2D>(), GetCameraGestureTuning());
 	}
+}
+
+FRTCameraGestureTuning ARTPlayerController::GetCameraGestureTuning() const
+{
+	FRTCameraGestureTuning Tuning;
+	Tuning.ClickDragThreshold = ClickDragThreshold;
+	Tuning.PrecisionPanScale = PrecisionPanScale;
+	Tuning.PixelsPerPanUnit = PixelsPerPanUnit;
+	Tuning.DollySensitivity = DollySensitivity;
+	Tuning.PeekSensitivity = PeekSensitivity;
+	Tuning.PeekReturnSpeed = PeekReturnSpeed;
+	return Tuning;
 }
 
 namespace
@@ -1914,10 +1676,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// #1772 — con `Ctrl` premuto il sinistro **non seleziona**: arma un gesto camera, che al rilascio sara'
 	// un Set Pivot (sotto soglia) o sara' stato un'orbita (sopra). La selezione di gioco resta dov'e'.
-	if (bCameraModifier)
+	if (CameraGestures.IsModifierDown())
 	{
-		bModifierPrimaryDown = true;
-		ModifierPrimaryDragDistance = 0.f;
+		CameraGestures.ArmPrimary();
 		return;
 	}
 
@@ -4011,9 +3772,9 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	// **e** su `BackSpace` (due `MapKey`, riga 360-361), e `FInputActionValue` non porta con se' quale dei
 	// due l'ha prodotta: senza questo controllo modificatore+`BackSpace` armava il dolly, e da li' in poi ogni
 	// movimento del mouse zoomava **senza nessun pulsante premuto**. Trovato in code review.
-	if (bCameraModifier && IsInputKeyDown(EKeys::RightMouseButton))
+	if (CameraGestures.IsModifierDown() && IsInputKeyDown(EKeys::RightMouseButton))
 	{
-		bModifierSecondaryDown = true;
+		CameraGestures.ArmSecondary();
 		return;
 	}
 

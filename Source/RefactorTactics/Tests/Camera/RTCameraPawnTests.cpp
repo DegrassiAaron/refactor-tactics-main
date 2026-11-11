@@ -6,6 +6,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Camera/RTCameraPawn.h"
+#include "Camera/RTCameraGestures.h" // i gesti del controller, provati sulla sola camera (#4065)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -21,6 +22,7 @@
 #include "Player/RTPlayerController.h"
 #include "RTGameMode.h"           // #1837: lo scenario che rende la sessione un'osservazione
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTInputBindingFixtures.h" // `Home` e la rotella dal binding vero (#4065)
 #include "TimerManager.h"
 #include "Unit/RTUnit.h"
 
@@ -394,20 +396,21 @@ bool FRTCameraOrbitAxesTest::RunTest(const FString&)
 
 	// DISARMATO: il mouse si muove ma nessuno sta orbitando. Senza questa guardia la vista ruoterebbe
 	// di continuo, e nessun tasto lo avrebbe chiesto.
-	PC->SetOrbitingForTest(false);
-	PC->OrbitCameraForTest(FVector2D(30.f, 20.f));
+	FRTCameraGestures& Gesti = PC->GetCameraGestures();
+	Gesti.ReleaseOrbit();
+	Gesti.Orbit(*Cam, FVector2D(30.f, 20.f));
 	TestEqual(TEXT("disarmato: lo yaw non si muove"), Cam->GetCameraYaw(), Yaw0);
 	TestEqual(TEXT("disarmato: il pitch non si muove"), Cam->GetCameraPitch(), Pitch0);
 
 	// ARMATO, solo X: muove lo yaw e **non** il pitch.
-	PC->SetOrbitingForTest(true);
-	PC->OrbitCameraForTest(FVector2D(30.f, 0.f));
+	Gesti.PressOrbit();
+	Gesti.Orbit(*Cam, FVector2D(30.f, 0.f));
 	TestNotEqual(TEXT("X muove lo yaw"), Cam->GetCameraYaw(), Yaw0);
 	TestEqual(TEXT("e X non tocca il pitch"), Cam->GetCameraPitch(), Pitch0);
 
 	// Solo Y: muove il pitch e **non** lo yaw. E' la coppia che rende lo scambio degli assi rilevabile.
 	const float YawAfterX = Cam->GetCameraYaw();
-	PC->OrbitCameraForTest(FVector2D(0.f, 20.f));
+	Gesti.Orbit(*Cam, FVector2D(0.f, 20.f));
 	TestNotEqual(TEXT("Y muove il pitch"), Cam->GetCameraPitch(), Pitch0);
 	TestEqual(TEXT("e Y non tocca lo yaw"), Cam->GetCameraYaw(), YawAfterX);
 
@@ -1497,7 +1500,7 @@ bool FRTCameraHomeKeyUsesFrameHomeTest::RunTest(const FString&)
 		return false;
 	}
 
-	PC->RecenterForTest();
+	RTInputBindingFixtures::Fire(*RTInputBindingFixtures::BindInput(*PC), TEXT("IA_Recenter"), ETriggerEvent::Started);
 	TestTrue(TEXT("Home va sulla selezione del controller"),
 		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) < 1.0);
 	TestTrue(TEXT("e non sul centro mappa, dove andava prima di #1837"),
@@ -1553,7 +1556,7 @@ bool FRTCameraHomeKeyIgnoresInspectedEnemyTest::RunTest(const FString&)
 	const FVector EnemyCell = HomeTestCellWorld(Map, HomeEnemyCell);
 
 	// Senza selezione: la squadra. Il nemico ispezionato non sposta il punto medio.
-	PC->RecenterForTest();
+	RTInputBindingFixtures::Fire(*RTInputBindingFixtures::BindInput(*PC), TEXT("IA_Recenter"), ETriggerEvent::Started);
 	TestTrue(TEXT("(a) senza selezione Home va sul punto medio della squadra"),
 		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellsCentroid(Map, { HomeSelectedCell, HomeMateCell })) < 1.0);
 	TestTrue(TEXT("(a) e non sul nemico ispezionato"), FVector::Dist2D(Cam->GetCameraPivot(), EnemyCell) > 1.0);
@@ -1561,7 +1564,7 @@ bool FRTCameraHomeKeyIgnoresInspectedEnemyTest::RunTest(const FString&)
 	// Con una selezione propria: quella. L'ispezione non la sostituisce.
 	PC->SelectUnit(Mine, /*bRecordAsPlayerInput=*/ false);
 	PC->SetInspectedUnitForTest(Enemy);
-	PC->RecenterForTest();
+	RTInputBindingFixtures::Fire(*RTInputBindingFixtures::BindInput(*PC), TEXT("IA_Recenter"), ETriggerEvent::Started);
 	TestTrue(TEXT("(b) con la selezione Home va sulla selezione, non sull'ispezionato"),
 		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) < 1.0);
 	TestTrue(TEXT("(b) e non sul nemico ispezionato"), FVector::Dist2D(Cam->GetCameraPivot(), EnemyCell) > 1.0);
@@ -1723,7 +1726,7 @@ bool FRTCameraHomeKeyInScenarioTest::RunTest(const FString&)
 		return false;
 	}
 
-	PC->RecenterForTest();
+	RTInputBindingFixtures::Fire(*RTInputBindingFixtures::BindInput(*PC), TEXT("IA_Recenter"), ETriggerEvent::Started);
 	TestTrue(TEXT("Home va sul centro mappa"), FVector::Dist2D(Cam->GetCameraPivot(), HomeTestMapCentre(Map)) < 1.0);
 	TestTrue(TEXT("e non sulla selezione"),
 		FVector::Dist2D(Cam->GetCameraPivot(), HomeTestCellWorld(Map, HomeSelectedCell)) > 1.0);
@@ -2158,9 +2161,9 @@ bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
 {
 	// La regola. «Bloccato» e' `IsGameplayInputBlocked()`, cioe' il contesto `Modal` del contratto del puntatore:
 	// headless non c'e' un navigatore per aprire la pausa, quindi il ramo del modale si prova qui.
-	TestFalse(TEXT("modale: no"), ARTPlayerController::EdgePanAllowed(/*bGameplayInputBlocked=*/ true, false));
-	TestTrue(TEXT("nessun modale, nessun gesto: si'"), ARTPlayerController::EdgePanAllowed(false, false));
-	TestFalse(TEXT("gesto camera in corso: no"), ARTPlayerController::EdgePanAllowed(false, /*bCameraGestureActive=*/ true));
+	TestFalse(TEXT("modale: no"), FRTCameraGestures::EdgePanAllowed(/*bGameplayInputBlocked=*/ true, false));
+	TestTrue(TEXT("nessun modale, nessun gesto: si'"), FRTCameraGestures::EdgePanAllowed(false, false));
+	TestFalse(TEXT("gesto camera in corso: no"), FRTCameraGestures::EdgePanAllowed(false, /*bCameraGestureActive=*/ true));
 
 	// Il controller: dal suo ingresso il pan parte, e un gesto camera lo ferma.
 	UWorld* World = MakeCameraWorld();
@@ -2176,34 +2179,42 @@ bool FRTCameraEdgePanRefusalsTest::RunTest(const FString&)
 	PC->Possess(Cam);
 	Cam->SetCameraPivot(HomeTestMapCentre(Map));
 
+	// I gesti del controller, con la sua domanda «una schermata copre la partita?»: in headless il viewport non c'e', e
+	// cursore e viewport si passano.
+	FRTCameraGestures& Gesti = PC->GetCameraGestures();
+	const auto EdgePan = [&](const FVector2D& Cursor)
+	{
+		return Gesti.ApplyEdgePan(Cam, Cursor, EdgePanViewport, 1.f / 60.f, [PC]() { return PC->IsGameplayInputBlocked(); });
+	};
+
 	FVector Start = Cam->GetCameraPivot();
-	TestTrue(TEXT("dal controller, il cursore al bordo muove la camera"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestTrue(TEXT("dal controller, il cursore al bordo muove la camera"), EdgePan(EdgePanTopCursor(0.0)));
 	TestTrue(TEXT("e il pivot si e' mosso"), FVector::Dist2D(Cam->GetCameraPivot(), Start) > 1.0);
 
-	PC->SetCameraModifierForTest(true);
+	Gesti.PressModifier();
 	Start = Cam->GetCameraPivot();
-	TestFalse(TEXT("con Ctrl premuto (un gesto camera) no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestFalse(TEXT("con Ctrl premuto (un gesto camera) no"), EdgePan(EdgePanTopCursor(0.0)));
 	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
-	PC->SetCameraModifierForTest(false);
+	Gesti.ReleaseModifier();
 
-	PC->SetOrbitingForTest(true);
-	TestFalse(TEXT("con un'orbita in corso no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	Gesti.PressOrbit();
+	TestFalse(TEXT("con un'orbita in corso no"), EdgePan(EdgePanTopCursor(0.0)));
 	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
-	PC->SetOrbitingForTest(false);
+	Gesti.ReleaseOrbit();
 
 	Cam->SetEdgePanEnabled(false);
-	TestFalse(TEXT("spento, dal controller no"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestFalse(TEXT("spento, dal controller no"), EdgePan(EdgePanTopCursor(0.0)));
 	TestEqual(TEXT("e il pivot e' fermo"), Cam->GetCameraPivot(), Start);
 	Cam->SetEdgePanEnabled(true);
 
 	// I tasti hanno la precedenza: nello stesso fotogramma un `W` e il bordo alto non si sommano.
-	PC->PanForTest(FVector2D(0.0, 1.0));
+	Gesti.KeyPan(*Cam, FVector2D(0.0, 1.0), 1.f / 60.f);
 	const FVector AfterKeys = Cam->GetCameraPivot();
-	TestFalse(TEXT("con W nello stesso fotogramma l'edge pan cede"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestFalse(TEXT("con W nello stesso fotogramma l'edge pan cede"), EdgePan(EdgePanTopCursor(0.0)));
 	TestEqual(TEXT("e la vista si e' mossa una volta sola"), Cam->GetCameraPivot(), AfterKeys);
-	TestTrue(TEXT("al fotogramma dopo, senza tasti, l'edge pan riparte"), PC->UpdateEdgePanForTest(EdgePanTopCursor(0.0), EdgePanViewport));
+	TestTrue(TEXT("al fotogramma dopo, senza tasti, l'edge pan riparte"), EdgePan(EdgePanTopCursor(0.0)));
 
-	TestFalse(TEXT("al centro dello schermo no"), PC->UpdateEdgePanForTest(EdgePanViewport * 0.5, EdgePanViewport));
+	TestFalse(TEXT("al centro dello schermo no"), EdgePan(EdgePanViewport * 0.5));
 
 	DestroyCameraWorld(World);
 	return true;
@@ -2240,13 +2251,14 @@ bool FRTWheelZoomsTheWorldOnlyInsideTheSceneTest::RunTest(const FString&)
 	Cam->SetZoomAlpha(0.5f);
 	const float Before = Cam->GetZoomAlpha();
 
-	PC->ApplyZoomForTest(1.f, /*bCursorInsideScene=*/ false);
+	FRTCameraGestures::Zoom(*Cam, 1.f, /*bCursorInsideScene=*/ false, /*Anchor=*/ nullptr);
 	TestEqual(TEXT("con il cursore su una fascia la rotella non zooma"), Cam->GetZoomAlpha(), Before);
 
-	PC->ZoomForTest(1.f);
-	TestEqual(TEXT("dal gestore vero, senza viewport, non zooma"), Cam->GetZoomAlpha(), Before);
+	TestEqual(TEXT("premessa: la rotella ha il suo binding"),
+		RTInputBindingFixtures::Fire(*RTInputBindingFixtures::BindInput(*PC), TEXT("IA_Zoom"), ETriggerEvent::Triggered, FInputActionValue(1.f)), 1);
+	TestEqual(TEXT("dal binding vero, senza viewport, non zooma"), Cam->GetZoomAlpha(), Before);
 
-	PC->ApplyZoomForTest(1.f, /*bCursorInsideScene=*/ true);
+	FRTCameraGestures::Zoom(*Cam, 1.f, /*bCursorInsideScene=*/ true, /*Anchor=*/ nullptr);
 	TestTrue(*FString::Printf(TEXT("controllo positivo: con il cursore nella scena la stessa rotella muove il braccio (%.3f -> %.3f)"),
 		Before, Cam->GetZoomAlpha()), Cam->GetZoomAlpha() > Before);
 
@@ -2367,20 +2379,22 @@ bool FRTCameraModifierDragOrbitsOnlyPastThresholdTest::RunTest(const FString&)
 	}
 	PC->Possess(Cam);
 	Cam->SetSensitivitiesForTest(1.f, 1.f);
-	PC->SetClickDragThresholdForTest(10.f);
+	FRTCameraGestures& Gesti = PC->GetCameraGestures();
+	FRTCameraGestureTuning Taratura = PC->GetCameraGestureTuning();
+	Taratura.ClickDragThreshold = 10.f;
 
 	const float YawBefore = Cam->GetCameraYaw();
 
 	// Sotto soglia: il gesto e' ancora un click potenziale, e la vista NON deve muoversi. Senza questa
 	// guardia un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set-pivot
 	// arriverebbe su un'inquadratura gia' cambiata.
-	PC->SetCameraModifierForTest(true);
-	PC->SetModifierPrimaryDownForTest(true, 0.f);
-	TestTrue(TEXT("il gesto Ctrl consuma il movimento"), PC->RouteCameraGestureForTest(FVector2D(3.f, 0.f)));
+	Gesti.PressModifier();
+	Gesti.ArmPrimary();
+	TestTrue(TEXT("il gesto Ctrl consuma il movimento"), Gesti.Route(*Cam, FVector2D(3.f, 0.f), Taratura));
 	TestEqual(TEXT("sotto soglia lo yaw non cambia"), Cam->GetCameraYaw(), YawBefore);
 
 	// Oltre soglia: da qui in poi e' un'orbita.
-	PC->RouteCameraGestureForTest(FVector2D(20.f, 0.f));
+	Gesti.Route(*Cam, FVector2D(20.f, 0.f), Taratura);
 	TestNotEqual(TEXT("oltre soglia la vista orbita"), Cam->GetCameraYaw(), YawBefore);
 
 	DestroyCameraWorld(World);
@@ -2410,23 +2424,25 @@ bool FRTCameraPeekReturnsToZeroTest::RunTest(const FString&)
 	Cam->SetCameraPivotForTest(Pivot);
 
 	// `Ctrl` da solo + movimento = peek.
-	PC->SetCameraModifierForTest(true);
+	FRTCameraGestures& Gesti = PC->GetCameraGestures();
+	const FRTCameraGestureTuning Taratura = PC->GetCameraGestureTuning();
+	Gesti.PressModifier();
 	TestTrue(TEXT("Ctrl da solo consuma il movimento come peek"),
-		PC->RouteCameraGestureForTest(FVector2D(20.f, 0.f)));
+		Gesti.Route(*Cam, FVector2D(20.f, 0.f), Taratura));
 	TestFalse(TEXT("il peek si e' aperto"), Cam->GetPeekOffset().IsNearlyZero());
 	TestEqual(TEXT("e il pivot non si e' mosso"), Cam->GetCameraPivot(), Pivot);
 
 	// Con `Ctrl` ancora premuto il rientro NON deve partire: tirare contro il giocatore mentre sta
 	// guidando e' la forma piu' fastidiosa di camera automatica.
 	const FVector Held = Cam->GetPeekOffset();
-	PC->UpdatePeekReturnForTest(0.1f);
+	Gesti.UpdatePeekReturn(*Cam, 0.1f, Taratura.PeekReturnSpeed);
 	TestEqual(TEXT("con Ctrl premuto il peek resta dov'e'"), Cam->GetPeekOffset(), Held);
 
 	// Rilasciato `Ctrl`, rientra fino a zero — e il pivot e' sempre quello.
-	PC->SetCameraModifierForTest(false);
+	Gesti.ReleaseModifier();
 	for (int32 i = 0; i < 200 && !Cam->GetPeekOffset().IsNearlyZero(); ++i)
 	{
-		PC->UpdatePeekReturnForTest(1.f / 60.f);
+		Gesti.UpdatePeekReturn(*Cam, 1.f / 60.f, Taratura.PeekReturnSpeed);
 	}
 	TestTrue(TEXT("il peek rientra a zero"), Cam->GetPeekOffset().IsNearlyZero());
 	TestEqual(TEXT("e la camera torna esattamente sul pivot"), Cam->GetActorLocation(), Pivot);
