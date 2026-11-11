@@ -1653,9 +1653,10 @@ bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
 // pianificazione resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
 //
 // 🔑 **Il soggetto qui e' `ARTPlayerController` insieme ad `ARTHexMapActor`, non il delegate.** Lo stato
-// osservabile sono i contatori dell'anteprima, perche' il produttore reale (`RefreshPlanningPreview`) vive
-// in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile da un test — limite gia'
-// dichiarato in `RTBlastPreviewTests.cpp:6`. Si osserva l'EFFETTO sui setter della mappa.
+// osservabile sono i contatori dell'anteprima: si osserva l'EFFETTO sui setter della mappa, passando dal controller.
+// ⏱️ *Fino a #4065 era anche l'unica via*: il produttore reale viveva in un namespace anonimo dentro
+// `RTPlayerController.cpp` e non era chiamabile da un test (`RTBlastPreviewTests.cpp:6`). Oggi e'
+// `RTPlanningPreview::Refresh`, esportata.
 //
 // ⚠️ **Le superfici dell'anteprima sono TRE e vanno guardate tutte**: il ventaglio raggiungibile, l'area
 // colpita e la **rotta**. Un test che guardasse solo la prima resterebbe verde con la traccia ciano del
@@ -4180,7 +4181,7 @@ bool FRTDisarmingAReactionKeepsAnIndependentMainActionTest::RunTest(const FStrin
 }
 
 // =====================================================================================================
-// `#3892` — la ROTTA si scrive da UN punto: `RefreshPlanningPreview`.
+// `#3892` — la ROTTA si scrive da UN punto: `RTPlanningPreview::Refresh`.
 // =====================================================================================================
 
 namespace
@@ -4917,7 +4918,7 @@ bool FRTFocusWiringClickTest::RunTest(const FString&)
  * **`#3750` — le altre unita' non cambiano l'area.** L'occupazione non entra nel ventaglio (D-445, D-446), e un nemico non
  * osservato non puo' cambiarla (P2). Un mondo con unita' proprie e un secondo nemico DENTRO l'area, e un terzo nemico non
  * osservato nel buio, da' la stessa area del mondo vuoto. Una regressione verso uno snapshot con tutte le unita' (come fa
- * `PlanningSnapshotFor`) sarebbe verde senza questo gemello (rilievo della review).
+ * `RTPlanningSnapshot::For`) sarebbe verde senza questo gemello (rilievo della review).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFocusWiringCrowdTest,
 	"RefactorTactics.FocusWiring.OtherUnitsDoNotChangeTheArea",
@@ -5848,7 +5849,7 @@ bool FRTSkillHoverOfInspectedEnemyTest::RunTest(const FString&)
 /**
  * **`#3748` — senza nessuna selezione la skill di un'unita' ispezionata mostra la portata lo stesso.** `IdleSelection` e' il contesto in cui
  * un click su un nemico lo ispeziona: l'arbitro non chiede un'unita' comandata per l'hover di un'unita' ispezionata, e
- * `RefreshPlanningPreview` disegna la portata anche con `Unit == nullptr`.
+ * `RTPlanningPreview::Refresh` disegna la portata anche con `Unit == nullptr`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSkillHoverOfInspectedNoSelectionTest,
 	"RefactorTactics.SkillHover.TheSkillOfAnInspectedUnitShowsItsRangeWithoutAnySelection",

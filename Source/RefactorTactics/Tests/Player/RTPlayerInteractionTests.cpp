@@ -428,7 +428,7 @@ bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 	// (2) Il verso dopo la carica e' l'ULTIMO PASSO PERCORSO: la carica si ferma in (-3,4), dopo (-3,3), cioe' SE.
 	// Verso Muiren (E) non e' l'ultimo passo percorso: e' la direzione dell'impatto, e il facing non la usa. ⚠️ Il
 	// facing di partenza e' un altro (`NW`) per distinguere questo caso dal «resta com'e'» di una rotta vuota, che e'
-	// quanto `PlannedMovementForFacing` rispondeva su un bersaglio fuori asse.
+	// quanto `FRTFacingDeclaration::PlannedMovement` rispondeva su un bersaglio fuori asse.
 	Charger->Facing = ERTHexDirection::NW;
 	TestTrue(TEXT("il verso SE, ultimo passo della rotta percorsa, e' legale"),
 		PC->IsFacingLegalForPlan(Charger, ERTHexDirection::SE));
@@ -1622,7 +1622,7 @@ bool FRTPlayerInputLabStepKeysTest::RunTest(const FString&)
 
 /**
  * Il tasto del modificatore vive in un punto solo: i due `MapKey` di `BuildInputMappings`. Tutta la
- * famiglia di gesti legge poi `bCameraModifier`, quindi questo test e' l'unico posto in cui «quale tasto»
+ * famiglia di gesti legge poi `FRTCameraGestures::IsModifierDown`, quindi questo test e' l'unico posto in cui «quale tasto»
  * si puo' asserire.
  *
  * Tre cose, e la terza e' quella che D-514 chiede con le parole «i due `Alt` non sono piu' mappati».
@@ -1776,7 +1776,7 @@ bool FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest::RunTest(const FStri
  *
  * ⚠️ L'id in `Occupancy` e' l'**indice** nell'array delle unita' vive, non uno `StableUnitId`: qui gli
  * indici dello snapshot e quelli di `Units` combaciano per costruzione, che e' esattamente il contratto che
- * `PlanningSnapshotFor` garantisce in partita.
+ * `RTPlanningSnapshot::For` garantisce in partita.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaypointRejectionNamesOccupantTest,
 	"RefactorTactics.PlayerInput.WaypointRejectionNamesTheOccupant",
@@ -3019,7 +3019,7 @@ bool FRTNakedPlanningReachesTwiceTheBaseTest::RunTest(const FString&)
  * `AC-1` di `#1410`: dichiarare `Sneak` **ridisegna le celle raggiungibili**, subito.
  *
  * Trovato in PIE dall'utente il 2026-09-17: *«se premo M gli esagoni verdi non cambiano immediatamente»*.
- * La causa era che `RefreshPlanningPreview` viveva nel solo ramo del TRONCAMENTO, e i due rami che escono
+ * La causa era che `RTPlanningPreview::Refresh` viveva nel solo ramo del TRONCAMENTO, e i due rami che escono
  * prima — piano vuoto, e percorso che ci sta gia' — lo saltavano. Il primo e' il caso normale: chi preme
  * `M` prima di cliccare vedeva le celle del tetto VECCHIO.
  *
@@ -3395,9 +3395,9 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 /**
  * ARMARE UN'AZIONE CHE RISERVA LO SLOT RESTRINGE IL VENTAGLIO **SUBITO** — `#3418`.
  *
- * 🔑 **Il difetto era di ORDINE, non di calcolo.** `ArmKitAbility` chiamava `RefreshPlanningPreview`
+ * 🔑 **Il difetto era di ORDINE, non di calcolo.** `ArmKitAbility` chiamava `RTPlanningPreview::Refresh`
  * dodici righe **sopra** `Unit->PlannedAbilityIndex = Index`, e il ventaglio verde si ricava dal tetto che
- * `PlanningSnapshotFor` legge da `ReservedProfileForPlan(MakePlanFor(Unit))` — cioe' **dal piano**. Disegnato
+ * `RTPlanningSnapshot::For` legge da `ReservedProfileForPlan(MakePlanFor(Unit))` — cioe' **dal piano**. Disegnato
  * prima della scrittura, il piano non conteneva ancora l'azione: nessun tetto, verde intero. Col percorso
  * ciano gia' troncato dalla riga sopra, le due meta' della stessa anteprima dicevano cose diverse nello
  * stesso fotogramma.
@@ -4888,7 +4888,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("la scheda resta sul nemico mentre la barra torna alla propria unita'"), PC->GetInspectedUnit() == Primo && !PC->IsPlanningWriteBlocked());
 
 	// Il click VERO passa da `OnSelect`, che manda un click sull'esagono finale al selettore PRIMA della matrice delle unita'
-	// (`TryHandleFacingClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
+	// (`FRTFacingDeclaration::TryHandleClickUnderCursor`): per una carica l'esagono finale e' quello del nemico. Quel ramo ha bisogno del cursore e
 	// non gira headless, ma chiede alla stessa funzione di `TryOpenFacingSelector`, che qui si prova direttamente. ⚠️ Questa riga e'
 	// stata trovata dalla tavola di `PIE-V01-CHARGEHOVER`: i click di prima, che entravano da `DispatchUnitClick` e `HandleClickOnCell`,
 	// non passavano di li'.
@@ -4896,7 +4896,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 	TestTrue(TEXT("un'altra cella no"), PC->PlannedChargeTargetAt(Charger, Secondo->Cell) == nullptr);
 	TestFalse(TEXT("il selettore non si apre sull'esagono del nemico puntato"), PC->TryOpenFacingSelector(Primo->Cell));
 	TestFalse(TEXT("e non resta aperto"), PC->IsDeclaringFacing());
-	// La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio. ⚠️ Era la meta' non coperta: i rami `Center` e `Side` consumano il
+	// La decisione di `FRTFacingDeclaration::TryHandleClickUnderCursor` PRIMA del raggio. ⚠️ Era la meta' non coperta: i rami `Center` e `Side` consumano il
 	// click comunque, quindi senza questa risposta il secondo click non arriva mai alla matrice delle unita' e resta morto (revisione di #3821).
 	TestFalse(TEXT("il click sull'esagono del nemico puntato non va al selettore del verso"), PC->FacingHandlesClickOnFinalCell(Charger));
 	TestFalse(TEXT("un click diretto su un lato di quell'esagono non dichiara un verso"), PC->HandleFacingClick(Primo->Cell, ERTHexDirection::E));

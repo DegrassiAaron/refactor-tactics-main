@@ -1,5 +1,6 @@
 #include "Player/Planning/RTFacingDeclaration.h"
 #include "Player/Planning/RTFacingHost.h"
+#include "Player/Planning/RTPlanningSnapshot.h"
 #include "Ability/RTActionData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -247,7 +248,7 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 				FRTHexSnapshot Snapshot;
 				int32 UnitId = INDEX_NONE;
 				TArray<ARTUnit*> SnapshotUnits;
-				if (Host.MakeFacingSnapshot(Unit, Snapshot, UnitId, SnapshotUnits) && Snapshot.Map)
+				if (RTPlanningSnapshot::For(Host.GetFacingWorld(), Unit, Snapshot, UnitId, &SnapshotUnits) && Snapshot.Map)
 				{
 					TSet<int32> Hostiles;
 					for (int32 i = 0; i < SnapshotUnits.Num(); ++i)

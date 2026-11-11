@@ -4,7 +4,7 @@
 // verifica che `ARTHexMapActor` conservi le celle che gli si passano — un setter — e quelle celle gliele
 // calcola il test stesso. Nessuno di quei verdi dice che il gioco le calcola giuste, perche' il produttore
 // reale (`RefreshPlanningPreview`) viveva in un namespace anonimo dentro `RTPlayerController.cpp` e non era
-// chiamabile (limite gia' dichiarato in `RTHexPerfTests.cpp:202`).
+// chiamabile (limite gia' dichiarato in `RTHexPerfTests.cpp:202`). Da #4065 e' `RTPlanningPreview::Refresh`, esportata.
 //
 // Qui si verifica la derivazione: piano autorevole -> origine -> forma canonica -> fuoco amico.
 
@@ -136,7 +136,7 @@ bool FRTBlastPreviewOriginIsCurrentCellWithoutDashTest::RunTest(const FString&)
  * Un bersaglio a CELLA produce un'area, non il vuoto.
  *
  * E' il caso che `#737` ha dichiarato chiuso — «l'area colpita in preview prima del click» — e che il
- * produttore precedente spegneva: `RefreshPlanningPreview` leggeva il solo `PlannedAttackTarget`, che
+ * produttore precedente spegneva: `RTPlanningPreview::Refresh` leggeva il solo `PlannedAttackTarget`, che
  * `HandleTargetCell` azzera per costruzione (il bersaglio e' la cella). Dichiarare un'area su una cella
  * vuota cancellava l'anteprima invece di mostrarla.
  */

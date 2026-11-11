@@ -6,7 +6,6 @@
 class ARTUnit;
 class UWorld;
 struct FRTCellId;
-struct FRTHexSnapshot;
 
 /**
  * Cio' che la dichiarazione del verso chiede al controller, e nient'altro (#4065, S4).
@@ -50,8 +49,4 @@ public:
 
 	/** Il raggio del cursore, solo se il cursore sta nella scena (#3661). */
 	virtual bool DeprojectFacingCursor(FVector& OutOrigin, FVector& OutDirection) const = 0;
-
-	/** Lo snapshot di pianificazione dell'unita' e gli Actor agli stessi indici, dall'autorita' (invariante #5). */
-	virtual bool MakeFacingSnapshot(const ARTUnit* Unit, FRTHexSnapshot& OutSnapshot, int32& OutUnitId,
-		TArray<ARTUnit*>& OutUnits) const = 0;
 };

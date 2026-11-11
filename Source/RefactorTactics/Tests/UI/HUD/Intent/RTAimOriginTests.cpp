@@ -639,7 +639,7 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 	B.PC->SelectAbilityForCurrentForTest(B.Getto);
 	// La corsa va da (-1,0,0) a (2,0,0), quindi l'ultimo passo e' verso E. A fine corsa a budget il cono del verso
 	// e' di `MoveEndPivotMaxSteps` passi (Muiren: 2) attorno a E, e W, l'opposto, ne resta fuori; da fermo ogni verso
-	// e' legale ([D-367]). E' il quarto lettore della domanda, attraverso `PlannedMovementForFacing`.
+	// e' legale ([D-367]). E' il quarto lettore della domanda, attraverso `FRTFacingDeclaration::PlannedMovement`.
 	const ERTHexDirection Indietro = ERTHexDirection::W;
 
 	// CONTROLLO — senza lo stato lo scatto a budget sposta: mira, portata e verso partono dallo scatto.
@@ -793,7 +793,7 @@ bool FRTAimOriginStunnedWalkDoesNotMoveTheFacingCellTest::RunTest(const FString&
 	TestFalse(TEXT("controllo: il Move non e' negato"), B.Mine->PlannedNormalMoveDeniedByStun());
 	TestEqual(TEXT("controllo: il verso si dichiara dal fondo del percorso"), B.PC->FacingCellFor(B.Mine), Meta);
 	// L'ultimo passo del percorso e' verso E: a fine Move a budget il cono del verso sta attorno a E, e W ne resta fuori.
-	// Da fermo ogni verso e' legale ([D-367]): e' il lettore `PlannedMovementForFacing`, non solo `FacingCellFor`.
+	// Da fermo ogni verso e' legale ([D-367]): e' il lettore `FRTFacingDeclaration::PlannedMovement`, non solo `FacingCellFor`.
 	const ERTHexDirection Indietro = ERTHexDirection::W;
 	TestFalse(TEXT("controllo: a fine Move a budget il verso opposto al percorso non e' legale"),
 		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
@@ -1006,7 +1006,7 @@ bool FRTAimOriginUnexploredSmokeChannelTest::RunTest(const FString&)
  * - **nessuna conoscenza** (sessione senza `ARTGameMode`): come il Fumo esplorato, perche' non c'e' niente da
  *   giudicare ottimisticamente.
  *
- * Verifica di mutazione: togliere `PlayerAimMap` dal ricalcolo dell'anteprima (`RefreshPlanningPreview`) rende rossa
+ * Verifica di mutazione: togliere `PlayerAimMap` dal ricalcolo dell'anteprima (`RTPlanningPreview::Refresh`) rende rossa
  * la portata; dal click su unita' (`HandleClickOnUnit`) rende rosso il click.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnexploredSmokeThroughTheControllerTest,

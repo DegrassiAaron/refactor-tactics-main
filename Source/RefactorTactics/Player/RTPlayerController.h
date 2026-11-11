@@ -8,6 +8,8 @@
 #include "Camera/RTCameraGestures.h" // i gesti della camera: il controller li possiede e li inoltra (#4065)
 #include "Player/Planning/RTFacingDeclaration.h" // la dichiarazione del verso: il controller la possiede e la inoltra (#4065)
 #include "Player/Planning/RTFacingHost.h"        // cio' che la dichiarazione del verso chiede al controller
+#include "Player/Overlay/RTPlanningOverlayArbiter.h" // l'arbitro delle aree di pianificazione (#4065)
+#include "Player/Overlay/RTPlanningOverlayHost.h"    // cio' che l'arbitro chiede al controller
 #include "RTPlayerController.generated.h"
 
 enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
@@ -50,7 +52,7 @@ enum class ERTAbilityRequestSource : uint8
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
 UCLASS()
-class REFACTORTACTICS_API ARTPlayerController : public APlayerController, public FRTFacingHost
+class REFACTORTACTICS_API ARTPlayerController : public APlayerController, public FRTFacingHost, public FRTPlanningOverlayHost
 {
 	GENERATED_BODY()
 
@@ -573,7 +575,7 @@ public:
 	 * `HandleClickOnCell`, verificarlo voleva un click, e nessun test lo esercitava.
 	 *
 	 * @param Snapshot     lo snapshot di pianificazione; `Occupancy` porta l'id dell'occupante.
-	 * @param Units        gli Actor **agli stessi indici** dello snapshot (`PlanningSnapshotFor`).
+	 * @param Units        gli Actor **agli stessi indici** dello snapshot (`RTPlanningSnapshot::For`).
 	 *                     ⚠️ Quegli id sono INDICI nell'array delle unita' vive, non `StableUnitId`.
 	 * @param PlannerIndex l'indice di chi sta pianificando: la sua cella non e' «occupata» per lui.
 	 * @param Cell         la cella cliccata.
@@ -963,7 +965,7 @@ public:
 	 * dell'HUD (`ReleaseInspectionUnlessLive`), e fino ad allora un nemico uscito di vista resta il soggetto. Il cancello lo applica il CONSUMATORE,
 	 * a ogni lettura, con una voce `Live` nella vista di chi guarda (`URTInspectLibrary::LiveEntry`): lo fa `URTScreenHudWidgetBase::GetDockUnit`,
 	 * da cui il dock deve leggere. Lo slot non conosce il manager e legge da qui: il suo divario dura al piu' un fotogramma ed e' sicuro (il
-	 * controller rifiuta di scrivere, e il cancello dell'hover in `GatherSkillHoverInputs` scarta un nemico senza voce `Live`).
+	 * controller rifiuta di scrivere, e il cancello dell'hover in `FRTPlanningOverlayArbiter::GatherSkillHover` scarta un nemico senza voce `Live`).
 	 */
 	const class ARTUnit* GetDockUnit() const;
 
@@ -1034,32 +1036,15 @@ public:
 	 */
 	void PinInspectionForTest(class ARTUnit* Unit) { PinInspection(Unit); }
 
-	/**
-	 * **IL SEGNALE DELL'HOVER SU UNA SKILL** (`#3750`, fetta D): lo slot della barra lo manda quando il cursore ci entra.
-	 * Dice solo QUALE skill di QUALE unita'; non scrive la mappa, non calcola niente: lo fa l'arbitro, al tick, dagli
-	 * ingressi (`FRTPlanningOverlayInputs::ActiveSource`).
-	 *
-	 * 🔑 **L'hover non e' un gesto di pianificazione**: non tocca selezione, piano, azione armata, ne' il fuoco. Finisce con
-	 * `ClearSkillHover`, e allora torna la sorgente di prima.
-	 *
-	 * ⚠️ **L'unita' dev'essere quella comandata, o quella ispezionata e fissata mentre la barra la segue** (`#3748`): la barra propria e' di
-	 * chi si comanda, la barra in sola lettura di chi e' a fuoco, e il produttore e' lo slot dell'una o dell'altra. Il filtro e' del
-	 * risolutore degli ingressi, che la confronta con la selezione di adesso e con l'ispezione fissata (`bDockFollowsInspection` e pin), non di
-	 * questa porta: l'hover di un'altra unita' non tiene la mappa, e il risolutore lo SCARTA al primo tick (non riapparirebbe alla riselezione
-	 * di quella unita'). Anche l'hover dell'unita' ispezionata cade quando la barra torna alla selezione (`SelectUnit`), benche' la scheda resti
-	 * fissata: la barra non e' piu' sua, e Slate non manda l'uscita a uno slot che il dock ricostruisce.
-	 */
+	/** Il segnale dell'hover su una skill, dallo slot della barra (`#3750`, fetta D). La regola: `FRTPlanningOverlayArbiter::SetSkillHover`. */
 	void SetSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
-	/**
-	 * Il cursore e' uscito dalla skill. **Spegne solo se l'hover registrato e' proprio quello** (stessa unita', stesso indice):
-	 * l'uscita dallo slot A puo' arrivare dopo l'ingresso nello slot B, e non deve cancellare B.
-	 */
+	/** Il cursore e' uscito dalla skill: spegne solo se l'hover registrato e' proprio quello. */
 	void ClearSkillHover(const class ARTUnit* Unit, int32 AbilityIndex);
 
 	/** Per i test e la diagnostica: l'hover registrato. `INDEX_NONE` se nessuno. */
-	int32 GetSkillHoverIndex() const { return SkillHoverIndex; }
-	const class ARTUnit* GetSkillHoverUnit() const; // nel .cpp: il puntatore debole vuole il tipo completo
+	int32 GetSkillHoverIndex() const { return Overlay.GetSkillHoverIndex(); }
+	const class ARTUnit* GetSkillHoverUnit() const;
 	void UpdateEnemyArcFocusForTest(class ARTHexMapActor* HexMap) const { UpdateEnemyArcFocus(HexMap); }
 
 	/** Un fotogramma di `PlayerTick`, che e' protetto: `#3511` prova che il confronto delle aree di pianificazione vi e' cablato. */
@@ -1553,43 +1538,20 @@ public:
 	void SetPhaseFocusPinned(bool bPinned) { bPhaseFocusPinned = bPinned; }
 	bool IsPhaseFocusPinned() const { return bPhaseFocusPinned; }
 
-	/**
-	 * **L'INGRESSO UNICO delle aree di pianificazione** — `#3511` (CX-2 di `aree-di-contesto-spec-panel-2026-10-06.md`).
-	 *
-	 * Confronta gli ingressi di adesso (`FRTPlanningOverlayInputs`) con quelli dell'ultimo calcolo e rifa' qualcosa
-	 * **solo se sono cambiati**: a ingressi invariati non ricalcola niente. Lo chiama `PlayerTick` a ogni fotogramma,
-	 * subito dopo aver posato l'hover, e un test lo chiama senza `PlayerTick`.
-	 *
-	 * 🔑 **Due contatori, perche' sono due domande.** `GetPlanningOverlayComputations` conta i cambi di QUALUNQUE ingresso;
-	 * `GetPlanningOverlayPlanComputations` solo quelli che rifanno ventaglio e portata, cioe' tutti tranne il cambio
-	 * della sola cella sotto il cursore. Il secondo e' il criterio di `#711`: *«nessun produttore all'hover ricalcola il
-	 * reachable set»*, e un test lo pinna.
-	 *
-	 * ⚠️ **Spegne anche, dallo stato**: se `ShowsAreas()` e' falso (commit, playback, `Modal`, KO, fine partita) azzera
-	 * ogni area. L'uscita che qualcuno dimentica di elencare si corregge al tick successivo.
-	 *
-	 * @param KnownHexMap la mappa, se il chiamante l'ha gia' cercata (`PlayerTick`): evita una seconda ricerca di actor.
-	 */
+	// ---- Le aree di pianificazione (#3511, #3750) — #4065 (S5): l'arbitro e' `FRTPlanningOverlayArbiter`, che documenta
+	// la regola; qui le facciate con le firme di prima.
+
+	/** Il confronto di ogni fotogramma: rifa' le aree solo se un ingresso e' cambiato, e le spegne dallo stato. */
 	void UpdatePlanningOverlay(class ARTHexMapActor* KnownHexMap = nullptr);
 
-	/**
-	 * Il piano di `Unit` e' cambiato (o e' cambiata l'unita'): ricalcola SUBITO le aree. `Unit == nullptr` le spegne.
-	 *
-	 * 🔑 **Sostituisce le chiamate dirette a `RefreshPlanningPreview`**: sale `PlanRevision`, perche' un waypoint
-	 * aggiunto non cambia nessun altro ingresso, e passa per lo stesso confronto e lo stesso reset di `UpdatePlanningOverlay`.
-	 * Il tick successivo trova gli ingressi uguali e non rifa' niente.
-	 *
-	 * ⚠️ **`nullptr` spegne SUBITO, ma non decide lo stato**: se l'unita' selezionata e' viva e si sta pianificando, il tick
-	 * successivo vede che le aree si mostrano e le riaccende. I due chiamanti con `nullptr` — commit e fine partita — sono in
-	 * uno stato che dice il contrario (`ResolutionPlayback`, `bMatchEnded`), ed e' per questo che il reset non si ripete.
-	 */
+	/** Il piano di `Unit` e' cambiato: ricalcola SUBITO le aree. `Unit == nullptr` le spegne. */
 	void RefreshPlanningOverlay(const ARTUnit* Unit);
 
 	/** Quanti calcoli hanno fatto gli ingressi cambiati dall'inizio (`#3511`). Per i test e la diagnostica. */
-	int32 GetPlanningOverlayComputations() const { return PlanningOverlayComputations; }
+	int32 GetPlanningOverlayComputations() const { return Overlay.GetComputations(); }
 
 	/** ...di questi, quanti hanno rifatto ventaglio e portata: i cambi della sola cella non ci sono. */
-	int32 GetPlanningOverlayPlanComputations() const { return PlanningOverlayPlanComputations; }
+	int32 GetPlanningOverlayPlanComputations() const { return Overlay.GetPlanComputations(); }
 
 protected:
 	FRTGlanceDwell GlanceDwell;
@@ -1611,8 +1573,6 @@ protected:
 	virtual bool IsFacingChargeTargetAt(const ARTUnit* Unit, const FRTCellId& Cell) const override;
 	virtual void RecordFacingOrder() override;
 	virtual bool DeprojectFacingCursor(FVector& OutOrigin, FVector& OutDirection) const override;
-	virtual bool MakeFacingSnapshot(const ARTUnit* Unit, FRTHexSnapshot& OutSnapshot, int32& OutUnitId,
-		TArray<ARTUnit*>& OutUnits) const override;
 
 	bool bInspectorPinned = false;
 
@@ -1689,66 +1649,20 @@ private:
 	 */
 	bool IsUnitCommandedByThisPlayer(const class ARTUnit* Unit) const;
 
-	/** Gli ingressi dell'ultimo calcolo delle aree di pianificazione (`#3511`), e se ce n'e' stato uno. */
-	FRTPlanningOverlayInputs LastPlanningOverlayInputs;
-	bool bHasPlanningOverlayInputs = false;
+	/** L'arbitro delle aree di pianificazione (#4065, S5): ingressi, confronto, sorgente, hover della skill. */
+	FRTPlanningOverlayArbiter Overlay;
 
-	/** Sale a ogni `RefreshPlanningOverlay`: il piano cambia senza che nessun altro ingresso lo dica. */
-	int32 PlanningOverlayRevision = 0;
-
-	int32 PlanningOverlayComputations = 0;
-	int32 PlanningOverlayPlanComputations = 0;
-
-	/** Gli ingressi di adesso per `Unit` (la selezionata, o quella che il chiamante dichiara). Non scrive niente. */
-	FRTPlanningOverlayInputs GatherPlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap) const;
-
-	/**
-	 * **Il cancello del fuoco** (`#3750`, P2): riempie `FocusSubject`, `FocusMove` e `FocusKnowledgeStamp` se l'unita'
-	 * ispezionata e' un NEMICO VIVO con una voce `Live` nella vista di chi guarda, e non tocca niente altrimenti.
-	 *
-	 * 🔴 **Il cancello e' qui e non nell'HUD**, anche se l'HUD rilascia gia' l'ispezione di chi non e' piu' `Live`
-	 * (`ReleaseInspectionUnlessLive`): quella arriva al tick dell'HUD, e fra il tick in cui il nemico esce di vista e il
-	 * suo l'area mostrerebbe a un osservatore cio' che non vede. La vista e' la stessa del velo
-	 * (`URTHudViewModel::BuildObserverKnowledgeView`), e la cella del soggetto viene dalla SUA VOCE, non dall'attore.
-	 * ⛔ Non guarda `ARTUnit::IsKnownToObserver()`, che nasce vero.
-	 *
-	 * Costa una ricerca di unita' e la costruzione della vista, e solo quando c'e' un'unita' ispezionata.
-	 */
-	void GatherFocusInputs(FRTPlanningOverlayInputs& Inputs) const;
-
-	/**
-	 * **I cancelli dell'hover su una skill** (`#3750`, fetta D): riempie `HoverSkillUnit`, `SkillRange` e
-	 * `SkillKnowledgeStamp` solo se la skill e' dell'unita' COMANDATA (`Unit`, e della squadra di chi guarda) o di quella a FUOCO
-	 * (ispezionata e fissata, `#3748`), viva, se chiede un bersaglio e ha una portata positiva (`MostraLaPortata`), e se la cella da
-	 * cui mira e' una cella che la squadra vede adesso. Non tocca niente altrimenti. Per la skill di un'unita' ispezionata (lo slot della
-	 * barra in sola lettura) scrive anche `bSkillHoverOfInspected`, che e' cio' che apre l'arbitro per un'unita' che non e' la selezione.
-	 *
-	 * 🔴 **L'origine di un'unita' propria e' `AimOriginFor(fase)`, come la portata armata**, cosi' che l'insieme in hover coincida con
-	 * quello dell'azione armata: e' un dato PROPRIO (il suo scatto pianificato). **Per un nemico a fuoco e' la cella della VOCE DELLA
-	 * VISTA, mai il piano**: `AimOriginFor` leggerebbe lo scatto pianificato del nemico e la portata mostrerebbe da dove mirera'. Il
-	 * cancello e' quello del fuoco: una voce `Live` nella vista di chi guarda.
-	 */
-	void GatherSkillHoverInputs(const ARTUnit* Unit, FRTPlanningOverlayInputs& Inputs) const;
-
-	/** L'hover registrato dallo slot: quale unita' e quale posizione di kit. Vedi `SetSkillHover`. */
-	TWeakObjectPtr<const ARTUnit> SkillHoverUnit;
-	int32 SkillHoverIndex = INDEX_NONE;
-
-	/**
-	 * Gli ingressi, pronti per il confronto: raccolti, con il fuoco passato dal cancello e dal latch (`FocusLatch`), e
-	 * **normalizzati** — i campi del fuoco valgono i default quando l'area non e' sulla mappa. Scrive il latch, quindi non e'
-	 * `const`; non scrive niente sulla mappa.
-	 */
-	FRTPlanningOverlayInputs ResolvePlanningOverlayInputs(const ARTUnit* Unit, const class ARTHexMapActor* HexMap);
-
-	/** Quante volte `PinInspection` ha fissato dall'inizio: e' cio' che riporta l'area del fuoco, anche sulla stessa unita'. */
-	int32 InspectionPinSerial = 0;
-
-	/** L'area del fuoco e' ancora sulla mappa? (#3750) */
-	FRTFocusLatch FocusLatch;
-
-	/** Confronta, e se cambiano calcola o spegne. L'unico punto che tocca `RefreshPlanningPreview`. */
-	void ApplyPlanningOverlay(class ARTHexMapActor* HexMap, const ARTUnit* Unit, const FRTPlanningOverlayInputs& Inputs);
+	// FRTPlanningOverlayHost: cio' che l'arbitro chiede al controller, e nient'altro. Le ragioni stanno in `RTPlanningOverlayHost.h`.
+	virtual UWorld* GetOverlayWorld() const override;
+	virtual const ARTUnit* GetOverlayUnit() const override;
+	virtual ERTPointerContext GetOverlayPointerContext() const override;
+	virtual ERTPointerTargetKind GetOverlayTargetKind() const override;
+	virtual TOptional<ERTHexDirection> GetOverlayFacingSector() const override;
+	virtual int32 GetOverlayActiveLayer() const override;
+	virtual int32 GetOverlayObserverTeamId() const override;
+	virtual const ARTUnit* GetOverlayInspectedUnit() const override;
+	virtual bool IsOverlayInspectorPinned() const override;
+	virtual bool DoesOverlayDockFollowInspection() const override;
 
 private:
 	/**

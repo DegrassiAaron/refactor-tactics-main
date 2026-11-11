@@ -3143,7 +3143,7 @@ bool FRTHexMapActorPartialRebuildRespectsTheMaskTest::RunTest(const FString&)
 // =====================================================================================================
 // `#3511` — il RESET UNICO delle aree di pianificazione, e l'oracolo per SIGNIFICATO che lo misura.
 //
-// Il reset stava nel ramo `Unit == nullptr` di `RefreshPlanningPreview` come un elenco di setter, e ogni canale
+// Il reset stava nel ramo `Unit == nullptr` di `RTPlanningPreview::Refresh` come un elenco di setter, e ogni canale
 // dimenticato restava a schermo (`#2390` la rotta, `#2555` il ventaglio, `#3064` il tratto di LOS). Qui si prova sull'ATTORE,
 // senza controller: `ClearPlanningPreview` azzera ogni significato, e `NumPlanningPreviewCells` lo vede.
 // =====================================================================================================
