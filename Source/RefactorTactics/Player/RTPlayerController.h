@@ -6,6 +6,8 @@
 #include "Player/RTPlanningOverlay.h" // gli ingressi delle aree di pianificazione (#3511)
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "Camera/RTCameraGestures.h" // i gesti della camera: il controller li possiede e li inoltra (#4065)
+#include "Player/Planning/RTFacingDeclaration.h" // la dichiarazione del verso: il controller la possiede e la inoltra (#4065)
+#include "Player/Planning/RTFacingHost.h"        // cio' che la dichiarazione del verso chiede al controller
 #include "RTPlayerController.generated.h"
 
 enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
@@ -48,7 +50,7 @@ enum class ERTAbilityRequestSource : uint8
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
 UCLASS()
-class REFACTORTACTICS_API ARTPlayerController : public APlayerController
+class REFACTORTACTICS_API ARTPlayerController : public APlayerController, public FRTFacingHost
 {
 	GENERATED_BODY()
 
@@ -1113,7 +1115,7 @@ public:
 	 *
 	 * 🔑 **Su quella cella il click ispeziona, e non sceglie un verso.** Per una carica `FacingCellFor` e' la cella del bersaglio —
 	 * `PlannedDashCell` —, quindi il selettore del verso si apriva sull'esagono del nemico: un secondo click, con il raggio sulla mesh o sul
-	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`TryHandleFacingClickUnderCursor`). Una carica non ha
+	 * pavimento, e `OnSelect` lo mandava al selettore PRIMA della matrice delle unita' (`FRTFacingDeclaration::TryHandleClickUnderCursor`). Una carica non ha
 	 * un verso da scegliere ([D-524] (4)): chi apre il selettore chiede prima a questa funzione, e se risponde un nemico il click e' suo.
 	 */
 	const class ARTUnit* PlannedChargeTargetAt(const class ARTUnit* Unit, const FRTCellId& Cell) const;
@@ -1486,109 +1488,52 @@ public:
 	 */
 	bool HandleTargetEdge(const FRTCellId& Cell, ERTHexDirection Edge);
 
-	/**
-	 * `Facing` -> `PlannedFacing` + `bDeclaresPlannedFacing`. Chiude l'anello che #291 aveva lasciato aperto:
-	 * le regole della rotazione dichiarata esistevano e nessun input le raggiungeva.
-	 *
-	 * ⚠️ Rifiuta un settore **illegale** invece di correggerlo in silenzio: e' la regola di
-	 * `URTFacingLibrary`, e qui la si chiede, non la si riscrive.
-	 * @return true se la rotazione e' stata dichiarata.
-	 */
-	bool HandleFacingSector(ERTHexDirection Sector);
+	// ---- Il verso finale ([D-367], [D-462], [D-463], `#291`) -------------------------------------------------------------
+	//
+	// #4065 (S4): la regola e lo stato del selettore stanno in `FRTFacingDeclaration`, che documenta ogni funzione. Qui
+	// restano le facciate che chiamano da fuori — test, harness — con le firme di prima.
+
+	/** `Facing` -> `PlannedFacing` + `bDeclaresPlannedFacing`; un settore illegale e' rifiutato, mai corretto. */
+	bool HandleFacingSector(ERTHexDirection Sector) { return Facing.HandleSector(*this, Sector); }
 
 	/** Entra nel contesto `Facing` (l'unita' selezionata deve esserci). */
-	void BeginFacingDeclaration();
-
-	/**
-	 * Il SECONDO CLICK sull'esagono finale sceglie il verso ([D-367], [D-462], `#291`): `Cell` deve essere la cella
-	 * finale del movimento pianificato, e `Sector` il lato puntato. Dichiara il verso e **chiude il movimento**:
-	 * da quel momento un click su un'altra cella non aggiunge waypoint, finche' un Back non lo riapre.
-	 *
-	 * ⚠️ **Da fermo serve il selettore aperto** (`TryOpenFacingSelector`): la propria cella non e' una destinazione,
-	 * e un click su di essa senza il primo gesto sarebbe una selezione, non una scelta di verso.
-	 * ⛔ Un settore illegale per il budget di pivot e' rifiutato, mai corretto ([D-367]).
-	 * @return true se il verso e' stato dichiarato.
-	 */
-	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector);
-
-	/**
-	 * Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento: la propria da fermo ([D-462] punto
-	 * 4), la destinazione in marcia ([D-463]). Lo chiamano il click sull'unita' gia' selezionata (con la sua cella,
-	 * quindi solo da fermo) e il click sulla cella finale.
-	 *
-	 * 🔑 **Aperta, chiude il movimento**: ogni click e' una direzione finche' non si sceglie un verso o un Back la
-	 * chiude ([D-463]).
-	 * @return true se il selettore e' stato aperto.
-	 */
-	bool TryOpenFacingSelector(const FRTCellId& ClickedCell);
-
-	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
-	FRTCellId FacingCellFor(const ARTUnit* Unit) const;
-
-	/**
-	 * Ruota la MESH verso il facing che l'unita' avra' a fine mossa: la rotazione dichiarata se c'e',
-	 * altrimenti quella derivata dal percorso pianificato, altrimenti l'orientamento attuale.
-	 *
-	 * ⚠️ **Solo presentazione, e in ANTICIPO.** Il facing logico non cambia in pianificazione — lo scrive
-	 * il resolver a fine Move — quindi fra qui e la risoluzione la mesh mostra un orientamento che le regole
-	 * non hanno ancora. E' la stessa natura del percorso verde e del ventaglio: un'anteprima del piano, non
-	 * lo stato. `PIE-FACING-1` chiede che mesh e regola coincidano **a fine playback**, ed e' li' che il
-	 * TurnManager le riallinea.
-	 *
-	 * Senza, il giocatore pianifica un percorso, non vede cambiare niente, e a fine risoluzione l'unita'
-	 * scatta a un orientamento che non ha mai visto arrivare — che a schermo si legge come casuale.
-	 */
-	void PreviewPlannedFacing(ARTUnit* Unit) const;
-
-	/** Ruota la MESH verso `Direction`, dalla geometria della cella. Solo presentazione: non tocca il piano. */
-	void PreviewFacingToward(ARTUnit* Unit, ERTHexDirection Direction) const;
-
-	/**
-	 * L'hover del selettore aperto ([D-367]: *«l'hover ne anticipa il settore e la rotazione visuale senza mutare lo
-	 * stato autorevole»*): la mesh si gira verso il lato **legale** sotto il cursore, e torna al verso pianificato
-	 * quando il cursore esce o il selettore si chiude. ⚠️ Un lato illegale non ruota: non e' interattivo.
-	 *
-	 * Il raggio arriva da fuori perche' il test possa darlo senza un viewport; in partita lo da' `PlayerTick`.
-	 */
-	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir);
-
-	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
-	TOptional<ERTHexDirection> GetFacingHoverSector() const { return FacingHoverSector; }
+	void BeginFacingDeclaration() { Facing.Begin(*this); }
 
 	/** Esce da `Facing` senza dichiarare nulla. */
-	void EndFacingDeclaration();
+	void EndFacingDeclaration() { Facing.End(*this); }
 
-	/** Stile e rotta del movimento pianificato su cui si giudica il verso: come li applichera' il resolver (`#291`). */
-	void PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle, TArray<FRTCellId>& OutPath) const;
+	/** Il SECONDO CLICK sull'esagono finale sceglie il verso, e chiude il movimento. */
+	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector) { return Facing.HandleClick(*this, Cell, Sector); }
 
-	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
-	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const;
+	/** Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento. */
+	bool TryOpenFacingSelector(const FRTCellId& ClickedCell) { return Facing.TryOpenSelector(*this, ClickedCell); }
 
-	/** Cancella il verso dichiarato e riapre il movimento, dicendo perche'. Niente se non c'era un verso. */
-	void CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche);
+	/** Un click sull'esagono finale va al selettore del verso? La decisione PRIMA del raggio ([D-528] (3), #3748). */
+	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const { return Facing.HandlesClickOnFinalCell(*this, Unit); }
 
-	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
-	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
+	/** L'hover del selettore aperto: il raggio arriva da fuori perche' il test possa darlo senza un viewport. */
+	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir)
+	{
+		Facing.UpdateHoverFromRay(*this, bHasRay, RayOrigin, RayDir);
+	}
 
-	/**
-	 * La decisione di `TryHandleFacingClickUnderCursor` PRIMA del raggio: un click sull'esagono finale va al selettore del verso?
-	 * Estratta perche' il raggio ha bisogno del cursore e non gira headless, e questa decisione e' la meta' che conta: [D-528] (3).
-	 *
-	 * 🔴 Per una carica l'esagono finale e' quello del nemico puntato, e `OnSelect` manda quel click al selettore PRIMA della matrice delle
-	 * unita': i rami `Center` e `Side` consumano il click comunque, quindi senza questa risposta un secondo click sul nemico non arriva
-	 * mai a `DispatchUnitClick` e resta morto. Falsa se il click e' di un altro (un bersaglio da scegliere, il primo click da fermo,
-	 * il nemico puntato dalla carica), vera quando il selettore e' il suo destinatario.
-	 *
-	 * ➕ `#3748`: falsa anche con il piano non scrivibile (`IsPlanningWriteBlocked`). Con la barra su un nemico il click sull'unita' propria
-	 * selezionata non va al selettore ma alla selezione, che riporta la barra.
-	 */
-	bool FacingHandlesClickOnFinalCell(const ARTUnit* Unit) const;
-
-	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
-	static constexpr float FacingDeadZoneFraction = 0.3f;
+	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
+	TOptional<ERTHexDirection> GetFacingHoverSector() const { return Facing.GetHoverSector(); }
 
 	/** Vero mentre si sta dichiarando una rotazione. */
-	bool IsDeclaringFacing() const { return bDeclaringFacing; }
+	bool IsDeclaringFacing() const { return Facing.IsDeclaring(); }
+
+	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
+	FRTCellId FacingCellFor(const ARTUnit* Unit) const { return FRTFacingDeclaration::CellFor(Unit); }
+
+	/** Ruota la MESH verso il facing che l'unita' avra' a fine mossa. Solo presentazione, e in anticipo. */
+	void PreviewPlannedFacing(ARTUnit* Unit) const { FRTFacingDeclaration::PreviewPlanned(*this, Unit); }
+
+	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
+	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const
+	{
+		return FRTFacingDeclaration::IsLegalForPlan(*this, Unit, Sector);
+	}
 
 	/**
 	 * Inspector pinnato: livello 3 del Back. Il produttore e' `PinInspection` (#3748), che lo accende insieme al
@@ -1647,17 +1592,27 @@ public:
 	int32 GetPlanningOverlayPlanComputations() const { return PlanningOverlayPlanComputations; }
 
 protected:
-	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
 	FRTGlanceDwell GlanceDwell;
 	FRTGlanceTarget GlanceTarget;
 
 	/** Calcola il bersaglio grezzo sotto il cursore (unita' colpita, cella, porta/obiettivo) e avanza lo sguardo. */
 	void UpdateGlance(float DeltaSeconds, bool bCellResolved, const FRTCellId& Cell, const class URTHexMapAsset* Map);
 
-	bool bDeclaringFacing = false;
+	/** La dichiarazione del verso (#4065, S4): il selettore e il lato sotto il cursore. Le facciate pubbliche la inoltrano. */
+	FRTFacingDeclaration Facing;
 
-	/** Il lato verso cui l'hover ha girato la mesh: vuoto quando la mesh mostra il verso pianificato. */
-	TOptional<ERTHexDirection> FacingHoverSector;
+	// FRTFacingHost: cio' che la dichiarazione del verso chiede al controller, e nient'altro. Le ragioni stanno in `RTFacingHost.h`.
+	virtual UWorld* GetFacingWorld() const override;
+	virtual ARTUnit* GetFacingUnit() const override;
+	virtual bool IsFacingWriteBlocked() const override;
+	virtual bool IsFacingInputInert() const override;
+	virtual ERTPointerContext GetFacingPointerContext() const override;
+	virtual ERTPointerTargetKind GetFacingTargetKind() const override;
+	virtual bool IsFacingChargeTargetAt(const ARTUnit* Unit, const FRTCellId& Cell) const override;
+	virtual void RecordFacingOrder() override;
+	virtual bool DeprojectFacingCursor(FVector& OutOrigin, FVector& OutDirection) const override;
+	virtual bool MakeFacingSnapshot(const ARTUnit* Unit, FRTHexSnapshot& OutSnapshot, int32& OutUnitId,
+		TArray<ARTUnit*>& OutUnits) const override;
 
 	bool bInspectorPinned = false;
 
@@ -1694,7 +1649,7 @@ private:
 	 * selezionata; il ciclo `N` con una sola comandabile esce prima di `SelectUnit` e lo spegne da se' (`CycleSelection`).
 	 *
 	 * ⚠️ **Non lo spegne cio' che non e' una selezione**: il click con `Ctrl` (un gesto di camera). ⚠️ Non e' piu' un caso il click che il selettore
-	 * del verso consumava prima della selezione (`TryHandleFacingClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
+	 * del verso consumava prima della selezione (`FRTFacingDeclaration::TryHandleClickUnderCursor`): con la barra in sola lettura `FacingHandlesClickOnFinalCell`
 	 * risponde no (`IsPlanningWriteBlocked`), e il click cade nella selezione. ⚠️ E non si
 	 * azzera col soggetto: `ApplyBack` e `ReleaseInspectionUnlessLive` lo lasciano com'e', perche' senza soggetto o senza pin non vale niente. L'unica
 	 * eccezione e' la caduta al turno nuovo (`ReleaseInspectionForNewTurn`), che azzera tutto e tre insieme.
