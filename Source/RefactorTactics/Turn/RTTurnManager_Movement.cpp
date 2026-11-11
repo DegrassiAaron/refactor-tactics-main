@@ -1449,7 +1449,7 @@ void ARTTurnManager::BeginPartialPlayback()
 	// mostrato nulla e' il difetto, qualunque sia la fase che si e' fermata.
 	if (ResolvedTimeline.Num() > 0)
 	{
-		BeginPlayback();
+		Playback.BeginPlayback();
 	}
 }
 
