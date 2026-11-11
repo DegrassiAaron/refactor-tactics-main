@@ -55,7 +55,7 @@
 
 - [ ] **Step 1: test che falliscono** in `RTActivationLineTests.cpp`:
   - `RefactorTactics.ActivationLine.InsertsAboveTheSameUnitResult`: esiti `[U1 «Colpita — 13», U2 «Curata — 5»]`, attivazione di U2 → ordine `[U1, att U2, U2]`.
-  - `RefactorTactics.ActivationLine.WithoutAResultGoesLast`: attivazione di U3 senza riga d'esito → in fondo.
+  - `RefactorTactics.ActivationLine.WithoutAResultGoesLast`: attivazione di U3 senza riga d'esito → in fondo. ⌫ *Superato da [`D-603`](../../decisions/RT_PDR_00_Decision_Log.md) (2), implementata in #4052: la riga va in fondo alla sua fase, e il test si chiama `WithoutAResultClosesItsPhase`.*
   - `RefactorTactics.ActivationLine.KeepsShowOrderForOneUnit`: due attivazioni di U1 → entrambe sopra la riga di U1, nell'ordine della lista.
   - `RefactorTactics.ActivationLine.BudgetDropsOldestActivationsFirst`: `MaxLines = 4`, 2 esiti e 3 attivazioni → restano 2 esiti e le 2 attivazioni più recenti.
   - `RefactorTactics.ActivationLine.FullBudgetKeepsEveryResult`: `MaxLines = 2`, 2 esiti e 1 attivazione → le 2 righe d'esito invariate, nessuna attivazione.

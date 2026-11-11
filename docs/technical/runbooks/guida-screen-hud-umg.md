@@ -823,7 +823,7 @@ stessa unità e con una cella d'ambiente nascosta.
 
 ⚠️ **Quattro cose da sapere prima della seduta**:
 - le righe si costruiscono in Risoluzione e in Pianificazione (se ce ne sono), il feed si rilegge a 5 Hz e subito a ogni
-  cambio di modo. Ogni giro riproietta il `TurnLog` per gli osservatori di quel momento; l'unica copia che sopravvive
+  cambio di modo, e nel giro in cui nasce una riga d'attivazione ([D-603](../../decisions/RT_PDR_00_Decision_Log.md) (1), #4052). Ogni giro riproietta il `TurnLog` per gli osservatori di quel momento; l'unica copia che sopravvive
   è `FRTEventLogMemory`, le ultime righe non vuote, e vale **solo per la stessa chiave** (manager, osservatori, squadra):
   con un'altra si butta ([D-548](../../decisions/RT_PDR_00_Decision_Log.md) (2) e (4)). Il `TurnLog` si azzera al commit seguente; se il turno nuovo
   non ha eventi visibili (il proiettore scarta il movimento riuscito) restano le ricordate;

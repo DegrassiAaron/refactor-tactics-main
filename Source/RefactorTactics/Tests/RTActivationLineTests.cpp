@@ -25,6 +25,14 @@ namespace
 		return Riga;
 	}
 
+	/** Una riga d'esito con la sua fase (#4052): senza, vale `Planning`, che viene prima di ogni fase del playback. */
+	FRTPlayerEventLineView RigaAttEsitoInFase(int32 UnitId, const TCHAR* Testo, int32 Sequenza, ERTMatchPhase Fase)
+	{
+		FRTPlayerEventLineView Riga = RigaAttEsito(UnitId, Testo, Sequenza);
+		Riga.Phase = Fase;
+		return Riga;
+	}
+
 	FRTActivationLine RigaAttAttivazione(int32 UnitId, const TCHAR* Testo, int32 Squadra = 0,
 		ERTMatchPhase Fase = ERTMatchPhase::Prep, int32 Turno = 0)
 	{
@@ -158,35 +166,42 @@ bool FRTActivationLineSeveralResultsTest::RunTest(const FString&)
 
 /**
  * Un'attivazione senza sorgente nota (`INDEX_NONE`) accanto a una riga di mondo (`PrimaryStableUnitId == INDEX_NONE`) non
- * le si aggancia: va in fondo (R6). Una voce di mondo non e' l'esito di nessuna unita', e «nessuna unita'» non e' un'unita'.
+ * le si aggancia: «nessuna unita'» non e' un'unita'. Senza la riga d'esito della sua unita' va in fondo alla sua fase
+ * ([D-603] (2), #4052). ⛔ Agganciata starebbe SOPRA la riga di mondo; con R6 com'era prima di D-603, in fondo all'elenco,
+ * sotto la BLAST. A runtime non nasce (`AddActivationLine` scarta una sorgente nulla): e' il caso limite della funzione pura.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineWorldSourceTest,
-	"RefactorTactics.ActivationLine.WorldSourceGoesLastNotAttached",
+	"RefactorTactics.ActivationLine.WorldSourceIsNotAttachedToAWorldRow",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActivationLineWorldSourceTest::RunTest(const FString&)
 {
 	const TArray<FRTPlayerEventLineView> Esiti = {
-		RigaAttEsito(INDEX_NONE, TEXT("Ambiente — 2"), 1), RigaAttEsito(1, RigaAttUnoColpita, 2) };
-	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(INDEX_NONE, TEXT("Senza sorgente")) };
+		RigaAttEsitoInFase(INDEX_NONE, TEXT("Ambiente — 2"), 1, ERTMatchPhase::Prep),
+		RigaAttEsitoInFase(1, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) };
+	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(INDEX_NONE, TEXT("Senza sorgente")) }; // Prep
 
-	TestEqual(TEXT("in fondo, non sopra la riga di mondo"),
+	TestEqual(TEXT("dopo la riga di mondo e non sopra, e prima della BLAST"),
 		RigaAttTesti(URTHudViewModel::MergeActivationLines(
 			Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines)),
-		FString(TEXT("Ambiente — 2 | Colpita — 13 | Senza sorgente")));
+		FString(TEXT("Ambiente — 2 | Senza sorgente | Colpita — 13")));
 	return true;
 }
 
-/** Senza la riga d'esito della sua unita', l'attivazione va in fondo (R6). */
+/**
+ * Senza la riga d'esito della sua unita', l'attivazione chiude la sua fase ([D-603] (2), #4052). Qui righe d'esito e
+ * attivazione sono tutte della Prep, quindi chiude l'elenco. Senza nessuna riga d'esito e' l'unica riga, e porta il numero 1.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineWithoutResultTest,
-	"RefactorTactics.ActivationLine.WithoutAResultGoesLast",
+	"RefactorTactics.ActivationLine.WithoutAResultClosesItsPhase",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActivationLineWithoutResultTest::RunTest(const FString&)
 {
 	const TArray<FRTPlayerEventLineView> Esiti = {
-		RigaAttEsito(1, RigaAttUnoColpita, 1), RigaAttEsito(2, RigaAttDueCurata, 2) };
-	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(3, TEXT("Ivrin — Scarica")) };
+		RigaAttEsitoInFase(1, RigaAttUnoColpita, 1, ERTMatchPhase::Prep),
+		RigaAttEsitoInFase(2, RigaAttDueCurata, 2, ERTMatchPhase::Prep) };
+	const TArray<FRTActivationLine> Attivazioni = { RigaAttAttivazione(3, TEXT("Ivrin — Scarica")) }; // Prep
 
-	TestEqual(TEXT("U3 non ha una riga d'esito: la sua attivazione chiude l'elenco"),
+	TestEqual(TEXT("U3 non ha una riga d'esito: la sua attivazione chiude la Prep, l'ultima fase dell'elenco"),
 		RigaAttTesti(URTHudViewModel::MergeActivationLines(
 			Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines)),
 		FString(TEXT("Colpita — 13 | Curata — 5 | Ivrin — Scarica")));
@@ -196,6 +211,95 @@ bool FRTActivationLineWithoutResultTest::RunTest(const FString&)
 		TArray<FRTPlayerEventLineView>(), Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
 	TestEqual(TEXT("senza esiti, la sola attivazione"), RigaAttTesti(Sole), FString(TEXT("Ivrin — Scarica")));
 	TestEqual(TEXT("e comincia da 1"), RigaAttNumeri(Sole), FString(TEXT("1")));
+	return true;
+}
+
+/**
+ * 🔴 **IL CASO DELLA SEDUTA DI #4051** ([D-603] (2), #4052). La riga del gadget, la cui unita' non ha una riga d'esito, sta
+ * in fondo alle PREP e non sotto la BLAST; l'attivazione BLAST di Aevik resta subito sopra la sua riga d'esito (R6, che
+ * D-603 non tocca). E' la lista dell'anteprima che l'autore ha scelto. ⛔ Prima di #4052 «Branth — Copertura portatile»
+ * chiudeva l'elenco. Le attivazioni sono nell'ordine in cui il playback le ha mostrate nella seduta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineBeforeNextPhaseTest,
+	"RefactorTactics.ActivationLine.WithoutAResultGoesBeforeTheNextPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineBeforeNextPhaseTest::RunTest(const FString&)
+{
+	const TArray<FRTPlayerEventLineView> Esiti = {
+		RigaAttEsitoInFase(INDEX_NONE, TEXT("L'ambiente cambia"), 1, ERTMatchPhase::Prep),
+		RigaAttEsitoInFase(2, TEXT("Stato cambiato"), 2, ERTMatchPhase::Prep),
+		RigaAttEsitoInFase(3, TEXT("Colpita — 170"), 3, ERTMatchPhase::Blast) };
+	const TArray<FRTActivationLine> Attivazioni = {
+		RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")), // Prep, senza riga d'esito
+		RigaAttAttivazione(2, TEXT("Muiren — Irrigidimento")),       // Prep, sopra «Stato cambiato»
+		RigaAttAttivazione(3, TEXT("Aevik — Impulso ad arco"), 0, ERTMatchPhase::Blast) };
+
+	const TArray<FRTPlayerEventLineView> Unite = URTHudViewModel::MergeActivationLines(
+		Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
+	TestEqual(TEXT("🔴 l'ordine dell'anteprima scelta in D-603: il gadget chiude le PREP, prima delle BLAST"),
+		RigaAttTesti(Unite),
+		FString(TEXT("L'ambiente cambia | Muiren — Irrigidimento | Stato cambiato | Branth — Copertura portatile | "
+			"Aevik — Impulso ad arco | Colpita — 170")));
+	TestEqual(TEXT("e i numeri seguono la lista unita"), RigaAttNumeri(Unite), FString(TEXT("1,2,3,4,5,6")));
+	return true;
+}
+
+/**
+ * 🔴 **«IN FONDO ALLA SUA FASE» QUANDO LE RIGHE D'ESITO NON SONO IN ORDINE DI FASE** ([D-603] (3) e le letture (4)(b) e
+ * (4)(c), #4052). Una riga d'esito tiene il posto del primo evento della sua unita' e porta la fase della voce che la domina
+ * (`URTPlayerEventProjector::Project`, «Sostituisce sul posto»): una BLAST puo' stare fra le PREP. L'attivazione va subito
+ * dopo l'ultima riga d'esito la cui fase non viene dopo la sua, e in cima se non ce n'e' nessuna; due attivazioni nello
+ * stesso posto restano nell'ordine in cui sono nate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineOutOfPhaseOrderTest,
+	"RefactorTactics.ActivationLine.WithoutAResultFollowsTheLastRowNotAfterItsPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineOutOfPhaseOrderTest::RunTest(const FString&)
+{
+	const auto Unisci = [](const TArray<FRTPlayerEventLineView>& Esiti, const TArray<FRTActivationLine>& Attivazioni)
+	{
+		return RigaAttTesti(URTHudViewModel::MergeActivationLines(
+			Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines));
+	};
+
+	// 1. Fuori ordine: la BLAST di U1 sta prima della PREP di U2. Due attivazioni PREP senza esito, nate in quest'ordine.
+	TestEqual(TEXT("🔴 dopo l'ultima PREP, non dopo la prima BLAST, e nell'ordine in cui sono nate"),
+		Unisci(
+			{ RigaAttEsitoInFase(1, RigaAttUnoColpita, 1, ERTMatchPhase::Blast),
+			  RigaAttEsitoInFase(2, TEXT("Stato cambiato"), 2, ERTMatchPhase::Prep),
+			  RigaAttEsitoInFase(3, TEXT("Colpita — 9"), 3, ERTMatchPhase::Blast) },
+			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			  RigaAttAttivazione(5, TEXT("Kallari — Scatto")) }),
+		FString(TEXT("Colpita — 13 | Stato cambiato | Branth — Copertura portatile | Kallari — Scatto | Colpita — 9")));
+
+	// 2. In cima: nessuna riga d'esito di una fase che non venga dopo la Prep.
+	TestEqual(TEXT("🔴 senza righe d'esito della Prep o di prima, l'attivazione PREP apre l'elenco"),
+		Unisci(
+			{ RigaAttEsitoInFase(1, RigaAttUnoColpita, 1, ERTMatchPhase::Blast),
+			  RigaAttEsitoInFase(2, RigaAttDueCurata, 2, ERTMatchPhase::Blast) },
+			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")) }),
+		FString(TEXT("Branth — Copertura portatile | Colpita — 13 | Curata — 5")));
+
+	// 3. Due fasi senza esito: la PREP resta sopra la BLAST d'esito, la BLAST chiude l'elenco.
+	TestEqual(TEXT("ognuna in fondo alla sua fase"),
+		Unisci(
+			{ RigaAttEsitoInFase(1, TEXT("Stato cambiato"), 1, ERTMatchPhase::Prep),
+			  RigaAttEsitoInFase(2, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) },
+			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			  RigaAttAttivazione(5, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) }),
+		FString(TEXT("Stato cambiato | Branth — Copertura portatile | Colpita — 13 | Ivrin — Scarica")));
+
+	// 4. Il tetto toglie le attivazioni piu' vecchie PRIMA dell'ordine: con due posti liberi restano le due piu' giovani,
+	// ciascuna in fondo alla sua fase.
+	TestEqual(TEXT("col tetto escono le piu' vecchie, e le rimaste vanno ognuna in fondo alla sua fase"),
+		RigaAttTesti(URTHudViewModel::MergeActivationLines(
+			{ RigaAttEsitoInFase(1, TEXT("Stato cambiato"), 1, ERTMatchPhase::Prep),
+			  RigaAttEsitoInFase(2, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) },
+			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			  RigaAttAttivazione(5, TEXT("Kallari — Scatto")),
+			  RigaAttAttivazione(6, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) },
+			TArray<int32>{ 0 }, /*MaxLines=*/ 4)),
+		FString(TEXT("Stato cambiato | Kallari — Scatto | Colpita — 13 | Ivrin — Scarica")));
 	return true;
 }
 

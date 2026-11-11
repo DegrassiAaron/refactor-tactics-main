@@ -35,6 +35,10 @@
 #include "Tests/RTReactionWindowFixtures.h"  // la finestra si presenta al trattenimento del playback (#3666)
 #include "UI/RTActivationLine.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTScreenHudWidgets.h" // URTPlayerEventLogWidget: il Registro che rilegge il feed (#4052)
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 #include "RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1055,6 +1059,113 @@ bool FRTActivationLinePlaybackBothViewsTest::RunTest(const FString&)
 	TestEqual(TEXT("🔴 in vista strategica le stesse due righe"), RigheStrategica, 2);
 	TestEqual(TEXT("🔴 e lo stesso feed, riga per riga"), Strategica, Tattica);
 	TestEqual(TEXT("e rileggerlo dopo aver cambiato vista non lo cambia"), StrategicaRiletta, Strategica);
+	return true;
+}
+
+/**
+ * 🔴 **IL REGISTRO MOSTRA LA RIGA NEL GIRO IN CUI NASCE, SENZA ASPETTARE I 5 HZ** ([D-603] (1), #4052).
+ *
+ * 🔑 Il widget gira con `TickFeed(0)`: il suo tempo non avanza, quindi dopo il primo giro la rilettura a 5 Hz non scatta
+ * piu', e l'unica ragione per cui la riga puo' comparire e' che sia nata. ⛔ Prima di #4052 il Registro aspettava il giro
+ * dei 5 Hz: col tempo fermo la riga non arrivava mai, e la prima gamba e' rossa.
+ * 🔴 La seconda gamba e' il controllo che il resto del feed resta a 5 Hz ([D-603] (1)): una voce d'esito iniettata nel
+ * TurnLog, senza nessuna riga d'attivazione nuova, non compare dopo 0,1 s e compare dopo 0,25. Un Registro che rileggesse
+ * a ogni giro renderebbe rossa questa gamba.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLinePlaybackLogSameFrameTest,
+	"RefactorTactics.Playback.ActivationLine.LogShowsItInTheTickItIsBorn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLinePlaybackLogSameFrameTest::RunTest(const FString&)
+{
+	FRigaAttScena S;
+	const bool bOk = RigaAttCostruisci(*this, /*Viewer*/ 0, S);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(S.World); };
+	if (!bOk) { return false; }
+	S.TM->RefreshTeamKnowledgeNow();
+
+	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(S.World);
+	if (!TestNotNull(TEXT("il widget del Registro"), Log)) { return false; }
+	Log->SetMatchContextForTest(S.TM, /*PlayerTeamId=*/ 0);
+	Log->LogRoot = NewObject<UBorder>(Log);
+	Log->LogTurnText = NewObject<UTextBlock>(Log);
+	Log->LinesBox = NewObject<UVerticalBox>(Log);
+	Log->LineClass = URTPlayerEventLineWidget::StaticClass();
+
+	const auto Testi = [Log]()
+	{
+		TArray<FString> Out;
+		for (const URTPlayerEventLineWidget* Riga : Log->GetLineWidgets())
+		{
+			if (Riga) { Out.Add(Riga->GetLine().Text.ToString()); }
+		}
+		return Out;
+	};
+	const FString Atteso = RigaAttTestoAtteso(S.Scudo, RigaAttTideGuard);
+
+	S.TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ premessa: il playback e' partito"), S.TM->IsResolving())) { return false; }
+	Log->TickFeed(0.f); // il primo giro rilegge comunque: il Registro si apre in Risoluzione
+	if (!TestTrue(TEXT("⛔ premessa: il Registro ha costruito le righe d'esito del turno"), Testi().Num() > 0)
+		|| !TestFalse(TEXT("⛔ premessa: e non ha ancora la riga di TideGuard"), Testi().Contains(Atteso)))
+	{
+		return false;
+	}
+
+	// --- 1. Il tick in cui nasce la riga, con il tempo del widget fermo ------------------------------------------------------
+	bool bNata = false;
+	for (int32 I = 0; I < 400 && S.TM->IsResolving() && !bNata; ++I)
+	{
+		S.TM->Tick(0.05f);
+		Log->TickFeed(0.f);
+		bNata = S.TM->GetActivationLines().Num() > 0;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il playback ha mostrato TideGuard, e la sua riga e' nata"), bNata)
+		|| !TestEqual(TEXT("⛔ premessa: ed e' l'unica riga nata"), S.TM->GetActivationLines().Num(), 1)
+		|| !TestTrue(TEXT("⛔ premessa: il feed la contiene"), RigaAttNelFeed(RigaAttFeed(S.TM, 0), Atteso) != INDEX_NONE))
+	{
+		return false;
+	}
+	TestTrue(FString::Printf(TEXT("🔴 nel giro del widget dello stesso tick la riga e' a schermo, senza aspettare 0,2 s "
+		"(righe: %s)"), *FString::Join(Testi(), TEXT(" | "))), Testi().Contains(Atteso));
+
+	// --- 2. Il controllo: senza righe d'attivazione nuove il feed resta riletto a 5 Hz ---------------------------------------
+	int32 Turno = 0;
+	for (const FRTTurnLogEntry& Voce : S.TM->GetTurnLog()) { Turno = FMath::Max(Turno, Voce.TurnNumber); }
+	const int32 UnitaSintetica = 9001; // non e' un'unita' in campo: il proiettore non la cerca
+	FRTTurnLogEntry Iniettata;
+	Iniettata.Category = ERTLogCategory::Combat;
+	Iniettata.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+	Iniettata.UnitId = UnitaSintetica;
+	Iniettata.TurnNumber = Turno;
+	Iniettata.Phase = ERTMatchPhase::Blast;
+	Iniettata.Amount = 7;
+	Iniettata.Verdict.AllowTeam(0);
+	const int32 AttivazioniPrima = S.TM->GetActivationLines().Num();
+	S.TM->AppendTurnLogEntryForTest(Iniettata);
+
+	const auto HaLaIniettata = [Log, UnitaSintetica]()
+	{
+		for (const URTPlayerEventLineWidget* Riga : Log->GetLineWidgets())
+		{
+			if (Riga && Riga->GetLine().PrimaryStableUnitId == UnitaSintetica) { return true; }
+		}
+		return false;
+	};
+	const bool bNelFeed = RigaAttFeed(S.TM, 0).ContainsByPredicate([UnitaSintetica](const FRTPlayerEventLineView& Riga)
+	{
+		return Riga.PrimaryStableUnitId == UnitaSintetica;
+	});
+	if (!TestTrue(TEXT("⛔ premessa: il feed contiene la voce iniettata"), bNelFeed)
+		|| !TestFalse(TEXT("⛔ premessa: il Registro non l'ha ancora riletta"), HaLaIniettata()))
+	{
+		return false;
+	}
+	Log->TickFeed(0.1f);
+	TestFalse(TEXT("🔴 a 0,1 s, senza righe d'attivazione nuove, il Registro non rilegge"), HaLaIniettata());
+	Log->TickFeed(0.15f);
+	TestTrue(TEXT("controllo: passati 0,2 s il giro dei 5 Hz la porta"), HaLaIniettata());
+	TestEqual(TEXT("⛔ premessa: in questi giri non e' nata nessuna riga d'attivazione"),
+		S.TM->GetActivationLines().Num(), AttivazioniPrima);
 	return true;
 }
 

@@ -1866,13 +1866,53 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		return Riga;
 	};
 
-	// 3. L'ordine: subito prima della PRIMA riga d'esito della propria unita', nell'ordine della lista; le altre in fondo.
-	// Una voce di mondo (`INDEX_NONE`) non e' l'esito di nessuna unita': non attira niente.
-	TArray<FRTPlayerEventLineView> Unite;
-	Unite.Reserve(ResultLines.Num() + Tenute.Num());
-	TSet<int32> UnitaServite;
+	// 3. L'ordine: subito prima della PRIMA riga d'esito della propria unita', nell'ordine della lista. Una voce di mondo
+	// (`INDEX_NONE`) non e' l'esito di nessuna unita': non attira niente.
+	//
+	// Le altre — la cui unita' non ha una riga d'esito — vanno in fondo alla LORO fase, prima delle righe della fase dopo
+	// ([D-603] (2), #4052): subito dopo l'ultima riga d'esito la cui fase non viene dopo la loro, in cima se non ce n'e'
+	// nessuna. ⚠️ «L'ultima riga di una fase non successiva» e non «prima della prima riga di una fase dopo»: le righe d'esito
+	// non sono sempre in ordine di fase (una riga tiene il posto del primo evento della sua unita' e porta la fase della voce
+	// che la domina), e le due regole li' si separano. E' la lettura (4)(b) di D-603, ribaltabile. Nello stesso posto restano
+	// nell'ordine in cui sono nate. Prima di D-603 andavano in fondo all'elenco, e una PREP finiva sotto una BLAST.
+	TSet<int32> UnitaConEsito;
 	for (const FRTPlayerEventLineView& Esito : ResultLines)
 	{
+		if (Esito.PrimaryStableUnitId != INDEX_NONE)
+		{
+			UnitaConEsito.Add(Esito.PrimaryStableUnitId);
+		}
+	}
+	TArray<const FRTActivationLine*> InCima;
+	TArray<TArray<const FRTActivationLine*>> DopoLEsito;
+	DopoLEsito.SetNum(ResultLines.Num());
+	for (const FRTActivationLine* Attivazione : Tenute)
+	{
+		if (UnitaConEsito.Contains(Attivazione->SourceStableUnitId))
+		{
+			continue;
+		}
+		int32 Ultima = INDEX_NONE;
+		for (int32 i = 0; i < ResultLines.Num(); ++i)
+		{
+			if (ResultLines[i].Phase <= Attivazione->Phase)
+			{
+				Ultima = i;
+			}
+		}
+		(Ultima == INDEX_NONE ? InCima : DopoLEsito[Ultima]).Add(Attivazione);
+	}
+
+	TArray<FRTPlayerEventLineView> Unite;
+	Unite.Reserve(ResultLines.Num() + Tenute.Num());
+	for (const FRTActivationLine* Attivazione : InCima)
+	{
+		Unite.Add(FaRiga(*Attivazione));
+	}
+	TSet<int32> UnitaServite;
+	for (int32 i = 0; i < ResultLines.Num(); ++i)
+	{
+		const FRTPlayerEventLineView& Esito = ResultLines[i];
 		if (Esito.PrimaryStableUnitId != INDEX_NONE && !UnitaServite.Contains(Esito.PrimaryStableUnitId))
 		{
 			UnitaServite.Add(Esito.PrimaryStableUnitId);
@@ -1885,10 +1925,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 			}
 		}
 		Unite.Add(Esito);
-	}
-	for (const FRTActivationLine* Attivazione : Tenute)
-	{
-		if (!UnitaServite.Contains(Attivazione->SourceStableUnitId))
+		for (const FRTActivationLine* Attivazione : DopoLEsito[i])
 		{
 			Unite.Add(FaRiga(*Attivazione));
 		}
@@ -1902,6 +1939,11 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		Unite[i].Sequence = Primo + i;
 	}
 	return Unite;
+}
+
+int32 URTHudViewModel::CountActivationLines(const ARTTurnManager* TurnManager)
+{
+	return TurnManager ? TurnManager->GetActivationLines().Num() : 0;
 }
 
 TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnManager,
