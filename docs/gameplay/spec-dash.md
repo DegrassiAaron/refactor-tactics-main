@@ -145,7 +145,7 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   dal terreno e dai lati ([D-524](../decisions/RT_PDR_00_Decision_Log.md)); alla risoluzione corre fino alla portata, o
   fino al primo nemico che la ferma prima, e si ferma, e colpisce solo chi stava sulla linea senza che lo si vedesse. Una
   cella vuota oltre la portata resta rifiutata. ✅ [D-528](../decisions/RT_PDR_00_Decision_Log.md), attuata da [#3769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3769): con un nemico noto sulla retta, in portata come oltre, la carica si pianifica sul bersaglio cliccato; l'anteprima è piena fino alla cella davanti al primo nemico noto e rossa da lì al bersaglio, il segno d'arrivo sta sulla cella d'arresto, e l'avviso del piano dice «Colpirà A, non B». ⏱️ *Fino a [D-528] oltre la portata il caso era rifiutato, e in portata il segno d'arrivo stava sul nemico.* Un nemico che la squadra non conosce non cambia niente: né l'anteprima né l'avviso. Il **verso** che si può dichiarare dopo lo scatto si
-  giudica sulla rotta che il resolver percorrerà (`PlannedMovementForFacing` legge `ResolveLinearMove`), cioè
+  giudica sulla rotta che il resolver percorrerà (`FRTFacingDeclaration::PlannedMovement` legge `ResolveLinearMove`), cioè
   sull'ultimo passo *percorso*: per una carica che si ferma davanti al nemico non è l'ultimo passo della retta fino a lui.
   Con una **carica** armata, cliccare un nemico osservato pianifica la carica su di lui, come cliccando la sua cella
   ([D-516](../decisions/RT_PDR_00_Decision_Log.md), [#3736](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3736)); con ogni altro scatto il

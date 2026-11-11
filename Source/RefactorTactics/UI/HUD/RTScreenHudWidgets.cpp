@@ -1300,7 +1300,7 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// ⚠️ **Il controller e non la base del dock**: lo slot e' uno `UUserWidget` e non conosce il manager, quindi non puo' applicare il cancello
 	// `Live` che il dock applica (`URTScreenHudWidgetBase::GetDockUnit`). Il divario dura al piu' un fotogramma — la scheda si rilascia al tick
 	// dell'HUD e il dock riassegna lo slot a ogni frame — ed e' sicuro: nel frattempo il controller rifiuta di scrivere il piano, e l'hover di
-	// un nemico senza voce `Live` lo scarta il suo stesso cancello (`GatherSkillHoverInputs`).
+	// un nemico senza voce `Live` lo scarta il suo stesso cancello (`FRTPlanningOverlayArbiter::GatherSkillHover`).
 	//
 	// ⛔ **Vincolo per chi cambia l'innesco del dock** (review di `#2989`): questa e' l'UNICA scrittura di
 	// `BuiltForUnit`, quindi il dock deve richiamare `SetAction` dopo OGNI cambio di selezione. Oggi lo fa
@@ -1770,7 +1770,7 @@ void URTActionSlotWidget::HoverBegin()
 		// di log a ogni slot attraversato sarebbe rumore.
 		//
 		// ➕ `#3748`: l'unita' dell'hover e' il soggetto della BARRA (`GetDockUnit`), che con la barra in sola lettura e' il nemico fissato. La
-		// portata e il cancello `Live` li decide il controller (`GatherSkillHoverInputs`): lo slot dice quale skill di quale unita', e basta.
+		// portata e il cancello `Live` li decide l'arbitro delle aree del controller (`FRTPlanningOverlayArbiter::GatherSkillHover`): lo slot dice quale skill di quale unita', e basta.
 		const ARTUnit* Soggetto = PC->GetDockUnit();
 		if (Soggetto != nullptr && BuiltForUnit.Get() == Soggetto)
 		{

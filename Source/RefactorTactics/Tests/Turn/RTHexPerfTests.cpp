@@ -199,8 +199,8 @@ bool FRTHexResolverPerfTest::RunTest(const FString&)
  *
  * ## Cosa NON e', dichiarato
  *
- * `RTPlanningPreview::Refresh` vive in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile
- * da qui. Questo test misura le **tre funzioni che compongono il suo costo**, chiamate nello stesso ordine e
+ * Quando il test e' nato, `RTPlanningPreview::Refresh` viveva in un namespace anonimo dentro `RTPlayerController.cpp` e non
+ * era chiamabile da qui; da #4065 e' esportata, ma il test non e' cambiato. Questo test misura le **tre funzioni che compongono il suo costo**, chiamate nello stesso ordine e
  * con gli stessi argomenti; restano fuori l'orchestrazione (due `if` e due copie di array) e il passaggio
  * dei risultati all'actor di mappa. E' una misura del costo dominante, non della funzione intera — dirlo
  * conta, perche' un KPI che sembra misurare piu' di quanto misura e' il modo in cui un budget diventa falso.

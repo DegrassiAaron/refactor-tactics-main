@@ -1415,7 +1415,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 > 🔄 **2026-10-13 — due correzioni a questa nota, che resta com'è stata scritta.** Il modificatore della
 > camera è `Ctrl` ([D-514](../decisions/RT_PDR_00_Decision_Log.md),
 > [#3749](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3749)): i passi 3, 4 e 5 lo dicono già. E il pan di precisione col modificatore **esiste**:
-> `ARTPlayerController::RouteCameraGesture`, col modificatore tenuto e il tasto centrale premuto, pana a
+> `FRTCameraGestures::Route`, col modificatore tenuto e il tasto centrale premuto, pana a
 > `PrecisionPanScale`. Il percorso qui sotto non lo esercita ancora, e nemmeno il peek.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
