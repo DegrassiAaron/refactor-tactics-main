@@ -1459,12 +1459,20 @@ namespace
 	constexpr float SkillCalloutPopStartScale = 1.15f;
 }
 
-bool URTHudViewModel::ActionShouts(const FName& /*ActionId*/, const FName& BaseActionId, bool bIsGenericOrEquipment)
+bool URTHudViewModel::ActionShouts(const FName& ActionId)
 {
-	// Grida una skill di FIRMA: non e' una variante di un'altra azione (nessuna base) e non e' ne' una generica del
-	// catalogo core ne' l'azione di un pezzo d'equipaggiamento. Servono entrambe: `Action.Guard` non ha base ed e' core,
-	// `Gadget.PortableCover` non ha base ed e' equipaggiamento, `Hero.Branth.ImpactShot` non e' nessuna delle due ma ha base.
-	return BaseActionId.IsNone() && !bIsGenericOrEquipment;
+	// [D-604] (1), (4), (5): muti soltanto il movimento e l'interazione, per ID. ⏱️ *Fino a #4059 gridava solo una skill di
+	// firma del kit: base vuota, e ne' generica del catalogo core ne' equipaggiamento (A7 della spec del fumetto).*
+	static const FName Muti[] = {
+		FName(TEXT("Action.Move")), FName(TEXT("Action.Sprint")), FName(TEXT("Action.Withdraw")), FName(TEXT("Action.Interact")) };
+	for (const FName& Muto : Muti)
+	{
+		if (ActionId == Muto)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 FRTSkillCalloutView URTHudViewModel::BuildSkillCallout(const FText& KitDisplayName, const FName& ActionId,

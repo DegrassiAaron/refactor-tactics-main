@@ -61,7 +61,8 @@ struct FRTMatchHeaderView
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
 
 	/**
-	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast o Move, mai `Cleanup`.
+	 * La fase che il playback **sta mostrando** ([D-479], #3612): Prep, Dash, Blast, Move e, da #4059, Cleanup, quando una
+	 * sua reazione e' visibile a chi guarda ([D-605] (3); l'header non ha una cella per lei, limite dichiarato).
 	 * `Planning` fuori dal playback. E' la cella attiva dell'header in Risoluzione.
 	 *
 	 * 🔑 **Due campi, perche' sono due domande.** Senza sospensioni `RunPhaseLoop` risolve tutte le fasi prima
@@ -2105,28 +2106,18 @@ public:
 	static FRTDamageTokenView BuildHealToken(int32 Amount, int32 TargetStableUnitId);
 
 	/**
-	 * Se un'azione GRIDA: vero solo per una skill di firma del KIT (`#4025`, R1b, A7).
+	 * Se un'azione GRIDA (#4059, [D-604]): sempre, tranne il movimento e l'interazione — `Action.Move`, `Action.Sprint`,
+	 * `Action.Withdraw` e `Action.Interact`. Grida l'attacco base, ogni azione generica, l'equipaggiamento, le azioni di
+	 * sola mobilita' (`Action.Dodge`, `Action.Leap`, `Action.Reposition`), le reazioni che scattano e le skill del kit.
 	 *
-	 * 🔴 **Due condizioni, e servono entrambe.** `BaseActionId` vuoto dice che l'azione non e' una variante di
-	 * un'altra (`Hero.Branth.ImpactShot` ha base `Action.BasicAttack` e resta muta); `!bIsGenericOrEquipment` dice
-	 * che non e' una voce del catalogo core (`Action.Guard`, senza base, e' muta lo stesso) ne' l'azione concessa da
-	 * un pezzo d'equipaggiamento. Con una sola delle due griderebbero l'attacco base, la guardia o il gadget ogni
-	 * volta che vengono usati.
-	 *
-	 * ⚠️ **L'equipaggiamento sta nel secondo bool perche' la base non lo esclude.** `MakeEquipmentAction` scrive
-	 * `ActionId = EquipmentId` (`Gadget.Sprinkler`, `Reaction.Cleanse`) e copia dal core un `BaseActionId` vuoto: per
-	 * la prima condizione un gadget e' indistinguibile da una skill di firma, e lo dice solo il catalogo.
-	 *
-	 * 🔑 **Riceve gia' deciso se l'azione e' generica o d'equipaggiamento**: i cataloghi hanno un loro owner e qui non
-	 * nasce un secondo lettore. Nessun campo nuovo in `FRTActionDef`.
-	 *
-	 * @param ActionId               non entra nel giudizio, che e' tutto in base e cataloghi: resta nella firma per
-	 *                               simmetria col chiamante, che ha in mano l'evento intero.
-	 * @param BaseActionId           la base da cui deriva (`FRTActionDef::BaseActionId`); `None` = non e' una variante.
-	 * @param bIsGenericOrEquipment  vero se l'azione sta nel catalogo core (`URTCatalogLibrary::FindCoreAction`) o e'
-	 *                               concessa da un pezzo d'equipaggiamento (`URTCatalogLibrary::FindEquipment`).
+	 * 🔑 **Il criterio e' l'`ActionId`, non la base**: una skill del kit costruita su `Action.Sprint` e' una skill, e grida
+	 * ([D-604] (1), l'opzione scelta: «Una skill del kit che sposta (uno scatto, una carica) grida»).
+	 * ⚠️ `Action.Wait` qui risponderebbe vero, ma non arriva mai al fumetto: non e' un'attivazione del playback
+	 * (`EmitAttackIntentActivation` salta la fase di movimento).
+	 * ⌫ *Fino a #4059 gridava solo una skill di firma del kit (A7 e R1b della spec del fumetto): `BaseActionId` vuoto, e
+	 * ne' generica del catalogo core ne' equipaggiamento, con un secondo argomento che il chiamante calcolava.*
 	 */
-	static bool ActionShouts(const FName& ActionId, const FName& BaseActionId, bool bIsGenericOrEquipment);
+	static bool ActionShouts(const FName& ActionId);
 
 	/**
 	 * Il fumetto di una skill attivata: chi grida, che parola compare e da quando (`#4025`).
@@ -2136,8 +2127,9 @@ public:
 	 * (`Hero.Muiren.CircularTide` diventa `CircularTide`) e alza `bFromFallback`: una bolla vuota sopra la testa
 	 * di chi ha lanciato sarebbe peggio di un nome tecnico.
 	 *
-	 * ⚠️ **Non cerca un secondo nome da `BaseActionId`.** Una skill che grida non ha base (`ActionShouts`): il
-	 * secondo passo sarebbe vacuo, e un ramo che non puo' scattare e' un ramo che nessun test vede.
+	 * ⚠️ **Non cerca un secondo nome da `BaseActionId`**: il nome e' quello che il kit da' all'AZIONE, come nella riga del
+	 * Registro (R2 della spec di #4059). ⏱️ *Fino a #4059 la ragione era che una skill che grida non ha base; con [D-604]
+	 * grida anche una variante dell'attacco base, e la regola resta per R2.*
 	 *
 	 * ⛔ **Non decide SE gridare** (`ActionShouts`) **ne' SE mostrarlo** a chi guarda: il velo spegne l'overlay,
 	 * e un secondo giudizio qui sarebbe la divergenza che `#2246` ha appena tolto.

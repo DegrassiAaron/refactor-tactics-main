@@ -4,7 +4,6 @@
 #include "Turn/Playback/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
 #include "Player/RTPlayerState.h"       // TeamIdOf: l'unica porta per sapere di che squadra e' chi guarda ([D-285])
-#include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
 #include "UI/HUD/RTHudViewModel.h"          // #4025: `ActionShouts` decide chi grida; il testo della riga del Registro
 #include "Map/Actor/RTHexMapActor.h"
@@ -186,6 +185,8 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 	PlaybackDefeated.Reset();
 	PlaybackActivationsPrep.Reset();
 	PlaybackActivationsDash.Reset();
+	PlaybackReactionsMove.Reset(); // #4059: si ricostruisce dalla timeline; cio' che e' gia' mostrato lo dice la chiave
+	PlaybackReactionsCleanup.Reset();
 	// `PlaybackBlastSequence` NON si azzera qui: estendendo (D-355) e' il `Previous` della ricostruzione.
 	// L'annuncio e' per playback: il marcatore non sopravvive al round. ➕ **Ma estendere non e' un playback
 	// nuovo** (`#3666`): la fase ripresa si richiude, e senza il marcatore una morte gia' annunciata alla sua
@@ -193,6 +194,7 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 	if (!bPreserveClock)
 	{
 		PlaybackDefeatShown.Reset();
+		PlaybackReactionsMoveShown.Reset(); // #4059: come l'annuncio di morte, una reazione mostrata non si ripete estendendo
 	}
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
@@ -299,6 +301,27 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 				else if (Ev.Phase == ERTMatchPhase::Dash) { PlaybackActivationsDash.Add(Ev); }
 			}
 		}
+		else if (Ev.Type == ERTResolvedEventType::ReactionResolved)
+		{
+			// #4059 (R6): il colpo dell'Overwatch si rivela nella fase Move, quando il bersaglio arriva sulla cella del colpo,
+			// col predicato delle attivazioni (R3). Il Blast non passa di qui: lo smista `BuildBlastSequence`.
+			// ⚠️ L'istante viene dall'INDICE di cella e non dall'animazione: il bersaglio puo' non averne una visibile — un
+			// nemico che entra nel cono da una zona non vista — o averla troncata prima di quella cella. Quando l'anim c'e',
+			// i due coincidono: una rotta del Move parte con la fase e corre a `PlaybackCellsPerSecond`.
+			if (Ev.Phase == ERTMatchPhase::Move && Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+			{
+				FRTPlaybackMoveReaction R;
+				R.Ev = Ev;
+				R.At = (Tuning().PlaybackCellsPerSecond > 0.f)
+					? FMath::Max(0, Ev.ReactionRouteCellIndex) / Tuning().PlaybackCellsPerSecond : 0.f;
+				PlaybackReactionsMove.Add(MoveTemp(R));
+			}
+			// #4059 (R7): la fuga dal pericolo, nella fase Cleanup dopo il movimento. Stesso predicato.
+			else if (Ev.Phase == ERTMatchPhase::Cleanup && Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+			{
+				PlaybackReactionsCleanup.Add(Ev);
+			}
+		}
 		// ⏱️ *Fino a #3549 qui c'erano anche i rami `Attack`, `AttackFootprint` e `StructureHit`, uno per canale
 		// parallelo del Blast.* Ora quei fatti li smista `BuildBlastSequence` qui sotto, e cio' che i loro commenti
 		// avevano di ancora vero sta in testa a `AdvanceBlastSequence`.
@@ -343,6 +366,9 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		case ERTResolvedEventType::AttackFootprint:  ++NumImpronte; break;
 		case ERTResolvedEventType::StructureHit:     ++NumMuri; break;
 		case ERTResolvedEventType::AbilityActivated: ++NumAttivazioniBlast; break;
+		// #4059: una reazione e' un gesto come un'attivazione, e apre la fase anche da sola — un atto a se', senza un
+		// colpo sul reattore (R4). Di solito sta nell'atto di un colpo, che la fase l'ha gia' aperta.
+		case ERTResolvedEventType::ReactionResolved: ++NumAttivazioniBlast; break;
 		case ERTResolvedEventType::Healed:           ++NumCure; break;
 		default: break;
 		}
@@ -353,12 +379,29 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 	// anche estendendo: un'impronta consumata nel prefisso congelato resta consumata.
 	PlaybackBlastFootprintFx = URTPlaybackLibrary::FootprintFxForSequence(Timeline(), PlaybackBlastSequence);
 
-	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
-	bool bHasDash = false, bHasMove = false, bHasBlastMove = false;
+	// #4059 (R6): un'anim che un'estensione ha aggiunto alla fase comincia a `StartElapsed` (`#3666`), e la cella del colpo
+	// con lei. Poi l'ordine d'istante, stabile: a pari istante resta quello di timeline.
+	for (FRTPlaybackMoveReaction& R : PlaybackReactionsMove)
+	{
+		for (const FRTMoveAnim& A : MoveAnims)
+		{
+			if (A.Phase == ERTMatchPhase::Move && A.StartElapsed > 0.f && A.Unit.IsValid()
+				&& A.Unit->StableUnitId == R.Ev.TargetStableUnitId)
+			{
+				R.At += A.StartElapsed;
+			}
+		}
+	}
+	PlaybackReactionsMove.StableSort([](const FRTPlaybackMoveReaction& X, const FRTPlaybackMoveReaction& Y) { return X.At < Y.At; });
+
+	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move -> Cleanup). Il Cleanup nasce solo per una reazione o
+	// una rotta del Cleanup che chi guarda vede (#4059, R7): il resto del Cleanup e' gia' applicato, e non ha un beat.
+	bool bHasDash = false, bHasMove = false, bHasBlastMove = false, bHasCleanup = false;
 	for (const FRTMoveAnim& A : MoveAnims)
 	{
 		if (A.Phase == ERTMatchPhase::Dash) { bHasDash = true; }
 		else if (A.Phase == ERTMatchPhase::Blast) { bHasBlastMove = true; } // spinta (knockback)
+		else if (A.Phase == ERTMatchPhase::Cleanup) { bHasCleanup = true; } // #4059: la fuga dal pericolo
 		else { bHasMove = true; }
 	}
 	PlaybackPhases.Reset();
@@ -375,7 +418,10 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 	{
 		PlaybackPhases.Add(ERTMatchPhase::Blast);
 	}
-	if (bHasMove) { PlaybackPhases.Add(ERTMatchPhase::Move); }
+	// #4059 (R6): la fase Move nasce anche da una reazione visibile sola — il bersaglio entrato nel cono da una zona che chi
+	// guarda non vede non ha un'animazione, e il colpo del watcher si mostra lo stesso.
+	if (bHasMove || PlaybackReactionsMove.Num() > 0) { PlaybackPhases.Add(ERTMatchPhase::Move); }
+	if (bHasCleanup || PlaybackReactionsCleanup.Num() > 0) { PlaybackPhases.Add(ERTMatchPhase::Cleanup); }
 
 	if (PlaybackPhases.Num() == 0)
 	{
@@ -506,8 +552,8 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
 		Src->PlayPresentationRole(ERTPresentationRole::Cast, Ev.ActionId, Ev.BaseActionId);
 
-		// #4025: il FUMETTO della skill di firma. Chi grida lo decide `ActionShouts` (base vuota, fuori dal catalogo
-		// core e non concessa da un pezzo d'equipaggiamento, R1b/A7); se mostrarlo a chi guarda NON si decide qui — il
+		// #4025, [D-604]: il FUMETTO. Chi grida lo decide `ActionShouts`: ogni azione tranne il movimento e l'interazione
+		// (R1 della spec di #4059). Se mostrarlo a chi guarda NON si decide qui — il
 		// filtro di privacy sta a monte, in `BeginPlayback` e in `BuildBlastSequence`, che non fanno arrivare qui una
 		// sorgente non osservata (R9), e il velo lo spegne in overlay (`ARTHUD::UpdateObserverVeil`).
 		//
@@ -533,14 +579,11 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza, quindi
 		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.
 		//
-		// 🔴 **L'equipaggiamento non grida** (A7: solo le skill del KIT; R1b: «la generica con un nome» non grida).
-		// `MakeEquipmentAction` scrive `ActionId = EquipmentId` (`Gadget.*`, `Reaction.*`) e copia dal core un
-		// `BaseActionId` vuoto: `FindCoreAction` non lo trova e la base non lo esclude, quindi senza la seconda domanda il
-		// loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth. La seconda domanda si fa
-		// solo se la prima risponde no: un'attivazione core non costruisce i cataloghi d'equipaggiamento.
-		const bool bIsGenericOrEquipment = !URTCatalogLibrary::FindCoreAction(Ev.ActionId).ActionId.IsNone()
-			|| URTCatalogLibrary::FindEquipment(Ev.ActionId) != nullptr;
-		if (URTHudViewModel::ActionShouts(Ev.ActionId, Ev.BaseActionId, bIsGenericOrEquipment))
+		// ⌫ *Fino a #4059 gridava la sola skill di firma del kit (A7 e R1b della spec del fumetto): base vuota, e ne'
+		// generica del catalogo core ne' equipaggiamento. L'equipaggiamento chiedeva una seconda domanda, perche'
+		// `MakeEquipmentAction` copia dal core una base vuota: senza, il loadout di default faceva gridare «SPRINKLER» a
+		// Muiren. Con [D-604] gridano tutte tranne il movimento e l'interazione, e le due domande sono sparite.*
+		if (URTHudViewModel::ActionShouts(Ev.ActionId))
 		{
 			Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock);
 			// L'orologio ARRIVA con la comparsa, non al tick dopo: il registro dell'unita' tiene l'ultimo valore ricevuto,
@@ -548,6 +591,23 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 			Src->SetSkillCalloutClock(SkillCalloutClock);
 			SkillCalloutUnits.AddUnique(Src);
 		}
+	}
+}
+
+void FRTPlaybackDirector::ShowReaction(const FRTResolvedEvent& Ev)
+{
+	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
+	// La riga del feed porta il verdetto CONGELATO nell'evento (R3), come quella di `ShowActivation`.
+	Host->AddLogEvent(FString::Printf(TEXT("Reagisce: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
+		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
+	// [D-604] (3): una reazione che scatta ha la sua riga d'attivazione, con la stessa chiave anti-doppione.
+	AddActivationLine(Ev, Src);
+	if (Src && URTHudViewModel::ActionShouts(Ev.ActionId))
+	{
+		// Stesso orologio e stessa vita dei fumetti delle attivazioni: un'unita' che ha gia' un fumetto lo vede sostituito.
+		Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock);
+		Src->SetSkillCalloutClock(SkillCalloutClock);
+		SkillCalloutUnits.AddUnique(Src);
 	}
 }
 
@@ -654,10 +714,40 @@ bool FRTPlaybackDirector::RevealPlaybackActivations(const TArray<FRTResolvedEven
 	while (ActivationsShown < Target)
 	{
 		const FRTResolvedEvent& Ev = Activations[ActivationsShown];
-		ShowActivation(Ev);
+		// #4059 (R7): la coda del Cleanup porta reazioni, non attivazioni.
+		if (Ev.Type == ERTResolvedEventType::ReactionResolved) { ShowReaction(Ev); }
+		else { ShowActivation(Ev); }
 		++ActivationsShown;
 		// #3549: i rami Prep e Dash aggiornano l'atto in corso come fa il Blast, o `Next Action` salterebbe le
 		// attivazioni (spec §2.4, confini d'atto).
+		if (NotePlaybackActShown(Ev))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FRTPlaybackDirector::RevealPlaybackMoveReactions(float UpTo)
+{
+	// ⚠️ Per indice e con una COPIA dell'evento (review di #4066): `ShowReaction` scrive nel feed, e un ascoltatore puo'
+	// chiudere il playback — `SkipPlayback` → `FinishPlayback` svuota questa coda — come nella guardia di rientranza di
+	// `AdvanceBlastSequence` (`#2454`). Un range-for avrebbe continuato su un array svuotato.
+	for (int32 I = 0; I < PlaybackReactionsMove.Num(); ++I)
+	{
+		const FRTResolvedEvent Ev = PlaybackReactionsMove[I].Ev;
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		if (PlaybackReactionsMove[I].At > UpTo || PlaybackReactionsMoveShown.Contains(Chiave))
+		{
+			continue;
+		}
+		PlaybackReactionsMoveShown.Add(Chiave);
+		ShowReaction(Ev);
+		if (!Host->IsPlaybackResolving())
+		{
+			return true; // chiuso da un ascoltatore: niente da rileggere
+		}
+		// R10: una reazione del Move e' un atto a se', e `Next Action` ci si ferma.
 		if (NotePlaybackActShown(Ev))
 		{
 			return true;
@@ -738,6 +828,15 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		{
 		case ERTResolvedEventType::AbilityActivated:
 			ShowActivation(Ev);
+			break;
+		case ERTResolvedEventType::ReactionResolved:
+			// #4059 (R4, R8): il fumetto e la riga della reazione, al battito dopo l'arrivo del colpo che l'ha innescata.
+			ShowReaction(Ev);
+			// R10: dentro l'atto di quel colpo non e' un confine — `Next Action` non si ferma su chi reagisce.
+			if (PlaybackBlastSequence.IsValidIndex(Elemento) && PlaybackBlastSequence[Elemento].bAttachedToHit)
+			{
+				continue;
+			}
 			break;
 		case ERTResolvedEventType::AttackFootprint:
 			// ⛔ Le celle COSI' COME ARRIVANO ([D-301]): `HexHitCells` le ha gia' prodotte nell'ordine stabile di
@@ -940,7 +1039,8 @@ void FRTPlaybackDirector::EnterPlaybackPhase()
 		if (A.Unit.IsValid()) { A.Unit->bIsMovingVisually = false; A.Unit->ResetGraykitPose(); }
 	}
 
-	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast
+		|| Ph == ERTMatchPhase::Cleanup) // #4059 (R7): la fuga dal pericolo
 	{
 		// #3549: con attivazioni nel Dash la corsa NON parte con la fase — la accende `TickPlayback` quando le
 		// rotte cominciano, dopo l'anticipo. Accenderla qui farebbe correre sul posto lo scattatore mentre suona
@@ -1058,7 +1158,13 @@ void FRTPlaybackDirector::StepMicroStep()
 	// rotte, o `Step` si fermerebbe a meta' di un segmento. Fuori dal Dash l'anticipo e' zero e la formula e'
 	// quella di prima.
 	const float Anticipo = FMath::Clamp(PhaseTimeForPlaybackPhase(PlaybackPhases[PlaybackPhaseIdx]).Lead, 0.f, Durata);
-	const float DurataRotte = Durata - Anticipo;
+	// #4059 (review di #4066): dove le rotte corrono per percorso — ogni fase tranne il Blast, che ha l'alpha di fase — il loro
+	// tratto dura `Passi / PlaybackCellsPerSecond` anche quando la fase dura di piu', per il tempo di lettura di un colpo
+	// dell'Overwatch (R6). Contare i confini sulla durata intera fermerebbe lo `Step` a meta' di un segmento.
+	const float DurataPercorsi =
+		(PlaybackPhases[PlaybackPhaseIdx] != ERTMatchPhase::Blast && Tuning().PlaybackCellsPerSecond > 0.f)
+		? Passi / Tuning().PlaybackCellsPerSecond : TNumericLimits<float>::Max();
+	const float DurataRotte = FMath::Min(Durata - Anticipo, DurataPercorsi);
 	if (DurataRotte <= 0.f)
 	{
 		bPlaybackPaused = true;
@@ -1070,6 +1176,12 @@ void FRTPlaybackDirector::StepMicroStep()
 
 	// Il confine in SECONDI, calcolato ora: il tick ci arriva senza sapere quanti frame servono.
 	PlaybackStepTargetElapsed = Anticipo + AlphaTarget * DurataRotte;
+	// #4059: oltre l'ultimo confine delle rotte — nel tempo di lettura di un colpo — il prossimo confine e' la fine della fase.
+	// ⛔ Mai un confine gia' alle spalle: il tick riporterebbe indietro l'orologio fino a lui.
+	if (PlaybackStepTargetElapsed <= PlaybackPhaseElapsed)
+	{
+		PlaybackStepTargetElapsed = Durata;
+	}
 	bPlaybackPaused = false; // si riparte, ma solo fino al confine
 }
 
@@ -1203,7 +1315,8 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	const float PhaseDur = DurationForPlaybackPhase(Ph);
 
-	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast
+		|| Ph == ERTMatchPhase::Cleanup) // #4059 (R7): la fuga dal pericolo
 	{
 		// Movimento in PARALLELO: i cilindri di QUESTA fase partono insieme.
 		//
@@ -1412,13 +1525,15 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 	// prosegue con la finalizzazione della fase, quindi uscire senza uscire dal tick farebbe durare la fermata zero.
 	// 🧪 `bRevealActivationsOnlyAtPhaseEndForTest` salta questo ramo: simula una fase accorciata, l'unico caso in cui la
 	// rete di fine fase qui sotto recupera qualcosa (`Playback.PhaseEndNetStopsWithThePause`).
-	if ((Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash) && !Tuning().bRevealActivationsOnlyAtPhaseEndForTest)
+	// #4059 (R7): e il Cleanup le sue reazioni, con lo stesso ritmo e lo stesso contatore.
+	if ((Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Cleanup)
+		&& !Tuning().bRevealActivationsOnlyAtPhaseEndForTest)
 	{
 		// #3578: la cue d'attivazione si consegna a OGNI uscita di questo ramo — il `return` delle fermate compreso —
-		// come il tracer nel Blast. ⚠️ E' il primo ramo di Prep/Dash che consegna qualcosa alla mappa.
+		// come il tracer nel Blast. ⚠️ E' il primo ramo di Prep/Dash che consegna qualcosa alla mappa. Il Cleanup non ne ha.
 		ON_SCOPE_EXIT{ PushPlaybackCues(Ph); };
-		const TArray<FRTResolvedEvent>& Attivazioni =
-			(Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
+		const TArray<FRTResolvedEvent>& Attivazioni = (Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep
+			: (Ph == ERTMatchPhase::Dash) ? PlaybackActivationsDash : PlaybackReactionsCleanup;
 		if (RevealPlaybackActivations(Attivazioni,
 			URTPlaybackLibrary::AttacksToShow(Attivazioni.Num(), PlaybackPhaseElapsed, Tuning().AttackShowSeconds)))
 		{
@@ -1459,10 +1574,18 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		}
 	}
 
+	// #4059 (R6): nel Move il colpo dell'Overwatch si rivela quando il bersaglio arriva sulla cella del colpo. ⚠️ `return`
+	// come per le altre fasi: fermandosi su un confine d'atto, la finalizzazione qui sotto non deve avanzare.
+	if (Ph == ERTMatchPhase::Move && RevealPlaybackMoveReactions(PlaybackPhaseElapsed))
+	{
+		return;
+	}
+
 	if (PlaybackPhaseElapsed >= PhaseDur)
 	{
 		// Finalizza la fase corrente.
-		if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
+		if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast
+		|| Ph == ERTMatchPhase::Cleanup) // #4059 (R7): la fuga dal pericolo
 		{
 			for (const FRTMoveAnim& A : MoveAnims)
 			{
@@ -1494,10 +1617,10 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		// lascia la fase dov'e': al primo tick dopo la ripresa la rete riprende dal contatore. ⏱️ *La stesura di #3549
 		// ignorava il ritorno e dichiarava saltati gli elementi in coda.* Su un turno normale non accade, perche' la
 		// rete e' senza casi; lo forza `bRevealActivationsOnlyAtPhaseEndForTest`.
-		if (Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash)
+		if (Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Cleanup)
 		{
-			const TArray<FRTResolvedEvent>& Attivazioni =
-				(Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
+			const TArray<FRTResolvedEvent>& Attivazioni = (Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep
+				: (Ph == ERTMatchPhase::Dash) ? PlaybackActivationsDash : PlaybackReactionsCleanup; // #4059 (R7)
 			if (RevealPlaybackActivations(Attivazioni, Attivazioni.Num()))
 			{
 				return;
@@ -1509,6 +1632,15 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 				CueMap->ClearPlaybackCues();
 			}
 			bPlaybackCueChannelFull = false;
+		}
+		if (Ph == ERTMatchPhase::Move)
+		{
+			// #4059 (R6): la rete, come per le attivazioni. La durata della fase comprende l'istante della reazione piu'
+			// tarda, quindi di norma non recupera niente.
+			if (RevealPlaybackMoveReactions(TNumericLimits<float>::Max()))
+			{
+				return;
+			}
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
@@ -1553,8 +1685,8 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		//
 		// ⚠️ **Il limite residuo e' dichiarato, non nascosto**: chi cade nell'ULTIMA fase riprodotta ha una
 		// finestra di durata zero, perche' `FinishPlayback` segue immediatamente. `PlaybackPhases` contiene
-		// `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi il caso comune (morte nel Blast con un Move
-		// dopo) e' coperto e quello di coda no. Chiuderlo richiede un'attesa a fine playback: e' la parte di
+		// `Prep -> Dash -> Blast -> Move`, e il `Cleanup` solo per una sua reazione visibile (#4059), quindi il caso
+		// comune (morte nel Blast con un Move dopo) e' coperto e quello di coda no. Chiuderlo richiede un'attesa a fine playback: e' la parte di
 		// #2452 che resta aperta.
 		//
 		// ⚠️ **La guardia non puo' piu' essere `IsHidden()`** — era l'hide stesso a renderla idempotente.
@@ -1582,7 +1714,8 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		{
 			// 🔴 **La coda della morte** (#2452). Se l'ULTIMA fase si e' appena chiusa su un'eliminazione, il
 			// montaggio `Death` avrebbe finestra ZERO: non c'e' nessuna fase dopo in cui giocarlo, e
-			// `PlaybackPhases` non contiene mai `Cleanup`. Il playback tiene ancora `DefeatBeatSeconds`.
+			// `PlaybackPhases` ha un `Cleanup` solo per una sua reazione visibile (#4059). Il playback tiene ancora
+			// `DefeatBeatSeconds`.
 			//
 			// ⛔ Aspetta una DURATA, non il montaggio: nessuna callback di animazione, nessun
 			// `IsPlaying()`. Un `Death` assente non allunga e non accorcia niente, e `DefeatBeatSeconds = 0`
@@ -1605,9 +1738,9 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 		// quella vecchia, a guardare un'immagine che dice il contrario del comando che ha premuto.
 		//
 		// 🔑 **Vale anche per `NextAction`, e non e' un ripiego.** Il tempo del playback scorre per fase, e
-		// un cambio di fase e' sempre anche un cambio d'atto: la fase `Move` contiene il solo `Action.Move`,
-		// e nessun atto attraversa due fasi. Un `Next Action` armato durante il `Move` non ha colpi da
-		// aspettare — il suo prossimo atto E' la fase seguente.
+		// un cambio di fase e' sempre anche un cambio d'atto: la fase `Move` contiene `Action.Move` e, da #4059, il
+		// colpo dell'Overwatch, un atto suo su cui `RevealPlaybackMoveReactions` gia' si ferma; e nessun atto
+		// attraversa due fasi. Finiti quelli, il prossimo atto di un `Next Action` armato nel `Move` E' la fase seguente.
 		//
 		// ⛔ **Senza un predicato armato non si ferma niente**: e' la riga che tiene questo comando dalla
 		// parte giusta di [D-355], che vieta a una fase di acquisire una ragione di fermarsi *per
@@ -1715,7 +1848,7 @@ void FRTPlaybackDirector::FinishPlayback()
 	// secondo giudizio di conoscenza (R2). Le gia' mostrate passano anche loro, e la chiave di `AddActivationLine` le scarta.
 	// ⚠️ Qui e non nel ramo sospeso qui sopra: una finestra di reazione non e' la fine del turno, e alla ripresa il playback
 	// mostrera' ancora il resto. Sta prima dell'azzeramento delle liste, piu' sotto.
-	for (const TArray<FRTResolvedEvent>* Coda : { &PlaybackActivationsPrep, &PlaybackActivationsDash })
+	for (const TArray<FRTResolvedEvent>* Coda : { &PlaybackActivationsPrep, &PlaybackActivationsDash, &PlaybackReactionsCleanup })
 	{
 		for (const FRTResolvedEvent& Ev : *Coda)
 		{
@@ -1724,12 +1857,19 @@ void FRTPlaybackDirector::FinishPlayback()
 	}
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
+		// #4059 (R9): anche le reazioni della sequenza, gia' filtrate per chi guarda da `BuildBlastSequence`.
 		if (Timeline().IsValidIndex(E.TimelineIndex)
-			&& Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated)
+			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ReactionResolved))
 		{
 			const FRTResolvedEvent& Ev = Timeline()[E.TimelineIndex];
 			AddActivationLine(Ev, Host->UnitByStableId(Ev.SourceStableUnitId));
 		}
+	}
+	// #4059 (R9): e le reazioni della fase Move, gia' filtrate per chi guarda da `BeginPlayback`.
+	for (const FRTPlaybackMoveReaction& R : PlaybackReactionsMove)
+	{
+		AddActivationLine(R.Ev, Host->UnitByStableId(R.Ev.SourceStableUnitId));
 	}
 	// 🔴 **E la LISTA intera torna nell'ordine delle fasi del playback** (review finale di #4033, R8). Il recupero qui sopra e'
 	// in ordine, ma accoda: un salto durante Prep/Dash di un playback PARZIALE (finestra di reazione nel Blast) passa dal ramo
@@ -1738,7 +1878,8 @@ void FRTPlaybackDirector::FinishPlayback()
 	// il recupero le ha date. ⚠️ Si ordina per il valore di `ERTMatchPhase` perche' coincide con l'ordine del playback, misurato
 	// per lettura: l'enum dichiara `Planning, Prep, Dash, Blast, Move, Cleanup`, `URTTurnRules::NextPhase` (il passo di
 	// `RunPhaseLoop`) percorre le fasi in quell'ordine, e `BeginPlayback` costruisce `PlaybackPhases` Prep -> Dash -> Blast ->
-	// Move. Una riga ha la fase della sua attivazione, che e' Prep, Dash o Blast (le tre code qui sopra).
+	// Move -> Cleanup. Una riga ha la fase della sua attivazione o della sua reazione: Prep, Dash, Blast, Move o Cleanup (le
+	// code qui sopra).
 	ActivationLines.StableSort([](const FRTActivationLine& A, const FRTActivationLine& B) { return A.Phase < B.Phase; });
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
@@ -1803,8 +1944,8 @@ void FRTPlaybackDirector::FinishPlayback()
 	// Fine della presentazione di morte. Da #2452 questo e' l'UNICO punto che nasconde, e le due cose che fa
 	// sono distinte:
 	//
-	//   1. il **catch-all dell'annuncio** — chi e' caduto in una fase che non e' stata riprodotta (`Cleanup`
-	//      non e' mai una fase di playback) o quando la risoluzione e' stata saltata. Qui il montaggio ha
+	//   1. il **catch-all dell'annuncio** — chi e' caduto in una fase che non e' stata riprodotta (il `Cleanup`
+	//      lo e' solo con una sua reazione visibile, da #4059) o quando la risoluzione e' stata saltata. Qui il montaggio ha
 	//      finestra ZERO: e' il limite residuo dichiarato in #2452;
 	//   2. la **sparizione**, che vale per tutti — annunciati qui o in una fase precedente.
 	//
@@ -1839,6 +1980,9 @@ void FRTPlaybackDirector::FinishPlayback()
 	PlaybackActivationsPrep.Reset();
 	PlaybackActivationsDash.Reset();
 	ActivationsShown = 0;
+	PlaybackReactionsMove.Reset(); // #4059: con la sua chiave del gia' mostrato
+	PlaybackReactionsMoveShown.Reset();
+	PlaybackReactionsCleanup.Reset();
 	// La sequenza si svuota QUI e non in `BeginPlayback`, che estendendo (D-355) la usa come `Previous`; con lei
 	// il cursore dei battiti e i voli che le sono paralleli (`#2454`).
 	PlaybackBlastSequence.Reset();
@@ -1955,6 +2099,7 @@ FRTPhaseTime FRTPlaybackDirector::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhas
 	int32 NumAttivazioni = 0;
 	if (InPhase == ERTMatchPhase::Prep) { NumAttivazioni = PlaybackActivationsPrep.Num(); }
 	else if (InPhase == ERTMatchPhase::Dash) { NumAttivazioni = PlaybackActivationsDash.Num(); }
+	else if (InPhase == ERTMatchPhase::Cleanup) { NumAttivazioni = PlaybackReactionsCleanup.Num(); } // #4059 (R7)
 
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi. ⏱️ *Fino a #3549 riceveva i conteggi dei canali
@@ -1974,6 +2119,18 @@ FRTPhaseTime FRTPlaybackDirector::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhas
 				T.Shown = FMath::Max(T.Shown,
 					A.StartElapsed + FMath::Max(0, A.World.Num() - 1) / Tuning().PlaybackCellsPerSecond);
 			}
+		}
+	}
+	// #4059 (R6): il Move dura almeno fino all'istante della sua reazione piu' tarda, PIU' il tempo di un elemento
+	// (`AttackShowSeconds`): come nelle altre fasi, un fatto rivelato ha il suo tempo di lettura prima che la fase si chiuda.
+	// ⏱️ *Fino alla review di #4066 la fase finiva all'istante della reazione: un colpo sull'ultima cella della rotta piu'
+	// lunga — il caso tipico — nasceva nel tick che chiude la fase, e a fine playback il fumetto si spegneva nello stesso
+	// tick.* In `Shown`: mostra qualcosa.
+	if (InPhase == ERTMatchPhase::Move)
+	{
+		for (const FRTPlaybackMoveReaction& R : PlaybackReactionsMove)
+		{
+			T.Shown = FMath::Max(T.Shown, R.At + FMath::Max(0.f, Tuning().AttackShowSeconds));
 		}
 	}
 	return T;

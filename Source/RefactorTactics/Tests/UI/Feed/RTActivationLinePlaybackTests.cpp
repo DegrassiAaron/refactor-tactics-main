@@ -320,13 +320,14 @@ bool FRTActivationLinePlaybackAppearsTest::RunTest(const FString&)
 }
 
 /**
- * Ogni tipo di azione che il playback mostra ha la sua riga; il fumetto resta della sola skill del kit (R1, D-600 (1)).
+ * Ogni tipo di azione che il playback mostra ha la sua riga, e grida (R1, D-600 (1); [D-604] (1), (4)).
  *
  * 🔑 Quattro attivazioni della squadra 0 nello stesso turno: TideGuard (skill di firma), ImpactShot (variante dell'attacco
  * base), l'Overwatch (azione generica del catalogo core) e `Gadget.PortableCover` (equipaggiamento). Le righe si leggono
  * mentre il playback e' ANCORA in corso, appena l'ultima cue `Cast` e' suonata: cosi' le scrive `ShowActivation` e non il
  * recupero di fine playback, che le darebbe anche se `ShowActivation` le scartasse.
- * ⛔ Il contrasto col fumetto e' nella stessa scena: `ActionShouts` non decide la riga.
+ * ⛔ Con [D-604] gridano tutte e quattro, e il contrasto col fumetto non e' piu' in questa scena: la riga di un'azione che
+ * non grida e' in `Playback.SkillCallout.InteractDoesNotShout`. ⏱️ *Fino a #4059 qui gridava la sola skill del kit.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLinePlaybackEveryKindTest,
 	"RefactorTactics.Playback.ActivationLine.EveryActionKindHasALine",
@@ -386,10 +387,10 @@ bool FRTActivationLinePlaybackEveryKindTest::RunTest(const FString&)
 	TestEqual(TEXT("🔴 il gadget ha la sua riga"), RigaAttConta(S.TM, Geniere, RigaAttPortableCover), 1);
 	TestEqual(TEXT("e nient'altro"), S.TM->GetActivationLines().Num(), 4);
 
-	TestEqual(TEXT("✅ il fumetto grida la sola skill del kit"), S.Scudo->LastSkillCalloutForTest().ActionId, RigaAttTideGuard);
-	TestTrue(TEXT("l'attacco base non grida"), S.Tiratore->LastSkillCalloutForTest().ActionId.IsNone());
-	TestTrue(TEXT("l'azione generica non grida"), Guardia->LastSkillCalloutForTest().ActionId.IsNone());
-	TestTrue(TEXT("il gadget non grida"), Geniere->LastSkillCalloutForTest().ActionId.IsNone());
+	TestEqual(TEXT("✅ il fumetto grida la skill del kit"), S.Scudo->LastSkillCalloutForTest().ActionId, RigaAttTideGuard);
+	TestEqual(TEXT("🔴 grida l'attacco base ([D-604] (4))"), S.Tiratore->LastSkillCalloutForTest().ActionId, AzioneBase);
+	TestEqual(TEXT("🔴 grida l'azione generica"), Guardia->LastSkillCalloutForTest().ActionId, RigaAttOverwatch);
+	TestEqual(TEXT("🔴 e grida il gadget"), Geniere->LastSkillCalloutForTest().ActionId, RigaAttPortableCover);
 	return true;
 }
 
@@ -857,6 +858,7 @@ namespace
  * NASCE per prima; quelle di Prep e Dash le da' il recupero alla fine vera, dopo. ⛔ Senza l'ordinamento per fase in
  * `FinishPlayback` la lista finisce Blast -> Prep -> Dash, e questo test e' rosso: misurato togliendo la riga.
  * ⛔ La finestra si apre solo con un ascoltatore legato a `OnReactionWindowOpened`, come in `WindowSuspendsBlast`.
+ * ➕ #4059 (R5, [D-604] (3)): dopo la spinta, la riga della RISPOSTA del Brace, in fase Blast. La mostra la ripresa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLinePlaybackSkipBeforeBraceTest,
 	"RefactorTactics.Playback.ActivationLine.SkipBeforeABraceWindowKeepsPlaybackOrder",
@@ -886,7 +888,8 @@ bool FRTActivationLinePlaybackSkipBeforeBraceTest::RunTest(const FString&)
 	const FString Attese = FString::Join(TArray<FString>{
 		RigaAttChiave(ERTMatchPhase::Prep, S.Bracer->StableUnitId, RigaAttBrace),
 		RigaAttChiave(ERTMatchPhase::Dash, S.Scattista->StableUnitId, RigaAttFluidTrail),
-		RigaAttChiave(ERTMatchPhase::Blast, S.Pusher->StableUnitId, RigaAttPush) }, TEXT(" | "));
+		RigaAttChiave(ERTMatchPhase::Blast, S.Pusher->StableUnitId, RigaAttPush),
+		RigaAttChiave(ERTMatchPhase::Blast, S.Bracer->StableUnitId, RigaAttBrace) }, TEXT(" | ")); // #4059: la risposta
 	if (!TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Prep (Action.Brace)"),
 			RigaAttAttivataIn(S.TM, ERTMatchPhase::Prep, S.Bracer, RigaAttBrace))
 		|| !TestTrue(TEXT("⛔ premessa: la timeline ha l'attivazione di Dash (la scia)"),
@@ -939,7 +942,7 @@ bool FRTActivationLinePlaybackSkipBeforeBraceTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("🔴 a fine vera le righe sono nell'ordine delle fasi del playback (Prep, Dash, Blast), una volta ciascuna"),
+	TestEqual(TEXT("🔴 a fine vera le righe sono nell'ordine delle fasi del playback (Prep, Dash, Blast con la risposta), una volta ciascuna"),
 		RigaAttElenco(S.TM->GetActivationLines()), Attese);
 	return true;
 }

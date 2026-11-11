@@ -246,13 +246,15 @@ per `SkillCalloutSeconds` (3,0; `0` lo spegne). Ne seguono tre cose:
   finestra di reazione e non del turno. Il fumetto dell'attivazione nemica che ha aperto la finestra resta quindi visibile e fermo mentre il giocatore decide;
   passa di lì anche `SkipPlayback`. ⚠️ `ClearSkillCallout` chiude la vita e lascia il registro `ARTUnit::LastSkillCallout` (`LastSkillCalloutForTest`), leggibile senza widget.
 
-**Chi grida lo decide `URTHudViewModel::ActionShouts`**, funzione pura: `BaseActionId` vuoto **e** azione che non è né generica né d'equipaggiamento
-(`bIsGenericOrEquipment`, che `ShowActivation` calcola con `URTCatalogLibrary::FindCoreAction` e `URTCatalogLibrary::FindEquipment`). Gridano le skill di firma del kit;
-non gridano l'attacco base (`BaseActionId = Action.BasicAttack`), le generiche `Action.*`, le coperture né le azioni dei gadget e dei moduli di reazione del
-loadout, benché emettano tutte `AbilityActivated`. Servono entrambe le condizioni: `Action.Guard` non ha base ma è core, e un'azione d'eroe che è profilo di una
-generica non è core ma ha base. ⚠️ **L'equipaggiamento sta nel bool perché la base non lo esclude**: `MakeEquipmentAction` scrive `ActionId = EquipmentId` e copia
-dal core un `BaseActionId` vuoto, quindi senza la seconda domanda il loadout di default faceva gridare «SPRINKLER» a Muiren e «COPERTURA PORTATILE» a Branth
-(review finale di `#4025`; A7 vuole solo le skill del kit). ⌫ *A7 è superata da [`D-604`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-11-11): gridano tutte le azioni tranne `Action.Move`, `Action.Sprint`, `Action.Withdraw` e `Action.Interact`, attacco base compreso, e gridano le reazioni che scattano; non ancora implementata.* Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con
+**Chi grida lo decide `URTHudViewModel::ActionShouts`**, funzione pura sull'`ActionId` ([`D-604`](../../decisions/RT_PDR_00_Decision_Log.md), [#4059](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4059)):
+gridano tutte le azioni che il playback mostra tranne `Action.Move`, `Action.Sprint`, `Action.Withdraw` e `Action.Interact`. Gridano quindi l'attacco base e le sue
+varianti, le generiche, le coperture, i gadget e i moduli di reazione del loadout, e le skill del kit, comprese quelle che si muovono: il criterio è l'id, non la
+base. Gridano anche **le reazioni che scattano**, nel loro momento ([`D-605`](../../decisions/RT_PDR_00_Decision_Log.md)): nel Blast subito dopo il colpo che le ha
+innescate (`URTPlaybackLibrary::BuildBlastSequence` le mette nell'atto di quel colpo), il colpo dell'Overwatch nella fase Move quando il bersaglio arriva sulla cella
+del colpo, la fuga dal pericolo in una fase Cleanup del playback, dopo il movimento. Le mostra `FRTPlaybackDirector::ShowReaction`, che scrive anche la loro riga
+del Registro. ⌫ *Fino a #4059 gridava la sola skill di firma del kit: `BaseActionId` vuoto e azione né generica né d'equipaggiamento (`bIsGenericOrEquipment`,
+calcolato con `FindCoreAction` e `FindEquipment`). L'equipaggiamento chiedeva la seconda domanda perché `MakeEquipmentAction` copia dal core una base vuota:
+senza, il loadout di default faceva gridare «SPRINKLER» a Muiren (review finale di `#4025`, A7).* Il testo viene dal kit (`ARTUnit::KitDisplayNameFor`); se manca ripiega sull'ultimo segmento dell'id con
 `bFromFallback`, e `ARTUnit::ShowSkillCallout` scrive un `Warning` che nomina l'id (R3).
 
 **Un fumetto per unità.** Una seconda attivazione lo sostituisce e riparte da zero, come `PushDamageToken`; unità diverse ne hanno vivi insieme, senza coda né
@@ -363,8 +365,11 @@ Esempio:
 > riprodotta.** Ha quattro celle fisse `PREP · DASH · BLAST · MOVE`. La cella attiva ha quadrato pieno, bordo e
 > nome; le altre hanno un cerchio e il testo spento.
 > ⚠️ La fase **non** è `FRTMatchHeaderView::Phase`, che è la fase logica e può essere più avanti di ciò che la
-> scena mostra: la cella attiva legge un campo proprio della vista. `Cleanup` non ha cella, perché il playback
-> non lo riproduce mai.
+> scena mostra: la cella attiva legge un campo proprio della vista. `Cleanup` non ha cella. Da [`D-605`](../../decisions/RT_PDR_00_Decision_Log.md)
+> (3) il playback lo riproduce quando una sua reazione, la fuga dal pericolo, è visibile a chi guarda, e in quella fase
+> nessuna cella si accende: una quinta cella vuole l'asset `WBP_RT_TurnHeader` e un colore di fase che la palette non ha
+> (limite dichiarato della [spec di #4059](../../superpowers/specs/2026-11-11-fumetto-azioni-e-reazioni-design.md) §4).
+> ⌫ *Allora: «perché il playback non lo riproduce mai».*
 >
 > **E a destra di turno, fase e timer, l'obiettivo** ([D-481](../../decisions/RT_PDR_00_Decision_Log.md), §6.3).
 > Riferimento visivo: le tavole A–F di

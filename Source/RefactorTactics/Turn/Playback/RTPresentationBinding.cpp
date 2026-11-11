@@ -160,38 +160,29 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
-	// ReactionResolved — PendingPresentation, come `AttackFootprint`: l'assenza e' TEMPORANEA.
+	// ReactionResolved — **con cue** da #4059 ([D-604], [D-605]).
 	//
-	// 🔴 **Questo evento nasce proprio perche' un giorno si mostri**, ed e' il caso piu' netto della
-	// tabella: due voci PIE — `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` — esistono per giudicare a schermo
-	// cio' che senza una cue non si vede. `PIE-VIS-DEFLECT` lo dice per intero: senza il momento della
-	// reazione *«resta la sola barra che scende poco»*, cioe' un attacco debole invece di una difesa
-	// riuscita.
+	// 🔑 Il playback mostra la reazione nel momento in cui scatta: nel Blast, all'arrivo del colpo che l'ha innescata
+	// (`URTPlaybackLibrary::BuildBlastSequence` la mette subito dopo quel colpo, R4 della spec di #4059). Il momento lo
+	// presenta `FRTPlaybackDirector::ShowReaction`: il fumetto sopra chi reagisce (`ShowSkillCallout`) e la riga
+	// d'attivazione del Registro (`AddActivationLine`). Chi puo' vederla lo dice il verdetto congelato quando la reazione
+	// nasce (`SourceVerdict`, R3), come per le attivazioni.
 	//
-	// ⚠️ **Il dato viene prima del disegno, deliberatamente** (#2191): la grammatica visiva della
-	// reazione e' fuori dallo scope di quella issue, che lo dichiara. Dichiarare qui una cue inventata
-	// renderebbe questa tabella una lista di intenzioni — la stessa ragione scritta per `AttackFootprint`.
+	// ✅ **Due voci PIE diventano giudicabili**: `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` esistono per giudicare a schermo
+	// cio' che senza una cue non si vedeva — *«resta la sola barra che scende poco»*, cioe' un attacco debole invece di una
+	// difesa riuscita.
 	//
-	// ✅ **Questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo emette dove la reazione scatta, e
-	// `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato per mutazione. Quindi il gate non e'
-	// verde su un evento muto: e' verde su un evento che accade e che nessuno disegna ancora.
+	// ⚠️ **Il colpo di ritorno del Contrattacco resta senza cue**: non ha un evento `Attack` (limite dichiarato della spec).
 	//
-	// ⚠️ **Fino a `#2460` questa riga diceva «a differenza di `HazardDamage`», e quel confronto e' scaduto**:
-	// da allora ogni valore dell'enum ha un produttore, e la tabella non ha piu' voci mute. Cio' che resta
-	// vero e' la distinzione fra le tre assenze, ed e' un altro asse: `HazardDamage` non si disegna **per
-	// scelta**, questo e `AttackFootprint` non si disegnano **ancora**.
-	//
-	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
-	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::ReactionResolved,
-		TEXT("Il momento della reazione esiste perche' la cue POSSA essere costruita: #2191 lo emette dove la ")
-		TEXT("reazione scatta, e la grammatica visiva e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
-		TEXT("Due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non giudicabili finche' non nasce."),
-		TEXT("#2454")));
+	// ⌫ *Fino a #4059 la voce era `PendingPresentation`, owner `#2454`: #2191 aveva emesso il momento della reazione perche'
+	// la cue potesse nascere, e la grammatica visiva era fuori dal suo scope.*
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::ReactionResolved,
+		{ FName(TEXT("ShowSkillCallout")), FName(TEXT("AddActivationLine")) }));
 
-	// StatusChanged — PendingPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
-	// `ReactionResolved`.
+	// StatusChanged — PendingPresentation, e l'assenza e' TEMPORANEA come lo era quella di `AttackFootprint` e di
+	// `ReactionResolved`, che oggi hanno una cue.
 	//
-	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato dei tre**:
+	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato fra le assenze temporanee**:
 	// [D-320] ha gia' deciso COME si mostrera' — un `UWidgetComponent` per unita', con le undici icone
 	// `RT_UI_Icon_Status_*` gia' versionate — e questa voce va rivista quando quel widget nasce. Oggi
 	// l'unico canale a schermo e' il ripiego testuale di `RTHUD.cpp`, che mostra **due** stati su undici.

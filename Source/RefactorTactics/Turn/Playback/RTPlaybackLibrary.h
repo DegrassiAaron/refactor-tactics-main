@@ -35,9 +35,10 @@ enum class ERTPlaybackStopAt : uint8
 	/**
 	 * Alla prossima fase riprodotta.
 	 *
-	 * ⚠️ **`PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e non contiene mai `Cleanup`**: un
-	 * `Next Phase` dall'ultima fase riprodotta non porta al `Cleanup`, porta alla **fine del turno**. Va
-	 * saputo, o chi lo usa lo scoprira' da un salto che sembra un bug.
+	 * ⚠️ **`PlaybackPhases` e' `Prep -> Dash -> Blast -> Move`, e il `Cleanup` c'e' solo quando una sua reazione e'
+	 * visibile a chi guarda** (#4059): senza, un `Next Phase` dall'ultima fase riprodotta non porta al `Cleanup`, porta
+	 * alla **fine del turno**. Va saputo, o chi lo usa lo scoprira' da un salto che sembra un bug. ⌫ *Fino a #4059 il
+	 * Cleanup non c'era mai.*
 	 */
 	NextPhase,
 
@@ -50,8 +51,8 @@ enum class ERTPlaybackStopAt : uint8
 	 * sequenza per intento del `Blast` (#3549), percorsa sui battiti di `AttackBeatsDue` (`#2454`). ⚠️ Il confine
 	 * d'atto di un colpo cade al suo ARRIVO, non al lancio: e' li' che il colpo si mostra — e un colpo che segue la
 	 * propria attivazione o impronta non apre un atto, perche' la coppia `(sorgente, azione)` e' la stessa. Un
-	 * `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il confine di fase: fermarsi li' e' la
-	 * risposta giusta, non un ripiego.
+	 * `Move` e' un atto solo — `Action.Move` — salvo il colpo dell'Overwatch, che da #4059 e' un atto a se' dentro la
+	 * fase; per il resto il confine del Move **e'** il confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
 	 */
 	NextAction
 };
@@ -79,7 +80,8 @@ enum class ERTPlaybackStopAt : uint8
  *     scorrere **fino a 6,5x piu' in fretta** — cioe' esattamente *«la durata target determina la
  *     velocita' visuale»*, l'invariante che questa issue nega.
  *
- * ⚠️ **Conseguenza da sapere: oggi il budget ha poco su cui agire** — solo i beat di `Prep` e `Cleanup`.
+ * ⚠️ **Conseguenza da sapere: oggi il budget ha poco su cui agire** — solo il beat di `Prep`. ⏱️ *Fino a #4059 anche
+ * quello del `Cleanup`, che e' diventato una fase che mostra (le reazioni, poi le rotte, come il `Dash`).*
  * E' poco ed e' onesto: gli altri sei livelli dell'ordine di recupero (idle gap, camera hold, transizioni,
  * code VFX, eventi paralleli) **non esistono ancora nel codice**, e questa struttura non li anticipa. Quando
  * arriveranno, ciascuno decidera' da se' in quale dei due termini cade.
@@ -131,6 +133,11 @@ struct FRTBlastSequenceElement
 	int32 TimelineIndex = INDEX_NONE;
 	int32 SourceStableUnitId = 0; // cache di `Timeline[TimelineIndex].SourceStableUnitId`
 	FName ActionId;               // cache di `Timeline[TimelineIndex].ActionId`
+	/**
+	 * #4059 (R4, R10): una reazione messa subito dopo il colpo che l'ha innescata, DENTRO l'atto di quel colpo. Non e' un
+	 * confine d'azione: il playback non la passa al predicato di `Next Action`. `false` per ogni altro elemento.
+	 */
+	bool bAttachedToHit = false;
 
 	bool operator==(const FRTBlastSequenceElement& Other) const
 	{
@@ -390,6 +397,7 @@ public:
 	 *                       era lo stesso: il canale apriva la
 	 *                       fase e non la dimensionava, e cio' che non faceva in tempo usciva dal catch-all
 	 *                       nello stesso fotogramma.*
+	 *  - `Cleanup`        → come il `Dash` (#4059): qui senza reazioni, quindi `MaxMoveSegments / CellsPerSecond`.
 	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).
 	 *
 	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
@@ -433,6 +441,8 @@ public:
 	 *              intento (D5) li svela uno dopo l'altro, quindi la fase dura quanto la SEQUENZA.* Le
 	 *              attivazioni di Blast sono gia' elementi della sequenza: `NumActivations` qui non conta.
 	 *              ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
+	 *  - `Cleanup` → come il `Dash` (#4059): prima le reazioni (`Lead`), poi le rotte, tutto `Shown`. ⏱️ *Fino a #4059
+	 *              era un beat di `Slack`.*
 	 *  - ogni altra fase → tutto `Slack`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")

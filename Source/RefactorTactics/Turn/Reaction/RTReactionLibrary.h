@@ -91,6 +91,14 @@ struct FRTReactionTriggerHit
 	 * bersaglio degli effetti offensivi; quelli difensivi non ne hanno bisogno.
 	 */
 	int32 TriggeredBy = INDEX_NONE;
+
+	/**
+	 * Per la sola PRESENTAZIONE (#4059, R4 della spec del fumetto per azioni e reazioni): l'attaccante il cui colpo ha
+	 * portato il trigger, quando `TriggeredBy` resta `INDEX_NONE` perche' gli effetti non devono colpire nessuno. E' il caso
+	 * dell'Ancoraggio: chi spinge e' noto quando la spinta e' una sola, e il fumetto della reazione si accende dopo il SUO
+	 * colpo. `INDEX_NONE` = vale `TriggeredBy`. ⛔ Non entra negli effetti ne' nel TurnLog.
+	 */
+	int32 HitAttacker = INDEX_NONE;
 };
 
 /**

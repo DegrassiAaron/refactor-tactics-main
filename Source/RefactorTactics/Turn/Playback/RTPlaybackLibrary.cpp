@@ -569,9 +569,16 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 		Out.Slack = PhaseBeatSeconds;
 		break;
 
+	case ERTMatchPhase::Cleanup:
+		// #4059 (R7, [D-605] (3)): il modello del Dash. Prima le reazioni (la fuga dal pericolo), una ogni `AttackShowSeconds`,
+		// poi le rotte. Tutto mostrato; senza reazioni ne' rotte vale zero, e il playback non apre la fase.
+		// ⏱️ *Fino a #4059 il Cleanup era un beat comprimibile, come il Planning: il playback non aveva una fase Cleanup.*
+		Out.Lead = ActivationTime;
+		Out.Shown = ActivationTime + MoveTime;
+		break;
+
 	default:
-		// Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il
-		// budget puo' togliere.
+		// Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il budget puo' togliere.
 		Out.Slack = PhaseBeatSeconds;
 		break;
 	}
@@ -886,10 +893,22 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 	// `IndexOfByPredicate` per evento, lineare negli atti). ⛔ **Solo `Find`/`Add`**: nessuna iterazione su questa
 	// mappa decide un ordine — l'ordine degli atti e' quello di `Atti`, poi gli `StableSort` qui sotto.
 	TMap<TPair<int32, FName>, int32> AttoPerChiave;
+	// #4059 (R3, R4): le reazioni del Blast che chi guarda ha il diritto di vedere, in ordine di timeline. Non formano un
+	// atto loro: si attaccano al colpo che le ha innescate, qui sotto. ⛔ Una reazione che chi guarda non vede non entra,
+	// e — diversamente da un'attivazione nascosta — non da' nessuna chiave: non ha un gruppo.
+	TArray<int32> Reazioni;
 
 	for (int32 i = 0; i < Timeline.Num(); ++i)
 	{
 		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.Type == ERTResolvedEventType::ReactionResolved)
+		{
+			if (Ev.Phase == ERTMatchPhase::Blast && Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+			{
+				Reazioni.Add(i);
+			}
+			continue;
+		}
 		if (Ev.Phase != ERTMatchPhase::Blast || RTRangoNellAtto(Ev.Type) < 0)
 		{
 			continue;
@@ -940,6 +959,48 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		}
 	}
 
+	// #4059 (R4, [D-605] (1) «All'arrivo del colpo»): l'ANCORA di ogni reazione e' il colpo del Blast sul reattore — quello
+	// di chi l'ha innescata, quando l'evento lo dice — e la reazione esce subito dopo di lui, nel suo atto. ⛔ La prima
+	// corrispondenza in ordine di timeline, non l'ultima: un attaccante che colpisce il reattore due volte ha innescato col
+	// primo colpo, ed e' il primo che `FindTriggeringAttacker` trova. Senza un colpo sul reattore la reazione resta un atto a
+	// se', in ordine di timeline. ⚠️ `TMap` solo per `Find`/`FindOrAdd`: nessuna iterazione decide un ordine.
+	TMap<int32, TArray<int32>> ReazioniDopo;
+	for (const int32 R : Reazioni)
+	{
+		const FRTResolvedEvent& Rx = Timeline[R];
+		auto TrovaAncora = [&Timeline, &Rx](bool bSoloDiChiHaInnescato)
+		{
+			for (int32 j = 0; j < Timeline.Num(); ++j)
+			{
+				const FRTResolvedEvent& C = Timeline[j];
+				if (C.Type == ERTResolvedEventType::Attack && C.Phase == ERTMatchPhase::Blast
+					&& C.TargetStableUnitId == Rx.SourceStableUnitId
+					&& (!bSoloDiChiHaInnescato || C.SourceStableUnitId == Rx.TriggerAttackerStableUnitId))
+				{
+					return j;
+				}
+			}
+			return int32(INDEX_NONE);
+		};
+		int32 Ancora = (Rx.TriggerAttackerStableUnitId != 0) ? TrovaAncora(true) : INDEX_NONE;
+		if (Ancora == INDEX_NONE)
+		{
+			Ancora = TrovaAncora(false);
+		}
+		if (Ancora != INDEX_NONE)
+		{
+			ReazioniDopo.FindOrAdd(Ancora).Add(R);
+		}
+		else
+		{
+			FRTAttoInCostruzione& Proprio = Atti.AddDefaulted_GetRef();
+			Proprio.Source = Rx.SourceStableUnitId;
+			Proprio.ActionId = Rx.ActionId;
+			Proprio.PrimaApparizione = R;
+			Proprio.Indici.Add(R);
+		}
+	}
+
 	// Decisione (d): l'ordine fra gli atti e' quello delle loro attivazioni.
 	Atti.StableSort([](const FRTAttoInCostruzione& X, const FRTAttoInCostruzione& Y) { return X.Chiave() < Y.Chiave(); });
 
@@ -954,15 +1015,33 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		});
 		for (const int32 Indice : A.Indici)
 		{
-			if (GiaInSequenza.Contains(Indice))
+			if (!GiaInSequenza.Contains(Indice)) // gia' nel prefisso congelato: verbatim sopra, non si ripete
 			{
-				continue; // gia' nel prefisso congelato: verbatim sopra, non si ripete
+				FRTBlastSequenceElement E;
+				E.TimelineIndex = Indice;
+				E.SourceStableUnitId = Timeline[Indice].SourceStableUnitId;
+				E.ActionId = Timeline[Indice].ActionId;
+				Out.Add(E);
 			}
-			FRTBlastSequenceElement E;
-			E.TimelineIndex = Indice;
-			E.SourceStableUnitId = Timeline[Indice].SourceStableUnitId;
-			E.ActionId = Timeline[Indice].ActionId;
-			Out.Add(E);
+			// #4059 (R4): le reazioni ancorate a questo colpo, subito dopo. 🔑 **Anche se il colpo e' nel prefisso
+			// congelato**: mostrato prima di una finestra di reazione, la sua reazione — il Brace, una Purificazione nata
+			// alla ripresa — esce qui, fra i primi elementi oltre il prefisso, nell'ordine degli atti.
+			if (const TArray<int32>* Attaccate = ReazioniDopo.Find(Indice))
+			{
+				for (const int32 R : *Attaccate)
+				{
+					if (GiaInSequenza.Contains(R))
+					{
+						continue;
+					}
+					FRTBlastSequenceElement E;
+					E.TimelineIndex = R;
+					E.SourceStableUnitId = Timeline[R].SourceStableUnitId;
+					E.ActionId = Timeline[R].ActionId;
+					E.bAttachedToHit = true;
+					Out.Add(E);
+				}
+			}
 		}
 	}
 	return Out;
