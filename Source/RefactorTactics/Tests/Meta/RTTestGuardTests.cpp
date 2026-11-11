@@ -46,9 +46,9 @@ namespace
 		/**
 		 * ⚠️ **Da #3036 il nome del file non identifica piu' il file da solo**: i moduli sono due, e nulla
 		 * vieta che lo stesso nome compaia in entrambi. Oggi nessuno lo fa —
-		 * `comm -12 <(ls Source/RefactorTactics/Tests/*.cpp | xargs -n1 basename | sort) <(ls
-		 * Source/RefactorTacticsEditor/Private/Tests/*.cpp | xargs -n1 basename | sort)` non risponde
-		 * niente — ma il giorno in cui accadesse, un rosso che nomina `Nome` manderebbe a cercare il difetto
+		 * `comm -12 <(find Source/RefactorTactics/Tests -name '*.cpp' -exec basename {} \; | sort) <(find
+		 * Source/RefactorTacticsEditor/Private/Tests -name '*.cpp' -exec basename {} \; | sort)` non risponde
+		 * niente (ricorsivo da #4061: la forma con `ls .../Tests/*.cpp` ora risponde vuoto per costruzione) — ma il giorno in cui accadesse, un rosso che nomina `Nome` manderebbe a cercare il difetto
 		 * nel file sbagliato. Ogni messaggio d'errore di questo file passa di qui invece che da `Nome`.
 		 */
 		FString Etichetta() const { return FString::Printf(TEXT("%s/%s"), *Modulo, *Nome); }
@@ -314,7 +314,7 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
  *    una chiamata non qualificata da dentro un `AActor`, o anche solo uno spazio prima della parentesi,
  *    passano — e rompono il target gioco allo stesso identico modo. E' il prezzo dichiarato del punto
  *    precedente: allargare il pattern lo avvicina al nome nudo, che e' rosso per sempre.
- * 3. **Guarda `Source/RefactorTactics/Tests`, non ricorsivo.** Il difetto pero' non e' dei test: e' del
+ * 3. **Guarda `Source/RefactorTactics/Tests` e le sue sottocartelle** (ricorsivo da #4061). Il difetto pero' non e' dei test: e' del
  *    **modulo runtime**, e la stessa chiamata in `World/`, `Map/` o `Unit/` produce lo stesso pacchetto
  *    impossibile da costruire. L'oracolo sta all'altitudine dei due file che si sono rotti, non a quella
  *    del guasto.
@@ -978,7 +978,7 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
  *
  * 1. **Riconosce la macro SCRITTA**, non una generata da un'altra macro. Un `#define` che la avvolgesse
  *    passerebbe: espandere macro e' un preprocessore, cioe' piu' di quanto questo oracolo sia.
- * 2. **Guarda le cartelle `Tests` dei due moduli, non ricorsivo** (#3036). E' lo stesso perimetro di
+ * 2. **Guarda le cartelle `Tests` dei due moduli, sottocartelle comprese** (#3036; ricorsivo da #4061). E' lo stesso perimetro di
  *    `TestGuardClosesAtEndOfFile` e `AnonymousHelpersDoNotCollideUnderUnity`; `RuntimeTestsAvoidEditorOnlyApi`
  *    ha il **solo** runtime, e li' e' la definizione della proprieta', non un perimetro piu' stretto.
  *    ⚠️ Al 2026-09-18 il modulo Editor non ha header di test, quindi su questo oracolo il suo contributo e'

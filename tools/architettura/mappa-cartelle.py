@@ -24,6 +24,19 @@ rispecchiano il codice che verificano.
   `TEST_DIRETTI`, scritto a mano. Una cartella di test che supera il tetto si divide con `TEST_SOTTO`.
 * ⛔ **Le cartelle di soli dati non contano** (`Tests/Golden`, `Tests/Fixtures`): sono corpus, non codice, e la
   regola dei file per cartella e' una regola di navigazione del codice.
+
+## `--verifica`: il gate, e cosa NON copre
+
+Esce 1 se una cartella di `Source/` supera il tetto, se un test sta nella radice di `Tests/` (dei due moduli), o se
+un test non ha un soggetto. `--autotest` lo prova su alberi sintetici: e' la prova che sa fallire (D-188).
+
+⚠️ **Cosa NON copre**, dichiarato perche' non venga scoperto dopo:
+* **lo specchio dentro le sottocartelle**: un test messo nella sottocartella SBAGLIATA (`Tests/Map/` per un test del
+  playback), o in una inventata (`Tests/Misc/`), passa finche' la cartella resta sotto il tetto. Il gate fa rispettare
+  il tetto e la radice vuota, non la scelta del soggetto, che resta di chi scrive il test e di chi lo rivede;
+* **i file che non sono `.h`/`.cpp`/`.inl`**: `.Build.cs`, JSON, dati;
+* **la forma degli include** (radice del modulo, non relativi): nessun gate la misura;
+* **la tabella `PRODUZIONE` invecchia**: un'unita' cancellata o rinominata produce un avviso, non un rosso.
 """
 
 import argparse
@@ -214,11 +227,17 @@ TEST_EDITOR = {
 }
 
 
+AVVISI = []
+
+
 def file_cpp(cartella):
-    return sorted(p for p in (RADICE / cartella).iterdir() if p.is_file() and p.suffix in EST)
+    d = RADICE / cartella
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir() if p.is_file() and p.suffix in EST)
 
 
-def mappa_produzione():
+def mappa_produzione(rigorosa=False):
     """{percorso vecchio: percorso nuovo} per il codice di produzione, relativi alla radice del repository."""
     out = {}
     for modulo, regole in PRODUZIONE.items():
@@ -249,7 +268,12 @@ def mappa_produzione():
             if vecchio != destinazione:
                 out[vecchio] = destinazione
         mancanti = set(unita) - trovate
-        assert not mancanti, "unita' elencate ma assenti in %s: %s" % (modulo, sorted(mancanti))
+        # ⛔ Un assert solo quando si GENERA la mappa. Nel gate un'unita' cancellata o rinominata e' un avviso: farlo
+        # cadere li' sarebbe un rosso per la ragione sbagliata, del tipo che finisce spento (review di #4062).
+        if mancanti:
+            assert not rigorosa, "unita' elencate ma assenti in %s: %s" % (modulo, sorted(mancanti))
+            AVVISI.append("unita' elencate in PRODUZIONE ma assenti in %s (la tabella va aggiornata): %s"
+                          % (modulo, ", ".join(sorted(mancanti))))
     return out
 
 
@@ -356,22 +380,114 @@ def conteggi(mappa):
     return c
 
 
+def esito(tetto, rigorosa=False):
+    """La misura e il verdetto del gate su `RADICE`. Il verdetto e' 1 se una cartella supera il tetto, se un test non
+    ha soggetto, o se un test sta nella radice di `Tests/`; 0 altrimenti."""
+    del AVVISI[:]
+    mappa = mappa_produzione(rigorosa)
+    mt, collocati, ignoti = mappa_test(mappa, tetto)
+    mappa.update(mt)
+    c = conteggi(mappa)
+    sopra = {k: v for k, v in c.items() if v > tetto}
+    rc = 1 if (sopra or ignoti or mt) else 0
+    return {"mappa": mappa, "mt": mt, "collocati": collocati, "ignoti": ignoti, "conteggi": c, "sopra": sopra, "rc": rc}
+
+
+def autotest():
+    """Il gate provato su alberi sintetici: dimostra che SA fallire (D-188), e che non cade per la ragione sbagliata.
+
+    ⚠️ Prova il VERDETTO e la selezione dei file, non la mappa di oggi: che la tabella `PRODUZIONE` descriva bene il
+    repository lo dice il comando senza argomenti. Gli alberi non contengono nessuna unita' di `PRODUZIONE`, quindi
+    ogni prova attraversa anche il ramo «unita' elencate ma assenti», che nel gate deve essere un avviso.
+    """
+    import shutil
+    import tempfile
+    global RADICE
+    vera = RADICE
+
+    def albero(file):
+        d = Path(tempfile.mkdtemp(prefix="rt-mappa-autotest-"))
+        for rel in file:
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text("// sintetico\n", encoding="utf-8")
+        return d
+
+    def n_file(cartella, n, est=".h"):
+        return ["%s/RTSint%02d%s" % (cartella, i, est) for i in range(n)]
+
+    casi = [
+        ("una cartella esattamente al tetto", n_file(RT + "/Turn/Alpha", 15), 0),
+        # 🔑 il caso per cui il gate esiste
+        ("una cartella che supera il tetto di uno", n_file(RT + "/Turn/Alpha", 16), 1),
+        ("il tetto conta .h, .cpp e .inl insieme", n_file(RT + "/Map", 8, ".h") + n_file(RT + "/Map", 8, ".cpp"), 1),
+        # ⛔ i file che non sono codice non contano: le cartelle di soli dati restano fuori
+        ("i file di dati non contano", n_file(RT + "/Tests/Golden", 40, ".rttl"), 0),
+        ("un test nella cartella del codice che verifica", [RT + "/Tests/Turn/RTQualcosaTests.cpp"], 0),
+        # 🔴 lo specchio: un test lasciato nella radice di `Tests/`, con o senza un soggetto riconoscibile
+        ("un test nella radice di Tests/ con un soggetto", [RT + "/Tests/RTHudQualcosaTests.cpp"], 1),
+        ("un test nella radice di Tests/ senza soggetto", [RT + "/Tests/RTXyzTests.cpp"], 1),
+        ("un test dell'Editor nella radice dei suoi Tests/", [ED + "/Private/Tests/RTQualcosaTests.cpp"], 1),
+    ]
+    falliti = []
+    try:
+        for nome, file, atteso in casi:
+            d = albero(file)
+            try:
+                RADICE = d
+                avuto = esito(15)["rc"]
+            finally:
+                RADICE = vera
+                shutil.rmtree(str(d), ignore_errors=True)
+            ok = avuto == atteso
+            print("  %s %s: atteso %d, avuto %d" % ("✅" if ok else "❌", nome, atteso, avuto))
+            if not ok:
+                falliti.append(nome)
+        # Il ramo delle unita' assenti: nel gate avviso, nella generazione della mappa errore.
+        d = albero(n_file(RT + "/Turn", 3))
+        try:
+            RADICE = d
+            esito(15)
+            avviso = any("assenti" in x for x in AVVISI)
+            try:
+                esito(15, rigorosa=True)
+                rigoroso = False
+            except AssertionError:
+                rigoroso = True
+        finally:
+            RADICE = vera
+            shutil.rmtree(str(d), ignore_errors=True)
+        for nome, ok in [("un'unita' assente e' un avviso nel gate", avviso),
+                         ("e un errore quando si genera la mappa", rigoroso)]:
+            print("  %s %s" % ("✅" if ok else "❌", nome))
+            if not ok:
+                falliti.append(nome)
+    finally:
+        RADICE = vera
+    if falliti:
+        print("❌ autotest rosso: %s" % ", ".join(falliti))
+        return 1
+    print("✅ autotest verde — %d casi, e il gate sa tornare 1." % (len(casi) + 2))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tetto", type=int, default=15)
     ap.add_argument("--json")
     ap.add_argument("--verifica", action="store_true")
+    ap.add_argument("--autotest", action="store_true", help="prova il gate su alberi sintetici: sa fallire?")
     ap.add_argument("--dettaglio", action="store_true", help="stampa come e' stato collocato ogni test")
     a = ap.parse_args()
     for f in (sys.stdout, sys.stderr):
         if hasattr(f, "reconfigure"):
             f.reconfigure(errors="replace")
+    if a.autotest:
+        return autotest()
 
-    mappa = mappa_produzione()
-    mt, collocati, ignoti = mappa_test(mappa, a.tetto)
-    mappa.update(mt)
-    c = conteggi(mappa)
-    sopra = {k: v for k, v in c.items() if v > a.tetto}
+    e = esito(a.tetto, rigorosa=bool(a.json))
+    mappa, mt, collocati, ignoti, c, sopra = e["mappa"], e["mt"], e["collocati"], e["ignoti"], e["conteggi"], e["sopra"]
+    for x in AVVISI:
+        print("⚠️ " + x)
     print("file da spostare: %d · cartelle: %d · sopra il tetto (%d): %d" % (len(mappa), len(c), a.tetto, len(sopra)))
     for k in sorted(c, key=lambda k: (-c[k], k)):
         if c[k] > a.tetto or a.dettaglio:
@@ -391,8 +507,8 @@ def main():
     if mt:
         print("test nella radice di Tests/, che vanno nella cartella del codice che verificano: %s"
               % ", ".join(sorted(Path(v).name for v in mt)))
-    if a.verifica and (sopra or ignoti or mt):
-        return 1
+    if a.verifica:
+        return e["rc"]
     return 0
 
 

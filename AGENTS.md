@@ -641,6 +641,8 @@ perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue
 ```powershell
 python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri dell'audit di agosto;
                                                              # quanti casi lo dice il comando
+python tools/architettura/mappa-cartelle.py --autotest       # alberi sintetici: verdi e mutazioni che
+                                                             # devono uscire 1 (D-606)
 python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
 python -m unittest discover -s tools/hud-assets -p "*_test.py"   # la lettura di RTHUD.cpp: la forma attuale
                                                              # si legge, quella vecchia e una inventata no.

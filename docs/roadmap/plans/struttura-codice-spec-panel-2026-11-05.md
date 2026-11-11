@@ -1,5 +1,7 @@
 # Struttura del codice — personaggi, azioni, eventi, cartelle e Blueprint (spec panel)
 
+> ➕ **2026-11-11 — la §4.7 è superata dalla scelta dell'autore** ([`D-606`](../../decisions/RT_PDR_00_Decision_Log.md), [#4061](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4061)): le cartelle si sono riorganizzate tutte insieme, al massimo 15 file C++ ciascuna, e non come esito delle fette. Questo referto resta com'era, e i percorsi nella sua prosa sono quelli del 2026-11-05: la sede di oggi la dà `tools/architettura/mappa-cartelle-4061.json`.
+
 > **Tipo**: referto di sessione spec-panel · **Data**: 2026-11-05 · **HEAD misurato**: `34b6c314f` (`main`)
 > **Epic**: [E50 #1816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1816) ·
 > [#1818](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1818)
