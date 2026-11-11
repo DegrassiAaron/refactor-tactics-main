@@ -13,6 +13,7 @@
 #include "Unit/RTUnit.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: oggi arriva dalla PCH condivisa, ma il file non deve dipenderne
 
 /*
  * I corpi qui sotto sono quelli che vivevano in `RTTurnManager.cpp`, spostati con le loro note (#4057). Cambia solo il
