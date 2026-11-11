@@ -4436,6 +4436,9 @@ bool FRTSneakStaysDeclaredIntoTheNextTurnTest::RunTest(const FString&)
 		return false;
 	}
 	const int32 SenzaSneak = PlannedRouteGrowToBudget(B);
+	// La misura nel log anche quando e' verde: e' il numero che #4075 porta all'autore.
+	AddInfo(FString::Printf(TEXT("#4075: al turno T+1 il piano piu' lungo e' di %d celle con lo Sneak del turno T, %d ritirandolo"),
+		ConSneak, SenzaSneak));
 	TestTrue(FString::Printf(TEXT("e al turno T+1 il tetto e' ancora quello dello Sneak: ritirandolo il piano si allunga (%d -> %d)"),
 		ConSneak, SenzaSneak), SenzaSneak > ConSneak);
 
