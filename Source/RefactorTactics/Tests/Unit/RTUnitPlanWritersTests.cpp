@@ -1,13 +1,15 @@
 // Il piano dell'unita' si scrive da una porta sola (#4068, E50 fetta 2, tappa 1).
 //
 // Il piano per-turno (`Planned*`, `bTurnPlanDeclared` e affini) sta in campi pubblici di `ARTUnit`. Fino a #4068
-// lo scrivevano a mano sei file: il controller, l'harness degli scenari, la dichiarazione del verso, il TurnManager
-// e il Blast. Ora passano tutti dai mutatori di `ARTUnit` (`DeclarePlannedMainAction`, `ClearPlannedMainAction`,
+// lo scrivevano a mano il controller, l'harness degli scenari, la dichiarazione del verso, il TurnManager e il Blast.
+// Ora passano tutti dai mutatori di `ARTUnit` (`DeclarePlannedMainAction`, `ClearPlannedMainAction`,
 // `SetPlannedRoute`, ...), e questo cancello lo tiene vero finche' lo struct `FRTUnitPlan` non rende i campi privati.
 //
 // ⚠️ **Cosa NON copre, dichiarato.**
-//   - Le scritture attraverso un RIFERIMENTO: `TruncateWaypointsToBudget(..., Unit->PlannedWaypoints, ...)` modifica
-//     l'array del piano dentro una chiamata, e un rilevatore testuale non lo vede. E' l'unico caso noto (#4068).
+//   - Le scritture attraverso un RIFERIMENTO non costante (un campo del piano passato a una funzione che lo modifica):
+//     un rilevatore testuale non le vede. #4068 ha tolto le due che c'erano (`TruncateWaypointsToBudget` ora lavora
+//     su una copia).
+//   - Una scrittura spezzata su piu' righe, con l'operatore a capo dopo il nome del campo.
 //   - Le scritture con `.` su un `ARTUnit&`: in produzione il piano si raggiunge sempre per puntatore, e con `.` lo
 //     scrivono altri tipi che hanno campi con lo stesso nome (`FRTBotPlanDecision`, `FRTPlanPreviewInput`).
 //   - I test, che scrivono i campi a mano di proposito: sono fuori dal perimetro.
@@ -29,8 +31,15 @@ namespace
 
 	/** Le mutazioni di un `TArray` del piano che contano come scrittura. */
 	const TCHAR* const PlanWritersMutazioni[] = {
-		TEXT("Add"), TEXT("Pop"), TEXT("Reset"), TEXT("Empty"), TEXT("Append"), TEXT("Insert"), TEXT("RemoveAt"),
-		TEXT("SetNum"), TEXT("Push"), TEXT("AddUnique"), TEXT("Remove"),
+		TEXT("Add"), TEXT("AddUnique"), TEXT("AddDefaulted"), TEXT("AddZeroed"), TEXT("Emplace"), TEXT("EmplaceAt"),
+		TEXT("Push"), TEXT("Pop"), TEXT("Insert"), TEXT("Append"), TEXT("Reset"), TEXT("Empty"), TEXT("Init"),
+		TEXT("SetNum"), TEXT("SetNumZeroed"), TEXT("Remove"), TEXT("RemoveAt"), TEXT("RemoveAtSwap"), TEXT("RemoveAll"),
+		TEXT("RemoveSingle"), TEXT("Sort"), TEXT("StableSort"), TEXT("Swap"), TEXT("Shrink"),
+	};
+
+	/** Gli operatori d'assegnazione composti: tutti scrivono il campo che hanno a sinistra. */
+	const TCHAR* const PlanWritersComposti[] = {
+		TEXT("+="), TEXT("-="), TEXT("*="), TEXT("/="), TEXT("%="), TEXT("&="), TEXT("|="), TEXT("^="), TEXT("<<="), TEXT(">>="),
 	};
 
 	bool PlanWritersIsIdentChar(TCHAR C) { return FChar::IsAlnum(C) || C == TEXT('_'); }
@@ -49,14 +58,38 @@ namespace
 	}
 
 	/**
-	 * Vero se nella riga c'e' `->CampoDelPiano` seguito da una SCRITTURA: un'assegnazione (`=`, `+=`, `-=`, `*=`, `/=`),
-	 * un incremento (`++`, `--`) o una mutazione dell'array (`.Add(`, `.Pop(`, ...). Un confronto (`==`, `!=`, `<=`) non
-	 * conta, ne' una lettura. Le righe di commento (`//`, `*`) si saltano.
+	 * Vero se la coda dopo un campo del piano lo SCRIVE: un'assegnazione semplice o composta, un incremento, o
+	 * (sull'array) una mutazione. Un confronto (`==`, `!=`, `<=`, `>=`) non conta, ne' una lettura.
+	 */
+	bool PlanWritersTailWrites(const FString& Coda)
+	{
+		if (Coda.StartsWith(TEXT("++")) || Coda.StartsWith(TEXT("--"))) { return true; }
+		for (const TCHAR* Op : PlanWritersComposti)
+		{
+			if (Coda.StartsWith(Op)) { return true; }
+		}
+		return Coda.StartsWith(TEXT("=")) && !Coda.StartsWith(TEXT("=="));
+	}
+
+	/**
+	 * Una riga di commento, con la convenzione del gemello del Blast (`RTEnvironmentActionTests`): `* ` con lo SPAZIO,
+	 * perche' una dereferenziazione a inizio riga (`*Unit->PlannedCell`) e' codice e non va saltata.
+	 */
+	bool PlanWritersIsComment(const FString& Riga)
+	{
+		const FString Pulita = Riga.TrimStart();
+		return Pulita.StartsWith(TEXT("//")) || Pulita.StartsWith(TEXT("/*")) || Pulita.StartsWith(TEXT("* "))
+			|| Pulita.StartsWith(TEXT("*/")) || Pulita.Equals(TEXT("*"));
+	}
+
+	/**
+	 * Vero se nella riga c'e' `->CampoDelPiano` seguito da una SCRITTURA del campo (`PlanWritersTailWrites`), di un suo
+	 * elemento (`[i] =`), di un suo membro (`.X =`), o da una mutazione dell'array (`.Add(`, `.Pop(`, ...). Le righe di
+	 * commento si saltano.
 	 */
 	bool PlanWritersLineWrites(const FString& Riga)
 	{
-		const FString Pulita = Riga.TrimStart();
-		if (Pulita.StartsWith(TEXT("//")) || Pulita.StartsWith(TEXT("*")) || Pulita.StartsWith(TEXT("/*")))
+		if (PlanWritersIsComment(Riga))
 		{
 			return false;
 		}
@@ -74,18 +107,24 @@ namespace
 			int32 K = Fine;
 			while (K < Riga.Len() && FChar::IsWhitespace(Riga[K])) { ++K; }
 			const FString Coda = Riga.Mid(K);
-			if (Coda.StartsWith(TEXT("++")) || Coda.StartsWith(TEXT("--"))) { return true; }
-			if (Coda.StartsWith(TEXT("+=")) || Coda.StartsWith(TEXT("-=")) || Coda.StartsWith(TEXT("*=")) || Coda.StartsWith(TEXT("/=")))
+			if (PlanWritersTailWrites(Coda)) { return true; }
+			// Un elemento: `->PlannedPath[0] = X`.
+			if (Coda.StartsWith(TEXT("[")))
 			{
-				return true;
+				const int32 Chiusa = Coda.Find(TEXT("]"));
+				if (Chiusa != INDEX_NONE && PlanWritersTailWrites(Coda.Mid(Chiusa + 1).TrimStart())) { return true; }
+				continue;
 			}
-			if (Coda.StartsWith(TEXT("=")) && !Coda.StartsWith(TEXT("=="))) { return true; }
 			if (Coda.StartsWith(TEXT(".")))
 			{
 				for (const TCHAR* Metodo : PlanWritersMutazioni)
 				{
 					if (Coda.StartsWith(FString::Printf(TEXT(".%s("), Metodo), ESearchCase::CaseSensitive)) { return true; }
 				}
+				// Un membro: `->PlannedCell.X = 3`.
+				int32 M = 1;
+				while (M < Coda.Len() && PlanWritersIsIdentChar(Coda[M])) { ++M; }
+				if (M > 1 && PlanWritersTailWrites(Coda.Mid(M).TrimStart())) { return true; }
 			}
 		}
 	}
@@ -183,6 +222,14 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 		{ TEXT("\tUnit->bHasPlannedCoverEdge = false;"), true },
 		{ TEXT("\tUnit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num();"), true },
 		{ TEXT("\tUnit->PlannedReactionAbility += 1;"), true },
+		{ TEXT("\tUnit->bHasPlannedCoverEdge |= bBordo;"), true },
+		{ TEXT("\tUnit->bAttackTargetsCell &= bCella;"), true },
+		{ TEXT("\tUnit->PlannedWaypoints.Emplace(Cell);"), true },
+		{ TEXT("\tUnit->PlannedPath[0] = Cell;"), true },
+		{ TEXT("\tUnit->PlannedCell.X = 3;"), true },
+		{ TEXT("\t*Unit->PlannedCell = Other; // dereferenziazione a inizio riga: codice, non commento"), true },
+		{ TEXT("\t*Unit->PlannedDashAbility == 0;"), false },
+		{ TEXT("\tif (Unit->PlannedPath[0] == Cell && Unit->PlannedCell.X >= 0) {}"), false },
 		{ TEXT("\tif (Unit->PlannedCell == OldCell) { Unit->SetPlannedCell(NewCell); }"), false },
 		{ TEXT("\tif (Unit->PlannedAbilityIndex != INDEX_NONE && Unit->PlannedDashAbility <= 0) {}"), false },
 		{ TEXT("\tconst int32 N = Unit->PlannedWaypoints.Num();"), false },

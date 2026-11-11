@@ -3157,8 +3157,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		const int32 Cost = Reserved.ResolveMoveBudget(UnitRange);
 
 		int32 Dropped = 0;
-		// I waypoint com'erano PRIMA del taglio: [D-444] li restituisce al disarmo, e il troncamento li
-		// consuma in posto (`TruncateWaypointsToBudget` prende l'array per riferimento non costante).
+		// I waypoint com'erano PRIMA del taglio: [D-444] li restituisce al disarmo.
 		const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
 		if (Unit->PlannedWaypoints.Num() > 0)
 		{
@@ -3167,9 +3166,10 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			if (RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId))
 			{
 				FRTHexPathResult Kept;
-				Dropped = TruncateWaypointsToBudget(
-					Snapshot, UnitId, Unit->PlannedWaypoints, Steps, Cost, Kept);
-				Unit->SetPlannedRoute(Kept.Path);
+				// Il taglio lavora su una copia, e il piano si scrive dal mutatore (#4068).
+				TArray<FRTCellId> Tenuti = PrimaDelTaglio;
+				Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Steps, Cost, Kept);
+				Unit->SetPlannedMove(Tenuti, Kept.Path);
 			}
 			else
 			{
@@ -3584,14 +3584,15 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// arrivare invece che da capo. Il perche' del taglio per waypoint interi sta su
 	// `TruncateWaypointsToBudget`.
 	FRTHexPathResult Kept;
-	// Come nel ramo della riserva: il troncamento consuma l'array in posto, quindi la copia va presa prima.
+	// Come nel ramo della riserva: i waypoint di prima servono al ricordo, e il taglio lavora su una copia (#4068).
 	const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
-	const int32 Dropped =
-		TruncateWaypointsToBudget(Snapshot, UnitId, Unit->PlannedWaypoints, NewSteps, NewCost, Kept);
+	TArray<FRTCellId> Tenuti = PrimaDelTaglio;
+	const int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, NewSteps, NewCost, Kept);
+	// Il piano tagliato si scrive PRIMA del ricordo: `RicordaTroncamentoDelTetto` legge quanti waypoint sono rimasti.
+	Unit->SetPlannedMove(Tenuti, Kept.Path);
 	// 🔑 Chiavata su `ProfileSneak` e non su `Ceiling.Id`: cio' che e' reversibile e' il GESTO del
 	// giocatore, e `CeilingProfile` puo' rispondere un altro profilo quando l'unita' e' `Unbalanced`.
 	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
-	Unit->SetPlannedRoute(Kept.Path);
 	// Dopo l'assegnazione: l'anteprima della mesh si ricalcola sul percorso gia' troncato (`#291`).
 	if (Dropped > 0)
 	{

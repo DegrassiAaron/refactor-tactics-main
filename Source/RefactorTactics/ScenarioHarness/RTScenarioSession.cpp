@@ -1520,7 +1520,8 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			{
 				Unit->SetPlannedMainAction(AbilityIndex);
 				// #4068: la porta del controller e del bot. Ritira anche la mira a cella, che `BeginTurn` ha gia' spento
-				// (`ClearPlannedAttack`): misurato sui 164 scenari, nessuno da' due intenti alla stessa unita' nello stesso turno.
+				// (`ClearPlannedAttack`). ⚠️ Diverso da prima solo se lo scenario da' due intenti alla stessa unita' nello
+				// stesso turno, cella e poi unita': il caricatore non lo vieta, e nessuno scenario lo faceva il 2026-11-11.
 				Unit->DeclareAttackOnUnit(Target);
 			}
 		}

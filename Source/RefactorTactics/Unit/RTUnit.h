@@ -428,9 +428,9 @@ public:
 	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
 	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
 	 *
-	 * ⚠️ I campi restano pubblici — l'harness degli scenari e i test li scrivono direttamente, e renderli
-	 * privati sarebbe una migrazione che non appartiene a questa correzione. La garanzia e' quindi che il
-	 * **codice di gioco** passi di qui, ed e' `Plan.MindChangeRetiresTheOtherTarget` a pinnarla.
+	 * ⚠️ I campi restano pubblici — i test li scrivono direttamente, e renderli privati e' la tappa dello struct
+	 * `FRTUnitPlan` (E50). La garanzia e' quindi che il **codice di gioco** passi di qui: la pinnano
+	 * `Plan.MindChangeRetiresTheOtherTarget` e, da #4068, `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
 	 */
 	void DeclareAttackOnUnit(ARTUnit* Target)
 	{
@@ -461,7 +461,7 @@ public:
 	// garantire: armare la principale segna anche quanti waypoint c'erano (il Back lo rilegge), il disarmo spegne
 	// indice, bersaglio, bordo e quel segno insieme, il consumo di un resolver azzera e basta. Chi propone il piano
 	// (controller, harness degli scenari, applicazione del piano del bot) e chi lo consuma (i resolver) passano di
-	// qui; prima scrivevano i campi a mano in sei file.
+	// qui; prima scrivevano i campi a mano.
 	//
 	// ⚠️ **I campi restano pubblici**: i test li scrivono ancora, e spostarli e' la tappa dello struct `FRTUnitPlan`
 	// (E50, fetta 2). Fino ad allora la porta la pinna `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`, che fallisce se il
