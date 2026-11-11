@@ -4508,106 +4508,50 @@ void ARTPlayerController::UpdateGlance(float DeltaSeconds, bool bCellResolved, c
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const
 {
-	// ⚠️ `ReactionWindow` non compare ancora: nessuno lo produce, ed e' E14. Mettere qui un flag che nessuno
-	// scrive creerebbe un campo senza produttore — il difetto che questo stesso checkpoint ha finito di
-	// documentare in §2.1 dell'owner.
-	//
-	// ✅ **`Modal` invece adesso ha il suo produttore, ed e' il primo ad arrivare come questo commento
-	// prevedeva** (*«quando quegli owner arrivano, aggiungono il proprio ramo»*): il menu di pausa di
-	// CP 46.6. Precede ogni altro ramo perche' la precedenza dichiarata dal contratto e'
-	// `Modal/Reaction UI > HUD > world` — con la pausa a schermo nessun click deve raggiungere il mondo,
-	// qualunque cosa sia selezionata.
-	//
-	// ⛔ **Si LEGGE uno stato, non se ne tiene una copia.** Il contesto e' derivato per scelta, e un
-	// `bPauseOpen` qui sarebbe la seconda verita' che diverge — la stessa ragione per cui selezione,
-	// waypoint e abilita' armata non sono duplicati. E' anche il motivo per cui `RESUME` non deve
-	// ripristinare niente: appena la pausa esce dallo stack, questa funzione ricalcola com'era.
+	// #4065 (S2): qui si RACCOLGONO i fatti, e l'ordine lo decide `URTPointerLibrary::DeriveContext`, che ha i suoi test
+	// senza mondo (`Pointer.ContextFollowsTheContractOrder`).
+	FRTPointerFacts Facts;
+
+	// ⛔ **Si LEGGE uno stato, non se ne tiene una copia.** Il contesto e' derivato per scelta, e un `bPauseOpen` qui
+	// sarebbe la seconda verita' che diverge — la stessa ragione per cui selezione, waypoint e abilita' armata non sono
+	// duplicati. E' anche il motivo per cui `RESUME` non deve ripristinare niente: appena la pausa esce dallo stack,
+	// questa funzione ricalcola com'era.
 	if (const UGameInstance* GameInstance = GetGameInstance())
 	{
 		const URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
-		if (Navigator && Navigator->IsPauseOpen())
-		{
-			return ERTPointerContext::Modal;
-		}
+		Facts.bModalOpen = Navigator && Navigator->IsPauseOpen();
 	}
 
-	// Il playback sovrascrive tutto: dal primo segmento risolto al Cleanup nessun input cambia il piano.
+	// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase** (`#2518`). La fase nasce `Planning` e si assegna una
+	// volta sola, a `MatchEnded`: un predicato sulla fase non produceva mai `ResolutionPlayback`. La risoluzione logica
+	// finisce dentro `LockInAndResolve`, mentre il playback scorre finche' `IsResolving()` e' vero — ed e' *quello*
+	// l'intervallo in cui §5.3 dice che il mondo e' in sola lettura.
 	//
-	// ⚠️ `MatchEnded` e' escluso di proposito e NON diventa un contesto suo: il contratto ne dichiara otto e
-	// non ne prevede un nono. A partita finita il puntatore resta in `IdleSelection`/`Planning`, e cio' che
-	// impedisce di pianificare e' lo snapshot del `TurnManager`, che rifiuta a valle — la stessa autorita'
-	// di §3. Aggiungere qui un ramo significherebbe far decidere al puntatore quando il gioco e' finito.
+	// 🔴 **O la risoluzione e' SOSPESA su una finestra di reazione** (`#3837`): una sospensione accende il playback solo se
+	// parte il playback parziale, non con `bEnablePlayback` falso. In quel tratto `Phase` e' `Move` o `Blast`, con le
+	// azioni di Prep e Dash gia' consumate e il Cleanup non arrivato: un'unita' viva, armata e in ricarica, a mondo
+	// scrivibile. Misurato (`Reactions.ASuspendedResolutionIsReadOnlyForInput`): un click su un altro nemico le
+	// pianificava un'azione gia' spesa.
 	if (const ARTTurnManager* TM = PacingTurnManager(this))
 	{
-		// 🔴 **Questa riga chiedeva la FASE, e la fase non si muove mai** (`#2518`). `ARTTurnManager::Phase`
-		// nasce `Planning` (`RTTurnManager.h:1929`) e in tutto `Source/` viene assegnato **una volta sola**,
-		// a `MatchEnded` (`RTTurnManager.cpp:3577`). Il predicato era `Phase != Planning && Phase !=
-		// MatchEnded`, cioe' **irraggiungibile**: `ResolutionPlayback` non veniva mai prodotto, e i due
-		// consumatori gia' scritti — `URTPointerLibrary::ResolveTarget` e `ResolveBack` — erano codice morto.
-		//
-		// ⚠️ **E riparare il produttore non li ha risvegliati entrambi**, come `spec-pointer-interaction.md`
-		// §556 aveva registrato: `ResolveBack` ha ripreso a girare con `ApplyBack`, `ResolveTarget` e' rimasto
-		// senza chiamanti fino a `#3063`, che gliene da' uno in `HandleClickOnCell`.
-		//
-		// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase.** Sono due cose diverse: la risoluzione
-		// logica finisce dentro `LockInAndResolve`, mentre il playback continua a scorrere finche'
-		// `IsResolving()` e' vero — ed e' *quello* l'intervallo in cui §5.3 dice che il mondo e' in sola
-		// lettura. ⏱️ *Non basta, da `#3837`*: una risoluzione sospesa senza playback non lo accende (vedi sotto).
-		//
-		// ⚠️ `MatchEnded` resta escluso senza doverlo nominare: a partita finita `bIsResolving` e' falso, e
-		// si cade nei rami sotto. La ragione per cui non diventa un contesto suo e' invariata, ed e' scritta
-		// nel commento qui sopra.
-		// 🔴 **O la risoluzione e' SOSPESA su una finestra di reazione** (`#3837`). Il commento in testa a questo ramo
-		// dichiara l'intervallo, «dal primo segmento risolto al Cleanup», ma il predicato chiedeva il solo playback, e una
-		// sospensione lo accende solo se parte il playback parziale: non con `bEnablePlayback` falso (la risoluzione
-		// istantanea, `EditAnywhere`). ⚠️ *La timeline vuota, che `BeginPartialPlayback` prevede, non l'ho trovata:* misurata
-		// alla sospensione, l'Overwatch ha gia' i suoi eventi di movimento e il Brace le impronte del Blast. In quel tratto
-		// `Phase` e' `Move` o `Blast`: le azioni di Prep e Dash sono gia' consumate (e nel Move anche quelle del Blast, che si
-		// pagano a fase finita) e il Cleanup non e' arrivato:
-		// un'unita' viva, armata e in ricarica, a mondo scrivibile. Misurato
-		// (`Reactions.ASuspendedResolutionIsReadOnlyForInput`): un click su un altro nemico le pianificava un'azione
-		// gia' spesa.
-		//
-		// ⚠️ **`ResolutionPlayback` e non `ReactionWindow`**: `ResolveBack` manda il secondo a `ReactionFallback`, che e'
-		// E14 e nessuno ha implementato, e con il playback acceso la finestra ha sempre avuto `ResolutionPlayback`. Stesso
-		// valore nei due casi, quindi nessun consumatore cambia dove il mondo era gia' in sola lettura.
-		if (TM->IsResolving() || TM->IsResolutionSuspended())
+		Facts.bResolutionActive = TM->IsResolving() || TM->IsResolutionSuspended();
+	}
+
+	if (const ARTUnit* Unit = GetSelectedUnit())
+	{
+		Facts.bHasSelection = true;
+		Facts.bDeclaringFacing = bDeclaringFacing;
+
+		// La mobilita' rapida non chiede un bersaglio ma una destinazione, e passa da `HandleClickOnCell` come qualunque
+		// waypoint: armata, non porta in `Targeting`.
+		const int32 Armed = Unit->SelectedAbilityIndex;
+		if (const URTActionData* Ability = Armed != INDEX_NONE ? Unit->GetAbility(Armed) : nullptr)
 		{
-			return ERTPointerContext::ResolutionPlayback;
+			Facts.bArmedActionWantsTarget = !URTCatalogLibrary::IsFastMovement(Ability->Def);
 		}
+		Facts.WaypointCount = Unit->PlannedWaypoints.Num();
 	}
-
-	const ARTUnit* Unit = GetSelectedUnit();
-	if (!Unit)
-	{
-		return ERTPointerContext::IdleSelection;
-	}
-
-	if (bDeclaringFacing)
-	{
-		return ERTPointerContext::Facing;
-	}
-
-	// Un'abilita' armata porta in `Targeting` — SALVO la mobilita' rapida, che non chiede un bersaglio ma
-	// una destinazione e passa da `HandleClickOnCell` come qualunque waypoint.
-	const int32 Armed = Unit->SelectedAbilityIndex;
-	if (Armed != INDEX_NONE)
-	{
-		const URTActionData* Ability = Unit->GetAbility(Armed);
-		if (Ability && !URTCatalogLibrary::IsFastMovement(Ability->Def))
-		{
-			return ERTPointerContext::Targeting;
-		}
-	}
-
-	if (Unit->PlannedWaypoints.Num() > 0)
-	{
-		return ERTPointerContext::Pathing;
-	}
-
-	// Lo stato NEUTRO di D-128: unita' selezionata, niente armato, nessun waypoint. Qui un click su un
-	// nemico ISPEZIONA e non pianifica.
-	return ERTPointerContext::Planning;
+	return URTPointerLibrary::DeriveContext(Facts);
 }
 
 ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const

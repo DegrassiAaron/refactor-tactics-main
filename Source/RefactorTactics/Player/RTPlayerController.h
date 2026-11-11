@@ -1353,11 +1353,9 @@ public:
 	 * `PlannedWaypoints` sarebbe una copia che diverge, ed e' il difetto che questo repository paga di
 	 * continuo con i totali scritti a mano. Qui il contesto e' una *lettura* di quei tre, piu' la fase.
 	 *
-	 * ⚠️ **Due contesti non sono ancora producibili, e non e' una svista.** `ReactionWindow` e `Modal`
-	 * esistono nell'enum e in `URTPointerLibrary::ResolveBack` — che li ordina correttamente — ma nessuno li
-	 * produce: la finestra di reazione e' **E14** e il modale e' **#613**. Aggiungere qui un flag che nessuno
-	 * scrive avrebbe creato un campo senza produttore, che e' il difetto che CP 11.8 ha appena finito di
-	 * documentare. Quando quegli owner arrivano, aggiungono il proprio ramo qui.
+	 * 🔑 **Qui si raccolgono i fatti (`FRTPointerFacts`); l'ordine lo decide `URTPointerLibrary::DeriveContext`**
+	 * (#4065), che lo documenta e ha test senza mondo. `Modal` ha un produttore dal menu di pausa (CP 46.6);
+	 * `ReactionWindow` no, ed e' E14.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerContext GetPointerContext() const;
