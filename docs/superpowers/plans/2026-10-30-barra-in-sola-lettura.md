@@ -50,10 +50,10 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 
 | File | Responsabilità |
 |---|---|
-| `UI/HUD/RTHudViewModel.h/.cpp` | `BuildPublicBar`: righe solo-catalogo per un soggetto in sola lettura |
+| `UI/RTHudViewModel.h/.cpp` | `BuildPublicBar`: righe solo-catalogo per un soggetto in sola lettura |
 | `Player/RTPlayerController.h/.cpp` | `GetDockUnit`, `IsDockReadOnly`, `IsPlanningWriteBlocked`, `WhyPlanningWriteIsBlocked`; il click più recente decide il soggetto |
-| `UI/HUD/RTScreenHudWidgets.h/.cpp` | `URTScreenHudWidgetBase::GetDockUnit`; dock e slot leggono il soggetto della barra |
-| `UI/Inspect/RTInspect.h/.cpp`, `UI/Inspect/RTInspectCardWidget.h/.cpp`, `UI/HUD/RTHUD.cpp` | la scheda senza kit né hover di riga |
+| `UI/RTScreenHudWidgets.h/.cpp` | `URTScreenHudWidgetBase::GetDockUnit`; dock e slot leggono il soggetto della barra |
+| `UI/RTInspect.h/.cpp`, `UI/RTInspectCardWidget.h/.cpp`, `UI/RTHUD.cpp` | la scheda senza kit né hover di riga |
 | `Player/RTPlanningOverlay.h/.cpp` | il campo `bSkillHoverFromCard` diventa `bSkillHoverOfInspected` |
 | `Tests/*` | un test per guardia, con il controllo positivo accanto |
 | `docs/…` | decisione, spec, runbook, voce PIE |
@@ -63,8 +63,8 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 ### Task 1: `BuildPublicBar` — la barra di chi si osserva, senza la partita
 
 **Files:**
-- Modify: `UI/HUD/RTHudViewModel.h` (accanto a `BuildIdleBar`), `UI/HUD/RTHudViewModel.cpp`
-- Test: `Tests/UI/Inspect/RTActionTooltipTests.cpp` o il file che già prova `BuildIdleBar` (`HudViewModel.IdleBarCarriesNothingOfThePlan`)
+- Modify: `UI/RTHudViewModel.h` (accanto a `BuildIdleBar`), `UI/RTHudViewModel.cpp`
+- Test: `Tests/RTActionTooltipTests.cpp` o il file che già prova `BuildIdleBar` (`HudViewModel.IdleBarCarriesNothingOfThePlan`)
 
 **Interfaces:**
 - Consumes: `URTHudViewModel::BuildCatalogActionRow(const URTActionData*, int32 Index, FName ActiveVariantId)`, `URTHudViewModel::ResolveSlotState`.
@@ -77,13 +77,13 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 - [ ] **Step 5: mutazione** (commit prima): M1 copia `bPlanned` dal piano; M2 copia `HotkeyLabel` da `HotkeyLabelFor`; M3 scrive `TurnsRemaining` dal simulatore; M4 `bUsableNow = Unit->CanUseAbility(Index)`. Ciascuno deve far cadere il test, per nome.
 - [ ] **Step 6: commit** `feat(3748): BuildPublicBar - la barra di un'unita' osservata porta il catalogo e niente della partita`
 
-> ⌫ **Come è andata.** Il test sta in `Tests/UI/HUD/ActionBar/RTIdleBarTests.cpp`, accanto a `IdleBarCarriesNothingOfThePlan`, e non in `RTActionTooltipTests.cpp`. `BuildPublicBar` azzera anche `TotalTurns` (il denominatore dell'anello di carica: con la carica piena direbbe «carica» di una skill nemica la cui ricarica vera è privata), e il test lo fissa per riga con il controllo positivo `BuildAbilityCooldowns(...)[2].TotalTurns > 0`. Il test ha un secondo stato del soggetto, con un piano illegale, come controllo positivo di `bPlanInvalid`. **`bPlanDegraded` non ha un controllo positivo** (serve un banco con mappa, `ARTTurnManager` e un bersaglio pianificato): un mutante che riesegua `RefusalForKnownTarget` dentro `BuildPublicBar` non cadrebbe, e la copertura è per costruzione della firma, che non prende né mappa né bersaglio.
+> ⌫ **Come è andata.** Il test sta in `Tests/RTIdleBarTests.cpp`, accanto a `IdleBarCarriesNothingOfThePlan`, e non in `RTActionTooltipTests.cpp`. `BuildPublicBar` azzera anche `TotalTurns` (il denominatore dell'anello di carica: con la carica piena direbbe «carica» di una skill nemica la cui ricarica vera è privata), e il test lo fissa per riga con il controllo positivo `BuildAbilityCooldowns(...)[2].TotalTurns > 0`. Il test ha un secondo stato del soggetto, con un piano illegale, come controllo positivo di `bPlanInvalid`. **`bPlanDegraded` non ha un controllo positivo** (serve un banco con mappa, `ARTTurnManager` e un bersaglio pianificato): un mutante che riesegua `RefusalForKnownTarget` dentro `BuildPublicBar` non cadrebbe, e la copertura è per costruzione della firma, che non prende né mappa né bersaglio.
 
 ### Task 2: il soggetto della barra
 
 **Files:**
 - Modify: `Player/RTPlayerController.h/.cpp`
-- Test: `Tests/Turn/RTHexMatchIntegrationTests.cpp` (stessa fixture dei test di fuoco: `B.PC`, `PinInspectionForTest`)
+- Test: `Tests/RTHexMatchIntegrationTests.cpp` (stessa fixture dei test di fuoco: `B.PC`, `PinInspectionForTest`)
 
 **Interfaces:**
 - Consumes: `PinInspection`, `ApplyBack`, `ReleaseInspectionUnlessLive`, `SelectUnit`, `URTCombatLibrary::CanPlayerControlUnitInGroup(TeamId, ControlGroup, PlayerTeamId, PlayerControlGroup, bIsBotControlled)`.
@@ -100,7 +100,7 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 
 **Files:**
 - Modify: `Player/RTPlayerController.h/.cpp`
-- Test: `Tests/Turn/RTHexMatchIntegrationTests.cpp` o il file dei test di input (`PlayerInput.`)
+- Test: `Tests/RTHexMatchIntegrationTests.cpp` o il file dei test di input (`PlayerInput.`)
 
 **Interfaces:**
 - Consumes: `IsWorldReadOnly()`, `PercheIlMondoESoloLettura(Context)`, `IsDockReadOnly()` (Task 2).
@@ -117,8 +117,8 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 ### Task 4: il dock e lo slot leggono il soggetto della barra
 
 **Files:**
-- Modify: `UI/HUD/RTScreenHudWidgets.h/.cpp` (`URTScreenHudWidgetBase`, `URTActionDockWidget`, `URTActionSlotWidget`)
-- Test: `Tests/UI/HUD/RTScreenHudWidgetTests.cpp`, `Tests/UI/HUD/ActionBar/RTActionDockPortTests.cpp` (accanto a `FRTSlotHoverProducerTest`)
+- Modify: `UI/RTScreenHudWidgets.h/.cpp` (`URTScreenHudWidgetBase`, `URTActionDockWidget`, `URTActionSlotWidget`)
+- Test: `Tests/RTScreenHudWidgetTests.cpp`, `Tests/RTActionDockPortTests.cpp` (accanto a `FRTSlotHoverProducerTest`)
 
 **Interfaces:**
 - Consumes: `GetDockUnit()`, `IsDockReadOnly()`, `BuildPublicBar`, `OrderForReading`.
@@ -131,12 +131,12 @@ Condizioni che la spec lascia implicite e che nessun test dei Task di sola costr
 - [ ] **Step 7: mutazione**: `GetArmedActionIndex` che ignora la sola lettura; `Activate` senza rifiuto; `BuiltForUnit` da `GetSelectedUnit()`; `GetMovementReadout` non nascosto; `HoverBegin` che confronta con la selezione. Per nome.
 - [ ] **Step 8: commit** `feat(3748): il dock mostra la barra dell'unita' cliccata, in sola lettura`
 
-> ⌫ **Come è andata.** I test stanno in `Tests/Turn/RTHexMatchIntegrationTests.cpp`, non in `RTScreenHudWidgetTests.cpp` né in `RTActionDockPortTests.cpp`: il solo banco con `ARTTurnManager`, mappa, conoscenza e un controller vero è `FRTLockInPreviewBench`, in un namespace anonimo di quel file. L'unità propria del banco è Ivrin, non Aevik. **`Activate()` non ha un rifiuto suo** (il piano diceva «rifiuta e logga»): il rifiuto sta nel controller (Task 3), e lo slot confronta soltanto `BuiltForUnit` con il soggetto della barra; il testo del log dello slot («la selezione è …») è quello di `#2989` e nomina ora il soggetto della barra. Cose che il piano non diceva: il dock applica il cancello `Live` a ogni lettura, solo mentre il controller dice «sola lettura» (`GetDockUnit()` e `IsDockReadOnly()` di `URTScreenHudWidgetBase` passano da un solo helper privato e non sono quelle del controller, che ha lo stesso nome e un altro significato), con il test `ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead`; lo slot non lo applica (non conosce il manager) e il divario dura al più un fotogramma. `GetMovementReadout()` torna non autorizzato e il rifiuto sotto il puntatore (`bTargetRefused`) non si stampa per un soggetto in sola lettura. Nessun `.uasset`: letto dalle stringhe degli asset, non eseguito; il buco è `UpdateTargetPrompt` (vedi «Non misurato, e dichiarato»).
+> ⌫ **Come è andata.** I test stanno in `Tests/RTHexMatchIntegrationTests.cpp`, non in `RTScreenHudWidgetTests.cpp` né in `RTActionDockPortTests.cpp`: il solo banco con `ARTTurnManager`, mappa, conoscenza e un controller vero è `FRTLockInPreviewBench`, in un namespace anonimo di quel file. L'unità propria del banco è Ivrin, non Aevik. **`Activate()` non ha un rifiuto suo** (il piano diceva «rifiuta e logga»): il rifiuto sta nel controller (Task 3), e lo slot confronta soltanto `BuiltForUnit` con il soggetto della barra; il testo del log dello slot («la selezione è …») è quello di `#2989` e nomina ora il soggetto della barra. Cose che il piano non diceva: il dock applica il cancello `Live` a ogni lettura, solo mentre il controller dice «sola lettura» (`GetDockUnit()` e `IsDockReadOnly()` di `URTScreenHudWidgetBase` passano da un solo helper privato e non sono quelle del controller, che ha lo stesso nome e un altro significato), con il test `ScreenHud.TheReadOnlyBarFollowsTheLiveGateOnEveryRead`; lo slot non lo applica (non conosce il manager) e il divario dura al più un fotogramma. `GetMovementReadout()` torna non autorizzato e il rifiuto sotto il puntatore (`bTargetRefused`) non si stampa per un soggetto in sola lettura. Nessun `.uasset`: letto dalle stringhe degli asset, non eseguito; il buco è `UpdateTargetPrompt` (vedi «Non misurato, e dichiarato»).
 
 ### Task 5: la scheda perde le righe di kit
 
 **Files:**
-- Modify: `UI/Inspect/RTInspect.h/.cpp` (`Compose`, `FRTInspectSubject::KitAbilityIndices`, `FRTInspectView::LineAbilityIndices`), `UI/HUD/RTHUD.cpp` (`BuildInspectSubject`), `UI/Inspect/RTInspectCardWidget.h/.cpp`, `Player/RTPlanningOverlay.h/.cpp`, `Player/RTPlayerController.cpp`
+- Modify: `UI/RTInspect.h/.cpp` (`Compose`, `FRTInspectSubject::KitAbilityIndices`, `FRTInspectView::LineAbilityIndices`), `UI/RTHUD.cpp` (`BuildInspectSubject`), `UI/RTInspectCardWidget.h/.cpp`, `Player/RTPlanningOverlay.h/.cpp`, `Player/RTPlayerController.cpp`
 - Test: i file che nominano gli stessi simboli
 
 **Interfaces:**

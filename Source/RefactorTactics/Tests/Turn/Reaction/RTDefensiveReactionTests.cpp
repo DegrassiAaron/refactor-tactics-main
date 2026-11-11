@@ -21,7 +21,7 @@
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Tests/Turn/Playback/Reveal/RTDefeatPresentationProbeForTest.h" // #3666: le morti del Blast annunciate una volta
 

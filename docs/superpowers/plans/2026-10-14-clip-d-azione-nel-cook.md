@@ -85,7 +85,7 @@
 
 ### Task 3: il gate, che non si fa ingannare e chiede le clip giuste
 
-**Files:** `Source/RefactorTactics/Tests/Unit/RTPackagingConfigTests.cpp`.
+**Files:** `Source/RefactorTactics/Tests/RTPackagingConfigTests.cpp`.
 
 - [ ] In `RTVerificaCotturaClip`: (a) il CDO secondo `Q2`, col log che dice quale; (b) il package `/Game/RT/Anim/ABP_RTUnitAuthored` escluso dai file che contano, col perché; la variabile che li tiene si chiama per ciò che è, i file **su disco**. Conteggio anti-sottrazione e controllo positivo sulla mesh restano.
 - [ ] Un test nuovo, `RefactorTactics.Anim.AuthoredClassCarriesTheCppDefaultsWhileTheCatalogHasNoBindings`: se il file della classe autorata c'è, la classe si carica, è figlia di `URTUnitAnimInstance` e non è una `UAnimBlueprintGeneratedClass`; e finché il catalogo non ha legami, per ogni eroe e ogni pool la clip attiva è quella del CDO C++. Se il file non c'è, il test lo dice e controlla solo il ripiego del gate.
@@ -94,7 +94,7 @@
 
 ### Task 4: il commandlet `RTSyncUnitAnimRefs`
 
-**Files:** `Source/RefactorTacticsEditor/Private/Content/Patch/RTSyncUnitAnimRefsCommandlet.h` e `.cpp`, sul modello di `RTRemoveEnergyBarCommandlet` per caricare, compilare e salvare un blueprint.
+**Files:** `Source/RefactorTacticsEditor/Private/Content/RTSyncUnitAnimRefsCommandlet.h` e `.cpp`, sul modello di `RTRemoveEnergyBarCommandlet` per caricare, compilare e salvare un blueprint.
 
 - [ ] **Fase 1, validare tutto, senza scrivere niente.** La classe autorata si carica (altrimenti errore). Le quattro voci attese di `HeroUnitClasses` ci sono. Per ogni blueprint: la proprietà `CookDeps_Anim` esiste sulla classe generata, è un array il cui elemento è `FObjectProperty` (non `FSoftObjectProperty`) con una classe compatibile con `UAnimSequenceBase`; ogni dipendenza **Hard** del suo package, secondo l'Asset Registry, esiste e si carica; ogni clip di `CollectActiveClips` sulla classe autorata si carica. Il confronto col valore attuale va nel log, come aggiunte e tolte. Un solo errore ferma tutto: nessun blueprint viene scritto, codice d'uscita diverso da zero. `-DryRun` si ferma qui.
 - [ ] **Fase 2, scrivere.** Per ogni blueprint: `UnitAnimClass` = classe autorata; `CookDeps_Anim` = l'insieme di `Q3`, scritto **anche** come default della variabile del Blueprint se la variabile ne ha uno (altrimenti la compilazione lo rimetterebbe); `CompileBlueprint`; se lo stato è `BS_Error`, niente salvataggio e codice d'uscita diverso da zero; salvataggio.

@@ -7,7 +7,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
 #include "RTGameMode.h"
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"

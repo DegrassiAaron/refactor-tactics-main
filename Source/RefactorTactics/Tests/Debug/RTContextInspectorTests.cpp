@@ -10,7 +10,7 @@
 #include "PieSession/RTPieVerdictOverlay.h" // la posa con cui questa non deve collidere
 #include "Replay/RTReplayPrivacyLibrary.h"
 #include "Tests/Shared/RTReflectedFieldsForTest.h"
-#include "Tests/UI/HUD/Intent/RTHudGeometryForTest.h" // il keep-out centrale, e l'intersezione di due rettangoli
+#include "Tests/Shared/RTHudGeometryForTest.h" // il keep-out centrale, e l'intersezione di due rettangoli
 #include "Styling/CoreStyle.h"             // lo stile da cui l'altezza di riga e' derivata
 #include "Styling/SlateTypes.h"            // FTextBlockStyle
 #include "Turn/Resolution/RTHexSim.h"

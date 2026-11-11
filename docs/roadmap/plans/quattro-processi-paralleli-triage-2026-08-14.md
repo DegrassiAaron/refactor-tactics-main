@@ -353,7 +353,7 @@ La §41 vieta di scegliere il primo batch senza verifica live. Eseguita: `git fe
 **Lo stato di partenza non era quattro track libere: era una track già occupata.** Il worktree
 `rt-wt-walls-doors` lavorava `docs/consolidamento-walls-doors-v1` con un write-set di 16 file, **12** dei
 quali coperti dalle categorie non assegnabili di questo batch — `integration_only` (7) e `generated_only`
-(5) — e `wt-cap` tiene `Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioCorpusTests.cpp`.
+(5) — e `wt-cap` tiene `Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp`.
 
 ⚠️ **Quel branch è poi atterrato** (§7.1), e il batch è stato riallineato a `84cbb70c`. La track resta
 occupata finché il worktree esiste: `git worktree list` e `gh pr list` rispondono a due domande diverse, e
@@ -367,14 +367,14 @@ SPATIAL
   branch:           feat/41-kpi-hex
   writable:         docs/roadmap/v0.1-definition-of-done.md
                     Source/RefactorTactics/Map/, Source/RefactorTactics/Pathfinding/
-                    Tests/Map/RTHexMapTests.cpp, Tests/Pathfinding/RTHexPathTests.cpp
+                    Tests/RTHexMapTests.cpp, Tests/RTHexPathTests.cpp
   binary leases:    nessuna
 
 SIMULATION
   issue:            #583 — il produttore della condizione dichiarata di D-109
   branch:           feat/583-produttore-d109
   writable:         Source/RefactorTactics/Turn/, Bot/
-                    Tests/Turn/Reaction/RTReactionTests.cpp
+                    Tests/RTReactionTests.cpp
   binary leases:    nessuna
   ⚠️                ScenarioHarness/ TOLTA dal write-set: la tiene wt-cap (misurato)
 

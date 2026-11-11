@@ -3,7 +3,7 @@
 > `HISTORICAL` · **Piano eseguito, non normativo**
 > Lo dichiarava gia' in prosa nella riga sotto; qui acquista il banner che rende la cartella
 > leggibile a un criterio meccanico. L'owner del formato e' `ERTTurnLogFormatVersion`
-> (`Source/RefactorTactics/Turn/Log/RTTurnLog.h`) e [`../../technical/architecture/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md).
+> (`Source/RefactorTactics/Turn/RTTurnLog.h`) e [`../../technical/architecture/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md).
 >
 > 📦 **Piano di esecuzione consegnato** — **riferimento storico, non normativo.**
 > Gli snippet di codice usano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`). La feature è viva: `URTTurnLogLibrary` è in `main`, con hash permutazione-invariante, serializzazione versionata e checksum.
@@ -34,7 +34,7 @@
 ### Task 1: Movimento — `RTTurnLog.h` + `FRTPathResult.Outcome`
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/Log/RTTurnLog.h`
+- Create: `Source/RefactorTactics/Turn/RTTurnLog.h`
 - Modify: `Source/RefactorTactics/Turn/RTMovementResolver.h` (include `RTTurnLog.h`; `FRTPathResult` += `Outcome`)
 - Modify: `Source/RefactorTactics/Turn/RTMovementResolver.cpp` (`ResolvePaths` popola `Outcome`)
 - Test: `Source/RefactorTactics/Tests/RTTurnLogTests.cpp` (create)
@@ -49,7 +49,7 @@
 
 #include "CoreMinimal.h"
 #include "Core/RTTypes.h"
-#include "Turn/Resolution/RTTurnRules.h"
+#include "Turn/RTTurnRules.h"
 #include "RTTurnLog.generated.h"
 
 /** Categoria dell'esito registrato nel TurnLog. */
@@ -118,7 +118,7 @@ struct FRTTurnLogEntry
 In `RTMovementResolver.h`, aggiungi l'include e il campo (dopo `Entered`):
 
 ```cpp
-#include "Turn/Log/RTTurnLog.h"   // in cima, dopo gli altri include
+#include "Turn/RTTurnLog.h"   // in cima, dopo gli altri include
 ```
 ```cpp
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
@@ -134,7 +134,7 @@ In `RTMovementResolver.h`, aggiungi l'include e il campo (dopo `Entered`):
 ```cpp
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMovementResolver.h"
-#include "Turn/Log/RTTurnLog.h"
+#include "Turn/RTTurnLog.h"
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
 
@@ -248,7 +248,7 @@ Expected: `Result: Succeeded`.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Log/RTTurnLog.h Source/RefactorTactics/Turn/RTMovementResolver.h Source/RefactorTactics/Turn/RTMovementResolver.cpp Source/RefactorTactics/Tests/RTTurnLogTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnLog.h Source/RefactorTactics/Turn/RTMovementResolver.h Source/RefactorTactics/Turn/RTMovementResolver.cpp Source/RefactorTactics/Tests/RTTurnLogTests.cpp
 git commit -m "feat(turnlog): ERTMoveOutcome esposto da ResolvePaths (TL.1)"
 ```
 
@@ -259,7 +259,7 @@ git commit -m "feat(turnlog): ERTMoveOutcome esposto da ResolvePaths (TL.1)"
 **Files:**
 - Modify: `Source/RefactorTactics/Combat/RTCombatLibrary.h` (dichiara `ClassifyCombatOutcome`)
 - Modify: `Source/RefactorTactics/Combat/RTCombatLibrary.cpp` (implementa)
-- Test: `Source/RefactorTactics/Tests/Combat/RTCombatLibraryTests.cpp` (aggiungi test)
+- Test: `Source/RefactorTactics/Tests/RTCombatLibraryTests.cpp` (aggiungi test)
 
 **Interfaces:**
 - Consumes: `ERTCombatOutcome` (Task 1, `RTTurnLog.h`).
@@ -267,7 +267,7 @@ git commit -m "feat(turnlog): ERTMoveOutcome esposto da ResolvePaths (TL.1)"
 
 - [ ] **Step 1: Write the failing test** in `RTCombatLibraryTests.cpp`
 
-Aggiungi (l'include `#include "Turn/Log/RTTurnLog.h"` in cima al file se assente):
+Aggiungi (l'include `#include "Turn/RTTurnLog.h"` in cima al file se assente):
 
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClassifyCombatOutcomeTest,
@@ -300,7 +300,7 @@ Expected: FAIL ("ClassifyCombatOutcome not declared"). Editor aperto: la build f
 
 In `RTCombatLibrary.h`, aggiungi l'include e la dichiarazione:
 ```cpp
-#include "Turn/Log/RTTurnLog.h"   // per ERTCombatOutcome
+#include "Turn/RTTurnLog.h"   // per ERTCombatOutcome
 ```
 ```cpp
 	/**
@@ -330,7 +330,7 @@ Run: `Build.bat RefactorTactics Win64 Development -project="<uproject>" -waitmut
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Combat/RTCombatLibrary.h Source/RefactorTactics/Combat/RTCombatLibrary.cpp Source/RefactorTactics/Tests/Combat/RTCombatLibraryTests.cpp
+git add Source/RefactorTactics/Combat/RTCombatLibrary.h Source/RefactorTactics/Combat/RTCombatLibrary.cpp Source/RefactorTactics/Tests/RTCombatLibraryTests.cpp
 git commit -m "feat(turnlog): ClassifyCombatOutcome (Hit/Shield/Lethal/TerrainBonus) (TL.2)"
 ```
 
@@ -350,7 +350,7 @@ git commit -m "feat(turnlog): ClassifyCombatOutcome (Hit/Shield/Lethal/TerrainBo
 
 - [ ] **Step 1: Declare TurnLog** in `RTTurnManager.h`
 
-Include in cima: `#include "Turn/Log/RTTurnLog.h"` (gia' incluso `RTResolvedEvent.h`). Nella sezione `public` (vicino a `GetRecentEvents`):
+Include in cima: `#include "Turn/RTTurnLog.h"` (gia' incluso `RTResolvedEvent.h`). Nella sezione `public` (vicino a `GetRecentEvents`):
 ```cpp
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }

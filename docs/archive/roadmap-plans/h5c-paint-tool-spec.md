@@ -53,7 +53,7 @@ l'operazione più frequente e rende l'authoring nel viewport completo (crea / mo
 
 ### 3.2 Helper editor condivisi (estratti da SelectTool)
 
-`Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.{h,cpp}` (namespace `RTHexEditor`):
+`Source/RefactorTacticsEditor/Private/RTHexEditorClick.{h,cpp}` (namespace `RTHexEditor`):
 
 - `ARTHexMapActor* FindTargetMapActor(UWorld*)` — actor selezionato; altrimenti l'unico presente; altrimenti
   `nullptr` (più di uno e nessuno selezionato → ambiguo, nessuna azione).
@@ -67,7 +67,7 @@ l'operazione più frequente e rende l'authoring nel viewport completo (crea / mo
 
 ### 3.3 Refactor runtime (`ARTHexMapActor`)
 
-`Source/RefactorTactics/Map/Actor/RTHexMapActor.{h,cpp}`:
+`Source/RefactorTactics/Map/RTHexMapActor.{h,cpp}`:
 
 - `void PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)` — estratto dal
   corpo attuale di `PaintTargetCell` (`FScopedTransaction` `#if WITH_EDITOR` + `Modify()` + merge-da-esistente +
@@ -109,7 +109,7 @@ l'operazione più frequente e rende l'authoring nel viewport completo (crea / mo
 
 ## 6. Testing e Definition of Done
 
-- **Logica pura → test headless**: `RefactorTactics.Hex.PaintBrushMerge` in `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`:
+- **Logica pura → test headless**: `RefactorTactics.Hex.PaintBrushMerge` in `Source/RefactorTactics/Tests/RTHexMapTests.cpp`:
   - cella nuova → `Height=0`, `LOS=false`, applica surface/cost/block;
   - cella esistente con `Height=3`, `bBlocksLineOfSight=true` → cambia surface/cost/block ma **preserva** `Height` e `LOS`.
   - (Erase = `RemoveCell`, già coperto da H1.)

@@ -113,7 +113,7 @@ Non è teorico: è precisamente la forma con cui #1287 è passato.
 
 **Consegnato**:
 
-- `Source/RefactorTactics/Tests/Camera/RTOrbitProbeForTest.h` — il rilevatore `Cell[t] == Cell[t-2]` con
+- `Source/RefactorTactics/Tests/RTOrbitProbeForTest.h` — il rilevatore `Cell[t] == Cell[t-2]` con
   `Cell[t] != Cell[t-1]`, **estratto** dall'oracolo della mappa d'autore invece che riscritto. Una
   implementazione sola: due copie della stessa firma sarebbero divergute in silenzio.
 - `EngagesOnTheGeneratedTestArena` — asserzione anti-oscillazione con **soglia e premessa proprie**,
@@ -222,10 +222,10 @@ nascosta. La premessa non vuota (`LogEventCount`) è già asserita. Nulla da agg
 ## 5. File modificati
 
 ```text
-A  Source/RefactorTactics/Tests/Camera/RTOrbitProbeForTest.h
-A  Source/RefactorTactics/Tests/Camera/RTOrbitProbeTests.cpp
-M  Source/RefactorTactics/Tests/Player/RTMatchAutobattleTests.cpp
-M  Source/RefactorTactics/Tests/Turn/Format/RTAuthoredMapEngagementTests.cpp
+A  Source/RefactorTactics/Tests/RTOrbitProbeForTest.h
+A  Source/RefactorTactics/Tests/RTOrbitProbeTests.cpp
+M  Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+M  Source/RefactorTactics/Tests/RTAuthoredMapEngagementTests.cpp
 A  docs/roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md
 ```
 

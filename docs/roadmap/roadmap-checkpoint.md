@@ -84,7 +84,7 @@ mano un numero che una macchina sa calcolare.
 Comando di misura, riproducibile:
 
 ```bash
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u | wc -l
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' --include='*.cpp' Source/RefactorTactics/Tests | tr -d '"' | sort -u | wc -l
 ```
 
 ⚠️ **Questo comando conta i test DICHIARATI, non quelli eseguiti — e i due numeri possono divergere.**

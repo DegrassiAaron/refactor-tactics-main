@@ -26,7 +26,7 @@
 #include "Turn/Resolution/RTTurnRules.h"
 #include "Unit/RTUnit.h"
 #include "Tests/Turn/Playback/Reveal/RTAttackPlaybackProbeForTest.h"
-#include "Tests/Camera/RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `NobodyOscillatesOnTheAuthoredMap`
+#include "Tests/Shared/RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `NobodyOscillatesOnTheAuthoredMap`
 // `D-361`: la definizione di stallo di questa board vive nella sonda, non qui.
 #include "Tests/Turn/Resolution/RTStallDefinitionProbeForTest.h"
 #include "Kismet/GameplayStatics.h"

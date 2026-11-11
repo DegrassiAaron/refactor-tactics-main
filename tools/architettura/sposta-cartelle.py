@@ -37,9 +37,20 @@ dalla radice di `Public/` o `Private/`. Il confine e' di parola, quindi `Turn/RT
 `Turn/RTTurnLogLibrary`. I numeri di riga accanto a un percorso restano validi: lo spostamento non cambia i file,
 e riscrivere un include non aggiunge righe.
 
-⚠️ **Cosa NON fa**: non riscrive i corpi delle issue di GitHub (stampa quante ne citano un percorso spostato), non
-tocca i file binari e non adatta il codice che COMPONE un percorso a runtime (una cartella in un `TEXT(...)` piu' un
-nome a parte): quei punti si cercano a mano, e la ragione sta nella PR della riorganizzazione.
+🔴 **Nei documenti storici si aggiornano solo i link** (`storici.py`): l'archivio, le evidenze, il changelog, il
+Decision Log, i referti datati di `docs/roadmap/plans/` e i piani di `docs/superpowers/plans/`. La loro prosa e il
+loro codice inline raccontano il mondo di quel giorno, spesso come output di un comando a uno SHA, e riscriverli lo
+falsifica: la prima riscrittura di #4061 l'aveva fatto in 168 file, e la review l'ha trovato.
+
+⚠️ **Cosa NON fa**:
+* non riscrive i corpi delle issue di GitHub;
+* non tocca i file binari (un file con un byte NUL nei primi 8 KB);
+* non adatta il codice che COMPONE un percorso a pezzi (`TEXT("Turn")` piu' un nome a parte, `os.path.join(...,
+  "UI", ...)`), ne' i comandi con un jolly su una cartella divisa (`Tests/*.cpp`): quei punti si cercano a mano;
+* `--solo-riferimenti` confronta stringhe d'include esatte: un include nudo di un file accanto, scritto in un file
+  NUOVO del branch (`#include "RTHexSim.h"` in un nuovo `Turn/X.cpp`), non si riconosce. Fallisce in compilazione,
+  non in silenzio;
+* guarda solo i file **tracciati** da git: un file nuovo non ancora aggiunto (`git add`) viene saltato.
 """
 
 import argparse
@@ -57,7 +68,10 @@ ED = "Source/RefactorTacticsEditor"
 EST_CPP = (".h", ".cpp", ".inl")
 EST_TESTO = (".md", ".py", ".ts", ".js", ".json", ".yml", ".yaml", ".txt", ".ini", ".cs", ".h", ".cpp", ".inl",
              ".ps1", ".sh", ".toml", ".csv")
-RE_INCLUDE = re.compile(r'^(\s*#\s*include\s+")([^"]+)(".*)$')
+# `﻿?`: la prima riga di un file con BOM comincia con il BOM, e senza questo il suo include non si vedrebbe.
+RE_INCLUDE = re.compile(r'^(﻿?\s*#\s*include\s+")([^"]+)(".*)$')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import storici  # noqa: E402  la regola dei documenti storici, condivisa con chi la applica a mano
 
 
 def git(*args):
@@ -223,19 +237,29 @@ def main():
     rx = regex_citazioni(tabella)
     n_cit = 0
     file_cit = 0
+    riscrivi = lambda s: rx.sub(lambda m: tabella[m.group(1)], s)  # noqa: E731
     for f in tutti:
         # Gli strumenti dello spostamento citano apposta le forme VECCHIE, come esempi e come dati: non si riscrivono.
-        if not f.endswith(EST_TESTO) or f.startswith(("tools/architettura/mappa-cartelle",
-                                                      "tools/architettura/sposta-cartelle")):
+        if f.startswith(("tools/architettura/mappa-cartelle", "tools/architettura/sposta-cartelle",
+                         "tools/architettura/storici")):
             continue
         p = RADICE / f
         testo = toccati.get(f)
         if testo is None:
             try:
-                testo = p.read_bytes().decode("utf-8", errors="surrogateescape")
+                grezzo = p.read_bytes()
             except OSError:
                 continue
-        nuovo, n = rx.subn(lambda m: tabella[m.group(1)], testo)
+            # ⚠️ Ogni file di TESTO tracciato, non un elenco di estensioni: `.gitignore` non ha estensione, e la
+            # prima riscrittura l'aveva saltato lasciando un comando che risponde vuoto. Binario = contiene NUL.
+            if b"\0" in grezzo[:8192]:
+                continue
+            testo = grezzo.decode("utf-8", errors="surrogateescape")
+        # 🔴 Nei documenti STORICI si aggiornano solo i link: la prosa racconta il mondo di quel giorno (`storici.py`).
+        if storici.e_storico(f):
+            nuovo, n = storici.solo_link(testo, f, mappa, riscrivi)
+        else:
+            nuovo, n = rx.subn(lambda m: tabella[m.group(1)], testo)
         if n:
             toccati[f] = nuovo
             n_cit += n

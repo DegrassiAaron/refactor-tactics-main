@@ -539,7 +539,7 @@ Verificato su `main` @ `ea26c0f`:
   bool locale della carica di *movimento* (`Source/RefactorTactics/Turn/RTTurnManager.cpp:1621`);
 - **nessun modello di conduttività di cella** esiste. `Hero.Gadget.ConductiveNode` è stato spedito con `Effects`
   **vuoto**, e la motivazione è scritta nel codice: non si dichiara un effetto che nessuno legge
-  (`Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:157-165`).
+  (`Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:157-165`).
 
 Quindi «Apply Charged 1» **non è un payload da configurare**: è `RT-FEAT-ENV-ELECTRIC` sotto un altro nome.
 Aggiungerlo come dato riprodurrebbe esattamente il difetto che `ConductiveNode` ha scelto di evitare.
@@ -747,7 +747,7 @@ della famiglia — con 6 il finish diventerebbe raro, cioè la falsa scelta che 
 
 > ⚠️ **Costo accettato, non effetto imprevisto.** 24/r3 era un numero **motivato**: la fascia corto raggio
 > darebbe 25, e il catalogo ne toglie uno «in cambio della stazza»
-> (`Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:326-329`). Inoltre Riktor è già l'eroe più
+> (`Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:326-329`). Inoltre Riktor è già l'eroe più
 > incompleto del roster — solo `ImpactShot` e `Ram` sono interamente rappresentabili. Portarlo a 8 lo lascia
 > con poco che funzioni finché le sue altre azioni non hanno un consumer. L'alternativa B (riclassificare la
 > famiglia) è stata scartata perché avrebbe lasciato Utility/Emergency **senza alcun rappresentante in v0.1**.
@@ -760,7 +760,7 @@ Scenarios/Combat/NoCounterWhenUnarmed.json
 Scenarios/Visual/Combat/Defeat.json
 Scenarios/Visual/Map/LowCoverEdge.json
 Source/RefactorTactics/Tests/RTHeroRiktorTests.cpp
-Source/RefactorTactics/Tests/Turn/Reaction/RTHeroReactionTests.cpp
+Source/RefactorTactics/Tests/RTHeroReactionTests.cpp
 ```
 
 Uso desiderato che la scelta rende possibile: finish · risposta affidabile · emergenza. La *rimozione di un
@@ -881,7 +881,7 @@ Il §15 propone `Action.BasicAttack + Character Profile = Resolved Basic Attack`
   `Hero.Phase.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`);
 - `Action.BasicAttack` esiste nel catalogo core, ma **senza danno né portata**, e con una motivazione scritta:
   quei due numeri dipendono dall'eroe, «mettere qui un numero significherebbe sceglierne uno arbitrario per
-  tutti» (`Source/RefactorTactics/Ability/Catalog/RTCatalogLibrary.cpp:311-316`);
+  tutti» (`Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:311-316`);
 - solo Gadget deriva i suoi numeri dalla tabella a fasce (`MakeBasicAttack(4)`). Gli altri tre sono definiti
   a mano, ciascuno con la sua motivazione nel commento.
 
@@ -1528,7 +1528,7 @@ identifica uno scenario) e `docs/technical/scenario-map.md` (chi lo verifica: ma
 nessuno).
 
 > **Vincolo che riscrive metà di questa sezione.** Il runner supporta **cinque** tipi di assertion, e basta
-> (`Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp:348-400`):
+> (`Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:348-400`):
 >
 > ```text
 > UnitAtCell · UnitHpEquals · UnitAlive · UnitFacing · TurnsCompleted

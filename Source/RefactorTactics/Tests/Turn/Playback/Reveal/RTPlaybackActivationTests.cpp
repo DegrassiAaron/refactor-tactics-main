@@ -31,7 +31,7 @@
 #include "Perception/RTTeamKnowledge.h"
 #include "Kismet/GameplayStatics.h"
 #include "Tests/Shared/RTWorldFixtures.h"
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

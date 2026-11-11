@@ -23,7 +23,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/Vision/RTHexVisionLibrary.h"
 #include "RTGameMode.h"
-#include "Tests/Camera/RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `EngagesOnTheGeneratedTestArena`
+#include "Tests/Shared/RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `EngagesOnTheGeneratedTestArena`
 #include "Tests/Shared/RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Log/RTTurnLog.h"

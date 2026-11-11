@@ -197,7 +197,7 @@ primo colpo — ed è il punto: pinna un comportamento non protetto, non ne aggi
 intercetta è la regressione descritta al §4.5, e cadrebbe da sé il giorno in cui `Occupancy` diventasse
 mutabile durante la fase.
 
-Sede naturale: `Source/RefactorTactics/Tests/Player/RTMatchAutobattleTests.cpp`, accanto a
+Sede naturale: `Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp`, accanto a
 `SimultaneousKOFollowsDeclaredPolicy`, che allestisce già lo scambio letale fra due adiacenti.
 
 ---

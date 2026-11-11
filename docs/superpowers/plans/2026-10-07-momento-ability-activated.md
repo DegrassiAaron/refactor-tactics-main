@@ -13,8 +13,8 @@
 ## Global Constraints
 
 - Engine: **UE 5.8.1** in `D:/EpicGames/UE_5.8`. Nessun aggiornamento di Engine, plugin o dipendenze.
-- ⛔ **`AbilityActivated` in CODA** a `ERTResolvedEventType`, dopo `ArcHit` (`Turn/Resolution/RTResolvedEvent.h:158`): è un `uint8` esposto a Blueprint.
-- ⛔ **Nessun dato nuovo in snapshot, TurnLog o `StateHash`.** La timeline è playback (`Turn/RTTurnManager.cpp:2831-2833`, `Turn/Log/RTTurnLog.h:827-829`). Misurato in pianificazione: `grep -n ResolvedTimeline Source/RefactorTactics/Turn/Log/RTMatchStateHash.h` → **0** righe; il Task 3 lo rimisura sul proprio commit.
+- ⛔ **`AbilityActivated` in CODA** a `ERTResolvedEventType`, dopo `ArcHit` (`Turn/RTResolvedEvent.h:158`): è un `uint8` esposto a Blueprint.
+- ⛔ **Nessun dato nuovo in snapshot, TurnLog o `StateHash`.** La timeline è playback (`Turn/RTTurnManager.cpp:2831-2833`, `Turn/RTTurnLog.h:827-829`). Misurato in pianificazione: `grep -n ResolvedTimeline Source/RefactorTactics/Turn/RTMatchStateHash.h` → **0** righe; il Task 3 lo rimisura sul proprio commit.
 - **Ordinamento solo esplicito**: `SortUnitsForResolution`, `SortActionInstances`, `IntentIndex`, l'ordine dei pass, l'indice di timeline. Mai l'ordine di iterazione di un `TMap`/`TSet`/Actor (un `TSet` si usa solo con `Contains`/`Add`).
 - ⛔ **Nessun `.uasset`**, nessun Blueprint toccato: `PlayCastMontage` nasce `BlueprintImplementableEvent` e nessun `BP_Unit_*` lo implementa.
 - ⛔ **Nessun totale volatile** in commenti, documenti, celle del registro PIE, YAML, issue, PR (`AGENTS.md` §14): niente «N attivazioni», «N scenari», «N voci». I conteggi di un test restano nel test.
@@ -39,7 +39,7 @@ Cinque ingressi che la spec implica e che i test «di spec» (§5.1) non esercit
 
 1. **Una copertura di Prep accettata contro una rifiutata** (`ResolveCoverStructures`, §2.2 terzo punto) → Task 2 Step 1, `Turn.CoverStructureActivatesOnlyWhenApplied`.
 2. **La predittiva senza cella** (`Ruling` di §2.2, `RTTurnManager.cpp:4268`) → Task 2 Step 1, `Turn.PredictiveWithoutCellStillActivates`.
-3. **L'estensione D-355 su un Blast sospeso davvero** (un `Brace` con `Profile.Sidestep` che apre la finestra, montaggio di `Tests/Turn/Reaction/RTDefensiveReactionTests.cpp:985-1047`) → Task 7 Step 1, `Playback.ActivationPrefixSurvivesASuspendedBlast`.
+3. **L'estensione D-355 su un Blast sospeso davvero** (un `Brace` con `Profile.Sidestep` che apre la finestra, montaggio di `Tests/RTDefensiveReactionTests.cpp:985-1047`) → Task 7 Step 1, `Playback.ActivationPrefixSurvivesASuspendedBlast`.
 4. **`Step` e corsa durante le attivazioni del Dash** (l'orologio della rotta spostato, Task 7 Step 5; la corsa sul posto di #3519) → Task 7 Step 1, `Playback.DashStepLandsOnCellsAfterTheActivations`.
 5. **Una sorgente nemica davvero fuori vista** (dietro un muro alto, non «una squadra senza unità») → Task 7 Step 1, `Playback.EnemyBehindHighCoverHasNoActivationBeat`.
 
@@ -115,15 +115,15 @@ EOF
 ### Task 1: L'evento, la voce D-278, `PlayCastMontage` e il ruolo `Cast` nel roster
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h:158` (in coda all'enum) e `:334` (docstring delle forme)
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp:249-257` (voce nuova dopo `ArcHit`, prima di `return Out;`)
+- Modify: `Source/RefactorTactics/Turn/RTResolvedEvent.h:158` (in coda all'enum) e `:334` (docstring delle forme)
+- Modify: `Source/RefactorTactics/Turn/RTPresentationBinding.cpp:249-257` (voce nuova dopo `ArcHit`, prima di `return Out;`)
 - Modify: `Source/RefactorTactics/Unit/RTUnit.h:1315-1325` (evento e seam accanto ai tre esistenti)
 - Modify: `Source/RefactorTactics/Unit/RTUnit.cpp:766-775` (`switch` di `PlayPresentationRole`)
 - Modify: `Source/RefactorTactics/Unit/RTPresentationRole.h:9-13` (commento)
 - Modify: `Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp:40-62` (commento-trappola e `MakeClips`)
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPresentationBindingTests.cpp:56-70` e `:503-522`
-- Test: `Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp` (in coda, prima di `#endif`)
-- Test: `Source/RefactorTactics/Tests/Unit/RTUnitTests.cpp:596-617` (`Unit.DiscreteRoleClipsMatchThePacks`: l'asserto «il ruolo `Cast` resta VUOTO» scade con questo task)
+- Test: `Source/RefactorTactics/Tests/RTPresentationBindingTests.cpp:56-70` e `:503-522`
+- Test: `Source/RefactorTactics/Tests/RTAnimChannelTests.cpp` (in coda, prima di `#endif`)
+- Test: `Source/RefactorTactics/Tests/RTUnitTests.cpp:596-617` (`Unit.DiscreteRoleClipsMatchThePacks`: l'asserto «il ruolo `Cast` resta VUOTO» scade con questo task)
 
 **Interfaces:**
 - Produces:
@@ -369,7 +369,7 @@ Expected: `Result={Fail}` con `mancanti:` che nomina `AbilityActivated`. Riprist
 - [ ] **Step 10: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Unit/RTPresentationRole.h Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPresentationBindingTests.cpp Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp Source/RefactorTactics/Tests/Unit/RTUnitTests.cpp
+git add Source/RefactorTactics/Turn/RTResolvedEvent.h Source/RefactorTactics/Turn/RTPresentationBinding.cpp Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Unit/RTPresentationRole.h Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/RTPresentationBindingTests.cpp Source/RefactorTactics/Tests/RTAnimChannelTests.cpp Source/RefactorTactics/Tests/RTUnitTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): AbilityActivated in coda all'enum, voce D-278 con PlayCastMontage, ruolo Cast suonato e popolato nel roster
 
@@ -384,7 +384,7 @@ EOF
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (dichiarazione privata accanto a `FreezeVerdictFor`, `:2439`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:3869-3896` (le due struct di `ResolveCoverStructures`), `:3993`, `:4025`, `:4077-4080`, `:4185`, `:4285-4290`, `:4342-4349`, `:4418-4425`, `:4826-4876`; e la definizione dell'helper dopo `FreezeVerdictFor` (`:312`)
-- Test: `Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp` (nuovo)
+- Test: `Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp` (nuovo)
 
 **Interfaces:**
 - Consumes: `ERTResolvedEventType::AbilityActivated` (Task 1).
@@ -394,7 +394,7 @@ EOF
 
 - [ ] **Step 1: I test rossi**
 
-Crea `Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp`:
+Crea `Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp`:
 
 ```cpp
 // IL MOMENTO: `AbilityActivated` (#<n>, spec «il momento»).
@@ -405,16 +405,16 @@ Crea `Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp`:
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
-#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/Log/RTTurnLog.h"
-#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Turn/RTTurnLog.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Unit/RTUnit.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
-#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Core/RTGameplayTags.h"
@@ -729,7 +729,7 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
 		if (!TM || !Ivrin) { return false; }
 
 		// `Hero.Ivrin.InterceptShot` e' la Predictive Action del roster (`PredictiveTargeting = LockCell`,
-		// `Ability/Catalog/RTHeroCatalogLibrary.cpp:950`).
+		// `Ability/RTHeroCatalogLibrary.cpp:950`).
 		const int32 Intercetto = IndiceAbilitaAttivazione(Ivrin, TEXT("Hero.Ivrin.InterceptShot"));
 		if (!TestTrue(TEXT("premessa: Ivrin ha InterceptShot"), Intercetto != INDEX_NONE)) { return false; }
 		Ivrin->PlannedAbilityIndex = Intercetto;
@@ -924,7 +924,7 @@ Expected: verdi, `**** TEST COMPLETE`.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): AbilityActivated emesso in Prep (coperture, predittiva, Overwatch, istanze) e nel Dash prima del Move
 
@@ -937,11 +937,11 @@ EOF
 ### Task 3: `InterruptedIntents` nel contesto e le quattro sorgenti del Blast
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Resolution/RTBlastContext.h:263-274` (campo nuovo accanto a `DegradedIntents`)
+- Modify: `Source/RefactorTactics/Turn/RTBlastContext.h:263-274` (campo nuovo accanto a `DegradedIntents`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp:446-486` (Cleanse), `:597` (Heal), `:704-705` (ModifyArc), `:1228` (`ApplyInterrupts`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (dichiarazione di `EmitAttackIntentActivations`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:5487-5503` (chiamata) e definizione nuova dopo `ResolveCombatPasses`
-- Test: `Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp`
 
 **Interfaces:**
 - Consumes: `EmitAbilityActivated` (Task 2).
@@ -1513,7 +1513,7 @@ void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
 - [ ] **Step 5: Build, verde, e l'hash che non si muove**
 
 Run: build; test `RefactorTactics.Turn+RefactorTactics.Actions+RefactorTactics.Reactions+RefactorTactics.Playback+RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback`.
-Expected: tutti verdi, `**** TEST COMPLETE`. Poi rimisura: `grep -n ResolvedTimeline Source/RefactorTactics/Turn/Log/RTMatchStateHash.h` → nessuna riga (annotalo nel commit come evidenza: è uno zero che conta).
+Expected: tutti verdi, `**** TEST COMPLETE`. Poi rimisura: `grep -n ResolvedTimeline Source/RefactorTactics/Turn/RTMatchStateHash.h` → nessuna riga (annotalo nel commit come evidenza: è uno zero che conta).
 
 - [ ] **Step 6: Mutazione (1) — l'emissione degli intenti d'attacco**
 
@@ -1547,11 +1547,11 @@ Expected: `Result={Fail}` su «chi e' morto prima del Blast non si attiva» — 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Resolution/RTBlastContext.h Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp
+git add Source/RefactorTactics/Turn/RTBlastContext.h Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): AbilityActivated dalle quattro sorgenti del Blast nell'ordine dei pass; InterruptedIntents nel contesto
 
-grep -n ResolvedTimeline Turn/Log/RTMatchStateHash.h -> 0 righe: nessun dato nuovo nell'hash.
+grep -n ResolvedTimeline Turn/RTMatchStateHash.h -> 0 righe: nessun dato nuovo nell'hash.
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 EOF
@@ -1562,13 +1562,13 @@ EOF
 ### Task 4: `SourceVerdict`, congelato all'emissione, e il beat `ShowActivation`
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h` (campo nuovo dopo `CellVerdicts`, `:244-245`)
+- Modify: `Source/RefactorTactics/Turn/RTResolvedEvent.h` (campo nuovo dopo `CellVerdicts`, `:244-245`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`EmitAbilityActivated`, Task 2) e definizione di `ShowActivation`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (dichiarazione privata di `ShowActivation`)
-- Test: `Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp`
 
 **Interfaces:**
-- Consumes: `EmitAbilityActivated` (Task 2), `FreezeVerdictFor` (`RTTurnManager.h:2439`), `FRTLogSubject::Frozen(int32, const FRTKnowledgeVerdict&)` (`Turn/Log/RTCombatLog.h:55`).
+- Consumes: `EmitAbilityActivated` (Task 2), `FreezeVerdictFor` (`RTTurnManager.h:2439`), `FRTLogSubject::Frozen(int32, const FRTKnowledgeVerdict&)` (`Turn/RTCombatLog.h:55`).
 - Produces:
   - `UPROPERTY() FRTKnowledgeVerdict FRTResolvedEvent::SourceVerdict;` — vuoto = `NoOne()` = fail-closed.
   - `void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev);` (privata) — suona `Cast` sulla sorgente e scrive `Attiva: <unità> -> <ActionId>` con il verdetto **congelato** (nessun ricalcolo). La chiamano i rami di playback del Task 7.
@@ -1698,7 +1698,7 @@ Commenta `Ev.SourceVerdict = FreezeVerdictFor(...)`, build, test `RefactorTactic
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Ability/RTAbilityActivatedTests.cpp
+git add Source/RefactorTactics/Turn/RTResolvedEvent.h Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTAbilityActivatedTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): SourceVerdict congelato all'emissione di AbilityActivated e beat ShowActivation con la riga Attiva:
 
@@ -1711,10 +1711,10 @@ EOF
 ### Task 5: La matematica pura — `BuildBlastSequence`, `BlastPhaseIsActive` a cinque, `PhaseTime` nuova
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h:153-245` (`BlastPhaseIsActive`, `PhaseDuration`, `PhaseTime` e loro commenti) e prima di `UCLASS()` (`:110`) per la struct
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp:47-133`
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.h:153-245` (`BlastPhaseIsActive`, `PhaseDuration`, `PhaseTime` e loro commenti) e prima di `UCLASS()` (`:110`) per la struct
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp:47-133`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:7795-7796` e `:8881-8883` (adattamento **transitorio**, sostituito nel Task 7)
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp:145-192`, `:514`, `:794-1084` e in coda
+- Test: `Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp:145-192`, `:514`, `:794-1084` e in coda
 
 **Interfaces:**
 - Consumes: `FRTResolvedEvent::SourceVerdict` (Task 4), `FRTKnowledgeVerdict::AllowsTeam(int32)` (`Perception/RTTeamKnowledge.h:187`).
@@ -2303,7 +2303,7 @@ Mutazione (d) — l'ordine fra gli atti: sostituisci il corpo di `Chiave()` con 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp
+git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): BuildBlastSequence per intento, BlastPhaseIsActive col quinto termine, PhaseTime su attivazioni e sequenza
 
@@ -2318,11 +2318,11 @@ EOF
 *Spezzato dal Task 7 perché è puro e rivedibile da solo: cambia una regola con una sola implementazione (`ActBoundaryRuleHasOneImplementation`) e i suoi tre consumatori in `RTTurnManager.cpp`, senza toccare la forma del playback.*
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h:408-491` (commenti e firma di `IsActBoundary`)
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp:290-349`
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.h:408-491` (commenti e firma di `IsActBoundary`)
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp:290-349`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h:3359-3391` (due membri nuovi)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:7891`, `:7927-7929`, `:7968-7970`, `:7995`, `:8052`, `:8134`, `:8149`, `:8498-8500`, `:8673-8674`
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp:704-755`, `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp` (in coda)
+- Test: `Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp:704-755`, `Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp` (in coda)
 
 **Interfaces:**
 - Produces:
@@ -2523,7 +2523,7 @@ Riporta l'ultima riga di `IsActBoundary` a `return Event.ActionId != CurrentActi
 - [ ] **Step 8: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp
+git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): il confine d'atto e' la coppia (sorgente, azione); chiuso il limite noto di #2855
 
@@ -2538,10 +2538,10 @@ EOF
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h:2335-2355` (dichiarazioni), `:3293-3349` (membri), accessore di test accanto a `ResolvedTimelineForTest` (`:634`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:7672-7800` (`BeginPlayback`), `:7896-7977` (le due `Reveal*` sostituite), `:7982-7991` (`EnterPlaybackPhase`), `:8094-8119` (`StepMicroStep`), `:8275-8282` (alpha del Dash), `:8418-8506` (Blast), `:8521-8562` (catch-all), `:8869-8884` (`PhaseTimeForPlaybackPhase`)
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp` (nuovo), `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp:604-680`
+- Test: `Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp` (nuovo), `Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp:604-680`
 
 **Interfaces:**
-- Consumes: `ShowActivation` (Task 4), `BuildBlastSequence`, `BlastPhaseIsActive`, `PhaseTime` (Task 5), `IsActBoundary` a coppia e i due membri `*Source` (Task 6), `ARTUnit::CastCuesPlayedForTest` (Task 1), `RTWorldFixtures::MakePlayerOnTeam(UWorld*, int32)` (`Tests/Shared/RTWorldFixtures.h:142`), `ARTTurnManager::RefreshTeamKnowledgeNow()` (`RTTurnManager.h:1024`).
+- Consumes: `ShowActivation` (Task 4), `BuildBlastSequence`, `BlastPhaseIsActive`, `PhaseTime` (Task 5), `IsActBoundary` a coppia e i due membri `*Source` (Task 6), `ARTUnit::CastCuesPlayedForTest` (Task 1), `RTWorldFixtures::MakePlayerOnTeam(UWorld*, int32)` (`Tests/RTWorldFixtures.h:142`), `ARTTurnManager::RefreshTeamKnowledgeNow()` (`RTTurnManager.h:1024`).
 - Produces:
   - membri privati: `TArray<FRTResolvedEvent> PlaybackActivationsPrep, PlaybackActivationsDash; TArray<FRTBlastSequenceElement> PlaybackBlastSequence; int32 ActivationsShown = 0; int32 BlastShown = 0;` — rimossi `PlaybackAttacks`, `PlaybackFootprints`, `PlaybackStructureHits`, `AttacksShown`, `FootprintsShown`, `StructureHitsShown`, `RevealPlaybackFootprints`, `RevealPlaybackStructureHits`.
   - privati: `bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo); bool RevealBlastSequence(int32 UpTo); bool NotePlaybackActShown(const FRTResolvedEvent& Ev); void ShowPlaybackAttack(const FRTResolvedEvent& Atk); float PlaybackActivationLeadSeconds(ERTMatchPhase InPhase) const;`
@@ -2564,7 +2564,7 @@ Expected: tutte le emissioni sono `Blast`. ⛔ **Se una è in un'altra fase**, f
 
 - [ ] **Step 1: I test rossi**
 
-Crea `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`:
+Crea `Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp`:
 
 ```cpp
 // IL BEAT DI ATTIVAZIONE NEL PLAYBACK (#<n>, spec «il momento» §2.4-§2.5).
@@ -2578,17 +2578,17 @@ Crea `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTest
 
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
-#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/Resolution/RTResolvedEvent.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Unit/RTUnit.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
-#include "Map/Cover/RTHexCoverLibrary.h"
+#include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "Kismet/GameplayStatics.h"
@@ -2753,7 +2753,7 @@ namespace
 /**
  * Il prefisso gia' mostrato della sequenza sopravvive a un Blast SOSPESO davvero — D-355 (Review Focus 3).
  *
- * 🔑 Il montaggio e' quello di `Tests/Turn/Reaction/RTDefensiveReactionTests.cpp:985-1047`: un `Brace` con
+ * 🔑 Il montaggio e' quello di `Tests/RTDefensiveReactionTests.cpp:985-1047`: un `Brace` con
  * `Profile.Sidestep` contro un `Push` apre la finestra, la resolution si ferma a meta' Blast e il playback
  * parte sulla timeline PARZIALE; `ExpireReactionWindow` la completa e `BeginPlayback(true)` ricostruisce la
  * sequenza. Il test puro (`BlastSequencePrefixIsStableUnderExtension`) prova la funzione; questo prova che il
@@ -3620,7 +3620,7 @@ Le mutazioni dei test aggiunti in questo task, una per volta, ciascuna seguita d
 - [ ] **Step 10: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): playback del momento - code di Prep e Dash, sequenza per intento del Blast, filtro D6, prefisso stabile D-355
 
@@ -3677,9 +3677,9 @@ EOF
 }
 ```
 
-⌫ ➕ impl. *Questo paragrafo prescriveva `"target": "M1"` su TideGuard, «ciò che il caricatore pretende», ed era falso*: eseguito nel Task 8, il caricatore rifiuta quell'intento con *«l'unita' bersaglia se stessa»* (`ScenarioHarness/Authoring/RTScenarioLoader.cpp:2827-2832`), perché `TideGuard` è self-target (`bSelfTarget`, `AbilityResolvesOnSelf`) e il campo va **omesso**, come fa `Scenarios/Spec/Combat/ProactiveShieldAbsorbsWhereBaseShieldDoesNot.json`. Con il campo cadevano `ShippedScenariosAreValid`, `ShippedScenariosRequireKnownCapabilities` ed `EveryShippedScenarioRuns`. In Prep l'istanza agisce su chi la usa (`Instance.TargetUnitId = i`): il `target` esplicito non serve e non è accettato. ➕ impl. Anche l'atteso su `M1` è `[-2, 0, 0]`, non `[-1, 0, 0]`: `Hero.Branth.ImpactShot` porta `Weapon.Impact`, che aggiunge una spinta di una cella verso ovest (misurato dal fallimento di `UnitAtCell(M1)` al secondo run).
+⌫ ➕ impl. *Questo paragrafo prescriveva `"target": "M1"` su TideGuard, «ciò che il caricatore pretende», ed era falso*: eseguito nel Task 8, il caricatore rifiuta quell'intento con *«l'unita' bersaglia se stessa»* (`ScenarioHarness/RTScenarioLoader.cpp:2827-2832`), perché `TideGuard` è self-target (`bSelfTarget`, `AbilityResolvesOnSelf`) e il campo va **omesso**, come fa `Scenarios/Spec/Combat/ProactiveShieldAbsorbsWhereBaseShieldDoesNot.json`. Con il campo cadevano `ShippedScenariosAreValid`, `ShippedScenariosRequireKnownCapabilities` ed `EveryShippedScenarioRuns`. In Prep l'istanza agisce su chi la usa (`Instance.TargetUnitId = i`): il `target` esplicito non serve e non è accettato. ➕ impl. Anche l'atteso su `M1` è `[-2, 0, 0]`, non `[-1, 0, 0]`: `Hero.Branth.ImpactShot` porta `Weapon.Impact`, che aggiunge una spinta di una cella verso ovest (misurato dal fallimento di `UnitAtCell(M1)` al secondo run).
 
-Il corpus golden **non** chiede nulla per l'Id nuovo: è un elenco esplicito (`Tests/Turn/Log/RTGoldenCorpusTests.cpp:583`), e `Visual.Ability.CastBeat` non vi entra.
+Il corpus golden **non** chiede nulla per l'Id nuovo: è un elenco esplicito (`Tests/RTGoldenCorpusTests.cpp:583`), e `Visual.Ability.CastBeat` non vi entra.
 
 Run: test `RefactorTactics.ScenarioIndex+RefactorTactics.ScenarioWriter+RefactorTactics.Simulation`.
 Expected: verdi; `ShippedScenariosAreTagged` vede i tag dello scenario nuovo.

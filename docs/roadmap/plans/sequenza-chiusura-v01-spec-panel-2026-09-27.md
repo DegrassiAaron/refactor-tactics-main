@@ -210,7 +210,7 @@ Tre build su `988c6bc6`, albero pulito, dal clone principale, macchina non conte
 | `RefactorTactics Win64 Shipping` | `Succeeded` | 0 — i file di test non esistono in Shipping |
 
 Le quattro sono accesso diretto a `UOverlaySlot::HorizontalAlignment`/`VerticalAlignment`
-(`Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp`, righe 1475, 1476, 1478, 1488).
+(`Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`, righe 1475, 1476, 1478, 1488).
 
 🔑 **Sono nuove rispetto alla misura che la cella dichiara.** `git merge-base --is-ancestor 4bb5c43d0 b0dc801a`
 → **falso**: il codice è entrato con `4bb5c43d0` (2026-09-12 **13:22**), **undici ore dopo** `b0dc801a`

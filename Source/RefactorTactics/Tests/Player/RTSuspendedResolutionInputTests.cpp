@@ -11,7 +11,7 @@
 #include "Player/RTPlayerState.h"
 #include "RTGameMode.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h"
+#include "Tests/Shared/RTReactionWindowFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Turn/Reaction/RTReactionOpportunityTypes.h"

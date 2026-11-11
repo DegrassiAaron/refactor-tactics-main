@@ -55,7 +55,7 @@ celle con la **stessa superficie**, applicando il pennello corrente (Surface/cos
 | **H5c.7b** Fill tool | `URTHexFillTool` + property set + comando `FillTool` + registrazione nel mode | Build Editor verde; click su una regione la riempie; Undo la ripristina |
 
 ## 6. Testing e Definition of Done
-- **Logica pura → test headless**: `RefactorTactics.HexMap.FloodRegion` in `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`:
+- **Logica pura → test headless**: `RefactorTactics.HexMap.FloodRegion` in `Source/RefactorTactics/Tests/RTHexMapTests.cpp`:
   regione di 3 celle contigue stessa superficie; un vicino di superficie diversa = bordo (escluso); una cella stessa
   superficie ma **non contigua** = esclusa; start su cella inesistente → regione vuota.
 - **Editor-bound (non headless, dichiarato)** → voce PIE in lista [`test-manuali-pie.md`](../../technical/test-manuali-pie.md):

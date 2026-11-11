@@ -382,7 +382,7 @@ Nomi da adattare alle convenzioni reali.
 > 🔎 **PANEL — due buchi in questa suite.**
 >
 > **1. Le fixture esistono già.** Il §25 propone un commit «add geometry grammar fixtures» senza dire dove.
-> Il Feature Registry lo dice: `Source/RefactorTactics/Tests/Map/Authoring/RTOccupancyFixtures.h`, dove vivono le quattro
+> Il Feature Registry lo dice: `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, dove vivono le quattro
 > fixture di geometria «da dove le useranno anche #620 e #621». Estendi quel file, non crearne un secondo.
 > Le fixture di geometria **non** vanno in `Scenarios/`: `FRTScenarioCell` non ha campi per segmenti o footprint.
 >
@@ -1002,7 +1002,7 @@ docs(map-editor): align geometry authoring spec with implementation
 >
 > | Commit | Problema | Correzione |
 > |---|---|---|
-> | `test(map): add geometry grammar fixtures` | Non dice dove, e le fixture esistono già | **Estendere** `Source/RefactorTactics/Tests/Map/Authoring/RTOccupancyFixtures.h`, che il registry destina già a #620/#621 |
+> | `test(map): add geometry grammar fixtures` | Non dice dove, e le fixture esistono già | **Estendere** `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, che il registry destina già a #620/#621 |
 > | `feat(map): add edge center/orientation helper` | 🔴 **Da eliminare.** L’helper esiste: `EdgeMidpointWorld` (`RTHexLibrary.h:90`) e `EdgeRotation` (`:100`) | Se serve qualcosa, è un commit che *riusa*, non che aggiunge |
 >
 > Il secondo è l’esempio più concreto del rischio che questo intero documento esiste per prevenire: una

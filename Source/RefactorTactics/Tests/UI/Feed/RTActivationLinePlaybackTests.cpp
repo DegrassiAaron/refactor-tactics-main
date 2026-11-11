@@ -32,7 +32,7 @@
 #include "Player/RTPlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Tests/Shared/RTAbilityFixtures.h"         // AddCoreAbilityInSlot: l'Overwatch
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h"  // la finestra si presenta al trattenimento del playback (#3666)
+#include "Tests/Shared/RTReactionWindowFixtures.h"  // la finestra si presenta al trattenimento del playback (#3666)
 #include "UI/Feed/RTActivationLine.h"
 #include "UI/HUD/RTHudViewModel.h"
 #include "UI/HUD/RTScreenHudWidgets.h" // URTPlayerEventLogWidget: il Registro che rilegge il feed (#4052)

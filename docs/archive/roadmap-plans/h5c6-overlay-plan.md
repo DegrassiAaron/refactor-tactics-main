@@ -30,8 +30,8 @@
 ## Task 1 (H5c.6): overlay superfici (helper + toggle in Select/Paint)
 
 **Files:**
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h` (dichiara `SurfaceColor`, `DrawSurfaceOverlay`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp` (implementa)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorClick.h` (dichiara `SurfaceColor`, `DrawSurfaceOverlay`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp` (implementa)
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h` (property `bShowOverlay`)
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp` (Render con overlay)
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h` (property `bShowOverlay`)
@@ -49,7 +49,7 @@
 
 - [ ] **Step 2: Helper — dichiarazioni**
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h`, dopo `struct FInputDeviceRay;` (riga ~9), aggiungere la forward-declaration:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorClick.h`, dopo `struct FInputDeviceRay;` (riga ~9), aggiungere la forward-declaration:
 ```cpp
 enum class ERTHexSurface : uint8;
 ```
@@ -64,7 +64,7 @@ e dentro il `namespace RTHexEditor`, dopo la dichiarazione di `DrawHexMarker(...
 
 - [ ] **Step 3: Helper — implementazioni**
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp`, dentro il `namespace RTHexEditor` (prima della `}` di chiusura `// namespace RTHexEditor`), aggiungere:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp`, dentro il `namespace RTHexEditor` (prima della `}` di chiusura `// namespace RTHexEditor`), aggiungere:
 ```cpp
 FColor SurfaceColor(ERTHexSurface Surface)
 {
@@ -103,7 +103,7 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	}
 }
 ```
-> `FRTHexCellData`/`ERTHexSurface`/`Cells`/`ERTLayerViewMode`/`LayerView`/`ActiveLayer` arrivano da `Map/Actor/RTHexMapActor.h` + `Map/RTHexMapAsset.h` (già inclusi nel .cpp); `AxialToWorld` da `Map/RTHexLibrary.h` (già incluso).
+> `FRTHexCellData`/`ERTHexSurface`/`Cells`/`ERTLayerViewMode`/`LayerView`/`ActiveLayer` arrivano da `Map/RTHexMapActor.h` + `Map/RTHexMapAsset.h` (già inclusi nel .cpp); `AxialToWorld` da `Map/RTHexLibrary.h` (già incluso).
 
 - [ ] **Step 4: Toggle + Render in Select e Paint**
 
@@ -188,8 +188,8 @@ In `docs/design/hex-map-roadmap.md`, riga **H5** Stato, aggiungere in coda: `H5c
 
 ```bash
 git checkout -- RefactorTactics.uproject   # se risporcato
-git add Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp \
+git add Source/RefactorTacticsEditor/Private/RTHexEditorClick.h \
+        Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp \
         Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h \
         Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp \
         Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h \

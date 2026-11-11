@@ -180,7 +180,7 @@ decide, la presentazione mostra (invariante #1).
 
 ## 7. Timing e autorità — il canale esiste già ed è esplicito
 
-`Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp` è la tabella dichiarata evento→cue. È il punto in
+`Source/RefactorTactics/Turn/RTPresentationBinding.cpp` è la tabella dichiarata evento→cue. È il punto in
 cui un fallback GrayKit si aggancerebbe, ed è già scritto con la disciplina che serve:
 
 | Evento risolto | Cue dichiarate |

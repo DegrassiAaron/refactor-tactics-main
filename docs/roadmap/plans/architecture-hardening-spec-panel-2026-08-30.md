@@ -158,7 +158,7 @@ Riletto assumendo che contenesse errori. Cinque ipotesi, tutte risolte con evide
 4. **Regressione di performance**: per `Prep` e `Cleanup` il loop su `MoveAnims` ora viene eseguito e prima
    no. `MoveAnims` ha al più un elemento per unità (≤ 4 in 2v2) e il loop gira una volta per fase in
    `BeginPlayback`. **Dichiarata, quantificata, trascurabile** — non nascosta.
-5. **Include in un header pubblico**: `RTPlaybackLibrary.h` include ora `Turn/Resolution/RTTurnRules.h`. Dei 10
+5. **Include in un header pubblico**: `RTPlaybackLibrary.h` include ora `Turn/RTTurnRules.h`. Dei 10
    consumatori, **7 includevano già quella catena**; ne pagano 3, nessuno in un percorso caldo. Non
    eliminabile con una forward declaration, perché UHT vuole il tipo completo.
 

@@ -30,7 +30,7 @@ sono invecchiate mentre il lavoro procedeva.
 
 | Affermazione del documento | Esito | Misura |
 |---|---|---|
-| Serve una pipeline `IconId → Icon Catalog → asset → consumer` | ✅ **esiste da `D-031`** | `URTIconCatalogData` (`UI/Inspect/RTIconCatalogData.h`) + `URTIconLibrary` (`UI/Inspect/RTIconLibrary.h`). Decisione **Consolidata**, owner **E20** |
+| Serve una pipeline `IconId → Icon Catalog → asset → consumer` | ✅ **esiste da `D-031`** | `URTIconCatalogData` (`UI/RTIconCatalogData.h`) + `URTIconLibrary` (`UI/RTIconLibrary.h`). Decisione **Consolidata**, owner **E20** |
 | «NON creare classi duplicate se esiste già un equivalente» | ✅ **premessa sana, e vincolante qui** | l'equivalente esiste per **tutte** le classi proposte |
 | Il validator deve rilevare duplicati, ID mancanti, asset nulli, categoria invalida | ✅ **implementato** | `ValidateIconCatalog` rifiuta: `IconId` assente · senza prefisso `UI.Icon.` · duplicato · categoria ≠ segmento nell'ID · asset nullo · missing-icon non impostato |
 | Serve una fallback / missing-icon policy | ✅ **implementata** | `FRTIconResolution{Asset, bResolved}`: chiave sconosciuta → missing-icon + `bResolved=false` + warning che nomina chiave **e** consumer |
@@ -125,7 +125,7 @@ sono invecchiate mentre il lavoro procedeva.
 
 | | Dichiarato | Misurato | Come |
 |---|---|---|---|
-| Test | **5** | **6** | `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Tests/UI/Inspect/RTIconCatalogTests.cpp` → 6. Il sesto è `V01CategoriesPopulated` |
+| Test | **5** | **6** | `grep -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Tests/RTIconCatalogTests.cpp` → 6. Il sesto è `V01CategoriesPopulated` |
 | Consumo | «⏳ non ancora» | ✅ **dal 2026-08-28** | PR **#1556** (`feat/220-icon-catalog`) mergiata su `main` il 2026-08-28 18:03. `URTActionSlotWidget::SetAction` riceve il catalogo, `GetResolvedIcon()` chiama `ResolveIcon(ReceivedCatalog, GetIconId(), "ActionSlot")` |
 
 ⚠️ **`#220` resta legittimamente OPEN**, e non è una contraddizione: il suo DoD chiede

@@ -82,7 +82,7 @@ una prova. Il conteggio corretto degli scenari proposti dal sorgente è **0 su 6
 | `DecisionGroupId` | **0** |
 
 Mentre esistono, e sono ciò da cui le proposte partono: `FRTPlannedIntent`
-(`Turn/Actions/RTIntentPrivacyLibrary.h`), `FRTReactionDecision` (`Turn/Reaction/RTReactionOpportunityTypes.h:250`),
+(`Turn/RTIntentPrivacyLibrary.h`), `FRTReactionDecision` (`Turn/RTReactionOpportunityTypes.h:250`),
 `OpportunityId` (prodotto, ordinato, serializzato).
 
 ### 3.5 `ERTReactionDecisionOutcome` ha esattamente i sei valori dichiarati

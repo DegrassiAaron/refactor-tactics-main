@@ -170,17 +170,17 @@ e #2386 sono `CLOSED`. In concreto, su `c3151afd`:
   (`FRTMatchHeaderView::PrepWindowSecondsRemaining`, #2386);
 - round, `RoundLimit`, fase e timer sono nel view model e hanno un widget (`WBP_RT_TurnHeader`);
 - il §4.2 Tactical World Overlay mostra i piani di **entrambe** le squadre in autobattle
-  (`UI/HUD/RTHUD.cpp:715`);
+  (`UI/RTHUD.cpp:715`);
 - la partita è già stata registrata in PIE e packaged (#959).
 
 **FATTO — il buco.** Il §4.1 in UMG **non ha il ramo autobattle**:
 
 ```
 git grep -n "IsUnattendedSession" -- Source/ | grep -v "/Tests/"
-→ un solo LETTORE: UI/HUD/RTHUD.cpp:715   (cioè il §4.2, in Canvas)
+→ un solo LETTORE: UI/RTHUD.cpp:715   (cioè il §4.2, in Canvas)
 ```
 
-mentre `UI/HUD/RTScreenHudWidgets.cpp` passa `GetPlayerTeamId()` a `BuildPlayerEventFeed` (`:195`),
+mentre `UI/RTScreenHudWidgets.cpp` passa `GetPlayerTeamId()` a `BuildPlayerEventFeed` (`:195`),
 `BuildTeamRoster` (`:256`) e `BuildUnitCard` (`:270`). ∴ in autobattle roster e feed raccontano **una
 squadra sola**.
 

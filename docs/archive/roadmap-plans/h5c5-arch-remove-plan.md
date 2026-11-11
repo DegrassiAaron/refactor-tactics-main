@@ -32,9 +32,9 @@
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexLibrary.h` (dichiara `DistanceRayToSegment`)
 - Modify: `Source/RefactorTactics/Map/RTHexLibrary.cpp` (implementa `DistanceRayToSegment`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h` (dichiara `RemoveTransitionData`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` (implementa `RemoveTransitionData`; `RemoveVerticalTransition` wrapper)
-- Test: `Source/RefactorTactics/Tests/Map/RTHexTests.cpp` (nuovo `DistanceRayToSegment`)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h` (dichiara `RemoveTransitionData`)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.cpp` (implementa `RemoveTransitionData`; `RemoveVerticalTransition` wrapper)
+- Test: `Source/RefactorTactics/Tests/RTHexTests.cpp` (nuovo `DistanceRayToSegment`)
 
 **Interfaces:**
 - Produces: `static float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)`; `bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)`.
@@ -42,7 +42,7 @@
 
 - [ ] **Step 1: Scrivere il test che fallisce (`DistanceRayToSegment`)**
 
-In `Source/RefactorTactics/Tests/Map/RTHexTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
+In `Source/RefactorTactics/Tests/RTHexTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexDistanceRaySegTest,
 	"RefactorTactics.Hex.DistanceRayToSegment",
@@ -130,13 +130,13 @@ Run build → `Result: Succeeded`. Poi:
 
 - [ ] **Step 6: Estrarre `RemoveTransitionData` sull'actor**
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.h`, subito dopo la dichiarazione di `RemoveVerticalTransition()` (riga ~129), aggiungere:
+In `Source/RefactorTactics/Map/RTHexMapActor.h`, subito dopo la dichiarazione di `RemoveVerticalTransition()` (riga ~129), aggiungere:
 ```cpp
 	/** Rimuove la transizione From->To (e l'inversa se bBothDirections) dall'asset. Vero se ha rimosso. Annullabile. */
 	bool RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections);
 ```
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`, sostituire l'INTERO metodo `RemoveVerticalTransition()` (righe ~240-259). Da:
+In `Source/RefactorTactics/Map/RTHexMapActor.cpp`, sostituire l'INTERO metodo `RemoveVerticalTransition()` (righe ~240-259). Da:
 ```cpp
 void ARTHexMapActor::RemoveVerticalTransition()
 {
@@ -199,8 +199,8 @@ Run build → `Result: Succeeded`. Poi `... -ExecCmds="Automation RunTests Refac
 ```bash
 git checkout -- RefactorTactics.uproject   # se risporcato
 git add Source/RefactorTactics/Map/RTHexLibrary.h Source/RefactorTactics/Map/RTHexLibrary.cpp \
-        Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp \
-        Source/RefactorTactics/Tests/Map/RTHexTests.cpp
+        Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp \
+        Source/RefactorTactics/Tests/RTHexTests.cpp
 git commit -m "feat(hex): H5c.5a - DistanceRayToSegment (test) + RemoveTransitionData"
 ```
 

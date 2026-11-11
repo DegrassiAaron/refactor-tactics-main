@@ -327,7 +327,7 @@ E non serviva scriverla. La roadmap ha già la DoD **con i nomi dei test**:
 | **10.3** | ✅ | **Fine partita a tre vie**: eliminazione, obiettivo, `RoundLimit` da formato; parità = pareggio dichiarato | **27 test `Match*.*`** |
 
 Metà della Priorità 3 — *winner/draw*, *match-end reason* — **è chiusa da CP 10.3**, con
-`Turn/Resolution/RTTurnRules.*`, `Turn/Format/RTMatchFormatData.h` e la voce `PIE-V01-MATCHEND` già registrata. Il residuo di
+`Turn/RTTurnRules.*`, `Turn/RTMatchFormatData.h` e la voce `PIE-V01-MATCHEND` già registrata. Il residuo di
 E10 è dichiarato in una riga: *«⏳ nessun oggetto da attivare in mappa»*, cioè **CP 10.1 e CP 10.2**.
 
 Sostituire i sette sostantivi con «CP 10.1 e CP 10.2, DoD e nomi dei test in `roadmap-v0.1.md:801-802`»
@@ -339,7 +339,7 @@ rende la sezione misurabile e le toglie il rischio di riscrivere ciò che è ver
 
 | # | Sezione | Rilievo | Evidenza | Correzione |
 |---|---|---|---|---|
-| **M1** | §9 | Priorità 2 **è già implementata** e il documento non fornisce il puntatore: il costo della riscoperta si paga a ogni sessione | `RecordedDecisions` e `ARTTurnManager::ReportOrphanRecordedDecisions()` in `Turn/RTTurnManager.cpp`, consumate da `Tests/Turn/Log/RTSimulationDeterminismTests.cpp` | Incorporare i **simboli** nel testo; §9 diventa «aggiungi i test mancanti a questo», non «audita» |
+| **M1** | §9 | Priorità 2 **è già implementata** e il documento non fornisce il puntatore: il costo della riscoperta si paga a ogni sessione | `RecordedDecisions` e `ARTTurnManager::ReportOrphanRecordedDecisions()` in `Turn/RTTurnManager.cpp`, consumate da `Tests/RTSimulationDeterminismTests.cpp` | Incorporare i **simboli** nel testo; §9 diventa «aggiungi i test mancanti a questo», non «audita» |
 | **M2** | §12, §15 | La verifica PIE si consegna in forma inventata (`test name / command / expected / prerequisite`) invece che con l'ID del sistema esistente | `PIE-V01-OVERWATCH` in `docs/technical/test-manuali-pie.md`; la DoD di `#166` la nomina | Chiedere **l'ID della voce PIE**; l'esito atteso vive già lì e non va duplicato |
 | **M3** | §2 | Il `.pdf` compare come livello **6** di una scala di precedenza, il che gli attribuisce un'autorità che `D-009` gli nega — *«un `.pdf` non è **mai** autoritativo»* | `AGENTS.md`, `CLAUDE.md` §1 | Toglierlo dalla scala: è provenienza e rationale storico, non una fonte in graduatoria |
 | **M4** | §3, §15 | Pre-flight senza `gh pr list --state open` (collisione `D-nnn`); handoff senza il **branch padre** della PR né l'eventuale `D-nnn` rivendicato | `CLAUDE.md` §4; regola PR: base = branch padre, **non** `main` | Aggiungere entrambi ai due elenchi |

@@ -31,9 +31,9 @@
 
 | File | Responsabilità |
 |---|---|
-| `Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h` *(modifica)* | il campo `Verifies` nel modello dello scenario |
-| `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` *(modifica)* | leggerlo dal JSON |
-| `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioWriter.cpp` *(modifica)* | riscriverlo, così il round-trip non lo cancella |
+| `Source/RefactorTactics/ScenarioHarness/RTTestScenario.h` *(modifica)* | il campo `Verifies` nel modello dello scenario |
+| `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` *(modifica)* | leggerlo dal JSON |
+| `Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp` *(modifica)* | riscriverlo, così il round-trip non lo cancella |
 | `Source/RefactorTactics/PieSession/RTPieSessionTypes.h` *(nuovo)* | enum del verdetto, `FRTPieSessionStep`, `FRTPieSessionPorts` |
 | `Source/RefactorTactics/PieSession/RTPieSessionSubsystem.h/.cpp` *(nuovi)* | la conduzione: stati, coda, verdetti |
 | `Source/RefactorTactics/PieSession/RTPieSessionWriter.h/.cpp` *(nuovi)* | il file di seduta e il commit letto da `.git/HEAD` |
@@ -50,10 +50,10 @@
 ### Task 1: `verifies` nel formato scenario, andata e ritorno
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h` (testata di `FRTTestScenario`, dopo `Tags`, ~riga 903)
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp:1936` (dove legge `tags`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioWriter.cpp:532` (dove scrive `tags`; nessun header da toccare — la serializzazione si raggiunge da `URTScenarioLoader::SaveToFile`)
-- Test: `Source/RefactorTactics/Tests/Turn/Format/RTPieSessionFormatTests.cpp`
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTTestScenario.h` (testata di `FRTTestScenario`, dopo `Tags`, ~riga 903)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:1936` (dove legge `tags`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp:532` (dove scrive `tags`; nessun header da toccare — la serializzazione si raggiunge da `URTScenarioLoader::SaveToFile`)
+- Test: `Source/RefactorTactics/Tests/RTPieSessionFormatTests.cpp`
 
 **Interfaces:**
 - Consumes: niente
@@ -62,10 +62,10 @@
 - [ ] **Step 1: Write the failing test**
 
 ```cpp
-// Source/RefactorTactics/Tests/Turn/Format/RTPieSessionFormatTests.cpp
+// Source/RefactorTactics/Tests/RTPieSessionFormatTests.cpp
 #include "Misc/AutomationTest.h"
-#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
-#include "ScenarioHarness/Authoring/RTTestScenario.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTTestScenario.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
@@ -185,10 +185,10 @@ Expected: PASS entrambi.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h \
-        Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp \
-        Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioWriter.cpp \
-        Source/RefactorTactics/Tests/Turn/Format/RTPieSessionFormatTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/RTTestScenario.h \
+        Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \
+        Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp \
+        Source/RefactorTactics/Tests/RTPieSessionFormatTests.cpp
 git commit -m "feat(3208): lo scenario dichiara quali voci PIE permette di giudicare"
 ```
 
@@ -197,7 +197,7 @@ git commit -m "feat(3208): lo scenario dichiara quali voci PIE permette di giudi
 ### Task 2: il gate di catalogo — nessun id inventato
 
 **Files:**
-- Create: `Source/RefactorTactics/Tests/PieSession/RTPieSessionCatalogTests.cpp`
+- Create: `Source/RefactorTactics/Tests/RTPieSessionCatalogTests.cpp`
 
 **Interfaces:**
 - Consumes: `FRTTestScenario::Verifies` (Task 1)
@@ -210,7 +210,7 @@ git commit -m "feat(3208): lo scenario dichiara quali voci PIE permette di giudi
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "ScenarioHarness/Authoring/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -330,7 +330,7 @@ Expected: PASS con i due scenari popolati.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/PieSession/RTPieSessionCatalogTests.cpp Scenarios/
+git add Source/RefactorTactics/Tests/RTPieSessionCatalogTests.cpp Scenarios/
 git commit -m "test(3208): ogni voce dichiarata da uno scenario esiste nel registro"
 ```
 
@@ -342,7 +342,7 @@ git commit -m "test(3208): ogni voce dichiarata da uno scenario esiste nel regis
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionTypes.h`
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionSubsystem.h`
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionSubsystem.cpp`
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionConductionTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionConductionTests.cpp`
 
 **Interfaces:**
 - Consumes: `ERTScenarioStart` (`ScenarioHarness/RTScenarioCoordinator.h`), `FRTTestResult`
@@ -357,7 +357,7 @@ git commit -m "test(3208): ogni voce dichiarata da uno scenario esiste nel regis
 ```cpp
 #include "Misc/AutomationTest.h"
 #include "PieSession/RTPieSessionSubsystem.h"
-#include "ScenarioHarness/Report/RTTestResult.h"
+#include "ScenarioHarness/RTTestResult.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -579,7 +579,7 @@ private:
 ```cpp
 // RTPieSessionSubsystem.cpp
 #include "PieSession/RTPieSessionSubsystem.h"
-#include "ScenarioHarness/Report/RTTestResult.h"
+#include "ScenarioHarness/RTTestResult.h"
 
 void URTPieSessionSubsystem::Begin(TArray<FRTPieSessionStep> InSteps, FRTPieSessionPorts InPorts)
 {
@@ -672,7 +672,7 @@ Expected: PASS tutti e tre.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/PieSession/ Source/RefactorTactics/Tests/PieSession/RTPieSessionConductionTests.cpp
+git add Source/RefactorTactics/PieSession/ Source/RefactorTactics/Tests/RTPieSessionConductionTests.cpp
 git commit -m "feat(3208): il conduttore avanza la coda e chiude da solo cio' che non si allestisce"
 ```
 
@@ -683,7 +683,7 @@ git commit -m "feat(3208): il conduttore avanza la coda e chiude da solo cio' ch
 **Files:**
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionWriter.h/.cpp`
 - Modify: `Source/RefactorTactics/PieSession/RTPieSessionSubsystem.cpp` (scrive alla fine)
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionWriterTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionWriterTests.cpp`
 
 **Interfaces:**
 - Consumes: `FRTPieSessionStep`, `ERTPieVerdict`
@@ -810,7 +810,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/PieSession/ Source/RefactorTactics/Tests/PieSession/RTPieSessionWriterTests.cpp
+git add Source/RefactorTactics/PieSession/ Source/RefactorTactics/Tests/RTPieSessionWriterTests.cpp
 git commit -m "feat(3208): il file di seduta tiene separati esito macchina e verdetto umano"
 ```
 
@@ -820,7 +820,7 @@ git commit -m "feat(3208): il file di seduta tiene separati esito macchina e ver
 
 **Files:**
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionPlaylist.h/.cpp`
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionPlaylistTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionPlaylistTests.cpp`
 
 **Interfaces:**
 - Consumes: `FRTTestScenario::Verifies`, `URTScenarioIndex`
@@ -877,7 +877,7 @@ git commit -am "feat(3208): la coda si compone da un selettore, e dichiara cosa 
 
 **Files:**
 - Create: `Source/RefactorTactics/PieSession/RTPieSessionConsole.cpp`
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionConsoleTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionConsoleTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTPieSessionPlaylist::Compose`, `URTPieSessionSubsystem`
@@ -939,7 +939,7 @@ git commit -am "feat(3208): rt.Pie.Session, rt.Pie.Verdict e l'interruzione che 
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioCoordinator.h/.cpp`
 - Modify: `Source/RefactorTactics/RTGameMode.h/.cpp` (`ResolveScenarioToRun` a `RTGameMode.cpp:952`; il coordinator è `RTGameMode.h:480`)
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionIntegrationTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionIntegrationTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTPieSessionSubsystem::IsConducting()`, `CurrentStep()`
@@ -1005,7 +1005,7 @@ git commit -am "feat(3208): la seduta in corso vince su ogni altra sorgente di s
 
 **Files:**
 - Create: `Source/RefactorTactics/PieSession/RTPieVerdictOverlay.h/.cpp`
-- Test: `Source/RefactorTactics/Tests/PieSession/RTPieSessionOverlayTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPieSessionOverlayTests.cpp`
 
 **Interfaces:**
 - Consumes: `URTPieSessionSubsystem::CurrentStep()`, `::State()`, `::SubmitVerdict()`

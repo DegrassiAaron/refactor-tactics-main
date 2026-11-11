@@ -22,7 +22,7 @@
 La proposta descriveva #77 come «la prima vera schermata da giocatore», da costruire in UMG partendo da
 zero. **Misurato sul branch, non è così.**
 
-`ARTHUD` (`Source/RefactorTactics/UI/HUD/RTHUD.{h,cpp}`, 544 righe) è una HUD **Canvas in C++** — l'header lo
+`ARTHUD` (`Source/RefactorTactics/UI/RTHUD.{h,cpp}`, 544 righe) è una HUD **Canvas in C++** — l'header lo
 dichiara: *«nessun asset UMG»* — e disegna già:
 
 | Voce del DoD di #77 | Stato reale |

@@ -109,7 +109,7 @@ Ogni riga poggia su una misura, non su una lettura del titolo.
 | **`ALREADY_DONE`** | **23** | `F0-02` … `F0-17`, `F0-19` … `F0-25` | sorgente presente in `Source/` (`RTCellId`, `RTHexPathLibrary`, `RTHexSim`, `RTTurnManager`, `RTTurnLog`, `RTMatchStateHash`, `RTPlaybackLibrary`, `Preview` in 44 file, …) + 1497 test + 97 scenari |
 | **`REUSE`** (gate già coperto) | 2 | `F0-27` packaged · `F0-28` golden gate | coperti da `G1…G15` in [`../v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) |
 | **processo, non prodotto** | 2 | `F0-00` audit · `F0-01` lock UE/toolchain | non producono codice; l'engine è pinnato a **5.8** in `.uproject` |
-| **N/A — modello diverso** | 1 | `F0-18` Ready/Unready + countdown | il loop reale è `ERTMatchPhase{Planning, Prep, Dash, Blast, Move, Cleanup}` (`Turn/Resolution/RTTurnRules.h:10`): non c'è un Ready di turno da annullare |
+| **N/A — modello diverso** | 1 | `F0-18` Ready/Unready + countdown | il loop reale è `ERTMatchPhase{Planning, Prep, Dash, Blast, Move, Cleanup}` (`Turn/RTTurnRules.h:10`): non c'è un Ready di turno da annullare |
 | 🟠 **`PARTIAL` — owner esistente** | 1 | `F0-26` performance + marker | **zero marker di profiling** in `Source/`, ma la materia è di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (OPEN, `P0`, `v0.1 · Gate di release`), che prescrive già il `p99`. Scoperto da nessuno: solo `queries/frame` ed `ExpandedNodes` — §5.1 |
 
 ⚠️ **Un negativo di questa tabella è stato ottenuto due volte.** Il primo `grep` dava `F0-17` (ghost path)
@@ -298,7 +298,7 @@ Tre cose. Sono **proposte al proprio owner**, non decisioni prese da questo refe
 > «Non misurare solo la media. Per path e planning registra: `p50 p95 p99 max query count expanded nodes`» (§14)
 
 ⚠️ **Metà di questa prescrizione è già in casa, e va detto prima di proporla.**
-`Tests/Turn/RTHexPerfTests.cpp` misura i KPI del PDR (`path < 2 ms`, `resolver < 100 ms/turno`) e implementa già
+`Tests/RTHexPerfTests.cpp` misura i KPI del PDR (`path < 2 ms`, `resolver < 100 ms/turno`) e implementa già
 `MedianMs()` — con il commento *«mediana, non media: un picco non deve spostarla»*, che è esattamente
 l'argomento del §14 — e `PercentileMs()` per nearest-rank. Il kit non insegna nulla su questo punto.
 

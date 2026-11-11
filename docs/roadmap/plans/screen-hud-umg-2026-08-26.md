@@ -377,9 +377,9 @@ Cosa esiste già, e non va rifatto:
 
 | Pezzo | Dove | Stato |
 |---|---|---|
-| Sette classi base dei widget | `UI/HUD/RTScreenHudWidgets.h` | ✅ |
-| Viste sanitizzate | `UI/HUD/RTHudViewModel.h` | ✅ |
-| Quattro test dell'API widget | `Tests/UI/HUD/RTScreenHudWidgetTests.cpp` | ✅ verdi |
+| Sette classi base dei widget | `UI/RTScreenHudWidgets.h` | ✅ |
+| Viste sanitizzate | `UI/RTHudViewModel.h` | ✅ |
+| Quattro test dell'API widget | `Tests/RTScreenHudWidgetTests.cpp` | ✅ verdi |
 | Modulo `UMG`/`Slate`/`SlateCore` | `RefactorTactics.Build.cs:27-29` | ✅ |
 | Catalogo icone `.uasset` | — | ⛔ **non esiste** (#220): si procede col missing-icon visibile |
 | I sei `WBP_RT_*` del tactical HUD | `Content/RT/UI/Match/` | ⛔ **questo lavoro** |
@@ -411,7 +411,7 @@ ReturnMain()  → InitializeFrontend(Main)  → DismissMatchHud()
 |---|---|---|
 | `Source/RefactorTactics/Frontend/RTFrontendNavigator.h` | dichiara il layer HUD e il suo binding di config | Modifica |
 | `Source/RefactorTactics/Frontend/RTFrontendNavigator.cpp` | presenta, smonta, e disabilita sotto un modale | Modifica |
-| `Source/RefactorTactics/Tests/UI/HUD/RTFrontendMatchHudTests.cpp` | i quattro test del layer | **Crea** |
+| `Source/RefactorTactics/Tests/RTFrontendMatchHudTests.cpp` | i quattro test del layer | **Crea** |
 | `Config/DefaultGame.ini` | il percorso del `.uasset` | Modifica |
 | `Content/RT/UI/Match/WBP_RT_*.uasset` | i sei Blueprint | **Crea (Editor)** |
 | `docs/technical/runbooks/guida-screen-hud-umg.md` | ricetta: tre premesse da correggere | Modifica |
@@ -428,7 +428,7 @@ con un `grep`. Una seconda classe che istanzia widget la romperebbe per guadagna
 - Modifica: `Source/RefactorTactics/Frontend/RTFrontendNavigator.h`
 - Modifica: `Source/RefactorTactics/Frontend/RTFrontendNavigator.cpp`
 - Modifica: `Config/DefaultGame.ini`
-- Test: `Source/RefactorTactics/Tests/UI/HUD/RTFrontendMatchHudTests.cpp` (nuovo)
+- Test: `Source/RefactorTactics/Tests/RTFrontendMatchHudTests.cpp` (nuovo)
 
 **Interfacce:**
 - Consuma: `InitializeFrontend`, `SyncPresentation`, `FRTScreenStack`, `RTScreenIds::Match` (esistenti)
@@ -440,7 +440,7 @@ con un `grep`. Una seconda classe che istanzia widget la romperebbe per guadagna
 
 - [x] **Step 1.1 — Scrivi i quattro test falliti**
 
-Crea `Source/RefactorTactics/Tests/UI/HUD/RTFrontendMatchHudTests.cpp`. Il fixture ricalca
+Crea `Source/RefactorTactics/Tests/RTFrontendMatchHudTests.cpp`. Il fixture ricalca
 `RTFrontendPauseTests.cpp`, che è il precedente più vicino.
 
 ```cpp
@@ -456,7 +456,7 @@ Crea `Source/RefactorTactics/Tests/UI/HUD/RTFrontendMatchHudTests.cpp`. Il fixtu
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Una `UUserWidget` concreta da registrare: `UUserWidget` e' `Abstract` e `CreateWidget` la rifiuta.
-#include "UI/HUD/RTScreenHudWidgets.h"
+#include "UI/RTScreenHudWidgets.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -840,7 +840,7 @@ Nella sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, dopo il blocco su
 ```bash
 git add Source/RefactorTactics/Frontend/RTFrontendNavigator.h \
         Source/RefactorTactics/Frontend/RTFrontendNavigator.cpp \
-        Source/RefactorTactics/Tests/UI/HUD/RTFrontendMatchHudTests.cpp \
+        Source/RefactorTactics/Tests/RTFrontendMatchHudTests.cpp \
         Config/DefaultGame.ini
 git commit -m "feat(hud): il HUD di partita e' un layer, non una schermata"
 ```

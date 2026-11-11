@@ -168,6 +168,16 @@ for _stem in "RTGateCoherenceTests RTLegacyIdentityRatchetTests RTTestNamingTest
     TEST_DIRETTI[_stem] = "Meta"
 for _stem in "RTVeilFadeTests RTVeilFollowsMoveTests RTVeilProbeForTest RTVeilTests RTPlanVeilTests".split():
     TEST_DIRETTI[_stem] = "Perception/Veil"
+# 🔴 Le parole del dominio sbagliano quando il nome contiene la parola di un ALTRO sottosistema: `Surface` di
+# `UnitBlueprintSurface` non e' il terreno, `Guard` di `HexEdgeGuard` non e' una reazione, `Format` di
+# `PieSessionFormat` non e' il formato di partita. Trovati dalla review di #4062 leggendo include e nomi Automation.
+TEST_DIRETTI.update({
+    "RTUnitBlueprintSurfaceTests": "Unit", "RTAnimVariantTests": "Unit", "RTUnitLabelTests": "Unit",
+    "RTPieSessionFormatTests": "PieSession", "RTHexEdgeGuardTests": "Map/Cover", "RTInteractionGraphTests": "Map/Cover",
+    "RTHexBotReactionTests": "Bot", "RTTurnRulesTests": "Turn/Resolution", "RTPackagingConfigTests": "Meta",
+    # fixture che piu' aree includono, come le altre di `Shared`
+    "RTReactionWindowFixtures": "Shared", "RTOrbitProbeForTest": "Shared", "RTHudGeometryForTest": "Shared",
+})
 
 # Una cartella di test che supera il tetto si divide: (cartella, sotto-cartella) -> stem dei file.
 TEST_SOTTO = {

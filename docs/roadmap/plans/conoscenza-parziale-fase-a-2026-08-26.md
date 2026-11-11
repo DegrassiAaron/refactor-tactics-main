@@ -113,13 +113,13 @@ comunque.
 
 | File | Responsabilità | Task |
 |---|---|---|
-| `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp` | *modifica* — la tabella dei motivi di rifiuto guadagna la voce mancante | 1 |
+| `Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp` | *modifica* — la tabella dei motivi di rifiuto guadagna la voce mancante | 1 |
 | `Source/RefactorTactics/Perception/RTKnowledgeView.h` | *nuovo* — `FRTKnowledgeSubject`, `FRTKnowledgeEntry`, `FRTKnowledgeView`, firme della porta | 2 |
 | `Source/RefactorTactics/Perception/RTKnowledgeView.cpp` | *nuovo* — il nucleo puro: da conoscenza + soggetti a vista osservabile | 2 |
-| `Source/RefactorTactics/UI/HUD/RTHUD.h` / `.cpp` | *modifica* — una statica pura decide cosa disegnare; `DrawHUD` la consuma | 3 |
+| `Source/RefactorTactics/UI/RTHUD.h` / `.cpp` | *modifica* — una statica pura decide cosa disegnare; `DrawHUD` la consuma | 3 |
 | `Source/RefactorTactics/Turn/RTTurnManager.cpp` | *modifica* — le righe leggibili del combat log passano dal filtro | 4 |
 | `Source/RefactorTactics/Unit/RTUnit.h` / `.cpp` | *modifica* — `SetKnownToObserver`, e la visibilità come funzione di *vivo* **e** *noto* | 5, 6 |
-| `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp` | *nuovo* — la suite della porta | 2 |
+| `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp` | *nuovo* — la suite della porta | 2 |
 
 La porta vive in `Perception/`, accanto a `RTTeamKnowledge`. **Mai** in `UI/`: la conoscenza è regola, non
 presentazione. **Mai** in `RTTurnLog*`: il log è uno solo e non deve conoscere osservatori.
@@ -129,8 +129,8 @@ presentazione. **Mai** in `RTTurnLog*`: il log è uno solo e non deve conoscere 
 ## Task 1: Il rifiuto per bersaglio ignoto diventa leggibile
 
 **File:**
-- Modifica: `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp` — `URTTurnLogLibrary::DescribeInvalidReason`
-- Test: `Source/RefactorTactics/Tests/Turn/Log/RTTurnLogLibraryTests.cpp` (esistente: aggiungi **prima** dell'`#endif` finale)
+- Modifica: `Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp` — `URTTurnLogLibrary::DescribeInvalidReason`
+- Test: `Source/RefactorTactics/Tests/RTTurnLogLibraryTests.cpp` (esistente: aggiungi **prima** dell'`#endif` finale)
 
 **Interfacce:**
 - Consuma: nulla. È il task indipendente.
@@ -147,7 +147,7 @@ cambierebbero significato.
 
 - [ ] **Step 1.1 — Scrivi il test che fallisce**
 
-Inserisci in `Source/RefactorTactics/Tests/Turn/Log/RTTurnLogLibraryTests.cpp`, subito **prima** della riga
+Inserisci in `Source/RefactorTactics/Tests/RTTurnLogLibraryTests.cpp`, subito **prima** della riga
 `#endif // WITH_DEV_AUTOMATION_TESTS`:
 
 ```cpp
@@ -192,7 +192,7 @@ Atteso: **FAIL** su `TargetUnknown non cade piu' nel default` — entrambe le st
 
 - [ ] **Step 1.3 — Aggiungi il `case`**
 
-In `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp`, dentro `DescribeInvalidReason`, inserisci la riga
+In `Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp`, dentro `DescribeInvalidReason`, inserisci la riga
 **dopo** `NoMap` e **prima** di `SlotOccupied` (l'ordine dei `case` segue l'enum):
 
 ```cpp
@@ -222,7 +222,7 @@ essi usa `TargetUnknown`, quindi devono restare verdi. Se uno diventa rosso, hai
 - [ ] **Step 1.6 — Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.cpp Source/RefactorTactics/Tests/Turn/Log/RTTurnLogLibraryTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp Source/RefactorTactics/Tests/RTTurnLogLibraryTests.cpp
 git commit -m "fix(turnlog): il rifiuto per bersaglio ignoto smette di dire 'non eseguibile'"
 ```
 
@@ -233,7 +233,7 @@ git commit -m "fix(turnlog): il rifiuto per bersaglio ignoto smette di dire 'non
 **File:**
 - Crea: `Source/RefactorTactics/Perception/RTKnowledgeView.h`
 - Crea: `Source/RefactorTactics/Perception/RTKnowledgeView.cpp`
-- Test: `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp` (nuovo)
+- Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp` (nuovo)
 
 **Interfacce:**
 - Consuma: `FRTTeamKnowledge`, `FRTLastKnownContact`, `URTTeamKnowledgeLibrary::ClassifyTarget` e
@@ -393,7 +393,7 @@ public:
 
 - [ ] **Step 2.2 — Scrivi i test, che non compileranno**
 
-Crea `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp`:
+Crea `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp`:
 
 ```cpp
 #include "Misc/AutomationTest.h"
@@ -651,7 +651,7 @@ seconda mutazione il binario della prima.
 - [ ] **Step 2.7 — Commit**
 
 ```bash
-git add Source/RefactorTactics/Perception/RTKnowledgeView.h Source/RefactorTactics/Perception/RTKnowledgeView.cpp Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp
+git add Source/RefactorTactics/Perception/RTKnowledgeView.h Source/RefactorTactics/Perception/RTKnowledgeView.cpp Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "feat(perception): la porta fra lo stato autorevole e la presentazione"
 ```
 
@@ -663,9 +663,9 @@ git commit -m "feat(perception): la porta fra lo stato autorevole e la presentaz
 ## Task 3: L'HUD consuma la porta
 
 **File:**
-- Modifica: `Source/RefactorTactics/UI/HUD/RTHUD.h` — dichiara la statica pura
-- Modifica: `Source/RefactorTactics/UI/HUD/RTHUD.cpp` — `DrawHUD` la consuma
-- Test: `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp` (aggiungi prima dell'`#endif`)
+- Modifica: `Source/RefactorTactics/UI/RTHUD.h` — dichiara la statica pura
+- Modifica: `Source/RefactorTactics/UI/RTHUD.cpp` — `DrawHUD` la consuma
+- Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp` (aggiungi prima dell'`#endif`)
 
 **Interfacce:**
 - Consuma: `FRTKnowledgeView`, `FRTKnowledgeEntry`, `URTKnowledgeViewLibrary::FindEntry` (Task 2).
@@ -683,7 +683,7 @@ task introduce **una** costante locale e la riusa.
 
 - [ ] **Step 3.1 — Scrivi il test che fallisce**
 
-Aggiungi in `RTKnowledgeViewTests.cpp`, prima dell'`#endif`, e aggiungi `#include "UI/HUD/RTHUD.h"` in cima
+Aggiungi in `RTKnowledgeViewTests.cpp`, prima dell'`#endif`, e aggiungi `#include "UI/RTHUD.h"` in cima
 al file insieme agli altri include:
 
 ```cpp
@@ -728,7 +728,7 @@ Atteso: **errore di compilazione** — `ShouldDrawUnitOverlay` non esiste.
 
 - [ ] **Step 3.3 — Dichiara la statica nell'header**
 
-In `Source/RefactorTactics/UI/HUD/RTHUD.h`, nel blocco `public:` accanto alle altre statiche pure
+In `Source/RefactorTactics/UI/RTHUD.h`, nel blocco `public:` accanto alle altre statiche pure
 (`ComputePlannedHitMarks` e sorelle), aggiungi:
 
 ```cpp
@@ -752,7 +752,7 @@ E aggiungi in cima all'header, fra gli include:
 
 - [ ] **Step 3.4 — Definisci la statica**
 
-In `Source/RefactorTactics/UI/HUD/RTHUD.cpp`, accanto a `ComputePlannedHitMarks`:
+In `Source/RefactorTactics/UI/RTHUD.cpp`, accanto a `ComputePlannedHitMarks`:
 
 ```cpp
 bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeView& View, int32 StableUnitId, bool bIsOwnTeam)
@@ -833,7 +833,7 @@ questo passo è l'unica prova che il cablaggio funziona.
 - [ ] **Step 3.9 — Commit**
 
 ```bash
-git add Source/RefactorTactics/UI/HUD/RTHUD.h Source/RefactorTactics/UI/HUD/RTHUD.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp
+git add Source/RefactorTactics/UI/RTHUD.h Source/RefactorTactics/UI/RTHUD.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "feat(hud): l'overlay delle unita' passa dalla conoscenza di squadra"
 ```
 
@@ -843,8 +843,8 @@ git commit -m "feat(hud): l'overlay delle unita' passa dalla conoscenza di squad
 
 **File:**
 - Modifica: `Source/RefactorTactics/Turn/RTTurnManager.h` / `.cpp` — `AddLogEvent`, `RecentEvents`, l'accessor
-- Modifica: `Source/RefactorTactics/UI/HUD/RTHUD.cpp` — legge l'accessor filtrato
-- Test: `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp`
+- Modifica: `Source/RefactorTactics/UI/RTHUD.cpp` — legge l'accessor filtrato
+- Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp`
 
 **Interfacce:**
 - Consuma: `FRTKnowledgeView`, `URTKnowledgeViewLibrary::FindEntry` (Task 2); `KnowledgeForTeamPublic` (Task 3).
@@ -1171,7 +1171,7 @@ e rileggi. Il TurnLog non cambia in questo task — solo `RecentEvents` e chi lo
 - [ ] **Step 4.9 — Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/UI/HUD/RTHUD.cpp Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/UI/RTHUD.cpp Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "fix(hud): il combat log smette di raccontare i movimenti che nessuno ha visto"
 ```
 
@@ -1188,8 +1188,8 @@ git commit -m "fix(hud): il combat log smette di raccontare i movimenti che ness
 **File:**
 - Modifica: `Source/RefactorTactics/Unit/RTUnit.h` — campo, statica pura, funzione di comando
 - Modifica: `Source/RefactorTactics/Unit/RTUnit.cpp` — implementazione
-- Modifica: `Source/RefactorTactics/UI/HUD/RTHUD.cpp` — applica lo stato dopo aver costruito la vista
-- Test: `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp`
+- Modifica: `Source/RefactorTactics/UI/RTHUD.cpp` — applica lo stato dopo aver costruito la vista
+- Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp`
 
 **Interfacce:**
 - Consuma: `FRTKnowledgeView`, `URTKnowledgeViewLibrary::FindEntry` (Task 2).
@@ -1377,7 +1377,7 @@ insieme.
 - [ ] **Step 5.8 — Commit**
 
 ```bash
-git add Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/UI/HUD/RTHUD.cpp Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp
+git add Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/UI/RTHUD.cpp Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "feat(unit): un'unita' ignota alla squadra non si vede e non si clicca"
 ```
 
@@ -1388,8 +1388,8 @@ git commit -m "feat(unit): un'unita' ignota alla squadra non si vede e non si cl
 **File:**
 - Crea: `Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset` *(passo Editor, manuale)*
 - Modifica: `Source/RefactorTactics/Unit/RTUnit.h` / `.cpp` — il componente della sagoma
-- Modifica: `Source/RefactorTactics/Map/Actor/RTMapVisuals.h` — la quota del marker a terra
-- Test: `Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp`
+- Modifica: `Source/RefactorTactics/Map/RTMapVisuals.h` — la quota del marker a terra
+- Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp`
 
 **Interfacce:**
 - Consuma: `FRTKnowledgeEntry::Visibility == ERTKnowledgeVisibility::Remembered` e `::Cell` (Task 2).
@@ -1510,7 +1510,7 @@ Un `USkeletalMeshComponent` figlio di `SceneRoot`, `NoCollision`, `CastShadow = 
 la posa si prendono dal componente skeletal del Blueprint (Step 6.1); il materiale è
 `M_LastContactGhost`, con `GhostOpacity` guidato da `GhostOpacityForContact`.
 
-⚠️ **La quota del marker a terra si dichiara in `Map/Actor/RTMapVisuals.h`**, non si ricopia: le quote 0,3 / 0,5 /
+⚠️ **La quota del marker a terra si dichiara in `Map/RTMapVisuals.h`**, non si ricopia: le quote 0,3 / 0,5 /
 1,5 / 2,5 sopra la faccia sono già assegnate, e tutto ciò che sta sotto `RTCellTopZ` (2,5 uu) finisce dentro
 un cilindro opaco — è successo due volte.
 
@@ -1523,7 +1523,7 @@ turno svanisce. Registra l'esito.
 - [ ] **Step 6.9 — Commit**
 
 ```bash
-git add Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Map/Actor/RTMapVisuals.h Source/RefactorTactics/Tests/Perception/RTKnowledgeViewTests.cpp
+git add Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Map/RTMapVisuals.h Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "feat(hud): il ricordo di un nemico resta dove l'avevi visto"
 ```
 

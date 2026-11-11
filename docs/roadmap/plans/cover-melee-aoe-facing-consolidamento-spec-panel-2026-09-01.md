@@ -77,7 +77,7 @@ bool URTHexCoverLibrary::BlocksTraversal(const URTHexMapAsset* Map, const FRTCel
 		|| URTHexDoorLibrary::BlocksBetween(Map, From, To);
 }
 ```
-> `Source/RefactorTactics/Map/Cover/RTHexCoverLibrary.cpp:61`
+> `Source/RefactorTactics/Map/RTHexCoverLibrary.cpp:61`
 
 E [`CP 9.2`](../../gameplay/spec-copertura-alta-cp92.md) riga 29–31 scrive l'argomento contro la
 separazione, prima ancora che qualcuno la proponesse:
@@ -198,7 +198,7 @@ ERTHexDirection URTFacingLibrary::FacingAfterDisplacement(const FRTCellId& Lande
 	return Current;
 }
 ```
-> `Source/RefactorTactics/Turn/Resolution/RTFacingLibrary.cpp` · owner [`ADR-0008`](../../decisions/adr-0008-rotazione-e-policy-di-facing.md) §3 · test `RTFacingTests`
+> `Source/RefactorTactics/Turn/RTFacingLibrary.cpp` · owner [`ADR-0008`](../../decisions/adr-0008-rotazione-e-policy-di-facing.md) §3 · test `RTFacingTests`
 
 ⚖️ **Il kit ha ragione su metà, e la metà giusta è già vera**: `Teleport → Facing unchanged` (§9) è
 esattamente il ramo `Cause != Forced`. È il **forced movement** che diverge, e solo quello.

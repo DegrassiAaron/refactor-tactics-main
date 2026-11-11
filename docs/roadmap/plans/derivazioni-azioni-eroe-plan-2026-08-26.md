@@ -45,7 +45,7 @@ le vie di raggiungibilità e con un elenco dichiarato di eccezioni motivate.
 
 **File:**
 - Modifica: `Source/RefactorTactics/Ability/RTActionDef.h` (dopo `BaseActionId`, ~riga 302)
-- Test: `Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTCatalogTests.cpp`
 
 **Interfacce:**
 - Produce: `FRTActionDef::DerivedFromActionId` di tipo `FName`, vuoto per default. I task 2-6 lo leggono
@@ -109,7 +109,7 @@ Atteso: PASS, `Test Completed: 1`.
 - [x] **Step 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Ability/RTActionDef.h Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp
+git add Source/RefactorTactics/Ability/RTActionDef.h Source/RefactorTactics/Tests/RTCatalogTests.cpp
 git commit -m "feat(catalogo): FRTActionDef dichiara da quale azione core eredita i valori"
 ```
 
@@ -118,9 +118,9 @@ git commit -m "feat(catalogo): FRTActionDef dichiara da quale azione core eredit
 ### Task 2 — L'helper `MakeHeroActionFromCore`
 
 **File:**
-- Modifica: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp` (namespace anonimo, dopo
+- Modifica: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` (namespace anonimo, dopo
   `MakeHeroBasicAttack`, ~riga 141)
-- Test: `Source/RefactorTactics/Tests/Ability/Catalog/RTHeroCatalogTests.cpp`
+- Test: `Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp`
 
 **Interfacce:**
 - Consuma: `FRTActionDef::DerivedFromActionId` (Task 1).
@@ -262,7 +262,7 @@ Run: `Automation RunTests RefactorTactics.Heroes.DerivedFromUnknownCoreActionIsN
 Il test dello Step 1 resta ROSSO: lo spengono i task 3-5.
 
 ```bash
-git add Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp Source/RefactorTactics/Tests/Ability/Catalog/RTHeroCatalogTests.cpp
+git add Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp
 git commit -m "feat(catalogo eroi): un helper che deriva da un'azione core e lo dichiara"
 ```
 
@@ -271,7 +271,7 @@ git commit -m "feat(catalogo eroi): un helper che deriva da un'azione core e lo 
 ### Task 3 — Le tre reazioni dichiarano la loro origine
 
 **File:**
-- Modifica: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp:800-821`
+- Modifica: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:800-821`
   (`MakeHeroReactionFromCoreAction`)
 
 **Interfacce:**
@@ -297,7 +297,7 @@ e `Deflection` ora passano. Se non cala di esattamente tre, la modifica non ha r
 - [x] **Step 3: commit**
 
 ```bash
-git add Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp
+git add Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
 git commit -m "feat(catalogo eroi): le tre reazioni dichiarano l'azione core da cui derivano"
 ```
 
@@ -306,7 +306,7 @@ git commit -m "feat(catalogo eroi): le tre reazioni dichiarano l'azione core da 
 ### Task 4 — Le cinque derivazioni da `Def` locale
 
 **File:**
-- Modifica: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp` righe 306-313, 452-460, 476-485,
+- Modifica: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` righe 306-313, 452-460, 476-485,
   588-592, 614-623
 
 **Interfacce:**
@@ -401,7 +401,7 @@ uno cade, l'helper ha cambiato un valore, che questo piano vieta.
 - [x] **Step 7: commit**
 
 ```bash
-git add Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp
+git add Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
 git commit -m "feat(catalogo eroi): le cinque abilita' derivate passano dall'helper e dichiarano l'origine"
 ```
 
@@ -424,7 +424,7 @@ raggiungibile per la via che gli compete.
 ### Task 6 — Il gate
 
 **File:**
-- Modifica: `Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp`
+- Modifica: `Source/RefactorTactics/Tests/RTCatalogTests.cpp`
 
 **Interfacce:**
 - Consuma: `DerivedFromActionId` sulle abilità del roster (Task 3-5), `GetGenericActionIds()`,
@@ -553,7 +553,7 @@ voce **con la ragione vera**, non con `NonAssegnata` per farlo tacere.
 - [x] **Step 3: commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/Ability/Catalog/RTCatalogTests.cpp
+git add Source/RefactorTactics/Tests/RTCatalogTests.cpp
 git commit -m "test(catalogo): ogni azione core e' raggiungibile o dichiarata, con la sua ragione"
 ```
 

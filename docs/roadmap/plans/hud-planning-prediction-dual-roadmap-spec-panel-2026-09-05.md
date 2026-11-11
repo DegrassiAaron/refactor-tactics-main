@@ -157,7 +157,7 @@ potuto ridurre il lavoro d'Editor è proprio quello che oggi non risponde.
 ### F-04 · ALTO · «Predicted» significa già qualcosa, e non è quello che il brief intende
 
 **Fowler.** Il brief §1.3 propone quattro assi e li battezza. L'asse B (*Certainty*) **esiste già**, è
-canonico ed è testato: `ERTIntentCertainty` in `Source/RefactorTactics/Turn/Actions/RTIntentPrivacyLibrary.h`, con i
+canonico ed è testato: `ERTIntentCertainty` in `Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h`, con i
 valori `Unknown = 0 · Confirmed · Predicted · Uncertain`.
 
 Il problema è una **collisione di vocabolario su un asse diverso**:
@@ -398,8 +398,8 @@ ciò che manca è meno di quanto il brief assume, e in un punto solo.
 
 | PR | Commit | Contenuto |
 |---|---|---|
-| `#1756` (2026-08-30) | `276d36f4` | primitiva della ragione in `Map/Vision/RTHexVisionLibrary.{h,cpp}` — +125 righe, +159 di test |
-| `#2110` (2026-09-02) | `c77e0fd1` | `Map/Vision/RTHexLosConsole.{h,cpp}` + test — comando `rt.Debug.Los`, 338 righe |
+| `#1756` (2026-08-30) | `276d36f4` | primitiva della ragione in `Map/RTHexVisionLibrary.{h,cpp}` — +125 righe, +159 di test |
+| `#2110` (2026-09-02) | `c77e0fd1` | `Map/RTHexLosConsole.{h,cpp}` + test — comando `rt.Debug.Los`, 338 righe |
 | `#1755` (2026-08-30) | `869aac45` | `RTHexLosTool` + `RTHexLosReadout`, 714 righe — ma in `RefactorTacticsEditor/` |
 
 ### L'inversione, che è il pezzo importante

@@ -23,7 +23,7 @@ Quello che #995 fissa: una capability conta se il kit **Generate · Apply · Pro
 - ✅ `bCreatesSurface` con `SurfaceCreated`;
 - ❌ `DamageType`, tag tematico, VFX, nome dell'abilità, slot Paragon.
 
-Fonte: `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp`, le quattro factory `MakeGadget`, `MakePhase`, `MakeRiktor`, `MakeWraith`.
+Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro factory `MakeGadget`, `MakePhase`, `MakeRiktor`, `MakeWraith`.
 
 ## La misura
 

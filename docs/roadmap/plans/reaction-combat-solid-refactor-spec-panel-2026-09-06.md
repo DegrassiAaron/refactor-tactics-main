@@ -70,7 +70,7 @@ un controllo omologo e non averlo trovato.
 
 **Premessa del work order**: verificata e corretta. `FRTReactionPassResult` rappresenta un Counter con sei
 array paralleli — `CounterAttacks`, `CounterAttackSrc`, `CounterActionId`, `CounterBaseActionId`,
-`CounterPriority`, `CounterAttackActors` (`Source/RefactorTactics/Turn/Reaction/RTReactionPassResult.h:48-58`).
+`CounterPriority`, `CounterAttackActors` (`Source/RefactorTactics/Turn/RTReactionPassResult.h:48-58`).
 
 I guardrail reggono, misurati:
 

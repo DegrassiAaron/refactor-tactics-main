@@ -129,7 +129,7 @@ scripts/feature_registry.py
 Codice attuale, in particolare:
 
 ```text
-Source/RefactorTactics/Map/Structure/RTGeometryGrammar.*
+Source/RefactorTactics/Map/RTGeometryGrammar.*
 ```
 
 e i file reali che contengono:

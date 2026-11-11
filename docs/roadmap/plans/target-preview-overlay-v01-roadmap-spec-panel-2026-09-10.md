@@ -50,12 +50,12 @@ Un referto che elencasse solo difetti darebbe l'impressione sbagliata: quattro s
 Il difetto non è di stima: è che il documento descrive come lavoro futuro artefatti che esistono su `main` con i loro test.
 
 ```
-$ ls Source/RefactorTactics/Map/RTOverlay* Source/RefactorTactics/Map/Structure/RTRegionBoundary*
-Source/RefactorTactics/Map/Actor/RTOverlayArea.h
-Source/RefactorTactics/Map/Actor/RTOverlayPalette.h
-Source/RefactorTactics/Map/Actor/RTOverlayPalette.cpp
-Source/RefactorTactics/Map/Structure/RTRegionBoundary.h
-Source/RefactorTactics/Map/Structure/RTRegionBoundary.cpp
+$ ls Source/RefactorTactics/Map/RTOverlay* Source/RefactorTactics/Map/RTRegionBoundary*
+Source/RefactorTactics/Map/RTOverlayArea.h
+Source/RefactorTactics/Map/RTOverlayPalette.h
+Source/RefactorTactics/Map/RTOverlayPalette.cpp
+Source/RefactorTactics/Map/RTRegionBoundary.h
+Source/RefactorTactics/Map/RTRegionBoundary.cpp
 ```
 
 | La roadmap chiede a #1941/#1942 | Stato reale su `89fbb24e` |
@@ -81,7 +81,7 @@ Source/RefactorTactics/Map/Structure/RTRegionBoundary.cpp
 La roadmap salta dal modello (Wave 2) ai materiali (Wave 6). Fra i due c'è un fatto che nessuna wave nomina:
 
 ```
-$ grep -n "DrawDebugLine" Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp
+$ grep -n "DrawDebugLine" Source/RefactorTactics/Map/RTHexMapActor.cpp
 1124: DrawDebugLine(...)   1194: DrawDebugLine(...)   1227: DrawDebugLine(...)
 1260: DrawDebugLine(...)   1265: DrawDebugLine(...)
 ```
@@ -418,7 +418,7 @@ Due voci **accettate lo stesso giorno**, a quattro righe di distanza nello stess
 `D-368` è **implementata, con l'attribuzione scritta accanto ai valori**:
 
 ```
-$ sed -n '11,16p' Source/RefactorTactics/Map/Actor/RTOverlayPalette.cpp
+$ sed -n '11,16p' Source/RefactorTactics/Map/RTOverlayPalette.cpp
 case ERTOverlayMeaning::Movement:        return FColor(53, 199, 89);   // #35C759 [D-368]
 case ERTOverlayMeaning::PathTrace:       return FColor(40, 220, 220);
 case ERTOverlayMeaning::AttackOriginAim: return FColor(220, 220, 255);
@@ -446,7 +446,7 @@ case ERTOverlayMeaning::Hover:           return FColor(255, 214, 10);  // #FFD60
 
   ```
   $ grep -rn "PaletteRatchet" --include=*.h --include=*.cpp Source/
-  Source/RefactorTactics/Map/Actor/RTOverlayPalette.h:40
+  Source/RefactorTactics/Map/RTOverlayPalette.h:40
   ```
 
   Lì non è una nota storica: è una citazione a un test, e chi la segue non trova niente;

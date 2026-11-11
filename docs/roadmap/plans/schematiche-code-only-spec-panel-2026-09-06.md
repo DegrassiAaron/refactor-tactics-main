@@ -33,7 +33,7 @@
 |---|---|---|
 | **R1** | **`C8` non è lavoro: è lavoro fatto.** Le nove voci del §13 hanno tutte un owner, una porta lo **stesso nome** (`Overwatch.OpportunityLeaksNoFuture`), e la «mutation obbligatoria» del kit esiste già come **test permanente** | 🔴 |
 | **R2** | **Due blocchi fantasma.** `MOV-4` è chiusa dal 2026-09-04 (`D-325`) e la semantica `Deflect` dal 2026-09-01 ([#1918](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1918)). Un blocco che non esiste non è inerte: fa evitare lavoro legittimo | 🔴 |
-| **R3** | **Il §12 vieta una tassonomia che è già canone.** `ERTIntentCertainty { Confirmed, Predicted, Uncertain }` esiste in `Turn/Actions/RTIntentPrivacyLibrary.h:21`, popolato da `ClassifyPlan` e pinnato da un test | 🔴 |
+| **R3** | **Il §12 vieta una tassonomia che è già canone.** `ERTIntentCertainty { Confirmed, Predicted, Uncertain }` esiste in `Turn/RTIntentPrivacyLibrary.h:21`, popolato da `ClassifyPlan` e pinnato da un test | 🔴 |
 | **R4** | **Il §20 chiede sette branch paralleli** e non nomina mai `scripts/rt-suite.ps1` né la validità della misura: [`AGENTS.md`](../../../AGENTS.md) §11 dice che *«un worktree separato non elimina il mutex globale Unreal/Live Coding»* | 🟠 |
 | **R5** | **Il §15 ha una riga che contraddice la propria intestazione** — sotto *«Deve cadere»*, `ordine input movement` → `nessuna divergenza` — e lascia il commit `test(determinism)` **senza artefatto di prova** | 🟠 |
 | **R6** | **Il DoD è auto-verificante in due punti**: *«S01–S13 e S15 hanno test dove il contratto è deciso»* si soddisfa dichiarando non deciso ciò che non ha test; `C0` chiede di *«misurare test dichiarati/eseguiti»* senza soglia | 🟠 |

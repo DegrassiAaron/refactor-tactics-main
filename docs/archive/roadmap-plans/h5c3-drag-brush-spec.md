@@ -45,7 +45,7 @@ interno: sono metodi dell'asset stesso, il null-check sta nel caller.)*
 - `bool EraseCellInStroke(const FRTCellId& Id)` — `if (!ContainsCell(Id)) return false;` poi `RemoveCell(Id)`; ritorna `true`.
 - `void EndStroke()` — `SortCells()` + `MarkPackageDirty()`.
 
-`Source/RefactorTactics/Map/Actor/RTHexMapActor.{h,cpp}` — **ri-espressione DRY** di `PaintCellData`/`EraseCell`
+`Source/RefactorTactics/Map/RTHexMapActor.{h,cpp}` — **ri-espressione DRY** di `PaintCellData`/`EraseCell`
 (comportamento invariato; **mantiene il guard `!MapAsset` in cima**, M2):
 
 - `PaintCellData(Id,...)` = `if (!MapAsset){ warn; return; }` + `#if WITH_EDITOR FScopedTransaction #endif`
@@ -98,7 +98,7 @@ press+release senza celle nuove oltre la prima = pennellata di 1 cella.
 ## 6. Testing e Definition of Done
 
 - **Logica pura/asset → test headless**: `RefactorTactics.HexMap.StrokeEquivalence` in
-  `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`, su `NewObject<URTHexMapAsset>` (le primitive sono **sull'asset**):
+  `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, su `NewObject<URTHexMapAsset>` (le primitive sono **sull'asset**):
   `BeginStroke` + `PaintCellInStroke×N` + `EndStroke` produce lo stesso `NumCells`/dati di N `AddOrUpdateCell` e celle
   **ordinate** dopo `EndStroke`; `EraseCellInStroke` su cella assente ritorna `false`. `Modify()`/`MarkPackageDirty()`
   headless (`GUndo==nullptr`, `NewObject` transient) sono no-op innocui. Nessun `ARTHexMapActor`/RHI necessario.

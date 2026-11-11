@@ -272,7 +272,7 @@ e §22 chiede: *«esiste già un tipo condiviso per Certainty?»*.
 
 **La risposta è nel codice, ed è doppia.**
 
-`ERTIntentCertainty` esiste (`Turn/Actions/RTIntentPrivacyLibrary.h`, CP 11.2) e ha **quattro** valori, non tre —
+`ERTIntentCertainty` esiste (`Turn/RTIntentPrivacyLibrary.h`, CP 11.2) e ha **quattro** valori, non tre —
 `Unknown` a **zero** più i tre disegnabili. Il commento dichiara perché, ed è una lezione già pagata:
 
 > *«Fino al 2026-08-16 il valore zero era `Confirmed`, cioè la garanzia PIÙ FORTE del dominio, e un
@@ -286,7 +286,7 @@ come invariante principale. Un campo azzerato per costruzione promette parity su
 e il test `ConfirmedMatchesCommittedOutcome` non lo vedrebbe, perché confronta il valore, non la sua
 provenienza.
 
-**E la seconda metà della risposta**, in `UI/Inspect/RTIconLibrary.h`: il progetto ha **già deciso** di non creare
+**E la seconda metà della risposta**, in `UI/RTIconLibrary.h`: il progetto ha **già deciso** di non creare
 un tipo generico —
 
 > *«È l'unica categoria senza un tipo da cui derivare: un `ERTCertainty` creato adesso sarebbe un enum che

@@ -52,7 +52,7 @@ La produzione **sa** specchiare — `MakeHeroAction` (`RTHeroCatalogLibrary.cpp:
 un'operazione *successiva*, e l'unico codice che la completa sono **due righe dentro un helper di test**:
 
 ```cpp
-// Source/RefactorTactics/Tests/Ability/RTEquipmentTests.cpp:429-431
+// Source/RefactorTactics/Tests/RTEquipmentTests.cpp:429-431
 Basic->Def = URTCatalogLibrary::ApplyWeaponVariant(Basic->Def, Variant);
 Basic->RangeCells   = Basic->Def.RangeCells;    // <-- il ponte
 Basic->CooldownTurns = Basic->Def.CooldownTurns; // <-- esiste solo qui

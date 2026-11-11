@@ -41,7 +41,7 @@ Sono i comandi del work order, rieseguiti su `a6bf857bf`. Le divergenze sono sta
 | H4 | Punteggio «composto, non disegnato» | `ARTHUD::ComposeMatchStatusLine` lo compone (`RTHUD.cpp`), e nessun consumatore UMG lo disegna ([#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764)) | ✅ |
 | H5 | Token di danno con dato e percorso | `URTHudViewModel::BuildDamageToken` → `RTUnit.cpp` → `URTUnitOverlayWidget::PushDamageToken` | ✅ |
 | H6 | `FRTPlayerEventLineView` senza reason code | Come atteso, più `bHasBlocker` | ✅ |
-| H7 | Reazione rapida con `GetRemainingSeconds()`, `Options`, `SafeResponse` | Come atteso. ⚠️ Ma l'opzione, `FRTReactionWindowOptionView` (`Turn/Reaction/RTReactionWindowView.h`), porta solo `Response` e `TargetSnapshotIndex`: niente tasto, niente descrizione (§6, T2) | ✅ |
+| H7 | Reazione rapida con `GetRemainingSeconds()`, `Options`, `SafeResponse` | Come atteso. ⚠️ Ma l'opzione, `FRTReactionWindowOptionView` (`Turn/RTReactionWindowView.h`), porta solo `Response` e `TargetSnapshotIndex`: niente tasto, niente descrizione (§6, T2) | ✅ |
 | H8 | `FRTUnitSlotsView` / `FRTPlannedSlotView` | Come atteso | ✅ |
 | **H9** | **Nessun widget di conferma** | **`URTPlanCommitWidget`** ([#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471), [D-458](../../decisions/RT_PDR_00_Decision_Log.md)): `Conferma` = `Invio` (`TogglePlanDeclaration`), `Annulla` = il Back (`UndoStep`, `Backspace`). Le due occorrenze di `CONFIRM PLAN` sono commenti di `RTContextInspector.h` | ❌ |
 | H10 | Riproduzione: comandi da spettatore, pausa inerte | Come atteso | ✅ |

@@ -28,8 +28,8 @@
 ✅ **La misura centrale è esatta.** `GetRecentEventsForTeam` ha zero chiamanti fuori dai test:
 
 ```
-Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp:276
-Source/RefactorTactics/Tests/Turn/Log/RTCombatLogTests.cpp:790, 934, 991, 1161, 1225
+Source/RefactorTactics/Tests/RTAnimChannelTests.cpp:276
+Source/RefactorTactics/Tests/RTCombatLogTests.cpp:790, 934, 991, 1161, 1225
 Source/RefactorTactics/Turn/RTTurnManager.{h,cpp}    ← dichiarazione e definizione
 ```
 

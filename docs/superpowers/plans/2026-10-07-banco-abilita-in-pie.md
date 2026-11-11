@@ -103,11 +103,11 @@ git config branch.issue/<n>-banco-ability-lab-pie.parent main
 ### Task 1: Radice del Lab e `ScanAll` nell'indice
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.h:173-174` (accanto a `ScenariosRoot`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp:709-712`
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.h` (accanto a `Scan`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.cpp:124-152` (`Scan`)
-- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioIndexTests.cpp` (in coda, prima di `#endif`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h:173-174` (accanto a `ScenariosRoot`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:709-712`
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h` (accanto a `Scan`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp:124-152` (`Scan`)
+- Test: `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` (in coda, prima di `#endif`)
 
 **Interfaces:**
 - Produces:
@@ -255,7 +255,7 @@ bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 }
 ```
 
-Aggiungi in testa al file, fra gli `#include`: `#include "ScenarioHarness/Authoring/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"` (per `ON_SCOPE_EXIT`: né `CoreMinimal.h` né `AutomationTest.h` lo portano, e i test del progetto lo includono esplicitamente, es. `RTHudScenarioTests.cpp`).
+Aggiungi in testa al file, fra gli `#include`: `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"` (per `ON_SCOPE_EXIT`: né `CoreMinimal.h` né `AutomationTest.h` lo portano, e i test del progetto lo includono esplicitamente, es. `RTHudScenarioTests.cpp`).
 
 - [ ] **Step 2: Compila e verifica che fallisca per simboli mancanti**
 
@@ -394,7 +394,7 @@ Expected: **Fail** su «ScanAll vede lo scenario del Lab». Ripristina la riga, 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.h Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.h Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.cpp Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioIndexTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): la radice del Lab e ScanAll — l'indice legge Saved/RTLab/Scenarios solo per le ricerche
 
@@ -412,9 +412,9 @@ EOF
 ### Task 2: Le ricerche passano a `ScanAll`; messaggi e aiuto console
 
 **Files:**
-- Modify: `Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.cpp:241` (`ResolvePath`), `:331-332` (messaggio «non trovato»), `:343` (`ListIds`), `:363` (`ListTags`)
-- Modify: `Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp:138` e `:219`
-- Test: `Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioIndexTests.cpp` (estende `ScanAllSeesTheLabRoot`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp:241` (`ResolvePath`), `:331-332` (messaggio «non trovato»), `:343` (`ListIds`), `:363` (`ListTags`)
+- Modify: `Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp:138` e `:219`
+- Test: `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` (estende `ScanAllSeesTheLabRoot`)
 
 **Interfaces:**
 - Consumes: `URTScenarioIndex::ScanAll` (Task 1).
@@ -490,7 +490,7 @@ Expected: tutto Success, compresi `ShippedScenariosAreTagged` e `WriterRoundTrip
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioIndex.cpp Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp Source/RefactorTactics/Tests/ScenarioHarness/Authoring/RTScenarioIndexTests.cpp
+git add Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): ResolvePath, ListIds e ListTags vedono la radice del Lab; i messaggi nominano entrambe le radici
 
@@ -505,9 +505,9 @@ EOF
 ### Task 3: `FRTLabViewModel::PrepareForPie`
 
 **Files:**
-- Modify: `Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.h` (sezione «Esecuzione», dopo `Run`)
-- Modify: `Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.cpp` (dopo `Run`)
-- Test: `Source/RefactorTacticsEditor/Private/Tests/Lab/RTLabViewModelTests.cpp` (in coda, prima di `#endif`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTLabViewModel.h` (sezione «Esecuzione», dopo `Run`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTLabViewModel.cpp` (dopo `Run`)
+- Test: `Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp` (in coda, prima di `#endif`)
 
 **Interfaces:**
 - Consumes: `URTScenarioLoader::LabScenariosRoot`, `SetLabScenariosRootOverrideForTest`, `SaveToFile`, `LoadFromFile`; `URTScenarioIndex::ResolvePath` (Task 1-2); `FRTLabViewModel::BuildScenario` (esistente).
@@ -675,7 +675,7 @@ bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 }
 ```
 
-In testa al file aggiungi gli include: `#include "ScenarioHarness/Authoring/RTScenarioIndex.h"`, `#include "ScenarioHarness/Authoring/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"`.
+In testa al file aggiungi gli include: `#include "ScenarioHarness/RTScenarioIndex.h"`, `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"`.
 
 ⚠️ `FixtureCoincidono` non confronta `Expect` né `Tags`: per questo il test aggiunge l'asserto sui `Tags`. Non estendere l'helper, che altri test usano con il significato attuale.
 
@@ -702,7 +702,7 @@ Run: build. Expected: errore su `PrepareForPie` non dichiarata.
 	bool PrepareForPie(FString& OutScenarioId, FString& OutError);
 ```
 
-`RTLabViewModel.cpp`, dopo `Run` (aggiungi `#include "ScenarioHarness/Authoring/RTScenarioIndex.h"`, `#include "ScenarioHarness/Authoring/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/Paths.h"`):
+`RTLabViewModel.cpp`, dopo `Run` (aggiungi `#include "ScenarioHarness/RTScenarioIndex.h"`, `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/Paths.h"`):
 
 ```cpp
 bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
@@ -756,7 +756,7 @@ Expected: i quattro test nuovi Success, i preesistenti invariati; `**** TEST COM
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.h Source/RefactorTacticsEditor/Private/Lab/RTLabViewModel.cpp Source/RefactorTacticsEditor/Private/Tests/Lab/RTLabViewModelTests.cpp
+git add Source/RefactorTacticsEditor/Private/RTLabViewModel.h Source/RefactorTacticsEditor/Private/RTLabViewModel.cpp Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp
 git commit -F - <<'EOF'
 feat(<n>): FRTLabViewModel::PrepareForPie — la fixture si salva nella radice del Lab e si verifica lanciabile
 
@@ -772,8 +772,8 @@ EOF
 ### Task 4: `FRTLabPieLauncher` (solo Editor)
 
 **Files:**
-- Create: `Source/RefactorTacticsEditor/Private/Lab/RTLabPieLauncher.h`
-- Create: `Source/RefactorTacticsEditor/Private/Lab/RTLabPieLauncher.cpp`
+- Create: `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.h`
+- Create: `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.cpp`
 
 **Interfaces:**
 - Consumes: `GEditor` (`UEditorEngine::PlayWorld`, `RequestPlaySession`), `IConsoleManager`, `FEditorDelegates::EndPIE` / `CancelPIE`, `FRequestPlaySessionParams::GlobalMapOverride`.
@@ -942,7 +942,7 @@ Run: build. Expected: verde, zero warning nuovi nel modulo Editor (confronta con
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Source/RefactorTacticsEditor/Private/Lab/RTLabPieLauncher.h Source/RefactorTacticsEditor/Private/Lab/RTLabPieLauncher.cpp
+git add Source/RefactorTacticsEditor/Private/RTLabPieLauncher.h Source/RefactorTacticsEditor/Private/RTLabPieLauncher.cpp
 git commit -F - <<'EOF'
 feat(<n>): FRTLabPieLauncher — CVar a priorita' console, PIE su L_DevSandbox via GlobalMapOverride, ripristino su EndPIE o CancelPIE
 
@@ -957,8 +957,8 @@ EOF
 ### Task 5: Il pulsante «Esegui in PIE» e la riga di stato
 
 **Files:**
-- Modify: `Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.h` (dopo `OnEsegui`; nuovo campo)
-- Modify: `Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.cpp` (`CostruisciEsecuzione`, `TestoEsito`, nuovo handler)
+- Modify: `Source/RefactorTacticsEditor/Private/SRTLabPanel.h` (dopo `OnEsegui`; nuovo campo)
+- Modify: `Source/RefactorTacticsEditor/Private/SRTLabPanel.cpp` (`CostruisciEsecuzione`, `TestoEsito`, nuovo handler)
 
 **Interfaces:**
 - Consumes: `FRTLabViewModel::PrepareForPie` (Task 3), `FRTLabPieLauncher::Launch` (Task 4).
@@ -1048,7 +1048,7 @@ Expected: build verde; tutte Success; `**** TEST COMPLETE`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.h Source/RefactorTacticsEditor/Private/Lab/SRTLabPanel.cpp
+git add Source/RefactorTacticsEditor/Private/SRTLabPanel.h Source/RefactorTacticsEditor/Private/SRTLabPanel.cpp
 git commit -F - <<'EOF'
 feat(<n>): «Esegui in PIE» nel pannello Ability Lab, con l'Id lanciato e la riga di log da cercare
 

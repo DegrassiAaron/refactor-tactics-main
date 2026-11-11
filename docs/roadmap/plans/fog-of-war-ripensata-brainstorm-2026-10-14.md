@@ -36,7 +36,7 @@ in vista.
 | Nemici | Un nemico che la squadra non conosce sparisce. Uno perso lascia una sagoma; in strategica un segnalino con la X | Fase A della spec owner |
 | Ricordo del nemico | Scade **dopo un turno** | brief §5 («persistenza 1 turno»); `ContactLifetimeTurns`; il test `Vision.LastContactExpiresAfterOneTurn` |
 | Bordi | Un pannello si nasconde solo se la squadra non ha mai visto nessuna delle due celle | [D-502](../../decisions/RT_PDR_00_Decision_Log.md) |
-| Confine della vista | Il modello esiste: i lati esposti dell'unione vista (`FRTExposedEdge`). In partita **non si disegna**: lo usa solo l'anteprima scenari dell'Editor | `Perception/Veil/RTVisibilityBorder.*`; `git grep -l VisibilityBorder -- Source ':!*/Tests/*'` |
+| Confine della vista | Il modello esiste: i lati esposti dell'unione vista (`FRTExposedEdge`). In partita **non si disegna**: lo usa solo l'anteprima scenari dell'Editor | `Perception/RTVisibilityBorder.*`; `git grep -l VisibilityBorder -- Source ':!*/Tests/*'` |
 | Arco del nemico | Non si disegna da nessuna parte | `git grep -n 'VisionCone\|VisionArc' -- Source` → nessun riscontro |
 | Rumore | La regola di propagazione c'è, e il livello `Uncertain` la aspetta; **nessun sistema di gioco la chiama** | Fase C della spec owner; `git grep -l 'URTAcousticPropagationLibrary::' -- Source ':!*/Tests/*'` → solo la libreria |
 | Rivelare | `Status.Reveal` è dichiarato e mai implementato | brief §8 |

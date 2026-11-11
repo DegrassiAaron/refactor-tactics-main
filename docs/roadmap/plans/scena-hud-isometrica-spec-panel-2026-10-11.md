@@ -26,8 +26,8 @@
   - Il canone di [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md) §3 chiede un «70–80% centrale: viewport 3D libero».
 - **Il centro libero vale per i pannelli, non per la scena.** La 3D si rende a tutto schermo e le zone le stanno sopra. Le tavole A–F disegnano la scena a tutto schermo, con la griglia di esagoni che continua sotto i pannelli ([`A-pianificazione-pulita.png`](../../research/design/hud/hud-screens-2026-10/immagini/A-pianificazione-pulita.png)).
 - **Il 60% vive in tre posti, nessuno di runtime**:
-  - `CenterFraction` in `Source/RefactorTactics/Tests/UI/HUD/Intent/RTHudGeometryForTest.h`, letta da `PanelsLeaveTheCenterFree` e dal test del Context Inspector;
-  - `RTGrigliaZone` in `Source/RefactorTactics/Tests/UI/HUD/RTMatchWidgetAssetTests.cpp`, che pilota `ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`;
+  - `CenterFraction` in `Source/RefactorTactics/Tests/RTHudGeometryForTest.h`, letta da `PanelsLeaveTheCenterFree` e dal test del Context Inspector;
+  - `RTGrigliaZone` in `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`, che pilota `ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`;
   - gli anchor di `WBP_RT_TacticalHUD`.
 - **La camera misura il viewport intero**: `ARTCameraPawn::RefreshViewportMetrics` legge `Viewport->GetSizeXY()`. L'aspetto che ne ricava lo usa solo `ComputeEffectivePivotBounds`, cioè il limite del pivot di [D-251](../../decisions/RT_PDR_00_Decision_Log.md). La larghezza ortografica è `OrthoWidthForArm(TargetArmLength, FieldOfView)` e non riceve l'aspetto; l'estensione resa, sì (sotto).
 - **La deproiezione segue già il rettangolo del giocatore**: `UGameplayStatics::DeprojectScreenToWorld` passa da `ULocalPlayer::GetProjectionData`, che legge `Origin` e `Size`. Lo ha trovato la seconda review.

@@ -32,8 +32,8 @@
 | **Nel modulo di gioco** nessun altro codice legge `EKeys::LeftAlt`, `RightAlt`, `IsAltDown`, e nessuno legge `LeftControl`, `RightControl`, `IsControlDown` | `grep -rnE "EKeys::(Left\|Right)(Alt\|Control)\|IsAltDown\|IsControlDown" Source/RefactorTactics`: le due righe del controller e una riga di test |
 | ➕ rev. **Nel modulo Editor `Ctrl` è già letto**, come modificatore additivo dell'editor esagonale: `FSlateApplication::Get().GetModifierKeys().IsControlDown()` in `RTHexEditorClick.cpp`, e `IsControlDown` in `Tools/RTHexArchTool.cpp`. Sono gestori di click della modalità editor. ⚠️ Non verificato che tacciano durante PIE | `Source/RefactorTacticsEditor/Private` |
 | L'azione si chiama `IA_CameraModifier` (`NewObject`), e l'unico scrittore di `bCameraModifier` fuori dai test sono `OnCameraModifierPressed` e `OnCameraModifierReleased` | `RTPlayerController.cpp` |
-| Il test `PlayerInput.HotkeysDoNotCollide` controlla che `LeftAlt` sia mappato, e solo il sinistro | `Tests/Player/RTPlayerInteractionTests.cpp` |
-| Identificatori che portano `Alt` nel nome: `bAltPrimaryDown`, `bAltSecondaryDown`, `AltPrimaryDragDistance`, `SetAltPrimaryDownForTest`, `GetAltPrimaryDragDistanceForTest`, il test `Camera.AltDragOrbitsOnlyPastTheClickThreshold` (classe `FRTCameraAltDragOrbitsOnlyPastThresholdTest`). Nessun documento cita quel test | `Player/RTPlayerController.h`, `.cpp`, `Tests/Camera/RTCameraPawnTests.cpp`; `git grep AltDragOrbitsOnlyPastTheClickThreshold -- ':!Source'` → niente |
+| Il test `PlayerInput.HotkeysDoNotCollide` controlla che `LeftAlt` sia mappato, e solo il sinistro | `Tests/RTPlayerInteractionTests.cpp` |
+| Identificatori che portano `Alt` nel nome: `bAltPrimaryDown`, `bAltSecondaryDown`, `AltPrimaryDragDistance`, `SetAltPrimaryDownForTest`, `GetAltPrimaryDragDistanceForTest`, il test `Camera.AltDragOrbitsOnlyPastTheClickThreshold` (classe `FRTCameraAltDragOrbitsOnlyPastThresholdTest`). Nessun documento cita quel test | `Player/RTPlayerController.h`, `.cpp`, `Tests/RTCameraPawnTests.cpp`; `git grep AltDragOrbitsOnlyPastTheClickThreshold -- ':!Source'` → niente |
 | **La soppressione dell'annulla durante il dolly non ha un test Automation.** `OnUndoWaypoint` la decide con `IsInputKeyDown(EKeys::RightMouseButton)`, che headless è sempre falso | `grep -n AltSecondary Source/RefactorTactics/Tests/*.cpp` → niente |
 | `Config/DefaultInput.ini` porta `bAltEnterTogglesFullscreen=True`: è del motore, e resta | — |
 | Documenti vivi che nominano il tasto: `spec-tactical-camera.md` §3.2, §3.3, §4; `test-manuali-pie.md` (percorso di `PIE-PC-GYM` passi 3–5, la nota sopra la sua tabella, la cella di stato di `PIE-V01-DOCKCLICK`); `editor-sessions.yaml` (note della seduta di #1859); `OPEN_DECISIONS.md` (`CAM-B`, chiusa); Decision Log (D-458 punto 3, D-499 punto 3) | `git grep -nIE '\x60Alt\x60\|Alt ?\+' -- docs ':!docs/archive' ':!docs/roadmap/plans' ':!docs/superpowers'` |
@@ -91,7 +91,7 @@ Expected: `origin/main` arriva a D-510; fra i ref remoti il solo `docs/3747-voci
 ### Task 1: il tasto, con il suo test
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp` (test nuovo dopo `FRTPlayerInputHotkeysDoNotCollideTest`; l'anti-vacuità di quel test)
+- Modify: `Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp` (test nuovo dopo `FRTPlayerInputHotkeysDoNotCollideTest`; l'anti-vacuità di quel test)
 - Modify: `Source/RefactorTactics/Player/RTPlayerController.cpp` (`BuildInputMappings`)
 
 **Interfaces:**
@@ -193,7 +193,7 @@ Expected: l'intera famiglia `RefactorTactics.PlayerInput` verde.
 - [ ] **Step 5: commit, a verde**
 
 ```bash
-git add Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp
+git add Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
 git commit -m "feat(3749): il modificatore della camera e' Ctrl, sinistro e destro"
 ```
 
@@ -211,7 +211,7 @@ Ripristino: `git diff --stat` deve mostrare il solo `RTPlayerController.cpp`; po
 
 **Files:**
 - Modify: `Source/RefactorTactics/Player/RTPlayerController.h`, `Source/RefactorTactics/Player/RTPlayerController.cpp`
-- Modify: `Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp`
+- Modify: `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`
 
 **Interfaces:**
 - Produces (rename, nessun comportamento): `bModifierPrimaryDown`, `bModifierSecondaryDown`, `ModifierPrimaryDragDistance`, `SetModifierPrimaryDownForTest(bool, float)`, `GetModifierPrimaryDragDistanceForTest()`, il test `RefactorTactics.Camera.ModifierDragOrbitsOnlyPastTheClickThreshold` (classe `FRTCameraModifierDragOrbitsOnlyPastThresholdTest`).
@@ -242,7 +242,7 @@ Expected: tutte verdi; `Camera.ModifierDragOrbitsOnlyPastTheClickThreshold` comp
 - [ ] **Step 5: commit**
 
 ```bash
-git add Source/RefactorTactics/Player/RTPlayerController.h Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/Camera/RTCameraPawnTests.cpp Source/RefactorTactics/Tests/Player/RTPlayerInteractionTests.cpp
+git add Source/RefactorTactics/Player/RTPlayerController.h Source/RefactorTactics/Player/RTPlayerController.cpp Source/RefactorTactics/Tests/RTCameraPawnTests.cpp Source/RefactorTactics/Tests/RTPlayerInteractionTests.cpp
 git commit -m "refactor(3749): i gesti del modificatore non portano piu' Alt nel nome"
 ```
 

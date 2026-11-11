@@ -177,7 +177,7 @@ misurato»**: questo file ne conteneva due, e ognuna correggeva l'altra fino a d
 E8 era «da costruire» e «chiusa». La storia di quelle correzioni sta nel Git log e nel changelog, non qui.
 
 Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
-`grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp`
+`grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' --include='*.cpp' Source/RefactorTactics/Tests`
 
 🔴 **Questa tabella si dimentica, e il 2026-08-27 le mancavano `E23` ed `E47`** — presenti in §3 e §5 con la
 loro sezione `###`, assenti qui: 22 righe contro 24 epic. Chi aggiunge un'epic scrive la sezione e la tabella
@@ -2121,7 +2121,7 @@ alle fonti (`Reactions.InterceptRejectsAoE`, `…RejectsHazard`) senza tornare s
 ammissibile perché nessun altro test lo usa come prefisso. Prima di aggiungere un nome nuovo:
 
 ```bash
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp | tr -d '"' | sort -u
+grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' --include='*.cpp' Source/RefactorTactics/Tests | tr -d '"' | sort -u
 ```
 
 ### 6.2 Nomi delle epic nuove — una sola forma per comportamento

@@ -39,12 +39,12 @@ Estrae la scrittura cella riusabile sull'actor, la logica di merge come funzione
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.h` (dichiara `static ApplyBrush`)
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.cpp` (implementa `ApplyBrush`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h` (dichiara `PaintCellData`, `EraseCell`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` (implementa `PaintCellData`/`EraseCell`; `PaintTargetCell` diventa wrapper)
-- Create: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h`
-- Create: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp`
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h` (dichiara `PaintCellData`, `EraseCell`)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.cpp` (implementa `PaintCellData`/`EraseCell`; `PaintTargetCell` diventa wrapper)
+- Create: `Source/RefactorTacticsEditor/Private/RTHexEditorClick.h`
+- Create: `Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp`
 - Modify: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp` (usa gli helper condivisi)
-- Test: `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp` (nuovo test `ApplyBrushMerge`)
+- Test: `Source/RefactorTactics/Tests/RTHexMapTests.cpp` (nuovo test `ApplyBrushMerge`)
 
 **Interfaces:**
 - Produces:
@@ -56,7 +56,7 @@ Estrae la scrittura cella riusabile sull'actor, la logica di merge come funzione
 
 - [ ] **Step 1: Scrivere il test che fallisce (`ApplyBrushMerge`)**
 
-In `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`, prima della riga `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
+In `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, prima della riga `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexApplyBrushTest,
 	"RefactorTactics.HexMap.ApplyBrushMerge",
@@ -133,7 +133,7 @@ Expected: in `Saved/Logs/RefactorTactics.log` il test `RefactorTactics.HexMap.Ap
 
 - [ ] **Step 6: Estrarre `PaintCellData`/`EraseCell` sull'actor**
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.h`, subito dopo la dichiarazione di `PaintTargetCell()` (riga ~93), aggiungere:
+In `Source/RefactorTactics/Map/RTHexMapActor.h`, subito dopo la dichiarazione di `PaintTargetCell()` (riga ~93), aggiungere:
 ```cpp
 	/** Scrive Surface/MoveCost/bBlocksMovement sulla cella Id (la crea se assente, preserva Height/LOS). Annullabile. */
 	void PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement);
@@ -142,7 +142,7 @@ In `Source/RefactorTactics/Map/Actor/RTHexMapActor.h`, subito dopo la dichiarazi
 	bool EraseCell(const FRTCellId& Id);
 ```
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`, sostituire l'intero corpo attuale di `PaintTargetCell()` (righe ~164-190) con il wrapper + le due nuove funzioni:
+In `Source/RefactorTactics/Map/RTHexMapActor.cpp`, sostituire l'intero corpo attuale di `PaintTargetCell()` (righe ~164-190) con il wrapper + le due nuove funzioni:
 ```cpp
 void ARTHexMapActor::PaintTargetCell()
 {
@@ -194,7 +194,7 @@ bool ARTHexMapActor::EraseCell(const FRTCellId& Id)
 
 - [ ] **Step 7: Creare gli helper editor condivisi**
 
-`Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h`:
+`Source/RefactorTacticsEditor/Private/RTHexEditorClick.h`:
 ```cpp
 #pragma once
 
@@ -222,7 +222,7 @@ namespace RTHexEditor
 }
 ```
 
-`Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp`:
+`Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp`:
 ```cpp
 #include "RTHexEditorClick.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
@@ -232,7 +232,7 @@ namespace RTHexEditor
 #include "EngineUtils.h"           // TActorIterator
 #include "Editor.h"                // GEditor
 #include "Selection.h"             // USelection
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 
@@ -330,7 +330,7 @@ Sostituire l'INTERO contenuto di `Source/RefactorTacticsEditor/Private/Tools/RTH
 #include "RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h" // FRTHexCellData (readout)
 
@@ -419,10 +419,10 @@ Expected: `Saved/Logs/RefactorTactics.log` mostra tutti i test hex Success, **0 
 ```bash
 git checkout -- RefactorTactics.uproject   # solo se l'editor l'ha risporcato (EngineAssociation deve restare "5.8")
 git add Source/RefactorTactics/Map/RTHexMapAsset.h Source/RefactorTactics/Map/RTHexMapAsset.cpp \
-        Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp \
-        Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.h \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorClick.cpp \
+        Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp \
+        Source/RefactorTactics/Tests/RTHexMapTests.cpp \
+        Source/RefactorTacticsEditor/Private/RTHexEditorClick.h \
+        Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp \
         Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp
 git commit -m "refactor(hex): H5c.1a - scrittura cella riusabile + ApplyBrush puro + helper click condivisi"
 ```
@@ -436,9 +436,9 @@ Aggiunge `URTHexPaintTool : USingleClickTool`: al click, `Paint` scrive superfic
 **Files:**
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h`
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.cpp`
-- Modify: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h` (dichiara `PaintTool`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp` (registra il comando `PaintTool`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp` (registra il ToolBuilder in `Enter()`)
+- Modify: `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h` (dichiara `PaintTool`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp` (registra il comando `PaintTool`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp` (registra il ToolBuilder in `Enter()`)
 - Modify: `docs/design/test-manuali-pie.md` (voci PIE-HEX-MODE-C e PIE-HEX-MODE-D)
 - Modify: `docs/design/hex-map-roadmap.md` (aggiorna la riga H5 con lo stato H5c prima fetta)
 
@@ -551,7 +551,7 @@ protected:
 #include "RTHexEditorClick.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 
 #define LOCTEXT_NAMESPACE "URTHexPaintTool"
@@ -629,13 +629,13 @@ void URTHexPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 - [ ] **Step 4: Dichiarare e registrare il comando `PaintTool`**
 
-In `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h`, dopo la riga `TSharedPtr<FUICommandInfo> SelectTool;` (riga ~16), aggiungere:
+In `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h`, dopo la riga `TSharedPtr<FUICommandInfo> SelectTool;` (riga ~16), aggiungere:
 ```cpp
 	/** Tool di paint/erase a click (H5c). */
 	TSharedPtr<FUICommandInfo> PaintTool;
 ```
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`, in fondo a `RegisterCommands()` (dopo `ToolCommands.Add(SelectTool);`), aggiungere:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`, in fondo a `RegisterCommands()` (dopo `ToolCommands.Add(SelectTool);`), aggiungere:
 ```cpp
 	UI_COMMAND(PaintTool, "Paint", "Dipinge o cancella una cella cliccando nel viewport (layer attivo)",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
@@ -644,7 +644,7 @@ In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`, i
 
 - [ ] **Step 5: Registrare il ToolBuilder nel mode**
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp`, aggiungere in cima l'include:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`, aggiungere in cima l'include:
 ```cpp
 #include "Tools/RTHexPaintTool.h"
 ```
@@ -682,9 +682,9 @@ In `docs/design/hex-map-roadmap.md`, nella cella Stato della riga **H5**, aggiun
 git checkout -- RefactorTactics.uproject   # se risporcato
 git add Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h \
         Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.cpp \
-        Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp \
+        Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h \
+        Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp \
+        Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp \
         docs/design/test-manuali-pie.md docs/design/hex-map-roadmap.md
 git commit -m "feat(hex): H5c.1b - tool Paint-a-click (paint+erase, USingleClickTool)"
 ```

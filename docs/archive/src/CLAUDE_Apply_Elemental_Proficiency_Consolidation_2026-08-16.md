@@ -45,7 +45,7 @@
 >
 > ⚠️ **La «Regola finale» del documento — *«non fermarti a proporre: applica le modifiche consentite dal
 > write-set»* — è stata rispettata alla lettera, ed è per questo che le pagine personaggio NON sono state
-> toccate.** La sessione che ha consumato questi kit possiede `Turn/Log/RTMatchStateHash.*` e `Map/RTHexMapAsset.*`
+> toccate.** La sessione che ha consumato questi kit possiede `Turn/RTMatchStateHash.*` e `Map/RTHexMapAsset.*`
 > per [#986](https://github.com/DegrassiAaron/refactor-tactics-main/issues/986); `docs/characters/**` non è
 > nel suo `writable`, e il documento stesso prescrive di non aggirare D-139 ma di dichiarare il delta. Il
 > delta è #995.

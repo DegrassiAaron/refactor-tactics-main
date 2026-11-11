@@ -46,12 +46,12 @@ nella toolbar dei Modes del Level Editor e si attiva. Nessuna logica di selezion
 - Create: `Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs`
 - Create: `Source/RefactorTacticsEditor/Public/RefactorTacticsEditorModule.h`
 - Create: `Source/RefactorTacticsEditor/Private/RefactorTacticsEditorModule.cpp`
-- Create: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h`
-- Create: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`
-- Create: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorMode.h`
-- Create: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp`
-- Create: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeToolkit.h`
-- Create: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeToolkit.cpp`
+- Create: `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h`
+- Create: `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`
+- Create: `Source/RefactorTacticsEditor/Public/RTHexEditorMode.h`
+- Create: `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`
+- Create: `Source/RefactorTacticsEditor/Public/RTHexEditorModeToolkit.h`
+- Create: `Source/RefactorTacticsEditor/Private/RTHexEditorModeToolkit.cpp`
 - Modify: `RefactorTactics.uproject` (aggiunge il modulo)
 - Modify: `docs/design/test-manuali-pie.md` (voce PIE-HEX-MODE-A)
 
@@ -133,7 +133,7 @@ IMPLEMENT_MODULE(FRefactorTacticsEditorModule, RefactorTacticsEditor)
 
 - [ ] **Step 3: Commands (vuoto in H5a, popolato in H5b)**
 
-`Public/HexMode/RTHexEditorModeCommands.h`:
+`Public/RTHexEditorModeCommands.h`:
 ```cpp
 #pragma once
 
@@ -154,7 +154,7 @@ protected:
 };
 ```
 
-`Private/HexMode/RTHexEditorModeCommands.cpp`:
+`Private/RTHexEditorModeCommands.cpp`:
 ```cpp
 #include "RTHexEditorModeCommands.h"
 #include "Styling/AppStyle.h"
@@ -184,7 +184,7 @@ TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCom
 
 - [ ] **Step 4: UEdMode (guscio)**
 
-`Public/HexMode/RTHexEditorMode.h`:
+`Public/RTHexEditorMode.h`:
 ```cpp
 #pragma once
 
@@ -213,7 +213,7 @@ public:
 };
 ```
 
-`Private/HexMode/RTHexEditorMode.cpp`:
+`Private/RTHexEditorMode.cpp`:
 ```cpp
 #include "RTHexEditorMode.h"
 #include "RTHexEditorModeToolkit.h"
@@ -254,7 +254,7 @@ TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> URTHexEditorMode::GetModeCommand
 
 - [ ] **Step 5: Toolkit (pannello base)**
 
-`Public/HexMode/RTHexEditorModeToolkit.h`:
+`Public/RTHexEditorModeToolkit.h`:
 ```cpp
 #pragma once
 
@@ -278,7 +278,7 @@ public:
 };
 ```
 
-`Private/HexMode/RTHexEditorModeToolkit.cpp`:
+`Private/RTHexEditorModeToolkit.cpp`:
 ```cpp
 #include "RTHexEditorModeToolkit.h"
 
@@ -363,9 +363,9 @@ marker. Toglie la dipendenza dal Details per la selezione.
 **Files:**
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h`
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp`
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp` (aggiunge il comando `SelectTool`)
-- Modify: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h` (dichiara `TSharedPtr<FUICommandInfo> SelectTool`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp` (registra il ToolBuilder in `Enter()`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp` (aggiunge il comando `SelectTool`)
+- Modify: `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h` (dichiara `TSharedPtr<FUICommandInfo> SelectTool`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp` (registra il ToolBuilder in `Enter()`)
 - Modify: `docs/design/test-manuali-pie.md` (voce PIE-HEX-MODE-B)
 
 **Interfaces:**
@@ -473,7 +473,7 @@ protected:
 #include "EngineUtils.h"       // TActorIterator
 #include "Editor.h"           // GEditor
 #include "Selection.h"        // USelection
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h" // FRTHexCellData (readout)
 #include "Map/RTHexLibrary.h"
@@ -616,12 +616,12 @@ void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 - [ ] **Step 4: Dichiarare e registrare il comando SelectTool**
 
-In `Public/HexMode/RTHexEditorModeCommands.h`, dentro la classe (sezione public), aggiungere:
+In `Public/RTHexEditorModeCommands.h`, dentro la classe (sezione public), aggiungere:
 ```cpp
 	TSharedPtr<FUICommandInfo> SelectTool;
 ```
 
-In `Private/HexMode/RTHexEditorModeCommands.cpp`, dentro `RegisterCommands()`, sostituire il corpo con:
+In `Private/RTHexEditorModeCommands.cpp`, dentro `RegisterCommands()`, sostituire il corpo con:
 ```cpp
 	TArray<TSharedPtr<FUICommandInfo>>& ToolCommands = Commands.FindOrAdd(NAME_Default);
 	UI_COMMAND(SelectTool, "Select", "Seleziona una cella cliccando nel viewport (layer attivo)",
@@ -631,7 +631,7 @@ In `Private/HexMode/RTHexEditorModeCommands.cpp`, dentro `RegisterCommands()`, s
 
 - [ ] **Step 5: Registrare il ToolBuilder in `Enter()`**
 
-In `Private/HexMode/RTHexEditorMode.cpp`, aggiungere gli include in cima:
+In `Private/RTHexEditorMode.cpp`, aggiungere gli include in cima:
 ```cpp
 #include "InteractiveToolManager.h"
 #include "Tools/RTHexSelectTool.h"

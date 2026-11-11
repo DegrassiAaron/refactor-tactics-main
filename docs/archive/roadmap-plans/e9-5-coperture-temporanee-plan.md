@@ -21,11 +21,11 @@ una **copertura bassa temporanea**, che scade nel Cleanup e la cui rimozione agg
 | Fatto | Dove | Conseguenza |
 |---|---|---|
 | `FRTHexCover{Edge, Type, Integrity}` esiste, per **bordo**, formato v3 | `Map/RTHexCellData.h` | il dato c'è: non serve un nuovo formato mappa |
-| `CoverBetween` legge **entrambe** le facce del bordo | `Map/Cover/RTHexCoverLibrary.cpp` | dichiarare una sola faccia basta |
+| `CoverBetween` legge **entrambe** le facce del bordo | `Map/RTHexCoverLibrary.cpp` | dichiarare una sola faccia basta |
 | `ApplyStructureDamage` scala l'integrità e rimuove a 0, passando da `AddOrUpdateCell` | idem | la revisione (→ cache e path) si incrementa già di lì |
 | **Nessuna nozione di durata** per le coperture | — | è il pezzo che manca |
 | `FRTDynamicSurface`/`TickDynamicSurfaces` (E8.4) e `FRTDynamicArc`/`TickDynamicArcs` (E9.4) | `Turn/RTTurnManager.*` | il pattern di temporaneità esiste **due volte**: la terza lo segue, non lo reinventa |
-| `Action.CreateCover` **non** è nel catalogo core, e un test asserisce che non ci sia | `Ability/Catalog/RTCatalogLibrary.cpp`, `Tests/Terrain/RTEnvironmentActionTests.cpp:307` | il test va aggiornato, non aggirato |
+| `Action.CreateCover` **non** è nel catalogo core, e un test asserisce che non ci sia | `Ability/RTCatalogLibrary.cpp`, `Tests/RTEnvironmentActionTests.cpp:307` | il test va aggiornato, non aggirato |
 | Targeting per **cella** già disponibile (`PlannedAttackCell` + `bAttackTargetsCell`) | `Unit/RTUnit.h:132` | il limite che il catalogo dava per scontato non c'è più (chiuso a E8.3) |
 | `ResolvePrep` forza `TargetUnitId = i` e `TargetCell = Unit->Cell` | `Turn/RTTurnManager.cpp:1142` | le azioni di Prep agiscono **solo** su chi le usa: serve un ramo dedicato |
 | **Nessuna variante di abilità è consumata a runtime** in tutto il progetto | `grep Variants` → solo catalogo, validator e test | i `Parameters` di rinforzato/adattivo sono dati che nessuno legge |

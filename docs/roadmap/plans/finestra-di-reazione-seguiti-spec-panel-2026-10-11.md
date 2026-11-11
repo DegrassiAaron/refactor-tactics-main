@@ -35,18 +35,18 @@ La ricognizione è fatta qui, una volta. Ogni riga dice come è stata verificata
 |---|---|---|---|
 | P1 | [D-355] vuole la finestra **durante** il playback, perché *«al giocatore si chiederebbe `FIRE`/`HOLD` su un movimento che il suo schermo non ha mostrato»* | Decision Log, voce `D-355` | ✅ vera |
 | P2 | In PIE la finestra si apre circa 0,1 s dopo l'inizio della Risoluzione: header su PREP, Ivrin nella cella di partenza. L'ingresso si vede dopo la scadenza | seduta `U74`, raffica `r13` (59 fps): `Risoluzione` alle 06:53:32,797, finestra a 2,9 s alle 32,997, scadenza alle 35,78, header su MOVE alle 36,14 | ✅ misurata |
-| P3 | `Reactions.WindowOpensWithPlaybackRunning` legge `IsResolving()` dentro il delegate: prova che il playback è **partito**, non che abbia mostrato l'ingresso | `Tests/Turn/Resolution/RTMovementResumeTests.cpp:548`; il suo commento lo dichiara | ✅ vera |
+| P3 | `Reactions.WindowOpensWithPlaybackRunning` legge `IsResolving()` dentro il delegate: prova che il playback è **partito**, non che abbia mostrato l'ingresso | `Tests/RTMovementResumeTests.cpp:548`; il suo commento lo dichiara | ✅ vera |
 | P4 | Il momento giusto esiste già: `FinishPlayback` alza `bPlaybackHeldByWindow` quando il playback parziale ha mostrato tutto il risolto, *«l'istante in cui il nemico è entrato nella zona»* | `Turn/RTTurnManager.cpp:9226` | ✅ vera |
 | P5 | L'orologio della finestra corre dall'apertura, a prescindere dal playback | `TickReactionWindow`, `Turn/RTTurnManager.cpp:192` | ✅ vera |
 | P6 | La slow-motion (0,35) parte con la finestra: l'avvicinamento si vede a un terzo della velocità mentre l'orologio corre in tempo reale. È così che la finestra scade prima dell'ingresso | `UpdateReactionSlowMotion`, `Turn/RTTurnManager.cpp:236`; P2 | ✅ vera |
 | P7 | I siti di apertura sono due, e hanno la stessa forma | `Turn/RTTurnManager_Movement.cpp:1093` (Overwatch), `Turn/RTTurnManager_Blast.cpp:2741` (`Brace`) | ✅ vera |
-| P8 | Il titolo neutro è voluto: *«il DTO porta un `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unità sbagliata in ogni partita in cui qualcuno è già caduto»* | `URTFastDecisionWidget::GetPromptText`, `UI/HUD/RTScreenHudWidgets.cpp:1639` | ✅ vera |
-| P9 | L'Overwatch scatta solo su un'unità **`Detected`** dalla squadra del watcher **e** in linea di vista dalla cella raggiunta | `Turn/Reaction/RTReactionOpportunityTypes.cpp:589-599`; ADR-0004 §6 | ✅ vera |
+| P8 | Il titolo neutro è voluto: *«il DTO porta un `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unità sbagliata in ogni partita in cui qualcuno è già caduto»* | `URTFastDecisionWidget::GetPromptText`, `UI/RTScreenHudWidgets.cpp:1639` | ✅ vera |
+| P9 | L'Overwatch scatta solo su un'unità **`Detected`** dalla squadra del watcher **e** in linea di vista dalla cella raggiunta | `Turn/RTReactionOpportunityTypes.cpp:589-599`; ADR-0004 §6 | ✅ vera |
 | P10 | Il `Brace` non controlla la rilevazione di chi spinge, e la sua chiave non lo nomina: lo snapshot è `Omniscient`, e serve solo all'indice del proprietario | `Turn/RTTurnManager_Blast.cpp:2711` | ✅ vera |
-| P11 | La vista va solo alla squadra del proprietario: l'avversario non riceve nulla, nemmeno nel turno in cui il proprietario è rivelato | `URTReactionWindowLibrary::FilterWindowForTeam`, `Turn/Reaction/RTReactionWindowView.cpp:5` | ✅ vera |
+| P11 | La vista va solo alla squadra del proprietario: l'avversario non riceve nulla, nemmeno nel turno in cui il proprietario è rivelato | `URTReactionWindowLibrary::FilterWindowForTeam`, `Turn/RTReactionWindowView.cpp:5` | ✅ vera |
 | P12 | #166 ha aperta la casella «UI `FIRE`/`HOLD` con countdown **e bersaglio**, alimentata da un DTO sanitizzato» | corpo di #166 | ✅ vera |
 | P13 | L'engine converte, e risponde sempre `true`: stringa→booleano col valore di `ToBool()` (`"yes"` → vero, `"false"` → falso); numero→booleano `!= 0`; stringa→intero con `LexFromString` (`"abc"` → 0); booleano→numero 1/0; numero e booleano→stringa. E un decimale letto come intero si **arrotonda** (`RoundHalfFromZero`: 2,5 → 3) | `Runtime/Json/Public/Dom/JsonValue.h:451-497`, `Private/Dom/JsonValue.cpp:95-107` e `440-492` | ✅ vera |
-| P14 | Nel loader le letture scalari passano da `TryGet*Field`, e i controlli espliciti del tipo sono pochi | `grep -c` su `ScenarioHarness/Authoring/RTScenarioLoader.cpp`, in questo passaggio: `TryGetBoolField` 8, `TryGetNumberField` 22, `TryGetStringField` 45; `Type != EJson::` / `Type == EJson::` / `HasTypedField` 4 | ✅ misurata |
+| P14 | Nel loader le letture scalari passano da `TryGet*Field`, e i controlli espliciti del tipo sono pochi | `grep -c` su `ScenarioHarness/RTScenarioLoader.cpp`, in questo passaggio: `TryGetBoolField` 8, `TryGetNumberField` 22, `TryGetStringField` 45; `Type != EJson::` / `Type == EJson::` / `HasTypedField` 4 | ✅ misurata |
 | P15 | Nel corpus nessun valore ha il tipo sbagliato | script in §5.3, su ogni `Scenarios/**/*.json`: **zero** | ⚠️ **misurata a metà**, corretta da [#3668](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3668): lo script non guardava la chiave polimorfa `value`, e quattro file scrivevano `UnitAlive` con `"value": 1`. Li ha trovati il loader stretto, e sono stati portati a `true`, la forma che il writer scrive già (`RTScenarioWriter.cpp`, `value` booleano) |
 | P16 | Dopo una risposta, una seconda sospensione **non estende** il playback: `ResumeSuspendedResolution` torna ad attendere senza `BeginPlayback`, che gira solo alla conclusione. Il playback resta trattenuto sul **primo** ingresso mentre la seconda finestra chiede di un altro | `Turn/RTTurnManager_Movement.cpp:983-998`; `bPlaybackHeldByWindow` torna falso solo in `BeginPlayback` (`Turn/RTTurnManager.cpp:7938`) | ✅ vera (dalla verifica avversaria) |
 | P17 | Il playback parziale può non partire: `BeginPartialPlayback` non fa niente se il playback è spento o già partito, o se la timeline è vuota | `Turn/RTTurnManager_Movement.cpp:1161` e `:1190`; `Turn/RTTurnManager.cpp:149-151` | ✅ vera (dalla verifica avversaria) |
@@ -167,8 +167,8 @@ issue: è una decisione d'autore, non un dettaglio d'implementazione.
 - [ ] Un test per il **playback spento**: la finestra si presenta alla sospensione, e il turno si chiude.
 - [ ] Un test per il **playback in pausa**: la presentazione aspetta la ripresa, e `OpenWindowElapsed` resta a zero.
 - [ ] I test che legano il delegate e si aspettano l'apertura subito dopo `LockInAndResolve` pompano il playback fino
-      al trattenimento: il playback è acceso per default (P19). Sono in `Tests/Turn/Resolution/RTMovementResumeTests.cpp`,
-      `Tests/Turn/Reaction/RTDefensiveReactionTests.cpp` e `Tests/UI/Reaction/RTReactionWindowViewModelTests.cpp`, e l'elenco esatto si misura
+      al trattenimento: il playback è acceso per default (P19). Sono in `Tests/RTMovementResumeTests.cpp`,
+      `Tests/RTDefensiveReactionTests.cpp` e `Tests/RTReactionWindowViewModelTests.cpp`, e l'elenco esatto si misura
       in implementazione.
 - [ ] `PIE-V01-RXPLAYBACK` eseguita sul banco `Visual.Reaction.OverwatchWindow`, con la finestra in primo piano.
 - [ ] Il commento di `RTMovementResumeTests.cpp:548` e quello di `FinishPlayback` sono riallineati.
@@ -185,7 +185,7 @@ La tavola E scrive tre cose:
 - le opzioni «FIRE · Attacca Ivrin» e «HOLD · Non attaccare».
 
 Il gioco scrive «Reazione», nessun sottotitolo, e le frasi del catalogo, che sono più lunghe
-(`UI/Reaction/RTReactionResponseText.cpp`). Il titolo neutro è una guardia voluta (P8): il widget non ha un id stabile da cui
+(`UI/RTReactionResponseText.cpp`). Il titolo neutro è una guardia voluta (P8): il widget non ha un id stabile da cui
 ricavare un nome.
 
 ### 4.2 Il panel
@@ -314,7 +314,7 @@ sono fuori da questa issue: si registrano come seguito.
   comportamento voluto.
 
 **CRISPIN** — Il criterio di accettazione è uno zero misurato, più una tabella.
-- Lo zero: `grep -cE 'TryGet(Bool|Number|String)Field' Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` →
+- Lo zero: `grep -cE 'TryGet(Bool|Number|String)Field' Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` →
   **0** dopo la correzione.
 - La tabella, un test headless: per una chiave per tipo e per livello (radice, unità, cella, intent, `expect`) un
   valore del tipo sbagliato è rifiutato, e il messaggio nomina il percorso.
@@ -362,7 +362,7 @@ resta qui come traccia di com'è stata presa la premessa.
   passano a `true`, la forma del writer (P15).
 
 **DoD**
-- [ ] `grep -cE 'TryGet(Bool|Number|String)Field' Source/RefactorTactics/ScenarioHarness/Authoring/RTScenarioLoader.cpp` → 0.
+- [ ] `grep -cE 'TryGet(Bool|Number|String)Field' Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` → 0.
 - [ ] Il test a tabella di §5.2, con almeno una chiave per tipo e per livello, muore se un lettore torna a convertire.
 - [ ] `Scenario.*` verdi, compresi `ShippedScenariosAreValid` ed `EveryShippedScenarioRuns`.
 - [ ] Il commento di `LeggiCampoTipizzato` dice ciò che il codice fa.

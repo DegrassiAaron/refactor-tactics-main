@@ -403,10 +403,10 @@ suo catalogo e i test che lo pinnano, e non attraversa né il combat resolver n�
 |---|---|
 | `Ability/RTMovementProfile.h` | `StepBudget`/`MoveBudget` diventano `StepBudgetPercent`/`MoveBudgetPercent`; `InheritFromUnit` → `NeutralPercent` (100); `ScaleBudget` fa il troncamento in aritmetica intera |
 | `Ability/RTMovementProfileLibrary.cpp` | `Sprint` 200 · `Withdraw` 25 · `Sneak` 50 e **pianificabile** · `Move`/`Still` 100 |
-| `Ability/Catalog/RTCatalogLibrary.cpp` | solo una **nota**: perché `Action.Sneak` NON entra — vedi sotto |
+| `Ability/RTCatalogLibrary.cpp` | solo una **nota**: perché `Action.Sneak` NON entra — vedi sotto |
 | `Turn/RTTurnManager.cpp` | solo il commento di `MakeSimUnit`, che dichiarava `InheritFromUnit` |
-| `Tests/Ability/RTMovementProfileTests.cpp` | tre test riscritti sul modello nuovo |
-| `Tests/Ability/Catalog/RTCatalogTests.cpp` | tolto un totale volatile da un commento (`CLAUDE.md` §15) |
+| `Tests/RTMovementProfileTests.cpp` | tre test riscritti sul modello nuovo |
+| `Tests/RTCatalogTests.cpp` | tolto un totale volatile da un commento (`CLAUDE.md` §15) |
 
 ⛔ **`Action.Sneak` NON entra, e la revisione avversariale ha trovato perché.** Una voce del catalogo core
 rende obbligatoria la propria chiave icona — `URTIconLibrary::RequiredIconIds()` la deriva da **ogni** azione

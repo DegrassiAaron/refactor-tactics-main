@@ -20,7 +20,7 @@
 // (`RTHudScenarioTests.cpp`). Il resto dell'aspetto resta di PIE.
 
 #include "Misc/AutomationTest.h"
-#include "Tests/UI/HUD/Intent/RTHudGeometryForTest.h"
+#include "Tests/Shared/RTHudGeometryForTest.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
@@ -604,7 +604,7 @@ namespace RTCenterFree
 {
 	// ⌫ **La meta' PURA di questo namespace e' uscita di qui il 2026-09-24** — costanti, `FRect`,
 	// `CenterKeepOut` (da #3661 `SceneKeepOut`), `Intersezione`, `SiToccano`, `Descrivi` — e vive in
-	// `Tests/UI/HUD/Intent/RTHudGeometryForTest.h`. La ragione e' #3319: il Context Inspector ha bisogno dello stesso
+	// `Tests/Shared/RTHudGeometryForTest.h`. La ragione e' #3319: il Context Inspector ha bisogno dello stesso
 	// keep-out e non e' una zona dell'HUD, e due copie dello stesso numero divergono in silenzio.
 	// 🔑 Cio' che RESTA qui dipende da UMG — `RettangoloDellaZona` legge un `FAnchorData` — e un header
 	// di `Tests/` e' compilato in ogni target: chi vuole un rettangolo non deve pagare UMG per averlo.

@@ -162,7 +162,7 @@ Content/RT/UI/_Generated/
 # Riempimento degli overlay tattici (#1944, famiglia OVL #1941-#1944). Stesso canale
 # `PerInstanceCustomData` del materiale qui sopra, ma **Translucent**: RGB sull'Emissive e l'alpha sul
 # **quarto** float. E' cio' che rende visibile `URTOverlayPalette::AlphaFor`, oggi dichiarata e che
-# nessuno disegna — `git grep -c AlphaFor -- Source/RefactorTactics/Map/RTHexMapActor.cpp` -> 0, e la
+# nessuno disegna — `git grep -c AlphaFor -- Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` -> 0, e la
 # certezza a schermo passa dal tratteggio delle `DrawDebugLine`, che l'alpha lo ignorano.
 # ⛔ **Non e' un'estensione di `M_HexCell`, ed e' voluto.** Quello e' opaco e lo montano i quattro ISM che
 # portano RGB — `Cells`, `SurfaceGlyphs[Ring]`, `PlanGhosts`, `CellBorders` (`CellMaterial`,

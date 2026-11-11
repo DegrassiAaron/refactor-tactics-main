@@ -152,7 +152,7 @@ schermo** — chiede il giudizio di una persona davanti al monitor, e quelle qua
 
 ## 7. `CP-C` — le grandezze che il kit dichiara, verificate nel codice
 
-`Turn/Format/RTMatchFormatLibrary.cpp::FindShippedFormat` — **cinque su cinque coincidono**, quindi né contratto
+`Turn/RTMatchFormatLibrary.cpp::FindShippedFormat` — **cinque su cinque coincidono**, quindi né contratto
 nuovo né regressione:
 
 `FormatId = Format.Skirmish2v2` · `UnitsPerTeam = 2` · `RoundLimit = 12` · `ScoreToWin = 5` ·

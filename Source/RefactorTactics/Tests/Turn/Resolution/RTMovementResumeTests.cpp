@@ -4,7 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Turn/Reaction/RTReactionOpportunityTypes.h" // DeriveOpportunityId: l'identita' della finestra

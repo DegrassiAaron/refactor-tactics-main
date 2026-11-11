@@ -62,10 +62,10 @@ python tools/suite/esegui.py RefactorTactics.Playback
 ### Task 1: Il canale del tracer sulla mappa
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h`
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp`
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h` (accanto a `AddPlaybackFootprint`, `:862-918`), `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` (`HasAnythingToDraw` `:1084-1097`; canale dopo `ClearPlaybackFootprint` `:1162-1166`; disegno dopo i colpi a struttura, `:1588-1625`)
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`, `Source/RefactorTactics/Tests/Map/Actor/RTHexMapActorTests.cpp`, `Source/RefactorTactics/Tests/Map/Actor/RTPreviewLineBatcherTests.cpp`
+- Create: `Source/RefactorTactics/Map/RTPlaybackTracer.h`
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp`
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h` (accanto a `AddPlaybackFootprint`, `:862-918`), `Source/RefactorTactics/Map/RTHexMapActor.cpp` (`HasAnythingToDraw` `:1084-1097`; canale dopo `ClearPlaybackFootprint` `:1162-1166`; disegno dopo i colpi a struttura, `:1588-1625`)
+- Test: `Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp`, `Source/RefactorTactics/Tests/RTHexMapActorTests.cpp`, `Source/RefactorTactics/Tests/RTPreviewLineBatcherTests.cpp`
 
 **Interfaces:**
 - Produces: `enum class ERTTracerStyle : uint8 { None, Projectile, Jet }`; `struct FRTPlaybackTracer { FRTCellId From; FRTCellId To; float Alpha; ERTTracerStyle Style; }`; `static void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha, float DashLength, FVector& OutStart, FVector& OutEnd)`; `void ARTHexMapActor::SetPlaybackTracers(const TArray<FRTPlaybackTracer>&)`, `void ARTHexMapActor::ClearPlaybackTracers()`, `int32 ARTHexMapActor::NumPlaybackTracers() const`, `const TArray<FRTPlaybackTracer>& ARTHexMapActor::GetPlaybackTracers() const`.
@@ -162,7 +162,7 @@ bool FRTHexMapActorPlaybackTracerChannelTest::RunTest(const FString&)
 ```
 
 In `RTPreviewLineBatcherTests.cpp`, con gli helper del file (`MakeLineeAnteprimaWorld`, `DestroyLineeAnteprimaWorld`,
-`RTTestConsoleVariable::TGuardia`) e `#include "Turn/Playback/RTPlaybackTracer.h"`:
+`RTTestConsoleVariable::TGuardia`) e `#include "Map/RTPlaybackTracer.h"`:
 
 ```cpp
 // Il tracer del playback si disegna anche col debug spento (`#2454`), come l'anteprima (`#3508`, D-467).
@@ -217,7 +217,7 @@ Expected: FAIL di compilazione — `ERTTracerStyle`, `FRTPlaybackTracer`, `Trace
 
 - [ ] **Step 3: Write the types**
 
-`Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h`:
+`Source/RefactorTactics/Map/RTPlaybackTracer.h`:
 
 ```cpp
 #pragma once
@@ -268,7 +268,7 @@ struct FRTPlaybackTracer
 };
 ```
 
-In `RTPlaybackLibrary.h` aggiungi `#include "Turn/Playback/RTPlaybackTracer.h"` e, nella classe, dopo `BlastPhaseIsActive`:
+In `RTPlaybackLibrary.h` aggiungi `#include "Map/RTPlaybackTracer.h"` e, nella classe, dopo `BlastPhaseIsActive`:
 
 ```cpp
 	/**
@@ -312,7 +312,7 @@ void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From
 
 - [ ] **Step 4: Write the map channel**
 
-In `RTHexMapActor.h` aggiungi `#include "Turn/Playback/RTPlaybackTracer.h"` e, dopo il blocco dell'impronta di playback
+In `RTHexMapActor.h` aggiungi `#include "Map/RTPlaybackTracer.h"` e, dopo il blocco dell'impronta di playback
 (accanto a `NumPlaybackFootprintCells`, `:899`):
 
 ```cpp
@@ -340,7 +340,7 @@ e accanto a `PlaybackFootprintCells` (`:1061`):
 ```
 
 In `RTHexMapActor.cpp`:
-- `#include "Turn/Playback/RTPlaybackLibrary.h"`;
+- `#include "Turn/RTPlaybackLibrary.h"`;
 - in `HasAnythingToDraw`, accanto a `PlaybackStructureHits.Num() > 0`: `|| PlaybackTracers.Num() > 0`;
 - dopo `ClearPlaybackFootprint`:
 
@@ -413,7 +413,7 @@ prima»*. Ripristina, ricompila, rilancia: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp Source/RefactorTactics/Tests/Map/Actor/RTHexMapActorTests.cpp Source/RefactorTactics/Tests/Map/Actor/RTPreviewLineBatcherTests.cpp
+git add Source/RefactorTactics/Map/RTPlaybackTracer.h Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp Source/RefactorTactics/Tests/RTHexMapActorTests.cpp Source/RefactorTactics/Tests/RTPreviewLineBatcherTests.cpp
 git commit -m "feat(2454): il canale del tracer sulla mappa — proiettile e getto, col line batcher del mondo"
 ```
 
@@ -422,8 +422,8 @@ git commit -m "feat(2454): il canale del tracer sulla mappa — proiettile e get
 ### Task 2: Il tempo del colpo, puro
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp`
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp`
 
 **Interfaces:**
 - Consumes: nulla dai task precedenti.
@@ -610,7 +610,7 @@ In `TracerFlightFor` sostituisci il `return FMath::Clamp(...)` con `return 0.f;`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp
+git add Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
 git commit -m "feat(2454): il tempo del colpo in due battiti, puro — lancio, arrivo, volo tagliato a meta' slot"
 ```
 
@@ -619,9 +619,9 @@ git commit -m "feat(2454): il tempo del colpo in due battiti, puro — lancio, a
 ### Task 3: Il dato del colpo, l'idoneità e lo stile
 
 **Files:**
-- Modify: `Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h` (prima di `FRTResolvedEvent`, `:182`; intestazione di `Shape`, `:334`; in coda alla struct, prima di `FRTResolvedEvent() = default;`, `:515`)
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp`
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp`
+- Modify: `Source/RefactorTactics/Turn/RTResolvedEvent.h` (prima di `FRTResolvedEvent`, `:182`; intestazione di `Shape`, `:334`; in coda alla struct, prima di `FRTResolvedEvent() = default;`, `:515`)
+- Modify: `Source/RefactorTactics/Turn/RTPlaybackLibrary.h`, `Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp`
+- Test: `Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp`
 
 **Interfaces:**
 - Consumes: `ERTTracerStyle` (Task 1).
@@ -629,7 +629,7 @@ git commit -m "feat(2454): il tempo del colpo in due battiti, puro — lancio, a
 
 - [ ] **Step 1: Write the failing tests**
 
-In `RTPlaybackLibraryTests.cpp` (aggiungi `#include "Turn/Resolution/RTResolvedEvent.h"` se manca), un helper e tre test:
+In `RTPlaybackLibraryTests.cpp` (aggiungi `#include "Turn/RTResolvedEvent.h"` se manca), un helper e tre test:
 
 ```cpp
 namespace
@@ -810,7 +810,7 @@ In coda alla struct, prima di `FRTResolvedEvent() = default;`:
 
 - [ ] **Step 4: Write eligibility and style**
 
-`RTPlaybackLibrary.h` (aggiungi `#include "Turn/Resolution/RTResolvedEvent.h"` se manca):
+`RTPlaybackLibrary.h` (aggiungi `#include "Turn/RTResolvedEvent.h"` se manca):
 
 ```cpp
 	/**
@@ -865,7 +865,7 @@ In `TracerStyleFor` togli la riga `|| !Ev.HitGeometry.FromVerdict.AllowsTeam(Vie
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Resolution/RTResolvedEvent.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackLibraryTests.cpp
+git add Source/RefactorTactics/Turn/RTResolvedEvent.h Source/RefactorTactics/Turn/RTPlaybackLibrary.h Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
 git commit -m "feat(2454): la geometria del colpo, l'idoneita' e lo stile del tracer — FRTResolvedEvent server-only"
 ```
 
@@ -876,7 +876,7 @@ git commit -m "feat(2454): la geometria del colpo, l'idoneita' e lo stile del tr
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (emissione `Attack`, `:6254-6276`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (accanto agli altri `…ForTest`, `:515-660`)
-- Create: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp`
+- Create: `Source/RefactorTactics/Tests/RTAttackTracerTests.cpp`
 
 **Interfaces:**
 - Consumes: `FRTHitGeometry`, `HitGeometry`, `URTPlaybackLibrary::TracerStyleFor` (Task 3).
@@ -884,7 +884,7 @@ git commit -m "feat(2454): la geometria del colpo, l'idoneita' e lo stile del tr
 
 - [ ] **Step 1: Write the failing tests**
 
-`Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp`:
+`Source/RefactorTactics/Tests/RTAttackTracerTests.cpp`:
 
 ```cpp
 // La geometria del colpo per il tracer del playback (`#2454`, spec `2026-10-07-tracer-attacco-base` §3).
@@ -893,14 +893,14 @@ git commit -m "feat(2454): la geometria del colpo, l'idoneita' e lo stile del tr
 // propria vittima, la forma dell'intento e i due verdetti dei fatti puntuali. Il disegno e' di altri test.
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
-#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/Log/RTTurnLogLibrary.h"
-#include "Turn/Playback/RTPlaybackLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTUnit.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
@@ -1181,7 +1181,7 @@ In `RTTurnManager.cpp`, nel blocco *«Evento per il playback: colpo Attacker -> 
 
 ⚠️ Verifica sul posto che `Intents`, `Plan`, `HexUnits`, `Hit`, `Attacker` e `Victim` siano i nomi in scope: sono
 quelli che `ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, SideOrigin)` usa a `:6085`, nello stesso ciclo. Se
-`Victim`/`Attacker` sono `const ARTUnit*`, `FRTLogSubject::UnitAt` li accetta così (`Turn/Log/RTCombatLog.h:41`).
+`Victim`/`Attacker` sono `const ARTUnit*`, `FRTLogSubject::UnitAt` li accetta così (`Turn/RTCombatLog.h:41`).
 
 - [ ] **Step 5: Build and run the tests**
 
@@ -1205,7 +1205,7 @@ Expected: FAIL su `Privacy.UnseenAttackerIsOutOfTheOriginVerdict`. Ripristina: P
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTAttackTracerTests.cpp
 git commit -m "feat(2454): ogni Attack porta la geometria del colpo e chi la conosceva, col predicato dei fatti puntuali"
 ```
 
@@ -1216,8 +1216,8 @@ git commit -m "feat(2454): ogni Attack porta la geometria del colpo e chi la con
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h` (`AttacksShown`, `:3347`; `AttackShowSeconds`, `:1263-1265`; dichiarazioni private accanto a `RevealPlaybackFootprints`)
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp` (`BeginPlayback` raccolta `:7741-7744` e `ViewerTeamId` `:7685`; `EnterPlaybackPhase` `:7979-7998`; ramo Blast `:8449-8505`; rete di finalizzazione `:8540-8561`; `FinishPlayback` `:8772-8790`)
-- Create: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`
-- Modify: `Source/RefactorTactics/Tests/Turn/Reaction/RTDefensiveReactionTests.cpp` (dopo `Reactions.Brace.WindowSuspendsBlast`)
+- Create: `Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp`
+- Modify: `Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp` (dopo `Reactions.Brace.WindowSuspendsBlast`)
 
 **Interfaces:**
 - Consumes: `TracerFlightFor`, `AttackBeatsDue`, `IsTracerEligible` (Task 2-3).
@@ -1225,19 +1225,19 @@ git commit -m "feat(2454): ogni Attack porta la geometria del colpo e chi la con
 
 - [ ] **Step 1: Write the failing tests**
 
-`Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`:
+`Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp`:
 
 ```cpp
 // Il Blast in due battiti per colpo, e il tracer che lo racconta (`#2454`, spec §2.3).
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
-#include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/Playback/RTPlaybackLibrary.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTUnit.h"
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
@@ -1644,7 +1644,7 @@ la fixture prima di procedere.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp Source/RefactorTactics/Tests/Turn/Reaction/RTDefensiveReactionTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
 git commit -m "feat(2454): il Blast in due battiti per colpo — lancio col Cast, Hit e numero all'arrivo, un cursore solo"
 ```
 
@@ -1654,8 +1654,8 @@ git commit -m "feat(2454): il Blast in due battiti per colpo — lancio col Cast
 
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`, `Source/RefactorTactics/Turn/RTTurnManager.cpp` (ingresso del ramo Blast `:8423`; finalizzazione Blast; `FinishPlayback` `:8778-8786`)
-- Modify: `Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp` (voce `Attack`, `:35-37`)
-- Modify: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp`, `Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp` (`:252-276`)
+- Modify: `Source/RefactorTactics/Turn/RTPresentationBinding.cpp` (voce `Attack`, `:35-37`)
+- Modify: `Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp`, `Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp` (`:252-276`)
 
 **Interfaces:**
 - Consumes: `SetPlaybackTracers`/`ClearPlaybackTracers`/`NumPlaybackTracers` (Task 1); `TracerStyleFor`, `TracerAlpha` (Task 2-3); `AttackBeatsDone`, `PlaybackAttackFlights`, `PlaybackViewerTeamId` (Task 5).
@@ -1880,7 +1880,7 @@ Ripristina dopo ognuna, ricompila, PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTAttackTracerPlaybackTests.cpp Source/RefactorTactics/Tests/Turn/Playback/RTPlaybackStopPredicateTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTPresentationBinding.cpp Source/RefactorTactics/Tests/RTAttackTracerPlaybackTests.cpp Source/RefactorTactics/Tests/RTPlaybackStopPredicateTests.cpp
 git commit -m "feat(2454): il tracer in volo consegnato alla mappa a ogni uscita del Blast, spento a fine fase"
 ```
 

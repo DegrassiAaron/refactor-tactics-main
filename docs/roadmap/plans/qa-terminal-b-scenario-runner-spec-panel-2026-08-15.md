@@ -66,7 +66,7 @@ git ls-tree -r --name-only origin/main -- Scenarios/ | grep '\.json$' \
 #  38 Spec                     │
 #  21 Visual                   ┘
 
-grep -n 'TEXT("rt\.' Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole.cpp
+grep -n 'TEXT("rt\.' Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp
 #  25: rt.Test.Scenario     TAutoConsoleVariable — auto-run all'avvio partita
 #  51: rt.Map.Source        TAutoConsoleVariable — scavalca MapSource del GameMode
 # 146: rt.Test.List         ┐
@@ -75,7 +75,7 @@ grep -n 'TEXT("rt\.' Source/RefactorTactics/ScenarioHarness/Report/RTTestConsole
 ```
 
 ```cpp
-// Source/RefactorTactics/ScenarioHarness/Authoring/RTTestScenario.h:22
+// Source/RefactorTactics/ScenarioHarness/RTTestScenario.h:22
 enum class ERTTestOutcome : uint8 { Pass, Fail, Error, Blocked };
 // RTTestResult.h:128 → case ERTTestOutcome::Blocked: return TEXT("BLOCKED");
 ```

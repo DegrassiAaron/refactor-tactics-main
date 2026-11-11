@@ -323,7 +323,7 @@ Carica:
 - `docs/product/showcase-v0.1.md`
 - `Scenarios/`
 - `Source/RefactorTactics/ScenarioHarness/`
-- `Source/RefactorTactics/Tests/RTScenario*.cpp`
+- `Source/RefactorTactics/Tests/ScenarioHarness/`
 - `Source/RefactorTactics/Tests/ScenarioHarness/RTShowcaseScenarioTests.cpp`
 
 Uno scenario `BLOCKED` è valido come specifica anticipata; `FAIL` indica un difetto del gioco; `ERROR` un problema dello scenario/harness.

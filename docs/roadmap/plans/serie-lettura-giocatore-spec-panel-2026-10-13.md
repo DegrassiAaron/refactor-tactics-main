@@ -67,9 +67,9 @@ qui sopra resta come istruttoria.
 
 ```sh
 for o in BlockedByCycle Fell FellToAlternative FellToLastStable FellWithoutLanding StoppedByEdgeGuard; do
-  grep -cE "case ERTMoveOutcome::$o\b" Source/RefactorTactics/UI/Feed/RTPlayerEventProjector.cpp   # 0 per ciascuno
+  grep -cE "case ERTMoveOutcome::$o\b" Source/RefactorTactics/UI/RTPlayerEventProjector.cpp   # 0 per ciascuno
 done
-grep -cE "case ERTMoveOutcome::Slid\b" Source/RefactorTactics/UI/Feed/RTPlayerEventProjector.cpp   # 1: il comando sa colpire
+grep -cE "case ERTMoveOutcome::Slid\b" Source/RefactorTactics/UI/RTPlayerEventProjector.cpp   # 1: il comando sa colpire
 ```
 
 Tre premesse del corpo sono invece cadute.
@@ -79,10 +79,10 @@ Tre premesse del corpo sono invece cadute.
    consumatori. #2697 è chiusa dal 2026-09-12 e il feed scrive a schermo dalla seduta `U54` del 2026-09-18
    ([#2964](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2964)). Il difetto è sulla superficie
    che `G16` giudica al passo 4.
-2. **`BlockedByCycle` non è «il caso più netto»: non accade più.** Il commento dell'enum in `Turn/Log/RTTurnLog.h` lo
+2. **`BlockedByCycle` non è «il caso più netto»: non accade più.** Il commento dell'enum in `Turn/RTTurnLog.h` lo
    dichiara: *«nessuno emette più questo valore, ed è deliberato»* (`D-453`, che chiude `MOV-13`; il produttore
    l'ha spento `D-445`). Fuori dai test l'unico uso in codice è il ramo che ne compone la stringa in
-   `Turn/Log/RTTurnLogLibrary.cpp` (letto). La issue è del 2026-09-12, le due decisioni sono di ottobre.
+   `Turn/RTTurnLogLibrary.cpp` (letto). La issue è del 2026-09-12, le due decisioni sono di ottobre.
 3. **Mappare le cadute su `Moved` non le porta nel feed.** È la premessa implicita del primo criterio, ed è falsa
    per come funziona la dominanza (letto):
    - una caduta scrive, per la stessa unità, anche una voce `Combat` con `ActionId` `Fall.Fall` e cinque danni
@@ -183,7 +183,7 @@ Due affermazioni della issue vanno corrette.
 ### 2.2 Il panel
 
 **WIEGERS** — L'ultimo commento chiede di decidere *«una volta»* se uno scatto vale un `Order` come un waypoint o
-di più, perché tre waypoint contano tre e uno scatto equivalente uno. Il contratto risponde già. `Turn/Pacing/RTPacing.h`
+di più, perché tre waypoint contano tre e uno scatto equivalente uno. Il contratto risponde già. `Turn/RTPacing.h`
 definisce `Order` come *«il giocatore ha impartito un ordine (abilità o destinazione)»* e dichiara lo scopo del
 tipo: distinguere *«sto pensando»* da *«sto litigando con l'interfaccia»*. Il contatore misura **gesti accettati**,
 non lunghezza del piano. Tre waypoint sono tre gesti. Uno scatto sono due: armare e indicare la cella, come
@@ -329,7 +329,7 @@ Due cose sono cambiate.
    `SuspendReactionWindowForPresentation`: *«costruito qui, consegnato dopo»*, quando il playback ha mostrato
    l'ingresso o la spinta (letto, nei commenti dei due siti).
 2. **`ReactionName` esiste già in un altro DTO.** La vista degli **intenti** ha un campo con lo stesso nome
-   (`Turn/Actions/RTIntentPrivacyLibrary.cpp`, riempito da `URTHudViewModel` con il `DisplayName` della reazione). Non è
+   (`Turn/RTIntentPrivacyLibrary.cpp`, riempito da `URTHudViewModel` con il `DisplayName` della reazione). Non è
    quello della finestra. La ricognizione di questa serie li aveva confusi.
 
 ### 4.2 Il panel
@@ -372,7 +372,7 @@ python tools/hud-assets/color_metrics.py    # exit 1
 # RuntimeError: `const FLinearColor Color = bOwn ? ...` non trovato in RTHUD.cpp
 ```
 
-La riga in `UI/HUD/RTHUD.cpp` oggi è `Out.Color = bOwn ? … : …;`. Il secondo ancoraggio, `const FLinearColor DashColor`,
+La riga in `UI/RTHUD.cpp` oggi è `Out.Color = bOwn ? … : …;`. Il secondo ancoraggio, `const FLinearColor DashColor`,
 è intatto (letto). La forma è cambiata con `26370f3c7`, del 2026-09-04.
 
 ### 5.2 Il panel

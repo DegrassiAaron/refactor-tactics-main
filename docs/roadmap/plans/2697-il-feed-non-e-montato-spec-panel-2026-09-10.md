@@ -52,7 +52,7 @@ done
 → Content/RT/UI/Match/WBP_RT_EventLog.uasset      (se stesso, e nient'altro)
 
 git grep -In "WBP_RT_EventLog" origin/main -- Source Config
-→ una riga sola, ed è un commento:  UI/HUD/RTScreenHudWidgets.h:262
+→ una riga sola, ed è un commento:  UI/RTScreenHudWidgets.h:262
 ```
 
 E nella tabella dei nomi di `WBP_RT_TacticalHUD` la stringa `EventLog` compare **zero** volte — misurato due

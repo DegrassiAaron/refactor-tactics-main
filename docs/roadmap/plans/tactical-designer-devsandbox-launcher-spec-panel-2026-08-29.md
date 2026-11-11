@@ -55,9 +55,9 @@ aspettarsi:
 | # | Il documento asserisce | Misurato a `bbf0d780` | |
 |---|---|---|---|
 | 1 | Repository `DegrassiAaron/refactor-tactics-main` | `gh repo view` → **esatto** | ✅ |
-| 2 | `URTScenarioAuthoring` è la porta canonica | `ScenarioHarness/Authoring/RTScenarioAuthoring.h`, **35 `UFUNCTION`** | ✅ |
+| 2 | `URTScenarioAuthoring` è la porta canonica | `ScenarioHarness/RTScenarioAuthoring.h`, **35 `UFUNCTION`** | ✅ |
 | 3 | Esiste un Scenario Index canonico | `URTScenarioIndex`, **8** test `RefactorTactics.ScenarioIndex.*` | ✅ |
-| 4 | `URTHexEditorMode` esiste e non va rinominato | `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorMode.h` | ✅ |
+| 4 | `URTHexEditorMode` esiste e non va rinominato | `Source/RefactorTacticsEditor/Public/RTHexEditorMode.h` | ✅ |
 | 5 | `GetLayers()` esiste e non va duplicato | `URTHexMapAsset::GetLayers()`, [`RTHexMapAsset.cpp:184`](../../../Source/RefactorTactics/Map/RTHexMapAsset.cpp) | ✅ |
 | 6 | Il modulo Editor **ha già** Automation Tests | **2**, `RefactorTactics.HexEditor.*` in `Private/Tests/` | ✅ |
 | 7 | `RunFromTheEditorMatchesTheHeadlessRun` è il guardiano da non duplicare | [`RTScenarioRunResetTests.cpp:91`](../../../Source/RefactorTactics/Tests/ScenarioHarness/RTScenarioRunResetTests.cpp), verde | ✅ |

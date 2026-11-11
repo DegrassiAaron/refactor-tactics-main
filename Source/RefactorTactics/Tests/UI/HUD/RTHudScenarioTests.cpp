@@ -39,7 +39,7 @@
 #include "Tests/UI/HUD/Intent/RTTargetPromptTestHelpers.h" // #3869: i testi del prompt, che il grafo del dock scrive a runtime
 #include "UI/HUD/RTHudZoneWidget.h"
 #include "Components/CanvasPanelSlot.h" // #3661: la posa delle zone letta dagli slot
-#include "Tests/UI/HUD/Intent/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
+#include "Tests/Shared/RTHudGeometryForTest.h" // #3661: le risoluzioni della DoD
 #include "Unit/RTUnit.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"

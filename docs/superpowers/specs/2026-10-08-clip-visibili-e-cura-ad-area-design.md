@@ -108,7 +108,7 @@ posa in modo leggibile. Nel pack Gadget le varianti full-body esistono per gli a
 tutte additive).
 
 Perché nessun test lo vede: `Unit.DefaultActionClipsResolveForEveryKitAbility` (`Tests/Unit/RTAnimChannelTests.cpp`) verifica
-che ogni path **risolva**; i gate di cook (`Tests/Unit/RTPackagingConfigTests.cpp`) che sia **raggiungibile**. Nessuno chiede
+che ogni path **risolva**; i gate di cook (`Tests/Meta/RTPackagingConfigTests.cpp`) che sia **raggiungibile**. Nessuno chiede
 se la sequenza sia additiva, e il runtime non lo chiede: `UAnimSequence::IsValidAdditive()` (`AnimSequence.cpp:2638-2663`: vero quando `AdditiveAnimType != AAT_None` **e**
 `RefPoseType` descrive una base valida — `ABPT_RefPose`, o `ABPT_AnimScaled`/`ABPT_AnimFrame` con `RefPoseSeq`, o
 `ABPT_LocalAnimFrame` con un `RefFrameIndex`; nel `default` risponde falso) esiste e non viene letto. ➕ rev. F1: è lo

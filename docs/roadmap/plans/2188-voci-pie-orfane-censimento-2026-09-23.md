@@ -258,7 +258,7 @@ la prossima persona non le riscopra da zero.
    fra i `PendingPresentation` — *«non si disegnano ancora»* — mentre poco sotto lo stesso file registra
    `FRTPresentationBinding(ERTResolvedEventType::AttackFootprint, {"AddPlaybackFootprint"})`, cioè una
    cue vera. La differenza decide se `PIE-V01-FOOTPRINT` sia giudicabile: **lo è**, ed è in `U58`.
-   Oracolo: `grep -n "AttackFootprint" Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp`
+   Oracolo: `grep -n "AttackFootprint" Source/RefactorTactics/Turn/RTPresentationBinding.cpp`
 
 ➕ **E una che non è un difetto ma va saputa**: sei voci stanno in **due** sedute
 (`PIE-HEXPLAY-6`, `PIE-HEXPLAY-8`, `PIE-V01-ROSTER`, `PIE-V01-LOG` in `U46`; `PIE-TD-CLEAN` in `U31`/`U32`;

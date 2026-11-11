@@ -40,14 +40,14 @@ Estrae la logica pura `WorldToLayer` (con test), il metodo runtime riusabile `Ad
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexLibrary.h` (dichiara `WorldToLayer`)
 - Modify: `Source/RefactorTactics/Map/RTHexLibrary.cpp` (implementa `WorldToLayer`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.h` (dichiara `AddTransitionData`)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` (implementa `AddTransitionData`; `AddVerticalTransition` wrapper)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.h` (dichiara `AddTransitionData`)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.cpp` (implementa `AddTransitionData`; `AddVerticalTransition` wrapper)
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.h`
 - Create: `Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.cpp`
-- Modify: `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h` (dichiara `ArchTool`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp` (registra comando `ArchTool`)
-- Modify: `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp` (registra il ToolBuilder)
-- Test: `Source/RefactorTactics/Tests/Map/RTHexTests.cpp` (nuovo test `WorldToLayer`)
+- Modify: `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h` (dichiara `ArchTool`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp` (registra comando `ArchTool`)
+- Modify: `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp` (registra il ToolBuilder)
+- Test: `Source/RefactorTactics/Tests/RTHexTests.cpp` (nuovo test `WorldToLayer`)
 - Modify: `docs/design/test-manuali-pie.md` (voce PIE-HEX-MODE-F)
 
 **Interfaces:**
@@ -56,7 +56,7 @@ Estrae la logica pura `WorldToLayer` (con test), il metodo runtime riusabile `Ad
 
 - [ ] **Step 1: Scrivere il test che fallisce (`WorldToLayer`)**
 
-In `Source/RefactorTactics/Tests/Map/RTHexTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
+In `Source/RefactorTactics/Tests/RTHexTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexWorldToLayerTest,
 	"RefactorTactics.Hex.WorldToLayer",
@@ -117,14 +117,14 @@ Expected: `RefactorTactics.Hex.WorldToLayer` **Success**, 0 Fail.
 
 - [ ] **Step 6: Estrarre `AddTransitionData` sull'actor**
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.h`, dopo la dichiarazione di `AddVerticalTransition()` (riga ~121), aggiungere:
+In `Source/RefactorTactics/Map/RTHexMapActor.h`, dopo la dichiarazione di `AddVerticalTransition()` (riga ~121), aggiungere:
 ```cpp
 	/** Aggiunge la transizione From->To (e l'inversa se bidirezionale) se entrambe le celle esistono. Annullabile. */
 	void AddTransitionData(const FRTCellId& From, const FRTCellId& To, int32 Cost,
 		ERTHexTransitionKind Kind, bool bBidirectional);
 ```
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`, sostituire l'intero corpo di `AddVerticalTransition()` (righe ~215-238) con il wrapper + il nuovo metodo:
+In `Source/RefactorTactics/Map/RTHexMapActor.cpp`, sostituire l'intero corpo di `AddVerticalTransition()` (righe ~215-238) con il wrapper + il nuovo metodo:
 ```cpp
 void ARTHexMapActor::AddVerticalTransition()
 {
@@ -239,7 +239,7 @@ protected:
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 
@@ -327,13 +327,13 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 - [ ] **Step 9: Dichiarare e registrare il comando `ArchTool`**
 
-In `Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h`, dopo `TSharedPtr<FUICommandInfo> PaintTool;`, aggiungere:
+In `Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h`, dopo `TSharedPtr<FUICommandInfo> PaintTool;`, aggiungere:
 ```cpp
 	/** Tool creazione transizioni con gizmo (H5c.2). */
 	TSharedPtr<FUICommandInfo> ArchTool;
 ```
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`, in fondo a `RegisterCommands()` (dopo `ToolCommands.Add(PaintTool);`), aggiungere:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp`, in fondo a `RegisterCommands()` (dopo `ToolCommands.Add(PaintTool);`), aggiungere:
 ```cpp
 	UI_COMMAND(ArchTool, "Arch", "Crea transizioni tra celle cliccando e usando il gizmo (layer attivo)",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
@@ -342,7 +342,7 @@ In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp`, i
 
 - [ ] **Step 10: Registrare il ToolBuilder nel mode**
 
-In `Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp`, aggiungere in cima l'include:
+In `Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp`, aggiungere in cima l'include:
 ```cpp
 #include "Tools/RTHexArchTool.h"
 ```
@@ -370,13 +370,13 @@ Manuale: attiva il mode Hex Map → tool **Arch** con un `ARTHexMapActor` che ha
 ```bash
 git checkout -- RefactorTactics.uproject   # se risporcato
 git add Source/RefactorTactics/Map/RTHexLibrary.h Source/RefactorTactics/Map/RTHexLibrary.cpp \
-        Source/RefactorTactics/Map/Actor/RTHexMapActor.h Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp \
-        Source/RefactorTactics/Tests/Map/RTHexTests.cpp \
+        Source/RefactorTactics/Map/RTHexMapActor.h Source/RefactorTactics/Map/RTHexMapActor.cpp \
+        Source/RefactorTactics/Tests/RTHexTests.cpp \
         Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.h \
         Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.cpp \
-        Source/RefactorTacticsEditor/Public/HexMode/RTHexEditorModeCommands.h \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorModeCommands.cpp \
-        Source/RefactorTacticsEditor/Private/HexMode/RTHexEditorMode.cpp \
+        Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h \
+        Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp \
+        Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp \
         docs/design/test-manuali-pie.md
 git commit -m "feat(hex): H5c.2a - WorldToLayer + AddTransitionData + tool Arch con render transizioni"
 ```

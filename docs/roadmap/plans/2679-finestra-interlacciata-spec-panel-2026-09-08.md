@@ -135,7 +135,7 @@ La previsione è corretta e la **conseguenza** non è verificata da nessuno: qua
 ## 6. Minori
 
 **LISA CRISPIN — un gate che non può fallire.** La DoD elenca `Reactions.NoResolverWait` fra i test da non far
-regredire. `Tests/Turn/Reaction/RTReactionTests.cpp:275` verifica `URTReactionLibrary::EvaluateReactionTrigger` — funzione
+regredire. `Tests/RTReactionTests.cpp:275` verifica `URTReactionLibrary::EvaluateReactionTrigger` — funzione
 **pura**, sulle **Slot Reaction** (Counter/Deflect, invariante #3): non attraversa `AskReactionDecision`, non
 attraversa il decision boundary, e resterà verde qualunque cosa accada alla finestra. Non è sbagliato: è
 **vuoto**. I gate che contano sono `Overwatch.DecisionIsReplayable`, `Overwatch.TimeoutIsHold` e

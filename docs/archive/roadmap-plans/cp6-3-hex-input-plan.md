@@ -34,8 +34,8 @@ allestisce e il resolver gira, ma **il giocatore non può muoversi**. CP 6.3 non
 | Cosa | Dove | Test |
 |---|---|---|
 | `WorldToCellId`: punto-mondo → cella **completa** (layer dalla quota, poi assiale) | `Map/RTHexLibrary.{h,cpp}` | `RefactorTactics.Hex.WorldToCellIdRoundTripAcrossLayers` |
-| `BuildCompositeHexPath`: percorso per waypoint, budget **cumulativo**, rifiuto intero | `Turn/Resolution/RTHexSimLibrary.{h,cpp}` | `HexSim.CompositePathFollowsWaypoints`, `…BudgetIsCumulative`, `…RejectsCellOutOfBudget`, `…RejectsOccupiedCell`, `…EmptyWaypointsStays` |
-| `FindInWorld` + `GetHexContext`: unica definizione della scala (asset autorevole, origine dall'actor) | `Map/Actor/RTHexMapActor.{h,cpp}` | `HexMapActor.HexContextAssetIsAuthoritativeOnScale` |
+| `BuildCompositeHexPath`: percorso per waypoint, budget **cumulativo**, rifiuto intero | `Turn/RTHexSimLibrary.{h,cpp}` | `HexSim.CompositePathFollowsWaypoints`, `…BudgetIsCumulative`, `…RejectsCellOutOfBudget`, `…RejectsOccupiedCell`, `…EmptyWaypointsStays` |
+| `FindInWorld` + `GetHexContext`: unica definizione della scala (asset autorevole, origine dall'actor) | `Map/RTHexMapActor.{h,cpp}` | `HexMapActor.HexContextAssetIsAuthoritativeOnScale` |
 | `MakeCurrentSnapshot`: l'autorità espone lo stato, il client ne calcola solo la preview | `Turn/RTTurnManager.{h,cpp}` | coperto dai test d'integrazione del movimento (CP 6.2) |
 
 **Duplicazioni rimosse** (la regola «scala dall'asset, origine dall'actor» viveva in 6 punti): `RTTurnManager`,
@@ -69,7 +69,7 @@ Nessun uso residuo di `ARTGridActor`/`URTGridLibrary` nel controller (la rimozio
 - **Targeting fail-closed**: `URTCombatLibrary::CanTargetHexCell` (distanza esagonale + LOS, `Map == nullptr`
   → falso). Test di regressione: `RefactorTactics.Combat.HexTargetingIsFailClosed`.
 
-## Fatto: anteprima visiva (`Map/Actor/RTHexMapActor`)
+## Fatto: anteprima visiva (`Map/RTHexMapActor`)
 
 `SetHoveredCell(FRTCellId, bool)` e `SetPreviewPath(TArray<FRTCellId>)` — **sola presentazione** (invariante #1).
 Disegno a **debug-line**, decisione dell'utente: sblocca subito `PIE-HEXPLAY-2/3` e lascia a **M8** la

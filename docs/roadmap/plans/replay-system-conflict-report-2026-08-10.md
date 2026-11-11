@@ -20,11 +20,11 @@ Consultati a HEAD:
 
 | Fonte | Ruolo nell'audit |
 |---|---|
-| `Source/RefactorTactics/Turn/Log/RTTurnLog.h` | schema reale di `FRTTurnLogEntry` |
-| `Source/RefactorTactics/Turn/Log/RTTurnLogLibrary.{h,cpp}` | `HashTurnLog`, serializzazione versionata, `CompareSerializedTraces` |
-| `Source/RefactorTactics/Turn/Resolution/RTHexSim.h` | `FRTHexSnapshot` e `MapHash` |
+| `Source/RefactorTactics/Turn/RTTurnLog.h` | schema reale di `FRTTurnLogEntry` |
+| `Source/RefactorTactics/Turn/RTTurnLogLibrary.{h,cpp}` | `HashTurnLog`, serializzazione versionata, `CompareSerializedTraces` |
+| `Source/RefactorTactics/Turn/RTHexSim.h` | `FRTHexSnapshot` e `MapHash` |
 | `Source/RefactorTactics/ScenarioHarness/` | dove vive davvero `StateHash` (`RTTestResult.h`, `RTScenarioSession.cpp`) |
-| `Source/RefactorTactics/Tests/Turn/Log/RTSimulationDeterminismTests.cpp` | le 100 ripetizioni di CP 12.1 |
+| `Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp` | le 100 ripetizioni di CP 12.1 |
 | [`technical/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) · [`spec-turnlog-serialize.md`](../../technical/architecture/spec-turnlog-serialize.md) | owner documentali; `D-TL-*`, `D-SR-*` |
 | [`decisions/adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) | timeout `HOLD`, finestra 3,0 s, snapshot a inizio segmento |
 | `roadmap/feature-registry.yaml` | FeatureId reali e gate |

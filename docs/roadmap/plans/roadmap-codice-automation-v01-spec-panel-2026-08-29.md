@@ -44,7 +44,7 @@ Suite     : 1368 nomi RefactorTactics.* dichiarati in Source/ · 143 file di tes
 
 | Affermazione della specifica | Misura | Esito |
 |---|---|---|
-| Esiste `bPassed = bHasWinner && …` o `Winner==None ⇒ Fail` | `grep` su `ScenarioHarness/` | 🔴 **non esiste**. Verdict ed esito sono già due tipi: `ERTTestOutcome{Pass,Fail,Error,Blocked}` (`RTTestScenario.h:37`) contro `ERTMatchOutcome{InProgress,Team0Wins,Team1Wins,Draw}` (`Turn/Resolution/RTTurnRules.h:23`) |
+| Esiste `bPassed = bHasWinner && …` o `Winner==None ⇒ Fail` | `grep` su `ScenarioHarness/` | 🔴 **non esiste**. Verdict ed esito sono già due tipi: `ERTTestOutcome{Pass,Fail,Error,Blocked}` (`RTTestScenario.h:37`) contro `ERTMatchOutcome{InProgress,Team0Wins,Team1Wins,Draw}` (`Turn/RTTurnRules.h:23`) |
 | «`Match EndReason` separato dal Winner» va costruito (`B02`) | `RTTurnRules.h:37-45` | 🔴 **esiste dal 2026-08**: `ERTMatchEndReason{None,Elimination,Objective,RoundLimit}`, con docstring che dichiara proprio quella separazione |
 | «scenario corto con MaxTurns e nessun winner può PASS» | `Scenarios/Movement/*.json` | ✅ **già vero, e per un'altra via**: quegli scenari **non hanno** `maxTurns` — hanno turni scriptati ed `expect`, e passano senza winner. `Movement.Basic`, `Blocked`, `Collision` sono esattamente il caso |
 | `MaxTurns` è un cap neutro (`B03`) | `RTTestScenario.h:737-753` | 🔴 **falso, ed è il punto**: è tetto del **solo free-run**, e *«raggiungerlo è un `Fail`, non un `Pass`»*, perché *«un tetto che producesse `Pass` renderebbe verde esattamente lo stallo che questo scenario esiste per cogliere»* (#1088) |
@@ -213,7 +213,7 @@ Nel formato che il referto gemello §6.2 conserva — rendere osservabile il *no
 - **Problem statement**: `FRTTestResult` porta `TurnsPlayed` e `StateHash` ma **nessuna durata**. Un free-run che si impianta e uno che gira lento producono lo stesso `result.json`, e il runner non ha un tetto di parete: il solo tetto è in turni, che non scatta se un turno non termina.
 - **Scope IN**: `MaxWallClockSeconds` in `FRTTestScenario` (safety del runner, **mai** regola di gioco); `WallClockDuration` e `SimulationDuration` in `FRTTestResult`; il timeout produce `Error`, **non** `Fail` — non è un difetto del gioco.
 - **Scope OUT**: `PlaybackSpeedMultiplier` come campo di scenario (la velocità è del *viewer*, e metterla nel dato la renderebbe un ingresso della simulazione — l'opposto dell'invariante); qualunque modifica a `MaxTurns`.
-- **File**: `ScenarioHarness/Authoring/RTTestScenario.h`, `RTTestResult.h`, `RTScenarioRunner.cpp`, `RTScenarioLoader.cpp` (**bump di versione schema**, oggi `4`), `RTTestReportWriter.cpp`.
+- **File**: `ScenarioHarness/RTTestScenario.h`, `RTTestResult.h`, `RTScenarioRunner.cpp`, `RTScenarioLoader.cpp` (**bump di versione schema**, oggi `4`), `RTTestReportWriter.cpp`.
 - **Acceptance**: uno scenario con `maxWallClockSeconds: 1` e un turno che non termina esce `Error` con la ragione; le due durate compaiono in `result.json`; `TurnLogHash` e `StateHash` **non cambiano** con o senza il campo.
 - **Automation test**: `Scenario.WallClockTimeoutIsErrorNotFail` · `Scenario.DurationsAreReportedSeparately` · `Scenario.TimeoutDoesNotChangeTheHash`.
 - **Rischio determinismo**: 🔴 **alto se sbagliata** — una durata che entrasse nell'hash renderebbe la suite non riproducibile. L'ultimo test dell'elenco esiste per questo.

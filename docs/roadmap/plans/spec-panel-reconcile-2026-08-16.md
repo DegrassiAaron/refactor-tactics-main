@@ -116,7 +116,7 @@ in Reaction»*, cioè presume una **regressione documentale** su un codice fermo
 
 La misura dice il contrario.
 
-**Il codice ha migrato, i documenti no.** In `Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp`:
+**Il codice ha migrato, i documenti no.** In `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`:
 
 ```cpp
 URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,

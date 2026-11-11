@@ -255,7 +255,7 @@ giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il 
 
 ### 2.5 I gate
 
-- ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/Unit/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
+- ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/Meta/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
   `PerAction` (ogni (eroe, azione, ruolo) con variante attiva), con la provenienza `Hero.X / Action / Ruolo`; il conteggio
   anti-sottrazione conta le **terne** di entrambi i pool in un ciclo indipendente. ➕ rev. Il calcolo del set richiesto
   esce in un helper (`RequiredAnimationPackages(Cdo, OutProvenienza)`) con un **test proprio, verde**

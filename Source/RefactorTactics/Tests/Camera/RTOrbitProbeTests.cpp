@@ -19,7 +19,7 @@
 // verificabile invece di una speranza.
 
 #include "Misc/AutomationTest.h"
-#include "Tests/Camera/RTOrbitProbeForTest.h"
+#include "Tests/Shared/RTOrbitProbeForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 

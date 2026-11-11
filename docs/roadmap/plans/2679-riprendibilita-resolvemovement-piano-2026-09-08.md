@@ -4,7 +4,7 @@
 
 **Goal:** Rendere la risoluzione del movimento sospendibile fra un micro-step e l'altro, spostando il suo stato dallo stack di `ResolveMovement` a un contesto membro — **senza cambiare alcun comportamento osservabile**.
 
-**Architecture:** Il livello difficile esiste già. `FRTMovementResolutionState` (`Turn/Resolution/RTHexSim.h:201`) è dichiarata *«stato di una risoluzione di movimento **SOSPENDIBILE** fra un microstep e l'altro (CP 14.2)»*, con gli input **copiati** apposta perché il chiamante può *«aver aperto una finestra di reazione durata un turno di orologio»*. Ciò che manca è solo che `ARTTurnManager` smetta di tenerla sullo stack. Si estrae un `FRTMovementResolutionContext` che raccoglie lo `State` più le undici locali che il ciclo attraversa, lo si appende al manager, e si spezza `ResolveMovement` in `Begin` / `Advance` / `Finish`. `ResolveMovement` resta, come composizione delle tre: è il gate che tiene il comportamento invariante.
+**Architecture:** Il livello difficile esiste già. `FRTMovementResolutionState` (`Turn/RTHexSim.h:201`) è dichiarata *«stato di una risoluzione di movimento **SOSPENDIBILE** fra un microstep e l'altro (CP 14.2)»*, con gli input **copiati** apposta perché il chiamante può *«aver aperto una finestra di reazione durata un turno di orologio»*. Ciò che manca è solo che `ARTTurnManager` smetta di tenerla sullo stack. Si estrae un `FRTMovementResolutionContext` che raccoglie lo `State` più le undici locali che il ciclo attraversa, lo si appende al manager, e si spezza `ResolveMovement` in `Begin` / `Advance` / `Finish`. `ResolveMovement` resta, come composizione delle tre: è il gate che tiene il comportamento invariante.
 
 **Tech Stack:** Unreal Engine **5.8** (`D:\EpicGames\UE_5.8`), C++17, Automation Testing framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`).
 
@@ -41,10 +41,10 @@ Copiati dalla spec e da `CLAUDE.md`. Valgono per **ogni** task di questo piano.
 
 | File | Responsabilità | Azione |
 |---|---|---|
-| `Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h` | La struct del contesto sospendibile e nient'altro. Nessuna logica. | **Create** |
+| `Source/RefactorTactics/Turn/RTMovementResolutionContext.h` | La struct del contesto sospendibile e nient'altro. Nessuna logica. | **Create** |
 | `Source/RefactorTactics/Turn/RTTurnManager.h` | Dichiarazione del membro `PendingMovement` e delle tre funzioni | **Modify** |
 | `Source/RefactorTactics/Turn/RTTurnManager.cpp:7137-7660` | `ResolveMovement` spezzata in `Begin`/`Advance`/`Finish` | **Modify** |
-| `Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp` | I due test di questo piano: caratterizzazione ed equivalenza | **Create** |
+| `Source/RefactorTactics/Tests/RTMovementResumeTests.cpp` | I due test di questo piano: caratterizzazione ed equivalenza | **Create** |
 
 **Perché un header nuovo e non un campo in più su `RTTurnManager.h`**: `#1818` misura quel file a 10.817 righe e dodici responsabilità, e la DoD di #2679 vincola la crescita a **11.000 righe**. Una struct di stato con undici campi e nessuna logica è esattamente ciò che si tiene fuori: sta accanto a `RTHexSim.h`, che ospita già `FRTMovementResolutionState` per la stessa ragione.
 
@@ -55,7 +55,7 @@ Copiati dalla spec e da `CLAUDE.md`. Valgono per **ogni** task di questo piano.
 Prima di spostare una riga, si fissa il comportamento attuale. È un refactor: il test che conta è quello che **fallirebbe se il refactor cambiasse un esito**, e deve esistere **prima**.
 
 **Files:**
-- Create: `Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp`
+- Create: `Source/RefactorTactics/Tests/RTMovementResumeTests.cpp`
 
 **Interfaces:**
 - Consumes: `ARTTurnManager::LockInAndResolve()`, `ARTTurnManager::GetTurnLog()`, `URTTurnLogLibrary`
@@ -66,12 +66,12 @@ Prima di spostare una riga, si fissa il comportamento attuale. È un refactor: i
 Uno scenario con un Overwatch armato che scatta durante il movimento — cioè un turno che **attraversa** `ResolveReactionBoundary`, che è il punto che il refactor tocca.
 
 ```cpp
-// Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp
+// Source/RefactorTactics/Tests/RTMovementResumeTests.cpp
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnManager.h"
-#include "Turn/Log/RTTurnLog.h"
+#include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
-#include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -194,7 +194,7 @@ Atteso: **PASS**. Questo test non è "red": è una **rete**, e cattura il compor
 - [x] **Step 4: Commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp
+git add Source/RefactorTactics/Tests/RTMovementResumeTests.cpp
 git commit -m "test(2679): la rete di caratterizzazione, prima di spostare una riga"
 ```
 
@@ -205,11 +205,11 @@ git commit -m "test(2679): la rete di caratterizzazione, prima di spostare una r
 Si crea la struct e la si riempie, lasciando `ResolveMovement` intatta. È un passo che non cambia nulla e isola il rischio: se la suite resta verde, il contesto contiene ciò che serve.
 
 **Files:**
-- Create: `Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h`
+- Create: `Source/RefactorTactics/Turn/RTMovementResolutionContext.h`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`
 
 **Interfaces:**
-- Consumes: `FRTMovementResolutionState` (`Turn/Resolution/RTHexSim.h:201`), `FRTHexSnapshot`
+- Consumes: `FRTMovementResolutionState` (`Turn/RTHexSim.h:201`), `FRTHexSnapshot`
 - Produces: `FRTMovementResolutionContext`, e il membro `TUniquePtr<FRTMovementResolutionContext> ARTTurnManager::PendingMovement` — su cui Task 3 e Task 4 si appoggiano
 
 - [x] **Step 1: Creare l'header del contesto**
@@ -217,11 +217,11 @@ Si crea la struct e la si riempie, lasciando `ResolveMovement` intatta. È un pa
 I campi sono **esattamente** le locali che il ciclo dei micro-step attraversa e che il codice dopo il ciclo rilegge — misurate su `RTTurnManager.cpp:7137-7660`, non indovinate.
 
 ```cpp
-// Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h
+// Source/RefactorTactics/Turn/RTMovementResolutionContext.h
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Turn/Resolution/RTHexSim.h" // FRTMovementResolutionState e FRTHexSnapshot: stanno entrambe qui
+#include "Turn/RTHexSim.h" // FRTMovementResolutionState e FRTHexSnapshot: stanno entrambe qui
 
 class ARTUnit;
 
@@ -229,7 +229,7 @@ class ARTUnit;
  * Il contesto di una risoluzione di movimento che puo' SOSPENDERSI fra due micro-step (`#2679`, [D-355]).
  *
  * 🔑 **Non introduce la sospendibilita': la RENDE RAGGIUNGIBILE.** `FRTMovementResolutionState`
- * (`Turn/Resolution/RTHexSim.h:201`) e' sospendibile dal CP 14.2 e lo dichiara — *«gli input sono COPIATI, non
+ * (`Turn/RTHexSim.h:201`) e' sospendibile dal CP 14.2 e lo dichiara — *«gli input sono COPIATI, non
  * referenziati … un resolver che restituisce il controllo non puo' dipendere dalla vita di variabili
  * locali del chiamante»*. Cio' che mancava era solo che `ARTTurnManager::ResolveMovement` smettesse di
  * tenerla sul proprio stack, insieme alle altre locali che il ciclo attraversa.
@@ -301,7 +301,7 @@ In `Turn/RTTurnManager.h`, accanto agli altri stati della risoluzione (cercare `
 E l'include in cima al file, accanto agli altri `#include "Turn/..."`:
 
 ```cpp
-#include "Turn/Resolution/RTMovementResolutionContext.h"
+#include "Turn/RTMovementResolutionContext.h"
 ```
 
 - [x] **Step 3: Compilare**
@@ -321,7 +321,7 @@ Atteso: **stesso numero di `Result={Success}` di prima del task**, zero `Result=
 - [x] **Step 5: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/Resolution/RTMovementResolutionContext.h Source/RefactorTactics/Turn/RTTurnManager.h
+git add Source/RefactorTactics/Turn/RTMovementResolutionContext.h Source/RefactorTactics/Turn/RTTurnManager.h
 git commit -m "feat(2679): il contesto sospendibile, con i campi misurati e non indovinati"
 ```
 
@@ -518,7 +518,7 @@ Ora `Advance` fa **un** passo e dice se ne restano. È la capacità che il piano
 
 **Files:**
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.h`, `Source/RefactorTactics/Turn/RTTurnManager.cpp`
-- Modify: `Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp`
+- Modify: `Source/RefactorTactics/Tests/RTMovementResumeTests.cpp`
 
 **Interfaces:**
 - Consumes: tutto il Task 3
@@ -694,7 +694,7 @@ Atteso: **stesso numero di `Result={Success}` della baseline**, più i due test 
 - [x] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Tests/Turn/Resolution/RTMovementResumeTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Tests/RTMovementResumeTests.cpp
 git commit -m "feat(2679): un micro-step per chiamata, e il turno intero resta identico"
 ```
 

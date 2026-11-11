@@ -100,7 +100,7 @@ Questo è già coperto da:
 RefactorTactics.Actions.Leap.IgnoresIntermediateCells
 ```
 
-in `Source/RefactorTactics/Tests/Turn/Resolution/RTMovementActionTests.cpp`.
+in `Source/RefactorTactics/Tests/RTMovementActionTests.cpp`.
 
 ---
 

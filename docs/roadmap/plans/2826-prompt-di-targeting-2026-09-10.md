@@ -87,9 +87,9 @@ copia, nessun campo da tenere aggiornato: il prompt è una **lettura** di due va
 
 | File | Cambiamento |
 |---|---|
-| `Source/RefactorTactics/UI/HUD/RTHudViewModel.h` | `ERTTargetPromptKind`, `FRTTargetPromptView`, dichiarazione di `BuildTargetPrompt`; un `#include` di `Player/RTPointerInteraction.h` |
-| `Source/RefactorTactics/UI/HUD/RTHudViewModel.cpp` | implementazione, in un `LOCTEXT_NAMESPACE "RTTargetPrompt"` proprio |
-| `Source/RefactorTactics/Tests/UI/HUD/Intent/RTTargetPromptTests.cpp` | **nuovo**, cinque test |
+| `Source/RefactorTactics/UI/RTHudViewModel.h` | `ERTTargetPromptKind`, `FRTTargetPromptView`, dichiarazione di `BuildTargetPrompt`; un `#include` di `Player/RTPointerInteraction.h` |
+| `Source/RefactorTactics/UI/RTHudViewModel.cpp` | implementazione, in un `LOCTEXT_NAMESPACE "RTTargetPrompt"` proprio |
+| `Source/RefactorTactics/Tests/RTTargetPromptTests.cpp` | **nuovo**, cinque test |
 
 **Comportamento precedente**: nessun prompt esisteva —
 `grep -rniE "TargetPrompt|PromptFor|ComposePrompt|TargetingPrompt" Source/` → **0**. Il dock mostrava le
@@ -267,7 +267,7 @@ Testo pronto da inserire quando `#2826` si chiude, nella seduta **U43** (che con
 |---|---|
 | **Conflitto testuale** | `RTHudViewModel.h/.cpp` sono file caldi. Il diff è **additivo** (un include, un blocco prima della classe, un metodo in coda, un blocco in fondo al `.cpp`): un merge conflict qui è meccanico, non semantico |
 | **Perché non un file nuovo** | il posto canonico delle `FRT*View` è questo, e `#2757` lo dichiara come la `Source` ✅ del §4.1. Un file a parte avrebbe creato un secondo posto dove cercare le view |
-| **Dipendenza nuova** | `UI/HUD/RTHudViewModel.h` → `Player/RTPointerInteraction.h`. Prima nessun file di `UI/` la aveva. Stesso modulo, nessun ciclo, ma è una direzione UI → Player da tenere d'occhio |
+| **Dipendenza nuova** | `UI/RTHudViewModel.h` → `Player/RTPointerInteraction.h`. Prima nessun file di `UI/` la aveva. Stesso modulo, nessun ciclo, ma è una direzione UI → Player da tenere d'occhio |
 | **Contratto altrui** | ⛔ **nessun contratto di targeting, overlay o playback è stato modificato.** `URTPointerLibrary`, `TargetKindForAction`, `ResolveBack`, `GetPointerContext` sono **letti** e non toccati |
 | **`ERTPointerContext` cambia** | se un owner aggiunge un contesto (E14 produrrà `ReactionWindow`), cade nel ramo `Neutral`. È il default meno dannoso, ma va rivisto insieme al suo produttore |
 | **`#2826` da correggere** | il corpo della issue descrive `ArmKitAbility` come mancante. Va rimisurato prima che qualcuno lo riscriva |

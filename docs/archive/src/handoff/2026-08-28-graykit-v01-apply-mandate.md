@@ -42,7 +42,7 @@ qui»*. `RebuildInstances` gira solo all'allestimento.
 🟠 **Il PASSO 3 pone la domanda obbligatoria sulla struttura sbagliata**: cita
 `FRTGeometrySegment{Axis, Offset, AlongStart, AlongEnd}`; la struttura reale ha **sei** campi — mancano
 `Layer` (*«stessa semantica di `FRTCellId::Layer`»*, in un gioco hex multilivello) e `WallType`. E il punto 7
-delle decisioni da preservare manda a cercare una granularità d'anchor che `Map/Structure/RTGeometryGrammar.h` decide
+delle decisioni da preservare manda a cercare una granularità d'anchor che `Map/RTGeometryGrammar.h` decide
 già: `RT_GeometryQuanta = 12`.
 
 🟠 **Il PASSO 5 chiede di creare o aggiornare `GEO-4`**, che esiste già completa in `OPEN_DECISIONS.md` con

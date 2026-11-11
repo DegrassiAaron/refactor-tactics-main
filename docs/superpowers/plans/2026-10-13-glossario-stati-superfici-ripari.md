@@ -4,7 +4,7 @@
 
 **Goal:** ogni stato registrato, ogni superficie e ogni tipo di riparo ha un nome leggibile e un effetto in una riga, in una tabella C++ chiavata per id stabile, con un documento gemello che l'autore rilegge e due gate che li tengono onesti.
 
-**Architecture:** una tabella sola in `UI/Inspect/RTGlossary.{h,cpp}`, nella forma di `Ability/Catalog/RTActionDescriptions`: due elenchi `{ id, testo }` — nomi ed effetti — con le stesse chiavi, più tre funzioni che danno la chiave di uno stato, di una superficie, di un riparo. Le chiavi sono gli id che il gioco scrive già (`Status.Burning`, `Terrain.Fire`). Un gate Automation confronta la tabella con ciò che esiste nel gioco, nei due versi; un radar confronta la tabella col documento, riusando il parser delle frasi d'azione.
+**Architecture:** una tabella sola in `UI/RTGlossary.{h,cpp}`, nella forma di `Ability/RTActionDescriptions`: due elenchi `{ id, testo }` — nomi ed effetti — con le stesse chiavi, più tre funzioni che danno la chiave di uno stato, di una superficie, di un riparo. Le chiavi sono gli id che il gioco scrive già (`Status.Burning`, `Terrain.Fire`). Un gate Automation confronta la tabella con ciò che esiste nel gioco, nei due versi; un radar confronta la tabella col documento, riusando il parser delle frasi d'azione.
 
 **Tech Stack:** Unreal Engine 5.8.1, C++ (modulo `RefactorTactics`), Automation Test framework; TypeScript eseguito da `node` 22 senza build (`tools/radar/`), `node --test`.
 
@@ -84,12 +84,12 @@ EOF
 ### Task 1: La tabella, le chiavi e il gate
 
 **Files:**
-- Create: `Source/RefactorTactics/UI/Inspect/RTGlossary.h`
-- Create: `Source/RefactorTactics/UI/Inspect/RTGlossary.cpp`
-- Test: `Source/RefactorTactics/Tests/UI/Inspect/RTGlossaryTests.cpp`
+- Create: `Source/RefactorTactics/UI/RTGlossary.h`
+- Create: `Source/RefactorTactics/UI/RTGlossary.cpp`
+- Test: `Source/RefactorTactics/Tests/RTGlossaryTests.cpp`
 
 **Interfaces:**
-- Consumes: `URTTurnLogLibrary::TerrainCausePrefix()` (`Turn/Log/RTTurnLogLibrary.h`); `ERTHexSurface`, `ERTHexCoverType` (`Map/RTHexCellData.h`); i tag `TAG_Status_*` (`Core/RTGameplayTags.h`).
+- Consumes: `URTTurnLogLibrary::TerrainCausePrefix()` (`Turn/RTTurnLogLibrary.h`); `ERTHexSurface`, `ERTHexCoverType` (`Map/RTHexCellData.h`); i tag `TAG_Status_*` (`Core/RTGameplayTags.h`).
 - Produces, per le fette `F2` e `F3` e per il radar del Task 3:
   - `FText RTGlossary::NameFor(const FName& Key)`
   - `FText RTGlossary::EffectFor(const FName& Key)`
@@ -130,7 +130,7 @@ Atteso: nessun processo il cui `CommandLine` nomini `rt-wt-ispettore`, e nessun 
 
 - [ ] **Step 2: Scrivi il test, che non compila ancora**
 
-`Source/RefactorTactics/Tests/UI/Inspect/RTGlossaryTests.cpp`:
+`Source/RefactorTactics/Tests/RTGlossaryTests.cpp`:
 
 ```cpp
 // Il glossario di stati, superfici e ripari (`#3744`): ogni cosa che il gioco puo' nominare ha un nome e un effetto,
@@ -140,7 +140,7 @@ Atteso: nessun processo il cui `CommandLine` nomini `rt-wt-ispettore`, e nessun 
 #include "Core/RTGameplayTags.h"
 #include "GameplayTagsManager.h"
 #include "Map/RTHexCellData.h"
-#include "UI/Inspect/RTGlossary.h"
+#include "UI/RTGlossary.h"
 #include "UObject/Class.h" // UEnum: il file deve compilare anche fuori dal blob unity
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -347,7 +347,7 @@ bool FRTGlossaryKeysTest::RunTest(const FString&)
 
 - [ ] **Step 3: Scrivi l'header e uno scheletro che compila e non risponde**
 
-`Source/RefactorTactics/UI/Inspect/RTGlossary.h`:
+`Source/RefactorTactics/UI/RTGlossary.h`:
 
 ```cpp
 #pragma once
@@ -401,10 +401,10 @@ namespace RTGlossary
 }
 ```
 
-`Source/RefactorTactics/UI/Inspect/RTGlossary.cpp`, scheletro:
+`Source/RefactorTactics/UI/RTGlossary.cpp`, scheletro:
 
 ```cpp
-#include "UI/Inspect/RTGlossary.h"
+#include "UI/RTGlossary.h"
 
 const TArray<TPair<FName, FString>>& RTGlossary::Names()
 {
@@ -448,11 +448,11 @@ Se i test trovati non sono tre, il filtro o la registrazione sono sbagliati: non
 
 - [ ] **Step 6: Scrivi la tabella e le chiavi**
 
-Sostituisci per intero `Source/RefactorTactics/UI/Inspect/RTGlossary.cpp`:
+Sostituisci per intero `Source/RefactorTactics/UI/RTGlossary.cpp`:
 
 ```cpp
-#include "UI/Inspect/RTGlossary.h"
-#include "Turn/Log/RTTurnLogLibrary.h" // il prefisso delle cause di terreno: lo stesso che il TurnLog scrive
+#include "UI/RTGlossary.h"
+#include "Turn/RTTurnLogLibrary.h" // il prefisso delle cause di terreno: lo stesso che il TurnLog scrive
 #include "UObject/Class.h"         // UEnum: il file deve compilare anche fuori dal blob unity
 
 // Le voci della v0.1 (`#3744`), scritte da chi implementa a partire dalle regole nel codice e da accettare
@@ -612,7 +612,7 @@ Se `GlossaryCoversEveryStatusSurfaceAndCover` è rosso su una chiave che la tabe
 - [ ] **Step 9: Committa**
 
 ```bash
-git -C D:/Repositories/rt-wt-ispettore add -- Source/RefactorTactics/UI/Inspect/RTGlossary.h Source/RefactorTactics/UI/Inspect/RTGlossary.cpp Source/RefactorTactics/Tests/UI/Inspect/RTGlossaryTests.cpp
+git -C D:/Repositories/rt-wt-ispettore add -- Source/RefactorTactics/UI/RTGlossary.h Source/RefactorTactics/UI/RTGlossary.cpp Source/RefactorTactics/Tests/RTGlossaryTests.cpp
 git -C D:/Repositories/rt-wt-ispettore commit -F - <<'EOF'
 feat(3744): il glossario di stati, superfici e ripari, col gate di completezza
 
@@ -637,7 +637,7 @@ Un gate nasce verde, e senza una mutazione il suo verde non distingue «ho guard
 ➕ rev2. ⌫ *La prima stesura toglieva una sola riga da `Effects()`*: provava il verso «ogni cosa ha una voce» e lasciava mai visti rossi il verso opposto, i doppioni e le regole dei testi. Qui le mutazioni sono due, nella stessa build, su voci diverse: i messaggi dicono quale ha colpito.
 
 **Files:**
-- Modify, e poi ripristina: `Source/RefactorTactics/UI/Inspect/RTGlossary.cpp`
+- Modify, e poi ripristina: `Source/RefactorTactics/UI/RTGlossary.cpp`
 
 - [ ] **Step 1: Applica le due mutazioni**
 
@@ -669,7 +669,7 @@ I messaggi si leggono dal log, uno per uno. Se ne manca uno, il ramo che lo prod
 - [ ] **Step 4: Ripristina**
 
 ```bash
-git -C D:/Repositories/rt-wt-ispettore checkout -- Source/RefactorTactics/UI/Inspect/RTGlossary.cpp
+git -C D:/Repositories/rt-wt-ispettore checkout -- Source/RefactorTactics/UI/RTGlossary.cpp
 git -C D:/Repositories/rt-wt-ispettore status --short -- Source/
 ```
 
@@ -712,7 +712,7 @@ import { confronta } from './glossary.ts';
 
 /** Le forme sono copiate dai due file veri — la tabella C++ e il documento — non inventate. */
 const CPP = [
-  '#include "UI/Inspect/RTGlossary.h"',
+  '#include "UI/RTGlossary.h"',
   '// Le voci della v0.1.',
   'const TArray<TPair<FName, FString>>& RTGlossary::Names()',
   '{',
@@ -864,7 +864,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 
   const esito = confronta(
     dallaRadice('docs/balance/RT_Glossary_v0.1.md'),
-    dallaRadice('Source/RefactorTactics/UI/Inspect/RTGlossary.cpp'),
+    dallaRadice('Source/RefactorTactics/UI/RTGlossary.cpp'),
   );
   console.error(`copertura: ${esito.righe} righe nel documento · ${esito.nomi} nomi e ${esito.effetti} effetti in C++`);
 
@@ -916,7 +916,7 @@ Atteso: `pass 6`, `fail 0`.
 > - **Il testo è quello che il gioco mostrerà**, carattere per carattere, compreso l'apostrofo al posto
 >   dell'accento (`piu'`, `e'`), che è la convenzione del testo a schermo del progetto.
 > - **Le copie sono due**, questa e le tabelle in
->   [`RTGlossary.cpp`](../../Source/RefactorTactics/UI/Inspect/RTGlossary.cpp). Il radar le confronta, e non dice quale
+>   [`RTGlossary.cpp`](../../Source/RefactorTactics/UI/RTGlossary.cpp). Il radar le confronta, e non dice quale
 >   delle due correggere:
 >
 >   ```sh
@@ -1235,7 +1235,7 @@ Un secondo agente con contesto fresco, in sola lettura, sui file committati. Nes
 | 11 | minore | «effetto in una riga» non ha un gate di lunghezza | misura delle voci: la più lunga è `Status.Unbalanced` | **non corretto qui**: il tetto si decide in F2, quando esiste la targa che lo mostra. Scritto nella PR |
 | 12 | minore | spec, P3: `Status.Slow` e il divieto di corsa non passano da `GetEffectiveMoveRange` | `ARTUnit::GetEffectiveMoveRange`; `ARTTurnManager::MakeSimUnit` | spec corretta |
 
-Il revisore ha lasciato **non verificato**, fra l'altro: se «attraversare» l'accidentato copre anche terminarvi lo scatto; il ramo conteso della spinta; se la propagazione elettrica colpisce chi sta sulla cella mirata quando quella non conduce. Chi scrive ha riletto dopo la prima e la terza: `IsTraversableByStep` in `Turn/Resolution/RTMovementActionLibrary.cpp` vale per ogni cella del passo, quella d'arrivo compresa, e il salto ne è escluso; `CollectElectricPropagation` colpisce al passo zero anche su una cella che non conduce. Le due frasi reggono. Il ramo conteso della spinta resta **non verificato**: tocca un caso limite della frase di `Status.Unbalanced`.
+Il revisore ha lasciato **non verificato**, fra l'altro: se «attraversare» l'accidentato copre anche terminarvi lo scatto; il ramo conteso della spinta; se la propagazione elettrica colpisce chi sta sulla cella mirata quando quella non conduce. Chi scrive ha riletto dopo la prima e la terza: `IsTraversableByStep` in `Turn/RTMovementActionLibrary.cpp` vale per ogni cella del passo, quella d'arrivo compresa, e il salto ne è escluso; `CollectElectricPropagation` colpisce al passo zero anche su una cella che non conduce. Le due frasi reggono. Il ramo conteso della spinta resta **non verificato**: tocca un caso limite della frase di `Status.Unbalanced`.
 
 **Ciò che il piano non copre, e lo dice:**
 - la resa a schermo di una voce: non esiste ancora chi la mostri;

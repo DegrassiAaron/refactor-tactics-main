@@ -16,13 +16,13 @@
 
 - Engine: **UE 5.8.1** in `D:/EpicGames/UE_5.8`. Nessun aggiornamento di Engine, plugin o dipendenze.
 - ⛔ **Nessun `.uasset`**, nessun Blueprint toccato. I `BP_Unit_*`, `UnitAnimClass` e i riferimenti duri delle clip sono di [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562) (eredita la chiusa #2444); `ABP_RTUnitAuthored` non è versionato e **non si rigenera** in questo lavoro (il commandlet si prova headless sulle sue funzioni pure).
-- ⛔ **Nessuna `UFUNCTION` nuova né rinominata**, nessuna `UPROPERTY` nuova su `ARTUnit`: `Unit.BlueprintSurfaceIsCensused` (`Tests/Terrain/RTUnitBlueprintSurfaceTests.cpp:317`, itera le `FProperty` di `ARTUnit` a `:363`) non cambia. I seam nuovi sono membri C++ nudi, come `CastCuesPlayed` (`Unit/RTUnit.h:1373-1374`).
+- ⛔ **Nessuna `UFUNCTION` nuova né rinominata**, nessuna `UPROPERTY` nuova su `ARTUnit`: `Unit.BlueprintSurfaceIsCensused` (`Tests/RTUnitBlueprintSurfaceTests.cpp:317`, itera le `FProperty` di `ARTUnit` a `:363`) non cambia. I seam nuovi sono membri C++ nudi, come `CastCuesPlayed` (`Unit/RTUnit.h:1373-1374`).
 - ⛔ **`Play*Montage(UAnimSequenceBase*)` invariati** (`Unit/RTUnit.h:1349-1362`): l'`ActionId` non arriva al Blueprint (spec §3).
 - ⛔ **Nessun dato nuovo in snapshot, TurnLog o `StateHash`**, nessun tipo di evento nuovo (D-278 invariato): tutto il lavoro è presentazione e authoring. `Hit` e `Death` restano a un argomento (D3).
 - **Ordinamento solo esplicito**: nessun esito dipende dall'ordine di iterazione di un `TMap`/`TSet`. I `TSet` nuovi si usano solo con `Contains`/`Add`; i cicli su `TMap` nei test producono asserti indipendenti dall'ordine.
 - ⛔ **Nessun totale volatile** in commenti, documenti, celle del registro PIE, YAML, issue, PR (`AGENTS.md` §14): niente «N clip», «N abilità», «N voci». I conteggi di un test restano nel test; le misure di un passaggio si scrivono con il comando che le produce.
 - ⛔ **Nessun glifo di stato (⏳ ✅ ❌ 🟡) accanto al nome di una voce PIE in ciò che si pubblica su GitHub**: issue, titolo e corpo della PR, commenti (anche quello di chiusura), messaggi di commit. Lo stato si scrive **in parole**: `PIE: NOT RUN`, `PIE: PASS`. Un glifo citato accanto a un ID PIE in un corpo GitHub fa cadere A3 di `doc-coherence`. Il glifo resta solo dove il formato del repository lo vuole: la cella di stato del registro `test-manuali-pie.md` (Task 7 Step 1).
-- Stile: commenti in **italiano**, nella forma dei file toccati (🔴 ⚠️ 🔑 ⛔ ✅ ⏱️ dove il file li usa). Nomi dei test nelle famiglie esistenti `RefactorTactics.<Famiglia>.<Nome>`: `Unit` (`Tests/Unit/RTAnimChannelTests.cpp`), `Playback` (`Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp`), `Packaging` (`Tests/Unit/RTPackagingConfigTests.cpp`), `Anim.Catalog`/`Anim.Bindings`/`Anim.Browser` (`RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp` — i test del modulo Editor stanno in `Source/RefactorTacticsEditor/Private/Tests/`). Helper dei test con nomi **distinti per file** (unity build).
+- Stile: commenti in **italiano**, nella forma dei file toccati (🔴 ⚠️ 🔑 ⛔ ✅ ⏱️ dove il file li usa). Nomi dei test nelle famiglie esistenti `RefactorTactics.<Famiglia>.<Nome>`: `Unit` (`Tests/RTAnimChannelTests.cpp`), `Playback` (`Tests/RTPlaybackActivationTests.cpp`), `Packaging` (`Tests/RTPackagingConfigTests.cpp`), `Anim.Catalog`/`Anim.Bindings`/`Anim.Browser` (`RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp` — i test del modulo Editor stanno in `Source/RefactorTacticsEditor/Private/Tests/`). Helper dei test con nomi **distinti per file** (unity build).
 - Line ending: i sorgenti e i Markdown toccati sono **CRLF** (misurato con `file`); `Data/Anim/AnimCatalog.json` è **LF** e resta LF. Dopo ogni modifica: `file <percorso>` deve dire la stessa cosa di prima. ⛔ Niente `sed -i` sui file CRLF (converte a LF).
 - Commit: `<type>(3563): <descrizione>`, chiuso da `Co-Authored-By: Claude <modello> <noreply@anthropic.com>`. Un commit per task. ⚠️ **Il trailer nomina il modello che ESEGUE il task**, non quello che ha scritto il piano: l'implementatore sostituisce `<modello>` con il proprio (es. `Claude Sonnet 5.5`) in ogni blocco di commit qui sotto.
 - Branch: `issue/3563-clip-per-abilita`, da `origin/main` (Task 0). `3563` è il numero della issue aperta nel Task 0, e si sostituisce ovunque compaia (codice, commenti, documenti).
@@ -147,7 +147,7 @@ EOF
 **Files:**
 - Modify: `Source/RefactorTactics/Unit/RTUnitAnimInstance.h:129-150` (struct nuova dopo `FRTAnimRoleClips`, campo `PerAction` in `FRTHeroPresentationClips`) e `:190-197` (overload)
 - Modify: `Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp:168-183` (overload dopo l'esistente)
-- Test: `Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp` (include a `:1-12`, helper in coda al namespace `:30-103`, test in coda prima di `#endif` a `:333`)
+- Test: `Source/RefactorTactics/Tests/RTAnimChannelTests.cpp` (include a `:1-12`, helper in coda al namespace `:30-103`, test in coda prima di `#endif` a `:333`)
 
 **Interfaces:**
 - Produces:
@@ -163,7 +163,7 @@ EOF
 
 - [ ] **Step 1: I test rossi**
 
-`RTAnimChannelTests.cpp`, dopo `#include "Ability/Catalog/RTHeroCatalogLibrary.h"` (`:12`):
+`RTAnimChannelTests.cpp`, dopo `#include "Ability/RTHeroCatalogLibrary.h"` (`:12`):
 
 ```cpp
 #include "Misc/ScopeExit.h"
@@ -299,7 +299,7 @@ bool FRTUnitGenericActionClipIsSharedAcrossHeroesTest::RunTest(const FString&)
 }
 
 /**
- * `BaseActionId` si legge dall'EVENTO e non si indovina — `Ruling` di §2.2, `Turn/Resolution/RTResolvedEvent.h:393-397`.
+ * `BaseActionId` si legge dall'EVENTO e non si indovina — `Ruling` di §2.2, `Turn/RTResolvedEvent.h:393-397`.
  *
  * 🔑 Con la generica popolata e nessuna voce per il profilo: passando `Action.BasicAttack` si risolve la generica
  * (controllo positivo); passando `NAME_None` si risolve il RUOLO. Un `ActiveClipFor` che derivasse la generica dal
@@ -488,7 +488,7 @@ Una per volta, ciascuna seguita da ripristino, build e verde:
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Unit/RTUnitAnimInstance.h Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp
+git add Source/RefactorTactics/Unit/RTUnitAnimInstance.h Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/RTAnimChannelTests.cpp
 git commit -F - <<'EOF'
 feat(3563): clip per azione nel modello - PerAction e ActiveClipFor a tre livelli con ripiego sul ruolo
 
@@ -504,10 +504,10 @@ EOF
 - Modify: `Source/RefactorTactics/Unit/RTUnit.h:1336` (`PlayPresentationRole`), `:1346` (`ResolvedClipPathFor`), `:1364-1376` (seam)
 - Modify: `Source/RefactorTactics/Unit/RTUnit.cpp:723-740` e `:742-747`
 - Modify: `Source/RefactorTactics/Turn/RTTurnManager.cpp:8103` (`ShowActivation`) e `:8289` (`LaunchPlaybackAttack`)
-- Test: `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp` (include a `:15-33`, helper in coda al namespace `:37-118`, test in coda al file, dopo il namespace di `:188-206` che dichiara `BeatIndiceAbilita` e `BeatMappa`)
+- Test: `Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp` (include a `:15-33`, helper in coda al namespace `:37-118`, test in coda al file, dopo il namespace di `:188-206` che dichiara `BeatIndiceAbilita` e `BeatMappa`)
 
 **Interfaces:**
-- Consumes: `URTUnitAnimInstance::ActiveClipFor(HeroId, Role, ActionId, BaseActionId)` (Task 1); `FRTResolvedEvent::ActionId`/`BaseActionId` (`Turn/Resolution/RTResolvedEvent.h:387, 405`); `ARTTurnManager::bRecordAttackBeatsForTest`/`AttackBeatTraceForTest()` (`Turn/RTTurnManager.h:643, 652`).
+- Consumes: `URTUnitAnimInstance::ActiveClipFor(HeroId, Role, ActionId, BaseActionId)` (Task 1); `FRTResolvedEvent::ActionId`/`BaseActionId` (`Turn/RTResolvedEvent.h:387, 405`); `ARTTurnManager::bRecordAttackBeatsForTest`/`AttackBeatTraceForTest()` (`Turn/RTTurnManager.h:643, 652`).
 - Produces:
   ```cpp
   // ARTUnit, non UFUNCTION: i chiamanti a un argomento compilano invariati
@@ -613,7 +613,7 @@ bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
  * (`RTPlaybackActivationTests.cpp:9-10`), cioe' la squadra delle sorgenti. E' la fixture di
  * `Playback.DashStepLandsOnCellsAfterTheActivations` (`:326-379`: `BeatMappa`, mondo non inizializzato, viewer di
  * ripiego), con il bersaglio adiacente alla cella d'arrivo come in `Turn.ChargeActivatesInDashNotInBlast`
- * (`Tests/Ability/RTAbilityActivatedTests.cpp:715-756`); qui si asserisce il PATH suonato.
+ * (`Tests/RTAbilityActivatedTests.cpp:715-756`); qui si asserisce il PATH suonato.
  * ✅ Validato per mutazione (6).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChargeImpactPlaysTheDashAttackClipTest,
@@ -805,7 +805,7 @@ Ogni estensione resta nel test e nel commit, con un commento che dice quale dell
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp
+git add Source/RefactorTactics/Unit/RTUnit.h Source/RefactorTactics/Unit/RTUnit.cpp Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTPlaybackActivationTests.cpp
 git commit -F - <<'EOF'
 feat(3563): il beat conosce l'azione - Cast e Attack passano ActionId e BaseActionId, seam per ruolo
 
@@ -819,11 +819,11 @@ EOF
 
 **Files:**
 - Modify: `Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp:40-50` (commento-trappola), dopo `:63` (helper `MakeActionClips`), `:156-166` (costruttore)
-- Modify: `Source/RefactorTactics/Tests/Unit/RTUnitTests.cpp:611-612` (commento)
-- Test: `Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp` (include, test nuovo in coda, estensione di `Unit.CastRoleResolvesAClipForEveryHero` a `:313-331`)
+- Modify: `Source/RefactorTactics/Tests/RTUnitTests.cpp:611-612` (commento)
+- Test: `Source/RefactorTactics/Tests/RTAnimChannelTests.cpp` (include, test nuovo in coda, estensione di `Unit.CastRoleResolvesAClipForEveryHero` a `:313-331`)
 
 **Interfaces:**
-- Consumes: `FRTHeroPresentationClips::PerAction`, `ActiveClipFor` a quattro argomenti (Task 1); `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/Catalog/RTHeroCatalogLibrary.h:161`), `URTHeroData::Actions` (`Ability/RTHeroData.h:164`).
+- Consumes: `FRTHeroPresentationClips::PerAction`, `ActiveClipFor` a quattro argomenti (Task 1); `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/RTHeroCatalogLibrary.h:161`), `URTHeroData::Actions` (`Ability/RTHeroData.h:164`).
 - Produces: il CDO di `URTUnitAnimInstance` con `PerAction` popolata per le voci di §2.6 (una variante `AV_Roster` attiva per (abilità, beat)). Helper privato nel `.cpp`:
   ```cpp
   struct FRTVoceClipAzione { const TCHAR* ActionId; ERTPresentationRole Role; const TCHAR* Clip; };
@@ -854,7 +854,7 @@ Expected: nessuna riga `MANCA` (confronto **sensibile alle maiuscole**, `-cconta
 
 - [ ] **Step 2: I test rossi**
 
-`RTAnimChannelTests.cpp`, dopo `#include "Ability/Catalog/RTHeroCatalogLibrary.h"` (`:12`):
+`RTAnimChannelTests.cpp`, dopo `#include "Ability/RTHeroCatalogLibrary.h"` (`:12`):
 
 ```cpp
 #include "Ability/RTHeroData.h"
@@ -1073,7 +1073,7 @@ Dopo la `}` di `MakeClips` (`:63`), dentro il namespace (prima della `}` di `:64
 	 *
 	 * ⚠️ **La mappa e' un giudizio dell'autore, scelto dai NOMI** (spec §2.6, approvata il 2026-10-07): la seduta
 	 * `PIE-CLIP-ABILITA` puo' cambiarne ogni riga. Chi la cambia cambia anche la seconda copia dichiarata,
-	 * `ClipAtteseDefault` in `Tests/Unit/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
+	 * `ClipAtteseDefault` in `Tests/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
 	 * entrare qui (piano, Task 3 Step 1): i nomi non si deducono.
 	 */
 	TMap<FName, FRTActionPresentationClips> MakeActionClips(const TCHAR* Pack, std::initializer_list<FRTVoceClipAzione> Voci)
@@ -1180,7 +1180,7 @@ Expected: verdi, `**** TEST COMPLETE`. `Unit.DiscreteRoleClipsMatchThePacks` ver
 Prima di eseguire il comando, sostituisci il segnaposto `<righe OK …>` con le righe `OK <Pack>/<Clip>` stampate dallo Step 1, **alla lettera** e una per riga: un messaggio che rimanda a un file dello scratchpad cita un'evidenza che nessuno potrà rileggere.
 
 ```bash
-git add Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/Unit/RTAnimChannelTests.cpp Source/RefactorTactics/Tests/Unit/RTUnitTests.cpp
+git add Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp Source/RefactorTactics/Tests/RTAnimChannelTests.cpp Source/RefactorTactics/Tests/RTUnitTests.cpp
 git commit -F - <<'EOF'
 feat(3563): la mappa abilita'-clip di default dai pack, nomi misurati sul disco
 
@@ -1201,7 +1201,7 @@ EOF
 - Modify: `Source/RefactorTactics/Unit/RTAnimCatalogTypes.h:96-99` (commento), `:110-114` (campo nuovo fra `Role` e `bActive`), `:210-218` (versione)
 - Modify: `Source/RefactorTactics/Unit/RTAnimCatalogLibrary.cpp:1-8` (include), `:37-40` (chiave), `:394-427` (parse), `:462-463` e `:492-499` (scrittura), prima di `:511` (helper), `:600-630` (unicità e azioni)
 - Modify: `Data/Anim/AnimCatalog.json:2` (`"formatVersion": 2`, file LF)
-- Test: `Source/RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp` (helper in coda al namespace `:9-57`, test dopo `Anim.Catalog.RejectsTwoActivePerRole` `:227-269`)
+- Test: `Source/RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp` (helper in coda al namespace `:9-57`, test dopo `Anim.Catalog.RejectsTwoActivePerRole` `:227-269`)
 
 **Interfaces:**
 - Produces:
@@ -1214,7 +1214,7 @@ EOF
   ```
   JSON: chiave `actionId` opzionale in ogni binding, scritta solo quando non vuota; `formatVersion` scritto sempre come `CurrentFormatVersion`.
   `URTAnimCatalogLibrary::ValidateCatalog` (firma invariata, `RTAnimCatalogLibrary.h:140`): unicità su `(HeroId, Role, ActionId)`; errore per azione ignota e per `actionId` su un ruolo diverso da `Cast`/`Attack`.
-- Consumes: `URTCatalogLibrary::GetCoreActionCatalog()` (`Ability/Catalog/RTCatalogLibrary.h:504`), `GetGenericActionIds()` (`:602`), `MakeWeaponVariants()` (`:267`, impl. `.cpp:371`), `MakeGadgets()` (`:308`, impl. `.cpp:446`, comprende `MakePortableCoverGadget` a `.cpp:503`), `MakeReactionModules()` (`:293`, impl. `.cpp:526`), `MakeEquipmentAction(Item, Outer)` (`:441`, impl. `.cpp:918-940`: `nullptr` se il pezzo non concede un'azione, altrimenti `Def.ActionId = Item->EquipmentId` a `.cpp:933`); `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/Catalog/RTHeroCatalogLibrary.h:161`).
+- Consumes: `URTCatalogLibrary::GetCoreActionCatalog()` (`Ability/RTCatalogLibrary.h:504`), `GetGenericActionIds()` (`:602`), `MakeWeaponVariants()` (`:267`, impl. `.cpp:371`), `MakeGadgets()` (`:308`, impl. `.cpp:446`, comprende `MakePortableCoverGadget` a `.cpp:503`), `MakeReactionModules()` (`:293`, impl. `.cpp:526`), `MakeEquipmentAction(Item, Outer)` (`:441`, impl. `.cpp:918-940`: `nullptr` se il pezzo non concede un'azione, altrimenti `Def.ActionId = Item->EquipmentId` a `.cpp:933`); `URTHeroCatalogLibrary::GetHeroRoster()` (`Ability/RTHeroCatalogLibrary.h:161`).
 
 **L'insieme delle azioni valide, misurato:** `grep -rn "static TArray<FRTActionDef>\|static TArray<URTActionData\*>\|static TArray<URTEquipmentData\*>" Source/RefactorTactics/Ability/` → `GetCoreActionCatalog`, `MakeGenericActions`, `MakeWeaponVariants`, `MakeReactionModules`, `MakeGadgets`. Le «ambientali» della spec §2.3 non hanno un catalogo proprio: le abilità di fase Environment degli eroi (`ConductiveNode`, `MistVeil`) stanno in `URTHeroData::Actions` (`Ability/RTHeroData.h:164`), e `grep -rhoE 'TEXT\("(Env|Environment|Hazard)\.[A-Za-z.]+"\)' Source/RefactorTactics/{Ability,Turn,Environment}` dà **0** righe. Se nel frattempo è nato un catalogo ambientale, si aggiunge a `RTAzioniConosciute` con la sua riga e lo si dichiara nel commit.
 
@@ -1529,9 +1529,9 @@ Il commento `:96-99`:
 ```cpp
 
 #include "Ability/RTActionData.h"
-#include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h"
-#include "Ability/Catalog/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "UObject/Package.h"
 ```
@@ -1730,7 +1730,7 @@ $n = ([regex]'"formatVersion": 1,').Replace($t, '"formatVersion": 2,', 1)
 - [ ] **Step 5: Build e verde**
 
 Run: build; test `RefactorTactics.Anim`.
-Expected: verdi, `**** TEST COMPLETE`. `Anim.Catalog.RejectsTwoActivePerRole`, `Anim.Browser.BindingRules`, `Anim.Bindings.MapToCdo` e i test di `Tests/Unit/RTAnimCatalogTests.cpp` verdi e invariati (nessuno pinna `formatVersion: 1` in scrittura: misurato con `grep -rn 'formatVersion\|FormatVersion' Source/RefactorTactics/Tests/Unit/RTAnimCatalogTests.cpp` → solo testi d'ingresso v1, che restano leggibili).
+Expected: verdi, `**** TEST COMPLETE`. `Anim.Catalog.RejectsTwoActivePerRole`, `Anim.Browser.BindingRules`, `Anim.Bindings.MapToCdo` e i test di `Tests/RTAnimCatalogTests.cpp` verdi e invariati (nessuno pinna `formatVersion: 1` in scrittura: misurato con `grep -rn 'formatVersion\|FormatVersion' Source/RefactorTactics/Tests/RTAnimCatalogTests.cpp` → solo testi d'ingresso v1, che restano leggibili).
 
 - [ ] **Step 6: Mutazioni (5), (9), (P5)**
 
@@ -1745,7 +1745,7 @@ E una verifica di R10 per sottrazione: togli `Pezzi.Append(URTCatalogLibrary::Ma
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTactics/Unit/RTAnimCatalogTypes.h Source/RefactorTactics/Unit/RTAnimCatalogLibrary.cpp Data/Anim/AnimCatalog.json Source/RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp
+git add Source/RefactorTactics/Unit/RTAnimCatalogTypes.h Source/RefactorTactics/Unit/RTAnimCatalogLibrary.cpp Data/Anim/AnimCatalog.json Source/RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp
 git commit -F - <<'EOF'
 feat(3563): actionId nel catalogo animazioni - formatVersion 2, unicita' per pool, azioni valide esplicite
 
@@ -1758,10 +1758,10 @@ EOF
 ### Task 5: Commandlet e modello del browser — pool d'azione, fusione per pool, predicati con `ActionId`
 
 **Files:**
-- Modify: `Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.h:27-32` (commento), `:59-60` (dichiarazione nuova accanto)
-- Modify: `Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.cpp:43-44` (smistamento), dopo `:63` (`MergeClipsPerHero`), `:96-98`, `:124-127`, `:155-156`, `:163`
-- Modify: `Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.h:65-83`, `RTAnimBrowserModel.cpp` (`BindToRole` fino a `:187`, `MakeActive` `:189-218`, `Unbind` `:220-233`)
-- Test: `Source/RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp` (test nuovi dopo `Anim.Bindings.MapToCdo`, `:357`)
+- Modify: `Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h:27-32` (commento), `:59-60` (dichiarazione nuova accanto)
+- Modify: `Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.cpp:43-44` (smistamento), dopo `:63` (`MergeClipsPerHero`), `:96-98`, `:124-127`, `:155-156`, `:163`
+- Modify: `Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.h:65-83`, `RTAnimBrowserModel.cpp` (`BindToRole` fino a `:187`, `MakeActive` `:189-218`, `Unbind` `:220-233`)
+- Test: `Source/RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp` (test nuovi dopo `Anim.Bindings.MapToCdo`, `:357`)
 
 **Interfaces:**
 - Consumes: `FRTAnimBinding::ActionId` (Task 4), `FRTHeroPresentationClips::PerAction`, `ActiveClipFor` a quattro argomenti (Task 1).
@@ -2120,7 +2120,7 @@ Il commento `:153-156` e l'assegnazione `:163`:
 
 In `BindToRole`, dopo `Binding.Role = Role;` (`:183`): `Binding.ActionId = ActionId;`.
 
-`grep -n "B.HeroId == HeroId && B.Role == Role\|Binding.HeroId == HeroId && Binding.Role == Role" Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.cpp` → quattro righe, **tutte** con `ActionId`. Il pannello (`SRTAnimBrowserPanel.cpp`) non chiama queste funzioni: nessun chiamante da aggiornare (`grep -rn "BindToRole\|\.Unbind(" Source/RefactorTacticsEditor --include=*.cpp | grep -v Tests` → solo `RTAnimBrowserModel.cpp`).
+`grep -n "B.HeroId == HeroId && B.Role == Role\|Binding.HeroId == HeroId && Binding.Role == Role" Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.cpp` → quattro righe, **tutte** con `ActionId`. Il pannello (`SRTAnimBrowserPanel.cpp`) non chiama queste funzioni: nessun chiamante da aggiornare (`grep -rn "BindToRole\|\.Unbind(" Source/RefactorTacticsEditor --include=*.cpp | grep -v Tests` → solo `RTAnimBrowserModel.cpp`).
 
 - [ ] **Step 5: Build e verde**
 
@@ -2138,7 +2138,7 @@ Expected: verdi, `**** TEST COMPLETE`. `Anim.Bindings.MapToCdo` (`:277-357`) ver
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.h Source/RefactorTacticsEditor/Private/Content/Build/RTBuildAnimBindingsCommandlet.cpp Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.h Source/RefactorTacticsEditor/Private/Anim/RTAnimBrowserModel.cpp Source/RefactorTacticsEditor/Private/Tests/Anim/RTAnimBrowserModelTests.cpp
+git add Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.cpp Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.h Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.cpp Source/RefactorTacticsEditor/Private/Tests/RTAnimBrowserModelTests.cpp
 git commit -F - <<'EOF'
 feat(3563): commandlet e browser per azione - pool d'azione, fusione per pool sul default, predicati con ActionId
 
@@ -2151,7 +2151,7 @@ EOF
 ### Task 6: Il gate di cook — il set richiesto include le clip d'azione
 
 **Files:**
-- Modify: `Source/RefactorTactics/Tests/Unit/RTPackagingConfigTests.cpp:207-275` (helper in coda al namespace), `:541-739` (gate: `:576-605`, `:631-641`, `:719-730`)
+- Modify: `Source/RefactorTactics/Tests/RTPackagingConfigTests.cpp:207-275` (helper in coda al namespace), `:541-739` (gate: `:576-605`, `:631-641`, `:719-730`)
 - Test: lo stesso file, test nuovo dopo la `}` del gate (`:739`)
 
 **Interfaces:**
@@ -2339,7 +2339,7 @@ Il messaggio `:719-730` diventa (owner `#3562`, non più `#2444`):
 			*Scoperta, Chi ? **Chi : TEXT("ruolo ignoto")));
 ```
 
-`grep -n '#2444' Source/RefactorTactics/Tests/Unit/RTPackagingConfigTests.cpp` dopo la modifica: le righe che restano sono storiche (narrano il passato); nessuna dentro una stringa di `AddError`.
+`grep -n '#2444' Source/RefactorTactics/Tests/RTPackagingConfigTests.cpp` dopo la modifica: le righe che restano sono storiche (narrano il passato); nessuna dentro una stringa di `AddError`.
 
 - [ ] **Step 4: Build, verde del test nuovo, e il gate misurato DOPO**
 
@@ -2353,7 +2353,7 @@ Nell'helper, commenta il ciclo `for (const TPair<FName, FRTActionPresentationCli
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Source/RefactorTactics/Tests/Unit/RTPackagingConfigTests.cpp
+git add Source/RefactorTactics/Tests/RTPackagingConfigTests.cpp
 git commit -F - <<'EOF'
 test(3563): il set richiesto dal cook include le clip per azione, con un test verde proprio; owner del gate #3562
 
@@ -2555,7 +2555,7 @@ Merge dopo review verde. Poi `git branch -D issue/3563-clip-per-abilita`, `git r
 - `➕ piano.` **«Estesi alla chiave nuova» (spec §2.5) = affiancati da un gemello.** `Anim.Bindings.MapToCdo`, `Anim.Browser.BindingRules`, `Anim.Catalog.RejectsTwoActivePerRole` e `Playback.ActivationPlaysTheCastCue` restano **invariati** e verdi (lo verificano gli step di build dei Task 2, 4 e 5); la chiave nuova la esercitano `MapToCdoPerAction`, `BindingRulesPerAction`, `RejectsTwoActivePerActionRole` e `ActivationPlaysTheActionClip`, cioè i test elencati in §5.1. Così un rosso sul vecchio dice «regressione sui binding di ruolo», uno sul nuovo «la chiave d'azione».
 - **Testi pubblicati**: nessun glifo di stato accanto a una voce PIE in issue, PR, commenti e commit (Global Constraints; Task 0, Task 8 Step 2 e Step 4).
 
-**Premesse verificate in scrittura.** Le reazioni degli eroi stanno in `URTHeroData::Actions` (`AddAbility`, `Ability/Catalog/RTHeroCatalogLibrary.cpp:159`; `ReactiveCapacitor` a `:416`): la tabella del Task 3 le trova, e `RTAzioniConosciute` le include. Tutti gli `ActionId` della mappa esistono nel catalogo eroi (`grep -ohE 'TEXT\("Hero\.(Aevik|Muiren|Branth|Ivrin)\.[A-Za-z]+"\)' Source/RefactorTactics/Ability/Catalog/RTHeroCatalogLibrary.cpp | sort -u`). Tutti i nomi di clip della mappa esistono sul disco del clone principale (Task 3 Step 1, misurato il 2026-10-07).
+**Premesse verificate in scrittura.** Le reazioni degli eroi stanno in `URTHeroData::Actions` (`AddAbility`, `Ability/RTHeroCatalogLibrary.cpp:159`; `ReactiveCapacitor` a `:416`): la tabella del Task 3 le trova, e `RTAzioniConosciute` le include. Tutti gli `ActionId` della mappa esistono nel catalogo eroi (`grep -ohE 'TEXT\("Hero\.(Aevik|Muiren|Branth|Ivrin)\.[A-Za-z]+"\)' Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp | sort -u`). Tutti i nomi di clip della mappa esistono sul disco del clone principale (Task 3 Step 1, misurato il 2026-10-07).
 
 **Placeholder.** Nessun «TBD»; `3563`, `<pr>`, `<checkout>`, `<scratchpad>`, `<prima>`/`<dopo>`, `<data>` sono variabili definite nei Global Constraints o nello step che le misura.
 

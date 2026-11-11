@@ -317,7 +317,7 @@ può solo raccontare. È il motivo per cui `a3` merita un'epic invece di una iss
 > e la code review l'ha falsificata su tre righe su quattro.** Diceva che la colonna di destra era *«il
 > write-set che la track già dichiara in `parallel-batch.yaml`»*: non lo era. `Source/RefactorTactics/Camera/`
 > **non compare nel `writable` di nessuna track**; la track `simulation` ha il write-set **vuoto** (`Turn/` e
-> `Bot/` le sono stati esplicitamente rilasciati); e `Map/Actor/RTHexMapActor.{h,cpp}` — i file di `E47.3` —
+> `Bot/` le sono stati esplicitamente rilasciati); e `Map/RTHexMapActor.{h,cpp}` — i file di `E47.3` —
 > appartengono a `content_editor`, non a `client_tools`. Attribuire un file alla track sbagliata è peggio di
 > non attribuirlo: fa credere che il blocco sia altrove, e `D-139` dice che **un file non assegnato è uno
 > STOP**, non un via libera.
@@ -327,8 +327,8 @@ può solo raccontare. È il motivo per cui `a3` merita un'epic invece di una iss
 | CP | File che tocca | Chi li possiede oggi | Conseguenza |
 |---|---|---|---|
 | **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuna track** | **STOP**: serve una richiesta di allocazione prima di aprire |
-| **E47.2** | `Turn/Playback/RTPlaybackLibrary.*` · `UI/` (se tocca l'HUD) | `Turn/…` **nessuna** · `UI/` = `client_tools` **ACTIVE** (#78) | doppio blocco: allocazione **e** attesa |
-| **E47.3** | `Map/Actor/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** (#451) | attende il rilascio di quella track |
+| **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` (se tocca l'HUD) | `Turn/…` **nessuna** · `UI/` = `client_tools` **ACTIVE** (#78) | doppio blocco: allocazione **e** attesa |
+| **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** (#451) | attende il rilascio di quella track |
 | **E47.4** | `Source/RefactorTactics/ScenarioHarness/` | `spatial` — **IDLE** | l'unico con un owner dichiarato e fermo, e **senza blocchi tecnici**: [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) lo precede per igiene — vedi §13 |
 | **E47.5** | `Source/RefactorTactics/Tests/` | `verification` — **IDLE, write-set vuoto** | non assegnato: **STOP** |
 | **E47.6** | `docs/technical/test-manuali-pie.md` | `playtest` — **IDLE** | owner dichiarato e fermo: serve una riallocazione, non un'attesa |

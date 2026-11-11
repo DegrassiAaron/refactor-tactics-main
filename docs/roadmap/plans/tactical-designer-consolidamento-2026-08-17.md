@@ -80,8 +80,8 @@ per del codice.
 
 | Owner | Cosa | Test |
 |---|---|---|
-| `Map/Structure/RTGeometryGrammar.{h,cpp}` | grammatica quantizzata + validator + snap | `RefactorTactics.GeometryGrammar.*` (**13**, due dei quali `Snap*`) |
-| `Map/Structure/RTGeometryBake.{h,cpp}` | cottura verso `FRTHexCover` / `bBlocksMovement` | `RefactorTactics.GeometryBake.*` (**8**) |
+| `Map/RTGeometryGrammar.{h,cpp}` | grammatica quantizzata + validator + snap | `RefactorTactics.GeometryGrammar.*` (**13**, due dei quali `Snap*`) |
+| `Map/RTGeometryBake.{h,cpp}` | cottura verso `FRTHexCover` / `bBlocksMovement` | `RefactorTactics.GeometryBake.*` (**8**) |
 | `Map/RTHexOccupancyLibrary.{h,cpp}` | dodici settori, `Free`/`Constrained`/`Blocked` | `RefactorTactics.HexOccupancy.*` (19) |
 | `Pathfinding/` | A\* deterministico, `ReachableCells` | `RefactorTactics.HexSim.*` |
 | `Perception/` | LOS esagonale con regola d'elevazione | — |
@@ -94,7 +94,7 @@ Il vincolo di collocazione che il sorgente chiede in §8 — *«sposta la logica
 > prima di misurarla.** La formulazione in tre punti del Feature Registry e in due spec è *«in
 > `Source/RefactorTacticsEditor/` non esiste alcun test»*. Misurato il 2026-08-17: `find
 > Source/RefactorTacticsEditor -iname "*test*"` restituisce **due voci** — `Private/Tests/` e
-> `Private/Tests/HexMode/RTHexToolPropertiesTests.cpp`, **due** test arrivati con `#993` il 2026-08-16.
+> `Private/Tests/RTHexToolPropertiesTests.cpp`, **due** test arrivati con `#993` il 2026-08-16.
 >
 > Il file di test nomina il difetto meglio di quanto potrei io: *«Tre issue di fila (#871, #921, #931) hanno
 > dichiarato "RefactorTacticsEditor/ non ha test, quindi la verifica è manuale" trattandolo come un dato di

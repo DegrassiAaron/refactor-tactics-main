@@ -39,8 +39,8 @@ Aggiunge `BeginStroke`/`PaintCellInStroke`/`EraseCellInStroke`/`EndStroke` a `UR
 **Files:**
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.h` (dichiara le 4 primitive)
 - Modify: `Source/RefactorTactics/Map/RTHexMapAsset.cpp` (implementa le 4 primitive)
-- Modify: `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp` (ri-esprime `PaintCellData`/`EraseCell`)
-- Test: `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp` (nuovo `StrokeEquivalence`)
+- Modify: `Source/RefactorTactics/Map/RTHexMapActor.cpp` (ri-esprime `PaintCellData`/`EraseCell`)
+- Test: `Source/RefactorTactics/Tests/RTHexMapTests.cpp` (nuovo `StrokeEquivalence`)
 
 **Interfaces:**
 - Produces: `void URTHexMapAsset::BeginStroke()`; `bool URTHexMapAsset::PaintCellInStroke(const FRTCellId&, ERTHexSurface, int32, bool)`; `bool URTHexMapAsset::EraseCellInStroke(const FRTCellId&)`; `void URTHexMapAsset::EndStroke()`.
@@ -48,7 +48,7 @@ Aggiunge `BeginStroke`/`PaintCellInStroke`/`EraseCellInStroke`/`EndStroke` a `UR
 
 - [ ] **Step 1: Scrivere il test che fallisce (`StrokeEquivalence`)**
 
-In `Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
+In `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, prima di `#endif // WITH_DEV_AUTOMATION_TESTS`, aggiungere:
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexStrokeEquivalenceTest,
 	"RefactorTactics.HexMap.StrokeEquivalence",
@@ -149,7 +149,7 @@ Expected: `RefactorTactics.HexMap.StrokeEquivalence` **Success**, 0 Fail.
 
 - [ ] **Step 6: Ri-esprimere `PaintCellData`/`EraseCell` sull'actor (comportamento invariato)**
 
-In `Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp`, sostituire i corpi ATTUALI di `PaintCellData` (righe ~169-187) ed `EraseCell` (righe ~189-213) con:
+In `Source/RefactorTactics/Map/RTHexMapActor.cpp`, sostituire i corpi ATTUALI di `PaintCellData` (righe ~169-187) ed `EraseCell` (righe ~189-213) con:
 ```cpp
 void ARTHexMapActor::PaintCellData(const FRTCellId& Id, ERTHexSurface Surface, int32 MoveCost, bool bBlocksMovement)
 {
@@ -205,8 +205,8 @@ Expected: tutti i test hex Success, **0 Fail** (incluso il nuovo `StrokeEquivale
 ```bash
 git checkout -- RefactorTactics.uproject   # se risporcato
 git add Source/RefactorTactics/Map/RTHexMapAsset.h Source/RefactorTactics/Map/RTHexMapAsset.cpp \
-        Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp \
-        Source/RefactorTactics/Tests/Map/RTHexMapTests.cpp
+        Source/RefactorTactics/Map/RTHexMapActor.cpp \
+        Source/RefactorTactics/Tests/RTHexMapTests.cpp
 git commit -m "refactor(hex): H5c.3a - primitive di stroke su URTHexMapAsset + ri-espressione PaintCellData/EraseCell"
 ```
 
@@ -340,7 +340,7 @@ Sostituire l'INTERO `Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.c
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "InputState.h" // FInputDeviceRay / FInputRayHit
-#include "Map/Actor/RTHexMapActor.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 
 #define LOCTEXT_NAMESPACE "URTHexPaintTool"

@@ -94,7 +94,7 @@ tre. Ne manca una **già a runtime**:
 | settore sotto il cursore | 12 | puntamento locale | #1615, **non implementato** |
 
 La riga `HandleFacingSector` ha già un test (`RefactorTactics.PlayerInput.FacingSectorProducesPlannedFacing`,
-`Tests/Player/RTPointerInteractionTests.cpp:448`) ed è citata dall'harness (`ScenarioHarness/RTScenarioSession.cpp:129`):
+`Tests/RTPointerInteractionTests.cpp:448`) ed è citata dall'harness (`ScenarioHarness/RTScenarioSession.cpp:129`):
 è un «settore» a **sei** in produzione, che il kit non conta.
 
 ⚠️ **Questa tabella non è una scoperta di questo referto, ed è giusto dirlo**: #1615 la porta già, con la
@@ -120,7 +120,7 @@ chiede, **decide `PLC-5` per costruzione** e pregiudica `PLC-1`. #1606 esiste co
 
 **⛔ F-04 · La RELAZIONE è già incisa nel codice e in uso; la FUNZIONE che il kit chiede non esiste, e la
 distinzione cambia la taglia del lavoro, non il verdetto.** *(Adzic)* —
-`URTGeometryBakeLibrary::EdgesTouchedBy` (`Map/Structure/RTGeometryBake.cpp:167-176`) percorre i sei bordi, prende
+`URTGeometryBakeLibrary::EdgesTouchedBy` (`Map/RTGeometryBake.cpp:167-176`) percorre i sei bordi, prende
 `Boundary[(2*Edge) % RT_OccupancySectorCount]` e `Boundary[(2*Edge+2) % …]`, e chiude con
 `URTHexLibrary::DirectionForEdgeIndex(Edge)`: è la stessa corrispondenza `2k`/`2k+1` che il kit propone,
 **percorsa nel verso opposto** — da bordo a settori, non da settore a bordo — con venti righe di commento che
@@ -160,7 +160,7 @@ alternato. Chi disegnasse dodici raggi uguali disegnerebbe un'altra cosa.
 
 **🔴 F-07 · Il tipo esiste già, col nome che il kit dice di cercare.** *(Fowler)* —
 `FRTStructureEdgeRef { FRTCellId Cell; ERTHexDirection Edge; }` con `operator==`
-(`Map/Structure/RTStructureIdentityLibrary.h:17-33`), documentato con la **stessa** convenzione che il kit propone —
+(`Map/RTStructureIdentityLibrary.h:17-33`), documentato con la **stessa** convenzione che il kit propone —
 *«visto DALLA cella … perché un bordo scritto su una faccia sola resti citabile senza dover indovinare quale
 delle due l'ha ricevuto»*. Il kit ordina: *«Non introdurre un nome nuovo se esiste già un tipo semanticamente
 equivalente»*. Esiste.
@@ -176,7 +176,7 @@ interaction graph, cache e future transition possono divergere»*. Misurato, è 
    (`Map/RTHexCellData.h:404-427`), e `RemoveTransition(From, To, bBothDirections)`
    (`Map/RTHexMapAsset.h:362`) tratta la simmetria come **parametro dell'operazione**, non come proprietà
    dell'identità.
-3. **L'assenza di un ID di bordo è deliberata e scritta.** `Turn/Log/RTTurnLog.h:758-760`: *«Non esiste un
+3. **L'assenza di un ID di bordo è deliberata e scritta.** `Turn/RTTurnLog.h:758-760`: *«Non esiste un
    `TransitionId` che lo accompagni, ed è deliberato: `FRTHexEdge` è `From`/`To`/`Cost`/`Kind` **senza ID**,
    perché nel progetto **l'identità di un bordo È la coppia di celle**»*. Ripetuto sul dato:
    *«un arco è identificato dalla coppia `(From, To)` e nient'altro»* (`Map/RTHexCellData.h:440-441`).
@@ -185,7 +185,7 @@ interaction graph, cache e future transition possono divergere»*. Misurato, è 
 che la porta.** *(Fowler)* — `CP 23.3` / [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832)
 ha già risolto *«due descrizioni della stessa struttura»* con `StableId`: `FRTStructureArcRef` documenta
 *«un ponte bidirezionale ne produce DUE, che portano lo stesso nome perché sono una struttura sola»*
-(`Map/Structure/RTStructureIdentityLibrary.h:36-39`), e `FRTHexEdge::StableId` aggiunge *«è l'unica condivisione di nome
+(`Map/RTStructureIdentityLibrary.h:36-39`), e `FRTHexEdge::StableId` aggiunge *«è l'unica condivisione di nome
 ammessa fra archi»* (`Map/RTHexCellData.h:438-446`). Il doc comment della libreria dichiara, a `RTStructureIdentityLibrary.h:67`,
 *«⚠️ Nessuna seconda authority»* — la frase parla di chi **muta** una porta, e questo referto la estende a chi
 **identifica** un bordo: è un'analogia, non una citazione letterale. Una `SharedEdgeAddress` canonica sarebbe la
@@ -245,7 +245,7 @@ e tre i CP. `/sc:spec-panel` è task documentale (`CLAUDE.md` §6): la colonna c
 
 `StableId` risolve l'identità condivisa **per le strutture che ne hanno una**, ed è un `FName` **autorato**:
 `UPROPERTY(EditAnywhere)` su `FRTHexDoor` e `FRTHexEdge`, con `NAME_None` trattato come *«un campo lasciato
-indietro»* (`Map/Structure/RTStructureIdentityLibrary.h`, `ValidateReferences`). Ne segue che **un bordo senza nome non
+indietro»* (`Map/RTStructureIdentityLibrary.h`, `ValidateReferences`). Ne segue che **un bordo senza nome non
 ha identità condivisa** — ha due facce e, se è un arco, due versi.
 
 Finché il consumatore è l'interaction graph (`CP 23.4`, #833), la lacuna non morde: si cita ciò che ha un nome.

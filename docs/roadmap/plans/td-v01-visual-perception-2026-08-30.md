@@ -28,11 +28,11 @@ Altri checkout dello stesso remoto, letti e non toccati: `rt-wt-ac4` (detached),
 **non committato**:
 
 ```text
- M Source/RefactorTacticsEditor/Private/Launcher/RTDevSandboxLauncherSubsystem.cpp
+ M Source/RefactorTacticsEditor/Private/RTDevSandboxLauncherSubsystem.cpp
  M Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
-?? Source/RefactorTacticsEditor/Private/Launcher/RTLauncherScenarioBrowser.{h,cpp}
-?? Source/RefactorTacticsEditor/Private/Launcher/SRTLauncherScenarioPanel.{h,cpp}
-?? Source/RefactorTacticsEditor/Private/Tests/Launcher/RTLauncherScenarioBrowserTests.cpp
+?? Source/RefactorTacticsEditor/Private/RTLauncherScenarioBrowser.{h,cpp}
+?? Source/RefactorTacticsEditor/Private/SRTLauncherScenarioPanel.{h,cpp}
+?? Source/RefactorTacticsEditor/Private/Tests/RTLauncherScenarioBrowserTests.cpp
 ```
 
 Il suo referto è `docs/roadmap/plans/td-integration-pass-audit-2026-08-30.md`, e dichiara `#1682` differita
@@ -95,9 +95,9 @@ di #1115.
 
 | File | Cosa |
 |---|---|
-| `Map/Vision/RTHexVisionLibrary.h` | `ERTLineOfSightBlock { None, EdgeBlocker, CellBlocker }` · `FRTLineOfSightResult` · `DescribeLineOfSight` |
-| `Map/Vision/RTHexVisionLibrary.cpp` | il corpo si sposta in `DescribeLineOfSight`; `HasLineOfSight` diventa `DescribeLineOfSight(...).IsClear()` |
-| `Tests/Map/Vision/RTHexVisionTests.cpp` | cinque test nuovi |
+| `Map/RTHexVisionLibrary.h` | `ERTLineOfSightBlock { None, EdgeBlocker, CellBlocker }` · `FRTLineOfSightResult` · `DescribeLineOfSight` |
+| `Map/RTHexVisionLibrary.cpp` | il corpo si sposta in `DescribeLineOfSight`; `HasLineOfSight` diventa `DescribeLineOfSight(...).IsClear()` |
+| `Tests/RTHexVisionTests.cpp` | cinque test nuovi |
 
 ### 🔴 La scelta che devia dalla DoD di #1712, e perché
 

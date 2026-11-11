@@ -19,11 +19,11 @@ Tutto misurato su `main = 5ab19332`. Nessuna riga di questa sezione viene dal co
 | Fatto | Evidenza |
 |---|---|
 | La scelta fra (a) e (b) **è presa e motivata** | [`D-340`](../../decisions/RT_PDR_00_Decision_Log.md), **Accettata**, decisione d'autore del 2026-09-06 — sceglie la (b) e dichiara ⛔ *«non si alza `RTSightSlabHeight` oltre i 10 cm»*, ⛔ *«se un giorno la lastra dovrà essere leggibile, servirà un `D-nnn` proprio»* |
-| La (b) è **implementata nel TurnLog** | `Turn/RTTurnManager_Blast.cpp:1531` scrive `SightBlockerCell` via `SightBlockerForLog`; `Turn/Log/RTTurnLogLibrary.cpp:792` compone la riga |
-| Il filtro di conoscenza vive **alla scrittura** | `Turn/Log/RTTurnLogLibrary.cpp:361`; **sette** casi numerati in `Tests/Turn/Log/RTCombatLogTests.cpp:1729-1845` — ignota · esplorata · visibile · altra-cella · linea libera · blocco-non-cella · layer; ciclo RED eseguito e documentato in issue. ⌫ *Diceva «sei casi, 1745-1839»: il sei contava le sole chiamate a `SightBlockerForLog` con lo stesso pattern e perdeva il caso (7), e il range tagliava il test a entrambe le estremità* |
-| Il formato è **v13** | `Tests/Turn/Log/RTTurnLogSerializationTests.cpp:1476` (`+12` byte); campo `Public` in `Replay/RTReplayPrivacyLibrary.cpp:41` |
-| Il feed **ha un consumatore** | `UI/HUD/RTHudViewModel.cpp:496` chiama `URTPlayerEventProjector::Project` — consegnato da **#2707** (`063ab898`, mergiata `2026-09-09T05:02:04Z`) |
-| L'ostacolo è **marcato nel mondo** | `UI/HUD/RTHUD.cpp:57` `ComputeBlockerMarks`, chiamata a `:929`; test `RefactorTactics.HUD.BlockerMarksOnlyNameableCells` |
+| La (b) è **implementata nel TurnLog** | `Turn/RTTurnManager_Blast.cpp:1531` scrive `SightBlockerCell` via `SightBlockerForLog`; `Turn/RTTurnLogLibrary.cpp:792` compone la riga |
+| Il filtro di conoscenza vive **alla scrittura** | `Turn/RTTurnLogLibrary.cpp:361`; **sette** casi numerati in `Tests/RTCombatLogTests.cpp:1729-1845` — ignota · esplorata · visibile · altra-cella · linea libera · blocco-non-cella · layer; ciclo RED eseguito e documentato in issue. ⌫ *Diceva «sei casi, 1745-1839»: il sei contava le sole chiamate a `SightBlockerForLog` con lo stesso pattern e perdeva il caso (7), e il range tagliava il test a entrambe le estremità* |
+| Il formato è **v13** | `Tests/RTTurnLogSerializationTests.cpp:1476` (`+12` byte); campo `Public` in `Replay/RTReplayPrivacyLibrary.cpp:41` |
+| Il feed **ha un consumatore** | `UI/RTHudViewModel.cpp:496` chiama `URTPlayerEventProjector::Project` — consegnato da **#2707** (`063ab898`, mergiata `2026-09-09T05:02:04Z`) |
+| L'ostacolo è **marcato nel mondo** | `UI/RTHUD.cpp:57` `ComputeBlockerMarks`, chiamata a `:929`; test `RefactorTactics.HUD.BlockerMarksOnlyNameableCells` |
 | Il caso avversario è **coperto end-to-end** | `RefactorTactics.UI.PlayerEventLog.BlockedShotDoesNotRevealTheWallToTheUnauthorized` misura entrambe le metà: l'autorizzato riceve la cella, l'altro **zero eventi** |
 | Il feed **testuale** non disegna ancora | `WBP_RT_EventLog.uasset` **non esiste** — fetta **F** di [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936), confermato da `hud-v01-three-terminals-audit-2026-09-05.md` |
 | `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL` | **❌ entrambe**, riconfermate il 2026-09-09, `runId 20260909-055417`, banco `Visual.Map.SightWallIsWalkable`, `PASS (4/4 assertion, 2 turni)` |
@@ -104,7 +104,7 @@ Il commento in `RTHUDMarksTests.cpp` lo dichiara: un secondo contratto di conosc
 
 ### 🟡 F-06 · NYGARD — il corpus golden è cieco proprio sul campo che questa issue introduce
 
-`SightBlockerCell` è escluso da `VisitDiscriminatingFields` (`Turn/Log/RTTurnLog.h`), quindi `CompareSerializedTraces` non lo guarda: una sua regressione **non produce un rosso**. È il fatto che il commento del 2026-09-08 ha misurato e lasciato aperto — *«ciò che resta da decidere è vostro»*. Nessuno lo possiede oggi.
+`SightBlockerCell` è escluso da `VisitDiscriminatingFields` (`Turn/RTTurnLog.h`), quindi `CompareSerializedTraces` non lo guarda: una sua regressione **non produce un rosso**. È il fatto che il commento del 2026-09-08 ha misurato e lasciato aperto — *«ciò che resta da decidere è vostro»*. Nessuno lo possiede oggi.
 
 ⛔ Fuori scope di questa issue, ma non può restare senza owner: è la sorveglianza del campo che #2534 esiste per introdurre.
 

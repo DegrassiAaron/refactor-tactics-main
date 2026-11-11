@@ -17,8 +17,8 @@
 | #2388 | l'epic — owner cross-release della capability |
 | `docs/gameplay/spec-caduta-e-bordi.md` (249 righe) | owner semantico delle regole |
 | #2402 · #2403 · #2404 · #2406 | il lavoro figlio della lane CODE letto per intero |
-| `Source/RefactorTactics/Tests/Map/Cover/RTFallOverLedgeTests.cpp` | 14 test, letti per nome e due per corpo |
-| `Turn/Log/RTTurnLog.h` · `Map/RTHexCellData.h` · `Map/Cover/RTHexLedgeLibrary.h` | il codice che la spec dichiara |
+| `Source/RefactorTactics/Tests/RTFallOverLedgeTests.cpp` | 14 test, letti per nome e due per corpo |
+| `Turn/RTTurnLog.h` · `Map/RTHexCellData.h` · `Map/RTHexLedgeLibrary.h` | il codice che la spec dichiara |
 
 ---
 
@@ -40,7 +40,7 @@ Giudizio del panel, non una misura strumentale.
 ### C1 · La §9 dice **che** la traccia distingue, non **come** — e il codice ha un valore solo
 
 **Wiegers + Fowler.** §4 dichiara tre esiti e §9 chiede che la traccia li distingua. In codice
-`ERTMoveOutcome::Fell` è **uno** (`Turn/Log/RTTurnLog.h:670`, indice **15**). Restavano tre design incompatibili
+`ERTMoveOutcome::Fell` è **uno** (`Turn/RTTurnLog.h:670`, indice **15**). Restavano tre design incompatibili
 — valori d'enum, estensione di `ERTDisplacementBlockReason`, campo dedicato — e nessuno li aveva scelti: chi
 implementava #2403 avrebbe deciso da solo su un formato che ha un owner.
 
@@ -87,7 +87,7 @@ dice cosa il giocatore vede **prima**.
 ### m1 · Una misura della spec si era auto-invalidata
 
 **Adzic.** §5 diceva *«`FallEffects`, `ImpactEffects` e `FallDamage` hanno zero occorrenze in `Source/`»*.
-Misurato: `FallDamage` **0** ✅, ma gli altri due **1 ciascuno** — `Tests/Map/Cover/RTFallOverLedgeTests.cpp:12`, il
+Misurato: `FallDamage` **0** ✅, ma gli altri due **1 ciascuno** — `Tests/RTFallOverLedgeTests.cpp:12`, il
 commento che ripete quella frase. È il rilievo che #166 fa per `FastReactionDuration`. **Esito**: riscritta
 con la formula del Decision Log — *le sole occorrenze sono le note che lo dichiarano*.
 

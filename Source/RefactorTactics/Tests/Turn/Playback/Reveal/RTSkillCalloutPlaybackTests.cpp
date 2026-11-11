@@ -29,7 +29,7 @@
 #include "Player/RTPlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Tests/Shared/RTAbilityFixtures.h"         // AddCoreAbilityInSlot: l'Overwatch della guardia
-#include "Tests/Turn/Reaction/RTReactionWindowFixtures.h"  // #3666: la finestra si presenta al trattenimento del playback
+#include "Tests/Shared/RTReactionWindowFixtures.h"  // #3666: la finestra si presenta al trattenimento del playback
 #include "UI/HUD/RTHudViewModel.h"               // SkillCalloutAlpha: l'opacita' che il widget ricaverebbe dall'orologio
 #include "Tests/Shared/RTWorldFixtures.h"
 
