@@ -37,7 +37,7 @@ che #1818 chiede: il gate misura dove il grasso si accumula, non dove e' andato.
 responsabilita' spostata in un file nuovo **della stessa classe** invece non scende: vedi «I TRE FILE
 NON SONO LA CLASSE».
 
-⛔ **Sorveglia due grandezze, non la qualita'.** Metodi e righe di codice: un metodo lungo e contorto
+⛔ **Sorveglia quantita', non la qualita'.** Metodi e righe di codice: un metodo lungo e contorto
 conta uno come un metodo breve, e una riga di commento non conta affatto — vedi piu' sotto, un gate
 che sale quando qualcuno scrive la ragione di una regola insegna a non scriverla.
 
@@ -100,9 +100,14 @@ lo spostamento come margine sotto un tetto sulle righe di `RTTurnManager.cpp+h` 
 righe»), ma la classe non era scesa: era cambiato il file.
 
 🔑 **La classe e' definita dalle DEFINIZIONI, non dai nomi dei file** (`metodi_definiti_in`): l'header
-`RTTurnManager.h` piu' ogni `.cpp`/`.h` di produzione che definisce un metodo `ARTTurnManager::`, in
-qualunque cartella stia. Un file nuovo della classe entra da solo, e uno spostamento fra file della
-stessa classe lascia invariate le grandezze «tutti i file».
+`RTTurnManager.h` piu' ogni `.cpp`/`.h`/`.inl` di produzione che definisce, a colonna 0, un metodo
+`ARTTurnManager::` — anche di un tipo annidato — in qualunque cartella stia. Un file nuovo della classe
+entra da solo, e uno spostamento fra file della stessa classe **non scende**: le grandezze «tutti i
+file» crescono del prologo del file nuovo (include, intestazioni), e il gate chiede di dichiararlo.
+
+⛔ **Un file conta per intero.** Se il file di un componente nuovo definisce anche una sola facciata
+`ARTTurnManager::`, entra nella classe con tutto il componente, e l'estrazione non scende. Le facciate
+restano nei file della classe; il file del componente non ne definisce.
 
 ⛔ **La correzione e' ADDITIVA**, come `scelte` accanto a `rami`: le tre grandezze storiche restano
 calcolate come sempre, perche' #1818, #2679 e i referti datati portano baseline scritte con quei
@@ -245,7 +250,14 @@ RE_METODO_TM = re.compile(r"ARTTurnManager::[A-Za-z0-9_~]+")
 # costruttore e il distruttore non ce l'hanno) e poi `ARTTurnManager::<nome>(`. Una chiamata e' indentata,
 # e un `= ARTTurnManager::StaticClass()` a colonna 0 non passa perche' `=` non sta nel tipo. Vedi
 # «I TRE FILE NON SONO LA CLASSE» nella docstring.
-RE_DEFINIZIONE_TM = re.compile(r"(?:[A-Za-z_][\w:<>,\*&\s]*?[\s\*&])?ARTTurnManager::(~?[A-Za-z_]\w*)\s*\(")
+# I qualificatori annidati contano (`ARTTurnManager::FPlayback::Tick(` e' codice della classe: un tipo
+# annidato non la fa scendere), e il nome restituito li porta con se'.
+RE_DEFINIZIONE_TM = re.compile(
+    r"(?:[A-Za-z_][\w:<>,\*&\s]*?[\s\*&])?ARTTurnManager::((?:[A-Za-z_]\w*::)*~?[A-Za-z_]\w*)\s*\(")
+# Un letterale di carattere, per toglierlo come i letterali di stringa prima di cercare i commenti.
+RE_CARATTERE = re.compile(r"'(?:[^'\\]|\\.)'")
+# I suffissi dei file che possono essere della classe.
+SUFFISSI_CLASSE = (".cpp", ".h", ".inl")
 # L'header della classe conta sempre, anche se non definisce metodi fuori dal corpo: e' dove la classe e'.
 HEADER_TM = "Source/RefactorTactics/Turn/RTTurnManager.h"
 RE_COMMENTO = re.compile(r"^\s*(//|/\*|\*)")
@@ -370,29 +382,43 @@ def metodi_definiti_in(testo):
     forma di un'estrazione legittima: lo strumento non sa distinguere un helper portato in un header
     condiviso da una regola portata in una library.
 
-    ⛔ Le righe di commento non contano, e i blocchi `/* … */` si tolgono con la stessa macchina a stati
-    di `funzioni_di`: una definizione *citata* in una nota non e' una definizione.
+    ⛔ I commenti non contano: una definizione *citata* in una nota non e' una definizione.
+
+    🔴 **Letterali e `//` si tolgono PRIMA di cercare `/*`**, ed e' qui che questa funzione si separa
+    dalla macchina a stati di `funzioni_di`. Quella cerca `/*` sulla riga intera, e una riga come
+    `// due Source/*.Target.cs` — che esiste in `RTLauncherScenarioBrowser.cpp` — apre un blocco
+    fantasma fino al prossimo `*/`: le definizioni che seguono spariscono, il file puo' uscire dalla
+    classe, e la misura legge una discesa che non c'e'. Trovato nella review di #4054.
     """
     nomi = set()
     in_commento = False
     for grezza in testo.split("\n"):
         riga = grezza
         if in_commento:
-            if "*/" in riga:
-                riga = riga.split("*/", 1)[1]
-                in_commento = False
-            else:
+            if "*/" not in riga:
                 continue
-        while "/*" in riga:
-            prima, resto = riga.split("/*", 1)
-            if "*/" in resto:
-                riga = prima + resto.split("*/", 1)[1]
-            else:
-                riga = prima
+            riga = riga.split("*/", 1)[1]
+            in_commento = False
+        riga = RE_CARATTERE.sub("''", RE_STRINGA.sub('""', riga))
+        pulita = []
+        while True:
+            a_riga, a_blocco = riga.find("//"), riga.find("/*")
+            if a_riga == -1 and a_blocco == -1:
+                pulita.append(riga)
+                break
+            # Vince il commento che comincia PRIMA: `// vedi /*` e' tutto commento di riga.
+            if a_riga != -1 and (a_blocco == -1 or a_riga < a_blocco):
+                pulita.append(riga[:a_riga])
+                break
+            pulita.append(riga[:a_blocco])
+            resto = riga[a_blocco + 2:]
+            if "*/" not in resto:
                 in_commento = True
                 break
+            riga = resto.split("*/", 1)[1]
+        riga = "".join(pulita)
         # Colonna 0 sulla riga GREZZA: l'indentazione e' cio' che separa una definizione da una chiamata.
-        if not grezza[:1] or grezza[:1].isspace() or RE_COMMENTO.match(riga):
+        if not grezza[:1] or grezza[:1].isspace():
             continue
         trovata = RE_DEFINIZIONE_TM.match(riga.lstrip())
         if trovata:
@@ -533,7 +559,7 @@ def misura(radice, soglia):
     definiti = set()
     for p in sorted((radice / "Source").rglob("*")):
         relativo = p.relative_to(radice)
-        if p.suffix not in (".cpp", ".h") or "Tests" in relativo.parts or not p.is_file():
+        if p.suffix not in SUFFISSI_CLASSE or "Tests" in relativo.parts or not p.is_file():
             continue
         righe = leggi(p)
         nomi = metodi_definiti_in("\n".join(righe))
@@ -862,7 +888,9 @@ def autotest():
 
     ⚠️ **Prova la DECISIONE, non la misura.** Che `misura()` conti i metodi giusti lo dicono i suoi
     numeri su un albero vero; qui si prova che, dati due conteggi, il gate risponde come deve. Sono due
-    difetti diversi e nessuno dei due copre l'altro.
+    difetti diversi e nessuno dei due copre l'altro. ➕ Con una sola eccezione, dal 2026-11-11: QUALI
+    file siano della classe si prova anche qui, su un albero sintetico, perche' e' una selezione e non un
+    conteggio — e una selezione sbagliata produce una discesa che nessun numero vero smentisce.
 
     🔑 **Un gate nasce verde**, e questo nasceva verde da sempre: senza una mutazione che lo faccia
     diventare rosso, il suo 0 non distingue «ho guardato e non e' cresciuto» da «non ho guardato».
@@ -902,11 +930,17 @@ def autotest():
          m(120, 5000, righe_classe=5300, file_classe=("h", "cpp", "blast", "movement")),
          m(120, 5000, righe_classe=5000, file_classe=("h", "cpp", "blast", "movement")), 1),
         ("un metodo nuovo in un file fuori da `Turn/`", m(120, 5000, definiti=121), m(120, 5000), 1),
-        # 🔑 E lo spostamento fra file della STESSA classe non e' una crescita: le righe dei tre file
-        # scendono, quelle della classe restano. Il gate non deve protestare, ne' festeggiare.
+        # 🔴 **I due bracci STORICI, ciascuno da solo** (review di #4054). Coi soli casi qui sopra le
+        # grandezze «tutti i file» seguono quelle dei tre file, quindi ogni crescita storica era vista
+        # anche dai bracci nuovi: si potevano togliere i due vecchi da `SORVEGLIATE` a autotest verde.
+        ("cresce solo il braccio storico dei metodi", m(121, 5000, definiti=120), m(120, 5000), 1),
+        ("cresce solo il braccio storico delle righe", m(120, 5001, righe_classe=5000), m(120, 5000), 1),
+        # 🔑 Lo spostamento fra file della STESSA classe non e' una discesa: le righe dei tre file
+        # scendono, quelle della classe crescono del prologo del file nuovo. Coi numeri di `4723de221`
+        # (+44 righe di codice di include e intestazioni): il gate chiede di dichiararlo, e ha ragione.
         ("codice spostato in un file nuovo della stessa classe",
-         m(120, 4500, righe_classe=5000, file_classe=("h", "cpp", "blast", "playback")),
-         m(120, 5000, righe_classe=5000), 0),
+         m(120, 4888, righe_classe=5044, file_classe=("h", "cpp", "blast", "movement")),
+         m(120, 5000, righe_classe=5000), 1),
     ]
 
     falliti = []
@@ -1049,8 +1083,8 @@ def autotest():
     ]
     # ── `metodi_definiti_in`, provata sulle stringhe (#1818, 2026-11-11) ─────────────────────────────
     #
-    # ⚠️ Come sopra: la funzione PURA, non la misura sull'albero. Che sull'albero vero trovi i quattro
-    # file di oggi lo dice il comando senza argomenti.
+    # ⚠️ Come sopra: la funzione PURA. Quali file trovi sull'albero vero lo dice il comando senza
+    # argomenti, che li elenca per nome; la selezione in `misura()` la prova l'albero sintetico piu' sotto.
     DEFINIZIONI = '''void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 {
 \tTickPlayback(0.f);
@@ -1078,8 +1112,16 @@ UClass* Classe = ARTTurnManager::StaticClass();
         # ⛔ Anti-vacuita' sul lato opposto: senza questo caso una regex che accetta ogni `ARTTurnManager::`
         # renderebbe il PlayerController un file della classe.
         ("una chiamata, un cast o un binding non sono una definizione", metodi_definiti_in(MENZIONI), set()),
-        ("una definizione citata in un commento a riga non conta",
-         metodi_definiti_in("// void ARTTurnManager::Vecchia(int32 X)"), set()),
+        # 🔴 **`/*` dentro un commento di riga o dentro una stringa non apre un blocco** (review di
+        # #4054). Prima della correzione entrambi rispondevano `set()`: la definizione dopo spariva.
+        # La prima forma esiste gia' nel modulo (`RTLauncherScenarioBrowser.cpp`).
+        ("un `/*` dentro un commento `//` non nasconde la definizione che segue",
+         metodi_definiti_in("// due `Source/*.Target.cs` lo alza\nvoid ARTTurnManager::Dopo()"), {"Dopo"}),
+        ("ne' un `/*` dentro una stringa",
+         metodi_definiti_in('const TCHAR* Glob = TEXT("Source/*.cpp");\nvoid ARTTurnManager::Dopo()'),
+         {"Dopo"}),
+        ("un tipo annidato e' codice della classe",
+         metodi_definiti_in("void ARTTurnManager::FPlayback::Tick(float Dt)"), {"FPlayback::Tick"}),
         # 🔴 La riga di continuazione di un blocco comincia a colonna 0 senza `*`: e' il caso che il solo
         # `RE_COMMENTO` lascerebbe passare.
         ("nemmeno dentro un blocco /* */ a piu' righe",
@@ -1087,12 +1129,50 @@ UClass* Classe = ARTTurnManager::StaticClass();
         ("e dopo il blocco la definizione vera torna visibile",
          metodi_definiti_in("/* nota */\nvoid ARTTurnManager::Nuova()"), {"Nuova"}),
     ]
-    for nome, avuto, atteso in casi_fixture + casi_definizioni:
+    # ── La SELEZIONE dei file in `misura()`, su un albero sintetico (review di #4054) ─────────────────
+    #
+    # 🔴 Qui si esce dalle stringhe: e' l'unico caso che legge un albero. Senza, si potevano togliere
+    # l'esclusione di `Tests/`, l'header, o il filtro sulle definizioni, a autotest verde.
+    sintetico = Path(tempfile.mkdtemp(prefix="rt-misure-autotest-"))
+    try:
+        albero = {
+            HEADER_TM: "#pragma once\nclass ARTTurnManager {};\n",
+            "Source/RefactorTactics/Turn/RTTurnManager.cpp": "void ARTTurnManager::A()\n{\n}\n",
+            # Fuori da `Turn/` e fuori dai tre nomi: e' della classe perche' ne definisce un metodo.
+            "Source/RefactorTactics/Playback/RTAltroFile.cpp":
+                "int32 ARTTurnManager::B() const\n{\n\treturn 0;\n}\n",
+            # Chiama il TurnManager e non lo e'.
+            "Source/RefactorTactics/Player/RTChiamante.cpp":
+                "void ARTChiamante::C()\n{\n\tARTTurnManager::StaticHelper();\n}\n",
+            # Definizioni nei test: non sono produzione.
+            "Source/RefactorTactics/Tests/RTTurnManagerFinto.cpp": "void ARTTurnManager::D()\n{\n}\n",
+            "Source/RefactorTacticsEditor/Private/Tests/RTEditorFinto.cpp": "void ARTTurnManager::E()\n{\n}\n",
+        }
+        for rel, testo in albero.items():
+            p = sintetico / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(testo, encoding="utf-8")
+        ms = misura(sintetico, 100)
+        casi_albero = [
+            ("l'albero sintetico: header, il .cpp in `Turn/` e quello fuori, e nient'altro",
+             sorted(ms["turnmanager_file_classe"]),
+             sorted([HEADER_TM, "Source/RefactorTactics/Turn/RTTurnManager.cpp",
+                     "Source/RefactorTactics/Playback/RTAltroFile.cpp"])),
+            ("i metodi definiti sono quelli della produzione", ms["turnmanager_metodi_definiti"], 2),
+            # 2 + 3 + 4 righe: header, `RTTurnManager.cpp`, `RTAltroFile.cpp`.
+            ("le righe sono quelle dei tre file della classe", ms["turnmanager_righe_classe"], 9),
+            # 🔑 Il controllo positivo: la grandezza STORICA non vede il file fuori dai tre nomi.
+            ("e la grandezza storica non vede il file fuori dai tre", ms["turnmanager_righe"], 5),
+        ]
+    finally:
+        shutil.rmtree(str(sintetico), ignore_errors=True)
+
+    for nome, avuto, atteso in casi_fixture + casi_definizioni + casi_albero:
         ok = avuto == atteso
         print("  %s %s: atteso %s, avuto %s" % ("✅" if ok else "❌", nome, atteso, avuto))
         if not ok:
             falliti.append(nome)
-    casi = casi + casi_fixture + casi_definizioni
+    casi = casi + casi_fixture + casi_definizioni + casi_albero
 
     print()
     # Anti-vacuita': con `SORVEGLIATE` vuota ogni caso tornerebbe 0, e questa prova resterebbe verde
