@@ -18,7 +18,8 @@ Nei quattro giorni dell'audit e' successo esattamente questo: **+395 righe di co
 non per colpa delle fette (che registrano anche i saldi sfavorevoli) ma per i **53 commit** di gameplay
 ordinario atterrati sulla stessa classe, perche' e' li' che vive il sequenziamento.
 
-Sorveglia **metodi** e **righe di codice**, e non le righe del file: vedi la sezione qui sotto — un gate
+Sorveglia **metodi** e **righe di codice** — sui tre file storici e su tutti i file della classe, vedi
+«I TRE FILE NON SONO LA CLASSE» — e non le righe del file: vedi la sezione qui sotto — un gate
 che sale quando qualcuno scrive la ragione di una regola insegna a non scriverla. Il metodo e' il segnale
 piu' pulito dei due, perche' un metodo nuovo e' una decisione, non un dettaglio di formattazione.
 
@@ -29,10 +30,12 @@ Guarda il solo `ARTTurnManager`, che e' l'oggetto di #1818. Non dice nulla del r
 ⛔ **Non e' un veto, e il suo 1 non e' un fallimento**: e' «dichiaralo nella PR». Una crescita
 motivata va bene; una silenziosa e' cio' che E50 non puo' vedere.
 
-⛔ **Guarda il solo `ARTTurnManager`** — i tre file di #1818 — e **non dice nulla del resto del
-modulo**. Una responsabilita' spostata dal TurnManager a una classe nuova risulta qui come una
-**discesa**, ed e' esattamente cio' che #1818 chiede: il gate misura dove il grasso si accumula, non
-dove e' andato.
+⛔ **Guarda il solo `ARTTurnManager`** — tutti i file che ne definiscono i metodi, piu' i tre di #1818
+che le baseline storiche citano — e **non dice nulla del resto del modulo**. Una responsabilita'
+spostata dal TurnManager a una classe nuova risulta qui come una **discesa**, ed e' esattamente cio'
+che #1818 chiede: il gate misura dove il grasso si accumula, non dove e' andato. ⚠️ Una
+responsabilita' spostata in un file nuovo **della stessa classe** invece non scende: vedi «I TRE FILE
+NON SONO LA CLASSE».
 
 ⛔ **Sorveglia due grandezze, non la qualita'.** Metodi e righe di codice: un metodo lungo e contorto
 conta uno come un metodo breve, e una riga di commento non conta affatto — vedi piu' sotto, un gate
@@ -78,6 +81,37 @@ numero** mentre migliora il codice.
 
 Per questo ogni misura di ampiezza viene data due volte: `righe` e `righe di codice`. Chi confronta due
 fette guardi la seconda.
+
+## 🔴 I TRE FILE NON SONO LA CLASSE
+
+`TURNMANAGER_FILES` elenca tre file per nome, ed era la classe intera quando l'elenco e' nato. Dal
+2026-09-08 non lo e' piu': `4723de221` ha spostato il movimento riprendibile in
+`RTTurnManager_Movement.cpp` — «nessuna riga cambiata nello spostamento», dice il commit — e quel file
+non e' fra i tre: da allora le sue righe non entrano in `righe (3 file)`.
+
+Il controllo positivo, sullo stesso commit (`--ref 4723de221 --base 4723de221^`):
+
+    righe (3 file)                      -255     righe di TUTTI i suoi file          +62
+    righe di codice (3 file)            -112     righe di codice di tutti i file     +44
+
+Uno spostamento puro risultava una discesa di 112 righe di codice, e il gate — che sorvegliava solo
+quelle — non poteva vedere la crescita successiva di quel file. ⚠️ Non e' teoria: #2679 ha registrato
+lo spostamento come margine sotto un tetto sulle righe di `RTTurnManager.cpp+h` («margine da 44 a 299
+righe»), ma la classe non era scesa: era cambiato il file.
+
+🔑 **La classe e' definita dalle DEFINIZIONI, non dai nomi dei file** (`metodi_definiti_in`): l'header
+`RTTurnManager.h` piu' ogni `.cpp`/`.h` di produzione che definisce un metodo `ARTTurnManager::`, in
+qualunque cartella stia. Un file nuovo della classe entra da solo, e uno spostamento fra file della
+stessa classe lascia invariate le grandezze «tutti i file».
+
+⛔ **La correzione e' ADDITIVA**, come `scelte` accanto a `rami`: le tre grandezze storiche restano
+calcolate come sempre, perche' #1818, #2679 e i referti datati portano baseline scritte con quei
+numeri. Il gate sorveglia **entrambe** le coppie. I numeri di oggi li dice il comando senza argomenti.
+
+⚠️ **Cosa resta fuori**: le funzioni LIBERE. `RTTurnManagerInternal.h` raccoglie helper che erano nel
+namespace anonimo di `RTTurnManager.cpp` (`a7c2c6008`) e non definisce metodi, quindi non conta. Una
+funzione libera e' anche la forma di un'estrazione legittima, e lo strumento non sa distinguere le due
+cose: lo dice chi riporta la fetta.
 
 ## L'asse che l'audit non aveva: la lunghezza delle funzioni
 
@@ -207,6 +241,13 @@ RE_FIXTURE_INLINE = re.compile(r"^\s*inline\s+[\w:<>,\s\*&]*?\b(\w+)\s*\(")
 PATTERN_TURNMANAGER = "ARTTurnManager"
 RE_TEST_NAME = re.compile(r'"RefactorTactics\.[A-Za-z0-9_.]+"')
 RE_METODO_TM = re.compile(r"ARTTurnManager::[A-Za-z0-9_~]+")
+# La DEFINIZIONE di un metodo, non la sua menzione: a colonna 0, un tipo di ritorno facoltativo (il
+# costruttore e il distruttore non ce l'hanno) e poi `ARTTurnManager::<nome>(`. Una chiamata e' indentata,
+# e un `= ARTTurnManager::StaticClass()` a colonna 0 non passa perche' `=` non sta nel tipo. Vedi
+# «I TRE FILE NON SONO LA CLASSE» nella docstring.
+RE_DEFINIZIONE_TM = re.compile(r"(?:[A-Za-z_][\w:<>,\*&\s]*?[\s\*&])?ARTTurnManager::(~?[A-Za-z_]\w*)\s*\(")
+# L'header della classe conta sempre, anche se non definisce metodi fuori dal corpo: e' dove la classe e'.
+HEADER_TM = "Source/RefactorTactics/Turn/RTTurnManager.h"
 RE_COMMENTO = re.compile(r"^\s*(//|/\*|\*)")
 RE_RAMO = re.compile(r"\b(if|for|while|switch|else)\b")
 # Ogni punto in cui il controllo O UN VALORE dipende da una condizione: le parole chiave di `RE_RAMO`
@@ -314,6 +355,48 @@ def fixture_di_flusso(testo):
             continue
         if aperta and profondita <= 0:
             corrente = None
+    return nomi
+
+
+def metodi_definiti_in(testo):
+    """PURA. I nomi dei metodi `ARTTurnManager::` che il testo DEFINISCE — non quelli che chiama.
+
+    🔑 **E' la regola che decide quali file sono della classe**, e per questo e' una definizione e non
+    una menzione: `RTPlayerController.cpp` nomina `ARTTurnManager::` per chiamarlo e non e' il
+    TurnManager; `RTTurnManager_Movement.cpp` ne definisce i metodi e lo e', in qualunque cartella stia.
+
+    ⚠️ **Un'euristica, coi limiti dichiarati**: vede solo le definizioni a colonna 0 (la forma del
+    modulo), e non vede le funzioni LIBERE. Una funzione libera non e' un metodo, ed e' esattamente la
+    forma di un'estrazione legittima: lo strumento non sa distinguere un helper portato in un header
+    condiviso da una regola portata in una library.
+
+    ⛔ Le righe di commento non contano, e i blocchi `/* … */` si tolgono con la stessa macchina a stati
+    di `funzioni_di`: una definizione *citata* in una nota non e' una definizione.
+    """
+    nomi = set()
+    in_commento = False
+    for grezza in testo.split("\n"):
+        riga = grezza
+        if in_commento:
+            if "*/" in riga:
+                riga = riga.split("*/", 1)[1]
+                in_commento = False
+            else:
+                continue
+        while "/*" in riga:
+            prima, resto = riga.split("/*", 1)
+            if "*/" in resto:
+                riga = prima + resto.split("*/", 1)[1]
+            else:
+                riga = prima
+                in_commento = True
+                break
+        # Colonna 0 sulla riga GREZZA: l'indentazione e' cio' che separa una definizione da una chiamata.
+        if not grezza[:1] or grezza[:1].isspace() or RE_COMMENTO.match(riga):
+            continue
+        trovata = RE_DEFINIZIONE_TM.match(riga.lstrip())
+        if trovata:
+            nomi.add(trovata.group(1))
     return nomi
 
 
@@ -442,6 +525,27 @@ def misura(radice, soglia):
         cod += c
     m["turnmanager_righe"] = tot
     m["turnmanager_righe_codice"] = cod
+
+    # 🔴 **Tutti i file della classe, non i tre di #1818** — vedi «I TRE FILE NON SONO LA CLASSE».
+    # ⛔ ADDITIVO, come `scelte` accanto a `rami`: le tre grandezze qui sopra restano calcolate come
+    # sempre, perche' #1818, #2679 e i referti datati portano baseline scritte con quei numeri.
+    file_classe = {}
+    definiti = set()
+    for p in sorted((radice / "Source").rglob("*")):
+        relativo = p.relative_to(radice)
+        if p.suffix not in (".cpp", ".h") or "Tests" in relativo.parts or not p.is_file():
+            continue
+        righe = leggi(p)
+        nomi = metodi_definiti_in("\n".join(righe))
+        rel = relativo.as_posix()
+        if nomi or rel == HEADER_TM:
+            t, c = conta_righe(righe)
+            file_classe[rel] = {"righe": t, "righe_codice": c, "metodi_definiti": len(nomi)}
+            definiti |= nomi
+    m["turnmanager_file_classe"] = file_classe
+    m["turnmanager_righe_classe"] = sum(v["righe"] for v in file_classe.values())
+    m["turnmanager_righe_codice_classe"] = sum(v["righe_codice"] for v in file_classe.values())
+    m["turnmanager_metodi_definiti"] = len(definiti)
 
     metodi = set()
     for p in (radice / "Source/RefactorTactics/Turn").glob("*.cpp"):
@@ -604,6 +708,9 @@ def stampa(m, base=None, markdown=False):
     riga("`ARTTurnManager` righe (3 file)", "turnmanager_righe")
     riga("`ARTTurnManager` righe di **codice**", "turnmanager_righe_codice")
     riga("metodi `ARTTurnManager::`", "turnmanager_metodi")
+    riga("  — righe di TUTTI i suoi file", "turnmanager_righe_classe")
+    riga("  — righe di codice di tutti i suoi file", "turnmanager_righe_codice_classe")
+    riga("  — metodi DEFINITI, in tutti i suoi file", "turnmanager_metodi_definiti")
     riga("file di test", "test_file")
     riga("test unici", "test_unici")
     riga("file di test che spawnano un Actor", "test_file_con_mondo")
@@ -616,6 +723,18 @@ def stampa(m, base=None, markdown=False):
     riga("funzioni >= %d righe" % m["soglia"], "funzioni_lunghe")
     riga("righe dentro quelle funzioni", "righe_in_funzioni_lunghe")
     riga("quota del codice di produzione", "quota_righe_in_funzioni_lunghe", " %")
+
+    # I file della classe, per nome: la riga «tutti i suoi file» non dice QUALI, e una fetta che sposta
+    # codice in un file nuovo della stessa classe si riconosce proprio qui.
+    print()
+    file_ora = sorted(m["turnmanager_file_classe"])
+    print("file della classe: %s" % ", ".join("`%s`" % Path(f).name for f in file_ora))
+    if base is not None:
+        file_prima = set(base["turnmanager_file_classe"])
+        for etichetta, gruppo in (("comparsi", sorted(set(file_ora) - file_prima)),
+                                  ("spariti", sorted(file_prima - set(file_ora)))):
+            if gruppo:
+                print("  %s rispetto al base: %s" % (etichetta, ", ".join("`%s`" % g for g in gruppo)))
 
     print()
     ordinati = sorted(m["per_contenitore"].items(), key=lambda kv: -kv[1]["righe"])
@@ -668,9 +787,15 @@ def stampa(m, base=None, markdown=False):
 #
 # NON le righe del file: il 58% di cio' che si aggiunge qui e' commento normativo, e un gate che
 # sale quando qualcuno scrive la ragione di una regola insegna a non scriverla.
+#
+# 🔴 Le ultime due guardano TUTTI i file della classe (#1818, 2026-11-11). Le prime due restano, perche'
+# le baseline gia' scritte le citano; ma da sole non vedono la crescita in `RTTurnManager_Movement.cpp`,
+# ne' quella di qualunque file che la classe apra in seguito.
 SORVEGLIATE = [
     ("turnmanager_metodi", "metodi `ARTTurnManager::`"),
     ("turnmanager_righe_codice", "righe di codice (3 file)"),
+    ("turnmanager_metodi_definiti", "metodi definiti (tutti i file)"),
+    ("turnmanager_righe_codice_classe", "righe di codice (tutti i file)"),
 ]
 
 
@@ -705,6 +830,13 @@ def esegui_check(m, base):
         print("  ! il base non ha gli stessi file: %s" % ", ".join(sorted(mancanti)))
         print("    il delta qui sotto include un file comparso, non solo codice scritto.\n")
 
+    # La classe che si allarga in un file nuovo NON e' un artefatto del confronto, a differenza del caso
+    # qui sopra: e' la classe stessa. Il gate lo nomina, e le grandezze «tutti i file» lo contano.
+    comparsi = sorted(set(m["turnmanager_file_classe"]) - set(base["turnmanager_file_classe"]))
+    if comparsi:
+        print("  ! la classe ha file nuovi rispetto al base: %s" % ", ".join(comparsi))
+        print("    il codice spostato li' resta contato nelle grandezze «tutti i file», di proposito.\n")
+
     cresciute = []
     for chiave, etichetta in SORVEGLIATE:
         prima, dopo = base[chiave], m[chiave]
@@ -735,10 +867,15 @@ def autotest():
     🔑 **Un gate nasce verde**, e questo nasceva verde da sempre: senza una mutazione che lo faccia
     diventare rosso, il suo 0 non distingue «ho guardato e non e' cresciuto» da «non ho guardato».
     """
-    def m(metodi, righe, file=("h", "cpp", "blast")):
+    # Senza argomenti in piu', le grandezze «tutti i file» seguono quelle dei tre file: e' il caso in cui
+    # la classe non ha altri file, e i casi storici qui sotto restano quelli che erano.
+    def m(metodi, righe, file=("h", "cpp", "blast"), definiti=None, righe_classe=None, file_classe=None):
         return {"turnmanager_metodi": metodi,
                 "turnmanager_righe_codice": righe,
                 "turnmanager_file": list(file),
+                "turnmanager_metodi_definiti": metodi if definiti is None else definiti,
+                "turnmanager_righe_codice_classe": righe if righe_classe is None else righe_classe,
+                "turnmanager_file_classe": list(file if file_classe is None else file_classe),
                 "ref": "finto"}
 
     casi = [
@@ -758,6 +895,18 @@ def autotest():
         # Il base che non ha gli stessi file: il delta include un file comparso. Il gate lo dichiara,
         # e la crescita resta da dichiarare — non si annulla.
         ("il base non ha gli stessi file", m(130, 5395), m(120, 5000, ("h", "cpp")), 1),
+        # 🔴 **Il punto cieco dei tre file** (#1818, 2026-11-11): la classe cresce in un file che i tre
+        # non contano — `RTTurnManager_Movement.cpp` dal 2026-09-08. Le due grandezze storiche restano
+        # ferme, e con le sole due di prima questo caso tornava 0.
+        ("cresce un file della classe fuori dai tre",
+         m(120, 5000, righe_classe=5300, file_classe=("h", "cpp", "blast", "movement")),
+         m(120, 5000, righe_classe=5000, file_classe=("h", "cpp", "blast", "movement")), 1),
+        ("un metodo nuovo in un file fuori da `Turn/`", m(120, 5000, definiti=121), m(120, 5000), 1),
+        # 🔑 E lo spostamento fra file della STESSA classe non e' una crescita: le righe dei tre file
+        # scendono, quelle della classe restano. Il gate non deve protestare, ne' festeggiare.
+        ("codice spostato in un file nuovo della stessa classe",
+         m(120, 4500, righe_classe=5000, file_classe=("h", "cpp", "blast", "playback")),
+         m(120, 5000, righe_classe=5000), 0),
     ]
 
     falliti = []
@@ -898,12 +1047,52 @@ def autotest():
         ("senza fixture note, lo stesso .cpp risulta allestimento",
          gira_il_flusso("RTWorldFixtures::PlayOneTurn(TM);", set()), False),
     ]
-    for nome, avuto, atteso in casi_fixture:
+    # ── `metodi_definiti_in`, provata sulle stringhe (#1818, 2026-11-11) ─────────────────────────────
+    #
+    # ⚠️ Come sopra: la funzione PURA, non la misura sull'albero. Che sull'albero vero trovi i quattro
+    # file di oggi lo dice il comando senza argomenti.
+    DEFINIZIONI = '''void ARTTurnManager::BeginPlayback(bool bPreserveClock)
+{
+\tTickPlayback(0.f);
+}
+TArray<FRTResolvedEvent> ARTTurnManager::ResolvedStatusEventsForTest() const
+const FRTCellId& ARTTurnManager::CellOf(const ARTUnit* Unit) const
+ARTTurnManager::ARTTurnManager()
+ARTTurnManager::~ARTTurnManager()
+'''
+    # Tutte forme che il modulo usa per CHIAMARE il TurnManager, mai per definirlo.
+    MENZIONI = '''\tif (ARTTurnManager* TM = Cast<ARTTurnManager>(Actor))
+\tWorld->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+\tTimer.BindUObject(this, &ARTTurnManager::OnPlanningTimeout);
+UClass* Classe = ARTTurnManager::StaticClass();
+\treturn ARTTurnManager::PhaseName(Phase);
+\tARTTurnManager::StaticHelper(X);
+'''
+    # 🔴 Le ultime due righe sono le sole che la regex, da sola, scambierebbe per definizioni: le
+    # esclude il controllo di colonna 0. Senza di loro quel controllo si poteva togliere a autotest verde
+    # (misurato con una mutazione, 2026-11-11).
+    casi_definizioni = [
+        ("le definizioni sono riconosciute, costruttore e distruttore compresi",
+         metodi_definiti_in(DEFINIZIONI),
+         {"BeginPlayback", "ResolvedStatusEventsForTest", "CellOf", "ARTTurnManager", "~ARTTurnManager"}),
+        # ⛔ Anti-vacuita' sul lato opposto: senza questo caso una regex che accetta ogni `ARTTurnManager::`
+        # renderebbe il PlayerController un file della classe.
+        ("una chiamata, un cast o un binding non sono una definizione", metodi_definiti_in(MENZIONI), set()),
+        ("una definizione citata in un commento a riga non conta",
+         metodi_definiti_in("// void ARTTurnManager::Vecchia(int32 X)"), set()),
+        # 🔴 La riga di continuazione di un blocco comincia a colonna 0 senza `*`: e' il caso che il solo
+        # `RE_COMMENTO` lascerebbe passare.
+        ("nemmeno dentro un blocco /* */ a piu' righe",
+         metodi_definiti_in("/* prima era:\nvoid ARTTurnManager::Vecchia()\n*/"), set()),
+        ("e dopo il blocco la definizione vera torna visibile",
+         metodi_definiti_in("/* nota */\nvoid ARTTurnManager::Nuova()"), {"Nuova"}),
+    ]
+    for nome, avuto, atteso in casi_fixture + casi_definizioni:
         ok = avuto == atteso
         print("  %s %s: atteso %s, avuto %s" % ("✅" if ok else "❌", nome, atteso, avuto))
         if not ok:
             falliti.append(nome)
-    casi = casi + casi_fixture
+    casi = casi + casi_fixture + casi_definizioni
 
     print()
     # Anti-vacuita': con `SORVEGLIATE` vuota ogni caso tornerebbe 0, e questa prova resterebbe verde
