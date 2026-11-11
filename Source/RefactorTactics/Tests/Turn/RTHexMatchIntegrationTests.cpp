@@ -4383,6 +4383,66 @@ bool FRTPlannedRouteFollowsSneakTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`#4075` — lo Sneak dichiarato al turno T e' ancora dichiarato al turno T+1.** E' una MISURA, non una regola: e' cio' che il
+ * codice fa oggi, perche' nessuno azzera `PlannedMovementProfileId` fra un turno e l'altro. Resta pinnata finche' l'autore non
+ * decide se lo `Sneak` e' una dichiarazione per turno o una posa che resta ([D-608] (5)).
+ *
+ * 🔑 **Si misura l'EFFETTO, non solo il campo**: al turno T+1 il piano piu' lungo che il controller accetta e' piu' corto con lo
+ * Sneak che senza. Il controllo positivo e' il ritiro allo stesso turno, che deve allungarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakStaysDeclaredIntoTheNextTurnTest,
+	"RefactorTactics.HexMatch.SneakStaysDeclaredIntoTheNextTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSneakStaysDeclaredIntoTheNextTurnTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	B.PC->ToggleSneakForTest();
+	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato al turno T"),
+		B.Mine->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// L'oracolo del turno e' il NUMERO, non la fase: `LockInAndResolve` riapre la pianificazione (vedi il test del countdown).
+	const int32 TurnoT = B.TM->GetTurnNumber();
+	B.TM->LockInAndResolve();
+	DrainPlayback(B.TM);
+	if (!TestTrue(TEXT("premessa: il turno T si e' chiuso"), B.TM->GetTurnNumber() > TurnoT)
+		|| !TestTrue(TEXT("premessa: e l'unita' e' viva"), B.Mine->IsAlive()))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestEqual(TEXT("al turno T+1 lo Sneak e' ancora dichiarato"),
+		B.Mine->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak);
+
+	// L'effetto: il piano piu' lungo che il controller accetta, con lo Sneak di T e poi senza.
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	const int32 ConSneak = PlannedRouteGrowToBudget(B);
+	B.PC->ToggleSneakForTest();
+	if (!TestEqual(TEXT("premessa: ritirato al turno T+1"), B.Mine->PlannedMovementProfileId, NAME_None)
+		|| !TestTrue(TEXT("premessa: al turno T+1 si pianifica ancora"), ConSneak > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const int32 SenzaSneak = PlannedRouteGrowToBudget(B);
+	TestTrue(FString::Printf(TEXT("e al turno T+1 il tetto e' ancora quello dello Sneak: ritirandolo il piano si allunga (%d -> %d)"),
+		ConSneak, SenzaSneak), SenzaSneak > ConSneak);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
 // =====================================================================================================
 // `#3750`, fetta C di F5 — il FUOCO sulla mappa, sul controller vero.
 //
