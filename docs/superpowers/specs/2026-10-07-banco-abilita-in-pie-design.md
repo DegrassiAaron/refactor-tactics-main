@@ -160,7 +160,9 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    map is loaded for the Play session»* e che `UGameInstance::InitializeForPlayInEditor` legge come
    `OverrideMapURL`. Il livello aperto nell'Editor resta com'è, sporco o pulito che sia. Prima della
    richiesta il lanciatore **cattura** i valori correnti di `rt.Test.Scenario` e
-   `rt.Debug.PlaybackControls` e li imposta sull'Id e su `1`. ➕ fu. (#3541) Non più con
+   `rt.Debug.PlaybackControls` e li imposta sull'Id e su `1`. ➕ [#4071](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4071) ([`D-607`](../../decisions/RT_PDR_00_Decision_Log.md))
+   Cattura e imposta anche `rt.Debug.PlaybackSpeed`, sulla velocità del banco (x0,5), e a fine PIE la
+   ripristina come le altre due. ➕ fu. (#3541) Non più con
    `ECVF_SetByConsole` ma tramite `FRTLabCVarSnapshot` (`RTLabCVarSnapshot.{h,cpp}`), che fotografa valore
    e `SetBy` e scrive con un **`Set` esplicito alla priorità `P = max(SetByPrima, ECVF_SetByCode)`**, con
    rilettura dopo ogni scrittura: scavalca il valore che l'utente avesse già digitato in console (a
@@ -172,9 +174,9 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    `IConsoleManager.h:155-187`: `Constructor` < … < `Commandline` < `Code` < `Temp` < `Console` — quindi
    `-dpcvars=` sta **sotto** `Code`, e nulla sta sopra `Console`. Un `Set` a priorità `SetByCode` fissa sarebbe ignorato con un solo warning
    se l'utente avesse digitato la variabile, e il banco giocherebbe lo scenario sbagliato credendo di aver
-   scelto. Se una delle due CVar non si trova, o la scrittura non prende (`ReadOnly`, o una priorità
-   superiore), il lanciatore si ferma **prima** di toccare l'altra, e rimette la prima se era già stata
-   applicata. Da lì in avanti il
+   scelto. Se una delle tre CVar non si trova, il lanciatore si ferma **prima** di toccarne una. Se una
+   scrittura non prende (`ReadOnly`, o una priorità superiore), si ferma e rimette quelle già applicate.
+   Da lì in avanti il
    percorso è quello esistente: il GameMode risolve lo scenario dalla console e lo Scenario Harness lo
    gioca nel TurnManager con il playback.
 4. **Ripristino.** ➕ rev. Su `FEditorDelegates::EndPIE` **oppure** `FEditorDelegates::CancelPIE` il
@@ -255,9 +257,9 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | Id ambiguo (lo stesso `AbilityLab.<AbilityId>` esiste anche in `Scenarios/`) | ➕ rev. `PrepareForPie` ritorna `false` con il motivo di `ResolvePath`. ➕ impl. Il file appena scritto viene **rimosso**: lasciarlo avvelenerebbe quell'Id per la console e il GameMode a ogni clic. Il pulsante non chiede PIE. |
 | PIE in corso **o già richiesto** per il tick successivo | ➕ impl. `GEditor->IsPlaySessionInProgress()` copre entrambi: il pulsante rifiuta senza toccare niente. |
 | PIE già in corso (`GEditor->PlayWorld != nullptr`) | Il pulsante rifiuta con «PIE in corso». Non chiede una seconda sessione. |
-| CVar non trovata (`FindConsoleVariable` → `nullptr`) | ➕ rev. Il lanciatore si ferma **prima** di toccare l'altra. `rt.Debug.PlaybackControls` è compilata `!UE_BUILD_SHIPPING`, quindi in Editor c'è sempre; la guardia resta perché il costo è una riga e l'alternativa è un crash. |
+| CVar non trovata (`FindConsoleVariable` → `nullptr`) | ➕ rev. Il lanciatore si ferma **prima** di toccare le altre. `rt.Debug.PlaybackControls` è compilata `!UE_BUILD_SHIPPING`, quindi in Editor c'è sempre; la guardia resta perché il costo è una riga e l'alternativa è un crash. |
 | CVar già impostata a mano in console | ➕ rev. ➕ fu. (#3541) il `Set` a `P = max(SetByPrima, Code)` la scavalca a priorità uguale, senza alzarla; un `Set` a priorità inferiore sarebbe ignorato con un solo warning. Vale anche per il ripristino, che riporta valore **e** `SetBy` di prima. |
-| CVar `ReadOnly` o valore che non prende | ➕ fu. (#3541) `Apply` rilegge e rifiuta con il motivo; la prima CVar già applicata viene rimessa; nessun PIE parte. |
+| CVar `ReadOnly` o valore che non prende | ➕ fu. (#3541) `Apply` rilegge e rifiuta con il motivo; le CVar già applicate vengono rimesse; nessun PIE parte. |
 | Scenario non risolto dal GameMode | Il log lo dice già con `[RT-Test]`. Il pannello non lo intercetta: il verdetto sul lancio resta di chi guarda, come per ogni scenario. |
 | Motore occupato da un'altra sessione | Il pannello non può saperlo. Vale `CLAUDE.md` §10, a carico di chi preme il pulsante. |
 | PIE non comincia (Blueprint con errori di compilazione, «No» al prompt) | ➕ rev. `CancelPIE` scatta: il ripristino avviene. ➕ impl. Live Coding **non** è una causa: il PIE parte coi binari vecchi. |

@@ -13,6 +13,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Lab/RTLabCVarSnapshot.h"
+#include "Ability/Lab/RTAbilityLab.h" // la velocita' del banco (#4071)
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeExit.h"
 
@@ -204,6 +205,43 @@ bool FRTLabCVarSnapshotRestoresValueAndPriorityTest::RunTest(const FString&)
 		TestTrue(TEXT("una CVar assente dichiara il motivo"), !Errore.IsEmpty());
 	}
 
+	return true;
+}
+
+/**
+ * La velocita' del banco si scrive e si rilegge sulla CVar vera — `#4071`, [D-607] (1).
+ *
+ * `Apply` verifica la scrittura RILEGGENDO la CVar come stringa, e `rt.Debug.PlaybackSpeed` e' un float, che il
+ * motore rilegge con `%g`. Se la stringa che il lanciatore scrive non fosse quella che il motore restituisce, `Apply`
+ * direbbe «non ha preso» e il banco non partirebbe. I casi sopra provano solo CVar di testo: qui si prova la
+ * variabile del lanciatore, col valore del lanciatore, e la si rimette com'era.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabCVarSnapshotTakesTheBenchSpeedTest,
+	"RefactorTactics.Lab.CVarSnapshotTakesTheBenchSpeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabCVarSnapshotTakesTheBenchSpeedTest::RunTest(const FString&)
+{
+	IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Debug.PlaybackSpeed"));
+	if (!TestNotNull(TEXT("rt.Debug.PlaybackSpeed esiste in questo binario"), Var)) { return false; }
+	const float Prima = Var->GetFloat();
+
+	FRTLabCVarSnapshot Foto;
+	FString Errore;
+	if (!TestTrue(TEXT("Capture riesce"), FRTLabCVarSnapshot::Capture(TEXT("rt.Debug.PlaybackSpeed"), Foto, Errore)))
+	{
+		AddError(Errore);
+		return false;
+	}
+	// Anche se un asserto sotto cade, la variabile non resta a x0,5 per i test che vengono dopo.
+	ON_SCOPE_EXIT { FString Ignorato; Foto.Restore(Ignorato); };
+
+	const float Banco = URTAbilityLabLibrary::BenchPlaybackSpeed();
+	const bool bPreso = Foto.Apply(FString::SanitizeFloat(Banco), Errore);
+	TestTrue(FString::Printf(TEXT("Apply della velocita' del banco riesce ('%s')"), *Errore), bPreso);
+	TestEqual(TEXT("e la CVar vale la velocita' del banco"), Var->GetFloat(), Banco);
+
+	TestTrue(FString::Printf(TEXT("Restore riesce ('%s')"), *Errore), Foto.Restore(Errore));
+	TestEqual(TEXT("e la CVar torna com'era"), Var->GetFloat(), Prima);
 	return true;
 }
 

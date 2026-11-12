@@ -459,6 +459,13 @@ FString URTAbilityLabLibrary::DescribeLabStep(const FString& ScenarioId)
 	return FString::Printf(TEXT("BANCO %d/%d  ·  «,» precedente  ·  «.» successiva"), Qui + 1, Ciclo.Num());
 }
 
+bool URTAbilityLabLibrary::IsLabScenarioId(const FString& ScenarioId)
+{
+	// La stessa lettura del passo del banco: una sola risposta a «e' una scena del Lab?».
+	FName Ignorata;
+	return RTAbilityLabInternal::ParseLabScenarioId(ScenarioId, Ignorata);
+}
+
 bool URTAbilityLabLibrary::WriteLabScenario(const FRTTestScenario& Scenario, FString& OutError)
 {
 	OutError.Reset();

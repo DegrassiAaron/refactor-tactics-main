@@ -653,6 +653,8 @@ extern TAutoConsoleVariable<float> CVarRTPlaybackSpeed;
 /**
  * `#2748` — `rt.Debug.PlaybackSpeed` imposta la velocita' INIZIALE solo dove il tasto e' vivo, e solo sui
  * valori della scala.
+ * ➕ **Salvo nel banco Ability Lab** ([D-607] (1), `#4071`): in una scena del banco vale x0,5, con o senza autobattle,
+ * e la velocita' del banco resta scritta sul TurnManager per la chiusura delle finestre.
  *
  * 🔑 **Tre uscite, e due sono rifiuti.** Un valore fuori scala (`x3`) non e' una velocita' che `#955` abbia
  * deciso; e in una partita giocata la velocita' torna comunque a `x1` alla prima finestra di reazione
@@ -670,6 +672,11 @@ bool FRTAutobattleInitialPlaybackSpeedTest::RunTest(const FString&)
 {
 	FRTScopedInertSessionState StateGuard;
 	RTTestConsoleVariable::TGuardia<float> Velocita{ *CVarRTPlaybackSpeed.AsVariable(), 0.f };
+	// #4071, [D-607] (1): la scena in corso decide se x0,5 e' la velocita' del banco. Si guarda come la legge il GameMode.
+	IConsoleVariable* Scenario = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Test.Scenario"));
+	if (!TestNotNull(TEXT("⛔ premessa: la CVar dello scenario esiste"), Scenario)) { return false; }
+	RTTestConsoleVariable::TGuardia<FString> ScenaInCorso{ *Scenario, FString() };
+	const TCHAR* const Banco = TEXT("AbilityLab.Hero.Branth.ImpactShot");
 
 	struct FCaso
 	{
@@ -677,13 +684,22 @@ bool FRTAutobattleInitialPlaybackSpeedTest::RunTest(const FString&)
 		bool bAutobattle;
 		float Chiesta;
 		float Attesa;
+		const TCHAR* Scena;
+		float AttesaDelBanco;
 	};
 	const FCaso Casi[] = {
-		{ TEXT("autobattle, non impostata"),  true,  0.f, 1.f },
-		{ TEXT("autobattle, x4"),             true,  4.f, 4.f },
-		{ TEXT("autobattle, x2"),             true,  2.f, 2.f },
-		{ TEXT("autobattle, x3 fuori scala"), true,  3.f, 1.f },
-		{ TEXT("partita giocata, x4"),        false, 4.f, 1.f },
+		{ TEXT("autobattle, non impostata"),  true,  0.f, 1.f, TEXT(""), 0.f },
+		{ TEXT("autobattle, x4"),             true,  4.f, 4.f, TEXT(""), 0.f },
+		{ TEXT("autobattle, x2"),             true,  2.f, 2.f, TEXT(""), 0.f },
+		{ TEXT("autobattle, x3 fuori scala"), true,  3.f, 1.f, TEXT(""), 0.f },
+		{ TEXT("partita giocata, x4"),        false, 4.f, 1.f, TEXT(""), 0.f },
+		// [D-607] (1): x0,5 vale nel banco, senza autobattle, e da nessun'altra parte.
+		{ TEXT("banco, x0,5"),                false, 0.5f, 0.5f, Banco, 0.5f },
+		{ TEXT("banco con l'autobattle, x0,5"), true, 0.5f, 0.5f, Banco, 0.5f },
+		{ TEXT("partita giocata, x0,5"),      false, 0.5f, 1.f, TEXT(""), 0.f },
+		{ TEXT("autobattle, x0,5 fuori dal banco"), true, 0.5f, 1.f, TEXT(""), 0.f },
+		{ TEXT("banco, x2: la regola di sempre"),   false, 2.f, 1.f, Banco, 0.f },
+		{ TEXT("un Id che comincia come il banco ma non lo e'"), false, 0.5f, 1.f, TEXT("AbilityLab."), 0.f },
 	};
 
 	for (const FCaso& Caso : Casi)
@@ -697,12 +713,38 @@ bool FRTAutobattleInitialPlaybackSpeedTest::RunTest(const FString&)
 		B.Setup(Caso.bAutobattle);
 		B.TurnManager->ViewerPlaybackSpeed = 1.f;
 		Velocita.Imposta(Caso.Chiesta);
+		ScenaInCorso.Imposta(FString(Caso.Scena));
 
 		B.GameMode->ApplyPlaybackControlCVars(B.TurnManager);
 
 		TestEqual(FString::Printf(TEXT("%s: la velocita' sul TurnManager"), Caso.Nome),
 			B.TurnManager->ViewerPlaybackSpeed, Caso.Attesa);
+		// #4071: la velocita' del banco e' cio' che la finestra ripristina, e fuori dal banco resta zero.
+		TestEqual(FString::Printf(TEXT("%s: la velocita' del banco"), Caso.Nome),
+			B.TurnManager->BenchPlaybackSpeed, Caso.AttesaDelBanco);
 
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+
+	// La velocita' del banco non resta appesa a un TurnManager: riapplicate fuori dal banco, le CVar la azzerano.
+	// E' la riga che la riporta a zero in `ApplyPlaybackControlCVars`; i casi sopra la saltano, perche' ogni caso
+	// nasce con un TurnManager nuovo, gia' a zero.
+	{
+		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
+		if (!TestTrue(TEXT("banco del riuso completo"), B.IsComplete()))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return false;
+		}
+		B.Setup(/*bAutobattle=*/ false);
+		Velocita.Imposta(0.5f);
+		ScenaInCorso.Imposta(FString(Banco));
+		B.GameMode->ApplyPlaybackControlCVars(B.TurnManager);
+		TestEqual(TEXT("riuso: premessa, nel banco la velocita' del banco e' x0,5"), B.TurnManager->BenchPlaybackSpeed, 0.5f);
+
+		ScenaInCorso.Imposta(FString());
+		B.GameMode->ApplyPlaybackControlCVars(B.TurnManager);
+		TestEqual(TEXT("riuso: fuori dal banco la velocita' del banco torna a zero"), B.TurnManager->BenchPlaybackSpeed, 0.f);
 		RTWorldFixtures::DestroyWorld(B.World);
 	}
 	return true;

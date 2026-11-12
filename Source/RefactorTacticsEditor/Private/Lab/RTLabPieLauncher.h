@@ -3,7 +3,7 @@
 // 🔑 **E' separato dal modello per la stessa ragione per cui il modello e' separato dal widget**: cio' che
 // qui succede non lo vede nessun automation test, quindi deve essere il meno possibile. Costruire la
 // fixture, salvarla e verificarla e' di `FRTLabViewModel::PrepareForPie`; qui si chiede PIE e si
-// ripristinano due CVar.
+// ripristinano tre CVar (la terza, la velocita' del banco, da `#4071`).
 //
 // ⛔ **Nessuna regola di gioco**: lo scenario lo risolve il GameMode dalla console, come per ogni Id.
 
@@ -15,7 +15,8 @@ class FRTLabPieLauncher
 {
 public:
 	/**
-	 * Imposta `rt.Test.Scenario` su `ScenarioId` e `rt.Debug.PlaybackControls` su `1` — entrambe con
+	 * Imposta `rt.Test.Scenario` su `ScenarioId`, `rt.Debug.PlaybackControls` su `1` e `rt.Debug.PlaybackSpeed` sulla
+	 * velocita' del banco, x0,5 (`#4071`, [D-607]) — tutte e tre con
 	 * `FRTLabCVarSnapshot::Apply`, cioe' `Set` a `max(SetByPrima, Code)`: vince su un valore gia' digitato in
 	 * console senza alzare la priorita' della variabile — e chiede PIE su `L_DevSandbox` tramite
 	 * `GlobalMapOverride`, senza toccare il livello aperto nell'Editor.
@@ -23,14 +24,14 @@ public:
 	 * Valore e priorita' precedenti vengono catturati e **ripristinati** al primo fra `EndPIE` e `CancelPIE`.
 	 *
 	 * ⛔ Rifiuta, senza lasciare niente cambiato, se: PIE e' gia' in corso o gia' richiesto (in coda per il
-	 * tick successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; una delle due scritture
+	 * tick successivo: `IsPlaySessionInProgress`); una delle tre CVar non si trova; una delle tre scritture
 	 * non prende (CVar `ReadOnly`, valore non parsabile); un lancio precedente e' ancora in attesa di
 	 * ripristino.
 	 *
 	 * `OnFinished`, se data, e' chiamata **una volta**, al primo fra `EndPIE` e `CancelPIE`, dopo aver
 	 * ripristinato le CVar e sganciato i delegate (#3542). Non e' chiamata se `Launch` rifiuta. Il chiamante
 	 * che la lega a un oggetto la lega **debole**: il PIE puo' finire dopo che il pannello e' stato chiuso.
-	 * Riceve `bRipristinato`: vero solo se ENTRAMBE le CVar sono tornate com'erano; un ripristino che non
+	 * Riceve `bRipristinato`: vero solo se TUTTE le CVar sono tornate com'erano; un ripristino che non
 	 * prende si dichiara anche nel log.
 	 */
 	static bool Launch(const FString& ScenarioId, FString& OutError, TFunction<void(bool bRipristinato)> OnFinished = nullptr);

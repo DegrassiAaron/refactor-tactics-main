@@ -2,22 +2,25 @@
 
 #include "Lab/RTLabCVarSnapshot.h"
 
+#include "Ability/Lab/RTAbilityLab.h" // #4071: la velocita' del banco, [D-607]
+
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
 #include "PlayInEditorDataTypes.h"
 
 namespace
 {
-	/** Cio' che serve per rimettere le cose com'erano: le due fotografie e i due handle. */
+	/** Cio' che serve per rimettere le cose com'erano: le tre fotografie e i due handle. */
 	struct FRTLabPieRestore
 	{
 		FRTLabCVarSnapshot Scenario;
 		FRTLabCVarSnapshot PlaybackControls;
+		FRTLabCVarSnapshot PlaybackSpeed; // #4071: la velocita' del banco, x0,5 ([D-607])
 		FDelegateHandle SuEndPIE;
 		FDelegateHandle SuCancelPIE;
 		/**
 		 * Chiamata da `Ripristina()` a CVar rimesse e delegate sganciati (#3542); puo' essere vuota.
-		 * Il parametro dice se ENTRAMBE le `Restore` hanno preso.
+		 * Il parametro dice se TUTTE le `Restore` hanno preso.
 		 */
 		TFunction<void(bool bRipristinato)> OnFinished;
 	};
@@ -40,18 +43,16 @@ namespace
 		FEditorDelegates::EndPIE.Remove(R->SuEndPIE);
 		FEditorDelegates::CancelPIE.Remove(R->SuCancelPIE);
 
-		// Entrambe le `Restore` si eseguono sempre: la seconda non deve restare indietro perche' la prima non ha preso.
+		// Tutte le `Restore` si eseguono sempre: una non deve restare indietro perche' un'altra non ha preso.
 		FString Errore;
 		bool bRipristinato = true;
-		if (!R->Scenario.Restore(Errore))
+		for (FRTLabCVarSnapshot* Fotografia : { &R->Scenario, &R->PlaybackControls, &R->PlaybackSpeed })
 		{
-			bRipristinato = false;
-			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
-		}
-		if (!R->PlaybackControls.Restore(Errore))
-		{
-			bRipristinato = false;
-			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
+			if (!Fotografia->Restore(Errore))
+			{
+				bRipristinato = false;
+				UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
+			}
 		}
 
 		// 🔑 **Per ultima**: chi ascolta «e' finito» deve trovare le CVar gia' com'erano e il lanciatore gia'
@@ -111,10 +112,11 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFu
 		return false;
 	}
 
-	// Entrambe le fotografie PRIMA di toccare una CVar: se la seconda manca, la prima non va cambiata.
+	// Tutte le fotografie PRIMA di toccare una CVar: se una manca, le altre non vanno cambiate.
 	TUniquePtr<FRTLabPieRestore> Nuovo = MakeUnique<FRTLabPieRestore>();
 	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Test.Scenario"), Nuovo->Scenario, OutError)) { return false; }
 	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Debug.PlaybackControls"), Nuovo->PlaybackControls, OutError)) { return false; }
+	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Debug.PlaybackSpeed"), Nuovo->PlaybackSpeed, OutError)) { return false; }
 
 	// 🔑 `Apply` scrive con `Set` a `max(SetByPrima, Code)` (#3541): vince su un valore digitato in console —
 	// un `Set` a priorita' inferiore verrebbe ignorato, e il banco giocherebbe lo scenario sbagliato credendo
@@ -130,6 +132,19 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFu
 		if (!Nuovo->Scenario.Restore(ErroreRipristino))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *ErroreRipristino);
+		}
+		return false;
+	}
+	// #4071, [D-607] (1): la scena del banco si guarda a x0,5. La accetta il GameMode solo in una scena del banco.
+	if (!Nuovo->PlaybackSpeed.Apply(FString::SanitizeFloat(URTAbilityLabLibrary::BenchPlaybackSpeed()), OutError))
+	{
+		FString ErroreRipristino;
+		for (FRTLabCVarSnapshot* Fotografia : { &Nuovo->Scenario, &Nuovo->PlaybackControls })
+		{
+			if (!Fotografia->Restore(ErroreRipristino))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *ErroreRipristino);
+			}
 		}
 		return false;
 	}

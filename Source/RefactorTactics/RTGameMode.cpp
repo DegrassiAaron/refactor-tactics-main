@@ -223,13 +223,18 @@ TAutoConsoleVariable<int32> CVarRTPlaybackStartPaused(
  * reazione puo' aprirsi il tasto e' inerte (`#2733`) e [D-350] riporta comunque la velocita' a `x1`, quindi
  * una preferenza impostata qui verrebbe scavalcata alla prima finestra senza che nessuno lo dica.
  *
+ * ➕ **Salvo nel banco Ability Lab** ([D-607] (1), `#4071`): in una scena del banco vale anche x0,5, fuori dalla
+ * scala e senza autobattle. La scrive il pannello del Lab, e li' una finestra di reazione si chiude tornando a
+ * x0,5 (`ARTTurnManager::BenchPlaybackSpeed`).
+ *
  * ⛔ **Sola presentazione**, come la manopola: `StateHash` e TurnLog non la vedono (`#955`).
  */
 TAutoConsoleVariable<float> CVarRTPlaybackSpeed(
 	TEXT("rt.Debug.PlaybackSpeed"),
 	0.f,
 	TEXT("Developer: velocita' INIZIALE del playback della risoluzione, sulla scala del tasto (1, 2, 4). "
-		 "0 = non impostata: si parte a x1. Vale in sessione non presidiata. Sola presentazione: StateHash e "
+		 "0 = non impostata: si parte a x1. Vale in sessione non presidiata; nel banco Ability Lab vale anche 0.5, "
+		 "senza autobattle (D-607). Sola presentazione: StateHash e "
 		 "TurnLog non cambiano."),
 	ECVF_Default);
 #endif // !UE_BUILD_SHIPPING
@@ -952,7 +957,20 @@ void ARTGameMode::ApplyPlaybackControlCVars(ARTTurnManager* TurnManager)
 	// anche senza Pause/Step — e con tre uscite dichiarate, perche' un valore ignorato in silenzio e' il
 	// modo in cui «ho impostato x4 e va a x1» costa mezz'ora.
 	const float InitialSpeed = CVarRTPlaybackSpeed.GetValueOnGameThread();
-	if (InitialSpeed > 0.f)
+	// [D-607] (1), `#4071`: la velocita' del BANCO Ability Lab, x0,5, vale solo in una scena del banco, e li' senza
+	// autobattle: il banco e' una seduta di osservazione. La scrive il pannello del Lab; fuori dal banco x0,5 resta
+	// fuori scala, col warning di sempre.
+	const bool bBancoAMezzaVelocita = FMath::IsNearlyEqual(InitialSpeed, URTAbilityLabLibrary::BenchPlaybackSpeed(), 1e-3f)
+		&& URTAbilityLabLibrary::IsLabScenarioId(ResolveScenarioToRun());
+	TurnManager->BenchPlaybackSpeed = 0.f;
+	if (bBancoAMezzaVelocita)
+	{
+		TurnManager->ViewerPlaybackSpeed = InitialSpeed;
+		TurnManager->BenchPlaybackSpeed = InitialSpeed;
+		UE_LOG(LogTemp, Display, TEXT("[RT] rt.Debug.PlaybackSpeed: il playback del banco parte a x%g ([D-607])."),
+			InitialSpeed);
+	}
+	else if (InitialSpeed > 0.f)
 	{
 		if (!ARTHUD::IsOnViewerPlaybackScale(InitialSpeed))
 		{

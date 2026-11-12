@@ -1561,6 +1561,14 @@ public:
 	float ReactionWindowPlaybackSpeed = 0.35f;
 
 	/**
+	 * La velocita' del BANCO Ability Lab ([D-607] (1), `#4071`), `0` fuori dal banco. La scrive
+	 * `ARTGameMode::ApplyPlaybackControlCVars` quando una scena del banco parte a x0,5, e `UpdateReactionSlowMotion` la
+	 * rimette alla chiusura di una finestra di reazione al posto di `1.f`: nel banco la scena si guarda tutta a x0,5.
+	 * ⛔ Presentazione, come `ViewerPlaybackSpeed`: non entra nel TurnLog e non tocca l'hash.
+	 */
+	float BenchPlaybackSpeed = 0.f;
+
+	/**
 	 * Quanto il budget sta comprimendo le attese di questo round: `1` = nessuna compressione, `0` = tolto
 	 * tutto il comprimibile e la durata sfora comunque.
 	 *
@@ -2403,7 +2411,8 @@ public:
 	 *
 	 * ⚠️ **Ripristina `1.f`, non il valore precedente**, ed e' `D-350` a renderlo corretto: dove una finestra
 	 * puo' aprirsi il tasto `V` e' inerte (`#2733`), quindi in live non esiste una preferenza da conservare.
-	 * Il giorno in cui esistesse, questa riga e' la prima da rileggere.
+	 * ➕ **Salvo nel banco Ability Lab** ([D-607] (1), `#4071`): li' ripristina `BenchPlaybackSpeed`, x0,5, perche' la
+	 * scena si guarda tutta rallentata. Non e' una preferenza conservata: e' la velocita' del banco, scritta alla partenza.
 	 */
 	void UpdateReactionSlowMotion();
 
