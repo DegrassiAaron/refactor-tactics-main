@@ -1037,6 +1037,36 @@ bool FRTAbilityLabChoosesTheTargetFromTheActionTest::RunTest(const FString&)
 			ERTAbilityLabTarget::None);
 	}
 
+	// Una REAZIONE che riduce il danno la provoca un nemico: la riduzione la riceve chi reagisce, non il bersaglio.
+	if (TestTrue(TEXT("premessa: Deflection e' nel kit"), FindKitAction(TEXT("Hero.Ivrin.Deflection"), Def, Shape))
+		&& TestTrue(TEXT("premessa: Deflection e' una reazione"), Def.Slot == ERTActionSlot::Reaction)
+		&& TestTrue(TEXT("premessa: e i suoi effetti, da soli, farebbero bene"), URTAbilityLabLibrary::BenefitsItsRecipient(Def)))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
+		TestTargetKind(*this, TEXT("Deflection: un nemico"), C.Kind, ERTAbilityLabTarget::Enemy);
+		TestFalse(TEXT("Deflection: il secondo eroe non e' un alleato"), C.bSecondHeroIsAlly);
+	}
+
+	// Il bersaglio sul bordo della mappa: la cella oltre esce, e si ripiega su quella PRIMA del bersaglio, non su quella
+	// accanto a chi lancia (che metterebbe chi lancia nell'area e il bersaglio fuori).
+	if (FindKitAction(TEXT("Hero.Aevik.Overload"), Def, Shape))
+	{
+		FRTAbilityLabFixtureSpec AlBordo;
+		AlBordo.TargetCell = FRTCellId(3, 0);
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, AlBordo);
+		TestTrue(FString::Printf(TEXT("Overload col bersaglio in (3,0): la cella prima, (2,0) (e' %s)"), *C.Cell.ToString()),
+			C.Cell == FRTCellId(2, 0));
+	}
+
+	// La portata minima conta come la conta il resolver: nessuna delle due celle accanto al bersaglio e' abbastanza
+	// lontana, e si resta sulla cella del bersaglio.
+	FRTActionDef Mortaio;
+	Mortaio.RangeCells = 5;
+	Mortaio.MinRangeCells = 4;
+	const FRTAbilityLabTargetChoice Lontano = URTAbilityLabLibrary::ChooseTarget(Mortaio, ERTAbilityShape::Area, Spec);
+	TestTrue(FString::Printf(TEXT("portata minima 4: nessuna cella accanto al bersaglio va bene, resta (2,0) (e' %s)"),
+		*Lontano.Cell.ToString()), Lontano.Cell == Spec.TargetCell);
+
 	// La regola dell'alleato, sui casi di confine: tutti gli effetti devono fare bene, e ce ne deve essere almeno uno.
 	FRTActionDef Misto;
 	Misto.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 10), FRTActionEffectSpec(ERTActionEffect::Damage, 10) };
@@ -1079,21 +1109,30 @@ bool FRTAbilityLabTheSpecForcesTheTargetTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	FString Errore;
 	if (TestTrue(TEXT("la scena forzata si costruisce"), URTAbilityLabLibrary::BuildFixture(Attacco, SuAlleato, Scenario, Errore))
-		&& TestEqual(TEXT("due unita'"), Scenario.Units.Num(), 2))
+		&& TestEqual(TEXT("tre unita': chi lancia, l'alleato e un terzo eroe contro"), Scenario.Units.Num(), 3))
 	{
 		TestEqual(TEXT("il secondo eroe e' nella squadra di chi lancia"), Scenario.Units[1].TeamId, Scenario.Units[0].TeamId);
 		TestEqual(TEXT("e l'intento lo mira"), Scenario.Turns[0].Intents[0].Target, FString(TEXT("TARGET")));
+		// Senza una seconda squadra la partita finirebbe al primo Cleanup, e in PIE si aprirebbe il risultato.
+		TestNotEqual(TEXT("il terzo eroe e' dell'altra squadra"), Scenario.Units[2].TeamId, Scenario.Units[0].TeamId);
+		TestTrue(TEXT("e non sta su nessuna delle due celle della scena"),
+			Scenario.Units[2].Cell != Scenario.Units[0].Cell && Scenario.Units[2].Cell != Scenario.Units[1].Cell);
 	}
 
+	// «Nessuno» forzato su un'azione che chiede un bersaglio: fail closed, come un id sconosciuto. L'harness la
+	// rifiuterebbe alla run, dopo aver posato una scena che non poteva girare.
 	FRTAbilityLabFixtureSpec Senza;
 	Senza.Target = ERTAbilityLabTarget::None;
 	FRTTestScenario Nessuno;
-	if (TestTrue(TEXT("la scena senza bersaglio si costruisce"), URTAbilityLabLibrary::BuildFixture(Attacco, Senza, Nessuno, Errore)))
-	{
-		const FRTScenarioIntent& I = Nessuno.Turns[0].Intents[0];
-		TestTrue(TEXT("e l'intento non mira niente"), I.Target.IsEmpty() && !I.bTargetsCell && !I.bHasCoverEdge);
-		TestEqual(TEXT("e il secondo eroe resta un nemico"), Nessuno.Units[1].TeamId, 1);
-	}
+	Errore.Reset();
+	TestFalse(TEXT("«nessuno» su un attacco non si costruisce"), URTAbilityLabLibrary::BuildFixture(Attacco, Senza, Nessuno, Errore));
+	TestTrue(FString::Printf(TEXT("e il rifiuto nomina l'azione (%s)"), *Errore), Errore.Contains(Attacco.ToString()));
+	TestEqual(TEXT("fail closed: nessuna unita' posata"), Nessuno.Units.Num(), 0);
+
+	// Su un'azione su se stessi «nessuno» e' la sua forma, e la scena si costruisce.
+	FRTTestScenario Guardia;
+	TestTrue(TEXT("«nessuno» su Guard si costruisce"),
+		URTAbilityLabLibrary::BuildFixture(TEXT("Action.Guard"), Senza, Guardia, Errore));
 	return true;
 }
 
@@ -1147,6 +1186,8 @@ bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("CircularTide: il secondo eroe e' un alleato"), Scenario.Units[1].TeamId, Scenario.Units[0].TeamId);
 		TestTrue(TEXT("CircularTide: e' ferito, o la cura non si vedrebbe"), Scenario.Units[1].Health > 0);
+		TestTrue(TEXT("CircularTide: c'e' una seconda squadra"),
+			Scenario.Units.Num() == 3 && Scenario.Units[2].TeamId != Scenario.Units[0].TeamId);
 		TestTrue(TEXT("CircularTide: la vita dell'alleato sale"),
 			FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo > Prima);
 	}

@@ -67,7 +67,7 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 - `PIE-HUD-FUMETTO` (c), il nemico fuori vista; (d), due attivazioni nello stesso istante; (f);
 - `PIE-HUD-REGISTRO-ATTIVA` (c).
 
-**Fuori dal banco**, perché il banco esegue solo ciò che un'unità impugna, cioè il kit dell'eroe e le cinque generiche (`URTCatalogLibrary::GetGenericActionIds`). Lo ha misurato [#4072](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4072):
+**Fuori dal banco**, perché il banco esegue solo ciò che un'unità impugna, cioè il kit dell'eroe e le generiche di `URTCatalogLibrary::GetGenericActionIds` (`Action.Wait`, `Action.Guard`, `Action.Brace`, `Action.Overwatch`, `Action.Interact`). Lo ha misurato [#4072](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4072):
 
 - `Gadget.PortableCover`, la scena 4 di prima («anche l'equipaggiamento grida»): un equipaggiamento non è una voce del banco. La scena 4 usa ora `Hero.Branth.KineticPanel`, che dichiara la stessa `StructureOp`, ma non prova che l'*equipaggiamento* gridi;
 - `Action.Heal`, la scena 5 di prima: nessun eroe la impugna col suo id, e nei kit non c'è un aiuto su un'altra unità singola. La scena 5 usa la cura ad area `Hero.Muiren.CircularTide`, con l'alleato ferito dentro l'area;

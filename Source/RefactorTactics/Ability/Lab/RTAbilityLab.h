@@ -118,8 +118,8 @@ struct FRTAbilityLabFixtureSpec
 	 * `Visual.Ability.ClipIvrin`, e da li' chi attraversa (`PassingBlade`) attraversa e chi carica (`Ram`) si
 	 * ferma sul primo nemico.
 	 *
-	 * ⚠️ **E' una posa, non un calcolo**: il Lab non porta aritmetica esagonale, e dove lo scatto si ferma lo
-	 * decide il resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
+	 * ⚠️ **E' una posa, non un calcolo**: il Lab non la ricava dal bersaglio, e dove lo scatto si ferma lo decide il
+	 * resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	FRTCellId DashCell = FRTCellId(3, 0);
@@ -238,8 +238,10 @@ public:
 	 * - **La forma** la decide la funzione che il gioco usa gia', `URTPointerLibrary::TargetKindForAction`: nessuno,
 	 *   unita', cella o bordo. Il banco non ne scrive una seconda.
 	 * - **Un'unita'** e' un alleato se l'azione fa bene a chi la riceve (`BenefitsItsRecipient`), altrimenti un nemico.
-	 * - **Una cella** e' vuota e a portata: oltre il bersaglio, sulla linea da chi lancia, cosi' un'area lo prende;
-	 *   altrimenti fra i due. Se nessuna delle due e' libera, la cella del bersaglio.
+	 *   Una REAZIONE mira sempre un nemico: la provoca lui (`#4073`), e i suoi effetti li riceve chi reagisce.
+	 * - **Una cella** e' vuota e a portata (`RangeCells` e `MinRangeCells`, come le legge il resolver), accanto al
+	 *   bersaglio sulla linea da chi lancia: prima oltre, cosi' un'area lo prende senza prendere chi lancia; poi prima.
+	 *   Se nessuna delle due va bene, la cella del bersaglio. Un'area i cui effetti fanno tutti bene prende un alleato.
 	 * - **Un bordo** e' il lato della cella del bersaglio rivolto a chi lancia. Se il bersaglio e' oltre la portata,
 	 *   la cella e' quella accanto a chi lancia, verso il bersaglio: `Action.Interact` ha portata 1. Per un'azione che
 	 *   cambia una porta la scena posa una porta chiusa su quel bordo.
