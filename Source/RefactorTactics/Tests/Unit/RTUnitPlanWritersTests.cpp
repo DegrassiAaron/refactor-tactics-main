@@ -4,7 +4,8 @@
 // lo scrivevano a mano il controller, l'harness degli scenari, la dichiarazione del verso, il TurnManager e il Blast;
 // fino a #4076, i test. Ora passano tutti dai mutatori di `ARTUnit` (`DeclarePlannedMainAction`, `ClearPlannedMainAction`,
 // `SetPlannedRoute`, ...), e i test, dove nessun mutatore produce lo stato che vogliono, da `FRTUnitPlanTestAccess`
-// (`Tests/Shared/RTUnitPlanTestAccess.h`), l'unico file dei test fuori dal perimetro, che il codice di gioco non usa.
+// (`Tests/Shared/RTUnitPlanTestAccess.h`), l'unico file dei test fuori dal perimetro. Fuori dai test nessun file lo usa,
+// e nessuno include un header dei test: ne' il modulo di gioco ne' quello dell'Editor, che sono entrambi nel perimetro.
 // Questo cancello lo tiene vero: quando lo struct `FRTUnitPlan` rendera' i campi privati ([D-608]), cambieranno
 // `ARTUnit` e quell'accesso, non i test.
 //
@@ -21,6 +22,8 @@
 //   - Una scrittura attraverso un metodo che rende un riferimento (`->PlannedPath.Last() = C`), e un pre-incremento
 //     su un'espressione che non e' un nome semplice (`++(*U)->PlannedAbilityIndex`).
 //   - Una riga dentro un commento `/* */` su piu' righe che non comincia con `*`.
+//   - Un metodo di `TArray` che non e' nell'elenco (l'elenco segue `Containers/Array.h` di UE 5.8), e le funzioni libere
+//     che ricevono l'array per riferimento (`Algo::Sort(Unit->PlannedPath)`): sono il primo caso di questo elenco.
 
 #include "Misc/AutomationTest.h"
 #include "HAL/FileManager.h"
@@ -48,15 +51,24 @@ namespace
 	/** Il file dei test che scrive il piano per mestiere: l'accesso riservato, fuori dal perimetro. */
 	const TCHAR* const PlanWritersAccessoDeiTest = TEXT("/Tests/Shared/RTUnitPlanTestAccess.h");
 
-	/** Le mutazioni di un `TArray` del piano che contano come scrittura. */
+	/**
+	 * Le mutazioni di un `TArray` del piano che contano come scrittura: i metodi pubblici di `Containers/Array.h` (UE 5.8)
+	 * che ne cambiano il contenuto o l'ordine. `Reserve` cambia solo la capacita', e non c'e'. Ogni voce ha la sua riga
+	 * piantata, scritta a mano e non ricavata da qui, in `Meta.PlanWritesGuardSeesPlantedWrites`.
+	 */
 	const TCHAR* const PlanWritersMutazioni[] = {
-		TEXT("Add"), TEXT("AddUnique"), TEXT("AddDefaulted"), TEXT("AddZeroed"), TEXT("Emplace"), TEXT("EmplaceAt"),
-		TEXT("Push"), TEXT("Pop"), TEXT("Insert"), TEXT("Append"), TEXT("Reset"), TEXT("Empty"), TEXT("Init"),
-		TEXT("SetNum"), TEXT("SetNumZeroed"), TEXT("Remove"), TEXT("RemoveAt"), TEXT("RemoveAtSwap"), TEXT("RemoveAll"),
-		TEXT("RemoveSingle"), TEXT("Sort"), TEXT("StableSort"), TEXT("Swap"), TEXT("Shrink"),
+		TEXT("Add"), TEXT("Add_GetRef"), TEXT("AddDefaulted"), TEXT("AddDefaulted_GetRef"), TEXT("AddUninitialized"),
+		TEXT("AddUnique"), TEXT("AddZeroed"), TEXT("AddZeroed_GetRef"), TEXT("Append"), TEXT("Emplace"), TEXT("Emplace_GetRef"),
+		TEXT("EmplaceAt"), TEXT("EmplaceAt_GetRef"), TEXT("Empty"), TEXT("Heapify"), TEXT("HeapPop"), TEXT("HeapPopDiscard"),
+		TEXT("HeapPush"), TEXT("HeapRemoveAt"), TEXT("HeapSort"), TEXT("Init"), TEXT("Insert"), TEXT("Insert_GetRef"),
+		TEXT("InsertDefaulted"), TEXT("InsertDefaulted_GetRef"), TEXT("InsertUninitialized"), TEXT("InsertZeroed"),
+		TEXT("InsertZeroed_GetRef"), TEXT("Pop"), TEXT("Push"), TEXT("Remove"), TEXT("RemoveAll"), TEXT("RemoveAllSwap"),
+		TEXT("RemoveAt"), TEXT("RemoveAtSwap"), TEXT("RemoveSingle"), TEXT("RemoveSingleSwap"), TEXT("RemoveSwap"), TEXT("Reset"),
+		TEXT("SetNum"), TEXT("SetNumUninitialized"), TEXT("SetNumZeroed"), TEXT("Shrink"), TEXT("Sort"), TEXT("StableSort"),
+		TEXT("Swap"), TEXT("SwapMemory"),
 	};
 
-	/** Gli operatori d'assegnazione composti: tutti scrivono il campo che hanno a sinistra. */
+	/** Gli operatori d'assegnazione composti: tutti scrivono il campo che hanno a sinistra. Righe piantate a mano, come sopra. */
 	const TCHAR* const PlanWritersComposti[] = {
 		TEXT("+="), TEXT("-="), TEXT("*="), TEXT("/="), TEXT("%="), TEXT("&="), TEXT("|="), TEXT("^="), TEXT("<<="), TEXT(">>="),
 	};
@@ -123,20 +135,32 @@ namespace
 	}
 
 	/**
-	 * Una riga di commento, con la convenzione del gemello del Blast (`RTEnvironmentActionTests`): `* ` con lo SPAZIO,
-	 * perche' una dereferenziazione a inizio riga (`*Unit->PlannedCell`) e' codice e non va saltata. Una riga che apre
-	 * o chiude un commento a blocco e' un commento solo se dopo la chiusura non c'e' codice: un commento a blocco
-	 * seguito da `U->PlannedCell = C;` scrive.
+	 * Il codice di una riga, per i rilevatori: vuoto se la riga e' un commento. Con la convenzione del gemello del Blast
+	 * (`RTEnvironmentActionTests`), `* ` con lo SPAZIO apre una riga DENTRO un commento a blocco: una dereferenziazione
+	 * a inizio riga (`*Unit->PlannedCell`) e' codice e non va saltata. Una riga dentro un commento a blocco, o che
+	 * comincia chiudendolo, ha codice solo dopo la chiusura: `* nota`, la chiusura e poi `U->PlannedCell = C;` scrive.
+	 * Il resto passa da `PlanWritersCode`, che toglie stringhe e commenti.
 	 */
-	bool PlanWritersIsComment(const FString& Riga)
+	FString PlanWritersLineCode(const FString& Riga)
 	{
 		const FString Pulita = Riga.TrimStart();
-		if (Pulita.StartsWith(TEXT("//")) || Pulita.StartsWith(TEXT("* ")) || Pulita.Equals(TEXT("*"))) { return true; }
-		if (Pulita.StartsWith(TEXT("/*")) || Pulita.StartsWith(TEXT("*/")))
+		if (Pulita.StartsWith(TEXT("//"))) { return FString(); }
+		if (Pulita.StartsWith(TEXT("* ")) || Pulita.Equals(TEXT("*")) || Pulita.StartsWith(TEXT("*/")))
 		{
-			const int32 Da = Pulita.StartsWith(TEXT("/*")) ? 2 : 0;
-			const int32 Chiusa = Pulita.Find(TEXT("*/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Da);
-			return Chiusa == INDEX_NONE || PlanWritersCode(Pulita.Mid(Chiusa + 2)).TrimStartAndEnd().IsEmpty();
+			const int32 Chiusa = Pulita.Find(TEXT("*/"), ESearchCase::CaseSensitive);
+			return Chiusa == INDEX_NONE ? FString() : PlanWritersCode(Pulita.Mid(Chiusa + 2));
+		}
+		return PlanWritersCode(Riga);
+	}
+
+	/** Una riga senza codice: un commento, o la parte di un commento a blocco. */
+	bool PlanWritersIsComment(const FString& Riga) { return PlanWritersLineCode(Riga).TrimStartAndEnd().IsEmpty(); }
+
+	bool PlanWritersIsMutation(const FString& Metodo)
+	{
+		for (const TCHAR* M : PlanWritersMutazioni)
+		{
+			if (Metodo.Equals(M, ESearchCase::CaseSensitive)) { return true; }
 		}
 		return false;
 	}
@@ -146,8 +170,23 @@ namespace
 	{
 		if (!Coda.StartsWith(TEXT("."))) { return false; }
 		int32 M = 1;
+		while (M < Coda.Len() && FChar::IsWhitespace(Coda[M])) { ++M; }
+		const int32 Inizio = M;
 		while (M < Coda.Len() && PlanWritersIsIdentChar(Coda[M])) { ++M; }
-		return M > 1 && PlanWritersTailWrites(Coda.Mid(M).TrimStart());
+		return M > Inizio && PlanWritersTailWrites(Coda.Mid(M).TrimStart());
+	}
+
+	/** Vero se `Coda` comincia con la chiamata di una mutazione dell'array, anche con spazi: `.Add(`, `. Add(`, `.Add (`. */
+	bool PlanWritersMutationCall(const FString& Coda)
+	{
+		if (!Coda.StartsWith(TEXT("."))) { return false; }
+		int32 M = 1;
+		while (M < Coda.Len() && FChar::IsWhitespace(Coda[M])) { ++M; }
+		const int32 Inizio = M;
+		while (M < Coda.Len() && PlanWritersIsIdentChar(Coda[M])) { ++M; }
+		const FString Metodo = Coda.Mid(Inizio, M - Inizio);
+		while (M < Coda.Len() && FChar::IsWhitespace(Coda[M])) { ++M; }
+		return M < Coda.Len() && Coda[M] == TEXT('(') && PlanWritersIsMutation(Metodo);
 	}
 
 	/** Vero se subito prima dell'oggetto che finisce a `Freccia` (un nome semplice) c'e' `++` o `--`. */
@@ -162,16 +201,12 @@ namespace
 
 	/**
 	 * Vero se nella riga c'e' `->CampoDelPiano` seguito da una SCRITTURA del campo (`PlanWritersTailWrites`), di un suo
-	 * elemento (`[i] =`), di un suo membro (`.X =`), o da una mutazione dell'array (`.Add(`, `.Pop(`, ...). Le righe di
-	 * commento si saltano, e nelle altre si guarda solo il codice (`PlanWritersCode`).
+	 * elemento (`[i] =`), di un suo membro (`.X =`), o da una mutazione dell'array (`.Add(`, `.Pop(`, ...). Si guarda solo
+	 * il codice della riga (`PlanWritersLineCode`).
 	 */
 	bool PlanWritersLineWrites(const FString& RigaIntera)
 	{
-		if (PlanWritersIsComment(RigaIntera))
-		{
-			return false;
-		}
-		const FString Riga = PlanWritersCode(RigaIntera);
+		const FString Riga = PlanWritersLineCode(RigaIntera);
 		int32 Da = 0;
 		while (true)
 		{
@@ -204,15 +239,8 @@ namespace
 				if (PlanWritersTailWrites(Resto) || PlanWritersMemberWrites(Resto)) { return true; }
 				continue;
 			}
-			if (Coda.StartsWith(TEXT(".")))
-			{
-				for (const TCHAR* Metodo : PlanWritersMutazioni)
-				{
-					if (Coda.StartsWith(FString::Printf(TEXT(".%s("), Metodo), ESearchCase::CaseSensitive)) { return true; }
-				}
-				// Un membro: `->PlannedCell.X = 3`.
-				if (PlanWritersMemberWrites(Coda)) { return true; }
-			}
+			// Una mutazione dell'array, o un membro: `->PlannedWaypoints.Add(C)`, `->PlannedCell.X = 3`.
+			if (PlanWritersMutationCall(Coda) || PlanWritersMemberWrites(Coda)) { return true; }
 		}
 	}
 
@@ -237,61 +265,113 @@ namespace
 		TArray<int32> Out;
 		for (int32 I = 0; I < Righe.Num(); ++I)
 		{
-			if (!PlanWritersIsComment(Righe[I])
-				&& PlanWritersCode(Righe[I]).Contains(TEXT("FRTUnitPlanTestAccess"), ESearchCase::CaseSensitive))
+			if (PlanWritersLineCode(Righe[I]).Contains(TEXT("FRTUnitPlanTestAccess"), ESearchCase::CaseSensitive))
 			{
 				Out.Add(I + 1);
 			}
 		}
 		return Out;
 	}
+
+	/**
+	 * Le righe (1-based) che includono un header dei test (`#include "Tests/..."` o `".../Tests/..."`). Fuori dai test
+	 * vietarlo chiude anche la via di una funzione dei test che chiami l'accesso riservato per conto del gioco.
+	 */
+	TArray<int32> PlanWritersFindTestsInclude(const FString& Testo)
+	{
+		TArray<FString> Righe;
+		Testo.ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
+		TArray<int32> Out;
+		for (int32 I = 0; I < Righe.Num(); ++I)
+		{
+			const FString Pulita = Righe[I].TrimStart();
+			if (!Pulita.StartsWith(TEXT("#include"), ESearchCase::CaseSensitive)) { continue; }
+			int32 Apre = INDEX_NONE;
+			int32 Chiude = INDEX_NONE;
+			if (!Pulita.FindChar(TEXT('"'), Apre)) { continue; }
+			Chiude = Pulita.Find(TEXT("\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, Apre + 1);
+			if (Chiude == INDEX_NONE) { continue; }
+			const FString Header = Pulita.Mid(Apre + 1, Chiude - Apre - 1);
+			if (Header.StartsWith(TEXT("Tests/"), ESearchCase::CaseSensitive) || Header.Contains(TEXT("/Tests/"), ESearchCase::CaseSensitive))
+			{
+				Out.Add(I + 1);
+			}
+		}
+		return Out;
+	}
+
+	/** Un file dei test: lo dice il percorso RELATIVO alla radice del modulo, non quello assoluto. */
+	bool PlanWritersIsTestFile(const FString& Relativo)
+	{
+		return Relativo.StartsWith(TEXT("Tests/"), ESearchCase::CaseSensitive) || Relativo.Contains(TEXT("/Tests/"), ESearchCase::CaseSensitive);
+	}
 }
 
 /**
- * **Il modulo di gioco scrive il piano solo attraverso `ARTUnit`.** Perimetro: `Source/RefactorTactics`, test compresi
- * (#4076), meno `Unit/RTUnit.h`/`.cpp`, dove stanno i mutatori, e meno l'accesso riservato ai test. Fuori da `Tests/`
- * nessun file usa quell'accesso: altrimenti il gioco scriverebbe il piano a mano passando da li', e il rilevatore delle
- * scritture non lo vedrebbe.
+ * **Il gioco scrive il piano solo attraverso `ARTUnit`.** Perimetro: `Source/RefactorTactics` e `Source/RefactorTacticsEditor`,
+ * test compresi (#4076), meno `Unit/RTUnit.h`/`.cpp`, dove stanno i mutatori, e meno l'accesso riservato ai test. Fuori dai
+ * test nessun file usa quell'accesso ne' include un header dei test: altrimenti il gioco scriverebbe il piano a mano
+ * passando da li', e il rilevatore delle scritture non lo vedrebbe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWritesGoThroughTheUnitTest,
 	"RefactorTactics.Meta.PlanFieldsAreWrittenOnlyThroughTheUnit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlanWritesGoThroughTheUnitTest::RunTest(const FString&)
 {
-	const FString Radice = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), TEXT("RefactorTactics"));
-	TArray<FString> Files;
-	for (const TCHAR* Ext : { TEXT("*.cpp"), TEXT("*.h") })
+	// (percorso, percorso relativo alla radice del suo modulo, modulo di gioco?)
+	struct FSorgente { FString Percorso; FString Relativo; bool bGioco; };
+	TArray<FSorgente> Files;
+	int32 LettiDellEditor = 0;
+	for (const TCHAR* Modulo : { TEXT("RefactorTactics"), TEXT("RefactorTacticsEditor") })
 	{
-		TArray<FString> Trovati;
-		IFileManager::Get().FindFilesRecursive(Trovati, *Radice, Ext, /*Files=*/ true, /*Dirs=*/ false, /*bClearFileNames=*/ false);
-		Files.Append(Trovati);
+		FString Radice = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), Modulo);
+		FPaths::NormalizeDirectoryName(Radice);
+		int32 DelModulo = 0;
+		for (const TCHAR* Ext : { TEXT("*.cpp"), TEXT("*.h") })
+		{
+			TArray<FString> Trovati;
+			IFileManager::Get().FindFilesRecursive(Trovati, *Radice, Ext, /*Files=*/ true, /*Dirs=*/ false, /*bClearFileNames=*/ false);
+			for (FString F : Trovati)
+			{
+				FPaths::NormalizeFilename(F);
+				if (!F.StartsWith(Radice + TEXT("/"), ESearchCase::CaseSensitive)) { continue; }
+				Files.Add({ F, F.Mid(Radice.Len() + 1), FCString::Strcmp(Modulo, TEXT("RefactorTactics")) == 0 });
+				++DelModulo;
+			}
+		}
+		// ⛔ Zero file trovati vuol dire un percorso sbagliato, non un modulo pulito.
+		if (!TestTrue(*FString::Printf(TEXT("lo sweep ha trovato i sorgenti di %s (%s)"), Modulo, *Radice), DelModulo > 0)) { return false; }
 	}
-	// ⛔ Zero file letti vuol dire un percorso sbagliato, non un modulo pulito.
-	if (!TestTrue(*FString::Printf(TEXT("lo sweep ha trovato i sorgenti (%s)"), *Radice), Files.Num() > 0)) { return false; }
 
 	int32 Letti = 0;
 	int32 LettiDeiTest = 0;
+	int32 LettiFuoriDaiTest = 0;
 	int32 LettureDelPiano = 0;
 	int32 TestCheUsanoLAccesso = 0;
+	int32 TestCheIncludonoITest = 0;
 	bool bVistoIlController = false;
 	bool bVistoIlTurnManager = false;
 	bool bVistoLAccesso = false;
-	for (FString F : Files)
+	for (const FSorgente& S : Files)
 	{
-		FPaths::NormalizeFilename(F);
-		if (F.EndsWith(PlanWritersAccessoDeiTest))
+		const FString& F = S.Percorso;
+		if (S.bGioco && S.Relativo.Equals(TEXT("Tests/Shared/RTUnitPlanTestAccess.h"), ESearchCase::CaseSensitive))
 		{
 			bVistoLAccesso = true;
 			continue;
 		}
-		if (F.EndsWith(TEXT("/Unit/RTUnit.h")) || F.EndsWith(TEXT("/Unit/RTUnit.cpp")))
+		if (S.bGioco && (S.Relativo.Equals(TEXT("Unit/RTUnit.h"), ESearchCase::CaseSensitive)
+			|| S.Relativo.Equals(TEXT("Unit/RTUnit.cpp"), ESearchCase::CaseSensitive)))
 		{
 			continue;
 		}
 		const FString Nome = FPaths::GetCleanFilename(F);
-		bVistoIlController |= Nome == TEXT("RTPlayerController.cpp");
-		bVistoIlTurnManager |= Nome == TEXT("RTTurnManager.cpp");
-		LettiDeiTest += F.Contains(TEXT("/Tests/")) ? 1 : 0;
+		const bool bTest = PlanWritersIsTestFile(S.Relativo);
+		bVistoIlController |= S.bGioco && S.Relativo.Equals(TEXT("Player/RTPlayerController.cpp"), ESearchCase::CaseSensitive);
+		bVistoIlTurnManager |= S.bGioco && S.Relativo.Equals(TEXT("Turn/RTTurnManager.cpp"), ESearchCase::CaseSensitive);
+		LettiDeiTest += bTest ? 1 : 0;
+		LettiFuoriDaiTest += bTest ? 0 : 1;
+		LettiDellEditor += S.bGioco ? 0 : 1;
 		FString Testo;
 		if (!TestTrue(*FString::Printf(TEXT("il sorgente si legge: %s"), *Nome), FFileHelper::LoadFileToString(Testo, *F)))
 		{
@@ -311,9 +391,11 @@ bool FRTPlanWritesGoThroughTheUnitTest::RunTest(const FString&)
 				*Nome, Riga, *Righe[Riga - 1].TrimStartAndEnd()));
 		}
 		const TArray<int32> UsiDellAccesso = PlanWritersFindTestAccess(Testo);
-		if (F.Contains(TEXT("/Tests/")))
+		const TArray<int32> IncludeDeiTest = PlanWritersFindTestsInclude(Testo);
+		if (bTest)
 		{
 			TestCheUsanoLAccesso += UsiDellAccesso.Num() > 0 ? 1 : 0;
+			TestCheIncludonoITest += IncludeDeiTest.Num() > 0 ? 1 : 0;
 			continue;
 		}
 		for (const int32 Riga : UsiDellAccesso)
@@ -323,18 +405,31 @@ bool FRTPlanWritesGoThroughTheUnitTest::RunTest(const FString&)
 				TEXT("gioco scrive il piano dai mutatori di `ARTUnit` (`Unit/RTUnit.h`). Vedi #4076."),
 				*Nome, Riga, *Righe[Riga - 1].TrimStartAndEnd()));
 		}
+		for (const int32 Riga : IncludeDeiTest)
+		{
+			AddError(FString::Printf(
+				TEXT("%s:%d include un header dei test fuori dai test: `%s`. Il codice di gioco e dell'Editor non dipende ")
+				TEXT("dai test: e' anche la via per cui una funzione dei test scriverebbe il piano per conto del gioco. Vedi #4076."),
+				*Nome, Riga, *Righe[Riga - 1].TrimStartAndEnd()));
+		}
 	}
 	// ⛔ Anti-vacuita': il perimetro contiene i file che il piano lo scrivevano, test compresi, e il piano vi si LEGGE
 	// ancora con `->` in piu' file: il rilevatore guarda testo vivo, non un insieme vuoto. L'accesso riservato esiste
-	// davvero: se sparisse, il cancello escluderebbe un file che non c'e' e nessuno se ne accorgerebbe.
+	// davvero: se sparisse, il cancello escluderebbe un file che non c'e' e nessuno se ne accorgerebbe. I due controlli
+	// riservati al codice non di test guardano una popolazione vera: se la classificazione mettesse tutto fra i test,
+	// tacerebbero senza un rosso.
 	TestTrue(TEXT("il controller e' dentro il perimetro"), bVistoIlController);
 	TestTrue(TEXT("il TurnManager e' dentro il perimetro"), bVistoIlTurnManager);
 	TestTrue(TEXT("l'accesso riservato ai test esiste"), bVistoLAccesso);
-	TestTrue(*FString::Printf(TEXT("lo sweep ha letto file di gioco (%d)"), Letti), Letti > 50);
+	TestTrue(*FString::Printf(TEXT("lo sweep ha letto file (%d)"), Letti), Letti > 50);
 	TestTrue(*FString::Printf(TEXT("e file di test (%d)"), LettiDeiTest), LettiDeiTest > 50);
+	TestTrue(*FString::Printf(TEXT("e file fuori dai test (%d)"), LettiFuoriDaiTest), LettiFuoriDaiTest > 50);
+	TestTrue(*FString::Printf(TEXT("e file del modulo Editor (%d)"), LettiDellEditor), LettiDellEditor > 50);
 	TestTrue(*FString::Printf(TEXT("e il piano vi si legge ancora con `->` (%d file)"), LettureDelPiano), LettureDelPiano > 1);
-	// E l'accesso riservato i test lo usano davvero: il controllo che lo vieta al gioco guarda testo vivo.
+	// E l'accesso riservato e gli header dei test i test li usano davvero: i controlli che li vietano al resto guardano
+	// testo vivo.
 	TestTrue(*FString::Printf(TEXT("e l'accesso riservato vi si usa (%d file di test)"), TestCheUsanoLAccesso), TestCheUsanoLAccesso > 1);
+	TestTrue(*FString::Printf(TEXT("e gli header dei test vi si includono (%d file di test)"), TestCheIncludonoITest), TestCheIncludonoITest > 1);
 	return true;
 }
 
@@ -389,6 +484,13 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 		{ TEXT("\tconst int32 Q = Unit->PlannedPath[0].X + Conta++;"), false },
 		{ TEXT("\tif (Unit->PlannedPath[Ordine[0]] == Cell) {}"), false },
 		{ TEXT("\tconst int32 R = Conta++ + Unit->PlannedAbilityIndex;"), false },
+		// La seconda review: spazi intorno al nome del metodo, e il codice dopo la chiusura su una riga che comincia con `* `.
+		{ TEXT("\tUnit->PlannedWaypoints.Add (Cell);"), true },
+		{ TEXT("\tUnit->PlannedWaypoints. Add(Cell);"), true },
+		{ TEXT("\t * nota */ Unit->PlannedCell = Cell;"), true },
+		{ TEXT("\t * nota */"), false },
+		{ TEXT("\tconst int32 N2 = Unit->PlannedWaypoints.Num ();"), false },
+		{ TEXT("\tUnit->PlannedWaypoints.Reserve(8); // la capacita', non il contenuto"), false },
 	};
 	FString Testo;
 	TArray<int32> Attese;
@@ -405,24 +507,60 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("riga %d: `%s`"), I + 1, Righe[I].Testo), Trovate.Contains(I + 1), Righe[I].bScrive);
 	}
 
-	// Ogni voce degli elenchi del rilevatore, piantata una per una: un refuso in una voce lo lascerebbe cieco su quella
-	// forma, con tutto verde.
-	for (const TCHAR* Metodo : PlanWritersMutazioni)
+	// Ogni voce degli elenchi del rilevatore ha la sua riga piantata, SCRITTA A MANO: ricavarla dalla voce non
+	// proverebbe niente, perche' un refuso nella voce starebbe anche nella riga. Con la riga scritta a parte, un refuso
+	// nell'elenco lascia la riga non vista, e una voce nuova senza riga fa sbagliare il conteggio.
+	const TCHAR* const MutazioniPiantate[] = {
+		TEXT("\tUnit->PlannedWaypoints.Add(C);"), TEXT("\tUnit->PlannedWaypoints.Add_GetRef(C);"),
+		TEXT("\tUnit->PlannedWaypoints.AddDefaulted();"), TEXT("\tUnit->PlannedWaypoints.AddDefaulted_GetRef();"),
+		TEXT("\tUnit->PlannedWaypoints.AddUninitialized(1);"), TEXT("\tUnit->PlannedWaypoints.AddUnique(C);"),
+		TEXT("\tUnit->PlannedWaypoints.AddZeroed(1);"), TEXT("\tUnit->PlannedWaypoints.AddZeroed_GetRef();"),
+		TEXT("\tUnit->PlannedWaypoints.Append(Altri);"), TEXT("\tUnit->PlannedWaypoints.Emplace(C);"),
+		TEXT("\tUnit->PlannedWaypoints.Emplace_GetRef(C);"), TEXT("\tUnit->PlannedWaypoints.EmplaceAt(0, C);"),
+		TEXT("\tUnit->PlannedWaypoints.EmplaceAt_GetRef(0, C);"), TEXT("\tUnit->PlannedWaypoints.Empty();"),
+		TEXT("\tUnit->PlannedWaypoints.Heapify();"), TEXT("\tUnit->PlannedWaypoints.HeapPop(C);"),
+		TEXT("\tUnit->PlannedWaypoints.HeapPopDiscard();"), TEXT("\tUnit->PlannedWaypoints.HeapPush(C);"),
+		TEXT("\tUnit->PlannedWaypoints.HeapRemoveAt(0);"), TEXT("\tUnit->PlannedWaypoints.HeapSort();"),
+		TEXT("\tUnit->PlannedWaypoints.Init(C, 2);"), TEXT("\tUnit->PlannedWaypoints.Insert(C, 0);"),
+		TEXT("\tUnit->PlannedWaypoints.Insert_GetRef(C, 0);"), TEXT("\tUnit->PlannedWaypoints.InsertDefaulted(0);"),
+		TEXT("\tUnit->PlannedWaypoints.InsertDefaulted_GetRef(0);"), TEXT("\tUnit->PlannedWaypoints.InsertUninitialized(0);"),
+		TEXT("\tUnit->PlannedWaypoints.InsertZeroed(0);"), TEXT("\tUnit->PlannedWaypoints.InsertZeroed_GetRef(0);"),
+		TEXT("\tUnit->PlannedWaypoints.Pop();"), TEXT("\tUnit->PlannedWaypoints.Push(C);"),
+		TEXT("\tUnit->PlannedWaypoints.Remove(C);"), TEXT("\tUnit->PlannedWaypoints.RemoveAll(Pred);"),
+		TEXT("\tUnit->PlannedWaypoints.RemoveAllSwap(Pred);"), TEXT("\tUnit->PlannedWaypoints.RemoveAt(0);"),
+		TEXT("\tUnit->PlannedWaypoints.RemoveAtSwap(0);"), TEXT("\tUnit->PlannedWaypoints.RemoveSingle(C);"),
+		TEXT("\tUnit->PlannedWaypoints.RemoveSingleSwap(C);"), TEXT("\tUnit->PlannedWaypoints.RemoveSwap(C);"),
+		TEXT("\tUnit->PlannedWaypoints.Reset();"), TEXT("\tUnit->PlannedWaypoints.SetNum(2);"),
+		TEXT("\tUnit->PlannedWaypoints.SetNumUninitialized(2);"), TEXT("\tUnit->PlannedWaypoints.SetNumZeroed(2);"),
+		TEXT("\tUnit->PlannedWaypoints.Shrink();"), TEXT("\tUnit->PlannedWaypoints.Sort();"),
+		TEXT("\tUnit->PlannedWaypoints.StableSort();"), TEXT("\tUnit->PlannedWaypoints.Swap(0, 1);"),
+		TEXT("\tUnit->PlannedWaypoints.SwapMemory(0, 1);"),
+	};
+	const TCHAR* const CompostiPiantati[] = {
+		TEXT("\tUnit->PlannedAbilityIndex += 1;"), TEXT("\tUnit->PlannedAbilityIndex -= 1;"), TEXT("\tUnit->PlannedAbilityIndex *= 2;"),
+		TEXT("\tUnit->PlannedAbilityIndex /= 2;"), TEXT("\tUnit->PlannedAbilityIndex %= 2;"), TEXT("\tUnit->PlannedAbilityIndex &= 1;"),
+		TEXT("\tUnit->PlannedAbilityIndex |= 1;"), TEXT("\tUnit->PlannedAbilityIndex ^= 1;"), TEXT("\tUnit->PlannedAbilityIndex <<= 1;"),
+		TEXT("\tUnit->PlannedAbilityIndex >>= 1;"),
+	};
+	const TCHAR* const IncrementiPiantati[] = {
+		TEXT("\tUnit->PlannedAbilityIndex++;"), TEXT("\tUnit->PlannedAbilityIndex--;"),
+		TEXT("\t++Unit->PlannedAbilityIndex;"), TEXT("\t--Unit->PlannedAbilityIndex;"),
+	};
+	TestEqual(TEXT("ogni mutazione dell'elenco ha la sua riga piantata"),
+		static_cast<int32>(UE_ARRAY_COUNT(MutazioniPiantate)), static_cast<int32>(UE_ARRAY_COUNT(PlanWritersMutazioni)));
+	TestEqual(TEXT("ogni operatore composto dell'elenco ha la sua riga piantata"),
+		static_cast<int32>(UE_ARRAY_COUNT(CompostiPiantati)), static_cast<int32>(UE_ARRAY_COUNT(PlanWritersComposti)));
+	for (const TCHAR* Riga : MutazioniPiantate)
 	{
-		const FString Riga = FString::Printf(TEXT("\tUnit->PlannedWaypoints.%s(Cell);"), Metodo);
-		TestTrue(*FString::Printf(TEXT("mutazione vista: `%s`"), *Riga.TrimStart()), PlanWritersLineWrites(Riga));
+		TestTrue(*FString::Printf(TEXT("mutazione vista: `%s`"), *FString(Riga).TrimStart()), PlanWritersLineWrites(Riga));
 	}
-	for (const TCHAR* Op : PlanWritersComposti)
+	for (const TCHAR* Riga : CompostiPiantati)
 	{
-		const FString Riga = FString::Printf(TEXT("\tUnit->PlannedAbilityIndex %s 1;"), Op);
-		TestTrue(*FString::Printf(TEXT("operatore visto: `%s`"), *Riga.TrimStart()), PlanWritersLineWrites(Riga));
+		TestTrue(*FString::Printf(TEXT("operatore visto: `%s`"), *FString(Riga).TrimStart()), PlanWritersLineWrites(Riga));
 	}
-	for (const TCHAR* Op : { TEXT("++"), TEXT("--") })
+	for (const TCHAR* Riga : IncrementiPiantati)
 	{
-		const FString Dopo = FString::Printf(TEXT("\tUnit->PlannedAbilityIndex%s;"), Op);
-		const FString Prima = FString::Printf(TEXT("\t%sUnit->PlannedAbilityIndex;"), Op);
-		TestTrue(*FString::Printf(TEXT("incremento visto: `%s`"), *Dopo.TrimStart()), PlanWritersLineWrites(Dopo));
-		TestTrue(*FString::Printf(TEXT("incremento visto: `%s`"), *Prima.TrimStart()), PlanWritersLineWrites(Prima));
+		TestTrue(*FString::Printf(TEXT("incremento visto: `%s`"), *FString(Riga).TrimStart()), PlanWritersLineWrites(Riga));
 	}
 
 	// L'uso dell'accesso riservato: nel codice si', citato in un commento o in una stringa no.
@@ -432,6 +570,22 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 		TEXT("\tTestTrue(TEXT(\"FRTUnitPlanTestAccess\"), bOk);\n")));
 	TestTrue(*FString::Printf(TEXT("l'uso dell'accesso si vede solo nel codice (righe viste: %d)"), Usi.Num()),
 		Usi.Num() == 1 && Usi[0] == 1);
+
+	// Gli header dei test inclusi: le righe 1 e 4 si', le altre no.
+	const TArray<int32> Include = PlanWritersFindTestsInclude(FString(
+		TEXT("#include \"Tests/Shared/RTUnitPlanTestAccess.h\"\n")
+		TEXT("#include \"Unit/RTUnit.h\"\n")
+		TEXT("// #include \"Tests/Shared/RTScenarioTestSupport.h\"\n")
+		TEXT("\t#include \"Lab/Tests/RTLabFixture.h\"\n")
+		TEXT("#include \"Turn/RTTurnTestsHelpers.h\"\n")));
+	TestTrue(*FString::Printf(TEXT("gli include dei test si vedono, gli altri no (righe viste: %d)"), Include.Num()),
+		Include.Num() == 2 && Include[0] == 1 && Include[1] == 4);
+
+	// La classificazione dei file: sul percorso relativo al modulo.
+	TestTrue(TEXT("`Tests/...` e' un file dei test"), PlanWritersIsTestFile(TEXT("Tests/Unit/RTUnitPlanWritersTests.cpp")));
+	TestTrue(TEXT("`Private/Tests/...` e' un file dei test"), PlanWritersIsTestFile(TEXT("Private/Tests/Lab/RTLabViewModelTests.cpp")));
+	TestFalse(TEXT("`Player/...` non e' un file dei test"), PlanWritersIsTestFile(TEXT("Player/RTPlayerController.cpp")));
+	TestFalse(TEXT("`TestsHelpers/...` non e' una cartella dei test"), PlanWritersIsTestFile(TEXT("TestsHelpers/Foo.cpp")));
 	return true;
 }
 
@@ -439,19 +593,30 @@ namespace
 {
 	/**
 	 * Il nome dichiarato da una riga di `RTUnit.h`, se la riga dichiara un campo: `Tipo Nome;`, `Tipo Nome = valore;`,
-	 * `Tipo Nome{};`, `uint8 bNome : 1;`, anche dopo un `UPROPERTY(...)` sulla stessa riga. La testa e' cio' che precede
-	 * l'inizializzatore o la larghezza del bitfield: le parentesi dell'inizializzatore non dicono niente, quelle della
-	 * testa dicono «funzione». Un'assegnazione dentro un mutatore (`PlannedCell = At;`) non ha un tipo davanti, e non conta.
+	 * `Tipo Nome{};`, `uint8 bNome : 1;`, `int32 Nome[3];`, anche dopo `public:` o una macro sulla stessa riga
+	 * (`UPROPERTY(...)`, `UE_DEPRECATED(...)`). La testa e' cio' che precede l'inizializzatore, la larghezza del bitfield o
+	 * la dimensione: le parentesi dell'inizializzatore non dicono niente, quelle della testa fuori dai `<...>` dicono
+	 * «funzione» (`TFunction<void()> Nome;` e' un campo). Un'assegnazione dentro un mutatore (`PlannedCell = At;`) non ha
+	 * un tipo davanti, e non conta.
 	 */
 	FString PlanWritersDeclaredField(const FString& RigaIntera)
 	{
-		if (PlanWritersIsComment(RigaIntera)) { return FString(); }
-		FString Riga = PlanWritersCode(RigaIntera).TrimStartAndEnd();
-		if (Riga.StartsWith(TEXT("UPROPERTY(")))
+		FString Riga = PlanWritersLineCode(RigaIntera).TrimStartAndEnd();
+		for (const TCHAR* Accesso : { TEXT("public:"), TEXT("protected:"), TEXT("private:") })
 		{
+			if (Riga.StartsWith(Accesso, ESearchCase::CaseSensitive)) { Riga = Riga.Mid(FCString::Strlen(Accesso)).TrimStart(); }
+		}
+		// Le macro in maiuscolo con i loro argomenti, anche con lo spazio prima della parentesi.
+		while (true)
+		{
+			int32 M = 0;
+			while (M < Riga.Len() && (FChar::IsUpper(Riga[M]) || (M > 0 && (FChar::IsDigit(Riga[M]) || Riga[M] == TEXT('_'))))) { ++M; }
+			int32 P = M;
+			while (P < Riga.Len() && FChar::IsWhitespace(Riga[P])) { ++P; }
+			if (M < 2 || P >= Riga.Len() || Riga[P] != TEXT('(')) { break; }
 			int32 Prof = 0;
 			int32 Fine = INDEX_NONE;
-			for (int32 I = 0; I < Riga.Len(); ++I)
+			for (int32 I = P; I < Riga.Len(); ++I)
 			{
 				if (Riga[I] == TEXT('(')) { ++Prof; }
 				else if (Riga[I] == TEXT(')') && --Prof == 0) { Fine = I; break; }
@@ -466,13 +631,19 @@ namespace
 			const TCHAR C = Testa[I];
 			const bool bDuePunti = C == TEXT(':') && !(I + 1 < Testa.Len() && Testa[I + 1] == TEXT(':'))
 				&& !(I > 0 && Testa[I - 1] == TEXT(':'));
-			if (C == TEXT('=') || C == TEXT('{') || bDuePunti)
+			if (C == TEXT('=') || C == TEXT('{') || C == TEXT('[') || bDuePunti)
 			{
 				Testa = Testa.Left(I);
 				break;
 			}
 		}
-		if (Testa.Contains(TEXT("(")) || Testa.Contains(TEXT("}"))) { return FString(); }
+		int32 Angoli = 0;
+		for (const TCHAR C : Testa)
+		{
+			if (C == TEXT('<')) { ++Angoli; }
+			else if (C == TEXT('>')) { --Angoli; }
+			else if ((C == TEXT('(') || C == TEXT('}')) && Angoli <= 0) { return FString(); }
+		}
 		TArray<FString> Parole;
 		Testa.TrimStartAndEnd().ParseIntoArrayWS(Parole);
 		if (Parole.Num() < 2 || Parole[0] == TEXT("return") || Parole[0] == TEXT("delete") || Parole[0] == TEXT("case"))
@@ -515,6 +686,15 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 		{ TEXT("\treturn PlannedFoo;"), TEXT("") },
 		{ TEXT("\tcase ERTPlannedFoo::A: return 1;"), TEXT("") },
 		{ TEXT("\t// FRTCellId PlannedFoo;"), TEXT("") },
+		// La seconda review: forme che il parser perdeva, e due che non sono campi.
+		{ TEXT("public: int32 PlannedFoo;"), TEXT("PlannedFoo") },
+		{ TEXT("\tUE_DEPRECATED(5.8, \"usa altro\") int32 PlannedFoo;"), TEXT("PlannedFoo") },
+		{ TEXT("\tUPROPERTY (VisibleAnywhere) int32 PlannedFoo;"), TEXT("PlannedFoo") },
+		{ TEXT("\tTFunction<void()> PlannedFoo;"), TEXT("PlannedFoo") },
+		{ TEXT("\tint32 PlannedFoo[3];"), TEXT("PlannedFoo") },
+		{ TEXT("\tTFunction<void()> GetPlannedFoo() const;"), TEXT("") },
+		{ TEXT("\tUFUNCTION(BlueprintCallable) void SetPlannedFoo(int32 X);"), TEXT("") },
+		{ TEXT("\t * FRTCellId PlannedFoo;"), TEXT("") },
 	};
 	for (const FDichiarazione& P : Piantate)
 	{
