@@ -152,7 +152,8 @@ struct FRTAbilityLabFixtureSpec
 
 	/**
 	 * L'eroe che subisce. Deve essere diverso dal caster, altrimenti la posa mette due unita' della
-	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda.
+	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda. Per una REAZIONE e' solo
+	 * una preferenza per chi la provoca (`#4073`): se il suo attacco base non la provoca, il banco ne sceglie un altro.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	FName TargetHeroId = FName(TEXT("Hero.Ivrin"));
@@ -243,8 +244,9 @@ public:
 	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
 	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
 	 * ERROR. Uno SCATTO (fase Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita'
-	 * (`#3773`). Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno, un nemico, un alleato,
-	 * una cella o un bordo, con la porta per un'azione che ne cambia una.
+	 * (`#3773`). Una REAZIONE dello slot si arma (`Intent.Reaction`) e la provoca il `TARGET` (`ProvocationFor`,
+	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
+	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'

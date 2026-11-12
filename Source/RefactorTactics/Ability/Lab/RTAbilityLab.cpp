@@ -188,14 +188,16 @@ namespace RTAbilityLabInternal
 	}
 
 	/**
-	 * Vero se l'attacco base effettivo di `HeroId` provoca `Provocation` da `Distance` celle, e allora `OutAttackId` e'
-	 * il suo id. Un colpo diretto vuole la forma `Single` (`FindTriggeringAttacker`), una spinta un effetto `Push`.
+	 * Vero se l'attacco base effettivo di `HeroId` provoca `Provocation` da `From` su `To`, e allora `OutAttackId` e' il
+	 * suo id. La portata e' quella di `WithinRange`, come la legge il resolver (`MinRangeCells` compreso). Un colpo diretto
+	 * vuole la forma `Single` (`FindTriggeringAttacker`), una spinta un effetto `Push`.
 	 */
-	static bool CanProvoke(const FName& HeroId, ERTAbilityLabProvocation Provocation, int32 Distance, FName& OutAttackId)
+	static bool CanProvoke(const FName& HeroId, ERTAbilityLabProvocation Provocation, const FRTCellId& From, const FRTCellId& To,
+		FName& OutAttackId)
 	{
 		FRTActionDef Attacco;
 		ERTAbilityShape Forma = ERTAbilityShape::Single;
-		if (!EffectiveBasicAttack(HeroId, Attacco, Forma) || Attacco.RangeCells < Distance) { return false; }
+		if (!EffectiveBasicAttack(HeroId, Attacco, Forma) || !WithinRange(Attacco, From, To)) { return false; }
 		bool bSpinge = false;
 		for (const FRTActionEffectSpec& Effect : Attacco.Effects) { bSpinge |= Effect.Effect == ERTActionEffect::Push; }
 
@@ -217,16 +219,16 @@ namespace RTAbilityLabInternal
 	}
 
 	/** Chi provoca: `Preferred` se sa farlo, altrimenti il primo del roster che sa, fuori da `Excluded`. */
-	static FName ProvokerFor(ERTAbilityLabProvocation Provocation, int32 Distance, const FName& Preferred,
+	static FName ProvokerFor(ERTAbilityLabProvocation Provocation, const FRTCellId& From, const FRTCellId& To, const FName& Preferred,
 		const TArray<FName>& Excluded, FName& OutAttackId)
 	{
-		if (!Preferred.IsNone() && !Excluded.Contains(Preferred) && CanProvoke(Preferred, Provocation, Distance, OutAttackId))
+		if (!Preferred.IsNone() && !Excluded.Contains(Preferred) && CanProvoke(Preferred, Provocation, From, To, OutAttackId))
 		{
 			return Preferred;
 		}
 		for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
 		{
-			if (!Excluded.Contains(HeroId) && CanProvoke(HeroId, Provocation, Distance, OutAttackId)) { return HeroId; }
+			if (!Excluded.Contains(HeroId) && CanProvoke(HeroId, Provocation, From, To, OutAttackId)) { return HeroId; }
 		}
 		return NAME_None;
 	}
@@ -544,6 +546,14 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	// oggi non ci si arriva, e se ci si arrivasse il banco non saprebbe provocarli — lo `Slow` e' solo nel kit di Branth,
 	// il fuoco non lo accende nessuno ([D-046]). Fail closed invece di posare una reazione che non puo' scattare.
 	const ERTAbilityLabProvocation Provocazione = ProvocationFor(Def);
+	// ⛔ Il bersaglio di una reazione non si forza: la scena la fa provocare dal `TARGET`, nemico, e un `TARGET` alleato
+	// provocherebbe la propria squadra. Fail closed invece di posare una scena che non scatta (`#4073`, review).
+	if (Provocazione != ERTAbilityLabProvocation::None && Spec.Target != ERTAbilityLabTarget::Auto)
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' e' una reazione: la provoca il TARGET, e il suo bersaglio non si forza."), *AbilityId.ToString());
+		return false;
+	}
 	if (Provocazione == ERTAbilityLabProvocation::Control || Provocazione == ERTAbilityLabProvocation::Hazard)
 	{
 		OutError = FString::Printf(
@@ -591,7 +601,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	if (bProvocaConUnColpo)
 	{
 		const FRTCellId Colpito = Provocazione == ERTAbilityLabProvocation::AllyHit ? AllyCell : Spec.CasterCell;
-		TargetHeroId = RTAbilityLabInternal::ProvokerFor(Provocazione, URTHexLibrary::HexDistance(Spec.TargetCell, Colpito),
+		TargetHeroId = RTAbilityLabInternal::ProvokerFor(Provocazione, Spec.TargetCell, Colpito,
 			TargetHeroId, { CasterHeroId }, AttaccoProvocatore);
 		if (TargetHeroId.IsNone())
 		{

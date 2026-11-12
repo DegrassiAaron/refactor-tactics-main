@@ -28,6 +28,8 @@
 #include "Turn/Log/RTTurnLog.h"
 #include "Turn/Log/RTTurnLogLibrary.h"
 #include "Turn/Reaction/RTReactionLibrary.h" // l'esito `Activated` di una reazione (#4073)
+#include "Unit/RTUnit.h"                      // tipo completo: l'header del controller assegna `TWeakObjectPtr<ARTUnit>`
+#include "Player/RTPlayerController.h"        // la finestra di reazione si apre al controller (#4073)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1393,6 +1395,29 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("%s: il TARGET colpisce chi reagisce"), Id),
 			Provoca && !Provoca->Ability.IsNone() && Provoca->Target == TEXT("CASTER"));
 		TestTrue(FString::Printf(TEXT("%s: scatta (Reaction/Activated)"), Id), HasEntry(Voci, ERTLogCategory::Reaction, FName(Id), Attivata));
+		TestFalse(FString::Printf(TEXT("%s: una reazione dello slot non apre finestre del giocatore"), Id), Scenario.bPlayerReactionWindows);
+	}
+
+	// Il bersaglio di una reazione non si forza: un `TARGET` alleato provocherebbe la propria squadra.
+	{
+		FRTAbilityLabFixtureSpec Forzata;
+		Forzata.Target = ERTAbilityLabTarget::Ally;
+		FRTTestScenario Rifiutata;
+		FString Errore;
+		TestFalse(TEXT("una reazione col bersaglio forzato non si costruisce"),
+			URTAbilityLabLibrary::BuildFixture(TEXT("Hero.Aevik.ReactiveCapacitor"), Forzata, Rifiutata, Errore));
+		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(TEXT("Hero.Aevik.ReactiveCapacitor")));
+	}
+
+	// Chi provoca deve arrivare da dove sta: col bersaglio in (3,0) nessun attacco base che spinge ci arriva (quello di
+	// Branth, con `Weapon.Impact`, ha portata 2), e la scena del Brace rifiuta invece di posare una spinta che non arriva.
+	{
+		FRTAbilityLabFixtureSpec Lontano;
+		Lontano.TargetCell = FRTCellId(3, 0);
+		FRTTestScenario Rifiutata;
+		FString Errore;
+		TestFalse(TEXT("Brace col bersaglio fuori dalla portata di chi spinge: non si costruisce"),
+			URTAbilityLabLibrary::BuildFixture(TEXT("Action.Brace"), Lontano, Rifiutata, Errore));
 	}
 
 	// L'intercettazione: un alleato accanto a chi reagisce, e il `TARGET` colpisce lui.
@@ -1412,8 +1437,12 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
 		TestTrue(TEXT("Overwatch: le finestre del giocatore sono aperte"), Scenario.bPlayerReactionWindows);
 		TestTrue(TEXT("Overwatch: il TARGET fa un passo"), Provoca && Provoca->Move.Num() == 1);
-		TestTrue(TEXT("Overwatch: la finestra si apre (ReactionDecision)"),
-			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Overwatch")));
+		// Headless la finestra non ha chi la apra: `NoDecider` e' il segno che ne andava aperta una. Un `Immediate` o un
+		// `CollapsedByCondition` scriverebbero la stessa categoria senza finestra. Che si apra davvero lo prova
+		// `AbilityLab.ReactionWindowsOpenToTheController`.
+		TestTrue(TEXT("Overwatch: ne va aperta una finestra (ReactionDecision/NoDecider)"),
+			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Overwatch"),
+				static_cast<int32>(ERTReactionDecisionOutcome::NoDecider)));
 	}
 
 	// Chi guarda guarda verso il bersaglio anche quando non e' a est, il verso di partenza di ogni unita'.
@@ -1444,8 +1473,76 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 		TestTrue(TEXT("Brace: le finestre del giocatore sono aperte"), Scenario.bPlayerReactionWindows);
 		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
 		TestTrue(TEXT("Brace: il TARGET colpisce chi lo usa"), Provoca && Provoca->Target == TEXT("CASTER"));
-		TestTrue(TEXT("Brace: la finestra si apre (ReactionDecision)"),
-			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Brace")));
+		TestTrue(TEXT("Brace: ne va aperta una finestra (ReactionDecision/NoDecider)"),
+			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Brace"),
+				static_cast<int32>(ERTReactionDecisionOutcome::NoDecider)));
+	}
+	return true;
+}
+
+/**
+ * **Le finestre dell'Overwatch e del Brace si aprono al CONTROLLER** (`#4073`, review): la stessa scena del banco, eseguita
+ * nei tre modi di `Scenario.PlayerReactionWindowsOpenToTheController`. Headless la decisione esce `NoDecider`; con un
+ * `ARTPlayerController` la finestra si apre e, senza risposte, scade (`Timeout`); col controller ma senza la chiave
+ * `playerReactionWindows` torna `NoDecider`.
+ *
+ * ⚠️ Per il Brace e' la prima volta che la sua finestra, nel Blast, si apre attraverso la sessione dello scenario con un
+ * controller: fino a qui la provavano solo i test del turn manager (`Reactions.Brace.WindowSuspendsBlast`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabReactionWindowsOpenToTheControllerTest,
+	"RefactorTactics.AbilityLab.ReactionWindowsOpenToTheController",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabReactionWindowsOpenToTheControllerTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+
+	auto Conta = [](const TArray<FRTTurnLogEntry>& Voci, const FName& ActionId, ERTReactionDecisionOutcome Esito)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Voci)
+		{
+			N += (E.Category == ERTLogCategory::ReactionDecision && E.ActionId == ActionId && E.Outcome == static_cast<uint8>(Esito)) ? 1 : 0;
+		}
+		return N;
+	};
+	auto Esegui = [this](const FRTTestScenario& S, bool bConController) -> TArray<FRTTurnLogEntry>
+	{
+		UWorld* World = MakeAbilityLabWorld();
+		if (!World) { AddError(TEXT("world non creato")); return {}; }
+		if (bConController) { TestNotNull(TEXT("player controller"), World->SpawnActor<ARTPlayerController>()); }
+		const FRTTestResult R = URTScenarioRunner::Run(World, S);
+		DestroyAbilityLabWorld(World);
+		TestFalse(FString::Printf(TEXT("%s: nessun ERROR (%s)"), *S.ScenarioId, *R.ErrorMessage), R.Outcome == ERTTestOutcome::Error);
+		return RunEntries(R);
+	};
+
+	for (const TCHAR* Id : { TEXT("Action.Overwatch"), TEXT("Action.Brace") })
+	{
+		FRTTestScenario Scena;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(Id), FRTAbilityLabFixtureSpec(), Scena, Errore);
+		if (!TestTrue(FString::Printf(TEXT("%s: la scena si costruisce (%s)"), Id, *Errore), bCostruita)
+			|| !TestTrue(FString::Printf(TEXT("premessa: %s apre le finestre del giocatore"), Id), Scena.bPlayerReactionWindows))
+		{
+			continue;
+		}
+		const FName Azione(Id);
+
+		const TArray<FRTTurnLogEntry> Headless = Esegui(Scena, false);
+		TestEqual(FString::Printf(TEXT("%s headless: NoDecider"), Id), Conta(Headless, Azione, ERTReactionDecisionOutcome::NoDecider), 1);
+		TestEqual(FString::Printf(TEXT("%s headless: nessun Timeout"), Id), Conta(Headless, Azione, ERTReactionDecisionOutcome::Timeout), 0);
+
+		const TArray<FRTTurnLogEntry> ConController = Esegui(Scena, true);
+		TestEqual(FString::Printf(TEXT("%s col controller: la finestra si apre e scade (Timeout)"), Id),
+			Conta(ConController, Azione, ERTReactionDecisionOutcome::Timeout), 1);
+		TestEqual(FString::Printf(TEXT("%s col controller: nessun NoDecider"), Id),
+			Conta(ConController, Azione, ERTReactionDecisionOutcome::NoDecider), 0);
+
+		FRTTestScenario Senza = Scena;
+		Senza.bPlayerReactionWindows = false;
+		const TArray<FRTTurnLogEntry> SenzaChiave = Esegui(Senza, true);
+		TestEqual(FString::Printf(TEXT("%s col controller ma senza la chiave: NoDecider"), Id),
+			Conta(SenzaChiave, Azione, ERTReactionDecisionOutcome::NoDecider), 1);
 	}
 	return true;
 }
