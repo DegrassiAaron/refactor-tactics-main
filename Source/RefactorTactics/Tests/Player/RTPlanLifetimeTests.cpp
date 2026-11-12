@@ -14,6 +14,7 @@
 #include "Unit/RTUnit.h"
 #include "Player/RTPlayerController.h" // l'invariante dell'armo si prova dalla porta del giocatore (#3833)
 #include "Turn/Reaction/RTReactionOpportunityTypes.h" // la condizione dichiarata fa parte del piano
+#include "Ability/RTMovementProfileLibrary.h"        // lo `Sneak` dichiarato non sopravvive al turno ([D-609])
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -223,6 +224,65 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 		Attacker->PlannedCell, Attacker->Cell);
 	TestEqual(TEXT("il percorso composito e' consumato"), Attacker->PlannedPath.Num(), 0);
 	TestEqual(TEXT("i waypoint sono consumati"), Attacker->PlannedWaypoints.Num(), 0);
+
+	DestroyPlanWorld(World);
+	return true;
+}
+
+/**
+ * **Lo `Sneak` e' una dichiarazione per azione di movimento, e non sopravvive al turno** ([D-609], #4080). Un'unita' ha
+ * oggi un solo movimento per turno, quindi lo `Sneak` finisce col turno, che l'unita' si sia mossa o no.
+ *
+ * 🔑 **L'unita' NON si muove**: lo `Sneak` finisce col turno anche senza un movimento che lo consumi. La memoria del
+ * troncamento la dimentica gia' `PlaceOnCell`, che la fase Move chiama per ogni unita', ferme comprese: misurato su
+ * #4080 prima della correzione, quando questi asserti erano gia' verdi e solo quello sul profilo cadeva. Restano come
+ * pin, perche' il ritiro dello `Sneak` al turno dopo non ripristini waypoint di un piano gia' chiuso ([D-444]: e'
+ * memoria di editing di QUEL piano).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakDoesNotSurviveTheTurnTest,
+	"RefactorTactics.Turn.SneakDoesNotSurviveTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSneakDoesNotSurviveTheTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlanWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnPlanMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Fermo = SpawnPlanHero(World, TEXT("Hero.Ivrin"),  /*Team=*/ 0, FRTCellId(-3, 0, 0));
+	ARTUnit* Altro = SpawnPlanHero(World, TEXT("Hero.Branth"), /*Team=*/ 1, FRTCellId( 3, 0, 0));
+	if (!Fermo || !Altro)
+	{
+		AddError(TEXT("impossibile allestire le due unita' dal catalogo eroi"));
+		DestroyPlanWorld(World);
+		return false;
+	}
+
+	// Lo `Sneak` dichiarato, e la memoria di un troncamento: due waypoint che il tetto aveva tolto, nessuno tenuto.
+	Fermo->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSneak);
+	Fermo->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, { FRTCellId(-2, 0, 0), FRTCellId(-1, 0, 0) });
+	const FRTCellId Partenza = Fermo->Cell;
+	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), Fermo->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
+		|| !TestEqual(TEXT("premessa: la memoria del troncamento c'e'"), Fermo->WaypointsTenutiDalTetto, 0))
+	{
+		DestroyPlanWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyPlanWorld(World); return false; }
+
+	PlayPlanTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: l'unita' non si e' mossa"), Fermo->Cell == Partenza))
+	{
+		DestroyPlanWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("lo Sneak non sopravvive al turno"), Fermo->PlannedMovementProfileId, NAME_None);
+	TestEqual(TEXT("ne' la memoria del troncamento"), Fermo->WaypointsTenutiDalTetto, static_cast<int32>(INDEX_NONE));
+	TestFalse(TEXT("e il ritiro dello Sneak al turno dopo non ripristina waypoint"),
+		Fermo->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak));
+	TestEqual(TEXT("il piano del turno dopo resta senza waypoint"), Fermo->PlannedWaypoints.Num(), 0);
 
 	DestroyPlanWorld(World);
 	return true;
