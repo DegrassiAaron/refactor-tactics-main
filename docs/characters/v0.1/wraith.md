@@ -52,7 +52,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 **Misplay / Failure State.** Leggere male la traiettoria. La previsione è dichiarata per intero in Planning e non riceve informazione nuova: se il nemico non passa dove Wraith ha scommesso, l'azione **risolve lo stesso** come whiff o fallback dichiarato — è la regola di [D-016](../../decisions/RT_PDR_00_Decision_Log.md), non una nota editoriale. Il costo non è il danno mancato ma il turno: l'azione offensiva è già spesa ([D-012](../../decisions/RT_PDR_00_Decision_Log.md), `Attack` **oppure** `Ability` **oppure** `Overwatch`), e Wraith ha speso mobilità per mettersi sulla linea sbagliata. È l'unico failure state del roster v0.1 che è già una **regola decisa** invece che una descrizione.
 
-**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Wraith a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` resta rinviata a E14.
+**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Wraith a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` è una Predictive Action ([D-016](../../decisions/RT_PDR_00_Decision_Log.md)), non più rinviata a E14 (la nota sotto la tabella dice perché): dal 2026-11-12 il giocatore la arma cliccando la cella ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)).
 
 ### Dati della meccanica
 

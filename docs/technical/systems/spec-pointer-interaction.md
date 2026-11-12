@@ -585,8 +585,14 @@ negli scenari.
 | `Facing` | `ARTPlayerController::HandleFacingSector` | `PlayerInput.FacingSectorProducesPlannedFacing` · `PlayerInput.IllegalFacingIsRejectedNotCorrected` |
 
 Il `TargetKind` è **derivato dal catalogo** (`URTPointerLibrary::TargetKindForAction`), non un campo nuovo:
-`StructureOp != None` → `Edge`, `Shape == Area` → `Cell`, altrimenti `Unit`. Aggiungere un campo al dato
-avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
+`StructureOp != None` → `Edge`, `PredictiveTargeting != None` → `Cell`, `Shape == Area` → `Cell`, altrimenti
+`Unit`. Aggiungere un campo al dato avrebbe creato una seconda fonte di verità accanto a quelle che lo dicevano già.
+
+> ⚠️ **La riga della predittiva è arrivata dopo, con [#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)
+> (2026-11-12).** Fino ad allora `Hero.Ivrin.InterceptShot`, `Shape::Single`, chiedeva un'unità: il click sulla
+> cella diventava un waypoint, quello sul nemico un bersaglio-unità che il turno non arma. Misurato da
+> `Predictive.PlayerLocksTheCellItClicks` e `Predictive.PlayerClickOnAUnitLocksItsCell`. Con una predittiva armata,
+> anche il click sulla mesh di un'unità va alla sua cella (§4.1, conseguenza 2); le aree restano com'erano.
 
 > ✅ **E l'asimmetria delle capability si è chiusa da sé.** `RTScenarioSession.cpp` dichiarava
 > `PredictiveAction` disponibile con la motivazione *«un canale che il gioco ha già»*, **falsa** alla misura
