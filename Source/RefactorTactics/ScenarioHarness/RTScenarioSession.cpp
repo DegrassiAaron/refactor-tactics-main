@@ -257,8 +257,8 @@ namespace
 			// questo file e dai test — il `PlayerController` sapeva dichiarare un bersaglio-UNITA' e un
 			// percorso, mai una cella. L'harness era quindi il primo produttore, esattamente l'asimmetria che
 			// tiene fuori `DeclaredRotation` piu' sotto, e il verde NON diceva qualcosa di vero sul giocatore.
-			// La capability era rimasta disponibile per SCELTA — quattro scenari la usano su regole vere — col
-			// debito tracciato su `#737`.
+			// La capability era rimasta disponibile per SCELTA — gli scenari che la usano su regole vere li elenca
+			// `grep -rl PredictiveAction Scenarios/` — col debito tracciato su `#737`.
 			//
 			// `#737` e' atterrata: `ARTPlayerController::HandleTargetCell` scrive i due campi da
 			// `ERTPointerContext::Targeting` con `TargetKind::Cell`, coperto da
@@ -266,13 +266,15 @@ namespace
 			//
 			//   grep -rn "DeclareAttackOnCell(" Source/ | grep -v "Tests/"
 			//
-			// Stampa il controller accanto a questo file e al turno (il piano del bot). ⌫ *Fino al 2026-11-12 il comando
-			// cercava le assegnazioni dei due campi, che da `#2884` vivono solo in `ARTUnit`: non stampava piu' il controller.*
+			// Stampa il controller (`HandleTargetCell`, e `HandleTargetEdge` per un bordo), questo file e il turno (il piano
+			// del bot); in piu' la definizione in `RTUnit.h` e un commento di `RTBotPlanning.h`. ⌫ *Fino al 2026-11-12 il
+			// comando cercava le assegnazioni dei due campi, che da `#2884` vivono solo in `ARTUnit`: non stampava piu' il
+			// controller.*
 			//
 			// 🔴 **Per la predittiva il canale e' diventato vero solo con `#4088`.** Fino al 2026-11-12
 			// `URTPointerLibrary::TargetKindForAction` chiedeva un'unita' a `InterceptShot`, e il giocatore non arrivava a
 			// `HandleTargetCell`: il verde di questi scenari non diceva niente su di lui. Misurato da
-			// `Predictive.PlayerLocksTheCellItClicks`. Owner: `docs/technical/systems/spec-pointer-interaction.md` §2.2.
+			// `Predictive.PlayerLocksTheCellItClicks`. Owner: `docs/technical/systems/spec-pointer-interaction.md` §2.2 e §6.5.
 			TEXT("PredictiveAction"),
 			// CP 13.5 (#160): un'unita' dello scenario puo' essere guidata dal BOT invece che dal file.
 			//

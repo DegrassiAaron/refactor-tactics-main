@@ -570,11 +570,14 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	const ERTAbilityLabProvocation Provocazione = ProvocationFor(Def);
 	// ⛔ Il bersaglio di una reazione non si forza: la scena la fa provocare dal `TARGET`, nemico, e un `TARGET` alleato
 	// provocherebbe la propria squadra. Fail closed invece di posare una scena che non scatta (`#4073`, review). Vale per
-	// una predittiva: la sua cella e' quella in cui la scena fa entrare il `TARGET`, e un'unita' forzata non arma niente.
-	if (Provocazione != ERTAbilityLabProvocation::None && Spec.Target != ERTAbilityLabTarget::Auto)
+	// una predittiva salvo «cella», che e' la sua forma e da' la scena di `Auto` (`#4088`): un'unita', un bordo o
+	// «nessuno» non armerebbero niente.
+	const bool bPredittivaACella = Provocazione == ERTAbilityLabProvocation::EnterCell && Spec.Target == ERTAbilityLabTarget::Cell;
+	if (Provocazione != ERTAbilityLabProvocation::None && Spec.Target != ERTAbilityLabTarget::Auto && !bPredittivaACella)
 	{
-		OutError = FString::Printf(
-			TEXT("'%s' scatta per cio' che fa il TARGET, e il suo bersaglio non si forza."), *AbilityId.ToString());
+		OutError = Provocazione == ERTAbilityLabProvocation::EnterCell
+			? FString::Printf(TEXT("'%s' blocca una cella: il suo bersaglio si forza solo a «cella»."), *AbilityId.ToString())
+			: FString::Printf(TEXT("'%s' e' una reazione: la provoca il TARGET, e il suo bersaglio non si forza."), *AbilityId.ToString());
 		return false;
 	}
 	if (Provocazione == ERTAbilityLabProvocation::Control || Provocazione == ERTAbilityLabProvocation::Hazard)
@@ -845,7 +848,9 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 
 	// La validita' geometrica della posa (celle dentro `MapRadius`, bersaglio a portata) la decide l'harness.
 	// `ChooseTarget` usa la geometria esagonale condivisa (`URTHexLibrary`) solo per SCEGLIERE dove posare la mira
-	// (`#4072`); rifiutare qui una posa vorrebbe dire dare la seconda risposta che questo file esiste per non dare.
+	// (`#4072`). ⚠️ I due rifiuti geometrici di questo file sono della SCENA, non regole del gioco: chi provoca deve
+	// arrivare a chi reagisce (`#4073`), e una predittiva vuole una cella in cui il `TARGET` possa entrare (`#4088`).
+	// Senza, la scena girerebbe senza mostrare la skill. Se l'azione puo' farlo, lo giudica comunque il gioco.
 	OutScenario = Scenario;
 	return true;
 }

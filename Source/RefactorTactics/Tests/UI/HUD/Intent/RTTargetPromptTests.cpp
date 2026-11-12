@@ -103,11 +103,16 @@ bool FRTTargetPromptCoversProducibleKindsTest::RunTest(const FString&)
 		URTPointerLibrary::TargetKindForAction(Base, /*bSelfTarget=*/ false, ERTAbilityShape::Area);
 	const ERTPointerTargetKind DaSingolo =
 		URTPointerLibrary::TargetKindForAction(Base, /*bSelfTarget=*/ false, ERTAbilityShape::Single);
+	FRTActionDef Predittiva;
+	Predittiva.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
+	const ERTPointerTargetKind DaPredittiva =
+		URTPointerLibrary::TargetKindForAction(Predittiva, /*bSelfTarget=*/ false, ERTAbilityShape::Single);
 
 	TestEqual(TEXT("A1: un'azione su di se' non chiede bersagli"), DaSelf, ERTPointerTargetKind::None);
 	TestEqual(TEXT("A2: un'operazione di struttura chiede un BORDO"), DaBordo, ERTPointerTargetKind::Edge);
 	TestEqual(TEXT("A3: un'area si centra su una CELLA"), DaArea, ERTPointerTargetKind::Cell);
 	TestEqual(TEXT("A4: il resto chiede un'UNITA'"), DaSingolo, ERTPointerTargetKind::Unit);
+	TestEqual(TEXT("A5: una predittiva blocca una CELLA (#4088)"), DaPredittiva, ERTPointerTargetKind::Cell);
 
 	// --- B. ognuno di essi, armato, ha un prompt proprio e non muto -----------------------------------
 	struct FAtteso
@@ -256,17 +261,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetPromptDeclaresUnproducibleKindTest,
 
 bool FRTTargetPromptDeclaresUnproducibleKindTest::RunTest(const FString&)
 {
-	// A. la premessa: nessuna delle quattro combinazioni del catalogo produce `Object`. Se un giorno una lo
+	// A. la premessa: nessuna delle combinazioni del catalogo produce `Object`. Se un giorno una lo
 	//    producesse, questo blocco diventa rosso ed e' il promemoria di scrivere il prompt vero.
 	FRTActionDef Base;
 	FRTActionDef Struttura;
 	Struttura.StructureOp = ERTStructureOp::CreateCover;
+	FRTActionDef Predittiva;
+	Predittiva.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
 
 	const ERTPointerTargetKind Prodotti[] = {
 		URTPointerLibrary::TargetKindForAction(Base, true,  ERTAbilityShape::Single),
 		URTPointerLibrary::TargetKindForAction(Struttura, false, ERTAbilityShape::Single),
 		URTPointerLibrary::TargetKindForAction(Base, false, ERTAbilityShape::Area),
 		URTPointerLibrary::TargetKindForAction(Base, false, ERTAbilityShape::Single),
+		URTPointerLibrary::TargetKindForAction(Predittiva, false, ERTAbilityShape::Single),
 	};
 
 	for (const ERTPointerTargetKind Kind : Prodotti)

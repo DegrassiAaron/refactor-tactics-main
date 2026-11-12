@@ -1547,7 +1547,7 @@ bool FRTAbilityLabThePredictiveCatchesWhoEntersTest::RunTest(const FString&)
 	int32 Dopo = 0;
 	TestTrue(TEXT("la vita del TARGET scende"), FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo < Prima);
 
-	// Il bersaglio non si forza: un'unita' forzata pianificherebbe un colpo che il turno non arma.
+	// Il bersaglio si forza solo a «cella», la sua forma: un'unita' forzata pianificherebbe un colpo che il turno non arma.
 	{
 		FRTAbilityLabFixtureSpec Forzata;
 		Forzata.Target = ERTAbilityLabTarget::Enemy;
@@ -1555,6 +1555,15 @@ bool FRTAbilityLabThePredictiveCatchesWhoEntersTest::RunTest(const FString&)
 		Errore.Reset();
 		TestFalse(TEXT("forzata su un nemico: non si costruisce"), URTAbilityLabLibrary::BuildFixture(Intercetto, Forzata, Rifiutata, Errore));
 		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(Intercetto.ToString()));
+
+		FRTAbilityLabFixtureSpec ACella;
+		ACella.Target = ERTAbilityLabTarget::Cell;
+		FRTTestScenario Forzata2;
+		Errore.Reset();
+		const bool bACella = URTAbilityLabLibrary::BuildFixture(Intercetto, ACella, Forzata2, Errore);
+		const FRTScenarioIntent* BloccaForzata = bACella ? IntentOf(Forzata2, TEXT("CASTER")) : nullptr;
+		TestTrue(FString::Printf(TEXT("forzata a «cella»: si costruisce (%s)"), *Errore), bACella);
+		TestTrue(TEXT("forzata a «cella»: la stessa cella di Auto"), BloccaForzata && BloccaForzata->TargetCell == Bloccata);
 	}
 
 	// Col TARGET accanto a chi lancia la linea offre solo la cella oltre, fuori portata 1, e quella di chi lancia: la scena
@@ -1574,6 +1583,25 @@ bool FRTAbilityLabThePredictiveCatchesWhoEntersTest::RunTest(const FString&)
 				C != Accanto.TargetCell && C != Accanto.CasterCell);
 			TestEqual(TEXT("TARGET accanto a chi lancia: e' a portata"), URTHexLibrary::HexDistance(Accanto.CasterCell, C), 1);
 			TestEqual(TEXT("TARGET accanto a chi lancia: e accanto al TARGET"), URTHexLibrary::HexDistance(Accanto.TargetCell, C), 1);
+		}
+	}
+
+	// Col TARGET a ovest il primo vicino nell'ordine delle direzioni e' la cella di chi lancia: il ripiego la salta.
+	{
+		FRTAbilityLabFixtureSpec AOvest;
+		AOvest.TargetCell = FRTCellId(-1, 0);
+		FRTTestScenario Ovest;
+		Errore.Reset();
+		const bool bOvest = URTAbilityLabLibrary::BuildFixture(Intercetto, AOvest, Ovest, Errore);
+		const FRTScenarioIntent* BloccaOvest = bOvest ? IntentOf(Ovest, TEXT("CASTER")) : nullptr;
+		if (TestTrue(FString::Printf(TEXT("TARGET a ovest: la scena si costruisce (%s)"), *Errore), bOvest)
+			&& TestNotNull(TEXT("TARGET a ovest: chi lancia ha un intento"), BloccaOvest))
+		{
+			const FRTCellId C = BloccaOvest->TargetCell;
+			TestTrue(TEXT("TARGET a ovest: la cella bloccata non e' quella di chi lancia, ne' la sua"),
+				C != AOvest.CasterCell && C != AOvest.TargetCell);
+			TestEqual(TEXT("TARGET a ovest: e' accanto a chi lancia"), URTHexLibrary::HexDistance(AOvest.CasterCell, C), 1);
+			TestEqual(TEXT("TARGET a ovest: e accanto al TARGET"), URTHexLibrary::HexDistance(AOvest.TargetCell, C), 1);
 		}
 	}
 

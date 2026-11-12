@@ -42,7 +42,7 @@ Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento
 
 **Predictive Interception** premia la lettura delle traiettorie avversarie. Wraith ha il movimento più alto del roster v0.1 e usa questo vantaggio per occupare linee favorevoli, attraversare il campo e punire movimenti che diventano prevedibili.
 
-Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica ed è **giocabile**: si dichiara in pianificazione e si risolve da sola al passaggio dell'avversario, senza chiedere nulla durante la risoluzione. `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
+Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica ed è **giocabile**: si dichiara in pianificazione e si risolve da sola al passaggio dell'avversario, senza chiedere nulla durante la risoluzione (⚠️ dichiarabile dal **giocatore** solo dal 2026-11-12, [#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088): prima il puntatore le chiedeva un'unità). `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
 
 Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le linee preparate, fare bait delle reazioni e impedire a Wraith di convertire mobilità in un duello favorevole.
 
@@ -52,7 +52,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 **Misplay / Failure State.** Leggere male la traiettoria. La previsione è dichiarata per intero in Planning e non riceve informazione nuova: se il nemico non passa dove Wraith ha scommesso, l'azione **risolve lo stesso** come whiff o fallback dichiarato — è la regola di [D-016](../../decisions/RT_PDR_00_Decision_Log.md), non una nota editoriale. Il costo non è il danno mancato ma il turno: l'azione offensiva è già spesa ([D-012](../../decisions/RT_PDR_00_Decision_Log.md), `Attack` **oppure** `Ability` **oppure** `Overwatch`), e Wraith ha speso mobilità per mettersi sulla linea sbagliata. È l'unico failure state del roster v0.1 che è già una **regola decisa** invece che una descrizione.
 
-**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Wraith a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` è una Predictive Action ([D-016](../../decisions/RT_PDR_00_Decision_Log.md)), non più rinviata a E14 (la nota sotto la tabella dice perché): dal 2026-11-12 il giocatore la arma cliccando la cella ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)).
+**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Wraith a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` è una Predictive Action ([D-016](../../decisions/RT_PDR_00_Decision_Log.md)), non più rinviata a E14 da E18 (CP 18.2: la nota su `Hero.Wraith.InterceptShot` in fondo alla scheda dice perché): dal 2026-11-12 il giocatore la arma cliccando la cella ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)).
 
 ### Dati della meccanica
 
@@ -75,6 +75,8 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Design Status | IMPLEMENTED_PARTIAL |
 
 > Deflection è cablata; InterceptShot è **giocabile** come Predictive Action dal 2026-08-10 (E18).
+>
+> ⚠️ **Annotato il 2026-11-12 ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088))**: dal 2026-08-10 la risolvono il turno e lo Scenario Harness, e la armano i test e il bot; il **giocatore** la dichiara solo dal 2026-11-12. Fino ad allora il puntatore le chiedeva un'unità: il click sulla cella dava un waypoint, quello sul nemico un bersaglio che il turno non arma. Misurato da `Predictive.PlayerLocksTheCellItClicks` e `Predictive.PlayerClickOnAUnitLocksItsCell` sul codice di `08d83547e`.
 
 ## Statistiche base
 
@@ -242,7 +244,7 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 | Loss/Contact Policy | `PredictionBoundary.MovementEntry` — la cella è bloccata alla dichiarazione (`PredictiveTargeting.LockCell`) e **non si rivaluta** |
 | Interazione terreno | 16 danni e stop movimento quando un nemico entra nella cella controllata |
 | Gameplay Tags | ⚠️ era `Ability.Reaction.Overwatch`, che riflette la classificazione superata. In v0.1 **non c'è GAS**, quindi questo campo è documentale e non ha un consumatore: non è stato sostituito con un tag inventato |
-| Implementation Status | **IMPLEMENTED** (2026-08-10, E18 CP 18.2) |
+| Implementation Status | **IMPLEMENTED** (2026-08-10, E18 CP 18.2) · dichiarabile dal giocatore dal 2026-11-12 ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)) |
 | Data Status | CANONICAL |
 
 > Slot **`Main`** nel dato corrente: è un'azione dichiarata in pianificazione come le altre, non una reazione

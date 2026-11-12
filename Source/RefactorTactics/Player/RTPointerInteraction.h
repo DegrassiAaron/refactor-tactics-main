@@ -3,8 +3,8 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
-// `RTActionData.h` e non `RTActionDef.h`: serve anche `ERTAbilityShape`, che vive li' — `Shape` e
-// `StructureOp` sono i due dati da cui `TargetKindForAction` deriva la forma del bersaglio.
+// `RTActionData.h` e non `RTActionDef.h`: serve anche `ERTAbilityShape`, che vive li' — `Shape`, `StructureOp`
+// e `PredictiveTargeting` sono i dati da cui `TargetKindForAction` deriva la forma del bersaglio.
 #include "Ability/RTActionData.h"
 #include "RTPointerInteraction.generated.h"
 
