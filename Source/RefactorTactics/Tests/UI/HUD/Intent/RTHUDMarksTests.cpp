@@ -888,8 +888,7 @@ bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
 	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnCell(FRTCellId(2, 0, 0));
-	 // una cella vuota: e' la cella, non un'unita', il bersaglio
+	Aevik->DeclareAttackOnCell(FRTCellId(2, 0, 0)); // una cella vuota: e' la cella, non un'unita', il bersaglio
 
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);

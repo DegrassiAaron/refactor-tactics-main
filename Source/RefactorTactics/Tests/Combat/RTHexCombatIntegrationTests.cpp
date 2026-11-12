@@ -563,8 +563,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
 
 	const int32 VictimHealth = Victim->Health;
-	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0));
-	 // dritto: incontra il bersaglio a (2,0) per strada
+	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto: incontra il bersaglio a (2,0) per strada
 
 	RunBlastTurn(TM);
 
@@ -619,8 +618,7 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 
 	const int32 VictimHealth = Victim->Health;
-	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0));
-	 // dritto: incontra il bersaglio a (2,0) per strada
+	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto: incontra il bersaglio a (2,0) per strada
 
 	Interrupter->SetPlannedMainAction(Interrupter->Abilities.Num() - 1);
 	Interrupter->DeclareAttackOnUnit(Charger);
@@ -678,10 +676,8 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 
 	const int32 HealthA = A->Health;
 	const int32 HealthB = B->Health;
-	A->SetPlannedDash(A->Abilities.Num() - 1, FRTCellId(3, 0));
-	 // dritto verso B, esattamente la portata (3)
-	B->SetPlannedDash(B->Abilities.Num() - 1, FRTCellId(0, 0));
-	 // dritto verso A, esattamente la portata (3)
+	A->SetPlannedDash(A->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto verso B, esattamente la portata (3)
+	B->SetPlannedDash(B->Abilities.Num() - 1, FRTCellId(0, 0)); // dritto verso A, esattamente la portata (3)
 
 	RunBlastTurn(TM);
 
@@ -1093,8 +1089,7 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 	}
 
 	Opener->SetPlannedMainAction(InteractIdx);
-	Opener->DeclareAttackOnCell(Beyond);
-	 // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
+	Opener->DeclareAttackOnCell(Beyond); // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
 
 	RunBlastTurn(TM);
 
@@ -1789,8 +1784,7 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 			// `Action.Reposition`: uno scatto SENZA impatto ne' effetti, cosi' l'unica cosa che cambia e'
 			// dove sta il bersaglio quando il Blast risolve. Una carica porterebbe anche il proprio danno.
 			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
-			Foe->SetPlannedDash(Scatto, FRTCellId(3, -1));
-			  // un passo di lato, fuori dalla cella mirata
+			Foe->SetPlannedDash(Scatto, FRTCellId(3, -1)); // un passo di lato, fuori dalla cella mirata
 		}
 
 		RunBlastTurn(TM);

@@ -730,8 +730,7 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 	}
 	if (!TestTrue(TEXT("⛔ premessa: Aevik porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
 	Apre->SetPlannedMainAction(Indice);
-	Apre->DeclareAttackOnCell(Oltre);
-	 // si mira a una CELLA: dietro la porta non c'e' nessuno
+	Apre->DeclareAttackOnCell(Oltre); // si mira a una CELLA: dietro la porta non c'e' nessuno
 	Apre->SetPlannedCell(Apre->Cell);
 	Nemico->SetPlannedCell(Nemico->Cell);
 
@@ -946,8 +945,7 @@ bool FRTSkillCalloutPlaybackHiddenReactorTest::RunTest(const FString&)
 
 		Attaccante->Facing = ERTHexDirection::W; // le spalle al Reattore, che sta a est
 		Attaccante->SetPlannedMainAction(0);     // l'attacco base
-		Attaccante->DeclareAttackOnCell(Reattore->Cell);
-		   // una CELLA: un'unita' che la squadra non vede non si puo' mirare
+		Attaccante->DeclareAttackOnCell(Reattore->Cell); // una CELLA: un'unita' che la squadra non vede non si puo' mirare
 		Reattore->Facing = ERTHexDirection::W;
 		Reattore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3));
 		Reattore->ClearPlannedMainAction();

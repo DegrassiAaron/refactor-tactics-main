@@ -312,8 +312,7 @@ bool FRTHexDashRejectsOutOfBudgetTest::RunTest(const FString&)
 
 	const FRTCellId Start = Runner->Cell;
 	Runner->SetPlannedCell(Start);
-	Runner->SetPlannedDash(Runner->FindDashAbilityIndex(), FRTCellId(7, 0));
-	 // distanza 7 > portata 5 dello scatto
+	Runner->SetPlannedDash(Runner->FindDashAbilityIndex(), FRTCellId(7, 0)); // distanza 7 > portata 5 dello scatto
 
 	RunTurn(TM);
 

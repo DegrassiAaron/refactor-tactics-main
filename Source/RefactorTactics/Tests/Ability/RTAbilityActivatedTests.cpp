@@ -305,8 +305,7 @@ bool FRTTurnCoverStructureActivatesOnlyWhenAppliedTest::RunTest(const FString&)
 		const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
 		if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
 		Branth->SetPlannedMainAction(Pannello);
-		Branth->DeclareAttackOnCell(FRTCellId(1, 0));
-		 // a portata: la portata del pannello e' 3 (#2283)
+		Branth->DeclareAttackOnCell(FRTCellId(1, 0)); // a portata: la portata del pannello e' 3 (#2283)
 		FRTUnitPlanTestAccess::SetHasCoverEdge(*Branth, bConBordo);
 		FRTUnitPlanTestAccess::SetCoverEdge(*Branth, ERTHexDirection::E);
 		Branth->SetPlannedCell(Branth->Cell);

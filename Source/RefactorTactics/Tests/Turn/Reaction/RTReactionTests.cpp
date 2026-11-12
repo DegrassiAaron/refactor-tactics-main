@@ -256,8 +256,7 @@ bool FRTReactionSprintBlocksTest::RunTest(const FString&)
 	URTActionData* Sprint = NewObject<URTActionData>(Sprinter);
 	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	Sprinter->Abilities.Add(Sprint);
-	Sprinter->SetPlannedDash(Sprinter->Abilities.Num() - 1, FRTCellId(1, 0));
-	 // scatto breve, resta a tiro dell'attaccante
+	Sprinter->SetPlannedDash(Sprinter->Abilities.Num() - 1, FRTCellId(1, 0)); // scatto breve, resta a tiro dell'attaccante
 	Sprinter->ClearPlannedMainAction();
 	Sprinter->SetPlannedCell(Sprinter->Cell);
 

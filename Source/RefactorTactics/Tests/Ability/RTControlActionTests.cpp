@@ -980,8 +980,7 @@ bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
 	// ⚠️ NON si uccide il bersaglio per ottenere lo stesso effetto: in quel caso `ValidateInstance`
 	// risponde `TargetDead` e l'intento non nasce affatto — l'azione viene annullata dal fallback, che e'
 	// un'altra regola. La prima stesura di questo test lo faceva e misurava il caso sbagliato.
-	Sc.Interrupter->DeclareAttackOnCell(FRTCellId(2, 0));
-	 // adiacente, e vuota
+	Sc.Interrupter->DeclareAttackOnCell(FRTCellId(2, 0)); // adiacente, e vuota
 
 	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
 	{

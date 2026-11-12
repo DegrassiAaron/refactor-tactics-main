@@ -510,8 +510,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM) { DestroyHexMatchWorld(World); return false; }
 
-		Unit->SetPlannedDash(DashIdx, FRTCellId(3, 0));
-		 // oltre il muro, in linea
+		Unit->SetPlannedDash(DashIdx, FRTCellId(3, 0)); // oltre il muro, in linea
 		RTWorldFixtures::PlayOneTurn(TM);
 
 		// Il muro ferma la traiettoria: si arriva a (1,0), non a (3,0) girandoci attorno.
@@ -576,8 +575,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: dichiara lo stile carica"), Charge->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 
 	const int32 HealthBefore = Target->Health;
-	Charger->SetPlannedDash(ChargeIdx, Target->Cell);
-	 // si carica CONTRO il nemico
+	Charger->SetPlannedDash(ChargeIdx, Target->Cell); // si carica CONTRO il nemico
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Si ferma ADDOSSO: adiacente al bersaglio, non sopra e non oltre.
@@ -3200,8 +3198,7 @@ bool FRTHexChargeBeyondRangeInTheWayTest::RunTest(const FString&)
 	const int32 VitaInMezzo = InMezzo->Health;
 	const int32 VitaBersaglio = Bersaglio->Health;
 	const FRTCellId CellaBersaglio = Bersaglio->Cell;
-	Charger->SetPlannedDash(ChargeIdx, CellaBersaglio);
-	 // come lo scrive il click, da [D-528]
+	Charger->SetPlannedDash(ChargeIdx, CellaBersaglio); // come lo scrive il click, da [D-528]
 	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("chi carica si ferma accanto a quello in mezzo"), Charger->Cell.ToString(), FRTCellId(1, 0, 0).ToString());

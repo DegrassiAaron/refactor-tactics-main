@@ -5316,8 +5316,7 @@ bool FRTActionHealTracksTheAllyTest::RunTest(const FString&)
 	const int32 Prima = Ally->Health;
 	PlanEnvAction(Caster, TEXT("Action.Heal"), Ally);
 	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Ally, TEXT("Action.Reposition"));
-	Ally->SetPlannedDash(Scatto, FRTCellId(2, 0));
-	 // dentro la portata
+	Ally->SetPlannedDash(Scatto, FRTCellId(2, 0)); // dentro la portata
 	RunEnvTurn(TM);
 
 	if (!TestEqual(TEXT("premessa: l'alleato e' davvero scattato dentro la portata"), Ally->Cell, FRTCellId(2, 0)))
@@ -5414,8 +5413,7 @@ bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
 		}
 		else if (Moto == EMoto::Scatta)
 		{
-			Target->SetPlannedDash(RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition")), Arrivo);
-			 // scatto: risolve PRIMA del Blast
+			Target->SetPlannedDash(RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition")), Arrivo); // scatto: risolve PRIMA del Blast
 		}
 		RunEnvTurn(TM);
 

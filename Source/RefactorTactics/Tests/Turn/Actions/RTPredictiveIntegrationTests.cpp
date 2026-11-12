@@ -89,9 +89,7 @@ namespace
 
 		Shooter->Abilities[SlotIndex] = Ivrin->Actions[1]; // InterceptShot
 		Shooter->SetPlannedMainAction(SlotIndex);
-		FRTUnitPlanTestAccess::SetAttackTargetsCell(*Shooter, true);   // mira a una CELLA, non a un'unita': e' il punto
-		FRTUnitPlanTestAccess::SetAttackCell(*Shooter, LockedCell);
-		Shooter->ClearPlannedAttack();
+		Shooter->DeclareAttackOnCell(LockedCell);   // mira a una CELLA, non a un'unita': e' il punto
 		return true;
 	}
 
