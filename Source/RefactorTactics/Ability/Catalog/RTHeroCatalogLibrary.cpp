@@ -1057,6 +1057,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
 	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
+	// [D-610] (2): la cella e' ADIACENTE, non la propria (`#4092`). Bloccare la propria mancava sempre a chi resta fermo e
+	// colpiva da distanza 0 a chi si sposta; col minimo a 1 il click, la portata a schermo e lo slot la rifiutano `TooClose`.
+	InterceptShot->Def.MinRangeCells = 1;
 	Ivrin->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
