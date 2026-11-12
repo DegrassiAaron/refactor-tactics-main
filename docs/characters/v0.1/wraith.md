@@ -237,6 +237,7 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 | Costo risorsa | — |
 | Cooldown (turni) | 2 |
 | Range (hex) | 1 |
+| Portata minima (hex) | 1: la cella accanto, non la propria ([D-610](../../decisions/RT_PDR_00_Decision_Log.md) (2), [#4092](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4092)) |
 | AoE Radius | 0 |
 | Danno base | 16 |
 | Control Strength | 1 |

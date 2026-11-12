@@ -13,6 +13,7 @@
 #include "Turn/Log/RTTurnLog.h"
 #include "EngineUtils.h"
 #include "Combat/RTHexCombatLibrary.h"
+#include "Combat/RTCombatLibrary.h" // la portata minima di InterceptShot: ClassifyHexTargeting e TargetableRangeCells (#4092)
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Player/RTPlayerController.h"
@@ -574,6 +575,61 @@ bool FRTPredictivePlayerClicksAUnitTest::RunTest(const FString&)
 		TestEqual(TEXT("e chi c'era gia' non e' chi entra: PredictionWhiffed"), Entry->Outcome,
 			static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed));
 	}
+
+	DestroyPredWorld(World);
+	return true;
+}
+
+/**
+ * **InterceptShot non blocca la propria cella** ([D-610] (2), `#4092`): ha portata minima 1, e il click sulla cella del
+ * tiratore e' rifiutato `TooClose` senza scrivere il piano. La cella accanto, lo stesso click, si blocca.
+ *
+ * 🔴 Prima, con il minimo a 0, quel click bloccava la propria cella: chi restava fermo mancava sempre, e chi si spostava
+ * colpiva da distanza 0.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveRefusesOwnCellTest,
+	"RefactorTactics.Predictive.InterceptShotRefusesTheShootersOwnCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictiveRefusesOwnCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakePredWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnPredMap(World);
+
+	ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 0, FRTCellId(0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	const int32 Intercetto = PredInterceptIndex(Shooter);
+	const URTActionData* Azione = Shooter ? Shooter->GetAbility(Intercetto) : nullptr;
+	if (!TestNotNull(TEXT("Shooter"), Shooter) || !TestNotNull(TEXT("TM"), TM) || !TestNotNull(TEXT("PC"), PC)
+		|| !TestNotNull(TEXT("premessa: InterceptShot e' nel kit di Ivrin"), Azione))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("il catalogo: portata minima 1"), Azione->Def.MinRangeCells, 1);
+
+	const URTHexMapAsset* Mappa = nullptr;
+	for (TActorIterator<ARTHexMapActor> It(World); It; ++It) { Mappa = It->MapAsset; }
+	TestEqual(TEXT("la propria cella e' troppo vicina"),
+		URTCombatLibrary::ClassifyHexTargeting(Mappa, Shooter->Cell, Shooter->Cell, Azione->RangeCells,
+			Azione->Def.LineOfSightPolicy, Azione->Def.MinRangeCells),
+		ERTHexTargetReason::TooClose);
+	TestFalse(TEXT("e la portata a schermo non la contiene"),
+		URTCombatLibrary::TargetableRangeCells(Mappa, Shooter->Cell, Azione->RangeCells, Azione->Def.LineOfSightPolicy,
+			Azione->Def.MinRangeCells).Contains(Shooter->Cell));
+
+	PC->SelectActorForTest(Shooter);
+	PC->SelectAbilityForCurrentForTest(Intercetto);
+	PC->HandleClickOnCellForTest(Shooter->Cell);
+	AddInfo(FString::Printf(TEXT("dopo il click sulla propria cella: %s"), *PredPlanAfterClick(Shooter)));
+	TestFalse(TEXT("il click sulla propria cella non blocca niente"), Shooter->bAttackTargetsCell);
+	TestEqual(TEXT("e non pianifica InterceptShot"), Shooter->PlannedAbilityIndex, (int32)INDEX_NONE);
+
+	// Il controllo: la cella accanto, con lo stesso gesto, si blocca. Senza, un click che non fa mai niente resterebbe verde.
+	const FRTCellId Accanto(0, 0);
+	PC->HandleClickOnCellForTest(Accanto);
+	TestTrue(TEXT("la cella accanto si blocca"), Shooter->bAttackTargetsCell && Shooter->PlannedAttackCell == Accanto);
 
 	DestroyPredWorld(World);
 	return true;
