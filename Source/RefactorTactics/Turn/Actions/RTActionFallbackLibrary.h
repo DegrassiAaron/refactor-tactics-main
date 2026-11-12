@@ -302,7 +302,20 @@ enum class ERTActionInvalidReason : uint8
 	 * QUANTITATIVO della famiglia da quando D-190 tolse `InsufficientMovementPoints`: ADR-0011 cambia il tipo
 	 * della legalita', e questo e' il valore che lo dice nel TurnLog.
 	 */
-	OverBudget
+	OverBudget,
+
+	/**
+	 * La cella mirata sta SOTTO la distanza minima dell'azione ([D-610], `#4091`): e' il gemello di risoluzione di
+	 * `ERTHexTargetReason::TooClose`. Lo produce il colpo predittivo, all'armamento in Prep e al boundary del Move,
+	 * quando `MinRangeCells` (per `Hero.Ivrin.InterceptShot` e' 1, [D-610] (2)) non e' rispettata da dove il tiratore e'.
+	 *
+	 * ⛔ **Non e' `OutOfRange` al contrario**, per la ragione scritta su `ERTHexTargetReason::TooClose`: sono due difetti
+	 * con due correzioni opposte, e «fuori portata» detto a chi sta sopra la propria cella bloccata manderebbe ad
+	 * avvicinarsi chi deve allontanarsi.
+	 *
+	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
+	 */
+	TooClose
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

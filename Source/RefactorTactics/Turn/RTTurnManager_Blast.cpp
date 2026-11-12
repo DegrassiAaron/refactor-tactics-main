@@ -253,7 +253,10 @@ namespace
 		Entry.Priority = Def.Priority;
 		return Entry;
 	}
+}
 
+namespace RTTurnManagerInternal
+{
 	/**
 	 * 🔴 **LA TABELLA DELLE CAUSE di «se si usa una abilita' si paga»** — decisione d'autore del 2026-10-31 su
 	 * [D-414] (`#3134`): dice se il MOTIVO con cui un'azione e' nata e' gia' una causa di PAGAMENTO.
@@ -333,6 +336,10 @@ namespace
 	 * (`R9`), paga se l'aveva accettato dalla cella d'arrivo di uno scatto che poi si e' fermato (o dalla cella di partenza di una
 	 * carica che poi e' riuscita: non misurato per il tiro a cella). `R10`, la guardia di vita di
 	 * [D-209], sta nel pagamento.
+	 *
+	 * ➕ **La legge anche l'armamento delle predittive in Prep** ([D-610] (5)(b), `#4091`): una cella che la domanda del
+	 * click, rifatta sulla mappa autorevole, rifiuta non si arma, e paga o no con QUESTA tabella. Per questo vive in
+	 * `RTTurnManagerInternal` e non piu' nel namespace anonimo di questo file: una tabella sola, due sedi che la leggono.
 	 */
 	bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo)
 	{
@@ -347,7 +354,10 @@ namespace
 			return false;
 		}
 	}
+}
 
+namespace
+{
 	/**
 	 * L'intento `k` e' PARTITO e non ha prodotto un colpo? — il lato «esito» della stessa regola.
 	 *
@@ -686,7 +696,8 @@ void ARTTurnManager::ClassifyRangeLostPayment(FRTBlastContext& Ctx)
 	// distanza minima, il piano e la linea di tiro. Un tiro che il click avrebbe rifiutato per UNO di questi ultimi
 	// sulla mappa ottimistica (una distanza minima sopra il cap, una mira su un altro piano, una linea gia' nota bloccata)
 	// paga qui e non pagherebbe col click: sbaglia verso il PAGAMENTO, a differenza del resto del predicato. Per la distanza
-	// minima il catalogo spedito non ha un caso (l'unica e' 2, e il cap e' 2); il piano e la linea non sono misurati. Un tiro sotto
+	// minima il catalogo spedito non ha un caso (l'unica di un'azione del Blast e' 2, e il cap e' 2: la 1 di `Hero.Ivrin.InterceptShot`,
+	// [D-610] (2), e' di una predittiva, che risolve in Prep e al boundary e qui non passa); il piano e la linea non sono misurati. Un tiro sotto
 	// la distanza minima NON ha canale (resta gratis, come prima). Dichiarato in `RIC-3` fra i limiti, non coperto.
 	//
 	// ⚠️ **Ordinato e senza dipendere da `TSet`**: si iterano i due canali del piano, che `CollectHexAttacks` ordina; l'insieme
@@ -1541,7 +1552,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			const bool bClickAvrebbeAccettato = Reason == ERTActionInvalidReason::OutOfRange
 				&& FuoriPortataMaIlClickAccettava(Reason, ClickMapForPaymentClassification(Unit->TeamId, Map),
 					ClickOriginForPaymentClassification(Unit, HexUnits[i].Cell), Instance.TargetCell, Instance.Def.RangeCells);
-			if (Instance.Def.bCountsAsAttack && (PagaSeParteSenzaColpo(Reason) || bClickAvrebbeAccettato))
+			if (Instance.Def.bCountsAsAttack && (RTTurnManagerInternal::PagaSeParteSenzaColpo(Reason) || bClickAvrebbeAccettato))
 			{
 				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
 			}
@@ -1666,7 +1677,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ➕ **2026-10-31**: l'intento paga anche senza colpi se e' nato con una causa di pagamento. `Reason` e' quello
 		// ORIGINALE — anche dopo un ripiego `AttackCell`, che tiene la cella e perde il bersaglio — cosi' un ripiego
 		// per una causa NON DECISA non diventa pagante per il solo fatto di avere un'impronta.
-		if (PagaSeParteSenzaColpo(Reason))
+		if (RTTurnManagerInternal::PagaSeParteSenzaColpo(Reason))
 		{
 			Ctx.UnhitPayableIntents.Add(Intents.Num());
 		}

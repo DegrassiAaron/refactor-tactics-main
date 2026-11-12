@@ -9,6 +9,7 @@
 #include "Turn/Resolution/RTFacingLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapAsset.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason: la tabella delle cause di pagamento
 
 /**
  * Gli helper che PIU' FASI della risoluzione condividono (`#2679`).
@@ -239,4 +240,17 @@ inline int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* At
 	return URTHexCombatLibrary::EffectiveCoverReduction(Map, A, T, ERTAbilityShape::Single,
 		bOutFacingWasRead);
 }
+
+/**
+ * Il MOTIVO con cui un'azione e' nata e' gia' una causa di PAGAMENTO della ricarica? — la tabella delle cause di
+ * [D-563] e [D-571] (`R1`..`R10`). Il commento che la spiega, causa per causa, sta sulla definizione, in
+ * `RTTurnManager_Blast.cpp`, dove la legge la raccolta degli intenti del Blast.
+ *
+ * ➕ **E' qui perche' le sedi sono due** ([D-610] (5)(b), `#4091`): la legge anche l'armamento delle predittive in Prep
+ * (`RTTurnManager.cpp`), che rifiuta una cella fuori portata o senza linea e paga con la stessa regola del Blast.
+ *
+ * ⚠️ **Dichiarata e non `inline`**, a differenza delle altre di questo header: il corpo e il suo commento restano dove la
+ * tabella e' nata, e una sola definizione esiste per costruzione.
+ */
+bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo);
 }

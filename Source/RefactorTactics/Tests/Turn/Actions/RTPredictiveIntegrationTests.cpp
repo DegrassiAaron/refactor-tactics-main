@@ -14,6 +14,9 @@
 #include "EngineUtils.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Combat/RTCombatLibrary.h" // la portata minima di InterceptShot: ClassifyHexTargeting e TargetableRangeCells (#4092)
+#include "Map/RTHexLibrary.h" // DirectionBetween: il bordo del muro nelle scene di #4091
+#include "Map/Cover/RTHexCoverLibrary.h" // AddCover: la copertura alta che toglie la linea (#4091)
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del rifiuto (#4091)
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Player/RTPlayerController.h"
@@ -632,6 +635,301 @@ bool FRTPredictiveRefusesOwnCellTest::RunTest(const FString&)
 	TestTrue(TEXT("la cella accanto si blocca"), Shooter->bAttackTargetsCell && Shooter->PlannedAttackCell == Accanto);
 
 	DestroyPredWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// [D-610] (1) e (5)(b), `#4091` — portata e linea si rigiudicano: all'armamento e al boundary
+// =========================================================================================================
+
+namespace
+{
+	/** Cio' che un turno con una predittiva lascia, letto per le due sedi di `#4091`. */
+	struct FPredRejudge
+	{
+		bool bValido = false;
+		int32 VociPredittive = 0;
+		uint8 EsitoPredittivo = MAX_uint8;
+		int32 Rifiuti = 0; // voci `Fallback` dell'azione predittiva
+		FRTTurnLogEntry Rifiuto;
+		int32 Attivazioni = 0; // `AbilityActivated` dell'azione predittiva
+		int32 Ricarica = 0;
+		int32 DannoAChiEntra = 0;
+		FRTCellId DoveFinisceChiEntra;
+		FRTCellId DoveFinisceChiArma;
+	};
+
+	URTHexMapAsset* PredMapAsset(UWorld* World)
+	{
+		for (TActorIterator<ARTHexMapActor> It(World); It; ++It) { return It->MapAsset; }
+		return nullptr;
+	}
+
+	/** Una copertura ALTA sul bordo fra due celle adiacenti: ferma la linea (`BlocksTraversal`) e non l'occupazione. */
+	bool PredWall(UWorld* World, const FRTCellId& From, const FRTCellId& To)
+	{
+		ERTHexDirection Bordo;
+		URTHexMapAsset* Map = PredMapAsset(World);
+		return Map && URTHexLibrary::DirectionBetween(From, To, Bordo)
+			&& URTHexCoverLibrary::AddCover(Map, From, Bordo, ERTHexCoverType::High, /*Integrity*/ 100);
+	}
+
+	void ReadPredRejudge(const ARTTurnManager* TM, const ARTUnit* Shooter, int32 SlotIndex, FPredRejudge& Out)
+	{
+		const FName Id(TEXT("Hero.Ivrin.InterceptShot"));
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.ActionId != Id) { continue; }
+			if (E.Category == ERTLogCategory::Predictive) { ++Out.VociPredittive; Out.EsitoPredittivo = E.Outcome; }
+			if (E.Category == ERTLogCategory::Fallback) { ++Out.Rifiuti; Out.Rifiuto = E; }
+		}
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.ActionId == Id) { ++Out.Attivazioni; }
+		}
+		Out.Ricarica = Shooter->GetAbilityCooldown(SlotIndex);
+		Out.DoveFinisceChiArma = Shooter->Cell;
+	}
+}
+
+/**
+ * **All'armamento la cella si rigiudica con la domanda del click** ([D-610] (5)(b), `#4091`): `CLIENT PROPOSES → SERVER
+ * VALIDATES`. Il piano e' scritto A MANO, come lo scrivono il bot e lo Scenario Harness: il click non lo avrebbe accettato,
+ * e prima di `#4091` il turno lo armava lo stesso — la portata e la linea non le guardava nessuno.
+ *
+ * 🔑 **Quattro scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
+ * portata), la propria (sotto il minimo di [D-610] (2)), quella accanto dietro una copertura alta (senza linea), e quella
+ * accanto libera — il **controllo positivo**: senza, «nessuna previsione» lo darebbe anche un turno che non arma niente.
+ *
+ * ⚠️ **Chi paga e' la tabella del Blast** (`PagaSeParteSenzaColpo`): la linea bloccata paga (`R4`), il fuori portata e il
+ * sotto-minimo no (`R9`). La ricarica a fine turno lo misura, e il controllo positivo dice che la misura vede un pagamento.
+ *
+ * Chi entra attraversa la cella bloccata da ovest a est: se il colpo partisse, lo fermerebbe li' con i danni del catalogo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveArmingRejudgesTest,
+	"RefactorTactics.Predictive.ArmingRejudgesTheLockedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
+{
+	const FRTCellId DaDove(0, 1);
+	auto Gioca = [this, &DaDove](const FRTCellId& Bloccata, bool bMuro, bool bChiEntra) -> FPredRejudge
+	{
+		FPredRejudge Out;
+		UWorld* World = MakePredWorld();
+		if (!World) { return Out; }
+		SpawnPredMap(World);
+		const FRTCellId Partenza(Bloccata.X - 1, Bloccata.Y);
+		ARTUnit* Runner = bChiEntra ? SpawnPredUnit(World, /*Team*/ 0, Partenza) : nullptr;
+		ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 1, DaDove);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if ((bChiEntra && !Runner) || !Shooter || !TM || !ArmPredIntercept(Shooter, Bloccata)
+			|| (bMuro && !PredWall(World, DaDove, Bloccata)))
+		{
+			DestroyPredWorld(World);
+			return Out;
+		}
+		if (bMuro)
+		{
+			// Premessa: il muro c'e' davvero per la domanda del click. Senza, la scena «senza linea» misurerebbe un'altra cosa.
+			TestEqual(TEXT("premessa: il muro toglie la linea"), URTCombatLibrary::ClassifyHexTargeting(PredMapAsset(World),
+				DaDove, Bloccata, /*Range*/ 1, ERTLineOfSightPolicy::Required, /*MinRange*/ 1), ERTHexTargetReason::NoLineOfSight);
+		}
+		const int32 Prima = Runner ? Runner->Health : 0;
+		if (Runner) { Runner->SetPlannedCell(FRTCellId(Bloccata.X + 1, Bloccata.Y)); }
+
+		RunPredTurn(TM);
+
+		ReadPredRejudge(TM, Shooter, /*SlotIndex*/ 3, Out);
+		Out.DannoAChiEntra = Runner ? Prima - Runner->Health : 0;
+		Out.DoveFinisceChiEntra = Runner ? Runner->Cell : FRTCellId();
+		Out.bValido = true;
+		DestroyPredWorld(World);
+		return Out;
+	};
+
+	// ── Il controllo: la cella accanto, libera. Si arma, si attiva, paga, e chi entra viene fermato. ───────
+	const FPredRejudge Armata = Gioca(FRTCellId(0, 0), /*bMuro*/ false, /*bChiEntra*/ true);
+	if (!TestTrue(TEXT("banco del controllo"), Armata.bValido)) { return false; }
+	TestEqual(TEXT("controllo: nessun rifiuto"), Armata.Rifiuti, 0);
+	TestEqual(TEXT("controllo: la previsione va a segno"), Armata.EsitoPredittivo,
+		static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
+	TestTrue(FString::Printf(TEXT("controllo: chi entra incassa il colpo (danno %d)"), Armata.DannoAChiEntra),
+		Armata.DannoAChiEntra > 0);
+	TestEqual(TEXT("controllo: una attivazione"), Armata.Attivazioni, 1);
+	TestTrue(FString::Printf(TEXT("controllo: e la ricarica parte (%d): la misura vede un pagamento"), Armata.Ricarica),
+		Armata.Ricarica > 0);
+
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		FRTCellId Bloccata;
+		bool bMuro;
+		bool bChiEntra;
+		ERTActionInvalidReason Motivo;
+		bool bPaga;
+	};
+	const FCaso Casi[] = {
+		// Distanza 2 con portata 1. Gratis: il click la rifiuta da questa stessa origine (`R9`).
+		{ TEXT("fuori portata"), FRTCellId(0, -1), false, true, ERTActionInvalidReason::OutOfRange, false },
+		// Distanza 0 con minimo 1 ([D-610] (2)). Gratis come il fuori portata. Nessuno entra: la cella e' occupata da chi arma.
+		{ TEXT("la propria cella"), DaDove, false, false, ERTActionInvalidReason::TooClose, false },
+		// Accanto, dietro una copertura alta. PAGA: la linea bloccata e' `R4`, la stessa riga del Blast.
+		{ TEXT("senza linea"), FRTCellId(0, 0), true, true, ERTActionInvalidReason::NoLineOfSight, true },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const FPredRejudge R = Gioca(Caso.Bloccata, Caso.bMuro, Caso.bChiEntra);
+		if (!TestTrue(FString::Printf(TEXT("banco: %s"), Caso.Nome), R.bValido)) { continue; }
+		TestEqual(FString::Printf(TEXT("%s: nessuna voce predittiva — la previsione non si e' armata"), Caso.Nome),
+			R.VociPredittive, 0);
+		if (TestEqual(FString::Printf(TEXT("%s: il turno lo DICHIARA, una voce di rifiuto"), Caso.Nome), R.Rifiuti, 1))
+		{
+			TestEqual(FString::Printf(TEXT("%s: Fallback/Cancelled"), Caso.Nome), R.Rifiuto.Outcome,
+				static_cast<uint8>(ERTFallbackOutcome::Cancelled));
+			TestTrue(FString::Printf(TEXT("%s: nel Prep, dove si arma"), Caso.Nome), R.Rifiuto.Phase == ERTMatchPhase::Prep);
+			TestEqual(FString::Printf(TEXT("%s: col suo motivo"), Caso.Nome), R.Rifiuto.Amount, static_cast<int32>(Caso.Motivo));
+			TestTrue(FString::Printf(TEXT("%s: da dove sta chi arma"), Caso.Nome), R.Rifiuto.SrcCell == DaDove);
+			TestTrue(FString::Printf(TEXT("%s: verso la cella dichiarata"), Caso.Nome), R.Rifiuto.TgtCell == Caso.Bloccata);
+			TestTrue(FString::Printf(TEXT("%s: con la priorita' dell'azione ([D-196])"), Caso.Nome), R.Rifiuto.Priority > 0);
+		}
+		TestEqual(FString::Printf(TEXT("%s: nessuna attivazione — non c'e' stato un gesto"), Caso.Nome), R.Attivazioni, 0);
+		if (Caso.bPaga)
+		{
+			TestTrue(FString::Printf(TEXT("%s: paga, come nel Blast (ricarica %d)"), Caso.Nome, R.Ricarica), R.Ricarica > 0);
+		}
+		else
+		{
+			TestEqual(FString::Printf(TEXT("%s: gratis, come nel Blast"), Caso.Nome), R.Ricarica, 0);
+		}
+		if (Caso.bChiEntra)
+		{
+			TestEqual(FString::Printf(TEXT("%s: chi entra non viene colpito"), Caso.Nome), R.DannoAChiEntra, 0);
+			TestTrue(FString::Printf(TEXT("%s: e arriva dove voleva — nessuno lo ha fermato"), Caso.Nome),
+				R.DoveFinisceChiEntra == FRTCellId(Caso.Bloccata.X + 1, Caso.Bloccata.Y));
+		}
+	}
+	return true;
+}
+
+/**
+ * **Al boundary il colpo parte solo se la cella bloccata e' ancora a portata e in linea da dove il tiratore e'** ([D-610]
+ * (1), `#4091`). Il tiratore arma dalla cella accanto e poi SCATTA nello stesso turno con `Hero.Ivrin.PassingBlade`:
+ * `ResolveDash` riscrive `Unit->Cell` prima del Move, e il boundary legge `Shooter->Cell` ([D-610] (5)(a)).
+ *
+ * 🔑 **Quattro scatti dalla stessa cella, e l'unica variabile e' dove finiscono**: accanto alla cella bloccata (il
+ * **controllo**: il colpo parte, chi entra viene fermato — e' la combo scatto + intercetto che (1) conserva), lontano
+ * (fuori portata), sopra la cella bloccata (sotto il minimo di [D-610] (2)), e accanto ma dietro una copertura alta (senza
+ * linea). Prima di `#4091` i tre casi colpivano tutti: il controllo era l'unico esito.
+ *
+ * ⚠️ **L'armamento vale in tutte e quattro**: la cella e' accanto alla partenza, e il controllo di (5)(b) la accetta. Lo
+ * dice l'attivazione, che c'e' sempre; il rifiuto, quando c'e', e' del Move e non del Prep.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveDashRejudgedTest,
+	"RefactorTactics.Predictive.ShooterWhoDashesIsRejudgedAtTheBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictiveDashRejudgedTest::RunTest(const FString&)
+{
+	const FRTCellId Bloccata(0, 0);
+	const FRTCellId Partenza(0, 1);
+	auto Gioca = [this, &Bloccata, &Partenza](const FRTCellId& Arrivo, bool bMuro, bool bChiEntra) -> FPredRejudge
+	{
+		FPredRejudge Out;
+		UWorld* World = MakePredWorld();
+		if (!World) { return Out; }
+		SpawnPredMap(World);
+		ARTUnit* Runner = bChiEntra ? SpawnPredUnit(World, /*Team*/ 0, FRTCellId(-1, 0)) : nullptr;
+		ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 1, Partenza);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if ((bChiEntra && !Runner) || !Shooter || !TM || !ArmPredIntercept(Shooter, Bloccata)
+			|| (bMuro && !PredWall(World, Arrivo, Bloccata)))
+		{
+			DestroyPredWorld(World);
+			return Out;
+		}
+		// Lo scatto del kit, cercato per id: `Hero.Ivrin.PassingBlade`, portata 3, slot del movimento (non toglie il `Main`).
+		int32 Lama = INDEX_NONE;
+		for (int32 I = 0; I < Shooter->NumAbilities(); ++I)
+		{
+			const URTActionData* A = Shooter->GetAbility(I);
+			if (A && A->Def.ActionId == TEXT("Hero.Ivrin.PassingBlade")) { Lama = I; }
+		}
+		if (!TestTrue(TEXT("premessa: Ivrin ha PassingBlade"), Lama != INDEX_NONE))
+		{
+			DestroyPredWorld(World);
+			return Out;
+		}
+		Shooter->SetPlannedDash(Lama, Arrivo);
+		Shooter->SetPlannedCell(Arrivo); // nel Move resta dove lo scatto l'ha lasciato
+		const int32 Prima = Runner ? Runner->Health : 0;
+		if (Runner) { Runner->SetPlannedCell(FRTCellId(1, 0)); } // attraversa la cella bloccata da ovest a est
+
+		RunPredTurn(TM);
+
+		ReadPredRejudge(TM, Shooter, /*SlotIndex*/ 3, Out);
+		Out.DannoAChiEntra = Runner ? Prima - Runner->Health : 0;
+		Out.DoveFinisceChiEntra = Runner ? Runner->Cell : FRTCellId();
+		Out.bValido = true;
+		DestroyPredWorld(World);
+		return Out;
+	};
+
+	// ── Il controllo: lo scatto finisce ACCANTO alla cella bloccata, fuori dalla strada di chi entra. ──────
+	const FRTCellId Accanto(-1, 1);
+	const FPredRejudge Parte = Gioca(Accanto, /*bMuro*/ false, /*bChiEntra*/ true);
+	if (!TestTrue(TEXT("banco del controllo"), Parte.bValido)) { return false; }
+	TestTrue(TEXT("controllo — premessa: lo scatto c'e' stato"), Parte.DoveFinisceChiArma == Accanto);
+	TestEqual(TEXT("controllo: nessun rifiuto"), Parte.Rifiuti, 0);
+	TestEqual(TEXT("controllo: il colpo parte e va a segno"), Parte.EsitoPredittivo,
+		static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
+	TestTrue(FString::Printf(TEXT("controllo: chi entra incassa il colpo (danno %d)"), Parte.DannoAChiEntra),
+		Parte.DannoAChiEntra > 0);
+	TestTrue(TEXT("controllo: e si ferma sulla cella bloccata"), Parte.DoveFinisceChiEntra == Bloccata);
+
+	struct FCaso
+	{
+		const TCHAR* Nome;
+		FRTCellId Arrivo;
+		bool bMuro;
+		bool bChiEntra;
+		ERTActionInvalidReason Motivo;
+	};
+	const FCaso Casi[] = {
+		// Tre celle dritto, sulla colonna di partenza e lontano dalla cella bloccata: dista 4, con portata 1.
+		{ TEXT("scatto lontano"), FRTCellId(0, 4), false, true, ERTActionInvalidReason::OutOfRange },
+		// Sopra la cella bloccata: distanza 0 con minimo 1. Nessuno entra, la cella e' occupata.
+		{ TEXT("scatto sulla cella bloccata"), Bloccata, false, false, ERTActionInvalidReason::TooClose },
+		// Accanto come nel controllo, ma con una copertura alta sul bordo verso la cella bloccata.
+		{ TEXT("scatto dietro un muro"), Accanto, true, true, ERTActionInvalidReason::NoLineOfSight },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const FPredRejudge R = Gioca(Caso.Arrivo, Caso.bMuro, Caso.bChiEntra);
+		if (!TestTrue(FString::Printf(TEXT("banco: %s"), Caso.Nome), R.bValido)) { continue; }
+		if (!TestTrue(FString::Printf(TEXT("%s — premessa: lo scatto c'e' stato"), Caso.Nome), R.DoveFinisceChiArma == Caso.Arrivo))
+		{
+			continue; // senza lo scatto il resto misurerebbe il tiratore fermo
+		}
+		TestEqual(FString::Printf(TEXT("%s: l'armamento c'e' stato — una attivazione nel Prep"), Caso.Nome), R.Attivazioni, 1);
+		TestEqual(FString::Printf(TEXT("%s: nessuna voce predittiva — il colpo non parte, e non e' «a vuoto»"), Caso.Nome),
+			R.VociPredittive, 0);
+		if (TestEqual(FString::Printf(TEXT("%s: il turno lo DICHIARA, una voce di rifiuto"), Caso.Nome), R.Rifiuti, 1))
+		{
+			TestEqual(FString::Printf(TEXT("%s: Fallback/Cancelled"), Caso.Nome), R.Rifiuto.Outcome,
+				static_cast<uint8>(ERTFallbackOutcome::Cancelled));
+			TestTrue(FString::Printf(TEXT("%s: nel Move, al boundary"), Caso.Nome), R.Rifiuto.Phase == ERTMatchPhase::Move);
+			TestEqual(FString::Printf(TEXT("%s: col suo motivo"), Caso.Nome), R.Rifiuto.Amount, static_cast<int32>(Caso.Motivo));
+			TestTrue(FString::Printf(TEXT("%s: da dove lo scatto ha lasciato il tiratore"), Caso.Nome), R.Rifiuto.SrcCell == Caso.Arrivo);
+			TestTrue(FString::Printf(TEXT("%s: verso la cella bloccata"), Caso.Nome), R.Rifiuto.TgtCell == Bloccata);
+			TestTrue(FString::Printf(TEXT("%s: con la priorita' dell'azione ([D-196])"), Caso.Nome), R.Rifiuto.Priority > 0);
+		}
+		TestTrue(FString::Printf(TEXT("%s: la ricarica era gia' spesa all'armamento (%d)"), Caso.Nome, R.Ricarica), R.Ricarica > 0);
+		if (Caso.bChiEntra)
+		{
+			TestEqual(FString::Printf(TEXT("%s: chi entra non viene colpito"), Caso.Nome), R.DannoAChiEntra, 0);
+			TestTrue(FString::Printf(TEXT("%s: un colpo che non parte non tronca nessuno"), Caso.Nome),
+				R.DoveFinisceChiEntra == FRTCellId(1, 0));
+		}
+	}
 	return true;
 }
 

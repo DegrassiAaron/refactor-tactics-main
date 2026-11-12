@@ -4705,6 +4705,37 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	return Applied;
 }
 
+namespace
+{
+	/**
+	 * Il verdetto del classificatore di mira tradotto nel MOTIVO con cui un colpo predittivo non si arma o non parte
+	 * ([D-610] (1) e (5)(b), `#4091`). Lo chiedono due sedi, l'armamento in Prep e il boundary del Move, e devono
+	 * rispondere con gli stessi valori: per questo e' una funzione e non due `switch`.
+	 *
+	 * 🔑 **Non e' `ValidateInstance`**, che per una cella risponde `None` in cima e mappa `TooClose` su `None` perche' li'
+	 * il minimo lo giudica la raccolta del Blast. Qui la cella E' il bersaglio, e il minimo si giudica qui: `TooClose` ha un
+	 * motivo proprio.
+	 *
+	 * ⛔ **Ogni verdetto ha un ramo**, come in `ValidateInstance` ([D-509]): un valore che lo `switch` non conosce e' un
+	 * rifiuto, rumoroso in sviluppo. `OutOfRange` per la stessa ragione scritta li': fra i motivi che esistono e' un rifiuto
+	 * di geometria, e un colpo partito per distrazione sarebbe peggio di un testo sbagliato.
+	 */
+	ERTActionInvalidReason PredictiveShotRefusal(ERTHexTargetReason Verdict)
+	{
+		switch (Verdict)
+		{
+		case ERTHexTargetReason::Ok:            return ERTActionInvalidReason::None;
+		case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap; // fail-closed, come il Blast
+		case ERTHexTargetReason::OutOfRange:    return ERTActionInvalidReason::OutOfRange;
+		case ERTHexTargetReason::TooClose:      return ERTActionInvalidReason::TooClose;
+		case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
+		case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
+		}
+		checkNoEntry();
+		return ERTActionInvalidReason::OutOfRange;
+	}
+}
+
 void ARTTurnManager::ResolvePrep()
 {
 	// Prima fase che passa dal MOTORE AZIONI (epic E4): raccogli -> ordina -> traduci in EVENTI -> applica.
@@ -4780,14 +4811,69 @@ void ARTTurnManager::ResolvePrep()
 			// Senza una cella dichiarata non c'e' previsione: il piano e' incompleto e l'azione non si arma.
 			// Non e' un errore da segnalare qui — la validazione del piano sta a monte — ma non si finge
 			// nemmeno che una previsione senza bersaglio sia stata fatta.
+			// ⌫ *Fino a [D-610] (5)(b) la frase qui sopra valeva anche per la CELLA: «la validazione del piano sta a monte»
+			// non era vero per portata e linea, perche' `ValidatePlan` guarda solo ricarica, budget di AP e slot (`#4091`).
+			// Per la cella senza bersaglio resta vera; per la cella dichiarata la domanda ora si fa qui sotto.
+			//
+			// 🔴 **CLIENT PROPOSES → SERVER VALIDATES** ([D-610] (5)(b), `#4091`): la cella dichiarata si rigiudica con la
+			// domanda del CLICK — `ClassifyHexTargeting`, dalla stessa origine (`AimOriginFor`: in Prep la cella corrente),
+			// con la stessa portata, policy, distanza minima ed eccezione di piano —, ma sulla mappa AUTOREVOLE e non su
+			// quella ottimistica del click ([D-534] (2): la Resolution non legge `PlayerAimMap`). Un piano che non passa
+			// non si arma: voce `Fallback`/`Cancelled` col motivo, nessuna previsione, nessuna attivazione. Senza questa
+			// riga un piano scritto dal bot o dallo Scenario Harness armava una cella a qualunque distanza e senza linea.
+			//
+			// ⚠️ **Il PAGAMENTO e' la tabella del Blast** (`PagaSeParteSenzaColpo`, [D-563], [D-571]), una sola: paga la
+			// linea bloccata (`R4`) e il piano diverso (`R5`), resta gratis il fuori portata e il sotto-minimo (`R9`). In
+			// Prep l'origine e' quella del click e niente si e' mosso, quindi la linea e' l'unico motivo che un piano
+			// accettato dal click puo' trovare qui (una copertura che il click non vedeva, o spostata da
+			// `ResolveCoverStructures` in questo stesso Prep): e' il caso che [D-571] (1) fa pagare. Lo stesso motivo per
+			// un piano che il click avrebbe gia' rifiutato paga anche lui: e' il limite che il Blast dichiara in `RIC-3`
+			// («sbaglia verso il PAGAMENTO»), e separarli chiederebbe un secondo lettore della mappa del click — una nuova
+			// eccezione a [D-534] (2), non presa qui.
 			if (Unit->bAttackTargetsCell)
 			{
+				FVector MapOrigin; float MapHexSize; float MapLayerH;
+				const URTHexMapAsset* MapForArming = GetHexContext(MapOrigin, MapHexSize, MapLayerH);
+				const ERTActionInvalidReason Why = PredictiveShotRefusal(URTCombatLibrary::ClassifyHexTargeting(
+					MapForArming, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Unit->PlannedAttackCell,
+					Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
+					URTCombatLibrary::CrossLayerAimFor(Ability->Def)));
+				if (Why != ERTActionInvalidReason::None)
+				{
+					FRTTurnLogEntry NonArmata;
+					NonArmata.Phase = ERTMatchPhase::Prep;
+					NonArmata.Category = ERTLogCategory::Fallback;
+					NonArmata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					NonArmata.ActionId = Ability->Def.ActionId;
+					NonArmata.BaseActionId = Ability->Def.BaseActionId;
+					NonArmata.Priority = Ability->Def.Priority; // la tripla di ogni produttore `Fallback` ([D-196])
+					NonArmata.SrcCell = Unit->Cell;
+					NonArmata.TgtCell = Unit->PlannedAttackCell;
+					NonArmata.Amount = static_cast<int32>(Why);
+					// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`). La voce si
+					// congela su chi arma, come il rifiuto per stordimento qui sopra: stessa forma, stesso pubblico.
+					AppendLogEntry(NonArmata, Unit);
+					// Nessuna `EmitAbilityActivated`: non c'e' stato un gesto (`#3549`, «un `Fallback Cancelled` e' un
+					// rifiuto visibile nel TurnLog, non un gesto»), come per lo stordito.
+					if (RTTurnManagerInternal::PagaSeParteSenzaColpo(Why))
+					{
+						Unit->ConsumeAbility(Index);
+					}
+					Unit->ClearPlannedMainAction();
+					Unit->ClearPlannedAttack();
+					continue;
+				}
+
 				FRTArmedPrediction Armed;
 				Armed.Shooter = Unit;
 				Armed.LockedCell = Unit->PlannedAttackCell;
 				Armed.ActionId = Ability->Def.ActionId;
 				Armed.BaseActionId = Ability->Def.BaseActionId;
 				Armed.Priority = Ability->Def.Priority; // per la voce di rifiuto al boundary ([D-509])
+				// La domanda che il boundary rifa' da dove il tiratore sara' ([D-610] (1)): gli stessi tre dati del click.
+				Armed.RangeCells = Ability->RangeCells;
+				Armed.MinRangeCells = Ability->Def.MinRangeCells;
+				Armed.LineOfSightPolicy = Ability->Def.LineOfSightPolicy;
 				// Il danno viene dagli EFFECTS del catalogo, non da un numero scritto qui: cambiare quanto
 				// fa `InterceptShot` deve restare una modifica ai dati.
 				for (const FRTActionEffectSpec& Effect : Ability->Def.Effects)
@@ -7817,7 +7903,26 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		// la caduta del Blast e non il movimento di questo stesso Move. Quale sia l'istante del tiratore al
 		// boundary lo decide `#2148`, e quel giorno OGNI lettura di `Shooter->Cell` in questa funzione si
 		// sposta insieme alle altre — questa e quella di `Annullata.SrcCell` qui sotto comprese.
-		if (!URTCombatLibrary::OnSamePlane(Shooter->Cell, Armed.LockedCell))
+		//
+		// ➕ **E CHI E' FUORI PORTATA O SENZA LINEA NON SPARA** ([D-610] (1), `#4091`). Il piano non e' piu' la sola domanda:
+		// fra l'armamento e questo boundary il tiratore puo' spostarsi sul suo piano — uno scatto (`ResolveDash` riscrive
+		// `Unit->Cell`), una spinta del Blast — e fino a D-610 il colpo partiva da dove era, a qualunque distanza e senza
+		// linea. Ora la cella bloccata deve essere a portata (`RangeCells`, `MinRangeCells`) e in linea da `Shooter->Cell`,
+		// con la stessa funzione con cui il Blast ricontrolla i suoi colpi (`ClassifyHexTargeting`, `TrajectoryPolicy`: qui
+		// la domanda e' la traiettoria di un colpo che parte, come in `ValidateInstance`). Stessa voce, col motivo.
+		//
+		// ⚠️ **Il piano resta la PRIMA domanda**, e l'ordine non e' quello del click: `HexDistance` ignora il `Layer`, e chi
+		// e' caduto a due celle di distanza lascerebbe «fuori portata» invece di «altro piano» — direbbe di avvicinarsi a una
+		// cosa che nessun avvicinamento sistema. E' la voce di [D-509] (7)(a), che il test della caduta pinna.
+		//
+		// ⚠️ **La mappa e' quella di ADESSO, dopo il Blast**: un tiratore fermo perde il colpo anche se il Blast ha alzato
+		// una copertura alta sul bordo verso la cella bloccata. E' la regola del Blast, che giudica la linea sulla mappa del
+		// momento del colpo, e non la sola «il tiratore si e' mosso» con cui `#4091` e' stata scritta.
+		const ERTActionInvalidReason Why = !URTCombatLibrary::OnSamePlane(Shooter->Cell, Armed.LockedCell)
+			? ERTActionInvalidReason::OtherLayer
+			: PredictiveShotRefusal(URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Armed.LockedCell,
+				Armed.RangeCells, URTCombatLibrary::TrajectoryPolicy(Armed.LineOfSightPolicy), Armed.MinRangeCells));
+		if (Why != ERTActionInvalidReason::None)
 		{
 			FRTTurnLogEntry Annullata;
 			Annullata.Phase = ERTMatchPhase::Move;
@@ -7828,7 +7933,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			Annullata.Priority = Armed.Priority;
 			Annullata.SrcCell = Shooter->Cell;
 			Annullata.TgtCell = Armed.LockedCell;
-			Annullata.Amount = static_cast<int32>(ERTActionInvalidReason::OtherLayer);
+			Annullata.Amount = static_cast<int32>(Why);
 			// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`).
 			AppendLogEntry(Annullata, Shooter);
 			continue;

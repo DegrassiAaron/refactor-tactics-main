@@ -92,7 +92,11 @@ struct FRTArmedPrediction
 	UPROPERTY(Transient)
 	TObjectPtr<ARTUnit> Shooter = nullptr;
 
-	/** La cella dichiarata in Planning. Non viene rivalutata al boundary. */
+	/**
+	 * La cella dichiarata in Planning. Non viene rivalutata al boundary: si guarda chi ci entra, non dove sta il bersaglio.
+	 * ⚠️ Cio' che al boundary si RIvaluta e' la posizione del TIRATORE ([D-610] (1), `#4091`): la cella resta questa, ma il
+	 * colpo parte solo se e' ancora a portata e in linea da `Shooter->Cell` — vedi i tre campi in fondo.
+	 */
 	UPROPERTY()
 	FRTCellId LockedCell;
 
@@ -114,6 +118,20 @@ struct FRTArmedPrediction
 	 */
 	UPROPERTY()
 	int32 Priority = 0;
+
+	/**
+	 * La portata, la distanza minima e la policy di linea dell'azione che ha armato ([D-610] (1), `#4091`): il boundary
+	 * rifa' la domanda del click da dove il tiratore e', e l'azione — come per `Priority` — li' non c'e' piu' per chiederle.
+	 * La portata e' quella dell'ABILITA' (`URTActionData::RangeCells`), la stessa che il click passa a `ClassifyHexTargeting`.
+	 */
+	UPROPERTY()
+	int32 RangeCells = 0;
+
+	UPROPERTY()
+	int32 MinRangeCells = 0;
+
+	UPROPERTY()
+	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
 
 	FRTArmedPrediction() = default;
 };

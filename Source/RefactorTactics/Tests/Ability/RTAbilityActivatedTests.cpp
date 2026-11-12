@@ -429,7 +429,9 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("premessa: Ivrin ha InterceptShot"), Intercetto != INDEX_NONE)) { return false; }
 		Ivrin->SetPlannedMainAction(Intercetto);
 		FRTUnitPlanTestAccess::SetAttackTargetsCell(*Ivrin, bConCella);
-		FRTUnitPlanTestAccess::SetAttackCell(*Ivrin, FRTCellId(2, 0));
+		// La cella ACCANTO: da [D-610] (5)(b) (`#4091`) una cella fuori portata non si arma e non si attiva, e la scena
+		// misurerebbe il rifiuto invece dell'attivazione. Fino ad allora qui c'era (2,0), a distanza 2 con portata 1.
+		FRTUnitPlanTestAccess::SetAttackCell(*Ivrin, FRTCellId(1, 0));
 		Ivrin->SetPlannedCell(Ivrin->Cell);
 		OutCellaIvrin = Ivrin->Cell;
 
@@ -456,7 +458,7 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
 	if (!GiraIlTurno(/*bConCella=*/ true, Attivazioni, CellaIvrin)) { return false; }
 	if (TestEqual(TEXT("✅ con la cella: una attivazione"), Attivazioni.Num(), 1))
 	{
-		TestEqual(TEXT("✅ che porta la cella prevista"), Attivazioni[0].AimCell, FRTCellId(2, 0));
+		TestEqual(TEXT("✅ che porta la cella prevista"), Attivazioni[0].AimCell, FRTCellId(1, 0));
 	}
 	return true;
 }
