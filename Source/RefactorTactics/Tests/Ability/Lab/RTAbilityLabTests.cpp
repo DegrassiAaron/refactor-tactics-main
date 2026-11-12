@@ -829,4 +829,31 @@ bool FRTAbilityLabStepHintNamesPositionAndKeysTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una scena del banco si riconosce dal suo Id, e solo dalla forma che `BuildFixture` scrive — `#4071`, [D-607] (1).
+ *
+ * 🔑 E' la domanda da cui dipende la velocita' del banco: un Id riconosciuto per sbaglio darebbe x0,5 a uno scenario che
+ * non e' del banco. ⛔ Il prefisso e' sensibile alle maiuscole, come in `PlanLabStep`, e senza un'azione dopo non basta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabRecognisesItsScenesTest,
+	"RefactorTactics.AbilityLab.RecognisesOnlyItsOwnScenes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabRecognisesItsScenesTest::RunTest(const FString&)
+{
+	FRTTestScenario Scena;
+	FString Errore;
+	if (!TestTrue(TEXT("⛔ premessa: il banco costruisce la scena di ImpactShot"),
+			URTAbilityLabLibrary::BuildFixture(FName(TEXT("Hero.Branth.ImpactShot")), FRTAbilityLabFixtureSpec(), Scena, Errore)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("🔴 l'Id che BuildFixture scrive e' una scena del banco"), URTAbilityLabLibrary::IsLabScenarioId(Scena.ScenarioId));
+	TestFalse(TEXT("un prefisso senza azione non lo e'"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("AbilityLab.")));
+	TestFalse(TEXT("ne' con le maiuscole sbagliate"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("abilitylab.Hero.Branth.ImpactShot")));
+	TestFalse(TEXT("ne' uno scenario del corpus"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("Visual.Reaction.Deflection")));
+	TestFalse(TEXT("ne' l'Id vuoto"), URTAbilityLabLibrary::IsLabScenarioId(FString()));
+	TestEqual(TEXT("e la velocita' del banco e' x0,5"), URTAbilityLabLibrary::BenchPlaybackSpeed(), 0.5f);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

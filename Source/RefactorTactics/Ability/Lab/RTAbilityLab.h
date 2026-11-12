@@ -208,6 +208,21 @@ public:
 	static FString DescribeLabStep(const FString& ScenarioId);
 
 	/**
+	 * Vero se `ScenarioId` e' una scena del banco: `AbilityLab.<AbilityId>`, la forma che `BuildFixture` scrive (`#4071`).
+	 * E' la domanda che il GameMode fa per la velocita' del banco ([D-607] (1)); `false` per ogni altro Id, compreso
+	 * un `AbilityLab.` senza niente dopo.
+	 */
+	static bool IsLabScenarioId(const FString& ScenarioId);
+
+	/**
+	 * La velocita' del playback del banco, x0,5 ([D-607] (1), `#4071`): l'autore guarda una skill alla volta e da' il suo
+	 * OK alle voci PIE. ⛔ **Solo nel banco**: il tasto `V` della partita resta `x1 · x2 · x4` ([D-350]). La imposta il
+	 * pannello del Lab su `rt.Debug.PlaybackSpeed`, e la accetta `ARTGameMode::ApplyPlaybackControlCVars` solo in una
+	 * scena del banco. Presentazione: non entra nel TurnLog e non tocca l'hash.
+	 */
+	static float BenchPlaybackSpeed() { return 0.5f; }
+
+	/**
 	 * Scrive `Scenario` nella radice del Lab (`URTScenarioLoader::LabScenariosRoot`) e verifica che il suo Id
 	 * risolva a quel file. Fail closed: un file scritto ma non lanciabile si toglie, e `OutError` dice perche'.
 	 *

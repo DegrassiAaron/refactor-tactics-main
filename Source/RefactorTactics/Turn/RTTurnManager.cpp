@@ -356,7 +356,9 @@ void ARTTurnManager::UpdateReactionSlowMotion()
 	//
 	// ⚠️ Il valore lento si legge dal campo e non si scrive qui: e' una manopola di pacing, e un letterale
 	// in questa riga la renderebbe due.
-	ViewerPlaybackSpeed = bWindowOpen ? ReactionWindowPlaybackSpeed : 1.f;
+	// ➕ [D-607] (1), `#4071`: nel banco Ability Lab la finestra si chiude tornando alla velocita' del banco, x0,5.
+	ViewerPlaybackSpeed = bWindowOpen ? ReactionWindowPlaybackSpeed
+		: (BenchPlaybackSpeed > 0.f ? BenchPlaybackSpeed : 1.f);
 }
 
 void ARTTurnManager::AddLogEvent(const FString& Message, FRTLogSubject Subject)
