@@ -31,9 +31,9 @@ L'autore guarda **una skill alla volta**, a **x0,5**, nel banco Ability Lab, e d
    |---|---|
    | `Counter`, `Deflect` | un nemico colpisce l'eroe di prova |
    | `Intercept` | un alleato in più, colpito da un nemico |
-   | `Anchor` | un nemico lo spinge |
-   | `Cleanse` | un nemico gli applica uno stato di controllo |
-   | `HazardEscape` | il fuoco acceso sotto di lui |
+   | `Anchor` | un nemico lo spinge. ➖ Modulo d'equipaggiamento, non nel banco: [#4084](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4084) |
+   | `Cleanse` | un nemico gli applica uno stato di controllo. ➖ Modulo, non nel banco: [#4084](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4084) |
+   | `HazardEscape` | il fuoco acceso sotto di lui. ⛔ Modulo, e **bloccato**: il fuoco lo crea solo `Action.Ignite`, che nessuna unità impugna ([`D-046`](../../decisions/RT_PDR_00_Decision_Log.md)). Vedi [#4084](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4084) |
    | `Overwatch` | un nemico entra nella sua linea |
    | `Brace` | un nemico lo spinge; con `Profile.Sidestep` e `playerReactionWindows` si apre la finestra |
 
@@ -56,9 +56,8 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 | 6 | `Hero.Ivrin.PassingBlade` | nemico sulla traiettoria | grida nel Dash, poi scatta | FUMETTO (g), `PIE-LAB-PASSO` (0) |
 | 7 | `Action.Interact` | il bordo con la porta | **non** grida; l'interazione ha la sua riga, e la porta si apre | FUMETTO (k), REGISTRO (d) |
 | 8 | `Counter`, `Deflect`, `Intercept` | provocate | il fumetto all'arrivo del colpo; la parata si legge come una difesa; il colpo cambia destinatario | FUMETTO (j), `PIE-VIS-DEFLECT`, `PIE-VIS-INTERPOSE` |
-| 9 | `Brace` con la finestra | spinto | la risposta grida dopo la finestra, e il playback torna a x0,5 | FUMETTO (i)(j), `PIE-V01-RXBRACE` |
+| 9 | `Brace` con la finestra, impugnato da Muiren (`Profile.Sidestep`) | spinto | la risposta grida dopo la finestra, e il playback torna a x0,5 | FUMETTO (i)(j), `PIE-V01-RXBRACE` |
 | 10 | `Overwatch`, anche con un bersaglio non visto | entra nella linea | il fumetto quando il bersaglio arriva sulla cella | FUMETTO (j) |
-| 11 | `Reaction.HazardEscape` | il fuoco sotto i piedi | la fuga grida dopo il movimento | FUMETTO (j) |
 | 12 | `Visual.Movement.Charge` | Aevik | la carica si distingue dal passo | `PIE-VIS-CHARGE` |
 | — | `Spazio` in una scena qualsiasi | — | dopo il salto restano tutte le righe, senza doppioni | REGISTRO (e)(f) |
 
@@ -71,7 +70,8 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 
 - `Gadget.PortableCover`, la scena 4 di prima («anche l'equipaggiamento grida»): un equipaggiamento non è una voce del banco. La scena 4 usa ora `Hero.Branth.KineticPanel`, che dichiara la stessa `StructureOp`, ma non prova che l'*equipaggiamento* gridi;
 - `Action.Heal`, la scena 5 di prima: nessun eroe la impugna col suo id, e nei kit non c'è un aiuto su un'altra unità singola. La scena 5 usa la cura ad area `Hero.Muiren.CircularTide`, con l'alleato ferito dentro l'area;
-- `Action.Move`, metà della scena 7: non è una generica. Che il passo non gridi lo si guarda in una partita.
+- `Action.Move`, metà della scena 7: non è una generica. Che il passo non gridi lo si guarda in una partita;
+- `Reaction.Anchor`, `Reaction.Cleanse` e `Reaction.HazardEscape`, la scena 11 di prima: sono moduli d'equipaggiamento ([#4084](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4084)), e HazardEscape è bloccato in ogni caso, perché nessuna unità accende il fuoco. Lo ha misurato [#4073](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4073).
 
 Restano `NOT RUN`, scritti come tali.
 
