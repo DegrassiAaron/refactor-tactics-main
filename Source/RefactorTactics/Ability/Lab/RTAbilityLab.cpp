@@ -402,6 +402,12 @@ ERTAbilityLabProvocation URTAbilityLabLibrary::ProvocationFor(const FRTActionDef
 		default:                                        return ERTAbilityLabProvocation::None;
 		}
 	}
+	// Una predittiva colpisce chi entra nella cella che blocca (`#4088`): senza qualcuno che ci entri, la scena mostrerebbe
+	// solo un colpo mancato.
+	if (Def.PredictiveTargeting != ERTPredictiveTargeting::None)
+	{
+		return ERTAbilityLabProvocation::EnterCell;
+	}
 	// Una principale che arma una reazione: la domanda del catalogo, non l'id (oggi risponde vero per l'Overwatch).
 	if (URTCatalogLibrary::ArmsReaction(Def))
 	{
@@ -469,6 +475,22 @@ FRTAbilityLabTargetChoice URTAbilityLabLibrary::ChooseTarget(const FRTActionDef&
 			for (const FRTCellId& C : Candidate)
 			{
 				if (C != Spec.CasterCell && C != Spec.TargetCell && RTAbilityLabInternal::InLabMap(C, Spec.MapRadius)
+					&& RTAbilityLabInternal::WithinRange(Def, Spec.CasterCell, C))
+				{
+					Choice.Cell = C;
+					break;
+				}
+			}
+		}
+		// Una PREDITTIVA colpisce chi ENTRA (`#4088`): la cella del bersaglio, il ripiego di un'area, per lei non va. Se la
+		// linea non offre una cella, la prima accanto al bersaglio a portata, nell'ordine delle direzioni: col bersaglio
+		// accanto a chi lancia e portata 1, la linea ha solo la cella oltre, fuori portata, e quella di chi lancia.
+		if (Choice.Cell == Spec.TargetCell && Def.PredictiveTargeting != ERTPredictiveTargeting::None)
+		{
+			for (int32 D = 0; D < 6; ++D)
+			{
+				const FRTCellId C = URTHexLibrary::Neighbor(Spec.TargetCell, static_cast<ERTHexDirection>(D));
+				if (C != Spec.CasterCell && RTAbilityLabInternal::InLabMap(C, Spec.MapRadius)
 					&& RTAbilityLabInternal::WithinRange(Def, Spec.CasterCell, C))
 				{
 					Choice.Cell = C;
@@ -547,11 +569,15 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	// il fuoco non lo accende nessuno ([D-046]). Fail closed invece di posare una reazione che non puo' scattare.
 	const ERTAbilityLabProvocation Provocazione = ProvocationFor(Def);
 	// ⛔ Il bersaglio di una reazione non si forza: la scena la fa provocare dal `TARGET`, nemico, e un `TARGET` alleato
-	// provocherebbe la propria squadra. Fail closed invece di posare una scena che non scatta (`#4073`, review).
-	if (Provocazione != ERTAbilityLabProvocation::None && Spec.Target != ERTAbilityLabTarget::Auto)
+	// provocherebbe la propria squadra. Fail closed invece di posare una scena che non scatta (`#4073`, review). Vale per
+	// una predittiva salvo «cella», che e' la sua forma e da' la scena di `Auto` (`#4088`): un'unita', un bordo o
+	// «nessuno» non armerebbero niente.
+	const bool bPredittivaACella = Provocazione == ERTAbilityLabProvocation::EnterCell && Spec.Target == ERTAbilityLabTarget::Cell;
+	if (Provocazione != ERTAbilityLabProvocation::None && Spec.Target != ERTAbilityLabTarget::Auto && !bPredittivaACella)
 	{
-		OutError = FString::Printf(
-			TEXT("'%s' e' una reazione: la provoca il TARGET, e il suo bersaglio non si forza."), *AbilityId.ToString());
+		OutError = Provocazione == ERTAbilityLabProvocation::EnterCell
+			? FString::Printf(TEXT("'%s' blocca una cella: il suo bersaglio si forza solo a «cella»."), *AbilityId.ToString())
+			: FString::Printf(TEXT("'%s' e' una reazione: la provoca il TARGET, e il suo bersaglio non si forza."), *AbilityId.ToString());
 		return false;
 	}
 	if (Provocazione == ERTAbilityLabProvocation::Control || Provocazione == ERTAbilityLabProvocation::Hazard)
@@ -650,6 +676,17 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		OutError = FString::Printf(
 			TEXT("'%s' chiede un bersaglio: forzarlo a «nessuno» darebbe una scena che l'harness rifiuta."),
 			*AbilityId.ToString());
+		return false;
+	}
+
+	// ⛔ Una predittiva colpisce chi ENTRA (`#4088`): se la posa non offre una cella a portata accanto al `TARGET`,
+	// `ChooseTarget` ripiega sulla sua, e chi c'e' gia' non e' chi entra. Fail closed invece di una scena che manca sempre.
+	if (Provocazione == ERTAbilityLabProvocation::EnterCell
+		&& (Choice.Kind != ERTAbilityLabTarget::Cell || Choice.Cell == Spec.TargetCell))
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' blocca una cella in cui il TARGET deve entrare, e la posa non ne offre una a portata accanto a %s."),
+			*AbilityId.ToString(), *Spec.TargetCell.ToString());
 		return false;
 	}
 
@@ -783,14 +820,20 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 			Provoca.Move.Add(URTHexLibrary::Neighbor(Spec.TargetCell, VersoChiGuarda));
 			break;
 		}
+		case ERTAbilityLabProvocation::EnterCell:
+			// Un passo nella cella bloccata: `ChooseTarget` la sceglie accanto al bersaglio, e il controllo sopra lo garantisce.
+			Provoca.Move.Add(Choice.Cell);
+			break;
 		default:
 			break;
 		}
 		Turn.Intents.Add(Provoca);
 
 		// L'Overwatch e il Brace rispondono in una FINESTRA del giocatore: e' cio' che la scena mostra (scene 9 e 10 del
-		// piano). Senza, il resolver decide da solo, e in PIE non si vedrebbe niente da scegliere.
-		Scenario.bPlayerReactionWindows = Def.Slot != ERTActionSlot::Reaction;
+		// piano). Senza, il resolver decide da solo, e in PIE non si vedrebbe niente da scegliere. Una predittiva non ha
+		// finestra: si e' decisa in Planning (D-016).
+		Scenario.bPlayerReactionWindows = Def.Slot != ERTActionSlot::Reaction
+			&& Provocazione != ERTAbilityLabProvocation::EnterCell;
 	}
 
 	Scenario.Turns.Add(Turn);
@@ -805,7 +848,9 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 
 	// La validita' geometrica della posa (celle dentro `MapRadius`, bersaglio a portata) la decide l'harness.
 	// `ChooseTarget` usa la geometria esagonale condivisa (`URTHexLibrary`) solo per SCEGLIERE dove posare la mira
-	// (`#4072`); rifiutare qui una posa vorrebbe dire dare la seconda risposta che questo file esiste per non dare.
+	// (`#4072`). ⚠️ I due rifiuti geometrici di questo file sono della SCENA, non regole del gioco: chi provoca deve
+	// arrivare a chi reagisce (`#4073`), e una predittiva vuole una cella in cui il `TARGET` possa entrare (`#4088`).
+	// Senza, la scena girerebbe senza mostrare la skill. Se l'azione puo' farlo, lo giudica comunque il gioco.
 	OutScenario = Scenario;
 	return true;
 }

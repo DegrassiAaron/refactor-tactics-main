@@ -199,7 +199,7 @@ enum class ERTInterruptPolicy : uint8
  * ## ⛔ Cio' che questa enum NON e'
  *
  * Non e' `DirectLOS / CellLOS / Indirect`. Quella distinzione — *che FORMA di bersaglio chiede l'azione* —
- * la fa gia' `URTPointerLibrary::TargetKindForAction` leggendo `Shape` e `StructureOp`, e duplicarla qui
+ * la fa gia' `URTPointerLibrary::TargetKindForAction` leggendo `Shape`, `StructureOp` e `PredictiveTargeting`, e duplicarla qui
  * creerebbe la seconda fonte di verita' che quel file dichiara apertamente di evitare. I due assi sono
  * ortogonali per costruzione: un'azione a cella puo' richiedere la linea, e domani un'azione mirata a
  * un'unita' gia' conosciuta potrebbe non richiederla.

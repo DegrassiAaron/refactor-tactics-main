@@ -433,6 +433,94 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 }
 
 /**
+ * `#4088` — **una predittiva chiede una CELLA**: blocca una cella in Planning e colpisce chi ci entra (`LockCell`, D-016),
+ * quindi il puntatore non puo' chiederle un'unita'. Prima chiedeva `Unit` — `InterceptShot` e' `Shape::Single` — e il
+ * giocatore non aveva un gesto che la armasse.
+ *
+ * Il catalogo, non un elenco di id: ogni azione dei kit e delle generiche con `PredictiveTargeting` diverso da `None`.
+ * ⚠️ E l'altro verso: un'azione `Single` che non predice chiede ancora un'unita', o la regola sarebbe «tutto e' cella».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerPredictiveAsksForACellTest,
+	"RefactorTactics.PlayerInput.APredictiveActionAsksForACell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerPredictiveAsksForACellTest::RunTest(const FString&)
+{
+	TArray<const URTActionData*> Azioni;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			Azioni.Add(Ptr.Get());
+		}
+	}
+	for (const URTActionData* Generica : URTCatalogLibrary::MakeGenericActions(GetTransientPackage()))
+	{
+		Azioni.Add(Generica);
+	}
+
+	int32 Predittive = 0;
+	for (const URTActionData* A : Azioni)
+	{
+		if (!A || A->Def.PredictiveTargeting == ERTPredictiveTargeting::None) { continue; }
+		++Predittive;
+		TestEqual(FString::Printf(TEXT("%s predice: il puntatore chiede una cella"), *A->Def.ActionId.ToString()),
+			URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape), ERTPointerTargetKind::Cell);
+	}
+	TestTrue(FString::Printf(TEXT("il catalogo ha azioni predittive (%d)"), Predittive), Predittive > 0);
+
+	FRTActionDef Singola;
+	TestEqual(TEXT("una Single che non predice chiede ancora un'unita'"),
+		URTPointerLibrary::TargetKindForAction(Singola, /*bSelfTarget=*/ false, ERTAbilityShape::Single), ERTPointerTargetKind::Unit);
+	return true;
+}
+
+/**
+ * `#4088` — **un'AREA sulla mesh di un'unita' mira ancora l'unita'**: il rinvio del click alla cella vale solo per la
+ * predittiva, che altrimenti non si armerebbe. Un'area mirata a un'unita' il Blast la centra gia' sulla cella congelata
+ * al lock-in ([D-419]).
+ *
+ * ⚠️ **Pinna il comportamento di oggi, non il contratto**: la conseguenza 2 della spec del puntatore (§4.1) vorrebbe la
+ * cella anche qui, ed e' una deriva gia' dichiarata in `HandleClickOnUnit`. Chi generalizza il rinvio a ogni `Cell` deve
+ * farlo con la sua decisione, e questo test glielo ricorda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerAreaOnAUnitMeshTest,
+	"RefactorTactics.PlayerInput.AnAreaOnAUnitMeshStillAimsTheUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerAreaOnAUnitMeshTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	const int32 AreaIdx = Mine ? FindAreaAbility(Mine) : INDEX_NONE;
+	if (!PC || !Mine || !Enemy
+		|| !TestTrue(TEXT("premessa: il kit contiene un'azione ad AREA"), AreaIdx != INDEX_NONE))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->SelectActorForTest(Mine);
+	PC->SelectAbilityForCurrentForTest(AreaIdx);
+	TestEqual(TEXT("premessa: l'area chiede una CELLA"), PC->GetPointerTargetKind(), ERTPointerTargetKind::Cell);
+
+	TestTrue(TEXT("il click sul nemico e' consumato"), PC->DispatchUnitClickForTest(Enemy, Mine));
+	TestEqual(TEXT("pianifica l'area"), Mine->PlannedAbilityIndex, AreaIdx);
+	TestTrue(TEXT("mirata al nemico, com'era"), Mine->PlannedAttackTarget == Enemy);
+	TestFalse(TEXT("e non alla sua cella"), Mine->bAttackTargetsCell);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
  * `Targeting`/`Edge` scrive `PlannedCoverEdge` + `bHasPlannedCoverEdge`. Il lato serve perche' a portata 3
  * il bordo non si deduce piu' dalla coppia di celle, e senza il resolver rifiuta con `CoverRejected`.
  */

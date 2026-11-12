@@ -103,6 +103,10 @@ grep -rn "PlannedAttackCell *=\|bAttackTargetsCell *=\|PlannedCoverEdge *=\|bHas
   | grep -v "RTScenarioSession\|RTTurnManager\|RTUnit.h\|Tests/"
 ```
 
+> ⌫ **Dal `#2884` questo comando non stampa più il controller** (annotato il 2026-11-12, #4088): le assegnazioni dei
+> campi vivono in `ARTUnit` (`DeclareAttackOnCell`, `DeclarePlannedCoverEdge`, `DeclarePlannedFacing`). Il produttore
+> si cerca con `grep -rn "DeclareAttackOnCell(\|DeclarePlannedCoverEdge(\|DeclarePlannedFacing(" Source/ | grep -v Tests/`.
+
 ~~Oggi non stampa nulla.~~ ✅ **Superata il 2026-08-13 sera.** Il comando stampa ora otto righe in
 `Player/RTPlayerController.cpp` — `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector`. Le due
 assenze di questa sezione **non descrivono più il codice**, e la tabella qui sopra resta come misura
@@ -585,13 +589,25 @@ negli scenari.
 | `Facing` | `ARTPlayerController::HandleFacingSector` | `PlayerInput.FacingSectorProducesPlannedFacing` · `PlayerInput.IllegalFacingIsRejectedNotCorrected` |
 
 Il `TargetKind` è **derivato dal catalogo** (`URTPointerLibrary::TargetKindForAction`), non un campo nuovo:
-`StructureOp != None` → `Edge`, `Shape == Area` → `Cell`, altrimenti `Unit`. Aggiungere un campo al dato
-avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
+`StructureOp != None` → `Edge`, `PredictiveTargeting != None` → `Cell`, `Shape == Area` → `Cell`, altrimenti
+`Unit`. Aggiungere un campo al dato avrebbe creato una seconda fonte di verità accanto a quelle che lo dicevano già.
+
+> ⚠️ **La riga della predittiva è arrivata dopo, con [#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088)
+> (2026-11-12).** Fino ad allora `Hero.Ivrin.InterceptShot`, `Shape::Single`, chiedeva un'unità: il click sulla
+> cella diventava un waypoint, quello sul nemico un bersaglio-unità che il turno non arma. Misurato da
+> `Predictive.PlayerLocksTheCellItClicks` e `Predictive.PlayerClickOnAUnitLocksItsCell`. Con una predittiva armata,
+> anche il click sulla mesh di un'unità che il giocatore non comanda va alla sua cella (§4.1, conseguenza 2); una
+> propria la seleziona, come per le aree. ⚠️ Le aree restano com'erano: sulla mesh di un'unità mirano l'unità, ed è una
+> deriva dalla conseguenza 2 dichiarata in `HandleClickOnUnit` e pinnata da `PlayerInput.AnAreaOnAUnitMeshStillAimsTheUnit`.
 
 > ✅ **E l'asimmetria delle capability si è chiusa da sé.** `RTScenarioSession.cpp` dichiarava
 > `PredictiveAction` disponibile con la motivazione *«un canale che il gioco ha già»*, **falsa** alla misura
 > della mattina. Ora il canale esiste, il verde di quei quattro scenari dice qualcosa di vero sul giocatore,
 > e il commento è stato riscritto con la storia intera invece che con la sola conclusione.
+>
+> ⚠️ **Non per la predittiva, misurato il 2026-11-12 ([#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088))**: `InterceptShot` chiedeva un'unità, e il giocatore non
+> arrivava a `HandleTargetCell`. Per lei il verde di `PredictiveAction` dice il vero sul giocatore solo da #4088
+> (`Predictive.PlayerLocksTheCellItClicks`).
 >
 > ✅ **E `DeclaredRotation` è entrata fra le capability la sera stessa**, con la chiave `facing` in
 > `FRTScenarioIntent` e i due scenari che dimostrano la rotazione dichiarata sul percorso reale

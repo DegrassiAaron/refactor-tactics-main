@@ -103,7 +103,7 @@ impegnarsi, e decide se colpire, muoversi prima o cambiare azione.
 - F3 (`KineticPanel`, `Reconfigure`, `PortableCover`, `Interact`): `HandleTargetEdge` non ha chiamanti di
   produzione — dipende da #705;
 - F4 (`FluidTrail`, `PassingBlade`, `Ram`): è movimento, il contesto non è `Targeting`;
-- F5 (`InterceptShot`): la cella predittiva non è dichiarabile dal click (kind `Unit` contro `LockCell`);
+- F5 (`InterceptShot`): la cella predittiva non è dichiarabile dal click (kind `Unit` contro `LockCell`). ✅ Chiuso da [#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088) (2026-11-12): `TargetKindForAction` dà `Cell` per una predittiva;
 - F6 (Overwatch): zona propria (D-387), nessuna mira; F7: niente da mostrare;
 - **Ora area E, non più DEFERRED**: l'anteprima d'area d'effetto all'hover (righe `Hover = Preview` di
   `spec-pointer-interaction.md` §5.1) ha un owner, [#3512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3512), ed è specificata nel referto gemello (§5);
@@ -429,6 +429,7 @@ Ogni issue ha un owner solo; le altre relazioni sono dipendenze.
   ✅ Chiuso da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)), insieme a `Sneak` e `Invio`, che avevano la stessa forma.
 - `InterceptShot` non è dichiarabile dal click (kind `Unit`, ma vuole una cella): l'abilità si consuma senza
   armarsi.
+  ✅ Chiuso da [#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088) (2026-11-12): una predittiva chiede una cella, e il click su un'unità che non si comanda blocca la sua.
 - Commenti stantii: `RTOverlayPalette.cpp` dice che un significato nuovo «rompe la COMPILAZIONE» (falso con i
   default di UBT 5.8); `RTOverlayPalette.h` e il corpo di #1944 dicono che `DrawDebugLine` ignora l'alpha (falso
   per le linee spesse, che passano da `SE_BLEND_AlphaBlend`; non verificato a schermo); `RTOverlayArea.h` dice

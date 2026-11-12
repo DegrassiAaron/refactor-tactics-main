@@ -39,6 +39,7 @@ L'autore guarda **una skill alla volta**, a **x0,5**, nel banco Ability Lab, e d
 
 4. **La riga «BANCO i/n» è coperta** dalle etichette delle unità. → **#3795**, da chiudere prima della seduta se possibile.
 5. **Il clone principale** va portato su `main` e ricompilato prima della seduta, perché il fumetto di #4059 arrivi all'Editor. Si fa con l'OK dell'autore, a motore libero.
+6. **La scena di `Hero.Ivrin.InterceptShot` non armava la previsione**: il banco le dava un nemico, perché il puntatore le chiedeva un'unità, e lo chiedeva anche al giocatore. → **[#4088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4088).** Una predittiva chiede una cella; la scena ne blocca una accanto al bersaglio, e il bersaglio ci entra.
 
 ## 4. Il copione della seduta
 
@@ -59,6 +60,7 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 | 9 | `Brace` con la finestra, impugnato da Muiren (`Profile.Sidestep`) | spinto | la risposta grida dopo la finestra, e il playback torna a x0,5 | FUMETTO (i)(j), `PIE-V01-RXBRACE` |
 | 10 | `Action.Overwatch` | entra nella linea | il fumetto quando il bersaglio arriva sulla cella | FUMETTO (j) |
 | 12 | `Visual.Movement.Charge` | Aevik | la carica si distingue dal passo | `PIE-VIS-CHARGE` |
+| 13 | `Hero.Ivrin.InterceptShot` | una cella accanto al bersaglio, in cui il bersaglio entra | la cella si blocca nel Prep; chi ci entra si ferma lì e incassa il colpo | nessuna voce del banco: il click del giocatore lo guarda `PIE-V01-PREDICTIVECLICK`, in una scena sua |
 | — | `Spazio` in una scena qualsiasi | — | dopo il salto restano tutte le righe, senza doppioni | REGISTRO (e)(f) |
 
 **Le finestre delle scene 9 e 10** hanno precondizioni note, che il pannello non imposta:

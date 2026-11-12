@@ -15,6 +15,8 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Player/RTPlayerController.h"
+#include "Player/RTPointerInteraction.h"
 #include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -113,6 +115,26 @@ namespace
 	}
 
 	constexpr int32 PredInterceptDamage = 160; // dal catalogo eroi, non un numero di questo file
+
+	/** L'indice di `Hero.Ivrin.InterceptShot` nel kit dell'unita', o `INDEX_NONE`: cercato per id, non scritto. */
+	int32 PredInterceptIndex(const ARTUnit* Unit)
+	{
+		for (int32 I = 0; Unit && I < Unit->NumAbilities(); ++I)
+		{
+			const URTActionData* A = Unit->GetAbility(I);
+			if (A && A->Def.ActionId == TEXT("Hero.Ivrin.InterceptShot")) { return I; }
+		}
+		return INDEX_NONE;
+	}
+
+	/** Il piano dopo un click, in una riga: e' la misura di `#4088`, e la si legge anche quando il test e' verde. */
+	FString PredPlanAfterClick(const ARTUnit* Unit)
+	{
+		return FString::Printf(TEXT("PlannedAbilityIndex=%d bAttackTargetsCell=%d PlannedAttackCell=%s PlannedAttackTarget=%s waypoint=%d"),
+			Unit->PlannedAbilityIndex, Unit->bAttackTargetsCell ? 1 : 0, *Unit->PlannedAttackCell.ToString(),
+			Unit->PlannedAttackTarget ? *Unit->PlannedAttackTarget->GetName() : TEXT("nessuno"),
+			Unit->PlannedWaypoints.Num());
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveInterceptHitTest,
@@ -426,6 +448,132 @@ bool FRTPredictiveCoverAppliesTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(
 		TEXT("il colpo di boundary subisce la copertura: %d invece dei %d pieni"), Taken, PredInterceptDamage),
 		Taken < PredInterceptDamage);
+
+	DestroyPredWorld(World);
+	return true;
+}
+
+// ======================================================================================================
+// `#4088` — la previsione la arma il GIOCATORE, dal controller vero
+// ======================================================================================================
+//
+// I test sopra scrivono il piano a mano (`ArmPredIntercept`): provano il turno, non chi gli da' la cella. Questi due
+// partono dal controller — l'azione armata dalla barra, il click — e arrivano al TurnLog attraverso il lock-in.
+
+/**
+ * **Il giocatore arma `InterceptShot` cliccando la cella** (`#4088`): il puntatore chiede una cella, il click la scrive
+ * nel piano, e al lock-in la previsione colpisce chi ci entra.
+ *
+ * 🔴 **Misurato il 2026-11-12 sul codice di `08d83547e`, prima della correzione**: il puntatore chiedeva un'unita', e il
+ * click sulla cella vuota diventava un waypoint del tiratore (`PlannedAbilityIndex=-1 bAttackTargetsCell=0 waypoint=1`).
+ * Nessuna previsione al lock-in, e chi attraversava la cella incassava 0. La riga `dopo il click` del log lo dice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictivePlayerLocksTheCellTest,
+	"RefactorTactics.Predictive.PlayerLocksTheCellItClicks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictivePlayerLocksTheCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakePredWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnPredMap(World);
+
+	const FRTCellId Locked(0, 0);
+
+	// La scena di `InterceptCellHit`, con le squadre scambiate: il tiratore e' del giocatore.
+	ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 0, FRTCellId(0, 1)); // adiacente alla cella da bloccare
+	ARTUnit* Runner = SpawnPredUnit(World, /*Team*/ 1, FRTCellId(-1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	const int32 Intercetto = PredInterceptIndex(Shooter);
+	if (!TestNotNull(TEXT("Runner"), Runner) || !TestNotNull(TEXT("Shooter"), Shooter) || !TestNotNull(TEXT("TM"), TM)
+		|| !TestNotNull(TEXT("PC"), PC)
+		|| !TestNotEqual(TEXT("premessa: InterceptShot e' nel kit di Ivrin"), Intercetto, (int32)INDEX_NONE))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	PC->SelectActorForTest(Shooter);
+	PC->SelectAbilityForCurrentForTest(Intercetto);
+	TestEqual(TEXT("armata, InterceptShot chiede una CELLA"), PC->GetPointerTargetKind(), ERTPointerTargetKind::Cell);
+
+	PC->HandleClickOnCellForTest(Locked);
+	AddInfo(FString::Printf(TEXT("dopo il click sulla cella %s: %s"), *Locked.ToString(), *PredPlanAfterClick(Shooter)));
+	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->PlannedAbilityIndex, Intercetto);
+	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->bAttackTargetsCell);
+	TestTrue(TEXT("quella cliccata"), Shooter->PlannedAttackCell == Locked);
+	TestEqual(TEXT("e non come una destinazione del tiratore"), Shooter->PlannedWaypoints.Num(), 0);
+
+	// Il Runner ATTRAVERSA la cella bloccata, come in `InterceptCellHit`.
+	Runner->SetPlannedCell(FRTCellId(1, 0));
+	const int32 Before = Runner->Health;
+
+	RunPredTurn(TM);
+
+	const FRTTurnLogEntry* Entry = FindPredEntry(TM);
+	if (TestNotNull(TEXT("al lock-in la previsione si arma: il TurnLog la registra"), Entry))
+	{
+		TestEqual(TEXT("come TriggerMatched"), Entry->Outcome, static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
+		TestTrue(TEXT("sulla cella cliccata"), Entry->TgtCell == Locked);
+	}
+	TestEqual(TEXT("chi e' entrato incassa i danni del catalogo"), Before - Runner->Health, PredInterceptDamage);
+
+	DestroyPredWorld(World);
+	return true;
+}
+
+/**
+ * **Il click su un'unita' mira la SUA cella** (`#4088`, spec del puntatore §4.1 conseguenza 2: in `Targeting`/`Cell`
+ * un'unita' sopra la cella non la ruba). La previsione si arma, e manca chi c'era gia': colpisce chi ENTRA
+ * (`Predictive.CrossingIsNotPresence`).
+ *
+ * 🔴 **Misurato il 2026-11-12 sul codice di `08d83547e`, prima della correzione**: il click sul nemico pianificava
+ * InterceptShot con un bersaglio-UNITA' (`bAttackTargetsCell=0`, `PlannedAttackTarget` il nemico), e al lock-in il turno
+ * non armava nessuna previsione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictivePlayerClicksAUnitTest,
+	"RefactorTactics.Predictive.PlayerClickOnAUnitLocksItsCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictivePlayerClicksAUnitTest::RunTest(const FString&)
+{
+	UWorld* World = MakePredWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnPredMap(World);
+
+	ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 0, FRTCellId(0, 1));
+	ARTUnit* Enemy = SpawnPredUnit(World, /*Team*/ 1, FRTCellId(0, 0)); // accanto, e fermo
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	const int32 Intercetto = PredInterceptIndex(Shooter);
+	if (!TestNotNull(TEXT("Enemy"), Enemy) || !TestNotNull(TEXT("Shooter"), Shooter) || !TestNotNull(TEXT("TM"), TM)
+		|| !TestNotNull(TEXT("PC"), PC)
+		|| !TestNotEqual(TEXT("premessa: InterceptShot e' nel kit di Ivrin"), Intercetto, (int32)INDEX_NONE))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	PC->SelectActorForTest(Shooter);
+	PC->SelectAbilityForCurrentForTest(Intercetto);
+
+	// La matrice del click vero, non `HandleClickOnUnitForTest`: e' cio' che il raycast su una mesh raggiunge.
+	TestTrue(TEXT("il click sul nemico e' consumato"), PC->DispatchUnitClickForTest(Enemy, Shooter));
+	AddInfo(FString::Printf(TEXT("dopo il click sul nemico in %s: %s"), *Enemy->Cell.ToString(), *PredPlanAfterClick(Shooter)));
+	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->PlannedAbilityIndex, Intercetto);
+	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->bAttackTargetsCell);
+	TestTrue(TEXT("quella del nemico cliccato"), Shooter->PlannedAttackCell == Enemy->Cell);
+	TestNull(TEXT("e non lui"), Shooter->PlannedAttackTarget.Get());
+
+	const FRTCellId Bloccata = Enemy->Cell;
+	RunPredTurn(TM);
+
+	const FRTTurnLogEntry* Entry = FindPredEntry(TM);
+	if (TestNotNull(TEXT("al lock-in la previsione si arma: il TurnLog la registra"), Entry))
+	{
+		TestTrue(TEXT("sulla cella del nemico cliccato"), Entry->TgtCell == Bloccata);
+		TestEqual(TEXT("e chi c'era gia' non e' chi entra: PredictionWhiffed"), Entry->Outcome,
+			static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed));
+	}
 
 	DestroyPredWorld(World);
 	return true;
