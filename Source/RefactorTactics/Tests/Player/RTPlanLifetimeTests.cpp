@@ -231,11 +231,11 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 
 /**
  * **Lo `Sneak` e' una dichiarazione per azione di movimento, e non sopravvive al turno** ([D-609], #4080). Un'unita' ha
- * oggi un solo movimento per turno, quindi lo `Sneak` finisce col turno, che l'unita' si sia mossa o no.
+ * oggi un solo `Move` per turno, quindi lo `Sneak` finisce col turno, che l'unita' si sia mossa o no.
  *
  * 🔑 **L'unita' NON si muove**: lo `Sneak` finisce col turno anche senza un movimento che lo consumi. La memoria del
- * troncamento la dimentica gia' `PlaceOnCell`, che la fase Move chiama per ogni unita', ferme comprese: misurato su
- * #4080 prima della correzione, quando questi asserti erano gia' verdi e solo quello sul profilo cadeva. Restano come
+ * troncamento la dimentica gia' `PlaceOnCell`, che la fase Move chiama per ogni unita' viva, ferme comprese: misurato
+ * su `e1063b081` senza la riga della correzione, dove questi asserti restano verdi e cade solo quello sul profilo. Restano come
  * pin, perche' il ritiro dello `Sneak` al turno dopo non ripristini waypoint di un piano gia' chiuso ([D-444]: e'
  * memoria di editing di QUEL piano).
  */

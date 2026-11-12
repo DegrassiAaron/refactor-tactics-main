@@ -2128,11 +2128,12 @@ void ARTTurnManager::ConcludeResolution()
 			Unit->SetTurnPlanDeclared(false);
 
 			// ➕ **E lo `Sneak` dichiarato ([D-609], #4080)**: e' una dichiarazione per azione di movimento, e oggi
-			// un'unita' ha un movimento per turno, quindi finisce QUI, che si sia mossa o no. Sopravvivendo, il turno
+			// un'unita' ha un solo `Move` per turno, quindi finisce QUI, che si sia mossa o no. Sopravvivendo, il turno
 			// dopo partirebbe col tetto dimezzato e il badge acceso senza che il giocatore l'abbia ridichiarato
 			// (misurato da #4077). La memoria del troncamento che lo `Sneak` lascia non va azzerata qui: la dimentica
-			// gia' `PlaceOnCell`, che la fase Move chiama per ogni unita', ferme comprese. Pinnato da
-			// `Turn.SneakDoesNotSurviveTheTurn` e `HexMatch.SneakEndsWithItsTurn`.
+			// gia' `PlaceOnCell`, che la fase Move chiama per ogni unita' viva, ferme comprese (i morti saltano questo
+			// blocco e li distrugge `DestroyDefeatedUnits`). Pinnato da `Turn.SneakDoesNotSurviveTheTurn` e
+			// `HexMatch.SneakEndsWithItsTurn`.
 			Unit->SetPlannedMovementProfile(NAME_None);
 
 			// 🔴 **E l'ARMAMENTO torna al neutro, per [D-397] §5** (`#2988`). Un piano consumato lasciava
@@ -5051,7 +5052,7 @@ void ARTTurnManager::ResolveDash()
 	// ⏱️ *La riga `PlannedMovementProfileId = NAME_None` e' uscita con [D-425]*: quel campo non porta piu'
 	// l'andatura — porta la sola dichiarazione di `Sneak` — e azzerarlo qui avrebbe cancellato in silenzio
 	// una dichiarazione che `Unbalanced` non tocca, visto che sgusciare non e' correre. A fine turno lo
-	// azzera il blocco del Cleanup, per tutti ([D-609]): qui si e' ancora dentro il turno che lo usa.
+	// azzera il blocco del Cleanup, per ogni unita' viva ([D-609]): qui si e' ancora dentro il turno che lo usa.
 	for (ARTUnit* Unit : Units)
 	{
 		if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Unbalanced))

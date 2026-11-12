@@ -3458,8 +3458,10 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	}
 
 	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
-	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
-	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
+	// dichiarazione la azzera il Cleanup a fine turno ([D-609], #4080), ma il Cleanup gira PRIMA del playback
+	// (`ConcludeResolution`), quindi un `M` premuto mentre la risoluzione scorre cambierebbe il passo del turno
+	// dopo, deciso quando il piano era in sola lettura. ⌫ *Fino a #4080: «La dichiarazione non la azzera nessuno —
+	// resta finche' non la si ritira ([D-425])».*
 	// ➕ `#3748`: vale anche con la barra su un'unita' che non si comanda (`IsPlanningWriteBlocked`), e la riga dice quale delle due cause.
 	if (IsPlanningWriteBlocked())
 	{

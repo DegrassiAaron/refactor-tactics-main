@@ -2299,8 +2299,9 @@ bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
  *
  * Hanno la forma dell'armo: una dichiarazione sul piano dell'unita', scritta da un tasto e da un pulsante della
  * barra (`ToggleSneakDeclaration`, `TogglePlanDeclaration`) che guardavano solo il modale. E nessuna delle due
- * la azzera il playback: la dichiarazione del piano la toglie il Cleanup, che gira prima; `Sneak` resta finche'
- * non lo si ritira ([D-425]).
+ * la azzera il playback: le toglie entrambe il Cleanup, che gira prima (lo `Sneak` da #4080, [D-609]), quindi un
+ * tasto premuto durante il playback arriverebbe al turno dopo. ⌫ *Fino a #4080: «`Sneak` resta finche' non lo si
+ * ritira ([D-425])».*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanDeclarationsTest,
 	"RefactorTactics.HexMatch.PlaybackRejectsPlanDeclarations",
