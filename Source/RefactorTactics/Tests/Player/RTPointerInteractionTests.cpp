@@ -433,6 +433,49 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 }
 
 /**
+ * `#4088` — **una predittiva chiede una CELLA**: blocca una cella in Planning e colpisce chi ci entra (`LockCell`, D-016),
+ * quindi il puntatore non puo' chiederle un'unita'. Prima chiedeva `Unit` — `InterceptShot` e' `Shape::Single` — e il
+ * giocatore non aveva un gesto che la armasse.
+ *
+ * Il catalogo, non un elenco di id: ogni azione dei kit e delle generiche con `PredictiveTargeting` diverso da `None`.
+ * ⚠️ E l'altro verso: un'azione `Single` che non predice chiede ancora un'unita', o la regola sarebbe «tutto e' cella».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerPredictiveAsksForACellTest,
+	"RefactorTactics.PlayerInput.APredictiveActionAsksForACell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerPredictiveAsksForACellTest::RunTest(const FString&)
+{
+	TArray<const URTActionData*> Azioni;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			Azioni.Add(Ptr.Get());
+		}
+	}
+	for (const URTActionData* Generica : URTCatalogLibrary::MakeGenericActions(GetTransientPackage()))
+	{
+		Azioni.Add(Generica);
+	}
+
+	int32 Predittive = 0;
+	for (const URTActionData* A : Azioni)
+	{
+		if (!A || A->Def.PredictiveTargeting == ERTPredictiveTargeting::None) { continue; }
+		++Predittive;
+		TestEqual(FString::Printf(TEXT("%s predice: il puntatore chiede una cella"), *A->Def.ActionId.ToString()),
+			URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape), ERTPointerTargetKind::Cell);
+	}
+	TestTrue(FString::Printf(TEXT("il catalogo ha azioni predittive (%d)"), Predittive), Predittive > 0);
+
+	FRTActionDef Singola;
+	TestEqual(TEXT("una Single che non predice chiede ancora un'unita'"),
+		URTPointerLibrary::TargetKindForAction(Singola, /*bSelfTarget=*/ false, ERTAbilityShape::Single), ERTPointerTargetKind::Unit);
+	return true;
+}
+
+/**
  * `Targeting`/`Edge` scrive `PlannedCoverEdge` + `bHasPlannedCoverEdge`. Il lato serve perche' a portata 3
  * il bordo non si deduce piu' dalla coppia di celle, e senza il resolver rifiuta con `CoverRejected`.
  */
