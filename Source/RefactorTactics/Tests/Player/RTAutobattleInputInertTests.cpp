@@ -36,6 +36,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Tests/Shared/RTConsoleVariableGuardForTest.h"
 #include "Tests/Shared/RTInputBindingFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -120,12 +121,12 @@ namespace
 	void ClearInertPlan(ARTUnit* U)
 	{
 		if (!U) { return; }
-		U->PlannedAbilityIndex = INDEX_NONE;
-		U->PlannedAttackTarget = nullptr;
-		U->PlannedAttackCell = FRTCellId();
-		U->bAttackTargetsCell = false;
-		U->bHasPlannedCoverEdge = false;
-		U->bDeclaresPlannedFacing = false;
+		U->ClearPlannedMainAction();
+		U->ClearPlannedAttack();
+		FRTUnitPlanTestAccess::SetAttackCell(*U, FRTCellId());
+		FRTUnitPlanTestAccess::SetAttackTargetsCell(*U, false);
+		U->ClearPlannedCoverEdge();
+		U->RetractPlannedFacing();
 		U->SelectAbility(INDEX_NONE);
 	}
 
@@ -379,7 +380,7 @@ bool FRTAutobattleBackIsInertTest::RunTest(const FString&)
 	// --- CONTROLLO: sessione presidiata, il destro disfa ---------------------------------------------
 	B.Setup(/*bAutobattle=*/ false);
 	B.PC->SelectActorForTest(B.Aevik);
-	B.Aevik->PlannedWaypoints.Add(FRTCellId(0, -1, 0));
+	B.Aevik->AddPlannedWaypoint(FRTCellId(0, -1, 0));
 
 	B.PC->OnUndoWaypointForTest();
 	if (!TestEqual(TEXT("controllo: presidiata, il destro toglie il waypoint"),
@@ -399,7 +400,7 @@ bool FRTAutobattleBackIsInertTest::RunTest(const FString&)
 	}
 
 	B.PC->SelectActorForTest(B.Aevik);
-	B.Aevik->PlannedWaypoints.Add(FRTCellId(0, -1, 0));
+	B.Aevik->AddPlannedWaypoint(FRTCellId(0, -1, 0));
 
 	B.PC->OnUndoWaypointForTest();
 	TestEqual(TEXT("il destro NON disfa il piano di una sessione non presidiata"),

@@ -120,11 +120,11 @@ namespace
 		}
 
 		Difensore->Facing = bFromBehind ? ERTHexDirection::E : ERTHexDirection::W;
-		Difensore->PlannedAbilityIndex = INDEX_NONE;
+		Difensore->ClearPlannedMainAction();
 
 		Attaccante->Facing = ERTHexDirection::E; // guarda il bersaglio
-		Attaccante->PlannedAbilityIndex = 0;     // attacco base
-		Attaccante->PlannedAttackTarget = Difensore;
+		Attaccante->SetPlannedMainAction(0);     // attacco base
+		Attaccante->DeclareAttackOnUnit(Difensore);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)

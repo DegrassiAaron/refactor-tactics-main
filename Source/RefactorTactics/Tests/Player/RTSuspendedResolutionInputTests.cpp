@@ -70,7 +70,7 @@ namespace
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay(); // senza, i cooldown non esistono e ogni abilita' risulta sempre pronta
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo salvo che il caso non lo cambi
+		U->SetPlannedCell(Cell); // fermo salvo che il caso non lo cambi
 		return U;
 	}
 
@@ -166,9 +166,9 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 		}
 
 		// L'Overwatch e' l'azione PRINCIPALE di chi lo tiene, e il cono E' il facing.
-		Watcher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 		Watcher->Facing = ERTHexDirection::W;
-		Mover->PlannedCell = FRTCellId(7, 0, 0);
+		Mover->SetPlannedCell(FRTCellId(7, 0, 0));
 
 		// --- A. prima del lock-in l'armo e il click PIANIFICANO: la sonda e' viva ---------------------------
 		PC->SelectActorForTest(Attacker);
@@ -245,28 +245,28 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
 	/** Sito del MOVIMENTO: l'Overwatch di chi guarda sospende nel Move quando l'altro entra nel cono. */
 	void SuspArmOverwatch(ARTUnit* Mover, ARTUnit* Watcher)
 	{
-		Watcher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 		Watcher->Facing = ERTHexDirection::W;
-		Watcher->PlannedCell = Watcher->Cell;
-		Mover->PlannedCell = FRTCellId(2, 0);
+		Watcher->SetPlannedCell(Watcher->Cell);
+		Mover->SetPlannedCell(FRTCellId(2, 0));
 	}
 
 	/** Sito del BLAST: la spinta del Pusher sul Bracer sospende nel Blast, prima del movimento. */
 	void SuspArmBrace(ARTUnit* Bracer, ARTUnit* Pusher)
 	{
 		Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-		Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-		Bracer->PlannedCell = Bracer->Cell;
-		Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-		Pusher->PlannedAttackTarget = Bracer;
-		Pusher->PlannedCell = Pusher->Cell;
+		Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+		Bracer->SetPlannedCell(Bracer->Cell);
+		Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+		Pusher->DeclareAttackOnUnit(Bracer);
+		Pusher->SetPlannedCell(Pusher->Cell);
 	}
 }
 
@@ -469,14 +469,14 @@ bool FRTConsumedArmedActionInTheDockTest::RunTest(const FString&)
 			return false;
 		}
 
-		Watcher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 		Watcher->Facing = ERTHexDirection::W;
-		Mover->PlannedCell = FRTCellId(7, 0, 0);
+		Mover->SetPlannedCell(FRTCellId(7, 0, 0));
 
 		PC->SelectActorForTest(Attacker);
 		PC->SelectAbilityForCurrentForTest(ConRicarica);
-		Attacker->PlannedAbilityIndex = ConRicarica;
-		Attacker->PlannedAttackTarget = Target;
+		Attacker->SetPlannedMainAction(ConRicarica);
+		Attacker->DeclareAttackOnUnit(Target);
 
 		int32 FinestreAperte = 0;
 		TM->OnReactionWindowOpened.BindLambda([&FinestreAperte](const FRTReactionWindowView&, int32) { ++FinestreAperte; });

@@ -65,7 +65,7 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = bBot;
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
@@ -1120,7 +1120,7 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 
 	// Il nemico se ne va dove nessuno lo vede. Il ricordo resta.
 	Foe->PlaceOnCell(Truth, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	Foe->PlannedCell = Truth;
+	Foe->SetPlannedCell(Truth);
 
 	if (!TestTrue(TEXT("premessa: ora e' fuori vista"),
 		URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell) > Bot->VisionRange)

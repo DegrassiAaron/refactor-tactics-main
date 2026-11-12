@@ -66,9 +66,9 @@ namespace
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Attaccante || !Bersaglio) { return nullptr; }
 
-		Attaccante->PlannedAbilityIndex = 0;
-		Attaccante->PlannedAttackTarget = Bersaglio;
-		Attaccante->PlannedCell = FRTCellId(2, 3);
+		Attaccante->SetPlannedMainAction(0);
+		Attaccante->DeclareAttackOnUnit(Bersaglio);
+		Attaccante->SetPlannedCell(FRTCellId(2, 3));
 		return TM;
 	}
 
@@ -98,17 +98,17 @@ namespace
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
 
-		Aevik->PlannedAbilityIndex = INDEX_NONE;
+		Aevik->ClearPlannedMainAction();
 		for (int32 i = 0; i < Aevik->NumAbilities(); ++i)
 		{
 			const URTActionData* A = Aevik->GetAbility(i);
-			if (A && A->Def.ActionId == FName(TEXT("Hero.Aevik.LinearDischarge"))) { Aevik->PlannedAbilityIndex = i; }
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Aevik.LinearDischarge"))) { Aevik->SetPlannedMainAction(i); }
 		}
 		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
-		Aevik->PlannedCell = Aevik->Cell;
-		Branth->PlannedAbilityIndex = 0;
-		Branth->PlannedAttackTarget = Bersaglio;
-		Branth->PlannedCell = Branth->Cell;
+		Aevik->SetPlannedCell(Aevik->Cell);
+		Branth->SetPlannedMainAction(0);
+		Branth->DeclareAttackOnUnit(Bersaglio);
+		Branth->SetPlannedCell(Branth->Cell);
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
@@ -507,8 +507,8 @@ namespace
 		// La capacita' di sfondare si dichiara sull'istanza: e' l'idioma di tutti gli scenari di struttura.
 		Sfondatore->Abilities[0]->Def.Effects.Add(
 			FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
-		Sfondatore->PlannedAbilityIndex = 0;
-		Sfondatore->PlannedAttackTarget = Dietro;
+		Sfondatore->SetPlannedMainAction(0);
+		Sfondatore->DeclareAttackOnUnit(Dietro);
 		return TM;
 	}
 
@@ -546,9 +546,9 @@ namespace
 		}
 		if (Indice == INDEX_NONE) { return nullptr; }
 
-		Lanciatore->PlannedAbilityIndex = Indice;
+		Lanciatore->SetPlannedMainAction(Indice);
 		Lanciatore->DeclareAttackOnCell(FRTCellId(4, 2)); // a portata, e intorno non c'e' nessuno
-		Lanciatore->PlannedCell = FRTCellId(2, 2);
+		Lanciatore->SetPlannedCell(FRTCellId(2, 2));
 		return TM;
 	}
 
@@ -833,9 +833,9 @@ bool FRTPlaybackNextActionDoesNotStopTwiceWithinOneIntentTest::RunTest(const FSt
 		Ferito->Health = FMath::Max(1, Ferito->Health - 30);
 		for (ARTUnit* Curatore : { C1, C2 })
 		{
-			Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
-			Curatore->PlannedAttackTarget = Ferito;
-			Curatore->PlannedCell = Curatore->Cell;
+			Curatore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal")));
+			Curatore->DeclareAttackOnUnit(Ferito);
+			Curatore->SetPlannedCell(Curatore->Cell);
 		}
 
 		TM2->SetPlaybackControlsEnabled(true);
@@ -980,11 +980,10 @@ bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
 		}
 		return static_cast<int32>(INDEX_NONE);
 	};
-	Scudo->PlannedAbilityIndex = Indice(Scudo, TEXT("Hero.Muiren.TideGuard"));
-	Scudo->PlannedCell = Scudo->Cell;
-	Caricatore->PlannedDashAbility = Indice(Caricatore, TEXT("Hero.Branth.Ram"));
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Scudo->SetPlannedMainAction(Indice(Scudo, TEXT("Hero.Muiren.TideGuard")));
+	Scudo->SetPlannedCell(Scudo->Cell);
+	Caricatore->SetPlannedDash(Indice(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, che e' quella delle due sorgenti. Il refresh
 	// e' la precondizione delle attivazioni di Prep e Dash (spec §2.5).
@@ -1049,14 +1048,14 @@ bool FRTPlaybackPhaseEndNetStopsWithThePauseTest::RunTest(const FString&)
 		{
 			if (Scudo->GetAbility(i) && Scudo->GetAbility(i)->Def.ActionId == FName(TEXT("Hero.Muiren.TideGuard")))
 			{
-				Scudo->PlannedAbilityIndex = i;
+				Scudo->SetPlannedMainAction(i);
 			}
 		}
-		Scudo->PlannedCell = Scudo->Cell;
-		Sentinella->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch"));
-		Sentinella->PlannedCell = Sentinella->Cell;
-		Riparo->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Riparo, TEXT("Action.Shield"));
-		Riparo->PlannedCell = Riparo->Cell;
+		Scudo->SetPlannedCell(Scudo->Cell);
+		Sentinella->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch")));
+		Sentinella->SetPlannedCell(Sentinella->Cell);
+		Riparo->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Riparo, TEXT("Action.Shield")));
+		Riparo->SetPlannedCell(Riparo->Cell);
 		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), Scudo->PlannedAbilityIndex != INDEX_NONE)) { return false; }
 
 		// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, quella delle tre sorgenti; il refresh e' la

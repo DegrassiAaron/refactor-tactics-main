@@ -97,7 +97,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
@@ -111,11 +111,10 @@ namespace
 	void ArmOverwatchScenario(ARTUnit* Mover, ARTUnit* Watcher, bool bWatcherIsBot = false)
 	{
 		Watcher->bIsBotControlled = bWatcherIsBot;
-		Watcher->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 		Watcher->Facing = ERTHexDirection::W;
-		Watcher->PlannedCell = Watcher->Cell;
-		Mover->PlannedCell = FRTCellId(2, 0);
+		Watcher->SetPlannedCell(Watcher->Cell);
+		Mover->SetPlannedCell(FRTCellId(2, 0));
 	}
 
 	/** Lo scenario del `Brace`: una spinta contro un bracer non-bot con profilo a piu' risposte. */
@@ -123,14 +122,12 @@ namespace
 	{
 		Bracer->bIsBotControlled = false;
 		Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-		Bracer->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-		Bracer->PlannedCell = Bracer->Cell;
+		Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+		Bracer->SetPlannedCell(Bracer->Cell);
 
-		Pusher->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-		Pusher->PlannedAttackTarget = Bracer;
-		Pusher->PlannedCell = Pusher->Cell;
+		Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+		Pusher->DeclareAttackOnUnit(Bracer);
+		Pusher->SetPlannedCell(Pusher->Cell);
 	}
 }
 
@@ -2018,12 +2015,12 @@ bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
 	Sano->HeroDisplayName = FText::FromString(TEXT("Branth"));
 	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
 	ArmOverwatchScenario(Ferito, Watcher); // il ferito entra in (2,0)
-	Sano->PlannedCell = FRTCellId(1, 0);
+	Sano->SetPlannedCell(FRTCellId(1, 0));
 
 	// La condizione: solo chi e' a meta' vita o meno.
 	const FRTDeclaredCondition SoloIFeriti(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
 	Ferito->Health = Ferito->MaxHealth / 2;
-	Watcher->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbility(Watcher, TEXT("Action.Counter"));
+	Watcher->SetPlannedReaction(RTAbilityFixtures::AddCoreAbility(Watcher, TEXT("Action.Counter")));
 	const bool bDichiarata = Watcher->SetPlannedReactionCondition(SoloIFeriti);
 	const FRTTargetVitals VitaDelFerito(Ferito->Health, Ferito->MaxHealth);
 	const FRTTargetVitals VitaDelSano(Sano->Health, Sano->MaxHealth);
@@ -2220,11 +2217,11 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 			}
 			Bracer->bIsBotControlled = false;
 			Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-			Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-			Bracer->PlannedCell = Bracer->Cell;
-			Pusher->PlannedAbilityIndex = IndiceDelGetto;
+			Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+			Bracer->SetPlannedCell(Bracer->Cell);
+			Pusher->SetPlannedMainAction(IndiceDelGetto);
 			Pusher->DeclareAttackOnUnit(Bracer);
-			Pusher->PlannedCell = Pusher->Cell;
+			Pusher->SetPlannedCell(Pusher->Cell);
 			// Chi spinge GUARDA il bersaglio. ⚠️ Misurato, non dedotto: col verso di default — a est, cioe' di
 			// spalle al bersaglio — il colpo non arrivava e nessuna finestra si apriva. Perche', questo test non
 			// lo indaga: gli serve una spinta che arrivi, e la premessa sulla finestra qui sotto lo controlla.
@@ -2256,9 +2253,9 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 				RTWorldFixtures::DestroyWorld(World);
 				return Esito;
 			}
-			Sicario->PlannedAbilityIndex = IndiceDelColpo;
+			Sicario->SetPlannedMainAction(IndiceDelColpo);
 			Sicario->DeclareAttackOnUnit(Testimone);
-			Sicario->PlannedCell = Sicario->Cell;
+			Sicario->SetPlannedCell(Sicario->Cell);
 			Sicario->Facing = ERTHexDirection::W; // guarda il testimone, che gli sta a ovest
 		}
 		Bracer->Facing = VersoDelBracer;

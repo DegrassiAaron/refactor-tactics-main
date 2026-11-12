@@ -20,6 +20,7 @@
 #include "Engine/Engine.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -86,7 +87,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo: il test verifica il Blast, non il movimento
+		U->SetPlannedCell(Cell); // fermo: il test verifica il Blast, non il movimento
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -166,12 +167,9 @@ namespace
 	 */
 	void PlanEdgeAction(ARTUnit* Unit, int32 AbilityIndex, const FRTCellId& TargetCell, ERTHexDirection Edge)
 	{
-		Unit->PlannedAbilityIndex = AbilityIndex;
-		Unit->PlannedAttackTarget = nullptr;
-		Unit->PlannedAttackCell = TargetCell;
-		Unit->bAttackTargetsCell = true;
-		Unit->PlannedCoverEdge = Edge;
-		Unit->bHasPlannedCoverEdge = true;
+		Unit->SetPlannedMainAction(AbilityIndex);
+		Unit->DeclareAttackOnCell(TargetCell);
+		Unit->DeclarePlannedCoverEdge(Edge);
 	}
 
 	void RunBlastTurn(ARTTurnManager* TM)
@@ -212,8 +210,8 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 
 	const int32 HealthBefore = Foe->Health;
 	const int32 ShieldBefore = Foe->Shield;
-	Shooter->PlannedAbilityIndex = 0;
-	Shooter->PlannedAttackTarget = Foe;
+	Shooter->SetPlannedMainAction(0);
+	Shooter->DeclareAttackOnUnit(Foe);
 
 	RunBlastTurn(TM);
 
@@ -254,8 +252,8 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 
 	const int32 HealthBefore = Foe->Health;
 	const int32 ShieldBefore = Foe->Shield;
-	Shooter->PlannedAbilityIndex = 0;
-	Shooter->PlannedAttackTarget = Foe;
+	Shooter->SetPlannedMainAction(0);
+	Shooter->DeclareAttackOnUnit(Foe);
 
 	RunBlastTurn(TM);
 
@@ -288,8 +286,8 @@ bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
 	const int32 HealthBefore = Foe->Health;
-	Shooter->PlannedAbilityIndex = 0;
-	Shooter->PlannedAttackTarget = Foe;
+	Shooter->SetPlannedMainAction(0);
+	Shooter->DeclareAttackOnUnit(Foe);
 
 	RunBlastTurn(TM);
 
@@ -348,8 +346,8 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 			URTHexLibrary::HexDistance(Far->Cell, Attacker->Cell) > Attacker->AttackRange);
 
 		const int32 HealthBefore = Far->Health;
-		Attacker->PlannedAbilityIndex = 0;
-		Attacker->PlannedAttackTarget = Far;
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Far);
 		// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
 		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
 			? Attacker->Abilities[0]->Def.ActionId : FName();
@@ -389,8 +387,8 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
 
 		const int32 HealthBefore = Runner->Health;
-		Attacker->PlannedAbilityIndex = 0;
-		Attacker->PlannedAttackTarget = Runner;
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Runner);
 		const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
 			? Attacker->Abilities[0]->Def.ActionId : FName();
 
@@ -405,8 +403,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		const FRTCellId Escape(2 + DashRange, 0);
 		TestTrue(TEXT("premessa: la fuga porta oltre la portata di chi attacca"),
 			URTHexLibrary::HexDistance(Escape, Attacker->Cell) > Attacker->AttackRange);
-		Runner->PlannedDashAbility = DashIdx;
-		Runner->PlannedDashCell = Escape;
+		Runner->SetPlannedDash(DashIdx, Escape);
 
 		RunBlastTurn(TM);
 
@@ -472,10 +469,10 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 
 	const int32 StartHealth = Defender->Health;
 	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
-	Defender->PlannedAbilityIndex = GuardIdx;
-	Defender->PlannedAttackTarget = Defender; // su se stessi: la guardia si prepara addosso
-	Shooter->PlannedAbilityIndex = 0;
-	Shooter->PlannedAttackTarget = Defender;
+	Defender->SetPlannedMainAction(GuardIdx);
+	Defender->DeclareAttackOnUnit(Defender); // su se stessi: la guardia si prepara addosso
+	Shooter->SetPlannedMainAction(0);
+	Shooter->DeclareAttackOnUnit(Defender);
 
 	RunBlastTurn(TM);
 
@@ -488,9 +485,9 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 
 	// Controprova: senza guardia lo stesso tiro arriva intero.
 	Defender->ApplyCombatState(StartHealth, 0);
-	Defender->PlannedAbilityIndex = INDEX_NONE;
-	Shooter->PlannedAbilityIndex = 0;
-	Shooter->PlannedAttackTarget = Defender;
+	Defender->ClearPlannedMainAction();
+	Shooter->SetPlannedMainAction(0);
+	Shooter->DeclareAttackOnUnit(Defender);
 
 	RunBlastTurn(TM);
 
@@ -520,10 +517,10 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	const int32 Push1 = AddPushAbility(Pusher, /*PushCells=*/ 1);
 	const FRTCellId Start = Defender->Cell;
 
-	Defender->PlannedAbilityIndex = GuardIdx;
-	Defender->PlannedAttackTarget = Defender;
-	Pusher->PlannedAbilityIndex = Push1;
-	Pusher->PlannedAttackTarget = Defender;
+	Defender->SetPlannedMainAction(GuardIdx);
+	Defender->DeclareAttackOnUnit(Defender);
+	Pusher->SetPlannedMainAction(Push1);
+	Pusher->DeclareAttackOnUnit(Defender);
 
 	RunBlastTurn(TM);
 
@@ -531,12 +528,12 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 
 	// Una spinta piu' forte passa comunque: la guardia attutisce, non ancora.
 	Defender->PlaceOnCell(Start, FVector::ZeroVector, 100.f, 250.f);
-	Defender->PlannedCell = Start;
-	Defender->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
-	Defender->PlannedAttackTarget = Defender;
-	Pusher->PlannedAbilityIndex = AddPushAbility(Pusher, /*PushCells=*/ 2);
-	Pusher->PlannedAttackTarget = Defender;
-	Pusher->PlannedCell = Pusher->Cell;
+	Defender->SetPlannedCell(Start);
+	Defender->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard")));
+	Defender->DeclareAttackOnUnit(Defender);
+	Pusher->SetPlannedMainAction(AddPushAbility(Pusher, /*PushCells=*/ 2));
+	Pusher->DeclareAttackOnUnit(Defender);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	RunBlastTurn(TM);
 
@@ -566,8 +563,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
 
 	const int32 VictimHealth = Victim->Health;
-	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
-	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto: incontra il bersaglio a (2,0) per strada
 
 	RunBlastTurn(TM);
 
@@ -622,11 +618,10 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 
 	const int32 VictimHealth = Victim->Health;
-	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
-	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+	Charger->SetPlannedDash(Charger->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto: incontra il bersaglio a (2,0) per strada
 
-	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
-	Interrupter->PlannedAttackTarget = Charger;
+	Interrupter->SetPlannedMainAction(Interrupter->Abilities.Num() - 1);
+	Interrupter->DeclareAttackOnUnit(Charger);
 
 	RunBlastTurn(TM);
 
@@ -681,10 +676,8 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 
 	const int32 HealthA = A->Health;
 	const int32 HealthB = B->Health;
-	A->PlannedDashAbility = A->Abilities.Num() - 1;
-	A->PlannedDashCell = FRTCellId(3, 0); // dritto verso B, esattamente la portata (3)
-	B->PlannedDashAbility = B->Abilities.Num() - 1;
-	B->PlannedDashCell = FRTCellId(0, 0); // dritto verso A, esattamente la portata (3)
+	A->SetPlannedDash(A->Abilities.Num() - 1, FRTCellId(3, 0)); // dritto verso B, esattamente la portata (3)
+	B->SetPlannedDash(B->Abilities.Num() - 1, FRTCellId(0, 0)); // dritto verso A, esattamente la portata (3)
 
 	RunBlastTurn(TM);
 
@@ -738,8 +731,8 @@ bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
 	const int32 FoeStart = Foe->Health;
 	const int32 AllyStart = Ally->Health;
 
-	Thrower->PlannedAbilityIndex = AreaIdx;
-	Thrower->PlannedAttackTarget = Foe;
+	Thrower->SetPlannedMainAction(AreaIdx);
+	Thrower->DeclareAttackOnUnit(Foe);
 
 	RunBlastTurn(TM);
 
@@ -800,10 +793,10 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 	Foe->Shield = 0;
 	const int32 FoeStart = Foe->Health;
 
-	Marker->PlannedAbilityIndex = MarkIdx;
-	Marker->PlannedAttackTarget = Foe;
-	Ally->PlannedAbilityIndex = ShotIdx;
-	Ally->PlannedAttackTarget = Foe;
+	Marker->SetPlannedMainAction(MarkIdx);
+	Marker->DeclareAttackOnUnit(Foe);
+	Ally->SetPlannedMainAction(ShotIdx);
+	Ally->DeclareAttackOnUnit(Foe);
 
 	RunBlastTurn(TM);
 
@@ -848,8 +841,8 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
 	// perche' l'archetipo di prova non ha `HeavyAttack` fra le sue).
 	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
-	Breacher->PlannedAbilityIndex = 0;
-	Breacher->PlannedAttackTarget = Foe;
+	Breacher->SetPlannedMainAction(0);
+	Breacher->DeclareAttackOnUnit(Foe);
 
 	const int32 HealthBefore = Foe->Health;
 	RunBlastTurn(TM);
@@ -936,7 +929,7 @@ bool FRTBasicAttackBlindAimDirectPathTest::RunTest(const FString&)
 	// `DamageStructure` all'azione per vedere il muro danneggiato: misurava la meccanica del muro, non l'attacco
 	// base, che quell'effetto non lo dichiara — trovato dalla review indipendente di #3608. Un ostacolo si
 	// danneggia solo se l'azione lo dichiara, come per `Required`; quel caso e' di `Cover.Destruction.*`.*
-	Shooter->PlannedAbilityIndex = 0;
+	Shooter->SetPlannedMainAction(0);
 	Shooter->DeclareAttackOnCell(Foe->Cell);
 	const int32 HealthBefore = Foe->Health;
 	const int32 IntegritaPrima = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
@@ -986,7 +979,7 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
 
 	// Il percorso e' gia' validato: con la porta aperta lo era davvero, ed e' esattamente il punto.
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
 	TestTrue(TEXT("con la porta aperta il passo esisteva"),
 		!URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, FRTCellId(1, 0), FRTCellId(2, 0)));
 
@@ -995,8 +988,8 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	Closer->Abilities[0]->Def.Effects.Add(
 		FRTActionEffectSpec(ERTActionEffect::SetDoorState,
 			static_cast<int32>(ERTHexDoorState::Closed)));
-	Closer->PlannedAbilityIndex = 0;
-	Closer->PlannedAttackTarget = Mover;
+	Closer->SetPlannedMainAction(0);
+	Closer->DeclareAttackOnUnit(Mover);
 
 	RunBlastTurn(TM);
 
@@ -1095,10 +1088,8 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 		return false; // senza l'azione nel kit il resto del test misurerebbe un'altra cosa
 	}
 
-	Opener->PlannedAbilityIndex = InteractIdx;
-	Opener->PlannedAttackTarget = nullptr;
-	Opener->PlannedAttackCell = Beyond;
-	Opener->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
+	Opener->SetPlannedMainAction(InteractIdx);
+	Opener->DeclareAttackOnCell(Beyond); // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
 
 	RunBlastTurn(TM);
 
@@ -1335,10 +1326,10 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 	}
 
 	const int32 VictimHealth = Victim->Health;
-	Attacker->PlannedAbilityIndex = Attacker->Abilities.Num() - 1;
-	Attacker->PlannedAttackTarget = Victim;
-	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
-	Interrupter->PlannedAttackTarget = Attacker;
+	Attacker->SetPlannedMainAction(Attacker->Abilities.Num() - 1);
+	Attacker->DeclareAttackOnUnit(Victim);
+	Interrupter->SetPlannedMainAction(Interrupter->Abilities.Num() - 1);
+	Interrupter->DeclareAttackOnUnit(Attacker);
 
 	RunBlastTurn(TM);
 
@@ -1722,8 +1713,8 @@ bool FRTLineAttackStopsAtFirstTargetTest::RunTest(const FString&)
 	const int32 NearHealthBefore = Near->Health;
 	const int32 FarHealthBefore  = Far->Health;
 
-	Attacker->PlannedAbilityIndex = Idx;
-	Attacker->PlannedAttackTarget = Far; // si punta il LONTANO, di proposito
+	Attacker->SetPlannedMainAction(Idx);
+	Attacker->DeclareAttackOnUnit(Far); // si punta il LONTANO, di proposito
 
 	RunBlastTurn(TM);
 
@@ -1786,15 +1777,14 @@ bool FRTAimDoesNotFollowTest::RunTest(const FString&)
 		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return -1; }
 
 		const int32 Prima = Foe->Health;
-		Shooter->PlannedAbilityIndex = 0;             // attacco base: forma `Single`
-		Shooter->PlannedAttackTarget = Foe;
+		Shooter->SetPlannedMainAction(0);             // attacco base: forma `Single`
+		Shooter->DeclareAttackOnUnit(Foe);
 		if (bIlBersaglioSiSposta)
 		{
 			// `Action.Reposition`: uno scatto SENZA impatto ne' effetti, cosi' l'unica cosa che cambia e'
 			// dove sta il bersaglio quando il Blast risolve. Una carica porterebbe anche il proprio danno.
 			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
-			Foe->PlannedDashAbility = Scatto;
-			Foe->PlannedDashCell = FRTCellId(3, -1);  // un passo di lato, fuori dalla cella mirata
+			Foe->SetPlannedDash(Scatto, FRTCellId(3, -1)); // un passo di lato, fuori dalla cella mirata
 		}
 
 		RunBlastTurn(TM);
@@ -1884,13 +1874,12 @@ bool FRTAimReorientationFacesTheFrozenAimTest::RunTest(const FString&)
 		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
 		Shooter->Facing = Partenza;
-		Shooter->PlannedAbilityIndex = 0;
-		Shooter->PlannedAttackTarget = Foe;
+		Shooter->SetPlannedMainAction(0);
+		Shooter->DeclareAttackOnUnit(Foe);
 		if (bIlBersaglioSiSposta)
 		{
 			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
-			Foe->PlannedDashAbility = Scatto;
-			Foe->PlannedDashCell = Scattato;
+			Foe->SetPlannedDash(Scatto, Scattato);
 		}
 		RunBlastTurn(TM);
 
@@ -1946,7 +1935,7 @@ bool FRTCellAttackFacesTheDeclaredCellTest::RunTest(const FString&)
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
 	Shooter->Facing = Partenza;
-	Shooter->PlannedAbilityIndex = 0;          // attacco base
+	Shooter->SetPlannedMainAction(0);          // attacco base
 	Shooter->DeclareAttackOnCell(Cella);       // la forma che il bot usa da #3229
 	const int32 Prima = Foe->Health;
 	RunBlastTurn(TM);
@@ -2006,13 +1995,12 @@ bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
 	}
 
 	const int32 Prima = Foe->Health;
-	Shooter->PlannedAbilityIndex = Area;
-	Shooter->PlannedAttackTarget = Foe;
+	Shooter->SetPlannedMainAction(Area);
+	Shooter->DeclareAttackOnUnit(Foe);
 
 	// Uno scatto di lato PRIMA del Blast: fuori dalla cella mirata, DENTRO il raggio 1 che le sta attorno.
 	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
-	Foe->PlannedDashAbility = Scatto;
-	Foe->PlannedDashCell = FRTCellId(3, -1);
+	Foe->SetPlannedDash(Scatto, FRTCellId(3, -1));
 
 	RunBlastTurn(TM);
 
@@ -2173,16 +2161,14 @@ bool FRTAimAcrossLayersIsRefusedInResolutionTest::RunTest(const FString&)
 		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return Out; }
 
 		const int32 Prima = Foe->Health;
-		Shooter->PlannedAbilityIndex = 0; // attacco base: forma `Single`
+		Shooter->SetPlannedMainAction(0); // attacco base: forma `Single`
 		if (bMiraACella)
 		{
-			Shooter->PlannedAttackTarget = nullptr;
-			Shooter->PlannedAttackCell = DoveStaIlBersaglio;
-			Shooter->bAttackTargetsCell = true;
+			Shooter->DeclareAttackOnCell(DoveStaIlBersaglio);
 		}
 		else
 		{
-			Shooter->PlannedAttackTarget = Foe;
+			Shooter->DeclareAttackOnUnit(Foe);
 		}
 
 		RunBlastTurn(TM);
@@ -2277,8 +2263,8 @@ bool FRTCellFallbackInheritsThePlaneRuleTest::RunTest(const FString&)
 			DestroyHexBlastWorld(World);
 			return Out;
 		}
-		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
-		Attacker->PlannedAttackTarget = Alleato;
+		Attacker->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack")));
+		Attacker->DeclareAttackOnUnit(Alleato);
 		const int32 Prima = Alleato->Health;
 
 		RunBlastTurn(TM);
@@ -2366,8 +2352,8 @@ bool FRTAimAcrossABridgeHitsTheBridgeNotTheUnitTest::RunTest(const FString&)
 	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza,
 	// come fa `Structures.Bridge.DamagedInPlayedTurn`).
 	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
-	Breacher->PlannedAbilityIndex = 0;
-	Breacher->PlannedAttackTarget = Foe;
+	Breacher->SetPlannedMainAction(0);
+	Breacher->DeclareAttackOnUnit(Foe);
 	const int32 SalutePrima = Foe->Health;
 
 	RunBlastTurn(TM);
@@ -2434,12 +2420,12 @@ bool FRTInterruptedAimAcrossLayersLeavesOneReasonTest::RunTest(const FString&)
 		const FRTActionDef Linea = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
 		if (Linea.InterruptPolicy != ERTInterruptPolicy::InterruptBeforeEffect) { DestroyHexBlastWorld(World); return Out; }
 
-		Attacker->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
-		Attacker->PlannedAttackTarget = Victim; // un piano sopra
+		Attacker->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack")));
+		Attacker->DeclareAttackOnUnit(Victim); // un piano sopra
 		if (bConChiInterrompe)
 		{
-			Interrupter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
-			Interrupter->PlannedAttackTarget = Attacker; // sullo stesso piano, adiacente
+			Interrupter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt")));
+			Interrupter->DeclareAttackOnUnit(Attacker); // sullo stesso piano, adiacente
 		}
 
 		RunBlastTurn(TM);
@@ -2512,8 +2498,8 @@ bool FRTUnknownTargetOnAnotherLayerStaysUnknownTest::RunTest(const FString&)
 		const int32 Prima = Foe->Health;
 		// `Action.LineAttack`: portata dichiarata dal catalogo, cosi' il bersaglio e' a tiro e la portata
 		// non c'entra.
-		Shooter->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Shooter, TEXT("Action.LineAttack"));
-		Shooter->PlannedAttackTarget = Foe;
+		Shooter->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Shooter, TEXT("Action.LineAttack")));
+		Shooter->DeclareAttackOnUnit(Foe);
 
 		RunBlastTurn(TM);
 

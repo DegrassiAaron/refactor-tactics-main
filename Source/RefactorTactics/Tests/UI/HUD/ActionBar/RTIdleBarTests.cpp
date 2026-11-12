@@ -168,7 +168,7 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
-	Fonte->PlannedAbilityIndex = Comune;
+	Fonte->SetPlannedMainAction(Comune);
 	Fonte->ConsumeAbility(Comune);
 	const TArray<FRTAbilityCooldownView> Prima = URTHudViewModel::BuildAbilityCooldowns(Fonte);
 	if (!TestTrue(TEXT("premessa: nella barra dell'unita' la Comune e' pianificata, in ricarica e colpevole"),
@@ -235,7 +235,7 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 	}
 	Soggetto->Abilities[Ultima] = nullptr;
 	Soggetto->SelectedAbilityIndex = 0;   // l'azione armata
-	Soggetto->PlannedAbilityIndex = 1;    // il piano
+	Soggetto->SetPlannedMainAction(1);    // il piano
 	Soggetto->ConsumeAbility(2);          // la ricarica vera
 
 	// La variante ATTIVA e' stato di partita (`ARTUnit::ActiveVariantId`, una scelta per unita'), non catalogo: la decisione d'autore del 2026-10-20
@@ -355,7 +355,7 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 	// ⛔ Il piano va sulla posizione 2, che e' in ricarica vera: `ValidatePlan` lo rifiuta (`OnCooldown`) e la barra
 	// della partita accende `bPlanInvalid` con il suo motivo. E' il controllo positivo che il primo stato non ha:
 	// un `BuildPublicBar` che rieseguisse il validatore lo copierebbe da qui.
-	Soggetto->PlannedAbilityIndex = 2;
+	Soggetto->SetPlannedMainAction(2);
 	const TArray<FRTAbilityCooldownView> PartitaIllegale = URTHudViewModel::BuildAbilityCooldowns(Soggetto);
 	if (!TestTrue(TEXT("premessa: nella barra della partita la posizione 2 e' la colpevole di un piano illegale, col suo motivo"),
 		PartitaIllegale.IsValidIndex(2) && PartitaIllegale[2].bPlanInvalid

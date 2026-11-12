@@ -800,9 +800,9 @@ bool FRTMinRangeHoldsThroughTheTurnManagerTest::RunTest(const FString&)
 		ARTTurnManager* TM = It ? *It : nullptr;
 		if (!TestNotNull(TEXT("il turn manager esiste"), TM)) { return false; }
 
-		B.Mine->PlannedAbilityIndex = Idx;
+		B.Mine->SetPlannedMainAction(Idx);
 		B.Mine->DeclareAttackOnCell(Bersaglio);
-		B.Mine->PlannedCell = B.Mine->Cell;
+		B.Mine->SetPlannedCell(B.Mine->Cell);
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 		OutSalute = Nemico->Health;
@@ -889,7 +889,7 @@ bool FRTMortarCappedBySmokeLeavesALineTest::RunTest(const FString&)
 		B.Mine->SelectAbility(Idx);
 		OutAccettato = B.PC->HandleTargetCell(Mira);
 		if (!OutAccettato) { return 0; } // rifiutato in planning: il tiro non esiste
-		B.Mine->PlannedCell = B.Mine->Cell;
+		B.Mine->SetPlannedCell(B.Mine->Cell);
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 

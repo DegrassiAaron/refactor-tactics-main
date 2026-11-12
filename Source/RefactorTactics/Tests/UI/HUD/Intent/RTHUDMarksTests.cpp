@@ -128,8 +128,8 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->PlannedAbilityIndex = Overload;
-	Aevik->PlannedAttackTarget = Branth;
+	Aevik->SetPlannedMainAction(Overload);
+	Aevik->DeclareAttackOnUnit(Branth);
 
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
@@ -184,8 +184,8 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 		return false;
 	}
 
-	NemicoAevik->PlannedAbilityIndex = MarksAbilityIndex(NemicoAevik, TEXT("Hero.Aevik.Overload"));
-	NemicoAevik->PlannedAttackTarget = MioBranth;
+	NemicoAevik->SetPlannedMainAction(MarksAbilityIndex(NemicoAevik, TEXT("Hero.Aevik.Overload")));
+	NemicoAevik->DeclareAttackOnUnit(MioBranth);
 
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks({ NemicoAevik, MioPhase, MioBranth }, /*PlayerTeamId=*/ 0, Hit, Ally);
@@ -217,8 +217,8 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->PlannedAbilityIndex = Overload;
-	Aevik->PlannedAttackTarget = Branth;
+	Aevik->SetPlannedMainAction(Overload);
+	Aevik->DeclareAttackOnUnit(Branth);
 
 	// Si spegne il flag sulla COPIA dell'unita', non nel catalogo: il test non deve lasciare il roster sporco
 	// per chi gira dopo di lui.
@@ -375,8 +375,8 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 		DestroyMarksWorld(World);
 		return false;
 	}
-	Aevik->PlannedAbilityIndex = ArcPulse;
-	Aevik->PlannedAttackTarget = Branth;
+	Aevik->SetPlannedMainAction(ArcPulse);
+	Aevik->DeclareAttackOnUnit(Branth);
 
 	// ── Turno 1: risolto per intero. Da qui il giocatore PIANIFICA il turno 2, ed e' la finestra in cui
 	//    la spiegazione di cio' che e' appena successo deve restare leggibile.
@@ -887,9 +887,8 @@ bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
 
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->PlannedAbilityIndex = Overload;
-	Aevik->bAttackTargetsCell = true;
-	Aevik->PlannedAttackCell = FRTCellId(2, 0, 0); // una cella vuota: e' la cella, non un'unita', il bersaglio
+	Aevik->SetPlannedMainAction(Overload);
+	Aevik->DeclareAttackOnCell(FRTCellId(2, 0, 0)); // una cella vuota: e' la cella, non un'unita', il bersaglio
 
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
@@ -935,8 +934,8 @@ bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
 	}
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->PlannedAbilityIndex = Overload;
-	Aevik->PlannedAttackTarget = Branth;
+	Aevik->SetPlannedMainAction(Overload);
+	Aevik->DeclareAttackOnUnit(Branth);
 
 	const TArray<ARTUnit*> Units = { Aevik, Muiren, Branth };
 	const TArray<FRTPlanWarningView> DiAevik = URTHudViewModel::BuildPlanWarnings(Aevik, Units);

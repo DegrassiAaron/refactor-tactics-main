@@ -413,8 +413,8 @@ bool FRTAnimChannelOutcomeUnchangedTest::RunTest(const FString&)
 		PathPerVariante.Add(Attaccante->ResolvedClipPathFor(ERTPresentationRole::Attack)
 			.ToSoftObjectPath().ToString());
 
-		Attaccante->PlannedAbilityIndex = 0;
-		Attaccante->PlannedAttackTarget = Bersaglio;
+		Attaccante->SetPlannedMainAction(0);
+		Attaccante->DeclareAttackOnUnit(Bersaglio);
 
 		TM->LockInAndResolve();
 		for (int32 T = 0; T < 400 && TM->IsResolving(); ++T) { TM->Tick(0.05f); }

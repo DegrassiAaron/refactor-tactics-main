@@ -30,6 +30,7 @@
 #include "HAL/FileManager.h" // #3701: il cancello del produttore dei muri colpiti legge i sorgenti
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -89,15 +90,15 @@ namespace
 		U->ConfigureFromHeroData(Hero ? Hero : URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
 	void PlanEnvAction(ARTUnit* Caster, const TCHAR* ActionId, ARTUnit* Target)
 	{
 		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
-		Caster->PlannedAbilityIndex = 3;
-		Caster->PlannedAttackTarget = Target;
+		Caster->SetPlannedMainAction(3);
+		Caster->DeclareAttackOnUnit(Target);
 	}
 
 	/**
@@ -112,12 +113,9 @@ namespace
 		// il resolver ricade sullo specchio (`DeclaredDamage > 0 ? DeclaredDamage : Ability->Power`).
 		// Una struttura eretta portava con se' trenta danni che nessuna riga di catalogo autorizza (#1588).
 		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
-		Caster->PlannedAbilityIndex = 3;
-		Caster->PlannedAttackTarget = nullptr;
-		Caster->PlannedAttackCell = TargetCell;
-		Caster->bAttackTargetsCell = true;
-		Caster->PlannedCoverEdge = Edge;
-		Caster->bHasPlannedCoverEdge = true;
+		Caster->SetPlannedMainAction(3);
+		Caster->DeclareAttackOnCell(TargetCell);
+		Caster->DeclarePlannedCoverEdge(Edge);
 	}
 
 	/**
@@ -129,12 +127,9 @@ namespace
 		ERTHexDirection Edge, const FName& VariantId = NAME_None)
 	{
 		Caster->Abilities[3] = HeroAction;
-		Caster->PlannedAbilityIndex = 3;
-		Caster->PlannedAttackTarget = nullptr;
-		Caster->PlannedAttackCell = TargetCell;
-		Caster->bAttackTargetsCell = true;
-		Caster->PlannedCoverEdge = Edge;
-		Caster->bHasPlannedCoverEdge = true;
+		Caster->SetPlannedMainAction(3);
+		Caster->DeclareAttackOnCell(TargetCell);
+		Caster->DeclarePlannedCoverEdge(Edge);
 		Caster->ActiveVariantId = VariantId;
 	}
 
@@ -329,8 +324,8 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
-	Caster->PlannedAbilityIndex = 3;
-	Caster->PlannedAttackTarget = Target;
+	Caster->SetPlannedMainAction(3);
+	Caster->DeclareAttackOnUnit(Target);
 	RunEnvTurn(TM);
 
 	auto SurfaceAt = [MapActor](const FRTCellId& Cell)
@@ -1262,15 +1257,14 @@ namespace
 
 		// Piani incompleti o fuori portata: i casi che il ciclo scarta con un `Reject` di raccolta, nell'ordine del codice.
 		// Senza bordo: il bersaglio c'e', il bordo no.
-		if (Scene.bNoEdge) { Bed.Caster->bHasPlannedCoverEdge = false; }
+		if (Scene.bNoEdge) { Bed.Caster->ClearPlannedCoverEdge(); }
 		// Senza bersaglio: ne' unita' ne' cella. La mira ricade sulla cella di chi agisce.
 		if (Scene.bNoTarget)
 		{
-			Bed.Caster->bAttackTargetsCell = false;
-			Bed.Caster->PlannedAttackTarget = nullptr;
+			Bed.Caster->ClearPlannedAttack(); // ne' cella ne' unita': le due scritture di prima, insieme
 		}
 		// Fuori portata: `Action.CreateCover` ha portata 3, e la cella (4,0) sta nella mappa a distanza 4.
-		if (Scene.bOutOfRange) { Bed.Caster->PlannedAttackCell = FRTCellId(4, 0); }
+		if (Scene.bOutOfRange) { FRTUnitPlanTestAccess::SetAttackCell(*Bed.Caster, FRTCellId(4, 0)); }
 		// Il testimone erige altrove, nello stesso Prep: se la sua copertura c'e', `ResolveCoverStructures` e' girata.
 		if (Scene.bWithWitness) { PlanCoverAction(Bed.Witness, TEXT("Action.CreateCover"), Bed.WitnessTarget, ERTHexDirection::W); }
 		// Il testimone anticipato erige altrove, nello stesso Prep, ed e' ordinato PRIMA dell'attore: la sua operazione e' gia'
@@ -1281,16 +1275,16 @@ namespace
 		// premessa; che `Step` sia libera lo prova il braccio di controllo, dove si cammina.
 		if (Scene.bWithStep)
 		{
-			Bed.Caster->PlannedPath = { Bed.Caster->Cell, Bed.Step };
-			Bed.Caster->PlannedCell = Bed.Step;
+			FRTUnitPlanTestAccess::SetPath(*Bed.Caster, { Bed.Caster->Cell, Bed.Step });
+			Bed.Caster->SetPlannedCell(Bed.Step);
 		}
 		// La stessa destinazione, ma con un percorso COMPOSITO: una cella intermedia che il pathfinder non sceglierebbe (il percorso
 		// diretto e' un passo, questo ne fa uno in piu'). E' la forma di un giocatore che ha posato un waypoint. Che il percorso sia
 		// piu' lungo della geodetica lo dice la premessa qui sotto; che il resolver lo percorra, il braccio di controllo.
 		if (Scene.bWithDetour)
 		{
-			Bed.Caster->PlannedPath = { Bed.Caster->Cell, Bed.Detour, Bed.Step };
-			Bed.Caster->PlannedCell = Bed.Step;
+			FRTUnitPlanTestAccess::SetPath(*Bed.Caster, { Bed.Caster->Cell, Bed.Detour, Bed.Step });
+			Bed.Caster->SetPlannedCell(Bed.Step);
 			if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il percorso pianificato passa da una cella intermedia ed e' piu' lungo della distanza fra partenza e destinazione"), *Run),
 					URTHexLibrary::HexDistance(Bed.Caster->Cell, Bed.Detour) == 1 && URTHexLibrary::HexDistance(Bed.Detour, Bed.Step) == 1
 					&& Bed.Caster->PlannedPath.Num() - 1 > URTHexLibrary::HexDistance(Bed.Caster->Cell, Bed.Step)))
@@ -1303,8 +1297,8 @@ namespace
 		// mai `PlannedPath`: dichiarano la sola `PlannedCell`).
 		if (Scene.bDestinationOnly)
 		{
-			Bed.Caster->PlannedPath.Reset();
-			Bed.Caster->PlannedCell = Bed.Step;
+			FRTUnitPlanTestAccess::ResetPath(*Bed.Caster);
+			Bed.Caster->SetPlannedCell(Bed.Step);
 			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il piano e' di sola destinazione (nessun percorso scritto)"), *Run),
 					Bed.Caster->PlannedPath.Num(), 0))
 			{
@@ -1317,8 +1311,8 @@ namespace
 		// stordito e' negato (D-569). La sua cella di arrivo si legge dopo il turno.
 		if (Bed.Opener)
 		{
-			Bed.Opener->PlannedPath = { Bed.Opener->Cell, Bed.OpenerStep };
-			Bed.Opener->PlannedCell = Bed.OpenerStep;
+			FRTUnitPlanTestAccess::SetPath(*Bed.Opener, { Bed.Opener->Cell, Bed.OpenerStep });
+			Bed.Opener->SetPlannedCell(Bed.OpenerStep);
 		}
 
 		Out = CoverStunPlayTurn(Test, Run, Bed, bStunned, Scene.bAlreadyCooling, Scene.bFallen, /*bExpectsStep=*/ bAnyStep);
@@ -1675,10 +1669,8 @@ namespace
 		{
 			// Armare e' mirare una ZONA: il bersaglio e' una cella, come per le strutture di bordo.
 			RTAbilityFixtures::AddCoreAbilityInSlot(Actor, Site.ActionId, CoverStunSlot);
-			Actor->PlannedAbilityIndex = CoverStunSlot;
-			Actor->PlannedAttackTarget = nullptr;
-			Actor->PlannedAttackCell = FRTCellId(1, 0);
-			Actor->bAttackTargetsCell = true;
+			Actor->SetPlannedMainAction(CoverStunSlot);
+			Actor->DeclareAttackOnCell(FRTCellId(1, 0));
 		}
 		else
 		{
@@ -2120,12 +2112,12 @@ bool FRTBridgeNoTeleportTest::RunTest(const FString&)
 	// Il percorso e' valido nel momento in cui viene scritto: il ponte c'e'.
 	TestTrue(TEXT("col ponte il passo esiste"),
 		URTHexArcLibrary::IsArcTraversable(MapActor->MapAsset, Upper, Ground));
-	Mover->PlannedPath = { Upper, Ground };
+	FRTUnitPlanTestAccess::SetPath(*Mover, { Upper, Ground });
 
 	// Chi taglia il ponte libera anche la cella di arrivo, altrimenti il Mover si fermerebbe per occupazione
 	// e non si saprebbe se e' stata la topologia o un'unita' di mezzo.
 	PlanEnvAction(Cutter, TEXT("Action.ModifyArc"), Mover);
-	Cutter->PlannedPath = { Ground, FRTCellId(1, 0, 0) };
+	FRTUnitPlanTestAccess::SetPath(*Cutter, { Ground, FRTCellId(1, 0, 0) });
 
 	RunEnvTurn(TM);
 
@@ -2245,8 +2237,8 @@ bool FRTBridgeDamagedInTurnTest::RunTest(const FString&)
 
 	// L'abilita' dichiara di poter sfondare: e' il catalogo a concederlo (qui lo si simula sull'istanza).
 	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20));
-	Breacher->PlannedAbilityIndex = 0;
-	Breacher->PlannedAttackTarget = Foe;
+	Breacher->SetPlannedMainAction(0);
+	Breacher->DeclareAttackOnUnit(Foe);
 
 	RunEnvTurn(TM);
 
@@ -2332,8 +2324,8 @@ bool FRTBridgeGhostTrackingTest::RunTest(const FString&)
 	// Turno 2: lo stesso costruttore lo abbatte. 40 e' `FRTHexEdge::DefaultIntegrity`: un colpo solo basta,
 	// e il ponte crolla PRIMA della propria scadenza naturale — che e' esattamente la condizione del difetto.
 	Builder->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 40));
-	Builder->PlannedAbilityIndex = 0;
-	Builder->PlannedAttackTarget = Foe;
+	Builder->SetPlannedMainAction(0);
+	Builder->DeclareAttackOnUnit(Foe);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("il ponte e' crollato in combattimento, un evento per verso"),
@@ -2856,8 +2848,8 @@ bool FRTCoverGhostTrackingTest::RunTest(const FString&)
 	// La capacita' di sfondare si dichiara sull'istanza, come fa il test gemello dei ponti.
 	PlanCoverAction(First, TEXT("Action.CreateCover"), Shielded, ERTHexDirection::E);
 	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 30));
-	Breacher->PlannedAbilityIndex = 0;
-	Breacher->PlannedAttackTarget = Defender;
+	Breacher->SetPlannedMainAction(0);
+	Breacher->DeclareAttackOnUnit(Defender);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("il pannello e' stato abbattuto nel turno in cui e' nato"),
@@ -2967,8 +2959,8 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("MistVeil nel kit di Muiren"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
-	Caster->PlannedAbilityIndex = 3;
-	Caster->PlannedAttackTarget = Target;
+	Caster->SetPlannedMainAction(3);
+	Caster->DeclareAttackOnUnit(Target);
 	RunEnvTurn(TM);
 
 	TestTrue(TEXT("il fumo nato sull'unita' la oscura"), Target->HasStatus(TAG_Status_Obscured));
@@ -3037,7 +3029,7 @@ bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
 		Reazione->Def.Slot == ERTActionSlot::Reaction
 		&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::CellBecameHazardous);
 	Target->Abilities.Add(Reazione);
-	Target->PlannedReactionAbility = Target->Abilities.Num() - 1;
+	Target->SetPlannedReaction(Target->Abilities.Num() - 1);
 
 	// ⚠️ Il facing e' `W`, e la scelta NON e' indifferente: l'ordine canonico di ripiego comincia da `E`,
 	// quindi con `Facing = E` la cella «davanti» coinciderebbe con la prima di ripiego e l'assert in fondo
@@ -3309,9 +3301,9 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 	// e un ribilanciamento non deve poterlo far diventare `Lethal` da un altro file.
 	Mover->Shield = 0;
 	Mover->Health = 600;
-	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction(); // nessuna azione: l'unica fonte di danno e' il terreno
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunEnvTurn(TM);
 
@@ -3394,9 +3386,9 @@ bool FRTHazardTerrainDeathLogTest::RunTest(const FString&)
 	// faceva morire l'unita' all'ingresso invece che nel Cleanup.
 	Mover->Shield = 0;
 	Mover->Health = 6;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunEnvTurn(TM);
 
@@ -3479,8 +3471,8 @@ bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
 
 	// Nello stesso turno: l'uno incendia l'altro, e l'altro colpisce con l'attacco base (slot 0).
 	PlanEnvAction(Incendiario, TEXT("Action.Ignite"), Bruciato);
-	Bruciato->PlannedAbilityIndex = 0;
-	Bruciato->PlannedAttackTarget = Incendiario;
+	Bruciato->SetPlannedMainAction(0);
+	Bruciato->DeclareAttackOnUnit(Incendiario);
 	RunEnvTurn(TM);
 
 	int32 Inflitte = 0;
@@ -3626,8 +3618,8 @@ namespace
 		// (`Action.HeavyAttack`, l'invariante lo pinna `Cover.Destruction.HeavyAttackDeclaresStructureDamage`).
 		S.Breacher->Abilities[0]->Def.Effects.Add(
 			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
-		S.Breacher->PlannedAbilityIndex = 0;
-		S.Breacher->PlannedAttackTarget = S.Defender;
+		S.Breacher->SetPlannedMainAction(0);
+		S.Breacher->DeclareAttackOnUnit(S.Defender);
 
 		S.bValid = true;
 		return S;
@@ -3679,8 +3671,8 @@ namespace
 
 		S.Breacher->Abilities[0]->Def.Effects.Add(
 			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
-		S.Breacher->PlannedAbilityIndex = 0;
-		S.Breacher->PlannedAttackTarget = S.Defender;
+		S.Breacher->SetPlannedMainAction(0);
+		S.Breacher->DeclareAttackOnUnit(S.Defender);
 
 		S.bValid = true;
 		return S;
@@ -4198,8 +4190,8 @@ namespace
 
 		S.Breacher->Abilities[0]->Def.Effects.Add(
 			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
-		S.Breacher->PlannedAbilityIndex = 0;
-		S.Breacher->PlannedAttackTarget = S.Defender;
+		S.Breacher->SetPlannedMainAction(0);
+		S.Breacher->DeclareAttackOnUnit(S.Defender);
 
 		S.bValid = true;
 		return S;
@@ -4671,8 +4663,8 @@ namespace
 
 		S.Breacher->Abilities[0]->Def.Effects.Add(
 			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
-		S.Breacher->PlannedAbilityIndex = 0;
-		S.Breacher->PlannedAttackTarget = S.Foe;
+		S.Breacher->SetPlannedMainAction(0);
+		S.Breacher->DeclareAttackOnUnit(S.Foe);
 
 		S.bValid = true;
 		return S;
@@ -5033,12 +5025,12 @@ namespace
 		// Dieci a testa, e il numero conta: e' cio' che rende distinguibile «si sono sommati» da «ha sparato
 		// uno solo» quando si legge l'integrita' residua.
 		S.Ivrin->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
-		S.Ivrin->PlannedAbilityIndex = 0;
-		S.Ivrin->PlannedAttackTarget = S.Branth;
+		S.Ivrin->SetPlannedMainAction(0);
+		S.Ivrin->DeclareAttackOnUnit(S.Branth);
 
 		S.Branth->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
-		S.Branth->PlannedAbilityIndex = 0;
-		S.Branth->PlannedAttackTarget = S.Ivrin;
+		S.Branth->SetPlannedMainAction(0);
+		S.Branth->DeclareAttackOnUnit(S.Ivrin);
 
 		S.bValid = true;
 		return S;
@@ -5324,8 +5316,7 @@ bool FRTActionHealTracksTheAllyTest::RunTest(const FString&)
 	const int32 Prima = Ally->Health;
 	PlanEnvAction(Caster, TEXT("Action.Heal"), Ally);
 	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Ally, TEXT("Action.Reposition"));
-	Ally->PlannedDashAbility = Scatto;
-	Ally->PlannedDashCell = FRTCellId(2, 0); // dentro la portata
+	Ally->SetPlannedDash(Scatto, FRTCellId(2, 0)); // dentro la portata
 	RunEnvTurn(TM);
 
 	if (!TestEqual(TEXT("premessa: l'alleato e' davvero scattato dentro la portata"), Ally->Cell, FRTCellId(2, 0)))
@@ -5371,8 +5362,7 @@ bool FRTActionModifyArcFrozenAimTest::RunTest(const FString&)
 	const int32 ArcsBefore = MapActor->MapAsset->Transitions.Num();
 	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
 	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
-	Target->PlannedDashAbility = Scatto;
-	Target->PlannedDashCell = Scattata;
+	Target->SetPlannedDash(Scatto, Scattata);
 	RunEnvTurn(TM);
 
 	if (!TestEqual(TEXT("premessa: il bersaglio e' davvero scattato fuori portata"), Target->Cell, Scattata))
@@ -5419,12 +5409,11 @@ bool FRTActionIgniteFrozenAimTest::RunTest(const FString&)
 		PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
 		if (Moto == EMoto::Cammina)
 		{
-			Target->PlannedCell = Arrivo; // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
+			Target->SetPlannedCell(Arrivo); // movimento NORMALE: risolve nel Move, dopo il Blast e prima del Cleanup
 		}
 		else if (Moto == EMoto::Scatta)
 		{
-			Target->PlannedDashAbility = RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition"));
-			Target->PlannedDashCell = Arrivo; // scatto: risolve PRIMA del Blast
+			Target->SetPlannedDash(RTAbilityFixtures::AddCoreAbility(Target, TEXT("Action.Reposition")), Arrivo); // scatto: risolve PRIMA del Blast
 		}
 		RunEnvTurn(TM);
 
@@ -5497,8 +5486,8 @@ bool FRTPrivacyWallHitOneVerdictTest::RunTest(const FString&)
 		return false;
 	}
 	Breacher->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 30));
-	Breacher->PlannedAbilityIndex = 0;
-	Breacher->PlannedAttackTarget = Defender;
+	Breacher->SetPlannedMainAction(0);
+	Breacher->DeclareAttackOnUnit(Defender);
 
 	RunEnvTurn(TM);
 

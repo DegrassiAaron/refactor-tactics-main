@@ -39,6 +39,7 @@
 #include "Unit/RTUnit.h"
 #include "Misc/FileHelper.h" // il cancello di UI.CombatLogHasOneProducerPerEntry legge i due sorgenti del resolver
 #include "Misc/Paths.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -290,8 +291,8 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 
 	Difensore->Facing = ERTHexDirection::E;
 	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
-	Attaccante->PlannedAbilityIndex = 0; // attacco base
-	Attaccante->PlannedAttackTarget = Difensore;
+	Attaccante->SetPlannedMainAction(0); // attacco base
+	Attaccante->DeclareAttackOnUnit(Difensore);
 
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -448,8 +449,8 @@ bool FRTRearHitOnCoverCreditsSameUnitTest::RunTest(const FString&)
 	}
 
 	Difensore->Facing = ERTHexDirection::E; // guarda dall'altra parte: il colpo arriva alle spalle
-	Attaccante->PlannedAbilityIndex = 0;
-	Attaccante->PlannedAttackTarget = Difensore;
+	Attaccante->SetPlannedMainAction(0);
+	Attaccante->DeclareAttackOnUnit(Difensore);
 
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -928,9 +929,9 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// `{(5,0), (4,0), (3,0)}` con meta `(3,0)`, e la nemica attraversava l'ostacolo su `(4,0)` per arrivare
 	// dove voleva. Misurato prima di toccare una riga: finiva in `(3,0,L0)` con esito di movimento riuscito,
 	// e la premessa 2 cadeva — la stessa diagnosi, parola per parola, che `#2984` aveva prodotto qui.
-	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) };
-	Nemica->PlannedCell = FRTCellId(4, 0, 0);
-	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
+	FRTUnitPlanTestAccess::SetPath(*Nemica, { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) });
+	Nemica->SetPlannedCell(FRTCellId(4, 0, 0));
+	Muro->SetPlannedCell(Muro->Cell); // fermo: e' l'ostacolo
 	RTCombatLogFixture::RunTurn(TM);
 
 	// ── Premessa 1: e' davvero un RICORDO, non un'ignota e non una vista.
@@ -1046,8 +1047,8 @@ bool FRTLogShowsOwnTeamTurnTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mia || !Compagna) { RTCombatLogFixture::DestroyWorld(World); return false; }
 
-	Mia->PlannedCell = FRTCellId(2, -1);
-	Compagna->PlannedCell = Compagna->Cell;
+	Mia->SetPlannedCell(FRTCellId(2, -1));
+	Compagna->SetPlannedCell(Compagna->Cell);
 
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -1111,8 +1112,8 @@ bool FRTLogDeathIsPublicTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Osservatore || !Vittima) { RTCombatLogFixture::DestroyWorld(World); return false; }
 
-	Osservatore->PlannedCell = Osservatore->Cell;
-	Vittima->PlannedCell = Vittima->Cell;
+	Osservatore->SetPlannedCell(Osservatore->Cell);
+	Vittima->SetPlannedCell(Vittima->Cell);
 	RTCombatLogFixture::RunTurn(TM);   // un turno perche' il roster assegni gli StableUnitId
 
 	// La premessa si ASSERISCE, non si spera: per la squadra 0 la vittima e' davvero ignota.
@@ -1199,10 +1200,10 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 
 	Mia->Health = 1;
 	Mia->Shield = 0;
-	Mia->PlannedAbilityIndex = 0;
-	Mia->PlannedAttackTarget = Nemica;
-	Nemica->PlannedAbilityIndex = 0;
-	Nemica->PlannedAttackTarget = Mia;
+	Mia->SetPlannedMainAction(0);
+	Mia->DeclareAttackOnUnit(Nemica);
+	Nemica->SetPlannedMainAction(0);
+	Nemica->DeclareAttackOnUnit(Mia);
 
 	const int32 VitaNemicaPrima = Nemica->Health + Nemica->Shield;
 
@@ -1326,8 +1327,8 @@ bool FRTLogUnseenDeathLeavesOnlyTheAnnouncementTest::RunTest(const FString&)
 	Vittima->Health = 1;
 	Vittima->ApplyStatus(TAG_Status_Burning, /*Turns=*/ 3);
 
-	Osservatore->PlannedCell = Osservatore->Cell;
-	Vittima->PlannedCell = Vittima->Cell;
+	Osservatore->SetPlannedCell(Osservatore->Cell);
+	Vittima->SetPlannedCell(Vittima->Cell);
 
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -1568,14 +1569,14 @@ bool FRTBlockedMoveIsNotRepeatedTest::RunTest(const FString&)
 	// il resolver legge `PlannedPath` e `PlannedCell`, e con i soli waypoint la contesa non avveniva —
 	// il test sarebbe stato verde su un turno in cui nessuno si era mosso. L'ha intercettato la riga
 	// anti-vacuita' qui sotto.
-	Fixture.A->PlannedWaypoints = { Conteso };
-	Fixture.A->PlannedPath = { Fixture.A->Cell, Conteso };
-	Fixture.A->PlannedCell = Conteso;
-	Fixture.A->PlannedAbilityIndex = INDEX_NONE;
-	Fixture.B->PlannedWaypoints = { Conteso };
-	Fixture.B->PlannedPath = { Fixture.B->Cell, Conteso };
-	Fixture.B->PlannedCell = Conteso;
-	Fixture.B->PlannedAbilityIndex = INDEX_NONE;
+	FRTUnitPlanTestAccess::SetWaypoints(*Fixture.A, { Conteso });
+	FRTUnitPlanTestAccess::SetPath(*Fixture.A, { Fixture.A->Cell, Conteso });
+	Fixture.A->SetPlannedCell(Conteso);
+	Fixture.A->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetWaypoints(*Fixture.B, { Conteso });
+	FRTUnitPlanTestAccess::SetPath(*Fixture.B, { Fixture.B->Cell, Conteso });
+	Fixture.B->SetPlannedCell(Conteso);
+	Fixture.B->ClearPlannedMainAction();
 
 	RTCombatLogFixture::RunTurn(Fixture.TM);
 
@@ -1682,8 +1683,8 @@ bool FRTCombatLogBlastRecordsFacingReadTest::RunTest(const FString&)
 	// — quindi senza questa riga nessuna lettura avviene e il test misurerebbe l'assenza di un produttore
 	// che invece esiste. Misurato: la prima stesura non ce l'aveva ed e' fallita per questo.
 	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
-	Attaccante->PlannedAbilityIndex = 0; // attacco base
-	Attaccante->PlannedAttackTarget = Difensore;
+	Attaccante->SetPlannedMainAction(0); // attacco base
+	Attaccante->DeclareAttackOnUnit(Difensore);
 
 	RTCombatLogFixture::RunTurn(TM);
 
@@ -1783,8 +1784,8 @@ bool FRTCombatLogCoverRecordsFacingReadTest::RunTest(const FString&)
 	}
 
 	Difensore->Facing = ERTHexDirection::E;
-	Attaccante->PlannedAbilityIndex = 0;
-	Attaccante->PlannedAttackTarget = Difensore;
+	Attaccante->SetPlannedMainAction(0);
+	Attaccante->DeclareAttackOnUnit(Difensore);
 
 	RTCombatLogFixture::RunTurn(TM);
 

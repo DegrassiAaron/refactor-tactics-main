@@ -44,6 +44,7 @@
 #include "Unit/RTUnit.h"
 
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -100,7 +101,7 @@ namespace
 		// `FRTCellId()` di default e' `(0,0,0)`, che e' una cella VERA: senza questa riga ogni unita' senza
 		// piano pianifica un movimento verso l'origine, con traversate spurie e voci che nessun test ha
 		// chiesto. Stessa neutralizzazione di `RTControlActionTests.cpp`.
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		U->Shield = 0;
 		return U;
 	}
@@ -121,10 +122,10 @@ namespace
 	void NeutralizeAllIntents(ARTUnit* Unit)
 	{
 		if (!Unit) { return; }
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedDashAbility = INDEX_NONE;
-		Unit->PlannedPath.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		Unit->ClearPlannedMainAction();
+		Unit->ClearPlannedDash();
+		FRTUnitPlanTestAccess::ResetPath(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 
 	void RunFallTurn(ARTTurnManager* TM)
@@ -171,9 +172,9 @@ namespace
 	{
 		const int32 Idx = RTAbilityFixtures::AddCoreAbility(Attacker, ActionId);
 		if (Idx == INDEX_NONE) { return INDEX_NONE; }
-		Attacker->PlannedAbilityIndex = Idx;
-		Attacker->PlannedAttackTarget = Target;
-		Attacker->PlannedCell = Attacker->Cell;
+		Attacker->SetPlannedMainAction(Idx);
+		Attacker->DeclareAttackOnUnit(Target);
+		Attacker->SetPlannedCell(Attacker->Cell);
 		return Idx;
 	}
 }
@@ -203,9 +204,9 @@ bool FRTUnbalancedOnSlideTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyFallWorld(World); return false; }
 
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	NeutralizeAllIntents(Foe);
 
 	RunFallTurn(TM);
@@ -246,9 +247,9 @@ bool FRTNoUnbalancedWithoutSlideTest::RunTest(const FString&)
 
 	// Budget esatto per il passo, zero residuo: la condizione dello scivolamento e' «residuo >= 2».
 	Mover->MoveRange = 1;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	NeutralizeAllIntents(Foe);
 
 	RunFallTurn(TM);
@@ -470,9 +471,9 @@ bool FRTStandUpOnlyWhenMovingTest::RunTest(const FString&)
 	NeutralizeAllIntents(Fermo);
 	NeutralizeAllIntents(Foe);
 
-	Mosso->PlannedAbilityIndex = INDEX_NONE;
-	Mosso->PlannedPath = { FRTCellId(0, 1), FRTCellId(1, 1) };
-	Mosso->PlannedCell = FRTCellId(1, 1);
+	Mosso->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mosso, { FRTCellId(0, 1), FRTCellId(1, 1) });
+	Mosso->SetPlannedCell(FRTCellId(1, 1));
 
 	RunFallTurn(TM);
 
@@ -515,13 +516,13 @@ bool FRTProneHasNoReactionTest::RunTest(const FString&)
 		DestroyFallWorld(World);
 		return false;
 	}
-	Defender->PlannedReactionAbility = ReactionIdx;
+	Defender->SetPlannedReaction(ReactionIdx);
 	Defender->ApplyStatus(TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
 	NeutralizeAllIntents(Defender);
 
-	Attacker->PlannedAbilityIndex = 0; // attacco base
-	Attacker->PlannedAttackTarget = Defender;
-	Attacker->PlannedCell = Attacker->Cell;
+	Attacker->SetPlannedMainAction(0); // attacco base
+	Attacker->DeclareAttackOnUnit(Defender);
+	Attacker->SetPlannedCell(Attacker->Cell);
 
 	RunFallTurn(TM);
 
@@ -669,8 +670,8 @@ namespace
 		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(
 			Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
 		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); Esito.Nota = TEXT("Action.Overwatch non installabile"); return Esito; }
-		Watcher->PlannedAbilityIndex = OverwatchIdx; // armare costa l'azione PRINCIPALE (catalogo §1)
-		Watcher->PlannedCell = Watcher->Cell;
+		Watcher->SetPlannedMainAction(OverwatchIdx); // armare costa l'azione PRINCIPALE (catalogo §1)
+		Watcher->SetPlannedCell(Watcher->Cell);
 
 		if (bSbilanciato)
 		{
@@ -715,14 +716,14 @@ namespace
 			Azione->Power = 0;
 			Sgambettatore->Abilities.Add(Azione);
 
-			Sgambettatore->PlannedAbilityIndex = Sgambettatore->Abilities.Num() - 1;
-			Sgambettatore->PlannedAttackTarget = Watcher;
-			Sgambettatore->PlannedCell = Sgambettatore->Cell;
+			Sgambettatore->SetPlannedMainAction(Sgambettatore->Abilities.Num() - 1);
+			Sgambettatore->DeclareAttackOnUnit(Watcher);
+			Sgambettatore->SetPlannedCell(Sgambettatore->Cell);
 		}
 
-		Mover->PlannedAbilityIndex = INDEX_NONE;
-		Mover->PlannedPath = { FRTCellId(0, 1), FRTCellId(0, 0) };
-		Mover->PlannedCell = FRTCellId(0, 0);
+		Mover->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 1), FRTCellId(0, 0) });
+		Mover->SetPlannedCell(FRTCellId(0, 0));
 
 		const int32 SaluteIniziale = Mover->Health + Mover->Shield;
 		RunFallTurn(TM);
@@ -996,7 +997,7 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 	}
 
 	Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-	Runner->PlannedAbilityIndex = INDEX_NONE;
+	Runner->ClearPlannedMainAction();
 	// Lo Sprint si dichiarava come PROFILO dal 2026-09-13 ([D-116], `#641`), e questo test scriveva
 	// `PlannedMovementProfileId = ProfileSprint` con `PlannedCell = Cell` — cioe' una corsa dichiarata
 	// e zero celle percorse. [D-425] ha tolto quel canale: correre e' ANDARE LONTANO, quindi il
@@ -1007,7 +1008,7 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 	// diventerebbe falsa in silenzio — il piano starebbe nel neutro e non ci sarebbe nulla da rifiutare.
 	const int32 Base = Runner->GetEffectiveMoveRange();
 	const int32 Oltre = Base + 1;
-	Runner->PlannedCell = FRTCellId(Oltre, 0);
+	Runner->SetPlannedCell(FRTCellId(Oltre, 0));
 	// ⛔ **La premessa si ASSERISCE**: una destinazione fuori mappa fermerebbe l'unita' per mancanza di
 	// percorso, e il test misurerebbe la topologia invece di [D-319].
 	if (!TestTrue(TEXT("premessa: la destinazione oltre 1x e' DENTRO la mappa"), Oltre <= 14))
@@ -1028,8 +1029,8 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 	{
 		DestroyFallWorld(World); return false;
 	}
-	Gemello->PlannedAbilityIndex = INDEX_NONE;
-	Gemello->PlannedCell = FRTCellId(Oltre, 3);
+	Gemello->ClearPlannedMainAction();
+	Gemello->SetPlannedCell(FRTCellId(Oltre, 3));
 
 	NeutralizeAllIntents(Foe);
 
@@ -1347,15 +1348,15 @@ bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
 
 	// La condizione che la RISOLUZIONE legge ([D-569]): stordita E con un Move pianificato. Senza il Move non c'e' niente da
 	// negare (e una stordita ferma non scriverebbe un rifiuto a ogni turno); senza lo stordimento il Move si compie.
-	Stordito->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Stordito->PlannedCell = FRTCellId(1, 0);
-	Radicato->PlannedPath = { FRTCellId(2, 0), FRTCellId(3, 0) };
-	Radicato->PlannedCell = FRTCellId(3, 0);
+	FRTUnitPlanTestAccess::SetPath(*Stordito, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Stordito->SetPlannedCell(FRTCellId(1, 0));
+	FRTUnitPlanTestAccess::SetPath(*Radicato, { FRTCellId(2, 0), FRTCellId(3, 0) });
+	Radicato->SetPlannedCell(FRTCellId(3, 0));
 	TestTrue(TEXT("premessa: il Move di chi e' stordito e' pianificato"), Stordito->HasPlannedNormalMove());
 	TestTrue(TEXT("chi e' stordito e ha un Move pianificato: la risoluzione lo nega"), Stordito->PlannedNormalMoveDeniedByStun());
 	TestFalse(TEXT("chi e' solo radicato: non e' questa condizione (lo nega il budget)"), Radicato->PlannedNormalMoveDeniedByStun());
-	Stordito->PlannedPath.Reset();
-	Stordito->PlannedCell = Stordito->Cell;
+	FRTUnitPlanTestAccess::ResetPath(*Stordito);
+	Stordito->SetPlannedCell(Stordito->Cell);
 	TestFalse(TEXT("chi e' stordito ma non ha pianificato un Move: niente da negare"), Stordito->PlannedNormalMoveDeniedByStun());
 
 	// ⚠️ Il rango di gravita' e' l'altra meta' della distinzione, e si chiede a chi la possiede invece di
@@ -1428,9 +1429,9 @@ bool FRTStunCancelsMainActionTest::RunTest(const FString&)
 		{
 			DestroyFallWorld(World); OutNota = TEXT("l'eroe non dichiara un attacco base"); return false;
 		}
-		Attaccante->PlannedAbilityIndex = AttaccoBase;
-		Attaccante->PlannedAttackTarget = Bersaglio;
-		Attaccante->PlannedCell = Attaccante->Cell;
+		Attaccante->SetPlannedMainAction(AttaccoBase);
+		Attaccante->DeclareAttackOnUnit(Bersaglio);
+		Attaccante->SetPlannedCell(Attaccante->Cell);
 		NeutralizeAllIntents(Bersaglio);
 
 		if (bStordito)
@@ -1558,8 +1559,8 @@ bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(
 			Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
 		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); OutNota = TEXT("Action.Overwatch non installabile"); return -1; }
-		Watcher->PlannedAbilityIndex = OverwatchIdx;
-		Watcher->PlannedCell = Watcher->Cell;
+		Watcher->SetPlannedMainAction(OverwatchIdx);
+		Watcher->SetPlannedCell(Watcher->Cell);
 
 		if (Quando == EQuando::PrimaDelTurno)
 		{
@@ -1595,14 +1596,14 @@ bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 			Azione->Power = 0;
 			Storditore->Abilities.Add(Azione);
 
-			Storditore->PlannedAbilityIndex = Storditore->Abilities.Num() - 1;
-			Storditore->PlannedAttackTarget = Watcher;
-			Storditore->PlannedCell = Storditore->Cell;
+			Storditore->SetPlannedMainAction(Storditore->Abilities.Num() - 1);
+			Storditore->DeclareAttackOnUnit(Watcher);
+			Storditore->SetPlannedCell(Storditore->Cell);
 		}
 
-		Mover->PlannedAbilityIndex = INDEX_NONE;
-		Mover->PlannedPath = { FRTCellId(0, 1), FRTCellId(0, 0) };
-		Mover->PlannedCell = FRTCellId(0, 0);
+		Mover->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 1), FRTCellId(0, 0) });
+		Mover->SetPlannedCell(FRTCellId(0, 0));
 
 		const int32 SaluteIniziale = Mover->Health + Mover->Shield;
 		RunFallTurn(TM);
@@ -1719,8 +1720,7 @@ namespace
 		{
 			Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 		}
-		Runner->PlannedDashAbility = Scatto;
-		Runner->PlannedDashCell = FRTCellId(2, 0);
+		Runner->SetPlannedDash(Scatto, FRTCellId(2, 0));
 		Test.TestTrue(TEXT("premessa: lo scatto si applica, per la regola del catalogo"), Runner->PlannedDashApplies());
 
 		RunFallTurn(TM);
@@ -1860,8 +1860,7 @@ namespace
 			Runner->ConsumeAbility(Scatto);
 			Runner->TickCooldowns(); // StunMobCooldown - 1: un secondo `ConsumeAbility` la riporterebbe al valore pieno
 		}
-		Runner->PlannedDashAbility = Scatto;
-		Runner->PlannedDashCell = StunMobGoal;
+		Runner->SetPlannedDash(Scatto, StunMobGoal);
 		Esito.bApplicaPrima = Runner->PlannedDashApplies();
 		Esito.bSpostaPrima = Runner->PlannedDashMoves();
 		Test.TestTrue(TEXT("premessa: il Def porta lo slot del caso"), Azione->Def.Slot == C.Slot);
@@ -1879,8 +1878,7 @@ namespace
 				DestroyFallWorld(World);
 				return Esito;
 			}
-			Compagno->PlannedDashAbility = ScattoCompagno;
-			Compagno->PlannedDashCell = StunMobMateGoal;
+			Compagno->SetPlannedDash(ScattoCompagno, StunMobMateGoal);
 			Test.TestTrue(TEXT("premessa: lo scatto del compagno si applica"), Compagno->PlannedDashApplies());
 			// L'ordine si MISURA con la funzione vera, su un array passato nell'ordine sbagliato perche' il sort debba muoverlo.
 			TArray<ARTUnit*> Ordine = { Compagno, Runner, Foe };

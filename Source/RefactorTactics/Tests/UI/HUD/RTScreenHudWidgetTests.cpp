@@ -1461,8 +1461,8 @@ bool FRTScreenHudInspectedSlotsTest::RunTest(const FString&)
 
 	// **Entrambe** pianificano un movimento: senza il piano dell'avversaria non ci sarebbe nulla da NON
 	// mostrare, e il test sarebbe vacuo.
-	Mine->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-	Enemy->PlannedWaypoints.Add(FRTCellId(2, 0, 0));
+	Mine->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+	Enemy->AddPlannedWaypoint(FRTCellId(2, 0, 0));
 
 	// (1) Controllo POSITIVO — l'unita' comandata porta i suoi slot, autorizzati.
 	Panel->SetSelectedUnitForTest(Mine);
@@ -1968,7 +1968,7 @@ bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
 	if (!Guardia || !Quieta || !Nemica) { return false; }
 	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Guardia, TEXT("Action.Overwatch"));
 	if (!TestTrue(TEXT("premessa: la Guardia ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
-	Guardia->PlannedAbilityIndex = Overwatch;
+	Guardia->SetPlannedMainAction(Overwatch);
 
 	// --- Senza pannello o senza classe: niente --------------------------------------------------------------------------
 	Roster->RefreshCards();
@@ -2024,7 +2024,7 @@ bool FRTScreenHudRosterCardsTest::RunTest(const FString&)
 	TestEqual(TEXT("e il pannello la toglie"), Pannello->GetChildrenCount(), Voci.Num() - 1);
 
 	// --- Il chip si riconta a 5 Hz, i PV no: senza riconteggio il chip resta, il resto segue -------------------------------
-	Guardia->PlannedAbilityIndex = INDEX_NONE;
+	Guardia->ClearPlannedMainAction();
 	Guardia->Health = 3;
 	const auto CartaDi = [Roster](const TCHAR* Eroe) -> const URTUnitCardWidget*
 	{
@@ -2076,7 +2076,7 @@ bool FRTScreenHudRosterOpposingCardsTest::RunTest(const FString&)
 	if (!Charlie) { return false; }
 	const int32 Overwatch = RTAbilityFixtures::AddCoreAbility(Charlie, TEXT("Action.Overwatch"));
 	if (!TestTrue(TEXT("premessa: la nemica ha l'Overwatch"), Overwatch != INDEX_NONE)) { return false; }
-	Charlie->PlannedAbilityIndex = Overwatch;
+	Charlie->SetPlannedMainAction(Overwatch);
 	// Il suo piano ARMEREBBE il chip, se lo si leggesse: senza questa premessa il chip spento sarebbe vero per caso.
 	if (!TestTrue(TEXT("premessa: il piano della nemica arma una reazione"), URTHudViewModel::BuildUnitSlots(Charlie).bReactionArmed))
 	{

@@ -370,7 +370,7 @@ bool FRTHudSlotsFromScenarioTest::RunTest(const FString&)
 	}
 
 	// --- un percorso occupa il MOVIMENTO, e nient'altro ----------------------------------------------
-	Mine->PlannedWaypoints.Add(Mine->Cell);
+	Mine->AddPlannedWaypoint(Mine->Cell);
 	{
 		const FRTUnitSlotsView Slots = Panel->GetSlots();
 		TestTrue(TEXT("un percorso occupa MOVEMENT"), Slots.Movement.bOccupied);
@@ -379,7 +379,7 @@ bool FRTHudSlotsFromScenarioTest::RunTest(const FString&)
 	}
 
 	// --- un'azione principale occupa MAIN, e la reazione resta sua -----------------------------------
-	Mine->PlannedAbilityIndex = 0;
+	Mine->SetPlannedMainAction(0);
 	{
 		const FRTUnitSlotsView Slots = Panel->GetSlots();
 		TestTrue(TEXT("l'azione scelta occupa MAIN"), Slots.Main.bOccupied);

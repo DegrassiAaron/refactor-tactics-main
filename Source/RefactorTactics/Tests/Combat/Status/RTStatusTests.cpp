@@ -14,6 +14,7 @@
 #include "Map/RTHexCellData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -101,9 +102,9 @@ namespace
 	/** Il turno successivo senza muoversi: il piano resta la cella su cui l'unita' gia' si trova. */
 	void StandStill(ARTUnit* Unit)
 	{
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedPath.Reset();
-		Unit->PlannedCell = Unit->Cell;
+		Unit->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::ResetPath(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
 	}
 }
 
@@ -124,9 +125,9 @@ bool FRTStatusPersistsWhileOnCellTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -162,9 +163,9 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -174,9 +175,9 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 		return false;
 	}
 
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -206,9 +207,9 @@ bool FRTStatusBurningDamagesInCleanupTest::RunTest(const FString&)
 
 	Mover->Shield = 0; // niente scudo di mezzo: qui si misura il danno, non l'assorbimento
 	const int32 StartHealth = Mover->Health;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -237,9 +238,9 @@ bool FRTStatusBurningExpiresAfterTwoTurnsTest::RunTest(const FString&)
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
 	Mover->Shield = 0;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }; // attraversa il fuoco e ne esce
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa il fuoco e ne esce
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM); // turno 1: 10 (ingresso) + 8 (Cleanup), durata residua 1
@@ -282,9 +283,9 @@ bool FRTStatusBurningDefeatCountsThisTurnTest::RunTest(const FString&)
 	// Sopravvive ai 10 danni dell'ingresso e muore per gli 8 del Cleanup: il KO e' attribuibile a Burning.
 	Mover->Shield = 0;
 	Mover->Health = 15;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -316,9 +317,9 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	Mover->Shield = 0;
 	Mover->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2); // in fiamme prima di entrare in acqua
 	const int32 StartHealth = Mover->Health;
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -374,9 +375,9 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	const int32 WetStart = WetTarget->Health;
 	const int32 DryStart = DryTarget->Health;
 
-	Aevik->PlannedAbilityIndex = DischargeIdx;
-	Aevik->PlannedAttackTarget = WetTarget;
-	Aevik->PlannedCell = Aevik->Cell;
+	Aevik->SetPlannedMainAction(DischargeIdx);
+	Aevik->DeclareAttackOnUnit(WetTarget);
+	Aevik->SetPlannedCell(Aevik->Cell);
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 
@@ -397,9 +398,9 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	// ha attraversato un Cleanup e la ricarica ha rimesso i 5 punti base. Senza questa riga la controprova
 	// misurerebbe «24 meno lo scudo» e accuserebbe il bonus dell'acqua di una differenza che non ha causato.
 	DryTarget->Shield = 0;
-	Aevik->PlannedAbilityIndex = DischargeIdx;
-	Aevik->PlannedAttackTarget = DryTarget;
-	Aevik->PlannedCell = Aevik->Cell;
+	Aevik->SetPlannedMainAction(DischargeIdx);
+	Aevik->DeclareAttackOnUnit(DryTarget);
+	Aevik->SetPlannedCell(Aevik->Cell);
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 	RunStatusTurn(TM);
@@ -474,15 +475,15 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	Victim->Shield = 0;
 	const int32 StartHealth = Victim->Health;
 
-	Marker->PlannedAbilityIndex = MarkIdx;
-	Marker->PlannedAttackTarget = Victim;
-	Marker->PlannedCell = Marker->Cell;
-	Ally1->PlannedAbilityIndex = Hit1Idx;
-	Ally1->PlannedAttackTarget = Victim;
-	Ally1->PlannedCell = Ally1->Cell;
-	Ally2->PlannedAbilityIndex = Hit2Idx;
-	Ally2->PlannedAttackTarget = Victim;
-	Ally2->PlannedCell = Ally2->Cell;
+	Marker->SetPlannedMainAction(MarkIdx);
+	Marker->DeclareAttackOnUnit(Victim);
+	Marker->SetPlannedCell(Marker->Cell);
+	Ally1->SetPlannedMainAction(Hit1Idx);
+	Ally1->DeclareAttackOnUnit(Victim);
+	Ally1->SetPlannedCell(Ally1->Cell);
+	Ally2->SetPlannedMainAction(Hit2Idx);
+	Ally2->DeclareAttackOnUnit(Victim);
+	Ally2->SetPlannedCell(Ally2->Cell);
 	StandStill(Victim);
 
 	RunStatusTurn(TM);
@@ -529,15 +530,15 @@ bool FRTStatusMarkedEnemyHitDoesNotConsumeTest::RunTest(const FString&)
 	Victim->Shield = 0;
 	const int32 StartHealth = Victim->Health;
 
-	Marker->PlannedAbilityIndex = MarkIdx;
-	Marker->PlannedAttackTarget = Victim;
-	Marker->PlannedCell = Marker->Cell;
-	Ally->PlannedAbilityIndex = ShotIdx;
-	Ally->PlannedAttackTarget = Victim;
-	Ally->PlannedCell = Ally->Cell;
-	VictimMate->PlannedAbilityIndex = AoEIdx;
-	VictimMate->PlannedAttackTarget = Ally;   // centro sul nemico: il compagno marcato ci finisce dentro
-	VictimMate->PlannedCell = VictimMate->Cell;
+	Marker->SetPlannedMainAction(MarkIdx);
+	Marker->DeclareAttackOnUnit(Victim);
+	Marker->SetPlannedCell(Marker->Cell);
+	Ally->SetPlannedMainAction(ShotIdx);
+	Ally->DeclareAttackOnUnit(Victim);
+	Ally->SetPlannedCell(Ally->Cell);
+	VictimMate->SetPlannedMainAction(AoEIdx);
+	VictimMate->DeclareAttackOnUnit(Ally);   // centro sul nemico: il compagno marcato ci finisce dentro
+	VictimMate->SetPlannedCell(VictimMate->Cell);
 	StandStill(Victim);
 
 	RunStatusTurn(TM);
@@ -574,10 +575,10 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	const int32 FoeStart = Foe->Health;
 
 	// Entra nel fumo e spara da li': il cap di targeting vale «dentro o attraverso».
-	Shooter->PlannedAbilityIndex = HitIdx;
-	Shooter->PlannedAttackTarget = Foe;
-	Shooter->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Shooter->PlannedCell = FRTCellId(1, 0);
+	Shooter->SetPlannedMainAction(HitIdx);
+	Shooter->DeclareAttackOnUnit(Foe);
+	FRTUnitPlanTestAccess::SetPath(*Shooter, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Shooter->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -586,9 +587,9 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	TestEqual(TEXT("il cap del terreno regge: il colpo a 5 celle non arriva"), Foe->Health, FoeStart);
 
 	// Esce dal fumo: lo stato se ne va con la cella, come `Wet`.
-	Shooter->PlannedAbilityIndex = INDEX_NONE;
-	Shooter->PlannedPath = { FRTCellId(1, 0), FRTCellId(2, 0) };
-	Shooter->PlannedCell = FRTCellId(2, 0);
+	Shooter->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Shooter, { FRTCellId(1, 0), FRTCellId(2, 0) });
+	Shooter->SetPlannedCell(FRTCellId(2, 0));
 	StandStill(Foe);
 	RunStatusTurn(TM);
 
@@ -616,9 +617,9 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
 	Mover->ApplyStatus(TAG_Status_Exposed, /*Turni*/ 1); // durata esplicita: deve scadere in questo Cleanup
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };   // e finisce nell'acqua: Wet persistente
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });   // e finisce nell'acqua: Wet persistente
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 
 	RunStatusTurn(TM);
@@ -672,9 +673,9 @@ bool FRTStatusPlaybackCarriesTagAndCauseTest::RunTest(const FString&)
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
 	// Turno 1: entra in acqua e si bagna -> NASCITA legata alla cella.
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 	RunStatusTurn(TM);
 
@@ -706,9 +707,9 @@ bool FRTStatusPlaybackCarriesTagAndCauseTest::RunTest(const FString&)
 	}
 
 	// Turno 2: esce dall'acqua -> MORTE, e la causa e' `Revoked` (una mossa), non `Expired` (il tempo).
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(1, 0), FRTCellId(2, 0) };
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(1, 0), FRTCellId(2, 0) });
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 	StandStill(Foe);
 	RunStatusTurn(TM);
 
@@ -766,9 +767,9 @@ bool FRTStatusPlaybackIgnoresNonStatusEntriesTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
-	Mover->PlannedAbilityIndex = INDEX_NONE;
-	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Mover->PlannedCell = FRTCellId(1, 0);
+	Mover->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Mover, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Mover->SetPlannedCell(FRTCellId(1, 0));
 	StandStill(Foe);
 	RunStatusTurn(TM);
 
@@ -864,12 +865,12 @@ bool FRTMoveEventCarriesStatusesAtActionTimeTest::RunTest(const FString&)
 
 	// Una cella sola per ciascuno: `Slow` dimezza il range, e una rotta lunga rischierebbe di non
 	// produrre affatto l'evento — cioe' di far passare il test per il motivo sbagliato.
-	Rallentato->PlannedAbilityIndex = INDEX_NONE;
-	Rallentato->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
-	Rallentato->PlannedCell = FRTCellId(1, 0);
-	Sano->PlannedAbilityIndex = INDEX_NONE;
-	Sano->PlannedPath = { FRTCellId(0, 1), FRTCellId(1, 1) };
-	Sano->PlannedCell = FRTCellId(1, 1);
+	Rallentato->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Rallentato, { FRTCellId(0, 0), FRTCellId(1, 0) });
+	Rallentato->SetPlannedCell(FRTCellId(1, 0));
+	Sano->ClearPlannedMainAction();
+	FRTUnitPlanTestAccess::SetPath(*Sano, { FRTCellId(0, 1), FRTCellId(1, 1) });
+	Sano->SetPlannedCell(FRTCellId(1, 1));
 	StandStill(Foe);
 	RunStatusTurn(TM);
 

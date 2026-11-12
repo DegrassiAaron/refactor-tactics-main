@@ -20,6 +20,7 @@
 #include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -90,7 +91,7 @@ namespace
 		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo: il test misura il Blast, non il movimento
+		U->SetPlannedCell(Cell); // fermo: il test misura il Blast, non il movimento
 		U->Shield = 0;         // [D-224]: qui si misura se un colpo arriva, non quanto scudo assorbe
 		return U;
 	}
@@ -304,7 +305,7 @@ namespace
 			return Esito;
 		}
 
-		Attaccante->PlannedAbilityIndex = Idx;
+		Attaccante->SetPlannedMainAction(Idx);
 		ARTUnit* Bersaglio = nullptr;
 		ARTUnit* Aiutante = nullptr; // l'Interrupt, o chi uccide l'attaccante nel Blast
 		const FRTCellId CellaVuota(3, 0, 0);
@@ -334,8 +335,7 @@ namespace
 				// `Action.Reposition`: uno scatto SENZA impatto ne' effetti, cosi' l'unica cosa che cambia e' dove sta
 				// il bersaglio quando il Blast risolve (stessa scena di `Combat.Aim.PlannedAimDoesNotFollowTheTarget`).
 				const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Bersaglio, TEXT("Action.Reposition"));
-				Bersaglio->PlannedDashAbility = Scatto;
-				Bersaglio->PlannedDashCell = FRTCellId(3, -1, 0);
+				Bersaglio->SetPlannedDash(Scatto, FRTCellId(3, -1, 0));
 			}
 			break;
 		}
@@ -381,8 +381,8 @@ namespace
 			if (Aiutante)
 			{
 				const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Aiutante, TEXT("Action.Interrupt"));
-				Aiutante->PlannedAbilityIndex = InterruptIdx;
-				Aiutante->PlannedAttackTarget = Attaccante;
+				Aiutante->SetPlannedMainAction(InterruptIdx);
+				Aiutante->DeclareAttackOnUnit(Attaccante);
 			}
 			if (C.Causa == EPagaCausa::TiroCappatoInterrotto)
 			{
@@ -414,7 +414,7 @@ namespace
 			Aiutante = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1, 0));
 			if (Aiutante)
 			{
-				Aiutante->PlannedAbilityIndex = 0;
+				Aiutante->SetPlannedMainAction(0);
 				Aiutante->DeclareAttackOnUnit(Attaccante);
 			}
 			break;
@@ -843,11 +843,11 @@ namespace
 				PagaDestroyWorld(World);
 				return Esito;
 			}
-			Attore->PlannedReactionAbility = Idx;
-			Attore->PlannedAbilityIndex = INDEX_NONE; // niente azione principale: solo la reazione, pronta
+			Attore->SetPlannedReaction(Idx);
+			Attore->ClearPlannedMainAction(); // niente azione principale: solo la reazione, pronta
 			if (S.bNemicoAttacca)
 			{
-				Nemico->PlannedAbilityIndex = 0;
+				Nemico->SetPlannedMainAction(0);
 				Nemico->DeclareAttackOnUnit(Attore);
 			}
 		}
@@ -908,8 +908,7 @@ namespace
 				if (S.bCompagnoScatta)
 				{
 					const int32 ScattoCompagno = RTAbilityFixtures::AddCoreAbility(Compagno, TEXT("Action.Reposition"));
-					Compagno->PlannedDashAbility = ScattoCompagno;
-					Compagno->PlannedDashCell = FRTCellId(S.FumoX, 1, 0);
+					Compagno->SetPlannedDash(ScattoCompagno, FRTCellId(S.FumoX, 1, 0));
 				}
 			}
 
@@ -938,8 +937,7 @@ namespace
 				// l'ostacolo, lo scatto si ferma una cella prima: e' l'unica variabile fra controllo e caso. Lo scatto e'
 				// pianificato PRIMA del click: e' da li' che il click giudica (`AimOriginFor`, [D-464]).
 				const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Attore, TEXT("Action.Reposition"));
-				Attore->PlannedDashAbility = Scatto;
-				Attore->PlannedDashCell = CellaScatto;
+				Attore->SetPlannedDash(Scatto, CellaScatto);
 				if (S.bOstacoloSulloScatto)
 				{
 					ARTUnit* Ostacolo = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaScatto);
@@ -964,16 +962,14 @@ namespace
 					return Esito;
 				}
 				const int32 Carica = RTAbilityFixtures::AddCoreAbility(Attore, TEXT("Action.Charge"));
-				Attore->PlannedDashAbility = Carica;
-				Attore->PlannedDashCell = FRTCellId(-3, 0, 0);
+				Attore->SetPlannedDash(Carica, FRTCellId(-3, 0, 0));
 			}
 			if (Bersaglio && S.bBersaglioScattaLontano)
 			{
 				// Il bersaglio scatta di due celle lungo l'asse r e finisce a distanza `Portata + 1` da chi agisce. La mira e'
 				// congelata al lock-in sulla cella di PRIMA ([D-415]): il predicato non deve leggere dove il bersaglio e' finito.
 				const int32 ScattoDelBersaglio = RTAbilityFixtures::AddCoreAbility(Bersaglio, TEXT("Action.Reposition"));
-				Bersaglio->PlannedDashAbility = ScattoDelBersaglio;
-				Bersaglio->PlannedDashCell = FRTCellId(Distanza, 2, 0);
+				Bersaglio->SetPlannedDash(ScattoDelBersaglio, FRTCellId(Distanza, 2, 0));
 			}
 
 			if (S.bGiaInRicarica)
@@ -1045,7 +1041,7 @@ namespace
 			{
 				// Il click non ha prodotto il piano (o non c'era niente da cliccare): lo si scrive a mano, perche' la riga
 				// misura anche cio' che il RESOLVER fa di un piano che il click non produce.
-				Attore->PlannedAbilityIndex = Idx;
+				Attore->SetPlannedMainAction(Idx);
 				if (S.Azione == ERic3Azione::AttaccoACella)
 				{
 					Attore->DeclareAttackOnCell(CellaBersaglio);
@@ -1059,8 +1055,7 @@ namespace
 			{
 				// Il lato dichiarato, come lo scrive `HandleTargetEdge`: la cella del bersaglio e il bordo.
 				Attore->DeclareAttackOnCell(CellaBersaglio);
-				Attore->PlannedCoverEdge = ERTHexDirection::W;
-				Attore->bHasPlannedCoverEdge = true;
+				Attore->DeclarePlannedCoverEdge(ERTHexDirection::W);
 			}
 			else if ((S.Azione == ERic3Azione::CreateCover || S.Azione == ERic3Azione::Interact) && S.bPianoACellaSenzaLato)
 			{
@@ -1079,7 +1074,7 @@ namespace
 					return Esito;
 				}
 				Attore->Health = 1;
-				Carnefice->PlannedAbilityIndex = 0;
+				Carnefice->SetPlannedMainAction(0);
 				Carnefice->DeclareAttackOnUnit(Attore);
 			}
 		}
@@ -2103,7 +2098,7 @@ namespace
 		{
 			Tiratore->VisionRange = 0; // solo l'intorno di 2 celle
 			Tiratore->Abilities[0]->CooldownTurns = PagaCooldown;
-			Tiratore->PlannedAbilityIndex = 0;
+			Tiratore->SetPlannedMainAction(0);
 		}
 		if (bCompagnoDiChiNonVedeScatta)
 		{
@@ -2118,8 +2113,7 @@ namespace
 			}
 			Compagno->VisionRange = 0;
 			const int32 ScattoCompagno = RTAbilityFixtures::AddCoreAbility(Compagno, TEXT("Action.Reposition"));
-			Compagno->PlannedDashAbility = ScattoCompagno;
-			Compagno->PlannedDashCell = FRTCellId(CellaDelFumo.X, 1, 0);
+			Compagno->SetPlannedDash(ScattoCompagno, FRTCellId(CellaDelFumo.X, 1, 0));
 		}
 		if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la mira sta alla portata dichiarata"), Nome),
 			ChiVede->Abilities[0]->RangeCells, 4))
@@ -2301,7 +2295,7 @@ namespace
 			return Esito;
 		}
 		Attore->Abilities[Idx]->CooldownTurns = PagaCooldown;
-		Attore->PlannedAbilityIndex = Idx;
+		Attore->SetPlannedMainAction(Idx);
 		// Cura e purificazione agiscono su CHI LE USA: un nemico dichiarato come bersaglio le renderebbe un'altra azione.
 		if (C.Sito == EPagaSito::Blast || C.Sito == EPagaSito::Cleanup) { Attore->DeclareAttackOnUnit(Nemico); }
 
@@ -2319,7 +2313,7 @@ namespace
 		if (C.Sito == EPagaSito::Purificazione)
 		{
 			Attore->ApplyStatus(TAG_Status_Root, 2);
-			Attore->PlannedCleansePriority = { TAG_Status_Root };
+			Attore->SetPlannedCleansePriority({ TAG_Status_Root });
 			Test.TestTrue(*FString::Printf(TEXT("%s: premessa: lo stato da togliere c'e'"), C.Nome),
 				Attore->HasStatus(TAG_Status_Root));
 		}
@@ -2332,7 +2326,7 @@ namespace
 				PagaDestroyWorld(World);
 				return Esito;
 			}
-			Attore->PlannedAttackTarget = Alleato;
+			Attore->DeclareAttackOnUnit(Alleato);
 		}
 		const FName AzioneAttesa = Attore->Abilities[Idx]->Def.ActionId;
 		const FRTCellId CellaDiChiAgisce = Attore->Cell;
@@ -2577,17 +2571,17 @@ bool FRTShiftedOriginPaymentIsPerUnitTest::RunTest(const FString&)
 	for (ARTUnit* Attaccante : { A, B })
 	{
 		Attaccante->Abilities[0]->CooldownTurns = PagaCooldown;
-		Attaccante->PlannedAbilityIndex = 0;
+		Attaccante->SetPlannedMainAction(0);
 		const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Attaccante, TEXT("Action.Reposition"));
-		Attaccante->PlannedDashAbility = Scatto;
+		FRTUnitPlanTestAccess::SetDashAbility(*Attaccante, Scatto);
 	}
 	if (!TestEqual(TEXT("premessa: la portata dell'attacco base e' 4"), A->Abilities[0]->RangeCells, 4))
 	{
 		PagaDestroyWorld(World);
 		return false;
 	}
-	A->PlannedDashCell = FRTCellId(2, 0, 0);  // l'ostacolo lo ferma in (1,0,0)
-	B->PlannedDashCell = FRTCellId(-3, 3, 0); // arriva
+	FRTUnitPlanTestAccess::SetDashCell(*A, FRTCellId(2, 0, 0));  // l'ostacolo lo ferma in (1,0,0)
+	FRTUnitPlanTestAccess::SetDashCell(*B, FRTCellId(-3, 3, 0)); // arriva
 	A->DeclareAttackOnUnit(BersaglioA);
 	B->DeclareAttackOnUnit(BersaglioB);
 

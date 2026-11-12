@@ -76,8 +76,8 @@ namespace RTHealAreaTestsInternal
 	int32 PianificaTideSuCella(ARTUnit* Curatrice, const FRTCellId& Centro)
 	{
 		const int32 Idx = IndiceDi(Curatrice, TideId);
-		Curatrice->PlannedAbilityIndex = Idx;
-		Curatrice->PlannedCell = Curatrice->Cell;
+		Curatrice->SetPlannedMainAction(Idx);
+		Curatrice->SetPlannedCell(Curatrice->Cell);
 		// Il setter della coppia cella/flag (`Unit/RTUnit.h`, `DeclareAttackOnCell`): scrivere i due campi a mano
 		// salterebbe l'invariante di `#2884`.
 		Curatrice->DeclareAttackOnCell(Centro);
@@ -88,8 +88,8 @@ namespace RTHealAreaTestsInternal
 	int32 PianificaTideSuUnita(ARTUnit* Curatrice, ARTUnit* Bersaglio)
 	{
 		const int32 Idx = IndiceDi(Curatrice, TideId);
-		Curatrice->PlannedAbilityIndex = Idx;
-		Curatrice->PlannedCell = Curatrice->Cell;
+		Curatrice->SetPlannedMainAction(Idx);
+		Curatrice->SetPlannedCell(Curatrice->Cell);
 		Curatrice->DeclareAttackOnUnit(Bersaglio);
 		return Idx;
 	}
@@ -400,8 +400,7 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	const int32 Idx = PianificaTideSuUnita(Curatrice, Puntato);
 	if (!TestTrue(TEXT("premessa: Muiren ha CircularTide"), Idx != INDEX_NONE)) { return false; }
 	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Puntato, TEXT("Action.Reposition"));
-	Puntato->PlannedDashAbility = Scatto;
-	Puntato->PlannedDashCell = Scattata;
+	Puntato->SetPlannedDash(Scatto, Scattata);
 	RunHealTurn(TM);
 
 	if (!TestEqual(TEXT("premessa: l'alleato puntato e' davvero scattato via"), Puntato->Cell, Scattata)) { return false; }
@@ -461,8 +460,8 @@ bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
 				// 2: quella di catalogo (1) si azzera nel Cleanup dello stesso turno, e «pagato» non si vedrebbe.
 				Idx = RTAbilityFixtures::AddCoreAbilityInSlot(Curatrice, TEXT("Action.Heal"), 3);
 				if (Idx != INDEX_NONE) { Curatrice->Abilities[Idx]->CooldownTurns = 2; }
-				Curatrice->PlannedAbilityIndex = Idx;
-				Curatrice->PlannedCell = Curatrice->Cell;
+				Curatrice->SetPlannedMainAction(Idx);
+				Curatrice->SetPlannedCell(Curatrice->Cell);
 				Curatrice->DeclareAttackOnUnit(Ferita);
 			}
 			if (!TestTrue(*FString::Printf(TEXT("premessa: la cura c'e' (%s)"), *Caso), Idx != INDEX_NONE)) { return false; }
@@ -535,8 +534,8 @@ bool FRTHealEmitsItsMomentTest::RunTest(const FString&)
 	const int32 PrimaL = Lontana->Health, PrimaA1 = A1->Health, PrimaA2 = A2->Health;
 
 	const int32 Cura = RTAbilityFixtures::AddCoreAbility(Singola, TEXT("Action.Heal"));
-	Singola->PlannedAbilityIndex = Cura;
-	Singola->PlannedCell = Singola->Cell;
+	Singola->SetPlannedMainAction(Cura);
+	Singola->SetPlannedCell(Singola->Cell);
 	Singola->DeclareAttackOnUnit(Lontana);
 	if (!TestTrue(TEXT("premessa: CircularTide c'e'"), PianificaTideSuCella(Tide, FRTCellId(2, 0, 0)) != INDEX_NONE)) { return false; }
 

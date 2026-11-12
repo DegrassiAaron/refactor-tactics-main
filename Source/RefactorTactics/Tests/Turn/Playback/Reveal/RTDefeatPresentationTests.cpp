@@ -129,8 +129,8 @@ bool FRTDefeatAnnouncedWhileStillVisibleTest::RunTest(const FString&)
 
 	Vittima->Health = 1;
 	Vittima->Shield = 0;
-	Carnefice->PlannedAbilityIndex = 0;
-	Carnefice->PlannedAttackTarget = Vittima;
+	Carnefice->SetPlannedMainAction(0);
+	Carnefice->DeclareAttackOnUnit(Vittima);
 
 	URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
 	TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);
@@ -190,8 +190,8 @@ bool FRTDefeatAnnouncedExactlyOnceTest::RunTest(const FString&)
 
 	Vittima->Health = 1;
 	Vittima->Shield = 0;
-	Carnefice->PlannedAbilityIndex = 0;
-	Carnefice->PlannedAttackTarget = Vittima;
+	Carnefice->SetPlannedMainAction(0);
+	Carnefice->DeclareAttackOnUnit(Vittima);
 
 	const FString NomeVittima = Vittima->GetName();
 
@@ -260,8 +260,8 @@ bool FRTDefeatInLastPhaseGetsABeatTest::RunTest(const FString&)
 		// Nessuno si muove: solo un attacco. `PlaybackPhases` finisce con `Blast`, ed e' li' che si muore.
 		Vittima->Health = 1;
 		Vittima->Shield = 0;
-		Carnefice->PlannedAbilityIndex = 0;
-		Carnefice->PlannedAttackTarget = Vittima;
+		Carnefice->SetPlannedMainAction(0);
+		Carnefice->DeclareAttackOnUnit(Vittima);
 
 		TM->DefeatBeatSeconds = 0.f; // il controllo: coda spenta
 
@@ -299,8 +299,8 @@ bool FRTDefeatInLastPhaseGetsABeatTest::RunTest(const FString&)
 
 		Vittima->Health = 1;
 		Vittima->Shield = 0;
-		Carnefice->PlannedAbilityIndex = 0;
-		Carnefice->PlannedAttackTarget = Vittima;
+		Carnefice->SetPlannedMainAction(0);
+		Carnefice->DeclareAttackOnUnit(Vittima);
 
 		// Il default del CDO, non un valore scritto qui: se qualcuno lo azzerasse, questo test lo direbbe.
 		if (!TestTrue(TEXT("premessa: la coda e' configurata a un valore positivo"), TM->DefeatBeatSeconds > 0.f))

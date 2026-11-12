@@ -377,8 +377,8 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 	const auto Reset = [&]()
 	{
 		Mia->SelectAbility(INDEX_NONE);
-		Mia->PlannedAbilityIndex = INDEX_NONE;
-		Mia->PlannedReactionAbility = INDEX_NONE;
+		Mia->ClearPlannedMainAction();
+		Mia->SetPlannedReaction(INDEX_NONE);
 	};
 	const auto Touched = [&](int32 Index)
 	{

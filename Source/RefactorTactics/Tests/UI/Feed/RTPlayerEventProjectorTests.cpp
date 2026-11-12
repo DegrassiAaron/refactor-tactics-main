@@ -1135,7 +1135,7 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeMuiren());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cella, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cella;
+		U->SetPlannedCell(Cella);
 		return U;
 	};
 	auto NelKit = [](const ARTUnit* U, const TCHAR* Id) -> int32
@@ -1164,8 +1164,7 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 
 	// La mia scatta di due celle verso est con la scia; la nemica, guardando a ovest, la spinge di una cella.
 	const int32 Scatto = NelKit(Mia, TEXT("Hero.Muiren.FluidTrail"));
-	Mia->PlannedDashAbility = Scatto;
-	Mia->PlannedDashCell = FRTCellId(2, 0);
+	Mia->SetPlannedDash(Scatto, FRTCellId(2, 0));
 
 	URTActionData* AzioneDiSpinta = NewObject<URTActionData>(Nemica);
 	AzioneDiSpinta->Def.ActionId = TEXT("Test.Spinta");
@@ -1179,7 +1178,7 @@ bool FRTPlayerEventPushAfterDashTest::RunTest(const FString&)
 	AzioneDiSpinta->RangeCells = AzioneDiSpinta->Def.RangeCells;
 	AzioneDiSpinta->Power = 0; // danno zero: un'unita' a terra non si sposta, e qui conta solo lo spostamento
 	Nemica->Abilities.Add(AzioneDiSpinta);
-	Nemica->PlannedAbilityIndex = Nemica->Abilities.Num() - 1;
+	Nemica->SetPlannedMainAction(Nemica->Abilities.Num() - 1);
 	// ⚠️ **Sulla CELLA d'arrivo dello scatto, non sull'unita'.** Misurato: dichiarato sull'unita', il colpo non
 	// arrivava — nessuna voce di combattimento nel turno. Perche', questo test non lo indaga: gli serve una
 	// spinta che arrivi, e la premessa qui sotto lo controlla.

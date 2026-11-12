@@ -539,8 +539,8 @@ bool FRTSeenUseRealTurnTest::RunTest(const FString&)
 	{
 		if (bAttack)
 		{
-			Board.Attacker->PlannedAbilityIndex = 0; // PulseShot
-			Board.Attacker->PlannedAttackTarget = Board.Defender;
+			Board.Attacker->SetPlannedMainAction(0); // PulseShot
+			Board.Attacker->DeclareAttackOnUnit(Board.Defender);
 		}
 		Board.TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && Board.TM->IsResolving(); ++I) { Board.TM->Tick(0.05f); }

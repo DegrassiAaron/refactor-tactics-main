@@ -574,7 +574,7 @@ bool FRTNamedPortsPlanCommitLookTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
-	Unit->PlannedAbilityIndex = ConRicarica;
+	Unit->SetPlannedMainAction(ConRicarica);
 	Unit->ConsumeAbility(ConRicarica);
 	W->RefreshButtons();
 	TestTrue(TEXT("B: con un avviso il contatore si apre"), NamedPortsIsShown(W->WarningCounter));

@@ -367,14 +367,14 @@ bool FRTReactionConditionPlanTest::RunTest(const FString&)
 	{
 		// 1. Senza reazione armata non c'e' niente da condizionare: la dichiarazione non ha un bersaglio nel
 		//    piano, e accettarla lascerebbe una condizione orfana che il prossimo armamento erediterebbe.
-		Unit->PlannedReactionAbility = INDEX_NONE;
+		Unit->SetPlannedReaction(INDEX_NONE);
 		TestFalse(TEXT("senza reazione armata la condizione e' rifiutata"),
 			Unit->SetPlannedReactionCondition(Valid));
 		TestFalse(TEXT("e il piano resta senza condizione"), Unit->PlannedReactionCondition.IsDeclared());
 
 		// 2. Con la reazione armata, una condizione che il gioco non conosce viene rifiutata e non lascia
 		//    tracce: il campo resta quello di prima, non una versione a meta'.
-		Unit->PlannedReactionAbility = 0;
+		Unit->SetPlannedReaction(0);
 		TestFalse(TEXT("un id sconosciuto e' rifiutato"),
 			Unit->SetPlannedReactionCondition(FRTDeclaredCondition(TEXT("TargetIsFlanked"), 1)));
 		TestFalse(TEXT("il piano resta senza condizione"), Unit->PlannedReactionCondition.IsDeclared());

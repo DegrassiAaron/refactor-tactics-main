@@ -23,6 +23,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -117,14 +118,14 @@ bool FRTTurnPrepActivatesEveryKindOfIntentTest::RunTest(const FString&)
 
 		const int32 TideGuard = IndiceAbilitaAttivazione(Scudo, TEXT("Hero.Muiren.TideGuard"));
 		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), TideGuard != INDEX_NONE)) { return false; }
-		Scudo->PlannedAbilityIndex = TideGuard;
-		Scudo->PlannedCell = Scudo->Cell;
+		Scudo->SetPlannedMainAction(TideGuard);
+		Scudo->SetPlannedCell(Scudo->Cell);
 
-		Sentinella->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch"));
-		Sentinella->PlannedCell = Sentinella->Cell;
+		Sentinella->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch")));
+		Sentinella->SetPlannedCell(Sentinella->Cell);
 
-		Stordito->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Stordito, TEXT("Action.Shield"));
-		Stordito->PlannedCell = Stordito->Cell;
+		Stordito->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Stordito, TEXT("Action.Shield")));
+		Stordito->SetPlannedCell(Stordito->Cell);
 		if (bStordito) { Stordito->ApplyStatus(TAG_Status_Stunned, 2); }
 
 		TM->LockInAndResolve();
@@ -192,9 +193,8 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 
 		const int32 Ram = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
 		if (!TestTrue(TEXT("premessa: Branth ha Ram"), Ram != INDEX_NONE)) { return false; }
-		Caricatore->PlannedDashAbility = Ram;
-		Caricatore->PlannedDashCell = Bersaglio->Cell;
-		Caricatore->PlannedCell = Caricatore->Cell;
+		Caricatore->SetPlannedDash(Ram, Bersaglio->Cell);
+		Caricatore->SetPlannedCell(Caricatore->Cell);
 
 		TM->LockInAndResolve();
 
@@ -229,9 +229,8 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bersaglio || !Caricatore) { return false; }
 
-		Caricatore->PlannedDashAbility = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
-		Caricatore->PlannedDashCell = Bersaglio->Cell;
-		Caricatore->PlannedCell = Caricatore->Cell;
+		Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+		Caricatore->SetPlannedCell(Caricatore->Cell);
 
 		TM->LockInAndResolve();
 
@@ -261,9 +260,8 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 
 		const int32 Scia = IndiceAbilitaAttivazione(Corridore, TEXT("Hero.Muiren.FluidTrail"));
 		if (!TestTrue(TEXT("premessa: Muiren ha FluidTrail"), Scia != INDEX_NONE)) { return false; }
-		Corridore->PlannedDashAbility = Scia;
-		Corridore->PlannedDashCell = FRTCellId(2, 0);
-		Corridore->PlannedCell = Corridore->Cell;
+		Corridore->SetPlannedDash(Scia, FRTCellId(2, 0));
+		Corridore->SetPlannedCell(Corridore->Cell);
 
 		TM->LockInAndResolve();
 
@@ -306,12 +304,11 @@ bool FRTTurnCoverStructureActivatesOnlyWhenAppliedTest::RunTest(const FString&)
 
 		const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
 		if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
-		Branth->PlannedAbilityIndex = Pannello;
-		Branth->bAttackTargetsCell = true;
-		Branth->PlannedAttackCell = FRTCellId(1, 0); // a portata: la portata del pannello e' 3 (#2283)
-		Branth->bHasPlannedCoverEdge = bConBordo;
-		Branth->PlannedCoverEdge = ERTHexDirection::E;
-		Branth->PlannedCell = Branth->Cell;
+		Branth->SetPlannedMainAction(Pannello);
+		Branth->DeclareAttackOnCell(FRTCellId(1, 0)); // a portata: la portata del pannello e' 3 (#2283)
+		FRTUnitPlanTestAccess::SetHasCoverEdge(*Branth, bConBordo);
+		FRTUnitPlanTestAccess::SetCoverEdge(*Branth, ERTHexDirection::E);
+		Branth->SetPlannedCell(Branth->Cell);
 
 		TM->LockInAndResolve();
 
@@ -373,12 +370,10 @@ bool FRTTurnCoverStructureAlreadyRepairedDoesNotActivateTest::RunTest(const FStr
 
 	const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
 	if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
-	Branth->PlannedAbilityIndex = Pannello;
-	Branth->bAttackTargetsCell = true;
-	Branth->PlannedAttackCell = FRTCellId(1, 0);
-	Branth->bHasPlannedCoverEdge = true;
-	Branth->PlannedCoverEdge = ERTHexDirection::E;
-	Branth->PlannedCell = Branth->Cell;
+	Branth->SetPlannedMainAction(Pannello);
+	Branth->DeclareAttackOnCell(FRTCellId(1, 0));
+	Branth->DeclarePlannedCoverEdge(ERTHexDirection::E);
+	Branth->SetPlannedCell(Branth->Cell);
 
 	// Il bordo che il pannello vuole erigere e' GIA' riparato: lo stesso piano valido del test accanto, ma
 	// `AddCover` lo rifiutera' in applicazione.
@@ -432,10 +427,10 @@ bool FRTTurnPredictiveWithoutCellActivatesTest::RunTest(const FString&)
 		// `Ability/Catalog/RTHeroCatalogLibrary.cpp:950`).
 		const int32 Intercetto = IndiceAbilitaAttivazione(Ivrin, TEXT("Hero.Ivrin.InterceptShot"));
 		if (!TestTrue(TEXT("premessa: Ivrin ha InterceptShot"), Intercetto != INDEX_NONE)) { return false; }
-		Ivrin->PlannedAbilityIndex = Intercetto;
-		Ivrin->bAttackTargetsCell = bConCella;
-		Ivrin->PlannedAttackCell = FRTCellId(2, 0);
-		Ivrin->PlannedCell = Ivrin->Cell;
+		Ivrin->SetPlannedMainAction(Intercetto);
+		FRTUnitPlanTestAccess::SetAttackTargetsCell(*Ivrin, bConCella);
+		FRTUnitPlanTestAccess::SetAttackCell(*Ivrin, FRTCellId(2, 0));
+		Ivrin->SetPlannedCell(Ivrin->Cell);
 		OutCellaIvrin = Ivrin->Cell;
 
 		TM->LockInAndResolve();
@@ -496,17 +491,17 @@ bool FRTTurnAbilityActivatedOncePerIntentTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !F1 || !R1 || !B1 || !V1) { return false; }
 
-		R1->PlannedAbilityIndex = IndiceAbilitaAttivazione(R1, TEXT("Hero.Muiren.TideGuard")); // Prep
-		R1->PlannedCell = FRTCellId(-1, 1);                                                       // e cammina
-		B1->PlannedDashAbility = IndiceAbilitaAttivazione(B1, TEXT("Hero.Branth.Ram"));           // Dash
-		B1->PlannedDashCell = F1->Cell;
-		B1->PlannedCell = B1->Cell;
-		V1->PlannedAbilityIndex = IndiceAbilitaAttivazione(V1, TEXT("Hero.Ivrin.PulseShot"));     // Blast
-		V1->PlannedAttackTarget = F1;
-		V1->PlannedCell = V1->Cell;
+		R1->SetPlannedMainAction(IndiceAbilitaAttivazione(R1, TEXT("Hero.Muiren.TideGuard"))); // Prep
+		R1->SetPlannedCell(FRTCellId(-1, 1));                                                       // e cammina
+		FRTUnitPlanTestAccess::SetDashAbility(*B1, IndiceAbilitaAttivazione(B1, TEXT("Hero.Branth.Ram")));           // Dash
+		FRTUnitPlanTestAccess::SetDashCell(*B1, F1->Cell);
+		B1->SetPlannedCell(B1->Cell);
+		V1->SetPlannedMainAction(IndiceAbilitaAttivazione(V1, TEXT("Hero.Ivrin.PulseShot")));     // Blast
+		V1->DeclareAttackOnUnit(F1);
+		V1->SetPlannedCell(V1->Cell);
 		// F1: `Action.Wait`, oppure — nel controllo positivo — una cura su se stessa.
-		F1->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(F1, bConCura ? TEXT("Action.Heal") : TEXT("Action.Wait"));
-		F1->PlannedCell = F1->Cell;
+		F1->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(F1, bConCura ? TEXT("Action.Heal") : TEXT("Action.Wait")));
+		F1->SetPlannedCell(F1->Cell);
 		if (!TestTrue(TEXT("premessa: i tre intenti del catalogo esistono"),
 			R1->PlannedAbilityIndex != INDEX_NONE && B1->PlannedDashAbility != INDEX_NONE && V1->PlannedAbilityIndex != INDEX_NONE))
 		{
@@ -591,15 +586,15 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 		// Nel secondo giro la Cleanse non trova lo stato dichiarato: `NoEffect`, ma SPESA — e si attiva lo
 		// stesso (decisione (c): il gesto, non l'esito).
 		if (bArcoInPortata) { Purificatore->ApplyStatus(TAG_Status_Root, 3); }
-		Purificatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Purificatore, TEXT("Action.Cleanse"), 3);
-		Purificatore->PlannedCleansePriority = { TAG_Status_Root };
-		Purificatore->PlannedCell = Purificatore->Cell;
+		Purificatore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Purificatore, TEXT("Action.Cleanse"), 3));
+		Purificatore->SetPlannedCleansePriority({ TAG_Status_Root });
+		Purificatore->SetPlannedCell(Purificatore->Cell);
 
 		Ferito->Health = FMath::Max(1, Ferito->Health - 30);
 		const int32 Cura = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
-		Curatore->PlannedAbilityIndex = Cura;
-		Curatore->PlannedAttackTarget = Ferito;
-		Curatore->PlannedCell = Curatore->Cell;
+		Curatore->SetPlannedMainAction(Cura);
+		Curatore->DeclareAttackOnUnit(Ferito);
+		Curatore->SetPlannedCell(Curatore->Cell);
 		// Nel secondo giro la cura e' SENZA EFFETTO (`Amount <= 0`, il ramo `NoEffect` di `CollectHealActions`):
 		// e' partita, spesa da `MarkAbilitySpent`, quindi si attiva lo stesso (decisione (c)).
 		if (!bArcoInPortata)
@@ -611,9 +606,9 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 		}
 
 		const int32 Arco = RTAbilityFixtures::AddCoreAbility(Arcista, TEXT("Action.ModifyArc"));
-		Arcista->PlannedAbilityIndex = Arco;
-		Arcista->PlannedAttackTarget = Ferito;
-		Arcista->PlannedCell = Arcista->Cell;
+		Arcista->SetPlannedMainAction(Arco);
+		Arcista->DeclareAttackOnUnit(Ferito);
+		Arcista->SetPlannedCell(Arcista->Cell);
 		const bool bInPortata = URTHexLibrary::HexDistance(Arcista->Cell, Ferito->Cell)
 			<= Arcista->GetAbility(Arco)->Def.RangeCells;
 		if (!TestEqual(TEXT("premessa: la portata dell'arco e' quella che il caso dichiara"), bInPortata, bArcoInPortata))
@@ -621,9 +616,9 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 			return false;
 		}
 
-		Tiratore->PlannedAbilityIndex = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot"));
-		Tiratore->PlannedAttackTarget = Purificatore;
-		Tiratore->PlannedCell = Tiratore->Cell;
+		Tiratore->SetPlannedMainAction(IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot")));
+		Tiratore->DeclareAttackOnUnit(Purificatore);
+		Tiratore->SetPlannedCell(Tiratore->Cell);
 
 		TM->LockInAndResolve();
 
@@ -682,9 +677,9 @@ bool FRTTurnActivationPrecedesFootprintAndHitsTest::RunTest(const FString&)
 	ARTUnit* Bersaglio  = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attaccante || !Bersaglio) { return false; }
-	Attaccante->PlannedAbilityIndex = 0;
-	Attaccante->PlannedAttackTarget = Bersaglio;
-	Attaccante->PlannedCell = FRTCellId(2, 3);
+	Attaccante->SetPlannedMainAction(0);
+	Attaccante->DeclareAttackOnUnit(Bersaglio);
+	Attaccante->SetPlannedCell(FRTCellId(2, 3));
 
 	TM->LockInAndResolve();
 
@@ -728,9 +723,8 @@ bool FRTTurnChargeActivatesInDashNotInBlastTest::RunTest(const FString&)
 	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bersaglio || !Caricatore) { return false; }
-	Caricatore->PlannedDashAbility = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	TM->LockInAndResolve();
 
@@ -794,12 +788,12 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Interruttore || !Attaccante || !Vittima) { return false; }
 
-		Interruttore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Interruttore, TEXT("Action.Interrupt"));
-		Interruttore->PlannedAttackTarget = Attaccante;
-		Interruttore->PlannedCell = Interruttore->Cell;
-		Attaccante->PlannedAbilityIndex = 0;
-		Attaccante->PlannedAttackTarget = Vittima;
-		Attaccante->PlannedCell = Attaccante->Cell;
+		Interruttore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Interruttore, TEXT("Action.Interrupt")));
+		Interruttore->DeclareAttackOnUnit(Attaccante);
+		Interruttore->SetPlannedCell(Interruttore->Cell);
+		Attaccante->SetPlannedMainAction(0);
+		Attaccante->DeclareAttackOnUnit(Vittima);
+		Attaccante->SetPlannedCell(Attaccante->Cell);
 
 		TM->LockInAndResolve();
 
@@ -831,9 +825,9 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("premessa: (1,0) e' un vicino di (0,0)"), Bordo != INDEX_NONE)) { return false; }
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 0), static_cast<ERTHexDirection>(Bordo), ERTHexCoverType::High, 100);
 
-		Tiratore->PlannedAbilityIndex = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Ivrin.PulseShot"));
-		Tiratore->PlannedAttackTarget = Bersaglio;
-		Tiratore->PlannedCell = Tiratore->Cell;
+		Tiratore->SetPlannedMainAction(IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Ivrin.PulseShot")));
+		Tiratore->DeclareAttackOnUnit(Bersaglio);
+		Tiratore->SetPlannedCell(Tiratore->Cell);
 
 		TM->LockInAndResolve();
 
@@ -859,9 +853,9 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		ARTUnit* Compagno  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-5, 3));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Morto || !Bersaglio || !Compagno) { return false; }
-		Morto->PlannedAbilityIndex = 0;
-		Morto->PlannedAttackTarget = Bersaglio;
-		Morto->PlannedCell = Morto->Cell;
+		Morto->SetPlannedMainAction(0);
+		Morto->DeclareAttackOnUnit(Bersaglio);
+		Morto->SetPlannedCell(Morto->Cell);
 		// Come i test di Interrupt in `RTControlActionTests.cpp`: conta la guardia del resolver, non il modo in cui l'unita'
 		// e' caduta — in Prep e nel Dash nessun danno si applica prima del Blast.
 		Morto->Health = 0;
@@ -890,9 +884,9 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		{
 			return false;
 		}
-		Lontano->PlannedAbilityIndex = Colpo;
-		Lontano->PlannedAttackTarget = Bersaglio;
-		Lontano->PlannedCell = Lontano->Cell;
+		Lontano->SetPlannedMainAction(Colpo);
+		Lontano->DeclareAttackOnUnit(Bersaglio);
+		Lontano->SetPlannedCell(Lontano->Cell);
 
 		TM->LockInAndResolve();
 
@@ -965,9 +959,9 @@ bool FRTTurnLegacyIntentWithoutActionIdTest::RunTest(const FString&)
 	// delle attivazioni vacuo. Con il flag acceso l'intento ha un colpo osservabile e continua a non avere
 	// `ActionId`: e' proprio la combinazione che la guardia deve tenere fuori dall'helper.
 	Legacy->Abilities[0]->Def.bCountsAsAttack = true;
-	Legacy->PlannedAbilityIndex = 0;
-	Legacy->PlannedAttackTarget = Bersaglio;
-	Legacy->PlannedCell = Legacy->Cell;
+	Legacy->SetPlannedMainAction(0);
+	Legacy->DeclareAttackOnUnit(Bersaglio);
+	Legacy->SetPlannedCell(Legacy->Cell);
 
 	TM->LockInAndResolve();
 
@@ -1017,9 +1011,8 @@ bool FRTTurnLegacyDashWithoutActionIdTest::RunTest(const FString&)
 	ScattoLegacy->RangeCells = 3;
 	Scattista->Abilities.Add(ScattoLegacy);
 	const FRTCellId Arrivo(3, 0);
-	Scattista->PlannedDashAbility = Scattista->Abilities.Num() - 1;
-	Scattista->PlannedDashCell = Arrivo;
-	Scattista->PlannedCell = Arrivo;
+	Scattista->SetPlannedDash(Scattista->Abilities.Num() - 1, Arrivo);
+	Scattista->SetPlannedCell(Arrivo);
 	if (!TestTrue(TEXT("premessa: lo scatto e' legacy (nessun ActionId) e si applica"),
 		ScattoLegacy->Def.ActionId.IsNone() && Scattista->PlannedDashApplies()))
 	{
@@ -1069,11 +1062,11 @@ bool FRTTurnActivationFreezesSourceVerdictTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Scudo || !Tiratore || !Bersaglio) { return false; }
 
-	Scudo->PlannedAbilityIndex = IndiceAbilitaAttivazione(Scudo, TEXT("Hero.Muiren.TideGuard"));
-	Scudo->PlannedCell = Scudo->Cell;
-	Tiratore->PlannedAbilityIndex = 0;
-	Tiratore->PlannedAttackTarget = Bersaglio;
-	Tiratore->PlannedCell = Tiratore->Cell;
+	Scudo->SetPlannedMainAction(IndiceAbilitaAttivazione(Scudo, TEXT("Hero.Muiren.TideGuard")));
+	Scudo->SetPlannedCell(Scudo->Cell);
+	Tiratore->SetPlannedMainAction(0);
+	Tiratore->DeclareAttackOnUnit(Bersaglio);
+	Tiratore->SetPlannedCell(Tiratore->Cell);
 
 	TM->RefreshTeamKnowledgeNow(); // la precondizione della Prep
 	TM->LockInAndResolve();
@@ -1146,12 +1139,12 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		ARTUnit* Ivrin  = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Aevik || !Muiren || !Ivrin) { return false; }
-		Aevik->PlannedAbilityIndex = IndiceAbilitaAttivazione(Aevik, TEXT("Hero.Aevik.LinearDischarge"));
-		Aevik->PlannedAttackTarget = Ivrin;
-		Aevik->PlannedCell = Aevik->Cell;
-		Muiren->PlannedAbilityIndex = IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet"));
-		Muiren->PlannedAttackTarget = Ivrin;
-		Muiren->PlannedCell = Muiren->Cell;
+		Aevik->SetPlannedMainAction(IndiceAbilitaAttivazione(Aevik, TEXT("Hero.Aevik.LinearDischarge")));
+		Aevik->DeclareAttackOnUnit(Ivrin);
+		Aevik->SetPlannedCell(Aevik->Cell);
+		Muiren->SetPlannedMainAction(IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet")));
+		Muiren->DeclareAttackOnUnit(Ivrin);
+		Muiren->SetPlannedCell(Muiren->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (a): i due kit hanno le azioni"),
 			Aevik->PlannedAbilityIndex != INDEX_NONE && Muiren->PlannedAbilityIndex != INDEX_NONE)) { return false; }
 
@@ -1177,12 +1170,11 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, -3));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Muiren || !Branth || !Ivrin || !Bersaglio) { return false; }
-		Muiren->PlannedAbilityIndex = IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet"));
-		Muiren->PlannedAttackTarget = Ivrin;
-		Muiren->PlannedCell = Muiren->Cell;
-		Branth->PlannedDashAbility = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.Ram"));
-		Branth->PlannedDashCell = Bersaglio->Cell;
-		Branth->PlannedCell = Branth->Cell;
+		Muiren->SetPlannedMainAction(IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet")));
+		Muiren->DeclareAttackOnUnit(Ivrin);
+		Muiren->SetPlannedCell(Muiren->Cell);
+		Branth->SetPlannedDash(IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+		Branth->SetPlannedCell(Branth->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (b): i due kit hanno le azioni"),
 			Muiren->PlannedAbilityIndex != INDEX_NONE && Branth->PlannedDashAbility != INDEX_NONE)) { return false; }
 
@@ -1232,14 +1224,13 @@ bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bersaglio || !Curatore || !Caricatore) { return false; }
 
-	Caricatore->PlannedDashAbility = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
-	Caricatore->PlannedDashCell = Bersaglio->Cell;
-	Caricatore->PlannedCell = Caricatore->Cell;
+	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	Bersaglio->Health = FMath::Max(1, Bersaglio->Health - 20);
-	Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
-	Curatore->PlannedAttackTarget = Bersaglio;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal")));
+	Curatore->DeclareAttackOnUnit(Bersaglio);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	TM->LockInAndResolve();
 
@@ -1319,16 +1310,16 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	if (!TM || !Colpito || !Ferito || !Curatore || !Tiratore) { return false; }
 
 	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
-	Curatore->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
-	Curatore->PlannedAttackTarget = Ferito;
-	Curatore->PlannedCell = Curatore->Cell;
+	Curatore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal")));
+	Curatore->DeclareAttackOnUnit(Ferito);
+	Curatore->SetPlannedCell(Curatore->Cell);
 
 	const int32 Colpo = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot"));
 	if (!TestTrue(TEXT("premessa: il colpo c'e'"), Tiratore->Abilities.IsValidIndex(Colpo))) { return false; }
 	Tiratore->Abilities[Colpo]->Def.Priority = 80; // sopra la cura (70): e' il caso
-	Tiratore->PlannedAbilityIndex = Colpo;
-	Tiratore->PlannedAttackTarget = Colpito;
-	Tiratore->PlannedCell = Tiratore->Cell;
+	Tiratore->SetPlannedMainAction(Colpo);
+	Tiratore->DeclareAttackOnUnit(Colpito);
+	Tiratore->SetPlannedCell(Tiratore->Cell);
 
 	TM->LockInAndResolve();
 

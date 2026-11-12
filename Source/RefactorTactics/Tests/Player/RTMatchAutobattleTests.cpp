@@ -1437,10 +1437,10 @@ bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
 			U->Shield = 0;
 		}
 
-		First->PlannedAbilityIndex = 0;              // l'attacco base e' sempre all'indice 0 del kit
-		First->PlannedAttackTarget = Second;
-		Second->PlannedAbilityIndex = 0;
-		Second->PlannedAttackTarget = First;
+		First->SetPlannedMainAction(0);              // l'attacco base e' sempre all'indice 0 del kit
+		First->DeclareAttackOnUnit(Second);
+		Second->SetPlannedMainAction(0);
+		Second->DeclareAttackOnUnit(First);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }

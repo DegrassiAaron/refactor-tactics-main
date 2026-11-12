@@ -75,7 +75,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermi: questi test guardano il Blast
+		U->SetPlannedCell(Cell); // fermi: questi test guardano il Blast
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -164,12 +164,12 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	}
 
 	// Azione principale E reazione nello stesso turno: e' esattamente cio' che lo slot dedicato consente.
-	Branth->PlannedAbilityIndex = 0; // ImpactShot, portata 3
-	Branth->PlannedAttackTarget = Enemy;
-	Branth->PlannedReactionAbility = HeroReactInterpositionIndex;
+	Branth->SetPlannedMainAction(0); // ImpactShot, portata 3
+	Branth->DeclareAttackOnUnit(Enemy);
+	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
 
-	Enemy->PlannedAbilityIndex = 0; // PulseShot sull'alleata: fa scattare l'interposizione
-	Enemy->PlannedAttackTarget = Ally;
+	Enemy->SetPlannedMainAction(0); // PulseShot sull'alleata: fa scattare l'interposizione
+	Enemy->DeclareAttackOnUnit(Ally);
 
 	const int32 EnemyBefore = Enemy->Health;
 	RunHeroReactTurn(TM);
@@ -208,10 +208,10 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Branth->PlannedReactionAbility = HeroReactInterpositionIndex;
-	Branth->PlannedAbilityIndex = INDEX_NONE;
-	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
-	Enemy->PlannedAttackTarget = Ally;
+	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
+	Branth->ClearPlannedMainAction();
+	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
+	Enemy->DeclareAttackOnUnit(Ally);
 
 	const int32 BranthBefore = Branth->Health;
 	const int32 AllyBefore = Ally->Health;
@@ -289,10 +289,10 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 	}
 	Branth->Facing = ERTHexDirection::E; // il riparo vale nell'arco frontale: guarda chi spara
 
-	Branth->PlannedReactionAbility = HeroReactInterpositionIndex;
-	Branth->PlannedAbilityIndex = INDEX_NONE;
-	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
-	Enemy->PlannedAttackTarget = Ally;
+	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
+	Branth->ClearPlannedMainAction();
+	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
+	Enemy->DeclareAttackOnUnit(Ally);
 
 	const int32 BranthBefore = Branth->Health;
 	const int32 AllyBefore = Ally->Health;
@@ -341,10 +341,10 @@ bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 		return false;
 	}
 
-	Ivrin->PlannedReactionAbility = HeroReactDeflectionIndex;
-	Ivrin->PlannedAbilityIndex = INDEX_NONE;
-	Enemy->PlannedAbilityIndex = 0; // ArcPulse, colpo singolo
-	Enemy->PlannedAttackTarget = Ivrin;
+	Ivrin->SetPlannedReaction(HeroReactDeflectionIndex);
+	Ivrin->ClearPlannedMainAction();
+	Enemy->SetPlannedMainAction(0); // ArcPulse, colpo singolo
+	Enemy->DeclareAttackOnUnit(Ivrin);
 
 	const int32 Before = Ivrin->Health;
 	const int32 Shot = HeroReactDeclaredDamage(GadgetData->Actions[0]);
@@ -393,10 +393,10 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	TestEqual(TEXT("il catalogo dichiara lo scudo da 150"), ShieldAmount, 150);
 	TestEqual(TEXT("e i 100 danni all'attaccante"), CounterAmount, 100);
 
-	Aevik->PlannedReactionAbility = HeroReactCapacitorIndex;
-	Aevik->PlannedAbilityIndex = INDEX_NONE;
-	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
-	Enemy->PlannedAttackTarget = Aevik;
+	Aevik->SetPlannedReaction(HeroReactCapacitorIndex);
+	Aevik->ClearPlannedMainAction();
+	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
+	Enemy->DeclareAttackOnUnit(Aevik);
 
 	const int32 GadgetBefore = Aevik->Health;
 	const int32 EnemyBefore = Enemy->Health;

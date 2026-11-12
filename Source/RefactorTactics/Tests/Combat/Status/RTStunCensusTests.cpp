@@ -159,7 +159,7 @@ namespace RTStunCensusTestsInternal
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		Unit->PlannedCell = Cell; // ferma: qui si misura l'azione principale, non il movimento
+		Unit->SetPlannedCell(Cell); // ferma: qui si misura l'azione principale, non il movimento
 		Unit->Shield = 0;         // [D-224]: qui si misura se un effetto avviene, non quanto scudo lo assorbe
 		return Unit;
 	}
@@ -976,7 +976,7 @@ namespace RTStunCensusTestsInternal
 		if (Scene.bRootTheCaster)
 		{
 			Caster->ApplyStatus(TAG_Status_Root, 2);
-			Caster->PlannedCleansePriority = { TAG_Status_Root };
+			Caster->SetPlannedCleansePriority({ TAG_Status_Root });
 		}
 		if (Scene.bCoverToMove)
 		{
@@ -993,7 +993,7 @@ namespace RTStunCensusTestsInternal
 		// quello degli altri test per sito.
 		if (bPlans)
 		{
-			Caster->PlannedAbilityIndex = Slot;
+			Caster->SetPlannedMainAction(Slot);
 			switch (Scene.Form)
 			{
 			case EPlanForm::NoTarget:
@@ -1006,8 +1006,7 @@ namespace RTStunCensusTestsInternal
 				break;
 			case EPlanForm::OnCellAndEdge:
 				Caster->DeclareAttackOnCell(AimedCell());
-				Caster->PlannedCoverEdge = Scene.Edge;
-				Caster->bHasPlannedCoverEdge = true;
+				Caster->DeclarePlannedCoverEdge(Scene.Edge);
 				break;
 			}
 		}

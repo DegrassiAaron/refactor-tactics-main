@@ -81,9 +81,9 @@ bool FRTCombatAttackCarriesHitGeometryTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Muiren || !Vicina || !Lontana) { AddError(TEXT("allestimento fallito")); return false; }
 
-	Muiren->PlannedAbilityIndex = 0; // Hero.Muiren.PressureJet, Line
-	Muiren->PlannedAttackTarget = Lontana;
-	Muiren->PlannedCell = Muiren->Cell;
+	Muiren->SetPlannedMainAction(0); // Hero.Muiren.PressureJet, Line
+	Muiren->DeclareAttackOnUnit(Lontana);
+	Muiren->SetPlannedCell(Muiren->Cell);
 
 	// La cella di ciascuna vittima PRIMA del turno: il getto le spinge, e l'impatto e' prima della spinta.
 	//
@@ -141,9 +141,9 @@ bool FRTCombatCoveredHitCarriesHitGeometryTest::RunTest(const FString&)
 		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
 		SetTracerCoverEdge(Map, FRTCellId(3, 2), ERTHexDirection::W, Tipo);
 
-		Ivrin->PlannedAbilityIndex = 0; // Hero.Ivrin.PulseShot, Single
-		Ivrin->PlannedAttackTarget = Branth;
-		Ivrin->PlannedCell = Ivrin->Cell;
+		Ivrin->SetPlannedMainAction(0); // Hero.Ivrin.PulseShot, Single
+		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -184,9 +184,9 @@ bool FRTPrivacyUnseenAttackerTest::RunTest(const FString&)
 	Branth->Facing = ERTHexDirection::E;
 	Ivrin->Facing = ERTHexDirection::E;
 
-	Branth->PlannedAbilityIndex = 0; // Hero.Branth.ImpactShot, Single, portata 3
-	Branth->PlannedAttackTarget = Ivrin;
-	Branth->PlannedCell = Branth->Cell;
+	Branth->SetPlannedMainAction(0); // Hero.Branth.ImpactShot, Single, portata 3
+	Branth->DeclareAttackOnUnit(Ivrin);
+	Branth->SetPlannedCell(Branth->Cell);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -233,9 +233,9 @@ bool FRTDeterminismHitGeometryOutOfHashesTest::RunTest(const FString&)
 		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
 		TM->bSkipHitGeometryForTest = (Run == 1);
 
-		Ivrin->PlannedAbilityIndex = 0;
-		Ivrin->PlannedAttackTarget = Branth;
-		Ivrin->PlannedCell = Ivrin->Cell;
+		Ivrin->SetPlannedMainAction(0);
+		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -296,9 +296,9 @@ bool FRTDeterminismFxFieldsOutOfHashesTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
 		TM->bSkipFxFieldsForTest = (Run == 1);
-		Ivrin->PlannedAbilityIndex = 0;
-		Ivrin->PlannedAttackTarget = Branth;
-		Ivrin->PlannedCell = Ivrin->Cell;
+		Ivrin->SetPlannedMainAction(0);
+		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }

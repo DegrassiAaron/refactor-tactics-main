@@ -147,10 +147,10 @@ namespace
 
 		Difensore->Facing = ERTHexDirection::W; // guarda l'attaccante: nessun bonus alle spalle in gioco
 		Difensore->Defense = DefenderDefense;   // INIETTATA: sovrascrive il 15 di Ivrin (CP 53.3c): qui si misura il chiamante
-		Difensore->PlannedAbilityIndex = INDEX_NONE;
+		Difensore->ClearPlannedMainAction();
 
-		Attaccante->PlannedAbilityIndex = 0; // attacco base (`Hero.Ivrin.PulseShot`)
-		Attaccante->PlannedAttackTarget = Difensore;
+		Attaccante->SetPlannedMainAction(0); // attacco base (`Hero.Ivrin.PulseShot`)
+		Attaccante->DeclareAttackOnUnit(Difensore);
 
 		TM->LockInAndResolve();
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)

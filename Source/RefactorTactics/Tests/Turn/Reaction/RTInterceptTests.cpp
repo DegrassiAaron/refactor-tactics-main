@@ -83,7 +83,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -190,14 +190,14 @@ namespace
 			return Out;
 		}
 
-		Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
-		Saver->PlannedAbilityIndex = INDEX_NONE;
+		Saver->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3));
+		Saver->ClearPlannedMainAction();
 		Saver->Facing = SaverFacing; // CP 16.2: da che lato e' scoperto CHI incassa
 
 		const int32 VictimHealth = Victim->Health;
 		const int32 SaverHealth = Saver->Health;
-		Attacker->PlannedAbilityIndex = 0; // Tiro: 25, colpo singolo
-		Attacker->PlannedAttackTarget = Victim;
+		Attacker->SetPlannedMainAction(0); // Tiro: 25, colpo singolo
+		Attacker->DeclareAttackOnUnit(Victim);
 
 		RunItcTurn(TM);
 
@@ -287,13 +287,13 @@ bool FRTInterceptTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
-	Saver->PlannedAbilityIndex = INDEX_NONE;
+	Saver->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3));
+	Saver->ClearPlannedMainAction();
 
 	const int32 VictimHealth = Victim->Health;
 	const int32 SaverHealth = Saver->Health;
-	Attacker->PlannedAbilityIndex = 0; // Tiro: 25, colpo singolo
-	Attacker->PlannedAttackTarget = Victim;
+	Attacker->SetPlannedMainAction(0); // Tiro: 25, colpo singolo
+	Attacker->DeclareAttackOnUnit(Victim);
 
 	RunItcTurn(TM);
 
@@ -478,14 +478,14 @@ bool FRTInterceptBeforeOtherReactionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
-	Saver->PlannedAbilityIndex = INDEX_NONE;
-	Victim->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Victim, TEXT("Action.Counter"), 3);
-	Victim->PlannedAbilityIndex = INDEX_NONE;
+	Saver->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3));
+	Saver->ClearPlannedMainAction();
+	Victim->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Victim, TEXT("Action.Counter"), 3));
+	Victim->ClearPlannedMainAction();
 
 	const int32 AttackerHealth = Attacker->Health;
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Victim;
+	Attacker->SetPlannedMainAction(0);
+	Attacker->DeclareAttackOnUnit(Victim);
 
 	RunItcTurn(TM);
 
@@ -600,17 +600,17 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
-	Saver->PlannedAbilityIndex = INDEX_NONE;
+	Saver->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3));
+	Saver->ClearPlannedMainAction();
 	const int32 ThirdReactionIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Third, TEXT("Action.Intercept"), 3);
-	Third->PlannedReactionAbility = ThirdReactionIdx;
-	Third->PlannedAbilityIndex = INDEX_NONE;
+	Third->SetPlannedReaction(ThirdReactionIdx);
+	Third->ClearPlannedMainAction();
 
 	const int32 VictimHealth = Victim->Health;
 	const int32 SaverHealth = Saver->Health;
 	const int32 ThirdHealth = Third->Health;
-	Attacker->PlannedAbilityIndex = 0; // Tiro: 25, colpo singolo
-	Attacker->PlannedAttackTarget = Victim;
+	Attacker->SetPlannedMainAction(0); // Tiro: 25, colpo singolo
+	Attacker->DeclareAttackOnUnit(Victim);
 
 	RunItcTurn(TM);
 
@@ -698,13 +698,13 @@ bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Attacker || !Victim || !Saver || !TM) { DestroyItcWorld(World); return Out; }
 
-		Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
-		Saver->PlannedAbilityIndex = INDEX_NONE;
+		Saver->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3));
+		Saver->ClearPlannedMainAction();
 
 		const int32 VictimHealth = Victim->Health;
 		const int32 SaverHealth = Saver->Health;
-		Attacker->PlannedAbilityIndex = 0;
-		Attacker->PlannedAttackTarget = Victim;
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Victim);
 
 		RunItcTurn(TM);
 

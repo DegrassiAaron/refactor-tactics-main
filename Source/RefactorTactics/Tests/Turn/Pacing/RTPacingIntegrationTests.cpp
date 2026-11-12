@@ -16,6 +16,7 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -383,25 +384,25 @@ bool FRTPacingCandidateEventsAreWiredTest::RunTest(const FString&)
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Giocati < 8)
 	{
 		TM->PlanBotsForTest();
-		B1->PlannedAbilityIndex = IdxReazione;
-		B2->PlannedAbilityIndex = IdxReazione;
+		B1->SetPlannedMainAction(IdxReazione);
+		B2->SetPlannedMainAction(IdxReazione);
 		if (Giocati == 0)
 		{
 			for (ARTUnit* Guardiano : { B1, B2 })
 			{
 				Guardiano->Facing = ERTHexDirection::W;     // verso A: la linea nasce dal facing al Prep
-				Guardiano->bDeclaresPlannedFacing = false;
-				Guardiano->PlannedCell = Guardiano->Cell;   // fermo: la linea resta dov'e' stata calcolata
-				Guardiano->PlannedPath.Reset();
-				Guardiano->PlannedWaypoints.Reset();
-				Guardiano->PlannedDashAbility = INDEX_NONE;
+				Guardiano->RetractPlannedFacing();
+				Guardiano->SetPlannedCell(Guardiano->Cell);   // fermo: la linea resta dov'e' stata calcolata
+				FRTUnitPlanTestAccess::ResetPath(*Guardiano);
+				FRTUnitPlanTestAccess::ResetWaypoints(*Guardiano);
+				Guardiano->ClearPlannedDash();
 			}
-			A1->PlannedAbilityIndex = INDEX_NONE;           // solo movimento: niente attacco ne' scatto
+			A1->ClearPlannedMainAction();           // solo movimento: niente attacco ne' scatto
 			A1->ClearPlannedAttack();
-			A1->PlannedDashAbility = INDEX_NONE;
-			A1->PlannedCell = Attraversata;
-			A1->PlannedPath.Reset();
-			A1->PlannedWaypoints.Reset();
+			A1->ClearPlannedDash();
+			A1->SetPlannedCell(Attraversata);
+			FRTUnitPlanTestAccess::ResetPath(*A1);
+			FRTUnitPlanTestAccess::ResetWaypoints(*A1);
 		}
 		// E la SECONDA raccolta, per la stessa ragione: la raccolta gira solo dentro il movimento NORMALE (il
 		// Dash non passa dai guardiani), e dopo il primo contatto i bot restano a sparare o scattano. Al turno 2
@@ -425,12 +426,12 @@ bool FRTPacingCandidateEventsAreWiredTest::RunTest(const FString&)
 			}
 			if (bPassoA2)
 			{
-				A2->PlannedAbilityIndex = INDEX_NONE;
+				A2->ClearPlannedMainAction();
 				A2->ClearPlannedAttack();
-				A2->PlannedDashAbility = INDEX_NONE;
-				A2->PlannedCell = PassoA2;
-				A2->PlannedPath.Reset();
-				A2->PlannedWaypoints.Reset();
+				A2->ClearPlannedDash();
+				A2->SetPlannedCell(PassoA2);
+				FRTUnitPlanTestAccess::ResetPath(*A2);
+				FRTUnitPlanTestAccess::ResetWaypoints(*A2);
 			}
 		}
 		TM->LockInAndResolve();

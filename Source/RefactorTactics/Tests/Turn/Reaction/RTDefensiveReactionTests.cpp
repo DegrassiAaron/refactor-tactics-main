@@ -80,7 +80,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
+		U->SetPlannedCell(Cell); // fermo: questi test guardano il Blast
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -221,13 +221,13 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
+	Reactor->ClearPlannedMainAction();
 
 	const int32 AttackerHealth = Attacker->Health;
 	const int32 BystanderHealth = Bystander->Health;
-	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0); // attacco base, colpo singolo
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunDefTurn(TM);
 
@@ -307,10 +307,10 @@ bool FRTCounterTracesIncomingSideTest::RunTest(const FString&)
 	// fino al colpo, e lo incassa alle spalle.
 	Reactor->Facing = ERTHexDirection::W;
 
-	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
-	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo
-	Attacker->PlannedAttackTarget = Reactor;
+	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
+	Reactor->ClearPlannedMainAction();
+	Attacker->SetPlannedMainAction(0); // attacco base, colpo singolo
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunDefTurn(TM);
 
@@ -428,10 +428,10 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 		return false;
 	}
 
-	ReactorA->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorA, TEXT("Action.Counter"), 3);
-	ReactorA->PlannedAbilityIndex = INDEX_NONE;
-	ReactorB->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorB, TEXT("Action.Counter"), 3);
-	ReactorB->PlannedAbilityIndex = INDEX_NONE;
+	ReactorA->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(ReactorA, TEXT("Action.Counter"), 3));
+	ReactorA->ClearPlannedMainAction();
+	ReactorB->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(ReactorB, TEXT("Action.Counter"), 3));
+	ReactorB->ClearPlannedMainAction();
 
 	// Le due identita', DIVERSE in tutti e tre i campi: senza, scambiarle e' un no-op invisibile.
 	const FName IdAzioneA(TEXT("Action.Counter"));
@@ -458,10 +458,10 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	AzioneB->Def.Priority = PrioritaB;
 
 	// Ogni attaccante il PROPRIO bersaglio: e' cio' che rende le due coppie distinguibili.
-	AttackerA->PlannedAbilityIndex = 0; // attacco base, colpo singolo
-	AttackerA->PlannedAttackTarget = ReactorA;
-	AttackerB->PlannedAbilityIndex = 0;
-	AttackerB->PlannedAttackTarget = ReactorB;
+	AttackerA->SetPlannedMainAction(0); // attacco base, colpo singolo
+	AttackerA->DeclareAttackOnUnit(ReactorA);
+	AttackerB->SetPlannedMainAction(0);
+	AttackerB->DeclareAttackOnUnit(ReactorB);
 
 	// Catturate PRIMA del turno: nessuno si muove qui, ma leggerle dopo confonderebbe «dov'era quando ha
 	// contrattaccato» con «dov'e' adesso», che e' la stessa distinzione per cui il record porta la cella.
@@ -813,12 +813,12 @@ bool FRTDeflectReducesDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3));
+	Reactor->ClearPlannedMainAction();
 
 	const int32 Before = Reactor->Health;
-	Attacker->PlannedAbilityIndex = 0; // Tiro: 25 danni
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0); // Tiro: 25 danni
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunDefTurn(TM);
 
@@ -867,14 +867,14 @@ bool FRTDeflectZeroDamageStillHitsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
-	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3));
+	Reactor->ClearPlannedMainAction();
 	// Guardia ADDOSSO al deflettore: -15 (Guard) -20 (Deflect) su un colpo da 25 -> ampiamente sotto zero.
 	Reactor->ApplyStatus(TAG_Status_Guarded, 1);
 
 	const int32 Before = Reactor->Health;
-	Attacker->PlannedAbilityIndex = 0;
-	Attacker->PlannedAttackTarget = Reactor;
+	Attacker->SetPlannedMainAction(0);
+	Attacker->DeclareAttackOnUnit(Reactor);
 
 	RunDefTurn(TM);
 
@@ -909,14 +909,14 @@ bool FRTBraceTest::RunTest(const FString&)
 	}
 
 	// Brace e' un'azione PRINCIPALE di Prep: si pianifica come tale, non nello slot reazione.
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = FRTCellId(3, 0); // proverebbe a muoversi: Brace deve impedirglielo
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(FRTCellId(3, 0)); // proverebbe a muoversi: Brace deve impedirglielo
 
 	const int32 Before = Bracer->Health;
-	AttackerA->PlannedAbilityIndex = 0; // Tiro 25
-	AttackerA->PlannedAttackTarget = Bracer;
-	AttackerB->PlannedAbilityIndex = 0; // Tiro 25
-	AttackerB->PlannedAttackTarget = Bracer;
+	AttackerA->SetPlannedMainAction(0); // Tiro 25
+	AttackerA->DeclareAttackOnUnit(Bracer);
+	AttackerB->SetPlannedMainAction(0); // Tiro 25
+	AttackerB->DeclareAttackOnUnit(Bracer);
 
 	RunDefTurn(TM);
 
@@ -950,12 +950,12 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
 		return false;
 	}
 
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
 
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	RunDefTurn(TM);
 
@@ -1004,12 +1004,12 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	// viene dal profilo, e un bot non riceve finestre.
 	Bracer->bIsBotControlled = false;
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
 
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	// ⛔ **Si misura DENTRO il delegate, non dopo**: cio' che [D-355] chiede e' che il giocatore abbia gia'
 	// visto qualcosa NELL'ISTANTE in cui gli si chiede di scegliere. Leggere la timeline a finestra chiusa
@@ -1103,11 +1103,11 @@ bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
 	}
 	Bracer->bIsBotControlled = false;
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	TM->bEnablePlayback = true;
 	TM->bRecordAttackBeatsForTest = true;
@@ -1196,12 +1196,12 @@ bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
 
 	Bracer->bIsBotControlled = false;
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
 
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	// Una durata corta rende il test rapido senza cambiare la regola: la finestra scade a
 	// `GetFastReactionDuration()`, qualunque sia il valore. E' un setting di partita ([D-348]), non una
@@ -1283,11 +1283,11 @@ bool FRTWindowClockIgnoresPauseTest::RunTest(const FString&)
 
 	Bracer->bIsBotControlled = false;
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	TM->SetFastReactionDuration(0.5f);
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
@@ -1356,11 +1356,11 @@ bool FRTAnsweredWindowHasNoLateExpiryTest::RunTest(const FString&)
 
 	Bracer->bIsBotControlled = false;
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Bracer->PlannedCell = Bracer->Cell;
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
-	Pusher->PlannedCell = Pusher->Cell;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
 
 	TM->SetFastReactionDuration(0.5f);
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
@@ -1421,12 +1421,12 @@ bool FRTShieldTest::RunTest(const FString&)
 	// Il Ranger parte senza scudo: quello che si vede dopo viene tutto dall'azione.
 	TestEqual(TEXT("il Ranger parte senza scudo"), Shielded->Shield, 0);
 
-	Shielded->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Shielded, TEXT("Action.Shield"), 3);
-	Shielded->PlannedCell = Shielded->Cell;
+	Shielded->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Shielded, TEXT("Action.Shield"), 3));
+	Shielded->SetPlannedCell(Shielded->Cell);
 
 	const int32 BeforeHealth = Shielded->Health;
-	Attacker->PlannedAbilityIndex = 0; // Tiro: 25 danni, esattamente quanto lo scudo
-	Attacker->PlannedAttackTarget = Shielded;
+	Attacker->SetPlannedMainAction(0); // Tiro: 25 danni, esattamente quanto lo scudo
+	Attacker->DeclareAttackOnUnit(Shielded);
 
 	RunDefTurn(TM);
 
@@ -1457,10 +1457,10 @@ bool FRTCleanseTest::RunTest(const FString&)
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
 	Cleanser->ApplyStatus(TAG_Status_Marked, 3);
-	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
-	Cleanser->PlannedCell = Cleanser->Cell;
+	Cleanser->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3));
+	Cleanser->SetPlannedCell(Cleanser->Cell);
 	// L'ordine dichiarato mette Marked davanti: e' quello che deve sparire, non Root.
-	Cleanser->PlannedCleansePriority = { TAG_Status_Marked, TAG_Status_Root };
+	Cleanser->SetPlannedCleansePriority({ TAG_Status_Marked, TAG_Status_Root });
 
 	RunDefTurn(TM);
 
@@ -1492,9 +1492,9 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 	}
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
-	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
-	Cleanser->PlannedCell = Cleanser->Cell;
-	Cleanser->PlannedCleansePriority.Reset(); // nessuna scelta dichiarata
+	Cleanser->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3));
+	Cleanser->SetPlannedCell(Cleanser->Cell);
+	Cleanser->SetPlannedCleansePriority(TArray<FGameplayTag>()); // nessuna scelta dichiarata
 
 	RunDefTurn(TM);
 
@@ -1503,9 +1503,9 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 
 	// Controprova sullo stato NON elencato: dichiarare una lista che non contiene lo stato posseduto non
 	// autorizza a togliere quello che c'e'.
-	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
-	Cleanser->PlannedCell = Cleanser->Cell;
-	Cleanser->PlannedCleansePriority = { TAG_Status_Exposed }; // che l'unita' non ha
+	Cleanser->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3));
+	Cleanser->SetPlannedCell(Cleanser->Cell);
+	Cleanser->SetPlannedCleansePriority({ TAG_Status_Exposed }); // che l'unita' non ha
 
 	RunDefTurn(TM);
 
@@ -1759,7 +1759,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
 		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
 		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
@@ -1811,16 +1811,15 @@ namespace
 		if (Attaccante && Difensore && TM)
 		{
 			const int32 Push = RTAbilityFixtures::AddCoreAbilityInSlot(Attaccante, TEXT("Action.Push"), 3);
-			Attaccante->PlannedAbilityIndex = Push;
-			Attaccante->PlannedAttackTarget = Difensore;
+			Attaccante->SetPlannedMainAction(Push);
+			Attaccante->DeclareAttackOnUnit(Difensore);
 			Difensore->ApplyStatus(TAG_Status_Braced, 1);
-			Difensore->PlannedAbilityIndex = INDEX_NONE;
+			Difensore->ClearPlannedMainAction();
 			// [D-366]: il difensore puo' anche avere un Overwatch armato con l'azione principale. Lo slot reazione e'
 			// un altro, e il `Brace` qui e' gia' lo stato.
 			if (bDefenderArmsOverwatch)
 			{
-				Difensore->PlannedAbilityIndex =
-					RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Overwatch"), 3);
+				Difensore->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Overwatch"), 3));
 			}
 
 			if (Trace && Trace->Num() > 0)
@@ -2383,11 +2382,11 @@ namespace RTEstensioneDopoIlBrace
 			return false;
 		}
 		M.Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
-		M.Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Bracer, TEXT("Action.Brace"), 3);
-		M.Bracer->PlannedCell = M.Bracer->Cell;
-		M.Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(M.Pusher, TEXT("Action.Push"), 3);
-		M.Pusher->PlannedAttackTarget = M.Bracer;
-		M.Pusher->PlannedCell = M.Pusher->Cell;
+		M.Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(M.Bracer, TEXT("Action.Brace"), 3));
+		M.Bracer->SetPlannedCell(M.Bracer->Cell);
+		M.Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(M.Pusher, TEXT("Action.Push"), 3));
+		M.Pusher->DeclareAttackOnUnit(M.Bracer);
+		M.Pusher->SetPlannedCell(M.Pusher->Cell);
 		// Il ramo interattivo vuole un decisore legato (`IsBound()`): qui basta che ci sia.
 		M.TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
 		return true;
@@ -2522,7 +2521,7 @@ bool FRTBraceMoveAfterTheWindowStartsFromZeroTest::RunTest(const FString&)
 	// Chi cammina nel Move, lontano dalla spinta: la timeline parziale non ha Move, quella completa si'.
 	ARTUnit* Camminatore = SpawnDefUnit(M.World, 0, FRTCellId(-3, 0));
 	if (!TestNotNull(TEXT("Camminatore"), Camminatore)) { return false; }
-	Camminatore->PlannedCell = FRTCellId(-3, -1);
+	Camminatore->SetPlannedCell(FRTCellId(-3, -1));
 
 	if (!RTEstensioneDopoIlBrace::FinoAllaPresentazione(*this, M)) { return false; }
 	// ⚠️ **La partenza nel contesto della MAPPA** (`CentroDellaCella`): in (-3,0) il punto dove la fixture ha posato
@@ -2588,8 +2587,8 @@ bool FRTBraceDefeatAnnouncedOnceTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Vittima"), Vittima) || !TestNotNull(TEXT("Carnefice"), Carnefice)) { return false; }
 	Vittima->Health = 1;
 	Vittima->Shield = 0;
-	Carnefice->PlannedAbilityIndex = 0;
-	Carnefice->PlannedAttackTarget = Vittima;
+	Carnefice->SetPlannedMainAction(0);
+	Carnefice->DeclareAttackOnUnit(Vittima);
 
 	URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
 	M.TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);

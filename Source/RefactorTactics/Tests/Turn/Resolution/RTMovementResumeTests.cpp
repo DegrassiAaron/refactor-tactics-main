@@ -14,6 +14,7 @@
 #include "Turn/Log/RTTurnLogLibrary.h" // GoldenEntriesMatch: stessa voce ha gia un proprietario
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -72,7 +73,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo salvo che il caso non lo cambi
+		U->SetPlannedCell(Cell); // fermo salvo che il caso non lo cambi
 		return U;
 	}
 
@@ -168,11 +169,10 @@ bool FRTMovementCharacterizationTest::RunTest(const FString&)
 	// 🔴 **`PlannedAbilityIndex` e non `PlannedReactionAbility`**: l'Overwatch e' l'AZIONE PRINCIPALE del
 	// turno, che e' cio' che costa (catalogo §1). Lo slot reazione e' un altro meccanismo — Counter,
 	// Deflect — e armarlo li' non produce nessun watcher: misurato, il test vedeva zero finestre.
-	Watcher->PlannedAbilityIndex =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 
 	// Due celle: dentro il budget di movimento del Ivrin senza dover conoscere il numero esatto.
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	RunResumeTurn(TM);
 
@@ -302,16 +302,15 @@ bool FRTReactionWindowSuspendsTest::RunTest(const FString&)
 	// 🔴 **`PlannedAbilityIndex` e non `PlannedReactionAbility`**: l'Overwatch e' l'AZIONE PRINCIPALE del
 	// turno, che e' cio' che costa (catalogo §1). Lo slot reazione e' un altro meccanismo — Counter,
 	// Deflect — e armarlo li' non produce nessun watcher: misurato, il test vedeva zero finestre.
-	Watcher->PlannedAbilityIndex =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 
 	// 🔑 **Il cono E' il facing** (ADR-0005 §4c): senza orientarlo verso il mover la zona guarda altrove.
 	Watcher->Facing = ERTHexDirection::W;
-	Watcher->PlannedCell = Watcher->Cell;
+	Watcher->SetPlannedCell(Watcher->Cell);
 
 	// (2,0) e non (3,0): la cella del watcher e' occupata, e una destinazione occupata viene negata prima
 	// che il mover entri nella zona.
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	// La UI finta: registra le finestre che si aprono e non risponde a nessuna.
 	TArray<FString> Aperte;
@@ -394,11 +393,10 @@ bool FRTSuspendedPhaseIsTheRealPhaseTest::RunTest(const FString&)
 	}
 
 	Watcher->bIsBotControlled = false;
-	Watcher->PlannedAbilityIndex =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 	Watcher->Facing = ERTHexDirection::W;
-	Watcher->PlannedCell = Watcher->Cell;
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Watcher->SetPlannedCell(Watcher->Cell);
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	// La UI finta: apre e non risponde, come negli altri casi di questo file.
 	bool bApertaAlmenoUna = false;
@@ -474,11 +472,10 @@ bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
 	}
 
 	Watcher->bIsBotControlled = false;
-	Watcher->PlannedAbilityIndex =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 	Watcher->Facing = ERTHexDirection::W;
-	Watcher->PlannedCell = Watcher->Cell;
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Watcher->SetPlannedCell(Watcher->Cell);
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	TArray<FString> Aperte;
 	TM->OnReactionWindowOpened.BindLambda(
@@ -576,18 +573,18 @@ bool FRTReactionDownedTargetSecondWindowTest::RunTest(const FString&)
 
 	for (ARTUnit* Guardia : { W1, W2 })
 	{
-		Guardia->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3);
-		Guardia->PlannedCell = Guardia->Cell;
+		Guardia->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3));
+		Guardia->SetPlannedCell(Guardia->Cell);
 	}
 	W1->Facing = ERTHexDirection::W;
 	W2->Facing = ERTHexDirection::E;
 
 	// Un passo solo, dentro la riga: ci entra al primo micro-step. Un colpo basta.
 	Abbattuto->Health = 1;
-	Abbattuto->PlannedCell = FRTCellId(0, 0);
+	Abbattuto->SetPlannedCell(FRTCellId(0, 0));
 	// Due passi, l'ultimo dentro la riga accanto a una guardia: ci entrano al secondo micro-step, uno per guardia.
-	VersoW1->PlannedCell = FRTCellId(1, 0);
-	VersoW2->PlannedCell = FRTCellId(-1, 0);
+	VersoW1->SetPlannedCell(FRTCellId(1, 0));
+	VersoW2->SetPlannedCell(FRTCellId(-1, 0));
 
 	struct FAperta
 	{
@@ -715,11 +712,10 @@ namespace RTPresentazioneFinestra
 		M.TM = M.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!M.Mover || !M.Watcher || !M.TM) { return M; }
 		M.Watcher->bIsBotControlled = false;
-		M.Watcher->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(M.Watcher, TEXT("Action.Overwatch"), 3);
+		M.Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(M.Watcher, TEXT("Action.Overwatch"), 3));
 		M.Watcher->Facing = ERTHexDirection::W;
-		M.Watcher->PlannedCell = M.Watcher->Cell;
-		M.Mover->PlannedCell = FRTCellId(2, 0);
+		M.Watcher->SetPlannedCell(M.Watcher->Cell);
+		M.Mover->SetPlannedCell(FRTCellId(2, 0));
 		return M;
 	}
 
@@ -855,8 +851,8 @@ bool FRTReactionWindowSecondPresentsOnTheSecondEntryTest::RunTest(const FString&
 	// Il secondo nemico: fuori dalla linea al primo passo, dentro al secondo, in (-1,0).
 	ARTUnit* Secondo = SpawnResumeUnit(M.World, /*TeamId=*/ 0, FRTCellId(-1, 2));
 	if (!TestNotNull(TEXT("il secondo nemico c'e'"), Secondo)) { DestroyResumeWorld(M.World); return false; }
-	Secondo->PlannedPath = { FRTCellId(-1, 2), FRTCellId(-1, 1), FRTCellId(-1, 0) };
-	Secondo->PlannedCell = FRTCellId(-1, 0);
+	FRTUnitPlanTestAccess::SetPath(*Secondo, { FRTCellId(-1, 2), FRTCellId(-1, 1), FRTCellId(-1, 0) });
+	Secondo->SetPlannedCell(FRTCellId(-1, 0));
 
 	// Per ogni presentazione: quanto il mover dista dal primo e dal secondo ingresso, nella POSA.
 	TArray<TPair<float, float>> DistanzeAllApertura;
@@ -1141,11 +1137,10 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 		if (!Mover || !Watcher || !TM) { DestroyResumeWorld(World); return R; }
 
 		Watcher->bIsBotControlled = false;
-		Watcher->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3));
 		Watcher->Facing = ERTHexDirection::W;
-		Watcher->PlannedCell = Watcher->Cell;
-		Mover->PlannedCell = FRTCellId(2, 0);
+		Watcher->SetPlannedCell(Watcher->Cell);
+		Mover->SetPlannedCell(FRTCellId(2, 0));
 
 		// 🔴 **Senza un ascoltatore la finestra non si apre: si committa da sola.** Lo dicono
 		// `Reactions.SingleResponseCommitsWithoutWindow` e `Reactions.NoPlayerControllerLeavesTheDelegateUnbound`,
@@ -1329,7 +1324,7 @@ bool FRTMicroStepBudgetAccumulatesTest::RunTest(const FString&)
 	}
 
 	// Un percorso di piu' celle: con una sola il contatore non potrebbe distinguere «accumula» da «e' a uno».
-	Mover->PlannedCell = FRTCellId(4, 0);
+	Mover->SetPlannedCell(FRTCellId(4, 0));
 
 	// Senza contesto non c'e' un budget da leggere, e la risposta lo dice invece di fingere uno zero — che
 	// sarebbe indistinguibile da una risoluzione appena cominciata.
@@ -1431,19 +1426,19 @@ bool FRTMicroStepBudgetSurvivesSuspensionTest::RunTest(const FString&)
 	for (ARTUnit* W : { WatcherA, WatcherB })
 	{
 		W->bIsBotControlled = false;
-		W->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(W, TEXT("Action.Overwatch"), 3);
+		W->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(W, TEXT("Action.Overwatch"), 3));
 		W->Facing = ERTHexDirection::W;
-		W->PlannedCell = W->Cell;
+		W->SetPlannedCell(W->Cell);
 	}
-	Mover->PlannedCell = FRTCellId(2, 0);
+	Mover->SetPlannedCell(FRTCellId(2, 0));
 
 	// [D-411] La seconda finestra la apre un SECONDO nemico, nella linea di `WatcherB` al secondo passo. Fino al
 	// 2026-10-15 la apriva lo stesso mover al suo secondo passo nella linea di `WatcherA`; da D-411 un nemico gia'
 	// chiesto non torna. La seconda si apre comunque DENTRO il pump di ripresa, che e' cio' che il test misura.
 	ARTUnit* Secondo = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, -2));
 	if (!TestNotNull(TEXT("il secondo nemico"), Secondo)) { DestroyResumeWorld(World); return false; }
-	Secondo->PlannedPath = { FRTCellId(0, -2), FRTCellId(1, -2), FRTCellId(1, -1) };
-	Secondo->PlannedCell = FRTCellId(1, -1);
+	FRTUnitPlanTestAccess::SetPath(*Secondo, { FRTCellId(0, -2), FRTCellId(1, -2), FRTCellId(1, -1) });
+	Secondo->SetPlannedCell(FRTCellId(1, -1));
 
 	// 🔑 **Il campione si prende MENTRE la risoluzione e' viva.** Alla fine il contesto e' rilasciato e il
 	// contatore con lui: leggerlo dopo darebbe `INDEX_NONE` e non proverebbe niente. Il delegate scatta dentro

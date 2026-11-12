@@ -80,7 +80,7 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		return U;
 	}
 
@@ -88,8 +88,8 @@ namespace
 	void PlanFwEnvironmentAction(ARTUnit* Caster, const TCHAR* ActionId, ARTUnit* Target)
 	{
 		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
-		Caster->PlannedAbilityIndex = 3;
-		Caster->PlannedAttackTarget = Target;
+		Caster->SetPlannedMainAction(3);
+		Caster->DeclareAttackOnUnit(Target);
 	}
 
 	void RunFwTurn(ARTTurnManager* TM)
@@ -322,7 +322,7 @@ bool FRTStatusBirthAndExpiryInTurnLogTest::RunTest(const FString&)
 	}
 
 	// T1: entra nel fuoco.
-	Unit->PlannedCell = FRTCellId(1, 0);
+	Unit->SetPlannedCell(FRTCellId(1, 0));
 	RunFwTurn(TM);
 	if (!TestTrue(TEXT("l'unita' e' entrata nel fuoco"), Unit->Cell == FRTCellId(1, 0)))
 	{
@@ -349,14 +349,14 @@ bool FRTStatusBirthAndExpiryInTurnLogTest::RunTest(const FString&)
 	TestTrue(TEXT("con la cella e una durata positiva"), bConDurata);
 
 	// T2 e oltre: esce dal fuoco e aspetta che il conteggio finisca.
-	Unit->PlannedCell = FRTCellId(0, 0);
+	Unit->SetPlannedCell(FRTCellId(0, 0));
 	RunFwTurn(TM);
 	TestTrue(TEXT("e' uscita dal fuoco"), Unit->Cell == FRTCellId(0, 0));
 
 	int32 Giri = 0;
 	while (Unit->HasStatus(TAG_Status_Burning) && Giri < 6)
 	{
-		Unit->PlannedCell = Unit->Cell;
+		Unit->SetPlannedCell(Unit->Cell);
 		RunFwTurn(TM);
 		++Giri;
 	}
@@ -402,7 +402,7 @@ bool FRTStatusRevocationInTurnLogTest::RunTest(const FString&)
 		return false;
 	}
 
-	Unit->PlannedCell = FRTCellId(1, 0);
+	Unit->SetPlannedCell(FRTCellId(1, 0));
 	RunFwTurn(TM);
 	if (!TestTrue(TEXT("l'unita' e' entrata in acqua"), Unit->Cell == FRTCellId(1, 0)))
 	{
@@ -423,7 +423,7 @@ bool FRTStatusRevocationInTurnLogTest::RunTest(const FString&)
 	}
 
 	// Esce: la cella non lo sostiene piu'.
-	Unit->PlannedCell = FRTCellId(0, 0);
+	Unit->SetPlannedCell(FRTCellId(0, 0));
 	RunFwTurn(TM);
 	TestTrue(TEXT("e' uscita dall'acqua"), Unit->Cell == FRTCellId(0, 0));
 	TestFalse(TEXT("non e' piu' bagnata"), Unit->HasStatus(TAG_Status_Wet));
@@ -464,7 +464,7 @@ bool FRTStatusExtinguishedInTurnLogTest::RunTest(const FString&)
 	}
 
 	// (1) Nel fuoco: prende `Burning`.
-	Unit->PlannedCell = FRTCellId(1, 0);
+	Unit->SetPlannedCell(FRTCellId(1, 0));
 	RunFwTurn(TM);
 	if (!TestTrue(TEXT("l'unita' e' entrata nel fuoco"), Unit->Cell == FRTCellId(1, 0))
 		|| !TestTrue(TEXT("e sta bruciando"), Unit->HasStatus(TAG_Status_Burning)))
@@ -474,7 +474,7 @@ bool FRTStatusExtinguishedInTurnLogTest::RunTest(const FString&)
 	}
 
 	// (2) Nell'acqua: smette di bruciare, e il log deve dire PERCHE'.
-	Unit->PlannedCell = FRTCellId(2, 0);
+	Unit->SetPlannedCell(FRTCellId(2, 0));
 	RunFwTurn(TM);
 	TestTrue(TEXT("e' entrata in acqua"), Unit->Cell == FRTCellId(2, 0));
 	TestFalse(TEXT("e non brucia piu'"), Unit->HasStatus(TAG_Status_Burning));
@@ -599,7 +599,7 @@ bool FRTHazardPlaybackOnMoveTest::RunTest(const FString&)
 	// senza scudo la premessa «il danno e' arrivato» resta verificabile a occhio.
 	Unit->Shield = 0;
 
-	Unit->PlannedCell = FRTCellId(1, 0);
+	Unit->SetPlannedCell(FRTCellId(1, 0));
 	RunFwTurn(TM);
 
 	// Anti-vacuita': se l'unita' non fosse entrata, «zero eventi» e «un evento» direbbero la stessa cosa.
@@ -703,9 +703,8 @@ bool FRTHazardPlaybackOnDashTest::RunTest(const FString&)
 		DestroyFwWorld(World);
 		return false;
 	}
-	Unit->PlannedDashAbility = Scatto;
-	Unit->PlannedDashCell = FRTCellId(2, 0);
-	Unit->PlannedCell = FRTCellId(2, 0); // niente Move volontario oltre lo scatto
+	Unit->SetPlannedDash(Scatto, FRTCellId(2, 0));
+	Unit->SetPlannedCell(FRTCellId(2, 0)); // niente Move volontario oltre lo scatto
 
 	RunFwTurn(TM);
 
@@ -777,7 +776,7 @@ bool FRTHazardPlaybackTwoCellsTwoEventsTest::RunTest(const FString&)
 	Unit->MaxHealth = 1000;
 	Unit->Health = 1000;
 
-	Unit->PlannedCell = FRTCellId(2, 0);
+	Unit->SetPlannedCell(FRTCellId(2, 0));
 	RunFwTurn(TM);
 
 	if (!TestTrue(TEXT("premessa: l'unita' ha attraversato entrambe le celle ed e' viva"),
@@ -849,9 +848,9 @@ bool FRTHazardPlaybackIgnoresPlainAttackTest::RunTest(const FString&)
 	Bersaglio->Shield = 0; // lo scudo assorbirebbe il colpo e la premessa non sarebbe piu' verificabile
 
 	const int32 HpPrima = Bersaglio->Health;
-	Attaccante->PlannedAbilityIndex = 0; // l'attacco base
-	Attaccante->PlannedAttackTarget = Bersaglio;
-	Bersaglio->PlannedCell = Bersaglio->Cell;
+	Attaccante->SetPlannedMainAction(0); // l'attacco base
+	Attaccante->DeclareAttackOnUnit(Bersaglio);
+	Bersaglio->SetPlannedCell(Bersaglio->Cell);
 
 	RunFwTurn(TM);
 
@@ -971,10 +970,10 @@ bool FRTHazardOnlyTurnConcludesImmediatelyTest::RunTest(const FString&)
 	Unit->ApplyStatus(TAG_Status_Burning, /*Turns=*/ 2);
 
 	// Nessuno si muove e nessuno colpisce: l'unico fatto del turno e' il tick di `Burning`.
-	Unit->PlannedCell = Unit->Cell;
-	Unit->PlannedAbilityIndex = INDEX_NONE;
-	Inerte->PlannedCell = Inerte->Cell;
-	Inerte->PlannedAbilityIndex = INDEX_NONE;
+	Unit->SetPlannedCell(Unit->Cell);
+	Unit->ClearPlannedMainAction();
+	Inerte->SetPlannedCell(Inerte->Cell);
+	Inerte->ClearPlannedMainAction();
 
 	TM->LockInAndResolve();
 
@@ -1033,7 +1032,7 @@ bool FRTHazardPlaybackLethalIsDistinguishableTest::RunTest(const FString&)
 	Unit->Shield = 0;
 	Unit->Health = 4;
 
-	Unit->PlannedCell = FRTCellId(1, 0);
+	Unit->SetPlannedCell(FRTCellId(1, 0));
 	RunFwTurn(TM);
 
 	if (!TestFalse(TEXT("premessa: l'unita' e' morta nel fuoco"), Unit->IsAlive()))

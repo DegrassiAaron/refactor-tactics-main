@@ -100,13 +100,13 @@ namespace
 		{
 			if (Out.Scudo->GetAbility(i) && Out.Scudo->GetAbility(i)->Def.ActionId == AzioneFirmaFumetto)
 			{
-				Out.Scudo->PlannedAbilityIndex = i;
+				Out.Scudo->SetPlannedMainAction(i);
 			}
 		}
-		Out.Scudo->PlannedCell = Out.Scudo->Cell;
-		Out.Tiratore->PlannedAbilityIndex = 0;
-		Out.Tiratore->PlannedAttackTarget = Bersaglio;
-		Out.Tiratore->PlannedCell = Out.Tiratore->Cell;
+		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
+		Out.Tiratore->SetPlannedMainAction(0);
+		Out.Tiratore->DeclareAttackOnUnit(Bersaglio);
+		Out.Tiratore->SetPlannedCell(Out.Tiratore->Cell);
 
 		Out.TM->RefreshTeamKnowledgeNow(); // la precondizione della Prep (spec §2.5)
 
@@ -359,17 +359,16 @@ namespace
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Mover || !Out.Guardia || !Out.Scudo) { return false; }
 
-		Out.Guardia->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Out.Guardia, TEXT("Action.Overwatch"), 3);
+		Out.Guardia->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Out.Guardia, TEXT("Action.Overwatch"), 3));
 		Out.Guardia->Facing = ERTHexDirection::W;
-		Out.Guardia->PlannedCell = Out.Guardia->Cell;
-		Out.Mover->PlannedCell = FRTCellId(2, 0);
-		Out.Scudo->PlannedCell = Out.Scudo->Cell;
+		Out.Guardia->SetPlannedCell(Out.Guardia->Cell);
+		Out.Mover->SetPlannedCell(FRTCellId(2, 0));
+		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
 		for (int32 i = 0; i < Out.Scudo->NumAbilities(); ++i)
 		{
 			if (Out.Scudo->GetAbility(i) && Out.Scudo->GetAbility(i)->Def.ActionId == AzioneFirmaFumetto)
 			{
-				Out.Scudo->PlannedAbilityIndex = i;
+				Out.Scudo->SetPlannedMainAction(i);
 			}
 		}
 		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->PlannedAbilityIndex != INDEX_NONE)
@@ -565,14 +564,11 @@ bool FRTSkillCalloutPlaybackEquipmentShoutsTest::RunTest(const FString&)
 	}
 
 	// La copertura su (1,0), bordo W: la forma di `RefactorTactics.Equipment.PortableCover.CreatesCover`.
-	Branth->PlannedAbilityIndex = Indice;
-	Branth->PlannedAttackTarget = nullptr;
-	Branth->PlannedAttackCell = FRTCellId(1, 0);
-	Branth->bAttackTargetsCell = true;
-	Branth->PlannedCoverEdge = ERTHexDirection::W;
-	Branth->bHasPlannedCoverEdge = true;
-	Branth->PlannedCell = Branth->Cell;
-	Nemico->PlannedCell = Nemico->Cell;
+	Branth->SetPlannedMainAction(Indice);
+	Branth->DeclareAttackOnCell(FRTCellId(1, 0));
+	Branth->DeclarePlannedCoverEdge(ERTHexDirection::W);
+	Branth->SetPlannedCell(Branth->Cell);
+	Nemico->SetPlannedCell(Nemico->Cell);
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
@@ -611,7 +607,7 @@ namespace
 		U->RearBonus = 0;
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
+		U->SetPlannedCell(Cell);
 		U->Shield = 0;
 		return U;
 	}
@@ -733,12 +729,10 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 		if (Apre->GetAbility(i) && Apre->GetAbility(i)->Def.ActionId == Interact) { Indice = i; }
 	}
 	if (!TestTrue(TEXT("⛔ premessa: Aevik porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
-	Apre->PlannedAbilityIndex = Indice;
-	Apre->PlannedAttackTarget = nullptr;
-	Apre->PlannedAttackCell = Oltre;
-	Apre->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno
-	Apre->PlannedCell = Apre->Cell;
-	Nemico->PlannedCell = Nemico->Cell;
+	Apre->SetPlannedMainAction(Indice);
+	Apre->DeclareAttackOnCell(Oltre); // si mira a una CELLA: dietro la porta non c'e' nessuno
+	Apre->SetPlannedCell(Apre->Cell);
+	Nemico->SetPlannedCell(Nemico->Cell);
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
@@ -786,10 +780,10 @@ bool FRTSkillCalloutPlaybackReactionAtTheHitTest::RunTest(const FString&)
 	if (!TM || !Reattore || !Attaccante) { return false; }
 
 	const FName Counter(TEXT("Action.Counter"));
-	Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
-	Reattore->PlannedAbilityIndex = INDEX_NONE;
-	Attaccante->PlannedAbilityIndex = 0; // l'attacco base, colpo singolo
-	Attaccante->PlannedAttackTarget = Reattore;
+	Reattore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3));
+	Reattore->ClearPlannedMainAction();
+	Attaccante->SetPlannedMainAction(0); // l'attacco base, colpo singolo
+	Attaccante->DeclareAttackOnUnit(Reattore);
 	TM->bRecordAttackBeatsForTest = true;
 
 	TM->RefreshTeamKnowledgeNow();
@@ -861,10 +855,10 @@ bool FRTSkillCalloutPlaybackInterposeAtTheHitTest::RunTest(const FString&)
 	Attaccante->Facing = ERTHexDirection::W; // si spara a cio' che si vede (CP 13.2)
 
 	const FName Intercept(TEXT("Action.Intercept"));
-	Salvatore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Salvatore, TEXT("Action.Intercept"), 3);
-	Salvatore->PlannedAbilityIndex = INDEX_NONE;
-	Attaccante->PlannedAbilityIndex = 0; // l'attacco base, colpo singolo
-	Attaccante->PlannedAttackTarget = Alleato;
+	Salvatore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Salvatore, TEXT("Action.Intercept"), 3));
+	Salvatore->ClearPlannedMainAction();
+	Attaccante->SetPlannedMainAction(0); // l'attacco base, colpo singolo
+	Attaccante->DeclareAttackOnUnit(Alleato);
 	TM->bRecordAttackBeatsForTest = true;
 
 	TM->RefreshTeamKnowledgeNow();
@@ -950,13 +944,11 @@ bool FRTSkillCalloutPlaybackHiddenReactorTest::RunTest(const FString&)
 		}
 
 		Attaccante->Facing = ERTHexDirection::W; // le spalle al Reattore, che sta a est
-		Attaccante->PlannedAbilityIndex = 0;     // l'attacco base
-		Attaccante->PlannedAttackTarget = nullptr;
-		Attaccante->PlannedAttackCell = Reattore->Cell;
-		Attaccante->bAttackTargetsCell = true;   // una CELLA: un'unita' che la squadra non vede non si puo' mirare
+		Attaccante->SetPlannedMainAction(0);     // l'attacco base
+		Attaccante->DeclareAttackOnCell(Reattore->Cell); // una CELLA: un'unita' che la squadra non vede non si puo' mirare
 		Reattore->Facing = ERTHexDirection::W;
-		Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
-		Reattore->PlannedAbilityIndex = INDEX_NONE;
+		Reattore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3));
+		Reattore->ClearPlannedMainAction();
 
 		TM->RefreshTeamKnowledgeNow();
 		TM->LockInAndResolve();
@@ -1032,9 +1024,9 @@ bool FRTSkillCalloutPlaybackBraceAfterWindowTest::RunTest(const FString&)
 
 	const FName Brace(TEXT("Action.Brace"));
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep"); // due risposte: la finestra si apre
-	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
-	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
-	Pusher->PlannedAttackTarget = Bracer;
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
 
 	const auto RigheDelBraceNelBlast = [TM, Bracer, &Brace]()
 	{
@@ -1157,11 +1149,10 @@ namespace
 
 		Out.Watcher->Facing = ERTHexDirection::W;
 		Out.Watcher->VisionRange = VistaDelWatcher;
-		Out.Watcher->PlannedAbilityIndex =
-			RTAbilityFixtures::AddCoreAbilityInSlot(Out.Watcher, TEXT("Action.Overwatch"), 3);
+		Out.Watcher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Out.Watcher, TEXT("Action.Overwatch"), 3));
 		Out.Mover->Facing = FacciaDelMover;
-		Out.Mover->PlannedCell = Destinazione;
-		if (Out.Runner) { Out.Runner->PlannedCell = FRTCellId(2, -3, 0); }
+		Out.Mover->SetPlannedCell(Destinazione);
+		if (Out.Runner) { Out.Runner->SetPlannedCell(FRTCellId(2, -3, 0)); }
 		if (!Test.TestTrue(TEXT("⛔ premessa: il watcher arma l'Overwatch"), Out.Watcher->PlannedAbilityIndex != INDEX_NONE))
 		{
 			return false;
@@ -1380,11 +1371,11 @@ namespace
 		URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Modulo, Out.Fuggitivo);
 		if (!Test.TestNotNull(TEXT("⛔ premessa: il modulo concede un'azione"), Reazione)) { return false; }
 		Out.Fuggitivo->Abilities.Add(Reazione);
-		Out.Fuggitivo->PlannedReactionAbility = Out.Fuggitivo->Abilities.Num() - 1;
+		Out.Fuggitivo->SetPlannedReaction(Out.Fuggitivo->Abilities.Num() - 1);
 		Out.Fuggitivo->Facing = ERTHexDirection::W; // fugge verso (1,0), la cella che ha davanti
-		Incendiario->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Incendiario, TEXT("Action.Ignite"), 3);
-		Incendiario->PlannedAttackTarget = Out.Fuggitivo;
-		Out.Corridore->PlannedCell = FRTCellId(-1, -3, 0);
+		Incendiario->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Incendiario, TEXT("Action.Ignite"), 3));
+		Incendiario->DeclareAttackOnUnit(Out.Fuggitivo);
+		Out.Corridore->SetPlannedCell(FRTCellId(-1, -3, 0));
 		Out.TM->RefreshTeamKnowledgeNow();
 		return true;
 	}
@@ -1500,9 +1491,9 @@ bool FRTSkillCalloutPlaybackSkipKeepsReactionLinesTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Reattore || !Attaccante) { return false; }
 		const FName Counter(TEXT("Action.Counter"));
-		Reattore->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3);
-		Attaccante->PlannedAbilityIndex = 0;
-		Attaccante->PlannedAttackTarget = Reattore;
+		Reattore->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reattore, TEXT("Action.Counter"), 3));
+		Attaccante->SetPlannedMainAction(0);
+		Attaccante->DeclareAttackOnUnit(Reattore);
 		TM->RefreshTeamKnowledgeNow();
 		TM->LockInAndResolve();
 		if (!TestTrue(TEXT("⛔ premessa (Blast): il Contrattacco e' scattato"),
@@ -1683,13 +1674,13 @@ bool FRTSkillCalloutPlaybackMoveReactionNotRepeatedTest::RunTest(const FString&)
 	for (ARTUnit* W : { Watcher1, Watcher2 })
 	{
 		W->Facing = ERTHexDirection::W;
-		W->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(W, TEXT("Action.Overwatch"), 3);
+		W->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(W, TEXT("Action.Overwatch"), 3));
 	}
 	Watcher1->bIsBotControlled = true; // decide subito, e spara
 	MoverA->Facing = ERTHexDirection::E;
-	MoverA->PlannedCell = DestinazioneA;
+	MoverA->SetPlannedCell(DestinazioneA);
 	MoverB->Facing = ERTHexDirection::E;
-	MoverB->PlannedCell = FRTCellId(0, -3, 0); // la riga r = -3 dista almeno due passi da r = -1
+	MoverB->SetPlannedCell(FRTCellId(0, -3, 0)); // la riga r = -3 dista almeno due passi da r = -1
 
 	int32 Presentazioni = 0;
 	int32 RigheAllaPresentazione = INDEX_NONE;

@@ -16,6 +16,7 @@
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Shared/RTUnitPlanTestAccess.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -177,10 +178,10 @@ bool FRTInspectTwinsReadTheSameTest::RunTest(const FString&)
 	// B differisce da A nel piano, nelle ricariche vere e nella variante attiva.
 	for (int32 I = 0; I < B->Abilities.Num(); ++I) { B->ConsumeAbility(I); } // ricariche vere
 	B->ActiveVariantId = FName(TEXT("VarianteDiProva"));
-	B->PlannedAbilityIndex = 1;
-	B->PlannedReactionAbility = 2;
-	B->PlannedDashAbility = 3;
-	B->bAttackTargetsCell = true;
+	B->SetPlannedMainAction(1);
+	B->SetPlannedReaction(2);
+	FRTUnitPlanTestAccess::SetDashAbility(*B, 3);
+	FRTUnitPlanTestAccess::SetAttackTargetsCell(*B, true);
 
 	// La premessa si MISURA: B ha davvero una ricarica vera in corso, e A no. Senza, «stessa scheda» potrebbe voler dire «nessuna differenza».
 	int32 TrueCooldownsA = 0;
@@ -929,7 +930,7 @@ bool FRTInspectCardShowsTheHoveredSkillTest::RunTest(const FString&)
 			const FRTAbilityVariant Variant = B->GetAbility(WithVariant)->Variants[0];
 			B->ActiveVariantId = Variant.VariantId;
 			B->ConsumeAbility(WithVariant);
-			B->PlannedAbilityIndex = WithVariant;
+			B->SetPlannedMainAction(WithVariant);
 			B->SelectedAbilityIndex = WithVariant;
 
 			// La partita e' DIVERSA, e il dock lo dice: senza questa premessa «stessi dettagli» non proverebbe niente.

@@ -56,7 +56,7 @@ namespace
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay(); // senza, i cooldown non esistono e ogni abilita' risulta sempre pronta
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell; // fermo salvo che il caso non lo cambi
+		U->SetPlannedCell(Cell); // fermo salvo che il caso non lo cambi
 		return U;
 	}
 
@@ -168,8 +168,8 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 
 		PC->SelectActorForTest(Doomed);
 		PC->SelectAbilityForCurrentForTest(ConRicarica);
-		Doomed->PlannedAbilityIndex = ConRicarica;
-		Doomed->PlannedAttackTarget = Target;
+		Doomed->SetPlannedMainAction(ConRicarica);
+		Doomed->DeclareAttackOnUnit(Target);
 		if (!TestEqual(*E(TEXT("premessa: armata e pianificata come farebbe il giocatore")),
 				Doomed->SelectedAbilityIndex, ConRicarica))
 		{

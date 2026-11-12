@@ -156,9 +156,9 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	// nasce gia' `INDEX_NONE`, quindi senza questa riga «torna al neutro» sarebbe vero senza che il Cleanup
 	// faccia niente.
 	Attacker->SelectAbility(MainIdx);
-	Attacker->PlannedAbilityIndex   = MainIdx;
-	Attacker->PlannedAttackTarget   = Target;
-	Attacker->PlannedReactionAbility = ReactionIdx;
+	Attacker->SetPlannedMainAction(MainIdx);
+	Attacker->DeclareAttackOnUnit(Target);
+	Attacker->SetPlannedReaction(ReactionIdx);
 	// Compresa la CONDIZIONE sulla reazione ([D-109]): fa parte del piano quanto lo slot che la ospita.
 	Attacker->SetPlannedReactionCondition(FRTDeclaredCondition(
 		URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50));
@@ -176,8 +176,7 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	}
 	if (DashIdx != INDEX_NONE)
 	{
-		Attacker->PlannedDashAbility = DashIdx;
-		Attacker->PlannedDashCell = FRTCellId(-2, 0, 0);
+		Attacker->SetPlannedDash(DashIdx, FRTCellId(-2, 0, 0));
 	}
 
 	// Precondizione: se non c'e' niente da consumare, il test non prova niente.
@@ -251,8 +250,8 @@ bool FRTDiscardedPlanDoesNotSurviveTest::RunTest(const FString&)
 	}
 
 	const int32 MainIdx = FindAbilityIndexBySlot(Attacker, ERTActionSlot::Main);
-	Attacker->PlannedAbilityIndex = MainIdx;
-	Attacker->PlannedAttackTarget = Target; // 18 celle: fuori da qualunque portata del catalogo v0.1
+	Attacker->SetPlannedMainAction(MainIdx);
+	Attacker->DeclareAttackOnUnit(Target); // 18 celle: fuori da qualunque portata del catalogo v0.1
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyPlanWorld(World); return false; }
@@ -360,8 +359,8 @@ bool FRTCooldownActionLeavesTheTurnDisarmedTest::RunTest(const FString&)
 			DestroyPlanWorld(World);
 			return false;
 		}
-		Attacker->PlannedAbilityIndex = ConRicarica;
-		Attacker->PlannedAttackTarget = Target;
+		Attacker->SetPlannedMainAction(ConRicarica);
+		Attacker->DeclareAttackOnUnit(Target);
 
 		PlayPlanTurn(TM);
 
