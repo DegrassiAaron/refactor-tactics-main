@@ -250,7 +250,7 @@ public:
 	 * (`#3773`). Una REAZIONE dello slot si arma (`Intent.Reaction`) e la provoca il `TARGET` (`ProvocationFor`,
 	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
 	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una. Una predittiva blocca la
-	 * cella di `ChooseTarget` e il `TARGET` ci entra (`#4088`); anche il suo bersaglio non si forza.
+	 * cella di `ChooseTarget` e il `TARGET` ci entra (`#4088`); il suo bersaglio si forza solo a «cella», e il banco rifiuta gli altri.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
