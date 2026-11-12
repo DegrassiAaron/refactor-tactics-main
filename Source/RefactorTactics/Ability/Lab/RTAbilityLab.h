@@ -68,6 +68,29 @@ struct FRTAbilityLabEntry
 };
 
 /**
+ * Il bersaglio di una scena del banco (`#4072`, [D-607] (2)). `Auto` lo deduce dall'azione; gli altri lo forzano.
+ *
+ * ⚠️ **E' una scelta dello STRUMENTO, non una regola di gioco**: dice al banco come posare la scena perche' la
+ * skill si veda all'opera. Il gameplay non la legge.
+ */
+UENUM(BlueprintType)
+enum class ERTAbilityLabTarget : uint8
+{
+	/** Lo deduce il banco: la forma da `URTPointerLibrary::TargetKindForAction`, il lato da `BenefitsItsRecipient`. */
+	Auto,
+	/** Il secondo eroe e' un nemico, e l'azione lo mira. */
+	Enemy,
+	/** Il secondo eroe e' un alleato, e l'azione lo mira. */
+	Ally,
+	/** Una cella vuota a portata. */
+	Cell,
+	/** Il bordo della cella del bersaglio rivolto a chi lancia; con la porta, per un'azione che cambia una porta. */
+	Edge,
+	/** Nessun bersaglio. */
+	None
+};
+
+/**
  * Come si vuole la fixture. Tutti i campi hanno un default utilizzabile: il caso normale e' non
  * dichiarare niente e ottenere una posa a due unita' con un seed fisso.
  */
@@ -95,8 +118,8 @@ struct FRTAbilityLabFixtureSpec
 	 * `Visual.Ability.ClipIvrin`, e da li' chi attraversa (`PassingBlade`) attraversa e chi carica (`Ram`) si
 	 * ferma sul primo nemico.
 	 *
-	 * ⚠️ **E' una posa, non un calcolo**: il Lab non porta aritmetica esagonale, e dove lo scatto si ferma lo
-	 * decide il resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
+	 * ⚠️ **E' una posa, non un calcolo**: il Lab non la ricava dal bersaglio, e dove lo scatto si ferma lo decide il
+	 * resolver. Chi sposta `TargetCell` sposta anche questa, se vuole che lo scatto incontri il bersaglio.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	FRTCellId DashCell = FRTCellId(3, 0);
@@ -107,6 +130,41 @@ struct FRTAbilityLabFixtureSpec
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	FName TargetHeroId = FName(TEXT("Hero.Ivrin"));
+
+	/** Il bersaglio della scena: `Auto` lo deduce dall'azione, gli altri valori lo forzano ([D-607] (2), `#4072`). */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
+	ERTAbilityLabTarget Target = ERTAbilityLabTarget::Auto;
+};
+
+/**
+ * Il bersaglio che il banco ha scelto per una scena (`#4072`): cosa mira l'azione, e cosa la scena deve posare
+ * perche' la mira abbia senso. Lo produce `URTAbilityLabLibrary::ChooseTarget`, lo consuma `BuildFixture`.
+ *
+ * Struct C++ nuda, come `FRTTestResult`: e' un dettaglio della costruzione della scena, non un dato del formato.
+ */
+struct FRTAbilityLabTargetChoice
+{
+	/** Mai `Auto`: e' la scelta gia' fatta. */
+	ERTAbilityLabTarget Kind = ERTAbilityLabTarget::Enemy;
+
+	/**
+	 * Il secondo eroe della scena sta nella squadra di chi lancia: per `Ally`, e per una `Cell` di un'azione che fa
+	 * bene a chi la riceve — una cura ad area (`Hero.Muiren.CircularTide`) deve prendere un alleato, non un nemico.
+	 */
+	bool bSecondHeroIsAlly = false;
+
+	/** La cella mirata, per `Cell` ed `Edge`. */
+	FRTCellId Cell;
+
+	/** Per `Edge`: il lato di `Cell` rivolto a chi lancia. */
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	/** Per `Edge` su un'azione che cambia una porta (`ERTStructureOp::SetDoorState`): la scena posa una porta chiusa. */
+	bool bPlacesDoor = false;
+
+	/** La porta, dichiarata dalla parte di chi lancia, come nel corpus (`Spec/Map/InteractClosesOpenDoor`). */
+	FRTCellId DoorCell;
+	ERTHexDirection DoorEdge = ERTHexDirection::E;
 };
 
 UCLASS()
@@ -158,8 +216,9 @@ public:
 	 *
 	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
 	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
-	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio. Uno SCATTO (fase
-	 * Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita' (`#3773`).
+	 * ERROR. Uno SCATTO (fase Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita'
+	 * (`#3773`). Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno, un nemico, un alleato,
+	 * una cella o un bordo, con la porta per un'azione che ne cambia una.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -172,6 +231,36 @@ public:
 	// d'editor al prezzo dell'invariante che lo Scenario Harness esiste per difendere.
 	static bool BuildFixture(const FName& AbilityId, const FRTAbilityLabFixtureSpec& Spec,
 		FRTTestScenario& OutScenario, FString& OutError);
+
+	/**
+	 * Il bersaglio adatto a un'azione, nella posa della spec (`#4072`, [D-607] (2)). Funzione pura: non posa niente.
+	 *
+	 * - **La forma** la decide la funzione che il gioco usa gia', `URTPointerLibrary::TargetKindForAction`: nessuno,
+	 *   unita', cella o bordo. Il banco non ne scrive una seconda.
+	 * - **Un'unita'** e' un alleato se l'azione fa bene a chi la riceve (`BenefitsItsRecipient`), altrimenti un nemico.
+	 *   Una REAZIONE mira sempre un nemico: la provoca lui (`#4073`), e i suoi effetti li riceve chi reagisce.
+	 * - **Una cella** e' vuota e a portata (`RangeCells` e `MinRangeCells`, come le legge il resolver), accanto al
+	 *   bersaglio sulla linea da chi lancia: prima oltre, cosi' un'area lo prende senza prendere chi lancia; poi prima.
+	 *   Se nessuna delle due va bene, la cella del bersaglio. Un'area i cui effetti fanno tutti bene prende un alleato.
+	 * - **Un bordo** e' il lato della cella del bersaglio rivolto a chi lancia. Se il bersaglio e' oltre la portata,
+	 *   la cella e' quella accanto a chi lancia, verso il bersaglio: `Action.Interact` ha portata 1. Per un'azione che
+	 *   cambia una porta la scena posa una porta chiusa su quel bordo.
+	 * - `Spec.Target` diverso da `Auto` forza il tipo; la cella e il bordo si scelgono con le stesse regole.
+	 *
+	 * ⚠️ Usa la geometria esagonale condivisa (`URTHexLibrary`) solo per POSARE la scena: dove il colpo arriva e se
+	 * la porta si apre lo decide il resolver.
+	 */
+	static FRTAbilityLabTargetChoice ChooseTarget(const FRTActionDef& Def, ERTAbilityShape Shape,
+		const FRTAbilityLabFixtureSpec& Spec);
+
+	/**
+	 * Vero se ogni effetto dell'azione fa bene a chi lo riceve: `Heal`, `Shield`, `CancelStatus`, `DamageReduction`
+	 * ([D-607] (2)). Un'azione senza effetti, o con un effetto che non e' fra questi, non lo e'.
+	 *
+	 * ⚠️ **E' una regola del BANCO**: decide di che squadra e' il secondo eroe della scena. Il gameplay non la legge,
+	 * e non deve: chi puo' bersagliare chi lo dice la validazione del piano.
+	 */
+	static bool BenefitsItsRecipient(const FRTActionDef& Def);
 
 	/**
 	 * Il TurnLog della run, in righe leggibili.

@@ -5,7 +5,9 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/Lab/RTHeroLab.h"
 #include "HAL/FileManager.h"
+#include "Map/RTHexLibrary.h"
 #include "Misc/Paths.h"
+#include "Player/RTPointerInteraction.h" // la forma del bersaglio la decide il gioco (`#4072`)
 #include "ScenarioHarness/Authoring/RTScenarioIndex.h"
 #include "ScenarioHarness/Authoring/RTScenarioLoader.h"
 #include "Turn/Log/RTTurnLogLibrary.h"
@@ -86,6 +88,85 @@ namespace RTAbilityLabInternal
 			if (Action && Action->Def.ActionId == AbilityId) { return Action; }
 		}
 		return nullptr;
+	}
+
+	/**
+	 * La FORMA dell'azione che un'unita' impugna davvero (`#4072`): `FRTActionDef` non la porta, la porta l'istanza.
+	 * Per un'azione di kit e' quella del kit; per una generica quella di `MakeGenericActions`; `Single` altrimenti, come
+	 * per ogni core che non ha un'istanza da cui leggerla.
+	 */
+	static ERTAbilityShape ShapeOf(const FName& AbilityId)
+	{
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (!Hero) { continue; }
+			for (const TObjectPtr<URTActionData>& ActionPtr : Hero->Actions)
+			{
+				const URTActionData* Action = ActionPtr.Get();
+				if (Action && Action->Def.ActionId == AbilityId) { return Action->Shape; }
+			}
+		}
+		const URTActionData* Generica = FindGenericInstance(AbilityId);
+		return Generica ? Generica->Shape : ERTAbilityShape::Single;
+	}
+
+	/** La vita massima di un eroe del roster, o `INDEX_NONE` se non c'e'. */
+	static int32 MaxHealthOf(const FName& HeroId)
+	{
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (Hero && Hero->HeroId == HeroId) { return Hero->MaxHealth; }
+		}
+		return INDEX_NONE;
+	}
+
+	/** Un effetto che fa bene a chi lo riceve ([D-607] (2)). Regola del banco, non di gioco. */
+	static bool IsBeneficialEffect(ERTActionEffect Effect)
+	{
+		return Effect == ERTActionEffect::Heal || Effect == ERTActionEffect::Shield
+			|| Effect == ERTActionEffect::CancelStatus || Effect == ERTActionEffect::DamageReduction;
+	}
+
+	/** Vero se `Cell` sta nella mappa del banco, un esagono di raggio `MapRadius` centrato in (0,0). */
+	static bool InLabMap(const FRTCellId& Cell, int32 MapRadius)
+	{
+		return URTHexLibrary::HexDistance(FRTCellId(0, 0), Cell) <= MapRadius;
+	}
+
+	/**
+	 * Vero se `Cell` e' a portata di chi lancia da `From`, letta come la legge il resolver: non oltre `RangeCells` (0 e'
+	 * la propria cella, non «illimitata»: `ResolveCoverStructures` rifiuta per `HexDistance > RangeCells`) e non sotto
+	 * `MinRangeCells` (il mortaio).
+	 */
+	static bool WithinRange(const FRTActionDef& Def, const FRTCellId& From, const FRTCellId& Cell)
+	{
+		const int32 Distanza = URTHexLibrary::HexDistance(From, Cell);
+		return Distanza <= Def.RangeCells && Distanza >= Def.MinRangeCells;
+	}
+
+	/**
+	 * La cella del terzo eroe di una scena con l'alleato: il simmetrico del bersaglio rispetto a chi lancia, cioe'
+	 * dall'altra parte, lontano dalla cella o dall'area mirata; se esce dalla mappa, la cella accanto a chi lancia da
+	 * quella parte.
+	 */
+	static FRTCellId OpponentCellFor(const FRTAbilityLabFixtureSpec& Spec)
+	{
+		const FRTCellId Simmetrico(2 * Spec.CasterCell.X - Spec.TargetCell.X, 2 * Spec.CasterCell.Y - Spec.TargetCell.Y,
+			Spec.CasterCell.Layer);
+		if (InLabMap(Simmetrico, Spec.MapRadius) && Simmetrico != Spec.CasterCell) { return Simmetrico; }
+		ERTHexDirection VersoIlBersaglio = ERTHexDirection::E;
+		URTHexLibrary::DirectionTowards(Spec.CasterCell, Spec.TargetCell, VersoIlBersaglio);
+		return URTHexLibrary::Neighbor(Spec.CasterCell, URTHexLibrary::OppositeDirection(VersoIlBersaglio));
+	}
+
+	/** Un eroe del roster diverso da entrambi. `NAME_None` se il roster non ne offre un terzo. */
+	static FName FirstHeroOtherThanBoth(const FName& A, const FName& B)
+	{
+		for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+		{
+			if (HeroId != A && HeroId != B) { return HeroId; }
+		}
+		return NAME_None;
 	}
 }
 
@@ -194,6 +275,101 @@ ERTActionReadoutResult URTAbilityLabLibrary::DescribeAbility(const FName& Abilit
 	return ERTActionReadoutResult::UnknownAction;
 }
 
+bool URTAbilityLabLibrary::BenefitsItsRecipient(const FRTActionDef& Def)
+{
+	if (Def.Effects.Num() == 0) { return false; }
+	for (const FRTActionEffectSpec& Effect : Def.Effects)
+	{
+		if (!RTAbilityLabInternal::IsBeneficialEffect(Effect.Effect)) { return false; }
+	}
+	return true;
+}
+
+FRTAbilityLabTargetChoice URTAbilityLabLibrary::ChooseTarget(const FRTActionDef& Def, ERTAbilityShape Shape,
+	const FRTAbilityLabFixtureSpec& Spec)
+{
+	FRTAbilityLabTargetChoice Choice;
+
+	// Il TIPO: forzato dalla spec, o dedotto. La forma la dice il gioco; il lato di un'unita' il banco.
+	Choice.Kind = Spec.Target;
+	if (Choice.Kind == ERTAbilityLabTarget::Auto)
+	{
+		switch (URTPointerLibrary::TargetKindForAction(Def, Def.bSelfTarget, Shape))
+		{
+		case ERTPointerTargetKind::None: Choice.Kind = ERTAbilityLabTarget::None; break;
+		case ERTPointerTargetKind::Cell: Choice.Kind = ERTAbilityLabTarget::Cell; break;
+		case ERTPointerTargetKind::Edge: Choice.Kind = ERTAbilityLabTarget::Edge; break;
+		// ⚠️ `TargetKindForAction` non restituisce `Object` (lo dice la sua documentazione): se un giorno lo facesse,
+		// il banco mirerebbe l'unita', che e' il comportamento di prima di `#4072`.
+		// 🔴 **Una REAZIONE la provoca un nemico** (`#4073`), e i suoi effetti li riceve chi reagisce, non il bersaglio:
+		// `Hero.Ivrin.Deflection` porta solo `DamageReduction`, e col solo criterio degli effetti avrebbe messo il
+		// secondo eroe nella propria squadra.
+		case ERTPointerTargetKind::Unit:
+		case ERTPointerTargetKind::Object:
+		default:
+			Choice.Kind = (Def.Slot != ERTActionSlot::Reaction && BenefitsItsRecipient(Def))
+				? ERTAbilityLabTarget::Ally : ERTAbilityLabTarget::Enemy;
+			break;
+		}
+	}
+
+	// Il lato del secondo eroe: alleato se mirato come tale, o se un'area i cui effetti fanno tutti bene lo prende.
+	Choice.bSecondHeroIsAlly = Choice.Kind == ERTAbilityLabTarget::Ally
+		|| (Choice.Kind == ERTAbilityLabTarget::Cell && Def.Slot != ERTActionSlot::Reaction && BenefitsItsRecipient(Def));
+
+	ERTHexDirection VersoIlBersaglio = ERTHexDirection::E;
+	const bool bHaDirezione = URTHexLibrary::DirectionTowards(Spec.CasterCell, Spec.TargetCell, VersoIlBersaglio);
+
+	if (Choice.Kind == ERTAbilityLabTarget::Cell)
+	{
+		// Una cella VUOTA a portata, accanto al bersaglio sulla linea da chi lancia: prima quella oltre, cosi' un'area la
+		// centra e prende il bersaglio senza prendere chi lancia; poi quella prima del bersaglio. ⚠️ Accanto al BERSAGLIO,
+		// non a chi lancia: con il bersaglio sul bordo della mappa la cella oltre esce, e quella accanto a chi lancia
+		// metterebbe chi lancia nell'area e il bersaglio fuori.
+		Choice.Cell = Spec.TargetCell;
+		if (bHaDirezione)
+		{
+			const FRTCellId Candidate[] = {
+				URTHexLibrary::Neighbor(Spec.TargetCell, VersoIlBersaglio),
+				URTHexLibrary::Neighbor(Spec.TargetCell, URTHexLibrary::OppositeDirection(VersoIlBersaglio)),
+			};
+			for (const FRTCellId& C : Candidate)
+			{
+				if (C != Spec.CasterCell && C != Spec.TargetCell && RTAbilityLabInternal::InLabMap(C, Spec.MapRadius)
+					&& RTAbilityLabInternal::WithinRange(Def, Spec.CasterCell, C))
+				{
+					Choice.Cell = C;
+					break;
+				}
+			}
+		}
+	}
+	else if (Choice.Kind == ERTAbilityLabTarget::Edge)
+	{
+		// Il lato della cella del bersaglio rivolto a chi lancia. Oltre la portata, la cella accanto a chi lancia,
+		// verso il bersaglio: `Action.Interact` ha portata 1, e la sua porta sta fra le due.
+		Choice.Cell = Spec.TargetCell;
+		if (bHaDirezione && !RTAbilityLabInternal::WithinRange(Def, Spec.CasterCell, Spec.TargetCell))
+		{
+			Choice.Cell = URTHexLibrary::Neighbor(Spec.CasterCell, VersoIlBersaglio);
+		}
+		ERTHexDirection VersoChiLancia = URTHexLibrary::OppositeDirection(VersoIlBersaglio);
+		URTHexLibrary::DirectionTowards(Choice.Cell, Spec.CasterCell, VersoChiLancia);
+		Choice.Edge = VersoChiLancia;
+
+		if (Def.StructureOp == ERTStructureOp::SetDoorState)
+		{
+			// La porta si dichiara dalla parte di chi lancia, com'e' nel corpus: e' lo stesso bordo visto dall'altra
+			// cella, e il resolver la trova sulla traiettoria verso la cella mirata (`FirstDoorEdge`).
+			Choice.bPlacesDoor = true;
+			Choice.DoorCell = URTHexLibrary::Neighbor(Choice.Cell, Choice.Edge);
+			Choice.DoorEdge = URTHexLibrary::OppositeDirection(Choice.Edge);
+		}
+	}
+
+	return Choice;
+}
+
 bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbilityLabFixtureSpec& Spec,
 	FRTTestScenario& OutScenario, FString& OutError)
 {
@@ -272,12 +448,64 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Caster.Cell = Spec.CasterCell;
 	Scenario.Units.Add(Caster);
 
+	// Il bersaglio adatto (`#4072`, [D-607] (2)). Uno scatto non ne ha uno: si dichiara con la sua cella d'arrivo.
+	const bool bIsDash = URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash;
+	const FRTAbilityLabTargetChoice Choice = ChooseTarget(Def, RTAbilityLabInternal::ShapeOf(AbilityId), Spec);
+	const bool bAlleato = !bIsDash && Choice.bSecondHeroIsAlly;
+
+	// ⛔ «Nessuno» forzato su un'azione che chiede un bersaglio: l'harness la rifiuterebbe alla run (*«bersaglio '' non
+	// schierato»*), dopo aver posato una scena che non poteva girare. Fail closed qui, come per un id sconosciuto.
+	if (!bIsDash && Choice.Kind == ERTAbilityLabTarget::None && !Def.bSelfTarget)
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' chiede un bersaglio: forzarlo a «nessuno» darebbe una scena che l'harness rifiuta."),
+			*AbilityId.ToString());
+		return false;
+	}
+
 	FRTScenarioUnit Target;
 	Target.Id = TEXT("TARGET");
 	Target.HeroId = TargetHeroId;
-	Target.TeamId = 1;
+	Target.TeamId = bAlleato ? 0 : 1;
 	Target.Cell = Spec.TargetCell;
+	// Un alleato da curare e' ferito, o la cura non si vedrebbe: meta' della sua vita. ⚠️ E' posa, non bilanciamento.
+	if (bAlleato)
+	{
+		bool bCura = false;
+		for (const FRTActionEffectSpec& Effect : Def.Effects) { bCura |= Effect.Effect == ERTActionEffect::Heal; }
+		const int32 Massima = RTAbilityLabInternal::MaxHealthOf(TargetHeroId);
+		if (bCura && Massima > 1) { Target.Health = Massima / 2; }
+	}
 	Scenario.Units.Add(Target);
+
+	// Con l'alleato la scena avrebbe una squadra sola, e la partita finirebbe al primo Cleanup con la vittoria per
+	// eliminazione: in PIE si aprirebbe la schermata del risultato. Un terzo eroe, nemico, dall'altra parte di chi
+	// lancia, le da' la seconda squadra. Non agisce: e' il ruolo di `W1` in `Spec/Map/InteractOpensDoor`.
+	if (bAlleato)
+	{
+		const FName OpponentHeroId = RTAbilityLabInternal::FirstHeroOtherThanBoth(CasterHeroId, TargetHeroId);
+		if (OpponentHeroId.IsNone())
+		{
+			OutError = TEXT("Il roster non offre un terzo eroe da schierare contro, e la scena con l'alleato non avrebbe una seconda squadra.");
+			return false;
+		}
+		FRTScenarioUnit Opponent;
+		Opponent.Id = TEXT("OPPONENT");
+		Opponent.HeroId = OpponentHeroId;
+		Opponent.TeamId = 1;
+		Opponent.Cell = RTAbilityLabInternal::OpponentCellFor(Spec);
+		Scenario.Units.Add(Opponent);
+	}
+
+	if (!bIsDash && Choice.bPlacesDoor)
+	{
+		FRTScenarioDoor Door;
+		Door.Cell = Choice.DoorCell;
+		Door.Door.Edge = Choice.DoorEdge;
+		Door.Door.State = ERTHexDoorState::Closed;
+		Door.Door.DoorId = 1;
+		Scenario.Doors.Add(Door);
+	}
 
 	FRTScenarioIntent Intent;
 	Intent.UnitId = TEXT("CASTER");
@@ -287,7 +515,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	// `PassingBlade` con la scena superata. La fase si chiede al CATALOGO, come fa la sessione: uno scatto
 	// aggiunto domani prende questa strada senza che nessuno se ne ricordi.
 	// ⚠️ La cella d'arrivo e' quella della spec, una POSA: dove lo scatto si ferma davvero lo decide il resolver.
-	if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash)
+	if (bIsDash)
 	{
 		Intent.Dash = AbilityId;
 		Intent.DashCell = Spec.DashCell;
@@ -296,24 +524,30 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	{
 		Intent.Ability = AbilityId;
 
-		// Un'abilita' che si applica a chi la usa (`bSelfTarget`) resta SENZA bersaglio: e' cosi' che il formato
-		// la esprime (`AbilityResolvesOnSelf`, `#2283`, che legge lo stesso flag), e un intent che nomina come
-		// bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se stessa»*. Scriverci
-		// `CASTER` mandava in ERROR ogni azione `bSelfTarget` offerta dal Lab, generiche e di kit (`#3472`).
-		if (Def.bSelfTarget)
+		switch (Choice.Kind)
 		{
-			// nessun bersaglio
-		}
-		else if (Def.bCreatesSurface || Def.StructureOp != ERTStructureOp::None)
-		{
-			// Le azioni che POSANO qualcosa non colpiscono un'unita': indirizzano una cella. Il Lab non sceglie
-			// quale bordo o quale faccia — quello e' authoring, e non e' di questa fetta.
-			Intent.TargetCell = Spec.TargetCell;
+		// Nessun bersaglio: e' cosi' che il formato esprime un'azione su chi la usa (`AbilityResolvesOnSelf`, `#2283`),
+		// e un intent che nomina come bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se
+		// stessa»* (`#3472`).
+		case ERTAbilityLabTarget::None:
+			break;
+		case ERTAbilityLabTarget::Cell:
+			Intent.TargetCell = Choice.Cell;
 			Intent.bTargetsCell = true;
-		}
-		else
-		{
+			break;
+		// Un bordo: la cella, e il lato che il resolver legge per una struttura (CP 9.5).
+		case ERTAbilityLabTarget::Edge:
+			Intent.TargetCell = Choice.Cell;
+			Intent.bTargetsCell = true;
+			Intent.CoverEdge = Choice.Edge;
+			Intent.bHasCoverEdge = true;
+			break;
+		case ERTAbilityLabTarget::Enemy:
+		case ERTAbilityLabTarget::Ally:
+		case ERTAbilityLabTarget::Auto: // non succede: `ChooseTarget` lo risolve sempre
+		default:
 			Intent.Target = TEXT("TARGET");
+			break;
 		}
 	}
 
@@ -329,9 +563,9 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Played.Value = 1;
 	Scenario.Expect.Add(Played);
 
-	// La validita' geometrica della posa (celle dentro `MapRadius`, bersaglio a portata) la decide
-	// l'harness. Ricontrollarla qui vorrebbe dire portare aritmetica esagonale dentro il Lab, cioe'
-	// esattamente la seconda risposta che questo file esiste per non dare.
+	// La validita' geometrica della posa (celle dentro `MapRadius`, bersaglio a portata) la decide l'harness.
+	// `ChooseTarget` usa la geometria esagonale condivisa (`URTHexLibrary`) solo per SCEGLIERE dove posare la mira
+	// (`#4072`); rifiutare qui una posa vorrebbe dire dare la seconda risposta che questo file esiste per non dare.
 	OutScenario = Scenario;
 	return true;
 }

@@ -24,6 +24,9 @@
 #include "ScenarioHarness/Authoring/RTTestScenario.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Ability/RTEquipmentData.h"   // la copertura portatile, per il bersaglio sul bordo (#4072)
+#include "Turn/Log/RTTurnLog.h"
+#include "Turn/Log/RTTurnLogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -853,6 +856,378 @@ bool FRTAbilityLabRecognisesItsScenesTest::RunTest(const FString&)
 	TestFalse(TEXT("ne' uno scenario del corpus"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("Visual.Reaction.Deflection")));
 	TestFalse(TEXT("ne' l'Id vuoto"), URTAbilityLabLibrary::IsLabScenarioId(FString()));
 	TestEqual(TEXT("e la velocita' del banco e' x0,5"), URTAbilityLabLibrary::BenchPlaybackSpeed(), 0.5f);
+	return true;
+}
+
+// =====================================================================================================
+// `#4072` — il bersaglio adatto ([D-607] (2)). La FORMA la decide `URTPointerLibrary::TargetKindForAction`, il LATO di
+// un'unita' gli effetti dell'azione (`BenefitsItsRecipient`); la spec del banco puo' forzarli.
+//
+// 🔑 **La posa e' quella di default del banco**, la stessa del pannello: chi lancia in (0,0), il secondo eroe in (2,0),
+// mappa di raggio 3. Un test con una posa scelta apposta direbbe poco della scena che l'autore guarda.
+// =====================================================================================================
+
+namespace RTAbilityLabTestsInternal
+{
+	/** Il `Def` e la forma di un'azione di kit, come li impugna l'eroe. `false` se il roster non la porta. */
+	bool FindKitAction(const FName& AbilityId, FRTActionDef& OutDef, ERTAbilityShape& OutShape)
+	{
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (!Hero) { continue; }
+			for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+			{
+				if (Ptr && Ptr->Def.ActionId == AbilityId)
+				{
+					OutDef = Ptr->Def;
+					OutShape = Ptr->Shape;
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Il `Def` e la forma di una generica, dall'istanza che ogni unita' riceve (`MakeGenericActions`). */
+	bool FindGenericAction(const FName& AbilityId, FRTActionDef& OutDef, ERTAbilityShape& OutShape)
+	{
+		for (const URTActionData* A : URTCatalogLibrary::MakeGenericActions(GetTransientPackage()))
+		{
+			if (A && A->Def.ActionId == AbilityId)
+			{
+				OutDef = A->Def;
+				OutShape = A->Shape;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	FString TargetName(ERTAbilityLabTarget Kind)
+	{
+		return StaticEnum<ERTAbilityLabTarget>()->GetNameStringByValue(static_cast<int64>(Kind));
+	}
+
+	void TestTargetKind(FAutomationTestBase& Test, const FString& What, ERTAbilityLabTarget Actual, ERTAbilityLabTarget Expected)
+	{
+		Test.TestEqual(What, TargetName(Actual), TargetName(Expected));
+	}
+
+	/** Tutte le voci del TurnLog della run. */
+	TArray<FRTTurnLogEntry> RunEntries(const FRTTestResult& Result)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		for (const FRTTurnTrace& Trace : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Entries;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Trace.Bytes, Entries)) { Out.Append(Entries); }
+		}
+		return Out;
+	}
+
+	/** Un campo intero di un'unita' prima e dopo la run, dal diff di stato. `false` se il diff non lo porta. */
+	bool FieldBeforeAfter(const FRTTestResult& Result, const FString& ScenarioUnitId, const FName& Field,
+		int32& OutBefore, int32& OutAfter)
+	{
+		for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+		{
+			const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+			if (!Authoring || *Authoring != ScenarioUnitId) { continue; }
+			for (const FRTUnitFieldChange& C : Diff.Changes)
+			{
+				if (C.Field == Field)
+				{
+					OutBefore = FCString::Atoi(*C.Before);
+					OutAfter = FCString::Atoi(*C.After);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	bool HasEnvironmentEvent(const TArray<FRTTurnLogEntry>& Entries, ERTEnvironmentOutcome Outcome)
+	{
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category == ERTLogCategory::Environment && E.Outcome == static_cast<uint8>(Outcome)) { return true; }
+		}
+		return false;
+	}
+}
+
+/**
+ * **La scelta del bersaglio, un caso per tipo** (`#4072`): un attacco mira un nemico, una cura un alleato, un'area una
+ * cella vuota, la copertura portatile il bordo verso chi lancia, `Action.Interact` il bordo con la porta, una generica
+ * su se stessi nessuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabChoosesTheTargetFromTheActionTest,
+	"RefactorTactics.AbilityLab.ChoosesTheTargetFromTheAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabChoosesTheTargetFromTheActionTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	const FRTAbilityLabFixtureSpec Spec;
+	FRTActionDef Def;
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Aevik.LinearDischarge"), Def, Shape)))
+	{
+		TestTargetKind(*this, TEXT("LinearDischarge: un nemico"), URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec).Kind,
+			ERTAbilityLabTarget::Enemy);
+	}
+
+	// La cura di catalogo: nessun eroe la impugna col suo id, ma la regola si legge dal suo `Def`.
+	const FRTActionDef Heal = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
+	if (TestEqual(TEXT("premessa: Action.Heal e' nel catalogo"), Heal.ActionId, FName(TEXT("Action.Heal"))))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Heal, ERTAbilityShape::Single, Spec);
+		TestTargetKind(*this, TEXT("Action.Heal: un alleato"), C.Kind, ERTAbilityLabTarget::Ally);
+		TestTrue(TEXT("Action.Heal: nella squadra di chi lancia"), C.bSecondHeroIsAlly);
+	}
+
+	// Un'area: una cella VUOTA a portata, oltre il bersaglio sulla linea da chi lancia.
+	if (TestTrue(TEXT("premessa: Overload e' nel kit"), FindKitAction(TEXT("Hero.Aevik.Overload"), Def, Shape))
+		&& TestTrue(TEXT("premessa: Overload e' un'area"), Shape == ERTAbilityShape::Area))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
+		TestTargetKind(*this, TEXT("Overload: una cella"), C.Kind, ERTAbilityLabTarget::Cell);
+		TestTrue(FString::Printf(TEXT("Overload: la cella oltre il bersaglio, (3,0) (e' %s)"), *C.Cell.ToString()),
+			C.Cell == FRTCellId(3, 0));
+		TestFalse(TEXT("Overload: un'area che fa danno prende un nemico"), C.bSecondHeroIsAlly);
+	}
+
+	// Una cura ad area: una cella, e il secondo eroe e' un alleato.
+	if (TestTrue(TEXT("premessa: CircularTide e' nel kit"), FindKitAction(TEXT("Hero.Muiren.CircularTide"), Def, Shape)))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
+		TestTargetKind(*this, TEXT("CircularTide: una cella"), C.Kind, ERTAbilityLabTarget::Cell);
+		TestTrue(TEXT("CircularTide: la cura ad area prende un alleato"), C.bSecondHeroIsAlly);
+	}
+
+	// La copertura portatile: l'azione che il gadget concede, sul bordo della cella del bersaglio rivolto a chi lancia.
+	const URTEquipmentData* Gadget = URTCatalogLibrary::MakePortableCoverGadget();
+	const FRTActionDef Cover = Gadget ? URTCatalogLibrary::FindCoreAction(Gadget->GrantedActionId) : FRTActionDef();
+	if (TestTrue(TEXT("premessa: il gadget concede un'azione di catalogo"), !Cover.ActionId.IsNone()))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Cover, ERTAbilityShape::Single, Spec);
+		TestTargetKind(*this, TEXT("Gadget.PortableCover: un bordo"), C.Kind, ERTAbilityLabTarget::Edge);
+		TestTrue(FString::Printf(TEXT("Gadget.PortableCover: sulla cella del bersaglio (e' %s)"), *C.Cell.ToString()),
+			C.Cell == Spec.TargetCell);
+		TestTrue(TEXT("Gadget.PortableCover: il lato rivolto a chi lancia, W"), C.Edge == ERTHexDirection::W);
+		TestFalse(TEXT("Gadget.PortableCover: nessuna porta"), C.bPlacesDoor);
+	}
+
+	// `Action.Interact` ha portata 1: il bordo e' sulla cella accanto a chi lancia, e la scena posa la porta.
+	if (TestTrue(TEXT("premessa: Interact e' una generica"), FindGenericAction(TEXT("Action.Interact"), Def, Shape)))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
+		TestTargetKind(*this, TEXT("Action.Interact: un bordo"), C.Kind, ERTAbilityLabTarget::Edge);
+		TestTrue(FString::Printf(TEXT("Action.Interact: la cella accanto a chi lancia, (1,0) (e' %s)"), *C.Cell.ToString()),
+			C.Cell == FRTCellId(1, 0));
+		TestTrue(TEXT("Action.Interact: il lato rivolto a chi lancia, W"), C.Edge == ERTHexDirection::W);
+		TestTrue(TEXT("Action.Interact: la scena posa la porta"), C.bPlacesDoor);
+		TestTrue(TEXT("Action.Interact: la porta dalla parte di chi lancia, (0,0) E"),
+			C.DoorCell == Spec.CasterCell && C.DoorEdge == ERTHexDirection::E);
+	}
+
+	if (TestTrue(TEXT("premessa: Guard e' una generica"), FindGenericAction(TEXT("Action.Guard"), Def, Shape)))
+	{
+		TestTargetKind(*this, TEXT("Action.Guard: nessun bersaglio"), URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec).Kind,
+			ERTAbilityLabTarget::None);
+	}
+
+	// Una REAZIONE che riduce il danno la provoca un nemico: la riduzione la riceve chi reagisce, non il bersaglio.
+	if (TestTrue(TEXT("premessa: Deflection e' nel kit"), FindKitAction(TEXT("Hero.Ivrin.Deflection"), Def, Shape))
+		&& TestTrue(TEXT("premessa: Deflection e' una reazione"), Def.Slot == ERTActionSlot::Reaction)
+		&& TestTrue(TEXT("premessa: e i suoi effetti, da soli, farebbero bene"), URTAbilityLabLibrary::BenefitsItsRecipient(Def)))
+	{
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
+		TestTargetKind(*this, TEXT("Deflection: un nemico"), C.Kind, ERTAbilityLabTarget::Enemy);
+		TestFalse(TEXT("Deflection: il secondo eroe non e' un alleato"), C.bSecondHeroIsAlly);
+	}
+
+	// Il bersaglio sul bordo della mappa: la cella oltre esce, e si ripiega su quella PRIMA del bersaglio, non su quella
+	// accanto a chi lancia (che metterebbe chi lancia nell'area e il bersaglio fuori).
+	if (FindKitAction(TEXT("Hero.Aevik.Overload"), Def, Shape))
+	{
+		FRTAbilityLabFixtureSpec AlBordo;
+		AlBordo.TargetCell = FRTCellId(3, 0);
+		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, AlBordo);
+		TestTrue(FString::Printf(TEXT("Overload col bersaglio in (3,0): la cella prima, (2,0) (e' %s)"), *C.Cell.ToString()),
+			C.Cell == FRTCellId(2, 0));
+	}
+
+	// La portata minima conta come la conta il resolver: nessuna delle due celle accanto al bersaglio e' abbastanza
+	// lontana, e si resta sulla cella del bersaglio.
+	FRTActionDef Mortaio;
+	Mortaio.RangeCells = 5;
+	Mortaio.MinRangeCells = 4;
+	const FRTAbilityLabTargetChoice Lontano = URTAbilityLabLibrary::ChooseTarget(Mortaio, ERTAbilityShape::Area, Spec);
+	TestTrue(FString::Printf(TEXT("portata minima 4: nessuna cella accanto al bersaglio va bene, resta (2,0) (e' %s)"),
+		*Lontano.Cell.ToString()), Lontano.Cell == Spec.TargetCell);
+
+	// La regola dell'alleato, sui casi di confine: tutti gli effetti devono fare bene, e ce ne deve essere almeno uno.
+	FRTActionDef Misto;
+	Misto.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 10), FRTActionEffectSpec(ERTActionEffect::Damage, 10) };
+	FRTActionDef Vuoto;
+	FRTActionDef Scudo;
+	Scudo.Effects = { FRTActionEffectSpec(ERTActionEffect::Shield, 10), FRTActionEffectSpec(ERTActionEffect::CancelStatus, 0) };
+	TestTrue(TEXT("scudo e purificazione fanno bene"), URTAbilityLabLibrary::BenefitsItsRecipient(Scudo));
+	TestFalse(TEXT("cura e danno insieme non sono un aiuto"), URTAbilityLabLibrary::BenefitsItsRecipient(Misto));
+	TestFalse(TEXT("un'azione senza effetti non e' un aiuto"), URTAbilityLabLibrary::BenefitsItsRecipient(Vuoto));
+	return true;
+}
+
+/**
+ * **La forzatura** (`#4072`, [D-607] (2)): la spec sceglie il bersaglio a mano, e la scena lo segue — la squadra del
+ * secondo eroe e l'intento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabTheSpecForcesTheTargetTest,
+	"RefactorTactics.AbilityLab.TheSpecForcesTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabTheSpecForcesTheTargetTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	const FName Attacco(TEXT("Hero.Aevik.LinearDischarge"));
+	FRTActionDef Def;
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+	if (!TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(Attacco, Def, Shape))) { return false; }
+
+	for (const ERTAbilityLabTarget Forzato : { ERTAbilityLabTarget::Enemy, ERTAbilityLabTarget::Ally, ERTAbilityLabTarget::Cell,
+		ERTAbilityLabTarget::Edge, ERTAbilityLabTarget::None })
+	{
+		FRTAbilityLabFixtureSpec Spec;
+		Spec.Target = Forzato;
+		TestTargetKind(*this, FString::Printf(TEXT("forzato %s"), *TargetName(Forzato)),
+			URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec).Kind, Forzato);
+	}
+
+	// La scena segue la forzatura: un attacco forzato su un alleato posa il secondo eroe nella squadra di chi lancia.
+	FRTAbilityLabFixtureSpec SuAlleato;
+	SuAlleato.Target = ERTAbilityLabTarget::Ally;
+	FRTTestScenario Scenario;
+	FString Errore;
+	if (TestTrue(TEXT("la scena forzata si costruisce"), URTAbilityLabLibrary::BuildFixture(Attacco, SuAlleato, Scenario, Errore))
+		&& TestEqual(TEXT("tre unita': chi lancia, l'alleato e un terzo eroe contro"), Scenario.Units.Num(), 3))
+	{
+		TestEqual(TEXT("il secondo eroe e' nella squadra di chi lancia"), Scenario.Units[1].TeamId, Scenario.Units[0].TeamId);
+		TestEqual(TEXT("e l'intento lo mira"), Scenario.Turns[0].Intents[0].Target, FString(TEXT("TARGET")));
+		// Senza una seconda squadra la partita finirebbe al primo Cleanup, e in PIE si aprirebbe il risultato.
+		TestNotEqual(TEXT("il terzo eroe e' dell'altra squadra"), Scenario.Units[2].TeamId, Scenario.Units[0].TeamId);
+		TestTrue(TEXT("e non sta su nessuna delle due celle della scena"),
+			Scenario.Units[2].Cell != Scenario.Units[0].Cell && Scenario.Units[2].Cell != Scenario.Units[1].Cell);
+	}
+
+	// «Nessuno» forzato su un'azione che chiede un bersaglio: fail closed, come un id sconosciuto. L'harness la
+	// rifiuterebbe alla run, dopo aver posato una scena che non poteva girare.
+	FRTAbilityLabFixtureSpec Senza;
+	Senza.Target = ERTAbilityLabTarget::None;
+	FRTTestScenario Nessuno;
+	Errore.Reset();
+	TestFalse(TEXT("«nessuno» su un attacco non si costruisce"), URTAbilityLabLibrary::BuildFixture(Attacco, Senza, Nessuno, Errore));
+	TestTrue(FString::Printf(TEXT("e il rifiuto nomina l'azione (%s)"), *Errore), Errore.Contains(Attacco.ToString()));
+	TestEqual(TEXT("fail closed: nessuna unita' posata"), Nessuno.Units.Num(), 0);
+
+	// Su un'azione su se stessi «nessuno» e' la sua forma, e la scena si costruisce.
+	FRTTestScenario Guardia;
+	TestTrue(TEXT("«nessuno» su Guard si costruisce"),
+		URTAbilityLabLibrary::BuildFixture(TEXT("Action.Guard"), Senza, Guardia, Errore));
+	return true;
+}
+
+/**
+ * **Ogni tipo di bersaglio gira nell'harness, e la skill agisce** (`#4072`): nessun ERROR, un turno giocato, e l'effetto
+ * dove deve stare — la vita del nemico scende, lo scudo dell'alleato sale, l'area prende il bersaglio, la copertura nasce,
+ * la porta si apre, la generica lascia la sua voce.
+ *
+ * ⚠️ **Le azioni sono di kit o generiche**, perche' il banco esegue solo cio' che un'unita' impugna: `Action.Heal` e il
+ * gadget li prova il test sopra sulla scelta. Qui l'alleato lo prende `Hero.Muiren.CircularTide`, una cura ad area:
+ * nei kit non c'e' un aiuto su un'altra unita' singola (`TideGuard` e `PhaseGuard` derivano da `Action.Shield`, che e'
+ * su se stessi). Il bordo lo prende `Hero.Branth.KineticPanel`, che dichiara la stessa `StructureOp` del gadget.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEachTargetKindRunsAndActsTest,
+	"RefactorTactics.AbilityLab.EachTargetKindRunsAndActs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+
+	auto Esegui = [this](const TCHAR* AbilityId, FRTTestScenario& OutScenario, FRTTestResult& OutResult) -> bool
+	{
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(AbilityId), FRTAbilityLabFixtureSpec(), OutScenario, Errore);
+		if (!TestTrue(FString::Printf(TEXT("%s: la scena si costruisce (%s)"), AbilityId, *Errore), bCostruita))
+		{
+			return false;
+		}
+		OutResult = RunFixture(*this, OutScenario);
+		const bool bOk = TestFalse(FString::Printf(TEXT("%s: nessun ERROR (%s)"), AbilityId, *OutResult.ErrorMessage),
+			OutResult.Outcome == ERTTestOutcome::Error);
+		TestEqual(FString::Printf(TEXT("%s: un turno giocato"), AbilityId), OutResult.TurnsPlayed, 1);
+		return bOk;
+	};
+
+	FRTTestScenario Scenario;
+	FRTTestResult Result;
+	int32 Prima = 0;
+	int32 Dopo = 0;
+
+	// Nemico: la vita del bersaglio scende.
+	if (Esegui(TEXT("Hero.Aevik.LinearDischarge"), Scenario, Result))
+	{
+		TestTrue(TEXT("LinearDischarge: la vita del nemico scende"),
+			FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo < Prima);
+	}
+
+	// Alleato: una cura ad area, che e' l'unico aiuto su un'altra unita' che un eroe impugna. L'alleato e' ferito, e la
+	// sua vita sale.
+	if (Esegui(TEXT("Hero.Muiren.CircularTide"), Scenario, Result))
+	{
+		TestEqual(TEXT("CircularTide: il secondo eroe e' un alleato"), Scenario.Units[1].TeamId, Scenario.Units[0].TeamId);
+		TestTrue(TEXT("CircularTide: e' ferito, o la cura non si vedrebbe"), Scenario.Units[1].Health > 0);
+		TestTrue(TEXT("CircularTide: c'e' una seconda squadra"),
+			Scenario.Units.Num() == 3 && Scenario.Units[2].TeamId != Scenario.Units[0].TeamId);
+		TestTrue(TEXT("CircularTide: la vita dell'alleato sale"),
+			FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo > Prima);
+	}
+
+	// Cella: l'area centrata oltre il bersaglio lo prende.
+	if (Esegui(TEXT("Hero.Aevik.Overload"), Scenario, Result))
+	{
+		TestTrue(TEXT("Overload: mira una cella"), Scenario.Turns[0].Intents[0].bTargetsCell);
+		TestTrue(TEXT("Overload: l'area prende il nemico"),
+			FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo < Prima);
+	}
+
+	// Bordo: la copertura nasce.
+	if (Esegui(TEXT("Hero.Branth.KineticPanel"), Scenario, Result))
+	{
+		TestTrue(TEXT("KineticPanel: dichiara il bordo"), Scenario.Turns[0].Intents[0].bHasCoverEdge);
+		TestTrue(TEXT("KineticPanel: la copertura nasce"), HasEnvironmentEvent(RunEntries(Result), ERTEnvironmentOutcome::CoverCreated));
+	}
+
+	// Porta: la scena la posa chiusa, e l'interazione la apre.
+	if (Esegui(TEXT("Action.Interact"), Scenario, Result))
+	{
+		TestEqual(TEXT("Interact: la scena posa una porta"), Scenario.Doors.Num(), 1);
+		TestTrue(TEXT("Interact: la porta si apre"), HasEnvironmentEvent(RunEntries(Result), ERTEnvironmentOutcome::DoorOpened));
+	}
+
+	// Nessun bersaglio: chi lancia si mette in guardia. La voce di stato porta il TAG dello stato, non l'id dell'azione.
+	if (Esegui(TEXT("Action.Guard"), Scenario, Result))
+	{
+		const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
+		TestTrue(TEXT("Guard: l'intento non mira niente"), I.Target.IsEmpty() && !I.bTargetsCell);
+		bool bInGuardia = false;
+		for (const FRTTurnLogEntry& E : RunEntries(Result))
+		{
+			bInGuardia |= E.Category == ERTLogCategory::Status
+				&& E.Outcome == static_cast<uint8>(ERTStatusOutcome::AppliedByAction)
+				&& E.ActionId == FName(TEXT("Status.Guarded")) && E.SrcCell == Scenario.Units[0].Cell;
+		}
+		TestTrue(TEXT("Guard: chi lancia prende Status.Guarded da un'azione"), bInGuardia);
+	}
 	return true;
 }
 

@@ -51,10 +51,10 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 | 1 | `Hero.Aevik.LinearDischarge` | nemico | l'header dice «Velocità: x0.5»; il fumetto col nome del kit, per circa 6 s reali (3 s di playback), sopra il nome e senza coprirlo; la riga nel Registro; `K` lo ferma; con `Tab` si legge nel Registro | `PIE-LAB-PASSO` (5), `PIE-HUD-FUMETTO` (a)(h)(e)(e′)(L2), `PIE-HUD-REGISTRO-ATTIVA` (a)(b) |
 | 2 | `Hero.Branth.ImpactShot` | nemico | anche l'attacco base grida | FUMETTO (g), REGISTRO (d) |
 | 3 | `Action.Guard` | nessuno | anche una generica grida | FUMETTO (g) |
-| 4 | `Gadget.PortableCover` | bordo | anche l'equipaggiamento grida | FUMETTO (g), REGISTRO (d) |
-| 5 | `Action.Heal` | alleato | grida, e compare «+N» sull'alleato | FUMETTO (g) |
+| 4 | `Hero.Branth.KineticPanel` | bordo, verso chi lancia | anche un'azione su un bordo grida, e la copertura compare | FUMETTO (g), REGISTRO (d) |
+| 5 | `Hero.Muiren.CircularTide` | alleato ferito, in un'area | grida, e compare «+N» sull'alleato | FUMETTO (g) |
 | 6 | `Hero.Ivrin.PassingBlade` | nemico sulla traiettoria | grida nel Dash, poi scatta | FUMETTO (g), `PIE-LAB-PASSO` (0) |
-| 7 | `Action.Move`, `Action.Interact` | cella, porta | **non** gridano; l'interazione ha la sua riga | FUMETTO (k), REGISTRO (d) |
+| 7 | `Action.Interact` | il bordo con la porta | **non** grida; l'interazione ha la sua riga, e la porta si apre | FUMETTO (k), REGISTRO (d) |
 | 8 | `Counter`, `Deflect`, `Intercept` | provocate | il fumetto all'arrivo del colpo; la parata si legge come una difesa; il colpo cambia destinatario | FUMETTO (j), `PIE-VIS-DEFLECT`, `PIE-VIS-INTERPOSE` |
 | 9 | `Brace` con la finestra | spinto | la risposta grida dopo la finestra, e il playback torna a x0,5 | FUMETTO (i)(j), `PIE-V01-RXBRACE` |
 | 10 | `Overwatch`, anche con un bersaglio non visto | entra nella linea | il fumetto quando il bersaglio arriva sulla cella | FUMETTO (j) |
@@ -66,6 +66,12 @@ La pilota l'autore dal pannello del Lab in PIE ([`D-607`](../../decisions/RT_PDR
 
 - `PIE-HUD-FUMETTO` (c), il nemico fuori vista; (d), due attivazioni nello stesso istante; (f);
 - `PIE-HUD-REGISTRO-ATTIVA` (c).
+
+**Fuori dal banco**, perché il banco esegue solo ciò che un'unità impugna, cioè il kit dell'eroe e le generiche di `URTCatalogLibrary::GetGenericActionIds` (`Action.Wait`, `Action.Guard`, `Action.Brace`, `Action.Overwatch`, `Action.Interact`). Lo ha misurato [#4072](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4072):
+
+- `Gadget.PortableCover`, la scena 4 di prima («anche l'equipaggiamento grida»): un equipaggiamento non è una voce del banco. La scena 4 usa ora `Hero.Branth.KineticPanel`, che dichiara la stessa `StructureOp`, ma non prova che l'*equipaggiamento* gridi;
+- `Action.Heal`, la scena 5 di prima: nessun eroe la impugna col suo id, e nei kit non c'è un aiuto su un'altra unità singola. La scena 5 usa la cura ad area `Hero.Muiren.CircularTide`, con l'alleato ferito dentro l'area;
+- `Action.Move`, metà della scena 7: non è una generica. Che il passo non gridi lo si guarda in una partita.
 
 Restano `NOT RUN`, scritti come tali.
 
