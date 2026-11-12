@@ -30,6 +30,7 @@
 #include "Turn/Reaction/RTReactionLibrary.h" // l'esito `Activated` di una reazione (#4073)
 #include "Unit/RTUnit.h"                      // tipo completo: l'header del controller assegna `TWeakObjectPtr<ARTUnit>`
 #include "Player/RTPlayerController.h"        // la finestra di reazione si apre al controller (#4073)
+#include "Map/RTHexLibrary.h"                  // la distanza della cella bloccata da una predittiva (#4088)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1351,6 +1352,21 @@ bool FRTAbilityLabReadsTheProvocationFromTheCatalogTest::RunTest(const FString&)
 		TestEqual(TEXT("un attacco non e' una reazione"), ProvocationName(URTAbilityLabLibrary::ProvocationFor(Def)),
 			ProvocationName(ERTAbilityLabProvocation::None));
 	}
+
+	// Ogni predittiva dei kit (`#4088`): il `TARGET` entra nella cella bloccata. Il catalogo, non un elenco di id.
+	int32 Predittive = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			if (!Ptr || Ptr->Def.PredictiveTargeting == ERTPredictiveTargeting::None) { continue; }
+			++Predittive;
+			TestEqual(FString::Printf(TEXT("%s: chi provoca entra nella cella"), *Ptr->Def.ActionId.ToString()),
+				ProvocationName(URTAbilityLabLibrary::ProvocationFor(Ptr->Def)), ProvocationName(ERTAbilityLabProvocation::EnterCell));
+		}
+	}
+	TestTrue(FString::Printf(TEXT("i kit hanno predittive (%d)"), Predittive), Predittive > 0);
 	return true;
 }
 
@@ -1476,6 +1492,101 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 		TestTrue(TEXT("Brace: ne va aperta una finestra (ReactionDecision/NoDecider)"),
 			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Brace"),
 				static_cast<int32>(ERTReactionDecisionOutcome::NoDecider)));
+	}
+	return true;
+}
+
+/**
+ * **La scena di una predittiva blocca una cella, e chi ci entra viene colpito** (`#4088`). Il banco mira una cella perche'
+ * il puntatore la chiede (`TargetKindForAction`), e fa entrare il `TARGET` (`ProvocationFor`): il TurnLog porta la
+ * previsione azzeccata, e la vita del `TARGET` scende.
+ *
+ * 🔴 Prima di `#4088` la scena di `InterceptShot` mirava un'unita': il turno non armava niente, e il banco restava verde
+ * perche' `EveryKitAbilityRunsWithoutError` guarda solo che la run non dia ERROR.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabThePredictiveCatchesWhoEntersTest,
+	"RefactorTactics.AbilityLab.ThePredictiveCatchesWhoEntersItsCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabThePredictiveCatchesWhoEntersTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	const FName Intercetto(TEXT("Hero.Ivrin.InterceptShot"));
+	const FRTAbilityLabFixtureSpec Posa;
+
+	FRTTestScenario Scenario;
+	FString Errore;
+	const bool bCostruita = URTAbilityLabLibrary::BuildFixture(Intercetto, Posa, Scenario, Errore);
+	if (!TestTrue(FString::Printf(TEXT("la scena si costruisce (%s)"), *Errore), bCostruita))
+	{
+		return false;
+	}
+
+	const FRTScenarioIntent* Blocca = IntentOf(Scenario, TEXT("CASTER"));
+	const FRTScenarioIntent* Entra = IntentOf(Scenario, TEXT("TARGET"));
+	if (!TestNotNull(TEXT("chi lancia ha un intento"), Blocca) || !TestNotNull(TEXT("il TARGET ha un intento"), Entra))
+	{
+		return false;
+	}
+	const FRTCellId Bloccata = Blocca->TargetCell;
+	TestTrue(TEXT("chi lancia usa InterceptShot su una CELLA"), Blocca->Ability == Intercetto && Blocca->bTargetsCell);
+	TestTrue(TEXT("che non e' quella di chi lancia ne' quella del TARGET"),
+		Bloccata != Posa.CasterCell && Bloccata != Posa.TargetCell);
+	TestTrue(TEXT("il TARGET ci entra, con un passo"), Entra->Move.Num() == 1 && Entra->Move[0] == Bloccata);
+	TestFalse(TEXT("una predittiva non apre finestre del giocatore"), Scenario.bPlayerReactionWindows);
+
+	const FRTTestResult Result = RunFixture(*this, Scenario);
+	TestFalse(FString::Printf(TEXT("nessun ERROR (%s)"), *Result.ErrorMessage), Result.Outcome == ERTTestOutcome::Error);
+	bool bAzzeccata = false;
+	for (const FRTTurnLogEntry& E : RunEntries(Result))
+	{
+		bAzzeccata |= E.Category == ERTLogCategory::Predictive && E.ActionId == Intercetto
+			&& E.Outcome == static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched) && E.TgtCell == Bloccata;
+	}
+	TestTrue(TEXT("la previsione si arma e colpisce chi entra (Predictive/TriggerMatched sulla cella)"), bAzzeccata);
+	int32 Prima = 0;
+	int32 Dopo = 0;
+	TestTrue(TEXT("la vita del TARGET scende"), FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo < Prima);
+
+	// Il bersaglio non si forza: un'unita' forzata pianificherebbe un colpo che il turno non arma.
+	{
+		FRTAbilityLabFixtureSpec Forzata;
+		Forzata.Target = ERTAbilityLabTarget::Enemy;
+		FRTTestScenario Rifiutata;
+		Errore.Reset();
+		TestFalse(TEXT("forzata su un nemico: non si costruisce"), URTAbilityLabLibrary::BuildFixture(Intercetto, Forzata, Rifiutata, Errore));
+		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(Intercetto.ToString()));
+	}
+
+	// Col TARGET accanto a chi lancia la linea offre solo la cella oltre, fuori portata 1, e quella di chi lancia: la scena
+	// blocca un'altra cella accanto al TARGET, a portata. E' la posa di `EveryKitAbilityRunsWithoutError`.
+	{
+		FRTAbilityLabFixtureSpec Accanto;
+		Accanto.TargetCell = FRTCellId(1, 0);
+		FRTTestScenario Vicina;
+		Errore.Reset();
+		const bool bVicina = URTAbilityLabLibrary::BuildFixture(Intercetto, Accanto, Vicina, Errore);
+		const FRTScenarioIntent* BloccaVicina = bVicina ? IntentOf(Vicina, TEXT("CASTER")) : nullptr;
+		if (TestTrue(FString::Printf(TEXT("TARGET accanto a chi lancia: la scena si costruisce (%s)"), *Errore), bVicina)
+			&& TestNotNull(TEXT("TARGET accanto a chi lancia: chi lancia ha un intento"), BloccaVicina))
+		{
+			const FRTCellId C = BloccaVicina->TargetCell;
+			TestTrue(TEXT("TARGET accanto a chi lancia: la cella bloccata non e' la sua, ne' quella di chi lancia"),
+				C != Accanto.TargetCell && C != Accanto.CasterCell);
+			TestEqual(TEXT("TARGET accanto a chi lancia: e' a portata"), URTHexLibrary::HexDistance(Accanto.CasterCell, C), 1);
+			TestEqual(TEXT("TARGET accanto a chi lancia: e accanto al TARGET"), URTHexLibrary::HexDistance(Accanto.TargetCell, C), 1);
+		}
+	}
+
+	// Col TARGET dove nessuna cella accanto a lui e' a portata, la scena rifiuta invece di bloccare la cella su cui il
+	// TARGET sta gia', che mancherebbe sempre.
+	{
+		FRTAbilityLabFixtureSpec Lontano;
+		Lontano.TargetCell = FRTCellId(3, 0);
+		FRTTestScenario Rifiutata;
+		Errore.Reset();
+		TestFalse(TEXT("TARGET lontano: non si costruisce"), URTAbilityLabLibrary::BuildFixture(Intercetto, Lontano, Rifiutata, Errore));
+		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(Intercetto.ToString()));
+		TestEqual(TEXT("fail closed: nessuna unita' posata"), Rifiutata.Units.Num(), 0);
 	}
 	return true;
 }

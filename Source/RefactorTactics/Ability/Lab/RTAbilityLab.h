@@ -93,7 +93,8 @@ enum class ERTAbilityLabTarget : uint8
 /**
  * Come il `TARGET` provoca una reazione nella scena del banco (`#4073`). Si legge dal CATALOGO, mai dall'id: dal
  * trigger dello slot reazione (`FRTActionDef::ReactionTrigger`), o dall'azione principale che arma una reazione
- * (`URTCatalogLibrary::ArmsReaction`: l'Overwatch) o che irrigidisce chi la usa (`Status.Braced`: il Brace).
+ * (`URTCatalogLibrary::ArmsReaction`: l'Overwatch), che irrigidisce chi la usa (`Status.Braced`: il Brace) o che predice
+ * (`PredictiveTargeting`: `InterceptShot`, `#4088`).
  *
  * ⚠️ Ogni provocazione e' un INTENTO dello scenario, eseguito dal resolver: il banco non applica effetti da se'.
  */
@@ -113,7 +114,9 @@ enum class ERTAbilityLabProvocation : uint8
 	/** `CellBecameHazardous`: il fuoco nasce sotto chi reagisce. ⛔ Nessuna unita' lo sa accendere ([D-046]). */
 	Hazard,
 	/** L'Overwatch: il `TARGET` entra nella linea di chi guarda. */
-	EnterLine
+	EnterLine,
+	/** Una predittiva (`PredictiveTargeting`): il `TARGET` entra nella cella bloccata (`#4088`). */
+	EnterCell
 };
 
 /**
@@ -246,7 +249,8 @@ public:
 	 * ERROR. Uno SCATTO (fase Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita'
 	 * (`#3773`). Una REAZIONE dello slot si arma (`Intent.Reaction`) e la provoca il `TARGET` (`ProvocationFor`,
 	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
-	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una.
+	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una. Una predittiva blocca la
+	 * cella di `ChooseTarget` e il `TARGET` ci entra (`#4088`); anche il suo bersaglio non si forza.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -270,6 +274,8 @@ public:
 	 * - **Una cella** e' vuota e a portata (`RangeCells` e `MinRangeCells`, come le legge il resolver), accanto al
 	 *   bersaglio sulla linea da chi lancia: prima oltre, cosi' un'area lo prende senza prendere chi lancia; poi prima.
 	 *   Se nessuna delle due va bene, la cella del bersaglio. Un'area i cui effetti fanno tutti bene prende un alleato.
+	 *   Una predittiva colpisce chi entra, e la cella del bersaglio per lei non va: al suo posto la prima cella accanto al
+	 *   bersaglio a portata, nell'ordine delle direzioni (`#4088`).
 	 * - **Un bordo** e' il lato della cella del bersaglio rivolto a chi lancia. Se il bersaglio e' oltre la portata,
 	 *   la cella e' quella accanto a chi lancia, verso il bersaglio: `Action.Interact` ha portata 1. Per un'azione che
 	 *   cambia una porta la scena posa una porta chiusa su quel bordo.
@@ -299,7 +305,8 @@ public:
 	 * sa provocarla da dove sta. Per `AllyHit` si posa un alleato accanto a chi reagisce. Il Brace lo impugna l'eroe per
 	 * cui la sua finestra si apre (`URTCatalogLibrary::BraceExecutableResponses`), e la scena dell'Overwatch e del Brace
 	 * apre le finestre di reazione del giocatore. `Control` e `Hazard` li ascoltano solo moduli d'equipaggiamento, che
-	 * il banco non esegue: per loro `BuildFixture` rifiuta.
+	 * il banco non esegue: per loro `BuildFixture` rifiuta. Una predittiva blocca la cella di `ChooseTarget`, e il `TARGET`
+	 * ci entra (`#4088`): senza, la scena registrerebbe solo un colpo mancato.
 	 */
 	static ERTAbilityLabProvocation ProvocationFor(const FRTActionDef& Def);
 

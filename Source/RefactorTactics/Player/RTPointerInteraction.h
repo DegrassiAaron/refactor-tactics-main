@@ -317,12 +317,14 @@ public:
 
 	/**
 	 * Che forma di bersaglio chiede questa azione. **Derivata dal catalogo, non un campo nuovo**: aggiungere
-	 * un `TargetKind` al dato avrebbe creato una seconda fonte di verita' accanto a `Shape`/`StructureOp`, che
-	 * gia' lo dicono.
+	 * un `TargetKind` al dato avrebbe creato una seconda fonte di verita' accanto a `Shape`/`StructureOp`/
+	 * `PredictiveTargeting`, che gia' lo dicono.
 	 *
 	 * - `bSelfTarget` -> `None`: si pianifica subito, non c'e' niente da puntare.
 	 * - `StructureOp != None` -> `Edge`: erigere o spostare una copertura agisce su un BORDO (CP 9.5), e il
 	 *   resolver rifiuta con `CoverRejected` se il piano non lo dichiara.
+	 * - `PredictiveTargeting != None` -> `Cell`: una predittiva blocca una cella e colpisce chi ci entra (D-016), e il
+	 *   turno la arma solo da un piano a cella (`#4088`). Viene prima della forma: `InterceptShot` e' `Single`.
 	 * - `Shape == Area` -> `Cell`: un'area si centra dove si vuole, anche su un varco vuoto. E' il caso che
 	 *   rende `PlannedAttackCell` raggiungibile dal giocatore.
 	 * - altrimenti -> `Unit`.

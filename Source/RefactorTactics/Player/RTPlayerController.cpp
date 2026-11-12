@@ -1853,6 +1853,18 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			return;
 		}
 
+		// Una PREDITTIVA chiede una cella (`URTPointerLibrary::TargetKindForAction`, `#4088`), e un'unita' sopra la cella
+		// non la ruba (spec del puntatore §4.1, conseguenza 2): il click sulla sua mesh e' il click sulla sua cella. Senza,
+		// pianificava un bersaglio-UNITA', e al lock-in il turno non armava niente (`Predictive.PlayerClickOnAUnitLocksItsCell`,
+		// misurato); il ramo della predittiva consuma l'azione lo stesso (`ConsumeAbility`).
+		// ⚠️ Solo la predittiva: un'AREA sulla mesh di un'unita' scrive ancora l'unita', che il Blast mira gia' sulla cella
+		// congelata al lock-in ([D-419]). Allinearla alla conseguenza 2 e' un'altra decisione, non questa.
+		if (Ability && Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None)
+		{
+			HandleClickOnCell(ClickedUnit->Cell);
+			return;
+		}
+
 		// Ogni altra mobilita' rapida si ferma DAVANTI alle unita': puntarne una non ha senso, e il rifiuto
 		// dice perche' invece di non fare niente.
 		if (Ability && URTCatalogLibrary::IsFastMovement(Ability->Def))
@@ -4300,7 +4312,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 		|| GetPointerTargetKind() != ERTPointerTargetKind::Cell)
 	{
 		// Il rifiuto e' DETTO: `Blocked` senza motivo e' un difetto, non un esito.
-		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella: nessuna azione ad area armata"));
+		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella: nessuna azione armata chiede una cella"));
 		return false;
 	}
 
@@ -4309,7 +4321,8 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	if (!Ability) { return false; }
 
 	// La legalita' la CHIEDE al servizio autorevole, non la calcola. Nota: si valida la CELLA, non l'unita'
-	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto.
+	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto, e una predittiva blocca la cella in cui
+	// qualcuno entrera' (`#4088`).
 	//
 	// ⌫ **Il valore di ritorno non si scarta piu'** (`#3064`): e' l'`ARTHexMapActor` su cui vive il tratto
 	// di tiro interrotto (`#2742`), e cercarlo una seconda volta piu' sotto sarebbe una seconda risposta

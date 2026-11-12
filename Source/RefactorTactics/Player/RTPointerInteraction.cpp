@@ -38,6 +38,14 @@ ERTPointerTargetKind URTPointerLibrary::TargetKindForAction(const FRTActionDef& 
 		return ERTPointerTargetKind::Edge;
 	}
 
+	// Una PREDITTIVA blocca una CELLA e colpisce chi ci entra (`LockCell`, D-016): il turno la arma solo da un piano a
+	// cella. ⚠️ Prima della forma, perche' `Hero.Ivrin.InterceptShot` e' `Shape::Single`: classificata `Unit`, il giocatore
+	// non aveva un gesto che la armasse (`#4088`, misurato).
+	if (Def.PredictiveTargeting != ERTPredictiveTargeting::None)
+	{
+		return ERTPointerTargetKind::Cell;
+	}
+
 	// Un'AREA si centra su una CELLA, che puo' essere vuota. E' la riga che rende `PlannedAttackCell`
 	// raggiungibile dal giocatore invece che dal solo harness.
 	if (Shape == ERTAbilityShape::Area)
