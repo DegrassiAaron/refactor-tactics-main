@@ -4,6 +4,8 @@
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/Lab/RTHeroLab.h"
+#include "Ability/RTEquipmentData.h"
+#include "Core/RTGameplayTags.h"   // `Status.Braced`: cio' che fa del Brace una reazione (`#4073`)
 #include "HAL/FileManager.h"
 #include "Map/RTHexLibrary.h"
 #include "Misc/Paths.h"
@@ -159,6 +161,105 @@ namespace RTAbilityLabInternal
 		return URTHexLibrary::Neighbor(Spec.CasterCell, URTHexLibrary::OppositeDirection(VersoIlBersaglio));
 	}
 
+	/**
+	 * L'attacco base EFFETTIVO di un eroe (`#4073`): quello del kit, con le varianti d'arma del loadout di default, che la
+	 * sessione monta su ogni unita' che non dichiara il suo. `Weapon.Impact` toglie una cella di portata e aggiunge la
+	 * spinta: e' cio' che fa di `Hero.Branth.ImpactShot` una spinta, e il suo `Def` da solo non lo dice.
+	 */
+	static bool EffectiveBasicAttack(const FName& HeroId, FRTActionDef& OutDef, ERTAbilityShape& OutShape)
+	{
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (!Hero || Hero->HeroId != HeroId) { continue; }
+			for (const TObjectPtr<URTActionData>& ActionPtr : Hero->Actions)
+			{
+				const URTActionData* Action = ActionPtr.Get();
+				if (!Action || Action->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
+				OutDef = Action->Def;
+				OutShape = Action->Shape;
+				for (const FName& Pezzo : URTCatalogLibrary::DefaultLoadoutFor(HeroId))
+				{
+					OutDef = URTCatalogLibrary::ApplyWeaponVariant(OutDef, URTCatalogLibrary::FindEquipment(Pezzo));
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Vero se l'attacco base effettivo di `HeroId` provoca `Provocation` da `Distance` celle, e allora `OutAttackId` e'
+	 * il suo id. Un colpo diretto vuole la forma `Single` (`FindTriggeringAttacker`), una spinta un effetto `Push`.
+	 */
+	static bool CanProvoke(const FName& HeroId, ERTAbilityLabProvocation Provocation, int32 Distance, FName& OutAttackId)
+	{
+		FRTActionDef Attacco;
+		ERTAbilityShape Forma = ERTAbilityShape::Single;
+		if (!EffectiveBasicAttack(HeroId, Attacco, Forma) || Attacco.RangeCells < Distance) { return false; }
+		bool bSpinge = false;
+		for (const FRTActionEffectSpec& Effect : Attacco.Effects) { bSpinge |= Effect.Effect == ERTActionEffect::Push; }
+
+		bool bProvoca = false;
+		switch (Provocation)
+		{
+		case ERTAbilityLabProvocation::DirectHit:
+		case ERTAbilityLabProvocation::AllyHit:
+			bProvoca = Forma == ERTAbilityShape::Single;
+			break;
+		case ERTAbilityLabProvocation::Push:
+			bProvoca = bSpinge;
+			break;
+		default:
+			break;
+		}
+		if (bProvoca) { OutAttackId = Attacco.ActionId; }
+		return bProvoca;
+	}
+
+	/** Chi provoca: `Preferred` se sa farlo, altrimenti il primo del roster che sa, fuori da `Excluded`. */
+	static FName ProvokerFor(ERTAbilityLabProvocation Provocation, int32 Distance, const FName& Preferred,
+		const TArray<FName>& Excluded, FName& OutAttackId)
+	{
+		if (!Preferred.IsNone() && !Excluded.Contains(Preferred) && CanProvoke(Preferred, Provocation, Distance, OutAttackId))
+		{
+			return Preferred;
+		}
+		for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+		{
+			if (!Excluded.Contains(HeroId) && CanProvoke(HeroId, Provocation, Distance, OutAttackId)) { return HeroId; }
+		}
+		return NAME_None;
+	}
+
+	/**
+	 * Il primo eroe del roster per cui la finestra del Brace si apre: almeno due risposte eseguibili, la stessa domanda
+	 * che fa il resolver (`URTCatalogLibrary::BraceExecutableResponses`). Oggi e' Muiren, con `Profile.Sidestep`.
+	 */
+	static FName FirstHeroWithBraceWindow()
+	{
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (Hero && URTCatalogLibrary::BraceExecutableResponses(Hero->ReactionProfileId).Num() >= 2) { return Hero->HeroId; }
+		}
+		return NAME_None;
+	}
+
+	/** La cella dell'alleato da proteggere (`AllyHit`): accanto a chi reagisce, fuori dalla linea verso il bersaglio. */
+	static FRTCellId AllyCellFor(const FRTAbilityLabFixtureSpec& Spec)
+	{
+		ERTHexDirection VersoIlBersaglio = ERTHexDirection::E;
+		URTHexLibrary::DirectionTowards(Spec.CasterCell, Spec.TargetCell, VersoIlBersaglio);
+		const ERTHexDirection Opposta = URTHexLibrary::OppositeDirection(VersoIlBersaglio);
+		for (const ERTHexDirection D : { ERTHexDirection::E, ERTHexDirection::NE, ERTHexDirection::NW, ERTHexDirection::W,
+			ERTHexDirection::SW, ERTHexDirection::SE })
+		{
+			if (D == VersoIlBersaglio || D == Opposta) { continue; }
+			const FRTCellId C = URTHexLibrary::Neighbor(Spec.CasterCell, D);
+			if (InLabMap(C, Spec.MapRadius) && C != Spec.TargetCell) { return C; }
+		}
+		return URTHexLibrary::Neighbor(Spec.CasterCell, Opposta);
+	}
+
 	/** Un eroe del roster diverso da entrambi. `NAME_None` se il roster non ne offre un terzo. */
 	static FName FirstHeroOtherThanBoth(const FName& A, const FName& B)
 	{
@@ -285,6 +386,36 @@ bool URTAbilityLabLibrary::BenefitsItsRecipient(const FRTActionDef& Def)
 	return true;
 }
 
+ERTAbilityLabProvocation URTAbilityLabLibrary::ProvocationFor(const FRTActionDef& Def)
+{
+	if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		switch (Def.ReactionTrigger)
+		{
+		case ERTReactionTrigger::HitByDirectAttack:     return ERTAbilityLabProvocation::DirectHit;
+		case ERTReactionTrigger::AllyHitByDirectAttack: return ERTAbilityLabProvocation::AllyHit;
+		case ERTReactionTrigger::AboutToBeDisplaced:    return ERTAbilityLabProvocation::Push;
+		case ERTReactionTrigger::AboutToReceiveControl: return ERTAbilityLabProvocation::Control;
+		case ERTReactionTrigger::CellBecameHazardous:   return ERTAbilityLabProvocation::Hazard;
+		default:                                        return ERTAbilityLabProvocation::None;
+		}
+	}
+	// Una principale che arma una reazione: la domanda del catalogo, non l'id (oggi risponde vero per l'Overwatch).
+	if (URTCatalogLibrary::ArmsReaction(Def))
+	{
+		return ERTAbilityLabProvocation::EnterLine;
+	}
+	// Una principale che irrigidisce chi la usa: il resolver la fa reagire a una spinta finche' dura `Status.Braced`.
+	for (const FRTActionEffectSpec& Effect : Def.Effects)
+	{
+		if (Effect.Effect == ERTActionEffect::Status && Effect.StatusTag == TAG_Status_Braced)
+		{
+			return ERTAbilityLabProvocation::Push;
+		}
+	}
+	return ERTAbilityLabProvocation::None;
+}
+
 FRTAbilityLabTargetChoice URTAbilityLabLibrary::ChooseTarget(const FRTActionDef& Def, ERTAbilityShape Shape,
 	const FRTAbilityLabFixtureSpec& Spec)
 {
@@ -409,11 +540,27 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		return false;
 	}
 
+	// La provocazione, se e' una reazione (`#4073`). ⛔ `Control` e `Hazard` li ascoltano solo moduli d'equipaggiamento:
+	// oggi non ci si arriva, e se ci si arrivasse il banco non saprebbe provocarli — lo `Slow` e' solo nel kit di Branth,
+	// il fuoco non lo accende nessuno ([D-046]). Fail closed invece di posare una reazione che non puo' scattare.
+	const ERTAbilityLabProvocation Provocazione = ProvocationFor(Def);
+	if (Provocazione == ERTAbilityLabProvocation::Control || Provocazione == ERTAbilityLabProvocation::Hazard)
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' reagisce a %s, e il banco non sa provocarlo con un intento."), *AbilityId.ToString(),
+			Provocazione == ERTAbilityLabProvocation::Control ? TEXT("uno stato di controllo") : TEXT("una cella che prende fuoco"));
+		return false;
+	}
+
 	// Una generica non appartiene a un eroe in particolare, perche' la portano tutti: la impugna il primo del
-	// roster. E' una scelta di POSA, non di bilanciamento.
-	const FName CasterHeroId = bIsCore
-		? RTAbilityLabInternal::FirstHeroOtherThan(NAME_None)
-		: OwnerHeroId;
+	// roster. E' una scelta di POSA, non di bilanciamento. Il Brace lo impugna invece chi ne apre la finestra: e' la
+	// finestra che la scena esiste per mostrare (`#4073`).
+	FName CasterHeroId = OwnerHeroId;
+	if (bIsCore)
+	{
+		CasterHeroId = Provocazione == ERTAbilityLabProvocation::Push ? RTAbilityLabInternal::FirstHeroWithBraceWindow() : NAME_None;
+		if (CasterHeroId.IsNone()) { CasterHeroId = RTAbilityLabInternal::FirstHeroOtherThan(NAME_None); }
+	}
 
 	if (CasterHeroId.IsNone())
 	{
@@ -435,6 +582,34 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		return false;
 	}
 
+	// Chi provoca (`#4073`): un eroe il cui attacco base effettivo arriva da dove sta e provoca questa reazione.
+	FName AttaccoProvocatore = NAME_None;
+	FName AllyHeroId = NAME_None;
+	const FRTCellId AllyCell = RTAbilityLabInternal::AllyCellFor(Spec);
+	const bool bProvocaConUnColpo = Provocazione == ERTAbilityLabProvocation::DirectHit
+		|| Provocazione == ERTAbilityLabProvocation::AllyHit || Provocazione == ERTAbilityLabProvocation::Push;
+	if (bProvocaConUnColpo)
+	{
+		const FRTCellId Colpito = Provocazione == ERTAbilityLabProvocation::AllyHit ? AllyCell : Spec.CasterCell;
+		TargetHeroId = RTAbilityLabInternal::ProvokerFor(Provocazione, URTHexLibrary::HexDistance(Spec.TargetCell, Colpito),
+			TargetHeroId, { CasterHeroId }, AttaccoProvocatore);
+		if (TargetHeroId.IsNone())
+		{
+			OutError = FString::Printf(TEXT("Nessun eroe del roster sa provocare '%s' da %s col suo attacco base."),
+				*AbilityId.ToString(), *Spec.TargetCell.ToString());
+			return false;
+		}
+	}
+	if (Provocazione == ERTAbilityLabProvocation::AllyHit)
+	{
+		AllyHeroId = RTAbilityLabInternal::FirstHeroOtherThanBoth(CasterHeroId, TargetHeroId);
+		if (AllyHeroId.IsNone())
+		{
+			OutError = TEXT("Il roster non offre un terzo eroe da proteggere.");
+			return false;
+		}
+	}
+
 	FRTTestScenario Scenario;
 	Scenario.ScenarioId = FString(RTAbilityLabInternal::LabScenarioPrefix) + AbilityId.ToString();
 	Scenario.Seed = Spec.Seed;
@@ -446,6 +621,11 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Caster.HeroId = CasterHeroId;
 	Caster.TeamId = 0;
 	Caster.Cell = Spec.CasterCell;
+	// Chi guarda (l'Overwatch) guarda verso il bersaglio: la sua linea parte dal verso (ADR-0005 §4c).
+	if (Provocazione == ERTAbilityLabProvocation::EnterLine)
+	{
+		URTHexLibrary::DirectionTowards(Spec.CasterCell, Spec.TargetCell, Caster.Facing);
+	}
 	Scenario.Units.Add(Caster);
 
 	// Il bersaglio adatto (`#4072`, [D-607] (2)). Uno scatto non ne ha uno: si dichiara con la sua cella d'arrivo.
@@ -520,6 +700,12 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		Intent.Dash = AbilityId;
 		Intent.DashCell = Spec.DashCell;
 	}
+	else if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		// Una REAZIONE si arma, non si usa (`#4073`): scritta come principale, girava come un attacco e la reazione non
+		// scattava mai.
+		Intent.Reaction = AbilityId;
+	}
 	else
 	{
 		Intent.Ability = AbilityId;
@@ -553,6 +739,50 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 
 	FRTScenarioTurn Turn;
 	Turn.Intents.Add(Intent);
+
+	// La PROVOCAZIONE (`#4073`): un intento del `TARGET`, eseguito dal resolver come ogni altro.
+	if (Provocazione != ERTAbilityLabProvocation::None)
+	{
+		FRTScenarioIntent Provoca;
+		Provoca.UnitId = TEXT("TARGET");
+		switch (Provocazione)
+		{
+		case ERTAbilityLabProvocation::DirectHit:
+		case ERTAbilityLabProvocation::Push:
+			Provoca.Ability = AttaccoProvocatore;
+			Provoca.Target = TEXT("CASTER");
+			break;
+		case ERTAbilityLabProvocation::AllyHit:
+		{
+			// L'alleato da proteggere, accanto a chi reagisce: il `TARGET` colpisce lui.
+			FRTScenarioUnit Ally;
+			Ally.Id = TEXT("ALLY");
+			Ally.HeroId = AllyHeroId;
+			Ally.TeamId = 0;
+			Ally.Cell = AllyCell;
+			Scenario.Units.Add(Ally);
+			Provoca.Ability = AttaccoProvocatore;
+			Provoca.Target = TEXT("ALLY");
+			break;
+		}
+		case ERTAbilityLabProvocation::EnterLine:
+		{
+			// Un passo verso chi guarda: la cella accanto al bersaglio dalla sua parte, dentro la linea.
+			ERTHexDirection VersoChiGuarda = ERTHexDirection::W;
+			URTHexLibrary::DirectionTowards(Spec.TargetCell, Spec.CasterCell, VersoChiGuarda);
+			Provoca.Move.Add(URTHexLibrary::Neighbor(Spec.TargetCell, VersoChiGuarda));
+			break;
+		}
+		default:
+			break;
+		}
+		Turn.Intents.Add(Provoca);
+
+		// L'Overwatch e il Brace rispondono in una FINESTRA del giocatore: e' cio' che la scena mostra (scene 9 e 10 del
+		// piano). Senza, il resolver decide da solo, e in PIE non si vedrebbe niente da scegliere.
+		Scenario.bPlayerReactionWindows = Def.Slot != ERTActionSlot::Reaction;
+	}
+
 	Scenario.Turns.Add(Turn);
 
 	// L'harness RIFIUTA uno scenario senza assertion, e ha ragione: passerebbe sempre. Questa dice che il

@@ -91,6 +91,32 @@ enum class ERTAbilityLabTarget : uint8
 };
 
 /**
+ * Come il `TARGET` provoca una reazione nella scena del banco (`#4073`). Si legge dal CATALOGO, mai dall'id: dal
+ * trigger dello slot reazione (`FRTActionDef::ReactionTrigger`), o dall'azione principale che arma una reazione
+ * (`URTCatalogLibrary::ArmsReaction`: l'Overwatch) o che irrigidisce chi la usa (`Status.Braced`: il Brace).
+ *
+ * ⚠️ Ogni provocazione e' un INTENTO dello scenario, eseguito dal resolver: il banco non applica effetti da se'.
+ */
+UENUM()
+enum class ERTAbilityLabProvocation : uint8
+{
+	/** Non e' una reazione. */
+	None,
+	/** `HitByDirectAttack`: il `TARGET` colpisce chi reagisce con un attacco diretto `Single`. */
+	DirectHit,
+	/** `AllyHitByDirectAttack`: un alleato accanto a chi reagisce, e il `TARGET` colpisce lui. */
+	AllyHit,
+	/** `AboutToBeDisplaced`, e il Brace: il `TARGET` spinge chi reagisce. */
+	Push,
+	/** `AboutToReceiveControl`: il `TARGET` applica a chi reagisce uno stato di controllo. */
+	Control,
+	/** `CellBecameHazardous`: il fuoco nasce sotto chi reagisce. ⛔ Nessuna unita' lo sa accendere ([D-046]). */
+	Hazard,
+	/** L'Overwatch: il `TARGET` entra nella linea di chi guarda. */
+	EnterLine
+};
+
+/**
  * Come si vuole la fixture. Tutti i campi hanno un default utilizzabile: il caso normale e' non
  * dichiarare niente e ottenere una posa a due unita' con un seed fisso.
  */
@@ -261,6 +287,19 @@ public:
 	 * e non deve: chi puo' bersagliare chi lo dice la validazione del piano.
 	 */
 	static bool BenefitsItsRecipient(const FRTActionDef& Def);
+
+	/**
+	 * Come la scena provoca la reazione `Def` (`#4073`), letto dal catalogo (vedi `ERTAbilityLabProvocation`). `None`
+	 * per un'azione che non reagisce.
+	 *
+	 * La scena che ne segue (`BuildFixture`): chi reagisce arma la reazione (`Intent.Reaction`) e non la usa come
+	 * principale; il `TARGET` e' un eroe il cui attacco base EFFETTIVO — col loadout di default, che la sessione monta —
+	 * sa provocarla da dove sta. Per `AllyHit` si posa un alleato accanto a chi reagisce. Il Brace lo impugna l'eroe per
+	 * cui la sua finestra si apre (`URTCatalogLibrary::BraceExecutableResponses`), e la scena dell'Overwatch e del Brace
+	 * apre le finestre di reazione del giocatore. `Control` e `Hazard` li ascoltano solo moduli d'equipaggiamento, che
+	 * il banco non esegue: per loro `BuildFixture` rifiuta.
+	 */
+	static ERTAbilityLabProvocation ProvocationFor(const FRTActionDef& Def);
 
 	/**
 	 * Il TurnLog della run, in righe leggibili.
