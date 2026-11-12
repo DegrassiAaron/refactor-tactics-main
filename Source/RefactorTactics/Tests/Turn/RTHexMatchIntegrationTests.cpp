@@ -2299,8 +2299,9 @@ bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
  *
  * Hanno la forma dell'armo: una dichiarazione sul piano dell'unita', scritta da un tasto e da un pulsante della
  * barra (`ToggleSneakDeclaration`, `TogglePlanDeclaration`) che guardavano solo il modale. E nessuna delle due
- * la azzera il playback: la dichiarazione del piano la toglie il Cleanup, che gira prima; `Sneak` resta finche'
- * non lo si ritira ([D-425]).
+ * la azzera il playback: le toglie entrambe il Cleanup, che gira prima (lo `Sneak` da #4080, [D-609]), quindi un
+ * tasto premuto durante il playback arriverebbe al turno dopo. ⌫ *Fino a #4080: «`Sneak` resta finche' non lo si
+ * ritira ([D-425])».*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanDeclarationsTest,
 	"RefactorTactics.HexMatch.PlaybackRejectsPlanDeclarations",
@@ -4375,17 +4376,18 @@ bool FRTPlannedRouteFollowsSneakTest::RunTest(const FString&)
 }
 
 /**
- * **`#4075` — lo Sneak dichiarato al turno T e' ancora dichiarato al turno T+1.** E' una MISURA, non una regola: e' cio' che il
- * codice fa oggi, perche' nessuno azzera `PlannedMovementProfileId` fra un turno e l'altro. Resta pinnata finche' l'autore non
- * decide se lo `Sneak` e' una dichiarazione per turno o una posa che resta ([D-608] (5)).
+ * **[D-609] — lo Sneak dichiarato al turno T non c'e' piu' al turno T+1** (#4075, #4080). Lo `Sneak` e' una dichiarazione per
+ * azione di movimento, e oggi un'unita' ha un solo movimento per turno: finisce col turno. Fino a #4080 restava, e questo test
+ * lo misurava col nome `HexMatch.SneakStaysDeclaredIntoTheNextTurn` (#4077: 4 celle invece di 13 al turno dopo).
  *
- * 🔑 **Si misura l'EFFETTO, non solo il campo**: al turno T+1 il piano piu' lungo che il controller accetta e' piu' corto con lo
- * Sneak che senza. Il controllo positivo e' il ritiro allo stesso turno, che deve allungarlo.
+ * 🔑 **Si misura l'EFFETTO, non solo il campo**: al turno T+1 il piano piu' lungo che il controller accetta e' quello senza
+ * Sneak. Il controllo positivo e' ridichiararlo allo stesso turno, che deve accorciarlo. Il blocco di fine turno lo pinna anche
+ * `Turn.SneakDoesNotSurviveTheTurn`, con un'unita' che non si muove.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakStaysDeclaredIntoTheNextTurnTest,
-	"RefactorTactics.HexMatch.SneakStaysDeclaredIntoTheNextTurn",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakEndsWithItsTurnTest,
+	"RefactorTactics.HexMatch.SneakEndsWithItsTurn",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSneakStaysDeclaredIntoTheNextTurnTest::RunTest(const FString&)
+bool FRTSneakEndsWithItsTurnTest::RunTest(const FString&)
 {
 	FRTLockInPreviewBench B;
 	if (!MakeLockInPreviewBench(*this, B))
@@ -4413,25 +4415,24 @@ bool FRTSneakStaysDeclaredIntoTheNextTurnTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("al turno T+1 lo Sneak e' ancora dichiarato"),
-		B.Mine->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak);
+	TestEqual(TEXT("al turno T+1 lo Sneak non e' piu' dichiarato"), B.Mine->PlannedMovementProfileId, NAME_None);
 
-	// L'effetto: il piano piu' lungo che il controller accetta, con lo Sneak di T e poi senza.
+	// L'effetto: il piano piu' lungo che il controller accetta, senza lo Sneak di T e poi ridichiarandolo.
 	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
-	const int32 ConSneak = PlannedRouteGrowToBudget(B);
+	const int32 SenzaSneak = PlannedRouteGrowToBudget(B);
 	B.PC->ToggleSneakForTest();
-	if (!TestEqual(TEXT("premessa: ritirato al turno T+1"), B.Mine->PlannedMovementProfileId, NAME_None)
-		|| !TestTrue(TEXT("premessa: al turno T+1 si pianifica ancora"), ConSneak > 0))
+	if (!TestEqual(TEXT("premessa: ridichiarato al turno T+1"), B.Mine->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
+		|| !TestTrue(TEXT("premessa: al turno T+1 si pianifica ancora"), SenzaSneak > 0))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
-	const int32 SenzaSneak = PlannedRouteGrowToBudget(B);
-	// La misura nel log anche quando e' verde: e' il numero che #4075 porta all'autore.
-	AddInfo(FString::Printf(TEXT("#4075: al turno T+1 il piano piu' lungo e' di %d celle con lo Sneak del turno T, %d ritirandolo"),
-		ConSneak, SenzaSneak));
-	TestTrue(FString::Printf(TEXT("e al turno T+1 il tetto e' ancora quello dello Sneak: ritirandolo il piano si allunga (%d -> %d)"),
-		ConSneak, SenzaSneak), SenzaSneak > ConSneak);
+	const int32 ConSneak = PlannedRouteGrowToBudget(B);
+	// La misura nel log anche quando e' verde: e' il numero che si confronta con quello di #4077.
+	AddInfo(FString::Printf(TEXT("#4080: al turno T+1 il piano piu' lungo e' di %d celle senza lo Sneak del turno T, %d ridichiarandolo"),
+		SenzaSneak, ConSneak));
+	TestTrue(FString::Printf(TEXT("e al turno T+1 il tetto e' quello pieno: ridichiarando lo Sneak il piano si accorcia (%d -> %d)"),
+		SenzaSneak, ConSneak), ConSneak < SenzaSneak);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
