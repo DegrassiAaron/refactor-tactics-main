@@ -27,6 +27,9 @@
 #include "Ability/RTEquipmentData.h"   // la copertura portatile, per il bersaglio sul bordo (#4072)
 #include "Turn/Log/RTTurnLog.h"
 #include "Turn/Log/RTTurnLogLibrary.h"
+#include "Turn/Reaction/RTReactionLibrary.h" // l'esito `Activated` di una reazione (#4073)
+#include "Unit/RTUnit.h"                      // tipo completo: l'header del controller assegna `TWeakObjectPtr<ARTUnit>`
+#include "Player/RTPlayerController.h"        // la finestra di reazione si apre al controller (#4073)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1228,6 +1231,361 @@ bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
 		}
 		TestTrue(TEXT("Guard: chi lancia prende Status.Guarded da un'azione"), bInGuardia);
 	}
+	return true;
+}
+
+// =====================================================================================================
+// `#4073` — le scene delle reazioni. Chi reagisce ARMA la reazione; il `TARGET` la provoca con un intento suo, scelto
+// dal trigger del catalogo (`ProvocationFor`); il resolver fa il resto. La posa e' quella di default del banco.
+// =====================================================================================================
+
+namespace RTAbilityLabTestsInternal
+{
+	FString ProvocationName(ERTAbilityLabProvocation P)
+	{
+		return StaticEnum<ERTAbilityLabProvocation>()->GetNameStringByValue(static_cast<int64>(P));
+	}
+
+	/** La provocazione che un trigger chiede, scritta QUI e non letta da `ProvocationFor`: e' l'oracolo della tabella. */
+	ERTAbilityLabProvocation ExpectedProvocationFor(ERTReactionTrigger Trigger)
+	{
+		switch (Trigger)
+		{
+		case ERTReactionTrigger::HitByDirectAttack:     return ERTAbilityLabProvocation::DirectHit;
+		case ERTReactionTrigger::AllyHitByDirectAttack: return ERTAbilityLabProvocation::AllyHit;
+		case ERTReactionTrigger::AboutToBeDisplaced:    return ERTAbilityLabProvocation::Push;
+		case ERTReactionTrigger::AboutToReceiveControl: return ERTAbilityLabProvocation::Control;
+		case ERTReactionTrigger::CellBecameHazardous:   return ERTAbilityLabProvocation::Hazard;
+		default:                                        return ERTAbilityLabProvocation::None;
+		}
+	}
+
+	/** L'intento di un'unita' della scena, o `nullptr`. */
+	const FRTScenarioIntent* IntentOf(const FRTTestScenario& Scenario, const FString& UnitId)
+	{
+		for (const FRTScenarioTurn& Turn : Scenario.Turns)
+		{
+			for (const FRTScenarioIntent& Intent : Turn.Intents)
+			{
+				if (Intent.UnitId == UnitId) { return &Intent; }
+			}
+		}
+		return nullptr;
+	}
+
+	const FRTScenarioUnit* UnitOf(const FRTTestScenario& Scenario, const FString& UnitId)
+	{
+		for (const FRTScenarioUnit& U : Scenario.Units)
+		{
+			if (U.Id == UnitId) { return &U; }
+		}
+		return nullptr;
+	}
+
+	/** Vero se il TurnLog ha una voce di `Category` per `ActionId`, con `Outcome` se dato (altrimenti qualunque). */
+	bool HasEntry(const TArray<FRTTurnLogEntry>& Entries, ERTLogCategory Category, const FName& ActionId, int32 Outcome = INDEX_NONE)
+	{
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category == Category && E.ActionId == ActionId && (Outcome == INDEX_NONE || E.Outcome == Outcome)) { return true; }
+		}
+		return false;
+	}
+}
+
+/**
+ * **La provocazione si legge dal catalogo** (`#4073`): per ogni reazione dei kit, quella del suo trigger; l'Overwatch
+ * entra nella linea, il Brace e' una spinta; le generiche che non reagiscono non hanno provocazione. Anche i trigger che
+ * oggi ascoltano solo moduli d'equipaggiamento hanno la loro riga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabReadsTheProvocationFromTheCatalogTest,
+	"RefactorTactics.AbilityLab.ReadsTheProvocationFromTheCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabReadsTheProvocationFromTheCatalogTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+
+	// Ogni reazione dei kit: il catalogo, non un elenco di id.
+	int32 Reazioni = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			if (!Ptr || Ptr->Def.Slot != ERTActionSlot::Reaction) { continue; }
+			++Reazioni;
+			TestEqual(FString::Printf(TEXT("%s: la provocazione del suo trigger"), *Ptr->Def.ActionId.ToString()),
+				ProvocationName(URTAbilityLabLibrary::ProvocationFor(Ptr->Def)),
+				ProvocationName(ExpectedProvocationFor(Ptr->Def.ReactionTrigger)));
+		}
+	}
+	TestTrue(FString::Printf(TEXT("i kit hanno reazioni (%d)"), Reazioni), Reazioni > 0);
+
+	// Ogni trigger, anche quelli dei soli moduli.
+	for (const ERTReactionTrigger Trigger : { ERTReactionTrigger::HitByDirectAttack, ERTReactionTrigger::AllyHitByDirectAttack,
+		ERTReactionTrigger::AboutToBeDisplaced, ERTReactionTrigger::AboutToReceiveControl, ERTReactionTrigger::CellBecameHazardous })
+	{
+		FRTActionDef Reazione;
+		Reazione.Slot = ERTActionSlot::Reaction;
+		Reazione.ReactionTrigger = Trigger;
+		TestEqual(FString::Printf(TEXT("trigger %d"), static_cast<int32>(Trigger)),
+			ProvocationName(URTAbilityLabLibrary::ProvocationFor(Reazione)), ProvocationName(ExpectedProvocationFor(Trigger)));
+	}
+
+	// Le principali che reagiscono, e quelle che no.
+	FRTActionDef Def;
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+	struct FAttesa { const TCHAR* Id; ERTAbilityLabProvocation Provocazione; };
+	for (const FAttesa& A : { FAttesa{ TEXT("Action.Overwatch"), ERTAbilityLabProvocation::EnterLine },
+		FAttesa{ TEXT("Action.Brace"), ERTAbilityLabProvocation::Push }, FAttesa{ TEXT("Action.Guard"), ERTAbilityLabProvocation::None },
+		FAttesa{ TEXT("Action.Interact"), ERTAbilityLabProvocation::None } })
+	{
+		if (TestTrue(FString::Printf(TEXT("premessa: %s e' una generica"), A.Id), FindGenericAction(FName(A.Id), Def, Shape)))
+		{
+			TestEqual(FString::Printf(TEXT("%s"), A.Id), ProvocationName(URTAbilityLabLibrary::ProvocationFor(Def)),
+				ProvocationName(A.Provocazione));
+		}
+	}
+	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Aevik.LinearDischarge"), Def, Shape)))
+	{
+		TestEqual(TEXT("un attacco non e' una reazione"), ProvocationName(URTAbilityLabLibrary::ProvocationFor(Def)),
+			ProvocationName(ERTAbilityLabProvocation::None));
+	}
+	return true;
+}
+
+/**
+ * **Ogni reazione che il banco esegue viene provocata, e scatta** (`#4073`): `Counter` e `Deflect` colpiti, `Intercept`
+ * con un alleato colpito, l'Overwatch con un nemico che entra nella linea, il Brace spinto con la finestra.
+ *
+ * Il segno che scatta e' nel TurnLog: `Reaction/Activated` per una reazione dello slot; `ReactionDecision` per
+ * l'Overwatch e il Brace, che rispondono in una finestra e non scrivono `Activated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEachReactionIsProvokedAndFiresTest,
+	"RefactorTactics.AbilityLab.EachReactionIsProvokedAndFires",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+
+	auto Esegui = [this](const TCHAR* AbilityId, FRTTestScenario& OutScenario, TArray<FRTTurnLogEntry>& OutEntries) -> bool
+	{
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(AbilityId), FRTAbilityLabFixtureSpec(), OutScenario, Errore);
+		if (!TestTrue(FString::Printf(TEXT("%s: la scena si costruisce (%s)"), AbilityId, *Errore), bCostruita)) { return false; }
+		const FRTTestResult Result = RunFixture(*this, OutScenario);
+		const bool bOk = TestFalse(FString::Printf(TEXT("%s: nessun ERROR (%s)"), AbilityId, *Result.ErrorMessage),
+			Result.Outcome == ERTTestOutcome::Error);
+		OutEntries = RunEntries(Result);
+		return bOk;
+	};
+
+	const int32 Attivata = static_cast<int32>(ERTReactionOutcome::Activated);
+	FRTTestScenario Scenario;
+	TArray<FRTTurnLogEntry> Voci;
+
+	// Le reazioni dello slot: chi reagisce la ARMA, e il `TARGET` lo colpisce col suo attacco base.
+	for (const TCHAR* Id : { TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Hero.Ivrin.Deflection") })
+	{
+		if (!Esegui(Id, Scenario, Voci)) { continue; }
+		const FRTScenarioIntent* Arma = IntentOf(Scenario, TEXT("CASTER"));
+		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
+		TestTrue(FString::Printf(TEXT("%s: chi reagisce la arma, e non la usa"), Id),
+			Arma && Arma->Reaction == FName(Id) && Arma->Ability.IsNone());
+		TestTrue(FString::Printf(TEXT("%s: il TARGET colpisce chi reagisce"), Id),
+			Provoca && !Provoca->Ability.IsNone() && Provoca->Target == TEXT("CASTER"));
+		TestTrue(FString::Printf(TEXT("%s: scatta (Reaction/Activated)"), Id), HasEntry(Voci, ERTLogCategory::Reaction, FName(Id), Attivata));
+		TestFalse(FString::Printf(TEXT("%s: una reazione dello slot non apre finestre del giocatore"), Id), Scenario.bPlayerReactionWindows);
+	}
+
+	// Il bersaglio di una reazione non si forza: un `TARGET` alleato provocherebbe la propria squadra.
+	{
+		FRTAbilityLabFixtureSpec Forzata;
+		Forzata.Target = ERTAbilityLabTarget::Ally;
+		FRTTestScenario Rifiutata;
+		FString Errore;
+		TestFalse(TEXT("una reazione col bersaglio forzato non si costruisce"),
+			URTAbilityLabLibrary::BuildFixture(TEXT("Hero.Aevik.ReactiveCapacitor"), Forzata, Rifiutata, Errore));
+		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(TEXT("Hero.Aevik.ReactiveCapacitor")));
+	}
+
+	// Chi provoca deve arrivare da dove sta: col bersaglio in (3,0) nessun attacco base che spinge ci arriva (quello di
+	// Branth, con `Weapon.Impact`, ha portata 2), e la scena del Brace rifiuta invece di posare una spinta che non arriva.
+	{
+		FRTAbilityLabFixtureSpec Lontano;
+		Lontano.TargetCell = FRTCellId(3, 0);
+		FRTTestScenario Rifiutata;
+		FString Errore;
+		TestFalse(TEXT("Brace col bersaglio fuori dalla portata di chi spinge: non si costruisce"),
+			URTAbilityLabLibrary::BuildFixture(TEXT("Action.Brace"), Lontano, Rifiutata, Errore));
+	}
+
+	// L'intercettazione: un alleato accanto a chi reagisce, e il `TARGET` colpisce lui.
+	if (Esegui(TEXT("Hero.Branth.Interposition"), Scenario, Voci))
+	{
+		const FRTScenarioUnit* Alleato = UnitOf(Scenario, TEXT("ALLY"));
+		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
+		TestTrue(TEXT("Interposition: c'e' un alleato da proteggere"), Alleato && Alleato->TeamId == Scenario.Units[0].TeamId);
+		TestTrue(TEXT("Interposition: il TARGET colpisce l'alleato"), Provoca && Provoca->Target == TEXT("ALLY"));
+		TestTrue(TEXT("Interposition: scatta (Reaction/Activated)"),
+			HasEntry(Voci, ERTLogCategory::Reaction, TEXT("Hero.Branth.Interposition"), Attivata));
+	}
+
+	// L'Overwatch: chi guarda verso il bersaglio, il bersaglio entra nella linea, la finestra si apre.
+	if (Esegui(TEXT("Action.Overwatch"), Scenario, Voci))
+	{
+		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
+		TestTrue(TEXT("Overwatch: le finestre del giocatore sono aperte"), Scenario.bPlayerReactionWindows);
+		TestTrue(TEXT("Overwatch: il TARGET fa un passo"), Provoca && Provoca->Move.Num() == 1);
+		// Headless la finestra non ha chi la apra: `NoDecider` e' il segno che ne andava aperta una. Un `Immediate` o un
+		// `CollapsedByCondition` scriverebbero la stessa categoria senza finestra. Che si apra davvero lo prova
+		// `AbilityLab.ReactionWindowsOpenToTheController`.
+		TestTrue(TEXT("Overwatch: ne va aperta una finestra (ReactionDecision/NoDecider)"),
+			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Overwatch"),
+				static_cast<int32>(ERTReactionDecisionOutcome::NoDecider)));
+	}
+
+	// Chi guarda guarda verso il bersaglio anche quando non e' a est, il verso di partenza di ogni unita'.
+	{
+		FRTAbilityLabFixtureSpec AOvest;
+		AOvest.TargetCell = FRTCellId(-2, 0);
+		FRTTestScenario Ovest;
+		FString Errore;
+		if (TestTrue(TEXT("Overwatch col bersaglio a ovest: la scena si costruisce"),
+			URTAbilityLabLibrary::BuildFixture(TEXT("Action.Overwatch"), AOvest, Ovest, Errore)))
+		{
+			const FRTScenarioUnit* ChiGuarda = UnitOf(Ovest, TEXT("CASTER"));
+			TestTrue(TEXT("Overwatch col bersaglio a ovest: chi guarda guarda a ovest"), ChiGuarda && ChiGuarda->Facing == ERTHexDirection::W);
+		}
+	}
+
+	// Il Brace: lo impugna chi ne apre la finestra, e il `TARGET` lo spinge.
+	if (Esegui(TEXT("Action.Brace"), Scenario, Voci))
+	{
+		const FRTScenarioUnit* ChiReagisce = UnitOf(Scenario, TEXT("CASTER"));
+		const URTHeroData* Eroe = nullptr;
+		for (const URTHeroData* H : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (H && ChiReagisce && H->HeroId == ChiReagisce->HeroId) { Eroe = H; }
+		}
+		TestTrue(TEXT("Brace: chi lo impugna ne apre la finestra (almeno due risposte)"),
+			Eroe && URTCatalogLibrary::BraceExecutableResponses(Eroe->ReactionProfileId).Num() >= 2);
+		TestTrue(TEXT("Brace: le finestre del giocatore sono aperte"), Scenario.bPlayerReactionWindows);
+		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
+		TestTrue(TEXT("Brace: il TARGET colpisce chi lo usa"), Provoca && Provoca->Target == TEXT("CASTER"));
+		TestTrue(TEXT("Brace: ne va aperta una finestra (ReactionDecision/NoDecider)"),
+			HasEntry(Voci, ERTLogCategory::ReactionDecision, TEXT("Action.Brace"),
+				static_cast<int32>(ERTReactionDecisionOutcome::NoDecider)));
+	}
+	return true;
+}
+
+/**
+ * **Le finestre dell'Overwatch e del Brace si aprono al CONTROLLER** (`#4073`, review): la stessa scena del banco, eseguita
+ * nei tre modi di `Scenario.PlayerReactionWindowsOpenToTheController`. Headless la decisione esce `NoDecider`; con un
+ * `ARTPlayerController` la finestra si apre e, senza risposte, scade (`Timeout`); col controller ma senza la chiave
+ * `playerReactionWindows` torna `NoDecider`.
+ *
+ * ⚠️ Per il Brace e' la prima volta che la sua finestra, nel Blast, si apre attraverso la sessione dello scenario con un
+ * controller: fino a qui la provavano solo i test del turn manager (`Reactions.Brace.WindowSuspendsBlast`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabReactionWindowsOpenToTheControllerTest,
+	"RefactorTactics.AbilityLab.ReactionWindowsOpenToTheController",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabReactionWindowsOpenToTheControllerTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+
+	auto Conta = [](const TArray<FRTTurnLogEntry>& Voci, const FName& ActionId, ERTReactionDecisionOutcome Esito)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Voci)
+		{
+			N += (E.Category == ERTLogCategory::ReactionDecision && E.ActionId == ActionId && E.Outcome == static_cast<uint8>(Esito)) ? 1 : 0;
+		}
+		return N;
+	};
+	auto Esegui = [this](const FRTTestScenario& S, bool bConController) -> TArray<FRTTurnLogEntry>
+	{
+		UWorld* World = MakeAbilityLabWorld();
+		if (!World) { AddError(TEXT("world non creato")); return {}; }
+		if (bConController) { TestNotNull(TEXT("player controller"), World->SpawnActor<ARTPlayerController>()); }
+		const FRTTestResult R = URTScenarioRunner::Run(World, S);
+		DestroyAbilityLabWorld(World);
+		TestFalse(FString::Printf(TEXT("%s: nessun ERROR (%s)"), *S.ScenarioId, *R.ErrorMessage), R.Outcome == ERTTestOutcome::Error);
+		return RunEntries(R);
+	};
+
+	for (const TCHAR* Id : { TEXT("Action.Overwatch"), TEXT("Action.Brace") })
+	{
+		FRTTestScenario Scena;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(Id), FRTAbilityLabFixtureSpec(), Scena, Errore);
+		if (!TestTrue(FString::Printf(TEXT("%s: la scena si costruisce (%s)"), Id, *Errore), bCostruita)
+			|| !TestTrue(FString::Printf(TEXT("premessa: %s apre le finestre del giocatore"), Id), Scena.bPlayerReactionWindows))
+		{
+			continue;
+		}
+		const FName Azione(Id);
+
+		const TArray<FRTTurnLogEntry> Headless = Esegui(Scena, false);
+		TestEqual(FString::Printf(TEXT("%s headless: NoDecider"), Id), Conta(Headless, Azione, ERTReactionDecisionOutcome::NoDecider), 1);
+		TestEqual(FString::Printf(TEXT("%s headless: nessun Timeout"), Id), Conta(Headless, Azione, ERTReactionDecisionOutcome::Timeout), 0);
+
+		const TArray<FRTTurnLogEntry> ConController = Esegui(Scena, true);
+		TestEqual(FString::Printf(TEXT("%s col controller: la finestra si apre e scade (Timeout)"), Id),
+			Conta(ConController, Azione, ERTReactionDecisionOutcome::Timeout), 1);
+		TestEqual(FString::Printf(TEXT("%s col controller: nessun NoDecider"), Id),
+			Conta(ConController, Azione, ERTReactionDecisionOutcome::NoDecider), 0);
+
+		FRTTestScenario Senza = Scena;
+		Senza.bPlayerReactionWindows = false;
+		const TArray<FRTTurnLogEntry> SenzaChiave = Esegui(Senza, true);
+		TestEqual(FString::Printf(TEXT("%s col controller ma senza la chiave: NoDecider"), Id),
+			Conta(SenzaChiave, Azione, ERTReactionDecisionOutcome::NoDecider), 1);
+	}
+	return true;
+}
+
+/** **Il passo `,` / `.` attraversa anche le reazioni del kit** (`#4073`): da una voce del kit si arriva a ognuna. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepReachesTheKitReactionsTest,
+	"RefactorTactics.AbilityLab.StepReachesTheKitReactions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepReachesTheKitReactionsTest::RunTest(const FString&)
+{
+	int32 Controllate = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero || Hero->Actions.Num() == 0 || !Hero->Actions[0]) { continue; }
+		TArray<FName> Reazioni;
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			if (Ptr && Ptr->Def.Slot == ERTActionSlot::Reaction) { Reazioni.Add(Ptr->Def.ActionId); }
+		}
+		if (Reazioni.Num() == 0) { continue; }
+
+		const FString Partenza = FString(TEXT("AbilityLab.")) + Hero->Actions[0]->Def.ActionId.ToString();
+		TSet<FName> Raggiunte;
+		FName Id;
+		int32 Posizione = 0;
+		int32 Quante = 0;
+		if (!TestTrue(FString::Printf(TEXT("%s: il passo parte"), *Partenza),
+			URTAbilityLabLibrary::PlanLabStep(Partenza, 1, Id, Posizione, Quante)))
+		{
+			continue;
+		}
+		for (int32 Passo = 1; Passo <= Quante; ++Passo)
+		{
+			if (URTAbilityLabLibrary::PlanLabStep(Partenza, Passo, Id, Posizione, Quante)) { Raggiunte.Add(Id); }
+		}
+		for (const FName& Reazione : Reazioni)
+		{
+			++Controllate;
+			TestTrue(FString::Printf(TEXT("%s: il passo arriva a %s"), *Hero->HeroId.ToString(), *Reazione.ToString()),
+				Raggiunte.Contains(Reazione));
+		}
+	}
+	TestTrue(FString::Printf(TEXT("i kit hanno reazioni da raggiungere (%d)"), Controllate), Controllate > 0);
 	return true;
 }
 

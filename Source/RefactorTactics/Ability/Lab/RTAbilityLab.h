@@ -91,6 +91,32 @@ enum class ERTAbilityLabTarget : uint8
 };
 
 /**
+ * Come il `TARGET` provoca una reazione nella scena del banco (`#4073`). Si legge dal CATALOGO, mai dall'id: dal
+ * trigger dello slot reazione (`FRTActionDef::ReactionTrigger`), o dall'azione principale che arma una reazione
+ * (`URTCatalogLibrary::ArmsReaction`: l'Overwatch) o che irrigidisce chi la usa (`Status.Braced`: il Brace).
+ *
+ * ⚠️ Ogni provocazione e' un INTENTO dello scenario, eseguito dal resolver: il banco non applica effetti da se'.
+ */
+UENUM()
+enum class ERTAbilityLabProvocation : uint8
+{
+	/** Non e' una reazione. */
+	None,
+	/** `HitByDirectAttack`: il `TARGET` colpisce chi reagisce con un attacco diretto `Single`. */
+	DirectHit,
+	/** `AllyHitByDirectAttack`: un alleato accanto a chi reagisce, e il `TARGET` colpisce lui. */
+	AllyHit,
+	/** `AboutToBeDisplaced`, e il Brace: il `TARGET` spinge chi reagisce. */
+	Push,
+	/** `AboutToReceiveControl`: il `TARGET` applica a chi reagisce uno stato di controllo. */
+	Control,
+	/** `CellBecameHazardous`: il fuoco nasce sotto chi reagisce. ⛔ Nessuna unita' lo sa accendere ([D-046]). */
+	Hazard,
+	/** L'Overwatch: il `TARGET` entra nella linea di chi guarda. */
+	EnterLine
+};
+
+/**
  * Come si vuole la fixture. Tutti i campi hanno un default utilizzabile: il caso normale e' non
  * dichiarare niente e ottenere una posa a due unita' con un seed fisso.
  */
@@ -126,7 +152,8 @@ struct FRTAbilityLabFixtureSpec
 
 	/**
 	 * L'eroe che subisce. Deve essere diverso dal caster, altrimenti la posa mette due unita' della
-	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda.
+	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda. Per una REAZIONE e' solo
+	 * una preferenza per chi la provoca (`#4073`): se il suo attacco base non la provoca, il banco ne sceglie un altro.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	FName TargetHeroId = FName(TEXT("Hero.Ivrin"));
@@ -217,8 +244,9 @@ public:
 	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
 	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
 	 * ERROR. Uno SCATTO (fase Dash) si dichiara con `Dash` e la `DashCell` della spec, mai come abilita'
-	 * (`#3773`). Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno, un nemico, un alleato,
-	 * una cella o un bordo, con la porta per un'azione che ne cambia una.
+	 * (`#3773`). Una REAZIONE dello slot si arma (`Intent.Reaction`) e la provoca il `TARGET` (`ProvocationFor`,
+	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
+	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -261,6 +289,19 @@ public:
 	 * e non deve: chi puo' bersagliare chi lo dice la validazione del piano.
 	 */
 	static bool BenefitsItsRecipient(const FRTActionDef& Def);
+
+	/**
+	 * Come la scena provoca la reazione `Def` (`#4073`), letto dal catalogo (vedi `ERTAbilityLabProvocation`). `None`
+	 * per un'azione che non reagisce.
+	 *
+	 * La scena che ne segue (`BuildFixture`): chi reagisce arma la reazione (`Intent.Reaction`) e non la usa come
+	 * principale; il `TARGET` e' un eroe il cui attacco base EFFETTIVO — col loadout di default, che la sessione monta —
+	 * sa provocarla da dove sta. Per `AllyHit` si posa un alleato accanto a chi reagisce. Il Brace lo impugna l'eroe per
+	 * cui la sua finestra si apre (`URTCatalogLibrary::BraceExecutableResponses`), e la scena dell'Overwatch e del Brace
+	 * apre le finestre di reazione del giocatore. `Control` e `Hazard` li ascoltano solo moduli d'equipaggiamento, che
+	 * il banco non esegue: per loro `BuildFixture` rifiuta.
+	 */
+	static ERTAbilityLabProvocation ProvocationFor(const FRTActionDef& Def);
 
 	/**
 	 * Il TurnLog della run, in righe leggibili.
