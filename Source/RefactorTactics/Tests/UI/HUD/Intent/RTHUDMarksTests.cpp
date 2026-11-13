@@ -965,9 +965,10 @@ bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
  * il click su un nemico blocca la sua cella, e fino a `#4093` l'anteprima segnava quel nemico come colpito: il giocatore
  * decideva su un'informazione falsa, perche' chi resta fermo sulla cella non viene mai preso.
  *
- * 🔑 **Due giri sulla stessa tavola, e l'unica variabile e' l'azione**: Ivrin blocca la cella di Branth (nessun segno su
- * Branth, ma la cella resta nell'anteprima a terra), poi Aevik mira un'area alla stessa cella — il **controllo**: Branth
- * e' segnato. Senza, «nessun segno» lo darebbe anche un calcolo che non legge nessun piano.
+ * 🔑 **Tre giri sulla stessa tavola**: Ivrin blocca la cella di Branth (nessun segno su Branth, ma la cella resta
+ * nell'anteprima a terra); poi quella di Muiren, alleata (nessun fuoco amico, ne' sopra la testa ne' a terra); poi Aevik
+ * mira un'area alla cella di Branth — il **controllo**: Branth e' segnato. Senza, «nessun segno» lo darebbe anche un
+ * calcolo che non legge nessun piano.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDPredictiveMarksTheCellTest,
 	"RefactorTactics.HUD.APredictiveMarksTheCellNotItsOccupant",
@@ -980,7 +981,9 @@ bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
 	ARTUnit* Ivrin  = SpawnMarksUnit(World, TEXT("Hero.Ivrin"),  0, FRTCellId( 0, 0, 0));
 	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 1, 0, 0));
-	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth))
+	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 0, 1, 0)); // alleata, accanto a Ivrin
+	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth)
+		|| !TestNotNull(TEXT("Muiren"), Muiren))
 	{
 		DestroyMarksWorld(World);
 		return false;
@@ -993,8 +996,9 @@ bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
 		DestroyMarksWorld(World);
 		return false;
 	}
-	const TArray<ARTUnit*> Units = { Ivrin, Aevik, Branth };
+	const TArray<ARTUnit*> Units = { Ivrin, Aevik, Branth, Muiren };
 	const FRTCellId CellaBranth = Branth->Cell;
+	const FRTCellId CellaMuiren = Muiren->Cell;
 
 	// ── Il caso: Ivrin blocca la cella su cui Branth sta gia'. ───────────────────────────────────────────────
 	Ivrin->SetPlannedMainAction(Intercetto);
@@ -1009,6 +1013,20 @@ bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
 		URTHudViewModel::MakeBlastPreviewPlan(*Ivrin, 0, Units), URTHudViewModel::MakeHexCombatUnits(Units));
 	TestTrue(TEXT("l'anteprima a terra disegna la cella bloccata"), Anteprima.HitCells.Contains(CellaBranth));
 	TestFalse(TEXT("e dichiara che chi ci sta sopra non va segnato"), Anteprima.bMarksOccupants);
+
+	// ── Un'ALLEATA sulla cella bloccata: nessun fuoco amico, ne' sopra la testa ne' a terra ne' nell'avviso. ─────
+	// La premessa conta: con il fuoco amico dichiarato, senza il ramo della predittiva l'alleata verrebbe segnata (review
+	// di `#4093`). Senza di lei, «nessun fuoco amico» qui sopra lo darebbe qualunque nemico.
+	TestTrue(TEXT("premessa: InterceptShot dichiara il fuoco amico"), Ivrin->GetAbility(Intercetto)->Def.bFriendlyFire);
+	Ivrin->DeclareAttackOnCell(CellaMuiren);
+	ARTHUD::ComputePlannedHitMarks(Units, /*PlayerTeamId=*/ 0, Hit, Ally);
+	TestFalse(TEXT("Muiren, alleata sulla cella bloccata, non e' segnata fuoco amico"), Ally.Contains(CellaMuiren));
+	TestFalse(TEXT("ne' bersaglio"), Hit.Contains(CellaMuiren));
+	const FRTBlastPreview SuAlleata = URTHexCombatLibrary::MakeBlastPreview(
+		URTHudViewModel::MakeBlastPreviewPlan(*Ivrin, 0, Units), URTHudViewModel::MakeHexCombatUnits(Units));
+	TestTrue(TEXT("la cella dell'alleata e' disegnata a terra"), SuAlleata.HitCells.Contains(CellaMuiren));
+	TestEqual(TEXT("e l'anteprima non ha celle di fuoco amico: ne' sovrapposizione a terra ne' avviso"), SuAlleata.AllyCells.Num(), 0);
+	Ivrin->DeclareAttackOnCell(CellaBranth);
 
 	// ── Il controllo: un'area di Aevik sulla stessa cella segna Branth. ───────────────────────────────────────
 	Aevik->SetPlannedMainAction(Overload);

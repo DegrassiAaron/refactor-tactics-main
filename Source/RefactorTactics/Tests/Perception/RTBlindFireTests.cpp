@@ -745,8 +745,10 @@ bool FRTBlastPreviewFieldsStayClosedTest::RunTest(const FString&)
 	// Perche' ciascuno e' ammesso: `Origin` e `bOriginFromPlannedDash` descrivono il piano di CHI GUARDA;
 	// `HitCells` e' la forma geometrica dell'area, che non dipende da chi la occupa; `AllyCells` nomina
 	// solo unita' della propria squadra. Nessuno dei quattro puo' nominare un avversario.
+	// ➕ `bMarksOccupants` ([D-610] (3), `#4093`) dipende solo da `Plan.bPredictive`, cioe' dalla definizione dell'azione:
+	// non guarda chi sta sulle celle, quindi non puo' nominare nessuno. Toglie segni, non ne aggiunge.
 	const TSet<FString> Ammessi = {
-		TEXT("Origin"), TEXT("bOriginFromPlannedDash"), TEXT("HitCells"), TEXT("AllyCells") };
+		TEXT("Origin"), TEXT("bOriginFromPlannedDash"), TEXT("HitCells"), TEXT("AllyCells"), TEXT("bMarksOccupants") };
 
 	for (TFieldIterator<FProperty> It(Struct); It; ++It)
 	{
