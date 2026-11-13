@@ -1069,8 +1069,10 @@ bool FRTRosterFromConsoleEntersTheFieldTest::RunTest(const FString&)
 
 	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
 	TestEqual(TEXT("quattro unita' in campo"), Units.Num(), 4);
+	// `HeroIdsInPlay` ORDINA: l'atteso si scrive in ordine alfabetico, non in quello della console. Con
+	// `Branth` i due ordini coincidevano per caso, e il rename a `Riktor` (#4011) li ha separati.
 	TestEqual(TEXT("la squadra 0 e' quella chiesta dalla console"),
-		HeroIdsInPlay(Units, 0), FString(TEXT("Hero.Riktor,Hero.Ivrin")));
+		HeroIdsInPlay(Units, 0), FString(TEXT("Hero.Ivrin,Hero.Riktor")));
 	TestEqual(TEXT("e la squadra 1 pure: ogni lista e' arrivata alla PROPRIA squadra"),
 		HeroIdsInPlay(Units, 1), FString(TEXT("Hero.Aevik,Hero.Muiren")));
 
