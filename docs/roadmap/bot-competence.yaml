@@ -274,8 +274,9 @@ competence:
     evidence:
       - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
     why: >-
-      Il planner non guarda ne' la fase ne' il targeting predittivo — zero occorrenze di `Predictive` in
-      `Bot/` — e nessuna azione di Aevik lo dichiara.
+      Il planner non guarda ne' la fase ne' il targeting predittivo, e nessuna azione di Aevik lo dichiara.
+      ⌫ Fino al 2026-11-13 qui si leggeva «zero occorrenze di `Predictive` in `Bot/`»: da D-610 (4) (#4094)
+      `Bot/` la nomina per escludere le predittive dai candidati d'attacco, non per usarla.
 
   # ---------------------------------------------------------------------------------------------------
   # Hero.Muiren — ⚠️ i suoi test Automation si chiamano ancora `RefactorTactics.Heroes.Phase.*`: e' il
@@ -577,7 +578,10 @@ competence:
     evidence:
       - test:RefactorTactics.Bot.DecidesWithoutFutureKnowledge
       - scenario:Spec.Predictive.WhiffOnEmptyCell
+      - test:RefactorTactics.HexBot.BotDoesNotPlanAPredictive
     why: >-
       🔴 E' il caso piu' netto del roster: `Hero.Ivrin.InterceptShot` dichiara `PredictiveTargeting` e
-      `PredictionBoundary`, e il bot la spende come un pugno contro la cella ATTUALE. L'abilita' e'
-      raggiungibile, la sua ragione d'essere no.
+      `PredictionBoundary`, e il bot non sa usarla: non sceglie una cella in cui un nemico entrera'.
+      ⌫ Fino al 2026-11-13 la spendeva come un pugno contro la cella ATTUALE, dove la previsione manca
+      sempre; da D-610 (4) (#4094) il bot non considera le predittive, finche' non sapra' scegliere quella
+      cella. Lo stato resta FAIL: il bot non anticipa, ora per esclusione invece che per errore.
