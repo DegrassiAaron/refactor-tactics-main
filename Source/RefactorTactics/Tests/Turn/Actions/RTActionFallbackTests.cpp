@@ -359,7 +359,8 @@ bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
 		TEXT("Neutralised"), TEXT("Unbalanced"), TEXT("DoorLocked"), TEXT("DoorDestroyed"),
 		TEXT("TerrainDeniesDash"), TEXT("DashNotAligned"), TEXT("DashPathBlocked"), TEXT("Stunned"),
 		TEXT("OtherLayer"), TEXT("DashEdgeBlocked"), TEXT("OverBudget"), // OverBudget: D-594, E38 CP 38.6
-		TEXT("TooClose") }; // TooClose: D-610, #4091 — il colpo predittivo sotto la distanza minima
+		TEXT("TooClose"), // TooClose: D-610, #4091 — il colpo predittivo sotto la distanza minima
+		TEXT("OffMap") }; // OffMap: #4099 — la cella di un colpo predittivo che la mappa non contiene
 
 	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
 	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }
