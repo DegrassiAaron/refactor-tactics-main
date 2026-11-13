@@ -291,6 +291,12 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 		}
 		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(
 			URTHudViewModel::MakeBlastPreviewPlan(*Attacker, i, Units), HexUnits);
+		// [D-610] (3) (`#4093`): le celle di una predittiva non segnano chi ci sta sopra. La cella si vede lo stesso,
+		// nell'anteprima a terra dell'unita' selezionata (`HitCells` resta pieno); questo e' l'elenco dei segni sulle UNITA'.
+		if (!Blast.bMarksOccupants)
+		{
+			continue;
+		}
 		OutHitCells.Append(Blast.HitCells);
 		// `AllyCells` e' vuoto se l'azione non puo' colpire i propri: segnalare un alleato che non subirebbe nulla
 		// insegna a ignorare il segnale.
