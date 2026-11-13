@@ -97,6 +97,7 @@ acquisizioni qui elencate ha attraversato un cambio di major.
 | Paragon: Wraith | `/Game/FabAsset/Paragon/ParagonWraith/` | Fab · Epic Games — listing n/d | Fab Standard License | listing n/d | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | `BP_Unit_Wraith` |
 | Paragon: Yin | `/Game/FabAsset/Paragon/ParagonYin/` | Fab · Epic Games — listing n/d | Fab Standard License | listing n/d | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 | Paragon: Zinx | `/Game/FabAsset/Paragon/ParagonZinx/` | [Fab · Epic Games](https://www.fab.com/listings/15e6593c-3696-4f87-99ef-fcec9e3138fd) | Fab Standard License | listing `15e6593c` | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
+| Free Spells — effetti Niagara | `/Game/FabAsset/UrtanoVFX/Free_Spells/` | [Fab · UrtanoVFX](https://www.fab.com/listings/967b7892-d46c-4d75-8121-33418a6899ce) | Fab Standard License, tier *Personal* (gratuito; da confermare nella libreria Fab) | listing `967b7892` | 2026-11-12 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 
 <!-- registro:fine -->
 
@@ -121,28 +122,47 @@ Prima di committare:
 node tools/asset-provenance/check.ts
 ```
 
-## 5. ⛔ La clausola NoAI dei listing Paragon
+## 5. ⛔ La clausola NoAI dei listing Fab
 
-I listing Fab dei pack Paragon dichiarano `allows_usage_with_ai: false`. Non è una cautela
-redazionale: è un **obbligo derivato dalla licenza**, e vale per ogni sessione assistita che tocchi
-questo progetto.
+**Quali pack.** I listing Fab dei pack Paragon dichiarano `allows_usage_with_ai: false`. Quello di
+Free Spells (UrtanoVFX) dice *Allows usage with AI: No*, `isAiForbidden: true` nel JSON della pagina
+(letto il 2026-11-13). Per un pack nuovo si guarda la stessa riga della sua pagina.
 
-Un assistente **può** ricevere metadati:
+**Che cosa dice la licenza.** La Fab EULA (testo del 2024-10-01, §6 punto vii e §16(l)(i), letta il
+2026-11-13 su <https://www.fab.com/i/eula/fab_eula>) vieta di usare i contenuti marcati così
 
-`asset_name` · `object_path` · `package_path` · `asset_class` · `dependency_metadata` ·
-`human_approved_object_paths`
+> in datasets utilized by Generative AI Programs, in the development of Generative AI Programs, or as
+> training inputs to Generative AI Programs.
 
-Un assistente **non deve** ricevere il contenuto:
+Il divieto vincola il licenziatario, che risponde anche dei terzi con cui condivide i contenuti
+(§5(a)). Non nomina prompt, assistenti né screenshot, e l'uso dell'autore nell'Editor e nel gioco ne
+resta fuori.
 
-pixel di texture · thumbnail · screenshot che contengono asset Paragon · geometria delle mesh ·
-preview render · immagini di preview dei materiali · dati audio · forme d'onda · sorgenti esportate
+**Che cosa sceglie il progetto ([D-611](../decisions/RT_PDR_00_Decision_Log.md)).** La regola segue il
+testo, senza aggiungere altri divieti:
 
-🔴 **La clausola ha già un effetto operativo misurato**, non è teorica: la selezione dei candidati
-Paragon si è fermata su **211 candidati su 211** in stato «da approvare da una persona», zero
-approvati, perché scegliere richiede di **guardare** gli asset — che è esattamente ciò che la clausola
-impedisce a un assistente. L'approvazione visiva resta un atto umano.
+- un assistente **può** ricevere il contenuto di quei pack, cioè screenshot, anteprime, thumbnail,
+  texture e audio, quando serve al lavoro sul progetto: scegliere un effetto, giudicare una scena,
+  approvare un candidato;
+- resta vietato ciò che la licenza vieta: mettere quei contenuti in un dataset di un'AI generativa,
+  usarli per svilupparne una o per addestrarla;
+- 🔴 **la condizione che tiene insieme le due righe**: un'immagine mandata a un assistente diventa un
+  *training input* se la conversazione finisce nei dati con cui si addestrano i modelli. Prima di
+  mandare contenuti NoAI, l'account con cui si usa l'assistente deve avere spento, nelle impostazioni
+  di privacy, l'uso delle conversazioni per l'addestramento. Nessuno script lo verifica: è a carico
+  di chi manda.
 
-Questa riga vive qui, e non solo in un JSON fuori dal versionamento, perché un obbligo che sparisce
+Non è un parere legale: è il testo della licenza, citato, e la lettura che il progetto ne ha dato.
+
+**Fino al 2026-11-13 la regola era più stretta.** A un assistente arrivavano solo metadati
+(`asset_name`, `object_path`, `package_path`, `asset_class`, `dependency_metadata`,
+`human_approved_object_paths`), mai il contenuto, e la sezione la presentava come «un obbligo
+derivato dalla licenza», cosa che il testo non dice. Aveva un effetto misurato: la selezione dei
+candidati Paragon si era fermata su **211 candidati su 211** in stato «da approvare da una persona»,
+perché scegliere richiede di **guardare** gli asset. Con D-611 la regola non lo impedisce più; lo
+stato di quei candidati non cambia da solo.
+
+Questa sezione vive qui, e non solo in un JSON fuori dal versionamento, perché un obbligo che sparisce
 insieme a una cartella non è un obbligo.
 
 ## 6. Quello che questo registro non sa
