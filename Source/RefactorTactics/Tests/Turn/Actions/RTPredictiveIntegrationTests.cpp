@@ -697,12 +697,14 @@ namespace
  * VALIDATES`. Il piano e' scritto A MANO, come lo scrivono il bot e lo Scenario Harness: il click non lo avrebbe accettato,
  * e prima di `#4091` il turno lo armava lo stesso — la portata e la linea non le guardava nessuno.
  *
- * 🔑 **Quattro scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
- * portata), la propria (sotto il minimo di [D-610] (2)), quella accanto dietro una copertura alta (senza linea), e quella
- * accanto libera — il **controllo positivo**: senza, «nessuna previsione» lo darebbe anche un turno che non arma niente.
+ * 🔑 **Cinque scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
+ * portata), la propria (sotto il minimo di [D-610] (2)), quella accanto dietro una copertura alta (senza linea), quella
+ * accanto un piano sopra (altro piano), e quella accanto libera — il **controllo positivo**: senza, «nessuna previsione» lo
+ * darebbe anche un turno che non arma niente.
  *
- * ⚠️ **Chi paga e' la tabella del Blast** (`PagaSeParteSenzaColpo`): la linea bloccata paga (`R4`), il fuori portata e il
- * sotto-minimo no (`R9`). La ricarica a fine turno lo misura, e il controllo positivo dice che la misura vede un pagamento.
+ * ⚠️ **Paga solo la linea** ([D-571], `R4`): e' l'unico motivo che un piano accettato dal click puo' trovare all'armamento.
+ * Fuori portata, sotto il minimo e altro piano sono piani che il click rifiuta, e sono gratis. La ricarica a fine turno lo
+ * misura, e il controllo positivo dice che la misura vede un pagamento.
  *
  * Chi entra attraversa la cella bloccata da ovest a est: se il colpo partisse, lo fermerebbe li' con i danni del catalogo.
  */
@@ -773,8 +775,11 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 		{ TEXT("fuori portata"), FRTCellId(0, -1), false, true, ERTActionInvalidReason::OutOfRange, false },
 		// Distanza 0 con minimo 1 ([D-610] (2)). Gratis come il fuori portata. Nessuno entra: la cella e' occupata da chi arma.
 		{ TEXT("la propria cella"), DaDove, false, false, ERTActionInvalidReason::TooClose, false },
-		// Accanto, dietro una copertura alta. PAGA: la linea bloccata e' `R4`, la stessa riga del Blast.
+		// Accanto, dietro una copertura alta. PAGA: e' l'unico motivo che un piano accettato dal click puo' trovare qui (`R4`).
 		{ TEXT("senza linea"), FRTCellId(0, 0), true, true, ERTActionInvalidReason::NoLineOfSight, true },
+		// La colonna accanto, un piano sopra: distanza 1 (`HexDistance` ignora il `Layer`), quindi il motivo e' il piano.
+		// Gratis: all'armamento il piano e' sempre una domanda che il click ha gia' rifiutato ([D-571]). Nessuno entra.
+		{ TEXT("un altro piano"), FRTCellId(0, 0, 1), false, false, ERTActionInvalidReason::OtherLayer, false },
 	};
 	for (const FCaso& Caso : Casi)
 	{
@@ -858,8 +863,10 @@ bool FRTPredictiveDashRejudgedTest::RunTest(const FString&)
 			DestroyPredWorld(World);
 			return Out;
 		}
+		// ⚠️ Senza `SetPlannedCell(Arrivo)`, e di proposito: uno scatto riuscito spende il movimento (D-028), quindi il
+		// tiratore resta dove lo scatto l'ha lasciato; uno scatto rifiutato lo lascia nella cella di partenza, e la premessa
+		// «lo scatto c'e' stato» lo vede. Con quella riga il Move lo avrebbe portato li' comunque (review di `#4091`).
 		Shooter->SetPlannedDash(Lama, Arrivo);
-		Shooter->SetPlannedCell(Arrivo); // nel Move resta dove lo scatto l'ha lasciato
 		const int32 Prima = Runner ? Runner->Health : 0;
 		if (Runner) { Runner->SetPlannedCell(FRTCellId(1, 0)); } // attraversa la cella bloccata da ovest a est
 

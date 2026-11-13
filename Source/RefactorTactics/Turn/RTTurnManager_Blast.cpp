@@ -253,10 +253,7 @@ namespace
 		Entry.Priority = Def.Priority;
 		return Entry;
 	}
-}
 
-namespace RTTurnManagerInternal
-{
 	/**
 	 * 🔴 **LA TABELLA DELLE CAUSE di «se si usa una abilita' si paga»** — decisione d'autore del 2026-10-31 su
 	 * [D-414] (`#3134`): dice se il MOTIVO con cui un'azione e' nata e' gia' una causa di PAGAMENTO.
@@ -336,10 +333,6 @@ namespace RTTurnManagerInternal
 	 * (`R9`), paga se l'aveva accettato dalla cella d'arrivo di uno scatto che poi si e' fermato (o dalla cella di partenza di una
 	 * carica che poi e' riuscita: non misurato per il tiro a cella). `R10`, la guardia di vita di
 	 * [D-209], sta nel pagamento.
-	 *
-	 * ➕ **La legge anche l'armamento delle predittive in Prep** ([D-610] (5)(b), `#4091`): una cella che la domanda del
-	 * click, rifatta sulla mappa autorevole, rifiuta non si arma, e paga o no con QUESTA tabella. Per questo vive in
-	 * `RTTurnManagerInternal` e non piu' nel namespace anonimo di questo file: una tabella sola, due sedi che la leggono.
 	 */
 	bool PagaSeParteSenzaColpo(ERTActionInvalidReason Motivo)
 	{
@@ -354,10 +347,7 @@ namespace RTTurnManagerInternal
 			return false;
 		}
 	}
-}
 
-namespace
-{
 	/**
 	 * L'intento `k` e' PARTITO e non ha prodotto un colpo? — il lato «esito» della stessa regola.
 	 *
@@ -1552,7 +1542,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			const bool bClickAvrebbeAccettato = Reason == ERTActionInvalidReason::OutOfRange
 				&& FuoriPortataMaIlClickAccettava(Reason, ClickMapForPaymentClassification(Unit->TeamId, Map),
 					ClickOriginForPaymentClassification(Unit, HexUnits[i].Cell), Instance.TargetCell, Instance.Def.RangeCells);
-			if (Instance.Def.bCountsAsAttack && (RTTurnManagerInternal::PagaSeParteSenzaColpo(Reason) || bClickAvrebbeAccettato))
+			if (Instance.Def.bCountsAsAttack && (PagaSeParteSenzaColpo(Reason) || bClickAvrebbeAccettato))
 			{
 				Ctx.MarkStartedWithoutHit(Unit, AbilityIndex);
 			}
@@ -1677,7 +1667,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ➕ **2026-10-31**: l'intento paga anche senza colpi se e' nato con una causa di pagamento. `Reason` e' quello
 		// ORIGINALE — anche dopo un ripiego `AttackCell`, che tiene la cella e perde il bersaglio — cosi' un ripiego
 		// per una causa NON DECISA non diventa pagante per il solo fatto di avere un'impronta.
-		if (RTTurnManagerInternal::PagaSeParteSenzaColpo(Reason))
+		if (PagaSeParteSenzaColpo(Reason))
 		{
 			Ctx.UnhitPayableIntents.Add(Intents.Num());
 		}

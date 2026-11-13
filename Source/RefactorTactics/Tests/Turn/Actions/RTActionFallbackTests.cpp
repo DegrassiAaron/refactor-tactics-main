@@ -498,4 +498,60 @@ bool FRTValidationCoversEveryTargetingVerdictTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Ogni verdetto del classificatore ha un motivo DICHIARATO per il colpo predittivo** ([D-610] (1) e (5)(b), `#4091`).
+ *
+ * 🔑 E' il gemello di `ValidationCoversEveryTargetingVerdict` per la SECONDA traduzione dello stesso enum,
+ * `URTActionFallbackLibrary::CellShotRefusal`, che l'armamento e il boundary delle predittive leggono. Senza questo banco
+ * un verdetto aggiunto in coda farebbe rosso solo il gemello, che si sistema aggiornando `ValidateInstance`, e la prima
+ * predittiva che lo riceve arriverebbe a `checkNoEntry()`. L'ha trovato la review di `#4091`.
+ *
+ * ⛔ La tabella e' DICHIARATA qui, e ogni riga si CHIAMA: una tabella sola proverebbe che qualcuno l'ha scritta.
+ * ⚠️ Qui `TooClose` ha il motivo proprio, ed e' la differenza con `ValidateInstance`, che lo mappa su `None`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellShotRefusalCoversEveryTargetingVerdictTest,
+	"RefactorTactics.Actions.Fallback.CellShotRefusalCoversEveryTargetingVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellShotRefusalCoversEveryTargetingVerdictTest::RunTest(const FString&)
+{
+	struct FAtteso { ERTHexTargetReason Verdetto; ERTActionInvalidReason Motivo; };
+	const TArray<FAtteso> Attesi = {
+		{ ERTHexTargetReason::Ok,            ERTActionInvalidReason::None          },
+		{ ERTHexTargetReason::NoMap,         ERTActionInvalidReason::NoMap         },
+		{ ERTHexTargetReason::OutOfRange,    ERTActionInvalidReason::OutOfRange    },
+		{ ERTHexTargetReason::NoLineOfSight, ERTActionInvalidReason::NoLineOfSight },
+		{ ERTHexTargetReason::TooClose,      ERTActionInvalidReason::TooClose      },
+		{ ERTHexTargetReason::OtherLayer,    ERTActionInvalidReason::OtherLayer    },
+	};
+
+	const UEnum* Enum = StaticEnum<ERTHexTargetReason>();
+	if (!TestNotNull(TEXT("la reflection conosce ERTHexTargetReason"), Enum)) { return false; }
+	const int32 Valori = Enum->NumEnums() - 1; // l'ultima voce e' il `_MAX` sintetico di UHT
+	if (!TestTrue(TEXT("anti-vacuita': la reflection vede almeno un valore"), Valori > 0)) { return false; }
+
+	TArray<FString> NonElencati;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTHexTargetReason R = static_cast<ERTHexTargetReason>(Enum->GetValueByIndex(i));
+		if (!Attesi.ContainsByPredicate([R](const FAtteso& A) { return A.Verdetto == R; }))
+		{
+			NonElencati.Add(Enum->GetNameStringByIndex(i));
+		}
+	}
+	// Prima della chiamata, e con un ritorno: un verdetto scoperto arriverebbe a `checkNoEntry()` e ucciderebbe il runner.
+	if (!TestTrue(*FString::Printf(TEXT("ogni verdetto ha un motivo dichiarato per la predittiva; scoperti: [%s]"),
+		*FString::Join(NonElencati, TEXT(", "))), NonElencati.Num() == 0))
+	{
+		return false;
+	}
+	TestEqual(TEXT("la tabella non porta verdetti fantasma"), Attesi.Num(), Valori);
+
+	for (const FAtteso& A : Attesi)
+	{
+		TestEqual(*FString::Printf(TEXT("%s -> il motivo dichiarato"), *Enum->GetNameStringByValue(static_cast<int64>(A.Verdetto))),
+			URTActionFallbackLibrary::CellShotRefusal(A.Verdetto), A.Motivo);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
