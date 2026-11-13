@@ -125,7 +125,7 @@
       "_nota_wraith_sulla_cresta": "🔴 Fino al 2026-08-16 questo turno mandava Ivrin a (3,1) — sulla lane d'acqua, DIETRO la porta chiusa del bordo (0,1)<->(1,1) — e nessuno se n'era accorto perche' i turni successivi erano vuoti. Da li' nessuna linea di Overwatch raggiunge i mover: una porta chiusa blocca la LOS (`HasLineOfSight` -> `BlocksTraversal` -> `URTHexDoorLibrary::BlocksBetween`), e il T4 apriva ZERO finestre. La cresta non e' una preferenza: e' cio' che rende realizzabile la coppia HOLD->FIRE tre turni dopo, perche' scendendo Ivrin finisce su r=-1, la cui linea verso W non ha porte. I turni sono ordinati per DIPENDENZA DI STATO. ⚠️ Il percorso passa da (2,0), che e' `Rough`: costa 2 e vieta Dash/Charge, non il Move normale. Totale 5 MP su 6."
     },
     {
-      "_turno": "T2 — Wet e predizione. Ivrin dichiara `InterceptShot` dalla cresta su (0,-1), una cella dell'approccio nord che Phase non attraversa: il valore del turno E' il WHIFF, e la scommessa si paga comunque — l'abilita' e' spesa che la previsione sia giusta o no.",
+      "_turno": "T2 — Wet e predizione. Ivrin dichiara `InterceptShot` dalla cresta su (2,-1), la cella accanto sull'approccio nord, che Phase non attraversa: il valore del turno E' il WHIFF, e la scommessa si paga comunque — l'abilita' e' spesa che la previsione sia giusta o no. ⌫ *Fino al 2026-11-12 la cella era (0,-1), a distanza 3 dalla cresta con la portata 1 di `InterceptShot`: un piano che il click non accetta, e che da D-610 (5)(b) (#4091) il turno non arma piu' — rifiuto `OutOfRange` nel Prep, nessun whiff. La cella accanto tiene il valore del turno com'era scritto.*",
       "requires": [
         "PredictiveAction"
       ],
@@ -134,13 +134,13 @@
           "unit": "Ivrin",
           "ability": "Hero.Ivrin.InterceptShot",
           "targetCell": [
-            0,
+            2,
             -1,
             0
           ]
         }
       ],
-      "_nota_dalla_cresta": "La cella prevista sta sulla riga r=-1, in vista dalla cresta: la LOS da (3,-1) a (0,-1) passa per (2,-1) e (1,-1), che sono `Fire` e non bloccano la vista. E' la stessa riga su cui Ivrin scendera' al T3 e dalla quale controllera' il varco al T4 — la predizione e l'Overwatch guardano lo stesso corridoio, che e' esattamente cio' che la spec chiama «approccio nord al Relay»."
+      "_nota_dalla_cresta": "La cella prevista sta sulla riga r=-1, accanto alla cresta: da (3,-1) a (2,-1) non c'e' copertura sul bordo, e (2,-1) e' `Fire`, che non blocca la vista. E' la prima cella della riga su cui Ivrin scendera' al T3 e dalla quale controllera' il varco al T4 — la predizione e l'Overwatch guardano lo stesso corridoio, che e' esattamente cio' che la spec chiama «approccio nord al Relay». ⌫ *Fino al 2026-11-12 la cella era (0,-1), e questa nota diceva che la LOS da (3,-1) passava per (2,-1) e (1,-1): era vera, ma la portata no — distanza 3 contro portata 1.*"
     },
     {
       "_turno": "T3 — bersaglio in movimento e fuoco. Ivrin scende dalla cresta e attraversa la fascia `Fire` a (2,-1) e (1,-1), prendendo il danno d'ingresso e `Burning`: il prezzo della quota si paga scendendo. Finisce a (1,-1), da dove al T4 controlla il varco verso ovest.",

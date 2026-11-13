@@ -116,6 +116,24 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	return ERTActionInvalidReason::OutOfRange;
 }
 
+ERTActionInvalidReason URTActionFallbackLibrary::CellShotRefusal(ERTHexTargetReason Verdict)
+{
+	switch (Verdict)
+	{
+	case ERTHexTargetReason::Ok:            return ERTActionInvalidReason::None;
+	case ERTHexTargetReason::NoMap:         return ERTActionInvalidReason::NoMap; // fail-closed, come il Blast
+	case ERTHexTargetReason::OutOfRange:    return ERTActionInvalidReason::OutOfRange;
+	case ERTHexTargetReason::TooClose:      return ERTActionInvalidReason::TooClose;
+	case ERTHexTargetReason::OtherLayer:    return ERTActionInvalidReason::OtherLayer;
+	case ERTHexTargetReason::NoLineOfSight: return ERTActionInvalidReason::NoLineOfSight;
+	}
+	// Un verdetto che lo `switch` non conosce: FAIL-CLOSED, come in `ValidateInstance`. `OutOfRange` per la stessa ragione
+	// scritta li': fra i motivi che esistono e' un rifiuto di geometria, e un colpo partito per distrazione sarebbe peggio
+	// di un testo sbagliato.
+	checkNoEntry();
+	return ERTActionInvalidReason::OutOfRange;
+}
+
 FRTFallbackResult URTActionFallbackLibrary::ApplyFallback(const FRTActionInstance& Instance,
 	ERTActionInvalidReason Reason)
 {

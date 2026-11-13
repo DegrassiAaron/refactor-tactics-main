@@ -102,6 +102,8 @@ bloccata, e lascia una voce di rifiuto — `Fallback`/`Cancelled` con `OtherLaye
 nella cella bloccata prendeva il colpo da un tiratore caduto un piano sotto. Pinnato da
 `ForcedMovement.FallenShooterDoesNotFireItsPrediction`.
 
+➕ *2026-11-12, [D-610](../decisions/RT_PDR_00_Decision_Log.md) (1)*: la caduta non è più il solo spostamento che spegne il colpo. Sullo stesso piano, una spinta del Blast o uno scatto che lasciano la cella bloccata fuori portata o fuori linea lo fermano allo stesso modo, col motivo `OutOfRange`, `TooClose` o `NoLineOfSight`: lo stesso test lo misura con la spinta di una cella ([#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091)). Chi cade lascia `OtherLayer`: il piano si chiede per primo.
+
 ---
 
 ## 4. I tre esiti di atterraggio

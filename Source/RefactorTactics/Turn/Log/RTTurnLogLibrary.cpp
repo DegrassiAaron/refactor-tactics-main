@@ -457,7 +457,10 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// Nomina il BORDO e dice cosa lo e': la cella davanti e' libera, e senza il perche' il lettore la cercherebbe.
 	case ERTActionInvalidReason::DashEdgeBlocked:
 		return TEXT("un bordo con copertura alta o una porta chiusa ferma la corsa");
-	default:                                     return TEXT("non eseguibile");
+	// [D-610] (`#4091`): sotto la distanza minima. Nomina il MINIMO e non la portata, per la ragione scritta sul valore: il
+	// rimedio e' allontanarsi. E' il testo del click (`HandleTargetCell`, «troppo vicino»), senza il numero che li' si legge.
+	case ERTActionInvalidReason::TooClose:       return TEXT("troppo vicino: sotto la distanza minima");
+	default:                                    return TEXT("non eseguibile");
 	}
 }
 

@@ -686,7 +686,8 @@ void ARTTurnManager::ClassifyRangeLostPayment(FRTBlastContext& Ctx)
 	// distanza minima, il piano e la linea di tiro. Un tiro che il click avrebbe rifiutato per UNO di questi ultimi
 	// sulla mappa ottimistica (una distanza minima sopra il cap, una mira su un altro piano, una linea gia' nota bloccata)
 	// paga qui e non pagherebbe col click: sbaglia verso il PAGAMENTO, a differenza del resto del predicato. Per la distanza
-	// minima il catalogo spedito non ha un caso (l'unica e' 2, e il cap e' 2); il piano e la linea non sono misurati. Un tiro sotto
+	// minima il catalogo spedito non ha un caso (l'unica di un'azione del Blast e' 2, e il cap e' 2: la 1 di `Hero.Ivrin.InterceptShot`,
+	// [D-610] (2), e' di una predittiva, che risolve in Prep e al boundary e qui non passa); il piano e la linea non sono misurati. Un tiro sotto
 	// la distanza minima NON ha canale (resta gratis, come prima). Dichiarato in `RIC-3` fra i limiti, non coperto.
 	//
 	// ⚠️ **Ordinato e senza dipendere da `TSet`**: si iterano i due canali del piano, che `CollectHexAttacks` ordina; l'insieme

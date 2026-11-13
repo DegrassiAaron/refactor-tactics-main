@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Combat/RTHexCombatLibrary.h"
+#include "Combat/RTCombatLibrary.h" // ERTHexTargetReason: il verdetto che `CellShotRefusal` traduce (#4091)
 #include "Turn/Actions/RTActionQueue.h"
 #include "Turn/Log/RTTurnLog.h"
 #include "RTActionFallbackLibrary.generated.h"
@@ -32,6 +33,9 @@ enum class ERTActionInvalidReason : uint8
 	 * E, da [D-516], il bersaglio di una CARICA pianificato in linea ma oltre la portata: la carica corre fino alla
 	 * portata e la traccia la scrive `ERTFallbackOutcome::Stopped` con questo motivo. Il rimedio e' lo stesso —
 	 * avvicinarsi —, ed e' cio' che separa questo motivo da `DashNotAligned`.
+	 *
+	 * ➕ E, da [D-610] (`#4091`), la cella di un colpo predittivo: all'armamento un piano mai in portata, al boundary un
+	 * TIRATORE che si e' allontanato (uno scatto, una spinta). Il rimedio resta avvicinarsi, ma chi si e' mosso e' l'altro.
 	 */
 	OutOfRange,
 	/** In portata, ma la traiettoria e' bloccata. */
@@ -267,9 +271,11 @@ enum class ERTActionInvalidReason : uint8
 	 * che mira all'altro capo dell'arco. Annullare l'azione intera lo spegnerebbe — la prima stesura di
 	 * [D-509] lo faceva, e l'hanno trovato sei test della suite intera.
 	 *
-	 * Due produttori: il Blast, per ogni intento d'attacco che la raccolta ferma per piano
-	 * (`ARTTurnManager::LogBlockedIntents`), e il boundary predittivo
-	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara).
+	 * Tre produttori: il Blast, per ogni intento d'attacco che la raccolta ferma per piano
+	 * (`ARTTurnManager::LogBlockedIntents`), il boundary predittivo
+	 * (`ARTTurnManager::ResolvePredictiveBoundary`: chi ha armato e poi e' caduto di piano non spara) e, da [D-610] (5)(b)
+	 * (`#4091`), l'armamento in Prep (`ARTTurnManager::ResolvePrep`: una cella dichiarata su un altro piano non si arma).
+	 * ⌫ *Fino a `#4091` qui si leggeva «Due produttori».*
 	 * ⛔ Non lo produce l'interposizione: la reazione che non scatta lascia la voce di sempre,
 	 * `Reaction`/`NotTriggered` — la stessa di quando l'alleato e' troppo lontano — e quell'esito non porta
 	 * un motivo. E non lo produce cio' che un colpo non e' — la cura, `ModifyArc`, le azioni ambientali:
@@ -302,7 +308,20 @@ enum class ERTActionInvalidReason : uint8
 	 * QUANTITATIVO della famiglia da quando D-190 tolse `InsufficientMovementPoints`: ADR-0011 cambia il tipo
 	 * della legalita', e questo e' il valore che lo dice nel TurnLog.
 	 */
-	OverBudget
+	OverBudget,
+
+	/**
+	 * La cella mirata sta SOTTO la distanza minima dell'azione ([D-610], `#4091`): e' il gemello di risoluzione di
+	 * `ERTHexTargetReason::TooClose`. Lo produce il colpo predittivo, all'armamento in Prep e al boundary del Move,
+	 * quando `MinRangeCells` (per `Hero.Ivrin.InterceptShot` e' 1, [D-610] (2)) non e' rispettata da dove il tiratore e'.
+	 *
+	 * ⛔ **Non e' `OutOfRange` al contrario**, per la ragione scritta su `ERTHexTargetReason::TooClose`: sono due difetti
+	 * con due correzioni opposte, e «fuori portata» detto a chi sta sopra la propria cella bloccata manderebbe ad
+	 * avvicinarsi chi deve allontanarsi.
+	 *
+	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
+	 */
+	TooClose
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */
@@ -351,6 +370,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static ERTActionInvalidReason ValidateInstance(const FRTActionInstance& Instance,
 		const TArray<FRTHexCombatUnit>& Units, const URTHexMapAsset* Map);
+
+	/**
+	 * Il verdetto del classificatore di mira tradotto nel MOTIVO con cui un colpo predittivo non si arma o non parte
+	 * ([D-610] (1) e (5)(b), `#4091`). Lo chiedono due sedi di `ARTTurnManager`, l'armamento in Prep e il boundary del
+	 * Move, e devono rispondere con gli stessi valori: per questo e' una funzione e non due `switch`.
+	 *
+	 * 🔑 **Non e' `ValidateInstance`**, che per una cella risponde `None` in cima e mappa `TooClose` su `None` perche' li'
+	 * il minimo lo giudica la raccolta del Blast. Qui la cella E' il bersaglio, e il minimo si giudica qui: `TooClose` ha
+	 * un motivo proprio. Ogni altro verdetto ha il motivo omonimo.
+	 *
+	 * ⛔ **Ogni verdetto ha un ramo**, e lo `switch` senza `default` non ferma la build (`#3080`): lo regge
+	 * `Actions.Fallback.CellShotRefusalCoversEveryTargetingVerdict`, che legge i verdetti dalla reflection. Un verdetto
+	 * sconosciuto e' un rifiuto, rumoroso in sviluppo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static ERTActionInvalidReason CellShotRefusal(ERTHexTargetReason Verdict);
 
 	/**
 	 * L'azione da eseguire quando la validazione fallisce, secondo il `Fallback` dichiarato dall'azione.

@@ -1,13 +1,14 @@
 {
   "scenarioId": "Visual.Input.InterceptShotClick",
   "tags": ["pointer", "planning", "predictive", "visual", "ivrin", "branth", "muiren"],
-  "verifies": ["PIE-V01-PREDICTIVECLICK"],
+  "verifies": ["PIE-V01-PREDICTIVECLICK", "PIE-V01-PREDICTIVEDASH"],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",
 
   "_nota": "BANCO del click con una predittiva armata (#4088). Zero turni: e' una configurazione, e la partita resta in Pianificazione perche' una persona arma `Hero.Ivrin.InterceptShot` e clicchi. Ivrin e' qui nella squadra del giocatore: in `Visual.Hud.FirstPlayable` sta in quella avversaria.",
   "_oracolo": "`PIE-V01-PREDICTIVECLICK`. (1) Armata InterceptShot, il dock chiede una cella. (2) Il click sulla cella vuota `(-2,3)` la blocca, e Ivrin non riceve un waypoint. (3) Il click sulla mesh di B2 blocca la sua cella `(-2,2)`, e il pannello non passa all'ispezione. (4) Dopo il lock-in il TurnLog ha la voce della previsione su quella cella. I test headless entrano dal dispatcher del click; quale superficie prende il click lo dice solo lo schermo.",
+  "_oracolo_scatto": "`PIE-V01-PREDICTIVEDASH` (#4091, D-610 (1)). InterceptShot su `(-2,3)` e, nello stesso turno, `PassingBlade`: su `(-3,4)`, accanto alla cella bloccata, il colpo parte (voce `Predictive`); su `(-4,3)`, a due celle, non parte (voce `Fallback`/`Cancelled` del Move, fuori portata). Due giri, con lo scenario rimesso fra l'uno e l'altro.",
   "_nota_geometria": "Tutto sulla riga `r = 3` di `TestArena` e accanto, lontano dalla colonna di vista `(0, r)` per `r` da -2 a 2, dal fango a `q = -2` per `r` da -1 a 1 e dalle celle che bloccano il passo. InterceptShot ha portata 1: le celle bloccabili sono le sei accanto ad A1. `(-2,3)` e' vuota, accanto ad A1 e a B1: B1 ci puo' entrare. B2 sta in `(-2,2)`, accanto ad A1, per il click sulla mesh.",
 
   "units": [

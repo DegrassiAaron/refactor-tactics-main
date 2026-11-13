@@ -1757,12 +1757,19 @@ bool FRTFallStaticValidatorIgnoresOccupancyTest::RunTest(const FString&)
  *     Layer 0:                                                                  (1,0) [atterraggio]  (2,0)  (3,0)
  *
  * Chi spinge agisce nel Blast, da due celle, e poi nel Move entra nella cella bloccata — che sta accanto a
- * chi arma, cioe' alla portata vera di `Ivrin.InterceptShot` (1). La stessa scena due volte, e l'unica
- * variabile e' di QUANTO si spinge: una cella lascia chi ha armato sulla passerella, due lo fanno cadere.
+ * chi arma, cioe' alla portata vera di `Ivrin.InterceptShot` (1). La stessa scena tre volte, e l'unica
+ * variabile e' di QUANTO si spinge: zero celle lasciano chi ha armato dov'era, una lo sposta sulla passerella,
+ * due lo fanno cadere.
  *
  * ⛔ **Il controllo positivo non e' decorativo**: senza, «nessun danno» lo darebbe anche una previsione mai
- * armata, una cella bloccata sbagliata o un movimento che non parte. Con una cella di spinta il colpo deve
- * andare a segno.
+ * armata, una cella bloccata sbagliata o un movimento che non parte. Senza spinta il colpo deve andare a segno.
+ * ⌫ *Fino a [D-610] (1) (`#4091`) il controllo era la spinta di UNA cella: chi arma finiva a (1,0,1), a distanza 2
+ * dalla cella bloccata, e il colpo partiva lo stesso. Da allora non parte — fuori portata —, e quella scena e'
+ * diventata il caso della spinta che `#4091` chiede: lo stesso rifiuto, col motivo della portata e non del piano.*
+ *
+ * ⚠️ **Chi cade a due celle lascia `OtherLayer`, non `OutOfRange`**: il boundary chiede il piano PRIMA della
+ * portata, perche' `HexDistance` ignora il `Layer` e «fuori portata» direbbe di avvicinarsi a una cosa che
+ * nessun avvicinamento sistema ([D-509] (7)(a)).
  *
  * 🔴 **Tre asserti sul caso, perche' tre cose potevano andare storte**: il danno (il colpo non parte), la voce
  * (non parte e lo dichiara, con un motivo che NON e' «a vuoto» — nella cella qualcuno e' entrato), e la
@@ -1786,6 +1793,7 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 		int32 VociPredittive = 0;
 		uint8 EsitoPredittivo = MAX_uint8;
 		int32 RifiutiDiPiano = 0;
+		int32 RifiutiDiPortata = 0; // [D-610] (1): sullo stesso piano, ma fuori portata da dove la spinta l'ha lasciato
 		FRTTurnLogEntry Rifiuto;
 	};
 
@@ -1818,8 +1826,11 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 		ChiArma->SetPlannedMainAction(3);
 		ChiArma->DeclareAttackOnCell(Bloccata);
 
-		// Chi spinge: la spinta nel Blast, e nel Move il passo dentro la cella bloccata.
-		PlanLedgeShove(ChiSpinge, ChiArma, CelleDiSpinta);
+		// Chi spinge: la spinta nel Blast (se c'e'), e nel Move il passo dentro la cella bloccata.
+		if (CelleDiSpinta > 0)
+		{
+			PlanLedgeShove(ChiSpinge, ChiArma, CelleDiSpinta);
+		}
 		ChiSpinge->SetPlannedCell(Bloccata);
 		const int32 Prima = ChiSpinge->Health;
 
@@ -1841,22 +1852,49 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 				++Out.RifiutiDiPiano;
 				Out.Rifiuto = E;
 			}
+			if (E.Category == ERTLogCategory::Fallback && E.ActionId == Predittiva
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange))
+			{
+				++Out.RifiutiDiPortata;
+				Out.Rifiuto = E;
+			}
 		}
 		Out.bValido = ChiArma->IsAlive() && ChiSpinge->IsAlive();
 		DestroyLedgeWorld(World);
 		return Out;
 	};
 
-	// ── Controllo: una cella di spinta, chi arma resta sulla passerella, e il colpo va a segno. ───────────
-	const FEsito Resta = Gioca(/*CelleDiSpinta=*/ 1);
-	if (!TestTrue(TEXT("banco (senza caduta): le due unita' ci sono e sono vive"), Resta.bValido)) { return false; }
-	TestTrue(TEXT("controllo — premessa: chi arma e' stato spinto ma e' ancora sul suo piano"),
-		Resta.DoveFinisceChiArma == FRTCellId(1, 0, 1));
-	TestTrue(FString::Printf(TEXT("controllo: il colpo predittivo va a segno (danno %d)"), Resta.DannoAChiEntra),
-		Resta.DannoAChiEntra > 0);
-	TestEqual(TEXT("controllo: e la sua voce e' TriggerMatched"), Resta.EsitoPredittivo,
+	// ── Controllo: nessuna spinta, chi arma resta accanto alla cella bloccata, e il colpo va a segno. ──────
+	const FEsito Fermo = Gioca(/*CelleDiSpinta=*/ 0);
+	if (!TestTrue(TEXT("banco (senza spinta): le due unita' ci sono e sono vive"), Fermo.bValido)) { return false; }
+	TestTrue(TEXT("controllo — premessa: chi arma e' rimasto dov'era"), Fermo.DoveFinisceChiArma == FRTCellId(0, 0, 1));
+	TestTrue(FString::Printf(TEXT("controllo: il colpo predittivo va a segno (danno %d)"), Fermo.DannoAChiEntra),
+		Fermo.DannoAChiEntra > 0);
+	TestEqual(TEXT("controllo: e la sua voce e' TriggerMatched"), Fermo.EsitoPredittivo,
 		static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
-	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Resta.RifiutiDiPiano, 0);
+	TestEqual(TEXT("controllo: nessun rifiuto per piano"), Fermo.RifiutiDiPiano, 0);
+	TestEqual(TEXT("controllo: nessun rifiuto per portata"), Fermo.RifiutiDiPortata, 0);
+
+	// ── La spinta di una cella ([D-610] (1), `#4091`): chi arma resta sul suo piano, ma a distanza 2. ──────
+	const FEsito Spinto = Gioca(/*CelleDiSpinta=*/ 1);
+	if (!TestTrue(TEXT("banco (spinta di una cella): le due unita' ci sono e sono vive"), Spinto.bValido)) { return false; }
+	if (!TestTrue(TEXT("spinta — premessa: chi arma e' stato spinto ma e' ancora sul suo piano"),
+		Spinto.DoveFinisceChiArma == FRTCellId(1, 0, 1)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("spinta: chi e' fuori portata non spara — nessun danno a chi entra"), Spinto.DannoAChiEntra, 0);
+	TestEqual(TEXT("spinta: e nessuna voce predittiva"), Spinto.VociPredittive, 0);
+	TestEqual(TEXT("spinta: nessun rifiuto per piano — e' lo stesso piano"), Spinto.RifiutiDiPiano, 0);
+	if (TestEqual(TEXT("spinta: il turno lo DICHIARA, una voce di rifiuto con OutOfRange"), Spinto.RifiutiDiPortata, 1))
+	{
+		TestEqual(TEXT("spinta: …Fallback/Cancelled"), Spinto.Rifiuto.Outcome,
+			static_cast<uint8>(ERTFallbackOutcome::Cancelled));
+		TestTrue(TEXT("spinta: …nella fase del boundary, il Move"), Spinto.Rifiuto.Phase == ERTMatchPhase::Move);
+		TestTrue(TEXT("spinta: …da dove la spinta ha lasciato chi ha armato"), Spinto.Rifiuto.SrcCell == FRTCellId(1, 0, 1));
+		TestTrue(TEXT("spinta: …verso la cella su cui aveva scommesso"), Spinto.Rifiuto.TgtCell == Bloccata);
+	}
+	TestTrue(TEXT("spinta: un colpo annullato non tronca nessuno"), Spinto.DoveFinisceChiEntra == Bloccata);
 
 	// ── Il caso: due celle di spinta, chi arma cade sul piano di sotto. ───────────────────────────────────
 	const FEsito Cade = Gioca(/*CelleDiSpinta=*/ 2);
@@ -1871,6 +1909,7 @@ bool FRTFallenShooterDoesNotFireItsPredictionTest::RunTest(const FString&)
 		Cade.DannoAChiEntra, 0);
 	TestEqual(TEXT("e non resta una voce predittiva: ne' a segno, ne' «a vuoto» — nella cella qualcuno e' entrato"),
 		Cade.VociPredittive, 0);
+	TestEqual(TEXT("e non per portata: il piano si chiede per primo ([D-509] (7)(a))"), Cade.RifiutiDiPortata, 0);
 	if (TestEqual(TEXT("il turno lo DICHIARA: una voce di rifiuto con OtherLayer"), Cade.RifiutiDiPiano, 1))
 	{
 		TestEqual(TEXT("…Fallback/Cancelled"), Cade.Rifiuto.Outcome,

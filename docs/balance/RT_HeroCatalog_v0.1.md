@@ -201,6 +201,7 @@ nel vertical slice).
 > **d'ingresso su movimento**, non «sono stato colpito»: la cella si dichiara in pianificazione, si blocca
 > (`PredictiveTargeting = LockCell`) e si risolve al passaggio dell'avversario
 > (`PredictionBoundary = MovementEntry`), senza input durante la Resolution.
+> ➕ *2026-11-12, [D-610](../decisions/RT_PDR_00_Decision_Log.md)*: la cella è quella **accanto** (`MinRangeCells = 1`, punto (2)), e il colpo parte solo se al boundary è ancora a portata e in linea da Ivrin (punto (1)); una cella fuori portata o senza linea dalla cella del Prep non si arma (punto (5)(b), [#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091)).
 > È da `Tipo = predittiva` che la rubrica dei radar deduce che il payoff è **condizionale a una previsione**
 > e non entra nel danno garantito (#557, #1080).
 > ⚠️ **Quella parola è un ingresso di calcolo, non un'etichetta**: scriverla diversamente — `predittivo`,
