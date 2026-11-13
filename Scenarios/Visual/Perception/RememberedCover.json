@@ -10,11 +10,11 @@
 
   "_nota_cosa_guardare": "Le due coperture sono pannelli traslucidi nel colore della pianta, la alta piu' alta della bassa; le celle intorno a loro hanno l'anello ciano su un fondo scuro tinto di ciano. Davanti ad Aevik, verso ovest, le celle viste hanno disco e anello della griglia. Mentre Aevik si allontana, le celle che escono dalla vista sfumano verso la pianta. Nessuna regola cambia: le attese sono solo posizione e verso.",
 
-  "_nota_nemico": "Branth sta lontano, in (3,-3), e non agisce: c'e' perche' la scena abbia due squadre come una partita, non perche' serva alla pianta.",
+  "_nota_nemico": "Riktor sta lontano, in (3,-3), e non agisce: c'e' perche' la scena abbia due squadre come una partita, non perche' serva alla pianta.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Aevik",  "team": 0, "cell": [-1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3, -3, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 3, -3, 0] }
   ],
 
   "turns": [

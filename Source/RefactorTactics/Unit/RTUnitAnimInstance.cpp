@@ -210,16 +210,16 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 		{ TEXT("Hero.Muiren.FluidTrail"),   ERTPresentationRole::Cast,   TEXT("Ability_E") },
 		{ TEXT("Hero.Muiren.TideGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_R_Alt") },
 	});
-	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
+	ClipsPerHero.Add(FName(TEXT("Hero.Riktor")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Riktor"), {
-		{ TEXT("Hero.Branth.ImpactShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_A_Slow") },
-		{ TEXT("Hero.Branth.KineticPanel"), ERTPresentationRole::Cast,   TEXT("Ability_Lockdown") },
-		{ TEXT("Hero.Branth.Reconfigure"),  ERTPresentationRole::Cast,   TEXT("Ability_Hook_Pull") },
+		{ TEXT("Hero.Riktor.ImpactShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_A_Slow") },
+		{ TEXT("Hero.Riktor.KineticPanel"), ERTPresentationRole::Cast,   TEXT("Ability_Lockdown") },
+		{ TEXT("Hero.Riktor.Reconfigure"),  ERTPresentationRole::Cast,   TEXT("Ability_Hook_Pull") },
 		// L'impatto di una carica porta l'ActionId dello SCATTO (`Impact.Def = Dash->Def`): Ram ha un beat Attack.
-		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Cast,   TEXT("Ability_Hook_Start") },
-		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Attack, TEXT("Ability_ShockingPunch") },
-		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Cast,   TEXT("Ability_Hook_Cast") },
-		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_B_Slow") },
+		{ TEXT("Hero.Riktor.Ram"),          ERTPresentationRole::Cast,   TEXT("Ability_Hook_Start") },
+		{ TEXT("Hero.Riktor.Ram"),          ERTPresentationRole::Attack, TEXT("Ability_ShockingPunch") },
+		{ TEXT("Hero.Riktor.MortarShot"),   ERTPresentationRole::Cast,   TEXT("Ability_Hook_Cast") },
+		{ TEXT("Hero.Riktor.MortarShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_B_Slow") },
 	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Ivrin")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward"))).PerAction = MakeActionClips(TEXT("Wraith"), {

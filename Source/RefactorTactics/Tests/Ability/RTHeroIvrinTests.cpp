@@ -41,7 +41,7 @@ bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("vista"), Ivrin->VisionRange, 6);
 	TestEqual(TEXT("resistenza push"), Ivrin->PushResistance, 0);
 	TestEqual(TEXT("affinita'"), Ivrin->Affinity, FName(TEXT("Affinity.Movement")));
-	TestEqual(TEXT("debolezza simmetrica a Branth"), Ivrin->Weakness, FName(TEXT("Affinity.Structures")));
+	TestEqual(TEXT("debolezza simmetrica a Riktor"), Ivrin->Weakness, FName(TEXT("Affinity.Structures")));
 
 	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Ivrin->Actions.Num(), 6)) { return false; }
 
@@ -66,7 +66,7 @@ bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("PassingBlade: risolve nel Dash"),
 		URTCatalogLibrary::MapResolutionPhase(PassingBlade->Def.ResolutionPhase) == ERTMatchPhase::Dash);
 
-	// PassingBlade ATTRAVERSA i nemici, la carica di Branth si FERMA sul primo: la differenza e' un dato
+	// PassingBlade ATTRAVERSA i nemici, la carica di Riktor si FERMA sul primo: la differenza e' un dato
 	// (`ERTMovementStyle`), non un `if` sull'ActionId. E' il motivo per cui quel campo esiste (CP 4.5).
 	//
 	// Fino al 2026-08-08 questa riga diceva «passa attraverso» e verificava `LinearDash`, che si ferma su cio'

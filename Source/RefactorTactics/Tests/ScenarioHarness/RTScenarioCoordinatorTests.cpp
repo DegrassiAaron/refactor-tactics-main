@@ -128,7 +128,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCoordinatorPosesHeroClassTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 {
-	// `Movement.Basic`: A1 e' Aevik, B1 e' Branth. Solo Aevik riceve una classe.
+	// `Movement.Basic`: A1 e' Aevik, B1 e' Riktor. Solo Aevik riceve una classe.
 	for (const bool bConClassi : { true, false })
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -148,7 +148,7 @@ bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 			TestTrue(TEXT("premessa: e la sessione sta girando"), Coordinator.IsRunning());
 
 			int32 Aevik = 0;
-			int32 Branth = 0;
+			int32 Riktor = 0;
 			for (TActorIterator<ARTUnit> It(World); It; ++It)
 			{
 				const ARTUnit* U = *It;
@@ -165,14 +165,14 @@ bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 						TestTrue(TEXT("senza classi, Aevik e' il cilindro"), U->GetClass() == ARTUnit::StaticClass());
 					}
 				}
-				else if (U->HeroId == FName(TEXT("Hero.Branth")))
+				else if (U->HeroId == FName(TEXT("Hero.Riktor")))
 				{
-					++Branth;
-					TestTrue(TEXT("Branth non ha una classe: resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+					++Riktor;
+					TestTrue(TEXT("Riktor non ha una classe: resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
 				}
 			}
 			TestEqual(TEXT("premessa: c'e' un Aevik"), Aevik, 1);
-			TestEqual(TEXT("premessa: c'e' un Branth"), Branth, 1);
+			TestEqual(TEXT("premessa: c'e' un Riktor"), Riktor, 1);
 		}
 
 		RTWorldFixtures::DestroyWorld(World);

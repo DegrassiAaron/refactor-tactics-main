@@ -499,7 +499,7 @@ bool FRTBlindFirePolicyReachesTheIntentTest::RunTest(const FString&)
 		MapActor->MapAsset = Map;
 
 		ARTUnit* Shooter = SpawnBlindFireUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
-		ARTUnit* Foe = SpawnBlindFireUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+		ARTUnit* Foe = SpawnBlindFireUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Shooter || !Foe) { DestroyBlindFireWorld(World); return false; }
 

@@ -56,7 +56,7 @@ namespace RTReactionResponseText
 	 * chi si lascia passare non torna per il resto del turno, e lo stesso vale allo scadere.
 	 * - un solo bersaglio, col nome: «Lascia passare Ivrin»;
 	 * - piu' bersagli, e nessuno entrato senza essere offerto: «Lascia passare tutti», anche senza i nomi;
-	 * - piu' bersagli, e qualcuno entrato che la condizione dichiarata ha escluso: «Lascia passare Ivrin e Branth» —
+	 * - piu' bersagli, e qualcuno entrato che la condizione dichiarata ha escluso: «Lascia passare Ivrin e Riktor» —
 	 *   «tutti» direbbe che passa anche lui, e lui non e' stato chiesto;
 	 * - nessun bersaglio, o un nome che manca dove serve, o la finestra chiusa: «Non attaccare», come la firma qui sopra.
 	 * Ogni altra opzione dice cio' che dice la firma qui sopra. «Offerto» e' `URTReactionOpportunityLibrary::OfferedFireTargets`.
@@ -81,7 +81,7 @@ namespace RTReactionResponseText
 	 * `Window.TriggerKind`, che scrive chi apre la finestra — qui non si guarda l'id della reazione.
 	 *
 	 * - `EnteredControlledArea`: «Ivrin è entrato nell'area controllata»; con piu' unita' nello stesso passo,
-	 *   «Ivrin e Branth sono entrati nell'area controllata». Senza nomi, nessuna frase: una riga che non dice
+	 *   «Ivrin e Riktor sono entrati nell'area controllata». Senza nomi, nessuna frase: una riga che non dice
 	 *   chi e' entrato non aggiunge niente al titolo.
 	 * - `Pushed`: «Ivrin ti spinge». ⚠️ **Senza un nome nella vista, «Un nemico ti spinge»**: e' il caso di chi
 	 *   spinge da una cella che la squadra non rileva, e il nome non c'e' perche' il core non lo ha messo.

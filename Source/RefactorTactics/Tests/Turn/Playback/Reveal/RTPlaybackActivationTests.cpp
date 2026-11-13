@@ -75,7 +75,7 @@ namespace
 		MapActor->MapAsset = M;
 
 		Out.Scudo    = SpawnBeatUnit(Out.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
-		Out.Tiratore = SpawnBeatUnit(Out.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		Out.Tiratore = SpawnBeatUnit(Out.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTUnit* Bersaglio = SpawnBeatUnit(Out.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Scudo || !Out.Tiratore || !Bersaglio) { return false; }
@@ -296,7 +296,7 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 	BeatMappa(World, 6);
 
 	ARTUnit* Bracer = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Pusher = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Pusher = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra del Bracer: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
@@ -389,16 +389,16 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	BeatMappa(World, 8);
 
-	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
 
-	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
-	if (!TestTrue(TEXT("premessa: Branth ha Ram"), Caricatore->PlannedDashAbility != INDEX_NONE)) { return false; }
+	if (!TestTrue(TEXT("premessa: Riktor ha Ram"), Caricatore->PlannedDashAbility != INDEX_NONE)) { return false; }
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->SetPlaybackControlsEnabled(true);
@@ -458,7 +458,7 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		URTHexMapAsset* Map = BeatMappa(World, 6);
 
 		ARTUnit* Tiratore  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
-		ARTUnit* Bersaglio = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+		ARTUnit* Bersaglio = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(World, SquadraDelViewer);
 		if (!TM || !Map || !Tiratore || !Bersaglio || !Viewer)
@@ -525,13 +525,13 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	BeatMappa(World, 6);
 
-	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
-	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	TM->RefreshTeamKnowledgeNow();
@@ -573,7 +573,7 @@ bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero = Salvato; };
 	IniettaClipAzioneBeat(FName(TEXT("Hero.Muiren")), FName(TEXT("Hero.Muiren.TideGuard")),
 		ERTPresentationRole::Cast, ClipAzioneScudo);
-	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Branth.ImpactShot")),
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Riktor.ImpactShot")),
 		ERTPresentationRole::Attack, ClipAzioneTiratore);
 
 	FRTBeatDiProva B;
@@ -598,7 +598,7 @@ bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
 		B.Tiratore->LastResolvedClipPathForTest(ERTPresentationRole::Attack).ToString(), FString(ClipAzioneTiratore));
 	TestEqual(TEXT("controllo positivo: il cast del tiratore non ha voce, e' il ruolo"),
 		B.Tiratore->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(),
-		GetDefault<URTUnitAnimInstance>()->ActiveClipFor(FName(TEXT("Hero.Branth")), ERTPresentationRole::Cast)
+		GetDefault<URTUnitAnimInstance>()->ActiveClipFor(FName(TEXT("Hero.Riktor")), ERTPresentationRole::Cast)
 			.ToSoftObjectPath().ToString());
 	return true;
 }
@@ -656,7 +656,7 @@ bool FRTPlaybackActionClipThatFailsToLoadFallsBackToRoleTest::RunTest(const FStr
 
 /**
  * Review Focus (e): l'impatto di una carica porta l'`ActionId` dello SCATTO (`Impact.Def = Dash->Def`,
- * `RTTurnManager.cpp:4746`), quindi suona la clip `Attack` dello scatto — spec §2.6, riga di `Hero.Branth.Ram`.
+ * `RTTurnManager.cpp:4746`), quindi suona la clip `Attack` dello scatto — spec §2.6, riga di `Hero.Riktor.Ram`.
  *
  * ⚠️ Il caricatore e' della squadra 0 e il test non crea nessun controller: il viewer e' il ripiego sulla squadra 0
  * (`RTPlaybackActivationTests.cpp:9-10`), cioe' la squadra delle sorgenti. E' la fixture di
@@ -672,21 +672,21 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 {
 	const TMap<FName, FRTHeroPresentationClips> Salvato = GetDefault<URTUnitAnimInstance>()->ClipsPerHero;
 	ON_SCOPE_EXIT{ GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero = Salvato; };
-	const FName Ram(TEXT("Hero.Branth.Ram"));
-	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), Ram, ERTPresentationRole::Cast, ClipCaricaLancio);
-	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), Ram, ERTPresentationRole::Attack, ClipCaricaImpatto);
+	const FName Ram(TEXT("Hero.Riktor.Ram"));
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Riktor")), Ram, ERTPresentationRole::Cast, ClipCaricaLancio);
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Riktor")), Ram, ERTPresentationRole::Attack, ClipCaricaImpatto);
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	BeatMappa(World, 8);
 
-	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
-	const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
-	if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
+	const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram"));
+	if (!TestTrue(TEXT("⛔ premessa: Riktor ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
 	Caricatore->SetPlannedDash(IndiceRam, Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
 
@@ -726,7 +726,7 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 /**
  * Regressione zero sul tracer di un attacco base, a mondo (spec §5.1, D5): a meta' volo il canale ha UN tracer con
  * `From`, `To`, `Style = Projectile` e `Alpha` uguali alle formule di prima di #3578.
- * 🔑 Fixture `CostruisciBeat` col viewer 0 (mondo inizializzato, viewer asserito): il Tiratore e' Branth in (0,0)
+ * 🔑 Fixture `CostruisciBeat` col viewer 0 (mondo inizializzato, viewer asserito): il Tiratore e' Riktor in (0,0)
  * con `ImpactShot` sul bersaglio in (1,0). L'indice del colpo nella sequenza si legge dopo `LockInAndResolve`.
  * ⚠️ **Pin di regressione, non coperto dalle mutazioni del set di #3578** ((5), (6), (17), (19), (22), (1): nessuna tocca il
  * tracer di un attacco base). Lo fanno cadere, in `ARTTurnManager::PushPlaybackTracers`: `T.Style = ERTTracerStyle::Jet` al
@@ -781,7 +781,7 @@ bool FRTPlaybackBasicAttackTracerIsUnchangedTest::RunTest(const FString&)
  *
  * 🔴 **La premessa di F15**: nella prima fixture nessuna sorgente si sposta, quindi `Ev.Origin == Src->Cell` e una
  * cue letta dall'attore passerebbe. La seconda meta' usa la carica di `Playback.ChargeImpactPlaysTheDashAttackClip`:
- * Branth parte da (1,0) e finisce addosso al bersaglio — `Ev.Origin != Src->Cell` a fine risoluzione, ASSERITO.
+ * Riktor parte da (1,0) e finisce addosso al bersaglio — `Ev.Origin != Src->Cell` a fine risoluzione, ASSERITO.
  * ✅ Validato per mutazione (7): la cella presa da `Src->Cell` fa cadere «Ring di Ram su Ev.Origin».
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActivationCueAtTheSourceCellTest,
@@ -844,12 +844,12 @@ bool FRTPlaybackActivationCueAtTheSourceCellTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		BeatMappa(World, 8);
 		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
-		ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 		ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Caricatore || !Bersaglio || !Mappa) { return false; }
-		const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
-		if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
+		const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram"));
+		if (!TestTrue(TEXT("⛔ premessa: Riktor ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
 		Caricatore->SetPlannedDash(IndiceRam, Bersaglio->Cell);
 		Caricatore->SetPlannedCell(Caricatore->Cell);
 		TM->RefreshTeamKnowledgeNow();

@@ -43,8 +43,8 @@ namespace RTTurnManagerInternal
  * esiste per chiudere nel log. La cascata e' QUELLA: `LogLabel` la chiama gia', e qui la si usa invece di
  * riscriverla. La sola differenza e' l'unita' che non c'e': li' «unita' sconosciuta», qui nessun nome.
  *
- * ⚠️ **Il nome e' per EROE, non per unita'**, come dice `LogLabel`: due `Hero.Branth` in campo producono la
- * stessa etichetta, e una finestra direbbe «Branth e Branth sono entrati». Le opzioni restano distinte dal
+ * ⚠️ **Il nome e' per EROE, non per unita'**, come dice `LogLabel`: due `Hero.Riktor` in campo producono la
+ * stessa etichetta, e una finestra direbbe «Riktor e Riktor sono entrati». Le opzioni restano distinte dal
  * tasto. Come distinguere due unita' dello stesso eroe in un testo dell'HUD non e' deciso.
  */
 inline FText ReactionWindowUnitName(const ARTUnit* Unit)

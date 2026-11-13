@@ -269,7 +269,7 @@ bool FRTShowcaseFixtureLayoutTest::RunTest(const FString&)
 
 	// Il roster canonico della v0.1, con gli ID del catalogo eroi: non gli archetipi legacy ne' i nomi
 	// storici (Aegis/Nyx/Drift/Vex). Sono gli stessi ID che `URTHeroCatalogLibrary` usa come chiave stabile.
-	for (const FName HeroId : { FName("Hero.Aevik"), FName("Hero.Muiren"), FName("Hero.Branth"), FName("Hero.Ivrin") })
+	for (const FName HeroId : { FName("Hero.Aevik"), FName("Hero.Muiren"), FName("Hero.Riktor"), FName("Hero.Ivrin") })
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' in campo"), *HeroId.ToString()), Heroes.Contains(HeroId));
 	}
@@ -511,8 +511,8 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		static_cast<int32>(ERTHexCoverType::Low));
 
 	// --- Copertura del T6: quella che rende DISCRIMINANTE l'interposizione (#1060) -------------------
-	// La copertura sta sulla VITTIMA (Ivrin) e non sull'intercettore (Branth), ed e' cio' che rende il T6
-	// discriminante: quando Branth si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
+	// La copertura sta sulla VITTIMA (Ivrin) e non sull'intercettore (Riktor), ed e' cio' che rende il T6
+	// discriminante: quando Riktor si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
 	// Un resolver che conservasse la copertura del bersaglio ORIGINALE gli farebbe 12 danni invece di 22 —
 	// 113 punti vita invece di 103 — ed e' l'errore che D-017 vieta.
 	TestEqual(TEXT("copertura bassa davanti a Ivrin, sul bordo da cui il colpo lo raggiunge"),
@@ -546,7 +546,7 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 
 	TestEqual(TEXT("Aevik allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Aevik")),    FRTCellId(-4, 0, 0));
 	TestEqual(TEXT("Phase allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Muiren")),    FRTCellId(-4, 1, 0));
-	TestEqual(TEXT("Branth allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Branth")), FRTCellId( 4, 0, 0));
+	TestEqual(TEXT("Riktor allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Riktor")), FRTCellId( 4, 0, 0));
 	TestEqual(TEXT("Ivrin allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Ivrin")),  FRTCellId( 4, 1, 0));
 
 	return true;
@@ -950,7 +950,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	};
 	Scenario.Units.Add(Unita(TEXT("Aevik"),    TEXT("Hero.Aevik"),    0, FRTCellId(-4, 0, 0)));
 	Scenario.Units.Add(Unita(TEXT("Phase"),    TEXT("Hero.Muiren"),    0, FRTCellId(-4, 1, 0)));
-	Scenario.Units.Add(Unita(TEXT("Branth"), TEXT("Hero.Branth"), 1, FRTCellId( 4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Riktor"), TEXT("Hero.Riktor"), 1, FRTCellId( 4, 0, 0)));
 	Scenario.Units.Add(Unita(TEXT("Ivrin"),  TEXT("Hero.Ivrin"),  1, FRTCellId( 4, 1, 0)));
 
 	auto Movimento = [](const TCHAR* Id, const FRTCellId& Dove)
@@ -966,12 +966,12 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		FRTScenarioTurn T;
 		T.Intents.Add(Movimento(TEXT("Aevik"),    FRTCellId(-3, 0, 0)));
 		T.Intents.Add(Movimento(TEXT("Phase"),    FRTCellId(-3, 1, 0)));
-		T.Intents.Add(Movimento(TEXT("Branth"), FRTCellId( 3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Riktor"), FRTCellId( 3, 0, 0)));
 		T.Intents.Add(Movimento(TEXT("Ivrin"),  FRTCellId( 3, 1, 0)));
 		Scenario.Turns.Add(T);
 	}
 
-	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Branth erige un pannello
+	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Riktor erige un pannello
 	// (slot principale) mentre gli altri continuano ad avvicinarsi (slot movimento): è la coesistenza dei due
 	// slot che l'intent deve saper esprimere, e senza la quale «alimentare gli intenti» significherebbe solo
 	// «muovere».
@@ -980,8 +980,8 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		T.Requires.Add(TEXT("CreateCover"));
 
 		FRTScenarioIntent Pannello;
-		Pannello.UnitId = TEXT("Branth");
-		Pannello.Ability = FName(TEXT("Hero.Branth.KineticPanel"));
+		Pannello.UnitId = TEXT("Riktor");
+		Pannello.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
 		Pannello.TargetCell = FRTCellId(3, 0, 0);
 		Pannello.bTargetsCell = true;
 		Pannello.CoverEdge = ERTHexDirection::W; // verso chi arriva, che è l'unico verso che ha senso
@@ -1015,7 +1015,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	};
 	Scenario.Expect.Add(Dove(TEXT("Aevik"),    FRTCellId(-2, 0, 0)));
 	Scenario.Expect.Add(Dove(TEXT("Phase"),    FRTCellId(-1, 1, 0)));
-	Scenario.Expect.Add(Dove(TEXT("Branth"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
+	Scenario.Expect.Add(Dove(TEXT("Riktor"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
 	Scenario.Expect.Add(Dove(TEXT("Ivrin"),  FRTCellId( 3, 1, 0)));
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 3; return E; }());
 
@@ -1050,7 +1050,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 				URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[1].Bytes, Voci)))
 		{
 			const bool bPannelloNelLog = Voci.ContainsByPredicate([](const FRTTurnLogEntry& E)
-				{ return E.ActionId == FName(TEXT("Hero.Branth.KineticPanel")); });
+				{ return E.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); });
 			TestTrue(TEXT("l'azione principale dichiarata compare nel TurnLog"), bPannelloNelLog);
 		}
 	}
@@ -1183,7 +1183,7 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 	Scenario.MapRadius = 4;
 
 	FRTScenarioUnit Sola;
-	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Branth")); Sola.TeamId = 0;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Riktor")); Sola.TeamId = 0;
 	Sola.Cell = FRTCellId(0, 0, 0);
 	Scenario.Units.Add(Sola);
 
@@ -1588,7 +1588,7 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 		return X;
 	};
 	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Ivrin"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Branth"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Riktor"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
 	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Aevik"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
 
 	FRTScenarioTurn T;
@@ -2307,7 +2307,7 @@ bool FRTShowcaseKeyEventsTest::RunTest(const FString&)
 	//
 	// ⌫ **`fallback` stava in questa lista fino al 2026-09-08, con la motivazione «nessuna azione dello
 	// showcase ripiega … qui semplicemente non capita».** Era vera sul LOG e falsa sui FATTI: lo showcase
-	// contiene una carica `Hero.Branth.Ram` che il rough di CP 8.1 rifiuta da sempre, ma `RTTurnManager` la
+	// contiene una carica `Hero.Riktor.Ram` che il rough di CP 8.1 rifiuta da sempre, ma `RTTurnManager` la
 	// scartava con un `continue` muto e la categoria non compariva. Ora quel rifiuto emette una voce
 	// `Fallback`/`Cancelled` con motivo `TerrainDeniesDash`, e l'evento c'e'.
 	// ⚠️ **Il whiff del T2 NON e' un fallback**, e questa riga resta vera: `PredictionWhiffed` e'

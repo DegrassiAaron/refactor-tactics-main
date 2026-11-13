@@ -145,7 +145,7 @@ bool FRTNoiseAttenuationBySurfaceTest::RunTest(const FString&)
 	const FRTCellId Origin(0, 0);
 	const FRTCellId TwoAway(2, 0);
 
-	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Muiren e Branth
+	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Muiren e Riktor
 	// (soglia 3), non Aevik e Ivrin (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
 	const int32 OnFloor = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint su terreno libero, a due celle: 3"), OnFloor, 3);
@@ -184,16 +184,16 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 	// guarda e' una riga di documentazione.
 	const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
 	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
 	const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	if (!TestNotNull(TEXT("roster costruito"), Aevik) || !TestNotNull(TEXT("roster costruito"), Muiren)
-		|| !TestNotNull(TEXT("roster costruito"), Branth) || !TestNotNull(TEXT("roster costruito"), Ivrin))
+		|| !TestNotNull(TEXT("roster costruito"), Riktor) || !TestNotNull(TEXT("roster costruito"), Ivrin))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Aevik 5"), Aevik->HearingThreshold, 5);
 	TestEqual(TEXT("Muiren 3"), Muiren->HearingThreshold, 3);
-	TestEqual(TEXT("Branth 3"), Branth->HearingThreshold, 3);
+	TestEqual(TEXT("Riktor 3"), Riktor->HearingThreshold, 3);
 	TestEqual(TEXT("Ivrin 5"), Ivrin->HearingThreshold, 5);
 
 	// L'udito COMPENSA la vista: chi vede lontano sente meno. E' la proprieta' che rende l'udito una seconda
@@ -395,7 +395,7 @@ bool FRTNoisePlausibleAreaIgnoresSourceTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeNoiseMap(6);
 	const FRTCellId Listener(0, 0);
-	const int32 Threshold = 3; // orecchio di Muiren/Branth (D-041)
+	const int32 Threshold = 3; // orecchio di Muiren/Riktor (D-041)
 
 	// Due sorgenti reali, in direzioni opposte, che arrivano all'ascoltatore con la STESSA intensita'.
 	FRTNoiseEvent East;

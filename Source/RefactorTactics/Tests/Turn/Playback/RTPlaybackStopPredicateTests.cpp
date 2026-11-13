@@ -61,7 +61,7 @@ namespace
 	ARTTurnManager* SetUpTwoPhaseTurn(UWorld* World)
 	{
 		SpawnStopPredicateMap(World);
-		ARTUnit* Attaccante = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Attaccante = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 		ARTUnit* Bersaglio  = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Attaccante || !Bersaglio) { return nullptr; }
@@ -73,30 +73,30 @@ namespace
 	}
 
 	/**
-	 * Il turno di prova a DUE atti (`#2454`): Branth colpisce Ivrin, poi Aevik spara su una cella VUOTA.
+	 * Il turno di prova a DUE atti (`#2454`): Riktor colpisce Ivrin, poi Aevik spara su una cella VUOTA.
 	 *
 	 * 🔑 **Esiste per far cadere una fermata `Next Action` nello stesso tick dell'ARRIVO di un colpo.** Con la
-	 * sequenza per intento (#3549) ogni atto si apre con la sua attivazione: il colpo di Branth segue attivazione e
+	 * sequenza per intento (#3549) ogni atto si apre con la sua attivazione: il colpo di Riktor segue attivazione e
 	 * impronta del proprio atto, quindi il suo arrivo non e' mai un confine. Il confine dopo l'arrivo e'
 	 * l'attivazione dell'atto di Aevik, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
 	 * colpo e si ferma sull'atto dopo, ed e' li' che la consegna del tracer all'uscita della fermata si misura.
 	 * ⚠️ **L'ordine degli atti e' quello canonico del Blast** (`#3582`, ADR-0003 §3): priorita' crescente, poi `ActionId`.
-	 * Aevik spara `LinearDischarge` (55) e Branth `ImpactShot` (50), quindi l'atto di Branth viene prima per una
+	 * Aevik spara `LinearDischarge` (55) e Riktor `ImpactShot` (50), quindi l'atto di Riktor viene prima per una
 	 * ragione dichiarata. Il test che lo usa lo verifica come premessa invece di darlo per scontato.
-	 * ⏱️ *Fino a `#3582` l'ordine era quello degli intenti, cioe' del roster `(cella, id, nome)`: Branth (X = 2) stava a
+	 * ⏱️ *Fino a `#3582` l'ordine era quello degli intenti, cioe' del roster `(cella, id, nome)`: Riktor (X = 2) stava a
 	 * sinistra di Aevik (X = 6), e Aevik sparava l'attacco base. Con l'ordine canonico l'attacco base di Aevik
-	 * (`ArcPulse`, 50 come `ImpactShot`) passava davanti per `ActionId`, e il colpo di Branth restava l'ultimo.*
-	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Branth, perche' prima di
+	 * (`ArcPulse`, 50 come `ImpactShot`) passava davanti per `ActionId`, e il colpo di Riktor restava l'ultimo.*
+	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Riktor, perche' prima di
 	 * #3549 un colpo dopo l'impronta di un altro atto apriva l'atto proprio.*
 	 */
 	ARTTurnManager* SetUpTwoActTurn(UWorld* World)
 	{
 		SpawnStopPredicateMap(World);
 		ARTUnit* Aevik    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(6, -2));
-		ARTUnit* Branth   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Riktor   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 		ARTUnit* Bersaglio = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
+		if (!TM || !Aevik || !Riktor || !Bersaglio) { return nullptr; }
 
 		Aevik->ClearPlannedMainAction();
 		for (int32 i = 0; i < Aevik->NumAbilities(); ++i)
@@ -106,9 +106,9 @@ namespace
 		}
 		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
 		Aevik->SetPlannedCell(Aevik->Cell);
-		Branth->SetPlannedMainAction(0);
-		Branth->DeclareAttackOnUnit(Bersaglio);
-		Branth->SetPlannedCell(Branth->Cell);
+		Riktor->SetPlannedMainAction(0);
+		Riktor->DeclareAttackOnUnit(Bersaglio);
+		Riktor->SetPlannedCell(Riktor->Cell);
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
@@ -344,7 +344,7 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
 
 		// ⛔ ANTI-VACUITA': nella sequenza il colpo deve essere SEGUITO da un elemento di un altro atto. Se fosse
-		// l'ultimo — Aevik non dopo Branth (per priorita', `#3582`), o il suo intento non entrato nel Blast — nessun
+		// l'ultimo — Aevik non dopo Riktor (per priorita', `#3582`), o il suo intento non entrato nel Blast — nessun
 		// confine cadrebbe dopo l'arrivo e la fermata qui sotto non esisterebbe.
 		const TArray<FRTResolvedEvent>& Timeline = TM2->ResolvedTimelineForTest();
 		const TArray<int32> Sequenza = TM2->PlaybackBlastSequenceIndicesForTest();
@@ -498,7 +498,7 @@ namespace
 		Mappa->AddOrUpdateCell(ColMuro);
 		Mappa->SortCells();
 
-		ARTUnit* Sfondatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Sfondatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTUnit* Dietro     = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Sfondatore || !Dietro) { return nullptr; }
@@ -967,7 +967,7 @@ bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
 	SpawnStopPredicateMap(World);
 
 	ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
-	ARTUnit* Caricatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Caricatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTUnit* Bersaglio  = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Scudo || !Caricatore || !Bersaglio) { return false; }
@@ -982,7 +982,7 @@ bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
 	};
 	Scudo->SetPlannedMainAction(Indice(Scudo, TEXT("Hero.Muiren.TideGuard")));
 	Scudo->SetPlannedCell(Scudo->Cell);
-	Caricatore->SetPlannedDash(Indice(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedDash(Indice(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, che e' quella delle due sorgenti. Il refresh

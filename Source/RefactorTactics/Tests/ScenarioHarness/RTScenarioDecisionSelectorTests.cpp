@@ -157,7 +157,7 @@ bool FRTScenarioSelectorRoundTripTest::RunTest(const FString&)
 	{
 	  "scenarioId": "Spec.Selector.RoundTrip", "version": 5, "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [], "decisions": [
@@ -243,7 +243,7 @@ bool FRTScenarioSelectorRejectTest::RunTest(const FString&)
 		{
 		  "scenarioId": "Spec.Selector.Reject", "version": %d, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
 		    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
@@ -554,7 +554,7 @@ bool FRTScenarioLogPhaseRejectTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.LogPhase.Reject", "version": %d, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ %s ]
 		}
@@ -596,7 +596,7 @@ bool FRTScenarioLogPhaseRoundTripTest::RunTest(const FString&)
 	const TCHAR* Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.LogPhase.RoundTrip", "version": 6, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [] } ],
 	  "expect": [
 	    { "type": "LogEventOrder", "category": "Combat", "outcome": "Hit", "phase": "Blast",

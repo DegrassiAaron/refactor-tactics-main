@@ -1872,7 +1872,7 @@ public:
 	 *
 	 * ⛔ **Non riordina `GetActions()`**, che resta identita': restituisce una COPIA ordinata. Esiste perche'
 	 * i gruppi non sono contigui nella lista — l'equipaggiamento e' accodato dopo le generiche, e in partita
-	 * Branth e Muiren leggono `B KKKKK CCCCC KK` — e un Blueprint che li riordinasse da se' ricomporrebbe una
+	 * Riktor e Muiren leggono `B KKKKK CCCCC KK` — e un Blueprint che li riordinasse da se' ricomporrebbe una
 	 * regola, cio' che `PhaseMark` (#3465) e' nato per evitare.
 	 *
 	 * ⚠️ **Una posizione vuota (`Group == None`) si legge come Kit**, al suo posto relativo: e' una posizione

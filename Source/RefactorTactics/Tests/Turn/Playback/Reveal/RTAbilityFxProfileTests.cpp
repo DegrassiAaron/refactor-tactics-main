@@ -176,7 +176,7 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 	Attesi.Add(TEXT("Hero.Aevik.Overload"),        FxP(FxA::Flash, FxT::None,   FxI::Marker, FxF::AreaPulse));
 	Attesi.Add(TEXT("Hero.Muiren.CircularTide"),   FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None)); // #3593: una cura non ha un colpo, quindi ne' Marker ne' onda (spec SP5 F4, R7)
 	Attesi.Add(TEXT("Hero.Muiren.TideGuard"),      FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None));
-	Attesi.Add(TEXT("Hero.Branth.Ram"),            FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Hero.Riktor.Ram"),            FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 	Attesi.Add(TEXT("Hero.Ivrin.InterceptShot"),   FxP(FxA::Flash, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Hero.Ivrin.PassingBlade"),    FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 	Attesi.Add(TEXT("Hero.Ivrin.Feint"),           FxP(FxA::Flash, FxT::None,   FxI::None,   FxF::None));
@@ -333,7 +333,7 @@ bool FRTPrivacyActivationCueNeedsTheSourceTest::RunTest(const FString&)
 		FxAttivazione(TEXT("Hero.Aevik.Overload"), ERTAbilityShape::Area, FRTCellId(0, 0)), 0, 0.f, Altra)
 		&& Altra.Kind == ERTPlaybackCueKind::Flash);
 	TestTrue(TEXT("un attacco base: Ring (default)"), URTPlaybackLibrary::ActivationCueFor(
-		FxAttivazione(TEXT("Hero.Branth.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0)), 0, 0.f, Altra)
+		FxAttivazione(TEXT("Hero.Riktor.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0)), 0, 0.f, Altra)
 		&& Altra.Kind == ERTPlaybackCueKind::Ring);
 	FRTResolvedEvent Colpo = Scudo;
 	Colpo.Type = ERTResolvedEventType::Attack;
@@ -437,16 +437,16 @@ namespace
 		return Corse;
 	}
 
-	/** L'atto `Area` di prova: impronta di Branth centrata su (3,0), due vittime NON al centro. */
+	/** L'atto `Area` di prova: impronta di Riktor centrata su (3,0), due vittime NON al centro. */
 	TArray<FRTResolvedEvent> FxAttoArea(bool bConImpronta = true)
 	{
 		TArray<FRTResolvedEvent> T;
 		if (bConImpronta)
 		{
-			T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
+			T.Add(FxImpronta(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
 		}
-		T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(4, 0)));
-		T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(2, 1)));
+		T.Add(FxColpo(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(4, 0)));
+		T.Add(FxColpo(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(2, 1)));
 		return T;
 	}
 }
@@ -460,7 +460,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyImpactMarkerNeedsTheVictimTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPrivacyImpactMarkerNeedsTheVictimTest::RunTest(const FString&)
 {
-	FRTResolvedEvent Colpo = FxColpo(1, TEXT("Hero.Branth.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0), FRTCellId(2, 0));
+	FRTResolvedEvent Colpo = FxColpo(1, TEXT("Hero.Riktor.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0), FRTCellId(2, 0));
 	Colpo.HitGeometry.ImpactVerdict = FRTKnowledgeVerdict::NoOne();
 	Colpo.HitGeometry.ImpactVerdict.AllowTeam(0);
 	FRTPlaybackCue C;
@@ -552,9 +552,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSecondFootprintReplacesTheFirstTest,
 bool FRTPlaybackSecondFootprintReplacesTheFirstTest::RunTest(const FString&)
 {
 	TArray<FRTResolvedEvent> T;
-	T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
-	T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(5, 0)));
-	T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(5, 0), FRTCellId(6, 0)));
+	T.Add(FxImpronta(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
+	T.Add(FxImpronta(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(5, 0)));
+	T.Add(FxColpo(1, TEXT("Hero.Riktor.MortarShot"), ERTAbilityShape::Area, FRTCellId(5, 0), FRTCellId(6, 0)));
 	const TArray<int32> Impronte = URTPlaybackLibrary::FootprintFxForSequence(T, FxSequenza(T));
 	TestEqual(TEXT("🔴 il colpo consuma la SECONDA impronta"), Impronte.IsValidIndex(2) ? Impronte[2] : INDEX_NONE, 1);
 	const float Arrivo = URTPlaybackLibrary::AttackBeatSeconds(5, 0.5f, FxVoli(T, 0.5f));

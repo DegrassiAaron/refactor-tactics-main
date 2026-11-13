@@ -17,7 +17,7 @@ namespace
 	TArray<URTHeroData*> RosterToday()
 	{
 		return { URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
-			URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+			URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeIvrin() };
 	}
 }
 
@@ -36,7 +36,7 @@ bool FRTHeroDefenseFieldsMatchD595AndD599::RunTest(const FString&)
 	const TArray<FExpected> Expected = {
 		{ TEXT("Hero.Aevik"),  15, 35, 60 }, // → Gadget, fascia standard
 		{ TEXT("Hero.Muiren"), 25, 40, 60 }, // → Muriel, fascia standard
-		{ TEXT("Hero.Branth"), 45, 35, 30 }, // → Riktor, tank
+		{ TEXT("Hero.Riktor"), 45, 35, 30 }, // → Riktor, tank
 		{ TEXT("Hero.Ivrin"),  15, 20, 90 }, // → Kallari, flanker
 	};
 	const TArray<URTHeroData*> Roster = RosterToday();

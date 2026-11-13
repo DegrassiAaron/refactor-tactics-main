@@ -99,17 +99,17 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 
 	ARTUnit* Aevik = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	ARTUnit* Muiren = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), /*TeamId*/ 0);
-	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
+	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 1);
 	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
 	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
+		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Aevik, Muiren, Branth, Ivrin };
+	const TArray<ARTUnit*> All = { Aevik, Muiren, Riktor, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -117,7 +117,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Ivrin"));
+			Card.HeroId == TEXT("Hero.Riktor") || Card.HeroId == TEXT("Hero.Ivrin"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.
@@ -149,22 +149,22 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 0);
-	if (!TestNotNull(TEXT("Branth"), Branth)) { DestroyHudVmWorld(World); return false; }
+	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("Riktor"), Riktor)) { DestroyHudVmWorld(World); return false; }
 
-	Branth->Health = 42;
-	Branth->Shield = 7;
+	Riktor->Health = 42;
+	Riktor->Shield = 7;
 
-	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 0);
+	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Branth->MaxHealth);
-	TestEqual(TEXT("identita'"), Card.HeroId, Branth->HeroId);
+	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
+	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
 	TestTrue(TEXT("vivo"), Card.bAlive);
 
 	// La stessa unita' vista dall'altra squadra e' la stessa unita': cambia la RELAZIONE, non i numeri.
-	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 1);
+	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 1);
 	TestFalse(TEXT("vista da squadra 1 non e' alleata"), Enemy.bIsAlly);
 	TestEqual(TEXT("ma la salute e' la stessa"), Enemy.Health, 42);
 
@@ -3022,7 +3022,7 @@ namespace
  * `#3478` — LA BARRA SI LEGGE COMUNI, BASE, KIT, E NESSUNA VOCE PERDE LA PROPRIA IDENTITA' ([D-455] punto 2).
  *
  * 🔑 **Due oracoli, e nessuno dei due e' `OrderForReading`**:
- *  - **A** la sequenza dei gruppi del kit di partita di Branth, scritta a mano — e' quella che la DoD nomina;
+ *  - **A** la sequenza dei gruppi del kit di partita di Riktor, scritta a mano — e' quella che la DoD nomina;
  *  - **B** per OGNI eroe del roster col loadout, l'ordine atteso calcolato con tre passate filtrate invece che
  *    con un ordinamento: prende una partizione non stabile, che A da solo non vedrebbe.
  *
@@ -3038,7 +3038,7 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
 
-	bool bVistoBranth = false;
+	bool bVistoRiktor = false;
 	for (const URTHeroData* Hero : Roster)
 	{
 		if (!Hero) { continue; }
@@ -3063,11 +3063,11 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 		const TArray<FRTAbilityCooldownView> Lettura = Dock->GetActionsInReadingOrder();
 		const FString Nome = Hero->HeroId.ToString();
 
-		// --- A. Branth, a mano ----------------------------------------------------------------------------------
-		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		// --- A. Riktor, a mano ----------------------------------------------------------------------------------
+		if (Hero->HeroId == FName(TEXT("Hero.Riktor")))
 		{
-			bVistoBranth = true;
-			TestEqual(TEXT("A: la lista di Branth e' quella misurata, coi gruppi NON contigui"),
+			bVistoRiktor = true;
+			TestEqual(TEXT("A: la lista di Riktor e' quella misurata, coi gruppi NON contigui"),
 				HudVmGroupSequence(Lista), FString(TEXT("BKKKKKCCCCCKK")));
 			TestEqual(TEXT("A: e l'ordine di lettura e' Comuni, Base, Kit"),
 				HudVmGroupSequence(Lettura), FString(TEXT("CCCCCBKKKKKKK")));
@@ -3102,7 +3102,7 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 
 		DestroyHudVmWorld(World);
 	}
-	TestTrue(TEXT("A: premessa — Branth e' nel roster"), bVistoBranth);
+	TestTrue(TEXT("A: premessa — Riktor e' nel roster"), bVistoRiktor);
 
 	// --- D. una posizione VUOTA resta nel Kit, al suo posto relativo ----------------------------------------------
 	{

@@ -121,7 +121,7 @@ bool FRTStatusPersistsWhileOnCellTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0)); // fuori portata: nessun colpo
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0)); // fuori portata: nessun colpo
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -159,7 +159,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -201,7 +201,7 @@ bool FRTStatusBurningDamagesInCleanupTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -233,7 +233,7 @@ bool FRTStatusBurningExpiresAfterTwoTurnsTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -276,7 +276,7 @@ bool FRTStatusBurningDefeatCountsThisTurnTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -310,7 +310,7 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -347,8 +347,8 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 5, FRTCellId(2, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Aevik = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* WetTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0)); // nell'acqua
-	ARTUnit* DryTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 2)); // all'asciutto
+	ARTUnit* WetTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0)); // nell'acqua
+	ARTUnit* DryTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 2)); // all'asciutto
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Aevik || !WetTarget || !DryTarget) { DestroyStatusWorld(World); return false; }
 
@@ -458,7 +458,7 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Ally1 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
 	ARTUnit* Ally2 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
-	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally1 || !Ally2 || !Victim) { DestroyStatusWorld(World); return false; }
 
@@ -515,8 +515,8 @@ bool FRTStatusMarkedEnemyHitDoesNotConsumeTest::RunTest(const FString&)
 
 	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));   // centro dell'AoE nemico
-	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0)); // marcato, adiacente
-	ARTUnit* VictimMate = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0)); // marcato, adiacente
+	ARTUnit* VictimMate = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally || !Victim || !VictimMate) { DestroyStatusWorld(World); return false; }
 
@@ -566,7 +566,7 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 6, FRTCellId(1, 0, 0), ERTHexSurface::Smoke, /*MoveCost=*/ 1);
 
 	ARTUnit* Shooter = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(5, 0)); // a 5 celle: oltre il cap
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(5, 0)); // a 5 celle: oltre il cap
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -612,7 +612,7 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -668,7 +668,7 @@ bool FRTStatusPlaybackCarriesTagAndCauseTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -763,7 +763,7 @@ bool FRTStatusPlaybackIgnoresNonStatusEntriesTest::RunTest(const FString&)
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(9, 9, 0), ERTHexSurface::Rough, /*MoveCost=*/ 1);
 
 	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
 
@@ -851,7 +851,7 @@ bool FRTMoveEventCarriesStatusesAtActionTimeTest::RunTest(const FString&)
 
 	ARTUnit* Rallentato = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Sano = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
-	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Rallentato || !Sano || !Foe) { DestroyStatusWorld(World); return false; }
 

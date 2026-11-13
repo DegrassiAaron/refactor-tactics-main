@@ -188,7 +188,7 @@ bool FRTBlindMovePlayerPlansThroughTheDarkWallTest::RunTest(const FString&)
 	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 	if (!TestNotNull(TEXT("l'unita' esiste"), Unit)) { return false; }
 	Unit->TeamId = 0;
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
 	UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 	Unit->bIsBotControlled = false;
 	Unit->DispatchBeginPlay();
@@ -320,7 +320,7 @@ namespace
 		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!Unit || !TM) { return Out; }
 		Unit->TeamId = 0;
-		Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
+		Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->bIsBotControlled = false;
 		Unit->DispatchBeginPlay();

@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Aevik, Phase, Branth, Ivrin).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Aevik, Phase, Riktor, Ivrin).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -23,7 +23,7 @@ class URTActionData;
  *
  * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
  * ne hanno sei **Phase** (`Hero.Muiren.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
- * da `Action.Shield`; Aevik e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
+ * da `Action.Shield`; Aevik e Riktor restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
  * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
  * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».
  *
@@ -59,7 +59,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Aevik 5 · Phase 3 · Branth 3 · Ivrin 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Aevik 5 · Phase 3 · Riktor 3 · Ivrin 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -73,7 +73,7 @@ public:
 	/**
 	 * Celle di spinta assorbite prima di essere spostato. **Soglia**, non riduzione (D-038).
 	 *
-	 * ⚠️ Il roster v0.1 e' interamente a `0` da D-075 (#402), Branth compreso — che fino al 2026-08-10 era
+	 * ⚠️ Il roster v0.1 e' interamente a `0` da D-075 (#402), Riktor compreso — che fino al 2026-08-10 era
 	 * l'unico a `1`. A soglia 1, siccome ogni spinta del gioco vale 1, il campo comprava **immunita' totale**
 	 * invece di stabilita'. La meccanica resta implementata (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`)
 	 * e **dormiente**: si risveglia il giorno in cui una spinta >= 2 entra nel catalogo.
@@ -109,7 +109,7 @@ public:
 	 *
 	 * Valori dal CP 53.3c (D-595 (3), gli otto del GDD: Riktor 45, Steel 60, Kallari 15, Feng Mao 35, Murdock 20,
 	 * Gadget 15, Muriel 25, The Fey 20; i quattro a runtime prendono quelli dello slot che diventeranno: Aevik 15,
-	 * Muiren 25, Branth 45, Ivrin 15). Fino a CP 53.3b era zero per tutti, cioe' l'identita': i campi sono entrati
+	 * Muiren 25, Riktor 45, Ivrin 15). Fino a CP 53.3b era zero per tutti, cioe' l'identita': i campi sono entrati
 	 * prima dei numeri. ⛔ Il numero per eroe e' TARATURA e la possiede `balance/` ([D-282]).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
@@ -119,7 +119,7 @@ public:
 	 * RES di default per i dodici elementi ([D-593]): la mitigazione del danno ELEMENTALE e AMBIENTALE con la
 	 * stessa forma della DEF ([D-589] (1)). `ElementResistance` la sostituisce per il singolo elemento che vi
 	 * compare; per gli altri vale questo numero ([D-595] (3): «la RES unica come default per i dodici»).
-	 * Valori dal CP 53.3c: Aevik 35, Muiren 40, Branth 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
+	 * Valori dal CP 53.3c: Aevik 35, Muiren 40, Riktor 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
 	 * porta ancora un elemento, quindi nessun chiamante la legge: e' un dato del catalogo in attesa del suo lettore.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
@@ -137,7 +137,7 @@ public:
 	 * Bonus alle spalle dell'ATTACCANTE ([D-587] (2)(3)): si somma alla Base del colpo PRIMA della mitigazione
 	 * quando il colpo arriva da uno dei tre lati posteriori del bersaglio (D-126), quindi la DEF lo riduce come
 	 * il resto. Valori iniziali [D-599]: flanker 90, standard 60, tank 30 sulla scala ×10, nel catalogo dal
-	 * CP 53.3c (Ivrin 90; Aevik e Muiren 60; Branth 30). La fascia e' una convenzione di scrittura, non un campo.
+	 * CP 53.3c (Ivrin 90; Aevik e Muiren 60; Riktor 30). La fascia e' una convenzione di scrittura, non un campo.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RearBonus = 0;
@@ -149,7 +149,7 @@ public:
 	 * |---|---:|---:|
 	 * | Aevik | 2 | 2 |
 	 * | Phase | 2 | 3 |
-	 * | Branth | 1 | **0** |
+	 * | Riktor | 1 | **0** |
 	 * | Ivrin | 3 | 3 |
 	 *
 	 * ⚠️ **Ipotesi iniziali, non bilanciamento approvato.** L'ADR li dichiara «*ipotesi da scenario/playtest*»
@@ -188,7 +188,7 @@ public:
 	 * qui, ogni eroe nuovo sarebbe una copia del contenuto invece che un puntatore a un'entita' condivisa, e
 	 * riassegnare un profilo costerebbe un rename in due posti.
 	 *
-	 * 🔵 **`None` non e' un valore mancante**: e' Branth, e per lui e' la scelta giusta — `Hold Ground` fa
+	 * 🔵 **`None` non e' un valore mancante**: e' Riktor, e per lui e' la scelta giusta — `Hold Ground` fa
 	 * gia' cio' che un suo profilo avrebbe fatto, quindi la cardinalita' resta 1 e nessuna finestra si apre.
 	 * Per questo il campo **non** e' fra quelli che `ValidateHeroes` pretende: un eroe senza profilo e'
 	 * valido, a differenza di un eroe senza `Weakness`.

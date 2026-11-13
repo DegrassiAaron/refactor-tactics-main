@@ -5,23 +5,23 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "IL CONCETTO CENTRALE del gioco in un turno: non stai ordinando una sequenza, stai dichiarando un piano che verra' RIVALIDATO. Aevik (F1) dichiara `LinearDischarge` su Branth, che sta a cinque celle esatte — la portata massima. Ma la carica di Branth risolve nel **Dash**, prima del Blast, e lo porta via dalla cella mirata. La mira si e' congelata al lock-in ([D-415], [D-419]): il colpo NON lo insegue, parte verso la cella dove Branth era quando Aevik ha deciso, e la trova vuota.",
+  "_nota": "IL CONCETTO CENTRALE del gioco in un turno: non stai ordinando una sequenza, stai dichiarando un piano che verra' RIVALIDATO. Aevik (F1) dichiara `LinearDischarge` su Riktor, che sta a cinque celle esatte — la portata massima. Ma la carica di Riktor risolve nel **Dash**, prima del Blast, e lo porta via dalla cella mirata. La mira si e' congelata al lock-in ([D-415], [D-419]): il colpo NON lo insegue, parte verso la cella dove Riktor era quando Aevik ha deciso, e la trova vuota.",
 
   "_nota_perche_niente_fallback": "Nessun fallback scatta, ed e' l'esito giusto. Portata e linea di tiro si misurano sulla mira congelata, che al lock-in era in portata: il piano e' rivalidato e regge, quindi l'azione parte. ⌫ Fino alla code review della PR #3230 `ValidateInstance` misurava la portata sulla cella VIVA del bersaglio, dopo lo scatto, e il golden registrava un fallback «fuori portata» su una cella che era in portata. Lo scenario porta ancora `Fallback` nel nome perche' e' l'identita' della sua traccia golden e della voce `PIE-VIS-FALLBACK`; il visibile che la voce chiede — la scarica sulla cella vuota — non e' cambiato.",
 
-  "_nota_geometria": "Branth carica Phase verso EST, cioe' allontanandosi da Gadget invece di attraversargli davanti: da (1,0) si ferma addosso a lei in (3,0), a sette celle da (-4,0).",
+  "_nota_geometria": "Riktor carica Phase verso EST, cioe' allontanandosi da Gadget invece di attraversargli davanti: da (1,0) si ferma addosso a lei in (3,0), a sette celle da (-4,0).",
 
   "units": [
     { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [-4, 0, 0] },
     { "id": "R1", "hero": "Hero.Muiren",    "team": 0, "cell": [ 4, 0, 0] },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 0, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
         { "unit": "F1", "ability": "Hero.Aevik.LinearDischarge", "target": "B1" },
-        { "unit": "B1", "dash": "Hero.Branth.Ram", "dashTo": [4, 0, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [4, 0, 0] }
       ]
     }
   ],

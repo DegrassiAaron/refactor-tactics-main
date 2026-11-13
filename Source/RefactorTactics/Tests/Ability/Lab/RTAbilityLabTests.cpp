@@ -3,9 +3,9 @@
 // ## Perche' nessun `AbilityId` e' cablato
 //
 // Le identita' di questo progetto si rinominano: `D-130` ha spostato `Flux` -> `Aevik` e `Riva` -> `Phase`,
-// `D-334` ha spostato `Hero.Riktor` -> `Hero.Branth`. Un test che scrivesse `Hero.Aevik.LinearDischarge`
-// diventerebbe rosso al prossimo rename **senza che nulla si sia rotto**, e il costo di quel falso rosso lo
-// paga chi rinomina.
+// `D-334` ha spostato `Hero.Riktor` -> `Hero.Branth`, e `D-585` (#4011) l'ha riportato indietro. Un test che
+// scrivesse `Hero.Aevik.LinearDischarge` diventerebbe rosso al prossimo rename **senza che nulla si sia rotto**,
+// e il costo di quel falso rosso lo paga chi rinomina.
 //
 // Questi test chiedono invece al catalogo *«dammi un'ability di forma `Line`»* — che e' la proprieta' che
 // stanno verificando davvero. Se un giorno il roster non ne avesse piu' nessuna, il test lo dice: e' un
@@ -850,13 +850,13 @@ bool FRTAbilityLabRecognisesItsScenesTest::RunTest(const FString&)
 	FRTTestScenario Scena;
 	FString Errore;
 	if (!TestTrue(TEXT("⛔ premessa: il banco costruisce la scena di ImpactShot"),
-			URTAbilityLabLibrary::BuildFixture(FName(TEXT("Hero.Branth.ImpactShot")), FRTAbilityLabFixtureSpec(), Scena, Errore)))
+			URTAbilityLabLibrary::BuildFixture(FName(TEXT("Hero.Riktor.ImpactShot")), FRTAbilityLabFixtureSpec(), Scena, Errore)))
 	{
 		return false;
 	}
 	TestTrue(TEXT("🔴 l'Id che BuildFixture scrive e' una scena del banco"), URTAbilityLabLibrary::IsLabScenarioId(Scena.ScenarioId));
 	TestFalse(TEXT("un prefisso senza azione non lo e'"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("AbilityLab.")));
-	TestFalse(TEXT("ne' con le maiuscole sbagliate"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("abilitylab.Hero.Branth.ImpactShot")));
+	TestFalse(TEXT("ne' con le maiuscole sbagliate"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("abilitylab.Hero.Riktor.ImpactShot")));
 	TestFalse(TEXT("ne' uno scenario del corpus"), URTAbilityLabLibrary::IsLabScenarioId(TEXT("Visual.Reaction.Deflection")));
 	TestFalse(TEXT("ne' l'Id vuoto"), URTAbilityLabLibrary::IsLabScenarioId(FString()));
 	TestEqual(TEXT("e la velocita' del banco e' x0,5"), URTAbilityLabLibrary::BenchPlaybackSpeed(), 0.5f);
@@ -1148,7 +1148,7 @@ bool FRTAbilityLabTheSpecForcesTheTargetTest::RunTest(const FString&)
  * ⚠️ **Le azioni sono di kit o generiche**, perche' il banco esegue solo cio' che un'unita' impugna: `Action.Heal` e il
  * gadget li prova il test sopra sulla scelta. Qui l'alleato lo prende `Hero.Muiren.CircularTide`, una cura ad area:
  * nei kit non c'e' un aiuto su un'altra unita' singola (`TideGuard` e `PhaseGuard` derivano da `Action.Shield`, che e'
- * su se stessi). Il bordo lo prende `Hero.Branth.KineticPanel`, che dichiara la stessa `StructureOp` del gadget.
+ * su se stessi). Il bordo lo prende `Hero.Riktor.KineticPanel`, che dichiara la stessa `StructureOp` del gadget.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEachTargetKindRunsAndActsTest,
 	"RefactorTactics.AbilityLab.EachTargetKindRunsAndActs",
@@ -1205,7 +1205,7 @@ bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
 	}
 
 	// Bordo: la copertura nasce.
-	if (Esegui(TEXT("Hero.Branth.KineticPanel"), Scenario, Result))
+	if (Esegui(TEXT("Hero.Riktor.KineticPanel"), Scenario, Result))
 	{
 		TestTrue(TEXT("KineticPanel: dichiara il bordo"), Scenario.Turns[0].Intents[0].bHasCoverEdge);
 		TestTrue(TEXT("KineticPanel: la copertura nasce"), HasEnvironmentEvent(RunEntries(Result), ERTEnvironmentOutcome::CoverCreated));
@@ -1426,7 +1426,7 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 	}
 
 	// Chi provoca deve arrivare da dove sta: col bersaglio in (3,0) nessun attacco base che spinge ci arriva (quello di
-	// Branth, con `Weapon.Impact`, ha portata 2), e la scena del Brace rifiuta invece di posare una spinta che non arriva.
+	// Riktor, con `Weapon.Impact`, ha portata 2), e la scena del Brace rifiuta invece di posare una spinta che non arriva.
 	{
 		FRTAbilityLabFixtureSpec Lontano;
 		Lontano.TargetCell = FRTCellId(3, 0);
@@ -1437,14 +1437,14 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 	}
 
 	// L'intercettazione: un alleato accanto a chi reagisce, e il `TARGET` colpisce lui.
-	if (Esegui(TEXT("Hero.Branth.Interposition"), Scenario, Voci))
+	if (Esegui(TEXT("Hero.Riktor.Interposition"), Scenario, Voci))
 	{
 		const FRTScenarioUnit* Alleato = UnitOf(Scenario, TEXT("ALLY"));
 		const FRTScenarioIntent* Provoca = IntentOf(Scenario, TEXT("TARGET"));
 		TestTrue(TEXT("Interposition: c'e' un alleato da proteggere"), Alleato && Alleato->TeamId == Scenario.Units[0].TeamId);
 		TestTrue(TEXT("Interposition: il TARGET colpisce l'alleato"), Provoca && Provoca->Target == TEXT("ALLY"));
 		TestTrue(TEXT("Interposition: scatta (Reaction/Activated)"),
-			HasEntry(Voci, ERTLogCategory::Reaction, TEXT("Hero.Branth.Interposition"), Attivata));
+			HasEntry(Voci, ERTLogCategory::Reaction, TEXT("Hero.Riktor.Interposition"), Attivata));
 	}
 
 	// L'Overwatch: chi guarda verso il bersaglio, il bersaglio entra nella linea, la finestra si apre.

@@ -138,7 +138,7 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 		ARTUnit* Decoy  = SpawnDeadHero(World, TEXT("Hero.Muiren"), 1, FRTCellId(-3, 0, 0));
 		// Un alleato lontano e fermo: senza, la morte di chi brucia chiuderebbe la partita (squadra 0 azzerata) e il turno
 		// concluderebbe per un'altra strada.
-		ARTUnit* Ally   = SpawnDeadHero(World, TEXT("Hero.Branth"), 0, FRTCellId( 5, 0, 0));
+		ARTUnit* Ally   = SpawnDeadHero(World, TEXT("Hero.Riktor"), 0, FRTCellId( 5, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		if (!TestNotNull(*E(TEXT("chi muore")), Doomed) || !TestNotNull(*E(TEXT("bersaglio")), Target)

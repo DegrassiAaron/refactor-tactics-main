@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Reaction.OverwatchWindow",
-  "tags": ["visual", "reactions", "overwatch", "hud", "fast-decision", "aevik", "ivrin", "muiren", "branth"],
+  "tags": ["visual", "reactions", "overwatch", "hud", "fast-decision", "aevik", "ivrin", "muiren", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -22,7 +22,7 @@
     { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [ 2, -1, 0], "facing": "W" },
     { "id": "A2", "hero": "Hero.Muiren", "team": 0, "cell": [ 3,  0, 0] },
     { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 0,  0, 0] },
-    { "id": "B2", "hero": "Hero.Branth", "team": 1, "cell": [-2,  2, 0] }
+    { "id": "B2", "hero": "Hero.Riktor", "team": 1, "cell": [-2,  2, 0] }
   ],
 
   "turns": [

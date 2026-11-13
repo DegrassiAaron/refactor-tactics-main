@@ -453,10 +453,10 @@ public:
 	 *   la variante applicata continuerebbe a colpire alla portata VECCHIA in partita»*;
 	 * · in partita l'equipaggiamento si applica davvero: `FRTMatchBootstrapper` chiama
 	 *   `EquipLoadout(DefaultLoadoutFor(HeroId))` sullo spawn, **per entrambe le squadre**;
-	 * · `Weapon.Impact` porta `RangeDeltaCells = -1` ed e' il default di Muiren **e** di Branth;
+	 * · `Weapon.Impact` porta `RangeDeltaCells = -1` ed e' il default di Muiren **e** di Riktor;
 	 *   `DefaultLoadoutFor` risponde VUOTO per Aevik e Ivrin, i cui gadget la v0.1 non costruisce.
 	 *
-	 * ∴ le portate che il bot vede in partita sono **Muiren 4, Branth 2, Aevik 4, Ivrin 4**, e
+	 * ∴ le portate che il bot vede in partita sono **Muiren 4, Riktor 2, Aevik 4, Ivrin 4**, e
 	 * `KiterMinRange` e' 5: `DeriveKiteStandoff` restituisce **0 per tutto il roster spedito**, e il ramo
 	 * del kiting non entra in nessuna partita.
 	 *

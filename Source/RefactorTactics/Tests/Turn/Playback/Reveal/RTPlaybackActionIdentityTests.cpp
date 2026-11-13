@@ -111,9 +111,9 @@ bool FRTPlaybackResolvedEventActionIdentityTest::RunTest(const FString&)
 
 	SpawnActionIdentityMap(World);
 
-	// Due unita' adiacenti: Branth colpisce, Ivrin incassa. Branth si muove ANCHE, cosi' lo stesso turno
+	// Due unita' adiacenti: Riktor colpisce, Ivrin incassa. Riktor si muove ANCHE, cosi' lo stesso turno
 	// produce un `Attack` (fase Blast) e un `Move` (fase Move, che risolve dopo il Blast).
-	ARTUnit* Attaccante = SpawnActionIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Attaccante = SpawnActionIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Bersaglio  = SpawnActionIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attaccante || !Bersaglio) { RTWorldFixtures::DestroyWorld(World); return false; }
@@ -228,7 +228,7 @@ bool FRTPlaybackActionBoundaryOnARealTimelineTest::RunTest(const FString&)
 
 	SpawnActionIdentityMap(World);
 
-	ARTUnit* Attaccante = SpawnActionIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Attaccante = SpawnActionIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Bersaglio  = SpawnActionIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attaccante || !Bersaglio) { RTWorldFixtures::DestroyWorld(World); return false; }

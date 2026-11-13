@@ -120,7 +120,7 @@ namespace
 
 	/**
 	 * Come `PlanCoverAction`, ma con un'abilita' d'EROE gia' costruita dal catalogo (e la sua variante attiva).
-	 * Serve perche' il pannello di Branth non e' un'azione core: e' un'azione core con un nome d'eroe, e la
+	 * Serve perche' il pannello di Riktor non e' un'azione core: e' un'azione core con un nome d'eroe, e la
 	 * differenza va verificata su cio' che il giocatore usa davvero.
 	 */
 	void PlanHeroCoverAction(ARTUnit* Caster, URTActionData* HeroAction, const FRTCellId& TargetCell,
@@ -615,8 +615,8 @@ namespace
 	enum class ECoverStunKind : uint8
 	{
 		CreateCover,  //< `Action.CreateCover` del catalogo core: erige
-		KineticPanel, //< `Hero.Branth.KineticPanel` senza variante: erige, 30 punti struttura per due turni
-		Reconfigure,  //< `Hero.Branth.Reconfigure` su una copertura di MAPPA: sposta, e paga (non e' in `DynamicCovers`)
+		KineticPanel, //< `Hero.Riktor.KineticPanel` senza variante: erige, 30 punti struttura per due turni
+		Reconfigure,  //< `Hero.Riktor.Reconfigure` su una copertura di MAPPA: sposta, e paga (non e' in `DynamicCovers`)
 		PortableCover, //< `Gadget.PortableCover`: l'azione che il GADGET concede (`MakeEquipmentAction`) copia la `StructureOp` di `Action.CreateCover` e cambia nome e ricarica: erige, con un nome che nessuna guardia per nome conosce
 	};
 
@@ -749,12 +749,12 @@ namespace
 		return N;
 	}
 
-	/** Un'azione del kit di Branth, cercata per ActionId e non per indice: l'indice scivola se un'azione core manca (vedi `MakeBranth`). */
-	URTActionData* CoverStunBranthAction(const TCHAR* ActionId)
+	/** Un'azione del kit di Riktor, cercata per ActionId e non per indice: l'indice scivola se un'azione core manca (vedi `MakeRiktor`). */
+	URTActionData* CoverStunRiktorAction(const TCHAR* ActionId)
 	{
-		URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-		if (!Branth) { return nullptr; }
-		const TObjectPtr<URTActionData>* Found = Branth->Actions.FindByPredicate(
+		URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+		if (!Riktor) { return nullptr; }
+		const TObjectPtr<URTActionData>* Found = Riktor->Actions.FindByPredicate(
 			[ActionId](const TObjectPtr<URTActionData>& Action) { return Action && Action->Def.ActionId == FName(ActionId); });
 		return Found ? Found->Get() : nullptr;
 	}
@@ -897,17 +897,17 @@ namespace
 	}
 
 	/**
-	 * Pianifica nello slot dell'attore un'azione del kit di Branth su una cella e un bordo; falso, e rosso, se il kit non l'ha.
+	 * Pianifica nello slot dell'attore un'azione del kit di Riktor su una cella e un bordo; falso, e rosso, se il kit non l'ha.
 	 *
 	 * `FreeRotations` (se non `INDEX_NONE`) riscrive il credito di rotazione gratuita che la VARIANTE dichiara, sulla copia propria
-	 * dei dati dell'azione: `MakeBranth` ne costruisce una nuova a ogni chiamata, quindi il catalogo non si tocca. E' un valore che
+	 * dei dati dell'azione: `MakeRiktor` ne costruisce una nuova a ogni chiamata, quindi il catalogo non si tocca. E' un valore che
 	 * il catalogo potrebbe dichiarare domani, non uno che il motore non produce.
 	 */
-	bool CoverStunPlanBranth(FAutomationTestBase& Test, const FString& Run, ARTUnit* Caster, const TCHAR* ActionId,
+	bool CoverStunPlanRiktor(FAutomationTestBase& Test, const FString& Run, ARTUnit* Caster, const TCHAR* ActionId,
 		const FRTCellId& TargetCell, ERTHexDirection Edge, const FName& VariantId = NAME_None, int32 FreeRotations = INDEX_NONE)
 	{
-		URTActionData* Action = CoverStunBranthAction(ActionId);
-		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: %s nel kit di Branth"), *Run, ActionId), Action)) { return false; }
+		URTActionData* Action = CoverStunRiktorAction(ActionId);
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: %s nel kit di Riktor"), *Run, ActionId), Action)) { return false; }
 		if (FreeRotations != INDEX_NONE)
 		{
 			FRTAbilityVariant* Variant = Action->Variants.FindByPredicate(
@@ -926,7 +926,7 @@ namespace
 	 * Pianifica nello slot dell'attore l'azione che il GADGET `Gadget.PortableCover` concede, costruita come la costruisce il gioco
 	 * (`MakeEquipmentAction`). Ha il nome del pezzo, la ricarica del pezzo (non quella del pannello d'eroe) e la `StructureOp` di
 	 * `Action.CreateCover`, che COPIA: e' un'altra azione che dichiara `StructureOp`, e il nome non e' fra quelli di `Action.CreateCover`,
-	 * `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure`.
+	 * `Hero.Riktor.KineticPanel` e `Hero.Riktor.Reconfigure`.
 	 * Falso, e rosso, se il pezzo non concede un'azione o se l'azione non e' quella che la riga dice.
 	 */
 	bool CoverStunPlanPortableCover(FAutomationTestBase& Test, const FString& Run, ARTUnit* Caster, const FRTCellId& TargetCell,
@@ -1236,7 +1236,7 @@ namespace
 			break;
 
 		case ECoverStunKind::KineticPanel:
-			bPlanned = CoverStunPlanBranth(Test, Run, Bed.Caster, TEXT("Hero.Branth.KineticPanel"), Bed.Shielded, ERTHexDirection::W);
+			bPlanned = CoverStunPlanRiktor(Test, Run, Bed.Caster, TEXT("Hero.Riktor.KineticPanel"), Bed.Shielded, ERTHexDirection::W);
 			break;
 
 		case ECoverStunKind::Reconfigure:
@@ -1245,7 +1245,7 @@ namespace
 			if (Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura di mappa e' posta"), *Run),
 					URTHexCoverLibrary::AddCover(Bed.Map, Bed.Shielded, ERTHexDirection::W, ERTHexCoverType::Low, 18)))
 			{
-				bPlanned = CoverStunPlanBranth(Test, Run, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded, ERTHexDirection::E);
+				bPlanned = CoverStunPlanRiktor(Test, Run, Bed.Caster, TEXT("Hero.Riktor.Reconfigure"), Bed.Shielded, ERTHexDirection::E);
 			}
 			break;
 		}
@@ -1344,7 +1344,7 @@ namespace
 	/**
 	 * I turni sul pannello ADATTIVO, fino a T6 nel solo braccio stordito. T1 erige (non stordito, in tutti i bracci). T2 e'
 	 * VUOTO: la ricarica dello slot, che `Reconfigure` condivide col pannello, scende a zero — prima, un piano di `Reconfigure`
-	 * verrebbe scartato in silenzio da `CanUseAbility` (come in `Heroes.Branth.ReconfigureRefusesInsteadOfGuessing`). T3
+	 * verrebbe scartato in silenzio da `CanUseAbility` (come in `Heroes.Riktor.ReconfigureRefusesInsteadOfGuessing`). T3
 	 * pianifica `Reconfigure` da W a E, e nel braccio stordito lo stordimento e' applicato dopo il piano. T4 e' VUOTO: lo
 	 * stordimento (durata `StunnedDurationTurns`) sopravvive al Cleanup di T3 e scade in quello di T4, e la ricarica scende a
 	 * zero. T5 e' NON stordito: lo stordito ruota di nuovo la STESSA copertura da W a E; il controllo, che l'ha gia' ruotata al
@@ -1352,7 +1352,7 @@ namespace
 	 * credito, quindi la ricarica e' ancora a zero e la rotazione PAGA.
 	 *
 	 * `bTwoCredits` e' il controllo positivo di T6: la variante dichiara DUE rotazioni gratuite invece di una (sulla copia propria
-	 * dei dati, vedi `CoverStunPlanBranth`), e T6 e' gratuito. E' lo stesso flusso, con l'unico numero che un rifiuto che regalasse
+	 * dei dati, vedi `CoverStunPlanRiktor`), e T6 e' gratuito. E' lo stesso flusso, con l'unico numero che un rifiuto che regalasse
 	 * un credito produrrebbe.
 	 */
 	FCoverStunRotation CoverStunRunRotation(FAutomationTestBase& Test, bool bStunned, bool bTwoCredits = false)
@@ -1369,8 +1369,8 @@ namespace
 
 		// Turno 1, NON stordito in nessuno dei bracci: il pannello ADATTIVO nasce tracciato da `DynamicCovers` con 25 punti
 		// struttura, le rotazioni gratuite che la variante dichiara, e non scade da solo.
-		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.KineticPanel"), Bed.Shielded, ERTHexDirection::W,
-				TEXT("Hero.Branth.KineticPanel.Adaptive"), bTwoCredits ? DeclaredCredits : INDEX_NONE))
+		if (!CoverStunPlanRiktor(Test, Label, Bed.Caster, TEXT("Hero.Riktor.KineticPanel"), Bed.Shielded, ERTHexDirection::W,
+				TEXT("Hero.Riktor.KineticPanel.Adaptive"), bTwoCredits ? DeclaredCredits : INDEX_NONE))
 		{
 			return Abort();
 		}
@@ -1401,7 +1401,7 @@ namespace
 		}
 
 		// Turno 3, quello del rifiuto (o della rotazione gratuita): si ruota QUELLA copertura da W a E.
-		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded, ERTHexDirection::E))
+		if (!CoverStunPlanRiktor(Test, Label, Bed.Caster, TEXT("Hero.Riktor.Reconfigure"), Bed.Shielded, ERTHexDirection::E))
 		{
 			return Abort();
 		}
@@ -1421,7 +1421,7 @@ namespace
 			Out.CooldownAfterTurn4, 0);
 
 		// Turno 5, NON stordito: lo stordito ruota di nuovo la STESSA copertura (W->E); il controllo la riporta da E a W.
-		if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded,
+		if (!CoverStunPlanRiktor(Test, Label, Bed.Caster, TEXT("Hero.Riktor.Reconfigure"), Bed.Shielded,
 				bStunned ? ERTHexDirection::E : ERTHexDirection::W))
 		{
 			return Abort();
@@ -1435,7 +1435,7 @@ namespace
 		// dallo stesso stato (credito zero, ricarica zero), e dice che cosa fa chi non e' stordito: paga e sposta.
 		if (bStunned)
 		{
-			if (!CoverStunPlanBranth(Test, Label, Bed.Caster, TEXT("Hero.Branth.Reconfigure"), Bed.Shielded, ERTHexDirection::W))
+			if (!CoverStunPlanRiktor(Test, Label, Bed.Caster, TEXT("Hero.Riktor.Reconfigure"), Bed.Shielded, ERTHexDirection::W))
 			{
 				return Abort();
 			}
@@ -1709,7 +1709,7 @@ namespace
 /**
  * `RIC-5` (#3958), [D-565]: uno stordito NON erige e NON sposta una copertura di bordo, e il rifiuto PAGA la ricarica.
  *
- * `Action.CreateCover`, `Hero.Branth.KineticPanel`, `Hero.Branth.Reconfigure` e `Gadget.PortableCover` sono azioni
+ * `Action.CreateCover`, `Hero.Riktor.KineticPanel`, `Hero.Riktor.Reconfigure` e `Gadget.PortableCover` sono azioni
  * **principali** di fase Prep (le premesse lo verificano riga per riga), quindi [D-416] (1) le nega come tutte le altre. Il braccio STORDITO di ogni riga
  * asserisce la regola: la mappa com'era, nessuna struttura e nessuna `AbilityActivated`, UNA voce di rifiuto di fase Prep che
  * nomina l'azione, la cella di chi agisce e la cella mirata, nessun altro `Fallback`, e la ricarica che PARTE (`Mirror - 1` a
@@ -1878,9 +1878,9 @@ bool FRTStunnedCasterChangesNothingTest::RunTest(const FString&)
 /**
  * `RIC-5` (#3958), [D-565]: la ROTAZIONE GRATUITA del pannello adattivo SOPRAVVIVE al rifiuto.
  *
- * `Hero.Branth.KineticPanel.Adaptive` eretto da chi non e' stordito ha 25 punti struttura, non scade e porta con se' una
+ * `Hero.Riktor.KineticPanel.Adaptive` eretto da chi non e' stordito ha 25 punti struttura, non scade e porta con se' una
  * rotazione gratuita (`FreeRotations` 1 in `DynamicCovers`). I turni sono sullo stesso attore (la sequenza e' in
- * `CoverStunRunRotation`): T1 erige, T2 e T4 sono vuoti, T3 e T5 pianificano `Hero.Branth.Reconfigure`, e nel braccio stordito
+ * `CoverStunRunRotation`): T1 erige, T2 e T4 sono vuoti, T3 e T5 pianificano `Hero.Riktor.Reconfigure`, e nel braccio stordito
  * T6 lo ripianifica. Il braccio stordito riceve lo stordimento solo prima di T3; e' libero da T5.
  *
  *  - **T3 stordito**: rifiutato. La copertura resta in W (25), nessuno spostamento e nessuna attivazione, UNA voce di rifiuto
@@ -2529,7 +2529,7 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Branth.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
+ * CP 9.5 — `Riktor.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
  *
  * Fino a qui i `Parameters` delle varianti erano una dichiarazione che nessun sistema leggeva, in tutto il
  * progetto: il catalogo scriveva «45 per un turno solo» e «25 che non scade» e il gioco applicava sempre 30/2.
@@ -2539,10 +2539,10 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
  * turno stesso), l'adattivo che `DurationTurns = 0` significa «non scade da sola» e non «scade subito» — la
  * lettura sbagliata piu' probabile, e quella che il campo non perdonerebbe.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthPanelVariantAppliedTest,
-	"RefactorTactics.Heroes.Branth.KineticPanelVariantApplied",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorPanelVariantAppliedTest,
+	"RefactorTactics.Heroes.Riktor.KineticPanelVariantApplied",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthPanelVariantAppliedTest::RunTest(const FString&)
+bool FRTRiktorPanelVariantAppliedTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -2567,13 +2567,13 @@ bool FRTBranthPanelVariantAppliedTest::RunTest(const FString&)
 
 	// L'abilita' e' quella del catalogo eroi, non l'azione core: e' cio' che il giocatore ha in mano. Due
 	// istanze distinte, cosi' nessuno stato dell'una puo' spiegare il comportamento dell'altra.
-	URTActionData* PanelA = URTHeroCatalogLibrary::MakeBranth()->Actions[1];
-	URTActionData* PanelB = URTHeroCatalogLibrary::MakeBranth()->Actions[1];
+	URTActionData* PanelA = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
+	URTActionData* PanelB = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
 
 	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
-		TEXT("Hero.Branth.KineticPanel.Reinforced"));
+		TEXT("Hero.Riktor.KineticPanel.Reinforced"));
 	PlanHeroCoverAction(WithAdaptive, PanelB, Adaptive, ERTHexDirection::SW,
-		TEXT("Hero.Branth.KineticPanel.Adaptive"));
+		TEXT("Hero.Riktor.KineticPanel.Adaptive"));
 	RunEnvTurn(TM);
 
 	// I due parametri si verificano dove ciascuno e' osservabile, e non e' un ripiego: e' il compromesso
@@ -2601,7 +2601,7 @@ bool FRTBranthPanelVariantAppliedTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Branth.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
+ * CP 9.5 — `Riktor.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
  *
  * E' il nome che la DoD vincola (`ReconfigureDoesNotDuplicate`), e il difetto che sorveglia e' preciso: una
  * implementazione che «aggiunge sul bordo nuovo» senza togliere dal vecchio raddoppierebbe la protezione con
@@ -2610,10 +2610,10 @@ bool FRTBranthPanelVariantAppliedTest::RunTest(const FString&)
  *
  * Verifica anche che l'integrita' VIAGGI con la copertura: spostare un pannello ammaccato non lo ripara.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthReconfigureTest,
-	"RefactorTactics.Heroes.Branth.ReconfigureDoesNotDuplicate",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureDoesNotDuplicate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthReconfigureTest::RunTest(const FString&)
+bool FRTRiktorReconfigureTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -2622,10 +2622,10 @@ bool FRTBranthReconfigureTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Panel(1, 0);
 
-	ARTUnit* Branth = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -2634,11 +2634,11 @@ bool FRTBranthReconfigureTest::RunTest(const FString&)
 	// Una copertura gia' in campo, ammaccata: 18 punti struttura invece di 30.
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Panel, ERTHexDirection::W, ERTHexCoverType::Low, 18);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBranth()->Actions[2];
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
 	TestTrue(TEXT("Reconfigure dichiara di spostare"),
 		Reconfigure->Def.StructureOp == ERTStructureOp::MoveCover);
 
-	PlanHeroCoverAction(Branth, Reconfigure, Panel, ERTHexDirection::E);
+	PlanHeroCoverAction(Riktor, Reconfigure, Panel, ERTHexDirection::E);
 	RunEnvTurn(TM);
 
 	const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Panel);
@@ -2670,10 +2670,10 @@ bool FRTBranthReconfigureTest::RunTest(const FString&)
  * pericoloso, perche' la via naturale — togli, poi aggiungi — cancella la copertura quando l'aggiunta
  * fallisce. Qui si verifica che torni dov'era.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthReconfigureRefusesTest,
-	"RefactorTactics.Heroes.Branth.ReconfigureRefusesInsteadOfGuessing",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureRefusesTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureRefusesInsteadOfGuessing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthReconfigureRefusesTest::RunTest(const FString&)
+bool FRTRiktorReconfigureRefusesTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -2683,10 +2683,10 @@ bool FRTBranthReconfigureRefusesTest::RunTest(const FString&)
 	const FRTCellId Two(1, 0);   // cella con DUE coperture
 	const FRTCellId One(0, 1);   // cella con una sola, ma destinazione occupata
 
-	ARTUnit* Branth = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -2695,8 +2695,8 @@ bool FRTBranthReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::W, ERTHexCoverType::Low, 30);
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::E, ERTHexCoverType::Low, 30);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBranth()->Actions[2];
-	PlanHeroCoverAction(Branth, Reconfigure, Two, ERTHexDirection::NE);
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Reconfigure, Two, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("ambiguo: rifiutato"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
@@ -2713,12 +2713,12 @@ bool FRTBranthReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
 		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
 
-	// `Branth.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
+	// `Riktor.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
 	// tornata disponibile, non al turno dopo (#135).
 	RunEnvTurn(TM);
 
-	URTActionData* Second = URTHeroCatalogLibrary::MakeBranth()->Actions[2];
-	PlanHeroCoverAction(Branth, Second, One, ERTHexDirection::NE);
+	URTActionData* Second = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Second, One, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("destinazione occupata: rifiutato"),
@@ -2731,7 +2731,7 @@ bool FRTBranthReconfigureRefusesTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Branth.
+ * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Riktor.
  *
  * E' la prova che `Action.CreateCover` e' semantica CONDIVISA e non l'abilita' di un eroe travestita: se il
  * resolver riconoscesse il pannello per ActionId invece che per `StructureOp`, questo test sarebbe rosso — ed
@@ -2763,7 +2763,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Target(1, 0);
 
-	// Un'unita' QUALUNQUE: non ha il kit di Branth, ha solo il gadget.
+	// Un'unita' QUALUNQUE: non ha il kit di Riktor, ha solo il gadget.
 	ARTUnit* Carrier = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -2814,7 +2814,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
  * frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello con un turno di anticipo e scrive
  * nel TurnLog una scadenza che non e' avvenuta.
  *
- * Non e' un caso limite: due Branth, o un Branth e un alleato con `Gadget.PortableCover`, che rinforzano lo
+ * Non e' un caso limite: due Riktor, o un Riktor e un alleato con `Gadget.PortableCover`, che rinforzano lo
  * stesso passaggio sono gioco normale — i cooldown sono per unita', quindi il secondo non aspetta il primo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverGhostTrackingTest,
@@ -4973,7 +4973,7 @@ namespace
 		ARTHexMapActor* MapActor = nullptr;
 		ARTTurnManager* TM = nullptr;
 		ARTUnit* Ivrin = nullptr;    // (0,0), squadra 1
-		ARTUnit* Branth = nullptr;   // (2,0), squadra 0
+		ARTUnit* Riktor = nullptr;   // (2,0), squadra 0
 		bool bValid = false;
 	};
 
@@ -4989,7 +4989,7 @@ namespace
 	 * `HexLine((2,0) → (0,0))` lo attraversa all'indietro: due bordi che la normalizzazione rende uno.
 	 *
 	 * ⚠️ **Le due azioni sono diverse perche' gli EROI sono diversi**, non perche' un `FName` sia stato
-	 * riscritto a mano: `Hero.Ivrin.PulseShot` e `Hero.Branth.ImpactShot` sono due voci di catalogo, e un id
+	 * riscritto a mano: `Hero.Ivrin.PulseShot` e `Hero.Riktor.ImpactShot` sono due voci di catalogo, e un id
 	 * inventato rischierebbe di misurare come si comporta il resolver davanti a un'azione che non esiste.
 	 * Entrambe portata >= 2, entrambe in fase `Attack`: lo stesso `Blast`, che e' la premessa della issue.
 	 *
@@ -5016,21 +5016,21 @@ namespace
 		S.MapActor->MapAsset->SortCells();
 
 		S.Ivrin = SpawnEnvUnit(S.World, 1, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
-		S.Branth = SpawnEnvUnit(S.World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
+		S.Riktor = SpawnEnvUnit(S.World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeRiktor());
 		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!S.Ivrin || !S.Branth || !S.TM) { return S; }
-		if (!S.Ivrin->Abilities.IsValidIndex(0) || !S.Branth->Abilities.IsValidIndex(0)) { return S; }
-		if (!S.Ivrin->Abilities[0] || !S.Branth->Abilities[0]) { return S; }
+		if (!S.Ivrin || !S.Riktor || !S.TM) { return S; }
+		if (!S.Ivrin->Abilities.IsValidIndex(0) || !S.Riktor->Abilities.IsValidIndex(0)) { return S; }
+		if (!S.Ivrin->Abilities[0] || !S.Riktor->Abilities[0]) { return S; }
 
 		// Dieci a testa, e il numero conta: e' cio' che rende distinguibile «si sono sommati» da «ha sparato
 		// uno solo» quando si legge l'integrita' residua.
 		S.Ivrin->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
 		S.Ivrin->SetPlannedMainAction(0);
-		S.Ivrin->DeclareAttackOnUnit(S.Branth);
+		S.Ivrin->DeclareAttackOnUnit(S.Riktor);
 
-		S.Branth->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
-		S.Branth->SetPlannedMainAction(0);
-		S.Branth->DeclareAttackOnUnit(S.Ivrin);
+		S.Riktor->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
+		S.Riktor->SetPlannedMainAction(0);
+		S.Riktor->DeclareAttackOnUnit(S.Ivrin);
 
 		S.bValid = true;
 		return S;
@@ -5060,14 +5060,14 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
 
 	const FName AzioneIvrin = S.Ivrin->Abilities[0]->Def.ActionId;
-	const FName AzioneBranth = S.Branth->Abilities[0]->Def.ActionId;
+	const FName AzioneRiktor = S.Riktor->Abilities[0]->Def.ActionId;
 
 	// ⛔ PREMESSA, e va LETTA dal catalogo invece che assunta: senza due identita' d'azione diverse il caso
 	// non e' quello dell'aggregato, e il gate misurerebbe due colpi della STESSA azione — dove nominarla
 	// sarebbe banale e la issue non esisterebbe.
 	TestFalse(TEXT("⛔ premessa: la prima azione ha un'identita'"), AzioneIvrin.IsNone());
-	TestFalse(TEXT("⛔ premessa: anche la seconda"), AzioneBranth.IsNone());
-	TestNotEqual(TEXT("⛔ premessa: e sono DIVERSE"), AzioneIvrin, AzioneBranth);
+	TestFalse(TEXT("⛔ premessa: anche la seconda"), AzioneRiktor.IsNone());
+	TestNotEqual(TEXT("⛔ premessa: e sono DIVERSE"), AzioneIvrin, AzioneRiktor);
 
 	RunEnvTurn(S.TM);
 
@@ -5109,7 +5109,7 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 		// ⛔ E non e' che ne abbia scelta una: NESSUNA delle due compare. Asserirlo e' cio' che distingue
 		// «non c'e' una risposta» da «la risposta e' arbitraria ma esiste».
 		TestNotEqual(TEXT("⛔ non e' la prima"), Eventi[0].ActionId, AzioneIvrin);
-		TestNotEqual(TEXT("⛔ e non e' la seconda"), Eventi[0].ActionId, AzioneBranth);
+		TestNotEqual(TEXT("⛔ e non e' la seconda"), Eventi[0].ActionId, AzioneRiktor);
 	}
 
 	// ⚠️ **L'ATTACCANTE invece una risposta ce l'ha, ed e' un RAPPRESENTANTE.** `FRTStructureHit`
@@ -5117,7 +5117,7 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 	// gemello ha gia' fatto, per l'unita', la scelta che `ActionId` non ha fatto per l'azione: uno dei due, non
 	// l'insieme. E' l'asimmetria che la decisione della issue deve sciogliere.
 	TestTrue(TEXT("⚠️ l'attaccante e' UNO dei due, scelto in ordine canonico"),
-		Voci[0].UnitId == S.Ivrin->StableUnitId || Voci[0].UnitId == S.Branth->StableUnitId);
+		Voci[0].UnitId == S.Ivrin->StableUnitId || Voci[0].UnitId == S.Riktor->StableUnitId);
 
 	// --- ∴ LA CONSEGUENZA, MISURATA ------------------------------------------------------------------
 	//

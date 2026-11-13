@@ -83,8 +83,8 @@ public:
 	/**
 	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
 	 *
-	 * Default: **Aevik + Phase** contro **Branth + Ivrin**. Le due coppie non sono casuali — Phase bagna e
-	 * Aevik fulmina (`+8` su `Status.Wet`), Branth costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
+	 * Default: **Aevik + Phase** contro **Riktor + Ivrin**. Le due coppie non sono casuali — Phase bagna e
+	 * Aevik fulmina (`+8` su `Status.Wet`), Riktor costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
 	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
 	 *
 	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando
@@ -94,7 +94,7 @@ public:
 	TArray<FName> Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+	TArray<FName> Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Ivrin") };
 
 	/**
 	 * Classe visiva per `HeroId` (es. `BP_Unit_Aevik` con skeletal mesh). Un eroe assente da questa mappa

@@ -5,10 +5,10 @@
 // di design: **il risultato cambia?**
 //
 // Lo scenario e' quello di `Scenarios/Combat/BasicAttack.json`, costruito in memoria con gli stessi numeri:
-// Aevik colpisce Branth a distanza 2 con `Hero.Aevik.ArcPulse` (220 danni). Dal CP 53.3c di E53 il colpo passa
-// dalla formula di [D-589] con i numeri del catalogo: Aevik sta alle SPALLE di Branth (che guarda a est), quindi
-// entra il suo bonus alle spalle (60, [D-599]) e la DEF 45 di Branth ([D-595] (3)): `floor((220 + 60) × 100/145)
-// = 193`, meno lo scudo BASE di [D-224] (50) → Branth finisce a 1057. `SaluteDiB1` lo calcola dal catalogo.
+// Aevik colpisce Riktor a distanza 2 con `Hero.Aevik.ArcPulse` (220 danni). Dal CP 53.3c di E53 il colpo passa
+// dalla formula di [D-589] con i numeri del catalogo: Aevik sta alle SPALLE di Riktor (che guarda a est), quindi
+// entra il suo bonus alle spalle (60, [D-599]) e la DEF 45 di Riktor ([D-595] (3)): `floor((220 + 60) × 100/145)
+// = 193`, meno lo scudo BASE di [D-224] (50) → Riktor finisce a 1057. `SaluteDiB1` lo calcola dal catalogo.
 //
 // ⚠️ E' l'unico scenario del corpus che asserisce un DANNO invece di una posizione, cioe' esattamente cio'
 // che una variante numerica deve poter muovere. Per questo si riusa invece di inventarne uno.
@@ -43,15 +43,15 @@ namespace RTWorkbenchRun
 	}
 
 	/**
-	 * La salute di Branth dopo UN `ArcPulse` da `Danno`, dalla formula e dal catalogo: alle spalle (bonus di Aevik),
-	 * contro la DEF di Branth, meno lo scudo base. Il test chiede «il risultato cambia?», non «quanto vale la
+	 * La salute di Riktor dopo UN `ArcPulse` da `Danno`, dalla formula e dal catalogo: alle spalle (bonus di Aevik),
+	 * contro la DEF di Riktor, meno lo scudo base. Il test chiede «il risultato cambia?», non «quanto vale la
 	 * formula»: calcolarlo qui tiene la domanda ferma quando cambiano i numeri del catalogo.
 	 */
 	int32 SaluteDiB1(int32 Danno)
 	{
 		const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-		const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-		return Branth->MaxHealth - (URTCombatLibrary::MitigateDirectDamage(Danno, Aevik->RearBonus, 100, Branth->Defense)
+		const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+		return Riktor->MaxHealth - (URTCombatLibrary::MitigateDirectDamage(Danno, Aevik->RearBonus, 100, Riktor->Defense)
 			- URTCombatLibrary::BaseShield);
 	}
 
@@ -64,7 +64,7 @@ namespace RTWorkbenchRun
 		}
 	}
 
-	/** `Combat.BasicAttack` in memoria: Aevik colpisce Branth, e si asserisce la SALUTE attesa. */
+	/** `Combat.BasicAttack` in memoria: Aevik colpisce Riktor, e si asserisce la SALUTE attesa. */
 	FRTTestScenario BasicAttack(int32 SaluteAttesaDiB1)
 	{
 		FRTTestScenario S;
@@ -78,12 +78,12 @@ namespace RTWorkbenchRun
 		Aevik.Cell = FRTCellId(-1, 0);
 		S.Units.Add(Aevik);
 
-		FRTScenarioUnit Branth;
-		Branth.Id = TEXT("B1");
-		Branth.HeroId = FName(TEXT("Hero.Branth"));
-		Branth.TeamId = 1;
-		Branth.Cell = FRTCellId(1, 0);
-		S.Units.Add(Branth);
+		FRTScenarioUnit Riktor;
+		Riktor.Id = TEXT("B1");
+		Riktor.HeroId = FName(TEXT("Hero.Riktor"));
+		Riktor.TeamId = 1;
+		Riktor.Cell = FRTCellId(1, 0);
+		S.Units.Add(Riktor);
 
 		FRTScenarioTurn Turn;
 		FRTScenarioIntent Colpo;
@@ -131,7 +131,7 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
 	UWorld* World = RTWorkbenchRun::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	// 1057 e' il numero del corpus (`Combat.BasicAttack`): 1200 di Branth, 220 di ArcPulse alle spalle, DEF 45, scudo 50.
+	// 1057 e' il numero del corpus (`Combat.BasicAttack`): 1200 di Riktor, 220 di ArcPulse alle spalle, DEF 45, scudo 50.
 	TestEqual(TEXT("premessa: la baseline vale 1057"), RTWorkbenchRun::SaluteDiB1(220), 1057);
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
 		RTWorkbenchRun::BasicAttack(RTWorkbenchRun::SaluteDiB1(220)), /*bTearDownAfter=*/ true);

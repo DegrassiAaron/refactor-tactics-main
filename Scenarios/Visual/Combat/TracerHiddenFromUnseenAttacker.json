@@ -5,22 +5,22 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "BANCO VFX per il tracer (#2454, PIE-V01-TRACER scena 3). Branth spara ad Aevik DA DIETRO a 3 celle: oltre la consapevolezza ravvicinata (2) e fuori dall'arco frontale di Aevik, che guarda a Est. Chi guarda in PIE e' la squadra 0, quella di Aevik, e NON conosce la cella di Branth: il tracer non deve partire da li'. Si guarda il colpo che arriva senza una linea che lo preceda.",
+  "_nota": "BANCO VFX per il tracer (#2454, PIE-V01-TRACER scena 3). Riktor spara ad Aevik DA DIETRO a 3 celle: oltre la consapevolezza ravvicinata (2) e fuori dall'arco frontale di Aevik, che guarda a Est. Chi guarda in PIE e' la squadra 0, quella di Aevik, e NON conosce la cella di Riktor: il tracer non deve partire da li'. Si guarda il colpo che arriva senza una linea che lo preceda.",
 
-  "_nota_loadout_vuoto": "Branth senza loadout: il default Weapon.Impact toglie una cella di portata (3 -> 2) e il colpo da 3 celle non partirebbe. La variabile deve stare ferma.",
+  "_nota_loadout_vuoto": "Riktor senza loadout: il default Weapon.Impact toglie una cella di portata (3 -> 2) e il colpo da 3 celle non partirebbe. La variabile deve stare ferma.",
 
   "_nota_forma": "ImpactShot e' Single di proposito: l'impronta di un Line rivela gia' oggi la cella adiacente a chi spara (spec §5, limite preesistente), e la domanda di questa scena si confonderebbe con quel limite.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Aevik",  "team": 0, "cell": [0, 0, 0],  "facing": "E" },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-3, 0, 0], "facing": "E", "loadout": [] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-3, 0, 0], "facing": "E", "loadout": [] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — il colpo alle spalle: si guarda che NON compaia una linea dalla cella di Branth.",
+      "_turno": "T1 — il colpo alle spalle: si guarda che NON compaia una linea dalla cella di Riktor.",
       "intents": [
-        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" }
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" }
       ]
     }
   ],

@@ -13,11 +13,11 @@
 
   "_nota_coppia": "I due scenari vanno letti insieme, ed e' il confronto a valere: **112 con Guard, 102 con Brace**. Qui un colpo arriva **da davanti** e uno **da dietro** (F1), mentre li' arrivano entrambi da davanti: sull'arco frontale la Guardia toglie di piu' (15 contro 10) con la stessa forma, ma da dietro non copre — ed e' il `Brace` a ridurre anche quel colpo. 🔑 **Cio' che resta a separarle e' la DIREZIONE, non piu' il numero di colpi**: la Guardia non copre le spalle ([D-206], `Spec.Facing.BackAttackIgnoresGuard`), il `Brace` si'. Se a schermo si vedessero uguali, la scelta non arriverebbe a chi gioca. ⏱️ **Questa riga diceva «97 con Guard» e «contro due attaccanti conviene Brace» fino al 2026-09-20**, e con il pool di [D-292] era vero: il budget da 15 si esauriva sul primo colpo. [D-408] ritira il pool e **rovescia il verso del confronto**. ⚠️ E' una conseguenza di bilanciamento che tocca `BAL-1`, che e' **aperta**.",
 
-  "_nota_root": "`Brace` applica anche `Status.Root` per un turno: chi si pianta non si muove. Qui Branth non ha un movimento pianificato, quindi il vincolo non si osserva — e' dichiarato perche' chi estende questo scenario sappia che c'e'.",
+  "_nota_root": "`Brace` applica anche `Status.Root` per un turno: chi si pianta non si muove. Qui Riktor non ha un movimento pianificato, quindi il vincolo non si osserva — e' dichiarato perche' chi estende questo scenario sappia che c'e'.",
   "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
     { "id": "F1", "hero": "Hero.Aevik",    "team": 1, "cell": [-2, 0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
   ],

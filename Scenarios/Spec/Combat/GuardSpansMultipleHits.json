@@ -12,7 +12,7 @@
 
   "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto la riduzione della Guardia: **8 danni** (ADR-0007, sceso da 24 il 2026-08-09). Ogni altra abilita' dichiarabile come `ability` in un intent vale 16 o piu', e da 16 in su la riduzione di 15 ([D-408]) lascia passare almeno un punto per colpo: con l'8 ogni colpo frontale e' azzerato — una riduzione non cura — ed e' per questo che la scena puo' asserire 120. ⚠️ **La prima stesura diceva «ogni altro colpo del CATALOGO», ed era falso**: `Reaction.CounterShot` fa 14, `Hero.Aevik.ReactiveCapacitor` 10 e la variante `Hero.Ivrin.InterceptShot.Extended` 14 — tutti sotto la soglia. Nessuno dei tre e' un'abilita' principale: due sono reazioni, che uno scenario arma con `reaction` e non sceglie quando colpiscono, e la terza e' una variante di workbench. Restano candidati per uno scenario FUTURO sulla stessa regola dal lato delle reazioni, ed e' la ragione per cui la correzione li NOMINA invece di limitarsi a togliere la frase. Trovato da una code review. ⏱️ *Fino al 2026-09-20 la ragione era un'altra: sotto i 15 del pool di [D-292] il budget avanzava dopo il primo colpo, e cio' che avanzava era l'oggetto di D-292; con un colpo da 15 o piu' il primo consumava tutto il budget e non c'era niente da riportare.*",
 
-  "_nota_numeri_DG": "TRE colpi da 8, tutti frontali, su un difensore in Guardia. Da [D-408] la Guardia toglie **15 a OGNI colpo frontale** (il valore lo dichiara il personaggio): 8 meno 15 e' zero — una riduzione azzera, non cura — per ciascuno dei tre, quindi al bersaglio non arriva niente e Branth resta a **120**, illeso. Senza la Guardia gli stessi tre colpi varrebbero 24 meno i 5 dello scudo base ([D-224]), cioe' 101: e' quel divario a rendere falsificabile questa meta'. ⏱️ *Col pool di [D-292] la stessa scena dava **116**: il budget da 15 assorbiva 8 (ne restavano 7), poi 7 del secondo (ne passava 1), e il terzo passava intero (8); la somma sul bersaglio era 9, lo scudo base ne fermava 5 e Branth scendeva da 120 a 116. Con la regola ancora precedente, il delta sul primo colpo, dava **109**: il primo colpo diventava 0 e i 7 punti di riduzione avanzati si perdevano, quindi il secondo e il terzo passavano interi. Erano quei numeri a rendere questo file una misura di D-292; da D-408 e' una misura di D-408.*",
+  "_nota_numeri_DG": "TRE colpi da 8, tutti frontali, su un difensore in Guardia. Da [D-408] la Guardia toglie **15 a OGNI colpo frontale** (il valore lo dichiara il personaggio): 8 meno 15 e' zero — una riduzione azzera, non cura — per ciascuno dei tre, quindi al bersaglio non arriva niente e Riktor resta a **120**, illeso. Senza la Guardia gli stessi tre colpi varrebbero 24 meno i 5 dello scudo base ([D-224]), cioe' 101: e' quel divario a rendere falsificabile questa meta'. ⏱️ *Col pool di [D-292] la stessa scena dava **116**: il budget da 15 assorbiva 8 (ne restavano 7), poi 7 del secondo (ne passava 1), e il terzo passava intero (8); la somma sul bersaglio era 9, lo scudo base ne fermava 5 e Riktor scendeva da 120 a 116. Con la regola ancora precedente, il delta sul primo colpo, dava **109**: il primo colpo diventava 0 e i 7 punti di riduzione avanzati si perdevano, quindi il secondo e il terzo passavano interi. Erano quei numeri a rendere questo file una misura di D-292; da D-408 e' una misura di D-408.*",
 
   "_nota_numeri_DB": "Il colpo alle spalle passa INTERO e non e' ridotto (D-206, `bEligible` falso in `ApplyEligibleHitDelta`; era `ApplyAbsorptionPool` fino a [D-408]): il frontale da 8 viene assorbito per intero e non arriva niente, il posteriore da 8 arriva tutto, lo scudo base ne ferma 5 e DB scende da 120 a 117. Se il colpo posteriore fosse eleggibile, i 15 della Guardia lo azzererebbero e DB resterebbe a 120: e' il controfattuale che rende falsificabile questa meta'. ⏱️ *Col pool di [D-292] il controfattuale era un altro — «il budget residuo di 7 lo ridurrebbe a 1» — e portava allo stesso 120 per un'altra strada.*",
 
@@ -20,20 +20,20 @@
 
   "_nota_orientamento": "Da CP 16.2 la guardia copre il DAVANTI. I tre attaccanti di DG e il frontale di DB stanno tutti nell'arco a 120 gradi di chi guarda a EST — le celle a est con `r >= 0`, o con `r <= 0` e `q + r >= 0` — e nessuno dei difensori fa niente per girarsi. L'attaccante posteriore di DB sta a OVEST, fuori dall'arco, come in `Spec.Facing.BackAttackIgnoresGuard` da cui la geometria e' ereditata.",
 
-  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`) e la riga tiene in vita il file, come in `Spec.Brace.GuardAndBraceOnMixedHit`. Il default di Branth e' `Weapon.Impact`, che toglie una cella di portata e AGGIUNGE `Push 1` all'attacco base: con i default montati questo scenario misurerebbe anche lo spostamento — cioe' la regola che #1919 chiede esplicitamente di tenere fuori — e ImpactShot scenderebbe a portata 2, fuori dalla quale AG3 — l'unico attaccante a distanza 3 — non arriverebbe. ⚠️ *La prima stesura diceva «i due attaccanti a distanza 3»: le distanze reali sono `2, 2, 3` per DG e `2, 2` per DB, quindi e' uno. Trovato da una code review, ed e' il genere di dettaglio che decide se qualcuno puo' togliere `loadout: []` fidandosi della ragione scritta.* Spogli, `ImpactShot` resta 8 danni, portata 3, nessuna spinta.",
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`) e la riga tiene in vita il file, come in `Spec.Brace.GuardAndBraceOnMixedHit`. Il default di Riktor e' `Weapon.Impact`, che toglie una cella di portata e AGGIUNGE `Push 1` all'attacco base: con i default montati questo scenario misurerebbe anche lo spostamento — cioe' la regola che #1919 chiede esplicitamente di tenere fuori — e ImpactShot scenderebbe a portata 2, fuori dalla quale AG3 — l'unico attaccante a distanza 3 — non arriverebbe. ⚠️ *La prima stesura diceva «i due attaccanti a distanza 3»: le distanze reali sono `2, 2, 3` per DG e `2, 2` per DB, quindi e' uno. Trovato da una code review, ed e' il genere di dettaglio che decide se qualcuno puo' togliere `loadout: []` fidandosi della ragione scritta.* Spogli, `ImpactShot` resta 8 danni, portata 3, nessuna spinta.",
 
   "_nota_slow": "`ImpactShot` applica `Status.Slow` per un turno oltre al danno, ed e' inerte qui: nessuno si muove, e il modificatore di movimento non entra in nessuna delle due assertion. Vale la pena dirlo perche' un lettore che trovasse tre Slow sullo stesso bersaglio potrebbe crederli parte della misura.",
 
   "units": [
-    { "id": "DG", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0] },
-    { "id": "DB", "hero": "Hero.Branth", "team": 0, "cell": [0, 3, 0] },
+    { "id": "DG", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "DB", "hero": "Hero.Riktor", "team": 0, "cell": [0, 3, 0] },
 
-    { "id": "AG1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "facing": "W", "loadout": [] },
-    { "id": "AG2", "hero": "Hero.Branth", "team": 1, "cell": [2, -1, 0], "facing": "W", "loadout": [] },
-    { "id": "AG3", "hero": "Hero.Branth", "team": 1, "cell": [2, 1, 0], "facing": "W", "loadout": [] },
+    { "id": "AG1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "facing": "W", "loadout": [] },
+    { "id": "AG2", "hero": "Hero.Riktor", "team": 1, "cell": [2, -1, 0], "facing": "W", "loadout": [] },
+    { "id": "AG3", "hero": "Hero.Riktor", "team": 1, "cell": [2, 1, 0], "facing": "W", "loadout": [] },
 
-    { "id": "AB1", "hero": "Hero.Branth", "team": 1, "cell": [2, 3, 0], "facing": "W", "loadout": [] },
-    { "id": "AB2", "hero": "Hero.Branth", "team": 1, "cell": [-2, 3, 0], "facing": "E", "loadout": [] }
+    { "id": "AB1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 3, 0], "facing": "W", "loadout": [] },
+    { "id": "AB2", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 3, 0], "facing": "E", "loadout": [] }
   ],
 
   "turns": [
@@ -43,12 +43,12 @@
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Guard" },
 
-        { "unit": "AG1", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG2", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG3", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+        { "unit": "AG1", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG2", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG3", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
 
-        { "unit": "AB1", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
-        { "unit": "AB2", "ability": "Hero.Branth.ImpactShot", "target": "DB" }
+        { "unit": "AB1", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB2", "ability": "Hero.Riktor.ImpactShot", "target": "DB" }
       ]
     }
   ],

@@ -35,11 +35,11 @@
     { "_unita": "M2 entra per secondo e chiede DUE passi: il FIRE lo tronca sul primo.",
       "id": "M2", "hero": "Hero.Muiren", "team": 0, "cell": [2, 1, 0] },
     { "_unita": "M3 entra per terzo, a carica spesa, e completa.",
-      "id": "M3", "hero": "Hero.Branth", "team": 0, "cell": [1, 1, 0] },
+      "id": "M3", "hero": "Hero.Riktor", "team": 0, "cell": [1, 1, 0] },
 
     { "_unita": "La coppia contesa, fuori dalla linea: convergono su (-2,1,0) a parita' di priorita'.",
       "id": "C0", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "C1", "hero": "Hero.Branth", "team": 1, "cell": [-2, 2, 0] }
+    { "id": "C1", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 2, 0] }
   ],
 
   "turns": [

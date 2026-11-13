@@ -232,12 +232,12 @@ namespace
 		if (C.Causa == EPagaCausa::AltroPiano) { InPiu = { CellaSuAltroPiano }; }
 		PagaSpawnMap(World, /*Radius=*/ 9, Muri, Fumo, InPiu);
 
-		// Il mortaio e' di Branth, tutto il resto dell'attacco base di Ivrin.
+		// Il mortaio e' di Riktor, tutto il resto dell'attacco base di Ivrin.
 		const bool bMortaio = C.Causa == EPagaCausa::TroppoVicino || C.Causa == EPagaCausa::MortaioAlMinimo;
 		ARTUnit* Attaccante = PagaSpawnUnit(World, 0,
-			bMortaio ? URTHeroCatalogLibrary::MakeBranth() : URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+			bMortaio ? URTHeroCatalogLibrary::MakeRiktor() : URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 		// Un nemico lontano in ogni banco: la squadra avversa non e' mai vuota, e non entra nella portata di nessuno.
-		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0, 0));
+		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-5, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: attaccante"), C.Nome), Attaccante)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: spettatore"), C.Nome), Spettatore)
@@ -269,7 +269,7 @@ namespace
 					break;
 				}
 			}
-			if (!Test.TestTrue(*FString::Printf(TEXT("%s: il kit di Branth contiene il mortaio"), C.Nome),
+			if (!Test.TestTrue(*FString::Printf(TEXT("%s: il kit di Riktor contiene il mortaio"), C.Nome),
 				Idx != INDEX_NONE))
 			{
 				PagaDestroyWorld(World);
@@ -318,7 +318,7 @@ namespace
 		case EPagaCausa::InterruptBloccato:
 		case EPagaCausa::NonAggressivaBloccata:
 		case EPagaCausa::NonAggressivaBersaglioMorto:
-			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaAlBersaglio);
+			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), CellaAlBersaglio);
 			if (Bersaglio) { Attaccante->DeclareAttackOnUnit(Bersaglio); }
 			if (Bersaglio && (C.Causa == EPagaCausa::BersaglioMorto || C.Causa == EPagaCausa::NonAggressivaBersaglioMorto))
 			{
@@ -328,7 +328,7 @@ namespace
 
 		case EPagaCausa::BersaglioScattato:
 		{
-			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaAlBersaglio);
+			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), CellaAlBersaglio);
 			if (Bersaglio)
 			{
 				Attaccante->DeclareAttackOnUnit(Bersaglio);
@@ -341,7 +341,7 @@ namespace
 		}
 
 		case EPagaCausa::AltroPiano:
-			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaSuAltroPiano);
+			Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), CellaSuAltroPiano);
 			if (Bersaglio) { Attaccante->DeclareAttackOnUnit(Bersaglio); }
 			break;
 
@@ -377,7 +377,7 @@ namespace
 		case EPagaCausa::TiroCappatoInterrotto:
 		{
 			// `Action.Interrupt` ha portata 1: l'interruttore sta accanto all'attaccante e lo coglie sulla cella dove sta.
-			Aiutante = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0, 0));
+			Aiutante = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0, 0));
 			if (Aiutante)
 			{
 				const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Aiutante, TEXT("Action.Interrupt"));
@@ -763,7 +763,7 @@ namespace
 
 		ARTUnit* Attore = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 		// Un avversario lontano in ogni banco: la squadra avversa non e' mai vuota, e non entra nella portata di nessuno.
-		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0, 0));
+		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-5, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: attore"), Nome), Attore)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: spettatore"), Nome), Spettatore)
@@ -858,10 +858,10 @@ namespace
 			{
 			case ERic3Bersaglio::Nemico:
 			case ERic3Bersaglio::Morto:
-				Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaBersaglio);
+				Bersaglio = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), CellaBersaglio);
 				break;
 			case ERic3Bersaglio::Alleato:
-				Bersaglio = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), CellaBersaglio);
+				Bersaglio = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaBersaglio);
 				break;
 			case ERic3Bersaglio::Assente:
 				break;
@@ -878,7 +878,7 @@ namespace
 			// Un compagno dietro il bersaglio, che lo vede: la squadra lo conosce anche se chi agisce non vede oltre l'intorno.
 			if (S.bTestimone)
 			{
-				ARTUnit* Testimone = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(Distanza + 2, 0, 0));
+				ARTUnit* Testimone = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(Distanza + 2, 0, 0));
 				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: testimone"), Nome), Testimone))
 				{
 					PagaDestroyWorld(World);
@@ -898,7 +898,7 @@ namespace
 					PagaDestroyWorld(World);
 					return Esito;
 				}
-				ARTUnit* Compagno = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(S.FumoX, 3, 0));
+				ARTUnit* Compagno = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(S.FumoX, 3, 0));
 				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: compagno"), Nome), Compagno))
 				{
 					PagaDestroyWorld(World);
@@ -920,7 +920,7 @@ namespace
 			// quindi il controllo col Fumo NON osservato resta tale.
 			if (S.bCompagnaPressoLaMira)
 			{
-				ARTUnit* Compagna = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(CellaBersaglio.X, -3, 0));
+				ARTUnit* Compagna = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(CellaBersaglio.X, -3, 0));
 				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: compagna presso la mira"), Nome), Compagna)
 					|| !Test.TestEqual(*FString::Printf(TEXT("%s: premessa: la compagna e' a tre celle dalla mira"), Nome),
 						URTHexLibrary::HexDistance(Compagna->Cell, CellaBersaglio), 3))
@@ -940,7 +940,7 @@ namespace
 				Attore->SetPlannedDash(Scatto, CellaScatto);
 				if (S.bOstacoloSulloScatto)
 				{
-					ARTUnit* Ostacolo = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), CellaScatto);
+					ARTUnit* Ostacolo = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), CellaScatto);
 					if (!Test.TestNotNull(*FString::Printf(TEXT("%s: ostacolo"), Nome), Ostacolo))
 					{
 						PagaDestroyWorld(World);
@@ -955,7 +955,7 @@ namespace
 				// (`AimOriginCell` non sposta l'origine per una carica, [D-464] (5)), il Blast da quella d'arrivo, una cella piu' lontana dal
 				// bersaglio. E' l'unica variabile fra il controllo (nessuna carica) e il caso. L'impatto (20 danni e una spinta di 1) e' un
 				// intento a parte, con la propria ricarica: la ricarica che la riga misura e' quella del tiro (slot 0).
-				ARTUnit* Caricato = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 0, 0));
+				ARTUnit* Caricato = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 0, 0));
 				if (!Test.TestNotNull(*FString::Printf(TEXT("%s: nemico caricato"), Nome), Caricato))
 				{
 					PagaDestroyWorld(World);
@@ -2105,7 +2105,7 @@ namespace
 			// A tre celle dal Fumo (la distanza di (x,3) da (x,0) e' 3): fuori dall'intorno di 2, quindi in pianificazione non lo vede.
 			// Lo scatto di due celle lungo l'asse r lo porta a una cella dal Fumo: nel Blast (`RefreshTeamKnowledgeForBlast` osserva le
 			// posizioni post-Dash) lo vede. Compagno della squadra 1, la stessa di chi non vede: la squadra 0 non cambia.
-			ARTUnit* Compagno = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(CellaDelFumo.X, 3, 0));
+			ARTUnit* Compagno = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(CellaDelFumo.X, 3, 0));
 			if (!Test.TestNotNull(*FString::Printf(TEXT("%s: compagno di chi non vede"), Nome), Compagno))
 			{
 				PagaDestroyWorld(World);
@@ -2256,7 +2256,7 @@ namespace
 		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
 
 		ARTUnit* Attore = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
-		ARTUnit* Nemico = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+		ARTUnit* Nemico = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: attore"), C.Nome), Attore)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: nemico"), C.Nome), Nemico)
@@ -2557,9 +2557,9 @@ bool FRTShiftedOriginPaymentIsPerUnitTest::RunTest(const FString&)
 
 	ARTUnit* A = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTUnit* B = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-5, 3, 0));
-	ARTUnit* BersaglioA = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0, 0));
-	ARTUnit* BersaglioB = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 3, 0));
-	ARTUnit* Ostacolo = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	ARTUnit* BersaglioA = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(6, 0, 0));
+	ARTUnit* BersaglioB = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 3, 0));
+	ARTUnit* Ostacolo = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("bersaglio di A"), BersaglioA)
 		|| !TestNotNull(TEXT("bersaglio di B"), BersaglioB) || !TestNotNull(TEXT("ostacolo"), Ostacolo) || !TestNotNull(TEXT("TM"), TM))
@@ -2661,7 +2661,7 @@ namespace
 		}
 
 		ARTUnit* Attore = PagaSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
-		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0, 0));
+		ARTUnit* Spettatore = PagaSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-5, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: attore"), Nome), Attore)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: spettatore"), Nome), Spettatore)

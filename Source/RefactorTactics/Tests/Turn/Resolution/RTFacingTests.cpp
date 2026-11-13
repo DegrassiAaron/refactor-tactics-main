@@ -88,7 +88,7 @@ bool FRTFacingBudgetMoveAllowsLastStepPlusMinusOneTest::RunTest(const FString&)
 {
 	// ⚠️ **RILETTO dopo ADR-0008 (#1605), e il nome ora dice meno di quel che sembra.** Questo test
 	// descriveva la REGOLA — «il Move a budget concede D e D±1». Da ADR-0008 §1 quella non e' piu' una
-	// regola universale ma il comportamento di **un eroe con `MoveEndPivotMaxSteps = 1`**, che e' Branth
+	// regola universale ma il comportamento di **un eroe con `MoveEndPivotMaxSteps = 1`**, che e' Riktor
 	// nel roster e il default per un'unita' non configurata. Resta vero e resta utile — pinna il default —
 	// ma non prova piu' nulla sugli altri tre eroi: quelli li provano i test `PivotBudget*` qui sotto.
 
@@ -591,14 +591,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingPivotBudgetZeroKeepsMovementDirectionT
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFacingPivotBudgetZeroKeepsMovementDirectionTest::RunTest(const FString&)
 {
-	// Branth in Dash: budget 0, cioe' il comportamento di ADR-0005 per i `Linear*` CONSERVATO.
-	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	if (!Branth)
+	// Riktor in Dash: budget 0, cioe' il comportamento di ADR-0005 per i `Linear*` CONSERVATO.
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!Riktor)
 	{
-		AddError(TEXT("il catalogo non ha prodotto Branth"));
+		AddError(TEXT("il catalogo non ha prodotto Riktor"));
 		return false;
 	}
-	const FRTPivotBudget Budget(Branth->MoveEndPivotMaxSteps, Branth->DashEndPivotMaxSteps);
+	const FRTPivotBudget Budget(Riktor->MoveEndPivotMaxSteps, Riktor->DashEndPivotMaxSteps);
 
 	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::E });
 	const TArray<ERTHexDirection> Legal =
@@ -662,7 +662,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingStationaryRotationIsUniversalTest,
 bool FRTFacingStationaryRotationIsUniversalTest::RunTest(const FString&)
 {
 	// `StationaryPivotMaxSteps` resta universale a 3 (ADR-0008 §1, che scarta la variante per eroe): da
-	// fermo TUTTI e quattro ruotano libero, compreso Branth che in Dash non ruota affatto.
+	// fermo TUTTI e quattro ruotano libero, compreso Riktor che in Dash non ruota affatto.
 	const TArray<FRTCellId> NoPath;
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4);
@@ -698,7 +698,7 @@ bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
 	const FExpected Expected[] = {
 		{ TEXT("Hero.Aevik"), 2, 2 },
 		{ TEXT("Hero.Muiren"),  2, 3 },
-		{ TEXT("Hero.Branth"), 1, 0 },
+		{ TEXT("Hero.Riktor"), 1, 0 },
 		{ TEXT("Hero.Ivrin"), 3, 3 },
 	};
 

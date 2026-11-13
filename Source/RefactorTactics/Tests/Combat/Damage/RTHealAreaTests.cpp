@@ -144,10 +144,10 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		// (4,0) e' a distanza 3, fuori.
 		ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
 		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
-		ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, -1, 0), URTHeroCatalogLibrary::MakeBranth());
+		ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, -1, 0), URTHeroCatalogLibrary::MakeRiktor());
 		ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(1, 1, 0), URTHeroCatalogLibrary::MakeIvrin());
-		ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(0, 1, 0), URTHeroCatalogLibrary::MakeBranth());
+		ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(0, 1, 0), URTHeroCatalogLibrary::MakeRiktor());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !A2 || !Lontana || !Nemico || !Morta || !TM) { return false; }
 		Curatrice->Health -= 100; A1->Health -= 400; A2->Health -= 400; Lontana->Health -= 400; Nemico->Health -= 400;
@@ -341,7 +341,7 @@ bool FRTEverySingleHealDeclaresTrackingTest::RunTest(const FString&)
 
 	const TArray<URTHeroData*> Eroi = {
 		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
-		URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+		URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeIvrin() };
 	for (const URTHeroData* Eroe : Eroi)
 	{
 		if (!TestNotNull(TEXT("eroe costruito"), Eroe)) { return false; }
@@ -390,7 +390,7 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	const FRTCellId Accanto(2, -1, 0); // a un passo dalla cella puntata, a tre da quella dello scatto
 	ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
 	ARTUnit* Puntato = SpawnHealUnit(World, 0, Puntata, URTHeroCatalogLibrary::MakeAevik());
-	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeRiktor());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Curatrice || !Puntato || !Vicino || !TM) { return false; }
 	Puntato->Health -= 400;
@@ -522,11 +522,11 @@ bool FRTHealEmitsItsMomentTest::RunTest(const FString&)
 	SpawnHealMap(World, 6);
 	// Curatrice singola in (-3,0) su Lontana (-1,0); CircularTide da (3,0) centrata su (2,0): A1 (2,0), A2 (1,0), Morta (2,-1).
 	ARTUnit* Singola = SpawnHealUnit(World, 0, FRTCellId(-3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-	ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(-1, 0, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(-1, 0, 0), URTHeroCatalogLibrary::MakeRiktor());
 	ARTUnit* Tide = SpawnHealUnit(World, 0, FRTCellId(3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
 	ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
 	ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
-	ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(2, -1, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(2, -1, 0), URTHeroCatalogLibrary::MakeRiktor());
 	ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-5, 3, 0), URTHeroCatalogLibrary::MakeIvrin());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Singola || !Lontana || !Tide || !A1 || !A2 || !Morta || !Nemico || !TM) { return false; }

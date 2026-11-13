@@ -187,10 +187,10 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 
 	ARTUnit* Aevik = FindBotAllyHero(Units, TEXT("Hero.Aevik"));
 	ARTUnit* Muiren = FindBotAllyHero(Units, TEXT("Hero.Muiren"));
-	ARTUnit* Branth = FindBotAllyHero(Units, TEXT("Hero.Branth"));
+	ARTUnit* Riktor = FindBotAllyHero(Units, TEXT("Hero.Riktor"));
 	ARTUnit* Ivrin = FindBotAllyHero(Units, TEXT("Hero.Ivrin"));
 	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
+		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyBotAllyWorld(World);
 		return false;
@@ -204,7 +204,7 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 	// ...ma chi la pianifica si': e' la prima volta che due unita' della stessa squadra si dividono qui.
 	TestFalse(TEXT("Aevik resta al giocatore"), Aevik->bIsBotControlled);
 	TestTrue(TEXT("Muiren passa al bot"), Muiren->bIsBotControlled);
-	TestTrue(TEXT("gli avversari restano al bot"), Branth->bIsBotControlled && Ivrin->bIsBotControlled);
+	TestTrue(TEXT("gli avversari restano al bot"), Riktor->bIsBotControlled && Ivrin->bIsBotControlled);
 
 	// E il gate lo vede: senza questa riga il test proverebbe l'assegnazione e non il suo effetto.
 	TestTrue(TEXT("Aevik e' comandabile"),

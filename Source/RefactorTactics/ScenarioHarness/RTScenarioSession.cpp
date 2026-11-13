@@ -341,7 +341,7 @@ namespace
 			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
 			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
 			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
-			// sul bordo `(1,0)->(2,0)` ripara Branth e non Ivrin, quindi un resolver che conservasse la
+			// sul bordo `(1,0)->(2,0)` ripara Riktor e non Ivrin, quindi un resolver che conservasse la
 			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
 			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
 			TEXT("InterceptRevalidation"),
@@ -506,7 +506,7 @@ namespace
 			 * giocabile, non trovava intents, e lo scenario usciva `PASS 2/2` senza che accadesse niente.
 			 *
 			 * ⚠️ **Il blocco e' una DECISIONE, non una lacuna**: [D-046] stabilisce che rompere e creare
-			 * ponti non appartiene a nessun kit del roster v0.1, e che darlo a Branth per affinita'
+			 * ponti non appartiene a nessun kit del roster v0.1, e che darlo a Riktor per affinita'
 			 * `Structures` gli aggiungerebbe un potere che il suo kit non dichiara. Chi sposta questo nome
 			 * fra le disponibili sta **riaprendo D-046**, non aggiungendo una feature — ed e' la ragione per
 			 * cui l'owner qui sotto non e' una issue.
@@ -1504,7 +1504,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
 				// vertical slice): il `TurnManager` si bersaglia da solo — `Instance.TargetUnitId = i`, e il
 				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
-				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Branth si mette in guardia
+				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Riktor si mette in guardia
 				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
 				Unit->SetPlannedMainAction(AbilityIndex);
 			}
@@ -2121,7 +2121,7 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 		//
 		// ⚠️ **Si verifica che la risposta sia legale in QUESTA finestra, e non basta che il catalogo la
 		// conosca**: il loader ha gia' rifiutato i refusi, ma un profilo sbagliato — `SIDESTEP` chiesto a
-		// Branth, che non ce l'ha — supererebbe il loader e arriverebbe qui. Senza questo controllo
+		// Riktor, che non ce l'ha — supererebbe il loader e arriverebbe qui. Senza questo controllo
 		// `IsResponseAllowed` la rifiuterebbe nel resolver producendo un `HoldRejected`, che nel referto
 		// somiglia a un HOLD voluto: il difetto che la traduzione fallita di `FIRE` ha gia' pagato una volta,
 		// dieci righe piu' su.

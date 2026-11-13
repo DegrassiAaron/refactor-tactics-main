@@ -504,7 +504,7 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 	{
 		FRTActionDef A; FRTActionDef B;
 		A.ActionId = FName(TEXT("Hero.Aevik.Overload"));
-		B.ActionId = FName(TEXT("Hero.Branth.Overload"));
+		B.ActionId = FName(TEXT("Hero.Riktor.Overload"));
 		TestNotEqual(TEXT("lo stesso nome su due eroi resta due chiavi"),
 			URTIconLibrary::MakeActionIconId(A.ActionId), URTIconLibrary::MakeActionIconId(B.ActionId));
 	}

@@ -1571,11 +1571,11 @@ bool FRTReactionWindowTextsFollowTheBoardTest::RunTest(const FString&)
 		StessoTesto(Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), { TEXT("Ivrin") })),
 			TEXT("Ivrin è entrato nell'area controllata")));
 	TestTrue(TEXT("entrate, due unita' sullo stesso passo"),
-		StessoTesto(Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), { TEXT("Ivrin"), TEXT("Branth") })),
-			TEXT("Ivrin e Branth sono entrati nell'area controllata")));
+		StessoTesto(Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), { TEXT("Ivrin"), TEXT("Riktor") })),
+			TEXT("Ivrin e Riktor sono entrati nell'area controllata")));
 	TestTrue(TEXT("entrate, tre unita'"),
-		StessoTesto(Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), { TEXT("Ivrin"), TEXT("Branth"), TEXT("Muiren") })),
-			TEXT("Ivrin, Branth e Muiren sono entrati nell'area controllata")));
+		StessoTesto(Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), { TEXT("Ivrin"), TEXT("Riktor"), TEXT("Muiren") })),
+			TEXT("Ivrin, Riktor e Muiren sono entrati nell'area controllata")));
 	TestTrue(TEXT("entrato, nessun nome: nessuna frase, invece di una frase senza soggetto"),
 		Sotto(VistaConNomi(Entrato, TEXT("G"), TEXT("A"), {})).IsEmpty());
 	TestTrue(TEXT("entrato: un nome vuoto in mezzo non rompe la frase"),
@@ -1642,30 +1642,30 @@ bool FRTReactionWindowTextsFollowTheBoardTest::RunTest(const FString&)
 	TestTrue(TEXT("e il FIRE della stessa finestra resta «Attacca Ivrin»"),
 		StessoTesto(RTReactionResponseText::DescriptionFor(Fuoco, Uno), TEXT("Attacca Ivrin")));
 
-	FRTReactionWindowOptionView FuocoSuBranth;
-	FuocoSuBranth.Response = URTReactionOpportunityLibrary::FireResponse(5);
-	FuocoSuBranth.TargetSnapshotIndex = 5;
-	FuocoSuBranth.TargetName = FText::FromString(TEXT("Branth"));
+	FRTReactionWindowOptionView FuocoSuRiktor;
+	FuocoSuRiktor.Response = URTReactionOpportunityLibrary::FireResponse(5);
+	FuocoSuRiktor.TargetSnapshotIndex = 5;
+	FuocoSuRiktor.TargetName = FText::FromString(TEXT("Riktor"));
 	FRTReactionWindowView Due = Uno;
-	Due.Options = { Fuoco, FuocoSuBranth, Tieni };
+	Due.Options = { Fuoco, FuocoSuRiktor, Tieni };
 	TestTrue(TEXT("HOLD con due bersagli: «Lascia passare tutti»"),
 		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, Due), TEXT("Lascia passare tutti")));
 
 	// Due bersagli senza nome: «tutti» non ha bisogno dei nomi (review della PR #3791).
-	FRTReactionWindowOptionView SuBranthSenzaNome = FuocoSuBranth;
-	SuBranthSenzaNome.TargetName = FText::GetEmpty();
+	FRTReactionWindowOptionView SuRiktorSenzaNome = FuocoSuRiktor;
+	SuRiktorSenzaNome.TargetName = FText::GetEmpty();
 	FRTReactionWindowView DueSenzaNomi = Uno;
-	DueSenzaNomi.Options = { FuocoSenzaNome, SuBranthSenzaNome, Tieni };
+	DueSenzaNomi.Options = { FuocoSenzaNome, SuRiktorSenzaNome, Tieni };
 	TestTrue(TEXT("HOLD con due bersagli senza nome: «Lascia passare tutti»"),
 		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, DueSenzaNomi), TEXT("Lascia passare tutti")));
 
 	// 🔴 Tre entrati, due offerti: il terzo la condizione lo ha escluso, e non e' stato chiesto. «Tutti» direbbe che
 	// passa anche lui; il bottone nomina invece chi passa.
 	FRTReactionWindowView TreEntrati = Due;
-	TreEntrati.TriggerNames = { FText::FromString(TEXT("Ivrin")), FText::FromString(TEXT("Branth")),
+	TreEntrati.TriggerNames = { FText::FromString(TEXT("Ivrin")), FText::FromString(TEXT("Riktor")),
 		FText::FromString(TEXT("Corv")) };
-	TestTrue(TEXT("tre entrati e due offerti: «Lascia passare Ivrin e Branth»"),
-		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, TreEntrati), TEXT("Lascia passare Ivrin e Branth")));
+	TestTrue(TEXT("tre entrati e due offerti: «Lascia passare Ivrin e Riktor»"),
+		StessoTesto(RTReactionResponseText::DescriptionFor(Tieni, TreEntrati), TEXT("Lascia passare Ivrin e Riktor")));
 	FRTReactionWindowView TreEntratiSenzaNomi = DueSenzaNomi;
 	TreEntratiSenzaNomi.TriggerNames = TreEntrati.TriggerNames;
 	TestTrue(TEXT("e senza i nomi di chi passa: «Non attaccare», mai «tutti»"),
@@ -1761,7 +1761,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
 	Caduto->HeroDisplayName = FText::FromString(TEXT("Muiren"));
 	Entrato->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
-	Altro->HeroDisplayName = FText::FromString(TEXT("Branth"));
+	Altro->HeroDisplayName = FText::FromString(TEXT("Riktor"));
 	Caduto->Health = 0;
 
 	// I due spazi di id, dall'ordinamento del resolver: tutti, e le sole vive.
@@ -1809,7 +1809,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 	{
 		const FString Insieme = Nomi.TriggerNames[0].ToString() + TEXT("|") + Nomi.TriggerNames[1].ToString();
 		TestTrue(TEXT("e sono le due unita' entrate, nell'ordine dato"),
-			Insieme == (ChiEEntrato[0] == IndiceEntrato ? TEXT("Ivrin|Branth") : TEXT("Branth|Ivrin")));
+			Insieme == (ChiEEntrato[0] == IndiceEntrato ? TEXT("Ivrin|Riktor") : TEXT("Riktor|Ivrin")));
 	}
 
 	// La vista, come la riceve la squadra del watcher.
@@ -1819,7 +1819,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 	TestTrue(TEXT("il titolo e' quello della tavola"),
 		StessoTesto(RTReactionResponseText::TitleFor(Vista), TEXT("Guardia reattiva — Aevik")));
 	TestTrue(TEXT("il sottotitolo nomina TUTTI quelli che sono entrati"),
-		SottotitoloAllaCostruzione.Contains(TEXT("Ivrin")) && SottotitoloAllaCostruzione.Contains(TEXT("Branth"))
+		SottotitoloAllaCostruzione.Contains(TEXT("Ivrin")) && SottotitoloAllaCostruzione.Contains(TEXT("Riktor"))
 		&& SottotitoloAllaCostruzione.EndsWith(TEXT(" sono entrati nell'area controllata")));
 
 	// 🔑 **Fra la costruzione e la consegna** (I4.3): l'unita' nominata cambia nome e l'array perde un posto.
@@ -2012,7 +2012,7 @@ bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
 		return false;
 	}
 	Ferito->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
-	Sano->HeroDisplayName = FText::FromString(TEXT("Branth"));
+	Sano->HeroDisplayName = FText::FromString(TEXT("Riktor"));
 	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
 	ArmOverwatchScenario(Ferito, Watcher); // il ferito entra in (2,0)
 	Sano->SetPlannedCell(FRTCellId(1, 0));
@@ -2057,8 +2057,8 @@ bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
 	{
 		const bool bFeritoPrima = Tutte.IndexOfByKey(Ferito) < Tutte.IndexOfByKey(Sano);
 		const TCHAR* Atteso = bFeritoPrima
-			? TEXT("Ivrin e Branth sono entrati nell'area controllata")
-			: TEXT("Branth e Ivrin sono entrati nell'area controllata");
+			? TEXT("Ivrin e Riktor sono entrati nell'area controllata")
+			: TEXT("Riktor e Ivrin sono entrati nell'area controllata");
 		TestEqual(TEXT("🔴 sono entrate in due, e la vista le porta entrambe"), Vista.TriggerNames.Num(), 2);
 		TestTrue(TEXT("🔴 il sottotitolo le nomina entrambe, nell'ordine del resolver"),
 			StessoTesto(RTReactionResponseText::SubtitleFor(Vista), Atteso));
@@ -2189,7 +2189,7 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		}
 		Bracer->HeroDisplayName = FText::FromString(TEXT("Aevik"));
 		Pusher->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
-		CadutoLontano->HeroDisplayName = FText::FromString(TEXT("Branth"));
+		CadutoLontano->HeroDisplayName = FText::FromString(TEXT("Riktor"));
 		Cadavere->HeroDisplayName = FText::FromString(TEXT("Muiren"));
 		CadutoLontano->Health = 0;
 		Cadavere->Health = 0;
@@ -2374,7 +2374,7 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 		const FString Testi = OgniTesto(Turno->Vista);
 		TestFalse(*FString::Printf(TEXT("%s: 🔴 il cadavere sulla cella di chi spinge non e' nominato"), Quale),
 			Testi.Contains(TEXT("Muiren")));
-		TestFalse(*FString::Printf(TEXT("%s: ne' il caduto lontano"), Quale), Testi.Contains(TEXT("Branth")));
+		TestFalse(*FString::Printf(TEXT("%s: ne' il caduto lontano"), Quale), Testi.Contains(TEXT("Riktor")));
 		TestFalse(*FString::Printf(TEXT("%s: ne' il testimone, ne' chi lo abbatte"), Quale),
 			Testi.Contains(TEXT("Testimone")) || Testi.Contains(TEXT("Sicario")));
 	}

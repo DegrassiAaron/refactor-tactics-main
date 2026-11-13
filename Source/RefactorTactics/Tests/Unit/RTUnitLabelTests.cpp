@@ -25,7 +25,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	// Il caso reale: gli HeroId del catalogo sono namespaced.
 	TestEqual(TEXT("Hero.Aevik -> Aevik"), ARTUnit::ShortHeroName(TEXT("Hero.Aevik"), Fallback), TEXT("Aevik"));
 	TestEqual(TEXT("Hero.Muiren -> Muiren"), ARTUnit::ShortHeroName(TEXT("Hero.Muiren"), Fallback), TEXT("Muiren"));
-	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
+	TestEqual(TEXT("Hero.Riktor -> Riktor"), ARTUnit::ShortHeroName(TEXT("Hero.Riktor"), Fallback), TEXT("Riktor"));
 	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
 
 	// Unita' legacy (archetipo, nessun eroe): l'etichetta non deve sparire.
@@ -69,6 +69,8 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	//
 	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
 	// `Aevik`/`Muiren`/`Branth`/`Ivrin`; `Wraith` da [D-341], la fetta che lo ha ritirato davvero.
+	// 🔄 **[D-585] (#4011) rovescia il verso**: gli id tornano ai nomi Paragon, e un nome che rientra in uso
+	// esce da qui nello stesso commit in cui entra quello che lascia — `Riktor` fuori, `Branth` dentro.
 	// ⚠️ **La lista cresce con la migrazione, non prima**, e con `Phase` e' COMPLETA: tutte e quattro le
 	// identita' v0.1 sono migrate (#2491). Un nome ancora in uso, aggiunto qui, farebbe rosso il test
 	// contro un roster sano — e' la ragione per cui ogni fetta ha aggiunto il proprio quando lo ritirava.
@@ -84,7 +86,7 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
 	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
 	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
-		TEXT("Riktor"), TEXT("Wraith"), TEXT("Gadget"), TEXT("Phase") };
+		TEXT("Branth"), TEXT("Wraith"), TEXT("Gadget"), TEXT("Phase") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
 	if (!TestEqual(TEXT("il roster v0.1 dichiara quattro id"), Ids.Num(), 4)) { return false; }
@@ -163,7 +165,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 	const TMap<FName, FString> Attesi = {
 		{ TEXT("Hero.Aevik"),    TEXT("Aevik")  },
 		{ TEXT("Hero.Muiren"),   TEXT("Muiren") },
-		{ TEXT("Hero.Branth"), TEXT("Branth") },
+		{ TEXT("Hero.Riktor"), TEXT("Riktor") },
 		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },
 	};
 

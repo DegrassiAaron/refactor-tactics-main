@@ -36,20 +36,20 @@ namespace
 	/**
 	 * Il turno di prova: attaccanti della squadra 0 — quella di chi guarda in un mondo senza player controller
 	 * (`ARTPlayerState::TeamIdOf(nullptr)` risponde 0) — contro Ivrin. Con `bDue`, Aevik spara anche lui. Con
-	 * `bConMove`, Branth si sposta dopo il colpo: dopo il Blast c'e' un'altra fase, e a fine Blast il playback
+	 * `bConMove`, Riktor si sposta dopo il colpo: dopo il Blast c'e' un'altra fase, e a fine Blast il playback
 	 * non finisce — quindi nessun `FinishPlayback` ripulisce al posto della fase.
 	 */
 	ARTTurnManager* SetUpBattitoTurn(UWorld* World, bool bDue, bool bConMove = false)
 	{
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
-		ARTUnit* Branth = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 2));
+		ARTUnit* Riktor = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 2));
 		ARTUnit* Bersaglio = SpawnBattitoUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Branth || !Bersaglio) { return nullptr; }
-		Branth->SetPlannedMainAction(0);
-		Branth->DeclareAttackOnUnit(Bersaglio);
-		Branth->SetPlannedCell(bConMove ? FRTCellId(1, 3) : Branth->Cell);
+		if (!TM || !Riktor || !Bersaglio) { return nullptr; }
+		Riktor->SetPlannedMainAction(0);
+		Riktor->DeclareAttackOnUnit(Bersaglio);
+		Riktor->SetPlannedCell(bConMove ? FRTCellId(1, 3) : Riktor->Cell);
 		if (bDue)
 		{
 			ARTUnit* Aevik = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, 4));
@@ -63,24 +63,24 @@ namespace
 	}
 
 	/**
-	 * Il colpo ALLE SPALLE di `Privacy.UnseenAttackerIsOutOfTheOriginVerdict`: Branth in (2,2) spara a Ivrin in
+	 * Il colpo ALLE SPALLE di `Privacy.UnseenAttackerIsOutOfTheOriginVerdict`: Riktor in (2,2) spara a Ivrin in
 	 * (5,2), entrambi a Est — a 3 celle, oltre la consapevolezza ravvicinata (2) e fuori dall'arco frontale di Ivrin.
-	 * `TeamBranth` decide chi guarda: in un mondo senza player controller lo spettatore e' la squadra 0, quindi con
-	 * `TeamBranth == 0` guarda chi spara, con `1` guarda chi e' colpito e non conosceva l'attaccante.
+	 * `TeamRiktor` decide chi guarda: in un mondo senza player controller lo spettatore e' la squadra 0, quindi con
+	 * `TeamRiktor == 0` guarda chi spara, con `1` guarda chi e' colpito e non conosceva l'attaccante.
 	 */
-	ARTTurnManager* SetUpAlleSpalleTurn(UWorld* World, int32 TeamBranth)
+	ARTTurnManager* SetUpAlleSpalleTurn(UWorld* World, int32 TeamRiktor)
 	{
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
-		ARTUnit* Branth = SpawnBattitoUnit(World, TeamBranth, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
-		ARTUnit* Ivrin = SpawnBattitoUnit(World, 1 - TeamBranth, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(5, 2));
+		ARTUnit* Riktor = SpawnBattitoUnit(World, TeamRiktor, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
+		ARTUnit* Ivrin = SpawnBattitoUnit(World, 1 - TeamRiktor, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(5, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Branth || !Ivrin) { return nullptr; }
-		Branth->Facing = ERTHexDirection::E;
+		if (!TM || !Riktor || !Ivrin) { return nullptr; }
+		Riktor->Facing = ERTHexDirection::E;
 		Ivrin->Facing = ERTHexDirection::E;
-		Branth->SetPlannedMainAction(0); // Hero.Branth.ImpactShot, Single, portata 3
-		Branth->DeclareAttackOnUnit(Ivrin);
-		Branth->SetPlannedCell(Branth->Cell);
+		Riktor->SetPlannedMainAction(0); // Hero.Riktor.ImpactShot, Single, portata 3
+		Riktor->DeclareAttackOnUnit(Ivrin);
+		Riktor->SetPlannedCell(Riktor->Cell);
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
@@ -253,7 +253,7 @@ bool FRTPlaybackTracerInFlightTest::RunTest(const FString&)
 			bVistoInVolo = true;
 			const FRTPlaybackTracer& T = Mappa->GetPlaybackTracers()[0];
 			TestTrue(TEXT("ImpactShot e' un proiettile"), T.Style == ERTTracerStyle::Projectile);
-			TestTrue(TEXT("parte dalla cella di Branth"), T.From == FRTCellId(1, 2));
+			TestTrue(TEXT("parte dalla cella di Riktor"), T.From == FRTCellId(1, 2));
 			TestTrue(TEXT("e va su quella di Ivrin"), T.To == FRTCellId(3, 2));
 		}
 		bInVoloDopoArrivo |= (bArrivato && Mappa->NumPlaybackTracers() > 0);
@@ -384,7 +384,7 @@ bool FRTPrivacyUnseenAttackerTracerTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 
-		ARTTurnManager* TM = SetUpAlleSpalleTurn(World, /*TeamBranth=*/ bSpettatoreEColpito ? 1 : 0);
+		ARTTurnManager* TM = SetUpAlleSpalleTurn(World, /*TeamRiktor=*/ bSpettatoreEColpito ? 1 : 0);
 		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
 		if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
 
@@ -527,7 +527,7 @@ bool FRTPlaybackUnresolvedGeometryHasNoFxTest::RunTest(const FString&)
 {
 	FRTResolvedEvent Irrisolto;
 	Irrisolto.Type = ERTResolvedEventType::Attack;
-	Irrisolto.ActionId = TEXT("Hero.Branth.ImpactShot");
+	Irrisolto.ActionId = TEXT("Hero.Riktor.ImpactShot");
 	Irrisolto.Shape = ERTAbilityShape::Single;
 	Irrisolto.HitGeometry.bResolved = false;
 	Irrisolto.HitGeometry.FromVerdict.AllowTeam(0);

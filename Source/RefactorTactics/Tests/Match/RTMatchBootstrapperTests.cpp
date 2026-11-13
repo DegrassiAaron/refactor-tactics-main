@@ -32,7 +32,7 @@ namespace RTBootstrapperTestsLocal
 		Config.DemoArenaRadius = 4;
 		Config.ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
 		Config.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
-		Config.Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+		Config.Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Ivrin") };
 		return Config;
 	}
 

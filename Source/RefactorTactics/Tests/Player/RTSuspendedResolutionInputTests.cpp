@@ -141,7 +141,7 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
 		ARTUnit* Target   = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
 		ARTUnit* Decoy    = SpawnSuspHero(World, TEXT("Hero.Muiren"), 1, FRTCellId(-3, 0, 0));
-		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Branth"), 0, FRTCellId( 5, 0, 0));
+		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Riktor"), 0, FRTCellId( 5, 0, 0));
 		ARTUnit* Watcher  = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 8, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -447,7 +447,7 @@ bool FRTConsumedArmedActionInTheDockTest::RunTest(const FString&)
 		// zona e chi tiene l'Overwatch.
 		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
 		ARTUnit* Target   = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
-		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Branth"), 0, FRTCellId( 5, 0, 0));
+		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Riktor"), 0, FRTCellId( 5, 0, 0));
 		ARTUnit* Watcher  = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 8, 0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();

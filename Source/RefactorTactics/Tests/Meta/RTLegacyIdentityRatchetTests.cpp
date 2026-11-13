@@ -39,13 +39,13 @@ namespace RTLegacyIdentity
 		// ⚠️ **Il tetto e' `1` e non `0`, e l'uno e' arrivato DOPO.** La fetta l'aveva portato a zero;
 		// poi la correzione del commento di `MakeAevik` — che la sostituzione aveva ridotto a «`Hero.Aevik`
 		// -> `Hero.Aevik`», un rename fra un nome e se stesso — ha rimesso il token nel file. E' la stessa
-		// menzione legittima per cui `Hero.Riktor` sta a quattro: un commento che dichiara il rename deve
-		// poter nominare cio' che ha rinominato.
+		// menzione legittima per cui `Hero.Riktor` e' stata a quattro fino a #4011: un commento che dichiara il
+		// rename deve poter nominare cio' che ha rinominato.
 		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   1,  0 },
 		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
 		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
-		// ⚠️ Zero e non quattro come `Hero.Riktor`: quelle quattro sono commenti sul rename e un test che ne
-		// verifica la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
+		// ⚠️ Zero e non quattro come `Hero.Riktor` prima di #4011: quelle quattro erano commenti sul rename e un
+		// test che ne verificava la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
 		// **con loro**, non prima.
 		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),   0,  0 },
 		// **Il tetto di `Hero.Muiren` sale da 35 a 36, e NON e' questa fetta a consumarlo.** Il commit
@@ -57,7 +57,7 @@ namespace RTLegacyIdentity
 		// **insieme** a cio' che lo muove, mai in silenzio e mai prima.
 		// ✅ **Fetta eseguita il 2026-09-10** (#2491), l'ultima delle quattro: il tetto scende da `36, 44`
 		// a **`1, 0`**, e l'uno non e' un residuo — e' il commento di `RTHeroCatalogLibrary.cpp` che
-		// dichiara il rename, la stessa menzione legittima per cui `Hero.Riktor` sta a quattro.
+		// dichiara il rename, la stessa menzione legittima per cui `Hero.Riktor` e' stata a quattro fino a #4011.
 		//
 		// ⚠️ **Questa riga ha detto `0, 0` per il tempo di due comandi.** La misura era gia' stampata —
 		// «Source/: 2 file» — e il tetto e' stato scritto guardando l'intenzione invece del numero. Il
@@ -71,10 +71,13 @@ namespace RTLegacyIdentity
 		// Su 937 usi di `ERT*Phase` in `Source/`, questa riga ne conta UNO: il token e' lo stesso, il
 		// significato no, ed e' la ragione per cui il rename e' stato contestuale e mai globale.
 		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"),  1,  0 },
-		// ⌫ Gia' rinominata (`D-334`), e il suo tetto **non e' zero**: le quattro occorrenze residue sono
-		// menzioni LEGITTIME — tre commenti che spiegano il rename e un test che verifica che l'identita' non
-		// si risolva piu'. E' la misura di cosa resta quando una fetta e' completa.
-		{ TEXT("Hero.Riktor"), TEXT("Hero.Branth"),  4,  0 },
+		// 🔄 **Ribaltata da #4011 ([D-585] (3)).** Fino a qui la riga diceva `{ Hero.Riktor, Hero.Branth, 4, 0 }`:
+		// `D-334` aveva ritirato `Hero.Riktor`, e le quattro occorrenze residue erano menzioni LEGITTIME. [D-585]
+		// riporta l'identita' al nome Paragon, quindi ora e' `Hero.Branth` a non doversi spargere, e il tetto e' la
+		// misura del commit che ribalta: in `Source/` i commenti che dichiarano il rename (`RTHeroLab.h`,
+		// `RTGameMode.cpp`, `RTAbilityLabTests.cpp`) e il test che verifica che l'identita' non si risolva piu'
+		// (`RTHeroLabTests.cpp`); in `Scenarios/` nessuno.
+		{ TEXT("Hero.Branth"), TEXT("Hero.Riktor"),  4,  0 },
 	};
 
 	/**
@@ -129,10 +132,11 @@ namespace RTLegacyIdentity
  *   commit che la produce, non una promessa;
  * - **a fine rename** i tetti sono al minimo e il ratchet **diventa** l'oracolo di `D-341`, senza riscritture.
  *
- * ⚠️ **Il minimo non e' zero, ed e' gia' misurato.** `Hero.Riktor` e' rinominata da `D-334` e nomina ancora
- * **quattro** file: tre commenti che spiegano il rename e un test che verifica che quell'identita' non si
- * risolva piu'. Sono menzioni **legittime** e devono restare — un tetto a zero le vieterebbe, cioe' vieterebbe
- * di documentare il proprio passato.
+ * ⚠️ **Il minimo non e' zero, ed e' gia' misurato.** `Hero.Riktor`, ritirata da `D-334`, ha nominato fino a
+ * #4011 **quattro** file: tre commenti che spiegavano il rename e un test che verificava che quell'identita'
+ * non si risolvesse piu'. Dal ribaltamento di [D-585] lo stesso ruolo lo ha `Hero.Branth`. Sono menzioni
+ * **legittime** e devono restare — un tetto a zero le vieterebbe, cioe' vieterebbe di documentare il proprio
+ * passato.
  *
  * ⛔ **Col prefisso `Hero.`, e non senza**, ed e' la trappola che `D-337` e `D-341` hanno gia' pagato due
  * volte: `Gadget.Sprinkler` e' **equipaggiamento** — il namespace che `D-120` ha separato — e un selettore

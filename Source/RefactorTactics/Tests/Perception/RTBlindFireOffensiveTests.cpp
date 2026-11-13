@@ -88,8 +88,8 @@ namespace
 	 * `FindCoreAction(TEXT("Action.Mortar"))`: erano salvi, ed e' la stessa disciplina.
 	 *
 	 * ⚠️ **Si guarda `DerivedFromActionId` e non l'id dell'abilita' d'eroe.** Nel kit il mortaio si chiama
-	 * `Hero.Branth.MortarShot`: cablare quel nome legherebbe il test a UN eroe, e il giorno in cui un
-	 * secondo ne ricevesse uno il test continuerebbe a misurare solo Branth. La derivazione da
+	 * `Hero.Riktor.MortarShot`: cablare quel nome legherebbe il test a UN eroe, e il giorno in cui un
+	 * secondo ne ricevesse uno il test continuerebbe a misurare solo Riktor. La derivazione da
 	 * `Action.Mortar` e' cio' che le due forme hanno in comune, ed e' registrata da
 	 * `MakeHeroActionFromCore`. L'`ActionId` resta nel confronto per l'azione di catalogo montata diretta.
 	 */
@@ -125,7 +125,7 @@ namespace
 		ARTHexMapActor* MapActor = B.World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = B.Map;
 		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		B.Mine = SpawnMortarUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
+		B.Mine = SpawnMortarUnit(B.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-1, 0, 0));
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		return B.PC != nullptr && B.Mine != nullptr;
 	}
@@ -260,7 +260,7 @@ bool FRTMortarStillObeysRangeTest::RunTest(const FString&)
 }
 
 /**
- * **Test 3b** — il mortaio di Branth non supera la portata a cui Branth ingaggia.
+ * **Test 3b** — il mortaio di Riktor non supera la portata a cui Riktor ingaggia.
  *
  * 🔴 **Questo test esiste per NOMINARE una causa che altrimenti resta muta.** Con la portata del catalogo
  * (4) invece di quella del kit (3), il bot smette di chiudere e resta a distanza a ricaricare: cadono
@@ -282,18 +282,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMortarDoesNotOutrangeItsCarrierTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMortarDoesNotOutrangeItsCarrierTest::RunTest(const FString&)
 {
-	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	if (!TestNotNull(TEXT("Branth esiste"), Branth)) { return false; }
-	if (!TestTrue(TEXT("premessa: ha un attacco base"), Branth->Actions.Num() > 0)) { return false; }
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!TestNotNull(TEXT("Riktor esiste"), Riktor)) { return false; }
+	if (!TestTrue(TEXT("premessa: ha un attacco base"), Riktor->Actions.Num() > 0)) { return false; }
 
-	const URTActionData* Base = Branth->Actions[0];
+	const URTActionData* Base = Riktor->Actions[0];
 
 	// 🔴 **Per `ActionId`, non per «la prima che non chiede la linea»** ([D-415] punto 3, #3608). Quella
 	// scansione c'era fino al 2026-09-20, e con l'attacco base a tiro indiretto troverebbe l'**attacco base** —
 	// cioe' `Actions[0]`, lo stesso oggetto di `Base`. Il confronto sotto sarebbe diventato
 	// `Base->RangeCells <= Base->RangeCells`: vero sempre, e muto.
 	const URTActionData* Mortar = nullptr;
-	for (const URTActionData* A : Branth->Actions)
+	for (const URTActionData* A : Riktor->Actions)
 	{
 		if (IsMortar(A)) { Mortar = A; break; }
 	}
@@ -709,11 +709,11 @@ bool FRTCellClickReachesTargetingTest::RunTest(const FString&)
 }
 
 /**
- * **Test 4** - `TooClose` nasce da un CLICK sul mortaio di Branth, con i valori del catalogo - `#3093`.
+ * **Test 4** - `TooClose` nasce da un CLICK sul mortaio di Riktor, con i valori del catalogo - `#3093`.
  *
  * La raggiungibilita', non la classificazione. Fino a `#3093` ogni test su `TooClose` passava il minimo a mano e
  * restava verde con zero produttori. Qui il minimo si legge dall'azione che l'eroe porta davvero
- * (`Hero.Branth.MortarShot`, derivata da `Action.Mortar`), e si clicca come farebbe una persona: se
+ * (`Hero.Riktor.MortarShot`, derivata da `Action.Mortar`), e si clicca come farebbe una persona: se
  * `MakeHeroAction` smettesse di copiarlo, o un sito di click smettesse di passarlo, il rifiuto sparirebbe e questo
  * test cadrebbe.
  *
@@ -735,7 +735,7 @@ bool FRTTooCloseIsReachableFromTheClickTest::RunTest(const FString&)
 
 	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.Mortar"));
 	TestEqual(TEXT("il catalogo core dichiara un minimo di 2 celle"), Core.MinRangeCells, 2);
-	TestEqual(TEXT("e l'azione di Branth lo porta in partita, non lo perde nella derivazione"),
+	TestEqual(TEXT("e l'azione di Riktor lo porta in partita, non lo perde nella derivazione"),
 		Mortaio->Def.MinRangeCells, Core.MinRangeCells);
 
 	B.PC->SelectActorForTest(B.Mine);
@@ -772,7 +772,7 @@ bool FRTTooCloseIsReachableFromTheClickTest::RunTest(const FString&)
  *
  * `MinRangeHoldsInResolution` imposta `Intent.MinRangeCells` a mano, quindi non copre la riga che lo copia dal `Def`
  * in `CollectAttackIntents`: toglierla non lo farebbe cadere, e il planning rifiuterebbe `TooClose` mentre la
- * risoluzione accetterebbe il colpo. Qui l'intento nasce dall'azione che Branth porta davvero.
+ * risoluzione accetterebbe il colpo. Qui l'intento nasce dall'azione che Riktor porta davvero.
  *
  * Verifica di mutazione: togliere `Intent.MinRangeCells = Instance.Def.MinRangeCells` da `RTTurnManager_Blast.cpp`
  * rende rosso il primo asserto.

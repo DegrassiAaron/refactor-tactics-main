@@ -664,8 +664,8 @@ bool FRTHexLinePointMatchesHexLineTest::RunTest(const FString&)
  * `#3757`: fra due piani il fumo conta **come i muri** (scelta d'autore del 2026-10-18) — il fumo del piano in cui
  * la linea attraversa ciascuna cella, da testa a testa — e il contatto torna uguale nei due versi.
  *
- * L'esempio della issue: Aevik a terra, nel fumo; Branth su una piattaforma, a tre celle, fuori dal fumo. Prima
- * la linea di Branth stava sul SUO piano, dove il fumo non c'e': lui vedeva Aevik e Aevik non vedeva lui.
+ * L'esempio della issue: Aevik a terra, nel fumo; Riktor su una piattaforma, a tre celle, fuori dal fumo. Prima
+ * la linea di Riktor stava sul SUO piano, dove il fumo non c'e': lui vedeva Aevik e Aevik non vedeva lui.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCrossLayerSmokeTest,
 	"RefactorTactics.Vision.AcrossLayers.SmokeCountsOnTheLayerTheLinePasses",
@@ -673,46 +673,46 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCrossLayerSmokeTest,
 bool FRTCrossLayerSmokeTest::RunTest(const FString&)
 {
 	const FRTCellId Aevik(0, 0, 0);
-	const FRTCellId Branth(3, 0, 1);
-	const TArray<FRTCellId> Platform = { Branth, FRTCellId(4, 0, 1) };
+	const FRTCellId Riktor(3, 0, 1);
+	const TArray<FRTCellId> Platform = { Riktor, FRTCellId(4, 0, 1) };
 	constexpr int32 Reach = 5;
 
 	// Controllo: senza fumo il contatto c'e' nei due versi, e il tetto non scende.
 	URTHexMapAsset* Clear = XlsGroundWith(6, Platform);
-	TestEqual(TEXT("senza fumo il tetto non scende (Aevik -> Branth)"), URTPerceptionLibrary::EffectiveContactRange(Clear, Aevik, Branth, Reach), Reach);
-	TestTrue(TEXT("senza fumo Aevik vede Branth"), XlsSees(Clear, Aevik, ERTHexDirection::E, Branth));
-	TestTrue(TEXT("senza fumo Branth vede Aevik"), XlsSees(Clear, Branth, ERTHexDirection::W, Aevik));
+	TestEqual(TEXT("senza fumo il tetto non scende (Aevik -> Riktor)"), URTPerceptionLibrary::EffectiveContactRange(Clear, Aevik, Riktor, Reach), Reach);
+	TestTrue(TEXT("senza fumo Aevik vede Riktor"), XlsSees(Clear, Aevik, ERTHexDirection::E, Riktor));
+	TestTrue(TEXT("senza fumo Riktor vede Aevik"), XlsSees(Clear, Riktor, ERTHexDirection::W, Aevik));
 
 	// L'esempio: Aevik nel fumo. Il tetto e' 2 nei due versi, e a tre celle nessuno dei due vede l'altro.
 	URTHexMapAsset* InSmoke = XlsGroundWith(6, Platform);
 	XlsSetSurface(InSmoke, Aevik, ERTHexSurface::Smoke);
-	TestEqual(TEXT("fumo sul capo basso: tetto 2, Aevik -> Branth"), URTPerceptionLibrary::EffectiveContactRange(InSmoke, Aevik, Branth, Reach), 2);
-	TestEqual(TEXT("fumo sul capo basso: tetto 2, Branth -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(InSmoke, Branth, Aevik, Reach), 2);
-	TestFalse(TEXT("Aevik non vede Branth"), XlsSees(InSmoke, Aevik, ERTHexDirection::E, Branth));
-	TestFalse(TEXT("🔴 e Branth non vede Aevik: il senso unico non c'e' piu'"), XlsSees(InSmoke, Branth, ERTHexDirection::W, Aevik));
+	TestEqual(TEXT("fumo sul capo basso: tetto 2, Aevik -> Riktor"), URTPerceptionLibrary::EffectiveContactRange(InSmoke, Aevik, Riktor, Reach), 2);
+	TestEqual(TEXT("fumo sul capo basso: tetto 2, Riktor -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(InSmoke, Riktor, Aevik, Reach), 2);
+	TestFalse(TEXT("Aevik non vede Riktor"), XlsSees(InSmoke, Aevik, ERTHexDirection::E, Riktor));
+	TestFalse(TEXT("🔴 e Riktor non vede Aevik: il senso unico non c'e' piu'"), XlsSees(InSmoke, Riktor, ERTHexDirection::W, Aevik));
 
 	// Il fumo sul capo ALTO conta, anche visto da chi sta a terra e non ha fumo sul proprio piano.
 	URTHexMapAsset* AtTheTop = XlsGroundWith(6, Platform);
-	XlsSetSurface(AtTheTop, Branth, ERTHexSurface::Smoke);
-	TestEqual(TEXT("fumo sul capo alto: tetto 2, Aevik -> Branth"), URTPerceptionLibrary::EffectiveContactRange(AtTheTop, Aevik, Branth, Reach), 2);
-	TestEqual(TEXT("fumo sul capo alto: tetto 2, Branth -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(AtTheTop, Branth, Aevik, Reach), 2);
+	XlsSetSurface(AtTheTop, Riktor, ERTHexSurface::Smoke);
+	TestEqual(TEXT("fumo sul capo alto: tetto 2, Aevik -> Riktor"), URTPerceptionLibrary::EffectiveContactRange(AtTheTop, Aevik, Riktor, Reach), 2);
+	TestEqual(TEXT("fumo sul capo alto: tetto 2, Riktor -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(AtTheTop, Riktor, Aevik, Reach), 2);
 
 	// Fumo a terra SOTTO la parte alta della linea: la linea passa sopra, e non conta. E' la meta' «come i muri»
 	// che il planare di prima sbagliava (la linea di Aevik, sul piano 0, lo attraversava).
 	URTHexMapAsset* Under = XlsGroundWith(6, Platform);
 	XlsSetSurface(Under, FRTCellId(2, 0, 0), ERTHexSurface::Smoke);
-	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Aevik -> Branth"), URTPerceptionLibrary::EffectiveContactRange(Under, Aevik, Branth, Reach), Reach);
-	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Branth -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(Under, Branth, Aevik, Reach), Reach);
+	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Aevik -> Riktor"), URTPerceptionLibrary::EffectiveContactRange(Under, Aevik, Riktor, Reach), Reach);
+	TestEqual(TEXT("la linea passa sopra il fumo: tetto invariato, Riktor -> Aevik"), URTPerceptionLibrary::EffectiveContactRange(Under, Riktor, Aevik, Reach), Reach);
 
 	// Le celle INTERMEDIE contano sul piano in cui la linea le attraversa. (1,0) e' attraversata sui piani 0 e 1
 	// (la linea parte dalla testa a tre quinti di piano): il fumo su uno dei due la cappa. (2,0) solo sul piano 1.
 	for (const FRTCellId& SmokeAt : { FRTCellId(1, 0, 0), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1) })
 	{
-		URTHexMapAsset* Mid = XlsGroundWith(6, { Branth, FRTCellId(4, 0, 1), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1) });
+		URTHexMapAsset* Mid = XlsGroundWith(6, { Riktor, FRTCellId(4, 0, 1), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1) });
 		XlsSetSurface(Mid, SmokeAt, ERTHexSurface::Smoke);
 		const FString Where = XlsCell(SmokeAt);
-		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Aevik -> Branth"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Aevik, Branth, Reach), 2);
-		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Branth -> Aevik"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Branth, Aevik, Reach), 2);
+		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Aevik -> Riktor"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Aevik, Riktor, Reach), 2);
+		TestEqual(*FString::Printf(TEXT("fumo intermedio in %s: tetto 2, Riktor -> Aevik"), *Where), URTPerceptionLibrary::EffectiveContactRange(Mid, Riktor, Aevik, Reach), 2);
 	}
 
 	// Due piani di dislivello (Rise = 2): il capo alto e quello basso rispondono del proprio piano, i due versi uguali.
@@ -726,7 +726,7 @@ bool FRTCrossLayerSmokeTest::RunTest(const FString&)
 	XlsSetSurface(Flat, FRTCellId(1, 0, 0), ERTHexSurface::Smoke);
 	TestEqual(TEXT("stesso piano: invariato"), URTPerceptionLibrary::EffectiveContactRange(Flat, Aevik, FRTCellId(4, 0, 0), Reach),
 		URTTerrainLibrary::EffectiveTargetingRange(Flat, Aevik, FRTCellId(4, 0, 0), Reach));
-	TestEqual(TEXT("senza mappa: il numero in ingresso"), URTPerceptionLibrary::EffectiveContactRange(nullptr, Aevik, Branth, Reach), Reach);
+	TestEqual(TEXT("senza mappa: il numero in ingresso"), URTPerceptionLibrary::EffectiveContactRange(nullptr, Aevik, Riktor, Reach), Reach);
 
 	// Simmetria su tutte le coppie di piani diversi di una mappa con fumo su piu' piani. Non-vacuita': qualche
 	// coppia e' cappata e qualche altra no.

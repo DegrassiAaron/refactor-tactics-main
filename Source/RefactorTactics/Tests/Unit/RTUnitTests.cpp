@@ -37,7 +37,7 @@ bool FRTHeroKitCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
 
 	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'eroe cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.
@@ -374,19 +374,19 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 {
 	// Le azioni degli eroi arrivano dal catalogo e dichiarano la FASE, non un flag: fino a #142 nessuna di
 	// loro veniva riconosciuta come scatto, quindi il bot non ne pianificava mai uno per i quattro eroi.
-	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	if (!TestNotNull(TEXT("Branth dal catalogo"), Branth)) { return false; }
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!TestNotNull(TEXT("Riktor dal catalogo"), Riktor)) { return false; }
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(Branth);
+	Unit->ConfigureFromHeroData(Riktor);
 
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("l'unita' riconosce la sua mobilita' rapida"), DashIdx != INDEX_NONE)) { return false; }
 
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
-	TestTrue(TEXT("ed e' proprio la carica di Branth"), Dash->Def.ActionId == FName(TEXT("Hero.Branth.Ram")));
+	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Hero.Riktor.Ram")));
 
 	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
 	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.
@@ -458,20 +458,20 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	const TMap<FName, TPair<FString, FString>> Attese = {
 		{ FName(TEXT("Hero.Aevik")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
 		{ FName(TEXT("Hero.Muiren")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
-		{ FName(TEXT("Hero.Branth")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Riktor")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Ivrin")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
 	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
 	// bastava `Chi.RightChop(5)` — `Hero.Aevik` -> `Aevik` — perche' identita' RT e nome dello slot asset
 	// **coincidevano**. E' esattamente la coincidenza che [D-321] ha dichiarato un difetto (*«lo slot non e'
-	// l'identita'»*): `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non rinomina
-	// l'asset. Una derivazione che oggi da' il nome giusto per tre eroi su quattro non e' una regola: e' un
-	// residuo dell'invariante rotta, e va scritta a mano finche' i due piani non tornano allineati.
+	// l'identita'»*). [D-585] (#4011) riporta `Hero.Riktor` nel pack omonimo, ma `Hero.Muiren` e `Hero.Ivrin`
+	// restano in `Phase` e `Wraith`: una derivazione che da' il nome giusto per alcuni eroi e non per altri
+	// non e' una regola, e va scritta a mano finche' i due piani non tornano allineati.
 	const TMap<FName, FString> PackDiEroe = {
 		{ FName(TEXT("Hero.Aevik")), TEXT("Gadget") },
 		{ FName(TEXT("Hero.Muiren")),  TEXT("Phase")  },
-		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
+		{ FName(TEXT("Hero.Riktor")), TEXT("Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("Wraith") },
 	};
 
@@ -560,14 +560,14 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 
 	// 🔴 **Il `Pack` e' un campo, non una derivazione dall'HeroId** — stessa ragione scritta per esteso
 	// sopra `PackDiEroe` in `DefaultClipsPerHero`: da [D-334] identita' RT e nome dello slot asset non
-	// coincidono piu', e `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non
-	// rinomina l'asset. `Chi.RightChop(5)` dava il nome giusto per tre eroi su quattro, che e' il modo in
-	// cui un residuo sopravvive a una migrazione.
+	// coincidevano piu', e da [D-585] (#4011) coincidono per `Riktor` ma non per `Muiren` e `Ivrin`.
+	// `Chi.RightChop(5)` dava il nome giusto per tre eroi su quattro, che e' il modo in cui un residuo
+	// sopravvive a una migrazione.
 	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
 		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
 		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
-		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
+		{ TEXT("Hero.Riktor"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
 	};
 
@@ -721,7 +721,7 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
  * **La sagoma dell'ultimo contatto punta all'IDLE dell'eroe, non alla corsa e non al nulla** (#1750).
  *
  * 🔴 Il difetto che chiude: un `USkeletalMeshComponent` con una mesh e senza `AnimInstance` disegna la
- * **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le catene attraverso
+ * **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le catene attraverso
  * lo schermo. Osservato a schermo il 2026-09-03, dopo che le altre due cause dello stesso sintomo erano
  * state chiuse (#1719 la scala, #1784 le ossa a LOD basso): è l'unica delle tre rimasta.
  *
@@ -763,7 +763,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 
 	const FName Eroi[] = {
 		FName(TEXT("Hero.Aevik")), FName(TEXT("Hero.Muiren")),
-		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Ivrin")),
+		FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Ivrin")),
 	};
 
 	for (const FName& Eroe : Eroi)
@@ -805,7 +805,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		ARTUnit::GhostFallbackClipFor(Cdo, FName(TEXT("Hero.NonEsiste"))).IsNull());
 	// ⛔ E senza clip del tutto: `nullptr` non deve crashare, deve dare un ripiego vuoto.
 	TestTrue(TEXT("senza AnimInstance il ripiego e' vuoto invece di crashare"),
-		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Branth"))).IsNull());
+		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Riktor"))).IsNull());
 	return true;
 }
 
@@ -892,7 +892,7 @@ bool FRTUnitContactPoseCaptureIsOneShotTest::RunTest(const FString&)
  * posa di riferimento» — non poteva.
  *
  * ⛔ **Cio' che questo test NON dimostra**: che la posa a schermo sia quella giusta. Quella resta la verifica
- * PIE su Branth, ed e' registrata come tale.
+ * PIE su Riktor, ed e' registrata come tale.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostPoseSourceTest,
 	"RefactorTactics.Unit.ContactGhostPrefersTheRememberedPose",

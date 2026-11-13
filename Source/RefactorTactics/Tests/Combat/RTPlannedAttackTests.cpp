@@ -67,7 +67,7 @@ namespace
 		B.TM = B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 		B.Mine = SpawnPlanUnit(B.World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
-		B.Foe = SpawnPlanUnit(B.World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0, 0));
+		B.Foe = SpawnPlanUnit(B.World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0, 0));
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		if (!B.TM || !B.Mine || !B.Foe || !B.PC) { return false; }
 

@@ -205,13 +205,13 @@ namespace
 		{ TEXT("Hero.Muiren.TideGuard"),        TEXT("Phase"),  TEXT("Ability_R_Alt"),            nullptr },
 		{ TEXT("Hero.Muiren.FlowReaction"),     TEXT("Phase"),  nullptr,                          nullptr },  // inerte: resta il ruolo
 		{ TEXT("Hero.Muiren.MistVeil"),         TEXT("Phase"),  nullptr,                          nullptr },  // Environment
-		// Branth (Riktor)
-		{ TEXT("Hero.Branth.ImpactShot"),       TEXT("Riktor"), nullptr,                          TEXT("PrimaryAttack_A_Slow") },
-		{ TEXT("Hero.Branth.KineticPanel"),     TEXT("Riktor"), TEXT("Ability_Lockdown"),         nullptr },
-		{ TEXT("Hero.Branth.Reconfigure"),      TEXT("Riktor"), TEXT("Ability_Hook_Pull"),        nullptr },
-		{ TEXT("Hero.Branth.Ram"),              TEXT("Riktor"), TEXT("Ability_Hook_Start"),       TEXT("Ability_ShockingPunch") },
-		{ TEXT("Hero.Branth.MortarShot"),       TEXT("Riktor"), TEXT("Ability_Hook_Cast"),        TEXT("PrimaryAttack_B_Slow") },
-		{ TEXT("Hero.Branth.Interposition"),    TEXT("Riktor"), nullptr,                          nullptr },  // reazione
+		// Riktor (Riktor)
+		{ TEXT("Hero.Riktor.ImpactShot"),       TEXT("Riktor"), nullptr,                          TEXT("PrimaryAttack_A_Slow") },
+		{ TEXT("Hero.Riktor.KineticPanel"),     TEXT("Riktor"), TEXT("Ability_Lockdown"),         nullptr },
+		{ TEXT("Hero.Riktor.Reconfigure"),      TEXT("Riktor"), TEXT("Ability_Hook_Pull"),        nullptr },
+		{ TEXT("Hero.Riktor.Ram"),              TEXT("Riktor"), TEXT("Ability_Hook_Start"),       TEXT("Ability_ShockingPunch") },
+		{ TEXT("Hero.Riktor.MortarShot"),       TEXT("Riktor"), TEXT("Ability_Hook_Cast"),        TEXT("PrimaryAttack_B_Slow") },
+		{ TEXT("Hero.Riktor.Interposition"),    TEXT("Riktor"), nullptr,                          nullptr },  // reazione
 		// Ivrin (Wraith)
 		{ TEXT("Hero.Ivrin.PulseShot"),         TEXT("Wraith"), nullptr,                          TEXT("Fire_A_Fast_V1") },
 		{ TEXT("Hero.Ivrin.InterceptShot"),     TEXT("Wraith"), TEXT("Ability_E_Targeting_Start"), nullptr }, // nessun evento Attack: RTTurnManager.cpp:7133-7136
@@ -468,7 +468,7 @@ bool FRTUnitCastRoleResolvesAClipForEveryHeroTest::RunTest(const FString&)
 	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
 	if (!TestNotNull(TEXT("CDO di URTUnitAnimInstance"), Cdo)) { return false; }
 
-	static const TCHAR* Eroi[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+	static const TCHAR* Eroi[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Riktor"), TEXT("Hero.Ivrin") };
 	for (const TCHAR* Eroe : Eroi)
 	{
 		const TSoftObjectPtr<UAnimSequenceBase> Cast = Cdo->ActiveClipFor(FName(Eroe), ERTPresentationRole::Cast);
