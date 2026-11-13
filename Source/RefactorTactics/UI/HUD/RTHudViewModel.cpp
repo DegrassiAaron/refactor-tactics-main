@@ -557,6 +557,8 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	// a ignorare gli allarmi.
 	Plan.bFriendlyFire = Ability->Def.bFriendlyFire;
 	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
+	// [D-610] (3): la predittiva segna la cella, non chi ci sta sopra.
+	Plan.bPredictive = Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
 	if (Unit.bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;

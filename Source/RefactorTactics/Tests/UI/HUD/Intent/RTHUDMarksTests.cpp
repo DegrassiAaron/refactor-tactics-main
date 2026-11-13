@@ -11,6 +11,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/HUD/RTHudViewModel.h" // FRTPlayerEventLineView: le righe da cui i marcatori si derivano (#2697)
 #include "UI/HUD/RTHUD.h"
+#include "Combat/RTHexCombatLibrary.h" // FRTBlastPreview: la cella della predittiva si disegna, chi ci sta no (#4093)
 #include "Turn/RTTurnManager.h"     // il ciclo del turno: e' cio' che D-359 usa come confine
 #include "Map/Vision/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto (#3085)
 #include "Map/RTHexLibrary.h" // CellCorners/AxialToWorld: la sorgente della convenzione (#3077)
@@ -954,6 +955,68 @@ bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
 		TestFalse(TEXT("il costo e' detto"), FuocoAmico->Cost.IsEmpty());
 	}
 	TestEqual(TEXT("l'elenco di Muiren, che non ha un piano, e' vuoto: la vittima non porta l'avviso"), DiMuiren.Num(), 0);
+	return true;
+}
+
+/**
+ * **La predittiva segna la CELLA, non chi ci sta sopra** ([D-610] (3), `#4093`).
+ *
+ * 🔴 `Hero.Ivrin.InterceptShot` colpisce chi ENTRA nella cella bloccata (`Predictive.CrossingIsNotPresence`). Da `#4088`
+ * il click su un nemico blocca la sua cella, e fino a `#4093` l'anteprima segnava quel nemico come colpito: il giocatore
+ * decideva su un'informazione falsa, perche' chi resta fermo sulla cella non viene mai preso.
+ *
+ * 🔑 **Due giri sulla stessa tavola, e l'unica variabile e' l'azione**: Ivrin blocca la cella di Branth (nessun segno su
+ * Branth, ma la cella resta nell'anteprima a terra), poi Aevik mira un'area alla stessa cella — il **controllo**: Branth
+ * e' segnato. Senza, «nessun segno» lo darebbe anche un calcolo che non legge nessun piano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDPredictiveMarksTheCellTest,
+	"RefactorTactics.HUD.APredictiveMarksTheCellNotItsOccupant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTUnit* Ivrin  = SpawnMarksUnit(World, TEXT("Hero.Ivrin"),  0, FRTCellId( 0, 0, 0));
+	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 1, 0, 0));
+	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	const int32 Intercetto = MarksAbilityIndex(Ivrin, TEXT("Hero.Ivrin.InterceptShot"));
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Ivrin ha InterceptShot"), Intercetto != INDEX_NONE)
+		|| !TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	const TArray<ARTUnit*> Units = { Ivrin, Aevik, Branth };
+	const FRTCellId CellaBranth = Branth->Cell;
+
+	// ── Il caso: Ivrin blocca la cella su cui Branth sta gia'. ───────────────────────────────────────────────
+	Ivrin->SetPlannedMainAction(Intercetto);
+	Ivrin->DeclareAttackOnCell(CellaBranth);
+	TSet<FRTCellId> Hit, Ally;
+	ARTHUD::ComputePlannedHitMarks(Units, /*PlayerTeamId=*/ 0, Hit, Ally);
+	TestFalse(TEXT("Branth, fermo sulla cella bloccata, non e' segnato colpito"), Hit.Contains(CellaBranth));
+	TestEqual(TEXT("e nessun fuoco amico: il colpo predittivo prende solo gli ostili"), Ally.Num(), 0);
+
+	// La cella si vede lo stesso: l'anteprima a terra dell'unita' selezionata la disegna.
+	const FRTBlastPreview Anteprima = URTHexCombatLibrary::MakeBlastPreview(
+		URTHudViewModel::MakeBlastPreviewPlan(*Ivrin, 0, Units), URTHudViewModel::MakeHexCombatUnits(Units));
+	TestTrue(TEXT("l'anteprima a terra disegna la cella bloccata"), Anteprima.HitCells.Contains(CellaBranth));
+	TestFalse(TEXT("e dichiara che chi ci sta sopra non va segnato"), Anteprima.bMarksOccupants);
+
+	// ── Il controllo: un'area di Aevik sulla stessa cella segna Branth. ───────────────────────────────────────
+	Aevik->SetPlannedMainAction(Overload);
+	Aevik->DeclareAttackOnCell(CellaBranth);
+	ARTHUD::ComputePlannedHitMarks(Units, /*PlayerTeamId=*/ 0, Hit, Ally);
+	TestTrue(TEXT("controllo: l'area sulla stessa cella segna Branth"), Hit.Contains(CellaBranth));
+
+	DestroyMarksWorld(World);
 	return true;
 }
 

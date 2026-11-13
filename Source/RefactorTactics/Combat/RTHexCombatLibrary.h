@@ -695,6 +695,14 @@ struct FRTBlastPreviewPlan
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	bool bCountsAsAttack = false;
 
+	/**
+	 * L'azione e' una PREDITTIVA (`FRTActionDef::PredictiveTargeting != None`, [D-610] (3), `#4093`): la cella mirata e'
+	 * bloccata, e il colpo prende chi ci ENTRA nel Move, non chi ci sta gia' (`Predictive.CrossingIsNotPresence`).
+	 * L'anteprima disegna la cella e non segna chi ci sta sopra. Falso per default: chi costruisce il piano a mano non cambia.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bPredictive = false;
+
 	FRTBlastPreviewPlan() = default;
 };
 
@@ -728,6 +736,14 @@ struct FRTBlastPreview
 	/** Sottoinsieme di `HitCells` occupato da alleati VIVI: fuoco amico. Vuoto senza `bFriendlyFire`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<FRTCellId> AllyCells;
+
+	/**
+	 * Chi sta GIA' su `HitCells` verrebbe colpito? Vero per ogni colpo, falso per una predittiva ([D-610] (3), `#4093`):
+	 * la cella bloccata si disegna, ma la previsione colpisce chi ci entra, e una marca «colpito» su chi c'e' gia' direbbe
+	 * il falso. Chi segna le UNITA' (`ARTHUD::ComputePlannedHitMarks`) lo legge; chi disegna le CELLE no.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	bool bMarksOccupants = true;
 
 	FRTBlastPreview() = default;
 };

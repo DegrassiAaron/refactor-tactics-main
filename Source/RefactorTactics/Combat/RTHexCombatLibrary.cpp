@@ -1141,6 +1141,15 @@ FRTBlastPreview URTHexCombatLibrary::MakeBlastPreview(const FRTBlastPreviewPlan&
 
 	Preview.HitCells = HexHitCells(Plan.Shape, Preview.Origin, TargetCell, Plan.RangeCells, Plan.AreaRadius);
 
+	// [D-610] (3) (`#4093`): una PREDITTIVA colpisce chi ENTRA nella cella bloccata, non chi ci sta gia'. La cella resta
+	// in `HitCells` — e' la scommessa, e il giocatore deve vederla —, ma nessuno di chi c'e' adesso va segnato: ne' come
+	// bersaglio ne' come fuoco amico, che per il colpo predittivo non esiste (prende solo gli ostili, `FRTPredictiveShot`).
+	if (Plan.bPredictive)
+	{
+		Preview.bMarksOccupants = false;
+		return Preview;
+	}
+
 	if (!Plan.bFriendlyFire)
 	{
 		return Preview;
