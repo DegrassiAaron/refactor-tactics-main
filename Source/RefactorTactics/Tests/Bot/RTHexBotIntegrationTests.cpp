@@ -1706,10 +1706,16 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 		{
 			TArray<FName> Pezzi = URTCatalogLibrary::DefaultLoadoutFor(Bot->HeroId);
 			const bool bIvrin = Bot->HeroId == FName(TEXT("Hero.Ivrin"));
-			if (bIvrin && !ArmaIvrin.IsNone() && Pezzi.Num() > 0) { Pezzi[0] = ArmaIvrin; }
+			// ⚠️ Il loadout di default di Ivrin e' VUOTO (misurato: `DefaultLoadoutFor` non trova tutti e tre i pezzi), quindi
+			// in partita il suo attacco base resta quello del kit. La variante si monta da sola, non al posto di un pezzo che non c'e'.
+			if (bIvrin && !ArmaIvrin.IsNone()) { if (Pezzi.Num() > 0) { Pezzi[0] = ArmaIvrin; } else { Pezzi = { ArmaIvrin }; } }
 			Bot->EquipLoadout(Pezzi);
 			if (bIvrin && Danni.IsEmpty())
 			{
+				TArray<FString> Chiesti, Applicati;
+				for (const FName& N : Pezzi) { Chiesti.Add(N.ToString()); }
+				for (const FName& N : Bot->EquippedItemIds) { Applicati.Add(N.ToString()); }
+				Danni += FString::Printf(TEXT("pezzi chiesti [%s], applicati [%s]; "), *FString::Join(Chiesti, TEXT(", ")), *FString::Join(Applicati, TEXT(", ")));
 				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 				{
 					const URTActionData* Az = Bot->GetAbility(A);
