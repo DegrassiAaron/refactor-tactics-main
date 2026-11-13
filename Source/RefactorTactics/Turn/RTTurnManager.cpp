@@ -4801,6 +4801,10 @@ void ARTTurnManager::ResolvePrep()
 			// gia' bloccata sulla mappa del click, che nessun click produce (solo il bot o lo Scenario Harness), paga anche lui;
 			// (2) una portata cappata da un Fumo che la squadra non vedeva (`R7`) qui e' `OutOfRange` e non paga — latente,
 			// perche' l'unica predittiva del catalogo ha portata 1 e il cap del Fumo e' 2.
+			// ⚠️ **E una domanda del click qui non si fa**: «fuori mappa» (`HandleTargetCell`, `ContainsCell`), che il click pone
+			// prima delle altre. `ClassifyHexTargeting` non la pone, quindi un piano su una cella accanto ma fuori dalla mappa —
+			// che nessun click produce — si arma, paga e manca. [D-610] chiede portata e linea, non la mappa: residuo
+			// dichiarato e candidato a una issue propria, non deciso qui (review di `#4091`).
 			// ⌫ *Fino alla review di `#4091` qui si leggeva la tabella del Blast (`PagaSeParteSenzaColpo`), che fa pagare anche
 			// il piano diverso: all'armamento quel motivo e' sempre un piano che il click rifiuta, e pagava contro [D-571].*
 			if (Unit->bAttackTargetsCell)
@@ -7888,9 +7892,10 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		// e' caduto a due celle di distanza lascerebbe «fuori portata» invece di «altro piano» — direbbe di avvicinarsi a una
 		// cosa che nessun avvicinamento sistema. E' la voce di [D-509] (7)(a), che il test della caduta pinna.
 		//
-		// ⚠️ **La mappa e' quella di ADESSO, dopo il Blast**: un tiratore fermo perde il colpo anche se il Blast ha alzato
-		// una copertura alta sul bordo verso la cella bloccata. E' la regola del Blast, che giudica la linea sulla mappa del
-		// momento del colpo, e non la sola «il tiratore si e' mosso» con cui `#4091` e' stata scritta.
+		// ⚠️ **La mappa e' quella di ADESSO, dopo il Blast**: un tiratore fermo perde il colpo anche se nel Blast qualcuno ha
+		// chiuso una porta sul bordo verso la cella bloccata (le coperture nascono e si spostano solo nel Prep, prima
+		// dell'armamento). E' la regola del Blast, che giudica la linea sulla mappa del momento del colpo, e non la sola «il
+		// tiratore si e' mosso» con cui `#4091` e' stata scritta.
 		const ERTActionInvalidReason Why = !URTCombatLibrary::OnSamePlane(Shooter->Cell, Armed.LockedCell)
 			? ERTActionInvalidReason::OtherLayer
 			: URTActionFallbackLibrary::CellShotRefusal(URTCombatLibrary::ClassifyHexTargeting(Map, Shooter->Cell, Armed.LockedCell,

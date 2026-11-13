@@ -720,6 +720,14 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 		UWorld* World = MakePredWorld();
 		if (!World) { return Out; }
 		SpawnPredMap(World);
+		if (Bloccata.Layer != 0)
+		{
+			// La cella sul piano di sopra ESISTE: il caso misura il piano, e non deve reggersi sul fatto che l'armamento non
+			// chieda se la cella e' sulla mappa (il click lo chiede, `HandleTargetCell`; l'armamento no — residuo dichiarato).
+			URTHexMapAsset* Map = PredMapAsset(World);
+			if (!Map) { DestroyPredWorld(World); return Out; }
+			Map->AddOrUpdateCell(FRTHexCellData(Bloccata));
+		}
 		const FRTCellId Partenza(Bloccata.X - 1, Bloccata.Y);
 		ARTUnit* Runner = bChiEntra ? SpawnPredUnit(World, /*Team*/ 0, Partenza) : nullptr;
 		ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 1, DaDove);
@@ -800,11 +808,11 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%s: nessuna attivazione — non c'e' stato un gesto"), Caso.Nome), R.Attivazioni, 0);
 		if (Caso.bPaga)
 		{
-			TestTrue(FString::Printf(TEXT("%s: paga, come nel Blast (ricarica %d)"), Caso.Nome, R.Ricarica), R.Ricarica > 0);
+			TestTrue(FString::Printf(TEXT("%s: paga — il click poteva accettarlo (ricarica %d)"), Caso.Nome, R.Ricarica), R.Ricarica > 0);
 		}
 		else
 		{
-			TestEqual(FString::Printf(TEXT("%s: gratis, come nel Blast"), Caso.Nome), R.Ricarica, 0);
+			TestEqual(FString::Printf(TEXT("%s: gratis — il click lo rifiuta"), Caso.Nome), R.Ricarica, 0);
 		}
 		if (Caso.bChiEntra)
 		{
