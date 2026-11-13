@@ -10,11 +10,12 @@
   "_oracolo": "`PIE-V01-PREDICTIVECLICK`. (1) Armata InterceptShot, il dock chiede una cella. (2) Il click sulla cella vuota `(-2,3)` la blocca, e Ivrin non riceve un waypoint. (3) Il click sulla mesh di B2 blocca la sua cella `(-2,2)`, e il pannello non passa all'ispezione. (4) Dopo il lock-in il TurnLog ha la voce della previsione su quella cella. I test headless entrano dal dispatcher del click; quale superficie prende il click lo dice solo lo schermo.",
   "_oracolo_scatto": "`PIE-V01-PREDICTIVEDASH` (#4091, D-610 (1)). InterceptShot su `(-2,3)` e, nello stesso turno, `PassingBlade`: su `(-3,4)`, accanto alla cella bloccata, il colpo parte (voce `Predictive`); su `(-4,3)`, a due celle, non parte (voce `Fallback`/`Cancelled` del Move, fuori portata). Due giri, con lo scenario rimesso fra l'uno e l'altro.",
   "_nota_geometria": "Tutto sulla riga `r = 3` di `TestArena` e accanto, lontano dalla colonna di vista `(0, r)` per `r` da -2 a 2, dal fango a `q = -2` per `r` da -1 a 1 e dalle celle che bloccano il passo. InterceptShot ha portata 1: le celle bloccabili sono le sei accanto ad A1. `(-2,3)` e' vuota, accanto ad A1 e a B1: B1 ci puo' entrare. B2 sta in `(-2,2)`, accanto ad A1, per il click sulla mesh.",
+  "_nota_bot": "B1 e B2 sono bot (#4103). Senza, la squadra 1 e' un partecipante umano che non conferma mai: dopo il lock-in il log si ferma a `Ready del partecipante ... -> 1/2`, e con la pianificazione lunga che serve per cliccare il turno non si risolve. Il passo (4) di PREDICTIVECLICK e tutta PREDICTIVEDASH non si raggiungevano. Misurato il 2026-11-13. Da bot, B1 entra in `(-2,3)` con `Hero.Branth.Ram` nella fase Dash, cioe' PRIMA del Move: per la predittiva non e' un ingresso, e il colpo e' a vuoto.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Ivrin",  "team": 0, "cell": [-3, 3, 0], "facing": "E" },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 3, 0], "facing": "W" },
-    { "id": "B2", "hero": "Hero.Muiren", "team": 1, "cell": [-2, 2, 0], "facing": "W" }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 3, 0], "facing": "W", "bot": true },
+    { "id": "B2", "hero": "Hero.Muiren", "team": 1, "cell": [-2, 2, 0], "facing": "W", "bot": true }
   ],
 
   "turns": [],
