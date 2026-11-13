@@ -15,8 +15,8 @@ test('l ordine dei cinque assi Balance e normativo (owner §2.2)', () => {
 });
 
 test('i cinque assi Balance riusano i valori gia calcolati, senza ricalcolarli', () => {
-  const b = balanceAxes(hero('Branth'));
-  const p = profileAxes(hero('Branth'));
+  const b = balanceAxes(hero('Riktor'));
+  const p = profileAxes(hero('Riktor'));
   // I tre condivisi devono coincidere: due viste, un solo calcolo.
   assert.equal(b.control, p.control);
   assert.equal(b.support, p.support);
@@ -35,19 +35,19 @@ test('il Balance SVG si genera per i quattro eroi', () => {
 
 test('il radar di confronto sovrappone due eroi e li distingue', () => {
   const svg = renderCompare(
-    { name: 'Aevik', values: profileAxes(hero('Aevik')) },
-    { name: 'Branth', values: profileAxes(hero('Branth')) },
+    { name: 'Gadget', values: profileAxes(hero('Gadget')) },
+    { name: 'Riktor', values: profileAxes(hero('Riktor')) },
     PROFILE_AXES,
   );
-  assert.match(svg, /<title id="t">Aevik vs Branth/);
+  assert.match(svg, /<title id="t">Gadget vs Riktor/);
   assert.equal((svg.match(/class="shape/g) ?? []).length, 2, 'due poligoni');
   // Una legenda, o due forme sovrapposte non si leggono.
-  assert.ok(svg.includes('>Aevik<') && svg.includes('>Branth<'));
+  assert.ok(svg.includes('>Gadget<') && svg.includes('>Riktor<'));
 });
 
 test('anche il confronto ha decimali fissi', () => {
   const svg = renderCompare(
-    { name: 'Aevik', values: profileAxes(hero('Aevik')) },
+    { name: 'Gadget', values: profileAxes(hero('Gadget')) },
     { name: 'Muiren', values: profileAxes(hero('Muiren')) },
     PROFILE_AXES,
   );

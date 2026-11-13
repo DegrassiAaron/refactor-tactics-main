@@ -953,7 +953,7 @@ capabilities:
     dependencies: []
     tests:
       automation: ["RefactorTactics.Heroes.*", "RefactorTactics.HeroLab.*", "RefactorTactics.Catalog.*"]
-      scenarios: [Scenarios/Combat/BranthImpactShotSlows.json]
+      scenarios: [Scenarios/Combat/RiktorImpactShotSlows.json]
       mutation: []
     verification: { pie: [PIE-V01-ROSTER], packaged: [G6] }
     risks:

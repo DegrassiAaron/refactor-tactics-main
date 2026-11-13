@@ -60,7 +60,7 @@ Ordine: per il primo elemento nell'ordine della tabella sopra, poi per il second
 | `Element.Fire` | `Element.Air` | OPEN | — | input GDD §4.2: «Tempesta di fuoco (espande il danno ai vicini)» (candidato, nessun effetto in vigore) |
 | `Element.Fire` | `Element.Disintegration` | OPEN | — | nessun input |
 | `Element.Water` | `Element.Earth` | OPEN | — | input GDD §4.2: «Fango (blocca il Dash)» (candidato, nessun effetto in vigore) |
-| `Element.Water` | `Element.Electric` | CURRENT | `Reaction.ElectricPropagatesThroughWater` | l'elettricita' si propaga lungo l'acqua: `Action.Electrify` con `PropagationLimit = 3` risolve nel Cleanup «cosi' colpisce anche chi e' appena entrato nell'acqua» (`RTCatalogLibrary.cpp`), `Hero.Aevik.LinearDischarge` fa piu' danno a chi e' `Wet`; scenario `Spec/Environment/ElectricPropagation.json` · input GDD §4.2: «Acqua elettrificata (stun se attraversata)» (non in vigore: il comportamento a runtime e' quello descritto) |
+| `Element.Water` | `Element.Electric` | CURRENT | `Reaction.ElectricPropagatesThroughWater` | l'elettricita' si propaga lungo l'acqua: `Action.Electrify` con `PropagationLimit = 3` risolve nel Cleanup «cosi' colpisce anche chi e' appena entrato nell'acqua» (`RTCatalogLibrary.cpp`), `Hero.Gadget.LinearDischarge` fa piu' danno a chi e' `Wet`; scenario `Spec/Environment/ElectricPropagation.json` · input GDD §4.2: «Acqua elettrificata (stun se attraversata)» (non in vigore: il comportamento a runtime e' quello descritto) |
 | `Element.Water` | `Element.Frost` | OPEN | — | input GDD §4.2: «Ghiaccio (root assoluto)» (candidato, nessun effetto in vigore) |
 | `Element.Water` | `Element.Decay` | OPEN | — | nessun input |
 | `Element.Water` | `Element.Life` | OPEN | — | nessun input |

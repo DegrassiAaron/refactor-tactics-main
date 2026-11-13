@@ -21,7 +21,7 @@ const ability = (h: string, id: string) =>
 
 test('un bonus condizionato da uno stato non entra nel danno garantito', () => {
   // `24 danni, +8 su bersaglio Wet` -> 24, non 32.
-  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.LinearDischarge')), 240);
+  assert.equal(guaranteedDamage(ability('Gadget', 'Hero.Gadget.LinearDischarge')), 240);
 });
 
 test('un payoff condizionato da una previsione non entra affatto', () => {
@@ -32,11 +32,11 @@ test('un payoff condizionato da una previsione non entra affatto', () => {
 
 test('un danno incondizionato entra per intero', () => {
   assert.equal(guaranteedDamage(ability('Ivrin', 'Hero.Ivrin.PulseShot')), 210);
-  assert.equal(guaranteedDamage(ability('Aevik', 'Hero.Aevik.ConductiveNode')), 200);
+  assert.equal(guaranteedDamage(ability('Gadget', 'Hero.Gadget.ConductiveNode')), 200);
 });
 
 test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
-  const atteso: Record<string, number> = { Aevik: 552, Ivrin: 310, Branth: 180, Muiren: 160 };
+  const atteso: Record<string, number> = { Gadget: 552, Ivrin: 310, Riktor: 180, Muiren: 160 };
   for (const hero of roster()) {
     assert.equal(powerRaw(hero), atteso[hero.name], `${hero.name}`);
   }
@@ -44,7 +44,7 @@ test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
 
 test('i quattro rating power sono quelli pubblicati, e distinti', () => {
   const rating = Object.fromEntries(roster().map((h) => [h.name, powerRating(h)]));
-  assert.deepEqual(rating, { Aevik: 6, Ivrin: 4, Branth: 3, Muiren: 2 });
+  assert.deepEqual(rating, { Gadget: 6, Ivrin: 4, Riktor: 3, Muiren: 2 });
 });
 
 test('la somma dei contributi ricostruisce ESATTAMENTE il power_raw PUBBLICATO', () => {
@@ -52,7 +52,7 @@ test('la somma dei contributi ricostruisce ESATTAMENTE il power_raw PUBBLICATO',
   // contributi, confrontare i due lati sarebbe una tautologia — entrambi si muoverebbero insieme, e
   // il test resterebbe verde anche con la derivazione sbagliata. Misurato: mutando `weighted` in un
   // valore gia' diviso, un confronto con `powerRaw` NON cade; questo si'.
-  const pubblicato: Record<string, number> = { Aevik: 552, Ivrin: 310, Branth: 180, Muiren: 160 };
+  const pubblicato: Record<string, number> = { Gadget: 552, Ivrin: 310, Riktor: 180, Muiren: 160 };
   for (const hero of roster()) {
     const somma = abilityContributions(hero).reduce((s, c) => s + c.weighted, 0);
     assert.equal(somma / POWER_WEIGHT_SCALE, pubblicato[hero.name], `${hero.name}`);
@@ -76,14 +76,14 @@ test('il contributo per-abilita resta INTERO, come la rubrica tiene interi i pes
 });
 
 test('due abilita di EROI DIVERSI con lo stesso peso valgono lo stesso, ed e la domanda di #2566', () => {
-  // `ConductiveNode` (Aevik), `Ram` (Branth) e `PassingBlade` (Ivrin) pesano tutte 60000: 200 danni
+  // `ConductiveNode` (Gadget), `Ram` (Riktor) e `PassingBlade` (Ivrin) pesano tutte 60000: 200 danni
   // garantiti con cooldown 2. La metrica deve dirlo senza sapere di chi sono.
   const tutte = roster().flatMap(abilityContributions);
   const seimila = tutte.filter((c) => c.weighted === 60000).map((c) => c.id);
   assert.deepEqual(seimila.sort(), [
-    'Hero.Aevik.ConductiveNode',
-    'Hero.Branth.Ram',
+    'Hero.Gadget.ConductiveNode',
     'Hero.Ivrin.PassingBlade',
+    'Hero.Riktor.Ram',
   ]);
   for (const id of seimila) {
     const c = tutte.find((x) => x.id === id)!;
@@ -110,9 +110,9 @@ test('ogni banda e DERIVATA dal roster e nomina le abilita che la producono', ()
   // Calcolata a mano dal catalogo: ImpactShot 80/turno, PulseShot 210, ArcPulse 220 (scala x10 di D-589).
   assert.deepEqual({ min: base.min, max: base.max }, { min: 80, max: 220 });
   assert.deepEqual(base.from.slice().sort(), [
-    'Hero.Aevik.ArcPulse',
-    'Hero.Branth.ImpactShot',
+    'Hero.Gadget.ArcPulse',
     'Hero.Ivrin.PulseShot',
+    'Hero.Riktor.ImpactShot',
   ]);
 });
 

@@ -146,10 +146,10 @@ esso l'errore di aprire la cartella sbagliata.
 
 | Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
 |---|---|---|
-| Gadget | `Hero.Aevik` | **`Gadget`** |
+| Gadget | `Hero.Gadget` | **`Gadget`** |
 | Phase | `Hero.Muiren` | **`Phase`** |
 | Riktor | `Hero.Riktor` | **`Riktor`** |
-| Wraith | `Hero.Wraith` | **`Wraith`** |
+| Wraith | `Hero.Ivrin` | **`Wraith`** |
 
 Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`.
 
@@ -167,11 +167,13 @@ sia qualcosa da metterci. Il rimedio all'esempio che invecchia è quello che §6
 [`asset-map.md`](asset-map.md) ha già scelto per sé: **non citare un caso vivo**, e puntare alla sezione che
 i casi li tiene aggiornati per mestiere.
 
-**Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Gadget` sta in `Characters/Gadget/Data/` ma non
-diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
-se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
-che in C++ è e resta `Hero.Aevik`. La mappatura fra i due mondi è **D-037**, tabella owner in
-[`../../characters/paragon.md`](../../characters/paragon.md).
+**Eccezione: i dati restano intitolati all'eroe.** Un data asset eroe sta nella cartella del pack
+(`Characters/<CharacterId>/Data/`) ma porta il nome dell'**eroe**: descrive *statistiche e abilità*, che non
+dipendono dalla mesh, e se l'eroe cambiasse base visuale quel file resterebbe valido parola per parola. Lo stesso
+vale per `HeroId`, che in C++ segue l'eroe e non il pack. Per Gadget e Riktor oggi i due nomi coincidono
+([D-585](../../decisions/RT_PDR_00_Decision_Log.md) (3)), ma la coincidenza non è la regola: dove differiscono —
+oggi `Hero.Muiren` sul pack `Phase` — il data asset prende il nome `DA_Hero_Muiren`, non `DA_Hero_Phase`. La mappatura
+fra i due mondi è **D-037**, tabella owner in [`../../characters/paragon.md`](../../characters/paragon.md).
 
 ⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del
 personaggio di gioco — con l'argomento che *«il nome del pack lega l'asset a una mesh sostituibile»*.

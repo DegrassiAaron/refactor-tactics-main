@@ -124,7 +124,7 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
   `Turn/RTTurnManager_Blast.cpp`). Questo limite parla **solo** della Principale.
   [D-264](../decisions/RT_PDR_00_Decision_Log.md) l'ha tolta dalla v0.1 (`#1403`), e `PlannedCleansePriority`
   non avrà un produttore. ⛔ Resta invece il Cleanse **reattivo** — `Reaction.Cleanse`, modulo di default di
-  `Hero.Branth` — che è una cosa diversa e va in campo;
+  `Hero.Riktor` — che è una cosa diversa e va in campo;
 - `HighGround` esiste come dato e **nessuna regola gli dà un bonus numerico** — è voluto, non una lacuna: la quota vale per geometria ([D-024](../decisions/RT_PDR_00_Decision_Log.md));
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
@@ -337,8 +337,8 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 
 > ⚠️ **Vincolo d'ordine, misurato il 2026-08-24** ([#1111](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1111)).
 > Acqua e scarica **non si compongono dentro un turno** se sono due intenti dello stesso turno: l'unico
-> produttore d'acqua autorizzato è `Gadget.Sprinkler` = `Action.CreateWater`, che è `Environment` e quindi
-> risolve nel **Cleanup**, mentre `Hero.Aevik.LinearDischarge` è `Attack` e risolve nel **Blast** — e il
+> produttore d'acqua autorizzato è l'equipaggiamento `Gadget.Sprinkler` = `Action.CreateWater`, che è `Environment` e quindi
+> risolve nel **Cleanup**, mentre la scarica dell'eroe Gadget, `Hero.Gadget.LinearDischarge`, è `Attack` e risolve nel **Blast** — e il
 > Blast precede il Cleanup. Scritti insieme, la scarica legge un bersaglio non ancora bagnato.
 > ✅ **Il modello che funziona è già in questo documento**: §T2 fa entrare il bersaglio nell'acqua **nel
 > Dash**. Chi riempie il T7 sceglie fra quello e due turni distinti — la scelta è aperta, il vincolo no.
@@ -346,7 +346,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
-> ambientale lo propaga, e `Hero.Aevik.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
+> ambientale lo propaga, e `Hero.Gadget.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
@@ -455,8 +455,8 @@ e non al lato. I costi di movimento li detta il **catalogo terreni**: la fixture
 | `Fire` | `(0,-2)` · `(0,2)` | 10 danni + `Burning` on-enter |
 | `Smoke` | `(-1,-2)` · `(1,2)` | cap del targeting a 2 celle |
 
-**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Aevik` `(-5,2)` e `Hero.Muiren` `(-5,3)` per
-il team 0; `Hero.Riktor` `(5,-2)` e `Hero.Wraith` `(5,-3)` per il team 1. Le unità si configurano da
+**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Gadget` `(-5,2)` e `Hero.Muiren` `(-5,3)` per
+il team 0; `Hero.Riktor` `(5,-2)` e `Hero.Ivrin` `(5,-3)` per il team 1. Le unità si configurano da
 `URTHeroCatalogLibrary` (`ConfigureFromHeroData`). ⚠️ Questa riga contrapponeva il catalogo a
 `ConfigureAsArchetype`, «legacy di test»: quel percorso e' stato **rimosso**, quindi non c'e' piu' un'altra
 via da escludere — ce n'e' una sola.

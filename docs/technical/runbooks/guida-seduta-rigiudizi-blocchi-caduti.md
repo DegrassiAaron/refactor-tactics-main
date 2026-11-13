@@ -114,12 +114,15 @@ A fine seduta: `rt.Test.Scenario ""` per tornare alla partita normale.
 rt.Test.Scenario Visual.Movement.Charge
 ```
 
-**Il banco**: un turno. `(3,0)` è il **caricante** (`Hero.Branth.Ram`, `dashTo (1,0,0)`); `(1,0)` è il
+**Il banco**: un turno. `(3,0)` è il **caricante** (`Hero.Riktor.Ram`, `dashTo (1,0,0)`); `(1,0)` è il
 **bersaglio**, che non parte.
 
 ⛔ **Identifica le unità per CELLA, mai per nome.** Il criterio del registro dice «addosso a **Gadget**» e
-il runbook `scenari-validazione-visiva.md` dice «**Riktor** usa Ram»: nessuno dei due nome esiste più nel
-banco — `Hero.Gadget` → `Hero.Aevik` è un rename eseguito (#2491).
+il runbook `scenari-validazione-visiva.md` dice «**Riktor** usa Ram»: il 2026-09-25, quando questa guida è
+nata, nessuno dei due nomi esisteva nel banco, perché #2491 aveva rinominato `Hero.Gadget` → `Hero.Aevik` e
+`Hero.Riktor` → `Hero.Branth`; il 2026-11-13 il rename inverso di #4011
+([`D-585`](../../decisions/RT_PDR_00_Decision_Log.md) (3)) li ha resi di nuovo veri. La regola della cella
+resta: i nomi sono cambiati due volte, le celle no.
 
 **Dove posare l'occhio**: sul cilindro fermo a `(1,0)`, dal primo passo del playback.
 
@@ -154,22 +157,22 @@ quella causa; **non promuove da solo la voce a ✅**.
 rt.Test.Scenario Visual.Core.PhaseOrder
 ```
 
-**Il banco**: un turno, tre fasi. `Dash` (Branth carica da `(1,0)` su Aevik a `(-1,0)`), `Blast` (Ivrin
-spara su Aevik, e nello stesso Blast si risolve la spinta), `Move` (Muiren cammina).
+**Il banco**: un turno, tre fasi. `Dash` (Riktor carica da `(1,0)` su Gadget a `(-1,0)`), `Blast` (Ivrin
+spara su Gadget, e nello stesso Blast si risolve la spinta), `Move` (Muiren cammina).
 
-⚠️ **Branth percorre UNA sola cella**, da `(1,0)` a `(0,0)`: si ferma **accanto** ad Aevik, non dentro.
+⚠️ **Riktor percorre UNA sola cella**, da `(1,0)` a `(0,0)`: si ferma **accanto** a Gadget, non dentro.
 È tutto il Dash, e dura ~0,69 s. Decidi **prima** di premere Play se ti basta a occhio, o se vuoi `L`.
 
-**Dove posare l'occhio**: su Aevik, il cilindro a `(-1,0)`, prima di premere Play.
+**Dove posare l'occhio**: su Gadget, il cilindro a `(-1,0)`, prima di premere Play.
 
-> **Domanda** — i tre momenti si **leggono** separati: prima solo Branth che carica, poi il colpo con
-> Aevik che arretra, poi solo Muiren che cammina?
+> **Domanda** — i tre momenti si **leggono** separati: prima solo Riktor che carica, poi il colpo con
+> Gadget che arretra, poi solo Muiren che cammina?
 >
 > - 🟢 sì, si leggono come **tre momenti**
 > - 🔴 no — e il rosso ha **due cause che portano altrove**, da distinguere nel referto:
->   - **(a)** Aevik è già arretrato al primo passo → **`NOT RUN`, non ❌**: il binario non porta #3261.
+>   - **(a)** Gadget è già arretrato al primo passo → **`NOT RUN`, non ❌**: il binario non porta #3261.
 >     Scrivi lo SHA del binario e rifai la build.
->   - **(b)** la sequenza è corretta — Aevik parte fermo e arretra dopo — ma il Dash resta comunque
+>   - **(b)** la sequenza è corretta — Gadget parte fermo e arretra dopo — ma il Dash resta comunque
 >     irriconoscibile → ❌ per una causa **nuova**: una cella in ~0,69 s in inquadratura d'insieme. Non è
 >     #3261, ed è un difetto da aprire con issue propria.
 

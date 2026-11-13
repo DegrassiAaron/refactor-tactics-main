@@ -5,13 +5,13 @@
 > **RT Character ID:** `Hero.Riktor`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). Dal 2026-11-08 ([D-585](../../decisions/RT_PDR_00_Decision_Log.md)) il nome dello slot è anche il nome di sviluppo dell'eroe; il nome di pubblicazione si decide prima di pubblicare ([#4019](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4019)).
 >
 > 🔁 **2026-11-13 — [D-612](../../decisions/RT_PDR_00_Decision_Log.md)**: dopo il rename di [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011),
 > il kit di questa pagina (Field Architecture) **sarà sostituito** dal catalogo dell'autore del 2026-11-13, con tutte e sedici le voci, tradotto
 > nelle regole del contratto e accettato con una D-nnn ([referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md)); nella stessa D-nnn
 > si ridisegna l'equipaggiamento di default. Finché la traduzione non è accettata, questa pagina descrive il kit **in vigore**. ⚠️ Anche i numeri di `ImpactShot` qui sotto sono
-> superati: la pagina dice 8 nel profilo d'attacco e ancora 24 nella sezione dell'abilità, il codice 80 (`MakeBranth`, scala ×10 di D-589).
+> superati: la pagina dice 8 nel profilo d'attacco e ancora 24 nella sezione dell'abilità, il codice 80 (`MakeRiktor`, scala ×10 di D-589).
 
 ## Panoramica
 
@@ -184,9 +184,9 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Riktor.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
+| Il payload è nel dato | `RefactorTactics.Heroes.Riktor.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
 | Il danno si vede in partita | `Combat.CounterStrikesBack` · `Combat.NoCounterWhenUnarmed` |
-| **Lo `Slow` si vede in partita** | `Combat.BranthImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
+| **Lo `Slow` si vede in partita** | `Combat.RiktorImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
 
 ## Abilità
 

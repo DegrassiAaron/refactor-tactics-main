@@ -7,12 +7,14 @@
 > **Implementazione**: epic **E6** (`#54`–`#59`).
 
 > 🔁 **2026-11-08 — [D-585](../decisions/RT_PDR_00_Decision_Log.md), [D-586](../decisions/RT_PDR_00_Decision_Log.md)**: gli eroi prendono i nomi degli slot Paragon come nomi di sviluppo (Aevik → Gadget, Branth → Riktor); i kit di **Muiren** e **Ivrin** si **ritirano** e i loro slot vanno a **Muriel** e **Kallari** con kit nuovi tradotti dal GDD ([`../characters/v0.1/muriel.md`](../characters/v0.1/muriel.md), [`../characters/v0.1/kallari.md`](../characters/v0.1/kallari.md)). ⏳ **Questo catalogo descrive il runtime in vigore**, che non cambia finché [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011) non esegue il rename: §2 e §4 restano il contratto fino ad allora.
+>
+> ✅ **Rename eseguito il 2026-11-13 ([#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011)) per Aevik → Gadget e Branth → Riktor.** Gli ID a runtime sono `Hero.Gadget` e `Hero.Riktor`, e questo catalogo usa gli stessi nomi (§1, §3 e i loro `AbilityId`). Muiren e Ivrin non cambiano ancora: §2 e §4 restano il contratto finché la fetta B′ del [piano del rename inverso](../technical/piano-rename-inverso-roster-2026-11-09.md) non ritira i loro kit.
 
 ## Stato dell'implementazione (2026-08-06)
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
-(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeBranth/MakeIvrin`) e `ARTGameMode` allestisce il 2v2 con loro
-— formazione di default **Aevik + Muiren** contro **Branth + Ivrin**.
+(`URTHeroCatalogLibrary::MakeGadget/MakeMuiren/MakeRiktor/MakeIvrin`) e `ARTGameMode` allestisce il 2v2 con loro
+— formazione di default **Gadget + Muiren** contro **Riktor + Ivrin**.
 
 > ⚠️ **Corretto il 2026-09-10.** Questo capoverso proseguiva: «*I due archetipi (`ERTArchetype`) non
 > partecipano più allo spawn di partita; restano come helper nei test d'integrazione*». La seconda metà è
@@ -51,8 +53,8 @@ sono cablate e verificate in partita.
 
 | Reazione | Semantica core riusata | Stato |
 |---|---|---|
-| `Hero.Aevik.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 150 **e** 100 danni all'attaccante |
-| `Hero.Branth.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
+| `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 150 **e** 100 danni all'attaccante |
+| `Hero.Riktor.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
 | `Hero.Ivrin.Deflection` | `Action.Deflect` | ✅ pool da 200 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Hero.Muiren.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
@@ -77,7 +79,7 @@ statistiche base.
 > ➕ **Il kit può portare una SESTA voce, e due eroi la portano.** Oltre all'attacco base e alle quattro
 > fondamentali, un eroe può avere **al più una** azione **generica del catalogo core** derivata nel kit:
 > `URTHeroCatalogLibrary::ValidateHeroes` ammette da **5 a 6** azioni, non esattamente 5. Sul roster v0.1 sono
-> `Hero.Muiren.TideGuard` e `Hero.Ivrin.PhaseGuard`, entrambe da `Action.Shield`; Aevik e Branth restano a
+> `Hero.Muiren.TideGuard` e `Hero.Ivrin.PhaseGuard`, entrambe da `Action.Shield`; Gadget e Riktor restano a
 > cinque. Il tetto è 6 perché oltre il kit supera le posizioni che l'input raggiunge —
 > `PlayerInput.EveryKitEntryIsReachable` è il gate che lo misura.
 **Configurabile**: variante arma · gadget · modulo di reazione · **variante di una** abilità (una sola per eroe
@@ -85,7 +87,7 @@ nel vertical slice).
 
 ---
 
-## 1. Aevik — tecnico della conduzione
+## 1. Gadget — tecnico della conduzione
 
 **Ruolo**: attacco · controllo · combo elettrica · disattivazione dispositivi.
 
@@ -100,19 +102,19 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 220 danni, range 4 | 0 |
-| `Hero.Aevik.LinearDischarge` | Scarica lineare | linea | 240 danni, **+80 su bersaglio `Wet`** | 2 |
-| `Hero.Aevik.ConductiveNode` | Nodo conduttivo | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
-| `Hero.Aevik.Overload` | Sovraccarico | AoE | 180 danni, `Interrupt` sui dispositivi | 3 |
-| `Hero.Aevik.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 150 e 100 danni all'attaccante | 3 |
+| `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 220 danni, range 4 | 0 |
+| `Hero.Gadget.LinearDischarge` | Scarica lineare | linea | 240 danni, **+80 su bersaglio `Wet`** | 2 |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttivo | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
+| `Hero.Gadget.Overload` | Sovraccarico | AoE | 180 danni, `Interrupt` sui dispositivi | 3 |
+| `Hero.Gadget.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 150 e 100 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
-> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Aevik.LinearDischarge` è una
-> condizione **dell'abilità di Aevik** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
+> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Gadget.LinearDischarge` è una
+> condizione **dell'abilità di Gadget** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
 > dall'eroe che ha applicato `Wet`. Muiren è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
-> sorgente di `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno, una futura abilità)
-> abilita lo stesso payoff. Le etichette storiche **`Water-Electric Combo`** (Signature secondaria di Aevik) e
-> «combo elettrica» qui sopra nominano quell'**interazione sistemica**, non una coppia Aevik + Muiren: restano
+> sorgente di `Wet` autorizzata dalle regole (l'equipaggiamento `Gadget.Sprinkler`, acqua bassa del terreno, una futura abilità)
+> abilita lo stesso payoff. Le etichette storiche **`Water-Electric Combo`** (Signature secondaria di Gadget) e
+> «combo elettrica» qui sopra nominano quell'**interazione sistemica**, non una coppia Gadget + Muiren: restano
 > invariate perché sono dati canonici e un rename richiede migrazione, non una PR documentale.
 
 **Variante di `LinearDischarge`**
@@ -132,7 +134,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 0 |
 | Affinità | acqua |
-| Debolezza | elettricità (`Affinity.Electricity`) — decisa in CP 6.3, non nel PDF: simmetrica a Aevik |
+| Debolezza | elettricità (`Affinity.Electricity`) — decisa in CP 6.3, non nel PDF: simmetrica a Gadget |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -148,7 +150,7 @@ nel vertical slice).
 
 ---
 
-## 3. Branth — architetto del campo
+## 3. Riktor — architetto del campo
 
 **Ruolo**: difesa · controllo dello spazio · modifica degli archi · protezione degli alleati.
 
@@ -163,11 +165,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Branth.ImpactShot` | Colpo d'impatto | attacco base | 80 danni, range 3, applica `Slow` | 0 |
-| `Hero.Branth.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
-| `Hero.Branth.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Hero.Branth.Ram` | Carica d'ariete | charge | 200 danni e `Push 1` | 2 |
-| `Hero.Branth.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
+| `Hero.Riktor.ImpactShot` | Colpo d'impatto | attacco base | 80 danni, range 3, applica `Slow` | 0 |
+| `Hero.Riktor.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
+| `Hero.Riktor.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
+| `Hero.Riktor.Ram` | Carica d'ariete | charge | 200 danni e `Push 1` | 2 |
+| `Hero.Riktor.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
 - *Pannello rinforzato*: integrità **45**, ma durata **1 turno**.
@@ -186,7 +188,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | movimento |
-| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Branth |
+| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Riktor |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -227,7 +229,7 @@ eroe proprio per questo.
   stesso cooldown **2**.
 
 **Uno per squadra**, perché le formazioni sono fisse (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Sono gli
-unici scudi del gioco che si scelgono **prima** di sapere se sarai colpito: `Aevik.ReactiveCapacitor` e
+unici scudi del gioco che si scelgono **prima** di sapere se sarai colpito: `Hero.Gadget.ReactiveCapacitor` e
 `Reaction.ReactiveShield` rispondono a un colpo già partito. Su Ivrin il costo è una scelta vera — la
 Preparation spesa qui è quella che non arma `InterceptShot`.
 
@@ -252,9 +254,9 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 
 | Eroe | HP | MP | Vista | Push res. | DEF | RES | Spalle | Affinità | Identità in una riga |
 |---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| Aevik | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
+| Gadget | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
 | Muiren | 950 | 5 | 5 | 0 | 25 | 40 | 60 | acqua | prepara il terreno agli altri e cura |
-| Branth | 1200 | 4 | 5 | 0 | 45 | 35 | 30 | strutture | cambia la forma della mappa, lento |
+| Riktor | 1200 | 4 | 5 | 0 | 45 | 35 | 30 | strutture | cambia la forma della mappa, lento |
 | Ivrin | 900 | 6 | 6 | 0 | 15 | 20 | 90 | movimento | punisce chi si muove, il più mobile |
 
 > 🛡️ **`DEF`, `RES` e `Spalle` sono nel catalogo dal 2026-11-10 (E53 CP 53.3c, [#4013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4013)).**
@@ -272,7 +274,7 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 >
 > 🔢 **Copertura, Guard e Brace sono tarate con la DEF in mano** ([D-602](../decisions/RT_PDR_00_Decision_Log.md),
 > stesso passo): copertura bassa **60**, Guard **100**, Brace **60**. Con i valori della passata ×10 (100 · 150 · 100)
-> un `HeavyAttack` (350) frontale su Branth in copertura bassa e in Guard faceva `241 − 100 − 150 < 0`, cioè zero; con
+> un `HeavyAttack` (350) frontale su Riktor in copertura bassa e in Guard faceva `241 − 100 − 150 < 0`, cioè zero; con
 > D-602 fa `241 − 60 − 100 = 81` prima dello scudo base. Era il primo caso di controllo che
 > [D-595](../decisions/RT_PDR_00_Decision_Log.md) (4) aveva dichiarato per la taratura.
 
@@ -297,9 +299,9 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 
 | Eroe | Vista | Soglia d'udito | Ruolo | Risorsa firma ⛔ | Ricarica su ⛔ | Cap ⛔ |
 |---|---:|---:|---|---|---|---:|
-| Aevik | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
+| Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
 | Muiren | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |
-| Branth | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
+| Riktor | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
 | Ivrin | 6 | 5 | Striker | Slancio | movimento eseguito | 4 |
 
 > 🔊 **La `Soglia d'udito` si legge al contrario delle altre colonne: più bassa, meglio si sente.** È la
@@ -309,7 +311,7 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 >
 > ⚠️ **L'udito COMPENSA la vista, non la segue** ([D-041](../decisions/RT_PDR_00_Decision_Log.md)): chi vede
 > lontano sente meno, chi vede poco sente bene — così è una seconda via all'informazione e non un secondo
-> `Range visivo`. Le due colonne sono anti-monotone di proposito, e sul roster v0.1 Muiren e Branth
+> `Range visivo`. Le due colonne sono anti-monotone di proposito, e sul roster v0.1 Muiren e Riktor
 > condividono entrambi i valori.
 >
 > *(Entrata in catalogo il 2026-08-25 con [#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686):
@@ -334,20 +336,20 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Branth compra HP con **movimento** e vista; Ivrin compra mobilità con **salute**; Muiren sta in
-mezzo; Aevik ha il danno combo più alto.
+Riktor compra HP con **movimento** e vista; Ivrin compra mobilità con **salute**; Muiren sta in
+mezzo; Gadget ha il danno combo più alto.
 
 > ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Ivrin 100 → 90.**
 > La frase qui sopra diceva che Ivrin «compra mobilità con l'assenza di difese» mentre sulle quattro
-> statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Aevik (90/5/6/0)
+> statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Gadget (90/5/6/0)
 > *e* a Muiren (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
 >
-> ✅ **Chiusa il 2026-08-10 con la seconda leva: Aevik 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
-> Il calo di Ivrin aveva tolto la dominanza su Muiren e lasciato quella su Aevik, dove a parità di salute e
-> vista Ivrin restava avanti di un punto movimento. Con la vista 7 Aevik ha qualcosa di strettamente
+> ✅ **Chiusa il 2026-08-10 con la seconda leva: Gadget 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
+> Il calo di Ivrin aveva tolto la dominanza su Muiren e lasciato quella su Gadget, dove a parità di salute e
+> vista Ivrin restava avanti di un punto movimento. Con la vista 7 Gadget ha qualcosa di strettamente
 > migliore, e **nessun eroe domina più nessun altro** sulle quattro statistiche base.
 >
-> **Perché la vista e non il movimento**, misurato e non intuito: dare 6 MP a Aevik — o toglierne uno a
+> **Perché la vista e non il movimento**, misurato e non intuito: dare 6 MP a Gadget — o toglierne uno a
 > Ivrin — renderebbe i due profili **identici**, e `RosterIsBalanced` verifica che nessuna coppia li
 > condivida; si sarebbe rotto un test per ripararne un altro. E una `PushResistance` negativa per Ivrin
 > sarebbe stata un numero **senza effetto osservabile**: è una soglia, e le spinte del catalogo valgono
@@ -357,10 +359,10 @@ mezzo; Aevik ha il danno combo più alto.
 > roster. È la forma che regge quando il roster crescerà a otto (E35) — un eroe nuovo che dominasse qualcuno
 > fa cadere il test da solo, senza che nessuno debba ricordarsi di aggiungere una riga.
 >
-> La compensazione nelle **abilità** resta com'era e non era in discussione: Aevik ha il bonus combo più alto
+> La compensazione nelle **abilità** resta com'era e non era in discussione: Gadget ha il bonus combo più alto
 > del roster (+80 su `Wet`), Muiren la cura ad area.
 
-> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Branth 1 → 0 di
+> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Riktor 1 → 0 di
 > resistenza alla spinta.** La decisione è del **2026-08-10** e `RTHeroCatalogLibrary.cpp` scrive `0` da
 > allora: questo documento era rimasto indietro, e la frase qui sopra vendeva come prezzo pagato — «compra HP
 > **e resistenza**» — una statistica che l'eroe non ha.
@@ -389,21 +391,21 @@ mezzo; Aevik ha il danno combo più alto.
 > esattamente come prima, che è la prova di quanto sopra.
 >
 > L'esito è pinnato dallo scenario
-> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Branth e Ivrin a incassare lo stesso `Hero.Muiren.PressureJet`
+> `Spec.Combat.RiktorIsPushedLikeAnyone`, che manda Riktor e Ivrin a incassare lo stesso `Hero.Muiren.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >
 > ⚠️ Conseguenza per chi deriva viste dai cataloghi: `Resistenza Push` è **costante sul roster**, quindi non
-> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Aevik e Ivrin sono **entrambi
+> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Gadget e Ivrin sono **entrambi
 > a 90**.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
-per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Aevik**: fissata in
+per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Gadget**: fissata in
 CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Muiren**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
-simmetrica a Aevik — vedi §2. **Branth**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
+simmetrica a Gadget — vedi §2. **Riktor**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
 Ivrin — vedi §3. **Ivrin**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
 
-Il roster chiude in **due coppie simmetriche**: Aevik↔Muiren sull'acqua/elettricità, Branth↔Ivrin sullo
+Il roster chiude in **due coppie simmetriche**: Gadget↔Muiren sull'acqua/elettricità, Riktor↔Ivrin sullo
 spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verificato da
 `RefactorTactics.Heroes.RosterIsBalanced`.
 
@@ -411,11 +413,11 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 
 ## 6. Loadout iniziali consigliati
 
-| Eroe | Variante d'abilità | Aevik | Modulo di reazione |
+| Eroe | Variante d'abilità | Gadget (equipaggiamento) | Modulo di reazione |
 |---|---|---|---|
-| Aevik | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
+| Gadget | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
 | Muiren | Marea curativa | `Gadget.Sprinkler` | `Reaction.HazardEscape` |
-| Branth | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
+| Riktor | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
 | Ivrin | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
 
 ---
@@ -430,10 +432,10 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | 4 | Cooldown di `Hero.Muiren.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
 | 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
-**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Aevik CP 6.2, Muiren
-CP 6.3, Branth CP 6.4, Ivrin CP 6.5) ·
-range di `Hero.Aevik.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Hero.Muiren.CircularTide`
-(fissato in CP 6.3: **4**, come `Hero.Aevik.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
+**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Gadget CP 6.2, Muiren
+CP 6.3, Riktor CP 6.4, Ivrin CP 6.5) ·
+range di `Hero.Gadget.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Hero.Muiren.CircularTide`
+(fissato in CP 6.3: **4**, come `Hero.Gadget.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
 `Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Hero.Ivrin.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
 degli eroi occupino lo stesso slot dei moduli di reazione dell'equipaggiamento (probabile, ma il PDF elenca
 entrambi senza dirlo).
