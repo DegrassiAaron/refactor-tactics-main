@@ -460,7 +460,9 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// [D-610] (`#4091`): sotto la distanza minima. Nomina il MINIMO e non la portata, per la ragione scritta sul valore: il
 	// rimedio e' allontanarsi. E' il testo del click (`HandleTargetCell`, «troppo vicino»), senza il numero che li' si legge.
 	case ERTActionInvalidReason::TooClose:       return TEXT("troppo vicino: sotto la distanza minima");
-	default:                                    return TEXT("non eseguibile");
+	// `#4099`: la cella non esiste. Nomina la MAPPA e non la portata, per la ragione scritta sul valore.
+	case ERTActionInvalidReason::OffMap:         return TEXT("la cella mirata e' fuori dalla mappa");
+	default:                                   return TEXT("non eseguibile");
 	}
 }
 

@@ -657,6 +657,8 @@ namespace
 		int32 DannoAChiEntra = 0;
 		FRTCellId DoveFinisceChiEntra;
 		FRTCellId DoveFinisceChiArma;
+		// `#4099`: il verdetto del classificatore sulla cella TOLTA dalla mappa, prima del turno. `Ok` se non si toglie nulla.
+		ERTHexTargetReason SenzaLaCella = ERTHexTargetReason::Ok;
 	};
 
 	URTHexMapAsset* PredMapAsset(UWorld* World)
@@ -697,14 +699,15 @@ namespace
  * VALIDATES`. Il piano e' scritto A MANO, come lo scrivono il bot e lo Scenario Harness: il click non lo avrebbe accettato,
  * e prima di `#4091` il turno lo armava lo stesso — la portata e la linea non le guardava nessuno.
  *
- * 🔑 **Cinque scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
+ * 🔑 **Sette scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
  * portata), la propria (sotto il minimo di [D-610] (2)), quella accanto dietro una copertura alta (senza linea), quella
- * accanto un piano sopra (altro piano), e quella accanto libera — il **controllo positivo**: senza, «nessuna previsione» lo
+ * accanto un piano sopra (altro piano), quella accanto e quella a distanza 2 tolte dalla mappa (fuori mappa, e la mappa si
+ * chiede prima della portata, `#4099`), e quella accanto libera — il **controllo positivo**: senza, «nessuna previsione» lo
  * darebbe anche un turno che non arma niente.
  *
  * ⚠️ **Paga solo la linea** ([D-571], `R4`): e' l'unico motivo che un piano accettato dal click puo' trovare all'armamento.
- * Fuori portata, sotto il minimo e altro piano sono piani che il click rifiuta, e sono gratis. La ricarica a fine turno lo
- * misura, e il controllo positivo dice che la misura vede un pagamento.
+ * Fuori portata, sotto il minimo, altro piano e fuori mappa sono piani che il click rifiuta, e sono gratis. La ricarica a
+ * fine turno lo misura, e il controllo positivo dice che la misura vede un pagamento.
  *
  * Chi entra attraversa la cella bloccata da ovest a est: se il colpo partisse, lo fermerebbe li' con i danni del catalogo.
  */
@@ -714,7 +717,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveArmingRejudgesTest,
 bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 {
 	const FRTCellId DaDove(0, 1);
-	auto Gioca = [this, &DaDove](const FRTCellId& Bloccata, bool bMuro, bool bChiEntra) -> FPredRejudge
+	auto Gioca = [this, &DaDove](const FRTCellId& Bloccata, bool bMuro, bool bChiEntra, bool bTolta) -> FPredRejudge
 	{
 		FPredRejudge Out;
 		UWorld* World = MakePredWorld();
@@ -722,11 +725,20 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 		SpawnPredMap(World);
 		if (Bloccata.Layer != 0)
 		{
-			// La cella sul piano di sopra ESISTE: il caso misura il piano, e non deve reggersi sul fatto che l'armamento non
-			// chieda se la cella e' sulla mappa (il click lo chiede, `HandleTargetCell`; l'armamento no — residuo dichiarato).
+			// La cella sul piano di sopra ESISTE: il caso misura il piano. Senza questa riga sarebbe fuori mappa, e da `#4099`
+			// l'armamento lo chiede prima del piano, come il click (`HandleTargetCell`): il motivo sarebbe `OffMap`.
 			URTHexMapAsset* Map = PredMapAsset(World);
 			if (!Map) { DestroyPredWorld(World); return Out; }
 			Map->AddOrUpdateCell(FRTHexCellData(Bloccata));
+		}
+		if (bTolta)
+		{
+			// `#4099`: la cella si toglie dalla mappa prima del turno, e si registra che cosa ne direbbe il classificatore da
+			// solo. E' la premessa di ogni scena fuori mappa: dice quale domanda, senza quella della mappa, avrebbe risposto.
+			URTHexMapAsset* Map = PredMapAsset(World);
+			if (!Map || !Map->RemoveCell(Bloccata)) { DestroyPredWorld(World); return Out; }
+			Out.SenzaLaCella = URTCombatLibrary::ClassifyHexTargeting(Map, DaDove, Bloccata, /*Range*/ 1,
+				ERTLineOfSightPolicy::Required, /*MinRange*/ 1);
 		}
 		const FRTCellId Partenza(Bloccata.X - 1, Bloccata.Y);
 		ARTUnit* Runner = bChiEntra ? SpawnPredUnit(World, /*Team*/ 0, Partenza) : nullptr;
@@ -758,7 +770,7 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 	};
 
 	// ── Il controllo: la cella accanto, libera. Si arma, si attiva, paga, e chi entra viene fermato. ───────
-	const FPredRejudge Armata = Gioca(FRTCellId(0, 0), /*bMuro*/ false, /*bChiEntra*/ true);
+	const FPredRejudge Armata = Gioca(FRTCellId(0, 0), /*bMuro*/ false, /*bChiEntra*/ true, /*bTolta*/ false);
 	if (!TestTrue(TEXT("banco del controllo"), Armata.bValido)) { return false; }
 	TestEqual(TEXT("controllo: nessun rifiuto"), Armata.Rifiuti, 0);
 	TestEqual(TEXT("controllo: la previsione va a segno"), Armata.EsitoPredittivo,
@@ -775,24 +787,40 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 		FRTCellId Bloccata;
 		bool bMuro;
 		bool bChiEntra;
+		bool bTolta;
+		ERTHexTargetReason SenzaLaCella; // premessa delle scene con `bTolta`: il verdetto del classificatore da solo
 		ERTActionInvalidReason Motivo;
 		bool bPaga;
 	};
+	constexpr ERTHexTargetReason Ok = ERTHexTargetReason::Ok;
 	const FCaso Casi[] = {
 		// Distanza 2 con portata 1. Gratis: il click la rifiuta da questa stessa origine (`R9`).
-		{ TEXT("fuori portata"), FRTCellId(0, -1), false, true, ERTActionInvalidReason::OutOfRange, false },
+		{ TEXT("fuori portata"), FRTCellId(0, -1), false, true, false, Ok, ERTActionInvalidReason::OutOfRange, false },
 		// Distanza 0 con minimo 1 ([D-610] (2)). Gratis come il fuori portata. Nessuno entra: la cella e' occupata da chi arma.
-		{ TEXT("la propria cella"), DaDove, false, false, ERTActionInvalidReason::TooClose, false },
+		{ TEXT("la propria cella"), DaDove, false, false, false, Ok, ERTActionInvalidReason::TooClose, false },
 		// Accanto, dietro una copertura alta. PAGA: e' l'unico motivo che un piano accettato dal click puo' trovare qui (`R4`).
-		{ TEXT("senza linea"), FRTCellId(0, 0), true, true, ERTActionInvalidReason::NoLineOfSight, true },
+		{ TEXT("senza linea"), FRTCellId(0, 0), true, true, false, Ok, ERTActionInvalidReason::NoLineOfSight, true },
 		// La colonna accanto, un piano sopra: distanza 1 (`HexDistance` ignora il `Layer`), quindi il motivo e' il piano.
 		// Gratis: all'armamento il piano e' sempre una domanda che il click ha gia' rifiutato ([D-571]). Nessuno entra.
-		{ TEXT("un altro piano"), FRTCellId(0, 0, 1), false, false, ERTActionInvalidReason::OtherLayer, false },
+		{ TEXT("un altro piano"), FRTCellId(0, 0, 1), false, false, false, Ok, ERTActionInvalidReason::OtherLayer, false },
+		// `#4099`: la cella del controllo, tolta dalla mappa. Il classificatore da solo la accetterebbe: e' accanto e sullo
+		// stesso piano. Gratis: il click la rifiuta ([D-571]), e la mappa del click e' una copia di quella autorevole con le
+		// stesse celle. Nessuno entra: non si cammina su una cella che non c'e'.
+		{ TEXT("fuori mappa"), FRTCellId(0, 0), false, false, true, Ok, ERTActionInvalidReason::OffMap, false },
+		// `#4099`: tolta la cella a distanza 2. Il classificatore direbbe `OutOfRange`, il turno dice `OffMap`: la mappa si
+		// chiede per PRIMA, come nel click (`HandleTargetCell`).
+		{ TEXT("fuori mappa e fuori portata"), FRTCellId(0, -1), false, false, true, ERTHexTargetReason::OutOfRange,
+			ERTActionInvalidReason::OffMap, false },
 	};
 	for (const FCaso& Caso : Casi)
 	{
-		const FPredRejudge R = Gioca(Caso.Bloccata, Caso.bMuro, Caso.bChiEntra);
+		const FPredRejudge R = Gioca(Caso.Bloccata, Caso.bMuro, Caso.bChiEntra, Caso.bTolta);
 		if (!TestTrue(FString::Printf(TEXT("banco: %s"), Caso.Nome), R.bValido)) { continue; }
+		if (Caso.bTolta)
+		{
+			TestEqual(FString::Printf(TEXT("%s: premessa, il verdetto del classificatore senza la domanda della mappa"),
+				Caso.Nome), R.SenzaLaCella, Caso.SenzaLaCella);
+		}
 		TestEqual(FString::Printf(TEXT("%s: nessuna voce predittiva — la previsione non si e' armata"), Caso.Nome),
 			R.VociPredittive, 0);
 		if (TestEqual(FString::Printf(TEXT("%s: il turno lo DICHIARA, una voce di rifiuto"), Caso.Nome), R.Rifiuti, 1))

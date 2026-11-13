@@ -321,7 +321,18 @@ enum class ERTActionInvalidReason : uint8
 	 *
 	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
 	 */
-	TooClose
+	TooClose,
+
+	/**
+	 * La cella mirata non e' sulla mappa (`#4099`): la mappa autorevole non la contiene. Lo produce l'armamento di un colpo
+	 * predittivo in Prep, con la domanda che il click pone prima di tutte le altre (`HandleTargetCell`, `ContainsCell`).
+	 *
+	 * ⛔ **Non e' `NoMap`**, che dice che manca la mappa intera ed e' un difetto di configurazione del livello. **E non e'
+	 * `OutOfRange`**: la cella puo' essere accanto, e «fuori portata» manderebbe ad avvicinarsi verso una cella che non c'e'.
+	 *
+	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
+	 */
+	OffMap
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

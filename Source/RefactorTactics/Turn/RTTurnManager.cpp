@@ -4798,23 +4798,28 @@ void ARTTurnManager::ResolvePrep()
 			// mostrava, o che `ResolveCoverStructures` ha spostato in questo stesso Prep, ferma un piano che il click ha
 			// accettato, e [D-571] (1) lo fa pagare. Due residui, dichiarati e non coperti, perche' separarli chiederebbe un
 			// secondo lettore della mappa del click (una nuova eccezione a [D-534] (2), non presa): (1) un piano con la linea
-			// gia' bloccata sulla mappa del click, che nessun click produce (solo il bot o lo Scenario Harness), paga anche lui;
+			// gia' bloccata sulla mappa del click, che nessun click produce (solo lo Scenario Harness: il bot non pianifica
+			// predittive da [D-610] (4)), paga anche lui;
 			// (2) una portata cappata da un Fumo che la squadra non vedeva (`R7`) qui e' `OutOfRange` e non paga — latente,
 			// perche' l'unica predittiva del catalogo ha portata 1 e il cap del Fumo e' 2.
-			// ⚠️ **E una domanda del click qui non si fa**: «fuori mappa» (`HandleTargetCell`, `ContainsCell`), che il click pone
-			// prima delle altre. `ClassifyHexTargeting` non la pone, quindi un piano su una cella accanto ma fuori dalla mappa —
-			// che nessun click produce — si arma, paga e manca. [D-610] chiede portata e linea, non la mappa: residuo
-			// dichiarato e candidato a una issue propria, non deciso qui (review di `#4091`).
+			// ➕ **La domanda «fuori mappa» si fa per PRIMA** (`#4099`), perche' e' la prima che pone il click (`HandleTargetCell`,
+			// `ContainsCell`) e `ClassifyHexTargeting` non la pone. Senza, un piano su una cella accanto ma fuori dalla mappa —
+			// che nessun click produce, solo lo Scenario Harness — si armava, pagava e mancava. E' gratis come portata e piano:
+			// la mappa del click e' una copia di quella autorevole con le stesse celle (`MakeOptimisticPlanningMap`), quindi la
+			// risposta e' la stessa e il piano e' uno che il click rifiuta ([D-571]). Senza mappa resta `NoMap`, dal classificatore.
+			// ⌫ *Fino a `#4099` questo era un residuo dichiarato dalla review di `#4091`.*
 			// ⌫ *Fino alla review di `#4091` qui si leggeva la tabella del Blast (`PagaSeParteSenzaColpo`), che fa pagare anche
 			// il piano diverso: all'armamento quel motivo e' sempre un piano che il click rifiuta, e pagava contro [D-571].*
 			if (Unit->bAttackTargetsCell)
 			{
 				FVector MapOrigin; float MapHexSize; float MapLayerH;
 				const URTHexMapAsset* MapForArming = GetHexContext(MapOrigin, MapHexSize, MapLayerH);
-				const ERTActionInvalidReason Why = URTActionFallbackLibrary::CellShotRefusal(URTCombatLibrary::ClassifyHexTargeting(
-					MapForArming, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Unit->PlannedAttackCell,
-					Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
-					URTCombatLibrary::CrossLayerAimFor(Ability->Def)));
+				const ERTActionInvalidReason Why = MapForArming && !MapForArming->ContainsCell(Unit->PlannedAttackCell)
+					? ERTActionInvalidReason::OffMap
+					: URTActionFallbackLibrary::CellShotRefusal(URTCombatLibrary::ClassifyHexTargeting(
+						MapForArming, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Unit->PlannedAttackCell,
+						Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
+						URTCombatLibrary::CrossLayerAimFor(Ability->Def)));
 				if (Why != ERTActionInvalidReason::None)
 				{
 					FRTTurnLogEntry NonArmata;
