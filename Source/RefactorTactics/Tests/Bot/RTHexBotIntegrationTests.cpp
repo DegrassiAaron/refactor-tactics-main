@@ -1671,11 +1671,14 @@ namespace
  *
  * 🔑 **Una misura, una guardia e un controllo.**
  * (1) **La misura**: due partite di soli bot, 2v2 con un Ivrin per parte, col loadout montato come lo monta il gioco
- *     (`RTMatchBootstrapper`, `DefaultLoadoutFor`) — una col kit di default, una con Ivrin su `Weapon.Split`. Conta i piani
- *     principali di Ivrin e quanti sono predittivi, e stampa (`AddInfo`) i danni delle due azioni. ⚠️ **Non e' la guardia**:
- *     le celle da cui `InterceptShot` colpisce sono un sottoinsieme di quelle di `PulseShot`, e a parita' di punteggio il
- *     bot tiene il primo candidato (lo slot 0), quindi questa parte resta verde anche senza la regola quando i danni si
- *     equivalgono. E' la misura che `#4094` chiedeva PRIMA della regola, ed e' scritta in D-610 col commit.
+ *     (`RTMatchBootstrapper`, `DefaultLoadoutFor`). Conta i piani principali di Ivrin e quanti sono predittivi, e stampa
+ *     (`AddInfo`) i pezzi montati e i danni delle due azioni. Misurata su `b88dfb5ad` SENZA la regola (il codice del bot e'
+ *     quello di `7d8c31607`), scritta in D-610:
+ *     - col kit di default il loadout di Ivrin e' VUOTO (`DefaultLoadoutFor` non trova i tre pezzi), `PulseShot` fa 210 e
+ *       `InterceptShot` 160: 0 piani predittivi su 20. Le celle dell'intercetto sono un sottoinsieme di quelle del colpo a
+ *       impulsi e il punteggio e' piu' basso, quindi qui la regola non cambia niente, e questa partita non la guarda;
+ *     - con `Weapon.Split` `PulseShot` scende a 150: 4 piani predittivi su 20, e 4 voci di `InterceptShot` nel TurnLog.
+ *       Questa partita **e'** una guardia: senza la regola diventa rossa.
  * (2) **La guardia**: un Ivrin bot accanto a un nemico, con `InterceptShot` come UNICO attacco del kit (il `PulseShot`
  *     dello slot 0 sostituito da una seconda copia). Prima di `#4094` il bot la sceglieva.
  * (3) Il **controllo**: la stessa scena con la copia resa NON predittiva. Il bot la sceglie — quindi la scena tenta

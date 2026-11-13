@@ -276,7 +276,7 @@ competence:
     why: >-
       Il planner non guarda ne' la fase ne' il targeting predittivo, e nessuna azione di Aevik lo dichiara.
       ⌫ Fino al 2026-11-13 qui si leggeva «zero occorrenze di `Predictive` in `Bot/`»: da D-610 (4) (#4094)
-      ce n'e' una, ed e' l'esclusione delle predittive dai candidati d'attacco, non un uso.
+      `Bot/` la nomina per escludere le predittive dai candidati d'attacco, non per usarla.
 
   # ---------------------------------------------------------------------------------------------------
   # Hero.Muiren — ⚠️ i suoi test Automation si chiamano ancora `RefactorTactics.Heroes.Phase.*`: e' il

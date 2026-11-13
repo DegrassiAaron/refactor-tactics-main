@@ -51,7 +51,8 @@
 // ⌫ *Fino a `#4094` qui si leggeva che la predittiva «vuole un bersaglio-CELLA che solo `ARTPlayerController`
 // dichiara»: era falso dal 2026-10-10, quando il bot ha cominciato a dichiarare la cella del nemico per ogni attacco
 // che non aggancia. Il bot poteva quindi pianificarla, e la coincidenza qui sotto reggeva solo perche' nelle partite
-// misurate non la sceglieva mai (`PulseShot` vince dalle stesse celle). Da `#4094` regge per costruzione.*
+// misurate non la sceglieva mai: col kit di default `PulseShot` (210) vince dalle stesse celle; con `Weapon.Split` la
+// sceglieva. Da `#4094` regge per costruzione.*
 //
 // ∴ la guardia `UmaneViste == 0` non e' cerimoniale: e' la condizione che tiene in piedi questa coincidenza.
 // Il giorno in cui una di quelle due famiglie emettesse la voce, a mancare non sarebbe il numeratore — non la
