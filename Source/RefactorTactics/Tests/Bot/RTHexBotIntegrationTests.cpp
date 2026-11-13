@@ -1666,14 +1666,18 @@ namespace
 
 /**
  * **Il bot non pianifica una predittiva** ([D-610] (4), `#4094`): «il bot non considera le predittive finche' non sa
- * scegliere una cella in cui un nemico entrera'». Oggi la blocca sulla cella dove il nemico STA, e la previsione colpisce
+ * scegliere una cella in cui un nemico entrera'». Prima la bloccava sulla cella dove il nemico STA, e la previsione colpisce
  * solo chi ENTRA (`Predictive.CrossingIsNotPresence`): una scommessa che manca sempre e costa la ricarica.
  *
- * 🔑 **Due misure e un controllo.**
- * (1) Una partita di soli bot, 2v2 con un Ivrin per parte: quanti piani principali sono predittivi, turno per turno. E'
- *     la misura che `#4094` chiedeva PRIMA della regola, e resta stampata (`AddInfo`) anche a test verde.
- * (2) La scena che la tenta: un Ivrin bot accanto a un nemico, con `InterceptShot` come UNICO attacco del kit (il
- *     `PulseShot` dello slot 0 sostituito da una seconda copia). Prima di `#4094` il bot la sceglieva.
+ * 🔑 **Una misura, una guardia e un controllo.**
+ * (1) **La misura**: due partite di soli bot, 2v2 con un Ivrin per parte, col loadout montato come lo monta il gioco
+ *     (`RTMatchBootstrapper`, `DefaultLoadoutFor`) — una col kit di default, una con Ivrin su `Weapon.Split`. Conta i piani
+ *     principali di Ivrin e quanti sono predittivi, e stampa (`AddInfo`) i danni delle due azioni. ⚠️ **Non e' la guardia**:
+ *     le celle da cui `InterceptShot` colpisce sono un sottoinsieme di quelle di `PulseShot`, e a parita' di punteggio il
+ *     bot tiene il primo candidato (lo slot 0), quindi questa parte resta verde anche senza la regola quando i danni si
+ *     equivalgono. E' la misura che `#4094` chiedeva PRIMA della regola, ed e' scritta in D-610 col commit.
+ * (2) **La guardia**: un Ivrin bot accanto a un nemico, con `InterceptShot` come UNICO attacco del kit (il `PulseShot`
+ *     dello slot 0 sostituito da una seconda copia). Prima di `#4094` il bot la sceglieva.
  * (3) Il **controllo**: la stessa scena con la copia resa NON predittiva. Il bot la sceglie — quindi la scena tenta
  *     davvero, e cio' che separa (2) da (3) e' il solo campo `PredictiveTargeting`.
  */
@@ -1682,10 +1686,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotDoesNotPlanAPredictiveTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 {
-	// ── (1) La partita di soli bot. ──────────────────────────────────────────────────────────────────────────
+	// ── (1) La misura: due partite di soli bot, col loadout del gioco. ───────────────────────────────────────
+	// `ArmaIvrin` vuoto = il kit di default; altrimenti la variante d'arma che sostituisce quella di default di Ivrin.
+	auto Partita = [this](const FName& ArmaIvrin) -> bool
 	{
 		UWorld* World = MakeHexBotWorld();
-		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		if (!World) { return false; }
 		SpawnHexBotMap(World, /*Radius=*/ 6);
 		TArray<ARTUnit*> Bots;
 		Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 1), /*bBot*/ true));
@@ -1695,7 +1701,27 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
 
-		int32 PianiPrincipali = 0;
+		FString Danni;
+		for (ARTUnit* Bot : Bots)
+		{
+			TArray<FName> Pezzi = URTCatalogLibrary::DefaultLoadoutFor(Bot->HeroId);
+			const bool bIvrin = Bot->HeroId == FName(TEXT("Hero.Ivrin"));
+			if (bIvrin && !ArmaIvrin.IsNone() && Pezzi.Num() > 0) { Pezzi[0] = ArmaIvrin; }
+			Bot->EquipLoadout(Pezzi);
+			if (bIvrin && Danni.IsEmpty())
+			{
+				for (int32 A = 0; A < Bot->NumAbilities(); ++A)
+				{
+					const URTActionData* Az = Bot->GetAbility(A);
+					if (Az && (Az->Def.ActionId == FName(TEXT("Hero.Ivrin.PulseShot")) || Az->Def.ActionId == FName(TEXT("Hero.Ivrin.InterceptShot"))))
+					{
+						Danni += FString::Printf(TEXT("%s %d, "), *Az->Def.ActionId.ToString(), Az->Power);
+					}
+				}
+			}
+		}
+
+		int32 PianiIvrin = 0;
 		int32 PianiPredittivi = 0;
 		int32 VociPredittive = 0; // voci del TurnLog di `InterceptShot`: armata (Predictive) o rifiutata (Fallback)
 		for (int32 Turno = 1; Turno <= 12; ++Turno)
@@ -1704,7 +1730,7 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 			for (const ARTUnit* Bot : Bots)
 			{
 				if (!Bot || !Bot->IsAlive()) { continue; }
-				if (Bot->GetAbility(Bot->PlannedAbilityIndex)) { ++PianiPrincipali; }
+				if (Bot->HeroId == FName(TEXT("Hero.Ivrin")) && Bot->GetAbility(Bot->PlannedAbilityIndex)) { ++PianiIvrin; }
 				if (BotPlansAPredictive(Bot)) { ++PianiPredittivi; }
 			}
 			TM->LockInAndResolve();
@@ -1714,12 +1740,19 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 				if (E.ActionId == FName(TEXT("Hero.Ivrin.InterceptShot"))) { ++VociPredittive; }
 			}
 		}
-		AddInfo(FString::Printf(TEXT("MISURA (partita di soli bot, 2v2, 12 turni): %d piani principali, %d predittivi; %d voci di InterceptShot nel TurnLog"),
-			PianiPrincipali, PianiPredittivi, VociPredittive));
-		TestTrue(TEXT("premessa: i bot hanno pianificato azioni principali"), PianiPrincipali > 0);
-		TestEqual(TEXT("nessun piano principale di un bot e' una predittiva"), PianiPredittivi, 0);
-		TestEqual(TEXT("e il TurnLog non ha voci di InterceptShot"), VociPredittive, 0);
+		const FString Kit = ArmaIvrin.IsNone() ? FString(TEXT("kit di default")) : FString::Printf(TEXT("Ivrin su %s"), *ArmaIvrin.ToString());
+		AddInfo(FString::Printf(TEXT("MISURA (soli bot, 2v2, 12 turni, %s; danni: %s): %d piani principali di Ivrin, %d predittivi; %d voci di InterceptShot nel TurnLog"),
+			*Kit, *Danni, PianiIvrin, PianiPredittivi, VociPredittive));
+		TestTrue(*FString::Printf(TEXT("%s — premessa: Ivrin ha pianificato azioni principali"), *Kit), PianiIvrin > 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessun piano principale di un bot e' una predittiva"), *Kit), PianiPredittivi, 0);
+		TestEqual(*FString::Printf(TEXT("%s: e il TurnLog non ha voci di InterceptShot"), *Kit), VociPredittive, 0);
 		DestroyHexBotWorld(World);
+		return true;
+	};
+	if (!TestTrue(TEXT("banco: partita col kit di default"), Partita(NAME_None))
+		|| !TestTrue(TEXT("banco: partita con Weapon.Split"), Partita(FName(TEXT("Weapon.Split")))))
+	{
+		return false;
 	}
 
 	// ── (2) e (3): la scena che la tenta, e il controllo. ────────────────────────────────────────────────────
