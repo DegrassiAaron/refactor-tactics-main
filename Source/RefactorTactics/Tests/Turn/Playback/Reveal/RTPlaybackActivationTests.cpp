@@ -390,7 +390,7 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 	BeatMappa(World, 8);
 
 	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
-	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-2, 0));
+	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
@@ -526,7 +526,7 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 	BeatMappa(World, 6);
 
 	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
-	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
+	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
 	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
@@ -682,7 +682,7 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 	BeatMappa(World, 8);
 
 	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
-	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Caricatore || !Bersaglio) { return false; }
 	const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram"));
@@ -845,7 +845,7 @@ bool FRTPlaybackActivationCueAtTheSourceCellTest::RunTest(const FString&)
 		BeatMappa(World, 8);
 		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
 		ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
-		ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+		ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Caricatore || !Bersaglio || !Mappa) { return false; }
 		const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram"));

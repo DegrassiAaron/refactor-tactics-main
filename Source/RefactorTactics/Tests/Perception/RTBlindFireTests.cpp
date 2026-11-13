@@ -601,7 +601,7 @@ bool FRTBlindFireIsNotADetectorTest::RunTest(const FString&)
 		if (bConNemicoIgnoto)
 		{
 			// Vivo, avversario, **sulla cella mirata**, e mai osservato dalla squadra di chi pianifica.
-			Nascosto = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), Aim);
+			Nascosto = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), Aim);
 			if (!Nascosto) { DestroyBlindFireWorld(B.World); return false; }
 			Nascosto->SetKnownToObserver(false);
 		}
@@ -689,7 +689,7 @@ bool FRTBlindFireUnknownUnitStaysUntargetableTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("banco di prova"), SetUpBlindFireBench(B))) { DestroyBlindFireWorld(B.World); return false; }
 
 	// Adiacente, in piena vista: cio' che lo rende non bersagliabile e' SOLO la conoscenza.
-	ARTUnit* Nemico = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0));
+	ARTUnit* Nemico = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0));
 	if (!Nemico) { DestroyBlindFireWorld(B.World); return false; }
 
 	const int32 Attacco = 0; // l'attacco base e' il primo del kit, ed e' quello che punta un'unita'
@@ -1004,7 +1004,7 @@ bool FRTCellRefusalIsNotADetectorTest::RunTest(const FString&)
 			// Vivo, avversario, **sulla cella mirata**, e mai osservato: e' il posto in cui l'informazione
 			// morderebbe. Un canary che tenesse il nemico lontano dal bersaglio sarebbe verde per
 			// costruzione.
-			ARTUnit* Nascosto = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), Aim);
+			ARTUnit* Nascosto = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), Aim);
 			if (!Nascosto) { DestroyBlindFireWorld(B.World); return false; }
 			Nascosto->SetKnownToObserver(false);
 			// ⚠️ La conoscenza si impone DOPO lo spawn e si verifica PRIMA del click: `bKnownToObserver`

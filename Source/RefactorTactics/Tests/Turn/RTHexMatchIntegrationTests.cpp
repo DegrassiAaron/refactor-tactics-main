@@ -1362,7 +1362,7 @@ namespace
 		// selezione» non e' esprimibile — l'unica alternativa sarebbe selezionare l'AVVERSARIA, che
 		// `OnSelect` rifiuta (*«e' avversaria: seleziona prima una tua unita'»*) e che un test non deve
 		// chiedere passando dall'API diretta: sarebbe un percorso che il gioco non produce.
-		ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-3, 0));
+		ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
 		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
 		if (!A || !A2 || !B) { return nullptr; }
 		A->bIsBotControlled = false; // il Ready e' un gesto umano: con tutte a bot la prova sarebbe di un'altra partita
@@ -2389,7 +2389,7 @@ namespace
 
 		SpawnHexMatchMap(M.World, /*Radius=*/ 4);
 		M.A  = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
-		M.A2 = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-3, 0));
+		M.A2 = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
 		M.B  = SpawnHexMatchUnit(M.World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
 		if (!M.A || !M.A2 || !M.B) { return M; }
 
@@ -2948,7 +2948,7 @@ bool FRTTwoAttackersNetShareTest::RunTest(const FString&)
 	// Due attaccanti di squadra 0 ai lati del bersaglio, entrambi adiacenti: due colpi nella stessa fase.
 	ARTUnit* PrimoA   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* SecondoA = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
-	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !PrimoA || !SecondoA || !Bersaglio) { DestroyHexMatchWorld(World); return false; }
 	PrimoA->bIsBotControlled = false;
@@ -3034,7 +3034,7 @@ bool FRTTwoAttackersLethalEntryTest::RunTest(const FString&)
 
 	ARTUnit* PrimoA   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* SecondoA = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
-	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !PrimoA || !SecondoA || !Bersaglio) { DestroyHexMatchWorld(World); return false; }
 	PrimoA->bIsBotControlled = false;
@@ -5005,7 +5005,7 @@ bool FRTFocusWiringCrowdTest::RunTest(const FString&)
 	{
 		B.Mine->PlaceOnCell(Inside[0], FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		if (ARTUnit* Ally = FwOtherOwn(B.World, B.Mine)) { Ally->PlaceOnCell(Inside[1], FVector::ZeroVector, 100.f, 250.f); }
-		SpawnHexMatchUnit(B.World, /*TeamId=*/ 1, URTHeroCatalogLibrary::MakeAevik(), Inside[2]); // un secondo nemico, in vista
+		SpawnHexMatchUnit(B.World, /*TeamId=*/ 1, URTHeroCatalogLibrary::MakeGadget(), Inside[2]); // un secondo nemico, in vista
 		SpawnHexMatchUnit(B.World, /*TeamId=*/ 1, URTHeroCatalogLibrary::MakeRiktor(), InTheDark); // un terzo, nel buio
 	};
 	const FFwResult WithCrowd = FwRun(*this, Crowded);

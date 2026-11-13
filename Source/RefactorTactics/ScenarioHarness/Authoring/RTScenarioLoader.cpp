@@ -364,7 +364,7 @@ namespace
 	 *
 	 * 🔴 **Il `TryGet*Field` di stringa risponde `false` a entrambi**, e usarlo come guardia di presenza — cioe'
 	 * `if (TryGet*Field(...) && !Vuota)` — fa saltare l'intero blocco in silenzio. `"ability": ""` e
-	 * `"ability": ["Hero.Aevik.ArcPulse"]` caricavano verde senza abilita': l'unita' non la usava, lo
+	 * `"ability": ["Hero.Gadget.ArcPulse"]` caricavano verde senza abilita': l'unita' non la usava, lo
 	 * scenario riportava `PASS`, e nessuno aveva scritto un test su una partita diversa apposta.
 	 *
 	 * 🔑 **La stringa VUOTA e' un errore e non un'omissione**, verificato contro il writer invece che

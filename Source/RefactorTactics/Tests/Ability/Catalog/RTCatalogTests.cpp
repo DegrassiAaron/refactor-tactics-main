@@ -432,7 +432,7 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
 					//   - si PREPARA senza essere supporto su se' — `Riktor.Reconfigure`, `Phase.FlowReaction`,
 					//     `Ivrin.InterceptShot` (fase Prep);
-					//   - agisce sull'AMBIENTE — `Aevik.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
+					//   - agisce sull'AMBIENTE — `Gadget.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
 					//     `Riktor.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
 					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
 					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:

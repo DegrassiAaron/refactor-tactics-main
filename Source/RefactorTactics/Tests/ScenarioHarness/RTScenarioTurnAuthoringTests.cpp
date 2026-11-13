@@ -36,7 +36,7 @@ namespace
 	  "version": 1,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -44,7 +44,7 @@ namespace
 	)JSON");
 
 	// Per lo slot REATTIVO serve una unita' che possieda davvero una reazione: `ValidateScenarioTurns`
-	// rifiuta `non possiede la reazione`, e provarlo su Aevik misurerebbe il rifiuto invece dello slot.
+	// rifiuta `non possiede la reazione`, e provarlo su Gadget misurerebbe il rifiuto invece dello slot.
 	// `Hero.Ivrin.Deflection` e' la reazione che `Scenarios/Spec/Overwatch/` arma per davvero.
 	const TCHAR* TurnAuthoringReactionJson = TEXT(R"JSON(
 	{
@@ -559,7 +559,7 @@ bool FRTScenarioIntentPreservesOtherFieldsTest::RunTest(const FString&)
 	// Un intent ricco, come ne esistono negli scenari scritti a mano.
 	FRTScenarioIntent Rich;
 	Rich.UnitId = TEXT("A1");
-	Rich.Ability = FName(TEXT("Hero.Aevik.ArcPulse"));
+	Rich.Ability = FName(TEXT("Hero.Gadget.ArcPulse"));
 	Rich.Target = TEXT("B1");
 	Rich.Reaction = FName(TEXT("Action.Overwatch"));
 	Rich.Facing = ERTHexDirection::NW;
@@ -573,7 +573,7 @@ bool FRTScenarioIntentPreservesOtherFieldsTest::RunTest(const FString&)
 
 	const FRTScenarioIntent& After = Draft.GetScenario().Turns[0].Intents[0];
 	TestEqual(TEXT("il nuovo percorso c'e'"), After.Move.Num(), 1);
-	TestEqual(TEXT("l'abilita' e' sopravvissuta"), After.Ability, FName(TEXT("Hero.Aevik.ArcPulse")));
+	TestEqual(TEXT("l'abilita' e' sopravvissuta"), After.Ability, FName(TEXT("Hero.Gadget.ArcPulse")));
 	TestEqual(TEXT("il bersaglio e' sopravvissuto"), After.Target, TEXT("B1"));
 	TestEqual(TEXT("la reazione e' sopravvissuta"), After.Reaction, FName(TEXT("Action.Overwatch")));
 	TestTrue(TEXT("la rotazione dichiarata e' sopravvissuta"), After.bDeclaresFacing);
@@ -1269,7 +1269,7 @@ bool FRTScenarioPreviewCarriesTheTeamTest::RunTest(const FString&)
 	// A1 e' in `(-2,0)` di squadra 0. La COMPAGNA gli si mette davanti, sull'unica via verso destra.
 	FRTScenarioUnit Compagna;
 	Compagna.Id = TEXT("A2");
-	Compagna.HeroId = TEXT("Hero.Aevik");
+	Compagna.HeroId = TEXT("Hero.Gadget");
 	Compagna.TeamId = 0;
 	Compagna.Cell = FRTCellId(-1, 0, 0);
 	Draft.MutableScenario().Units.Add(Compagna);

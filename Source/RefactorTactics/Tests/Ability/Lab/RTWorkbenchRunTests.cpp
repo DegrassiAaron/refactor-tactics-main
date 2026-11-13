@@ -5,8 +5,8 @@
 // di design: **il risultato cambia?**
 //
 // Lo scenario e' quello di `Scenarios/Combat/BasicAttack.json`, costruito in memoria con gli stessi numeri:
-// Aevik colpisce Riktor a distanza 2 con `Hero.Aevik.ArcPulse` (220 danni). Dal CP 53.3c di E53 il colpo passa
-// dalla formula di [D-589] con i numeri del catalogo: Aevik sta alle SPALLE di Riktor (che guarda a est), quindi
+// Gadget colpisce Riktor a distanza 2 con `Hero.Gadget.ArcPulse` (220 danni). Dal CP 53.3c di E53 il colpo passa
+// dalla formula di [D-589] con i numeri del catalogo: Gadget sta alle SPALLE di Riktor (che guarda a est), quindi
 // entra il suo bonus alle spalle (60, [D-599]) e la DEF 45 di Riktor ([D-595] (3)): `floor((220 + 60) × 100/145)
 // = 193`, meno lo scudo BASE di [D-224] (50) → Riktor finisce a 1057. `SaluteDiB1` lo calcola dal catalogo.
 //
@@ -43,15 +43,15 @@ namespace RTWorkbenchRun
 	}
 
 	/**
-	 * La salute di Riktor dopo UN `ArcPulse` da `Danno`, dalla formula e dal catalogo: alle spalle (bonus di Aevik),
+	 * La salute di Riktor dopo UN `ArcPulse` da `Danno`, dalla formula e dal catalogo: alle spalle (bonus di Gadget),
 	 * contro la DEF di Riktor, meno lo scudo base. Il test chiede «il risultato cambia?», non «quanto vale la
 	 * formula»: calcolarlo qui tiene la domanda ferma quando cambiano i numeri del catalogo.
 	 */
 	int32 SaluteDiB1(int32 Danno)
 	{
-		const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+		const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 		const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
-		return Riktor->MaxHealth - (URTCombatLibrary::MitigateDirectDamage(Danno, Aevik->RearBonus, 100, Riktor->Defense)
+		return Riktor->MaxHealth - (URTCombatLibrary::MitigateDirectDamage(Danno, Gadget->RearBonus, 100, Riktor->Defense)
 			- URTCombatLibrary::BaseShield);
 	}
 
@@ -64,19 +64,19 @@ namespace RTWorkbenchRun
 		}
 	}
 
-	/** `Combat.BasicAttack` in memoria: Aevik colpisce Riktor, e si asserisce la SALUTE attesa. */
+	/** `Combat.BasicAttack` in memoria: Gadget colpisce Riktor, e si asserisce la SALUTE attesa. */
 	FRTTestScenario BasicAttack(int32 SaluteAttesaDiB1)
 	{
 		FRTTestScenario S;
 		S.ScenarioId = TEXT("Internal.WorkbenchVariantRun");
 		S.MapRadius = 4;
 
-		FRTScenarioUnit Aevik;
-		Aevik.Id = TEXT("A1");
-		Aevik.HeroId = FName(TEXT("Hero.Aevik"));
-		Aevik.TeamId = 0;
-		Aevik.Cell = FRTCellId(-1, 0);
-		S.Units.Add(Aevik);
+		FRTScenarioUnit Gadget;
+		Gadget.Id = TEXT("A1");
+		Gadget.HeroId = FName(TEXT("Hero.Gadget"));
+		Gadget.TeamId = 0;
+		Gadget.Cell = FRTCellId(-1, 0);
+		S.Units.Add(Gadget);
 
 		FRTScenarioUnit Riktor;
 		Riktor.Id = TEXT("B1");
@@ -88,7 +88,7 @@ namespace RTWorkbenchRun
 		FRTScenarioTurn Turn;
 		FRTScenarioIntent Colpo;
 		Colpo.UnitId = TEXT("A1");
-		Colpo.Ability = FName(TEXT("Hero.Aevik.ArcPulse"));
+		Colpo.Ability = FName(TEXT("Hero.Gadget.ArcPulse"));
 		Colpo.Target = TEXT("B1");
 		Turn.Intents.Add(Colpo);
 		S.Turns.Add(Turn);
@@ -108,7 +108,7 @@ namespace RTWorkbenchRun
 		FRTWorkbenchVariant V;
 		V.VariantId = FName(Id);
 		FRTAbilityParameterOverride Ov;
-		Ov.ActionId = FName(TEXT("Hero.Aevik.ArcPulse"));
+		Ov.ActionId = FName(TEXT("Hero.Gadget.ArcPulse"));
 		Ov.ParameterKey = RTActionParameterKeys::Damage();
 		Ov.Value = Danno;
 		V.Overrides.Add(Ov);
@@ -280,10 +280,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkbenchVariantReachesEveryInstanceTest,
 bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 {
 	// Due kit distinti: e' cio' che due unita' dello stesso eroe hanno in partita.
-	const URTHeroData* PrimoEroe = URTHeroCatalogLibrary::MakeAevik();
-	const URTHeroData* SecondoEroe = URTHeroCatalogLibrary::MakeAevik();
-	if (!TestNotNull(TEXT("il primo Aevik esiste"), PrimoEroe)) { return false; }
-	if (!TestNotNull(TEXT("il secondo Aevik esiste"), SecondoEroe)) { return false; }
+	const URTHeroData* PrimoEroe = URTHeroCatalogLibrary::MakeGadget();
+	const URTHeroData* SecondoEroe = URTHeroCatalogLibrary::MakeGadget();
+	if (!TestNotNull(TEXT("il primo Gadget esiste"), PrimoEroe)) { return false; }
+	if (!TestNotNull(TEXT("il secondo Gadget esiste"), SecondoEroe)) { return false; }
 
 	TArray<URTActionData*> Unione;
 	URTActionData* PrimoArcPulse = nullptr;
@@ -293,7 +293,7 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		if (URTActionData* A = V)
 		{
 			Unione.Add(A);
-			if (A->Def.ActionId == FName(TEXT("Hero.Aevik.ArcPulse"))) { PrimoArcPulse = A; }
+			if (A->Def.ActionId == FName(TEXT("Hero.Gadget.ArcPulse"))) { PrimoArcPulse = A; }
 		}
 	}
 	for (const TObjectPtr<URTActionData>& V : SecondoEroe->Actions)
@@ -301,7 +301,7 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		if (URTActionData* A = V)
 		{
 			Unione.Add(A);
-			if (A->Def.ActionId == FName(TEXT("Hero.Aevik.ArcPulse"))) { SecondoArcPulse = A; }
+			if (A->Def.ActionId == FName(TEXT("Hero.Gadget.ArcPulse"))) { SecondoArcPulse = A; }
 		}
 	}
 

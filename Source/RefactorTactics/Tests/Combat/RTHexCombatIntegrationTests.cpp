@@ -1065,7 +1065,7 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Hinge);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1146,7 +1146,7 @@ bool FRTHexInteractDoorlessEdgeRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1228,7 +1228,7 @@ bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
 	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
 	AddClosedDoor(MapActor, Target, ERTHexDirection::E);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1374,7 +1374,7 @@ bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
 
-	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Closer || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1459,12 +1459,12 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 		ARTUnit* Second = nullptr;
 		if (bSwapped)
 		{
-			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), East);
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), East);
 			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), West);
 		}
 		else
 		{
-			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), West);
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), West);
 			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), East);
 		}
 		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
@@ -1573,7 +1573,7 @@ bool FRTHexInteractOnLockedDoorRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Locked);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1637,7 +1637,7 @@ bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Destroyed);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1971,16 +1971,16 @@ bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	// ⚠️ **Aevik, e l'area viene dal suo KIT, non da `Action.CircularAoE`**: la voce di catalogo dichiara
+	// ⚠️ **Gadget, e l'area viene dal suo KIT, non da `Action.CircularAoE`**: la voce di catalogo dichiara
 	// identita', fase e portata, ma **non** forma e raggio — quelli stanno sull'abilita' dell'eroe. Montare
 	// l'azione di catalogo dava una forma `Single`, e il test passava perche' il centro colpisce il proprio
-	// centro. `Hero.Aevik.Overload`: `Area`, raggio 1, portata 3.
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0));
+	// centro. `Hero.Gadget.Overload`: `Area`, raggio 1, portata 3.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
-	const int32 Area = FindAbilityByActionId(Shooter, TEXT("Hero.Aevik.Overload"));
+	const int32 Area = FindAbilityByActionId(Shooter, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("premessa: l'eroe porta l'area nel kit"), Area != INDEX_NONE))
 	{
 		DestroyHexBlastWorld(World);

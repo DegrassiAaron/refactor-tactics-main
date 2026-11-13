@@ -138,7 +138,7 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 		// Squadra 0: chi attacca (Blast) e chi cammina nella zona (Move). Squadra 1: il bersaglio, un altro nemico per
 		// la sonda, e chi tiene l'Overwatch. Il Mover e il Watcher hanno le distanze della fixture di
 		// `Reactions.WindowSuspendsResolution`, traslate a est perche' non tocchino la linea dell'attacco.
-		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
 		ARTUnit* Target   = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
 		ARTUnit* Decoy    = SpawnSuspHero(World, TEXT("Hero.Muiren"), 1, FRTCellId(-3, 0, 0));
 		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Riktor"), 0, FRTCellId( 5, 0, 0));
@@ -156,8 +156,8 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 		TM->bEnablePlayback = bPlayback;
 
 		// Un'azione ATTIVA con ricarica di almeno due turni, che il click su un'unita' sa pianificare.
-		const int32 ConRicarica = FindSuspAbilityById(Attacker, TEXT("Hero.Aevik.LinearDischarge"));
-		if (!TestNotEqual(*E(TEXT("premessa: Aevik ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
+		const int32 ConRicarica = FindSuspAbilityById(Attacker, TEXT("Hero.Gadget.LinearDischarge"));
+		if (!TestNotEqual(*E(TEXT("premessa: Gadget ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
 			|| !TestTrue(*E(TEXT("premessa: la sua ricarica e' di almeno due turni")),
 				Attacker->GetAbility(ConRicarica)->CooldownTurns >= 2))
 		{
@@ -445,7 +445,7 @@ bool FRTConsumedArmedActionInTheDockTest::RunTest(const FString&)
 
 		// Le stesse distanze di `Reactions.ASuspendedResolutionIsReadOnlyForInput`: chi attacca, il bersaglio, chi cammina nella
 		// zona e chi tiene l'Overwatch.
-		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+		ARTUnit* Attacker = SpawnSuspHero(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
 		ARTUnit* Target   = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
 		ARTUnit* Mover    = SpawnSuspHero(World, TEXT("Hero.Riktor"), 0, FRTCellId( 5, 0, 0));
 		ARTUnit* Watcher  = SpawnSuspHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 8, 0, 0));
@@ -460,8 +460,8 @@ bool FRTConsumedArmedActionInTheDockTest::RunTest(const FString&)
 		}
 		TM->bEnablePlayback = bPlayback;
 
-		const int32 ConRicarica = FindSuspAbilityById(Attacker, TEXT("Hero.Aevik.LinearDischarge"));
-		if (!TestNotEqual(*E(TEXT("premessa: Aevik ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
+		const int32 ConRicarica = FindSuspAbilityById(Attacker, TEXT("Hero.Gadget.LinearDischarge"));
+		if (!TestNotEqual(*E(TEXT("premessa: Gadget ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
 			|| !TestTrue(*E(TEXT("premessa: la sua ricarica e' di almeno due turni")),
 				Attacker->GetAbility(ConRicarica)->CooldownTurns >= 2))
 		{

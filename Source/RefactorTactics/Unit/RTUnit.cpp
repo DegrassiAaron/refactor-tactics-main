@@ -1040,7 +1040,7 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.
 	//
 	// 🔴 **E vale per un GESTO che si carica ma e' ADDITIVO** (#3590): sullo slot si somma all'`Idle` come delta e la
-	// posa non cambia. Nella seduta `U70` le clip d'azione di Aevik suonavano cosi', senza una riga di log. Qui il
+	// posa non cambia. Nella seduta `U70` le clip d'azione di Gadget suonavano cosi', senza una riga di log. Qui il
 	// ripiego e' un `Warning`, non un `Verbose`: un'additiva su un gesto e' un errore di dati, non un degrado
 	// previsto come la clip non cotta.
 	// ⛔ Solo i gesti (`RTRoleWantsAFullBodyClip`): la hit-react additiva e' una reazione che si somma, e si vede.
@@ -1393,7 +1393,7 @@ FString ARTUnit::ShortHeroName(FName InHeroId, const FString& Fallback)
 		return Fallback;
 	}
 	const FString Full = InHeroId.ToString();
-	// Gli HeroId sono namespaced (`Hero.Aevik`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
+	// Gli HeroId sono namespaced (`Hero.Gadget`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
 	// di avere il punto, questa resta corretta invece di mostrare una stringa vuota.
 	int32 Dot = INDEX_NONE;
 	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())

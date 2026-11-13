@@ -128,7 +128,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCoordinatorPosesHeroClassTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 {
-	// `Movement.Basic`: A1 e' Aevik, B1 e' Riktor. Solo Aevik riceve una classe.
+	// `Movement.Basic`: A1 e' Gadget, B1 e' Riktor. Solo Gadget riceve una classe.
 	for (const bool bConClassi : { true, false })
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -140,29 +140,29 @@ bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 			TMap<FName, TSubclassOf<ARTUnit>> Classi;
 			if (bConClassi)
 			{
-				Classi.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+				Classi.Add(FName(TEXT("Hero.Gadget")), ARTUnitClassProbeForTest::StaticClass());
 			}
 			const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f, Classi);
 			TestTrue(TEXT("premessa: lo scenario parte"), Esito == ERTScenarioStart::Started);
 			// ⚠️ `Started` arriva anche quando la sessione fallisce: e' `IsRunning` a dire che e' partita davvero.
 			TestTrue(TEXT("premessa: e la sessione sta girando"), Coordinator.IsRunning());
 
-			int32 Aevik = 0;
+			int32 Gadget = 0;
 			int32 Riktor = 0;
 			for (TActorIterator<ARTUnit> It(World); It; ++It)
 			{
 				const ARTUnit* U = *It;
-				if (U->HeroId == FName(TEXT("Hero.Aevik")))
+				if (U->HeroId == FName(TEXT("Hero.Gadget")))
 				{
-					++Aevik;
+					++Gadget;
 					if (bConClassi)
 					{
-						TestTrue(TEXT("con le classi, Aevik e' posato con la SUA classe"),
+						TestTrue(TEXT("con le classi, Gadget e' posato con la SUA classe"),
 							U->IsA<ARTUnitClassProbeForTest>());
 					}
 					else
 					{
-						TestTrue(TEXT("senza classi, Aevik e' il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+						TestTrue(TEXT("senza classi, Gadget e' il cilindro"), U->GetClass() == ARTUnit::StaticClass());
 					}
 				}
 				else if (U->HeroId == FName(TEXT("Hero.Riktor")))
@@ -171,7 +171,7 @@ bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 					TestTrue(TEXT("Riktor non ha una classe: resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
 				}
 			}
-			TestEqual(TEXT("premessa: c'e' un Aevik"), Aevik, 1);
+			TestEqual(TEXT("premessa: c'e' un Gadget"), Gadget, 1);
 			TestEqual(TEXT("premessa: c'e' un Riktor"), Riktor, 1);
 		}
 

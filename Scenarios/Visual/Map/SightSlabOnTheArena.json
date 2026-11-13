@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Map.SightSlabOnTheArena",
-  "tags": ["map", "vision", "cover", "aevik", "riktor"],
+  "tags": ["map", "vision", "cover", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "fixture": "ArenaV01",
@@ -14,7 +14,7 @@
   "_nota_cosa_questo_banco_NON_puo_fare": "⛔ NON puo' chiudere `PIE-VIS-SIGHTWALL`, e va detto qui perche' nessuno ci provi. Quella voce chiede se chi guarda COLLEGHI la riga del feed al segno sulla cella, e la risposta vuole una PIANIFICAZIONE VIVA: in auto-run `FRTScenarioSession::Step` durante la pausa esegue solo `PauseElapsed += DeltaSeconds`, `BeginTurn()` azzera i piani e committa nello stesso frame, e la guardia della linea d'intento vuole `Phase == Planning && !IsResolving() && View.bHasTarget` — la terza e' falsa per tutta la pausa. Alzare `ScenarioTurnPauseSeconds` da' piu' tempo per guardare una scena in cui nessuno sta pianificando, ed e' l'errore gia' registrato quattro volte su quella voce. Questo banco prova che la lastra NEGHI il tiro e si LASCI attraversare, sulla mappa giusta; il giudizio percettivo resta una partita umana.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [2, 0, 0] },
+    { "id": "A1", "hero": "Hero.Gadget",  "team": 0, "cell": [2, 0, 0] },
     { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 2, 0] }
   ],
 
@@ -22,7 +22,7 @@
     {
       "_turno": "Il colpo NON parte: (2,1,0) sta fra i due e nega la linea di tiro.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     },
     {

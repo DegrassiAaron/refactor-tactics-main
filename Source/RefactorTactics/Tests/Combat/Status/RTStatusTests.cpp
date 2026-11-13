@@ -150,7 +150,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 {
 	// L'altra meta' di "finche' sulla cella": uscire asciuga, e asciuga NELLO STESSO turno in cui si esce.
 	// La revoca guarda la posizione FINALE, quindi nel Blast del turno dopo l'unita' non e' piu' un bersaglio
-	// conduttivo per Aevik.
+	// conduttivo per Gadget.
 	//
 	// Due turni e non uno: "non e' bagnato dopo essere uscito" e' vero anche in un mondo dove `Wet` non si
 	// applica mai. Il primo turno stabilisce che lo stato c'era davvero, il secondo prova la revoca.
@@ -334,40 +334,40 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesAevikDischargeTest,
-	"RefactorTactics.Status.Wet.AmplifiesAevikDischarge",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesGadgetDischargeTest,
+	"RefactorTactics.Status.Wet.AmplifiesGadgetDischarge",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
+bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 {
-	// `URTCombatLibrary::AevikWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
-	// in partita leggeva lo stato del bersaglio (limite dichiarato in `Heroes.Aevik.WetBonus`). Qui il turno
+	// `URTCombatLibrary::GadgetWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
+	// in partita leggeva lo stato del bersaglio (limite dichiarato in `Heroes.Gadget.WetBonus`). Qui il turno
 	// e' vero: due bersagli identici, uno bagnato e uno no, colpiti dalla stessa azione.
 	UWorld* World = MakeStatusWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 5, FRTCellId(2, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Aevik = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Gadget = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* WetTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0)); // nell'acqua
 	ARTUnit* DryTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 2)); // all'asciutto
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Aevik || !WetTarget || !DryTarget) { DestroyStatusWorld(World); return false; }
+	if (!TM || !Gadget || !WetTarget || !DryTarget) { DestroyStatusWorld(World); return false; }
 
 	// L'azione arriva dal catalogo EROI, non da numeri riscritti qui: se il catalogo cambia i 24 danni o la
 	// forma lineare, questo test lo segue invece di sorvegliare una copia.
-	const URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
-	const URTActionData* Source = GadgetData ? GadgetData->Actions[1] : nullptr; // indice 1 = Aevik.LinearDischarge
-	if (!TestNotNull(TEXT("Hero.Aevik.LinearDischarge nel catalogo eroi"), Source))
+	const URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
+	const URTActionData* Source = GadgetData ? GadgetData->Actions[1] : nullptr; // indice 1 = Gadget.LinearDischarge
+	if (!TestNotNull(TEXT("Hero.Gadget.LinearDischarge nel catalogo eroi"), Source))
 	{
 		DestroyStatusWorld(World);
 		return false;
 	}
-	URTActionData* Discharge = NewObject<URTActionData>(Aevik);
+	URTActionData* Discharge = NewObject<URTActionData>(Gadget);
 	Discharge->DisplayName = FText::FromString(TEXT("Scarica lineare"));
 	Discharge->Def = Source->Def;
 	Discharge->Shape = Source->Shape;             // Line: la forma vive su URTActionData, non su Def
 	Discharge->RangeCells = Source->RangeCells;
 	Discharge->Power = Source->Power;
-	const int32 DischargeIdx = Aevik->Abilities.Add(Discharge);
+	const int32 DischargeIdx = Gadget->Abilities.Add(Discharge);
 
 	WetTarget->Shield = 0;
 	DryTarget->Shield = 0;
@@ -375,9 +375,9 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	const int32 WetStart = WetTarget->Health;
 	const int32 DryStart = DryTarget->Health;
 
-	Aevik->SetPlannedMainAction(DischargeIdx);
-	Aevik->DeclareAttackOnUnit(WetTarget);
-	Aevik->SetPlannedCell(Aevik->Cell);
+	Gadget->SetPlannedMainAction(DischargeIdx);
+	Gadget->DeclareAttackOnUnit(WetTarget);
+	Gadget->SetPlannedCell(Gadget->Cell);
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 
@@ -390,7 +390,7 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("240 dichiarati + 80 perche' il bersaglio e' bagnato"),
-		WetDamage, 240 + URTCombatLibrary::AevikWetDischargeBonus);
+		WetDamage, 240 + URTCombatLibrary::GadgetWetDischargeBonus);
 
 	// Controprova nello stesso mondo: stesso attaccante, stessa azione, bersaglio ASCIUTTO -> nessun bonus.
 	//
@@ -398,9 +398,9 @@ bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 	// ha attraversato un Cleanup e la ricarica ha rimesso i 5 punti base. Senza questa riga la controprova
 	// misurerebbe «24 meno lo scudo» e accuserebbe il bonus dell'acqua di una differenza che non ha causato.
 	DryTarget->Shield = 0;
-	Aevik->SetPlannedMainAction(DischargeIdx);
-	Aevik->DeclareAttackOnUnit(DryTarget);
-	Aevik->SetPlannedCell(Aevik->Cell);
+	Gadget->SetPlannedMainAction(DischargeIdx);
+	Gadget->DeclareAttackOnUnit(DryTarget);
+	Gadget->SetPlannedCell(Gadget->Cell);
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 	RunStatusTurn(TM);

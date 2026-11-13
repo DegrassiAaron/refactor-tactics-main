@@ -850,7 +850,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultWeaponVariantsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("Aevik: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Aevik")),
+	TestEqual(TEXT("Gadget: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Gadget")),
 		FName(TEXT("Weapon.Precision")));
 	TestEqual(TEXT("Muiren: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Muiren")),
 		FName(TEXT("Weapon.Impact")));
@@ -865,7 +865,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 
 	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
 	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
-	const TCHAR* Roster[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Ivrin"), TEXT("Hero.Riktor") };
+	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Muiren"), TEXT("Hero.Ivrin"), TEXT("Hero.Riktor") };
 	for (const TCHAR* H : Roster)
 	{
 		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
@@ -934,7 +934,7 @@ bool FRTDefaultLoadoutTest::RunTest(const FString&)
 
 		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
 		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
-		// dipende da E13. Scrivere qui «Aevik e Ivrin non hanno default» sarebbe vero oggi e **falso il
+		// dipende da E13. Scrivere qui «Gadget e Ivrin non hanno default» sarebbe vero oggi e **falso il
 		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
 		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
 		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
@@ -1029,7 +1029,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
-	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakeMuiren(),
 		URTHeroCatalogLibrary::MakeIvrin(), URTHeroCatalogLibrary::MakeRiktor() };
 	for (URTHeroData* Eroe : Eroi)
 	{
@@ -1048,7 +1048,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 // CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
 //
 // ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
-// §4 solo quello di Riktor è interamente costruibile — a Aevik manca `Gadget.Insulator` (E36), a Ivrin
+// §4 solo quello di Riktor è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Ivrin
 // `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Muiren `Reaction.HazardEscape` (#505). Caricarli
 // oggi significherebbe scrivere default con dei buchi.
 // =====================================================================================================
@@ -1266,8 +1266,8 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
-	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-	URTActionData* GadgetBasic = Aevik->Actions[0];
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	URTActionData* GadgetBasic = Gadget->Actions[0];
 	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
 	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	// L'atteso si DERIVA dal dato invece di scrivere il numero: questo test verifica che la ricarica

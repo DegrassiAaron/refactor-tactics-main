@@ -696,7 +696,7 @@ bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
 	// basta che cada il test che nomina il campo.
 	struct FExpected { const TCHAR* HeroId; int32 Move; int32 Dash; };
 	const FExpected Expected[] = {
-		{ TEXT("Hero.Aevik"), 2, 2 },
+		{ TEXT("Hero.Gadget"), 2, 2 },
 		{ TEXT("Hero.Muiren"),  2, 3 },
 		{ TEXT("Hero.Riktor"), 1, 0 },
 		{ TEXT("Hero.Ivrin"), 3, 3 },

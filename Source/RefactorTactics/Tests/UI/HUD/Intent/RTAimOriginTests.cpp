@@ -137,7 +137,7 @@ namespace
 		B.MapActor->MapAsset = B.Map;
 		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		B.Mine = SpawnAimOriginUnit(B.World, 0, URTHeroCatalogLibrary::MakeMuiren(), GAimOriginQui, true);
-		B.Primo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), PrimoCell, false);
+		B.Primo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), PrimoCell, false);
 		B.Secondo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), SecondoCell, false);
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		B.Dock = NewObject<URTActionDockWidget>(B.World);

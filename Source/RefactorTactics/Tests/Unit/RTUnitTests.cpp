@@ -456,20 +456,21 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	// funziona mai per un pack intero, e un nome sbagliato non da' nessun errore: la clip semplicemente
 	// non si carica e l'unita' resta in posa di riferimento.
 	const TMap<FName, TPair<FString, FString>> Attese = {
-		{ FName(TEXT("Hero.Aevik")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
+		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
 		{ FName(TEXT("Hero.Muiren")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Riktor")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Ivrin")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
 	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
-	// bastava `Chi.RightChop(5)` — `Hero.Aevik` -> `Aevik` — perche' identita' RT e nome dello slot asset
+	// bastava `Chi.RightChop(5)` — `Hero.Gadget` -> `Gadget` — perche' identita' RT e nome dello slot asset
 	// **coincidevano**. E' esattamente la coincidenza che [D-321] ha dichiarato un difetto (*«lo slot non e'
-	// l'identita'»*). [D-585] (#4011) riporta `Hero.Riktor` nel pack omonimo, ma `Hero.Muiren` e `Hero.Ivrin`
-	// restano in `Phase` e `Wraith`: una derivazione che da' il nome giusto per alcuni eroi e non per altri
+	// l'identita'»*). [D-585] (#4011) riporta `Hero.Riktor` e `Hero.Gadget` nei pack omonimi,
+	// ma `Hero.Muiren` e `Hero.Ivrin` restano in `Phase` e `Wraith`: una derivazione che da' il nome giusto per
+	// alcuni eroi e non per altri
 	// non e' una regola, e va scritta a mano finche' i due piani non tornano allineati.
 	const TMap<FName, FString> PackDiEroe = {
-		{ FName(TEXT("Hero.Aevik")), TEXT("Gadget") },
+		{ FName(TEXT("Hero.Gadget")), TEXT("Gadget") },
 		{ FName(TEXT("Hero.Muiren")),  TEXT("Phase")  },
 		{ FName(TEXT("Hero.Riktor")), TEXT("Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("Wraith") },
@@ -546,7 +547,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
  * cambiare senza l'altro.
  *
  * ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate sulla tabella di §AS.3b,
- * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Aevik, `HitReact_Fwd` per Phase, `Death` nudo per
+ * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Gadget, `HitReact_Fwd` per Phase, `Death` nudo per
  * Phase, `Death_Forward` per Ivrin. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
  * sempre.
  */
@@ -560,12 +561,12 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 
 	// 🔴 **Il `Pack` e' un campo, non una derivazione dall'HeroId** — stessa ragione scritta per esteso
 	// sopra `PackDiEroe` in `DefaultClipsPerHero`: da [D-334] identita' RT e nome dello slot asset non
-	// coincidevano piu', e da [D-585] (#4011) coincidono per `Riktor` ma non per `Muiren` e `Ivrin`.
+	// coincidevano piu', e da [D-585] (#4011) coincidono per `Riktor` e `Gadget`, non per `Muiren` e `Ivrin`.
 	// `Chi.RightChop(5)` dava il nome giusto per tre eroi su quattro, che e' il modo in cui un residuo
 	// sopravvive a una migrazione.
 	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
-		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
 		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
 		{ TEXT("Hero.Riktor"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
@@ -762,7 +763,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 	}
 
 	const FName Eroi[] = {
-		FName(TEXT("Hero.Aevik")), FName(TEXT("Hero.Muiren")),
+		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Muiren")),
 		FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Ivrin")),
 	};
 

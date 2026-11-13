@@ -211,7 +211,7 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 
 	// Due bot per squadra, alle stesse celle del probe: è la configurazione in cui le compagne si sono
 	// bloccate a vicenda per dodici turni.
-	ARTUnit* BotA = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+	ARTUnit* BotA = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
 	ARTUnit* BotB = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 1, 0), true);
 	ARTUnit* FoeA = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
 	ARTUnit* FoeB = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(2, -1, 0), true);
@@ -315,7 +315,7 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = MakeMap();
 
-		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
 		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
@@ -335,7 +335,7 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = MakeMap();
 
-		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
 		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
@@ -384,7 +384,7 @@ bool FRTBotObjectiveWeightInvariantTest::RunTest(const FString&)
 		ARTHexMapActor* MapActor = OutWorld->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 
-		ARTUnit* Bot = SpawnTeamPlanningUnit(OutWorld, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Bot = SpawnTeamPlanningUnit(OutWorld, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
 		ARTUnit* Foe = SpawnTeamPlanningUnit(OutWorld, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
 		OutTM = OutWorld->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		return OutTM != nullptr && Bot != nullptr && Foe != nullptr;
@@ -639,7 +639,7 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 	if (!MapActor) { DestroyTeamPlanningWorld(World); return false; }
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
 	ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }

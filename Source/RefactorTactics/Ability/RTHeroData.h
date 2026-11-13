@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Aevik, Phase, Riktor, Ivrin).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Riktor, Ivrin).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -23,7 +23,7 @@ class URTActionData;
  *
  * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
  * ne hanno sei **Phase** (`Hero.Muiren.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
- * da `Action.Shield`; Aevik e Riktor restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
+ * da `Action.Shield`; Gadget e Riktor restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
  * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
  * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».
  *
@@ -35,7 +35,7 @@ class REFACTORTACTICS_API URTHeroData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** ID stabile dell'eroe (es. `Hero.Aevik`). Chiave del data asset: non cambia mai. */
+	/** ID stabile dell'eroe (es. `Hero.Gadget`). Chiave del data asset: non cambia mai. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName HeroId;
 
@@ -59,7 +59,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Aevik 5 · Phase 3 · Riktor 3 · Ivrin 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Riktor 3 · Ivrin 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -108,7 +108,7 @@ public:
 	 * ([D-589] (1), [D-595] (3); E53 CP 53.2b). La formula vive in `URTCombatLibrary::MitigateDirectDamage`.
 	 *
 	 * Valori dal CP 53.3c (D-595 (3), gli otto del GDD: Riktor 45, Steel 60, Kallari 15, Feng Mao 35, Murdock 20,
-	 * Gadget 15, Muriel 25, The Fey 20; i quattro a runtime prendono quelli dello slot che diventeranno: Aevik 15,
+	 * Gadget 15, Muriel 25, The Fey 20; i quattro a runtime prendono quelli dello slot che diventeranno: Gadget 15,
 	 * Muiren 25, Riktor 45, Ivrin 15). Fino a CP 53.3b era zero per tutti, cioe' l'identita': i campi sono entrati
 	 * prima dei numeri. ⛔ Il numero per eroe e' TARATURA e la possiede `balance/` ([D-282]).
 	 */
@@ -119,7 +119,7 @@ public:
 	 * RES di default per i dodici elementi ([D-593]): la mitigazione del danno ELEMENTALE e AMBIENTALE con la
 	 * stessa forma della DEF ([D-589] (1)). `ElementResistance` la sostituisce per il singolo elemento che vi
 	 * compare; per gli altri vale questo numero ([D-595] (3): «la RES unica come default per i dodici»).
-	 * Valori dal CP 53.3c: Aevik 35, Muiren 40, Riktor 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
+	 * Valori dal CP 53.3c: Gadget 35, Muiren 40, Riktor 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
 	 * porta ancora un elemento, quindi nessun chiamante la legge: e' un dato del catalogo in attesa del suo lettore.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
@@ -137,7 +137,7 @@ public:
 	 * Bonus alle spalle dell'ATTACCANTE ([D-587] (2)(3)): si somma alla Base del colpo PRIMA della mitigazione
 	 * quando il colpo arriva da uno dei tre lati posteriori del bersaglio (D-126), quindi la DEF lo riduce come
 	 * il resto. Valori iniziali [D-599]: flanker 90, standard 60, tank 30 sulla scala ×10, nel catalogo dal
-	 * CP 53.3c (Ivrin 90; Aevik e Muiren 60; Riktor 30). La fascia e' una convenzione di scrittura, non un campo.
+	 * CP 53.3c (Ivrin 90; Gadget e Muiren 60; Riktor 30). La fascia e' una convenzione di scrittura, non un campo.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RearBonus = 0;
@@ -147,7 +147,7 @@ public:
 	 *
 	 * | Personaggio | `MoveEndPivotMaxSteps` | `DashEndPivotMaxSteps` |
 	 * |---|---:|---:|
-	 * | Aevik | 2 | 2 |
+	 * | Gadget | 2 | 2 |
 	 * | Phase | 2 | 3 |
 	 * | Riktor | 1 | **0** |
 	 * | Ivrin | 3 | 3 |

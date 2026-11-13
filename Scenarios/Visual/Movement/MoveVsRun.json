@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Movement.MoveVsRun",
-  "tags": ["animation", "movement", "graykit", "dash", "aevik", "riktor"],
+  "tags": ["animation", "movement", "graykit", "dash", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
@@ -14,7 +14,7 @@
   "_nota_traiettorie": "Righe parallele (`r = 0` e `r = -2`), con le celle verificate contro il raggio: in coordinate ASSIALI la distanza e' `(|q|+|r|+|q+r|)/2`, non il massimo dei due — la prima stesura poneva `RUN` in `(-4,-2)`, che dista **6** e cade fuori da un'arena di raggio 5. Il caricatore lo ha rifiutato per nome, e la correzione e' venuta da li'. Righe parallele perche' `Hero.Riktor.Ram` e' una carica che si ferma addosso al primo nemico sulla traiettoria (`Visual/Movement/Charge`): incrociare i percorsi trasformerebbe il banco di leggibilita' in un test d'urto.",
 
   "units": [
-    { "id": "WALK", "hero": "Hero.Aevik",  "team": 0, "cell": [-3,  0, 0] },
+    { "id": "WALK", "hero": "Hero.Gadget",  "team": 0, "cell": [-3,  0, 0] },
     { "id": "RUN",  "hero": "Hero.Riktor", "team": 1, "cell": [-2, -2, 0] }
   ],
 

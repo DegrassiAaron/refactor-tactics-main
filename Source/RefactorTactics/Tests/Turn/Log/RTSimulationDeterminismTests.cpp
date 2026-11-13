@@ -837,7 +837,7 @@ bool FRTReplayVerifierDownedTargetCollapseTest::RunTest(const FString&)
  * [D-522] (`#3771`) — **la finestra che la condizione apre dopo il primo colpo si ri-simula identica, e una traccia
  * registrata prima della regola non la copre.**
  *
- * Lo scenario e' quello di `Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked`: W2 spara, Aevik scende sotto la
+ * Lo scenario e' quello di `Overwatch.ConditionIsReadWhenTheSecondWatcherIsAsked`: W2 spara, Gadget scende sotto la
  * soglia di W1, e la finestra di W1 si apre.
  *
  *     (a) traccia ORIGINALE   -> stesso stato, nessuna divergenza: la ricostruzione dei `FIRE` e' una funzione dello

@@ -70,7 +70,7 @@ namespace
 
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Aevik");
+		M1.HeroId = TEXT("Hero.Gadget");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);

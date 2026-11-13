@@ -68,10 +68,10 @@ namespace RTReactionResponseText
 	FText DescriptionFor(const FRTReactionWindowOptionView& Option, const FRTReactionWindowView& Window);
 
 	/**
-	 * Il titolo della finestra: «Guardia reattiva — Aevik» (`#3667`).
+	 * Il titolo della finestra: «Guardia reattiva — Gadget» (`#3667`).
 	 *
 	 * Si compone con cio' che la vista porta, e degrada senza inventare: senza il nome della reazione resta
-	 * «Reazione — Aevik», senza quello dell'unita' «Guardia reattiva», senza nessuno dei due «Reazione» — che
+	 * «Reazione — Gadget», senza quello dell'unita' «Guardia reattiva», senza nessuno dei due «Reazione» — che
 	 * e' cio' che la finestra diceva sempre prima di `#3667`. Vuoto se la finestra non e' aperta.
 	 */
 	FText TitleFor(const FRTReactionWindowView& Window);

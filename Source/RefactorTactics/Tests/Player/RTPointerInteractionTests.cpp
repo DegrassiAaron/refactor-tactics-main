@@ -346,7 +346,7 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),   FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),   FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
@@ -395,7 +395,7 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine) { DestroyPointerWorld(World); return false; }
 
@@ -497,7 +497,7 @@ bool FRTPointerAreaOnAUnitMeshTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	const int32 AreaIdx = Mine ? FindAreaAbility(Mine) : INDEX_NONE;
@@ -1473,7 +1473,7 @@ bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit || !TM) { DestroyPointerWorld(World); return false; }
 	PC->SelectUnit(Unit);
@@ -1873,7 +1873,7 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -2083,7 +2083,7 @@ bool FRTSelectionDoesNotSurviveTheUnitTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Other = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -2153,7 +2153,7 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }

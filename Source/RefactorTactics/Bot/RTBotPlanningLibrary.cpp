@@ -952,7 +952,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// *«per il Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1
 		// con cooldown 3 […] voce `BAL-1` del backlog»*. Tre cose non reggono piu', verificate il 2026-09-20:
 		//
-		// · **`Guardian.*` e' fuori dal gioco** dal CP 6.6 — il roster e' `Hero.Aevik`, `Hero.Muiren`,
+		// · **`Guardian.*` e' fuori dal gioco** dal CP 6.6 — il roster e' `Hero.Gadget`, `Hero.Muiren`,
 		//   `Hero.Riktor`, `Hero.Ivrin` (`URTHeroCatalogLibrary::GetHeroIds`) — e non esiste nessuna
 		//   `Sweep` con cui confrontare la carica;
 		// · **i numeri della carica sono altri**: `Hero.Riktor.Ram` eredita `Action.Charge`, cioe' 20 danni
@@ -967,7 +967,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// La sede e' `#149`, col vincolo di [D-102]: un risultato bot-contro-bot non e' evidenza finche' il
 		// bot non e' certificato sulle capability che lo producono, e per lo scatto lo stato sta in
 		// `docs/roadmap/bot-competence.yaml` (`Dash`: `PASS` per Muiren e Riktor, `UNTESTED` per Ivrin, non
-		// applicabile ad Aevik, che una mobilita' rapida non ce l'ha).
+		// applicabile ad Gadget, che una mobilita' rapida non ce l'ha).
 		if (bDashReady)
 		{
 			for (int32 A = 0; A < Bot.NumAbilities(); ++A)

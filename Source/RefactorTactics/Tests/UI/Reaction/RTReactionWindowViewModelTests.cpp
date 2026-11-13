@@ -1556,9 +1556,9 @@ bool FRTReactionWindowTextsFollowTheBoardTest::RunTest(const FString&)
 
 	// --- il titolo, e i suoi ripieghi ---
 	TestTrue(TEXT("titolo: reazione e unita'"),
-		StessoTesto(Titolo(VistaConNomi(Entrato, TEXT("Guardia reattiva"), TEXT("Aevik"), {})), TEXT("Guardia reattiva — Aevik")));
+		StessoTesto(Titolo(VistaConNomi(Entrato, TEXT("Guardia reattiva"), TEXT("Gadget"), {})), TEXT("Guardia reattiva — Gadget")));
 	TestTrue(TEXT("titolo: senza il nome della reazione resta neutro, con l'unita'"),
-		StessoTesto(Titolo(VistaConNomi(Entrato, TEXT(""), TEXT("Aevik"), {})), TEXT("Reazione — Aevik")));
+		StessoTesto(Titolo(VistaConNomi(Entrato, TEXT(""), TEXT("Gadget"), {})), TEXT("Reazione — Gadget")));
 	TestTrue(TEXT("titolo: senza il nome dell'unita' resta la reazione"),
 		StessoTesto(Titolo(VistaConNomi(Entrato, TEXT("Guardia reattiva"), TEXT(""), {})), TEXT("Guardia reattiva")));
 	TestTrue(TEXT("titolo: senza nomi e' quello di prima di #3667"),
@@ -1589,7 +1589,7 @@ bool FRTReactionWindowTextsFollowTheBoardTest::RunTest(const FString&)
 		StessoTesto(Sotto(VistaConNomi(Spinto, TEXT("I"), TEXT("A"), {})), TEXT("Un nemico ti spinge")));
 
 	// --- una finestra chiusa non dice niente, qualunque cosa porti ---
-	FRTReactionWindowView Chiusa = VistaConNomi(Entrato, TEXT("Guardia reattiva"), TEXT("Aevik"), { TEXT("Ivrin") });
+	FRTReactionWindowView Chiusa = VistaConNomi(Entrato, TEXT("Guardia reattiva"), TEXT("Gadget"), { TEXT("Ivrin") });
 	Chiusa.bOpen = false;
 	TestTrue(TEXT("finestra chiusa: nessun titolo"), Titolo(Chiusa).IsEmpty());
 	TestTrue(TEXT("finestra chiusa: nessun sottotitolo"), Sotto(Chiusa).IsEmpty());
@@ -1758,7 +1758,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 		return false;
 	}
 	// Le fixture montano lo stesso eroe per tutti: i nomi vanno distinti, o il test non vedrebbe uno scambio.
-	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	Watcher->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 	Caduto->HeroDisplayName = FText::FromString(TEXT("Muiren"));
 	Entrato->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
 	Altro->HeroDisplayName = FText::FromString(TEXT("Riktor"));
@@ -1795,7 +1795,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 
 	const FRTReactionWindowNames Nomi = ARTTurnManager::MakeReactionWindowNames(
 		Opportunity, Vivi, ERTReactionTriggerKind::EnteredControlledArea, ChiEEntrato);
-	TestTrue(TEXT("chi decide"), StessoTesto(Nomi.ReactorName, TEXT("Aevik")));
+	TestTrue(TEXT("chi decide"), StessoTesto(Nomi.ReactorName, TEXT("Gadget")));
 	TestTrue(TEXT("la reazione ha il nome del SUO kit"), StessoTesto(Nomi.ReactionName, TEXT("Guardia reattiva")));
 	TestTrue(TEXT("la specie e' quella che il sito ha dichiarato"), Nomi.TriggerKind == ERTReactionTriggerKind::EnteredControlledArea);
 	if (TestEqual(TEXT("un solo bersaglio: quello del FIRE"), Nomi.TargetNames.Num(), 1)
@@ -1817,7 +1817,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
 	const FString TitoloAllaCostruzione = RTReactionResponseText::TitleFor(Vista).ToString();
 	const FString SottotitoloAllaCostruzione = RTReactionResponseText::SubtitleFor(Vista).ToString();
 	TestTrue(TEXT("il titolo e' quello della tavola"),
-		StessoTesto(RTReactionResponseText::TitleFor(Vista), TEXT("Guardia reattiva — Aevik")));
+		StessoTesto(RTReactionResponseText::TitleFor(Vista), TEXT("Guardia reattiva — Gadget")));
 	TestTrue(TEXT("il sottotitolo nomina TUTTI quelli che sono entrati"),
 		SottotitoloAllaCostruzione.Contains(TEXT("Ivrin")) && SottotitoloAllaCostruzione.Contains(TEXT("Riktor"))
 		&& SottotitoloAllaCostruzione.EndsWith(TEXT(" sono entrati nell'area controllata")));
@@ -1893,7 +1893,7 @@ bool FRTReactionWindowNamesResolveInTheSnapshotSpaceTest::RunTest(const FString&
  * che ordina prima delle altre sposta di uno ogni indice. Se il sito risolvesse i nomi su un array che tiene i
  * caduti, il titolo nominerebbe un'altra unita'.
  *
- * 🔑 Il titolo e' asserito col LETTERALE della tavola E, «Guardia reattiva — Aevik»: non con un nome riletto dal
+ * 🔑 Il titolo e' asserito col LETTERALE della tavola E, «Guardia reattiva — Gadget»: non con un nome riletto dal
  * kit con la stessa ricerca che fa la produzione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWindowNamesSurviveAFallenUnitTest,
@@ -1918,7 +1918,7 @@ bool FRTOverwatchWindowNamesSurviveAFallenUnitTest::RunTest(const FString&)
 	}
 	Caduto->HeroDisplayName = FText::FromString(TEXT("Muiren"));
 	Mover->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
-	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	Watcher->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 	Caduto->Health = 0;
 	ArmOverwatchScenario(Mover, Watcher);
 
@@ -1945,7 +1945,7 @@ bool FRTOverwatchWindowNamesSurviveAFallenUnitTest::RunTest(const FString&)
 	if (TestEqual(TEXT("premessa: si e' aperta una finestra dell'Overwatch"), Aperte, 1))
 	{
 		TestTrue(TEXT("🔴 il titolo e' quello della tavola, col caduto in campo"),
-			StessoTesto(RTReactionResponseText::TitleFor(Vista), TEXT("Guardia reattiva — Aevik")));
+			StessoTesto(RTReactionResponseText::TitleFor(Vista), TEXT("Guardia reattiva — Gadget")));
 		TestTrue(TEXT("🔴 il sottotitolo nomina chi e' entrato, non il caduto"),
 			StessoTesto(RTReactionResponseText::SubtitleFor(Vista), TEXT("Ivrin è entrato nell'area controllata")));
 		TestTrue(TEXT("la specie e' quella dell'Overwatch"), Vista.TriggerKind == ERTReactionTriggerKind::EnteredControlledArea);
@@ -2013,7 +2013,7 @@ bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
 	}
 	Ferito->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
 	Sano->HeroDisplayName = FText::FromString(TEXT("Riktor"));
-	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	Watcher->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 	ArmOverwatchScenario(Ferito, Watcher); // il ferito entra in (2,0)
 	Sano->SetPlannedCell(FRTCellId(1, 0));
 
@@ -2187,7 +2187,7 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 			RTWorldFixtures::DestroyWorld(World);
 			return Esito;
 		}
-		Bracer->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+		Bracer->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 		Pusher->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
 		CadutoLontano->HeroDisplayName = FText::FromString(TEXT("Riktor"));
 		Cadavere->HeroDisplayName = FText::FromString(TEXT("Muiren"));
@@ -2366,8 +2366,8 @@ bool FRTBraceWindowNamesThePusherOnlyWhenDetectedTest::RunTest(const FString&)
 	for (const FEsito* Turno : { &LontanoDiFronte, &LontanoDiSpalle, &VicinoDiSpalle, &ColTestimone })
 	{
 		const TCHAR* Quale = NomeDelTurno(Turno);
-		TestTrue(*FString::Printf(TEXT("%s: 🔴 chi decide e' Aevik, col caduto che sposta gli indici"), Quale),
-			StessoTesto(Turno->Vista.ReactorName, TEXT("Aevik")));
+		TestTrue(*FString::Printf(TEXT("%s: 🔴 chi decide e' Gadget, col caduto che sposta gli indici"), Quale),
+			StessoTesto(Turno->Vista.ReactorName, TEXT("Gadget")));
 		TestFalse(*FString::Printf(TEXT("%s: la reazione ha un nome"), Quale), Turno->Vista.ReactionName.IsEmptyOrWhitespace());
 		TestTrue(*FString::Printf(TEXT("%s: la specie e' quella del Brace"), Quale),
 			Turno->Vista.TriggerKind == ERTReactionTriggerKind::Pushed);
@@ -2467,7 +2467,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	// Le fixture montano lo stesso eroe per tutti e due: senza nomi distinti il test non vedrebbe uno scambio
 	// fra chi decide e chi e' entrato.
 	Mover->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
-	Watcher->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	Watcher->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 
 	// --- A. Nessuna finestra: frazione negativa, «Allo scadere» vuoto, barra a zero ------------------------
 	// Il sottotitolo parte con un residuo: senza, «vuoto dopo `RefreshLook`» passerebbe anche se nessuno lo scrive.
@@ -2536,7 +2536,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: il kit del watcher chiama la reazione «Guardia reattiva»"),
 		StessoTesto(Watcher->KitDisplayNameFor(TEXT("Action.Overwatch")), TEXT("Guardia reattiva")));
 	TestTrue(*FString::Printf(TEXT("B: il titolo e' quello della tavola, e non «%s»"), *Finestra->GetPromptText().ToString()),
-		StessoTesto(Finestra->GetPromptText(), TEXT("Guardia reattiva — Aevik")));
+		StessoTesto(Finestra->GetPromptText(), TEXT("Guardia reattiva — Gadget")));
 	TestTrue(TEXT("B: il sottotitolo dice chi e' entrato"),
 		StessoTesto(Finestra->GetSubtitleText(), TEXT("Ivrin è entrato nell'area controllata")));
 	TestTrue(TEXT("B: e la porta lo porta"),
@@ -2630,7 +2630,7 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(MondoBrace);
 		return false;
 	}
-	Bracer->HeroDisplayName = FText::FromString(TEXT("Aevik"));
+	Bracer->HeroDisplayName = FText::FromString(TEXT("Gadget"));
 	Pusher->HeroDisplayName = FText::FromString(TEXT("Ivrin"));
 	ArmBraceScenario(Bracer, Pusher);
 	GMBrace->HookReactionWindow();
@@ -2657,8 +2657,8 @@ bool FRTFastDecisionLookFollowsTheBoardTest::RunTest(const FString&)
 	// I testi del `Brace` (`#3667`), dal widget: chi spinge e' a contatto, quindi rilevato e nominato.
 	TestTrue(TEXT("D: premessa: il kit chiama la reazione «Irrigidimento»"),
 		StessoTesto(Bracer->KitDisplayNameFor(TEXT("Action.Brace")), TEXT("Irrigidimento")));
-	TestTrue(*FString::Printf(TEXT("D: il titolo e' «Irrigidimento — Aevik», e non «%s»"), *FinestraBrace->GetPromptText().ToString()),
-		StessoTesto(FinestraBrace->GetPromptText(), TEXT("Irrigidimento — Aevik")));
+	TestTrue(*FString::Printf(TEXT("D: il titolo e' «Irrigidimento — Gadget», e non «%s»"), *FinestraBrace->GetPromptText().ToString()),
+		StessoTesto(FinestraBrace->GetPromptText(), TEXT("Irrigidimento — Gadget")));
 	TestTrue(*FString::Printf(TEXT("D: il sottotitolo e' «Ivrin ti spinge», e non «%s»"), *FinestraBrace->GetSubtitleText().ToString()),
 		StessoTesto(FinestraBrace->GetSubtitleText(), TEXT("Ivrin ti spinge")));
 

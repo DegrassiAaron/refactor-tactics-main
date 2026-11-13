@@ -601,7 +601,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerFollowsTheProfileTest,
 bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
 {
 	FRTResolvedEvent Scarica = MakeTracerAttackEvent(ERTAbilityShape::Line);
-	Scarica.ActionId = TEXT("Hero.Aevik.LinearDischarge");
+	Scarica.ActionId = TEXT("Hero.Gadget.LinearDischarge");
 	Scarica.BaseActionId = NAME_None;
 	TestTrue(TEXT("🔴 LinearDischarge idonea"), URTPlaybackLibrary::IsTracerEligible(Scarica));
 	TestTrue(TEXT("e disegnata a zigzag"), URTPlaybackLibrary::TracerStyleFor(Scarica, 0) == ERTTracerStyle::Zigzag);

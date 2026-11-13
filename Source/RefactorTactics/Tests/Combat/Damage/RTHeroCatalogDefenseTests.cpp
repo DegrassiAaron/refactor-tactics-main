@@ -225,7 +225,7 @@ bool FRTHeroesControlTableHoldsOnTheRealCatalogTest::RunTest(const FString&)
 
 /**
  * Il turno intero sul catalogo, senza iniezioni: Ivrin tira `PulseShot` (210) a ciascuno dei quattro di fronte e gli HP
- * persi sono `floor(210 × 100/(100+DEF)) − scudo base`: Aevik e Ivrin (DEF 15) 182 − 50 = 132, Muiren (DEF 25)
+ * persi sono `floor(210 × 100/(100+DEF)) − scudo base`: Gadget e Ivrin (DEF 15) 182 − 50 = 132, Muiren (DEF 25)
  * 168 − 50 = 118, Riktor (DEF 45) 144 − 50 = 94. Poi l'esempio di [D-599] alla lettera: il colpo alle spalle di
  * Kallari (Ivrin, spalle 90) su Muriel (Muiren, DEF 25) vale `floor(300 × 100/125) = 240` contro 168 di fronte —
  * qui al netto dello scudo, 190 contro 118 — e quello del tank (Riktor, spalle 30) si somma alla SUA base.
@@ -244,7 +244,7 @@ bool FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest::RunTest(const FString&)
 
 		struct FCase { const TCHAR* Who; URTHeroData* (*Make)(); int32 Def; int32 HpLost; };
 		const TArray<FCase> Cases = {
-			{ TEXT("Aevik"),  &URTHeroCatalogLibrary::MakeAevik,  15, 132 },
+			{ TEXT("Gadget"),  &URTHeroCatalogLibrary::MakeGadget,  15, 132 },
 			{ TEXT("Muiren"), &URTHeroCatalogLibrary::MakeMuiren, 25, 118 },
 			{ TEXT("Riktor"), &URTHeroCatalogLibrary::MakeRiktor, 45, 94 },
 			{ TEXT("Ivrin"),  &URTHeroCatalogLibrary::MakeIvrin,  15, 132 },

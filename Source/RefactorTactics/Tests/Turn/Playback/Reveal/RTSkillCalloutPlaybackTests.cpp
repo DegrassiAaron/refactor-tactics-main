@@ -717,7 +717,7 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 	}
 
 	// Il viewer e' il ripiego a 0 (mondo non inizializzato), la squadra di chi apre.
-	ARTUnit* Apre = SpawnUnitaFumetto(World, 0, URTHeroCatalogLibrary::MakeAevik(), Cardine);
+	ARTUnit* Apre = SpawnUnitaFumetto(World, 0, URTHeroCatalogLibrary::MakeGadget(), Cardine);
 	ARTUnit* Nemico = SpawnUnitaFumetto(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Apre || !Nemico) { return false; }
@@ -728,7 +728,7 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 	{
 		if (Apre->GetAbility(i) && Apre->GetAbility(i)->Def.ActionId == Interact) { Indice = i; }
 	}
-	if (!TestTrue(TEXT("⛔ premessa: Aevik porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: Gadget porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
 	Apre->SetPlannedMainAction(Indice);
 	Apre->DeclareAttackOnCell(Oltre); // si mira a una CELLA: dietro la porta non c'e' nessuno
 	Apre->SetPlannedCell(Apre->Cell);

@@ -541,7 +541,7 @@ namespace
 		const FString MeshDiControllo =
 			TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget");
 		if (!Test.TestTrue(
-				TEXT("controllo positivo: la mesh Paragon di Aevik e' referenziata da un asset versionato — ")
+				TEXT("controllo positivo: la mesh Paragon di Gadget e' referenziata da un asset versionato — ")
 				TEXT("se questo fallisce, il metodo di ricerca non sa guardare e il resto dell'esito non vale"),
 				QualcunoReferenzia(MeshDiControllo)))
 		{

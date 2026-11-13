@@ -13,7 +13,7 @@ namespace
 	 *
 	 * ⚠️ **I nomi sono MISURATI sul disco**, non dedotti: §AS.3b della guida animazioni li ha contati, e
 	 * **sei caselle su venti** divergono da quelle di Gideon. Le tre che si vedono qui sono la corsa di
-	 * Aevik (`Run_Fwd`, non `Jog_Fwd`) e l'idle di Ivrin (`Idle_NonCombat`).
+	 * Gadget (`Run_Fwd`, non `Jog_Fwd`) e l'idle di Ivrin (`Idle_NonCombat`).
 	 */
 	FString ClipPath(const TCHAR* Pack, const TCHAR* Clip)
 	{
@@ -196,12 +196,12 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 {
 	// ⚠️ Il riferimento restituito da `Add` si usa SUBITO: l'`Add` dell'eroe successivo puo' riallocare la mappa.
 	// 🔴 #3590: gli `LMB_Fire_*` nudi di Gadget sono ADDITIVI; le varianti `_Slow_V1` sono piene. Tutti i cast di
-	// Gadget (`Ability_Q*`, `Throw_Ready*`) sono additivi: per i cast di Aevik resta la `Cast` del pack (il ruolo).
-	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
+	// Gadget (`Ability_Q*`, `Throw_Ready*`) sono additivi: per i cast di Gadget resta la `Cast` del pack (il ruolo).
+	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
 		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Gadget"), {
-		{ TEXT("Hero.Aevik.ArcPulse"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_A_Slow_V1") },
-		{ TEXT("Hero.Aevik.LinearDischarge"), ERTPresentationRole::Attack, TEXT("LMB_Fire_B_Slow_V1") },
-		{ TEXT("Hero.Aevik.Overload"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_C_Slow_V1") },
+		{ TEXT("Hero.Gadget.ArcPulse"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_A_Slow_V1") },
+		{ TEXT("Hero.Gadget.LinearDischarge"), ERTPresentationRole::Attack, TEXT("LMB_Fire_B_Slow_V1") },
+		{ TEXT("Hero.Gadget.Overload"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_C_Slow_V1") },
 	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Muiren")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death"))).PerAction = MakeActionClips(TEXT("Phase"), {

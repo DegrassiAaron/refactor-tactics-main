@@ -14,7 +14,7 @@
   "_nota_squadra": "Le due unita' sono ALLEATE da #3741. Fino ad allora B1 era della squadra 1, e il giocatore la vedeva perche' la linea di vista nella stessa colonna era sempre libera. Con `D-510` due unita' impilate non si vedono: da nemiche, a schermo ne resterebbe una, e questa scena smetterebbe di mostrare cio' per cui esiste. L'autore ha scelto di tenerla come prova di leggibilita' del viewport, con due alleate; la regola nuova ha la sua scena, `Visual.Map.StackedColumn`.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [2, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [2, 0, 0] },
     { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [2, 0, 1] }
   ],
 

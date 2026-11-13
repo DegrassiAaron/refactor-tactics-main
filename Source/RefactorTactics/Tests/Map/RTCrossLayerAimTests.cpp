@@ -476,7 +476,7 @@ namespace
 		S.MapActor->MapAsset = S.Map;
 		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		S.Mine = SpawnXlaUnit(S.World, 0, URTHeroCatalogLibrary::MakeMuiren(), GXlaGround, Loadout);
-		S.Other = SpawnXlaUnit(S.World, OtherTeam, URTHeroCatalogLibrary::MakeAevik(), GXlaBridgeEnd, {});
+		S.Other = SpawnXlaUnit(S.World, OtherTeam, URTHeroCatalogLibrary::MakeGadget(), GXlaBridgeEnd, {});
 		S.PC = S.World->SpawnActor<ARTPlayerController>();
 		S.Dock = NewObject<URTActionDockWidget>(S.World);
 		if (!Test.TestNotNull(TEXT("banco: TM"), S.TM) || !Test.TestNotNull(TEXT("banco: chi pianifica"), S.Mine)

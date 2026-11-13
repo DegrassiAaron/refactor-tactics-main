@@ -401,7 +401,7 @@ public:
 	 *
 	 * ⚠️ **Solo `ERTLogCategory::Move`, e non e' timidezza**: il prefisso funziona dove il soggetto e' anche
 	 * il soggetto GRAMMATICALE del predicato. Per il danno `UnitId` porta chi **subisce** (`#1150`), e
-	 * *«Aevik: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
+	 * *«Gadget: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
 	 * altre categorie vuole prima un predicato che regga il soggetto davanti.
 	 *
 	 * @param SubjectNames  `StableUnitId` -> nome leggibile (`ARTUnit::DisplayLabel`). Chi manca ricade su

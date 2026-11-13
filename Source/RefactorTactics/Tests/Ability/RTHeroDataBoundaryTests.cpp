@@ -211,7 +211,7 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 	Hero->Affinity = TEXT("Fixture.Affinita");
 	Hero->Weakness = TEXT("Fixture.Debolezza");
 	// Almeno un'azione: serve al ramo `Prefix`, che pretende le azioni dell'eroe PIU' le generiche.
-	Hero->Actions = URTHeroCatalogLibrary::MakeAevik()->Actions;
+	Hero->Actions = URTHeroCatalogLibrary::MakeGadget()->Actions;
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("l'unita' di prova esiste"), Unit))

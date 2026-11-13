@@ -34,14 +34,18 @@ namespace RTLegacyIdentity
 		// non cambia — *uno script che sostituisce non e' una misura* — e la difesa non e' ricordarsene:
 		// e' rileggere il diff di QUESTO file a mano, sempre, a ogni fetta.
 		//
-		// ⛔ Il tetto misura `Hero.Gadget`, cioe' l'IDENTITA'. `ERTEquipmentSlot::Gadget` e i nove token
-		// `Gadget.<Oggetto>` non lo consumano e non devono: quella parola li' e' lo **slot**, non l'eroe.
-		// ⚠️ **Il tetto e' `1` e non `0`, e l'uno e' arrivato DOPO.** La fetta l'aveva portato a zero;
+		// ⛔ Fino a #4011 il tetto misurava `Hero.Gadget`, cioe' l'IDENTITA': `ERTEquipmentSlot::Gadget` e i nove
+		// token `Gadget.<Oggetto>` non lo consumavano e non dovevano, perche' li' la parola e' lo **slot**, non l'eroe.
+		// ⚠️ **Il tetto era `1` e non `0`, e l'uno era arrivato DOPO.** La fetta l'aveva portato a zero;
 		// poi la correzione del commento di `MakeAevik` — che la sostituzione aveva ridotto a «`Hero.Aevik`
 		// -> `Hero.Aevik`», un rename fra un nome e se stesso — ha rimesso il token nel file. E' la stessa
 		// menzione legittima per cui `Hero.Riktor` e' stata a quattro fino a #4011: un commento che dichiara il
 		// rename deve poter nominare cio' che ha rinominato.
-		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   1,  0 },
+		// 🔄 **Ribaltata da #4011 ([D-585] (3)), come la riga di `Hero.Branth` qui sotto.** Fino a qui diceva
+		// `{ Hero.Gadget, Hero.Aevik, 1, 0 }`: ora e' `Hero.Aevik` a non doversi spargere, e il tetto e' la misura
+		// del commit che ribalta — in `Source/` i commenti che dichiarano il rename (`RTHeroCatalogLibrary.cpp`,
+		// `RTHeroLab.h`, `RTUnit.h`), in `Scenarios/` nessuno.
+		{ TEXT("Hero.Aevik"),  TEXT("Hero.Gadget"),  3,  0 },
 		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
 		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
 		// ⚠️ Zero e non quattro come `Hero.Riktor` prima di #4011: quelle quattro erano commenti sul rename e un

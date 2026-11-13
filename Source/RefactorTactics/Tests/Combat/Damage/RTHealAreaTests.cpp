@@ -143,7 +143,7 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		// Centro (1,0): a distanza 1 stanno (0,0) chi cura, (2,0), (1,-1) le compagne, (1,1) il nemico, (0,1) la morta;
 		// (4,0) e' a distanza 3, fuori.
 		ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
+		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeGadget());
 		ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, -1, 0), URTHeroCatalogLibrary::MakeRiktor());
 		ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(1, 1, 0), URTHeroCatalogLibrary::MakeIvrin());
@@ -205,7 +205,7 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnHealMap(World, 6);
 		ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
+		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeGadget());
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !Nemico || !TM) { return false; }
@@ -237,7 +237,7 @@ bool FRTTideHealsVariantAmountTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnHealMap(World, 6);
 		ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
+		ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeGadget());
 		ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(3, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Curatrice || !A1 || !Nemico || !TM) { return false; }
@@ -340,7 +340,7 @@ bool FRTEverySingleHealDeclaresTrackingTest::RunTest(const FString&)
 	++Singole;
 
 	const TArray<URTHeroData*> Eroi = {
-		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakeMuiren(),
 		URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeIvrin() };
 	for (const URTHeroData* Eroe : Eroi)
 	{
@@ -389,7 +389,7 @@ bool FRTTideOnAUnitStaysWhereAimedTest::RunTest(const FString&)
 	const FRTCellId Scattata(4, 0, 0);
 	const FRTCellId Accanto(2, -1, 0); // a un passo dalla cella puntata, a tre da quella dello scatto
 	ARTUnit* Curatrice = SpawnHealUnit(World, 0, FRTCellId(0, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-	ARTUnit* Puntato = SpawnHealUnit(World, 0, Puntata, URTHeroCatalogLibrary::MakeAevik());
+	ARTUnit* Puntato = SpawnHealUnit(World, 0, Puntata, URTHeroCatalogLibrary::MakeGadget());
 	ARTUnit* Vicino = SpawnHealUnit(World, 0, Accanto, URTHeroCatalogLibrary::MakeRiktor());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Curatrice || !Puntato || !Vicino || !TM) { return false; }
@@ -440,7 +440,7 @@ bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
 			ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 			SpawnHealMap(World, 6);
 			ARTUnit* Curatrice = SpawnHealUnit(World, 0, CellaCura, URTHeroCatalogLibrary::MakeMuiren());
-			ARTUnit* Ferita = SpawnHealUnit(World, 0, CellaFerita, URTHeroCatalogLibrary::MakeAevik());
+			ARTUnit* Ferita = SpawnHealUnit(World, 0, CellaFerita, URTHeroCatalogLibrary::MakeGadget());
 			ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-4, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 			ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 			ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(World);
@@ -524,7 +524,7 @@ bool FRTHealEmitsItsMomentTest::RunTest(const FString&)
 	ARTUnit* Singola = SpawnHealUnit(World, 0, FRTCellId(-3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
 	ARTUnit* Lontana = SpawnHealUnit(World, 0, FRTCellId(-1, 0, 0), URTHeroCatalogLibrary::MakeRiktor());
 	ARTUnit* Tide = SpawnHealUnit(World, 0, FRTCellId(3, 0, 0), URTHeroCatalogLibrary::MakeMuiren());
-	ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeAevik());
+	ARTUnit* A1 = SpawnHealUnit(World, 0, FRTCellId(2, 0, 0), URTHeroCatalogLibrary::MakeGadget());
 	ARTUnit* A2 = SpawnHealUnit(World, 0, FRTCellId(1, 0, 0), URTHeroCatalogLibrary::MakeIvrin());
 	ARTUnit* Morta = SpawnHealUnit(World, 0, FRTCellId(2, -1, 0), URTHeroCatalogLibrary::MakeRiktor());
 	ARTUnit* Nemico = SpawnHealUnit(World, 1, FRTCellId(-5, 3, 0), URTHeroCatalogLibrary::MakeIvrin());

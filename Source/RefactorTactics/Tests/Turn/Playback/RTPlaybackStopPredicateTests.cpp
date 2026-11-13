@@ -20,7 +20,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
-#include "Ability/RTActionData.h" // #3582: l'azione di Aevik si cerca per `ActionId`
+#include "Ability/RTActionData.h" // #3582: l'azione di Gadget si cerca per `ActionId`
 #include "Kismet/GameplayStatics.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
@@ -73,39 +73,39 @@ namespace
 	}
 
 	/**
-	 * Il turno di prova a DUE atti (`#2454`): Riktor colpisce Ivrin, poi Aevik spara su una cella VUOTA.
+	 * Il turno di prova a DUE atti (`#2454`): Riktor colpisce Ivrin, poi Gadget spara su una cella VUOTA.
 	 *
 	 * 🔑 **Esiste per far cadere una fermata `Next Action` nello stesso tick dell'ARRIVO di un colpo.** Con la
 	 * sequenza per intento (#3549) ogni atto si apre con la sua attivazione: il colpo di Riktor segue attivazione e
 	 * impronta del proprio atto, quindi il suo arrivo non e' mai un confine. Il confine dopo l'arrivo e'
-	 * l'attivazione dell'atto di Aevik, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
+	 * l'attivazione dell'atto di Gadget, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
 	 * colpo e si ferma sull'atto dopo, ed e' li' che la consegna del tracer all'uscita della fermata si misura.
 	 * ⚠️ **L'ordine degli atti e' quello canonico del Blast** (`#3582`, ADR-0003 §3): priorita' crescente, poi `ActionId`.
-	 * Aevik spara `LinearDischarge` (55) e Riktor `ImpactShot` (50), quindi l'atto di Riktor viene prima per una
+	 * Gadget spara `LinearDischarge` (55) e Riktor `ImpactShot` (50), quindi l'atto di Riktor viene prima per una
 	 * ragione dichiarata. Il test che lo usa lo verifica come premessa invece di darlo per scontato.
 	 * ⏱️ *Fino a `#3582` l'ordine era quello degli intenti, cioe' del roster `(cella, id, nome)`: Riktor (X = 2) stava a
-	 * sinistra di Aevik (X = 6), e Aevik sparava l'attacco base. Con l'ordine canonico l'attacco base di Aevik
+	 * sinistra di Gadget (X = 6), e Gadget sparava l'attacco base. Con l'ordine canonico l'attacco base di Gadget
 	 * (`ArcPulse`, 50 come `ImpactShot`) passava davanti per `ActionId`, e il colpo di Riktor restava l'ultimo.*
-	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Riktor, perche' prima di
+	 * ⏱️ *La stesura di `#2454` metteva Gadget per primo: la fermata cadeva sull'ARRIVO di Riktor, perche' prima di
 	 * #3549 un colpo dopo l'impronta di un altro atto apriva l'atto proprio.*
 	 */
 	ARTTurnManager* SetUpTwoActTurn(UWorld* World)
 	{
 		SpawnStopPredicateMap(World);
-		ARTUnit* Aevik    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(6, -2));
+		ARTUnit* Gadget    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(6, -2));
 		ARTUnit* Riktor   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 		ARTUnit* Bersaglio = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Aevik || !Riktor || !Bersaglio) { return nullptr; }
+		if (!TM || !Gadget || !Riktor || !Bersaglio) { return nullptr; }
 
-		Aevik->ClearPlannedMainAction();
-		for (int32 i = 0; i < Aevik->NumAbilities(); ++i)
+		Gadget->ClearPlannedMainAction();
+		for (int32 i = 0; i < Gadget->NumAbilities(); ++i)
 		{
-			const URTActionData* A = Aevik->GetAbility(i);
-			if (A && A->Def.ActionId == FName(TEXT("Hero.Aevik.LinearDischarge"))) { Aevik->SetPlannedMainAction(i); }
+			const URTActionData* A = Gadget->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Gadget.LinearDischarge"))) { Gadget->SetPlannedMainAction(i); }
 		}
-		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
-		Aevik->SetPlannedCell(Aevik->Cell);
+		Gadget->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
+		Gadget->SetPlannedCell(Gadget->Cell);
 		Riktor->SetPlannedMainAction(0);
 		Riktor->DeclareAttackOnUnit(Bersaglio);
 		Riktor->SetPlannedCell(Riktor->Cell);
@@ -344,7 +344,7 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
 
 		// ⛔ ANTI-VACUITA': nella sequenza il colpo deve essere SEGUITO da un elemento di un altro atto. Se fosse
-		// l'ultimo — Aevik non dopo Riktor (per priorita', `#3582`), o il suo intento non entrato nel Blast — nessun
+		// l'ultimo — Gadget non dopo Riktor (per priorita', `#3582`), o il suo intento non entrato nel Blast — nessun
 		// confine cadrebbe dopo l'arrivo e la fermata qui sotto non esisterebbe.
 		const TArray<FRTResolvedEvent>& Timeline = TM2->ResolvedTimelineForTest();
 		const TArray<int32> Sequenza = TM2->PlaybackBlastSequenceIndicesForTest();
@@ -373,7 +373,7 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 		}
 
 		// Un tick LUNGO — uno slot intero, `AttackShowSeconds` — copre l'arrivo (mezzo slot al piu' dopo il lancio)
-		// e la rivelazione dell'elemento dopo, che apre l'atto di Aevik ed e' il confine.
+		// e la rivelazione dell'elemento dopo, che apre l'atto di Gadget ed e' il confine.
 		TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
 		TM2->Tick(TM2->AttackShowSeconds);
 		if (TM2->IsPlaybackPaused() && TM2->AttackBeatTraceForTest().Contains(TEXT("A0")))
@@ -519,21 +519,21 @@ namespace
 	 * conta»* — e l'unico che esercita il canale dell'impronta **da solo**. Con un colpo in scena una
 	 * fermata non direbbe da quale canale e' venuta; qui di colpi non ce n'e' nemmeno uno.
 	 *
-	 * ⚠️ **`Hero.Aevik.Overload` e' un'azione di CATALOGO ad area** (raggio 1, portata 3): la forma non e'
+	 * ⚠️ **`Hero.Gadget.Overload` e' un'azione di CATALOGO ad area** (raggio 1, portata 3): la forma non e'
 	 * riscritta a mano sull'istanza, quindi il test non misura come il resolver tratta una forma che
 	 * nessuna azione dichiara.
 	 */
 	ARTTurnManager* SetUpEmptyAreaTurn(UWorld* World)
 	{
 		SpawnStopPredicateMap(World);
-		ARTUnit* Lanciatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(2, 2));
+		ARTUnit* Lanciatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(2, 2));
 		// ⚠️ Il secondo c'e' per non lasciare il turno senza avversari, ma sta LONTANO dall'area: se fosse
 		// dentro, un `Attack` nascerebbe e il caso non sarebbe piu' quello delle celle vuote.
 		ARTUnit* Lontano = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(9, 9));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Lanciatore || !Lontano) { return nullptr; }
 
-		// L'indice 3 di Aevik e' `Overload` (area, raggio 1). Si cerca per identita' invece che per indice:
+		// L'indice 3 di Gadget e' `Overload` (area, raggio 1). Si cerca per identita' invece che per indice:
 		// un catalogo riordinato renderebbe il test verde su un'azione diversa.
 		int32 Indice = INDEX_NONE;
 		for (int32 I = 0; I < Lanciatore->Abilities.Num(); ++I)
@@ -826,7 +826,7 @@ bool FRTPlaybackNextActionDoesNotStopTwiceWithinOneIntentTest::RunTest(const FSt
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World2); };
 		SpawnStopPredicateMap(World2);
 		ARTUnit* C1 = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0));
-		ARTUnit* Ferito = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+		ARTUnit* Ferito = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 0));
 		ARTUnit* C2 = SpawnStopPredicateUnit(World2, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 		ARTTurnManager* TM2 = World2->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM2 || !C1 || !Ferito || !C2) { return false; }
@@ -968,7 +968,7 @@ bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
 
 	ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
 	ARTUnit* Caricatore = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
-	ARTUnit* Bersaglio  = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
+	ARTUnit* Bersaglio  = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Scudo || !Caricatore || !Bersaglio) { return false; }
 
@@ -1040,7 +1040,7 @@ bool FRTPlaybackPhaseEndNetStopsWithThePauseTest::RunTest(const FString&)
 
 		ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
 		ARTUnit* Sentinella = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
-		ARTUnit* Riparo     = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(3, 0));
+		ARTUnit* Riparo     = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(3, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Scudo || !Sentinella || !Riparo) { return false; }
 

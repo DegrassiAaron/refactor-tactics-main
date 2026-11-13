@@ -151,7 +151,7 @@ struct FRTActionParameterView
 	/**
 	 * Indice dentro `Def.Effects` per i parametri con `StorageHome == EffectSpec`; `INDEX_NONE` altrimenti.
 	 *
-	 * Serve perche' un'azione puo' dichiarare **piu' di un** effetto `Damage` — `Hero.Aevik.LinearDischarge`
+	 * Serve perche' un'azione puo' dichiarare **piu' di un** effetto `Damage` — `Hero.Gadget.LinearDischarge`
 	 * nella variante ramificata ne ha due da 18 — e senza l'indice due voci identiche sarebbero
 	 * indistinguibili.
 	 */

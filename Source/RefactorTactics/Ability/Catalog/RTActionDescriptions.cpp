@@ -16,12 +16,12 @@ const TArray<TPair<FName, FString>>& RTActionDescriptions::All()
 		{ TEXT("Action.Overwatch"), TEXT("Sorvegli la direzione in cui guardi e spari al nemico che vi passa; puoi muoverti solo per ritirarti.") },
 		{ TEXT("Action.Interact"),  TEXT("Usi un oggetto su una cella vicina, per esempio una porta.") },
 
-		// Aevik
-		{ TEXT("Hero.Aevik.ArcPulse"),          TEXT("Una scarica elettrica a distanza su un bersaglio.") },
-		{ TEXT("Hero.Aevik.LinearDischarge"),   TEXT("Una scarica in linea retta, piu' dannosa su chi e' bagnato.") },
-		{ TEXT("Hero.Aevik.ConductiveNode"),    TEXT("Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine.") },
-		{ TEXT("Hero.Aevik.Overload"),          TEXT("Un'esplosione elettrica ad area, che interrompe anche i dispositivi.") },
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca.") },
+		// Gadget
+		{ TEXT("Hero.Gadget.ArcPulse"),          TEXT("Una scarica elettrica a distanza su un bersaglio.") },
+		{ TEXT("Hero.Gadget.LinearDischarge"),   TEXT("Una scarica in linea retta, piu' dannosa su chi e' bagnato.") },
+		{ TEXT("Hero.Gadget.ConductiveNode"),    TEXT("Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine.") },
+		{ TEXT("Hero.Gadget.Overload"),          TEXT("Un'esplosione elettrica ad area, che interrompe anche i dispositivi.") },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca.") },
 
 		// Muiren
 		{ TEXT("Hero.Muiren.PressureJet"),  TEXT("Un getto d'acqua in linea: bagna il bersaglio e lo spinge indietro.") },

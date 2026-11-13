@@ -35,7 +35,7 @@ namespace
 
 	/**
 	 * Il turno di prova: attaccanti della squadra 0 — quella di chi guarda in un mondo senza player controller
-	 * (`ARTPlayerState::TeamIdOf(nullptr)` risponde 0) — contro Ivrin. Con `bDue`, Aevik spara anche lui. Con
+	 * (`ARTPlayerState::TeamIdOf(nullptr)` risponde 0) — contro Ivrin. Con `bDue`, Gadget spara anche lui. Con
 	 * `bConMove`, Riktor si sposta dopo il colpo: dopo il Blast c'e' un'altra fase, e a fine Blast il playback
 	 * non finisce — quindi nessun `FinishPlayback` ripulisce al posto della fase.
 	 */
@@ -52,11 +52,11 @@ namespace
 		Riktor->SetPlannedCell(bConMove ? FRTCellId(1, 3) : Riktor->Cell);
 		if (bDue)
 		{
-			ARTUnit* Aevik = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, 4));
-			if (!Aevik) { return nullptr; }
-			Aevik->SetPlannedMainAction(0);
-			Aevik->DeclareAttackOnUnit(Bersaglio);
-			Aevik->SetPlannedCell(Aevik->Cell);
+			ARTUnit* Gadget = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, 4));
+			if (!Gadget) { return nullptr; }
+			Gadget->SetPlannedMainAction(0);
+			Gadget->DeclareAttackOnUnit(Bersaglio);
+			Gadget->SetPlannedCell(Gadget->Cell);
 		}
 		TM->bRecordAttackBeatsForTest = true;
 		return TM;

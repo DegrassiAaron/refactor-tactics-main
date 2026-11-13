@@ -2,9 +2,9 @@
 //
 // ## Perche' nessun `AbilityId` e' cablato
 //
-// Le identita' di questo progetto si rinominano: `D-130` ha spostato `Flux` -> `Aevik` e `Riva` -> `Phase`,
+// Le identita' di questo progetto si rinominano: `D-130` ha spostato `Flux` -> `Gadget` e `Riva` -> `Phase`,
 // `D-334` ha spostato `Hero.Riktor` -> `Hero.Branth`, e `D-585` (#4011) l'ha riportato indietro. Un test che
-// scrivesse `Hero.Aevik.LinearDischarge` diventerebbe rosso al prossimo rename **senza che nulla si sia rotto**,
+// scrivesse `Hero.Gadget.LinearDischarge` diventerebbe rosso al prossimo rename **senza che nulla si sia rotto**,
 // e il costo di quel falso rosso lo paga chi rinomina.
 //
 // Questi test chiedono invece al catalogo *«dammi un'ability di forma `Line`»* — che e' la proprieta' che
@@ -975,7 +975,7 @@ bool FRTAbilityLabChoosesTheTargetFromTheActionTest::RunTest(const FString&)
 	FRTActionDef Def;
 	ERTAbilityShape Shape = ERTAbilityShape::Single;
 
-	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Aevik.LinearDischarge"), Def, Shape)))
+	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Gadget.LinearDischarge"), Def, Shape)))
 	{
 		TestTargetKind(*this, TEXT("LinearDischarge: un nemico"), URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec).Kind,
 			ERTAbilityLabTarget::Enemy);
@@ -991,7 +991,7 @@ bool FRTAbilityLabChoosesTheTargetFromTheActionTest::RunTest(const FString&)
 	}
 
 	// Un'area: una cella VUOTA a portata, oltre il bersaglio sulla linea da chi lancia.
-	if (TestTrue(TEXT("premessa: Overload e' nel kit"), FindKitAction(TEXT("Hero.Aevik.Overload"), Def, Shape))
+	if (TestTrue(TEXT("premessa: Overload e' nel kit"), FindKitAction(TEXT("Hero.Gadget.Overload"), Def, Shape))
 		&& TestTrue(TEXT("premessa: Overload e' un'area"), Shape == ERTAbilityShape::Area))
 	{
 		const FRTAbilityLabTargetChoice C = URTAbilityLabLibrary::ChooseTarget(Def, Shape, Spec);
@@ -1053,7 +1053,7 @@ bool FRTAbilityLabChoosesTheTargetFromTheActionTest::RunTest(const FString&)
 
 	// Il bersaglio sul bordo della mappa: la cella oltre esce, e si ripiega su quella PRIMA del bersaglio, non su quella
 	// accanto a chi lancia (che metterebbe chi lancia nell'area e il bersaglio fuori).
-	if (FindKitAction(TEXT("Hero.Aevik.Overload"), Def, Shape))
+	if (FindKitAction(TEXT("Hero.Gadget.Overload"), Def, Shape))
 	{
 		FRTAbilityLabFixtureSpec AlBordo;
 		AlBordo.TargetCell = FRTCellId(3, 0);
@@ -1093,7 +1093,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabTheSpecForcesTheTargetTest,
 bool FRTAbilityLabTheSpecForcesTheTargetTest::RunTest(const FString&)
 {
 	using namespace RTAbilityLabTestsInternal;
-	const FName Attacco(TEXT("Hero.Aevik.LinearDischarge"));
+	const FName Attacco(TEXT("Hero.Gadget.LinearDischarge"));
 	FRTActionDef Def;
 	ERTAbilityShape Shape = ERTAbilityShape::Single;
 	if (!TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(Attacco, Def, Shape))) { return false; }
@@ -1178,7 +1178,7 @@ bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
 	int32 Dopo = 0;
 
 	// Nemico: la vita del bersaglio scende.
-	if (Esegui(TEXT("Hero.Aevik.LinearDischarge"), Scenario, Result))
+	if (Esegui(TEXT("Hero.Gadget.LinearDischarge"), Scenario, Result))
 	{
 		TestTrue(TEXT("LinearDischarge: la vita del nemico scende"),
 			FieldBeforeAfter(Result, TEXT("TARGET"), TEXT("Health"), Prima, Dopo) && Dopo < Prima);
@@ -1197,7 +1197,7 @@ bool FRTAbilityLabEachTargetKindRunsAndActsTest::RunTest(const FString&)
 	}
 
 	// Cella: l'area centrata oltre il bersaglio lo prende.
-	if (Esegui(TEXT("Hero.Aevik.Overload"), Scenario, Result))
+	if (Esegui(TEXT("Hero.Gadget.Overload"), Scenario, Result))
 	{
 		TestTrue(TEXT("Overload: mira una cella"), Scenario.Turns[0].Intents[0].bTargetsCell);
 		TestTrue(TEXT("Overload: l'area prende il nemico"),
@@ -1347,7 +1347,7 @@ bool FRTAbilityLabReadsTheProvocationFromTheCatalogTest::RunTest(const FString&)
 				ProvocationName(A.Provocazione));
 		}
 	}
-	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Aevik.LinearDischarge"), Def, Shape)))
+	if (TestTrue(TEXT("premessa: LinearDischarge e' nel kit"), FindKitAction(TEXT("Hero.Gadget.LinearDischarge"), Def, Shape)))
 	{
 		TestEqual(TEXT("un attacco non e' una reazione"), ProvocationName(URTAbilityLabLibrary::ProvocationFor(Def)),
 			ProvocationName(ERTAbilityLabProvocation::None));
@@ -1401,7 +1401,7 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 	TArray<FRTTurnLogEntry> Voci;
 
 	// Le reazioni dello slot: chi reagisce la ARMA, e il `TARGET` lo colpisce col suo attacco base.
-	for (const TCHAR* Id : { TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Hero.Ivrin.Deflection") })
+	for (const TCHAR* Id : { TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Hero.Ivrin.Deflection") })
 	{
 		if (!Esegui(Id, Scenario, Voci)) { continue; }
 		const FRTScenarioIntent* Arma = IntentOf(Scenario, TEXT("CASTER"));
@@ -1421,8 +1421,8 @@ bool FRTAbilityLabEachReactionIsProvokedAndFiresTest::RunTest(const FString&)
 		FRTTestScenario Rifiutata;
 		FString Errore;
 		TestFalse(TEXT("una reazione col bersaglio forzato non si costruisce"),
-			URTAbilityLabLibrary::BuildFixture(TEXT("Hero.Aevik.ReactiveCapacitor"), Forzata, Rifiutata, Errore));
-		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(TEXT("Hero.Aevik.ReactiveCapacitor")));
+			URTAbilityLabLibrary::BuildFixture(TEXT("Hero.Gadget.ReactiveCapacitor"), Forzata, Rifiutata, Errore));
+		TestTrue(FString::Printf(TEXT("e il rifiuto la nomina (%s)"), *Errore), Errore.Contains(TEXT("Hero.Gadget.ReactiveCapacitor")));
 	}
 
 	// Chi provoca deve arrivare da dove sta: col bersaglio in (3,0) nessun attacco base che spinge ci arriva (quello di

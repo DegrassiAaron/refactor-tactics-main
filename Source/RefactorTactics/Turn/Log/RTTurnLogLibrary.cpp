@@ -309,7 +309,7 @@ namespace
 	 *
 	 * 🔑 **E' la regola che #1932 aveva applicato a una categoria sola, estesa dove vale** (`#1412`). Non e'
 	 * una preferenza di stile: decide se prefissare il nome dica il vero. Dove `UnitId` porta chi SUBISCE,
-	 * *«Aevik: colpisce»* sarebbe falso, e la riga mentirebbe su chi ha fatto cosa.
+	 * *«Gadget: colpisce»* sarebbe falso, e la riga mentirebbe su chi ha fatto cosa.
 	 *
 	 * | categoria | `UnitId` e' | prefisso |
 	 * |---|---|---|

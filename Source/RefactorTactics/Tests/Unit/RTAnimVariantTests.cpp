@@ -170,9 +170,9 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 
 	// ⛔ **`Pack` e' il nome PARAGON, e non segue il rename del roster** (`#2491`): sono cartelle di un
 	// asset di terze parti sotto `/Game/FabAsset/`, che nessuna migrazione RT rinomina. Le righe di `Muiren`
-	// (`ParagonPhase`) e `Ivrin` (`ParagonWraith`) lo mostrano da se'; quella di `Riktor` coincide col pack solo
-	// perche' #4011 (`D-585`) ha riportato l'id al nome Paragon — ed e' la ragione per cui questa colonna e'
-	// separata da `Eroe` invece di essere derivata da lui.
+	// (`ParagonPhase`) e `Ivrin` (`ParagonWraith`) lo mostrano da se'; quelle di `Riktor` e di `Gadget` coincidono
+	// col pack solo perche' #4011 (`D-585`) ha riportato gli id al nome Paragon — ed e' la ragione per cui questa
+	// colonna e' separata da `Eroe` invece di essere derivata da lui.
 	//
 	// 🔴 Questa riga ha detto `Aevik` dal 2026-09-05 al 2026-09-10, e il test era rosso su `main` per tutto
 	// quel tempo: un passaggio di rename ha toccato il letterale del pack insieme all'id dell'eroe. E' il
@@ -180,7 +180,7 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 	// `Unit.CanonicalHeroIdHasNoLegacyName`, che avverte «uno script che sostituisce non e' una misura».
 	struct FAtteso { const TCHAR* Eroe; const TCHAR* Pack; const TCHAR* Idle; const TCHAR* Move; };
 	const FAtteso Attesi[] = {
-		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
+		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
 		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Riktor"), TEXT("Riktor"), TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
@@ -278,7 +278,7 @@ bool FRTAnimCollectActiveClipsTest::RunTest(const FString&)
 		return Out;
 	};
 
-	const TArray<FString> Aevik = Atteso(TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/"), {
+	const TArray<FString> Gadget = Atteso(TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/"), {
 		TEXT("Cast"), TEXT("Death_Fwd"), TEXT("Hitreact_Fwd"), TEXT("Idle"),
 		TEXT("LMB_Fire_A_Slow_V1"), TEXT("LMB_Fire_B_Slow_V1"), TEXT("LMB_Fire_C_Slow_V1"), TEXT("Run_Fwd") });
 	const TArray<FString> Riktor = Atteso(TEXT("/Game/FabAsset/Paragon/ParagonRiktor/Characters/Heroes/Riktor/Animations/"), {
@@ -286,17 +286,17 @@ bool FRTAnimCollectActiveClipsTest::RunTest(const FString&)
 		TEXT("Ability_ShockingPunch"), TEXT("Cast"), TEXT("Death_Fwd"), TEXT("HitReact_Front"), TEXT("Idle"),
 		TEXT("Jog_Fwd"), TEXT("PrimaryAttack_A_Slow"), TEXT("PrimaryAttack_B_Slow") });
 
-	const TArray<FString> TrovatiAevik = Pacchetti(TEXT("Hero.Aevik"));
+	const TArray<FString> TrovatiGadget = Pacchetti(TEXT("Hero.Gadget"));
 	const TArray<FString> TrovatiRiktor = Pacchetti(TEXT("Hero.Riktor"));
-	TestEqual(TEXT("Aevik: le clip di ruolo e d'azione, in ordine"), FString::Join(TrovatiAevik, TEXT("\n")),
-		FString::Join(Aevik, TEXT("\n")));
+	TestEqual(TEXT("Gadget: le clip di ruolo e d'azione, in ordine"), FString::Join(TrovatiGadget, TEXT("\n")),
+		FString::Join(Gadget, TEXT("\n")));
 	TestEqual(TEXT("Riktor: le clip di ruolo e d'azione, in ordine"), FString::Join(TrovatiRiktor, TEXT("\n")),
 		FString::Join(Riktor, TEXT("\n")));
 	// ⚠️ `TestEqual` su `FString` ignora le maiuscole, e anche `operator==` di `FString`: i nomi Paragon si
 	// distinguono anche per quelle (`Hitreact_Fwd` di Gadget, `HitReact_Front` di Riktor), quindi il confronto
 	// esatto si ripete qui con `ESearchCase::CaseSensitive`.
-	TestTrue(TEXT("Aevik: confronto sensibile alle maiuscole"), FString::Join(TrovatiAevik, TEXT("\n")).Equals(
-		FString::Join(Aevik, TEXT("\n")), ESearchCase::CaseSensitive));
+	TestTrue(TEXT("Gadget: confronto sensibile alle maiuscole"), FString::Join(TrovatiGadget, TEXT("\n")).Equals(
+		FString::Join(Gadget, TEXT("\n")), ESearchCase::CaseSensitive));
 	TestTrue(TEXT("Riktor: confronto sensibile alle maiuscole"), FString::Join(TrovatiRiktor, TEXT("\n")).Equals(
 		FString::Join(Riktor, TEXT("\n")), ESearchCase::CaseSensitive));
 

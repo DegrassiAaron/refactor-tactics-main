@@ -43,7 +43,7 @@ namespace
 			return nullptr;
 		}
 		U->TeamId = 0;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeAevik());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeGadget());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay();
@@ -251,7 +251,7 @@ bool FRTEmptyKitPositionIsNotReportedAsArmedTest::RunTest(const FString&)
  * ⏱️ *Fino a questa issue* il rifiuto copriva solo reazioni e supporti (le due forme che gia' interrogavano
  * `CanUseAbility`), e un'azione attiva in ricarica si armava ancora e veniva fermata dal targeting (`#3517` lo
  * lasciava com'era e chiedeva una decisione propria). Misurato a schermo il 2026-10-19: `Scarica lineare` di
- * Aevik, con 1 turno di ricarica residuo, si armava dal tasto `2` e dal click sullo slot.
+ * Gadget, con 1 turno di ricarica residuo, si armava dal tasto `2` e dal click sullo slot.
  *
  * 🔑 **I canali sono due, e il test li esercita entrambi** — il tasto (`SelectAbilityForCurrentForTest`, origine
  * `Hotkey`) e la porta dello slot (`ArmKitAbility`, origine `Dock`). Le generiche confluiscono nella stessa

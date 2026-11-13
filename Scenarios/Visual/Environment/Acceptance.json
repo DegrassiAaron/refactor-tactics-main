@@ -26,15 +26,15 @@
   "_nota_anti_vacuita": "Ogni gruppo porta almeno un'assertion che cade se il suo fenomeno non avviene: `UnitHpEquals W_ELE 63` per la scarica sull'acqua, `UnitAtCell G_ICE (-2,1,0)` per la scivolata (la cella e' oltre la fine del percorso dichiarato, quindi non e' raggiungibile camminando), e `UnitHpEquals W_FIRE 61` per il fuoco piu' lo spegnimento — accanto a `UnitAtCell W_FIRE (0,-1,0)`, che pinna la spinta del getto. Un composito senza queste sarebbe una bella animazione di cinque cose che non sono successe. 🔴 **DUE righe di questo elenco NON discriminavano, ed e' il rilievo strutturale di `#2492`.** Dicevano `UnitAtCell R_ROU (-3,-1,0)` per la carica rifiutata e `UnitHpEquals R_SMO 120` per il colpo che il fumo non lascia arrivare. Sono vere **sia** se il fenomeno avviene **sia** se non viene mai tentato: misurano lo stato finale — unita' ferma, bersaglio intatto — che e' identico nei due casi. Un'anti-vacuita' che non cade quando il fenomeno sparisce non e' un'anti-vacuita'. ✅ Le due righe restano (pinnano comunque che nessuno si sia mosso o abbia incassato), e accanto a ciascuna c'e' ora un `LogEventCount` sull'EVENTO, che e' cio' che il tentativo lascia e l'assenza no.",
 
   "units": [
-    { "id": "G_ELE", "hero": "Hero.Aevik", "team": 0, "cell": [-3, 0, 0] },
+    { "id": "G_ELE", "hero": "Hero.Gadget", "team": 0, "cell": [-3, 0, 0] },
     { "id": "W_ELE", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] },
 
-    { "id": "G_ICE", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 4, 0] },
+    { "id": "G_ICE", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 4, 0] },
 
     { "id": "R_ROU", "hero": "Hero.Riktor", "team": 1, "cell": [-3, -1, 0] },
-    { "id": "G_ROU", "hero": "Hero.Aevik", "team": 0, "cell": [-1, -1, 0] },
+    { "id": "G_ROU", "hero": "Hero.Gadget", "team": 0, "cell": [-1, -1, 0] },
 
-    { "id": "G_SMO", "hero": "Hero.Aevik", "team": 0, "cell": [1, 4, 0] },
+    { "id": "G_SMO", "hero": "Hero.Gadget", "team": 0, "cell": [1, 4, 0] },
     { "id": "R_SMO", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] },
 
     { "id": "P_WET", "hero": "Hero.Muiren", "team": 0, "cell": [0, -4, 0] },
@@ -46,7 +46,7 @@
       "_turno": "T1 — ACQUA + ELETTRICITA' (`PIE-VIS-COMBO`). W_ELE scatta nella spina d'acqua in fase Dash e il terreno lo bagna; la scarica lineare di G_ELE lo trova gia' bagnato e il bonus si applica. 90 - (32 - 5 di scudo base, [D-224]) = 63. Va per primo perche' la rete conduttiva dev'essere intatta. ⏱️ 🔴 **G_ELE mira alla CELLA e non all'unita', e dal 2026-09-20 e' l'unico modo di allestire questa scena** ([D-415]): la mira si fissa al lock-in e non insegue piu', quindi puntare `W_ELE` significherebbe puntare la cella da cui sta per scattare — la scarica cadrebbe li' e la combo non avverrebbe. Misurato: con il bersaglio-unita' `W_ELE` chiude a **90** invece di 63. 🔑 **Ed e' la lettura giusta della decisione, non un aggiramento**: chi non puo' inseguire PREVEDE, e dichiara la cella — il `targetCell` e' esattamente cio' che [D-415] lascia a chi vuole colpire qualcosa che si muove.",
       "intents": [
         { "unit": "W_ELE", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [0, 0, 0] },
-        { "unit": "G_ELE", "ability": "Hero.Aevik.LinearDischarge", "targetCell": [0, 0, 0] }
+        { "unit": "G_ELE", "ability": "Hero.Gadget.LinearDischarge", "targetCell": [0, 0, 0] }
       ]
     },
     {
@@ -59,7 +59,7 @@
     {
       "_turno": "T3 — FUMO (`PIE-VIS-SMOKE`). G_SMO spara a R_SMO lungo la colonna q=1, che attraversa il fumo di (1,2): il bersaglio SI VEDE e non si puo' colpire, perche' il fumo accorcia la portata invece di accecare. R_SMO resta a 120 pieni.",
       "intents": [
-        { "unit": "G_SMO", "ability": "Hero.Aevik.ArcPulse", "target": "R_SMO" }
+        { "unit": "G_SMO", "ability": "Hero.Gadget.ArcPulse", "target": "R_SMO" }
       ]
     },
     {
@@ -90,7 +90,7 @@
     { "type": "UnitAtCell", "unit": "G_ROU", "cell": [-1, -1, 0] },
     { "type": "UnitHpEquals", "unit": "G_ROU", "value": 900 },
 
-    { "_assertion": "🔴 **IL TIRO E' STATO TENTATO E ANNULLATO**, e `UnitHpEquals R_SMO 120` qui sotto non lo distingue da un tiro mai partito — `#2492`. L'evento sì: `Fallback/Cancelled` con `ActionId = Hero.Aevik.ArcPulse`. ⚠️ **Questa riga discrimina META' di cio' che serve, e la differenza va detta invece che lasciata credere.** Dice *«il tiro e' partito e non e' arrivato»*; NON dice *«la causa e' il fumo»*, perche' il log esce come `azione annullata (fuori portata)` — l'effetto, non la causa. E' lo stesso difetto che la carica aveva prima di `#2684`, su un altro fenomeno, ed e' il residuo che `#2492` tiene aperto. Il giorno in cui il log nominera' il fumo, questa riga va stretta sulla causa. ⛔ Valore derivato dal contratto: un tiro dichiarato al T3, annullato.", "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Hero.Aevik.ArcPulse", "value": 1 },
+    { "_assertion": "🔴 **IL TIRO E' STATO TENTATO E ANNULLATO**, e `UnitHpEquals R_SMO 120` qui sotto non lo distingue da un tiro mai partito — `#2492`. L'evento sì: `Fallback/Cancelled` con `ActionId = Hero.Gadget.ArcPulse`. ⚠️ **Questa riga discrimina META' di cio' che serve, e la differenza va detta invece che lasciata credere.** Dice *«il tiro e' partito e non e' arrivato»*; NON dice *«la causa e' il fumo»*, perche' il log esce come `azione annullata (fuori portata)` — l'effetto, non la causa. E' lo stesso difetto che la carica aveva prima di `#2684`, su un altro fenomeno, ed e' il residuo che `#2492` tiene aperto. Il giorno in cui il log nominera' il fumo, questa riga va stretta sulla causa. ⛔ Valore derivato dal contratto: un tiro dichiarato al T3, annullato.", "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Hero.Gadget.ArcPulse", "value": 1 },
 
     { "type": "UnitHpEquals", "unit": "R_SMO", "value": 1200 },
     { "type": "UnitAtCell", "unit": "G_SMO", "cell": [1, 4, 0] },

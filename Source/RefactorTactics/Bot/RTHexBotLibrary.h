@@ -332,7 +332,7 @@ struct FRTHexBotContext
 	 * di essere una meta e diventa un bonus posizionale generale: cioe' la forma di `#1088`, che compete con
 	 * l'avvicinamento e paga per **stare**. Misurato il 2026-09-04:
 	 * `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza ferma **5** contro un limite di 4 —
-	 * e l'unita' parcheggiata era Aevik su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
+	 * e l'unita' parcheggiata era Gadget su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
 	 * incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella distanza,
 	 * non parla piu' dell'obiettivo.
 	 *
@@ -454,9 +454,9 @@ public:
 	 * · in partita l'equipaggiamento si applica davvero: `FRTMatchBootstrapper` chiama
 	 *   `EquipLoadout(DefaultLoadoutFor(HeroId))` sullo spawn, **per entrambe le squadre**;
 	 * · `Weapon.Impact` porta `RangeDeltaCells = -1` ed e' il default di Muiren **e** di Riktor;
-	 *   `DefaultLoadoutFor` risponde VUOTO per Aevik e Ivrin, i cui gadget la v0.1 non costruisce.
+	 *   `DefaultLoadoutFor` risponde VUOTO per Gadget e Ivrin, i cui gadget la v0.1 non costruisce.
 	 *
-	 * ∴ le portate che il bot vede in partita sono **Muiren 4, Riktor 2, Aevik 4, Ivrin 4**, e
+	 * ∴ le portate che il bot vede in partita sono **Muiren 4, Riktor 2, Gadget 4, Ivrin 4**, e
 	 * `KiterMinRange` e' 5: `DeriveKiteStandoff` restituisce **0 per tutto il roster spedito**, e il ramo
 	 * del kiting non entra in nessuna partita.
 	 *

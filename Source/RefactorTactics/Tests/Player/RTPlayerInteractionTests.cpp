@@ -1437,7 +1437,7 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
  * La proprieta' per cui il canale generico risolve per NOME invece che per posizione.
  *
  * Le generiche sono accodate al kit, quindi il loro indice dipende da quante azioni porta l'eroe: Phase ne
- * ha sei e Aevik cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
+ * ha sei e Gadget cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
  * posizione fissa punterebbe a un'abilita' d'eroe sull'uno e alla generica giusta sull'altro.
  *
  * ⚠️ **Serve un roster con kit di lunghezza diversa, ed e' la ragione per cui questo test non esisteva
@@ -3928,7 +3928,7 @@ bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
 		DestroyInteractionWorld(B.World); return false;
 	}
 	// Un nemico accanto, e la prima azione del kit che punta un'UNITA': cercata, non scritta.
-	ARTUnit* Nemico = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, -2, 0));
+	ARTUnit* Nemico = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, -2, 0));
 	B.PC->SelectActorForTest(B.Unit);
 	int32 Armata = INDEX_NONE;
 	for (int32 i = 0; Nemico && i < B.Unit->NumAbilities() && Armata == INDEX_NONE; ++i)

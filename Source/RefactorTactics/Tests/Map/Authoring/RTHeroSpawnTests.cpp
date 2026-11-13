@@ -120,7 +120,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
-	TestTrue(TEXT("c'e' Aevik"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
+	TestTrue(TEXT("c'e' Gadget"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
 	TestTrue(TEXT("c'e' Muiren"), InPlay.Contains(FName(TEXT("Hero.Muiren"))));
 	TestTrue(TEXT("c'e' Riktor"), InPlay.Contains(FName(TEXT("Hero.Riktor"))));
 	TestTrue(TEXT("c'e' Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
@@ -157,18 +157,18 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Aevik+Muiren (giocatore) contro Riktor+Ivrin (bot).
-	ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
+	// Formazione di default: Gadget+Muiren (giocatore) contro Riktor+Ivrin (bot).
+	ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
 	ARTUnit* Muiren = FindByHeroId(Units, TEXT("Hero.Muiren"));
 	ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
 	ARTUnit* Ivrin = FindByHeroId(Units, TEXT("Hero.Ivrin"));
-	if (Aevik && Muiren && Riktor && Ivrin)
+	if (Gadget && Muiren && Riktor && Ivrin)
 	{
-		TestEqual(TEXT("Aevik e' del giocatore"), Aevik->TeamId, 0);
+		TestEqual(TEXT("Gadget e' del giocatore"), Gadget->TeamId, 0);
 		TestEqual(TEXT("Muiren anche: la combo Wet e' giocabile"), Muiren->TeamId, 0);
 		TestEqual(TEXT("Riktor e' del bot"), Riktor->TeamId, 1);
 		TestEqual(TEXT("Ivrin anche"), Ivrin->TeamId, 1);
-		TestFalse(TEXT("il giocatore comanda i suoi"), Aevik->bIsBotControlled);
+		TestFalse(TEXT("il giocatore comanda i suoi"), Gadget->bIsBotControlled);
 		TestTrue(TEXT("il bot comanda i propri"), Riktor->bIsBotControlled);
 
 		// **Il punto della DoD sul bot**: MP diversi arrivano davvero in campo. Il budget dello snapshot viene
@@ -176,10 +176,10 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		TestEqual(TEXT("Riktor: 4 MP"), Riktor->MoveRange, 4);
 		TestEqual(TEXT("Ivrin: 6 MP"), Ivrin->MoveRange, 6);
 		// ⚠️ **La portata ora dipende dalla VARIANTE D'ARMA, e il valore atteso si deriva** (`#1054`).
-		// Aevik non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
+		// Gadget non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
 		// resta a 4, il numero del catalogo. Riktor monta `Weapon.Impact`, che toglie una cella: **3 → 2**.
 		// Il `2` non e' scritto qui: lo produce `ApplyWeaponVariant`, cosi' un ribilanciamento della
-		// variante fa cadere il catalogo e non questo file, e il giorno in cui Aevik avra' il suo gadget
+		// variante fa cadere il catalogo e non questo file, e il giorno in cui Gadget avra' il suo gadget
 		// questa riga comincera' a coprire anche lui senza che nessuno la aggiorni.
 		auto PortataAttesa = [](const TCHAR* HeroId) -> int32
 		{
@@ -195,8 +195,8 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			}
 			return INDEX_NONE;
 		};
-		TestEqual(TEXT("Aevik colpisce alla portata del catalogo (nessun loadout)"),
-			Aevik->AttackRange, PortataAttesa(TEXT("Hero.Aevik")));
+		TestEqual(TEXT("Gadget colpisce alla portata del catalogo (nessun loadout)"),
+			Gadget->AttackRange, PortataAttesa(TEXT("Hero.Gadget")));
 		TestEqual(TEXT("Riktor colpisce alla portata ridotta dalla sua variante"),
 			Riktor->AttackRange, PortataAttesa(TEXT("Hero.Riktor")));
 		// E che le due NON siano lo stesso numero: senza questa riga il lambda potrebbe restituire sempre
@@ -206,7 +206,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 
 		// Ogni unita' ha le PROPRIE istanze d'azione: due eroi che condividessero un `URTActionData`
 		// ricaricherebbero insieme.
-		TestTrue(TEXT("azioni non condivise"), Aevik->GetAbility(0) != Muiren->GetAbility(0));
+		TestTrue(TEXT("azioni non condivise"), Gadget->GetAbility(0) != Muiren->GetAbility(0));
 
 		// Le unita' stanno su celle distinte della mappa.
 		TSet<FRTCellId> Cells;
@@ -246,15 +246,15 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Aevik in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
+	// Gadget in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
 	// Due unita' che condividessero un `URTHeroData` ricaricherebbero insieme le stesse azioni.
-	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
-	GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Ivrin") };
+	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Muiren") };
+	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Ivrin") };
 
 	AddExpectedError(TEXT("e' schierato due volte"), EAutomationExpectedErrorFlags::Contains, 1);
 	GameMode->SetupHexMatch(HexMap);
 
-	// **Zero, non tre.** Tre era la regola di prima: Aevik, Muiren e Ivrin in campo, e una partita 2 contro 1
+	// **Zero, non tre.** Tre era la regola di prima: Gadget, Muiren e Ivrin in campo, e una partita 2 contro 1
 	// che a schermo sembrava un 2v2 con un'unita' gia' caduta.
 	TestEqual(TEXT("nessuna unita' in campo"), CollectRosterUnits(World).Num(), 0);
 
@@ -266,7 +266,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 	for (const FRTStartupNote& Note : Report.Notes)
 	{
 		bNomeNelDettaglio |= (Note.Outcome == ERTStartupOutcome::RosterHeroRepeated
-			&& Note.Detail.Contains(TEXT("Hero.Aevik")) && Note.Detail.Contains(TEXT("squadra 1")));
+			&& Note.Detail.Contains(TEXT("Hero.Gadget")) && Note.Detail.Contains(TEXT("squadra 1")));
 	}
 	TestTrue(TEXT("il dettaglio nomina l'eroe e la squadra della seconda voce"), bNomeNelDettaglio);
 
@@ -288,7 +288,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
  * dice quale portata deve avere l'attacco base dopo la variante. Trascrivere un numero qui creerebbe una
  * terza copia di ciò che il catalogo già decide, e cadrebbe al primo ribilanciamento senza dire perché.
  *
- * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Aevik e Ivrin
+ * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Gadget e Ivrin
  * due gadget che v0.1 non costruisce (`Gadget.Insulator` è un passivo che aspetta E36, `Gadget.Sensor`
  * aspetta E13), quindi `DefaultLoadoutFor` restituisce vuoto per loro — decisione presa nella fetta A.
  * Il test non elenca *quali*: chiede al catalogo, così quando E36 atterrerà comincerà a coprire anche
@@ -437,12 +437,12 @@ bool FRTUnknownHeroAbortsSetupTest::RunTest(const FString&)
 	// Il CONTEGGIO resta quello del formato — due per squadra — cosi' la guardia che si esercita e' quella
 	// del nome. Con una formazione piu' corta si fermerebbe prima, sulla cardinalita', e questo test
 	// direbbe verde senza aver mai toccato il ramo che copre.
-	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.NonEsiste") };
+	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.NonEsiste") };
 
 	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
 	GameMode->SetupHexMatch(HexMap);
 
-	// **Zero, non tre.** Aevik precede il nome ignoto e la squadra 1 e' intatta: senza la guardia in campo
+	// **Zero, non tre.** Gadget precede il nome ignoto e la squadra 1 e' intatta: senza la guardia in campo
 	// resterebbero TRE unita', ed e' quel numero — una partita che parte e sembra normale — a rendere il
 	// difetto invisibile a chi guarda lo schermo invece di contare i pezzi.
 	TestEqual(TEXT("nessuna unita' in campo"), CollectRosterUnits(World).Num(), 0);
@@ -563,7 +563,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// chiuso. Se un `BP_Unit_*` viene spostato o rinominato, qui si vede subito.
 	//
 	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
-	// `Assegna` in fila con quattro finder simili, e `Hero.Muiren` che riceve il Blueprint di Aevik passerebbe
+	// `Assegna` in fila con quattro finder simili, e `Hero.Muiren` che riceve il Blueprint di Gadget passerebbe
 	// un asserto scritto solo su «non e' il cilindro».
 	// ✅ **L'asset si e' mosso, e questa tabella con lui** (`#2297` fetta E, 2026-09-10). Fino a qui i quattro
 	// path dicevano `Gadget`, `Phase`, `Riktor` e `Wraith` — i nomi degli **slot asset Paragon**, che [D-321]
@@ -574,7 +574,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// o lo fosse a un path diverso, il `FClassFinder` di `ARTGameMode` lascerebbe la voce assente e questo
 	// test cadrebbe — che e' cio' che il commento a `:507` promette da sempre.
 	const TMap<FName, FString> Attesi = {
-		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik") },
+		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik") },
 		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren")   },
 		{ FName(TEXT("Hero.Riktor")), TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin") },
@@ -693,13 +693,13 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 
 	// Il caso che il DoD di `#287` chiede per nome: **mesh assegnata a meta' roster**. E' lo stato reale di
 	// chi ha solo alcuni pack Paragon, e la domanda e' se le due meta' convivono nella stessa partita.
-	const TSubclassOf<ARTUnit>* ClasseAevik = GameMode->HeroUnitClasses.Find(FName(TEXT("Hero.Aevik")));
-	if (!TestNotNull(TEXT("il default porta la classe di Aevik"), (const void*)ClasseAevik))
+	const TSubclassOf<ARTUnit>* ClasseGadget = GameMode->HeroUnitClasses.Find(FName(TEXT("Hero.Gadget")));
+	if (!TestNotNull(TEXT("il default porta la classe di Gadget"), (const void*)ClasseGadget))
 	{
 		DestroyRosterWorld(World);
 		return false;
 	}
-	UClass* AttesaAevik = ClasseAevik->Get();
+	UClass* AttesaGadget = ClasseGadget->Get();
 
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Riktor")));
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Ivrin")));
@@ -709,15 +709,15 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
 	TestEqual(TEXT("le quattro unita' entrano"), Units.Num(), 4);
 
-	const ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
+	const ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
 	const ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
-	if (TestNotNull(TEXT("Aevik in campo"), Aevik) && TestNotNull(TEXT("Riktor in campo"), Riktor))
+	if (TestNotNull(TEXT("Gadget in campo"), Gadget) && TestNotNull(TEXT("Riktor in campo"), Riktor))
 	{
-		TestEqual(TEXT("Aevik ha la sua classe visiva"), Aevik->GetClass(), AttesaAevik);
+		TestEqual(TEXT("Gadget ha la sua classe visiva"), Gadget->GetClass(), AttesaGadget);
 		TestEqual(TEXT("Riktor, senza voce, ricade sul cilindro"), Riktor->GetClass(), ARTUnit::StaticClass());
 
 		// La meta' senza asset non degrada l'altra: e' il punto della domanda.
-		TestNotEqual(TEXT("le due meta' restano distinte"), Aevik->GetClass(), Riktor->GetClass());
+		TestNotEqual(TEXT("le due meta' restano distinte"), Gadget->GetClass(), Riktor->GetClass());
 	}
 
 	DestroyRosterWorld(World);
@@ -751,7 +751,7 @@ bool FRTHeroMeshYawOffsetIsPinnedTest::RunTest(const FString&)
 	// file, ed e' li' che si guarda quando una di queste righe smette di risolvere — un `Hero.*` che non
 	// esiste piu' fa fallire questo test per una ragione che non e' la sua.
 	const TMap<FName, float> Attesi = {
-		{ FName(TEXT("Hero.Aevik")),  -90.f },
+		{ FName(TEXT("Hero.Gadget")),  -90.f },
 		{ FName(TEXT("Hero.Muiren")), -90.f },
 		{ FName(TEXT("Hero.Riktor")), -90.f },
 		{ FName(TEXT("Hero.Ivrin")),  -90.f },
@@ -826,17 +826,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitClassForHeroTest,
 bool FRTUnitClassForHeroTest::RunTest(const FString&)
 {
 	TMap<FName, TSubclassOf<ARTUnit>> Classi;
-	Classi.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+	Classi.Add(FName(TEXT("Hero.Gadget")), ARTUnitClassProbeForTest::StaticClass());
 	Classi.Add(FName(TEXT("Hero.Muiren")), nullptr);
 
 	TestTrue(TEXT("un eroe con la sua classe riceve quella"),
-		RTUnitClassForHero(Classi, FName(TEXT("Hero.Aevik"))) == ARTUnitClassProbeForTest::StaticClass());
+		RTUnitClassForHero(Classi, FName(TEXT("Hero.Gadget"))) == ARTUnitClassProbeForTest::StaticClass());
 	TestTrue(TEXT("un eroe assente dalla mappa riceve il cilindro"),
 		RTUnitClassForHero(Classi, FName(TEXT("Hero.Riktor"))) == ARTUnit::StaticClass());
 	TestTrue(TEXT("una voce nulla riceve il cilindro, non nullptr"),
 		RTUnitClassForHero(Classi, FName(TEXT("Hero.Muiren"))) == ARTUnit::StaticClass());
 	TestTrue(TEXT("una mappa vuota da' sempre il cilindro"),
-		RTUnitClassForHero({}, FName(TEXT("Hero.Aevik"))) == ARTUnit::StaticClass());
+		RTUnitClassForHero({}, FName(TEXT("Hero.Gadget"))) == ARTUnit::StaticClass());
 
 	// Una classe che `SpawnActorDeferred` rifiuterebbe ricade sul cilindro, non su un'unita' mancante.
 	TMap<FName, TSubclassOf<ARTUnit>> Astratte;
@@ -990,9 +990,9 @@ bool FRTRosterSourcePrecedenceTest::RunTest(const FString&)
 		JoinRoster(GameMode->ResolveTeamHeroes(0)), FString(TEXT("Hero.Riktor,Hero.Ivrin")));
 
 	// L'altra squadra ha il suo token.
-	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Aevik,Hero.Muiren"));
+	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Gadget,Hero.Muiren"));
 	TestEqual(TEXT("-RTTeam1= sceglie la squadra 1"),
-		JoinRoster(GameMode->ResolveTeamHeroes(1)), FString(TEXT("Hero.Aevik,Hero.Muiren")));
+		JoinRoster(GameMode->ResolveTeamHeroes(1)), FString(TEXT("Hero.Gadget,Hero.Muiren")));
 	TestEqual(TEXT("e non tocca la squadra 0"), JoinRoster(GameMode->ResolveTeamHeroes(0)), Proprieta0);
 
 	// Console contro riga di comando: vince la console, che e' l'intento di ADESSO.
@@ -1051,8 +1051,8 @@ bool FRTRosterFromConsoleEntersTheFieldTest::RunTest(const FString&)
 		Default0 = HeroIdsInPlay(CollectRosterUnits(World), 0);
 		DestroyRosterWorld(World);
 	}
-	if (!TestEqual(TEXT("controllo: di default la squadra 0 e' Aevik e Muiren"),
-			Default0, FString(TEXT("Hero.Aevik,Hero.Muiren"))))
+	if (!TestEqual(TEXT("controllo: di default la squadra 0 e' Gadget e Muiren"),
+			Default0, FString(TEXT("Hero.Gadget,Hero.Muiren"))))
 	{
 		return false;
 	}
@@ -1064,7 +1064,7 @@ bool FRTRosterFromConsoleEntersTheFieldTest::RunTest(const FString&)
 	if (!HexMap || !GameMode) { DestroyRosterWorld(World); return TestTrue(TEXT("mappa e GameMode"), false); }
 
 	Sorgenti.Team0.Imposta(FString(TEXT("Hero.Riktor,Hero.Ivrin")));
-	Sorgenti.Team1.Imposta(FString(TEXT("Hero.Aevik,Hero.Muiren")));
+	Sorgenti.Team1.Imposta(FString(TEXT("Hero.Gadget,Hero.Muiren")));
 	GameMode->SetupHexMatch(HexMap);
 
 	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
@@ -1074,7 +1074,7 @@ bool FRTRosterFromConsoleEntersTheFieldTest::RunTest(const FString&)
 	TestEqual(TEXT("la squadra 0 e' quella chiesta dalla console"),
 		HeroIdsInPlay(Units, 0), FString(TEXT("Hero.Ivrin,Hero.Riktor")));
 	TestEqual(TEXT("e la squadra 1 pure: ogni lista e' arrivata alla PROPRIA squadra"),
-		HeroIdsInPlay(Units, 1), FString(TEXT("Hero.Aevik,Hero.Muiren")));
+		HeroIdsInPlay(Units, 1), FString(TEXT("Hero.Gadget,Hero.Muiren")));
 
 	DestroyRosterWorld(World);
 	return true;
@@ -1104,8 +1104,8 @@ bool FRTRosterUnknownHeroNamesItsSourceTest::RunTest(const FString&)
 	};
 	const FCaso Casi[] = {
 		{ TEXT("proprieta'"),      nullptr,                                   nullptr,                           TEXT("Team0Heroes") },
-		{ TEXT("riga di comando"), TEXT("-RTTeam0=Hero.Aevik,Hero.NonEsiste"), nullptr,                           TEXT("-RTTeam0=") },
-		{ TEXT("console"),         nullptr,                                   TEXT("Hero.Aevik,Hero.NonEsiste"), TEXT("rt.Match.Team0") },
+		{ TEXT("riga di comando"), TEXT("-RTTeam0=Hero.Gadget,Hero.NonEsiste"), nullptr,                           TEXT("-RTTeam0=") },
+		{ TEXT("console"),         nullptr,                                   TEXT("Hero.Gadget,Hero.NonEsiste"), TEXT("rt.Match.Team0") },
 	};
 
 	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, UE_ARRAY_COUNT(Casi));
@@ -1121,7 +1121,7 @@ bool FRTRosterUnknownHeroNamesItsSourceTest::RunTest(const FString&)
 
 		if (Caso.Args) { Sorgenti.SetArgs(Caso.Args); }
 		if (Caso.Console) { Sorgenti.Team0.Imposta(FString(Caso.Console)); }
-		if (!Caso.Args && !Caso.Console) { GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.NonEsiste") }; }
+		if (!Caso.Args && !Caso.Console) { GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.NonEsiste") }; }
 
 		GameMode->SetupHexMatch(HexMap);
 
@@ -1164,8 +1164,8 @@ bool FRTRosterRepeatedHeroNamesItsSourceTest::RunTest(const FString&)
 	};
 	const FCaso Casi[] = {
 		// Nella stessa squadra, da riga di comando.
-		{ TEXT("stessa squadra"), TEXT("-RTTeam0=Hero.Aevik,Hero.Aevik"), nullptr, TEXT("Hero.Aevik"), TEXT("-RTTeam0=") },
-		// Fra le due: la squadra 0 resta al default (Aevik, Muiren) e la console mette Muiren anche nella 1.
+		{ TEXT("stessa squadra"), TEXT("-RTTeam0=Hero.Gadget,Hero.Gadget"), nullptr, TEXT("Hero.Gadget"), TEXT("-RTTeam0=") },
+		// Fra le due: la squadra 0 resta al default (Gadget, Muiren) e la console mette Muiren anche nella 1.
 		{ TEXT("fra le due squadre"), nullptr, TEXT("Hero.Riktor,Hero.Muiren"), TEXT("Hero.Muiren"), TEXT("rt.Match.Team1") },
 	};
 
@@ -1289,7 +1289,7 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 	}
 
 	// 4. Solo la squadra 1, da riga di comando.
-	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Aevik,Hero.Muiren"));
+	Sorgenti.SetArgs(TEXT("-RTTeam1=Hero.Gadget,Hero.Muiren"));
 	GameMode->SetupHexMatch(HexMap);
 	Sorgenti.ClearArgs();
 	if (TestEqual(TEXT("squadra 1 da riga di comando: un avviso in piu'"), Avvisi.Righe.Num(), 2))
@@ -1299,7 +1299,7 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 
 	// 5. Entrambe, e con il valore che la proprieta' ha gia': «chiesto», non «diverso». Il resolver qui non
 	//    annuncia nessuno scavalcamento, ma la richiesta non viene onorata lo stesso.
-	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Aevik,Hero.Muiren"));
+	Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Gadget,Hero.Muiren"));
 	Sorgenti.Team1.Imposta(FString(TEXT("Hero.Riktor,Hero.Ivrin")));
 	GameMode->SetupHexMatch(HexMap);
 	Sorgenti.ClearArgs();
@@ -1323,7 +1323,7 @@ bool FRTRosterUnusedOnAPopulatedLevelTest::RunTest(const FString&)
 /**
  * Una lista scritta male FERMA l'allestimento: non riparte la partita di default al posto di quella chiesta.
  *
- * 🔴 **E' la meta' di [D-507] che un resolver «gentile» romperebbe.** La proprieta' sotto e' valida — Aevik e
+ * 🔴 **E' la meta' di [D-507] che un resolver «gentile» romperebbe.** La proprieta' sotto e' valida — Gadget e
  * Muiren — quindi ignorare una sorgente malformata e ripiegare darebbe una partita che parte e SEMBRA
  * normale, con gli eroi sbagliati: il difetto piu' difficile da vedere a schermo. Tre forme, tutte con la
  * proprieta' intatta sotto, e in campo non deve entrare nessuno.
@@ -1341,11 +1341,11 @@ bool FRTRosterMalformedListAbortsTest::RunTest(const FString&)
 		ERTStartupOutcome FataleAtteso;
 	};
 	const FCaso Casi[] = {
-		{ TEXT("una voce sola, il formato ne schiera due"), TEXT("-RTTeam0=Hero.Aevik"),  TEXT("ne dichiara 1"),
+		{ TEXT("una voce sola, il formato ne schiera due"), TEXT("-RTTeam0=Hero.Gadget"),  TEXT("ne dichiara 1"),
 			ERTStartupOutcome::RosterCountMismatch },
 		{ TEXT("lista vuota"),                              TEXT("-RTTeam0="),            TEXT("ne dichiara 0"),
 			ERTStartupOutcome::RosterCountMismatch },
-		{ TEXT("virgola in coda: una voce vuota"),          TEXT("-RTTeam0=Hero.Aevik,"), TEXT("<voce vuota>"),
+		{ TEXT("virgola in coda: una voce vuota"),          TEXT("-RTTeam0=Hero.Gadget,"), TEXT("<voce vuota>"),
 			ERTStartupOutcome::RosterHeroMissing },
 	};
 
@@ -1421,14 +1421,14 @@ bool FRTRosterSameMatchWhateverTheSourceTest::RunTest(const FString&)
 		{
 		case ESorgente::Proprieta:
 			GameMode->Team0Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Ivrin") };
-			GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
+			GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Muiren") };
 			break;
 		case ESorgente::Console:
 			Sorgenti.Team0.Imposta(FString(TEXT("Hero.Riktor,Hero.Ivrin")));
-			Sorgenti.Team1.Imposta(FString(TEXT("Hero.Aevik,Hero.Muiren")));
+			Sorgenti.Team1.Imposta(FString(TEXT("Hero.Gadget,Hero.Muiren")));
 			break;
 		case ESorgente::RigaDiComando:
-			Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Riktor,Hero.Ivrin -RTTeam1=Hero.Aevik,Hero.Muiren"));
+			Sorgenti.SetArgs(TEXT("-RTTeam0=Hero.Riktor,Hero.Ivrin -RTTeam1=Hero.Gadget,Hero.Muiren"));
 			break;
 		case ESorgente::DefaultDiControllo:
 			break;

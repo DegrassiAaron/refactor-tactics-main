@@ -103,19 +103,19 @@ bool FRTRiktorPushResistanceTest::RunTest(const FString&)
 	// aveva deciso. Ora il test pinna il roster **tutto a zero**, ed e' l'unico posto che diventa rosso se
 	// qualcuno rimette una resistenza nativa senza passare da una decisione.
 	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
-	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	TestEqual(TEXT("Riktor non ha piu' resistenza nativa"), Riktor->PushResistance, 0);
-	TestEqual(TEXT("Aevik non resiste"), Aevik->PushResistance, 0);
+	TestEqual(TEXT("Gadget non resiste"), Gadget->PushResistance, 0);
 	TestEqual(TEXT("Phase non resiste"), Muiren->PushResistance, 0);
 	TestEqual(TEXT("Ivrin non resiste"), Ivrin->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
-	TestTrue(TEXT("piu' salute di Aevik e Phase"),
-		Riktor->MaxHealth > Aevik->MaxHealth && Riktor->MaxHealth > Muiren->MaxHealth);
+	TestTrue(TEXT("piu' salute di Gadget e Phase"),
+		Riktor->MaxHealth > Gadget->MaxHealth && Riktor->MaxHealth > Muiren->MaxHealth);
 	TestTrue(TEXT("ma meno movimento"),
-		Riktor->MovePoints < Aevik->MovePoints && Riktor->MovePoints < Muiren->MovePoints);
+		Riktor->MovePoints < Gadget->MovePoints && Riktor->MovePoints < Muiren->MovePoints);
 
 	// Il commento che stava qui diceva `PushResistance` "un DATO senza consumatore", e che il resolver
 	// applicava solo `GuardResistedPushDistance`. **Era invecchiato**: il ramo `ERTActionEffect::Push` di

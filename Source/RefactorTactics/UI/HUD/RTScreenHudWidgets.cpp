@@ -2053,7 +2053,7 @@ FText URTFastDecisionWidget::GetPromptText() const
 	//
 	// ✅ **Da `#3667` i nomi arrivano gia' scritti**: li risolve il turn manager nell'istante in cui costruisce
 	// la vista, contro l'array in cui l'indice vale. Qui si legge il titolo composto con cio' che la vista
-	// porta — «Guardia reattiva — Aevik» — e senza nomi resta «Reazione», come prima.
+	// porta — «Guardia reattiva — Gadget» — e senza nomi resta «Reazione», come prima.
 	RefreshWindowTexts();
 	return CachedTitle;
 }

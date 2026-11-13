@@ -66,7 +66,7 @@ namespace RTOverwatchScenarioFixtures
 	}
 
 	/**
-	 * [D-518] (`#3745`) Due Ivrin guardano la STESSA cella da lati opposti, e un Aevik con pochi punti vita ci entra
+	 * [D-518] (`#3745`) Due Ivrin guardano la STESSA cella da lati opposti, e un Gadget con pochi punti vita ci entra
 	 * con un passo solo. Il primo `FIRE` lo abbatte; al secondo watcher quel `FIRE` non si offre.
 	 *
 	 * `MakeSuppressiveZone` costruisce una LINEA lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi:
@@ -107,7 +107,7 @@ namespace RTOverwatchScenarioFixtures
 
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Aevik");
+		M1.HeroId = TEXT("Hero.Gadget");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		M1.Health = 10;
@@ -158,11 +158,11 @@ namespace RTOverwatchScenarioFixtures
 	}
 
 	/**
-	 * [D-522] (`#3771`) Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario`, con due differenze: Aevik entra
+	 * [D-522] (`#3771`) Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario`, con due differenze: Gadget entra
 	 * con 60/90 PV, e W1 dichiara «spara solo se il bersaglio e' al 50% dei PV o meno».
 	 *
 	 * All'ingresso 60/90 (66%) non soddisfa la condizione. W2, che e' chiesto per primo e non ne ha, spara: 21 danni
-	 * dell'arma di Ivrin portano Aevik a 39/90 (43%), vivo e sotto la soglia. Quando arriva il turno di W1 la condizione
+	 * dell'arma di Ivrin portano Gadget a 39/90 (43%), vivo e sotto la soglia. Quando arriva il turno di W1 la condizione
 	 * e' soddisfatta, e la sua finestra si apre. Prima di [D-522] si chiudeva con `CollapsedByCondition`, sullo stato di
 	 * prima del colpo.
 	 *
@@ -212,7 +212,7 @@ namespace RTOverwatchScenarioFixtures
 	 * [D-522] (`#3771`) Il cambio di ETICHETTA che D-522 §4 dichiara: un bersaglio escluso all'ingresso dalla condizione,
 	 * e poi abbattuto dal watcher chiesto prima.
 	 *
-	 * Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario` — Aevik con 10 PV, W2 che spara per primo e lo
+	 * Lo stesso montaggio di `MakeSecondWatcherOnDownedTargetScenario` — Gadget con 10 PV, W2 che spara per primo e lo
 	 * abbatte — piu' una condizione su W1: «al 10% dei PV o meno». 10/90 e' l'11%, quindi all'ingresso W1 non ha un
 	 * `FIRE`. Prima di [D-522] il pompaggio non toglieva niente, e la voce era `CollapsedByCondition`; ora nessuno
 	 * dei bersagli e' in piedi, e la voce e' `CollapsedTargetDown`.
@@ -239,7 +239,7 @@ namespace RTOverwatchScenarioFixtures
 
 	/**
 	 * [D-349] Un Overwatch armato sul BORDO della mappa, rivolto verso fuori: la sua linea non contiene nessuna cella.
-	 * Un Aevik nemico cammina per due passi altrove.
+	 * Un Gadget nemico cammina per due passi altrove.
 	 *
 	 * La voce attesa e' una sola, `ZoneEmpty`, anche se la linea si rifa' a due micro-step: al piu' una voce per
 	 * Overwatch e per motivo in un turno. `(5,-2,0)` sta sul bordo di una mappa di raggio 5, e la cella a est, `(6,-2,0)`,
@@ -263,7 +263,7 @@ namespace RTOverwatchScenarioFixtures
 
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Aevik");
+		M1.HeroId = TEXT("Hero.Gadget");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);
@@ -321,7 +321,7 @@ namespace RTOverwatchScenarioFixtures
 
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Aevik");
+		M1.HeroId = TEXT("Hero.Gadget");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);
@@ -368,14 +368,14 @@ namespace RTOverwatchScenarioFixtures
 
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Aevik");
+		M1.HeroId = TEXT("Hero.Gadget");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);
 
 		FRTScenarioUnit M2;
 		M2.Id = TEXT("M2");
-		M2.HeroId = TEXT("Hero.Aevik");
+		M2.HeroId = TEXT("Hero.Gadget");
 		M2.TeamId = 0;
 		M2.Cell = FRTCellId(1, 0, 0);
 		Scenario.Units.Add(M2);

@@ -2291,10 +2291,10 @@ bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
 	};
 
 	const FCaso Casi[] = {
-		{ TEXT("Hero.Aevik"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeAevik(); },
+		{ TEXT("Hero.Gadget"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeGadget(); },
 		  true,
 		  TEXT("⚠️ DUPLICATO DICHIARATO: `ReactiveShield` e `ReactiveCapacitor` sono entrambi `Action.Counter`. "
-		       "Non corretto insieme a Riktor perche' il loadout di Aevik e' comunque VUOTO — `Gadget.Insulator` "
+		       "Non corretto insieme a Riktor perche' il loadout di Gadget e' comunque VUOTO — `Gadget.Insulator` "
 		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
 		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
 		{ TEXT("Hero.Muiren"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeMuiren(); },

@@ -16,7 +16,7 @@ namespace
 {
 	TArray<URTHeroData*> RosterToday()
 	{
-		return { URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
+		return { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakeMuiren(),
 			URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeIvrin() };
 	}
 }
@@ -34,7 +34,7 @@ bool FRTHeroDefenseFieldsMatchD595AndD599::RunTest(const FString&)
 {
 	struct FExpected { const TCHAR* HeroId; int32 Defense; int32 Resistance; int32 RearBonus; };
 	const TArray<FExpected> Expected = {
-		{ TEXT("Hero.Aevik"),  15, 35, 60 }, // → Gadget, fascia standard
+		{ TEXT("Hero.Gadget"),  15, 35, 60 }, // → Gadget, fascia standard
 		{ TEXT("Hero.Muiren"), 25, 40, 60 }, // → Muriel, fascia standard
 		{ TEXT("Hero.Riktor"), 45, 35, 30 }, // → Riktor, tank
 		{ TEXT("Hero.Ivrin"),  15, 20, 90 }, // → Kallari, flanker
@@ -64,7 +64,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitCopiesDefenseFieldsFromHeroData,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitCopiesDefenseFieldsFromHeroData::RunTest(const FString&)
 {
-	URTHeroData* Hero = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* Hero = URTHeroCatalogLibrary::MakeGadget();
 	// Valori arbitrari e distinti fra loro: una copia che scambiasse due campi non passerebbe.
 	Hero->Defense = 25;
 	Hero->ResistanceDefault = 40;
@@ -89,22 +89,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroNegativeDefenseIsAValidationError,
 bool FRTHeroNegativeDefenseIsAValidationError::RunTest(const FString&)
 {
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->Defense = -1;
 		TestEqual(TEXT("difesa negativa"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 1);
 	}
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->ResistanceDefault = -1;
 		TestEqual(TEXT("resistenza di default negativa"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 1);
 	}
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->RearBonus = -1;
 		TestEqual(TEXT("bonus alle spalle negativo"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 1);
 	}
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->ElementResistance.Add(FName(TEXT("Element.Frost")), -5);
 		TestEqual(TEXT("resistenza negativa per un elemento"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 1);
 	}
@@ -125,12 +125,12 @@ bool FRTHeroUnknownElementResistanceIsAValidationError::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s non e' un elemento"), Gone), URTHeroCatalogLibrary::IsKnownElementId(FName(Gone)));
 	}
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->ElementResistance.Add(FName(TEXT("Element.Harmonic")), 10);
 		TestEqual(TEXT("elemento sconosciuto"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 1);
 	}
 	{
-		URTHeroData* H = URTHeroCatalogLibrary::MakeAevik();
+		URTHeroData* H = URTHeroCatalogLibrary::MakeGadget();
 		H->ElementResistance.Add(FName(TEXT("Element.Decay")), 10);
 		TestEqual(TEXT("elemento noto, valore valido"), URTHeroCatalogLibrary::ValidateHeroes({ H }).Num(), 0);
 	}

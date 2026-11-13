@@ -172,8 +172,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFxDeclaredOverridesMatchTheProposalTest,
 bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 {
 	TMap<FName, FRTAbilityFxProfile> Attesi;
-	Attesi.Add(TEXT("Hero.Aevik.LinearDischarge"), FxP(FxA::Ring,  FxT::Zigzag, FxI::Marker, FxF::None));
-	Attesi.Add(TEXT("Hero.Aevik.Overload"),        FxP(FxA::Flash, FxT::None,   FxI::Marker, FxF::AreaPulse));
+	Attesi.Add(TEXT("Hero.Gadget.LinearDischarge"), FxP(FxA::Ring,  FxT::Zigzag, FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Hero.Gadget.Overload"),        FxP(FxA::Flash, FxT::None,   FxI::Marker, FxF::AreaPulse));
 	Attesi.Add(TEXT("Hero.Muiren.CircularTide"),   FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None)); // #3593: una cura non ha un colpo, quindi ne' Marker ne' onda (spec SP5 F4, R7)
 	Attesi.Add(TEXT("Hero.Muiren.TideGuard"),      FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Hero.Riktor.Ram"),            FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
@@ -330,7 +330,7 @@ bool FRTPrivacyActivationCueNeedsTheSourceTest::RunTest(const FString&)
 	}
 	FRTPlaybackCue Altra;
 	TestTrue(TEXT("Overload: Flash"), URTPlaybackLibrary::ActivationCueFor(
-		FxAttivazione(TEXT("Hero.Aevik.Overload"), ERTAbilityShape::Area, FRTCellId(0, 0)), 0, 0.f, Altra)
+		FxAttivazione(TEXT("Hero.Gadget.Overload"), ERTAbilityShape::Area, FRTCellId(0, 0)), 0, 0.f, Altra)
 		&& Altra.Kind == ERTPlaybackCueKind::Flash);
 	TestTrue(TEXT("un attacco base: Ring (default)"), URTPlaybackLibrary::ActivationCueFor(
 		FxAttivazione(TEXT("Hero.Riktor.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0)), 0, 0.f, Altra)
@@ -510,9 +510,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEveryAttackGetsItsProfileMarkerTest,
 bool FRTPlaybackEveryAttackGetsItsProfileMarkerTest::RunTest(const FString&)
 {
 	TArray<FRTResolvedEvent> T = FxAttoArea();
-	T.Add(FxImpronta(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(3, 2)));
-	T.Add(FxColpo(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(1, 2)));
-	T.Add(FxColpo(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(2, 2)));
+	T.Add(FxImpronta(2, TEXT("Hero.Gadget.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(3, 2)));
+	T.Add(FxColpo(2, TEXT("Hero.Gadget.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(1, 2)));
+	T.Add(FxColpo(2, TEXT("Hero.Gadget.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(2, 2)));
 	const float A = 0.5f;
 	const TArray<float> V = FxVoli(T, A);
 	TestTrue(TEXT("premessa: la scarica vola (Line con un id), il mortaio no"), V[4] > 0.f && V[1] == 0.f);

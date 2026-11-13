@@ -688,7 +688,7 @@ bool FRTDockTooltipShowsTheShapeTest::RunTest(const FString&)
 	int32 Cella = 0;
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		// La classe che `ARTGameMode` associa all'eroe (`HeroUnitClasses`): `Hero.Aevik` -> `BP_Unit_Aevik`.
+		// La classe che `ARTGameMode` associa all'eroe (`HeroUnitClasses`): `Hero.Gadget` -> `BP_Unit_Aevik`.
 		const FString Nome = ARTUnit::ShortHeroName(Hero->HeroId, FString());
 		UClass* UnitClass = LoadClass<ARTUnit>(nullptr, *FString::Printf(
 			TEXT("/Game/RT/Characters/%s/Blueprints/BP_Unit_%s.BP_Unit_%s_C"), *Nome, *Nome, *Nome));

@@ -595,12 +595,12 @@ ARTGameMode::ARTGameMode()
 		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
 		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
 		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
-		static ConstructorHelpers::FClassFinder<ARTUnit> AevikBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
-		Assegna(TEXT("Hero.Aevik"), AevikBP);
+		Assegna(TEXT("Hero.Gadget"), GadgetBP);
 		Assegna(TEXT("Hero.Muiren"),  MuirenBP);
 		Assegna(TEXT("Hero.Riktor"), RiktorBP);
 		Assegna(TEXT("Hero.Ivrin"), IvrinBP);

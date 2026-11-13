@@ -216,7 +216,7 @@ bool FRTActivationLineWithoutResultTest::RunTest(const FString&)
 
 /**
  * 🔴 **IL CASO DELLA SEDUTA DI #4051** ([D-603] (2), #4052). La riga del gadget, la cui unita' non ha una riga d'esito, sta
- * in fondo alle PREP e non sotto la BLAST; l'attivazione BLAST di Aevik resta subito sopra la sua riga d'esito (R6, che
+ * in fondo alle PREP e non sotto la BLAST; l'attivazione BLAST di Gadget resta subito sopra la sua riga d'esito (R6, che
  * D-603 non tocca). E' la lista dell'anteprima che l'autore ha scelto. ⛔ Prima di #4052 «Riktor — Copertura portatile»
  * chiudeva l'elenco. Le attivazioni sono nell'ordine in cui il playback le ha mostrate nella seduta.
  */
@@ -232,14 +232,14 @@ bool FRTActivationLineBeforeNextPhaseTest::RunTest(const FString&)
 	const TArray<FRTActivationLine> Attivazioni = {
 		RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")), // Prep, senza riga d'esito
 		RigaAttAttivazione(2, TEXT("Muiren — Irrigidimento")),       // Prep, sopra «Stato cambiato»
-		RigaAttAttivazione(3, TEXT("Aevik — Impulso ad arco"), 0, ERTMatchPhase::Blast) };
+		RigaAttAttivazione(3, TEXT("Gadget — Impulso ad arco"), 0, ERTMatchPhase::Blast) };
 
 	const TArray<FRTPlayerEventLineView> Unite = URTHudViewModel::MergeActivationLines(
 		Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
 	TestEqual(TEXT("🔴 l'ordine dell'anteprima scelta in D-603: il gadget chiude le PREP, prima delle BLAST"),
 		RigaAttTesti(Unite),
 		FString(TEXT("L'ambiente cambia | Muiren — Irrigidimento | Stato cambiato | Riktor — Copertura portatile | "
-			"Aevik — Impulso ad arco | Colpita — 170")));
+			"Gadget — Impulso ad arco | Colpita — 170")));
 	TestEqual(TEXT("e i numeri seguono la lista unita"), RigaAttNumeri(Unite), FString(TEXT("1,2,3,4,5,6")));
 	return true;
 }

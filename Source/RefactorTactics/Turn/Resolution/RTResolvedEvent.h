@@ -182,7 +182,7 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * 🔴 **Il momento non esisteva.** La cura aveva il suo esito (la barra, il feed «Curata — N») e il gesto di
 	 * chi la lancia (`AbilityActivated`), ma nulla sull'unita' curata: la seduta `U70` ha visto Muiren fare il
-	 * gesto e Aevik restare ferma, con la barra gia' salita prima del playback.
+	 * gesto e Gadget restare ferma, con la barra gia' salita prima del playback.
 	 *
 	 * 🔑 **Una voce per `Healed` del TurnLog**, emessa da `ApplyPlannedHeals` — l'unico punto in cui una cura
 	 * si applica, con due chiamanti. Porta l'`ActionId` della cura, quindi nel playback entra nell'ATTO della cura

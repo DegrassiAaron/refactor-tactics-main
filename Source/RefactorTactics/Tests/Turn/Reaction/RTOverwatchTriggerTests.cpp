@@ -1483,7 +1483,7 @@ bool FRTOverwatchSecondWatcherDownedTargetTest::RunTest(const FString&)
  * DUE Overwatch sullo stesso mover, e il secondo ha una condizione che il primo colpo rende vera: **la sua finestra si
  * apre, perche' la condizione si legge quando il watcher viene chiesto** ([D-522], `#3771`).
  *
- * Aevik entra a 60/90 PV nella zona di W2 e di W1. W1 ha dichiarato «al 50% o meno». W2, chiesto per primo, spara e lo
+ * Gadget entra a 60/90 PV nella zona di W2 e di W1. W1 ha dichiarato «al 50% o meno». W2, chiesto per primo, spara e lo
  * porta a 39/90. Prima di [D-522] l'opportunity di W1 restava quella costruita all'ingresso, col solo `HOLD`: la
  * finestra non si apriva, e il registro scriveva `CollapsedByCondition` — «nessun bersaglio soddisfa la condizione» —
  * su un bersaglio che in quel momento la soddisfaceva.

@@ -12,7 +12,7 @@
   "_nome": "Il nome del file e dello scenarioId dice 'RejectedByPlanning', che non e' piu' vero. Non si rinomina qui: lo scenarioId e' citato da editor-sessions.yaml, capability-map.yaml, scenario-map.md, test-manuali-pie.md e da RTScenarioRunnerTests, e un rename di passaggio ne lascerebbe indietro uno. Chi fara' quel giro lo faccia per intero.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
     { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 

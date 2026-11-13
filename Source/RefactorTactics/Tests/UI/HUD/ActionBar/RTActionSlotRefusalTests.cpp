@@ -91,7 +91,7 @@ namespace
 		B.MapActor->MapAsset = B.Map;
 		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		B.Mine = SpawnSlotRefusalUnit(B.World, 0, URTHeroCatalogLibrary::MakeMuiren(), GSlotRefusalAttaccante);
-		B.Nemico = SpawnSlotRefusalUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), GSlotRefusalInVista);
+		B.Nemico = SpawnSlotRefusalUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), GSlotRefusalInVista);
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		B.Dock = NewObject<URTActionDockWidget>(B.World);
 		if (!B.Mine || !B.Nemico || !B.PC || !B.Dock) { return false; }

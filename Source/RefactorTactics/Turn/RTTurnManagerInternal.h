@@ -39,7 +39,7 @@ namespace RTTurnManagerInternal
  * Il nome con cui una finestra di reazione chiama un'unita' (`#3667`): quello della sua scheda nell'HUD.
  *
  * Sta qui perche' lo scrivono due fasi — il Move per l'Overwatch, il Blast per il `Brace` — e un titolo che
- * dicesse «Aevik» dove il sottotitolo dice `RTUnit_3` sarebbe lo stesso difetto che `ARTUnit::LogLabel`
+ * dicesse «Gadget» dove il sottotitolo dice `RTUnit_3` sarebbe lo stesso difetto che `ARTUnit::LogLabel`
  * esiste per chiudere nel log. La cascata e' QUELLA: `LogLabel` la chiama gia', e qui la si usa invece di
  * riscriverla. La sola differenza e' l'unita' che non c'e': li' «unita' sconosciuta», qui nessun nome.
  *

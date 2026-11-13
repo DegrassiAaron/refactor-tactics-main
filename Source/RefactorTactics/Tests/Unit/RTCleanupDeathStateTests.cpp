@@ -133,7 +133,7 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		if (MapActor) { MapActor->MapAsset = Arena; }
 
-		ARTUnit* Doomed = SpawnDeadHero(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+		ARTUnit* Doomed = SpawnDeadHero(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
 		ARTUnit* Target = SpawnDeadHero(World, TEXT("Hero.Ivrin"),  1, FRTCellId( 1, 0, 0));
 		ARTUnit* Decoy  = SpawnDeadHero(World, TEXT("Hero.Muiren"), 1, FRTCellId(-3, 0, 0));
 		// Un alleato lontano e fermo: senza, la morte di chi brucia chiuderebbe la partita (squadra 0 azzerata) e il turno
@@ -150,8 +150,8 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 		}
 		TM->bEnablePlayback = bPlayback;
 
-		const int32 ConRicarica = FindDeadAbilityById(Doomed, TEXT("Hero.Aevik.LinearDischarge"));
-		if (!TestNotEqual(*E(TEXT("premessa: Aevik ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
+		const int32 ConRicarica = FindDeadAbilityById(Doomed, TEXT("Hero.Gadget.LinearDischarge"));
+		if (!TestNotEqual(*E(TEXT("premessa: Gadget ha la scarica lineare")), ConRicarica, static_cast<int32>(INDEX_NONE))
 			|| !TestTrue(*E(TEXT("premessa: la sua ricarica e' di almeno due turni")),
 				Doomed->GetAbility(ConRicarica)->CooldownTurns >= 2))
 		{
