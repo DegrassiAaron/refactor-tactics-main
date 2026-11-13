@@ -14,8 +14,8 @@
 >
 > ➕ **2026-11-13 — Action Point** ([D-613](../../decisions/RT_PDR_00_Decision_Log.md), [D-612](../../decisions/RT_PDR_00_Decision_Log.md)): i requisiti
 > dell'HUD per il pool di AP di [ADR-0011](../../decisions/adr-0011-action-point.md) stanno in **§19-bis**. Le sezioni che descrivono una casella per
-> fase (§8), una reazione sola (§11) o un costo senza budget (§7.1) restano il comportamento in vigore finché E38 non consegna il resolver a lista,
-> e rimandano a §19-bis.
+> fase (§8) o una reazione sola (§11) restano il comportamento in vigore finché E38 non consegna il resolver a lista, e rimandano a §19-bis; il
+> costo nello slot (§7.1, §19-bis.2) si può costruire subito, perché `FRTActionDef::ActionPointCost` esiste già.
 
 ---
 
@@ -733,8 +733,8 @@ Layer separati:
 
 Non incorporare testo o numeri statici nel PNG di base.
 
-> ➕ **2026-11-13**: il layer 4 (costo) legge `FRTActionDef::ActionPointCost` ed è uno sprite a tacche scelto dal dato, mai disegnato
-> nell'icona: §19-bis.2.
+> ➕ **2026-11-13**: il layer 4 (costo) legge `FRTActionDef::ActionPointCost` ed è un badge scelto dal dato, mai disegnato nell'icona; la
+> forma (tacche o numero) è aperta (`HUD-AP-2`): §19-bis.2.
 
 ---
 
@@ -1475,81 +1475,93 @@ Serve soprattutto per evitare errori di commit.
 > [D-592](../../decisions/RT_PDR_00_Decision_Log.md), [D-594](../../decisions/RT_PDR_00_Decision_Log.md)), con Riktor come eroe di prova. Motivazioni,
 > rilievi del panel e casi limite stanno nel [referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md) §4. ⏳ **Nulla di questa sezione è
 > implementato**: il codice HUD non legge nessun AP (`git grep -i -E "ActionPoint|OverBudget"` in `Source/RefactorTactics/UI` e
-> `Source/RefactorTactics/Player` → 0, su `9560053a2`), e gli slot di D-028 restano in vigore finché E38 non consegna il resolver a lista.
+> `Source/RefactorTactics/Player` → 0, su `9560053a2`). Come nella colonna «Quando» di 19-bis.8: si possono costruire **subito** la somma e il
+> residuo sul budget di oggi (19-bis.1, con `Budget` = 6), il costo nello slot (19-bis.2), l'anteprima del primo Move (19-bis.4) e la privacy
+> (19-bis.5); il rifiuto per budget (19-bis.3) **quando `HUD-AP-1` è decisa**; la dock di Riktor (19-bis.6) **con il kit tradotto**; il budget per
+> unità, la pila per fase, le reazioni a lista e le azioni ripetute (19-bis.7) **dopo E38**. Le questioni aperte sono `HUD-AP-1` e `HUD-AP-2` di
+> [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
 
 ## 19-bis.1 Budget, somma, residuo
 
-Il view-model dell'unità comandata porta quattro numeri: `Budget`, cioè il budget dell'unità **per il turno** (D-613 (1): 6 di default,
-diverso quando un effetto o una skill lo cambiano); `Committed`, la somma dei costi del piano che `ValidatePlan` calcola; `Preview`, il
-costo del gesto in corso; `Residual`. Il widget non somma mai: legge.
+Il view-model dell'unità comandata porta quattro numeri: `Budget`, il budget dell'unità per il turno (oggi la costante `ActionPointBudget` = 6;
+con E38 un numero dell'unità, D-613 (1)); `Committed`, la somma dei costi del piano, letta da `URTPlanValidationLibrary::ActionPointsSpent`;
+`Preview`, il costo del gesto in corso; `Residual`. Il widget non somma mai: legge. `Preview` e `Residual` sono il «risorsa prima / risorsa
+dopo» del Cost Preview di §19.
 
-Si mostrano come **pip** (famiglia nuova di §37): un segmento per AP, con quattro stati (impegnato, anteprima, libero, sforato in rosso
-fuori dalla cornice). Un budget diverso da 6 porta il tratto «modificato» e la causa nel tooltip, per esempio «+1: Magnetic Bastion, turno
-precedente».
+Si mostrano come **pip**: una variante discreta della famiglia Resource di §37, un segmento per AP, perché gli AP sono interi piccoli e un
+riempimento continuo li renderebbe una stima. Quattro stati: impegnato, anteprima, libero, sforato (in rosso, fuori dalla cornice). Dopo E38 un
+budget diverso da 6 porta il tratto «modificato» e la causa nel tooltip, per esempio «+1: Magnetic Bastion, turno precedente».
 
 ## 19-bis.2 Il costo nello slot
 
-Il costo è il **layer 4** di §7.1 e si legge da `FRTActionDef::ActionPointCost`: una, due o tre tacche, un numero sopra 3, nessun badge
-per un costo 0 (`Wait`). Non si disegna nel PNG dell'icona. La grammatica delle icone dell'autore (`docs/research/skill.af`: cornice =
-fase, glifo = elemento, tacche in alto a sinistra) resta; le tacche, se rappresentano il costo come sembra, diventano uno sprite scelto
-dal dato. Ogni Ultimate costa 3 in qualunque fase (D-613 (4)), e il rango Ultimate ha un segno proprio: tre tacche non vogliono dire
-Ultimate.
+Il costo è il **layer 4** di §7.1 e si legge da `FRTActionDef::ActionPointCost`, che esiste già: un badge di costo, e nessun badge per un costo 0
+(`Wait`). Non si disegna nel PNG dell'icona. La forma del badge è aperta (`HUD-AP-2`). La grammatica delle icone dell'autore (cornice = fase,
+glifo = elemento, tacche in alto a sinistra) è trascritta nel referto, Appendice B, perché il sorgente `skill.af` è locale e non versionato; le
+sue tacche **sembrano** il costo, e se lo sono il badge è uno sprite a tacche scelto dal dato. Ogni Ultimate costa 3 in qualunque fase
+(D-613 (4)); un segno proprio per il rango Ultimate è una proposta del panel, non decisa (`HUD-AP-2`).
 
-## 19-bis.3 Rifiuto del gesto e colpevole del piano
+## 19-bis.3 Il rifiuto per budget
 
-Due canali, entrambi col reason code che arriva dalla logica (§22):
-
-- **rifiuto del gesto**: lo slot armato diventa `Invalid(OverBudget)` quando `ValidatePlan(piano + armata)` rifiuta, e gli slot già
-  pianificati non cambiano stato;
-- **colpevole del piano**: solo per un piano già impegnato che diventa illegale, e lo slot colpevole è quello che il validatore nomina.
-
-Per D-613 (1) un piano validato non cambia mai durante la risoluzione: `OverBudget` è un esito del planning, e l'HUD non prevede un
-taglio a metà turno.
+D-459 dà a `Invalid` due significati: **A**, il bersaglio sotto il puntatore sarebbe rifiutato (vocabolario `ERTTargetRefusal`); **B**, il
+piano è illegale (`ValidatePlan`) e lo slot porta l'azione colpevole. Il budget aggiunge un caso che D-459 non copre: un'azione armata che il
+piano non può pagare. **Proposta, da decidere** (`HUD-AP-1`; se accettata, emenderebbe D-459): lo slot armato prende `Invalid` col reason code che
+`ValidatePlan(piano + armata)` restituisce, e gli slot già pianificati non cambiano stato; quale motivo vince quando anche il bersaglio è
+rifiutato resta aperto. Nel validatore di oggi il budget precede lo slot (`OnCooldown` → `OverBudget` → `SlotOccupied`,
+`RTPlanValidationLibrary.h:93-103`). Il canale B non ha un produttore per il budget: con D-613 (1) il budget del turno è noto prima di
+pianificare, e un piano validato non cambia.
 
 ## 19-bis.4 Il costo del movimento
 
 Il movimento non è uno slot (D-425, D-456), ma costa AP: 2 per ogni profilo (D-584 (2), D-594). All'hover su una cella raggiungibile i pip
-mostrano −2 e il residuo, letti dal validatore. La variazione per cella resta sui Movement Point (D-117): una riduzione di MP si vede come
-celle non raggiungibili nell'anteprima del percorso, non come un rifiuto (`InsufficientMovementPoints` non ha produttore, D-190).
+mostrano −2 e il residuo, letti dal validatore. La variazione per cella resta sui Movement Point (D-117): una riduzione di MP si vede come celle
+non raggiungibili nell'anteprima del percorso, non come un rifiuto (`InsufficientMovementPoints` non ha produttore, D-190). Sono aperti
+(`HUD-AP-1`) la resa di una cella raggiungibile in MP quando il residuo è minore di 2, e se un waypoint in più sia un secondo Move (la lettura di
+D-613 (2) rende Move ripetibile) o l'estensione del primo, il cui profilo D-425 deriva dalla distanza.
 
 ## 19-bis.5 Privacy
 
-Le viste di un'unità **non comandata** (la barra dell'osservato di §18.1, il roster avversario) non portano nessun campo AP, in nessuna
-fase. La somma spesa rivelerebbe la dimensione del piano, e un residuo dedotto dagli eventi sarebbe falso, perché le reazioni armate e
-non scattate hanno già speso. Gli AP degli **alleati** stanno nella Team intent card (§17.1), da `FRTIntentView` filtrata per squadra.
-La prova si fa sull'assenza del campo, non sul widget che lo nasconde (§17.2).
+Le viste costruite per un'unità **non comandata** (la barra dell'osservato di §18.1, e ogni altra vista di un'unità che non si comanda) non
+portano nessun campo del piano o del budget (`Budget`, `Committed`, `Preview`, `Residual`), in nessuna fase. La somma spesa rivelerebbe la
+dimensione del piano, e un residuo dedotto dagli eventi sarebbe falso, perché le reazioni armate e non scattate hanno già speso. Il costo di
+catalogo delle voci (19-bis.2) resta, perché il kit di un nemico osservato è pubblico (§18.1). Gli AP degli **alleati** stanno nella Team intent
+card (§17.1), da `FRTIntentView` filtrata per squadra. La prova si fa sul **tipo** della vista, che non ha quei campi, non sul widget che li
+nasconde (§17, §17.2).
 
 ## 19-bis.6 La dock provvisoria di Riktor
 
-[D-612](../../decisions/RT_PDR_00_Decision_Log.md) (4): un attacco base, **sei** abilità, **due** reazioni e **una** skill di overclock, più le
-generiche di §6.7 sulle loro lettere. Le sedici voci del kit di Riktor restano nel catalogo. Sono aperti chi sceglie quali voci occupano i
-posti e quando (`KIT-2` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)), la struttura del kit (`KIT-1`) e la skill di overclock di
-Riktor, che non esiste ancora (`KIT-3`). Lettura: i posti d'eroe sono dieci, quanti i tasti numerici di oggi (`OnAbility1`…`OnAbility10`),
-se le generiche restano sulle lettere; la raggiungibilità la misura `PlayerInput.EveryKitEntryIsReachable` (E48).
+[D-612](../../decisions/RT_PDR_00_Decision_Log.md) (4): un attacco base, **sei** abilità, **due** reazioni e l'Overclock, più le cinque generiche che
+hanno una lettera (`GenericHotkeys`, §6.7). Le sedici voci del kit di Riktor restano nel catalogo. Sono aperti chi sceglie quali voci occupano i
+posti e quando (`KIT-2`), la struttura del kit (`KIT-1`), la skill di overclock di Riktor, che non esiste ancora (`KIT-3`), e la sede delle voci
+che l'equipaggiamento concede (oggi `EquipLoadout`), che si ridisegna con D-612 (6). Lettura: i posti d'eroe sono dieci, quanti i tasti numerici di
+oggi (`OnAbility1`…`OnAbility10`). Il gate `PlayerInput.EveryKitEntryIsReachable` misura le voci del kit contro i tasti, non le voci
+d'equipaggiamento (E48).
 
 ## 19-bis.7 Che cosa aspetta E38
 
-- **Ghost Timeline a pile** (§8): ogni fase è una pila verticale, e le fasi restano l'asse orizzontale. Dentro la pila l'ordine è quello
-  di risoluzione, cioè priorità del catalogo e poi ordine di dichiarazione (D-613 (3)), letto dallo stesso comparatore del resolver; la
-  timeline permette di cambiare l'ordine di dichiarazione. La colonna `Cleanup` compare quando il piano ha un'azione di quella classe.
-- **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. Due reazioni sullo stesso
-  micro-step stanno in un solo prompt, una riga ciascuna, con HOLD per ultimo.
-- **Azioni ripetute** (D-613 (2)): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move, `Wait`) si
-  ripetono. Lo stato `Planned` diventa un contatore, e il rifiuto nomina l'occorrenza.
+- **Budget per unità** (D-613 (1)): `Budget` letto dall'unità per il turno, e il tratto «modificato» dei pip.
+- **Ghost Timeline a pile** (§8): ogni fase è una pila verticale, e le fasi restano l'asse orizzontale. Dentro la pila l'ordine è quello di
+  risoluzione, cioè priorità del catalogo e poi ordine di dichiarazione (D-613 (3)), letto dallo stesso comparatore del resolver; la timeline
+  permette di cambiare l'ordine di dichiarazione. La colonna `Cleanup` compare quando il piano ha un'azione di quella classe.
+- **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. Due reazioni sullo stesso micro-step stanno
+  in un solo prompt, una riga ciascuna, con HOLD per ultimo.
+- **Azioni ripetute** (D-613 (2), come la legge l'assistente): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
+  `Wait`) si ripetono, con la riserva dell'autore sulle abilità ripetibili ancora da definire (`MSP-1.r`). Lo stato `Planned` diventa un
+  contatore, e il rifiuto nomina l'occorrenza.
 
 ## 19-bis.8 Criteri d'accettazione
 
 Tutti `NOT RUN`: sono criteri, non esiti.
 
-| Requisito | Criterio | Prova |
-|---|---|---|
-| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2. Un budget del turno a 7 mostra sette pip col tratto «modificato» | Automation su `URTHudViewModel` |
-| 19-bis.2 | Per ogni voce di Riktor e per le generiche le tacche sono uguali a `ActionPointCost`; `Wait` non ha badge | Automation sul catalogo |
-| 19-bis.3 | Con 4 AP impegnati, armare un'azione da 3 accende solo lo slot armato; armarne una da 2 non accende niente | Automation |
-| 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | Automation sulla vista del percorso; PIE |
-| 19-bis.5 | Per un'avversaria i campi AP sono vuoti in Planning e in Risoluzione; per l'unità comandata sono valorizzati | Automation |
-| 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
-| 19-bis.7 | Dopo E38: sei Prep da 1 AP stanno in una pila con indici 1…6; due reazioni sullo stesso micro-step danno un prompt solo | Automation; PIE a 1920×1080 |
+| Requisito | Criterio | Quando | Prova |
+|---|---|---|---|
+| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel` |
+| 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation |
+| 19-bis.2 | Per ogni voce di Riktor e per le generiche il badge mostra `ActionPointCost`; `Wait` non ha badge | subito | Automation sul catalogo |
+| 19-bis.3 | Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano; con un piano Move + attacco base (4), armare la reazione (2) non accende niente | quando `HUD-AP-1` è decisa | Automation |
+| 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE |
+| 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation |
+| 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
+| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080 |
 
 ---
 

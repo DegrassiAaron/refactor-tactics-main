@@ -8,9 +8,9 @@
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 >
 > 🔁 **2026-11-13 — [D-612](../../decisions/RT_PDR_00_Decision_Log.md)**: dopo il rename di [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011),
-> il kit di questa pagina (Field Architecture) è **sostituito** dal catalogo dell'autore del 2026-11-13, con tutte e sedici le voci, tradotto
-> nelle regole del contratto ([referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md)); l'equipaggiamento di default si ridisegna
-> insieme. Finché la traduzione non è accettata, questa pagina descrive il kit **in vigore**. ⚠️ Anche i numeri di `ImpactShot` qui sotto sono
+> il kit di questa pagina (Field Architecture) **sarà sostituito** dal catalogo dell'autore del 2026-11-13, con tutte e sedici le voci, tradotto
+> nelle regole del contratto e accettato con una D-nnn ([referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md)); nella stessa D-nnn
+> si ridisegna l'equipaggiamento di default. Finché la traduzione non è accettata, questa pagina descrive il kit **in vigore**. ⚠️ Anche i numeri di `ImpactShot` qui sotto sono
 > superati: la pagina dice 8 nel profilo d'attacco e ancora 24 nella sezione dell'abilità, il codice 80 (`MakeBranth`, scala ×10 di D-589).
 
 ## Panoramica

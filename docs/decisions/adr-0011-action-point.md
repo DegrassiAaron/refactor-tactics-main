@@ -19,10 +19,11 @@
 > rifiuta la somma oltre 6 con `ERTActionInvalidReason::OverBudget`, **prima** dello slot occupato. Gli slot di D-028 restano
 > in vigore accanto al budget finché resolver, TurnLog e HUD non accettano una lista per fase: i quattro asserti di #4012
 > che hanno quel soggetto sono scritti nella forma «limite di oggi, pinnato», e diventano rossi il giorno che il soggetto appare.
-> ➕ **Emendamento 2026-11-13 — [D-613](RT_PDR_00_Decision_Log.md)**: il budget diventa un dato dell'unità fissato al planning (un piano
-> già validato non cambia mai, un effetto sul budget vale dal turno dopo, e il 6 diventa il default); un'azione con cooldown compare al
-> più una volta nel piano (emenda la risposta 1); a parità di priorità vale l'ordine di dichiarazione (la conseguenza 1 è decisa); ogni
-> Ultimate costa 3 in qualunque fase.
+> ➕ **Emendamento 2026-11-13 — [D-613](RT_PDR_00_Decision_Log.md)**: il budget del turno diventa un numero dell'unità, noto quando si
+> pianifica, e un piano già validato non cambia mai (l'Anchor colpisce il budget del turno dopo); alla domanda sulla ripetizione l'autore
+> risponde «1, ma ci sono abilita' ripetibili, come muoversi.» (lettura: la prima opzione, che emenda la risposta 1); a parità di priorità vale
+> l'ordine di dichiarazione; ogni Ultimate costa 3 in qualunque fase. Che il 6 diventi il default e che l'ordine di dichiarazione sia il
+> criterio della conseguenza 1 sono letture dell'assistente (D-613 (5)).
 
 ## Contesto
 
@@ -90,8 +91,8 @@ Scartate: «Il costo AP sostituisce i drawback, i cooldown restano» e «Il cost
 1. **Ordine dentro la fase.** Con più azioni della stessa unità nella stessa fase, il resolver ha bisogno di un ordine
    totale e deterministico che oggi non esiste: priorità del catalogo, poi un criterio stabile (ordine di dichiarazione
    nel piano, o Stable ID dell'azione). Va scritto prima del primo test, perché TurnLog, replay e hash lo leggono.
-   ➕ **2026-11-13, [D-613](RT_PDR_00_Decision_Log.md) (3)**: deciso dall'autore. Prima la priorità del catalogo, poi l'ordine di
-   dichiarazione nel piano; la seconda azione vede lo stato lasciato dalla prima.
+   ➕ **2026-11-13, [D-613](RT_PDR_00_Decision_Log.md) (3)**: per due azioni della stessa unità con la stessa priorità l'autore ha scelto
+   «Come le dichiari» (la seconda vede lo stato lasciato dalla prima); che sia il criterio stabile chiesto qui è una lettura dell'assistente.
 2. **Il piano cambia forma.** `FRTUnitPlan` (o l'equivalente che `ValidatePlan` legge) smette di avere una casella
    per slot e porta una lista; `ERTActionSlot` smette di decidere la legalità e sopravvive, se sopravvive, come
    **fase di risoluzione** dell'azione. Snapshot, serializzazione e versione dello schema seguono (CLAUDE.md §7).

@@ -510,7 +510,8 @@ l'etichetta dell'assistente. Le risposte dei tre giri sono registrate in D-612 e
   quattro (più al massimo una generica del catalogo core). Come entra il kit?» Risposta libera: *«non decidiamolo ancora. per
   il momento base piu 6, 2 reaction e overclock»*. La struttura resta **aperta**.
 - **DR-5.** «Un effetto di gioco può cambiare il budget AP di un'unità, come il +1 di Magnetic Bastion o il −1 di Necrotic
-  Anchor?» Risposta: *«spiega meglio»*. La domanda è riformulata nel giro successivo.
+  Anchor?» Risposta: *«spiega meglio»*. Le opzioni erano «No, resta 6 per tutti (Recommended)», «Sì, dal turno successivo» e «Sì,
+  anche nel turno in corso». La domanda è riformulata nel giro successivo.
 
 **Letture dell'assistente, non decisioni:**
 
@@ -567,8 +568,8 @@ aggiornare la spec dell'HUD, porre le domande aperte e aprire una PR. Le quattro
   «Arma, gadget e modulo di reazione si scelgono di nuovo, coerenti col catalogo elettrico, nella stessa D-nnn del kit. Il Cleanse era
   stato scelto anche come risposta allo Slow di ImpactShot, che esce dal kit.» Le altre erano «Resta com'è» e «Si toglie».
 - **DR-6.** «Il testo scelto di D-584 (1) («Solo il budget conta») permette la stessa azione più volte nello stesso piano, e oggi il
-  cooldown non ferma la seconda copia. Va cambiato?» Risposta libera: *«1, ma ci sono abilita' ripetibili, come muoversi.»*, dove «1» è
-  la prima opzione, «Con cooldown: una volta (Recommended)»: «Un'azione con cooldown compare al più una volta nel piano; quelle senza
+  cooldown non ferma la seconda copia. Va cambiato?» Risposta libera: *«1, ma ci sono abilita' ripetibili, come muoversi.»*. L'assistente
+  legge «1» come la prima opzione, e la riserva resta da definire (`MSP-1.r`). La prima opzione era «Con cooldown: una volta (Recommended)»: «Un'azione con cooldown compare al più una volta nel piano; quelle senza
   cooldown (attacco base, Move, Wait) si ripetono finché c'è budget. Senza questa regola Skewer due volte fa 760 danni e due Stun. Emenda
   D-584 (1).» Le altre erano «Ogni azione d'eroe una volta» e «Nessun limite, come oggi».
 - **DR-7.** «Dentro una fase, due azioni della stessa unità con la stessa priorità: in che ordine si risolvono?» Scelta: **«Come le
@@ -586,7 +587,8 @@ peer ha preso D-611 lo stesso giorno per un'altra decisione. Le risposte vanno i
 - [D-613](../../decisions/RT_PDR_00_Decision_Log.md), **l'economia degli AP per tutto il roster**: DR-5, DR-6, DR-7 e DR-8.
 
 Nello stesso giro sono stati annotati D-584, D-585, D-586, D-591, D-594, la testata e la conseguenza 1 di ADR-0011, `MSP-5.d` e le voci
-nuove `KIT-1`…`KIT-3` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), la scheda di Riktor, la riga 13 del piano del rename e
+nuove `KIT-1`…`KIT-3` e `MSP-1.r` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) (più `HUD-AP-1` e `HUD-AP-2`, nate dalla revisione
+avversaria di #4106), la scheda di Riktor, la riga 13 del piano del rename e
 [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md), che ha la §19-bis e tre rimandi.
 
 ## Appendice A — Il catalogo dell'autore, alla lettera
