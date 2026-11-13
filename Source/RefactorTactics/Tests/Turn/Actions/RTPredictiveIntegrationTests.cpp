@@ -696,8 +696,8 @@ namespace
 
 /**
  * **All'armamento la cella si rigiudica con la domanda del click** ([D-610] (5)(b), `#4091`): `CLIENT PROPOSES → SERVER
- * VALIDATES`. Il piano e' scritto A MANO, come lo scrivono il bot e lo Scenario Harness: il click non lo avrebbe accettato,
- * e prima di `#4091` il turno lo armava lo stesso — la portata e la linea non le guardava nessuno.
+ * VALIDATES`. Il piano e' scritto A MANO, come lo scrive lo Scenario Harness (e il bot, fino a [D-610] (4)): il click non
+ * lo avrebbe accettato, e prima di `#4091` il turno lo armava lo stesso — la portata e la linea non le guardava nessuno.
  *
  * 🔑 **Sette scene dalla stessa cella, e l'unica variabile e' la cella bloccata** (e un muro): a distanza 2 (fuori
  * portata), la propria (sotto il minimo di [D-610] (2)), quella accanto dietro una copertura alta (senza linea), quella
@@ -848,6 +848,31 @@ bool FRTPredictiveArmingRejudgesTest::RunTest(const FString&)
 			TestTrue(FString::Printf(TEXT("%s: e arriva dove voleva — nessuno lo ha fermato"), Caso.Nome),
 				R.DoveFinisceChiEntra == FRTCellId(Caso.Bloccata.X + 1, Caso.Bloccata.Y));
 		}
+	}
+
+	// ── Senza mappa (`#4099`): il motivo resta `NoMap`, quello del classificatore, e non diventa `OffMap`. Senza mappa non
+	// c'e' una cella da cercare, e `OffMap` direbbe «la cella non c'e'» dove manca la mappa intera. Gratis: senza mappa il
+	// click rifiuta (`HandleTargetCell`, `!Map`). La mutazione che la review di `#4099` ha visto sopravvivere era questa. ──
+	{
+		FPredRejudge R;
+		UWorld* World = MakePredWorld();
+		ARTUnit* Shooter = World ? SpawnPredUnit(World, /*Team*/ 1, DaDove) : nullptr;
+		ARTTurnManager* TM = World ? World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass()) : nullptr;
+		if (TestTrue(TEXT("banco: senza mappa"), Shooter && TM && ArmPredIntercept(Shooter, FRTCellId(0, 0))))
+		{
+			TestTrue(TEXT("senza mappa: premessa, nel mondo non c'e' una mappa"), PredMapAsset(World) == nullptr);
+			RunPredTurn(TM);
+			ReadPredRejudge(TM, Shooter, /*SlotIndex*/ 3, R);
+			TestEqual(TEXT("senza mappa: nessuna voce predittiva"), R.VociPredittive, 0);
+			if (TestEqual(TEXT("senza mappa: il turno lo DICHIARA, una voce di rifiuto"), R.Rifiuti, 1))
+			{
+				TestEqual(TEXT("senza mappa: il motivo e' NoMap, non OffMap"), R.Rifiuto.Amount,
+					static_cast<int32>(ERTActionInvalidReason::NoMap));
+			}
+			TestEqual(TEXT("senza mappa: nessuna attivazione"), R.Attivazioni, 0);
+			TestEqual(TEXT("senza mappa: gratis — il click rifiuta"), R.Ricarica, 0);
+		}
+		if (World) { DestroyPredWorld(World); }
 	}
 	return true;
 }
