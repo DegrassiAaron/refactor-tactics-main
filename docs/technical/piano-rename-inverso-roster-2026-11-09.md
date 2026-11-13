@@ -10,7 +10,7 @@
 | Oggi (ID e kit) | Domani | Natura del passo |
 |---|---|---|
 | `Hero.Aevik`, kit a runtime | `Hero.Gadget`, **stesso kit** | rename secco di ID, token abilità (`Hero.Aevik.ArcPulse` → `Hero.Gadget.ArcPulse`), path, cartelle |
-| `Hero.Branth`, kit a runtime | `Hero.Riktor`, **stesso kit** | rename secco, come sopra |
+| `Hero.Branth`, kit a runtime | `Hero.Riktor`, **stesso kit** al rename; ➕ poi il kit nuovo di [D-612](../decisions/RT_PDR_00_Decision_Log.md) (2026-11-13) | rename secco, come sopra; il kit si sostituisce **dopo** il rename, così gli id nuovi nascono già `Hero.Riktor.*` |
 | `Hero.Muiren`, kit a runtime | `Hero.Muriel`, **kit nuovo** ([scheda](../characters/v0.1/muriel.md)) | il kit di Muiren si **ritira**: gli `Hero.Muiren.*` si rimuovono, non si rinominano; il kit nuovo entra da `MSP-5.d` |
 | `Hero.Ivrin`, kit a runtime | `Hero.Kallari`, **kit nuovo** ([scheda](../characters/v0.1/kallari.md)) | come sopra: gli `Hero.Ivrin.*` si rimuovono |
 | `Hero.Ward`, `Hero.Vigil` (E35.1, nessun runtime) | `Hero.Steel`, `Hero.Murdock` | solo documenti e schede: in `Source/` e `Scenarios/` non compaiono |
