@@ -1650,4 +1650,127 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// [D-610] (4), `#4094` — il bot non considera le predittive
+// =========================================================================================================
+
+namespace
+{
+	/** Vero se il piano principale dell'unita' e' una predittiva (`PredictiveTargeting != None`). */
+	bool BotPlansAPredictive(const ARTUnit* Unit)
+	{
+		const URTActionData* A = Unit ? Unit->GetAbility(Unit->PlannedAbilityIndex) : nullptr;
+		return A && A->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
+	}
+}
+
+/**
+ * **Il bot non pianifica una predittiva** ([D-610] (4), `#4094`): «il bot non considera le predittive finche' non sa
+ * scegliere una cella in cui un nemico entrera'». Oggi la blocca sulla cella dove il nemico STA, e la previsione colpisce
+ * solo chi ENTRA (`Predictive.CrossingIsNotPresence`): una scommessa che manca sempre e costa la ricarica.
+ *
+ * 🔑 **Due misure e un controllo.**
+ * (1) Una partita di soli bot, 2v2 con un Ivrin per parte: quanti piani principali sono predittivi, turno per turno. E'
+ *     la misura che `#4094` chiedeva PRIMA della regola, e resta stampata (`AddInfo`) anche a test verde.
+ * (2) La scena che la tenta: un Ivrin bot accanto a un nemico, con `InterceptShot` come UNICO attacco del kit (il
+ *     `PulseShot` dello slot 0 sostituito da una seconda copia). Prima di `#4094` il bot la sceglieva.
+ * (3) Il **controllo**: la stessa scena con la copia resa NON predittiva. Il bot la sceglie — quindi la scena tenta
+ *     davvero, e cio' che separa (2) da (3) e' il solo campo `PredictiveTargeting`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotDoesNotPlanAPredictiveTest,
+	"RefactorTactics.HexBot.BotDoesNotPlanAPredictive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
+{
+	// ── (1) La partita di soli bot. ──────────────────────────────────────────────────────────────────────────
+	{
+		UWorld* World = MakeHexBotWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+		TArray<ARTUnit*> Bots;
+		Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 1), /*bBot*/ true));
+		Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 2), /*bBot*/ true));
+		Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2), /*bBot*/ true));
+		Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -1), /*bBot*/ true));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
+
+		int32 PianiPrincipali = 0;
+		int32 PianiPredittivi = 0;
+		int32 VociPredittive = 0; // voci del TurnLog di `InterceptShot`: armata (Predictive) o rifiutata (Fallback)
+		for (int32 Turno = 1; Turno <= 12; ++Turno)
+		{
+			TM->PlanBotsForTest();
+			for (const ARTUnit* Bot : Bots)
+			{
+				if (!Bot || !Bot->IsAlive()) { continue; }
+				if (Bot->GetAbility(Bot->PlannedAbilityIndex)) { ++PianiPrincipali; }
+				if (BotPlansAPredictive(Bot)) { ++PianiPredittivi; }
+			}
+			TM->LockInAndResolve();
+			for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+			{
+				if (E.ActionId == FName(TEXT("Hero.Ivrin.InterceptShot"))) { ++VociPredittive; }
+			}
+		}
+		AddInfo(FString::Printf(TEXT("MISURA (partita di soli bot, 2v2, 12 turni): %d piani principali, %d predittivi; %d voci di InterceptShot nel TurnLog"),
+			PianiPrincipali, PianiPredittivi, VociPredittive));
+		TestTrue(TEXT("premessa: i bot hanno pianificato azioni principali"), PianiPrincipali > 0);
+		TestEqual(TEXT("nessun piano principale di un bot e' una predittiva"), PianiPredittivi, 0);
+		TestEqual(TEXT("e il TurnLog non ha voci di InterceptShot"), VociPredittive, 0);
+		DestroyHexBotWorld(World);
+	}
+
+	// ── (2) e (3): la scena che la tenta, e il controllo. ────────────────────────────────────────────────────
+	// `bPredittiva` decide solo il campo `PredictiveTargeting` della copia che sostituisce il `PulseShot`.
+	auto Pianifica = [this](bool bPredittiva, int32& OutSlot, bool& bOutPredittiva) -> bool
+	{
+		OutSlot = INDEX_NONE;
+		bOutPredittiva = false;
+		UWorld* World = MakeHexBotWorld();
+		if (!World) { return false; }
+		SpawnHexBotMap(World, /*Radius=*/ 6);
+		ARTUnit* Ivrin = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		URTHeroData* Kit = URTHeroCatalogLibrary::MakeIvrin();
+		if (!Ivrin || !Nemico || !TM || !Kit || !Kit->Actions.IsValidIndex(1) || !Ivrin->Abilities.IsValidIndex(0)
+			|| Kit->Actions[1]->Def.ActionId != FName(TEXT("Hero.Ivrin.InterceptShot")))
+		{
+			DestroyHexBotWorld(World);
+			return false;
+		}
+		// Lo slot 0 (il `PulseShot`) diventa una copia di `InterceptShot`, e lo slot 1 resta l'originale: l'unico
+		// attacco a distanza del kit e' l'intercetto. Nello slot, non in coda: `AbilityCooldowns` non si allarga.
+		URTActionData* Copia = DuplicateObject<URTActionData>(Kit->Actions[1], Ivrin);
+		if (!bPredittiva)
+		{
+			Copia->Def.PredictiveTargeting = ERTPredictiveTargeting::None;
+			Ivrin->Abilities[1] = Copia; // anche l'originale, o il bot sceglierebbe l'altra copia
+		}
+		Ivrin->Abilities[0] = Copia;
+
+		TM->PlanBotsForTest();
+		OutSlot = Ivrin->PlannedAbilityIndex;
+		bOutPredittiva = BotPlansAPredictive(Ivrin);
+		AddInfo(FString::Printf(TEXT("scena %s: slot pianificato %d (%s)"), bPredittiva ? TEXT("predittiva") : TEXT("controllo"),
+			OutSlot, Ivrin->GetAbility(OutSlot) ? *Ivrin->GetAbility(OutSlot)->Def.ActionId.ToString() : TEXT("nessuna")));
+		DestroyHexBotWorld(World);
+		return true;
+	};
+
+	int32 SlotControllo = INDEX_NONE, SlotScena = INDEX_NONE;
+	bool bControlloPredittivo = false, bScenaPredittiva = false;
+	if (!TestTrue(TEXT("banco del controllo"), Pianifica(/*bPredittiva*/ false, SlotControllo, bControlloPredittivo))
+		|| !TestTrue(TEXT("banco della scena"), Pianifica(/*bPredittiva*/ true, SlotScena, bScenaPredittiva)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("controllo: senza il campo predittivo il bot sceglie quell'attacco (slot 0 o 1)"),
+		SlotControllo == 0 || SlotControllo == 1);
+	TestFalse(TEXT("scena: con il campo predittivo il bot NON la sceglie"), bScenaPredittiva);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

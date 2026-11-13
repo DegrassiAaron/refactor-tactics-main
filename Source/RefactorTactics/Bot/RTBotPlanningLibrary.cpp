@@ -880,11 +880,18 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// esclusa per costruzione; l'esclusione esplicita serve perche' un'azione derivata da `Action.Heal`
 		// con un `Power` qualunque non diventi un attacco. Lo stesso predicato vale per il passo da fermo e per
 		// quello dopo lo scatto. L'uso della cura ad area dal bot e' un follow-up.
+		//
+		// [D-610] (4), `#4094`: nemmeno una PREDITTIVA, finche' il bot non sa scegliere una cella in cui un nemico ENTRERA'.
+		// Il ramo d'attacco la blocca sulla cella dove il nemico STA (`bAttackTargetsCell` piu' sotto), e la previsione colpisce
+		// solo chi entra: una scommessa che manca sempre e costa la ricarica. Misurato su `7d8c31607` prima della regola: in
+		// una partita di soli bot (2v2, 12 turni) nessun piano predittivo, perche' `PulseShot` vince dalle stesse celle; con
+		// l'intercetto come unico attacco, il bot lo sceglieva (`HexBot.BotDoesNotPlanAPredictive`).
 		static const FName ActionHealId(TEXT("Action.Heal"));
 		const auto IsAttackCandidateAbility = [](const URTActionData* Ability)
 		{
 			return Ability && !URTCatalogLibrary::IsFastMovement(Ability->Def) && !Ability->bSelfTarget
-				&& Ability->Def.DerivedFromActionId != ActionHealId;
+				&& Ability->Def.DerivedFromActionId != ActionHealId
+				&& Ability->Def.PredictiveTargeting == ERTPredictiveTargeting::None;
 		};
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
