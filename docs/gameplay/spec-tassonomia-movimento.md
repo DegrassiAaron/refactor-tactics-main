@@ -222,6 +222,8 @@ quale cella si congeli il verdetto di una voce **`Move`**, dove la cella di part
 anche la `SrcCell` della voce. Questa sezione dice dove sta la posizione, non quale istante una voce debba
 raccontare.
 
+➕ *2026-11-12, [D-610](../decisions/RT_PDR_00_Decision_Log.md) (5)(a)*: la `Shooter->Cell` del tiratore predittivo decide ora anche **se** il colpo parte — portata e linea si misurano da lì ([#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091)) —, e il giorno in cui #2148 sceglie un'altra cella si sposta con le altre letture.
+
 ✅ **Quattro test la pinnano**, sul percorso reale e non sulla funzione pura:
 `Reactions.OverwatchCoverReadsTheMicroStepCell`, `Reactions.OverwatchLogLineAnnouncesDealtDamage`,
 `Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` e `Reactions.VerdictFreezesOnTheImpactCell`. La

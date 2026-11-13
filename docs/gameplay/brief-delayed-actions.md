@@ -14,6 +14,8 @@
 >   → NESSUN input umano durante la Resolution
 > ```
 >
+> ➕ **2026-11-12 — [D-610](../decisions/RT_PDR_00_Decision_Log.md) (1) e (5)(b)**: lo schema ha un ramo in più, prima della previsione. Al boundary la cella bloccata deve essere a portata e in linea da dove il tiratore è (e sul suo piano, [D-509](../decisions/RT_PDR_00_Decision_Log.md)); se no il colpo **non parte**, con una voce `Fallback`/`Cancelled` e il motivo — non è un whiff, perché nella cella può essere entrato qualcuno. All'armamento la stessa domanda dalla cella corrente: una previsione fuori portata o senza linea non si arma.
+>
 > **Non va trasformata in Fast Reaction.** Resta fuori dalla v0.1: framework completo di trap/mine/gambit
 > persistenti, editor visuale di trigger, catene di predictive action, interrupt annidati.
 >
@@ -115,6 +117,7 @@ iniziata, e il rischio di scope della v0.1 (§8 di [`roadmap-v0.1.md`](../roadma
    stato che nel frattempo può essere stato **revocato** (`Wet`/`Obscured` legati alla cella) o **speso**
    (`Marked`). La regola «si usa lo stato logico al boundary» (test 5) va estesa esplicitamente agli stati, non
    solo a copertura e LOS.
+   > ⚠️ *Annotato il 2026-11-12 ([#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091))*: la «LOS» di questa riga non c'era nel codice. Al boundary il colpo predittivo controllava solo il piano ([D-509](../decisions/RT_PDR_00_Decision_Log.md)); portata e linea **del tiratore** le controlla da [D-610](../decisions/RT_PDR_00_Decision_Log.md) (1).
 4. **Un solo parametro con due nomi**: `FastDecisionDuration` (documento) e `FastReactionDuration` (ADR-0004)
    sono lo stesso 3.0 s. Non introdurre il secondo nome nel codice.
 

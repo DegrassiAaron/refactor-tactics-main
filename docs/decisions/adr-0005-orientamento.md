@@ -314,6 +314,7 @@ cui si è scommesso).
 > si sia mosso nello stesso turno non è più lì. Non è correggibile senza scegliere una regola che nessun ADR
 > ha preso — la tabella di ADR-0004 copre il **bersaglio** e non la **sorgente** — ed è aperta in
 > [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148).
+> ➕ *2026-11-12, [D-610](RT_PDR_00_Decision_Log.md) (5)(a)*: la stessa `Shooter->Cell` decide ora anche **se** il colpo parte — portata e linea si misurano da lì ([#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091)) —, e il giorno in cui #2148 sceglie un'altra cella si sposta con le altre letture.
 
 **Pinnata da tre test**, sul percorso reale e non sulla funzione pura: la decisione qui è *quale cella il
 chiamante passa*, e [D-312](RT_PDR_00_Decision_Log.md) ha misurato che una prova sulla funzione lascia il

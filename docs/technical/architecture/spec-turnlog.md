@@ -528,6 +528,23 @@ tracce già scritte si leggono come prima. Da questa voce la regola non è più 
 coi soli nomi simbolici resta verde dopo una rinumerazione — è il modo in cui la prima stesura di D-196 era
 passata.
 
+### La predittiva fuori portata, troppo vicina o senza linea ([D-610](../../decisions/RT_PDR_00_Decision_Log.md) (1) e (5)(b), [`#4091`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091))
+
+Il piano non è più la sola domanda che il colpo predittivo si fa: la cella bloccata deve essere anche **a portata e in linea** da dove il tiratore è. La domanda si fa due volte, e la risposta negativa viaggia nella famiglia della riga `OtherLayer` qui sopra, col motivo in `Amount` (`ERTActionInvalidReason`).
+
+| Produttore | Come si legge |
+|---|---|
+| **Predittiva che non si arma** — ramo delle predittive del Prep in `ARTTurnManager`: la cella dichiarata non passa la domanda del click (`ClassifyHexTargeting` da `AimOriginFor`, in Prep la cella corrente) sulla mappa **autorevole** | `Category=Fallback`, **`Phase=Prep`**, `Outcome=Cancelled`, **`Amount`** = `OutOfRange`, `TooClose`, `OtherLayer` o `NoLineOfSight`, identità completa dell'azione, `SrcCell` = la cella di chi arma, `TgtCell` = la cella dichiarata, `UnitId` = chi arma. Nessuna previsione armata e nessun `AbilityActivated`; la ricarica parte solo per `NoLineOfSight` e `OtherLayer`, con la tabella del Blast (`PagaSeParteSenzaColpo`) |
+| **Colpo predittivo fuori portata, troppo vicino o senza linea** — `ResolvePredictiveBoundary`, dopo il controllo del piano: il tiratore si è spostato dopo l'armamento (uno scatto, uno spostamento forzato del Blast), o il Blast ha tolto la linea | `Category=Fallback`, **`Phase=Move`**, `Outcome=Cancelled`, **`Amount`** = `OutOfRange`, `TooClose` o `NoLineOfSight`, identità completa dell'azione armata, `SrcCell` = `Shooter->Cell`, `TgtCell` = la cella bloccata, `UnitId` = il tiratore. **Nessuna voce `Predictive`**, come per `OtherLayer`. La ricarica era già spesa all'armamento |
+
+⚠️ **Il piano resta la prima domanda al boundary.** Chi è caduto su un altro piano lascia `OtherLayer`, non `OutOfRange`: `HexDistance` ignora il `Layer`, e «lontano» direbbe di avvicinarsi a una cosa che nessun avvicinamento sistema. All'armamento invece l'ordine è quello del click — portata, minimo, piano, linea —, perché lì la domanda **è** quella del click.
+
+⚠️ **`SrcCell` del boundary è la cella con cui il tiratore entra nel Move**, come ogni lettura di `Shooter->Cell` in quella funzione: vede lo scatto e gli spostamenti del Blast, non il movimento dello stesso Move. È la lettura (5)(a) di D-610, finché [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148) non decide l'istante del tiratore.
+
+➕ **`TooClose` è un motivo nuovo, in coda all'enum**, gemello di risoluzione di `ERTHexTargetReason::TooClose`: per `Hero.Ivrin.InterceptShot` (minimo 1, D-610 (2)) è chi sta sopra la propria cella bloccata. La riga leggibile dice «troppo vicino: sotto la distanza minima». `Actions.Fallback.InvalidReasonValuesAreAppendOnly` ne fissa nome e numero.
+
+🔒 **Privacy.** Le due voci si congelano su chi arma, come il rifiuto per stordimento e la voce `OtherLayer`: le vede la squadra di chi arma, e un avversario solo se ha il tiratore `Rilevato` sulla cella del fatto. È lo stesso pubblico del whiff e dell'`AbilityActivated` del Prep, che porta la stessa cella. ⚠️ Il motivo `NoLineOfSight` è calcolato sulla mappa autorevole, quindi dice a chi vede la voce che fra le due celle c'è un ostacolo: è ciò che dicono già le voci `NoLineOfSight` del Blast, e la voce non nomina la cella dell'ostacolo.
+
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il

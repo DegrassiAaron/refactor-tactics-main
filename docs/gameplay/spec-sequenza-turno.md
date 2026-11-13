@@ -1,6 +1,6 @@
 # Spec — Sequenza canonica del round
 
-> **Stato**: **normativa** · **Ultimo aggiornamento**: 2026-08-31
+> **Stato**: **normativa** · **Ultimo aggiornamento**: 2026-11-12
 > **Ruolo**: è *il* documento che dice **cosa succede in un round e in quale ordine**. Chi deve sapere come si
 > risolve un turno legge questo; tutto il resto è dettaglio di una singola area.
 > **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) (invarianti) e agli
@@ -142,6 +142,8 @@ Dichiarata **interamente** in Planning: bersaglio predittivo (`LockCell · LockL
 boundary di risoluzione e **fallback in caso di errore**. Al boundary il trigger si valuta come funzione pura
 sullo stato di quel momento; se la previsione è corretta risolve, altrimenti fa whiff secondo la policy
 dichiarata. **Nessun input umano.**
+
+> ➕ **Precisato il 2026-11-12 da [D-610](../decisions/RT_PDR_00_Decision_Log.md) (1) e (5)(b), [#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091).** Gli esiti al boundary sono **tre**, non due: colpo a segno, whiff, oppure colpo che **non parte**. Non parte se la cella bloccata non è a portata (`RangeCells`, `MinRangeCells`) o in linea da dove il tiratore è al boundary, o se sta su un altro piano ([D-509](../decisions/RT_PDR_00_Decision_Log.md)): lascia una voce `Fallback`/`Cancelled` col motivo, non un whiff, e non tronca il movimento di nessuno. «Da dove il tiratore è» è la cella con cui entra nel Move — vede lo scatto e gli spostamenti del Blast, non il movimento dello stesso Move —, lettura in vigore finché [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148) non decide l'istante del tiratore. La stessa domanda si fa all'armamento, in Prep, dalla cella corrente e sulla mappa autorevole: una previsione fuori portata o senza linea non si arma, e il TurnLog lo dice.
 
 La v0.1 ne include **una sola** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)), come thin slice: il
 framework di trap persistenti resta fuori. Dettaglio: [`brief-delayed-actions.md`](brief-delayed-actions.md).

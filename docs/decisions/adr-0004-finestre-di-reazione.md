@@ -355,6 +355,8 @@ resta volutamente non limitato. I due non sono in contraddizione.
 Copertura e facing si applicano come per il Blast: `EffectiveCoverReduction`, lo stesso della risoluzione
 ordinaria. Vale per l'Overwatch `FIRE` e per il boundary predittivo.
 
+> **Precisazione 2026-11-12 — [D-610](RT_PDR_00_Decision_Log.md) (1)** ([#4091](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4091)): un tiro normale ha anche **portata e linea**, e al boundary predittivo non si controllavano. Fra l'armamento in Prep e il boundary il tiratore può spostarsi — uno scatto, uno spostamento forzato del Blast — e fino a D-610 il colpo partiva da dove era, a qualunque distanza e senza linea: l'unico controllo era il piano ([D-509](RT_PDR_00_Decision_Log.md)). Ora la cella bloccata deve essere a portata (`RangeCells`, `MinRangeCells`) e in linea da `Shooter->Cell`; se non lo è il colpo non parte, con una voce `Fallback`/`Cancelled` e il motivo. È la stessa regola con cui il Blast ricontrolla i suoi colpi. ⚠️ `Shooter->Cell` è una lettura e non una riga della tabella «Quale cella» qui sotto: la **sorgente** resta di [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148).
+
 **Perché.** Questo brief dichiara che chi arma *«si trattiene il colpo e spara con la propria arma quando
 qualcuno passa»*. Se l'arma è la stessa, lo sono anche le regole del tiro — l'onere della prova sta su chi
 vuole un'eccezione, e nessuno l'aveva scritta. ⚠️ **Fino al 2026-08-25 non era così**, e non per scelta: due
