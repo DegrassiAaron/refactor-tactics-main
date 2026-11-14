@@ -270,7 +270,7 @@ bool FRTTooltipReadsTheCatalogTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
-	ARTUnit* Unit = SpawnTooltipUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnTooltipUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	if (!TestNotNull(TEXT("unita'"), Unit)) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	int32 ConDanno = 0;

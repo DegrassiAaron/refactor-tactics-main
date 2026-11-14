@@ -256,7 +256,7 @@ bool FRTTransitDoesNotCreateContactsTest::RunTest(const FString&)
 	ARTUnit* Mover = SpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	// L'avversario sta LONTANO dagli estremi e fermo: cio' che conta e' che nessun contatto nasca dal
 	// transito, non dove esattamente si trovi.
-	ARTUnit* Nemico = SpawnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(7, 0));
+	ARTUnit* Nemico = SpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(7, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!HexMap || !Mover || !Nemico || !TM) { DestroyTransitWorld(World); return false; }
 

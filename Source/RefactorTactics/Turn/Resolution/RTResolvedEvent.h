@@ -182,7 +182,7 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * 🔴 **Il momento non esisteva.** La cura aveva il suo esito (la barra, il feed «Curata — N») e il gesto di
 	 * chi la lancia (`AbilityActivated`), ma nulla sull'unita' curata: la seduta `U70` ha visto Muiren fare il
-	 * gesto e Aevik restare ferma, con la barra gia' salita prima del playback.
+	 * gesto e Gadget restare ferma, con la barra gia' salita prima del playback.
 	 *
 	 * 🔑 **Una voce per `Healed` del TurnLog**, emessa da `ApplyPlannedHeals` — l'unico punto in cui una cura
 	 * si applica, con due chiamanti. Porta l'`ActionId` della cura, quindi nel playback entra nell'ATTO della cura
@@ -398,7 +398,7 @@ struct FRTResolvedEvent
 	// --- L'identita' dell'AZIONE che ha prodotto l'evento (`#2857`). `NAME_None` = nessuna azione dietro. ---
 
 	/**
-	 * QUALE azione ha prodotto questo evento (`Branth.ImpactShot`, `Action.Move`, `Ivrin.Deflection`, …),
+	 * QUALE azione ha prodotto questo evento (`Riktor.ImpactShot`, `Action.Move`, `Ivrin.Deflection`, …),
 	 * con la chiave stabile del catalogo — la stessa che `FRTTurnLogEntry::ActionId` porta.
 	 *
 	 * 🔑 **Esiste perche' `Next Action` non aveva su cosa fermarsi.** Fra `Next Phase` — una fase `Blast`
@@ -431,7 +431,7 @@ struct FRTResolvedEvent
 	FName ActionId;
 
 	/**
-	 * L'azione GENERICA di cui `ActionId` e' un profilo (`Action.BasicAttack` per `Branth.ImpactShot`),
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (`Action.BasicAttack` per `Riktor.ImpactShot`),
 	 * quando il produttore la conosce.
 	 *
 	 * ⚠️ **Dove non e' nota si lascia `NAME_None`, non si indovina.** E' una FUNZIONE di `ActionId` — lo
@@ -441,7 +441,7 @@ struct FRTResolvedEvent
 	 *
 	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda la coppia
 	 * (`SourceStableUnitId`, `ActionId`) — da #3549; prima il solo `ActionId` — e mai questo campo: due
-	 * profili distinti della stessa generica — `Branth.Interposition` e
+	 * profili distinti della stessa generica — `Riktor.Interposition` e
 	 * `Action.Intercept` — sono due atti, ed e' esattamente la distinzione che `RTTurnLog.h` dichiara di
 	 * voler conservare.
 	 */

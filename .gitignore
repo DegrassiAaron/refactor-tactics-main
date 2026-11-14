@@ -196,8 +196,8 @@ Content/RT/UI/_Generated/
 # `Packaging.RequiredAnimationClipsAreCooked`.
 #
 # ⚠️ L'oracolo resta quello dichiarato sopra per l'arena: `git check-ignore -q <file>` -> exit **1**.
-!Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset
-!Content/RT/Characters/Branth/Blueprints/BP_Unit_Branth.uasset
+!Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
+!Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
 !Content/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.uasset
 !Content/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.uasset
 # La classe d'animazione autorata (#3562): `UnitAnimClass` dei quattro BP_Unit_* qui sopra. NON e' uno degli ABP_*

@@ -4,6 +4,8 @@
 > **Consegue da**: [D-585](../decisions/RT_PDR_00_Decision_Log.md) (gli otto nomi Paragon come nomi di sviluppo, rename secco inverso), [D-586](../decisions/RT_PDR_00_Decision_Log.md) (mappatura per ruolo, kit di Muiren e Ivrin ritirati, E35.1 in v0.1), [D-593](../decisions/RT_PDR_00_Decision_Log.md) (identificatori degli elementi che i kit nuovi usano)
 > **Modellato su**: [`piano-migrazione-roster.md`](piano-migrazione-roster.md) (D-130, eseguito) e sul corpo di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297) (fette B–F, eseguite in parte da #2491): le trappole misurate lì valgono qui alla lettera, nel verso opposto
 > **Release**: post-v0.1, fuori dal freeze ([D-542](../decisions/RT_PDR_00_Decision_Log.md)) · ⛔ **Nessun commit di questo piano è stato eseguito**: è la mappa, misurata il 2026-11-09 su `main` = `5eac6115e`
+>
+> ✅ **Aggiornamento del 2026-11-13 ([#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011))**: le fette di Aevik e Branth sono eseguite — `Hero.Aevik` → `Hero.Gadget` e `Hero.Branth` → `Hero.Riktor` nel codice, negli scenari, nei golden rigenerati, nel ratchet ribaltato e nei documenti vivi, e la scheda `aevik.md` è diventata `gadget.md`. Il passo nell'Editor è fatto il 2026-11-14: cartelle `Content/RT/Characters/Gadget/` e `Content/RT/Characters/Riktor/`, i `BP_Unit_*` coi path C++ nello stesso commit, le icone `RT_UI_Icon_*` con `DA_IconCatalog`, e `Content/Icons/`. Resta la fetta B′ di Muiren e Ivrin. Il resto della pagina è la mappa del 2026-11-09 e non si riscrive: la colonna «Oggi» della §1 e i conteggi della §2 sono di quel giorno.
 
 ## 1. Che cosa cambia, per eroe
 

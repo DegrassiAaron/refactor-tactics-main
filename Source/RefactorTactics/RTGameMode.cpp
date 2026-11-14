@@ -154,7 +154,7 @@ TAutoConsoleVariable<float> CVarRTPlanningSeconds(
  * 🔴 **Erano la sola voce d'allestimento di una partita senza ingresso fuori dal `.uasset`.** Autobattle,
  * compagni al bot e ritmo del Planning hanno la scala proprieta' < riga di comando < console; `Team0Heroes` e
  * `Team1Heroes` no, e cambiare chi gioca voleva dire aprire `BP_GameMode`. `RTShippedGameModeTests.cpp` lo
- * annotava da se': una seduta che chiede `Hero.Branth` in squadra 0 doveva modificare la proprieta' a mano.
+ * annotava da se': una seduta che chiede `Hero.Riktor` in squadra 0 doveva modificare la proprieta' a mano.
  *
  * ⚠️ **La stringa VUOTA e' «non impostata», e qui la sentinella non ruba un valore.** Per
  * `rt.Match.BotAllies` lo zero e' una richiesta legittima e la sentinella deve essere negativa; un roster
@@ -169,7 +169,7 @@ TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 TAutoConsoleVariable<FString> CVarRTTeam0Heroes(
 	TEXT("rt.Match.Team0"),
 	TEXT(""),
-	TEXT("Roster della squadra 0: HeroId separati da virgola (es. Hero.Branth,Hero.Ivrin). Vuota = non "
+	TEXT("Roster della squadra 0: HeroId separati da virgola (es. Hero.Riktor,Hero.Ivrin). Vuota = non "
 		 "impostata: vale la riga di comando -RTTeam0=, poi la proprieta' del GameMode. Una voce che il "
 		 "catalogo non conosce ferma l'allestimento."),
 	ECVF_Default);
@@ -474,8 +474,8 @@ namespace RTRosterEntry
 	 * Cosa chiede la riga di comando, se chiede qualcosa.
 	 *
 	 * 🔴 **`bShouldStopOnSeparator = false`, e senza la lista arriva TRONCATA.** Il default di `FParse::Value`
-	 * termina il valore su `,` e `)` oltre che sugli spazi (`Misc/Parse.cpp`): `-RTTeam0=Hero.Branth,Hero.Ivrin`
-	 * darebbe il solo `Hero.Branth`, cioe' una formazione di una voce che il controllo sul formato rifiuta con
+	 * termina il valore su `,` e `)` oltre che sugli spazi (`Misc/Parse.cpp`): `-RTTeam0=Hero.Riktor,Hero.Ivrin`
+	 * darebbe il solo `Hero.Riktor`, cioe' una formazione di una voce che il controllo sul formato rifiuta con
 	 * un messaggio sulla cardinalita' — vero, e fuorviante: chi legge conterebbe gli eroi invece di guardare
 	 * il separatore.
 	 *
@@ -580,6 +580,8 @@ ARTGameMode::ARTGameMode()
 		};
 
 		// ✅ **I path dicono ora l'IDENTITA', e non piu' lo slot asset Paragon** (`#2297` fetta E, [D-321]).
+		// 🔄 Con [D-585] (#4011) l'identita' di Gadget e Riktor e' di nuovo il nome dello slot: le loro cartelle
+		// sono tornate `Gadget/` e `Riktor/` nello stesso commit di questi path; quelle di Muiren e Ivrin no.
 		//
 		// Fino al 2026-09-10 queste quattro righe puntavano a `Gadget`, `Phase`, `Riktor` e `Wraith`, che
 		// [D-321] ha misurato **non essere nomi ispirati**: sono i nomi degli **slot asset Paragon**. [D-334]
@@ -595,14 +597,14 @@ ARTGameMode::ARTGameMode()
 		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
 		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
 		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
-		static ConstructorHelpers::FClassFinder<ARTUnit> AevikBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
-		Assegna(TEXT("Hero.Aevik"), AevikBP);
+		Assegna(TEXT("Hero.Gadget"), GadgetBP);
 		Assegna(TEXT("Hero.Muiren"),  MuirenBP);
-		Assegna(TEXT("Hero.Branth"), BranthBP);
+		Assegna(TEXT("Hero.Riktor"), RiktorBP);
 		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}
 }

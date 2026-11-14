@@ -78,7 +78,7 @@ namespace
 		{ TEXT("Weakness"),         TEXT("Weakness"),         ERTTransport::Exact,  nullptr },
 		// E14.7 [D-047]. Trasportato e non dedotto dall'`HeroId`, che pure l'unita' porta: il resolver legge
 		// l'unita', e farlo risalire all'eroe darebbe a ogni sito che valuta una finestra una dipendenza su
-		// `URTHeroCatalogLibrary`. `NAME_None` e' legittimo — e' Branth, cioe' profilo base.
+		// `URTHeroCatalogLibrary`. `NAME_None` e' legittimo — e' Riktor, cioe' profilo base.
 		{ TEXT("ReactionProfileId"), TEXT("ReactionProfileId"), ERTTransport::Exact, nullptr },
 		// `Prefix` e non `Exact`, ed e' una regola di dominio: `ConfigureFromHeroData` copia le azioni
 		// dell'eroe e **accoda** le sette azioni generiche di D-025, che sono dell'unita' quanto le sue.
@@ -211,7 +211,7 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 	Hero->Affinity = TEXT("Fixture.Affinita");
 	Hero->Weakness = TEXT("Fixture.Debolezza");
 	// Almeno un'azione: serve al ramo `Prefix`, che pretende le azioni dell'eroe PIU' le generiche.
-	Hero->Actions = URTHeroCatalogLibrary::MakeAevik()->Actions;
+	Hero->Actions = URTHeroCatalogLibrary::MakeGadget()->Actions;
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("l'unita' di prova esiste"), Unit))

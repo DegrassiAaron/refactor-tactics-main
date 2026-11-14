@@ -210,7 +210,7 @@ public:
 	 *
 	 * ⚠️ **I nomi delle clip NON si deducono**: `docs/technical/runbooks/guida-animazioni-paragon.md`
 	 * §AS.3b li ha misurati sul disco, e **sei caselle su venti** non si chiamano come ci si aspetta —
-	 * su Aevik la corsa e' `Run_Fwd` e non `Jog_Fwd`, su Ivrin l'idle e' `Idle_NonCombat`.
+	 * su Gadget la corsa e' `Run_Fwd` e non `Jog_Fwd`, su Ivrin l'idle e' `Idle_NonCombat`.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	TMap<FName, FRTHeroPresentationClips> ClipsPerHero;
@@ -266,7 +266,7 @@ REFACTORTACTICS_API bool RTClipIsAdditive(const UAnimSequenceBase* Clip);
 /**
  * Se il ruolo e' un GESTO che deve SOSTITUIRE la posa: `Cast` e `Attack`, i due beat che conoscono l'azione (D3) (#3590).
  *
- * 🔴 **Su un gesto un'additiva non si legge.** Lo slot la somma all'`Idle`: le clip d'azione di Aevik
+ * 🔴 **Su un gesto un'additiva non si legge.** Lo slot la somma all'`Idle`: le clip d'azione di Gadget
  * (`LMB_Fire_*`, `Ability_Q_Target`, `Throw_Ready`) sono il rinculo e la mira di un personaggio gia' in posa di tiro,
  * e sull'`Idle` la posa non cambiava (seduta `U70`), mentre tracer e numeri arrivavano.
  * ⛔ **`Hit` NO, ed e' misurato a schermo**: la hit-react e' un sussulto autorato additivo in tutti e quattro i pack,
@@ -312,7 +312,7 @@ struct FRTUnitAnimProxy : public FAnimInstanceProxy
 	 *
 	 * ⚠️ **Il difetto non si vede all'avvio**, ed e' la ragione per cui e' passato: le prime
 	 * animazioni sono corrette, e la posa degrada solo dopo che il LOD e' cambiato. Su un umanoide una
-	 * cache stantia si nota appena; su **Branth**, che porta decine di ossa in fila
+	 * cache stantia si nota appena; su **Riktor**, che porta decine di ossa in fila
 	 * (`arm_chain_long_r_01`, `_sub_01`, `_sub_02`, ...), le catene si stendono sullo schermo.
 	 *
 	 * ⛔ **Non e' un dettaglio di stile**: `FRTUnitAnimClipsTest` verifica che le clip dei quattro

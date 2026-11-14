@@ -36,7 +36,7 @@ namespace
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = 0;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeAevik());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeGadget());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay();

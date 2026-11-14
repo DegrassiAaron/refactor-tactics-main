@@ -137,7 +137,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Motore azioni a priorità, fallback, collisioni | `Turn/Actions/RTActionQueue*.h`, `RTActionEffectLibrary.*`, `RTActionFallbackLibrary.*` | ✅ E4 (52 test) |
 | Reazioni difensive e Intercept | `Turn/Reaction/RTReactionLibrary.{h,cpp}` | ✅ E5 (24 test) · Counter/Deflect/Brace/Shield/Cleanse/Intercept |
 
-> 🔴 **`Cleanse` in questa riga è il REATTIVO — precisato il 2026-09-22.** L'`Action.Cleanse` **attiva** (Principale, CP 5.2) è uscita dalla v0.1 il 2026-08-30 con [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). Ciò che vive in `Turn/Reaction/RTReactionLibrary.*` — la sede che questa riga cita — è `Reaction.Cleanse`, modulo di default di `Hero.Branth`, e quello resta. ⚠️ [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) rimanda a questo documento per i propri conteggi: le due pagine vanno lette insieme.
+> 🔴 **`Cleanse` in questa riga è il REATTIVO — precisato il 2026-09-22.** L'`Action.Cleanse` **attiva** (Principale, CP 5.2) è uscita dalla v0.1 il 2026-08-30 con [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). Ciò che vive in `Turn/Reaction/RTReactionLibrary.*` — la sede che questa riga cita — è `Reaction.Cleanse`, modulo di default di `Hero.Riktor`, e quello resta. ⚠️ [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) rimanda a questo documento per i propri conteggi: le due pagine vanno lette insieme.
 
 | Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | ✅ E6 (25 test) · statistiche, kit e **tre reazioni su quattro cablate** (CP 6.7); solo `FlowReaction` resta rinviata a E14 — `InterceptShot` è uscita dall'insieme (Predictive, D-016) |
 | Budget movimento | `Turn/Resolution/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
@@ -781,7 +781,7 @@ turno**, senza attese nel resolver (invariante #3).
 > resistenza nativa, che con quella premessa era immunità totale e gratuita.
 > Il trade-off vero — *primo colpo pesante* contro *colpi ripetuti* — ora è **pinnato** invece che descritto:
 > `Spec.Brace.GuardAndBraceOnMixedHit` (su un colpo `Guard` domina) e `Spec.Brace.BraceWinsOnSecondHit`
-> (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.BranthIsPushedLikeAnyone`.
+> (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.RiktorIsPushedLikeAnyone`.
 > ⏱️ *Dal 2026-09-20 ([D-408]) su due colpi non si rovescia più: il secondo file è stato rinominato
 > `Spec.Brace.GuardWinsOnFrontalHits` ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)) e asserisce che vince la Guardia.*
 > ⏳ **Resta aperta `BAL-1`** in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — quale debba *essere* il
@@ -825,11 +825,11 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 
 <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 > **CP 6.7 chiuso il 2026-08-07** (`#155`, 5 test nuovi): `Bastion.Interposition`, `Vektor.Deflection` e
-> `Hero.Aevik.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
+> `Hero.Gadget.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
 > **in partita** (unità configurate con `ConfigureFromHeroData`). `Hero.Wraith.InterceptShot` e `Hero.Muiren.FlowReaction`
 > restano a **E14**, e il rinvio è dichiarato nei dati — slot `None`, nessun trigger — non in un commento.
 > I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Hero.Riktor.PanelCreatesCover` ora verifica che
-> Interposition sia una reazione, `Heroes.Hero.Aevik.MatchesCatalog` i suoi due effetti.
+> Interposition sia una reazione, `Heroes.Hero.Gadget.MatchesCatalog` i suoi due effetti.
 > Dettaglio: [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) §8.
 >
 > ➖ **Aggiornamento 2026-08-10 — dei due rinviati, uno è uscito.** `InterceptShot` non è più una reazione
@@ -839,7 +839,7 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 > `FlowReaction`, rinviata per la ragione originale: produce **movimento** dentro un boundary di risoluzione.
 >
 > **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
-> — per esempio `RTHeroBranthTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
+> — per esempio `RTHeroRiktorTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
 > rossi il giorno del cablaggio: è il comportamento atteso, non una regressione. Vanno **sostituiti** da test
 > di comportamento nella stessa PR, mai cancellati e basta. **Dipende da CP 5.5**: senza reazioni a più
 > effetti, `ReactiveCapacitor` finirebbe come `if (Gadget…)` nel resolver.
@@ -889,7 +889,7 @@ l'unicità del colpo per unità sono **test**, non commenti.
 > senza, la regola non aveva alcun innesco — e **`Gadget.Insulator` si sposta a CP 7.2** (`#61`): dipendeva da
 > un'epic non costruita, e una DoD non spuntabile non chiude un checkpoint.
 >
-> `Hero.Aevik.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
+> `Hero.Gadget.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
 > la mappa (asset statico) non ha ancora. Non è una svista, è il limite dichiarato di CP 8.4/E9.
 
 ---
@@ -2055,7 +2055,7 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 | **E35.2** | Resonance — Rime, Tethra ([#1558](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1558)) | Idem per *Terrain Shaping → Anchor Geometry*. Il perimetro dei kit è aperto (vedi sopra) | a definire con la specifica di traduzione scheda-catalogo |
 | **E35.3** | Bilanciamento a 8 ([#1559](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1559)) | `Heroes.RosterIsBalanced` esteso a 8 (oggi verifica quattro eroi): nessun eroe domina, le coppie di affinità restano simmetriche | `Heroes.RosterIsBalanced` |
 | **E35.4** | Wiki e cataloghi allineati ([#1560](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1560)) | [`../balance/RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) e la Wiki descrivono 8 eroi con i valori realmente a runtime. La cartella `docs/wiki/fazioni/` che il checkpoint citava non esiste | diff fra catalogo e `Make*` |
-| **E35.5** | Paragon naming purge ([#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291)) | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti | gate contestuale; controllo positivo su un campione con `Hero.Steel` o `Hero.Gadget` |
+| **E35.5** | Paragon naming purge ([#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291)) | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti ⌫ *(superata il 2026-11-08 da [`D-585`](../decisions/RT_PDR_00_Decision_Log.md) (3): #2291 è chiusa senza esecuzione, e con [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011) gli ID tornano ai nomi Paragon, `Hero.Gadget` e `Hero.Riktor` dal 2026-11-13; `Hero.Gadget`, campione del controllo positivo qui a fianco, è oggi un ID vivo, e questa riga non è più una DoD)* | gate contestuale; controllo positivo su un campione con `Hero.Steel` o `Hero.Gadget` |
 
 **Dipendenze**: E6 (roster 4) chiusa. **Rischi**: il roster raddoppia la matrice di interazioni da testare, e il costo non è lineare. Il bot deve giocare i nuovi eroi: per [`bot-competence.yaml`](bot-competence.yaml) una capability decisiva `FAIL` o `UNTESTED` vale «il bot non sa giocarla». Il testo originale dell'epic, con la nota sul ramo di difesa personale del bot, resta in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) (E35).
 

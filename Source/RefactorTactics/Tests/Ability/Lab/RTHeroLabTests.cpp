@@ -122,10 +122,10 @@ bool FRTHeroLabAllFourHeroIdsResolveTest::RunTest(const FString&)
 		TestTrue(TEXT("dichiara punti vita"), Entry.MaxHealth > 0);
 	}
 
-	// `Hero.Riktor` e' l'identita' che `D-334` ha rinominato: non deve piu' risolversi.
+	// `Hero.Branth` e' l'identita' che `D-585` (#4011) ha riportato a `Hero.Riktor`: non deve piu' risolversi.
 	FRTHeroLabEntry Stale;
-	TestFalse(TEXT("Hero.Riktor non esiste piu' come identita'"),
-		URTHeroLabLibrary::FindHero(FName(TEXT("Hero.Riktor")), Stale));
+	TestFalse(TEXT("Hero.Branth non esiste piu' come identita'"),
+		URTHeroLabLibrary::FindHero(FName(TEXT("Hero.Branth")), Stale));
 
 	return true;
 }
@@ -209,9 +209,9 @@ bool FRTHeroLabRejectsAbilityFromAnotherHeroTest::RunTest(const FString&)
 	// E un HeroId inesistente cade prima ancora.
 	FString HeroError;
 	TestFalse(TEXT("HeroId inesistente rifiutato"),
-		URTHeroLabLibrary::BuildHeroFixture(FName(TEXT("Hero.Riktor")), Borrowed,
+		URTHeroLabLibrary::BuildHeroFixture(FName(TEXT("Hero.NonEsiste")), Borrowed,
 			FRTAbilityLabFixtureSpec(), Scenario, HeroError));
-	TestTrue(TEXT("l'errore nomina l'eroe"), HeroError.Contains(TEXT("Hero.Riktor")));
+	TestTrue(TEXT("l'errore nomina l'eroe"), HeroError.Contains(TEXT("Hero.NonEsiste")));
 
 	return true;
 }

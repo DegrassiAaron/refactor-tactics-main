@@ -131,33 +131,49 @@ Il mondo iniziò a distinguere due epoche:
 
 ## Identità dei personaggi e asset vendor
 
-La lore usa soltanto identità **RefactorTactics**. I nomi degli asset o degli slot vendor non sono identità
-narrative e non diventano nomi player-facing, nomi di abilità, `CharacterId` o lore.
-[D-037](../decisions/RT_PDR_00_Decision_Log.md) lo stabilisce — *«lo slot non è l'identità»* — e
-[D-321](../decisions/RT_PDR_00_Decision_Log.md) lo riporta a invariante dopo averlo trovato violato.
+🔁 **Riscritta il 2026-11-13 per [D-585](../decisions/RT_PDR_00_Decision_Log.md) e
+[D-586](../decisions/RT_PDR_00_Decision_Log.md)**, con il rename di
+[#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011). Fino a questa riscrittura la
+sezione diceva che la lore usa soltanto identità RefactorTactics — per la v0.1 `Aevik`, `Muiren`, `Branth` e
+`Ivrin`, da [D-334](../decisions/RT_PDR_00_Decision_Log.md) — e mai i nomi degli slot vendor:
+[D-037](../decisions/RT_PDR_00_Decision_Log.md), *«lo slot non è l'identità»*, riportata a invariante da
+[D-321](../decisions/RT_PDR_00_Decision_Log.md).
 
-Le otto identità retail del roster sono decise:
+Dal 2026-11-08 gli eroi prendono il nome dello slot Paragon che li veste, come **nome di sviluppo**: è il
+nome che la lore usa finché il gioco è in sviluppo. D-585 supera D-037 nell'invariante «lo slot non è
+l'identità», D-321 nella parte «zero identità Paragon nel namespace RT-owned» e D-334, le cui quattro
+identità smettono di essere i nomi del roster. I nomi di **pubblicazione** non sono decisi: sono la voce
+aperta «Identità originale» del canone ([`piano-canonico-mvp.md`](piano-canonico-mvp.md) §9), e la nota IP
+del suo §2 resta — per pubblicare servono nomi, personaggi, lore e asset originali. Se `Aevik`, `Muiren`,
+`Branth` e `Ivrin` vi torneranno come candidati non è deciso.
 
-| Fazione | Identità RefactorTactics | Release |
+Le fazioni non cambiano: ogni slot entrante eredita la fazione dello slot che sostituisce, con la mappatura
+per ruolo di D-586 — Phase → Muriel, Wraith → Kallari, Aurora → The Fey, Kwang → Feng Mao — e le fazioni
+restano quattro, con due eroi ciascuna.
+
+| Fazione | Nomi in vigore | A regime (D-585, D-586) |
 |---|---|---|
-| Conflux | **Aevik** · **Muiren** | v0.1 ⏳ |
-| Constrine | **Branth** · **Ivrin** | v0.1 ⏳ |
-| Sentinel Directorate | **Ward** · **Vigil** | v0.2 |
-| Resonance | **Rime** · **Tethra** | v0.2 |
+| Conflux | **Gadget** · **Muiren** | **Gadget** · **Muriel** |
+| Constrine | **Riktor** · **Ivrin** | **Riktor** · **Kallari** |
+| Sentinel Directorate | **Ward** · **Vigil** | **Steel** · **Murdock** |
+| Resonance | **Rime** · **Tethra** | **The Fey** · **Feng Mao** |
 
-⏳ **Identità decisa, runtime non ancora migrato.** Il codice porta ancora gli ID legacy `Hero.Aevik`,
-`Hero.Muiren`, `Hero.Riktor` e `Hero.Wraith` — che sono i nomi degli **slot Paragon**, non nomi ispirati ad
-essi. La migrazione è differita **post-v0.1** da [D-321](../decisions/RT_PDR_00_Decision_Log.md) e ha come
-owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
+Il codice porta `Hero.Gadget` e `Hero.Riktor` dal rename secco inverso di #4011 (D-585 (3)), avvenuto per
+questi due eroi il 2026-11-13. `Muiren`, `Ivrin`, `Ward`, `Vigil`, `Rime` e `Tethra` restano i nomi in vigore
+finché le loro fette di #4011 non consegnano: i kit di Muiren e Ivrin si ritirano, e Muriel e Kallari ne
+prendono il posto con un kit nuovo che nasce dalla specifica (D-586 (2), `MSP-5.d`).
 
-⚠️ **Fino ad allora quei quattro nomi sono identità temporanee, non eccezioni permanenti**, e la lore evita di
-cristallizzarli come canonici: dove serve nominare un personaggio della v0.1, si scrive l'identità retail.
+Dove serve nominare un personaggio si scrive il nome in vigore. Nessuno di questi nomi è un nome di
+pubblicazione.
 
-Gli slot asset vendor continuano a essere citati **solo** nei documenti tecnici di mapping e provenienza.
-Tabella owner: [`../characters/paragon.md`](../characters/paragon.md).
+La mappatura eroe → slot asset ha un solo owner: [`../characters/paragon.md`](../characters/paragon.md).
 
-Tracking operativo: [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) — purge e gate ·
-[#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297) — migrazione tecnica.
+Tracking operativo: [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011) — rename
+secco inverso, che supera [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297) ·
+[#4019](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4019) — la licenza degli asset
+Paragon, da rileggere prima della prima build distribuita.
+[#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) (purge e gate) si è chiusa senza
+esecuzione (D-585 (3)).
 
 ---
 
@@ -179,7 +195,7 @@ Una squadra può contenere liberamente membri di fazioni diverse e non esistono 
 ## Conflux
 
 **FactionId:** `Faction.Conflux`  
-**Membri iniziali:** **Aevik** · **Muiren** — **v0.1** ⏳ · schede: [`v0.1/aevik.md`](../characters/v0.1/aevik.md) · [`v0.1/muiren.md`](../characters/v0.1/muiren.md)
+**Membri iniziali:** **Gadget** · **Muiren** — **v0.1** · schede: [`v0.1/gadget.md`](../characters/v0.1/gadget.md) · [`v0.1/muiren.md`](../characters/v0.1/muiren.md)
 
 > **Tutto è collegato.**
 
@@ -228,7 +244,7 @@ Alcuni archivi Conflux contengono log di connessioni e percorsi emergenti che no
 ## Constrine
 
 **FactionId:** `Faction.Constrine`  
-**Membri iniziali:** **Branth** · **Ivrin** — **v0.1** ⏳ · schede: [`v0.1/riktor.md`](../characters/v0.1/riktor.md) · [`v0.1/wraith.md`](../characters/v0.1/wraith.md)
+**Membri iniziali:** **Riktor** · **Ivrin** — **v0.1** · schede: [`v0.1/riktor.md`](../characters/v0.1/riktor.md) · [`v0.1/wraith.md`](../characters/v0.1/wraith.md)
 
 > **Ciò che è delimitato può essere controllato.**
 
@@ -538,7 +554,7 @@ Le quattro fazioni possono cooperare quando l'obiettivo lo richiede.
 # Collegamenti
 
 **Dentro il repository** — le schede dei personaggi nominati qui:
-[`characters/v0.1/`](../characters/v0.1/aevik.md) (Gadget, Phase, Riktor, Wraith) ·
+[`characters/v0.1/`](../characters/v0.1/gadget.md) (Gadget, Phase, Riktor, Wraith) ·
 [`characters/v0.2/`](../characters/v0.2/steel.md) (Ward · Vigil · Rime · Tethra) ·
 [`characters/paragon.md`](../characters/paragon.md) per la mappatura visuale
 ([D-037](../decisions/RT_PDR_00_Decision_Log.md)).

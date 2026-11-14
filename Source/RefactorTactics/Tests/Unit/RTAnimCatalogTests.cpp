@@ -71,7 +71,7 @@ namespace
 		return TStrongObjectPtr<UAnimSequence>(S);
 	}
 
-	/** Una voce con UN binding di Aevik sul ruolo dato. */
+	/** Una voce con UN binding di Gadget sul ruolo dato. */
 	FRTAnimCatalogEntry AnimCatalogVoceConLegame(const TCHAR* Id, const FString& Path, ERTPresentationRole Ruolo,
 		bool bAttivo)
 	{
@@ -79,7 +79,7 @@ namespace
 		Entry.Id = FName(Id);
 		Entry.Derived.AssetPath = Path;
 		FRTAnimBinding Legame;
-		Legame.HeroId = FName(TEXT("Hero.Aevik"));
+		Legame.HeroId = FName(TEXT("Hero.Gadget"));
 		Legame.Role = Ruolo;
 		Legame.bActive = bAttivo;
 		Entry.Authored.Bindings.Add(Legame);
@@ -430,9 +430,9 @@ bool FRTAnimCatalogAdditiveGestureBindingIsRejectedTest::RunTest(const FString&)
 
 	TestEqual(TEXT("tutte le clip si caricano: nessun gesto resta non verificato"), NonVerificati, 0);
 	TestEqual(TEXT("due righe: il Cast e l'Attack attivi additivi"), Errori.Num(), 2);
-	TestTrue(TEXT("🔴 la riga nomina eroe, ruolo e voce del Cast"), AnyLineContains(Errori, TEXT("Hero.Aevik / Cast ('AV_0001')")));
+	TestTrue(TEXT("🔴 la riga nomina eroe, ruolo e voce del Cast"), AnyLineContains(Errori, TEXT("Hero.Gadget / Cast ('AV_0001')")));
 	TestTrue(TEXT("...e la sua clip"), AnyLineContains(Errori, *PathPrimo));
-	TestTrue(TEXT("🔴 anche un Attack attivo additivo e' rifiutato"), AnyLineContains(Errori, TEXT("Hero.Aevik / Attack ('AV_0005')")));
+	TestTrue(TEXT("🔴 anche un Attack attivo additivo e' rifiutato"), AnyLineContains(Errori, TEXT("Hero.Gadget / Attack ('AV_0005')")));
 	TestTrue(TEXT("...con la sua clip"), AnyLineContains(Errori, *PathSecondo));
 	TestFalse(TEXT("controllo positivo: un Attack pieno passa"), AnyLineContains(Errori, TEXT("AV_0002")));
 	TestFalse(TEXT("una hit-react additiva non e' un gesto"), AnyLineContains(Errori, TEXT("AV_0003")));

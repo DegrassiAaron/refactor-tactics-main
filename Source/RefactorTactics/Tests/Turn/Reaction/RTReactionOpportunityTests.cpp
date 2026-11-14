@@ -179,7 +179,7 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
  * Le tre cardinalita' stanno in un test solo perche' sono **una** proprieta' — la soglia — e verificarne una
  * meta' non direbbe niente: con il solo caso `≤ 1` passerebbe un'implementazione che non apre MAI il
  * boundary, con il solo `≥ 2` una che lo apre SEMPRE. E' lo stesso motivo per cui
- * `Combat.BranthImpactShotSlows` ha un gemello di controllo.
+ * `Combat.RiktorImpactShotSlows` ha un gemello di controllo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSingleResponseCommitsWithoutWindowTest,
 	"RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow",
@@ -795,7 +795,7 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 
 	FRTReactionWindowNames Nomi;
 	Nomi.ReactionName = FText::FromString(TEXT("Guardia reattiva"));
-	Nomi.ReactorName = FText::FromString(TEXT("Aevik"));
+	Nomi.ReactorName = FText::FromString(TEXT("Gadget"));
 	Nomi.TriggerNames = { FText::FromString(TEXT("Ivrin")) };
 	Nomi.TriggerKind = ERTReactionTriggerKind::EnteredControlledArea;
 	Nomi.TargetNames.Add(PrimoBersaglio, FText::FromString(TEXT("Ivrin")));
@@ -807,7 +807,7 @@ bool FRTReactionWindowNamesGoToTheOwnersTeamTest::RunTest(const FString&)
 		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Opportunity, 3.f, Nomi);
 	if (!TestTrue(TEXT("premessa: la propria squadra riceve la finestra"), Propria.bOpen)) { return false; }
 	TestEqual(TEXT("il nome della reazione"), Propria.ReactionName.ToString(), FString(TEXT("Guardia reattiva")));
-	TestEqual(TEXT("il nome di chi decide"), Propria.ReactorName.ToString(), FString(TEXT("Aevik")));
+	TestEqual(TEXT("il nome di chi decide"), Propria.ReactorName.ToString(), FString(TEXT("Gadget")));
 	TestEqual(TEXT("un trigger"), Propria.TriggerNames.Num(), 1);
 	TestTrue(TEXT("la specie dichiarata da chi apre la finestra"),
 		Propria.TriggerKind == ERTReactionTriggerKind::EnteredControlledArea);

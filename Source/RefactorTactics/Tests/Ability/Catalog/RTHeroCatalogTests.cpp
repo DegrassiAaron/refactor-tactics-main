@@ -186,7 +186,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Branth) e 22 (Aevik) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Riktor) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -210,7 +210,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
 bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
 {
 	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
-	// Perche' lo sia, il DATO deve dichiarare la relazione: `Branth.ImpactShot` e' un'azione d'eroe, e chi
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Riktor.ImpactShot` e' un'azione d'eroe, e chi
 	// legge una traccia non la risolve col catalogo core.
 	//
 	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
@@ -371,7 +371,7 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 //
 // ⚠️ **La prima correzione, lo stesso giorno, ne teneva ancora una di clausole**: distingueva per STILE e
 // si aspettava `Main` dalle cariche. Bastava a rendere il test non-vacuo, non a renderlo semplice — e la
-// misura su `Hero.Branth.Ram` ha mostrato che quel caso speciale era esso stesso il difetto successivo.
+// misura su `Hero.Riktor.Ram` ha mostrato che quel caso speciale era esso stesso il difetto successivo.
 // Ora non c'e' nessun caso speciale: chi risolve nel Dash dichiara il movimento, e basta.
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMobilitySlotTest,
@@ -524,9 +524,9 @@ bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
  * rifiutare: un ID ritirato semplicemente non risolve. La guardia che serviva davvero e' questa.
  *
  * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
- * dicendo che un prefisso piatto metterebbe `Aevik.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
+ * dicendo che un prefisso piatto metterebbe `Gadget.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
  * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
- * al `HeroId` del **suo** eroe fa cadere anche un'azione di Aevik che finisse sotto `Hero.Muiren.` —
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Gadget che finisse sotto `Hero.Muiren.` —
  * un errore che un rename massivo produce esattamente come quello che deve correggere.
  *
  * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
@@ -567,8 +567,14 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// ⚠️ E il limite vale anche per i due appena aggiunti: un'abilita' futura chiamata `Hero.X.GadgetHack`
 	// cadrebbe come cadrebbe `PhaseGuard`. E' il prezzo di cercare ovunque invece che al confine di parola,
 	// ed e' pagato sapendolo.
+	//
+	// 🔄 **Con #4011 ([D-585]) il verso si rovescia**: gli id tornano ai nomi Paragon, quindi il nome che rientra
+	// in uso esce da questa lista e quello che lascia entra, nello stesso commit — `Riktor` e `Gadget` fuori,
+	// `Branth` e `Aevik` dentro. Lasciarli qui farebbe cadere ogni `Hero.Riktor.*` e `Hero.Gadget.*`: la guardia
+	// rovesciata del punto (1). Il limite su `Hero.X.GadgetHack` scritto sopra vale ora per un nome che contenga
+	// `Aevik`.
 	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
-		TEXT("Riktor"), TEXT("Gadget"), TEXT("Wraith") };
+		TEXT("Branth"), TEXT("Aevik"), TEXT("Wraith") };
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
@@ -602,9 +608,9 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
 	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
-	// **23** da `#2890`: cinque per Aevik, sei per Phase e Ivrin che portano lo scudo proattivo ([D-226]),
-	// e sei per Branth, che da [D-380] porta anche `MortarShot` — la generica del core nel kit.
-	// VENTITRE da `#2890`: la ventitreesima e' `Hero.Branth.MortarShot`, il tiro indiretto.
+	// **23** da `#2890`: cinque per Gadget, sei per Phase e Ivrin che portano lo scudo proattivo ([D-226]),
+	// e sei per Riktor, che da [D-380] porta anche `MortarShot` — la generica del core nel kit.
+	// VENTITRE da `#2890`: la ventitreesima e' `Hero.Riktor.MortarShot`, il tiro indiretto.
 	TestEqual(TEXT("il roster v0.1 dichiara ventitre abilita'"), Checked, 23);
 	return true;
 }
@@ -622,19 +628,19 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// una derivazione di parametri. Tre dei quattro hanno i numeri scritti a mano, non presi dal core:
 	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
 	const TMap<FName, FName> Atteso = {
-		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
+		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
 		{ TEXT("Hero.Muiren.FluidTrail"),          TEXT("Action.Dodge")         },
 		{ TEXT("Hero.Muiren.MistVeil"),            TEXT("Action.Ignite")       },
-		{ TEXT("Hero.Branth.KineticPanel"),       TEXT("Action.CreateCover")  },
-		{ TEXT("Hero.Branth.Ram"),                TEXT("Action.Charge")       },
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
-		{ TEXT("Hero.Branth.Interposition"),      TEXT("Action.Intercept")    },
+		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
+		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
+		{ TEXT("Hero.Riktor.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Ivrin.Deflection"),         TEXT("Action.Deflect")      },
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
 		{ TEXT("Hero.Muiren.TideGuard"),           TEXT("Action.Shield")       },
 		{ TEXT("Hero.Ivrin.PhaseGuard"),         TEXT("Action.Shield")       },
-		// `#2890` / [D-380]: la generica del catalogo core che Branth porta nel kit — il tiro indiretto.
-		{ TEXT("Hero.Branth.MortarShot"),         TEXT("Action.Mortar")       },
+		// `#2890` / [D-380]: la generica del catalogo core che Riktor porta nel kit — il tiro indiretto.
+		{ TEXT("Hero.Riktor.MortarShot"),         TEXT("Action.Mortar")       },
 		// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.
 		{ TEXT("Hero.Muiren.CircularTide"),       TEXT("Action.Heal")         },
 	};
@@ -664,9 +670,9 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
 				// profilo (`BaseActionId`) e non questo.
 				//
-				// Dodici derivate + sette proprie + quattro base = **23**: cinque abilita' per Aevik,
+				// Dodici derivate + sette proprie + quattro base = **23**: cinque abilita' per Gadget,
 				// **sei** per Phase e Ivrin, che da [D-226] portano lo scudo proattivo, e **sei** per
-				// Branth, che da [D-380] porta `MortarShot`.
+				// Riktor, che da [D-380] porta `MortarShot`.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}
@@ -745,8 +751,8 @@ bool FRTHeroBasicAttacksTakeTheCorePolicyTest::RunTest(const FString&)
 		Core.LineOfSightPolicy == ERTLineOfSightPolicy::BlindAimDirect)) { return false; }
 
 	const TArray<URTHeroData*> Heroes = {
-		URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
-		URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeIvrin() };
+		URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeIvrin() };
 
 	int32 HeroesWithABasicAttack = 0;
 	for (const URTHeroData* Hero : Heroes)

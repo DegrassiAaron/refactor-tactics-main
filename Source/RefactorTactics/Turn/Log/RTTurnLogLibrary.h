@@ -401,7 +401,7 @@ public:
 	 *
 	 * ⚠️ **Solo `ERTLogCategory::Move`, e non e' timidezza**: il prefisso funziona dove il soggetto e' anche
 	 * il soggetto GRAMMATICALE del predicato. Per il danno `UnitId` porta chi **subisce** (`#1150`), e
-	 * *«Aevik: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
+	 * *«Gadget: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
 	 * altre categorie vuole prima un predicato che regga il soggetto davanti.
 	 *
 	 * @param SubjectNames  `StableUnitId` -> nome leggibile (`ARTUnit::DisplayLabel`). Chi manca ricade su
@@ -414,9 +414,9 @@ public:
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:
-	 * `Action.BasicAttack · Branth.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	 * `Action.BasicAttack · Riktor.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede — «spiegabile nel TurnLog come azione base + profilo» — e senza di essa una traccia dice solo
-	 * `Branth.ImpactShot`, che e' un'azione d'EROE e non si risolve col catalogo core.
+	 * `Riktor.ImpactShot`, che e' un'azione d'EROE e non si risolve col catalogo core.
 	 *
 	 * Ricade sul solo `ActionId` quando `BaseActionId` e' vuoto (traccia di formato < 5, o azione che non e'
 	 * profilo di niente) o quando i due coincidono. Pura: legge solo la voce.

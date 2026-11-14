@@ -584,7 +584,7 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnEquipMap(World, 6);
 
-	ARTUnit* Curatore = SpawnEquipUnit(World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Curatore = SpawnEquipUnit(World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeRiktor());
 	ARTUnit* Ferito = SpawnEquipUnit(World, 0, FRTCellId(3, 0), URTHeroCatalogLibrary::MakeIvrin()); // stessa squadra, adiacente
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
@@ -751,7 +751,7 @@ bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 	// `Anchor`: `PushResistance` è una soglia permanente, non un contatore per turno. Il roster è a zero dopo
 	// D-075, e un gadget che la alzasse renderebbe immune a OGNI spinta — tutte valgono 1.
 	TestEqual(TEXT("il roster non ha resistenza nativa (D-075), e il gadget non puo' introdurla come soglia"),
-		URTHeroCatalogLibrary::MakeBranth()->PushResistance, 0);
+		URTHeroCatalogLibrary::MakeRiktor()->PushResistance, 0);
 	return true;
 }
 
@@ -850,13 +850,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultWeaponVariantsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("Aevik: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Aevik")),
+	TestEqual(TEXT("Gadget: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Gadget")),
 		FName(TEXT("Weapon.Precision")));
 	TestEqual(TEXT("Muiren: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Muiren")),
 		FName(TEXT("Weapon.Impact")));
 	TestEqual(TEXT("Ivrin: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Ivrin")),
 		FName(TEXT("Weapon.Suppressive")));
-	TestEqual(TEXT("Branth: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Branth")),
+	TestEqual(TEXT("Riktor: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Riktor")),
 		FName(TEXT("Weapon.Impact")));
 
 	// Un eroe sconosciuto NON ricade su un default: meglio nessuna variante che una sbagliata in silenzio.
@@ -865,7 +865,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 
 	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
 	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
-	const TCHAR* Roster[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Ivrin"), TEXT("Hero.Branth") };
+	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Muiren"), TEXT("Hero.Ivrin"), TEXT("Hero.Riktor") };
 	for (const TCHAR* H : Roster)
 	{
 		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
@@ -934,7 +934,7 @@ bool FRTDefaultLoadoutTest::RunTest(const FString&)
 
 		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
 		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
-		// dipende da E13. Scrivere qui «Aevik e Ivrin non hanno default» sarebbe vero oggi e **falso il
+		// dipende da E13. Scrivere qui «Gadget e Ivrin non hanno default» sarebbe vero oggi e **falso il
 		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
 		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
 		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
@@ -1009,17 +1009,17 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 		return nullptr;
 	};
 
-	const FRTActionDef Branth = URTHeroCatalogLibrary::MakeBranth()->Actions[0]->Def;
+	const FRTActionDef Riktor = URTHeroCatalogLibrary::MakeRiktor()->Actions[0]->Def;
 	const FRTActionDef Ivrin = IvrinBasicAttack();
 
 	// Il caso concreto che ha fatto nascere la regola: `ImpactShot` rallenta già, quindi `Suppressive` fa
 	// pagare 5 danni su 8 per un effetto che l'eroe possiede — legale e privo di senso (D-086).
 	const URTEquipmentData* Suppressive = Trova(TEXT("Weapon.Suppressive"));
 	if (!TestNotNull(TEXT("Weapon.Suppressive"), Suppressive)) { return false; }
-	const TArray<FString> SuBranth = URTCatalogLibrary::WarnOnVariantForAttack(Branth, Suppressive);
-	TestTrue(TEXT("Branth + Soppressione: avvisato"), SuBranth.Num() > 0);
+	const TArray<FString> SuRiktor = URTCatalogLibrary::WarnOnVariantForAttack(Riktor, Suppressive);
+	TestTrue(TEXT("Riktor + Soppressione: avvisato"), SuRiktor.Num() > 0);
 	bool bNominaLoStatus = false;
-	for (const FString& W : SuBranth) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
+	for (const FString& W : SuRiktor) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
 	TestTrue(TEXT("e l'avviso dice QUALE status e' duplicato"), bNominaLoStatus);
 
 	// Il gemello di controllo: lo stesso identico dato su un attacco che NON rallenta non avvisa. Senza
@@ -1029,8 +1029,8 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
-	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
-		URTHeroCatalogLibrary::MakeIvrin(), URTHeroCatalogLibrary::MakeBranth() };
+	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakeMuiren(),
+		URTHeroCatalogLibrary::MakeIvrin(), URTHeroCatalogLibrary::MakeRiktor() };
 	for (URTHeroData* Eroe : Eroi)
 	{
 		const FName DefId = URTCatalogLibrary::DefaultWeaponVariantFor(Eroe->HeroId);
@@ -1048,7 +1048,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 // CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
 //
 // ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
-// §4 solo quello di Branth è interamente costruibile — a Aevik manca `Gadget.Insulator` (E36), a Ivrin
+// §4 solo quello di Riktor è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Ivrin
 // `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Muiren `Reaction.HazardEscape` (#505). Caricarli
 // oggi significherebbe scrivere default con dei buchi.
 // =====================================================================================================
@@ -1266,8 +1266,8 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
-	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-	URTActionData* GadgetBasic = Aevik->Actions[0];
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	URTActionData* GadgetBasic = Gadget->Actions[0];
 	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
 	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	// L'atteso si DERIVA dal dato invece di scrivere il numero: questo test verifica che la ricarica

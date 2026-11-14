@@ -164,7 +164,7 @@ bool FRTPieSessionBeatsTheConsoleCVarTest::RunTest(const FString&)
  *
  * 🔑 E' il collegamento che rende vere le mesh in PIE: il GameMode passa le proprie `HeroUnitClasses` al
  * coordinatore a ogni lancio. Il test di `FRTScenarioCoordinator` prova l'inoltro; questo prova che il GameMode
- * lo FA — togliendo l'argomento dalla lambda della porta, Aevik torna cilindro e la riga cade.
+ * lo FA — togliendo l'argomento dalla lambda della porta, Gadget torna cilindro e la riga cade.
  *
  * ⚠️ La mappa si cambia DOPO lo spawn del GameMode e PRIMA del lancio: e' cio' che distingue «letta a ogni
  * lancio» da «copiata una volta». La sonda fa le veci del `BP_Unit_*`, che in un worktree non si carica.
@@ -187,36 +187,36 @@ bool FRTPieSessionPortPosesHeroClassesTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Solo Aevik ha una classe; Branth, assente dalla mappa, deve restare il cilindro.
+	// Solo Gadget ha una classe; Riktor, assente dalla mappa, deve restare il cilindro.
 	GameMode->HeroUnitClasses.Empty();
-	GameMode->HeroUnitClasses.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+	GameMode->HeroUnitClasses.Add(FName(TEXT("Hero.Gadget")), ARTUnitClassProbeForTest::StaticClass());
 
 	GameMode->InstallPieSessionPorts();
 	Conduttore->Begin({ [] {
 		FRTPieSessionStep S;
 		S.PieItem = TEXT("PIE-VIS-SIGHTWALL");
-		S.ScenarioId = TEXT("Visual.Map.SightWallIsWalkable"); // A1 Aevik, B1 Branth
+		S.ScenarioId = TEXT("Visual.Map.SightWallIsWalkable"); // A1 Gadget, B1 Riktor
 		return S;
 	}() });
 
-	int32 Aevik = 0;
-	int32 Branth = 0;
+	int32 Gadget = 0;
+	int32 Riktor = 0;
 	for (TActorIterator<ARTUnit> It(World); It; ++It)
 	{
 		const ARTUnit* U = *It;
-		if (U->HeroId == FName(TEXT("Hero.Aevik")))
+		if (U->HeroId == FName(TEXT("Hero.Gadget")))
 		{
-			++Aevik;
-			TestTrue(TEXT("Aevik e' posato con la classe che il GameMode ha ADESSO"), U->IsA<ARTUnitClassProbeForTest>());
+			++Gadget;
+			TestTrue(TEXT("Gadget e' posato con la classe che il GameMode ha ADESSO"), U->IsA<ARTUnitClassProbeForTest>());
 		}
-		else if (U->HeroId == FName(TEXT("Hero.Branth")))
+		else if (U->HeroId == FName(TEXT("Hero.Riktor")))
 		{
-			++Branth;
-			TestTrue(TEXT("Branth, senza classe, resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+			++Riktor;
+			TestTrue(TEXT("Riktor, senza classe, resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
 		}
 	}
-	TestEqual(TEXT("premessa: la porta ha posato Aevik"), Aevik, 1);
-	TestEqual(TEXT("premessa: la porta ha posato Branth"), Branth, 1);
+	TestEqual(TEXT("premessa: la porta ha posato Gadget"), Gadget, 1);
+	TestEqual(TEXT("premessa: la porta ha posato Riktor"), Riktor, 1);
 
 	PieIntegrationDestroyWorld(World);
 	return true;

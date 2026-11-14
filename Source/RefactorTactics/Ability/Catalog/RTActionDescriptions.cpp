@@ -16,12 +16,12 @@ const TArray<TPair<FName, FString>>& RTActionDescriptions::All()
 		{ TEXT("Action.Overwatch"), TEXT("Sorvegli la direzione in cui guardi e spari al nemico che vi passa; puoi muoverti solo per ritirarti.") },
 		{ TEXT("Action.Interact"),  TEXT("Usi un oggetto su una cella vicina, per esempio una porta.") },
 
-		// Aevik
-		{ TEXT("Hero.Aevik.ArcPulse"),          TEXT("Una scarica elettrica a distanza su un bersaglio.") },
-		{ TEXT("Hero.Aevik.LinearDischarge"),   TEXT("Una scarica in linea retta, piu' dannosa su chi e' bagnato.") },
-		{ TEXT("Hero.Aevik.ConductiveNode"),    TEXT("Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine.") },
-		{ TEXT("Hero.Aevik.Overload"),          TEXT("Un'esplosione elettrica ad area, che interrompe anche i dispositivi.") },
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca.") },
+		// Gadget
+		{ TEXT("Hero.Gadget.ArcPulse"),          TEXT("Una scarica elettrica a distanza su un bersaglio.") },
+		{ TEXT("Hero.Gadget.LinearDischarge"),   TEXT("Una scarica in linea retta, piu' dannosa su chi e' bagnato.") },
+		{ TEXT("Hero.Gadget.ConductiveNode"),    TEXT("Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine.") },
+		{ TEXT("Hero.Gadget.Overload"),          TEXT("Un'esplosione elettrica ad area, che interrompe anche i dispositivi.") },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca.") },
 
 		// Muiren
 		{ TEXT("Hero.Muiren.PressureJet"),  TEXT("Un getto d'acqua in linea: bagna il bersaglio e lo spinge indietro.") },
@@ -31,13 +31,13 @@ const TArray<TPair<FName, FString>>& RTActionDescriptions::All()
 		{ TEXT("Hero.Muiren.FlowReaction"), TEXT("Reazione pensata per riposizionarti dopo un attacco: in questa versione non ha ancora effetto.") },
 		{ TEXT("Hero.Muiren.TideGuard"),    TEXT("Uno scudo temporaneo su di te, da scegliere prima di sapere se sarai colpito.") },
 
-		// Branth
-		{ TEXT("Hero.Branth.ImpactShot"),    TEXT("Un colpo cinetico che rallenta il bersaglio.") },
-		{ TEXT("Hero.Branth.KineticPanel"),  TEXT("Erige un pannello di copertura sul lato di una cella.") },
-		{ TEXT("Hero.Branth.Reconfigure"),   TEXT("Sposta o ruota una copertura gia' in campo.") },
-		{ TEXT("Hero.Branth.Ram"),           TEXT("Carichi contro un nemico: lo colpisci e lo spingi.") },
-		{ TEXT("Hero.Branth.Interposition"), TEXT("Reazione: ti metti in mezzo e incassi il colpo diretto a un alleato vicino.") },
-		{ TEXT("Hero.Branth.MortarShot"),    TEXT("Un tiro ad arco su un'area, che arriva anche dove non vedi.") },
+		// Riktor
+		{ TEXT("Hero.Riktor.ImpactShot"),    TEXT("Un colpo cinetico che rallenta il bersaglio.") },
+		{ TEXT("Hero.Riktor.KineticPanel"),  TEXT("Erige un pannello di copertura sul lato di una cella.") },
+		{ TEXT("Hero.Riktor.Reconfigure"),   TEXT("Sposta o ruota una copertura gia' in campo.") },
+		{ TEXT("Hero.Riktor.Ram"),           TEXT("Carichi contro un nemico: lo colpisci e lo spingi.") },
+		{ TEXT("Hero.Riktor.Interposition"), TEXT("Reazione: ti metti in mezzo e incassi il colpo diretto a un alleato vicino.") },
+		{ TEXT("Hero.Riktor.MortarShot"),    TEXT("Un tiro ad arco su un'area, che arriva anche dove non vedi.") },
 
 		// Ivrin
 		{ TEXT("Hero.Ivrin.PulseShot"),     TEXT("Un colpo a impulsi a distanza su un bersaglio.") },

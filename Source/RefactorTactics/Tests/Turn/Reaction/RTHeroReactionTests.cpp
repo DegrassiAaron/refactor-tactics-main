@@ -119,23 +119,23 @@ namespace
 		return 0;
 	}
 
-	constexpr int32 HeroReactInterpositionIndex = 4; // Branth
+	constexpr int32 HeroReactInterpositionIndex = 4; // Riktor
 	constexpr int32 HeroReactDeflectionIndex = 3;    // Ivrin
-	constexpr int32 HeroReactCapacitorIndex = 4;     // Aevik
+	constexpr int32 HeroReactCapacitorIndex = 4;     // Gadget
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthInterpositionSlotTest,
-	"RefactorTactics.Heroes.BranthInterpositionUsesReactionSlot",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorInterpositionSlotTest,
+	"RefactorTactics.Heroes.RiktorInterpositionUsesReactionSlot",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
+bool FRTRiktorInterpositionSlotTest::RunTest(const FString&)
 {
 	// Lo slot `Reaction` non e' un'etichetta: significa che l'eroe puo' agire E tenere pronta la reazione
-	// nello stesso turno. Si verifica sul dato e poi in partita, con Branth che attacca *mentre* si interpone.
-	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
-	const URTActionData* Interposition = BranthData->Actions[HeroReactInterpositionIndex];
+	// nello stesso turno. Si verifica sul dato e poi in partita, con Riktor che attacca *mentre* si interpone.
+	URTHeroData* RiktorData = URTHeroCatalogLibrary::MakeRiktor();
+	const URTActionData* Interposition = RiktorData->Actions[HeroReactInterpositionIndex];
 	const FRTActionDef CoreIntercept = URTCatalogLibrary::FindCoreAction(TEXT("Action.Intercept"));
 
-	TestEqual(TEXT("identita' d'eroe"), Interposition->Def.ActionId, FName(TEXT("Hero.Branth.Interposition")));
+	TestEqual(TEXT("identita' d'eroe"), Interposition->Def.ActionId, FName(TEXT("Hero.Riktor.Interposition")));
 	TestTrue(TEXT("occupa lo slot Reazione"), Interposition->Def.Slot == ERTActionSlot::Reaction);
 	TestTrue(TEXT("trigger: un alleato colpito da un attacco diretto"),
 		Interposition->Def.ReactionTrigger == ERTReactionTrigger::AllyHitByDirectAttack);
@@ -152,11 +152,11 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Riktor = SpawnHeroReactUnit(World, RiktorData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
@@ -164,9 +164,9 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	}
 
 	// Azione principale E reazione nello stesso turno: e' esattamente cio' che lo slot dedicato consente.
-	Branth->SetPlannedMainAction(0); // ImpactShot, portata 3
-	Branth->DeclareAttackOnUnit(Enemy);
-	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
+	Riktor->SetPlannedMainAction(0); // ImpactShot, portata 3
+	Riktor->DeclareAttackOnUnit(Enemy);
+	Riktor->SetPlannedReaction(HeroReactInterpositionIndex);
 
 	Enemy->SetPlannedMainAction(0); // PulseShot sull'alleata: fa scattare l'interposizione
 	Enemy->DeclareAttackOnUnit(Ally);
@@ -175,52 +175,52 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione si attiva una sola volta, con la sua identita'"),
-		CountHeroReactActivations(TM, TEXT("Hero.Branth.Interposition")), 1);
+		CountHeroReactActivations(TM, TEXT("Hero.Riktor.Interposition")), 1);
 	TestEqual(TEXT("e l'azione principale parte lo stesso"),
-		EnemyBefore - Enemy->Health, HeroReactDeclaredDamage(BranthData->Actions[0]));
+		EnemyBefore - Enemy->Health, HeroReactDeclaredDamage(RiktorData->Actions[0]));
 
 	DestroyHeroReactWorld(World);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthInterpositionRedirectsTest,
-	"RefactorTactics.Heroes.BranthInterpositionRedirectsDirectHit",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorInterpositionRedirectsTest,
+	"RefactorTactics.Heroes.RiktorInterpositionRedirectsDirectHit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
+bool FRTRiktorInterpositionRedirectsTest::RunTest(const FString&)
 {
-	// Il colpo diretto all'alleata lo incassa Branth: e' la semantica di `Action.Intercept`, riusata senza
-	// riscriverla. Branth e' l'eroe con piu' salute del roster — interporsi e' cio' che sa fare.
+	// Il colpo diretto all'alleata lo incassa Riktor: e' la semantica di `Action.Intercept`, riusata senza
+	// riscriverla. Riktor e' l'eroe con piu' salute del roster — interporsi e' cio' che sa fare.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
+	URTHeroData* RiktorData = URTHeroCatalogLibrary::MakeRiktor();
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Riktor = SpawnHeroReactUnit(World, RiktorData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
 	}
 
-	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
-	Branth->ClearPlannedMainAction();
+	Riktor->SetPlannedReaction(HeroReactInterpositionIndex);
+	Riktor->ClearPlannedMainAction();
 	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
 	Enemy->DeclareAttackOnUnit(Ally);
 
-	const int32 BranthBefore = Branth->Health;
+	const int32 RiktorBefore = Riktor->Health;
 	const int32 AllyBefore = Ally->Health;
 	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
-		CountHeroReactActivations(TM, TEXT("Hero.Branth.Interposition")), 1);
-	TestEqual(TEXT("il colpo lo incassa Branth"), BranthBefore - Branth->Health, Shot);
+		CountHeroReactActivations(TM, TEXT("Hero.Riktor.Interposition")), 1);
+	TestEqual(TEXT("il colpo lo incassa Riktor"), RiktorBefore - Riktor->Health, Shot);
 	TestEqual(TEXT("e l'alleata non subisce nulla"), Ally->Health, AllyBefore);
 
 	DestroyHeroReactWorld(World);
@@ -230,8 +230,8 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 /**
  * **La copertura si rivalida su chi il colpo lo incassa DAVVERO, non su chi era il bersaglio.**
  *
- * 🔑 **L'oracolo e' il DANNO, non la sostituzione** (`PIA-1.3`, `#2616`). Che il colpo arrivi a Branth lo
- * misura gia' `Heroes.BranthInterpositionRedirectsDirectHit`; un test che si fermasse li' sarebbe **vacuo**
+ * 🔑 **L'oracolo e' il DANNO, non la sostituzione** (`PIA-1.3`, `#2616`). Che il colpo arrivi a Riktor lo
+ * misura gia' `Heroes.RiktorInterpositionRedirectsDirectHit`; un test che si fermasse li' sarebbe **vacuo**
  * rispetto a questa proprieta' — resterebbe verde anche se la copertura non venisse rivalidata, perche' il
  * bersaglio cambia comunque.
  *
@@ -242,40 +242,40 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
  * > interpone protetto dal muretto di qualcun altro.»*
  *
  * La fixture da' coperture **diverse** ai due bersagli, che e' cio' che rende l'asserzione discriminante:
- * l'alleata e' **scoperta**, Branth ha un riparo **basso** sul bordo da cui il colpo entra. Senza
- * `RedirectHitTo`, Branth incasserebbe il colpo pieno calcolato su di lei.
+ * l'alleata e' **scoperta**, Riktor ha un riparo **basso** sul bordo da cui il colpo entra. Senza
+ * `RedirectHitTo`, Riktor incasserebbe il colpo pieno calcolato su di lei.
  *
  * ⚠️ **`Low` e non `High`, ed e' la riga che decide se il test misura qualcosa**: `HexCoverDamageReduction`
  * attenua solo la copertura bassa — l'alta blocca la linea di tiro, non il danno. Con `High` la riduzione
  * nominale sarebbe `0` e il test sarebbe verde per la ragione sbagliata. E' la trappola gia' pagata da
  * `RTCombatLogTests.cpp`, che la dichiara accanto alla propria fixture.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthInterpositionRevalidatesCoverTest,
-	"RefactorTactics.Heroes.BranthInterpositionRevalidatesCoverOnEffectiveTarget",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorInterpositionRevalidatesCoverTest,
+	"RefactorTactics.Heroes.RiktorInterpositionRevalidatesCoverOnEffectiveTarget",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
+bool FRTRiktorInterpositionRevalidatesCoverTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	ARTHexMapActor* Map = SpawnHeroReactMap(World);
 	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyHeroReactWorld(World); return false; }
 
-	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
+	URTHeroData* RiktorData = URTHeroCatalogLibrary::MakeRiktor();
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	// Stesso layout del test gemello: l'attaccante sta a EST, quindi il colpo entra dal bordo `E`.
-	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Riktor = SpawnHeroReactUnit(World, RiktorData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
 	}
 
-	// 🔑 **La copertura sta su BRANTH e non sull'alleata**: e' l'asimmetria che rende il test discriminante.
+	// 🔑 **La copertura sta su RIKTOR e non sull'alleata**: e' l'asimmetria che rende il test discriminante.
 	// Si parte dalla cella esistente e le si aggiunge la faccia — costruirne una nuova con lo stesso `Id`
 	// perderebbe il terreno posato dalla fixture.
 	if (URTHexMapAsset* Asset = Map->MapAsset)
@@ -287,21 +287,21 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 			Asset->AddOrUpdateCell(Riparo);
 		}
 	}
-	Branth->Facing = ERTHexDirection::E; // il riparo vale nell'arco frontale: guarda chi spara
+	Riktor->Facing = ERTHexDirection::E; // il riparo vale nell'arco frontale: guarda chi spara
 
-	Branth->SetPlannedReaction(HeroReactInterpositionIndex);
-	Branth->ClearPlannedMainAction();
+	Riktor->SetPlannedReaction(HeroReactInterpositionIndex);
+	Riktor->ClearPlannedMainAction();
 	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
 	Enemy->DeclareAttackOnUnit(Ally);
 
-	const int32 BranthBefore = Branth->Health;
+	const int32 RiktorBefore = Riktor->Health;
 	const int32 AllyBefore = Ally->Health;
 	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	// Premesse: senza queste, l'asserzione sul danno misurerebbe un turno che non e' successo.
 	if (!TestEqual(TEXT("premessa: la reazione si e' attivata"),
-			CountHeroReactActivations(TM, TEXT("Hero.Branth.Interposition")), 1)
+			CountHeroReactActivations(TM, TEXT("Hero.Riktor.Interposition")), 1)
 		|| !TestEqual(TEXT("premessa: l'alleata non incassa nulla"), Ally->Health, AllyBefore))
 	{
 		DestroyHeroReactWorld(World);
@@ -311,7 +311,7 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 	// 🔴 **L'asserzione.** Il colpo era stato calcolato su un bersaglio SCOPERTO; lo incassa un bersaglio
 	// RIPARATO, e il numero deve dirlo. Senza rivalidazione qui si leggerebbe `Shot`.
 	TestEqual(TEXT("il danno riflette la copertura di CHI INCASSA, non quella del bersaglio originale"),
-		BranthBefore - Branth->Health, Shot - URTCombatLibrary::LowCoverDamageReduction);
+		RiktorBefore - Riktor->Health, Shot - URTCombatLibrary::LowCoverDamageReduction);
 
 	DestroyHeroReactWorld(World);
 	return true;
@@ -331,7 +331,7 @@ bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
 	ARTUnit* Ivrin = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -361,23 +361,23 @@ bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetCapacitorShieldsAndCountersTest,
-	"RefactorTactics.Heroes.AevikReactiveCapacitorShieldsAndCounters",
+	"RefactorTactics.Heroes.GadgetReactiveCapacitorShieldsAndCounters",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 {
-	// DUE effetti nella stessa reazione (CP 5.5): scudo a Aevik **e** danno a chi l'ha colpito. Prima del
+	// DUE effetti nella stessa reazione (CP 5.5): scudo a Gadget **e** danno a chi l'ha colpito. Prima del
 	// motore componibile ne sarebbe arrivato uno solo — ed e' il motivo per cui questo checkpoint dipende
 	// da quello.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	ARTUnit* Aevik = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Gadget = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
@@ -393,20 +393,20 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	TestEqual(TEXT("il catalogo dichiara lo scudo da 150"), ShieldAmount, 150);
 	TestEqual(TEXT("e i 100 danni all'attaccante"), CounterAmount, 100);
 
-	Aevik->SetPlannedReaction(HeroReactCapacitorIndex);
-	Aevik->ClearPlannedMainAction();
+	Gadget->SetPlannedReaction(HeroReactCapacitorIndex);
+	Gadget->ClearPlannedMainAction();
 	Enemy->SetPlannedMainAction(0); // PulseShot, colpo singolo
-	Enemy->DeclareAttackOnUnit(Aevik);
+	Enemy->DeclareAttackOnUnit(Gadget);
 
-	const int32 GadgetBefore = Aevik->Health;
+	const int32 GadgetBefore = Gadget->Health;
 	const int32 EnemyBefore = Enemy->Health;
 	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
-		CountHeroReactActivations(TM, TEXT("Hero.Aevik.ReactiveCapacitor")), 1);
+		CountHeroReactActivations(TM, TEXT("Hero.Gadget.ReactiveCapacitor")), 1);
 	TestEqual(TEXT("lo scudo assorbe la sua parte del colpo"),
-		GadgetBefore - Aevik->Health, Shot - ShieldAmount);
+		GadgetBefore - Gadget->Health, Shot - ShieldAmount);
 	TestEqual(TEXT("e l'attaccante incassa il contraccolpo"), EnemyBefore - Enemy->Health, CounterAmount);
 
 	DestroyHeroReactWorld(World);
@@ -428,15 +428,15 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// contrario di quella che c'era prima: non «nessuno la raccoglie», ma «la raccoglie il boundary del Move».
 	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
 	// ed e' cambiata la risposta, non la domanda.
-	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
 	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 
 	struct FWired { const URTActionData* Action; const TCHAR* Id; };
 	const FWired Wired[] = {
-		{ Aevik->Actions[HeroReactCapacitorIndex],        TEXT("Hero.Aevik.ReactiveCapacitor") },
-		{ Branth->Actions[HeroReactInterpositionIndex], TEXT("Hero.Branth.Interposition") },
+		{ Gadget->Actions[HeroReactCapacitorIndex],        TEXT("Hero.Gadget.ReactiveCapacitor") },
+		{ Riktor->Actions[HeroReactInterpositionIndex], TEXT("Hero.Riktor.Interposition") },
 		{ Ivrin->Actions[HeroReactDeflectionIndex],     TEXT("Hero.Ivrin.Deflection") },
 	};
 	for (const FWired& W : Wired)
@@ -480,7 +480,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
-	const TArray<const URTHeroData*> Roster = { Aevik, Muiren, Branth, Ivrin };
+	const TArray<const URTHeroData*> Roster = { Gadget, Muiren, Riktor, Ivrin };
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes(Roster);
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("roster valido dopo il cablaggio"), Errors.Num(), 0);

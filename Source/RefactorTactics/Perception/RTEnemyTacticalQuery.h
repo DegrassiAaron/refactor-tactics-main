@@ -134,7 +134,7 @@ public:
 	 *
 	 * ## 🔴 Perche' `Hero` e' un parametro, e perche' non e' una falla
 	 *
-	 * Il profilo tattico serve, e non puo' nascere qui: `URTHeroCatalogLibrary::MakeBranth` e sorelle fanno
+	 * Il profilo tattico serve, e non puo' nascere qui: `URTHeroCatalogLibrary::MakeRiktor` e sorelle fanno
 	 * `NewObject`, e una query pura chiamata a ogni selezione non alloca `UObject`. Arriva percio' dal
 	 * chiamante, con la stessa forma di `ARTUnit::ConfigureFromHeroData`.
 	 *

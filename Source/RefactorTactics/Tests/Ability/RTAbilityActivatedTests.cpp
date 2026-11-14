@@ -112,7 +112,7 @@ bool FRTTurnPrepActivatesEveryKindOfIntentTest::RunTest(const FString&)
 
 		ARTUnit* Scudo = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
 		ARTUnit* Sentinella = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-		ARTUnit* Stordito = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, 0));
+		ARTUnit* Stordito = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Scudo || !Sentinella || !Stordito) { return false; }
 
@@ -186,13 +186,13 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World);
 
-		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
-		ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
+		ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bersaglio || !Caricatore) { return false; }
 
-		const int32 Ram = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram"));
-		if (!TestTrue(TEXT("premessa: Branth ha Ram"), Ram != INDEX_NONE)) { return false; }
+		const int32 Ram = IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Riktor.Ram"));
+		if (!TestTrue(TEXT("premessa: Riktor ha Ram"), Ram != INDEX_NONE)) { return false; }
 		Caricatore->SetPlannedDash(Ram, Bersaglio->Cell);
 		Caricatore->SetPlannedCell(Caricatore->Cell);
 
@@ -212,7 +212,7 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		if (!TestTrue(TEXT("lo scatto si e' attivato"), IdxAttivazione != INDEX_NONE)) { return false; }
 		TestTrue(TEXT("🔴 l'attivazione PRECEDE il Move dello stesso scatto"), IdxAttivazione < IdxMove);
 		TestEqual(TEXT("con l'azione dello scatto"),
-			TM->ResolvedTimelineForTest()[IdxAttivazione].ActionId, FName(TEXT("Hero.Branth.Ram")));
+			TM->ResolvedTimelineForTest()[IdxAttivazione].ActionId, FName(TEXT("Hero.Riktor.Ram")));
 		TestEqual(TEXT("🔴 e il bersaglio dichiarato di una carica: l'unita' sulla cella pianificata"),
 			TM->ResolvedTimelineForTest()[IdxAttivazione].TargetStableUnitId, Bersaglio->StableUnitId);
 	}
@@ -224,12 +224,12 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World);
 
-		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
-		ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
+		ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bersaglio || !Caricatore) { return false; }
 
-		Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+		Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 		Caricatore->SetPlannedCell(Caricatore->Cell);
 
 		TM->LockInAndResolve();
@@ -253,7 +253,7 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		SpawnAttivazioneMap(World);
 
 		// Un avversario in campo ma lontano dalla traiettoria: lo scatto non ha niente da dichiarare.
-		ARTUnit* Altro = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 4));
+		ARTUnit* Altro = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 4));
 		ARTUnit* Corridore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Altro || !Corridore) { return false; }
@@ -298,28 +298,28 @@ bool FRTTurnCoverStructureActivatesOnlyWhenAppliedTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World);
 
-		ARTUnit* Branth = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Riktor = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Branth) { return false; }
+		if (!TM || !Riktor) { return false; }
 
-		const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
-		if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
-		Branth->SetPlannedMainAction(Pannello);
-		Branth->DeclareAttackOnCell(FRTCellId(1, 0)); // a portata: la portata del pannello e' 3 (#2283)
-		FRTUnitPlanTestAccess::SetHasCoverEdge(*Branth, bConBordo);
-		FRTUnitPlanTestAccess::SetCoverEdge(*Branth, ERTHexDirection::E);
-		Branth->SetPlannedCell(Branth->Cell);
+		const int32 Pannello = IndiceAbilitaAttivazione(Riktor, TEXT("Hero.Riktor.KineticPanel"));
+		if (!TestTrue(TEXT("premessa: Riktor ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
+		Riktor->SetPlannedMainAction(Pannello);
+		Riktor->DeclareAttackOnCell(FRTCellId(1, 0)); // a portata: la portata del pannello e' 3 (#2283)
+		FRTUnitPlanTestAccess::SetHasCoverEdge(*Riktor, bConBordo);
+		FRTUnitPlanTestAccess::SetCoverEdge(*Riktor, ERTHexDirection::E);
+		Riktor->SetPlannedCell(Riktor->Cell);
 
 		TM->LockInAndResolve();
 
 		OutAttivazioni = 0;
 		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
 		{
-			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Branth->StableUnitId)
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Riktor->StableUnitId)
 			{
 				++OutAttivazioni;
 				TestEqual(TEXT("di fase Prep"), static_cast<int32>(Ev.Phase), static_cast<int32>(ERTMatchPhase::Prep));
-				TestEqual(TEXT("con l'azione del pannello"), Ev.ActionId, FName(TEXT("Hero.Branth.KineticPanel")));
+				TestEqual(TEXT("con l'azione del pannello"), Ev.ActionId, FName(TEXT("Hero.Riktor.KineticPanel")));
 			}
 		}
 		auto HaEsito = [TM](ERTEnvironmentOutcome Esito)
@@ -364,16 +364,16 @@ bool FRTTurnCoverStructureAlreadyRepairedDoesNotActivateTest::RunTest(const FStr
 	URTHexMapAsset* Map = SpawnAttivazioneMap(World);
 	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
 
-	ARTUnit* Branth = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Riktor = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Branth) { return false; }
+	if (!TM || !Riktor) { return false; }
 
-	const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
-	if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
-	Branth->SetPlannedMainAction(Pannello);
-	Branth->DeclareAttackOnCell(FRTCellId(1, 0));
-	Branth->DeclarePlannedCoverEdge(ERTHexDirection::E);
-	Branth->SetPlannedCell(Branth->Cell);
+	const int32 Pannello = IndiceAbilitaAttivazione(Riktor, TEXT("Hero.Riktor.KineticPanel"));
+	if (!TestTrue(TEXT("premessa: Riktor ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
+	Riktor->SetPlannedMainAction(Pannello);
+	Riktor->DeclareAttackOnCell(FRTCellId(1, 0));
+	Riktor->DeclarePlannedCoverEdge(ERTHexDirection::E);
+	Riktor->SetPlannedCell(Riktor->Cell);
 
 	// Il bordo che il pannello vuole erigere e' GIA' riparato: lo stesso piano valido del test accanto, ma
 	// `AddCover` lo rifiutera' in applicazione.
@@ -396,7 +396,7 @@ bool FRTTurnCoverStructureAlreadyRepairedDoesNotActivateTest::RunTest(const FStr
 	int32 Attivazioni = 0;
 	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
 	{
-		if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Branth->StableUnitId) { ++Attivazioni; }
+		if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Riktor->StableUnitId) { ++Attivazioni; }
 	}
 	TestEqual(TEXT("🔴 rifiutata da AddCover: nessuna attivazione"), Attivazioni, 0);
 	return true;
@@ -486,16 +486,16 @@ bool FRTTurnAbilityActivatedOncePerIntentTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World);
 
-		ARTUnit* F1 = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
+		ARTUnit* F1 = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-1, 0));
 		ARTUnit* R1 = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
-		ARTUnit* B1 = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		ARTUnit* B1 = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 		ARTUnit* V1 = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, -1));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !F1 || !R1 || !B1 || !V1) { return false; }
 
 		R1->SetPlannedMainAction(IndiceAbilitaAttivazione(R1, TEXT("Hero.Muiren.TideGuard"))); // Prep
 		R1->SetPlannedCell(FRTCellId(-1, 1));                                                       // e cammina
-		FRTUnitPlanTestAccess::SetDashAbility(*B1, IndiceAbilitaAttivazione(B1, TEXT("Hero.Branth.Ram")));           // Dash
+		FRTUnitPlanTestAccess::SetDashAbility(*B1, IndiceAbilitaAttivazione(B1, TEXT("Hero.Riktor.Ram")));           // Dash
 		FRTUnitPlanTestAccess::SetDashCell(*B1, F1->Cell);
 		B1->SetPlannedCell(B1->Cell);
 		V1->SetPlannedMainAction(IndiceAbilitaAttivazione(V1, TEXT("Hero.Ivrin.PulseShot")));     // Blast
@@ -523,7 +523,7 @@ bool FRTTurnAbilityActivatedOncePerIntentTest::RunTest(const FString&)
 				{ return E.Phase == Fase && E.SourceStableUnitId == Sorgente && E.ActionId == FName(Azione); }).Num();
 		};
 		TestEqual(TEXT("Prep: TideGuard, una volta"), Una(ERTMatchPhase::Prep, R1->StableUnitId, TEXT("Hero.Muiren.TideGuard")), 1);
-		TestEqual(TEXT("Dash: Ram, una volta"), Una(ERTMatchPhase::Dash, B1->StableUnitId, TEXT("Hero.Branth.Ram")), 1);
+		TestEqual(TEXT("Dash: Ram, una volta"), Una(ERTMatchPhase::Dash, B1->StableUnitId, TEXT("Hero.Riktor.Ram")), 1);
 		TestEqual(TEXT("Blast: PulseShot, una volta"), Una(ERTMatchPhase::Blast, V1->StableUnitId, TEXT("Hero.Ivrin.PulseShot")), 1);
 		// ⛔ I due esclusi, con il loro SOGGETTO. ⏱️ *La prima stesura asseriva «nessuna attivazione porta
 		// `Action.Move`»: vero per costruzione, perche' nessun sito emette con quell'id — un asserto senza
@@ -577,11 +577,11 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 		SpawnAttivazioneMap(World);
 
 		ARTUnit* Purificatore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
-		ARTUnit* Ferito       = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(1, 2));
+		ARTUnit* Ferito       = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(1, 2));
 		ARTUnit* Curatore     = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 2));
-		ARTUnit* Arcista      = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),
+		ARTUnit* Arcista      = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),
 			bArcoInPortata ? FRTCellId(2, 2) : FRTCellId(-4, 0));
-		ARTUnit* Tiratore     = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+		ARTUnit* Tiratore     = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Purificatore || !Ferito || !Curatore || !Arcista || !Tiratore) { return false; }
 
@@ -618,7 +618,7 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 			return false;
 		}
 
-		Tiratore->SetPlannedMainAction(IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot")));
+		Tiratore->SetPlannedMainAction(IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Riktor.ImpactShot")));
 		Tiratore->DeclareAttackOnUnit(Purificatore);
 		Tiratore->SetPlannedCell(Tiratore->Cell);
 
@@ -648,7 +648,7 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 
 	TArray<FName> Azioni;
 	if (!GiraIlTurno(/*bArcoInPortata=*/ true, Azioni)) { return false; }
-	const TArray<FName> Attese = { FName(TEXT("Action.Cleanse")), FName(TEXT("Hero.Branth.ImpactShot")),
+	const TArray<FName> Attese = { FName(TEXT("Action.Cleanse")), FName(TEXT("Hero.Riktor.ImpactShot")),
 		FName(TEXT("Action.Heal")), FName(TEXT("Action.ModifyArc")) };
 	TestEqual(TEXT("🔴 quattro sorgenti, nell'ordine canonico: Cleanse 25, colpo 50, cura 70, arco 75"), Azioni, Attese);
 
@@ -675,7 +675,7 @@ bool FRTTurnActivationPrecedesFootprintAndHitsTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	SpawnAttivazioneMap(World, 12);
 
-	ARTUnit* Attaccante = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Attaccante = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Bersaglio  = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attaccante || !Bersaglio) { return false; }
@@ -721,16 +721,16 @@ bool FRTTurnChargeActivatesInDashNotInBlastTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	SpawnAttivazioneMap(World);
 
-	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
-	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
+	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bersaglio || !Caricatore) { return false; }
-	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	TM->LockInAndResolve();
 
-	const FName Ram(TEXT("Hero.Branth.Ram"));
+	const FName Ram(TEXT("Hero.Riktor.Ram"));
 	int32 Attivazioni = 0, ColpiDiImpatto = 0;
 	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
 	{
@@ -816,7 +816,7 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		URTHexMapAsset* Map = SpawnAttivazioneMap(World, 6);
 		ARTUnit* Tiratore  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
-		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Map || !Tiratore || !Bersaglio) { return false; }
 
@@ -848,11 +848,11 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World, 6);
-		ARTUnit* Morto     = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Morto     = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
 		// ⚠️ **Un compagno vivo**, lontano: senza, la squadra del morto e' estinta e il turno non arriva al Blast —
 		// il ramo sarebbe vacuo, e togliere la guardia `IsAlive()` lascerebbe il test verde.
-		ARTUnit* Compagno  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-5, 3));
+		ARTUnit* Compagno  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-5, 3));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Morto || !Bersaglio || !Compagno) { return false; }
 		Morto->SetPlannedMainAction(0);
@@ -876,11 +876,11 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World, 8);
-		ARTUnit* Lontano   = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		ARTUnit* Lontano   = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(6, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Lontano || !Bersaglio) { return false; }
-		const int32 Colpo = IndiceAbilitaAttivazione(Lontano, TEXT("Hero.Branth.ImpactShot"));
+		const int32 Colpo = IndiceAbilitaAttivazione(Lontano, TEXT("Hero.Riktor.ImpactShot"));
 		if (!TestTrue(TEXT("premessa: il bersaglio e' oltre la portata"), Colpo != INDEX_NONE
 			&& URTHexLibrary::HexDistance(Lontano->Cell, Bersaglio->Cell) > Lontano->GetAbility(Colpo)->Def.RangeCells))
 		{
@@ -940,7 +940,7 @@ bool FRTTurnLegacyIntentWithoutActionIdTest::RunTest(const FString&)
 	UGameplayStatics::FinishSpawningActor(Legacy, FTransform::Identity);
 	Legacy->DispatchBeginPlay();
 	Legacy->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bersaglio) { return false; }
 
@@ -1059,7 +1059,7 @@ bool FRTTurnActivationFreezesSourceVerdictTest::RunTest(const FString&)
 	SpawnAttivazioneMap(World);
 
 	ARTUnit* Scudo     = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
-	ARTUnit* Tiratore  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Tiratore  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Scudo || !Tiratore || !Bersaglio) { return false; }
@@ -1117,8 +1117,8 @@ namespace RTOrdineDelBlast
  * col bonus del bagnato, e il getto (50) che quel bagnato lo produce per ultimo.
  *
  * Due parti, perche' gli atti hanno due chiavi diverse in `BuildBlastSequence`:
- * - **(a) due atti con attivazione nel Blast**: Aevik nasce PRIMA di Muiren, quindi il suo intento ha l'indice minore;
- * - **(b) un atto senza attivazione nel Blast**: l'impatto della carica di Branth (`Hero.Branth.Ram`, 35) si attiva nel
+ * - **(a) due atti con attivazione nel Blast**: Gadget nasce PRIMA di Muiren, quindi il suo intento ha l'indice minore;
+ * - **(b) un atto senza attivazione nel Blast**: l'impatto della carica di Riktor (`Hero.Riktor.Ram`, 35) si attiva nel
  *   Dash, quindi il suo atto prende la chiave dalla prima apparizione — la traccia. Risolve prima del getto (50), e
  *   prima si deve vedere.
  * ⛔ Chi guarda e' la squadra 0, quella degli attaccanti: vede tutto, e l'ordine e' l'unica variabile.
@@ -1135,24 +1135,24 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 		SpawnAttivazioneMap(World, 8);
 
-		// L'ordine di nascita e' la meta' del montaggio: Aevik per prima, quindi il suo intento ha l'indice minore.
-		ARTUnit* Aevik  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-3, 0));
+		// L'ordine di nascita e' la meta' del montaggio: Gadget per prima, quindi il suo intento ha l'indice minore.
+		ARTUnit* Gadget  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),  FRTCellId(-3, 0));
 		ARTUnit* Muiren = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
 		ARTUnit* Ivrin  = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Aevik || !Muiren || !Ivrin) { return false; }
-		Aevik->SetPlannedMainAction(IndiceAbilitaAttivazione(Aevik, TEXT("Hero.Aevik.LinearDischarge")));
-		Aevik->DeclareAttackOnUnit(Ivrin);
-		Aevik->SetPlannedCell(Aevik->Cell);
+		if (!TM || !Gadget || !Muiren || !Ivrin) { return false; }
+		Gadget->SetPlannedMainAction(IndiceAbilitaAttivazione(Gadget, TEXT("Hero.Gadget.LinearDischarge")));
+		Gadget->DeclareAttackOnUnit(Ivrin);
+		Gadget->SetPlannedCell(Gadget->Cell);
 		Muiren->SetPlannedMainAction(IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet")));
 		Muiren->DeclareAttackOnUnit(Ivrin);
 		Muiren->SetPlannedCell(Muiren->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (a): i due kit hanno le azioni"),
-			Aevik->PlannedAbilityIndex != INDEX_NONE && Muiren->PlannedAbilityIndex != INDEX_NONE)) { return false; }
+			Gadget->PlannedAbilityIndex != INDEX_NONE && Muiren->PlannedAbilityIndex != INDEX_NONE)) { return false; }
 
 		TM->LockInAndResolve();
 		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
-		const int32 Scarica = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Aevik->StableUnitId, TEXT("Hero.Aevik.LinearDischarge"));
+		const int32 Scarica = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Gadget->StableUnitId, TEXT("Hero.Gadget.LinearDischarge"));
 		if (!TestTrue(FString::Printf(TEXT("⛔ premessa (a): entrambi gli atti sono nella sequenza (%d, %d)"), Getto, Scarica),
 			Getto != INDEX_NONE && Scarica != INDEX_NONE)) { return false; }
 		TestTrue(*FString::Printf(TEXT("🔴 il getto (50) si vede prima della scarica (55): posizioni %d e %d"), Getto, Scarica),
@@ -1167,18 +1167,18 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		SpawnAttivazioneMap(World, 8);
 
 		ARTUnit* Muiren  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
-		ARTUnit* Branth  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -3));
+		ARTUnit* Riktor  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -3));
 		ARTUnit* Ivrin   = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
-		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, -3));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, -3));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Muiren || !Branth || !Ivrin || !Bersaglio) { return false; }
+		if (!TM || !Muiren || !Riktor || !Ivrin || !Bersaglio) { return false; }
 		Muiren->SetPlannedMainAction(IndiceAbilitaAttivazione(Muiren, TEXT("Hero.Muiren.PressureJet")));
 		Muiren->DeclareAttackOnUnit(Ivrin);
 		Muiren->SetPlannedCell(Muiren->Cell);
-		Branth->SetPlannedDash(IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
-		Branth->SetPlannedCell(Branth->Cell);
+		Riktor->SetPlannedDash(IndiceAbilitaAttivazione(Riktor, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
+		Riktor->SetPlannedCell(Riktor->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (b): i due kit hanno le azioni"),
-			Muiren->PlannedAbilityIndex != INDEX_NONE && Branth->PlannedDashAbility != INDEX_NONE)) { return false; }
+			Muiren->PlannedAbilityIndex != INDEX_NONE && Riktor->PlannedDashAbility != INDEX_NONE)) { return false; }
 
 		TM->LockInAndResolve();
 		// ⛔ La premessa che la parte poggia: l'impatto della carica ha COLPITO nel Blast (review di #3582). Senza un
@@ -1187,10 +1187,10 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
 		{
 			bImpattoNelBlast |= Ev.Type == ERTResolvedEventType::Attack && Ev.Phase == ERTMatchPhase::Blast
-				&& Ev.SourceStableUnitId == Branth->StableUnitId && Ev.ActionId == FName(TEXT("Hero.Branth.Ram"));
+				&& Ev.SourceStableUnitId == Riktor->StableUnitId && Ev.ActionId == FName(TEXT("Hero.Riktor.Ram"));
 		}
 		if (!TestTrue(TEXT("⛔ premessa (b): l'impatto della carica ha colpito nel Blast"), bImpattoNelBlast)) { return false; }
-		const int32 Impatto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Branth->StableUnitId, TEXT("Hero.Branth.Ram"));
+		const int32 Impatto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Riktor->StableUnitId, TEXT("Hero.Riktor.Ram"));
 		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
 		if (!TestTrue(FString::Printf(TEXT("⛔ premessa (b): l'impatto e il getto sono nella sequenza (%d, %d)"), Impatto, Getto),
 			Impatto != INDEX_NONE && Getto != INDEX_NONE)) { return false; }
@@ -1203,7 +1203,7 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 /**
  * `#3683` — l'impatto di una carica si racconta PRIMA della cura che lo segue.
  *
- * 🔴 **Il caso senza attivazione nel Blast**: l'impatto di `Hero.Branth.Ram` (35) si attiva nel Dash, quindi il suo
+ * 🔴 **Il caso senza attivazione nel Blast**: l'impatto di `Hero.Riktor.Ram` (35) si attiva nel Dash, quindi il suo
  * atto prende la chiave dalla prima apparizione, l'impronta. La cura (70) nasceva in `CollectHealActions`, prima di
  * ogni impronta: si vedeva prima di un colpo che la risoluzione applica prima. Da `#3683` esce nell'ordine canonico.
  *
@@ -1220,13 +1220,13 @@ bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 	SpawnAttivazioneMap(World);
 
-	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
 	ARTUnit* Curatore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, -1));
-	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Caricatore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bersaglio || !Curatore || !Caricatore) { return false; }
 
-	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Branth.Ram")), Bersaglio->Cell);
+	Caricatore->SetPlannedDash(IndiceAbilitaAttivazione(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
 
 	Bersaglio->Health = FMath::Max(1, Bersaglio->Health - 20);
@@ -1236,7 +1236,7 @@ bool FRTPlaybackChargeImpactPrecedesHealTest::RunTest(const FString&)
 
 	TM->LockInAndResolve();
 
-	const FName Ram(TEXT("Hero.Branth.Ram"));
+	const FName Ram(TEXT("Hero.Riktor.Ram"));
 	const FName Heal(TEXT("Action.Heal"));
 	int32 PrimoImpatto = INDEX_NONE;
 	int32 AttivazioneCura = INDEX_NONE;
@@ -1305,9 +1305,9 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	SpawnAttivazioneMap(World);
 
 	ARTUnit* Colpito = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Ferito = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 2));
+	ARTUnit* Ferito = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 2));
 	ARTUnit* Curatore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 2));
-	ARTUnit* Tiratore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTUnit* Tiratore = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Colpito || !Ferito || !Curatore || !Tiratore) { return false; }
 
@@ -1316,7 +1316,7 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	Curatore->DeclareAttackOnUnit(Ferito);
 	Curatore->SetPlannedCell(Curatore->Cell);
 
-	const int32 Colpo = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Branth.ImpactShot"));
+	const int32 Colpo = IndiceAbilitaAttivazione(Tiratore, TEXT("Hero.Riktor.ImpactShot"));
 	if (!TestTrue(TEXT("premessa: il colpo c'e'"), Tiratore->Abilities.IsValidIndex(Colpo))) { return false; }
 	Tiratore->Abilities[Colpo]->Def.Priority = 80; // sopra la cura (70): e' il caso
 	Tiratore->SetPlannedMainAction(Colpo);
@@ -1331,7 +1331,7 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	for (int32 i = 0; i < T.Num(); ++i)
 	{
 		if (T[i].Type != ERTResolvedEventType::AbilityActivated || T[i].Phase != ERTMatchPhase::Blast) { continue; }
-		if (AttivazioneColpo == INDEX_NONE && T[i].ActionId == FName(TEXT("Hero.Branth.ImpactShot"))) { AttivazioneColpo = i; }
+		if (AttivazioneColpo == INDEX_NONE && T[i].ActionId == FName(TEXT("Hero.Riktor.ImpactShot"))) { AttivazioneColpo = i; }
 		if (AttivazioneCura == INDEX_NONE && T[i].ActionId == FName(TEXT("Action.Heal"))) { AttivazioneCura = i; }
 	}
 	if (!TestTrue(TEXT("⛔ premessa: il colpo si e' attivato nel Blast"), AttivazioneColpo != INDEX_NONE)

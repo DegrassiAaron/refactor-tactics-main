@@ -9,7 +9,7 @@ struct FRTAnimBrowserRow
 	FName                Id;
 	FString              AssetName;
 	FString              AssetPath;
-	FString              Pack;        // `Aevik`, `Ivrin`, … dedotto dal path, non dal nome della clip
+	FString              Pack;        // `Gadget`, `Ivrin`, … dedotto dal path, non dal nome della clip
 	ERTAnimClipStatus    Status = ERTAnimClipStatus::Unreviewed;
 	FString              Label;
 	float                DurationSeconds = 0.f;
@@ -83,7 +83,7 @@ public:
 	 */
 	bool Unbind(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId = NAME_None);
 
-	/** Il pack di un path Paragon (`.../ParagonGadget/...` -> `Aevik`), o vuoto. */
+	/** Il pack di un path Paragon (`.../ParagonGadget/...` -> `Gadget`), o vuoto. */
 	static FString PackFromAssetPath(const FString& AssetPath);
 
 	const FRTAnimCatalog& GetCatalog() const { return Catalog; }

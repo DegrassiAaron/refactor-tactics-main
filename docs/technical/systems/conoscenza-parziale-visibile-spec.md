@@ -1017,7 +1017,7 @@ La storia della classe *Passo*: **le prime tre celle sono silenziose**, ogni cel
 🔴 **La regola si applica alla definizione RISOLTA PER EROE, non alla voce del catalogo core**, ed è la
 distinzione che rendeva muto l'attacco base. Il catalogo core dichiara *«identità, fase, priorità e
 fallback stanno qui; DANNO e PORTATA no»* — il danno lo mette `URTCatalogLibrary::MakeBasicAttack`, che è
-anche il produttore di `Hero.Aevik.ArcPulse`. Interrogare la voce core significa interrogare un guscio.
+anche il produttore di `Hero.Gadget.ArcPulse`. Interrogare la voce core significa interrogare un guscio.
 
 **Il DoD porta un test di esaustività**: ogni voce restituita da `GetCoreActionCatalog()`, risolta per
 eroe, cade in **esattamente una** classe — un ramo di default che non scatta mai, come il gate del
@@ -1062,7 +1062,7 @@ i 24 numeri non esistono mai.
 ### 6.2 Verifica di scala
 
 Soglie d'udito, misurate su **due fonti indipendenti** (`RT_HeroCatalog_v0.1.md` §5.1 e
-`RTHeroCatalogLibrary.cpp`): **Aevik 5 · Muiren 3 · Branth 3 · Ivrin 5**.
+`RTHeroCatalogLibrary.cpp`): **Gadget 5 · Muiren 3 · Riktor 3 · Ivrin 5**.
 
 > 🔁 **I quattro VALORI reggono, i quattro NOMI no** (rimisurato il 2026-09-23). Erano
 > *«Gadget 5 · Phase 3 · Riktor 3 · Wraith 5»*, e i quattro eroi sono stati rinominati — `Gadget`→`Aevik`
@@ -1078,11 +1078,18 @@ Soglie d'udito, misurate su **due fonti indipendenti** (`RT_HeroCatalog_v0.1.md`
 >
 > 🔑 **E l'ancora giusta non è il nome**: un nome invecchia esattamente come un numero di riga. I valori
 > si rileggono da `ARTHeroCatalogLibrary` sul campo `HearingThreshold`, che nessun rename tocca.
+>
+> 🔁 **Rimisurato il 2026-11-13: due dei quattro NOMI sono tornati.**
+> [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011)
+> ([`D-585`](../../decisions/RT_PDR_00_Decision_Log.md) (3)) rinomina `Aevik`→`Gadget` e `Branth`→`Riktor`: nel catalogo
+> oggi ci sono `Hero.Gadget`, `Hero.Muiren`, `Hero.Riktor` e `Hero.Ivrin`, con gli stessi quattro valori. Il grep
+> qui sopra quindi non separa più i nomi ritirati da quelli correnti, perché `Gadget` e `Riktor` sono di nuovo
+> eroi: l'ancora resta `HearingThreshold`.
 
 `Received` alla sorgente; area **stretta** con margine ≥ `TightBandMargin` (3), **larga** con margine ≥ 0,
 nessun contatto sotto:
 
-| Evento | Rumore | Ricevuto | soglia **5** *(Aevik / Ivrin)* | soglia **3** *(Muiren / Branth)* |
+| Evento | Rumore | Ricevuto | soglia **5** *(Gadget / Ivrin)* | soglia **3** *(Muiren / Riktor)* |
 |---|---:|---:|---|---|
 | `Move` su terreno neutro | 2 | 2 | — | — |
 | `Move` su **acqua bassa** (+2) | 2 | 4 | — | **larga** |
@@ -1115,7 +1122,7 @@ nessuno»* — va reso vero invece di essere lasciato falso.
 ### 6.4 Chi è l'ascoltatore: **il margine maggiore**
 
 [D-043](../../decisions/RT_PDR_00_Decision_Log.md) dice che la conoscenza è di **squadra**; D-113 dice che
-l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** margine. In un 2v2 con Aevik
+l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** margine. In un 2v2 con Gadget
 (soglia 5) e Muiren (soglia 3), lo **stesso** rumore produce **due aree diverse**. Il DoD di #159 dice *«la
 squadra che ode ottiene **un** contatto»*, ma il test che descrive ha un ascoltatore solo: la domanda non era
 mai stata affrontata.
@@ -1406,7 +1413,7 @@ Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue pr
   > > dall'estensione. ⚠️ La cura onesta è il filtro, non la cifra: `git grep -I "7351"`, che esclude i
   > > binari e restituisce ciò che la frase intende dire.
   >
-  > 🔴 **La differenza ribalta la conclusione, e va detta.** Su 7 351 celle il cono di Aevik (vista 7,
+  > 🔴 **La differenza ribalta la conclusione, e va detta.** Su 7 351 celle il cono di Gadget (vista 7,
   > `R² + 2R` ≈ 74 celle) copre l'**1 %**, e una squadra di due sta intorno al **2 %**: disegnare il 98 %
   > spento è rumore visivo, e nascondere è la scelta giusta. Su **61** celle lo stesso cono copre **l'arena
   > intera**, non c'è niente da nascondere, e il velo basta e avanza.

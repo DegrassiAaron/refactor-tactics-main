@@ -963,7 +963,7 @@ namespace RTStunCensusTestsInternal
 		const int32 RangeSeen = Action->Def.RangeCells > 0 ? Action->Def.RangeCells : FMath::Max(1, Action->RangeCells);
 		const int32 FoeDistance = FMath::Max(FMath::Clamp(RangeSeen, 1, 3), Action->Def.MinRangeCells);
 		const FRTCellId FoeCell = Scene.Form == EPlanForm::OnUnit ? FRTCellId(FoeDistance, 0, 0) : FRTCellId(FarFoeX, 0, 0);
-		ARTUnit* Foe = SpawnCensusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FoeCell);
+		ARTUnit* Foe = SpawnCensusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FoeCell);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: nemico"), *Run), Foe)
 			|| !Test.TestNotNull(*FString::Printf(TEXT("%s: turn manager"), *Run), TM))

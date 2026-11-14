@@ -166,7 +166,7 @@ bool FRTBotAllyIsNotCommandableTest::RunTest(const FString&)
 }
 
 /**
- * L'ALLESTIMENTO. `BotAllyCount = 1` su `[Aevik, Muiren]` da' Muiren al bot e lascia Aevik al giocatore.
+ * L'ALLESTIMENTO. `BotAllyCount = 1` su `[Gadget, Muiren]` da' Muiren al bot e lascia Gadget al giocatore.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotAllyBootstrapTest,
 	"RefactorTactics.Bot.Ally.BootstrapPutsLastTeammateUnderBot",
@@ -185,12 +185,12 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* Aevik = FindBotAllyHero(Units, TEXT("Hero.Aevik"));
+	ARTUnit* Gadget = FindBotAllyHero(Units, TEXT("Hero.Gadget"));
 	ARTUnit* Muiren = FindBotAllyHero(Units, TEXT("Hero.Muiren"));
-	ARTUnit* Branth = FindBotAllyHero(Units, TEXT("Hero.Branth"));
+	ARTUnit* Riktor = FindBotAllyHero(Units, TEXT("Hero.Riktor"));
 	ARTUnit* Ivrin = FindBotAllyHero(Units, TEXT("Hero.Ivrin"));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Muiren"), Muiren)
+		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyBotAllyWorld(World);
 		return false;
@@ -199,16 +199,16 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 	// LA SQUADRA NON CAMBIA: Muiren resta un'alleata, e questo e' il punto della feature. Se cambiasse
 	// squadra sarebbe un'avversaria in piu', cioe' un'altra partita.
 	TestEqual(TEXT("Muiren resta nella squadra del giocatore"), Muiren->TeamId, 0);
-	TestEqual(TEXT("Aevik anche"), Aevik->TeamId, 0);
+	TestEqual(TEXT("Gadget anche"), Gadget->TeamId, 0);
 
 	// ...ma chi la pianifica si': e' la prima volta che due unita' della stessa squadra si dividono qui.
-	TestFalse(TEXT("Aevik resta al giocatore"), Aevik->bIsBotControlled);
+	TestFalse(TEXT("Gadget resta al giocatore"), Gadget->bIsBotControlled);
 	TestTrue(TEXT("Muiren passa al bot"), Muiren->bIsBotControlled);
-	TestTrue(TEXT("gli avversari restano al bot"), Branth->bIsBotControlled && Ivrin->bIsBotControlled);
+	TestTrue(TEXT("gli avversari restano al bot"), Riktor->bIsBotControlled && Ivrin->bIsBotControlled);
 
 	// E il gate lo vede: senza questa riga il test proverebbe l'assegnazione e non il suo effetto.
-	TestTrue(TEXT("Aevik e' comandabile"),
-		URTCombatLibrary::CanPlayerControlUnit(Aevik->TeamId, 0, Aevik->bIsBotControlled));
+	TestTrue(TEXT("Gadget e' comandabile"),
+		URTCombatLibrary::CanPlayerControlUnit(Gadget->TeamId, 0, Gadget->bIsBotControlled));
 	TestFalse(TEXT("Muiren no"),
 		URTCombatLibrary::CanPlayerControlUnit(Muiren->TeamId, 0, Muiren->bIsBotControlled));
 
@@ -289,10 +289,10 @@ bool FRTBotAllyCapTest::RunTest(const FString&)
 	TestEqual(TEXT("al giocatore resta esattamente un'unita' da comandare"), ComandabiliInSquadraZero, 1);
 
 	// E la prima della formazione: il cap toglie dal FONDO, quindi il capo formazione e' l'ultimo a cadere.
-	const ARTUnit* Aevik = FindBotAllyHero(Units, TEXT("Hero.Aevik"));
-	if (TestNotNull(TEXT("Aevik"), Aevik))
+	const ARTUnit* Gadget = FindBotAllyHero(Units, TEXT("Hero.Gadget"));
+	if (TestNotNull(TEXT("Gadget"), Gadget))
 	{
-		TestFalse(TEXT("ed e' Aevik, primo in formazione"), Aevik->bIsBotControlled);
+		TestFalse(TEXT("ed e' Gadget, primo in formazione"), Gadget->bIsBotControlled);
 	}
 
 	DestroyBotAllyWorld(World);

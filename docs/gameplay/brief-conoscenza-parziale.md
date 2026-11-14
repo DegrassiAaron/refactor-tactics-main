@@ -78,7 +78,7 @@ rivela · zona di raggiungibilità prevista nell'HUD · jamming e relay.
 
 | Azione | Range | Vista di chi la usa |
 |---|---:|---:|
-| `Hero.Aevik.ArcPulse` | 4 | 7 |
+| `Hero.Gadget.ArcPulse` | 4 | 7 |
 | `Hero.Wraith.PulseShot` | 4 | 6 |
 | `Hero.Riktor.ImpactShot` | 3 | 5 |
 | `Action.LineAttack` | 5 | ≥ 5 |

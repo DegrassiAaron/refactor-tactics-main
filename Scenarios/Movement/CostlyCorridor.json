@@ -14,7 +14,7 @@
 
   "_nota_corsia_C": "⛔ **QUESTA CORSIA NON DISCRIMINA, e va detto invece che lasciato credere**: S attraversa una cella a costo 3 e finisce su [-1,2] sia con le durate sia senza — cambia QUANDO, non DOVE, e nessun `expect` puo' vedere il quando. Resta perche' un secondo percorso su terreno costoso allarga cio' che la traccia attraversa, non perche' provi qualcosa. ⛔ E non c'e' un inseguitore, che sarebbe l'unica cosa capace di renderla discriminante: un seguito NON E' AUTORABILE in uno scenario. `FindPathAvoiding` esclude le celle occupate, quindi un percorso che termina - o passa - dove sta un'altra unita' viene RIFIUTATO in pianificazione, prima che la risoluzione cominci (misurato: il primo giro di questo banco dava «percorso rifiutato per F, l'unita' resta ferma»). E' lo stesso vincolo che #1922 §3 misura per il click del giocatore. Il comportamento del seguito vive quindi nei test C++ che bypassano la pianificazione - Movement.TransitStillOccupiesItsOriginCell e Movement.ConvoyOnCostlyTerrainSerializes - e non qui.",
 
-  "_nota_budget": "I budget NON sono cablabili da uno scenario (`Sim.MoveBudget = Hero->MovePoints`), quindi il banco usa quelli del roster invece di chiedere quattro unita' a 4 MP che non esistono: Aevik 5 - Muiren 5 - Branth 4 - Ivrin 6. Il percorso piu' caro e' quello di Y (3+1 = 4 MP) ed e' affidato ad Aevik, che ne ha 5: un margine, non un pareggio, cosi' una troncatura al budget non puo' mascherare l'esito temporale.",
+  "_nota_budget": "I budget NON sono cablabili da uno scenario (`Sim.MoveBudget = Hero->MovePoints`), quindi il banco usa quelli del roster invece di chiedere quattro unita' a 4 MP che non esistono: Gadget 5 - Muiren 5 - Riktor 4 - Ivrin 6. Il percorso piu' caro e' quello di Y (3+1 = 4 MP) ed e' affidato ad Gadget, che ne ha 5: un margine, non un pareggio, cosi' una troncatura al budget non puo' mascherare l'esito temporale.",
 
   "_nota_E1": "L'unita' avversaria esiste per far partire la partita: senza una seconda squadra il match finirebbe prima che un turno si completi, e `TurnsCompleted: 1` non sarebbe soddisfatto. Sta a distanza 4 da X (6 da Y e S), non ha intent e non e' un bot, quindi non puo' intervenire — e l'`expect` che la tiene su [0,-4] lo rende una misura invece che una convinzione: se una spinta o un piano vagante la muovesse, si vedrebbe qui.",
 
@@ -24,10 +24,10 @@
   ],
 
   "units": [
-    { "id": "X", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "Y", "hero": "Hero.Aevik",  "team": 0, "cell": [2, 0, 0] },
+    { "id": "X", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "Y", "hero": "Hero.Gadget",  "team": 0, "cell": [2, 0, 0] },
     { "id": "S", "hero": "Hero.Muiren", "team": 0, "cell": [-2, 2, 0] },
-    { "id": "E1", "hero": "Hero.Branth", "team": 1, "cell": [0, -4, 0] }
+    { "id": "E1", "hero": "Hero.Riktor", "team": 1, "cell": [0, -4, 0] }
   ],
 
   "turns": [

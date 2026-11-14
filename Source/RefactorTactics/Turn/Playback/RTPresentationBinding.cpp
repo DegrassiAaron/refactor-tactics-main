@@ -481,7 +481,7 @@ const TArray<TPair<FName, FRTAbilityFxProfile>>& URTPresentationBindingLibrary::
 {
 	// La mappa approvata dall'autore il 2026-10-08 (spec §2.2, D5). Notazione: Activation · Tracer · Impact · Footprint.
 	// Le ragioni stanno nella spec, una riga per override; qui solo i dati.
-	// ⚠️ `Hero.Aevik.ReactiveCapacitor` NON ha riga (F22, ➕ rev2.): il suo contrattacco non emette un evento `Attack`
+	// ⚠️ `Hero.Gadget.ReactiveCapacitor` NON ha riga (F22, ➕ rev2.): il suo contrattacco non emette un evento `Attack`
 	// (`RTTurnManager.cpp:6357` contro `:6460-6468`), quindi non ha colpo da disegnare; resta il default della forma.
 	static const TArray<TPair<FName, FRTAbilityFxProfile>> Righe = []()
 	{
@@ -491,11 +491,11 @@ const TArray<TPair<FName, FRTAbilityFxProfile>>& URTPresentationBindingLibrary::
 		using F = ERTFootprintFxStyle;
 		TArray<TPair<FName, FRTAbilityFxProfile>> R;
 		auto Riga = [&R](const TCHAR* Id, const FRTAbilityFxProfile& P) { R.Emplace(FName(Id), P); };
-		Riga(TEXT("Hero.Aevik.LinearDischarge"), URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::Zigzag, I::Marker, F::None));
-		Riga(TEXT("Hero.Aevik.Overload"),        URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::Marker, F::AreaPulse));
+		Riga(TEXT("Hero.Gadget.LinearDischarge"), URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::Zigzag, I::Marker, F::None));
+		Riga(TEXT("Hero.Gadget.Overload"),        URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::Marker, F::AreaPulse));
 		Riga(TEXT("Hero.Muiren.CircularTide"),   URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None)); // #3593: una cura non ha un colpo, quindi ne' Marker ne' onda (spec SP5 F4, R7)
 		Riga(TEXT("Hero.Muiren.TideGuard"),      URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None));
-		Riga(TEXT("Hero.Branth.Ram"),            URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Hero.Riktor.Ram"),            URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
 		Riga(TEXT("Hero.Ivrin.InterceptShot"),   URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));
 		Riga(TEXT("Hero.Ivrin.PassingBlade"),    URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
 		Riga(TEXT("Hero.Ivrin.Feint"),           URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));

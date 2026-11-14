@@ -9,20 +9,21 @@ slot Paragon usa come base visuale ([D-037](../decisions/RT_PDR_00_Decision_Log.
 I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) e dal
 2026-08-13 **coincidono** con lo slot Paragon che ciascun eroe usa come base visuale.
 
-| Nome canonico | Scheda | Stable ID (legacy) | Base visuale |
+| Nome canonico | Scheda | Stable ID | Base visuale |
 |---|---|---|---|
-| **Aevik** | [scheda](v0.1/aevik.md) | `Hero.Aevik` | `Paragon.Aevik` |
+| **Gadget** | [scheda](v0.1/gadget.md) | `Hero.Gadget` | `Paragon.Gadget` |
 | **Muiren** | [scheda](v0.1/muiren.md) | `Hero.Muiren` | `Paragon.Muiren` |
 | **Riktor** | [scheda](v0.1/riktor.md) | `Hero.Riktor` | `Paragon.Riktor` |
-| **Wraith** | [scheda](v0.1/wraith.md) | `Hero.Wraith` | `Paragon.Wraith` |
+| **Ivrin** | [scheda](v0.1/wraith.md) | `Hero.Ivrin` | `Paragon.Wraith` |
 | **Muriel** ⏳ | [scheda](v0.1/muriel.md) (`DESIGN_SPEC`, prende il posto di Muiren: [D-586](../decisions/RT_PDR_00_Decision_Log.md)) | `Hero.Muriel` dopo #4011 | `Paragon.Muriel` |
 | **Kallari** ⏳ | [scheda](v0.1/kallari.md) (`DESIGN_SPEC`, prende il posto di Wraith / Ivrin: [D-586](../decisions/RT_PDR_00_Decision_Log.md)) | `Hero.Kallari` dopo #4011 | `Paragon.Kallari` |
 
-> **I token della colonna «Stable ID» sono legacy implementation identifiers, non nomi del personaggio.**
-> Sopravvivono dove esistono già — codice, asset, scenari, replay — e **non si rinominano**: una migrazione
-> di ID richiede compatibilità, versioning e replay-safety propri, e ha un blocker misurato ancora aperto
-> ([#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716)). Anche i file delle schede
-> conservano per ora il nome storico: cambiarlo è un `move` che rompe i link, non un rename di prosa.
+> **La colonna «Stable ID» è la chiave tecnica di codice, scenari e replay, non il nome del personaggio.**
+> Segue [D-585](../decisions/RT_PDR_00_Decision_Log.md) (3): gli ID tornano ai nomi degli slot Paragon con un
+> rename secco inverso ([#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011)), eseguito il
+> 2026-11-13 per `Hero.Aevik` → `Hero.Gadget` e `Hero.Branth` → `Hero.Riktor`; la scheda segue l'ID
+> (`v0.1/aevik.md` è diventata `v0.1/gadget.md`, senza stub). I kit di Muiren e Ivrin invece si ritirano
+> ([D-586](../decisions/RT_PDR_00_Decision_Log.md)): i loro ID passano a Muriel e Kallari col kit nuovo (righe ⏳).
 >
 > ✅ **Dal 2026-08-13 è anche quello che si legge a schermo.** Il nome canonico è dichiarato dal catalogo
 > (`URTHeroData::DisplayName`), trasportato sull'unità da `ConfigureFromHeroData` e letto dalla HUD via

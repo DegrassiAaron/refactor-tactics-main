@@ -135,7 +135,7 @@ namespace RTCombatLogFixture
 	 *
 	 * ⚠️ Non `DescribeTurnLog`: da quando le voci `Move` portano il soggetto nel testo, quella forma le rende
 	 * con `u<id>` — non avendo la mappa — e il confronto con cio' che e' stato emesso cadrebbe su
-	 * `Aevik: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
+	 * `Gadget: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
 	 * produttore resta uno solo: qui si passa la mappa, non si riscrive il testo.
 	 */
 	TArray<FString> RigheAttese(const ARTTurnManager* TM)
@@ -537,9 +537,9 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	// E il profilo, quando c'e', si legge come nelle altre categorie. Token canonico `Hero.<Nome>.<Abilita>`
 	// (D-130): i nomi legacy sono usciti dal repository, e il gate che li cercava e' uscito con D-182.
 	Altra.BaseActionId = FName(TEXT("Action.BasicAttack"));
-	Altra.ActionId = FName(TEXT("Hero.Branth.ImpactShot"));
+	Altra.ActionId = FName(TEXT("Hero.Riktor.ImpactShot"));
 	TestTrue(TEXT("azione base e profilo, come altrove"),
-		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Branth.ImpactShot")));
+		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Riktor.ImpactShot")));
 
 	// Solo il PROFILO, senza l'azione: si legge il profilo, non `Action.BasicAttack · None`.
 	{
@@ -1409,7 +1409,7 @@ namespace RT1932
  * gameplay su un comportamento corretto.
  *
  * ⚠️ Il prefisso vale solo dove `UnitId` e' anche il soggetto GRAMMATICALE: nelle voci di danno porta chi
- * **subisce** (#1150), e «Aevik: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
+ * **subisce** (#1150), e «Gadget: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
  * estensione lo scopre a schermo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineNamesItsSubjectTest,
@@ -1424,10 +1424,10 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 	// --- 1. Col nome risolto dal chiamante -----------------------------------------------------------
 	{
 		TMap<int32, FString> Nomi;
-		Nomi.Add(3, TEXT("Aevik"));
+		Nomi.Add(3, TEXT("Gadget"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Mossa }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
-		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Aevik")));
+		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Gadget")));
 		TestTrue(*FString::Printf(TEXT("e conserva il predicato: %s"), *Righe[0].Text),
 			Righe[0].Text.Contains(TEXT("si muove")));
 		// Il dato per il filtro di conoscenza non cambia: il testo si aggiunge, non sostituisce.
@@ -1465,11 +1465,11 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 		Colpo.Amount = 12;
 
 		TMap<int32, FString> Nomi;
-		Nomi.Add(7, TEXT("Aevik"));
+		Nomi.Add(7, TEXT("Gadget"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Colpo }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
 		TestFalse(*FString::Printf(TEXT("il difensore non diventa il soggetto della frase: %s"), *Righe[0].Text),
-			Righe[0].Text.StartsWith(TEXT("Aevik:"), ESearchCase::CaseSensitive));
+			Righe[0].Text.StartsWith(TEXT("Gadget:"), ESearchCase::CaseSensitive));
 		// Ma il soggetto come DATO resta: e' quello che il filtro di conoscenza usa.
 		TestEqual(TEXT("e resta il soggetto per la conoscenza"), Righe[0].SubjectStableUnitId, 7);
 	}
@@ -1505,7 +1505,7 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 
 	TMap<int32, FString> Nomi;
 	Nomi.Add(3, TEXT("Ivrin"));
-	Nomi.Add(5, TEXT("Branth"));
+	Nomi.Add(5, TEXT("Riktor"));
 
 	const TArray<FRTTurnLogEntry> Log = {
 		Movimento(3, ERTMoveOutcome::Moved,  ERTMatchPhase::Dash),

@@ -216,8 +216,8 @@ bool FRTActivationLineWithoutResultTest::RunTest(const FString&)
 
 /**
  * 🔴 **IL CASO DELLA SEDUTA DI #4051** ([D-603] (2), #4052). La riga del gadget, la cui unita' non ha una riga d'esito, sta
- * in fondo alle PREP e non sotto la BLAST; l'attivazione BLAST di Aevik resta subito sopra la sua riga d'esito (R6, che
- * D-603 non tocca). E' la lista dell'anteprima che l'autore ha scelto. ⛔ Prima di #4052 «Branth — Copertura portatile»
+ * in fondo alle PREP e non sotto la BLAST; l'attivazione BLAST di Gadget resta subito sopra la sua riga d'esito (R6, che
+ * D-603 non tocca). E' la lista dell'anteprima che l'autore ha scelto. ⛔ Prima di #4052 «Riktor — Copertura portatile»
  * chiudeva l'elenco. Le attivazioni sono nell'ordine in cui il playback le ha mostrate nella seduta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineBeforeNextPhaseTest,
@@ -230,16 +230,16 @@ bool FRTActivationLineBeforeNextPhaseTest::RunTest(const FString&)
 		RigaAttEsitoInFase(2, TEXT("Stato cambiato"), 2, ERTMatchPhase::Prep),
 		RigaAttEsitoInFase(3, TEXT("Colpita — 170"), 3, ERTMatchPhase::Blast) };
 	const TArray<FRTActivationLine> Attivazioni = {
-		RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")), // Prep, senza riga d'esito
+		RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")), // Prep, senza riga d'esito
 		RigaAttAttivazione(2, TEXT("Muiren — Irrigidimento")),       // Prep, sopra «Stato cambiato»
-		RigaAttAttivazione(3, TEXT("Aevik — Impulso ad arco"), 0, ERTMatchPhase::Blast) };
+		RigaAttAttivazione(3, TEXT("Gadget — Impulso ad arco"), 0, ERTMatchPhase::Blast) };
 
 	const TArray<FRTPlayerEventLineView> Unite = URTHudViewModel::MergeActivationLines(
 		Esiti, Attivazioni, TArray<int32>{ 0 }, URTHudViewModel::MaxFeedLines);
 	TestEqual(TEXT("🔴 l'ordine dell'anteprima scelta in D-603: il gadget chiude le PREP, prima delle BLAST"),
 		RigaAttTesti(Unite),
-		FString(TEXT("L'ambiente cambia | Muiren — Irrigidimento | Stato cambiato | Branth — Copertura portatile | "
-			"Aevik — Impulso ad arco | Colpita — 170")));
+		FString(TEXT("L'ambiente cambia | Muiren — Irrigidimento | Stato cambiato | Riktor — Copertura portatile | "
+			"Gadget — Impulso ad arco | Colpita — 170")));
 	TestEqual(TEXT("e i numeri seguono la lista unita"), RigaAttNumeri(Unite), FString(TEXT("1,2,3,4,5,6")));
 	return true;
 }
@@ -268,26 +268,26 @@ bool FRTActivationLineOutOfPhaseOrderTest::RunTest(const FString&)
 			{ RigaAttEsitoInFase(1, RigaAttUnoColpita, 1, ERTMatchPhase::Blast),
 			  RigaAttEsitoInFase(2, TEXT("Stato cambiato"), 2, ERTMatchPhase::Prep),
 			  RigaAttEsitoInFase(3, TEXT("Colpita — 9"), 3, ERTMatchPhase::Blast) },
-			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			{ RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")),
 			  RigaAttAttivazione(5, TEXT("Kallari — Scatto")) }),
-		FString(TEXT("Colpita — 13 | Stato cambiato | Branth — Copertura portatile | Kallari — Scatto | Colpita — 9")));
+		FString(TEXT("Colpita — 13 | Stato cambiato | Riktor — Copertura portatile | Kallari — Scatto | Colpita — 9")));
 
 	// 2. In cima: nessuna riga d'esito di una fase che non venga dopo la Prep.
 	TestEqual(TEXT("🔴 senza righe d'esito della Prep o di prima, l'attivazione PREP apre l'elenco"),
 		Unisci(
 			{ RigaAttEsitoInFase(1, RigaAttUnoColpita, 1, ERTMatchPhase::Blast),
 			  RigaAttEsitoInFase(2, RigaAttDueCurata, 2, ERTMatchPhase::Blast) },
-			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")) }),
-		FString(TEXT("Branth — Copertura portatile | Colpita — 13 | Curata — 5")));
+			{ RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")) }),
+		FString(TEXT("Riktor — Copertura portatile | Colpita — 13 | Curata — 5")));
 
 	// 3. Due fasi senza esito: la PREP resta sopra la BLAST d'esito, la BLAST chiude l'elenco.
 	TestEqual(TEXT("ognuna in fondo alla sua fase"),
 		Unisci(
 			{ RigaAttEsitoInFase(1, TEXT("Stato cambiato"), 1, ERTMatchPhase::Prep),
 			  RigaAttEsitoInFase(2, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) },
-			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			{ RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")),
 			  RigaAttAttivazione(5, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) }),
-		FString(TEXT("Stato cambiato | Branth — Copertura portatile | Colpita — 13 | Ivrin — Scarica")));
+		FString(TEXT("Stato cambiato | Riktor — Copertura portatile | Colpita — 13 | Ivrin — Scarica")));
 
 	// 4. Il tetto toglie le attivazioni piu' vecchie PRIMA dell'ordine: con due posti liberi restano le due piu' giovani,
 	// ciascuna in fondo alla sua fase.
@@ -295,7 +295,7 @@ bool FRTActivationLineOutOfPhaseOrderTest::RunTest(const FString&)
 		RigaAttTesti(URTHudViewModel::MergeActivationLines(
 			{ RigaAttEsitoInFase(1, TEXT("Stato cambiato"), 1, ERTMatchPhase::Prep),
 			  RigaAttEsitoInFase(2, RigaAttUnoColpita, 2, ERTMatchPhase::Blast) },
-			{ RigaAttAttivazione(4, TEXT("Branth — Copertura portatile")),
+			{ RigaAttAttivazione(4, TEXT("Riktor — Copertura portatile")),
 			  RigaAttAttivazione(5, TEXT("Kallari — Scatto")),
 			  RigaAttAttivazione(6, TEXT("Ivrin — Scarica"), 0, ERTMatchPhase::Blast) },
 			TArray<int32>{ 0 }, /*MaxLines=*/ 4)),

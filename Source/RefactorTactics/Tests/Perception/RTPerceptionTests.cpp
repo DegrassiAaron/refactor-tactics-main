@@ -510,7 +510,7 @@ bool FRTPerceptionStackedColumnTest::RunTest(const FString&)
 
 /**
  * La tavola `S1` della seduta `U88`, come **conoscenza di squadra**: e' la scena davanti a cui l'autore ha
- * scritto «mi sembra che aevik non potrebbe vedere nessuno dei due nemici sopra» (`D-511`, #3743).
+ * scritto «mi sembra che gadget non potrebbe vedere nessuno dei due nemici sopra» (`D-511`, #3743).
  *
  * Sulla piattaforma di `TestArena`: chi sta a terra SOTTO non vede nessuna delle sue celle; un compagno allo
  * scoperto ne vede il bordo e non la cella dietro; un terzo, dall'altro lato, vede quella.
@@ -627,9 +627,9 @@ bool FRTPerceptionVisionSplitYieldsDisconnectedRegionsTest::RunTest(const FStrin
 	AddInfo(FString::Printf(TEXT("team 0 parte da (%d,%d,L%d) e (%d,%d,L%d)"),
 		Start[0].X, Start[0].Y, Start[0].Layer, Start[1].X, Start[1].Y, Start[1].Layer));
 
-	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Branth). Se le regioni restano disgiunte col
+	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Riktor). Se le regioni restano disgiunte col
 	// piu' corto non e' una prova per gli altri; e' il contrario — con una vista piu' lunga si toccherebbero
-	// piu' facilmente, quindi il caso difficile per questo test e' il **7** di Aevik, provato sotto.
+	// piu' facilmente, quindi il caso difficile per questo test e' il **7** di Gadget, provato sotto.
 	auto Osservatori = [&](int32 Range)
 	{
 		TArray<FRTPerceiver> Team;

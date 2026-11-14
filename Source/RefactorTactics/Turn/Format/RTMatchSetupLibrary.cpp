@@ -339,7 +339,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// Chi cambia una superficie qui guardi anche quel checkpoint, non solo il turno che stava sistemando.
 	struct FBasinPatch { FRTCellId Cell; ERTHexSurface Surface; };
 	static const FBasinPatch Patches[] = {
-		// Corridoio ovest: Aevik ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
+		// Corridoio ovest: Gadget ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
 		{ FRTCellId(-3,  0, 0), ERTHexSurface::Smoke },
 		{ FRTCellId(-2,  0, 0), ERTHexSurface::Smoke },
 		// Lane d'acqua di Phase: conduttiva, ed e' cio' che rende possibile il payoff elettrico del turno 7.
@@ -354,7 +354,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
 		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
 		// Fascia di fuoco sull'approccio NORD al Relay: Ivrin la attraversa al turno 3 scendendo dalla
-		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Branth nel suo
+		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Riktor nel suo
 		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
 		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
 		{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
@@ -423,14 +423,14 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// bersaglio ORIGINALE, dal colpo che gli arriva da ovest.
 	//
 	// ⚠️ **Sta sulla VITTIMA e non sull'intercettore, ed e' la scelta che rende il turno discriminante.**
-	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Branth si interpone, la
+	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Riktor si interpone, la
 	// copertura che conta e' la SUA — e lui non ne ha. Un resolver che conservasse quella del bersaglio
 	// originale gli farebbe 12 danni invece di 22, cioe' **113 punti vita invece di 103**. E' il caso
 	// `CoveredVictim` di `Cover.InterceptRecalculatesOnEffectiveTarget`, portato sulla pipeline reale.
 	//
 	// ⛔ **L'inverso non era praticabile, ed e' misurato**: una copertura sul bordo d'ingresso di RIKTOR
-	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Branth arriva su (2,0) orientato a
-	// **NE** mentre Aevik sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
+	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Riktor arriva su (2,0) orientato a
+	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
 	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
 	// turno si muove. Ivrin invece guarda gia' **W**, verso chi lo attacca.
 	//
@@ -451,7 +451,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Aperta, la revisione della
 	// mappa sale e un percorso che prima non esisteva diventa percorribile — ed e' cio' che
 	// `Spec.Map.InteractOpensDoor` misura, su questa fixture e su questo bordo.
-	// ✅ **Branth la apre al turno 5**, e dal 2026-08-27 e' di nuovo un fatto: il T5 di
+	// ✅ **Riktor la apre al turno 5**, e dal 2026-08-27 e' di nuovo un fatto: il T5 di
 	// `RT_Showcase_Relay_v01.json` dichiara `Action.Interact` su (0,1,0) e nel Move dello stesso turno si
 	// sposta via, cosi' il varco resta percorribile. La fixture spedisce il bordo; chi lo apre, e quando,
 	// lo decide lo scenario -- e questo commento va riletto quando quel turno cambia, perche' nessun gate
@@ -709,7 +709,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
 	FRTArenaDraft Draft;
 
 	// Base: esagono pieno di raggio 8. Il numero non e' estetico — e' **maggiore del `VisionRange` piu'
-	// lungo del roster** (Aevik, 7), che e' la condizione perche' esista terreno mai visto da guardare.
+	// lungo del roster** (Gadget, 7), che e' la condizione perche' esista terreno mai visto da guardare.
 	constexpr int32 Radius = 8;
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 	{
@@ -1070,9 +1070,9 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 	// Estremi opposti del bacino, sulle due righe centrali. Celle di pavimento: nessuna squadra comincia
 	// dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
 }
@@ -1082,9 +1082,9 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 	// Estremi opposti dell'arena, in coppie speculari come le superfici. Celle di pavimento: nessuna squadra
 	// comincia dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};
 }

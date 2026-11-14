@@ -96,7 +96,7 @@ struct FRTReactionWindowNames
 	/** Il nome della reazione nel kit di chi decide: «Guardia reattiva». Vuoto se il kit non la nomina. */
 	FText ReactionName;
 
-	/** Il nome dell'unita' che decide: «Aevik». */
+	/** Il nome dell'unita' che decide: «Gadget». */
 	FText ReactorName;
 
 	/**
@@ -221,7 +221,7 @@ struct FRTReactionWindowView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	FText ReactionName;
 
-	/** Il nome dell'unita' che decide: «Aevik». */
+	/** Il nome dell'unita' che decide: «Gadget». */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	FText ReactorName;
 

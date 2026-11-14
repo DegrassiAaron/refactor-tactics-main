@@ -137,7 +137,7 @@ namespace
 		B.MapActor->MapAsset = B.Map;
 		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		B.Mine = SpawnAimOriginUnit(B.World, 0, URTHeroCatalogLibrary::MakeMuiren(), GAimOriginQui, true);
-		B.Primo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), PrimoCell, false);
+		B.Primo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), PrimoCell, false);
 		B.Secondo = SpawnAimOriginUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), SecondoCell, false);
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		B.Dock = NewObject<URTActionDockWidget>(B.World);
@@ -546,10 +546,10 @@ bool FRTAimOriginCellAfterDashTest::RunTest(const FString&)
 }
 
 /**
- * **La carica resta fuori ([D-464] punto 5)** — con `Hero.Branth.Ram` pianificata, un `Attack` mira dalla cella
+ * **La carica resta fuori ([D-464] punto 5)** — con `Hero.Riktor.Ram` pianificata, un `Attack` mira dalla cella
  * corrente e non da `PlannedDashCell`, che per una carica e' la cella del bersaglio ([D-296]).
  *
- * ⚠️ Il CONTROLLO e' uno scatto che non e' una carica — `FluidTrail` di Muiren, perche' Branth non ne ha altri —:
+ * ⚠️ Il CONTROLLO e' uno scatto che non e' una carica — `FluidTrail` di Muiren, perche' Riktor non ne ha altri —:
  * senza, «mira da qui» non distinguerebbe l'esclusione della carica da uno scatto che non si applica.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginChargeStaysOutTest,
@@ -561,18 +561,18 @@ bool FRTAimOriginChargeStaysOutTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
 	URTMatchSetupLibrary::MakeTestArena(World);
 
-	const FRTCellId QuiBranth(-3, 1, 0);
+	const FRTCellId QuiRiktor(-3, 1, 0);
 	const FRTCellId Bersaglio(-3, -1, 0);
-	ARTUnit* Branth = SpawnAimOriginUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), QuiBranth, false);
+	ARTUnit* Riktor = SpawnAimOriginUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), QuiRiktor, false);
 	ARTUnit* Muiren = SpawnAimOriginUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), GAimOriginQui, false);
-	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Muiren"), Muiren))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Muiren"), Muiren))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
-	const int32 Ariete = AimOriginKitIndex(Branth, TEXT("Hero.Branth.Ram"));
+	const int32 Ariete = AimOriginKitIndex(Riktor, TEXT("Hero.Riktor.Ram"));
 	const int32 Scia = AimOriginKitIndex(Muiren, TEXT("Hero.Muiren.FluidTrail"));
-	if (!TestTrue(TEXT("premessa: Branth ha l'ariete"), Ariete != INDEX_NONE)
+	if (!TestTrue(TEXT("premessa: Riktor ha l'ariete"), Ariete != INDEX_NONE)
 		|| !TestTrue(TEXT("premessa: Muiren ha FluidTrail"), Scia != INDEX_NONE))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -587,11 +587,11 @@ bool FRTAimOriginChargeStaysOutTest::RunTest(const FString&)
 		Muiren->AimOriginFor(ERTResolutionPhase::Attack), GAimOriginScatto);
 
 	// IL CUORE — la carica: si applica, e da li' non si mira.
-	Branth->SetPlannedDash(Ariete, Bersaglio);
-	TestTrue(TEXT("la carica di Branth si applica"), Branth->PlannedDashApplies());
-	TestTrue(TEXT("ed e' riconosciuta come carica"), Branth->PlannedDashIsCharge());
-	TestEqual(TEXT("ma un Attack di Branth mira dalla cella corrente"),
-		Branth->AimOriginFor(ERTResolutionPhase::Attack), QuiBranth);
+	Riktor->SetPlannedDash(Ariete, Bersaglio);
+	TestTrue(TEXT("la carica di Riktor si applica"), Riktor->PlannedDashApplies());
+	TestTrue(TEXT("ed e' riconosciuta come carica"), Riktor->PlannedDashIsCharge());
+	TestEqual(TEXT("ma un Attack di Riktor mira dalla cella corrente"),
+		Riktor->AimOriginFor(ERTResolutionPhase::Attack), QuiRiktor);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

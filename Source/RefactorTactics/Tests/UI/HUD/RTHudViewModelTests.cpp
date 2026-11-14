@@ -97,19 +97,19 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Aevik = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	ARTUnit* Muiren = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), /*TeamId*/ 0);
-	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
+	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 1);
 	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Muiren"), Muiren)
+		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Aevik, Muiren, Branth, Ivrin };
+	const TArray<ARTUnit*> All = { Gadget, Muiren, Riktor, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -117,7 +117,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Ivrin"));
+			Card.HeroId == TEXT("Hero.Riktor") || Card.HeroId == TEXT("Hero.Ivrin"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.
@@ -125,7 +125,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	TestEqual(TEXT("dall'altra parte se ne vedono due"), Theirs.Num(), 2);
 
 	// Una morta NON sparisce: il conto della squadra deve restare leggibile.
-	Aevik->Health = 0;
+	Gadget->Health = 0;
 	const TArray<FRTUnitCardView> AfterDeath = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster resta di due voci anche con una unita' morta"), AfterDeath.Num(), 2);
 
@@ -149,22 +149,22 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 0);
-	if (!TestNotNull(TEXT("Branth"), Branth)) { DestroyHudVmWorld(World); return false; }
+	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("Riktor"), Riktor)) { DestroyHudVmWorld(World); return false; }
 
-	Branth->Health = 42;
-	Branth->Shield = 7;
+	Riktor->Health = 42;
+	Riktor->Shield = 7;
 
-	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 0);
+	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Branth->MaxHealth);
-	TestEqual(TEXT("identita'"), Card.HeroId, Branth->HeroId);
+	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
+	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
 	TestTrue(TEXT("vivo"), Card.bAlive);
 
 	// La stessa unita' vista dall'altra squadra e' la stessa unita': cambia la RELAZIONE, non i numeri.
-	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 1);
+	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 1);
 	TestFalse(TEXT("vista da squadra 1 non e' alleata"), Enemy.bIsAlly);
 	TestEqual(TEXT("ma la salute e' la stessa"), Enemy.Health, 42);
 
@@ -262,7 +262,7 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// 1. Piano vuoto: tre slot liberi. Un'unita' appena selezionata non deve sembrare gia' impegnata.
@@ -367,7 +367,7 @@ bool FRTHudVmCooldownTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Una riga per ogni azione del kit, nell'ordine del kit: l'indice serve all'hotkey.
@@ -432,7 +432,7 @@ bool FRTHudVmChargeFractionTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
@@ -661,7 +661,7 @@ bool FRTStatusBadgesControlsComeFirstTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Applicati DELIBERATAMENTE nell'ordine sbagliato: `Burning` precede entrambi in alfabetico, e `Slow`
@@ -717,7 +717,7 @@ bool FRTStatusBadgesCellBoundHasNoCountTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
@@ -774,7 +774,7 @@ bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
@@ -820,7 +820,7 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->Health = 60;
@@ -837,9 +837,9 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	TestEqual(TEXT("e sono quelli giusti"),
 		Alleata.Statuses[0].Tag, TAG_Status_Burning.GetTag().GetTagName());
 
-	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Aevik` si legge `Aevik`.
+	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Gadget` si legge `Gadget`.
 	TestFalse(TEXT("il nome non e' vuoto"), Alleata.DisplayName.IsEmpty());
-	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Aevik")));
+	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Gadget")));
 
 	// 🔴 Il cuore: stessa unita', due osservatori, due viste.
 	TestTrue(TEXT("per il compagno e' un'alleata"),  Alleata.Card.bIsAlly);
@@ -894,7 +894,7 @@ bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 	Unit->Cell = FRTCellId(3, 1, 0);
 
@@ -1749,7 +1749,7 @@ bool FRTHudVmHealthFractionTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const FRTUnitCardView Illesa = URTHudViewModel::BuildUnitCard(Unit, 0);
@@ -1880,7 +1880,7 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
@@ -1960,7 +1960,7 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
  * 🔴 **UNA POSIZIONE DI KIT VUOTA PRODUCE UNA RIGA, E NON SPOSTA QUELLE DOPO** (`#2987`).
  *
  * 🔑 **E' il test che `CooldownsMirrorTheSimulator` non poteva essere.** Quello asserisce
- * `Num() == NumAbilities()` e `[i].AbilityIndex == i` su `Hero.Aevik`, cioe' su un kit **senza buchi**: il
+ * `Num() == NumAbilities()` e `[i].AbilityIndex == i` su `Hero.Gadget`, cioe' su un kit **senza buchi**: il
  * ramo che salta non veniva mai eseguito, e l'asserzione pinnava il contratto esattamente nel caso in cui
  * era gia' vero. Qui il buco si crea, ed e' l'unico modo di far parlare quel ramo.
  *
@@ -1981,7 +1981,7 @@ bool FRTHudVmKitHoleTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Anti-vacuita': serve un buco FRA due voci popolate, quindi almeno tre posizioni.
@@ -2193,7 +2193,7 @@ bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Unit->NumAbilities() >= 3))
@@ -2278,7 +2278,7 @@ bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Prima = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Prima = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	ARTUnit* Seconda = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 0);
 	if (!Prima || !Seconda)
 	{
@@ -2339,7 +2339,7 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// 1. Nessun piano: il profilo e' `Still`, che e' un'informazione, non un vuoto.
@@ -2423,13 +2423,13 @@ namespace
  * `#3465` — OGNI SLOT DICE IN CHE FASE SI GIOCA, E I DUE CASI CHE LA MACRO-FASE NON RISOLVE HANNO UN SEGNO PROPRIO.
  *
  * 🔑 **L'oracolo del segno NON e' `PhaseMarkFor`**: e' una tabella di casi nominati, scritta qui a mano sul kit
- * reale di Aevik. Chiedere a `PhaseMarkFor` che cosa aspettarsi da `PhaseMarkFor` sarebbe verde per
+ * reale di Gadget. Chiedere a `PhaseMarkFor` che cosa aspettarsi da `PhaseMarkFor` sarebbe verde per
  * costruzione. L'unico campo confrontato con una funzione di produzione e' `Phase`, ed e' voluto: il contratto
  * di quel campo E' «cio' che `MapResolutionPhase` risponde», e il difetto che prende e' una seconda mappa
  * scritta nella vista.
  *
  * ⚠️ **I casi sono quelli che la DoD di #3465 nomina**: Prep (`Action.Guard`), Blast (l'attacco base),
- * Cleanup (`Hero.Aevik.ConductiveNode`, che eredita `Environment` da `Action.Electrify`) e la reazione — piu'
+ * Cleanup (`Hero.Gadget.ConductiveNode`, che eredita `Environment` da `Action.Electrify`) e la reazione — piu'
  * `Action.Wait`, l'unico che non occupa uno slot, e la posizione vuota, che non ha nemmeno un'azione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotPhaseTest,
@@ -2440,7 +2440,7 @@ bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
@@ -2467,17 +2467,17 @@ bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
 	struct FCaso { const TCHAR* ActionId; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
 	const FCaso Casi[] = {
 		{ TEXT("Action.Guard"),                  ERTActionPhaseMark::Prep,     TEXT("PREP") },
-		{ TEXT("Hero.Aevik.ArcPulse"),           ERTActionPhaseMark::Blast,    TEXT("BLAST") },
-		{ TEXT("Hero.Aevik.ConductiveNode"),     ERTActionPhaseMark::Cleanup,  TEXT("CLEANUP") },
+		{ TEXT("Hero.Gadget.ArcPulse"),           ERTActionPhaseMark::Blast,    TEXT("BLAST") },
+		{ TEXT("Hero.Gadget.ConductiveNode"),     ERTActionPhaseMark::Cleanup,  TEXT("CLEANUP") },
 		// 🔑 la reazione: il suo `Phase` resta quello della core (A lo ha gia' pinnato), il segno no.
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  ERTActionPhaseMark::Reaction, TEXT("REAZ.") },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  ERTActionPhaseMark::Reaction, TEXT("REAZ.") },
 		// 🔑 `Wait` non occupa slot: risolve in `NormalMovement`, ma lo slot non dice `MOVE`.
 		{ TEXT("Action.Wait"),                   ERTActionPhaseMark::None,     TEXT("—") },
 	};
 	for (const FCaso& Caso : Casi)
 	{
 		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
-		if (!TestTrue(*FString::Printf(TEXT("B: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+		if (!TestTrue(*FString::Printf(TEXT("B: premessa — %s e' nel kit di Gadget"), Caso.ActionId),
 				Cds.IsValidIndex(Idx)))
 		{
 			continue;
@@ -2519,7 +2519,7 @@ bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
 /**
  * `#3465` — LA FASE SI LEGGE DAL CATALOGO, NON DALLA POSIZIONE ([D-397] punto 2).
  *
- * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: ogni azione sta sempre nella stessa posizione,
+ * 🔴 **Il kit di Gadget da solo non distingue le due ipotesi**: ogni azione sta sempre nella stessa posizione,
  * quindi una vista che deducesse la fase dall'indice — una tabella «posizione 2 = Cleanup» — sarebbe verde
  * su `ActionSlotCarriesItsPhase`. Qui il dato si MUOVE, in tre modi che una deduzione non segue:
  *
@@ -2541,11 +2541,11 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
-	const int32 ArcIdx   = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
-	const int32 NodeIdx  = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ConductiveNode"));
+	const int32 ArcIdx   = HudVmKitIndexOf(Unit, TEXT("Hero.Gadget.ArcPulse"));
+	const int32 NodeIdx  = HudVmKitIndexOf(Unit, TEXT("Hero.Gadget.ConductiveNode"));
 	const int32 GuardIdx = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
 	if (!TestTrue(TEXT("premessa: attacco base, Conductive Node e Guardia sono nel kit"),
 			ArcIdx != INDEX_NONE && NodeIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
@@ -2625,7 +2625,7 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
 		Unit->Abilities[GuardIdx] = Originale;
 	}
 
-	// --- D. OGNI fase di risoluzione ha il proprio segno, anche quelle che il kit di Aevik non porta ----------
+	// --- D. OGNI fase di risoluzione ha il proprio segno, anche quelle che il kit di Gadget non porta ----------
 	// 🔴 **Il kit reale non raggiunge tre rami**: nessuna sua azione e' `FastMovement`, `Action.Move` non c'e',
 	// e `Wait` esce prima dello `switch` per `Slot == None`. Senza questo blocco `Dash -> Move`, o un refuso in
 	// `DASH`/`MOVE`, sarebbero sopravvissuti a tutta la suite — lo ha trovato la revisione di #3467.
@@ -2675,7 +2675,7 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
 /**
  * `#3468` — OGNI VOCE DELLA DOCK DICE A QUALE GRUPPO DI LETTURA APPARTIENE: Comuni · Base · Kit ([D-455]).
  *
- * 🔑 **L'oracolo NON e' `GroupFor`**: la tabella del blocco A e' scritta a mano sul kit reale di Aevik, come in
+ * 🔑 **L'oracolo NON e' `GroupFor`**: la tabella del blocco A e' scritta a mano sul kit reale di Gadget, come in
  * `ActionSlotCarriesItsPhase`. Chiedere a `GroupFor` che cosa aspettarsi da `GroupFor` sarebbe verde per
  * costruzione.
  *
@@ -2695,12 +2695,12 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
 
-	// --- A. il gruppo, caso per caso, sul kit di Aevik ------------------------------------------------------
+	// --- A. il gruppo, caso per caso, sul kit di Gadget ------------------------------------------------------
 	struct FCaso { const TCHAR* ActionId; ERTActionGroup Gruppo; };
 	const FCaso Casi[] = {
 		{ TEXT("Action.Guard"),                 ERTActionGroup::Common },
@@ -2708,17 +2708,17 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 		{ TEXT("Action.Overwatch"),             ERTActionGroup::Common },
 		{ TEXT("Action.Interact"),              ERTActionGroup::Common },
 		{ TEXT("Action.Wait"),                  ERTActionGroup::Common },
-		{ TEXT("Hero.Aevik.ArcPulse"),          ERTActionGroup::Base },
-		{ TEXT("Hero.Aevik.LinearDischarge"),   ERTActionGroup::Kit },
-		{ TEXT("Hero.Aevik.ConductiveNode"),    ERTActionGroup::Kit },
-		{ TEXT("Hero.Aevik.Overload"),          ERTActionGroup::Kit },
+		{ TEXT("Hero.Gadget.ArcPulse"),          ERTActionGroup::Base },
+		{ TEXT("Hero.Gadget.LinearDischarge"),   ERTActionGroup::Kit },
+		{ TEXT("Hero.Gadget.ConductiveNode"),    ERTActionGroup::Kit },
+		{ TEXT("Hero.Gadget.Overload"),          ERTActionGroup::Kit },
 		// 🔑 una reazione resta nel Kit: il gruppo e' una corsia di lettura, non lo slot che consuma.
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"), ERTActionGroup::Kit },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"), ERTActionGroup::Kit },
 	};
 	for (const FCaso& Caso : Casi)
 	{
 		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
-		if (!TestTrue(*FString::Printf(TEXT("A: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+		if (!TestTrue(*FString::Printf(TEXT("A: premessa — %s e' nel kit di Gadget"), Caso.ActionId),
 				Cds.IsValidIndex(Idx)))
 		{
 			continue;
@@ -2728,7 +2728,7 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 
 	// ⚠️ La tabella deve coprire il kit INTERO: una voce che ne restasse fuori non avrebbe un oracolo, e il blocco
 	// A sarebbe verde su di lei qualunque cosa la vista dicesse.
-	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni posizione del kit di Aevik"),
+	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni posizione del kit di Gadget"),
 		static_cast<int32>(UE_ARRAY_COUNT(Casi)), Unit->NumAbilities());
 
 	// --- B. una posizione VUOTA non ha gruppo -----------------------------------------------------------------
@@ -2840,7 +2840,7 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 /**
  * `#3468` — IL GRUPPO SI LEGGE DAL DATO, NON DALLA POSIZIONE ([D-397] punto 2, [D-455]).
  *
- * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: l'attacco base sta sempre all'indice 0 e le
+ * 🔴 **Il kit di Gadget da solo non distingue le due ipotesi**: l'attacco base sta sempre all'indice 0 e le
  * generiche sempre in coda, quindi una vista che deducesse il gruppo dalla posizione — «0 = Base, ultime
  * cinque = Comuni», che era la proposta del pacchetto del mockup — sarebbe verde su `ActionSlotCarriesItsGroup`.
  * Qui il dato si MUOVE:
@@ -2866,11 +2866,11 @@ bool FRTHudVmGroupReadNotDeducedTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
-	const int32 ArcIdx    = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
-	const int32 LinearIdx = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.LinearDischarge"));
+	const int32 ArcIdx    = HudVmKitIndexOf(Unit, TEXT("Hero.Gadget.ArcPulse"));
+	const int32 LinearIdx = HudVmKitIndexOf(Unit, TEXT("Hero.Gadget.LinearDischarge"));
 	const int32 GuardIdx  = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
 	if (!TestTrue(TEXT("premessa: attacco base, Linear Discharge e Guardia sono nel kit"),
 			ArcIdx != INDEX_NONE && LinearIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
@@ -3022,7 +3022,7 @@ namespace
  * `#3478` — LA BARRA SI LEGGE COMUNI, BASE, KIT, E NESSUNA VOCE PERDE LA PROPRIA IDENTITA' ([D-455] punto 2).
  *
  * 🔑 **Due oracoli, e nessuno dei due e' `OrderForReading`**:
- *  - **A** la sequenza dei gruppi del kit di partita di Branth, scritta a mano — e' quella che la DoD nomina;
+ *  - **A** la sequenza dei gruppi del kit di partita di Riktor, scritta a mano — e' quella che la DoD nomina;
  *  - **B** per OGNI eroe del roster col loadout, l'ordine atteso calcolato con tre passate filtrate invece che
  *    con un ordinamento: prende una partizione non stabile, che A da solo non vedrebbe.
  *
@@ -3038,7 +3038,7 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
 
-	bool bVistoBranth = false;
+	bool bVistoRiktor = false;
 	for (const URTHeroData* Hero : Roster)
 	{
 		if (!Hero) { continue; }
@@ -3063,11 +3063,11 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 		const TArray<FRTAbilityCooldownView> Lettura = Dock->GetActionsInReadingOrder();
 		const FString Nome = Hero->HeroId.ToString();
 
-		// --- A. Branth, a mano ----------------------------------------------------------------------------------
-		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		// --- A. Riktor, a mano ----------------------------------------------------------------------------------
+		if (Hero->HeroId == FName(TEXT("Hero.Riktor")))
 		{
-			bVistoBranth = true;
-			TestEqual(TEXT("A: la lista di Branth e' quella misurata, coi gruppi NON contigui"),
+			bVistoRiktor = true;
+			TestEqual(TEXT("A: la lista di Riktor e' quella misurata, coi gruppi NON contigui"),
 				HudVmGroupSequence(Lista), FString(TEXT("BKKKKKCCCCCKK")));
 			TestEqual(TEXT("A: e l'ordine di lettura e' Comuni, Base, Kit"),
 				HudVmGroupSequence(Lettura), FString(TEXT("CCCCCBKKKKKKK")));
@@ -3102,13 +3102,13 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 
 		DestroyHudVmWorld(World);
 	}
-	TestTrue(TEXT("A: premessa — Branth e' nel roster"), bVistoBranth);
+	TestTrue(TEXT("A: premessa — Riktor e' nel roster"), bVistoRiktor);
 
 	// --- D. una posizione VUOTA resta nel Kit, al suo posto relativo ----------------------------------------------
 	{
 		UWorld* World = MakeHudVmWorld();
-		ARTUnit* Unit = World ? SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0) : nullptr;
-		if (TestNotNull(TEXT("D: unita' di Aevik"), Unit)
+		ARTUnit* Unit = World ? SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0) : nullptr;
+		if (TestNotNull(TEXT("D: unita' di Gadget"), Unit)
 			&& TestTrue(TEXT("D: premessa — almeno tre posizioni"), Unit->NumAbilities() >= 3))
 		{
 			Unit->Abilities[2] = nullptr;
@@ -3180,7 +3180,7 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
 	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
 	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("dock"), Dock))
 	{

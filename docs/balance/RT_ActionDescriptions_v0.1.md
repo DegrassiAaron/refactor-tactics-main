@@ -36,15 +36,15 @@
 | `Action.Overwatch` | Guardia reattiva | Sorvegli la direzione in cui guardi e spari al nemico che vi passa; puoi muoverti solo per ritirarti. |  |
 | `Action.Interact` | Interagisci | Usi un oggetto su una cella vicina, per esempio una porta. |  |
 
-## Aevik
+## Gadget
 
 | Azione | Nome | Frase | Da rivedere |
 |---|---|---|---|
-| `Hero.Aevik.ArcPulse` | Impulso ad arco | Una scarica elettrica a distanza su un bersaglio. |  |
-| `Hero.Aevik.LinearDischarge` | Scarica lineare | Una scarica in linea retta, piu' dannosa su chi e' bagnato. |  |
-| `Hero.Aevik.ConductiveNode` | Nodo conduttivo | Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine. |  |
-| `Hero.Aevik.Overload` | Sovraccarico | Un'esplosione elettrica ad area, che interrompe anche i dispositivi. |  |
-| `Hero.Aevik.ReactiveCapacitor` | Condensatore reattivo | Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca. |  |
+| `Hero.Gadget.ArcPulse` | Impulso ad arco | Una scarica elettrica a distanza su un bersaglio. |  |
+| `Hero.Gadget.LinearDischarge` | Scarica lineare | Una scarica in linea retta, piu' dannosa su chi e' bagnato. |  |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttivo | Elettrizza una cella: la scarica corre lungo l'acqua e le superfici conduttive vicine. |  |
+| `Hero.Gadget.Overload` | Sovraccarico | Un'esplosione elettrica ad area, che interrompe anche i dispositivi. |  |
+| `Hero.Gadget.ReactiveCapacitor` | Condensatore reattivo | Reazione: quando vieni colpito ti scherma e restituisce una scarica a chi ti attacca. |  |
 
 ## Muiren
 
@@ -57,16 +57,16 @@
 | `Hero.Muiren.FlowReaction` | Reazione di flusso | Reazione pensata per riposizionarti dopo un attacco: in questa versione non ha ancora effetto. | ⚠️ l'azione oggi non ha effetti in partita, e la frase lo dice |
 | `Hero.Muiren.TideGuard` | Guardia di marea | Uno scudo temporaneo su di te, da scegliere prima di sapere se sarai colpito. |  |
 
-## Branth
+## Riktor
 
 | Azione | Nome | Frase | Da rivedere |
 |---|---|---|---|
-| `Hero.Branth.ImpactShot` | Colpo d'impatto | Un colpo cinetico che rallenta il bersaglio. |  |
-| `Hero.Branth.KineticPanel` | Pannello cinetico | Erige un pannello di copertura sul lato di una cella. |  |
-| `Hero.Branth.Reconfigure` | Riconfigurazione | Sposta o ruota una copertura gia' in campo. |  |
-| `Hero.Branth.Ram` | Carica d'ariete | Carichi contro un nemico: lo colpisci e lo spingi. |  |
-| `Hero.Branth.Interposition` | Interposizione | Reazione: ti metti in mezzo e incassi il colpo diretto a un alleato vicino. |  |
-| `Hero.Branth.MortarShot` | Colpo di mortaio | Un tiro ad arco su un'area, che arriva anche dove non vedi. |  |
+| `Hero.Riktor.ImpactShot` | Colpo d'impatto | Un colpo cinetico che rallenta il bersaglio. |  |
+| `Hero.Riktor.KineticPanel` | Pannello cinetico | Erige un pannello di copertura sul lato di una cella. |  |
+| `Hero.Riktor.Reconfigure` | Riconfigurazione | Sposta o ruota una copertura gia' in campo. |  |
+| `Hero.Riktor.Ram` | Carica d'ariete | Carichi contro un nemico: lo colpisci e lo spingi. |  |
+| `Hero.Riktor.Interposition` | Interposizione | Reazione: ti metti in mezzo e incassi il colpo diretto a un alleato vicino. |  |
+| `Hero.Riktor.MortarShot` | Colpo di mortaio | Un tiro ad arco su un'area, che arriva anche dove non vedi. |  |
 
 ## Ivrin
 

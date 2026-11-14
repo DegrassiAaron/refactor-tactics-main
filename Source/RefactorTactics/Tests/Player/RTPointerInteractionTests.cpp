@@ -346,7 +346,7 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),   FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),   FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
@@ -395,7 +395,7 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine) { DestroyPointerWorld(World); return false; }
 
@@ -497,7 +497,7 @@ bool FRTPointerAreaOnAUnitMeshTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	const int32 AreaIdx = Mine ? FindAreaAbility(Mine) : INDEX_NONE;
@@ -537,7 +537,7 @@ bool FRTPointerTargetEdgeProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Builder = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Builder = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Builder) { DestroyPointerWorld(World); return false; }
 
@@ -629,12 +629,12 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// 🔴 **Branth e non Ivrin, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// 🔴 **Riktor e non Ivrin, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
 	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Ivrin non esiste piu':
-	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Branth, con budget 1, ne
+	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Riktor, con budget 1, ne
 	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
 	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -1038,8 +1038,8 @@ bool FRTIllegalSideKeepsSelectorOpenTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	// Branth: budget Move 1, quindi esistono lati illegali.
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	// Riktor: budget Move 1, quindi esistono lati illegali.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -1172,8 +1172,8 @@ bool FRTIllegalFacingClickTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	// Branth: budget Move 1, quindi esistono lati illegali.
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	// Riktor: budget Move 1, quindi esistono lati illegali.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -1258,7 +1258,7 @@ bool FRTStationaryFacingSelectorTest::RunTest(const FString&)
  * UNO SCATTO PIANIFICATO SI GIUDICA SUL BUDGET DASH, NON SUL MOVE - `#291`, il difetto misurato da [D-367].
  *
  * 🔴 **Il difetto**: il controller stimava lo stile come `PlannedPath.Num() > 1 ? Budget : None`, quindi uno scatto
- * finiva giudicato sul budget Move. Branth ha Move 1 e Dash 0: col vecchio codice NE dopo uno scatto verso E era
+ * finiva giudicato sul budget Move. Riktor ha Move 1 e Dash 0: col vecchio codice NE dopo uno scatto verso E era
  * legale, e il resolver poi lo rifiutava.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashFacingBudgetTest,
@@ -1272,7 +1272,7 @@ bool FRTDashFacingBudgetTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -1283,7 +1283,7 @@ bool FRTDashFacingBudgetTest::RunTest(const FString&)
 		const URTActionData* A = Unit->GetAbility(I);
 		if (A && URTMovementActionLibrary::IsLinear(A->Def.MovementStyle)) { Scatto = I; }
 	}
-	if (!TestNotEqual(TEXT("premessa: Branth ha uno scatto lineare"), Scatto, (int32)INDEX_NONE)
+	if (!TestNotEqual(TEXT("premessa: Riktor ha uno scatto lineare"), Scatto, (int32)INDEX_NONE)
 		|| !TestTrue(TEXT("premessa: budget Dash 0 e Move almeno 1"),
 			Unit->DashEndPivotMaxSteps == 0 && Unit->MoveEndPivotMaxSteps >= 1))
 	{
@@ -1473,7 +1473,7 @@ bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit || !TM) { DestroyPointerWorld(World); return false; }
 	PC->SelectUnit(Unit);
@@ -1873,7 +1873,7 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -2083,7 +2083,7 @@ bool FRTSelectionDoesNotSurviveTheUnitTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Other = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -2153,7 +2153,7 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }

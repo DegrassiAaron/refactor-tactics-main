@@ -128,7 +128,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRejectsNegativeGuardTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCatalogRejectsNegativeGuardTest::RunTest(const FString&)
 {
-	URTHeroData* Eroe = URTHeroCatalogLibrary::MakeBranth();
+	URTHeroData* Eroe = URTHeroCatalogLibrary::MakeRiktor();
 	if (!TestNotNull(TEXT("l'eroe di prova esiste"), Eroe)) { return false; }
 
 	// PREMESSA: com'e' a catalogo passa. Senza, la riga sotto non distinguerebbe «il campo e' rifiutato»
@@ -418,7 +418,7 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 			// sono supporto su se stessi, ma nemmeno attacchi — risolvono quando il loro trigger scatta, non
 			// nella fase in cui colpisce chi le ha dichiarate. I due archetipi legacy non ne avevano
 			// (quattro slot: attacchi, barriera, carica), quindi «tutto il resto colpisce» reggeva; il roster
-			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Branth.Interposition`.
+			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Riktor.Interposition`.
 			if (!URTCatalogLibrary::IsFastMovement(Ability->Def)
 				&& Ability->Def.Slot != ERTActionSlot::Reaction)
 			{
@@ -430,10 +430,10 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 				{
 					// «Tutto il resto colpisce» descriveva i quattro slot degli archetipi legacy. Un kit
 					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
-					//   - si PREPARA senza essere supporto su se' — `Branth.Reconfigure`, `Phase.FlowReaction`,
+					//   - si PREPARA senza essere supporto su se' — `Riktor.Reconfigure`, `Phase.FlowReaction`,
 					//     `Ivrin.InterceptShot` (fase Prep);
-					//   - agisce sull'AMBIENTE — `Aevik.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
-					//     `Branth.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
+					//   - agisce sull'AMBIENTE — `Gadget.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
+					//     `Riktor.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
 					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
 					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:
 					// `Snapshot`, `Planning` e `MatchEnded` non sono destinazioni per un'azione dichiarata
@@ -949,7 +949,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// CERCA fra le abilita' dell'unita' e nessuno gliela mette in mano. E' un consumatore senza
 		// produttore, cioe' l'opposto di `Action.Move` qui sopra.
 		// ⛔ **Il Cleanse REATTIVO non e' questa riga e non si tocca**: e' il rischio di lettura che [D-264]
-		// dichiara. `Reaction.Cleanse` (base `Action.Purge`) e' il modulo di default di `Hero.Branth`, resta in
+		// dichiara. `Reaction.Cleanse` (base `Action.Purge`) e' il modulo di default di `Hero.Riktor`, resta in
 		// campo, ed e' pinnato da `Equipment.Cleanse.CancelsControl` — non da `Reactions.Cleanse.*`, che a
 		// dispetto del nome esercitano l'ATTIVA.
 		// Esce di qui solo alle condizioni che [D-264] nomina — ruolo tattico distinto piu' contratto esplicito
@@ -965,7 +965,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
 		{ TEXT("Action.CreateSmoke"),     TEXT("Pezzo non assegnato: Gadget.SmokeEmitter esiste, default di nessuno") },
 		// `Action.Purge` e' USCITA da questo elenco il 2026-08-27 ([D-218], `#1403`): `Reaction.Cleanse` e'
-		// il modulo di default di Branth, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
+		// il modulo di default di Riktor, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
 		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
 		// 🔴 **Migrata il 2026-09-13** ([D-116], `#641`): la riga resta, e cambia CATEGORIA. Non e' piu'
 		// «bloccata da una migrazione decisa e non fatta» — e' scritta dal motore, come `Action.Move` qui
@@ -1002,7 +1002,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 	TestTrue(TEXT("almeno tredici azioni sono raggiungibili"), Raggiungibili.Num() >= 13);
 	TestTrue(TEXT("Guard e' raggiungibile: e' generica"),
 		Raggiungibili.Contains(FName(TEXT("Action.Guard"))));
-	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Branth.Ram"),
+	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Riktor.Ram"),
 		Raggiungibili.Contains(FName(TEXT("Action.Charge"))));
 
 	// Il catalogo si costruisce UNA volta: `GetCoreActionCatalog()` istanzia un `FRTActionDef` per voce, per
@@ -1146,8 +1146,8 @@ bool FRTEquipmentActionDisplayNameTest::RunTest(const FString&)
  * 🔴 **Il difetto che copre era reale, e in ogni partita di default.** `MakeEquipmentAction` non
  * scriveva mai `DisplayName`: l'azione entrava in `Abilities` con una `FText` costruita per default, e
  * `ARTHUD::ComposeAbilityLine` componeva **`"6. "`** — tasto, punto, ricarica, e nient'altro. Lo vedeva
- * meta' roster, perche' `DefaultLoadoutFor` da' il loadout a Muiren e Branth; e fra le voci mute c'era
- * `Reaction.Cleanse`, che [D-218] mette li' come unica risposta allo `Status.Slow` dell'attacco di Branth.
+ * meta' roster, perche' `DefaultLoadoutFor` da' il loadout a Muiren e Riktor; e fra le voci mute c'era
+ * `Reaction.Cleanse`, che [D-218] mette li' come unica risposta allo `Status.Slow` dell'attacco di Riktor.
  *
  * ⛔ **I due gate esistenti non potevano vederlo, per costruzione.** `Heroes.EveryActionHasADisplayName`
  * itera `GetHeroRoster()` → `Hero->Actions`; le azioni equipaggiate non stanno in quell'insieme — entrano

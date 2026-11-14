@@ -11,17 +11,17 @@ import {
 
 test('le stat base si leggono dai literal C++, per eroe', () => {
   const cpp = [
-    'Aevik->MaxHealth = 90;',
-    'Aevik->MovePoints = 5;',
-    'Aevik->VisionRange = 7;',
-    'Aevik->PushResistance = 0;',
-    'Aevik->Affinity = TEXT("Affinity.Electricity");',
-    'Aevik->Weakness = TEXT("Affinity.Water");',
+    'Gadget->MaxHealth = 90;',
+    'Gadget->MovePoints = 5;',
+    'Gadget->VisionRange = 7;',
+    'Gadget->PushResistance = 0;',
+    'Gadget->Affinity = TEXT("Affinity.Electricity");',
+    'Gadget->Weakness = TEXT("Affinity.Water");',
   ].join('\n');
 
   const heroes = parseCpp(cpp);
 
-  assert.deepEqual(heroes.get('Aevik'), {
+  assert.deepEqual(heroes.get('Gadget'), {
     health: 90,
     movePoints: 5,
     visionRange: 7,
@@ -35,7 +35,7 @@ test('le schede del catalogo danno i sei campi, con l affinita tradotta dall ita
   // Forma reale: l'affinita' e' una PAROLA italiana, la debolezza porta gia' l'identificatore fra
   // backtick. E' l'asimmetria che un parser ingenuo non vede.
   const md = [
-    '## 1. Aevik — il controller',
+    '## 1. Gadget — il controller',
     '',
     '| Statistica | Valore |',
     '|---|---|',
@@ -49,7 +49,7 @@ test('le schede del catalogo danno i sei campi, con l affinita tradotta dall ita
 
   const heroes = parseCatalogSections(md);
 
-  assert.deepEqual(heroes.get('Aevik'), {
+  assert.deepEqual(heroes.get('Gadget'), {
     health: 90,
     movePoints: 5,
     visionRange: 7,
@@ -67,20 +67,20 @@ test('la tabella di confronto §5 e una terza fonte, e puo divergere dalle sched
     '',
     '| Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |',
     '|---|---:|---:|---:|---:|---|---|',
-    '| Aevik | 90 | 5 | 7 | 0 | elettricità | fragile, vede lontano |',
-    '| Branth | 120 | 4 | 5 | 0 | strutture | cambia la mappa, lento |',
+    '| Gadget | 90 | 5 | 7 | 0 | elettricità | fragile, vede lontano |',
+    '| Riktor | 120 | 4 | 5 | 0 | strutture | cambia la mappa, lento |',
   ].join('\n');
 
   const rows = parseSummaryTable(md);
 
-  assert.deepEqual(rows.get('Aevik'), {
+  assert.deepEqual(rows.get('Gadget'), {
     health: 90,
     movePoints: 5,
     visionRange: 7,
     pushResistance: 0,
     affinity: 'Affinity.Electricity',
   });
-  assert.equal(rows.get('Branth')!.health, 120);
+  assert.equal(rows.get('Riktor')!.health, 120);
 });
 
 test('la tabella §5 porta anche DEF, RES e spalle, letti dall intestazione e non dalla posizione', () => {
@@ -92,13 +92,13 @@ test('la tabella §5 porta anche DEF, RES e spalle, letti dall intestazione e no
     '',
     '| Eroe | HP | MP | Vista | Push res. | DEF | RES | Spalle | Affinità | Identità in una riga |',
     '|---|---:|---:|---:|---:|---:|---:|---:|---|---|',
-    '| Aevik | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, vede lontano |',
+    '| Gadget | 900 | 5 | 7 | 0 | 15 | 35 | 60 | elettricità | fragile, vede lontano |',
     '| Ivrin | 900 | 6 | 6 | 0 | 15 | 20 | 90 | movimento | il piu mobile |',
   ].join('\n');
 
   const rows = parseSummaryTable(md);
 
-  assert.deepEqual(rows.get('Aevik'), {
+  assert.deepEqual(rows.get('Gadget'), {
     health: 900, movePoints: 5, visionRange: 7, pushResistance: 0,
     defense: 15, resistanceDefault: 35, rearBonus: 60, affinity: 'Affinity.Electricity',
   });
@@ -107,12 +107,12 @@ test('la tabella §5 porta anche DEF, RES e spalle, letti dall intestazione e no
 
 test('il C++ dichiara DEF, RES e spalle con gli stessi literal delle altre statistiche', () => {
   const cpp = [
-    'Aevik->MaxHealth = 900;',
-    'Aevik->Defense = 15;',
-    'Aevik->ResistanceDefault = 35;',
-    'Aevik->RearBonus = 60;',
+    'Gadget->MaxHealth = 900;',
+    'Gadget->Defense = 15;',
+    'Gadget->ResistanceDefault = 35;',
+    'Gadget->RearBonus = 60;',
   ].join('\n');
-  assert.deepEqual(parseCpp(cpp).get('Aevik'), { health: 900, defense: 15, resistanceDefault: 35, rearBonus: 60 });
+  assert.deepEqual(parseCpp(cpp).get('Gadget'), { health: 900, defense: 15, resistanceDefault: 35, rearBonus: 60 });
 });
 
 const SEI = (over = {}) => ({
@@ -121,15 +121,15 @@ const SEI = (over = {}) => ({
 });
 
 test('una divergenza nomina eroe, campo e i valori di ogni fonte che lo dichiara', () => {
-  const sections = new Map([['Aevik', SEI()]]);
-  const summary = new Map([['Aevik', SEI()]]);
-  const cpp = new Map([['Aevik', SEI({ health: 100 })]]);
+  const sections = new Map([['Gadget', SEI()]]);
+  const summary = new Map([['Gadget', SEI()]]);
+  const cpp = new Map([['Gadget', SEI({ health: 100 })]]);
 
   const { divergences } = compare(sections, summary, cpp);
 
   assert.equal(divergences.length, 1);
   const d = divergences[0]!;
-  assert.equal(d.hero, 'Aevik');
+  assert.equal(d.hero, 'Gadget');
   assert.equal(d.field, 'health');
   assert.deepEqual(d.values, { schede: 90, 'tabella §5': 90, 'C++': 100 });
 });
@@ -137,9 +137,9 @@ test('una divergenza nomina eroe, campo e i valori di ogni fonte che lo dichiara
 test('il gate NON dice quale lato correggere: riporta i valori e si ferma', () => {
   // D-075 e' il precedente: il 2026-08-10 il codice aveva ragione e il catalogo era indietro. Un gate
   // che avesse indicato il codice come lato da riparare avrebbe annullato la decisione.
-  const sections = new Map([['Branth', SEI({ pushResistance: 1 })]]);
-  const summary = new Map([['Branth', SEI({ pushResistance: 1 })]]);
-  const cpp = new Map([['Branth', SEI({ pushResistance: 0 })]]);
+  const sections = new Map([['Riktor', SEI({ pushResistance: 1 })]]);
+  const summary = new Map([['Riktor', SEI({ pushResistance: 1 })]]);
+  const cpp = new Map([['Riktor', SEI({ pushResistance: 0 })]]);
 
   const { divergences } = compare(sections, summary, cpp);
   const testo = JSON.stringify(divergences);
@@ -149,9 +149,9 @@ test('il gate NON dice quale lato correggere: riporta i valori e si ferma', () =
 });
 
 test('la copertura conta le estrazioni per lato, e un campo assente non e uno zero', () => {
-  const sections = new Map([['Aevik', SEI()]]);
-  const summary = new Map([['Aevik', { health: 90 }]]);
-  const cpp = new Map([['Aevik', SEI()]]);
+  const sections = new Map([['Gadget', SEI()]]);
+  const summary = new Map([['Gadget', { health: 90 }]]);
+  const cpp = new Map([['Gadget', SEI()]]);
 
   const { coverage } = compare(sections, summary, cpp);
 
@@ -169,19 +169,19 @@ test('nella sezione §5 c e piu di una tabella, e si legge solo quella delle sta
     '',
     '| Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |',
     '|---|---:|---:|---:|---:|---|---|',
-    '| Aevik | 90 | 5 | 7 | 0 | elettricità | fragile |',
+    '| Gadget | 90 | 5 | 7 | 0 | elettricità | fragile |',
     '',
     '### 5.1 Percezione e risorsa firma',
     '',
     '| Eroe | Vista | Ruolo | Risorsa firma | Ricarica su | Cap |',
     '|---|---:|---|---|---|---:|',
-    '| Aevik | 7 | Controller | Carica Conduttiva | interazione elettrica | 4 |',
+    '| Gadget | 7 | Controller | Carica Conduttiva | interazione elettrica | 4 |',
   ].join('\n');
 
   const rows = parseSummaryTable(md);
 
   assert.equal(rows.size, 1);
-  assert.deepEqual(rows.get('Aevik'), {
+  assert.deepEqual(rows.get('Gadget'), {
     health: 90, movePoints: 5, visionRange: 7, pushResistance: 0, affinity: 'Affinity.Electricity',
   });
 });
@@ -194,16 +194,16 @@ test('la soglia d udito vive in §5.1, una quarta tabella con una sola colonna d
     '',
     '| Eroe | Vista | Soglia d\'udito | Ruolo | Risorsa firma | Ricarica su | Cap |',
     '|---|---:|---:|---|---|---|---:|',
-    "| Aevik | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |",
+    "| Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |",
     "| Muiren | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |",
   ].join('\n');
 
   const rows = parsePerceptionTable(md);
 
-  assert.equal(rows.get('Aevik')!.hearingThreshold, 5);
+  assert.equal(rows.get('Gadget')!.hearingThreshold, 5);
   assert.equal(rows.get('Muiren')!.hearingThreshold, 3);
   // La `Vista` c'e' gia' nelle schede e nel §5: qui si legge solo cio' che questa tabella possiede da sola.
-  assert.equal(rows.get('Aevik')!.visionRange, undefined);
+  assert.equal(rows.get('Gadget')!.visionRange, undefined);
 });
 
 
@@ -213,14 +213,14 @@ test('le docstring dell header sono il quinto lato, e si leggono anche a capo', 
   // copertura cadrebbe per un a-capo invece che per un difetto.
   const h = [
     '\t/**',
-    "\t * Costruisce **Aevik**, tecnico della conduzione (catalogo eroi v0.1): 90 HP, 5 MP, **vista 7** (era 6,",
+    "\t * Costruisce **Gadget**, tecnico della conduzione (catalogo eroi v0.1): 90 HP, 5 MP, **vista 7** (era 6,",
     "\t * alzata da D-073 / #131: l'unico del roster che vede oltre il raggio 6), resistenza",
     "\t * push 0, affinita' elettricita', debolezza acqua.",
     '\t */',
-    '\tstatic URTHeroData* MakeAevik();',
+    '\tstatic URTHeroData* MakeGadget();',
   ].join('\n');
 
-  assert.deepEqual(parseHeaderDocstrings(h).get('Aevik'), {
+  assert.deepEqual(parseHeaderDocstrings(h).get('Gadget'), {
     health: 90,
     movePoints: 5,
     visionRange: 7,
@@ -247,16 +247,16 @@ test('vince il valore CORRENTE, non la cifra della nota storica che lo segue', (
 test('una docstring che contraddice i literal fa divergere il quinto lato', () => {
   // Il difetto misurato su `4fdb01a0`: quattro lati verdi, la docstring falsa. Senza questo lato la
   // divergenza non esisteva per nessuno.
-  const cpp = parseCpp('Branth->PushResistance = 0;');
+  const cpp = parseCpp('Riktor->PushResistance = 0;');
   const header = parseHeaderDocstrings(
-    "\t * Costruisce **Branth**, architetto del campo: 120 HP, 4 MP, vista 5, **resistenza push 1**.",
+    "\t * Costruisce **Riktor**, architetto del campo: 120 HP, 4 MP, vista 5, **resistenza push 1**.",
   );
 
   const { divergences } = compare(new Map(), new Map(), cpp, new Map(), header);
   const d = divergences.find((x) => x.field === 'pushResistance')!;
 
   assert.ok(d, 'la divergenza sulla resistenza push deve emergere');
-  assert.equal(d.hero, 'Branth');
+  assert.equal(d.hero, 'Riktor');
   // Il gate NON prescrive quale lato correggere: stampa i due valori e si ferma.
   assert.deepEqual(d.values, { 'C++': 0, 'docstring .h': 1 });
 });

@@ -151,8 +151,8 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 			*URTIconLibrary::CategoryName(Category)), Populated.Contains(Category));
 	}
 
-	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Aevik` -> `UI.Icon.Identity.Aevik`. Senza la
-	// traduzione la chiave sarebbe `UI.Icon.Hero.Aevik`, che il validator rifiuta perche' il segmento non
+	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Gadget` -> `UI.Icon.Identity.Gadget`. Senza la
+	// traduzione la chiave sarebbe `UI.Icon.Hero.Gadget`, che il validator rifiuta perche' il segmento non
 	// combacia con la categoria dichiarata.
 	//
 	// ⚠️ **La fonte qui e' `GetHeroRoster()`, non `GetHeroIds()`, e la differenza e' tutto il valore del
@@ -184,7 +184,7 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 	TestEqual(TEXT("le chiavi Identity sono quattro eroi piu' due relazioni"),
 		IdentityKeys, URTHeroCatalogLibrary::GetHeroRoster().Num() + 2);
 	TestFalse(TEXT("nessuna chiave conserva il prefisso Hero."),
-		Required.Contains(FName(TEXT("UI.Icon.Hero.Aevik"))));
+		Required.Contains(FName(TEXT("UI.Icon.Hero.Gadget"))));
 
 	// Relazione di squadra: il consumatore esiste gia' (`ARTHUD` legge `View.bIsAlly`).
 	TestTrue(TEXT("Identity.Ally"), Required.Contains(FName(TEXT("UI.Icon.Identity.Ally"))));
@@ -481,14 +481,14 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 	// ── 🔑 Il cuore: il PERCORSO sopravvive intero, il prefisso `Action.` lo qualifica.
 	//
 	// 🔴 Questo asserto diceva `UI.Icon.Action.Overload` — il solo nome — e passava. Passava contro una
-	// chiave che **nessun asset porta**: il generatore disegna `Action.Hero.Aevik.Overload`, con dentro il
-	// sigillo di Aevik, e il glifo restava irraggiungibile (`#2963`). Un test che pinna la regola sbagliata
+	// chiave che **nessun asset porta**: il generatore disegna `Action.Hero.Gadget.Overload`, con dentro il
+	// sigillo di Gadget, e il glifo restava irraggiungibile (`#2963`). Un test che pinna la regola sbagliata
 	// non e' piu' debole di uno assente: e' peggio, perche' difende il difetto.
 	{
 		FRTActionDef Def;
-		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		Def.ActionId = FName(TEXT("Hero.Gadget.Overload"));
 		TestEqual(TEXT("un'abilita' d'eroe tiene eroe E nome sotto Action"),
-			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Hero.Aevik.Overload")));
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Hero.Gadget.Overload")));
 
 		FRTActionDef Gadget;
 		Gadget.ActionId = FName(TEXT("Gadget.Sprinkler"));
@@ -503,8 +503,8 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 	// `Overload`, la chiave corta li farebbe collassare in silenzio.
 	{
 		FRTActionDef A; FRTActionDef B;
-		A.ActionId = FName(TEXT("Hero.Aevik.Overload"));
-		B.ActionId = FName(TEXT("Hero.Branth.Overload"));
+		A.ActionId = FName(TEXT("Hero.Gadget.Overload"));
+		B.ActionId = FName(TEXT("Hero.Riktor.Overload"));
 		TestNotEqual(TEXT("lo stesso nome su due eroi resta due chiavi"),
 			URTIconLibrary::MakeActionIconId(A.ActionId), URTIconLibrary::MakeActionIconId(B.ActionId));
 	}
@@ -537,7 +537,7 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 	// ── ⛔ Un'abilita' PROPRIA non ha ripiego: l'asset va disegnato, e il vuoto resta visibile.
 	{
 		FRTActionDef Def;
-		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		Def.ActionId = FName(TEXT("Hero.Gadget.Overload"));
 		TestEqual(TEXT("nessun ripiego per un'abilita' propria"),
 			URTIconLibrary::MakeActionIconFallbackId(Def), FName(NAME_None));
 	}
@@ -545,7 +545,7 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 	// ── Le categorie non si inventano.
 	{
 		TestFalse(TEXT("Hero non e' una delle dodici"),
-			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Hero.Aevik.Overload"))));
+			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Hero.Gadget.Overload"))));
 		TestTrue(TEXT("Action si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Action.Move"))));
 		TestTrue(TEXT("Reaction si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Reaction.Counter"))));
 		TestFalse(TEXT("un id senza punto non ha categoria"),
@@ -561,7 +561,7 @@ bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
  * 🔑 **E' il gate che tiene insieme due produttori che non si parlano.** La chiave la compone
  * `MakeActionIconId` in C++; l'asset lo disegna `generate_hud_assets.py` in Python. Nessuno dei due
  * legge l'altro, e per questo sono divergiuti in silenzio (`#2963`): il generatore scriveva
- * `Action.Hero.Aevik.Overload`, il dock chiedeva `Action.Overload`, e venti glifi disegnati erano
+ * `Action.Hero.Gadget.Overload`, il dock chiedeva `Action.Overload`, e venti glifi disegnati erano
  * irraggiungibili mentre ogni test unitario restava verde.
  *
  * ⚠️ **Non confronta due stringhe scritte a mano** — sarebbe la terza copia della stessa regola. Passa

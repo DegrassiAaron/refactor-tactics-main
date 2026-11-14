@@ -61,11 +61,11 @@ public:
 	 * vive nello spazio degli id d'azione e **non** in quello delle icone — `MakeIconId` su di lui produrrebbe
 	 * `UI.Icon.Hero.Muiren.TideGuard`, il cui segmento `Hero` non e' fra le dodici di `D-031`.
 	 *
-	 * La traduzione **tiene il NOME e sostituisce il prefisso con la categoria**: `Hero.Aevik.Overload` ->
+	 * La traduzione **tiene il NOME e sostituisce il prefisso con la categoria**: `Hero.Gadget.Overload` ->
 	 * `UI.Icon.Action.Overload`, `Gadget.Sprinkler` -> `UI.Icon.Action.Sprinkler`.
 	 *
-	 * 🔑 **E' la stessa regola che `RequiredIconIds` gia' applica agli `HeroId`** (`Hero.Aevik` ->
-	 * `Identity.Aevik`), dove il commento dichiarava di essere *«l'unico punto in cui la regola ha bisogno di
+	 * 🔑 **E' la stessa regola che `RequiredIconIds` gia' applica agli `HeroId`** (`Hero.Gadget` ->
+	 * `Identity.Gadget`), dove il commento dichiarava di essere *«l'unico punto in cui la regola ha bisogno di
 	 * una traduzione»*. Non era l'unico: era il primo.
 	 *
 	 * ⚠️ **Il nome sopravvive perche' il dock risponde a «quale abilita' e' questa»**, non a «che cosa fa».
@@ -84,7 +84,7 @@ public:
 	 * ⚠️ **`DerivedFromActionId` PRIMA di `BaseActionId`, e non e' indifferente.** I due campi esistono
 	 * separati per decisione (`D-195`): `BaseActionId` dice di quale delle sette generiche un'azione e' il
 	 * profilo, l'altro da dove vengono fase, portata ed effetti. L'icona segue cio' che l'azione **fa**,
-	 * quindi il secondo. `Hero.Branth.Ram` eredita da `Action.Charge` e un «profilo di Charge» non esiste:
+	 * quindi il secondo. `Hero.Riktor.Ram` eredita da `Action.Charge` e un «profilo di Charge» non esiste:
 	 * preferendo `BaseActionId` si perderebbe proprio il caso che i due campi distinguono.
 	 *
 	 * ⛔ **Torna `NAME_None` per un'abilita' PROPRIA**, che non deriva da nessuna core — e non si indovina dal
@@ -116,9 +116,9 @@ public:
 	 *   legge. Tre costanti che il catalogo deve coprire valgono piu' di un tipo senza consumatori.
 	 * - **Identity** — i quattro eroi di `URTHeroCatalogLibrary::GetHeroIds()`, piu' la relazione di squadra
 	 *   (`Ally`, `Enemy`, il cui consumatore e' gia' `ARTHUD`). ⚠️ Il prefisso viene **tradotto**: gli
-	 *   `HeroId` sono `Hero.Aevik`, e `MakeIconId` ne farebbe `UI.Icon.Hero.Aevik` — che `ValidateIconCatalog`
+	 *   `HeroId` sono `Hero.Gadget`, e `MakeIconId` ne farebbe `UI.Icon.Hero.Gadget` — che `ValidateIconCatalog`
 	 *   rifiuta, perche' il segmento (`Hero`) non combacia con la categoria (`Identity`). Si tiene il nome e
-	 *   si sostituisce il prefisso: `Hero.Aevik` -> `Identity.Aevik`. E' l'unico punto in cui la regola «la
+	 *   si sostituisce il prefisso: `Hero.Gadget` -> `Identity.Gadget`. E' l'unico punto in cui la regola «la
 	 *   chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione.
 	 *
 	 * Da qui viene il valore di `EveryKeyResolves`: l'insieme richiesto **non** e' il contenuto del catalogo,

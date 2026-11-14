@@ -73,10 +73,10 @@ FName URTIconLibrary::MakeActionIconId(const FName& ActionId)
 		return MakeIconId(ActionId);
 	}
 
-	// ── Tiene il NOME e sostituisce il prefisso con la categoria: `Hero.Aevik.Overload` -> `Action.Overload`.
+	// ── Tiene il NOME e sostituisce il prefisso con la categoria: `Hero.Gadget.Overload` -> `Action.Overload`.
 	//
-	// 🔑 **E' la stessa regola gia' scritta per gli `HeroId` in `RequiredIconIds`** (`Hero.Aevik` ->
-	// `Identity.Aevik`), applicata dove mancava. Il commento di quella riga diceva *«e' l'unico punto in cui
+	// 🔑 **E' la stessa regola gia' scritta per gli `HeroId` in `RequiredIconIds`** (`Hero.Gadget` ->
+	// `Identity.Gadget`), applicata dove mancava. Il commento di quella riga diceva *«e' l'unico punto in cui
 	// la regola ha bisogno di una traduzione»*: non era l'unico, era il primo.
 	//
 	// ⚠️ **Il percorso sopravvive INTERO, e l'eroe e' la parte che non si puo' buttare via.** Il dock
@@ -88,7 +88,7 @@ FName URTIconLibrary::MakeActionIconId(const FName& ActionId)
 	// di un'abilita' d'eroe **porta il sigillo del suo eroe**: `generate_hud_assets.py` compone
 	// `hero_sigil(hero_of(semantic))` dentro il disegno, e `hero_of` legge l'eroe dal segmento centrale.
 	// ∴ l'asset E' specifico d'eroe, e una chiave che l'eroe lo scarta non puo' indirizzarlo. Il
-	// generatore lo sapeva e scriveva `Action.Hero.Aevik.Overload`; qui si chiedeva `Action.Overload`,
+	// generatore lo sapeva e scriveva `Action.Hero.Gadget.Overload`; qui si chiedeva `Action.Overload`,
 	// e i venti glifi disegnati restavano irraggiungibili con il loro nome giusto in mano.
 	//
 	// ⛔ **Non e' una preferenza di stile fra due nomi**: uno dei due indirizza un asset che esiste e
@@ -225,10 +225,10 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 
 	// IDENTITA' — i quattro eroi del roster, piu' la relazione di squadra.
 	//
-	// ⚠️ **Il prefisso cambia, e non e' un dettaglio**: gli `HeroId` sono `Hero.Aevik`, non `Aevik`, quindi
-	// `MakeIconId(HeroId)` darebbe `UI.Icon.Hero.Aevik` — il cui segmento di categoria (`Hero`) non combacia
+	// ⚠️ **Il prefisso cambia, e non e' un dettaglio**: gli `HeroId` sono `Hero.Gadget`, non `Gadget`, quindi
+	// `MakeIconId(HeroId)` darebbe `UI.Icon.Hero.Gadget` — il cui segmento di categoria (`Hero`) non combacia
 	// con `Identity`, e il validator di CP 20.1 lo rifiuterebbe. La derivazione tiene il NOME e sostituisce
-	// il prefisso con la categoria: `Hero.Aevik` -> `Identity.Aevik`. E' l'unico punto in cui la regola «la
+	// il prefisso con la categoria: `Hero.Gadget` -> `Identity.Gadget`. E' l'unico punto in cui la regola «la
 	// chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione, ed e' scritta qui una
 	// volta invece che in quattro righe a mano.
 	for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
@@ -268,7 +268,7 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 	// pretende fail-closed, e chi la aggiunge deve disegnarne il glifo. Un elenco scritto a mano sarebbe
 	// invece scaduto il giorno dopo — lo stesso difetto che `RequiredIconIds` evita gia' per le azioni core.
 	//
-	// ⛔ **La categoria resta `Action`**: `Action.Hero.Aevik.Overload` ha `Action` come segmento di
+	// ⛔ **La categoria resta `Action`**: `Action.Hero.Gadget.Overload` ha `Action` come segmento di
 	// categoria, quindi il validator lo accetta e `V01CategoriesPopulated` non vede una tredicesima
 	// categoria comparire. `Hero` non e' fra le dodici di `D-031`, e non lo diventa qui.
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())

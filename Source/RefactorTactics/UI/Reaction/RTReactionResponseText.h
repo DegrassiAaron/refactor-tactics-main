@@ -56,7 +56,7 @@ namespace RTReactionResponseText
 	 * chi si lascia passare non torna per il resto del turno, e lo stesso vale allo scadere.
 	 * - un solo bersaglio, col nome: «Lascia passare Ivrin»;
 	 * - piu' bersagli, e nessuno entrato senza essere offerto: «Lascia passare tutti», anche senza i nomi;
-	 * - piu' bersagli, e qualcuno entrato che la condizione dichiarata ha escluso: «Lascia passare Ivrin e Branth» —
+	 * - piu' bersagli, e qualcuno entrato che la condizione dichiarata ha escluso: «Lascia passare Ivrin e Riktor» —
 	 *   «tutti» direbbe che passa anche lui, e lui non e' stato chiesto;
 	 * - nessun bersaglio, o un nome che manca dove serve, o la finestra chiusa: «Non attaccare», come la firma qui sopra.
 	 * Ogni altra opzione dice cio' che dice la firma qui sopra. «Offerto» e' `URTReactionOpportunityLibrary::OfferedFireTargets`.
@@ -68,10 +68,10 @@ namespace RTReactionResponseText
 	FText DescriptionFor(const FRTReactionWindowOptionView& Option, const FRTReactionWindowView& Window);
 
 	/**
-	 * Il titolo della finestra: «Guardia reattiva — Aevik» (`#3667`).
+	 * Il titolo della finestra: «Guardia reattiva — Gadget» (`#3667`).
 	 *
 	 * Si compone con cio' che la vista porta, e degrada senza inventare: senza il nome della reazione resta
-	 * «Reazione — Aevik», senza quello dell'unita' «Guardia reattiva», senza nessuno dei due «Reazione» — che
+	 * «Reazione — Gadget», senza quello dell'unita' «Guardia reattiva», senza nessuno dei due «Reazione» — che
 	 * e' cio' che la finestra diceva sempre prima di `#3667`. Vuoto se la finestra non e' aperta.
 	 */
 	FText TitleFor(const FRTReactionWindowView& Window);
@@ -81,7 +81,7 @@ namespace RTReactionResponseText
 	 * `Window.TriggerKind`, che scrive chi apre la finestra — qui non si guarda l'id della reazione.
 	 *
 	 * - `EnteredControlledArea`: «Ivrin è entrato nell'area controllata»; con piu' unita' nello stesso passo,
-	 *   «Ivrin e Branth sono entrati nell'area controllata». Senza nomi, nessuna frase: una riga che non dice
+	 *   «Ivrin e Riktor sono entrati nell'area controllata». Senza nomi, nessuna frase: una riga che non dice
 	 *   chi e' entrato non aggiunge niente al titolo.
 	 * - `Pushed`: «Ivrin ti spinge». ⚠️ **Senza un nome nella vista, «Un nemico ti spinge»**: e' il caso di chi
 	 *   spinge da una cella che la squadra non rileva, e il nome non c'e' perche' il core non lo ha messo.
