@@ -920,9 +920,9 @@ sessions:
     execution_lane: asset
     produces: i quattro Blueprint-unita' del roster v0.1, committati
     artifacts:
-      - Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset
+      - Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
       - Content/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.uasset
-      - Content/RT/Characters/Branth/Blueprints/BP_Unit_Branth.uasset
+      - Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
       - Content/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.uasset
     unblocked_by: []
     shares_setup_with: [U8, U9]
@@ -978,15 +978,11 @@ sessions:
 
       | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
       |---|---|---|---|---|
-      | Gadget | `Hero.Gadget` | `Paragon.Gadget` | `BP_Unit_Aevik` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+      | Gadget | `Hero.Gadget` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
       | Muiren | `Hero.Muiren` | `Paragon.Phase` | `BP_Unit_Muiren` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-      | Riktor | `Hero.Riktor` | `Paragon.Riktor` | `BP_Unit_Branth` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+      | Riktor | `Hero.Riktor` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
       | Ivrin | `Hero.Ivrin` | `Paragon.Wraith` | `BP_Unit_Ivrin` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
-      ⚠️ **Da #4011 (`D-585` (3)) e fino al passo nell'Editor, cartelle e Blueprint di Gadget e Riktor
-      portano ancora i nomi di prima**: `/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik` e
-      `/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth`, come dice la colonna `Blueprint`. Per loro
-      due la convenzione `<Eroe>` del passo 2 vale solo dopo quel passo.
       ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
       cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
       ⚠️ Si scrive **`Paragon.Gadget`, mai `Gadget` nudo** quando si parla del pack: `Gadget` da solo e'
@@ -1042,7 +1038,7 @@ sessions:
          schermo, un
          personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
       7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
-         (`Hero.Gadget` → `BP_Unit_Aevik`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+         (`Hero.Gadget` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
          `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
          `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
          viene mai istanziato.
@@ -1055,10 +1051,10 @@ sessions:
          |---|---|---|
          | risponde a | **chi** scende in campo | **con che aspetto** |
          | tipo | lista: un campo per riga | mappa: **due campi** per riga |
-         | contiene | `Hero.Gadget` | `Hero.Gadget` → `BP_Unit_Aevik` |
+         | contiene | `Hero.Gadget` | `Hero.Gadget` → `BP_Unit_Gadget` |
 
          Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
-         nomi dei Blueprint nelle formazioni produce `BP_Unit_Aevik non e' nel catalogo eroi` e
+         nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
          **`0 eroi`** in campo — il log nomina l'id introvabile, ed e' il primo posto dove guardare.
          Per non sbagliare: filtra il pannello Details scrivendo `Hero Unit` nella barra di ricerca,
          cosi' resta visibile solo la mappa.
@@ -1090,8 +1086,6 @@ sessions:
       (`DA_Hero_Flux`, …) restano intitolati all'**eroe** «pur stando nella cartella del pack»: dal
       ritiro di #2297 anche la cartella porta il nome dell'eroe, quindi contenuto e contenitore
       concordano e non c'e' nulla da eccepire. `HeroId` in C++ e' `Hero.Gadget`.
-      ⚠️ Da #4011 (`D-585` (3)) e fino al passo nell'Editor la concordanza non vale per Gadget e Riktor:
-      l'`HeroId` e' `Hero.Gadget`/`Hero.Riktor`, cartella e Blueprint sono ancora `Aevik`/`Branth`.
       ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft
       reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
       ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un
