@@ -83,8 +83,8 @@ public:
 	 * I quattro eroi canonici, nell'ordine del catalogo: Gadget, Muiren, Riktor, Ivrin.
 	 *
 	 * ⚠️ `Hero.Branth` e `Hero.Aevik` **non esistono piu'**: `D-585` (#4011) li ha riportati a `Hero.Riktor` e
-	 * `Hero.Gadget`, mentre gli **asset** restano in `/Game/RT/Characters/Branth/` e `/Game/RT/Characters/Aevik/`
-	 * fino al loro rename nell'Editor. Questa libreria indicizza
+	 * `Hero.Gadget`, e nella stessa issue gli **asset** li hanno seguiti (`/Game/RT/Characters/Riktor/` e `.../Gadget/`).
+	 * Questa libreria indicizza
 	 * per identita', mai per path d'asset: il rename degli asset non la tocca, quello degli id si'.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HeroLab")

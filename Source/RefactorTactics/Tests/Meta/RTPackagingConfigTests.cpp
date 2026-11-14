@@ -532,7 +532,7 @@ namespace
 		// registro PIE avverte per gli zeri di packaging.
 		// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
 		// nome dell'asset di terze parti, non l'id dell'eroe. Misurato dentro il package che lo referenzia:
-		// `python -c` su `Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset` (allora `.../Gadget/BP_Unit_Gadget`, `#2297`) estrae
+		// `python -c` sul Blueprint di Gadget (oggi `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset`, fra `#2297` e `#4011` `.../Aevik/BP_Unit_Aevik`) estrae
 		// `.../Heroes/Gadget/Meshes/Gadget` — e `.../Meshes/Aevik` non esiste.
 		//
 		// 🔴 Ha detto `Aevik` dal rename al 2026-09-10, e il controllo POSITIVO cadeva: il test usciva rosso
@@ -1049,7 +1049,7 @@ bool FRTCookGateIgnoresAuthoredClassTest::RunTest(const FString&)
 {
 	const FString Autorata = RTAuthoredAnimClassFile();
 	const FString Accanto = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Anim/ABP_Accanto.uasset"));
-	const FString Lontano = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset"));
+	const FString Lontano = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset"));
 
 	TArray<FString> Files = { Lontano, Autorata, Accanto, FPaths::ConvertRelativePathToFull(Autorata) };
 	const int32 Tolti = RTEscludiClasseAutorata(Files, Autorata);

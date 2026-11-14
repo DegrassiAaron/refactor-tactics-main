@@ -580,6 +580,8 @@ ARTGameMode::ARTGameMode()
 		};
 
 		// ✅ **I path dicono ora l'IDENTITA', e non piu' lo slot asset Paragon** (`#2297` fetta E, [D-321]).
+		// 🔄 Con [D-585] (#4011) l'identita' di Gadget e Riktor e' di nuovo il nome dello slot: le loro cartelle
+		// sono tornate `Gadget/` e `Riktor/` nello stesso commit di questi path; quelle di Muiren e Ivrin no.
 		//
 		// Fino al 2026-09-10 queste quattro righe puntavano a `Gadget`, `Phase`, `Riktor` e `Wraith`, che
 		// [D-321] ha misurato **non essere nomi ispirati**: sono i nomi degli **slot asset Paragon**. [D-334]
@@ -595,9 +597,9 @@ ARTGameMode::ARTGameMode()
 		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
 		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
 		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
-		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
 		Assegna(TEXT("Hero.Gadget"), GadgetBP);

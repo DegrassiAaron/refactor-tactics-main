@@ -574,9 +574,9 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// o lo fosse a un path diverso, il `FClassFinder` di `ARTGameMode` lascerebbe la voce assente e questo
 	// test cadrebbe — che e' cio' che il commento a `:507` promette da sempre.
 	const TMap<FName, FString> Attesi = {
-		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik") },
+		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
 		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren")   },
-		{ FName(TEXT("Hero.Riktor")), TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth") },
+		{ FName(TEXT("Hero.Riktor")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin") },
 	};
 
