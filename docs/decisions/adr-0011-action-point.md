@@ -22,8 +22,22 @@
 > ➕ **Emendamento 2026-11-13 — [D-613](RT_PDR_00_Decision_Log.md)**: il budget del turno diventa un numero dell'unità, noto quando si
 > pianifica, e un piano già validato non cambia mai (l'Anchor colpisce il budget del turno dopo); alla domanda sulla ripetizione l'autore
 > risponde «1, ma ci sono abilita' ripetibili, come muoversi.» (lettura: la prima opzione, che emenda la risposta 1); a parità di priorità vale
-> l'ordine di dichiarazione; ogni Ultimate costa 3 in qualunque fase. Che il 6 diventi il default e che l'ordine di dichiarazione sia il
-> criterio della conseguenza 1 sono letture dell'assistente (D-613 (5)).
+> l'ordine di dichiarazione (🔁 ribaltato il 2026-11-14 da D-615 (5), sotto); ogni Ultimate costa 3 in qualunque fase. Che il 6
+> diventi il default e che l'ordine di dichiarazione sia il
+> criterio della conseguenza 1 sono letture dell'assistente (D-613 (5)); la seconda è superata da D-615 (5).
+> ➕ **Emendamento 2026-11-14 — [D-615](RT_PDR_00_Decision_Log.md)**: le risposte dell'autore alle domande di E38. Al lock-in un piano
+> `OnCooldown`, `OverBudget` o con una seconda copia vietata da [D-614](RT_PDR_00_Decision_Log.md) (un'azione con cooldown compare al più
+> una volta nel piano) si svuota e il Ready si rifiuta: emenda [D-194](RT_PDR_00_Decision_Log.md) per budget e ricarica, e `SlotOccupied`
+> resta registrato e non bloccato fino a CP 38.16 (D-615 (1)). L'ordine di dichiarazione non decide **mai** la risoluzione: a parità di
+> priorità decide l'ordine del motore di oggi, id dell'azione e poi unità («Per id stabile dell'azione»; che sia il secondo criterio della
+> conseguenza 1 è una lettura dell'assistente), e la dichiarazione resta nel piano e nel TurnLog solo per mostrarlo (D-615 (5)).
+> Nel Blast il danno resta simultaneo
+> anche fra due azioni della stessa unità, e [D-503](RT_PDR_00_Decision_Log.md) resta intera (D-615 (3)). L'ordine di dichiarazione entra
+> nell'hash di traccia, con un campo del TurnLog, e resta fuori dal digest di stato ([D-333](RT_PDR_00_Decision_Log.md) (4)); il budget di
+> base del turno entra nel digest di stato, l'overclock scelto nel piano no, perché è un intento (D-615 (2)). `Action.Overwatch` e i sette
+> moduli di reazione di oggi prendono cooldown 1 (D-615 (4), (7)), e per la regola della copia conta il cooldown della riga di catalogo,
+> prima della variante d'arma (D-615 (6)). ⏳ Non implementata: entra coi checkpoint di E38 descritti in
+> [`../roadmap/plans/e38-checkpoint-d613-2026-11-14.md`](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md).
 
 ## Contesto
 
@@ -93,6 +107,19 @@ Scartate: «Il costo AP sostituisce i drawback, i cooldown restano» e «Il cost
    nel piano, o Stable ID dell'azione). Va scritto prima del primo test, perché TurnLog, replay e hash lo leggono.
    ➕ **2026-11-13, [D-613](RT_PDR_00_Decision_Log.md) (3)**: per due azioni della stessa unità con la stessa priorità l'autore ha scelto
    «Come le dichiari» (la seconda vede lo stato lasciato dalla prima); che sia il criterio stabile chiesto qui è una lettura dell'assistente.
+   ➕ **2026-11-14, [D-615](RT_PDR_00_Decision_Log.md) (5)**: 🔁 ribalta D-613 (3), la nota del 2026-11-13. L'ordine di dichiarazione non decide **mai**
+   la risoluzione: a parità di priorità decide l'ordine del motore di oggi, id dell'azione e poi unità («Per id stabile dell'azione»; che sia il
+   secondo dei due criteri elencati qui è una lettura dell'assistente), anche per il marchio speso e il racconto del Blast; la dichiarazione
+   resta nel piano e nel TurnLog solo per mostrarlo, ed entra nell'hash di traccia e non nel digest di stato (D-615 (2)). Nel codice quell'ordine è
+   `URTActionQueueLibrary::InstanceLess` (`RTActionQueueLibrary.cpp:24-31`, la precedenza di [ADR-0003](adr-0003-modello-azioni-v01.md) §2) e,
+   per il marchio e il racconto del Blast, `ChiavePrecede` (`RTTurnManager.cpp:2852-2859`). Nel Blast l'ordine non decide i punti vita: il
+   danno resta simultaneo anche fra due azioni della stessa unità, e [D-503](RT_PDR_00_Decision_Log.md) resta intera (D-615 (3)). La DoD di
+   [#608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/608) («test di permutazione: l'ordine di dichiarazione non cambia
+   l'esito») torna valida. Letture dell'assistente, la prima fra quelle di D-615 e la seconda no: due copie della stessa azione della stessa
+   unità a pari priorità si ordinano per il contenuto dell'istanza (bersaglio, cella), mai per dichiarazione, quindi `EventSequence`, che il
+   codice documenta come «Ordine di dichiarazione dell'azione nel turno» (`RTActionQueue.h:40`), non può portare l'ordine del piano;
+   permutare la dichiarazione cambia il campo d'ordine del TurnLog e quindi l'hash di traccia, non lo stato finale, il digest di stato né
+   gli eventi di gioco in ordine.
 2. **Il piano cambia forma.** `FRTUnitPlan` (o l'equivalente che `ValidatePlan` legge) smette di avere una casella
    per slot e porta una lista; `ERTActionSlot` smette di decidere la legalità e sopravvive, se sopravvive, come
    **fase di risoluzione** dell'azione. Snapshot, serializzazione e versione dello schema seguono (CLAUDE.md §7).
@@ -105,6 +132,9 @@ Scartate: «Il costo AP sostituisce i drawback, i cooldown restano» e «Il cost
    ➕ **2026-11-08, [D-592](RT_PDR_00_Decision_Log.md)**: le reazioni sono una **lista**, limite solo dal budget: un'unità ne arma quante gli AP
    consentono, ciascuna con trigger e condizione dichiarata propri; `PlannedReactionAbility` diventa una lista e l'ordine fra reazioni
    armate sullo stesso trigger segue la conseguenza 1.
+   ➕ **2026-11-14, [D-614](RT_PDR_00_Decision_Log.md) e [D-615](RT_PDR_00_Decision_Log.md) (7)**: «quante gli AP consentono» vale per moduli
+   diversi. Lo stesso modulo entra al più una volta nel piano, perché i moduli di reazione prendono cooldown 1 e D-614 dà una copia per
+   piano a un'azione con cooldown. ⏳ Non implementata: entra con E38.
 5. **Il bot e l'HUD** leggono la stessa legalità del validatore (CLAUDE.md §11): il planning UX deve mostrare un
    budget e una somma, e il bot deve esplorare combinazioni, non più permutazioni di tre caselle.
 6. **Il primo consegnabile è l'asserto.** Prima di ogni numero: un test che fallisce se due azioni della stessa fase

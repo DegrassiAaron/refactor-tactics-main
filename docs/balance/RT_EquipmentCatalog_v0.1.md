@@ -135,6 +135,12 @@ Regole comuni a **ogni** modulo:
 - **può** essere noto al nemico se fa parte del loadout pubblico pre-partita — è informazione di *loadout*, non
   di *intento*.
 
+> ⏳ **[D-615](../decisions/RT_PDR_00_Decision_Log.md) (7), 2026-11-14: ogni modulo di reazione prende cooldown 1**, e una skill può chiederne di
+> più. Con [D-614](../decisions/RT_PDR_00_Decision_Log.md) lo stesso modulo entra al più una volta nel piano, e ogni turno torna disponibile.
+> «Al massimo una volta per turno» resta la regola delle attivazioni finché `TR-29` non decide se un'unità ne attiva più d'una. Entra con
+> CP 38.15 di E38 ([#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609)); fino ad allora il codice tiene il cooldown a 0
+> (`RTCatalogLibrary.cpp:569-571`).
+
 ---
 
 ## 4. Loadout iniziali consigliati

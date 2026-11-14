@@ -750,8 +750,12 @@ La Ghost Timeline è uno dei componenti identitari dell'HUD.
 - Move
 
 > ➕ **2026-11-13**: col pool di AP una fase contiene una **lista** di azioni della stessa unità ([D-584](../../decisions/RT_PDR_00_Decision_Log.md) (1)),
-> ordinate per priorità e poi per dichiarazione ([D-613](../../decisions/RT_PDR_00_Decision_Log.md) (3)), e la colonna `Cleanup` serve alle azioni di
+> ordinate per priorità e poi ~~per dichiarazione ([D-613](../../decisions/RT_PDR_00_Decision_Log.md) (3))~~ per l'ordine del motore, e la colonna `Cleanup` serve alle azioni di
 > quella classe. La forma a pile è in §19-bis.7 e aspetta E38.
+>
+> ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (5)): la dichiarazione non decide mai la risoluzione. A pari priorità decide
+> l'ordine del motore, id dell'azione e poi unità, e l'ordine di dichiarazione resta nel piano e nel TurnLog solo per mostrarlo. La parte barrata
+> seguiva D-613 (3), che D-615 (5) ribalta.
 
 ## 8.2 Stati
 
@@ -1509,6 +1513,9 @@ piano non può pagare. **Proposta, da decidere** (`HUD-AP-1`; se accettata, emen
 rifiutato resta aperto. Nel validatore di oggi il budget precede lo slot (`OnCooldown` → `OverBudget` → `SlotOccupied`,
 `RTPlanValidationLibrary.h:93-103`). Il canale B non ha un produttore per il budget: con D-613 (1) il budget del turno è noto prima di
 pianificare, e un piano validato non cambia.
+➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (1)): al lock-in il server rifiuta il Ready di un piano `OverBudget`,
+`OnCooldown` o con una seconda copia vietata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), e il piano si svuota. È l'autorità che fa del
+budget una regola; come l'HUD lo mostri resta di `HUD-AP-1`. ⏳ Non implementata: entra con E38.
 
 ## 19-bis.4 Il costo del movimento
 
@@ -1516,7 +1523,10 @@ Il movimento non è uno slot (D-425, D-456), ma costa AP: 2 per ogni profilo (D-
 mostrano −2 e il residuo, letti dal validatore. La variazione per cella resta sui Movement Point (D-117): una riduzione di MP si vede come celle
 non raggiungibili nell'anteprima del percorso, non come un rifiuto (`InsufficientMovementPoints` non ha produttore, D-190). Sono aperti
 (`HUD-AP-1`) la resa di una cella raggiungibile in MP quando il residuo è minore di 2, e se un waypoint in più sia un secondo Move (la lettura di
-D-613 (2) rende Move ripetibile) o l'estensione del primo, il cui profilo D-425 deriva dalla distanza.
+D-613 (2), confermata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), rende Move ripetibile) o l'estensione del primo, il cui profilo
+D-425 deriva dalla distanza. ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (5)): l'ordine di dichiarazione non decide mai
+la risoluzione. Lettura dell'assistente in D-615, non decisione: due Move separati della stessa unità non avrebbero più un ordine fra loro, e
+questo pesa sulla scelta fra un secondo Move e l'estensione del primo senza deciderla; la scelta resta aperta in `HUD-AP-1`.
 
 ## 19-bis.5 Privacy
 
@@ -1540,13 +1550,25 @@ d'equipaggiamento (E48).
 
 - **Budget per unità** (D-613 (1)): `Budget` letto dall'unità per il turno, e il tratto «modificato» dei pip.
 - **Ghost Timeline a pile** (§8): ogni fase è una pila verticale, e le fasi restano l'asse orizzontale. Dentro la pila l'ordine è quello di
-  risoluzione, cioè priorità del catalogo e poi ordine di dichiarazione (D-613 (3)), letto dallo stesso comparatore del resolver; la timeline
-  permette di cambiare l'ordine di dichiarazione. La colonna `Cleanup` compare quando il piano ha un'azione di quella classe.
+  risoluzione, cioè priorità del catalogo e poi ~~ordine di dichiarazione (D-613 (3))~~ ordine del motore, id dell'azione e poi unità
+  (D-615 (5)), letto dallo stesso comparatore del resolver; ~~la timeline permette di cambiare l'ordine di dichiarazione~~.
+  La colonna `Cleanup` compare quando il piano ha un'azione di quella classe.
+  ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (5)): l'ordine di dichiarazione non decide mai la risoluzione, e resta nel
+  piano e nel TurnLog solo per mostrarlo; nel Blast l'ordine della pila non decide i punti vita, perché il danno resta simultaneo anche fra due
+  azioni della stessa unità (D-615 (3)). Lettura dell'assistente in D-615: la timeline mostra ancora l'ordine del comparatore, ma spostare una voce
+  non cambia l'esito, e se offrire lo spostamento resta dell'owner dell'HUD; due copie della stessa azione si ordinano per bersaglio e cella, mai
+  per dichiarazione. Le parti barrate seguivano D-613 (3), che D-615 (5) ribalta.
 - **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. Due reazioni sullo stesso micro-step stanno
   in un solo prompt, una riga ciascuna, con HOLD per ultimo.
-- **Azioni ripetute** (D-613 (2), come la legge l'assistente): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
-  `Wait`) si ripetono, con la riserva dell'autore sulle abilità ripetibili ancora da definire (`MSP-1.r`). Lo stato `Planned` diventa un
+- **Azioni ripetute** (~~D-613 (2), come la legge l'assistente~~ [D-614](../../decisions/RT_PDR_00_Decision_Log.md)): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
+  `Wait`) ~~si ripetono, con la riserva dell'autore sulle abilità ripetibili ancora da definire (`MSP-1.r`)~~ si ripetono finché il budget lo consente. Lo stato `Planned` diventa un
   contatore, e il rifiuto nomina l'occorrenza.
+  ➕ **2026-11-14**: la riserva di `MSP-1.r` è chiusa da D-614 (con cooldown una copia per piano, senza cooldown ripetibile finché il budget lo
+  consente). Con [D-615](../../decisions/RT_PDR_00_Decision_Log.md) (4) `Action.Overwatch` prende cooldown 1: una per piano, e ancora in ogni turno.
+  Con la (7) i sette moduli di reazione di oggi prendono cooldown 1, e un valore più alto entra con la skill che lo chiede. Con la (6) per la
+  regola della copia conta il cooldown della riga di catalogo, prima della variante d'arma: l'attacco base resta ripetibile anche con
+  `Weapon.Overcharge`. ⏳ Il cooldown 1 di Overwatch e moduli entra con E38, in CP 38.13 e CP 38.15; fino ad allora vale 0
+  (`RTCatalogLibrary.cpp:1383-1385` per l'Overwatch, `:571` per i moduli).
 
 ## 19-bis.8 Criteri d'accettazione
 
