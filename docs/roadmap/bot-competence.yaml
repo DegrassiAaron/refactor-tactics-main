@@ -85,12 +85,9 @@ meta:
   # fuori `Heroes.*` e `Overwatch.*`. Si riverifica cosi':
   #   filtro = Bot+Heroes+HexBot+HexBotPlay+Match+Overwatch+Scenario+Stress
   #   poi si confronta l'elenco dei `Path={...}` del log coi token di questo file.
-  suite: 2026-11-13, suite intera (filtro `RefactorTactics`, che contiene le famiglie qui sopra) su
-         `1601ec2d2` (#4011) — ogni token `test:` citato qui sotto compare nel log col suo nome letterale
-         e `Result={Success}`, nessuno non eseguito. I rossi della run non sono token di questo file
-         (`IconCatalog.RealCatalogCoversRequiredIds`, `IconCatalog.HeroAbilityIconIdsReachTheirAsset`,
-         `ScreenHud.DockTooltipShowsTheShapeOfEveryRosterArea`, che aspettano il passo nell'Editor dello
-         stesso rename).
+  suite: 2026-11-14, suite intera (filtro `RefactorTactics`, che contiene le famiglie qui sopra) sul
+         tree di `be671644f` (#4011, dopo il passo nell'Editor) — ogni token `test:` citato qui sotto compare
+         nel log col suo nome letterale e `Result={Success}`, nessuno non eseguito, e la run non ha rossi.
 
 # I documenti che pubblicano una metrica prodotta da partite AUTOMATICHE, e che percio' devono portarsi
 # accanto lo stato di competenza che la determina.
