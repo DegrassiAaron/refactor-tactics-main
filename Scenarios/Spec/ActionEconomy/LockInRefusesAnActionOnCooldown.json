@@ -1,0 +1,40 @@
+{
+  "scenarioId": "Spec.ActionEconomy.LockInRefusesAnActionOnCooldown",
+  "tags": ["action-economy", "cooldown", "spec", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "E38 CP 38.10 (#4111), [D-615] (1) e [D-617]: un piano con un'azione in ricarica non si risolve. Le celle e i turni sono quelli di `Spec.ActionEconomy.CooldownBlocksWithSlotFree`: la' si misura che il danno del turno 2 manca, qui che manca perche' il lock-in svuota il piano e lo dice nel TurnLog. Prima lo saltava in silenzio `CollectAttackIntents`.",
+  "_oracolo": "`Hero.Gadget.LinearDischarge` ha cooldown 2. Turno 1 la usa e colpisce; turno 2 e' ancora in ricarica (residuo 1): verdetto `OnCooldown` (10), il piano si svuota e lascia una `Fallback`/`Cancelled`; turno 3 e' di nuovo disponibile e colpisce. Due colpi in tre turni, e una sola voce di rifiuto, che puo' nascere solo al turno 2. Le asserzioni valgono a fine scenario.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — l'abilita' e' disponibile e colpisce.",
+      "intents": [ { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" } ]
+    },
+    {
+      "_turno": "T2 — l'abilita' e' in ricarica: il lock-in svuota il piano.",
+      "intents": [ { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" } ]
+    },
+    {
+      "_turno": "T3 — di nuovo disponibile: colpisce.",
+      "intents": [ { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" } ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 1,
+      "_assertion": "L'unica voce di quel tipo nei tre turni: nasce al turno 2, quando l'abilita' e' in ricarica." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "value": 10,
+      "_assertion": "Il motivo e' `OnCooldown` (10 in `ERTActionInvalidReason`)." },
+    { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 2,
+      "_assertion": "Colpisce ai turni 1 e 3. Il controllo che rende lo zero del turno 2 una misura: un'abilita' che non spara mai darebbe 0." },
+    { "type": "TurnsCompleted", "value": 3 }
+  ]
+}

@@ -590,6 +590,29 @@ public:
 	void SetPlannedCleansePriority(const TArray<FGameplayTag>& Priority) { PlannedCleansePriority = Priority; }
 
 	/**
+	 * **Il lock-in svuota un piano illegale per budget o ricarica** ([D-615] (1); E38 CP 38.10, #4111): tutto l'intento
+	 * che [D-608] (4) mette nel piano, non solo le voci che il validatore giudica. Principale col bersaglio, la mira e
+	 * il bordo; scatto e corsa della carica; reazione con la condizione; percorso, waypoint e cella d'arrivo; verso
+	 * dichiarato; profilo di movimento; priorita' del Cleanse.
+	 *
+	 * 🔴 **Il verso e il profilo non sono voci del validatore, e vanno tolti lo stesso**: lasciato, il verso dichiarato
+	 * produrrebbe nel Move una voce `Facing` dell'unita', e un'unita' col piano rifiutato girerebbe lo stesso.
+	 *
+	 * ⛔ Nessuna regola qui: quando svuotare lo decide `ARTTurnManager::ValidatePlansAtLockIn`.
+	 */
+	void EmptyPlanAtLockIn()
+	{
+		DisarmPlannedMainAction();   // indice, bersaglio, mira congelata, bordo, segno per il Back
+		ClearPlannedDash();
+		bHasPlannedChargeRun = false;
+		ClearReactionPlan();         // indice, condizione dichiarata, segno per il Back
+		ClearPlannedMove();          // percorso e waypoint spenti, arrivo sulla cella attuale
+		RetractPlannedFacing();
+		PlannedMovementProfileId = NAME_None;
+		PlannedCleansePriority.Reset();
+	}
+
+	/**
 	 * **La fotografia della mira al lock-in** ([D-415]): con un bersaglio-UNITA', la sua cella di adesso. Il resolver
 	 * mirera' li' anche se il bersaglio si muove prima del Blast. Il perche' sta al chiamante, `LockInAndResolve`.
 	 */

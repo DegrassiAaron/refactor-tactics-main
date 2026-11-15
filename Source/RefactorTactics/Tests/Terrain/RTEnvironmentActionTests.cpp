@@ -1540,14 +1540,19 @@ namespace
 		// D-569: se l'attore stordito ha anche un passo pianificato, il passo e' NEGATO e lascia la sua voce di rifiuto (fase Move) accanto a
 		// quella della struttura (fase Prep). Le colonne `Refusals` della tabella restano quelle di Prep; la voce di Move si somma qui,
 		// e la asserisce per esteso il blocco del passo in fondo.
-		const int32 ExpectedMoveRefusals = (O.bMoveAtCommit && O.bStunnedAtCommit) ? 1 : 0;
+		// E38 CP 38.10 ([D-615] (1)): un'abilita' gia' in ricarica non arriva piu' al resolver. Il lock-in svuota il piano e lascia una
+		// `Fallback`/`Cancelled` `OnCooldown` per ogni sua voce (la struttura, e il passo se c'e'): non sono rifiuti per stordimento, ma
+		// sono voci Fallback dell'attore. Con il piano svuotato il passo non arriva nemmeno al rifiuto di D-569.
+		const bool bSvuotatoAlLockIn = O.CooldownBefore > 0;
+		const int32 ExpectedMoveRefusals = (!bSvuotatoAlLockIn && O.bMoveAtCommit && O.bStunnedAtCommit) ? 1 : 0;
 		const int32 ExpectedAllRefusals = X.Refusals + ExpectedMoveRefusals;
+		const int32 ExpectedLockInRefusals = bSvuotatoAlLockIn ? 1 + (O.bMoveAtCommit ? 1 : 0) : 0;
 		if (!X.bFallenActor)
 		{
 			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento dell'attore"), *Run), O.StunRefusals, ExpectedAllRefusals);
 			Test.TestEqual(*FString::Printf(TEXT("%s: voci di rifiuto per stordimento di chiunque"), *Run), O.RefusalsAnyUnit, ExpectedAllRefusals);
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, ExpectedAllRefusals);
-			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, ExpectedAllRefusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback dell'attore, di ogni causa"), *Run), O.AnyFallbacks, ExpectedAllRefusals + ExpectedLockInRefusals);
+			Test.TestEqual(*FString::Printf(TEXT("%s: voci Fallback di chiunque e di ogni causa (nessun altro)"), *Run), O.FallbacksAnyUnit, ExpectedAllRefusals + ExpectedLockInRefusals);
 		}
 		if (X.Refusals > 0)
 		{
@@ -1732,10 +1737,10 @@ namespace
  * un passo.
  *
  * Le righe oltre la prima famiglia pinnano DOVE sta la guardia e COSA riconosce:
- *  - **gia' in ricarica**: `CanUseAbility` e' falso e il piano si scarta in silenzio PRIMA della guardia — niente voce e
- *    niente secondo addebito, in entrambi i bracci (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot
- *    a `Mirror`). A differenza di `Status.StunDeniedMainActionPaysItsCooldown` (riga «Prep: stordito, gia' in ricarica»), qui
- *    il ciclo azzera il piano PRIMA di `CanUseAbility`, quindi nemmeno il Blast ritrova niente da rifiutare;
+ *  - **gia' in ricarica**: da E38 CP 38.10 ([D-615] (1)) il piano non arriva al resolver: il lock-in lo svuota e lascia una
+ *    voce `Fallback`/`Cancelled` `OnCooldown` per ogni sua voce, e nessun secondo addebito, in entrambi i bracci
+ *    (`ConsumeAbility` scrive un valore FISSO: ripagarla riporterebbe lo slot a `Mirror`). Prima `CanUseAbility` lo scartava in
+ *    silenzio, senza voce;
  *  - **senza bordo**, **senza bersaglio**, **fuori portata** (i `Reject` di raccolta): quello di chi NON e' stordito
  *    resta GRATIS (`RIC-3`, [D-571]: «senza bersaglio» il click non lo produce, «fuori portata» lo rifiuta, «senza bordo» lo
  *    ACCETTA ed e' `BLOCKED`) e lascia `CoverRejected`; lo stordito e' rifiutato PRIMA di ciascuno, quindi

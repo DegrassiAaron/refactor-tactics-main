@@ -1579,6 +1579,32 @@ void ARTTurnManager::DeclareParticipantReady(int32 InTeamId, int32 InControlGrou
 		return;
 	}
 
+	// 🔴 **Il Ready di un piano che il lock-in svuoterebbe si rifiuta** ([D-615] (1); E38 CP 38.10): budget e ricarica.
+	// Il giocatore ha un'uscita, perche' un'azione in ricarica non si arma e un piano oltre il budget si accorcia col
+	// Back; il timeout invece non chiede il permesso, e al lock-in il piano si svuota. La riga e' della squadra che ha
+	// composto il piano ([D-349]), come quella del lock-in.
+	{
+		TArray<ARTUnit*> Vive;
+		CollectLivingUnits(Vive);
+		for (int32 i = 0; i < Vive.Num(); ++i)
+		{
+			const ARTUnit* Unit = Vive[i];
+			if (!Unit || Unit->bIsBotControlled || Unit->TeamId != InTeamId || Unit->ControlGroup != InControlGroup)
+			{
+				continue;
+			}
+			FRTPlanValidation Verdetto;
+			if (IsPlanRefusedAtLockIn(i, Unit, Verdetto))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: Ready rifiutato (%s: %s)"), *Unit->GetName(),
+					*Verdetto.OffendingActionId.ToString(), *URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason)),
+					FRTLogSubject::UnitWithVerdict(Unit,
+						URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, Unit->TeamId)));
+				return;
+			}
+		}
+	}
+
 	bool bGiaPresente = false;
 	ReadyParticipants.Add(Partecipante, &bGiaPresente);
 	if (bGiaPresente)
@@ -3537,14 +3563,6 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			continue;
 		}
 
-		// 🔴 **Nessuna voce nel TurnLog da qui, ed e' una scelta.** Il TurnLog e' un formato serializzato,
-		// ordinato canonicamente e riprodotto: una voce scritta al lock-in porterebbe una `Phase` che nessun
-		// consumatore del replay ha mai visto, e dovrebbe nominare un'azione «colpevole» che l'ordine
-		// canonico del validatore sceglie in modo diverso da come il resolver scarta. Cio' che il turno
-		// scarta davvero lo dice `ResolveDash`, dove lo scarta — con `ERTMoveOutcome::SupersededByDash`.
-		//
-		// Qui resta il **combat log**, che e' cio' che serve: un piano incoerente ha un posto in cui
-		// comparire mentre lo si compone, senza entrare nel formato che i replay confrontano.
 		// 🔴 **Entrambe le azioni, mai una sola.** `OffendingActionId` e' l'azione che l'ordine canonico del
 		// validatore incontra per seconda, e per il caso canonico scatto + movimento e' la MOBILITA', che
 		// invece esegue. Nominare lei significa mandare il giocatore a correggere l'azione sbagliata.
@@ -3557,9 +3575,82 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 				*Verdict.OffendingActionId.ToString(),
 				*Verdict.HolderActionId.ToString());
 
+		// 🔒 **La riga racconta un piano, quindi e' della squadra che lo ha composto** ([D-349]; E38 CP 38.10): nomina
+		// le azioni del piano e il motivo, anche una reazione mai armata. Col verdetto di conoscenza la leggeva ogni
+		// squadra che vede l'unita'. Vale per ogni motivo, `SlotOccupied` compreso.
 		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s)"),
-			*Unit->GetName(), *Dettaglio), FRTLogSubject::Unit(Unit));
+			*Unit->GetName(), *Dettaglio),
+			FRTLogSubject::UnitWithVerdict(Unit,
+				URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, Unit->TeamId)));
+
+		// 🔴 **Budget e ricarica: il piano non si risolve** ([D-615] (1), che emenda [D-194] per questi due motivi;
+		// [D-617] per le voci nel TurnLog). `SlotOccupied` resta registrato e non bloccato fino a CP 38.16: lo scatto
+		// non e' ancora annullabile, e il resolver decide come oggi (`SupersededByDash`).
+		const bool bSvuota = Verdict.Reason == ERTActionInvalidReason::OnCooldown
+			|| Verdict.Reason == ERTActionInvalidReason::OverBudget;
+		if (!bSvuota)
+		{
+			continue;
+		}
+
+		// Ogni voce del piano lascia la propria `Fallback`/`Cancelled`, con il motivo in `Amount` e la fase della voce:
+		// chi rilegge il turno vede perche' l'unita' non ha agito, invece di un buco. Non c'e' un colpevole da
+		// scegliere: il piano si svuota tutto. Il verdetto e' `OwnerTeam` per regola, come per i silenzi di [D-349]:
+		// la traccia dell'avversario non riceve le azioni di un piano che non si e' risolto.
+		for (const FRTPlannedAction& Voce : Plan)
+		{
+			const ERTMatchPhase FaseDellaVoce = URTCatalogLibrary::MapResolutionPhase(Voce.Def.ResolutionPhase);
+			FRTCellId Bersaglio = Unit->Cell;
+			if (Voce.Def.Slot == ERTActionSlot::Main)
+			{
+				if (Unit->bHasPlannedAim) { Bersaglio = Unit->PlannedAimCell; }
+				else if (Unit->bAttackTargetsCell) { Bersaglio = Unit->PlannedAttackCell; }
+				else if (IsValid(Unit->PlannedAttackTarget)) { Bersaglio = Unit->PlannedAttackTarget->Cell; }
+			}
+			else if (FaseDellaVoce == ERTMatchPhase::Dash && Unit->PlannedDashAbility != INDEX_NONE)
+			{
+				Bersaglio = Unit->PlannedDashCell;
+			}
+			else if (FaseDellaVoce == ERTMatchPhase::Move)
+			{
+				Bersaglio = Unit->PlannedCell;
+			}
+
+			FRTTurnLogEntry Rifiutata;
+			Rifiutata.Phase = FaseDellaVoce;
+			Rifiutata.Category = ERTLogCategory::Fallback;
+			Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			// La tripla completa, come ogni altro produttore `Fallback` ([D-196]).
+			Rifiutata.ActionId = Voce.Def.ActionId;
+			Rifiutata.BaseActionId = Voce.Def.BaseActionId;
+			Rifiutata.Priority = Voce.Def.Priority;
+			Rifiutata.SrcCell = Unit->Cell;
+			Rifiutata.TgtCell = Bersaglio;
+			Rifiutata.Amount = static_cast<int32>(Verdict.Reason);
+			AppendPlanVerdictEntry(Rifiutata, Unit, Unit->Cell, ERTPlanVerdict::OwnerTeam);
+		}
+
+		// Il piano si svuota DOPO le voci, che leggono bersaglio e celle del piano. Non si paga niente: nessun
+		// resolver vede le voci, quindi nessuno chiama `ConsumeAbility`.
+		Unit->EmptyPlanAtLockIn();
 	}
+}
+
+bool ARTTurnManager::IsPlanRefusedAtLockIn(int32 UnitIndex, const ARTUnit* Unit, FRTPlanValidation& OutVerdict) const
+{
+	OutVerdict = FRTPlanValidation();
+	if (!Unit)
+	{
+		return false;
+	}
+	const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
+	if (Plan.Num() == 0)
+	{
+		return false;
+	}
+	OutVerdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(UnitIndex, Unit), Plan);
+	return !OutVerdict.bLegal
+		&& (OutVerdict.Reason == ERTActionInvalidReason::OnCooldown || OutVerdict.Reason == ERTActionInvalidReason::OverBudget);
 }
 
 void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
