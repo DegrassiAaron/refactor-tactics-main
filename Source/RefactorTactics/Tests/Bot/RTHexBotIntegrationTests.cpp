@@ -80,8 +80,8 @@ namespace
 	bool DeclaredAim(const ARTUnit* Bot, FRTCellId& OutAim)
 	{
 		if (!Bot) { return false; }
-		if (Bot->bAttackTargetsCell) { OutAim = Bot->PlannedAttackCell; return true; }
-		if (Bot->PlannedAttackTarget) { OutAim = Bot->PlannedAttackTarget->Cell; return true; }
+		if (Bot->GetPlan().bAttackTargetsCell) { OutAim = Bot->GetPlan().PlannedAttackCell; return true; }
+		if (Bot->GetPlan().PlannedAttackTarget) { OutAim = Bot->GetPlan().PlannedAttackTarget->Cell; return true; }
 		return false;
 	}
 }
@@ -122,8 +122,8 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	for (ARTUnit* Bot : Bots)
 	{
 		FRTCellId Ignorata;
-		const bool bActs = !(Bot->PlannedCell == Bot->Cell)
-			|| Bot->PlannedDashAbility != INDEX_NONE
+		const bool bActs = !(Bot->GetPlan().PlannedCell == Bot->Cell)
+			|| Bot->GetPlan().PlannedDashAbility != INDEX_NONE
 			|| DeclaredAim(Bot, Ignorata);
 		TestTrue(TEXT("il bot pianifica qualcosa invece di restare immobile"), bActs);
 	}
@@ -131,18 +131,18 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	for (ARTUnit* Bot : Bots)
 	{
 		// Mossa legale sulla griglia ESAGONALE: cella esistente, entro il budget di movimento, non occupata.
-		TestTrue(TEXT("la destinazione esiste nella mappa esagonale"), Map->ContainsCell(Bot->PlannedCell));
+		TestTrue(TEXT("la destinazione esiste nella mappa esagonale"), Map->ContainsCell(Bot->GetPlan().PlannedCell));
 		TestTrue(TEXT("la destinazione e' entro il budget di movimento"),
-			URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedCell) <= Bot->GetEffectiveMoveRange());
+			URTHexLibrary::HexDistance(Bot->Cell, Bot->GetPlan().PlannedCell) <= Bot->GetEffectiveMoveRange());
 
-		if (Bot->PlannedDashAbility != INDEX_NONE)
+		if (Bot->GetPlan().PlannedDashAbility != INDEX_NONE)
 		{
-			const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+			const URTActionData* Dash = Bot->GetAbility(Bot->GetPlan().PlannedDashAbility);
 			TestTrue(TEXT("lo scatto pianificato e' un'abilita' di scatto"),
 				Dash && URTCatalogLibrary::IsFastMovement(Dash->Def));
-			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->PlannedDashCell));
+			TestTrue(TEXT("la cella di scatto esiste nella mappa"), Map->ContainsCell(Bot->GetPlan().PlannedDashCell));
 			TestTrue(TEXT("la cella di scatto e' entro la portata dello scatto"),
-				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
+				Dash && URTHexLibrary::HexDistance(Bot->Cell, Bot->GetPlan().PlannedDashCell) <= Bot->GetEffectiveDashRange(Dash->RangeCells));
 		}
 
 		FRTCellId Mira;
@@ -150,19 +150,19 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 		{
 			// La mira e' su un NEMICO: su un'unita' dichiarata lo si legge da lei, su una cella dichiarata da chi
 			// la occupa — qui i nemici sono visti, quindi la cella conosciuta e' quella vera.
-			bool bSuUnNemico = Bot->PlannedAttackTarget && Bot->PlannedAttackTarget->TeamId != Bot->TeamId;
+			bool bSuUnNemico = Bot->GetPlan().PlannedAttackTarget && Bot->GetPlan().PlannedAttackTarget->TeamId != Bot->TeamId;
 			TArray<AActor*> Tutte;
 			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Tutte);
 			for (const AActor* A : Tutte)
 			{
 				const ARTUnit* U = Cast<ARTUnit>(A);
-				if (Bot->bAttackTargetsCell && U && U->TeamId != Bot->TeamId && U->Cell == Mira) { bSuUnNemico = true; }
+				if (Bot->GetPlan().bAttackTargetsCell && U && U->TeamId != Bot->TeamId && U->Cell == Mira) { bSuUnNemico = true; }
 			}
 			TestTrue(TEXT("il bersaglio e' un nemico"), bSuUnNemico);
 			// L'attacco parte dalla cella in cui il bot si trovera' nel Blast: quella attuale, o quella
 			// post-scatto se ha pianificato uno scatto (il Dash precede il Blast).
-			const FRTCellId FiringCell = Bot->PlannedDashAbility != INDEX_NONE ? Bot->PlannedDashCell : Bot->Cell;
-			const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+			const FRTCellId FiringCell = Bot->GetPlan().PlannedDashAbility != INDEX_NONE ? Bot->GetPlan().PlannedDashCell : Bot->Cell;
+			const URTActionData* Ability = Bot->GetAbility(Bot->GetPlan().PlannedAbilityIndex);
 			TestTrue(TEXT("il bersaglio e' entro la portata dalla cella di tiro"),
 				Ability && URTHexLibrary::HexDistance(FiringCell, Mira) <= Ability->RangeCells);
 		}
@@ -196,11 +196,11 @@ bool FRTHexBotTuningTest::RunTest(const FString&)
 
 	TM->WThreat = 100000; // avanzare espone -> resta lontano
 	TM->PlanBotsForTest();
-	const int32 DistHighThreat = URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell);
+	const int32 DistHighThreat = URTHexLibrary::HexDistance(Bot->GetPlan().PlannedCell, Foe->Cell);
 
 	TM->WThreat = 0;      // la minaccia non conta -> la mischia chiude la distanza
 	TM->PlanBotsForTest();
-	const int32 DistLowThreat = URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell);
+	const int32 DistLowThreat = URTHexLibrary::HexDistance(Bot->GetPlan().PlannedCell, Foe->Cell);
 
 	TestTrue(TEXT("WThreat basso avvicina il Guardian al nemico piu' che WThreat alto"),
 		DistLowThreat < DistHighThreat);
@@ -227,7 +227,7 @@ bool FRTHexBotDashThreatTest::RunTest(const FString&)
 
 	auto Effective = [](const ARTUnit* U) -> FRTCellId
 	{
-		return (U->PlannedDashAbility != INDEX_NONE) ? U->PlannedDashCell : U->PlannedCell;
+		return (U->GetPlan().PlannedDashAbility != INDEX_NONE) ? U->GetPlan().PlannedDashCell : U->GetPlan().PlannedCell;
 	};
 
 	TM->WThreat = 100000; // scattare in una cella esposta deve essere rifiutato
@@ -263,16 +263,16 @@ namespace
 	{
 		TArray<FRTCellId> Out;
 		FRTCellId Mira;
-		if (!DeclaredAim(Bot, Mira) || Bot->PlannedAbilityIndex == INDEX_NONE)
+		if (!DeclaredAim(Bot, Mira) || Bot->GetPlan().PlannedAbilityIndex == INDEX_NONE)
 		{
 			return Out;
 		}
-		const URTActionData* Ability = Bot->GetAbility(Bot->PlannedAbilityIndex);
+		const URTActionData* Ability = Bot->GetAbility(Bot->GetPlan().PlannedAbilityIndex);
 		if (!Ability)
 		{
 			return Out;
 		}
-		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->PlannedCell,
+		return URTHexCombatLibrary::HexHitCells(Ability->Shape, Bot->GetPlan().PlannedCell,
 			Mira, Ability->RangeCells, Ability->AreaRadius);
 	}
 }
@@ -335,10 +335,10 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		// L'asserzione stretta ha retto finche' fra le candidate c'era `Action.Wait` con 30 danni fittizi a
 		// portata 5 (i default legacy di `URTActionData`, che `MakeGenericActions` non sovrascriveva): quella
 		// vinceva sempre ed era un attacco «normale», quindi `PlannedAttackTarget` risultava valorizzato.
-		const bool bChargesTarget = Bot->PlannedDashAbility != INDEX_NONE
-			&& Bot->Abilities.IsValidIndex(Bot->PlannedDashAbility)
-			&& Bot->Abilities[Bot->PlannedDashAbility]
-			&& Bot->Abilities[Bot->PlannedDashAbility]->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+		const bool bChargesTarget = Bot->GetPlan().PlannedDashAbility != INDEX_NONE
+			&& Bot->Abilities.IsValidIndex(Bot->GetPlan().PlannedDashAbility)
+			&& Bot->Abilities[Bot->GetPlan().PlannedDashAbility]
+			&& Bot->Abilities[Bot->GetPlan().PlannedDashAbility]->Def.MovementStyle == ERTMovementStyle::LinearCharge;
 		FRTCellId Mira;
 		TestTrue(TEXT("con il compagno fuori mira il bot offende davvero (attacco o carica)"),
 			DeclaredAim(Bot, Mira) || bChargesTarget);
@@ -430,7 +430,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	// Se il bot non scatta, il test non prova nulla: e' un fallimento dello SCENARIO, non un successo.
 	// Meglio accorgersene subito che scoprire fra sei mesi che questa guardia non guardava niente.
 	if (!TestTrue(TEXT("lo scenario mette davvero in moto uno scatto del bot"),
-		Bot->PlannedDashAbility != INDEX_NONE))
+		Bot->GetPlan().PlannedDashAbility != INDEX_NONE))
 	{
 		DestroyHexBotWorld(World);
 		return false;
@@ -455,18 +455,18 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	const int32 Declared = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
 	const int32 Range = Bot->GetEffectiveDashRange(Declared);
 	const FRTLinearMoveResult Resolved = URTMovementActionLibrary::ResolveLinearMove(
-		Snapshot.Map, Bot->Cell, Bot->PlannedDashCell, Range,
+		Snapshot.Map, Bot->Cell, Bot->GetPlan().PlannedDashCell, Range,
 		DashAb->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 
 	TestTrue(TEXT("lo scatto pianificato dal bot arriva dove il bot lo ha pianificato"),
-		Resolved.Final == Bot->PlannedDashCell);
+		Resolved.Final == Bot->GetPlan().PlannedDashCell);
 
 	// E deve poterlo pianificare LONTANO quanto il resolver lo porterebbe. E' la parte che discrimina: le
 	// candidate nascono da un Dijkstra sui punti movimento, quindi finche' il budget dello scatto vi finiva
 	// dentro come se fossero MP, su acqua (costo 2) il bot non vedeva nulla oltre meta' portata — e nessun
 	// filtro puo' recuperare una candidata che non e' mai nata. Il kiter fugge il piu' lontano possibile:
 	// se la distanza si ferma a portata/costo, la troncatura e' tornata.
-	const int32 Fled = URTHexLibrary::HexDistance(Bot->Cell, Bot->PlannedDashCell);
+	const int32 Fled = URTHexLibrary::HexDistance(Bot->Cell, Bot->GetPlan().PlannedDashCell);
 	AddInfo(FString::Printf(TEXT("fuga di %d celle su portata %d (terreno costo 2)"), Fled, Range));
 	TestTrue(TEXT("la fuga non e' troncata dal costo del terreno"), Fled > Range / 2);
 
@@ -522,10 +522,10 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 
 	TM->PlanBotsForTest();
 
-	const URTActionData* Planned = Hurt->GetAbility(Hurt->PlannedAbilityIndex);
+	const URTActionData* Planned = Hurt->GetAbility(Hurt->GetPlan().PlannedAbilityIndex);
 	TestTrue(TEXT("pianifica l'abilita' che lo rimette in piedi, non una qualunque su di se'"),
 		Planned && Planned->Def.ActionId == FName(TEXT("Test.SelfSupport")));
-	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
+	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->GetPlan().PlannedAttackTarget.Get());
 
 	// 🔴 **E il ramo LASCIA TRACCIA** (`#464`). Senza questa asserzione la riga di log non ha nessun gate:
 	// cancellarla dal planner lascia la suite verde, e il ramo torna a essere invisibile — cioe' allo
@@ -590,7 +590,7 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 	TM->PlanBotsForTest();
 
 	// La fuga puo' avvenire col movimento normale o con lo scatto difensivo: conta il risultato.
-	const FRTCellId Escape = Kiter->PlannedDashAbility != INDEX_NONE ? Kiter->PlannedDashCell : Kiter->PlannedCell;
+	const FRTCellId Escape = Kiter->GetPlan().PlannedDashAbility != INDEX_NONE ? Kiter->GetPlan().PlannedDashCell : Kiter->GetPlan().PlannedCell;
 	TestTrue(TEXT("il kiter si allontana dalla minaccia"),
 		URTHexLibrary::HexDistance(Escape, Melee->Cell) > URTHexLibrary::HexDistance(Kiter->Cell, Melee->Cell));
 
@@ -650,13 +650,13 @@ namespace
 	{
 		FRTBotPlanFingerprint F;
 		if (!Bot) { return F; }
-		F.Cell = Bot->PlannedCell;
-		F.bHasAttackTarget = Bot->PlannedAttackTarget != nullptr;
-		if (Bot->PlannedAttackTarget) { F.AttackTargetCell = Bot->PlannedAttackTarget->Cell; }
-		F.AbilityIndex = Bot->PlannedAbilityIndex;
-		F.DashAbility = Bot->PlannedDashAbility;
-		F.DashCell = Bot->PlannedDashCell;
-		F.ReactionAbility = Bot->PlannedReactionAbility;
+		F.Cell = Bot->GetPlan().PlannedCell;
+		F.bHasAttackTarget = Bot->GetPlan().PlannedAttackTarget != nullptr;
+		if (Bot->GetPlan().PlannedAttackTarget) { F.AttackTargetCell = Bot->GetPlan().PlannedAttackTarget->Cell; }
+		F.AbilityIndex = Bot->GetPlan().PlannedAbilityIndex;
+		F.DashAbility = Bot->GetPlan().PlannedDashAbility;
+		F.DashCell = Bot->GetPlan().PlannedDashCell;
+		F.ReactionAbility = Bot->GetPlan().PlannedReactionAbility;
 		return F;
 	}
 }
@@ -1009,7 +1009,7 @@ bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
 	TM->PlanBotsForTest();
 
 	TestTrue(TEXT("il bot non bersaglia l'unita' che la squadra non conosce, nemmeno se e' un kill facile"),
-		Bot->PlannedAttackTarget != Unknown);
+		Bot->GetPlan().PlannedAttackTarget != Unknown);
 
 	DestroyHexBotWorld(World);
 	return true;
@@ -1054,12 +1054,12 @@ bool FRTHexBotSeeksContactTest::RunTest(const FString&)
 
 	const int32 ToFoeBefore = URTHexLibrary::HexDistance(Bot->Cell, Foe->Cell);
 
-	TestTrue(TEXT("senza contatti il bot si muove invece di restare fermo"), !(Bot->PlannedCell == Bot->Cell));
+	TestTrue(TEXT("senza contatti il bot si muove invece di restare fermo"), !(Bot->GetPlan().PlannedCell == Bot->Cell));
 	TestTrue(TEXT("e si avvicina al centro della mappa"),
-		URTHexLibrary::HexDistance(Bot->PlannedCell, FRTCellId(0, 0)) < Before);
+		URTHexLibrary::HexDistance(Bot->GetPlan().PlannedCell, FRTCellId(0, 0)) < Before);
 	// Il discriminante: un bot che vedesse il nemico si avvicinerebbe a LUI, non al centro.
 	TestTrue(TEXT("e NON si avvicina al nemico che non conosce"),
-		URTHexLibrary::HexDistance(Bot->PlannedCell, Foe->Cell) >= ToFoeBefore);
+		URTHexLibrary::HexDistance(Bot->GetPlan().PlannedCell, Foe->Cell) >= ToFoeBefore);
 
 	DestroyHexBotWorld(World);
 	return true;
@@ -1139,12 +1139,12 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 	// sarebbe congelata sulla posizione VERA, fuori portata: il piano nato in portata dal ricordo moriva
 	// «fuori portata». Misurato sull'arena generata, e il motivo per cui (1a) non e' solo igiene.*
 	TestTrue(TEXT("il bot agisce sul contatto ricordato invece di ignorarlo: dichiara un attacco a cella"),
-		Bot->bAttackTargetsCell);
-	TestEqual(TEXT("e la cella e' il RICORDO, non la posizione vera"), Bot->PlannedAttackCell, Remembered);
+		Bot->GetPlan().bAttackTargetsCell);
+	TestEqual(TEXT("e la cella e' il RICORDO, non la posizione vera"), Bot->GetPlan().PlannedAttackCell, Remembered);
 
 	// E non lo insegue dove si trova davvero: se lo facesse, si muoverebbe verso la cella vera.
 	TestTrue(TEXT("e non si avvicina alla posizione vera, che non conosce"),
-		URTHexLibrary::HexDistance(Bot->PlannedCell, Truth)
+		URTHexLibrary::HexDistance(Bot->GetPlan().PlannedCell, Truth)
 			>= URTHexLibrary::HexDistance(Bot->Cell, Truth));
 
 	DestroyHexBotWorld(World);
@@ -1192,19 +1192,19 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 	}
 
 	TestEqual(TEXT("prima della pianificazione lo slot e' vuoto"),
-		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE));
+		Bot->GetPlan().PlannedReactionAbility, static_cast<int32>(INDEX_NONE));
 
 	TM->PlanBotsForTest();
 
 	if (!TestNotEqual(TEXT("il bot ha armato la sua reazione"),
-		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE)))
+		Bot->GetPlan().PlannedReactionAbility, static_cast<int32>(INDEX_NONE)))
 	{
 		DestroyHexBotWorld(World);
 		return false;
 	}
 
 	// E ha armato una REAZIONE, non un'azione qualunque finita nello slot sbagliato.
-	const URTActionData* Armata = Bot->GetAbility(Bot->PlannedReactionAbility);
+	const URTActionData* Armata = Bot->GetAbility(Bot->GetPlan().PlannedReactionAbility);
 	TestTrue(TEXT("ed e' davvero una reazione"),
 		Armata != nullptr && Armata->Def.Slot == ERTActionSlot::Reaction);
 
@@ -1259,12 +1259,12 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	TM->PlanBotsForTest();
 
 	// --- 1. Il bot ha scelto una CARICA, e l'ha scelta da solo -------------------------------------
-	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->GetPlan().PlannedDashAbility != INDEX_NONE))
 	{
 		DestroyHexBotWorld(World);
 		return false;
 	}
-	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	const URTActionData* Dash = Bot->GetAbility(Bot->GetPlan().PlannedDashAbility);
 	if (!TestTrue(TEXT("ed e' una carica, non uno scatto qualunque"),
 		Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
 	{
@@ -1272,7 +1272,7 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 		return false;
 	}
 	// Una carica punta la cella OCCUPATA dal bersaglio: e' la differenza fra caricare e riposizionarsi.
-	TestEqual(TEXT("e punta la cella del nemico"), Bot->PlannedDashCell, FRTCellId(2, 0));
+	TestEqual(TEXT("e punta la cella del nemico"), Bot->GetPlan().PlannedDashCell, FRTCellId(2, 0));
 
 	// --- 2. Il turno viene RISOLTO, non solo pianificato -------------------------------------------
 	TM->LockInAndResolve();
@@ -1332,18 +1332,18 @@ bool FRTHexBotChargeOffAxesTest::RunTest(const FString&)
 
 	TM->PlanBotsForTest();
 
-	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->GetPlan().PlannedDashAbility != INDEX_NONE))
 	{
 		DestroyHexBotWorld(World);
 		return false;
 	}
-	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	const URTActionData* Dash = Bot->GetAbility(Bot->GetPlan().PlannedDashAbility);
 	if (!TestTrue(TEXT("ed e' una carica"), Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
 	{
 		DestroyHexBotWorld(World);
 		return false;
 	}
-	TestEqual(TEXT("punta la cella del nemico fuori asse"), Bot->PlannedDashCell, FRTCellId(2, 1));
+	TestEqual(TEXT("punta la cella del nemico fuori asse"), Bot->GetPlan().PlannedDashCell, FRTCellId(2, 1));
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -1643,9 +1643,9 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	// --- Caso 1: entrambe pronte -> vince il KIT ------------------------------------------------------
 	TM->PlanBotsForTest();
 	AddInfo(FString::Printf(TEXT("kit pronto -> armato indice %d (kit=%d modulo=%d)"),
-		Bot->PlannedReactionAbility, IdxKit, IdxModulo));
+		Bot->GetPlan().PlannedReactionAbility, IdxKit, IdxModulo));
 	TestEqual(TEXT("con entrambe pronte il bot arma la reazione di KIT"),
-		Bot->PlannedReactionAbility, IdxKit);
+		Bot->GetPlan().PlannedReactionAbility, IdxKit);
 
 	// --- Caso 2: il kit in ricarica -> ripiega sul MODULO ---------------------------------------------
 	// Si brucia la reazione di kit come fa il resolver quando scatta, invece di scrivere il cooldown a mano:
@@ -1664,9 +1664,9 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	}
 
 	TM->PlanBotsForTest();
-	AddInfo(FString::Printf(TEXT("kit in ricarica -> armato indice %d"), Bot->PlannedReactionAbility));
+	AddInfo(FString::Printf(TEXT("kit in ricarica -> armato indice %d"), Bot->GetPlan().PlannedReactionAbility));
 	TestEqual(TEXT("con il kit in ricarica il bot ripiega sul MODULO di loadout"),
-		Bot->PlannedReactionAbility, IdxModulo);
+		Bot->GetPlan().PlannedReactionAbility, IdxModulo);
 
 	DestroyHexBotWorld(World);
 	return true;
@@ -1681,7 +1681,7 @@ namespace
 	/** Vero se il piano principale dell'unita' e' una predittiva (`PredictiveTargeting != None`). */
 	bool BotPlansAPredictive(const ARTUnit* Unit)
 	{
-		const URTActionData* A = Unit ? Unit->GetAbility(Unit->PlannedAbilityIndex) : nullptr;
+		const URTActionData* A = Unit ? Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex) : nullptr;
 		return A && A->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
 	}
 }
@@ -1761,7 +1761,7 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 			for (const ARTUnit* Bot : Bots)
 			{
 				if (!Bot || !Bot->IsAlive()) { continue; }
-				if (Bot->HeroId == FName(TEXT("Hero.Ivrin")) && Bot->GetAbility(Bot->PlannedAbilityIndex)) { ++PianiIvrin; }
+				if (Bot->HeroId == FName(TEXT("Hero.Ivrin")) && Bot->GetAbility(Bot->GetPlan().PlannedAbilityIndex)) { ++PianiIvrin; }
 				if (BotPlansAPredictive(Bot)) { ++PianiPredittivi; }
 			}
 			TM->LockInAndResolve();
@@ -1816,7 +1816,7 @@ bool FRTHexBotDoesNotPlanAPredictiveTest::RunTest(const FString&)
 		Ivrin->Abilities[0] = Copia;
 
 		TM->PlanBotsForTest();
-		OutSlot = Ivrin->PlannedAbilityIndex;
+		OutSlot = Ivrin->GetPlan().PlannedAbilityIndex;
 		bOutPredittiva = BotPlansAPredictive(Ivrin);
 		AddInfo(FString::Printf(TEXT("scena %s: slot pianificato %d (%s)"), bPredittiva ? TEXT("predittiva") : TEXT("controllo"),
 			OutSlot, Ivrin->GetAbility(OutSlot) ? *Ivrin->GetAbility(OutSlot)->Def.ActionId.ToString() : TEXT("nessuna")));

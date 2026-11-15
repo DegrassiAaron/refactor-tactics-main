@@ -572,8 +572,8 @@ bool FRTReplayAuditChargeIsAChoiceTest::RunTest(const FString&)
 	// Il percorso dell'harness, non quello del timer: e' meta' del difetto.
 	TM->PlanBotsForTest();
 
-	const URTActionData* Dash = Bot->PlannedDashAbility != INDEX_NONE
-		? Bot->GetAbility(Bot->PlannedDashAbility) : nullptr;
+	const URTActionData* Dash = Bot->GetPlan().PlannedDashAbility != INDEX_NONE
+		? Bot->GetAbility(Bot->GetPlan().PlannedDashAbility) : nullptr;
 	if (!TestTrue(TEXT("il bot ha scelto una CARICA da solo"),
 			Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
 	{
@@ -583,7 +583,7 @@ bool FRTReplayAuditChargeIsAChoiceTest::RunTest(const FString&)
 	}
 	// 🔑 E la carica NON passa da `PlannedAttackTarget`: e' l'altra meta' del difetto, dichiarata invece
 	// che assunta. Se un giorno cambiasse, questa riga lo direbbe subito.
-	TestNull(TEXT("e una carica non scrive PlannedAttackTarget"), Bot->PlannedAttackTarget.Get());
+	TestNull(TEXT("e una carica non scrive PlannedAttackTarget"), Bot->GetPlan().PlannedAttackTarget.Get());
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }

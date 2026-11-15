@@ -122,10 +122,10 @@ namespace
 		FRTPlanSlots S;
 		if (U)
 		{
-			S.Main = U->PlannedAbilityIndex;
-			S.bHasTarget = (U->PlannedAttackTarget != nullptr);
-			S.Dash = U->PlannedDashAbility;
-			S.Reaction = U->PlannedReactionAbility;
+			S.Main = U->GetPlan().PlannedAbilityIndex;
+			S.bHasTarget = (U->GetPlan().PlannedAttackTarget != nullptr);
+			S.Dash = U->GetPlan().PlannedDashAbility;
+			S.Reaction = U->GetPlan().PlannedReactionAbility;
 		}
 		return S;
 	}
@@ -204,7 +204,7 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	// rifiuta di crearne una orfana all'ingresso; se il reset non la togliesse, la stessa cosa entrerebbe
 	// dalla porta di servizio.
 	TestFalse(TEXT("la condizione della reazione non sopravvive"),
-		Attacker->PlannedReactionCondition.IsDeclared());
+		Attacker->GetPlan().PlannedReactionCondition.IsDeclared());
 
 	// 🔴 **E l'ARMAMENTO torna al neutro, per [D-397] §5.** Non e' parte del piano — `SelectedAbilityIndex`
 	// dice *«cosa sto per fare»*, non *«cosa ho dichiarato»* — ma muore nello stesso punto e per la stessa
@@ -221,9 +221,9 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	// Il movimento si riallinea da solo (`PlaceOnCell`): qui si verifica che sia davvero cosi', perche' e'
 	// la meta' dell'invariante che nessuno aveva mai controllato.
 	TestEqual(TEXT("la destinazione pianificata coincide con la cella raggiunta"),
-		Attacker->PlannedCell, Attacker->Cell);
-	TestEqual(TEXT("il percorso composito e' consumato"), Attacker->PlannedPath.Num(), 0);
-	TestEqual(TEXT("i waypoint sono consumati"), Attacker->PlannedWaypoints.Num(), 0);
+		Attacker->GetPlan().PlannedCell, Attacker->Cell);
+	TestEqual(TEXT("il percorso composito e' consumato"), Attacker->GetPlan().PlannedPath.Num(), 0);
+	TestEqual(TEXT("i waypoint sono consumati"), Attacker->GetPlan().PlannedWaypoints.Num(), 0);
 
 	DestroyPlanWorld(World);
 	return true;
@@ -261,7 +261,7 @@ bool FRTSneakDoesNotSurviveTheTurnTest::RunTest(const FString&)
 	Fermo->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSneak);
 	Fermo->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, { FRTCellId(-2, 0, 0), FRTCellId(-1, 0, 0) });
 	const FRTCellId Partenza = Fermo->Cell;
-	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), Fermo->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
+	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), Fermo->GetPlan().PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
 		|| !TestEqual(TEXT("premessa: la memoria del troncamento c'e'"), Fermo->WaypointsTenutiDalTetto, 0))
 	{
 		DestroyPlanWorld(World);
@@ -278,11 +278,11 @@ bool FRTSneakDoesNotSurviveTheTurnTest::RunTest(const FString&)
 		DestroyPlanWorld(World);
 		return false;
 	}
-	TestEqual(TEXT("lo Sneak non sopravvive al turno"), Fermo->PlannedMovementProfileId, NAME_None);
+	TestEqual(TEXT("lo Sneak non sopravvive al turno"), Fermo->GetPlan().PlannedMovementProfileId, NAME_None);
 	TestEqual(TEXT("ne' la memoria del troncamento"), Fermo->WaypointsTenutiDalTetto, static_cast<int32>(INDEX_NONE));
 	TestFalse(TEXT("e il ritiro dello Sneak al turno dopo non ripristina waypoint"),
 		Fermo->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak));
-	TestEqual(TEXT("il piano del turno dopo resta senza waypoint"), Fermo->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("il piano del turno dopo resta senza waypoint"), Fermo->GetPlan().PlannedWaypoints.Num(), 0);
 
 	DestroyPlanWorld(World);
 	return true;

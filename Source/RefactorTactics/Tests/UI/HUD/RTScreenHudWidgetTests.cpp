@@ -1584,7 +1584,8 @@ bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("premessa: %s ha %s nel kit"), HeroId, ActionId), Indice != INDEX_NONE);
 		if (Unit)
 		{
-			(bReazione ? Unit->PlannedReactionAbility : Unit->PlannedAbilityIndex) = Indice;
+			// [D-608] tappa 3: dai mutatori. Il ternario scriveva il piano per riferimento, e il cancello del testo non lo vedeva.
+			if (bReazione) { Unit->SetPlannedReaction(Indice); } else { Unit->SetPlannedMainAction(Indice); }
 		}
 		return Unit;
 	};

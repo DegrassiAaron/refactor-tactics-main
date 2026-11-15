@@ -634,11 +634,11 @@ bool FRTSneakBadgeParityTest::RunTest(const FString&)
 
 	// A. il click dichiara
 	Dock->ToggleSneak();
-	TestEqual(TEXT("A: il click sul badge dichiara Sneak"), Unit->PlannedMovementProfileId, Sneak);
+	TestEqual(TEXT("A: il click sul badge dichiara Sneak"), Unit->GetPlan().PlannedMovementProfileId, Sneak);
 
 	// B. il tasto ritira la STESSA dichiarazione: le due strade sono un interruttore solo
 	PC->ToggleSneakForTest();
-	TestTrue(TEXT("B: il tasto M ritira cio' che il click ha dichiarato"), Unit->PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("B: il tasto M ritira cio' che il click ha dichiarato"), Unit->GetPlan().PlannedMovementProfileId.IsNone());
 
 	// C. la riserva di Overwatch rifiuta il click come rifiuta il tasto
 	int32 OverwatchIdx = INDEX_NONE;
@@ -651,16 +651,16 @@ bool FRTSneakBadgeParityTest::RunTest(const FString&)
 	{
 		Unit->SetPlannedMainAction(OverwatchIdx);
 		Dock->ToggleSneak();
-		TestTrue(TEXT("C: con lo slot riservato il click non dichiara"), Unit->PlannedMovementProfileId.IsNone());
+		TestTrue(TEXT("C: con lo slot riservato il click non dichiara"), Unit->GetPlan().PlannedMovementProfileId.IsNone());
 		PC->ToggleSneakForTest();
-		TestTrue(TEXT("C: ed e' lo stesso rifiuto del tasto"), Unit->PlannedMovementProfileId.IsNone());
+		TestTrue(TEXT("C: ed e' lo stesso rifiuto del tasto"), Unit->GetPlan().PlannedMovementProfileId.IsNone());
 		Unit->ClearPlannedMainAction();
 	}
 
 	// D. senza controller il badge non fa nulla e non crolla
 	URTActionDockWidget* Orfano = NewObject<URTActionDockWidget>(World);
 	Orfano->ToggleSneak();
-	TestTrue(TEXT("D: senza controller nessuna dichiarazione"), Unit->PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("D: senza controller nessuna dichiarazione"), Unit->GetPlan().PlannedMovementProfileId.IsNone());
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -713,10 +713,10 @@ bool FRTPlanCommitParityTest::RunTest(const FString&)
 	const TArray<FRTCellId> Piano = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
 	FRTUnitPlanTestAccess::SetWaypoints(*Unit, Piano);
 	W->Undo();
-	const TArray<FRTCellId> DopoIlPulsante = Unit->PlannedWaypoints;
+	const TArray<FRTCellId> DopoIlPulsante = Unit->GetPlan().PlannedWaypoints;
 	FRTUnitPlanTestAccess::SetWaypoints(*Unit, Piano);
 	PC->OnUndoWaypointForTest();
-	const TArray<FRTCellId> DopoIlTasto = Unit->PlannedWaypoints;
+	const TArray<FRTCellId> DopoIlTasto = Unit->GetPlan().PlannedWaypoints;
 	TestTrue(TEXT("C: premessa — il Back ha smontato qualcosa"), DopoIlPulsante.Num() < Piano.Num());
 	TestTrue(TEXT("C: pulsante e tasto lasciano lo stesso piano"), DopoIlPulsante == DopoIlTasto);
 

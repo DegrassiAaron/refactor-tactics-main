@@ -224,9 +224,10 @@ bool FRTResolutionSamePhaseOrderIsDeterministic::RunTest(const FString&)
 	TestFalse(TEXT("limite di oggi: due principali nella stessa fase non passano il validatore"), Verdict.bLegal);
 	TestEqual(TEXT("e il motivo e' lo slot, non il budget (2 + 2 = 4 <= 6)"), Verdict.Reason, ERTActionInvalidReason::SlotOccupied);
 
-	// E l'unita' porta UN indice di abilita' principale pianificata, non una lista: e' il campo che la lista sostituira'.
-	const FProperty* Planned = ARTUnit::StaticClass()->FindPropertyByName(TEXT("PlannedAbilityIndex"));
-	TestNotNull(TEXT("ARTUnit::PlannedAbilityIndex esiste"), Planned);
+	// E il piano dell'unita' porta UN indice di abilita' principale, non una lista: e' il campo che la lista sostituira'.
+	// Dalla tappa 3 di [D-608] (#4123) il piano e' `FRTUnitPlan`, e il campo si cerca li'.
+	const FProperty* Planned = FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedAbilityIndex"));
+	TestNotNull(TEXT("FRTUnitPlan::PlannedAbilityIndex esiste"), Planned);
 	TestTrue(TEXT("ed e' un intero (un'azione per fase), non un array"), Planned && Planned->IsA<FIntProperty>());
 	return true;
 }
@@ -244,8 +245,8 @@ bool FRTResolutionSameTriggerReactionOrderIsDeterministic::RunTest(const FString
 	TestFalse(TEXT("limite di oggi: due reazioni non passano il validatore"), Verdict.bLegal);
 	TestEqual(TEXT("per slot, non per budget (2 + 2 = 4 <= 6)"), Verdict.Reason, ERTActionInvalidReason::SlotOccupied);
 
-	const FProperty* Reaction = ARTUnit::StaticClass()->FindPropertyByName(TEXT("PlannedReactionAbility"));
-	TestNotNull(TEXT("ARTUnit::PlannedReactionAbility esiste"), Reaction);
+	const FProperty* Reaction = FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedReactionAbility"));
+	TestNotNull(TEXT("FRTUnitPlan::PlannedReactionAbility esiste"), Reaction);
 	TestTrue(TEXT("ed e' un intero (una reazione armata), non una lista"), Reaction && Reaction->IsA<FIntProperty>());
 	return true;
 }
@@ -262,9 +263,9 @@ bool FRTTurnLogPlanIsAListNotThreeSlots::RunTest(const FString&)
 	const TCHAR* const TreCampi[] = { TEXT("PlannedAbilityIndex"), TEXT("PlannedDashAbility"), TEXT("PlannedReactionAbility") };
 	for (const TCHAR* Nome : TreCampi)
 	{
-		const FProperty* P = ARTUnit::StaticClass()->FindPropertyByName(Nome);
-		TestNotNull(*FString::Printf(TEXT("ARTUnit::%s esiste"), Nome), P);
-		TestTrue(*FString::Printf(TEXT("ARTUnit::%s e' un indice, non una lista"), Nome), P && P->IsA<FIntProperty>());
+		const FProperty* P = FRTUnitPlan::StaticStruct()->FindPropertyByName(Nome);
+		TestNotNull(*FString::Printf(TEXT("FRTUnitPlan::%s esiste"), Nome), P);
+		TestTrue(*FString::Printf(TEXT("FRTUnitPlan::%s e' un indice, non una lista"), Nome), P && P->IsA<FIntProperty>());
 	}
 
 	// La voce del piano porta il costo: e' il campo che il TurnLog e lo snapshot leggeranno quando il piano sara' una lista.
@@ -273,7 +274,7 @@ bool FRTTurnLogPlanIsAListNotThreeSlots::RunTest(const FString&)
 	TestTrue(TEXT("ed e' un intero"), Costo && Costo->IsA<FIntProperty>());
 
 	// Controllo positivo del metodo: un nome inventato non si trova (la reflection non risponde sempre si').
-	TestNull(TEXT("controllo: un campo inventato non esiste"), ARTUnit::StaticClass()->FindPropertyByName(TEXT("PlannedActionsList")));
+	TestNull(TEXT("controllo: un campo inventato non esiste"), FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedActionsList")));
 	return true;
 }
 

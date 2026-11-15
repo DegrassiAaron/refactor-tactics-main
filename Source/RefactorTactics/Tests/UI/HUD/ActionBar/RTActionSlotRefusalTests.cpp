@@ -318,7 +318,7 @@ bool FRTSlotRefusalDegradedPlanTest::RunTest(const FString&)
 	B.PC->HandleClickOnUnitForTest(B.Nemico);
 	if (!TestNotNull(TEXT("premessa: l'attacco esiste"), Attacco)
 		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"),
-			B.Mine->PlannedAttackTarget == B.Nemico && B.Mine->PlannedAbilityIndex == GSlotRefusalAttacco)
+			B.Mine->GetPlan().PlannedAttackTarget == B.Nemico && B.Mine->GetPlan().PlannedAbilityIndex == GSlotRefusalAttacco)
 		|| !SlotRefusalGeometryHolds(*this, B, Attacco))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
@@ -499,7 +499,7 @@ bool FRTSlotRefusalTooltipPrivacyTest::RunTest(const FString&)
 	B.PC->HandleClickOnUnitForTest(B.Nemico);
 	if (!TestNotNull(TEXT("premessa: l'attacco esiste"), Attacco)
 		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"),
-			B.Mine->PlannedAttackTarget == B.Nemico && B.Mine->PlannedAbilityIndex == GSlotRefusalAttacco)
+			B.Mine->GetPlan().PlannedAttackTarget == B.Nemico && B.Mine->GetPlan().PlannedAbilityIndex == GSlotRefusalAttacco)
 		|| !SlotRefusalGeometryHolds(*this, B, Attacco))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
@@ -574,7 +574,7 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 	B.PC->ArmKitAbility(GSlotRefusalAttacco);
 	B.PC->HandleClickOnUnitForTest(B.Nemico);
 	if (!TestNotNull(TEXT("premessa: l'attacco esiste"), Attacco)
-		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"), B.Mine->PlannedAttackTarget == B.Nemico)
+		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"), B.Mine->GetPlan().PlannedAttackTarget == B.Nemico)
 		|| !SlotRefusalGeometryHolds(*this, B, Attacco))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);

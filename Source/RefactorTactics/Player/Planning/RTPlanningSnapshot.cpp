@@ -48,7 +48,7 @@ bool RTPlanningSnapshot::For(const UObject* WorldContext, const ARTUnit* Unit, F
 	if (OutSnapshot.Units.IsValidIndex(OutUnitId))
 	{
 		const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
-			Unit->PlannedMovementProfileId,
+			Unit->GetPlan().PlannedMovementProfileId,
 			URTMovementProfileLibrary::ReservedProfileForPlan(
 				URTPlanValidationLibrary::MakePlanFor(Unit)),
 			Unit->HasStatus(TAG_Status_Unbalanced));

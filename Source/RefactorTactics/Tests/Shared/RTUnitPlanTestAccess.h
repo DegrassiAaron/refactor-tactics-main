@@ -14,37 +14,37 @@
  * 🔑 **Ogni funzione scrive UN campo, e solo quello**: e' l'assegnazione che sostituisce, nient'altro. Un'operazione con
  * un significato (armare, dichiarare, ritirare) non sta qui: sta in `ARTUnit`, accanto alle altre.
  *
- * 🔑 **Perche' esiste**: quando lo struct `FRTUnitPlan` rendera' i campi privati ([D-608], tappa 3), cambieranno `ARTUnit`
- * e questo file, non i test che lo chiamano. E' l'unico file dei test che `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`
+ * 🔑 **Perche' esiste**: da quando lo struct `FRTUnitPlan` ha reso i campi privati ([D-608], tappa 3, #4123) e' `friend`
+ * di `ARTUnit` e scrive `Unit.Plan`; i test che lo chiamano non sono cambiati. E' l'unico file dei test che `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`
  * lascia fuori dal perimetro, per nome.
  *
- * Una `struct` con funzioni statiche e non un namespace: alla tappa 3 diventa `friend` di `ARTUnit` con una riga.
+ * Una `struct` con funzioni statiche e non un namespace: e' `friend` di `ARTUnit` con una riga (tappa 3).
  */
 struct FRTUnitPlanTestAccess
 {
 	/** Il percorso, cosi' com'e': la cella d'arrivo non si tocca (`SetPlannedRoute` la ricaverebbe). */
-	static void SetPath(ARTUnit& Unit, const TArray<FRTCellId>& Path) { Unit.PlannedPath = Path; }
-	static void ResetPath(ARTUnit& Unit) { Unit.PlannedPath.Reset(); }
-	static void AddPathCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.PlannedPath.Add(Cell); }
+	static void SetPath(ARTUnit& Unit, const TArray<FRTCellId>& Path) { Unit.Plan.PlannedPath = Path; }
+	static void ResetPath(ARTUnit& Unit) { Unit.Plan.PlannedPath.Reset(); }
+	static void AddPathCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedPath.Add(Cell); }
 
 	/** I waypoint, senza toccare il percorso (`ClearPlannedRoute` li azzererebbe insieme). */
-	static void SetWaypoints(ARTUnit& Unit, const TArray<FRTCellId>& Waypoints) { Unit.PlannedWaypoints = Waypoints; }
-	static void ResetWaypoints(ARTUnit& Unit) { Unit.PlannedWaypoints.Reset(); }
+	static void SetWaypoints(ARTUnit& Unit, const TArray<FRTCellId>& Waypoints) { Unit.Plan.PlannedWaypoints = Waypoints; }
+	static void ResetWaypoints(ARTUnit& Unit) { Unit.Plan.PlannedWaypoints.Reset(); }
 
 	/** Una sola meta' dello scatto (`SetPlannedDash` le scrive insieme). */
-	static void SetDashAbility(ARTUnit& Unit, int32 AbilityIndex) { Unit.PlannedDashAbility = AbilityIndex; }
-	static void SetDashCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.PlannedDashCell = Cell; }
+	static void SetDashAbility(ARTUnit& Unit, int32 AbilityIndex) { Unit.Plan.PlannedDashAbility = AbilityIndex; }
+	static void SetDashCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedDashCell = Cell; }
 
 	/** Una sola meta' della mira a cella (`DeclareAttackOnCell` ritira anche il bersaglio-unita'). */
-	static void SetAttackCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.PlannedAttackCell = Cell; }
-	static void SetAttackTargetsCell(ARTUnit& Unit, bool bTargetsCell) { Unit.bAttackTargetsCell = bTargetsCell; }
+	static void SetAttackCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedAttackCell = Cell; }
+	static void SetAttackTargetsCell(ARTUnit& Unit, bool bTargetsCell) { Unit.Plan.bAttackTargetsCell = bTargetsCell; }
 
 	/** Una sola meta' del bordo dichiarato (`DeclarePlannedCoverEdge` le scrive insieme). */
-	static void SetCoverEdge(ARTUnit& Unit, ERTHexDirection Edge) { Unit.PlannedCoverEdge = Edge; }
-	static void SetHasCoverEdge(ARTUnit& Unit, bool bHasEdge) { Unit.bHasPlannedCoverEdge = bHasEdge; }
+	static void SetCoverEdge(ARTUnit& Unit, ERTHexDirection Edge) { Unit.Plan.PlannedCoverEdge = Edge; }
+	static void SetHasCoverEdge(ARTUnit& Unit, bool bHasEdge) { Unit.Plan.bHasPlannedCoverEdge = bHasEdge; }
 
 	/** Il solo segno del verso dichiarato (`DeclarePlannedFacing` scrive anche il verso). */
-	static void SetDeclaresFacing(ARTUnit& Unit, bool bDeclares) { Unit.bDeclaresPlannedFacing = bDeclares; }
+	static void SetDeclaresFacing(ARTUnit& Unit, bool bDeclares) { Unit.Plan.bDeclaresPlannedFacing = bDeclares; }
 
 	/** Il segno per il Back, da solo (`DeclarePlannedMainAction` lo scrive insieme all'indice). */
 	static void SetWaypointsAllaDichiarazione(ARTUnit& Unit, int32 Count) { Unit.WaypointsAllaDichiarazione = Count; }

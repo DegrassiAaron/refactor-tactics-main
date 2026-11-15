@@ -6,6 +6,7 @@
 #include "Core/RTTypes.h"
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
 #include "Turn/Actions/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
+#include "Turn/RTUnitPlan.h" // [D-608] tappa 3: il piano del turno e' un membro per valore
 #include "Turn/Resolution/RTMovementActionLibrary.h" // FRTChargeRun: dove si ferma la carica pianificata ([D-528]) e' un membro per valore
 #include "Selection/RTSelectable.h"
 #include "Map/Actor/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
@@ -182,10 +183,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	ERTHexDirection Facing = ERTHexDirection::E;
 
-	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Unit")
-	FRTCellId PlannedCell;
+	/**
+	 * Il piano del turno, **solo l'intento** ([D-608] (4); E50 fetta 2, tappa 3, #4123): cella, percorso, waypoint,
+	 * principale e bersaglio, scatto, reazione con la condizione, bordo, verso, profilo, priorita' del Cleanse.
+	 *
+	 * 🔒 **Si legge da qui e si scrive solo dai mutatori di `ARTUnit`.** Il `const&` lo fa valere il compilatore, non
+	 * piu' soltanto `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`. Fuori dallo struct restano, in `ARTUnit`, la mira
+	 * congelata (va nella copia al lock-in, tappa 4), la cache della carica (derivata) e la memoria del Back (va nella
+	 * sessione di pianificazione, S6).
+	 */
+	const FRTUnitPlan& GetPlan() const { return Plan; }
 
+private:
+	/** L'unico accesso in scrittura fuori dai mutatori: gli stati che nessun mutatore produce, per i test (#4076). */
+	friend struct FRTUnitPlanTestAccess;
+
+	/** Il piano in modifica. Privato: vedi `GetPlan()`. */
+	UPROPERTY()
+	FRTUnitPlan Plan;
+
+public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 MaxHealth = 1000;
 
@@ -342,25 +359,6 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 SelectedAbilityIndex = INDEX_NONE;
 
-	/** Abilita' pianificata per il turno (INDEX_NONE = nessun attacco). */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
-	int32 PlannedAbilityIndex = INDEX_NONE;
-
-	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Combat")
-	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
-
-	/**
-	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
-	 * su una CELLA, che puo' essere vuota (`Gadget.Overload` su un varco, una cella conduttiva senza nessuno
-	 * sopra). Valida solo con `bAttackTargetsCell`.
-	 *
-	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
-	 * bersaglio-cella. Resta scoperto il lato HUD — puntare una cella col mouse e' E11.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
-	FRTCellId PlannedAttackCell;
-
 	/**
 	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
@@ -375,41 +373,6 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
 	FName ActiveVariantId;
-
-	/**
-	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
-	 *
-	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
-	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
-	 * catalogo azioni dichiara 3. E' l'equivalente per i bordi di `PlannedAttackCell`, e come quello resta
-	 * scoperto sul lato HUD: puntare un bordo col mouse e' E11.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
-	ERTHexDirection PlannedCoverEdge = ERTHexDirection::E;
-
-	/**
-	 * Vero se il piano dichiara `PlannedCoverEdge`. Serve un flag e non basta un valore di riposo: le sei
-	 * direzioni sono tutte legittime, quindi nessuna puo' fare da «nessuna» senza diventare un caso speciale
-	 * che il giocatore non puo' dedurre.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
-	bool bHasPlannedCoverEdge = false;
-
-	/**
-	 * Vero se l'azione principale mira a `PlannedAttackCell` invece che a un'unita'.
-	 *
-	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'
-	 * **bersaglio perso** (eliminato o mai valido), che degrada al fallback. Senza distinguerle, mirare a una
-	 * cella verrebbe letto come un errore di pianificazione.
-	 *
-	 * ⛔ **NON scriverlo a mano dal codice di gioco: usa `DeclareAttackOnCell` / `DeclareAttackOnUnit` /
-	 * `ClearPlannedAttack`** (`#2884`). Questo campo e `PlannedAttackTarget` sono **mutuamente esclusivi**, e
-	 * finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha rispettata:
-	 * `HandleTargetCell` accendeva il flag e `HandleClickOnUnit` scriveva il bersaglio **senza spegnerlo**.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
-	bool bAttackTargetsCell = false;
 
 	/**
 	 * ## 🔴 I due bersagli dell'azione principale sono ESCLUSIVI, e queste tre funzioni sono il posto in cui
@@ -428,30 +391,30 @@ public:
 	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
 	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
 	 *
-	 * ⚠️ I campi restano pubblici: renderli privati e' la tappa dello struct `FRTUnitPlan` (E50, [D-608]). La garanzia e'
-	 * quindi che il modulo **passi di qui**, test compresi da #4076: la pinnano `Plan.MindChangeRetiresTheOtherTarget` e
+	 * 🔒 I campi sono privati dalla tappa 3 di [D-608] (#4123): fuori da `ARTUnit` il piano si legge da `GetPlan()`, che e'
+	 * `const`, quindi il modulo **passa di qui** per costruzione. Lo pinnano anche `Plan.MindChangeRetiresTheOtherTarget` e
 	 * `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
 	 */
 	void DeclareAttackOnUnit(ARTUnit* Target)
 	{
-		PlannedAttackTarget = Target;
-		bAttackTargetsCell = false; // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
+		Plan.PlannedAttackTarget = Target;
+		Plan.bAttackTargetsCell = false; // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
 	}
 
 	// ⚠️ Il parametro NON si chiama `Cell`: quello e' un membro di `ARTUnit` — la cella su cui l'unita' sta —
 	// e ombreggiarlo qui e' un errore di compilazione (`C4458` come warning-as-error).
 	void DeclareAttackOnCell(const FRTCellId& TargetCell)
 	{
-		PlannedAttackCell = TargetCell;
-		bAttackTargetsCell = true;
-		PlannedAttackTarget = nullptr; // un target-unita' residuo verrebbe letto dal fallback come «perso»
+		Plan.PlannedAttackCell = TargetCell;
+		Plan.bAttackTargetsCell = true;
+		Plan.PlannedAttackTarget = nullptr; // un target-unita' residuo verrebbe letto dal fallback come «perso»
 	}
 
 	/** Nessun bersaglio dichiarato per l'azione principale: si spengono ENTRAMBE le forme. */
 	void ClearPlannedAttack()
 	{
-		PlannedAttackTarget = nullptr;
-		bAttackTargetsCell = false;
+		Plan.PlannedAttackTarget = nullptr;
+		Plan.bAttackTargetsCell = false;
 		bHasPlannedAim = false;   // [D-415]: la mira congelata muore col piano che la conteneva
 	}
 
@@ -463,10 +426,11 @@ public:
 	// (controller, harness degli scenari, applicazione del piano del bot) e chi lo consuma (i resolver) passano di
 	// qui; prima scrivevano i campi a mano.
 	//
-	// ⚠️ **I campi restano pubblici**: spostarli e' la tappa dello struct `FRTUnitPlan` (E50, fetta 2, [D-608]). Fino ad
-	// allora la porta la pinna `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`, che fallisce se il modulo torna a scrivere
-	// un campo del piano fuori da `ARTUnit`. Dal #4076 vale anche per i test: dove nessuna operazione di qui produce lo
-	// stato che un test vuole, il test passa da `FRTUnitPlanTestAccess` (`Tests/Shared/RTUnitPlanTestAccess.h`).
+	// 🔒 **I campi d'intento sono privati** dalla tappa 3 di [D-608] (#4123): stanno in `Plan`, un `FRTUnitPlan`, e fuori da
+	// `ARTUnit` si leggono da `GetPlan()`, che e' `const`. La porta la fa valere il compilatore; per i campi rimasti in
+	// `ARTUnit` (mira congelata, cache della carica, memoria del Back) la pinna ancora `Meta.PlanFieldsAreWrittenOnlyThroughTheUnit`.
+	// Dove nessuna operazione di qui produce lo stato che un test vuole, il test passa da `FRTUnitPlanTestAccess`
+	// (`Tests/Shared/RTUnitPlanTestAccess.h`), che e' `friend`.
 	//
 	// ⛔ **Nessuna regola di gioco qui dentro.** Sono le stesse assegnazioni di prima, raccolte: cosa armare, quando
 	// consumare, quale cella scegliere restano di chi chiama.
@@ -474,120 +438,120 @@ public:
 	/** Il giocatore arma la principale: l'indice, e quanti waypoint c'erano in quel momento (`#3501`: il Back lo rilegge). */
 	void DeclarePlannedMainAction(int32 AbilityIndex)
 	{
-		PlannedAbilityIndex = AbilityIndex;
-		WaypointsAllaDichiarazione = PlannedWaypoints.Num();
+		Plan.PlannedAbilityIndex = AbilityIndex;
+		WaypointsAllaDichiarazione = Plan.PlannedWaypoints.Num();
 	}
 
 	/** La principale, senza il segno per il Back: l'harness degli scenari e l'applicazione del piano del bot. */
-	void SetPlannedMainAction(int32 AbilityIndex) { PlannedAbilityIndex = AbilityIndex; }
+	void SetPlannedMainAction(int32 AbilityIndex) { Plan.PlannedAbilityIndex = AbilityIndex; }
 
 	/** La principale non c'e' piu': consumata da un resolver, o azzerata a inizio turno. Il bersaglio lo spegne chi chiama. */
-	void ClearPlannedMainAction() { PlannedAbilityIndex = INDEX_NONE; }
+	void ClearPlannedMainAction() { Plan.PlannedAbilityIndex = INDEX_NONE; }
 
 	/** Il giocatore disarma la principale: indice, bersaglio, bordo dichiarato e segno per il Back, insieme. */
 	void DisarmPlannedMainAction()
 	{
-		PlannedAbilityIndex = INDEX_NONE;
+		Plan.PlannedAbilityIndex = INDEX_NONE;
 		ClearPlannedAttack();
-		bHasPlannedCoverEdge = false;
+		Plan.bHasPlannedCoverEdge = false;
 		WaypointsAllaDichiarazione = INDEX_NONE;
 	}
 
 	/** Lo scatto: l'abilita' e la cella d'arrivo. */
 	void SetPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
 	{
-		PlannedDashAbility = AbilityIndex;
-		PlannedDashCell = DashCell;
+		Plan.PlannedDashAbility = AbilityIndex;
+		Plan.PlannedDashCell = DashCell;
 	}
 
 	/** Lo scatto e' consumato (valido o no). ⚠️ La cella resta: e' valida solo con l'abilita' impostata, e nessuno la azzera. */
-	void ClearPlannedDash() { PlannedDashAbility = INDEX_NONE; }
+	void ClearPlannedDash() { Plan.PlannedDashAbility = INDEX_NONE; }
 
 	/** Il giocatore arma la reazione: l'indice, e quanti waypoint c'erano in quel momento. */
 	void ArmPlannedReaction(int32 AbilityIndex)
 	{
-		PlannedReactionAbility = AbilityIndex;
-		WaypointsAllaReazione = PlannedWaypoints.Num();
+		Plan.PlannedReactionAbility = AbilityIndex;
+		WaypointsAllaReazione = Plan.PlannedWaypoints.Num();
 	}
 
 	/** La reazione, senza il segno per il Back: l'harness e il bot. */
-	void SetPlannedReaction(int32 AbilityIndex) { PlannedReactionAbility = AbilityIndex; }
+	void SetPlannedReaction(int32 AbilityIndex) { Plan.PlannedReactionAbility = AbilityIndex; }
 
-	void AddPlannedWaypoint(const FRTCellId& Waypoint) { PlannedWaypoints.Add(Waypoint); }
-	void PopPlannedWaypoint() { PlannedWaypoints.Pop(); }
+	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.PlannedWaypoints.Add(Waypoint); }
+	void PopPlannedWaypoint() { Plan.PlannedWaypoints.Pop(); }
 
 	/** Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. */
 	void SetPlannedRoute(const TArray<FRTCellId>& Route)
 	{
-		PlannedPath = Route;
-		PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
+		Plan.PlannedPath = Route;
+		Plan.PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
 	}
 
 	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. */
 	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route)
 	{
-		PlannedWaypoints = Waypoints;
+		Plan.PlannedWaypoints = Waypoints;
 		SetPlannedRoute(Route);
 	}
 
 	/** Il piano del bot: una DESTINAZIONE, che non si ricava dal percorso (il bot non pianifica a waypoint). */
 	void SetPlannedDestination(const FRTCellId& Destination, const TArray<FRTCellId>& Route, const TArray<FRTCellId>& Waypoints)
 	{
-		PlannedCell = Destination;
-		PlannedPath = Route;
-		PlannedWaypoints = Waypoints;
+		Plan.PlannedCell = Destination;
+		Plan.PlannedPath = Route;
+		Plan.PlannedWaypoints = Waypoints;
 	}
 
 	/** Percorso e waypoint spenti; la cella d'arrivo resta. */
 	void ClearPlannedRoute()
 	{
-		PlannedPath.Reset();
-		PlannedWaypoints.Reset();
+		Plan.PlannedPath.Reset();
+		Plan.PlannedWaypoints.Reset();
 	}
 
 	/** Il piano di movimento ripiantato su `At`: niente percorso, niente waypoint, arrivo li'. */
 	void RebasePlannedMove(const FRTCellId& At)
 	{
 		ClearPlannedRoute();
-		PlannedCell = At;
+		Plan.PlannedCell = At;
 	}
 
 	/** Nessun movimento: si resta dove si e'. */
 	void ClearPlannedMove() { RebasePlannedMove(Cell); }
 
 	/** La sola cella d'arrivo (un resolver che la sposta con l'unita', [D-045]). */
-	void SetPlannedCell(const FRTCellId& NewCell) { PlannedCell = NewCell; }
+	void SetPlannedCell(const FRTCellId& NewCell) { Plan.PlannedCell = NewCell; }
 
 	/** Il verso dichiarato ([D-367]): chiude il movimento. */
 	void DeclarePlannedFacing(ERTHexDirection Direction)
 	{
-		PlannedFacing = Direction;
-		bDeclaresPlannedFacing = true;
+		Plan.PlannedFacing = Direction;
+		Plan.bDeclaresPlannedFacing = true;
 	}
 
 	/**
 	 * Il giocatore ritira il verso dichiarato, e il movimento si riapre. ⚠️ Non e' `ClearDeclaredFacing`: quella e' del
 	 * resolver, e azzera anche la traccia del movimento eseguito nel turno.
 	 */
-	void RetractPlannedFacing() { bDeclaresPlannedFacing = false; }
+	void RetractPlannedFacing() { Plan.bDeclaresPlannedFacing = false; }
 
 	/** Il bordo su cui agisce un'azione di struttura (CP 9.5). */
 	void DeclarePlannedCoverEdge(ERTHexDirection Edge)
 	{
-		PlannedCoverEdge = Edge;
-		bHasPlannedCoverEdge = true;
+		Plan.PlannedCoverEdge = Edge;
+		Plan.bHasPlannedCoverEdge = true;
 	}
 
-	void ClearPlannedCoverEdge() { bHasPlannedCoverEdge = false; }
+	void ClearPlannedCoverEdge() { Plan.bHasPlannedCoverEdge = false; }
 
 	/** Il profilo di movimento dichiarato ([D-425]): oggi solo `Sneak`, o nessuno. */
-	void SetPlannedMovementProfile(FName ProfileId) { PlannedMovementProfileId = ProfileId; }
+	void SetPlannedMovementProfile(FName ProfileId) { Plan.PlannedMovementProfileId = ProfileId; }
 
 	/**
 	 * L'ordine in cui `Action.Cleanse` toglie gli stati (CP 5.2). ⚠️ Oggi lo dichiarano solo i test: nessun gesto del
 	 * giocatore ne' il bot lo scrivono ancora (#4076), com'era per la reazione prima di #4068.
 	 */
-	void SetPlannedCleansePriority(const TArray<FGameplayTag>& Priority) { PlannedCleansePriority = Priority; }
+	void SetPlannedCleansePriority(const TArray<FGameplayTag>& Priority) { Plan.PlannedCleansePriority = Priority; }
 
 	/**
 	 * **Il lock-in svuota un piano illegale per budget o ricarica** ([D-615] (1); E38 CP 38.10, #4111): tutto l'intento
@@ -608,8 +572,8 @@ public:
 		ClearReactionPlan();         // indice, condizione dichiarata, segno per il Back
 		ClearPlannedMove();          // percorso e waypoint spenti, arrivo sulla cella attuale
 		RetractPlannedFacing();
-		PlannedMovementProfileId = NAME_None;
-		PlannedCleansePriority.Reset();
+		Plan.PlannedMovementProfileId = NAME_None;
+		Plan.PlannedCleansePriority.Reset();
 	}
 
 	/**
@@ -618,8 +582,8 @@ public:
 	 */
 	void FreezePlannedAim()
 	{
-		const ARTUnit* AimedAt = PlannedAttackTarget;
-		bHasPlannedAim = IsValid(AimedAt) && !bAttackTargetsCell;
+		const ARTUnit* AimedAt = Plan.PlannedAttackTarget;
+		bHasPlannedAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell;
 		if (bHasPlannedAim)
 		{
 			PlannedAimCell = AimedAt->Cell;
@@ -642,9 +606,9 @@ public:
 	 */
 	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
 	{
-		if (bAttackTargetsCell) { return PlannedAttackCell; }
+		if (Plan.bAttackTargetsCell) { return Plan.PlannedAttackCell; }
 		if (bHasPlannedAim && !bDeclaresTracking) { return PlannedAimCell; }
-		if (PlannedAttackTarget) { return PlannedAttackTarget->Cell; }
+		if (Plan.PlannedAttackTarget) { return Plan.PlannedAttackTarget->Cell; }
 		return Cell;
 	}
 
@@ -692,50 +656,6 @@ public:
 	 */
 	UPROPERTY(Transient)
 	bool bHasPlannedAim = false;
-
-	/**
-	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
-	 * Vuoto o < 2 celle = nessun movimento composito (si usa PlannedCell come destinazione singola).
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	TArray<FRTCellId> PlannedPath;
-
-	/**
-	 * Waypoint cliccati dal giocatore (esclusa la cella di partenza), da cui deriva PlannedPath.
-	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	TArray<FRTCellId> PlannedWaypoints;
-
-	/**
-	 * Il profilo di movimento **DICHIARATO** per questo turno — oggi `MovementProfile.Sneak`, o vuoto
-	 * (`#1410`, [D-425]). Vive accanto ai waypoint perche' come loro si edita fino al lock-in.
-	 *
-	 * ⏱️ *Fino al 2026-09-15 questo campo portava l'ANDATURA, scelta ciclando fra quattro etichette.*
-	 * [D-425] ha rovesciato la derivazione: `Move` e `Sprint` si **leggono** da quanto si e' pianificato e
-	 * non si dichiarano affatto, `Still` e' l'assenza di piano, e il `Withdraw` lo **impone** l'`Overwatch`
-	 * e si legge dal piano (`ReservedProfileForPlan`), non da qui.
-	 *
-	 * 🔑 **Cio' che resta qui e' un TETTO, non un'etichetta** ([D-425] punto (2)): dichiarare `Sneak`
-	 * dimezza la distanza pianificabile. E' l'unica cosa che il giocatore dichiara sullo slot movimento, ed
-	 * e' il motivo per cui il campo sopravvive al selettore che lo riempiva.
-	 *
-	 * 🔑 **`NAME_None` significa «nessuna dichiarazione», e lo traduce chi legge.** Il campo nasce vuoto —
-	 * e' il default di un `FName`, e un'unita' deserializzata da un salvataggio precedente lo troverebbe
-	 * vuoto comunque — quindi la traduzione sta in `CeilingProfile`, in un punto solo: vuoto ⇒ il tetto
-	 * nudo, `2×`.
-	 *
-	 * ⛔ **`Still`, `Move`, `Sprint` e `Withdraw` NON si scrivono qui.** I primi tre sono derivati e il
-	 * quarto e' imposto: scriverne uno darebbe due modi di dire la stessa cosa — questo campo e la sua
-	 * derivazione — che possono contraddirsi.
-	 *
-	 * ⛔ **Non e' replicato, come `PlannedWaypoints` e `PlannedCell` qui sopra, e non e' un dettaglio.**
-	 * La dichiarazione e' intento di pianificazione: dire a un avversario *«questo sguscia»* prima del
-	 * lock-in gli anticipa la distanza che quell'unita' puo' coprire, cioe' esattamente l'informazione che
-	 * la simultaneita' esiste per nascondere.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	FName PlannedMovementProfileId;
 
 	/**
 	 * I waypoint com'erano **prima** che un tetto li troncasse, e quanti il troncamento ne ha lasciati
@@ -885,20 +805,6 @@ public:
 	}
 
 	/**
-	 * Rotazione DICHIARATA in pianificazione (D-020, #291): «finito il movimento, guarda di la'».
-	 *
-	 * Il flag separato dal valore ha la stessa ragione di `bAttackTargetsCell`: `E` e' una direzione legittima
-	 * e non puo' fare da «non dichiarato». Il resolver la consuma a fine Move — dopo l'orientamento derivato,
-	 * che e' il `Current` su cui si misura la legalita' — e la azzera: una dichiarazione vale per il turno in
-	 * cui e' stata fatta, come ogni altro pezzo del piano.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	bool bDeclaresPlannedFacing = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	ERTHexDirection PlannedFacing = ERTHexDirection::E;
-
-	/**
 	 * Movimento EFFETTIVAMENTE eseguito in questo turno: stile e rotta percorsa. Da questi due, **piu' il
 	 * budget di pivot dell'eroe**, dipende l'insieme delle rotazioni legali
 	 * (`URTFacingLibrary::LegalFacings`), e nessuno dei due e' deducibile a fine turno: chi ha scattato ha
@@ -920,7 +826,7 @@ public:
 	/** Chiude il turno della rotazione: dichiarazione consumata e traccia del movimento scaricata. */
 	void ClearDeclaredFacing()
 	{
-		bDeclaresPlannedFacing = false;
+		Plan.bDeclaresPlannedFacing = false;
 		MovementStyleThisTurn = ERTMovementStyle::None;
 		WalkedThisTurn.Reset();
 	}
@@ -978,35 +884,9 @@ public:
 		return true;
 	}
 
-	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	int32 PlannedDashAbility = INDEX_NONE;
-
-	/** Cella di destinazione dello scatto pianificato (valida solo se PlannedDashAbility e' impostata). */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	FRTCellId PlannedDashCell;
-
 	/** [D-528] La lettura di `NotePlannedChargeRun`. Non e' un `UPROPERTY`: e' una cache di pianificazione, mai replicata. */
 	FRTChargeRun PlannedChargeRun;
 	bool bHasPlannedChargeRun = false;
-
-	/**
-	 * Reazione pianificata per il turno (INDEX_NONE = nessuna reazione pronta), slot indipendente da
-	 * Movimento e Principale (CP 5.1, epic E5). Non ha una cella o un bersaglio: il trigger dichiarato
-	 * dall'abilita' (`FRTActionDef::ReactionTrigger`) e' valutato sullo snapshot del Blast, non scelto qui.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	int32 PlannedReactionAbility = INDEX_NONE;
-
-	/**
-	 * La condizione dichiarata sulla reazione armata ([D-109]). Vuota = nessuna: si risponde a ogni trigger.
-	 *
-	 * Si scrive SOLO da `SetPlannedReactionCondition`, che la valida: un campo pubblico scrivibile a mano
-	 * rimetterebbe in gioco proprio cio' che il validator esiste per impedire — una condizione che nessuna
-	 * funzione sa valutare, scoperta al trigger invece che in pianificazione.
-	 */
-	UPROPERTY()
-	FRTDeclaredCondition PlannedReactionCondition;
 
 	/**
 	 * Dichiara (o toglie) la condizione sulla reazione armata. Vero se il piano e' cambiato.
@@ -1042,19 +922,6 @@ public:
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 ReactionActivationsThisTurn = 0;
-
-	/**
-	 * Ordine di rimozione dichiarato per `Action.Cleanse` (CP 5.2): si purifica il PRIMO stato di questa lista
-	 * che l'unita' possiede davvero, e uno solo.
-	 *
-	 * La scelta e' del giocatore ed e' fatta in PIANIFICAZIONE, mai a runtime: il catalogo lo pretende
-	 * esplicitamente ("nessuna scelta implicita"), perche' un'euristica automatica ("togli il piu' dannoso")
-	 * renderebbe l'esito impredicibile — e la predizione e' un pilastro di prodotto. Lista vuota = nessuna
-	 * scelta dichiarata = nessuna rimozione (fail-closed): il Cleanse risolve senza effetto e lo registra,
-	 * invece di indovinare per conto del giocatore.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
-	TArray<FGameplayTag> PlannedCleansePriority;
 
 	/**
 	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui.
@@ -1140,7 +1007,7 @@ public:
 	 * spostato l'unita', anche per chi non aveva pianificato nulla. E' un difetto misurato il 2026-08-26,
 	 * ed e' difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
 	 */
-	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
+	bool HasPlannedNormalMove() const { return Plan.PlannedCell != Cell || Plan.PlannedPath.Num() > 1; }
 
 	/** Vero se l'abilita' e' pronta: non in ricarica. Il cooldown e' l'unico gate da `D-324`. */
 	bool CanUseAbility(int32 Index) const;

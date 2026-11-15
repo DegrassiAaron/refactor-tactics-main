@@ -582,7 +582,7 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 
 		S.PC->HandleClickOnUnitForTest(S.Other);
 		if (!TestTrue(TEXT("click: la mira all'altro capo del ponte e' dichiarata"),
-				S.Mine->PlannedAttackTarget.Get() == S.Other && S.Mine->PlannedAbilityIndex == Breach))
+				S.Mine->GetPlan().PlannedAttackTarget.Get() == S.Other && S.Mine->GetPlan().PlannedAbilityIndex == Breach))
 		{
 			RTWorldFixtures::DestroyWorld(S.World);
 			return false;
@@ -665,7 +665,7 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 		TestTrue(TEXT("slot (senza ponte): col puntatore sull'altro piano rifiuta"), XlaSlotRefuses(S, Breach));
 		S.PC->HandleClickOnUnitForTest(S.Other);
 		TestTrue(TEXT("click (senza ponte): la mira su un altro piano resta rifiutata"),
-			S.Mine->PlannedAttackTarget.Get() == nullptr);
+			S.Mine->GetPlan().PlannedAttackTarget.Get() == nullptr);
 		RTWorldFixtures::DestroyWorld(S.World);
 	}
 
@@ -689,7 +689,7 @@ bool FRTXlaBridgeIsAimedAtFromThePlanTest::RunTest(const FString&)
 			XlaSlotRefuses(S, Getto));
 		S.PC->HandleClickOnUnitForTest(S.Other);
 		TestTrue(TEXT("click (getto): il ponte non concede niente a chi non lo scalfisce"),
-			S.Mine->PlannedAttackTarget.Get() == nullptr);
+			S.Mine->GetPlan().PlannedAttackTarget.Get() == nullptr);
 		RTWorldFixtures::DestroyWorld(S.World);
 	}
 	return true;
@@ -730,7 +730,7 @@ bool FRTXlaModifyArcIsAimedAcrossLayersTest::RunTest(const FString&)
 	TestFalse(TEXT("slot: col puntatore sull'altro piano non rifiuta"), XlaSlotRefuses(S, Arco));
 	S.PC->HandleClickOnUnitForTest(S.Other);
 	if (!TestTrue(TEXT("click: la mira all'altro piano e' dichiarata"),
-			S.Mine->PlannedAttackTarget.Get() == S.Other && S.Mine->PlannedAbilityIndex == Arco))
+			S.Mine->GetPlan().PlannedAttackTarget.Get() == S.Other && S.Mine->GetPlan().PlannedAbilityIndex == Arco))
 	{
 		RTWorldFixtures::DestroyWorld(S.World);
 		return false;
@@ -786,8 +786,8 @@ bool FRTXlaCellAcrossABridgeTest::RunTest(const FString&)
 			XlaSlotRefuses(S, Ordigno), !bConPonte);
 
 		S.PC->HandleClickOnCellForTest(GXlaBridgeEnd);
-		const bool bDichiarato = S.Mine->bAttackTargetsCell && S.Mine->PlannedAttackCell == GXlaBridgeEnd
-			&& S.Mine->PlannedAbilityIndex == Ordigno;
+		const bool bDichiarato = S.Mine->GetPlan().bAttackTargetsCell && S.Mine->GetPlan().PlannedAttackCell == GXlaBridgeEnd
+			&& S.Mine->GetPlan().PlannedAbilityIndex == Ordigno;
 		TestEqual(*FString::Printf(TEXT("click (%s): il piano a cella e' dichiarato solo con il ponte"), Quando),
 			bDichiarato, bConPonte);
 		if (bConPonte)

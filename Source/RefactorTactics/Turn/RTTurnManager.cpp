@@ -2436,7 +2436,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	const bool bPrimaDelMove = InPhase < ERTMatchPhase::Move;
 
 	Unit->ClearPlannedRoute();
-	if (bPrimaDelMove || Unit->PlannedCell == OldCell)
+	if (bPrimaDelMove || Unit->GetPlan().PlannedCell == OldCell)
 	{
 		Unit->SetPlannedCell(NewCell);
 	}
@@ -3604,16 +3604,16 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			if (Voce.Def.Slot == ERTActionSlot::Main)
 			{
 				if (Unit->bHasPlannedAim) { Bersaglio = Unit->PlannedAimCell; }
-				else if (Unit->bAttackTargetsCell) { Bersaglio = Unit->PlannedAttackCell; }
-				else if (IsValid(Unit->PlannedAttackTarget)) { Bersaglio = Unit->PlannedAttackTarget->Cell; }
+				else if (Unit->GetPlan().bAttackTargetsCell) { Bersaglio = Unit->GetPlan().PlannedAttackCell; }
+				else if (IsValid(Unit->GetPlan().PlannedAttackTarget)) { Bersaglio = Unit->GetPlan().PlannedAttackTarget->Cell; }
 			}
-			else if (FaseDellaVoce == ERTMatchPhase::Dash && Unit->PlannedDashAbility != INDEX_NONE)
+			else if (FaseDellaVoce == ERTMatchPhase::Dash && Unit->GetPlan().PlannedDashAbility != INDEX_NONE)
 			{
-				Bersaglio = Unit->PlannedDashCell;
+				Bersaglio = Unit->GetPlan().PlannedDashCell;
 			}
 			else if (FaseDellaVoce == ERTMatchPhase::Move)
 			{
-				Bersaglio = Unit->PlannedCell;
+				Bersaglio = Unit->GetPlan().PlannedCell;
 			}
 
 			FRTTurnLogEntry Rifiutata;
@@ -3698,7 +3698,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Caster = Units[i];
-		const int32 AbilityIndex = Caster->PlannedAbilityIndex;
+		const int32 AbilityIndex = Caster->GetPlan().PlannedAbilityIndex;
 		const URTActionData* Ability = Caster->GetAbility(AbilityIndex);
 		if (!Ability
 			|| URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Cleanup)
@@ -3706,7 +3706,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			continue; // nessuna azione ambientale pianificata da questa unita'
 		}
 
-		ARTUnit* Target = Caster->PlannedAttackTarget;
+		ARTUnit* Target = Caster->GetPlan().PlannedAttackTarget;
 		// ➕ **IL BERSAGLIO A CELLA, che questo ramo aspettava da E11** (`#2870`).
 		//
 		// 🔴 **Il limite dichiarato qui sotto aveva una precondizione GIA' SCATTATA.** Il commento a valle
@@ -3719,7 +3719,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		// `Target == nullptr` e usciva **annullata «nessun bersaglio»**: un'abilita' del roster inerte
 		// dall'unico ingresso che il giocatore ha. Il difetto non si vedeva perche' gli scenari la
 		// pianificano su un'unita', dove il vecchio ramo funziona.
-		const bool bTargetsCell = Caster->bAttackTargetsCell;
+		const bool bTargetsCell = Caster->GetPlan().bAttackTargetsCell;
 		// [D-419] (#3609): la cella su cui l'azione ambientale agisce e' la MIRA CONGELATA al lock-in, letta con la
 		// funzione unica e PRIMA dell'azzeramento qui sotto. Le ambientali risolvono in Cleanup, dopo il Dash E dopo il
 		// Move: leggendo la cella viva inseguivano anche il movimento normale. ⌫ *Fino a #3609 `Target->Cell`.*
@@ -4481,7 +4481,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	{
 		if (!Unit->IsAlive()) { continue; }
 
-		const int32 Index = Unit->PlannedAbilityIndex;
+		const int32 Index = Unit->GetPlan().PlannedAbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability || Ability->Def.StructureOp == ERTStructureOp::None)
 		{
@@ -4504,14 +4504,14 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 
 		// Il piano si consuma nel turno, attivata o no: e' la stessa disciplina di `ModifyArc` nel Blast.
 		const FRTActionDef Def = Ability->Def;
-		const bool bHasEdge = Unit->bHasPlannedCoverEdge;
-		const ERTHexDirection Edge = Unit->PlannedCoverEdge;
-		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const bool bHasEdge = Unit->GetPlan().bHasPlannedCoverEdge;
+		const ERTHexDirection Edge = Unit->GetPlan().PlannedCoverEdge;
+		const bool bTargetsCell = Unit->GetPlan().bAttackTargetsCell;
 		// [D-419] (#3609): la lettura unica, come ogni altro lettore del bersaglio. Le strutture risolvono in Prep,
 		// prima del Dash, quindi qui la mira congelata e la cella viva coincidono: passarle dalla funzione non cambia
 		// l'esito, toglie una copia dell'espressione.
 		const FRTCellId TargetCell = Unit->ResolutionAimCell(Def.DeclaresTracking());
-		const bool bHasTarget = bTargetsCell || Unit->PlannedAttackTarget != nullptr;
+		const bool bHasTarget = bTargetsCell || Unit->GetPlan().PlannedAttackTarget != nullptr;
 
 		Unit->ClearPlannedMainAction();
 		Unit->ClearPlannedAttack();
@@ -4833,7 +4833,7 @@ void ARTTurnManager::ResolvePrep()
 		ARTUnit* Unit = Units[i];
 		if (!Unit->IsAlive()) { continue; }
 
-		const int32 Index = Unit->PlannedAbilityIndex;
+		const int32 Index = Unit->GetPlan().PlannedAbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
@@ -4851,7 +4851,7 @@ void ARTTurnManager::ResolvePrep()
 		// (e dal 2026-11-01 anche per la cura e la purificazione, [D-564], e per le strutture di bordo, [D-565]). Il
 		// testo qui sopra resta perche' dice come e' nato il rifiuto, non cosa vale oggi.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
-			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+			Unit->GetPlan().bAttackTargetsCell ? Unit->GetPlan().PlannedAttackCell : Unit->Cell))
 		{
 			// Si paga qui, DOPO il rifiuto: `Unit` e' vivo e `CanUseAbility(Index)` era vero (le due guardie in cima al
 			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
@@ -4901,14 +4901,14 @@ void ARTTurnManager::ResolvePrep()
 			// ⌫ *Fino a `#4099` questo era un residuo dichiarato dalla review di `#4091`.*
 			// ⌫ *Fino alla review di `#4091` qui si leggeva la tabella del Blast (`PagaSeParteSenzaColpo`), che fa pagare anche
 			// il piano diverso: all'armamento quel motivo e' sempre un piano che il click rifiuta, e pagava contro [D-571].*
-			if (Unit->bAttackTargetsCell)
+			if (Unit->GetPlan().bAttackTargetsCell)
 			{
 				FVector MapOrigin; float MapHexSize; float MapLayerH;
 				const URTHexMapAsset* MapForArming = GetHexContext(MapOrigin, MapHexSize, MapLayerH);
-				const ERTActionInvalidReason Why = MapForArming && !MapForArming->ContainsCell(Unit->PlannedAttackCell)
+				const ERTActionInvalidReason Why = MapForArming && !MapForArming->ContainsCell(Unit->GetPlan().PlannedAttackCell)
 					? ERTActionInvalidReason::OffMap
 					: URTActionFallbackLibrary::CellShotRefusal(URTCombatLibrary::ClassifyHexTargeting(
-						MapForArming, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Unit->PlannedAttackCell,
+						MapForArming, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Unit->GetPlan().PlannedAttackCell,
 						Ability->RangeCells, Ability->Def.LineOfSightPolicy, Ability->Def.MinRangeCells,
 						URTCombatLibrary::CrossLayerAimFor(Ability->Def)));
 				if (Why != ERTActionInvalidReason::None)
@@ -4921,7 +4921,7 @@ void ARTTurnManager::ResolvePrep()
 					NonArmata.BaseActionId = Ability->Def.BaseActionId;
 					NonArmata.Priority = Ability->Def.Priority; // la tripla di ogni produttore `Fallback` ([D-196])
 					NonArmata.SrcCell = Unit->Cell;
-					NonArmata.TgtCell = Unit->PlannedAttackCell;
+					NonArmata.TgtCell = Unit->GetPlan().PlannedAttackCell;
 					NonArmata.Amount = static_cast<int32>(Why);
 					// Nessun `AddLogEvent`: `ConcludeTurn` deriva la riga leggibile da questa voce (`#1412`). La voce si
 					// congela su chi arma, come il rifiuto per stordimento qui sopra: stessa forma, stesso pubblico.
@@ -4939,7 +4939,7 @@ void ARTTurnManager::ResolvePrep()
 
 				FRTArmedPrediction Armed;
 				Armed.Shooter = Unit;
-				Armed.LockedCell = Unit->PlannedAttackCell;
+				Armed.LockedCell = Unit->GetPlan().PlannedAttackCell;
 				Armed.ActionId = Ability->Def.ActionId;
 				Armed.BaseActionId = Ability->Def.BaseActionId;
 				Armed.Priority = Ability->Def.Priority; // per la voce di rifiuto al boundary ([D-509])
@@ -4960,7 +4960,7 @@ void ARTTurnManager::ResolvePrep()
 			// #3549 `Ruling`: anche la predittiva SENZA cella si attiva — l'unita' ha speso l'azione, e
 			// un'attivazione muta sarebbe indistinguibile da un difetto.
 			EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId,
-				Unit->StableUnitId, Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell, Ability->Shape);
+				Unit->StableUnitId, Unit->GetPlan().bAttackTargetsCell ? Unit->GetPlan().PlannedAttackCell : Unit->Cell, Ability->Shape);
 
 			// L'abilita' e' comunque SPESA: chi ha scommesso ha pagato il cooldown, che la previsione sia
 			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
@@ -4996,7 +4996,7 @@ void ARTTurnManager::ResolvePrep()
 			// una. Il campo si legge lo stesso — e' quello che [D-109] definisce, e `BuildOverwatchTriggers`
 			// gia' lo consuma — ma finche' i due slot non sono riconciliati resta vuoto nel caso tipico.
 			// E' la meta' di `#583` che questo checkpoint sblocca senza chiudere.
-			Armed.Condition = Unit->PlannedReactionCondition;
+			Armed.Condition = Unit->GetPlan().PlannedReactionCondition;
 
 			// Portata e danno vengono dall'ARMA dell'eroe. L'attacco base si trova per `BaseActionId` e non
 			// per indice: «l'attacco base e' l'indice 0 del kit» e' vero oggi ma e' una convenzione, mentre
@@ -5102,10 +5102,10 @@ void ARTTurnManager::ResolvePrep()
 	for (const FRTActionInstance& Instance : Instances)
 	{
 		ARTUnit* Unit = Units[Instance.SourceUnitId];
-		const URTActionData* Usata = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const URTActionData* Usata = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 		EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Instance.Def.ActionId, Instance.Def.BaseActionId,
 			Unit->StableUnitId, Unit->Cell, Usata ? Usata->Shape : ERTAbilityShape::Single);
-		Unit->ConsumeAbility(Unit->PlannedAbilityIndex);
+		Unit->ConsumeAbility(Unit->GetPlan().PlannedAbilityIndex);
 		Unit->ClearPlannedMainAction(); // consumato in Prep
 		Unit->ClearPlannedAttack();
 	}
@@ -5257,11 +5257,11 @@ void ARTTurnManager::ResolveDash()
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
 		const FRTMovementProfile Intended = URTMovementProfileLibrary::ProfileForPlannedSteps(
-			Unit->PlannedPath.Num() >= 2
-				? Unit->PlannedPath.Num() - 1
-				: URTHexLibrary::HexDistance(Unit->Cell, Unit->PlannedCell),
+			Unit->GetPlan().PlannedPath.Num() >= 2
+				? Unit->GetPlan().PlannedPath.Num() - 1
+				: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell),
 			Unit->GetEffectiveMoveRange(),
-			Unit->PlannedMovementProfileId,
+			Unit->GetPlan().PlannedMovementProfileId,
 			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
 			/*bRunDenied*/ false);
 
@@ -5319,7 +5319,7 @@ void ARTTurnManager::ResolveDash()
 		// resta fermo, e senza la sua squadra l'attraversamento non saprebbe se e' un compagno ([D-396]).
 		Teams[i] = Unit->TeamId;
 
-		const int32 DashIdx = Unit->PlannedDashAbility;
+		const int32 DashIdx = Unit->GetPlan().PlannedDashAbility;
 		// ⚠️ Valutato PRIMA del consumo: `PlannedDashApplies` legge `PlannedDashAbility`, che la riga sotto
 		// azzera. Le tre condizioni (mobilita' rapida dichiarata dal catalogo, azione utilizzabile,
 		// destinazione diversa dalla cella corrente) stanno ora su `ARTUnit` perche' le chiede anche
@@ -5431,7 +5431,7 @@ void ARTTurnManager::ResolveDash()
 			}
 
 			FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
-				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
+				Snapshot.Map, Unit->Cell, Unit->GetPlan().PlannedDashCell, EffectiveRange,
 				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 
 			// 🔑 **[D-516] La carica oltre la portata la RIVALIDA il server** (review della PR #3767). Le condizioni della
@@ -5444,9 +5444,9 @@ void ARTTurnManager::ResolveDash()
 			// e un nemico che chi pianifica non vedeva non rende illegale un piano.
 			if (Linear.Stop == ERTLinearStop::OutOfRange)
 			{
-				const int32* const Occupante = Snapshot.Occupancy.Find(Unit->PlannedDashCell);
+				const int32* const Occupante = Snapshot.Occupancy.Find(Unit->GetPlan().PlannedDashCell);
 				const bool bLegale = Occupante && Hostiles.Contains(*Occupante)
-					&& URTMovementActionLibrary::IsLineOpenToTarget(Snapshot.Map, Unit->Cell, Unit->PlannedDashCell);
+					&& URTMovementActionLibrary::IsLineOpenToTarget(Snapshot.Map, Unit->Cell, Unit->GetPlan().PlannedDashCell);
 				if (bLegale)
 				{
 					// La voce «fermata, fuori portata» si scrive DOPO la risoluzione simultanea, e solo se la corsa c'e'
@@ -5498,7 +5498,7 @@ void ARTTurnManager::ResolveDash()
 		else
 		{
 			Snapshot.Units[i].MoveBudget = EffectiveRange;
-			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->PlannedDashCell).Path;
+			Path = URTHexSimLibrary::FindPathForUnit(Snapshot, /*UnitId=*/ i, Unit->GetPlan().PlannedDashCell).Path;
 		}
 
 		// Una carica che si ferma subito ha comunque colpito: l'impatto e' gia' registrato qui sopra.
@@ -5652,7 +5652,7 @@ void ARTTurnManager::ResolveDash()
 			{
 				for (const ARTUnit* Candidato : Units)
 				{
-					if (Candidato && Candidato != Units[i] && Candidato->IsAlive() && Candidato->Cell == Units[i]->PlannedDashCell)
+					if (Candidato && Candidato != Units[i] && Candidato->IsAlive() && Candidato->Cell == Units[i]->GetPlan().PlannedDashCell)
 					{
 						BersaglioDichiarato = Candidato->StableUnitId;
 						break;
@@ -5660,7 +5660,7 @@ void ARTTurnManager::ResolveDash()
 				}
 			}
 			EmitAbilityActivated(Units[i], ERTMatchPhase::Dash, Attivata->Def.ActionId, Attivata->Def.BaseActionId,
-				BersaglioDichiarato, Units[i]->PlannedDashCell, Attivata->Shape);
+				BersaglioDichiarato, Units[i]->GetPlan().PlannedDashCell, Attivata->Shape);
 		}
 
 		if (Resolved[i].Entered.Num() > 0)
@@ -5767,7 +5767,7 @@ void ARTTurnManager::ResolveDash()
 				Fermata.BaseActionId = DashDef->Def.BaseActionId;
 				Fermata.Priority = DashDef->Def.Priority;
 				Fermata.SrcCell = Unit->Cell;
-				Fermata.TgtCell = Unit->PlannedDashCell; // il bersaglio pianificato, non la cella in cui si ferma
+				Fermata.TgtCell = Unit->GetPlan().PlannedDashCell; // il bersaglio pianificato, non la cella in cui si ferma
 				Fermata.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
 				AppendLogEntry(Fermata, Unit);
 			}
@@ -5853,7 +5853,7 @@ void ARTTurnManager::ResolveDash()
 			// confronto PERCHE' la variante ha funzionato. E la coppia (SrcCell, TgtCell) qui descrive una
 			// ROTTA: quella che non si e' percorsa.
 			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
-			Superseded.TgtCell = Unit->PlannedCell; // la destinazione dichiarata e mai raggiunta
+			Superseded.TgtCell = Unit->GetPlan().PlannedCell; // la destinazione dichiarata e mai raggiunta
 			// `Amount` conta le celle del percorso RISOLTO SCARTATO — le stesse tre parole di `RTTurnLog.h`
 			// e `spec-turnlog.md`, e «scartato» non e' decorativo: quelle celle NON sono state percorse, e'
 			// il percorso che il pathfinder aveva espanso dai waypoint e che lo scatto ha annullato. Due
@@ -5863,7 +5863,7 @@ void ARTTurnManager::ResolveDash()
 			// «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione resta
 			// leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
 			// percorso, in un formato che finisce nell'hash del replay.
-			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
+			Superseded.Amount = FMath::Max(0, Unit->GetPlan().PlannedPath.Num() - 1);
 			AppendLogEntry(Superseded, Unit);
 		}
 
@@ -5907,9 +5907,9 @@ void ARTTurnManager::ResolveDash()
 			// `Move`/`SupersededByDash` perche' qui l'azione non avviene AFFATTO — mentre il movimento, dopo
 			// lo scatto, l'unita' l'ha comunque compiuto. Il motivo viaggia in `Amount`, come per ogni voce
 			// di Fallback (`RTTurnManager_Blast.cpp`).
-			if (Unit->PlannedAbilityIndex != INDEX_NONE && Unit->IsAlive())
+			if (Unit->GetPlan().PlannedAbilityIndex != INDEX_NONE && Unit->IsAlive())
 			{
-				const URTActionData* Dropped = Unit->GetAbility(Unit->PlannedAbilityIndex);
+				const URTActionData* Dropped = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 				if (Dropped)
 				{
 					FRTTurnLogEntry Discarded;
@@ -5996,7 +5996,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
-		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+		const int32 ReactionIdx = Unit->GetPlan().PlannedReactionAbility;
 
 		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
 		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)

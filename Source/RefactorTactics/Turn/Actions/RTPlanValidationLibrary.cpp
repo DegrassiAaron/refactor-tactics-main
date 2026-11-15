@@ -88,9 +88,9 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		Plan.Add(Entry);
 	};
 
-	AddAbility(Unit->PlannedDashAbility);
-	AddAbility(Unit->PlannedAbilityIndex);
-	AddAbility(Unit->PlannedReactionAbility);
+	AddAbility(Unit->GetPlan().PlannedDashAbility);
+	AddAbility(Unit->GetPlan().PlannedAbilityIndex);
+	AddAbility(Unit->GetPlan().PlannedReactionAbility);
 
 	// Il movimento normale, con la regola in un posto solo: il PERCHE' delle due condizioni sta nel
 	// docstring di `ARTUnit::HasPlannedNormalMove`, insieme alla regola che descrive.
@@ -122,9 +122,9 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
 		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
 		// alto per nessuno, non verso il piu' basso per qualcuno.
-		const int32 PlannedSteps = Unit->PlannedPath.Num() >= 2
-			? Unit->PlannedPath.Num() - 1
-			: URTHexLibrary::HexDistance(Unit->Cell, Unit->PlannedCell);
+		const int32 PlannedSteps = Unit->GetPlan().PlannedPath.Num() >= 2
+			? Unit->GetPlan().PlannedPath.Num() - 1
+			: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell);
 
 		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
 		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
@@ -133,7 +133,7 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		const FRTMovementProfile Band = URTMovementProfileLibrary::ProfileForPlannedSteps(
 			PlannedSteps,
 			Unit->GetEffectiveMoveRange(),
-			Unit->PlannedMovementProfileId,
+			Unit->GetPlan().PlannedMovementProfileId,
 			URTMovementProfileLibrary::ReservedProfileForPlan(Plan),
 			Unit->HasStatus(TAG_Status_Unbalanced));
 

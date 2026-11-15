@@ -602,7 +602,7 @@ void ARTTurnManager::FreezeClickContextAtLockIn()
 	CollectLivingUnits(Units);
 	for (const ARTUnit* Unit : Units)
 	{
-		const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const URTActionData* Planned = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 		if (!Planned)
 		{
 			continue; // nessuna azione pianificata: non c'e' una mira che il click abbia giudicato
@@ -794,7 +794,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Ctx.Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Ctx.Units[i];
-		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
+		const int32 CleanseIdx = Unit->GetPlan().PlannedAbilityIndex;
 		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
 		// Stessa guardia della cura, e per la stessa ragione: un cadavere non purifica, e soprattutto non
 		// lascia una voce nell'hash del replay.
@@ -820,7 +820,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		// sede di sempre: si annota qui e a scrivere
 		// e' `SpendStartedAbilities`. Niente `EmitAbilityActivated`: un rifiuto non si attiva (#3549, spec §2.2).
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
-			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+			Unit->GetPlan().bAttackTargetsCell ? Unit->GetPlan().PlannedAttackCell : Unit->Cell))
 		{
 			Ctx.MarkAbilitySpent(Unit, CleanseIdx);
 			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
@@ -829,7 +829,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		}
 
 		FGameplayTag Removed;
-		for (const FGameplayTag& Candidate : Unit->PlannedCleansePriority)
+		for (const FGameplayTag& Candidate : Unit->GetPlan().PlannedCleansePriority)
 		{
 			if (Unit->RemoveStatus(Candidate))
 			{
@@ -885,7 +885,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Ctx.Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Ctx.Units[i];
-		const int32 HealIdx = Unit->PlannedAbilityIndex;
+		const int32 HealIdx = Unit->GetPlan().PlannedAbilityIndex;
 		const URTActionData* Heal = Unit->GetAbility(HealIdx);
 		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
 		// filtra i morti — e senza questa guardia un cadavere consuma l'abilita' e lascia le sue voci nel
@@ -910,7 +910,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// ⚠️ **Prima di leggere il bersaglio e di misurare portata e linea di tiro**: il rifiuto non giudica la mira, e una
 		// cura che non parte per lo stordimento non deve lasciare anche la voce di un fuori portata (due cause per un'azione).
 		if (RefuseMainActionIfStunned(Unit, Heal->Def, ERTMatchPhase::Blast,
-			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+			Unit->GetPlan().bAttackTargetsCell ? Unit->GetPlan().PlannedAttackCell : Unit->Cell))
 		{
 			Ctx.MarkAbilitySpent(Unit, HealIdx);
 			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
@@ -922,7 +922,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
 		// ⚠️ Per un'AREA (#3593) il centro puo' essere una CELLA dichiarata, e allora nessuna unita' e' stata scelta;
 		// senza ne' cella ne' unita' dichiarate il ripiego «su se stessi» vale anche qui: il centro e' la cella di chi cura.
-		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		ARTUnit* HealTarget = Unit->GetPlan().PlannedAttackTarget ? Unit->GetPlan().PlannedAttackTarget.Get() : Unit;
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
 		// [D-419], D-493 (#3609) — il centro e' la lettura UNICA di `ARTUnit::ResolutionAimCell`:
@@ -941,7 +941,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		const bool bAgganciaLaCura = Heal->Def.DeclaresTracking();
 		const FRTCellId Centro = (!bArea && bAgganciaLaCura) ? HealTarget->Cell
 			: Unit->ResolutionAimCell(bAgganciaLaCura);
-		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
+		const int32 BersaglioStableId = (bArea && !Unit->GetPlan().PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
@@ -1120,7 +1120,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// sopravvivere a questo ciclo. E' lo stesso tranello gia' incontrato con `Action.Interrupt` (CP 4.7)
 		// e `Action.Cleanse` (CP 5.2) — questo ciclo AZZERA `PlannedAbilityIndex` per ogni unita', quindi un
 		// pass successivo non troverebbe piu' nulla da leggere.
-		const URTActionData* PlannedNow = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const URTActionData* PlannedNow = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 		if (PlannedNow
 			&& URTCatalogLibrary::MapResolutionPhase(PlannedNow->Def.ResolutionPhase) == ERTMatchPhase::Cleanup)
 		{
@@ -1142,7 +1142,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// (lo consuma `ResolveEnvironment`, che ha la propria guardia). Rifiutarle qui ne consumerebbe il
 		// piano nella fase sbagliata, e il rifiuto uscirebbe due volte.
 		if (PlannedNow && RefuseMainActionIfStunned(Unit, PlannedNow->Def, ERTMatchPhase::Blast,
-			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+			Unit->GetPlan().bAttackTargetsCell ? Unit->GetPlan().PlannedAttackCell : Unit->Cell))
 		{
 			// 🔴 **Lo stordito PAGA l'azione che gli viene negata** (decisione d'autore del 2026-10-31, «Lo stordito
 			// (D-416) paga?» «si»; [D-414] alla lettera). ⌫ *Fino ad allora il rifiuto precedeva il pagamento e la
@@ -1155,9 +1155,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// lo rifiuta `ResolveDash`, prima del consumo ([D-567] per lo stordimento: la' il rifiuto e' deciso e paga), e per le
 			// altre cause il Dash rifiutato e' una causa NON DECISA.
 			if (Unit->IsAlive() && !URTCatalogLibrary::IsFastMovement(PlannedNow->Def)
-				&& Unit->CanUseAbility(Unit->PlannedAbilityIndex))
+				&& Unit->CanUseAbility(Unit->GetPlan().PlannedAbilityIndex))
 			{
-				Ctx.MarkAbilitySpent(Unit, Unit->PlannedAbilityIndex);
+				Ctx.MarkAbilitySpent(Unit, Unit->GetPlan().PlannedAbilityIndex);
 			}
 			Unit->ClearPlannedAttack();
 			Unit->ClearPlannedMainAction(); // consumato nel turno, come ogni principale che non parte
@@ -1172,13 +1172,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
 		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
-			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
+			ARTUnit* ArcTarget = Unit->GetPlan().PlannedAttackTarget;
 			// [D-419] (#3609): l'arco si apre verso la MIRA CONGELATA al lock-in, non verso dove il bersaglio e'
 			// scattato — la coppia di celle e' la topologia, e una cella non ha un'identita' da seguire. Letta con la
 			// funzione unica, e PRIMA dell'azzeramento qui sotto. ⌫ *Fino a #3609 portata e arco leggevano
 			// `ArcTarget->Cell`, la cella viva.*
 			const FRTCellId ArcAim = Unit->ResolutionAimCell(PlannedNow->Def.DeclaresTracking());
-			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
+			const int32 ArcAbilityIndex = Unit->GetPlan().PlannedAbilityIndex;
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->ClearPlannedMainAction(); // consumato nel turno, attivata o no
 
@@ -1259,13 +1259,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			continue;
 		}
 
-		ARTUnit* Target = Unit->PlannedAttackTarget;
-		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
+		ARTUnit* Target = Unit->GetPlan().PlannedAttackTarget;
+		const int32 AbilityIndex = Unit->GetPlan().PlannedAbilityIndex;
 		// 🔴 **Il bersaglio a CELLA si copia QUI, prima dell'azzeramento** (`#2884`). Il piano si consuma in
 		// cima al ciclo — e' la disciplina di questo file — ma `bAttackTargetsCell` viene riletto un centinaio
 		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
-		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const bool bTargetsCell = Unit->GetPlan().bAttackTargetsCell;
 		const bool bHasAim = Unit->bHasPlannedAim; // per l'`ensure` qui sotto
 		// L'abilita' si legge PRIMA dell'azzeramento: dipende dal solo indice, e la mira dipende da lei (aggancia?).
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
@@ -1659,8 +1659,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				// Il bordo che il giocatore ha CLICCATO, se l'ha dichiarato (CP 10.1, `#74`). Lo stesso campo
 				// del piano che il ramo delle coperture legge da sempre: qui non arrivava, e l'operazione
 				// finiva su un bordo dedotto dalla traiettoria — un bordo che nessuno aveva scelto ([D-149]).
-				Intent.bHasDeclaredDoorEdge = Unit->bHasPlannedCoverEdge;
-				Intent.DeclaredDoorEdge = Unit->PlannedCoverEdge;
+				Intent.bHasDeclaredDoorEdge = Unit->GetPlan().bHasPlannedCoverEdge;
+				Intent.DeclaredDoorEdge = Unit->GetPlan().PlannedCoverEdge;
 			}
 			break;
 		}
@@ -2243,7 +2243,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
-		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+		const int32 ReactionIdx = Unit->GetPlan().PlannedReactionAbility;
 		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
 		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction
 			|| Reaction->Def.ReactionTrigger != ERTReactionTrigger::AllyHitByDirectAttack)

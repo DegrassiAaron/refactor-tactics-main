@@ -265,7 +265,7 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	B.Gadget->SelectAbility(0);
 	B.PC->HandleClickOnUnitForTest(B.Enemy);
 	TestTrue(TEXT("controllo (1): il click sul nemico registra il bersaglio"),
-		B.Gadget->PlannedAttackTarget == B.Enemy);
+		B.Gadget->GetPlan().PlannedAttackTarget == B.Enemy);
 
 	// (2) tasto abilita'
 	ClearInertPlan(B.Gadget);
@@ -307,9 +307,9 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	B.Gadget->SelectAbility(0);
 	B.PC->HandleClickOnUnitForTest(B.Enemy);
 	TestNull(TEXT("(1) il click sul nemico non registra nessun bersaglio"),
-		(void*)B.Gadget->PlannedAttackTarget.Get());
+		(void*)B.Gadget->GetPlan().PlannedAttackTarget.Get());
 	TestEqual(TEXT("(1) e non pianifica nessuna azione"),
-		B.Gadget->PlannedAbilityIndex, (int32)INDEX_NONE);
+		B.Gadget->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	B.Gadget->SelectAbility(INDEX_NONE);
 	B.PC->SelectAbilityForCurrentForTest(AreaIdx);
@@ -321,19 +321,19 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	B.Gadget->SelectAbility(AreaIdx);
 	TestFalse(TEXT("(3) il bersaglio a cella e' rifiutato"),
 		B.PC->HandleTargetCell(FRTCellId(0, -1, 0)));
-	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Gadget->bAttackTargetsCell);
+	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Gadget->GetPlan().bAttackTargetsCell);
 
 	B.PC->SelectActorForTest(B.Riktor);
 	B.Riktor->SelectAbility(StructIdx);
 	TestFalse(TEXT("(4) il bersaglio a bordo e' rifiutato"),
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
-	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Riktor->bHasPlannedCoverEdge);
+	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Riktor->GetPlan().bHasPlannedCoverEdge);
 
 	B.PC->SelectActorForTest(B.Gadget);
 	B.PC->BeginFacingDeclaration();
 	TestFalse(TEXT("(5) la rotazione dichiarata e' rifiutata"),
 		B.PC->HandleFacingSector(ERTHexDirection::W));
-	TestFalse(TEXT("(5) e nessun facing e' stato dichiarato"), B.Gadget->bDeclaresPlannedFacing);
+	TestFalse(TEXT("(5) e nessun facing e' stato dichiarato"), B.Gadget->GetPlan().bDeclaresPlannedFacing);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
@@ -384,7 +384,7 @@ bool FRTAutobattleBackIsInertTest::RunTest(const FString&)
 
 	B.PC->OnUndoWaypointForTest();
 	if (!TestEqual(TEXT("controllo: presidiata, il destro toglie il waypoint"),
-		B.Gadget->PlannedWaypoints.Num(), 0))
+		B.Gadget->GetPlan().PlannedWaypoints.Num(), 0))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -404,7 +404,7 @@ bool FRTAutobattleBackIsInertTest::RunTest(const FString&)
 
 	B.PC->OnUndoWaypointForTest();
 	TestEqual(TEXT("il destro NON disfa il piano di una sessione non presidiata"),
-		B.Gadget->PlannedWaypoints.Num(), 1);
+		B.Gadget->GetPlan().PlannedWaypoints.Num(), 1);
 
 	// ⛔ E non esce nemmeno da una dichiarazione: la guardia sta PRIMA di `ApplyBack()`, quindi nessun
 	// livello del Back viene raggiunto. Senza questa riga il test resterebbe verde con una guardia spostata
