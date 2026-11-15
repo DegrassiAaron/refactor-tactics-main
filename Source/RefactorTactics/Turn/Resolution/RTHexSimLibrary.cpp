@@ -133,6 +133,15 @@ FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const T
 	{
 		return A.UnitId != B.UnitId ? A.UnitId < B.UnitId : URTHexLibrary::StableLess(A.Cell, B.Cell);
 	});
+	// 🔒 E38 CP 38.11 ([D-371]): il budget di un'unita' di un'altra squadra non e' dell'osservatore. Un piano validato
+	// per errore contro `INDEX_NONE` esce `OverBudget`, quindi lo sbaglio si vede invece di passare col 6 di default.
+	if (!bOsservatoreOnnisciente)
+	{
+		for (FRTHexSimUnit& U : Snapshot.Units)
+		{
+			if (U.TeamId != ObserverTeamId) { U.ActionPointBudget = INDEX_NONE; }
+		}
+	}
 
 	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore.
 	//

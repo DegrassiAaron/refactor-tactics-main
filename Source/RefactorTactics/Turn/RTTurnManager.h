@@ -1767,8 +1767,11 @@ public:
 	 *
 	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
 	 * commento sui contatti in `MakeCurrentSnapshot`).
+	 *
+	 * 🔑 **Statica da E38 CP 38.11**: non legge niente del manager, e la stessa unita' deve arrivare al validatore nello
+	 * stesso modo da snapshot, lock-in e HUD, budget compreso. L'HUD, che non ha un indice di snapshot, passa `INDEX_NONE`.
 	 */
-	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
+	static FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit);
 
 	/**
 	 * Le unita' VIVE del livello, nell'ordine di `URTActionQueueLibrary::SortUnitsForResolution`

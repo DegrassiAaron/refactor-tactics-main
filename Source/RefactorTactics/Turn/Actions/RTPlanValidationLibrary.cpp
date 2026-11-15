@@ -166,13 +166,10 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	return Plan;
 }
 
-// `Unit` resta nella FIRMA e non e' letto dal corpo: con [D-190] l'unica cosa che il validatore leggeva
-// dallo snapshot — `MoveBudget` — e' uscita insieme al ramo dei Movement Point. La firma non si accorcia
-// perche' e' il contratto dichiarato di CP 38.2 (*«una funzione pura sullo snapshot + piano»*) e perche' il
-// lavoro che segue ne ha bisogno: il bot valida contro lo stato, e CP 38.3 legge il profilo di movimento
-// dell'unita'. Il nome e' commentato via invece che lasciato morto, cosi' chi legge vede che l'assenza di
-// letture e' voluta e non una dimenticanza.
-FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*Unit*/,
+// `Unit` e' la firma di CP 38.2 (*«una funzione pura sullo snapshot + piano»*), e da E38 CP 38.11 il corpo la legge:
+// `ActionPointBudget`, il budget dell'unita' per il turno ([D-613] (1)). E' l'unica lettura. Con [D-190] il validatore
+// aveva smesso di leggere `MoveBudget`, uscito insieme al ramo dei Movement Point.
+FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Unit,
 	const TArray<FRTPlannedAction>& Plan)
 {
 	// Ordine canonico: chi occupa PIU' slot si colloca per primo, a parita' si va per `ActionId`. Serve a
@@ -210,7 +207,7 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
 		Spent += FMath::Max(0, Entry.Def.ActionPointCost);
-		if (Spent > ActionPointBudget)
+		if (Spent > Unit.ActionPointBudget) // [D-613] (1): il budget dell'unita' per il turno (E38 CP 38.11)
 		{
 			return Reject(ERTActionInvalidReason::OverBudget, Entry.Def.ActionId);
 		}

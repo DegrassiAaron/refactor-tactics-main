@@ -1495,8 +1495,10 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 				++PianiConMovimentoEPrincipale;
 			}
 
+			// E38 CP 38.11: lo stesso costruttore del lock-in, che legge il budget dall'unita'. Costruita qui a mano,
+			// l'unita' porterebbe il default 6, e un bot a budget 5 con un piano da 6 resterebbe verde.
 			const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
-				FRTHexSimUnit(0, Bot->Cell, Bot->GetEffectiveMoveRange(), /*bAlive*/ true), Piano);
+				ARTTurnManager::MakeSimUnit(INDEX_NONE, Bot), Piano);
 			if (!Verdetto.bLegal)
 			{
 				++Illegali;
@@ -1534,6 +1536,26 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: almeno un piano porta movimento E principale insieme"),
 		PianiConMovimentoEPrincipale > 0);
 	TestEqual(TEXT("nessun piano del bot e' illegale"), Illegali, 0);
+
+	// Controllo positivo del costruttore (E38 CP 38.11): la stessa strada giudica col budget dell'unita'. Un piano da 6
+	// con budget 5 e' rosso; senza la lettura del budget il test qui sopra non vedrebbe un bot che sfora.
+	{
+		ARTUnit* Bot = Bots[0];
+		TArray<FRTPlannedAction> Sei;
+		for (const TCHAR* Id : { TEXT("Test.Uno"), TEXT("Test.Due"), TEXT("Test.Tre") })
+		{
+			FRTPlannedAction Voce;
+			Voce.Def.ActionId = FName(Id);
+			Voce.Def.Slot = ERTActionSlot::Reaction;   // nessuno slot conteso: decide solo il budget
+			Voce.Def.ActionPointCost = 2;
+			Sei.Add(Voce);
+		}
+		Bot->SetActionPointBudget(5);
+		const FRTPlanValidation Controllo = URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, Bot), Sei);
+		TestTrue(TEXT("controllo: con budget 5 un piano da 6 e' OverBudget"),
+			!Controllo.bLegal && Controllo.Reason == ERTActionInvalidReason::OverBudget);
+		Bot->SetActionPointBudget(URTPlanValidationLibrary::DefaultActionPointBudget);
+	}
 
 	DestroyHexBotWorld(World);
 	return true;

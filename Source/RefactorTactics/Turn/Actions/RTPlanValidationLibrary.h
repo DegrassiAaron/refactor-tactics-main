@@ -86,13 +86,13 @@ public:
 	/**
 	 * Valida il piano di UNA unita'.
 	 *
-	 * ⚠️ Dopo [D-190] il corpo **non legge nulla** da `Unit`: il verdetto dipende dal solo piano. Il
-	 * parametro resta perche' e' il contratto di CP 38.2 e perche' i due lavori successivi lo useranno —
-	 * il bot valida contro lo stato, CP 38.3 legge il profilo di movimento.
+	 * Da `Unit` il corpo legge solo `ActionPointBudget`, il budget dell'unita' per il turno ([D-613] (1); E38 CP
+	 * 38.11): chi la costruisce passa da `ARTTurnManager::MakeSimUnit`, lo stesso costruttore di snapshot, lock-in e
+	 * HUD, cosi' i tre danno lo stesso verdetto. Un `FRTHexSimUnit()` costruito a mano giudica col default 6.
 	 *
 	 * Precedenza dei motivi, deterministica e indipendente dall'ordine in cui il giocatore compone:
 	 *   1. `OnCooldown` — proprieta' INTRINSECA di una voce sola;
-	 *   2. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera `ActionPointBudget`);
+	 *   2. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera il budget dell'unita');
 	 *      nomina la prima voce, nell'ordine canonico, che fa sforare la somma;
 	 *   3. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima.
 	 *
@@ -125,11 +125,11 @@ public:
 	static FRTPlanValidation ValidatePlan(const FRTHexSimUnit& Unit, const TArray<FRTPlannedAction>& Plan);
 
 	/**
-	 * Il budget di Action Point per unita' e per turno ([D-594] (1): 6). Costante e non dato dell'unita': D-265
-	 * esclude una risorsa universale da far crescere, e D-594 ha scelto UN numero per tutti. Il giorno in cui un
-	 * eroe ne avesse uno proprio, il valore passerebbe sull'unita' e questa costante diventerebbe il default.
+	 * Il budget di Action Point di partenza ([D-594] (1): 6). Da E38 CP 38.11 ([D-613] (1)) il budget e' un numero
+	 * dell'unita' per il turno, `FRTHexSimUnit::ActionPointBudget`, e `ValidatePlan` legge quello: questo e' il suo
+	 * default, che `ARTUnit` e `FRTHexSimUnit` prendono all'allestimento.
 	 */
-	static constexpr int32 ActionPointBudget = 6;
+	static constexpr int32 DefaultActionPointBudget = RTActionPoints::DefaultBudget;
 
 	/** La somma dei costi AP dichiarati dalle voci del piano (`FRTActionDef::ActionPointCost`, mai negativi). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")

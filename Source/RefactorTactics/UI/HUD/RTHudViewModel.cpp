@@ -14,7 +14,7 @@
 #include "Turn/Actions/RTIntentPrivacyLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
 #include "Turn/Actions/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
-#include "Turn/Resolution/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
+#include "Turn/Resolution/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` ne legge il budget (E38 CP 38.11)
 #include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
 #include "Map/Actor/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "Map/RTHexMapAsset.h"                // HasObjectiveCell: il punteggio ha senso solo con un obiettivo (#3635)
@@ -368,7 +368,8 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	};
 
 	// --- 1. Critical: il validatore. Lo dice, non lo decide. -------------------------------------------------
-	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Piano);
+	// E38 CP 38.11: lo stesso costruttore del lock-in, quindi lo stesso budget. Un `FRTHexSimUnit()` giudicherebbe col 6.
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), Piano);
 	if (!Verdetto.bLegal)
 	{
 		FRTPlanWarningView Critico;
@@ -1049,10 +1050,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	// `BuildIdleBar` ([D-460]) sulle unita' della squadra di chi guarda, che di questa riga NON copia niente —
 	// il suo elenco positivo dei campi lascia al default ogni stato di piano.
 	//
-	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
-	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.
-	const FRTPlanValidation Verdetto =
-		URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(Unit));
+	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore legge il budget dell'unita' ([D-613] (1), E38
+	//    CP 38.11): l'unita' arriva dallo stesso costruttore del lock-in, cosi' dock e lock-in danno lo stesso verdetto.
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
+		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), URTPlanValidationLibrary::MakePlanFor(Unit));
 	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
 	{
 		for (FRTAbilityCooldownView& V : Cooldowns)

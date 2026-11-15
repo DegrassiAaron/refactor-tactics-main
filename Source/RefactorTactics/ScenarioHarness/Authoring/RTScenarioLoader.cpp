@@ -1371,8 +1371,15 @@ namespace
 			// piu' a proteggere il sentinella: assente resta `-1`.
 			if (!OpzionaleIntero(*Obj, TEXT("health"), Unit.Health, *DoveUnita, OutError)
 				|| !OpzionaleIntero(*Obj, TEXT("shield"), Unit.Shield, *DoveUnita, OutError)
-				|| !OpzionaleIntero(*Obj, TEXT("visionRange"), Unit.VisionRange, *DoveUnita, OutError))
+				|| !OpzionaleIntero(*Obj, TEXT("visionRange"), Unit.VisionRange, *DoveUnita, OutError)
+				|| !OpzionaleIntero(*Obj, TEXT("actionPointBudget"), Unit.ActionPointBudget, *DoveUnita, OutError))
 			{
+				return false;
+			}
+			// E38 CP 38.11: un budget dichiarato negativo non e' un budget. Il sentinella `-1` resta per «non dichiarato».
+			if (Obj->HasField(TEXT("actionPointBudget")) && Unit.ActionPointBudget < 0)
+			{
+				OutError = FString::Printf(TEXT("%s: actionPointBudget %d negativo"), *DoveUnita, Unit.ActionPointBudget);
 				return false;
 			}
 			// `loadout` opzionale (`#602`): assente = il default dell'eroe, quindi gli scenari gia' scritti non

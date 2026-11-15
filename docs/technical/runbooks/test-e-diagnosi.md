@@ -565,6 +565,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-in
 | `reaction` | `ActionId` della reazione che l'unità **arma** per il turno — nessun bersaglio |
 | `bot` | *(opzionale)* l'unità è guidata dal **pianificatore del gioco**, non dal file. Un intent scritto per lei è un errore |
 | `health` · `shield` · `visionRange` | *(opzionale)* condizione iniziale al posto di quella del roster. Assenti = valori dell'eroe |
+| `actionPointBudget` | *(opzionale, versione 8)* budget di Action Point del turno ([D-613](../../decisions/RT_PDR_00_Decision_Log.md) (1)). Assente = il default di [D-594](../../decisions/RT_PDR_00_Decision_Log.md) (1), 6. Negativo = rifiutato dal loader |
 | `variants` | *(opzionale)* rigioca lo scenario spostando alcune unità — vedi sotto |
 | `expectSameAcrossVariants` | *(opzionale)* le varianti devono produrre lo **stesso** TurnLog |
 | `freeRun` | *(opzionale)* gioca **fino alla fine partita** invece di enumerare i turni — vedi sotto |
@@ -587,7 +588,7 @@ Un intent dichiarato per un'unità bot è **rifiutato dal loader**: `PlanBots` a
 guida, quindi uno dei due sovrascriverebbe l'altro in silenzio e lo scenario resterebbe verde nei casi in cui
 le due scelte coincidono per caso.
 
-`health`, `shield` e `visionRange` usano `-1` come «non dichiarato», mai `0`: uno scudo azzerato è una
+`health`, `shield`, `visionRange` e `actionPointBudget` usano `-1` come «non dichiarato», mai `0`: uno scudo azzerato è una
 richiesta legittima, e un sentinella che coincide con un valore valido non sa distinguere le due cose.
 
 ### `variants` — l'unica forma di un canary d'indipendenza

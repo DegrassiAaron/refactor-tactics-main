@@ -7733,7 +7733,7 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 	return Empty;
 }
 
-FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
+FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit)
 {
 	// La **BANDA** di movimento che il piano produce ([D-425]). Da qui vengono i due budget, non piu'
 	// direttamente da `MoveRange` dell'unita'.
@@ -7794,6 +7794,8 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 	// La squadra (`#2984`, [D-396]): decide chi si puo' attraversare. Qui e come per lo `Slow` sopra e'
 	// il confine dello strato puro — `URTHexSimLibrary` non conosce `ARTUnit`, e la traduzione e' una.
 	SimUnit.TeamId = Unit->TeamId;
+	// [D-613] (1), E38 CP 38.11: il budget del turno e' dell'unita', e il validatore lo legge da qui.
+	SimUnit.ActionPointBudget = Unit->GetActionPointBudget();
 	return SimUnit;
 }
 

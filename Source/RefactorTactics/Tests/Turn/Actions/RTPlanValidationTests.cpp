@@ -183,6 +183,11 @@ bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 /**
  * Il verdetto NON dipende da `MoveBudget`. E' il gate di [D-190].
  *
+ * ⚠️ `MoveBudget` sono i punti movimento, non gli Action Point. Il budget di AP e' un altro campo dell'unita',
+ * `ActionPointBudget` (E38 CP 38.11, [D-613] (1)), e quello il verdetto lo legge: lo pinna
+ * `Plan.BudgetIsReadFromTheUnit`. Le voci di `PlanEntry` non dichiarano un costo (`ActionPointCost` 0), quindi
+ * il piano qui sotto non arriva al budget di AP qualunque sia.
+ *
  * Fino a quella decisione un ramo sommava i `CostMP` del piano e li confrontava col budget dell'unita'.
  * Uscito il ramo, lo snapshot non entra piu' nel verdetto — e la proprieta' va PINNATA invece che lasciata
  * alla lettura del corpo: chi reintroducesse la sottrazione respinta da [D-114] farebbe cadere questo test,

@@ -94,7 +94,13 @@ public:
 	// turno»* non esce rossa: esce **verde misurando un'altra cosa**. Con la `7` il rifiuto arriva dal gate
 	// di versione e nomina la build. (Il controllo di chiave sconosciuta su `expect` arriva con la stessa
 	// fetta, ma non protegge le build gia' spedite: quelle hanno solo il gate.)
-	static constexpr int32 SupportedVersion = 7;
+	// 7 → 8 con il **budget di Action Point** dell'unita' (`actionPointBudget`, E38 CP 38.11, [D-613] (1)).
+	//
+	// ⚠️ Qui il verso e' quello di `at`: `ParseScenarioUnits` non rifiuta le chiavi sconosciute, quindi una build a
+	// `SupportedVersion = 7` ignorerebbe `actionPointBudget` in silenzio e giocherebbe col 6 di default. Lo scenario
+	// che vuole un budget 5 uscirebbe verde misurando un altro piano. Con la `8` il rifiuto arriva dal gate di
+	// versione e nomina la build.
+	static constexpr int32 SupportedVersion = 8;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.

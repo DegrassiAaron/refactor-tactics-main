@@ -524,6 +524,14 @@ struct FRTScenarioUnit
 	int32 Shield = -1;
 
 	/**
+	 * Budget di Action Point del turno ([D-613] (1); E38 CP 38.11, chiave `actionPointBudget`). `-1` = non dichiarato,
+	 * resta il default di [D-594] (1), 6. Vale dal turno 1: nessuno lo cambia in partita finche' non arrivano i suoi
+	 * produttori (`KIT-3`). Vedi `Health` per il perche' del sentinella.
+	 */
+	UPROPERTY()
+	int32 ActionPointBudget = -1;
+
+	/**
 	 * Portata visiva. `-1` = non dichiarata, resta quella del roster.
 	 *
 	 * ⚠️ **E' condizione iniziale, non bilanciamento**: la scrive gia' `ConfigureFromHeroData` dai dati

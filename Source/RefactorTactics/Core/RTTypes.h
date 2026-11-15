@@ -28,3 +28,13 @@ struct FRTTraversalEdge
 	FRTTraversalEdge(const FRTCellId& InFrom, const FRTCellId& InTo, int32 InCost)
 		: From(InFrom), To(InTo), Cost(InCost) {}
 };
+
+/**
+ * [D-594] (1): il budget di Action Point di partenza di ogni unita', 6. Da E38 CP 38.11 ([D-613] (1), #4112) il budget e'
+ * un numero dell'unita' per il turno, e questo e' il suo default (lettura D-613 (5): «il 6 resta il valore di partenza e
+ * diventa il default»). Sta qui perche' lo leggono `ARTUnit`, `FRTHexSimUnit` e il validatore, senza includersi a vicenda.
+ */
+namespace RTActionPoints
+{
+	constexpr int32 DefaultBudget = 6;
+}

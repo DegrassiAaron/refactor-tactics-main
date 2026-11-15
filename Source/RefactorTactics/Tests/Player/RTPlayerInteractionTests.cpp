@@ -5689,4 +5689,100 @@ bool FRTLockInScenariosPassTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.11 (#4112): il budget del turno e' un numero dell'unita' ([D-613] (1)) ────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVerdictMatchesTheLockInWithBudgetFiveTest,
+	"RefactorTactics.HudViewModel.VerdictMatchesTheLockInWithBudgetFive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVerdictMatchesTheLockInWithBudgetFiveTest::RunTest(const FString&)
+{
+	// Criterio 2: view-model e lock-in danno lo stesso verdetto per la stessa unita' con budget 5.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	B.Riktor->SetActionPointBudget(5);
+	B.Riktor->SetPlannedMainAction(B.Impact);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	B.Riktor->SetPlannedReaction(B.Interposition);
+	B.Riktor->SetPlannedMove({ FRTCellId(0, 1) }, { FRTCellId(0, 0), FRTCellId(0, 1) });
+
+	// L'HUD: l'avviso critico porta il motivo del budget.
+	const FText Motivo = FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget));
+	int32 Critici = 0;
+	for (const FRTPlanWarningView& W : URTHudViewModel::BuildPlanWarnings(B.Riktor, { B.Riktor, B.Gadget }))
+	{
+		if (W.Level == ERTPlanWarningLevel::Critical && W.Why.EqualTo(Motivo)) { ++Critici; }
+	}
+	TestEqual(TEXT("l'HUD giudica il piano da 6 OverBudget con budget 5"), Critici, 1);
+
+	// Il lock-in: lo stesso piano si svuota per lo stesso motivo.
+	ResolveOneTurn(B.TM);
+	int32 VociDelBudget = 0;
+	for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+	{
+		if (E.UnitId == B.Riktor->StableUnitId && E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OverBudget))
+		{
+			++VociDelBudget;
+		}
+	}
+	TestEqual(TEXT("il lock-in lo svuota per OverBudget: una voce per azione"), VociDelBudget, 3);
+
+	// Controllo positivo: col budget di default lo stesso piano non accende l'avviso critico del budget.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(B.World); DestroyInteractionWorld(C.World); return false; }
+	C.Riktor->SetPlannedMainAction(C.Impact);
+	C.Riktor->DeclareAttackOnUnit(C.Gadget);
+	C.Riktor->SetPlannedReaction(C.Interposition);
+	C.Riktor->SetPlannedMove({ FRTCellId(0, 1) }, { FRTCellId(0, 0), FRTCellId(0, 1) });
+	int32 CriticiDefault = 0;
+	for (const FRTPlanWarningView& W : URTHudViewModel::BuildPlanWarnings(C.Riktor, { C.Riktor, C.Gadget }))
+	{
+		if (W.Level == ERTPlanWarningLevel::Critical && W.Why.EqualTo(Motivo)) { ++CriticiDefault; }
+	}
+	TestEqual(TEXT("controllo: con budget 6 nessun avviso del budget"), CriticiDefault, 0);
+
+	DestroyInteractionWorld(B.World);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionPointBudgetScenariosPassTest,
+	"RefactorTactics.Plan.ActionPointBudgetScenariosPass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionPointBudgetScenariosPassTest::RunTest(const FString&)
+{
+	const TCHAR* const Scenari[] = {
+		TEXT("Scenarios/Spec/ActionEconomy/BudgetFiveRefusesASixPointPlan.json"),
+		TEXT("Scenarios/Spec/ActionEconomy/DefaultBudgetAcceptsTheSamePlan.json"),
+	};
+	for (const TCHAR* Rel : Scenari)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s si carica: %s"), Rel, *Error),
+				URTScenarioLoader::LoadFromFile(FPaths::Combine(FPaths::ProjectDir(), Rel), Scenario, Error)))
+		{
+			continue;
+		}
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		RTWorldFixtures::DestroyWorld(World);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: ERROR invece di PASS — %s"), Rel, *Result.ErrorMessage));
+			continue;
+		}
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				AddError(FString::Printf(TEXT("%s — assertion caduta al turno %d: %s (atteso '%s', letto '%s')"),
+					Rel, A.Turn, *A.Description, *A.Expected, *A.Actual));
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("%s passa"), Rel), Result.OutcomeString(), FString(TEXT("PASS")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

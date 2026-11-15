@@ -22,6 +22,7 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/Actions/RTActionFallbackLibrary.h"
 #include "Turn/Resolution/RTHexSim.h"
+#include "Turn/Resolution/RTHexSimLibrary.h" // E38 CP 38.11: lo snapshot d'osservatore e i budget altrui
 #include "Turn/Actions/RTPlanValidationLibrary.h"
 #include "Turn/Log/RTTurnLogLibrary.h"
 #include "Unit/RTUnit.h"
@@ -86,7 +87,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSumOverBudgetIsRejected,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlanSumOverBudgetIsRejected::RunTest(const FString&)
 {
-	TestEqual(TEXT("premessa: il budget di D-594 e' 6"), URTPlanValidationLibrary::ActionPointBudget, 6);
+	TestEqual(TEXT("premessa: il budget di partenza di D-594 e' 6"), URTPlanValidationLibrary::DefaultActionPointBudget, 6);
+	TestEqual(TEXT("premessa: un FRTHexSimUnit costruito a mano porta il default"), FRTHexSimUnit().ActionPointBudget, 6);
 
 	// --- 1. quattro principali del Blast fanno 8: rifiutate per BUDGET, non per slot, e nominando la voce che sfora
 	{
@@ -144,7 +146,7 @@ bool FRTPlanSumOverBudgetIsRejected::RunTest(const FString&)
 	{
 		const TArray<FRTPlannedAction> Plan = ApPlanForForm(Form);
 		TestTrue(*FString::Printf(TEXT("forma a tre azioni %s: entro il budget"), Form),
-			URTPlanValidationLibrary::ActionPointsSpent(Plan) <= URTPlanValidationLibrary::ActionPointBudget);
+			URTPlanValidationLibrary::ActionPointsSpent(Plan) <= URTPlanValidationLibrary::DefaultActionPointBudget);
 	}
 	return true;
 }
@@ -341,6 +343,81 @@ bool FRTCatalogUltimateWithAnotherCostIsRejected::RunTest(const FString&)
 	// valida, perche' una riga puo' dichiarare un costo proprio.
 	Riga.bIsUltimate = false;
 	TestEqual(TEXT("una riga non marcata a 3 e' valida"), URTCatalogLibrary::ValidateActions({ Riga }).Num(), 0);
+	return true;
+}
+
+// E38 CP 38.11 (#4112) — il budget del turno e' un numero dell'unita' ([D-613] (1)), e `ValidatePlan` legge quello.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanBudgetIsReadFromTheUnit,
+	"RefactorTactics.Plan.BudgetIsReadFromTheUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanBudgetIsReadFromTheUnit::RunTest(const FString&)
+{
+	// Criterio 1: principale + reazione + Move, 2 + 2 + 2 = 6.
+	TArray<FRTPlannedAction> Sei;
+	for (const TCHAR Classe : { TEXT('B'), TEXT('R'), TEXT('M') })
+	{
+		FRTPlannedAction Voce;
+		if (!TestTrue(TEXT("premessa: la classe esiste"), ApEntryForClass(Classe, Voce))) { return false; }
+		Sei.Add(Voce);
+	}
+	FRTHexSimUnit Unita = ApUnit();
+	Unita.ActionPointBudget = 5;
+	const FRTPlanValidation ConCinque = URTPlanValidationLibrary::ValidatePlan(Unita, Sei);
+	TestTrue(TEXT("con budget 5 il piano da 6 e' OverBudget"),
+		!ConCinque.bLegal && ConCinque.Reason == ERTActionInvalidReason::OverBudget);
+	Unita.ActionPointBudget = 6;
+	TestTrue(TEXT("con budget 6 lo stesso piano e' legale"), URTPlanValidationLibrary::ValidatePlan(Unita, Sei).bLegal);
+
+	// Su voci sintetiche, il verso opposto: un piano da 7 (movimento 2 + principale 3 + reazione 2).
+	TArray<FRTPlannedAction> Sette;
+	FRTPlannedAction Movimento;
+	FRTPlannedAction Reazione;
+	ApEntryForClass(TEXT('M'), Movimento);
+	ApEntryForClass(TEXT('R'), Reazione);
+	Sette.Add(Movimento);
+	Sette.Add(ApEntry(TEXT("Test.PrincipaleDaTre"), ERTActionSlot::Main, 3));
+	Sette.Add(Reazione);
+	Unita.ActionPointBudget = 7;
+	TestTrue(TEXT("con budget 7 il piano da 7 e' legale"), URTPlanValidationLibrary::ValidatePlan(Unita, Sette).bLegal);
+	Unita.ActionPointBudget = 6;
+	const FRTPlanValidation ConSei = URTPlanValidationLibrary::ValidatePlan(Unita, Sette);
+	TestTrue(TEXT("con budget 6 lo stesso piano e' OverBudget"),
+		!ConSei.bLegal && ConSei.Reason == ERTActionInvalidReason::OverBudget);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTObserverSnapshotHidesForeignBudgets,
+	"RefactorTactics.Privacy.ObserverSnapshotHidesForeignBudgets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTObserverSnapshotHidesForeignBudgets::RunTest(const FString&)
+{
+	// Criterio 5: due mondi che differiscono SOLO per il budget di un'unita' della squadra 1 danno alla squadra 0 lo
+	// stesso snapshot ([D-371]).
+	auto Mondo = [](int32 BudgetAvversario)
+	{
+		FRTHexSimUnit Mia(0, FRTCellId(0, 0), 4, true);
+		Mia.TeamId = 0;
+		Mia.ActionPointBudget = 6;
+		FRTHexSimUnit Sua(1, FRTCellId(3, 0), 4, true);
+		Sua.TeamId = 1;
+		Sua.ActionPointBudget = BudgetAvversario;
+		return TArray<FRTHexSimUnit>{ Mia, Sua };
+	};
+	const FRTHexSnapshot A = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(5), {}, 0);
+	const FRTHexSnapshot B = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(4), {}, 0);
+	if (!TestEqual(TEXT("premessa: due unita' per snapshot"), A.Units.Num(), 2)) { return false; }
+	for (int32 i = 0; i < A.Units.Num(); ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("unita' %d: stesso budget nei due mondi, per la squadra 0"), i),
+			A.Units[i].ActionPointBudget, B.Units[i].ActionPointBudget);
+	}
+	TestEqual(TEXT("il budget dell'avversario e' nascosto (INDEX_NONE)"), A.Units[1].ActionPointBudget, (int32)INDEX_NONE);
+	TestEqual(TEXT("il budget della propria unita' resta"), A.Units[0].ActionPointBudget, 6);
+
+	// Controllo positivo: lo snapshot onnisciente li distingue, quindi l'uguaglianza qui sopra e' il filtro.
+	const FRTHexSnapshot OA = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(5), {}, RTObserver::Omniscient);
+	const FRTHexSnapshot OB = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(4), {}, RTObserver::Omniscient);
+	TestNotEqual(TEXT("controllo: l'onnisciente vede i due budget diversi"), OA.Units[1].ActionPointBudget, OB.Units[1].ActionPointBudget);
 	return true;
 }
 

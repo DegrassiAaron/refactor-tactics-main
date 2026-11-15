@@ -1,0 +1,33 @@
+{
+  "scenarioId": "Spec.ActionEconomy.DefaultBudgetAcceptsTheSamePlan",
+  "tags": ["action-economy", "spec", "riktor", "gadget"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "E38 CP 38.11 (#4112), controllo di `Spec.ActionEconomy.BudgetFiveRefusesASixPointPlan`: lo stesso piano da 6, senza `actionPointBudget`, si gioca col budget di default di [D-594] (1), 6, e il lock-in lo accetta. Se questo scenario cadesse, il rifiuto del gemello non proverebbe piu' che a decidere e' il budget.",
+  "_oracolo": "ImpactShot su F1 (2) + Interposition (2) + Move verso (0,1,0) (2) = 6 = 6: piano legale, nessuna `Fallback`/`Cancelled`, e il Move porta B1 a (0,1,0). F1 sta a 2 celle sia dalla partenza sia dall'arrivo, dentro la portata di ImpactShot: il colpo parte, e una `Cancelled` di portata non si confonde con quella del lock-in.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 1, "cell": [-2, 1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — B1 dichiara attacco, reazione e Move: 6 AP su 6.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1",
+          "reaction": "Hero.Riktor.Interposition", "move": [[0, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 1, 0],
+      "_assertion": "Il Move si risolve." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 0,
+      "_assertion": "Il lock-in non svuota nulla." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

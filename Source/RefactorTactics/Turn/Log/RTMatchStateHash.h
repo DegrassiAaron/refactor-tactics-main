@@ -104,6 +104,11 @@ struct FRTUnitStateDigest
 	 * `D-261` fa fra `Facing` e `PlannedFacing`.
 	 */
 	UPROPERTY() TArray<int32> AbilityCooldowns;
+	/**
+	 * Il budget di Action Point di base del turno ([D-615] (2); E38 CP 38.11). E' stato, nato da risoluzioni passate come la
+	 * ricarica di [D-333]; il modificatore scelto nel piano (l'overclock) e' un intento e qui non entra.
+	 */
+	UPROPERTY() int32 ActionPointBudget = 0;
 };
 
 /**

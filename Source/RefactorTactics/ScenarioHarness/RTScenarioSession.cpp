@@ -83,6 +83,11 @@ namespace RTScenarioStateDiff
 			Out.Emplace(TEXT("Facing"), FString::FromInt(static_cast<int32>(Before.Facing)),
 				FString::FromInt(static_cast<int32>(After.Facing)));
 		}
+		if (Before.ActionPointBudget != After.ActionPointBudget)
+		{
+			Out.Emplace(TEXT("ActionPointBudget"), FString::FromInt(Before.ActionPointBudget),
+				FString::FromInt(After.ActionPointBudget));
+		}
 		const FString BeforeTags = StatusesToText(Before.Statuses);
 		const FString AfterTags = StatusesToText(After.Statuses);
 		if (BeforeTags != AfterTags)
@@ -961,6 +966,10 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		if (Spec.VisionRange != -1)
 		{
 			Unit->VisionRange = Spec.VisionRange;
+		}
+		if (Spec.ActionPointBudget != -1)
+		{
+			Unit->SetActionPointBudget(Spec.ActionPointBudget); // E38 CP 38.11: il budget del turno 1
 		}
 
 		// GLI STATUS INIZIALI, applicati con la porta VERA — `#1629`. `ApplyStatus` e' l'unico percorso:
