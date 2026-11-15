@@ -5986,4 +5986,70 @@ bool FRTResolutionPermutingTheDeclarationKeepsTheOutcomeTest::RunTest(const FStr
 	return true;
 }
 
+// ── [D-608] tappa 4 (#4127): la copia del piano al lock-in ──────────────────────────────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanLockedPlanIsTakenAtLockInTest,
+	"RefactorTactics.Plan.LockedPlanIsTakenAtLockIn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanLockedPlanIsTakenAtLockInTest::RunTest(const FString&)
+{
+	// Criteri 1 e 2: dopo il lock-in la copia porta il piano, il bersaglio per StableUnitId e la mira sulla cella del
+	// bersaglio al lock-in; e non cambia quando, dopo il lock-in, cambiano il piano vivo e la posizione del bersaglio.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	B.Riktor->SetPlannedMainAction(B.Impact);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	B.Riktor->SetPlannedReaction(B.Interposition);
+	B.Riktor->SetPlannedMove({ FRTCellId(0, 1) }, { FRTCellId(0, 0), FRTCellId(0, 1) });
+	// Gadget si muove nel turno: il Move risolve dopo il Blast, e la mira resta dov'era al lock-in.
+	B.Gadget->SetPlannedMove({ FRTCellId(-2, 0) }, { FRTCellId(-1, 0), FRTCellId(-2, 0) });
+	const FRTCellId DoveEraGadget = B.Gadget->Cell;
+
+	ResolveOneTurn(B.TM);
+	const FRTLockedPlan& Copia = B.Riktor->GetLockedPlan();
+	TestNotEqual(TEXT("premessa: il roster c'e', Gadget ha un'identita'"), B.Gadget->StableUnitId, 0);
+	TestEqual(TEXT("il bersaglio per StableUnitId"), Copia.AttackTargetStableId, B.Gadget->StableUnitId);
+	TestTrue(TEXT("la mira e' congelata"), Copia.bHasAim);
+	TestEqual(TEXT("sulla cella del bersaglio al lock-in"), Copia.AimCell, DoveEraGadget);
+	TestEqual(TEXT("la principale del piano"), Copia.Plan.PlannedAbilityIndex(), B.Impact);
+	TestEqual(TEXT("la reazione"), Copia.Plan.PlannedReactionAbility(), B.Interposition);
+	TestEqual(TEXT("e le voci nel loro ordine"), Copia.Plan.DeclarationIndexOf(ERTPlanEntryClass::Movement), 2);
+
+	// Il turno ha consumato il piano vivo e spostato il bersaglio: la copia no.
+	TestEqual(TEXT("controllo: la principale viva e' consumata"), B.Riktor->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
+	TestNotEqual(TEXT("controllo: Gadget si e' mosso"), B.Gadget->Cell, DoveEraGadget);
+	TestEqual(TEXT("e la copia ha ancora la principale"), Copia.Plan.PlannedAbilityIndex(), B.Impact);
+	TestEqual(TEXT("e la mira di prima"), Copia.AimCell, DoveEraGadget);
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanLockedPlanOfARefusedPlanIsEmptyTest,
+	"RefactorTactics.Plan.LockedPlanOfARefusedPlanIsEmpty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanLockedPlanOfARefusedPlanIsEmptyTest::RunTest(const FString&)
+{
+	// Criterio 3: la copia di un piano svuotato al lock-in (CP 38.10) e' il piano che si risolve, cioe' vuoto.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	PlanOverBudget(B);
+	ResolveOneTurn(B.TM);
+	const FRTLockedPlan& Copia = B.Riktor->GetLockedPlan();
+	TestEqual(TEXT("nessuna principale"), Copia.Plan.PlannedAbilityIndex(), (int32)INDEX_NONE);
+	TestEqual(TEXT("nessuno scatto"), Copia.Plan.PlannedDashAbility(), (int32)INDEX_NONE);
+	TestEqual(TEXT("nessuna reazione"), Copia.Plan.PlannedReactionAbility(), (int32)INDEX_NONE);
+	TestEqual(TEXT("nessun percorso"), Copia.Plan.PlannedPath().Num(), 0);
+	TestEqual(TEXT("nessun bersaglio"), Copia.AttackTargetStableId, (int32)INDEX_NONE);
+	TestFalse(TEXT("e nessuna mira"), Copia.bHasAim);
+	// Controllo: un piano legale, nello stesso banco, lascia una copia piena.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(B.World); DestroyInteractionWorld(C.World); return false; }
+	C.Riktor->SetPlannedMainAction(C.Impact);
+	C.Riktor->DeclareAttackOnUnit(C.Gadget);
+	ResolveOneTurn(C.TM);
+	TestEqual(TEXT("controllo: il piano legale lascia la principale nella copia"), C.Riktor->GetLockedPlan().Plan.PlannedAbilityIndex(), C.Impact);
+	DestroyInteractionWorld(B.World);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

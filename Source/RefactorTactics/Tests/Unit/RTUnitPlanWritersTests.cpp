@@ -47,13 +47,13 @@ namespace
 	 */
 	const TCHAR* const PlanWritersCampi[] = {
 		TEXT("PlannedCell"), TEXT("PlannedAbilityIndex"), TEXT("PlannedAttackTarget"), TEXT("PlannedAttackCell"),
-		TEXT("PlannedCoverEdge"), TEXT("bHasPlannedCoverEdge"), TEXT("PlannedAimCell"), TEXT("bHasPlannedAim"),
+		TEXT("PlannedCoverEdge"), TEXT("bHasPlannedCoverEdge"), TEXT("bHasPlannedAim"),
 		TEXT("PlannedPath"), TEXT("PlannedWaypoints"), TEXT("PlannedMovementProfileId"), TEXT("bDeclaresPlannedFacing"),
 		TEXT("PlannedFacing"), TEXT("PlannedDashAbility"), TEXT("PlannedDashCell"), TEXT("PlannedChargeRun"),
 		TEXT("bHasPlannedChargeRun"), TEXT("PlannedReactionAbility"), TEXT("PlannedReactionCondition"),
 		TEXT("PlannedCleansePriority"),
 		TEXT("bAttackTargetsCell"), TEXT("bTurnPlanDeclared"), TEXT("WaypointsAllaDichiarazione"), TEXT("WaypointsAllaReazione"),
-		TEXT("Entries"),
+		TEXT("Entries"), TEXT("LockedPlan"),
 	};
 
 	/** Il file dei test che scrive il piano per mestiere: l'accesso riservato, fuori dal perimetro. */
@@ -772,7 +772,7 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 	// ⛔ Anti-vacuita': il parser trova davvero i campi in entrambi i file, compresi uno con l'inizializzatore e uno senza.
 	if (!TestTrue(TEXT("premessa: il parser vede `PlannedCell` nello struct (senza inizializzatore)"), DelPiano.Contains(TEXT("PlannedCell")))
 		|| !TestTrue(TEXT("premessa: e `PlannedFacing` (con)"), DelPiano.Contains(TEXT("PlannedFacing")))
-		|| !TestTrue(TEXT("premessa: e `PlannedAimCell` nell'unita', dove resta"), DellUnita.Contains(TEXT("PlannedAimCell"))))
+		|| !TestTrue(TEXT("premessa: e `bHasPlannedAim` nell'unita', dove resta"), DellUnita.Contains(TEXT("bHasPlannedAim"))))
 	{
 		return false;
 	}

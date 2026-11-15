@@ -28,7 +28,7 @@ enum class ERTPlanEntryClass : uint8
  * documentazione sta sugli accessori di `FRTUnitPlan`, che restano i punti in cui il gioco li legge. Ogni voce porta
  * solo i campi della sua classe; gli altri restano al default.
  *
- * ⛔ La mira congelata al lock-in non e' un parametro dell'intento: sta in `ARTUnit` fino alla copia al lock-in
+ * ⛔ La mira congelata al lock-in non e' un parametro dell'intento: sta nella copia al lock-in, `FRTLockedPlan`
  * ([D-608] (4), tappa 4).
  */
 USTRUCT(meta = (RTServerOnly))

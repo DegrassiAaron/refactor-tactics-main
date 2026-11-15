@@ -21,8 +21,8 @@ class ARTUnit;
  * senza cambiarli, con la loro documentazione. Rinominarli o cambiarne la forma e' lavoro delle tappe che seguono (la
  * lista di E38, CP 38.12), non di questo spostamento.
  *
- * ⛔ **Cosa NON c'e', ed e' deciso**: la mira congelata (`PlannedAimCell`) va nella copia immutabile al lock-in con
- * `StableUnitId` (tappa 4); la cache della carica resta derivata; la memoria del Back va nella sessione di
+ * ⛔ **Cosa NON c'e', ed e' deciso**: la mira congelata sta nella copia immutabile al lock-in, `FRTLockedPlan`, con
+ * `StableUnitId` (tappa 4, #4127); la cache della carica resta derivata; la memoria del Back va nella sessione di
  * pianificazione (S6). Il bersaglio resta un puntatore: l'id compare solo nella copia al lock-in ([D-608] (2)).
  *
  * 🔒 **Nessun campo e' visibile ai Blueprint**: l'intento e' privato della squadra che lo dichiara (CLAUDE.md §7), e
