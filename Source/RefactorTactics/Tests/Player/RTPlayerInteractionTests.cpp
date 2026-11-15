@@ -6091,13 +6091,18 @@ bool FRTPlanCopyRuleReadsTheCatalogCooldownTest::RunTest(const FString&)
 		TestEqual(TEXT("la voce porta il cooldown della riga"), Piano[0].CatalogCooldownTurns, DellaRiga);
 	}
 	// E38 CP 38.14, criterio 2: con la variante, due attacchi base sono legali, perche' la riga non ha ricarica.
-	B.Riktor->DeclarePlannedAction(0);
-	TestTrue(TEXT("due attacchi base con Overcharge: legali"), LockInVerdictOf(B.Riktor).bLegal);
-	B.Riktor->RemovePlanEntry(B.Riktor->GetPlan().GetEntries().Num() - 1);
+	if (TestTrue(TEXT("il gesto aggiunge il secondo attacco base"), B.Riktor->DeclarePlannedAction(0)))
+	{
+		TestTrue(TEXT("due attacchi base con Overcharge: legali"), LockInVerdictOf(B.Riktor).bLegal);
+		B.Riktor->RemovePlanEntry(B.Riktor->GetPlan().GetEntries().Num() - 1);
+	}
 	// Una seconda variante non registra un cooldown gia' cambiato.
 	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
-	TestEqual(TEXT("la riga resta quella di prima della prima variante"),
-		URTPlanValidationLibrary::MakePlanFor(B.Riktor)[0].CatalogCooldownTurns, DellaRiga);
+	const TArray<FRTPlannedAction> Dopo = URTPlanValidationLibrary::MakePlanFor(B.Riktor);
+	if (TestEqual(TEXT("una voce"), Dopo.Num(), 1))
+	{
+		TestEqual(TEXT("la riga resta quella di prima della prima variante"), Dopo[0].CatalogCooldownTurns, DellaRiga);
+	}
 	DestroyInteractionWorld(B.World);
 
 	// Seconda parte, su voci sintetiche, in ogni fase: decide il cooldown della riga, non quello del `Def`.
