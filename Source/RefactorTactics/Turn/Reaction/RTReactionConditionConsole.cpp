@@ -70,7 +70,7 @@ static void RTReactionConditionCommand(const TArray<FString>& Args, UWorld* Worl
 	{
 		// Il rifiuto e' DETTO, come per una reazione in ricarica: una condizione che sparisse in silenzio
 		// lascerebbe il giocatore convinto di aver ristretto il fuoco, e la scoperta arriverebbe a turno risolto.
-		if (Unit->PlannedReactionAbility == INDEX_NONE)
+		if (Unit->GetPlan().PlannedReactionAbility == INDEX_NONE)
 		{
 			Ar.Logf(ELogVerbosity::Warning,
 				TEXT("[RT] %s non ha una reazione armata: arma prima la reazione, poi ponile la condizione."),

@@ -536,8 +536,8 @@ bool FRTFallCancelsVoluntaryPathTest::RunTest(const FString&)
 	//
 	// 🔑 `spec` §3.2 dice *«perde il resto del piano»*: e' uno stato, e va asserito come tale — su un piano
 	// che ESISTE, altrimenti l'asserzione non ha niente da falsificare.
-	TestEqual(TEXT("il percorso residuo e' stato annullato"), Bersaglio->PlannedPath.Num(), 0);
-	TestEqual(TEXT("e i waypoint con lui"), Bersaglio->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("il percorso residuo e' stato annullato"), Bersaglio->GetPlan().PlannedPath.Num(), 0);
+	TestEqual(TEXT("e i waypoint con lui"), Bersaglio->GetPlan().PlannedWaypoints.Num(), 0);
 
 	DestroyLedgeWorld(World);
 	return true;

@@ -338,7 +338,7 @@ bool FRTBotAllyDeterministicIntentTest::RunTest(const FString&)
 		TM->PlanBotsForTest();
 
 		OutPartenza = Muiren->Cell;
-		OutPianificata = Muiren->PlannedCell;
+		OutPianificata = Muiren->GetPlan().PlannedCell;
 		bOutTrovato = true;
 		return World;
 	};

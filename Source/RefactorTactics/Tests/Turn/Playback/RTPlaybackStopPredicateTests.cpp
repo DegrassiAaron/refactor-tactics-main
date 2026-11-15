@@ -1056,7 +1056,7 @@ bool FRTPlaybackPhaseEndNetStopsWithThePauseTest::RunTest(const FString&)
 		Sentinella->SetPlannedCell(Sentinella->Cell);
 		Riparo->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Riparo, TEXT("Action.Shield")));
 		Riparo->SetPlannedCell(Riparo->Cell);
-		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), Scudo->PlannedAbilityIndex != INDEX_NONE)) { return false; }
+		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), Scudo->GetPlan().PlannedAbilityIndex != INDEX_NONE)) { return false; }
 
 		// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, quella delle tre sorgenti; il refresh e' la
 		// precondizione delle attivazioni di Prep (spec §2.5).

@@ -311,7 +311,7 @@ bool FRTPointerBackNeverDeselectsTest::RunTest(const FString&)
 
 	PC->SelectActorForTest(Unit);
 	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
-	TestEqual(TEXT("premessa: c'e' un waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("premessa: c'e' un waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
 
 	TestEqual(TEXT("il Back toglie il waypoint"), PC->ApplyBack(), ERTPointerBackStep::Waypoint);
 	TestNotNull(TEXT("e l'unita' resta selezionata"), PC->GetSelectedUnit());
@@ -359,16 +359,16 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 
 	PC->HandleClickOnUnitForTest(Enemy);
 	TestEqual(TEXT("il click su un nemico in stato neutro NON pianifica"),
-		Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
-	TestNull(TEXT("e non registra un bersaglio"), (void*)Mine->PlannedAttackTarget.Get());
+		Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestNull(TEXT("e non registra un bersaglio"), (void*)Mine->GetPlan().PlannedAttackTarget.Get());
 
 	// Controprova: armata l'azione, lo stesso click pianifica. Il percorso rapido resta due gesti.
 	const int32 Attack = 0;
 	Mine->SelectAbility(Attack);
 	TestEqual(TEXT("armata -> contesto Targeting"), PC->GetPointerContext(), ERTPointerContext::Targeting);
 	PC->HandleClickOnUnitForTest(Enemy);
-	TestEqual(TEXT("armata, lo stesso click pianifica"), Mine->PlannedAbilityIndex, Attack);
-	TestTrue(TEXT("sul nemico cliccato"), Mine->PlannedAttackTarget == Enemy);
+	TestEqual(TEXT("armata, lo stesso click pianifica"), Mine->GetPlan().PlannedAbilityIndex, Attack);
+	TestTrue(TEXT("sul nemico cliccato"), Mine->GetPlan().PlannedAttackTarget == Enemy);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -410,7 +410,7 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 	// Senza armare, il produttore rifiuta: non e' un canale sempre aperto.
 	TestFalse(TEXT("senza azione armata il bersaglio a cella e' rifiutato"),
 		PC->HandleTargetCell(FRTCellId(1, 0, 0)));
-	TestFalse(TEXT("e non ha sporcato il piano"), Mine->bAttackTargetsCell);
+	TestFalse(TEXT("e non ha sporcato il piano"), Mine->GetPlan().bAttackTargetsCell);
 
 	Mine->SelectAbility(AreaIdx);
 	TestEqual(TEXT("un'azione ad area chiede una CELLA"),
@@ -418,15 +418,15 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 
 	const FRTCellId Target(1, 0, 0);
 	TestTrue(TEXT("il bersaglio a cella viene accettato"), PC->HandleTargetCell(Target));
-	TestTrue(TEXT("bAttackTargetsCell e' vero"), Mine->bAttackTargetsCell);
-	TestTrue(TEXT("PlannedAttackCell e' la cella indicata"), Mine->PlannedAttackCell == Target);
-	TestEqual(TEXT("e l'azione pianificata e' quella armata"), Mine->PlannedAbilityIndex, AreaIdx);
-	TestNull(TEXT("nessun bersaglio-unita' residuo"), (void*)Mine->PlannedAttackTarget.Get());
+	TestTrue(TEXT("bAttackTargetsCell e' vero"), Mine->GetPlan().bAttackTargetsCell);
+	TestTrue(TEXT("PlannedAttackCell e' la cella indicata"), Mine->GetPlan().PlannedAttackCell == Target);
+	TestEqual(TEXT("e l'azione pianificata e' quella armata"), Mine->GetPlan().PlannedAbilityIndex, AreaIdx);
+	TestNull(TEXT("nessun bersaglio-unita' residuo"), (void*)Mine->GetPlan().PlannedAttackTarget.Get());
 
 	// Fuori portata: rifiutato, e il piano precedente NON viene distrutto.
 	const FRTCellId TooFar(9, 0, 0);
 	TestFalse(TEXT("una cella fuori portata e' rifiutata"), PC->HandleTargetCell(TooFar));
-	TestTrue(TEXT("e il bersaglio precedente resta"), Mine->PlannedAttackCell == Target);
+	TestTrue(TEXT("e il bersaglio precedente resta"), Mine->GetPlan().PlannedAttackCell == Target);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -512,9 +512,9 @@ bool FRTPointerAreaOnAUnitMeshTest::RunTest(const FString&)
 	TestEqual(TEXT("premessa: l'area chiede una CELLA"), PC->GetPointerTargetKind(), ERTPointerTargetKind::Cell);
 
 	TestTrue(TEXT("il click sul nemico e' consumato"), PC->DispatchUnitClickForTest(Enemy, Mine));
-	TestEqual(TEXT("pianifica l'area"), Mine->PlannedAbilityIndex, AreaIdx);
-	TestTrue(TEXT("mirata al nemico, com'era"), Mine->PlannedAttackTarget == Enemy);
-	TestFalse(TEXT("e non alla sua cella"), Mine->bAttackTargetsCell);
+	TestEqual(TEXT("pianifica l'area"), Mine->GetPlan().PlannedAbilityIndex, AreaIdx);
+	TestTrue(TEXT("mirata al nemico, com'era"), Mine->GetPlan().PlannedAttackTarget == Enemy);
+	TestFalse(TEXT("e non alla sua cella"), Mine->GetPlan().bAttackTargetsCell);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -555,9 +555,9 @@ bool FRTPointerTargetEdgeProducerTest::RunTest(const FString&)
 
 	const FRTCellId Cell(1, 0, 0);
 	TestTrue(TEXT("il bordo viene accettato"), PC->HandleTargetEdge(Cell, ERTHexDirection::NE));
-	TestTrue(TEXT("bHasPlannedCoverEdge e' vero"), Builder->bHasPlannedCoverEdge);
-	TestEqual(TEXT("PlannedCoverEdge e' il lato indicato"), Builder->PlannedCoverEdge, ERTHexDirection::NE);
-	TestTrue(TEXT("e la cella su cui agire e' registrata"), Builder->PlannedAttackCell == Cell);
+	TestTrue(TEXT("bHasPlannedCoverEdge e' vero"), Builder->GetPlan().bHasPlannedCoverEdge);
+	TestEqual(TEXT("PlannedCoverEdge e' il lato indicato"), Builder->GetPlan().PlannedCoverEdge, ERTHexDirection::NE);
+	TestTrue(TEXT("e la cella su cui agire e' registrata"), Builder->GetPlan().PlannedAttackCell == Cell);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -592,7 +592,7 @@ bool FRTPointerFacingProducerTest::RunTest(const FString&)
 	// Fuori dal contesto `Facing` la dichiarazione e' rifiutata: non e' un canale sempre aperto.
 	TestFalse(TEXT("senza entrare in Facing la rotazione e' rifiutata"),
 		PC->HandleFacingSector(ERTHexDirection::W));
-	TestFalse(TEXT("e nulla e' stato dichiarato"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("e nulla e' stato dichiarato"), Unit->GetPlan().bDeclaresPlannedFacing);
 
 	PC->BeginFacingDeclaration();
 	TestEqual(TEXT("il contesto e' Facing"), PC->GetPointerContext(), ERTPointerContext::Facing);
@@ -600,8 +600,8 @@ bool FRTPointerFacingProducerTest::RunTest(const FString&)
 	// Ferma: ruota libera, tutte e sei legali.
 	TestTrue(TEXT("da ferma, una rotazione qualunque e' legale"),
 		PC->HandleFacingSector(ERTHexDirection::W));
-	TestTrue(TEXT("bDeclaresPlannedFacing e' vero"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("PlannedFacing e' il settore indicato"), Unit->PlannedFacing, ERTHexDirection::W);
+	TestTrue(TEXT("bDeclaresPlannedFacing e' vero"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("PlannedFacing e' il settore indicato"), Unit->GetPlan().PlannedFacing, ERTHexDirection::W);
 	TestEqual(TEXT("e il contesto e' tornato al neutro"),
 		PC->GetPointerContext(), ERTPointerContext::Planning);
 
@@ -642,7 +642,7 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 
 	// Con un percorso pianificato lo stile diventa `Budget`: restano le direzioni del budget dell'eroe.
 	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
-	if (!TestTrue(TEXT("premessa: c'e' un percorso pianificato"), Unit->PlannedPath.Num() > 1))
+	if (!TestTrue(TEXT("premessa: c'e' un percorso pianificato"), Unit->GetPlan().PlannedPath.Num() > 1))
 	{
 		DestroyPointerWorld(World); return false;
 	}
@@ -653,7 +653,7 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	// c'e' dentro, qualunque essa sia. Hardcodarne una renderebbe il test dipendente dalla geometria della
 	// mappa di prova invece che dalla regola.
 	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(
-		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+		ERTMovementStyle::Budget, Unit->GetPlan().PlannedPath, Unit->Facing, Unit->PivotBudget());
 	if (!TestTrue(TEXT("premessa: il budget di questo eroe lascia meno di sei direzioni"), Legal.Num() < 6))
 	{
 		DestroyPointerWorld(World); return false;
@@ -672,12 +672,12 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	}
 
 	TestFalse(TEXT("una rotazione illegale e' rifiutata"), PC->HandleFacingSector(Illegal));
-	TestFalse(TEXT("e NON viene dichiarata una direzione al suo posto"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("e NON viene dichiarata una direzione al suo posto"), Unit->GetPlan().bDeclaresPlannedFacing);
 
 	// Controprova: una legale passa. Senza, il test passerebbe anche con un produttore che rifiuta tutto.
 	TestTrue(TEXT("controprova: una rotazione legale viene accettata"), PC->HandleFacingSector(Legal[0]));
-	TestTrue(TEXT("ed e' dichiarata"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("con la direzione chiesta"), Unit->PlannedFacing, Legal[0]);
+	TestTrue(TEXT("ed e' dichiarata"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("con la direzione chiesta"), Unit->GetPlan().PlannedFacing, Legal[0]);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -803,7 +803,7 @@ bool FRTSecondClickClosesTheMoveTest::RunTest(const FString&)
 
 	const FRTCellId Meta(1, 0, 0);
 	PC->HandleClickOnCell(Meta);
-	if (!TestEqual(TEXT("premessa: un waypoint, e la destinazione e' quella"), Unit->PlannedWaypoints.Num(), 1)
+	if (!TestEqual(TEXT("premessa: un waypoint, e la destinazione e' quella"), Unit->GetPlan().PlannedWaypoints.Num(), 1)
 		|| !TestEqual(TEXT("premessa: la cella del verso e' la destinazione"), PC->FacingCellFor(Unit), Meta))
 	{
 		DestroyPointerWorld(World); return false;
@@ -812,24 +812,24 @@ bool FRTSecondClickClosesTheMoveTest::RunTest(const FString&)
 	// Il secondo click senza un lato (il centro, o un chiamante senza cursore): non sceglie e NON duplica, ma apre la
 	// scelta del verso ([D-463]).
 	PC->HandleClickOnCell(Meta);
-	TestEqual(TEXT("il click ripetuto non duplica il waypoint"), Unit->PlannedWaypoints.Num(), 1);
-	TestFalse(TEXT("e non dichiara niente"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("il click ripetuto non duplica il waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
+	TestFalse(TEXT("e non dichiara niente"), Unit->GetPlan().bDeclaresPlannedFacing);
 	TestEqual(TEXT("ma apre la scelta del verso"), PC->GetPointerContext(), ERTPointerContext::Facing);
 
 	TestTrue(TEXT("il secondo click verso W dichiara il verso"), PC->HandleFacingClick(Meta, ERTHexDirection::W));
-	TestTrue(TEXT("il verso e' dichiarato"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("ed e' W"), Unit->PlannedFacing, ERTHexDirection::W);
+	TestTrue(TEXT("il verso e' dichiarato"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' W"), Unit->GetPlan().PlannedFacing, ERTHexDirection::W);
 
 	PC->HandleClickOnCell(FRTCellId(2, 0, 0));
-	TestEqual(TEXT("a movimento chiuso un'altra cella non aggiunge waypoint"), Unit->PlannedWaypoints.Num(), 1);
-	TestTrue(TEXT("e il verso resta"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("a movimento chiuso un'altra cella non aggiunge waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
+	TestTrue(TEXT("e il verso resta"), Unit->GetPlan().bDeclaresPlannedFacing);
 
 	TestEqual(TEXT("il primo Back toglie il verso"), PC->ApplyBack(), ERTPointerBackStep::DeclaredFacing);
-	TestFalse(TEXT("il verso non c'e' piu'"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("e il waypoint resta"), Unit->PlannedWaypoints.Num(), 1);
+	TestFalse(TEXT("il verso non c'e' piu'"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("e il waypoint resta"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
 
 	PC->HandleClickOnCell(FRTCellId(2, 0, 0));
-	TestEqual(TEXT("riaperto: un'altra cella aggiunge il waypoint"), Unit->PlannedWaypoints.Num(), 2);
+	TestEqual(TEXT("riaperto: un'altra cella aggiunge il waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 2);
 	TestEqual(TEXT("e il Back dopo toglie un waypoint"), PC->ApplyBack(), ERTPointerBackStep::Waypoint);
 
 	DestroyPointerWorld(World);
@@ -968,20 +968,20 @@ bool FRTDestinationOpensFacingSelectorTest::RunTest(const FString&)
 
 	const FRTCellId Meta(1, 0, 0);
 	PC->HandleClickOnCell(Meta);
-	if (!TestEqual(TEXT("premessa: un waypoint"), Unit->PlannedWaypoints.Num(), 1))
+	if (!TestEqual(TEXT("premessa: un waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1))
 	{
 		DestroyPointerWorld(World); return false;
 	}
 
 	PC->HandleClickOnCell(Meta);
 	TestEqual(TEXT("il click sulla destinazione apre la scelta del verso"), PC->GetPointerContext(), ERTPointerContext::Facing);
-	TestEqual(TEXT("senza duplicare il waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("senza duplicare il waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
 
 	// Il click sull'esagono vicino in direzione NE: e' una direzione, non un passo.
 	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, ERTHexDirection::NE));
-	TestEqual(TEXT("il vicino non diventa un waypoint"), Unit->PlannedWaypoints.Num(), 1);
-	TestTrue(TEXT("dichiara il verso"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->PlannedFacing, ERTHexDirection::NE);
+	TestEqual(TEXT("il vicino non diventa un waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
+	TestTrue(TEXT("dichiara il verso"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->GetPlan().PlannedFacing, ERTHexDirection::NE);
 	TestNotEqual(TEXT("e il selettore si chiude"), PC->GetPointerContext(), ERTPointerContext::Facing);
 
 	DestroyPointerWorld(World);
@@ -1016,9 +1016,9 @@ bool FRTOpenSelectorNeighbourIsDirectionTest::RunTest(const FString&)
 		DestroyPointerWorld(World); return false;
 	}
 	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Unit->Cell, ERTHexDirection::SW));
-	TestEqual(TEXT("nessun waypoint"), Unit->PlannedWaypoints.Num(), 0);
-	TestTrue(TEXT("il verso e' dichiarato"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->PlannedFacing, ERTHexDirection::SW);
+	TestEqual(TEXT("nessun waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 0);
+	TestTrue(TEXT("il verso e' dichiarato"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->GetPlan().PlannedFacing, ERTHexDirection::SW);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1047,8 +1047,8 @@ bool FRTIllegalSideKeepsSelectorOpenTest::RunTest(const FString&)
 	const FRTCellId Meta(3, -2, 0);
 	PC->HandleClickOnCell(Meta);
 	const TArray<ERTHexDirection> Legali = URTFacingLibrary::LegalFacings(
-		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
-	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+		ERTMovementStyle::Budget, Unit->GetPlan().PlannedPath, Unit->Facing, Unit->PivotBudget());
+	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->GetPlan().PlannedPath, Unit->Facing);
 	ERTHexDirection Illegale = ERTHexDirection::E;
 	ERTHexDirection Legale = UltimoPasso;
 	bool bIllegale = false;
@@ -1060,7 +1060,7 @@ bool FRTIllegalSideKeepsSelectorOpenTest::RunTest(const FString&)
 		if (Legali.Contains(Dir) && Dir != UltimoPasso && !bLegale) { Legale = Dir; bLegale = true; }
 	}
 	if (!TestTrue(TEXT("premessa: un percorso, un lato illegale e uno legale diverso dall'ultimo passo"),
-		Unit->PlannedPath.Num() > 1 && bIllegale && bLegale))
+		Unit->GetPlan().PlannedPath.Num() > 1 && bIllegale && bLegale))
 	{
 		DestroyPointerWorld(World); return false;
 	}
@@ -1081,13 +1081,13 @@ bool FRTIllegalSideKeepsSelectorOpenTest::RunTest(const FString&)
 	TestFalse(TEXT("l'hover su un lato illegale non gira la mesh"), PC->GetFacingHoverSector().IsSet());
 
 	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, Illegale));
-	TestFalse(TEXT("il lato illegale non dichiara"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("il lato illegale non dichiara"), Unit->GetPlan().bDeclaresPlannedFacing);
 	TestEqual(TEXT("e il selettore resta aperto per un altro lato"), PC->GetPointerContext(), ERTPointerContext::Facing);
-	TestEqual(TEXT("senza aggiungere waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestEqual(TEXT("senza aggiungere waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1);
 
 	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, Legale));
-	TestTrue(TEXT("un lato legale, dopo, dichiara"), Unit->bDeclaresPlannedFacing);
-	TestEqual(TEXT("ed e' quello"), Unit->PlannedFacing, Legale);
+	TestTrue(TEXT("un lato legale, dopo, dichiara"), Unit->GetPlan().bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello"), Unit->GetPlan().PlannedFacing, Legale);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1141,7 +1141,7 @@ bool FRTFacingHoverTurnsTheMeshTest::RunTest(const FString&)
 	TestTrue(TEXT("col selettore aperto l'hover prende il lato W"),
 		PC->GetFacingHoverSector().IsSet() && PC->GetFacingHoverSector().GetValue() == ERTHexDirection::W);
 	TestEqual(TEXT("e la mesh guarda W"), static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(ERTHexDirection::W), 0.5f);
-	TestFalse(TEXT("senza dichiarare"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("senza dichiarare"), Unit->GetPlan().bDeclaresPlannedFacing);
 	TestEqual(TEXT("ne' toccare il verso logico"), Unit->Facing, Partenza);
 
 	PC->UpdateFacingHoverFromRay(true, URTHexLibrary::AxialToWorld(Unit->Cell, Origin, HexSize, LayerH) + Sopra, Giu);
@@ -1181,24 +1181,24 @@ bool FRTIllegalFacingClickTest::RunTest(const FString&)
 	const FRTCellId Meta(3, -2, 0);
 	PC->HandleClickOnCell(Meta);
 	const TArray<ERTHexDirection> Legali = URTFacingLibrary::LegalFacings(
-		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+		ERTMovementStyle::Budget, Unit->GetPlan().PlannedPath, Unit->Facing, Unit->PivotBudget());
 	ERTHexDirection Illegale = ERTHexDirection::E;
 	bool bTrovata = false;
 	for (uint8 D = 0; D < 6 && !bTrovata; ++D)
 	{
 		if (!Legali.Contains(static_cast<ERTHexDirection>(D))) { Illegale = static_cast<ERTHexDirection>(D); bTrovata = true; }
 	}
-	if (!TestTrue(TEXT("premessa: c'e' un percorso e un lato illegale"), Unit->PlannedPath.Num() > 1 && bTrovata))
+	if (!TestTrue(TEXT("premessa: c'e' un percorso e un lato illegale"), Unit->GetPlan().PlannedPath.Num() > 1 && bTrovata))
 	{
 		DestroyPointerWorld(World); return false;
 	}
 
 	TestFalse(TEXT("il lato illegale e' rifiutato"), PC->HandleFacingClick(Meta, Illegale));
-	TestFalse(TEXT("nessun verso dichiarato"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("nessun verso dichiarato"), Unit->GetPlan().bDeclaresPlannedFacing);
 	TestNotEqual(TEXT("e nessun selettore resta aperto a mangiare il click dopo"),
 		PC->GetPointerContext(), ERTPointerContext::Facing);
 	PC->HandleClickOnCell(FRTCellId(4, -2, 0));
-	TestEqual(TEXT("il movimento resta aperto: il waypoint si aggiunge"), Unit->PlannedWaypoints.Num(), 2);
+	TestEqual(TEXT("il movimento resta aperto: il waypoint si aggiunge"), Unit->GetPlan().PlannedWaypoints.Num(), 2);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1243,12 +1243,12 @@ bool FRTStationaryFacingSelectorTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("lato %d: il click sulla propria cella apre il selettore"), D),
 			PC->GetPointerContext(), ERTPointerContext::Facing);
 		TestTrue(*FString::Printf(TEXT("lato %d: e il secondo click lo sceglie"), D), PC->HandleFacingClick(Qui, Lato));
-		TestEqual(*FString::Printf(TEXT("lato %d: dichiarato"), D), Unit->PlannedFacing, Lato);
+		TestEqual(*FString::Printf(TEXT("lato %d: dichiarato"), D), Unit->GetPlan().PlannedFacing, Lato);
 	}
 	TestEqual(TEXT("il selettore si e' chiuso"), PC->GetPointerContext(), ERTPointerContext::Planning);
 
 	PC->HandleClickOnCell(FRTCellId(1, 0, 0));
-	TestEqual(TEXT("da fermo il verso chiude il movimento: nessun waypoint"), Unit->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("da fermo il verso chiude il movimento: nessun waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 0);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1338,18 +1338,18 @@ bool FRTTruncationCancelsFacingTest::RunTest(const FString&)
 	PC->HandleClickOnCell(FRTCellId(3, -1, 0));
 	const bool bDichiarato = PC->HandleFacingClick(FRTCellId(3, -1, 0), ERTHexDirection::W);
 	if (!TestNotEqual(TEXT("premessa: Overwatch nel kit"), Overwatch, (int32)INDEX_NONE)
-		|| !TestEqual(TEXT("premessa: due waypoint"), Unit->PlannedWaypoints.Num(), 2)
+		|| !TestEqual(TEXT("premessa: due waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 2)
 		|| !TestTrue(TEXT("premessa: verso dichiarato"), bDichiarato))
 	{
 		DestroyPointerWorld(World); return false;
 	}
 
 	PC->SelectAbilityForCurrentForTest(Overwatch);
-	if (!TestTrue(TEXT("premessa: la riserva ha troncato"), Unit->PlannedWaypoints.Num() < 2))
+	if (!TestTrue(TEXT("premessa: la riserva ha troncato"), Unit->GetPlan().PlannedWaypoints.Num() < 2))
 	{
 		DestroyPointerWorld(World); return false;
 	}
-	TestFalse(TEXT("il verso scelto sulla destinazione vecchia e' cancellato"), Unit->bDeclaresPlannedFacing);
+	TestFalse(TEXT("il verso scelto sulla destinazione vecchia e' cancellato"), Unit->GetPlan().bDeclaresPlannedFacing);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1398,7 +1398,7 @@ bool FRTTargetingShowsTheRangeTest::RunTest(const FString&)
 	// Un waypoint accende l'anteprima come in partita: `SelectActorForTest` assegna la selezione e basta.
 	PC->HandleClickOnCell(FRTCellId(1, 0, 0));
 	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio"), ConBersaglio, (int32)INDEX_NONE)
-		|| !TestEqual(TEXT("premessa: un waypoint"), Unit->PlannedWaypoints.Num(), 1)
+		|| !TestEqual(TEXT("premessa: un waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1)
 		|| !TestTrue(TEXT("premessa: si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
 	{
 		DestroyPointerWorld(World); return false;
@@ -1620,9 +1620,9 @@ bool FRTArmingAlignsActivePlaneTest::RunTest(const FString&)
 	}
 
 	PC->HandleClickOnCellForTest(FRTCellId(Bersaglio.X, Bersaglio.Y, PC->GetActiveLayer()));
-	TestEqual(TEXT("il click sulla portata produce un piano"), Unit->PlannedAbilityIndex, Area);
-	TestTrue(TEXT("con il bersaglio su una cella"), Unit->bAttackTargetsCell);
-	TestEqual(TEXT("quella cliccata"), Unit->PlannedAttackCell, Bersaglio);
+	TestEqual(TEXT("il click sulla portata produce un piano"), Unit->GetPlan().PlannedAbilityIndex, Area);
+	TestTrue(TEXT("con il bersaglio su una cella"), Unit->GetPlan().bAttackTargetsCell);
+	TestEqual(TEXT("quella cliccata"), Unit->GetPlan().PlannedAttackCell, Bersaglio);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -1673,8 +1673,8 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 
 	ERTHexDirection PrimoPasso = Unit->Facing;
 	TestTrue(TEXT("il primo passo ha una direzione"),
-		URTHexLibrary::DirectionBetween(Unit->PlannedPath[0], Unit->PlannedPath[1], PrimoPasso));
-	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+		URTHexLibrary::DirectionBetween(Unit->GetPlan().PlannedPath[0], Unit->GetPlan().PlannedPath[1], PrimoPasso));
+	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->GetPlan().PlannedPath, Unit->Facing);
 	TestNotEqual(TEXT("e il percorso curva: primo e ultimo passo differiscono"), PrimoPasso, UltimoPasso);
 	TestNotEqual(TEXT("e il primo passo non e' il facing di partenza"), PrimoPasso, Unit->Facing);
 
@@ -1697,7 +1697,7 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	// divergessero, l'anteprima mostrerebbe una direzione e il turno ne produrrebbe un'altra.
 	PC->BeginFacingDeclaration();
 	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing,
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->GetPlan().PlannedPath, Unit->Facing,
 			Unit->PivotBudget());
 	const ERTHexDirection Scelta = Legali.Last();   // una legale diversa dal derivato, quando ce n'e' piu' d'una
 	if (TestTrue(TEXT("la dichiarazione e' accettata"), PC->HandleFacingSector(Scelta)))
@@ -1748,10 +1748,10 @@ bool FRTPointerHoverNeverCommitsTest::RunTest(const FString&)
 	FRTUnitPlanTestAccess::SetAttackCell(*Unit, FRTCellId(2, -1, 0));
 	Unit->DeclarePlannedFacing(ERTHexDirection::NE);
 
-	const TArray<FRTCellId> WaypointsBefore = Unit->PlannedWaypoints;
-	const FRTCellId AttackBefore = Unit->PlannedAttackCell;
-	const ERTHexDirection FacingBefore = Unit->PlannedFacing;
-	const bool bDeclaresBefore = Unit->bDeclaresPlannedFacing;
+	const TArray<FRTCellId> WaypointsBefore = Unit->GetPlan().PlannedWaypoints;
+	const FRTCellId AttackBefore = Unit->GetPlan().PlannedAttackCell;
+	const ERTHexDirection FacingBefore = Unit->GetPlan().PlannedFacing;
+	const bool bDeclaresBefore = Unit->GetPlan().bDeclaresPlannedFacing;
 	const FRTCellId CellBefore = Unit->Cell;
 
 	// L'hover passa su celle che sarebbero candidati PLAUSIBILI per ciascuna decisione: la cella del
@@ -1773,15 +1773,15 @@ bool FRTPointerHoverNeverCommitsTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: l'hover ha registrato l'ultima cella"), Map->GetHoveredCell(), FRTCellId(9, 9, 0));
 	TestFalse(TEXT("controllo: e la sua validita'"), Map->IsHoveredCellValid());
 
-	TestEqual(TEXT("i waypoint non cambiano"), Unit->PlannedWaypoints.Num(), WaypointsBefore.Num());
-	for (int32 i = 0; i < WaypointsBefore.Num() && i < Unit->PlannedWaypoints.Num(); ++i)
+	TestEqual(TEXT("i waypoint non cambiano"), Unit->GetPlan().PlannedWaypoints.Num(), WaypointsBefore.Num());
+	for (int32 i = 0; i < WaypointsBefore.Num() && i < Unit->GetPlan().PlannedWaypoints.Num(); ++i)
 	{
-		TestEqual(FString::Printf(TEXT("waypoint %d"), i), Unit->PlannedWaypoints[i], WaypointsBefore[i]);
+		TestEqual(FString::Printf(TEXT("waypoint %d"), i), Unit->GetPlan().PlannedWaypoints[i], WaypointsBefore[i]);
 	}
-	TestEqual(TEXT("l'azione armata mira ancora dove mirava"), Unit->PlannedAttackCell, AttackBefore);
-	TestEqual(TEXT("il facing dichiarato non ruota"), static_cast<int32>(Unit->PlannedFacing),
+	TestEqual(TEXT("l'azione armata mira ancora dove mirava"), Unit->GetPlan().PlannedAttackCell, AttackBefore);
+	TestEqual(TEXT("il facing dichiarato non ruota"), static_cast<int32>(Unit->GetPlan().PlannedFacing),
 		static_cast<int32>(FacingBefore));
-	TestEqual(TEXT("e resta dichiarato"), Unit->bDeclaresPlannedFacing, bDeclaresBefore);
+	TestEqual(TEXT("e resta dichiarato"), Unit->GetPlan().bDeclaresPlannedFacing, bDeclaresBefore);
 	TestEqual(TEXT("l'unita' non si e' mossa"), Unit->Cell, CellBefore);
 
 	RTWorldFixtures::DestroyWorld(World);
@@ -1881,7 +1881,7 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 
 	// Premessa in due tempi: prima il waypoint, poi l'azione armata sopra.
 	PC->HandleClickOnCellForTest(FRTCellId(1, 0, 0));
-	if (!TestEqual(TEXT("premessa: c'e' un waypoint"), Unit->PlannedWaypoints.Num(), 1))
+	if (!TestEqual(TEXT("premessa: c'e' un waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 1))
 	{
 		DestroyPointerWorld(World);
 		return false;
@@ -1900,7 +1900,7 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 
 	TestEqual(TEXT("il destro disarma l'azione"), Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
 	TestEqual(TEXT("e NON tocca il waypoint, che sta un livello piu' in basso"),
-		Unit->PlannedWaypoints.Num(), 1);
+		Unit->GetPlan().PlannedWaypoints.Num(), 1);
 	TestNotNull(TEXT("e non deseleziona"), PC->GetSelectedUnit());
 
 	// --- Il secondo destro: adesso, e solo adesso, il waypoint ---------------------------------------
@@ -1910,7 +1910,7 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 		PC->GetPointerContext(), ERTPointerContext::Pathing);
 
 	PC->OnUndoWaypointForTest();
-	TestEqual(TEXT("il secondo destro toglie il waypoint"), Unit->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("il secondo destro toglie il waypoint"), Unit->GetPlan().PlannedWaypoints.Num(), 0);
 	TestNotNull(TEXT("e neanche adesso deseleziona"), PC->GetSelectedUnit());
 
 	DestroyPointerWorld(World);
@@ -2171,7 +2171,7 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 		PC->GetInspectedUnit() != PC->GetSelectedUnit());
 	TestEqual(TEXT("e nessuna abilita' e' stata armata o disarmata"),
 		Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
-	TestEqual(TEXT("ne' pianificata"), Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("ne' pianificata"), Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	// In `Targeting` il comportamento NON cambia: lo stesso click bersaglia, come prima della decisione.
 	// ➕ `#3748`: la barra segue l'ispezione e, sull'avversaria, e' in sola lettura — nemmeno il click che bersaglia scrive il piano. Per bersagliare si
@@ -2184,8 +2184,8 @@ bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
 	TestEqual(TEXT("armata -> contesto Targeting"), PC->GetPointerContext(), ERTPointerContext::Targeting);
 
 	TestTrue(TEXT("in Targeting il click resta consumato"), PC->DispatchUnitClickForTest(Enemy, Mine));
-	TestEqual(TEXT("e pianifica, invece di ispezionare"), Mine->PlannedAbilityIndex, Attack);
-	TestTrue(TEXT("sul nemico cliccato"), Mine->PlannedAttackTarget == Enemy);
+	TestEqual(TEXT("e pianifica, invece di ispezionare"), Mine->GetPlan().PlannedAbilityIndex, Attack);
+	TestTrue(TEXT("sul nemico cliccato"), Mine->GetPlan().PlannedAttackTarget == Enemy);
 
 	DestroyPointerWorld(World);
 	return true;
@@ -2481,15 +2481,15 @@ namespace
 		F.Selected = GcRoleOf(B, B.PC->GetSelectedUnit());
 		F.Context = B.PC->GetPointerContext();
 		F.MineSelectedAbility = B.Mine->SelectedAbilityIndex;
-		F.MinePlannedAbility = B.Mine->PlannedAbilityIndex;
-		F.MineWaypoints = B.Mine->PlannedWaypoints.Num();
+		F.MinePlannedAbility = B.Mine->GetPlan().PlannedAbilityIndex;
+		F.MineWaypoints = B.Mine->GetPlan().PlannedWaypoints.Num();
 		F.ActiveLayer = B.PC->GetActiveLayer();
 		F.bHoveredKnown = B.Hovered->IsKnownToObserver();
 		F.bPinnedKnown = B.Pinned->IsKnownToObserver();
-		F.MineAttackTarget = GcRoleOf(B, B.Mine->PlannedAttackTarget);
-		F.MineAttackCell = B.Mine->PlannedAttackCell;
-		F.bMineDeclaresFacing = B.Mine->bDeclaresPlannedFacing;
-		F.MineFacing = B.Mine->PlannedFacing;
+		F.MineAttackTarget = GcRoleOf(B, B.Mine->GetPlan().PlannedAttackTarget);
+		F.MineAttackCell = B.Mine->GetPlan().PlannedAttackCell;
+		F.bMineDeclaresFacing = B.Mine->GetPlan().bDeclaresPlannedFacing;
+		F.MineFacing = B.Mine->GetPlan().PlannedFacing;
 		return F;
 	}
 

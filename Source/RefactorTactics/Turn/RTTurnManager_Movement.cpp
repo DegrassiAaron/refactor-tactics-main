@@ -249,13 +249,13 @@ void ARTTurnManager::BeginMovementResolution()
 		{
 			Path = { Unit->Cell }; // fermo
 		}
-		else if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
+		else if (Unit->GetPlan().PlannedPath.Num() >= 2 && Unit->GetPlan().PlannedPath[0] == Unit->Cell)
 		{
-			Path = Unit->PlannedPath;
+			Path = Unit->GetPlan().PlannedPath;
 		}
-		else if (Unit->PlannedCell != Unit->Cell)
+		else if (Unit->GetPlan().PlannedCell != Unit->Cell)
 		{
-			Path = URTHexSimLibrary::FindPathForUnit(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell).Path;
+			Path = URTHexSimLibrary::FindPathForUnit(Ctx.Snapshot, /*UnitId=*/ i, Unit->GetPlan().PlannedCell).Path;
 		}
 
 		// Il percorso e' stato calcolato al momento del click (o impostato direttamente), PRIMA che il Blast
@@ -296,11 +296,11 @@ void ARTTurnManager::BeginMovementResolution()
 			Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
 		}
 		else if (!bNegataDalloStordimento && Unit->HasPlannedNormalMove()
-			&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
+			&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->GetPlan().PlannedCell)
 				== ERTHexWaypointReason::Occupied)
 		{
 			Ctx.bDeniedByOccupant[i] = true;
-			Ctx.DeniedDestination[i] = Unit->PlannedCell;
+			Ctx.DeniedDestination[i] = Unit->GetPlan().PlannedCell;
 		}
 
 		if (Path.Num() < 2)
@@ -2018,7 +2018,7 @@ void ARTTurnManager::FinishMovementResolution()
 		// rianimata lo troverebbe ancora acceso. `IsValid` sopra esclude solo chi e' gia' stato distrutto,
 		// che non ha stato da azzerare.
 		Unit->ClearMovePlanRejection();
-		if (!Unit->bDeclaresPlannedFacing || !Unit->IsAlive())
+		if (!Unit->GetPlan().bDeclaresPlannedFacing || !Unit->IsAlive())
 		{
 			Unit->ClearDeclaredFacing();
 			continue;
@@ -2028,7 +2028,7 @@ void ARTTurnManager::FinishMovementResolution()
 		// Il budget e' quello dell'EROE di questa unita' (ADR-0008 §1): qui si emette il verdetto, e il
 		// verdetto non puo' usare un budget diverso da quello che la UI ha usato per proporre.
 		const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(Unit->MovementStyleThisTurn,
-			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Unit->PivotBudget(), Applied);
+			Unit->WalkedThisTurn, Unit->Facing, Unit->GetPlan().PlannedFacing, Unit->PivotBudget(), Applied);
 
 		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
 		Declaring.Facing = Unit->Facing;

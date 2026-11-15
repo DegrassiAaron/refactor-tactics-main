@@ -125,32 +125,11 @@ namespace
 	constexpr ERTVerdetto CensRit = ERTVerdetto::DaRitirare;
 
 	const FRTUnitFieldRule Campi[] = {
-	// ─── 1. IL PIANO — sedici campi che un grafo SCRIVE ────────────────────────────────────────────────
-	// 🔴 Il difetto qui non e' di lettura: `CLIENT PROPOSES -> SERVER VALIDATES` perde il primo passo. La
-	// porta esiste ed e' quella che il repo chiama «il checkpoint intero»
-	// (`Debug/RTDebugReportLibrary.cpp:33-38`): un avversario non rivelato non e' «una voce vuota», e'
-	// NESSUNA voce (`Turn/Actions/RTIntentPrivacyLibrary.cpp:49`), e waypoint, reazione e rotazione dichiarata
-	// restano di soli alleati (`:70-77`).
-	// ➕ Lo stesso predicato che li riconosce — `IsPlanningFieldName`, `Tests/Core/RTServerOnlyGuardTests.cpp:274`
-	// — copre TRE campi di piano che ai Blueprint non sono esposti affatto (`PlannedReactionCondition`,
-	// `bMovePlanRejectedByOccupant`, `RejectedMoveDestination`). Quando qualcuno si e' posto la domanda, la
-	// risposta e' gia' stata tenerli fuori: il difetto non e' una scelta diversa, e' una scelta mai fatta.
-	{ TEXT("PlannedCell"),                CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("intento privato della squadra che lo dichiara; un grafo lo SCRIVE") },
-	{ TEXT("PlannedPath"),                CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("il percorso e' intento: `Reveal` lo espone, la porta decide a chi") },
-	{ TEXT("PlannedWaypoints"),           CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("copiati SOLO per un alleato, rivelato o meno (RTIntentPrivacyLibrary.cpp:70-77)") },
-	{ TEXT("PlannedMovementProfileId"),   CensVar, true,  nullptr                        , CensRit, TEXT("profilo del movimento pianificato: intento") },
-	{ TEXT("PlannedAbilityIndex"),        CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("RTMatchStateHash.h:102-104 — «l'intento di usare un'abilita' ... e' privato della squadra che lo dichiara»") },
-	{ TEXT("PlannedAttackTarget"),        CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("unico TObjectPtr<ARTUnit> dell'header: da un'unita' si raggiunge un'altra unita' COMPLETA senza enumerare") },
-	{ TEXT("PlannedAttackCell"),          CensVar, true,  nullptr                        , CensRit, TEXT("bersaglio dichiarato: intento") },
-	{ TEXT("bAttackTargetsCell"),         CensVar, true,  nullptr                        , CensRit, TEXT("quale delle due forme di bersaglio: intento") },
-	{ TEXT("PlannedDashAbility"),         CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("lo scatto dichiarato: intento") },
-	{ TEXT("PlannedDashCell"),            CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("destinazione dello scatto: intento") },
-	{ TEXT("PlannedFacing"),              CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("RTMatchStateHash.h:70-72 — «E' il facing REALE, non `PlannedFacing`. Quello e' un intento»") },
-	{ TEXT("bDeclaresPlannedFacing"),     CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("che ci sia una rotazione dichiarata e' gia' informazione di piano") },
-	{ TEXT("PlannedCoverEdge"),           CensVar, true,  nullptr                        , CensRit, TEXT("copertura scelta: intento") },
-	{ TEXT("bHasPlannedCoverEdge"),       CensVar, true,  nullptr                        , CensRit, TEXT("che una copertura sia stata scelta e' gia' informazione di piano") },
-	{ TEXT("PlannedReactionAbility"),     CensVar, true,  TEXT("FRTIntentView"), CensRit, TEXT("`ReactionName` si copia SOLO per un alleato") },
-	{ TEXT("PlannedCleansePriority"),     CensVar, true,  nullptr                        , CensRit, TEXT("priorita' di bonifica dichiarata: intento") },
+	// ─── 1. IL PIANO — ritirato ([D-608] tappa 3, #4123) ─────────────────────────────────────────────────
+	// ✅ Il gruppo stava qui come «da ritirare»: sedici campi d'intento che un grafo SCRIVEVA. Ora vivono in
+	// `FRTUnitPlan` (`Turn/RTUnitPlan.h`), membro privato `UPROPERTY()` di `ARTUnit` e quindi fuori dai Blueprint;
+	// fuori da `ARTUnit` si leggono da `GetPlan()`, che e' `const`. Nessun asset del progetto li nominava (misura
+	// in #4123). La chiusura e' registrata accanto a [D-433].
 
 	// ─── 2. LA CELLA ───────────────────────────────────────────────────────────────────────────────────
 	// 🔑 L'UNICO dei 65 la cui risposta e' sbagliata anche per un osservatore AUTORIZZATO. Per gli altri

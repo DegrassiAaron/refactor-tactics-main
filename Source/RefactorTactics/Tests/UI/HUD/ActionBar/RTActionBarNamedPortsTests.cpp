@@ -395,7 +395,7 @@ bool FRTNamedPortsMovementReadoutTest::RunTest(const FString&)
 	// --- B. il click del badge dichiara Sneak -------------------------------------------------------------
 	Dock->BindNamedButtons();
 	Dock->SneakBadge->OnClicked.Broadcast();
-	TestEqual(TEXT("B: il click dichiara Sneak"), Unit->PlannedMovementProfileId,
+	TestEqual(TEXT("B: il click dichiara Sneak"), Unit->GetPlan().PlannedMovementProfileId,
 		URTMovementProfileLibrary::ProfileSneak);
 	Dock->RefreshMovementReadout();
 	TestEqual(TEXT("B: e il badge si accende"), Dock->SneakBadge->GetRenderOpacity(), 1.f);
@@ -404,7 +404,7 @@ bool FRTNamedPortsMovementReadoutTest::RunTest(const FString&)
 	Dock->BindNamedButtons();
 	Dock->SneakBadge->OnClicked.Broadcast();
 	TestTrue(TEXT("C: un click, un gesto — Sneak ritirato, non dichiarato e ritirato"),
-		Unit->PlannedMovementProfileId.IsNone());
+		Unit->GetPlan().PlannedMovementProfileId.IsNone());
 
 	// --- D. senza un'unita' comandata la lettura si CHIUDE, non si spegne --------------------------------
 	PC->SelectActorForTest(nullptr);

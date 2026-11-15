@@ -1643,7 +1643,7 @@ bool FRTHexMoveDeclarationDoesNotSurviveTurnTest::RunTest(const FString&)
 
 	RunTurn(TM);
 	TestTrue(TEXT("primo turno: la rotazione si applica"), Sentry->Facing == ERTHexDirection::SW);
-	TestFalse(TEXT("e la dichiarazione e' consumata"), Sentry->bDeclaresPlannedFacing);
+	TestFalse(TEXT("e la dichiarazione e' consumata"), Sentry->GetPlan().bDeclaresPlannedFacing);
 
 	TestEqual(TEXT("registrata una volta, nel turno in cui e' stata fatta"),
 		CountFacingOutcome(TM, ERTFacingOutcome::DeclaredInPlanning), 1);
@@ -2310,7 +2310,7 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		// passano tutti dalla seconda.
 		PC->HandleClickOnCell(Occupata);
 		if (!TestEqual(TEXT("premessa: il waypoint e' stato accettato in pianificazione"),
-				Negata->PlannedWaypoints.Num(), 1))
+				Negata->GetPlan().PlannedWaypoints.Num(), 1))
 		{
 			DestroyHexMoveWorld(World);
 			return false;
@@ -2421,7 +2421,7 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 	// `HasPlannedNormalMove()` risponde di si' leggendo la sola `PlannedCell`. E' il punto per cui il
 	// work order dice che questo caso «non costa un file in piu'».
 	if (!TestEqual(TEXT("premessa: nessun percorso pianificato — solo la destinazione"),
-			Mover->PlannedPath.Num(), 0)
+			Mover->GetPlan().PlannedPath.Num(), 0)
 		|| !TestTrue(TEXT("premessa: e cio' basta perche' l'unita' risulti aver dichiarato un movimento"),
 			Mover->HasPlannedNormalMove()))
 	{

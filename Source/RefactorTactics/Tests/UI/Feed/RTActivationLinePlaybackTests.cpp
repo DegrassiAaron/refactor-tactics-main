@@ -127,7 +127,7 @@ namespace
 		Out.Bersaglio->SetPlannedCell(Out.Bersaglio->Cell);
 
 		const URTActionData* AbilityTiratore = Out.Tiratore->GetAbility(0);
-		return Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->PlannedAbilityIndex != INDEX_NONE)
+		return Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->GetPlan().PlannedAbilityIndex != INDEX_NONE)
 			&& Test.TestTrue(TEXT("⛔ premessa: il Tiratore ha un'azione nell'indice 0"), AbilityTiratore != nullptr);
 	}
 
@@ -217,7 +217,7 @@ namespace
 		Guardia->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Guardia, TEXT("Action.Overwatch"), 3));
 		Guardia->Facing = ERTHexDirection::W; // nessuno a ovest: niente da intercettare
 		Guardia->SetPlannedCell(Guardia->Cell);
-		return Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Guardia->PlannedAbilityIndex != INDEX_NONE)
+		return Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Guardia->GetPlan().PlannedAbilityIndex != INDEX_NONE)
 			? Guardia : nullptr;
 	}
 
@@ -235,7 +235,7 @@ namespace
 		Geniere->DeclarePlannedCoverEdge(ERTHexDirection::W);
 		Geniere->SetPlannedCell(Geniere->Cell);
 		return Test.TestTrue(TEXT("⛔ premessa: il loadout di default di Riktor concede Gadget.PortableCover"),
-			Geniere->PlannedAbilityIndex != INDEX_NONE);
+			Geniere->GetPlan().PlannedAbilityIndex != INDEX_NONE);
 	}
 }
 
@@ -347,7 +347,7 @@ bool FRTActivationLinePlaybackEveryKindTest::RunTest(const FString&)
 
 	// ⛔ Premesse sui TIPI: le quattro azioni stanno davvero in quattro famiglie diverse.
 	const FName AzioneBase = RigaAttAzioneTiratore(S);
-	const URTActionData* Firma = S.Scudo->GetAbility(S.Scudo->PlannedAbilityIndex);
+	const URTActionData* Firma = S.Scudo->GetAbility(S.Scudo->GetPlan().PlannedAbilityIndex);
 	if (!TestTrue(TEXT("⛔ premessa: TideGuard e' una skill del kit (nessuna base, ne' core ne' equipaggiamento)"),
 			Firma && Firma->Def.BaseActionId.IsNone() && URTCatalogLibrary::FindCoreAction(RigaAttTideGuard).ActionId.IsNone()
 			&& URTCatalogLibrary::FindEquipment(RigaAttTideGuard) == nullptr)
@@ -444,7 +444,7 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		Nemico->SetPlannedMainAction(RigaAttIndice(Nemico, RigaAttPulseShot));
 		Nemico->DeclareAttackOnUnit(Riktor);
 		Nemico->SetPlannedCell(Nemico->Cell);
-		if (!TestTrue(TEXT("⛔ premessa: l'Ivrin pianifica PulseShot"), Nemico->PlannedAbilityIndex != INDEX_NONE)
+		if (!TestTrue(TEXT("⛔ premessa: l'Ivrin pianifica PulseShot"), Nemico->GetPlan().PlannedAbilityIndex != INDEX_NONE)
 			|| !RigaAttPianificaCopertura(*this, Riktor, HeroRiktor, FRTCellId(4, 0)))
 		{
 			return false;
@@ -614,8 +614,8 @@ namespace
 		Out.Mover->SetPlannedCell(FRTCellId(2, 0));
 		Out.Scudo->SetPlannedCell(Out.Scudo->Cell);
 		Out.Scudo->SetPlannedMainAction(RigaAttIndice(Out.Scudo, RigaAttTideGuard));
-		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->PlannedAbilityIndex != INDEX_NONE)
-			|| !Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->PlannedAbilityIndex != INDEX_NONE))
+		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->GetPlan().PlannedAbilityIndex != INDEX_NONE)
+			|| !Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"), Out.Scudo->GetPlan().PlannedAbilityIndex != INDEX_NONE))
 		{
 			return false;
 		}
@@ -822,9 +822,9 @@ namespace
 		Out.Pusher->SetPlannedCell(Out.Pusher->Cell);
 		Out.Scattista->SetPlannedDash(RigaAttIndice(Out.Scattista, RigaAttFluidTrail), FRTCellId(-1, 3));
 		Out.Scattista->SetPlannedCell(Out.Scattista->Cell);
-		if (!Test.TestTrue(TEXT("⛔ premessa: il Bracer pianifica Action.Brace"), Out.Bracer->PlannedAbilityIndex != INDEX_NONE)
-			|| !Test.TestTrue(TEXT("⛔ premessa: il Pusher pianifica Action.Push"), Out.Pusher->PlannedAbilityIndex != INDEX_NONE)
-			|| !Test.TestTrue(TEXT("⛔ premessa: la Scattista pianifica la scia"), Out.Scattista->PlannedDashAbility != INDEX_NONE))
+		if (!Test.TestTrue(TEXT("⛔ premessa: il Bracer pianifica Action.Brace"), Out.Bracer->GetPlan().PlannedAbilityIndex != INDEX_NONE)
+			|| !Test.TestTrue(TEXT("⛔ premessa: il Pusher pianifica Action.Push"), Out.Pusher->GetPlan().PlannedAbilityIndex != INDEX_NONE)
+			|| !Test.TestTrue(TEXT("⛔ premessa: la Scattista pianifica la scia"), Out.Scattista->GetPlan().PlannedDashAbility != INDEX_NONE))
 		{
 			return false;
 		}

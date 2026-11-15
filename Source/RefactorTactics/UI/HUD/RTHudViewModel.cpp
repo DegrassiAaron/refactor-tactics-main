@@ -265,33 +265,33 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	// --- movimento ---------------------------------------------------------------------------------------
 	// Due modi di occuparlo, e uno solo dei due ha un nome. Un percorso e' `PlannedWaypoints`: occupa lo slot
 	// e non e' un'azione scelta, quindi resta senza `ActionId` (vedi il commento su `FRTPlannedSlotView`).
-	if (Unit->PlannedWaypoints.Num() > 0)
+	if (Unit->GetPlan().PlannedWaypoints.Num() > 0)
 	{
 		Slots.Movement.bOccupied = true;
 	}
-	if (Unit->PlannedDashAbility != INDEX_NONE)
+	if (Unit->GetPlan().PlannedDashAbility != INDEX_NONE)
 	{
 		// Lo scatto NOMINA lo slot anche se un percorso lo aveva gia' segnato occupato: fra i due e' l'unico
 		// che il giocatore ha scelto per nome, ed e' l'informazione utile. Che i due possano coesistere non lo
 		// decide la HUD — se e' un piano illegale, lo dice `ValidateActionSlots`.
-		FillSlotFromAbility(Slots.Movement, *Unit, Unit->PlannedDashAbility);
+		FillSlotFromAbility(Slots.Movement, *Unit, Unit->GetPlan().PlannedDashAbility);
 	}
 
 	// --- azione principale -------------------------------------------------------------------------------
-	if (Unit->PlannedAbilityIndex != INDEX_NONE)
+	if (Unit->GetPlan().PlannedAbilityIndex != INDEX_NONE)
 	{
-		FillSlotFromAbility(Slots.Main, *Unit, Unit->PlannedAbilityIndex);
+		FillSlotFromAbility(Slots.Main, *Unit, Unit->GetPlan().PlannedAbilityIndex);
 
 		// ⚠️ Un'azione che dichiara `MovementAndMain` e' un'azione sola e DUE slot. Senza questa riga il
 		// pannello mostrerebbe il movimento libero a chi ha speso tutto il turno in una mobilita' che costa
 		// entrambi. Oggi nessuna azione lo dichiara - `Action.Sprint` lo faceva fino a [D-028] - quindi la
 		// riga e' inerte, non superflua: torna a contare il giorno che un kit usa quella forma.
 		// Chi risponde e' il catalogo, non un `==` scritto qui: e' lo stesso predicato del validatore.
-		if (const URTActionData* Main = Unit->GetAbility(Unit->PlannedAbilityIndex))
+		if (const URTActionData* Main = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex))
 		{
 			if (URTCatalogLibrary::TakesMovementSlot(Main->Def))
 			{
-				FillSlotFromAbility(Slots.Movement, *Unit, Unit->PlannedAbilityIndex);
+				FillSlotFromAbility(Slots.Movement, *Unit, Unit->GetPlan().PlannedAbilityIndex);
 			}
 		}
 	}
@@ -308,15 +308,15 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 
 	// --- reazione ----------------------------------------------------------------------------------------
 	// Slot indipendente (CP 5.1): un eroe puo' muoversi, agire E tenere una reazione pronta nello stesso turno.
-	if (Unit->PlannedReactionAbility != INDEX_NONE)
+	if (Unit->GetPlan().PlannedReactionAbility != INDEX_NONE)
 	{
-		FillSlotFromAbility(Slots.Reaction, *Unit, Unit->PlannedReactionAbility);
+		FillSlotFromAbility(Slots.Reaction, *Unit, Unit->GetPlan().PlannedReactionAbility);
 	}
 
 	// [D-478] punto 2 (#3618): la reazione armata e' lo slot `Reaction` occupato da un'azione, oppure una principale
 	// che arma una finestra. La domanda la decide il catalogo, come `TakesMovementSlot` decide gli slot.
-	const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility);
-	const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+	const URTActionData* Reazione = Unit->GetAbility(Unit->GetPlan().PlannedReactionAbility);
+	const URTActionData* Principale = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 	Slots.bReactionArmed = (Reazione && URTCatalogLibrary::ArmsReaction(Reazione->Def))
 		|| (Principale && URTCatalogLibrary::ArmsReaction(Principale->Def));
 
@@ -428,7 +428,7 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 				Alleate.Add(ARTUnit::DisplayLabel(Altra->HeroDisplayName, Altra->HeroId, Altra->GetName()));
 			}
 		}
-		const URTActionData* Principale = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const URTActionData* Principale = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
 		if (Alleate.Num() > 0 && !(Principale && CopertaDalCritico(Principale->Def.ActionId)))
 		{
 			FRTPlanWarningView FuocoAmico;
@@ -450,7 +450,7 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	const bool bColpisceUnAltro = Unit->GetPlannedChargeRun(Lettura) && Lettura.bHasImpact && Lettura.bMissesTarget;
 	if (bColpisceUnAltro)
 	{
-		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
+		const URTActionData* Carica = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility);
 		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
 		if (!CopertaDalCritico(CaricaId))
 		{
@@ -499,7 +499,7 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 	int32 Distanza = 0;
 	if (const int32 Corsa = bColpisceUnAltro ? 0 : Unit->PlannedChargeReachBeyondRange(&Distanza); Corsa > 0)
 	{
-		const URTActionData* Carica = Unit->GetAbility(Unit->PlannedDashAbility);
+		const URTActionData* Carica = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility);
 		const FName CaricaId = Carica ? Carica->Def.ActionId : NAME_None;
 		if (!CopertaDalCritico(CaricaId))
 		{
@@ -540,10 +540,10 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	FRTBlastPreviewPlan Plan;
 	Plan.AttackerId = UnitId;
 	Plan.bDashResolves = Unit.PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
-	Plan.PlannedDashCell = Unit.PlannedDashCell;
+	Plan.PlannedDashCell = Unit.GetPlan().PlannedDashCell;
 	Plan.bDashIsCharge = Unit.PlannedDashIsCharge();
 
-	const URTActionData* Ability = Unit.GetAbility(Unit.PlannedAbilityIndex);
+	const URTActionData* Ability = Unit.GetAbility(Unit.GetPlan().PlannedAbilityIndex);
 	if (!Ability)
 	{
 		return Plan; // solo scatto: un'origine da mostrare e nessuna area
@@ -561,16 +561,16 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
 	// [D-610] (3): la predittiva segna la cella, non chi ci sta sopra.
 	Plan.bPredictive = Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
-	if (Unit.bAttackTargetsCell)
+	if (Unit.GetPlan().bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;
-		Plan.TargetCell = Unit.PlannedAttackCell;
+		Plan.TargetCell = Unit.GetPlan().PlannedAttackCell;
 	}
 	else
 	{
 		// Un bersaglio che non e' in `Units` diventa `INDEX_NONE`, cioe' «nessuna area»; uno caduto ha `bAlive`
 		// falso in `MakeHexCombatUnits`, e l'anteprima lo scarta allo stesso modo.
-		Plan.TargetId = Units.IndexOfByKey(Unit.PlannedAttackTarget.Get());
+		Plan.TargetId = Units.IndexOfByKey(Unit.GetPlan().PlannedAttackTarget.Get());
 	}
 	return Plan;
 }
@@ -1026,9 +1026,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`).
 		View.HotkeyLabel = RTInputKeys::HotkeyLabelFor(Action->Def.ActionId, Index);
 		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione e lo scatto.
-		View.bPlanned = (Unit->PlannedAbilityIndex == Index)
-			|| (Unit->PlannedReactionAbility == Index)
-			|| (Unit->PlannedDashAbility == Index);
+		View.bPlanned = (Unit->GetPlan().PlannedAbilityIndex == Index)
+			|| (Unit->GetPlan().PlannedReactionAbility == Index)
+			|| (Unit->GetPlan().PlannedDashAbility == Index);
 
 		// Il numero si LEGGE dal simulatore, mai negativo (contratto della vista).
 		View.TurnsRemaining = FMath::Max(0, Unit->GetAbilityCooldown(Index));
@@ -1076,10 +1076,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	//    stessa origine per fase (`ARTUnit::AimOriginFor`): il Warning resta per il solo caso che [D-464] (4)
 	//    gli lascia — lo scatto CAMBIATO dopo che il bersaglio era stato dichiarato. In planning nessuno si
 	//    muove, ed e' lo scatto a separare «accettato» da «degradato».
-	if (Cooldowns.IsValidIndex(Unit->PlannedAbilityIndex) && !Unit->bAttackTargetsCell)
+	if (Cooldowns.IsValidIndex(Unit->GetPlan().PlannedAbilityIndex) && !Unit->GetPlan().bAttackTargetsCell)
 	{
-		const URTActionData* Pianificata = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get();
+		const URTActionData* Pianificata = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
+		const ARTUnit* Bersaglio = Unit->GetPlan().PlannedAttackTarget.Get();
 		FVector Origine; float Lato; float AltezzaPiano;
 		const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(Unit->GetWorld());
 		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
@@ -1094,14 +1094,14 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
 				Bersaglio->IsKnownToObserver(), Pianificata->Def.MinRangeCells,
 				URTCombatLibrary::CrossLayerAimFor(Pianificata->Def));
-			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
+			Cooldowns[Unit->GetPlan().PlannedAbilityIndex].bPlanDegraded =
 				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
 			// `#3499`: il rifiuto per il tooltip, dalla stessa domanda e solo quando accende lo stato. ⛔ Un ignoto
 			// e' gia' `Nothing`: il tooltip non puo' dire niente che lo stato non dica.
-			if (Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded)
+			if (Cooldowns[Unit->GetPlan().PlannedAbilityIndex].bPlanDegraded)
 			{
-				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRefusal = Rifiuto;
-				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRange = (Rifiuto == ERTTargetRefusal::Range)
+				Cooldowns[Unit->GetPlan().PlannedAbilityIndex].PlanDegradedRefusal = Rifiuto;
+				Cooldowns[Unit->GetPlan().PlannedAbilityIndex].PlanDegradedRange = (Rifiuto == ERTTargetRefusal::Range)
 					? URTTerrainLibrary::EffectiveTargetingRange(Mappa, Da, Bersaglio->Cell, Pianificata->RangeCells)
 					: INDEX_NONE;
 			}
@@ -1189,7 +1189,7 @@ FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit
 	View.ProfileId = Slots.MovementProfileId;
 	View.Label = MovementReadoutLabel(View.ProfileId);
 	// `PlannedMovementProfileId` porta SOLO la dichiarazione del giocatore (oggi `Sneak`, o vuoto): [D-425].
-	View.bSneakDeclared = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
+	View.bSneakDeclared = Unit->GetPlan().PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
 	View.SneakKeyLabel = RTInputKeys::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
 	return View;
 }
@@ -1559,8 +1559,8 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
 		if (!Unit || !Unit->IsAlive()) { continue; }
 
-		const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		const URTActionData* Reaction = Unit->GetAbility(Unit->PlannedReactionAbility);
+		const URTActionData* Planned = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
+		const URTActionData* Reaction = Unit->GetAbility(Unit->GetPlan().PlannedReactionAbility);
 
 		FRTPlannedIntent Intent;
 		Intent.OwnerCell = Unit->Cell;
@@ -1568,24 +1568,24 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		Intent.bAlive = true;
 		Intent.bRevealed = Unit->HasStatus(TAG_Status_Reveal);
 		Intent.bMoving = Unit->HasPlannedNormalMove(); // la regola intera, non la sua meta'
-		Intent.PlannedCell = Unit->PlannedCell;
+		Intent.PlannedCell = Unit->GetPlan().PlannedCell;
 		Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
-		Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
-		Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
+		Intent.bHasTarget = (Unit->GetPlan().PlannedAttackTarget != nullptr && Unit->GetPlan().PlannedAttackTarget->IsAlive());
+		Intent.TargetCell = Intent.bHasTarget ? Unit->GetPlan().PlannedAttackTarget->Cell : Unit->Cell;
 		// ⚖️ **Lo slot `Reaction`, non `URTCatalogLibrary::ArmsReaction`** (`#3628`, decisione d'autore del
 		// 2026-10-11). `ReactionName` finisce nell'etichetta dell'intento come «(reazione: … ?)», e l'Overwatch come
 		// principale e' gia' `ActionName`: contarlo qui stamperebbe lo stesso nome due volte. Il roster, che un nome
 		// d'azione non lo mostra, lo conta ([D-478]).
 		Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
-		Intent.PlannedPath = Unit->PlannedPath;
-		Intent.PlannedWaypoints = Unit->PlannedWaypoints;
-		Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
-		Intent.DashCell = Unit->PlannedDashCell;
+		Intent.PlannedPath = Unit->GetPlan().PlannedPath;
+		Intent.PlannedWaypoints = Unit->GetPlan().PlannedWaypoints;
+		Intent.bDashing = (Unit->GetPlan().PlannedDashAbility != INDEX_NONE);
+		Intent.DashCell = Unit->GetPlan().PlannedDashCell;
 		// Rotazione dichiarata (D-020, #291): finora `bDeclaresRotation` e `DeclaredFacing` restavano ai
 		// default perche' nessuno li valorizzava, e `FilterForTeam` filtrava un campo sempre vuoto.
-		Intent.bDeclaresRotation = Unit->bDeclaresPlannedFacing;
-		Intent.DeclaredFacing = Unit->PlannedFacing;
-		if (const URTActionData* DashAb = Unit->GetAbility(Unit->PlannedDashAbility))
+		Intent.bDeclaresRotation = Unit->GetPlan().bDeclaresPlannedFacing;
+		Intent.DeclaredFacing = Unit->GetPlan().PlannedFacing;
+		if (const URTActionData* DashAb = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility))
 		{
 			Intent.DashStyle = DashAb->Def.MovementStyle;
 		}

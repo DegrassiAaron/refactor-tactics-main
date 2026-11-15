@@ -357,11 +357,24 @@ bool FRTPlanningFieldsOnTheUnitAreNotReplicatedTest::RunTest(const FString&)
 
 	// (1) L'elenco per NOME: ogni campo dichiarato deve ESISTERE — una rinomina silenziosa e' rossa — e non
 	//     deve portare `CPF_Net`.
+	//
+	//     🔑 **Dalla tappa 3 di [D-608] (#4123) i campi d'intento stanno in `FRTUnitPlan`**, membro `Plan` di `ARTUnit`.
+	//     Un campo dello struct trapela se e' replicato LUI o se lo e' il contenitore: la replica di una `USTRUCT`
+	//     viaggia sulla proprieta' che la porta. Quindi per quei campi si guardano tutti e due.
+	const FProperty* Contenitore = Unit->FindPropertyByName(TEXT("Plan"));
+	const FStructProperty* ContenitoreStruct = CastField<FStructProperty>(Contenitore);
+	if (!TestTrue(TEXT("premessa: ARTUnit porta il piano in `Plan`, un FRTUnitPlan"),
+			ContenitoreStruct != nullptr && ContenitoreStruct->Struct == FRTUnitPlan::StaticStruct()))
+	{
+		return false;
+	}
+	TestFalse(TEXT("`Plan` non e' replicato: il piano privato non ha una via di rete"), Contenitore->HasAnyPropertyFlags(CPF_Net));
 	for (const TCHAR* const Name : PlanningFieldNames)
 	{
 		const FProperty* Field = Unit->FindPropertyByName(FName(Name));
+		if (Field == nullptr) { Field = FRTUnitPlan::StaticStruct()->FindPropertyByName(FName(Name)); }
 		if (!TestNotNull(*FString::Printf(
-				TEXT("il campo di pianificazione '%s' esiste ancora su ARTUnit — se e' stato RINOMINATO, "
+				TEXT("il campo di pianificazione '%s' esiste ancora su ARTUnit o in FRTUnitPlan — se e' stato RINOMINATO, "
 				     "aggiorna questo elenco col nome nuovo (non toglierlo: toglierlo dimezza la copertura)"), Name),
 			Field))
 		{
@@ -399,6 +412,19 @@ bool FRTPlanningFieldsOnTheUnitAreNotReplicatedTest::RunTest(const FString&)
 		for (TFieldIterator<FProperty> It(Classe); It; ++It)
 		{
 			const FString FieldName = It->GetName();
+			// [D-608] tappa 3: dentro `Plan` ogni campo e' piano, e trapela se e' replicato lui o il contenitore.
+			if (const FStructProperty* Piano = CastField<FStructProperty>(*It); Piano && Piano->Struct == FRTUnitPlan::StaticStruct())
+			{
+				for (TFieldIterator<FProperty> Dentro(Piano->Struct); Dentro; ++Dentro)
+				{
+					if (!IsPlanningFieldName(Dentro->GetName())) { continue; }
+					if (Classe == Unit) { ++ScansionatiSuUnit; }
+					if (Piano->HasAnyPropertyFlags(CPF_Net) || Dentro->HasAnyPropertyFlags(CPF_Net))
+					{
+						Replicati.AddUnique(FString::Printf(TEXT("%s::%s.%s"), *Classe->GetName(), *FieldName, *Dentro->GetName()));
+					}
+				}
+			}
 			if (!IsPlanningFieldName(FieldName))
 			{
 				continue;

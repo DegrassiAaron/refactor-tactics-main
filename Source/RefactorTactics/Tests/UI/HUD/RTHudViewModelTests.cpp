@@ -2380,7 +2380,7 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 		const FRTUnitSlotsView Corsa = URTHudViewModel::BuildUnitSlots(Unit);
 		TestEqual(TEXT("oltre 1x la vista legge Sprint, senza che nessuno l'abbia dichiarato"),
 			Corsa.MovementProfileId, URTMovementProfileLibrary::ProfileSprint);
-		TestTrue(TEXT("e nessuno ha dichiarato niente"), Unit->PlannedMovementProfileId.IsNone());
+		TestTrue(TEXT("e nessuno ha dichiarato niente"), Unit->GetPlan().PlannedMovementProfileId.IsNone());
 
 		// b) lo `Sneak` dichiarato: e' un TETTO, quindi vince sulla distanza invece di esserne prodotto.
 		Unit->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSneak);

@@ -1,13 +1,17 @@
 // Il piano dell'unita' si scrive da una porta sola (#4068 e #4076, E50 fetta 2, tappe 1 e 2).
 //
-// Il piano per-turno (`Planned*`, `bTurnPlanDeclared` e affini) sta in campi pubblici di `ARTUnit`. Fino a #4068
+// Il piano per-turno (`Planned*`, `bTurnPlanDeclared` e affini) stava in campi pubblici di `ARTUnit`. Fino a #4068
 // lo scrivevano a mano il controller, l'harness degli scenari, la dichiarazione del verso, il TurnManager e il Blast;
 // fino a #4076, i test. Ora passano tutti dai mutatori di `ARTUnit` (`DeclarePlannedMainAction`, `ClearPlannedMainAction`,
 // `SetPlannedRoute`, ...), e i test, dove nessun mutatore produce lo stato che vogliono, da `FRTUnitPlanTestAccess`
 // (`Tests/Shared/RTUnitPlanTestAccess.h`), l'unico file dei test fuori dal perimetro. Fuori dai test nessun file lo usa,
 // e nessuno include un header dei test: ne' il modulo di gioco ne' quello dell'Editor, che sono entrambi nel perimetro.
-// Questo cancello lo tiene vero: quando lo struct `FRTUnitPlan` rendera' i campi privati ([D-608]), cambieranno
-// `ARTUnit` e quell'accesso, non i test.
+// Questo cancello lo tiene vero.
+//
+// 🔒 **Dalla tappa 3 di [D-608] (#4123) i campi d'intento sono privati**: stanno in `FRTUnitPlan` (`Turn/RTUnitPlan.h`),
+// membro privato di `ARTUnit`, e fuori si leggono da `GetPlan()`, che e' `const`. Per loro la porta la fa valere il
+// compilatore; il cancello resta per i campi rimasti in `ARTUnit` (mira congelata, cache della carica, memoria del Back)
+// e riconosce anche la forma `->GetPlan().Campo`, che scrive solo passando da un `const_cast`.
 //
 // I campi del piano sono un ELENCO, non un prefisso: `Planned*` prendeva anche il widget `PlannedCorner` della barra.
 // `Meta.PlanFieldListMatchesTheUnit` tiene l'elenco uguale ai campi dichiarati in `Unit/RTUnit.h`.
@@ -17,8 +21,9 @@
 //     un rilevatore testuale non le vede. #4068 ha tolto le due che c'erano (`TruncateWaypointsToBudget` ora lavora
 //     su una copia).
 //   - Una scrittura spezzata su piu' righe, con l'operatore a capo dopo il nome del campo.
-//   - Le scritture con `.` su un `ARTUnit&`: il piano si raggiunge sempre per puntatore, e con `.` lo scrivono altri
-//     tipi che hanno campi con lo stesso nome (`FRTBotPlanDecision`, `FRTPlanPreviewInput`).
+//   - Le scritture con `.` su un `ARTUnit&`: con `.` lo scrivono altri tipi che hanno campi con lo stesso nome
+//     (`FRTBotPlanDecision`, `FRTPlanPreviewInput`). Per i campi d'intento le impedisce il compilatore (#4123).
+//   - Una scrittura attraverso un `const_cast` di `GetPlan()` che non usa la forma `->GetPlan().Campo`.
 //   - Una scrittura attraverso un metodo che rende un riferimento (`->PlannedPath.Last() = C`), e un pre-incremento
 //     su un'espressione che non e' un nome semplice (`++(*U)->PlannedAbilityIndex`).
 //   - Una riga dentro un commento `/* */` su piu' righe che non comincia con `*`.
@@ -200,9 +205,9 @@ namespace
 	}
 
 	/**
-	 * Vero se nella riga c'e' `->CampoDelPiano` seguito da una SCRITTURA del campo (`PlanWritersTailWrites`), di un suo
-	 * elemento (`[i] =`), di un suo membro (`.X =`), o da una mutazione dell'array (`.Add(`, `.Pop(`, ...). Si guarda solo
-	 * il codice della riga (`PlanWritersLineCode`).
+	 * Vero se nella riga c'e' `->CampoDelPiano`, o `->GetPlan().CampoDelPiano` ([D-608] tappa 3), seguito da una SCRITTURA
+	 * del campo (`PlanWritersTailWrites`), di un suo elemento (`[i] =`), di un suo membro (`.X =`), o da una mutazione
+	 * dell'array (`.Add(`, `.Pop(`, ...). Si guarda solo il codice della riga (`PlanWritersLineCode`).
 	 */
 	bool PlanWritersLineWrites(const FString& RigaIntera)
 	{
@@ -214,7 +219,29 @@ namespace
 			if (Freccia == INDEX_NONE) { return false; }
 			int32 Fine = Freccia + 2;
 			while (Fine < Riga.Len() && PlanWritersIsIdentChar(Riga[Fine])) { ++Fine; }
-			const FString Nome = Riga.Mid(Freccia + 2, Fine - Freccia - 2);
+			FString Nome = Riga.Mid(Freccia + 2, Fine - Freccia - 2);
+			// [D-608] tappa 3: `->GetPlan().Campo`, con o senza spazi. Il campo e' il nome dopo il punto.
+			if (Nome == TEXT("GetPlan"))
+			{
+				int32 P = Fine;
+				while (P < Riga.Len() && FChar::IsWhitespace(Riga[P])) { ++P; }
+				int32 Chiude = P + 1;
+				while (Chiude < Riga.Len() && FChar::IsWhitespace(Riga[Chiude])) { ++Chiude; }
+				if (Chiude < Riga.Len() && Riga[P] == TEXT('(') && Riga[Chiude] == TEXT(')'))
+				{
+					P = Chiude + 1;
+					while (P < Riga.Len() && FChar::IsWhitespace(Riga[P])) { ++P; }
+					if (P < Riga.Len() && Riga[P] == TEXT('.'))
+					{
+						++P;
+						while (P < Riga.Len() && FChar::IsWhitespace(Riga[P])) { ++P; }
+						const int32 Inizio = P;
+						while (P < Riga.Len() && PlanWritersIsIdentChar(Riga[P])) { ++P; }
+						Nome = Riga.Mid(Inizio, P - Inizio);
+						Fine = P;
+					}
+				}
+			}
 			Da = Fine;
 			if (!PlanWritersIsPlanField(Nome)) { continue; }
 			// Un pre-incremento: `++Unit->PlannedAbilityIndex`.
@@ -378,7 +405,7 @@ bool FRTPlanWritesGoThroughTheUnitTest::RunTest(const FString&)
 			return false;
 		}
 		++Letti;
-		LettureDelPiano += Testo.Contains(TEXT("->PlannedAbilityIndex"), ESearchCase::CaseSensitive) ? 1 : 0;
+		LettureDelPiano += Testo.Contains(TEXT("->GetPlan().PlannedAbilityIndex"), ESearchCase::CaseSensitive) ? 1 : 0;
 		TArray<FString> Righe;
 		Testo.ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
 		for (const int32 Riga : PlanWritersFind(Testo))
@@ -425,7 +452,7 @@ bool FRTPlanWritesGoThroughTheUnitTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("e file di test (%d)"), LettiDeiTest), LettiDeiTest > 50);
 	TestTrue(*FString::Printf(TEXT("e file fuori dai test (%d)"), LettiFuoriDaiTest), LettiFuoriDaiTest > 50);
 	TestTrue(*FString::Printf(TEXT("e file del modulo Editor (%d)"), LettiDellEditor), LettiDellEditor > 50);
-	TestTrue(*FString::Printf(TEXT("e il piano vi si legge ancora con `->` (%d file)"), LettureDelPiano), LettureDelPiano > 1);
+	TestTrue(*FString::Printf(TEXT("e il piano vi si legge ancora con `->GetPlan().` (%d file)"), LettureDelPiano), LettureDelPiano > 1);
 	// E l'accesso riservato e gli header dei test i test li usano davvero: i controlli che li vietano al resto guardano
 	// testo vivo.
 	TestTrue(*FString::Printf(TEXT("e l'accesso riservato vi si usa (%d file di test)"), TestCheUsanoLAccesso), TestCheUsanoLAccesso > 1);
@@ -491,6 +518,12 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 		{ TEXT("\t * nota */"), false },
 		{ TEXT("\tconst int32 N2 = Unit->PlannedWaypoints.Num ();"), false },
 		{ TEXT("\tUnit->PlannedWaypoints.Reserve(8); // la capacita', non il contenuto"), false },
+		// [D-608] tappa 3 (#4123): la lettura da `GetPlan()` e la sua scrittura, che compila solo con un `const_cast`.
+		{ TEXT("\tUnit->GetPlan().PlannedCell = Cell;"), true },
+		{ TEXT("\tUnit->GetPlan ( ) . PlannedWaypoints.Add(Cell);"), true },
+		{ TEXT("\tconst FRTCellId Dove = Unit->GetPlan().PlannedCell;"), false },
+		{ TEXT("\tif (Unit->GetPlan().PlannedAbilityIndex != INDEX_NONE) {}"), false },
+		{ TEXT("\tconst FRTUnitPlan& Piano = Unit->GetPlan();"), false },
 	};
 	FString Testo;
 	TArray<int32> Attese;
@@ -646,7 +679,9 @@ namespace
 		}
 		TArray<FString> Parole;
 		Testa.TrimStartAndEnd().ParseIntoArrayWS(Parole);
-		if (Parole.Num() < 2 || Parole[0] == TEXT("return") || Parole[0] == TEXT("delete") || Parole[0] == TEXT("case"))
+		// `class ARTUnit;` e' una dichiarazione anticipata, non un campo (`Turn/RTUnitPlan.h` ne ha una, #4123).
+		if (Parole.Num() < 2 || Parole[0] == TEXT("return") || Parole[0] == TEXT("delete") || Parole[0] == TEXT("case")
+			|| ((Parole[0] == TEXT("class") || Parole[0] == TEXT("struct")) && Parole.Num() == 2))
 		{
 			return FString();
 		}
@@ -655,9 +690,10 @@ namespace
 }
 
 /**
- * **L'elenco dei campi del piano e' quello dell'unita'.** Ogni campo di `ARTUnit` il cui nome contiene `Planned` sta
- * nell'elenco del cancello, e ogni voce dell'elenco e' un campo dichiarato in `Unit/RTUnit.h`. Senza, un campo nuovo del
- * piano sfuggirebbe al cancello, e una voce rinominata lo renderebbe cieco in silenzio.
+ * **L'elenco dei campi del piano e' quello dell'unita'.** Ogni campo di `ARTUnit` il cui nome contiene `Planned`, e ogni
+ * campo di `FRTUnitPlan` ([D-608] tappa 3, #4123), sta nell'elenco del cancello; ogni voce dell'elenco e' un campo
+ * dichiarato in `Unit/RTUnit.h` o in `Turn/RTUnitPlan.h`. Senza, un campo nuovo del piano sfuggirebbe al cancello, e una
+ * voce rinominata lo renderebbe cieco in silenzio.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanFieldListMatchesTheUnitTest,
 	"RefactorTactics.Meta.PlanFieldListMatchesTheUnit",
@@ -665,8 +701,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanFieldListMatchesTheUnitTest,
 bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 {
 	const FString Header = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), TEXT("RefactorTactics"), TEXT("Unit"), TEXT("RTUnit.h"));
+	const FString HeaderPiano = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source"), TEXT("RefactorTactics"), TEXT("Turn"), TEXT("RTUnitPlan.h"));
 	FString Testo;
-	if (!TestTrue(*FString::Printf(TEXT("l'header si legge (%s)"), *Header), FFileHelper::LoadFileToString(Testo, *Header))) { return false; }
+	FString TestoPiano;
+	if (!TestTrue(*FString::Printf(TEXT("l'header si legge (%s)"), *Header), FFileHelper::LoadFileToString(Testo, *Header))
+		|| !TestTrue(*FString::Printf(TEXT("l'header si legge (%s)"), *HeaderPiano), FFileHelper::LoadFileToString(TestoPiano, *HeaderPiano)))
+	{
+		return false;
+	}
 
 	// ⛔ Il parser, su righe piantate: le forme di dichiarazione che un campo nuovo puo' prendere, e le righe che non
 	// dichiarano niente. Un campo che sfugge al parser sfugge all'elenco, e quindi al cancello, in silenzio.
@@ -693,6 +735,9 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 		{ TEXT("\tTFunction<void()> PlannedFoo;"), TEXT("PlannedFoo") },
 		{ TEXT("\tint32 PlannedFoo[3];"), TEXT("PlannedFoo") },
 		{ TEXT("\tTFunction<void()> GetPlannedFoo() const;"), TEXT("") },
+		// #4123: la dichiarazione anticipata di `Turn/RTUnitPlan.h`, e un campo il cui tipo e' una `struct` nominata.
+		{ TEXT("class ARTUnit;"), TEXT("") },
+		{ TEXT("\tstruct FRTCellId PlannedFoo;"), TEXT("PlannedFoo") },
 		{ TEXT("\tUFUNCTION(BlueprintCallable) void SetPlannedFoo(int32 X);"), TEXT("") },
 		{ TEXT("\t * FRTCellId PlannedFoo;"), TEXT("") },
 	};
@@ -701,24 +746,36 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("parser: `%s`"), P.Riga), PlanWritersDeclaredField(P.Riga), FString(P.Nome));
 	}
 
-	TArray<FString> Righe;
-	Testo.ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
-	TSet<FString> Dichiarati;
-	for (const FString& Riga : Righe)
+	auto CampiDi = [](const FString& Sorgente)
 	{
-		const FString Nome = PlanWritersDeclaredField(Riga);
-		if (!Nome.IsEmpty()) { Dichiarati.Add(Nome); }
-	}
-	// ⛔ Anti-vacuita': il parser trova davvero i campi, compresi uno con l'inizializzatore e uno senza.
-	if (!TestTrue(TEXT("premessa: il parser vede `PlannedCell` (senza inizializzatore)"), Dichiarati.Contains(TEXT("PlannedCell")))
-		|| !TestTrue(TEXT("premessa: e `PlannedAbilityIndex` (con)"), Dichiarati.Contains(TEXT("PlannedAbilityIndex"))))
+		TArray<FString> Righe;
+		Sorgente.ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
+		TSet<FString> Out;
+		for (const FString& Riga : Righe)
+		{
+			const FString Nome = PlanWritersDeclaredField(Riga);
+			if (!Nome.IsEmpty()) { Out.Add(Nome); }
+		}
+		return Out;
+	};
+	const TSet<FString> DellUnita = CampiDi(Testo);
+	const TSet<FString> DelPiano = CampiDi(TestoPiano);
+	// ⛔ Anti-vacuita': il parser trova davvero i campi in entrambi i file, compresi uno con l'inizializzatore e uno senza.
+	if (!TestTrue(TEXT("premessa: il parser vede `PlannedCell` nello struct (senza inizializzatore)"), DelPiano.Contains(TEXT("PlannedCell")))
+		|| !TestTrue(TEXT("premessa: e `PlannedAbilityIndex` (con)"), DelPiano.Contains(TEXT("PlannedAbilityIndex")))
+		|| !TestTrue(TEXT("premessa: e `PlannedAimCell` nell'unita', dove resta"), DellUnita.Contains(TEXT("PlannedAimCell"))))
 	{
 		return false;
+	}
+	// Lo spostamento e' completo: nessun campo e' dichiarato in tutti e due i file.
+	for (const FString& Nome : DelPiano)
+	{
+		TestFalse(*FString::Printf(TEXT("`%s` sta in `FRTUnitPlan` e non e' piu' dichiarato in `ARTUnit`"), *Nome), DellUnita.Contains(Nome));
 	}
 
 	TSet<FString> Elenco;
 	for (const TCHAR* Campo : PlanWritersCampi) { Elenco.Add(Campo); }
-	for (const FString& Nome : Dichiarati)
+	for (const FString& Nome : DellUnita)
 	{
 		if (Nome.Contains(TEXT("Planned"), ESearchCase::CaseSensitive))
 		{
@@ -726,10 +783,15 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 				Elenco.Contains(Nome));
 		}
 	}
+	// Nello struct ogni campo e' piano, anche senza `Planned` nel nome (`bAttackTargetsCell`).
+	for (const FString& Nome : DelPiano)
+	{
+		TestTrue(*FString::Printf(TEXT("`%s` e' un campo di `FRTUnitPlan`: sta nell'elenco del cancello"), *Nome), Elenco.Contains(Nome));
+	}
 	for (const FString& Nome : Elenco)
 	{
-		TestTrue(*FString::Printf(TEXT("la voce `%s` dell'elenco e' un campo dichiarato in `Unit/RTUnit.h`"), *Nome),
-			Dichiarati.Contains(Nome));
+		TestTrue(*FString::Printf(TEXT("la voce `%s` dell'elenco e' un campo dichiarato in `Unit/RTUnit.h` o in `Turn/RTUnitPlan.h`"), *Nome),
+			DellUnita.Contains(Nome) || DelPiano.Contains(Nome));
 	}
 	return true;
 }
