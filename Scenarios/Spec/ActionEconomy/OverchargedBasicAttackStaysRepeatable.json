@@ -1,0 +1,86 @@
+{
+  "scenarioId": "Spec.ActionEconomy.OverchargedBasicAttackStaysRepeatable",
+  "tags": [
+    "action-economy",
+    "spec",
+    "gadget",
+    "riktor",
+    "equipment"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.14 (#4115), [D-615] (6): la regola della copia legge il cooldown della riga di catalogo, prima della variante d'arma. `Weapon.Overcharge` da' 2 turni all'attacco base, ma la riga di `Hero.Gadget.ArcPulse` non ha ricarica: due attacchi base restano ammessi e partono entrambi. Si chiamava `OverchargedBasicAttackIsUsedOnce`, dall'opzione di `E38-Q3` che l'autore non ha scelto. Il loadout porta un pezzo per tipo, come il loader vuole.",
+  "_oracolo": "ArcPulse (Blast, 2) due volte su B1 = 4 <= 6. `CatalogCooldownTurns` vale 0, quindi non e' `RepeatedWithCooldown`; `CollectAttackIntents` controlla la ricarica residua di inizio fase, 0, e la ricarica della variante si scrive dopo, con un valore fisso. B1 ha `shield` 0, cosi' i due colpi escono `Hit`.",
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "loadout": [
+        "Weapon.Overcharge",
+        "Gadget.Sprinkler",
+        "Reaction.ReactiveShield"
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        2,
+        0,
+        0
+      ],
+      "shield": 0
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — A1 spara due volte l'attacco base caricato.",
+      "requires": [
+        "MainListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "A1",
+          "actions": [
+            {
+              "ability": "Hero.Gadget.ArcPulse",
+              "target": "B1"
+            },
+            {
+              "ability": "Hero.Gadget.ArcPulse",
+              "target": "B1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "Il piano e' legale."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 2,
+      "_assertion": "Partono entrambi."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}
