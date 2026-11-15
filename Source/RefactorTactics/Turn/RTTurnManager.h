@@ -3291,6 +3291,8 @@ protected:
 	{
 		int32 DeclarationIndex = INDEX_NONE;
 		int32 TeamId = INDEX_NONE;
+		/** L'azione della voce, quando serve a riconoscerla (`CurrentCopyEntry`); `NAME_None` altrove. */
+		FName ActionId;
 		bool IsSet() const { return DeclarationIndex != INDEX_NONE; }
 	};
 
@@ -3301,28 +3303,52 @@ protected:
 	 */
 	FRTDeclaredEntry CurrentDeclaredEntry;
 
-	/** Apre `CurrentDeclaredEntry` per la durata di un blocco, e rimette la precedente all'uscita. */
+	/**
+	 * La voce principale che un pass del Blast o del Cleanup sta visitando (E38 CP 38.14). A differenza del contesto qui
+	 * sopra non vale per ogni voce: serve solo dove l'`ActionId` non basta, cioe' fra due copie della stessa azione della
+	 * stessa unita'. Una voce che l'`ActionId` gia' riconosce resta com'era in CP 38.13, e il corpus golden non cambia.
+	 */
+	FRTDeclaredEntry CurrentCopyEntry;
+
+	/** Apre `CurrentDeclaredEntry` (o, con `bCopia`, `CurrentCopyEntry`) per la durata di un blocco, e rimette il precedente. */
 	struct FRTDeclaredEntryScope
 	{
-		FRTDeclaredEntryScope(ARTTurnManager& InOwner, const FRTDeclaredEntry& Entry)
-			: Owner(InOwner), Previous(InOwner.CurrentDeclaredEntry)
+		FRTDeclaredEntryScope(ARTTurnManager& InOwner, const FRTDeclaredEntry& Entry, bool bCopia = false)
+			: Slot(bCopia ? InOwner.CurrentCopyEntry : InOwner.CurrentDeclaredEntry), Previous(Slot)
 		{
-			Owner.CurrentDeclaredEntry = Entry;
+			Slot = Entry;
 		}
-		~FRTDeclaredEntryScope() { Owner.CurrentDeclaredEntry = Previous; }
+		~FRTDeclaredEntryScope() { Slot = Previous; }
 		FRTDeclaredEntryScope(const FRTDeclaredEntryScope&) = delete;
 		FRTDeclaredEntryScope& operator=(const FRTDeclaredEntryScope&) = delete;
 
 	private:
-		ARTTurnManager& Owner;
+		FRTDeclaredEntry& Slot;
 		FRTDeclaredEntry Previous;
 	};
+
+	/**
+	 * **Una visita di un pass a una voce principale** (E38 CP 38.14, #4115): l'unita' (la sua posizione nel pass) e
+	 * l'identita' della voce. `MainTurnsOf` le ordina come il resolver le deve visitare: le unita' nell'ordine in cui il pass
+	 * le riceve, e dentro l'unita' per macro-fase, priorita', `ActionId`, poi contenuto (bersaglio, cella di mira, bordo),
+	 * e per ultima la posizione nel piano, che fra due copie identiche decide solo un'etichetta. Mai per dichiarazione
+	 * dove il contenuto differisce ([D-615] (5)).
+	 */
+	struct FRTMainTurn
+	{
+		int32 UnitIndex = INDEX_NONE;
+		int32 EntryId = INDEX_NONE;
+	};
+	static TArray<FRTMainTurn> MainTurnsOf(const TArray<ARTUnit*>& Units);
+
+	/** La voce con quell'identita' vista dal TurnLog: la sua posizione nella copia al lock-in e la squadra, con l'azione. */
+	static FRTDeclaredEntry DeclarationOfEntry(const ARTUnit* Declarer, int32 EntryId);
 
 	/**
 	 * La voce della copia al lock-in di `Declarer` la cui abilita' e' `ActionId`, fuori dal movimento. Vuota se non c'e', o
 	 * se ce n'e' piu' d'una: due copie non si distinguono dall'`ActionId`, e lo dice il contesto di chi le risolve.
 	 */
-	static FRTDeclaredEntry DeclarationOfAction(const ARTUnit* Declarer, FName ActionId);
+	static FRTDeclaredEntry DeclarationOfAction(const ARTUnit* Declarer, FName ActionId, bool* bOutAmbiguous = nullptr);
 
 	/** La voce di movimento della copia al lock-in, o l'ultima posizione se il piano muoveva senza voce (il bot). */
 	static FRTDeclaredEntry DeclarationOfMovement(const ARTUnit* Declarer);

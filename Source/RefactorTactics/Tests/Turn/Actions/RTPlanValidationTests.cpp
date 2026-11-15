@@ -52,22 +52,31 @@ bool FRTPlanMovementMainAndReactionAreLegal::RunTest(const FString&)
 	return true;
 }
 
-/** Due principali non si sommano: la legalita' e' STRUTTURALE (D-028, confermata da D-114). */
+/**
+ * Due principali del Blast si sommano entro il budget ([D-584] (1); E38 CP 38.14): fino a CP 38.14 la legalita' era
+ * strutturale (D-028, D-114) e questo test le rifiutava. Resta il soggetto che lo slot ha ancora: una mobilita' che prende
+ * anche la principale (`MovementAndMain`) non lascia posto a un'altra principale, fino a CP 38.16.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSecondMainIsRejected,
 	"RefactorTactics.Plan.SecondMainIsRejected",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlanSecondMainIsRejected::RunTest(const FString&)
 {
-	const TArray<FRTPlannedAction> Plan = {
+	const TArray<FRTPlannedAction> DueDelBlast = {
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
-		PlanEntry(TEXT("Action.Guard"), ERTActionSlot::Main),
+		PlanEntry(TEXT("Action.Interact"), ERTActionSlot::Main),
 	};
+	TestTrue(TEXT("due principali del Blast sono legali"), URTPlanValidationLibrary::ValidatePlan(PlanUnit(), DueDelBlast).bLegal);
 
-	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(), Plan);
-
-	TestFalse(TEXT("due principali non sono legali"), Result.bLegal);
+	const TArray<FRTPlannedAction> ConUnaCarica = {
+		PlanEntry(TEXT("Test.Charge"), ERTActionSlot::MovementAndMain),
+		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
+		PlanEntry(TEXT("Action.Interact"), ERTActionSlot::Main),
+	};
+	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(8), ConUnaCarica);
+	TestFalse(TEXT("una mobilita' che prende la principale non lascia posto"), Result.bLegal);
 	TestEqual(TEXT("il motivo e' lo slot occupato"), Result.Reason, ERTActionInvalidReason::SlotOccupied);
-	TestEqual(TEXT("l'azione respinta e' la seconda"), Result.OffendingActionId, FName(TEXT("Action.Guard")));
+	TestEqual(TEXT("e la detentrice e' la mobilita'"), Result.HolderActionId, FName(TEXT("Test.Charge")));
 	return true;
 }
 

@@ -102,10 +102,10 @@ bool FRTPlanLegalTodayStaysLegal::RunTest(const FString&)
 			ERTActionInvalidReason::None);
 	}
 
-	// --- 2. controllo positivo: due forme che OGGI sono illegali per struttura ---------------------------
-	// `BB` (due principali) e `DM` (scatto e camminata nello stesso turno) sono rifiutate con `SlotOccupied`.
-	// D-584 (1) le rendera' legali: quando accade, questo controllo lo dice e va riscritto, non spento.
-	for (const TCHAR* Form : { TEXT("BB"), TEXT("DM") })
+	// --- 2. controllo: `BB` (due principali del Blast) e' legale da E38 CP 38.14 ([D-584] (1)); `DM` (scatto e camminata
+	// nello stesso turno) resta rifiutata con `SlotOccupied` fino a CP 38.16, e quel giorno questo controllo va riscritto.
+	TestTrue(TEXT("controllo BB: legale da CP 38.14"), URTPlanValidationLibrary::ValidatePlan(FormUnit(), PlanForForm(TEXT("BB"))).bLegal);
+	for (const TCHAR* Form : { TEXT("DM") })
 	{
 		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(FormUnit(), PlanForForm(Form));
 		TestFalse(*FString::Printf(TEXT("controllo %s: oggi illegale"), Form), Verdict.bLegal);

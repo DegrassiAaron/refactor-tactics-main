@@ -24,6 +24,7 @@
 #include "Turn/Resolution/RTHexSim.h"
 #include "Turn/Resolution/RTHexSimLibrary.h" // E38 CP 38.11: lo snapshot d'osservatore e i budget altrui
 #include "Turn/Actions/RTPlanValidationLibrary.h"
+#include "Turn/Actions/RTActionQueueLibrary.h" // E38 CP 38.14: la numerazione per contenuto, nel test dell'ordine
 #include "Turn/Log/RTTurnLogLibrary.h"
 #include "Unit/RTUnit.h"
 #include "UObject/UnrealType.h"
@@ -101,11 +102,12 @@ bool FRTPlanSumOverBudgetIsRejected::RunTest(const FString&)
 		TestTrue(TEXT("nessun detentore di slot: non e' un conflitto strutturale"), Verdict.HolderActionId.IsNone());
 	}
 
-	// --- 2. il budget precede lo slot: tre principali (6) sono rifiutate per SLOT, quattro (8) per budget ---------
+	// --- 2. tre principali del Blast (6) sono legali, quattro (8) no: decide solo il budget -------------------------
+	// E38 CP 38.14: il Blast e' aperto, e lo slot non le separa piu'. Fino a CP 38.14 tre principali uscivano SlotOccupied.
 	{
 		const FRTPlanValidation Tre = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
 			ApRepeated(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 2, 3));
-		TestEqual(TEXT("6 = 6: il budget tace e parla lo slot"), Tre.Reason, ERTActionInvalidReason::SlotOccupied);
+		TestTrue(TEXT("6 = 6: legale"), Tre.bLegal);
 	}
 
 	// --- 3. esattamente 6 non sfora: la forma piu' cara legale oggi (D B R: 2+2+2) e' accettata -------------------
@@ -216,17 +218,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionSamePhaseOrderIsDeterministic,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTResolutionSamePhaseOrderIsDeterministic::RunTest(const FString&)
 {
-	// SOGGETTO FUTURO: due azioni della stessa unita' nella stessa fase risolvono nello stesso ordine su due run
-	// (priorita' del catalogo, poi criterio stabile). LIMITE DI OGGI, pinnato: il validatore rifiuta due principali
-	// della stessa fase per slot, quindi nessuna coppia arriva al resolver e l'ordine non ha un soggetto.
-	// Quando `BB` passera' il validatore (ADR-0011 (1)), questo test cade e va riscritto sul resolver.
+	// IL SOGGETTO VERO, da E38 CP 38.14 (fino a li' questo test pinnava il limite: due principali non passavano il
+	// validatore). Due azioni della stessa unita' nella stessa fase sono legali, il piano le porta in due voci con due
+	// identita', e l'ordine in cui il resolver le visita e' lo stesso su due esecuzioni e nei due ordini di dichiarazione
+	// ([D-615] (5)). Nel mondo lo misurano `Resolution.BlastOrderIgnoresDeclaration` e `Resolution.PrepIgnoresTheDeclaredSequence`.
 	const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
 		ApRepeated(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 2, 2));
-	TestFalse(TEXT("limite di oggi: due principali nella stessa fase non passano il validatore"), Verdict.bLegal);
-	TestEqual(TEXT("e il motivo e' lo slot, non il budget (2 + 2 = 4 <= 6)"), Verdict.Reason, ERTActionInvalidReason::SlotOccupied);
+	TestTrue(TEXT("due principali del Blast passano il validatore (2 + 2 = 4 <= 6)"), Verdict.bLegal);
 
-	// E il piano porta UNA voce principale (E38 CP 38.12): la lista c'e', ma una seconda voce della stessa classe si
-	// rifiuta, e il piano resta com'era.
 	FRTUnitPlan Piano;
 	FRTPlanEntry Prima;
 	Prima.Class = ERTPlanEntryClass::Main;
@@ -234,8 +233,31 @@ bool FRTResolutionSamePhaseOrderIsDeterministic::RunTest(const FString&)
 	FRTPlanEntry Seconda = Prima;
 	Seconda.AbilityIndex = 1;
 	TestTrue(TEXT("la prima principale entra"), Piano.AddEntry(Prima));
-	TestFalse(TEXT("la seconda principale si rifiuta"), Piano.AddEntry(Seconda));
-	TestEqual(TEXT("e il piano porta una voce sola"), Piano.GetEntries().Num(), 1);
+	TestTrue(TEXT("e la seconda pure"), Piano.AddEntry(Seconda));
+	if (TestEqual(TEXT("il piano porta due voci"), Piano.GetEntries().Num(), 2))
+	{
+		TestNotEqual(TEXT("con due identita'"), Piano.GetEntries()[0].Id, Piano.GetEntries()[1].Id);
+	}
+
+	auto Ordine = [](bool bRovescio)
+	{
+		FRTActionInstance A;
+		A.Def.ActionId = TEXT("Test.A");
+		A.Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		A.Def.Priority = 50;
+		A.SourceUnitId = 0;
+		A.DeclarationIndex = bRovescio ? 1 : 0;
+		FRTActionInstance B = A;
+		B.Def.ActionId = TEXT("Test.B");
+		B.DeclarationIndex = bRovescio ? 0 : 1;
+		TArray<FRTActionInstance> Voci = bRovescio ? TArray<FRTActionInstance>{ B, A } : TArray<FRTActionInstance>{ A, B };
+		int32 Contatore = 0;
+		URTActionQueueLibrary::NumberInstancesByContent(Voci, Contatore);
+		URTActionQueueLibrary::SortActionInstances(Voci);
+		return Voci[0].Def.ActionId;
+	};
+	TestEqual(TEXT("stesso ordine su due esecuzioni"), Ordine(false), Ordine(false));
+	TestEqual(TEXT("e nei due ordini di dichiarazione"), Ordine(false), Ordine(true));
 	return true;
 }
 
@@ -460,21 +482,22 @@ bool FRTPlanVerdictNamesTheOccurrence::RunTest(const FString&)
 	// Criterio 4: con due voci dello stesso `ActionId` il verdetto nomina l'indice dell'occorrenza. Voci sintetiche:
 	// in questo CP i mutatori non scrivono due voci della stessa classe.
 	{
-		// Slot: due principali. Tiene lo slot la prima dichiarata, la seconda e' la colpevole.
+		// Slot: due reazioni, la classe che resta chiusa fino a CP 38.15 (le principali del Blast sono aperte da CP 38.14).
+		// Tiene lo slot la prima dichiarata, la seconda e' la colpevole.
 		const TArray<FRTPlannedAction> Plan = Dichiarate({
-			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1),
+			ApEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction, 1),
 			ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 1),
-			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1) });
+			ApEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction, 1) });
 		TArray<FRTPlannedAction> Rovesciato = Plan;
 		Algo::Reverse(Rovesciato);
 		const TArray<FRTPlannedAction>* const Due[] = { &Plan, &Rovesciato };
 		for (const TArray<FRTPlannedAction>* P : Due)
 		{
 			const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), *P);
-			TestEqual(TEXT("due principali: SlotOccupied"), V.Reason, ERTActionInvalidReason::SlotOccupied);
+			TestEqual(TEXT("due reazioni: SlotOccupied"), V.Reason, ERTActionInvalidReason::SlotOccupied);
 			TestEqual(TEXT("la colpevole e' la seconda occorrenza"), V.OffendingDeclarationIndex, 2);
 			TestEqual(TEXT("e la detentrice la prima"), V.HolderDeclarationIndex, 0);
-			TestEqual(TEXT("tutte e due BasicAttack"), V.HolderActionId, V.OffendingActionId);
+			TestEqual(TEXT("tutte e due Counter"), V.HolderActionId, V.OffendingActionId);
 		}
 	}
 	{
@@ -588,13 +611,16 @@ bool FRTPlanCopiesWithoutCooldownAreLegalTest::RunTest(const FString&)
 	TestTrue(TEXT("Guard + ImpactShot e' legale"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
 		CatalogRows({ TEXT("Action.Guard"), TEXT("Hero.Riktor.ImpactShot") })).bLegal);
 
-	// Controllo: le fasi chiuse restano sotto il vincolo di slot fino al loro checkpoint (CP 38.14).
-	const FRTPlanValidation DueBlast = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
-		CatalogRows({ TEXT("Hero.Riktor.ImpactShot"), TEXT("Action.Interact") }));
-	TestEqual(TEXT("controllo: due voci diverse del Blast restano SlotOccupied"), DueBlast.Reason, ERTActionInvalidReason::SlotOccupied);
-	const FRTPlanValidation DueBase = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
-		CatalogRows({ TEXT("Action.BasicAttack"), TEXT("Action.BasicAttack") }));
-	TestEqual(TEXT("controllo: due attacchi base, senza ricarica, restano SlotOccupied"), DueBase.Reason, ERTActionInvalidReason::SlotOccupied);
+	// E38 CP 38.14: anche il Blast e' aperto. Due voci diverse del Blast, e due copie senza ricarica, sono legali.
+	TestTrue(TEXT("due voci diverse del Blast sono legali"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Hero.Riktor.ImpactShot"), TEXT("Action.Interact") })).bLegal);
+	TestTrue(TEXT("e due attacchi base, senza ricarica (criterio 1 di CP 38.14)"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Action.BasicAttack"), TEXT("Action.BasicAttack") })).bLegal);
+	// Controllo: le classi ancora chiuse restano sotto il vincolo di slot fino al loro checkpoint (CP 38.15, CP 38.16).
+	// Voci sintetiche senza ricarica: la riga di catalogo di una reazione ne ha una, e qui si prova lo slot, non la copia.
+	const FRTPlanValidation DueReazioni = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		ApRepeated(TEXT("Test.Reazione"), ERTActionSlot::Reaction, 2, 2));
+	TestEqual(TEXT("controllo: due reazioni senza ricarica restano SlotOccupied"), DueReazioni.Reason, ERTActionInvalidReason::SlotOccupied);
 	return true;
 }
 

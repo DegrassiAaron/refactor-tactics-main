@@ -50,6 +50,25 @@ struct REFACTORTACTICS_API FRTPlanEntry
 	UPROPERTY()
 	ERTPlanEntryClass Class = ERTPlanEntryClass::Main;
 
+	/**
+	 * L'identita' della voce nel piano (E38 CP 38.14, #4115): assegnata quando la voce nasce, non cambia quando altre voci
+	 * escono, e la copia al lock-in la conserva. Lega una voce del piano vivo alla sua copia, dove la posizione puo'
+	 * essere diversa perche' il Prep ha tolto le sue voci. Non e' un dato dell'intento: `IsEmpty` non la guarda.
+	 */
+	UPROPERTY()
+	int32 Id = INDEX_NONE;
+
+	/**
+	 * La mira congelata al lock-in di QUESTA voce principale ([D-415], [D-608] (4); E38 CP 38.14): la cella che il suo
+	 * bersaglio-unita' aveva al lock-in. La scrive solo `ARTUnit::LockPlan`, nella copia; nel piano vivo resta al default.
+	 * Con due attacchi su due bersagli, ognuno mira alla cella del proprio.
+	 */
+	UPROPERTY()
+	FRTCellId FrozenAimCell;
+
+	UPROPERTY()
+	bool bHasFrozenAim = false;
+
 	/** L'abilita' nel kit (scatto, principale, reazione); `INDEX_NONE` per il movimento o se non e' armata. */
 	UPROPERTY()
 	int32 AbilityIndex = INDEX_NONE;

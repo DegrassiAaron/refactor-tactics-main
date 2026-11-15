@@ -3131,8 +3131,65 @@ int32 ARTTurnManager::CurrentGraphRevision() const
 	return 0;
 }
 
-ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfAction(const ARTUnit* Declarer, FName ActionId)
+TArray<ARTTurnManager::FRTMainTurn> ARTTurnManager::MainTurnsOf(const TArray<ARTUnit*>& Units)
 {
+	TArray<FRTMainTurn> Out;
+	for (int32 u = 0; u < Units.Num(); ++u)
+	{
+		const ARTUnit* Unit = Units[u];
+		if (!Unit) { continue; }
+		struct FChiave { int32 Id; int32 Posizione; const URTActionData* Azione; int32 Bersaglio; FRTCellId Cella; uint8 Bordo; };
+		TArray<FChiave> DellUnita;
+		const TArray<FRTPlanEntry>& Voci = Unit->GetPlan().GetEntries();
+		for (int32 p = 0; p < Voci.Num(); ++p)
+		{
+			const FRTPlanEntry& V = Voci[p];
+			if (V.Class != ERTPlanEntryClass::Main) { continue; }
+			const ARTUnit* Bersaglio = V.AttackTarget.Get();
+			const FRTPlanEntry* Copia = Unit->GetLockedPlan().Plan.EntryWithId(V.Id);
+			const FRTCellId Mira = V.bAttackTargetsCell ? V.AttackCell
+				: (Copia && Copia->bHasFrozenAim) ? Copia->FrozenAimCell
+				: Bersaglio ? Bersaglio->Cell : Unit->Cell;
+			DellUnita.Add({ V.Id, p, Unit->GetAbility(V.AbilityIndex), Bersaglio ? Bersaglio->StableUnitId : INDEX_NONE, Mira,
+				static_cast<uint8>(V.bHasCoverEdge ? static_cast<uint8>(V.CoverEdge) + 1 : 0) });
+		}
+		DellUnita.StableSort([](const FChiave& A, const FChiave& B)
+		{
+			const int32 FaseA = A.Azione ? static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(A.Azione->Def.ResolutionPhase)) : -1;
+			const int32 FaseB = B.Azione ? static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(B.Azione->Def.ResolutionPhase)) : -1;
+			if (FaseA != FaseB) { return FaseA < FaseB; }
+			const int32 PrioA = A.Azione ? A.Azione->Def.Priority : 0;
+			const int32 PrioB = B.Azione ? B.Azione->Def.Priority : 0;
+			if (PrioA != PrioB) { return PrioA < PrioB; }
+			const FName IdA = A.Azione ? A.Azione->Def.ActionId : NAME_None;
+			const FName IdB = B.Azione ? B.Azione->Def.ActionId : NAME_None;
+			if (IdA != IdB) { return IdA.LexicalLess(IdB); }
+			if (A.Bersaglio != B.Bersaglio) { return A.Bersaglio < B.Bersaglio; }
+			if (!(A.Cella == B.Cella)) { return URTHexLibrary::StableLess(A.Cella, B.Cella); }
+			if (A.Bordo != B.Bordo) { return A.Bordo < B.Bordo; }
+			return A.Posizione < B.Posizione; // copie identiche in tutto il contenuto: decide solo un'etichetta
+		});
+		for (const FChiave& K : DellUnita) { Out.Add({ u, K.Id }); }
+	}
+	return Out;
+}
+
+ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfEntry(const ARTUnit* Declarer, int32 EntryId)
+{
+	FRTDeclaredEntry Out;
+	if (!IsValid(Declarer)) { return Out; }
+	const int32 Posizione = Declarer->GetLockedPlan().Plan.IndexOfId(EntryId);
+	if (Posizione == INDEX_NONE) { return Out; }
+	const FRTPlanEntry& Voce = Declarer->GetLockedPlan().Plan.GetEntries()[Posizione];
+	Out.DeclarationIndex = Posizione;
+	Out.TeamId = Declarer->TeamId;
+	if (const URTActionData* Azione = Declarer->GetAbility(Voce.AbilityIndex)) { Out.ActionId = Azione->Def.ActionId; }
+	return Out;
+}
+
+ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfAction(const ARTUnit* Declarer, FName ActionId, bool* bOutAmbiguous)
+{
+	if (bOutAmbiguous) { *bOutAmbiguous = false; }
 	FRTDeclaredEntry Out;
 	if (!IsValid(Declarer) || ActionId.IsNone())
 	{
@@ -3146,6 +3203,7 @@ ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfAction(const ARTUn
 		if (!Ability || Ability->Def.ActionId != ActionId) { continue; }
 		if (Out.IsSet())
 		{
+			if (bOutAmbiguous) { *bOutAmbiguous = true; }
 			return FRTDeclaredEntry(); // due copie: l'`ActionId` non dice quale, e indovinare darebbe un indice falso
 		}
 		Out.DeclarationIndex = Posizione;
@@ -3184,7 +3242,13 @@ void ARTTurnManager::StampDeclaration(FRTTurnLogEntry& Entry, const ARTUnit* Sub
 	FRTDeclaredEntry Dichiarata = CurrentDeclaredEntry;
 	if (!Dichiarata.IsSet() && !URTTurnLogLibrary::IsSubjectTheSufferer(Entry))
 	{
-		Dichiarata = DeclarationOfAction(Subject, Entry.ActionId);
+		bool bAmbigua = false;
+		Dichiarata = DeclarationOfAction(Subject, Entry.ActionId, &bAmbigua);
+		// E38 CP 38.14: due copie della stessa azione. Lo dice la voce che il pass sta visitando, se e' di quell'azione.
+		if (!Dichiarata.IsSet() && bAmbigua && CurrentCopyEntry.IsSet() && CurrentCopyEntry.ActionId == Entry.ActionId)
+		{
+			Dichiarata = CurrentCopyEntry;
+		}
 		// Il movimento non e' un'abilita' del kit: le sue voci portano l'azione della banda (`Action.Move`, `Action.Sprint`).
 		const bool bDelMovimento = Entry.Category == ERTLogCategory::Move
 			|| (Entry.Phase == ERTMatchPhase::Move && Entry.Category == ERTLogCategory::Fallback);
@@ -3675,9 +3739,15 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 				&& Unit->GetPlan().GetEntries()[Voce.DeclarationIndex].Class == ERTPlanEntryClass::Prep;
 			if (Voce.Def.Slot == ERTActionSlot::Main && !bVocePrep)
 			{
-				if (Unit->bHasPlannedAim) { Bersaglio = Unit->GetLockedPlan().AimCell; }
-				else if (Unit->GetPlan().bAttackTargetsCell()) { Bersaglio = Unit->GetPlan().PlannedAttackCell(); }
-				else if (IsValid(Unit->GetPlan().PlannedAttackTarget())) { Bersaglio = Unit->GetPlan().PlannedAttackTarget()->Cell; }
+				// E38 CP 38.14: il bersaglio della VOCE, con la sua mira congelata: con due principali ognuna ha il suo.
+				const int32 IdDellaVoce = Unit->GetPlan().GetEntries().IsValidIndex(Voce.DeclarationIndex)
+					? Unit->GetPlan().GetEntries()[Voce.DeclarationIndex].Id : INDEX_NONE;
+				const ARTUnit::FMainFocus Fuoco(*Unit, IdDellaVoce);
+				if (Unit->HasFrozenAimOnCurrentMain() || Unit->GetPlan().bAttackTargetsCell()
+					|| IsValid(Unit->GetPlan().PlannedAttackTarget()))
+				{
+					Bersaglio = Unit->ResolutionAimCell(/*bDeclaresTracking*/ false);
+				}
 			}
 			else if (FaseDellaVoce == ERTMatchPhase::Dash && Unit->GetPlan().PlannedDashAbility() != INDEX_NONE)
 			{
@@ -3771,9 +3841,14 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		HexUnits.Add(HexUnit);
 	}
 
-	for (int32 i = 0; i < Units.Num(); ++i)
+	// E38 CP 38.14: piu' ambientali della stessa unita'. Le visite seguono `MainTurnsOf`: fra unita' l'ordine di oggi
+	// ([D-616] (4)), dentro l'unita' priorita' e poi `ActionId`, mai la dichiarazione ([D-615] (5)).
+	for (const FRTMainTurn& Turno : MainTurnsOf(Units))
 	{
+		const int32 i = Turno.UnitIndex;
 		ARTUnit* Caster = Units[i];
+		const ARTUnit::FMainFocus Fuoco(*Caster, Turno.EntryId);
+		const FRTDeclaredEntryScope CopiaDellaVoce(*this, DeclarationOfEntry(Caster, Turno.EntryId), /*bCopia*/ true);
 		const int32 AbilityIndex = Caster->GetPlan().PlannedAbilityIndex();
 		const URTActionData* Ability = Caster->GetAbility(AbilityIndex);
 		if (!Ability
@@ -6097,36 +6172,41 @@ void ARTTurnManager::ResolveDash()
 			// `Move`/`SupersededByDash` perche' qui l'azione non avviene AFFATTO — mentre il movimento, dopo
 			// lo scatto, l'unita' l'ha comunque compiuto. Il motivo viaggia in `Amount`, come per ogni voce
 			// di Fallback (`RTTurnManager_Blast.cpp`).
-			if (Unit->GetPlan().PlannedAbilityIndex() != INDEX_NONE && Unit->IsAlive())
+			// E38 CP 38.14: con piu' principali nel piano lo scatto le spende tutte, una alla volta, ognuna con la sua voce.
+			for (const FRTMainTurn& Turno : MainTurnsOf({ Unit }))
 			{
-				const URTActionData* Dropped = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
-				if (Dropped)
+				const ARTUnit::FMainFocus Fuoco(*Unit, Turno.EntryId);
+				if (Unit->GetPlan().PlannedAbilityIndex() != INDEX_NONE && Unit->IsAlive())
 				{
-					FRTTurnLogEntry Discarded;
-					Discarded.Phase = ERTMatchPhase::Dash;
-					Discarded.Category = ERTLogCategory::Fallback;
-					Discarded.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-					Discarded.ActionId = Dropped->Def.ActionId;
-					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
-					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
-					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
-					// L'identita' COMPLETA dell'azione scartata: `ActionId` c'era gia', gli altri due no ([D-196]).
-					//
-					// ⚠️ Fino al 2026-08-26 qui c'era scritto che «nessun produttore `Fallback` imposta
-					// `Priority` dal catalogo». Da [D-196] la impostano tutti quelli del Blast, e lasciarla a
-					// zero qui avrebbe fatto ordinare la stessa famiglia su due chiavi diverse a seconda di
-					// chi ha scritto la voce — `Priority` e' un discriminante di `EntryLess`.
-					Discarded.BaseActionId = Dropped->Def.BaseActionId;
-					Discarded.Priority = Dropped->Def.Priority;
-					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
-					AppendLogEntry(Discarded, Unit);
-					// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
-					// deriva l'intero log dal TurnLog (`DescribeTurnLog`) — come ogni altra voce.
+					const URTActionData* Dropped = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
+					if (Dropped)
+					{
+						FRTTurnLogEntry Discarded;
+						Discarded.Phase = ERTMatchPhase::Dash;
+						Discarded.Category = ERTLogCategory::Fallback;
+						Discarded.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+						Discarded.ActionId = Dropped->Def.ActionId;
+						Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
+						Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
+						Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
+						// L'identita' COMPLETA dell'azione scartata: `ActionId` c'era gia', gli altri due no ([D-196]).
+						//
+						// ⚠️ Fino al 2026-08-26 qui c'era scritto che «nessun produttore `Fallback` imposta
+						// `Priority` dal catalogo». Da [D-196] la impostano tutti quelli del Blast, e lasciarla a
+						// zero qui avrebbe fatto ordinare la stessa famiglia su due chiavi diverse a seconda di
+						// chi ha scritto la voce — `Priority` e' un discriminante di `EntryLess`.
+						Discarded.BaseActionId = Dropped->Def.BaseActionId;
+						Discarded.Priority = Dropped->Def.Priority;
+						Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
+						AppendLogEntry(Discarded, Unit);
+						// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
+						// deriva l'intero log dal TurnLog (`DescribeTurnLog`) — come ogni altra voce.
+					}
 				}
-			}
 
-			Unit->ClearPlannedMainAction(); // lo slot principale e' speso
-			Unit->ClearPlannedAttack();
+				Unit->ClearPlannedMainAction(); // lo slot principale e' speso
+				Unit->ClearPlannedAttack();
+			}
 		}
 
 		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
@@ -7149,6 +7229,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// PRIORITA' intra-fase del colpo (CP 11.3, `#79`, formato v7): il numero che ha deciso in che ORDINE le
 	// azioni della stessa fase hanno risolto. Viene dal catalogo, non e' ricalcolato qui.
 	TArray<int32> AttackPriority;
+	// E38 CP 38.14: la voce del piano che ha prodotto il colpo, parallela ad `Attacks` come le tre qui sopra.
+	TArray<FRTDeclaredEntry> AttackDeclarations;
 	AttackActionId.Reserve(Plan.Hits.Num());
 	AttackBaseActionId.Reserve(Plan.Hits.Num());
 	AttackPriority.Reserve(Plan.Hits.Num());
@@ -7169,8 +7251,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		const bool bHasDef = IntentDefs.IsValidIndex(Hit.IntentIndex);
 		// E38 CP 38.13: le voci di questo colpo intestate alla VITTIMA (il lato, la copertura scavalcata, lo stato che nasce)
 		// portano l'ordine della voce del piano di chi ha colpito.
-		const FRTDeclaredEntryScope Dichiarata(*this,
-			DeclarationOfAction(Attacker, bHasDef ? IntentDefs[Hit.IntentIndex].ActionId : NAME_None));
+		const FRTDeclaredEntry DellIntento = Ctx.IntentDeclarationIndices.IsValidIndex(Hit.IntentIndex)
+			? FRTDeclaredEntry{ Ctx.IntentDeclarationIndices[Hit.IntentIndex], Ctx.IntentDeclaringTeams[Hit.IntentIndex] }
+			: DeclarationOfAction(Attacker, bHasDef ? IntentDefs[Hit.IntentIndex].ActionId : NAME_None);
+		const FRTDeclaredEntryScope Dichiarata(*this, DellIntento);
+		AttackDeclarations.Add(DellIntento); // E38 CP 38.14: per la voce del colpo, anche fra due copie
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 		// `NAME_None` quando l'intento non ha una definizione: e' la stessa convenzione del campo, «non
 		// dichiarata», e vale meno di un nome inventato qui.
@@ -7500,6 +7585,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		AttackBaseActionId.Add(Counter.BaseActionId);
 		AttackPriority.Add(Counter.Priority);
 		AttackActors.Add(Counter.Actor);
+		AttackDeclarations.Add(FRTDeclaredEntry()); // la reazione la ricava `AppendLogEntry`, come in CP 38.13
 	}
 
 	// `#2128` — DA QUALE LATO e' arrivato ogni CONTRATTACCO. Il ciclo su `Plan.Hits` qui sopra non li vede: al
@@ -7714,6 +7800,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		if (AttackActionId.IsValidIndex(a))     { E.ActionId = AttackActionId[a]; }
 		if (AttackBaseActionId.IsValidIndex(a)) { E.BaseActionId = AttackBaseActionId[a]; }
 		if (AttackPriority.IsValidIndex(a))     { E.Priority = AttackPriority[a]; }
+		if (AttackDeclarations.IsValidIndex(a) && AttackDeclarations[a].IsSet())
+		{
+			E.DeclarationIndex = AttackDeclarations[a].DeclarationIndex;
+			E.DeclaringTeamId = AttackDeclarations[a].TeamId;
+		}
 		AppendLogEntry(E, AttackActors.IsValidIndex(a) ? AttackActors[a] : nullptr);
 	}
 

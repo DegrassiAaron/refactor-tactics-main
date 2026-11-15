@@ -259,6 +259,12 @@ struct FRTBlastContext
 	 * non avere un `URTActionData` dietro: l'impatto di una carica e' dati puri, non un'abilita' selezionata.
 	 */
 	TArray<FRTActionDef> IntentDefs;
+	/**
+	 * E38 CP 38.14: la voce del piano che ha prodotto ogni intento, parallela a `Intents`: la sua posizione nella copia al
+	 * lock-in e la squadra. Con due copie della stessa azione l'`ActionId` non la distingue, l'intento si'.
+	 */
+	TArray<int32> IntentDeclarationIndices;
+	TArray<int32> IntentDeclaringTeams;
 
 	/**
 	 * Intenti che l'Interrupt ha DEGRADATO invece di cancellare ([D-300], `#1955`): il colpo resta nel

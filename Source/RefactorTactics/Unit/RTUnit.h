@@ -638,6 +638,8 @@ public:
 	{
 		LockedPlan = FRTLockedPlan();
 		LockedPlan.Plan = Plan;
+		LockedPlan.Plan.SetMainFocus(INDEX_NONE);
+		LockedPlan.Plan.FreezeMainAims(); // E38 CP 38.14: una mira congelata per voce principale
 		LockedPlan.bPlansNormalMove = HasPlannedNormalMove();
 		const ARTUnit* AimedAt = Plan.PlannedAttackTarget();
 		LockedPlan.AttackTargetStableId = IsValid(AimedAt) ? AimedAt->StableUnitId : INDEX_NONE;
@@ -666,10 +668,53 @@ public:
 	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
 	{
 		if (Plan.bAttackTargetsCell()) { return Plan.PlannedAttackCell(); }
-		if (bHasPlannedAim && !bDeclaresTracking) { return LockedPlan.AimCell; }
+		// E38 CP 38.14: la mira congelata e' della VOCE (quella a fuoco, o la prima), nella copia al lock-in. Vale finche' la
+		// voce viva ha ancora il suo bersaglio: `ClearPlannedAttack` lo spegne quando la principale si consuma, come prima
+		// spegneva `bHasPlannedAim`.
+		if (!bDeclaresTracking && Plan.PlannedAttackTarget())
+		{
+			if (const FRTPlanEntry* Copia = LockedPlan.Plan.EntryWithId(Plan.CurrentMainId()); Copia && Copia->bHasFrozenAim)
+			{
+				return Copia->FrozenAimCell;
+			}
+		}
 		if (Plan.PlannedAttackTarget()) { return Plan.PlannedAttackTarget()->Cell; }
 		return Cell;
 	}
+
+	/** Vero se la principale corrente (a fuoco, o la prima) ha una mira congelata al lock-in ancora valida (E38 CP 38.14). */
+	bool HasFrozenAimOnCurrentMain() const
+	{
+		const FRTPlanEntry* Copia = LockedPlan.Plan.EntryWithId(Plan.CurrentMainId());
+		return Copia && Copia->bHasFrozenAim && Plan.PlannedAttackTarget() != nullptr;
+	}
+
+	/**
+	 * **Il fuoco su una voce principale, per la durata di un blocco** (E38 CP 38.14, #4115): dentro, gli accessori e le porte
+	 * della principale (`GetPlan().PlannedAbilityIndex()`, `DeclareAttackOnUnit`, `ClearPlannedMainAction`, ...) leggono e
+	 * scrivono la voce con quell'identita'. All'uscita torna il fuoco di prima. Lo aprono i pass del Blast e del Cleanup,
+	 * che visitano le principali una alla volta, e chi dichiara il bersaglio di una principale in piu'.
+	 */
+	struct FMainFocus
+	{
+		FMainFocus(ARTUnit& InUnit, int32 EntryId) : Unit(InUnit), Previous(InUnit.Plan.GetMainFocus())
+		{
+			Unit.Plan.SetMainFocus(EntryId);
+		}
+		~FMainFocus() { Unit.Plan.SetMainFocus(Previous); }
+		FMainFocus(const FMainFocus&) = delete;
+		FMainFocus& operator=(const FMainFocus&) = delete;
+
+	private:
+		ARTUnit& Unit;
+		int32 Previous;
+	};
+
+	/**
+	 * Vero se l'azione puo' stare in una principale IN PIU' (E38 CP 38.14): di macro-fase Blast o Cleanup, nello slot
+	 * principale soltanto (non una mobilita' che prende anche il movimento). ⛔ Non dice se l'azione e' utilizzabile ora.
+	 */
+	static bool CanBeAnExtraMainAction(const URTActionData* Ability);
 
 	/**
 	 * Se la mira congelata della copia al lock-in (`GetLockedPlan().AimCell`) vale ANCORA per questo turno ([D-415]).

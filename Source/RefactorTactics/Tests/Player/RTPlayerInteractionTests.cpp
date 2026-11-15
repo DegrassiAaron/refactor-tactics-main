@@ -5851,7 +5851,8 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: una voce per classe"), P.GetEntries().Num(), 4)) { DestroyInteractionWorld(B.World); return false; }
 	const TArray<FRTPlanEntry> Prima = P.GetEntries();
 
-	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Main, ERTPlanEntryClass::Reaction, ERTPlanEntryClass::Movement })
+	// E38 CP 38.14: la principale e' aperta (Blast e Cleanup); restano chiuse scatto, reazione e movimento.
+	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Reaction, ERTPlanEntryClass::Movement })
 	{
 		FRTPlanEntry Seconda;
 		Seconda.Class = Classe;
@@ -5874,6 +5875,14 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	TestTrue(TEXT("controllo: la reazione che manca entra"), B.Riktor->AddPlanEntry(Reazione));
 	TestEqual(TEXT("in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Reaction), 3);
 	TestFalse(TEXT("e una voce vuota non entra"), B.Riktor->AddPlanEntry(FRTPlanEntry()));
+
+	// E38 CP 38.14: una seconda principale entra, in coda, con un'identita' sua; la tolgo per tornare al piano di prima.
+	FRTPlanEntry SecondaPrincipale;
+	SecondaPrincipale.Class = ERTPlanEntryClass::Main;
+	SecondaPrincipale.AbilityIndex = B.Mortar;
+	TestTrue(TEXT("una seconda principale entra"), B.Riktor->AddPlanEntry(SecondaPrincipale));
+	TestNotEqual(TEXT("con un'identita' sua"), P.GetEntries().Last().Id, P.GetEntries()[P.DeclarationIndexOf(ERTPlanEntryClass::Main)].Id);
+	TestTrue(TEXT("e si toglie"), B.Riktor->RemovePlanEntry(P.GetEntries().Num() - 1));
 
 	// E38 CP 38.13: la classe Prep e' aperta, e una sua voce entra anche accanto a un'altra.
 	FRTPlanEntry Prep;
@@ -6106,8 +6115,7 @@ bool FRTPlanCopyRuleReadsTheCatalogCooldownTest::RunTest(const FString&)
 		return URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Plan);
 	};
 	TestTrue(TEXT("Prep, riga 0 e Def 2: legale"), Coppia(ERTResolutionPhase::Preparation, ERTActionSlot::Main, 0, 2).bLegal);
-	TestEqual(TEXT("Blast, riga 0 e Def 2: SlotOccupied fino a CP 38.14"),
-		Coppia(ERTResolutionPhase::Attack, ERTActionSlot::Main, 0, 2).Reason, ERTActionInvalidReason::SlotOccupied);
+	TestTrue(TEXT("Blast, riga 0 e Def 2: legale da CP 38.14"), Coppia(ERTResolutionPhase::Attack, ERTActionSlot::Main, 0, 2).bLegal);
 	const struct { ERTResolutionPhase Fase; ERTActionSlot Slot; const TCHAR* Nome; } Fasi[] = {
 		{ ERTResolutionPhase::Preparation, ERTActionSlot::Main, TEXT("Prep") },
 		{ ERTResolutionPhase::Attack, ERTActionSlot::Main, TEXT("Blast") },
@@ -6367,11 +6375,17 @@ bool FRTPlanTheListGestureAddsPrepActionsTest::RunTest(const FString&)
 	TestEqual(TEXT("ImpactShot e' la principale, in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Main), 2);
 	TestEqual(TEXT("e la principale e' ImpactShot"), P.PlannedAbilityIndex(), B.Impact);
 
-	const TArray<FRTPlanEntry> Prima = P.GetEntries();
-	TestFalse(TEXT("una seconda principale fuori dal Prep si rifiuta"), B.Riktor->DeclarePlannedAction(B.Mortar));
-	TestFalse(TEXT("e cosi' una seconda ImpactShot"), B.Riktor->DeclarePlannedAction(B.Impact));
-	TestEqual(TEXT("e il piano resta com'era"), P.GetEntries().Num(), Prima.Num());
-	TestEqual(TEXT("con la stessa principale"), P.PlannedAbilityIndex(), B.Impact);
+	// E38 CP 38.14: il Blast e' aperto. Una seconda principale del Blast si aggiunge, e cosi' una copia senza ricarica;
+	// la prima principale resta quella che i lettori di oggi vedono.
+	const int32 Voci = P.GetEntries().Num();
+	TestTrue(TEXT("una seconda principale del Blast si aggiunge"), B.Riktor->DeclarePlannedAction(B.Mortar));
+	TestTrue(TEXT("e cosi' una seconda ImpactShot"), B.Riktor->DeclarePlannedAction(B.Impact));
+	TestEqual(TEXT("due voci in piu'"), P.GetEntries().Num(), Voci + 2);
+	TestEqual(TEXT("con la stessa prima principale"), P.PlannedAbilityIndex(), B.Impact);
+	// Una mobilita' non passa da qui: e' lo scatto, una classe chiusa.
+	const int32 Prima = P.GetEntries().Num();
+	TestFalse(TEXT("lo scatto non entra fra le principali"), B.Riktor->DeclarePlannedAction(B.Ram));
+	TestEqual(TEXT("e il piano resta com'era"), P.GetEntries().Num(), Prima);
 	TestTrue(TEXT("una copia di Prep senza ricarica si aggiunge"), B.Riktor->DeclarePlannedAction(Guard));
 	TestFalse(TEXT("un indice fuori dal kit si rifiuta"), B.Riktor->DeclarePlannedAction(9999));
 	DestroyInteractionWorld(B.World);
