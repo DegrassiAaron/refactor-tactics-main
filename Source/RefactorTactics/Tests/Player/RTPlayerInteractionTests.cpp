@@ -6672,17 +6672,20 @@ namespace
 		return Unit->Abilities.Num() - 1;
 	}
 
-	/** Dichiara una principale e il suo bersaglio-unita', col fuoco sulla voce appena scritta. */
+	/**
+	 * Dichiara una principale e il suo bersaglio-unita', col fuoco sulla voce appena scritta. Se il gesto rifiuta la voce
+	 * non dichiara niente: il test cade sui suoi asserti, non su una voce che non c'e'.
+	 */
 	void DeclareMainOn(ARTUnit* Unit, int32 Ability, ARTUnit* Target)
 	{
-		Unit->DeclarePlannedAction(Ability);
+		if (!Unit->DeclarePlannedAction(Ability) || Unit->GetPlan().GetEntries().IsEmpty()) { return; }
 		const ARTUnit::FMainFocus Fuoco(*Unit, Unit->GetPlan().GetEntries().Last().Id);
 		Unit->DeclareAttackOnUnit(Target);
 	}
 
 	void DeclareMainOnCell(ARTUnit* Unit, int32 Ability, const FRTCellId& Cell)
 	{
-		Unit->DeclarePlannedAction(Ability);
+		if (!Unit->DeclarePlannedAction(Ability) || Unit->GetPlan().GetEntries().IsEmpty()) { return; }
 		const ARTUnit::FMainFocus Fuoco(*Unit, Unit->GetPlan().GetEntries().Last().Id);
 		Unit->DeclareAttackOnCell(Cell);
 	}
@@ -6756,17 +6759,21 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionFrozenAimIsPerEntryTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTResolutionFrozenAimIsPerEntryTest::RunTest(const FString&)
 {
-	// Criterio 8: due attacchi della stessa unita' su due bersagli diversi. La copia al lock-in porta una mira congelata per
-	// voce, la cella che ciascun bersaglio aveva al lock-in, e ogni colpo mira alla sua, non a una cella sola.
+	// Criterio 8: due attacchi della stessa unita' su due bersagli diversi, e il secondo bersaglio scatta via prima del Blast.
+	// La copia al lock-in porta una mira congelata per voce, la cella che ciascun bersaglio aveva al lock-in, e ogni colpo
+	// mira alla sua, non a una cella sola e non a quella in cui il bersaglio e' arrivato.
 	FLockInBench B;
 	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
 	ARTUnit* Secondo = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, -1));
 	if (!TestNotNull(TEXT("il secondo bersaglio"), Secondo)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Secondo, TEXT("Action.Dodge"));
+	Secondo->SetPlannedDash(Scatto, FRTCellId(4, -1));
 	const FRTCellId CellaPrimo = B.Gadget->Cell;
 	const FRTCellId CellaSecondo = Secondo->Cell;
 	DeclareMainOn(B.Riktor, B.Impact, B.Gadget);
 	DeclareMainOn(B.Riktor, B.Impact, Secondo);
 	ResolveOneTurn(B.TM);
+	TestNotEqual(TEXT("premessa: il secondo bersaglio si e' spostato prima del Blast"), Secondo->Cell, CellaSecondo);
 
 	int32 Congelate = 0;
 	TSet<FRTCellId> Mire;
@@ -6779,15 +6786,24 @@ bool FRTResolutionFrozenAimIsPerEntryTest::RunTest(const FString&)
 	TSet<FRTCellId> Mirate;
 	for (const FAttivazione& A : BlastActivationsOf(B.TM, B.Riktor)) { Mirate.Add(A.Mira); }
 	TestTrue(TEXT("e i due colpi mirano ciascuno alla sua"), Mirate.Contains(CellaPrimo) && Mirate.Contains(CellaSecondo));
+	DestroyInteractionWorld(B.World);
+
 	// Il campo d'ordine distingue le due copie: ogni voce `Combat` di ImpactShot porta l'indice della sua voce del piano.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(C.World); return false; }
+	ARTUnit* SecondoC = SpawnInteractionUnit(C.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, -1));
+	if (!TestNotNull(TEXT("il secondo bersaglio, fermo"), SecondoC)) { DestroyInteractionWorld(C.World); return false; }
+	DeclareMainOn(C.Riktor, C.Impact, C.Gadget);
+	DeclareMainOn(C.Riktor, C.Impact, SecondoC);
+	ResolveOneTurn(C.TM);
 	TArray<int32> Indici;
-	for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+	for (const FRTTurnLogEntry& E : C.TM->GetTurnLog())
 	{
 		if (E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Hero.Riktor.ImpactShot"))) { Indici.Add(E.DeclarationIndex); }
 	}
 	Indici.Sort();
 	TestEqual(TEXT("le voci dei due colpi portano 0 e 1"), Indici, TArray<int32>{ 0, 1 });
-	DestroyInteractionWorld(B.World);
+	DestroyInteractionWorld(C.World);
 	return true;
 }
 
