@@ -114,6 +114,12 @@ namespace RTInputKeys
 	REFACTORTACTICS_API const FKey& CycleSelectionHotkey();
 
 	/**
+	 * `#4121`, [D-618] — `T`: l'inquadratura d'unita' (`ARTCameraPawn::FrameUnit`). `F` resta «centra senza ruotare» e
+	 * `Home` il recupero con orientamento di default. `PlayerInput.UnitFramingIsOnT` lo pinna sul contesto reale.
+	 */
+	REFACTORTACTICS_API const FKey& UnitFramingHotkey();
+
+	/**
 	 * Il nome che un BADGE scrive per un tasto ([D-496], #3633): in italiano per i tasti che l'HUD mostra in un
 	 * badge (`Enter` -> «INVIO», `BackSpace` -> «BACKSPACE»), altrimenti il nome dell'engine in maiuscolo.
 	 *

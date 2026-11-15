@@ -20,6 +20,7 @@
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
+class ARTCameraPawn; // `#4121`: `FrameScenarioOpening` la prende per riferimento
 class ARTHexMapActor;
 class ARTTurnManager; // `#3267`: `ApplyPlaybackControlCVars` lo prende, e l'header non lo includeva
 class URTFrontendNavigator;
@@ -430,6 +431,22 @@ public:
 	 * `false` con `OutError` valorizzato se la scena non si costruisce, non si scrive o la variabile non prende.
 	 */
 	bool StepLabScenario(int32 Step, FString& OutError);
+
+	/**
+	 * Chi lancia nella scena del banco in corso (`URTAbilityLabLibrary::CasterUnitId`), o `nullptr` fuori dal banco o
+	 * senza sessione (`#4121`, D-618). La scena e' quella di `ResolveScenarioToRun`, la stessa che legge il passo.
+	 */
+	ARTUnit* FindLabCaster() const;
+
+	/**
+	 * L'inquadratura con cui uno scenario si apre (`#4121`, D-618 (c)): in una scena del banco la camera va dietro chi
+	 * lancia (`ARTCameraPawn::FrameUnit`); in ogni altro scenario, e nel banco senza chi lancia, resta la mappa intera
+	 * (`RecenterView`). Vero se ha inquadrato chi lancia.
+	 *
+	 * Statica e senza timer perche' la decisione si possa provare da sola: `RecenterCameraOnScenario` la chiama al
+	 * tick dopo l'avvio, quando la camera e le unita' esistono.
+	 */
+	static bool FrameScenarioOpening(ARTCameraPawn& Cam, const FString& ScenarioId, const ARTUnit* LabCaster);
 
 	/**
 	 * Cosa e' successo all'allestimento: le condizioni rilevate e la fase raggiunta (CP 46.2, `#937`).

@@ -787,6 +787,12 @@ bool FRTScenarioSession::IsKnownCapability(const FString& Capability)
 	return IsCapabilityKnown(Capability);
 }
 
+ARTUnit* FRTScenarioSession::FindUnit(const FString& Id) const
+{
+	const TWeakObjectPtr<ARTUnit>* Trovata = UnitsById.Find(Id);
+	return Trovata ? Trovata->Get() : nullptr;
+}
+
 bool FRTScenarioSession::IsAvailableCapability(const FString& Capability)
 {
 	return IsCapabilityAvailable(Capability);

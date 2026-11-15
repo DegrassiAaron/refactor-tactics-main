@@ -290,6 +290,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FocusAction;
 
+	/** `T` (D-618, #4121): l'inquadratura d'unita', dietro l'unita' e girata sul suo verso (`ARTCameraPawn::FrameUnit`). */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> UnitFramingAction;
+
 	/**
 	 * `#1771`, `#3749` — **il modificatore camera** (`Ctrl`, sinistro e destro: [D-514]). Arma i gesti di
 	 * vista senza toccare quelli di gioco.
@@ -870,6 +874,12 @@ private:
 	 */
 	bool CycleSelection();
 	void OnFocusSelected(const FInputActionValue& Value);
+
+	/**
+	 * `T` (D-618): in partita la selezione propria e viva (`ARTCameraPawn::FrameOwnUnit`); in osservazione solo chi
+	 * lancia nella scena del banco (`ARTGameMode::FindLabCaster`), altrimenti niente.
+	 */
+	void OnFrameUnit(const FInputActionValue& Value);
 
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
 	void RebuildPlannedPath();
