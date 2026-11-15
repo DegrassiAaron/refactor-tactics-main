@@ -100,7 +100,7 @@ TArray<FRTBoundaryChecksum> URTBoundaryChecksumLibrary::ChecksumsAlongTrace(cons
 
 		// --- la traduzione verso il digest, e cio' che resta al default -------------------------------
 		//
-		// 🔴 `Health`, `Shield`, `Statuses` e `AbilityCooldowns` **non si popolano**: la traccia non li dichiara, e
+		// 🔴 `Health`, `Shield`, `Statuses`, `AbilityCooldowns` e `ActionPointBudget` **non si popolano**: la traccia non li dichiara, e
 		// dedurli sommando le voci di danno sarebbe ricostruire uno stato che nessuno ha scritto. Restano
 		// al default, uguali ovunque, quindi non discriminano — ed e' dichiarato nell'header invece che
 		// scoperto da chi legge un checksum che non distingue due stati diversi.
@@ -128,7 +128,7 @@ TArray<FRTBoundaryChecksum> URTBoundaryChecksumLibrary::ChecksumsAlongTrace(cons
 		C.MicroStepIndex = B.MicroStepIndex;
 		// 🔑 Il calcolo passa da qui e da nessun'altra parte: nessuna seconda aritmetica di hash.
 		// `TeamScores` vuoto: il progresso obiettivo non e' nella traccia, e vale per il checksum di
-		// boundary la stessa regola dei quattro campi sopra — non si inventa cio' che non e' dichiarato.
+		// boundary la stessa regola dei campi sopra — non si inventa cio' che non e' dichiarato.
 		C.Hash = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(Map, Digest, TArray<int32>()));
 		Out.Add(C);
 	}

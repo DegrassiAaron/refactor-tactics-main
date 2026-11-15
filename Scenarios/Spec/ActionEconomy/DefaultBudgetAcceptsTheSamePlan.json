@@ -26,6 +26,8 @@
   "expect": [
     { "type": "UnitAtCell", "unit": "B1", "cell": [0, 1, 0],
       "_assertion": "Il Move si risolve." },
+    { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1,
+      "_assertion": "L'attacco si risolve: e' il colpo che nel gemello a budget 5 non parte." },
     { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 0,
       "_assertion": "Il lock-in non svuota nulla." },
     { "type": "TurnsCompleted", "value": 1 }
