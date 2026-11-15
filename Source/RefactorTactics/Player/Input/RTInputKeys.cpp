@@ -50,6 +50,15 @@ namespace RTInputKeys
 		return Tasto;
 	}
 
+	const FKey& UnitFramingHotkey()
+	{
+		// `T` era la rotazione dichiarata di #291, tolta quando il secondo click sull'esagono finale ha preso il suo
+		// posto (`65d083e58`): libero in `BuildInputMappings` quando D-618 l'ha scelto. A tenerlo libero e'
+		// `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero.
+		static const FKey Tasto = EKeys::T;
+		return Tasto;
+	}
+
 	FText KeyBadgeLabel(const FKey& Key)
 	{
 		// [D-496]: i tasti che un badge dell'HUD mostra per nome. Le cifre e le lettere restano quelle dell'engine.

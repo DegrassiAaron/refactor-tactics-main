@@ -118,6 +118,12 @@ public:
 	FString SessionErrorMessage() const;
 
 	/**
+	 * L'unita' `Id` della sessione, o `nullptr` senza sessione o senza quell'unita' (`#4121`). La chiede il GameMode
+	 * per inquadrare chi lancia nella scena del banco: ⛔ il coordinatore continua a non toccare la camera.
+	 */
+	ARTUnit* FindScenarioUnit(const FString& Id) const;
+
+	/**
 	 * Sparato quando la sessione finisce, subito dopo che il referto e' stato scritto.
 	 *
 	 * Esiste per il conduttore di seduta (`URTPieSessionSubsystem`, `#3208`), che a quel punto chiede il

@@ -189,6 +189,14 @@ public:
 
 	const FRTTestResult& GetResult() const { return Result; }
 
+	/**
+	 * L'unita' posata per `Id` (`FRTScenarioUnit::Id`), o `nullptr` se lo scenario non la dichiara o non esiste piu'.
+	 *
+	 * Sola lettura, e per la presentazione: e' cio' che la camera del banco chiede per inquadrare chi lancia (`#4121`,
+	 * D-618). ⛔ Non e' una porta per far succedere qualcosa all'unita': quello lo fanno gli intenti dello scenario.
+	 */
+	ARTUnit* FindUnit(const FString& Id) const;
+
 	/** Turno corrente (1-based) mentre gira, per la diagnostica a schermo. 0 = non ancora partito. */
 	int32 GetCurrentTurn() const { return TurnIndex + 1; }
 

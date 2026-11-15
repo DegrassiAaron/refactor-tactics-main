@@ -112,6 +112,11 @@ FString FRTScenarioCoordinator::SessionErrorMessage() const
 	return Session.IsValid() ? Session->GetResult().ErrorMessage : FString();
 }
 
+ARTUnit* FRTScenarioCoordinator::FindScenarioUnit(const FString& Id) const
+{
+	return Session.IsValid() ? Session->FindUnit(Id) : nullptr;
+}
+
 void FRTScenarioCoordinator::TearDown()
 {
 	if (!Session.IsValid())
