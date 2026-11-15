@@ -41,6 +41,11 @@
 #include "Perception/RTEnemyArcLibrary.h"   // [D-528]: l'arco di un nemico sotto il cursore, che la carica armata non mostra
 #include "Perception/Veil/RTVisibilityBorder.h"  // [D-528]: i lati esposti con cui si costruisce un arco di prova
 #include "Tests/Shared/RTUnitPlanTestAccess.h"
+#include "Replay/RTReplayPrivacyLibrary.h"        // E38 CP 38.10: la traccia dell'osservatore avversario
+#include "Turn/Actions/RTActionFallbackLibrary.h"  // E38 CP 38.10: i motivi del piano svuotato
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h"   // E38 CP 38.10: i due scenari del lock-in
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/Report/RTTestResult.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -5278,6 +5283,404 @@ bool FRTInspectionPinsAndBackClosesTest::RunTest(const FString&)
 	TestTrue(TEXT("e il soggetto e' azzerato"), PC->GetInspectedUnit() == nullptr);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// ── E38 CP 38.10 (#4111): il lock-in svuota un piano oltre il budget o in ricarica ([D-615] (1), [D-617]) ───────────
+//
+// Un banco solo: Riktor in (0,0), squadra 0; Gadget accanto in (-1,0), squadra 1, a distanza 1, cioe' dentro il canale
+// ravvicinato della vista: per la squadra 1 Riktor e' visibile, ed e' la premessa che rende non vacui i due test di
+// privacy. Gadget non ha piano, quindi nessun'altra unita' agisce su Riktor (criterio 1).
+namespace
+{
+	int32 LockInAbilityIndex(const ARTUnit* U, const TCHAR* Id)
+	{
+		for (int32 i = 0; U && U->GetAbility(i); ++i)
+		{
+			if (U->GetAbility(i)->Def.ActionId == FName(Id)) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
+	struct FLockInBench
+	{
+		UWorld* World = nullptr;
+		ARTUnit* Riktor = nullptr;
+		ARTUnit* Gadget = nullptr;
+		ARTPlayerController* PC = nullptr;
+		ARTTurnManager* TM = nullptr;
+		int32 Ram = INDEX_NONE;
+		int32 Impact = INDEX_NONE;
+		int32 Interposition = INDEX_NONE;
+		int32 Mortar = INDEX_NONE;
+	};
+
+	bool MakeLockInBench(FAutomationTestBase& Test, FLockInBench& B)
+	{
+		B.World = MakeInteractionWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), B.World)) { return false; }
+		if (!Test.TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(B.World, /*Radius=*/ 6))) { return false; }
+		B.Riktor = SpawnInteractionUnit(B.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+		B.Gadget = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0));
+		B.PC = B.World->SpawnActor<ARTPlayerController>();
+		B.TM = B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(TEXT("Riktor"), B.Riktor) || !Test.TestNotNull(TEXT("Gadget"), B.Gadget)
+			|| !Test.TestNotNull(TEXT("controller"), B.PC) || !Test.TestNotNull(TEXT("turn manager"), B.TM))
+		{
+			return false;
+		}
+		B.Ram = LockInAbilityIndex(B.Riktor, TEXT("Hero.Riktor.Ram"));
+		B.Impact = LockInAbilityIndex(B.Riktor, TEXT("Hero.Riktor.ImpactShot"));
+		B.Interposition = LockInAbilityIndex(B.Riktor, TEXT("Hero.Riktor.Interposition"));
+		B.Mortar = LockInAbilityIndex(B.Riktor, TEXT("Hero.Riktor.MortarShot"));
+		return Test.TestTrue(TEXT("premessa: il kit di Riktor ha Ram, ImpactShot, Interposition e MortarShot"),
+			B.Ram != INDEX_NONE && B.Impact != INDEX_NONE && B.Interposition != INDEX_NONE && B.Mortar != INDEX_NONE);
+	}
+
+	/** Ram verso (2,0), ImpactShot su Gadget, Interposition, Move verso (0,2), verso NE: 2 + 2 + 2 + 2 = 8 > 6. */
+	void PlanOverBudget(FLockInBench& B)
+	{
+		B.Riktor->SetPlannedDash(B.Ram, FRTCellId(2, 0));
+		B.Riktor->SetPlannedMainAction(B.Impact);
+		B.Riktor->DeclareAttackOnUnit(B.Gadget);
+		B.Riktor->SetPlannedReaction(B.Interposition);
+		B.Riktor->SetPlannedMove({ FRTCellId(0, 2) }, { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2) });
+		B.Riktor->DeclarePlannedFacing(ERTHexDirection::NE);
+	}
+
+	FRTPlanValidation LockInVerdictOf(const ARTUnit* U)
+	{
+		return URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(U));
+	}
+
+	void ResolveOneTurn(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+	}
+
+	int32 CountUnitEntries(const TArray<FRTTurnLogEntry>& Log, int32 UnitId, ERTLogCategory Category, uint8 Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Log)
+		{
+			if (E.UnitId == UnitId && E.Category == Category && E.Outcome == Outcome) { ++N; }
+		}
+		return N;
+	}
+
+	int32 CountLinesWith(const TArray<FString>& Lines, const TCHAR* Text)
+	{
+		int32 N = 0;
+		for (const FString& L : Lines) { if (L.Contains(Text)) { ++N; } }
+		return N;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInEmptiesAPlanOverBudgetTest,
+	"RefactorTactics.Plan.LockInEmptiesAPlanOverBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInEmptiesAPlanOverBudgetTest::RunTest(const FString&)
+{
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	PlanOverBudget(B);
+	const FRTPlanValidation Verdetto = LockInVerdictOf(B.Riktor);
+	if (!TestTrue(TEXT("premessa: il piano e' OverBudget (8 > 6)"),
+			!Verdetto.bLegal && Verdetto.Reason == ERTActionInvalidReason::OverBudget))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const ERTHexDirection VersoPrima = B.Riktor->Facing;
+
+	ResolveOneTurn(B.TM);
+
+	const TArray<FRTTurnLogEntry>& Log = B.TM->GetTurnLog();
+	const int32 Id = B.Riktor->StableUnitId;
+	TestNotEqual(TEXT("premessa: Riktor ha uno StableUnitId"), Id, 0);
+
+	// Criterio 2: una `Fallback`/`Cancelled` per voce del validatore, col motivo in `Amount`.
+	const uint8 Annullata = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+	TestEqual(TEXT("una voce Fallback/Cancelled per ognuna delle quattro voci del piano"),
+		CountUnitEntries(Log, Id, ERTLogCategory::Fallback, Annullata), 4);
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.UnitId != Id || E.Category != ERTLogCategory::Fallback) { continue; }
+		TestEqual(*FString::Printf(TEXT("%s: Amount = OverBudget"), *E.ActionId.ToString()),
+			E.Amount, static_cast<int32>(ERTActionInvalidReason::OverBudget));
+		TestTrue(*FString::Printf(TEXT("%s: privata alla squadra (OwnerTeam)"), *E.ActionId.ToString()),
+			E.VerdictSubject.PlanVerdict == ERTPlanVerdict::OwnerTeam);
+	}
+
+	// Criterio 1: nessun'altra voce di Riktor, salvo la `Move`/`Stayed` che riceve chiunque resti fermo.
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.UnitId != Id) { continue; }
+		const bool bAmmessa = E.Category == ERTLogCategory::Fallback
+			|| (E.Category == ERTLogCategory::Move && E.Outcome == static_cast<uint8>(ERTMoveOutcome::Stayed));
+		TestTrue(*FString::Printf(TEXT("voce di Riktor ammessa (categoria %d, esito %d, %s)"),
+			static_cast<int32>(E.Category), static_cast<int32>(E.Outcome), *E.ActionId.ToString()), bAmmessa);
+	}
+	TestTrue(TEXT("Riktor resta in (0,0): lo scatto e il Move non si risolvono"), B.Riktor->Cell == FRTCellId(0, 0));
+	TestTrue(TEXT("il verso dichiarato si azzera col piano: Riktor non gira"), B.Riktor->Facing == VersoPrima);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInEmptiesAPlanOnCooldownTest,
+	"RefactorTactics.Plan.LockInEmptiesAPlanOnCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInEmptiesAPlanOnCooldownTest::RunTest(const FString&)
+{
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+
+	// MortarShot in ricarica (cooldown 3), nel piano con la reazione e un verso: 2 + 2 = 4, quindi il motivo e' solo la ricarica.
+	B.Riktor->ConsumeAbility(B.Mortar);
+	B.Riktor->SetPlannedMainAction(B.Mortar);
+	B.Riktor->DeclareAttackOnCell(FRTCellId(-3, 0));
+	B.Riktor->SetPlannedReaction(B.Interposition);
+	B.Riktor->DeclarePlannedFacing(ERTHexDirection::NE);
+	const FRTPlanValidation Verdetto = LockInVerdictOf(B.Riktor);
+	if (!TestTrue(TEXT("premessa: MortarShot e' in ricarica"), B.Riktor->GetAbilityCooldown(B.Mortar) > 0)
+		|| !TestTrue(TEXT("premessa: il piano e' OnCooldown"),
+			!Verdetto.bLegal && Verdetto.Reason == ERTActionInvalidReason::OnCooldown))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const ERTHexDirection VersoPrima = B.Riktor->Facing;
+
+	ResolveOneTurn(B.TM);
+
+	const TArray<FRTTurnLogEntry>& Log = B.TM->GetTurnLog();
+	const int32 Id = B.Riktor->StableUnitId;
+	TestEqual(TEXT("una Fallback/Cancelled per la principale e una per la reazione"),
+		CountUnitEntries(Log, Id, ERTLogCategory::Fallback, static_cast<uint8>(ERTFallbackOutcome::Cancelled)), 2);
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.UnitId != Id) { continue; }
+		if (E.Category == ERTLogCategory::Fallback)
+		{
+			TestEqual(*FString::Printf(TEXT("%s: Amount = OnCooldown"), *E.ActionId.ToString()),
+				E.Amount, static_cast<int32>(ERTActionInvalidReason::OnCooldown));
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("nessuna voce di Riktor oltre la Move/Stayed (categoria %d, %s)"),
+			static_cast<int32>(E.Category), *E.ActionId.ToString()),
+			E.Category == ERTLogCategory::Move && E.Outcome == static_cast<uint8>(ERTMoveOutcome::Stayed));
+	}
+	TestTrue(TEXT("il verso dichiarato si azzera col piano"), B.Riktor->Facing == VersoPrima);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLeavesASlotConflictToTheResolverTest,
+	"RefactorTactics.Plan.LockInLeavesASlotConflictToTheResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInLeavesASlotConflictToTheResolverTest::RunTest(const FString&)
+{
+	// Criterio 3: scatto + Move e' `SlotOccupied`, e resta registrato e non bloccato fino a CP 38.16 ([D-615] (1)).
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	B.Riktor->SetPlannedDash(B.Ram, FRTCellId(2, 0));
+	B.Riktor->SetPlannedMove({ FRTCellId(0, 2) }, { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2) });
+	const FRTPlanValidation Verdetto = LockInVerdictOf(B.Riktor);
+	if (!TestTrue(TEXT("premessa: il piano e' SlotOccupied"),
+			!Verdetto.bLegal && Verdetto.Reason == ERTActionInvalidReason::SlotOccupied))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	ResolveOneTurn(B.TM);
+
+	const int32 Id = B.Riktor->StableUnitId;
+	int32 FallbackDelLockIn = 0;
+	for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+	{
+		if (E.UnitId == Id && E.Category == ERTLogCategory::Fallback
+			&& (E.Amount == static_cast<int32>(ERTActionInvalidReason::SlotOccupied)
+				|| E.Amount == static_cast<int32>(ERTActionInvalidReason::OverBudget)
+				|| E.Amount == static_cast<int32>(ERTActionInvalidReason::OnCooldown)))
+		{
+			++FallbackDelLockIn;
+		}
+	}
+	TestEqual(TEXT("il lock-in non svuota un piano SlotOccupied"), FallbackDelLockIn, 0);
+	TestEqual(TEXT("il resolver scarta il Move come oggi (SupersededByDash)"),
+		CountUnitEntries(B.TM->GetTurnLog(), Id, ERTLogCategory::Move, static_cast<uint8>(ERTMoveOutcome::SupersededByDash)), 1);
+	TestEqual(TEXT("la riga di combat log resta anche per lo slot"),
+		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("piano non valido al lock-in")), 1);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadyIsRefusedWhileThePlanBreaksTheBudgetTest,
+	"RefactorTactics.PlayerInteraction.ReadyIsRefusedWhileThePlanBreaksTheBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadyIsRefusedWhileThePlanBreaksTheBudgetTest::RunTest(const FString&)
+{
+	// Criterio 4: il Ready di un piano OverBudget si rifiuta; tolto il Move, lo stesso Ready passa.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	PlanOverBudget(B);
+	const int32 Gruppo = B.Riktor->ControlGroup;
+	const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+	B.TM->DeclareParticipantReady(0, Gruppo);
+	TestFalse(TEXT("il Ready di un piano oltre il budget e' rifiutato"), B.TM->IsParticipantReady(0, Gruppo));
+	TestFalse(TEXT("e non arma il countdown"), B.TM->IsReadyCountdownActive());
+	TestEqual(TEXT("il turno non si chiude"), B.TM->GetTurnNumber(), TurnoPrima);
+	TestEqual(TEXT("il rifiuto lo dice nel combat log della squadra"),
+		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("Ready rifiutato")), 1);
+
+	// Controllo positivo: lo stesso piano senza il Move costa 6, e il Ready passa.
+	B.Riktor->ClearPlannedMove();
+	if (!TestTrue(TEXT("premessa: senza il Move il piano e' legale"), LockInVerdictOf(B.Riktor).bLegal))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.TM->DeclareParticipantReady(0, Gruppo);
+	TestTrue(TEXT("senza il Move il Ready e' accettato"),
+		B.TM->IsParticipantReady(0, Gruppo) || B.TM->IsReadyCountdownActive() || B.TM->GetTurnNumber() != TurnoPrima);
+	TestEqual(TEXT("e non lascia un secondo rifiuto"),
+		CountLinesWith(B.TM->GetRecentEvents(), TEXT("Ready rifiutato")), 1);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusedPlanStaysWithItsTeamTest,
+	"RefactorTactics.Replay.Privacy.RefusedPlanStaysWithItsTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusedPlanStaysWithItsTeamTest::RunTest(const FString&)
+{
+	// Criterio 7: le voci del piano svuotato non arrivano alla traccia dell'osservatore avversario.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	PlanOverBudget(B);
+	ResolveOneTurn(B.TM);
+
+	const int32 Id = B.Riktor->StableUnitId;
+	const ERTTargetKnowledge Vista = URTTeamKnowledgeLibrary::ClassifyTarget(
+		B.TM->KnowledgeForTeamPublic(1), Id, B.Riktor->TeamId, B.Riktor->Cell);
+	if (!TestTrue(TEXT("premessa: per la squadra 1 Riktor e' visibile"), Vista == ERTTargetKnowledge::Allowed))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	const uint8 Annullata = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+	const TArray<FRTTurnLogEntry> PerLaSquadra = URTReplayPrivacyLibrary::FilterEntriesForObserver(B.TM->GetTurnLog(), 0);
+	const TArray<FRTTurnLogEntry> PerLAvversario = URTReplayPrivacyLibrary::FilterEntriesForObserver(B.TM->GetTurnLog(), 1);
+	TestEqual(TEXT("controllo positivo: la traccia della squadra 0 ha le quattro voci"),
+		CountUnitEntries(PerLaSquadra, Id, ERTLogCategory::Fallback, Annullata), 4);
+	TestEqual(TEXT("la traccia della squadra 1 non ne ha nessuna"),
+		CountUnitEntries(PerLAvversario, Id, ERTLogCategory::Fallback, Annullata), 0);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackReopensTheReadyAfterAnOverBudgetPlanTest,
+	"RefactorTactics.PlayerInteraction.BackReopensTheReadyAfterAnOverBudgetPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackReopensTheReadyAfterAnOverBudgetPlanTest::RunTest(const FString&)
+{
+	// Criterio 8: con uno scatto pianificato, che il Back non toglie, il piano oltre il budget si accorcia lo stesso.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	B.PC->SelectActorForTest(B.Riktor);
+	PlanOverBudget(B);
+	const int32 Gruppo = B.Riktor->ControlGroup;
+	B.TM->DeclareParticipantReady(0, Gruppo);
+	if (!TestFalse(TEXT("premessa: il Ready del piano oltre il budget e' rifiutato"), B.TM->IsParticipantReady(0, Gruppo)))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	for (int32 Passi = 0; Passi < 4 && !LockInVerdictOf(B.Riktor).bLegal; ++Passi)
+	{
+		B.PC->ApplyBack();
+	}
+	TestTrue(TEXT("il Back porta il piano entro il budget"), LockInVerdictOf(B.Riktor).bLegal);
+	TestEqual(TEXT("lo scatto resta pianificato: il Back ha tolto un'altra voce"), B.Riktor->PlannedDashAbility, B.Ram);
+
+	const int32 TurnoPrima = B.TM->GetTurnNumber();
+	B.TM->DeclareParticipantReady(0, Gruppo);
+	TestTrue(TEXT("dopo il Back il Ready e' accettato"),
+		B.TM->IsParticipantReady(0, Gruppo) || B.TM->IsReadyCountdownActive() || B.TM->GetTurnNumber() != TurnoPrima);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLineStaysWithItsTeamTest,
+	"RefactorTactics.PlayerInteraction.LockInLineStaysWithItsTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInLineStaysWithItsTeamTest::RunTest(const FString&)
+{
+	// Criterio 9: la riga del lock-in racconta un piano, quindi la legge solo la squadra che lo ha composto ([D-349]).
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	PlanOverBudget(B);
+	ResolveOneTurn(B.TM);
+
+	const ERTTargetKnowledge Vista = URTTeamKnowledgeLibrary::ClassifyTarget(
+		B.TM->KnowledgeForTeamPublic(1), B.Riktor->StableUnitId, B.Riktor->TeamId, B.Riktor->Cell);
+	if (!TestTrue(TEXT("premessa: per la squadra 1 Riktor e' visibile"), Vista == ERTTargetKnowledge::Allowed))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	TestEqual(TEXT("la squadra 0 legge la riga del lock-in"),
+		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("piano non valido al lock-in")), 1);
+	TestEqual(TEXT("la squadra 1, che vede Riktor, non la legge"),
+		CountLinesWith(B.TM->GetRecentEventsForTeam(1), TEXT("piano non valido al lock-in")), 0);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInScenariosPassTest,
+	"RefactorTactics.Plan.LockInScenariosPass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInScenariosPassTest::RunTest(const FString&)
+{
+	// Gli scenari di CP 38.10, e `DashDiscardsPlannedMove` per il criterio 3: un piano il cui solo motivo e' lo slot si
+	// risolve come prima, col Move scartato dallo scatto.
+	const TCHAR* const Scenari[] = {
+		TEXT("Scenarios/Spec/ActionEconomy/LockInRefusesAPlanOverBudget.json"),
+		TEXT("Scenarios/Spec/ActionEconomy/LockInRefusesAnActionOnCooldown.json"),
+		TEXT("Scenarios/Spec/Movement/DashDiscardsPlannedMove.json"),
+	};
+	for (const TCHAR* Rel : Scenari)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(*FString::Printf(TEXT("%s si carica: %s"), Rel, *Error),
+				URTScenarioLoader::LoadFromFile(FPaths::Combine(FPaths::ProjectDir(), Rel), Scenario, Error)))
+		{
+			continue;
+		}
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		RTWorldFixtures::DestroyWorld(World);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: ERROR invece di PASS — %s"), Rel, *Result.ErrorMessage));
+			continue;
+		}
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				AddError(FString::Printf(TEXT("%s — assertion caduta al turno %d: %s (atteso '%s', letto '%s')"),
+					Rel, A.Turn, *A.Description, *A.Expected, *A.Actual));
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("%s passa"), Rel), Result.OutcomeString(), FString(TEXT("PASS")));
+	}
 	return true;
 }
 

@@ -56,6 +56,8 @@ enum class ERTMovementAdvanceResult : uint8
 #include "UI/Feed/RTActivationLine.h" // FRTActivationLine: la riga del Registro per un'attivazione mostrata (#4033)
 #include "RTTurnManager.generated.h"
 
+struct FRTPlanValidation; // `IsPlanRefusedAtLockIn` la riceve per riferimento: basta la dichiarazione
+
 class ARTUnit;
 class URTHexMapAsset;
 /**
@@ -3315,19 +3317,29 @@ protected:
 	 * che la DoD chiede *«un punto solo che risponde LEGALE / ILLEGALE + reason code prima del commit»*,
 	 * e questo e' il commit.
 	 *
-	 * 🔴 **Registra e non BLOCCA, ed e' una scelta con una ragione misurata.** Un rifiuto al momento del
-	 * click era la prima versione, ed e' stata ritirata in code review: un piano illegale nasce quasi sempre
-	 * da uno scatto piu' un movimento, e uno scatto pianificato **non e' annullabile** — `ERTPointerBackStep`
-	 * elenca waypoint, targeting, inspector e focus, non il dash, e gli unici a togliere
-	 * `PlannedDashAbility` sono il resolver e il ri-pianificatore del bot. Rifiutare l'input avrebbe chiuso
-	 * il giocatore in un turno senza uscita: non poteva ne' muoversi ne' disfare. Un piano incoerente che si
-	 * risolve come il resolver decide e' meno grave di un turno che non si puo' correggere.
+	 * 🔴 **Budget e ricarica BLOCCANO, lo slot occupato registra soltanto** ([D-615] (1), che emenda [D-194] per i
+	 * primi due; E38 CP 38.10, #4111). Con `OnCooldown` o `OverBudget` il piano **si svuota**
+	 * (`ARTUnit::EmptyPlanAtLockIn`) e ogni sua voce lascia nel TurnLog una `Fallback`/`Cancelled` col motivo in
+	 * `Amount` e la fase della voce ([D-617]), col verdetto `OwnerTeam`: il server non risolve un piano oltre il
+	 * budget, e il replay dice perche' l'unita' non ha agito. Per il giocatore c'e' sempre un'uscita: un'azione in
+	 * ricarica non si arma, e un piano oltre il budget si accorcia col Back.
 	 *
-	 * ⚠️ Cio' che cambia rispetto a prima non e' l'esito del turno, e' la sua **osservabilita'**: quello
-	 * che il resolver assorbiva in silenzio ora lascia una voce con il motivo. Il giorno in cui il dash sara'
-	 * annullabile, questa funzione e' il punto da cui far partire un rifiuto vero.
+	 * ⚠️ **`SlotOccupied` resta registrato e non bloccato fino a CP 38.16**, per la ragione che [D-194] aveva per
+	 * tutto: un piano illegale per slot nasce quasi sempre da uno scatto piu' un movimento, e uno scatto pianificato
+	 * **non e' annullabile** — `ERTPointerBackStep` elenca waypoint, targeting, inspector e focus, non il dash.
+	 * Rifiutarlo chiuderebbe il giocatore in un turno senza uscita; il resolver decide come oggi
+	 * (`SupersededByDash`).
+	 *
+	 * La riga di COMBAT LOG resta per ogni motivo, col verdetto `OwnerTeam` ([D-349]): racconta un piano.
 	 */
 	void ValidatePlansAtLockIn();
+
+	/**
+	 * Vero se il piano dell'unita' sarebbe svuotato al lock-in, cioe' se il validatore lo giudica `OnCooldown` o
+	 * `OverBudget` (E38 CP 38.10). `UnitIndex` e' la posizione dell'unita' in `CollectLivingUnits`, come per
+	 * `MakeSimUnit`. Lo leggono il lock-in e il Ready del giocatore, che si rifiuta sulla stessa domanda.
+	 */
+	bool IsPlanRefusedAtLockIn(int32 UnitIndex, const ARTUnit* Unit, FRTPlanValidation& OutVerdict) const;
 
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);

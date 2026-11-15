@@ -381,8 +381,9 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 			? FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason))
 			: FText::Format(NSLOCTEXT("RTPlanWarning", "SlotConflict", "{0} e {1} occupano lo stesso slot"),
 				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
-		// ⚠️ Il costo e' cio' che si sa, non una previsione: il lock-in non scarta niente, e cio' che il turno
-		// scarta lo decide il resolver.
+		// ⚠️ Il costo e' cio' che si sa, non una previsione. Per budget e ricarica il lock-in svuota il piano e il
+		// Ready si rifiuta ([D-615] (1), E38 CP 38.10); per uno slot occupato il lock-in registra soltanto, e cio' che
+		// il turno scarta lo decide il resolver, fino a CP 38.16.
 		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
 		Avvisi.Add(Critico);
 	}

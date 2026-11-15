@@ -1,0 +1,42 @@
+{
+  "scenarioId": "Spec.ActionEconomy.LockInRefusesAPlanOverBudget",
+  "tags": ["action-economy", "spec", "riktor", "gadget"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "E38 CP 38.10 (#4111), [D-615] (1) e [D-617]: un piano oltre il budget non si risolve. Il lock-in lo SVUOTA e ogni sua voce lascia nel TurnLog una `Fallback`/`Cancelled` col motivo in `Amount`. Le celle sono quelle di `Spec.Movement.DashDiscardsPlannedMove`, dove scatto + Move si risolvono col Move scartato (`SupersededByDash`): qui lo stesso scatto non parte, perche' il piano intero costa 8.",
+  "_oracolo": "Ram (Dash, 2) + ImpactShot su F1 (Blast, 2) + Interposition (reazione, 2) + Move verso (0,2,0) (2) = 8 > 6 ([D-594] (1)): verdetto `OverBudget` (23). Il validatore guarda il budget prima dello slot, quindi il motivo e' il budget e non lo slot occupato da scatto + Move. Il verso NE non costa AP e non e' una voce del validatore: si azzera col piano e non lascia una `Fallback` propria. Nessuna asserzione sul `Combat`: ImpactShot con `Weapon.Impact` ha portata 2 e F1 sta a 3 celle, quindi il colpo mancherebbe anche senza lo svuotamento.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 1, "cell": [-3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — B1 dichiara scatto, attacco, reazione, Move e verso: 8 AP su 6.",
+      "intents": [
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [2, 0, 0], "ability": "Hero.Riktor.ImpactShot", "target": "F1",
+          "reaction": "Hero.Riktor.Interposition", "move": [[0, 1, 0], [0, 2, 0]], "facing": "NE" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 0, 0],
+      "_assertion": "Lo scatto e il Move non si risolvono: B1 resta dove era." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 4,
+      "_assertion": "Una voce per ognuna delle quattro voci del validatore, e nessuna per il verso." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "value": 23,
+      "_assertion": "Il motivo e' `OverBudget` (23 in `ERTActionInvalidReason`)." },
+    { "type": "LogEventCount", "category": "Move", "outcome": "SupersededByDash", "value": 0 },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "DeclaredInPlanning", "value": 0 },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 0 },
+    { "type": "UnitFacing", "unit": "B1", "value": "E",
+      "_assertion": "Il verso dichiarato si azzera col piano: B1 resta girato a E, il verso di piazzamento di default." },
+    { "type": "LogEventCount", "category": "Reaction", "outcome": "NotTriggered", "value": 0,
+      "_assertion": "La reazione non e' armata. Armata, e senza alleati da proteggere, Interposition lascerebbe in ogni Blast proprio una voce `NotTriggered`." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

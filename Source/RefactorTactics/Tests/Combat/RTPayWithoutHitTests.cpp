@@ -1339,12 +1339,12 @@ bool FRTResolutionEmergingCausesPayTest::RunTest(const FString&)
 			Ric3DopoLaCaduta(Ric3Atteso(false, ERic3Click::Accetta)),
 			TEXT("D-209: chi agisce deve essere vivo quando l'azione si annota"))) { return false; }
 
-		// 🔴 La guardia `CanUseAbility` del ramo nuovo: `ConsumeAbility` scrive un valore FISSO, quindi chiamato su
-		// un'abilita' GIA' in ricarica la riporterebbe al valore pieno. Nessun click puo' armare un'azione in ricarica: il
-		// piano e' scritto a mano, e il residuo dice che non e' stata ripagata.
+		// 🔴 Un'azione GIA' in ricarica non deve ripagare: `ConsumeAbility` scrive un valore FISSO, quindi la riporterebbe al
+		// valore pieno. Nessun click puo' armare un'azione in ricarica: il piano e' scritto a mano. Da E38 CP 38.10 ([D-615] (1)) il
+		// lock-in lo svuota e lascia l'unica voce di rifiuto, `OnCooldown`; il residuo dice che non e' stata ripagata.
 		FRic3Scena InRicarica = Morto;
 		InRicarica.bGiaInRicarica = true;
-		FRic3Atteso AttesoInRicarica = Ric3Atteso(false, ERic3Click::ND);
+		FRic3Atteso AttesoInRicarica = Ric3Atteso(false, ERic3Click::ND, ERTActionInvalidReason::OnCooldown);
 		AttesoInRicarica.ResiduoAtteso = PagaCooldown - 2;
 		if (!Ric3Verifica(*this, TEXT("ModifyArc: bersaglio morto, azione gia' in ricarica"), TEXT("controparte"), InRicarica,
 			AttesoInRicarica, TEXT("la guardia CanUseAbility: un secondo addebito la riporterebbe al valore pieno"))) { return false; }
@@ -2244,6 +2244,7 @@ namespace
 		int32 Attivazioni = 0;               //< eventi `AbilityActivated` dell'attore: un rifiuto non si attiva
 		int32 FuoriPortata = 0;              //< voci Fallback/Cancelled `OutOfRange` di chi agisce
 		int32 RifiutiDellAzione = 0;         //< i rifiuti `Stunned` che nominano l'azione installata e la cella di chi agisce
+		int32 RifiutiDelLockIn = 0;          //< voci Fallback/Cancelled `OnCooldown` di chi agisce: il lock-in svuota il piano (E38 CP 38.10)
 	};
 
 	FPagaStorditoEsito PagaGiraStordito(FAutomationTestBase& Test, const FPagaStorditoCase& C)
@@ -2370,6 +2371,12 @@ namespace
 				if (E.ActionId == AzioneAttesa && E.SrcCell == CellaDiChiAgisce) { ++Esito.RifiutiDellAzione; }
 			}
 			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OnCooldown)
+				&& E.UnitId == AttoreDopo->StableUnitId)
+			{
+				++Esito.RifiutiDelLockIn;
+			}
+			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
 				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)
 				&& E.UnitId == AttoreDopo->StableUnitId)
 			{
@@ -2406,9 +2413,10 @@ namespace
  * paga ([D-200]). Cura e purificazione stanno nello slot 3 perche' l'indice dell'abilita' non coincida con quello
  * dell'unita' (l'attore e' la prima unita' del Blast).
  *
- * 🔴 **La riga «gia' in ricarica» e' la guardia `CanUseAbility`**: `ConsumeAbility` scrive un valore FISSO, quindi
- * chiamato su un'abilita' gia' in ricarica la RIPORTA al valore pieno. Uno stordito che pianifica a mano
- * un'abilita' non disponibile non deve vederla ricaricare piu' lenta di cosi'.
+ * 🔴 **La riga «gia' in ricarica» pinna il NON-ripagamento**: `ConsumeAbility` scrive un valore FISSO, quindi chiamato su
+ * un'abilita' gia' in ricarica la RIPORTA al valore pieno. Uno stordito che pianifica a mano un'abilita' non disponibile
+ * non deve vederla ricaricare piu' lenta di cosi'. Da E38 CP 38.10 ([D-615] (1)) quel piano non arriva al resolver: il
+ * lock-in lo svuota e lascia una voce `OnCooldown`, e lo stordimento non ha niente da rifiutare.
  *
  * Premessa per riga: il turno porta la voce di rifiuto `Stunned` (e nella fase giusta) — o, per i controlli non
  * storditi, non ne porta nessuna. Il residuo e' letto a fine turno: il Cleanup decrementa di uno, quindi
@@ -2431,13 +2439,13 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Prep: stordito"), EPagaSito::Prep, true, false, false, Pagato,
 		  TEXT("armare costa l'azione principale: negata, ma pagata") },
 		{ TEXT("Prep: stordito, gia' in ricarica"), EPagaSito::Prep, true, true, false, NonRipagato,
-		  TEXT("non e' piu' utilizzabile: il Prep non la arma, il Blast ne rifiuta il piano e non la ripaga") },
+		  TEXT("non e' piu' utilizzabile: il lock-in svuota il piano (E38 CP 38.10) e non la ripaga") },
 		{ TEXT("Blast: controllo non stordito"), EPagaSito::Blast, false, false, false, Pagato,
 		  TEXT("l'attacco che colpisce paga") },
 		{ TEXT("Blast: stordito"), EPagaSito::Blast, true, false, false, Pagato,
 		  TEXT("l'attacco negato dallo stordimento paga, UNA volta sola") },
 		{ TEXT("Blast: stordito, gia' in ricarica"), EPagaSito::Blast, true, true, false, NonRipagato,
-		  TEXT("[D-414]: la guardia `CanUseAbility` — `ConsumeAbility` la riporterebbe al valore pieno") },
+		  TEXT("[D-414]: non la ripaga, perche' il lock-in svuota il piano (E38 CP 38.10) — `ConsumeAbility` la riporterebbe al valore pieno") },
 		{ TEXT("Blast: stordito e gia' caduto"), EPagaSito::Blast, true, false, true, 0,
 		  TEXT("un cadavere non paga un'azione che non ha mai tentato") },
 		{ TEXT("Cleanup: controllo non stordito"), EPagaSito::Cleanup, false, false, false, Pagato,
@@ -2445,7 +2453,7 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Cleanup: stordito"), EPagaSito::Cleanup, true, false, false, Pagato,
 		  TEXT("la principale ambientale negata paga: e' il sito del Cleanup") },
 		{ TEXT("Cleanup: stordito, gia' in ricarica"), EPagaSito::Cleanup, true, true, false, NonRipagato,
-		  TEXT("[D-414]: la guardia `CanUseAbility` anche qui") },
+		  TEXT("[D-414]: non la ripaga nemmeno qui: il lock-in svuota il piano (E38 CP 38.10)") },
 		{ TEXT("Cleanup: stordito e gia' caduto"), EPagaSito::Cleanup, true, false, true, 0,
 		  TEXT("un cadavere non paga nemmeno nel Cleanup") },
 		{ TEXT("Cura: controllo non stordito"), EPagaSito::Cura, false, false, false, Pagato,
@@ -2453,7 +2461,7 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Cura: stordito"), EPagaSito::Cura, true, false, false, Pagato,
 		  TEXT("[D-564]: la cura negata dallo stordimento paga, UNA volta sola — prima curava e basta") },
 		{ TEXT("Cura: stordito, gia' in ricarica"), EPagaSito::Cura, true, true, false, NonRipagato,
-		  TEXT("[D-414]: la guardia `CanUseAbility` — il rifiuto lo scrive `CollectAttackIntents` e non ripaga") },
+		  TEXT("[D-414]: non la ripaga, perche' il lock-in svuota il piano (E38 CP 38.10)") },
 		{ TEXT("Cura: stordito e gia' caduto"), EPagaSito::Cura, true, false, true, 0,
 		  TEXT("un cadavere non paga una cura che non ha mai tentato") },
 		// 🔑 L'ORDINE: il rifiuto precede la misura della portata. Il controllo dice che lo STESSO piano, senza stordimento,
@@ -2467,7 +2475,7 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		{ TEXT("Purificazione: stordito"), EPagaSito::Purificazione, true, false, false, Pagato,
 		  TEXT("[D-564]: la purificazione negata dallo stordimento paga, UNA volta sola — prima purificava e basta") },
 		{ TEXT("Purificazione: stordito, gia' in ricarica"), EPagaSito::Purificazione, true, true, false, NonRipagato,
-		  TEXT("[D-414]: la guardia `CanUseAbility` — il rifiuto lo scrive `CollectAttackIntents` e non ripaga") },
+		  TEXT("[D-414]: non la ripaga, perche' il lock-in svuota il piano (E38 CP 38.10)") },
 		{ TEXT("Purificazione: stordito e gia' caduto"), EPagaSito::Purificazione, true, false, true, 0,
 		  TEXT("un cadavere non paga una purificazione che non ha mai tentato") },
 	};
@@ -2488,16 +2496,18 @@ bool FRTStunDeniedMainActionPaysItsCooldownTest::RunTest(const FString&)
 		}
 		if (!C.bAttoreCaduto)
 		{
+			// E38 CP 38.10 ([D-615] (1)): un'abilita' gia' in ricarica non arriva al resolver. Il lock-in svuota il piano e lascia una
+			// voce `OnCooldown`, quindi lo stordimento non ha niente da rifiutare.
 			TestEqual(*FString::Printf(TEXT("%s: premessa: voci di rifiuto per stordimento"), C.Nome),
-				Esito.Rifiuti, C.bStordito ? 1 : 0);
+				Esito.Rifiuti, (C.bStordito && !C.bGiaInRicarica) ? 1 : 0);
+			TestEqual(*FString::Printf(TEXT("%s: premessa: voci del lock-in per la ricarica"), C.Nome),
+				Esito.RifiutiDelLockIn, C.bGiaInRicarica ? 1 : 0);
 		}
 		if (C.bStordito && !C.bAttoreCaduto && Esito.Rifiuti == 1)
 		{
-			// ⚠️ Un'azione di Prep GIA' in ricarica non viene armata ne' rifiutata dal Prep (`CanUseAbility` falso, il ciclo
-			// passa oltre senza azzerare il piano): la rifiuta il Blast, che la ritrova in cima al ciclo. La riga lo pinna
-			// perche' e' il motivo per cui la guardia `CanUseAbility` del Blast conta anche per un'azione di Prep.
-			const ERTMatchPhase Fase = C.Sito == EPagaSito::Prep
-				? (C.bGiaInRicarica ? ERTMatchPhase::Blast : ERTMatchPhase::Prep)
+			// Le righe «gia' in ricarica» qui non arrivano: da E38 CP 38.10 il lock-in ne svuota il piano, e lo stordimento non
+			// lascia nessun rifiuto.
+			const ERTMatchPhase Fase = C.Sito == EPagaSito::Prep ? ERTMatchPhase::Prep
 				: C.Sito == EPagaSito::Cleanup ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
 			TestTrue(*FString::Printf(TEXT("%s: premessa: il rifiuto e' nella fase attesa"), C.Nome),
 				Esito.FaseDelRifiuto == Fase);
