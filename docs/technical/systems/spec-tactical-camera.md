@@ -288,7 +288,7 @@ una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la sce
 
 ### 4.2 `T` — l'inquadratura d'unità — [D-618](../../decisions/RT_PDR_00_Decision_Log.md), [#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)
 
-✅ **Scritta il 2026-11-15** ([#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)); ⏳ il verdetto a occhio è `PIE-CAM-UNIT-FRAME`. `T` mette la camera **dietro** un'unità e la gira **dove guarda lei**:
+✅ **Scritta il 2026-11-15** ([#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)); 🟡 `PIE-CAM-UNIT-FRAME`: verde nel banco per verdetto dell'autore, non vista in partita. `T` mette la camera **dietro** un'unità e la gira **dove guarda lei**:
 l'unità sta nella parte bassa dello schermo, e davanti si vede il campo dove va il colpo. È la scelta
 dell'autore del 2026-11-15 (D-618). Si usa in due posti: in partita, sull'unità selezionata; nel banco
 Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
@@ -310,8 +310,8 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
   il limite tira indietro il pivot e i piedi cadono nella metà **alta** del quadro (NDC +0,45), sempre in quadro.
 - 🔧 **Taratura aperta** (`PROPOSED FOR PLAYTEST`, [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780)):
   `UnitFramingArmLength` e `UnitFramingLeadCells` sono `UPROPERTY` del pawn. Lo spostamento è in celle, come
-  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. I valori di partenza sono 600 e 0,75 celle;
-  quelli definitivi li sceglie l'autore nel banco, a occhio.
+  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. I valori sono 600 e 0,75 celle, e l'autore li ha
+  confermati nel banco il 2026-11-15 (*«Vanno bene così»*).
 
 **Su chi**
 
@@ -360,7 +360,7 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
 | 5 | in partita non inquadra un'unità morta o di un'altra squadra, e senza selezione non muove niente | ✅ `Camera.UnitFramingNeverFramesAnotherTeamsUnit` |
 | 6 | il tasto è `T`, e passa dalla stessa funzione della posa | ✅ `PlayerInput.UnitFramingIsOnT` · `PlayerInput.EveryActionIsBoundOnItsEvents` (in `Tests/Player/Input/RTInputBindingTests.cpp`) |
 | 7 | una scena del banco si apre inquadrata su `CASTER`; uno scenario che non è del banco resta sulla mappa intera | ✅ `Camera.ScenarioOpeningFramesTheLabCaster` · `Scenario.SessionFindsTheLabCasterById` |
-| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ `PIE-CAM-UNIT-FRAME`, verdetto dell'autore |
+| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | 🟡 `PIE-CAM-UNIT-FRAME`: verde nel banco per verdetto dell'autore (2026-11-15), non vista in partita |
 
 ---
 
