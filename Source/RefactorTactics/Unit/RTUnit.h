@@ -480,6 +480,29 @@ public:
 	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
 	bool RemovePlanEntry(int32 Position) { return Plan.RemoveEntryAt(Position); }
 
+	/**
+	 * **Il gesto della lista** (E38 CP 38.13, #4114): AGGIUNGE un'azione al piano invece di sostituire la principale, dove
+	 * la fase lo consente. E' la porta del gesto con cui il giocatore arma un'azione e dell'harness degli scenari a lista.
+	 *  - Un'azione di Prep va nella principale se e' libera, e altrimenti in una voce `Prep` in coda ([D-584] (1)): la
+	 *    principale tiene la prima azione armata, come prima della lista.
+	 *  - Un'azione di un'altra fase va nella principale se e' libera. Se la principale tiene un'azione di Prep, quella passa
+	 *    fra le voci `Prep` senza cambiare posizione, e la nuova principale si aggiunge in coda.
+	 *  - Altrimenti la principale e' gia' presa da un'azione di una fase chiusa, e il gesto si RIFIUTA: una seconda voce di
+	 *    una classe chiusa non si scrive (criterio 18). Lo stesso per un'azione di Prep CON bersaglio (struttura di bordo,
+	 *    colpo predittivo) quando la principale e' presa, perche' una voce `Prep` non ne porta uno.
+	 * Rifiuta, e lascia il piano com'era, anche un indice che non e' un'abilita' del kit. Il bersaglio lo dichiara chi chiama.
+	 */
+	bool DeclarePlannedAction(int32 AbilityIndex);
+
+	/** Le voci `Prep` sono risolte: escono dal piano, la principale e il suo bersaglio restano (E38 CP 38.13). */
+	void ClearPlannedPrepEntries() { Plan.RemovePrepEntries(); }
+
+	/**
+	 * Vero se l'azione puo' stare in una voce `Prep` (E38 CP 38.13): di macro-fase Prep e senza un bersaglio da dichiarare,
+	 * cioe' non una struttura di bordo e non un colpo predittivo. ⛔ Non dice se l'azione e' utilizzabile ora.
+	 */
+	static bool CanBeAnExtraPrepAction(const URTActionData* Ability);
+
 	/** Lo scatto: l'abilita' e la cella d'arrivo. */
 	void SetPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
 	{
@@ -597,6 +620,9 @@ public:
 		RetractPlannedFacing();
 		Plan.SetPlannedMovementProfileId(NAME_None);
 		Plan.PlannedCleansePriority.Reset();
+		// E38 CP 38.13: ogni voce, comprese le azioni di Prep in piu' della principale e le forme che nessun produttore
+		// scrive (due voci di una classe chiusa, dall'accesso dei test): le porte qui sopra toccano la PRIMA voce di classe.
+		Plan.ResetEntries();
 	}
 
 	/**

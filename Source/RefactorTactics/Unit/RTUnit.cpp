@@ -2190,6 +2190,51 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 	return true;
 }
 
+bool ARTUnit::CanBeAnExtraPrepAction(const URTActionData* Ability)
+{
+	return Ability
+		&& URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) == ERTMatchPhase::Prep
+		&& Ability->Def.StructureOp == ERTStructureOp::None
+		&& Ability->Def.PredictiveTargeting == ERTPredictiveTargeting::None;
+}
+
+bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)
+{
+	const URTActionData* Ability = GetAbility(AbilityIndex);
+	if (!Ability)
+	{
+		return false;
+	}
+	const int32 Principale = Plan.PlannedAbilityIndex();
+	if (Principale == INDEX_NONE)
+	{
+		Plan.SetPlannedAbilityIndex(AbilityIndex); // la principale e' libera: la prima azione armata, come prima della lista
+		return true;
+	}
+	if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) == ERTMatchPhase::Prep)
+	{
+		if (!CanBeAnExtraPrepAction(Ability))
+		{
+			return false; // una voce `Prep` non porta un bersaglio: la struttura e la predittiva restano della principale
+		}
+		FRTPlanEntry Voce;
+		Voce.Class = ERTPlanEntryClass::Prep;
+		Voce.AbilityIndex = AbilityIndex;
+		return Plan.AddEntry(Voce);
+	}
+	// Un'azione di una fase chiusa: la principale di Prep le fa posto e resta al suo ordine di dichiarazione.
+	if (!CanBeAnExtraPrepAction(GetAbility(Principale)))
+	{
+		return false; // la principale e' di una fase chiusa: una seconda non si scrive (criterio 18)
+	}
+	if (!Plan.ReclassEntryAt(Plan.DeclarationIndexOf(ERTPlanEntryClass::Main), ERTPlanEntryClass::Prep))
+	{
+		return false;
+	}
+	Plan.SetPlannedAbilityIndex(AbilityIndex); // la nuova principale nasce in coda: e' l'ultima dichiarata
+	return true;
+}
+
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
 	const URTActionData* Ability = GetAbility(Index);

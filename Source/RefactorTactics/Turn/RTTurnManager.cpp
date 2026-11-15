@@ -3601,7 +3601,10 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 		{
 			const ERTMatchPhase FaseDellaVoce = URTCatalogLibrary::MapResolutionPhase(Voce.Def.ResolutionPhase);
 			FRTCellId Bersaglio = Unit->Cell;
-			if (Voce.Def.Slot == ERTActionSlot::Main)
+			// E38 CP 38.13: una voce `Prep` non porta un bersaglio; quello della principale non e' suo.
+			const bool bVocePrep = Unit->GetPlan().GetEntries().IsValidIndex(Voce.DeclarationIndex)
+				&& Unit->GetPlan().GetEntries()[Voce.DeclarationIndex].Class == ERTPlanEntryClass::Prep;
+			if (Voce.Def.Slot == ERTActionSlot::Main && !bVocePrep)
 			{
 				if (Unit->bHasPlannedAim) { Bersaglio = Unit->GetLockedPlan().AimCell; }
 				else if (Unit->GetPlan().bAttackTargetsCell()) { Bersaglio = Unit->GetPlan().PlannedAttackCell(); }
@@ -4797,6 +4800,25 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	return Applied;
 }
 
+namespace
+{
+	/**
+	 * Una voce di Prep di un'unita' (E38 CP 38.13, #4114): la principale, se e' di Prep, o una voce `Prep` della copia al
+	 * lock-in. `DeclarationIndex` e' la sua posizione nel piano.
+	 */
+	struct FRTPrepVoce
+	{
+		int32 AbilityIndex = INDEX_NONE;
+		int32 DeclarationIndex = INDEX_NONE;
+		bool bPrincipale = false;
+	};
+
+	uint64 PrepVoceKey(int32 UnitIndex, int32 DeclarationIndex)
+	{
+		return (static_cast<uint64>(static_cast<uint32>(UnitIndex)) << 32) | static_cast<uint32>(DeclarationIndex);
+	}
+}
+
 void ARTTurnManager::ResolvePrep()
 {
 	// Prima fase che passa dal MOTORE AZIONI (epic E4): raccogli -> ordina -> traduci in EVENTI -> applica.
@@ -4827,17 +4849,73 @@ void ARTTurnManager::ResolvePrep()
 	}
 
 	// 1. RACCOGLI: un'istanza per ogni azione di Prep pianificata e utilizzabile.
+	//
+	// 🔑 **Tutte le voci di Prep di ogni unita'** (E38 CP 38.13, #4114; [D-584] (1)): la principale, se e' di Prep, e le
+	// voci `Prep`, lette dalla copia al lock-in ([D-608] tappa 4), dove hanno la loro posizione anche dopo che le strutture
+	// di bordo qui sopra hanno consumato una principale. Escono dal piano vivo appena lette: il Prep le risolve tutte.
+	//
+	// 🔑 **Dentro l'unita' le voci si percorrono per CONTENUTO, mai per dichiarazione** ([D-615] (5)): nell'ordine di
+	// `InstanceLess` a `EventSequence` pari, che `NumberInstancesByContent` da' e numera. E' lo stesso ordine in ogni
+	// sotto-passo, cosi' anche le armate, che non passano dal sort del passo 2, e le loro `EmitAbilityActivated` nascono in
+	// un ordine che il piano non decide. Fra unita' diverse resta l'ordine di `SortUnitsForResolution`, come prima.
 	TArray<FRTActionInstance> Instances;
 	int32 PrepSpareggio = 0; // lo spareggio delle istanze di questo ciclo, contato dove nascono (#2970)
-	for (int32 i = 0; i < Units.Num(); ++i)
+	TMap<uint64, FRTPrepVoce> VociDelleIstanze; // (unita', posizione nel piano) -> voce; solo ricerca, mai iterata
+	TArray<FRTActionInstance> Turni;            // una per voce, nell'ordine in cui le si percorre
+	for (int32 u = 0; u < Units.Num(); ++u)
 	{
-		ARTUnit* Unit = Units[i];
+		ARTUnit* Unit = Units[u];
 		if (!Unit->IsAlive()) { continue; }
 
-		const int32 Index = Unit->GetPlan().PlannedAbilityIndex();
+		TArray<FRTPrepVoce> Voci;
+		if (const URTActionData* Principale = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex()))
+		{
+			if (URTCatalogLibrary::MapResolutionPhase(Principale->Def.ResolutionPhase) == ERTMatchPhase::Prep)
+			{
+				Voci.Add({ Unit->GetPlan().PlannedAbilityIndex(), Unit->GetPlan().DeclarationIndexOf(ERTPlanEntryClass::Main), true });
+			}
+		}
+		const TArray<FRTPlanEntry>& Copia = Unit->GetLockedPlan().Plan.GetEntries();
+		for (int32 Posizione = 0; Posizione < Copia.Num(); ++Posizione)
+		{
+			if (Copia[Posizione].Class == ERTPlanEntryClass::Prep)
+			{
+				Voci.Add({ Copia[Posizione].AbilityIndex, Posizione, false });
+			}
+		}
+		Unit->ClearPlannedPrepEntries();
+
+		TArray<FRTActionInstance> DellUnita;
+		for (const FRTPrepVoce& Voce : Voci)
+		{
+			const URTActionData* Ability = Unit->GetAbility(Voce.AbilityIndex);
+			if (!Ability) { continue; }
+			FRTActionInstance Turno;
+			Turno.Def = Ability->Def;
+			Turno.SourceUnitId = u;
+			Turno.TargetUnitId = u;
+			Turno.TargetCell = Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell;
+			Turno.DeclarationIndex = Voce.DeclarationIndex;
+			DellUnita.Add(Turno);
+			VociDelleIstanze.Add(PrepVoceKey(u, Voce.DeclarationIndex), Voce);
+		}
+		URTActionQueueLibrary::NumberInstancesByContent(DellUnita, PrepSpareggio);
+		Turni.Append(DellUnita);
+	}
+
+	for (const FRTActionInstance& Turno : Turni)
+	{
+		const int32 i = Turno.SourceUnitId;
+		ARTUnit* Unit = Units[i];
+		const FRTPrepVoce& Voce = VociDelleIstanze.FindChecked(PrepVoceKey(i, Turno.DeclarationIndex));
+
+		const int32 Index = Voce.AbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
+		// Una voce `Prep` senza bersaglio, per costruzione (`ARTUnit::DeclarePlannedAction`): la struttura e la predittiva
+		// restano della principale. Solo l'accesso dei test ne scrive una diversa, e qui non si risolve.
+		if (!Voce.bPrincipale && !ARTUnit::CanBeAnExtraPrepAction(Ability)) { continue; }
 
 		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e il Prep e' **uno** dei siti
 		// in cui una principale si consuma: qui si ARMANO Overwatch e predittive, e armare costa l'azione
@@ -4851,15 +4929,19 @@ void ARTTurnManager::ResolvePrep()
 		// (D-416) paga?» «si»; [D-414] alla lettera): il piano si perde e la RICARICA PARTE, in ogni sito che la nega
 		// (e dal 2026-11-01 anche per la cura e la purificazione, [D-564], e per le strutture di bordo, [D-565]). Il
 		// testo qui sopra resta perche' dice come e' nato il rifiuto, non cosa vale oggi.
+		// E38 CP 38.13: ogni voce di Prep esce col proprio rifiuto e paga la propria ricarica, come la principale.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
-			Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
+			Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
 			// Si paga qui, DOPO il rifiuto: `Unit` e' vivo e `CanUseAbility(Index)` era vero (le due guardie in cima al
 			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
 			// di sempre per il Prep: scrittura immediata, come per l'Overwatch e la predittiva che armano.
 			Unit->ConsumeAbility(Index);
-			Unit->ClearPlannedMainAction();
-			Unit->ClearPlannedAttack();
+			if (Voce.bPrincipale)
+			{
+				Unit->ClearPlannedMainAction();
+				Unit->ClearPlannedAttack();
+			}
 			continue;
 		}
 
@@ -5027,8 +5109,13 @@ void ARTTurnManager::ResolvePrep()
 			EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId,
 				Unit->StableUnitId, Unit->Cell, Ability->Shape);
 			Unit->ConsumeAbility(Index);
-			Unit->ClearPlannedMainAction();
-			Unit->ClearPlannedAttack();
+			// E38 CP 38.13: si consuma la voce armata. Una voce `Prep` e' gia' uscita dal piano; la principale, e il bersaglio
+			// che porta, si azzerano solo se e' lei.
+			if (Voce.bPrincipale)
+			{
+				Unit->ClearPlannedMainAction();
+				Unit->ClearPlannedAttack();
+			}
 			continue;
 		}
 
@@ -5053,7 +5140,12 @@ void ARTTurnManager::ResolvePrep()
 		// (`EventSequence` a `RTTurnManager_Blast.cpp:771`, `Intents.Add` a `:978` -> 207) e
 		// `RTActionQueueLibrary.cpp` dice «venti righe» per `InstancesForPhase` (commento a `:82`,
 		// definizione a `:101` -> 19). Il difetto era il numero sbagliato, non il contare.
-		Instance.EventSequence = PrepSpareggio++;
+		//
+		// ➕ **Da E38 CP 38.13 il numero viene da `NumberInstancesByContent`**, che ha contato le voci di ogni unita' qui sopra,
+		// nell'ordine del contenuto: e' lo stesso contatore, con la stessa sede, e fra due copie della stessa azione della
+		// stessa unita' dice cio' che direbbe il contenuto, mai la dichiarazione.
+		Instance.EventSequence = Turno.EventSequence;
+		Instance.DeclarationIndex = Voce.DeclarationIndex;
 		Instances.Add(Instance);
 	}
 	if (Instances.Num() == 0) { return; }
@@ -5100,15 +5192,21 @@ void ARTTurnManager::ResolvePrep()
 
 	// 5. Consuma le abilita' usate e libera i piani. #3549: qui ogni istanza si ATTIVA, nell'ordine di
 	// `SortActionInstances` — il terzo dei tre ordini della fase (coperture, raccolta, istanze; spec §2.2).
+	// E38 CP 38.13: si consuma la VOCE dell'istanza, non la principale dell'unita'. Con Guard + ImpactShot la Guard e' una
+	// voce `Prep`, gia' uscita dal piano, e il bersaglio di ImpactShot resta per il Blast.
 	for (const FRTActionInstance& Instance : Instances)
 	{
 		ARTUnit* Unit = Units[Instance.SourceUnitId];
-		const URTActionData* Usata = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
+		const FRTPrepVoce& Voce = VociDelleIstanze.FindChecked(PrepVoceKey(Instance.SourceUnitId, Instance.DeclarationIndex));
+		const URTActionData* Usata = Unit->GetAbility(Voce.AbilityIndex);
 		EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Instance.Def.ActionId, Instance.Def.BaseActionId,
 			Unit->StableUnitId, Unit->Cell, Usata ? Usata->Shape : ERTAbilityShape::Single);
-		Unit->ConsumeAbility(Unit->GetPlan().PlannedAbilityIndex());
-		Unit->ClearPlannedMainAction(); // consumato in Prep
-		Unit->ClearPlannedAttack();
+		Unit->ConsumeAbility(Voce.AbilityIndex);
+		if (Voce.bPrincipale)
+		{
+			Unit->ClearPlannedMainAction(); // consumato in Prep
+			Unit->ClearPlannedAttack();
+		}
 	}
 }
 

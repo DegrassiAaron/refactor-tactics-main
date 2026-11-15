@@ -39,10 +39,11 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	// [D-615] (5)). L'ordine si mostra e non decide: nessun resolver lo legge per ordinare o per scegliere un esito, e
 	// `MakePlanFor` deriva la banda del movimento da tutte le altre voci, qualunque sia la loro posizione.
 	//
-	// 🔑 **Una voce per classe** (scatto, principale, reazione, movimento), finche' il resolver ne legge una: sono i campi
-	// a casella unica di prima, e la lista ha solo le forme che quei campi sapevano dire. E' una regola sulla FORMA del
-	// piano, non sull'esito. `AddEntry` rifiuta una seconda voce della stessa classe; le porte qui sotto, che sono i
-	// gesti di prima, SOSTITUISCONO il valore nella voce della loro classe.
+	// 🔑 **Una voce per classe CHIUSA** (scatto, principale, reazione, movimento), finche' il resolver ne legge una: sono i
+	// campi a casella unica di prima, e la lista ha solo le forme che quei campi sapevano dire. E' una regola sulla FORMA
+	// del piano, non sull'esito. `AddEntry` rifiuta una seconda voce di una classe chiusa; le porte qui sotto, che sono i
+	// gesti di prima, SOSTITUISCONO il valore nella voce della loro classe. ➕ **La classe `Prep` e' aperta** (E38 CP 38.13):
+	// ne porta quante voci si aggiungono, e nessuna porta qui sotto la scrive.
 	//
 	// 🔑 **Gli accessori dicono cio' che dicevano i campi**: il valore della voce della classe, o il default se la voce
 	// non c'e'. Una voce nasce alla prima scrittura che le da' un valore e si toglie quando torna tutta al default, cosi'
@@ -57,16 +58,39 @@ struct REFACTORTACTICS_API FRTUnitPlan
 		return Entries.IndexOfByPredicate([Class](const FRTPlanEntry& E) { return E.Class == Class; });
 	}
 
-	/** Aggiunge una voce in coda. Rifiuta, e lascia il piano com'era, una voce vuota o una seconda voce della stessa classe. */
+	/**
+	 * Aggiunge una voce in coda. Rifiuta, e lascia il piano com'era, una voce vuota o una seconda voce di una classe chiusa;
+	 * le voci `Prep` si aggiungono sempre (E38 CP 38.13).
+	 */
 	bool AddEntry(const FRTPlanEntry& Entry)
 	{
-		if (Entry.IsEmpty() || DeclarationIndexOf(Entry.Class) != INDEX_NONE)
+		if (Entry.IsEmpty() || (Entry.Class != ERTPlanEntryClass::Prep && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;
 		}
 		Entries.Add(Entry);
 		return true;
 	}
+
+	/**
+	 * La voce in quella posizione cambia classe e resta dov'e', cioe' conserva il suo ordine di dichiarazione. Serve a
+	 * spostare fra le azioni di Prep in piu' una principale di Prep, quando si arma una principale di un'altra fase
+	 * (`ARTUnit::DeclarePlannedAction`). Rifiuta, e lascia il piano com'era, una posizione che non c'e' o una classe chiusa
+	 * che il piano ha gia'.
+	 */
+	bool ReclassEntryAt(int32 Position, ERTPlanEntryClass Class)
+	{
+		if (!Entries.IsValidIndex(Position)
+			|| (Class != ERTPlanEntryClass::Prep && Class != Entries[Position].Class && DeclarationIndexOf(Class) != INDEX_NONE))
+		{
+			return false;
+		}
+		Entries[Position].Class = Class;
+		return true;
+	}
+
+	/** Toglie tutte le voci `Prep`; le altre restano nel loro ordine (E38 CP 38.13: il Prep le ha risolte). */
+	void RemovePrepEntries() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Prep; }); }
 
 	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
 	bool RemoveEntryAt(int32 Position)
@@ -243,6 +267,9 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	TArray<FGameplayTag> PlannedCleansePriority;
 
 private:
+	/** E38 CP 38.13: i test scrivono le forme che nessun produttore scrive (due voci di una classe chiusa). */
+	friend struct FRTUnitPlanTestAccess;
+
 	/** Le voci, nell'ordine di dichiarazione: si toccano solo dalle porte qui sopra. */
 	UPROPERTY()
 	TArray<FRTPlanEntry> Entries;

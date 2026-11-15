@@ -112,10 +112,22 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		Plan.Add(Entry);
 	};
 
+	// E38 CP 38.13: TUTTE le voci di ogni classe, non la prima. Le voci `Prep` sono le azioni di Prep in piu' della
+	// principale; due voci di una classe chiusa le scrive solo l'accesso dei test, e il validatore le giudica lo stesso.
+	// L'array si compone per classe (scatto, principale, Prep, reazione), e dentro la classe nell'ordine della lista.
 	const FRTUnitPlan& Piano = Unit->GetPlan();
-	AddAbility(Piano.PlannedDashAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Dash));
-	AddAbility(Piano.PlannedAbilityIndex(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Main));
-	AddAbility(Piano.PlannedReactionAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Reaction));
+	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Main, ERTPlanEntryClass::Prep,
+		ERTPlanEntryClass::Reaction })
+	{
+		for (int32 Posizione = 0; Posizione < Piano.GetEntries().Num(); ++Posizione)
+		{
+			const FRTPlanEntry& Voce = Piano.GetEntries()[Posizione];
+			if (Voce.Class == Classe)
+			{
+				AddAbility(Voce.AbilityIndex, Posizione);
+			}
+		}
+	}
 
 	// Il movimento normale, con la regola in un posto solo: il PERCHE' delle due condizioni sta nel
 	// docstring di `ARTUnit::HasPlannedNormalMove`, insieme alla regola che descrive.
