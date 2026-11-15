@@ -6644,4 +6644,317 @@ bool FRTUIRevealedEnemySeesOneEntryOfAListPlanTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.14 (#4115): il Blast e il Cleanup a piu' azioni della stessa unita' ─────────────────────────────────────
+namespace
+{
+	/** Una riga del Blast sintetica: un attacco a portata 3, alla priorita' data, con un danno e una politica di interruzione. */
+	int32 AddSyntheticBlastRow(ARTUnit* Unit, const TCHAR* ActionId, int32 Priority, int32 Damage,
+		ERTInterruptPolicy Policy = ERTInterruptPolicy::None)
+	{
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def.ActionId = FName(ActionId);
+		Action->Def.ResolutionPhase = ERTResolutionPhase::Attack;
+		Action->Def.Priority = Priority;
+		Action->Def.Slot = ERTActionSlot::Main;
+		Action->Def.ActionPointCost = 2;
+		Action->Def.RangeCells = 3;
+		Action->Def.bCountsAsAttack = true;
+		Action->Def.InterruptPolicy = Policy;
+		Action->Def.Fallback = ERTActionFallback::Cancel;
+		Action->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Damage, Damage) };
+		Action->RangeCells = 3;
+		Action->Power = Damage;
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+
+	/** Dichiara una principale e il suo bersaglio-unita', col fuoco sulla voce appena scritta. */
+	void DeclareMainOn(ARTUnit* Unit, int32 Ability, ARTUnit* Target)
+	{
+		Unit->DeclarePlannedAction(Ability);
+		const ARTUnit::FMainFocus Fuoco(*Unit, Unit->GetPlan().GetEntries().Last().Id);
+		Unit->DeclareAttackOnUnit(Target);
+	}
+
+	void DeclareMainOnCell(ARTUnit* Unit, int32 Ability, const FRTCellId& Cell)
+	{
+		Unit->DeclarePlannedAction(Ability);
+		const ARTUnit::FMainFocus Fuoco(*Unit, Unit->GetPlan().GetEntries().Last().Id);
+		Unit->DeclareAttackOnCell(Cell);
+	}
+
+	struct FAttivazione { FName ActionId; int32 Bersaglio = 0; FRTCellId Mira; };
+	TArray<FAttivazione> BlastActivationsOf(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		TArray<FAttivazione> Out;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Blast && Ev.SourceStableUnitId == Unit->StableUnitId)
+			{
+				Out.Add({ Ev.ActionId, Ev.TargetStableUnitId, Ev.AimCell });
+			}
+		}
+		return Out;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionBlastOrderIgnoresDeclarationTest,
+	"RefactorTactics.Resolution.BlastOrderIgnoresDeclaration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionBlastOrderIgnoresDeclarationTest::RunTest(const FString&)
+{
+	// Criteri 3 e 4: due azioni del Blast della stessa unita' alla stessa priorita' si attivano per `ActionId`, e due copie
+	// su due bersagli per contenuto (il bersaglio), in entrambi gli ordini di dichiarazione.
+	auto Gioca = [this](bool bRovescio, bool bCopie, TArray<FAttivazione>& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		ARTUnit* Secondo = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, -1));
+		if (!TestNotNull(TEXT("il secondo bersaglio"), Secondo)) { DestroyInteractionWorld(B.World); return false; }
+		struct FVoce { int32 Abilita; ARTUnit* Bersaglio; };
+		TArray<FVoce> Voci;
+		if (bCopie)
+		{
+			Voci = { { B.Impact, B.Gadget }, { B.Impact, Secondo } };
+		}
+		else
+		{
+			const int32 A = AddSyntheticBlastRow(B.Riktor, TEXT("Test.BlastA"), 50, 10);
+			const int32 Bx = AddSyntheticBlastRow(B.Riktor, TEXT("Test.BlastB"), 50, 10);
+			Voci = { { A, B.Gadget }, { Bx, B.Gadget } };
+		}
+		if (bRovescio) { Swap(Voci[0], Voci[1]); }
+		for (const FVoce& V : Voci) { DeclareMainOn(B.Riktor, V.Abilita, V.Bersaglio); }
+		if (!TestTrue(TEXT("premessa: il piano e' legale"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		ResolveOneTurn(B.TM);
+		Out = BlastActivationsOf(B.TM, B.Riktor);
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	TArray<FAttivazione> A1, A2, C1, C2;
+	if (!Gioca(false, false, A1) || !Gioca(true, false, A2) || !Gioca(false, true, C1) || !Gioca(true, true, C2)) { return false; }
+	if (TestEqual(TEXT("due attivazioni"), A1.Num(), 2) && TestEqual(TEXT("anche nell'altro ordine"), A2.Num(), 2))
+	{
+		TestEqual(TEXT("per ActionId: prima Test.BlastA"), A1[0].ActionId, FName(TEXT("Test.BlastA")));
+		TestEqual(TEXT("nell'altro ordine lo stesso"), A2[0].ActionId, FName(TEXT("Test.BlastA")));
+	}
+	if (TestEqual(TEXT("due copie, due attivazioni"), C1.Num(), 2) && TestEqual(TEXT("anche nell'altro ordine"), C2.Num(), 2))
+	{
+		TestTrue(TEXT("le copie per bersaglio: prima quello di id minore"), C1[0].Bersaglio < C1[1].Bersaglio);
+		TestEqual(TEXT("e nell'altro ordine lo stesso primo"), C2[0].Bersaglio, C1[0].Bersaglio);
+		TestEqual(TEXT("e lo stesso secondo"), C2[1].Bersaglio, C1[1].Bersaglio);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionFrozenAimIsPerEntryTest,
+	"RefactorTactics.Resolution.FrozenAimIsPerEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionFrozenAimIsPerEntryTest::RunTest(const FString&)
+{
+	// Criterio 8: due attacchi della stessa unita' su due bersagli diversi. La copia al lock-in porta una mira congelata per
+	// voce, la cella che ciascun bersaglio aveva al lock-in, e ogni colpo mira alla sua, non a una cella sola.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	ARTUnit* Secondo = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, -1));
+	if (!TestNotNull(TEXT("il secondo bersaglio"), Secondo)) { DestroyInteractionWorld(B.World); return false; }
+	const FRTCellId CellaPrimo = B.Gadget->Cell;
+	const FRTCellId CellaSecondo = Secondo->Cell;
+	DeclareMainOn(B.Riktor, B.Impact, B.Gadget);
+	DeclareMainOn(B.Riktor, B.Impact, Secondo);
+	ResolveOneTurn(B.TM);
+
+	int32 Congelate = 0;
+	TSet<FRTCellId> Mire;
+	for (const FRTPlanEntry& Voce : B.Riktor->GetLockedPlan().Plan.GetEntries())
+	{
+		if (Voce.Class == ERTPlanEntryClass::Main && Voce.bHasFrozenAim) { ++Congelate; Mire.Add(Voce.FrozenAimCell); }
+	}
+	TestEqual(TEXT("due mire congelate nella copia, una per voce"), Congelate, 2);
+	TestTrue(TEXT("sulla cella di ciascun bersaglio al lock-in"), Mire.Contains(CellaPrimo) && Mire.Contains(CellaSecondo));
+	TSet<FRTCellId> Mirate;
+	for (const FAttivazione& A : BlastActivationsOf(B.TM, B.Riktor)) { Mirate.Add(A.Mira); }
+	TestTrue(TEXT("e i due colpi mirano ciascuno alla sua"), Mirate.Contains(CellaPrimo) && Mirate.Contains(CellaSecondo));
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionBlastPermutationChangesOnlyTheOrderFieldTest,
+	"RefactorTactics.Resolution.BlastPermutationChangesOnlyTheOrderField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionBlastPermutationChangesOnlyTheOrderFieldTest::RunTest(const FString&)
+{
+	// Criterio 9: permutare la dichiarazione di un piano con piu' voci del Blast non cambia stato, eventi e voci; cambiano
+	// gli indici, e con loro l'hash di traccia. Controllo positivo come in CP 38.13.
+	struct FEsito { uint32 Stato = 0; TArray<FName> Attivazioni; TArray<FRTTurnLogEntry> Voci; };
+	auto Gioca = [this](bool bRovescio, FEsito& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		if (bRovescio) { DeclareMainOnCell(B.Riktor, B.Mortar, FRTCellId(2, 0)); DeclareMainOn(B.Riktor, B.Impact, B.Gadget); }
+		else { DeclareMainOn(B.Riktor, B.Impact, B.Gadget); DeclareMainOnCell(B.Riktor, B.Mortar, FRTCellId(2, 0)); }
+		if (!TestTrue(TEXT("premessa: legale"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		ResolveOneTurn(B.TM);
+		const URTHexMapAsset* Mappa = nullptr;
+		for (TActorIterator<ARTHexMapActor> It(B.World); It; ++It) { Mappa = It->MapAsset; }
+		Out.Stato = URTMatchStateHashLibrary::HashMatchState(Mappa, URTMatchStateHashLibrary::BuildUnitDigests({ B.Riktor, B.Gadget }), {});
+		for (const FAttivazione& A : BlastActivationsOf(B.TM, B.Riktor)) { Out.Attivazioni.Add(A.ActionId); }
+		Out.Voci = B.TM->GetTurnLog();
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	FEsito A, Bx;
+	if (!Gioca(false, A) || !Gioca(true, Bx)) { return false; }
+	auto SenzaOrdine = [](TArray<FRTTurnLogEntry> Voci)
+	{
+		for (FRTTurnLogEntry& E : Voci) { E.DeclarationIndex = INDEX_NONE; }
+		URTTurnLogLibrary::SortTurnLog(Voci);
+		return Voci;
+	};
+	TestEqual(TEXT("premessa: due attivazioni nel Blast"), A.Attivazioni.Num(), 2);
+	TestEqual(TEXT("stesso stato finale"), A.Stato, Bx.Stato);
+	TestEqual(TEXT("stesse attivazioni, nello stesso ordine"), A.Attivazioni, Bx.Attivazioni);
+	TestNotEqual(TEXT("controllo positivo: gli hash di traccia sono diversi"), URTTurnLogLibrary::HashTurnLog(A.Voci), URTTurnLogLibrary::HashTurnLog(Bx.Voci));
+	TestEqual(TEXT("e coincidono portando il campo a INDEX_NONE"), URTTurnLogLibrary::HashTurnLog(SenzaOrdine(A.Voci)), URTTurnLogLibrary::HashTurnLog(SenzaOrdine(Bx.Voci)));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionCleanupVisitsAUnitByPriorityThenActionIdTest,
+	"RefactorTactics.Resolution.CleanupVisitsAUnitByPriorityThenActionId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionCleanupVisitsAUnitByPriorityThenActionIdTest::RunTest(const FString&)
+{
+	// Criterio 10, a pari priorita': `Action.CreateWater` e `Action.Ignite`, entrambe a 60, su due celle a distanza 2. In
+	// entrambi gli ordini di dichiarazione tutte le voci `Environment` dell'acqua vengono prima di quelle del fuoco.
+	auto Gioca = [this](bool bFuocoPrima, TArray<FName>& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		const int32 Acqua = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.CreateWater"));
+		const int32 Fuoco = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Ignite"));
+		if (bFuocoPrima) { DeclareMainOnCell(B.Riktor, Fuoco, FRTCellId(2, 0)); DeclareMainOnCell(B.Riktor, Acqua, FRTCellId(0, 2)); }
+		else { DeclareMainOnCell(B.Riktor, Acqua, FRTCellId(0, 2)); DeclareMainOnCell(B.Riktor, Fuoco, FRTCellId(2, 0)); }
+		if (!TestTrue(TEXT("premessa: due ambientali, legali"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		ResolveOneTurn(B.TM);
+		for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Environment && E.Phase == ERTMatchPhase::Cleanup
+				&& (E.ActionId == FName(TEXT("Action.CreateWater")) || E.ActionId == FName(TEXT("Action.Ignite"))))
+			{
+				Out.Add(E.ActionId);
+			}
+		}
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	TArray<FName> AcquaPrima, FuocoPrima;
+	if (!Gioca(false, AcquaPrima) || !Gioca(true, FuocoPrima)) { return false; }
+	auto AcquaDavanti = [](const TArray<FName>& Voci)
+	{
+		const int32 UltimaAcqua = Voci.FindLast(FName(TEXT("Action.CreateWater")));
+		const int32 PrimoFuoco = Voci.Find(FName(TEXT("Action.Ignite")));
+		return UltimaAcqua != INDEX_NONE && PrimoFuoco != INDEX_NONE && UltimaAcqua < PrimoFuoco;
+	};
+	TestTrue(TEXT("dichiarata prima l'acqua: le sue voci vengono prima"), AcquaDavanti(AcquaPrima));
+	TestTrue(TEXT("dichiarato prima il fuoco: lo stesso"), AcquaDavanti(FuocoPrima));
+	TestEqual(TEXT("e le due sequenze coincidono"), AcquaPrima, FuocoPrima);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionShooterFacesTheLastResolvedShotTest,
+	"RefactorTactics.Resolution.ShooterFacesTheLastResolvedShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionShooterFacesTheLastResolvedShotTest::RunTest(const FString&)
+{
+	// Criterio 13, [D-616] (2): ImpactShot (50) su Gadget a ovest e MortarShot (65) su una cella a est. Riktor finisce il
+	// Blast girato verso la mira del mortaio, l'ultimo colpo nell'ordine del resolver, in entrambi gli ordini.
+	auto Gioca = [this](bool bMortaioPrima, ERTHexDirection& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		if (bMortaioPrima) { DeclareMainOnCell(B.Riktor, B.Mortar, FRTCellId(2, 0)); DeclareMainOn(B.Riktor, B.Impact, B.Gadget); }
+		else { DeclareMainOn(B.Riktor, B.Impact, B.Gadget); DeclareMainOnCell(B.Riktor, B.Mortar, FRTCellId(2, 0)); }
+		ResolveOneTurn(B.TM);
+		Out = B.Riktor->Facing;
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	ERTHexDirection Uno = ERTHexDirection::E, Due = ERTHexDirection::E;
+	if (!Gioca(false, Uno) || !Gioca(true, Due)) { return false; }
+	ERTHexDirection VersoIlMortaio = ERTHexDirection::E;
+	URTHexLibrary::DirectionTowards(FRTCellId(0, 0), FRTCellId(2, 0), VersoIlMortaio);
+	ERTHexDirection VersoGadget = ERTHexDirection::E;
+	URTHexLibrary::DirectionTowards(FRTCellId(0, 0), FRTCellId(-1, 0), VersoGadget);
+	TestNotEqual(TEXT("premessa: i due colpi sono su due lati"), VersoIlMortaio, VersoGadget);
+	TestEqual(TEXT("girato verso il mortaio"), Uno, VersoIlMortaio);
+	TestEqual(TEXT("anche dichiarando prima il mortaio"), Due, VersoIlMortaio);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionTwoImpactShotsPushTwiceTest,
+	"RefactorTactics.Resolution.TwoImpactShotsPushTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionTwoImpactShotsPushTwiceTest::RunTest(const FString&)
+{
+	// Criterio 14, [D-616] (3): due ImpactShot con `Weapon.Impact` della stessa unita' sullo stesso bersaglio lo spingono di
+	// 2: le spinte dello stesso attaccante si sommano anche fra due azioni. Controllo: un solo colpo spinge di 1.
+	auto Gioca = [this](int32 Colpi, int32& Spinta)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Impact")) });
+		const FRTCellId Prima = B.Gadget->Cell;
+		for (int32 k = 0; k < Colpi; ++k) { DeclareMainOn(B.Riktor, B.Impact, B.Gadget); }
+		ResolveOneTurn(B.TM);
+		Spinta = URTHexLibrary::HexDistance(Prima, B.Gadget->Cell);
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	int32 UnColpo = -1, DueColpi = -1;
+	if (!Gioca(1, UnColpo) || !Gioca(2, DueColpi)) { return false; }
+	TestEqual(TEXT("controllo: un colpo spinge di 1"), UnColpo, 1);
+	TestEqual(TEXT("due colpi spingono di 2"), DueColpi, 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionInterruptReachesEveryBlastActionOfItsTargetTest,
+	"RefactorTactics.Resolution.InterruptReachesEveryBlastActionOfItsTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionInterruptReachesEveryBlastActionOfItsTargetTest::RunTest(const FString&)
+{
+	// Criterio 12, [D-616] (1): un Interrupt su un bersaglio con due azioni `InterruptBeforeEffect` del Blast le annulla
+	// entrambe. Su righe sintetiche, perche' nessun eroe ne porta due. Controllo: senza Interrupt le due azioni colpiscono.
+	auto Gioca = [this](bool bInterrompe, int32& Interrotte, int32& Colpi)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		const int32 A = AddSyntheticBlastRow(B.Gadget, TEXT("Test.PesanteA"), 60, 10, ERTInterruptPolicy::InterruptBeforeEffect);
+		const int32 Bx = AddSyntheticBlastRow(B.Gadget, TEXT("Test.PesanteB"), 60, 10, ERTInterruptPolicy::InterruptBeforeEffect);
+		DeclareMainOn(B.Gadget, A, B.Riktor);
+		DeclareMainOn(B.Gadget, Bx, B.Riktor);
+		if (bInterrompe)
+		{
+			const int32 Interrupt = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Interrupt"));
+			DeclareMainOn(B.Riktor, Interrupt, B.Gadget);
+		}
+		ResolveOneTurn(B.TM);
+		Interrotte = 0;
+		Colpi = 0;
+		for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+		{
+			const bool bSua = E.ActionId == FName(TEXT("Test.PesanteA")) || E.ActionId == FName(TEXT("Test.PesanteB"));
+			if (bSua && E.Category == ERTLogCategory::Fallback && E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted)) { ++Interrotte; }
+			if (bSua && E.Category == ERTLogCategory::Combat) { ++Colpi; }
+		}
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	int32 Interrotte = 0, Colpi = 0, InterrotteSenza = 0, ColpiSenza = 0;
+	if (!Gioca(true, Interrotte, Colpi) || !Gioca(false, InterrotteSenza, ColpiSenza)) { return false; }
+	TestEqual(TEXT("controllo: senza Interrupt le due azioni colpiscono"), ColpiSenza, 2);
+	TestEqual(TEXT("l'Interrupt le annulla entrambe"), Interrotte, 2);
+	TestEqual(TEXT("e nessuna colpisce"), Colpi, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
