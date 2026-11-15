@@ -63,7 +63,7 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		{
 			View.DeclaredActionNames = Intent.DeclaredActionNames;
 		}
-		else if (!Intent.RevealedActionName.IsEmpty())
+		else if (Intent.bHasRevealedAction)
 		{
 			View.ActionName = Intent.RevealedActionName;
 			View.bHasTarget = Intent.bRevealedHasTarget;
@@ -78,7 +78,17 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 
 		// Il livello di certezza (CP 11.2) si calcola da QUESTO intento e da nient'altro: `Intents` contiene
 		// anche i piani nemici, e derivarne il livello sarebbe un canale laterale — vedi `ERTIntentCertainty`.
-		View.Certainty = ClassifyPlan(Intent);
+		//
+		// 🔒 **E38 CP 38.13: per un avversario si classifica la voce che VEDE**, non il piano intero. Con Guard + ImpactShot
+		// vede la Guard, senza bersaglio: classificare l'intento intero gli direbbe «c'e' un bersaglio» attraverso il livello,
+		// e distinguerebbe il piano da una Guard sola. Trovato dalla revisione di sicurezza del commit.
+		FRTPlannedIntent Proiettato = Intent;
+		if (!bIsAlly && Intent.bHasRevealedAction)
+		{
+			Proiettato.bHasTarget = Intent.bRevealedHasTarget;
+			Proiettato.TargetCell = Intent.RevealedTargetCell;
+		}
+		View.Certainty = ClassifyPlan(Proiettato);
 
 		// Reazione, waypoint e rotazione DICHIARATA si copiano SOLO per un alleato. Non c'e' un ramo che li copia
 		// e poi li cancella: per chiunque altro restano semplicemente non valorizzati, rivelato o meno.

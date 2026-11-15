@@ -124,6 +124,13 @@ struct FRTPlannedIntent
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	FText RevealedActionName;
 
+	/**
+	 * Vero se `RevealedActionName` e il suo bersaglio sono stati composti. Un flag e non «nome non vuoto»: un'azione senza
+	 * nome mostrato ricadrebbe sulla principale, e rivelerebbe proprio la voce che la vista nemica esiste per non dire.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	bool bHasRevealedAction = false;
+
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	bool bRevealedHasTarget = false;
 

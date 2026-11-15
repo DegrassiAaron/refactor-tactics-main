@@ -418,6 +418,11 @@ contro `URTPlanValidationLibrary::ActionPointBudget` (6) **prima** di guardare g
 resolver accetta una azione per fase. §1–§3 di questa spec descrivono ancora il modello a slot e vanno riscritti con la
 consegna di E38; la precedenza dei motivi è nel docstring di `ValidatePlan`.
 
+✅ **2026-11-15 (E38 CP 38.13, [#4114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4114), [D-614](../decisions/RT_PDR_00_Decision_Log.md))**: la famiglia riceve in coda
+`RepeatedWithCooldown` — *«l'azione ha una ricarica ed è già nel piano»* — per una seconda copia di un'azione la cui riga di
+catalogo ha un cooldown, in ogni fase. Precede `OverBudget`, così la copia vietata non pesa nella somma; al lock-in svuota il piano
+come `OnCooldown` e `OverBudget`. Il vincolo di slot non vale più per le voci di Prep, la prima fase che accetta più azioni.
+
 ⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
 `InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena
 dichiarato inesistente; `OverwatchDisallowsVoluntaryDash` nomina un divieto che

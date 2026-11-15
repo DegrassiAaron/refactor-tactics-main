@@ -67,6 +67,29 @@ Le tracce **v2, v3 e v4 restano leggibili**, col campo vuoto — e il loader non
 quei byte non contenevano quell'informazione, e inventarla è il difetto che il versionamento esiste per
 evitare (`LegacyVersionWithoutBaseActionIdIsReadable`).
 
+## `DeclarationIndex`: l'ordine di dichiarazione *(formato **v14**, E38 CP 38.13, [#4114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4114))*
+
+Ogni voce che una voce del piano produce porta la **posizione di quella voce nel piano**, cioè il suo ordine di dichiarazione
+([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (2), (5)): al lock-in, nel Prep, nel Dash, nel Blast, nel Move e nel Cleanup, qualunque sia il soggetto
+della voce. Vale `INDEX_NONE` sulle voci che nessuna voce del piano produce (la scadenza di uno stato) e nelle tracce scritte prima
+della v14, che restano leggibili.
+
+- **Si mostra e non decide**: nessun resolver lo legge per ordinare o per scegliere un esito.
+- **Hash di traccia**: entra, in coda, solo quando è valorizzato. Una permutazione della dichiarazione cambia quindi l'hash di
+  traccia, e nient'altro (`Resolution.DeclarationPermutationChangesOnlyTheOrderField`); il digest di stato non lo vede.
+- **`EntryLess`**: in coda, dove decide solo fra le voci di due copie identiche (`TurnLog.DeclarationIndexBreaksTiesBetweenCopies`).
+- **Chi lo scrive**: `ARTTurnManager::AppendLogEntry`. Il produttore lo scrive esplicitamente dove lo sa (il lock-in, lo stato che un
+  colpo lascia sulla vittima); altrimenti viene dal contesto aperto dal resolver (ogni voce del Prep, ogni colpo del Blast), e se
+  manca dalla copia al lock-in del soggetto, quando il soggetto è chi ha agito e la sua copia ha l'azione della voce. Le voci
+  intestate a chi subisce (`IsSubjectTheSufferer`) non si ricavano dal soggetto. Le voci del movimento portano la voce di movimento,
+  o l'ultima posizione se il piano muoveva senza voce, come in `MakePlanFor`.
+- **Privacy**: `AuditOnly`. Accanto, `DeclaringTeamId` (`Transient`, fuori dai byte e dall'hash) porta la squadra di chi ha
+  dichiarato la voce del piano; alla registrazione `SanitizeDeclarationIndexForObserver` porta l'indice a `INDEX_NONE` nelle tracce
+  delle altre squadre, guardando chi ha dichiarato e non il soggetto (`Replay.Privacy.DeclarationIndexStaysWithItsTeam`).
+
+Il corpus golden è stato rigenerato una volta, con questa versione: ogni traccia, riportato il campo a `INDEX_NONE`, ha lo stesso
+hash del commit di partenza.
+
 ## `OriginalTargetUnitId`: i due capi di un redirect *(formato **v9**, [#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060))*
 
 Dal formato **v9** una voce che redirige un colpo porta **chi era il bersaglio prima**. Oggi la produce la

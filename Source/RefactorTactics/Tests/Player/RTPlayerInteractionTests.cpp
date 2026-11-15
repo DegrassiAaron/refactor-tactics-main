@@ -6581,8 +6581,9 @@ bool FRTUIRevealedEnemySeesOneEntryOfAListPlanTest::RunTest(const FString&)
 		FLockInBench B;
 		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
 		const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+		B.Riktor->Abilities[Guard]->DisplayName = FText::FromString(TEXT("Guardia")); // la fixture non da' un nome mostrato
 		for (const int32 Codice : Ordine) { B.Riktor->DeclarePlannedAction(Codice == 0 ? Guard : B.Impact); }
-		B.Riktor->DeclareAttackOnUnit(B.Gadget);
+		if (Ordine.Contains(1)) { B.Riktor->DeclareAttackOnUnit(B.Gadget); }
 		TArray<FRTPlannedIntent> Intenti = URTHudViewModel::BuildAuthoritativeIntents({ B.Riktor });
 		for (FRTPlannedIntent& I : Intenti) { I.bRevealed = true; }
 		const TArray<FRTIntentView> PerNemico = URTIntentPrivacyLibrary::FilterForTeam(B.Gadget->TeamId, Intenti);
@@ -6593,9 +6594,19 @@ bool FRTUIRevealedEnemySeesOneEntryOfAListPlanTest::RunTest(const FString&)
 		DestroyInteractionWorld(B.World);
 		return true;
 	};
-	FViste GuardPrima, ColpoPrima, DueGuardie;
-	if (!Componi({ 0, 1 }, GuardPrima) || !Componi({ 1, 0 }, ColpoPrima) || !Componi({ 0, 0, 1 }, DueGuardie)) { return false; }
+	FViste GuardPrima, ColpoPrima, DueGuardie, SoloGuardia;
+	if (!Componi({ 0, 1 }, GuardPrima) || !Componi({ 1, 0 }, ColpoPrima) || !Componi({ 0, 0, 1 }, DueGuardie)
+		|| !Componi({ 0 }, SoloGuardia))
+	{
+		return false;
+	}
 	TestEqual(TEXT("premessa: una vista per osservatore"), GuardPrima.Viste, 2);
+	// Il livello di certezza e' della voce che il nemico vede: non dice che dietro la Guard c'e' un colpo.
+	for (const FViste* Piano : { &GuardPrima, &ColpoPrima, &DueGuardie })
+	{
+		TestEqual(TEXT("lo stesso livello di certezza di una Guard sola"), Piano->Nemico.Certainty, SoloGuardia.Nemico.Certainty);
+		TestTrue(TEXT("e la stessa azione"), Piano->Nemico.ActionName.EqualTo(SoloGuardia.Nemico.ActionName));
+	}
 
 	for (const FViste* Altro : { &ColpoPrima, &DueGuardie })
 	{

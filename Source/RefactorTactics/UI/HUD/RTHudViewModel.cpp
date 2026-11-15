@@ -1603,6 +1603,7 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 			});
 			if (Candidate.Num() > 0)
 			{
+				Intent.bHasRevealedAction = true;
 				Intent.RevealedActionName = Candidate[0].Azione->DisplayName;
 				Intent.bRevealedHasTarget = Candidate[0].bBersaglio;
 				Intent.RevealedTargetCell = Candidate[0].Cella;
