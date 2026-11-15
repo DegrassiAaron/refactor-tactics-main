@@ -2556,6 +2556,8 @@ namespace
 		if (!TM || !Shooter || !Foe || !Interrupter) { DestroyHexBlastWorld(World); return false; }
 		URTActionData* Attacco = Shooter->Abilities[0];
 		Attacco->Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+		// L'attacco base non ha ricarica, e due zeri confrontati passerebbero sempre: una che sopravvive al turno.
+		Attacco->CooldownTurns = 3;
 		if (bBersaglioMorto) { Attacco->Def.Fallback = ERTActionFallback::AttackCell; }
 		Shooter->SetPlannedMainAction(0);
 		Shooter->DeclareAttackOnUnit(Foe);
@@ -2594,7 +2596,8 @@ bool FRTHexBlastInterruptedBehindCoverLeavesOneEntryTest::RunTest(const FString&
 	TestEqual(TEXT("controllo: senza Interrupt la copertura scrive NoLineOfSight"), SoloMuro.SenzaLinea, 1);
 	TestEqual(TEXT("interrotta: una voce Interrupted"), Interrotta.Interrotte, 1);
 	TestEqual(TEXT("e nessuna NoLineOfSight"), Interrotta.SenzaLinea, 0);
-	TestEqual(TEXT("paga quanto la sola copertura"), Interrotta.Ricarica > 0, SoloMuro.Ricarica > 0);
+	TestTrue(TEXT("controllo: il colpo fermato dalla copertura paga"), SoloMuro.Ricarica > 0);
+	TestEqual(TEXT("e quello interrotto paga uguale"), Interrotta.Ricarica, SoloMuro.Ricarica);
 	return true;
 }
 
