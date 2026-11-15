@@ -225,7 +225,11 @@ bool FRTCameraUnitFramingLowerHalfTest::RunTest(const FString&)
 		ArmDiDefault, AvantiDiDefault, InBasso.X, InBasso.Y));
 	TestTrue(TEXT("l'unita' sta davanti alla camera"), Prof > 0.0);
 	TestTrue(TEXT("centrata in orizzontale"), FMath::Abs(InBasso.X) < 0.01);
-	TestTrue(TEXT("nella meta' bassa del quadro"), InBasso.Y < 0.0);
+	// 🔴 **Con un margine, non `< 0`.** La prima stesura chiedeva `InBasso.Y < 0.0`, e la mutazione che toglie lo
+	// spostamento in avanti restava verde: l'unita' al centro misurava `-0.000`, un negativo di arrotondamento.
+	// Ora deve stare chiaramente sotto il centro, e piu' in basso del controllo senza spostamento.
+	TestTrue(TEXT("nella meta' bassa del quadro, chiaramente sotto il centro"), InBasso.Y < -0.1);
+	TestTrue(TEXT("e piu' in basso che senza spostamento"), InBasso.Y < AlCentro.Y - 0.1);
 	TestTrue(TEXT("e dentro il quadro"), InBasso.Y > -1.0);
 
 	DestroyUnitFramingWorld(World);

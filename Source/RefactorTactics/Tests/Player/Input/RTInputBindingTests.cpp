@@ -65,7 +65,7 @@ namespace
 			TEXT("IA_LockIn:Started"), TEXT("IA_Restart:Started"),
 			TEXT("IA_UndoWaypoint:Started"), TEXT("IA_UndoWaypoint:Completed"), TEXT("IA_UndoWaypoint:Canceled"),
 			TEXT("IA_CycleSelection:Started"), TEXT("IA_ToggleStrategicView:Started"), TEXT("IA_DeclarePlan:Started"),
-			TEXT("IA_Recenter:Started"), TEXT("IA_FocusSelected:Started"),
+			TEXT("IA_Recenter:Started"), TEXT("IA_FocusSelected:Started"), TEXT("IA_FrameUnit:Started"),
 			TEXT("IA_CameraModifier:Started"), TEXT("IA_CameraModifier:Completed"), TEXT("IA_CameraModifier:Canceled"),
 			TEXT("IA_LayerUp:Started"), TEXT("IA_LayerDown:Started"),
 			TEXT("IA_CyclePlaybackSpeed:Started"), TEXT("IA_PausePrepWindow:Started"), TEXT("IA_DeclareSneak:Started"),
@@ -336,6 +336,12 @@ bool FRTInputBindingCameraTest::RunTest(const FString&)
 	Fire(TEXT("IA_FocusSelected"), ETriggerEvent::Started, FInputActionValue(true));
 	TestTrue(TEXT("F inquadra l'unita' selezionata"),
 		FVector::Dist2D(B.Cam->GetCameraPivot(), URTHexLibrary::AxialToWorld(Mia->Cell, Origine, Lato, Piano)) < 1.0);
+
+	// `T` (D-618): la stessa unita', inquadrata da dietro. Che la posa sia giusta lo prova `RTCameraUnitFramingTests.cpp`;
+	// qui conta che il gestore giri e muova la vista.
+	B.Cam->SetCameraPivotForTest(Lontano);
+	Fire(TEXT("IA_FrameUnit"), ETriggerEvent::Started, FInputActionValue(true));
+	TestTrue(TEXT("T riporta la vista sull'unita' selezionata"), FVector::Dist2D(B.Cam->GetCameraPivot(), Lontano) > 1.0);
 	return true;
 }
 
