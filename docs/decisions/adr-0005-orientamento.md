@@ -109,6 +109,10 @@ gioco, ma cambia **più volte dentro il round**: ogni consumatore legge il valor
 | `FacingUsedByOverwatch` | reazione | il cono pianificato — coerente con §4c, che già lo diceva |
 | `FacingFinalAfterMove` | fase `Move` | l'ultima direzione percorsa, o la direzione finale pianificata dove il sistema la supporta |
 
+> ➕ **2026-11-15** — [D-616](RT_PDR_00_Decision_Log.md) (2): con più colpi della stessa unità nello stesso Blast, `FacingUsedByBlast` è il verso
+> dell'ultimo colpo. Che sia l'ultimo nell'ordine del resolver, fra le voci che D-020 riorienta, è una lettura dell'assistente: l'impatto di una
+> carica non gira l'unità. Le liste del Blast arrivano con CP 38.14 di E38.
+
 `FacingFinalAfterMove` **persiste nel round successivo** finché una nuova azione non lo cambia: è il valore che
 diventa `FacingStartOfRound`.
 

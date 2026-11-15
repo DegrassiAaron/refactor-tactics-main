@@ -120,8 +120,15 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 | `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | — | `Fallback.Cancel` | no |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | — | `Fallback.Cancel` | no |
 | `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | — | `Fallback.Cancel` | sì |
-| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | — | `Fallback.Cancel` | no |
+| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 ⏳ | — | `Fallback.Cancel` | no |
 | `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — | — |
+
+> ⏳ **Il cooldown di `Action.Overwatch` diventa 1** ([D-615](../decisions/RT_PDR_00_Decision_Log.md) (4), 2026-11-14: «overwatch ha
+> cooldown»). Con [D-614](../decisions/RT_PDR_00_Decision_Log.md) l'Overwatch entra al più una volta nel piano, e resta disponibile in ogni
+> turno: il cooldown si imposta quando si arma, nel Prep (`RTTurnManager.cpp:4937`), e si sconta nel Cleanup dello stesso turno (`:2108`).
+> Il valore 1 entra con E38, in CP 38.13 ([proposta](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md) §6); fino ad allora vale lo `0` della riga, che è
+> quello del codice («senza cooldown, come da catalogo §1», `RTCatalogLibrary.cpp:1381-1385`) e del test che lo fissa
+> (`RTOverwatchTriggerTests.cpp:755`).
 
 > 🔊 **`Rumore` è l'intensità dell'evento sonoro sulla scala `0-10` di
 > [D-041](../decisions/RT_PDR_00_Decision_Log.md)**, la stessa su cui vive la `Soglia d'udito` degli eroi
@@ -511,6 +518,20 @@ per le altre: è il punto di valutazione a essere diverso, e le due cose non van
 >
 > 🔑 **Esistono come azioni core, e non solo come moduli di equipaggiamento**, perché è dall'azione core che
 > un modulo eredita ciò che lo rende una reazione: fase, priorità e soprattutto il **trigger**.
+>
+> ⏳ **I sette moduli di reazione prendono cooldown 1** ([D-615](../decisions/RT_PDR_00_Decision_Log.md) (7), 2026-11-14):
+> `Reaction.CounterShot`, `Reaction.ReactiveShield`, `Reaction.AllyIntercept`, `Reaction.EmergencyDash`, `Reaction.Anchor`,
+> `Reaction.HazardEscape` e `Reaction.Cleanse` entrano al più una volta nel piano per [D-614](../decisions/RT_PDR_00_Decision_Log.md), e ogni
+> turno sono di nuovo disponibili: il cooldown si imposta quando il modulo scatta (`RTTurnManager.cpp:5949`; per `Reaction.AllyIntercept`,
+> che ha un pass suo, `RTTurnManager_Blast.cpp:2287`) e si sconta nel Cleanup dello stesso turno (`RTTurnManager.cpp:2108`). Un valore più
+> alto entra con la skill che lo chiede. Il modulo **non** eredita la ricarica dall'azione core: la fissa lui e la impone all'azione che
+> concede, al posto del `CD` di questa tabella (`RTCatalogLibrary.cpp:960`, `:967`, `:1005`). Oggi vale 0
+> perché «Una reazione non ha ricarica propria nel catalogo §3» (`RTCatalogLibrary.cpp:569-571`), e quel «catalogo §3» è, nel commento
+> accanto, il catalogo equipaggiamento (`:577`), dove ogni modulo «si attiva al massimo una volta per turno»
+> ([`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) §3). Il valore 1 entra con E38, in CP 38.15
+> ([proposta](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md) §8); fino ad allora valgono lo 0 e il test che lo fissa
+> (`RTEquipmentTests.cpp:279`). Quante reazioni scattano in un turno resta `TR-29`, una domanda della traduzione del kit di Riktor
+> (PR [#4108](https://github.com/DegrassiAaron/refactor-tactics-main/pull/4108)).
 
 **Anchor** — trigger: l'unità **sta per essere spostata** da una spinta o da una trazione di questo Blast
 (`AboutToBeDisplaced`). È la reazione core dello spostamento: chi la dichiara non viene spostato.
