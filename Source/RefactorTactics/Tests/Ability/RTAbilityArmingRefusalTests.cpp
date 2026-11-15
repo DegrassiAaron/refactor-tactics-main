@@ -256,8 +256,9 @@ bool FRTEmptyKitPositionIsNotReportedAsArmedTest::RunTest(const FString&)
  * 🔑 **I canali sono due, e il test li esercita entrambi** — il tasto (`SelectAbilityForCurrentForTest`, origine
  * `Hotkey`) e la porta dello slot (`ArmKitAbility`, origine `Dock`). Le generiche confluiscono nella stessa
  * funzione per indice (`PressGenericHotkeyForTest` le raggiunge), ma nessuna generica del catalogo ha una ricarica
- * che prima non fosse gia' rifiutata: `Guard`, `Overwatch`, `Wait` e `Interact` hanno ricarica 0, e `Brace` e' su
- * se' stesso. Un caso generico qui sarebbe verde anche con la guardia vecchia.
+ * che prima non fosse gia' rifiutata: `Guard`, `Wait` e `Interact` hanno ricarica 0, e `Brace` e `Overwatch` (ricarica
+ * 1 da E38 CP 38.13, [D-615] (4)) sono su se' stessi, quindi la guardia di prima li rifiutava gia'. Un caso generico qui
+ * sarebbe verde anche con la guardia vecchia.
  *
  * ⚠️ **Il banco e' l'azione STESSA, prima pronta e poi in ricarica.** Il controllo positivo arma `Scarica lineare`
  * pronta da tutte e due le porte: cosi' un verde sul rifiuto non puo' venire da un'azione che non si arma mai (una

@@ -98,6 +98,24 @@ void URTActionQueueLibrary::SortActionInstances(TArray<FRTActionInstance>& Insta
 	Instances.Sort([](const FRTActionInstance& A, const FRTActionInstance& B) { return InstanceLess(A, B); });
 }
 
+void URTActionQueueLibrary::NumberInstancesByContent(TArray<FRTActionInstance>& OfOneUnit, int32& Counter)
+{
+	for (FRTActionInstance& Instance : OfOneUnit)
+	{
+		Instance.EventSequence = 0; // a pari `EventSequence` decidono le chiavi che la seguono, cioe' il contenuto
+	}
+	OfOneUnit.Sort([](const FRTActionInstance& A, const FRTActionInstance& B)
+	{
+		if (InstanceLess(A, B)) { return true; }
+		if (InstanceLess(B, A)) { return false; }
+		return A.DeclarationIndex < B.DeclarationIndex; // copie uguali anche nel contenuto: non osservabile
+	});
+	for (FRTActionInstance& Instance : OfOneUnit)
+	{
+		Instance.EventSequence = Counter++;
+	}
+}
+
 TArray<FRTActionInstance> URTActionQueueLibrary::InstancesForPhase(const TArray<FRTActionInstance>& Instances,
 	ERTMatchPhase Phase)
 {

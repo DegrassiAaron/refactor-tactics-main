@@ -97,5 +97,17 @@ struct FRTActionInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	bool bInterrupted = false;
 
+	/**
+	 * La posizione nel piano della voce che ha prodotto l'istanza, cioe' il suo ordine di dichiarazione (E38 CP 38.13,
+	 * #4114). `INDEX_NONE` per le istanze che nessuna voce del piano produce. Serve a consumare la voce giusta e a
+	 * scriverla nel TurnLog.
+	 *
+	 * ⛔ **`InstanceLess` non lo legge** ([D-615] (5): l'ordine di dichiarazione non decide mai la risoluzione). Lo legge
+	 * solo `NumberInstancesByContent`, come ultimo spareggio fra due copie uguali anche nel contenuto, dove l'ordine non
+	 * e' osservabile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
+	int32 DeclarationIndex = INDEX_NONE;
+
 	FRTActionInstance() = default;
 };

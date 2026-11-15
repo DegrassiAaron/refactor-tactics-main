@@ -120,15 +120,14 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 | `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | — | `Fallback.Cancel` | no |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | — | `Fallback.Cancel` | no |
 | `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | — | `Fallback.Cancel` | sì |
-| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | — | `Fallback.Cancel` | no |
+| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 1 | — | `Fallback.Cancel` | no |
 | `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — | — |
 
-> ⏳ **Il cooldown di `Action.Overwatch` diventa 1** ([D-615](../decisions/RT_PDR_00_Decision_Log.md) (4), 2026-11-14: «overwatch ha
-> cooldown»). Con [D-614](../decisions/RT_PDR_00_Decision_Log.md) l'Overwatch entra al più una volta nel piano, e resta disponibile in ogni
-> turno: il cooldown si imposta quando si arma, nel Prep (`RTTurnManager.cpp:4937`), e si sconta nel Cleanup dello stesso turno (`:2108`).
-> Il valore 1 entra con E38, in CP 38.13 ([proposta](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md) §6); fino ad allora vale lo `0` della riga, che è
-> quello del codice («senza cooldown, come da catalogo §1», `RTCatalogLibrary.cpp:1381-1385`) e del test che lo fissa
-> (`RTOverwatchTriggerTests.cpp:755`).
+> ✅ **Il cooldown di `Action.Overwatch` è 1** ([D-615](../decisions/RT_PDR_00_Decision_Log.md) (4), 2026-11-14: «overwatch ha
+> cooldown»), dal 2026-11-15 con E38 CP 38.13 ([#4114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4114)). Con
+> [D-614](../decisions/RT_PDR_00_Decision_Log.md) l'Overwatch entra al più una volta nel piano, e resta disponibile in ogni turno: il
+> cooldown si imposta quando si arma, nel Prep (`ConsumeAbility`), e si sconta nel Cleanup dello stesso turno (`TickCooldowns`). Lo
+> fissano `Overwatch.ActionIsInCoreCatalog` e `Overwatch.CooldownOneReturnsEveryTurn`; fino a CP 38.13 valeva 0.
 
 > 🔊 **`Rumore` è l'intensità dell'evento sonoro sulla scala `0-10` di
 > [D-041](../decisions/RT_PDR_00_Decision_Log.md)**, la stessa su cui vive la `Soglia d'udito` degli eroi

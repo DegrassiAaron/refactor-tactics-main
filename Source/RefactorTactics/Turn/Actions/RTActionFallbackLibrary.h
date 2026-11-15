@@ -332,7 +332,20 @@ enum class ERTActionInvalidReason : uint8
 	 *
 	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
 	 */
-	OffMap
+	OffMap,
+
+	/**
+	 * Una seconda copia, nello stesso piano, di un'azione con ricarica ([D-614]; E38 CP 38.13, #4114): due voci con lo
+	 * stesso `ActionId` quando la riga di catalogo ha un cooldown. La regola vale per ogni voce del piano, di qualunque
+	 * fase ([D-615] (1)), e legge il cooldown della riga di catalogo, non quello che l'unita' porta dopo la variante
+	 * d'arma ([D-615] (6), `FRTPlannedAction::CatalogCooldownTurns`). Al lock-in svuota il piano, come `OnCooldown`.
+	 *
+	 * ⛔ **Non e' `SlotOccupied`**: due copie con ricarica sono vietate anche dove lo slot non c'e' piu' (il Prep), e
+	 * il rimedio e' togliere la copia, non cambiare classe d'azione. Il motivo non ha un detentore.
+	 *
+	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
+	 */
+	RepeatedWithCooldown
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

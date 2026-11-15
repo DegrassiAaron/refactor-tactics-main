@@ -134,6 +134,19 @@ public:
 	static void SortActionInstances(TArray<FRTActionInstance>& Instances);
 
 	/**
+	 * **Numera per contenuto le istanze di UNA unita'** (E38 CP 38.13, #4114): le ordina con `InstanceLess` a
+	 * `EventSequence` pari, cosi' fra due copie della stessa azione decidono le chiavi che lo seguono (`TargetUnitId`,
+	 * `TargetCell`, `bInterrupted`), e assegna `EventSequence` da `Counter` in quell'ordine. L'ultimo spareggio, fra copie
+	 * uguali anche nel contenuto, e' `DeclarationIndex`: li' l'ordine non e' osservabile, e serve solo a rendere la
+	 * numerazione totale.
+	 *
+	 * 🔑 **Perche' cosi'** ([D-615] (5); la sua lettura per le copie): dove le chiavi di gioco decidono, la dichiarazione
+	 * non entra; fra due copie `EventSequence` dice cio' che direbbe il contenuto, e la precedenza di ADR-0003 §2, pinnata
+	 * da `Actions.KeyPrecedenceIsPinned`, non cambia. ⛔ Il chiamante passa le istanze di una sola unita'.
+	 */
+	static void NumberInstancesByContent(TArray<FRTActionInstance>& OfOneUnit, int32& Counter);
+
+	/**
 	 * Le sole istanze che risolvono nella macro-fase indicata, nell'ordine di risoluzione.
 	 * Il chiamante lavora una fase per volta senza rifiltrare a mano (e senza sbagliare la rimappatura).
 	 */

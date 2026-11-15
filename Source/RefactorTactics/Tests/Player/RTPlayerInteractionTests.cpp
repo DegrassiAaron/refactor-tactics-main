@@ -5875,6 +5875,15 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	TestEqual(TEXT("in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Reaction), 3);
 	TestFalse(TEXT("e una voce vuota non entra"), B.Riktor->AddPlanEntry(FRTPlanEntry()));
 
+	// E38 CP 38.13: la classe Prep e' aperta, e una sua voce entra anche accanto a un'altra.
+	FRTPlanEntry Prep;
+	Prep.Class = ERTPlanEntryClass::Prep;
+	Prep.AbilityIndex = B.Impact;
+	TestTrue(TEXT("una voce Prep entra"), B.Riktor->AddPlanEntry(Prep));
+	TestTrue(TEXT("e una seconda pure"), B.Riktor->AddPlanEntry(Prep));
+	B.Riktor->ClearPlannedPrepEntries();
+	TestEqual(TEXT("tolte le voci Prep, le altre restano"), P.GetEntries().Num(), 4);
+
 	// Scatto + Move stanno in due classi e si scrivono come oggi: il validatore li registra SlotOccupied.
 	const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Riktor),
 		URTPlanValidationLibrary::MakePlanFor(B.Riktor));
@@ -6049,6 +6058,323 @@ bool FRTPlanLockedPlanOfARefusedPlanIsEmptyTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: il piano legale lascia la principale nella copia"), C.Riktor->GetLockedPlan().Plan.PlannedAbilityIndex(), C.Impact);
 	DestroyInteractionWorld(B.World);
 	DestroyInteractionWorld(C.World);
+	return true;
+}
+
+// ── E38 CP 38.13 (#4114): la regola della copia legge la riga, e l'Overwatch a ricarica 1 ─────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCopyRuleReadsTheCatalogCooldownTest,
+	"RefactorTactics.Plan.CopyRuleReadsTheCatalogCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanCopyRuleReadsTheCatalogCooldownTest::RunTest(const FString&)
+{
+	// Criterio 3, [D-615] (6). Prima parte: con `Weapon.Overcharge` la voce dell'attacco base porta il cooldown della
+	// riga, mentre il suo `Def` porta la riga piu' i turni della variante.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 DellaRiga = B.Riktor->GetAbility(0)->Def.CooldownTurns;
+	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
+	B.Riktor->SetPlannedMainAction(0);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(B.Riktor);
+	if (TestEqual(TEXT("una voce, l'attacco base"), Piano.Num(), 1))
+	{
+		TestTrue(TEXT("premessa: la variante allunga la ricarica del Def"), Piano[0].Def.CooldownTurns > DellaRiga);
+		TestEqual(TEXT("la voce porta il cooldown della riga"), Piano[0].CatalogCooldownTurns, DellaRiga);
+	}
+	// Una seconda variante non registra un cooldown gia' cambiato.
+	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
+	TestEqual(TEXT("la riga resta quella di prima della prima variante"),
+		URTPlanValidationLibrary::MakePlanFor(B.Riktor)[0].CatalogCooldownTurns, DellaRiga);
+	DestroyInteractionWorld(B.World);
+
+	// Seconda parte, su voci sintetiche, in ogni fase: decide il cooldown della riga, non quello del `Def`.
+	auto Coppia = [](ERTResolutionPhase Fase, ERTActionSlot Slot, int32 DellaRigaSint, int32 DelDef)
+	{
+		TArray<FRTPlannedAction> Plan;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			FRTPlannedAction E;
+			E.Def.ActionId = TEXT("Test.Copia");
+			E.Def.ResolutionPhase = Fase;
+			E.Def.Slot = Slot;
+			E.Def.ActionPointCost = 1;
+			E.Def.CooldownTurns = DelDef;
+			E.CatalogCooldownTurns = DellaRigaSint;
+			E.DeclarationIndex = I;
+			Plan.Add(E);
+		}
+		return URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Plan);
+	};
+	TestTrue(TEXT("Prep, riga 0 e Def 2: legale"), Coppia(ERTResolutionPhase::Preparation, ERTActionSlot::Main, 0, 2).bLegal);
+	TestEqual(TEXT("Blast, riga 0 e Def 2: SlotOccupied fino a CP 38.14"),
+		Coppia(ERTResolutionPhase::Attack, ERTActionSlot::Main, 0, 2).Reason, ERTActionInvalidReason::SlotOccupied);
+	const struct { ERTResolutionPhase Fase; ERTActionSlot Slot; const TCHAR* Nome; } Fasi[] = {
+		{ ERTResolutionPhase::Preparation, ERTActionSlot::Main, TEXT("Prep") },
+		{ ERTResolutionPhase::Attack, ERTActionSlot::Main, TEXT("Blast") },
+		{ ERTResolutionPhase::FastMovement, ERTActionSlot::Movement, TEXT("Dash") },
+		{ ERTResolutionPhase::Attack, ERTActionSlot::Reaction, TEXT("reazione") },
+	};
+	for (const auto& F : Fasi)
+	{
+		TestEqual(*FString::Printf(TEXT("%s, riga 2 e Def 0: RepeatedWithCooldown"), F.Nome),
+			Coppia(F.Fase, F.Slot, 2, 0).Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchCooldownOneReturnsEveryTurnTest,
+	"RefactorTactics.Overwatch.CooldownOneReturnsEveryTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchCooldownOneReturnsEveryTurnTest::RunTest(const FString&)
+{
+	// Criterio 14, [D-615] (4): l'Overwatch ha ricarica 1 e torna ogni turno, perche' il cooldown impostato all'uso
+	// si sconta nel Cleanup dello stesso turno.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Overwatch = LockInAbilityIndex(B.Riktor, TEXT("Action.Overwatch"));
+	if (!TestNotEqual(TEXT("premessa: Riktor ha l'Overwatch"), Overwatch, (int32)INDEX_NONE)) { DestroyInteractionWorld(B.World); return false; }
+	TestEqual(TEXT("premessa: la copia dell'unita' porta la ricarica 1"), B.Riktor->GetAbility(Overwatch)->CooldownTurns, 1);
+
+	B.Riktor->SetPlannedMainAction(Overwatch);
+	ResolveOneTurn(B.TM);
+	TestEqual(TEXT("dopo il Cleanup del turno 1 la ricarica vale 0"), B.Riktor->GetAbilityCooldown(Overwatch), 0);
+	B.Riktor->SetPlannedMainAction(Overwatch);
+	TestTrue(TEXT("al turno 2 si riarma senza rifiuto"), LockInVerdictOf(B.Riktor).bLegal);
+
+	// Controllo positivo: una riga a ricarica 2, usata al turno 1, al turno 2 e' ancora in ricarica.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(B.World); DestroyInteractionWorld(C.World); return false; }
+	TestEqual(TEXT("premessa del controllo: Ram ha ricarica 2"), C.Riktor->GetAbility(C.Ram)->CooldownTurns, 2);
+	C.Riktor->SetPlannedDash(C.Ram, FRTCellId(2, 0));
+	ResolveOneTurn(C.TM);
+	TestTrue(TEXT("controllo: Ram e' ancora in ricarica"), C.Riktor->GetAbilityCooldown(C.Ram) > 0);
+	C.Riktor->SetPlannedDash(C.Ram, FRTCellId(2, 0));
+	TestEqual(TEXT("controllo: al turno 2 Ram e' OnCooldown"), LockInVerdictOf(C.Riktor).Reason, ERTActionInvalidReason::OnCooldown);
+	DestroyInteractionWorld(B.World);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
+// ── E38 CP 38.13 (#4114): il Prep risolve piu' azioni della stessa unita' ─────────────────────────────────────────────
+namespace
+{
+	/** Una riga di Prep sintetica, a priorita' 40, che da' uno scudo a chi la usa: due righe cosi' stanno nello stesso sotto-passo. */
+	int32 AddSyntheticPrepRow(ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def.ActionId = FName(ActionId);
+		Action->Def.ResolutionPhase = ERTResolutionPhase::Preparation;
+		Action->Def.Priority = 40;
+		Action->Def.Slot = ERTActionSlot::Main;
+		Action->Def.ActionPointCost = 1;
+		Action->Def.bSelfTarget = true;
+		Action->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Shield, 5) };
+		Action->bSelfTarget = true;
+		Action->Power = 0;
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+
+	/** Gli `ActionId` delle attivazioni di un'unita' in una fase, nell'ordine della timeline. */
+	TArray<FName> ActivationsOf(const ARTTurnManager* TM, const ARTUnit* Unit, ERTMatchPhase Phase)
+	{
+		TArray<FName> Out;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == Phase && Ev.SourceStableUnitId == Unit->StableUnitId)
+			{
+				Out.Add(Ev.ActionId);
+			}
+		}
+		return Out;
+	}
+
+	int32 CountCombatOf(const TArray<FRTTurnLogEntry>& Log, FName ActionId)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Log)
+		{
+			if (E.Category == ERTLogCategory::Combat && E.ActionId == ActionId) { ++N; }
+		}
+		return N;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionPrepIgnoresTheDeclaredSequenceTest,
+	"RefactorTactics.Resolution.PrepIgnoresTheDeclaredSequence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionPrepIgnoresTheDeclaredSequenceTest::RunTest(const FString&)
+{
+	// Criterio 4: due azioni di Prep della stessa unita' alla stessa priorita' si attivano in ordine di `ActionId` in
+	// entrambi gli ordini di dichiarazione; un'armata e un'istanza, nell'ordine dei sotto-passi, l'armata prima.
+	auto Gioca = [this](bool bRovescio, bool bArmata, TArray<FName>& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		int32 Prima = INDEX_NONE;
+		int32 Seconda = INDEX_NONE;
+		if (bArmata)
+		{
+			Prima = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Overwatch")); // 45, si arma
+			Seconda = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));   // 40, un'istanza
+		}
+		else
+		{
+			Prima = AddSyntheticPrepRow(B.Riktor, TEXT("Test.PrepA"));
+			Seconda = AddSyntheticPrepRow(B.Riktor, TEXT("Test.PrepB"));
+		}
+		const bool bA = B.Riktor->DeclarePlannedAction(bRovescio ? Seconda : Prima);
+		const bool bB = B.Riktor->DeclarePlannedAction(bRovescio ? Prima : Seconda);
+		if (!TestTrue(TEXT("premessa: le due voci si scrivono"), bA && bB)
+			|| !TestTrue(TEXT("premessa: il piano e' legale"), LockInVerdictOf(B.Riktor).bLegal))
+		{
+			DestroyInteractionWorld(B.World);
+			return false;
+		}
+		ResolveOneTurn(B.TM);
+		Out = ActivationsOf(B.TM, B.Riktor, ERTMatchPhase::Prep);
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	TArray<FName> Dritto, Rovescio, ArmataDritto, ArmataRovescio;
+	if (!Gioca(false, false, Dritto) || !Gioca(true, false, Rovescio) || !Gioca(false, true, ArmataDritto) || !Gioca(true, true, ArmataRovescio))
+	{
+		return false;
+	}
+	const TArray<FName> PerActionId = { FName(TEXT("Test.PrepA")), FName(TEXT("Test.PrepB")) };
+	TestEqual(TEXT("a pari priorita': per ActionId"), Dritto, PerActionId);
+	TestEqual(TEXT("e nell'altro ordine di dichiarazione lo stesso"), Rovescio, PerActionId);
+	const TArray<FName> PerSottoPasso = { FName(TEXT("Action.Overwatch")), FName(TEXT("Action.Guard")) };
+	TestEqual(TEXT("l'armata prima dell'istanza"), ArmataDritto, PerSottoPasso);
+	TestEqual(TEXT("in entrambi gli ordini di dichiarazione"), ArmataRovescio, PerSottoPasso);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionPrepConsumesOnlyTheActivatedEntryTest,
+	"RefactorTactics.Resolution.PrepConsumesOnlyTheActivatedEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionPrepConsumesOnlyTheActivatedEntryTest::RunTest(const FString&)
+{
+	// Criterio 12: con Guard + ImpactShot il Prep consuma la Guard e lascia il bersaglio di ImpactShot, che colpisce nel
+	// Blast, in entrambi gli ordini di dichiarazione.
+	for (const bool bGuardPrima : { true, false })
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+		if (bGuardPrima)
+		{
+			B.Riktor->DeclarePlannedAction(Guard);
+			B.Riktor->DeclarePlannedAction(B.Impact);
+		}
+		else
+		{
+			B.Riktor->DeclarePlannedAction(B.Impact);
+			B.Riktor->DeclarePlannedAction(Guard);
+		}
+		B.Riktor->DeclareAttackOnUnit(B.Gadget);
+		const FRTUnitPlan& P = B.Riktor->GetPlan();
+		const TCHAR* Ordine = bGuardPrima ? TEXT("Guard, ImpactShot") : TEXT("ImpactShot, Guard");
+		TestEqual(*FString::Printf(TEXT("%s: la principale e' ImpactShot"), Ordine), P.PlannedAbilityIndex(), B.Impact);
+		TestEqual(*FString::Printf(TEXT("%s: la Guard e' una voce Prep al suo ordine"), Ordine),
+			P.DeclarationIndexOf(ERTPlanEntryClass::Prep), bGuardPrima ? 0 : 1);
+		TestTrue(*FString::Printf(TEXT("%s: premessa, il piano e' legale"), Ordine), LockInVerdictOf(B.Riktor).bLegal);
+
+		ResolveOneTurn(B.TM);
+		TestEqual(*FString::Printf(TEXT("%s: la Guard si attiva nel Prep"), Ordine),
+			ActivationsOf(B.TM, B.Riktor, ERTMatchPhase::Prep), TArray<FName>{ FName(TEXT("Action.Guard")) });
+		TestEqual(*FString::Printf(TEXT("%s: ImpactShot colpisce nel Blast"), Ordine),
+			CountCombatOf(B.TM->GetTurnLog(), FName(TEXT("Hero.Riktor.ImpactShot"))), 1);
+		TestEqual(*FString::Printf(TEXT("%s: e nessuna voce Prep resta nel piano"), Ordine),
+			B.Riktor->GetPlan().DeclarationIndexOf(ERTPlanEntryClass::Prep), (int32)INDEX_NONE);
+		DestroyInteractionWorld(B.World);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanLockInEmptiesAForbiddenCopyInAClosedPhaseTest,
+	"RefactorTactics.Plan.LockInEmptiesAForbiddenCopyInAClosedPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanLockInEmptiesAForbiddenCopyInAClosedPhaseTest::RunTest(const FString&)
+{
+	// Criterio 17: due MortarShot su un bersaglio in portata, scritte dall'accesso dei test perche' nessun produttore le
+	// scrive, al lock-in svuotano il piano col motivo nuovo, e nessun colpo parte.
+	// Il bersaglio a 3 celle: il mortaio non spara sotto 2 (`MinRangeCells`), e il Gadget del banco e' a 1. Si mira la
+	// CELLA, come fa un'arma d'area: a 3 celle il bersaglio non e' noto alla squadra, e un colpo su un'unita' ignota esce
+	// `TargetUnknown`.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	ARTUnit* Lontano = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
+	if (!TestNotNull(TEXT("il bersaglio a 3 celle"), Lontano)) { DestroyInteractionWorld(B.World); return false; }
+	FRTPlanEntry Mortaio;
+	Mortaio.Class = ERTPlanEntryClass::Main;
+	Mortaio.AbilityIndex = B.Mortar;
+	Mortaio.AttackCell = Lontano->Cell;
+	Mortaio.bAttackTargetsCell = true;
+	FRTUnitPlanTestAccess::AppendRawEntry(*B.Riktor, Mortaio);
+	FRTUnitPlanTestAccess::AppendRawEntry(*B.Riktor, Mortaio);
+	TestEqual(TEXT("premessa: il validatore vede due copie"), LockInVerdictOf(B.Riktor).Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+	ResolveOneTurn(B.TM);
+	const TArray<FRTTurnLogEntry>& Log = B.TM->GetTurnLog();
+	int32 Copie = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.UnitId == B.Riktor->StableUnitId && E.Category == ERTLogCategory::Fallback
+			&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::RepeatedWithCooldown))
+		{
+			++Copie;
+		}
+	}
+	TestEqual(TEXT("due voci Fallback/Cancelled col motivo RepeatedWithCooldown"), Copie, 2);
+	TestEqual(TEXT("nessun colpo di mortaio"), CountCombatOf(Log, FName(TEXT("Hero.Riktor.MortarShot"))), 0);
+	TestTrue(TEXT("e il piano e' vuoto"), B.Riktor->GetPlan().GetEntries().IsEmpty());
+	DestroyInteractionWorld(B.World);
+
+	// Controllo positivo: lo stesso mortaio, una volta sola, colpisce.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(C.World); return false; }
+	ARTUnit* LontanoC = SpawnInteractionUnit(C.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
+	if (!TestNotNull(TEXT("il bersaglio a 3 celle, nel controllo"), LontanoC)) { DestroyInteractionWorld(C.World); return false; }
+	C.Riktor->SetPlannedMainAction(C.Mortar);
+	C.Riktor->DeclareAttackOnCell(LontanoC->Cell);
+	ResolveOneTurn(C.TM);
+	TestTrue(TEXT("controllo: un mortaio solo parte"),
+		CountCombatOf(C.TM->GetTurnLog(), FName(TEXT("Hero.Riktor.MortarShot"))) > 0);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanTheListGestureAddsPrepActionsTest,
+	"RefactorTactics.Plan.TheListGestureAddsPrepActions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanTheListGestureAddsPrepActionsTest::RunTest(const FString&)
+{
+	// Criterio 18: il gesto della lista aggiunge le azioni di Prep, e una seconda voce di una classe chiusa non si scrive.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+	const int32 Brace = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Brace"));
+	const FRTUnitPlan& P = B.Riktor->GetPlan();
+	TestTrue(TEXT("la prima azione di Prep va nella principale"), B.Riktor->DeclarePlannedAction(Guard));
+	TestEqual(TEXT("e' la principale"), P.PlannedAbilityIndex(), Guard);
+	TestTrue(TEXT("la seconda si aggiunge"), B.Riktor->DeclarePlannedAction(Brace));
+	TestTrue(TEXT("una principale del Blast fa posto"), B.Riktor->DeclarePlannedAction(B.Impact));
+	if (!TestEqual(TEXT("tre voci"), P.GetEntries().Num(), 3)) { DestroyInteractionWorld(B.World); return false; }
+	TestEqual(TEXT("la Guard resta al suo ordine, fra le voci Prep"), P.GetEntries()[0].Class, ERTPlanEntryClass::Prep);
+	TestEqual(TEXT("la Guard resta la Guard"), P.GetEntries()[0].AbilityIndex, Guard);
+	TestEqual(TEXT("il Brace e' una voce Prep"), P.GetEntries()[1].Class, ERTPlanEntryClass::Prep);
+	TestEqual(TEXT("ImpactShot e' la principale, in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Main), 2);
+	TestEqual(TEXT("e la principale e' ImpactShot"), P.PlannedAbilityIndex(), B.Impact);
+
+	const TArray<FRTPlanEntry> Prima = P.GetEntries();
+	TestFalse(TEXT("una seconda principale fuori dal Prep si rifiuta"), B.Riktor->DeclarePlannedAction(B.Mortar));
+	TestFalse(TEXT("e cosi' una seconda ImpactShot"), B.Riktor->DeclarePlannedAction(B.Impact));
+	TestEqual(TEXT("e il piano resta com'era"), P.GetEntries().Num(), Prima.Num());
+	TestEqual(TEXT("con la stessa principale"), P.PlannedAbilityIndex(), B.Impact);
+	TestTrue(TEXT("una copia di Prep senza ricarica si aggiunge"), B.Riktor->DeclarePlannedAction(Guard));
+	TestFalse(TEXT("un indice fuori dal kit si rifiuta"), B.Riktor->DeclarePlannedAction(9999));
+	DestroyInteractionWorld(B.World);
 	return true;
 }
 

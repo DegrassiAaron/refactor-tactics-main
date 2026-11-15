@@ -46,6 +46,17 @@ struct FRTPlannedAction
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 DeclarationIndex = INDEX_NONE;
+
+	/**
+	 * Il cooldown della RIGA DI CATALOGO dell'azione, prima della variante d'arma ([D-615] (6); E38 CP 38.13): e' cio'
+	 * che legge la regola della copia ([D-614]). `MakePlanFor` lo prende da `URTActionData::CooldownTurnsBeforeVariant`
+	 * quando una variante e' applicata, e da `Def.CooldownTurns` altrimenti; per un'azione concessa da un gadget e' la
+	 * riga del gadget. 0 = ripetibile finche' il budget lo consente (anche nelle voci sintetiche dei test).
+	 *
+	 * ⛔ **Non e' `Def.CooldownTurns`**, che dopo `Weapon.Overcharge` porta la riga piu' i turni della variante.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
+	int32 CatalogCooldownTurns = 0;
 };
 
 /** Verdetto della validazione: legale, oppure illegale con il motivo e l'azione che lo ha causato. */
@@ -113,10 +124,17 @@ public:
 	 *
 	 * Precedenza dei motivi, deterministica e indipendente dall'ordine in cui il giocatore compone:
 	 *   1. `OnCooldown` — proprieta' INTRINSECA di una voce sola;
-	 *   2. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera il budget dell'unita');
+	 *   2. `RepeatedWithCooldown` — la regola della copia ([D-614]; E38 CP 38.13): due voci con lo stesso `ActionId`,
+	 *      in qualunque fase ([D-615] (1)), quando la riga di catalogo ha un cooldown (`CatalogCooldownTurns`, [D-615]
+	 *      (6)). Precede il budget perche' la copia vietata non deve pesare nella somma, e l'avviso dice la causa vera;
+	 *      nomina la prima voce, nell'ordine di dichiarazione, che ripete l'azione di una dichiarata prima. Non ha un
+	 *      detentore;
+	 *   3. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera il budget dell'unita');
 	 *      nomina la prima voce, nell'ORDINE DI DICHIARAZIONE, che fa sforare la somma (E38 CP 38.12): le voci dichiarate
 	 *      prima di lei stanno tutte nel budget. E' resa, non regola: la legalita' e' la somma intera;
-	 *   3. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima.
+	 *   4. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima. ➕ **Non vale per le voci di
+	 *      macro-fase Prep** (E38 CP 38.13): il Prep e' la prima fase che accetta piu' azioni della stessa unita'
+	 *      ([D-584] (1)). Le altre fasi restano sotto il vincolo finche' il loro checkpoint (CP 38.14–38.16) non le apre.
 	 *
 	 * ⏳ **Il budget precede lo slot ed e' voluto** (E38 CP 38.6, #4012): ADR-0011 sostituira' gli slot con il
 	 * solo budget, quindi il motivo che sopravvivera' va letto per primo. Finche' il resolver accetta una azione
@@ -162,6 +180,13 @@ public:
 	/** Quanti slot occupa un'azione: 0 per `None`, 2 per `MovementAndMain`, 1 per le altre. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static int32 SlotWidth(ERTActionSlot Slot);
+
+	/**
+	 * Vero se un piano con questo motivo si SVUOTA al lock-in e il Ready si rifiuta ([D-615] (1)): ricarica, copia
+	 * vietata ([D-614], E38 CP 38.13) e budget. `SlotOccupied` resta registrato e non bloccato fino a CP 38.16. E' il
+	 * punto unico della domanda: la leggono il lock-in e il Ready, che devono dare la stessa risposta.
+	 */
+	static bool EmptiesPlanAtLockIn(ERTActionInvalidReason Reason);
 
 	/**
 	 * Compone il piano di un'unita' leggendo i campi `Planned*` che giocatore e bot scrivono sull'Actor.

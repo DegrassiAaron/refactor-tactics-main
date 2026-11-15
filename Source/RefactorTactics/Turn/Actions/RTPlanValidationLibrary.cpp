@@ -44,6 +44,13 @@ int32 URTPlanValidationLibrary::ActionPointsSpent(const TArray<FRTPlannedAction>
 	return Spent;
 }
 
+bool URTPlanValidationLibrary::EmptiesPlanAtLockIn(ERTActionInvalidReason Reason)
+{
+	return Reason == ERTActionInvalidReason::OnCooldown
+		|| Reason == ERTActionInvalidReason::RepeatedWithCooldown
+		|| Reason == ERTActionInvalidReason::OverBudget;
+}
+
 int32 URTPlanValidationLibrary::SlotWidth(ERTActionSlot Slot)
 {
 	switch (Slot)
@@ -98,13 +105,29 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// a prendere (vedi il commento della struct).
 		Entry.CooldownRemaining = Unit->GetAbilityCooldown(Index);
 		Entry.DeclarationIndex = DeclarationIndex;
+		// [D-615] (6) (E38 CP 38.13): il cooldown della riga, non quello che la variante d'arma ha riscritto nel `Def`.
+		Entry.CatalogCooldownTurns = Ability->CooldownTurnsBeforeVariant != INDEX_NONE
+			? Ability->CooldownTurnsBeforeVariant
+			: Ability->Def.CooldownTurns;
 		Plan.Add(Entry);
 	};
 
+	// E38 CP 38.13: TUTTE le voci di ogni classe, non la prima. Le voci `Prep` sono le azioni di Prep in piu' della
+	// principale; due voci di una classe chiusa le scrive solo l'accesso dei test, e il validatore le giudica lo stesso.
+	// L'array si compone per classe (scatto, principale, Prep, reazione), e dentro la classe nell'ordine della lista.
 	const FRTUnitPlan& Piano = Unit->GetPlan();
-	AddAbility(Piano.PlannedDashAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Dash));
-	AddAbility(Piano.PlannedAbilityIndex(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Main));
-	AddAbility(Piano.PlannedReactionAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Reaction));
+	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Main, ERTPlanEntryClass::Prep,
+		ERTPlanEntryClass::Reaction })
+	{
+		for (int32 Posizione = 0; Posizione < Piano.GetEntries().Num(); ++Posizione)
+		{
+			const FRTPlanEntry& Voce = Piano.GetEntries()[Posizione];
+			if (Voce.Class == Classe)
+			{
+				AddAbility(Voce.AbilityIndex, Posizione);
+			}
+		}
+	}
 
 	// Il movimento normale, con la regola in un posto solo: il PERCHE' delle due condizioni sta nel
 	// docstring di `ARTUnit::HasPlannedNormalMove`, insieme alla regola che descrive.
@@ -224,21 +247,38 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		}
 	}
 
-	// 2. Combinazione: l'occupazione degli slot. `None` non toglie niente (`Action.Wait`).
-	//
-	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
-	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
-	// [D-594] (E38 CP 38.6): la somma dei costi AP non supera il budget. Precede lo slot perche' e' il vincolo che
-	// ADR-0011 lascera' in piedi quando gli slot cadranno.
-	// E38 CP 38.12: si accusa la prima voce, nell'ORDINE DI DICHIARAZIONE, la cui somma corrente supera il budget; le
-	// voci dichiarate prima di lei ci stanno tutte. La legalita' e' la somma intera, che nessun ordine cambia, quindi
-	// l'accusa e' resa. A parita' di dichiarazione (le voci non dichiarate dei test) decide l'ordine canonico: lo stesso
-	// piano in due sequenze dell'array accusa la stessa voce.
+	// Le voci nell'ORDINE DI DICHIARAZIONE, per le due accuse che lo leggono (copia e budget). A parita' di dichiarazione
+	// (le voci non dichiarate dei test) decide l'ordine canonico: lo stesso piano in due sequenze dell'array accusa la
+	// stessa voce.
 	TArray<FRTPlannedAction> Dichiarate = Ordered;
 	Dichiarate.StableSort([](const FRTPlannedAction& A, const FRTPlannedAction& B)
 	{
 		return DeclarationKey(A) < DeclarationKey(B);
 	});
+
+	// 2. La regola della copia ([D-614]; E38 CP 38.13): due voci con lo stesso `ActionId` sono vietate quando la riga di
+	// catalogo ha un cooldown, in qualunque fase ([D-615] (1)), e il cooldown e' quello della riga, prima della variante
+	// d'arma ([D-615] (6)). Si accusa la prima voce che ripete l'azione di una dichiarata prima: la legalita' e' la
+	// coppia, che nessun ordine cambia, quindi l'accusa e' resa, come per il budget. Precede il budget perche' la copia
+	// vietata non deve pesare nella somma: l'avviso dice la causa vera.
+	for (int32 Voce = 1; Voce < Dichiarate.Num(); ++Voce)
+	{
+		for (int32 Prima = 0; Prima < Voce; ++Prima)
+		{
+			const FRTPlannedAction& A = Dichiarate[Prima];
+			const FRTPlannedAction& B = Dichiarate[Voce];
+			if (A.Def.ActionId == B.Def.ActionId && (A.CatalogCooldownTurns > 0 || B.CatalogCooldownTurns > 0))
+			{
+				return Reject(ERTActionInvalidReason::RepeatedWithCooldown, B);
+			}
+		}
+	}
+
+	// 3. [D-594] (E38 CP 38.6): la somma dei costi AP non supera il budget. Precede lo slot perche' e' il vincolo che
+	// ADR-0011 lascera' in piedi quando gli slot cadranno.
+	// E38 CP 38.12: si accusa la prima voce, nell'ORDINE DI DICHIARAZIONE, la cui somma corrente supera il budget; le
+	// voci dichiarate prima di lei ci stanno tutte. La legalita' e' la somma intera, che nessun ordine cambia, quindi
+	// l'accusa e' resa.
 	int32 Spent = 0;
 	for (const FRTPlannedAction& Entry : Dichiarate)
 	{
@@ -249,11 +289,21 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		}
 	}
 
+	// 4. Combinazione: l'occupazione degli slot. `None` non toglie niente (`Action.Wait`).
+	//
+	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
+	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
 	const FRTPlannedAction* MovementHolder = nullptr;
 	const FRTPlannedAction* MainHolder = nullptr;
 	const FRTPlannedAction* ReactionHolder = nullptr;
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
+		// E38 CP 38.13: il Prep e' aperto, e una sua voce non prende slot ([D-584] (1): «due azioni di Prep sono legali
+		// se gli AP bastano»). Le fasi chiuse restano sotto il vincolo fino al loro checkpoint (CP 38.14–38.16).
+		if (URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase) == ERTMatchPhase::Prep)
+		{
+			continue;
+		}
 		const bool bWantsMovement = Entry.Def.Slot == ERTActionSlot::Movement
 			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
 		const bool bWantsMain = Entry.Def.Slot == ERTActionSlot::Main

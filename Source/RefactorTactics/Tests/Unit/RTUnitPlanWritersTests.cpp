@@ -295,7 +295,11 @@ namespace
 		TArray<int32> Out;
 		for (int32 I = 0; I < Righe.Num(); ++I)
 		{
-			if (PlanWritersLineCode(Righe[I]).Contains(TEXT("FRTUnitPlanTestAccess"), ESearchCase::CaseSensitive))
+			const FString Codice = PlanWritersLineCode(Righe[I]);
+			// E38 CP 38.13: `friend struct FRTUnitPlanTestAccess;` CONCEDE l'accesso a chi ha i campi (`ARTUnit`, `FRTUnitPlan`),
+			// non lo usa. Usarlo resta vietato fuori dai test, e includerne l'header pure.
+			if (Codice.TrimStartAndEnd().StartsWith(TEXT("friend "), ESearchCase::CaseSensitive)) { continue; }
+			if (Codice.Contains(TEXT("FRTUnitPlanTestAccess"), ESearchCase::CaseSensitive))
 			{
 				Out.Add(I + 1);
 			}
@@ -603,7 +607,8 @@ bool FRTPlanWritesGuardSeesPlantedWritesTest::RunTest(const FString&)
 	const TArray<int32> Usi = PlanWritersFindTestAccess(FString(
 		TEXT("\tFRTUnitPlanTestAccess::SetPath(*U, X);\n")
 		TEXT("\t// FRTUnitPlanTestAccess, citato\n")
-		TEXT("\tTestTrue(TEXT(\"FRTUnitPlanTestAccess\"), bOk);\n")));
+		TEXT("\tTestTrue(TEXT(\"FRTUnitPlanTestAccess\"), bOk);\n")
+		TEXT("\tfriend struct FRTUnitPlanTestAccess;\n"))); // E38 CP 38.13: la concessione non e' un uso
 	TestTrue(*FString::Printf(TEXT("l'uso dell'accesso si vede solo nel codice (righe viste: %d)"), Usi.Num()),
 		Usi.Num() == 1 && Usi[0] == 1);
 
@@ -683,7 +688,9 @@ namespace
 		TArray<FString> Parole;
 		Testa.TrimStartAndEnd().ParseIntoArrayWS(Parole);
 		// `class ARTUnit;` e' una dichiarazione anticipata, non un campo (`Turn/RTUnitPlan.h` ne ha una, #4123).
+		// E38 CP 38.13: nemmeno `friend struct FRTUnitPlanTestAccess;`, che `Turn/RTUnitPlan.h` ha come `Unit/RTUnit.h`.
 		if (Parole.Num() < 2 || Parole[0] == TEXT("return") || Parole[0] == TEXT("delete") || Parole[0] == TEXT("case")
+			|| Parole[0] == TEXT("friend")
 			|| ((Parole[0] == TEXT("class") || Parole[0] == TEXT("struct")) && Parole.Num() == 2))
 		{
 			return FString();
@@ -740,6 +747,7 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 		{ TEXT("\tTFunction<void()> GetPlannedFoo() const;"), TEXT("") },
 		// #4123: la dichiarazione anticipata di `Turn/RTUnitPlan.h`, e un campo il cui tipo e' una `struct` nominata.
 		{ TEXT("class ARTUnit;"), TEXT("") },
+		{ TEXT("\tfriend struct FRTUnitPlanTestAccess;"), TEXT("") }, // E38 CP 38.13
 		{ TEXT("\tstruct FRTCellId PlannedFoo;"), TEXT("PlannedFoo") },
 		{ TEXT("\tUFUNCTION(BlueprintCallable) void SetPlannedFoo(int32 X);"), TEXT("") },
 		{ TEXT("\t * FRTCellId PlannedFoo;"), TEXT("") },

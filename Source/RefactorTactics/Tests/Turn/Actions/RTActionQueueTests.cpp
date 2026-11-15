@@ -560,10 +560,11 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	// I campi che `InstanceLess` confronta — **derivati dalle chiavi**, non riscritti qui (#3004).
 	const TSet<FString> Confrontati = CampiConfrontati();
 
-	// ⛔ **Esenzioni dichiarate: nessuna, oggi.** La riga esiste perche' il giorno in cui ne servisse una la
-	// si scriva QUI con la ragione, invece di risolvere il rosso allargando l'elenco dei confrontati —
-	// che e' lo stesso gesto con conseguenze opposte.
-	const TSet<FString> EsentiDichiarati;
+	// ⛔ **Esenzioni dichiarate, ognuna con la sua ragione**, invece di risolvere il rosso allargando l'elenco dei
+	// confrontati — che e' lo stesso gesto con conseguenze opposte.
+	//  - `DeclarationIndex` (E38 CP 38.13): l'ordine di dichiarazione non decide mai la risoluzione ([D-615] (5)). Fra
+	//    copie uguali anche nel contenuto lo legge solo `NumberInstancesByContent`, dove l'ordine non e' osservabile.
+	const TSet<FString> EsentiDichiarati = { TEXT("DeclarationIndex") };
 
 	for (TFieldIterator<FProperty> It(Struct); It; ++It)
 	{
@@ -686,6 +687,17 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 		URTActionQueueLibrary::InstanceLess(ConEffettoA, ConEffettoB));
 	TestFalse(TEXT("limite dichiarato: ne' nel verso opposto (B<A)"),
 		URTActionQueueLibrary::InstanceLess(ConEffettoB, ConEffettoA));
+
+	// E38 CP 38.13, criterio 16: `InstanceLess` non legge `DeclarationIndex`. Due istanze diverse solo per lui non si
+	// ordinano in nessuno dei due versi ([D-615] (5)).
+	FRTActionInstance DichiarataPrima = SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false);
+	FRTActionInstance DichiarataDopo = DichiarataPrima;
+	DichiarataPrima.DeclarationIndex = 0;
+	DichiarataDopo.DeclarationIndex = 2;
+	TestFalse(TEXT("l'ordine di dichiarazione non ordina (prima < dopo)"),
+		URTActionQueueLibrary::InstanceLess(DichiarataPrima, DichiarataDopo));
+	TestFalse(TEXT("ne' nel verso opposto (dopo < prima)"),
+		URTActionQueueLibrary::InstanceLess(DichiarataDopo, DichiarataPrima));
 	return true;
 }
 
@@ -875,6 +887,91 @@ bool FRTActionGameplayKeysBeatTechnicalTieBreaksTest::RunTest(const FString&)
 		URTActionQueueLibrary::InstanceLess(PrioritaBassa, PrioritaAlta));
 	TestFalse(TEXT("e in un verso solo"),
 		URTActionQueueLibrary::InstanceLess(PrioritaAlta, PrioritaBassa));
+	return true;
+}
+
+// ── E38 CP 38.13 (#4114): le istanze della stessa unita' si numerano per contenuto ────────────────────────────────────
+namespace
+{
+	FRTActionInstance PrepCopy(FName ActionId, int32 TargetUnitId, const FRTCellId& TargetCell, int32 DeclarationIndex)
+	{
+		FRTActionInstance I;
+		I.Def.ActionId = ActionId;
+		I.Def.ResolutionPhase = ERTResolutionPhase::Preparation;
+		I.Def.Priority = 40;
+		I.SourceUnitId = 3;
+		I.TargetUnitId = TargetUnitId;
+		I.TargetCell = TargetCell;
+		I.DeclarationIndex = DeclarationIndex;
+		return I;
+	}
+
+	/** Gli `ActionId` (o i bersagli) nell'ordine di `EventSequence`, dopo la numerazione. */
+	TArray<FString> NumberedOrder(TArray<FRTActionInstance> OfOneUnit)
+	{
+		int32 Counter = 10;
+		URTActionQueueLibrary::NumberInstancesByContent(OfOneUnit, Counter);
+		OfOneUnit.Sort([](const FRTActionInstance& A, const FRTActionInstance& B) { return A.EventSequence < B.EventSequence; });
+		TArray<FString> Out;
+		for (const FRTActionInstance& I : OfOneUnit)
+		{
+			Out.Add(FString::Printf(TEXT("%s@%d:%s"), *I.Def.ActionId.ToString(), I.TargetUnitId, *I.TargetCell.ToString()));
+		}
+		return Out;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsSameUnitIgnoresDeclarationAtEqualPriorityTest,
+	"RefactorTactics.Actions.SameUnitIgnoresDeclarationAtEqualPriority",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsSameUnitIgnoresDeclarationAtEqualPriorityTest::RunTest(const FString&)
+{
+	// [D-615] (5): a pari priorita' due azioni della stessa unita' si ordinano per `ActionId`, in entrambi gli ordini di
+	// dichiarazione, sia nella numerazione sia nell'ordine di risoluzione.
+	const TArray<FRTActionInstance> InOrdine = { PrepCopy(TEXT("Test.A"), 3, FRTCellId(0, 0), 0), PrepCopy(TEXT("Test.B"), 3, FRTCellId(0, 0), 1) };
+	const TArray<FRTActionInstance> Rovescio = { PrepCopy(TEXT("Test.B"), 3, FRTCellId(0, 0), 0), PrepCopy(TEXT("Test.A"), 3, FRTCellId(0, 0), 1) };
+	const TArray<FString> Primo = NumberedOrder(InOrdine);
+	TestEqual(TEXT("la numerazione segue l'ActionId"), Primo[0].Left(6), FString(TEXT("Test.A")));
+	TestEqual(TEXT("la stessa in entrambi gli ordini di dichiarazione"), NumberedOrder(Rovescio), Primo);
+
+	TArray<FRTActionInstance> A = InOrdine;
+	TArray<FRTActionInstance> B = Rovescio;
+	int32 C1 = 0;
+	int32 C2 = 0;
+	URTActionQueueLibrary::NumberInstancesByContent(A, C1);
+	URTActionQueueLibrary::NumberInstancesByContent(B, C2);
+	URTActionQueueLibrary::SortActionInstances(A);
+	URTActionQueueLibrary::SortActionInstances(B);
+	TestEqual(TEXT("e si risolvono nello stesso ordine"), A[0].Def.ActionId, B[0].Def.ActionId);
+	TestEqual(TEXT("prima Test.A"), A[0].Def.ActionId, FName(TEXT("Test.A")));
+	TestEqual(TEXT("il contatore avanza di una per istanza"), C1, 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionsCopiesOfOneActionFollowTheirContentTest,
+	"RefactorTactics.Actions.CopiesOfOneActionFollowTheirContent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionsCopiesOfOneActionFollowTheirContentTest::RunTest(const FString&)
+{
+	// Criterio 6: due copie della stessa azione della stessa unita' ricevono `EventSequence` nell'ordine del contenuto
+	// (`TargetUnitId`, poi `TargetCell`), lo stesso in entrambi gli ordini di dichiarazione.
+	const FName Copia(TEXT("Test.Copia"));
+	const TArray<FString> PerBersaglio = NumberedOrder({ PrepCopy(Copia, 9, FRTCellId(0, 0), 0), PrepCopy(Copia, 4, FRTCellId(0, 0), 1) });
+	TestTrue(TEXT("il bersaglio minore prende il numero minore"), PerBersaglio[0].Contains(TEXT("@4:")));
+	TestEqual(TEXT("in entrambi gli ordini"),
+		NumberedOrder({ PrepCopy(Copia, 4, FRTCellId(0, 0), 0), PrepCopy(Copia, 9, FRTCellId(0, 0), 1) }), PerBersaglio);
+
+	const TArray<FString> PerCella = NumberedOrder({ PrepCopy(Copia, 4, FRTCellId(2, 0), 0), PrepCopy(Copia, 4, FRTCellId(-1, 0), 1) });
+	TestEqual(TEXT("a pari bersaglio decide la cella, in entrambi gli ordini"),
+		NumberedOrder({ PrepCopy(Copia, 4, FRTCellId(-1, 0), 0), PrepCopy(Copia, 4, FRTCellId(2, 0), 1) }), PerCella);
+	TestNotEqual(TEXT("controllo: le due celle sono distinte nell'ordine"), PerCella[0], PerCella[1]);
+
+	// Copie uguali anche nel contenuto: l'ultimo spareggio e' la posizione nel piano, solo perche' la numerazione sia totale.
+	TArray<FRTActionInstance> Uguali = { PrepCopy(Copia, 4, FRTCellId(0, 0), 2), PrepCopy(Copia, 4, FRTCellId(0, 0), 0) };
+	int32 Contatore = 0;
+	URTActionQueueLibrary::NumberInstancesByContent(Uguali, Contatore);
+	TestEqual(TEXT("fra copie identiche la prima dichiarata prende il numero minore"), Uguali[0].DeclarationIndex, 0);
+	TestTrue(TEXT("e i numeri sono distinti"), Uguali[0].EventSequence < Uguali[1].EventSequence);
 	return true;
 }
 

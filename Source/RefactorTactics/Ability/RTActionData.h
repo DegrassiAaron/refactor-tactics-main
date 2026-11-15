@@ -142,6 +142,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 CooldownTurns = 0;
 
+	/**
+	 * Il cooldown della riga di catalogo PRIMA della variante d'arma ([D-615] (6); E38 CP 38.13, #4114).
+	 * `INDEX_NONE` = nessuna variante applicata: la riga e' il `Def` stesso.
+	 *
+	 * 🔑 **Esiste perche' la variante riscrive entrambi i cooldown**, il `Def` e lo specchio qui sopra
+	 * (`URTCatalogLibrary::EquipWeaponVariant`), e la regola della copia ([D-614]) legge quello della riga:
+	 * due attacchi base con `Weapon.Overcharge` non sono una copia vietata. Lo scrive `EquipWeaponVariant`, una volta
+	 * sola, prima di applicare la variante. ⛔ Si legge invece di rileggere la riga per `ActionId` perche'
+	 * `MakePlanFor` e' il compositore che l'HUD chiama a ogni click, e la riga di un kit sintetico non esiste.
+	 *
+	 * `UPROPERTY()` e non visibile ai Blueprint: e' un dato derivato, e deve sopravvivere a `DuplicateObject`, che
+	 * copia solo le proprieta' riflesse.
+	 */
+	UPROPERTY()
+	int32 CooldownTurnsBeforeVariant = INDEX_NONE;
+
 	/** Se vero, incendia le celle infiammabili nell'area colpita (terreno dinamico). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	bool bIgnites = false;

@@ -422,6 +422,8 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// [D-594]: la somma dei costi AP del piano supera il budget del turno. Nomina il BUDGET e non l'azione, perche'
 	// il rimedio e' togliere qualcosa dal piano, non cambiare questa voce.
 	case ERTActionInvalidReason::OverBudget:     return TEXT("il piano supera il budget di Action Point");
+	// [D-614] (E38 CP 38.13): nomina la causa, la ricarica, e non lo slot. Senza questo caso cadeva in «non eseguibile».
+	case ERTActionInvalidReason::RepeatedWithCooldown: return TEXT("l'azione ha una ricarica ed e' gia' nel piano");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
 	//

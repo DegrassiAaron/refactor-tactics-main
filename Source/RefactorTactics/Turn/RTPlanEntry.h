@@ -9,7 +9,8 @@ class ARTUnit;
 
 /**
  * La classe di una voce del piano: i campi a casella unica che il piano aveva prima della lista (E38 CP 38.12, #4113).
- * Finche' il resolver legge una voce per classe, il piano ne porta al piu' una per classe (`FRTUnitPlan::AddEntry`).
+ * Le classi CHIUSE (scatto, principale, reazione, movimento) portano al piu' una voce, finche' il loro checkpoint non le
+ * apre (CP 38.14–38.16); `Prep` e' aperta e ne porta quante il budget consente (`FRTUnitPlan::AddEntry`).
  */
 UENUM()
 enum class ERTPlanEntryClass : uint8
@@ -18,6 +19,16 @@ enum class ERTPlanEntryClass : uint8
 	Main,
 	Reaction,
 	Movement,
+	/**
+	 * Un'azione di Prep IN PIU' della principale (E38 CP 38.13, #4114; [D-584] (1): «due azioni di Prep sono legali se gli
+	 * AP bastano»). La principale resta la voce `Main` e puo' essere a sua volta di Prep: tiene la prima azione armata,
+	 * come prima della lista, cosi' ogni lettore della principale vede cio' che vedeva. Le voci `Prep` sono le altre.
+	 *
+	 * 🔑 **Solo azioni di Prep senza bersaglio**: niente strutture di bordo, niente colpi predittivi, che chiedono una cella o
+	 * un bordo e oggi li dichiara solo la principale (`ARTUnit::DeclarePlannedAction`). In coda, come ogni valore: il
+	 * piano e' serializzato con l'unita'.
+	 */
+	Prep,
 };
 
 /**
