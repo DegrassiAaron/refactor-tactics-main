@@ -113,6 +113,12 @@ tracce scritte prima della v15, che restano leggibili (`TurnLog.LegacyVersionWit
   `URTReplayPrivacyLibrary::FilterEntriesForObserver` porta il campo a `INDEX_NONE` quando la squadra che guarda non vedeva
   l'interruttore, anche se vede la vittima: «l'unità da cui arriva segue la visibilità» (D-582). Vale per ogni traccia per
   osservatore, la registrazione e l'ispettore di contesto (`Replay.Privacy.InterrupterIsNamedOnlyToWhoSawIt`).
+- ⚠️ **Limite del campo unico**: con due interruttori, se il primo in ordine canonico era nascosto all'osservatore e il secondo
+  visibile, la voce esce senza nome, anche se il secondo «segue la visibilità». Un campo con un verdetto non sceglie un interruttore
+  diverso per ogni osservatore. Scegliere fra un nome per osservatore e una voce per interruttore cambia il formato o gli hash, ed è
+  dell'autore.
+- ⚠️ **L'audit di [D-313](../../decisions/RT_PDR_00_Decision_Log.md) non lo verifica**: ricalcola `Verdict` contro `VerdictSubject`,
+  e `InterruptedByVerdict` non ha un soggetto registrato. È una lacuna di copertura, non una fuga.
 
 ## `OriginalTargetUnitId`: i due capi di un redirect *(formato **v9**, [#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060))*
 

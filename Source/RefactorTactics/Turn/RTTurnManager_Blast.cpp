@@ -2110,8 +2110,9 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
 		// falso, e il campo entra nell'hash.
 		//
-		// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
-		// Stesso costo di `#1430` per `RearHitBypassedGuard`/`RearHitBypassedCover`.
+		// ⚠️ **Chi ha interrotto non sta in `UnitId`**: e' uno solo e lo prende il soggetto, la vittima. Da `#4000` lo porta
+		// `InterruptedByUnitId`, fuori dall'hash e col verdetto suo ([D-582] (4)).
+		// ⌫ *Fino a #4000 chi ha interrotto non entrava nella voce, stesso costo di `#1430` per `RearHitBypassedGuard`.*
 		//
 		// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
 		// un colpo a memoria di CP 13.2, `TargetId` e' `INDEX_NONE` e il punto di mira sta in `TargetCell`.

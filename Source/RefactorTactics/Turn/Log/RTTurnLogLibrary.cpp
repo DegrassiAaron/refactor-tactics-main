@@ -2268,7 +2268,7 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 		return true;
 	}
 	// L'azione cancellata da un `Action.Interrupt`: `UnitId` porta chi l'ha SUBITA, non chi ha interrotto
-	// — chi ha interrotto non e' nella voce affatto (`#1437`, [D-196]). Senza questo caso, chi conta le
+	// — chi ha interrotto sta in `InterruptedByUnitId` da `#4000`, non in `UnitId` (`#1437`, [D-196]). Senza questo caso, chi conta le
 	// azioni compiute da un'unita' le accrediterebbe una cancellazione che ha solo subito.
 	return Entry.Category == ERTLogCategory::Fallback
 		&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
