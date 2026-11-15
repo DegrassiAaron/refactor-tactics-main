@@ -275,4 +275,73 @@ bool FRTTurnLogPlanIsAListNotThreeSlots::RunTest(const FString&)
 	return true;
 }
 
+// E38 CP 38.9 (#4110) — l'Ultimate costa 3 in qualunque fase ([D-613] (4)). Righe sintetiche: nessuna riga del catalogo
+// di oggi e' un'Ultimate, e le prime arrivano col kit di Riktor ([D-612] (1)).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogUltimateCostsThreeInEveryPhase,
+	"RefactorTactics.Catalog.UltimateCostsThreeInEveryPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogUltimateCostsThreeInEveryPhase::RunTest(const FString&)
+{
+	struct FCaso { ERTResolutionPhase Fase; const TCHAR* Nome; int32 CostoDiClasse; };
+	const FCaso Casi[] = {
+		{ ERTResolutionPhase::Preparation,    TEXT("Preparation"),    1 },
+		{ ERTResolutionPhase::FastMovement,   TEXT("FastMovement"),   2 },
+		{ ERTResolutionPhase::Control,        TEXT("Control"),        2 },
+		{ ERTResolutionPhase::Attack,         TEXT("Attack"),         2 },
+		{ ERTResolutionPhase::NormalMovement, TEXT("NormalMovement"), 2 },
+		{ ERTResolutionPhase::Environment,    TEXT("Environment"),    2 },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		FRTActionDef Riga;
+		Riga.ActionId = FName(TEXT("Test.UltimateSintetica"));
+		Riga.ResolutionPhase = Caso.Fase;
+		Riga.bIsUltimate = true;
+		TestEqual(*FString::Printf(TEXT("%s: un'Ultimate costa 3"), Caso.Nome),
+			URTCatalogLibrary::DefaultActionPointCost(Riga), 3);
+		// Controllo positivo: la stessa riga non marcata costa quanto la sua classe di D-594 (1). E' il marcatore a
+		// cambiare il numero, non la fase.
+		Riga.bIsUltimate = false;
+		TestEqual(*FString::Printf(TEXT("%s: la stessa riga non marcata costa %d"), Caso.Nome, Caso.CostoDiClasse),
+			URTCatalogLibrary::DefaultActionPointCost(Riga), Caso.CostoDiClasse);
+	}
+
+	// Il ramo dell'Ultimate viene prima di quello della reazione: una reazione marcata costa 3, non 2 (l'ordine dei
+	// rami e' una proposta di CP 38.9; D-613 (4) dice solo «qualunque sia la sua fase»).
+	FRTActionDef Reazione;
+	Reazione.ActionId = FName(TEXT("Test.ReazioneUltimate"));
+	Reazione.Slot = ERTActionSlot::Reaction;
+	Reazione.bIsUltimate = true;
+	TestEqual(TEXT("una reazione marcata Ultimate costa 3"), URTCatalogLibrary::DefaultActionPointCost(Reazione), 3);
+	TestEqual(TEXT("la costante e' quella di D-613 (4)"), URTCatalogLibrary::ActionPointCostUltimate, 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogUltimateWithAnotherCostIsRejected,
+	"RefactorTactics.Catalog.UltimateWithAnotherCostIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogUltimateWithAnotherCostIsRejected::RunTest(const FString&)
+{
+	// Il caso che il controllo vuole prendere: una riga marcata Ultimate dopo la costruzione, che tiene il costo di
+	// classe. Per una riga di Prep e' 1; qui 2, il «+1» di D-594 (3) che D-613 (4) ha emendato.
+	FRTActionDef Riga;
+	Riga.ActionId = FName(TEXT("Test.UltimateSintetica"));
+	Riga.ResolutionPhase = ERTResolutionPhase::Preparation;
+	Riga.bIsUltimate = true;
+	Riga.ActionPointCost = 2;
+	const TArray<FString> ConDue = URTCatalogLibrary::ValidateActions({ Riga });
+	TestEqual(TEXT("un'Ultimate che costa 2 da' un errore"), ConDue.Num(), 1);
+	TestTrue(TEXT("e l'errore nomina D-613 (4)"), ConDue.Num() == 1 && ConDue[0].Contains(TEXT("D-613 (4)")));
+
+	Riga.ActionPointCost = URTCatalogLibrary::DefaultActionPointCost(Riga);
+	TestEqual(TEXT("riscritta con DefaultActionPointCost costa 3"), Riga.ActionPointCost, 3);
+	TestEqual(TEXT("e la stessa riga a 3 e' valida"), URTCatalogLibrary::ValidateActions({ Riga }).Num(), 0);
+
+	// Controllo positivo: il controllo guarda il marcatore, non il numero. Una riga non marcata che dichiara 3 resta
+	// valida, perche' una riga puo' dichiarare un costo proprio.
+	Riga.bIsUltimate = false;
+	TestEqual(TEXT("una riga non marcata a 3 e' valida"), URTCatalogLibrary::ValidateActions({ Riga }).Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

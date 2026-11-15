@@ -120,15 +120,18 @@ public:
 	static constexpr int32 ActionPointCostReaction = 2;
 	/** Lettura dell'assistente in D-594 (4): le ambientali del Cleanup costano come le principali del Blast. */
 	static constexpr int32 ActionPointCostCleanup = 2;
+	/** [D-613] (4): ogni Ultimate costa 3 qualunque sia la sua fase. Emenda il «+1» di D-594 (3). */
+	static constexpr int32 ActionPointCostUltimate = 3;
 
 	/**
-	 * Il costo AP di classe di una riga ([D-594] (1)): la reazione (slot `Reaction`) 2; poi per macro-fase di
-	 * `MapResolutionPhase` — Prep 1, Dash 2, Blast 2, Move 2, Cleanup 2. `Action.Wait` e' l'unica riga a 0: non
-	 * e' un'azione, e' il turno che passa (il piano della simulazione lo esclude per nome).
+	 * Il costo AP di classe di una riga ([D-594] (1)): una riga marcata Ultimate 3, qualunque sia la fase ([D-613]
+	 * (4)); la reazione (slot `Reaction`) 2; poi per macro-fase di `MapResolutionPhase` — Prep 1, Dash 2, Blast 2,
+	 * Move 2, Cleanup 2. `Action.Wait` e' l'unica riga a 0: non e' un'azione, e' il turno che passa (il piano della
+	 * simulazione lo esclude per nome).
 	 *
 	 * ⚠️ E' il DEFAULT, non la regola: `ShippedAction` e `MakeHeroAction` lo scrivono nella colonna al momento
-	 * della costruzione, e da li' in poi chi legge il costo legge la colonna. Le Ultimate (+1, D-594 (3)) non
-	 * passano di qui: sono una riga che dichiara un numero proprio.
+	 * della costruzione, e da li' in poi chi legge il costo legge la colonna. Chi marca una riga Ultimate dopo la
+	 * costruzione ne riscrive il costo con questa funzione; `ValidateActions` rifiuta un'Ultimate che non costi 3.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static int32 DefaultActionPointCost(const FRTActionDef& Def);

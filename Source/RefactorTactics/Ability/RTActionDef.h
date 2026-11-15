@@ -609,8 +609,9 @@ struct FRTActionDef
 	/**
 	 * Costo in **Action Point** ([D-594], ADR-0011; E38 CP 38.6): quanto questa riga sottrae al budget di 6 del
 	 * turno. Ogni riga lo DICHIARA, e il default e' la classe di fase — Prep 1 · Dash 2 · Blast 2 · Move 2 ·
-	 * reazione 2 · ambientali del Cleanup 2 (`URTCatalogLibrary::DefaultActionPointCost`); le abilita' marcate
-	 * forti costeranno un punto in piu' quando entreranno nel catalogo (D-594 (3)). `0` vale solo per `Action.Wait`:
+	 * reazione 2 · ambientali del Cleanup 2 (`URTCatalogLibrary::DefaultActionPointCost`); una riga marcata
+	 * Ultimate (`bIsUltimate`) costa 3 in qualunque fase ([D-613] (4), che emenda il «+1» di D-594 (3)), e
+	 * `ValidateActions` rifiuta un'Ultimate che dichiari un altro costo. `0` vale solo per `Action.Wait`:
 	 * su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
 	 *
 	 * ⚠️ **Non e' `CostMP`**: quello e' il modificatore per cella del terreno ([D-117], [D-190]). Due assi, come
@@ -894,6 +895,17 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 MinRangeCells = 0;
+
+	/**
+	 * La riga e' un'**Ultimate** ([D-613] (4); E38 CP 38.9, #4110): costa 3 Action Point qualunque sia la sua fase,
+	 * e `URTCatalogLibrary::DefaultActionPointCost` lo restituisce prima della reazione e della fase.
+	 *
+	 * Un booleano e non un rango perche' [D-594] (3) parla di abilita' «marcate forti» e nessuna decisione chiede un
+	 * terzo valore. ⚠️ Nessuna riga di oggi e' un'Ultimate: le prime arrivano col kit di Riktor, dopo la decisione che
+	 * lo accetta ([D-612] (1)). Il campo non entra in nessun hash, perche' il catalogo non ci entra ([D-083]).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bIsUltimate = false;
 
 	FRTActionDef() = default;
 };
