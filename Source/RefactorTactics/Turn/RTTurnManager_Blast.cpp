@@ -4121,6 +4121,9 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 			{
 				FRTTurnLogEntry Nato = MakeStatusBirthEntry(Phase, StatusTags[i], Slowed->Cell,
 					StatusDurations[i], /*bFromTerrain=*/ false);
+				// E38 CP 38.13: lo stato e' della vittima, l'ordine e' della voce del piano di chi l'ha colpita.
+				Nato.DeclarationIndex = Ctx.StatusDeclarationIndices.IsValidIndex(i) ? Ctx.StatusDeclarationIndices[i] : INDEX_NONE;
+				Nato.DeclaringTeamId = Ctx.StatusDeclaringTeams.IsValidIndex(i) ? Ctx.StatusDeclaringTeams[i] : INDEX_NONE;
 				AppendLogEntry(Nato, Slowed);
 			}
 			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()), FRTLogSubject::Unit(Slowed));

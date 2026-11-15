@@ -949,6 +949,18 @@ bool FRTTurnLogCanonicalOrderCoversSerializedFieldsTest::RunTest(const FString&)
 	// `Hold Ground` < `SIDESTEP` lessicograficamente: l'ordine e' quello delle stringhe, dichiarato e stabile.
 	TestTrue(TEXT("il token spareggia"), URTTurnLogLibrary::EntryLess(Tiene, Scarto));
 	TestFalse(TEXT("e in un verso solo"), URTTurnLogLibrary::EntryLess(Scarto, Tiene));
+
+	// E38 CP 38.13: l'ordine di dichiarazione, in coda, spareggia le voci di due copie identiche.
+	FRTTurnLogEntry PrimaCopia = MakeSerEntry(ERTMatchPhase::Prep, ERTLogCategory::Status, 0, FRTCellId(0, 0), FRTCellId(0, 0), 2);
+	PrimaCopia.DeclarationIndex = 0;
+	FRTTurnLogEntry SecondaCopia = PrimaCopia;
+	SecondaCopia.DeclarationIndex = 1;
+	TArray<FRTTurnLogEntry> Avanti;  Avanti.Add(PrimaCopia);  Avanti.Add(SecondaCopia);
+	TArray<FRTTurnLogEntry> Indietro; Indietro.Add(SecondaCopia); Indietro.Add(PrimaCopia);
+	TestTrue(TEXT("stessi byte anche quando a pareggiare e' l'ordine di dichiarazione"),
+		URTTurnLogLibrary::SerializeTurnLog(Avanti) == URTTurnLogLibrary::SerializeTurnLog(Indietro));
+	TestTrue(TEXT("l'ordine di dichiarazione spareggia"), URTTurnLogLibrary::EntryLess(PrimaCopia, SecondaCopia));
+	TestFalse(TEXT("e in un verso solo"), URTTurnLogLibrary::EntryLess(SecondaCopia, PrimaCopia));
 	return true;
 }
 
@@ -1048,6 +1060,17 @@ bool FRTTurnLogHashFieldOrderTest::RunTest(const FString&)
 	Mix(static_cast<uint32>(E.SelectedTargetUnitId));
 
 	TestEqual(TEXT("l'hash ordinato mescola i campi dichiarati, in quest'ordine"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ E })), static_cast<int64>(Expected));
+
+	// E38 CP 38.13, [D-615] (2): l'ordine di dichiarazione in coda, mescolato solo quando c'e'.
+	FRTTurnLogEntry Dichiarata = E;
+	Dichiarata.DeclarationIndex = 2;
+	uint32 ConIndice = Expected;
+	ConIndice ^= 2u;
+	ConIndice *= 16777619u;
+	TestEqual(TEXT("l'ordine di dichiarazione si mescola in coda"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ Dichiarata })), static_cast<int64>(ConIndice));
+	TestEqual(TEXT("e una voce senza ordine conserva il suo hash"),
 		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ E })), static_cast<int64>(Expected));
 	TestEqual(TEXT("e su una voce sola l'hash canonico coincide: la differenza e' solo il sort davanti"),
 		static_cast<int64>(URTTurnLogLibrary::HashTurnLog({ E })), static_cast<int64>(Expected));
@@ -1473,7 +1496,8 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	constexpr int32 BytesAfterV9 =
 		  2   // v10/v11: il token della risposta di reazione, stringa vuota
 		+ 4   // v12 (`#1880`): il micro-step
-		+ 12; // v13 (`#2534`): `SightBlockerCell`, tre int32
+		+ 12  // v13 (`#2534`): `SightBlockerCell`, tre int32
+		+ 4;  // v14 (E38 CP 38.13): `DeclarationIndex`
 	Bytes.RemoveAt(Bytes.Num() - 4 - BytesAfterV9, BytesAfterV9);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
@@ -1665,6 +1689,72 @@ bool FRTTurnLogSightBlockerRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("e la voce velata resta velata"), Velate, 1);
 	TestTrue(TEXT("il layer sopravvive: (5,-1,L1) si rilegge intero"), bTrovatoPrimoPiano);
 
+	return true;
+}
+
+// ── E38 CP 38.13 (#4114): il campo d'ordine della v14 ───────────────────────────────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyVersionWithoutDeclarationIndexIsReadableTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutDeclarationIndexIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyVersionWithoutDeclarationIndexIsReadableTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Voce = MakeSerEntry(ERTMatchPhase::Prep, ERTLogCategory::Status, 0, FRTCellId(1, 0), FRTCellId(1, 0), 2);
+	Voce.DeclarationIndex = 2;
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ Voce });
+
+	// Controllo: alla v14 il campo sopravvive al giro.
+	TArray<FRTTurnLogEntry> Letta;
+	if (!TestTrue(TEXT("la v14 si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e porta l'ordine di dichiarazione"), Letta[0].DeclarationIndex, 2);
+
+	// La stessa voce alla v13: tolti i 4 byte del campo, versione 13, checksum ricalcolato.
+	Bytes.RemoveAt(Bytes.Num() - 4 - 4, 4);
+	Bytes[4] = 13;
+	Bytes[5] = 0;
+	uint32 H = 2166136261u;
+	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
+	Bytes[Bytes.Num() - 4] = H & 0xFF;
+	Bytes[Bytes.Num() - 3] = (H >> 8) & 0xFF;
+	Bytes[Bytes.Num() - 2] = (H >> 16) & 0xFF;
+	Bytes[Bytes.Num() - 1] = (H >> 24) & 0xFF;
+	TArray<FRTTurnLogEntry> Vecchia;
+	TestTrue(TEXT("una traccia v13 resta leggibile"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Vecchia));
+	if (!TestEqual(TEXT("una voce letta"), Vecchia.Num(), 1)) { return false; }
+	TestEqual(TEXT("senza il campo, nessun ordine"), Vecchia[0].DeclarationIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e il resto della voce e' intatto"), Vecchia[0].Amount, 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogDeclarationIndexBreaksTiesBetweenCopiesTest,
+	"RefactorTactics.TurnLog.DeclarationIndexBreaksTiesBetweenCopies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogDeclarationIndexBreaksTiesBetweenCopiesTest::RunTest(const FString&)
+{
+	// Criterio 7: due Guard della stessa unita' lasciano due voci distinte per `DeclarationIndex`, con byte che non
+	// dipendono dall'ordine d'inserimento.
+	FRTTurnLogEntry Guardia = MakeSerEntry(ERTMatchPhase::Prep, ERTLogCategory::Status, 0, FRTCellId(0, 0), FRTCellId(0, 0), 1);
+	Guardia.ActionId = FName(TEXT("Status.Guarded"));
+	FRTTurnLogEntry Prima = Guardia;   Prima.DeclarationIndex = 0;
+	FRTTurnLogEntry Seconda = Guardia; Seconda.DeclarationIndex = 1;
+	TestNotEqual(TEXT("le due voci sono distinte per l'hash"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ Prima })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ Seconda })));
+	const TArray<uint8> A = URTTurnLogLibrary::SerializeTurnLog({ Prima, Seconda });
+	const TArray<uint8> B = URTTurnLogLibrary::SerializeTurnLog({ Seconda, Prima });
+	TestTrue(TEXT("e i byte non dipendono dall'ordine d'inserimento"), A == B);
+	TArray<FRTTurnLogEntry> Letta;
+	if (TestTrue(TEXT("si rileggono"), URTTurnLogLibrary::DeserializeTurnLog(A, Letta)) && TestEqual(TEXT("due voci"), Letta.Num(), 2))
+	{
+		TestEqual(TEXT("la prima dichiarata viene prima"), Letta[0].DeclarationIndex, 0);
+		TestEqual(TEXT("e la seconda dopo"), Letta[1].DeclarationIndex, 1);
+	}
+	// Controllo: tolto il campo, le due voci tornano la stessa voce per l'hash, quindi a distinguerle era lui.
+	FRTTurnLogEntry PrimaSenza = Prima;   PrimaSenza.DeclarationIndex = INDEX_NONE;
+	FRTTurnLogEntry SecondaSenza = Seconda; SecondaSenza.DeclarationIndex = INDEX_NONE;
+	TestEqual(TEXT("controllo: senza ordine sono indistinguibili"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ PrimaSenza })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ SecondaSenza })));
 	return true;
 }
 

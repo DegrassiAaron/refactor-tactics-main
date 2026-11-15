@@ -638,6 +638,7 @@ public:
 	{
 		LockedPlan = FRTLockedPlan();
 		LockedPlan.Plan = Plan;
+		LockedPlan.bPlansNormalMove = HasPlannedNormalMove();
 		const ARTUnit* AimedAt = Plan.PlannedAttackTarget();
 		LockedPlan.AttackTargetStableId = IsValid(AimedAt) ? AimedAt->StableUnitId : INDEX_NONE;
 		LockedPlan.bHasAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell();

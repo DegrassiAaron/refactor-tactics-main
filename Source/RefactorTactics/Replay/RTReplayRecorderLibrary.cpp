@@ -285,8 +285,10 @@ bool URTReplayRecorderLibrary::RecordTurn(const FString& ReplaysRoot, FRTReplayM
 	// uno che mente.
 	for (const int32 ObserverTeamId : Manifest.ObserverTeamIds)
 	{
-		const TArray<FRTTurnLogEntry> Viste =
+		TArray<FRTTurnLogEntry> Viste =
 			URTReplayPrivacyLibrary::FilterEntriesForObserver(Entries, ObserverTeamId);
+		// E38 CP 38.13: e, voce per voce, l'ordine di dichiarazione delle sole voci che la squadra ha dichiarato.
+		URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver(Viste, ObserverTeamId);
 
 		const TArray<uint8> ByteVisti = URTTurnLogLibrary::SerializeTurnLog(
 			Viste,

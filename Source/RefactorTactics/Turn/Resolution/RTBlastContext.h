@@ -470,6 +470,9 @@ struct FRTBlastContext
 	TArray<ARTUnit*> StatusTargets;
 	TArray<FGameplayTag> StatusTags;
 	TArray<int32> StatusDurations;
+	/** E38 CP 38.13: l'ordine di dichiarazione e la squadra della voce del piano di chi ha colpito, paralleli agli stati. */
+	TArray<int32> StatusDeclarationIndices;
+	TArray<int32> StatusDeclaringTeams;
 
 	/** Numero di unita' in campo. Comodita' di lettura: `Ctx.Num()` invece di `Ctx.Units.Num()`. */
 	int32 Num() const { return Units.Num(); }

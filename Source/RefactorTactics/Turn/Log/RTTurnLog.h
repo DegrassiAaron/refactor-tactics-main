@@ -1367,6 +1367,33 @@ struct FRTTurnLogEntry
 	/** Vero se la voce porta un muro nominabile. */
 	bool HasSightBlocker() const { return SightBlockerCell.Layer != INDEX_NONE; }
 
+	/**
+	 * **L'ordine di dichiarazione della voce del piano che ha prodotto questa voce** (E38 CP 38.13, #4114; [D-615] (2), (5)):
+	 * la sua posizione nella lista di `FRTUnitPlan`. `INDEX_NONE` sulle voci che nessuna voce del piano produce, come la
+	 * scadenza di uno stato, e nelle tracce scritte prima della v14.
+	 *
+	 * 🔑 **Si mostra e non decide** ([D-615] (5)): nessun resolver lo legge per ordinare o per scegliere un esito. Entra
+	 * nell'hash di traccia ([D-615] (2)), mescolato quando e' valorizzato, e in coda a `EntryLess`, dove decide solo fra
+	 * voci uguali in tutto il resto, cioe' fra le voci di due copie identiche: serve ai byte, non al gioco.
+	 *
+	 * 🔒 **`AuditOnly`**: l'indice grezzo dice quante voci precedono nel piano, comprese le reazioni armate che non
+	 * scattano. Nelle tracce per osservatore resta solo sulle voci dichiarate dalla squadra dell'osservatore
+	 * (`URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver`, che legge `DeclaringTeamId`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 DeclarationIndex = INDEX_NONE;
+
+	/**
+	 * La squadra dell'unita' che ha DICHIARATO la voce del piano da cui viene `DeclarationIndex` (E38 CP 38.13). Non e' il
+	 * soggetto della voce: lo stato che un colpo lascia ha per soggetto la vittima, e la squadra che conta per la privacy
+	 * e' quella di chi ha colpito. `INDEX_NONE` = nessuna voce del piano, o nessuna squadra nota.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, in `EntryLess` ne' nell'hash. Serve solo alla traccia per
+	 * osservatore, che si scrive alla registrazione, dove la voce viva lo porta ancora.
+	 */
+	UPROPERTY(Transient)
+	int32 DeclaringTeamId = INDEX_NONE;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -1592,7 +1619,18 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * per tutti gli autorizzati; una cella diversa per lettore uscirebbe dal formato canonico. La forma
 	 * corretta e' quella di [D-316] — sanificare il campo nella traccia per osservatore, alla registrazione.
 	 */
-	WithSightBlocker = 13
+	WithSightBlocker = 13,
+	/**
+	 * + `DeclarationIndex` per voce (E38 CP 38.13, #4114; [D-615] (2)): l'ordine di dichiarazione della voce del piano che
+	 * l'ha prodotta. In coda, come ogni estensione dalla v7 in poi. Una traccia v13 resta leggibile col campo a
+	 * `INDEX_NONE`, che e' cio' che quei byte dicevano: prima della lista nessuna voce portava l'ordine.
+	 *
+	 * ⚠️ **Gli hash golden CAMBIANO** per ogni traccia con voci prodotte da un piano, e solo per quelle: il campo si mescola
+	 * quando e' valorizzato. Il corpus si rigenera nello stesso commit (vedi qui sotto).
+	 *
+	 * ⚠️ Il numero 14 e' stato verificato su tutti i branch remoti il 2026-11-15, come chiede [D-070].
+	 */
+	WithDeclarationIndex = 14
 };
 
 /**

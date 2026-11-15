@@ -3131,6 +3131,72 @@ int32 ARTTurnManager::CurrentGraphRevision() const
 	return 0;
 }
 
+ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfAction(const ARTUnit* Declarer, FName ActionId)
+{
+	FRTDeclaredEntry Out;
+	if (!IsValid(Declarer) || ActionId.IsNone())
+	{
+		return Out;
+	}
+	const TArray<FRTPlanEntry>& Voci = Declarer->GetLockedPlan().Plan.GetEntries();
+	for (int32 Posizione = 0; Posizione < Voci.Num(); ++Posizione)
+	{
+		if (Voci[Posizione].Class == ERTPlanEntryClass::Movement) { continue; }
+		const URTActionData* Ability = Declarer->GetAbility(Voci[Posizione].AbilityIndex);
+		if (!Ability || Ability->Def.ActionId != ActionId) { continue; }
+		if (Out.IsSet())
+		{
+			return FRTDeclaredEntry(); // due copie: l'`ActionId` non dice quale, e indovinare darebbe un indice falso
+		}
+		Out.DeclarationIndex = Posizione;
+		Out.TeamId = Declarer->TeamId;
+	}
+	return Out;
+}
+
+ARTTurnManager::FRTDeclaredEntry ARTTurnManager::DeclarationOfMovement(const ARTUnit* Declarer)
+{
+	FRTDeclaredEntry Out;
+	if (!IsValid(Declarer))
+	{
+		return Out;
+	}
+	const FRTLockedPlan& Copia = Declarer->GetLockedPlan();
+	const int32 Voce = Copia.Plan.DeclarationIndexOf(ERTPlanEntryClass::Movement);
+	if (Voce != INDEX_NONE)
+	{
+		Out.DeclarationIndex = Voce;
+	}
+	else if (Copia.bPlansNormalMove)
+	{
+		Out.DeclarationIndex = Copia.Plan.GetEntries().Num(); // senza voce il movimento e' l'ultimo dichiarato (`MakePlanFor`)
+	}
+	Out.TeamId = Out.IsSet() ? Declarer->TeamId : INDEX_NONE;
+	return Out;
+}
+
+void ARTTurnManager::StampDeclaration(FRTTurnLogEntry& Entry, const ARTUnit* Subject) const
+{
+	if (Entry.DeclarationIndex != INDEX_NONE)
+	{
+		return; // l'ha scritto il produttore, con la sua squadra
+	}
+	FRTDeclaredEntry Dichiarata = CurrentDeclaredEntry;
+	if (!Dichiarata.IsSet() && !URTTurnLogLibrary::IsSubjectTheSufferer(Entry))
+	{
+		Dichiarata = DeclarationOfAction(Subject, Entry.ActionId);
+		// Il movimento non e' un'abilita' del kit: le sue voci portano l'azione della banda (`Action.Move`, `Action.Sprint`).
+		const bool bDelMovimento = Entry.Category == ERTLogCategory::Move
+			|| (Entry.Phase == ERTMatchPhase::Move && Entry.Category == ERTLogCategory::Fallback);
+		if (!Dichiarata.IsSet() && bDelMovimento && !Entry.ActionId.IsNone())
+		{
+			Dichiarata = DeclarationOfMovement(Subject);
+		}
+	}
+	Entry.DeclarationIndex = Dichiarata.DeclarationIndex;
+	Entry.DeclaringTeamId = Dichiarata.IsSet() ? Dichiarata.TeamId : INDEX_NONE;
+}
+
 void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor)
 {
 	// La forma corta, per i produttori che girano dove `Actor->Cell` E' la cella del fatto — cioe' tutti
@@ -3171,6 +3237,9 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// `nullptr` -> `0`, cioe' «nessuna unita' dichiarata». Il parametro e' OBBLIGATORIO di proposito: reso
 	// opzionale, un sito nuovo erediterebbe lo zero in silenzio e la voce direbbe «nessuno» invece di tacere.
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
+	// E38 CP 38.13 ([D-615] (2)): l'ordine di dichiarazione della voce del piano che ha prodotto questa voce. Dopo `UnitId`,
+	// che la tassonomia di chi subisce legge.
+	StampDeclaration(Entry, Actor);
 
 	// 🔴 **Il verdetto di [D-223] si congela QUI, ed e' l'unico punto in cui e' corretto farlo.** Questa
 	// funzione gira DURANTE la fase che produce il fatto: la conoscenza di squadra e la cella dell'attore
@@ -3630,6 +3699,9 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			Rifiutata.SrcCell = Unit->Cell;
 			Rifiutata.TgtCell = Bersaglio;
 			Rifiutata.Amount = static_cast<int32>(Verdict.Reason);
+			// E38 CP 38.13: la voce svuotata porta il proprio ordine di dichiarazione, anche fra due copie.
+			Rifiutata.DeclarationIndex = Voce.DeclarationIndex;
+			Rifiutata.DeclaringTeamId = Voce.DeclarationIndex != INDEX_NONE ? Unit->TeamId : INDEX_NONE;
 			AppendPlanVerdictEntry(Rifiutata, Unit, Unit->Cell, ERTPlanVerdict::OwnerTeam);
 		}
 
@@ -4908,6 +4980,8 @@ void ARTTurnManager::ResolvePrep()
 		const int32 i = Turno.SourceUnitId;
 		ARTUnit* Unit = Units[i];
 		const FRTPrepVoce& Voce = VociDelleIstanze.FindChecked(PrepVoceKey(i, Turno.DeclarationIndex));
+		// E38 CP 38.13: ogni voce di TurnLog che questa voce produce porta il suo ordine, anche fra due copie.
+		const FRTDeclaredEntryScope Dichiarata(*this, FRTDeclaredEntry{ Voce.DeclarationIndex, Unit->TeamId });
 
 		const int32 Index = Voce.AbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
@@ -5154,8 +5228,25 @@ void ARTTurnManager::ResolvePrep()
 	URTActionQueueLibrary::SortActionInstances(Instances);
 
 	// 3. TRADUCI in eventi e 4. APPLICA: si lavora sugli EVENTI, non sulle abilita'.
-	for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEventsForAll(Instances))
+	//
+	// ➕ **Un'istanza alla volta, nello stesso ordine** (E38 CP 38.13): accanto agli eventi di ciascuna resta l'istanza da
+	// cui vengono, cosi' la voce di TurnLog che un evento produce sa da quale voce del piano viene. L'ordine degli eventi e'
+	// quello di `ProduceEventsForAll`, che concatena le istanze nell'ordine in cui le riceve, e resta «raccogli poi applica»:
+	// si producono tutti prima di applicarne uno.
+	TArray<TPair<FRTActionEvent, int32>> EventiConIstanza;
+	for (int32 k = 0; k < Instances.Num(); ++k)
 	{
+		for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instances[k]))
+		{
+			EventiConIstanza.Emplace(Event, k);
+		}
+	}
+	for (const TPair<FRTActionEvent, int32>& Coppia : EventiConIstanza)
+	{
+		const FRTActionEvent& Event = Coppia.Key;
+		const FRTActionInstance& DaIstanza = Instances[Coppia.Value];
+		const FRTDeclaredEntryScope Dichiarata(*this, FRTDeclaredEntry{ DaIstanza.DeclarationIndex,
+			Units.IsValidIndex(DaIstanza.SourceUnitId) ? Units[DaIstanza.SourceUnitId]->TeamId : INDEX_NONE });
 		if (!Units.IsValidIndex(Event.TargetUnitId)) { continue; }
 		ARTUnit* Target = Units[Event.TargetUnitId];
 		switch (Event.Kind)
@@ -7076,6 +7167,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		ARTUnit* Victim = Units[Hit.TargetId];
 		const URTActionData* Ability = IntentAbility.IsValidIndex(Hit.IntentIndex) ? IntentAbility[Hit.IntentIndex] : nullptr;
 		const bool bHasDef = IntentDefs.IsValidIndex(Hit.IntentIndex);
+		// E38 CP 38.13: le voci di questo colpo intestate alla VITTIMA (il lato, la copertura scavalcata, lo stato che nasce)
+		// portano l'ordine della voce del piano di chi ha colpito.
+		const FRTDeclaredEntryScope Dichiarata(*this,
+			DeclarationOfAction(Attacker, bHasDef ? IntentDefs[Hit.IntentIndex].ActionId : NAME_None));
 		AttackSrc.Add(HexUnits[Hit.AttackerId].Cell);
 		// `NAME_None` quando l'intento non ha una definizione: e' la stessa convenzione del campo, «non
 		// dichiarata», e vale meno di un nome inventato qui.
@@ -7214,6 +7309,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 					StatusTargets.Add(Victim);
 					StatusTags.Add(Event.StatusTag);
 					StatusDurations.Add(Event.Amount);
+					Ctx.StatusDeclarationIndices.Add(CurrentDeclaredEntry.DeclarationIndex); // E38 CP 38.13
+					Ctx.StatusDeclaringTeams.Add(CurrentDeclaredEntry.TeamId);
 					break;
 
 				case ERTActionEffect::Push:

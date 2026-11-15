@@ -87,6 +87,9 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, OpportunityId),        ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, ReactionInstanceId),   ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, ReactionResponse),     ERTReplayFieldVisibility::AuditOnly },
+			// E38 CP 38.13: l'indice grezzo dice quante voci precedono nel piano, e la squadra dichiarante serve a sanificarlo.
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclarationIndex),     ERTReplayFieldVisibility::AuditOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclaringTeamId),      ERTReplayFieldVisibility::AuditOnly },
 		};
 		return Rows;
 	}
@@ -193,6 +196,23 @@ TArray<FRTPublicReplayEntry> URTReplayPrivacyLibrary::ToPublicTrace(const TArray
  * riproduzione diversa da quella che la partita ha risolto — e la traccia filtrata deve restare
  * deserializzabile dallo stesso `DeserializeTurnLog`, che si aspetta la forma canonica.
  */
+void URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver(TArray<FRTTurnLogEntry>& Entries, int32 ObserverTeamId)
+{
+	// Spettatore NEUTRALE: la traccia intera, come per il filtro delle voci.
+	if (ObserverTeamId < 0)
+	{
+		return;
+	}
+	for (FRTTurnLogEntry& Entry : Entries)
+	{
+		// Fail-closed: senza una squadra dichiarante nota l'indice esce, come una voce che il verdetto non sa rappresentare.
+		if (Entry.DeclaringTeamId == INDEX_NONE || Entry.DeclaringTeamId != ObserverTeamId)
+		{
+			Entry.DeclarationIndex = INDEX_NONE;
+		}
+	}
+}
+
 TArray<FRTTurnLogEntry> URTReplayPrivacyLibrary::FilterEntriesForObserver(
 	const TArray<FRTTurnLogEntry>& Entries, int32 ObserverTeamId)
 {
