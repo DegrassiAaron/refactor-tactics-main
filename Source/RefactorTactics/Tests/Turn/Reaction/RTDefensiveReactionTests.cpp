@@ -441,15 +441,15 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const FName BaseAzioneB(TEXT("Action.Counter"));   // il modulo E' un profilo del core (D-033)
 	const int32 PrioritaB = 21;
 
-	if (!ReactorA->Abilities.IsValidIndex(ReactorA->GetPlan().PlannedReactionAbility)
-		|| !ReactorB->Abilities.IsValidIndex(ReactorB->GetPlan().PlannedReactionAbility))
+	if (!ReactorA->Abilities.IsValidIndex(ReactorA->GetPlan().PlannedReactionAbility())
+		|| !ReactorB->Abilities.IsValidIndex(ReactorB->GetPlan().PlannedReactionAbility()))
 	{
 		AddError(TEXT("la reazione non e' finita nello slot atteso: la fixture non descrive la scena"));
 		DestroyDefWorld(World);
 		return false;
 	}
-	URTActionData* AzioneA = ReactorA->Abilities[ReactorA->GetPlan().PlannedReactionAbility];
-	URTActionData* AzioneB = ReactorB->Abilities[ReactorB->GetPlan().PlannedReactionAbility];
+	URTActionData* AzioneA = ReactorA->Abilities[ReactorA->GetPlan().PlannedReactionAbility()];
+	URTActionData* AzioneB = ReactorB->Abilities[ReactorB->GetPlan().PlannedReactionAbility()];
 	AzioneA->Def.ActionId = IdAzioneA;
 	AzioneA->Def.BaseActionId = BaseAzioneA;
 	AzioneA->Def.Priority = PrioritaA;

@@ -249,9 +249,9 @@ void ARTTurnManager::BeginMovementResolution()
 		{
 			Path = { Unit->Cell }; // fermo
 		}
-		else if (Unit->GetPlan().PlannedPath.Num() >= 2 && Unit->GetPlan().PlannedPath[0] == Unit->Cell)
+		else if (Unit->GetPlan().PlannedPath().Num() >= 2 && Unit->GetPlan().PlannedPath()[0] == Unit->Cell)
 		{
-			Path = Unit->GetPlan().PlannedPath;
+			Path = Unit->GetPlan().PlannedPath();
 		}
 		else if (Unit->GetPlan().PlannedCell != Unit->Cell)
 		{

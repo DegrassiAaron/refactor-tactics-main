@@ -2310,7 +2310,7 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		// passano tutti dalla seconda.
 		PC->HandleClickOnCell(Occupata);
 		if (!TestEqual(TEXT("premessa: il waypoint e' stato accettato in pianificazione"),
-				Negata->GetPlan().PlannedWaypoints.Num(), 1))
+				Negata->GetPlan().PlannedWaypoints().Num(), 1))
 		{
 			DestroyHexMoveWorld(World);
 			return false;
@@ -2421,7 +2421,7 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 	// `HasPlannedNormalMove()` risponde di si' leggendo la sola `PlannedCell`. E' il punto per cui il
 	// work order dice che questo caso «non costa un file in piu'».
 	if (!TestEqual(TEXT("premessa: nessun percorso pianificato — solo la destinazione"),
-			Mover->GetPlan().PlannedPath.Num(), 0)
+			Mover->GetPlan().PlannedPath().Num(), 0)
 		|| !TestTrue(TEXT("premessa: e cio' basta perche' l'unita' risulti aver dichiarato un movimento"),
 			Mover->HasPlannedNormalMove()))
 	{

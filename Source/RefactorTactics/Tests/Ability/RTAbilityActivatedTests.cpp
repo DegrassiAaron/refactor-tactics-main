@@ -505,7 +505,7 @@ bool FRTTurnAbilityActivatedOncePerIntentTest::RunTest(const FString&)
 		F1->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(F1, bConCura ? TEXT("Action.Heal") : TEXT("Action.Wait")));
 		F1->SetPlannedCell(F1->Cell);
 		if (!TestTrue(TEXT("premessa: i tre intenti del catalogo esistono"),
-			R1->GetPlan().PlannedAbilityIndex != INDEX_NONE && B1->GetPlan().PlannedDashAbility != INDEX_NONE && V1->GetPlan().PlannedAbilityIndex != INDEX_NONE))
+			R1->GetPlan().PlannedAbilityIndex() != INDEX_NONE && B1->GetPlan().PlannedDashAbility() != INDEX_NONE && V1->GetPlan().PlannedAbilityIndex() != INDEX_NONE))
 		{
 			return false;
 		}
@@ -1148,7 +1148,7 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		Muiren->DeclareAttackOnUnit(Ivrin);
 		Muiren->SetPlannedCell(Muiren->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (a): i due kit hanno le azioni"),
-			Gadget->GetPlan().PlannedAbilityIndex != INDEX_NONE && Muiren->GetPlan().PlannedAbilityIndex != INDEX_NONE)) { return false; }
+			Gadget->GetPlan().PlannedAbilityIndex() != INDEX_NONE && Muiren->GetPlan().PlannedAbilityIndex() != INDEX_NONE)) { return false; }
 
 		TM->LockInAndResolve();
 		const int32 Getto = RTOrdineDelBlast::PrimoElementoDellAtto(TM, Muiren->StableUnitId, TEXT("Hero.Muiren.PressureJet"));
@@ -1178,7 +1178,7 @@ bool FRTPlaybackBlastActsFollowTheResolutionOrderTest::RunTest(const FString&)
 		Riktor->SetPlannedDash(IndiceAbilitaAttivazione(Riktor, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 		Riktor->SetPlannedCell(Riktor->Cell);
 		if (!TestTrue(TEXT("⛔ premessa (b): i due kit hanno le azioni"),
-			Muiren->GetPlan().PlannedAbilityIndex != INDEX_NONE && Riktor->GetPlan().PlannedDashAbility != INDEX_NONE)) { return false; }
+			Muiren->GetPlan().PlannedAbilityIndex() != INDEX_NONE && Riktor->GetPlan().PlannedDashAbility() != INDEX_NONE)) { return false; }
 
 		TM->LockInAndResolve();
 		// ⛔ La premessa che la parte poggia: l'impatto della carica ha COLPITO nel Blast (review di #3582). Senza un

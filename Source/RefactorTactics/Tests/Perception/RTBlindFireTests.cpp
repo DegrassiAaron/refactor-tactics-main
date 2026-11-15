@@ -283,13 +283,13 @@ bool FRTBlindFireCellAttackRequiresLosTest::RunTest(const FString&)
 	// Oltre il muro: rifiutata. La cella esiste, e' in portata, e non e' visibile.
 	const FRTCellId Oltre(1, 0, 0);
 	TestFalse(TEXT("oltre il muro l'area che chiede la linea e' rifiutata"), B.PC->HandleTargetCell(Oltre));
-	TestFalse(TEXT("e non ha scritto niente nel piano"), B.Mine->GetPlan().bAttackTargetsCell);
+	TestFalse(TEXT("e non ha scritto niente nel piano"), B.Mine->GetPlan().bAttackTargetsCell());
 
 	// Controllo POSITIVO: la stessa azione, su una cella visibile, passa. Senza, un rifiuto per qualunque
 	// altra ragione — portata, contesto, ricarica — supererebbe il test dicendo il falso.
 	const FRTCellId InVista(-3, 0, 0);
 	TestTrue(TEXT("in vista la stessa azione e' accettata"), B.PC->HandleTargetCell(InVista));
-	TestTrue(TEXT("e ha scritto la cella"), B.Mine->GetPlan().PlannedAttackCell == InVista);
+	TestTrue(TEXT("e ha scritto la cella"), B.Mine->GetPlan().PlannedAttackCell() == InVista);
 
 	DestroyBlindFireWorld(B.World);
 	return true;
@@ -334,10 +334,10 @@ bool FRTBlindFireCellIsTargetableTest::RunTest(const FString&)
 
 	const FRTCellId Oltre(1, 0, 0);
 	TestTrue(TEXT("il tiro indiretto accetta la cella non visibile"), B.PC->HandleTargetCell(Oltre));
-	TestTrue(TEXT("bAttackTargetsCell e' vero"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("PlannedAttackCell e' la cella scelta"), B.Mine->GetPlan().PlannedAttackCell == Oltre);
-	TestEqual(TEXT("e l'azione pianificata e' quella armata"), B.Mine->GetPlan().PlannedAbilityIndex, Idx);
-	TestNull(TEXT("nessun bersaglio-unita' residuo"), (void*)B.Mine->GetPlan().PlannedAttackTarget.Get());
+	TestTrue(TEXT("bAttackTargetsCell e' vero"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("PlannedAttackCell e' la cella scelta"), B.Mine->GetPlan().PlannedAttackCell() == Oltre);
+	TestEqual(TEXT("e l'azione pianificata e' quella armata"), B.Mine->GetPlan().PlannedAbilityIndex(), Idx);
+	TestNull(TEXT("nessun bersaglio-unita' residuo"), (void*)B.Mine->GetPlan().PlannedAttackTarget().Get());
 
 	DestroyBlindFireWorld(B.World);
 	return true;
@@ -448,7 +448,7 @@ bool FRTBlindFireRangeStillMattersTest::RunTest(const FString&)
 	}
 
 	TestFalse(TEXT("fuori portata il tiro indiretto e' rifiutato"), B.PC->HandleTargetCell(Lontana));
-	TestFalse(TEXT("e non ha sporcato il piano"), B.Mine->GetPlan().bAttackTargetsCell);
+	TestFalse(TEXT("e non ha sporcato il piano"), B.Mine->GetPlan().bAttackTargetsCell());
 
 	// Il motivo resta quello giusto: `OutOfRange`, non `Ok` e non `NoLineOfSight`.
 	TestTrue(TEXT("il classificatore dice FUORI PORTATA"),
@@ -609,8 +609,8 @@ bool FRTBlindFireIsNotADetectorTest::RunTest(const FString&)
 		B.PC->SelectActorForTest(B.Mine);
 		B.Mine->SelectAbility(Idx);
 		Out.bAccettato = B.PC->HandleTargetCell(Aim);
-		Out.bTargetsCell = B.Mine->GetPlan().bAttackTargetsCell;
-		Out.Cell = B.Mine->GetPlan().PlannedAttackCell;
+		Out.bTargetsCell = B.Mine->GetPlan().bAttackTargetsCell();
+		Out.Cell = B.Mine->GetPlan().PlannedAttackCell();
 
 		// L'anteprima si costruisce come la costruisce il controller: dallo stesso piano e dalle stesse
 		// unita' dello snapshot — il nemico ignoto **compreso**, perche' e' cosi' che il gioco la chiama.
@@ -625,7 +625,7 @@ bool FRTBlindFireIsNotADetectorTest::RunTest(const FString&)
 		PreviewPlan.AreaRadius = Ability->AreaRadius;
 		PreviewPlan.bFriendlyFire = Ability->Def.bFriendlyFire;
 		PreviewPlan.bTargetsCell = true;
-		PreviewPlan.TargetCell = B.Mine->GetPlan().PlannedAttackCell;
+		PreviewPlan.TargetCell = B.Mine->GetPlan().PlannedAttackCell();
 
 		TArray<FRTHexCombatUnit> HexUnits;
 		HexUnits.Add(BlindFireUnit(0, B.Mine->TeamId, B.Mine->Cell));
@@ -700,7 +700,7 @@ bool FRTBlindFireUnknownUnitStaysUntargetableTest::RunTest(const FString&)
 	//    banco non funziona.
 	Nemico->SetKnownToObserver(true);
 	B.PC->HandleClickOnUnitForTest(Nemico);
-	if (!TestTrue(TEXT("premessa: da NOTO il bersaglio si pianifica"), B.Mine->GetPlan().PlannedAttackTarget == Nemico))
+	if (!TestTrue(TEXT("premessa: da NOTO il bersaglio si pianifica"), B.Mine->GetPlan().PlannedAttackTarget() == Nemico))
 	{
 		DestroyBlindFireWorld(B.World); return false;
 	}
@@ -710,8 +710,8 @@ bool FRTBlindFireUnknownUnitStaysUntargetableTest::RunTest(const FString&)
 	B.Mine->ClearPlannedMainAction();
 	Nemico->SetKnownToObserver(false);
 	B.PC->HandleClickOnUnitForTest(Nemico);
-	TestNull(TEXT("un'unita' ignota non diventa un bersaglio"), (void*)B.Mine->GetPlan().PlannedAttackTarget.Get());
-	TestEqual(TEXT("e nessuna azione risulta pianificata"), B.Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestNull(TEXT("un'unita' ignota non diventa un bersaglio"), (void*)B.Mine->GetPlan().PlannedAttackTarget().Get());
+	TestEqual(TEXT("e nessuna azione risulta pianificata"), B.Mine->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
 
 	DestroyBlindFireWorld(B.World);
 	return true;

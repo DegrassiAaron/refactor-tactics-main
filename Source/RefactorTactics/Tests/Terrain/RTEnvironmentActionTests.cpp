@@ -1015,7 +1015,7 @@ namespace
 		// Caduto DOPO lo stordimento, come `PagaGiraStordito`: un cadavere stordito e' il caso che la riga vuole.
 		if (bFallen) { Caster->Health = 0; }
 		Out.bStunnedAtCommit = Caster->HasStatus(TAG_Status_Stunned);
-		Out.bPlanAtCommit = Caster->GetPlan().PlannedAbilityIndex == CoverStunSlot;
+		Out.bPlanAtCommit = Caster->GetPlan().PlannedAbilityIndex() == CoverStunSlot;
 		// Il passo normale, se il piano ne ha uno: dove deve arrivare si legge dal piano scritto, non dal banco.
 		Out.bMoveAtCommit = Caster->HasPlannedNormalMove();
 		if (Out.bMoveAtCommit)
@@ -1023,7 +1023,7 @@ namespace
 			Out.Destination = Caster->GetPlan().PlannedCell;
 			// La rotta che il piano promette: il suo percorso se ne ha uno, altrimenti la sola destinazione, che il pathfinder
 			// raggiunge dalla partenza (che sia ADIACENTE, e quindi che la rotta sia unica, lo verifica una premessa).
-			Out.PlannedRoute = Caster->GetPlan().PlannedPath;
+			Out.PlannedRoute = Caster->GetPlan().PlannedPath();
 			Out.ExpectedRoute = Out.PlannedRoute.Num() >= 2 ? Out.PlannedRoute : TArray<FRTCellId>{ Out.Home, Out.Destination };
 		}
 
@@ -1287,7 +1287,7 @@ namespace
 			Bed.Caster->SetPlannedCell(Bed.Step);
 			if (!Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il percorso pianificato passa da una cella intermedia ed e' piu' lungo della distanza fra partenza e destinazione"), *Run),
 					URTHexLibrary::HexDistance(Bed.Caster->Cell, Bed.Detour) == 1 && URTHexLibrary::HexDistance(Bed.Detour, Bed.Step) == 1
-					&& Bed.Caster->GetPlan().PlannedPath.Num() - 1 > URTHexLibrary::HexDistance(Bed.Caster->Cell, Bed.Step)))
+					&& Bed.Caster->GetPlan().PlannedPath().Num() - 1 > URTHexLibrary::HexDistance(Bed.Caster->Cell, Bed.Step)))
 			{
 				CoverStunCloseBed(Bed);
 				return Out;
@@ -1300,7 +1300,7 @@ namespace
 			FRTUnitPlanTestAccess::ResetPath(*Bed.Caster);
 			Bed.Caster->SetPlannedCell(Bed.Step);
 			if (!Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il piano e' di sola destinazione (nessun percorso scritto)"), *Run),
-					Bed.Caster->GetPlan().PlannedPath.Num(), 0))
+					Bed.Caster->GetPlan().PlannedPath().Num(), 0))
 			{
 				CoverStunCloseBed(Bed);
 				return Out;

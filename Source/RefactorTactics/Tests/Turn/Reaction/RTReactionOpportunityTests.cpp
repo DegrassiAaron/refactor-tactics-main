@@ -370,24 +370,24 @@ bool FRTReactionConditionPlanTest::RunTest(const FString&)
 		Unit->SetPlannedReaction(INDEX_NONE);
 		TestFalse(TEXT("senza reazione armata la condizione e' rifiutata"),
 			Unit->SetPlannedReactionCondition(Valid));
-		TestFalse(TEXT("e il piano resta senza condizione"), Unit->GetPlan().PlannedReactionCondition.IsDeclared());
+		TestFalse(TEXT("e il piano resta senza condizione"), Unit->GetPlan().PlannedReactionCondition().IsDeclared());
 
 		// 2. Con la reazione armata, una condizione che il gioco non conosce viene rifiutata e non lascia
 		//    tracce: il campo resta quello di prima, non una versione a meta'.
 		Unit->SetPlannedReaction(0);
 		TestFalse(TEXT("un id sconosciuto e' rifiutato"),
 			Unit->SetPlannedReactionCondition(FRTDeclaredCondition(TEXT("TargetIsFlanked"), 1)));
-		TestFalse(TEXT("il piano resta senza condizione"), Unit->GetPlan().PlannedReactionCondition.IsDeclared());
+		TestFalse(TEXT("il piano resta senza condizione"), Unit->GetPlan().PlannedReactionCondition().IsDeclared());
 
 		// 3. Il caso buono.
 		TestTrue(TEXT("la condizione ammessa entra nel piano"), Unit->SetPlannedReactionCondition(Valid));
-		TestTrue(TEXT("ed e' dichiarata"), Unit->GetPlan().PlannedReactionCondition.IsDeclared());
-		TestEqual(TEXT("con la sua soglia"), Unit->GetPlan().PlannedReactionCondition.Param, 50);
+		TestTrue(TEXT("ed e' dichiarata"), Unit->GetPlan().PlannedReactionCondition().IsDeclared());
+		TestEqual(TEXT("con la sua soglia"), Unit->GetPlan().PlannedReactionCondition().Param, 50);
 
 		// 4. Togliere la condizione e' sempre legittimo: e' il modo di tornare a «spara comunque», e non deve
 		//    passare per il validator — `NAME_None` non e' una condizione ammessa, e infatti non lo e'.
 		TestTrue(TEXT("la condizione si puo' togliere"), Unit->SetPlannedReactionCondition(FRTDeclaredCondition()));
-		TestFalse(TEXT("e il piano torna senza condizione"), Unit->GetPlan().PlannedReactionCondition.IsDeclared());
+		TestFalse(TEXT("e il piano torna senza condizione"), Unit->GetPlan().PlannedReactionCondition().IsDeclared());
 	}
 	else
 	{

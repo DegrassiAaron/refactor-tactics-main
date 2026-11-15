@@ -694,7 +694,7 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
  *
  * 🔴 **Senza questo test l'intera suite resta verde se si sposta `TargetUnitId` davanti ad `ActionId`**, e
  * quello sarebbe un cambio di regola di gioco: l'ordine di risoluzione di due azioni della stessa unita'
- * dipenderebbe dal bersaglio invece che dalla dichiarazione. Lo sweep dei campi non lo vede — perturba un
+ * dipenderebbe dal bersaglio invece che dall'azione e dal suo spareggio. Lo sweep dei campi non lo vede — perturba un
  * campo per volta da una base comune, quindi ogni riga e' decisa dalla sua sola chiave, qualunque sia la
  * posizione. Trovato in code review.
  *

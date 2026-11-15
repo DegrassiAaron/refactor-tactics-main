@@ -388,7 +388,7 @@ bool FRTInputBindingKitTest::RunTest(const FString&)
 	};
 	const auto Touched = [&](int32 Index)
 	{
-		return Mia->SelectedAbilityIndex == Index || Mia->GetPlan().PlannedAbilityIndex == Index || Mia->GetPlan().PlannedReactionAbility == Index;
+		return Mia->SelectedAbilityIndex == Index || Mia->GetPlan().PlannedAbilityIndex() == Index || Mia->GetPlan().PlannedReactionAbility() == Index;
 	};
 
 	for (int32 I = 0; I < RTInputKeys::AbilityHotkeys().Num(); ++I)

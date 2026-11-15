@@ -115,17 +115,17 @@ bool FRTPlanSumOverBudgetIsRejected::RunTest(const FString&)
 		TestTrue(TEXT("6 <= 6: legale"), URTPlanValidationLibrary::ValidatePlan(ApUnit(), Plan).bLegal);
 	}
 
-	// --- 4. la voce nominata e' la prima che sfora nell'ORDINE CANONICO, non nell'ordine dell'array -----------------
-	// Costi 2+2+1+2 = 7 in due sequenze diverse: il validatore ordina per larghezza di slot e poi per ActionId, quindi
-	// nomina la stessa azione in entrambi i casi. `Action.Move` (Movement) e `Action.Guard` (Main) precedono per
-	// ActionId `Action.Counter` (Reaction)? No: la larghezza e' 1 per tutte, quindi vince l'ordine alfabetico —
-	// BasicAttack, Counter, Guard, Move — e la somma 2 + 2 + 1 + 2 sfora su Move.
+	// --- 4. la voce nominata e' la prima che sfora nell'ORDINE DI DICHIARAZIONE, non nell'ordine dell'array ----------
+	// E38 CP 38.12: le stesse voci con gli stessi indici, array rovesciato. Costi 2 + 2 + 1 + 2 = 7, dichiarati Move,
+	// BasicAttack, Guard, Counter (somme 2, 4, 5, 7): sfora Counter, e lo accusano entrambi gli array. Fino a CP 38.12
+	// si accusava la prima che sforava nell'ordine canonico, alfabetico a parita' di slot: Move.
 	{
 		TArray<FRTPlannedAction> Diretto;
 		Diretto.Add(ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 2));
 		Diretto.Add(ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 2));
 		Diretto.Add(ApEntry(TEXT("Action.Guard"), ERTActionSlot::Main, 1));
 		Diretto.Add(ApEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction, 2));
+		for (int32 i = 0; i < Diretto.Num(); ++i) { Diretto[i].DeclarationIndex = i; }
 		TArray<FRTPlannedAction> Inverso = Diretto;
 		Algo::Reverse(Inverso);
 
@@ -134,7 +134,8 @@ bool FRTPlanSumOverBudgetIsRejected::RunTest(const FString&)
 		TestEqual(TEXT("7 > 6 in un verso"), A.Reason, ERTActionInvalidReason::OverBudget);
 		TestEqual(TEXT("e nell'altro"), B.Reason, ERTActionInvalidReason::OverBudget);
 		TestEqual(TEXT("la voce accusata non dipende dall'ordine dell'array"), A.OffendingActionId, B.OffendingActionId);
-		TestEqual(TEXT("ed e' Move, l'ultima dell'ordine canonico"), A.OffendingActionId, FName(TEXT("Action.Move")));
+		TestEqual(TEXT("ed e' Counter, la prima che sfora nell'ordine di dichiarazione"), A.OffendingActionId, FName(TEXT("Action.Counter")));
+		TestEqual(TEXT("con la sua occorrenza"), A.OffendingDeclarationIndex, 3);
 	}
 
 	// --- 5. il descrittore del TurnLog ha una frase per il motivo nuovo -------------------------------------------
@@ -224,11 +225,17 @@ bool FRTResolutionSamePhaseOrderIsDeterministic::RunTest(const FString&)
 	TestFalse(TEXT("limite di oggi: due principali nella stessa fase non passano il validatore"), Verdict.bLegal);
 	TestEqual(TEXT("e il motivo e' lo slot, non il budget (2 + 2 = 4 <= 6)"), Verdict.Reason, ERTActionInvalidReason::SlotOccupied);
 
-	// E il piano dell'unita' porta UN indice di abilita' principale, non una lista: e' il campo che la lista sostituira'.
-	// Dalla tappa 3 di [D-608] (#4123) il piano e' `FRTUnitPlan`, e il campo si cerca li'.
-	const FProperty* Planned = FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedAbilityIndex"));
-	TestNotNull(TEXT("FRTUnitPlan::PlannedAbilityIndex esiste"), Planned);
-	TestTrue(TEXT("ed e' un intero (un'azione per fase), non un array"), Planned && Planned->IsA<FIntProperty>());
+	// E il piano porta UNA voce principale (E38 CP 38.12): la lista c'e', ma una seconda voce della stessa classe si
+	// rifiuta, e il piano resta com'era.
+	FRTUnitPlan Piano;
+	FRTPlanEntry Prima;
+	Prima.Class = ERTPlanEntryClass::Main;
+	Prima.AbilityIndex = 0;
+	FRTPlanEntry Seconda = Prima;
+	Seconda.AbilityIndex = 1;
+	TestTrue(TEXT("la prima principale entra"), Piano.AddEntry(Prima));
+	TestFalse(TEXT("la seconda principale si rifiuta"), Piano.AddEntry(Seconda));
+	TestEqual(TEXT("e il piano porta una voce sola"), Piano.GetEntries().Num(), 1);
 	return true;
 }
 
@@ -245,9 +252,16 @@ bool FRTResolutionSameTriggerReactionOrderIsDeterministic::RunTest(const FString
 	TestFalse(TEXT("limite di oggi: due reazioni non passano il validatore"), Verdict.bLegal);
 	TestEqual(TEXT("per slot, non per budget (2 + 2 = 4 <= 6)"), Verdict.Reason, ERTActionInvalidReason::SlotOccupied);
 
-	const FProperty* Reaction = FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedReactionAbility"));
-	TestNotNull(TEXT("FRTUnitPlan::PlannedReactionAbility esiste"), Reaction);
-	TestTrue(TEXT("ed e' un intero (una reazione armata), non una lista"), Reaction && Reaction->IsA<FIntProperty>());
+	// E il piano arma UNA reazione (E38 CP 38.12): una seconda voce di reazione si rifiuta.
+	FRTUnitPlan Piano;
+	FRTPlanEntry Prima;
+	Prima.Class = ERTPlanEntryClass::Reaction;
+	Prima.AbilityIndex = 0;
+	FRTPlanEntry Seconda = Prima;
+	Seconda.AbilityIndex = 1;
+	TestTrue(TEXT("la prima reazione entra"), Piano.AddEntry(Prima));
+	TestFalse(TEXT("la seconda reazione si rifiuta"), Piano.AddEntry(Seconda));
+	TestEqual(TEXT("e il piano porta una voce sola"), Piano.GetEntries().Num(), 1);
 	return true;
 }
 
@@ -256,16 +270,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogPlanIsAListNotThreeSlots,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnLogPlanIsAListNotThreeSlots::RunTest(const FString&)
 {
-	// SOGGETTO FUTURO: il piano serializzato porta una lista di azioni con fase e costo, e la versione dello schema
-	// e' avanzata. LIMITE DI OGGI, pinnato: il piano di un'unita' sono TRE campi — principale, scatto, reazione —
-	// ciascuno un indice, e `MakePlanFor` li raccoglie al piu' in tre voci. Il costo pero' viaggia gia' con ogni
-	// voce (`FRTPlannedAction::Def.ActionPointCost`): la lista avra' la colonna pronta.
-	const TCHAR* const TreCampi[] = { TEXT("PlannedAbilityIndex"), TEXT("PlannedDashAbility"), TEXT("PlannedReactionAbility") };
-	for (const TCHAR* Nome : TreCampi)
+	// IL SOGGETTO E' APPARSO (E38 CP 38.12, #4113): il piano di un'unita' e' una LISTA di voci, `FRTUnitPlan::Entries`,
+	// e ogni voce porta l'indice dell'abilita' nel kit. I tre campi a casella unica di prima — principale, scatto,
+	// reazione — non sono piu' proprieta' del piano: ne restano gli accessori, che leggono la voce della loro classe.
+	// SOGGETTO ANCORA FUTURO: il piano serializzato, e la versione dello schema del TurnLog, arrivano con CP 38.13.
+	const FArrayProperty* Lista = CastField<FArrayProperty>(FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("Entries")));
+	const FStructProperty* Voce = Lista ? CastField<FStructProperty>(Lista->Inner) : nullptr;
+	TestTrue(TEXT("FRTUnitPlan::Entries e' una lista di FRTPlanEntry"), Voce && Voce->Struct == FRTPlanEntry::StaticStruct());
+	const FProperty* Indice = FRTPlanEntry::StaticStruct()->FindPropertyByName(TEXT("AbilityIndex"));
+	TestTrue(TEXT("e la voce porta l'indice dell'abilita'"), Indice && Indice->IsA<FIntProperty>());
+	for (const TCHAR* Nome : { TEXT("PlannedAbilityIndex"), TEXT("PlannedDashAbility"), TEXT("PlannedReactionAbility") })
 	{
-		const FProperty* P = FRTUnitPlan::StaticStruct()->FindPropertyByName(Nome);
-		TestNotNull(*FString::Printf(TEXT("FRTUnitPlan::%s esiste"), Nome), P);
-		TestTrue(*FString::Printf(TEXT("FRTUnitPlan::%s e' un indice, non una lista"), Nome), P && P->IsA<FIntProperty>());
+		TestNull(*FString::Printf(TEXT("FRTUnitPlan::%s non e' piu' una proprieta': e' un accessore della lista"), Nome),
+			FRTUnitPlan::StaticStruct()->FindPropertyByName(Nome));
 	}
 
 	// La voce del piano porta il costo: e' il campo che il TurnLog e lo snapshot leggeranno quando il piano sara' una lista.
@@ -275,6 +292,7 @@ bool FRTTurnLogPlanIsAListNotThreeSlots::RunTest(const FString&)
 
 	// Controllo positivo del metodo: un nome inventato non si trova (la reflection non risponde sempre si').
 	TestNull(TEXT("controllo: un campo inventato non esiste"), FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedActionsList")));
+	TestNotNull(TEXT("controllo: e la ricerca trova un campo che c'e'"), FRTUnitPlan::StaticStruct()->FindPropertyByName(TEXT("PlannedCell")));
 	return true;
 }
 
@@ -419,6 +437,106 @@ bool FRTObserverSnapshotHidesForeignBudgets::RunTest(const FString&)
 	const FRTHexSnapshot OA = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(5), {}, RTObserver::Omniscient);
 	const FRTHexSnapshot OB = URTHexSimLibrary::MakeSnapshot(nullptr, Mondo(4), {}, RTObserver::Omniscient);
 	TestNotEqual(TEXT("controllo: l'onnisciente vede i due budget diversi"), OA.Units[1].ActionPointBudget, OB.Units[1].ActionPointBudget);
+	return true;
+}
+
+// ── E38 CP 38.12 (#4113): il piano e' una lista, l'ordine di dichiarazione si mostra e non decide ─────────────────────
+namespace
+{
+	/** Le voci con il loro ordine di dichiarazione: la posizione nell'array, prima di qualunque permutazione. */
+	TArray<FRTPlannedAction> Dichiarate(std::initializer_list<FRTPlannedAction> Voci)
+	{
+		TArray<FRTPlannedAction> Out(Voci);
+		for (int32 i = 0; i < Out.Num(); ++i) { Out[i].DeclarationIndex = i; }
+		return Out;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanVerdictNamesTheOccurrence,
+	"RefactorTactics.Plan.VerdictNamesTheOccurrence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanVerdictNamesTheOccurrence::RunTest(const FString&)
+{
+	// Criterio 4: con due voci dello stesso `ActionId` il verdetto nomina l'indice dell'occorrenza. Voci sintetiche:
+	// in questo CP i mutatori non scrivono due voci della stessa classe.
+	{
+		// Slot: due principali. Tiene lo slot la prima dichiarata, la seconda e' la colpevole.
+		const TArray<FRTPlannedAction> Plan = Dichiarate({
+			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1),
+			ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 1),
+			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1) });
+		TArray<FRTPlannedAction> Rovesciato = Plan;
+		Algo::Reverse(Rovesciato);
+		const TArray<FRTPlannedAction>* const Due[] = { &Plan, &Rovesciato };
+		for (const TArray<FRTPlannedAction>* P : Due)
+		{
+			const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), *P);
+			TestEqual(TEXT("due principali: SlotOccupied"), V.Reason, ERTActionInvalidReason::SlotOccupied);
+			TestEqual(TEXT("la colpevole e' la seconda occorrenza"), V.OffendingDeclarationIndex, 2);
+			TestEqual(TEXT("e la detentrice la prima"), V.HolderDeclarationIndex, 0);
+			TestEqual(TEXT("tutte e due BasicAttack"), V.HolderActionId, V.OffendingActionId);
+		}
+	}
+	{
+		// Ricarica: delle due copie, e' in ricarica solo quella dichiarata per seconda.
+		TArray<FRTPlannedAction> Plan = Dichiarate({
+			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1),
+			ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 1) });
+		Plan[1].CooldownRemaining = 2;
+		const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), Plan);
+		TestEqual(TEXT("una copia in ricarica: OnCooldown"), V.Reason, ERTActionInvalidReason::OnCooldown);
+		TestEqual(TEXT("ed e' nominata la copia in ricarica"), V.OffendingDeclarationIndex, 1);
+		TestEqual(TEXT("senza detentore"), V.HolderDeclarationIndex, (int32)INDEX_NONE);
+	}
+	{
+		// Controllo: un piano legale non nomina nessuna occorrenza.
+		const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+			Dichiarate({ ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 2) }));
+		TestTrue(TEXT("controllo: legale"), V.bLegal);
+		TestEqual(TEXT("e nessuna occorrenza nominata"), V.OffendingDeclarationIndex, (int32)INDEX_NONE);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanOverBudgetBlamesTheEntryThatCrossesTheBudget,
+	"RefactorTactics.Plan.OverBudgetBlamesTheEntryThatCrossesTheBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanOverBudgetBlamesTheEntryThatCrossesTheBudget::RunTest(const FString&)
+{
+	// Criterio 5: si accusa la prima voce, nell'ordine di dichiarazione, la cui somma corrente supera il budget.
+	const FRTPlannedAction Move = ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 2);
+	const FRTPlannedAction Attack = ApEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main, 2);
+	const FRTPlannedAction Guard = ApEntry(TEXT("Action.Guard"), ERTActionSlot::Main, 1);
+	const FRTPlannedAction Counter = ApEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction, 2);
+	const FRTPlannedAction Brace = ApEntry(TEXT("Action.Brace"), ERTActionSlot::Main, 1);
+
+	struct FCaso { const TCHAR* Nome; TArray<FRTPlannedAction> Piano; FName Colpevole; int32 Indice; };
+	const FCaso Casi[] = {
+		// 2 + 2 + 1 + 2: somme 2, 4, 5, 7.
+		{ TEXT("Move, BasicAttack, Guard, Counter"), Dichiarate({ Move, Attack, Guard, Counter }), TEXT("Action.Counter"), 3 },
+		// L'ordine opposto: 2 + 1 + 2 + 2, somme 2, 3, 5, 7.
+		{ TEXT("Counter, Guard, BasicAttack, Move"), Dichiarate({ Counter, Guard, Attack, Move }), TEXT("Action.Move"), 3 },
+		// Una voce dichiarata dopo lo sforamento: 2 + 2 + 2 + 1 + 1, somme 2, 4, 6, 7, 8. Sfora Guard, non Brace.
+		{ TEXT("Move, BasicAttack, Counter, Guard, Brace"), Dichiarate({ Move, Attack, Counter, Guard, Brace }), TEXT("Action.Guard"), 3 },
+	};
+	for (const FCaso& C : Casi)
+	{
+		const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), C.Piano);
+		TestEqual(*FString::Printf(TEXT("%s: OverBudget"), C.Nome), V.Reason, ERTActionInvalidReason::OverBudget);
+		TestEqual(*FString::Printf(TEXT("%s: colpevole"), C.Nome), V.OffendingActionId, C.Colpevole);
+		TestEqual(*FString::Printf(TEXT("%s: occorrenza"), C.Nome), V.OffendingDeclarationIndex, C.Indice);
+		// Le stesse voci con gli stessi indici, array rovesciato: stessa accusa (criterio 3).
+		TArray<FRTPlannedAction> Rovesciato = C.Piano;
+		Algo::Reverse(Rovesciato);
+		const FRTPlanValidation R = URTPlanValidationLibrary::ValidatePlan(ApUnit(), Rovesciato);
+		TestEqual(*FString::Printf(TEXT("%s, array rovesciato: stesso colpevole"), C.Nome), R.OffendingActionId, C.Colpevole);
+		TestEqual(*FString::Printf(TEXT("%s, array rovesciato: stessa occorrenza"), C.Nome), R.OffendingDeclarationIndex, C.Indice);
+	}
+	// Criterio 8, su voci sintetiche: un piano illegale dichiarato in due ordini ha lo stesso verdetto e lo stesso motivo.
+	const FRTPlanValidation A = URTPlanValidationLibrary::ValidatePlan(ApUnit(), Casi[0].Piano);
+	const FRTPlanValidation B = URTPlanValidationLibrary::ValidatePlan(ApUnit(), Casi[1].Piano);
+	TestEqual(TEXT("due ordini di dichiarazione: stesso verdetto"), A.bLegal, B.bLegal);
+	TestEqual(TEXT("e stesso motivo"), A.Reason, B.Reason);
 	return true;
 }
 

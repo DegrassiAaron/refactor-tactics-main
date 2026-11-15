@@ -17,7 +17,7 @@ class ARTUnit;
  * pattern gia' in uso in `URTCombatLibrary::IsAbilityUsable(CooldownRemaining)`, e
  * mantiene la validazione una funzione pura: stessa coppia (snapshot, piano) => stesso verdetto.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTPlannedAction
 {
 	GENERATED_BODY()
@@ -36,6 +36,16 @@ struct FRTPlannedAction
 	/** Turni di cooldown ancora da scontare; 0 = ripetibile ora. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 CooldownRemaining = 0;
+
+	/**
+	 * L'ordine di dichiarazione della voce (E38 CP 38.12, [D-615] (5)): la posizione della sua voce nella lista di
+	 * `FRTUnitPlan`, scritta da `MakePlanFor`. `INDEX_NONE` = non dichiarato (le voci sintetiche dei test).
+	 *
+	 * 🔑 **Si mostra e non decide.** Legalita' e motivo non lo leggono. Lo legge solo la RESA del verdetto: quale
+	 * occorrenza si nomina, e quale voce si accusa di `OverBudget` (la prima che, in quest'ordine, fa sforare la somma).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
+	int32 DeclarationIndex = INDEX_NONE;
 };
 
 /** Verdetto della validazione: legale, oppure illegale con il motivo e l'azione che lo ha causato. */
@@ -66,6 +76,17 @@ struct FRTPlanValidation
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
 	FName HolderActionId;
+
+	/**
+	 * L'occorrenza di `OffendingActionId` e di `HolderActionId`: il loro `FRTPlannedAction::DeclarationIndex`
+	 * (E38 CP 38.12). `INDEX_NONE` quando la voce manca, o non e' dichiarata. Servono a nominare quale delle due copie
+	 * di una stessa azione ha causato il rifiuto: sono resa, come i due nomi, e non entrano nel motivo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	int32 OffendingDeclarationIndex = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	int32 HolderDeclarationIndex = INDEX_NONE;
 };
 
 /**
@@ -93,7 +114,8 @@ public:
 	 * Precedenza dei motivi, deterministica e indipendente dall'ordine in cui il giocatore compone:
 	 *   1. `OnCooldown` — proprieta' INTRINSECA di una voce sola;
 	 *   2. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera il budget dell'unita');
-	 *      nomina la prima voce, nell'ordine canonico, che fa sforare la somma;
+	 *      nomina la prima voce, nell'ORDINE DI DICHIARAZIONE, che fa sforare la somma (E38 CP 38.12): le voci dichiarate
+	 *      prima di lei stanno tutte nel budget. E' resa, non regola: la legalita' e' la somma intera;
 	 *   3. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima.
 	 *
 	 * ⏳ **Il budget precede lo slot ed e' voluto** (E38 CP 38.6, #4012): ADR-0011 sostituira' gli slot con il
@@ -110,8 +132,10 @@ public:
 	 * produce: rinumerare l'enum cambierebbe il significato delle tracce gia' scritte.
 	 *
 	 * L'ordine dell'array non entra nel verdetto: le voci si esaminano in un ordine canonico (prima chi
-	 * occupa piu' slot, poi per `ActionId`), altrimenti lo stesso piano composto in due sequenze diverse
-	 * darebbe due motivi diversi — cioe' la presentazione deciderebbe la regola.
+	 * occupa piu' slot, poi per `ActionId`, poi per `DeclarationIndex`, che lo rende totale anche su due copie),
+	 * altrimenti lo stesso piano composto in due sequenze diverse darebbe due motivi diversi — cioe' la
+	 * presentazione deciderebbe la regola. Ne' l'ordine dell'array ne' quello di dichiarazione cambiano legalita'
+	 * e motivo ([D-615] (5)); l'ordine di dichiarazione decide solo quale occorrenza si nomina.
 	 *
 	 * ⚠️ **Non c'e' piu' una precondizione su `Unit`**, e la riga che la dichiarava e' stata tolta: diceva
 	 * *«PRECONDIZIONE: `Unit` e' viva»*, ma dopo [D-190] il corpo non legge quel parametro, quindi la

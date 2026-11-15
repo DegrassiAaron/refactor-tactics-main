@@ -159,7 +159,7 @@ bool FRTRejectedArmingLeavesNoSelectedAbilityTest::RunTest(const FString&)
 	TestEqual(TEXT("B: una reazione in ricarica rifiutata NON resta selezionata sul modello"),
 		Unit->SelectedAbilityIndex, INDEX_NONE);
 	TestEqual(TEXT("B: e non risulta nemmeno pianificata come reazione"),
-		Unit->GetPlan().PlannedReactionAbility, INDEX_NONE);
+		Unit->GetPlan().PlannedReactionAbility(), INDEX_NONE);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -349,7 +349,7 @@ bool FRTCooldownActionIsNotArmedTest::RunTest(const FString&)
 	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 	PC->ArmKitAbility(Attiva);
 	TestEqual(TEXT("B: in ricarica, lo slot del dock NON la arma"), Unit->SelectedAbilityIndex, INDEX_NONE);
-	TestEqual(TEXT("B: e non risulta pianificata"), Unit->GetPlan().PlannedAbilityIndex, INDEX_NONE);
+	TestEqual(TEXT("B: e non risulta pianificata"), Unit->GetPlan().PlannedAbilityIndex(), INDEX_NONE);
 
 	// --- C. il RIFIUTO lascia il modello com'era: l'azione gia' armata resta armata ---------------
 	PC->SelectAbilityForCurrentForTest(Pronta);
@@ -358,14 +358,14 @@ bool FRTCooldownActionIsNotArmedTest::RunTest(const FString&)
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
-	const int32 PianificataPrima = Unit->GetPlan().PlannedAbilityIndex;
+	const int32 PianificataPrima = Unit->GetPlan().PlannedAbilityIndex();
 	PC->SelectAbilityForCurrentForTest(Attiva);
 	TestEqual(TEXT("C: il tasto rifiutato non toglie l'armo che c'era"), Unit->SelectedAbilityIndex, Pronta);
 	// Si riparte dall'armo di prima, cosi' il dock non eredita l'esito del tasto (ne' il toggle dello slot armato).
 	PC->SelectAbilityForCurrentForTest(Pronta);
 	PC->ArmKitAbility(Attiva);
 	TestEqual(TEXT("C: il dock rifiutato non toglie l'armo che c'era"), Unit->SelectedAbilityIndex, Pronta);
-	TestEqual(TEXT("C: e non tocca il piano"), Unit->GetPlan().PlannedAbilityIndex, PianificataPrima);
+	TestEqual(TEXT("C: e non tocca il piano"), Unit->GetPlan().PlannedAbilityIndex(), PianificataPrima);
 	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 
 	// --- B2. a UN turno dalla fine l'azione e' ancora in ricarica: il confine --------------------------

@@ -11,15 +11,26 @@ namespace
 {
 	/** Rifiuto con motivo, colpevole e detentore dello slot: un solo punto di costruzione, cosi' nessun
 	 *  ramo dimentica un campo. `Holder` resta `NAME_None` per i motivi che non sono conflitti di slot. */
-	FRTPlanValidation Reject(ERTActionInvalidReason Reason, const FName& ActionId,
-		const FName& Holder = NAME_None)
+	FRTPlanValidation Reject(ERTActionInvalidReason Reason, const FRTPlannedAction& Offending,
+		const FRTPlannedAction* Holder = nullptr)
 	{
 		FRTPlanValidation Result;
 		Result.bLegal = false;
 		Result.Reason = Reason;
-		Result.OffendingActionId = ActionId;
-		Result.HolderActionId = Holder;
+		Result.OffendingActionId = Offending.Def.ActionId;
+		Result.OffendingDeclarationIndex = Offending.DeclarationIndex;
+		if (Holder)
+		{
+			Result.HolderActionId = Holder->Def.ActionId;
+			Result.HolderDeclarationIndex = Holder->DeclarationIndex;
+		}
 		return Result;
+	}
+
+	/** L'ordine di dichiarazione come chiave: una voce non dichiarata (`INDEX_NONE`) viene dopo tutte le dichiarate. */
+	int32 DeclarationKey(const FRTPlannedAction& Entry)
+	{
+		return Entry.DeclarationIndex == INDEX_NONE ? MAX_int32 : Entry.DeclarationIndex;
 	}
 }
 
@@ -58,7 +69,8 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	// leggerlo qui, invece di dedurlo dal CAMPO in cui l'abilita' e' scritta, e' cio' che tiene questo
 	// adattatore ignaro dei kit — `PlannedDashAbility` non significa "slot movimento", significa "l'azione
 	// che questa unita' ha messo nel suo scatto", e quale slot occupi lo dice lei.
-	auto AddAbility = [&Plan, Unit](int32 Index)
+	// E38 CP 38.12: ogni voce porta il suo ordine di dichiarazione, la posizione della sua voce nella lista del piano.
+	auto AddAbility = [&Plan, Unit](int32 Index, int32 DeclarationIndex)
 	{
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability)
@@ -85,12 +97,14 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// e' l'unico accesso, ed e' la ragione per cui `FRTPlannedAction` lo porta come dato invece di andarselo
 		// a prendere (vedi il commento della struct).
 		Entry.CooldownRemaining = Unit->GetAbilityCooldown(Index);
+		Entry.DeclarationIndex = DeclarationIndex;
 		Plan.Add(Entry);
 	};
 
-	AddAbility(Unit->GetPlan().PlannedDashAbility);
-	AddAbility(Unit->GetPlan().PlannedAbilityIndex);
-	AddAbility(Unit->GetPlan().PlannedReactionAbility);
+	const FRTUnitPlan& Piano = Unit->GetPlan();
+	AddAbility(Piano.PlannedDashAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Dash));
+	AddAbility(Piano.PlannedAbilityIndex(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Main));
+	AddAbility(Piano.PlannedReactionAbility(), Piano.DeclarationIndexOf(ERTPlanEntryClass::Reaction));
 
 	// Il movimento normale, con la regola in un posto solo: il PERCHE' delle due condizioni sta nel
 	// docstring di `ARTUnit::HasPlannedNormalMove`, insieme alla regola che descrive.
@@ -122,18 +136,22 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
 		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
 		// alto per nessuno, non verso il piu' basso per qualcuno.
-		const int32 PlannedSteps = Unit->GetPlan().PlannedPath.Num() >= 2
-			? Unit->GetPlan().PlannedPath.Num() - 1
+		const int32 PlannedSteps = Unit->GetPlan().PlannedPath().Num() >= 2
+			? Unit->GetPlan().PlannedPath().Num() - 1
 			: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell);
 
 		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
 		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
 		// l'unico che chiude il cerchio, perche' cio' che riserva lo slot movimento e' sempre un'ALTRA
 		// azione del piano ([D-070]).
+		// 🔑 **E le abilita' ci sono TUTTE, qualunque sia la loro posizione nella lista** (E38 CP 38.12, [D-615] (5)):
+		// l'array si compone per classe, non per ordine di dichiarazione, quindi un Move dichiarato prima dell'Overwatch
+		// riceve la stessa riserva `Withdraw`. Percorrere la lista in ordine di dichiarazione la perderebbe, e la
+		// dichiarazione deciderebbe la risoluzione. Lo pinna `Plan.MovementBandIgnoresTheDeclaredSequence`.
 		const FRTMovementProfile Band = URTMovementProfileLibrary::ProfileForPlannedSteps(
 			PlannedSteps,
 			Unit->GetEffectiveMoveRange(),
-			Unit->GetPlan().PlannedMovementProfileId,
+			Unit->GetPlan().PlannedMovementProfileId(),
 			URTMovementProfileLibrary::ReservedProfileForPlan(Plan),
 			Unit->HasStatus(TAG_Status_Unbalanced));
 
@@ -159,6 +177,10 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		{
 			FRTPlannedAction Entry;
 			Entry.Def = Movement;
+			// L'ordine della voce di movimento. Il bot dichiara la sola cella d'arrivo, che e' del piano e non di una
+			// voce: senza la voce, il movimento e' l'ultimo dichiarato.
+			const int32 Dichiarato = Piano.DeclarationIndexOf(ERTPlanEntryClass::Movement);
+			Entry.DeclarationIndex = Dichiarato != INDEX_NONE ? Dichiarato : Piano.GetEntries().Num();
 			Plan.Add(Entry);
 		}
 	}
@@ -184,7 +206,13 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		{
 			return WidthA > WidthB;
 		}
-		return A.Def.ActionId.Compare(B.Def.ActionId) < 0;
+		if (A.Def.ActionId != B.Def.ActionId)
+		{
+			return A.Def.ActionId.Compare(B.Def.ActionId) < 0;
+		}
+		// E38 CP 38.12: l'ordine di dichiarazione in coda rende l'ordine totale anche su due copie della stessa
+		// azione. Decide solo quale occorrenza si nomina, mai legalita' o motivo.
+		return DeclarationKey(A) < DeclarationKey(B);
 	});
 
 	// 1. Intrinseco: un'abilita' in cooldown non e' pianificabile nemmeno con tutti gli slot liberi.
@@ -192,7 +220,7 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 	{
 		if (Entry.CooldownRemaining > 0)
 		{
-			return Reject(ERTActionInvalidReason::OnCooldown, Entry.Def.ActionId);
+			return Reject(ERTActionInvalidReason::OnCooldown, Entry);
 		}
 	}
 
@@ -200,22 +228,30 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 	//
 	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
 	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
-	// [D-594] (E38 CP 38.6): la somma dei costi AP non supera il budget. Nell'ordine canonico, e' la prima voce
-	// che fa sforare a essere nominata: cosi' lo stesso piano composto in due sequenze accusa la stessa azione.
-	// Precede lo slot perche' e' il vincolo che ADR-0011 lascera' in piedi quando gli slot cadranno.
+	// [D-594] (E38 CP 38.6): la somma dei costi AP non supera il budget. Precede lo slot perche' e' il vincolo che
+	// ADR-0011 lascera' in piedi quando gli slot cadranno.
+	// E38 CP 38.12: si accusa la prima voce, nell'ORDINE DI DICHIARAZIONE, la cui somma corrente supera il budget; le
+	// voci dichiarate prima di lei ci stanno tutte. La legalita' e' la somma intera, che nessun ordine cambia, quindi
+	// l'accusa e' resa. A parita' di dichiarazione (le voci non dichiarate dei test) decide l'ordine canonico: lo stesso
+	// piano in due sequenze dell'array accusa la stessa voce.
+	TArray<FRTPlannedAction> Dichiarate = Ordered;
+	Dichiarate.StableSort([](const FRTPlannedAction& A, const FRTPlannedAction& B)
+	{
+		return DeclarationKey(A) < DeclarationKey(B);
+	});
 	int32 Spent = 0;
-	for (const FRTPlannedAction& Entry : Ordered)
+	for (const FRTPlannedAction& Entry : Dichiarate)
 	{
 		Spent += FMath::Max(0, Entry.Def.ActionPointCost);
 		if (Spent > Unit.ActionPointBudget) // [D-613] (1): il budget dell'unita' per il turno (E38 CP 38.11)
 		{
-			return Reject(ERTActionInvalidReason::OverBudget, Entry.Def.ActionId);
+			return Reject(ERTActionInvalidReason::OverBudget, Entry);
 		}
 	}
 
-	FName MovementHolder;
-	FName MainHolder;
-	FName ReactionHolder;
+	const FRTPlannedAction* MovementHolder = nullptr;
+	const FRTPlannedAction* MainHolder = nullptr;
+	const FRTPlannedAction* ReactionHolder = nullptr;
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
 		const bool bWantsMovement = Entry.Def.Slot == ERTActionSlot::Movement
@@ -224,22 +260,22 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
 		const bool bWantsReaction = Entry.Def.Slot == ERTActionSlot::Reaction;
 
-		if (bWantsMovement && !MovementHolder.IsNone())
+		if (bWantsMovement && MovementHolder)
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, MovementHolder);
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MovementHolder);
 		}
-		if (bWantsMain && !MainHolder.IsNone())
+		if (bWantsMain && MainHolder)
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, MainHolder);
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MainHolder);
 		}
-		if (bWantsReaction && !ReactionHolder.IsNone())
+		if (bWantsReaction && ReactionHolder)
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, ReactionHolder);
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, ReactionHolder);
 		}
 
-		if (bWantsMovement) { MovementHolder = Entry.Def.ActionId; }
-		if (bWantsMain)     { MainHolder = Entry.Def.ActionId; }
-		if (bWantsReaction) { ReactionHolder = Entry.Def.ActionId; }
+		if (bWantsMovement) { MovementHolder = &Entry; }
+		if (bWantsMain)     { MainHolder = &Entry; }
+		if (bWantsReaction) { ReactionHolder = &Entry; }
 	}
 
 	return FRTPlanValidation();

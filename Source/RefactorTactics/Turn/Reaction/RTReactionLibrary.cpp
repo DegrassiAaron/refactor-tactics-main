@@ -200,7 +200,7 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 	// bersaglio assente) resta quella di `URTActionEffectLibrary::ProduceEvents`, non una seconda copia che
 	// puo' divergere. Il prezzo e' un'istanza per effetto: una reazione ne dichiara al piu' una manciata.
 	//
-	// L'ordine di DICHIARAZIONE delle istanze costruite qui (#2970): una per `FRTActionEffectSpec`
+	// Lo spareggio delle istanze costruite qui, contato dove nascono (#2970): una per `FRTActionEffectSpec`
 	// **che sopravvive al filtro** — il `continue` qui sotto salta gli spec senza bersaglio, quindi
 	// `EventSequence` NON e' l'indice in `Def.Effects` e non va usato per risalire allo spec.
 	//
@@ -213,7 +213,7 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 	// bersaglio assente), e a ogni scarto il contatore non avanza: due istanze consecutive ricevevano lo
 	// stesso numero. E qui e' il caso peggiore, perche' quelle due istanze differiscono **solo** per
 	// `Def.Effects` — che `InstanceLess` non guarda e non deve guardare, essendo del catalogo.
-	int32 DeclarationOrder = 0;
+	int32 Spareggio = 0;
 
 	for (const FRTActionEffectSpec& Spec : Def.Effects)
 	{
@@ -228,7 +228,7 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 		Instance.Def.Effects = { Spec };
 		Instance.SourceUnitId = SelfId;
 		Instance.TargetUnitId = TargetId;
-		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non gli eventi prodotti (#2970)
+		Instance.EventSequence = Spareggio++; // il contatore delle istanze, non gli eventi prodotti (#2970)
 		Events.Append(URTActionEffectLibrary::ProduceEvents(Instance));
 	}
 

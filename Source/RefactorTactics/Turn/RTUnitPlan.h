@@ -4,6 +4,7 @@
 #include "GameplayTagContainer.h"
 #include "Map/RTCellId.h"
 #include "Turn/Actions/RTDeclaredCondition.h"
+#include "Turn/RTPlanEntry.h"
 #include "RTUnitPlan.generated.h"
 
 class ARTUnit;
@@ -27,22 +28,87 @@ class ARTUnit;
  * 🔒 **Nessun campo e' visibile ai Blueprint**: l'intento e' privato della squadra che lo dichiara (CLAUDE.md §7), e
  * nessun asset del progetto li nominava (misura in #4123).
  */
-USTRUCT()
+USTRUCT(meta = (RTServerOnly))
 struct REFACTORTACTICS_API FRTUnitPlan
 {
 	GENERATED_BODY()
+
+	// ---- La lista (E38 CP 38.12, #4113) ------------------------------------------------------------------------------
+	//
+	// 🔑 **Il piano e' una lista di voci, e la POSIZIONE di una voce e' il suo ordine di dichiarazione** ([D-608] (1),
+	// [D-615] (5)). L'ordine si mostra e non decide: nessun resolver lo legge per ordinare o per scegliere un esito, e
+	// `MakePlanFor` deriva la banda del movimento da tutte le altre voci, qualunque sia la loro posizione.
+	//
+	// 🔑 **Una voce per classe** (scatto, principale, reazione, movimento), finche' il resolver ne legge una: sono i campi
+	// a casella unica di prima, e la lista ha solo le forme che quei campi sapevano dire. E' una regola sulla FORMA del
+	// piano, non sull'esito. `AddEntry` rifiuta una seconda voce della stessa classe; le porte qui sotto, che sono i
+	// gesti di prima, SOSTITUISCONO il valore nella voce della loro classe.
+	//
+	// 🔑 **Gli accessori dicono cio' che dicevano i campi**: il valore della voce della classe, o il default se la voce
+	// non c'e'. Una voce nasce alla prima scrittura che le da' un valore e si toglie quando torna tutta al default, cosi'
+	// la lista non porta voci vuote e i valori letti sono quelli di prima per costruzione.
+
+	/** Le voci, nell'ordine di dichiarazione. */
+	const TArray<FRTPlanEntry>& GetEntries() const { return Entries; }
+
+	/** La posizione della voce di una classe, cioe' il suo ordine di dichiarazione; `INDEX_NONE` se non c'e'. */
+	int32 DeclarationIndexOf(ERTPlanEntryClass Class) const
+	{
+		return Entries.IndexOfByPredicate([Class](const FRTPlanEntry& E) { return E.Class == Class; });
+	}
+
+	/** Aggiunge una voce in coda. Rifiuta, e lascia il piano com'era, una voce vuota o una seconda voce della stessa classe. */
+	bool AddEntry(const FRTPlanEntry& Entry)
+	{
+		if (Entry.IsEmpty() || DeclarationIndexOf(Entry.Class) != INDEX_NONE)
+		{
+			return false;
+		}
+		Entries.Add(Entry);
+		return true;
+	}
+
+	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
+	bool RemoveEntryAt(int32 Position)
+	{
+		if (!Entries.IsValidIndex(Position))
+		{
+			return false;
+		}
+		Entries.RemoveAt(Position);
+		return true;
+	}
+
+	/** Svuota la lista: nessuna voce, quindi ogni accessore della lista torna al default. */
+	void ResetEntries() { Entries.Reset(); }
+
+	// ---- Le scritture di un campo della voce: le chiamano solo i mutatori di `ARTUnit` e l'accesso dei test ----------
+	void SetPlannedAbilityIndex(int32 V) { Edit(ERTPlanEntryClass::Main).AbilityIndex = V; Prune(); }
+	void SetPlannedAttackTarget(ARTUnit* V) { Edit(ERTPlanEntryClass::Main).AttackTarget = V; Prune(); }
+	void SetPlannedAttackCell(const FRTCellId& V) { Edit(ERTPlanEntryClass::Main).AttackCell = V; Prune(); }
+	void SetAttackTargetsCell(bool V) { Edit(ERTPlanEntryClass::Main).bAttackTargetsCell = V; Prune(); }
+	void SetPlannedCoverEdge(ERTHexDirection V) { Edit(ERTPlanEntryClass::Main).CoverEdge = V; Prune(); }
+	void SetHasPlannedCoverEdge(bool V) { Edit(ERTPlanEntryClass::Main).bHasCoverEdge = V; Prune(); }
+	void SetPlannedDashAbility(int32 V) { Edit(ERTPlanEntryClass::Dash).AbilityIndex = V; Prune(); }
+	void SetPlannedDashCell(const FRTCellId& V) { Edit(ERTPlanEntryClass::Dash).DashCell = V; Prune(); }
+	void SetPlannedReactionAbility(int32 V) { Edit(ERTPlanEntryClass::Reaction).AbilityIndex = V; Prune(); }
+	void SetPlannedReactionCondition(const FRTDeclaredCondition& V) { Edit(ERTPlanEntryClass::Reaction).ReactionCondition = V; Prune(); }
+	void SetPlannedPath(const TArray<FRTCellId>& V) { Edit(ERTPlanEntryClass::Movement).Path = V; Prune(); }
+	void AddPlannedPathCell(const FRTCellId& V) { Edit(ERTPlanEntryClass::Movement).Path.Add(V); Prune(); }
+	void SetPlannedWaypoints(const TArray<FRTCellId>& V) { Edit(ERTPlanEntryClass::Movement).Waypoints = V; Prune(); }
+	void AddPlannedWaypoint(const FRTCellId& V) { Edit(ERTPlanEntryClass::Movement).Waypoints.Add(V); Prune(); }
+	void PopPlannedWaypoint() { Edit(ERTPlanEntryClass::Movement).Waypoints.Pop(); Prune(); }
+	void SetPlannedMovementProfileId(FName V) { Edit(ERTPlanEntryClass::Movement).MovementProfileId = V; Prune(); }
 
 	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
 	UPROPERTY()
 	FRTCellId PlannedCell;
 
 	/** Abilita' pianificata per il turno (INDEX_NONE = nessun attacco). */
-	UPROPERTY()
-	int32 PlannedAbilityIndex = INDEX_NONE;
+	int32 PlannedAbilityIndex() const { return Of(ERTPlanEntryClass::Main).AbilityIndex; }
 
 	/** Bersaglio dell'attacco pianificato per il turno (nullo = nessun attacco). */
-	UPROPERTY()
-	TObjectPtr<ARTUnit> PlannedAttackTarget = nullptr;
+	const TObjectPtr<ARTUnit>& PlannedAttackTarget() const { return Of(ERTPlanEntryClass::Main).AttackTarget; }
 
 	/**
 	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
@@ -52,8 +118,7 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
 	 * bersaglio-cella. Resta scoperto il lato HUD — puntare una cella col mouse e' E11.
 	 */
-	UPROPERTY()
-	FRTCellId PlannedAttackCell;
+	const FRTCellId& PlannedAttackCell() const { return Of(ERTPlanEntryClass::Main).AttackCell; }
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
@@ -64,16 +129,14 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * catalogo azioni dichiara 3. E' l'equivalente per i bordi di `PlannedAttackCell`, e come quello resta
 	 * scoperto sul lato HUD: puntare un bordo col mouse e' E11.
 	 */
-	UPROPERTY()
-	ERTHexDirection PlannedCoverEdge = ERTHexDirection::E;
+	ERTHexDirection PlannedCoverEdge() const { return Of(ERTPlanEntryClass::Main).CoverEdge; }
 
 	/**
 	 * Vero se il piano dichiara `PlannedCoverEdge`. Serve un flag e non basta un valore di riposo: le sei
 	 * direzioni sono tutte legittime, quindi nessuna puo' fare da «nessuna» senza diventare un caso speciale
 	 * che il giocatore non puo' dedurre.
 	 */
-	UPROPERTY()
-	bool bHasPlannedCoverEdge = false;
+	bool bHasPlannedCoverEdge() const { return Of(ERTPlanEntryClass::Main).bHasCoverEdge; }
 
 	/**
 	 * Vero se l'azione principale mira a `PlannedAttackCell` invece che a un'unita'.
@@ -87,22 +150,19 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha rispettata:
 	 * `HandleTargetCell` accendeva il flag e `HandleClickOnUnit` scriveva il bersaglio **senza spegnerlo**.
 	 */
-	UPROPERTY()
-	bool bAttackTargetsCell = false;
+	bool bAttackTargetsCell() const { return Of(ERTPlanEntryClass::Main).bAttackTargetsCell; }
 
 	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
 	 * Vuoto o < 2 celle = nessun movimento composito (si usa PlannedCell come destinazione singola).
 	 */
-	UPROPERTY()
-	TArray<FRTCellId> PlannedPath;
+	const TArray<FRTCellId>& PlannedPath() const { return Of(ERTPlanEntryClass::Movement).Path; }
 
 	/**
 	 * Waypoint cliccati dal giocatore (esclusa la cella di partenza), da cui deriva PlannedPath.
 	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
 	 */
-	UPROPERTY()
-	TArray<FRTCellId> PlannedWaypoints;
+	const TArray<FRTCellId>& PlannedWaypoints() const { return Of(ERTPlanEntryClass::Movement).Waypoints; }
 
 	/**
 	 * Il profilo di movimento **DICHIARATO** per questo turno — oggi `MovementProfile.Sneak`, o vuoto
@@ -131,8 +191,7 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * lock-in gli anticipa la distanza che quell'unita' puo' coprire, cioe' esattamente l'informazione che
 	 * la simultaneita' esiste per nascondere.
 	 */
-	UPROPERTY()
-	FName PlannedMovementProfileId;
+	FName PlannedMovementProfileId() const { return Of(ERTPlanEntryClass::Movement).MovementProfileId; }
 
 	/**
 	 * Rotazione DICHIARATA in pianificazione (D-020, #291): «finito il movimento, guarda di la'».
@@ -149,20 +208,17 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	ERTHexDirection PlannedFacing = ERTHexDirection::E;
 
 	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
-	UPROPERTY()
-	int32 PlannedDashAbility = INDEX_NONE;
+	int32 PlannedDashAbility() const { return Of(ERTPlanEntryClass::Dash).AbilityIndex; }
 
 	/** Cella di destinazione dello scatto pianificato (valida solo se PlannedDashAbility e' impostata). */
-	UPROPERTY()
-	FRTCellId PlannedDashCell;
+	const FRTCellId& PlannedDashCell() const { return Of(ERTPlanEntryClass::Dash).DashCell; }
 
 	/**
 	 * Reazione pianificata per il turno (INDEX_NONE = nessuna reazione pronta), slot indipendente da
 	 * Movimento e Principale (CP 5.1, epic E5). Non ha una cella o un bersaglio: il trigger dichiarato
 	 * dall'abilita' (`FRTActionDef::ReactionTrigger`) e' valutato sullo snapshot del Blast, non scelto qui.
 	 */
-	UPROPERTY()
-	int32 PlannedReactionAbility = INDEX_NONE;
+	int32 PlannedReactionAbility() const { return Of(ERTPlanEntryClass::Reaction).AbilityIndex; }
 
 	/**
 	 * La condizione dichiarata sulla reazione armata ([D-109]). Vuota = nessuna: si risponde a ogni trigger.
@@ -171,8 +227,7 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * rimetterebbe in gioco proprio cio' che il validator esiste per impedire — una condizione che nessuna
 	 * funzione sa valutare, scoperta al trigger invece che in pianificazione.
 	 */
-	UPROPERTY()
-	FRTDeclaredCondition PlannedReactionCondition;
+	const FRTDeclaredCondition& PlannedReactionCondition() const { return Of(ERTPlanEntryClass::Reaction).ReactionCondition; }
 
 	/**
 	 * Ordine di rimozione dichiarato per `Action.Cleanse` (CP 5.2): si purifica il PRIMO stato di questa lista
@@ -186,4 +241,33 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 */
 	UPROPERTY()
 	TArray<FGameplayTag> PlannedCleansePriority;
+
+private:
+	/** Le voci, nell'ordine di dichiarazione: si toccano solo dalle porte qui sopra. */
+	UPROPERTY()
+	TArray<FRTPlanEntry> Entries;
+
+	/** La voce di una classe, o la voce vuota (i default di prima) se non c'e'. */
+	const FRTPlanEntry& Of(ERTPlanEntryClass Class) const
+	{
+		static const FRTPlanEntry Vuota;
+		const int32 At = DeclarationIndexOf(Class);
+		return At == INDEX_NONE ? Vuota : Entries[At];
+	}
+
+	/** La voce di una classe, creata in coda se non c'e': la prima scrittura e' la sua dichiarazione. */
+	FRTPlanEntry& Edit(ERTPlanEntryClass Class)
+	{
+		const int32 At = DeclarationIndexOf(Class);
+		if (At != INDEX_NONE)
+		{
+			return Entries[At];
+		}
+		FRTPlanEntry& Nuova = Entries.AddDefaulted_GetRef();
+		Nuova.Class = Class;
+		return Nuova;
+	}
+
+	/** Le voci tornate tutte al default escono; le altre restano nel loro ordine (`RemoveAll` e' stabile). */
+	void Prune() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.IsEmpty(); }); }
 };

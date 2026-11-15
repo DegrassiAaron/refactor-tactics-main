@@ -1529,12 +1529,12 @@ void ARTUnit::RicordaTroncamentoDelTetto(const FName& TettoId, const TArray<FRTC
 {
 	// ⛔ Niente scartato, niente da ricordare. Il confronto e' sui NUMERI e non su `Prima != PlannedWaypoints`:
 	// il troncamento taglia dalla coda, quindi un piano intatto ha la stessa lunghezza ed e' lo stesso piano.
-	if (Prima.Num() <= Plan.PlannedWaypoints.Num())
+	if (Prima.Num() <= Plan.PlannedWaypoints().Num())
 	{
 		return;
 	}
 	WaypointsPrimaDelTetto = Prima;
-	WaypointsTenutiDalTetto = Plan.PlannedWaypoints.Num();
+	WaypointsTenutiDalTetto = Plan.PlannedWaypoints().Num();
 	TettoCheHaTroncato = TettoId;
 }
 
@@ -1549,7 +1549,7 @@ bool ARTUnit::RipristinaWaypointsDelTetto(const FName& TettoId)
 
 	// Il piano e' ancora quello che il troncamento ha lasciato? Lunghezza **e** contenuto: la lunghezza da
 	// sola passerebbe su un piano riscritto di pari misura, che e' un piano diverso.
-	bool bIntatto = Plan.PlannedWaypoints.Num() == WaypointsTenutiDalTetto;
+	bool bIntatto = Plan.PlannedWaypoints().Num() == WaypointsTenutiDalTetto;
 	for (int32 i = 0; bIntatto && i < WaypointsTenutiDalTetto; ++i)
 	{
 		// Entrambi gli indici sono guardati SUL POSTO, e non e' ridondanza: la sicurezza di
@@ -1557,14 +1557,14 @@ bool ARTUnit::RipristinaWaypointsDelTetto(const FName& TettoId)
 		// NON LOCALE. Un gate di mutazione che tolse quel confronto fece crashare la suite con
 		// `Array index out of bounds: 0 into an array of size 0` invece di renderla rossa: il difetto era
 		// nella guardia, non nella mutazione.
-		bIntatto = WaypointsPrimaDelTetto.IsValidIndex(i) && Plan.PlannedWaypoints.IsValidIndex(i)
-			&& WaypointsPrimaDelTetto[i] == Plan.PlannedWaypoints[i];
+		bIntatto = WaypointsPrimaDelTetto.IsValidIndex(i) && Plan.PlannedWaypoints().IsValidIndex(i)
+			&& WaypointsPrimaDelTetto[i] == Plan.PlannedWaypoints()[i];
 	}
 
 	const bool bRipristinato = bIntatto;
 	if (bRipristinato)
 	{
-		Plan.PlannedWaypoints = WaypointsPrimaDelTetto;
+		Plan.SetPlannedWaypoints(WaypointsPrimaDelTetto);
 	}
 	// In ogni caso la memoria si consuma: se il piano e' cambiato non potra' mai tornare valida, e tenerla
 	// darebbe un ripristino a sorpresa al gesto dopo.
@@ -2156,8 +2156,8 @@ int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 
 void ARTUnit::ClearReactionPlan()
 {
-	Plan.PlannedReactionAbility = INDEX_NONE;
-	Plan.PlannedReactionCondition = FRTDeclaredCondition();
+	Plan.SetPlannedReactionAbility(INDEX_NONE);
+	Plan.SetPlannedReactionCondition(FRTDeclaredCondition());
 	// Il segno dei waypoint di UNA reazione non sopravvive alla reazione (`#3927`).
 	WaypointsAllaReazione = INDEX_NONE;
 }
@@ -2168,13 +2168,13 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 	// validator, e infatti `NAME_None` non e' fra gli id ammessi — non deve esserlo.
 	if (!Condition.IsDeclared())
 	{
-		Plan.PlannedReactionCondition = FRTDeclaredCondition();
+		Plan.SetPlannedReactionCondition(FRTDeclaredCondition());
 		return true;
 	}
 
 	// Una condizione senza reazione a cui applicarsi resterebbe orfana nel piano, e il prossimo armamento se
 	// la ritroverebbe addosso senza averla chiesta.
-	if (Plan.PlannedReactionAbility == INDEX_NONE)
+	if (Plan.PlannedReactionAbility() == INDEX_NONE)
 	{
 		return false;
 	}
@@ -2186,7 +2186,7 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 		return false;
 	}
 
-	Plan.PlannedReactionCondition = Condition;
+	Plan.SetPlannedReactionCondition(Condition);
 	return true;
 }
 
@@ -2198,15 +2198,15 @@ bool ARTUnit::CanUseAbility(int32 Index) const
 
 bool ARTUnit::PlannedDashApplies() const
 {
-	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility);
+	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility());
 	// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro (#142).
 	const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
-	return bFastMovement && CanUseAbility(Plan.PlannedDashAbility) && !(Plan.PlannedDashCell == Cell);
+	return bFastMovement && CanUseAbility(Plan.PlannedDashAbility()) && !(Plan.PlannedDashCell() == Cell);
 }
 
 bool ARTUnit::PlannedDashIsCharge() const
 {
-	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility);
+	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility());
 	return Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge;
 }
 
@@ -2228,10 +2228,10 @@ int32 ARTUnit::PlannedChargeReachBeyondRange(int32* OutDistance) const
 	{
 		return 0;
 	}
-	const int32 Range = EffectiveDashRangeOf(Plan.PlannedDashAbility);
+	const int32 Range = EffectiveDashRangeOf(Plan.PlannedDashAbility());
 	// La stessa retta del resolver ([D-524]): la distanza e' i passi di `MovementLine`, non una delle sei direzioni.
 	TArray<FRTCellId> Retta;
-	if (Range <= 0 || !URTMovementActionLibrary::MovementLine(Cell, Plan.PlannedDashCell, Retta))
+	if (Range <= 0 || !URTMovementActionLibrary::MovementLine(Cell, Plan.PlannedDashCell(), Retta))
 	{
 		return 0;
 	}
@@ -2258,8 +2258,8 @@ bool ARTUnit::GetPlannedChargeRun(FRTChargeRun& OutRun) const
 	// La chiave e' il piano di ADESSO: una lettura scritta per un'altra partenza, un altro bersaglio o un'altra portata
 	// descrive una corsa che non e' piu' questa, e disegnarla sarebbe peggio che ricadere sull'unico numero senza conoscenza.
 	if (!bHasPlannedChargeRun || !PlannedDashMoves() || !PlannedDashIsCharge()
-		|| !(PlannedChargeRun.From == Cell) || !(PlannedChargeRun.Target == Plan.PlannedDashCell)
-		|| PlannedChargeRun.Range != EffectiveDashRangeOf(Plan.PlannedDashAbility))
+		|| !(PlannedChargeRun.From == Cell) || !(PlannedChargeRun.Target == Plan.PlannedDashCell())
+		|| PlannedChargeRun.Range != EffectiveDashRangeOf(Plan.PlannedDashAbility()))
 	{
 		return false;
 	}
@@ -2269,7 +2269,7 @@ bool ARTUnit::GetPlannedChargeRun(FRTChargeRun& OutRun) const
 
 bool ARTUnit::PlannedDashDeniedByStatus() const
 {
-	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility);
+	const URTActionData* Dash = GetAbility(Plan.PlannedDashAbility());
 	return Dash != nullptr && HasStatus(TAG_Status_Unbalanced)
 		&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
 }
@@ -2280,7 +2280,7 @@ bool ARTUnit::PlannedDashDeniedByStun() const
 	// anche `TakesMainSlot` ([D-567]): la mobilita' del solo movimento restava permessa perche' [D-416] (1) lasciava il
 	// movimento a `Root`, e l'autore l'ha ribaltato. Un confronto con lo slot qui lascerebbe fuori la prossima mobilita'
 	// senza che nulla diventi rosso: lo prova `Status.StunCensus.EveryMobilityIsRefusedWhenStunned`, guidato dai cataloghi.
-	return GetAbility(Plan.PlannedDashAbility) != nullptr && HasStatus(TAG_Status_Stunned);
+	return GetAbility(Plan.PlannedDashAbility()) != nullptr && HasStatus(TAG_Status_Stunned);
 }
 
 bool ARTUnit::PlannedNormalMoveDeniedByStun() const
@@ -2300,7 +2300,7 @@ FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const
 {
 	// [D-471]: uno scatto che lo stato nega non sposta l'origine, e la mira lo sa come il resolver.
 	return URTHexCombatLibrary::AimOriginCell(Phase, Cell, PlannedDashMoves(), PlannedDashIsCharge(),
-		Plan.PlannedDashCell);
+		Plan.PlannedDashCell());
 }
 
 void ARTUnit::SelectAbility(int32 Index)

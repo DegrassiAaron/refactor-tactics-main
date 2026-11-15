@@ -23,25 +23,25 @@
 struct FRTUnitPlanTestAccess
 {
 	/** Il percorso, cosi' com'e': la cella d'arrivo non si tocca (`SetPlannedRoute` la ricaverebbe). */
-	static void SetPath(ARTUnit& Unit, const TArray<FRTCellId>& Path) { Unit.Plan.PlannedPath = Path; }
-	static void ResetPath(ARTUnit& Unit) { Unit.Plan.PlannedPath.Reset(); }
-	static void AddPathCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedPath.Add(Cell); }
+	static void SetPath(ARTUnit& Unit, const TArray<FRTCellId>& Path) { Unit.Plan.SetPlannedPath(Path); }
+	static void ResetPath(ARTUnit& Unit) { Unit.Plan.SetPlannedPath({}); }
+	static void AddPathCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.AddPlannedPathCell(Cell); }
 
 	/** I waypoint, senza toccare il percorso (`ClearPlannedRoute` li azzererebbe insieme). */
-	static void SetWaypoints(ARTUnit& Unit, const TArray<FRTCellId>& Waypoints) { Unit.Plan.PlannedWaypoints = Waypoints; }
-	static void ResetWaypoints(ARTUnit& Unit) { Unit.Plan.PlannedWaypoints.Reset(); }
+	static void SetWaypoints(ARTUnit& Unit, const TArray<FRTCellId>& Waypoints) { Unit.Plan.SetPlannedWaypoints(Waypoints); }
+	static void ResetWaypoints(ARTUnit& Unit) { Unit.Plan.SetPlannedWaypoints({}); }
 
 	/** Una sola meta' dello scatto (`SetPlannedDash` le scrive insieme). */
-	static void SetDashAbility(ARTUnit& Unit, int32 AbilityIndex) { Unit.Plan.PlannedDashAbility = AbilityIndex; }
-	static void SetDashCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedDashCell = Cell; }
+	static void SetDashAbility(ARTUnit& Unit, int32 AbilityIndex) { Unit.Plan.SetPlannedDashAbility(AbilityIndex); }
+	static void SetDashCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.SetPlannedDashCell(Cell); }
 
 	/** Una sola meta' della mira a cella (`DeclareAttackOnCell` ritira anche il bersaglio-unita'). */
-	static void SetAttackCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.PlannedAttackCell = Cell; }
-	static void SetAttackTargetsCell(ARTUnit& Unit, bool bTargetsCell) { Unit.Plan.bAttackTargetsCell = bTargetsCell; }
+	static void SetAttackCell(ARTUnit& Unit, const FRTCellId& Cell) { Unit.Plan.SetPlannedAttackCell(Cell); }
+	static void SetAttackTargetsCell(ARTUnit& Unit, bool bTargetsCell) { Unit.Plan.SetAttackTargetsCell(bTargetsCell); }
 
 	/** Una sola meta' del bordo dichiarato (`DeclarePlannedCoverEdge` le scrive insieme). */
-	static void SetCoverEdge(ARTUnit& Unit, ERTHexDirection Edge) { Unit.Plan.PlannedCoverEdge = Edge; }
-	static void SetHasCoverEdge(ARTUnit& Unit, bool bHasEdge) { Unit.Plan.bHasPlannedCoverEdge = bHasEdge; }
+	static void SetCoverEdge(ARTUnit& Unit, ERTHexDirection Edge) { Unit.Plan.SetPlannedCoverEdge(Edge); }
+	static void SetHasCoverEdge(ARTUnit& Unit, bool bHasEdge) { Unit.Plan.SetHasPlannedCoverEdge(bHasEdge); }
 
 	/** Il solo segno del verso dichiarato (`DeclarePlannedFacing` scrive anche il verso). */
 	static void SetDeclaresFacing(ARTUnit& Unit, bool bDeclares) { Unit.Plan.bDeclaresPlannedFacing = bDeclares; }

@@ -175,8 +175,8 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 		PC->SelectAbilityForCurrentForTest(ConRicarica);
 		PC->HandleClickOnUnitForTest(Target);
 		if (!TestEqual(*E(TEXT("A: pronta, l'azione si arma")), Attacker->SelectedAbilityIndex, ConRicarica)
-			|| !TestEqual(*E(TEXT("A: il click sul bersaglio pianifica l'azione")), Attacker->GetPlan().PlannedAbilityIndex, ConRicarica)
-			|| !TestTrue(*E(TEXT("A: e il bersaglio e' quello cliccato")), Attacker->GetPlan().PlannedAttackTarget == Target))
+			|| !TestEqual(*E(TEXT("A: il click sul bersaglio pianifica l'azione")), Attacker->GetPlan().PlannedAbilityIndex(), ConRicarica)
+			|| !TestTrue(*E(TEXT("A: e il bersaglio e' quello cliccato")), Attacker->GetPlan().PlannedAttackTarget() == Target))
 		{
 			DestroySuspWorld(World);
 			return false;
@@ -213,7 +213,7 @@ bool FRTSuspendedResolutionIsReadOnlyTest::RunTest(const FString&)
 
 		PC->HandleClickOnUnitForTest(Decoy);
 		TestFalse(*E(TEXT("C: il click su un altro nemico NON pianifica un'azione gia' spesa")),
-			Attacker->GetPlan().PlannedAttackTarget == Decoy);
+			Attacker->GetPlan().PlannedAttackTarget() == Decoy);
 
 		TM->OnReactionWindowOpened.Unbind();
 		DestroySuspWorld(World);

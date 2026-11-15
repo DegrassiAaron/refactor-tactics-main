@@ -37,7 +37,11 @@ struct FRTActionInstance
 	FRTCellId TargetCell;
 
 	/**
-	 * Ordine di dichiarazione dell'azione nel turno. Non e' una priorita' nascosta.
+	 * Lo spareggio fra istanze con le stesse chiavi precedenti, contato dove l'istanza nasce, sul ciclo delle unita'.
+	 * Non e' una priorita' nascosta.
+	 *
+	 * ⚠️ E non e' l'ordine in cui il giocatore ha dichiarato le sue azioni: quello sta nella lista di `FRTUnitPlan`
+	 * (E38 CP 38.12), si mostra, e nessun resolver lo legge ([D-615] (5)).
 	 *
 	 * 🔑 **Si conta dove l'istanza NASCE, con un contatore incrementato di suo** (#2970). Non e' una
 	 * preferenza di stile: `Num()` letto su un altro array — o sullo stesso, ma piu' in la' nel ciclo —

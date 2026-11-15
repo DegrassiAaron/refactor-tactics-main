@@ -141,7 +141,7 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	// pausa con un piano gia' tracciato la lasciava spenta mentre ventaglio, portata e timeline tornavano.
 	// ⏱️ *Fino a `#3892` sei siti la scrivevano a mano prima di chiamare il rinfresco: erano ridondanti, e facevano due
 	// verita' sul percorso.* Chi cambia il piano chiama `RefreshPlanningOverlay` e basta.
-	HexMap->SetPreviewPath(Unit->GetPlan().PlannedPath);
+	HexMap->SetPreviewPath(Unit->GetPlan().PlannedPath());
 
 	// Dove puo' ANCORA arrivare: budget, blocchi, occupanti e archi sono gia' applicati, e i waypoint gia'
 	// pianificati hanno gia' speso la loro parte (#877). Il ventaglio risponde a «quanto mi resta», non a
@@ -155,7 +155,7 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	{
 		bHasSnapshot = true;
 		for (const FRTHexReachableCell& R :
-			URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints))
+			URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints()))
 		{
 			Reachable.Add(R.Cell);
 		}
@@ -199,7 +199,7 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	const FRTBlastPreviewPlan PreviewPlan = URTHudViewModel::MakeBlastPreviewPlan(*Unit, UnitId, Units);
 	const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
 	// L'azione principale serve ancora piu' sotto, alla timeline delle fasi: e' la stessa che il piano ha tradotto.
-	const URTActionData* Ability = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex);
+	const URTActionData* Ability = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
 
 	const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
 	HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
@@ -239,9 +239,9 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 		// `MakePlanPreview`): contarlo qui la disegnerebbe due volte. E il dato `FRTReactionPreview` — che oggi nessuno
 		// disegna — porrebbe `WatchOrigin` a fine scatto, mentre l'Overwatch si arma da dove l'unita' e' prima dello
 		// scatto ([D-470]).
-		Timeline.bReactionArmed = Unit->GetPlan().PlannedReactionAbility != INDEX_NONE;
+		Timeline.bReactionArmed = Unit->GetPlan().PlannedReactionAbility() != INDEX_NONE;
 		Timeline.ReactionProfileId = Unit->ReactionProfileId;
-		if (const URTActionData* Reazione = Unit->GetAbility(Unit->GetPlan().PlannedReactionAbility))
+		if (const URTActionData* Reazione = Unit->GetAbility(Unit->GetPlan().PlannedReactionAbility()))
 		{
 			Timeline.PrepActionId = Reazione->Def.ActionId;
 		}
@@ -251,22 +251,22 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 		// azzera — `ResolveDash` pulisce la sola abilita'. Confrontarla con la cella corrente, come faceva
 		// la prima stesura, dava uno scatto FANTASMA verso l'origine della mappa a ogni unita' che non ci
 		// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
-		Timeline.bDashPlanned = Unit->GetPlan().PlannedDashAbility != INDEX_NONE
-			&& !(Unit->GetPlan().PlannedDashCell == Unit->Cell);
+		Timeline.bDashPlanned = Unit->GetPlan().PlannedDashAbility() != INDEX_NONE
+			&& !(Unit->GetPlan().PlannedDashCell() == Unit->Cell);
 		Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
-		Timeline.PlannedDashCell = Unit->GetPlan().PlannedDashCell;
-		if (const URTActionData* Scatto = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility))
+		Timeline.PlannedDashCell = Unit->GetPlan().PlannedDashCell();
+		if (const URTActionData* Scatto = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility()))
 		{
 			Timeline.DashActionId = Scatto->Def.ActionId;
 			// [D-524]: il fantasma legge la STESSA retta del resolver, con lo stile e la portata che il resolver
 			// userebbe. Una carica oltre la portata si ferma dove la portata finisce ([D-516]): lo dice la funzione
 			// del movimento, non un conteggio a parte.
 			Timeline.DashStyle = Scatto->Def.MovementStyle;
-			Timeline.DashRange = Unit->EffectiveDashRangeOf(Unit->GetPlan().PlannedDashAbility);
+			Timeline.DashRange = Unit->EffectiveDashRangeOf(Unit->GetPlan().PlannedDashAbility());
 		}
 
 		Timeline.Blast = PreviewPlan;
-		Timeline.PlannedWaypoints = Unit->GetPlan().PlannedWaypoints;
+		Timeline.PlannedWaypoints = Unit->GetPlan().PlannedWaypoints();
 		Timeline.bMoveResolves = !Unit->PlannedNormalMoveDeniedByStun(); // [D-569]: la domanda del resolver, non un secondo giudizio
 		// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
 		// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
@@ -290,9 +290,9 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 		// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
 		// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
 		// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
-		if (Ability && !Unit->GetPlan().bAttackTargetsCell)
+		if (Ability && !Unit->GetPlan().bAttackTargetsCell())
 		{
-			if (const ARTUnit* Bersaglio = Unit->GetPlan().PlannedAttackTarget.Get())
+			if (const ARTUnit* Bersaglio = Unit->GetPlan().PlannedAttackTarget().Get())
 			{
 				// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
 				// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
