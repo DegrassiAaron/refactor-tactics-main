@@ -102,9 +102,8 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Cancel | `RMB` · `BackSpace` | `UndoAction` |
 | Home | `Home` | `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)): selezione propria viva → squadra → centro mappa, con orientamento e distanza di default (§4.1) |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
+| Inquadratura d'unità | `T` | `FrameOwnUnit` → `FrameUnit` ([D-618](../../decisions/RT_PDR_00_Decision_Log.md), [#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)): dietro l'unità, girata sul suo verso, col campo davanti (§4.2) |
 | Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
-
-⏳ **`T`, l'inquadratura d'unità, è prescritto da [D-618](../../decisions/RT_PDR_00_Decision_Log.md) e non è ancora cablato** (§4.2).
 
 ### 3.2 Binding del modificatore `Ctrl` — ✅ consegnati
 
@@ -227,7 +226,7 @@ un'inquadratura, e portargliela via è peggio che non aiutarlo.
 | `LMB` singolo | Select — ✅ non muove la camera |
 | `F` | Focus — ✅ `FocusOn`, **conserva lo zoom** |
 | doppio `LMB` | Select + Focus — ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773), su unità propria, entro `DoubleClickInterval` |
-| `T` | Inquadratura d'unità — ⏳ [D-618](../../decisions/RT_PDR_00_Decision_Log.md), §4.2 |
+| `T` | Inquadratura d'unità — ✅ `FrameUnit` ([D-618](../../decisions/RT_PDR_00_Decision_Log.md)), §4.2 |
 | `Home` | Recupero contestuale — ✅ `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)), §4.1 |
 
 `FocusOn` sposta il **pivot** e conserva yaw, pitch e distanza. Conserva anche la **quota del piano** e non
@@ -289,7 +288,7 @@ una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la sce
 
 ### 4.2 `T` — l'inquadratura d'unità — [D-618](../../decisions/RT_PDR_00_Decision_Log.md), [#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)
 
-⏳ **Prescritta, non ancora scritta.** `T` mette la camera **dietro** un'unità e la gira **dove guarda lei**:
+✅ **Scritta il 2026-11-15** ([#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)); ⏳ il verdetto a occhio è `PIE-CAM-UNIT-FRAME`. `T` mette la camera **dietro** un'unità e la gira **dove guarda lei**:
 l'unità sta nella parte bassa dello schermo, e davanti si vede il campo dove va il colpo. È la scelta
 dell'autore del 2026-11-15 (D-618). Si usa in due posti: in partita, sull'unità selezionata; nel banco
 Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
@@ -307,11 +306,12 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
   [D-526](../../decisions/RT_PDR_00_Decision_Log.md)) dipende da yaw e distanza, e va calcolato su quelli nuovi.
   È lo stesso ordine di `Home` (`ResetAndFrame`).
 - **Sul bordo della mappa** il pivot si ferma al limite: l'unità può non scendere fino in basso, o spostarsi di
-  lato, ma deve restare **in quadro**.
+  lato, ma deve restare **in quadro**. ⚠️ Misurato: con l'unità che guarda **fuori** dalla mappa e il margine a zero,
+  il limite tira indietro il pivot e i piedi cadono nella metà **alta** del quadro (NDC +0,45), sempre in quadro.
 - 🔧 **Taratura aperta** (`PROPOSED FOR PLAYTEST`, [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780)):
   `UnitFramingArmLength` e `UnitFramingLeadCells` sono `UPROPERTY` del pawn. Lo spostamento è in celle, come
-  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. Il primo valore lo sceglie l'autore nel banco,
-  a occhio.
+  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. I valori di partenza sono 600 e 0,75 celle;
+  quelli definitivi li sceglie l'autore nel banco, a occhio.
 
 **Su chi**
 
@@ -349,18 +349,18 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
   45° esiste per non agganciare la vista agli assi della griglia, e uno yaw preso dal verso cade proprio su un
   asse. D-142 governa `Q`/`E`, che dopo `T` ruotano di 45° da lì; per una skill in linea l'asse è la vista utile.
 
-**I criteri.** I nomi dei test sono proposte: li fissa la PR del codice.
+**I criteri.** I test stanno in `Source/RefactorTactics/Tests/Camera/RTCameraUnitFramingTests.cpp`, salvo dove è scritto altro.
 
 | # | Criterio | Prova |
 |---|---|---|
-| 1 | dopo `T` lo yaw è quello del verso, per tutti e sei i versi | ⏳ test di automazione |
-| 2 | il pivot sta davanti all'unità lungo il verso, e l'unità cade nella metà bassa dello schermo | ⏳ test di automazione, sulla proiezione |
-| 3 | distanza `UnitFramingArmLength`, pitch tarato e peek azzerato, da qualunque vista di partenza, strategica compresa | ⏳ test di automazione |
-| 4 | sul bordo il pivot resta dentro il limite, e l'unità resta in quadro | ⏳ test di automazione |
-| 5 | in partita non inquadra un'unità morta o di un'altra squadra, e senza selezione non muove niente | ⏳ test di automazione |
-| 6 | il tasto è `T`, e passa dalla stessa funzione della posa | ⏳ test di automazione |
-| 7 | una scena del banco si apre inquadrata su `CASTER`; uno scenario che non è del banco resta sulla mappa intera | ⏳ test di automazione |
-| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ `PIE-CAM-UNIT-FRAME`, verdetto dell'autore; la voce entra nel registro con la PR del codice |
+| 1 | dopo `T` lo yaw è quello del verso, per tutti e sei i versi | ✅ `Camera.UnitFramingLooksAlongTheFacing` |
+| 2 | il pivot sta davanti all'unità lungo il verso, e l'unità cade nella metà bassa dello schermo | ✅ `Camera.UnitFramingPutsTheUnitInTheLowerHalfOfTheFrame`, sulla proiezione: con la taratura di default i piedi a NDC −0,49 |
+| 3 | distanza `UnitFramingArmLength`, pitch tarato e peek azzerato, da qualunque vista di partenza, strategica compresa | ✅ `Camera.UnitFramingResetsTheViewToItsOwnDistance` |
+| 4 | sul bordo il pivot resta dentro il limite, e l'unità resta in quadro | ✅ `Camera.UnitFramingAtTheEdgeKeepsThePivotInsideTheBounds` |
+| 5 | in partita non inquadra un'unità morta o di un'altra squadra, e senza selezione non muove niente | ✅ `Camera.UnitFramingNeverFramesAnotherTeamsUnit` |
+| 6 | il tasto è `T`, e passa dalla stessa funzione della posa | ✅ `PlayerInput.UnitFramingIsOnT` · `PlayerInput.EveryActionIsBoundOnItsEvents` (in `Tests/Player/Input/RTInputBindingTests.cpp`) |
+| 7 | una scena del banco si apre inquadrata su `CASTER`; uno scenario che non è del banco resta sulla mappa intera | ✅ `Camera.ScenarioOpeningFramesTheLabCaster` · `Scenario.SessionFindsTheLabCasterById` |
+| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ `PIE-CAM-UNIT-FRAME`, verdetto dell'autore |
 
 ---
 
