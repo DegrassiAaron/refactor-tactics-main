@@ -5621,17 +5621,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLineStaysWithItsTeamTest,
 bool FRTLockInLineStaysWithItsTeamTest::RunTest(const FString&)
 {
 	// Criterio 9: la riga del lock-in racconta un piano, quindi la legge solo la squadra che lo ha composto ([D-349]).
+	//
+	// 🔴 **Prima un turno a piano vuoto**, e non e' cerimonia: al primo lock-in la conoscenza di squadra non e' ancora
+	// calcolata, e col verdetto di conoscenza la riga sarebbe nascosta a TUTTE e due le squadre. L'asserzione sulla
+	// squadra 1 sarebbe vera anche col codice di prima. Misurato con la mutazione che rimette `FRTLogSubject::Unit`.
 	FLockInBench B;
 	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
-	PlanOverBudget(B);
 	ResolveOneTurn(B.TM);
-
 	const ERTTargetKnowledge Vista = URTTeamKnowledgeLibrary::ClassifyTarget(
 		B.TM->KnowledgeForTeamPublic(1), B.Riktor->StableUnitId, B.Riktor->TeamId, B.Riktor->Cell);
-	if (!TestTrue(TEXT("premessa: per la squadra 1 Riktor e' visibile"), Vista == ERTTargetKnowledge::Allowed))
+	if (!TestTrue(TEXT("premessa: al lock-in del turno 2 la squadra 1 vede Riktor"), Vista == ERTTargetKnowledge::Allowed))
 	{
 		DestroyInteractionWorld(B.World); return false;
 	}
+
+	PlanOverBudget(B);
+	ResolveOneTurn(B.TM);
 	TestEqual(TEXT("la squadra 0 legge la riga del lock-in"),
 		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("piano non valido al lock-in")), 1);
 	TestEqual(TEXT("la squadra 1, che vede Riktor, non la legge"),
