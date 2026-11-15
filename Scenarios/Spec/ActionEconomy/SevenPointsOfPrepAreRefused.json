@@ -1,0 +1,96 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SevenPointsOfPrepAreRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-594] (1): le azioni di Prep si ripetono finche' il budget lo consente, e non oltre.",
+  "_oracolo": "`Action.Guard` cinque volte (5 x 1) + ImpactShot su F1 (2) = 7 > 6: `OverBudget` (23), e il lock-in svuota il piano: sei voci `Fallback`/`Cancelled`.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -2,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — il piano porta una copia vietata.",
+      "requires": [
+        "ActionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Hero.Riktor.ImpactShot",
+              "target": "F1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 6,
+      "_assertion": "Il lock-in svuota il piano: una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 23,
+      "_assertion": "Il motivo in `ERTActionInvalidReason`."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 0,
+      "_assertion": "Il colpo non parte."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

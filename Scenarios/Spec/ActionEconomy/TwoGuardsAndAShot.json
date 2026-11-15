@@ -1,0 +1,89 @@
+{
+  "scenarioId": "Spec.ActionEconomy.TwoGuardsAndAShot",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor",
+    "gadget"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-584] (1), [D-614], [D-615] (5): due azioni di Prep della stessa unita' sono legali se gli AP bastano, e una copia senza ricarica e' ammessa. Il gemello `Spec.ActionEconomy.AShotAndTwoGuards` dichiara le stesse azioni nell'altro ordine, e da' le stesse attese: la dichiarazione non decide. Che i due TurnLog differiscano solo per `DeclarationIndex` lo misura `Resolution.DeclarationPermutationChangesOnlyTheOrderField`.",
+  "_oracolo": "Guard (Prep, 1) + Guard (Prep, 1) + ImpactShot su F1 (Blast, 2) = 4 <= 6. `Action.Guard` ha cooldown 0, quindi la copia e' ammessa. Le due Guard lasciano due voci `Status`/`AppliedByAction` nel Prep; ImpactShot colpisce F1, a 2 celle, nel Blast. Nessuna voce del piano e' svuotata. Le due Guard sono uguali anche nel contenuto, quindi fra loro non c'e' un ordine da asserire.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -2,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — B1 dichiara Guard, Guard, ImpactShot.",
+      "requires": [
+        "ActionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Action.Guard"
+            },
+            {
+              "ability": "Hero.Riktor.ImpactShot",
+              "target": "F1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Status",
+      "outcome": "AppliedByAction",
+      "phase": "Prep",
+      "value": 2,
+      "_assertion": "Le due Guard si risolvono entrambe nel Prep."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 1,
+      "_assertion": "Il Prep consuma le Guard e lascia il bersaglio di ImpactShot: il colpo parte nel Blast."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "Il piano e' legale: il lock-in non svuota niente."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

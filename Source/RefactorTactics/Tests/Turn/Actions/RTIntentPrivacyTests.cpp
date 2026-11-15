@@ -387,6 +387,8 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bHasTarget),        ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, TargetCell),        ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, ReactionName),      ERTIntentViewFieldClass::AllyOnly },
+			// E38 CP 38.13: le azioni del piano in ordine di dichiarazione ne dicono conteggio e ordine.
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DeclaredActionNames), ERTIntentViewFieldClass::AllyOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, PlannedPath),       ERTIntentViewFieldClass::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, PlannedWaypoints),  ERTIntentViewFieldClass::AllyOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bDashing),          ERTIntentViewFieldClass::Public },
@@ -478,6 +480,7 @@ namespace
 		I.bHasTarget = true;
 		I.TargetCell = FRTCellId(4, 0);
 		I.ReactionName = FText::FromString(TEXT("Contrattacco"));
+		I.DeclaredActionNames = { FText::FromString(TEXT("Guardia")), FText::FromString(TEXT("Tiro")) }; // E38 CP 38.13
 		I.PlannedPath = { FRTCellId(3, 1, 0), FRTCellId(2, 1), FRTCellId(2, 0) };
 		I.PlannedWaypoints = { FRTCellId(2, 0) };
 		I.bDashing = true;

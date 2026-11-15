@@ -3247,6 +3247,18 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 
 	if (Ability->bSelfTarget)
 	{
+		// ➕ **Il gesto della lista** (E38 CP 38.13, #4114): con la principale gia' presa da un'altra azione, un'azione di
+		// Prep si AGGIUNGE al piano invece di sostituirla ([D-584] (1)). Il bersaglio della principale resta: e' suo, non di
+		// questa voce. Il Back la toglie, perche' e' l'ultima dichiarata.
+		const int32 Principale = Unit->GetPlan().PlannedAbilityIndex();
+		if (Principale != INDEX_NONE && Principale != Index && ARTUnit::CanBeAnExtraPrepAction(Ability)
+			&& Unit->DeclarePlannedAction(Index))
+		{
+			AggiornaAnteprima();
+			UE_LOG(LogRT, Display, TEXT("[RT] %s aggiunge %s al piano (voce di Prep)"), *Unit->GetName(), *Ability->DisplayName.ToString());
+			return;
+		}
+
 		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare). La ricarica
 		// l'ha gia' verificata la guardia comune qui sopra, ed e' il punto: prima il controllo stava qui, e
 		// il suo ramo negativo usciva lasciando l'azione selezionata sul modello.
@@ -4210,6 +4222,18 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		// tocca il piano, anche se l'azione armata ci sta dentro.
 		const bool bEraFacing = Facing.IsDeclaring();
 		EndFacingDeclaration();
+		// E38 CP 38.13: il Back toglie l'ultima voce dichiarata quando e' un'azione di Prep in piu' della principale, cioe'
+		// quella che il gesto della lista ha appena aggiunto. La principale e le altre voci restano nel loro ordine.
+		if (Unit && !bEraFacing && Unit->GetPlan().GetEntries().Num() > 0
+			&& Unit->GetPlan().GetEntries().Last().Class == ERTPlanEntryClass::Prep)
+		{
+			Unit->RemovePlanEntry(Unit->GetPlan().GetEntries().Num() - 1);
+			Unit->SelectAbility(INDEX_NONE);
+			RefreshPlanningOverlay(Unit);
+			bDisarmato = true;
+			UE_LOG(LogRT, Display, TEXT("[RT] Back: '%s' toglie l'ultima azione di Prep dichiarata"), *Unit->GetName());
+			break;
+		}
 		// ⚠️ Chiudere il selettore del verso non tocca l'azione armata (`#291`): fino a qui deselezionava anche quella.
 		if (Unit && !bEraFacing)
 		{

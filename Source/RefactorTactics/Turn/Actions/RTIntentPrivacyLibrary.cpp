@@ -57,6 +57,18 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.ActionName = Intent.ActionName;
 		View.bHasTarget = Intent.bHasTarget;
 		View.TargetCell = Intent.TargetCell;
+		// E38 CP 38.13: piu' azioni nello stesso piano. Un alleato le riceve tutte, in ordine di dichiarazione; un avversario
+		// rivelato una sola, la prima in ordine canonico, senza conteggio ne' ordine.
+		if (bIsAlly)
+		{
+			View.DeclaredActionNames = Intent.DeclaredActionNames;
+		}
+		else if (!Intent.RevealedActionName.IsEmpty())
+		{
+			View.ActionName = Intent.RevealedActionName;
+			View.bHasTarget = Intent.bRevealedHasTarget;
+			View.TargetCell = Intent.RevealedTargetCell;
+		}
 		View.PlannedPath = Intent.PlannedPath; // movimento: `Reveal` lo espone
 		View.bDashing = Intent.bDashing;
 		View.DashCell = Intent.DashCell;

@@ -1,0 +1,76 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondOverwatchIsRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-615] (4): `Action.Overwatch` ha cooldown 1. Col cooldown 0 di prima le due copie sarebbero state legali per [D-614]: e' il caso che D-615 (4) chiude.",
+  "_oracolo": "`Action.Overwatch` (Prep, 1) due volte: 2 AP, ma cooldown 1, quindi `RepeatedWithCooldown` (26); il lock-in svuota il piano.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — il piano porta una copia vietata.",
+      "requires": [
+        "ActionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Action.Overwatch"
+            },
+            {
+              "ability": "Action.Overwatch"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 2,
+      "_assertion": "Il lock-in svuota il piano: una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 26,
+      "_assertion": "Il motivo in `ERTActionInvalidReason`."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

@@ -626,6 +626,34 @@ struct FRTScenarioUnit
 };
 
 /**
+ * **Una voce dell'elenco `actions` di un intento** (E38 CP 38.13, #4114; formato 9): l'abilita' e, se ne ha uno, il suo
+ * bersaglio. L'elenco e' ordinato, e il suo ordine e' l'ordine di dichiarazione del piano.
+ *
+ * La classe della voce la dice l'abilita', come nel gioco: una mobilita' e' lo scatto (con `cell` per l'arrivo), una
+ * reazione e' la reazione, il resto passa da `ARTUnit::DeclarePlannedAction`, che mette le azioni di Prep in piu' fra le
+ * voci `Prep`. Una seconda voce di una classe chiusa fa fallire il turno, con un errore che nomina la voce e la classe.
+ */
+USTRUCT()
+struct FRTScenarioPlannedAction
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName Ability;
+
+	/** L'unita' bersaglio, per nome di scenario; vuoto = nessuna. */
+	UPROPERTY()
+	FString Target;
+
+	/** La cella: l'arrivo dello scatto, o la cella bersaglio dell'azione principale. Valida solo con `bHasCell`. */
+	UPROPERTY()
+	FRTCellId Cell;
+
+	UPROPERTY()
+	bool bHasCell = false;
+};
+
+/**
  * L'intento di una unita' in un turno: movimento, abilita', o entrambi.
  *
  * Movimento e abilita' convivono perche' convivono nel gioco — un'unita' ha uno slot movimento e uno slot
@@ -638,6 +666,14 @@ struct FRTScenarioIntent
 
 	UPROPERTY()
 	FString UnitId;
+
+	/**
+	 * Le azioni del piano in ordine di dichiarazione (E38 CP 38.13, formato 9). Con `actions` l'intento non porta `ability`,
+	 * `dash`, `reaction`, `target`, `targetCell` ne' `edge`: le azioni si dichiarano tutte nell'elenco. Vuoto = la forma
+	 * della versione 8, un campo per tipo, che si legge come una lista nell'ordine fisso di `MakePlanFor`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioPlannedAction> Actions;
 
 	/** Waypoint del movimento, come li produrrebbe il giocatore cliccando. Vuoto = l'unita' non si sposta. */
 	UPROPERTY()

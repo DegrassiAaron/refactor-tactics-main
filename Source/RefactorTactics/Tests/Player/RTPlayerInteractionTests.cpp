@@ -6508,4 +6508,115 @@ bool FRTResolutionDeclarationPermutationChangesOnlyTheOrderFieldTest::RunTest(co
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputArmingASecondPrepActionAddsItTest,
+	"RefactorTactics.PlayerInput.ArmingASecondPrepActionAddsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputArmingASecondPrepActionAddsItTest::RunTest(const FString&)
+{
+	// Il gesto della lista: con la principale presa, armare un'azione di Prep la AGGIUNGE, e il bersaglio della principale
+	// resta. Il controllo: con la principale libera la stessa azione va nella principale, come prima.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+	B.PC->SelectActorForTest(B.Riktor);
+	B.Riktor->DeclarePlannedMainAction(B.Impact);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	B.PC->SelectAbilityForCurrentForTest(Guard);
+	const FRTUnitPlan& P = B.Riktor->GetPlan();
+	TestEqual(TEXT("la principale resta ImpactShot"), P.PlannedAbilityIndex(), B.Impact);
+	TestTrue(TEXT("col suo bersaglio"), P.PlannedAttackTarget() == B.Gadget);
+	if (TestEqual(TEXT("la Guard e' una voce Prep, in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Prep), 1))
+	{
+		TestEqual(TEXT("ed e' la Guard"), P.GetEntries()[1].AbilityIndex, Guard);
+	}
+	DestroyInteractionWorld(B.World);
+
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(C.World); return false; }
+	const int32 GuardC = RTAbilityFixtures::AddCoreAbility(C.Riktor, TEXT("Action.Guard"));
+	C.PC->SelectActorForTest(C.Riktor);
+	C.PC->SelectAbilityForCurrentForTest(GuardC);
+	TestEqual(TEXT("controllo: con la principale libera la Guard va nella principale"), C.Riktor->GetPlan().PlannedAbilityIndex(), GuardC);
+	TestEqual(TEXT("e nessuna voce Prep"), C.Riktor->GetPlan().DeclarationIndexOf(ERTPlanEntryClass::Prep), (int32)INDEX_NONE);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputBackRemovesTheLastDeclaredEntryTest,
+	"RefactorTactics.PlayerInput.BackRemovesTheLastDeclaredEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputBackRemovesTheLastDeclaredEntryTest::RunTest(const FString&)
+{
+	// Il Back toglie l'ultima voce dichiarata, l'azione di Prep che il gesto ha appena aggiunto; la principale resta.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+	B.PC->SelectActorForTest(B.Riktor);
+	B.Riktor->DeclarePlannedMainAction(B.Impact);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	B.PC->SelectAbilityForCurrentForTest(Guard);
+	if (!TestEqual(TEXT("premessa: la Guard e' stata aggiunta"), B.Riktor->GetPlan().DeclarationIndexOf(ERTPlanEntryClass::Prep), 1))
+	{
+		DestroyInteractionWorld(B.World);
+		return false;
+	}
+	B.PC->ApplyBack();
+	TestEqual(TEXT("il Back toglie la voce Prep"), B.Riktor->GetPlan().DeclarationIndexOf(ERTPlanEntryClass::Prep), (int32)INDEX_NONE);
+	TestEqual(TEXT("la principale resta"), B.Riktor->GetPlan().PlannedAbilityIndex(), B.Impact);
+	TestTrue(TEXT("col suo bersaglio"), B.Riktor->GetPlan().PlannedAttackTarget() == B.Gadget);
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUIRevealedEnemySeesOneEntryOfAListPlanTest,
+	"RefactorTactics.UI.RevealedEnemySeesOneEntryOfAListPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUIRevealedEnemySeesOneEntryOfAListPlanTest::RunTest(const FString&)
+{
+	// Criterio 11: due piani che differiscono solo per le copie o per l'ordine di dichiarazione danno a un avversario
+	// rivelato la stessa vista, una voce sola; un alleato riceve le voci nell'ordine di dichiarazione.
+	struct FViste { FRTIntentView Nemico; FRTIntentView Alleato; int32 Viste = 0; };
+	auto Componi = [this](const TArray<int32>& Ordine, FViste& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		const int32 Guard = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Guard"));
+		for (const int32 Codice : Ordine) { B.Riktor->DeclarePlannedAction(Codice == 0 ? Guard : B.Impact); }
+		B.Riktor->DeclareAttackOnUnit(B.Gadget);
+		TArray<FRTPlannedIntent> Intenti = URTHudViewModel::BuildAuthoritativeIntents({ B.Riktor });
+		for (FRTPlannedIntent& I : Intenti) { I.bRevealed = true; }
+		const TArray<FRTIntentView> PerNemico = URTIntentPrivacyLibrary::FilterForTeam(B.Gadget->TeamId, Intenti);
+		const TArray<FRTIntentView> PerAlleato = URTIntentPrivacyLibrary::FilterForTeam(B.Riktor->TeamId, Intenti);
+		Out.Viste = PerNemico.Num() + PerAlleato.Num();
+		if (PerNemico.Num() == 1) { Out.Nemico = PerNemico[0]; }
+		if (PerAlleato.Num() == 1) { Out.Alleato = PerAlleato[0]; }
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	FViste GuardPrima, ColpoPrima, DueGuardie;
+	if (!Componi({ 0, 1 }, GuardPrima) || !Componi({ 1, 0 }, ColpoPrima) || !Componi({ 0, 0, 1 }, DueGuardie)) { return false; }
+	TestEqual(TEXT("premessa: una vista per osservatore"), GuardPrima.Viste, 2);
+
+	for (const FViste* Altro : { &ColpoPrima, &DueGuardie })
+	{
+		TestTrue(TEXT("il nemico rivelato vede la stessa azione"), Altro->Nemico.ActionName.EqualTo(GuardPrima.Nemico.ActionName));
+		TestEqual(TEXT("con lo stesso bersaglio"), Altro->Nemico.bHasTarget, GuardPrima.Nemico.bHasTarget);
+		TestEqual(TEXT("sulla stessa cella"), Altro->Nemico.TargetCell, GuardPrima.Nemico.TargetCell);
+		TestEqual(TEXT("e nessun elenco"), Altro->Nemico.DeclaredActionNames.Num(), 0);
+	}
+	TestFalse(TEXT("il nemico vede un'azione"), GuardPrima.Nemico.ActionName.IsEmpty());
+	TestEqual(TEXT("nessun elenco al nemico"), GuardPrima.Nemico.DeclaredActionNames.Num(), 0);
+
+	// L'alleato: le voci nell'ordine di dichiarazione, che i due piani rovesciano.
+	if (TestEqual(TEXT("l'alleato riceve due voci"), GuardPrima.Alleato.DeclaredActionNames.Num(), 2)
+		&& TestEqual(TEXT("anche nell'altro ordine"), ColpoPrima.Alleato.DeclaredActionNames.Num(), 2))
+	{
+		TestTrue(TEXT("nell'ordine di dichiarazione"), GuardPrima.Alleato.DeclaredActionNames[0].EqualTo(ColpoPrima.Alleato.DeclaredActionNames[1]));
+		TestFalse(TEXT("controllo: i due ordini sono davvero diversi"),
+			GuardPrima.Alleato.DeclaredActionNames[0].EqualTo(ColpoPrima.Alleato.DeclaredActionNames[0]));
+	}
+	TestEqual(TEXT("con due copie l'alleato ne riceve tre"), DueGuardie.Alleato.DeclaredActionNames.Num(), 3);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

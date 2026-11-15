@@ -100,7 +100,10 @@ public:
 	// `SupportedVersion = 7` ignorerebbe `actionPointBudget` in silenzio e giocherebbe col 6 di default. Lo scenario
 	// che vuole un budget 5 uscirebbe verde misurando un altro piano. Con la `8` il rifiuto arriva dal gate di
 	// versione e nomina la build.
-	static constexpr int32 SupportedVersion = 8;
+	// 8 → 9 con E38 CP 38.13 (#4114): la chiave `actions`, l'elenco ordinato delle azioni del piano. Una build a
+	// `SupportedVersion = 8` la rifiuterebbe come sconosciuta, accusando il file invece della build. Con la `9` il rifiuto
+	// arriva dal gate di versione e nomina la build.
+	static constexpr int32 SupportedVersion = 9;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.

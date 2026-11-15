@@ -1750,7 +1750,10 @@ namespace
 								// `edge` ha smesso di essere teorica: senza questa riga lo scenario nuovo veniva
 								// rifiutato con «chiave sconosciuta», cioe' la meta' mancante del loader si sarebbe
 								// presentata come un errore di scrittura del file invece che come una lacuna del parser.
-								TEXT("condition")
+								TEXT("condition"),
+								// `actions` — l'elenco ordinato delle azioni del piano (E38 CP 38.13, formato 9). Qui e nel
+								// parser nello stesso commit, come le tre voci qui sopra.
+								TEXT("actions")
 							};
 							// Si RACCOGLIE e si ORDINA prima di riportare: `IntentObj->Values` e' una TMap, e con due
 							// chiavi sbagliate nello stesso intent il messaggio nominerebbe l'una o l'altra a seconda
@@ -1790,6 +1793,88 @@ namespace
 						// `target` senza `ability` chi lo usa?» — perche' e' esattamente la forma che il
 						// writer emette (`Intent.Target` non vuoto con `Ability` a `None`) e che il 2026-09-09
 						// ha gia' rotto il round-trip una volta.
+						// E38 CP 38.13: `actions`, l'elenco ordinato delle azioni del piano. Esclude i campi per tipo: le
+						// due forme insieme direbbero due ordini di dichiarazione.
+						if (IntentObj->HasField(TEXT("actions")))
+						{
+							if (OutScenario.Version < 9)
+							{
+								OutError = FString::Printf(TEXT("intent di '%s': `actions` chiede la versione 9 (dichiarata %d)"),
+									*Intent.UnitId, OutScenario.Version);
+								return false;
+							}
+							for (const TCHAR* Campo : { TEXT("ability"), TEXT("dash"), TEXT("dashTo"), TEXT("reaction"),
+								TEXT("target"), TEXT("targetCell"), TEXT("edge") })
+							{
+								if (IntentObj->HasField(Campo))
+								{
+									OutError = FString::Printf(TEXT("intent di '%s': con `actions` non si dichiara anche '%s'"),
+										*Intent.UnitId, Campo);
+									return false;
+								}
+							}
+							const TArray<TSharedPtr<FJsonValue>>* Elenco = nullptr;
+							if (!IntentObj->TryGetArrayField(TEXT("actions"), Elenco) || Elenco->Num() == 0)
+							{
+								OutError = FString::Printf(TEXT("intent di '%s': `actions` non e' un elenco non vuoto"), *Intent.UnitId);
+								return false;
+							}
+							for (int32 k = 0; k < Elenco->Num(); ++k)
+							{
+								const TSharedPtr<FJsonObject> VoceObj = (*Elenco)[k].IsValid() ? (*Elenco)[k]->AsObject() : nullptr;
+								const FString Dove = FString::Printf(TEXT("intent di '%s', actions[%d]"), *Intent.UnitId, k);
+								if (!VoceObj.IsValid())
+								{
+									OutError = FString::Printf(TEXT("%s: non e' un oggetto"), *Dove);
+									return false;
+								}
+								TArray<FString> Ignote;
+								for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : VoceObj->Values)
+								{
+									if (!Field.Key.StartsWith(TEXT("_")) && Field.Key != TEXT("ability") && Field.Key != TEXT("target")
+										&& Field.Key != TEXT("cell"))
+									{
+										Ignote.Add(Field.Key);
+									}
+								}
+								if (Ignote.Num() > 0)
+								{
+									Ignote.Sort();
+									OutError = FString::Printf(TEXT("%s: chiave sconosciuta '%s' (previste: ability, cell, target)"), *Dove, *Ignote[0]);
+									return false;
+								}
+								FRTScenarioPlannedAction Azione;
+								FString Abilita;
+								bool bHaAbilita = false;
+								if (!LeggiCampoStringa(VoceObj, TEXT("ability"), /*bIdentificatore*/ true, Abilita, bHaAbilita, OutError, *Dove))
+								{
+									return false;
+								}
+								if (!bHaAbilita)
+								{
+									OutError = FString::Printf(TEXT("%s: manca 'ability'"), *Dove);
+									return false;
+								}
+								Azione.Ability = FName(*Abilita);
+								if (!OpzionaleStringa(*VoceObj, TEXT("target"), Azione.Target, *Dove, OutError))
+								{
+									return false;
+								}
+								if (VoceObj->HasField(TEXT("cell")))
+								{
+									const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+									if (!VoceObj->TryGetArrayField(TEXT("cell"), CellArr)
+										|| !ParseCell(CellArr, Azione.Cell, OutError, *FString::Printf(TEXT("%s: cell"), *Dove)))
+									{
+										if (OutError.IsEmpty()) { OutError = FString::Printf(TEXT("%s: cell non e' un array [q, r, layer]"), *Dove); }
+										return false;
+									}
+									Azione.bHasCell = true;
+								}
+								Intent.Actions.Add(Azione);
+							}
+						}
+
 						FString TargetProbe;
 						bool bHaTarget = false;
 						if (!LeggiCampoStringa(IntentObj, TEXT("target"), /*bIdentificatore*/ false,
