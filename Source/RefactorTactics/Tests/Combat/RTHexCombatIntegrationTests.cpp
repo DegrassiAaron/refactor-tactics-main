@@ -2623,6 +2623,8 @@ namespace
 		bool bCatenaDopo = false;   // l'alleato della catena sta in una cella che lo mette dall'altra parte dell'ordine
 		bool bArea = false;         // la cura ad area di Muiren invece di `Action.Heal`
 		bool bMuri = false;         // due muri chiudono la linea fra chi cura e chi e' curato
+		bool bCiclo = false;        // altrove, due unita' si interrompono a vicenda
+		bool bStordito = false;     // chi cura e' stordito
 	};
 
 	struct FEsitoDellaCura
@@ -2631,6 +2633,8 @@ namespace
 		int32 Voci = 0;        // voci del TurnLog con l'azione di cura
 		int32 Interrotte = 0;  // `Cancelled`/`Interrupted`
 		int32 SenzaLinea = 0;  // `NoLineOfSight`
+		int32 Storditi = 0;    // `Stunned`
+		int32 Neutralizzate = 0; // `Neutralised`, di chiunque
 		int32 Attivazioni = 0; // `AbilityActivated` della cura
 		int32 Ricarica = 0;
 	};
@@ -2668,6 +2672,18 @@ namespace
 		// Una ricarica che sopravvive alla fine del turno: quella di catalogo e' 1 e a turno chiuso e' gia' tornata a zero.
 		Curatore->Abilities[Cura]->CooldownTurns = FMath::Max(3, Curatore->Abilities[Cura]->Def.CooldownTurns);
 		Ferito->ApplyCombatState(100, 0);
+		if (Caso.bStordito) { Curatore->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		if (Caso.bCiclo)
+		{
+			// Lontano da tutti: due Interrupt che si annullano a vicenda restano indecisi ([D-202], [D-203]).
+			ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0));
+			ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-3, 1));
+			if (!A || !B) { DestroyHexBlastWorld(World); return false; }
+			A->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Interrupt")));
+			A->DeclareAttackOnUnit(B);
+			B->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Interrupt")));
+			B->DeclareAttackOnUnit(A);
+		}
 		Curatore->SetPlannedMainAction(Cura);
 		Curatore->DeclareAttackOnUnit(Ferito);
 		if (Caso.bInterrompe)
@@ -2692,11 +2708,16 @@ namespace
 		Out.SaluteDopo = Ferito->Health;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
+			if (E.Category == ERTLogCategory::Fallback && E.Amount == static_cast<int32>(ERTActionInvalidReason::Neutralised))
+			{
+				++Out.Neutralizzate;
+			}
 			if (E.ActionId != Azione) { continue; }
 			++Out.Voci;
 			if (E.Category != ERTLogCategory::Fallback) { continue; }
 			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted)) { ++Out.Interrotte; }
 			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)) { ++Out.SenzaLinea; }
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned)) { ++Out.Storditi; }
 		}
 		for (const FRTResolvedEvent& E : TM->ResolvedTimelineForTest())
 		{
@@ -2732,6 +2753,15 @@ bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
 	TestEqual(TEXT("la cura non si attiva"), Annullata.Attivazioni, 0);
 	TestTrue(TEXT("controllo: la cura riuscita va in ricarica"), Riuscita.Ricarica > 0);
 	TestEqual(TEXT("e quella interrotta paga uguale"), Annullata.Ricarica, Riuscita.Ricarica);
+	// Lo stordito non arriva in coda: il rifiuto viene prima ([D-416]), e un'azione ha un motivo, `Stunned`.
+	FCuraInterrotta Stordito = Interrotta;
+	Stordito.bStordito = true;
+	FEsitoDellaCura Rifiutata;
+	if (!GiocaCuraInterrotta(*this, Stordito, Rifiutata)) { return false; }
+	TestEqual(TEXT("stordito e interrotto: una voce Stunned"), Rifiutata.Storditi, 1);
+	TestEqual(TEXT("e nessuna Interrupted"), Rifiutata.Interrotte, 0);
+	TestEqual(TEXT("e nessun'altra voce della cura"), Rifiutata.Voci, 1);
+	TestEqual(TEXT("e non cura"), Rifiutata.SaluteDopo, 100);
 	return true;
 }
 
@@ -2753,6 +2783,14 @@ bool FRTHexBlastInterruptedInterruptSavesTheHealTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("controllo: senza l'alleato la cura non cura"), Annullata.SaluteDopo, 100);
+	// Un ciclo altrove resta indeciso e non salva nessuno: l'Interrupt su chi cura non ne fa parte.
+	FCuraInterrotta ConCiclo = Sola;
+	ConCiclo.bCiclo = true;
+	FEsitoDellaCura AnnullataColCiclo;
+	if (!GiocaCuraInterrotta(*this, ConCiclo, AnnullataColCiclo)) { return false; }
+	TestEqual(TEXT("premessa: il ciclo altrove si neutralizza"), AnnullataColCiclo.Neutralizzate, 2);
+	TestEqual(TEXT("con un ciclo altrove la cura resta annullata"), AnnullataColCiclo.SaluteDopo, 100);
+	TestEqual(TEXT("e lascia la sua voce Interrupted"), AnnullataColCiclo.Interrotte, 1);
 	for (const FEsitoDellaCura* Salvata : { &SalvataPrima, &SalvataDopo })
 	{
 		const TCHAR* Lato = Salvata == &SalvataPrima ? TEXT("alleato prima") : TEXT("alleato dopo");
