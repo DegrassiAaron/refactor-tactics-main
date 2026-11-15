@@ -222,6 +222,12 @@ int32 URTCatalogLibrary::DefaultActionPointCost(const FRTActionDef& Def)
 	{
 		return 0;
 	}
+	// [D-613] (4): l'Ultimate costa 3 in qualunque fase, quindi viene prima della reazione e della fase. Iron Maiden,
+	// la prima, risolve nel Prep: col costo di classe costerebbe 1, con il «+1» di D-594 (3) 2.
+	if (Def.bIsUltimate)
+	{
+		return ActionPointCostUltimate;
+	}
 	if (Def.Slot == ERTActionSlot::Reaction)
 	{
 		return ActionPointCostReaction;
@@ -281,6 +287,13 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		if (Action.ActionPointCost < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: costo in Action Point negativo (%d)"), *Where, Action.ActionPointCost));
+		}
+		// [D-613] (4): un'Ultimate costa 3 in ogni fase. Una riga marcata con un altro costo e' quasi sempre una
+		// marcatura fatta dopo la costruzione senza riscrivere la colonna (`DefaultActionPointCost`).
+		if (Action.bIsUltimate && Action.ActionPointCost != ActionPointCostUltimate)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: Ultimate con costo %d, deve costare %d in qualunque fase (D-613 (4))"),
+				*Where, Action.ActionPointCost, ActionPointCostUltimate));
 		}
 		if (Action.CooldownTurns < 0)
 		{

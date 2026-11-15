@@ -112,7 +112,8 @@ namespace
 		Action->Def.Slot = Slot;
 		Action->Def.InterruptPolicy = Interrupt;
 		// [D-594]: la colonna di costo AP, default di classe (fase e slot gia' scritti). Un kit che marchi
-		// un'abilita' come Ultimate la sovrascrive a +1 nella propria riga, non qui.
+		// un'abilita' come Ultimate (`bIsUltimate`) ne riscrive il costo con `DefaultActionPointCost`, che da'
+		// 3 in qualunque fase ([D-613] (4)); `ValidateActions` rifiuta un'Ultimate con un altro costo.
 		Action->Def.ActionPointCost = URTCatalogLibrary::DefaultActionPointCost(Action->Def);
 
 		Action->RangeCells = Range;
