@@ -4198,8 +4198,10 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	// vale per chi introdurra' un secondo gate sull'uso di un'abilita': la prima versione di questa nota ne
 	// contava due, e il secondo era l'energia.
 	//
-	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
-	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
+	// L'ordine e' quello di annotazione, che e' l'ordine dei pass. ⌫ *Fino a E38 CP 38.14 qui c'era «`ConsumeAbility`
+	// scrive su unita' diverse»*: con piu' principali la stessa unita' compare piu' volte, anche con la stessa abilita'
+	// (due copie). Non c'e' comunque esito che dipenda dall'ordine, perche' il valore scritto e' fisso (la ricarica piena
+	// dell'abilita'), e scriverlo due volte non lo cambia — ma un array, e non una `TMap`, perche' la regola del
 	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
 	// I due array si riempiono in una sola istruzione (`MarkAbilitySpent`), che ne e' l'unico scrittore:
 	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo qui evita di

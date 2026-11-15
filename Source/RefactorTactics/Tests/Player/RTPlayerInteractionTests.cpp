@@ -6090,6 +6090,10 @@ bool FRTPlanCopyRuleReadsTheCatalogCooldownTest::RunTest(const FString&)
 		TestTrue(TEXT("premessa: la variante allunga la ricarica del Def"), Piano[0].Def.CooldownTurns > DellaRiga);
 		TestEqual(TEXT("la voce porta il cooldown della riga"), Piano[0].CatalogCooldownTurns, DellaRiga);
 	}
+	// E38 CP 38.14, criterio 2: con la variante, due attacchi base sono legali, perche' la riga non ha ricarica.
+	B.Riktor->DeclarePlannedAction(0);
+	TestTrue(TEXT("due attacchi base con Overcharge: legali"), LockInVerdictOf(B.Riktor).bLegal);
+	B.Riktor->RemovePlanEntry(B.Riktor->GetPlan().GetEntries().Num() - 1);
 	// Una seconda variante non registra un cooldown gia' cambiato.
 	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
 	TestEqual(TEXT("la riga resta quella di prima della prima variante"),
@@ -6775,6 +6779,14 @@ bool FRTResolutionFrozenAimIsPerEntryTest::RunTest(const FString&)
 	TSet<FRTCellId> Mirate;
 	for (const FAttivazione& A : BlastActivationsOf(B.TM, B.Riktor)) { Mirate.Add(A.Mira); }
 	TestTrue(TEXT("e i due colpi mirano ciascuno alla sua"), Mirate.Contains(CellaPrimo) && Mirate.Contains(CellaSecondo));
+	// Il campo d'ordine distingue le due copie: ogni voce `Combat` di ImpactShot porta l'indice della sua voce del piano.
+	TArray<int32> Indici;
+	for (const FRTTurnLogEntry& E : B.TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Hero.Riktor.ImpactShot"))) { Indici.Add(E.DeclarationIndex); }
+	}
+	Indici.Sort();
+	TestEqual(TEXT("le voci dei due colpi portano 0 e 1"), Indici, TArray<int32>{ 0, 1 });
 	DestroyInteractionWorld(B.World);
 	return true;
 }
@@ -6954,6 +6966,45 @@ bool FRTResolutionInterruptReachesEveryBlastActionOfItsTargetTest::RunTest(const
 	TestEqual(TEXT("controllo: senza Interrupt le due azioni colpiscono"), ColpiSenza, 2);
 	TestEqual(TEXT("l'Interrupt le annulla entrambe"), Interrotte, 2);
 	TestEqual(TEXT("e nessuna colpisce"), Colpi, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionCleanupKeepsTheUnitOrderAcrossUnitsTest,
+	"RefactorTactics.Resolution.CleanupKeepsTheUnitOrderAcrossUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionCleanupKeepsTheUnitOrderAcrossUnitsTest::RunTest(const FString&)
+{
+	// Criterio 15, [D-616] (4): fra unita' diverse il Cleanup tiene l'ordine delle unita' di oggi, non la priorita'. Riktor
+	// con `Gadget.Sprinkler` (`Action.CreateWater`, 60) sulla cella che viene prima, un Gadget alleato con
+	// `Hero.Gadget.ConductiveNode` (`Action.Electrify`, 30) su quella dopo: l'acqua precede la scarica, benche' la scarica
+	// abbia la priorita' minore.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	ARTUnit* Alleato = SpawnInteractionUnit(B.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 0));
+	if (!TestNotNull(TEXT("il Gadget alleato"), Alleato)) { DestroyInteractionWorld(B.World); return false; }
+	B.Riktor->EquipLoadout({ FName(TEXT("Gadget.Sprinkler")) });
+	const int32 Acqua = LockInAbilityIndex(B.Riktor, TEXT("Gadget.Sprinkler"));
+	const int32 Scarica = LockInAbilityIndex(Alleato, TEXT("Hero.Gadget.ConductiveNode"));
+	if (!TestTrue(TEXT("premessa: le due ambientali ci sono"), Acqua != INDEX_NONE && Scarica != INDEX_NONE)) { DestroyInteractionWorld(B.World); return false; }
+	TestTrue(TEXT("premessa: Riktor viene prima nell'ordine delle unita'"), URTHexLibrary::StableLess(B.Riktor->Cell, Alleato->Cell));
+	TestTrue(TEXT("premessa: la scarica ha la priorita' minore"),
+		B.Riktor->GetAbility(Acqua)->Def.Priority > Alleato->GetAbility(Scarica)->Def.Priority);
+	DeclareMainOnCell(B.Riktor, Acqua, B.Gadget->Cell);
+	DeclareMainOn(Alleato, Scarica, B.Gadget);
+	ResolveOneTurn(B.TM);
+	int32 PosAcqua = INDEX_NONE;
+	int32 PosScarica = INDEX_NONE;
+	const TArray<FRTTurnLogEntry>& Log = B.TM->GetTurnLog();
+	for (int32 k = 0; k < Log.Num(); ++k)
+	{
+		if (PosAcqua == INDEX_NONE && Log[k].Category == ERTLogCategory::Environment && Log[k].ActionId == FName(TEXT("Gadget.Sprinkler"))) { PosAcqua = k; }
+		if (PosScarica == INDEX_NONE && Log[k].Category == ERTLogCategory::Combat && Log[k].ActionId == FName(TEXT("Hero.Gadget.ConductiveNode"))) { PosScarica = k; }
+	}
+	if (TestTrue(TEXT("premessa: acqua e scarica lasciano le loro voci"), PosAcqua != INDEX_NONE && PosScarica != INDEX_NONE))
+	{
+		TestTrue(TEXT("l'acqua precede la scarica: vale l'ordine delle unita'"), PosAcqua < PosScarica);
+	}
+	DestroyInteractionWorld(B.World);
 	return true;
 }
 
