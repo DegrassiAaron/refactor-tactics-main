@@ -2536,4 +2536,81 @@ bool FRTUnknownTargetOnAnotherLayerStaysUnknownTest::RunTest(const FString&)
 	return true;
 }
 
+// ── #4046: un'azione interrotta lascia una voce sola ────────────────────────────────────────────────────────────────
+namespace
+{
+	struct FVociDellAzione { int32 Interrotte = 0; int32 SenzaLinea = 0; int32 CellaColpita = 0; int32 Ricarica = 0; };
+
+	/** Ivrin spara a Riktor; con `bInterrompe` un Interrupt nemico la ferma. `Muri` chiude la linea, `bBersaglioMorto` toglie l'unita'. */
+	bool GiocaAzioneInterrotta(FAutomationTestBase& Test, bool bInterrompe, bool bMuri, bool bBersaglioMorto, FVociDellAzione& Out)
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		TArray<FRTCellId> Muri;
+		if (bMuri) { Muri = { FRTCellId(1, 0), FRTCellId(2, 0) }; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6, Muri);
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+		ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 1));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+		URTActionData* Attacco = Shooter->Abilities[0];
+		Attacco->Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+		if (bBersaglioMorto) { Attacco->Def.Fallback = ERTActionFallback::AttackCell; }
+		Shooter->SetPlannedMainAction(0);
+		Shooter->DeclareAttackOnUnit(Foe);
+		if (bInterrompe)
+		{
+			const int32 Interrupt = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+			Interrupter->SetPlannedMainAction(Interrupt);
+			Interrupter->DeclareAttackOnUnit(Shooter);
+		}
+		if (bBersaglioMorto) { Foe->ApplyCombatState(0, 0); }
+		RunBlastTurn(TM);
+		const FName Azione = Attacco->Def.ActionId;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.ActionId != Azione) { continue; }
+			if (E.Category == ERTLogCategory::Fallback && E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted)) { ++Out.Interrotte; }
+			if (E.Category == ERTLogCategory::Combat && E.Outcome == static_cast<uint8>(ERTCombatOutcome::NoLineOfSight)) { ++Out.SenzaLinea; }
+			if (E.Category == ERTLogCategory::Fallback && E.Outcome == static_cast<uint8>(ERTFallbackOutcome::AttackedCell)) { ++Out.CellaColpita; }
+		}
+		Out.Ricarica = Shooter->GetAbilityCooldown(0);
+		DestroyHexBlastWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedBehindCoverLeavesOneEntryTest,
+	"RefactorTactics.HexBlast.InterruptedBehindCoverLeavesOneEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedBehindCoverLeavesOneEntryTest::RunTest(const FString&)
+{
+	// `#4046`: un intento fermato dalla copertura E interrotto lascia una voce sola, `Cancelled`/`Interrupted`; la voce
+	// `NoLineOfSight` della stessa azione non si scrive. Il pagamento non cambia. Controllo: senza Interrupt resta
+	// `NoLineOfSight`.
+	FVociDellAzione Interrotta, SoloMuro;
+	if (!GiocaAzioneInterrotta(*this, true, true, false, Interrotta) || !GiocaAzioneInterrotta(*this, false, true, false, SoloMuro)) { return false; }
+	TestEqual(TEXT("controllo: senza Interrupt la copertura scrive NoLineOfSight"), SoloMuro.SenzaLinea, 1);
+	TestEqual(TEXT("interrotta: una voce Interrupted"), Interrotta.Interrotte, 1);
+	TestEqual(TEXT("e nessuna NoLineOfSight"), Interrotta.SenzaLinea, 0);
+	TestEqual(TEXT("paga quanto la sola copertura"), Interrotta.Ricarica > 0, SoloMuro.Ricarica > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedCellFallbackLeavesOneEntryTest,
+	"RefactorTactics.HexBlast.InterruptedCellFallbackLeavesOneEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedCellFallbackLeavesOneEntryTest::RunTest(const FString&)
+{
+	// `#4046`: un intento nato da un ripiego `AttackCell` (il bersaglio e' caduto) e interrotto lascia una voce sola,
+	// `Cancelled`/`Interrupted`, e non anche `AttackedCell`. Controllo: senza Interrupt il ripiego scrive `AttackedCell`.
+	FVociDellAzione Interrotta, SoloRipiego;
+	if (!GiocaAzioneInterrotta(*this, true, false, true, Interrotta) || !GiocaAzioneInterrotta(*this, false, false, true, SoloRipiego)) { return false; }
+	TestEqual(TEXT("controllo: senza Interrupt il ripiego scrive AttackedCell"), SoloRipiego.CellaColpita, 1);
+	TestEqual(TEXT("interrotta: una voce Interrupted"), Interrotta.Interrotte, 1);
+	TestEqual(TEXT("e nessuna AttackedCell"), Interrotta.CellaColpita, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

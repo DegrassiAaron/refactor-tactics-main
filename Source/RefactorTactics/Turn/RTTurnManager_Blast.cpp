@@ -1527,7 +1527,18 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.Priority = Instance.Def.Priority;
 			// ⌫ **Eco tolto da `#1412`**, come `ArcRejected` poco sopra e per la stessa ragione: la copia
 			// derivata porta ora il nome, e le due righe erano lo stesso annullamento detto due volte.
-			AppendLogEntry(FallbackEntry, Unit);
+			// `#4046`: se l'intento nasce comunque (`AttackCell`), la voce aspetta l'Interrupt: un'azione interrotta non
+			// porta anche il suo ripiego. Porta gia' l'ordine della sua voce del piano, che dopo la raccolta non e' piu' a fuoco.
+			if (Fallback.bProducesEffects)
+			{
+				FallbackEntry.DeclarationIndex = DellaVoce.DeclarationIndex;
+				FallbackEntry.DeclaringTeamId = DellaVoce.TeamId;
+				Ctx.DeferredFallbackEntries.Add({ Intents.Num(), FallbackEntry, Unit });
+			}
+			else
+			{
+				AppendLogEntry(FallbackEntry, Unit);
+			}
 
 			// ➕ **2026-10-31, «se si usa una abilita' si paga»**: un bersaglio-unita' GIA' MORTO prima del Blast (`R6`) e'
 			// un'azione dichiarata, valida in pianificazione e andata a vuoto per un fatto di risoluzione — come la cura
@@ -2198,6 +2209,16 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// `#4046`: e lo stesso per il ripiego `AttackCell`, la cui voce la raccolta ha messo in attesa: un'azione interrotta non
+	// porta anche `AttackedCell`. Le altre si scrivono qui, nell'ordine in cui sono nate.
+	for (const FRTBlastContext::FRTDeferredFallbackEntry& Rinviata : Ctx.DeferredFallbackEntries)
+	{
+		if (InterruptedIntents.Contains(Rinviata.IntentIndex)) { continue; }
+		FRTTurnLogEntry Entry = Rinviata.Entry;
+		AppendLogEntry(Entry, Rinviata.Unit);
+	}
+	Ctx.DeferredFallbackEntries.Reset();
+
 	// E lo stesso per i rifiuti di PIANO ([D-509]): anche quelli sono voci `Fallback`/`Cancelled`, e
 	// un'azione interrotta ne porterebbe due — annullata da un avversario, e annullata perche' mirava a un
 	// altro piano. Vale la ragione scritta qui sopra: vince cio' che l'ha fermata per primo.
@@ -2455,6 +2476,10 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
 	{
 		if (!Intents.IsValidIndex(BlockedIdx)) { continue; }
+		// `#4046`: un'azione interrotta e fermata dalla copertura ha gia' la sua voce, `Cancelled`/`Interrupted`. Vince cio'
+		// che l'ha fermata per primo, come per gli altri canali in `ApplyInterrupts`: il pagamento resta quello di oggi,
+		// perche' `BlockedIntents` non cambia, si tace solo la voce.
+		if (Ctx.InterruptedIntents.Contains(BlockedIdx)) { continue; }
 		const FRTHexAttackIntent& Blocked = Intents[BlockedIdx];
 		// Il bersaglio puo' essere una CELLA e non un'unita' (`Fallback.AttackCell`, e da CP 9.2 anche il
 		// modo in cui si punta una struttura): con `TargetId == INDEX_NONE` indicizzare `HexUnits` uscirebbe
