@@ -571,10 +571,12 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 		//   `CollectAttackIntents`; emesse dal ciclo di `ResolveCombatPasses` con `EmitAbilityActivated`): NON passano da
 		//   `InterruptedIntents`, e l'emissione non lo legge. Un curatore STORDITO non si attiva: in `CollectHealActions` il
 		//   rifiuto (`RefuseMainActionIfStunned` e `continue`) sta PRIMA dell'accodamento, nel ramo `ModifyArc` uguale, e un
-		//   curatore morto esce prima ancora. Un curatore INTERROTTO invece SI attiva ancora: `ApplyInterrupts` sceglie le
-		//   vittime fra `Intents[k]` con `AttackerId == Hit.TargetId`, e una cura non e' mai in `Intents` —
-		//   `CollectHealActions` azzera il piano e `continue`, e `ResolveCombatPasses` la chiama prima di
-		//   `CollectAttackIntents` — quindi un `Action.Interrupt` su chi cura non ha niente da cancellare e la cura avviene.
+		//   curatore morto esce prima ancora. Un curatore INTERROTTO non si attiva nemmeno lui, da `#4042` ([D-600] (3)):
+		//   `CollectHealActions` mette la cura in `Ctx.QueuedHeals`, e `ApplyInterrupts` toglie da `DeferredActivations` la
+		//   cura di un curatore colpito da un Interrupt efficace, prima del ciclo di emissione. `ModifyArc` non e' una cura e
+		//   si attiva ancora: per lei la domanda e' aperta.
+		//   ⌫ *Fino a #4042 il curatore interrotto si attivava e curava: `ApplyInterrupts` cercava le vittime solo fra gli
+		//   intenti d'attacco, e una cura non e' mai fra questi.*
 		//
 		// ⛔ `Ev.ActionId` non e' mai vuoto in questo punto: `EmitAbilityActivated` non emette senza, quindi
 		// `BuildSkillCallout` non vedra' mai un `Label` ricavato da `None`.

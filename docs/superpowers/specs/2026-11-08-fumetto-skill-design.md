@@ -205,7 +205,7 @@ fumetti possono essere vivi insieme su unità diverse.
 > [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033) (seduta visiva, punto (e):
 > [evidenza](../../technical/evidence/4025/seduta-pilotata-2026-11-09.md)). ➕ *Chiusa da [#4033](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4033): il Registro ha una riga «unità — azione» per ogni attivazione che il playback mostra, in vista tattica come in vista strategica ([spec](2026-11-10-registro-attivazione-design.md)).*
 >
-> 🔎 **R11, misurato** (sul codice): un **attacco** interrotto non emette `AbilityActivated` e non grida (`ApplyInterrupts` → `InterruptedIntents`, da cui `EmitAttackIntentActivation` esce), uno degradato grida; una **cura** (`DeferredActivations`) non si attiva se il guaritore è stordito, e si attiva se è interrotto (una skill del kit, quindi, grida lo stesso), perché l'interruzione cerca le vittime solo fra gli intenti d'attacco. Le azioni bloccate come fumetto sono [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034).
+> 🔎 **R11, misurato** (sul codice): un **attacco** interrotto non emette `AbilityActivated` e non grida (`ApplyInterrupts` → `InterruptedIntents`, da cui `EmitAttackIntentActivation` esce), uno degradato grida; una **cura** (`DeferredActivations`) non si attiva se il guaritore è stordito, e si attiva se è interrotto (una skill del kit, quindi, grida lo stesso), perché l'interruzione cerca le vittime solo fra gli intenti d'attacco. Le azioni bloccate come fumetto sono [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034). ➕ *Da [#4042](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4042) ([`D-600`](../../decisions/RT_PDR_00_Decision_Log.md) (3)) la cura di un guaritore interrotto non si attiva e non cura: non grida, come l'attacco interrotto. `ModifyArc` si attiva ancora.*
 >
 > ⚠️ **R1b, review finale del 2026-11-09: l'equipaggiamento gridava.** `URTCatalogLibrary::MakeEquipmentAction`
 > scrive `ActionId = EquipmentId` (`Gadget.*`, `Reaction.*`) e copia dal core un `BaseActionId` vuoto; `FindCoreAction`
@@ -390,7 +390,9 @@ commit dichiarato (CLAUDE.md §6, §10).
 - ➕ **Un curatore interrotto si attiva lo stesso** (`ApplyInterrupts` cerca le vittime solo negli intenti
   d'attacco; R11, sotto §3.2), quindi la sua skill grida: da verificare col dominio Combat se è voluto. È già scritto
   in [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034), come domanda da chiarire prima di
-  decidere che cosa grida.
+  decidere che cosa grida. ➕ *Risposta in [`D-600`](../../decisions/RT_PDR_00_Decision_Log.md) (3), implementata in
+  [#4042](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4042): la cura interrotta non cura e non si
+  attiva.*
 - ➕ **La barra di avanzamento del playback torna a 0 dopo una finestra di reazione** (`ConcludeResolution` azzera
   `PlaybackElapsedTotal` anche sulla ripresa): difetto preesistente, fuori fetta. Per lettura, lo stesso valore arriva
   a `Pacing.Close` e alla riga `Risoluzione completata (…s)` in `ConcludeTurn`, che dopo una finestra contano solo il

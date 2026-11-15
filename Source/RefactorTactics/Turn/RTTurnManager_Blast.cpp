@@ -998,6 +998,16 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
 			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single,
 			FreezeVerdictFor(FRTLogSubject::Unit(Unit)) });
+		// `#4042`: la cura e' in coda. Un Interrupt efficace sul curatore la cancellera' in `ApplyInterrupts`; le sue voci di
+		// esito senza effetto aspettano quel verdetto, con l'ordine della loro voce del piano gia' scritto.
+		const FRTDeclaredEntry DellaCura = DeclarationOfEntry(Unit, Turno.EntryId);
+		Ctx.QueuedHeals.Add({ Unit, Heal->Def, Centro, DellaCura.DeclarationIndex, DellaCura.TeamId });
+		auto Rinvia = [&Ctx, Unit, &DellaCura](FRTTurnLogEntry& Voce)
+		{
+			Voce.DeclarationIndex = DellaCura.DeclarationIndex;
+			Voce.DeclaringTeamId = DellaCura.TeamId;
+			Ctx.DeferredHealEntries.Add({ Unit, Voce });
+		};
 		// [D-504], `#3598` — **LA LINEA DI TIRO SI RICONTROLLA QUI, con la domanda degli attacchi.** Il piano e'
 		// stato accettato sulla mappa della pianificazione; un muro alzato in Prep, o chi cura che si e' spostato
 		// nel Dash, puo' averla chiusa. E' lo stesso predicato di `CollectHexAttacks` — `TravelsDirect` sulla
@@ -1016,7 +1026,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			FRTTurnLogEntry CuraBloccata = MakeSupportFallback(
 				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoLineOfSight);
 			if (bArea) { CuraBloccata.TgtCell = Centro; } // come il fuori portata: la voce dice DOVE mirava
-			AppendLogEntry(CuraBloccata, Unit);
+			Rinvia(CuraBloccata);
 			continue;
 		}
 
@@ -1063,7 +1073,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
 				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
 			if (bArea) { CuraVuota.TgtCell = Centro; }
-			AppendLogEntry(CuraVuota, Unit);
+			Rinvia(CuraVuota);
 			continue;
 		}
 
@@ -1092,7 +1102,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// `NoEffect`, non `TargetGone`, che in `ApplyPlannedHeals` dice «distrutta fra raccolta e applicazione».
 			FRTTurnLogEntry Vuota = MakeSupportFallback(Unit, nullptr, Heal->Def, ERTActionInvalidReason::NoEffect);
 			Vuota.TgtCell = Centro;
-			AppendLogEntry(Vuota, Unit);
+			Rinvia(Vuota);
 		}
 	}
 }
@@ -1803,6 +1813,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	TArray<int32> Interruttori;            // intenti Interrupt che cancellerebbero qualcosa, crescenti
 	TArray<TArray<int32>> Cancellerebbe;   // parallelo: gli intenti che ciascuno annullerebbe
 
+	TMap<int32, TArray<ARTUnit*>> CureColpite; // `#4042`: Interrupt -> curatori colpiti; solo ricerca, mai iterata
 	auto ArcoDa = [&Interruttori, &Cancellerebbe](int32 IntentoInterrupt) -> TArray<int32>&
 	{
 		const int32 Trovato = Interruttori.Find(IntentoInterrupt);
@@ -1819,6 +1830,14 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			continue;
 		}
 		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
+		// `#4042`: anche un curatore e' una vittima. Il suo Interrupt entra nel grafo anche senza intenti d'attacco da
+		// annullare, perche' la sua sorte la decide lo stesso punto fisso ([D-202]): un Interrupt annullato a sua volta non
+		// e' efficace, e la cura resta.
+		if (Ctx.HasQueuedHeal(Units[Hit.TargetId]))
+		{
+			ArcoDa(Hit.IntentIndex);
+			CureColpite.FindOrAdd(Hit.IntentIndex).AddUnique(Units[Hit.TargetId]);
+		}
 
 		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
 		// costruito `Intents`, qualche riga sopra, le ha gia' CONSUMATE (azzerate) per ogni unita', bersaglio
@@ -1948,6 +1967,66 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// vero e `ProduceEvents` taglia la lista. Senza questo trasporto la policy sarebbe dichiarata e mai
 	// applicata ([D-207]).
 	Ctx.DegradedIntents = DegradedIntents;
+
+	// `#4042`, [D-600] (3): un curatore colpito da un Interrupt efficace non cura e non si attiva. La cura gia' pagata resta
+	// pagata ([D-571] (1)); la voce e' `Fallback`/`Cancelled` col motivo `Interrupted`, come per gli attacchi, dalla cella
+	// del curatore al centro della cura.
+	TSet<ARTUnit*> CuratoriColpiti;
+	for (int32 i = 0; i < Interruttori.Num(); ++i)
+	{
+		if (Stato[i] != EStato::Efficace) { continue; }
+		if (const TArray<ARTUnit*>* Curatori = CureColpite.Find(Interruttori[i]))
+		{
+			for (ARTUnit* Curatore : *Curatori) { CuratoriColpiti.Add(Curatore); }
+		}
+	}
+	// Una cura si annulla se il suo curatore e' colpito e la sua def lo permette. `SuppressSecondary` toglie gli effetti
+	// oltre il primo, e una cura ne ha uno: resta. Si giudica per azione, non per unita': con CP 38.14 un curatore puo'
+	// avere piu' principali, e un Interrupt le raggiunge tutte ([D-616] (1)).
+	auto Annullabile = [](const FRTActionDef& Def)
+	{
+		return Def.CanBeInterrupted() && Def.InterruptPolicy != ERTInterruptPolicy::SuppressSecondary;
+	};
+	auto CuraAnnullata = [&Ctx, &CuratoriColpiti, &Annullabile](const ARTUnit* Curatore, const FName& ActionId)
+	{
+		return CuratoriColpiti.Contains(Curatore)
+			&& Ctx.QueuedHeals.ContainsByPredicate([&](const FRTBlastContext::FRTQueuedHeal& H)
+			{
+				return H.Healer == Curatore && H.Def.ActionId == ActionId && Annullabile(H.Def);
+			});
+	};
+	for (const FRTBlastContext::FRTQueuedHeal& Cura : Ctx.QueuedHeals)
+	{
+		if (!CuratoriColpiti.Contains(Cura.Healer) || !Annullabile(Cura.Def)) { continue; }
+		FRTTurnLogEntry Interrotta;
+		Interrotta.Phase = ERTMatchPhase::Blast;
+		Interrotta.Category = ERTLogCategory::Fallback;
+		Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Interrotta.SrcCell = Cura.Healer->Cell;
+		Interrotta.TgtCell = Cura.Centre;
+		Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		Interrotta.ActionId = Cura.Def.ActionId;
+		Interrotta.BaseActionId = Cura.Def.BaseActionId;
+		Interrotta.Priority = Cura.Def.Priority;
+		Interrotta.DeclarationIndex = Cura.DeclarationIndex;
+		Interrotta.DeclaringTeamId = Cura.DeclaringTeamId;
+		AppendLogEntry(Interrotta, Cura.Healer);
+	}
+	Ctx.RemoveHealsWhere([&CuraAnnullata](const ARTUnit* Curatore, const FRTActionDef& Def)
+	{
+		return CuraAnnullata(Curatore, Def.ActionId);
+	});
+	// L'attivazione si toglie per la CURA annullata, non per l'unita': fra le rimandate sta anche `ModifyArc`.
+	Ctx.DeferredActivations.RemoveAll([&CuraAnnullata](const FRTBlastContext::FRTDeferredActivation& Attivazione)
+	{
+		return CuraAnnullata(Attivazione.Source, Attivazione.ActionId);
+	});
+	for (FRTBlastContext::FRTDeferredHealEntry& Rinviata : Ctx.DeferredHealEntries)
+	{
+		if (CuraAnnullata(Rinviata.Healer, Rinviata.Entry.ActionId)) { continue; }
+		AppendLogEntry(Rinviata.Entry, Rinviata.Healer);
+	}
+	Ctx.DeferredHealEntries.Reset();
 
 	// 🔴 **Chi si e' neutralizzato lascia traccia** (`#1460`, [D-203]).
 	//
