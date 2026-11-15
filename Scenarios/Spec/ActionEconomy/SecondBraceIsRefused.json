@@ -1,0 +1,83 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondBraceIsRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "ivrin"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-614]: un'azione con ricarica entra al piu' una volta nel piano. Quale copia l'avviso accusi e' resa, e lo prova `Plan.SecondCopyWithCooldownIsRejected`.",
+  "_oracolo": "`Action.Brace` (Prep, 1) due volte: 2 AP, legale per budget, ma `Action.Brace` ha cooldown 1, quindi la seconda copia e' `RepeatedWithCooldown` (26) e il lock-in svuota il piano ([D-615] (1)). Nessuno stato nasce.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Ivrin",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — il piano porta una copia vietata.",
+      "requires": [
+        "ActionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Action.Brace"
+            },
+            {
+              "ability": "Action.Brace"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 2,
+      "_assertion": "Il lock-in svuota il piano: una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 26,
+      "_assertion": "Il motivo in `ERTActionInvalidReason`."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Status",
+      "outcome": "AppliedByAction",
+      "value": 0,
+      "_assertion": "Il piano svuotato non applica il Brace."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

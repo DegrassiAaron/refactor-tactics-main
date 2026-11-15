@@ -249,6 +249,19 @@ public:
 	 * diverse — *«questa riga la posso vedere?»* e *«di questa riga quali colonne?»* — e fonderle avrebbe
 	 * reso impossibile scrivere una traccia per osservatore che resti nel formato canonico.
 	 */
+	/**
+	 * **Il primo campo sanificato per osservatore** (E38 CP 38.13, #4114): porta a `INDEX_NONE` il `DeclarationIndex` delle
+	 * voci la cui squadra dichiarante (`DeclaringTeamId`) non e' quella dell'osservatore, qualunque sia il soggetto della
+	 * voce, e di quelle che non portano una squadra dichiarante. Lo spettatore neutrale (`ObserverTeamId < 0`) riceve la
+	 * traccia intera.
+	 *
+	 * 🔑 **Guarda chi ha DICHIARATO, non il soggetto**: lo stato che ImpactShot lascia su Gadget ha per soggetto Gadget, e
+	 * con la regola sul soggetto la traccia della squadra di Gadget conserverebbe l'indice di Riktor. Si chiama alla
+	 * registrazione, dopo `FilterEntriesForObserver`, perche' `DeclaringTeamId` e' `Transient` e vive solo nella partita.
+	 * ⛔ Non toglie un fatto: nessun resolver usa l'indice per ordinare o per decidere ([D-615] (5)).
+	 */
+	static void SanitizeDeclarationIndexForObserver(TArray<FRTTurnLogEntry>& Entries, int32 ObserverTeamId);
+
 	static TArray<FRTTurnLogEntry> FilterEntriesForObserver(const TArray<FRTTurnLogEntry>& Entries,
 		int32 ObserverTeamId);
 };

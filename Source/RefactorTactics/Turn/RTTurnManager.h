@@ -3283,6 +3283,58 @@ protected:
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
 	/**
+	 * **Una voce del piano vista dal TurnLog** (E38 CP 38.13, #4114): la sua posizione nella copia al lock-in, cioe' il suo
+	 * ordine di dichiarazione, e la squadra di chi l'ha dichiarata. Ogni voce del TurnLog che una voce del piano produce la
+	 * porta ([D-615] (2)); `AppendLogEntry` la scrive (`StampDeclaration`).
+	 */
+	struct FRTDeclaredEntry
+	{
+		int32 DeclarationIndex = INDEX_NONE;
+		int32 TeamId = INDEX_NONE;
+		bool IsSet() const { return DeclarationIndex != INDEX_NONE; }
+	};
+
+	/**
+	 * La voce del piano che il resolver sta risolvendo, per le voci che non la sanno ricavare dal loro soggetto: quelle
+	 * intestate alla vittima (lo stato che un colpo lascia, il lato da cui arriva) e quelle di due copie della stessa
+	 * azione, che lo stesso `ActionId` non distingue. Si apre con `FRTDeclaredEntryScope`, mai a mano.
+	 */
+	FRTDeclaredEntry CurrentDeclaredEntry;
+
+	/** Apre `CurrentDeclaredEntry` per la durata di un blocco, e rimette la precedente all'uscita. */
+	struct FRTDeclaredEntryScope
+	{
+		FRTDeclaredEntryScope(ARTTurnManager& InOwner, const FRTDeclaredEntry& Entry)
+			: Owner(InOwner), Previous(InOwner.CurrentDeclaredEntry)
+		{
+			Owner.CurrentDeclaredEntry = Entry;
+		}
+		~FRTDeclaredEntryScope() { Owner.CurrentDeclaredEntry = Previous; }
+		FRTDeclaredEntryScope(const FRTDeclaredEntryScope&) = delete;
+		FRTDeclaredEntryScope& operator=(const FRTDeclaredEntryScope&) = delete;
+
+	private:
+		ARTTurnManager& Owner;
+		FRTDeclaredEntry Previous;
+	};
+
+	/**
+	 * La voce della copia al lock-in di `Declarer` la cui abilita' e' `ActionId`, fuori dal movimento. Vuota se non c'e', o
+	 * se ce n'e' piu' d'una: due copie non si distinguono dall'`ActionId`, e lo dice il contesto di chi le risolve.
+	 */
+	static FRTDeclaredEntry DeclarationOfAction(const ARTUnit* Declarer, FName ActionId);
+
+	/** La voce di movimento della copia al lock-in, o l'ultima posizione se il piano muoveva senza voce (il bot). */
+	static FRTDeclaredEntry DeclarationOfMovement(const ARTUnit* Declarer);
+
+	/**
+	 * Scrive in `Entry` l'ordine di dichiarazione e la squadra dichiarante, se il produttore non li ha gia' scritti: dal
+	 * contesto aperto, o dal soggetto, quando il soggetto e' chi ha agito e la sua copia al lock-in ha l'azione della voce.
+	 * Le voci intestate a chi SUBISCE (`URTTurnLogLibrary::IsSubjectTheSufferer`) non si ricavano dal soggetto.
+	 */
+	void StampDeclaration(FRTTurnLogEntry& Entry, const ARTUnit* Subject) const;
+
+	/**
 	 * La stessa emissione, ma col SOGGETTO invece del solo attore.
 	 *
 	 * 🔴 **Serve a chi scrive prima di `PlaceOnCell`** (`#2142`): li' `Actor->Cell` e' la cella di partenza

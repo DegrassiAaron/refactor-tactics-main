@@ -33,6 +33,14 @@ struct REFACTORTACTICS_API FRTLockedPlan
 	int32 AttackTargetStableId = INDEX_NONE;
 
 	/**
+	 * Vero se al lock-in il piano dichiarava un movimento normale (`ARTUnit::HasPlannedNormalMove`), anche senza una voce
+	 * di movimento: il bot dichiara la sola cella d'arrivo. Serve al TurnLog (E38 CP 38.13): le voci del Move di
+	 * quell'unita' portano l'ordine della sua voce di movimento, o, senza voce, l'ultimo, come in `MakePlanFor`.
+	 */
+	UPROPERTY()
+	bool bPlansNormalMove = false;
+
+	/**
 	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
 	 *
 	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva

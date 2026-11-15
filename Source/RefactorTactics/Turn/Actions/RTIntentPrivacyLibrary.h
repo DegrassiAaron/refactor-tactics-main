@@ -109,6 +109,34 @@ struct FRTPlannedIntent
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	TArray<FRTCellId> PlannedPath;
 
+	/**
+	 * Le azioni principali e di Prep del piano, nell'ordine di dichiarazione (E38 CP 38.13, #4114). Le vedono gli ALLEATI;
+	 * a un avversario non arrivano mai, perche' ne direbbero il conteggio e l'ordine.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	TArray<FText> DeclaredActionNames;
+
+	/**
+	 * **L'azione che vede un avversario RIVELATO** (E38 CP 38.13): la prima, in ordine canonico (macro-fase, priorita',
+	 * `ActionId`, poi cella del bersaglio), fra la principale e le azioni di Prep in piu'. Una voce sola, che non dipende
+	 * ne' dalle copie ne' dall'ordine di dichiarazione. Con una sola azione e' la principale, come prima.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	FText RevealedActionName;
+
+	/**
+	 * Vero se `RevealedActionName` e il suo bersaglio sono stati composti. Un flag e non «nome non vuoto»: un'azione senza
+	 * nome mostrato ricadrebbe sulla principale, e rivelerebbe proprio la voce che la vista nemica esiste per non dire.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	bool bHasRevealedAction = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	bool bRevealedHasTarget = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
+	FRTCellId RevealedTargetCell;
+
 	/** Waypoint cliccati: dettaglio di AUTORIA del piano, mai esposto a un avversario. */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Privacy")
 	TArray<FRTCellId> PlannedWaypoints;
@@ -191,6 +219,10 @@ struct FRTIntentView
 	/** Vero se l'unita' e' della squadra dell'osservatore. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	bool bIsAlly = false;
+
+	/** E38 CP 38.13: le azioni principali e di Prep in ordine di dichiarazione, solo per un alleato; vuoto per un avversario. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	TArray<FText> DeclaredActionNames;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	bool bMoving = false;

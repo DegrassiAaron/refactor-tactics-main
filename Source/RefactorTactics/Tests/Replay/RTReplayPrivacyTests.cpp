@@ -722,4 +722,71 @@ bool FRTReplayPrivacyThirdPartyCellTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.13 (#4114): l'ordine di dichiarazione resta con la sua squadra ───────────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyDeclarationIndexStaysWithItsTeamTest,
+	"RefactorTactics.Replay.Privacy.DeclarationIndexStaysWithItsTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyDeclarationIndexStaysWithItsTeamTest::RunTest(const FString&)
+{
+	// Criterio 9: nelle tracce per osservatore il campo resta solo sulle voci dichiarate dalla squadra dell'osservatore,
+	// qualunque sia il soggetto; una voce con l'indice e senza squadra dichiarante esce `INDEX_NONE`; il neutrale vede tutto.
+	TArray<FRTTurnLogEntry> Voci;
+	FRTTurnLogEntry DellaZero = VoceConVerdetto(10, FRTKnowledgeVerdict::Everyone());
+	DellaZero.DeclarationIndex = 2;
+	DellaZero.DeclaringTeamId = 0;
+	DellaZero.UnitId = 7; // il soggetto e' della squadra 1 (la vittima), la voce e' dichiarata dalla squadra 0
+	FRTTurnLogEntry DellaUno = VoceConVerdetto(20, FRTKnowledgeVerdict::Everyone());
+	DellaUno.DeclarationIndex = 1;
+	DellaUno.DeclaringTeamId = 1;
+	FRTTurnLogEntry SenzaSquadra = VoceConVerdetto(30, FRTKnowledgeVerdict::Everyone());
+	SenzaSquadra.DeclarationIndex = 0;
+	Voci = { DellaZero, DellaUno, SenzaSquadra };
+
+	TArray<FRTTurnLogEntry> PerLaZero = Voci;
+	URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver(PerLaZero, 0);
+	TestEqual(TEXT("la squadra 0 conserva l'indice della sua voce"), PerLaZero[0].DeclarationIndex, 2);
+	TestEqual(TEXT("e non quello della squadra 1"), PerLaZero[1].DeclarationIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("una voce senza squadra dichiarante esce senza indice"), PerLaZero[2].DeclarationIndex, (int32)INDEX_NONE);
+	TArray<FRTTurnLogEntry> PerLaUno = Voci;
+	URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver(PerLaUno, 1);
+	TestEqual(TEXT("la squadra 1 non riceve l'indice di chi l'ha colpita"), PerLaUno[0].DeclarationIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e conserva il suo"), PerLaUno[1].DeclarationIndex, 1);
+	TArray<FRTTurnLogEntry> Neutrale = Voci;
+	URTReplayPrivacyLibrary::SanitizeDeclarationIndexForObserver(Neutrale, INDEX_NONE);
+	TestEqual(TEXT("il neutrale riceve la traccia intera"), Neutrale[2].DeclarationIndex, 0);
+
+	// Alla registrazione: la traccia della squadra 1 non porta l'indice della squadra 0, la canonica si'.
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("DeclarationIndexTeam"));
+	RTReplayFixtures::Pulisci(Root);
+	FRTReplayManifest Manifest;
+	Manifest.MatchId = FGuid::NewGuid();
+	Manifest.FormatId = FName(TEXT("Format.Skirmish2v2"));
+	Manifest.bHexTopology = true;
+	Manifest.ObserverTeamIds = { 0, 1 };
+	TArray<FRTTurnLogEntry> Ordinate = Voci;
+	URTTurnLogLibrary::SortTurnLog(Ordinate);
+	if (!TestTrue(TEXT("si registra"), URTReplayRecorderLibrary::RecordTurn(Root, Manifest, 1, Ordinate))) { return false; }
+	auto Leggi = [&](const FString& Nome, TArray<FRTTurnLogEntry>& Out)
+	{
+		TArray<uint8> Bytes;
+		return FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(URTReplayRecorderLibrary::MatchDirectory(Root, Manifest.MatchId), Nome))
+			&& URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out);
+	};
+	auto IndiceDi = [](const TArray<FRTTurnLogEntry>& In, int32 Amount)
+	{
+		for (const FRTTurnLogEntry& E : In) { if (E.Amount == Amount) { return E.DeclarationIndex; } }
+		return -99;
+	};
+	TArray<FRTTurnLogEntry> Canonica, Squadra1;
+	if (TestTrue(TEXT("la canonica si rilegge"), Leggi(URTReplayRecorderLibrary::TurnFileName(1), Canonica))
+		&& TestTrue(TEXT("e la traccia della squadra 1"), Leggi(URTReplayRecorderLibrary::TurnFileNameForObserver(1, 1), Squadra1)))
+	{
+		TestEqual(TEXT("la canonica porta l'indice della squadra 0"), IndiceDi(Canonica, 10), 2);
+		TestEqual(TEXT("la traccia della squadra 1 no"), IndiceDi(Squadra1, 10), (int32)INDEX_NONE);
+		TestEqual(TEXT("e conserva il suo"), IndiceDi(Squadra1, 20), 1);
+	}
+	RTReplayFixtures::Pulisci(Root);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

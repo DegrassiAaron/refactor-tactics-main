@@ -400,6 +400,10 @@ namespace
 			// quel giorno `ResolveObjectiveControl` avra' finalmente un caso di parita' da risolvere in
 			// partita, che oggi esiste solo nei suoi test.
 			TEXT("Objective"),
+			// E38 CP 38.13 (#4114): piu' azioni di Prep nello stesso piano. Il produttore che non e' l'harness e' il gesto
+			// della lista: armare un'azione di Prep con la principale gia' presa la AGGIUNGE (`ARTPlayerController`,
+			// `ARTUnit::DeclarePlannedAction`).
+			TEXT("ActionListPlanning"),
 		};
 		return Available;
 	}
@@ -545,6 +549,12 @@ namespace
 			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
 			// cio' che il gioco sa fare, e questo nome non e' niente.
 			TEXT("NeverAvailable"),           // owner: none
+			// E38 CP 38.13: una seconda voce di una classe ancora chiusa, che in questo CP scrive solo l'harness. Entrano fra le
+			// disponibili col gesto che le scrive: la principale del Blast con CP 38.14, la reazione con CP 38.15, lo scatto
+			// con CP 38.16 se `TR-30` ammette due scatti.
+			TEXT("MainListPlanning"),         // owner: #4115
+			TEXT("ReactionListPlanning"),     // owner: #4116
+			TEXT("DashListPlanning"),         // owner: #4117
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
@@ -1582,6 +1592,83 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		// Slot diverso dall'abilita': la stessa unita' puo' attaccare E tenere armata una reazione nello
 		// stesso turno. Nessun bersaglio da impostare — chi subira' la reazione lo decide il trigger durante
 		// la risoluzione, non lo scenario.
+		// E38 CP 38.13: l'elenco `actions`, nel suo ordine, che e' l'ordine di dichiarazione. La classe la dice l'abilita';
+		// le azioni principali e di Prep passano dal gesto della lista (`ARTUnit::DeclarePlannedAction`). Una seconda voce
+		// di una classe chiusa fa fallire il turno: nessun resolver deve scegliere quale delle due risolvere.
+		for (int32 k = 0; k < Intent.Actions.Num() && ErroredBy.IsEmpty(); ++k)
+		{
+			const FRTScenarioPlannedAction& Azione = Intent.Actions[k];
+			const int32 Indice = FindAbilityIndex(Azione.Ability);
+			const URTActionData* Abilita = Unit->GetAbility(Indice);
+			if (!Abilita)
+			{
+				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (actions[%d], turno %d)"),
+					*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
+				break;
+			}
+			const ERTMatchPhase Fase = URTCatalogLibrary::MapResolutionPhase(Abilita->Def.ResolutionPhase);
+			const TCHAR* Classe = TEXT("principale");
+			bool bScritta = false;
+			if (Fase == ERTMatchPhase::Dash)
+			{
+				Classe = TEXT("scatto");
+				if (!Azione.bHasCell)
+				{
+					ErroredBy = FString::Printf(TEXT("'%s': la mobilita' '%s' (actions[%d]) vuole `cell`, l'arrivo (turno %d)"),
+						*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
+					break;
+				}
+				bScritta = Unit->GetPlan().PlannedDashAbility() == INDEX_NONE;
+				if (bScritta) { Unit->SetPlannedDash(Indice, Azione.Cell); }
+			}
+			else if (Abilita->Def.Slot == ERTActionSlot::Reaction)
+			{
+				Classe = TEXT("reazione");
+				bScritta = Unit->GetPlan().PlannedReactionAbility() == INDEX_NONE;
+				if (bScritta) { Unit->SetPlannedReaction(Indice); }
+			}
+			else
+			{
+				Classe = Fase == ERTMatchPhase::Prep ? TEXT("Prep con bersaglio, o principale") : TEXT("principale");
+				bScritta = Unit->DeclarePlannedAction(Indice);
+				const bool bPrincipale = bScritta && Unit->GetPlan().PlannedAbilityIndex() == Indice;
+				if (bScritta && (Azione.bHasCell || !Azione.Target.IsEmpty()))
+				{
+					if (!bPrincipale)
+					{
+						ErroredBy = FString::Printf(TEXT("'%s': '%s' (actions[%d]) dichiara un bersaglio ma non e' la principale (turno %d)"),
+							*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
+						break;
+					}
+					if (Azione.bHasCell)
+					{
+						Unit->DeclareAttackOnCell(Azione.Cell);
+					}
+					else
+					{
+						TWeakObjectPtr<ARTUnit>* Trovato = UnitsById.Find(Azione.Target);
+						ARTUnit* Bersaglio = Trovato ? Trovato->Get() : nullptr;
+						if (Bersaglio && Bersaglio->IsAlive()) { Unit->DeclareAttackOnUnit(Bersaglio); }
+						else
+						{
+							Notes.Add(FString::Printf(TEXT("turno %d: '%s' bersagliava '%s', gia' abbattuto: l'azione non parte"),
+								TurnIndex + 1, *Intent.UnitId, *Azione.Target));
+						}
+					}
+				}
+			}
+			if (!bScritta)
+			{
+				ErroredBy = FString::Printf(
+					TEXT("'%s': actions[%d], '%s', e' una seconda voce della classe %s, che e' chiusa: non si scrive (turno %d)"),
+					*Intent.UnitId, k, *Azione.Ability.ToString(), Classe, TurnIndex + 1);
+			}
+		}
+		if (!ErroredBy.IsEmpty() && Intent.Actions.Num() > 0)
+		{
+			UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+		}
+
 		if (!Intent.Reaction.IsNone())
 		{
 			for (int32 I = 0; I < Unit->NumAbilities(); ++I)

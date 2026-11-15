@@ -1,0 +1,76 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondInterpositionIsRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-614]: una seconda reazione con ricarica e' vietata. Il gesto che arma una seconda reazione non c'e' ancora, quindi il turno chiede `ReactionListPlanning` ed esce `Blocked` (owner #4116).",
+  "_oracolo": "`Hero.Riktor.Interposition` (reazione, 2, cooldown 3) due volte: 4 AP, ma `RepeatedWithCooldown` (26); il lock-in svuota il piano.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — il piano porta una copia vietata.",
+      "requires": [
+        "ReactionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Hero.Riktor.Interposition"
+            },
+            {
+              "ability": "Hero.Riktor.Interposition"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 2,
+      "_assertion": "Il lock-in svuota il piano: una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 26,
+      "_assertion": "Il motivo in `ERTActionInvalidReason`."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/Catalog/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
+#include "Map/RTHexLibrary.h" // E38 CP 38.13: StableLess, l'ultima chiave dell'ordine canonico della voce rivelata
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
 #include "UI/Inspect/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
 #include "Player/RTPlayerController.h" // PlayerCommandsAnyLiveUnit: chi puo' girare la manopola della velocita' ([D-350])
@@ -1577,6 +1578,37 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		// principale e' gia' `ActionName`: contarlo qui stamperebbe lo stesso nome due volte. Il roster, che un nome
 		// d'azione non lo mostra, lo conta ([D-478]).
 		Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
+		// E38 CP 38.13: la principale e le azioni di Prep in piu', nell'ordine di dichiarazione (per gli alleati), e la prima
+		// in ordine canonico (per un avversario rivelato): macro-fase, priorita', `ActionId`, poi cella del bersaglio.
+		{
+			struct FCandidata { const URTActionData* Azione; bool bBersaglio; FRTCellId Cella; };
+			TArray<FCandidata> Candidate;
+			for (const FRTPlanEntry& Voce : Unit->GetPlan().GetEntries())
+			{
+				if (Voce.Class != ERTPlanEntryClass::Main && Voce.Class != ERTPlanEntryClass::Prep) { continue; }
+				const URTActionData* Azione = Unit->GetAbility(Voce.AbilityIndex);
+				if (!Azione) { continue; }
+				Intent.DeclaredActionNames.Add(Azione->DisplayName);
+				const bool bPrincipale = Voce.Class == ERTPlanEntryClass::Main;
+				Candidate.Add({ Azione, bPrincipale && Intent.bHasTarget, bPrincipale && Intent.bHasTarget ? Intent.TargetCell : Unit->Cell });
+			}
+			Candidate.StableSort([](const FCandidata& A, const FCandidata& B)
+			{
+				const uint8 FaseA = static_cast<uint8>(URTCatalogLibrary::MapResolutionPhase(A.Azione->Def.ResolutionPhase));
+				const uint8 FaseB = static_cast<uint8>(URTCatalogLibrary::MapResolutionPhase(B.Azione->Def.ResolutionPhase));
+				if (FaseA != FaseB) { return FaseA < FaseB; }
+				if (A.Azione->Def.Priority != B.Azione->Def.Priority) { return A.Azione->Def.Priority < B.Azione->Def.Priority; }
+				if (A.Azione->Def.ActionId != B.Azione->Def.ActionId) { return A.Azione->Def.ActionId.LexicalLess(B.Azione->Def.ActionId); }
+				return URTHexLibrary::StableLess(A.Cella, B.Cella);
+			});
+			if (Candidate.Num() > 0)
+			{
+				Intent.bHasRevealedAction = true;
+				Intent.RevealedActionName = Candidate[0].Azione->DisplayName;
+				Intent.bRevealedHasTarget = Candidate[0].bBersaglio;
+				Intent.RevealedTargetCell = Candidate[0].Cella;
+			}
+		}
 		Intent.PlannedPath = Unit->GetPlan().PlannedPath();
 		Intent.PlannedWaypoints = Unit->GetPlan().PlannedWaypoints();
 		Intent.bDashing = (Unit->GetPlan().PlannedDashAbility() != INDEX_NONE);

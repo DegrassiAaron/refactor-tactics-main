@@ -673,4 +673,98 @@ bool FRTScenarioHoldThenFireTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.13 (#4114): il formato scenari a lista ───────────────────────────────────────────────────────────────────
+namespace
+{
+	FString ScenarioConAzioni(int32 Versione, const TCHAR* Intento)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Harness.ActionListProbe",
+		  "tags": ["spec", "harness"],
+		  "version": %d, "seed": 0, "mapRadius": 4,
+		  "units": [
+		    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+		    { "id": "F1", "hero": "Hero.Gadget", "team": 1, "cell": [-1, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione, Intento);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderReadsTheActionListTest,
+	"RefactorTactics.Scenario.LoaderReadsTheActionList",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderReadsTheActionListTest::RunTest(const FString&)
+{
+	// Criterio 15: il loader legge `actions` nel suo ordine, e il formato dichiara la versione nuova.
+	TestEqual(TEXT("il formato e' alla versione 9"), URTScenarioLoader::SupportedVersion, 9);
+	FRTTestScenario S;
+	FString Errore;
+	const bool bLetto = URTScenarioLoader::LoadFromString(ScenarioConAzioni(9, TEXT(R"({ "unit": "B1", "actions": [
+		{ "ability": "Action.Guard" }, { "ability": "Action.Guard" },
+		{ "ability": "Hero.Riktor.ImpactShot", "target": "F1" }, { "ability": "Hero.Riktor.MortarShot", "cell": [-3, 0, 0] } ] })")), S, Errore);
+	if (!TestTrue(*FString::Printf(TEXT("si carica (%s)"), *Errore), bLetto)
+		|| !TestTrue(TEXT("un turno, un intento"), S.Turns.Num() == 1 && S.Turns[0].Intents.Num() == 1))
+	{
+		return false;
+	}
+	const TArray<FRTScenarioPlannedAction>& A = S.Turns[0].Intents[0].Actions;
+	if (!TestEqual(TEXT("quattro azioni"), A.Num(), 4)) { return false; }
+	TestEqual(TEXT("nell'ordine del file: la prima"), A[0].Ability, FName(TEXT("Action.Guard")));
+	TestEqual(TEXT("la terza"), A[2].Ability, FName(TEXT("Hero.Riktor.ImpactShot")));
+	TestEqual(TEXT("col suo bersaglio"), A[2].Target, FString(TEXT("F1")));
+	TestTrue(TEXT("la quarta con la sua cella"), A[3].bHasCell && A[3].Cell == FRTCellId(-3, 0, 0));
+	TestTrue(TEXT("e nessun campo per tipo"), S.Turns[0].Intents[0].Ability.IsNone());
+
+	// I rifiuti: versione vecchia, le due forme insieme, una chiave ignota, un'azione senza abilita'.
+	TestFalse(TEXT("alla versione 8 `actions` si rifiuta"), URTScenarioLoader::LoadFromString(
+		ScenarioConAzioni(8, TEXT(R"({ "unit": "B1", "actions": [ { "ability": "Action.Guard" } ] })")), S, Errore));
+	TestTrue(*FString::Printf(TEXT("e il motivo nomina la versione (%s)"), *Errore), Errore.Contains(TEXT("versione 9")));
+	TestFalse(TEXT("`actions` con `ability` si rifiuta"), URTScenarioLoader::LoadFromString(
+		ScenarioConAzioni(9, TEXT(R"({ "unit": "B1", "ability": "Action.Brace", "actions": [ { "ability": "Action.Guard" } ] })")), S, Errore));
+	TestFalse(TEXT("una chiave ignota in un'azione si rifiuta"), URTScenarioLoader::LoadFromString(
+		ScenarioConAzioni(9, TEXT(R"({ "unit": "B1", "actions": [ { "ability": "Action.Guard", "dashTo": [1, 0, 0] } ] })")), S, Errore));
+	TestFalse(TEXT("un'azione senza abilita' si rifiuta"), URTScenarioLoader::LoadFromString(
+		ScenarioConAzioni(9, TEXT(R"({ "unit": "B1", "actions": [ { "target": "F1" } ] })")), S, Errore));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioASecondEntryOfAClosedClassFailsTheTurnTest,
+	"RefactorTactics.Scenario.ASecondEntryOfAClosedClassFailsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioASecondEntryOfAClosedClassFailsTheTurnTest::RunTest(const FString&)
+{
+	// Criterio 18: un turno di scenario che dichiara una seconda voce di una classe chiusa, e che si gioca, fallisce con un
+	// errore che nomina la voce e la classe. Il controllo: una voce di Prep accanto alla principale si gioca.
+	auto Gioca = [this](const TCHAR* Intento) -> FRTTestResult
+	{
+		FRTTestScenario S;
+		FString Errore;
+		if (!URTScenarioLoader::LoadFromString(ScenarioConAzioni(9, Intento), S, Errore))
+		{
+			AddError(FString::Printf(TEXT("scenario di prova malformato: %s"), *Errore));
+			return FRTTestResult();
+		}
+		UWorld* World = MakeCorpusWorld();
+		const FRTTestResult R = URTScenarioRunner::Run(World, S);
+		DestroyCorpusWorld(World);
+		return R;
+	};
+	// L'harness scrive l'errore anche nel log, e qui e' l'esito atteso.
+	AddExpectedError(TEXT("seconda voce della classe principale"), EAutomationExpectedErrorFlags::Contains, 1);
+	const FRTTestResult DuePrincipali = Gioca(TEXT(R"({ "unit": "B1", "actions": [
+		{ "ability": "Hero.Riktor.ImpactShot", "target": "F1" }, { "ability": "Hero.Riktor.MortarShot", "cell": [-3, 0, 0] } ] })"));
+	TestEqual(TEXT("due principali: il turno fallisce"), DuePrincipali.Outcome, ERTTestOutcome::Error);
+	TestTrue(*FString::Printf(TEXT("e l'errore nomina la voce e la classe (%s)"), *DuePrincipali.ErrorMessage),
+		DuePrincipali.ErrorMessage.Contains(TEXT("Hero.Riktor.MortarShot")) && DuePrincipali.ErrorMessage.Contains(TEXT("principale")));
+	const FRTTestResult GuardiaEColpo = Gioca(TEXT(R"({ "unit": "B1", "actions": [
+		{ "ability": "Action.Guard" }, { "ability": "Hero.Riktor.ImpactShot", "target": "F1" } ] })"));
+	TestEqual(*FString::Printf(TEXT("controllo: Guard + ImpactShot si gioca (%s)"), *GuardiaEColpo.ErrorMessage),
+		GuardiaEColpo.Outcome, ERTTestOutcome::Pass);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

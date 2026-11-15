@@ -1,0 +1,96 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondRamIsRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.13 (#4114), [D-614]: un secondo scatto con ricarica e' vietato. Due scatti li ammette solo `TR-30`, con CP 38.16 (#4117), quindi il turno chiede `DashListPlanning` ed esce `Blocked`.",
+  "_oracolo": "`Hero.Riktor.Ram` (Dash, 2, cooldown 2) verso (2,0,0) e verso (0,2,0): 4 AP, ma `RepeatedWithCooldown` (26); il lock-in svuota il piano e nessuno scatto parte.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — il piano porta una copia vietata.",
+      "requires": [
+        "DashListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Hero.Riktor.Ram",
+              "cell": [
+                2,
+                0,
+                0
+              ]
+            },
+            {
+              "ability": "Hero.Riktor.Ram",
+              "cell": [
+                0,
+                2,
+                0
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 2,
+      "_assertion": "Il lock-in svuota il piano: una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 26,
+      "_assertion": "Il motivo in `ERTActionInvalidReason`."
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "B1",
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "_assertion": "Nessuno scatto parte."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}
