@@ -346,11 +346,11 @@ bool FRTAimOriginAttackAfterDashTest::RunTest(const FString&)
 	// IL CLICK — rifiuta il nemico che la cella corrente avrebbe accettato...
 	B.PC->HandleClickOnUnitForTest(B.Secondo);
 	TestTrue(TEXT("click: il nemico in (-2,0,0) e' rifiutato, perche' dallo scatto c'e' il muro"),
-		B.Mine->GetPlan().PlannedAttackTarget.Get() != B.Secondo);
+		B.Mine->GetPlan().PlannedAttackTarget().Get() != B.Secondo);
 	// ...e accetta quello che avrebbe rifiutato.
 	B.PC->HandleClickOnUnitForTest(B.Primo);
 	if (!TestTrue(TEXT("click: il nemico in (4,0,0) e' accettato"),
-			B.Mine->GetPlan().PlannedAttackTarget.Get() == B.Primo && B.Mine->GetPlan().PlannedAbilityIndex == B.Getto))
+			B.Mine->GetPlan().PlannedAttackTarget().Get() == B.Primo && B.Mine->GetPlan().PlannedAbilityIndex() == B.Getto))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -447,10 +447,10 @@ bool FRTAimOriginEnvironmentAfterDashTest::RunTest(const FString&)
 		AimOriginSlotRefuses(B, B.Irrigatore, Obliquo));
 
 	B.PC->HandleClickOnUnitForTest(B.Primo);
-	TestTrue(TEXT("click: il nemico in (4,-1,0) e' rifiutato"), B.Mine->GetPlan().PlannedAttackTarget.Get() != B.Primo);
+	TestTrue(TEXT("click: il nemico in (4,-1,0) e' rifiutato"), B.Mine->GetPlan().PlannedAttackTarget().Get() != B.Primo);
 	B.PC->HandleClickOnUnitForTest(B.Secondo);
 	if (!TestTrue(TEXT("click: il nemico in (-4,0,0) e' accettato"),
-			B.Mine->GetPlan().PlannedAttackTarget.Get() == B.Secondo && B.Mine->GetPlan().PlannedAbilityIndex == B.Irrigatore))
+			B.Mine->GetPlan().PlannedAttackTarget().Get() == B.Secondo && B.Mine->GetPlan().PlannedAbilityIndex() == B.Irrigatore))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -534,10 +534,10 @@ bool FRTAimOriginCellAfterDashTest::RunTest(const FString&)
 
 	B.PC->HandleClickOnCellForTest(DaQui);
 	TestFalse(TEXT("click: (-3,0,0) non pianifica niente"),
-		B.Mine->GetPlan().PlannedAbilityIndex == Marea && B.Mine->GetPlan().bAttackTargetsCell && B.Mine->GetPlan().PlannedAttackCell == DaQui);
+		B.Mine->GetPlan().PlannedAbilityIndex() == Marea && B.Mine->GetPlan().bAttackTargetsCell() && B.Mine->GetPlan().PlannedAttackCell() == DaQui);
 	B.PC->HandleClickOnCellForTest(DalloScatto);
 	TestTrue(TEXT("click: (4,0,0) pianifica l'area"),
-		B.Mine->GetPlan().PlannedAbilityIndex == Marea && B.Mine->GetPlan().bAttackTargetsCell && B.Mine->GetPlan().PlannedAttackCell == DalloScatto);
+		B.Mine->GetPlan().PlannedAbilityIndex() == Marea && B.Mine->GetPlan().bAttackTargetsCell() && B.Mine->GetPlan().PlannedAttackCell() == DalloScatto);
 	TestEqual(TEXT("anteprima: l'origine e' la cella dello scatto"), B.MapActor->GetPreviewAttackOrigin(),
 		GAimOriginScatto);
 
@@ -1062,7 +1062,7 @@ bool FRTAimOriginUnexploredSmokeThroughTheControllerTest::RunTest(const FString&
 			&& URTHexLibrary::HexDistance(B.Mine->AimOriginFor(ERTResolutionPhase::Attack), Nemico) == 3;
 		Out.bInPortata = B.MapActor->GetPreviewRangeCells().Contains(Nemico);
 		B.PC->HandleClickOnUnitForTest(B.Primo);
-		Out.bClickPianifica = B.Mine->GetPlan().PlannedAttackTarget.Get() == B.Primo;
+		Out.bClickPianifica = B.Mine->GetPlan().PlannedAttackTarget().Get() == B.Primo;
 		RTWorldFixtures::DestroyWorld(B.World);
 		return Out;
 	};
@@ -1139,7 +1139,7 @@ bool FRTAimOriginUnexploredWallDashClickTest::RunTest(const FString&)
 
 		B.PC->ArmKitAbility(B.Scatto);
 		B.PC->HandleClickOnCellForTest(Meta);
-		const int32 Accettato = (B.Mine->GetPlan().PlannedDashCell == Meta) ? 1 : 0;
+		const int32 Accettato = (B.Mine->GetPlan().PlannedDashCell() == Meta) ? 1 : 0;
 		RTWorldFixtures::DestroyWorld(B.World);
 		return Accettato;
 	};

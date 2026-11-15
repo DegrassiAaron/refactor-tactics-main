@@ -226,7 +226,7 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 
 	// La proprietà: due COMPAGNE non pianificano la stessa cella. Chi scatta non entra nel confronto — la
 	// sua cella d'arrivo la decide la fase Dash, che ha le proprie priorità e non è dove il difetto vive.
-	auto MovesNormally = [](const ARTUnit* U) { return U && U->GetPlan().PlannedDashAbility == INDEX_NONE; };
+	auto MovesNormally = [](const ARTUnit* U) { return U && U->GetPlan().PlannedDashAbility() == INDEX_NONE; };
 
 	// ⚠️ **Le due verifiche si fanno PER SQUADRA, e la prima stesura le faceva globali.** Contando le mosse
 	// su tutte e quattro le unità, la squadra 0 poteva essere nello stallo originale — entrambe ferme sulla
@@ -253,8 +253,8 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 		int32 Moving = 0;
 		for (const ARTUnit* U : { First, Second })
 		{
-			const bool bDashes = U && U->GetPlan().PlannedDashAbility != INDEX_NONE;
-			if (U && (bDashes ? !(U->GetPlan().PlannedDashCell == U->Cell) : !(U->GetPlan().PlannedCell == U->Cell))) { ++Moving; }
+			const bool bDashes = U && U->GetPlan().PlannedDashAbility() != INDEX_NONE;
+			if (U && (bDashes ? !(U->GetPlan().PlannedDashCell() == U->Cell) : !(U->GetPlan().PlannedCell == U->Cell))) { ++Moving; }
 		}
 		AddInfo(FString::Printf(TEXT("%s: unita' che si spostano %d/2"), Label, Moving));
 		TestTrue(FString::Printf(TEXT("%s: almeno una si muove davvero"), Label), Moving > 0);
@@ -595,11 +595,11 @@ bool FRTPlanBotsWritesWhatTheValidatorReadsTest::RunTest(const FString&)
 	// punto da cui `ValidatePlansAtLockIn` ricava le voci da giudicare, e un piano vuoto lo fa `continue`.
 	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Bot);
 	AddInfo(FString::Printf(TEXT("il bot ha pianificato: cella %s, dash %d, voci lette dal validatore %d"),
-		*Bot->GetPlan().PlannedCell.ToString(), Bot->GetPlan().PlannedDashAbility, Piano.Num()));
+		*Bot->GetPlan().PlannedCell.ToString(), Bot->GetPlan().PlannedDashAbility(), Piano.Num()));
 
 	TestTrue(TEXT("il bot ha pianificato qualcosa"),
-		Bot->HasPlannedNormalMove() || Bot->GetPlan().PlannedDashAbility != INDEX_NONE
-		|| Bot->GetPlan().PlannedAbilityIndex != INDEX_NONE);
+		Bot->HasPlannedNormalMove() || Bot->GetPlan().PlannedDashAbility() != INDEX_NONE
+		|| Bot->GetPlan().PlannedAbilityIndex() != INDEX_NONE);
 	TestTrue(TEXT("e cio' che ha scritto arriva al validatore, non a un canale che non legge"), Piano.Num() > 0);
 
 	DestroyTeamPlanningWorld(World);
@@ -646,7 +646,7 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 
 	// 1) Un primo giro arma la reazione: senza un'abilita' armata la condizione non si puo' nemmeno porre.
 	TM->PlanBotsForTest();
-	if (Bot->GetPlan().PlannedReactionAbility == INDEX_NONE)
+	if (Bot->GetPlan().PlannedReactionAbility() == INDEX_NONE)
 	{
 		// ⛔ `AddError` e non `AddInfo`: `return false` segna il rosso, ma senza una voce d'errore il
 		// referto mostra un `Fail` con la lista vuota e chi lo tria non vede la causa. E' lo stesso
@@ -665,7 +665,7 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 	const bool bPosta = Bot->SetPlannedReactionCondition(
 		FRTDeclaredCondition(TEXT("TargetHealthAtOrBelowPercent"), 50));
 	if (!TestTrue(TEXT("la condizione si e' potuta dichiarare"), bPosta)
-		|| !TestTrue(TEXT("premessa: la condizione c'e'"), Bot->GetPlan().PlannedReactionCondition.IsDeclared()))
+		|| !TestTrue(TEXT("premessa: la condizione c'e'"), Bot->GetPlan().PlannedReactionCondition().IsDeclared()))
 	{
 		DestroyTeamPlanningWorld(World);
 		return false;
@@ -676,7 +676,7 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 
 	// 🔴 La proprieta': il piano nuovo NON se la porta dietro.
 	TestFalse(TEXT("la condizione del piano precedente non sopravvive alla nuova pianificazione"),
-		Bot->GetPlan().PlannedReactionCondition.IsDeclared());
+		Bot->GetPlan().PlannedReactionCondition().IsDeclared());
 
 	DestroyTeamPlanningWorld(World);
 	return true;

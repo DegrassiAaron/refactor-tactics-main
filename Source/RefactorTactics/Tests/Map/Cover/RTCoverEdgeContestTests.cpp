@@ -535,14 +535,14 @@ namespace
 			if (!CoverTiePlans(Spec, Arm))
 			{
 				bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'unita' %d non ha piano"), *Run, I),
-					Unit->GetPlan().PlannedAbilityIndex, static_cast<int32>(INDEX_NONE));
+					Unit->GetPlan().PlannedAbilityIndex(), static_cast<int32>(INDEX_NONE));
 				continue;
 			}
 			const URTActionData* Installed = Unit->GetAbility(CoverTieSlot);
 			bOk &= Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha l'azione nello slot %d"), *Run, I, CoverTieSlot), Installed);
 			if (Installed == nullptr) { continue; }
 			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha il piano nello slot %d"), *Run, I, CoverTieSlot),
-				Unit->GetPlan().PlannedAbilityIndex, CoverTieSlot);
+				Unit->GetPlan().PlannedAbilityIndex(), CoverTieSlot);
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha una PRINCIPALE di Prep"), *Run, I),
 				Installed->Def.Slot == ERTActionSlot::Main
 				&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep);
@@ -841,7 +841,7 @@ namespace
 			bOk &= Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha l'azione nello slot %d"), *Run, I, CoverTieSlot), Installed);
 			if (Installed == nullptr) { continue; }
 			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha il piano nello slot %d"), *Run, I, CoverTieSlot),
-				Unit->GetPlan().PlannedAbilityIndex, CoverTieSlot);
+				Unit->GetPlan().PlannedAbilityIndex(), CoverTieSlot);
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha una PRINCIPALE di Prep che erige o sposta"), *Run, I),
 				Installed->Def.Slot == ERTActionSlot::Main
 				&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep
@@ -975,7 +975,7 @@ namespace
 			bOk &= Test.TestNotNull(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha l'azione nello slot %d"), *Run, I, CoverTieSlot), Installed);
 			if (Installed == nullptr) { continue; }
 			bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha il piano nello slot %d"), *Run, I, CoverTieSlot),
-				Unit->GetPlan().PlannedAbilityIndex, CoverTieSlot);
+				Unit->GetPlan().PlannedAbilityIndex(), CoverTieSlot);
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha una PRINCIPALE di Prep che sposta"), *Run, I),
 				Installed->Def.Slot == ERTActionSlot::Main
 				&& URTCatalogLibrary::MapResolutionPhase(Installed->Def.ResolutionPhase) == ERTMatchPhase::Prep
@@ -983,7 +983,7 @@ namespace
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d e' utilizzabile e non stordita"), *Run, I),
 				Unit->CanUseAbility(CoverTieSlot) && !Unit->HasStatus(TAG_Status_Stunned));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il piano dell'unita' %d dichiara il bordo %s"), *Run, I, CoverTieEdgeName(ToEdges[I])),
-				Unit->GetPlan().bHasPlannedCoverEdge && Unit->GetPlan().PlannedCoverEdge == ToEdges[I]);
+				Unit->GetPlan().bHasPlannedCoverEdge() && Unit->GetPlan().PlannedCoverEdge() == ToEdges[I]);
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la cella bersaglio e' a portata dell'unita' %d"), *Run, I),
 				URTHexLibrary::HexDistance(Unit->Cell, Target) <= Installed->Def.RangeCells);
 		}

@@ -1451,7 +1451,7 @@ bool FRTUnreadyKeepsThePlanTest::RunTest(const FString&)
 	}
 	if (!TestNotNull(TEXT("l'unita' umana"), Umana)) { DestroyHexMatchWorld(World); return false; }
 	Umana->AddPlannedWaypoint(FRTCellId(-2, 1));
-	const TArray<FRTCellId> PianoPrima = Umana->GetPlan().PlannedWaypoints;
+	const TArray<FRTCellId> PianoPrima = Umana->GetPlan().PlannedWaypoints();
 	if (!TestTrue(TEXT("il piano di partenza NON e' vuoto"), PianoPrima.Num() > 0))
 	{
 		DestroyHexMatchWorld(World);
@@ -1480,7 +1480,7 @@ bool FRTUnreadyKeepsThePlanTest::RunTest(const FString&)
 	// distingue «non e' successo niente» da «e' passato un turno intero».
 	TestEqual(TEXT("e NESSUN turno e' stato consumato"), TM->GetTurnNumber(), TurnoPrima);
 	TestFalse(TEXT("nessuna risoluzione e' partita"), TM->IsResolving());
-	TestTrue(TEXT("il piano e' identico a prima del Ready"), Umana->GetPlan().PlannedWaypoints == PianoPrima);
+	TestTrue(TEXT("il piano e' identico a prima del Ready"), Umana->GetPlan().PlannedWaypoints() == PianoPrima);
 
 	// 🔴 Il tetto e' SCESO durante il countdown, non e' stato riarmato: l'Unready non regala tempo.
 	const float TettoDopo = TM->GetPlanningTimeRemaining();
@@ -1942,20 +1942,20 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 	// che scriva `PlannedWaypoints`. ⚠️ Il gesto d'ATTACCO non serviva allo scopo — in questo allestimento
 	// le due unita' distano sei celle, quindi nessun attacco e' legale e il gesto sarebbe un no-op anche
 	// in pianificazione: un controllo positivo che non puo' diventare verde non controlla niente.
-	if (!TestTrue(TEXT("il banco ha lasciato un waypoint da riusare"), B.Mine->GetPlan().PlannedWaypoints.Num() > 0))
+	if (!TestTrue(TEXT("il banco ha lasciato un waypoint da riusare"), B.Mine->GetPlan().PlannedWaypoints().Num() > 0))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
-	const FRTCellId CellaPercorribile = B.Mine->GetPlan().PlannedWaypoints[0];
+	const FRTCellId CellaPercorribile = B.Mine->GetPlan().PlannedWaypoints()[0];
 
 	// CONTROLLO POSITIVO, come DELTA — in pianificazione il clic sulla mappa POSA un waypoint.
 	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RebuildPlannedPathForTest();
-	TestEqual(TEXT("controllo: si riparte da un piano vuoto"), B.Mine->GetPlan().PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("controllo: si riparte da un piano vuoto"), B.Mine->GetPlan().PlannedWaypoints().Num(), 0);
 	B.PC->HandleClickOnCellForTest(CellaPercorribile);
 	TestTrue(TEXT("controllo: in pianificazione il clic sulla mappa posa un waypoint"),
-		B.Mine->GetPlan().PlannedWaypoints.Num() > 0);
+		B.Mine->GetPlan().PlannedWaypoints().Num() > 0);
 	TestTrue(TEXT("e riaccende la rotta"), B.HexMap->NumPreviewPathCells() > 0);
 
 	// Il turno si chiude dal tetto e la risoluzione comincia.
@@ -1970,10 +1970,10 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
 	// IL CUORE — lo stesso gesto che poco fa posava un waypoint, adesso non deve posare niente.
-	const int32 WaypointPrima = B.Mine->GetPlan().PlannedWaypoints.Num();
+	const int32 WaypointPrima = B.Mine->GetPlan().PlannedWaypoints().Num();
 	B.PC->HandleClickOnCellForTest(CellaPercorribile);
 	TestEqual(TEXT("il clic sulla mappa durante il playback non posa waypoint"),
-		B.Mine->GetPlan().PlannedWaypoints.Num(), WaypointPrima);
+		B.Mine->GetPlan().PlannedWaypoints().Num(), WaypointPrima);
 	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
 	// ⚠️ **La SELEZIONE invece si sposta, ed e' voluto** (`#2555`): guardare un'altra unita' mentre la
@@ -2263,9 +2263,9 @@ bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
 	// CONTROLLO POSITIVO, come DELTA — in pianificazione armarlo SCRIVE il piano, e il disarmo lo toglie.
 	B.PC->SelectAbilityForCurrentForTest(Overwatch);
 	TestEqual(TEXT("controllo: in pianificazione armare l'Overwatch lo mette nel piano"),
-		B.Mine->GetPlan().PlannedAbilityIndex, Overwatch);
+		B.Mine->GetPlan().PlannedAbilityIndex(), Overwatch);
 	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
-	TestEqual(TEXT("controllo: e il disarmo lo toglie"), B.Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("controllo: e il disarmo lo toglie"), B.Mine->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
 
 	CommitFromTimeout(B);
 	if (!AssertInPlayback(*this, B))
@@ -2280,7 +2280,7 @@ bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
 	// IL CUORE — durante il playback il tasto non arma e non scrive il piano...
 	B.PC->SelectAbilityForCurrentForTest(Overwatch);
 	TestEqual(TEXT("durante il playback il tasto non arma"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
-	TestEqual(TEXT("e non scrive il piano"), B.Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e non scrive il piano"), B.Mine->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
 	TestEqual(TEXT("e non accende nessuna area di pianificazione"), PlanningSurfacesLit(B.HexMap), 0);
 
 	// ...e il turno dopo non lo eredita. E' la meta' che la sola guardia «durante» non dimostrerebbe.
@@ -2288,7 +2288,7 @@ bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
 	TestFalse(TEXT("il playback e' finito"), B.TM->IsResolving());
 	TestEqual(TEXT("il turno nuovo comincia disarmato"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
 	TestEqual(TEXT("e senza un Overwatch che nessuno ha pianificato"),
-		B.Mine->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+		B.Mine->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
@@ -2318,11 +2318,11 @@ bool FRTPlaybackRejectsPlanDeclarationsTest::RunTest(const FString&)
 	const FName Sneak = URTMovementProfileLibrary::ProfileSneak;
 
 	// CONTROLLI POSITIVI, come DELTA — in pianificazione i due tasti dichiarano, e ripremuti ritirano.
-	TestTrue(TEXT("controllo: si parte senza Sneak"), B.Mine->GetPlan().PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("controllo: si parte senza Sneak"), B.Mine->GetPlan().PlannedMovementProfileId().IsNone());
 	B.PC->ToggleSneakForTest();
-	TestEqual(TEXT("controllo: in pianificazione M dichiara Sneak"), B.Mine->GetPlan().PlannedMovementProfileId, Sneak);
+	TestEqual(TEXT("controllo: in pianificazione M dichiara Sneak"), B.Mine->GetPlan().PlannedMovementProfileId(), Sneak);
 	B.PC->ToggleSneakForTest();
-	TestTrue(TEXT("controllo: e ripremuto lo ritira"), B.Mine->GetPlan().PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("controllo: e ripremuto lo ritira"), B.Mine->GetPlan().PlannedMovementProfileId().IsNone());
 
 	TestTrue(TEXT("controllo: in pianificazione Invio dichiara il piano"), B.PC->ToggleTurnPlanDeclaredForTest());
 	TestTrue(TEXT("controllo: e la dichiarazione e' sull'unita'"), B.Mine->bTurnPlanDeclared);
@@ -2341,14 +2341,14 @@ bool FRTPlaybackRejectsPlanDeclarationsTest::RunTest(const FString&)
 
 	// IL CUORE — durante il playback nessuno dei due dichiara...
 	B.PC->ToggleSneakForTest();
-	TestTrue(TEXT("durante il playback M non dichiara Sneak"), B.Mine->GetPlan().PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("durante il playback M non dichiara Sneak"), B.Mine->GetPlan().PlannedMovementProfileId().IsNone());
 	TestFalse(TEXT("e Invio rifiuta"), B.PC->ToggleTurnPlanDeclaredForTest());
 	TestFalse(TEXT("e non dichiara il piano"), B.Mine->bTurnPlanDeclared);
 
 	// ...e il turno dopo non eredita niente.
 	DrainPlayback(B.TM);
 	TestFalse(TEXT("il playback e' finito"), B.TM->IsResolving());
-	TestTrue(TEXT("il turno nuovo comincia senza Sneak dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId.IsNone());
+	TestTrue(TEXT("il turno nuovo comincia senza Sneak dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId().IsNone());
 	TestFalse(TEXT("e con l'unita' ancora da concludere"), B.Mine->bTurnPlanDeclared);
 
 	DestroyHexMatchWorld(B.World);
@@ -3129,7 +3129,7 @@ bool FRTUndoButtonWithdrawsReadyTest::RunTest(const FString&)
 	W->SetCommandControllerForTest(PC);
 
 	Umana->AddPlannedWaypoint(FRTCellId(-2, 1));
-	const TArray<FRTCellId> PianoPrima = Umana->GetPlan().PlannedWaypoints;
+	const TArray<FRTCellId> PianoPrima = Umana->GetPlan().PlannedWaypoints();
 
 	// ⚠️ **Il Ready col GESTO del giocatore, non con `TM->RequestLockIn()`.** `Spazio` dichiara il Ready DEL
 	// PARTECIPANTE (`DeclareParticipantReady`), ed e' quello che il Back ritira con `WithdrawParticipantReady`:
@@ -3146,7 +3146,7 @@ bool FRTUndoButtonWithdrawsReadyTest::RunTest(const FString&)
 	TestFalse(TEXT("Annulla ritira il Ready: il countdown e' annullato"), TM->IsReadyCountdownActive());
 	TestTrue(TEXT("si e' in pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning);
 	TestTrue(TEXT("e il piano e' identico: il Back non ha smontato un waypoint"),
-		Umana->GetPlan().PlannedWaypoints == PianoPrima);
+		Umana->GetPlan().PlannedWaypoints() == PianoPrima);
 
 	DestroyHexMatchWorld(World);
 	return true;
@@ -3798,7 +3798,7 @@ bool FRTPlanningOverlayComesBackFromModalAsItWasTest::RunTest(const FString&)
 		Prima.Add(B.HexMap->NumPlanningPreviewCells(Meaning));
 	}
 	TestTrue(TEXT("controllo: prima della pausa c'e' una rotta tracciata"), B.HexMap->NumPreviewPathCells() > 0);
-	TestTrue(TEXT("controllo: e il piano ha dei waypoint"), B.Mine->GetPlan().PlannedWaypoints.Num() > 0);
+	TestTrue(TEXT("controllo: e il piano ha dei waypoint"), B.Mine->GetPlan().PlannedWaypoints().Num() > 0);
 
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GetTransientPackage());
 	GameInstance->AddToRoot();
@@ -3869,7 +3869,7 @@ bool FRTArmedReactionShowsInThePlanTimelineTest::RunTest(const FString&)
 	TestFalse(TEXT("premessa: prima dell'armo la timeline non porta una reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed);
 
 	B.PC->SelectAbilityForCurrentForTest(Reazione);
-	if (!TestEqual(TEXT("premessa: l'armo e' arrivato al piano"), B.Mine->GetPlan().PlannedReactionAbility, Reazione))
+	if (!TestEqual(TEXT("premessa: l'armo e' arrivato al piano"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -3938,13 +3938,13 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 		FRTDeclaredCondition(TEXT("TargetHealthAtOrBelowPercent"), 50));
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestEqual(TEXT("premessa: il dock accende lo slot"), B.Mine->SelectedAbilityIndex, Reazione)
-		|| !TestEqual(TEXT("premessa: e il piano porta la reazione"), B.Mine->GetPlan().PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: e il piano porta la reazione"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione)
 		|| !TestTrue(TEXT("premessa: la condizione dichiarata entra nel piano"),
-			bCondizione && B.Mine->GetPlan().PlannedReactionCondition.IsDeclared())
+			bCondizione && B.Mine->GetPlan().PlannedReactionCondition().IsDeclared())
 		|| !TestTrue(TEXT("premessa: la timeline la porta armata"), B.HexMap->GetPlanPreview().Reaction.bArmed)
 		// `#3927`: l'armo scrive anche il segno dei waypoint della reazione (quanti ce n'erano ADESSO), che il Back usa.
 		|| !TestEqual(TEXT("premessa: l'armo scrive il segno dei waypoint della reazione"),
-			B.Mine->WaypointsAllaReazione, B.Mine->GetPlan().PlannedWaypoints.Num()))
+			B.Mine->WaypointsAllaReazione, B.Mine->GetPlan().PlannedWaypoints().Num()))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -3954,8 +3954,8 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 	B.PC->ArmKitAbility(Reazione);
 	TestEqual(TEXT("lo slot si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
 	TestEqual(TEXT("e la reazione esce dal piano: il resolver non la trova piu'"),
-		B.Mine->GetPlan().PlannedReactionAbility, INDEX_NONE);
-	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Mine->GetPlan().PlannedReactionCondition.IsDeclared());
+		B.Mine->GetPlan().PlannedReactionAbility(), INDEX_NONE);
+	TestFalse(TEXT("con lei esce la condizione dichiarata"), B.Mine->GetPlan().PlannedReactionCondition().IsDeclared());
 	TestEqual(TEXT("e il segno dei suoi waypoint: la memoria non sopravvive alla reazione"),
 		B.Mine->WaypointsAllaReazione, INDEX_NONE);
 	// 🔑 **PRIMA di ogni tick** (`#3927`, dalla mutazione): il disarmo rinfresca la timeline da se', come l'armo (`#3891`).
@@ -3969,7 +3969,7 @@ bool FRTDisarmedReactionLeavesThePlanTest::RunTest(const FString&)
 
 	// --- controllo positivo: il disarmo non ha rotto l'armo -----------------------------------------
 	B.PC->ArmKitAbility(Reazione);
-	TestEqual(TEXT("dopo il disarmo la stessa reazione si riarma"), B.Mine->GetPlan().PlannedReactionAbility, Reazione);
+	TestEqual(TEXT("dopo il disarmo la stessa reazione si riarma"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione);
 	TestTrue(TEXT("e la timeline la ridisegna armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
 
 	DestroyHexMatchWorld(B.World);
@@ -4019,9 +4019,9 @@ bool FRTDisarmingAMainActionKeepsAnIndependentReactionTest::RunTest(const FStrin
 	B.PC->ArmKitAbility(Guardia);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	if (!TestEqual(TEXT("premessa: lo slot acceso e' la guardia"), B.Mine->SelectedAbilityIndex, Guardia)
-		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->GetPlan().PlannedAbilityIndex, Guardia)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->GetPlan().PlannedAbilityIndex(), Guardia)
 		|| !TestEqual(TEXT("premessa: la reazione e' ANCORA nel piano, indipendente"),
-			B.Mine->GetPlan().PlannedReactionAbility, Reazione)
+			B.Mine->GetPlan().PlannedReactionAbility(), Reazione)
 		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
 	{
 		DestroyHexMatchWorld(B.World);
@@ -4031,8 +4031,8 @@ bool FRTDisarmingAMainActionKeepsAnIndependentReactionTest::RunTest(const FStrin
 	// Si disarma la PRINCIPALE, dalla stessa porta.
 	B.PC->ArmKitAbility(Guardia);
 	TestEqual(TEXT("la guardia si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
-	TestEqual(TEXT("e esce dal piano"), B.Mine->GetPlan().PlannedAbilityIndex, INDEX_NONE);
-	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->GetPlan().PlannedReactionAbility, Reazione);
+	TestEqual(TEXT("e esce dal piano"), B.Mine->GetPlan().PlannedAbilityIndex(), INDEX_NONE);
+	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione);
 	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestTrue(TEXT("e la timeline continua a disegnarla armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
 
@@ -4086,8 +4086,8 @@ bool FRTDisarmingATargetingAttackKeepsAnIndependentReactionTest::RunTest(const F
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	// Il cuore del caso: l'attacco e' ARMATO ma non e' nel piano. Se la premessa cadesse, il test non separerebbe i predicati.
 	if (!TestEqual(TEXT("premessa: lo slot acceso e' l'attacco"), B.Mine->SelectedAbilityIndex, Attacco)
-		|| !TestEqual(TEXT("premessa: l'attacco e' in targeting, NON nel piano"), B.Mine->GetPlan().PlannedAbilityIndex, INDEX_NONE)
-		|| !TestEqual(TEXT("premessa: la reazione e' nel piano, indipendente"), B.Mine->GetPlan().PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: l'attacco e' in targeting, NON nel piano"), B.Mine->GetPlan().PlannedAbilityIndex(), INDEX_NONE)
+		|| !TestEqual(TEXT("premessa: la reazione e' nel piano, indipendente"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione)
 		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
 	{
 		DestroyHexMatchWorld(B.World);
@@ -4096,7 +4096,7 @@ bool FRTDisarmingATargetingAttackKeepsAnIndependentReactionTest::RunTest(const F
 
 	B.PC->ArmKitAbility(Attacco);
 	TestEqual(TEXT("l'attacco si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
-	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->GetPlan().PlannedReactionAbility, Reazione);
+	TestEqual(TEXT("la reazione indipendente RESTA nel piano"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione);
 	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestTrue(TEXT("e la timeline continua a disegnarla armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
 
@@ -4150,8 +4150,8 @@ bool FRTDisarmingAReactionKeepsAnIndependentMainActionTest::RunTest(const FStrin
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	const int32 MarcatoreDellaGuardia = B.Mine->WaypointsAllaDichiarazione;
 	if (!TestEqual(TEXT("premessa: lo slot acceso e' la reazione"), B.Mine->SelectedAbilityIndex, Reazione)
-		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->GetPlan().PlannedAbilityIndex, Guardia)
-		|| !TestEqual(TEXT("premessa: e la reazione pure"), B.Mine->GetPlan().PlannedReactionAbility, Reazione)
+		|| !TestEqual(TEXT("premessa: la guardia e' nel piano"), B.Mine->GetPlan().PlannedAbilityIndex(), Guardia)
+		|| !TestEqual(TEXT("premessa: e la reazione pure"), B.Mine->GetPlan().PlannedReactionAbility(), Reazione)
 		|| !TestTrue(TEXT("premessa: la guardia ha il suo marcatore"), MarcatoreDellaGuardia != INDEX_NONE)
 		|| !TestTrue(TEXT("premessa: la timeline porta la reazione"), B.HexMap->GetPlanPreview().Reaction.bArmed))
 	{
@@ -4162,8 +4162,8 @@ bool FRTDisarmingAReactionKeepsAnIndependentMainActionTest::RunTest(const FStrin
 	// Il secondo click sullo slot della REAZIONE.
 	B.PC->ArmKitAbility(Reazione);
 	TestEqual(TEXT("lo slot si spegne"), B.Mine->SelectedAbilityIndex, INDEX_NONE);
-	TestEqual(TEXT("la reazione esce dal piano"), B.Mine->GetPlan().PlannedReactionAbility, INDEX_NONE);
-	TestEqual(TEXT("la guardia RESTA nel piano"), B.Mine->GetPlan().PlannedAbilityIndex, Guardia);
+	TestEqual(TEXT("la reazione esce dal piano"), B.Mine->GetPlan().PlannedReactionAbility(), INDEX_NONE);
+	TestEqual(TEXT("la guardia RESTA nel piano"), B.Mine->GetPlan().PlannedAbilityIndex(), Guardia);
 	TestEqual(TEXT("col suo marcatore intatto"), B.Mine->WaypointsAllaDichiarazione, MarcatoreDellaGuardia);
 	for (int32 Tick = 0; Tick < 10; ++Tick) { B.PC->UpdatePlanningOverlay(); }
 	TestFalse(TEXT("e la timeline non disegna piu' la reazione armata"), B.HexMap->GetPlanPreview().Reaction.bArmed);
@@ -4185,22 +4185,22 @@ namespace
 	 */
 	bool PlannedRouteShowsPlan(const FRTLockInPreviewBench& B)
 	{
-		return B.HexMap->NumPreviewPathCells() == B.Mine->GetPlan().PlannedPath.Num();
+		return B.HexMap->NumPreviewPathCells() == B.Mine->GetPlan().PlannedPath().Num();
 	}
 
 	/** Un click sul vicino della fine del piano che il piano accetta. `false` se nessun vicino e' percorribile (budget finito). */
 	bool PlannedRouteGrowByOneStep(FRTLockInPreviewBench& B)
 	{
-		const int32 Prima = B.Mine->GetPlan().PlannedWaypoints.Num();
-		const FRTCellId Fine = B.Mine->GetPlan().PlannedPath.Num() > 0 ? B.Mine->GetPlan().PlannedPath.Last() : B.Mine->Cell;
+		const int32 Prima = B.Mine->GetPlan().PlannedWaypoints().Num();
+		const FRTCellId Fine = B.Mine->GetPlan().PlannedPath().Num() > 0 ? B.Mine->GetPlan().PlannedPath().Last() : B.Mine->Cell;
 		for (const FRTCellId& Vicino : URTHexLibrary::Neighbors(Fine))
 		{
-			if (Vicino == B.Mine->Cell || B.Mine->GetPlan().PlannedPath.Contains(Vicino))
+			if (Vicino == B.Mine->Cell || B.Mine->GetPlan().PlannedPath().Contains(Vicino))
 			{
 				continue;
 			}
 			B.PC->HandleClickOnCellForTest(Vicino);
-			if (B.Mine->GetPlan().PlannedWaypoints.Num() > Prima)
+			if (B.Mine->GetPlan().PlannedWaypoints().Num() > Prima)
 			{
 				return true;
 			}
@@ -4212,7 +4212,7 @@ namespace
 	int32 PlannedRouteGrowToBudget(FRTLockInPreviewBench& B)
 	{
 		for (int32 Giro = 0; Giro < 16 && PlannedRouteGrowByOneStep(B); ++Giro) {}
-		return B.Mine->GetPlan().PlannedPath.Num();
+		return B.Mine->GetPlan().PlannedPath().Num();
 	}
 }
 
@@ -4240,8 +4240,8 @@ bool FRTPlannedRouteFollowsSelectionTest::RunTest(const FString&)
 		if (*It != B.Mine && It->TeamId == B.Mine->TeamId && It->IsAlive()) { Altra = *It; break; }
 	}
 	if (!TestNotNull(TEXT("premessa: la squadra ha un'altra unita'"), Altra)
-		|| !TestEqual(TEXT("premessa: l'altra unita' non ha un piano"), Altra->GetPlan().PlannedPath.Num(), 0)
-		|| !TestTrue(TEXT("premessa: Mine ha un piano"), B.Mine->GetPlan().PlannedPath.Num() > 0)
+		|| !TestEqual(TEXT("premessa: l'altra unita' non ha un piano"), Altra->GetPlan().PlannedPath().Num(), 0)
+		|| !TestTrue(TEXT("premessa: Mine ha un piano"), B.Mine->GetPlan().PlannedPath().Num() > 0)
 		|| !TestTrue(TEXT("controllo: la rotta di partenza e' il piano di Mine"), PlannedRouteShowsPlan(B)))
 	{
 		DestroyHexMatchWorld(B.World);
@@ -4273,7 +4273,7 @@ bool FRTPlannedRouteFollowsWaypointAddAndUndoTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 Prima = B.Mine->GetPlan().PlannedPath.Num();
+	const int32 Prima = B.Mine->GetPlan().PlannedPath().Num();
 	if (!TestTrue(TEXT("premessa: la rotta di partenza e' il piano di Mine"), Prima > 0 && PlannedRouteShowsPlan(B))
 		|| !TestTrue(TEXT("premessa: il piano si puo' allungare di un passo"), PlannedRouteGrowByOneStep(B)))
 	{
@@ -4281,11 +4281,11 @@ bool FRTPlannedRouteFollowsWaypointAddAndUndoTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestTrue(TEXT("il click ha allungato il piano"), B.Mine->GetPlan().PlannedPath.Num() > Prima);
+	TestTrue(TEXT("il click ha allungato il piano"), B.Mine->GetPlan().PlannedPath().Num() > Prima);
 	TestTrue(TEXT("e la rotta a schermo lo segue"), PlannedRouteShowsPlan(B));
 
 	B.PC->OnUndoWaypointForTest();
-	TestEqual(TEXT("l'annullo toglie il waypoint"), B.Mine->GetPlan().PlannedPath.Num(), Prima);
+	TestEqual(TEXT("l'annullo toglie il waypoint"), B.Mine->GetPlan().PlannedPath().Num(), Prima);
 	TestTrue(TEXT("e la rotta a schermo torna al piano di prima"), PlannedRouteShowsPlan(B));
 
 	DestroyHexMatchWorld(B.World);
@@ -4321,7 +4321,7 @@ bool FRTPlannedRouteFollowsArmAndDisarmTest::RunTest(const FString&)
 	}
 
 	B.PC->SelectAbilityForCurrentForTest(Overwatch);
-	if (!TestTrue(TEXT("premessa: armare l'Overwatch tronca il piano al tetto"), B.Mine->GetPlan().PlannedPath.Num() < Lunga))
+	if (!TestTrue(TEXT("premessa: armare l'Overwatch tronca il piano al tetto"), B.Mine->GetPlan().PlannedPath().Num() < Lunga))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -4329,7 +4329,7 @@ bool FRTPlannedRouteFollowsArmAndDisarmTest::RunTest(const FString&)
 	TestTrue(TEXT("armata, la rotta a schermo e' il piano troncato"), PlannedRouteShowsPlan(B));
 
 	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
-	TestEqual(TEXT("disarmata, il tetto restituisce i waypoint che aveva tolto"), B.Mine->GetPlan().PlannedPath.Num(), Lunga);
+	TestEqual(TEXT("disarmata, il tetto restituisce i waypoint che aveva tolto"), B.Mine->GetPlan().PlannedPath().Num(), Lunga);
 	TestTrue(TEXT("e la rotta a schermo e' di nuovo il piano intero"), PlannedRouteShowsPlan(B));
 
 	DestroyHexMatchWorld(B.World);
@@ -4360,8 +4360,8 @@ bool FRTPlannedRouteFollowsSneakTest::RunTest(const FString&)
 	}
 
 	B.PC->ToggleSneakForTest();
-	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
-		|| !TestTrue(TEXT("premessa: lo Sneak tronca il piano al suo tetto"), B.Mine->GetPlan().PlannedPath.Num() < Lunga))
+	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId(), URTMovementProfileLibrary::ProfileSneak)
+		|| !TestTrue(TEXT("premessa: lo Sneak tronca il piano al suo tetto"), B.Mine->GetPlan().PlannedPath().Num() < Lunga))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -4398,7 +4398,7 @@ bool FRTSneakEndsWithItsTurnTest::RunTest(const FString&)
 
 	B.PC->ToggleSneakForTest();
 	if (!TestEqual(TEXT("premessa: lo Sneak e' dichiarato al turno T"),
-		B.Mine->GetPlan().PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak))
+		B.Mine->GetPlan().PlannedMovementProfileId(), URTMovementProfileLibrary::ProfileSneak))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
@@ -4415,13 +4415,13 @@ bool FRTSneakEndsWithItsTurnTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("al turno T+1 lo Sneak non e' piu' dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId, NAME_None);
+	TestEqual(TEXT("al turno T+1 lo Sneak non e' piu' dichiarato"), B.Mine->GetPlan().PlannedMovementProfileId(), NAME_None);
 
 	// L'effetto: il piano piu' lungo che il controller accetta, senza lo Sneak di T e poi ridichiarandolo.
 	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
 	const int32 SenzaSneak = PlannedRouteGrowToBudget(B);
 	B.PC->ToggleSneakForTest();
-	if (!TestEqual(TEXT("premessa: ridichiarato al turno T+1"), B.Mine->GetPlan().PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak)
+	if (!TestEqual(TEXT("premessa: ridichiarato al turno T+1"), B.Mine->GetPlan().PlannedMovementProfileId(), URTMovementProfileLibrary::ProfileSneak)
 		|| !TestTrue(TEXT("premessa: al turno T+1 si pianifica ancora"), SenzaSneak > 0))
 	{
 		DestroyHexMatchWorld(B.World);
@@ -5464,7 +5464,7 @@ bool FRTSkillHoverCountersTest::RunTest(const FString&)
 	FRTUnitPlanTestAccess::ResetWaypoints(*B.Mine);
 	B.PC->RefreshPlanningOverlay(B.Mine);
 	const int32 SelectedBefore = B.Mine->SelectedAbilityIndex;
-	const int32 WaypointsBefore = B.Mine->GetPlan().PlannedWaypoints.Num();
+	const int32 WaypointsBefore = B.Mine->GetPlan().PlannedWaypoints().Num();
 	const int32 RevisionBefore = B.PC->GetPlanningOverlayPlanComputations();
 
 	B.PC->SetSkillHover(B.Mine, Skill);
@@ -5494,7 +5494,7 @@ bool FRTSkillHoverCountersTest::RunTest(const FString&)
 
 	// L'hover non e' un gesto: niente cambia nel piano.
 	TestEqual(TEXT("l'azione armata e' la stessa"), B.Mine->SelectedAbilityIndex, SelectedBefore);
-	TestEqual(TEXT("e i waypoint"), B.Mine->GetPlan().PlannedWaypoints.Num(), WaypointsBefore);
+	TestEqual(TEXT("e i waypoint"), B.Mine->GetPlan().PlannedWaypoints().Num(), WaypointsBefore);
 	TestTrue(TEXT("e la selezione"), B.PC->GetSelectedUnit() == B.Mine);
 
 	DestroyHexMatchWorld(B.World);
@@ -6301,12 +6301,12 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 	ARTUnit* Enemy = RTWorldFixtures::FirstUnitOfTeam(B.World, 1);
 	ARTUnit* Ally = FwOtherOwn(B.World, B.Mine);
 	if (!TestNotNull(TEXT("premessa: un nemico"), Enemy) || !TestNotNull(TEXT("premessa: un'altra propria"), Ally)
-		|| !TestTrue(TEXT("premessa: il banco ha lasciato un waypoint da riusare"), B.Mine->GetPlan().PlannedWaypoints.Num() > 0))
+		|| !TestTrue(TEXT("premessa: il banco ha lasciato un waypoint da riusare"), B.Mine->GetPlan().PlannedWaypoints().Num() > 0))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
-	const FRTCellId Step = B.Mine->GetPlan().PlannedWaypoints[0];
+	const FRTCellId Step = B.Mine->GetPlan().PlannedWaypoints()[0];
 
 	// L'azione armata si cerca per NOME: e' l'attacco base, che punta un'unita' (indice 0 del kit di Ivrin, che e' `B.Mine`).
 	const int32 Attack = KitIndexOf(B.Mine, TEXT("Hero.Ivrin.PulseShot"));
@@ -6389,9 +6389,9 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 	Rows.Add({ TEXT("tasto generico (SelectGenericSlot)"), Nothing,
 		[&]() { B.PC->PressGenericHotkeyForTest(GenericSlot); }, ArmedIndex, true });
 	Rows.Add({ TEXT("click su una cella (HandleClickOnCell)"), Nothing,
-		[&]() { B.PC->HandleClickOnCellForTest(Step); }, [&]() { return Num(B.Mine->GetPlan().PlannedWaypoints.Num()); }, true });
+		[&]() { B.PC->HandleClickOnCellForTest(Step); }, [&]() { return Num(B.Mine->GetPlan().PlannedWaypoints().Num()); }, true });
 	Rows.Add({ TEXT("Sneak (ToggleSneakDeclaration)"), Nothing,
-		[&]() { B.PC->ToggleSneakForTest(); }, [&]() { return B.Mine->GetPlan().PlannedMovementProfileId.ToString(); }, true });
+		[&]() { B.PC->ToggleSneakForTest(); }, [&]() { return B.Mine->GetPlan().PlannedMovementProfileId().ToString(); }, true });
 	// ⛔ **Qui non c'e' `Invio`, ed e' una decisione d'autore (2026-10-31), non una dimenticanza**: dichiarare il piano non lo scrive, e con la barra
 	// in sola lettura resta vivo. Lo prova `DeclaringThePlanStaysAliveWhileTheBarIsReadOnly`, che e' il suo contrario di questa tabella.
 	Rows.Add({ TEXT("apertura del selettore del verso (TryOpenFacingSelector)"), Nothing,
@@ -6422,7 +6422,7 @@ bool FRTReadOnlyBarRefusesPlanWritesTest::RunTest(const FString&)
 			TestEqual(TEXT("premessa del bersaglio: l'attacco e' armato PRIMA della fissazione"), B.Mine->SelectedAbilityIndex, Attack);
 		},
 		[&]() { B.PC->HandleClickOnUnitForTest(Enemy); },
-		[&]() { return B.Mine->GetPlan().PlannedAttackTarget ? B.Mine->GetPlan().PlannedAttackTarget->GetName() : FString(TEXT("nessuno")); }, true });
+		[&]() { return B.Mine->GetPlan().PlannedAttackTarget() ? B.Mine->GetPlan().PlannedAttackTarget()->GetName() : FString(TEXT("nessuno")); }, true });
 
 	// Le righe di rifiuto che dicono la causa della barra: una per riga che lo dichiara, e tutte con la stessa frase.
 	int32 WhyLines = 0;

@@ -6,6 +6,7 @@
 #include "Turn/Reaction/RTReactionOpportunityTypes.h"   // FRTReactionOpportunity: AllowedResponses, D-021
 #include "RTGameMode.h"                        // HeroUnitClasses: le SOTTOCLASSI che la partita istanzia
 #include "Unit/RTUnit.h"                       // ARTUnit: dove il piano VIVO abita davvero — [D-429]
+#include "Turn/Actions/RTPlanValidationLibrary.h" // E38 CP 38.12: FRTPlannedAction, server-only
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -67,6 +68,14 @@ bool FRTServerOnlyTypesAreNotReplicatedTest::RunTest(const FString&)
 		Production.Contains(FRTPlannedIntent::StaticStruct()));
 	TestTrue(TEXT("FRTReactionOpportunity e' dichiarato server-only (D-021)"),
 		Production.Contains(FRTReactionOpportunity::StaticStruct()));
+	// E38 CP 38.12 (#4113): il piano e' una lista, e la lista porta l'ordine di dichiarazione, privato fino alla
+	// risoluzione come il resto del piano. La voce del validatore lo porta anche lei.
+	TestTrue(TEXT("FRTPlannedAction e' dichiarato server-only (E38 CP 38.12)"),
+		Production.Contains(FRTPlannedAction::StaticStruct()));
+	TestTrue(TEXT("FRTUnitPlan e' dichiarato server-only (E38 CP 38.12)"),
+		Production.Contains(FRTUnitPlan::StaticStruct()));
+	TestTrue(TEXT("FRTPlanEntry e' dichiarato server-only (E38 CP 38.12)"),
+		Production.Contains(FRTPlanEntry::StaticStruct()));
 
 	// LA MISURA. Nessuna via di rete raggiunge un tipo server-only.
 	const TArray<FRTReplicationLeak> Leaks = RTServerOnlyGuard::FindLeaks(Production);
@@ -238,22 +247,13 @@ namespace
 	 */
 	const TCHAR* const PlanningFieldNames[] = {
 		TEXT("PlannedCell"),
-		TEXT("PlannedPath"),
-		TEXT("PlannedWaypoints"),
-		TEXT("PlannedMovementProfileId"),
-		TEXT("PlannedAbilityIndex"),
-		TEXT("PlannedAttackTarget"),
-		TEXT("PlannedAttackCell"),
-		TEXT("bAttackTargetsCell"),
-		TEXT("PlannedDashAbility"),
-		TEXT("PlannedDashCell"),
 		TEXT("PlannedFacing"),
 		TEXT("bDeclaresPlannedFacing"),
-		TEXT("PlannedCoverEdge"),
-		TEXT("bHasPlannedCoverEdge"),
-		TEXT("PlannedReactionAbility"),
-		TEXT("PlannedReactionCondition"),
 		TEXT("PlannedCleansePriority"),
+		// E38 CP 38.12 (#4113): percorso, waypoint, profilo, principale col bersaglio e il bordo, scatto, reazione con
+		// la condizione stanno nelle voci della lista. Non replicate per costruzione: `FRTPlanEntry` e' `RTServerOnly`,
+		// e `Privacy.ServerOnlyTypesAreNotReplicated` la pinna per nome.
+		TEXT("Entries"),
 		TEXT("bTurnPlanDeclared"),
 		// ➕ **Aggiunti in code review il 2026-09-21**, e non erano una svista veniale: `RTUnit.h` li dichiara
 		// *«`Transient` e NON replicato: e' intento di pianificazione, e la sua destinazione racconta cosa

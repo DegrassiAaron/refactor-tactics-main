@@ -235,7 +235,7 @@ bool FRTUnitKilledInTheCleanupTest::RunTest(const FString&)
 				break;
 			case ESonda::Click:
 				PC->HandleClickOnUnitForTest(Decoy);
-				TestFalse(*E(TEXT("B: il click su un altro nemico non pianifica")), Doomed->GetPlan().PlannedAttackTarget == Decoy);
+				TestFalse(*E(TEXT("B: il click su un altro nemico non pianifica")), Doomed->GetPlan().PlannedAttackTarget() == Decoy);
 				break;
 			default:
 				break;

@@ -2027,7 +2027,7 @@ bool FRTOverwatchWindowNamesEveryoneWhoEnteredTest::RunTest(const FString&)
 	// L'ordine in cui il resolver tiene le unita', PRIMA che il turno le sposti: e' quello dei nomi nel sottotitolo.
 	const TArray<ARTUnit*> Tutte = NellOrdineDelResolver({ Ferito, Sano, Watcher });
 	if (!TestTrue(TEXT("premessa: la condizione e' entrata nel piano"),
-			bDichiarata && Watcher->GetPlan().PlannedReactionCondition.IsDeclared())
+			bDichiarata && Watcher->GetPlan().PlannedReactionCondition().IsDeclared())
 		|| !TestTrue(TEXT("premessa: il ferito la soddisfa"),
 			URTReactionOpportunityLibrary::IsConditionSatisfied(SoloIFeriti, &VitaDelFerito))
 		|| !TestFalse(TEXT("premessa: il sano no"),

@@ -132,15 +132,15 @@ bool FRTPlanMindChangeTest::RunTest(const FString&)
 	{
 		TearDownPlanBench(B); return false;
 	}
-	TestTrue(TEXT("premessa: il piano dichiara una cella"), B.Mine->GetPlan().bAttackTargetsCell);
+	TestTrue(TEXT("premessa: il piano dichiara una cella"), B.Mine->GetPlan().bAttackTargetsCell());
 
 	// 2. Cambio d'idea, dallo stesso percorso che usa un giocatore.
 	B.Mine->SelectAbility(0); // attacco base: punta un'UNITA'
 	B.PC->HandleClickOnUnitForTest(B.Foe);
 
 	// 🔑 L'asserto sullo STATO, che nomina il difetto: la dichiarazione opposta e' stata ritirata.
-	TestFalse(TEXT("la dichiarazione a cella e' stata ritirata"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("e il bersaglio-unita' e' quello cliccato"), B.Mine->GetPlan().PlannedAttackTarget == B.Foe);
+	TestFalse(TEXT("la dichiarazione a cella e' stata ritirata"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("e il bersaglio-unita' e' quello cliccato"), B.Mine->GetPlan().PlannedAttackTarget() == B.Foe);
 
 	// 🔑 E l'asserto sull'ESITO, che e' quello che il giocatore vede: il colpo arriva.
 	const int32 HP = B.Foe->Health;
@@ -178,8 +178,8 @@ bool FRTPlanDoesNotSurviveItsTurnTest::RunTest(const FString&)
 	}
 	ResolvePlanTurn(B.TM);
 
-	TestFalse(TEXT("dopo la risoluzione la cella non e' piu' dichiarata"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestNull(TEXT("e nemmeno un bersaglio-unita'"), (void*)B.Mine->GetPlan().PlannedAttackTarget.Get());
+	TestFalse(TEXT("dopo la risoluzione la cella non e' piu' dichiarata"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestNull(TEXT("e nemmeno un bersaglio-unita'"), (void*)B.Mine->GetPlan().PlannedAttackTarget().Get());
 
 	// Turno 2: attacco base sul nemico adiacente. Deve arrivare a segno.
 	B.Mine->SelectAbility(0);
@@ -220,7 +220,7 @@ bool FRTPlanCellTargetStillResolvesTest::RunTest(const FString&)
 	{
 		TearDownPlanBench(B); return false;
 	}
-	TestNull(TEXT("nessun bersaglio-unita' dichiarato"), (void*)B.Mine->GetPlan().PlannedAttackTarget.Get());
+	TestNull(TEXT("nessun bersaglio-unita' dichiarato"), (void*)B.Mine->GetPlan().PlannedAttackTarget().Get());
 
 	const int32 HP = B.Foe->Health;
 	const int32 Scudo = B.Foe->Shield;

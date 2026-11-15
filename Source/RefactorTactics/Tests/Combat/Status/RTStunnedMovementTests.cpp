@@ -522,7 +522,7 @@ namespace RTStunnedMovementTestsInternal
 			const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
 			FRTUnitPlanTestAccess::ResetPath(*Walker);
 			for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Walker, FRTCellId(Home.X + Q, Home.Y)); }
-			Walker->SetPlannedCell(Walker->GetPlan().PlannedPath.Last());
+			Walker->SetPlannedCell(Walker->GetPlan().PlannedPath().Last());
 			break;
 		}
 		}
@@ -894,7 +894,7 @@ bool FRTStunnedAndUnbalancedSprintOneRefusalTest::RunTest(const FString&)
 		const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
 		FRTUnitPlanTestAccess::ResetPath(*Unit);
 		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Unit, FRTCellId(From.X + Q, From.Y)); }
-		Unit->SetPlannedCell(Unit->GetPlan().PlannedPath.Last());
+		Unit->SetPlannedCell(Unit->GetPlan().PlannedPath().Last());
 	};
 
 	auto Tally = [](const ARTTurnManager* TM, const ARTUnit* Unit, const FRTCellId& Start, FUnitTally& Out)
@@ -1059,7 +1059,7 @@ bool FRTStunnedBornInTheBlastAndUnbalancedKeepsBothTest::RunTest(const FString&)
 		const int32 Oltre = Walker->GetEffectiveMoveRange() + 1;
 		FRTUnitPlanTestAccess::ResetPath(*Walker);
 		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Walker, FRTCellId(T::Home.X + Q, T::Home.Y)); }
-		Walker->SetPlannedCell(Walker->GetPlan().PlannedPath.Last());
+		Walker->SetPlannedCell(Walker->GetPlan().PlannedPath().Last());
 		Walker->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 		if (bWithStunner) { T::GiveStunAction(Stunner, Walker); }
 		TestFalse(*FString::Printf(TEXT("%s: premessa: non e' stordita prima del turno (lo stun nasce nel Blast)"), Arm),
@@ -1136,7 +1136,7 @@ bool FRTStunnedForcedDisplacementDropsTheRunPlanTest::RunTest(const FString&)
 		const int32 Oltre = Victim->GetEffectiveMoveRange() + 1;
 		FRTUnitPlanTestAccess::ResetPath(*Victim);
 		for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Victim, FRTCellId(T::Home.X, T::Home.Y + Q)); }
-		Victim->SetPlannedCell(Victim->GetPlan().PlannedPath.Last());
+		Victim->SetPlannedCell(Victim->GetPlan().PlannedPath().Last());
 		const FRTCellId Goal = Victim->GetPlan().PlannedCell;
 		Victim->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
 		Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
@@ -1146,7 +1146,7 @@ bool FRTStunnedForcedDisplacementDropsTheRunPlanTest::RunTest(const FString&)
 		{
 			Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push")));
 			Pusher->DeclareAttackOnUnit(Victim);
-			TestTrue(TEXT("spinta: premessa: lo spingitore ha la sua azione"), Pusher->GetPlan().PlannedAbilityIndex != INDEX_NONE);
+			TestTrue(TEXT("spinta: premessa: lo spingitore ha la sua azione"), Pusher->GetPlan().PlannedAbilityIndex() != INDEX_NONE);
 		}
 
 		T::RunTurn(TM);
@@ -1253,7 +1253,7 @@ bool FRTStunnedADeniedSprintKeepsTheCalendarTest::RunTest(const FString&)
 			const int32 Oltre = Sprinter->GetEffectiveMoveRange() + 1;
 			FRTUnitPlanTestAccess::ResetPath(*Sprinter);
 			for (int32 Q = 0; Q <= Oltre; ++Q) { FRTUnitPlanTestAccess::AddPathCell(*Sprinter, FRTCellId(SprinterHome.X + Q, SprinterHome.Y)); }
-			Sprinter->SetPlannedCell(Sprinter->GetPlan().PlannedPath.Last());
+			Sprinter->SetPlannedCell(Sprinter->GetPlan().PlannedPath().Last());
 			if (Kind == ESprinter::Stunned) { Sprinter->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
 			TestEqual(TEXT("premessa: lo sprintatore e' stordito solo nel braccio stordito"),
 				Sprinter->HasStatus(TAG_Status_Stunned), Kind == ESprinter::Stunned);

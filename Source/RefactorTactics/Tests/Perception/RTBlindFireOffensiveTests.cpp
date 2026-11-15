@@ -222,9 +222,9 @@ bool FRTMortarReachableFromPlayerInputTest::RunTest(const FString&)
 			ERTLineOfSightPolicy::Required) == ERTHexTargetReason::NoLineOfSight);
 
 	TestTrue(TEXT("il mortaio accetta la cella non visibile"), B.PC->HandleTargetCell(Oltre));
-	TestTrue(TEXT("il piano e' a cella"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("e la cella e' quella scelta"), B.Mine->GetPlan().PlannedAttackCell == Oltre);
-	TestEqual(TEXT("l'azione pianificata e' quella armata"), B.Mine->GetPlan().PlannedAbilityIndex, Idx);
+	TestTrue(TEXT("il piano e' a cella"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("e la cella e' quella scelta"), B.Mine->GetPlan().PlannedAttackCell() == Oltre);
+	TestEqual(TEXT("l'azione pianificata e' quella armata"), B.Mine->GetPlan().PlannedAbilityIndex(), Idx);
 
 	DestroyMortarWorld(B.World);
 	return true;
@@ -693,16 +693,16 @@ bool FRTCellClickReachesTargetingTest::RunTest(const FString&)
 		B.PC->GetPointerContext(), ERTPointerContext::Targeting);
 	TestEqual(TEXT("premessa: e cio' che si chiede e' una CELLA"),
 		B.PC->GetPointerTargetKind(), ERTPointerTargetKind::Cell);
-	TestEqual(TEXT("premessa: nessun waypoint prima del click"), B.Mine->GetPlan().PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("premessa: nessun waypoint prima del click"), B.Mine->GetPlan().PlannedWaypoints().Num(), 0);
 
 	const FRTCellId Oltre(1, 0, 0);
 	B.PC->HandleClickOnCellForTest(Oltre);
 
-	TestTrue(TEXT("il click sulla cella produce un BERSAGLIO"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("ed e' la cella cliccata"), B.Mine->GetPlan().PlannedAttackCell == Oltre);
-	TestEqual(TEXT("con l'azione armata"), B.Mine->GetPlan().PlannedAbilityIndex, Idx);
+	TestTrue(TEXT("il click sulla cella produce un BERSAGLIO"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("ed e' la cella cliccata"), B.Mine->GetPlan().PlannedAttackCell() == Oltre);
+	TestEqual(TEXT("con l'azione armata"), B.Mine->GetPlan().PlannedAbilityIndex(), Idx);
 	TestEqual(TEXT("e NESSUN waypoint: verso un bersaglio non si cammina"),
-		B.Mine->GetPlan().PlannedWaypoints.Num(), 0);
+		B.Mine->GetPlan().PlannedWaypoints().Num(), 0);
 
 	DestroyMortarWorld(B.World);
 	return true;
@@ -750,12 +750,12 @@ bool FRTTooCloseIsReachableFromTheClickTest::RunTest(const FString&)
 	TestEqual(TEXT("il rifiuto mostrato e' TooClose"), Verdetto.Refusal, ERTTargetRefusal::TooClose);
 
 	TestFalse(TEXT("il click su una cella sotto il minimo e' rifiutato"), B.PC->HandleTargetCell(Adiacente));
-	TestFalse(TEXT("e non pianifica niente"), B.Mine->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("lasciando l'azione non pianificata"), B.Mine->GetPlan().PlannedAbilityIndex != Idx);
+	TestFalse(TEXT("e non pianifica niente"), B.Mine->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("lasciando l'azione non pianificata"), B.Mine->GetPlan().PlannedAbilityIndex() != Idx);
 
 	// Controllo positivo: al minimo esatto lo stesso click pianifica.
 	TestTrue(TEXT("al minimo esatto il click pianifica"), B.PC->HandleTargetCell(AlMinimo));
-	TestTrue(TEXT("e la cella e' quella cliccata"), B.Mine->GetPlan().PlannedAttackCell == AlMinimo);
+	TestTrue(TEXT("e la cella e' quella cliccata"), B.Mine->GetPlan().PlannedAttackCell() == AlMinimo);
 
 	// La portata viola non include la cella troppo vicina e include quella al minimo.
 	const TArray<FRTCellId> Viola = URTCombatLibrary::TargetableRangeCells(B.Map, B.Mine->Cell, Mortaio->RangeCells,

@@ -66,7 +66,7 @@ void FRTFacingDeclaration::PreviewPlanned(const FRTFacingHost& Host, ARTUnit* Un
 	{
 		Previsto = Unit->GetPlan().PlannedFacing;
 	}
-	else if (Unit->GetPlan().PlannedPath.Num() > 1)
+	else if (Unit->GetPlan().PlannedPath().Num() > 1)
 	{
 		// 🔴 **Il PRIMO passo, non l'ultimo.** In pianificazione l'unita' e' ancora sulla cella di
 		// partenza: orientarla secondo l'ultimo passo del percorso la fa guardare verso una direzione che
@@ -78,7 +78,7 @@ void FRTFacingDeclaration::PreviewPlanned(const FRTFacingHost& Host, ARTUnit* Un
 		// curva: durante il playback la mesh ruota passo per passo e ci arriva, e a fine risoluzione il
 		// TurnManager la riallinea al valore logico.
 		ERTHexDirection Partenza = Unit->Facing;
-		if (URTHexLibrary::DirectionBetween(Unit->GetPlan().PlannedPath[0], Unit->GetPlan().PlannedPath[1], Partenza))
+		if (URTHexLibrary::DirectionBetween(Unit->GetPlan().PlannedPath()[0], Unit->GetPlan().PlannedPath()[1], Partenza))
 		{
 			Previsto = Partenza;
 		}
@@ -205,12 +205,12 @@ FRTCellId FRTFacingDeclaration::CellFor(const ARTUnit* Unit)
 	// ([D-471]).
 	if (Unit->PlannedDashMoves())
 	{
-		return Unit->GetPlan().PlannedDashCell;
+		return Unit->GetPlan().PlannedDashCell();
 	}
 	// [D-569]: un Move che lo stordimento nega non sposta l'unita', e il verso si dichiara da dove restera' — come per lo scatto.
-	if (Unit->GetPlan().PlannedPath.Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
+	if (Unit->GetPlan().PlannedPath().Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
 	{
-		return Unit->GetPlan().PlannedPath.Last();
+		return Unit->GetPlan().PlannedPath().Last();
 	}
 	return Unit->Cell;
 }
@@ -227,7 +227,7 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 
 	if (Unit->PlannedDashMoves()) // [D-471]: uno scatto negato dallo stato non muove l'unita'
 	{
-		const URTActionData* Scatto = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility);
+		const URTActionData* Scatto = Unit->GetAbility(Unit->GetPlan().PlannedDashAbility());
 		if (Scatto)
 		{
 			// 🔑 Lo stile del CATALOGO, come lo legge il resolver (`DashUsed->Def.MovementStyle`).
@@ -256,7 +256,7 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 						if (Other && Other->IsAlive() && Other->TeamId != Unit->TeamId) { Hostiles.Add(i); }
 					}
 					const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(Snapshot.MapForPlanning(),
-						Unit->Cell, Unit->GetPlan().PlannedDashCell, Unit->EffectiveDashRangeOf(Unit->GetPlan().PlannedDashAbility),
+						Unit->Cell, Unit->GetPlan().PlannedDashCell(), Unit->EffectiveDashRangeOf(Unit->GetPlan().PlannedDashAbility()),
 						Scatto->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
 					OutPath.Append(Linear.Entered);
 				}
@@ -267,7 +267,7 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 				if (FacingHexContext(Host.GetFacingWorld(), Origin, HexSize, LayerH, Map) && Map)
 				{
 					const FRTHexPathResult Breve = URTHexPathLibrary::FindPathAvoiding(
-						ARTTurnManager::PlayerAimMap(Host.GetFacingWorld(), Unit->TeamId, Map), Unit->Cell, Unit->GetPlan().PlannedDashCell,
+						ARTTurnManager::PlayerAimMap(Host.GetFacingWorld(), Unit->TeamId, Map), Unit->Cell, Unit->GetPlan().PlannedDashCell(),
 						nullptr, 0);
 					if (Breve.Status == ERTHexPathStatus::Success && Breve.Path.Num() >= 2)
 					{
@@ -280,10 +280,10 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 	}
 
 	// [D-569]: un Move negato dallo stordimento non percorre niente, e il resolver giudica il verso di chi resta fermo (sei direzioni).
-	if (Unit->GetPlan().PlannedPath.Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
+	if (Unit->GetPlan().PlannedPath().Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
 	{
 		OutStyle = ERTMovementStyle::Budget;
-		OutPath = Unit->GetPlan().PlannedPath;
+		OutPath = Unit->GetPlan().PlannedPath();
 	}
 }
 

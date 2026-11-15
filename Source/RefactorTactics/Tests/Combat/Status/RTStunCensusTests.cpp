@@ -1021,7 +1021,7 @@ namespace RTStunCensusTestsInternal
 		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: lo stordimento c'e' solo dove il braccio lo dichiara"), *Run),
 			Caster->HasStatus(TAG_Status_Stunned), bStunned);
 		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: il piano e' nello slot dell'azione solo dove il braccio lo dichiara"), *Run),
-			Caster->GetPlan().PlannedAbilityIndex == Slot, bPlans);
+			Caster->GetPlan().PlannedAbilityIndex() == Slot, bPlans);
 		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: l'azione e' utilizzabile (nessuna ricarica residua)"), *Run),
 			Out.CooldownBefore, 0);
 		bPremises &= Test.TestEqual(*FString::Printf(TEXT("%s: premessa: nessun altro slot e' in ricarica prima del turno"), *Run),

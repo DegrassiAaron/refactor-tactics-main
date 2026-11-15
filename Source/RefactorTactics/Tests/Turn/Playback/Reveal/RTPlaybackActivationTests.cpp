@@ -398,7 +398,7 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 
 	Caricatore->SetPlannedDash(BeatIndiceAbilita(Caricatore, TEXT("Hero.Riktor.Ram")), Bersaglio->Cell);
 	Caricatore->SetPlannedCell(Caricatore->Cell);
-	if (!TestTrue(TEXT("premessa: Riktor ha Ram"), Caricatore->GetPlan().PlannedDashAbility != INDEX_NONE)) { return false; }
+	if (!TestTrue(TEXT("premessa: Riktor ha Ram"), Caricatore->GetPlan().PlannedDashAbility() != INDEX_NONE)) { return false; }
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->SetPlaybackControlsEnabled(true);

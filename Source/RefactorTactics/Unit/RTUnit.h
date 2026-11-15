@@ -397,24 +397,24 @@ public:
 	 */
 	void DeclareAttackOnUnit(ARTUnit* Target)
 	{
-		Plan.PlannedAttackTarget = Target;
-		Plan.bAttackTargetsCell = false; // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
+		Plan.SetPlannedAttackTarget(Target);
+		Plan.SetAttackTargetsCell(false); // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
 	}
 
 	// ⚠️ Il parametro NON si chiama `Cell`: quello e' un membro di `ARTUnit` — la cella su cui l'unita' sta —
 	// e ombreggiarlo qui e' un errore di compilazione (`C4458` come warning-as-error).
 	void DeclareAttackOnCell(const FRTCellId& TargetCell)
 	{
-		Plan.PlannedAttackCell = TargetCell;
-		Plan.bAttackTargetsCell = true;
-		Plan.PlannedAttackTarget = nullptr; // un target-unita' residuo verrebbe letto dal fallback come «perso»
+		Plan.SetPlannedAttackCell(TargetCell);
+		Plan.SetAttackTargetsCell(true);
+		Plan.SetPlannedAttackTarget(nullptr); // un target-unita' residuo verrebbe letto dal fallback come «perso»
 	}
 
 	/** Nessun bersaglio dichiarato per l'azione principale: si spengono ENTRAMBE le forme. */
 	void ClearPlannedAttack()
 	{
-		Plan.PlannedAttackTarget = nullptr;
-		Plan.bAttackTargetsCell = false;
+		Plan.SetPlannedAttackTarget(nullptr);
+		Plan.SetAttackTargetsCell(false);
 		bHasPlannedAim = false;   // [D-415]: la mira congelata muore col piano che la conteneva
 	}
 
@@ -438,59 +438,70 @@ public:
 	/** Il giocatore arma la principale: l'indice, e quanti waypoint c'erano in quel momento (`#3501`: il Back lo rilegge). */
 	void DeclarePlannedMainAction(int32 AbilityIndex)
 	{
-		Plan.PlannedAbilityIndex = AbilityIndex;
-		WaypointsAllaDichiarazione = Plan.PlannedWaypoints.Num();
+		Plan.SetPlannedAbilityIndex(AbilityIndex);
+		WaypointsAllaDichiarazione = Plan.PlannedWaypoints().Num();
 	}
 
 	/** La principale, senza il segno per il Back: l'harness degli scenari e l'applicazione del piano del bot. */
-	void SetPlannedMainAction(int32 AbilityIndex) { Plan.PlannedAbilityIndex = AbilityIndex; }
+	void SetPlannedMainAction(int32 AbilityIndex) { Plan.SetPlannedAbilityIndex(AbilityIndex); }
 
 	/** La principale non c'e' piu': consumata da un resolver, o azzerata a inizio turno. Il bersaglio lo spegne chi chiama. */
-	void ClearPlannedMainAction() { Plan.PlannedAbilityIndex = INDEX_NONE; }
+	void ClearPlannedMainAction() { Plan.SetPlannedAbilityIndex(INDEX_NONE); }
 
 	/** Il giocatore disarma la principale: indice, bersaglio, bordo dichiarato e segno per il Back, insieme. */
 	void DisarmPlannedMainAction()
 	{
-		Plan.PlannedAbilityIndex = INDEX_NONE;
+		Plan.SetPlannedAbilityIndex(INDEX_NONE);
 		ClearPlannedAttack();
-		Plan.bHasPlannedCoverEdge = false;
+		Plan.SetHasPlannedCoverEdge(false);
 		WaypointsAllaDichiarazione = INDEX_NONE;
 	}
+
+	/**
+	 * **Aggiunge una voce in coda al piano** (E38 CP 38.12): la sua posizione e' il suo ordine di dichiarazione.
+	 * Rifiuta, e lascia il piano com'era, una seconda voce della stessa classe o una voce vuota: finche' il resolver
+	 * legge una voce per classe, la lista ha le sole forme che i campi a casella unica sapevano dire. I gesti di
+	 * sopra e di sotto restano SOSTITUZIONI nella voce della loro classe.
+	 */
+	bool AddPlanEntry(const FRTPlanEntry& Entry) { return Plan.AddEntry(Entry); }
+
+	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
+	bool RemovePlanEntry(int32 Position) { return Plan.RemoveEntryAt(Position); }
 
 	/** Lo scatto: l'abilita' e la cella d'arrivo. */
 	void SetPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
 	{
-		Plan.PlannedDashAbility = AbilityIndex;
-		Plan.PlannedDashCell = DashCell;
+		Plan.SetPlannedDashAbility(AbilityIndex);
+		Plan.SetPlannedDashCell(DashCell);
 	}
 
 	/** Lo scatto e' consumato (valido o no). ⚠️ La cella resta: e' valida solo con l'abilita' impostata, e nessuno la azzera. */
-	void ClearPlannedDash() { Plan.PlannedDashAbility = INDEX_NONE; }
+	void ClearPlannedDash() { Plan.SetPlannedDashAbility(INDEX_NONE); }
 
 	/** Il giocatore arma la reazione: l'indice, e quanti waypoint c'erano in quel momento. */
 	void ArmPlannedReaction(int32 AbilityIndex)
 	{
-		Plan.PlannedReactionAbility = AbilityIndex;
-		WaypointsAllaReazione = Plan.PlannedWaypoints.Num();
+		Plan.SetPlannedReactionAbility(AbilityIndex);
+		WaypointsAllaReazione = Plan.PlannedWaypoints().Num();
 	}
 
 	/** La reazione, senza il segno per il Back: l'harness e il bot. */
-	void SetPlannedReaction(int32 AbilityIndex) { Plan.PlannedReactionAbility = AbilityIndex; }
+	void SetPlannedReaction(int32 AbilityIndex) { Plan.SetPlannedReactionAbility(AbilityIndex); }
 
-	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.PlannedWaypoints.Add(Waypoint); }
-	void PopPlannedWaypoint() { Plan.PlannedWaypoints.Pop(); }
+	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.AddPlannedWaypoint(Waypoint); }
+	void PopPlannedWaypoint() { Plan.PopPlannedWaypoint(); }
 
 	/** Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. */
 	void SetPlannedRoute(const TArray<FRTCellId>& Route)
 	{
-		Plan.PlannedPath = Route;
+		Plan.SetPlannedPath(Route);
 		Plan.PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
 	}
 
 	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. */
 	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route)
 	{
-		Plan.PlannedWaypoints = Waypoints;
+		Plan.SetPlannedWaypoints(Waypoints);
 		SetPlannedRoute(Route);
 	}
 
@@ -498,15 +509,15 @@ public:
 	void SetPlannedDestination(const FRTCellId& Destination, const TArray<FRTCellId>& Route, const TArray<FRTCellId>& Waypoints)
 	{
 		Plan.PlannedCell = Destination;
-		Plan.PlannedPath = Route;
-		Plan.PlannedWaypoints = Waypoints;
+		Plan.SetPlannedPath(Route);
+		Plan.SetPlannedWaypoints(Waypoints);
 	}
 
 	/** Percorso e waypoint spenti; la cella d'arrivo resta. */
 	void ClearPlannedRoute()
 	{
-		Plan.PlannedPath.Reset();
-		Plan.PlannedWaypoints.Reset();
+		Plan.SetPlannedPath({});
+		Plan.SetPlannedWaypoints({});
 	}
 
 	/** Il piano di movimento ripiantato su `At`: niente percorso, niente waypoint, arrivo li'. */
@@ -538,14 +549,14 @@ public:
 	/** Il bordo su cui agisce un'azione di struttura (CP 9.5). */
 	void DeclarePlannedCoverEdge(ERTHexDirection Edge)
 	{
-		Plan.PlannedCoverEdge = Edge;
-		Plan.bHasPlannedCoverEdge = true;
+		Plan.SetPlannedCoverEdge(Edge);
+		Plan.SetHasPlannedCoverEdge(true);
 	}
 
-	void ClearPlannedCoverEdge() { Plan.bHasPlannedCoverEdge = false; }
+	void ClearPlannedCoverEdge() { Plan.SetHasPlannedCoverEdge(false); }
 
 	/** Il profilo di movimento dichiarato ([D-425]): oggi solo `Sneak`, o nessuno. */
-	void SetPlannedMovementProfile(FName ProfileId) { Plan.PlannedMovementProfileId = ProfileId; }
+	void SetPlannedMovementProfile(FName ProfileId) { Plan.SetPlannedMovementProfileId(ProfileId); }
 
 	/**
 	 * L'ordine in cui `Action.Cleanse` toglie gli stati (CP 5.2). ⚠️ Oggi lo dichiarano solo i test: nessun gesto del
@@ -572,7 +583,7 @@ public:
 		ClearReactionPlan();         // indice, condizione dichiarata, segno per il Back
 		ClearPlannedMove();          // percorso e waypoint spenti, arrivo sulla cella attuale
 		RetractPlannedFacing();
-		Plan.PlannedMovementProfileId = NAME_None;
+		Plan.SetPlannedMovementProfileId(NAME_None);
 		Plan.PlannedCleansePriority.Reset();
 	}
 
@@ -582,8 +593,8 @@ public:
 	 */
 	void FreezePlannedAim()
 	{
-		const ARTUnit* AimedAt = Plan.PlannedAttackTarget;
-		bHasPlannedAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell;
+		const ARTUnit* AimedAt = Plan.PlannedAttackTarget();
+		bHasPlannedAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell();
 		if (bHasPlannedAim)
 		{
 			PlannedAimCell = AimedAt->Cell;
@@ -606,9 +617,9 @@ public:
 	 */
 	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
 	{
-		if (Plan.bAttackTargetsCell) { return Plan.PlannedAttackCell; }
+		if (Plan.bAttackTargetsCell()) { return Plan.PlannedAttackCell(); }
 		if (bHasPlannedAim && !bDeclaresTracking) { return PlannedAimCell; }
-		if (Plan.PlannedAttackTarget) { return Plan.PlannedAttackTarget->Cell; }
+		if (Plan.PlannedAttackTarget()) { return Plan.PlannedAttackTarget()->Cell; }
 		return Cell;
 	}
 
@@ -1007,7 +1018,7 @@ public:
 	 * spostato l'unita', anche per chi non aveva pianificato nulla. E' un difetto misurato il 2026-08-26,
 	 * ed e' difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
 	 */
-	bool HasPlannedNormalMove() const { return Plan.PlannedCell != Cell || Plan.PlannedPath.Num() > 1; }
+	bool HasPlannedNormalMove() const { return Plan.PlannedCell != Cell || Plan.PlannedPath().Num() > 1; }
 
 	/** Vero se l'abilita' e' pronta: non in ricarica. Il cooldown e' l'unico gate da `D-324`. */
 	bool CanUseAbility(int32 Index) const;

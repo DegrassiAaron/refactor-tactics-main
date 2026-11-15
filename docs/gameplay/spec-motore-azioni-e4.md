@@ -73,7 +73,7 @@ FRTActionInstance          // un'azione pianificata da un'unità in questo turno
 ├─ int32 SourceUnitId      // chi la esegue (indice stabile nello snapshot)
 ├─ int32 TargetUnitId      // bersaglio, se l'azione ne ha uno
 ├─ FRTCellId TargetCell    // cella bersaglio (AoE, movimento, creazione terreno)
-└─ int32 EventSequence     // ordine di dichiarazione: ultimo tie-break, mai casuale
+└─ int32 EventSequence     // spareggio contato dove l'istanza nasce; mai casuale, e non l'ultimo (#2970)
 
 FRTActionEvent             // effetto ELEMENTARE prodotto da un'azione, già risolto
 ├─ ERTActionEffect Kind    // Damage · Heal · Shield · Push · Status · MoveTo · TerrainChange

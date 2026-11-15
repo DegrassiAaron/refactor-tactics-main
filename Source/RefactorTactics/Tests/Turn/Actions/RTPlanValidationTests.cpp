@@ -154,6 +154,9 @@ bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 	{
 		return A.Def.ActionId.LexicalLess(B.Def.ActionId);
 	});
+	// E38 CP 38.12: indici di dichiarazione fissi, cosi' a permutarsi e' solo l'array, e il verdetto nomina
+	// sempre la stessa occorrenza.
+	for (int32 i = 0; i < Plan.Num(); ++i) { Plan[i].DeclarationIndex = i; }
 
 	const FRTPlanValidation Reference = URTPlanValidationLibrary::ValidatePlan(PlanUnit(5), Plan);
 	TestFalse(TEXT("il piano di riferimento e' illegale"), Reference.bLegal);
@@ -173,6 +176,8 @@ bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 			const FRTPlanValidation Other = URTPlanValidationLibrary::ValidatePlan(PlanUnit(5), Shuffled);
 			TestEqual(TEXT("il verdetto non cambia con l'ordine"), Other.bLegal, Reference.bLegal);
 			TestEqual(TEXT("il motivo non cambia con l'ordine"), Other.Reason, Reference.Reason);
+			TestEqual(TEXT("il colpevole non cambia con l'ordine"), Other.OffendingActionId, Reference.OffendingActionId);
+			TestEqual(TEXT("ne' la sua occorrenza"), Other.OffendingDeclarationIndex, Reference.OffendingDeclarationIndex);
 			++Permutations;
 		}
 	}
@@ -239,11 +244,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSlotVerdictIsPermutationInvariant,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlanSlotVerdictIsPermutationInvariant::RunTest(const FString&)
 {
-	const TArray<FRTPlannedAction> Plan = {
+	TArray<FRTPlannedAction> Plan = {
 		PlanEntry(TEXT("Action.Sprint"), ERTActionSlot::MovementAndMain),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
 		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
 	};
+	for (int32 i = 0; i < Plan.Num(); ++i) { Plan[i].DeclarationIndex = i; } // E38 CP 38.12: indici fissi
 
 	const FRTPlanValidation Reference = URTPlanValidationLibrary::ValidatePlan(PlanUnit(10), Plan);
 	TestFalse(TEXT("Sprint non lascia spazio ad altro"), Reference.bLegal);
@@ -267,6 +273,8 @@ bool FRTPlanSlotVerdictIsPermutationInvariant::RunTest(const FString&)
 			TestEqual(TEXT("il motivo non cambia con l'ordine"), Other.Reason, Reference.Reason);
 			TestEqual(TEXT("il colpevole non cambia con l'ordine"), Other.OffendingActionId,
 				Reference.OffendingActionId);
+			TestEqual(TEXT("ne' la sua occorrenza"), Other.OffendingDeclarationIndex, Reference.OffendingDeclarationIndex);
+			TestEqual(TEXT("ne' il detentore e la sua occorrenza"), Other.HolderDeclarationIndex, Reference.HolderDeclarationIndex);
 		}
 	}
 	return true;

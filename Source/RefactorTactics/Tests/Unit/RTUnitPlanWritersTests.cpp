@@ -40,8 +40,10 @@
 namespace
 {
 	/**
-	 * I campi del piano di `ARTUnit`. Ogni campo dell'unita' il cui nome contiene `Planned` deve stare qui
-	 * (`Meta.PlanFieldListMatchesTheUnit`); gli ultimi quattro non lo contengono, e ci stanno per scelta.
+	 * I nomi del piano: i campi di `ARTUnit` e di `FRTUnitPlan`, e gli accessori della lista (E38 CP 38.12) che portano
+	 * il nome dei campi a casella unica di prima. Ogni campo dell'unita' il cui nome contiene `Planned`, e ogni campo
+	 * dello struct, deve stare qui (`Meta.PlanFieldListMatchesTheUnit`); gli ultimi non contengono `Planned`, e ci
+	 * stanno per scelta.
 	 */
 	const TCHAR* const PlanWritersCampi[] = {
 		TEXT("PlannedCell"), TEXT("PlannedAbilityIndex"), TEXT("PlannedAttackTarget"), TEXT("PlannedAttackCell"),
@@ -51,6 +53,7 @@ namespace
 		TEXT("bHasPlannedChargeRun"), TEXT("PlannedReactionAbility"), TEXT("PlannedReactionCondition"),
 		TEXT("PlannedCleansePriority"),
 		TEXT("bAttackTargetsCell"), TEXT("bTurnPlanDeclared"), TEXT("WaypointsAllaDichiarazione"), TEXT("WaypointsAllaReazione"),
+		TEXT("Entries"),
 	};
 
 	/** Il file dei test che scrive il piano per mestiere: l'accesso riservato, fuori dal perimetro. */
@@ -746,23 +749,29 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("parser: `%s`"), P.Riga), PlanWritersDeclaredField(P.Riga), FString(P.Nome));
 	}
 
-	auto CampiDi = [](const FString& Sorgente)
+	// `bSoloMembri`: solo le righe a UNA tabulazione, cioe' i membri dello struct. Da E38 CP 38.12 `FRTUnitPlan` ha
+	// metodi inline con variabili locali (`const int32 At = ...;`), a due tabulazioni, che non sono campi del piano.
+	auto CampiDi = [](const FString& Sorgente, bool bSoloMembri)
 	{
 		TArray<FString> Righe;
 		Sorgente.ParseIntoArrayLines(Righe, /*bCullEmpty=*/ false);
 		TSet<FString> Out;
 		for (const FString& Riga : Righe)
 		{
+			if (bSoloMembri && (!Riga.StartsWith(TEXT("\t")) || Riga.StartsWith(TEXT("\t\t")))) { continue; }
 			const FString Nome = PlanWritersDeclaredField(Riga);
 			if (!Nome.IsEmpty()) { Out.Add(Nome); }
 		}
 		return Out;
 	};
-	const TSet<FString> DellUnita = CampiDi(Testo);
-	const TSet<FString> DelPiano = CampiDi(TestoPiano);
+	const TSet<FString> DellUnita = CampiDi(Testo, /*bSoloMembri=*/ false);
+	const TSet<FString> DelPiano = CampiDi(TestoPiano, /*bSoloMembri=*/ true);
+	// Controllo: il filtro dei membri toglie le locali dei metodi, che senza filtro il parser vede.
+	TestTrue(TEXT("controllo: senza il filtro il parser vede una locale dei metodi (`At`)"), CampiDi(TestoPiano, false).Contains(TEXT("At")));
+	TestFalse(TEXT("e col filtro no"), DelPiano.Contains(TEXT("At")));
 	// ⛔ Anti-vacuita': il parser trova davvero i campi in entrambi i file, compresi uno con l'inizializzatore e uno senza.
 	if (!TestTrue(TEXT("premessa: il parser vede `PlannedCell` nello struct (senza inizializzatore)"), DelPiano.Contains(TEXT("PlannedCell")))
-		|| !TestTrue(TEXT("premessa: e `PlannedAbilityIndex` (con)"), DelPiano.Contains(TEXT("PlannedAbilityIndex")))
+		|| !TestTrue(TEXT("premessa: e `PlannedFacing` (con)"), DelPiano.Contains(TEXT("PlannedFacing")))
 		|| !TestTrue(TEXT("premessa: e `PlannedAimCell` nell'unita', dove resta"), DellUnita.Contains(TEXT("PlannedAimCell"))))
 	{
 		return false;
@@ -788,10 +797,18 @@ bool FRTPlanFieldListMatchesTheUnitTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("`%s` e' un campo di `FRTUnitPlan`: sta nell'elenco del cancello"), *Nome), Elenco.Contains(Nome));
 	}
+	// E38 CP 38.12: i campi a casella unica sono diventati accessori della lista, con lo stesso nome
+	// (`int32 PlannedAbilityIndex() const { ... }`). Una voce dell'elenco e' un campo o uno di quegli accessori.
+	auto EAccessore = [&TestoPiano](const FString& Nome) { return TestoPiano.Contains(TEXT(" ") + Nome + TEXT("() const"), ESearchCase::CaseSensitive); };
+	if (!TestTrue(TEXT("premessa: il riconoscitore vede l'accessore `PlannedAbilityIndex`"), EAccessore(TEXT("PlannedAbilityIndex")))
+		|| !TestFalse(TEXT("e non vede un accessore che non c'e'"), EAccessore(TEXT("PlannedFoo"))))
+	{
+		return false;
+	}
 	for (const FString& Nome : Elenco)
 	{
-		TestTrue(*FString::Printf(TEXT("la voce `%s` dell'elenco e' un campo dichiarato in `Unit/RTUnit.h` o in `Turn/RTUnitPlan.h`"), *Nome),
-			DellUnita.Contains(Nome) || DelPiano.Contains(Nome));
+		TestTrue(*FString::Printf(TEXT("la voce `%s` dell'elenco e' un campo dichiarato in `Unit/RTUnit.h` o in `Turn/RTUnitPlan.h`, o un accessore della lista"), *Nome),
+			DellUnita.Contains(Nome) || DelPiano.Contains(Nome) || EAccessore(Nome));
 	}
 	return true;
 }

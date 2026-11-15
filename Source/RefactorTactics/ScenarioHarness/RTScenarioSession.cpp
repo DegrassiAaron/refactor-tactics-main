@@ -1393,7 +1393,7 @@ void FRTScenarioSession::ApplyPreviewSelection()
 	// VERIFICA invece di dichiarare. La riga precedente stampava «selezionata» subito dopo la chiamata, e ha
 	// raccontato per un'intera sessione un successo che non c'era: se il piano non e' atterrato, il log deve
 	// dirlo qui, dove si sa, invece di lasciarlo scoprire a chi guarda uno schermo che non cambia.
-	if (Unit->GetPlan().PlannedAttackTarget == Target)
+	if (Unit->GetPlan().PlannedAttackTarget() == Target)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: '%s' punta '%s' — anteprima attiva, guardala prima che risolva"),
 			*Scenario.ScenarioId, *Scenario.PreviewUnit, *Target->GetName());

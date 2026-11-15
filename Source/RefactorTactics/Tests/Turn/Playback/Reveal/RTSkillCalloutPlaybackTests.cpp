@@ -112,7 +112,7 @@ namespace
 
 		// ⛔ Premesse sulle FAMIGLIE, non sul playback: la scena vale solo se le due azioni sono davvero una skill di firma
 		// (base vuota) e una variante dell'attacco base (con base), quella che fino a #4059 non gridava.
-		const URTActionData* AbilityScudo = Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex);
+		const URTActionData* AbilityScudo = Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex());
 		const URTActionData* AbilityTiratore = Out.Tiratore->GetAbility(0);
 		if (!Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"),
 				AbilityScudo != nullptr && AbilityScudo->Def.ActionId == AzioneFirmaFumetto)
@@ -371,10 +371,10 @@ namespace
 				Out.Scudo->SetPlannedMainAction(i);
 			}
 		}
-		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->GetPlan().PlannedAbilityIndex != INDEX_NONE)
+		if (!Test.TestTrue(TEXT("⛔ premessa: la Guardia pianifica l'Overwatch"), Out.Guardia->GetPlan().PlannedAbilityIndex() != INDEX_NONE)
 			|| !Test.TestTrue(TEXT("⛔ premessa: lo Scudo pianifica TideGuard"),
-				Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex) != nullptr
-				&& Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex)->Def.ActionId == AzioneFirmaFumetto))
+				Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex()) != nullptr
+				&& Out.Scudo->GetAbility(Out.Scudo->GetPlan().PlannedAbilityIndex())->Def.ActionId == AzioneFirmaFumetto))
 		{
 			return false;
 		}
@@ -1153,7 +1153,7 @@ namespace
 		Out.Mover->Facing = FacciaDelMover;
 		Out.Mover->SetPlannedCell(Destinazione);
 		if (Out.Runner) { Out.Runner->SetPlannedCell(FRTCellId(2, -3, 0)); }
-		if (!Test.TestTrue(TEXT("⛔ premessa: il watcher arma l'Overwatch"), Out.Watcher->GetPlan().PlannedAbilityIndex != INDEX_NONE))
+		if (!Test.TestTrue(TEXT("⛔ premessa: il watcher arma l'Overwatch"), Out.Watcher->GetPlan().PlannedAbilityIndex() != INDEX_NONE))
 		{
 			return false;
 		}

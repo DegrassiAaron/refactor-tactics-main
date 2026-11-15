@@ -135,9 +135,9 @@ namespace
 	FString PredPlanAfterClick(const ARTUnit* Unit)
 	{
 		return FString::Printf(TEXT("PlannedAbilityIndex=%d bAttackTargetsCell=%d PlannedAttackCell=%s PlannedAttackTarget=%s waypoint=%d"),
-			Unit->GetPlan().PlannedAbilityIndex, Unit->GetPlan().bAttackTargetsCell ? 1 : 0, *Unit->GetPlan().PlannedAttackCell.ToString(),
-			Unit->GetPlan().PlannedAttackTarget ? *Unit->GetPlan().PlannedAttackTarget->GetName() : TEXT("nessuno"),
-			Unit->GetPlan().PlannedWaypoints.Num());
+			Unit->GetPlan().PlannedAbilityIndex(), Unit->GetPlan().bAttackTargetsCell() ? 1 : 0, *Unit->GetPlan().PlannedAttackCell().ToString(),
+			Unit->GetPlan().PlannedAttackTarget() ? *Unit->GetPlan().PlannedAttackTarget()->GetName() : TEXT("nessuno"),
+			Unit->GetPlan().PlannedWaypoints().Num());
 	}
 }
 
@@ -503,10 +503,10 @@ bool FRTPredictivePlayerLocksTheCellTest::RunTest(const FString&)
 
 	PC->HandleClickOnCellForTest(Locked);
 	AddInfo(FString::Printf(TEXT("dopo il click sulla cella %s: %s"), *Locked.ToString(), *PredPlanAfterClick(Shooter)));
-	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex, Intercetto);
-	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("quella cliccata"), Shooter->GetPlan().PlannedAttackCell == Locked);
-	TestEqual(TEXT("e non come una destinazione del tiratore"), Shooter->GetPlan().PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex(), Intercetto);
+	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("quella cliccata"), Shooter->GetPlan().PlannedAttackCell() == Locked);
+	TestEqual(TEXT("e non come una destinazione del tiratore"), Shooter->GetPlan().PlannedWaypoints().Num(), 0);
 
 	// Il Runner ATTRAVERSA la cella bloccata, come in `InterceptCellHit`.
 	Runner->SetPlannedCell(FRTCellId(1, 0));
@@ -563,10 +563,10 @@ bool FRTPredictivePlayerClicksAUnitTest::RunTest(const FString&)
 	// La matrice del click vero, non `HandleClickOnUnitForTest`: e' cio' che il raycast su una mesh raggiunge.
 	TestTrue(TEXT("il click sul nemico e' consumato"), PC->DispatchUnitClickForTest(Enemy, Shooter));
 	AddInfo(FString::Printf(TEXT("dopo il click sul nemico in %s: %s"), *Enemy->Cell.ToString(), *PredPlanAfterClick(Shooter)));
-	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex, Intercetto);
-	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->GetPlan().bAttackTargetsCell);
-	TestTrue(TEXT("quella del nemico cliccato"), Shooter->GetPlan().PlannedAttackCell == Enemy->Cell);
-	TestNull(TEXT("e non lui"), Shooter->GetPlan().PlannedAttackTarget.Get());
+	TestEqual(TEXT("il click pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex(), Intercetto);
+	TestTrue(TEXT("con il bersaglio su una cella"), Shooter->GetPlan().bAttackTargetsCell());
+	TestTrue(TEXT("quella del nemico cliccato"), Shooter->GetPlan().PlannedAttackCell() == Enemy->Cell);
+	TestNull(TEXT("e non lui"), Shooter->GetPlan().PlannedAttackTarget().Get());
 
 	const FRTCellId Bloccata = Enemy->Cell;
 	RunPredTurn(TM);
@@ -626,13 +626,13 @@ bool FRTPredictiveRefusesOwnCellTest::RunTest(const FString&)
 	PC->SelectAbilityForCurrentForTest(Intercetto);
 	PC->HandleClickOnCellForTest(Shooter->Cell);
 	AddInfo(FString::Printf(TEXT("dopo il click sulla propria cella: %s"), *PredPlanAfterClick(Shooter)));
-	TestFalse(TEXT("il click sulla propria cella non blocca niente"), Shooter->GetPlan().bAttackTargetsCell);
-	TestEqual(TEXT("e non pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestFalse(TEXT("il click sulla propria cella non blocca niente"), Shooter->GetPlan().bAttackTargetsCell());
+	TestEqual(TEXT("e non pianifica InterceptShot"), Shooter->GetPlan().PlannedAbilityIndex(), (int32)INDEX_NONE);
 
 	// Il controllo: la cella accanto, con lo stesso gesto, si blocca. Senza, un click che non fa mai niente resterebbe verde.
 	const FRTCellId Accanto(0, 0);
 	PC->HandleClickOnCellForTest(Accanto);
-	TestTrue(TEXT("la cella accanto si blocca"), Shooter->GetPlan().bAttackTargetsCell && Shooter->GetPlan().PlannedAttackCell == Accanto);
+	TestTrue(TEXT("la cella accanto si blocca"), Shooter->GetPlan().bAttackTargetsCell() && Shooter->GetPlan().PlannedAttackCell() == Accanto);
 
 	DestroyPredWorld(World);
 	return true;

@@ -1015,8 +1015,8 @@ namespace
 				PC->SelectUnit(Attore, /*bRecordAsPlayerInput=*/ false);
 				PC->ArmKitAbility(Idx);
 				PC->HandleClickOnCellForTest(CellaBersaglio);
-				Esito.Click = (Attore->GetPlan().PlannedAbilityIndex == Idx && Attore->GetPlan().bAttackTargetsCell
-					&& Attore->GetPlan().PlannedAttackCell == CellaBersaglio) ? ERic3Click::Accetta : ERic3Click::Rifiuta;
+				Esito.Click = (Attore->GetPlan().PlannedAbilityIndex() == Idx && Attore->GetPlan().bAttackTargetsCell()
+					&& Attore->GetPlan().PlannedAttackCell() == CellaBersaglio) ? ERic3Click::Accetta : ERic3Click::Rifiuta;
 				Attore->SelectAbility(INDEX_NONE);
 				Attore->Abilities[Idx]->Shape = ERTAbilityShape::Single;
 			}
@@ -1032,9 +1032,9 @@ namespace
 				PC->ArmKitAbility(Idx);
 				Bersaglio->SetKnownToObserver(!S.bBersaglioIgnotoAlVelo);
 				PC->DispatchUnitClickForTest(Bersaglio, Attore);
-				Esito.Click = (Attore->GetPlan().PlannedAbilityIndex == Idx && Attore->GetPlan().PlannedAttackTarget.Get() == Bersaglio)
+				Esito.Click = (Attore->GetPlan().PlannedAbilityIndex() == Idx && Attore->GetPlan().PlannedAttackTarget().Get() == Bersaglio)
 					? ERic3Click::Accetta : ERic3Click::Rifiuta;
-				Esito.bBordoDopoIlClick = Attore->GetPlan().bHasPlannedCoverEdge;
+				Esito.bBordoDopoIlClick = Attore->GetPlan().bHasPlannedCoverEdge();
 				Attore->SelectAbility(INDEX_NONE); // il turno non porta lo stato di UI dell'oracolo
 			}
 			if (Esito.Click != ERic3Click::Accetta)
@@ -2698,7 +2698,7 @@ namespace
 		PC->SelectUnit(Attore, /*bRecordAsPlayerInput=*/ false);
 		PC->ArmKitAbility(Idx);
 		Esito.bClickAccetta = PC->HandleTargetEdge(CellaDelBordo, ERTHexDirection::W)
-			&& Attore->GetPlan().PlannedAbilityIndex == Idx && Attore->GetPlan().bHasPlannedCoverEdge;
+			&& Attore->GetPlan().PlannedAbilityIndex() == Idx && Attore->GetPlan().bHasPlannedCoverEdge();
 		Attore->SelectAbility(INDEX_NONE); // il turno non porta lo stato di UI dell'oracolo
 
 		const TWeakObjectPtr<ARTUnit> AttoreDebole(Attore);
