@@ -3321,7 +3321,8 @@ protected:
 	 * e questo e' il commit.
 	 *
 	 * 🔴 **Budget e ricarica BLOCCANO, lo slot occupato registra soltanto** ([D-615] (1), che emenda [D-194] per i
-	 * primi due; E38 CP 38.10, #4111). Con `OnCooldown` o `OverBudget` il piano **si svuota**
+	 * primi due; E38 CP 38.10, #4111). Con `OnCooldown`, `RepeatedWithCooldown` (la copia vietata da [D-614], E38 CP
+	 * 38.13) o `OverBudget` il piano **si svuota**
 	 * (`ARTUnit::EmptyPlanAtLockIn`) e ogni sua voce lascia nel TurnLog una `Fallback`/`Cancelled` col motivo in
 	 * `Amount` e la fase della voce ([D-617]), col verdetto `OwnerTeam`: il server non risolve un piano oltre il
 	 * budget, e il replay dice perche' l'unita' non ha agito. Per il giocatore c'e' sempre un'uscita: un'azione in
@@ -3338,8 +3339,8 @@ protected:
 	void ValidatePlansAtLockIn();
 
 	/**
-	 * Vero se il piano dell'unita' sarebbe svuotato al lock-in, cioe' se il validatore lo giudica `OnCooldown` o
-	 * `OverBudget` (E38 CP 38.10). `UnitIndex` e' la posizione dell'unita' in `CollectLivingUnits`, come per
+	 * Vero se il piano dell'unita' sarebbe svuotato al lock-in, cioe' se il validatore lo giudica `OnCooldown`,
+	 * `RepeatedWithCooldown` o `OverBudget` (E38 CP 38.10, CP 38.13; `URTPlanValidationLibrary::EmptiesPlanAtLockIn`). `UnitIndex` e' la posizione dell'unita' in `CollectLivingUnits`, come per
 	 * `MakeSimUnit`. Lo leggono il lock-in e il Ready del giocatore, che si rifiuta sulla stessa domanda.
 	 */
 	bool IsPlanRefusedAtLockIn(int32 UnitIndex, const ARTUnit* Unit, FRTPlanValidation& OutVerdict) const;

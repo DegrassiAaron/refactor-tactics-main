@@ -752,7 +752,7 @@ bool FRTOverwatchActionIsInCoreCatalogTest::RunTest(const FString&)
 	// I valori del catalogo di bilanciamento (`docs/balance/RT_ActionCatalog_v0.1.md` §1), non scelti qui.
 	TestEqual(TEXT("si arma nel Prep"), Def.ResolutionPhase, ERTResolutionPhase::Preparation);
 	TestEqual(TEXT("priorita' 45"), Def.Priority, 45);
-	TestEqual(TEXT("nessun cooldown"), Def.CooldownTurns, 0);
+	TestEqual(TEXT("cooldown 1 ([D-615] (4), E38 CP 38.13)"), Def.CooldownTurns, 1);
 	TestEqual(TEXT("fallback `Cancel`"), Def.Fallback, ERTActionFallback::Cancel);
 	TestEqual(TEXT("costa l'azione principale, non lo slot reazione"), Def.Slot, ERTActionSlot::Main);
 	TestEqual(TEXT("non interrompibile: una volta armata, c'e'"), Def.InterruptPolicy,

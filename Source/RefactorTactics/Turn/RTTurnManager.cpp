@@ -3585,12 +3585,10 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			FRTLogSubject::UnitWithVerdict(Unit,
 				URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, Unit->TeamId)));
 
-		// 🔴 **Budget e ricarica: il piano non si risolve** ([D-615] (1), che emenda [D-194] per questi due motivi;
-		// [D-617] per le voci nel TurnLog). `SlotOccupied` resta registrato e non bloccato fino a CP 38.16: lo scatto
-		// non e' ancora annullabile, e il resolver decide come oggi (`SupersededByDash`).
-		const bool bSvuota = Verdict.Reason == ERTActionInvalidReason::OnCooldown
-			|| Verdict.Reason == ERTActionInvalidReason::OverBudget;
-		if (!bSvuota)
+		// 🔴 **Budget, ricarica e copia vietata: il piano non si risolve** ([D-615] (1), che emenda [D-194] per questi
+		// motivi; [D-617] per le voci nel TurnLog; la copia da E38 CP 38.13). `SlotOccupied` resta registrato e non
+		// bloccato fino a CP 38.16: lo scatto non e' ancora annullabile, e il resolver decide come oggi (`SupersededByDash`).
+		if (!URTPlanValidationLibrary::EmptiesPlanAtLockIn(Verdict.Reason))
 		{
 			continue;
 		}
@@ -3653,8 +3651,7 @@ bool ARTTurnManager::IsPlanRefusedAtLockIn(int32 UnitIndex, const ARTUnit* Unit,
 		return false;
 	}
 	OutVerdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(UnitIndex, Unit), Plan);
-	return !OutVerdict.bLegal
-		&& (OutVerdict.Reason == ERTActionInvalidReason::OnCooldown || OutVerdict.Reason == ERTActionInvalidReason::OverBudget);
+	return !OutVerdict.bLegal && URTPlanValidationLibrary::EmptiesPlanAtLockIn(OutVerdict.Reason);
 }
 
 void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)

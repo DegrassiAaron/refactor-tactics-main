@@ -540,4 +540,102 @@ bool FRTPlanOverBudgetBlamesTheEntryThatCrossesTheBudget::RunTest(const FString&
 	return true;
 }
 
+// ── E38 CP 38.13 (#4114): la regola della copia ([D-614]) e il Prep aperto ────────────────────────────────────────────
+namespace
+{
+	/** La riga di catalogo come voce dichiarata: il `Def` vero (fase, slot, costo, cooldown), come lo compone `MakePlanFor`. */
+	FRTPlannedAction CatalogRowEntry(const TCHAR* ActionId, int32 DeclarationIndex)
+	{
+		FRTPlannedAction Entry;
+		Entry.Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		if (Entry.Def.ActionId.IsNone())
+		{
+			for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+			{
+				for (const URTActionData* Action : Hero->Actions)
+				{
+					if (Action && Action->Def.ActionId == FName(ActionId)) { Entry.Def = Action->Def; }
+				}
+			}
+		}
+		Entry.CatalogCooldownTurns = Entry.Def.CooldownTurns; // nessuna variante: la riga e' il `Def`
+		Entry.DeclarationIndex = DeclarationIndex;
+		return Entry;
+	}
+
+	TArray<FRTPlannedAction> CatalogRows(std::initializer_list<const TCHAR*> Ids)
+	{
+		TArray<FRTPlannedAction> Plan;
+		for (const TCHAR* Id : Ids) { Plan.Add(CatalogRowEntry(Id, Plan.Num())); }
+		return Plan;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCopiesWithoutCooldownAreLegalTest,
+	"RefactorTactics.Plan.CopiesWithoutCooldownAreLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanCopiesWithoutCooldownAreLegalTest::RunTest(const FString&)
+{
+	// Criteri 1 e 2: il Prep e' aperto ([D-584] (1)), e una copia senza ricarica e' ammessa ([D-614]).
+	const TArray<FRTPlannedAction> DueGuardie = CatalogRows({ TEXT("Action.Guard"), TEXT("Action.Guard"), TEXT("Hero.Riktor.ImpactShot") });
+	TestEqual(TEXT("premessa: la Guard non ha ricarica"), DueGuardie[0].CatalogCooldownTurns, 0);
+	TestEqual(TEXT("premessa: la Guard e' di Prep"), URTCatalogLibrary::MapResolutionPhase(DueGuardie[0].Def.ResolutionPhase), ERTMatchPhase::Prep);
+	TestEqual(TEXT("1 + 1 + 2 = 4"), URTPlanValidationLibrary::ActionPointsSpent(DueGuardie), 4);
+	const FRTPlanValidation Due = URTPlanValidationLibrary::ValidatePlan(ApUnit(), DueGuardie);
+	TestTrue(TEXT("Guard + Guard + ImpactShot e' legale"), Due.bLegal);
+
+	// Una voce di Prep accanto alla principale del Blast non e' piu' `SlotOccupied`.
+	TestTrue(TEXT("Guard + ImpactShot e' legale"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Action.Guard"), TEXT("Hero.Riktor.ImpactShot") })).bLegal);
+
+	// Controllo: le fasi chiuse restano sotto il vincolo di slot fino al loro checkpoint (CP 38.14).
+	const FRTPlanValidation DueBlast = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Hero.Riktor.ImpactShot"), TEXT("Action.Interact") }));
+	TestEqual(TEXT("controllo: due voci diverse del Blast restano SlotOccupied"), DueBlast.Reason, ERTActionInvalidReason::SlotOccupied);
+	const FRTPlanValidation DueBase = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Action.BasicAttack"), TEXT("Action.BasicAttack") }));
+	TestEqual(TEXT("controllo: due attacchi base, senza ricarica, restano SlotOccupied"), DueBase.Reason, ERTActionInvalidReason::SlotOccupied);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSecondCopyWithCooldownIsRejectedTest,
+	"RefactorTactics.Plan.SecondCopyWithCooldownIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanSecondCopyWithCooldownIsRejectedTest::RunTest(const FString&)
+{
+	// Criteri 1 e 17: una seconda copia di un'azione con ricarica e' `RepeatedWithCooldown`, in qualunque fase.
+	const FRTPlanValidation Brace = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Action.Brace"), TEXT("Action.Brace") }));
+	TestEqual(TEXT("premessa: il Brace ha ricarica 1"), CatalogRowEntry(TEXT("Action.Brace"), 0).CatalogCooldownTurns, 1);
+	TestEqual(TEXT("Brace + Brace: RepeatedWithCooldown"), Brace.Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+	TestEqual(TEXT("accusata la seconda copia, la prima che ripete l'azione"), Brace.OffendingDeclarationIndex, 1);
+	TestTrue(TEXT("il motivo non ha un detentore"), Brace.HolderActionId.IsNone());
+
+	// La copia vietata non pesa nel budget: con un solo AP il motivo resta la copia, non la somma.
+	FRTHexSimUnit UnSoloPunto = ApUnit();
+	UnSoloPunto.ActionPointBudget = 1;
+	TestEqual(TEXT("la copia precede il budget"), URTPlanValidationLibrary::ValidatePlan(UnSoloPunto,
+		CatalogRows({ TEXT("Action.Brace"), TEXT("Action.Brace") })).Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+
+	// [D-615] (4): l'Overwatch ha ricarica 1, quindi la sua seconda copia e' vietata.
+	TestEqual(TEXT("Overwatch + Overwatch: RepeatedWithCooldown"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Action.Overwatch"), TEXT("Action.Overwatch") })).Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+
+	// [D-615] (1): la regola vale per ogni voce, anche nelle fasi ancora chiuse, e precede lo slot.
+	for (const TCHAR* Id : { TEXT("Hero.Riktor.MortarShot"), TEXT("Hero.Riktor.Interposition"), TEXT("Hero.Riktor.Ram") })
+	{
+		TestTrue(*FString::Printf(TEXT("premessa: %s ha ricarica"), Id), CatalogRowEntry(Id, 0).CatalogCooldownTurns > 0);
+		TestEqual(*FString::Printf(TEXT("%s due volte: RepeatedWithCooldown, non SlotOccupied"), Id),
+			URTPlanValidationLibrary::ValidatePlan(ApUnit(), CatalogRows({ Id, Id })).Reason,
+			ERTActionInvalidReason::RepeatedWithCooldown);
+	}
+
+	// L'accusa e' resa: la stessa coppia dichiarata a rovescio accusa sempre la seconda dichiarata.
+	TArray<FRTPlannedAction> Rovescio = CatalogRows({ TEXT("Action.Brace"), TEXT("Action.Brace") });
+	Swap(Rovescio[0], Rovescio[1]);
+	TestEqual(TEXT("l'ordine dell'array non sposta l'accusa"),
+		URTPlanValidationLibrary::ValidatePlan(ApUnit(), Rovescio).OffendingDeclarationIndex, 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

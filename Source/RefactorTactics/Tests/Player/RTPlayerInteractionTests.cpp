@@ -6052,4 +6052,98 @@ bool FRTPlanLockedPlanOfARefusedPlanIsEmptyTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.13 (#4114): la regola della copia legge la riga, e l'Overwatch a ricarica 1 ─────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCopyRuleReadsTheCatalogCooldownTest,
+	"RefactorTactics.Plan.CopyRuleReadsTheCatalogCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanCopyRuleReadsTheCatalogCooldownTest::RunTest(const FString&)
+{
+	// Criterio 3, [D-615] (6). Prima parte: con `Weapon.Overcharge` la voce dell'attacco base porta il cooldown della
+	// riga, mentre il suo `Def` porta la riga piu' i turni della variante.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 DellaRiga = B.Riktor->GetAbility(0)->Def.CooldownTurns;
+	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
+	B.Riktor->SetPlannedMainAction(0);
+	B.Riktor->DeclareAttackOnUnit(B.Gadget);
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(B.Riktor);
+	if (TestEqual(TEXT("una voce, l'attacco base"), Piano.Num(), 1))
+	{
+		TestTrue(TEXT("premessa: la variante allunga la ricarica del Def"), Piano[0].Def.CooldownTurns > DellaRiga);
+		TestEqual(TEXT("la voce porta il cooldown della riga"), Piano[0].CatalogCooldownTurns, DellaRiga);
+	}
+	// Una seconda variante non registra un cooldown gia' cambiato.
+	B.Riktor->EquipLoadout({ FName(TEXT("Weapon.Overcharge")) });
+	TestEqual(TEXT("la riga resta quella di prima della prima variante"),
+		URTPlanValidationLibrary::MakePlanFor(B.Riktor)[0].CatalogCooldownTurns, DellaRiga);
+	DestroyInteractionWorld(B.World);
+
+	// Seconda parte, su voci sintetiche, in ogni fase: decide il cooldown della riga, non quello del `Def`.
+	auto Coppia = [](ERTResolutionPhase Fase, ERTActionSlot Slot, int32 DellaRigaSint, int32 DelDef)
+	{
+		TArray<FRTPlannedAction> Plan;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			FRTPlannedAction E;
+			E.Def.ActionId = TEXT("Test.Copia");
+			E.Def.ResolutionPhase = Fase;
+			E.Def.Slot = Slot;
+			E.Def.ActionPointCost = 1;
+			E.Def.CooldownTurns = DelDef;
+			E.CatalogCooldownTurns = DellaRigaSint;
+			E.DeclarationIndex = I;
+			Plan.Add(E);
+		}
+		return URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Plan);
+	};
+	TestTrue(TEXT("Prep, riga 0 e Def 2: legale"), Coppia(ERTResolutionPhase::Preparation, ERTActionSlot::Main, 0, 2).bLegal);
+	TestEqual(TEXT("Blast, riga 0 e Def 2: SlotOccupied fino a CP 38.14"),
+		Coppia(ERTResolutionPhase::Attack, ERTActionSlot::Main, 0, 2).Reason, ERTActionInvalidReason::SlotOccupied);
+	const struct { ERTResolutionPhase Fase; ERTActionSlot Slot; const TCHAR* Nome; } Fasi[] = {
+		{ ERTResolutionPhase::Preparation, ERTActionSlot::Main, TEXT("Prep") },
+		{ ERTResolutionPhase::Attack, ERTActionSlot::Main, TEXT("Blast") },
+		{ ERTResolutionPhase::FastMovement, ERTActionSlot::Movement, TEXT("Dash") },
+		{ ERTResolutionPhase::Attack, ERTActionSlot::Reaction, TEXT("reazione") },
+	};
+	for (const auto& F : Fasi)
+	{
+		TestEqual(*FString::Printf(TEXT("%s, riga 2 e Def 0: RepeatedWithCooldown"), F.Nome),
+			Coppia(F.Fase, F.Slot, 2, 0).Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchCooldownOneReturnsEveryTurnTest,
+	"RefactorTactics.Overwatch.CooldownOneReturnsEveryTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchCooldownOneReturnsEveryTurnTest::RunTest(const FString&)
+{
+	// Criterio 14, [D-615] (4): l'Overwatch ha ricarica 1 e torna ogni turno, perche' il cooldown impostato all'uso
+	// si sconta nel Cleanup dello stesso turno.
+	FLockInBench B;
+	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+	const int32 Overwatch = LockInAbilityIndex(B.Riktor, TEXT("Action.Overwatch"));
+	if (!TestNotEqual(TEXT("premessa: Riktor ha l'Overwatch"), Overwatch, (int32)INDEX_NONE)) { DestroyInteractionWorld(B.World); return false; }
+	TestEqual(TEXT("premessa: la copia dell'unita' porta la ricarica 1"), B.Riktor->GetAbility(Overwatch)->CooldownTurns, 1);
+
+	B.Riktor->SetPlannedMainAction(Overwatch);
+	ResolveOneTurn(B.TM);
+	TestEqual(TEXT("dopo il Cleanup del turno 1 la ricarica vale 0"), B.Riktor->GetAbilityCooldown(Overwatch), 0);
+	B.Riktor->SetPlannedMainAction(Overwatch);
+	TestTrue(TEXT("al turno 2 si riarma senza rifiuto"), LockInVerdictOf(B.Riktor).bLegal);
+
+	// Controllo positivo: una riga a ricarica 2, usata al turno 1, al turno 2 e' ancora in ricarica.
+	FLockInBench C;
+	if (!MakeLockInBench(*this, C)) { DestroyInteractionWorld(B.World); DestroyInteractionWorld(C.World); return false; }
+	TestEqual(TEXT("premessa del controllo: Ram ha ricarica 2"), C.Riktor->GetAbility(C.Ram)->CooldownTurns, 2);
+	C.Riktor->SetPlannedDash(C.Ram, FRTCellId(2, 0));
+	ResolveOneTurn(C.TM);
+	TestTrue(TEXT("controllo: Ram e' ancora in ricarica"), C.Riktor->GetAbilityCooldown(C.Ram) > 0);
+	C.Riktor->SetPlannedDash(C.Ram, FRTCellId(2, 0));
+	TestEqual(TEXT("controllo: al turno 2 Ram e' OnCooldown"), LockInVerdictOf(C.Riktor).Reason, ERTActionInvalidReason::OnCooldown);
+	DestroyInteractionWorld(B.World);
+	DestroyInteractionWorld(C.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -759,6 +759,12 @@ void URTCatalogLibrary::EquipWeaponVariant(URTActionData* BasicAttack, const URT
 	{
 		return;
 	}
+	// [D-615] (6) (E38 CP 38.13): il cooldown della riga, PRIMA della variante, per la regola della copia. Solo la
+	// prima volta: su un'abilita' gia' variata il `Def` porta un cooldown gia' cambiato, che non e' la riga.
+	if (BasicAttack->CooldownTurnsBeforeVariant == INDEX_NONE)
+	{
+		BasicAttack->CooldownTurnsBeforeVariant = BasicAttack->Def.CooldownTurns;
+	}
 	BasicAttack->Def = ApplyWeaponVariant(BasicAttack->Def, Variant);
 
 	// Gli specchi legacy, che sono il motivo per cui questa funzione esiste. `MakeEquipmentAction` fa gia' la
@@ -1391,10 +1397,12 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// numero scritto qui ne sceglierebbe uno arbitrario per tutti — indistinguibile, dopo un mese, da una
 	// decisione presa davvero.
 	//
-	// Non interrompibile e senza cooldown, come da catalogo §1. Il cono NON e' un parametro: **e' il facing**
-	// dell'unita' (ADR-0005 §4c), quindi non c'e' una direzione da dichiarare qui.
+	// Non interrompibile, con cooldown 1 ([D-615] (4), E38 CP 38.13: «overwatch ha cooldown»). Con [D-614] entra al piu'
+	// una volta nel piano, e resta disponibile ogni turno: il cooldown si imposta quando si arma, nel Prep, e si sconta
+	// nel Cleanup dello stesso turno (`ConsumeAbility`, `TickCooldowns`). Fino a CP 38.13 valeva 0. Il cono NON e' un
+	// parametro: **e' il facing** dell'unita' (ADR-0005 §4c), quindi non c'e' una direzione da dichiarare qui.
 	Catalog.Add(ShippedAction(TEXT("Action.Overwatch"), ERTResolutionPhase::Preparation, /*Priority*/ 45,
-		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel, {},
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
 	// [D-070]: armare l'Overwatch **riserva lo slot movimento al solo `Withdraw`**. Non e' un divieto di
 	// `Dash` scritto a parte — lo slot e' gia' impegnato, quindi il divieto e' una *conseguenza*.
