@@ -63,6 +63,9 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Priority),             ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, SelectedTargetUnitId), ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, OriginalTargetUnitId), ERTReplayFieldVisibility::Public },
+			// `#4000`: chi ha interrotto e' un fatto risolto, come il bersaglio di `SelectedTargetUnitId`. Pubblico, ma
+			// sanificato per osservatore in `FilterEntriesForObserver`: il suo verdetto e' quello dell'interruttore.
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByUnitId),  ERTReplayFieldVisibility::Public },
 
 			// --- Audit: COME si e' deciso --------------------------------------------------------------
 			//
@@ -90,6 +93,7 @@ namespace
 			// E38 CP 38.13: l'indice grezzo dice quante voci precedono nel piano, e la squadra dichiarante serve a sanificarlo.
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclarationIndex),     ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclaringTeamId),      ERTReplayFieldVisibility::AuditOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByVerdict), ERTReplayFieldVisibility::AuditOnly },
 		};
 		return Rows;
 	}
@@ -230,7 +234,13 @@ TArray<FRTTurnLogEntry> URTReplayPrivacyLibrary::FilterEntriesForObserver(
 		// non sa rappresentare non legge, invece di leggere il bit di qualcun altro.
 		if (Entry.Verdict.AllowsTeam(ObserverTeamId))
 		{
-			Out.Add(Entry);
+			FRTTurnLogEntry& Vista = Out.Add_GetRef(Entry);
+			// `#4000`: la voce si legge col verdetto della vittima, il nome di chi ha interrotto col suo. Un'unita' che
+			// la squadra non vedeva non viene nominata, anche quando la vittima si vede.
+			if (Vista.InterruptedByUnitId != INDEX_NONE && !Vista.InterruptedByVerdict.AllowsTeam(ObserverTeamId))
+			{
+				Vista.InterruptedByUnitId = INDEX_NONE;
+			}
 		}
 	}
 	return Out;

@@ -1949,12 +1949,25 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// soltanto degradato resta efficace e continua a togliere ai propri bersagli. Per questo la lettura di
 	// `Stato[]` qui sopra e' invariata: la distinzione nasce **dopo** che l'efficacia e' decisa.
 	TSet<int32>& InterruptedIntents = Ctx.InterruptedIntents; // cancellati: il colpo sparisce, l'azione e' annullata
+	// `#4000`, [D-582] (4): per ogni azione annullata, il PRIMO Interrupt efficace che la raggiunge, nell'ordine in cui il
+	// grafo li ha scoperti (`Plan.Hits`, per indice d'unita' canonico). Solo ricerca, mai iterata.
+	TMap<int32, int32> PrimoInterruttore;
+	auto NominaInterruttore = [this, &Units, &Intents, &Interruttori](FRTTurnLogEntry& Voce, int32 i)
+	{
+		const int32 k = Interruttori.IsValidIndex(i) ? Interruttori[i] : INDEX_NONE;
+		ARTUnit* Chi = (Intents.IsValidIndex(k) && Units.IsValidIndex(Intents[k].AttackerId)) ? Units[Intents[k].AttackerId] : nullptr;
+		if (!Chi) { return; }
+		Voce.InterruptedByUnitId = Chi->StableUnitId;
+		// Il verdetto e' quello dell'interruttore, congelato ora ([D-223]): la vittima puo' vedersi mentre lui no.
+		Voce.InterruptedByVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Chi));
+	};
 	TSet<int32> DegradedIntents;      // degradati: il colpo resta, cadono gli effetti oltre il primo
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{
 		if (Stato[i] != EStato::Efficace) { continue; }
 		for (int32 Bersaglio : Cancellerebbe[i])
 		{
+			if (!PrimoInterruttore.Contains(Bersaglio)) { PrimoInterruttore.Add(Bersaglio, i); }
 			// La policy la dichiara la VITTIMA, come ogni altra proprieta' di interrompibilita': un
 			// `Action.Interrupt` non porta con se' alcun flag.
 			const bool bDegrada = IntentDefs.IsValidIndex(Bersaglio)
@@ -1972,12 +1985,17 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// pagata ([D-571] (1)); la voce e' `Fallback`/`Cancelled` col motivo `Interrupted`, come per gli attacchi, dalla cella
 	// del curatore al centro della cura.
 	TSet<ARTUnit*> CuratoriColpiti;
+	TMap<ARTUnit*, int32> PrimoSulCuratore; // `#4000`: il primo Interrupt efficace sul curatore; solo ricerca
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{
 		if (Stato[i] != EStato::Efficace) { continue; }
 		if (const TArray<ARTUnit*>* Curatori = CureColpite.Find(Interruttori[i]))
 		{
-			for (ARTUnit* Curatore : *Curatori) { CuratoriColpiti.Add(Curatore); }
+			for (ARTUnit* Curatore : *Curatori)
+			{
+				CuratoriColpiti.Add(Curatore);
+				if (!PrimoSulCuratore.Contains(Curatore)) { PrimoSulCuratore.Add(Curatore, i); } // `#4000`
+			}
 		}
 	}
 	// Una cura si annulla se il suo curatore e' colpito e la sua def lo permette. `SuppressSecondary` toglie gli effetti
@@ -2010,6 +2028,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.Priority = Cura.Def.Priority;
 		Interrotta.DeclarationIndex = Cura.DeclarationIndex;
 		Interrotta.DeclaringTeamId = Cura.DeclaringTeamId;
+		if (const int32* Primo = PrimoSulCuratore.Find(Cura.Healer)) { NominaInterruttore(Interrotta, *Primo); }
 		AppendLogEntry(Interrotta, Cura.Healer);
 	}
 	Ctx.RemoveHealsWhere([&CuraAnnullata](const ARTUnit* Curatore, const FRTActionDef& Def)
@@ -2112,6 +2131,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.ActionId = IntentDefs[k].ActionId;
 		Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
 		Interrotta.Priority = IntentDefs[k].Priority;
+		if (const int32* Primo = PrimoInterruttore.Find(k)) { NominaInterruttore(Interrotta, *Primo); }
 		AppendLogEntry(Interrotta, Vittima);
 
 		// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che

@@ -99,6 +99,10 @@ struct FRTPublicReplayEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int32 OriginalTargetUnitId = INDEX_NONE;
 
+	/** Chi ha interrotto (`#4000`): gia' sanificato per osservatore quando la traccia passa da `FilterEntriesForObserver`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 InterruptedByUnitId = INDEX_NONE;
+
 	/**
 	 * Il micro-step in cui la voce e' nata (`#1880`): la terza coordinata del boundary, e come le altre due
 	 * — `Phase` e `TurnNumber` — dice *quando*, non *cosa e' stato deciso*. Pubblico per la stessa ragione

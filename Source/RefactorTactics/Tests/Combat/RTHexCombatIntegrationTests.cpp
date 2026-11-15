@@ -2843,4 +2843,112 @@ bool FRTHexBlastInterruptedHealBehindCoverLeavesOneEntryTest::RunTest(const FStr
 	return true;
 }
 
+// ── #4000: la voce interrotta nomina chi ha interrotto ([D-582] (4)) ────────────────────────────────────────────────
+namespace
+{
+	struct FInterruzioneNominata
+	{
+		int32 Nominato = -99;        // `InterruptedByUnitId` della voce `Interrupted`
+		int32 VociInterrotte = 0;
+		int32 AltreNominate = 0;      // voci che nominano qualcuno senza essere la voce interrotta
+		int32 Primo = 0;             // lo `StableUnitId` dell'interruttore nella cella che viene prima
+		int32 Secondo = 0;           // e di quello nella cella dopo, se c'e'
+		int32 VociDelSecondo = 0;     // voci del secondo interruttore con l'azione `Action.Interrupt`
+		int32 VociInterrupt = 0;      // voci di chiunque con l'azione `Action.Interrupt`
+	};
+
+	/**
+	 * Ivrin spara (o, con `bCura`, cura) e un `Action.Interrupt` nemico la ferma. Con `bDue` gli interruttori sono due,
+	 * in (-1,0) e (1,-1): `StableLess` mette prima la cella con la `X` minore, e l'ordine dei colpi del Blast la segue.
+	 */
+	bool GiocaInterruzioneNominata(FAutomationTestBase& Test, bool bDue, bool bCura, FInterruzioneNominata& Out)
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6);
+		ARTUnit* Vittima = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnHexBlastUnit(World, bCura ? 0 : 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(bCura ? 1 : 3, 0));
+		const FRTCellId CellaPrima(-1, 0), CellaDopo(1, -1);
+		ARTUnit* PerPrimo = nullptr;
+		ARTUnit* PerSecondo = nullptr;
+		auto Interruttore = [&](const FRTCellId& Cella) { return SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Cella); };
+		// Il secondo si crea per primo: l'ordine che conta e' quello delle celle, non quello di creazione.
+		if (bDue) { PerSecondo = Interruttore(CellaDopo); }
+		PerPrimo = Interruttore(CellaPrima);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Vittima || !Bersaglio || !PerPrimo || (bDue && !PerSecondo)) { DestroyHexBlastWorld(World); return false; }
+		const int32 Azione = bCura ? RTAbilityFixtures::AddCoreAbility(Vittima, TEXT("Action.Heal")) : 0;
+		if (!bCura) { Vittima->Abilities[0]->Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect; }
+		Vittima->SetPlannedMainAction(Azione);
+		Vittima->DeclareAttackOnUnit(Bersaglio);
+		for (ARTUnit* Chi : { PerPrimo, PerSecondo })
+		{
+			if (!Chi) { continue; }
+			Chi->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Chi, TEXT("Action.Interrupt")));
+			Chi->DeclareAttackOnUnit(Vittima);
+		}
+		RunBlastTurn(TM);
+		Out.Primo = PerPrimo->StableUnitId;
+		Out.Secondo = PerSecondo ? PerSecondo->StableUnitId : 0;
+		const FName Interrupt(TEXT("Action.Interrupt"));
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			const bool bInterrotta = E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+			if (bInterrotta) { ++Out.VociInterrotte; Out.Nominato = E.InterruptedByUnitId; }
+			else if (E.InterruptedByUnitId != INDEX_NONE) { ++Out.AltreNominate; }
+			if (E.ActionId == Interrupt)
+			{
+				++Out.VociInterrupt;
+				if (PerSecondo && E.UnitId == PerSecondo->StableUnitId) { ++Out.VociDelSecondo; }
+			}
+		}
+		DestroyHexBlastWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedEntryNamesTheInterrupterTest,
+	"RefactorTactics.HexBlast.InterruptedEntryNamesTheInterrupter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedEntryNamesTheInterrupterTest::RunTest(const FString&)
+{
+	// `#4000`, [D-582] (4): la voce `Cancelled`/`Interrupted` nomina chi ha interrotto, per un attacco e per una cura
+	// (`#4042`). Nessun'altra voce del turno nomina qualcuno.
+	FInterruzioneNominata Attacco, Cura;
+	if (!GiocaInterruzioneNominata(*this, false, false, Attacco) || !GiocaInterruzioneNominata(*this, false, true, Cura)) { return false; }
+	for (const FInterruzioneNominata* Caso : { &Attacco, &Cura })
+	{
+		const TCHAR* Nome = Caso == &Attacco ? TEXT("attacco") : TEXT("cura");
+		if (!TestEqual(*FString::Printf(TEXT("%s: premessa: una voce interrotta"), Nome), Caso->VociInterrotte, 1)) { continue; }
+		TestEqual(*FString::Printf(TEXT("%s: nomina l'interruttore"), Nome), Caso->Nominato, Caso->Primo);
+		TestEqual(*FString::Printf(TEXT("%s: e nessun'altra voce nomina qualcuno"), Nome), Caso->AltreNominate, 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastTwoInterruptersNameTheFirstTest,
+	"RefactorTactics.HexBlast.TwoInterruptersNameTheFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastTwoInterruptersNameTheFirstTest::RunTest(const FString&)
+{
+	// `#4000`, [D-582] (4): con due interruttori efficaci la voce ne nomina UNO, il primo nell'ordine canonico delle unita'
+	// (la cella, `StableLess`), anche quando l'altro e' stato creato prima.
+	FInterruzioneNominata Due;
+	if (!GiocaInterruzioneNominata(*this, true, false, Due)) { return false; }
+	if (!TestEqual(TEXT("premessa: una voce interrotta, non due"), Due.VociInterrotte, 1)
+		|| !TestTrue(TEXT("premessa: due interruttori distinti"), Due.Primo != Due.Secondo && Due.Secondo != 0))
+	{
+		return false;
+	}
+	TestEqual(TEXT("nomina l'interruttore nella cella che viene prima"), Due.Nominato, Due.Primo);
+	// 🔴 **La seconda domanda della DoD, misurata il 2026-11-15**: il replay puo' ricavare l'altro interruttore dalle voci
+	// `Action.Interrupt` dello stesso turno? No: un Interrupt efficace non lascia voci nel TurnLog (il suo colpo esce da
+	// `Plan.Hits`, e il TurnLog non porta le attivazioni). Il limite e' pinnato, non risolto: «vedere entrambe, in replay»
+	// ([D-582] (4)) con un campo solo non si ottiene, e la scelta e' dell'autore.
+	TestEqual(TEXT("limite misurato: nessuna voce Action.Interrupt nel turno"), Due.VociInterrupt, 0);
+	TestEqual(TEXT("quindi nessuna del secondo interruttore"), Due.VociDelSecondo, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
