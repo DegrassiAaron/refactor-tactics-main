@@ -1767,8 +1767,15 @@ void ARTGameMode::RecenterCameraOnScenario()
 			// Lo scenario non ha una «propria squadra» da inquadrare: le unita' sono di entrambe, e quel che
 			// interessa e' vedere il campo INTERO, con tutti i movimenti dentro. `RecenterView` centra sulla
 			// mappa e riporta lo zoom d'insieme, che e' esattamente l'inquadratura giusta per guardare.
-			Cam->RecenterView();
-			UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
+			// ➕ Salvo nel banco (D-618 (c)): la scena esegue un'azione sola, e si guarda da dietro chi la lancia.
+			if (FrameScenarioOpening(*Cam, ResolveScenarioToRun(), FindLabCaster()))
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera dietro chi lancia nella scena del banco."));
+			}
+			else
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
+			}
 		}
 	}));
 }
@@ -1891,6 +1898,27 @@ bool ARTGameMode::StepLabScenario(int32 Step, FString& OutError)
 	// rilegge `rt.Test.Scenario`.
 	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString=*/ true)));
 	return true;
+}
+
+ARTUnit* ARTGameMode::FindLabCaster() const
+{
+	// Fuori dal banco non c'e' un «chi lancia»: uno scenario qualunque puo' avere un'unita' che si chiama `CASTER`, e
+	// non per questo la sua apertura cambia.
+	if (!URTAbilityLabLibrary::IsLabScenarioId(ResolveScenarioToRun()))
+	{
+		return nullptr;
+	}
+	return ScenarioCoordinator.FindScenarioUnit(URTAbilityLabLibrary::CasterUnitId());
+}
+
+bool ARTGameMode::FrameScenarioOpening(ARTCameraPawn& Cam, const FString& ScenarioId, const ARTUnit* LabCaster)
+{
+	if (URTAbilityLabLibrary::IsLabScenarioId(ScenarioId) && Cam.FrameUnit(LabCaster))
+	{
+		return true;
+	}
+	Cam.RecenterView();
+	return false;
 }
 
 void ARTGameMode::ListenForLevelRequests(URTFrontendNavigator* Navigator)

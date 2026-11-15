@@ -416,6 +416,17 @@ public:
 	float GetMatchStartArmLength() const { return MatchStartArmLength; }
 	float GetMaxArmLength() const { return MaxArmLength; }
 
+	/** `#4121`: la taratura dell'inquadratura d'unita', per chi la deve mostrare o misurare. */
+	float GetUnitFramingArmLength() const { return UnitFramingArmLength; }
+	float GetUnitFramingLeadCells() const { return UnitFramingLeadCells; }
+
+	/** Fissa la taratura dell'inquadratura d'unita' (per i test): e' `PROPOSED FOR PLAYTEST`, e un test non la pinna. */
+	void SetUnitFramingForTest(float InArmLength, float InLeadCells)
+	{
+		UnitFramingArmLength = InArmLength;
+		UnitFramingLeadCells = InLeadCells;
+	}
+
 	/**
 	 * Riporta la camera al centro della griglia e ripristina l'inquadratura di default: distanza
 	 * `DefaultArmLength` **clampata** in `[MinArmLength, MaxArmLength]`, e orientamento dritto.
@@ -486,6 +497,33 @@ public:
 
 	/** L'unita' e' viva e della squadra `TeamId`: il predicato unico di «propria squadra» di `FrameHome` e `FrameOwnTeam`. */
 	static bool IsOwnLiveUnit(const ARTUnit* Unit, int32 TeamId);
+
+	/**
+	 * `#4121`, [D-618] — l'inquadratura d'unita': la camera DIETRO l'unita', girata dove guarda lei, col campo davanti.
+	 *
+	 * - yaw = il verso logico, `URTHexLibrary::FacingRotation(Unit->Facing)`: un multiplo di 60, con E = 0;
+	 * - distanza `UnitFramingArmLength`, pitch tarato (l'offset manuale torna a zero), peek azzerato;
+	 * - pivot = la cella dell'unita' alla quota del PIANO, `UnitFramingLeadCells` celle in avanti lungo il verso: e'
+	 *   cio' che porta l'unita' nella parte bassa dello schermo.
+	 *
+	 * 🔑 **Prima la vista, poi il pivot**, come `ResetAndFrame`: `SetCameraPivot` clampa con yaw, pitch e braccio
+	 * correnti, e il limite (D-525, D-526) deve descrivere la camera che esistera' dopo. Sul bordo il pivot si ferma
+	 * al limite, e l'unita' scende meno.
+	 *
+	 * ⛔ **Non guarda la squadra.** La guardia della partita sta in `FrameOwnUnit`; l'altro chiamante e' il banco, che
+	 * inquadra `CASTER` in una sessione d'osservazione (D-607). Un chiamante nuovo decide da se' chi puo' inquadrare.
+	 *
+	 * Istantanea e di sola presentazione (D-143): non seleziona, non cambia il piano attivo ne' la pianificazione.
+	 * `false`, senza muovere niente, senza unita', senza mappa o senza braccio.
+	 */
+	bool FrameUnit(const ARTUnit* Unit);
+
+	/**
+	 * Il tasto `T` in partita ([D-618] (b)): `FrameUnit` sulla selezione **solo** se e' viva e della propria squadra
+	 * (`IsOwnLiveUnit`, con la squadra di `ARTPlayerState::TeamIdOf`). Altrimenti non muove niente, lo scrive nel log e
+	 * risponde `false`. Senza `ARTPlayerState` la squadra non si indovina, per la ragione di `FrameHome`.
+	 */
+	bool FrameOwnUnit(const ARTUnit* Selection);
 
 	/**
 	 * Imposta i tre limiti di distanza in un colpo solo (per i test).
@@ -784,6 +822,26 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MatchStartArmLength = 450.f;
+
+	/**
+	 * `#4121`, [D-618] — la distanza dell'inquadratura d'unita' (`FrameUnit`: il tasto `T` e l'apertura del banco).
+	 * **Fissa**, non quella che il giocatore si e' regolato: e' la scelta dell'autore, e nel banco ogni scena si apre
+	 * alla stessa. Clampata in `[MinArmLength, MaxArmLength]` come ogni porta del braccio.
+	 *
+	 * 🔧 Taratura aperta (`PROPOSED FOR PLAYTEST`, #1780): il primo valore lo sceglie l'autore nel banco.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera", meta = (ClampMin = "0.0"))
+	float UnitFramingArmLength = 600.f;
+
+	/**
+	 * `#4121`, [D-618] — di quanto il pivot dell'inquadratura d'unita' sta DAVANTI all'unita', lungo il suo verso, in
+	 * celle (la distanza fra due centri vicini). In celle e non in unita' di mondo per la ragione di
+	 * `BoundsMarginCells`: la stessa taratura vale a ogni `HexSize`.
+	 *
+	 * 🔧 Taratura aperta, come la distanza.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera", meta = (ClampMin = "0.0"))
+	float UnitFramingLeadCells = 0.75f;
 
 	/** Zoom minimo (piu' piccolo = primo piano piu' ravvicinato sui personaggi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")

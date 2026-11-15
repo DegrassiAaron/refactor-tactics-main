@@ -653,7 +653,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Scenario.Tags.Add(TEXT("ability-lab"));
 
 	FRTScenarioUnit Caster;
-	Caster.Id = TEXT("CASTER");
+	Caster.Id = CasterUnitId();
 	Caster.HeroId = CasterHeroId;
 	Caster.TeamId = 0;
 	Caster.Cell = Spec.CasterCell;
@@ -735,7 +735,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	}
 
 	FRTScenarioIntent Intent;
-	Intent.UnitId = TEXT("CASTER");
+	Intent.UnitId = CasterUnitId();
 
 	// Uno SCATTO prende lo slot movimento e si dichiara con `Dash`/`DashCell`, non come abilita' ([D-028],
 	// `#3773`). Prima finiva nel campo dell'abilita', il turno lo ignorava, e il banco mostrava Ivrin fermo su
@@ -797,7 +797,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		case ERTAbilityLabProvocation::DirectHit:
 		case ERTAbilityLabProvocation::Push:
 			Provoca.Ability = AttaccoProvocatore;
-			Provoca.Target = TEXT("CASTER");
+			Provoca.Target = CasterUnitId();
 			break;
 		case ERTAbilityLabProvocation::AllyHit:
 		{

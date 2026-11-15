@@ -183,6 +183,9 @@ void ARTPlayerController::BuildInputMappings()
 	FocusAction = NewObject<UInputAction>(this, TEXT("IA_FocusSelected"));
 	FocusAction->ValueType = EInputActionValueType::Boolean;
 
+	UnitFramingAction = NewObject<UInputAction>(this, TEXT("IA_FrameUnit"));
+	UnitFramingAction->ValueType = EInputActionValueType::Boolean;
+
 	PlaybackSpeedAction = NewObject<UInputAction>(this, TEXT("IA_CyclePlaybackSpeed"));
 
 	PrepWindowPauseAction = NewObject<UInputAction>(this, TEXT("IA_PausePrepWindow"));
@@ -298,6 +301,8 @@ void ARTPlayerController::BuildInputMappings()
 	// orientamento e zoom di default. La gerarchia sta in `ARTCameraPawn::FrameHome`.
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
+	// `T` — l'inquadratura d'unita' (D-618): dietro l'unita', girata sul suo verso, col campo davanti.
+	MappingContext->MapKey(UnitFramingAction, RTInputKeys::UnitFramingHotkey());
 
 	// #1771, #3749 — **entrambi** i `Ctrl` ([D-514]): chi tiene il destro con la mano sul mouse deve poter
 	// orbitare come chi tiene il sinistro. Enhanced Input consegna la stessa azione da due tasti senza
@@ -531,6 +536,7 @@ void ARTPlayerController::BindInputActions(UEnhancedInputComponent& Component)
 	EIC->BindAction(LabStepPreviousAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepPrevious);
 	EIC->BindAction(LabStepNextAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepNext);
 	EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
+	EIC->BindAction(UnitFramingAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFrameUnit);
 	EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 }
 
@@ -1151,6 +1157,32 @@ void ARTPlayerController::FocusCameraOnUnit(const ARTUnit* Unit)
 	// Senza mappa non c'e' un piano a cui ancorarsi: si ripiega sull'attore, che e' comunque meglio di
 	// non inquadrare.
 	Cam->FocusOn(Unit->GetActorLocation());
+}
+
+void ARTPlayerController::OnFrameUnit(const FInputActionValue& Value)
+{
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
+	{
+		return;
+	}
+
+	// In osservazione la selezione non e' di una squadra che si comanda. Nel banco `T` riporta su chi lancia, come
+	// l'apertura della scena (D-618 (c)); in autobattle e negli altri scenari non fa niente, e `Home` resta il campo
+	// intero. `GetActorOfClass`, come `StepLab`: e' il GameMode che sa quale scena gira.
+	if (IsObservationSession())
+	{
+		const ARTGameMode* GameMode = Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+		const ARTUnit* Caster = GameMode ? GameMode->FindLabCaster() : nullptr;
+		if (!Cam->FrameUnit(Caster))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] T: in osservazione inquadra solo chi lancia nella scena del banco."));
+		}
+		return;
+	}
+
+	// La guardia della propria squadra sta nella camera, dove si scrive il pivot: qui la selezione si passa com'e'.
+	Cam->FrameOwnUnit(GetSelectedUnit());
 }
 
 void ARTPlayerController::OnPan(const FInputActionValue& Value)

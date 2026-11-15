@@ -1363,6 +1363,65 @@ ERTHomeFraming ARTCameraPawn::FrameHome(const ARTUnit* Selection, bool bObservat
 	return Branch;
 }
 
+bool ARTCameraPawn::FrameUnit(const ARTUnit* Unit)
+{
+	const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!Unit || !HexMap || !SpringArm)
+	{
+		return false;
+	}
+
+	// 1. LA VISTA. Lo yaw del verso va anche in `TacticalYawBeforeStrategic`: se la distanza fissa fa uscire dalla
+	// strategica, l'uscita (D-499) riprende l'imbardata salvata, e senza questa riga tornerebbe quella di prima di `Tab`.
+	// In strategica, invece, un multiplo di 60 sta gia' sui suoi assi.
+	const float FacingYaw = FRotator::ClampAxis(URTHexLibrary::FacingRotation(Unit->Facing).Yaw);
+	CameraYaw = FacingYaw;
+	TacticalYawBeforeStrategic = FacingYaw;
+	ManualPitchOffset = 0.f;
+	// Lo stato strategico, il pitch, la rotazione e le metriche, nell'ordine di ogni porta del braccio.
+	ApplyArmLength(UnitFramingArmLength);
+
+	// 2. IL PIVOT, con la vista nuova. La quota e' quella che la board avra' DOPO, per la ragione di `ResetAndFrame`:
+	// uscendo dalla strategica la board torna alla quota d'authoring solo al prossimo tick dell'HUD.
+	FVector Origin; float HexSize; float LayerHeight;
+	if (bStrategicView)
+	{
+		HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	}
+	else
+	{
+		HexMap->GetAuthoringHexContext(Origin, HexSize, LayerHeight);
+	}
+	// La CELLA e non l'attore, come in `FocusCameraOnUnit`. «Una cella avanti» e' lo spostamento fino al centro del
+	// vicino nel verso: la convenzione dei sei lati resta quella di `AxialToWorld`, senza una trigonometria seconda.
+	const FVector Floor = URTHexLibrary::AxialToWorld(Unit->Cell, Origin, HexSize, LayerHeight);
+	FVector OneCellAhead = URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(Unit->Cell, Unit->Facing),
+		Origin, HexSize, LayerHeight) - Floor;
+	OneCellAhead.Z = 0.0;
+
+	// Un'inquadratura definita: un peek residuo la lascerebbe storta senza che nulla lo dica, come per `Home`.
+	PeekOffset = FVector::ZeroVector;
+	SetCameraPivot(Floor + OneCellAhead * FMath::Max(UnitFramingLeadCells, 0.f));
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Inquadratura d'unita': %s, verso %s (yaw=%.0f, arm=%.0f)"), *Unit->GetName(),
+		*UEnum::GetValueAsString(Unit->Facing), CameraYaw, SpringArm->TargetArmLength);
+	return true;
+}
+
+bool ARTCameraPawn::FrameOwnUnit(const ARTUnit* Selection)
+{
+	// La guardia di `FrameHome`, e per la stessa ragione sta qui, dove si scrive il pivot: senza `ARTPlayerState` la
+	// squadra non si indovina, e un'unita' d'altri passata come selezione non si inquadra.
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	const bool bTeamKnown = PC && PC->GetPlayerState<ARTPlayerState>() != nullptr;
+	if (!bTeamKnown || !IsOwnLiveUnit(Selection, ARTPlayerState::TeamIdOf(PC)))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] T: nessuna unita' propria e viva selezionata, la camera resta dov'e'."));
+		return false;
+	}
+	return FrameUnit(Selection);
+}
+
 void ARTCameraPawn::ResetAndFrame(const ARTHexMapActor* HexMap, const TArray<FRTCellId>& Cells)
 {
 	// Orientamento e distanza prima, il pivot dopo: vedi `ResetToDefaultView`.

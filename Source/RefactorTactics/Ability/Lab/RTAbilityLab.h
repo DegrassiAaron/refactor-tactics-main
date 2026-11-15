@@ -352,6 +352,13 @@ public:
 	static bool IsLabScenarioId(const FString& ScenarioId);
 
 	/**
+	 * L'id dell'unita' che lancia in ogni scena del banco: `BuildFixture` la posa con questo id, e la camera del banco
+	 * la cerca con lo stesso (`ARTGameMode::FindLabCaster`, `#4121`, D-618). Una sede sola, perche' due letterali
+	 * uguali in due file divergono al primo rename.
+	 */
+	static const TCHAR* CasterUnitId() { return TEXT("CASTER"); }
+
+	/**
 	 * La velocita' del playback del banco, x0,5 ([D-607] (1), `#4071`): l'autore guarda una skill alla volta e da' il suo
 	 * OK alle voci PIE. ⛔ **Solo nel banco**: il tasto `V` della partita resta `x1 · x2 · x4` ([D-350]). La imposta il
 	 * pannello del Lab su `rt.Debug.PlaybackSpeed`, e la accetta `ARTGameMode::ApplyPlaybackControlCVars` solo in una
