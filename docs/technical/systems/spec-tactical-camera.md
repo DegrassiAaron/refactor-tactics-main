@@ -297,7 +297,7 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
 | Cosa | Valore | Fonte |
 |---|---|---|
 | Yaw | il verso logico dell'unità, `URTHexLibrary::FacingRotation(Facing).Yaw`: un multiplo di 60°, con E = 0° | D-618 (a) |
-| Pivot | la cella dell'unità alla quota del piano, spostata **in avanti** lungo il verso di `UnitFramingLeadDistance` | D-618 (a) |
+| Pivot | la cella dell'unità alla quota del piano, spostata **in avanti** lungo il verso di `UnitFramingLeadCells` celle (la distanza fra due centri vicini) | D-618 (a) |
 | Distanza | fissa, `UnitFramingArmLength`, clampata in `[MinArmLength, MaxArmLength]` | D-618 (a) |
 | Pitch | quello tarato: l'offset manuale torna a zero | assistente, ribaltabile |
 | Peek | azzerato | assistente, ribaltabile |
@@ -309,8 +309,9 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
 - **Sul bordo della mappa** il pivot si ferma al limite: l'unità può non scendere fino in basso, o spostarsi di
   lato, ma deve restare **in quadro**.
 - 🔧 **Taratura aperta** (`PROPOSED FOR PLAYTEST`, [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780)):
-  `UnitFramingArmLength` e `UnitFramingLeadDistance` sono `UPROPERTY` del pawn. Il primo valore lo sceglie
-  l'autore nel banco, a occhio.
+  `UnitFramingArmLength` e `UnitFramingLeadCells` sono `UPROPERTY` del pawn. Lo spostamento è in celle, come
+  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. Il primo valore lo sceglie l'autore nel banco,
+  a occhio.
 
 **Su chi**
 
@@ -359,7 +360,7 @@ Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
 | 5 | in partita non inquadra un'unità morta o di un'altra squadra, e senza selezione non muove niente | ⏳ test di automazione |
 | 6 | il tasto è `T`, e passa dalla stessa funzione della posa | ⏳ test di automazione |
 | 7 | una scena del banco si apre inquadrata su `CASTER`; uno scenario che non è del banco resta sulla mappa intera | ⏳ test di automazione |
-| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ voce PIE nuova, verdetto dell'autore |
+| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ `PIE-CAM-UNIT-FRAME`, verdetto dell'autore; la voce entra nel registro con la PR del codice |
 
 ---
 
