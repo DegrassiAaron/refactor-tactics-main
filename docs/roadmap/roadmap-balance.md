@@ -455,6 +455,14 @@ catalogo passa a *Branth* sui 21 riferimenti non esenti, i radar seguono la chia
 ⚠️ Richiede il push della **Wiki**, che incorpora i radar per URL `raw.githubusercontent.com`: 5 riferimenti in
 4 pagine, pronti nel clone e **non pubblicati**.
 
+🔁 **Annotato il 2026-11-13: con #4011 quel push va nel verso sbagliato, e non va fatto.** #4011 (`D-585` (3))
+riporta l'identità `Hero.Branth` a `Hero.Riktor` e i radar a `riktor-*.svg` e `gadget-*.svg`, cioè ai nomi che
+la Wiki pubblicata cita già (`origin/master` = `7dbb666` all'ultimo fetch del clone): dopo il merge quei
+riferimenti a `riktor-*` risolvono di nuovo, senza toccare la Wiki. Le modifiche ferme nel clone dal 2026-09-06
+portano invece `riktor` → `branth` in `Personaggi.md`, `Personaggi/riktor.md`, `Personaggi/riktor-scheda-dati.md`
+e `Profilo-tattico.md`, cioè verso file che non esistono più: che cosa farne si decide con l'autore, prima di
+qualunque push.
+
 ⚠️ **Conseguenza per questa capability, dichiarata**: finché quel gate è rosso, le sei stat base di **un eroe
 su quattro** non sono protette da nulla — ed è il verso peggiore, perché il gate esiste proprio per la deriva
 catalogo↔codice che `D-075` pagò con due giorni di divergenza silenziosa. E

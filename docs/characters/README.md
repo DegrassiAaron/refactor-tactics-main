@@ -28,9 +28,20 @@ qui non si duplica.
 | | Cos'è | Cosa non è |
 |---|---|---|
 | **Identità RefactorTactics** | nome canonico (**Gadget**), kit, lore, fazione | non cambia perché cambia l'asset |
-| **Stable ID** | `Hero.Aevik` — chiave tecnica di codice, scenari e replay | **non è il nome** del personaggio |
+| **Stable ID** | `Hero.Gadget` — chiave tecnica di codice, scenari e replay | **non è il nome** del personaggio |
 | **Slot asset Paragon** | mesh, scheletro, animazioni del prototipo | non è un personaggio del roster |
 | **Release** | quando l'eroe entra nel roster operativo | non si assegna a un candidato |
+
+> 🔁 **2026-11-13 — [D-585](../decisions/RT_PDR_00_Decision_Log.md), [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011).**
+> Dal 2026-11-08 il nome dello slot Paragon è anche il nome di **sviluppo** dell'eroe — D-585 supera
+> l'invariante di D-037 «lo slot non è l'identità» — e #4011 ha riportato a quel nome gli Stable ID di Gadget e
+> Riktor: nell'esempio della tabella nome, Stable ID e slot ora coincidono (`Gadget`, `Hero.Gadget`,
+> `Paragon.Gadget`). Il nome di **pubblicazione** si decide prima di pubblicare
+> ([#4019](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4019)). Due testi più sotto precedono
+> D-585 e non sono la regola di oggi: il paragrafo di D-257 («identità di PRODOTTO definitive»), superato da
+> [D-321](../decisions/RT_PDR_00_Decision_Log.md) e oggi da D-585, per cui i nomi Paragon del roster sono nomi
+> di sviluppo; e le «Conseguenze pratiche» di D-120 (2026-08-13), superate da
+> [D-130](../decisions/RT_PDR_00_Decision_Log.md), che ha rinominato gli ID.
 
 > 🔴 **`Steel`, `Aurora`, `Murdock` e `Kwang` sono CANDIDATI, non il secondo quartetto canonico**
 > ([D-258](../decisions/RT_PDR_00_Decision_Log.md), che sincronizza la decisione d'autore
@@ -53,13 +64,13 @@ decisione le colonne erano **tre** e il nome canonico coincideva con lo Stable I
 i due si sono separati.
 
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
-Conseguenze pratiche: `Hero.Flux` continua a **non** diventare `Hero.Aevik` — nessun ID si rinomina — ma la
+Conseguenze pratiche: `Hero.Flux` continua a **non** diventare `Hero.Gadget` — nessun ID si rinomina — ma la
 ragione non è più che «lo slot non è l'identità»: è che la migrazione ha un costo proprio e un blocker
 misurato, [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716). Un asset Paragon usato
 come base visuale non guadagna una release. ⚠️ **E `Gadget` nudo ora è ambiguo, non vietato**: nomina il
 personaggio in prosa player-facing, mentre `Gadget.<Oggetto>` resta il namespace dell'equipaggiamento
 (`Gadget.Medkit`, `ERTEquipmentSlot::Gadget`). Nei contesti tecnici si continua a scrivere `Paragon.Gadget`
-per lo slot e `Hero.Aevik` per l'ID.
+per lo slot e `Hero.Gadget` per l'ID.
 
 ## Ownership dei kit
 

@@ -3,8 +3,8 @@
 Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character Master Matrix di RefactorTactics.
 
 > 🔁 **Dal 2026-11-08 ([D-585](../decisions/RT_PDR_00_Decision_Log.md)) gli eroi prendono il nome dello slot Paragon che li veste, come nomi di sviluppo**: Riktor, Steel, Gadget, Murdock e quattro slot nuovi, Kallari, Feng Mao, Muriel, The Fey,
-> al posto di Phase, Wraith, Aurora e Kwang. L'invariante «lo slot non è l'identità» cade; la nota IP del canone resta e i nomi di pubblicazione si decidono prima di pubblicare. ⏳ **Nessun rename è avvenuto**: la tabella
-> qui sotto e gli ID nel codice (`Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`, `Hero.Ward`, `Hero.Rime`, `Hero.Vigil`, `Hero.Tethra`) descrivono lo stato in vigore finché la issue di rename non consegna, e la
+> al posto di Phase, Wraith, Aurora e Kwang. L'invariante «lo slot non è l'identità» cade; la nota IP del canone resta e i nomi di pubblicazione si decidono prima di pubblicare. ✅ **Il rename è avvenuto per due eroi**
+> ([#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011), 2026-11-13): `Hero.Aevik` è ora `Hero.Gadget` e `Hero.Branth` è ora `Hero.Riktor`, nel codice e nelle tabelle di questa pagina. ⏳ Nel codice restano `Hero.Muiren` e `Hero.Ivrin`; `Hero.Ward`, `Hero.Rime`, `Hero.Vigil` e `Hero.Tethra` stanno solo nella tabella qui sotto e non sono nel codice. Tutti descrivono lo stato in vigore finché le loro fette di #4011 non consegnano, e la
 > mappatura dei quattro slot uscenti sui quattro entranti è decisa da [D-586](../decisions/RT_PDR_00_Decision_Log.md): **per ruolo**, Phase → Muriel, Wraith → Kallari, Aurora → The Fey, Kwang → Feng Mao,
 > con le fazioni ereditate dallo slot sostituito e i kit dalla specifica come input di design (`MSP-5.d`). E35 porta Steel e Murdock nella v0.1; The Fey e Feng Mao sono v0.2.
 
@@ -13,8 +13,10 @@ Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character M
 > 🔴 **Corretta il 2026-09-04 da [D-321](../decisions/RT_PDR_00_Decision_Log.md): questa riga affermava il contrario di ciò che è vero.** Diceva che *«le quattro pagine v0.1 di Gadget, Phase, Riktor e Wraith sono personaggi RefactorTactics separati: hanno un asset Paragon come base visuale, non un'identità Paragon»*. È **falso**, e la misura che lo falsifica è nella tabella qui sotto: quei quattro nomi **sono** i nomi degli slot, non nomi ispirati ad essi — `Gadget`, `Phase`, `Riktor` e `Wraith` compaiono in [`candidates/`](candidates/), il pool dei 38. La coincidenza è letterale, quindi sono identità Paragon.
 >
 > Le loro identità retail sono **Aevik**, **Muiren**, **Branth** e **Ivrin** ([D-334](../decisions/RT_PDR_00_Decision_Log.md), che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md) sui soli quattro nomi v0.1). ⏳ Il runtime porta ancora gli ID legacy: la migrazione è **post-v0.1** e ha come owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
+>
+> ⌫ *Dal 2026-11-08 [D-585](../decisions/RT_PDR_00_Decision_Log.md) supera D-334: gli eroi prendono il nome dello slot Paragon che li veste, come nomi di sviluppo, e la migrazione va al contrario, in [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011), che supera #2297. Per Aevik e Branth è avvenuta il 2026-11-13: oggi sono `Hero.Gadget` e `Hero.Riktor`. Muiren e Ivrin restano fino alla loro fetta, con cui al loro posto entrano Muriel e Kallari, con kit nuovi ([D-586](../decisions/RT_PDR_00_Decision_Log.md) (1)(2)).*
 
-I nomi Paragon identificano la **base asset / slot di roster**. CharacterId, nome finale, lore, kit e bilanciamento RefactorTactics sono originali. Dal 2026-09-04 **nessuno slot del roster ha più un nome retail `TBD`**: gli otto sono decisi da [D-334](../decisions/RT_PDR_00_Decision_Log.md) (v0.1, che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md)) e dalla decisione d'autore registrata in [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322) (v0.2).
+I nomi Paragon identificano la **base asset / slot di roster**. CharacterId, nome finale, lore, kit e bilanciamento RefactorTactics sono originali. Dal 2026-09-04 **nessuno slot del roster ha più un nome retail `TBD`**: gli otto sono decisi da [D-334](../decisions/RT_PDR_00_Decision_Log.md) (v0.1, che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md)) e dalla decisione d'autore registrata in [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322) (v0.2). ⌫ *Dal 2026-11-08 [D-585](../decisions/RT_PDR_00_Decision_Log.md) supera questo paragrafo nei nomi: gli eroi prendono il nome dello slot Paragon che li veste, come nomi di sviluppo, e il rename di [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011) porta quel nome nel `CharacterId` — `Hero.Gadget` e `Hero.Riktor` dal 2026-11-13. Il nome finale si decide prima di pubblicare (D-585 (2)).*
 
 ## Mapping visuale del roster
 
@@ -23,16 +25,16 @@ altri documenti la referenziano, non la copiano.
 
 | Identità RefactorTactics | `RT Character ID` | Slot asset Paragon | Release |
 |---|---|---|---|
-| **Aevik** ⏳ | `Hero.Aevik` → `Hero.Aevik` | [Gadget](candidates/gadget.md) | v0.1 |
+| **Gadget** | `Hero.Gadget` | [Gadget](candidates/gadget.md) | v0.1 |
 | **Muiren** ⏳ | `Hero.Muiren` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
-| **Branth** ⏳ | `Hero.Riktor` → `Hero.Branth` | [Riktor](candidates/riktor.md) | v0.1 |
+| **Riktor** | `Hero.Riktor` | [Riktor](candidates/riktor.md) | v0.1 |
 | **Ivrin** ⏳ | `Hero.Wraith` → `Hero.Ivrin` | [Wraith](candidates/wraith.md) | v0.1 |
 | **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.1 (E35, ex v0.2) |
 | **Rime** | `Hero.Rime` | [Aurora](v0.2/aurora.md) | v0.1 (E35, ex v0.2) |
 | **Vigil** | `Hero.Vigil` | [Murdock](v0.2/murdock.md) | v0.1 (E35, ex v0.2) |
 | **Tethra** | `Hero.Tethra` | [Kwang](v0.2/kwang.md) | v0.1 (E35, ex v0.2) |
 
-⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Aevik` è ciò che il codice contiene e `Aevik` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
+⏳ = **identità decisa, ID non ancora migrato**, nel verso di [D-334](../decisions/RT_PDR_00_Decision_Log.md): la freccia era il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297). [D-585](../decisions/RT_PDR_00_Decision_Log.md) ha rovesciato quel verso il 2026-11-08, e #2297 è chiusa come superata da [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011), che porta gli ID agli otto nomi Paragon della specifica. Per Gadget e Riktor il rename è avvenuto il 2026-11-13: le loro righe non portano più né ⏳ né freccia. Su Muiren e Ivrin il segno è stantio — nel codice gli ID sono già `Hero.Muiren` e `Hero.Ivrin` — e lo toglie la loro fetta di #4011, con cui al loro posto entrano Muriel e Kallari, con kit nuovi ([D-586](../decisions/RT_PDR_00_Decision_Log.md) (1)(2)). Ward, Rime, Vigil e Tethra non hanno il segno, ma aspettano anch'essi #4011.
 
 Tre concetti, tre colonne, e restano separati:
 
@@ -47,11 +49,19 @@ resta soggetto alla governance del roster.~~
 Branth · Ivrin** per la v0.1 ([D-322](../decisions/RT_PDR_00_Decision_Log.md), i cui quattro nomi v0.1 sono stati ridecisi il 2026-09-05 da [D-334](../decisions/RT_PDR_00_Decision_Log.md)). La riga «Identità originale» di
 [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) non ha più uno slot di roster da coprire. La frase barrata resta
 perché descriveva correttamente lo stato fino a quel giorno, ed è la ragione per cui i nomi v0.2 sono stati a lungo
-scritti come *nomi di lavoro*.
+scritti come *nomi di lavoro*. ⌫ *Dal 2026-11-08 la riga «Identità originale» ha di nuovo gli slot del roster da
+coprire: con [D-585](../decisions/RT_PDR_00_Decision_Log.md) (2) i nomi del roster sono nomi di sviluppo, e quelli di
+pubblicazione si decidono lì prima di pubblicare (D-585 (4)). Se con i nomi Paragon o con nomi originali, lo decide la
+lettura della licenza degli asset in [#4019](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4019).*
 
-> **Si scrive `Paragon.Gadget`, mai `Gadget` nudo.** In questo repository `Gadget` è già una categoria di
-> equipaggiamento (`ERTEquipmentSlot::Gadget`, voci `Gadget.Medkit`, `Gadget.Sensor` dei cataloghi): un mapping
-> scritto senza qualificatore produrrebbe due significati per la stessa parola nello stesso documento.
+> **Si scrive `Paragon.Gadget` quando si parla del pack e `Hero.Gadget` per l'ID dell'eroe, mai `Gadget` nudo.** In questo repository
+> `Gadget` è già una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, voci `Gadget.Medkit`, `Gadget.Sensor`
+> dei cataloghi), e con [D-585](../decisions/RT_PDR_00_Decision_Log.md) è anche il nome dell'eroe, il cui ID è
+> `Hero.Gadget` dal 2026-11-13 ([#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011)): un
+> mapping scritto senza qualificatore produrrebbe tre significati per la stessa parola nello stesso documento. È la
+> collisione di lettura che [D-120](../decisions/RT_PDR_00_Decision_Log.md) aveva misurato e che D-585 (4) ritrova:
+> il namespace `Hero.<Nome>.<Abilità>` di [D-130](../decisions/RT_PDR_00_Decision_Log.md) (3) la rende innocua nei
+> token, non nella prosa.
 
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 ~~Il mapping **non rinomina niente nel gameplay**: `Hero.Flux` resta `Hero.Flux`, e uno slot Paragon usato come
@@ -66,6 +76,12 @@ tracciato e con un owner ([#2297](https://github.com/DegrassiAaron/refactor-tact
 
 ✅ **Ciò che resta vero è la separazione**, che [D-321](../decisions/RT_PDR_00_Decision_Log.md) ripristina intera:
 uno slot asset non è un'identità, e le tre colonne della tabella restano tre concetti distinti.
+
+⌫ *Dal 2026-11-08 [D-585](../decisions/RT_PDR_00_Decision_Log.md) supera anche i due paragrafi qui sopra: la transizione
+è al contrario, `Aevik → Gadget`, eseguita il 2026-11-13 da [#4011](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4011)
+che supera #2297; e cade l'invariante «lo slot non è l'identità», perché Gadget e Riktor portano il nome dello slot che
+li veste. Resta la separazione fra kit e slot: il kit di Gadget è quello RefactorTactics, non quello del pack (sotto,
+«Mapping FX del kit»).*
 
 ## Mapping FX del kit — abilità RT → asset Paragon
 
@@ -97,11 +113,11 @@ Gadget un `Plasma Blast` che appartiene a **un altro eroe del pack**.
 
 | AbilityId | Abilità | FX Paragon | Base |
 |---|---|---|---|
-| `Hero.Aevik.ArcPulse` | Impulso ad arco *(attacco base)* | `Primary` | **misurata** — corrispondenza di **ruolo**: `ArcPulse` è l'indice 0 del kit RT, e `Primary` è l'attacco base lato Paragon — lo nomina il soundcue `Gadget_Effort_Ability_Primary_Fire`, che è audio e non FX, ma fissa il **vocabolario** del pack |
-| `Hero.Aevik.LinearDischarge` | Scarica lineare | — | aperta |
-| `Hero.Aevik.ConductiveNode` | Nodo conduttore | — | aperta |
-| `Hero.Aevik.Overload` | Sovraccarico | — | aperta |
-| `Hero.Aevik.ReactiveCapacitor` | Capacitore reattivo | — | aperta |
+| `Hero.Gadget.ArcPulse` | Impulso ad arco *(attacco base)* | `Primary` | **misurata** — corrispondenza di **ruolo**: `ArcPulse` è l'indice 0 del kit RT, e `Primary` è l'attacco base lato Paragon — lo nomina il soundcue `Gadget_Effort_Ability_Primary_Fire`, che è audio e non FX, ma fissa il **vocabolario** del pack |
+| `Hero.Gadget.LinearDischarge` | Scarica lineare | — | aperta |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttore | — | aperta |
+| `Hero.Gadget.Overload` | Sovraccarico | — | aperta |
+| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | — | aperta |
 
 Restano **non assegnate** tre cartelle: `RollingBot`, `StickyBomb`, `VisionBot`.
 
@@ -139,7 +155,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Grux](candidates/grux.md) | Bruiser | Battle Momentum | 3/5 | Candidate |
 | [Rampage](candidates/rampage.md) | Bruiser / Tank | Fury | 3/5 | Candidate |
 | [Sevarog](candidates/sevarog.md) | Tank / Controller | Essence Harvest | 4/5 | Candidate |
-| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Riktor` → `Hero.Branth` ⏳ |
+| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Riktor` |
 | [Crunch](candidates/crunch.md) | Combo Fighter | Combo State Machine | 5/5 | Candidate |
 | [Boris](candidates/boris.md) | Bruiser | Overdrive / Heat | 3/5 | Candidate |
 | [TwinBlast](candidates/twinblast.md) | Skirmisher | Alternating Rhythm | 4/5 | Candidate |
@@ -147,7 +163,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Wraith` → `Hero.Ivrin` ⏳ |
 | [Lt. Belica](candidates/lt-belica.md) | Counter / Control | Suppression Charge | 4/5 | Candidate |
 | [GRIM.exe](candidates/grim-exe.md) | Ranged / Utility | Core Modes | 4/5 | Candidate |
-| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Aevik` → `Hero.Aevik` ⏳ |
+| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Gadget` |
 | [Howitzer](candidates/howitzer.md) | Artillery | Artillery Heat | 4/5 | Candidate |
 | [Zinx](candidates/zinx.md) | Sustain / Controller | Energy Debt | 5/5 | Candidate |
 | [Muriel](candidates/muriel.md) | Support | Guardian Link | 4/5 | Candidate |

@@ -920,9 +920,9 @@ sessions:
     execution_lane: asset
     produces: i quattro Blueprint-unita' del roster v0.1, committati
     artifacts:
-      - Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset
+      - Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
       - Content/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.uasset
-      - Content/RT/Characters/Branth/Blueprints/BP_Unit_Branth.uasset
+      - Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
       - Content/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.uasset
     unblocked_by: []
     shares_setup_with: [U8, U9]
@@ -978,15 +978,16 @@ sessions:
 
       | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
       |---|---|---|---|---|
-      | Aevik | `Hero.Aevik` | `Paragon.Gadget` | `BP_Unit_Aevik` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+      | Gadget | `Hero.Gadget` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
       | Muiren | `Hero.Muiren` | `Paragon.Phase` | `BP_Unit_Muiren` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-      | Branth | `Hero.Branth` | `Paragon.Riktor` | `BP_Unit_Branth` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+      | Riktor | `Hero.Riktor` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
       | Ivrin | `Hero.Ivrin` | `Paragon.Wraith` | `BP_Unit_Ivrin` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
       ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
       cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
       ⚠️ Si scrive **`Paragon.Gadget`, mai `Gadget` nudo** quando si parla del pack: `Gadget` da solo e'
-      gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
+      gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, `Gadget.Medkit`) e, da #4011, anche
+      il nome dell'eroe, il cui id e' `Hero.Gadget`.
 
       1. I pack stanno in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`, mai
          `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
@@ -1037,7 +1038,7 @@ sessions:
          schermo, un
          personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
       7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
-         (`Hero.Aevik` → `BP_Unit_Aevik`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+         (`Hero.Gadget` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
          `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
          `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
          viene mai istanziato.
@@ -1050,10 +1051,10 @@ sessions:
          |---|---|---|
          | risponde a | **chi** scende in campo | **con che aspetto** |
          | tipo | lista: un campo per riga | mappa: **due campi** per riga |
-         | contiene | `Hero.Aevik` | `Hero.Aevik` → `BP_Unit_Aevik` |
+         | contiene | `Hero.Gadget` | `Hero.Gadget` → `BP_Unit_Gadget` |
 
          Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
-         nomi dei Blueprint nelle formazioni produce `BP_Unit_Aevik non e' nel catalogo eroi` e
+         nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
          **`0 eroi`** in campo — il log nomina l'id introvabile, ed e' il primo posto dove guardare.
          Per non sbagliare: filtra il pannello Details scrivendo `Hero Unit` nella barra di ricerca,
          cosi' resta visibile solo la mappa.
@@ -1084,7 +1085,7 @@ sessions:
       ⌫ **L'eccezione dei data asset non e' piu' un'eccezione.** Diceva che i data asset eroe
       (`DA_Hero_Flux`, …) restano intitolati all'**eroe** «pur stando nella cartella del pack»: dal
       ritiro di #2297 anche la cartella porta il nome dell'eroe, quindi contenuto e contenitore
-      concordano e non c'e' nulla da eccepire. `HeroId` in C++ e' `Hero.Aevik`.
+      concordano e non c'e' nulla da eccepire. `HeroId` in C++ e' `Hero.Gadget`.
       ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft
       reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
       ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un
@@ -3961,8 +3962,8 @@ sessions:
     shares_setup_with: []
     # 🔴 **Vuoto DI PROPOSITO, ed è l'eccezione alla *Regola di batching* di questo file** — che autorizza
     # un'apertura nuova solo se cambia una precondizione. Qui ne cambia una, e non è l'allestimento: è la
-    # **formazione**. `ARTGameMode::Team0Heroes` vale `{Aevik, Muiren}` e `Team1Heroes` vale
-    # `{Branth, Ivrin}`, quindi a formazione spedita **Branth è del bot** e il mortaio non è fra le azioni
+    # **formazione**. `ARTGameMode::Team0Heroes` vale `{Gadget, Muiren}` e `Team1Heroes` vale
+    # `{Riktor, Ivrin}`, quindi a formazione spedita **Riktor è del bot** e il mortaio non è fra le azioni
     # del giocatore. Va spostato in squadra 0 (`EditAnywhere`, `BotAllyCount` a `0`) e **rimesso a posto
     # dopo**: qualunque altra seduta girata nel frattempo giudicherebbe una partita che non è quella spedita.
     # ⛔ Batchiarla con le sedute di acceptance sarebbe quindi il difetto, non l'economia.
@@ -3971,14 +3972,14 @@ sessions:
       - PIE-V01-MORTAR
       # Convocata il 2026-09-23 da #2381, ed e' la stessa eccezione che il commento qui sopra
       # argomenta: non condivide l'allestimento, condivide **il gesto di scrivere `Team0Heroes` a
-      # mano** — e l'eroe che le serve, `Hero.Ivrin`, sta nella STESSA squadra 1 di `Hero.Branth`.
+      # mano** — e l'eroe che le serve, `Hero.Ivrin`, sta nella STESSA squadra 1 di `Hero.Riktor`.
       # Quel commento dice che batchiare questa seduta con le sedute di acceptance sarebbe il difetto;
       # batchiare con lei una voce che chiede la medesima property e' invece l'unica economia legittima,
       # e risparmia un secondo ciclo «sposta la formazione / gioca / rimetti a posto».
       #
       # 🔑 **Due modi, e chi esegue sceglie col proprio banco davanti**:
-      #   (a) `Team0Heroes = {Hero.Branth, Hero.Ivrin}` in una configurazione sola — gli slot sono due
-      #       e li riempie entrambi; l'avversaria diventa `{Hero.Aevik, Hero.Muiren}`;
+      #   (a) `Team0Heroes = {Hero.Riktor, Hero.Ivrin}` in una configurazione sola — gli slot sono due
+      #       e li riempie entrambi; l'avversaria diventa `{Hero.Gadget, Hero.Muiren}`;
       #   (b) due configurazioni, con Stop/Start PIE fra le due. La *Regola di batching* di questo file
       #       elenca Stop/Start fra cio' che NON impone una riapertura dell'Editor, quindi (b) resta
       #       dentro la stessa apertura e costa solo tempo.
@@ -4019,9 +4020,9 @@ sessions:
     notes: |
       Setup, nell'ordine in cui va fatto:
 
-      1. `Hero.Branth` in `Team0Heroes`, `BotAllyCount` a `0`. Senza, metà seduta non è eseguibile.
+      1. `Hero.Riktor` in `Team0Heroes`, `BotAllyCount` a `0`. Senza, metà seduta non è eseguibile.
       2. Arena con un blocco alla vista fra il tiratore e la cella scelta.
-      3. Un avversario che la squadra **non conosce** dietro il blocco — entro **3** celle da Branth per la
+      3. Un avversario che la squadra **non conosce** dietro il blocco — entro **3** celle da Riktor per la
          parte `MORTAR`, che è la portata dell'istanza d'eroe e non la 4 del catalogo ([D-380] punto 6).
       4. Per il terzo confine (la rivelazione scade) serve **un secondo turno** senza altri avvistamenti.
 
@@ -4289,7 +4290,7 @@ sessions:
       guarda se a schermo la sospensione si legga come una scelta invece che come un blocco. E il gate
       headless non puo' arrivarci nemmeno in linea di principio: `Class->Bindings` copre i property
       binding, **non** il consumo dentro un event graph.
-      🟡 **Parzialmente eseguita il 2026-10-11** (seduta di [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666)): `PIE-V01-RXPLAYBACK` ha esito reale nel registro, sui due banchi dello Scenario Harness invece che in una partita live. `PIE-V01-RXBRACE` resta da giudicare, e il `done_when` con lei. ⚠️ La separazione che il commento di `verifies` sconsiglia c'e' stata, per una ragione misurata: nessuno scenario apre oggi la finestra del `Brace` al giocatore — serve Muiren con `Action.Brace` e una spinta di Branth. Per quella voce il test headless `Reactions.Brace.SidestepAnswerIsAnimated` prova che lo scarto `SIDESTEP` scorre invece di scattare.
+      🟡 **Parzialmente eseguita il 2026-10-11** (seduta di [#3666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3666)): `PIE-V01-RXPLAYBACK` ha esito reale nel registro, sui due banchi dello Scenario Harness invece che in una partita live. `PIE-V01-RXBRACE` resta da giudicare, e il `done_when` con lei. ⚠️ La separazione che il commento di `verifies` sconsiglia c'e' stata, per una ragione misurata: nessuno scenario apre oggi la finestra del `Brace` al giocatore — serve Muiren con `Action.Brace` e una spinta di Riktor (`Hero.Riktor.Ram`; fino a #4011 l'eroe era `Hero.Branth`). Per quella voce il test headless `Reactions.Brace.SidestepAnswerIsAnimated` prova che lo scarto `SIDESTEP` scorre invece di scattare.
 
   - id: U57
     title: Il frontend costruito, percorso per percorso
@@ -4667,10 +4668,11 @@ sessions:
       soddisfano questo gate.
 
       1. **Ability Lab** — seleziono una ability reale del catalogo, `Run`, e leggo outcome + TurnLog.
-      2. **Hero Lab** — scelgo un hero reale (`Hero.Aevik` · `Hero.Muiren` · `Hero.Branth` ·
+      2. **Hero Lab** — scelgo un hero reale (`Hero.Gadget` · `Hero.Muiren` · `Hero.Riktor` ·
          `Hero.Ivrin`), scelgo una ability del suo kit, `Run`.
-         ⚠️ I nomi sono quelli di oggi: #2601 scrive ancora `Hero.Gadget`, `Hero.Phase` e
-         `Hero.Wraith`, ritirati da `D-334` e `#2491`.
+         ⚠️ I nomi sono quelli di oggi: #2601 scrive ancora `Hero.Phase` e `Hero.Wraith`, ritirati da
+         `D-334` e `#2491`, e `Hero.Branth`, ritirato da `D-585` (3) (#4011); il suo `Hero.Gadget` e'
+         invece di nuovo l'id corrente, dallo stesso #4011.
          🔑 **Stesso runner di Ability Lab**: due percorsi d esecuzione distinti sono un difetto di
          questo gate, non una variante accettabile.
       3. **Presentation** — il risultato del resolver e visibile e leggibile a schermo.
@@ -6425,9 +6427,10 @@ sessions:
 
       ⚠️ **Il banco non e' versionato**: sta in `Saved/RTLab`, e' stato rimosso a fine seduta ed e' riportato
       in fondo a `docs/technical/evidence/3750/seduta-pilotata-2026-10-29.md` (finestra `-game`, non la PIE).
-      Chi esegue deve ricostruirlo dal Lab. Quella seduta copre `PIE-HUD-FUOCO-AREE` e `PIE-HUD-SKILL-PORTATA`
-      e non `PIE-HUD-SGUARDO`; le tavole non sono un verdetto, e cosa resta da vedere lo dicono le celle delle
-      voci nel registro.
+      Chi esegue deve ricostruirlo dal Lab e, da #4011, scriverne gli eroi `Hero.Aevik` → `Hero.Gadget` e
+      `Hero.Branth` → `Hero.Riktor`: l'evidenza resta coi nomi del 2026-10-29, che non risolvono piu'.
+      Quella seduta copre `PIE-HUD-FUOCO-AREE` e `PIE-HUD-SKILL-PORTATA` e non `PIE-HUD-SGUARDO`; le tavole non
+      sono un verdetto, e cosa resta da vedere lo dicono le celle delle voci nel registro.
 
       ➕ **`PIE-HUD-SCHEDA` e' qui da #3748.** La voce aspettava il pannello e stava in `not_schedulable`; ora il
       pannello e' montato in `MiddleRight` (sopra il registro) e la sua riga di `not_schedulable` e' sparita, come
@@ -6440,9 +6443,9 @@ sessions:
 
       ➕ **Cosa serve in piu' ai criteri (j) e (k) di `PIE-HUD-SCHEDA`** (2026-10-30, D-562): uno **scatto**
       armato che non sia la carica (un'azione della macro-fase Dash, `URTCatalogLibrary::IsFastMovement`, con
-      stile diverso da `LinearCharge`: `Hero.Muiren.FluidTrail` o `Hero.Ivrin.PassingBlade`; Aevik non ne ha)
+      stile diverso da `LinearCharge`: `Hero.Muiren.FluidTrail` o `Hero.Ivrin.PassingBlade`; `Hero.Gadget` non ne ha)
       prima del click sul nemico. Con ogni altra azione armata il click sul nemico bersaglia, con la carica
-      (`Hero.Branth.Ram`, a portata normale) lo pianifica (`Confirm`), e in nessuno dei due casi ispeziona,
+      (`Hero.Riktor.Ram`, a portata normale) lo pianifica (`Confirm`), e in nessuno dei due casi ispeziona,
       quindi la barra non cambia e il criterio non si vede. Senza azione armata i due criteri si leggono senza
       la clausola sull'azione armata.
 
@@ -6485,7 +6488,7 @@ sessions:
       **Allestimento**: partita hex su `L_DevSandbox` in vista tattica, con i tre cambi della mappa che la
       voce chiede. ⚠️ **Nessuno scenario spedito li produce tutti**, misurato il 2026-10-29. Per la copertura
       e per la porta esistono scenari che le producono: `Spec.Cover.TemporaryCoverExpires` erige il pannello
-      con `Hero.Branth.KineticPanel`, e `Spec.Map.InteractOpensDoor` e `Spec.Map.InteractClosesOpenDoor` usano
+      con `Hero.Riktor.KineticPanel`, e `Spec.Map.InteractOpensDoor` e `Spec.Map.InteractClosesOpenDoor` usano
       `Action.Interact`; si caricano dalla console con `rt.Test.Scenario <Id>`. Per il **muro abbattuto** no:
       `grep -rlE "BreachCharge|HeavyAttack|DamageStructure" Scenarios` trova solo
       `Scenarios/Visual/Map/HighCoverBlocks.json`, che li nomina in una nota (`_nota_abbattimento`) e non nei
@@ -6618,15 +6621,17 @@ sessions:
       conservati come evidenza in `docs/technical/evidence/4025/` (`Lab.T5.Fumetto4025.json`,
       `Lab.T5.Fumetto4025b.json`, `Lab.T5.Fumetto4025c.json`). Il loro `_nota` li dice «NON versionati» ed e' di prima
       della copia; per rieseguirli vanno copiati in `Saved/RTLab/Scenarios/` del clone principale, come dice il loro
-      `_nota_evidenza`, e si caricano dalla riga di comando con `-RTScenario=<Id>`. Finestra `-game` (non la
-      PIE dell'Editor) su `L_DevSandbox`, 1920x1080, con
+      `_nota_evidenza`, e da #4011 nella copia si scrive `Hero.Aevik` → `Hero.Gadget` e `Hero.Branth` → `Hero.Riktor`,
+      anche come prefisso delle abilita' (le evidenze restano coi nomi del 2026-11-09, che non risolvono piu'); si
+      caricano dalla riga di comando con `-RTScenario=<Id>`. Finestra `-game` (non la PIE dell'Editor) su
+      `L_DevSandbox`, 1920x1080, con
       `-dpcvars=rt.Debug.PlaybackControls=1,rt.Debug.PlaybackStartPaused=1,t.MaxFPS=60`: i comandi di playback servono
       alla pausa con `K` e a far partire ogni playback fermo. Catture `PrintWindow` a raffica, input sintetico, camera a
       mano. La riga di comando intera e' nell'evidenza.
 
       ⚠️ **Tre trappole dei banchi, misurate**: un attacco su una cella vuota non produce eventi, quindi un nemico fuori
       vista che lo usa non prova niente (serve un'azione che ne produca, per esempio una cura su di se');
-      `Hero.Branth.Ram` e' una mobilita' e si dichiara con `dash` e `dashTo`, non con `ability`; e con il playback a
+      `Hero.Riktor.Ram` e' una mobilita' e si dichiara con `dash` e `dashTo`, non con `ability`; e con il playback a
       x0,35 della finestra di reazione l'harness si ferma al tetto di 900 passi e il referto dice `ERROR`, mentre il
       `TurnManager` prosegue e la finestra si apre.
 
@@ -6874,3 +6879,6 @@ not_schedulable:
   # `Hero.Aevik`, `Hero.Phase` -> `Hero.Muiren`; il default vero e'
   # `Team0Heroes = {Hero.Aevik, Hero.Muiren}`. La sostanza reggeva — l'eroe e' ancora in squadra 1,
   # quindi l'allestimento serve lo stesso — ma il nome da scrivere nel GameMode era sbagliato.
+  # ⏱️ **Da `D-585` (3) (#4011, 2026-11-13) `Hero.Aevik` e' tornato `Hero.Gadget`**: il default oggi e'
+  # `Team0Heroes = {Hero.Gadget, Hero.Muiren}` (`RTGameMode.h`), e delle identita' citate qui sopra restano
+  # ritirate `Hero.Wraith` e `Hero.Phase`.

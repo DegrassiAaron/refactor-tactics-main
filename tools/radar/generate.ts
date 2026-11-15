@@ -32,9 +32,9 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
 // piu' i prefissi piatti. Il guard sopra ha fatto esattamente cio' per cui esiste — «nessun ruolo per
 // la chiave "aevik"» invece di un radar disegnato con un trattino al posto del ruolo.
 const ROLES: Record<string, string> = {
-  aevik: 'Controller',
+  gadget: 'Controller',
   muiren: 'Support',
-  branth: 'Guardian',
+  riktor: 'Guardian',
   ivrin: 'Striker',
 };
 

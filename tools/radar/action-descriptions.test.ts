@@ -8,7 +8,7 @@ const CPP = [
   '{',
   '\tstatic const TArray<TPair<FName, FString>> Voci = {',
   '\t\t{ TEXT("Action.Wait"),      TEXT("Non agisci in questo turno.") },',
-  '\t\t{ TEXT("Hero.Aevik.LinearDischarge"),   TEXT("Una scarica in linea retta, piu\' dannosa su chi e\' bagnato.") },',
+  '\t\t{ TEXT("Hero.Gadget.LinearDischarge"),   TEXT("Una scarica in linea retta, piu\' dannosa su chi e\' bagnato.") },',
   '\t};',
   '\treturn Voci;',
   '}',
@@ -20,7 +20,7 @@ const NOMI = [
   'FText HeroActionDisplayName(const FName& Id)',
   '{',
   '\tstatic const TMap<FName, FString> Names = {',
-  '\t\t{ TEXT("Hero.Aevik.LinearDischarge"),    TEXT("Scarica lineare") },',
+  '\t\t{ TEXT("Hero.Gadget.LinearDischarge"),    TEXT("Scarica lineare") },',
   '\t};',
 ].join('\n');
 
@@ -28,14 +28,14 @@ const DOC = [
   '| Azione | Nome | Frase | Da rivedere |',
   '|---|---|---|---|',
   '| `Action.Wait` | Attesa | Non agisci in questo turno. |  |',
-  "| `Hero.Aevik.LinearDischarge` | Scarica lineare | Una scarica in linea retta, piu' dannosa su chi e' bagnato. |  |",
+  "| `Hero.Gadget.LinearDischarge` | Scarica lineare | Una scarica in linea retta, piu' dannosa su chi e' bagnato. |  |",
 ].join('\r\n');
 
 const nomiDi = () => [...cppPairs(NOMI, 'FText HeroActionDisplayName('), { id: 'Action.Wait', testo: 'Attesa' }];
 
 test('le coppie si leggono solo dentro il corpo della funzione', () => {
   const voci = cppPairs(CPP, 'RTActionDescriptions::All()');
-  assert.deepEqual(voci.map((v) => v.id), ['Action.Wait', 'Hero.Aevik.LinearDischarge']);
+  assert.deepEqual(voci.map((v) => v.id), ['Action.Wait', 'Hero.Gadget.LinearDischarge']);
   assert.equal(voci[1].testo, "Una scarica in linea retta, piu' dannosa su chi e' bagnato.");
 });
 
@@ -45,7 +45,7 @@ test('una funzione che non esiste piu da zero voci, non un errore silenzioso alt
 
 test('le righe del documento si leggono anche con fine riga CRLF', () => {
   const righe = docRows(DOC);
-  assert.deepEqual(righe.map((r) => r.id), ['Action.Wait', 'Hero.Aevik.LinearDischarge']);
+  assert.deepEqual(righe.map((r) => r.id), ['Action.Wait', 'Hero.Gadget.LinearDischarge']);
   assert.equal(righe[0].nome, 'Attesa');
   assert.equal(righe[0].line, 3);
 });
@@ -70,7 +70,7 @@ test('una frase senza riga, una riga senza frase e una riga doppia sono tre dive
   const senzaRiga = DOC.split('\r\n').slice(0, 3).join('\r\n');
   assert.deepEqual(
     compare(docRows(senzaRiga), cppPairs(CPP, 'RTActionDescriptions::All()'), nomiDi()).map((x) => x.id),
-    ['Hero.Aevik.LinearDischarge'],
+    ['Hero.Gadget.LinearDischarge'],
   );
   const conOrfana = `${DOC}\r\n| \`Action.Orfana\` | Orfana | Una frase. |  |`;
   assert.deepEqual(

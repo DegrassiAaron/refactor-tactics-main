@@ -61,7 +61,7 @@ namespace
 	ARTTurnManager* SetUpEntryPointTurn(UWorld* World)
 	{
 		SpawnEntryPointMap(World);
-		ARTUnit* Attaccante = SpawnEntryPointUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Attaccante = SpawnEntryPointUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 		ARTUnit* Bersaglio  = SpawnEntryPointUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Attaccante || !Bersaglio) { return nullptr; }

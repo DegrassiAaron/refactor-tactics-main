@@ -94,7 +94,7 @@ struct FRTAnimClipDerived
  * Il legame fra una clip e un `(eroe, ruolo)`, deciso da una persona.
  *
  * ⚠️ **`bActive` e' unico dentro il POOL, non dentro la voce**: `(HeroId, Role)` per un binding di ruolo,
- * `(HeroId, Role, ActionId)` per uno d'azione (#3563). Una clip puo' essere attiva per Aevik/`Move` e
+ * `(HeroId, Role, ActionId)` per uno d'azione (#3563). Una clip puo' essere attiva per Gadget/`Move` e
  * legata-ma-inattiva per Phase/`Move`, e una clip d'azione attiva convive con quella di ruolo dello stesso
  * `(eroe, ruolo)`: e' la stessa invariante che `FRTAnimRoleClips::ActiveClipVariant` porta a runtime, un pool alla
  * volta. Qui vive nel testo, e `ValidateCatalog` la difende — perche' un file lo si puo' modificare a mano.
@@ -104,7 +104,7 @@ struct FRTAnimBinding
 {
 	GENERATED_BODY()
 
-	/** `Hero.Aevik`, `Hero.Ivrin`, … */
+	/** `Hero.Gadget`, `Hero.Ivrin`, … */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	FName HeroId;
 
@@ -202,7 +202,7 @@ struct FRTAnimCatalogEntry
 /**
  * Il catalogo delle animazioni: il dato che ricorda quale clip e' stata guardata, promossa o scartata.
  *
- * Esiste perche' oggi quel lavoro **non lascia traccia**. `ls .../Aevik/Animations` misura **85** voci per un
+ * Esiste perche' oggi quel lavoro **non lascia traccia**. `ls .../Gadget/Animations` misura **85** voci per un
  * solo eroe; il triage delle clip si e' fatto una volta, a occhio, in prosa, e non ha prodotto un dato che
  * qualcuno possa rileggere.
  *

@@ -192,12 +192,12 @@ namespace
 	};
 
 	const FRTClipAttesaDefault ClipAtteseDefault[] = {
-		// Aevik (Gadget) — #3590: le varianti PIENE degli attacchi; i cast di Gadget sono tutti additivi, resta il ruolo
-		{ TEXT("Hero.Aevik.ArcPulse"),          TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_A_Slow_V1") },
-		{ TEXT("Hero.Aevik.LinearDischarge"),   TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_B_Slow_V1") },
-		{ TEXT("Hero.Aevik.Overload"),          TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_C_Slow_V1") },
-		{ TEXT("Hero.Aevik.ConductiveNode"),    TEXT("Gadget"), nullptr,                          nullptr },  // Environment: nessun beat in v0.1
-		{ TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Gadget"), nullptr,                          nullptr },  // reazione: non si attiva
+		// Gadget (Gadget) — #3590: le varianti PIENE degli attacchi; i cast di Gadget sono tutti additivi, resta il ruolo
+		{ TEXT("Hero.Gadget.ArcPulse"),          TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_A_Slow_V1") },
+		{ TEXT("Hero.Gadget.LinearDischarge"),   TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_B_Slow_V1") },
+		{ TEXT("Hero.Gadget.Overload"),          TEXT("Gadget"), nullptr,                          TEXT("LMB_Fire_C_Slow_V1") },
+		{ TEXT("Hero.Gadget.ConductiveNode"),    TEXT("Gadget"), nullptr,                          nullptr },  // Environment: nessun beat in v0.1
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Gadget"), nullptr,                          nullptr },  // reazione: non si attiva
 		// Muiren (Phase)
 		{ TEXT("Hero.Muiren.PressureJet"),      TEXT("Phase"),  nullptr,                          TEXT("Primary_Attack_A_Medium") },
 		{ TEXT("Hero.Muiren.CircularTide"),     TEXT("Phase"),  TEXT("R_Ability_Intro"),          nullptr },
@@ -205,13 +205,13 @@ namespace
 		{ TEXT("Hero.Muiren.TideGuard"),        TEXT("Phase"),  TEXT("Ability_R_Alt"),            nullptr },
 		{ TEXT("Hero.Muiren.FlowReaction"),     TEXT("Phase"),  nullptr,                          nullptr },  // inerte: resta il ruolo
 		{ TEXT("Hero.Muiren.MistVeil"),         TEXT("Phase"),  nullptr,                          nullptr },  // Environment
-		// Branth (Riktor)
-		{ TEXT("Hero.Branth.ImpactShot"),       TEXT("Riktor"), nullptr,                          TEXT("PrimaryAttack_A_Slow") },
-		{ TEXT("Hero.Branth.KineticPanel"),     TEXT("Riktor"), TEXT("Ability_Lockdown"),         nullptr },
-		{ TEXT("Hero.Branth.Reconfigure"),      TEXT("Riktor"), TEXT("Ability_Hook_Pull"),        nullptr },
-		{ TEXT("Hero.Branth.Ram"),              TEXT("Riktor"), TEXT("Ability_Hook_Start"),       TEXT("Ability_ShockingPunch") },
-		{ TEXT("Hero.Branth.MortarShot"),       TEXT("Riktor"), TEXT("Ability_Hook_Cast"),        TEXT("PrimaryAttack_B_Slow") },
-		{ TEXT("Hero.Branth.Interposition"),    TEXT("Riktor"), nullptr,                          nullptr },  // reazione
+		// Riktor (Riktor)
+		{ TEXT("Hero.Riktor.ImpactShot"),       TEXT("Riktor"), nullptr,                          TEXT("PrimaryAttack_A_Slow") },
+		{ TEXT("Hero.Riktor.KineticPanel"),     TEXT("Riktor"), TEXT("Ability_Lockdown"),         nullptr },
+		{ TEXT("Hero.Riktor.Reconfigure"),      TEXT("Riktor"), TEXT("Ability_Hook_Pull"),        nullptr },
+		{ TEXT("Hero.Riktor.Ram"),              TEXT("Riktor"), TEXT("Ability_Hook_Start"),       TEXT("Ability_ShockingPunch") },
+		{ TEXT("Hero.Riktor.MortarShot"),       TEXT("Riktor"), TEXT("Ability_Hook_Cast"),        TEXT("PrimaryAttack_B_Slow") },
+		{ TEXT("Hero.Riktor.Interposition"),    TEXT("Riktor"), nullptr,                          nullptr },  // reazione
 		// Ivrin (Wraith)
 		{ TEXT("Hero.Ivrin.PulseShot"),         TEXT("Wraith"), nullptr,                          TEXT("Fire_A_Fast_V1") },
 		{ TEXT("Hero.Ivrin.InterceptShot"),     TEXT("Wraith"), TEXT("Ability_E_Targeting_Start"), nullptr }, // nessun evento Attack: RTTurnManager.cpp:7133-7136
@@ -468,7 +468,7 @@ bool FRTUnitCastRoleResolvesAClipForEveryHeroTest::RunTest(const FString&)
 	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
 	if (!TestNotNull(TEXT("CDO di URTUnitAnimInstance"), Cdo)) { return false; }
 
-	static const TCHAR* Eroi[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+	static const TCHAR* Eroi[] = { TEXT("Hero.Gadget"), TEXT("Hero.Muiren"), TEXT("Hero.Riktor"), TEXT("Hero.Ivrin") };
 	for (const TCHAR* Eroe : Eroi)
 	{
 		const TSoftObjectPtr<UAnimSequenceBase> Cast = Cdo->ActiveClipFor(FName(Eroe), ERTPresentationRole::Cast);
@@ -921,7 +921,7 @@ bool FRTAnimChannelAdditiveFallbackOnAnAdditiveRolePlaysNothingTest::RunTest(con
  * sui ruoli di `RTRoleWantsAFullBodyClip` — lo stesso criterio del runtime — letto dall'ASSET.
  *
  * 🔑 E' la domanda che `DefaultActionClipsResolveForEveryKitAbility` (il path risolve) e i gate di cook (il path e'
- * raggiungibile) non fanno: la seduta `U70` ha trovato cinque clip d'azione di Aevik che risolvevano, si cuocevano,
+ * raggiungibile) non fanno: la seduta `U70` ha trovato cinque clip d'azione di Gadget che risolvevano, si cuocevano,
  * suonavano — e non si vedevano. ⛔ La hit-react, additiva in tutti i pack, non e' un gesto e resta fuori.
  * ⚠️ **Misura solo dove i pack ci sono**: `Content/FabAsset/` e' gitignorato. Su un checkout senza pack nessuna clip
  * si carica e il test lo DICHIARA (`AddInfo`, «N/A»), come `RTPackagingConfigTests.cpp` per un invariante vacuo;
@@ -1004,7 +1004,7 @@ bool FRTUnitDefaultGestureClipsAreNotAdditiveTest::RunTest(const FString&)
  * questo test `ResolvedClipPathFor` tornava `nullptr` e l'unita' non suonava niente, senza una riga di log. Il
  * ripiego e' `URTUnitAnimInstance`, cioe' cio' che `UnitAnimClass` valeva prima dei blueprint.
  *
- * ⚠️ Si usano i default C++ di `Hero.Aevik` e non una voce sintetica: il ripiego legge il CDO C++, quindi una voce
+ * ⚠️ Si usano i default C++ di `Hero.Gadget` e non una voce sintetica: il ripiego legge il CDO C++, quindi una voce
  * scritta in un altro CDO non lo proverebbe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelNullAnimClassFallsBackTest,
@@ -1017,8 +1017,8 @@ bool FRTAnimChannelNullAnimClassFallsBackTest::RunTest(const FString&)
 
 	ARTUnit* U = SpawnChannelUnit(World, 0, FRTCellId(0, 0));
 	if (!U) { DestroyChannelWorld(World); return false; }
-	U->HeroId = FName(TEXT("Hero.Aevik"));
-	const FName Azione(TEXT("Hero.Aevik.ArcPulse"));
+	U->HeroId = FName(TEXT("Hero.Gadget"));
+	const FName Azione(TEXT("Hero.Gadget.ArcPulse"));
 
 	// Premessa: con la classe C++ le due clip risolvono, e sono diverse fra loro.
 	const FString AttaccoC = U->ResolvedClipPathFor(ERTPresentationRole::Attack, Azione, NAME_None).ToSoftObjectPath().ToString();

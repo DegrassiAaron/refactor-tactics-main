@@ -103,7 +103,7 @@ namespace
 
 		FRTScenarioUnit U;
 		U.Id = TEXT("A1");
-		U.HeroId = TEXT("Hero.Aevik");
+		U.HeroId = TEXT("Hero.Gadget");
 		U.TeamId = 0;
 		U.Cell = FRTCellId(-1, 0, 0);
 		S.Units.Add(U);

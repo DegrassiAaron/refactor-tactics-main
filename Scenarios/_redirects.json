@@ -1,13 +1,14 @@
 {
   "_comment": "Vecchio ScenarioId -> nuovo ScenarioId. Consultata SOLO quando un ID non risulta piu' nell'indice, cosi' un ID vivo vince sempre su una voce rimasta indietro. Il prefisso _ nel nome del file lo tiene fuori dalla scansione degli scenari. Vuota finche' nessuno rinomina: le chiavi che cominciano per _ non sono redirect.",
-  "Combat.BastionImpactShotSlows": "Combat.BranthImpactShotSlows",
-  "Combat.RiktorImpactShotSlows": "Combat.BranthImpactShotSlows",
-  "Spec.Combat.BastionIsPushedLikeAnyone": "Spec.Combat.BranthIsPushedLikeAnyone",
-  "Spec.Combat.RiktorIsPushedLikeAnyone": "Spec.Combat.BranthIsPushedLikeAnyone",
+  "Combat.BastionImpactShotSlows": "Combat.RiktorImpactShotSlows",
+  "Combat.BranthImpactShotSlows": "Combat.RiktorImpactShotSlows",
+  "Spec.Combat.BastionIsPushedLikeAnyone": "Spec.Combat.RiktorIsPushedLikeAnyone",
+  "Spec.Combat.BranthIsPushedLikeAnyone": "Spec.Combat.RiktorIsPushedLikeAnyone",
   "Spec.Reaction.InteractCountsAsADirectHit": "Spec.Reaction.InteractIsNotADirectHit",
   "Spec.Brace.BraceWinsOnSecondHit": "Spec.Brace.GuardWinsOnFrontalHits",
   "Visual.Combat.GuardReducesFirstHit": "Visual.Combat.GuardReducesEveryFrontalHit",
   "Spec.Combat.GuardPoolSpansMultipleHits": "Spec.Combat.GuardSpansMultipleHits",
   "Spec.Combat.AreaGuardFromImpactCenterKeepsPool": "Spec.Combat.AreaGuardFromImpactCenterHolds",
-  "Visual.Combat.GuardVsBraceUnderSmallHits": "Visual.Combat.DefenseVsNoneUnderSmallHits"
+  "Visual.Combat.GuardVsBraceUnderSmallHits": "Visual.Combat.DefenseVsNoneUnderSmallHits",
+  "Visual.Ability.ClipBranth": "Visual.Ability.ClipRiktor"
 }

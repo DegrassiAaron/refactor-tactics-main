@@ -416,17 +416,17 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 (`ERTLineOfSightPolicy::NotRequired`, [D-380](../decisions/RT_PDR_00_Decision_Log.md)) · portata **4** dal
 centro d'area, la stessa di `CircularAoE` · **raggio 1** come lei · conta come **aggressione dichiarata**
 (`INT-8`), quindi rompe una tregua come un attacco diretto. È l'unica **azione core** con quella politica;
-`Hero.Branth.MortarShot` la eredita, e `Hero.Muiren.MistVeil` ce l'ha per conto suo.
+`Hero.Riktor.MortarShot` la eredita, e `Hero.Muiren.MistVeil` ce l'ha per conto suo.
 
 > 🔴 **Entrata in questo catalogo il 2026-09-18** ([#3187](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3187)),
 > dove il codice la costruiva già. ⚠️ **La portata resta 4 e non è una svista**: un mortaio è un'arma di
 > distanza, e accorciarlo per punirlo contraddirebbe ciò che l'azione è — il tiro indiretto si paga con la
 > **potenza** (12: meno di ogni altra offensiva che infligge danno, `MarkTarget` a parte, che ne dichiara 0
 > perché marchia e basta) e con l'**attesa** (cooldown 3, il più lungo di §3), non con l'avvicinamento.
-> ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Aevik.Overload` e
+> ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Gadget.Overload` e
 > `Hero.Muiren.CircularTide` restano `Required`. ➕ Da [D-504](../decisions/RT_PDR_00_Decision_Log.md) il Blast la ricontrolla anche sul percorso delle cure, come per gli attacchi. ⏱️ *Fino a [#3598](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3598) per `CircularTide` la linea di tiro era dichiarata ma il Blast controllava solo la portata dal centro.*
 >
-> 🔑 **E il kit di Branth la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Branth
+> 🔑 **E il kit di Riktor la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Riktor
 > ingaggia a 3 (`ImpactShot`), e con un mortaio da 4 il bot smetteva di chiudere: misurato il 2026-09-10,
 > cadevano tre gate anti-stallo — `Bot.StallDefinitionsOnTheGeneratedTestArena`,
 > `Match.Autobattle.EngagesOnTheGeneratedTestArena` e `Match.Autobattle.NobodyParksOnTheAuthoredMap` — tutti
@@ -639,7 +639,7 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 > e la lista resta vuota **per decisione**, non in attesa di qualcuno.
 >
 > ⛔ **Il Cleanse REATTIVO resta, ed è il rischio di lettura della decisione**: `Reaction.Cleanse` (base
-> `Action.Purge`) è il modulo di reazione di default di `Hero.Branth`
+> `Action.Purge`) è il modulo di reazione di default di `Hero.Riktor`
 > ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla **in arrivo** lo stato di controllo più grave fra quelli che sta
 > ricevendo. ⚠️ **Sono tre, non due**: `URTReactionLibrary::ControlStatusesBySeverity()` restituisce
 > `Stunned` · `Root` · `Slow`, da [D-416](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-14), che ha

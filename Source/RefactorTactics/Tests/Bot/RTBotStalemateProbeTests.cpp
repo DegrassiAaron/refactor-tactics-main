@@ -89,7 +89,7 @@ namespace
 /**
  * La domanda del criterio 1 di #1088, posta alla geometria invece che a una partita.
  *
- * ⚠️ **La gittata non e' un parametro libero: e' 4.** `Hero.Aevik.ArcPulse` e `Hero.Ivrin.PulseShot`
+ * ⚠️ **La gittata non e' un parametro libero: e' 4.** `Hero.Gadget.ArcPulse` e `Hero.Ivrin.PulseShot`
  * dichiarano `Range 4` nel catalogo, ed e' il numero che rende lo stallo strano — le unita' si fermano a
  * distanza **3**, cioe' dentro la gittata, e non sparano.
  */
@@ -117,7 +117,7 @@ bool FRTBotStalemateFiringPositionsTest::RunTest(const FString&)
 		bSpawnsSeeEachOther ? TEXT("LIBERA") : TEXT("interrotta")));
 
 	// --- 2. La domanda decisiva: esiste una cella da cui B sarebbe colpibile?
-	const int32 BasicAttackRange = 4; // `Hero.Aevik.ArcPulse`, `Hero.Ivrin.PulseShot`
+	const int32 BasicAttackRange = 4; // `Hero.Gadget.ArcPulse`, `Hero.Ivrin.PulseShot`
 	const FRTProbeFiringReport Firing = ProbeFiringPositions(Arena, SpawnA, SpawnB, BasicAttackRange);
 
 	AddInfo(FString::Printf(
@@ -209,7 +209,7 @@ bool FRTBotStalemateDemoArenaContrastTest::RunTest(const FString&)
  * ⚠️ **Due fatti letti nel codice, che restringono prima ancora di misurare:**
  *
  *  · `DeriveKiteStandoff` da' standoff `0` sotto gittata 5. Sul roster v0.1 **solo Phase** (`PressureJet`,
- *    gittata 5) tiene le distanze; Aevik e Ivrin (4) e Branth (3) **chiudono**. Lo stallo a distanza 3
+ *    gittata 5) tiene le distanze; Gadget e Ivrin (4) e Riktor (3) **chiudono**. Lo stallo a distanza 3
  *    non e' quindi il kiting che fa il suo mestiere — non per tre unita' su quattro.
  *  · `ChooseBestPlan` dichiara un **tie-break assoluto**: *«a parita' di punteggio vince la MOSSA MINIMA
  *    da Origin (restare vince)»*. Se attaccare non migliorasse **strettamente** il punteggio, restare
@@ -264,7 +264,7 @@ bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
 	Ctx.Enemies.Add(EnemyCell);
 	Ctx.EnemyRanges.Add(4);
 	Ctx.EnemyHealth.Add(1000);
-	Ctx.AttackRange = 4;   // `Hero.Aevik.ArcPulse`
+	Ctx.AttackRange = 4;   // `Hero.Gadget.ArcPulse`
 	Ctx.AttackDamage = 210; // `Hero.Ivrin.PulseShot`
 	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
@@ -1089,7 +1089,7 @@ namespace
 	 *
 	 * ⚠️ **Un nemico solo, fermo.** Un'orbita e' un comportamento stazionario, e con il bersaglio che si muove
 	 * non esiste una funzione di cui cercare i cicli. E' l'idealizzazione in cui il difetto storico e' stato
-	 * osservato: Branth fra due celle mentre il resto del campo non decideva.
+	 * osservato: Riktor fra due celle mentre il resto del campo non decideva.
 	 */
 	struct FRTOrbitBoard
 	{
@@ -1782,7 +1782,7 @@ bool FRTBotAuthoredMapFilterStepsBackTest::RunTest(const FString&)
 		Sweep.BackstepsAt(RTOrbitNeutralMoveMP) > 0);
 
 	// 🔴 **E fra quelle coppie c'e' QUELLA MISURATA, che e' cio' che rende questo predicato una misura e non
-	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Branth alterna
+	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna
 	// fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni»* — e il predicato, che di
 	// quella misura non sa nulla, la ritrova enumerando la board.
 	const FString Storica = RTOrbitPairText(FRTCellId(1, -1, 0), FRTCellId(3, -3, 1));
@@ -1945,7 +1945,7 @@ bool FRTBotAuthoredMapClosesCyclesTest::RunTest(const FString&)
 		Sweep.RitorniAt(RTOrbitNeutralMoveMP) > 0);
 
 	// 🔴 **E fra i cicli c'e' QUELLO MISURATO, che e' cio' che rende questo predicato una misura e non un
-	// modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Branth alterna fra
+	// modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna fra
 	// `(1,-1,L0)` e la piattaforma `(3,-3,L1)`»* — e lo scanner, che di quella misura non sa nulla, la ritrova
 	// seguendo le traiettorie. Senza questa riga qualunque numero positivo soddisferebbe l'asserzione sopra,
 	// anche trovando tre cicli che con il difetto storico non c'entrano nulla. Il gemello dei passi indietro

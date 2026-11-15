@@ -19,7 +19,7 @@ test('--abilities stampa il contributo di ogni abilita del roster, con la propri
   const righe = out.split('\n').filter((r) => /^\s*Hero\./.test(r));
   assert.equal(righe.length, 20, 'venti abilita nel catalogo, venti righe');
   // Il confronto fra eroi diversi e' il punto: tre abilita' pesano 60000, cioe' 100 per turno.
-  for (const id of ['Hero.Aevik.ConductiveNode', 'Hero.Branth.Ram', 'Hero.Ivrin.PassingBlade']) {
+  for (const id of ['Hero.Gadget.ConductiveNode', 'Hero.Riktor.Ram', 'Hero.Ivrin.PassingBlade']) {
     const riga = righe.find((r) => r.includes(id));
     assert.ok(riga, `${id} assente`);
     assert.match(riga!, /\b100\b/, `${id}: il contributo per turno non si legge`);

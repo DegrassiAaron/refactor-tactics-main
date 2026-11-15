@@ -118,45 +118,45 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	// Stessa geometria di `Combat.FriendlyFire`: Muiren adiacente al bersaglio, dentro l'area r1.
-	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Riktor"), Riktor))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
-	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnUnit(Branth);
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->SetPlannedMainAction(Overload);
+	Gadget->DeclareAttackOnUnit(Riktor);
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Muiren, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	// ⛔ **Le celle si copiano PRIMA di distruggere il mondo.** Le asserzioni qui sotto leggevano
-	// `Branth->Cell` e `Muiren->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
+	// `Riktor->Cell` e `Muiren->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
 	// distrutto: funzionava solo perche' il GC non era ancora passato, e un giro di garbage collection
 	// fra le due righe — plausibile quando la suite esegue l'intero gruppo `RefactorTactics.HUD` — le
 	// avrebbe fatte leggere memoria liberata. Trovato dalla code review su `#2726`.
-	const FRTCellId CellaBranth = Branth->Cell;
+	const FRTCellId CellaRiktor = Riktor->Cell;
 	const FRTCellId CellaPhase  = Muiren->Cell;
-	const FRTCellId CellaGadget = Aevik->Cell;
+	const FRTCellId CellaGadget = Gadget->Cell;
 
 	DestroyMarksWorld(World);
 
 	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: piu' di una cella distingue «area» da
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
-	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(CellaBranth));
+	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(CellaRiktor));
 	TestTrue(TEXT("anche la cella di Muiren e' nella zona"), Hit.Contains(CellaPhase));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
 	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaPhase));
 	// Chi lancia non si segnala mai da solo.
-	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaGadget));
+	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(CellaGadget));
 	return true;
 }
 
@@ -176,20 +176,20 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
-	ARTUnit* NemicoAevik = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    1, FRTCellId(-1, 0, 0));
+	ARTUnit* NemicoGadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
 	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* MioBranth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 0, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("unita'"), NemicoAevik) || !MioPhase || !MioBranth)
+	ARTUnit* MioRiktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioRiktor)
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	NemicoAevik->SetPlannedMainAction(MarksAbilityIndex(NemicoAevik, TEXT("Hero.Aevik.Overload")));
-	NemicoAevik->DeclareAttackOnUnit(MioBranth);
+	NemicoGadget->SetPlannedMainAction(MarksAbilityIndex(NemicoGadget, TEXT("Hero.Gadget.Overload")));
+	NemicoGadget->DeclareAttackOnUnit(MioRiktor);
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ NemicoAevik, MioPhase, MioBranth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioRiktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	TestEqual(TEXT("nessuna cella dal piano avversario"), Hit.Num(), 0);
@@ -211,25 +211,25 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!Aevik || !Muiren || !Branth) { DestroyMarksWorld(World); return false; }
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
+	if (!Gadget || !Muiren || !Riktor) { DestroyMarksWorld(World); return false; }
 
-	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
-	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnUnit(Branth);
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->SetPlannedMainAction(Overload);
+	Gadget->DeclareAttackOnUnit(Riktor);
 
 	// Si spegne il flag sulla COPIA dell'unita', non nel catalogo: il test non deve lasciare il roster sporco
 	// per chi gira dopo di lui.
-	URTActionData* Ability = const_cast<URTActionData*>(Aevik->GetAbility(Overload));
+	URTActionData* Ability = const_cast<URTActionData*>(Gadget->GetAbility(Overload));
 	if (!TestNotNull(TEXT("abilita'"), Ability)) { DestroyMarksWorld(World); return false; }
 	const bool bSaved = Ability->Def.bFriendlyFire;
 	Ability->Def.bFriendlyFire = false;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Muiren, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	Ability->Def.bFriendlyFire = bSaved;
 	DestroyMarksWorld(World);
@@ -354,9 +354,9 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	}
 	Map->MapAsset = Asset;
 
-	ARTUnit* Aevik = SpawnMarksUnit(World, TEXT("Hero.Aevik"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth))
+	ARTUnit* Gadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Riktor"), Riktor))
 	{
 		DestroyMarksWorld(World);
 		return false;
@@ -366,18 +366,18 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	// resta al default `(0,0,0)` e ogni unita' pianifica in silenzio un movimento verso l'origine — due
 	// unita' che si contendono la stessa cella, esito `BlockedContested`, righe nel feed che nessuno ha
 	// chiesto. E' l'incidente su cui la prima stesura di questo test poggiava la propria premessa.
-	Aevik->PlaceOnCell(FRTCellId(-1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	Branth->PlaceOnCell(FRTCellId(1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Gadget->PlaceOnCell(FRTCellId(-1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Riktor->PlaceOnCell(FRTCellId(1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 
 	// L'attacco che il muro nega: e' il fenomeno di `#2534`, e produce la voce che porta `SightBlockerCell`.
-	const int32 ArcPulse = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.ArcPulse"));
-	if (!TestTrue(TEXT("premessa: Aevik ha ArcPulse nel kit"), ArcPulse != INDEX_NONE))
+	const int32 ArcPulse = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.ArcPulse"));
+	if (!TestTrue(TEXT("premessa: Gadget ha ArcPulse nel kit"), ArcPulse != INDEX_NONE))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
-	Aevik->SetPlannedMainAction(ArcPulse);
-	Aevik->DeclareAttackOnUnit(Branth);
+	Gadget->SetPlannedMainAction(ArcPulse);
+	Gadget->DeclareAttackOnUnit(Riktor);
 
 	// ── Turno 1: risolto per intero. Da qui il giocatore PIANIFICA il turno 2, ed e' la finestra in cui
 	//    la spiegazione di cio' che e' appena successo deve restare leggibile.
@@ -864,8 +864,8 @@ bool FRTBlockerOutlineMatchesTheCellTest::RunTest(const FString&)
 /**
  * 🔑 **L'ALLEATA IN UN'AREA MIRATA A UNA CELLA VUOTA E' SEGNATA** ([D-492], #3620).
  *
- * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`, con una differenza sola: Overload non mira a Branth ma alla
- * cella dove Branth stava, e Branth e' lontano. Fino a #3620 i segni chiedevano `PlannedAttackTarget`, che un
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`, con una differenza sola: Overload non mira a Riktor ma alla
+ * cella dove Riktor stava, e Riktor e' lontano. Fino a #3620 i segni chiedevano `PlannedAttackTarget`, che un
  * bersaglio a cella azzera per costruzione: l'area non produceva nessun segno, mentre l'anteprima dell'unita'
  * selezionata la disegnava con l'alleata dentro. Ora i segni vengono dalla stessa anteprima.
  */
@@ -877,44 +877,44 @@ bool FRTHUDAllyMarkFromCellTargetTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Gadget  = SpawnMarksUnit(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 6, 0, 0));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 6, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Riktor"), Riktor))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
-	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnCell(FRTCellId(2, 0, 0)); // una cella vuota: e' la cella, non un'unita', il bersaglio
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->SetPlannedMainAction(Overload);
+	Gadget->DeclareAttackOnCell(FRTCellId(2, 0, 0)); // una cella vuota: e' la cella, non un'unita', il bersaglio
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Muiren, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	const FRTCellId CellaMuiren = Muiren->Cell;
-	const FRTCellId CellaAevik = Aevik->Cell;
-	const FRTCellId CellaBranth = Branth->Cell;
+	const FRTCellId CellaGadget = Gadget->Cell;
+	const FRTCellId CellaRiktor = Riktor->Cell;
 
 	DestroyMarksWorld(World);
 
 	TestTrue(FString::Printf(TEXT("l'area mirata alla cella e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
 	TestTrue(TEXT("la cella bersagliata e' nella zona"), Hit.Contains(FRTCellId(2, 0, 0)));
-	TestFalse(TEXT("premessa: Branth e' fuori dalla zona"), Hit.Contains(CellaBranth));
+	TestFalse(TEXT("premessa: Riktor e' fuori dalla zona"), Hit.Contains(CellaRiktor));
 
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
 	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaMuiren));
-	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaAevik));
+	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(CellaGadget));
 	return true;
 }
 
 /**
  * 🔑 **L'AVVISO DI FUOCO AMICO STA NELL'ELENCO DELL'ATTACCANTE, NON DELLA VITTIMA** ([D-480] punto 4, [D-494], #3622).
  *
- * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`: Overload di Aevik su Branth, con Muiren nella zona. Il segno
- * sull'unita' sta su Muiren (e' lei che verra' colpita), ma l'avviso di piano sta su Aevik: e' il suo piano che lo
+ * Stessa tavola di `AllyInBlastIsMarkedFromThePlan`: Overload di Gadget su Riktor, con Muiren nella zona. Il segno
+ * sull'unita' sta su Muiren (e' lei che verra' colpita), ma l'avviso di piano sta su Gadget: e' il suo piano che lo
  * causa, ed e' lui che puo' cambiarlo. Il perche' nomina Muiren.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanWarningFriendlyFireOwnerTest,
@@ -925,31 +925,31 @@ bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Gadget  = SpawnMarksUnit(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Riktor"), Riktor))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
-	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
-	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnUnit(Branth);
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->SetPlannedMainAction(Overload);
+	Gadget->DeclareAttackOnUnit(Riktor);
 
-	const TArray<ARTUnit*> Units = { Aevik, Muiren, Branth };
-	const TArray<FRTPlanWarningView> DiAevik = URTHudViewModel::BuildPlanWarnings(Aevik, Units);
+	const TArray<ARTUnit*> Units = { Gadget, Muiren, Riktor };
+	const TArray<FRTPlanWarningView> DiGadget = URTHudViewModel::BuildPlanWarnings(Gadget, Units);
 	const TArray<FRTPlanWarningView> DiMuiren = URTHudViewModel::BuildPlanWarnings(Muiren, Units);
 	const FString NomeMuiren = ARTUnit::DisplayLabel(Muiren->HeroDisplayName, Muiren->HeroId, Muiren->GetName());
 
 	DestroyMarksWorld(World);
 
-	const FRTPlanWarningView* FuocoAmico = DiAevik.FindByPredicate([](const FRTPlanWarningView& A)
+	const FRTPlanWarningView* FuocoAmico = DiGadget.FindByPredicate([](const FRTPlanWarningView& A)
 	{
-		return A.Level == ERTPlanWarningLevel::Warning && A.SourceActionId == FName(TEXT("Hero.Aevik.Overload"));
+		return A.Level == ERTPlanWarningLevel::Warning && A.SourceActionId == FName(TEXT("Hero.Gadget.Overload"));
 	});
-	if (TestNotNull(TEXT("l'elenco di Aevik ha l'avviso di fuoco amico di Overload"), FuocoAmico))
+	if (TestNotNull(TEXT("l'elenco di Gadget ha l'avviso di fuoco amico di Overload"), FuocoAmico))
 	{
 		TestTrue(*FString::Printf(TEXT("il perche' nomina %s"), *NomeMuiren), FuocoAmico->Why.ToString().Contains(NomeMuiren));
 		TestFalse(TEXT("il costo e' detto"), FuocoAmico->Cost.IsEmpty());
@@ -965,9 +965,9 @@ bool FRTPlanWarningFriendlyFireOwnerTest::RunTest(const FString&)
  * il click su un nemico blocca la sua cella, e fino a `#4093` l'anteprima segnava quel nemico come colpito: il giocatore
  * decideva su un'informazione falsa, perche' chi resta fermo sulla cella non viene mai preso.
  *
- * 🔑 **Tre giri sulla stessa tavola**: Ivrin blocca la cella di Branth (nessun segno su Branth, ma la cella resta
- * nell'anteprima a terra); poi quella di Muiren, alleata (nessun fuoco amico, ne' sopra la testa ne' a terra); poi Aevik
- * mira un'area alla cella di Branth — il **controllo**: Branth e' segnato. Senza, «nessun segno» lo darebbe anche un
+ * 🔑 **Tre giri sulla stessa tavola**: Ivrin blocca la cella di Riktor (nessun segno su Riktor, ma la cella resta
+ * nell'anteprima a terra); poi quella di Muiren, alleata (nessun fuoco amico, ne' sopra la testa ne' a terra); poi Gadget
+ * mira un'area alla cella di Riktor — il **controllo**: Riktor e' segnato. Senza, «nessun segno» lo darebbe anche un
  * calcolo che non legge nessun piano.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDPredictiveMarksTheCellTest,
@@ -979,39 +979,39 @@ bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	ARTUnit* Ivrin  = SpawnMarksUnit(World, TEXT("Hero.Ivrin"),  0, FRTCellId( 0, 0, 0));
-	ARTUnit* Aevik  = SpawnMarksUnit(World, TEXT("Hero.Aevik"),  0, FRTCellId(-1, 0, 0));
-	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 1, 0, 0));
+	ARTUnit* Gadget  = SpawnMarksUnit(World, TEXT("Hero.Gadget"),  0, FRTCellId(-1, 0, 0));
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 1, 0, 0));
 	ARTUnit* Muiren = SpawnMarksUnit(World, TEXT("Hero.Muiren"), 0, FRTCellId( 0, 1, 0)); // alleata, accanto a Ivrin
-	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth)
+	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Riktor"), Riktor)
 		|| !TestNotNull(TEXT("Muiren"), Muiren))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 	const int32 Intercetto = MarksAbilityIndex(Ivrin, TEXT("Hero.Ivrin.InterceptShot"));
-	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("Ivrin ha InterceptShot"), Intercetto != INDEX_NONE)
-		|| !TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE))
+		|| !TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
-	const TArray<ARTUnit*> Units = { Ivrin, Aevik, Branth, Muiren };
-	const FRTCellId CellaBranth = Branth->Cell;
+	const TArray<ARTUnit*> Units = { Ivrin, Gadget, Riktor, Muiren };
+	const FRTCellId CellaRiktor = Riktor->Cell;
 	const FRTCellId CellaMuiren = Muiren->Cell;
 
-	// ── Il caso: Ivrin blocca la cella su cui Branth sta gia'. ───────────────────────────────────────────────
+	// ── Il caso: Ivrin blocca la cella su cui Riktor sta gia'. ───────────────────────────────────────────────
 	Ivrin->SetPlannedMainAction(Intercetto);
-	Ivrin->DeclareAttackOnCell(CellaBranth);
+	Ivrin->DeclareAttackOnCell(CellaRiktor);
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks(Units, /*PlayerTeamId=*/ 0, Hit, Ally);
-	TestFalse(TEXT("Branth, fermo sulla cella bloccata, non e' segnato colpito"), Hit.Contains(CellaBranth));
+	TestFalse(TEXT("Riktor, fermo sulla cella bloccata, non e' segnato colpito"), Hit.Contains(CellaRiktor));
 	TestEqual(TEXT("e nessun fuoco amico: il colpo predittivo prende solo gli ostili"), Ally.Num(), 0);
 
 	// La cella si vede lo stesso: l'anteprima a terra dell'unita' selezionata la disegna.
 	const FRTBlastPreview Anteprima = URTHexCombatLibrary::MakeBlastPreview(
 		URTHudViewModel::MakeBlastPreviewPlan(*Ivrin, 0, Units), URTHudViewModel::MakeHexCombatUnits(Units));
-	TestTrue(TEXT("l'anteprima a terra disegna la cella bloccata"), Anteprima.HitCells.Contains(CellaBranth));
+	TestTrue(TEXT("l'anteprima a terra disegna la cella bloccata"), Anteprima.HitCells.Contains(CellaRiktor));
 	TestFalse(TEXT("e dichiara che chi ci sta sopra non va segnato"), Anteprima.bMarksOccupants);
 
 	// ── Un'ALLEATA sulla cella bloccata: nessun fuoco amico, ne' sopra la testa ne' a terra ne' nell'avviso. ─────
@@ -1026,13 +1026,13 @@ bool FRTHUDPredictiveMarksTheCellTest::RunTest(const FString&)
 		URTHudViewModel::MakeBlastPreviewPlan(*Ivrin, 0, Units), URTHudViewModel::MakeHexCombatUnits(Units));
 	TestTrue(TEXT("la cella dell'alleata e' disegnata a terra"), SuAlleata.HitCells.Contains(CellaMuiren));
 	TestEqual(TEXT("e l'anteprima non ha celle di fuoco amico: ne' sovrapposizione a terra ne' avviso"), SuAlleata.AllyCells.Num(), 0);
-	Ivrin->DeclareAttackOnCell(CellaBranth);
+	Ivrin->DeclareAttackOnCell(CellaRiktor);
 
-	// ── Il controllo: un'area di Aevik sulla stessa cella segna Branth. ───────────────────────────────────────
-	Aevik->SetPlannedMainAction(Overload);
-	Aevik->DeclareAttackOnCell(CellaBranth);
+	// ── Il controllo: un'area di Gadget sulla stessa cella segna Riktor. ───────────────────────────────────────
+	Gadget->SetPlannedMainAction(Overload);
+	Gadget->DeclareAttackOnCell(CellaRiktor);
 	ARTHUD::ComputePlannedHitMarks(Units, /*PlayerTeamId=*/ 0, Hit, Ally);
-	TestTrue(TEXT("controllo: l'area sulla stessa cella segna Branth"), Hit.Contains(CellaBranth));
+	TestTrue(TEXT("controllo: l'area sulla stessa cella segna Riktor"), Hit.Contains(CellaRiktor));
 
 	DestroyMarksWorld(World);
 	return true;

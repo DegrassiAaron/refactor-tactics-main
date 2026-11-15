@@ -138,7 +138,7 @@ bool FRTDashBlockedArcTest::RunTest(const FString&)
 // bordo mappa, o terreno che nega lo scatto») — e a valle nessuno poteva distinguerle.
 //
 // ⚠️ Misurato sulla seduta `U46`: la carica di `R_ROU` rifiutata dal rough usciva nel log come
-// `Branth: resta (...)`, identica alle unita' che non avevano pianificato nulla. Questo test pinna la
+// `Riktor: resta (...)`, identica alle unita' che non avevano pianificato nulla. Questo test pinna la
 // distinzione alla sorgente; che la riga poi ARRIVI al log lo verifica la partita, non l'unita' di misura.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashDeniedByTerrainTest,
 	"RefactorTactics.Actions.Dash.DeniedByTerrain",
@@ -574,23 +574,23 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 			CoreCharge.Effects[1].Effect == ERTActionEffect::Push && CoreCharge.Effects[1].Amount == 1);
 	}
 
-	// L'eroe che quella carica la porta in partita: `Branth.Ram` riusa `Action.Charge` per intero, ed e'
+	// L'eroe che quella carica la porta in partita: `Riktor.Ram` riusa `Action.Charge` per intero, ed e'
 	// il motivo per cui lo stile e' un dato e non un `if` sull'ActionId.
-	const URTHeroData* Branth = nullptr;
+	const URTHeroData* Riktor = nullptr;
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		if (Hero && Hero->HeroId == TEXT("Hero.Branth")) { Branth = Hero; break; }
+		if (Hero && Hero->HeroId == TEXT("Hero.Riktor")) { Riktor = Hero; break; }
 	}
-	if (TestNotNull(TEXT("Branth e' nel roster"), Branth))
+	if (TestNotNull(TEXT("Riktor e' nel roster"), Riktor))
 	{
 		const URTActionData* Ram = nullptr;
-		for (const URTActionData* A : Branth->Actions)
+		for (const URTActionData* A : Riktor->Actions)
 		{
-			if (A && A->Def.ActionId == TEXT("Hero.Branth.Ram")) { Ram = A; break; }
+			if (A && A->Def.ActionId == TEXT("Hero.Riktor.Ram")) { Ram = A; break; }
 		}
-		if (TestNotNull(TEXT("Hero.Branth.Ram e' nel kit"), Ram))
+		if (TestNotNull(TEXT("Hero.Riktor.Ram e' nel kit"), Ram))
 		{
-			TestTrue(TEXT("Hero.Branth.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+			TestTrue(TEXT("Hero.Riktor.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 		}
 	}
 	return true;
@@ -683,7 +683,7 @@ bool FRTLinearPassTest::RunTest(const FString&)
 // =====================================================================================================
 
 /**
- * La scena di `PIE-V01-CHARGECLICK` (4): Branth in `(-4,3)`, Muiren in `(-2,4)`, scarto `(+2,+1)`, distanza 3.
+ * La scena di `PIE-V01-CHARGECLICK` (4): Riktor in `(-4,3)`, Muiren in `(-2,4)`, scarto `(+2,+1)`, distanza 3.
  * La retta passa per `(-3,3)` e `(-3,4)`: ESATTAMENTE le celle che l'autore ha indicato davanti alla tavola `U92-V5`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineOffAxisTest,
@@ -695,20 +695,20 @@ bool FRTMoveLineOffAxisTest::RunTest(const FString&)
 	const TMap<FRTCellId, int32> Empty;
 	const TSet<int32> NoHostiles;
 
-	const FRTCellId Branth(-4, 3), Muiren(-2, 4);
+	const FRTCellId Riktor(-4, 3), Muiren(-2, 4);
 	const TArray<FRTCellId> Attese = { FRTCellId(-3, 3), FRTCellId(-3, 4), FRTCellId(-2, 4) };
 
 	int32 Distanza = 0;
 	TestFalse(TEXT("premessa: lo scarto (+2,+1) NON e' su una delle sei direzioni"),
-		URTMovementActionLibrary::IsStraightLine(Branth, Muiren, Distanza));
-	TestEqual(TEXT("premessa: la distanza e' 3, quanto la portata di Hero.Branth.Ram"),
-		URTHexLibrary::HexDistance(Branth, Muiren), 3);
+		URTMovementActionLibrary::IsStraightLine(Riktor, Muiren, Distanza));
+	TestEqual(TEXT("premessa: la distanza e' 3, quanto la portata di Hero.Riktor.Ram"),
+		URTHexLibrary::HexDistance(Riktor, Muiren), 3);
 	TestTrue(TEXT("premessa: la retta di HexLine e' quella dell'autore"),
-		MoveActionHexLineTail(Branth, Muiren) == Attese);
+		MoveActionHexLineTail(Riktor, Muiren) == Attese);
 
 	// Lo scatto arriva, lungo la retta.
 	const FRTLinearMoveResult Dash = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Branth, Muiren, /*MaxCells*/ 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+		Map, Riktor, Muiren, /*MaxCells*/ 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
 	TestTrue(TEXT("lo scatto arriva su Muiren"), Dash.Final == Muiren && Dash.Stop == ERTLinearStop::Completed);
 	TestTrue(TEXT("lungo (-3,3) e (-3,4)"), Dash.Entered == Attese);
 
@@ -717,7 +717,7 @@ bool FRTMoveLineOffAxisTest::RunTest(const FString&)
 	Occupancy.Add(Muiren, 4);
 	const TSet<int32> Hostiles = { 4 };
 	const FRTLinearMoveResult Charge = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Branth, Muiren, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
+		Map, Riktor, Muiren, 3, ERTMovementStyle::LinearCharge, Occupancy, Hostiles);
 	TestTrue(TEXT("la carica urta Muiren"), Charge.Stop == ERTLinearStop::Impact && Charge.ImpactUnitId == 4);
 	TestTrue(TEXT("fermandosi in (-3,4), davanti a lui"), Charge.Final == FRTCellId(-3, 4));
 	TestTrue(TEXT("dopo (-3,3) e (-3,4)"), Charge.Entered == TArray<FRTCellId>{ FRTCellId(-3, 3), FRTCellId(-3, 4) });
@@ -725,7 +725,7 @@ bool FRTMoveLineOffAxisTest::RunTest(const FString&)
 
 	// Il salto atterra su qualunque cella libera entro la portata, e non attraversa niente.
 	const FRTLinearMoveResult Leap = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Branth, Muiren, 3, ERTMovementStyle::LinearLeap, Empty, NoHostiles);
+		Map, Riktor, Muiren, 3, ERTMovementStyle::LinearLeap, Empty, NoHostiles);
 	TestTrue(TEXT("il salto atterra su Muiren"), Leap.Final == Muiren && Leap.Stop == ERTLinearStop::Completed);
 	TestTrue(TEXT("senza attraversare le celle in mezzo"), Leap.Entered == TArray<FRTCellId>{ Muiren });
 
@@ -733,15 +733,15 @@ bool FRTMoveLineOffAxisTest::RunTest(const FString&)
 	TMap<FRTCellId, int32> Mezzo;
 	Mezzo.Add(FRTCellId(-3, 3), 5);
 	const FRTLinearMoveResult Pass = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Branth, Muiren, 3, ERTMovementStyle::LinearPass, Mezzo, TSet<int32>{ 5 });
+		Map, Riktor, Muiren, 3, ERTMovementStyle::LinearPass, Mezzo, TSet<int32>{ 5 });
 	TestTrue(TEXT("la lama arriva"), Pass.Final == Muiren && Pass.Stop == ERTLinearStop::Completed);
 	TestTrue(TEXT("e attraversa chi stava in (-3,3)"), Pass.PassedThroughUnitIds == TArray<int32>{ 5 });
 
 	// La portata e' la distanza esagonale: a 2 la stessa cella e' fuori, e lo scatto non parte.
 	const FRTLinearMoveResult Corta = URTMovementActionLibrary::ResolveLinearMove(
-		Map, Branth, Muiren, 2, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+		Map, Riktor, Muiren, 2, ERTMovementStyle::LinearDash, Empty, NoHostiles);
 	TestTrue(TEXT("con portata 2 la cella a distanza 3 non si raggiunge"),
-		Corta.Final == Branth && Corta.Entered.Num() == 0);
+		Corta.Final == Riktor && Corta.Entered.Num() == 0);
 	return true;
 }
 

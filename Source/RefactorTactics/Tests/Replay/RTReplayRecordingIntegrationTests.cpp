@@ -95,7 +95,7 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	SpawnRecMap(World, /*Radius=*/ 4);
 
 	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
@@ -210,7 +210,7 @@ bool FRTReplayHistoryRowCompletedAtCloseTest::RunTest(const FString&)
 
 	SpawnRecMap(World, /*Radius=*/ 4);
 	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
@@ -322,7 +322,7 @@ bool FRTReplayHistoryRowFollowsTheTurnsTest::RunTest(const FString&)
 
 	SpawnRecMap(World, /*Radius=*/ 4);
 	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
@@ -491,7 +491,7 @@ bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
 
 	SpawnRecMap(World, /*Radius=*/ 4);
 	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
@@ -598,7 +598,7 @@ bool FRTReplayCostlyTerrainRoundTripTest::RunTest(const FString&)
 	MapActor->MapAsset = M;
 
 	ARTUnit* Mover = SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-1, 0, 0));
-	ARTUnit* Altro = SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0, 0));
+	ARTUnit* Altro = SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0, 0));
 	if (!TestNotNull(TEXT("mover"), Mover) || !TestNotNull(TEXT("avversario"), Altro))
 	{
 		DestroyRecWorld(World);
@@ -702,7 +702,7 @@ bool FRTReplayRefusalIsDeclaredTest::RunTest(const FString&)
 
 	SpawnRecMap(World, /*Radius=*/ 4);
 	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	FRTMatchRules Rules;
 	Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;

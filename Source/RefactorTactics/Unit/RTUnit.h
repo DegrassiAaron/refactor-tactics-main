@@ -254,7 +254,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 HearingThreshold = 5;
 
-	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Aevik su bersaglio Wet). */
+	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Gadget su bersaglio Wet). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Affinity;
 
@@ -286,15 +286,15 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Aevik · Phase · Branth · Ivrin), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (`Gadget` · `Muiren` · `Riktor` · `Ivrin` nella v0.1), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
-	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
-	 * invariante. Ma `Hero.Aevik` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Aevik` → `Hero.Aevik`), e la
-	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
-	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
+	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati anche quando dicono la stessa parola: è il
+	 * confine `DisplayName` di #715. La storia dei nomi: D-334 aveva sostituito le quattro identità del roster
+	 * (`Hero.Gadget` → `Hero.Aevik` e le altre), #2491 ha eseguito la migrazione, e D-585 (#4011) l'ha
+	 * rovesciata per `Gadget` e `Riktor`. Il blocker di namespace che rendeva impossibile il rename è sciolto
+	 * da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
@@ -352,7 +352,7 @@ public:
 
 	/**
 	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
-	 * su una CELLA, che puo' essere vuota (`Aevik.Overload` su un varco, una cella conduttiva senza nessuno
+	 * su una CELLA, che puo' essere vuota (`Gadget.Overload` su un varco, una cella conduttiva senza nessuno
 	 * sopra). Valida solo con `bAttackTargetsCell`.
 	 *
 	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
@@ -362,7 +362,7 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
-	 * Variante di abilita' attiva su questa unita' (es. `Branth.KineticPanel.Reinforced`). `None` = i numeri
+	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
 	 *
 	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
@@ -378,7 +378,7 @@ public:
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Branth.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *
 	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
 	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
@@ -1593,10 +1593,10 @@ public:
 	 *
 	 * | Pack | ossa di catena rimosse | effetto a schermo |
 	 * |---|---|---|
-	 * | Aevik | **0** | nessuno |
+	 * | Gadget | **0** | nessuno |
 	 * | Ivrin | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
-	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
+	 * | Riktor | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *
 	 * Quando il LOD cala quelle ossa spariscono dalle *required bones*, e i vertici che vi sono pesati si
 	 * stirano. ⚠️ **Si vede solo da lontano** — a zoom massimo indietro e nella panoramica di inizio
@@ -1813,7 +1813,7 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
-	 * Ultimo segmento di uno Stable ID: `Hero.Aevik` -> `Aevik`.
+	 * Ultimo segmento di uno Stable ID: `Hero.Gadget` -> `Gadget`.
 	 *
 	 * ⚠️ **Non e' piu' il nome mostrato a schermo, ed e' cambiato il 2026-08-13** (#715). Fino ad allora
 	 * questa funzione ERA l'etichetta, e la sua descrizione lo diceva; oggi l'etichetta la sceglie
@@ -1878,7 +1878,7 @@ public:
 	 *
 	 * Tre casi, e nessuno produce una stringa vuota — che e' il difetto che `ShortHeroName` esisteva per
 	 * impedire e che un `FText` vuoto reintrodurrebbe in silenzio, perche' vuoto e' un valore legale:
-	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Aevik`, `Phase`, ...);
+	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Gadget`, `Phase`, ...);
 	 *   2. `InDisplayName` vuoto              -> `ShortHeroName(InHeroId)`, cioe' l'ultimo segmento dell'ID;
 	 *   3. anche `InHeroId` a `NAME_None`     -> `Fallback` (il nome dell'attore).
 	 *
@@ -1892,13 +1892,13 @@ public:
 	 * 🔑 **Esiste perche' lo stesso turno nominava la stessa unita' in due modi.** Le voci del TurnLog
 	 * passano da `SubjectNamesForLog()`, che risolve con `DisplayLabel` (D-120); gli eventi narrativi di
 	 * `AddLogEvent` scrivevano `GetName()`, cioe' il nome dell'Actor. Misurato nella seduta `U46` del
-	 * 2026-09-08: `RTUnit_3: il terreno non si attraversa di corsa` e `Branth: resta (...)`, due righe
+	 * 2026-09-08: `RTUnit_3: il terreno non si attraversa di corsa` e `Riktor: resta (...)`, due righe
 	 * adiacenti sulla stessa unita', e nulla diceva al lettore che fosse la stessa.
 	 *
 	 * Non duplica la cascata di `DisplayLabel`: la chiama, col nome dell'Actor come ultimo ripiego —
 	 * un'unita' senza eroe dichiarato non deve perdere il nome.
 	 *
-	 * ⚠️ **Il nome canonico e' per EROE, non per unita'**: due `Hero.Branth` in campo producono la stessa
+	 * ⚠️ **Il nome canonico e' per EROE, non per unita'**: due `Hero.Riktor` in campo producono la stessa
 	 * etichetta. Chi scrive una riga che deve distinguerli aggiunga la CELLA, come fanno le voci del
 	 * TurnLog — l'etichetta da sola non e' un identificatore.
 	 */
@@ -2224,7 +2224,7 @@ protected:
 	 * 🔴 **Eredita il difetto di `#1784`, sullo stesso eroe.** `USkeletalMeshComponent::SnapshotPose` scrive
 	 * la posa di **riferimento** per ogni osso fuori dalle *required bones* del LOD corrente
 	 * (`bBoneHasEvaluated ? ... : RefPoseSpaceBaseTMs[i]`), e le ossa che le LOD dei pack Paragon rimuovono
-	 * sono **le catene di Branth**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
+	 * sono **le catene di Riktor**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
 	 * catene distese — lo stesso fotogramma che ha aperto #1750, arrivato per un'altra strada. Oggi non
 	 * morde perche' `#1784` tiene le unita' a LOD 0; chi un giorno riabilitasse le LOD deve trovare
 	 * scritto **dove** guardare.

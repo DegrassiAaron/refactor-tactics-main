@@ -1967,8 +1967,8 @@
       "MockOrigin": "roster — Preparation, si arma e risponde"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Branth_ImpactShot",
-      "IconId": "UI.Icon.Action.Hero.Branth.ImpactShot",
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_ImpactShot",
+      "IconId": "UI.Icon.Action.Hero.Riktor.ImpactShot",
       "Category": "Action",
       "Axes": {
         "phase": "Attack",
@@ -1985,7 +1985,7 @@
         ],
         "derived_from": null,
         "display": "Colpo d'impatto",
-        "hero": "Branth"
+        "hero": "Riktor"
       },
       "Alphabet": {
         "PhaseStation": 14.8,
@@ -2011,8 +2011,8 @@
       "MockOrigin": "roster — Attack, Damage + Slow"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Branth_KineticPanel",
-      "IconId": "UI.Icon.Action.Hero.Branth.KineticPanel",
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_KineticPanel",
+      "IconId": "UI.Icon.Action.Hero.Riktor.KineticPanel",
       "Category": "Action",
       "Axes": {
         "phase": "Preparation",
@@ -2020,7 +2020,7 @@
         "effects": [],
         "derived_from": "Action.CreateCover",
         "display": "Pannello cinetico",
-        "hero": "Branth"
+        "hero": "Riktor"
       },
       "Alphabet": {
         "PhaseStation": 4.4,
@@ -2046,8 +2046,8 @@
       "MockOrigin": "roster — Preparation, deriva da Action.CreateCover"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Reconfigure",
-      "IconId": "UI.Icon.Action.Hero.Branth.Reconfigure",
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Reconfigure",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Reconfigure",
       "Category": "Action",
       "Axes": {
         "phase": "Preparation",
@@ -2055,7 +2055,7 @@
         "effects": [],
         "derived_from": null,
         "display": "Riconfigurazione",
-        "hero": "Branth"
+        "hero": "Riktor"
       },
       "Alphabet": {
         "PhaseStation": 4.4,
@@ -2081,8 +2081,8 @@
       "MockOrigin": "roster — Preparation"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Ram",
-      "IconId": "UI.Icon.Action.Hero.Branth.Ram",
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Ram",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Ram",
       "Category": "Action",
       "Axes": {
         "phase": "FastMovement",
@@ -2099,7 +2099,7 @@
         ],
         "derived_from": "Action.Charge",
         "display": "Carica d'ariete",
-        "hero": "Branth"
+        "hero": "Riktor"
       },
       "Alphabet": {
         "PhaseStation": 6.8,
@@ -2125,8 +2125,8 @@
       "MockOrigin": "roster — FastMovement/LinearCharge, Damage + Push"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Interposition",
-      "IconId": "UI.Icon.Action.Hero.Branth.Interposition",
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Interposition",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Interposition",
       "Category": "Action",
       "Axes": {
         "phase": "Control",
@@ -2134,7 +2134,7 @@
         "effects": [],
         "derived_from": "Action.Intercept",
         "display": "Interposizione",
-        "hero": "Branth"
+        "hero": "Riktor"
       },
       "Alphabet": {
         "PhaseStation": 9.2,
@@ -2894,8 +2894,8 @@
       "MockOrigin": "assente dal mock"
     },
     {
-      "AssetName": "RT_UI_Icon_Identity_Branth",
-      "IconId": "UI.Icon.Identity.Branth",
+      "AssetName": "RT_UI_Icon_Identity_Riktor",
+      "IconId": "UI.Icon.Identity.Riktor",
       "Category": "Identity",
       "Axes": null,
       "Alphabet": null,
@@ -3641,7 +3641,7 @@
       "AlphaMode": "straight RGBA, nessun matte",
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
-      "MockOrigin": "E25 — modulo di Branth"
+      "MockOrigin": "E25 — modulo di Riktor"
     },
     {
       "AssetName": "RT_UI_Icon_Reaction_EmergencyDash",

@@ -164,7 +164,7 @@ namespace RTAbilityLabInternal
 	/**
 	 * L'attacco base EFFETTIVO di un eroe (`#4073`): quello del kit, con le varianti d'arma del loadout di default, che la
 	 * sessione monta su ogni unita' che non dichiara il suo. `Weapon.Impact` toglie una cella di portata e aggiunge la
-	 * spinta: e' cio' che fa di `Hero.Branth.ImpactShot` una spinta, e il suo `Def` da solo non lo dice.
+	 * spinta: e' cio' che fa di `Hero.Riktor.ImpactShot` una spinta, e il suo `Def` da solo non lo dice.
 	 */
 	static bool EffectiveBasicAttack(const FName& HeroId, FRTActionDef& OutDef, ERTAbilityShape& OutShape)
 	{
@@ -565,7 +565,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	}
 
 	// La provocazione, se e' una reazione (`#4073`). ⛔ `Control` e `Hazard` li ascoltano solo moduli d'equipaggiamento:
-	// oggi non ci si arriva, e se ci si arrivasse il banco non saprebbe provocarli — lo `Slow` e' solo nel kit di Branth,
+	// oggi non ci si arriva, e se ci si arrivasse il banco non saprebbe provocarli — lo `Slow` e' solo nel kit di Riktor,
 	// il fuoco non lo accende nessuno ([D-046]). Fail closed invece di posare una reazione che non puo' scattare.
 	const ERTAbilityLabProvocation Provocazione = ProvocationFor(Def);
 	// ⛔ Il bersaglio di una reazione non si forza: la scena la fa provocare dal `TARGET`, nemico, e un `TARGET` alleato

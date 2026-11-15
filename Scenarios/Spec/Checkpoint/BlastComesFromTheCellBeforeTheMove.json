@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Checkpoint.BlastComesFromTheCellBeforeTheMove",
-  "tags": ["spec", "checkpoint", "blast", "movement", "aevik", "branth"],
+  "tags": ["spec", "checkpoint", "blast", "movement", "gadget", "riktor"],
   "version": 7,
   "seed": 0,
   "mapRadius": 4,
@@ -16,14 +16,14 @@
   "_nota_cosa_NON_prova": "Non prova `afterEvent`, che e' l'altro confine di `#2867` e vive nei test C++ (`Scenario.CheckpointEvaluatesAfterASelectedEvent`): quello serve a fatti che accadono DENTRO una fase — Overwatch, hazard, interruzioni — e un confine di fase non sa localizzarli. E non prova niente sui micro-step: la cella attraversata non e' parte esplicita di nessuna regola qui, e un checkpoint per micro-step sarebbe il golden che `#2867` esclude per nome.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [
     { "_turno": "T1 - A1 colpisce da dov'e', poi arretra di una cella. Un turno solo: il discriminante e' fra due FASI dello stesso turno, non fra due turni.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1", "move": [[-2, 0, 0]] }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "move": [[-2, 0, 0]] }
       ] }
   ],
 

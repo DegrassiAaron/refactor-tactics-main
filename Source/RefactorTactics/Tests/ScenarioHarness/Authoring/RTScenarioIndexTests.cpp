@@ -653,7 +653,7 @@ bool FRTScenarioIndexShippedRedirectsTest::RunTest(const FString&)
 	// Il controllo generale, sul file vero: nessuna voce deve restare appesa a un bersaglio che non c'e' piu'.
 	//
 	// 🔴 **Esistenza ESATTA, e non `ResolvePath(Finale)`.** `ResolvePath` rifa i redirect e prova anche
-	// l'abbreviazione per segmenti, quindi un bersaglio scritto senza prefisso (`BranthImpactShotSlows`) o una
+	// l'abbreviazione per segmenti, quindi un bersaglio scritto senza prefisso (`RiktorImpactShotSlows`) o una
 	// catena piu' lunga di `MaxRedirectHops` si risolverebbero QUI e non nell'harness, che parte dall'ID
 	// originale e si ferma. Misurato con un mutante: il bersaglio senza prefisso lasciava il test verde.
 	for (const TPair<FString, FString>& Voce : Redirects)

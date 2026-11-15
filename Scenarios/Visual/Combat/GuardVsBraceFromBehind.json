@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "COMPOSITO per DIREZIONE fra le due difese, sotto colpi PICCOLI e RIPETUTI che arrivano dalle SPALLE. Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Branth.ImpactShot` da 8 — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA fra le due difese, che da [D-408] non sta piu' nella forma ma nella direzione: la Guardia copre l'arco frontale ([D-206]) e il `Brace` e' omnidirezionale. IN AGGIUNTA a `Visual.Combat.DefenseVsNoneUnderSmallHits`, mai al suo posto: quel file ha gli stessi tre difensori con gli attaccanti DAVANTI.",
+  "_nota": "COMPOSITO per DIREZIONE fra le due difese, sotto colpi PICCOLI e RIPETUTI che arrivano dalle SPALLE. Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Riktor.ImpactShot` da 8 — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA fra le due difese, che da [D-408] non sta piu' nella forma ma nella direzione: la Guardia copre l'arco frontale ([D-206]) e il `Brace` e' omnidirezionale. IN AGGIUNTA a `Visual.Combat.DefenseVsNoneUnderSmallHits`, mai al suo posto: quel file ha gli stessi tre difensori con gli attaccanti DAVANTI.",
 
   "_oracolo": "La voce `PIE-ACC-GUARDBRACE` di `docs/technical/test-manuali-pie.md`, la cui domanda e' qui riscritta per la direzione. Non sostituisce i due scenari che mostrano ciascuna difesa da dietro una per volta — `Visual.Combat.BraceReducesEveryHit` e `Spec.Facing.BackAttackIgnoresGuard` — e li mette nella STESSA inquadratura.",
 
@@ -17,26 +17,26 @@
 
   "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto la soglia del `Brace` (8 danni, ADR-0007): con un colpo da 11 o piu' l'Irrigidimento lascerebbe passare almeno un punto e il 120 non sarebbe raggiungibile. Stessa scelta, e stessa nota sulle reazioni sotto soglia, di `Visual.Combat.DefenseVsNoneUnderSmallHits`.",
 
-  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come nel banco denso e in `Spec.Brace.GuardAndBraceOnMixedHit`, e per la stessa ragione: il default di Branth e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata, cioe' una terza regola sopra le due che la scena confronta. Le distanze sono `1, 2, 2` per ogni difensore, come nel banco denso.",
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come nel banco denso e in `Spec.Brace.GuardAndBraceOnMixedHit`, e per la stessa ragione: il default di Riktor e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata, cioe' una terza regola sopra le due che la scena confronta. Le distanze sono `1, 2, 2` per ogni difensore, come nel banco denso.",
 
   "_nota_tre_attaccanti_per_difensore": "Un attaccante dedicato per colpo, e non tre colpi da uno solo: un'unita' dichiara UN intent per turno.",
 
   "units": [
-    { "id": "DG", "hero": "Hero.Branth", "team": 0, "cell": [0, 2, 0] },
-    { "id": "DB", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0] },
-    { "id": "DN", "hero": "Hero.Branth", "team": 0, "cell": [0, -2, 0] },
+    { "id": "DG", "hero": "Hero.Riktor", "team": 0, "cell": [0, 2, 0] },
+    { "id": "DB", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "DN", "hero": "Hero.Riktor", "team": 0, "cell": [0, -2, 0] },
 
-    { "id": "AG1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 2, 0], "facing": "E", "loadout": [] },
-    { "id": "AG2", "hero": "Hero.Branth", "team": 1, "cell": [-2, 2, 0], "facing": "E", "loadout": [] },
-    { "id": "AG3", "hero": "Hero.Branth", "team": 1, "cell": [-2, 3, 0], "facing": "E", "loadout": [] },
+    { "id": "AG1", "hero": "Hero.Riktor", "team": 1, "cell": [-1, 2, 0], "facing": "E", "loadout": [] },
+    { "id": "AG2", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 2, 0], "facing": "E", "loadout": [] },
+    { "id": "AG3", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 3, 0], "facing": "E", "loadout": [] },
 
-    { "id": "AB1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 0, 0], "facing": "E", "loadout": [] },
-    { "id": "AB2", "hero": "Hero.Branth", "team": 1, "cell": [-2, 0, 0], "facing": "E", "loadout": [] },
-    { "id": "AB3", "hero": "Hero.Branth", "team": 1, "cell": [-2, 1, 0], "facing": "E", "loadout": [] },
+    { "id": "AB1", "hero": "Hero.Riktor", "team": 1, "cell": [-1, 0, 0], "facing": "E", "loadout": [] },
+    { "id": "AB2", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 0, 0], "facing": "E", "loadout": [] },
+    { "id": "AB3", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 1, 0], "facing": "E", "loadout": [] },
 
-    { "id": "AN1", "hero": "Hero.Branth", "team": 1, "cell": [-1, -2, 0], "facing": "E", "loadout": [] },
-    { "id": "AN2", "hero": "Hero.Branth", "team": 1, "cell": [-2, -2, 0], "facing": "E", "loadout": [] },
-    { "id": "AN3", "hero": "Hero.Branth", "team": 1, "cell": [-2, -1, 0], "facing": "E", "loadout": [] }
+    { "id": "AN1", "hero": "Hero.Riktor", "team": 1, "cell": [-1, -2, 0], "facing": "E", "loadout": [] },
+    { "id": "AN2", "hero": "Hero.Riktor", "team": 1, "cell": [-2, -2, 0], "facing": "E", "loadout": [] },
+    { "id": "AN3", "hero": "Hero.Riktor", "team": 1, "cell": [-2, -1, 0], "facing": "E", "loadout": [] }
   ],
 
   "turns": [
@@ -46,17 +46,17 @@
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Brace" },
 
-        { "unit": "AG1", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG2", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG3", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+        { "unit": "AG1", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG2", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG3", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
 
-        { "unit": "AB1", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
-        { "unit": "AB2", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
-        { "unit": "AB3", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
+        { "unit": "AB1", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB2", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB3", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
 
-        { "unit": "AN1", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
-        { "unit": "AN2", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
-        { "unit": "AN3", "ability": "Hero.Branth.ImpactShot", "target": "DN" }
+        { "unit": "AN1", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN2", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN3", "ability": "Hero.Riktor.ImpactShot", "target": "DN" }
       ]
     }
   ],

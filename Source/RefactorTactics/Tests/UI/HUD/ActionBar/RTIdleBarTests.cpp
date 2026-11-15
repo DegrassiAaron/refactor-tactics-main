@@ -79,16 +79,16 @@ bool FRTIdleBarShapeTest::RunTest(const FString&)
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	ARTUnit* Aevik = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Gadget = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* Muiren = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(1, 0, 0));
-	if (!Aevik || !Muiren)
+	if (!Gadget || !Muiren)
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return TestTrue(TEXT("le due unita' esistono"), false);
 	}
 
-	const TArray<FName> Comuni = IdleBarCommons(Aevik); // la prima dell'elenco e' la fonte delle Comuni
-	const int32 Kit = FMath::Max(IdleBarKitLength(Aevik), IdleBarKitLength(Muiren));
+	const TArray<FName> Comuni = IdleBarCommons(Gadget); // la prima dell'elenco e' la fonte delle Comuni
+	const int32 Kit = FMath::Max(IdleBarKitLength(Gadget), IdleBarKitLength(Muiren));
 	if (!TestTrue(TEXT("premessa: ci sono Comuni"), Comuni.Num() > 0)
 		|| !TestTrue(TEXT("premessa: c'e' un Kit"), Kit > 0))
 	{
@@ -96,7 +96,7 @@ bool FRTIdleBarShapeTest::RunTest(const FString&)
 		return false;
 	}
 
-	const TArray<FRTAbilityCooldownView> Barra = URTHudViewModel::BuildIdleBar({ Aevik, Muiren });
+	const TArray<FRTAbilityCooldownView> Barra = URTHudViewModel::BuildIdleBar({ Gadget, Muiren });
 	if (!TestEqual(TEXT("Comuni + una Base + i vuoti del kit piu' lungo"), Barra.Num(), Comuni.Num() + 1 + Kit))
 	{
 		RTWorldFixtures::DestroyWorld(World);
@@ -403,7 +403,7 @@ bool FRTIdleBarDockTest::RunTest(const FString&)
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	ARTUnit* A = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* A = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTUnit* B = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(1, 0, 0));
 	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
 	if (!A || !B || !Dock)
@@ -476,7 +476,7 @@ bool FRTIdleBarSlotArmsNothingTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
-	ARTUnit* Unit = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnIdleBarUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>(World);
 	if (!Unit || !PC || !Slot)

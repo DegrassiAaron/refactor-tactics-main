@@ -225,10 +225,10 @@ bool FRTHeroesControlTableHoldsOnTheRealCatalogTest::RunTest(const FString&)
 
 /**
  * Il turno intero sul catalogo, senza iniezioni: Ivrin tira `PulseShot` (210) a ciascuno dei quattro di fronte e gli HP
- * persi sono `floor(210 × 100/(100+DEF)) − scudo base`: Aevik e Ivrin (DEF 15) 182 − 50 = 132, Muiren (DEF 25)
- * 168 − 50 = 118, Branth (DEF 45) 144 − 50 = 94. Poi l'esempio di [D-599] alla lettera: il colpo alle spalle di
+ * persi sono `floor(210 × 100/(100+DEF)) − scudo base`: Gadget e Ivrin (DEF 15) 182 − 50 = 132, Muiren (DEF 25)
+ * 168 − 50 = 118, Riktor (DEF 45) 144 − 50 = 94. Poi l'esempio di [D-599] alla lettera: il colpo alle spalle di
  * Kallari (Ivrin, spalle 90) su Muriel (Muiren, DEF 25) vale `floor(300 × 100/125) = 240` contro 168 di fronte —
- * qui al netto dello scudo, 190 contro 118 — e quello del tank (Branth, spalle 30) si somma alla SUA base.
+ * qui al netto dello scudo, 190 contro 118 — e quello del tank (Riktor, spalle 30) si somma alla SUA base.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest,
 	"RefactorTactics.Combat.CatalogDefenseAndRearBonusInAFullTurn",
@@ -244,9 +244,9 @@ bool FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest::RunTest(const FString&)
 
 		struct FCase { const TCHAR* Who; URTHeroData* (*Make)(); int32 Def; int32 HpLost; };
 		const TArray<FCase> Cases = {
-			{ TEXT("Aevik"),  &URTHeroCatalogLibrary::MakeAevik,  15, 132 },
+			{ TEXT("Gadget"),  &URTHeroCatalogLibrary::MakeGadget,  15, 132 },
 			{ TEXT("Muiren"), &URTHeroCatalogLibrary::MakeMuiren, 25, 118 },
-			{ TEXT("Branth"), &URTHeroCatalogLibrary::MakeBranth, 45, 94 },
+			{ TEXT("Riktor"), &URTHeroCatalogLibrary::MakeRiktor, 45, 94 },
 			{ TEXT("Ivrin"),  &URTHeroCatalogLibrary::MakeIvrin,  15, 132 },
 		};
 		for (const FCase& C : Cases)
@@ -273,19 +273,19 @@ bool FRTCombatCatalogDefenseAndRearBonusInAFullTurnTest::RunTest(const FString&)
 		TestEqual(TEXT("D-599: di fronte 210 contro DEF 25 = 168, meno lo scudo: 118 HP"), Front, 168 - Shield);
 	}
 
-	// Il tank: Branth (spalle 30) alle spalle di Muiren con il SUO attacco base; il bonus e' dell'attaccante e si
+	// Il tank: Riktor (spalle 30) alle spalle di Muiren con il SUO attacco base; il bonus e' dell'attaccante e si
 	// somma alla sua base, non a quella di Ivrin.
 	{
-		URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-		TestEqual(TEXT("Branth porta la fascia tank, 30"), Branth->RearBonus, 30);
-		const int32 ImpactShot = CatBasicAttackDamage(Branth);
-		if (!TestTrue(TEXT("premessa: l'attacco base di Branth fa danno"), ImpactShot > Shield)) { return false; }
-		const int32 Behind = CatTurnDamageTaken(*this, Branth, URTHeroCatalogLibrary::MakeMuiren(), /*bFromBehind*/ true);
-		const int32 Front = CatTurnDamageTaken(*this, URTHeroCatalogLibrary::MakeBranth(), URTHeroCatalogLibrary::MakeMuiren(), /*bFromBehind*/ false);
+		URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+		TestEqual(TEXT("Riktor porta la fascia tank, 30"), Riktor->RearBonus, 30);
+		const int32 ImpactShot = CatBasicAttackDamage(Riktor);
+		if (!TestTrue(TEXT("premessa: l'attacco base di Riktor fa danno"), ImpactShot > Shield)) { return false; }
+		const int32 Behind = CatTurnDamageTaken(*this, Riktor, URTHeroCatalogLibrary::MakeMuiren(), /*bFromBehind*/ true);
+		const int32 Front = CatTurnDamageTaken(*this, URTHeroCatalogLibrary::MakeRiktor(), URTHeroCatalogLibrary::MakeMuiren(), /*bFromBehind*/ false);
 		if (Behind < 0 || Front < 0) { return false; }
-		TestEqual(*FString::Printf(TEXT("Branth alle spalle di Muiren: floor((%d + 30) × 100/125) − %d"), ImpactShot, Shield),
+		TestEqual(*FString::Printf(TEXT("Riktor alle spalle di Muiren: floor((%d + 30) × 100/125) − %d"), ImpactShot, Shield),
 			Behind, URTCombatLibrary::MitigateDirectDamage(ImpactShot, 30, 100, 25) - Shield);
-		TestEqual(*FString::Printf(TEXT("Branth di fronte a Muiren: floor(%d × 100/125) − %d"), ImpactShot, Shield),
+		TestEqual(*FString::Printf(TEXT("Riktor di fronte a Muiren: floor(%d × 100/125) − %d"), ImpactShot, Shield),
 			Front, URTCombatLibrary::MitigateDirectDamage(ImpactShot, 0, 100, 25) - Shield);
 		TestTrue(TEXT("il colpo alle spalle del tank vale piu' di quello di fronte"), Behind > Front);
 	}

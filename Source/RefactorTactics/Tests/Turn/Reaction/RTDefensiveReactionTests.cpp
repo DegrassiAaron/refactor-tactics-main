@@ -1631,19 +1631,19 @@ bool FRTBraceRicherProfileOpensWindowTest::RunTest(const FString&)
 }
 
 /**
- * **Branth non ha un profilo, e nessuna finestra si apre per lui** ([D-047] §2.5).
+ * **Riktor non ha un profilo, e nessuna finestra si apre per lui** ([D-047] §2.5).
  *
  * E' la baseline con cui CP 14.6 confronta gli altri tre quando misura il pacing, e va pinnata: se un giorno
  * qualcuno gliene assegnasse uno, il caso «un eroe senza finestra» sparirebbe dal roster e la misura del
  * pacing perderebbe il proprio controllo — senza che nulla diventi rosso.
  *
- * ⚠️ Il test verifica **entrambe** le metà: che Branth non ne abbia uno, e che gli altri tre sì. Solo la
+ * ⚠️ Il test verifica **entrambe** le metà: che Riktor non ne abbia uno, e che gli altri tre sì. Solo la
  * prima passerebbe anche su un roster in cui nessuno ha un profilo.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBranthHasNoProfileTest,
-	"RefactorTactics.Reactions.Brace.BranthHasNoProfile",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceRiktorHasNoProfileTest,
+	"RefactorTactics.Reactions.Brace.RiktorHasNoProfile",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBraceBranthHasNoProfileTest::RunTest(const FString&)
+bool FRTBraceRiktorHasNoProfileTest::RunTest(const FString&)
 {
 	int32 WithProfile = 0;
 	int32 WithoutProfile = 0;
@@ -1657,16 +1657,16 @@ bool FRTBraceBranthHasNoProfileTest::RunTest(const FString&)
 		Opp.AllowedResponses = Responses;
 		const bool bOpens = URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp);
 
-		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		if (Hero->HeroId == FName(TEXT("Hero.Riktor")))
 		{
-			TestTrue(TEXT("Branth non dichiara un profilo"), Hero->ReactionProfileId.IsNone());
+			TestTrue(TEXT("Riktor non dichiara un profilo"), Hero->ReactionProfileId.IsNone());
 			TestFalse(TEXT("e il suo `Brace` non apre nessuna finestra"), bOpens);
 		}
 
 		if (bOpens) { ++WithProfile; } else { ++WithoutProfile; }
 	}
 
-	// L'altra meta': tre eroi APRONO la finestra. Senza, «Branth non ne ha uno» sarebbe vero anche su un
+	// L'altra meta': tre eroi APRONO la finestra. Senza, «Riktor non ne ha uno» sarebbe vero anche su un
 	// roster in cui il profilo non esiste per nessuno — cioe' su una feature che non e' stata costruita.
 	TestEqual(TEXT("tre eroi del roster aprono la finestra sul `Brace`"), WithProfile, 3);
 	TestEqual(TEXT("e uno solo non la apre"), WithoutProfile, 1);
@@ -1922,18 +1922,18 @@ bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 		"e' il conteggio dei prompt a dire che c'e' stata una scelta"),
 		PromptsSidestep, 1);
 
-	// **La baseline**: Branth non ha un profilo, quindi nessuna finestra si apre per lui e il decisore non
+	// **La baseline**: Riktor non ha un profilo, quindi nessuna finestra si apre per lui e il decisore non
 	// viene mai chiamato — nemmeno se ne colleghi uno che risponderebbe `SIDESTEP`. E' la meta' che protegge
 	// tutto cio' che e' verde oggi: se il profilo base aprisse un prompt, ogni `Brace` della v0.1 ne
 	// aprirebbe uno.
-	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	if (TestNotNull(TEXT("Branth"), Branth))
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (TestNotNull(TEXT("Riktor"), Riktor))
 	{
-		int32 PromptsBranth = 0; bool bRanBranth = false;
-		const FRTCellId Piantato = RunBracePushTurn(Branth, TEXT("SIDESTEP"), PromptsBranth, bRanBranth);
-		TestTrue(TEXT("il turno di Branth e' girato davvero"), bRanBranth);
-		TestTrue(TEXT("Branth tiene la cella col comportamento base"), Piantato == Start);
-		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsBranth, 0);
+		int32 PromptsRiktor = 0; bool bRanRiktor = false;
+		const FRTCellId Piantato = RunBracePushTurn(Riktor, TEXT("SIDESTEP"), PromptsRiktor, bRanRiktor);
+		TestTrue(TEXT("il turno di Riktor e' girato davvero"), bRanRiktor);
+		TestTrue(TEXT("Riktor tiene la cella col comportamento base"), Piantato == Start);
+		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsRiktor, 0);
 	}
 
 	// 🔴 **Ivrin e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
@@ -2267,7 +2267,7 @@ bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
  *
  * Uno slot di loadout speso su una capacità che l'eroe possiede già non è una scelta: è una voce in più
  * nella lista, e il giocatore che arma l'una o l'altra ottiene la stessa cosa. Trovato misurando `#1403`:
- * `Hero.Branth.Interposition` e `Reaction.AllyIntercept` erano **entrambi** costruiti su `Action.Intercept`.
+ * `Hero.Riktor.Interposition` e `Reaction.AllyIntercept` erano **entrambi** costruiti su `Action.Intercept`.
  *
  * ⚠️ **A tabella, e la forma è la lezione di [D-201]**: il difetto era su **due** eroi su quattro, e
  * correggerne uno solo avrebbe reso quello l'eccezione mentre l'altro restava. Una riga per eroe, e chi
@@ -2291,15 +2291,15 @@ bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
 	};
 
 	const FCaso Casi[] = {
-		{ TEXT("Hero.Aevik"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeAevik(); },
+		{ TEXT("Hero.Gadget"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeGadget(); },
 		  true,
 		  TEXT("⚠️ DUPLICATO DICHIARATO: `ReactiveShield` e `ReactiveCapacitor` sono entrambi `Action.Counter`. "
-		       "Non corretto insieme a Branth perche' il loadout di Aevik e' comunque VUOTO — `Gadget.Insulator` "
+		       "Non corretto insieme a Riktor perche' il loadout di Gadget e' comunque VUOTO — `Gadget.Insulator` "
 		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
 		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
 		{ TEXT("Hero.Muiren"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeMuiren(); },
 		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
-		{ TEXT("Hero.Branth"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeBranth(); },
+		{ TEXT("Hero.Riktor"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeRiktor(); },
 		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },
 		{ TEXT("Hero.Ivrin"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeIvrin(); },
 		  false, TEXT("`EmergencyDash` (Counter) contro `Deflection` di kit (Deflect)") },

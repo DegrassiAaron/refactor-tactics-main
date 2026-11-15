@@ -3052,7 +3052,7 @@ void ARTTurnManager::ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot)
 		{
 			const ARTUnit* U = Vive.IsValidIndex(Indice) ? Vive[Indice] : nullptr;
 			// ⚠️ Il nome NON basta da solo: due unita' dello stesso eroe danno la stessa etichetta, e la riga
-			// direbbe «Branth la occupa, Branth e' stata scartata» — misurato la prima volta che questo log
+			// direbbe «Riktor la occupa, Riktor e' stata scartata» — misurato la prima volta che questo log
 			// e' scattato. L'id stabile la rende discriminante, che e' il punto di #1932.
 			return U != nullptr
 				? FString::Printf(TEXT("%s (id %d)"),
@@ -3983,7 +3983,7 @@ void ARTTurnManager::ConcludeTurn()
 	// come bug di gameplay su un comportamento corretto.
 	//
 	// La risoluzione dei nomi sta in `SubjectNamesForLog` e non qui: un test che riderivi queste righe deve
-	// poter usare la STESSA mappa, altrimenti confronta `Aevik: resta` con `u3: resta` e fallisce su una
+	// poter usare la STESSA mappa, altrimenti confronta `Gadget: resta` con `u3: resta` e fallisce su una
 	// differenza che non e' un difetto.
 	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog, SubjectNamesForLog()))
 	{
@@ -4314,7 +4314,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
-	// Gli SPOSTAMENTI (`Branth.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
+	// Gli SPOSTAMENTI (`Riktor.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
 	// solo in applicazione: una rotazione gratuita non lo spende, e quale copertura si sposta — quindi se una
 	// rotazione gratuita c'e' — si sa solo guardando il campo.
 	struct FRTPendingMoveOp
@@ -4428,7 +4428,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		if (!Unit->CanUseAbility(Index)) { continue; }
 
 		// 🔴 **`Status.Stunned` NEGA L'AZIONE PRINCIPALE** ([D-416] (1), `#3142`), e le strutture di bordo sono principali di
-		// Prep ([D-565], `#3958`): `Action.CreateCover`, `Hero.Branth.KineticPanel` e `Hero.Branth.Reconfigure` hanno
+		// Prep ([D-565], `#3958`): `Action.CreateCover`, `Hero.Riktor.KineticPanel` e `Hero.Riktor.Reconfigure` hanno
 		// `ERTActionSlot::Main`. Questo ciclo consumava il piano di chi dichiara uno `StructureOp` senza passare da
 		// `RefuseMainActionIfStunned`, ed era il sito che mancava: `ResolvePrep` chiama `ResolveCoverStructures` PRIMA del
 		// proprio ciclo guardato, e quel ciclo non ritrova un piano gia' azzerato.
@@ -5422,9 +5422,9 @@ void ARTTurnManager::ResolveDash()
 			// rifiutato.
 			//
 			// ⚠️ **Misurato, non dedotto**: seduta `U46` del 2026-09-08, scenario
-			// `Visual.Environment.Acceptance` T2. La carica `Hero.Branth.Ram` di `R_ROU` verso `(-1,-1,0)`
+			// `Visual.Environment.Acceptance` T2. La carica `Hero.Riktor.Ram` di `R_ROU` verso `(-1,-1,0)`
 			// passa dal rough di `(-2,-1)` e viene rifiutata; nel log usciva
-			// `Branth: resta (q=-3,r=-1,L=0) (Action.Move, p50)`, riga per riga identica a quella delle
+			// `Riktor: resta (q=-3,r=-1,L=0) (Action.Move, p50)`, riga per riga identica a quella delle
 			// otto unita' che quel turno non facevano nulla. La voce `PIE-V01-LOG` chiede esattamente se
 			// il log spieghi perche' un'azione e' stata sostituita, e la risposta era no.
 			//
@@ -5483,7 +5483,7 @@ void ARTTurnManager::ResolveDash()
 				// TurnLog (`DescribeTurnLog`) — come ogni altra voce.
 				//
 				// ⌫ **Una prima stesura ne aggiungeva uno, e produceva DUE righe per un rifiuto solo** —
-				// `Branth (q=-3,r=-1,L=0): il terreno non si attraversa di corsa` seguita subito dalla voce
+				// `Riktor (q=-3,r=-1,L=0): il terreno non si attraversa di corsa` seguita subito dalla voce
 				// derivata, che dice le stesse cose (e fino al 2026-11-02 anche la destinazione: [D-568] l'ha
 				// tolta, e la ridondanza sul motivo resta). `RecentEvents` e' limitato a
 				// `MaxLogLines`, quindi la riga ridondante ne sfrattava una vera: peggiorava il log che
@@ -6519,7 +6519,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Aevik.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
+	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
 	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
 	// solo sul primo, quindi non passa dai delta qui sotto.
 	//
@@ -6537,7 +6537,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Aevik.LinearDischarge")))
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Gadget.LinearDischarge")))
 		{
 			continue;
 		}
@@ -6550,7 +6550,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::AevikWetDischargeBonus);
+			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
 		}
 	}
 
@@ -7731,7 +7731,7 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
 	//
 	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
-	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Branth.Interposition` si
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Riktor.Interposition` si
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//
@@ -8126,7 +8126,7 @@ FRTReactionWindowNames ARTTurnManager::MakeReactionWindowNames(const FRTReaction
 
 	// 🔑 **Chi ha fatto scattare la finestra lo dice il chiamante, e NON si ricava dalle risposte.** Una
 	// condizione dichiarata riduce i `FIRE`, non chi e' entrato: `BuildOverwatchTriggers` tiene i due elenchi
-	// distinti (`TargetUnitIds` e `AllowedResponses`), e ricostruire il primo dal secondo farebbe dire «Branth
+	// distinti (`TargetUnitIds` e `AllowedResponses`), e ricostruire il primo dal secondo farebbe dire «Riktor
 	// e' entrato» quando sono entrati in due.
 	//
 	// ⚠️ Chi passa `TriggerUnitIds` garantisce che la squadra di chi decide RILEVI quelle unita': per

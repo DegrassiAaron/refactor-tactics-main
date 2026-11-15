@@ -1404,9 +1404,9 @@ bool FRTActionSlotResolvesOncePerActionChangeTest::RunTest(const FString&)
 		FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
 
 	// Un'abilita' PROPRIA: nessun ripiego, quindi la chiave non si risolve e `ResolveIcon` logga.
-	// E' il caso reale di `Hero.Aevik.Overload` — uno dei quattro che la seduta ha visto ripetersi.
+	// E' il caso reale di `Hero.Gadget.Overload` — uno dei quattro che la seduta ha visto ripetersi.
 	FRTAbilityCooldownView Azione;
-	Azione.ActionId = TEXT("Hero.Aevik.Overload");
+	Azione.ActionId = TEXT("Hero.Gadget.Overload");
 
 	// 🔑 **Esattamente UNA**, non «almeno una»: `Occurrences 1` e' l'asserto di questo test. Con `0` —
 	// la forma usata altrove per dire «almeno una» — il difetto delle 16 388 righe passerebbe.
@@ -1454,7 +1454,7 @@ bool FRTScreenHudInspectedSlotsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
 	ON_SCOPE_EXIT { DestroyHudWidgetWorld(World); };
 
-	ARTUnit* Mine  = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Mine  = SpawnRosterUnit(World, 0, TEXT("Hero.Gadget"));
 	ARTUnit* Enemy = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
 	URTSelectedUnitPanelWidget* Panel = NewObject<URTSelectedUnitPanelWidget>(World);
 	if (!TestNotNull(TEXT("pannello"), Panel) || !Mine || !Enemy) { return false; }
@@ -1641,7 +1641,7 @@ bool FRTScreenHudRosterReactionChipTest::RunTest(const FString&)
 /**
  * 🔑 **LA CARTA DICE IL NOME, NON L'ID; IL CHIP SEGUE LA REAZIONE ARMATA** (#3636, T8).
  *
- * `WBP_RT_UnitCard` legava `Conv_NameToText(HeroId)`, e a schermo usciva «Hero.Aevik». La vista ora porta il nome di
+ * `WBP_RT_UnitCard` legava `Conv_NameToText(HeroId)`, e a schermo usciva «Hero.Gadget». La vista ora porta il nome di
  * `ARTUnit::DisplayLabel`, e la carta lo scrive. ⚠️ I testi si confrontano CaseSensitive: `TestEqual` su `FString`
  * ignora le maiuscole.
  */
@@ -1654,7 +1654,7 @@ bool FRTScreenHudUnitCardTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
 
-	ARTUnit* Mia = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Mia = SpawnRosterUnit(World, 0, TEXT("Hero.Gadget"));
 	ARTUnit* Sua = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
 	URTUnitCardWidget* Carta = NewObject<URTUnitCardWidget>(World);
 	if (!Mia || !Sua || !TestNotNull(TEXT("carta"), Carta)) { return false; }
@@ -1797,7 +1797,7 @@ bool FRTScreenHudUnitCardBarTest::RunTest(const FString&)
 		return V;
 	};
 
-	ARTUnit* Unita = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Unita = SpawnRosterUnit(World, 0, TEXT("Hero.Gadget"));
 	URTSelectedUnitPanelWidget* Pannello = NewObject<URTSelectedUnitPanelWidget>(World);
 	if (!TestNotNull(TEXT("unita'"), Unita) || !TestNotNull(TEXT("pannello"), Pannello)) { return false; }
 	Pannello->SubjectCard = CartaNuova();
@@ -2139,7 +2139,7 @@ bool FRTPlanWarningChipTest::RunTest(const FString&)
 	FRTUnitSlotsView Slots;
 	Slots.bAuthorized = true;
 	Slots.Main.bOccupied = true;
-	Slots.Main.ActionId = TEXT("Hero.Aevik.Overload");
+	Slots.Main.ActionId = TEXT("Hero.Gadget.Overload");
 	Slots.Reaction.bOccupied = true;
 	Slots.Reaction.ActionId = TEXT("Action.Counter");
 	Slots.Movement.bOccupied = true; // un percorso: occupato, senza un'azione
@@ -2151,7 +2151,7 @@ bool FRTPlanWarningChipTest::RunTest(const FString&)
 		return W;
 	};
 	TestTrue(TEXT("l'azione della principale va alla principale"),
-		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::Main);
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Gadget.Overload"))) == ERTPlanChip::Main);
 	TestTrue(TEXT("quella della reazione alla reazione"),
 		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Action.Counter"))) == ERTPlanChip::Reaction);
 	TestTrue(TEXT("la voce di movimento del core, che lo slot non nomina, al movimento"),
@@ -2165,7 +2165,7 @@ bool FRTPlanWarningChipTest::RunTest(const FString&)
 
 	Slots.bAuthorized = false;
 	TestTrue(TEXT("una vista non autorizzata non assegna niente"),
-		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Aevik.Overload"))) == ERTPlanChip::None);
+		URTHudViewModel::ChipForWarning(Slots, Avviso(TEXT("Hero.Gadget.Overload"))) == ERTPlanChip::None);
 	return true;
 }
 
@@ -2220,7 +2220,7 @@ bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FSt
 
 	// Un'abilita' PROPRIA, senza ripiego: la chiave non si risolve e `ResolveIcon` logga.
 	FRTAbilityCooldownView Azione;
-	Azione.ActionId = TEXT("Hero.Aevik.Overload");
+	Azione.ActionId = TEXT("Hero.Gadget.Overload");
 
 	FRTCardLogWatch Sonda;
 
@@ -2240,7 +2240,7 @@ bool FRTActionSlotResolvesOnceWhenTheDockRepeatsSetActionTest::RunTest(const FSt
 
 	// (c) Un'altra azione: un'altra chiave, e si risolve di nuovo.
 	FRTAbilityCooldownView Altra;
-	Altra.ActionId = TEXT("Hero.Aevik.Altra");
+	Altra.ActionId = TEXT("Hero.Gadget.Altra");
 	Slot->SetAction(Altra, /*bArmed=*/ false, Catalogo);
 	TestEqual(TEXT("(c) un'altra azione risolve di nuovo"), ContaIconeNonRisolte(Sonda), 2);
 
@@ -2322,7 +2322,7 @@ bool FRTActionSlotWithoutAnActionDoesNotWarnTest::RunTest(const FString&)
 
 	// Controllo positivo: la sonda vede un'abilita' propria non risolta.
 	FRTAbilityCooldownView Propria;
-	Propria.ActionId = TEXT("Hero.Aevik.Overload");
+	Propria.ActionId = TEXT("Hero.Gadget.Overload");
 	Slot->SetAction(Propria, /*bArmed=*/ false, Catalogo);
 	TestEqual(TEXT("controllo positivo: una chiave vera non risolta scrive un avviso"), ContaIconeNonRisolte(Sonda), 1);
 

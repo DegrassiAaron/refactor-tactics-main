@@ -605,7 +605,7 @@ bool FRTTurnLogObjectiveIsDescribedTest::RunTest(const FString&)
  *
  * 🔑 **La regola non e' «tutte le categorie»**, ed e' il motivo per cui questo test ha una seconda meta':
  * il prefisso dice il vero solo dove `UnitId` e' anche il soggetto grammaticale. Per il danno porta chi
- * SUBISCE (`#1150`) — *«Aevik: colpisce»* sarebbe falso — e le voci `Status` cominciano gia' con la cella.
+ * SUBISCE (`#1150`) — *«Gadget: colpisce»* sarebbe falso — e le voci `Status` cominciano gia' con la cella.
  *
  * ⛔ **E il nome viene dalla MAPPA, non dall'attore.** Gli echi scritti a mano usavano `Unit->GetName()`,
  * che rende `RTUnit_0`; la derivazione usa `SubjectNamesForLog`, che rende il nome dell'eroe. Le due copie
@@ -617,7 +617,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogDerivedLineNamesSubjectTest,
 bool FRTTurnLogDerivedLineNamesSubjectTest::RunTest(const FString&)
 {
 	TMap<int32, FString> Nomi;
-	Nomi.Add(7, TEXT("Aevik"));
+	Nomi.Add(7, TEXT("Gadget"));
 
 	auto Voce = [](ERTLogCategory Categoria, uint8 Esito, int32 UnitId)
 	{
@@ -644,25 +644,25 @@ bool FRTTurnLogDerivedLineNamesSubjectTest::RunTest(const FString&)
 	const FString Reazione = RigaDi(Voce(ERTLogCategory::Reaction, static_cast<uint8>(ERTReactionOutcome::NotTriggered),  7));
 	const FString Facing   = RigaDi(Voce(ERTLogCategory::Facing,   static_cast<uint8>(ERTFacingOutcome::DerivedFromMove), 7));
 
-	TestTrue(*FString::Printf(TEXT("Move nomina il soggetto: %s"), *Mossa),         Mossa.StartsWith(TEXT("Aevik: ")));
-	TestTrue(*FString::Printf(TEXT("Fallback nomina il soggetto: %s"), *Annullata), Annullata.StartsWith(TEXT("Aevik: ")));
-	TestTrue(*FString::Printf(TEXT("Reaction nomina il soggetto: %s"), *Reazione),  Reazione.StartsWith(TEXT("Aevik: ")));
-	TestTrue(*FString::Printf(TEXT("Facing nomina il soggetto: %s"), *Facing),      Facing.StartsWith(TEXT("Aevik: ")));
+	TestTrue(*FString::Printf(TEXT("Move nomina il soggetto: %s"), *Mossa),         Mossa.StartsWith(TEXT("Gadget: ")));
+	TestTrue(*FString::Printf(TEXT("Fallback nomina il soggetto: %s"), *Annullata), Annullata.StartsWith(TEXT("Gadget: ")));
+	TestTrue(*FString::Printf(TEXT("Reaction nomina il soggetto: %s"), *Reazione),  Reazione.StartsWith(TEXT("Gadget: ")));
+	TestTrue(*FString::Printf(TEXT("Facing nomina il soggetto: %s"), *Facing),      Facing.StartsWith(TEXT("Gadget: ")));
 
 	// ── Le DUE che non devono: il prefisso direbbe il falso.
 	const FString Colpo = RigaDi(Voce(ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Hit), 7));
 	const FString Stato = RigaDi(Voce(ERTLogCategory::Status, 0, 7));
 	TestFalse(*FString::Printf(TEXT("Combat NON nomina: UnitId porta chi subisce (%s)"), *Colpo),
-		Colpo.StartsWith(TEXT("Aevik: ")));
+		Colpo.StartsWith(TEXT("Gadget: ")));
 	TestFalse(*FString::Printf(TEXT("Status NON nomina: la frase apre gia' con la cella (%s)"), *Stato),
-		Stato.StartsWith(TEXT("Aevik: ")));
+		Stato.StartsWith(TEXT("Gadget: ")));
 
 	// ── Anti-vacuita' 1: senza soggetto dichiarato (`UnitId == 0`, la sentinella di [D-063]) niente prefisso.
 	//    Senza questa, un prefisso incondizionato passerebbe le quattro prove qui sopra.
 	const FString SenzaSoggetto = RigaDi(Voce(ERTLogCategory::Reaction,
 		static_cast<uint8>(ERTReactionOutcome::NotTriggered), 0));
 	TestFalse(*FString::Printf(TEXT("UnitId 0 non produce un prefisso: %s"), *SenzaSoggetto),
-		SenzaSoggetto.Contains(TEXT(": Aevik")) || SenzaSoggetto.StartsWith(TEXT("Aevik")));
+		SenzaSoggetto.Contains(TEXT(": Gadget")) || SenzaSoggetto.StartsWith(TEXT("Gadget")));
 
 	// ── Anti-vacuita' 2: il nome viene dalla MAPPA. Un id che la mappa non conosce esce come `uN`, non
 	//    sparisce — e' la regola di `#1932`: verificabile prima che bello.

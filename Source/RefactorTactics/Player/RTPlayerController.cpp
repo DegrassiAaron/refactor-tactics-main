@@ -3264,7 +3264,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 //
 // ⚠️ **E diceva «nel roster ce n'e' una», che era un conteggio e si e' invecchiato da solo** — l'errore
 // esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
-// `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
+// `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Riktor.Ram` la
 // ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { OnKitHotkey(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { OnKitHotkey(1); }

@@ -4,7 +4,7 @@
 // Registro rilegge (`URTHudViewModel::BuildPlayerEventFeed(TurnManager, ...)`). La cue `Cast` (`CastCuesPlayedForTest`) e'
 // l'orologio di controllo: suona nella stessa `ShowActivation`, quindi dice QUANDO la riga deve nascere.
 // ⚠️ Le scene sono quelle di `Tests/Turn/Playback/Reveal/RTSkillCalloutPlaybackTests.cpp` (#4025: Scudo e Tiratore, la finestra di reazione,
-// il gadget di Branth) e di `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp` (il muro alto), copiate con nomi `RigaAtt*`: in unity
+// il gadget di Riktor) e di `Tests/Turn/Playback/Reveal/RTPlaybackActivationTests.cpp` (il muro alto), copiate con nomi `RigaAtt*`: in unity
 // build i namespace anonimi di due file condividono la translation unit. Vedi quei file per il perche' di
 // `InitializeActorsForPlay` e di `MakePlayerOnTeam`.
 // ⚠️ Il testo atteso si compone con `URTHudViewModel::ComposeActivationLineText` dai campi dell'unita' (`RigaAttTestoAtteso`):
@@ -104,7 +104,7 @@ namespace
 		RigaAttMappa(Out.World, 8);
 
 		Out.Scudo     = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
-		Out.Tiratore  = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		Out.Tiratore  = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		Out.Bersaglio = RigaAttSpawn(Out.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Scudo || !Out.Tiratore || !Out.Bersaglio) { return false; }
@@ -131,7 +131,7 @@ namespace
 			&& Test.TestTrue(TEXT("⛔ premessa: il Tiratore ha un'azione nell'indice 0"), AbilityTiratore != nullptr);
 	}
 
-	/** L'azione del Tiratore: l'indice 0 del kit di Branth. */
+	/** L'azione del Tiratore: l'indice 0 del kit di Riktor. */
 	FName RigaAttAzioneTiratore(const FRigaAttScena& S)
 	{
 		const URTActionData* A = S.Tiratore ? S.Tiratore->GetAbility(0) : nullptr;
@@ -222,19 +222,19 @@ namespace
 	}
 
 	/**
-	 * Branth col loadout di DEFAULT (`DefaultLoadoutFor`, come `RTMatchBootstrapper`) che erige `Gadget.PortableCover` sul
+	 * Riktor col loadout di DEFAULT (`DefaultLoadoutFor`, come `RTMatchBootstrapper`) che erige `Gadget.PortableCover` sul
 	 * bordo W della cella a est: la forma di `RefactorTactics.Equipment.PortableCover.CreatesCover`. Il piano si scrive su
 	 * un'unita' gia' spawnata.
 	 */
-	bool RigaAttPianificaCopertura(FAutomationTestBase& Test, ARTUnit* Geniere, const URTHeroData* HeroBranth,
+	bool RigaAttPianificaCopertura(FAutomationTestBase& Test, ARTUnit* Geniere, const URTHeroData* HeroRiktor,
 		const FRTCellId& CellaCopertura)
 	{
-		Geniere->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(HeroBranth->HeroId));
+		Geniere->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(HeroRiktor->HeroId));
 		Geniere->SetPlannedMainAction(RigaAttIndice(Geniere, RigaAttPortableCover));
 		Geniere->DeclareAttackOnCell(CellaCopertura);
 		Geniere->DeclarePlannedCoverEdge(ERTHexDirection::W);
 		Geniere->SetPlannedCell(Geniere->Cell);
-		return Test.TestTrue(TEXT("⛔ premessa: il loadout di default di Branth concede Gadget.PortableCover"),
+		return Test.TestTrue(TEXT("⛔ premessa: il loadout di default di Riktor concede Gadget.PortableCover"),
 			Geniere->PlannedAbilityIndex != INDEX_NONE);
 	}
 }
@@ -337,10 +337,10 @@ bool FRTActivationLinePlaybackEveryKindTest::RunTest(const FString&)
 	if (!bOk) { return false; }
 
 	ARTUnit* const Guardia = RigaAttGuardiaNelVuoto(*this, S.World, FRTCellId(-3, 3));
-	const URTHeroData* HeroBranth = URTHeroCatalogLibrary::MakeBranth();
-	ARTUnit* const Geniere = RigaAttSpawn(S.World, 0, HeroBranth, FRTCellId(2, 3));
-	if (!Guardia || !Geniere || !HeroBranth
-		|| !RigaAttPianificaCopertura(*this, Geniere, HeroBranth, FRTCellId(3, 3)))
+	const URTHeroData* HeroRiktor = URTHeroCatalogLibrary::MakeRiktor();
+	ARTUnit* const Geniere = RigaAttSpawn(S.World, 0, HeroRiktor, FRTCellId(2, 3));
+	if (!Guardia || !Geniere || !HeroRiktor
+		|| !RigaAttPianificaCopertura(*this, Geniere, HeroRiktor, FRTCellId(3, 3)))
 	{
 		return false;
 	}
@@ -396,7 +396,7 @@ bool FRTActivationLinePlaybackEveryKindTest::RunTest(const FString&)
  * salto (R2, R8).
  *
  * 🔑 La scena di `Playback.EnemyBehindHighCoverHasNoActivationBeat`: l'Ivrin della squadra 1 spara dietro un muro alto, a
- * distanza 3, al Branth della squadra 0, che vede la propria cella ma non la sua. In piu', Branth erige il suo gadget in
+ * distanza 3, al Riktor della squadra 0, che vede la propria cella ma non la sua. In piu', Riktor erige il suo gadget in
  * Prep: e' il CONTROLLO POSITIVO nella stessa scena (la sua riga c'e', anche dopo il salto, dove la recupera R8) e da' al
  * playback qualcosa da mostrare, cosi' che il salto avvenga davvero a playback in corso.
  * ⛔ Il recupero di R8 legge le stesse liste gia' filtrate del playback: un recupero dalla timeline intera darebbe la riga
@@ -425,12 +425,12 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		World->InitializeActorsForPlay(FURL()); // il viewer deve esistere per il TurnManager
 		URTHexMapAsset* Map = RigaAttMappa(World, 6);
 
-		const URTHeroData* HeroBranth = URTHeroCatalogLibrary::MakeBranth();
+		const URTHeroData* HeroRiktor = URTHeroCatalogLibrary::MakeRiktor();
 		ARTUnit* Nemico = RigaAttSpawn(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-		ARTUnit* Branth = RigaAttSpawn(World, 0, HeroBranth, FRTCellId(3, 0));
+		ARTUnit* Riktor = RigaAttSpawn(World, 0, HeroRiktor, FRTCellId(3, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(World, SquadraDelViewer);
-		if (!TM || !Map || !Nemico || !Branth || !Viewer || !HeroBranth) { return false; }
+		if (!TM || !Map || !Nemico || !Riktor || !Viewer || !HeroRiktor) { return false; }
 		if (!TestEqual(TEXT("⛔ premessa: il TurnManager legge la squadra del viewer della fixture"),
 				ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(TM, 0)), SquadraDelViewer))
 		{
@@ -442,10 +442,10 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 0), static_cast<ERTHexDirection>(Bordo), ERTHexCoverType::High, 100);
 
 		Nemico->SetPlannedMainAction(RigaAttIndice(Nemico, RigaAttPulseShot));
-		Nemico->DeclareAttackOnUnit(Branth);
+		Nemico->DeclareAttackOnUnit(Riktor);
 		Nemico->SetPlannedCell(Nemico->Cell);
 		if (!TestTrue(TEXT("⛔ premessa: l'Ivrin pianifica PulseShot"), Nemico->PlannedAbilityIndex != INDEX_NONE)
-			|| !RigaAttPianificaCopertura(*this, Branth, HeroBranth, FRTCellId(4, 0)))
+			|| !RigaAttPianificaCopertura(*this, Riktor, HeroRiktor, FRTCellId(4, 0)))
 		{
 			return false;
 		}
@@ -454,7 +454,7 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		// ⛔ La squadra 0 E' nella conoscenza (vede la propria cella): senza, il verdetto sarebbe il fail-closed della
 		// squadra assente, cioe' il filtro e non la percezione.
 		if (!TestTrue(TEXT("⛔ premessa: la squadra 0 e' in TeamKnowledgeState"),
-				TM->KnowledgeForTeamPublic(0).VisibleCells.Contains(Branth->Cell)))
+				TM->KnowledgeForTeamPublic(0).VisibleCells.Contains(Riktor->Cell)))
 		{
 			return false;
 		}
@@ -477,7 +477,7 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		if (!TestFalse(TEXT("⛔ premessa: il playback e' finito"), TM->IsResolving())) { return false; }
 
 		Out.RigheDelNemico = RigaAttConta(TM, Nemico, RigaAttPulseShot);
-		Out.RigheDelGadget = RigaAttConta(TM, Branth, RigaAttPortableCover);
+		Out.RigheDelGadget = RigaAttConta(TM, Riktor, RigaAttPortableCover);
 		Out.bFeedSenzaNemico =
 			RigaAttNelFeed(RigaAttFeed(TM, SquadraDelViewer), RigaAttTestoAtteso(Nemico, RigaAttPulseShot)) == INDEX_NONE;
 		AddInfo(FString::Printf(TEXT("viewer %d%s: righe %s"), SquadraDelViewer, bSalta ? TEXT(" (salto)") : TEXT(""),
@@ -789,7 +789,7 @@ namespace
 	/**
 	 * La scena di `Reactions.Brace.WindowSuspendsBlast` (`Tests/Turn/Reaction/RTDefensiveReactionTests.cpp`), nella forma da playback di
 	 * `Playback.ActivationPrefixSurvivesASuspendedBlast`: l'Ivrin della squadra 0 si irrigidisce in Prep (`Action.Brace`, con
-	 * `Profile.Sidestep`) e il Branth della squadra 1, adiacente, lo spinge nel Blast (`Action.Push`): la spinta apre la
+	 * `Profile.Sidestep`) e il Riktor della squadra 1, adiacente, lo spinge nel Blast (`Action.Push`): la spinta apre la
 	 * finestra e sospende il Blast. In piu', lontana, una Muiren della squadra 0 scatta di due celle con la scia: e'
 	 * l'attivazione di Dash. ⚠️ Mondo NON inizializzato: il viewer e' il ripiego a 0, la squadra di Bracer e Scattista.
 	 */
@@ -809,7 +809,7 @@ namespace
 		RigaAttMappa(Out.World, 8);
 
 		Out.Bracer    = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-		Out.Pusher    = RigaAttSpawn(Out.World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		Out.Pusher    = RigaAttSpawn(Out.World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
 		Out.Scattista = RigaAttSpawn(Out.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 3));
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Bracer || !Out.Pusher || !Out.Scattista) { return false; }

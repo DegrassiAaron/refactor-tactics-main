@@ -28,7 +28,7 @@ namespace
 		"version": 1,
 		"mapRadius": 3,
 		"verifies": ["PIE-VIS-SIGHTWALL", "PIE-V01-LOG"],
-		"units": [{ "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] }],
+		"units": [{ "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] }],
 		"turns": [],
 		"expect": [{ "type": "TurnsCompleted", "value": 0 }]
 	})");
@@ -97,7 +97,7 @@ bool FRTPieSessionVerifiesRejectsNonStringTest::RunTest(const FString&)
 		"scenarioId": "Spec.PieSession.Malformato",
 		"mapRadius": 3,
 		"verifies": ["PIE-V01-LOG", 42],
-		"units": [{ "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] }],
+		"units": [{ "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] }],
 		"turns": [],
 		"expect": [{ "type": "TurnsCompleted", "value": 0 }]
 	})");

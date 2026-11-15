@@ -465,7 +465,7 @@ roster nominerebbe **l'unità sbagliata** in ogni partita in cui qualcuno è gi�
 
 ✅ **Da [#3667](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3667) i nomi li mette il produttore**, già
 scritti: il turn manager li risolve quando costruisce la finestra. `Get Prompt Text` rende il titolo —
-«Guardia reattiva — Aevik» — e torna «Reazione» solo se la vista non porta nomi. Il grafo e il Designer li
+«Guardia reattiva — Gadget» — e torna «Reazione» solo se la vista non porta nomi. Il grafo e il Designer li
 **leggono**: non compongono frasi e non cercano unità.
 
 ### Le porte della resa della tavola E ([#3634](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3634))

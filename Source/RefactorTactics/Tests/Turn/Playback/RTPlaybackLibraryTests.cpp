@@ -601,12 +601,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerFollowsTheProfileTest,
 bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
 {
 	FRTResolvedEvent Scarica = MakeTracerAttackEvent(ERTAbilityShape::Line);
-	Scarica.ActionId = TEXT("Hero.Aevik.LinearDischarge");
+	Scarica.ActionId = TEXT("Hero.Gadget.LinearDischarge");
 	Scarica.BaseActionId = NAME_None;
 	TestTrue(TEXT("🔴 LinearDischarge idonea"), URTPlaybackLibrary::IsTracerEligible(Scarica));
 	TestTrue(TEXT("e disegnata a zigzag"), URTPlaybackLibrary::TracerStyleFor(Scarica, 0) == ERTTracerStyle::Zigzag);
 
-	for (const TCHAR* Id : { TEXT("Hero.Branth.Ram"), TEXT("Action.Charge") })
+	for (const TCHAR* Id : { TEXT("Hero.Riktor.Ram"), TEXT("Action.Charge") })
 	{
 		FRTResolvedEvent Carica = MakeTracerAttackEvent(ERTAbilityShape::Single);
 		Carica.ActionId = Id;
@@ -681,10 +681,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyFlightDependsOnShapeNotOverrideTest,
 bool FRTPrivacyFlightDependsOnShapeNotOverrideTest::RunTest(const FString&)
 {
 	FRTResolvedEvent Ram = MakeTracerAttackEvent(ERTAbilityShape::Single);
-	Ram.ActionId = TEXT("Hero.Branth.Ram");
+	Ram.ActionId = TEXT("Hero.Riktor.Ram");
 	Ram.BaseActionId = NAME_None;
 	FRTResolvedEvent Tiro = MakeTracerAttackEvent(ERTAbilityShape::Single);
-	Tiro.ActionId = TEXT("Hero.Branth.ImpactShot");
+	Tiro.ActionId = TEXT("Hero.Riktor.ImpactShot");
 	if (!TestTrue(TEXT("⛔ premessa: i due colpi hanno disegni diversi"),
 			URTPlaybackLibrary::TracerStyleFor(Ram, 0) != URTPlaybackLibrary::TracerStyleFor(Tiro, 0)))
 	{
@@ -1725,11 +1725,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryFindsNextActTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackActionBoundaryFindsNextActTest::RunTest(const FString&)
 {
-	// Due atti distinti, il primo su due vittime: `Branth.ImpactShot` due volte, poi `Ivrin.Deflection`.
+	// Due atti distinti, il primo su due vittime: `Riktor.ImpactShot` due volte, poi `Ivrin.Deflection`.
 	const TArray<FRTResolvedEvent> Timeline = {
-		EventoConAzione(ERTResolvedEventType::AttackFootprint, TEXT("Branth.ImpactShot")),
-		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Branth.ImpactShot")),
-		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::AttackFootprint, TEXT("Riktor.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Riktor.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Riktor.ImpactShot")),
 		EventoConAzione(ERTResolvedEventType::ReactionResolved,TEXT("Ivrin.Deflection")),
 	};
 
@@ -1756,7 +1756,7 @@ bool FRTPlaybackActionBoundaryLastActTest::RunTest(const FString&)
 {
 	const TArray<FRTResolvedEvent> Timeline = {
 		EventoConAzione(ERTResolvedEventType::Move,   TEXT("Action.Move")),
-		EventoConAzione(ERTResolvedEventType::Attack, TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack, TEXT("Riktor.ImpactShot")),
 	};
 
 	// Sull'ultimo atto si va a fine timeline e non oltre: la stessa scelta di `NextMicroStepBoundary`, che
@@ -1784,9 +1784,9 @@ bool FRTPlaybackActionBoundarySkipsEventsWithoutAnActionTest::RunTest(const FStr
 {
 	// `NAME_None` = «nessuna azione dietro»: danno ambientale, `Defeated`, cambiamenti di stato.
 	const TArray<FRTResolvedEvent> Timeline = {
-		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Riktor.ImpactShot")),
 		EventoConAzione(ERTResolvedEventType::Defeated,      nullptr),
-		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Riktor.ImpactShot")),
 		EventoConAzione(ERTResolvedEventType::HazardDamage,  nullptr),
 		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Ivrin.LinearDischarge")),
 	};
@@ -1820,10 +1820,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryDistinguishesProfilesT
 bool FRTPlaybackActionBoundaryDistinguishesProfilesTest::RunTest(const FString&)
 {
 	// 🔑 Due profili della STESSA generica sono due atti. E' la distinzione che `RTTurnLog.h` dichiara di
-	// voler conservare — senza `ActionId`, `Branth.Interposition` e `Action.Intercept` produrrebbero voci
+	// voler conservare — senza `ActionId`, `Riktor.Interposition` e `Action.Intercept` produrrebbero voci
 	// identiche «e un replay non potrebbe piu' dire quale abilita' e' scattata».
 	TArray<FRTResolvedEvent> Timeline = {
-		EventoConAzione(ERTResolvedEventType::ReactionResolved, TEXT("Branth.Interposition")),
+		EventoConAzione(ERTResolvedEventType::ReactionResolved, TEXT("Riktor.Interposition")),
 		EventoConAzione(ERTResolvedEventType::ReactionResolved, TEXT("Action.Intercept")),
 	};
 	// Stessa generica su entrambi: e' il campo che NON deve influenzare il confine.

@@ -104,8 +104,8 @@ namespace
 	/** Che cosa si contende: erigere (la lista `Pending` di `ResolveCoverStructures`) o spostare (la lista `Moves`). */
 	enum class ECoverTieKind : uint8
 	{
-		Create, //< `Action.CreateCover` e `Hero.Branth.KineticPanel`: erigono sulla cella mirata, bordo W
-		Move,   //< `Hero.Branth.Reconfigure`: sposta la copertura di mappa gia' sulla cella mirata, dal bordo W al bordo E
+		Create, //< `Action.CreateCover` e `Hero.Riktor.KineticPanel`: erigono sulla cella mirata, bordo W
+		Move,   //< `Hero.Riktor.Reconfigure`: sposta la copertura di mappa gia' sulla cella mirata, dal bordo W al bordo E
 	};
 
 	/** La parte che un'unita' recita nella scena. */
@@ -274,12 +274,12 @@ namespace
 		return bOk;
 	}
 
-	/** Un'azione del kit di Branth, cercata per ActionId e non per indice: l'indice scivola se un'azione core manca (vedi `MakeBranth`). */
-	URTActionData* CoverTieBranthAction(const TCHAR* ActionId)
+	/** Un'azione del kit di Riktor, cercata per ActionId e non per indice: l'indice scivola se un'azione core manca (vedi `MakeRiktor`). */
+	URTActionData* CoverTieRiktorAction(const TCHAR* ActionId)
 	{
-		URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-		if (!Branth) { return nullptr; }
-		const TObjectPtr<URTActionData>* Found = Branth->Actions.FindByPredicate(
+		URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+		if (!Riktor) { return nullptr; }
+		const TObjectPtr<URTActionData>* Found = Riktor->Actions.FindByPredicate(
 			[ActionId](const TObjectPtr<URTActionData>& Action) { return Action && Action->Def.ActionId == FName(ActionId); });
 		return Found ? Found->Get() : nullptr;
 	}
@@ -300,10 +300,10 @@ namespace
 		return true;
 	}
 
-	/** Un'azione di Branth nello slot dell'unita', con la variante indicata (o nessuna). */
-	bool CoverTiePlanBranth(ARTUnit* Unit, const TCHAR* ActionId, const FName& VariantId, const FRTCellId& AimCell, ERTHexDirection Edge)
+	/** Un'azione di Riktor nello slot dell'unita', con la variante indicata (o nessuna). */
+	bool CoverTiePlanRiktor(ARTUnit* Unit, const TCHAR* ActionId, const FName& VariantId, const FRTCellId& AimCell, ERTHexDirection Edge)
 	{
-		URTActionData* Action = CoverTieBranthAction(ActionId);
+		URTActionData* Action = CoverTieRiktorAction(ActionId);
 		if (Action == nullptr || !Unit->Abilities.IsValidIndex(CoverTieSlot)) { return false; }
 		Unit->Abilities[CoverTieSlot] = Action;
 		Unit->ActiveVariantId = VariantId;
@@ -497,12 +497,12 @@ namespace
 			bool bPlanned = false;
 			if (!bCreate)
 			{
-				bPlanned = CoverTiePlanBranth(Bed.Units[I], TEXT("Hero.Branth.Reconfigure"), NAME_None, AimCell, AimEdge);
+				bPlanned = CoverTiePlanRiktor(Bed.Units[I], TEXT("Hero.Riktor.Reconfigure"), NAME_None, AimCell, AimEdge);
 			}
 			else if (I == ExpectedWinner)
 			{
-				bPlanned = CoverTiePlanBranth(Bed.Units[I], TEXT("Hero.Branth.KineticPanel"),
-					FName(TEXT("Hero.Branth.KineticPanel.Adaptive")), AimCell, AimEdge);
+				bPlanned = CoverTiePlanRiktor(Bed.Units[I], TEXT("Hero.Riktor.KineticPanel"),
+					FName(TEXT("Hero.Riktor.KineticPanel.Adaptive")), AimCell, AimEdge);
 			}
 			else
 			{
@@ -828,9 +828,9 @@ namespace
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: la copertura della cella maggiore e' posta sul bordo %s"), *Run, CoverTieEdgeName(HighFrom)),
 				URTHexCoverLibrary::AddCover(Bed.Map, HighCell, HighFrom, ERTHexCoverType::Low, CoverTiePreplacedIntegrity));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il vincitore ha il piano"), *Run),
-				CoverTiePlanBranth(Bed.Units[0], TEXT("Hero.Branth.Reconfigure"), NAME_None, LowCell, LowFace));
+				CoverTiePlanRiktor(Bed.Units[0], TEXT("Hero.Riktor.Reconfigure"), NAME_None, LowCell, LowFace));
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: il perdente ha il piano"), *Run),
-				CoverTiePlanBranth(Bed.Units[1], TEXT("Hero.Branth.Reconfigure"), NAME_None, HighCell, HighFace));
+				CoverTiePlanRiktor(Bed.Units[1], TEXT("Hero.Riktor.Reconfigure"), NAME_None, HighCell, HighFace));
 		}
 		if (!bOk) { return false; }
 
@@ -964,7 +964,7 @@ namespace
 		{
 			bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: premessa: l'unita' %d ha ricevuto il piano di spostare sul bordo %s"), *Run, I,
 				CoverTieEdgeName(ToEdges[I])),
-				CoverTiePlanBranth(Bed.Units[I], TEXT("Hero.Branth.Reconfigure"), NAME_None, Target, ToEdges[I]));
+				CoverTiePlanRiktor(Bed.Units[I], TEXT("Hero.Riktor.Reconfigure"), NAME_None, Target, ToEdges[I]));
 		}
 		if (!bOk) { return false; }
 

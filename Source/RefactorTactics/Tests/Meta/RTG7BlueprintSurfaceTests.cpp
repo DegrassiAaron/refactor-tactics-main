@@ -12,8 +12,8 @@ namespace
 	 * `FClassFinder`, che vive in un costruttore e non e' interrogabile da un test.
 	 */
 	const TCHAR* const PathEroi[] = {
-		TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.BP_Unit_Aevik_C"),
-		TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth.BP_Unit_Branth_C"),
+		TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.BP_Unit_Gadget_C"),
+		TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.BP_Unit_Riktor_C"),
 		TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.BP_Unit_Ivrin_C"),
 		TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.BP_Unit_Muiren_C"),
 	};

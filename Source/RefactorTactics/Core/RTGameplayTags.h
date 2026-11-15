@@ -10,7 +10,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Exposed); // scoperta: ×1,2 al PRIMO 
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Guarded); // guardia: riduzione per colpo sull'arco frontale ([D-408] + [D-206]), valore dell'eroe, resiste a una spinta di 1
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +6 al PROSSIMO attacco alleato, che lo consuma
 // Bagnato: UNA sola dichiarazione per DUE sorgenti che il catalogo vuole convergenti — l'acqua bassa
-// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Aevik.LinearDischarge finche' attivo, conduce elettricita'
+// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Gadget.LinearDischarge finche' attivo, conduce elettricita'
 // (CP 8.3) e rimuove Burning (CP 8.4).
 //
 // La durata "finche' sulla cella" e' VIVA, e passa da tre pezzi: il terreno la dichiara con
@@ -46,7 +46,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Obscured); // offuscato: targeting lim
  *
  * ✅ **L'argomento sull'istantaneita' e' stato onorato, non aggirato**: il tag e' qui perche' `Wet` e
  * `Conductive` esistono gia' e la loro semantica lo nomina; dargli una durata inventata per farlo sembrare
- * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Branth).
+ * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Riktor).
  *
  * ⚠️ `UI.Icon.Status.Electrified` resta una chiave richiesta in `RTIconCatalogTests`, e la sua icona
  * **esiste**: `Content/RT/UI/Icons/` porta **undici** `RT_UI_Icon_Status_*` versionate — `Braced`,

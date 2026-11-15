@@ -97,7 +97,7 @@ const CPP_FIELDS: Record<string, keyof HeroStats> = {
   RearBonus: 'rearBonus',
 };
 
-/** `Aevik->MaxHealth = 90;` · `Aevik->Affinity = TEXT("Affinity.Electricity");`
+/** `Gadget->MaxHealth = 90;` · `Gadget->Affinity = TEXT("Affinity.Electricity");`
  *
  *  Solo **literal**: un `= kBaseHealth` non viene letto, e la copertura cade invece di passare in
  *  silenzio. E' il modo di guasto che questo gate teme di piu' — un parser che non trova niente resta

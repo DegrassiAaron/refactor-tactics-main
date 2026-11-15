@@ -29,7 +29,7 @@ Corretto:
 
 ```text
 Hero.Muiren.PressureJet -> Status.Wet
-Hero.Aevik.LinearDischarge -> se Target.HasStatus(Wet), +8
+Hero.Gadget.LinearDischarge -> se Target.HasStatus(Wet), +8
 ```
 
 Il secondo passaggio dipende da `Wet`, non da `Hero.Muiren`. Una futura sorgente di Wet può abilitare lo stesso payoff se le regole lo consentono.

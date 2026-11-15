@@ -126,7 +126,7 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	SpawnPlaybackMap(World);
 
 	// Due unita' vicine: il Guardian scatta, il Ranger avversario resta fermo e fa da bersaglio.
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	TestNotNull(TEXT("TurnManager spawnato"), TM);
@@ -189,7 +189,7 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	SpawnPlaybackMap(World);
 
 	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 2));
-	ARTUnit* Still = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 6));
+	ARTUnit* Still = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(6, 6));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Still) { DestroyPlaybackWorld(World); return false; }
 
@@ -244,7 +244,7 @@ bool FRTPlaybackShorterRouteStopsOnArrivalTest::RunTest(const FString&)
 
 	// Stessa squadra e righe diverse: nessun bersaglio, nessuna reazione, nessuna cella in comune. Solo due rotte.
 	ARTUnit* Long = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 2));
-	ARTUnit* Short = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 5));
+	ARTUnit* Short = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 5));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Long || !Short) { DestroyPlaybackWorld(World); return false; }
 
@@ -529,7 +529,7 @@ bool FRTMatchHeaderPlaybackPhaseTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	SpawnPlaybackMap(World);
 
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("TurnManager spawnato"), TM) || !Dasher || !Target) { DestroyPlaybackWorld(World); return false; }
@@ -621,7 +621,7 @@ bool FRTTurnHeaderLookFollowsTheBoardTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	URTHexMapAsset* Mappa = SpawnPlaybackMap(World);
 
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTTurnHeaderWidget* W = NewObject<URTTurnHeaderWidget>(World);
@@ -805,7 +805,7 @@ bool FRTTurnHeaderControlHintTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	URTHexMapAsset* Mappa = SpawnPlaybackMap(World);
 
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTTurnHeaderWidget* W = NewObject<URTTurnHeaderWidget>(World);
@@ -1105,7 +1105,7 @@ bool FRTEventLogLookTest::RunTest(const FString&)
 	UWorld* World = MakePlaybackWorld();
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	SpawnPlaybackMap(World);
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
@@ -1209,7 +1209,7 @@ bool FRTEventLogPreviousTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
 	SpawnPlaybackMap(World);
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
@@ -1356,7 +1356,7 @@ bool FRTEventLogRememberedWhileResolvingTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
 	SpawnPlaybackMap(World);
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
@@ -1423,7 +1423,7 @@ bool FRTEventLogPlanningReprojectsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
 	SpawnPlaybackMap(World);
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);
@@ -1514,7 +1514,7 @@ bool FRTEventLogRewritesLineWhenCountIsUnchangedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
 	ON_SCOPE_EXIT{ DestroyPlaybackWorld(World); };
 	SpawnPlaybackMap(World);
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	URTPlayerEventLogWidget* Log = NewObject<URTPlayerEventLogWidget>(World);

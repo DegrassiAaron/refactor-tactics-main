@@ -224,7 +224,7 @@ bool FRTShippedGameModePacingStaysShortTest::RunTest(const FString&)
 	// Nessuna rompe l'allestimento, quindi `ShippedGameModeSetsUpTheAdvertisedMatch` le attraversa.
 	//
 	// ⚠️ `Team0Heroes` e' la sola del gruppo che una **seduta** debba modificare a mano: `PIE-V01-MORTAR`
-	// chiede `Hero.Branth` in squadra 0 e **non esiste una console variable per il roster**, quindi l'unica
+	// chiede `Hero.Riktor` in squadra 0 e **non esiste una console variable per il roster**, quindi l'unica
 	// strada e' il pannello Details. Senza questa riga, chi dimentica di ripristinare spedisce una partita
 	// diversa da quella dichiarata, e a schermo sembra normale.
 	// ➕ *Dal 2026-10-12 (`#2748`) la console variable ESISTE — `rt.Match.Team0`, e `-RTTeam0=` da riga di

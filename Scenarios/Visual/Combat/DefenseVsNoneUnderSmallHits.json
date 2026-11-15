@@ -6,7 +6,7 @@
   "mapRadius": 5,
 
   "_nota_d408": "⏱️ **Numero aggiornato da [D-408] il 2026-09-20**: la Guardia non e' piu' un POOL di danni assorbibili ([D-292]) ma una **riduzione per colpo**, col valore dichiarato dal personaggio. Cio' che cambia e' il TETTO — un pool limita la mitigazione totale del turno, una riduzione per colpo no — e la sorgente §13.8 lo dichiara **voluto**. 🔑 Questi quattro scenari sono l'unica cosa che nella suite si e' accorta del cambio: i test del resolver chiamano `ApplyAbsorptionPool` direttamente, e quelli a colpo singolo danno lo stesso numero sotto entrambi i modelli.",
-  "_nota": "COMPOSITO fra una difesa qualunque e nessuna difesa, sotto colpi PICCOLI e RIPETUTI. ⌫ *Si chiamava `Visual.Combat.GuardVsBraceUnderSmallHits` e confrontava la Guardia con l'Irrigidimento; da [D-408] le due chiudono allo stesso numero, e il file e' stato rinominato il 2026-10-27 ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)) invece di continuare a dichiarare un confronto che non misura — vedi `_nota_perche_colpi_piccoli`.* Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Branth.ImpactShot` da 8, tutti frontali — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA, non un numero isolato.",
+  "_nota": "COMPOSITO fra una difesa qualunque e nessuna difesa, sotto colpi PICCOLI e RIPETUTI. ⌫ *Si chiamava `Visual.Combat.GuardVsBraceUnderSmallHits` e confrontava la Guardia con l'Irrigidimento; da [D-408] le due chiudono allo stesso numero, e il file e' stato rinominato il 2026-10-27 ([#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)) invece di continuare a dichiarare un confronto che non misura — vedi `_nota_perche_colpi_piccoli`.* Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Riktor.ImpactShot` da 8, tutti frontali — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA, non un numero isolato.",
 
   "_oracolo": "Le voci `PIE-VIS-GUARD` e `PIE-VIS-BRACE` di `docs/technical/test-manuali-pie.md`: due criteri, un solo Play. Non sostituisce i loro scenari — `Visual.Combat.GuardReducesEveryFrontalHit` e `Visual.Combat.BraceReducesEveryHit` restano, e mostrano ciascuna difesa contro colpi GRANDI, dove la Guardia toglie di piu'.",
 
@@ -16,30 +16,30 @@
 
   "_nota_numeri": "Tre colpi da 8 su ciascun difensore, e da [D-408] **due** esiti distinti su tre, non piu' tre. **Guardia**: ogni colpo perde 15, e 8 meno 15 e' zero (una riduzione azzera, non cura) — **120**, illesa. **Irrigidimento**: ogni colpo perde 10, e 8 meno 10 e' zero — **120**, illeso. **Niente**: 24 meno i 5 dello scudo base ([D-224]) — **101**. ⏱️ *Col pool di [D-292] la Guardia chiudeva a **116**: il budget da 15 assorbiva 8 e poi 7, e il terzo colpo passava intero. E' quel 116 che rendeva la scena un confronto.* La distanza che resta da guardare e' fra le due difese e il controllo, non fra loro due.",
 
-  "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto entrambe le soglie: 8 danni (ADR-0007). Ogni altra abilita' dichiarabile in un intent vale 16 o piu', e sopra i 10 del `Brace` il confronto tornerebbe quello che gli scenari esistenti mostrano gia'. ⚠️ *Sotto la soglia esistono anche `Reaction.CounterShot` (14), `Hero.Aevik.ReactiveCapacitor` (10) e la variante `InterceptShot.Extended` (14) — due reazioni e una variante di workbench, che uno scenario non puo' schierare come colpo scelto. La prima stesura diceva «ogni altro colpo del catalogo» e li ignorava; corretto dopo una code review.*",
+  "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto entrambe le soglie: 8 danni (ADR-0007). Ogni altra abilita' dichiarabile in un intent vale 16 o piu', e sopra i 10 del `Brace` il confronto tornerebbe quello che gli scenari esistenti mostrano gia'. ⚠️ *Sotto la soglia esistono anche `Reaction.CounterShot` (14), `Hero.Gadget.ReactiveCapacitor` (10) e la variante `InterceptShot.Extended` (14) — due reazioni e una variante di workbench, che uno scenario non puo' schierare come colpo scelto. La prima stesura diceva «ogni altro colpo del catalogo» e li ignorava; corretto dopo una code review.*",
 
-  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come in `Spec.Brace.GuardAndBraceOnMixedHit` e per la stessa ragione: il default di Branth e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata. Con i default montati questa scena mostrerebbe anche degli spostamenti — cioe' una terza regola sopra le due che confronta — e la parte sulla portata NON si applica qui: le distanze sono `1, 2, 2` per ogni difensore, quindi con la portata ridotta a 2 tutti i colpi arriverebbero lo stesso. Regge solo la meta' sulla spinta, che da sola basta — nove spinte in una scena che confronta due difese misurerebbero una terza regola. ⚠️ *La prima stesura importava anche l'argomento della portata da `Spec.Combat.GuardSpansMultipleHits`, dove e' vero perche' un attaccante sta a distanza 3. Qui era falso, e una ragione falsa accanto a una vera e' peggio di una ragione sola: chi la verifica e la trova sbagliata smette di credere anche all'altra. Trovato da una code review.*",
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come in `Spec.Brace.GuardAndBraceOnMixedHit` e per la stessa ragione: il default di Riktor e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata. Con i default montati questa scena mostrerebbe anche degli spostamenti — cioe' una terza regola sopra le due che confronta — e la parte sulla portata NON si applica qui: le distanze sono `1, 2, 2` per ogni difensore, quindi con la portata ridotta a 2 tutti i colpi arriverebbero lo stesso. Regge solo la meta' sulla spinta, che da sola basta — nove spinte in una scena che confronta due difese misurerebbero una terza regola. ⚠️ *La prima stesura importava anche l'argomento della portata da `Spec.Combat.GuardSpansMultipleHits`, dove e' vero perche' un attaccante sta a distanza 3. Qui era falso, e una ragione falsa accanto a una vera e' peggio di una ragione sola: chi la verifica e la trova sbagliata smette di credere anche all'altra. Trovato da una code review.*",
 
   "_nota_geometria": "Le tre file sono TRASLAZIONI PURE l'una dell'altra sull'asse `r` (+2, 0, -2), quindi ogni attaccante sta rispetto al proprio difensore nella stessa identica posizione relativa: `(1,0)`, `(2,0)` e `(2,-1)`. Una traslazione in coordinate assiali conserva distanze e archi, percio' i tre gruppi sono confrontabili per costruzione e non per verifica. Tutti gli attaccanti stanno a EST del proprio bersaglio, cioe' nell'arco frontale di chi guarda a est di partenza e non fa niente per girarsi (CP 16.2): con un colpo alle spalle la guardia non varrebbe e questa scena misurerebbe la direzionalita' invece del confronto.",
 
   "_nota_tre_attaccanti_per_difensore": "Un attaccante dedicato per colpo, e non tre colpi da uno solo: un'unita' dichiara UN intent per turno. La spinta non c'entra — `ImpactShot` spoglio non ne porta — ma la scena resta comunque fuori dalla regola dei bersagli colpiti da piu' attaccanti, che `Spec.Brace.GuardAndBraceOnMixedHit` evita di proposito.",
 
   "units": [
-    { "id": "DG", "hero": "Hero.Branth", "team": 0, "cell": [0, 2, 0] },
-    { "id": "DB", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0] },
-    { "id": "DN", "hero": "Hero.Branth", "team": 0, "cell": [0, -2, 0] },
+    { "id": "DG", "hero": "Hero.Riktor", "team": 0, "cell": [0, 2, 0] },
+    { "id": "DB", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "DN", "hero": "Hero.Riktor", "team": 0, "cell": [0, -2, 0] },
 
-    { "id": "AG1", "hero": "Hero.Branth", "team": 1, "cell": [1, 2, 0], "facing": "W", "loadout": [] },
-    { "id": "AG2", "hero": "Hero.Branth", "team": 1, "cell": [2, 2, 0], "facing": "W", "loadout": [] },
-    { "id": "AG3", "hero": "Hero.Branth", "team": 1, "cell": [2, 1, 0], "facing": "W", "loadout": [] },
+    { "id": "AG1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "AG2", "hero": "Hero.Riktor", "team": 1, "cell": [2, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "AG3", "hero": "Hero.Riktor", "team": 1, "cell": [2, 1, 0], "facing": "W", "loadout": [] },
 
-    { "id": "AB1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0], "facing": "W", "loadout": [] },
-    { "id": "AB2", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "facing": "W", "loadout": [] },
-    { "id": "AB3", "hero": "Hero.Branth", "team": 1, "cell": [2, -1, 0], "facing": "W", "loadout": [] },
+    { "id": "AB1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0], "facing": "W", "loadout": [] },
+    { "id": "AB2", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "facing": "W", "loadout": [] },
+    { "id": "AB3", "hero": "Hero.Riktor", "team": 1, "cell": [2, -1, 0], "facing": "W", "loadout": [] },
 
-    { "id": "AN1", "hero": "Hero.Branth", "team": 1, "cell": [1, -2, 0], "facing": "W", "loadout": [] },
-    { "id": "AN2", "hero": "Hero.Branth", "team": 1, "cell": [2, -2, 0], "facing": "W", "loadout": [] },
-    { "id": "AN3", "hero": "Hero.Branth", "team": 1, "cell": [2, -3, 0], "facing": "W", "loadout": [] }
+    { "id": "AN1", "hero": "Hero.Riktor", "team": 1, "cell": [1, -2, 0], "facing": "W", "loadout": [] },
+    { "id": "AN2", "hero": "Hero.Riktor", "team": 1, "cell": [2, -2, 0], "facing": "W", "loadout": [] },
+    { "id": "AN3", "hero": "Hero.Riktor", "team": 1, "cell": [2, -3, 0], "facing": "W", "loadout": [] }
   ],
 
   "turns": [
@@ -49,17 +49,17 @@
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Brace" },
 
-        { "unit": "AG1", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG2", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
-        { "unit": "AG3", "ability": "Hero.Branth.ImpactShot", "target": "DG" },
+        { "unit": "AG1", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG2", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG3", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
 
-        { "unit": "AB1", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
-        { "unit": "AB2", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
-        { "unit": "AB3", "ability": "Hero.Branth.ImpactShot", "target": "DB" },
+        { "unit": "AB1", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB2", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB3", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
 
-        { "unit": "AN1", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
-        { "unit": "AN2", "ability": "Hero.Branth.ImpactShot", "target": "DN" },
-        { "unit": "AN3", "ability": "Hero.Branth.ImpactShot", "target": "DN" }
+        { "unit": "AN1", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN2", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN3", "ability": "Hero.Riktor.ImpactShot", "target": "DN" }
       ]
     }
   ],

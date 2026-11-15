@@ -51,7 +51,7 @@ namespace
 	FRTGlanceUnitSubject GlanceUnit(const TArray<const TCHAR*>& Tags, bool bFacing)
 	{
 		FRTGlanceUnitSubject Subject;
-		Subject.DisplayName = FText::FromString(TEXT("Aevik"));
+		Subject.DisplayName = FText::FromString(TEXT("Gadget"));
 		Subject.Facing = ERTHexDirection::NE;
 		Subject.bShowFacing = bFacing;
 		for (const TCHAR* Tag : Tags) { Subject.Statuses.Add(GlanceBadge(Tag)); }
@@ -111,7 +111,7 @@ bool FRTGlanceUnitLinesNameEveryStatusTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("il verso compare"), All.Contains(TEXT("Guarda verso NE."), ESearchCase::CaseSensitive));
 	TestFalse(TEXT("senza taglio"), View.bTruncated);
-	TestTrue(TEXT("la prima riga e' il nome"), View.Lines.Num() > 0 && View.Lines[0] == TEXT("Aevik"));
+	TestTrue(TEXT("la prima riga e' il nome"), View.Lines.Num() > 0 && View.Lines[0] == TEXT("Gadget"));
 	return true;
 }
 

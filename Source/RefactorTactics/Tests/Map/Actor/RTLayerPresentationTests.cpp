@@ -683,7 +683,7 @@ bool FRTLayerTreatmentSparesUnitsTest::RunTest(const FString&)
 	ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 	if (!TestNotNull(TEXT("l'unita'"), Unit)) { return false; }
 	Unit->TeamId = 0;
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeAevik());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeGadget());
 	UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 	Unit->DispatchBeginPlay();
 	Unit->PlaceOnCell(FRTCellId(2, -2, 2), Origin, HexSize, LayerH);

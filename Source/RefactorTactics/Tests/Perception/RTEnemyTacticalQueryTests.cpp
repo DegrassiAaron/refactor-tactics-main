@@ -843,7 +843,7 @@ bool FRTDashRegionIsEmptyWithoutFastMovementTest::RunTest(const FString&)
  *
  * - **passo** -> `URTHeroData::MovePoints`. E' quella che il runtime usa (`ARTUnit::MoveRange = Hero->MovePoints`,
  *   `RTUnit.cpp:1600`, e `RTScenarioDraft` ne deriva `Sim.MoveBudget`), e **varia per eroe**: il catalogo
- *   dichiara `4` a Branth e `6` a Ivrin. ⏱️ *Fino al 2026-09-18 `Action.Move.RangeCells` valeva `5` per
+ *   dichiara `4` a Riktor e `6` a Ivrin. ⏱️ *Fino al 2026-09-18 `Action.Move.RangeCells` valeva `5` per
  *   tutti, e leggere l'ActionDef mostrava un'anteprima FALSA per due eroi su quattro.* Da [D-427] quel campo
  *   e' `0`: leggerlo mostrerebbe un'anteprima **vuota per tutti e quattro**, che e' un modo peggiore di
  *   sbagliare — un'anteprima assente non si nota.

@@ -77,7 +77,7 @@ bool FRTCombatAttackCarriesHitGeometryTest::RunTest(const FString&)
 	SpawnTracerMap(World);
 	ARTUnit* Muiren = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 2));
 	ARTUnit* Vicina = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 2));
-	ARTUnit* Lontana = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Lontana = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Muiren || !Vicina || !Lontana) { AddError(TEXT("allestimento fallito")); return false; }
 
@@ -136,13 +136,13 @@ bool FRTCombatCoveredHitCarriesHitGeometryTest::RunTest(const FString&)
 
 		URTHexMapAsset* Map = SpawnTracerMap(World);
 		ARTUnit* Ivrin = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 2));
-		ARTUnit* Branth = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 2));
+		ARTUnit* Riktor = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
+		if (!TM || !Ivrin || !Riktor) { AddError(TEXT("allestimento fallito")); return false; }
 		SetTracerCoverEdge(Map, FRTCellId(3, 2), ERTHexDirection::W, Tipo);
 
 		Ivrin->SetPlannedMainAction(0); // Hero.Ivrin.PulseShot, Single
-		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->DeclareAttackOnUnit(Riktor);
 		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
@@ -153,7 +153,7 @@ bool FRTCombatCoveredHitCarriesHitGeometryTest::RunTest(const FString&)
 		{
 			if (!TestEqual(TEXT("bassa: premessa, il colpo e' arrivato"), Colpi.Num(), 1)) { return false; }
 			TestTrue(TEXT("bassa: geometria risolta"), Colpi[0].HitGeometry.bResolved);
-			TestTrue(TEXT("bassa: l'impatto e' la cella di Branth"), Colpi[0].HitGeometry.Impact == FRTCellId(3, 2));
+			TestTrue(TEXT("bassa: l'impatto e' la cella di Riktor"), Colpi[0].HitGeometry.Impact == FRTCellId(3, 2));
 			TestTrue(TEXT("bassa: proiettile per chi spara"),
 				URTPlaybackLibrary::TracerStyleFor(Colpi[0], 0) == ERTTracerStyle::Projectile);
 		}
@@ -174,19 +174,19 @@ bool FRTPrivacyUnseenAttackerTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
 
-	// Branth spara a Ivrin DA DIETRO, a 3 celle: oltre la consapevolezza ravvicinata (2, `RTPerceptionLibrary.h`)
-	// e fuori dall'arco frontale di Ivrin, che guarda a Est come Branth.
+	// Riktor spara a Ivrin DA DIETRO, a 3 celle: oltre la consapevolezza ravvicinata (2, `RTPerceptionLibrary.h`)
+	// e fuori dall'arco frontale di Ivrin, che guarda a Est come Riktor.
 	SpawnTracerMap(World);
-	ARTUnit* Branth = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+	ARTUnit* Riktor = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
 	ARTUnit* Ivrin = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(5, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Branth || !Ivrin) { AddError(TEXT("allestimento fallito")); return false; }
-	Branth->Facing = ERTHexDirection::E;
+	if (!TM || !Riktor || !Ivrin) { AddError(TEXT("allestimento fallito")); return false; }
+	Riktor->Facing = ERTHexDirection::E;
 	Ivrin->Facing = ERTHexDirection::E;
 
-	Branth->SetPlannedMainAction(0); // Hero.Branth.ImpactShot, Single, portata 3
-	Branth->DeclareAttackOnUnit(Ivrin);
-	Branth->SetPlannedCell(Branth->Cell);
+	Riktor->SetPlannedMainAction(0); // Hero.Riktor.ImpactShot, Single, portata 3
+	Riktor->DeclareAttackOnUnit(Ivrin);
+	Riktor->SetPlannedCell(Riktor->Cell);
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -199,7 +199,7 @@ bool FRTPrivacyUnseenAttackerTest::RunTest(const FString&)
 	TestTrue(TEXT("chi spara conosce la propria origine"), G.FromVerdict.AllowsTeam(0));
 	// 🔴 Il punto del test: la squadra colpita non vedeva chi sparava, e il verdetto lo dice.
 	TestFalse(TEXT("la squadra colpita NON conosceva l'attaccante"), G.FromVerdict.AllowsTeam(1));
-	// ⚠️ Qui vale per **vista diretta**: Branth guarda a Est e Ivrin gli sta dritto davanti, a 3 celle, quindi la
+	// ⚠️ Qui vale per **vista diretta**: Riktor guarda a Est e Ivrin gli sta dritto davanti, a 3 celle, quindi la
 	// squadra 0 vede la vittima da se'. ⛔ **Il caso di D-380** (`RevealHitTargetsToAttackers`: chi colpisce conosce
 	// la vittima anche quando non la vedeva) **non e' coperto da questo test**: il tiro alla cieca non e' su `main`
 	// (PR #3230) e il suo caso resta di `PIE-V01-BLINDFIRE`.
@@ -228,13 +228,13 @@ bool FRTDeterminismHitGeometryOutOfHashesTest::RunTest(const FString&)
 
 		const URTHexMapAsset* Map = SpawnTracerMap(World);
 		ARTUnit* Ivrin = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 2));
-		ARTUnit* Branth = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 2));
+		ARTUnit* Riktor = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
+		if (!TM || !Ivrin || !Riktor) { AddError(TEXT("allestimento fallito")); return false; }
 		TM->bSkipHitGeometryForTest = (Run == 1);
 
 		Ivrin->SetPlannedMainAction(0);
-		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->DeclareAttackOnUnit(Riktor);
 		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
@@ -247,7 +247,7 @@ bool FRTDeterminismHitGeometryOutOfHashesTest::RunTest(const FString&)
 		// `HashMatchState` + `BuildUnitDigests` sono le due chiamate di `CaptureFinalStateHash`, sul mondo a fine turno.
 		TArray<ARTUnit*> Unita;
 		Unita.Add(Ivrin);
-		Unita.Add(Branth);
+		Unita.Add(Riktor);
 		TArray<int32> Punteggi;
 		Punteggi.Add(TM->GetTeamScore(0));
 		Punteggi.Add(TM->GetTeamScore(1));
@@ -292,12 +292,12 @@ bool FRTDeterminismFxFieldsOutOfHashesTest::RunTest(const FString&)
 
 		const URTHexMapAsset* Map = SpawnTracerMap(World);
 		ARTUnit* Ivrin = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 2));
-		ARTUnit* Branth = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 2));
+		ARTUnit* Riktor = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 2));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
+		if (!TM || !Ivrin || !Riktor) { AddError(TEXT("allestimento fallito")); return false; }
 		TM->bSkipFxFieldsForTest = (Run == 1);
 		Ivrin->SetPlannedMainAction(0);
-		Ivrin->DeclareAttackOnUnit(Branth);
+		Ivrin->DeclareAttackOnUnit(Riktor);
 		Ivrin->SetPlannedCell(Ivrin->Cell);
 
 		TM->LockInAndResolve();
@@ -305,7 +305,7 @@ bool FRTDeterminismFxFieldsOutOfHashesTest::RunTest(const FString&)
 
 		TArray<ARTUnit*> Unita;
 		Unita.Add(Ivrin);
-		Unita.Add(Branth);
+		Unita.Add(Riktor);
 		TArray<int32> Punteggi;
 		Punteggi.Add(TM->GetTeamScore(0));
 		Punteggi.Add(TM->GetTeamScore(1));

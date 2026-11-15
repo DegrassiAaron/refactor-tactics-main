@@ -43,7 +43,7 @@ struct FRTAbilityLabEntry
 {
 	GENERATED_BODY()
 
-	/** `Hero.Aevik.LinearDischarge`, `Action.Move`, ... */
+	/** `Hero.Gadget.LinearDischarge`, `Action.Move`, ... */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|AbilityLab")
 	FName AbilityId;
 

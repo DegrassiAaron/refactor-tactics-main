@@ -293,8 +293,8 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// Branth e il bersaglio allineati sull'asse q, a distanza 3: dentro la portata della carica.
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	// Riktor e il bersaglio allineati sull'asse q, a distanza 3: dentro la portata della carica.
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
@@ -303,7 +303,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	TM->RefreshTeamKnowledgeNow();
 
 	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
-	if (!TestNotEqual(TEXT("premessa: Branth ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
+	if (!TestNotEqual(TEXT("premessa: Riktor ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
 	{
 		DestroyInteractionWorld(World); return false;
 	}
@@ -375,7 +375,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 
 /**
  * [D-523] / [D-524] (`#3793`) — **con la carica armata, un nemico fuori dalle sei direzioni ma sulla retta libera si
- * carica**: e' la scena di `PIE-V01-CHARGECLICK` (4), Branth in `(-4,3)` e Muiren in `(-2,4)`, scarto `(+2,+1)`.
+ * carica**: e' la scena di `PIE-V01-CHARGECLICK` (4), Riktor in `(-4,3)` e Muiren in `(-2,4)`, scarto `(+2,+1)`.
  * Se la retta e' bloccata il click rifiuta la carica, e non ispeziona: il click vuol dire «carica li'».
  *
  * ⌫ *Fino a [D-524] questo test si chiamava `ChargeOnAnEnemyOutOfLineIsRefused` e asseriva il rifiuto di una cella a
@@ -396,7 +396,7 @@ bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3, 0));
 	ARTUnit* Enemy = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 4, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!MapActor || !PC || !Charger || !Enemy || !TM) { DestroyInteractionWorld(World); return false; }
@@ -407,7 +407,7 @@ bool FRTPlayerChargeOffAxesTest::RunTest(const FString&)
 		URTMovementActionLibrary::IsStraightLine(Charger->Cell, Enemy->Cell, Distanza));
 
 	const int32 ChargeIdx = FindChargeAbilityIndex(Charger);
-	if (!TestNotEqual(TEXT("premessa: Branth ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
+	if (!TestNotEqual(TEXT("premessa: Riktor ha una carica nel kit"), ChargeIdx, (int32)INDEX_NONE))
 	{
 		DestroyInteractionWorld(World); return false;
 	}
@@ -474,7 +474,7 @@ bool FRTPlayerChargeBeyondRangeTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 8);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!MapActor || !TM || !Charger || !PC) { DestroyInteractionWorld(World); return false; }
 
@@ -740,7 +740,7 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 // 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in**, ed e' la lezione della code review: al commit il
 // piano si contraddice e basta, ma CHI verra' scartato lo decide il resolver. L'ordine canonico di
 // `ValidatePlan` — per larghezza di slot, poi per `ActionId` — davanti a `Action.Move` e
-// `Hero.Branth.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
+// `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
 // l'azione sbagliata.
 //
 // I tre test vanno tenuti INSIEME, e il portante e' il TERZO. Il secondo — piano legale senza scatto —
@@ -762,7 +762,7 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -871,7 +871,7 @@ bool FRTNoSupersededEntryOnALegalPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -935,7 +935,7 @@ bool FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest::RunTest(const FString&)
 	}
 
 	const FRTCellId Start(1, 1);
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Start);
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -1017,7 +1017,7 @@ bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -1069,7 +1069,7 @@ bool FRTLockInStaysSilentOnALegalPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -1105,7 +1105,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInNamesBothActionsTest,
 bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 {
 	// 🔴 Il messaggio NON deve nominare un solo colpevole. `ValidatePlan` ordina per larghezza di slot e poi
-	// per `ActionId`: `Action.Move` precede `Hero.Branth.Ram` alfabeticamente, quindi Move prende lo slot e
+	// per `ActionId`: `Action.Move` precede `Hero.Riktor.Ram` alfabeticamente, quindi Move prende lo slot e
 	// Ram risulta «l'offender» — ma e' Ram che ESEGUE, ed e' Move che il resolver scarta. Nominare una sola
 	// azione qui significa accusare quella sbagliata; nominarle entrambe e' vero comunque vada.
 	UWorld* World = MakeInteractionWorld();
@@ -1116,7 +1116,7 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -1187,7 +1187,7 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -1198,11 +1198,11 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 	}
 	PC->SelectActorForTest(U);
 
-	// KineticPanel (indice 1 nel roster di Branth, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
+	// KineticPanel (indice 1 nel roster di Riktor, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
 	constexpr int32 PanelIdx = 1;
 	const URTActionData* Panel = U->GetAbility(PanelIdx);
 	if (!TestTrue(TEXT("premessa: e' KineticPanel, e ha un cooldown"),
-		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Branth.KineticPanel")) && Panel->Def.CooldownTurns > 0))
+		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")) && Panel->Def.CooldownTurns > 0))
 	{
 		DestroyInteractionWorld(World);
 		return false;
@@ -1293,8 +1293,8 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 
 	const FRTCellId CellaTardi(3, 0); // spawnata per PRIMA, canonicamente SECONDA
 	const FRTCellId CellaPrima(1, 0); // spawnata per SECONDA, canonicamente PRIMA
-	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), CellaTardi);
-	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), CellaPrima);
+	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaTardi);
+	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaPrima);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita' spawnata per prima"), Tardi) || !TestNotNull(TEXT("unita' spawnata per seconda"), Prima)
 		|| !TestNotNull(TEXT("turn manager"), TM))
@@ -1437,7 +1437,7 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
  * La proprieta' per cui il canale generico risolve per NOME invece che per posizione.
  *
  * Le generiche sono accodate al kit, quindi il loro indice dipende da quante azioni porta l'eroe: Phase ne
- * ha sei e Aevik cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
+ * ha sei e Gadget cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
  * posizione fissa punterebbe a un'abilita' d'eroe sull'uno e alla generica giusta sull'altro.
  *
  * ⚠️ **Serve un roster con kit di lunghezza diversa, ed e' la ragione per cui questo test non esisteva
@@ -1795,7 +1795,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	const FRTCellId Mia(0, 0, 0);
 	const FRTCellId Loro(2, 0, 0);
 	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Mia);
-	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Loro);
+	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Loro);
 	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Alt))
 	{
 		DestroyInteractionWorld(World); return false;
@@ -2127,7 +2127,7 @@ bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0); // adiacente: il rifiuto e' l'occupazione, non il budget
 	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
-	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
@@ -2237,7 +2237,7 @@ bool FRTUndeclaredMoveDoesNotDeclareADenialTest::RunTest(const FString&)
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0);
 	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
-	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("chi non dichiara"), Chi) || !TestNotNull(TEXT("il vicino"), Occupante)
@@ -2310,7 +2310,7 @@ bool FRTWaypointOnAnOccupantDoesNotDenyTest::RunTest(const FString&)
 	const FRTCellId Occupata(1, 0);  // il tentativo che viene negato
 	const FRTCellId Ripiego(0, 1);   // adiacente e libera: la correzione del giocatore
 	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
-	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
@@ -2522,7 +2522,7 @@ bool FRTCycleSelectionTest::RunTest(const FString&)
 
 	// Tre proprie e una avversaria: l'avversaria non deve mai entrare nel ciclo.
 	ARTUnit* A = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, -2, 0));
-	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -2, 0));
+	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -2, 0));
 	ARTUnit* C = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -1, 0));
 	ARTUnit* Nemica = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -2605,7 +2605,7 @@ bool FRTDeclaredTurnPlanTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	ARTUnit* A = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, -2, 0));
-	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -2, 0));
+	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B)
 		|| !TestNotNull(TEXT("turn manager"), TM))
@@ -3133,7 +3133,7 @@ bool FRTMovementDestinationIsAnOrderTest::RunTest(const FString&)
 		// Ivrin: 5 punti movimento, stessa posizione del test dei waypoint qui sopra.
 		ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 		// Un avversario: senza, la fine della partita potrebbe chiudere il turno per eliminazione.
-		SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 2, 0));
+		SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 2, 0));
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit) || !TM)
 		{
@@ -3265,14 +3265,14 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 		// Senza, il campione non si apre mai: vedi `MovementDestinationCountsAsAnOrder` qui sopra.
 		if (TM) { TM->DispatchBeginPlay(); }
 
-		// La carica vuole Branth e un nemico in linea; gli altri due casi, Ivrin e un nemico lontano.
+		// La carica vuole Riktor e un nemico in linea; gli altri due casi, Ivrin e un nemico lontano.
 		const bool bCarica = (Caso == ECaso::CaricaInoltrata);
 		ARTUnit* Unit = bCarica
-			? SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0))
+			? SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0))
 			: SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 		ARTUnit* Nemico = bCarica
 			? SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0))
-			: SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 2, 0));
+			: SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 2, 0));
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit)
 			|| !TestNotNull(TEXT("nemico"), Nemico) || !TM)
@@ -3302,7 +3302,7 @@ bool FRTDashDestinationIsAnOrderTest::RunTest(const FString&)
 			|| !TestTrue(TEXT("premessa: e' una mobilita' rapida"), URTCatalogLibrary::IsFastMovement(Scatto->Def))
 			|| !TestTrue(TEXT("premessa: lo stile e' quello del ramo che si vuole esercitare"),
 				URTMovementActionLibrary::IsLinear(Scatto->Def.MovementStyle) == (Caso != ECaso::Budget))
-			|| (bCarica && !TestTrue(TEXT("premessa: la mobilita' di Branth e' una carica"),
+			|| (bCarica && !TestTrue(TEXT("premessa: la mobilita' di Riktor e' una carica"),
 				Scatto->Def.MovementStyle == ERTMovementStyle::LinearCharge)))
 		{
 			DestroyInteractionWorld(World); return false;
@@ -3928,7 +3928,7 @@ bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
 		DestroyInteractionWorld(B.World); return false;
 	}
 	// Un nemico accanto, e la prima azione del kit che punta un'UNITA': cercata, non scritta.
-	ARTUnit* Nemico = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, -2, 0));
+	ARTUnit* Nemico = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, -2, 0));
 	B.PC->SelectActorForTest(B.Unit);
 	int32 Armata = INDEX_NONE;
 	for (int32 i = 0; Nemico && i < B.Unit->NumAbilities() && Armata == INDEX_NONE; ++i)
@@ -4612,7 +4612,7 @@ bool FRTPlayerInputCommitKeysTest::RunTest(const FString&)
  * [D-528] (`#3769`) — **con un nemico noto in mezzo, la carica si pianifica su quello cliccato, si ferma davanti al primo
  * e dice chi colpira'**.
  *
- * Il caso: Branth in `(0,0)`, A (Ivrin) in `(2,0)` e B (Muiren) in `(3,0)`, entrambi visti. Il giocatore clicca B. Il resolver
+ * Il caso: Riktor in `(0,0)`, A (Ivrin) in `(2,0)` e B (Muiren) in `(3,0)`, entrambi visti. Il giocatore clicca B. Il resolver
  * ferma la carica in `(1,0)` e colpisce A ([D-296]); fino a [D-528] l'anteprima disegnava la retta fino a B, col segno d'arrivo
  * su di lui, e l'avviso non diceva niente.
  *
@@ -4634,7 +4634,7 @@ bool FRTPlayerChargeInTheWayTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTUnit* A = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0));
 	ARTUnit* B = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -4730,7 +4730,7 @@ bool FRTPlayerChargeInTheWayTest::RunTest(const FString&)
 /**
  * [D-528] (`#3769`) / [D-225] — **l'anteprima e l'avviso non dicono un nemico che la squadra non conosce**.
  *
- * Tre mondi, che differiscono per UNA cosa ciascuno. In tutti, Branth in `(0,0)` clicca la cella vuota `(3,0)`:
+ * Tre mondi, che differiscono per UNA cosa ciascuno. In tutti, Riktor in `(0,0)` clicca la cella vuota `(3,0)`:
  * - **N**: nessun nemico sulla retta;
  * - **U**: un nemico in `(2,0)` che la squadra NON conosce (la conoscenza non e' stata aggiornata);
  * - **K**: lo stesso nemico, conosciuto.
@@ -4762,7 +4762,7 @@ bool FRTPlayerChargeUnknownEnemyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return L; }
 		ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 		ARTUnit* Nemico = bConNemico ? SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0)) : nullptr;
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		if (!MapActor || !TM || !Charger || !PC || (bConNemico && !Nemico)) { DestroyInteractionWorld(World); return L; }
@@ -4841,7 +4841,7 @@ bool FRTPlayerChargeSecondClickTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTUnit* Primo = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0));
 	ARTUnit* Secondo = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 3, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -4977,7 +4977,7 @@ bool FRTPlayerChargeHoverTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 8);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!MapActor || !TM || !Charger || !PC) { DestroyInteractionWorld(World); return false; }
 
@@ -5102,7 +5102,7 @@ bool FRTPlayerChargeHoverArcTest::RunTest(const FString&)
 
 	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 	ARTUnit* Nemico = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0, 0));
 	ARTUnit* Ostacolato = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -3, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -5187,7 +5187,7 @@ bool FRTPlayerChargeWarningPrivacyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return L; }
 		ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 6);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
+		ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
 		ARTUnit* A = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0, 0));
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		if (!MapActor || !TM || !Charger || !A || !PC) { DestroyInteractionWorld(World); return L; }

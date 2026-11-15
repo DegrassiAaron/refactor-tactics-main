@@ -294,7 +294,7 @@ namespace
 	 * review del 2026-09-21. `ARTGameMode::HeroUnitClasses` porta i quattro `BP_Unit_*`
 	 * (`RTGameMode.cpp`, `FClassFinder<ARTUnit>`), e `ARTMatchBootstrapper` istanzia **quelli**:
 	 * `ARTUnit::StaticClass()` e' solo il ripiego quando il Blueprint manca. `TFieldIterator` vede la classe
-	 * e le sue SUPERclassi, **mai** le sottoclassi, e il CDO di `ARTUnit` non e' il CDO di `BP_Unit_Branth`:
+	 * e le sue SUPERclassi, **mai** le sottoclassi, e il CDO di `ARTUnit` non e' il CDO di `BP_Unit_Riktor`:
 	 * una variabile Blueprint marcata `Replicated`, o la spunta *Replicates* nei class defaults, sarebbero
 	 * passate entrambe.
 	 */

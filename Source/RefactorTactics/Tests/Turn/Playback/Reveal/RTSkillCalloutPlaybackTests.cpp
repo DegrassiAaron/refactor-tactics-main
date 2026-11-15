@@ -8,10 +8,10 @@
 // quel file per il perche' di `InitializeActorsForPlay` e di `MakePlayerOnTeam`), copiata con nomi locali
 // DIVERSI perche' in unity build i namespace anonimi di due file condividono la translation unit.
 // ⛔ Lo Scudo (Muiren) pianifica `Hero.Muiren.TideGuard` in Prep: una skill di firma, `BaseActionId` vuoto. Il
-// Tiratore (Branth) pianifica l'indice 0, `Hero.Branth.ImpactShot`: una variante dell'attacco base. Con [D-604] gridano
+// Tiratore (Riktor) pianifica l'indice 0, `Hero.Riktor.ImpactShot`: una variante dell'attacco base. Con [D-604] gridano
 // entrambi; fino a #4059 gridava solo il primo.
 // ⚠️ Altre scene, ciascuna col suo montaggio: la finestra di reazione (l'orologio del fumetto sopravvive alla ripresa,
-// R4/R7), il loadout di Branth (l'equipaggiamento grida), l'interazione (l'azione del Blast che non grida) e le reazioni
+// R4/R7), il loadout di Riktor (l'equipaggiamento grida), l'interazione (l'azione del Blast che non grida) e le reazioni
 // del Blast (#4059: il fumetto all'arrivo del colpo, e niente per chi guarda senza vedere chi reagisce).
 
 #include "Misc/AutomationTest.h"
@@ -22,7 +22,7 @@
 #include "Unit/RTUnit.h"
 #include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Ability/Catalog/RTCatalogLibrary.h" // DefaultLoadoutFor / FindEquipment / FindCoreAction: il loadout vero di Branth
+#include "Ability/Catalog/RTCatalogLibrary.h" // DefaultLoadoutFor / FindEquipment / FindCoreAction: il loadout vero di Riktor
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
@@ -80,7 +80,7 @@ namespace
 		MapActor->MapAsset = M;
 
 		Out.Scudo    = SpawnUnitaFumetto(Out.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
-		Out.Tiratore = SpawnUnitaFumetto(Out.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		Out.Tiratore = SpawnUnitaFumetto(Out.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 		ARTUnit* Bersaglio = SpawnUnitaFumetto(Out.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
 		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Out.TM || !Out.Scudo || !Out.Tiratore || !Bersaglio) { return false; }
@@ -142,7 +142,7 @@ namespace
 /**
  * Chi grida: la skill di firma e l'attacco base, tutti e due — [D-604] (4), R1 della spec di #4059.
  *
- * 🔑 Il Tiratore pianifica `Hero.Branth.ImpactShot`, una variante dell'attacco base: fino a #4059 restava muto, e ora il
+ * 🔑 Il Tiratore pianifica `Hero.Riktor.ImpactShot`, una variante dell'attacco base: fino a #4059 restava muto, e ora il
  * suo fumetto porta la SUA azione, attribuita a lui. ⛔ La sua cue Cast e' suonata una volta: il fumetto e' quello della
  * sua attivazione.
  * ⏱️ *Fino a #4059 questo test si chiamava `SignatureSkillShoutsAndBaseAttackDoesNot` e asseriva che il Tiratore tacesse.*
@@ -166,7 +166,7 @@ bool FRTSkillCalloutPlaybackSignatureShoutsTest::RunTest(const FString&)
 	TestTrue(TEXT("⛔ il Tiratore ha attivato una volta (la cue Cast e' suonata)"),
 		B.Tiratore->CastCuesPlayedForTest() == 1);
 	TestEqual(TEXT("🔴 e ImpactShot, con la sua base, grida anche lui"),
-		B.Tiratore->LastSkillCalloutForTest().ActionId, FName(TEXT("Hero.Branth.ImpactShot")));
+		B.Tiratore->LastSkillCalloutForTest().ActionId, FName(TEXT("Hero.Riktor.ImpactShot")));
 	TestEqual(TEXT("e il fumetto e' attribuito al Tiratore"),
 		B.Tiratore->LastSkillCalloutForTest().SourceStableUnitId, B.Tiratore->StableUnitId);
 	return true;
@@ -513,8 +513,8 @@ bool FRTSkillCalloutPlaybackClockSurvivesTheWindowTest::RunTest(const FString&)
  * 🔑 **E' il caso che la regola vecchia escludeva con una seconda domanda**: `MakeEquipmentAction` scrive
  * `ActionId = EquipmentId` e copia dal core un `BaseActionId` vuoto, e `FindCoreAction` non conosce `Gadget.PortableCover`.
  * Le tre premesse sotto lo misurano. Con [D-604] la domanda non serve piu': col loadout di DEFAULT
- * (`EquipLoadout(DefaultLoadoutFor(...))`, come `RTMatchBootstrapper`) Branth grida il suo gadget.
- * ⛔ Nella stessa scena la cue Cast di Branth e' suonata una volta: il fumetto e' quello del gadget.
+ * (`EquipLoadout(DefaultLoadoutFor(...))`, come `RTMatchBootstrapper`) Riktor grida il suo gadget.
+ * ⛔ Nella stessa scena la cue Cast di Riktor e' suonata una volta: il fumetto e' quello del gadget.
  * ⏱️ *Fino a #4059 questo test si chiamava `EquipmentActionDoesNotShout` e asseriva il contrario (A7 della spec del
  * fumetto, final review di #4025).*
  */
@@ -530,31 +530,31 @@ bool FRTSkillCalloutPlaybackEquipmentShoutsTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = M;
 
-	// Il viewer e' il ripiego a 0 (mondo non inizializzato), la squadra di Branth.
-	const URTHeroData* HeroBranth = URTHeroCatalogLibrary::MakeBranth();
-	ARTUnit* Branth = SpawnUnitaFumetto(World, 0, HeroBranth, FRTCellId(0, 0));
+	// Il viewer e' il ripiego a 0 (mondo non inizializzato), la squadra di Riktor.
+	const URTHeroData* HeroRiktor = URTHeroCatalogLibrary::MakeRiktor();
+	ARTUnit* Riktor = SpawnUnitaFumetto(World, 0, HeroRiktor, FRTCellId(0, 0));
 	ARTUnit* Nemico = SpawnUnitaFumetto(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Branth || !Nemico || !HeroBranth) { return false; }
+	if (!TM || !Riktor || !Nemico || !HeroRiktor) { return false; }
 
-	// Il loadout di PRODUZIONE, non un'azione costruita a mano: e' quello con cui Branth entra in partita.
-	Branth->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(HeroBranth->HeroId));
+	// Il loadout di PRODUZIONE, non un'azione costruita a mano: e' quello con cui Riktor entra in partita.
+	Riktor->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(HeroRiktor->HeroId));
 	const FName Gadget(TEXT("Gadget.PortableCover"));
 	int32 Indice = INDEX_NONE;
-	for (int32 i = 0; i < Branth->NumAbilities(); ++i)
+	for (int32 i = 0; i < Riktor->NumAbilities(); ++i)
 	{
-		if (Branth->GetAbility(i) && Branth->GetAbility(i)->Def.ActionId == Gadget)
+		if (Riktor->GetAbility(i) && Riktor->GetAbility(i)->Def.ActionId == Gadget)
 		{
 			Indice = i;
 		}
 	}
-	if (!TestTrue(TEXT("⛔ premessa: il loadout di default di Branth concede Gadget.PortableCover"), Indice != INDEX_NONE))
+	if (!TestTrue(TEXT("⛔ premessa: il loadout di default di Riktor concede Gadget.PortableCover"), Indice != INDEX_NONE))
 	{
 		return false;
 	}
 	// ⛔ Le premesse del caso: base vuota, fuori dal catalogo core, dentro quello d'equipaggiamento.
 	if (!TestTrue(TEXT("⛔ premessa: l'azione del gadget non ha una base"),
-			Branth->GetAbility(Indice)->Def.BaseActionId.IsNone())
+			Riktor->GetAbility(Indice)->Def.BaseActionId.IsNone())
 		|| !TestTrue(TEXT("⛔ premessa: e il catalogo core non la conosce"),
 			URTCatalogLibrary::FindCoreAction(Gadget).ActionId.IsNone())
 		|| !TestTrue(TEXT("⛔ premessa: e' il catalogo d'equipaggiamento a conoscerla"),
@@ -564,21 +564,21 @@ bool FRTSkillCalloutPlaybackEquipmentShoutsTest::RunTest(const FString&)
 	}
 
 	// La copertura su (1,0), bordo W: la forma di `RefactorTactics.Equipment.PortableCover.CreatesCover`.
-	Branth->SetPlannedMainAction(Indice);
-	Branth->DeclareAttackOnCell(FRTCellId(1, 0));
-	Branth->DeclarePlannedCoverEdge(ERTHexDirection::W);
-	Branth->SetPlannedCell(Branth->Cell);
+	Riktor->SetPlannedMainAction(Indice);
+	Riktor->DeclareAttackOnCell(FRTCellId(1, 0));
+	Riktor->DeclarePlannedCoverEdge(ERTHexDirection::W);
+	Riktor->SetPlannedCell(Riktor->Cell);
 	Nemico->SetPlannedCell(Nemico->Cell);
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
 	CorriFinoAllaFineDelFumetto(TM);
 
-	TestEqual(TEXT("⛔ controllo positivo: Branth ha attivato il gadget (la cue Cast e' suonata)"),
-		Branth->CastCuesPlayedForTest(), 1);
-	TestEqual(TEXT("🔴 e l'azione d'equipaggiamento grida, col suo id"), Branth->LastSkillCalloutForTest().ActionId, Gadget);
-	TestEqual(TEXT("e il fumetto e' attribuito a Branth"),
-		Branth->LastSkillCalloutForTest().SourceStableUnitId, Branth->StableUnitId);
+	TestEqual(TEXT("⛔ controllo positivo: Riktor ha attivato il gadget (la cue Cast e' suonata)"),
+		Riktor->CastCuesPlayedForTest(), 1);
+	TestEqual(TEXT("🔴 e l'azione d'equipaggiamento grida, col suo id"), Riktor->LastSkillCalloutForTest().ActionId, Gadget);
+	TestEqual(TEXT("e il fumetto e' attribuito a Riktor"),
+		Riktor->LastSkillCalloutForTest().SourceStableUnitId, Riktor->StableUnitId);
 	return true;
 }
 
@@ -717,7 +717,7 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 	}
 
 	// Il viewer e' il ripiego a 0 (mondo non inizializzato), la squadra di chi apre.
-	ARTUnit* Apre = SpawnUnitaFumetto(World, 0, URTHeroCatalogLibrary::MakeAevik(), Cardine);
+	ARTUnit* Apre = SpawnUnitaFumetto(World, 0, URTHeroCatalogLibrary::MakeGadget(), Cardine);
 	ARTUnit* Nemico = SpawnUnitaFumetto(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Apre || !Nemico) { return false; }
@@ -728,7 +728,7 @@ bool FRTSkillCalloutPlaybackInteractIsSilentTest::RunTest(const FString&)
 	{
 		if (Apre->GetAbility(i) && Apre->GetAbility(i)->Def.ActionId == Interact) { Indice = i; }
 	}
-	if (!TestTrue(TEXT("⛔ premessa: Aevik porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: Gadget porta `Action.Interact` nel kit"), Indice != INDEX_NONE)) { return false; }
 	Apre->SetPlannedMainAction(Indice);
 	Apre->DeclareAttackOnCell(Oltre); // si mira a una CELLA: dietro la porta non c'e' nessuno
 	Apre->SetPlannedCell(Apre->Cell);

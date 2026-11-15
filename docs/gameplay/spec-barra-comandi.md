@@ -54,7 +54,7 @@ ripiega.
 ### 1.2 Il roster attuale non soddisfa ancora lo slot
 
 Misurato: le difese d'eroe esistenti sono **eterogenee**. `Hero.Ivrin.PhaseGuard` e `Hero.Muiren.TideGuard`
-derivano da `Action.Shield` (principale, Prep); `Hero.Ivrin.Deflection` e `Hero.Aevik.ReactiveCapacitor` sono
+derivano da `Action.Shield` (principale, Prep); `Hero.Ivrin.Deflection` e `Hero.Gadget.ReactiveCapacitor` sono
 **reazioni**. Nessuna è una `Evasion` né un `Reflect`.
 
 ⚠️ Allineare il roster è lavoro di **kit**, non di regola: questa pagina definisce lo slot, non lo riempie.

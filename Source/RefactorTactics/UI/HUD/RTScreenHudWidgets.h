@@ -1864,7 +1864,7 @@ public:
 	 * cio' che lo slot dichiara come «la propria unita'». Era la selezione; con la barra in sola lettura e' l'unita' fissata.
 	 *
 	 * 🔴 **Senza, un click arma su CHI E' SELEZIONATO ADESSO l'indice che lo slot mostrava per un'altra.**
-	 * `Activate()` inoltra `Action.AbilityIndex`, e l'indice e' una posizione di kit: la terza di Aevik e la
+	 * `Activate()` inoltra `Action.AbilityIndex`, e l'indice e' una posizione di kit: la terza di Gadget e la
 	 * terza di Muiren sono due azioni diverse. Fra `SetAction` e il click la selezione puo' cambiare — con
 	 * `N` anche a mouse premuto — e la porta fa toggle: lo stesso click puo' ARMARE l'azione sbagliata o
 	 * DISARMARE quella giusta.
@@ -2114,7 +2114,7 @@ public:
 	 * sarebbe il difetto che quella dichiarazione esiste per impedire. Owner: `#166`, meta' «e bersaglio».
 	 *
 	 * ✅ **Da `#3667` il produttore lo mette**: `FRTReactionWindowView` porta `ReactionName` e `ReactorName`
-	 * gia' scritti, e il titolo e' «Guardia reattiva — Aevik». Il divieto qui sopra resta intero — questo
+	 * gia' scritti, e il titolo e' «Guardia reattiva — Gadget». Il divieto qui sopra resta intero — questo
 	 * widget continua a non risolvere nessun indice — ed e' la ragione per cui i nomi arrivano come testo.
 	 * Senza nomi nella vista il titolo torna «Reazione».
 	 */

@@ -41,7 +41,7 @@ bool FRTSkillCalloutShoutsUnlessMoveOrInteractTest::RunTest(const FString&)
 		TEXT("Hero.Muiren.TideGuard"),  // una skill di firma del kit
 		TEXT("Hero.Muiren.FluidTrail"), // una skill del kit che scatta
 		TEXT("Action.BasicAttack"),     // l'attacco base ([D-604] (4))
-		TEXT("Hero.Branth.ImpactShot"), // la sua variante, con la base
+		TEXT("Hero.Riktor.ImpactShot"), // la sua variante, con la base
 		TEXT("Action.Guard"),           // un'azione generica del catalogo core
 		TEXT("Action.Overwatch"),       // un'altra, che si arma in Prep
 		TEXT("Hero.X.Variant"),         // una variante di una generica

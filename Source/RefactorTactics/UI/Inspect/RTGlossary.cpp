@@ -59,7 +59,7 @@ const TArray<TPair<FName, FString>>& RTGlossary::Effects()
 		{ TEXT("Status.Exposed"),     TEXT("Finche' dura, il primo colpo che ricevi in un turno fa piu' danno.") },
 		{ TEXT("Status.Guarded"),     TEXT("Ogni colpo che arriva di fronte perde una parte del danno. Una spinta debole non ti sposta, a meno che tu sia sbilanciato.") },
 		{ TEXT("Status.Marked"),      TEXT("Il prossimo colpo della squadra che ti ha marchiato fa piu' danno, poi il marchio si consuma.") },
-		{ TEXT("Status.Wet"),         TEXT("La scarica lineare di Aevik ti fa piu' danno. Bagnarti spegne le fiamme.") },
+		{ TEXT("Status.Wet"),         TEXT("La scarica lineare di Gadget ti fa piu' danno. Bagnarti spegne le fiamme.") },
 		{ TEXT("Status.Braced"),      TEXT("Ogni colpo, da qualunque direzione, perde un po' di danno, e resisti alle spinte finche' non sei sbilanciato.") },
 		{ TEXT("Status.Burning"),     TEXT("Subisci danno alla fine di ogni turno, finche' le fiamme durano o l'acqua le spegne.") },
 		{ TEXT("Status.Obscured"),    TEXT("Sei nel fumo: attraverso il fumo si mira solo da vicino, in entrambi i versi.") },
