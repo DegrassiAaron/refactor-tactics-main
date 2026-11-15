@@ -714,6 +714,8 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 		{ TEXT("AbilityCooldowns"), [](FRTUnitStateDigest& U) { U.AbilityCooldowns[1] = 3; } },   // baseline {2,1}
 		// `Facing` — `D-261`, `#1800`: e' stato logico, non presentazione, e `Combat/` lo consuma.
 		{ TEXT("Facing"),     [](FRTUnitStateDigest& U) { U.Facing = ERTHexDirection::W; } },
+		// E38 CP 38.11 ([D-615] (2)): il budget di base del turno. Baseline 0 nelle fixture: qualunque altro valore lo muta.
+		{ TEXT("ActionPointBudget"), [](FRTUnitStateDigest& U) { U.ActionPointBudget = 5; } },
 		{ TEXT("Cell.X"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(-1, -1, 0); } },   // baseline (1,-1,0)
 		{ TEXT("Cell.Y"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1,  1, 0); } },
 		{ TEXT("Cell.Layer"), [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1, -1, 1); } },
@@ -824,7 +826,7 @@ bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
 	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
 	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
 		TEXT("Shield"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses"),
-		TEXT("AbilityCooldowns") };
+		TEXT("AbilityCooldowns"), TEXT("ActionPointBudget") };
 	Covered.Sort();
 
 	TestEqual(

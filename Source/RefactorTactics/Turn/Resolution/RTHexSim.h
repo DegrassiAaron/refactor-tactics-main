@@ -147,6 +147,18 @@ struct FRTHexSimUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 TeamId = INDEX_NONE;
 
+	/**
+	 * Il budget di Action Point dell'unita' per il turno ([D-613] (1); E38 CP 38.11, #4112): una copia di
+	 * `ARTUnit::GetActionPointBudget`, che `URTPlanValidationLibrary::ValidatePlan` confronta con la somma dei costi.
+	 *
+	 * 🔑 **Il default e' 6 e non 0**: un `FRTHexSimUnit()` costruito a mano giudica come prima di questo campo, mentre con
+	 * 0 ogni piano non vuoto uscirebbe `OverBudget`. In uno snapshot d'osservatore le unita' di un'altra squadra portano
+	 * `INDEX_NONE` (`URTHexSimLibrary::MakeSnapshot`): il budget di un avversario non e' dell'osservatore, e un piano
+	 * validato per errore contro quel valore esce sempre `OverBudget`, quindi lo sbaglio si vede.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 ActionPointBudget = RTActionPoints::DefaultBudget;
+
 	FRTHexSimUnit() = default;
 	FRTHexSimUnit(int32 InUnitId, const FRTCellId& InCell, int32 InMoveBudget = 0, bool bInAlive = true)
 		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget),

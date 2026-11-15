@@ -80,14 +80,15 @@ struct FRTBoundaryChecksum
  *
  * ## 🔴 Cosa questo checksum guarda, e cosa no
  *
- * `FRTUnitStateDigest` ha otto campi; una traccia canonica ne puo' ricostruire **quattro**: `UnitId`,
- * `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Statuses` e `AbilityCooldowns` restano al loro default,
+ * Di tutti i campi di `FRTUnitStateDigest`, una traccia canonica ne puo' ricostruire **quattro**: `UnitId`,
+ * `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Statuses`, `AbilityCooldowns` e `ActionPointBudget`
+ * (E38 CP 38.11) restano al loro default,
  * **uguali per tutte le unita' e per tutte le esecuzioni**, quindi non discriminano: due stati che
  * differissero solo per gli HP produrrebbero lo stesso checksum di boundary.
  *
  * ⚠️ **Non e' un difetto da tappare inferendo quei valori**, ed e' la ragione per cui e' scritto qui invece
  * che taciuto: dedurli dalle voci di danno sarebbe ricostruire uno stato che la traccia non dichiara — cioe'
- * un secondo simulatore, che il guardrail di `#1880` e di questa issue vieta. Chi ha bisogno degli otto
+ * un secondo simulatore, che il guardrail di `#1880` e di questa issue vieta. Chi ha bisogno di tutti i
  * campi ha `FinalStateHash`, che nasce dal mondo vivo e resta la misura completa; questo checksum e' il
  * **localizzatore**, e localizza cio' che la traccia sa.
  *

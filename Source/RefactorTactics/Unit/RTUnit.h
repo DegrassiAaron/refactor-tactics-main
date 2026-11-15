@@ -1283,6 +1283,16 @@ public:
 	/** Cooldown residuo (turni) di un'abilita'. */
 	int32 GetAbilityCooldown(int32 Index) const;
 
+	/**
+	 * Il budget di Action Point dell'unita' per il turno ([D-613] (1); E38 CP 38.11, #4112): il numero che il validatore
+	 * confronta con la somma dei costi del piano, noto quando si pianifica. Vale il default di [D-594] (1), 6, finche'
+	 * nessuno lo cambia: oggi nessun effetto lo fa, e i primi produttori sono meccaniche di kit (`KIT-3`).
+	 */
+	int32 GetActionPointBudget() const { return ActionPointBudget; }
+
+	/** L'allestimento del budget: l'harness degli scenari (`actionPointBudget`) e i test. Nessuna regola qui. */
+	void SetActionPointBudget(int32 Budget) { ActionPointBudget = Budget; }
+
 	/** Seleziona l'abilita' attiva del giocatore (se l'indice e' valido). */
 	void SelectAbility(int32 Index);
 
@@ -1491,6 +1501,13 @@ private:
 	/** Cooldown residuo per abilita' (parallelo a Abilities). */
 	UPROPERTY()
 	TArray<int32> AbilityCooldowns;
+
+	/**
+	 * Il budget di Action Point del turno ([D-613] (1)). Privato come `AbilityCooldowns`, e per la stessa ragione: e'
+	 * stato competitivo, entra nel digest di stato ([D-615] (2)), e lo si legge da `GetActionPointBudget`.
+	 */
+	UPROPERTY()
+	int32 ActionPointBudget = RTActionPoints::DefaultBudget;
 
 	/**
 	 * Riallinea `AbilityCooldowns` ad `Abilities`: va chiamata OVUNQUE il kit venga popolato o sostituito.

@@ -82,6 +82,10 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 		{
 			MixName(Tag);
 		}
+
+		// [D-615] (2), E38 CP 38.11: il budget di base, in coda al blocco dell'unita'. E' la voce d'autore che [D-333] chiede
+		// per un campo nuovo del digest.
+		Mix(static_cast<uint32>(U.ActionPointBudget));
 	}
 
 	// --- Mappa: terreni modificati e strutture -----------------------------------------------------------
@@ -240,6 +244,7 @@ TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArr
 		{
 			Digest.AbilityCooldowns.Add(Unit->GetAbilityCooldown(Slot));
 		}
+		Digest.ActionPointBudget = Unit->GetActionPointBudget();
 		Digests.Add(Digest);
 	}
 
