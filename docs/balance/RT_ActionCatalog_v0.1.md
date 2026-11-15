@@ -120,7 +120,7 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 | `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | — | `Fallback.Cancel` | no |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | — | `Fallback.Cancel` | no |
 | `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | — | `Fallback.Cancel` | sì |
-| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 ⏳ | — | `Fallback.Cancel` | no |
+| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | — | `Fallback.Cancel` | no |
 | `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — | — |
 
 > ⏳ **Il cooldown di `Action.Overwatch` diventa 1** ([D-615](../decisions/RT_PDR_00_Decision_Log.md) (4), 2026-11-14: «overwatch ha
