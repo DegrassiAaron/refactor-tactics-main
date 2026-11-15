@@ -7,6 +7,7 @@
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
 #include "Turn/Actions/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
 #include "Turn/RTUnitPlan.h" // [D-608] tappa 3: il piano del turno e' un membro per valore
+#include "Turn/RTLockedPlan.h" // [D-608] tappa 4: la copia del piano al lock-in, anche lei per valore
 #include "Turn/Resolution/RTMovementActionLibrary.h" // FRTChargeRun: dove si ferma la carica pianificata ([D-528]) e' un membro per valore
 #include "Selection/RTSelectable.h"
 #include "Map/Actor/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
@@ -194,6 +195,13 @@ public:
 	 */
 	const FRTUnitPlan& GetPlan() const { return Plan; }
 
+	/**
+	 * **La copia del piano al lock-in** ([D-608] (2), tappa 4, #4127): il piano com'era, il bersaglio per `StableUnitId`
+	 * e la mira congelata. La scatta `LockPlan()`, che chiama solo `ARTTurnManager::LockInAndResolve` (e di nuovo
+	 * `ValidatePlansAtLockIn` per un piano svuotato). Vale fino al lock-in successivo, come valeva la mira di prima.
+	 */
+	const FRTLockedPlan& GetLockedPlan() const { return LockedPlan; }
+
 private:
 	/** L'unico accesso in scrittura fuori dai mutatori: gli stati che nessun mutatore produce, per i test (#4076). */
 	friend struct FRTUnitPlanTestAccess;
@@ -201,6 +209,10 @@ private:
 	/** Il piano in modifica. Privato: vedi `GetPlan()`. */
 	UPROPERTY()
 	FRTUnitPlan Plan;
+
+	/** La copia al lock-in. Privata: vedi `GetLockedPlan()`; si scrive solo da `LockPlan()`. */
+	UPROPERTY(Transient)
+	FRTLockedPlan LockedPlan;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
@@ -588,17 +600,26 @@ public:
 	}
 
 	/**
-	 * **La fotografia della mira al lock-in** ([D-415]): con un bersaglio-UNITA', la sua cella di adesso. Il resolver
-	 * mirera' li' anche se il bersaglio si muove prima del Blast. Il perche' sta al chiamante, `LockInAndResolve`.
+	 * **La copia del piano al lock-in** ([D-608] (2), tappa 4, #4127): il piano com'e' ora, il bersaglio per
+	 * `StableUnitId` e la fotografia della mira ([D-415]): con un bersaglio-UNITA', la sua cella di adesso. Il resolver
+	 * mirera' li' anche se il bersaglio si muove prima del Blast. Il perche' sta al chiamante, `LockInAndResolve`, che
+	 * la chiama dopo `EnsureMatchRoster`: prima, gli `StableUnitId` valgono 0 per tutti.
+	 *
+	 * Accende anche `bHasPlannedAim`, il segno vivo che la mira vale ancora: la copia e' immutabile, e a spegnere la
+	 * mira quando la principale si consuma resta `ClearPlannedAttack`.
 	 */
-	void FreezePlannedAim()
+	void LockPlan()
 	{
+		LockedPlan = FRTLockedPlan();
+		LockedPlan.Plan = Plan;
 		const ARTUnit* AimedAt = Plan.PlannedAttackTarget();
-		bHasPlannedAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell();
-		if (bHasPlannedAim)
+		LockedPlan.AttackTargetStableId = IsValid(AimedAt) ? AimedAt->StableUnitId : INDEX_NONE;
+		LockedPlan.bHasAim = IsValid(AimedAt) && !Plan.bAttackTargetsCell();
+		if (LockedPlan.bHasAim)
 		{
-			PlannedAimCell = AimedAt->Cell;
+			LockedPlan.AimCell = AimedAt->Cell;
 		}
+		bHasPlannedAim = LockedPlan.bHasAim;
 	}
 
 	/**
@@ -618,52 +639,22 @@ public:
 	FRTCellId ResolutionAimCell(bool bDeclaresTracking) const
 	{
 		if (Plan.bAttackTargetsCell()) { return Plan.PlannedAttackCell(); }
-		if (bHasPlannedAim && !bDeclaresTracking) { return PlannedAimCell; }
+		if (bHasPlannedAim && !bDeclaresTracking) { return LockedPlan.AimCell; }
 		if (Plan.PlannedAttackTarget()) { return Plan.PlannedAttackTarget()->Cell; }
 		return Cell;
 	}
 
 	/**
-	 * **La cella su cui l'azione principale mira, congelata al LOCK-IN** ([D-415]).
-	 *
-	 * 🔑 **Esiste perche' la mira non deve INSEGUIRE.** Fino al 2026-09-20 il Blast leggeva
-	 * `PlannedAttackTarget->Cell` al momento di risolvere, cioe' **dopo** il Dash, le spinte e le reazioni
-	 * (il movimento normale risolve dopo il Blast): un bersaglio che scattava veniva seguito, e chi sparava
-	 * colpiva una posizione che al momento di decidere non esisteva.
-	 * In una fase simultanea questo rende illeggibile la scelta — si mira a qualcosa che si muoverà.
-	 *
-	 * ⚠️ **NON e' `PlannedAttackCell`, ed e' deliberato.** Quella e' l'altra META' della scelta esclusiva di
-	 * `#2884`: `bAttackTargetsCell` decide QUALE delle due il resolver legge, e scriverci la mira di un
-	 * bersaglio-unita' renderebbe le due forme indistinguibili proprio nel campo che le separa.
-	 *
-	 * 🔑 **Il corollario di [D-415] regge da solo**: il bersaglio che si e' spostato puo' comunque essere
-	 * colpito, perche' `CollectHexAttacks` sceglie chi colpire **geometricamente** — ogni unita' viva su una
-	 * cella dell'area — e non dall'identita' del bersaglio dichiarato. Non c'e' niente da aggiungere per
-	 * ottenerlo, solo da non rompere.
-	 *
-	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
-	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. La dichiarano `Action.Interrupt` e
-	 * `Action.Heal` (D-493), e il perche' sta accanto alla riga di catalogo di ciascuna; chi risolve la legge da
-	 * `ResolutionAimCell`.
-	 *
-	 * 🔒 **NON e' visibile ai Blueprint, ed e' deliberato** (CLAUDE.md §7): e' intento della squadra che lo
-	 * dichiara, letto solo dal resolver. Esposto senza filtro, un grafo di presentazione leggerebbe dove mira
-	 * il nemico — e `Unit.BlueprintSurfaceIsCensused` lo avrebbe dovuto censire come debito «da ritirare»,
-	 * come ogni altro campo del piano. ⌫ *Fino alla suite completa del 2026-10-10 era `BlueprintReadOnly`.*
-	 * `Transient`: e' stato del turno, non si salva con l'attore.
-	 */
-	UPROPERTY(Transient)
-	FRTCellId PlannedAimCell;
-
-	/**
-	 * Se `PlannedAimCell` porta una mira valida per QUESTO turno ([D-415]).
+	 * Se la mira congelata della copia al lock-in (`GetLockedPlan().AimCell`) vale ANCORA per questo turno ([D-415]).
+	 * La accende `LockPlan()`; la spegne `ClearPlannedAttack()` quando la principale si consuma. Da [D-608] tappa 4
+	 * (#4127) la cella sta nella copia, che e' immutabile: questo segno e' cio' che di vivo ne resta in `ARTUnit`.
 	 *
 	 * ⚠️ **Serve perche' `FRTCellId()` e' una cella LEGITTIMA** — `(0,0,0)` e' il centro di ogni mappa — e un
 	 * flag e' l'unico modo di distinguere «non congelata» da «congelata sull'origine». Senza, un piano
 	 * scritto direttamente (harness, test) mirerebbe al centro invece che dove dice.
 	 *
-	 * 🔒 Fuori dai Blueprint per la stessa ragione di `PlannedAimCell`: che una mira sia stata congelata e'
-	 * gia' informazione di piano.
+	 * 🔒 Fuori dai Blueprint per la stessa ragione della cella: che una mira sia stata congelata e' gia'
+	 * informazione di piano.
 	 */
 	UPROPERTY(Transient)
 	bool bHasPlannedAim = false;

@@ -1756,7 +1756,14 @@ void ARTTurnManager::LockInAndResolve()
 	// `TurnLog` ne' nello `StateHash`.
 	PlaybackKnowledgeState = TeamKnowledgeState;
 
-	// 🔴 **LA MIRA SI FISSA QUI, e da qui non insegue piu'** ([D-415]).
+	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
+	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
+	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
+	EnsureMatchRoster();
+
+	// 🔴 **LA MIRA SI FISSA QUI, e da qui non insegue piu'** ([D-415]). ➕ E con lei tutto il piano: `LockPlan` scatta la
+	// copia al lock-in di [D-608] (2), tappa 4 (#4127), col bersaglio per `StableUnitId`, quindi DOPO `EnsureMatchRoster`
+	// qui sopra. ⌫ *Fino alla tappa 4 la fotografia precedeva il roster; fra i due punti nessun passo sposta un'unita'.*
 	//
 	// 🔑 **Questo e' il lock-in, cioe' l'istante in cui il piano diventa immutabile**: e' l'unico punto in
 	// cui la cella di un bersaglio e' ancora quella su cui chi spara ha DECISO. Fra qui e il Blast la
@@ -1788,14 +1795,9 @@ void ARTTurnManager::LockInAndResolve()
 		{
 			if (!IsValid(PlanningUnit)) { continue; }
 
-			PlanningUnit->FreezePlannedAim();
+			PlanningUnit->LockPlan();
 		}
 	}
-
-	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
-	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
-	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
-	EnsureMatchRoster();
 
 	// ➕ **La conoscenza e l'origine con cui il click ha giudicato si congelano QUI** ([D-574], [D-575] (a)): dopo
 	// `EnsureMatchRoster` (le origini si cercano per `StableUnitId`) e prima di `ValidatePlansAtLockIn` e della prima fase, cioe'
@@ -3603,7 +3605,7 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			FRTCellId Bersaglio = Unit->Cell;
 			if (Voce.Def.Slot == ERTActionSlot::Main)
 			{
-				if (Unit->bHasPlannedAim) { Bersaglio = Unit->PlannedAimCell; }
+				if (Unit->bHasPlannedAim) { Bersaglio = Unit->GetLockedPlan().AimCell; }
 				else if (Unit->GetPlan().bAttackTargetsCell()) { Bersaglio = Unit->GetPlan().PlannedAttackCell(); }
 				else if (IsValid(Unit->GetPlan().PlannedAttackTarget())) { Bersaglio = Unit->GetPlan().PlannedAttackTarget()->Cell; }
 			}
@@ -3633,6 +3635,8 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 		// Il piano si svuota DOPO le voci, che leggono bersaglio e celle del piano. Non si paga niente: nessun
 		// resolver vede le voci, quindi nessuno chiama `ConsumeAbility`.
 		Unit->EmptyPlanAtLockIn();
+		// [D-608] tappa 4 (#4127): la copia al lock-in e' il piano che si risolve davvero, cioe' quello vuoto.
+		Unit->LockPlan();
 	}
 }
 

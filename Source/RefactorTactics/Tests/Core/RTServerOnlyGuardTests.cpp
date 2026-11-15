@@ -76,6 +76,8 @@ bool FRTServerOnlyTypesAreNotReplicatedTest::RunTest(const FString&)
 		Production.Contains(FRTUnitPlan::StaticStruct()));
 	TestTrue(TEXT("FRTPlanEntry e' dichiarato server-only (E38 CP 38.12)"),
 		Production.Contains(FRTPlanEntry::StaticStruct()));
+	TestTrue(TEXT("FRTLockedPlan e' dichiarato server-only ([D-608] tappa 4)"),
+		Production.Contains(FRTLockedPlan::StaticStruct()));
 
 	// LA MISURA. Nessuna via di rete raggiunge un tipo server-only.
 	const TArray<FRTReplicationLeak> Leaks = RTServerOnlyGuard::FindLeaks(Production);
