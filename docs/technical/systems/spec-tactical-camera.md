@@ -3,7 +3,7 @@
 > **Owner documentale** della camera tattica. `CURRENT` · normativo.
 > Epic **E49** ([#1769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1769)) · decisioni
 > [`D-142`](../../decisions/RT_PDR_00_Decision_Log.md), [`D-143`](../../decisions/RT_PDR_00_Decision_Log.md),
-> `D-250`–`D-254`.
+> `D-250`–`D-254`, [`D-618`](../../decisions/RT_PDR_00_Decision_Log.md).
 > Codice: [`RTCameraPawn.h`](../../../Source/RefactorTactics/Camera/RTCameraPawn.h) ·
 > [`RTPlayerController.cpp`](../../../Source/RefactorTactics/Player/RTPlayerController.cpp).
 > I domini spaziali della mappa hanno un owner separato:
@@ -103,6 +103,8 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Home | `Home` | `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)): selezione propria viva → squadra → centro mappa, con orientamento e distanza di default (§4.1) |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
 | Vista strategica | `Tab` | `ToggleStrategicView`: sposta la distanza alla soglia e ritorno ([D-488](../../decisions/RT_PDR_00_Decision_Log.md), §5) |
+
+⏳ **`T`, l'inquadratura d'unità, è prescritto da [D-618](../../decisions/RT_PDR_00_Decision_Log.md) e non è ancora cablato** (§4.2).
 
 ### 3.2 Binding del modificatore `Ctrl` — ✅ consegnati
 
@@ -225,6 +227,7 @@ un'inquadratura, e portargliela via è peggio che non aiutarlo.
 | `LMB` singolo | Select — ✅ non muove la camera |
 | `F` | Focus — ✅ `FocusOn`, **conserva lo zoom** |
 | doppio `LMB` | Select + Focus — ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773), su unità propria, entro `DoubleClickInterval` |
+| `T` | Inquadratura d'unità — ⏳ [D-618](../../decisions/RT_PDR_00_Decision_Log.md), §4.2 |
 | `Home` | Recupero contestuale — ✅ `FrameHome` ([#1837](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1837)), §4.1 |
 
 `FocusOn` sposta il **pivot** e conserva yaw, pitch e distanza. Conserva anche la **quota del piano** e non
@@ -283,6 +286,81 @@ una gerarchia di ripiego, e azzera **sempre** orientamento e distanza: è la sce
 - `N/A` **Il `Replay` di #1837, alla lettera**: il visore dei replay (`URTReplayViewerSubsystem`) è una
   schermata senza camera di mappa. La regola che la issue gli dava vale per l'osservazione, qui sopra.
 - ⏳ **Prescritto e non ancora visto**: `PIE-CAM-HOME-CONTEXT`, i tre anelli a mano.
+
+### 4.2 `T` — l'inquadratura d'unità — [D-618](../../decisions/RT_PDR_00_Decision_Log.md), [#4121](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4121)
+
+⏳ **Prescritta, non ancora scritta.** `T` mette la camera **dietro** un'unità e la gira **dove guarda lei**:
+l'unità sta nella parte bassa dello schermo, e davanti si vede il campo dove va il colpo. È la scelta
+dell'autore del 2026-11-15 (D-618). Si usa in due posti: in partita, sull'unità selezionata; nel banco
+Ability / Hero Lab, su chi lancia, all'apertura di ogni scena.
+
+| Cosa | Valore | Fonte |
+|---|---|---|
+| Yaw | il verso logico dell'unità, `URTHexLibrary::FacingRotation(Facing).Yaw`: un multiplo di 60°, con E = 0° | D-618 (a) |
+| Pivot | la cella dell'unità alla quota del piano, spostata **in avanti** lungo il verso di `UnitFramingLeadCells` celle (la distanza fra due centri vicini) | D-618 (a) |
+| Distanza | fissa, `UnitFramingArmLength`, clampata in `[MinArmLength, MaxArmLength]` | D-618 (a) |
+| Pitch | quello tarato: l'offset manuale torna a zero | assistente, ribaltabile |
+| Peek | azzerato | assistente, ribaltabile |
+
+- **L'ordine conta.** Prima la vista (yaw, distanza, stato strategico, pitch), poi il pivot, che passa dalla
+  porta unica `SetCameraPivot`. Il limite del pivot ([D-525](../../decisions/RT_PDR_00_Decision_Log.md),
+  [D-526](../../decisions/RT_PDR_00_Decision_Log.md)) dipende da yaw e distanza, e va calcolato su quelli nuovi.
+  È lo stesso ordine di `Home` (`ResetAndFrame`).
+- **Sul bordo della mappa** il pivot si ferma al limite: l'unità può non scendere fino in basso, o spostarsi di
+  lato, ma deve restare **in quadro**.
+- 🔧 **Taratura aperta** (`PROPOSED FOR PLAYTEST`, [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780)):
+  `UnitFramingArmLength` e `UnitFramingLeadCells` sono `UPROPERTY` del pawn. Lo spostamento è in celle, come
+  `BoundsMarginCells`, così la stessa taratura vale a ogni `HexSize`. Il primo valore lo sceglie l'autore nel banco,
+  a occhio.
+
+**Su chi**
+
+| Dove | Unità inquadrata | Senza un'unità valida |
+|---|---|---|
+| partita | la selezione, se viva e della propria squadra (`IsOwnLiveUnit`, la guardia di `FrameHome`) | niente, e una riga nel log |
+| banco (`URTAbilityLabLibrary::IsLabScenarioId`) | `CASTER`, chi lancia nella scena | niente, e una riga nel log |
+| altra osservazione (autobattle, scenari che non sono del banco) | nessuna | niente: `Home` resta il campo intero (§4.1) |
+
+- **Nel banco la scena si apre già così** (D-618 (c)): `ARTGameMode::RecenterCameraOnScenario` inquadra
+  `CASTER` invece della mappa intera, anche al passo `,` e `.` ([#3774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3774)),
+  e `T` ci riporta. `Home` resta la mappa intera, l'anello dell'osservazione di §4.1.
+- ⛔ **In partita mai un'unità di un'altra squadra**, come `Home`. Nel banco `CASTER` non è «la propria
+  squadra» di nessuno: il banco è un'osservazione ([D-607](../../decisions/RT_PDR_00_Decision_Log.md)), e la
+  scena la posa lo strumento.
+- **Il verso** è `Facing` nel momento in cui si preme `T` o si apre la scena: non `PlannedFacing`, né la
+  direzione del colpo. Nella posa di default del banco coincidono, perché `CASTER` sta in `(0,0)` con verso E e
+  `TARGET` in `(2,0)`, sulla stessa riga. Lettura dell'assistente, ribaltabile.
+
+**Che cosa non cambia**
+
+- `F` resta `FocusOn`: centra senza ruotare e conserva lo zoom (§4). `Home` resta il recupero con orientamento
+  di default (§4.1).
+- Il piano attivo ([D-255](../../decisions/RT_PDR_00_Decision_Log.md)) non cambia, come con `F`. Selezione e
+  piano d'azione nemmeno: è sola presentazione ([D-143](../../decisions/RT_PDR_00_Decision_Log.md)), e non
+  tocca TurnLog né hash.
+- È **istantanea**, come `FocusOn`: non c'è un movimento da interrompere, e `CAM-04`
+  ([#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773)) non ha un consumatore nuovo.
+- **Dalla vista strategica** la distanza fissa riporta in tattica, come `Home`: lo stato si rilegge dal braccio
+  ([D-252](../../decisions/RT_PDR_00_Decision_Log.md)).
+- **Non è il Camera Director** (§10). La camera del playback di una partita resta `CAM-12`, dopo la v0.1
+  ([D-287](../../decisions/RT_PDR_00_Decision_Log.md) (8)). Il banco mette la camera **una volta**,
+  all'apertura della scena, come faceva già con la mappa intera.
+- ⚠️ **Una frizione con [D-142](../../decisions/RT_PDR_00_Decision_Log.md), non una violazione:** lo scatto di
+  45° esiste per non agganciare la vista agli assi della griglia, e uno yaw preso dal verso cade proprio su un
+  asse. D-142 governa `Q`/`E`, che dopo `T` ruotano di 45° da lì; per una skill in linea l'asse è la vista utile.
+
+**I criteri.** I nomi dei test sono proposte: li fissa la PR del codice.
+
+| # | Criterio | Prova |
+|---|---|---|
+| 1 | dopo `T` lo yaw è quello del verso, per tutti e sei i versi | ⏳ test di automazione |
+| 2 | il pivot sta davanti all'unità lungo il verso, e l'unità cade nella metà bassa dello schermo | ⏳ test di automazione, sulla proiezione |
+| 3 | distanza `UnitFramingArmLength`, pitch tarato e peek azzerato, da qualunque vista di partenza, strategica compresa | ⏳ test di automazione |
+| 4 | sul bordo il pivot resta dentro il limite, e l'unità resta in quadro | ⏳ test di automazione |
+| 5 | in partita non inquadra un'unità morta o di un'altra squadra, e senza selezione non muove niente | ⏳ test di automazione |
+| 6 | il tasto è `T`, e passa dalla stessa funzione della posa | ⏳ test di automazione |
+| 7 | una scena del banco si apre inquadrata su `CASTER`; uno scenario che non è del banco resta sulla mappa intera | ⏳ test di automazione |
+| 8 | a occhio, nel banco: l'unità in basso, il colpo davanti | ⏳ `PIE-CAM-UNIT-FRAME`, verdetto dell'autore; la voce entra nel registro con la PR del codice |
 
 ---
 
@@ -681,6 +759,9 @@ Candidati a `HARD FOCUS`, e nient'altro senza una decisione: finestra di **Fast 
 ⚠️ **Niente cambi automatici di yaw/pitch nella baseline.** L'orbita resta un gesto del giocatore
 (`CAM-B`, §3.2); una regia che ruotasse da sola invaliderebbe `PIE-CAM-ORBIT` e riaprirebbe una domanda già
 chiusa.
+
+> ℹ️ **[D-618](../../decisions/RT_PDR_00_Decision_Log.md) non fa eccezione a questa riga.** `T` ruota quando lo preme il giocatore, e il banco Ability / Hero Lab
+> mette la camera una volta, all'apertura della scena (§4.2): durante la Resolution nessuna regia ruota da sola.
 
 ⛔ **`CAM-04` ha la precedenza, e vale già adesso** ([#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773)):
 un input manuale di pan/zoom/orbit/peek **interrompe subito** l'automazione. Ping, notifiche e UI ordinaria
