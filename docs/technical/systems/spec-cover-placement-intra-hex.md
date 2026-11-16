@@ -19,6 +19,9 @@
 > [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso `COV-1` — §13. Il footprint è un **conteggio di settori**, non un raggio,
 > e [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md) ne ha fissato i **valori**: `2`, `3`, `4`. Aperte: `MAP-4`, `COV-7`, `COV-8`.
 > ([#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833)).
+> 🔁 **2026-11-16, [D-620](../../decisions/RT_PDR_00_Decision_Log.md)**: lo stato elementale **sul singolo settore** di una cella divisa da un muro radiale
+> è **riaperto** come `UXR-2` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Finché è aperta, il settore resta geometria e non sottocella, e la cella
+> ha un solo slot autoritativo.
 
 ---
 

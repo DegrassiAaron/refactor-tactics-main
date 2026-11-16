@@ -6,6 +6,9 @@
 > propone E38 su una simulazione del catalogo (`MSP-1.n` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). ✅ **Decisi il 2026-11-08 da [D-594](../decisions/RT_PDR_00_Decision_Log.md)**: budget 6; Prep 1 · Dash 2 · Blast 2 · Move 2 · reazione 2; colonna di costo per riga, Ultimate a un punto in più; non ancora nel codice. Il testo qui sotto
 > descrive il modello a slot che il codice esegue oggi, e resta il contratto in vigore finché E38 non consegna: nessun
 > `IMPLEMENTATION DRIFT` va dichiarato contro di esso. Quando E38 consegna, §1, §1-bis, §2 e §3 si riscrivono; gli altri paragrafi no.
+>
+> 🔁 **2026-11-16, [D-620](../decisions/RT_PDR_00_Decision_Log.md)**: che `Overwatch` e `Guard` restino azioni principali del Prep o passino fra le
+> reazioni è **riaperto** come `UXR-5` di [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), dal documento UI/UX dell'autore. Finché è aperta vale questa spec.
 
 > `CURRENT` · **Owner** della domanda «quanto può fare un'unità in un turno, e che cosa il movimento scelto
 > toglie o aggiunge alle sue azioni». · Creato il **2026-08-12** consolidando il kit d'autore
