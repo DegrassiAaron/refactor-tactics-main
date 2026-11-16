@@ -4700,6 +4700,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// tocca. Nessun `AbilityActivated` e nessun `Applied`: un rifiuto non e' un esito applicato.
 		if (RefuseMainActionIfStunned(Unit, Def, ERTMatchPhase::Prep, TargetCell))
 		{
+			// `#4034`, [D-622] (1): barrata, nel ciclo in cui la Prep emette le sue attivazioni.
+			EmitActionBlocked(Unit, ERTMatchPhase::Prep, Def.ActionId, Def.BaseActionId, Unit->StableUnitId, TargetCell,
+				ERTAbilityShape::Single, ERTActionInvalidReason::Stunned);
 			Unit->ConsumeAbility(Index);
 			continue;
 		}
@@ -5085,6 +5088,10 @@ void ARTTurnManager::ResolvePrep()
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
+			// `#4034`, [D-622] (1): barrata, nel ciclo in cui la Prep emette le sue attivazioni.
+			EmitActionBlocked(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId, Unit->StableUnitId,
+				Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell,
+				ERTAbilityShape::Single, ERTActionInvalidReason::Stunned);
 			// Si paga qui, DOPO il rifiuto: `Unit` e' vivo e `CanUseAbility(Index)` era vero (le due guardie in cima al
 			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
 			// di sempre per il Prep: scrittura immediata, come per l'Overwatch e la predittiva che armano.
@@ -5578,6 +5585,10 @@ void ARTTurnManager::ResolveDash()
 	bChargeRunsShort.Init(false, Units.Num());
 	// `INDEX_NONE` e non `0`: chi non dichiara la squadra non attraversa nessuno ([D-396]).
 	Teams.Init(INDEX_NONE, Units.Num());
+	// `#4034`, [D-622] (1): lo scatto rifiutato per stordimento, per indice d'unita'. Esce barrato nel ciclo che emette le
+	// attivazioni del Dash, nel posto che la sua attivazione avrebbe avuto.
+	TArray<int32> ScattoStordito;
+	ScattoStordito.Init(INDEX_NONE, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -5630,6 +5641,7 @@ void ARTTurnManager::ResolveDash()
 		// vive, e questo ciclo non toglie salute a nessuno.
 		if (bNegatoDalloStordimento && RefuseMainActionIfStunned(Unit, Dash->Def, ERTMatchPhase::Dash, Unit->Cell))
 		{
+			ScattoStordito[i] = DashIdx; // `#4034`
 			Unit->ConsumeAbility(DashIdx);
 			continue;
 		}
@@ -5866,7 +5878,20 @@ void ARTTurnManager::ResolveDash()
 		++DasherCount;
 	}
 
-	if (DasherCount == 0) { return; }
+	if (DasherCount == 0)
+	{
+		// `#4034`: senza scatti la fase finisce qui, prima del ciclo che emette. Lo scatto rifiutato per stordimento esce
+		// barrato lo stesso, nello stesso ordine per indice d'unita' di quel ciclo.
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
+			{
+				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
+					Units[i]->GetPlan().PlannedDashCell(), Negato->Shape, ERTActionInvalidReason::Stunned);
+			}
+		}
+		return;
+	}
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
@@ -5903,6 +5928,11 @@ void ARTTurnManager::ResolveDash()
 	{
 		if (DashAbilityIdx[i] == INDEX_NONE)
 		{
+			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
+			{
+				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
+					Units[i]->GetPlan().PlannedDashCell(), Negato->Shape, ERTActionInvalidReason::Stunned);
+			}
 			continue;
 		}
 

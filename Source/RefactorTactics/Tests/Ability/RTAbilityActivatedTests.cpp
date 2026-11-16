@@ -1394,4 +1394,66 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#4034`, [D-622] (1): in Prep e nel Dash lo stordito esce BARRATO col motivo `Stunned`, al posto della sua attivazione.
+ * Controllo: senza stordimento le stesse unita' si attivano, e non c'e' nessun evento di blocco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnStunnedPrepAndDashComeOutStruckTest,
+	"RefactorTactics.Turn.StunnedPrepAndDashComeOutStruck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnStunnedPrepAndDashComeOutStruckTest::RunTest(const FString&)
+{
+	struct FEsito { int32 AttivatePrep = 0; int32 BarratePrep = 0; int32 AttivateDash = 0; int32 BarrateDash = 0; };
+	auto Gira = [this](bool bStordito, FEsito& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World);
+		ARTUnit* Scudo = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, 0));
+		ARTUnit* Corridore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Scudo || !Corridore) { return false; }
+		Scudo->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Scudo, TEXT("Action.Shield")));
+		Scudo->SetPlannedCell(Scudo->Cell);
+		const int32 Scia = IndiceAbilitaAttivazione(Corridore, TEXT("Hero.Muiren.FluidTrail"));
+		if (!TestTrue(TEXT("premessa: Muiren ha FluidTrail"), Scia != INDEX_NONE)) { return false; }
+		Corridore->SetPlannedDash(Scia, FRTCellId(1, 0));
+		Corridore->SetPlannedCell(Corridore->Cell);
+		if (bStordito)
+		{
+			Scudo->ApplyStatus(TAG_Status_Stunned, 2);
+			Corridore->ApplyStatus(TAG_Status_Stunned, 2);
+		}
+		TM->LockInAndResolve();
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			const bool bBarrato = Ev.Type == ERTResolvedEventType::ActionBlocked
+				&& Ev.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned);
+			const bool bAttivato = Ev.Type == ERTResolvedEventType::AbilityActivated;
+			if (Ev.SourceStableUnitId == Scudo->StableUnitId && Ev.Phase == ERTMatchPhase::Prep)
+			{
+				Out.AttivatePrep += bAttivato ? 1 : 0;
+				Out.BarratePrep += bBarrato ? 1 : 0;
+			}
+			if (Ev.SourceStableUnitId == Corridore->StableUnitId && Ev.Phase == ERTMatchPhase::Dash)
+			{
+				Out.AttivateDash += bAttivato ? 1 : 0;
+				Out.BarrateDash += bBarrato ? 1 : 0;
+			}
+		}
+		return true;
+	};
+	FEsito Liberi, Storditi;
+	if (!Gira(false, Liberi) || !Gira(true, Storditi)) { return false; }
+	TestEqual(TEXT("controllo: senza stordimento la Prep si attiva"), Liberi.AttivatePrep, 1);
+	TestEqual(TEXT("controllo: e lo scatto pure"), Liberi.AttivateDash, 1);
+	TestEqual(TEXT("controllo: e niente e' barrato"), Liberi.BarratePrep + Liberi.BarrateDash, 0);
+	TestEqual(TEXT("stordito: la Prep non si attiva"), Storditi.AttivatePrep, 0);
+	TestEqual(TEXT("ed esce barrata, col motivo Stunned"), Storditi.BarratePrep, 1);
+	TestEqual(TEXT("stordito: lo scatto non si attiva"), Storditi.AttivateDash, 0);
+	TestEqual(TEXT("ed esce barrato, col motivo Stunned"), Storditi.BarrateDash, 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
