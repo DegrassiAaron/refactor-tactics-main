@@ -53,5 +53,8 @@ struct FRTUnitPlanTestAccess
 	 * Una voce in coda, senza le regole di `AddEntry` (E38 CP 38.13): due voci di una classe chiusa, che nessun produttore
 	 * scrive e che il validatore deve rifiutare lo stesso (la regola della copia e' del server, non di chi compone).
 	 */
-	static void AppendRawEntry(ARTUnit& Unit, const FRTPlanEntry& Entry) { Unit.Plan.Entries.Add(Entry); }
+	static void AppendRawEntry(ARTUnit& Unit, const FRTPlanEntry& Entry)
+	{
+		Unit.Plan.Entries.Add_GetRef(Entry).Id = Unit.Plan.NextEntryId++; // un'identita' come ogni voce (E38 CP 38.14)
+	}
 };

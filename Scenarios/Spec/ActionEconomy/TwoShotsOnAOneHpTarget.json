@@ -1,0 +1,102 @@
+{
+  "scenarioId": "Spec.ActionEconomy.TwoShotsOnAOneHpTarget",
+  "tags": [
+    "action-economy",
+    "spec",
+    "riktor",
+    "gadget"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.14 (#4115), [D-615] (3): il danno resta simultaneo anche fra due colpi della stessa unita'. Due ImpactShot su un bersaglio a 1 punto vita: entrambi si validano sullo stato di inizio Blast, il netto di HP e' 1, e il resto va al colpo di indice minore in `Attacks`. Quale dei due esca `Lethal` lo decide l'ultimo spareggio fra due copie identiche, la posizione nella lista: cambia solo il `DeclarationIndex` della voce, che lo scenario non legge. B1 entra senza equipaggiamento, perche' `Weapon.Impact`, il default di Riktor, aggiunge una spinta che qui non serve.",
+  "_oracolo": "ImpactShot (Blast, 2) due volte su F1 = 4 <= 6, e ImpactShot non ha ricarica: la copia e' ammessa ([D-614]). Con `health` 1 e `shield` 0 il netto e' 1: un colpo porta la salute a 0 ed esce `Lethal`, l'altro parte da 0 con quota 0 ed esce `ShieldAbsorbed`, come ogni colpo che non sposta la salute. Nessun `Fallback`: il secondo intento non trova un bersaglio caduto, perche' si valida sullo stato di inizio Blast.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "loadout": []
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -2,
+        0,
+        0
+      ],
+      "health": 1,
+      "shield": 0
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — B1 spara due volte su F1.",
+      "requires": [
+        "MainListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Hero.Riktor.ImpactShot",
+              "target": "F1"
+            },
+            {
+              "ability": "Hero.Riktor.ImpactShot",
+              "target": "F1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Lethal",
+      "value": 1,
+      "_assertion": "Un colpo porta la salute a 0."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "ShieldAbsorbed",
+      "value": 1,
+      "_assertion": "L'altro non la sposta."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 0,
+      "_assertion": "Nessun colpo semplice."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "Nessun intento ripiega."
+    },
+    {
+      "type": "UnitAlive",
+      "unit": "F1",
+      "value": false,
+      "_assertion": "F1 cade."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

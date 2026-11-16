@@ -1589,8 +1589,9 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 				const URTActionData* Azione = Unit->GetAbility(Voce.AbilityIndex);
 				if (!Azione) { continue; }
 				Intent.DeclaredActionNames.Add(Azione->DisplayName);
-				const bool bPrincipale = Voce.Class == ERTPlanEntryClass::Main;
-				Candidate.Add({ Azione, bPrincipale && Intent.bHasTarget, bPrincipale && Intent.bHasTarget ? Intent.TargetCell : Unit->Cell });
+				// E38 CP 38.14: ogni principale col PROPRIO bersaglio-unita'; una voce di Prep non ne ha.
+				const bool bBersaglio = Voce.Class == ERTPlanEntryClass::Main && Voce.AttackTarget && Voce.AttackTarget->IsAlive();
+				Candidate.Add({ Azione, bBersaglio, bBersaglio ? Voce.AttackTarget->Cell : Unit->Cell });
 			}
 			Candidate.StableSort([](const FCandidata& A, const FCandidata& B)
 			{

@@ -791,9 +791,13 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 	//
 	// Limite noto: non puo' togliere uno stato applicato da un'azione di controllo dello STESSO Blast (quelli
 	// si applicano a fine fase, insieme agli altri effetti dei colpi). Purifica cio' che c'era a inizio turno.
-	for (int32 i = 0; i < Ctx.Units.Num(); ++i)
+	// E38 CP 38.14: una visita per voce principale (`MainTurnsOf`), con la voce a fuoco.
+	for (const FRTMainTurn& Turno : MainTurnsOf(Ctx.Units))
 	{
+		const int32 i = Turno.UnitIndex;
 		ARTUnit* Unit = Ctx.Units[i];
+		const ARTUnit::FMainFocus Fuoco(*Unit, Turno.EntryId);
+		const FRTDeclaredEntryScope CopiaDellaVoce(*this, DeclarationOfEntry(Unit, Turno.EntryId), /*bCopia*/ true);
 		const int32 CleanseIdx = Unit->GetPlan().PlannedAbilityIndex();
 		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
 		// Stessa guardia della cura, e per la stessa ragione: un cadavere non purifica, e soprattutto non
@@ -882,9 +886,13 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 	// intenti — che consuma `PlannedAbilityIndex` e costruirebbe un intento d'attacco su un alleato — e si
 	// applica DOPO i danni, piu' sotto: la priorita' 70 del catalogo la mette dopo gli attacchi (50-65),
 	// quindi cura le ferite di questo turno, non quelle del turno prima.
-	for (int32 i = 0; i < Ctx.Units.Num(); ++i)
+	// E38 CP 38.14: una visita per voce principale (`MainTurnsOf`), con la voce a fuoco.
+	for (const FRTMainTurn& Turno : MainTurnsOf(Ctx.Units))
 	{
+		const int32 i = Turno.UnitIndex;
 		ARTUnit* Unit = Ctx.Units[i];
+		const ARTUnit::FMainFocus Fuoco(*Unit, Turno.EntryId);
+		const FRTDeclaredEntryScope CopiaDellaVoce(*this, DeclarationOfEntry(Unit, Turno.EntryId), /*bCopia*/ true);
 		const int32 HealIdx = Unit->GetPlan().PlannedAbilityIndex();
 		const URTActionData* Heal = Unit->GetAbility(HealIdx);
 		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
@@ -1112,9 +1120,16 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 	// suo stesso numero: l'ultima chiave d'ordine smetteva di spareggiare proprio dove serviva.
 	int32 Spareggio = 0;
 
-	for (int32 i = 0; i < Units.Num(); ++i)
+	// E38 CP 38.14: una visita per voce principale (`MainTurnsOf`), con la voce a fuoco. L'indice d'intento, e con lui
+	// `EventSequence`, nasce in quest'ordine: fra le voci della stessa unita' priorita', `ActionId`, poi contenuto, mai la
+	// dichiarazione ([D-615] (5)); fra unita' l'ordine di oggi.
+	for (const FRTMainTurn& Turno : MainTurnsOf(Units))
 	{
+		const int32 i = Turno.UnitIndex;
 		ARTUnit* Unit = Units[i];
+		const ARTUnit::FMainFocus Fuoco(*Unit, Turno.EntryId);
+		const FRTDeclaredEntry DellaVoce = DeclarationOfEntry(Unit, Turno.EntryId);
+		const FRTDeclaredEntryScope CopiaDellaVoce(*this, DellaVoce, /*bCopia*/ true);
 
 		// Le azioni AMBIENTALI (fase `Environment`) risolvono nel Cleanup, non qui: il loro piano deve
 		// sopravvivere a questo ciclo. E' lo stesso tranello gia' incontrato con `Action.Interrupt` (CP 4.7)
@@ -1266,7 +1281,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
 		const bool bTargetsCell = Unit->GetPlan().bAttackTargetsCell();
-		const bool bHasAim = Unit->bHasPlannedAim; // per l'`ensure` qui sotto
+		const bool bHasAim = Unit->HasFrozenAimOnCurrentMain(); // per l'`ensure` qui sotto: la mira e' della voce (E38 CP 38.14)
 		// L'abilita' si legge PRIMA dell'azzeramento: dipende dal solo indice, e la mira dipende da lei (aggancia?).
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
 
@@ -1675,6 +1690,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		IntentAbilityIndex.Add(AbilityIndex);
 		IntentAbility.Add(Ability);
 		IntentDefs.Add(Instance.Def);
+		Ctx.IntentDeclarationIndices.Add(DellaVoce.DeclarationIndex);
+		Ctx.IntentDeclaringTeams.Add(DellaVoce.TeamId);
 	}
 }
 
@@ -1715,6 +1732,10 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		IntentAbilityIndex.Add(INDEX_NONE); // nessuna abilita' da consumare: lo scatto l'ha gia' fatto
 		IntentAbility.Add(nullptr);
 		IntentDefs.Add(Impact.Def);
+		// E38 CP 38.14: l'impatto nasce dalla voce dello scatto, che l'`ActionId` riconosce (una sola per classe).
+		const FRTDeclaredEntry DelloScatto = DeclarationOfAction(Attacker, Impact.Def.ActionId);
+		Ctx.IntentDeclarationIndices.Add(DelloScatto.DeclarationIndex);
+		Ctx.IntentDeclaringTeams.Add(DelloScatto.TeamId);
 	}
 	PendingChargeImpacts.Reset();
 }
@@ -4177,8 +4198,10 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	// vale per chi introdurra' un secondo gate sull'uso di un'abilita': la prima versione di questa nota ne
 	// contava due, e il secondo era l'energia.
 	//
-	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
-	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
+	// L'ordine e' quello di annotazione, che e' l'ordine dei pass. ⌫ *Fino a E38 CP 38.14 qui c'era «`ConsumeAbility`
+	// scrive su unita' diverse»*: con piu' principali la stessa unita' compare piu' volte, anche con la stessa abilita'
+	// (due copie). Non c'e' comunque esito che dipenda dall'ordine, perche' il valore scritto e' fisso (la ricarica piena
+	// dell'abilita'), e scriverlo due volte non lo cambia — ma un array, e non una `TMap`, perche' la regola del
 	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
 	// I due array si riempiono in una sola istruzione (`MarkAbilitySpent`), che ne e' l'unico scrittore:
 	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo qui evita di

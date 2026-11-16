@@ -314,7 +314,14 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		{
 			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MovementHolder);
 		}
-		if (bWantsMain && MainHolder)
+		// E38 CP 38.14: anche il Blast e il Cleanup sono aperti. Due principali dello slot principale, di quelle fasi, stanno
+		// insieme; resta il conflitto con una mobilita' che prende anche la principale (`MovementAndMain`), che `ResolveDash`
+		// scarta prima del Blast, fino a CP 38.16.
+		const ERTMatchPhase FaseVoce = URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase);
+		const bool bPrincipaleAperta = Entry.Def.Slot == ERTActionSlot::Main
+			&& (FaseVoce == ERTMatchPhase::Blast || FaseVoce == ERTMatchPhase::Cleanup);
+		const bool bDetentoreAperto = MainHolder && MainHolder->Def.Slot == ERTActionSlot::Main;
+		if (bWantsMain && MainHolder && !(bPrincipaleAperta && bDetentoreAperto))
 		{
 			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MainHolder);
 		}
@@ -324,7 +331,7 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		}
 
 		if (bWantsMovement) { MovementHolder = &Entry; }
-		if (bWantsMain)     { MainHolder = &Entry; }
+		if (bWantsMain && !MainHolder) { MainHolder = &Entry; } // il primo detentore, quello che un `MovementAndMain` accusa
 		if (bWantsReaction) { ReactionHolder = &Entry; }
 	}
 

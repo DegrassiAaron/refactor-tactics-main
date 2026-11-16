@@ -54,6 +54,8 @@ namespace
 		TEXT("PlannedCleansePriority"),
 		TEXT("bAttackTargetsCell"), TEXT("bTurnPlanDeclared"), TEXT("WaypointsAllaDichiarazione"), TEXT("WaypointsAllaReazione"),
 		TEXT("Entries"), TEXT("LockedPlan"),
+		// E38 CP 38.14: l'identita' delle voci e il fuoco sulla principale, che `FRTUnitPlan` tiene accanto alla lista.
+		TEXT("NextEntryId"), TEXT("FocusedMainId"),
 	};
 
 	/** Il file dei test che scrive il piano per mestiere: l'accesso riservato, fuori dal perimetro. */

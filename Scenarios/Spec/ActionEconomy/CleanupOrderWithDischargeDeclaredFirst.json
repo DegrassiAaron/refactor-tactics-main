@@ -1,0 +1,92 @@
+{
+  "scenarioId": "Spec.ActionEconomy.CleanupOrderWithDischargeDeclaredFirst",
+  "tags": [
+    "action-economy",
+    "spec",
+    "gadget",
+    "riktor",
+    "cleanup"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.14 (#4115), [D-615] (5): due ambientali della stessa unita' si applicano per priorita' e poi `ActionId`, mai per dichiarazione. Il gemello `Spec.ActionEconomy.CleanupOrderWithWaterDeclaredFirst` dichiara le stesse voci nell'ordine inverso, con la stessa attesa. Con la scarica sempre prima, la stessa unita' non ottiene nello stesso Cleanup una scarica che corre sull'acqua appena versata, comunque dichiari le due voci.",
+  "_oracolo": "A1 dichiara `Gadget.Sprinkler` sulla cella (3,0,0) (Cleanup, 2) e `Hero.Gadget.ConductiveNode` su B1 (Cleanup, 2) = 4. La scarica e' `Action.Electrify`, priorita' 30; l'acqua e' `Action.CreateWater`, priorita' 60: la scarica si applica prima. Il colpo diretto c'e' anche su una cella che non conduce, e l'ordine si legge perche' le voci del Cleanup si appendono dopo `SortTurnLog`.",
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "loadout": [
+        "Weapon.Precision",
+        "Gadget.Sprinkler",
+        "Reaction.ReactiveShield"
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — A1 dichiara le due ambientali.",
+      "requires": [
+        "MainListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "A1",
+          "actions": [
+            {
+              "ability": "Hero.Gadget.ConductiveNode",
+              "target": "B1"
+            },
+            {
+              "ability": "Gadget.Sprinkler",
+              "cell": [
+                3,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventOrder",
+      "category": "Combat",
+      "outcome": "Hit",
+      "actionId": "Hero.Gadget.ConductiveNode",
+      "thenCategory": "Environment",
+      "thenOutcome": "SurfaceChanged",
+      "thenActionId": "Gadget.Sprinkler",
+      "_assertion": "La scarica (`Action.Electrify`, priorita' 30) prima dell'acqua (`Action.CreateWater`, priorita' 60), in entrambi gli ordini di dichiarazione."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "Il piano e' legale: due principali del Cleanup."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

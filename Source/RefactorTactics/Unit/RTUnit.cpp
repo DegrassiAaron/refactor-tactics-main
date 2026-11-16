@@ -2222,17 +2222,53 @@ bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)
 		Voce.AbilityIndex = AbilityIndex;
 		return Plan.AddEntry(Voce);
 	}
-	// Un'azione di una fase chiusa: la principale di Prep le fa posto e resta al suo ordine di dichiarazione.
-	if (!CanBeAnExtraPrepAction(GetAbility(Principale)))
+	// Un'azione di un'altra fase: una principale di Prep le fa posto e resta al suo ordine di dichiarazione.
+	if (CanBeAnExtraPrepAction(GetAbility(Principale)))
 	{
-		return false; // la principale e' di una fase chiusa: una seconda non si scrive (criterio 18)
+		if (!Plan.ReclassEntryAt(Plan.DeclarationIndexOf(ERTPlanEntryClass::Main), ERTPlanEntryClass::Prep))
+		{
+			return false;
+		}
+		Plan.SetPlannedAbilityIndex(AbilityIndex); // la nuova principale nasce in coda: e' l'ultima dichiarata
+		return true;
 	}
-	if (!Plan.ReclassEntryAt(Plan.DeclarationIndexOf(ERTPlanEntryClass::Main), ERTPlanEntryClass::Prep))
+	// E38 CP 38.14: il Blast e il Cleanup sono aperti. Una principale in piu' si aggiunge in coda se lei e ogni principale gia'
+	// nel piano sono di quelle fasi e prendono il solo slot principale; altrimenti la principale e' di una fase ancora chiusa
+	// (una mobilita' che prende anche il movimento), e una seconda non si scrive.
+	if (!CanBeAnExtraMainAction(Ability))
 	{
 		return false;
 	}
-	Plan.SetPlannedAbilityIndex(AbilityIndex); // la nuova principale nasce in coda: e' l'ultima dichiarata
-	return true;
+	for (const FRTPlanEntry& Voce : Plan.GetEntries())
+	{
+		if (Voce.Class == ERTPlanEntryClass::Main && !CanBeAnExtraMainAction(GetAbility(Voce.AbilityIndex)))
+		{
+			return false;
+		}
+	}
+	FRTPlanEntry Voce;
+	Voce.Class = ERTPlanEntryClass::Main;
+	Voce.AbilityIndex = AbilityIndex;
+	return Plan.AddEntry(Voce);
+}
+
+bool ARTUnit::CanBeAnExtraMainAction(const URTActionData* Ability)
+{
+	if (!Ability || Ability->Def.Slot != ERTActionSlot::Main)
+	{
+		return false;
+	}
+	const ERTMatchPhase Fase = URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase);
+	return Fase == ERTMatchPhase::Blast || Fase == ERTMatchPhase::Cleanup;
+}
+
+void FRTUnitPlan::FreezeMainAims()
+{
+	for (FRTPlanEntry& Voce : Entries)
+	{
+		Voce.bHasFrozenAim = Voce.Class == ERTPlanEntryClass::Main && IsValid(Voce.AttackTarget) && !Voce.bAttackTargetsCell;
+		Voce.FrozenAimCell = Voce.bHasFrozenAim ? Voce.AttackTarget->Cell : FRTCellId();
+	}
 }
 
 bool ARTUnit::CanUseAbility(int32 Index) const

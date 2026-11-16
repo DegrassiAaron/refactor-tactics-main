@@ -753,17 +753,23 @@ bool FRTScenarioASecondEntryOfAClosedClassFailsTheTurnTest::RunTest(const FStrin
 		DestroyCorpusWorld(World);
 		return R;
 	};
+	// E38 CP 38.14: la principale e' aperta, quindi la classe chiusa del test e' la reazione (fino a CP 38.15).
 	// L'harness scrive l'errore anche nel log, e qui e' l'esito atteso.
-	AddExpectedError(TEXT("seconda voce della classe principale"), EAutomationExpectedErrorFlags::Contains, 1);
-	const FRTTestResult DuePrincipali = Gioca(TEXT(R"({ "unit": "B1", "actions": [
-		{ "ability": "Hero.Riktor.ImpactShot", "target": "F1" }, { "ability": "Hero.Riktor.MortarShot", "cell": [-3, 0, 0] } ] })"));
-	TestEqual(TEXT("due principali: il turno fallisce"), DuePrincipali.Outcome, ERTTestOutcome::Error);
-	TestTrue(*FString::Printf(TEXT("e l'errore nomina la voce e la classe (%s)"), *DuePrincipali.ErrorMessage),
-		DuePrincipali.ErrorMessage.Contains(TEXT("Hero.Riktor.MortarShot")) && DuePrincipali.ErrorMessage.Contains(TEXT("principale")));
+	AddExpectedError(TEXT("seconda voce della classe reazione"), EAutomationExpectedErrorFlags::Contains, 1);
+	const FRTTestResult DueReazioni = Gioca(TEXT(R"({ "unit": "B1", "actions": [
+		{ "ability": "Hero.Riktor.Interposition" }, { "ability": "Hero.Riktor.Interposition" } ] })"));
+	TestEqual(TEXT("due reazioni: il turno fallisce"), DueReazioni.Outcome, ERTTestOutcome::Error);
+	TestTrue(*FString::Printf(TEXT("e l'errore nomina la voce e la classe (%s)"), *DueReazioni.ErrorMessage),
+		DueReazioni.ErrorMessage.Contains(TEXT("Hero.Riktor.Interposition")) && DueReazioni.ErrorMessage.Contains(TEXT("reazione")));
 	const FRTTestResult GuardiaEColpo = Gioca(TEXT(R"({ "unit": "B1", "actions": [
 		{ "ability": "Action.Guard" }, { "ability": "Hero.Riktor.ImpactShot", "target": "F1" } ] })"));
 	TestEqual(*FString::Printf(TEXT("controllo: Guard + ImpactShot si gioca (%s)"), *GuardiaEColpo.ErrorMessage),
 		GuardiaEColpo.Outcome, ERTTestOutcome::Pass);
+	// E due principali del Blast si giocano: la seconda si scrive col suo bersaglio.
+	const FRTTestResult DuePrincipali = Gioca(TEXT(R"({ "unit": "B1", "actions": [
+		{ "ability": "Hero.Riktor.ImpactShot", "target": "F1" }, { "ability": "Hero.Riktor.ImpactShot", "target": "F1" } ] })"));
+	TestEqual(*FString::Printf(TEXT("due principali del Blast si giocano (%s)"), *DuePrincipali.ErrorMessage),
+		DuePrincipali.Outcome, ERTTestOutcome::Pass);
 	return true;
 }
 

@@ -52,11 +52,53 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	/** Le voci, nell'ordine di dichiarazione. */
 	const TArray<FRTPlanEntry>& GetEntries() const { return Entries; }
 
-	/** La posizione della voce di una classe, cioe' il suo ordine di dichiarazione; `INDEX_NONE` se non c'e'. */
+	/**
+	 * La posizione della voce di una classe, cioe' il suo ordine di dichiarazione; `INDEX_NONE` se non c'e'. Per la
+	 * principale e' la voce a fuoco, se c'e' un fuoco (E38 CP 38.14), altrimenti la prima.
+	 */
 	int32 DeclarationIndexOf(ERTPlanEntryClass Class) const
 	{
+		if (Class == ERTPlanEntryClass::Main && FocusedMainId != INDEX_NONE)
+		{
+			return IndexOfId(FocusedMainId);
+		}
 		return Entries.IndexOfByPredicate([Class](const FRTPlanEntry& E) { return E.Class == Class; });
 	}
+
+	/** La posizione della voce con quell'identita'; `INDEX_NONE` se non c'e' (E38 CP 38.14). */
+	int32 IndexOfId(int32 Id) const
+	{
+		return Id == INDEX_NONE ? INDEX_NONE : Entries.IndexOfByPredicate([Id](const FRTPlanEntry& E) { return E.Id == Id; });
+	}
+
+	/** La voce con quell'identita', o `nullptr`. */
+	const FRTPlanEntry* EntryWithId(int32 Id) const
+	{
+		const int32 At = IndexOfId(Id);
+		return At == INDEX_NONE ? nullptr : &Entries[At];
+	}
+
+	/** L'identita' della principale che gli accessori leggono: quella a fuoco, o la prima. `INDEX_NONE` se non c'e'. */
+	int32 CurrentMainId() const
+	{
+		const int32 At = DeclarationIndexOf(ERTPlanEntryClass::Main);
+		return At == INDEX_NONE ? INDEX_NONE : Entries[At].Id;
+	}
+
+	/**
+	 * **Il fuoco sulla principale** (E38 CP 38.14, #4115). Il Blast e il Cleanup accettano piu' voci principali della stessa
+	 * unita', e i loro pass le visitano una alla volta: col fuoco gli accessori e le porte della principale leggono e
+	 * scrivono la voce con quell'identita' invece della prima. `INDEX_NONE` = nessun fuoco, la prima, come prima della lista.
+	 * Si apre con `ARTUnit::FMainFocus`, mai a mano.
+	 */
+	void SetMainFocus(int32 Id) { FocusedMainId = Id; }
+	int32 GetMainFocus() const { return FocusedMainId; }
+
+	/**
+	 * Congela la mira di ogni voce principale con un bersaglio-unita' ([D-415]; E38 CP 38.14): la cella che il bersaglio ha
+	 * adesso. La chiama solo `ARTUnit::LockPlan`, sulla copia al lock-in. Definita in `RTUnit.cpp`, dove `ARTUnit` e' completo.
+	 */
+	void FreezeMainAims();
 
 	/**
 	 * Aggiunge una voce in coda. Rifiuta, e lascia il piano com'era, una voce vuota o una seconda voce di una classe chiusa;
@@ -64,11 +106,15 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 */
 	bool AddEntry(const FRTPlanEntry& Entry)
 	{
-		if (Entry.IsEmpty() || (Entry.Class != ERTPlanEntryClass::Prep && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
+		// E38 CP 38.14: anche la principale e' aperta. Se una seconda sia legale lo dice chi la scrive
+		// (`ARTUnit::DeclarePlannedAction`), che conosce la fase dell'azione; qui si tiene solo la forma.
+		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main;
+		if (Entry.IsEmpty() || (!bAperta && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;
 		}
-		Entries.Add(Entry);
+		FRTPlanEntry& Nuova = Entries.Add_GetRef(Entry);
+		Nuova.Id = NextEntryId++;
 		return true;
 	}
 
@@ -274,6 +320,13 @@ private:
 	UPROPERTY()
 	TArray<FRTPlanEntry> Entries;
 
+	/** La prossima identita' di voce (E38 CP 38.14): cresce e basta, cosi' un'identita' non torna su un'altra voce. */
+	UPROPERTY()
+	int32 NextEntryId = 0;
+
+	/** Il fuoco sulla principale (vedi `SetMainFocus`). Non e' un dato del piano: lo apre un pass, per una visita. */
+	int32 FocusedMainId = INDEX_NONE;
+
 	/** La voce di una classe, o la voce vuota (i default di prima) se non c'e'. */
 	const FRTPlanEntry& Of(ERTPlanEntryClass Class) const
 	{
@@ -282,7 +335,11 @@ private:
 		return At == INDEX_NONE ? Vuota : Entries[At];
 	}
 
-	/** La voce di una classe, creata in coda se non c'e': la prima scrittura e' la sua dichiarazione. */
+	/**
+	 * La voce di una classe, creata in coda se non c'e': la prima scrittura e' la sua dichiarazione. Col fuoco sulla
+	 * principale si scrive la voce a fuoco; se un pass l'ha gia' consumata, la scrittura crea una voce nuova, che `Prune`
+	 * toglie se torna al default.
+	 */
 	FRTPlanEntry& Edit(ERTPlanEntryClass Class)
 	{
 		const int32 At = DeclarationIndexOf(Class);
@@ -292,6 +349,7 @@ private:
 		}
 		FRTPlanEntry& Nuova = Entries.AddDefaulted_GetRef();
 		Nuova.Class = Class;
+		Nuova.Id = NextEntryId++;
 		return Nuova;
 	}
 

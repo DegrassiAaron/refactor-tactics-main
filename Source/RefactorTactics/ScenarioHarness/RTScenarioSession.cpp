@@ -404,6 +404,9 @@ namespace
 			// della lista: armare un'azione di Prep con la principale gia' presa la AGGIUNGE (`ARTPlayerController`,
 			// `ARTUnit::DeclarePlannedAction`).
 			TEXT("ActionListPlanning"),
+			// E38 CP 38.14 (#4115): una seconda principale del Blast o del Cleanup. Il produttore che non e' l'harness e' lo
+			// stesso gesto della lista, che ora la aggiunge (`ARTUnit::DeclarePlannedAction`).
+			TEXT("MainListPlanning"),
 		};
 		return Available;
 	}
@@ -549,10 +552,9 @@ namespace
 			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
 			// cio' che il gioco sa fare, e questo nome non e' niente.
 			TEXT("NeverAvailable"),           // owner: none
-			// E38 CP 38.13: una seconda voce di una classe ancora chiusa, che in questo CP scrive solo l'harness. Entrano fra le
-			// disponibili col gesto che le scrive: la principale del Blast con CP 38.14, la reazione con CP 38.15, lo scatto
-			// con CP 38.16 se `TR-30` ammette due scatti.
-			TEXT("MainListPlanning"),         // owner: #4115
+			// E38 CP 38.13: una seconda voce di una classe ancora chiusa, che scrive solo l'harness. Entrano fra le disponibili
+			// col gesto che le scrive: la reazione con CP 38.15, lo scatto con CP 38.16 se `TR-30` ammette due scatti. La
+			// principale del Blast e' entrata con CP 38.14.
 			TEXT("ReactionListPlanning"),     // owner: #4116
 			TEXT("DashListPlanning"),         // owner: #4117
 		};
@@ -1631,15 +1633,21 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			{
 				Classe = Fase == ERTMatchPhase::Prep ? TEXT("Prep con bersaglio, o principale") : TEXT("principale");
 				bScritta = Unit->DeclarePlannedAction(Indice);
-				const bool bPrincipale = bScritta && Unit->GetPlan().PlannedAbilityIndex() == Indice;
+				// E38 CP 38.14: la voce appena scritta e' l'ultima della lista. Se e' una principale, il bersaglio e' suo: si
+				// dichiara col fuoco su di lei, anche quando non e' la prima.
+				const TArray<FRTPlanEntry>& Voci = Unit->GetPlan().GetEntries();
+				const bool bPrincipale = bScritta && Voci.Num() > 0 && Voci.Last().Class == ERTPlanEntryClass::Main
+					&& Voci.Last().AbilityIndex == Indice;
+				const int32 IdDellaVoce = bPrincipale ? Voci.Last().Id : INDEX_NONE;
 				if (bScritta && (Azione.bHasCell || !Azione.Target.IsEmpty()))
 				{
 					if (!bPrincipale)
 					{
-						ErroredBy = FString::Printf(TEXT("'%s': '%s' (actions[%d]) dichiara un bersaglio ma non e' la principale (turno %d)"),
+						ErroredBy = FString::Printf(TEXT("'%s': '%s' (actions[%d]) dichiara un bersaglio ma non e' una principale (turno %d)"),
 							*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
 						break;
 					}
+					const ARTUnit::FMainFocus Fuoco(*Unit, IdDellaVoce);
 					if (Azione.bHasCell)
 					{
 						Unit->DeclareAttackOnCell(Azione.Cell);
