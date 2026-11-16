@@ -307,6 +307,45 @@ bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
 		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
 	}
+	// E38 CP 38.15 (#4116, criterio 6, [D-608] (1)): due scene che differiscono SOLO per le reazioni nemiche danno a un
+	// avversario viste identiche, campo per campo, col nemico nascosto e col nemico rivelato. Le reazioni in scena: nessuna,
+	// una, e la prima di due, che e' cio' che l'intento porta (`PlannedReactionAbility`, `RTHudViewModel.cpp`).
+	// Il confronto e' sull'intera struttura (`CompareScriptStruct`), non su un campo: un campo nuovo che lasciasse passare
+	// la reazione lo farebbe diventare rosso senza che nessuno lo elenchi qui.
+	{
+		auto Uguali = [](const TArray<FRTIntentView>& A, const TArray<FRTIntentView>& B)
+		{
+			if (A.Num() != B.Num()) { return false; }
+			for (int32 i = 0; i < A.Num(); ++i)
+			{
+				if (!FRTIntentView::StaticStruct()->CompareScriptStruct(&A[i], &B[i], PPF_None)) { return false; }
+			}
+			return true;
+		};
+		auto ConReazione = [&Enemy](const TCHAR* Nome, bool bRivelato)
+		{
+			FRTPlannedIntent E = Enemy;
+			E.ReactionName = Nome ? FText::FromString(Nome) : FText::GetEmpty();
+			E.bRevealed = bRivelato;
+			return E;
+		};
+		for (const bool bRivelato : { false, true })
+		{
+			const TArray<FRTIntentView> Senza = URTIntentPrivacyLibrary::FilterForTeam(0, { Ally, ConReazione(nullptr, bRivelato) });
+			const TArray<FRTIntentView> Una = URTIntentPrivacyLibrary::FilterForTeam(0, { Ally, ConReazione(TEXT("Intercetta"), bRivelato) });
+			const TArray<FRTIntentView> PrimaDiDue = URTIntentPrivacyLibrary::FilterForTeam(0, { Ally, ConReazione(TEXT("Contrattacco"), bRivelato) });
+			const TCHAR* Caso = bRivelato ? TEXT("nemico rivelato") : TEXT("nemico nascosto");
+			TestEqual(*FString::Printf(TEXT("%s: premessa, il numero di viste"), Caso), Una.Num(), bRivelato ? 2 : 1);
+			TestTrue(*FString::Printf(TEXT("%s: una reazione o nessuna, la stessa vista"), Caso), Uguali(Senza, Una));
+			TestTrue(*FString::Printf(TEXT("%s: una reazione o un'altra, la stessa vista"), Caso), Uguali(Una, PrimaDiDue));
+		}
+		// Controllo positivo: il confronto morde. Due scene che differiscono per la reazione dell'ALLEATO, che l'alleato vede,
+		// danno viste diverse.
+		FRTPlannedIntent AllyArmato = Ally;
+		AllyArmato.ReactionName = FText::FromString(TEXT("Intercetta"));
+		TestFalse(TEXT("controllo: la reazione dell'alleato cambia la vista"),
+			Uguali(URTIntentPrivacyLibrary::FilterForTeam(0, { Ally }), URTIntentPrivacyLibrary::FilterForTeam(0, { AllyArmato })));
+	}
 	return true;
 }
 
