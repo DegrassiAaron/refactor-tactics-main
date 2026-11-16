@@ -125,6 +125,8 @@ bool FRTPlaybackLineActHitsAlongTheLineTest::RunTest(const FString&)
 /**
  * ⛔ Fail-closed: l'ordine lungo la linea non vale se chi guarda non conosce l'origine o un colpito, ne' se l'atto ha due
  * impronte. In ognuno dei tre casi resta l'ordine di timeline.
+ * ✅ Validato per mutazione: togliere da `IsLineActKnownTo` il controllo dei colpiti fa cadere (a), e con lui
+ * `Playback.ChainHopNeedsEveryEndKnownToTheViewer`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackLineActKeepsTimelineOrderTest,
 	"RefactorTactics.Playback.LineActKeepsTimelineOrderWhenNotFullyKnown",
