@@ -23,13 +23,13 @@
 > aggancio alla copertura migliore contro i nemici visti (sulla `CoverSelection` di D-302), minaccia nemica al passaggio del mouse (§18, §24), laser di
 > quota (§20), barra degli AP colorata per fase e prezzo di uno svantaggio mostrato prima del click (§19, §19-bis), icone in bianco e nero per famiglia
 > di stato (§38), incastro dell'azione con quelle delle compagne sulla timeline in hover (§8.3), ping sullo spicchio (§23), testi ridimensionabili
-> (§47-bis). La tabella completa con le sedi è nel [referto](../../roadmap/plans/uiux-giochi-tattici-spec-panel-2026-11-16.md) §6.
+> (§47-bis), gamepad e Steam Deck (fuori dal target PC-first dichiarato in testa). La tabella completa con le sedi è nel [referto](../../roadmap/plans/uiux-giochi-tattici-spec-panel-2026-11-16.md) §6.
 > ⛔ **Tre idee valgono solo nella forma che rispetta la privacy** (`CLAUDE.md` §7): la minaccia in hover si calcola dalle **capacità note** del
 > nemico (portata, kit), mai dal suo intento; il **suono** di un nemico si mostra da eventi risolti, mai dal suo piano (§26); le righe avversarie di
 > una timeline si riempiono solo dopo la risoluzione (§8, §17).
 > ✅ **Deciso, non proposta**: due compagne non possono scegliere la stessa cella finale, e il click è rifiutato con un motivo nuovo
-> ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (5), [#4138](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4138)); il lucchetto del documento è il
-> modo di mostrarlo. **Non entrano**: il Combo Risk Meter (per ora), il Combo Snap, il Syntax Ring a tre segmenti, il Codex, il Combo Lab, i cinque
+> ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (5), [#4138](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4138)). Come mostrarlo è aperto: il lucchetto
+> del documento è una proposta. **Non entrano**: il Combo Risk Meter (per ora), il Combo Snap, il Syntax Ring a tre segmenti, il Codex, il Combo Lab, i cinque
 > archetipi di HUD e i moduli di debito universali dell'Overclock (D-620 (3)(4)).
 
 ---

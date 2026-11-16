@@ -9,7 +9,8 @@
 > **Metodo**: lo stesso dei referti sulla «Master Spec» ([`master-spec-csharp-spec-panel-2026-11-07.md`](master-spec-csharp-spec-panel-2026-11-07.md))
 > e sul GDD ([`master-gdd-spec-panel-2026-11-08.md`](master-gdd-spec-panel-2026-11-08.md)): ogni premessa è misurata contro il contratto
 > (Decision Log → ADR → spec owner → cataloghi → codice) e classificata; nessun conflitto è stato riconciliato per plausibilità
-> ([`AGENTS.md`](../../../AGENTS.md) §2). Ogni divergenza da una decisione registrata è stata messa in domanda all'autore, in quattro giri.
+> ([`AGENTS.md`](../../../AGENTS.md) §2). Le divergenze sostanziali da una decisione registrata sono state messe in domanda all'autore, in quattro giri; due righe restano
+> tradotte o coperte da una sua decisione precedente senza una domanda nuova (lo spicchio come posizione, D-583 (4); il timer, D-590 (2)).
 
 ## 1. Verdetto in breve
 
@@ -66,7 +67,7 @@ Legenda:
 | 1 | What-If al passaggio del mouse, prima di spendere AP | **CONFERMA** nel principio | `progettazione-hud.md` §16 (Predicted), §19 (Cost Preview), §19-bis |
 | 1 | pulsante Reset Fase | **INPUT** (HUD §6.8) | oggi `UNDO` è il Back, un livello alla volta ([D-458](../../decisions/RT_PDR_00_Decision_Log.md)); col pool di AP una fase porta una lista di azioni ([D-584](../../decisions/RT_PDR_00_Decision_Log.md) (1)), quindi «svuota questa fase» ha un oggetto |
 | 1 | `Tab` all'unità successiva durante le animazioni, velocità delle animazioni | **INPUT** (HUD §29) | i comandi del playback sono in `progettazione-hud.md` §29 |
-| 1 | gamepad, Steam Deck, testi ridimensionabili | **INPUT** (HUD §47-bis) | l'HUD è PC-first, 1920×1080 (testata di `progettazione-hud.md`): il gamepad è fuori dal target dichiarato, i testi ridimensionabili sono accessibilità |
+| 1 | gamepad, Steam Deck, testi ridimensionabili | **INPUT** (nota in testa a `progettazione-hud.md`; §47-bis per i testi) | l'HUD è PC-first, 1920×1080 (testata di `progettazione-hud.md`): il gamepad è fuori dal target dichiarato, i testi ridimensionabili sono accessibilità |
 | 2 | rotazione a scatti di 30° | **RIAPERTO** (`UXR-3`) | in vigore: `YawStep = 45°` in tattica ([D-142](../../decisions/RT_PDR_00_Decision_Log.md)), 60° in strategica ([D-499](../../decisions/RT_PDR_00_Decision_Log.md)). La lettera di D-142 esclude ogni passo divisore di 60, e 30 lo è; se lo escluda anche il motivo (guardare fra due file di celle) è una lettura dell'assistente ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (9a)) |
 | 2 | schema XCOM 2: WASD, `Q`/`E`, zoom su `T`/`G`, piano su `F`/`C` | **BENCHMARK** | nel contratto `T` inquadra l'unità da dietro ([D-618](../../decisions/RT_PDR_00_Decision_Log.md)) e lo zoom è la rotella ([`../../technical/systems/spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md)): lo schema non si importa così com'è |
 | 2 | tre livelli di quota; dall'alto si annulla la riduzione delle coperture parziali; caduta deterministica | **CONFERMA** | `FRTCellId::Layer`; [D-597](../../decisions/RT_PDR_00_Decision_Log.md) (la quota toglie la copertura bassa, non la Guard); caduta oltre il bordo ([D-332](../../decisions/RT_PDR_00_Decision_Log.md)). «Non mitigabile» e «tre livelli» non sono misurati qui |
@@ -83,7 +84,7 @@ Legenda:
 | 3 | quattro fasi con «Reaction / DoT» come quarta | correzione dell'autore | §2; [D-583](../../decisions/RT_PDR_00_Decision_Log.md) (1) |
 | 3 | Muoversi Piano 1 AP nel Prep; Movimento Tattico 2 AP e Corsa 3 AP nel Dash; Disengage Roll 2 AP | **TENUTO (D-620 (1))** | il camminare sta nel Move e tutti i profili costano uguale ([D-584](../../decisions/RT_PDR_00_Decision_Log.md) (2), [D-594](../../decisions/RT_PDR_00_Decision_Log.md)); lo Sneak è una dichiarazione per movimento ([D-609](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | 3 | colpi simultanei nella stessa fase: entrambi infliggono danno | **CONFERMA** | danno simultaneo nel Blast, anche fra azioni della stessa unità ([D-615](../../decisions/RT_PDR_00_Decision_Log.md)) |
-| 3 | gli stati di quei colpi «entrano in vigore dal turno successivo» | **CONFERMA** per la lettura stretta (non toccano la stessa fase); **TENUTO (D-620 (6))** per la larga | lo stato si legge alla fase in cui l'azione risolve: uno stun del Blast nega il Move dello stesso turno ([D-569](../../decisions/RT_PDR_00_Decision_Log.md) (4), scelta dall'autore il 2026-11-03 e riconfermata); le durate scalano nel Cleanup (`ARTUnit::TickStatuses`) |
+| 3 | gli stati di quei colpi «entrano in vigore dal turno successivo» | **TENUTO (D-620 (6))** | lo stato si legge alla fase in cui l'azione risolve: uno stun del Blast nega il Move dello stesso turno ([D-569](../../decisions/RT_PDR_00_Decision_Log.md) (4), scelta dall'autore il 2026-11-03 e riconfermata); simultaneo nella stessa fase è il **danno** (D-615), mentre `Status.Stunned` e `Status.Prone` disarmano le reazioni preparate già dove nascono (`ARTTurnManager::ApplyStatusLogged` → `DisarmPreparedReactions`, letto nel codice). Le durate scalano nel Cleanup (`ARTUnit::TickStatuses`). La descrizione dell'opzione mostrata all'autore riassumeva D-569 in modo inesatto: D-620 (9c) |
 | 3 | le Reaction hanno «priorità assoluta» sulle abilità attive nella fase | non misurato; accanto a `UXR-5` | il contratto non lo formula così: ADR-0004 §4 ordina le reazioni fra loro, per trigger e micro-step |
 | 3 | quattro sotto-archetipi di Reaction: Overwatch, Guard, Counter, Evasion | **RIAPERTO** (`UXR-5`) | in vigore: `Counter`, `Intercept`, `Deflect`, `Evade` sono reazioni; `Overwatch` e `Guard` sono principali del Prep ([`../../gameplay/spec-economia-del-turno.md`](../../gameplay/spec-economia-del-turno.md)) |
 | 3 | skill nominate per eroe (Static Trap, Chain Pull, Skewer, Magnetic Bastion…) | **INPUT** (`MSP-5.d`, `KIT-*`) | un kit si traduce e si accetta con una `D-nnn` ([D-591](../../decisions/RT_PDR_00_Decision_Log.md) (3), [D-612](../../decisions/RT_PDR_00_Decision_Log.md)) |
@@ -114,7 +115,7 @@ Legenda:
 | 5 | Combo Risk Meter | **RESEARCH** ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (3)) | per ora; §5 di questo referto |
 | 5 | tooltip a micro-icone su quattro livelli | **INPUT** (HUD §7.1, §18.1) | — |
 | 5 | Codex e Combo Lab | **RESEARCH** (4) | il banco Ability Lab ([D-607](../../decisions/RT_PDR_00_Decision_Log.md)) è uno strumento di sviluppo, non una modalità del giocatore |
-| 5 | ruota elementale nella selezione eroi | **INPUT** | la (4) non la nomina; nessuna sede scrive oggi la selezione eroi |
+| 5 | ruota elementale nella selezione eroi | **RESEARCH** | lettura dell'assistente: la (4) non la nomina, ma appartiene allo stesso sistema di Codex e Combo Lab, e nessuna sede scrive oggi la selezione eroi |
 | 6 | cinque archetipi funzionali di HUD | **RESEARCH** (4) | sono lenti di analisi, non modalità; il selettore di overlay esiste (`progettazione-hud.md` §24) |
 | 6 | «validate attraverso i mockup di progettazione» | non verificabile | nessun mockup è allegato al documento |
 
@@ -205,6 +206,7 @@ soprattutto per il Tier 3, che è fuori. Si riconsidera quando il catalogo avrà
   dell'opzione **scartata**; diverse divergenze non erano state mostrate all'autore. Ne sono nati il terzo e il quarto giro di domande.
   Corretti anche: il «Combo Risk Meter non c'è» senza «per ora», la lettura su D-142 scritta come fatto, la privacy dei coni di tiro
   assente nella nota dell'HUD, classificazioni attribuite a una scelta che non le nominava, una frase superata in `MSP-3.c`, le righe
-  riaperte senza rimando.
+  riaperte senza rimando. Un **secondo giro** sulle sole correzioni ha trovato che la descrizione di un'opzione del quarto giro
+  riassumeva D-569 in modo inesatto ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (9c), detto all'autore) e cinque rilievi minori, corretti.
 - Le righe **BENCHMARK** riportano ciò che il documento dice degli altri giochi: nessuna è stata verificata su una fonte esterna.
 - Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: `N/A`. Nessun codice, asset o scenario cambia.
