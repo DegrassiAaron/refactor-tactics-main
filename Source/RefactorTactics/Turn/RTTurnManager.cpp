@@ -2147,7 +2147,7 @@ void ARTTurnManager::ConcludeResolution()
 			Unit->ClearReactionPlan();
 			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
-			Unit->ReactionActivationsThisTurn = 0;
+			Unit->ResetReactionActivations();
 
 			// ➕ **E la dichiarazione «ho deciso le mie mosse» ([#3145])**, per la ragione che questo blocco
 			// dichiara da tre commenti: e' del TURNO, quindi finisce col turno. Sopravvivendo, il turno nuovo
@@ -6249,8 +6249,9 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 	// Reazioni (CP 5.1): valutate su cio' che la fase ha gia' raccolto o deciso — lo snapshot congelato, non
 	// un evento a cui reagire mentre il turno gira (invariante #3). Cosa sia quello snapshot dipende dal
 	// punto: i colpi di `Plan.Hits` dopo il filtro di Interrupt, o gli spostamenti decisi e non applicati.
-	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
-	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
+	// Una reazione con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione: `FindTriggeringAttacker`
+	// restituisce il primo colpo che soddisfa il trigger, non li conta. Reazioni DIVERSE della stessa unita' scattano tutte
+	// ([D-619], E38 CP 38.15).
 	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
 	//
 	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
@@ -6266,224 +6267,224 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
-		const int32 ReactionIdx = Unit->GetPlan().PlannedReactionAbility();
-
-		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
-		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
+		// E38 CP 38.15: TUTTE le reazioni armate dell'unita', nell'ordine del motore e mai in quello della dichiarazione
+		// ([D-615] (5)). Ognuna ha la sua voce, e il limite di [D-092] vale per la singola reazione ([D-619]).
+		for (const int32 ReactionIdx : Unit->ArmedReactionsInCanonicalOrder())
 		{
-			continue; // nessuna reazione pianificata: niente da registrare
-		}
+			const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
 
-		// Questo trigger si valuta ALTROVE: non e' affare di questo punto, e passarci sopra in silenzio e'
-		// cio' che tiene una sola voce di TurnLog per reazione. Ci finisce anche l'interposizione, che ha il
-		// suo ciclo dedicato piu' sopra — fino a `#505` a tenerla fuori bastava l'azzeramento del piano che
-		// quel ciclo faceva, ma ora il piano deve sopravvivere alla fase (D-092) e l'esclusione va DETTA.
-		if (URTReactionLibrary::PassPointFor(Reaction->Def.ReactionTrigger) != Point)
-		{
-			continue;
-		}
-
-		FRTTurnLogEntry Entry;
-		Entry.Phase = ERTMatchPhase::Blast;
-		Entry.Category = ERTLogCategory::Reaction;
-		Entry.SrcCell = Unit->Cell;
-		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // identita': `Ivrin.Deflection` non e' `Action.Deflect` (CP 5.5)
-		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
-
-		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
-		// saperlo senza conoscere i dati di ciascuna fase — cioe' senza tornare a essere quattro pass.
-		const FRTReactionTriggerHit Hit = Evaluate(i, Reaction->Def.ReactionTrigger);
-		const int32 TriggeredBy = Hit.TriggeredBy;
-
-		// `ReactionActivationsThisTurn` e' la garanzia di [D-092] resa esplicita: una attivazione per turno, e
-		// il contatore attraversa le fasi. Senza, la regola resterebbe vera solo come CONSEGUENZA del fatto
-		// che `PassPointFor` da' a ogni trigger un punto solo — e cadrebbe in silenzio il giorno in cui un
-		// trigger ne avesse due, senza che nessun test la stesse guardando.
-		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit)
-			|| Unit->ReactionActivationsThisTurn > 0)
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
-		}
-		else if (Hit.bTriggered)
-		{
-			Unit->ConsumeAbility(ReactionIdx);
-			++Unit->ReactionActivationsThisTurn;
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
-
-			// 🔴 **Il momento della reazione, per la presentazione** (#2191). Prima di questa riga una
-			// reazione riuscita non aveva un istante proprio nel playback: restava la barra che scende poco,
-			// cioè — parole di `PIE-VIS-DEFLECT` — *«un attacco debole invece di una difesa riuscita»*.
-			//
-			// ⚠️ **Qui e non dove la reazione viene PIANIFICATA**: il piano dice cosa si è dichiarato, questo
-			// dice cosa è successo. Emetterlo all'armamento mostrerebbe una parata anche nei turni in cui il
-			// trigger non scatta — e il log ne è pieno: *«reazione pronta, nessun trigger»*.
-			//
-			// ⛔ **Solo presentazione, e la misura lo conferma**: `FRTResolvedEvent` non entra nel TurnLog —
-			// `RTTurnLog.h:630` lo dichiara, *«osservabilita' separata dalla presentazione (non e'
-			// FRTResolvedEvent)»* — quindi un valore nuovo nell'enum non tocca il formato versionato che un
-			// replay rilegge. Verificato prima di aggiungerlo, come `#2191` prescriveva.
+			// Questo trigger si valuta ALTROVE: non e' affare di questo punto, e passarci sopra in silenzio e'
+			// cio' che tiene una sola voce di TurnLog per reazione. Ci finisce anche l'interposizione, che ha il
+			// suo ciclo dedicato piu' sopra — fino a `#505` a tenerla fuori bastava l'azzeramento del piano che
+			// quel ciclo faceva, ma ora il piano deve sopravvivere alla fase (D-092) e l'esclusione va DETTA.
+			if (URTReactionLibrary::PassPointFor(Reaction->Def.ReactionTrigger) != Point)
 			{
-				FRTResolvedEvent Ev;
-				// #4059 (R7, [D-605] (3)): la fase dell'EVENTO e' quella del punto del passo — la fuga del Cleanup si mostra
-				// nel Cleanup, dopo il movimento. ⛔ La voce di TurnLog qui sopra resta `Blast`: la fase entra nell'hash del
-				// TurnLog (lettura (4)(b) di [D-605]), e l'evento e' presentazione.
-				Ev.Phase = (Point == ERTReactionPassPoint::CleanupSurfaceBirth) ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::ReactionResolved;
-				// ✅ **Validato per mutazione**: invertiti i due id, `Reactions.Counter.DealsDamageToAttacker`
-				// cade con *«chi reagisce ha un evento di reazione risolta: atteso 1, ottenuto 0»*.
-				// CHI reagisce nel soggetto, chi ha innescato nel bersaglio: il verso della frase «X reagisce
-				// a Y». ⚠️ `0` non e' un'unita' (D-063): un trigger senza attaccante identificato — la
-				// predittiva che scatta su una previsione — lascia `0`, che chi consuma deve leggere come
-				// «nessuno» e non come l'unita' zero.
-				Ev.SourceStableUnitId = Unit->StableUnitId;
-				Ev.TargetStableUnitId = Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy]
-					? Units[TriggeredBy]->StableUnitId : 0;
-				Ev.Origin = Unit->Cell;
-				// #4059 (R4): chi ha innescato, per mettere il fumetto subito dopo il SUO colpo sul reattore. Di norma e' lo
-				// stesso `TargetStableUnitId`. Non coincide per l'Ancoraggio, che negli effetti non nomina nessuno ma sa chi
-				// spinge (`HitAttacker`), e per l'interposizione, che ha il suo evento in `ResolveInterceptions`.
-				{
-					const int32 Innesco = (Hit.HitAttacker != INDEX_NONE) ? Hit.HitAttacker : TriggeredBy;
-					Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Innesco) && Units[Innesco]
-						? Units[Innesco]->StableUnitId : 0;
-				}
-				// #4059 (R3): CHI PUO' VEDERE la reazione, congelato adesso come la voce di TurnLog scritta poco sotto
-				// (`AppendLogEntry(Entry, Unit)`, stesso soggetto, stessa cella, stessa conoscenza). ⏱️ *Fino a #4059 questo
-				// campo restava vuoto, cioe' «nessuno»: nessuno lo leggeva, e il playback scartava l'evento.*
-				Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
-				// 🔴 **QUALE reazione e' scattata, e fino a `#2857` questo campo non c'era** — per una
-				// ragione che era vera e che ha smesso di esserlo. `#2191` aveva scritto qui *«nessun
-				// `ActionId`: lo dice gia' il TurnLog, e aggiungerlo creerebbe una seconda fonte»*, ed era
-				// esatto finche' l'unico consumatore era la **presentazione**: dare un momento alla parata
-				// non richiede di sapere quale parata fosse. Il consumatore nuovo e' l'**inspection**, che
-				// deve fermarsi a un confine di azione scorrendo la timeline — e il TurnLog non e' cio' che
-				// il playback scorre.
+				continue;
+			}
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Blast;
+			Entry.Category = ERTLogCategory::Reaction;
+			Entry.SrcCell = Unit->Cell;
+			Entry.TgtCell = Unit->Cell;
+			Entry.ActionId = Reaction->Def.ActionId; // identita': `Ivrin.Deflection` non e' `Action.Deflect` (CP 5.5)
+			Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
+
+			// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
+			// saperlo senza conoscere i dati di ciascuna fase — cioe' senza tornare a essere quattro pass.
+			const FRTReactionTriggerHit Hit = Evaluate(i, Reaction->Def.ReactionTrigger);
+			const int32 TriggeredBy = Hit.TriggeredBy;
+
+			// `HasReactionActivatedThisTurn` e' la garanzia di [D-092] resa esplicita, per la singola reazione ([D-619]): una
+			// attivazione per turno di QUESTA reazione, e
+			// il contatore attraversa le fasi. Senza, la regola resterebbe vera solo come CONSEGUENZA del fatto
+			// che `PassPointFor` da' a ogni trigger un punto solo — e cadrebbe in silenzio il giorno in cui un
+			// trigger ne avesse due, senza che nessun test la stesse guardando.
+			if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit)
+				|| Unit->HasReactionActivatedThisTurn(ReactionIdx))
+			{
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+			}
+			else if (Hit.bTriggered)
+			{
+				Unit->ConsumeAbility(ReactionIdx);
+				Unit->MarkReactionActivated(ReactionIdx);
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+				// 🔴 **Il momento della reazione, per la presentazione** (#2191). Prima di questa riga una
+				// reazione riuscita non aveva un istante proprio nel playback: restava la barra che scende poco,
+				// cioè — parole di `PIE-VIS-DEFLECT` — *«un attacco debole invece di una difesa riuscita»*.
 				//
-				// ⚠️ **Non e' una seconda fonte perche' non e' una seconda LETTURA**: e' lo stesso
-				// `Reaction->Def` da cui `Entry.ActionId` e' stato scritto poche righe sopra, copiato al
-				// sito di scrittura come `StatusTag` gia' fa. `Ivrin.Deflection` non e' `Action.Deflect`
-				// (CP 5.5), e la distinzione arriva intatta.
-				Ev.ActionId = Reaction->Def.ActionId;
-				Ev.BaseActionId = Reaction->Def.BaseActionId;
-				ResolvedTimeline.Add(MoveTemp(Ev));
-			}
-
-			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
-			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
-			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
-			// l'`ActionId`: e' cio' che permette a una reazione d'eroe di riusare la semantica di
-			// `Action.Deflect`/`Action.Counter` con numeri propri senza un ramo per eroe.
-			for (const FRTActionEvent& Event : URTReactionLibrary::BuildReactionEvents(Reaction->Def, i, TriggeredBy))
-			{
-				if (!Units.IsValidIndex(Event.TargetUnitId) || !Units[Event.TargetUnitId]) { continue; }
-				ARTUnit* EffectTarget = Units[Event.TargetUnitId];
-				switch (Event.Kind)
+				// ⚠️ **Qui e non dove la reazione viene PIANIFICATA**: il piano dice cosa si è dichiarato, questo
+				// dice cosa è successo. Emetterlo all'armamento mostrerebbe una parata anche nei turni in cui il
+				// trigger non scatta — e il log ne è pieno: *«reazione pronta, nessun trigger»*.
+				//
+				// ⛔ **Solo presentazione, e la misura lo conferma**: `FRTResolvedEvent` non entra nel TurnLog —
+				// `RTTurnLog.h:630` lo dichiara, *«osservabilita' separata dalla presentazione (non e'
+				// FRTResolvedEvent)»* — quindi un valore nuovo nell'enum non tocca il formato versionato che un
+				// replay rilegge. Verificato prima di aggiungerlo, come `#2191` prescriveva.
 				{
-				case ERTActionEffect::Damage:
-					// Il colpo di ritorno entra fra gli attacchi normali, quindi risolve sullo stato iniziale
-					// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
-					// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
-					// comunque il proprio danno").
+					FRTResolvedEvent Ev;
+					// #4059 (R7, [D-605] (3)): la fase dell'EVENTO e' quella del punto del passo — la fuga del Cleanup si mostra
+					// nel Cleanup, dopo il movimento. ⛔ La voce di TurnLog qui sopra resta `Blast`: la fase entra nell'hash del
+					// TurnLog (lettura (4)(b) di [D-605]), e l'evento e' presentazione.
+					Ev.Phase = (Point == ERTReactionPassPoint::CleanupSurfaceBirth) ? ERTMatchPhase::Cleanup : ERTMatchPhase::Blast;
+					Ev.Type = ERTResolvedEventType::ReactionResolved;
+					// ✅ **Validato per mutazione**: invertiti i due id, `Reactions.Counter.DealsDamageToAttacker`
+					// cade con *«chi reagisce ha un evento di reazione risolta: atteso 1, ottenuto 0»*.
+					// CHI reagisce nel soggetto, chi ha innescato nel bersaglio: il verso della frase «X reagisce
+					// a Y». ⚠️ `0` non e' un'unita' (D-063): un trigger senza attaccante identificato — la
+					// predittiva che scatta su una previsione — lascia `0`, che chi consuma deve leggere come
+					// «nessuno» e non come l'unita' zero.
+					Ev.SourceStableUnitId = Unit->StableUnitId;
+					Ev.TargetStableUnitId = Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy]
+						? Units[TriggeredBy]->StableUnitId : 0;
+					Ev.Origin = Unit->Cell;
+					// #4059 (R4): chi ha innescato, per mettere il fumetto subito dopo il SUO colpo sul reattore. Di norma e' lo
+					// stesso `TargetStableUnitId`. Non coincide per l'Ancoraggio, che negli effetti non nomina nessuno ma sa chi
+					// spinge (`HitAttacker`), e per l'interposizione, che ha il suo evento in `ResolveInterceptions`.
+					{
+						const int32 Innesco = (Hit.HitAttacker != INDEX_NONE) ? Hit.HitAttacker : TriggeredBy;
+						Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Innesco) && Units[Innesco]
+							? Units[Innesco]->StableUnitId : 0;
+					}
+					// #4059 (R3): CHI PUO' VEDERE la reazione, congelato adesso come la voce di TurnLog scritta poco sotto
+					// (`AppendLogEntry(Entry, Unit)`, stesso soggetto, stessa cella, stessa conoscenza). ⏱️ *Fino a #4059 questo
+					// campo restava vuoto, cioe' «nessuno»: nessuno lo leggeva, e il playback scartava l'evento.*
+					Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
+					// 🔴 **QUALE reazione e' scattata, e fino a `#2857` questo campo non c'era** — per una
+					// ragione che era vera e che ha smesso di esserlo. `#2191` aveva scritto qui *«nessun
+					// `ActionId`: lo dice gia' il TurnLog, e aggiungerlo creerebbe una seconda fonte»*, ed era
+					// esatto finche' l'unico consumatore era la **presentazione**: dare un momento alla parata
+					// non richiede di sapere quale parata fosse. Il consumatore nuovo e' l'**inspection**, che
+					// deve fermarsi a un confine di azione scorrendo la timeline — e il TurnLog non e' cio' che
+					// il playback scorre.
 					//
-					// 🔑 **Un `Add` solo e non sei** (`#2587`): colpo, origine, identita' della reazione e
-					// autore entrano insieme o non entrano. Sei `Add` in fila erano sei occasioni di
-					// scriverne cinque, e un `continue` infilato in mezzo avrebbe attribuito il
-					// contrattacco all'unita' sbagliata senza che niente diventasse rosso.
-					Out.CounterAttacks.Add(FRTCounterAttack{
-						FRTAttack(Event.TargetUnitId, Event.Amount),
-						Unit->Cell,
-						Reaction->Def.ActionId,
-						Reaction->Def.BaseActionId,
-						Reaction->Def.Priority,
-						Unit });
-					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
-						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(Unit));
-					break;
+					// ⚠️ **Non e' una seconda fonte perche' non e' una seconda LETTURA**: e' lo stesso
+					// `Reaction->Def` da cui `Entry.ActionId` e' stato scritto poche righe sopra, copiato al
+					// sito di scrittura come `StatusTag` gia' fa. `Ivrin.Deflection` non e' `Action.Deflect`
+					// (CP 5.5), e la distinzione arriva intatta.
+					Ev.ActionId = Reaction->Def.ActionId;
+					Ev.BaseActionId = Reaction->Def.BaseActionId;
+					ResolvedTimeline.Add(MoveTemp(Ev));
+				}
 
-				case ERTActionEffect::DamageReduction:
-					// Vale sul Decision Boundary che ha innescato la reazione: si attiva una volta sola, e il
-					// totale confluisce nel pool d'assorbimento che il chiamante costruisce ([D-309]), come la
-					// Guardia dopo [D-292]. ⚠️ Accumula NEGATIVO: il segno si inverte alla costruzione del pool.
-					Out.ReactionReductionByTarget[Event.TargetUnitId] -= Event.Amount;
-					break;
-
-				case ERTActionEffect::Shield:
-					// Prima che i colpi vengano risolti, e con lo stesso aggiornamento sullo snapshot `States`
-					// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
-					// stesso turno senza aver protetto da niente.
-					EffectTarget->AddTemporaryShield(Event.Amount);
-					// `IsValidIndex` e non un accesso diretto: i punti di valutazione fuori dal Blast non hanno
-					// uno snapshot di combattimento da aggiornare e passano un array vuoto. Uno scudo li' non
-					// avrebbe comunque colpi da fermare — ma senza questa guardia sarebbe un accesso fuori
-					// range, cioe' un crash invece di un effetto che non serve.
-					if (States.IsValidIndex(Event.TargetUnitId))
+				// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
+				// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
+				// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
+				// l'`ActionId`: e' cio' che permette a una reazione d'eroe di riusare la semantica di
+				// `Action.Deflect`/`Action.Counter` con numeri propri senza un ramo per eroe.
+				for (const FRTActionEvent& Event : URTReactionLibrary::BuildReactionEvents(Reaction->Def, i, TriggeredBy))
+				{
+					if (!Units.IsValidIndex(Event.TargetUnitId) || !Units[Event.TargetUnitId]) { continue; }
+					ARTUnit* EffectTarget = Units[Event.TargetUnitId];
+					switch (Event.Kind)
 					{
-						States[Event.TargetUnitId].Shield = EffectTarget->Shield;
-						// [D-224] Anche la quota temporanea: lo scudo appena concesso E' temporaneo, e
-						// aggiornare solo il totale lo farebbe passare per BASE agli occhi del resolver.
-						States[Event.TargetUnitId].TemporaryShield = EffectTarget->GetTemporaryShield();
+					case ERTActionEffect::Damage:
+						// Il colpo di ritorno entra fra gli attacchi normali, quindi risolve sullo stato iniziale
+						// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
+						// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
+						// comunque il proprio danno").
+						//
+						// 🔑 **Un `Add` solo e non sei** (`#2587`): colpo, origine, identita' della reazione e
+						// autore entrano insieme o non entrano. Sei `Add` in fila erano sei occasioni di
+						// scriverne cinque, e un `continue` infilato in mezzo avrebbe attribuito il
+						// contrattacco all'unita' sbagliata senza che niente diventasse rosso.
+						Out.CounterAttacks.Add(FRTCounterAttack{
+							FRTAttack(Event.TargetUnitId, Event.Amount),
+							Unit->Cell,
+							Reaction->Def.ActionId,
+							Reaction->Def.BaseActionId,
+							Reaction->Def.Priority,
+							Unit });
+						AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
+							*Unit->GetName(), *EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(Unit));
+						break;
+
+					case ERTActionEffect::DamageReduction:
+						// Vale sul Decision Boundary che ha innescato la reazione: si attiva una volta sola, e il
+						// totale confluisce nel pool d'assorbimento che il chiamante costruisce ([D-309]), come la
+						// Guardia dopo [D-292]. ⚠️ Accumula NEGATIVO: il segno si inverte alla costruzione del pool.
+						Out.ReactionReductionByTarget[Event.TargetUnitId] -= Event.Amount;
+						break;
+
+					case ERTActionEffect::Shield:
+						// Prima che i colpi vengano risolti, e con lo stesso aggiornamento sullo snapshot `States`
+						// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
+						// stesso turno senza aver protetto da niente.
+						EffectTarget->AddTemporaryShield(Event.Amount);
+						// `IsValidIndex` e non un accesso diretto: i punti di valutazione fuori dal Blast non hanno
+						// uno snapshot di combattimento da aggiornare e passano un array vuoto. Uno scudo li' non
+						// avrebbe comunque colpi da fermare — ma senza questa guardia sarebbe un accesso fuori
+						// range, cioe' un crash invece di un effetto che non serve.
+						if (States.IsValidIndex(Event.TargetUnitId))
+						{
+							States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+							// [D-224] Anche la quota temporanea: lo scudo appena concesso E' temporaneo, e
+							// aggiornare solo il totale lo farebbe passare per BASE agli occhi del resolver.
+							States[Event.TargetUnitId].TemporaryShield = EffectTarget->GetTemporaryShield();
+						}
+						AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
+							*EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(EffectTarget));
+						break;
+
+					case ERTActionEffect::SelfReposition:
+						// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
+						// il commento sugli array, D-094.
+						if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+						{
+							FleeUnits.Add(EffectTarget);
+							FleeFrom.Add(Units[TriggeredBy]->Cell);
+							FleeDist.Add(Event.Amount);
+						}
+						else
+						{
+							// Nessuna sorgente: e' una fuga da una CELLA, non da qualcuno (`Reaction.HazardEscape`).
+							// Non ha una direzione da cui allontanarsi, quindi la geometria della spinta non si
+							// applica e la destinazione la sceglie il chiamante. Prima di `#505` questo ramo non
+							// esisteva e l'effetto veniva scartato in silenzio: un modulo che dichiarava
+							// `SelfReposition` senza attaccante non si muoveva, e nessun test lo diceva.
+							Out.HazardFlees.Add(Event.TargetUnitId);
+							Out.HazardFleeDistance.Add(Event.Amount);
+						}
+						break;
+
+					case ERTActionEffect::CancelStatus:
+						// Come sotto: si raccoglie e basta. QUALE controllo salti lo decide chi applica gli stati,
+						// che ha davanti la lista completa di quelli in arrivo e sceglie il piu' grave.
+						Out.CancelledControls.Add(Event.TargetUnitId);
+						break;
+
+					case ERTActionEffect::CancelDisplacement:
+						// Si RACCOGLIE soltanto, come tutto il resto: chi muove e' piu' sotto e consultera' questo
+						// insieme prima di spostare. Annullare QUI non avrebbe niente da annullare — la
+						// destinazione della spinta non e' ancora stata calcolata.
+						Out.CancelledDisplacements.Add(Event.TargetUnitId);
+						break;
+
+					default:
+						// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
+						// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
+						// consumo degli stati insieme agli altri colpi). Il posto dove aggiungerli e' questo.
+						break;
 					}
-					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
-						*EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(EffectTarget));
-					break;
-
-				case ERTActionEffect::SelfReposition:
-					// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
-					// il commento sugli array, D-094.
-					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
-					{
-						FleeUnits.Add(EffectTarget);
-						FleeFrom.Add(Units[TriggeredBy]->Cell);
-						FleeDist.Add(Event.Amount);
-					}
-					else
-					{
-						// Nessuna sorgente: e' una fuga da una CELLA, non da qualcuno (`Reaction.HazardEscape`).
-						// Non ha una direzione da cui allontanarsi, quindi la geometria della spinta non si
-						// applica e la destinazione la sceglie il chiamante. Prima di `#505` questo ramo non
-						// esisteva e l'effetto veniva scartato in silenzio: un modulo che dichiarava
-						// `SelfReposition` senza attaccante non si muoveva, e nessun test lo diceva.
-						Out.HazardFlees.Add(Event.TargetUnitId);
-						Out.HazardFleeDistance.Add(Event.Amount);
-					}
-					break;
-
-				case ERTActionEffect::CancelStatus:
-					// Come sotto: si raccoglie e basta. QUALE controllo salti lo decide chi applica gli stati,
-					// che ha davanti la lista completa di quelli in arrivo e sceglie il piu' grave.
-					Out.CancelledControls.Add(Event.TargetUnitId);
-					break;
-
-				case ERTActionEffect::CancelDisplacement:
-					// Si RACCOGLIE soltanto, come tutto il resto: chi muove e' piu' sotto e consultera' questo
-					// insieme prima di spostare. Annullare QUI non avrebbe niente da annullare — la
-					// destinazione della spinta non e' ancora stata calcolata.
-					Out.CancelledDisplacements.Add(Event.TargetUnitId);
-					break;
-
-				default:
-					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
-					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
-					// consumo degli stati insieme agli altri colpi). Il posto dove aggiungerli e' questo.
-					break;
 				}
 			}
-		}
-		else
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
-		}
+			else
+			{
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+			}
 
-		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
-		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
-		// ⌫ **L'eco scritto a mano e' stato tolto da `#1412`.** Il commento che stava qui lo dichiarava
-		// gia' *«verbatim»* rispetto a cio' che `ConcludeTurn` deriva da questa stessa voce: erano due
-		// righe per un evento solo. Cio' che l'eco aggiungeva — il nome — ora ce l'ha la copia derivata,
-		// perche' `Reaction` dichiara il proprio soggetto. Il soggetto resta quello della voce, e la
-		// ragione per cui conta e' invariata: nell'interposizione `SrcCell` e' la cella del PROTETTO,
-		// quindi dedurre l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
-		AppendLogEntry(Entry, Unit);
+			// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
+			// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+			// ⌫ **L'eco scritto a mano e' stato tolto da `#1412`.** Il commento che stava qui lo dichiarava
+			// gia' *«verbatim»* rispetto a cio' che `ConcludeTurn` deriva da questa stessa voce: erano due
+			// righe per un evento solo. Cio' che l'eco aggiungeva — il nome — ora ce l'ha la copia derivata,
+			// perche' `Reaction` dichiara il proprio soggetto. Il soggetto resta quello della voce, e la
+			// ragione per cui conta e' invariata: nell'interposizione `SrcCell` e' la cella del PROTETTO,
+			// quindi dedurre l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+			AppendLogEntry(Entry, Unit);
+		}
 	}
 
 	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato

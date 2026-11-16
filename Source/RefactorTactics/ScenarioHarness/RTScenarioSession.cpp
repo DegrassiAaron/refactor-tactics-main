@@ -1627,9 +1627,9 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			}
 			else if (Abilita->Def.Slot == ERTActionSlot::Reaction)
 			{
+				// E38 CP 38.15: la reazione e' aperta, e una seconda si accoda ([D-592]).
 				Classe = TEXT("reazione");
-				bScritta = Unit->GetPlan().PlannedReactionAbility() == INDEX_NONE;
-				if (bScritta) { Unit->SetPlannedReaction(Indice); }
+				bScritta = Unit->AddPlannedReaction(Indice);
 			}
 			else
 			{

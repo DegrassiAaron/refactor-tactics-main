@@ -108,7 +108,10 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	{
 		// E38 CP 38.14: anche la principale e' aperta. Se una seconda sia legale lo dice chi la scrive
 		// (`ARTUnit::DeclarePlannedAction`), che conosce la fase dell'azione; qui si tiene solo la forma.
-		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main;
+		// E38 CP 38.15: e anche la reazione ([D-592]). Che due reazioni stiano insieme lo dice il validatore (una copia con
+		// ricarica e' `RepeatedWithCooldown`, [D-614]); quante ne scattano, [D-619].
+		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main
+			|| Entry.Class == ERTPlanEntryClass::Reaction;
 		if (Entry.IsEmpty() || (!bAperta && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;
@@ -137,6 +140,9 @@ struct REFACTORTACTICS_API FRTUnitPlan
 
 	/** Toglie tutte le voci `Prep`; le altre restano nel loro ordine (E38 CP 38.13: il Prep le ha risolte). */
 	void RemovePrepEntries() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Prep; }); }
+
+	/** Toglie tutte le voci `Reaction`, con le loro condizioni (E38 CP 38.15: la reazione e' una lista). */
+	void RemoveReactionEntries() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Reaction; }); }
 
 	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
 	bool RemoveEntryAt(int32 Position)

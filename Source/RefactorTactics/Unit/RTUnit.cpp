@@ -2174,10 +2174,42 @@ int32 ARTUnit::GetAbilityCooldown(int32 Index) const
 
 void ARTUnit::ClearReactionPlan()
 {
-	Plan.SetPlannedReactionAbility(INDEX_NONE);
-	Plan.SetPlannedReactionCondition(FRTDeclaredCondition());
+	// E38 CP 38.15: TUTTE le reazioni, con le loro condizioni. Azzerare la prima lasciava armata la seconda nel turno dopo.
+	Plan.RemoveReactionEntries();
 	// Il segno dei waypoint di UNA reazione non sopravvive alla reazione (`#3927`).
 	WaypointsAllaReazione = INDEX_NONE;
+}
+
+bool ARTUnit::AddPlannedReaction(int32 AbilityIndex)
+{
+	const URTActionData* Azione = GetAbility(AbilityIndex);
+	if (Azione == nullptr || Azione->Def.Slot != ERTActionSlot::Reaction)
+	{
+		return false;
+	}
+	FRTPlanEntry Voce;
+	Voce.Class = ERTPlanEntryClass::Reaction;
+	Voce.AbilityIndex = AbilityIndex;
+	return Plan.AddEntry(Voce);
+}
+
+TArray<int32> ARTUnit::ArmedReactionsInCanonicalOrder() const
+{
+	TArray<int32> Out;
+	for (const FRTPlanEntry& Voce : Plan.GetEntries())
+	{
+		const URTActionData* Azione = Voce.Class == ERTPlanEntryClass::Reaction ? GetAbility(Voce.AbilityIndex) : nullptr;
+		if (Azione && Azione->Def.Slot == ERTActionSlot::Reaction) { Out.AddUnique(Voce.AbilityIndex); }
+	}
+	Out.StableSort([this](int32 L, int32 R)
+	{
+		const FRTActionDef& A = GetAbility(L)->Def;
+		const FRTActionDef& B = GetAbility(R)->Def;
+		if (A.Priority != B.Priority) { return A.Priority < B.Priority; }
+		if (A.ActionId != B.ActionId) { return A.ActionId.LexicalLess(B.ActionId); }
+		return L < R;
+	});
+	return Out;
 }
 
 bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
