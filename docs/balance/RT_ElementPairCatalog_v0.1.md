@@ -5,6 +5,12 @@
 > con gli identificatori di [D-593](../decisions/RT_PDR_00_Decision_Log.md). Issue: [#1803](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1803).
 > **Creato**: 2026-11-08 su `main` = `78cf6b2f8` · **Validatore**: `python tools/balance/element_pairs_check.py` (coppie, unicita', stati, ReactionId).
 >
+> 🔁 **Primo giro di contenuto dal 2026-11-16** ([D-620](../decisions/RT_PDR_00_Decision_Log.md) (2)): le coppie fra `Element.Fire`, `Element.Water`,
+> `Element.Earth`, `Element.Air`, `Element.Electric` e `Element.Frost`. Le altre restano `OPEN`, il vocabolario dei dodici non cambia e il Tier 3 resta
+> fuori. Gli stati Tier 2 del documento UI/UX dell'autore (Magma, Ghiaccio, Fango) sono candidati come quelli del GDD (D-620 (8d), lettura
+> dell'assistente). Il **Vapore** per Fire–Water contraddice la voce `CURRENT` `Reaction.WaterQuenchesFire`: l'autore l'ha riaperto come `UXR-4` di
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e finché è aperta la voce qui sotto resta com'è.
+>
 > ⛔ **Una voce `OPEN` non porta effetti ne' numeri**: significa *non ancora progettata*. `NO_INTERACTION` significa *assenza voluta*.
 > Solo `CURRENT` (a runtime) e `DESIGNED` (progettata, non implementata) portano un `Reaction.<Id>` stabile. Lo stato di supporto a runtime
 > e' **per coppia**, non si deduce dal vocabolario (D-272 (2)). `Element`, `Surface`, `Status` e `Reaction` restano quattro cose distinte:

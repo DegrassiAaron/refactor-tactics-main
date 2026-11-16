@@ -30,6 +30,9 @@
 > aggiunge il bonus. I valori per personaggio sono decisi da [D-599](RT_PDR_00_Decision_Log.md) (2026-11-09: tre fasce, 90 · 60 · 30 sulla scala ×10) e dal 2026-11-10 sono nel catalogo eroi (E53 CP 53.3c): il colpo alle spalle li applica, e solo a un colpo che ha una Base.
 > ➕ **2026-11-09, [D-597](RT_PDR_00_Decision_Log.md)**: la §4a riceve una **seconda condizione**: un attaccante il cui `FRTCellId::Layer` è maggiore di quello del difensore annulla
 > la riduzione da copertura bassa, come il retro; **non** la Guard. Le due condizioni sono un «o»; il TurnLog porta la ragione della perdita. Non implementata: la §4a si riscrive con l'implementazione.
+> 🔁 **2026-11-16, [D-620](RT_PDR_00_Decision_Log.md)**: la forma della riduzione da copertura è **riaperta** come `UXR-1` di [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)
+> (il documento UI/UX dell'autore la vuole in percentuale, −35% bassa e −75% alta). Finché è aperta valgono la §4a come scritta e la riduzione piatta
+> di D-589 e D-602.
 
 ## Contesto
 
