@@ -2353,6 +2353,7 @@ namespace
 		NemicoCheAttacca,  //< `Action.Interrupt`: serve anche chi incassa il colpo cancellato
 		NemicoDaColpire,   //< l'attacco base dell'eroe, cioe' `MarkAttackerAbilitiesSpent`
 		CellaVuotaInPortata, //< l'attacco base su una CELLA in portata e vuota: parte, e non trova nessuno (2026-10-31)
+		AlleatoInterrotto, //< `Action.Heal` su un alleato, e un nemico adiacente che interrompe chi cura (`#4042`)
 	};
 
 	/**
@@ -2422,6 +2423,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		{ TEXT("curatore che cade nel Blast"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
 		  1, true, true, false, true,
 		  TEXT("[D-209]: chi cura e' vivo quando ANNOTA, e paga anche se cade piu' tardi nella stessa fase") },
+		{ TEXT("curatore interrotto"), TEXT("Action.Heal"), ESpesaMontaggio::AlleatoInterrotto,
+		  1, true, false, false, true,
+		  TEXT("`#4042`, [D-571] (1): la cura e' partita ed e' stata annullata — paga cio' che il clic avrebbe accettato") },
 		{ TEXT("attaccante che colpisce e cade"), nullptr, ESpesaMontaggio::NemicoDaColpire,
 		  1, true, true, false, false,
 		  TEXT("[D-209]: per un attaccante «spesa» vuol dire SOPRAVVISSUTO alla fase, e questo non lo e'") },
@@ -2500,6 +2504,7 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			break;
 
 		case ESpesaMontaggio::Alleato:
+		case ESpesaMontaggio::AlleatoInterrotto:
 		{
 			ARTUnit* Alleato = SpawnControlUnit(World, 0, FRTCellId(C.Distanza, 0));
 			if (!TestNotNull(*FString::Printf(TEXT("%s: alleato"), C.Nome), Alleato))
@@ -2511,6 +2516,20 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			Attore->SetPlannedMainAction(Idx);
 			Attore->DeclareAttackOnUnit(Alleato);
 			Attore->SetPlannedCell(Attore->Cell);
+			if (C.Montaggio == ESpesaMontaggio::AlleatoInterrotto)
+			{
+				// Fuori dall'asse `(x, 0)` dei montaggi, come il carnefice: `Action.Interrupt` ha portata 1.
+				ARTUnit* Interruttore = SpawnControlUnit(World, 1, FRTCellId(0, 1));
+				if (!TestNotNull(*FString::Printf(TEXT("%s: interruttore"), C.Nome), Interruttore))
+				{
+					DestroyControlWorld(World);
+					return false;
+				}
+				const int32 Interrupt = RTAbilityFixtures::AddCoreAbility(Interruttore, TEXT("Action.Interrupt"));
+				Interruttore->SetPlannedMainAction(Interrupt);
+				Interruttore->DeclareAttackOnUnit(Attore);
+				Interruttore->SetPlannedCell(Interruttore->Cell);
+			}
 			break;
 		}
 
@@ -2612,6 +2631,17 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 
 		const TWeakObjectPtr<ARTUnit> AttoreDebole(Attore);
 		RunControlTurn(TM);
+
+		// La premessa della riga interrotta: senza la voce `Interrupted` la riga e' `cura in portata` con un nemico accanto.
+		if (C.Montaggio == ESpesaMontaggio::AlleatoInterrotto)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: premessa: la cura e' stata interrotta"), C.Nome),
+				TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+				{
+					return E.Category == ERTLogCategory::Fallback && E.ActionId == FName(TEXT("Action.Heal"))
+						&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+				}));
+		}
 
 		// 🔴 **Il cadavere si legge anche da distrutto, e non e' una scorciatoia**: `ConcludeTurn` chiama
 		// `DestroyDefeatedUnits`, che distrugge chi ha `Health <= 0` — quindi a turno finito la riga del

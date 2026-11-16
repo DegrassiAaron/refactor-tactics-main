@@ -2616,4 +2616,231 @@ bool FRTHexBlastInterruptedCellFallbackLeavesOneEntryTest::RunTest(const FString
 	return true;
 }
 
+// ── #4042: una cura interrotta non cura ([D-600] (3)) ───────────────────────────────────────────────────────────────
+namespace
+{
+	struct FCuraInterrotta
+	{
+		bool bInterrompe = false;   // un nemico interrompe chi cura
+		bool bCatena = false;       // e un alleato interrompe quel nemico
+		bool bCatenaDopo = false;   // l'alleato della catena sta in una cella che lo mette dall'altra parte dell'ordine
+		bool bArea = false;         // la cura ad area di Muiren invece di `Action.Heal`
+		bool bMuri = false;         // due muri chiudono la linea fra chi cura e chi e' curato
+		bool bCiclo = false;        // altrove, due unita' si interrompono a vicenda
+		bool bStordito = false;     // chi cura e' stordito
+	};
+
+	struct FEsitoDellaCura
+	{
+		int32 SaluteDopo = 0;  // del ferito
+		int32 Voci = 0;        // voci del TurnLog con l'azione di cura
+		int32 Interrotte = 0;  // `Cancelled`/`Interrupted`
+		int32 SenzaLinea = 0;  // `NoLineOfSight`
+		int32 Storditi = 0;    // `Stunned`
+		int32 Neutralizzate = 0; // `Neutralised`, di chiunque
+		int32 Attivazioni = 0; // `AbilityActivated` della cura
+		int32 Ricarica = 0;
+	};
+
+	bool GiocaCuraInterrotta(FAutomationTestBase& Test, const FCuraInterrotta& Caso, FEsitoDellaCura& Out)
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		TArray<FRTCellId> Muri;
+		if (Caso.bMuri) { Muri = { FRTCellId(1, 0), FRTCellId(2, 0) }; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6, Muri);
+		const FRTCellId CellaFerito = Caso.bMuri ? FRTCellId(3, 0) : FRTCellId(1, 0);
+		ARTUnit* Curatore = SpawnHexBlastUnit(World, 0,
+			Caso.bArea ? URTHeroCatalogLibrary::MakeMuiren() : URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		ARTUnit* Ferito = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), CellaFerito);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Curatore || !Ferito) { DestroyHexBlastWorld(World); return false; }
+		int32 Cura = Caso.bArea ? FindAbilityByActionId(Curatore, TEXT("Hero.Muiren.CircularTide"))
+			: RTAbilityFixtures::AddCoreAbility(Curatore, TEXT("Action.Heal"));
+		if (!Test.TestTrue(TEXT("premessa: chi cura ha la cura"), Curatore->Abilities.IsValidIndex(Cura)))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+		// L'abilita' appesa sta oltre le ricariche del kit, e non ne avrebbe una: va nello slot 0, come in
+		// `RTControlActionTests` (`UseControlAbilityInSlot0`). La cura ad area e' gia' del kit.
+		if (!Caso.bArea)
+		{
+			URTActionData* Appesa = Curatore->Abilities[Cura];
+			Curatore->Abilities.RemoveAt(Cura);
+			Curatore->Abilities[0] = Appesa;
+			Cura = 0;
+		}
+		const FName Azione = Curatore->Abilities[Cura]->Def.ActionId;
+		// Una ricarica che sopravvive alla fine del turno: quella di catalogo e' 1 e a turno chiuso e' gia' tornata a zero.
+		Curatore->Abilities[Cura]->CooldownTurns = FMath::Max(3, Curatore->Abilities[Cura]->Def.CooldownTurns);
+		Ferito->ApplyCombatState(100, 0);
+		if (Caso.bStordito) { Curatore->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns); }
+		if (Caso.bCiclo)
+		{
+			// Lontano da tutti: due Interrupt che si annullano a vicenda restano indecisi ([D-202], [D-203]).
+			ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0));
+			ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-3, 1));
+			if (!A || !B) { DestroyHexBlastWorld(World); return false; }
+			A->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Interrupt")));
+			A->DeclareAttackOnUnit(B);
+			B->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Interrupt")));
+			B->DeclareAttackOnUnit(A);
+		}
+		Curatore->SetPlannedMainAction(Cura);
+		Curatore->DeclareAttackOnUnit(Ferito);
+		if (Caso.bInterrompe)
+		{
+			ARTUnit* Nemico = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 1));
+			if (!Nemico) { DestroyHexBlastWorld(World); return false; }
+			const int32 Interrupt = RTAbilityFixtures::AddCoreAbility(Nemico, TEXT("Action.Interrupt"));
+			Nemico->SetPlannedMainAction(Interrupt);
+			Nemico->DeclareAttackOnUnit(Curatore);
+			if (Caso.bCatena)
+			{
+				// Due celle accanto al nemico e a due passi da chi cura: l'ordine delle unita' le mette ai due lati.
+				ARTUnit* Difensore = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),
+					Caso.bCatenaDopo ? FRTCellId(1, 1) : FRTCellId(-1, 2));
+				if (!Difensore) { DestroyHexBlastWorld(World); return false; }
+				const int32 Contro = RTAbilityFixtures::AddCoreAbility(Difensore, TEXT("Action.Interrupt"));
+				Difensore->SetPlannedMainAction(Contro);
+				Difensore->DeclareAttackOnUnit(Nemico);
+			}
+		}
+		RunBlastTurn(TM);
+		Out.SaluteDopo = Ferito->Health;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Amount == static_cast<int32>(ERTActionInvalidReason::Neutralised))
+			{
+				++Out.Neutralizzate;
+			}
+			if (E.ActionId != Azione) { continue; }
+			++Out.Voci;
+			if (E.Category != ERTLogCategory::Fallback) { continue; }
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted)) { ++Out.Interrotte; }
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)) { ++Out.SenzaLinea; }
+			if (E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned)) { ++Out.Storditi; }
+		}
+		for (const FRTResolvedEvent& E : TM->ResolvedTimelineForTest())
+		{
+			if (E.Type == ERTResolvedEventType::AbilityActivated && E.ActionId == Azione
+				&& E.SourceStableUnitId == Curatore->StableUnitId)
+			{
+				++Out.Attivazioni;
+			}
+		}
+		Out.Ricarica = Curatore->GetAbilityCooldown(Cura);
+		DestroyHexBlastWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedHealDoesNotHealTest,
+	"RefactorTactics.HexBlast.InterruptedHealDoesNotHeal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
+{
+	// `#4042`, [D-600] (3): «no se viene interrotta la skill, non cura». Un Interrupt efficace su chi cura annulla la cura:
+	// il ferito non sale, la cura non si attiva, resta una voce sola, `Cancelled`/`Interrupted`. La ricarica e' pagata come
+	// quella di una cura riuscita ([D-571] (1)). Controllo: senza Interrupt la cura cura e si attiva.
+	FCuraInterrotta Libera, Interrotta;
+	Interrotta.bInterrompe = true;
+	FEsitoDellaCura Riuscita, Annullata;
+	if (!GiocaCuraInterrotta(*this, Libera, Riuscita) || !GiocaCuraInterrotta(*this, Interrotta, Annullata)) { return false; }
+	TestTrue(TEXT("controllo: senza Interrupt il ferito sale"), Riuscita.SaluteDopo > 100);
+	TestEqual(TEXT("controllo: senza Interrupt la cura si attiva"), Riuscita.Attivazioni, 1);
+	TestEqual(TEXT("interrotta: il ferito resta dov'era"), Annullata.SaluteDopo, 100);
+	TestEqual(TEXT("una voce Interrupted"), Annullata.Interrotte, 1);
+	TestEqual(TEXT("e nessun'altra voce della cura"), Annullata.Voci, 1);
+	TestEqual(TEXT("la cura non si attiva"), Annullata.Attivazioni, 0);
+	TestTrue(TEXT("controllo: la cura riuscita va in ricarica"), Riuscita.Ricarica > 0);
+	TestEqual(TEXT("e quella interrotta paga uguale"), Annullata.Ricarica, Riuscita.Ricarica);
+	// Lo stordito non arriva in coda: il rifiuto viene prima ([D-416]), e un'azione ha un motivo, `Stunned`.
+	FCuraInterrotta Stordito = Interrotta;
+	Stordito.bStordito = true;
+	FEsitoDellaCura Rifiutata;
+	if (!GiocaCuraInterrotta(*this, Stordito, Rifiutata)) { return false; }
+	TestEqual(TEXT("stordito e interrotto: una voce Stunned"), Rifiutata.Storditi, 1);
+	TestEqual(TEXT("e nessuna Interrupted"), Rifiutata.Interrotte, 0);
+	TestEqual(TEXT("e nessun'altra voce della cura"), Rifiutata.Voci, 1);
+	TestEqual(TEXT("e non cura"), Rifiutata.SaluteDopo, 100);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedInterruptSavesTheHealTest,
+	"RefactorTactics.HexBlast.InterruptedInterruptSavesTheHeal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedInterruptSavesTheHealTest::RunTest(const FString&)
+{
+	// `#4042`: la sorte della cura la decide lo stesso punto fisso degli attacchi ([D-202]). Un alleato che interrompe
+	// chi interrompe salva la cura, da entrambi i lati dell'ordine delle unita'. Controllo: senza l'alleato non cura.
+	FCuraInterrotta Sola, Prima, Dopo;
+	Sola.bInterrompe = Prima.bInterrompe = Dopo.bInterrompe = true;
+	Prima.bCatena = Dopo.bCatena = true;
+	Dopo.bCatenaDopo = true;
+	FEsitoDellaCura Annullata, SalvataPrima, SalvataDopo;
+	if (!GiocaCuraInterrotta(*this, Sola, Annullata) || !GiocaCuraInterrotta(*this, Prima, SalvataPrima)
+		|| !GiocaCuraInterrotta(*this, Dopo, SalvataDopo))
+	{
+		return false;
+	}
+	TestEqual(TEXT("controllo: senza l'alleato la cura non cura"), Annullata.SaluteDopo, 100);
+	// Un ciclo altrove resta indeciso e non salva nessuno: l'Interrupt su chi cura non ne fa parte.
+	FCuraInterrotta ConCiclo = Sola;
+	ConCiclo.bCiclo = true;
+	FEsitoDellaCura AnnullataColCiclo;
+	if (!GiocaCuraInterrotta(*this, ConCiclo, AnnullataColCiclo)) { return false; }
+	TestEqual(TEXT("premessa: il ciclo altrove si neutralizza"), AnnullataColCiclo.Neutralizzate, 2);
+	TestEqual(TEXT("con un ciclo altrove la cura resta annullata"), AnnullataColCiclo.SaluteDopo, 100);
+	TestEqual(TEXT("e lascia la sua voce Interrupted"), AnnullataColCiclo.Interrotte, 1);
+	for (const FEsitoDellaCura* Salvata : { &SalvataPrima, &SalvataDopo })
+	{
+		const TCHAR* Lato = Salvata == &SalvataPrima ? TEXT("alleato prima") : TEXT("alleato dopo");
+		TestTrue(*FString::Printf(TEXT("%s: il ferito sale"), Lato), Salvata->SaluteDopo > 100);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna voce Interrupted"), Lato), Salvata->Interrotte, 0);
+		TestEqual(*FString::Printf(TEXT("%s: la cura si attiva"), Lato), Salvata->Attivazioni, 1);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedAreaHealHealsNobodyTest,
+	"RefactorTactics.HexBlast.InterruptedAreaHealHealsNobody",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedAreaHealHealsNobodyTest::RunTest(const FString&)
+{
+	// `#4042`: la cura ad area (`Hero.Muiren.CircularTide`) ha una voce di cura per compagna; interrotta, non ne resta
+	// nessuna. Controllo: senza Interrupt la compagna ferita sale.
+	FCuraInterrotta Libera, Interrotta;
+	Libera.bArea = Interrotta.bArea = true;
+	Interrotta.bInterrompe = true;
+	FEsitoDellaCura Riuscita, Annullata;
+	if (!GiocaCuraInterrotta(*this, Libera, Riuscita) || !GiocaCuraInterrotta(*this, Interrotta, Annullata)) { return false; }
+	TestTrue(TEXT("controllo: senza Interrupt la compagna sale"), Riuscita.SaluteDopo > 100);
+	TestEqual(TEXT("interrotta: la compagna resta dov'era"), Annullata.SaluteDopo, 100);
+	TestEqual(TEXT("una voce Interrupted"), Annullata.Interrotte, 1);
+	TestEqual(TEXT("e nessun'altra voce della cura"), Annullata.Voci, 1);
+	TestEqual(TEXT("la cura non si attiva"), Annullata.Attivazioni, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastInterruptedHealBehindCoverLeavesOneEntryTest,
+	"RefactorTactics.HexBlast.InterruptedHealBehindCoverLeavesOneEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBlastInterruptedHealBehindCoverLeavesOneEntryTest::RunTest(const FString&)
+{
+	// `#4042`, come `#4046` per gli attacchi: una cura fermata dalla linea chiusa E interrotta lascia una voce sola,
+	// `Cancelled`/`Interrupted`, e non anche `NoLineOfSight`. Controllo: senza Interrupt resta `NoLineOfSight`.
+	FCuraInterrotta SoloMuro, Interrotta;
+	SoloMuro.bMuri = Interrotta.bMuri = true;
+	Interrotta.bInterrompe = true;
+	FEsitoDellaCura Bloccata, Annullata;
+	if (!GiocaCuraInterrotta(*this, SoloMuro, Bloccata) || !GiocaCuraInterrotta(*this, Interrotta, Annullata)) { return false; }
+	TestEqual(TEXT("controllo: senza Interrupt la linea chiusa scrive NoLineOfSight"), Bloccata.SenzaLinea, 1);
+	TestEqual(TEXT("interrotta: una voce Interrupted"), Annullata.Interrotte, 1);
+	TestEqual(TEXT("e nessuna NoLineOfSight"), Annullata.SenzaLinea, 0);
+	TestEqual(TEXT("e nessun'altra voce della cura"), Annullata.Voci, 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

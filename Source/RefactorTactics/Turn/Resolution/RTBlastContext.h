@@ -282,6 +282,53 @@ struct FRTBlastContext
 	TArray<FRTDeferredFallbackEntry> DeferredFallbackEntries;
 
 	/**
+	 * **Le cure arrivate in coda** (`#4042`, [D-600] (3): «no se viene interrotta la skill, non cura»): quelle che hanno
+	 * passato portata e stordimento, si sono attivate e hanno pagato. Un Interrupt efficace sul curatore le cancella in
+	 * `ApplyInterrupts`: niente effetto, niente attivazione, una voce `Cancelled`/`Interrupted`. La ricarica resta pagata
+	 * ([D-571] (1)). La cura fuori portata e quella dello stordito non arrivano qui.
+	 */
+	struct FRTQueuedHeal
+	{
+		ARTUnit* Healer = nullptr;
+		FRTActionDef Def;
+		FRTCellId Centre;
+		/** La voce del piano della cura: la voce `Interrupted` si scrive fuori dalla sua visita, e la porta da qui. */
+		int32 DeclarationIndex = INDEX_NONE;
+		int32 DeclaringTeamId = INDEX_NONE;
+	};
+	TArray<FRTQueuedHeal> QueuedHeals;
+
+	/**
+	 * Le voci di una cura in coda che non ha effetto (linea chiusa, niente da curare, area vuota). Si scrivono dopo
+	 * `ApplyInterrupts`, e solo se la cura non e' stata interrotta: un'azione ha un motivo (`#4042`, come `#4046`).
+	 */
+	struct FRTDeferredHealEntry
+	{
+		ARTUnit* Healer = nullptr;
+		FRTTurnLogEntry Entry;
+	};
+	TArray<FRTDeferredHealEntry> DeferredHealEntries;
+
+	bool HasQueuedHeal(const ARTUnit* Healer) const
+	{
+		return QueuedHeals.ContainsByPredicate([Healer](const FRTQueuedHeal& H) { return H.Healer == Healer; });
+	}
+
+	/** Toglie le cure che il predicato indica, tenendo allineati i cinque array: una cura ad area ha una voce per compagna. */
+	void RemoveHealsWhere(TFunctionRef<bool(const ARTUnit*, const FRTActionDef&)> Predicate)
+	{
+		for (int32 i = HealActors.Num() - 1; i >= 0; --i)
+		{
+			if (!Predicate(HealActors[i], HealDefs[i])) { continue; }
+			HealActors.RemoveAt(i);
+			HealTargets.RemoveAt(i);
+			HealAmounts.RemoveAt(i);
+			HealSources.RemoveAt(i);
+			HealDefs.RemoveAt(i);
+		}
+	}
+
+	/**
 	 * Intenti che l'Interrupt ha DEGRADATO invece di cancellare ([D-300], `#1955`): il colpo resta nel
 	 * piano, cadono gli effetti oltre il primo.
 	 *
