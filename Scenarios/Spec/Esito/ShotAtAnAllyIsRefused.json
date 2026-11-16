@@ -1,0 +1,81 @@
+{
+  "scenarioId": "Spec.Esito.ShotAtAnAllyIsRefused",
+  "tags": [
+    "esito",
+    "spec",
+    "combat",
+    "ivrin",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 4,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `TargetFriendly`. In partita lo incontra chi clicca un alleato che non comanda: `HandleClickOnUnit` non controlla la squadra (#3982); un alleato comandabile viene selezionato, non bersagliato ([D-575] (b)).",
+  "_oracolo": "Il `Hero.Ivrin.PulseShot` di A1 su A2, della stessa squadra, lascia una voce `Fallback`/`Cancelled` col motivo `TargetFriendly` (3 in `ERTActionInvalidReason`), soggetto A1. Nessun colpo: e' il controllo che il tiro non e' partito.",
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Ivrin",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "facing": "E"
+    },
+    {
+      "id": "A2",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        2,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        -3,
+        3,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "A1",
+          "ability": "Hero.Ivrin.PulseShot",
+          "target": "A2"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "A1",
+      "value": 3,
+      "_assertion": "Il motivo e' `TargetFriendly` (3), soggetto chi tira."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 0,
+      "_assertion": "Nessun colpo: l'alleato non e' stato toccato."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

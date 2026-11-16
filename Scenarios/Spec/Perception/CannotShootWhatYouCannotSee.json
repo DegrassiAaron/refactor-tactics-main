@@ -30,6 +30,8 @@
   ],
 
   "expect": [
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Hero.Gadget.ArcPulse", "value": 7,
+      "_assertion": "#4001, la scheda dei casi di `esito` (G17): il motivo `TargetUnknown` (7 in `ERTActionInvalidReason`). Lo scenario lo produceva gia' senza fissarlo (misurato il 2026-11-16)." },
     { "type": "UnitHpEquals", "unit": "B1", "value": 1200 },
     { "type": "UnitAlive", "unit": "B1", "value": true },
     { "type": "TurnsCompleted", "value": 1 }

@@ -16,7 +16,7 @@
 
   "_nota_cosa_cambia": "Una cosa sola: la cella mirata. R1 sta dove stava — (0,1,0), adiacente al gate — e interagisce verso OVEST, (-1,1,0), dove nessuna porta esiste. Stessa azione, stessa unita', stessa mappa, stesso turno: se `DoorOpened` comparisse comunque, l'effetto non sarebbe legato alla traiettoria.",
 
-  "_nota_perche_non_e_un_errore": "L'azione si pianifica e si risolve: `Action.Interact` senza una porta sul bordo bersagliato non produce nessuna operazione di struttura, e lo scenario si chiude con `TurnsCompleted`. ⚠️ CORRETTA il 2026-08-28 (CP 10.1, #74): questa nota diceva anche «non e' un fallback, non e' un rifiuto», e da quel giorno NON e' piu' vero — il turno scrive una voce `Fallback`/`Cancelled` con reason code `NoEffect`, perche' un'azione che sparisce senza spiegazione e' peggio di un'azione rifiutata. Le `expect` di questo file non lo vedono (contano `DoorOpened`, non le voci di fallback), quindi la nota sarebbe rimasta verde continuando a documentare un comportamento che il codice non ha piu': una spec verde che mente.",
+  "_nota_perche_non_e_un_errore": "L'azione si pianifica e si risolve: `Action.Interact` senza una porta sul bordo bersagliato non produce nessuna operazione di struttura, e lo scenario si chiude con `TurnsCompleted`. ⚠️ CORRETTA il 2026-08-28 (CP 10.1, #74): questa nota diceva anche «non e' un fallback, non e' un rifiuto», e da quel giorno NON e' piu' vero — il turno scrive una voce `Fallback`/`Cancelled` con reason code `NoEffect`, perche' un'azione che sparisce senza spiegazione e' peggio di un'azione rifiutata. Le `expect` di questo file non lo vedono (contano `DoorOpened`, non le voci di fallback), quindi la nota sarebbe rimasta verde continuando a documentare un comportamento che il codice non ha piu': una spec verde che mente. ➕ Da #4001 la prima `expect` fissa la voce: `NoEffect`, 12.",
 
   "_nota_limite_dichiarato": "Cio' che NON si asserisce qui e' che la porta del gate sia rimasta chiusa: nessun oracolo del formato legge lo stato di un bordo, e l'unico modo di dedurlo sarebbe un movimento che si ferma — cioe' una seconda cosa misurata nello stesso file. Il conteggio a zero e' l'asserzione onesta che il formato permette.",
 
@@ -35,6 +35,8 @@
   ],
 
   "expect": [
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Action.Interact", "value": 12,
+      "_assertion": "#4001, la scheda dei casi di `esito` (G17): il motivo `NoEffect` (12 in `ERTActionInvalidReason`). Lo scenario lo produceva gia' senza fissarlo (misurato il 2026-11-16)." },
     { "_assertion": "IL DISCRIMINANTE: nessuna porta si e' aperta. Il gate e' a UN bordo di distanza, sul lato opposto della stessa unita'.",
       "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 0 },
     { "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
