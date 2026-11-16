@@ -2996,6 +2996,13 @@ bool FRTScenarioGrantIsReadAndCheckedTest::RunTest(const FString&)
 	Rifiuta(10, TEXT(R"(, "grant": ["Action.NonEsiste"])"), TEXT("Action.NonEsiste"), TEXT("id sconosciuto"));
 	Rifiuta(10, TEXT(R"(, "grant": ["Hero.Riktor.ImpactShot"])"), TEXT("azione core"), TEXT("azione d'eroe"));
 	Rifiuta(10, TEXT(R"(, "grant": ["Action.Interrupt", "Action.Interrupt"])"), TEXT("ripetuto"), TEXT("ripetuto"));
+
+	// Il writer non scrive `grant` sotto la `10`: una build vecchia lo ignorerebbe in silenzio.
+	FRTTestScenario Vecchio = S;
+	Vecchio.Version = 9;
+	FString Json, ErroreScrittura;
+	TestFalse(TEXT("il writer rifiuta grant a v9"), URTScenarioLoader::SaveToString(Vecchio, Json, ErroreScrittura));
+	TestTrue(*FString::Printf(TEXT("e nomina grant (%s)"), *ErroreScrittura), ErroreScrittura.Contains(TEXT("grant")));
 	return true;
 }
 
@@ -3016,6 +3023,11 @@ bool FRTScenarioLogCountFiltersBySubjectTest::RunTest(const FString&)
 		TestEqual(TEXT("il valore filtra B1"), S.Expect[1].UnitId, FString(TEXT("B1")));
 		TestTrue(TEXT("senza unit nessun filtro"), S.Expect[2].UnitId.IsEmpty());
 	}
+	FRTTestScenario Vecchio = S;
+	Vecchio.Version = 9;
+	FString Json, ErroreScrittura;
+	TestFalse(TEXT("il writer rifiuta il filtro unit a v9"), URTScenarioLoader::SaveToString(Vecchio, Json, ErroreScrittura));
+	TestTrue(*FString::Printf(TEXT("e nomina il filtro (%s)"), *ErroreScrittura), ErroreScrittura.Contains(TEXT("'unit'")));
 	for (const TCHAR* Tipo : { TEXT("LogEventCount"), TEXT("LogEventAmount") })
 	{
 		FRTTestScenario X;
