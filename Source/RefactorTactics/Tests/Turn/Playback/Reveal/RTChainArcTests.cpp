@@ -194,6 +194,18 @@ bool FRTPlaybackLineActFrozenPrefixTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("🔴 Build(T, S, %d) == S"), k), URTPlaybackLibrary::BuildBlastSequence(T, S, k, 0) == S);
 	}
+
+	// 🔑 **Il caso di D-355, che a timeline fissa nessuna funzione deterministica sbaglia**: l'atto e' mostrato fino al
+	// primo colpito (attivazione, impronta, 10) e la timeline CRESCE con un colpo dello stesso atto sul 40, a 4 celle. Il
+	// prefisso resta verbatim, il resto segue la linea, e la catena riprende dal colpito gia' mostrato.
+	TArray<FRTResolvedEvent> T2 = T;
+	T2.Add(CatenaColpo(1, TEXT("L"), 40, FRTCellId(0, 0), FRTCellId(4, 0))); // 5
+	const TArray<FRTBlastSequenceElement> S2 = URTPlaybackLibrary::BuildBlastSequence(T2, S, 3, 0);
+	const TArray<int32> Atteso = { 0, 1, 3, 4, 2, 5 };
+	TestEqual(TEXT("🔴 prefisso verbatim, poi 20, 30 e 40 lungo la linea"), CatenaIndici(S2), Atteso);
+	const TArray<FString> Salti = { TEXT("0>10"), TEXT("10>20"), TEXT("20>30"), TEXT("30>40") };
+	TestEqual(TEXT("🔴 la catena riprende dal colpito gia' mostrato"),
+		FString::Join(CatenaSalti(T2, S2, 0), TEXT(",")), FString::Join(Salti, TEXT(",")));
 	return true;
 }
 

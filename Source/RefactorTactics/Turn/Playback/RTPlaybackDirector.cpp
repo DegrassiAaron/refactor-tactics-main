@@ -913,10 +913,19 @@ void FRTPlaybackDirector::LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int3
 
 void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
 {
-	const FRTChainHop Hop = URTPlaybackLibrary::ChainHopFor(Timeline(), PlaybackBlastSequence, Elemento, PlaybackViewerTeamId);
-	const FRTChainFxBinding* const Fx = Hop.bValid
-		? URTPresentationBindingLibrary::ChainFxFor(Hop.ActionId, Hop.BaseActionId) : nullptr;
+	// 🔑 Prima la tabella, poi il salto: `ChainHopFor` scorre la timeline, e la quasi totalita' dei colpi non ha una scarica.
+	if (!PlaybackBlastSequence.IsValidIndex(Elemento) || !Timeline().IsValidIndex(PlaybackBlastSequence[Elemento].TimelineIndex))
+	{
+		return;
+	}
+	const FRTResolvedEvent& Ev = Timeline()[PlaybackBlastSequence[Elemento].TimelineIndex];
+	const FRTChainFxBinding* const Fx = URTPresentationBindingLibrary::ChainFxFor(Ev.ActionId, Ev.BaseActionId);
 	if (!Fx)
+	{
+		return;
+	}
+	const FRTChainHop Hop = URTPlaybackLibrary::ChainHopFor(Timeline(), PlaybackBlastSequence, Elemento, PlaybackViewerTeamId);
+	if (!Hop.bValid)
 	{
 		return;
 	}
