@@ -331,6 +331,18 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 ReactionRouteCellIndex = INDEX_NONE;
 
+	/**
+	 * Solo `ActionBlocked` col motivo `Interrupted` (`#4043`, [D-623] (4)): chi ha interrotto, come `StableUnitId`, e il verdetto
+	 * congelato su di lui. Sono gli stessi della voce del TurnLog (`FRTTurnLogEntry::InterruptedByUnitId`, `#4000`): la riga del
+	 * Registro lo nomina solo a una squadra che il verdetto ammette. `INDEX_NONE` = nessuno.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	int32 InterruptedByStableUnitId = INDEX_NONE;
+
+	/** Il verdetto su chi ha interrotto, congelato quando l'Interrupt e' stato giudicato (`#4043`). `UPROPERTY()` nudo come `CellVerdicts`. */
+	UPROPERTY()
+	FRTKnowledgeVerdict InterruptedByVerdict;
+
 	/** Per Move: la rotta in celle (start incluso + celle attraversate, in ordine). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	TArray<FRTCellId> Path;

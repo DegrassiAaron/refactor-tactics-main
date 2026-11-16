@@ -817,6 +817,23 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		});
 		if (!TestTrue(TEXT("⛔ premessa: l'azione e' stata CANCELLATA, non degradata"), bCancellato)) { return false; }
 		TestEqual(TEXT("🔴 l'interrotto non si attiva"), AttivazioniDi(TM, Attaccante), 0);
+		// `#4043`, [D-623] (4): l'evento di blocco porta chi ha interrotto, con lo STESSO nome e lo stesso verdetto della voce del
+		// TurnLog: la riga del Registro lo nomina con la stessa regola di privacy di `#4000`.
+		const FRTResolvedEvent* Barrato = TM->ResolvedTimelineForTest().FindByPredicate([Attaccante](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Attaccante->StableUnitId; });
+		const FRTTurnLogEntry* Voce = TM->GetTurnLog().FindByPredicate([Attaccante](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Fallback && E.UnitId == Attaccante->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted); });
+		if (TestNotNull(TEXT("l'evento di blocco"), Barrato) && TestNotNull(TEXT("e la voce del TurnLog"), Voce))
+		{
+			TestEqual(TEXT("🔑 l'evento nomina l'interruttore"), Barrato->InterruptedByStableUnitId, Interruttore->StableUnitId);
+			TestEqual(TEXT("come la voce"), Barrato->InterruptedByStableUnitId, Voce->InterruptedByUnitId);
+			for (int32 Squadra = 0; Squadra < 2; ++Squadra)
+			{
+				TestEqual(*FString::Printf(TEXT("e col verdetto della voce, squadra %d"), Squadra),
+					Barrato->InterruptedByVerdict.AllowsTeam(Squadra), Voce->InterruptedByVerdict.AllowsTeam(Squadra));
+			}
+		}
 		// `#4034`: e al suo posto esce un evento di blocco, col motivo `Interrupted`.
 		TestTrue(TEXT("🔑 l'interrotto esce barrato, col motivo Interrupted"), TM->ResolvedTimelineForTest().ContainsByPredicate(
 			[Attaccante](const FRTResolvedEvent& Ev) { return Ev.Type == ERTResolvedEventType::ActionBlocked

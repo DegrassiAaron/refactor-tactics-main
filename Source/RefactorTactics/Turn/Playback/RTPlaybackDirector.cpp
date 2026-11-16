@@ -672,9 +672,18 @@ void FRTPlaybackDirector::AddActivationLine(const FRTResolvedEvent& Ev, const AR
 		// `#4043`, [D-623]: la riga di un'azione barrata, col motivo sotto in parole.
 		Riga.bBlocked = true;
 		Riga.BlockedReason = Ev.Amount;
+		// [D-623] (4): chi ha interrotto, solo se la squadra che guarda lo vedeva. Altrimenti la riga dice soltanto «interrotto».
+		FString Interruttore;
+		if (Ev.InterruptedByStableUnitId != INDEX_NONE && Ev.InterruptedByVerdict.AllowsTeam(PlaybackViewerTeamId))
+		{
+			if (const ARTUnit* Chi = Host->UnitByStableId(Ev.InterruptedByStableUnitId))
+			{
+				Interruttore = ARTUnit::DisplayLabel(Chi->HeroDisplayName, Chi->HeroId, Chi->GetName());
+			}
+		}
 		Riga.Text = URTHudViewModel::ComposeBlockedLineText(
 			ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
-			Ev.ActionId, Ev.Amount);
+			Ev.ActionId, Ev.Amount, Interruttore);
 		return;
 	}
 	Riga.Text = URTHudViewModel::ComposeActivationLineText(

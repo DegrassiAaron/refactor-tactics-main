@@ -1889,7 +1889,8 @@ FText URTHudViewModel::BlockedReasonWords(int32 Reason)
 	}
 }
 
-FText URTHudViewModel::ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason)
+FText URTHudViewModel::ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason,
+	const FString& InterrupterLabel)
 {
 	FText Azione = KitName;
 	if (KitName.IsEmptyOrWhitespace())
@@ -1898,8 +1899,11 @@ FText URTHudViewModel::ComposeBlockedLineText(const FString& UnitLabel, const FT
 		int32 UltimoPunto = INDEX_NONE;
 		Azione = FText::FromString(Id.FindLastChar(TEXT('.'), UltimoPunto) ? Id.Mid(UltimoPunto + 1) : Id);
 	}
-	return FText::Format(LOCTEXT("BlockedLine", "{0}: {1} bloccato\n{2}"), FText::FromString(UnitLabel), Azione,
-		BlockedReasonWords(Reason));
+	// `#4043`, [D-623] (4): chi ha interrotto, se chi guarda lo vedeva; chi chiama ha gia' deciso, e passa vuoto altrimenti.
+	const FText Motivo = (Reason == static_cast<int32>(ERTActionInvalidReason::Interrupted) && !InterrupterLabel.IsEmpty())
+		? FText::Format(LOCTEXT("BlockedInterruptedBy", "interrotto da {0}"), FText::FromString(InterrupterLabel))
+		: BlockedReasonWords(Reason);
+	return FText::Format(LOCTEXT("BlockedLine", "{0}: {1} bloccato\n{2}"), FText::FromString(UnitLabel), Azione, Motivo);
 }
 
 TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
