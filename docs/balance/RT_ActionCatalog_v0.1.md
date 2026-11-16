@@ -529,7 +529,7 @@ per le altre: è il punto di valutazione a essere diverso, e le due cose non van
 > accanto, il catalogo equipaggiamento (`:577`), dove ogni modulo «si attiva al massimo una volta per turno»
 > ([`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) §3). Il valore 1 entra con E38, in CP 38.15
 > ([proposta](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md) §8); fino ad allora valgono lo 0 e il test che lo fissa
-> (`RTEquipmentTests.cpp:279`). Quante reazioni scattano in un turno resta `TR-29`, una domanda della traduzione del kit di Riktor
+> (`RTEquipmentTests.cpp:279`). Quante reazioni scattano in un turno l'ha deciso [`D-619`](../decisions/RT_PDR_00_Decision_Log.md): una volta per reazione, quindi più reazioni della stessa unità nello stesso turno; era `TR-29`, una domanda della traduzione del kit di Riktor
 > (PR [#4108](https://github.com/DegrassiAaron/refactor-tactics-main/pull/4108)).
 
 **Anchor** — trigger: l'unità **sta per essere spostata** da una spinta o da una trazione di questo Blast
