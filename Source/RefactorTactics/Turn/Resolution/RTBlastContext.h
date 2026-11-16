@@ -267,6 +267,21 @@ struct FRTBlastContext
 	TArray<int32> IntentDeclaringTeams;
 
 	/**
+	 * **Le voci di ripiego degli intenti che nascono comunque** (`#4046`): un `Fallback.AttackCell` perde il bersaglio e
+	 * colpisce la cella, quindi l'intento resta, e puo' ancora essere interrotto. La voce `AttackedCell` si scrive dopo
+	 * `ApplyInterrupts`, e solo se l'intento non e' stato annullato: un'azione ha un motivo, e vince quello che l'ha fermata
+	 * per primo. Fra la raccolta e l'Interrupt non cambiano ne' la conoscenza ne' il grafo, quindi il verdetto e la
+	 * revisione della voce sono quelli che avrebbe avuto scritta subito.
+	 */
+	struct FRTDeferredFallbackEntry
+	{
+		int32 IntentIndex = INDEX_NONE;
+		FRTTurnLogEntry Entry;
+		ARTUnit* Unit = nullptr;
+	};
+	TArray<FRTDeferredFallbackEntry> DeferredFallbackEntries;
+
+	/**
 	 * Intenti che l'Interrupt ha DEGRADATO invece di cancellare ([D-300], `#1955`): il colpo resta nel
 	 * piano, cadono gli effetti oltre il primo.
 	 *
