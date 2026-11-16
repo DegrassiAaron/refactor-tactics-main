@@ -159,7 +159,7 @@ private:
 	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
 
 	/**
-	 * ➕ [D-620] (#4136): il salto della scarica a catena che porta l'elemento `Elemento` della sequenza — al lancio di un
+	 * ➕ [D-621] (#4136): il salto della scarica a catena che porta l'elemento `Elemento` della sequenza — al lancio di un
 	 * colpo, o all'impronta di un atto che non ha colpito nessuno. Parte solo per un'azione con una riga in
 	 * `DeclaredChainFxRows` e quando chi guarda conosce tutti gli estremi (`URTPlaybackLibrary::ChainHopFor`).
 	 * ⛔ Presentazione e basta: un asset assente, un mondo senza mappa o un server dedicato non lanciano niente, e il
@@ -541,7 +541,7 @@ private:
 	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
 	TArray<FString> AttackBeatTrace;
 	/**
-	 * ➕ [D-620] (#4136): traccia dei salti della scarica per i test (`bRecordAttackBeatsForTest`): `<da>><a>` in
+	 * ➕ [D-621] (#4136): traccia dei salti della scarica per i test (`bRecordAttackBeatsForTest`): `<da>><a>` in
 	 * `StableUnitId`, `0` = la sorgente da una parte o l'arco a vuoto dall'altra. Si scrive PRIMA di caricare l'asset:
 	 * registra la decisione, che un clone senza `Content/` deve poter misurare.
 	 */

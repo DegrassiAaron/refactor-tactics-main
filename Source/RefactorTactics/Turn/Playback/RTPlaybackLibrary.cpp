@@ -2,7 +2,7 @@
 
 #include "Turn/Playback/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
 #include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
-#include "Map/RTHexLibrary.h" // [D-620]: `HexDistance`, l'ordine dei colpi lungo la linea
+#include "Map/RTHexLibrary.h" // [D-621]: `HexDistance`, l'ordine dei colpi lungo la linea
 
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
@@ -1007,7 +1007,7 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 
 	for (FRTAttoInCostruzione& A : Atti)
 	{
-		// ➕ [D-620] (#4136): i colpi di un atto a linea che chi guarda conosce per intero vanno dal piu' vicino al piu'
+		// ➕ [D-621] (#4136): i colpi di un atto a linea che chi guarda conosce per intero vanno dal piu' vicino al piu'
 		// lontano dall'origine. Il resolver li emette in ordine di `TargetId` (`Plan.Hits`), cioe' d'indice d'unita', e il
 		// roster si ordina per squadra e cella (`MatchRosterLess`): verso Est l'ordine coincide con la linea, verso Ovest e'
 		// rovesciato. La scarica a catena salterebbe avanti e indietro, e il numero comparirebbe su un nemico mentre l'arco

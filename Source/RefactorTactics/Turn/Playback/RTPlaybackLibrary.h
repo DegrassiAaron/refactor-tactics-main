@@ -146,7 +146,7 @@ struct FRTBlastSequenceElement
 };
 
 /**
- * ➕ [D-620] (#4136): un salto della scarica a catena, in termini di gioco — chi lancia, da quale colpito parte, su quale
+ * ➕ [D-621] (#4136): un salto della scarica a catena, in termini di gioco — chi lancia, da quale colpito parte, su quale
  * arriva. Le posizioni nel mondo le calcola chi lancia il sistema, dalle unita' e dalla mappa.
  *
  * ⚠️ Come `FRTBlastSequenceElement`, **non e' un `USTRUCT`**: vive fra `ChainHopFor` e il playback, non si serializza.
@@ -477,7 +477,7 @@ public:
 	 * altrimenti per prima apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle
 	 * attivazioni — non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione,
 	 * impronte, muri, colpi, ciascuno nell'ordine di timeline — salvo i colpi di un atto a linea che chi guarda conosce per
-	 * intero (`IsLineActKnownTo`, [D-620]), che vanno dal piu' vicino al piu' lontano dall'origine dell'impronta, a pari
+	 * intero (`IsLineActKnownTo`, [D-621]), che vanno dal piu' vicino al piu' lontano dall'origine dell'impronta, a pari
 	 * distanza in ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
 	 * aggregato, #3281) e' un atto proprio; un gruppo senza attivazione in timeline (impatti di carica,
 	 * contrattacchi, muri anonimi) e' un atto proprio alla sua prima apparizione. Un evento con sorgente `0` e
@@ -501,7 +501,7 @@ public:
 		const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);
 
 	/**
-	 * ➕ [D-620] (#4136): l'atto `(SourceStableUnitId, ActionId)` del Blast e' un attacco A LINEA che chi guarda conosce
+	 * ➕ [D-621] (#4136): l'atto `(SourceStableUnitId, ActionId)` del Blast e' un attacco A LINEA che chi guarda conosce
 	 * per intero? Vero se l'atto ha in timeline **una sola** impronta, di forma `Line` e non nascosta a chi guarda
 	 * (`IsFootprintHiddenFrom`), e ogni suo `Attack` ha la geometria risolta, con origine e impatto noti a chi guarda.
 	 * `OutFootprintIndex` e' l'indice di quell'impronta, `INDEX_NONE` se la risposta e' falsa.
@@ -514,7 +514,7 @@ public:
 		int32 ViewerTeamId, int32& OutFootprintIndex);
 
 	/**
-	 * ➕ [D-620] (#4136): il salto della scarica a catena che porta l'elemento `ElementIndex` della sequenza.
+	 * ➕ [D-621] (#4136): il salto della scarica a catena che porta l'elemento `ElementIndex` della sequenza.
 	 * - Un `Attack` di un atto a linea noto (`IsLineActKnownTo`): parte dal colpito dell'`Attack` che lo precede nello
 	 *   stesso atto, o dalla sorgente se e' il primo, e arriva sul suo colpito. Con la sequenza in ordine di linea
 	 *   (`BuildBlastSequence`) il precedente e' il colpito piu' vicino all'origine.

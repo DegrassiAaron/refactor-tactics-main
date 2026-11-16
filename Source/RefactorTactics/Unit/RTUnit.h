@@ -1732,7 +1732,7 @@ public:
 	void PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId = NAME_None, FName BaseActionId = NAME_None);
 
 	/**
-	 * ➕ [D-620] (#4136): il punto del mondo da cui parte, o su cui arriva, un salto della scarica a catena. Il socket
+	 * ➕ [D-621] (#4136): il punto del mondo da cui parte, o su cui arriva, un salto della scarica a catena. Il socket
 	 * `Socket` della skeletal dell'eroe se c'e'; altrimenti il centro dei limiti della mesh, cioe' il busto; senza mesh,
 	 * la posizione dell'attore.
 	 * ⛔ Mai `ContactGhost` (`FindHeroSkeletal`): la sagoma e' un ricordo, non il punto in cui l'unita' e' adesso.
