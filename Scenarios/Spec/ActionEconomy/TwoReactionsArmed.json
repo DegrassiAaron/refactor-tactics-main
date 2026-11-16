@@ -1,0 +1,90 @@
+{
+  "scenarioId": "Spec.ActionEconomy.TwoReactionsArmed",
+  "tags": [
+    "action-economy",
+    "spec",
+    "reaction",
+    "riktor",
+    "gadget"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.15 (#4116), [D-592]: due reazioni distinte nello stesso piano sono legali, ed entrambe si armano e si valutano. Il turno arma due reazioni nello stesso intento, quindi porta `ReactionListPlanning` ed esce `Blocked` finche' il gesto del giocatore aggiunge una reazione invece di sostituirla (fuori scope di CP 38.15, dominio 8). Le attese sono state misurate il 2026-11-16 rendendo disponibile la capability per un giro locale, non committato.",
+  "_oracolo": "Riktor arma `Hero.Riktor.Interposition` (2) + il modulo `Reaction.Cleanse` dell'equipaggiamento di default (2) + `Hero.Riktor.ImpactShot` su Gadget (2) = 6. Nessuno le innesca: Riktor non ha alleati da proteggere, e Gadget non agisce. Ogni reazione valutata e non innescata lascia la sua voce `Reaction`/`NotTriggered`; nessuna voce `Fallback`/`Cancelled`, perche' il piano e' legale.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -2,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "requires": [
+        "ReactionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Hero.Riktor.Interposition"
+            },
+            {
+              "ability": "Reaction.Cleanse"
+            },
+            {
+              "ability": "Hero.Riktor.ImpactShot",
+              "target": "F1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "NotTriggered",
+      "value": 1,
+      "actionId": "Hero.Riktor.Interposition",
+      "_assertion": "L'Interposition si valuta e non scatta."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "NotTriggered",
+      "value": 1,
+      "actionId": "Reaction.Cleanse",
+      "_assertion": "E il modulo pure: le due reazioni sono tutte e due armate."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "Il piano e' legale: niente si annulla."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

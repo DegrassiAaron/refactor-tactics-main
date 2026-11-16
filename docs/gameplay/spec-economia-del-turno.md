@@ -80,7 +80,7 @@ richiede un meccanismo nuovo:
 ```text
 cooldown                    HeavyAttack: 2 contro 1 · Charge: 2 contro l'1 del Dash
 status auto-inflitto        Sprint → Exposed · Brace → Root
-rinuncia alla reazione      Sprint
+nessuna reazione            Sprint
 ```
 
 > 🔴 **Erano quattro fino al 2026-08-25**, e la quarta era *«slot diverso dall'atteso — `Charge` è mobilità e
@@ -316,7 +316,7 @@ budget di pivot dice quanto lo si può correggere. Un percorso più lungo può q
 > il costo misurato e i criteri per dire di no vivono lì.
 
 Oggi il profilo di movimento non tocca le azioni: si può sprintare e sparare con la stessa precisione con cui
-si spara da fermi, e il prezzo dello Sprint è tutto in `Status.Exposed` e nella rinuncia alla reazione. Il
+si spara da fermi, e il prezzo dello Sprint è tutto in `Status.Exposed` e nel turno senza reazioni. Il
 kit propone che il movimento **entri nella legalità e nell'efficacia** delle azioni.
 
 ### 4.1 Quattro stati, non una tabella di percentuali

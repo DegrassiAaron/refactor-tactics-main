@@ -295,7 +295,6 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
 	const FRTPlannedAction* MovementHolder = nullptr;
 	const FRTPlannedAction* MainHolder = nullptr;
-	const FRTPlannedAction* ReactionHolder = nullptr;
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
 		// E38 CP 38.13: il Prep e' aperto, e una sua voce non prende slot ([D-584] (1): «due azioni di Prep sono legali
@@ -308,7 +307,6 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
 		const bool bWantsMain = Entry.Def.Slot == ERTActionSlot::Main
 			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
-		const bool bWantsReaction = Entry.Def.Slot == ERTActionSlot::Reaction;
 
 		if (bWantsMovement && MovementHolder)
 		{
@@ -325,14 +323,11 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		{
 			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MainHolder);
 		}
-		if (bWantsReaction && ReactionHolder)
-		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, ReactionHolder);
-		}
+		// E38 CP 38.15: la reazione e' aperta ([D-592]). Due reazioni distinte stanno insieme, e una copia con ricarica e' gia'
+		// `RepeatedWithCooldown` per la regola della copia qui sopra ([D-614]); lo slot reazione non ha piu' un detentore.
 
 		if (bWantsMovement) { MovementHolder = &Entry; }
 		if (bWantsMain && !MainHolder) { MainHolder = &Entry; } // il primo detentore, quello che un `MovementAndMain` accusa
-		if (bWantsReaction) { ReactionHolder = &Entry; }
 	}
 
 	return FRTPlanValidation();

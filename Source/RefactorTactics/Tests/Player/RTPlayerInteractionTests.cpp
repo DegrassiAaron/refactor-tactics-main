@@ -5851,8 +5851,8 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: una voce per classe"), P.GetEntries().Num(), 4)) { DestroyInteractionWorld(B.World); return false; }
 	const TArray<FRTPlanEntry> Prima = P.GetEntries();
 
-	// E38 CP 38.14: la principale e' aperta (Blast e Cleanup); restano chiuse scatto, reazione e movimento.
-	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Reaction, ERTPlanEntryClass::Movement })
+	// E38 CP 38.14 e CP 38.15: principale e reazione sono aperte; restano chiuse scatto e movimento.
+	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Movement })
 	{
 		FRTPlanEntry Seconda;
 		Seconda.Class = Classe;
@@ -5875,6 +5875,13 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	TestTrue(TEXT("controllo: la reazione che manca entra"), B.Riktor->AddPlanEntry(Reazione));
 	TestEqual(TEXT("in coda"), P.DeclarationIndexOf(ERTPlanEntryClass::Reaction), 3);
 	TestFalse(TEXT("e una voce vuota non entra"), B.Riktor->AddPlanEntry(FRTPlanEntry()));
+
+	// E38 CP 38.15: una seconda reazione entra, in coda; `ClearReactionPlan` le toglie tutte e due, e la rimetto.
+	TestTrue(TEXT("una seconda reazione entra"), B.Riktor->AddPlanEntry(Reazione));
+	TestEqual(TEXT("e il piano ne porta due"), P.GetEntries().FilterByPredicate([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Reaction; }).Num(), 2);
+	B.Riktor->ClearReactionPlan();
+	TestEqual(TEXT("ClearReactionPlan toglie tutte le reazioni"), P.DeclarationIndexOf(ERTPlanEntryClass::Reaction), (int32)INDEX_NONE);
+	TestTrue(TEXT("e la reazione torna"), B.Riktor->AddPlanEntry(Reazione));
 
 	// E38 CP 38.14: una seconda principale entra, in coda, con un'identita' sua; la tolgo per tornare al piano di prima.
 	FRTPlanEntry SecondaPrincipale;

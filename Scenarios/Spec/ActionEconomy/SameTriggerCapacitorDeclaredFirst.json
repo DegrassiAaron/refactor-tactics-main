@@ -1,0 +1,104 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SameTriggerCapacitorDeclaredFirst",
+  "tags": [
+    "action-economy",
+    "spec",
+    "reaction",
+    "gadget",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.15 (#4116), [D-615] (5) e [D-619]: due reazioni della stessa unita' sullo stesso trigger, `HitByDirectAttack`, scattano tutte e due sullo stesso colpo, nell'ordine dell'`ActionId` e non della dichiarazione. Qui si dichiara prima il condensatore. Il turno arma due reazioni nello stesso intento, quindi porta `ReactionListPlanning` ed esce `Blocked` finche' il gesto del giocatore aggiunge una reazione invece di sostituirla (fuori scope di CP 38.15, dominio 8). Le attese sono state misurate il 2026-11-16 rendendo disponibile la capability per un giro locale, non committato.",
+  "_oracolo": "Gadget, con `Reaction.ReactiveShield` nel loadout, arma lo scudo reattivo e `Hero.Gadget.ReactiveCapacitor`; Riktor la colpisce con `Hero.Riktor.ImpactShot`. Due voci `Reaction`/`Activated`, una per reazione, e nessuna `Unavailable`. Col limite per unita' di D-092, che valeva prima di D-619, ne scattava una sola. Le stesse attese valgono nello scenario gemello con la dichiarazione rovesciata.",
+  "units": [
+    {
+      "id": "G1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "loadout": [
+        "Weapon.Precision",
+        "Gadget.Sprinkler",
+        "Reaction.ReactiveShield"
+      ]
+    },
+    {
+      "id": "R1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        2,
+        0,
+        0
+      ],
+      "facing": "W"
+    }
+  ],
+  "turns": [
+    {
+      "requires": [
+        "ReactionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "G1",
+          "actions": [
+            {
+              "ability": "Hero.Gadget.ReactiveCapacitor"
+            },
+            {
+              "ability": "Reaction.ReactiveShield"
+            }
+          ]
+        },
+        {
+          "unit": "R1",
+          "ability": "Hero.Riktor.ImpactShot",
+          "target": "G1"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Activated",
+      "value": 2,
+      "_assertion": "Tutte e due scattano sullo stesso colpo ([D-619])."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Activated",
+      "value": 1,
+      "actionId": "Hero.Gadget.ReactiveCapacitor",
+      "_assertion": "Una e' il condensatore..."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Activated",
+      "value": 1,
+      "actionId": "Reaction.ReactiveShield",
+      "_assertion": "...e una lo scudo reattivo."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Unavailable",
+      "value": 0,
+      "_assertion": "Nessuna e' bloccata: il limite e' per reazione."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

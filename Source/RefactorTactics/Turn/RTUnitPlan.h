@@ -39,7 +39,8 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	// [D-615] (5)). L'ordine si mostra e non decide: nessun resolver lo legge per ordinare o per scegliere un esito, e
 	// `MakePlanFor` deriva la banda del movimento da tutte le altre voci, qualunque sia la loro posizione.
 	//
-	// 🔑 **Una voce per classe CHIUSA** (scatto, principale, reazione, movimento), finche' il resolver ne legge una: sono i
+	// 🔑 **Una voce per classe CHIUSA** (scatto, movimento: la principale e' aperta da CP 38.14, la reazione da CP 38.15),
+	// finche' il resolver ne legge una: sono i
 	// campi a casella unica di prima, e la lista ha solo le forme che quei campi sapevano dire. E' una regola sulla FORMA
 	// del piano, non sull'esito. `AddEntry` rifiuta una seconda voce di una classe chiusa; le porte qui sotto, che sono i
 	// gesti di prima, SOSTITUISCONO il valore nella voce della loro classe. ➕ **La classe `Prep` e' aperta** (E38 CP 38.13):
@@ -108,7 +109,10 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	{
 		// E38 CP 38.14: anche la principale e' aperta. Se una seconda sia legale lo dice chi la scrive
 		// (`ARTUnit::DeclarePlannedAction`), che conosce la fase dell'azione; qui si tiene solo la forma.
-		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main;
+		// E38 CP 38.15: e anche la reazione ([D-592]). Che due reazioni stiano insieme lo dice il validatore (una copia con
+		// ricarica e' `RepeatedWithCooldown`, [D-614]); quante ne scattano, [D-619].
+		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main
+			|| Entry.Class == ERTPlanEntryClass::Reaction;
 		if (Entry.IsEmpty() || (!bAperta && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;
@@ -137,6 +141,9 @@ struct REFACTORTACTICS_API FRTUnitPlan
 
 	/** Toglie tutte le voci `Prep`; le altre restano nel loro ordine (E38 CP 38.13: il Prep le ha risolte). */
 	void RemovePrepEntries() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Prep; }); }
+
+	/** Toglie tutte le voci `Reaction`, con le loro condizioni (E38 CP 38.15: la reazione e' una lista). */
+	void RemoveReactionEntries() { Entries.RemoveAll([](const FRTPlanEntry& E) { return E.Class == ERTPlanEntryClass::Reaction; }); }
 
 	/** Toglie la voce in quella posizione; le altre restano nel loro ordine. */
 	bool RemoveEntryAt(int32 Position)

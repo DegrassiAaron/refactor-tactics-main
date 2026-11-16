@@ -579,9 +579,10 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 		M->Drawback = FText::FromString(Svantaggio);
 		M->GrantedActionId = CoreAction; // da qui vengono fase, priorita' e soprattutto il TRIGGER
 		M->GrantedEffects = Effects;
-		// Una reazione non ha ricarica propria nel catalogo §3: il limite e' «una attivazione per turno», che
-		// il resolver garantisce sul percorso E5 — un cooldown qui sarebbe un secondo limite non dichiarato.
-		M->CooldownTurns = 0;
+		// Ricarica 1, «1 a tutti, per ora» ([D-615] (7), E38 CP 38.15): una copia per piano, e di nuovo disponibile ogni turno,
+		// come l'Overwatch. Un valore piu' alto entra con la skill che lo chiede. Quante reazioni scattano nel turno lo dice
+		// [D-619], una volta per reazione: non e' questa riga a deciderlo.
+		M->CooldownTurns = 1;
 		return M;
 	};
 
@@ -591,7 +592,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	// equipaggiamento invece che come abilita' d'eroe.
 	Modules.Add(Module(TEXT("Reaction.CounterShot"), TEXT("Contrattacco"), TEXT("Action.Counter"),
 		TEXT("14 danni a chi ti colpisce, senza spendere l'azione del turno"),
-		TEXT("14 danni invece dei 16 di Action.Counter, e occupa l'unico slot reazione"),
+		TEXT("14 danni invece dei 16 di Action.Counter"),
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 140) }));
 
 	// `Reaction.ReactiveShield` — scudo 15 quando subisci danno. Stesso trigger del contrattacco, effetto
@@ -612,7 +613,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	// un `Damage` o uno `Shield` significherebbe fraintendere cosa fa.
 	Modules.Add(Module(TEXT("Reaction.AllyIntercept"), TEXT("Interposizione"), TEXT("Action.Intercept"),
 		TEXT("prendi al posto di un alleato entro 2 celle il colpo che era per lui"),
-		TEXT("il danno lo subisci tu, e occupa l'unico slot reazione"),
+		TEXT("il danno lo subisci tu"),
 		{}));
 
 	// `Reaction.EmergencyDash` — ti sposti di 1 quando sei bersagliato. Costruito su `Action.Counter` come
@@ -635,7 +636,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	// resistenza permanente, non una reazione che si consuma) e resta non costruito.
 	Modules.Add(Module(TEXT("Reaction.Anchor"), TEXT("Ancoraggio"), TEXT("Action.Anchor"),
 		TEXT("la prima spinta o trazione del turno non ti sposta, a qualunque distanza"),
-		TEXT("si consuma anche quando una guardia sarebbe bastata, e occupa l'unico slot reazione"),
+		TEXT("si consuma anche quando una guardia sarebbe bastata"),
 		{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }));
 
 	// `Reaction.Cleanse` — annulla il controllo che stai per ricevere. Costruito su `Action.Purge`, l'unica

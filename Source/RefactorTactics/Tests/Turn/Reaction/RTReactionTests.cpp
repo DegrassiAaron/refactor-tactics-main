@@ -2,6 +2,7 @@
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // E38 CP 38.15: il modulo di reazione, con la sua ricarica
 #include "Combat/RTHexCombatLibrary.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -482,6 +483,10 @@ bool FRTControlStatusesAreThreeTest::RunTest(const FString&)
 // gioco valuta la stessa unita' in due punti, quindi la guardia non ha un caso naturale. Pre-impostarlo e'
 // il modo di esercitare esattamente lo stato in cui l'unita' si troverebbe al SECONDO punto — cioe' la
 // condizione che la guardia esiste per gestire. Senza, il contatore sarebbe codice che nessun test tocca.
+//
+// ➕ Da [D-619] (E38 CP 38.15) il limite e' per REAZIONE, non per unita': il test segna come gia' scattata la reazione
+// armata (`MarkReactionActivated`), e una reazione diversa della stessa unita' scatterebbe comunque
+// (`Reactions.TwoReactionsOfOneUnitFireInEngineOrder`).
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionCounterBlocksSecondTest,
 	"RefactorTactics.Reactions.CounterBlocksASecondActivation",
@@ -530,8 +535,9 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
 	Reactor->ClearPlannedMainAction();
 
-	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.
-	Reactor->ReactionActivationsThisTurn = 1;
+	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno con QUESTA reazione gia'
+	// scattata: da [D-619] il limite e' per reazione, non per unita'.
+	Reactor->MarkReactionActivated(Reactor->GetPlan().PlannedReactionAbility());
 
 	Attacker->SetPlannedMainAction(0); // stesso colpo diretto della premessa
 	Attacker->DeclareAttackOnUnit(Reactor);
@@ -546,6 +552,115 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 		CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
 
 	DestroyReactionWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// E38 CP 38.15, [D-619] — due reazioni DIVERSE della stessa unita' scattano sullo stesso colpo, nell'ordine del motore.
+//
+// Due reazioni dello stesso trigger (`HitByDirectAttack`) sulla stessa unita': la seconda ha un `ActionId` suo e una
+// priorita' piu' bassa, quindi viene prima. Si dichiarano nei due ordini: l'ordine di valutazione, e l'esito, non
+// cambiano ([D-615] (5)). Controllo: con il limite per UNITA' di prima, la seconda sarebbe uscita `Unavailable`.
+// =====================================================================================================
+namespace
+{
+	struct FDueReazioni { int32 Attivate = 0; int32 NonDisponibili = 0; TArray<FName> Ordine; };
+
+	bool GiocaDueReazioni(FAutomationTestBase& Test, bool bDichiaraPrimaLaB, FDueReazioni& Out)
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+		const int32 A = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
+		const int32 B = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 2);
+		if (A == INDEX_NONE || B == INDEX_NONE) { DestroyReactionWorld(World); return false; }
+		URTActionData* SecondaAzione = Reactor->GetAbility(B);
+		SecondaAzione->Def.ActionId = FName(TEXT("Test.Counter.Prima"));
+		SecondaAzione->Def.Priority = Reactor->GetAbility(A)->Def.Priority - 1;
+		Reactor->ClearPlannedMainAction();
+		Test.TestTrue(TEXT("la prima reazione si arma"), Reactor->AddPlannedReaction(bDichiaraPrimaLaB ? B : A));
+		Test.TestTrue(TEXT("e la seconda si accoda"), Reactor->AddPlannedReaction(bDichiaraPrimaLaB ? A : B));
+		for (const int32 Idx : Reactor->ArmedReactionsInCanonicalOrder()) { Out.Ordine.Add(Reactor->GetAbility(Idx)->Def.ActionId); }
+
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
+		RunReactionTurn(TM);
+		Out.Attivate = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated);
+		Out.NonDisponibili = CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable);
+		DestroyReactionWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionsTwoReactionsOfOneUnitFireInEngineOrderTest,
+	"RefactorTactics.Reactions.TwoReactionsOfOneUnitFireInEngineOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionsTwoReactionsOfOneUnitFireInEngineOrderTest::RunTest(const FString&)
+{
+	FDueReazioni InOrdine, Rovesciate;
+	if (!GiocaDueReazioni(*this, false, InOrdine) || !GiocaDueReazioni(*this, true, Rovesciate)) { return false; }
+	TestEqual(TEXT("tutte e due scattano sullo stesso colpo"), InOrdine.Attivate, 2);
+	TestEqual(TEXT("e nessuna esce Unavailable: il limite e' per reazione"), InOrdine.NonDisponibili, 0);
+	const TArray<FName> Atteso = { FName(TEXT("Test.Counter.Prima")), FName(TEXT("Action.Counter")) };
+	TestTrue(TEXT("l'ordine e' quello del motore: prima la priorita' piu' bassa"), InOrdine.Ordine == Atteso);
+	TestTrue(TEXT("e non cambia invertendo la dichiarazione"), Rovesciate.Ordine == Atteso);
+	TestEqual(TEXT("come l'esito"), Rovesciate.Attivate, 2);
+	return true;
+}
+
+namespace
+{
+	/** Un turno in cui il modulo `Reaction.CounterShot` scatta; risponde se al turno dopo e' di nuovo armabile. */
+	bool ModuloRiarmabile(FAutomationTestBase& Test, int32 Ricarica, bool& bScattato, bool& bRiarmabile)
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(FName(TEXT("Reaction.CounterShot")));
+		if (!Reactor || !Attacker || !TM || !Pezzo) { DestroyReactionWorld(World); return false; }
+
+		URTActionData* Modulo = URTCatalogLibrary::MakeEquipmentAction(Pezzo, Reactor);
+		Modulo->CooldownTurns = Ricarica; // lo specchio che `ConsumeAbility` legge
+		Modulo->Def.CooldownTurns = Ricarica;
+		Reactor->Abilities[3] = Modulo;
+		Reactor->SetPlannedReaction(3);
+		Reactor->ClearPlannedMainAction();
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
+		RunReactionTurn(TM);
+		bScattato = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated) == 1;
+		bRiarmabile = Reactor->CanUseAbility(3);
+		DestroyReactionWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionReactionModuleIsArmableEveryTurnTest,
+	"RefactorTactics.Resolution.ReactionModuleIsArmableEveryTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionReactionModuleIsArmableEveryTurnTest::RunTest(const FString&)
+{
+	// Criterio 3 di CP 38.15, gemello di `Overwatch.CooldownOneReturnsEveryTurn`: con la ricarica 1 del catalogo ([D-615] (7))
+	// un modulo che scatta e' di nuovo armabile al turno dopo. Controllo: con ricarica 2 non lo e'.
+	const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(FName(TEXT("Reaction.CounterShot")));
+	if (!TestNotNull(TEXT("il modulo esiste"), Pezzo)) { return false; }
+	bool bScattato = false, bRiarmabile = false;
+	if (!ModuloRiarmabile(*this, Pezzo->CooldownTurns, bScattato, bRiarmabile)) { return false; }
+	TestEqual(TEXT("premessa: la ricarica del catalogo e' 1"), Pezzo->CooldownTurns, 1);
+	TestTrue(TEXT("premessa: il modulo scatta"), bScattato);
+	TestTrue(TEXT("e al turno dopo e' di nuovo armabile"), bRiarmabile);
+	bool bScattato2 = false, bRiarmabile2 = false;
+	if (!ModuloRiarmabile(*this, 2, bScattato2, bRiarmabile2)) { return false; }
+	TestTrue(TEXT("controllo: anche con ricarica 2 scatta"), bScattato2);
+	TestFalse(TEXT("ma al turno dopo e' ancora in ricarica"), bRiarmabile2);
 	return true;
 }
 

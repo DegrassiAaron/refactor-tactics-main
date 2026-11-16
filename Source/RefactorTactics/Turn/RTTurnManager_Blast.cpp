@@ -2385,134 +2385,138 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
-		const int32 ReactionIdx = Unit->GetPlan().PlannedReactionAbility();
-		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
-		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction
-			|| Reaction->Def.ReactionTrigger != ERTReactionTrigger::AllyHitByDirectAttack)
+		// E38 CP 38.15: ogni interposizione armata, nell'ordine del motore ([D-615] (5)); quale colpo reclama la prima lo
+		// decide quindi l'`ActionId`, non la dichiarazione.
+		for (const int32 ReactionIdx : Unit->ArmedReactionsInCanonicalOrder())
 		{
-			continue; // non e' un'interposizione: la valuta il ciclo generale piu' sotto
-		}
-
-		// Da qui l'azione e' NOSTRA: il ciclo generale non deve rivalutarla ne' registrarla una seconda volta.
-		// A garantirlo era l'azzeramento del piano; da `#505` lo garantisce il filtro sul trigger dentro
-		// `RunReactionPass`, perche' il piano deve restare leggibile anche dai pass delle fasi successive.
-
-		FRTTurnLogEntry Entry;
-		Entry.Phase = ERTMatchPhase::Blast;
-		Entry.Category = ERTLogCategory::Reaction;
-		Entry.SrcCell = Unit->Cell;
-		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
-		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
-
-		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
-		// avrebbe reso il limite «una per turno» vero per tre reazioni su quattro.
-		const bool bCanReact = Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit)
-			&& Unit->ReactionActivationsThisTurn == 0;
-		const int32 HitIdx = bCanReact
-			? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
-				Plan.Hits, Intents, HexUnits, Map, ClaimedHits)
-			: INDEX_NONE;
-
-		if (!bCanReact)
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
-		}
-		else if (HitIdx != INDEX_NONE)
-		{
-			const int32 OriginalTarget = Plan.Hits[HitIdx].TargetId;
-			ClaimedHits.Add(HitIdx);
-			RedirectHit.Add(HitIdx);
-			RedirectTo.Add(i);
-			RedirectFrom.Add(OriginalTarget);
-
-			Unit->ConsumeAbility(ReactionIdx);
-			++Unit->ReactionActivationsThisTurn; // [D-092]: anche l'interposizione spende l'attivazione
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
-
-			// IL MOMENTO DELL'INTERPOSIZIONE (`#2191`), e questo file e' l'ALTRO punto in cui una reazione
-			// si risolve.
-			//
-			// 🔴 **Senza questa riga `PIE-VIS-INTERPOSE` resta senza il suo momento, e la sua voce dice il
-			// contrario.** L'evento e' nato in `RTTurnManager.cpp`, dove passano le reazioni generiche —
-			// `Deflect`, `Counter` — e il registro ne ha dedotto che entrambe le voci fossero coperte. Ma
-			// l'interposizione NON passa di li': ha il proprio ramo, questo, e da qui non usciva niente.
-			// Misurato: `ResolvedTimeline` compariva **zero** volte in questo file.
-			//
-			// ⚠️ **I due soggetti sono quelli del TRASFERIMENTO, non quelli del colpo**: `Source` e' chi si
-			// interpone, `Target` chi era il bersaglio. E' la stessa coppia che la voce di TurnLog scrive qui
-			// sotto con `SrcCell`/`TgtCell`, detta per identita' invece che per cella — risolvere una cella
-			// in un'unita' e' l'inferenza che [D-063] vieta.
-			//
-			// 🔑 E' la **seconda meta'** che quella voce chiede di vedere: la prima — il colpo che parte
-			// verso il bersaglio originale — arriva gia' come `Attack`. Il runbook la chiama «il caso piu'
-			// difficile del corpus» proprio perche' il trasferimento non aveva un momento proprio.
+			const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction
+				|| Reaction->Def.ReactionTrigger != ERTReactionTrigger::AllyHitByDirectAttack)
 			{
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::ReactionResolved;
-				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
-				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
-				// #4059 (R4): l'attaccante del colpo DEVIATO, non il bersaglio originale. Il playback mette il fumetto di chi
-				// si interpone subito dopo quel colpo, che ora arriva su di lui. ⚠️ Un indice in `Units`: convertito come
-				// `TargetStableUnitId` qui sopra.
-				{
-					const int32 Attaccante = Plan.Hits[HitIdx].AttackerId;
-					Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Attaccante) && Units[Attaccante]
-						? Units[Attaccante]->StableUnitId : 0;
-				}
-				// #4059 (R3): chi puo' vedere che si e' interposto, congelato come la voce di TurnLog qui sotto
-				// (`AppendLogEntry(Entry, Unit)`).
-				Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
-				// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
-				// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Riktor.Interposition`
-				// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
-				//
-				// ⚠️ **Questo file e' l'ALTRO sito della reazione risolta**, e ce ne si accorge tardi: le
-				// reazioni generiche escono da `RTTurnManager.cpp`, l'interposizione ha il proprio ramo qui.
-				// `#2191` ha gia' pagato una volta l'errore di coprirne uno solo — «`ResolvedTimeline`
-				// compariva **zero** volte in questo file» — e un `ActionId` mancante sarebbe la stessa
-				// omissione, stavolta invisibile perche' `NAME_None` e' un valore legittimo.
-				Ev.ActionId = Reaction->Def.ActionId;
-				Ev.BaseActionId = Reaction->Def.BaseActionId;
-				ResolvedTimeline.Add(Ev);
+				continue; // non e' un'interposizione: la valuta il ciclo generale piu' sotto
 			}
-			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
-			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
-			Entry.SrcCell = Units[OriginalTarget]->Cell;
-			Entry.TgtCell = Unit->Cell;
-			// ➕ **E lo dice per IDENTITA', non solo per cella** (`#1060`, formato v9). Le due celle bastano a
-			// discriminare due partite — ed e' per questo che il campo resta fuori dall'hash — ma non a farsi
-			// leggere: chi rilegge la voce dovrebbe risolvere `SrcCell` in un'unita', che e' l'inferenza che
-			// [D-063] vieta. Senza questo campo `OriginalTargetEquals` non aveva un dato su cui poggiare, e la
-			// feature dell'interposizione (`#200`, in `main` da giorni) restava non verificabile da uno scenario.
-			// ⚠️ `UnitId` porta gia' l'altro capo — chi INCASSA e' l'unita' che reagisce — quindi la voce ora
-			// nomina entrambi i capi del trasferimento.
-			//
-			// 🔴 **`StableUnitId` e NON l'indice in `Units`**, ed e' la differenza che rende il campo usabile.
-			// `OriginalTarget` qui e' un indice di risoluzione (`Plan.Hits[].TargetId`); `AppendLogEntry` scrive
-			// invece `Entry.UnitId = Actor->StableUnitId`. Scrivere l'indice farebbe nominare alla **stessa
-			// voce** i due capi del trasferimento in **due spazi di identificatori diversi** — e chi la legge
-			// non ha modo di accorgersene, perche' sono entrambi `int32` e su un'arena piccola i valori
-			// coincidono per caso.
-			// ⚠️ Nota per chi estende: `SelectedTargetUnitId` (v8) porta invece l'INDICE. I due spazi convivono
-			// gia' in questa struct, e questo campo sceglie quello stabile perche' e' l'unico che regge fuori
-			// dalla singola risoluzione — che e' esattamente cio' che un'assertion di scenario deve confrontare.
-			Entry.OriginalTargetUnitId = Units[OriginalTarget]->StableUnitId;
-			AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
-				*Unit->GetName(), *Units[OriginalTarget]->GetName()), FRTLogSubject::Unit(Unit));
-		}
-		else
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
-		}
 
-		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
-		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
-		// ⌫ **Eco tolto da `#1412`.** Il commento che stava qui diceva che le due copie *«raccontano lo
-		// stesso evento con le stesse coordinate»*: era la descrizione esatta di un duplicato. Il nome che
-		// solo l'eco portava e' ora nella riga derivata, perche' `Reaction` dichiara il proprio soggetto.
-		AppendLogEntry(Entry, Unit);
+			// Da qui l'azione e' NOSTRA: il ciclo generale non deve rivalutarla ne' registrarla una seconda volta.
+			// A garantirlo era l'azzeramento del piano; da `#505` lo garantisce il filtro sul trigger dentro
+			// `RunReactionPass`, perche' il piano deve restare leggibile anche dai pass delle fasi successive.
+
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Blast;
+			Entry.Category = ERTLogCategory::Reaction;
+			Entry.SrcCell = Unit->Cell;
+			Entry.TgtCell = Unit->Cell;
+			Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
+			Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
+
+			// Il limite di [D-092] vale anche qui, per la singola reazione ([D-619]): l'interposizione E' un'attivazione, e
+			// spende la propria, non quella dell'unita' ([D-619] (a)).
+			const bool bCanReact = Unit->CanUseAbility(ReactionIdx) && !ReactionBlockedThisTurn.Contains(Unit)
+				&& !Unit->HasReactionActivatedThisTurn(ReactionIdx);
+			const int32 HitIdx = bCanReact
+				? URTReactionLibrary::FindInterceptableHit(i, Reaction->Def.RangeCells,
+					Plan.Hits, Intents, HexUnits, Map, ClaimedHits)
+				: INDEX_NONE;
+
+			if (!bCanReact)
+			{
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+			}
+			else if (HitIdx != INDEX_NONE)
+			{
+				const int32 OriginalTarget = Plan.Hits[HitIdx].TargetId;
+				ClaimedHits.Add(HitIdx);
+				RedirectHit.Add(HitIdx);
+				RedirectTo.Add(i);
+				RedirectFrom.Add(OriginalTarget);
+
+				Unit->ConsumeAbility(ReactionIdx);
+				Unit->MarkReactionActivated(ReactionIdx); // [D-092], [D-619]: anche l'interposizione spende la sua attivazione
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+				// IL MOMENTO DELL'INTERPOSIZIONE (`#2191`), e questo file e' l'ALTRO punto in cui una reazione
+				// si risolve.
+				//
+				// 🔴 **Senza questa riga `PIE-VIS-INTERPOSE` resta senza il suo momento, e la sua voce dice il
+				// contrario.** L'evento e' nato in `RTTurnManager.cpp`, dove passano le reazioni generiche —
+				// `Deflect`, `Counter` — e il registro ne ha dedotto che entrambe le voci fossero coperte. Ma
+				// l'interposizione NON passa di li': ha il proprio ramo, questo, e da qui non usciva niente.
+				// Misurato: `ResolvedTimeline` compariva **zero** volte in questo file.
+				//
+				// ⚠️ **I due soggetti sono quelli del TRASFERIMENTO, non quelli del colpo**: `Source` e' chi si
+				// interpone, `Target` chi era il bersaglio. E' la stessa coppia che la voce di TurnLog scrive qui
+				// sotto con `SrcCell`/`TgtCell`, detta per identita' invece che per cella — risolvere una cella
+				// in un'unita' e' l'inferenza che [D-063] vieta.
+				//
+				// 🔑 E' la **seconda meta'** che quella voce chiede di vedere: la prima — il colpo che parte
+				// verso il bersaglio originale — arriva gia' come `Attack`. Il runbook la chiama «il caso piu'
+				// difficile del corpus» proprio perche' il trasferimento non aveva un momento proprio.
+				{
+					FRTResolvedEvent Ev;
+					Ev.Phase = ERTMatchPhase::Blast;
+					Ev.Type = ERTResolvedEventType::ReactionResolved;
+					Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
+					Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+					// #4059 (R4): l'attaccante del colpo DEVIATO, non il bersaglio originale. Il playback mette il fumetto di chi
+					// si interpone subito dopo quel colpo, che ora arriva su di lui. ⚠️ Un indice in `Units`: convertito come
+					// `TargetStableUnitId` qui sopra.
+					{
+						const int32 Attaccante = Plan.Hits[HitIdx].AttackerId;
+						Ev.TriggerAttackerStableUnitId = Units.IsValidIndex(Attaccante) && Units[Attaccante]
+							? Units[Attaccante]->StableUnitId : 0;
+					}
+					// #4059 (R3): chi puo' vedere che si e' interposto, congelato come la voce di TurnLog qui sotto
+					// (`AppendLogEntry(Entry, Unit)`).
+					Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Unit));
+					// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
+					// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Riktor.Interposition`
+					// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
+					//
+					// ⚠️ **Questo file e' l'ALTRO sito della reazione risolta**, e ce ne si accorge tardi: le
+					// reazioni generiche escono da `RTTurnManager.cpp`, l'interposizione ha il proprio ramo qui.
+					// `#2191` ha gia' pagato una volta l'errore di coprirne uno solo — «`ResolvedTimeline`
+					// compariva **zero** volte in questo file» — e un `ActionId` mancante sarebbe la stessa
+					// omissione, stavolta invisibile perche' `NAME_None` e' un valore legittimo.
+					Ev.ActionId = Reaction->Def.ActionId;
+					Ev.BaseActionId = Reaction->Def.BaseActionId;
+					ResolvedTimeline.Add(Ev);
+				}
+				// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
+				// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
+				Entry.SrcCell = Units[OriginalTarget]->Cell;
+				Entry.TgtCell = Unit->Cell;
+				// ➕ **E lo dice per IDENTITA', non solo per cella** (`#1060`, formato v9). Le due celle bastano a
+				// discriminare due partite — ed e' per questo che il campo resta fuori dall'hash — ma non a farsi
+				// leggere: chi rilegge la voce dovrebbe risolvere `SrcCell` in un'unita', che e' l'inferenza che
+				// [D-063] vieta. Senza questo campo `OriginalTargetEquals` non aveva un dato su cui poggiare, e la
+				// feature dell'interposizione (`#200`, in `main` da giorni) restava non verificabile da uno scenario.
+				// ⚠️ `UnitId` porta gia' l'altro capo — chi INCASSA e' l'unita' che reagisce — quindi la voce ora
+				// nomina entrambi i capi del trasferimento.
+				//
+				// 🔴 **`StableUnitId` e NON l'indice in `Units`**, ed e' la differenza che rende il campo usabile.
+				// `OriginalTarget` qui e' un indice di risoluzione (`Plan.Hits[].TargetId`); `AppendLogEntry` scrive
+				// invece `Entry.UnitId = Actor->StableUnitId`. Scrivere l'indice farebbe nominare alla **stessa
+				// voce** i due capi del trasferimento in **due spazi di identificatori diversi** — e chi la legge
+				// non ha modo di accorgersene, perche' sono entrambi `int32` e su un'arena piccola i valori
+				// coincidono per caso.
+				// ⚠️ Nota per chi estende: `SelectedTargetUnitId` (v8) porta invece l'INDICE. I due spazi convivono
+				// gia' in questa struct, e questo campo sceglie quello stabile perche' e' l'unico che regge fuori
+				// dalla singola risoluzione — che e' esattamente cio' che un'assertion di scenario deve confrontare.
+				Entry.OriginalTargetUnitId = Units[OriginalTarget]->StableUnitId;
+				AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
+					*Unit->GetName(), *Units[OriginalTarget]->GetName()), FRTLogSubject::Unit(Unit));
+			}
+			else
+			{
+				Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+			}
+
+			// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
+			// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+			// ⌫ **Eco tolto da `#1412`.** Il commento che stava qui diceva che le due copie *«raccontano lo
+			// stesso evento con le stesse coordinate»*: era la descrizione esatta di un duplicato. Il nome che
+			// solo l'eco portava e' ora nella riga derivata, perche' `Reaction` dichiara il proprio soggetto.
+			AppendLogEntry(Entry, Unit);
+		}
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
 	//

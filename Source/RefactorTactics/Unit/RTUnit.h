@@ -523,6 +523,19 @@ public:
 	/** La reazione, senza il segno per il Back: l'harness e il bot. */
 	void SetPlannedReaction(int32 AbilityIndex) { Plan.SetPlannedReactionAbility(AbilityIndex); }
 
+	/**
+	 * Una reazione IN PIU', in coda alla lista (E38 CP 38.15, [D-592]): `SetPlannedReaction` sostituisce la prima, questa
+	 * aggiunge. Rifiuta, e lascia il piano com'era, un indice che non e' una reazione. Una seconda copia la rifiuta il
+	 * validatore al lock-in ([D-614]), non qui: e' cio' che fanno le altre voci.
+	 */
+	bool AddPlannedReaction(int32 AbilityIndex);
+
+	/**
+	 * Le reazioni armate, ognuna una volta, nell'ordine del motore: priorita', poi `ActionId`, poi l'indice nel kit; mai
+	 * la dichiarazione ([D-615] (5)). E' l'ordine in cui i pass le valutano, quindi quello delle loro voci e dei loro effetti.
+	 */
+	TArray<int32> ArmedReactionsInCanonicalOrder() const;
+
 	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.AddPlannedWaypoint(Waypoint); }
 	void PopPlannedWaypoint() { Plan.PopPlannedWaypoint(); }
 
@@ -996,6 +1009,18 @@ public:
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 ReactionActivationsThisTurn = 0;
+
+	/**
+	 * Le reazioni gia' attivate nel turno, per indice d'abilita' ([D-619]). Il limite di [D-092] vale per la SINGOLA
+	 * reazione: una reazione armata scatta al piu' una volta per turno, e reazioni diverse della stessa unita' scattano
+	 * nello stesso turno. `ReactionActivationsThisTurn` resta il conteggio, e non decide piu' niente.
+	 *
+	 * Per indice e non per `ActionId`: una copia senza ricarica dello stesso indice non scatta due volte ([D-619] (b)).
+	 */
+	bool HasReactionActivatedThisTurn(int32 AbilityIndex) const { return ReactionsActivatedThisTurn.Contains(AbilityIndex); }
+	void MarkReactionActivated(int32 AbilityIndex) { ReactionsActivatedThisTurn.Add(AbilityIndex); ++ReactionActivationsThisTurn; }
+	void ResetReactionActivations() { ReactionsActivatedThisTurn.Reset(); ReactionActivationsThisTurn = 0; }
+	TSet<int32> ReactionsActivatedThisTurn;
 
 	/**
 	 * Imposta statistiche e azioni interamente da `URTHeroData` (CP 6.1, epic E6): nessun numero scritto qui.
