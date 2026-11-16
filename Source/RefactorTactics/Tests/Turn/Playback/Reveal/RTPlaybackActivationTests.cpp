@@ -449,7 +449,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEnemyBehindHighCoverTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 {
-	auto GiraIlTurno = [this](int32 SquadraDelViewer, int32& OutCue, bool& OutVisibile) -> bool
+	int32 RigheBarrate = 0; // `#4043`: le righe barrate del tiratore nel Registro, per chi guarda
+	auto GiraIlTurno = [this, &RigheBarrate](int32 SquadraDelViewer, int32& OutCue, bool& OutVisibile) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -498,6 +499,11 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		// `#4034`: il tiro fermato dal muro non suona ([D-622] (3)), e il suo beat e' il fumetto barrato.
 		TestEqual(TEXT("il tiro bloccato non suona la cue Cast"), Tiratore->CastCuesPlayedForTest(), 0);
 		OutCue = (!Tiratore->LastSkillCalloutForTest().ActionId.IsNone() && Tiratore->LastSkillCalloutForTest().bBlocked) ? 1 : 0;
+		RigheBarrate = 0;
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.bBlocked && Riga.SourceStableUnitId == Tiratore->StableUnitId && Riga.ViewerTeamId == SquadraDelViewer) { ++RigheBarrate; }
+		}
 		return true;
 	};
 
@@ -506,9 +512,11 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 	if (!GiraIlTurno(/*Viewer*/ 0, Cue, bVisibile)) { return false; }
 	if (!TestFalse(TEXT("⛔ premessa: la squadra 0 non vede la cella del tiratore"), bVisibile)) { return false; }
 	TestEqual(TEXT("🔴 sorgente nemica fuori vista: nessun beat"), Cue, 0);
+	TestEqual(TEXT("🔴 e nessuna riga barrata nel Registro (#4043)"), RigheBarrate, 0);
 
 	if (!GiraIlTurno(/*Viewer*/ 1, Cue, bVisibile)) { return false; }
 	TestEqual(TEXT("✅ visto dalla squadra della sorgente: il fumetto barrato c'e'"), Cue, 1);
+	TestEqual(TEXT("✅ e la sua riga barrata nel Registro (#4043)"), RigheBarrate, 1);
 	return true;
 }
 

@@ -1539,6 +1539,15 @@ public:
 	static FText ComposeActivationLineText(const FString& UnitLabel, const FText& KitName, FName ActionId);
 
 	/**
+	 * La riga di un'azione BLOCCATA (`#4043`, [D-623] (3)): «Eroe: Azione bloccato» e, sotto, il motivo in parole, senza prefisso.
+	 * L'azione col ripiego di `ComposeActivationLineText`. Il motivo e' quello di `BlockedReasonWords`.
+	 */
+	static FText ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason);
+
+	/** Il motivo di un blocco in parole, per il Registro (`#4043`): una parola o due, mai vuoto. */
+	static FText BlockedReasonWords(int32 Reason);
+
+	/**
 	 * Fonde le righe d'attivazione nelle righe d'esito del feed (#4033, R6 e R7b). Pura: non legge il mondo.
 	 *
 	 * 🔑 **Le righe d'esito restano intere, nel loro ordine e con il loro numero**: sono gia' tagliate come oggi, e

@@ -37,6 +37,10 @@ struct FRTActivationLine
 	 */
 	int32 TurnNumber = 0;
 
+	/** `#4043`, [D-623]: la riga di un'azione BLOCCATA (`ActionBlocked`), e il suo motivo come `ERTActionInvalidReason`. */
+	bool bBlocked = false;
+	int32 BlockedReason = 0;
+
 	/** La frase gia' composta, «<unita'> — <azione>». */
 	FText Text;
 };
