@@ -13,8 +13,8 @@
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: oggi arriva dalla PCH condivisa, ma il file non deve dipenderne
-#include "NiagaraComponent.h"       // [D-619]: la scarica a catena, i due parametri utente
-#include "NiagaraFunctionLibrary.h" // [D-619]: `SpawnSystemAtLocation`
+#include "NiagaraComponent.h"       // [D-620]: la scarica a catena, i due parametri utente
+#include "NiagaraFunctionLibrary.h" // [D-620]: `SpawnSystemAtLocation`
 #include "NiagaraSystem.h"
 
 /*
@@ -848,7 +848,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 			// `URTHexLibrary::StableLess`, e riordinarle o filtrarle qui sarebbe la seconda risposta a una domanda che
 			// il resolver ha gia' chiuso.
 			if (MapActor) { MapActor->AddPlaybackFootprint(Ev.HitCells); }
-			SpawnChainArc(Elemento); // [D-619]: l'arco a vuoto, se l'atto non ha colpito nessuno
+			SpawnChainArc(Elemento); // [D-620]: l'arco a vuoto, se l'atto non ha colpito nessuno
 			break;
 		case ERTResolvedEventType::StructureHit:
 			// ⛔ **Il bordo che l'evento PORTA, e nient'altro** (#2828): non si chiama `FirstCoveredEdge`, non si
@@ -872,7 +872,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		case ERTResolvedEventType::Attack:
 			// L'ordinale serve solo alla traccia dei test: in produzione non si scorre la sequenza a ogni lancio.
 			LaunchPlaybackAttack(Ev, Tuning().bRecordAttackBeatsForTest ? BlastAttackOrdinal(Elemento) : 0);
-			SpawnChainArc(Elemento); // [D-619]: il salto della scarica parte col colpo, insieme alla clip dello sparo
+			SpawnChainArc(Elemento); // [D-620]: il salto della scarica parte col colpo, insieme alla clip dello sparo
 			// ⚠️ Nessun confine qui: quello di un colpo cade all'arrivo, ed e' il battito che segue.
 			continue;
 		default:

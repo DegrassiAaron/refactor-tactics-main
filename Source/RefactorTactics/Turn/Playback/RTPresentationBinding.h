@@ -140,7 +140,7 @@ struct FRTPresentationBinding
 };
 
 /**
- * ➕ [D-619] (#4136): la scarica a catena di un'azione — il sistema Niagara e il socket da cui parte il primo salto.
+ * ➕ [D-620] (#4136): la scarica a catena di un'azione — il sistema Niagara e il socket da cui parte il primo salto.
  *
  * 🔑 **Il contratto con l'asset sono due parametri utente**, `BeamStart` e `BeamEnd`, di tipo *Position* e in spazio
  * mondo: il playback li scrive prima di attivare il sistema. Un asset che non li espone si vede, ma non fra i due punti.
@@ -309,7 +309,7 @@ public:
 	static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
 
 	/**
-	 * ➕ [D-619] (#4136): le azioni che hanno una scarica a catena, in ordine. ⛔ Nessun default per forma: un'azione
+	 * ➕ [D-620] (#4136): le azioni che hanno una scarica a catena, in ordine. ⛔ Nessun default per forma: un'azione
 	 * senza riga non lancia niente, e lo zigzag del profilo resta il solo disegno del colpo.
 	 */
 	static const TArray<TPair<FName, FRTChainFxBinding>>& DeclaredChainFxRows();

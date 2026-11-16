@@ -599,10 +599,10 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 - **Non** superato: la spec del tracer §2.3 (tempo, cursore unico, confine `Next Action` all'arrivo), §3 (dati: ➕ rev.
   con R9 caduta nessun campo nuovo sul colpo, e il divieto di riusare `AimCell`/`Origin` resta intatto), §5 e P1.
 
-### 2.10 La scarica a catena — [D-619](../../decisions/RT_PDR_00_Decision_Log.md), 2026-11-16
+### 2.10 La scarica a catena — [D-620](../../decisions/RT_PDR_00_Decision_Log.md), 2026-11-16
 
 > ➕ **Aggiunta dopo l'implementazione di questa spec**, con [#4136](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4136).
-> Le decisioni (a)–(d) sono dell'autore, nel testo di D-619; il resto di questa sezione è dell'assistente ed è ribaltabile.
+> Le decisioni (a)–(d) sono dell'autore, nel testo di D-620; il resto di questa sezione è dell'assistente ed è ribaltabile.
 > Misurato su `main` = `014de8507`.
 
 1. **L'ordine dei colpi di un atto a linea.** `URTPlaybackLibrary::BuildBlastSequence` ordina gli `Attack` di un atto
@@ -626,7 +626,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    `ARTUnit::ChainFxAnchor`: il socket della riga per chi lancia, il centro dei limiti della mesh per i colpiti, e
    `AxialToWorld` dell'`AimCell` per l'arco a vuoto. Il sistema nasce spento, riceve `BeamStart` e `BeamEnd` (parametri
    utente *Position*, spazio mondo) e poi si accende. Asset assente (`LOAD_NoWarn`), mappa assente o server dedicato:
-   nessun lancio. Lo zigzag del profilo resta sotto (D-619 (c)).
+   nessun lancio. Lo zigzag del profilo resta sotto (D-620 (c)).
 5. **D-278.** `SpawnChainArc` entra fra le cue di `Attack` e di `AttackFootprint`.
 6. **Test**: `Playback.LineActHitsAreShownAlongTheLine`, `Playback.LineActKeepsTimelineOrderWhenNotFullyKnown`,
    `Playback.NonLineActKeepsTimelineOrder`, `Playback.LineActOrderKeepsTheFrozenPrefixVerbatim`,
@@ -644,7 +644,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
   dalla sequenza del Blast.
 - Suono: `RT-CAP-AUDIO` non ha implementazione.
 - Asset Niagara o Cascade (D-124), materiali, decal, mesh: nessun `.uasset`, nessun authoring nel clone principale.
-  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge: un sistema Niagara per salto, [D-619](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
+  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge: un sistema Niagara per salto, [D-620](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
 - I profili come dati esterni (DataAsset, JSON): la migrazione di D-278 resta possibile e non si fa.
 - Un `CastShowSeconds` o una durata per abilità: le durate sono ritmo (R2).
 - Le varianti di tracer sugli attacchi base (D5).

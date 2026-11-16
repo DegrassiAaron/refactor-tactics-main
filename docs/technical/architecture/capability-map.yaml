@@ -1731,7 +1731,7 @@ capabilities:
          repository e `TSoftObjectPtr` e' la conseguenza dichiarata."
 
   - id: RT-CAP-VFX
-    name: VFX (line batcher in v0.1; Niagara solo per la scarica di LinearDischarge, D-619)
+    name: VFX (line batcher in v0.1; Niagara solo per la scarica di LinearDischarge, D-620)
     area: presentation
     status: { implementation: partial, validation: partial, presentation: partial }   # presentation: partial dal 2026-10-08, seduta U71 — PIE-V01-TRACER e PIE-FX-ABILITA verdi; Niagara resta fuori (D-124)
     owner:
@@ -1761,7 +1761,7 @@ capabilities:
          il CONTENUTO e il legame dichiarativo, non l'attacco: chi apre questa capability non deve
          progettare un canale, deve riempirne uno che c'e'."
       - "#3578: il profilo FX per abilita' (attivazione, colpo, impronta) e' la prima implementazione, col line batcher (D-467); Niagara resta fuori (D-124). La misura di Niagara qui sopra e' storica."
-      - "#4136, [D-619]: il primo sistema Niagara lanciato dal C++ e' la scarica a catena di `Hero.Gadget.LinearDischarge`, un salto per colpito sopra lo zigzag (`FRTPlaybackDirector::SpawnChainArc`, tabella `DeclaredChainFxRows`). Per le altre azioni Niagara resta fuori. L'asset sta sotto `Content/`, che git ignora: un clone senza l'asset non lancia niente."
+      - "#4136, [D-620]: il primo sistema Niagara lanciato dal C++ e' la scarica a catena di `Hero.Gadget.LinearDischarge`, un salto per colpito sopra lo zigzag (`FRTPlaybackDirector::SpawnChainArc`, tabella `DeclaredChainFxRows`). Per le altre azioni Niagara resta fuori. L'asset sta sotto `Content/`, che git ignora: un clone senza l'asset non lancia niente."
 
   - id: RT-CAP-AUDIO
     name: Audio Feedback

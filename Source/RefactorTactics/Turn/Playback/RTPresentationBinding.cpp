@@ -37,7 +37,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// default di un'azione con un id, il disegno dall'override) e solo se chi guarda conosceva entrambi gli estremi.
 	// #3578: `SetPlaybackCues` — il `Marker` all'arrivo di ogni colpo e, sul primo colpo dell'atto, la cue d'impronta
 	// (`AreaPulse`, `ConeSweep`): `AttackFootprint` non ha una cue propria, la consegna il colpo che la consuma.
-	// ➕ [D-619] (#4136): `SpawnChainArc` — il salto della scarica a catena, al lancio, per le azioni che ne hanno una
+	// ➕ [D-620] (#4136): `SpawnChainArc` — il salto della scarica a catena, al lancio, per le azioni che ne hanno una
 	// (`DeclaredChainFxRows`). Che sia chiamata lo dice `Playback.ChainArcHopsFollowTheLine`.
 	// ⚠️ Il gate conta i nomi, non le chiamate: che le cue siano chiamate lo dicono
 	// `Playback.TracerIsInFlightBetweenLaunchAndArrival` e `Playback.ImpactCueComesAtTheArrival`.
@@ -144,7 +144,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⛔ `AddPlaybackFootprint` riceve `HitCells` COSI' COME ARRIVANO: nessun ricalcolo di `HexHitCells`
 	// nella presentazione, che e' cio' che [D-301] punto (1) esclude a monte.
-	// ➕ [D-619] (#4136): `SpawnChainArc` — l'arco a vuoto di una scarica a catena che non ha colpito nessuno.
+	// ➕ [D-620] (#4136): `SpawnChainArc` — l'arco a vuoto di una scarica a catena che non ha colpito nessuno.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AttackFootprint,
 		{ FName(TEXT("AddPlaybackFootprint")), FName(TEXT("SpawnChainArc")) }));
 
@@ -568,7 +568,7 @@ FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileFor(FName ActionId, 
 
 const TArray<TPair<FName, FRTChainFxBinding>>& URTPresentationBindingLibrary::DeclaredChainFxRows()
 {
-	// [D-619], decisa dall'autore il 2026-11-16: la scarica rimbalza a catena lungo la linea, sopra lo zigzag del profilo.
+	// [D-620], decisa dall'autore il 2026-11-16: la scarica rimbalza a catena lungo la linea, sopra lo zigzag del profilo.
 	// L'asset nasce dalla guida `docs/technical/runbooks/guida-vfx-skill.md` (ciclo 1, pezzo `_Arc`); il socket e' quello
 	// della sfera sulla spalla, letto nell'Editor al Passo 3.
 	// ⚠️ L'asset vive sotto `Content/`, che git ignora salvo eccezioni: su un clone che non lo ha il salto non si lancia.

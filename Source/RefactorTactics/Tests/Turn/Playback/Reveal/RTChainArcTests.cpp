@@ -1,4 +1,4 @@
-// La scarica a catena di LinearDischarge e l'ordine dei colpi lungo la linea ([D-619], #4136).
+// La scarica a catena di LinearDischarge e l'ordine dei colpi lungo la linea ([D-620], #4136).
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
@@ -100,7 +100,7 @@ namespace
 }
 
 /**
- * I colpi di un attacco a linea si mostrano dal piu' vicino al piu' lontano — [D-619] (4).
+ * I colpi di un attacco a linea si mostrano dal piu' vicino al piu' lontano — [D-620] (4).
  *
  * 🔑 Il resolver li emette per `TargetId` (`Plan.Hits`), e la timeline qui fa lo stesso: 30, 10, 20.
  * ✅ Validato per mutazione: togliere la distanza dal confronto di `BuildBlastSequence` riporta `{0, 1, 2, 3, 4}`.
@@ -210,7 +210,7 @@ bool FRTPlaybackLineActFrozenPrefixTest::RunTest(const FString&)
 }
 
 /**
- * La catena: sorgente → piu' vicino → successivo — [D-619] (3).
+ * La catena: sorgente → piu' vicino → successivo — [D-620] (3).
  *
  * 🔑 Il precedente si cerca nella SEQUENZA: con la sequenza in ordine di linea i salti sono 0>10, 10>20, 20>30.
  * ✅ Validato per mutazione: cercare il precedente nella timeline invece che nella sequenza da' 0>30, 30>10, 10>20.
@@ -236,7 +236,7 @@ bool FRTPlaybackChainHopSourceThenVictimsTest::RunTest(const FString&)
 	return true;
 }
 
-/** Senza colpiti, un solo arco dalla sorgente all'esagono mirato, al battito dell'impronta — [D-619] (3). */
+/** Senza colpiti, un solo arco dalla sorgente all'esagono mirato, al battito dell'impronta — [D-620] (3). */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainHopMissTest,
 	"RefactorTactics.Playback.ChainHopWithoutVictimsArcsToTheAimCell",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

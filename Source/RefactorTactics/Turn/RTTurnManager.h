@@ -713,7 +713,7 @@ public:
 	 */
 	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 	const TArray<FString>& AttackBeatTraceForTest() const { return Playback.AttackBeatTraceForTest(); }
-	/** [D-619]: i salti della scarica a catena, `<da>><a>` in `StableUnitId` (con `bRecordAttackBeatsForTest`). Solo test. */
+	/** [D-620]: i salti della scarica a catena, `<da>><a>` in `StableUnitId` (con `bRecordAttackBeatsForTest`). Solo test. */
 	const TArray<FString>& ChainHopTraceForTest() const { return Playback.ChainHopTraceForTest(); }
 
 	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test: e' `GetPlaybackPhase()`. */

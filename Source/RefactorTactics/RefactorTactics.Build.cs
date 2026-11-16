@@ -42,7 +42,7 @@ public class RefactorTactics : ModuleRules
 		// `RTUnitAnimInstance` non linka, e l'errore parla di simboli, non di moduli.
 		PrivateDependencyModuleNames.Add("AnimGraphRuntime");
 
-		// [D-619] (#4136): la scarica a catena di LinearDischarge e' il primo sistema Niagara che il C++ lancia
+		// [D-620] (#4136): la scarica a catena di LinearDischarge e' il primo sistema Niagara che il C++ lancia
 		// (`FRTPlaybackDirector::SpawnChainArc`). Il plugin e' dichiarato anche nel `.uproject`.
 		PrivateDependencyModuleNames.Add("Niagara");
 
