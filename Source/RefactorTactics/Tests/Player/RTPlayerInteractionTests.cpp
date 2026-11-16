@@ -6535,6 +6535,67 @@ bool FRTResolutionDeclarationPermutationChangesOnlyTheOrderFieldTest::RunTest(co
 	{
 		for (int32 i = 0; i < VA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("voce %d, senza l'ordine"), i), DescriviVoce(VA[i]), DescriviVoce(VB[i])); }
 	}
+	// E38 CP 38.15 (#4116, criterio 6): lo stesso con un piano di DUE reazioni, che scattano entrambe sullo stesso colpo di
+	// Gadget ([D-619]). Dichiarate nei due ordini, danno lo stesso stato, gli stessi eventi di gioco nello stesso ordine e le
+	// stesse voci; cambiano gli indici delle voci delle reazioni ([D-615] (2) e (5)), e con loro l'hash di traccia.
+	struct FEsitoReazioni { uint32 Stato = 0; TArray<FString> Eventi; TArray<FRTTurnLogEntry> Voci; int32 Attivate = 0; };
+	auto GiocaReazioni = [this](bool bPrimaLaB, FEsitoReazioni& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		const int32 RA = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Counter"));
+		const int32 RB = RTAbilityFixtures::AddCoreAbility(B.Riktor, TEXT("Action.Counter"));
+		URTActionData* Seconda = B.Riktor->GetAbility(RB);
+		Seconda->Def.ActionId = FName(TEXT("Test.Counter.Prima"));
+		Seconda->Def.Priority = B.Riktor->GetAbility(RA)->Def.Priority - 1;
+		B.Riktor->ClearPlannedMainAction();
+		TestTrue(TEXT("la prima reazione si arma"), B.Riktor->AddPlannedReaction(bPrimaLaB ? RB : RA));
+		TestTrue(TEXT("e la seconda si accoda"), B.Riktor->AddPlannedReaction(bPrimaLaB ? RA : RB));
+		if (!TestTrue(TEXT("premessa: il piano di due reazioni e' legale"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		B.Gadget->SetPlannedMainAction(0);
+		B.Gadget->DeclareAttackOnUnit(B.Riktor);
+		ResolveOneTurn(B.TM);
+		const URTHexMapAsset* Mappa = nullptr;
+		for (TActorIterator<ARTHexMapActor> It(B.World); It; ++It) { Mappa = It->MapAsset; }
+		Out.Stato = URTMatchStateHashLibrary::HashMatchState(Mappa, URTMatchStateHashLibrary::BuildUnitDigests({ B.Riktor, B.Gadget }), {});
+		for (const FRTResolvedEvent& Ev : B.TM->ResolvedTimelineForTest())
+		{
+			Out.Eventi.Add(FString::Printf(TEXT("%d/%d %d->%d %s %d"), (int32)Ev.Phase, (int32)Ev.Type, Ev.SourceStableUnitId,
+				Ev.TargetStableUnitId, *Ev.ActionId.ToString(), Ev.Amount));
+		}
+		Out.Voci = B.TM->GetTurnLog();
+		for (const FRTTurnLogEntry& E : Out.Voci)
+		{
+			if (E.Category == ERTLogCategory::Reaction && E.UnitId == B.Riktor->StableUnitId
+				&& E.Outcome == static_cast<uint8>(ERTReactionOutcome::Activated)) { ++Out.Attivate; }
+		}
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	FEsitoReazioni RA_, RB_;
+	if (!GiocaReazioni(false, RA_) || !GiocaReazioni(true, RB_)) { return false; }
+	TestEqual(TEXT("premessa: le due reazioni scattano"), RA_.Attivate, 2);
+	TestEqual(TEXT("anche nell'altro ordine"), RB_.Attivate, 2);
+	TestEqual(TEXT("due reazioni: stesso stato finale"), RA_.Stato, RB_.Stato);
+	TestEqual(TEXT("due reazioni: stessi eventi di gioco, nello stesso ordine"), RA_.Eventi, RB_.Eventi);
+	auto IndiceDellaReazione = [](const TArray<FRTTurnLogEntry>& Voci, FName ActionId)
+	{
+		for (const FRTTurnLogEntry& E : Voci) { if (E.Category == ERTLogCategory::Reaction && E.ActionId == ActionId) { return E.DeclarationIndex; } }
+		return -99;
+	};
+	const FName Prima(TEXT("Test.Counter.Prima"));
+	TestEqual(TEXT("la reazione dichiarata seconda porta 1"), IndiceDellaReazione(RA_.Voci, Prima), 1);
+	TestEqual(TEXT("e dichiarata prima porta 0"), IndiceDellaReazione(RB_.Voci, Prima), 0);
+	TestNotEqual(TEXT("due reazioni, controllo positivo: gli hash di traccia sono diversi"),
+		URTTurnLogLibrary::HashTurnLog(RA_.Voci), URTTurnLogLibrary::HashTurnLog(RB_.Voci));
+	TestEqual(TEXT("e coincidono portando il campo a INDEX_NONE"),
+		URTTurnLogLibrary::HashTurnLog(SenzaOrdine(RA_.Voci)), URTTurnLogLibrary::HashTurnLog(SenzaOrdine(RB_.Voci)));
+	const TArray<FRTTurnLogEntry> RVA = SenzaOrdine(RA_.Voci);
+	const TArray<FRTTurnLogEntry> RVB = SenzaOrdine(RB_.Voci);
+	if (TestEqual(TEXT("due reazioni: stesse voci di TurnLog"), RVA.Num(), RVB.Num()))
+	{
+		for (int32 i = 0; i < RVA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("due reazioni, voce %d, senza l'ordine"), i), DescriviVoce(RVA[i]), DescriviVoce(RVB[i])); }
+	}
 	return true;
 }
 
