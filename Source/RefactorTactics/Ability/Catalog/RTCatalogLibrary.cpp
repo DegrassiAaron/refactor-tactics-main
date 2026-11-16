@@ -2122,43 +2122,55 @@ namespace
 	}
 }
 
+URTActionData* URTCatalogLibrary::MakeCoreAction(const FName& Id, UObject* Outer)
+{
+	const FRTActionDef Def = FindCoreAction(Id);
+	// Un ID che il catalogo non conosce non produce un'azione vuota: quella entrerebbe nel kit con
+	// `ActionId` nullo e si presenterebbe come un comando reale che non fa niente.
+	if (Def.ActionId.IsNone())
+	{
+		return nullptr;
+	}
+	URTActionData* Action = NewObject<URTActionData>(Outer);
+	Action->Def = Def;
+	// Campi SPECCHIO allineati al catalogo. `ARTPlayerController` e `ARTTurnManager` leggono ancora
+	// questi e non il `Def`, e i loro default sono quelli legacy dell'MVP quadrato: `RangeCells` 5 e
+	// `Power` 30. Senza questa propagazione ogni azione generica entrava nel kit con portata 5 e potenza
+	// 30 QUALUNQUE cosa il catalogo dichiarasse — e il bot valutava `Action.Wait`, che di portata ne ha
+	// 0 e di danno nessuno, fra le candidate d'ATTACCO come un colpo da 30 a distanza 5.
+	Action->RangeCells = Def.RangeCells;
+	Action->bSelfTarget = Def.bSelfTarget;
+	// 🔴 La RICARICA mancava, e non era un dettaglio di test (#1552). `ConsumeAbility` legge questo
+	// specchio e non il `Def`: con lo zero di default non scriveva niente in `AbilityCooldowns`,
+	// `CanUseAbility` rispondeva sempre `true`, e `Action.Brace` — che il catalogo dichiara con
+	// `Cooldown 1` — era riarmabile ogni turno da OGNI eroe del roster, perche' le generiche si
+	// accodano al kit di tutti. Gli altri tre costruttori la copiavano gia' (`MakeHeroAction`,
+	// `MakeEquipmentAction`, l'attacco base): questo era l'unico che non lo faceva.
+	Action->CooldownTurns = Def.CooldownTurns;
+	Action->Power = 0;
+	for (const FRTActionEffectSpec& Spec : Def.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
+	}
+	// `#3499`: la frase, dove nasce il nome. Chiavata sull'id, non sulla famiglia: vale per ogni azione core.
+	Action->Description = RTActionDescriptions::For(Id);
+	return Action;
+}
+
 TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 {
 	TArray<URTActionData*> Actions;
 	for (const FName& Id : GetGenericActionIds())
 	{
-		const FRTActionDef Def = FindCoreAction(Id);
-		// Un ID che il catalogo non conosce non produce un'azione vuota: quella entrerebbe nel kit con
-		// `ActionId` nullo e si presenterebbe come un comando reale che non fa niente.
-		if (Def.ActionId.IsNone())
+		// Un ID che il catalogo non conosce non produce un'azione: `MakeCoreAction` risponde `nullptr`.
+		URTActionData* Action = MakeCoreAction(Id, Outer);
+		if (Action == nullptr)
 		{
 			continue;
-		}
-		URTActionData* Action = NewObject<URTActionData>(Outer);
-		Action->Def = Def;
-		// Campi SPECCHIO allineati al catalogo. `ARTPlayerController` e `ARTTurnManager` leggono ancora
-		// questi e non il `Def`, e i loro default sono quelli legacy dell'MVP quadrato: `RangeCells` 5 e
-		// `Power` 30. Senza questa propagazione ogni azione generica entrava nel kit con portata 5 e potenza
-		// 30 QUALUNQUE cosa il catalogo dichiarasse — e il bot valutava `Action.Wait`, che di portata ne ha
-		// 0 e di danno nessuno, fra le candidate d'ATTACCO come un colpo da 30 a distanza 5.
-		Action->RangeCells = Def.RangeCells;
-		Action->bSelfTarget = Def.bSelfTarget;
-		// 🔴 La RICARICA mancava, e non era un dettaglio di test (#1552). `ConsumeAbility` legge questo
-		// specchio e non il `Def`: con lo zero di default non scriveva niente in `AbilityCooldowns`,
-		// `CanUseAbility` rispondeva sempre `true`, e `Action.Brace` — che il catalogo dichiara con
-		// `Cooldown 1` — era riarmabile ogni turno da OGNI eroe del roster, perche' le generiche si
-		// accodano al kit di tutti. Gli altri tre costruttori la copiavano gia' (`MakeHeroAction`,
-		// `MakeEquipmentAction`, l'attacco base): questo era l'unico che non lo faceva.
-		Action->CooldownTurns = Def.CooldownTurns;
-		Action->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
 		}
 		// Il NOME arriva dal catalogo di bilanciamento, e senza di esso l'azione entra nel kit muta: il
 		// giocatore che la arma legge `abilita' attiva -> ` e non sa cosa ha armato.
 		Action->DisplayName = GenericActionDisplayName(Id);
-		Action->Description = RTActionDescriptions::For(Id); // `#3499`: la frase, dove nasce il nome
 		Actions.Add(Action);
 	}
 	return Actions;

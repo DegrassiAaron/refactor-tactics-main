@@ -1,0 +1,100 @@
+{
+  "scenarioId": "Spec.Esito.DashBehindAClosedDoorLosesTheLine",
+  "tags": [
+    "esito",
+    "spec",
+    "predictive",
+    "door",
+    "ivrin",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 4,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `NoLineOfSight` nella voce `Fallback`. Per un attacco la linea di tiro mancata e' `Combat`/`NoLineOfSight` e non porta un motivo; il motivo lo scrivono la cura e il colpo predittivo. Qui Ivrin arma la cella accanto e poi scatta dietro una porta chiusa, che le toglie la linea.",
+  "_oracolo": "Una voce `Fallback`/`Cancelled` col motivo `NoLineOfSight` (5 in `ERTActionInvalidReason`), soggetto V1. La porta chiusa sta sul lato NE di (-1,1), cioe' fra la cella d'arrivo e la cella armata (0,0); lo scatto da (0,1) a (-1,1) non la attraversa.",
+  "doors": [
+    {
+      "cell": [
+        -1,
+        1,
+        0
+      ],
+      "edge": "NE",
+      "doorId": 1,
+      "state": "Closed"
+    }
+  ],
+  "units": [
+    {
+      "id": "V1",
+      "hero": "Hero.Ivrin",
+      "team": 0,
+      "cell": [
+        0,
+        1,
+        0
+      ],
+      "facing": "NW"
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        3,
+        -3,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "requires": [
+        "PredictiveAction"
+      ],
+      "intents": [
+        {
+          "unit": "V1",
+          "ability": "Hero.Ivrin.InterceptShot",
+          "targetCell": [
+            0,
+            0,
+            0
+          ],
+          "dash": "Hero.Ivrin.PassingBlade",
+          "dashTo": [
+            -1,
+            1,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "V1",
+      "value": 5,
+      "_assertion": "Il motivo e' `NoLineOfSight` (5), soggetto il tiratore."
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "V1",
+      "cell": [
+        -1,
+        1,
+        0
+      ],
+      "_assertion": "Il controllo: lo scatto e' avvenuto."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

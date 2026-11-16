@@ -1,0 +1,94 @@
+{
+  "scenarioId": "Spec.Esito.InteractOnDestroyedDoorIsRefused",
+  "tags": [
+    "esito",
+    "spec",
+    "map",
+    "door",
+    "interact",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 5,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `DoorDestroyed`. Una porta distrutta non blocca la vista, quindi in partita il click di `Action.Interact` la raggiunge; la risoluzione la trova distrutta e annulla.",
+  "_oracolo": "Una voce `Fallback`/`Cancelled` col motivo `DoorDestroyed` (16 in `ERTActionInvalidReason`), soggetto R1. Nessuna porta cambia stato.",
+  "doors": [
+    {
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "edge": "E",
+      "doorId": 1,
+      "state": "Destroyed"
+    }
+  ],
+  "units": [
+    {
+      "id": "R1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "W1",
+      "hero": "Hero.Ivrin",
+      "team": 1,
+      "cell": [
+        0,
+        -4,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "R1",
+          "ability": "Action.Interact",
+          "targetCell": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "R1",
+      "value": 16,
+      "_assertion": "Il motivo e' `DoorDestroyed` (16), e il soggetto e' chi interagisce."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Environment",
+      "outcome": "DoorOpened",
+      "value": 0,
+      "_assertion": "La porta distrutta non si apre..."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Environment",
+      "outcome": "DoorClosed",
+      "value": 0,
+      "_assertion": "...e non si chiude."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

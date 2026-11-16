@@ -2139,6 +2139,24 @@ void ARTUnit::EquipLoadout(const TArray<FName>& PieceIds)
 	SyncAbilityCooldowns();
 }
 
+void ARTUnit::GrantCoreActions(const TArray<FName>& ActionIds)
+{
+	for (const FName& Id : ActionIds)
+	{
+		URTActionData* Granted = URTCatalogLibrary::MakeCoreAction(Id, this);
+		if (Granted == nullptr)
+		{
+			continue; // il loader ha gia' rifiutato lo scenario: qui non si accoda un'azione muta
+		}
+		// Il nome: fuori dalle generiche un'azione core non ne ha uno player-facing. L'ultimo segmento dell'id
+		// e' il ripiego che `EquipmentActionDisplayName` usa gia' per un pezzo senza nome.
+		Granted->DisplayName = URTCatalogLibrary::EquipmentActionDisplayName(FText::GetEmpty(), Id);
+		Abilities.Add(Granted);
+	}
+	// In coda, come i gadget: gli indici del kit gia' pianificati non si spostano, e le ricariche servono gli slot.
+	SyncAbilityCooldowns();
+}
+
 URTActionData* ARTUnit::GetAbility(int32 Index) const
 {
 	return Abilities.IsValidIndex(Index) ? Abilities[Index] : nullptr;

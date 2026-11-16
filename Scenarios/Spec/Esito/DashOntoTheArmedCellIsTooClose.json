@@ -1,0 +1,87 @@
+{
+  "scenarioId": "Spec.Esito.DashOntoTheArmedCellIsTooClose",
+  "tags": [
+    "esito",
+    "spec",
+    "predictive",
+    "ivrin",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 4,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `TooClose`. Ivrin arma `Hero.Ivrin.InterceptShot` sulla cella accanto e nello stesso turno ci scatta sopra con `Hero.Ivrin.PassingBlade`: al boundary del Move la cella e' sotto la distanza minima ([D-610], `MinRangeCells` 1).",
+  "_oracolo": "Una voce `Fallback`/`Cancelled` col motivo `TooClose` (24 in `ERTActionInvalidReason`), soggetto V1. Il click accetta entrambe le azioni: il rifiuto nasce solo quando lo scatto ha portato il tiratore sopra la cella.",
+  "units": [
+    {
+      "id": "V1",
+      "hero": "Hero.Ivrin",
+      "team": 0,
+      "cell": [
+        0,
+        1,
+        0
+      ],
+      "facing": "NW"
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        3,
+        -3,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "requires": [
+        "PredictiveAction"
+      ],
+      "intents": [
+        {
+          "unit": "V1",
+          "ability": "Hero.Ivrin.InterceptShot",
+          "targetCell": [
+            0,
+            0,
+            0
+          ],
+          "dash": "Hero.Ivrin.PassingBlade",
+          "dashTo": [
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "V1",
+      "value": 24,
+      "_assertion": "Il motivo e' `TooClose` (24), soggetto il tiratore."
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "V1",
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "_assertion": "Il controllo: lo scatto e' avvenuto, ed e' cio' che rende la cella troppo vicina."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

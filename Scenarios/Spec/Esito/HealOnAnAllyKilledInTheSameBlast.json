@@ -1,0 +1,96 @@
+{
+  "scenarioId": "Spec.Esito.HealOnAnAllyKilledInTheSameBlast",
+  "tags": [
+    "esito",
+    "spec",
+    "combat",
+    "heal",
+    "gadget",
+    "riktor",
+    "ivrin"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 4,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `TargetDead`. Nel Blast il danno si applica prima delle cure ([D-503]): l'alleato che R1 cura muore nello stesso Blast, e la cura trova un bersaglio morto.",
+  "_oracolo": "A2 ha 1 HP e nessuno scudo, e il `Hero.Ivrin.PulseShot` di B1 la abbatte. Il `Gadget.Medkit` di R1 lascia una voce `Fallback`/`Cancelled` col motivo `TargetDead` (2 in `ERTActionInvalidReason`), soggetto R1. `UnitAlive` di A2 e' il controllo: senza la morte il motivo non avrebbe causa.",
+  "_nota_vista": "B1 guarda a W e A2 e' a due celle: la conosce. Le cure non consultano la conoscenza.",
+  "units": [
+    {
+      "id": "R1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        -2,
+        0,
+        0
+      ],
+      "loadout": [
+        "Weapon.Impact",
+        "Gadget.Medkit",
+        "Reaction.Anchor"
+      ]
+    },
+    {
+      "id": "A2",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "health": 1,
+      "shield": 0
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Ivrin",
+      "team": 1,
+      "cell": [
+        2,
+        0,
+        0
+      ],
+      "facing": "W"
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "R1",
+          "ability": "Gadget.Medkit",
+          "target": "A2"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Ivrin.PulseShot",
+          "target": "A2"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "R1",
+      "value": 2,
+      "actionId": "Gadget.Medkit",
+      "_assertion": "Il motivo e' `TargetDead` (2), e il soggetto e' chi cura."
+    },
+    {
+      "type": "UnitAlive",
+      "unit": "A2",
+      "value": false,
+      "_assertion": "Il controllo: A2 e' morta nel Blast."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

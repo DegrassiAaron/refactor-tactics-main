@@ -1,0 +1,78 @@
+{
+  "scenarioId": "Spec.Esito.DashBeyondItsLineIsRefused",
+  "tags": [
+    "esito",
+    "spec",
+    "movement",
+    "dash",
+    "muiren",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "mapRadius": 5,
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `DashNotAligned`. `Hero.Muiren.FluidTrail` ha portata 3, e la destinazione dichiarata e' a 4 celle. Per lettura del codice il click giudica lo scatto come il resolver, quindi in partita questo caso non e' stato dimostrato ne' escluso: lo scenario esiste perche' un caso incerto non resti senza specifica.",
+  "_oracolo": "Una voce `Fallback`/`Cancelled` col motivo `DashNotAligned` (18 in `ERTActionInvalidReason`), soggetto M1, e M1 resta dov'era.",
+  "units": [
+    {
+      "id": "M1",
+      "hero": "Hero.Muiren",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        -4,
+        4,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "M1",
+          "dash": "Hero.Muiren.FluidTrail",
+          "dashTo": [
+            4,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "M1",
+      "value": 18,
+      "_assertion": "Il motivo e' `DashNotAligned` (18), soggetto chi scatta."
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "M1",
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "_assertion": "Lo scatto non parte."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

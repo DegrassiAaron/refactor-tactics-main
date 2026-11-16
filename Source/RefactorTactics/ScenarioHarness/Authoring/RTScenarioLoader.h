@@ -103,7 +103,11 @@ public:
 	// 8 → 9 con E38 CP 38.13 (#4114): la chiave `actions`, l'elenco ordinato delle azioni del piano. Una build a
 	// `SupportedVersion = 8` la rifiuterebbe come sconosciuta, accusando il file invece della build. Con la `9` il rifiuto
 	// arriva dal gate di versione e nomina la build.
-	static constexpr int32 SupportedVersion = 9;
+	// 9 → 10 con `#4001`: `grant` sull'unita' (azioni core oltre al kit) e il filtro `unit` su `LogEventCount` e
+	// `LogEventAmount`. Il verso e' quello di `at`: `ParseScenarioUnits` e le assertion ignorerebbero le due chiavi in
+	// silenzio, e un conteggio filtrato per soggetto conterebbe le voci di tutti, verde per la ragione sbagliata. Con la
+	// `10` il rifiuto arriva dal gate di versione e nomina la build.
+	static constexpr int32 SupportedVersion = 10;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.

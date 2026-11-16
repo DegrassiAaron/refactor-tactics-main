@@ -1,0 +1,76 @@
+{
+  "scenarioId": "Spec.Esito.ShotAtAnotherLayerIsStopped",
+  "tags": [
+    "esito",
+    "spec",
+    "combat",
+    "layer",
+    "gadget",
+    "riktor"
+  ],
+  "version": 10,
+  "seed": 0,
+  "repeatCount": 3,
+  "fixture": "LayerStack",
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `OtherLayer`. La regola del piano vale per ogni colpo ([D-393], [D-509]): un tiro su un'unita' di un altro piano arriva alla risoluzione e non parte.",
+  "_oracolo": "Il `Hero.Gadget.Overload` di F1, sul piano 0, mirato sulla cella (1,-1,1) del piano 1 lascia una voce `Fallback`/`Cancelled` col motivo `OtherLayer` (21 in `ERTActionInvalidReason`), soggetto F1, e B2 non e' colpito.",
+  "_nota_bersaglio": "Mirato su una CELLA e non su B2: misurato il 2026-11-16, un tiro sull'unita' dell'altro piano esce `TargetUnknown` (7), perche' chi tira non la conosce e la conoscenza si giudica prima. Una cella non consulta la conoscenza.",
+  "units": [
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B2",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        1,
+        -1,
+        1
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "F1",
+          "ability": "Hero.Gadget.Overload",
+          "targetCell": [
+            1,
+            -1,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "unit": "F1",
+      "value": 21,
+      "_assertion": "Il motivo e' `OtherLayer` (21), soggetto chi tira."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "value": 0,
+      "_assertion": "Il colpo non parte."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

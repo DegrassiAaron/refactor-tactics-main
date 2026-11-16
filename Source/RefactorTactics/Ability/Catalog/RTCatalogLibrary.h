@@ -653,4 +653,14 @@ public:
 	 * @param Outer proprietario degli oggetti creati: l'unita' che li accoda, cosi' la loro vita e' la sua.
 	 */
 	static TArray<URTActionData*> MakeGenericActions(UObject* Outer);
+
+	/**
+	 * Un'istanza NUOVA dell'azione core `Id`, con i campi specchio allineati al catalogo e la frase di
+	 * `RTActionDescriptions`; `nullptr` se il catalogo non la conosce. E' il corpo che `MakeGenericActions`
+	 * applica a ogni generica, estratto perche' lo usi anche `ARTUnit::GrantCoreActions` (`#4001`).
+	 *
+	 * ⚠️ **Il nome non lo scrive**: quello delle generiche viene da una tabella che copre solo loro, e chi
+	 * chiama decide il proprio.
+	 */
+	static URTActionData* MakeCoreAction(const FName& Id, UObject* Outer);
 };

@@ -147,6 +147,24 @@ namespace
 	 */
 	int32 MinimumVersionFor(const FRTTestScenario& Scenario, FString& OutWhy)
 	{
+		// `#4001`: le chiavi della `10`, le piu' recenti, quindi per prime (la funzione ritorna al primo requisito).
+		for (const FRTScenarioUnit& Unit : Scenario.Units)
+		{
+			if (Unit.Grant.Num() > 0)
+			{
+				OutWhy = FString::Printf(TEXT("'grant' su '%s'"), *Unit.Id);
+				return 10;
+			}
+		}
+		for (const FRTTestExpectation& Exp : Scenario.Expect)
+		{
+			if ((Exp.Kind == ERTAssertionKind::LogEventCount || Exp.Kind == ERTAssertionKind::LogEventAmount) && !Exp.UnitId.IsEmpty())
+			{
+				OutWhy = TEXT("il filtro 'unit' su un'assertion del TurnLog");
+				return 10;
+			}
+		}
+
 		if (Scenario.bFreeRun || Scenario.MaxTurns != 0 || Scenario.RepeatCount != 1
 			|| Scenario.Requires.Num() > 0)
 		{
@@ -317,6 +335,13 @@ namespace
 			{
 				W->WriteArrayStart(TEXT("loadout"));
 				for (const FName& Piece : Unit.Loadout) { W->WriteValue(Piece.ToString()); }
+				W->WriteArrayEnd();
+			}
+			// `grant` (`#4001`): vuoto e assente si leggono uguali, quindi vuoto non si scrive.
+			if (Unit.Grant.Num() > 0)
+			{
+				W->WriteArrayStart(TEXT("grant"));
+				for (const FName& Granted : Unit.Grant) { W->WriteValue(Granted.ToString()); }
 				W->WriteArrayEnd();
 			}
 
@@ -535,6 +560,8 @@ namespace
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
 				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
 				WriteLogPhase(W, TEXT("phase"), Exp.bHasLogPhase, Exp.LogPhase);
+				// Il filtro sul soggetto (`#4001`): assente = nessun filtro, e non si scrive.
+				if (!Exp.UnitId.IsEmpty()) { W->WriteValue(TEXT("unit"), Exp.UnitId); }
 				W->WriteValue(TEXT("value"), Exp.Value);
 				break;
 
