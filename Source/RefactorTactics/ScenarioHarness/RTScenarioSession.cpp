@@ -552,9 +552,10 @@ namespace
 			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
 			// cio' che il gioco sa fare, e questo nome non e' niente.
 			TEXT("NeverAvailable"),           // owner: none
-			// E38 CP 38.13: una seconda voce di una classe ancora chiusa, che scrive solo l'harness. Entrano fra le disponibili
-			// col gesto che le scrive: la reazione con CP 38.15, lo scatto con CP 38.16 se `TR-30` ammette due scatti. La
-			// principale del Blast e' entrata con CP 38.14.
+			// E38 CP 38.13: una seconda voce di una classe che solo l'harness scrive. Entrano fra le disponibili col gesto del
+			// giocatore che la scrive. La reazione e' aperta da CP 38.15 nel piano e nella risoluzione, ma il gesto che AGGIUNGE
+			// una reazione invece di sostituirla e' un seguito di CP 38.15 (dominio 8); lo scatto con CP 38.16 se `TR-30` ammette
+			// due scatti. La principale del Blast e' entrata con CP 38.14.
 			TEXT("ReactionListPlanning"),     // owner: #4116
 			TEXT("DashListPlanning"),         // owner: #4117
 		};

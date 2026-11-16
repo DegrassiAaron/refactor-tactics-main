@@ -9,8 +9,8 @@ class ARTUnit;
 
 /**
  * La classe di una voce del piano: i campi a casella unica che il piano aveva prima della lista (E38 CP 38.12, #4113).
- * Le classi CHIUSE (scatto, principale, reazione, movimento) portano al piu' una voce, finche' il loro checkpoint non le
- * apre (CP 38.14–38.16); `Prep` e' aperta e ne porta quante il budget consente (`FRTUnitPlan::AddEntry`).
+ * Le classi CHIUSE (scatto, movimento) portano al piu' una voce, finche' il loro checkpoint non le apre (CP 38.16); `Prep`,
+ * principale (CP 38.14) e reazione (CP 38.15) sono aperte e ne portano quante il budget consente (`FRTUnitPlan::AddEntry`).
  */
 UENUM()
 enum class ERTPlanEntryClass : uint8

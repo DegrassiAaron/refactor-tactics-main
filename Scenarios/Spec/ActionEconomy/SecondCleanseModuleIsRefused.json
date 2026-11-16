@@ -1,0 +1,84 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondCleanseModuleIsRefused",
+  "tags": [
+    "action-economy",
+    "spec",
+    "reaction",
+    "riktor",
+    "gadget"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.15 (#4116), [D-615] (7): il modulo di reazione ha ricarica 1, quindi una seconda copia nello stesso piano e' `RepeatedWithCooldown` ([D-614]) e il lock-in svuota il piano (CP 38.10). Il turno arma due reazioni nello stesso intento, quindi porta `ReactionListPlanning` ed esce `Blocked` finche' il gesto del giocatore aggiunge una reazione invece di sostituirla (fuori scope di CP 38.15, dominio 8). Le attese sono state misurate il 2026-11-16 rendendo disponibile la capability per un giro locale, non committato.",
+  "_oracolo": "Riktor arma due volte `Reaction.Cleanse` (2 + 2 = 4). Il piano si svuota: due voci `Fallback`/`Cancelled` col motivo `RepeatedWithCooldown` (26 in `ERTActionInvalidReason`), e nessuna reazione armata, quindi nessuna voce `Reaction`.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "requires": [
+        "ReactionListPlanning"
+      ],
+      "intents": [
+        {
+          "unit": "B1",
+          "actions": [
+            {
+              "ability": "Reaction.Cleanse"
+            },
+            {
+              "ability": "Reaction.Cleanse"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 2,
+      "_assertion": "Il piano svuotato lascia una voce per azione."
+    },
+    {
+      "type": "LogEventAmount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 26,
+      "_assertion": "Il motivo e' `RepeatedWithCooldown` (26)."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "NotTriggered",
+      "value": 0,
+      "_assertion": "Un piano svuotato non arma niente."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}

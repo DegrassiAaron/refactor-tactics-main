@@ -483,6 +483,10 @@ bool FRTControlStatusesAreThreeTest::RunTest(const FString&)
 // gioco valuta la stessa unita' in due punti, quindi la guardia non ha un caso naturale. Pre-impostarlo e'
 // il modo di esercitare esattamente lo stato in cui l'unita' si troverebbe al SECONDO punto — cioe' la
 // condizione che la guardia esiste per gestire. Senza, il contatore sarebbe codice che nessun test tocca.
+//
+// ➕ Da [D-619] (E38 CP 38.15) il limite e' per REAZIONE, non per unita': il test segna come gia' scattata la reazione
+// armata (`MarkReactionActivated`), e una reazione diversa della stessa unita' scatterebbe comunque
+// (`Reactions.TwoReactionsOfOneUnitFireInEngineOrder`).
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionCounterBlocksSecondTest,
 	"RefactorTactics.Reactions.CounterBlocksASecondActivation",

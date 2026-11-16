@@ -380,7 +380,7 @@ non cambia *che cosa* ha speso.
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (il primo danno diretto di ogni Blast è **×1,2**, [D-595](../decisions/RT_PDR_00_Decision_Log.md) (2); era **+5**, poi **+50**, fino al 2026-11-10) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
-> era strutturale; adesso è `Exposed` (×1,2 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
+> era strutturale; adesso è `Exposed` (×1,2 al primo danno diretto) più nessuna reazione nel turno, contro 3 MP
 > in più di un `Move`. Se non basta, `Sprint` è un `Move` più lungo e basta — l'**upgrade puro** che D-015
 > vieta. Tracciato in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md)
 > §`BAL-1`, che dice **come misurarlo** (quante volte il bot lo sceglie quando era disponibile) invece di
@@ -524,12 +524,10 @@ per le altre: è il punto di valutazione a essere diverso, e le due cose non van
 > turno sono di nuovo disponibili: il cooldown si imposta quando il modulo scatta (`RTTurnManager.cpp:5949`; per `Reaction.AllyIntercept`,
 > che ha un pass suo, `RTTurnManager_Blast.cpp:2287`) e si sconta nel Cleanup dello stesso turno (`RTTurnManager.cpp:2108`). Un valore più
 > alto entra con la skill che lo chiede. Il modulo **non** eredita la ricarica dall'azione core: la fissa lui e la impone all'azione che
-> concede, al posto del `CD` di questa tabella (`RTCatalogLibrary.cpp:960`, `:967`, `:1005`). Oggi vale 0
-> perché «Una reazione non ha ricarica propria nel catalogo §3» (`RTCatalogLibrary.cpp:569-571`), e quel «catalogo §3» è, nel commento
-> accanto, il catalogo equipaggiamento (`:577`), dove ogni modulo «si attiva al massimo una volta per turno»
-> ([`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) §3). Il valore 1 entra con E38, in CP 38.15
-> ([proposta](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md) §8); fino ad allora valgono lo 0 e il test che lo fissa
-> (`RTEquipmentTests.cpp:279`). Quante reazioni scattano in un turno l'ha deciso [`D-619`](../decisions/RT_PDR_00_Decision_Log.md): una volta per reazione, quindi più reazioni della stessa unità nello stesso turno; era `TR-29`, una domanda della traduzione del kit di Riktor
+> concede, al posto del `CD` di questa tabella (`RTCatalogLibrary.cpp:960`, `:967`, `:1005`). Vale 1 da CP 38.15 di E38
+> ([#4116](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4116), [D-615](../decisions/RT_PDR_00_Decision_Log.md) (7)): `MakeReactionModules` lo scrive, e `Equipment.ReactionModule.SingleActivation`
+> lo asserisce. ⌫ *Fino a CP 38.15 valeva 0, perché «Una reazione non ha ricarica propria nel catalogo §3», cioè
+> [`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) §3.* Quante reazioni scattano in un turno l'ha deciso [`D-619`](../decisions/RT_PDR_00_Decision_Log.md): una volta per reazione, quindi più reazioni della stessa unità nello stesso turno; era `TR-29`, una domanda della traduzione del kit di Riktor
 > (PR [#4108](https://github.com/DegrassiAaron/refactor-tactics-main/pull/4108)).
 
 **Anchor** — trigger: l'unità **sta per essere spostata** da una spinta o da una trazione di questo Blast

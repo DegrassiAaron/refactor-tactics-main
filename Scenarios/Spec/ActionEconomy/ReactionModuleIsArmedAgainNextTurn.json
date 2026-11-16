@@ -1,0 +1,93 @@
+{
+  "scenarioId": "Spec.ActionEconomy.ReactionModuleIsArmedAgainNextTurn",
+  "tags": [
+    "action-economy",
+    "spec",
+    "reaction",
+    "riktor"
+  ],
+  "version": 9,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.15 (#4116), [D-615] (7): il modulo di reazione ha ricarica 1 e torna disponibile ogni turno, come l'Overwatch. Il turno arma una reazione sola, quindi gira oggi.",
+  "_oracolo": "Riktor A arma `Reaction.Cleanse` ai turni 1 e 2, e Riktor B lo colpisce con `Hero.Riktor.ImpactShot`, che applica `Status.Slow`, uno dei controlli a cui il modulo risponde. Il modulo scatta in tutti e due i turni, e nessun piano si svuota. Con la ricarica 0 di prima l'esito era lo stesso: lo scenario prova che la ricarica 1 non toglie il modulo al turno dopo, e il controllo positivo sta in `Resolution.ReactionModuleIsArmableEveryTurn` (con ricarica 2 il turno dopo e' ancora in ricarica).",
+  "_nota_loadout": "Il loadout di A1 e' quello di default di Riktor, dichiarato per esteso: il campo `reaction` si valida contro il kit e il loadout DICHIARATO, non contro il default.",
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "facing": "E",
+      "loadout": [
+        "Weapon.Impact",
+        "Gadget.PortableCover",
+        "Reaction.Cleanse"
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        1,
+        0,
+        0
+      ],
+      "facing": "W"
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "A1",
+          "reaction": "Reaction.Cleanse"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Riktor.ImpactShot",
+          "target": "A1"
+        }
+      ]
+    },
+    {
+      "intents": [
+        {
+          "unit": "A1",
+          "reaction": "Reaction.Cleanse"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Riktor.ImpactShot",
+          "target": "A1"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Activated",
+      "value": 2,
+      "actionId": "Reaction.Cleanse",
+      "_assertion": "Il modulo scatta nei due turni."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Fallback",
+      "outcome": "Cancelled",
+      "value": 0,
+      "_assertion": "E al turno 2 non e' in ricarica: nessun piano svuotato."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 2
+    }
+  ]
+}

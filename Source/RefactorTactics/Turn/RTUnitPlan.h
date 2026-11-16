@@ -39,7 +39,8 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	// [D-615] (5)). L'ordine si mostra e non decide: nessun resolver lo legge per ordinare o per scegliere un esito, e
 	// `MakePlanFor` deriva la banda del movimento da tutte le altre voci, qualunque sia la loro posizione.
 	//
-	// 🔑 **Una voce per classe CHIUSA** (scatto, principale, reazione, movimento), finche' il resolver ne legge una: sono i
+	// 🔑 **Una voce per classe CHIUSA** (scatto, movimento: la principale e' aperta da CP 38.14, la reazione da CP 38.15),
+	// finche' il resolver ne legge una: sono i
 	// campi a casella unica di prima, e la lista ha solo le forme che quei campi sapevano dire. E' una regola sulla FORMA
 	// del piano, non sull'esito. `AddEntry` rifiuta una seconda voce di una classe chiusa; le porte qui sotto, che sono i
 	// gesti di prima, SOSTITUISCONO il valore nella voce della loro classe. ➕ **La classe `Prep` e' aperta** (E38 CP 38.13):
