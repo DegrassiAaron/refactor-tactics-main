@@ -1542,7 +1542,8 @@ public:
 	 * La riga di un'azione BLOCCATA (`#4043`, [D-623] (3)): «Eroe: Azione bloccato» e, sotto, il motivo in parole, senza prefisso.
 	 * L'azione col ripiego di `ComposeActivationLineText`. Il motivo e' quello di `BlockedReasonWords`.
 	 */
-	static FText ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason);
+	static FText ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason,
+		const FString& InterrupterLabel = FString());
 
 	/** Il motivo di un blocco in parole, per il Registro (`#4043`): una parola o due, mai vuoto. */
 	static FText BlockedReasonWords(int32 Reason);

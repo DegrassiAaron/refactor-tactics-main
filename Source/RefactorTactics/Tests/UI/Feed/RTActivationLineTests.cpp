@@ -486,6 +486,14 @@ bool FRTActivationLineBlockedLineNamesTheReasonBelowTest::RunTest(const FString&
 	TestEqual(TEXT("anche per l'alleato"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::TargetFriendly)).ToString(), Bersaglio);
 	TestEqual(TEXT("fuori portata"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::OutOfRange)).ToString(), FString(TEXT("fuori portata")));
 	TestEqual(TEXT("nessuna linea di tiro"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)).ToString(), FString(TEXT("nessuna linea di tiro")));
+	// [D-623] (4): chi ha interrotto, quando chi chiama lo passa (cioe' quando chi guarda lo vedeva); il nome conta solo per l'interruzione.
+	const int32 Interrotto = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	TestEqual(TEXT("interrotto da chi"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, Interrotto, TEXT("Gadget")).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\ninterrotto da Gadget")));
+	TestEqual(TEXT("senza il nome, solo interrotto"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, Interrotto).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\ninterrotto")));
+	TestEqual(TEXT("per un altro motivo il nome non conta"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, static_cast<int32>(ERTActionInvalidReason::Stunned), TEXT("Gadget")).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\nstordito")));
 	return true;
 }
 

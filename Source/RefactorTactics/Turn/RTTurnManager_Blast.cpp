@@ -2043,6 +2043,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 				return H.Healer == Curatore && H.Def.ActionId == ActionId && Annullabile(H.Def);
 			});
 	};
+	TMap<const ARTUnit*, TPair<int32, FRTKnowledgeVerdict>> InterruttoreDellaCura; // `#4043`: per l'evento di blocco della cura
 	for (const FRTBlastContext::FRTQueuedHeal& Cura : Ctx.QueuedHeals)
 	{
 		if (!CuratoriColpiti.Contains(Cura.Healer) || !Annullabile(Cura.Def)) { continue; }
@@ -2059,6 +2060,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.DeclarationIndex = Cura.DeclarationIndex;
 		Interrotta.DeclaringTeamId = Cura.DeclaringTeamId;
 		if (const int32* Primo = PrimoSulCuratore.Find(Cura.Healer)) { NominaInterruttore(Interrotta, *Primo); }
+		InterruttoreDellaCura.Add(Cura.Healer, { Interrotta.InterruptedByUnitId, Interrotta.InterruptedByVerdict });
 		AppendLogEntry(Interrotta, Cura.Healer);
 	}
 	Ctx.RemoveHealsWhere([&CuraAnnullata](const ARTUnit* Curatore, const FRTActionDef& Def)
@@ -2076,6 +2078,11 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (CuraAnnullata(Attivazione.Source, Attivazione.ActionId))
 		{
 			Attivazione.BlockedReason = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+			if (const TPair<int32, FRTKnowledgeVerdict>* Chi = InterruttoreDellaCura.Find(Attivazione.Source))
+			{
+				Attivazione.InterruptedByStableUnitId = Chi->Key;
+				Attivazione.InterruptedByVerdict = Chi->Value;
+			}
 		}
 	}
 	for (FRTBlastContext::FRTDeferredHealEntry& Rinviata : Ctx.DeferredHealEntries)
@@ -2171,6 +2178,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
 		Interrotta.Priority = IntentDefs[k].Priority;
 		if (const int32* Primo = PrimoInterruttore.Find(k)) { NominaInterruttore(Interrotta, *Primo); }
+		Ctx.InterrupterOfIntent.Add(k, { Interrotta.InterruptedByUnitId, Interrotta.InterruptedByVerdict }); // `#4043`
 		AppendLogEntry(Interrotta, Vittima);
 
 		// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che

@@ -2866,6 +2866,20 @@ protected:
 			ERTResolvedEventType::ActionBlocked, static_cast<int32>(Reason));
 	}
 
+	/** `#4043`: come sopra, e in piu' chi ha interrotto, col suo verdetto, sull'evento appena emesso. */
+	void EmitActionBlockedBy(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape, ERTActionInvalidReason Reason,
+		const FRTKnowledgeVerdict* FrozenSourceVerdict, int32 InterruptedBy, const FRTKnowledgeVerdict& InterruptedByVerdict)
+	{
+		const int32 Prima = ResolvedTimeline.Num();
+		EmitActionBlocked(Source, InPhase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape, Reason, FrozenSourceVerdict);
+		if (ResolvedTimeline.Num() > Prima)
+		{
+			ResolvedTimeline.Last().InterruptedByStableUnitId = InterruptedBy;
+			ResolvedTimeline.Last().InterruptedByVerdict = InterruptedByVerdict;
+		}
+	}
+
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
 	 * URTCombatLibrary::ApplyDamage, Status via Unit->ApplyStatus. Usata da ResolveDash e ResolveMovement
