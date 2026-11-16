@@ -8,6 +8,10 @@
 > [`RTPlayerController.cpp`](../../../Source/RefactorTactics/Player/RTPlayerController.cpp).
 > I domini spaziali della mappa hanno un owner separato:
 > [`spec-domini-spaziali-mappa.md`](spec-domini-spaziali-mappa.md).
+>
+> 🔁 **2026-11-16, [D-620](../../decisions/RT_PDR_00_Decision_Log.md)**: il passo di rotazione a **30°** proposto dal documento UI/UX dell'autore è
+> **riaperto** come `UXR-3` di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), contro il motivo di `D-142` (un divisore di 60 aggancia la vista agli assi
+> della griglia). Finché è aperta valgono i 45° in tattica e i 60° in strategica (§3.1).
 
 Prima di questo file la camera esisteva **solo come codice e come decisioni sparse**: `D-142` fissava lo
 snap, `D-143` la natura presentation-only, cinque voci `PIE-CAM-*` la provavano a mano, e
