@@ -53,6 +53,7 @@ namespace
 		E.ReactionInstanceId = 11;
 		E.SelectedTargetUnitId = 43;
 		E.OriginalTargetUnitId = 44;
+		E.InterruptedByUnitId = 45; // `#4000`, v15
 		E.ReactionResponse = TEXT("FIRE");
 		// `SightBlockerCell` (`#2534`, v13): il muro che ferma il tiro. Va **diverso dal default**
 		// `NoSightBlocker()` — `Layer = INDEX_NONE` — o il campo resterebbe al proprio default e
@@ -785,6 +786,66 @@ bool FRTReplayPrivacyDeclarationIndexStaysWithItsTeamTest::RunTest(const FString
 		TestEqual(TEXT("la traccia della squadra 1 no"), IndiceDi(Squadra1, 10), (int32)INDEX_NONE);
 		TestEqual(TEXT("e conserva il suo"), IndiceDi(Squadra1, 20), 1);
 	}
+	RTReplayFixtures::Pulisci(Root);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest,
+	"RefactorTactics.Replay.Privacy.InterrupterIsNamedOnlyToWhoSawIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest::RunTest(const FString&)
+{
+	// `#4000`: la voce interrotta si legge col verdetto della vittima, il nome di chi ha interrotto col verdetto
+	// dell'interruttore. La squadra che non vedeva l'interruttore legge la voce e non il nome; quella che lo vedeva, si';
+	// il neutrale riceve tutto. La forma pubblica porta il campo come la traccia filtrata.
+	FRTTurnLogEntry Interrotta = VoceConVerdetto(10, FRTKnowledgeVerdict::Everyone());
+	Interrotta.Category = ERTLogCategory::Fallback;
+	Interrotta.InterruptedByUnitId = 7;
+	Interrotta.InterruptedByVerdict = SoloSquadra(1);
+	const TArray<FRTTurnLogEntry> Voci = { Interrotta };
+
+	const TArray<FRTTurnLogEntry> PerLaZero = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, 0);
+	const TArray<FRTTurnLogEntry> PerLaUno = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, 1);
+	const TArray<FRTTurnLogEntry> Neutrale = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, INDEX_NONE);
+	if (!TestEqual(TEXT("la squadra 0 legge la voce"), PerLaZero.Num(), 1) || !TestEqual(TEXT("e la squadra 1"), PerLaUno.Num(), 1)
+		|| !TestEqual(TEXT("e il neutrale"), Neutrale.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ma la squadra 0, che non lo vedeva, non legge chi ha interrotto"), PerLaZero[0].InterruptedByUnitId, (int32)INDEX_NONE);
+	TestEqual(TEXT("la squadra 1, che lo vedeva, si'"), PerLaUno[0].InterruptedByUnitId, 7);
+	TestEqual(TEXT("il neutrale riceve la traccia intera"), Neutrale[0].InterruptedByUnitId, 7);
+	TestEqual(TEXT("controllo: la voce stessa e' intatta per la squadra 0"), PerLaZero[0].Amount, 10);
+	const TArray<FRTPublicReplayEntry> Pubblica = URTReplayPrivacyLibrary::ToPublicTrace(PerLaUno);
+	if (TestEqual(TEXT("la forma pubblica ha la voce"), Pubblica.Num(), 1))
+	{
+		TestEqual(TEXT("e porta chi ha interrotto"), Pubblica[0].InterruptedByUnitId, 7);
+	}
+	TestEqual(TEXT("e per la squadra 0 non lo porta"), URTReplayPrivacyLibrary::ToPublicTrace(PerLaZero)[0].InterruptedByUnitId, (int32)INDEX_NONE);
+
+	// Alla registrazione: la traccia della squadra 0 non nomina l'interruttore, quella della squadra 1 e la canonica si'.
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("InterruptedByTeam"));
+	RTReplayFixtures::Pulisci(Root);
+	FRTReplayManifest Manifest;
+	Manifest.MatchId = FGuid::NewGuid();
+	Manifest.FormatId = FName(TEXT("Format.Skirmish2v2"));
+	Manifest.bHexTopology = true;
+	Manifest.ObserverTeamIds = { 0, 1 };
+	if (!TestTrue(TEXT("si registra"), URTReplayRecorderLibrary::RecordTurn(Root, Manifest, 1, Voci))) { return false; }
+	auto Nominato = [&](const FString& Nome) -> int32
+	{
+		TArray<uint8> Bytes;
+		TArray<FRTTurnLogEntry> Out;
+		if (!FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(URTReplayRecorderLibrary::MatchDirectory(Root, Manifest.MatchId), Nome))
+			|| !URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out) || Out.Num() != 1)
+		{
+			return -99;
+		}
+		return Out[0].InterruptedByUnitId;
+	};
+	TestEqual(TEXT("la canonica nomina l'interruttore"), Nominato(URTReplayRecorderLibrary::TurnFileName(1)), 7);
+	TestEqual(TEXT("la traccia della squadra 1 anche"), Nominato(URTReplayRecorderLibrary::TurnFileNameForObserver(1, 1)), 7);
+	TestEqual(TEXT("quella della squadra 0 no"), Nominato(URTReplayRecorderLibrary::TurnFileNameForObserver(1, 0)), (int32)INDEX_NONE);
 	RTReplayFixtures::Pulisci(Root);
 	return true;
 }

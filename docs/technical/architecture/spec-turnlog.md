@@ -90,6 +90,36 @@ della v14, che restano leggibili.
 Il corpus golden è stato rigenerato una volta, con questa versione: ogni traccia, riportato il campo a `INDEX_NONE`, ha lo stesso
 hash del commit di partenza.
 
+## `InterruptedByUnitId`: chi ha interrotto *(formato **v15**, [#4000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4000))*
+
+La voce `Fallback`/`Cancelled` col motivo `Interrupted` nomina l'unità il cui `Action.Interrupt` ha annullato l'azione, per un
+attacco come per una cura ([#4042](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4042)): è lo `StableUnitId`
+dell'interruttore, l'altro capo della voce, sul modello di `OriginalTargetUnitId`. Vale `INDEX_NONE` su ogni altra voce e nelle
+tracce scritte prima della v15, che restano leggibili (`TurnLog.LegacyVersionWithoutInterruptedByIsReadable`).
+
+- **Uno solo**: con due interruttori efficaci sulla stessa azione la voce nomina il primo nell'ordine in cui `ApplyInterrupts` li
+  scopre, cioè l'ordine dei colpi del Blast, per indice d'unità canonico (`HexBlast.TwoInterruptersNameTheFirst`). Una voce per
+  interruttore cambierebbe gli hash, ed è stata scartata ([D-582](../../decisions/RT_PDR_00_Decision_Log.md) (4)).
+- **L'altro interruttore non è ricavabile dalla traccia**, misurato il 2026-11-15: un `Action.Interrupt` efficace non lascia voci
+  nel TurnLog, perché il suo colpo esce da `Plan.Hits` e le attivazioni stanno fuori dal TurnLog. Lo stesso test pinna il limite.
+- **Fuori dall'hash** ([D-582](../../decisions/RT_PDR_00_Decision_Log.md) (4), «Un campo, fuori dall'hash»): due tracce che
+  differissero solo per chi è nominato hanno lo stesso hash (`TurnLog.InterruptedByStaysOutOfTheHash`). Il bump di formato ha
+  rigenerato i **byte** del corpus golden per il gate di versione, non i suoi hash: `GoldenCorpusMatches` era verde prima della
+  rigenerazione, e ogni file ha le stesse voci con 4 byte in più ciascuna.
+- **`EntryLess`**: in coda, dopo `DeclarationIndex`. Una vittima ha una voce `Interrupted` per azione, quindi non decide mai fra due
+  voci di oggi; chiude l'ordine perché il campo è nei byte.
+- **Privacy**: `Public`, ma per osservatore. Accanto, `InterruptedByVerdict` (`Transient`, fuori dai byte e dall'hash) porta il
+  verdetto congelato sull'**interruttore** quando la voce è nata ([D-223](../../decisions/RT_PDR_00_Decision_Log.md)).
+  `URTReplayPrivacyLibrary::FilterEntriesForObserver` porta il campo a `INDEX_NONE` quando la squadra che guarda non vedeva
+  l'interruttore, anche se vede la vittima: «l'unità da cui arriva segue la visibilità» (D-582). Vale per ogni traccia per
+  osservatore, la registrazione e l'ispettore di contesto (`Replay.Privacy.InterrupterIsNamedOnlyToWhoSawIt`).
+- ⚠️ **Limite del campo unico**: con due interruttori, se il primo in ordine canonico era nascosto all'osservatore e il secondo
+  visibile, la voce esce senza nome, anche se il secondo «segue la visibilità». Un campo con un verdetto non sceglie un interruttore
+  diverso per ogni osservatore. Scegliere fra un nome per osservatore e una voce per interruttore cambia il formato o gli hash, ed è
+  dell'autore.
+- ⚠️ **L'audit di [D-313](../../decisions/RT_PDR_00_Decision_Log.md) non lo verifica**: ricalcola `Verdict` contro `VerdictSubject`,
+  e `InterruptedByVerdict` non ha un soggetto registrato. È una lacuna di copertura, non una fuga.
+
 ## `OriginalTargetUnitId`: i due capi di un redirect *(formato **v9**, [#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060))*
 
 Dal formato **v9** una voce che redirige un colpo porta **chi era il bersaglio prima**. Oggi la produce la

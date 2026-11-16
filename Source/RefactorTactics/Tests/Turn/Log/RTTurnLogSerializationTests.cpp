@@ -2,6 +2,7 @@
 #include "Turn/Log/RTTurnLogLibrary.h"
 #include "Turn/Reaction/RTReactionOpportunityTypes.h" // FireResponse: il token si CHIEDE alla libreria (#1118)
 #include "Turn/Log/RTTurnLog.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo della voce interrotta (#4000)
 #include "Turn/Reaction/RTReactionLibrary.h" // `ERTReactionOutcome`: l'esito che una voce di redirect porta (v9, #1060)
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
@@ -1497,7 +1498,8 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 		  2   // v10/v11: il token della risposta di reazione, stringa vuota
 		+ 4   // v12 (`#1880`): il micro-step
 		+ 12  // v13 (`#2534`): `SightBlockerCell`, tre int32
-		+ 4;  // v14 (E38 CP 38.13): `DeclarationIndex`
+		+ 4   // v14 (E38 CP 38.13): `DeclarationIndex`
+		+ 4;  // v15 (`#4000`): `InterruptedByUnitId`
 	Bytes.RemoveAt(Bytes.Num() - 4 - BytesAfterV9, BytesAfterV9);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
@@ -1702,16 +1704,17 @@ bool FRTTurnLogLegacyVersionWithoutDeclarationIndexIsReadableTest::RunTest(const
 	Voce.DeclarationIndex = 2;
 	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ Voce });
 
-	// Controllo: alla v14 il campo sopravvive al giro.
+	// Controllo: alla versione corrente il campo sopravvive al giro.
 	TArray<FRTTurnLogEntry> Letta;
-	if (!TestTrue(TEXT("la v14 si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
+	if (!TestTrue(TEXT("la versione corrente si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
 	{
 		return false;
 	}
 	TestEqual(TEXT("e porta l'ordine di dichiarazione"), Letta[0].DeclarationIndex, 2);
 
-	// La stessa voce alla v13: tolti i 4 byte del campo, versione 13, checksum ricalcolato.
-	Bytes.RemoveAt(Bytes.Num() - 4 - 4, 4);
+	// La stessa voce alla v13: tolti gli 8 byte della v14 e della v15 (`DeclarationIndex`, `InterruptedByUnitId`, in coda
+	// alla voce in quest'ordine), versione 13, checksum ricalcolato.
+	Bytes.RemoveAt(Bytes.Num() - 4 - 8, 8);
 	Bytes[4] = 13;
 	Bytes[5] = 0;
 	uint32 H = 2166136261u;
@@ -1755,6 +1758,89 @@ bool FRTTurnLogDeclarationIndexBreaksTiesBetweenCopiesTest::RunTest(const FStrin
 	FRTTurnLogEntry SecondaSenza = Seconda; SecondaSenza.DeclarationIndex = INDEX_NONE;
 	TestEqual(TEXT("controllo: senza ordine sono indistinguibili"),
 		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ PrimaSenza })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ SecondaSenza })));
+	return true;
+}
+
+// ── #4000: chi ha interrotto, nella v15 ─────────────────────────────────────────────────────────────────────────────
+namespace
+{
+	/** Una voce `Cancelled`/`Interrupted` come quella che `ApplyInterrupts` scrive, con chi ha interrotto. */
+	FRTTurnLogEntry MakeInterruptedSerEntry(int32 InterruptedBy)
+	{
+		FRTTurnLogEntry Voce = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Fallback,
+			static_cast<uint8>(ERTFallbackOutcome::Cancelled), FRTCellId(0, 0), FRTCellId(1, 0),
+			static_cast<int32>(ERTActionInvalidReason::Interrupted));
+		Voce.ActionId = FName(TEXT("Action.BasicAttack"));
+		Voce.UnitId = 3;
+		Voce.InterruptedByUnitId = InterruptedBy;
+		return Voce;
+	}
+
+	void RicalcolaChecksum(TArray<uint8>& Bytes)
+	{
+		uint32 H = 2166136261u;
+		for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
+		Bytes[Bytes.Num() - 4] = H & 0xFF;
+		Bytes[Bytes.Num() - 3] = (H >> 8) & 0xFF;
+		Bytes[Bytes.Num() - 2] = (H >> 16) & 0xFF;
+		Bytes[Bytes.Num() - 1] = (H >> 24) & 0xFF;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyVersionWithoutInterruptedByIsReadableTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutInterruptedByIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyVersionWithoutInterruptedByIsReadableTest::RunTest(const FString&)
+{
+	// `#4000`: la v15 porta chi ha interrotto; una traccia v14 resta leggibile, col campo a `INDEX_NONE`.
+	FRTTurnLogEntry Voce = MakeInterruptedSerEntry(/*InterruptedBy*/ 7);
+	Voce.DeclarationIndex = 1;
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ Voce });
+	TestEqual(TEXT("il writer scrive la v15"), static_cast<int32>(Bytes[4] | (Bytes[5] << 8)),
+		static_cast<int32>(ERTTurnLogFormatVersion::WithInterruptedBy));
+	TArray<FRTTurnLogEntry> Letta;
+	if (!TestTrue(TEXT("la v15 si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e nomina chi ha interrotto"), Letta[0].InterruptedByUnitId, 7);
+
+	// La stessa voce alla v14: tolti i 4 byte del campo, che sta in coda alla voce, versione 14, checksum ricalcolato.
+	Bytes.RemoveAt(Bytes.Num() - 4 - 4, 4);
+	Bytes[4] = static_cast<uint8>(ERTTurnLogFormatVersion::WithDeclarationIndex);
+	Bytes[5] = 0;
+	RicalcolaChecksum(Bytes);
+	TArray<FRTTurnLogEntry> Vecchia;
+	TestTrue(TEXT("una traccia v14 resta leggibile"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Vecchia));
+	if (!TestEqual(TEXT("una voce letta"), Vecchia.Num(), 1)) { return false; }
+	TestEqual(TEXT("senza il campo, nessuno nominato"), Vecchia[0].InterruptedByUnitId, (int32)INDEX_NONE);
+	TestEqual(TEXT("e il campo prima, l'ordine di dichiarazione, e' intatto"), Vecchia[0].DeclarationIndex, 1);
+	TestEqual(TEXT("come il resto della voce"), Vecchia[0].Amount, static_cast<int32>(ERTActionInvalidReason::Interrupted));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogInterruptedByStaysOutOfTheHashTest,
+	"RefactorTactics.TurnLog.InterruptedByStaysOutOfTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogInterruptedByStaysOutOfTheHashTest::RunTest(const FString&)
+{
+	// `#4000`, [D-582] (4), «Un campo, fuori dall'hash»: due voci che differiscono solo per chi ha interrotto hanno lo
+	// stesso hash, e byte diversi. I byte non dipendono dall'ordine d'inserimento, perche' il campo chiude `EntryLess`.
+	const FRTTurnLogEntry DaSette = MakeInterruptedSerEntry(7);
+	const FRTTurnLogEntry DaNove = MakeInterruptedSerEntry(9);
+	TestEqual(TEXT("stesso hash"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaSette })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaNove })));
+	TestEqual(TEXT("anche per l'hash che non guarda l'ordine"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLog({ DaSette })), static_cast<int64>(URTTurnLogLibrary::HashTurnLog({ DaNove })));
+	TestFalse(TEXT("controllo: i byte li distinguono"),
+		URTTurnLogLibrary::SerializeTurnLog({ DaSette }) == URTTurnLogLibrary::SerializeTurnLog({ DaNove }));
+	TestTrue(TEXT("e non dipendono dall'ordine d'inserimento"),
+		URTTurnLogLibrary::SerializeTurnLog({ DaSette, DaNove }) == URTTurnLogLibrary::SerializeTurnLog({ DaNove, DaSette }));
+	// Controllo positivo dell'hash: un campo che l'hash mescola, l'esito, lo cambia.
+	FRTTurnLogEntry Altro = DaSette;
+	Altro.Amount = static_cast<int32>(ERTActionInvalidReason::Neutralised);
+	TestNotEqual(TEXT("controllo: un motivo diverso cambia l'hash"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaSette })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ Altro })));
 	return true;
 }
 

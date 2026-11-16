@@ -1394,6 +1394,37 @@ struct FRTTurnLogEntry
 	UPROPERTY(Transient)
 	int32 DeclaringTeamId = INDEX_NONE;
 
+	/**
+	 * **Chi ha interrotto** (`#4000`, [D-582] (4)): lo `StableUnitId` dell'unita' il cui `Action.Interrupt` ha annullato
+	 * l'azione, sulla voce `Fallback`/`Cancelled` col motivo `Interrupted`, per un attacco come per una cura (`#4042`).
+	 * `INDEX_NONE` su ogni altra voce e nelle tracce scritte prima della v15. E' l'altro capo della voce, sul modello di
+	 * `OriginalTargetUnitId`: `UnitId` e' la vittima.
+	 *
+	 * ⚠️ **Uno solo**, anche con due interruttori efficaci sulla stessa azione: il primo nell'ordine in cui
+	 * `ApplyInterrupts` li scopre, cioe' l'ordine dei colpi del Blast (`Plan.Hits`, per indice d'unita' canonico). Una voce
+	 * per interruttore cambierebbe gli hash, e l'autore l'ha scartata.
+	 *
+	 * ⚠️ **NON entra nell'hash**, per decisione d'autore ([D-582] (4), «Un campo, fuori dall'hash»): due tracce che
+	 * differissero solo per chi e' nominato hanno lo stesso hash. Sta in coda a `EntryLess`, dove decide solo fra voci
+	 * uguali in tutto il resto: serve ai byte, non al gioco.
+	 *
+	 * 🔒 **Pubblico, ma per osservatore**: `URTReplayPrivacyLibrary::FilterEntriesForObserver` lo porta a `INDEX_NONE`
+	 * quando l'interruttore non era visibile alla squadra che guarda, col verdetto congelato su di lui
+	 * (`InterruptedByVerdict`): un'unita' che il giocatore non vede non viene nominata.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 InterruptedByUnitId = INDEX_NONE;
+
+	/**
+	 * Chi puo' leggere `InterruptedByUnitId`: il verdetto congelato sull'INTERRUTTORE quando la voce e' nata ([D-223]),
+	 * non sulla vittima come `Verdict`. Il default nasconde.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, in `EntryLess` ne' nell'hash. Serve solo alla traccia per
+	 * osservatore, che si scrive alla registrazione, dove la voce viva lo porta ancora.
+	 */
+	UPROPERTY(Transient)
+	FRTKnowledgeVerdict InterruptedByVerdict;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -1630,7 +1661,18 @@ enum class ERTTurnLogFormatVersion : uint16
 	 *
 	 * ⚠️ Il numero 14 e' stato verificato su tutti i branch remoti il 2026-11-15, come chiede [D-070].
 	 */
-	WithDeclarationIndex = 14
+	WithDeclarationIndex = 14,
+	/**
+	 * + `InterruptedByUnitId` per voce (`#4000`, [D-582] (4)): chi ha interrotto, sulla voce `Cancelled`/`Interrupted`.
+	 * Quattro byte in coda alla voce, come ogni estensione dalla v7 in poi. Una traccia v14 resta leggibile col campo a
+	 * `INDEX_NONE`, che e' cio' che quei byte dicevano: prima nessuna voce nominava l'interruttore.
+	 *
+	 * ⚠️ **Gli hash golden NON cambiano**: il campo e' fuori dall'hash. Cambiano i BYTE del corpus, perche' il gate di
+	 * versione vuole ogni `.rttl` alla versione che il writer scrive: si rigenera nello stesso commit (vedi qui sotto).
+	 *
+	 * ⚠️ Il numero 15 e' stato verificato su tutti i ref locali e remoti il 2026-11-15, come chiede [D-070].
+	 */
+	WithInterruptedBy = 15
 };
 
 /**
