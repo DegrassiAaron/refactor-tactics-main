@@ -33,6 +33,7 @@
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Tests/Shared/RTReactionWindowFixtures.h" // #3666: la finestra si presenta al trattenimento del playback
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h" // `#4043`: `ERTActionInvalidReason`
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -532,6 +533,93 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 	TestEqual(TEXT("✅ visto dalla squadra della sorgente: il fumetto barrato c'e'"), Cue, 1);
 	TestEqual(TEXT("✅ e la sua riga barrata nel Registro (#4043)"), RigheBarrate, 1);
 	TestEqual(TEXT("✅ gia' nel tick in cui il fumetto compare, a playback in corso (#4043, D-601 (2))"), RigheAllIstante, 1);
+	return true;
+}
+
+/**
+ * `#4043`, [D-623] (4): la riga barrata di un'azione interrotta nomina chi l'ha interrotta SOLO se la squadra che guarda lo
+ * vedeva. Il verdetto e' quello congelato sulla voce `Interrupted` del TurnLog (`#4000`), e il director lo legge
+ * (`AllowsTeam(PlaybackViewerTeamId)` in `AddActivationLine`).
+ * La scena: Ivrin (squadra 1) spara a Riktor; Gadget (squadra 0) la interrompe da TRE celle alle sue spalle, fuori dall'arco
+ * frontale e oltre le 2 celle della consapevolezza a 360°. Guarda la squadra 1: vede Ivrin, non Gadget.
+ * ⛔ Controllo positivo: Gadget a DUE celle, dentro la consapevolezza, e la riga lo nomina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHiddenInterrupterIsNotNamedTest,
+	"RefactorTactics.Playback.HiddenInterrupterIsNotNamed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
+{
+	struct FEsito { FString Riga; FString Nome; bool bVerdettoAmmette = true; int32 Nominato = INDEX_NONE; int32 Righe = 0; };
+	auto GiraIlTurno = [this](int32 DistanzaDietro, FEsito& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		World->InitializeActorsForPlay(FURL());
+		URTHexMapAsset* Map = BeatMappa(World, 6);
+
+		ARTUnit* Tiratore     = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+		ARTUnit* Bersaglio    = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+		ARTUnit* Interruttore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-DistanzaDietro, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTPlayerController* Viewer = RTWorldFixtures::MakePlayerOnTeam(World, 1);
+		if (!TM || !Map || !Tiratore || !Bersaglio || !Interruttore || !Viewer) { return false; }
+		if (!TestEqual(TEXT("⛔ premessa: guarda la squadra 1"), ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(TM, 0)), 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("premessa: Ivrin guarda verso Riktor, quindi Gadget le sta alle spalle"), Tiratore->Facing, ERTHexDirection::E);
+
+		// L'Interrupt del catalogo ha portata 1: qui ne serve una che arrivi a tre celle.
+		const int32 Interrupt = RTAbilityFixtures::AddCoreAbility(Interruttore, TEXT("Action.Interrupt"));
+		URTActionData* Azione = Interruttore->GetAbility(Interrupt);
+		Azione->Def.RangeCells = 4;
+		Azione->RangeCells = 4;
+		Interruttore->SetPlannedMainAction(Interrupt);
+		Interruttore->DeclareAttackOnUnit(Tiratore);
+		Interruttore->SetPlannedCell(Interruttore->Cell);
+		Tiratore->SetPlannedMainAction(BeatIndiceAbilita(Tiratore, TEXT("Hero.Ivrin.PulseShot")));
+		Tiratore->DeclareAttackOnUnit(Bersaglio);
+		Tiratore->SetPlannedCell(Tiratore->Cell);
+		Bersaglio->SetPlannedCell(Bersaglio->Cell);
+
+		TM->RefreshTeamKnowledgeNow();
+		TM->LockInAndResolve();
+		RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+		FinoAllaFineDelPlayback(TM);
+
+		const FRTResolvedEvent* Barrato = TM->ResolvedTimelineForTest().FindByPredicate([Tiratore](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Tiratore->StableUnitId; });
+		if (!TestNotNull(TEXT("⛔ premessa: il colpo di Ivrin esce barrato"), Barrato)) { return false; }
+		TestEqual(TEXT("⛔ premessa: interrotto"), Barrato->Amount, static_cast<int32>(ERTActionInvalidReason::Interrupted));
+		Out.Nominato = Barrato->InterruptedByStableUnitId == Interruttore->StableUnitId ? 1 : 0;
+		Out.bVerdettoAmmette = Barrato->InterruptedByVerdict.AllowsTeam(1);
+		Out.Nome = ARTUnit::DisplayLabel(Interruttore->HeroDisplayName, Interruttore->HeroId, Interruttore->GetName());
+		for (const FRTActivationLine& Riga : TM->GetActivationLines())
+		{
+			if (Riga.bBlocked && Riga.SourceStableUnitId == Tiratore->StableUnitId && Riga.ViewerTeamId == 1)
+			{
+				++Out.Righe;
+				Out.Riga = Riga.Text.ToString();
+			}
+		}
+		return true;
+	};
+
+	FEsito Nascosto, Visto;
+	if (!GiraIlTurno(3, Nascosto) || !GiraIlTurno(2, Visto)) { return false; }
+	TestEqual(TEXT("⛔ premessa: l'evento porta comunque chi ha interrotto"), Nascosto.Nominato, 1);
+	if (!TestFalse(TEXT("⛔ premessa: il verdetto su Gadget a tre celle alle spalle esclude la squadra 1"), Nascosto.bVerdettoAmmette)) { return false; }
+	if (TestEqual(TEXT("la squadra 1 ha la riga barrata di Ivrin"), Nascosto.Righe, 1))
+	{
+		TestTrue(TEXT("🔴 che dice «interrotto»"), Nascosto.Riga.EndsWith(TEXT("\ninterrotto")));
+		TestFalse(TEXT("🔴 e non nomina Gadget"), Nascosto.Riga.Contains(Nascosto.Nome));
+	}
+	TestTrue(TEXT("⛔ controllo: Gadget a due celle e' visto"), Visto.bVerdettoAmmette);
+	if (TestEqual(TEXT("controllo: la riga barrata c'e'"), Visto.Righe, 1))
+	{
+		TestTrue(TEXT("✅ e nomina chi ha interrotto"), Visto.Riga.EndsWith(FString(TEXT("\ninterrotto da ")) + Visto.Nome));
+	}
 	return true;
 }
 
