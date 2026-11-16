@@ -2,6 +2,7 @@
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // E38 CP 38.15: il modulo di reazione, con la sua ricarica
 #include "Combat/RTHexCombatLibrary.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -605,6 +606,57 @@ bool FRTReactionsTwoReactionsOfOneUnitFireInEngineOrderTest::RunTest(const FStri
 	TestTrue(TEXT("l'ordine e' quello del motore: prima la priorita' piu' bassa"), InOrdine.Ordine == Atteso);
 	TestTrue(TEXT("e non cambia invertendo la dichiarazione"), Rovesciate.Ordine == Atteso);
 	TestEqual(TEXT("come l'esito"), Rovesciate.Attivate, 2);
+	return true;
+}
+
+namespace
+{
+	/** Un turno in cui il modulo `Reaction.CounterShot` scatta; risponde se al turno dopo e' di nuovo armabile. */
+	bool ModuloRiarmabile(FAutomationTestBase& Test, int32 Ricarica, bool& bScattato, bool& bRiarmabile)
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(FName(TEXT("Reaction.CounterShot")));
+		if (!Reactor || !Attacker || !TM || !Pezzo) { DestroyReactionWorld(World); return false; }
+
+		URTActionData* Modulo = URTCatalogLibrary::MakeEquipmentAction(Pezzo, Reactor);
+		Modulo->CooldownTurns = Ricarica; // lo specchio che `ConsumeAbility` legge
+		Modulo->Def.CooldownTurns = Ricarica;
+		Reactor->Abilities[3] = Modulo;
+		Reactor->SetPlannedReaction(3);
+		Reactor->ClearPlannedMainAction();
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
+		RunReactionTurn(TM);
+		bScattato = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated) == 1;
+		bRiarmabile = Reactor->CanUseAbility(3);
+		DestroyReactionWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolutionReactionModuleIsArmableEveryTurnTest,
+	"RefactorTactics.Resolution.ReactionModuleIsArmableEveryTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolutionReactionModuleIsArmableEveryTurnTest::RunTest(const FString&)
+{
+	// Criterio 3 di CP 38.15, gemello di `Overwatch.CooldownOneReturnsEveryTurn`: con la ricarica 1 del catalogo ([D-615] (7))
+	// un modulo che scatta e' di nuovo armabile al turno dopo. Controllo: con ricarica 2 non lo e'.
+	const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(FName(TEXT("Reaction.CounterShot")));
+	if (!TestNotNull(TEXT("il modulo esiste"), Pezzo)) { return false; }
+	bool bScattato = false, bRiarmabile = false;
+	if (!ModuloRiarmabile(*this, Pezzo->CooldownTurns, bScattato, bRiarmabile)) { return false; }
+	TestEqual(TEXT("premessa: la ricarica del catalogo e' 1"), Pezzo->CooldownTurns, 1);
+	TestTrue(TEXT("premessa: il modulo scatta"), bScattato);
+	TestTrue(TEXT("e al turno dopo e' di nuovo armabile"), bRiarmabile);
+	bool bScattato2 = false, bRiarmabile2 = false;
+	if (!ModuloRiarmabile(*this, 2, bScattato2, bRiarmabile2)) { return false; }
+	TestTrue(TEXT("controllo: anche con ricarica 2 scatta"), bScattato2);
+	TestFalse(TEXT("ma al turno dopo e' ancora in ricarica"), bRiarmabile2);
 	return true;
 }
 

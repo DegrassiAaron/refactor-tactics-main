@@ -18,6 +18,7 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // E38 CP 38.15: i moduli di reazione come righe di catalogo
 #include "Ability/Catalog/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Turn/Actions/RTActionFallbackLibrary.h"
@@ -582,6 +583,14 @@ namespace
 				}
 			}
 		}
+		if (Entry.Def.ActionId.IsNone())
+		{
+			// E38 CP 38.15: un modulo dell'equipaggiamento e' la riga dell'azione che concede, con l'id e la ricarica del modulo.
+			if (const URTEquipmentData* Pezzo = URTCatalogLibrary::FindEquipment(FName(ActionId)))
+			{
+				if (const URTActionData* Concessa = URTCatalogLibrary::MakeEquipmentAction(Pezzo, nullptr)) { Entry.Def = Concessa->Def; }
+			}
+		}
 		Entry.CatalogCooldownTurns = Entry.Def.CooldownTurns; // nessuna variante: la riga e' il `Def`
 		Entry.DeclarationIndex = DeclarationIndex;
 		return Entry;
@@ -665,6 +674,44 @@ bool FRTPlanSecondCopyWithCooldownIsRejectedTest::RunTest(const FString&)
 	Swap(Rovescio[0], Rovescio[1]);
 	TestEqual(TEXT("l'ordine dell'array non sposta l'accusa"),
 		URTPlanValidationLibrary::ValidatePlan(ApUnit(), Rovescio).OffendingDeclarationIndex, 1);
+	return true;
+}
+
+// ── E38 CP 38.15 (#4116): le reazioni sono una lista ─────────────────────────────────────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanTwoDistinctReactionsAreLegalTest,
+	"RefactorTactics.Plan.TwoDistinctReactionsAreLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanTwoDistinctReactionsAreLegalTest::RunTest(const FString&)
+{
+	// Criterio 1, sulle righe di catalogo: due reazioni distinte sono legali entro il budget, e non sono piu' `SlotOccupied`.
+	const TArray<FRTPlannedAction> Riktor = CatalogRows({ TEXT("Hero.Riktor.Interposition"), TEXT("Reaction.Cleanse"), TEXT("Hero.Riktor.ImpactShot") });
+	TestFalse(TEXT("premessa: il modulo e' una riga di catalogo"), Riktor[1].Def.ActionId.IsNone());
+	TestEqual(TEXT("premessa: le due sono reazioni"), static_cast<int32>(Riktor[0].Def.Slot) * 10 + static_cast<int32>(Riktor[1].Def.Slot),
+		static_cast<int32>(ERTActionSlot::Reaction) * 11);
+	const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), Riktor);
+	TestTrue(*FString::Printf(TEXT("Interposition + Cleanse + ImpactShot e' legale (motivo %d)"), static_cast<int32>(V.Reason)), V.bLegal);
+	TestTrue(TEXT("e cosi' le due reazioni di Gadget sullo stesso trigger"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Reaction.ReactiveShield"), TEXT("Hero.Gadget.ReactiveCapacitor") })).bLegal);
+	// Controllo: il budget resta il limite. Tre reazioni da 2 e una principale da 2 sono 8 AP.
+	const FRTPlanValidation Troppe = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Hero.Riktor.Interposition"), TEXT("Reaction.Cleanse"), TEXT("Reaction.Anchor"), TEXT("Hero.Riktor.ImpactShot") }));
+	TestEqual(TEXT("controllo: oltre il budget e' OverBudget"), Troppe.Reason, ERTActionInvalidReason::OverBudget);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanReactionModuleCopyIsRefusedTest,
+	"RefactorTactics.Plan.ReactionModuleCopyIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanReactionModuleCopyIsRefusedTest::RunTest(const FString&)
+{
+	// Criterio 1 per i moduli: ricarica 1 ([D-615] (7)), quindi una seconda copia e' `RepeatedWithCooldown` ([D-614]).
+	const TArray<FRTPlannedAction> DueCleanse = CatalogRows({ TEXT("Reaction.Cleanse"), TEXT("Reaction.Cleanse") });
+	TestEqual(TEXT("premessa: il modulo ha ricarica 1"), DueCleanse[0].CatalogCooldownTurns, 1);
+	const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), DueCleanse);
+	TestEqual(TEXT("la seconda copia e' RepeatedWithCooldown"), V.Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+	TestEqual(TEXT("e la colpevole e' la seconda"), V.OffendingDeclarationIndex, 1);
+	TestTrue(TEXT("controllo: una copia sola e' legale"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		CatalogRows({ TEXT("Reaction.Cleanse") })).bLegal);
 	return true;
 }
 
