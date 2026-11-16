@@ -1403,7 +1403,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnStunnedPrepAndDashComeOutStruckTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnStunnedPrepAndDashComeOutStruckTest::RunTest(const FString&)
 {
-	struct FEsito { int32 AttivatePrep = 0; int32 BarratePrep = 0; int32 AttivateDash = 0; int32 BarrateDash = 0; };
+	struct FEsito { int32 AttivatePrep = 0; int32 BarratePrep = 0; int32 AttivateDash = 0; int32 BarrateDash = 0; bool bCellaDellUnita = true; };
 	auto Gira = [this](bool bStordito, FEsito& Out) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -1440,6 +1440,8 @@ bool FRTTurnStunnedPrepAndDashComeOutStruckTest::RunTest(const FString&)
 			{
 				Out.AttivateDash += bAttivato ? 1 : 0;
 				Out.BarrateDash += bBarrato ? 1 : 0;
+				// ⛔ Privacy: lo scatto non e' avvenuto, e la sua cella d'arrivo pianificata non viaggia. La cella e' quella dell'unita'.
+				if (bBarrato && Ev.AimCell != Corridore->Cell) { Out.bCellaDellUnita = false; }
 			}
 		}
 		return true;
@@ -1453,6 +1455,7 @@ bool FRTTurnStunnedPrepAndDashComeOutStruckTest::RunTest(const FString&)
 	TestEqual(TEXT("ed esce barrata, col motivo Stunned"), Storditi.BarratePrep, 1);
 	TestEqual(TEXT("stordito: lo scatto non si attiva"), Storditi.AttivateDash, 0);
 	TestEqual(TEXT("ed esce barrato, col motivo Stunned"), Storditi.BarrateDash, 1);
+	TestTrue(TEXT("e il blocco porta la cella dell'unita', non l'arrivo pianificato"), Storditi.bCellaDellUnita);
 	return true;
 }
 

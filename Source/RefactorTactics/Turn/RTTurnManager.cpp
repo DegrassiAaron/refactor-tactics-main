@@ -5881,13 +5881,14 @@ void ARTTurnManager::ResolveDash()
 	if (DasherCount == 0)
 	{
 		// `#4034`: senza scatti la fase finisce qui, prima del ciclo che emette. Lo scatto rifiutato per stordimento esce
-		// barrato lo stesso, nello stesso ordine per indice d'unita' di quel ciclo.
+		// barrato lo stesso, nello stesso ordine per indice d'unita' di quel ciclo. ⛔ La cella e' quella dell'UNITA', come nella voce
+		// `Stunned` del TurnLog: l'arrivo pianificato di uno scatto che non e' avvenuto e' un intento, e non viaggia.
 		for (int32 i = 0; i < Units.Num(); ++i)
 		{
 			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
 			{
 				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
-					Units[i]->GetPlan().PlannedDashCell(), Negato->Shape, ERTActionInvalidReason::Stunned);
+					Units[i]->Cell, Negato->Shape, ERTActionInvalidReason::Stunned);
 			}
 		}
 		return;
@@ -5931,7 +5932,7 @@ void ARTTurnManager::ResolveDash()
 			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
 			{
 				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
-					Units[i]->GetPlan().PlannedDashCell(), Negato->Shape, ERTActionInvalidReason::Stunned);
+					Units[i]->Cell, Negato->Shape, ERTActionInvalidReason::Stunned);
 			}
 			continue;
 		}

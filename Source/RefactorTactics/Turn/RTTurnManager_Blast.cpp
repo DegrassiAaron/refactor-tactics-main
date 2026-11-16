@@ -2070,11 +2070,10 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// sua attivazione avrebbe avuto. L'interruzione vince sulla linea di tiro, come nella voce del TurnLog (`#4046`).
 	for (FRTBlastContext::FRTDeferredActivation& Attivazione : Ctx.DeferredActivations)
 	{
-		// Solo una cura che si attivava o che la linea di tiro fermava: lo stordito o il fuori portata hanno gia' il loro motivo,
-		// e la loro voce nel TurnLog resta quella (`#4042`: lo stordito lascia la sola voce `Stunned`).
-		const bool bCambiabile = Attivazione.BlockedReason == 0
-			|| Attivazione.BlockedReason == static_cast<int32>(ERTActionInvalidReason::NoLineOfSight);
-		if (bCambiabile && CuraAnnullata(Attivazione.Source, Attivazione.ActionId))
+		// ⚠️ Arriva qui solo una cura che si attivava o che la linea di tiro fermava: la stordita e la fuori portata escono prima
+		// di `QueuedHeals`, quindi nessun Interrupt le colpisce e il loro motivo resta (misurato per mutazione il 2026-11-16: una
+		// guardia sul motivo qui non cambiava nessun esito).
+		if (CuraAnnullata(Attivazione.Source, Attivazione.ActionId))
 		{
 			Attivazione.BlockedReason = static_cast<int32>(ERTActionInvalidReason::Interrupted);
 		}
