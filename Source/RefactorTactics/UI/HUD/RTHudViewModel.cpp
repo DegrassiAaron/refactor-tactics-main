@@ -1870,6 +1870,38 @@ FText URTHudViewModel::ComposeActivationLineText(const FString& UnitLabel, const
 	return FText::Format(LOCTEXT("ActivationLine", "{0} — {1}"), FText::FromString(UnitLabel), Azione);
 }
 
+FText URTHudViewModel::BlockedReasonWords(int32 Reason)
+{
+	// `#4043`, [D-623] (3): le parole dell'opzione scelta. I motivi di bersaglio dicono tutti «bersaglio non valido».
+	switch (static_cast<ERTActionInvalidReason>(Reason))
+	{
+	case ERTActionInvalidReason::Interrupted:    return LOCTEXT("BlockedInterrupted", "interrotto");
+	case ERTActionInvalidReason::Stunned:        return LOCTEXT("BlockedStunned", "stordito");
+	case ERTActionInvalidReason::OutOfRange:     return LOCTEXT("BlockedOutOfRange", "fuori portata");
+	case ERTActionInvalidReason::NoLineOfSight:  return LOCTEXT("BlockedNoLineOfSight", "nessuna linea di tiro");
+	case ERTActionInvalidReason::OtherLayer:     return LOCTEXT("BlockedOtherLayer", "altro piano");
+	case ERTActionInvalidReason::TargetGone:
+	case ERTActionInvalidReason::TargetDead:
+	case ERTActionInvalidReason::TargetFriendly:
+	case ERTActionInvalidReason::TargetUnknown:
+		return LOCTEXT("BlockedTarget", "bersaglio non valido");
+	default:                                     return LOCTEXT("BlockedOther", "bloccato");
+	}
+}
+
+FText URTHudViewModel::ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason)
+{
+	FText Azione = KitName;
+	if (KitName.IsEmptyOrWhitespace())
+	{
+		const FString Id = ActionId.ToString();
+		int32 UltimoPunto = INDEX_NONE;
+		Azione = FText::FromString(Id.FindLastChar(TEXT('.'), UltimoPunto) ? Id.Mid(UltimoPunto + 1) : Id);
+	}
+	return FText::Format(LOCTEXT("BlockedLine", "{0}: {1} bloccato\n{2}"), FText::FromString(UnitLabel), Azione,
+		BlockedReasonWords(Reason));
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
 	const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines)
 {
@@ -1899,7 +1931,25 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): ogni riga d'attivazione porta
 	// il PROPRIO turno, scritto quando e' nata. Copiarlo dalla prima riga d'esito darebbe 0 a un turno di sole attivazioni,
 	// e un'intestazione «senza righe».
-	const auto FaRiga = [](const FRTActivationLine& Attivazione)
+	// `#4043`, [D-623] (1): la riga barrata per linea di tiro SOSTITUISCE la riga d'esito «Nessuna linea di tiro» della stessa
+	// unita' (l'unica con `bHasBlocker`), ed eredita la cella del muro che la mappa segna ([D-623] lettura (b)).
+	TMap<const FRTActivationLine*, int32> MuroDi;
+	TSet<int32> RigheSostituite;
+	for (const FRTActivationLine* Attivazione : Tenute)
+	{
+		if (!Attivazione->bBlocked || Attivazione->BlockedReason != static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)) { continue; }
+		for (int32 i = 0; i < ResultLines.Num(); ++i)
+		{
+			if (!RigheSostituite.Contains(i) && ResultLines[i].bHasBlocker && ResultLines[i].PrimaryStableUnitId == Attivazione->SourceStableUnitId)
+			{
+				RigheSostituite.Add(i);
+				MuroDi.Add(Attivazione, i);
+				break;
+			}
+		}
+	}
+
+	const auto FaRiga = [&MuroDi, &ResultLines](const FRTActivationLine& Attivazione)
 	{
 		FRTPlayerEventLineView Riga;
 		Riga.Text = Attivazione.Text;
@@ -1909,6 +1959,11 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		Riga.bHasBlocker = false;
 		Riga.bReaction = false;
 		Riga.TurnNumber = Attivazione.TurnNumber;
+		if (const int32* Muro = MuroDi.Find(&Attivazione))
+		{
+			Riga.bHasBlocker = true;
+			Riga.BlockerCell = ResultLines[*Muro].BlockerCell;
+		}
 		return Riga;
 	};
 
@@ -1970,7 +2025,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 				}
 			}
 		}
-		Unite.Add(Esito);
+		if (!RigheSostituite.Contains(i)) { Unite.Add(Esito); } // `#4043`: la riga barrata ha preso il suo posto
 		for (const FRTActivationLine* Attivazione : DopoLEsito[i])
 		{
 			Unite.Add(FaRiga(*Attivazione));

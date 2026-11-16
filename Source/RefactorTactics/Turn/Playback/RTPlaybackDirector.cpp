@@ -609,6 +609,7 @@ void FRTPlaybackDirector::ShowBlocked(const FRTResolvedEvent& Ev)
 	// `#4034`, [D-622]: il nome barrato sopra chi e' bloccato, e NIENT'ALTRO. Nessuna clip Cast e nessun suono ([D-622] (3)):
 	// l'azione non e' avvenuta. La riga del Registro e' di `#4043`, e qui non nasce.
 	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
+	AddActivationLine(Ev, Src); // `#4043`, [D-623]: la sua riga nel Registro, nello stesso istante del fumetto
 	if (Src && URTHudViewModel::ActionShouts(Ev.ActionId))
 	{
 		Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock, /*bBlocked*/ true);
@@ -666,6 +667,16 @@ void FRTPlaybackDirector::AddActivationLine(const FRTResolvedEvent& Ev, const AR
 	Riga.Phase = Ev.Phase;
 	Riga.ViewerTeamId = PlaybackViewerTeamId; // R7b: la chiave del pubblico, non un verdetto di conoscenza
 	Riga.TurnNumber = Host->GetPlaybackTurnNumber(); // lo stesso delle voci di TurnLog del turno: `ConcludeTurn` lo avanza DOPO il playback
+	if (Ev.Type == ERTResolvedEventType::ActionBlocked)
+	{
+		// `#4043`, [D-623]: la riga di un'azione barrata, col motivo sotto in parole.
+		Riga.bBlocked = true;
+		Riga.BlockedReason = Ev.Amount;
+		Riga.Text = URTHudViewModel::ComposeBlockedLineText(
+			ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
+			Ev.ActionId, Ev.Amount);
+		return;
+	}
 	Riga.Text = URTHudViewModel::ComposeActivationLineText(
 		ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
 		Ev.ActionId);
@@ -1884,6 +1895,7 @@ void FRTPlaybackDirector::FinishPlayback()
 		// #4059 (R9): anche le reazioni della sequenza, gia' filtrate per chi guarda da `BuildBlastSequence`.
 		if (Timeline().IsValidIndex(E.TimelineIndex)
 			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ActionBlocked // `#4043`: anche le righe barrate
 				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ReactionResolved))
 		{
 			const FRTResolvedEvent& Ev = Timeline()[E.TimelineIndex];
