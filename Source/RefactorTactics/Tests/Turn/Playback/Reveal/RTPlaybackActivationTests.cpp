@@ -439,7 +439,7 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
  *
  * 🔑 I test con la «squadra senza unita'» esercitano il FILTRO; questo esercita la PERCEZIONE: la squadra del
  * viewer e' in campo, ma il muro le nega la linea di vista sulla sorgente e la consapevolezza a 360° vale entro
- * 2 celle. Il tiro e' bloccato e SI attiva (`Ruling`), ma il viewer non lo vede.
+ * 2 celle. Il tiro e' bloccato e, da `#4034` ([D-622] (2)), il suo beat e' il fumetto BARRATO, muto; il viewer non lo vede.
  * ⛔ Premessa: la squadra del viewer E' in `TeamKnowledgeState` (`RefreshTeamKnowledgeNow`, e vede la cella
  * della propria unita') — senza, il verdetto sarebbe il fail-closed della squadra assente, cioe' il filtro.
  * ⛔ Controllo positivo: lo stesso turno visto dalla squadra della sorgente ha il beat.
@@ -495,7 +495,9 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		// ricostruisce dentro il turno, quindi con le stesse posizioni la negava anche all'emissione.
 		OutVisibile = TM->KnowledgeForTeamPublic(0).VisibleCells.Contains(Tiratore->Cell);
 		FinoAllaFineDelPlayback(TM);
-		OutCue = Tiratore->CastCuesPlayedForTest();
+		// `#4034`: il tiro fermato dal muro non suona ([D-622] (3)), e il suo beat e' il fumetto barrato.
+		TestEqual(TEXT("il tiro bloccato non suona la cue Cast"), Tiratore->CastCuesPlayedForTest(), 0);
+		OutCue = (!Tiratore->LastSkillCalloutForTest().ActionId.IsNone() && Tiratore->LastSkillCalloutForTest().bBlocked) ? 1 : 0;
 		return true;
 	};
 
@@ -506,7 +508,7 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 	TestEqual(TEXT("🔴 sorgente nemica fuori vista: nessun beat"), Cue, 0);
 
 	if (!GiraIlTurno(/*Viewer*/ 1, Cue, bVisibile)) { return false; }
-	TestEqual(TEXT("✅ visto dalla squadra della sorgente: il beat c'e'"), Cue, 1);
+	TestEqual(TEXT("✅ visto dalla squadra della sorgente: il fumetto barrato c'e'"), Cue, 1);
 	return true;
 }
 

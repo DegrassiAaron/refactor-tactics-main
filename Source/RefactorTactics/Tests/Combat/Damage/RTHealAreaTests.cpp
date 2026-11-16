@@ -496,8 +496,22 @@ bool FRTHealLineOfSightIsCheckedInTheBlastTest::RunTest(const FString&)
 				TestTrue(*FString::Printf(TEXT("senza muro la cura arriva (%s)"), *Caso), Ferita->Health > Prima);
 				TestEqual(*FString::Printf(TEXT("e non c'e' nessuna voce NoLineOfSight (%s)"), *Caso), Bloccate, 0);
 			}
-			// Spesa in entrambi i casi ([D-200]): il gesto si vede e il cooldown si paga.
-			TestNotNull(*FString::Printf(TEXT("il gesto si emette (%s)"), *Caso), AttivazioneDi(TM, Curatrice));
+			// Spesa in entrambi i casi ([D-200]): il cooldown si paga. Il gesto si vede senza muro; col muro, da `#4034`
+			// ([D-622] (2)), la cura esce BARRATA col motivo NoLineOfSight invece di attivarsi.
+			if (bMuro)
+			{
+				TestNull(*FString::Printf(TEXT("col muro la cura non si attiva (%s)"), *Caso), AttivazioneDi(TM, Curatrice));
+				TestTrue(*FString::Printf(TEXT("ed esce barrata, col motivo NoLineOfSight (%s)"), *Caso),
+					TM->ResolvedTimelineForTest().ContainsByPredicate([Curatrice](const FRTResolvedEvent& Ev)
+					{
+						return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Curatrice->StableUnitId
+							&& Ev.Amount == static_cast<int32>(ERTActionInvalidReason::NoLineOfSight);
+					}));
+			}
+			else
+			{
+				TestNotNull(*FString::Printf(TEXT("il gesto si emette (%s)"), *Caso), AttivazioneDi(TM, Curatrice));
+			}
 			TestFalse(*FString::Printf(TEXT("il cooldown e' pagato (%s)"), *Caso), Curatrice->CanUseAbility(Idx));
 		}
 	}

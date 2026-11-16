@@ -288,6 +288,16 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UBorder> SkillCalloutOutline;
 
+	/**
+	 * Il TAGLIO sopra il nome di un'azione bloccata (`#4034`, [D-622] (4): «un tratto spesso, stile manga, disegnato
+	 * come immagine nel widget»). Visibile solo quando il fumetto e' barrato (`FRTSkillCalloutView::bBlocked`).
+	 *
+	 * ⚠️ **Opzionale**: senza l'immagine nell'asset il fumetto barrato mostra il nome e basta, e la differenza col fumetto
+	 * normale resta solo nel dato. L'immagine si aggiunge nell'Editor dal clone principale.
+	 */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> SkillCalloutSlash;
+
 	/** Quanto a lungo il token resta visibile prima di svanire. `0` lo spegne. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float DamageTokenSeconds = 0.9f;

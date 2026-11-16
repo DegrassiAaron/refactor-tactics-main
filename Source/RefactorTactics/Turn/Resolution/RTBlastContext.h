@@ -524,9 +524,17 @@ struct FRTBlastContext
 		 * dipendere da cio' che il Blast fa dopo.
 		 */
 		FRTKnowledgeVerdict SourceVerdict;
+		/**
+		 * `#4034`, [D-622]: il motivo per cui questa azione NON avviene, come `ERTActionInvalidReason`; `0` (`None`) e' un'attivazione.
+		 * Un'azione bloccata esce come `ActionBlocked` nel posto che la sua attivazione avrebbe avuto.
+		 */
+		int32 BlockedReason = 0;
+		/** `#4034`: un ATTACCO bloccato, che si racconta fra gli attacchi (tipo `0` nella chiave del Blast) e non fra i supporti. */
+		bool bAttack = false;
 	};
 
-	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. */
+	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. Da `#4034`
+	 *  anche le azioni del Blast che non avvengono (`BlockedReason`), che non hanno un intento da cui uscire. */
 	TArray<FRTDeferredActivation> DeferredActivations;
 
 	// --- Stati applicati dai colpi, a bersagli sopravvissuti --------------------------------------

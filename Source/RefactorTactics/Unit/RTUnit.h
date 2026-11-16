@@ -2381,7 +2381,7 @@ public:
 	 * ⚠️ **Un ripiego si dichiara nel log** (R3): se il kit non ha un nome per la skill, il fumetto mostra l'ultimo
 	 * segmento dell'id e qui esce un `Warning` che nomina l'id. La funzione pura resta pura: il log lo scrive chi la chiama.
 	 */
-	void ShowSkillCallout(const FName& ActionId, float StartAt);
+	void ShowSkillCallout(const FName& ActionId, float StartAt, bool bBlocked = false);
 
 	/**
 	 * Porta al fumetto il tempo del playback (`ARTTurnManager::SkillCalloutClock`), e ne registra l'ultimo valore.

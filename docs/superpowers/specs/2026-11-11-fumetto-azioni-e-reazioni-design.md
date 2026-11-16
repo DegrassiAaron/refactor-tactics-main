@@ -139,3 +139,33 @@
   - il Cleanup dopo un'estensione;
   - `Next Action` e `Step` sulle reazioni del Move e del Cleanup.
 - **Suite intera** `RefactorTactics` verde a `e9b68f89a` e, dopo le correzioni della review, a `78fdcc371` (2026-11-11): test trovati, avviati e completati coincidono, nessun rosso. Ne fanno parte i golden del TurnLog, che R7 non deve toccare.
+
+## 9. Il fumetto barrato ([#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034))
+
+Regole: [`D-600`](../../decisions/RT_PDR_00_Decision_Log.md) (2), [`D-601`](../../decisions/RT_PDR_00_Decision_Log.md), [`D-604`](../../decisions/RT_PDR_00_Decision_Log.md) (2), [`D-622`](../../decisions/RT_PDR_00_Decision_Log.md).
+
+- **L'evento.** `ERTResolvedEventType::ActionBlocked`, in coda all'enum, con il motivo in `Amount` (`ERTActionInvalidReason`, lo stesso intero della voce `Fallback` del TurnLog). Lo costruisce `ARTTurnManager::EmitActionBlocked`, gemello di `EmitAbilityActivated`, e **sostituisce** l'attivazione: un'azione bloccata non grida il suo nome. Il verdetto è quello di chi è bloccato, congelato all'emissione ([`D-601`](../../decisions/RT_PDR_00_Decision_Log.md) (3)). Fuori dagli hash, come tutta la timeline.
+- **La presentazione.** `FRTPlaybackDirector::ShowBlocked`: il fumetto col nome, marcato `FRTSkillCalloutView::bBlocked`, e niente altro. Nessuna clip Cast e nessun suono ([`D-622`](../../decisions/RT_PDR_00_Decision_Log.md) (3)); la riga del Registro è di [#4043](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4043). Il taglio è l'immagine `SkillCalloutSlash` di `WBP_RT_UnitOverlay` ([`D-622`](../../decisions/RT_PDR_00_Decision_Log.md) (4)), accesa solo sul fumetto barrato.
+- **Il posto.** Lo stesso che l'attivazione avrebbe avuto. Nel Blast, un intento bloccato esce dal ciclo canonico di `ResolveCombatPasses`; un'azione senza intento (stordita, ripiego `Cancel`/`Wait`, cura fuori portata) entra in `DeferredActivations` col suo motivo, e un attacco si racconta fra gli attacchi. In Prep il blocco esce nel ciclo delle attivazioni; nel Dash nel ciclo d'emissione, anche quando nessuno scatta.
+
+**Per forma di blocco**, al commit di [#4034](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4034):
+
+| Forma | Prima | Ora |
+|---|---|---|
+| attacco interrotto | non gridava | barrato, `Interrupted` |
+| attacco fermato dalla linea di tiro | gridava | barrato, `NoLineOfSight` ([`D-622`](../../decisions/RT_PDR_00_Decision_Log.md) (2)) |
+| attacco su un altro piano | gridava | barrato, `OtherLayer` ([`D-622`](../../decisions/RT_PDR_00_Decision_Log.md) (2)) |
+| `Action.Interact` su una porta che sta sul lato mirato | gridava | grida: l'azione avviene, il barrato vale solo per un colpo (`bCountsAsAttack`) |
+| attacco con bersaglio non valido o fuori portata, ripiego `Cancel`/`Wait` | non gridava | barrato, col motivo della voce |
+| ripiego `AttackCell` | gridava | grida: non è un blocco ([`D-601`](../../decisions/RT_PDR_00_Decision_Log.md) (4)) |
+| azione principale di uno stordito, Prep, Dash e Blast | non gridava | barrata, `Stunned` |
+| cura interrotta | non gridava ([#4042](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4042)) | barrata, `Interrupted` |
+| cura fuori portata | non gridava | barrata, `OutOfRange` |
+| cura fermata dalla linea di tiro | gridava | barrata, `NoLineOfSight` |
+| `Neutralised` | non gridava | non grida: non è un blocco ([`D-601`](../../decisions/RT_PDR_00_Decision_Log.md) (6)(b)) |
+| chi muore prima della sua fase | non gridava | non grida |
+
+**Limiti.**
+- Lo scatto stordito porta la cella dell'unità, non l'arrivo pianificato: uno scatto che non è avvenuto è un intento, e non viaggia.
+- Restano fuori le forme che le decisioni lasciano aperte: `NoEffect`, i motivi del Dash, le porte, `Stopped`, `ModifyArc` fuori portata o interrotta, e la reazione bloccata dopo essere scattata.
+- L'ordine di un attacco bloccato senza intento fra gli attacchi (priorità, `ActionId`, unità) non è pinnato da un test.

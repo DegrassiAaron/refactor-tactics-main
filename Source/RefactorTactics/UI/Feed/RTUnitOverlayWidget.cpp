@@ -296,6 +296,11 @@ void URTUnitOverlayWidget::PushSkillCallout(const FRTSkillCalloutView& Callout)
 		// conservano il nome com'e' scritto.
 		SkillCalloutText->SetText(FText::FromString(Callout.Label.ToUpper()));
 	}
+	if (SkillCalloutSlash)
+	{
+		// `#4034`: il taglio c'e' solo sul fumetto di un'azione bloccata. Mai cliccabile: e' un segno, non un controllo.
+		SkillCalloutSlash->SetVisibility(Callout.bBlocked ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
 
 	ApplySkillCalloutState();
 }

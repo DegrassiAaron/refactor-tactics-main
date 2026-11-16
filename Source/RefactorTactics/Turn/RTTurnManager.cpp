@@ -420,7 +420,7 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
 	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
-	const FRTKnowledgeVerdict* FrozenSourceVerdict)
+	const FRTKnowledgeVerdict* FrozenSourceVerdict, ERTResolvedEventType InType, int32 InAmount)
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
@@ -441,7 +441,8 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 
 	FRTResolvedEvent Ev;
 	Ev.Phase = InPhase;
-	Ev.Type = ERTResolvedEventType::AbilityActivated;
+	Ev.Type = InType; // `AbilityActivated`, o `ActionBlocked` col motivo in `Amount` (`#4034`)
+	Ev.Amount = InAmount;
 	Ev.SourceStableUnitId = Source->StableUnitId;
 	Ev.TargetStableUnitId = TargetStableUnitId;
 	Ev.ActionId = ActionId;
@@ -2860,6 +2861,8 @@ namespace
 		 *  PRIMA della priorita': i supporti si raccontano dopo tutti i colpi. */
 		int32 Tipo = 0;
 		int32 Indice = 0;
+		/** L'atto viene da `DeferredActivations` e non da `Intents` (`#4034`): NON entra nel confronto, dice solo dove leggere. */
+		bool bRimandata = false;
 	};
 
 	/**
@@ -4697,6 +4700,9 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// tocca. Nessun `AbilityActivated` e nessun `Applied`: un rifiuto non e' un esito applicato.
 		if (RefuseMainActionIfStunned(Unit, Def, ERTMatchPhase::Prep, TargetCell))
 		{
+			// `#4034`, [D-622] (1): barrata, nel ciclo in cui la Prep emette le sue attivazioni.
+			EmitActionBlocked(Unit, ERTMatchPhase::Prep, Def.ActionId, Def.BaseActionId, Unit->StableUnitId, TargetCell,
+				ERTAbilityShape::Single, ERTActionInvalidReason::Stunned);
 			Unit->ConsumeAbility(Index);
 			continue;
 		}
@@ -5082,6 +5088,10 @@ void ARTTurnManager::ResolvePrep()
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
+			// `#4034`, [D-622] (1): barrata, nel ciclo in cui la Prep emette le sue attivazioni.
+			EmitActionBlocked(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId, Unit->StableUnitId,
+				Voce.bPrincipale && Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell,
+				ERTAbilityShape::Single, ERTActionInvalidReason::Stunned);
 			// Si paga qui, DOPO il rifiuto: `Unit` e' vivo e `CanUseAbility(Index)` era vero (le due guardie in cima al
 			// ciclo), quindi `ConsumeAbility` non riporta al valore pieno un'abilita' gia' in ricarica. La SEDE e' quella
 			// di sempre per il Prep: scrittura immediata, come per l'Overwatch e la predittiva che armano.
@@ -5575,6 +5585,10 @@ void ARTTurnManager::ResolveDash()
 	bChargeRunsShort.Init(false, Units.Num());
 	// `INDEX_NONE` e non `0`: chi non dichiara la squadra non attraversa nessuno ([D-396]).
 	Teams.Init(INDEX_NONE, Units.Num());
+	// `#4034`, [D-622] (1): lo scatto rifiutato per stordimento, per indice d'unita'. Esce barrato nel ciclo che emette le
+	// attivazioni del Dash, nel posto che la sua attivazione avrebbe avuto.
+	TArray<int32> ScattoStordito;
+	ScattoStordito.Init(INDEX_NONE, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -5627,6 +5641,7 @@ void ARTTurnManager::ResolveDash()
 		// vive, e questo ciclo non toglie salute a nessuno.
 		if (bNegatoDalloStordimento && RefuseMainActionIfStunned(Unit, Dash->Def, ERTMatchPhase::Dash, Unit->Cell))
 		{
+			ScattoStordito[i] = DashIdx; // `#4034`
 			Unit->ConsumeAbility(DashIdx);
 			continue;
 		}
@@ -5863,7 +5878,21 @@ void ARTTurnManager::ResolveDash()
 		++DasherCount;
 	}
 
-	if (DasherCount == 0) { return; }
+	if (DasherCount == 0)
+	{
+		// `#4034`: senza scatti la fase finisce qui, prima del ciclo che emette. Lo scatto rifiutato per stordimento esce
+		// barrato lo stesso, nello stesso ordine per indice d'unita' di quel ciclo. ⛔ La cella e' quella dell'UNITA', come nella voce
+		// `Stunned` del TurnLog: l'arrivo pianificato di uno scatto che non e' avvenuto e' un intento, e non viaggia.
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
+			{
+				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
+					Units[i]->Cell, Negato->Shape, ERTActionInvalidReason::Stunned);
+			}
+		}
+		return;
+	}
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
@@ -5900,6 +5929,11 @@ void ARTTurnManager::ResolveDash()
 	{
 		if (DashAbilityIdx[i] == INDEX_NONE)
 		{
+			if (const URTActionData* Negato = ScattoStordito[i] != INDEX_NONE ? Units[i]->GetAbility(ScattoStordito[i]) : nullptr)
+			{
+				EmitActionBlocked(Units[i], ERTMatchPhase::Dash, Negato->Def.ActionId, Negato->Def.BaseActionId, 0,
+					Units[i]->Cell, Negato->Shape, ERTActionInvalidReason::Stunned);
+			}
 			continue;
 		}
 
@@ -6704,16 +6738,23 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (int32 d = 0; d < Ctx.DeferredActivations.Num(); ++d)
 	{
 		const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[d];
-		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ 1, d });
+		// `#4034`: un attacco bloccato senza intento si racconta fra gli attacchi (tipo 0), una cura o un arco fra i supporti.
+		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ R.bAttack ? 0 : 1, d, /*bRimandata=*/ true });
 	}
 	// ⛔ `StableSort` su un confronto TOTALE (tipo e indice chiudono ogni pari): nessuna dipendenza dall'algoritmo.
 	Atti.StableSort([](const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B) { return ChiavePrecede(A, B); });
 	TSet<int32> ImpronteEmesse;
 	for (const FRTChiaveDelBlast& Atto : Atti)
 	{
-		if (Atto.Tipo == 1)
+		if (Atto.bRimandata)
 		{
 			const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[Atto.Indice];
+			if (R.BlockedReason != 0) // `#4034`: l'azione non avviene, ed esce barrata al suo posto
+			{
+				EmitActionBlocked(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
+					R.AimCell, R.Shape, static_cast<ERTActionInvalidReason>(R.BlockedReason), &R.SourceVerdict);
+				continue;
+			}
 			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
 				R.AimCell, R.Shape, &R.SourceVerdict);
 			continue;
@@ -7836,9 +7877,9 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		{
 			return; // impatto di carica: attivato nel Dash, con lo stesso `Def` dello scatto
 		}
-		if (Ctx.InterruptedIntents.Contains(k) || !Ctx.IntentDefs.IsValidIndex(k))
+		if (!Ctx.IntentDefs.IsValidIndex(k))
 		{
-			return; // cancellato da un Interrupt efficace: l'azione e' annullata, non attivata
+			return;
 		}
 		const FRTHexAttackIntent& Intent = Ctx.Intents[k];
 		ARTUnit* const Attaccante = Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr;
@@ -7846,6 +7887,17 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		{
 			return; // morto in Prep o nel Dash: la stessa guardia di `ApplyInterrupts` (`IsAlive()` sull'attaccante)
 		}
+		// `#4034`, [D-622] (2): un intento che non avviene esce BARRATO, al posto della sua attivazione. L'interrotto (un
+		// Interrupt efficace l'ha annullato), e il colpo che la linea di tiro o un altro piano fermano: oggi si attivavano
+		// prima del controllo e gridavano. L'interruzione vince sugli altri due, come nella voce del TurnLog (`#4046`).
+		// 🔑 **Linea di tiro e piano fermano il COLPO, non l'azione**: cio' che un colpo non e' — l'ordine a una porta di
+		// `Action.Interact`, il danno a una struttura — prosegue ([D-509]). Per questo il barrato vale solo per un'azione che
+		// e' un colpo (`bCountsAsAttack`): l'interazione con la porta che la porta stessa «blocca» avviene, e non si barra.
+		const bool bColpo = Ctx.IntentDefs[k].bCountsAsAttack;
+		ERTActionInvalidReason Blocco = ERTActionInvalidReason::None;
+		if (Ctx.InterruptedIntents.Contains(k)) { Blocco = ERTActionInvalidReason::Interrupted; }
+		else if (bColpo && Ctx.Plan.BlockedIntents.Contains(k)) { Blocco = ERTActionInvalidReason::NoLineOfSight; }
+		else if (bColpo && Ctx.Plan.OtherLayerIntents.Contains(k)) { Blocco = ERTActionInvalidReason::OtherLayer; }
 		const ARTUnit* const Bersaglio = (Intent.TargetId != INDEX_NONE && Ctx.Units.IsValidIndex(Intent.TargetId))
 			? Ctx.Units[Intent.TargetId] : nullptr;
 		const FRTActionDef& Def = Ctx.IntentDefs[k];
@@ -7869,6 +7921,12 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		// congelata al lock-in, la stessa da cui parte il colpo. ⌫ *Fino alla code review di #3230 qui c'era
 		// `Bersaglio->Cell`, cioe' la cella viva: dopo un Dash l'attivazione dichiarava una mira che il colpo
 		// non usava.* Pinnata da `Combat.Aim.PlannedAimDoesNotFollowTheTarget`.
+		if (Blocco != ERTActionInvalidReason::None)
+		{
+			EmitActionBlocked(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
+				Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape, Blocco);
+			return;
+		}
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
 			Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape);
 	}

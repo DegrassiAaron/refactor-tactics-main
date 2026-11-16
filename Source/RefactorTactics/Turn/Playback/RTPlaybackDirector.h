@@ -197,6 +197,8 @@ private:
 	 * nell'evento, non uno ricalcolato.
 	 */
 	void ShowActivation(const FRTResolvedEvent& Ev);
+	/** `#4034`, [D-622]: il fumetto barrato di un'azione bloccata, muto; `ShowActivation` lo smista qui. */
+	void ShowBlocked(const FRTResolvedEvent& Ev);
 
 	/**
 	 * La riga del Registro per un'attivazione mostrata (#4033, R1/R5/R7b): una sola per attivazione, con il testo composto

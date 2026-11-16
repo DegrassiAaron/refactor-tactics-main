@@ -68,8 +68,9 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara undici valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 11);
+	//  11 -> 12  2026-11-16   `ActionBlocked`     (#4034, [D-622]: entra CON cue, `ShowSkillCallout` barrato)
+	TestEqual(TEXT("ERTResolvedEventType dichiara dodici valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 12);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.

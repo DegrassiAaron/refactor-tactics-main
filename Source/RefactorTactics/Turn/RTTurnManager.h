@@ -57,6 +57,7 @@ enum class ERTMovementAdvanceResult : uint8
 #include "RTTurnManager.generated.h"
 
 struct FRTPlanValidation; // `IsPlanRefusedAtLockIn` la riceve per riferimento: basta la dichiarazione
+enum class ERTActionInvalidReason : uint8; // `EmitActionBlocked` (`#4034`) la riceve per valore: basta la dichiarazione
 
 class ARTUnit;
 class URTHexMapAsset;
@@ -2850,7 +2851,20 @@ protected:
 	 */
 	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
 		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
-		const FRTKnowledgeVerdict* FrozenSourceVerdict = nullptr);
+		const FRTKnowledgeVerdict* FrozenSourceVerdict = nullptr,
+		ERTResolvedEventType InType = ERTResolvedEventType::AbilityActivated, int32 InAmount = 0);
+
+	/**
+	 * Il gemello di `EmitAbilityActivated` per un'azione BLOCCATA (`#4034`, [D-622]): stesso costruttore, tipo `ActionBlocked`
+	 * e il motivo in `Amount`. Chi chiama lo usa al posto dell'attivazione, nel posto canonico che l'attivazione avrebbe avuto.
+	 */
+	void EmitActionBlocked(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape, ERTActionInvalidReason Reason,
+		const FRTKnowledgeVerdict* FrozenSourceVerdict = nullptr)
+	{
+		EmitAbilityActivated(Source, InPhase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape, FrozenSourceVerdict,
+			ERTResolvedEventType::ActionBlocked, static_cast<int32>(Reason));
+	}
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via

@@ -912,7 +912,7 @@ bool FRTPlaybackActivationAndWallAreOneActTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("⛔ il turno sta riproducendo qualcosa"), TM->IsResolving())) { return false; }
 
 	const FRTResolvedEvent* Attivazione = TM->ResolvedTimelineForTest().FindByPredicate([](const FRTResolvedEvent& Ev)
-		{ return Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Blast; });
+		{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.Phase == ERTMatchPhase::Blast; }); // `#4034`: il colpo che il muro ferma esce barrato
 	const FRTResolvedEvent* Muro = TM->ResolvedTimelineForTest().FindByPredicate([](const FRTResolvedEvent& Ev)
 		{ return Ev.Type == ERTResolvedEventType::StructureHit; });
 	if (!TestNotNull(TEXT("⛔ premessa: l'intento si e' attivato nel Blast"), Attivazione)

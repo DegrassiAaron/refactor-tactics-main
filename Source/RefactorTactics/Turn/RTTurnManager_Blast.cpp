@@ -826,6 +826,9 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		if (RefuseMainActionIfStunned(Unit, Cleanse->Def, ERTMatchPhase::Blast,
 			Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
+			// `#4034`: barrata, dove la purificazione si sarebbe attivata (in questo pass, come la sua attivazione).
+			EmitActionBlocked(Unit, ERTMatchPhase::Blast, Cleanse->Def.ActionId, Cleanse->Def.BaseActionId, Unit->StableUnitId,
+				Unit->Cell, ERTAbilityShape::Single, ERTActionInvalidReason::Stunned);
 			Ctx.MarkAbilitySpent(Unit, CleanseIdx);
 			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
 			Unit->ClearPlannedAttack();
@@ -920,6 +923,10 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		if (RefuseMainActionIfStunned(Unit, Heal->Def, ERTMatchPhase::Blast,
 			Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
+			// `#4034`, [D-600] (2): l'azione non avviene, ed esce barrata nel posto canonico che avrebbe avuto.
+			Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
+				0, Unit->Cell, ERTAbilityShape::Single, FreezeVerdictFor(FRTLogSubject::Unit(Unit)),
+				static_cast<int32>(ERTActionInvalidReason::Stunned), /*bAttack*/ false });
 			Ctx.MarkAbilitySpent(Unit, HealIdx);
 			Unit->ClearPlannedMainAction(); // consumata nel turno, come ogni principale che non parte
 			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
@@ -980,6 +987,10 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
 			if (bArea) { CuraMancata.TgtCell = Centro; } // l'area non ha un bersaglio-unita': la voce dice DOVE mirava
 			AppendLogEntry(CuraMancata, Unit);
+			// `#4034`, [D-600] (2): l'azione non avviene, ed esce barrata nel posto canonico che avrebbe avuto.
+			Ctx.DeferredActivations.Add({ Unit, i, Heal->Def.Priority, Heal->Def.ActionId, Heal->Def.BaseActionId,
+				HealTarget ? HealTarget->StableUnitId : 0, Centro, ERTAbilityShape::Single, FreezeVerdictFor(FRTLogSubject::Unit(Unit)),
+				static_cast<int32>(ERTActionInvalidReason::OutOfRange), /*bAttack*/ false });
 			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
 			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
 			// nome dell'unita' e' il debito noto di `#1412` punto 2.
@@ -1027,6 +1038,13 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoLineOfSight);
 			if (bArea) { CuraBloccata.TgtCell = Centro; } // come il fuori portata: la voce dice DOVE mirava
 			Rinvia(CuraBloccata);
+			// `#4034`, [D-622] (2): la cura che la linea di tiro ferma non grida piu', esce barrata. L'attivazione e' quella appena
+			// accodata qui sopra, di questa unita' e di questa cura.
+			if (Ctx.DeferredActivations.Num() > 0 && Ctx.DeferredActivations.Last().Source == Unit
+				&& Ctx.DeferredActivations.Last().ActionId == Heal->Def.ActionId)
+			{
+				Ctx.DeferredActivations.Last().BlockedReason = static_cast<int32>(ERTActionInvalidReason::NoLineOfSight);
+			}
 			continue;
 		}
 
@@ -1169,6 +1187,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		if (PlannedNow && RefuseMainActionIfStunned(Unit, PlannedNow->Def, ERTMatchPhase::Blast,
 			Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell))
 		{
+			if (!URTCatalogLibrary::IsFastMovement(PlannedNow->Def))
+			{
+				// `#4034`, [D-600] (2): l'attacco dello stordito non avviene, ed esce barrato fra gli attacchi.
+				Ctx.DeferredActivations.Add({ Unit, i, PlannedNow->Def.Priority, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
+					0, Unit->GetPlan().bAttackTargetsCell() ? Unit->GetPlan().PlannedAttackCell() : Unit->Cell, ERTAbilityShape::Single,
+					FreezeVerdictFor(FRTLogSubject::Unit(Unit)), static_cast<int32>(ERTActionInvalidReason::Stunned), /*bAttack*/ true });
+			}
 			// 🔴 **Lo stordito PAGA l'azione che gli viene negata** (decisione d'autore del 2026-10-31, «Lo stordito
 			// (D-416) paga?» «si»; [D-414] alla lettera). ⌫ *Fino ad allora il rifiuto precedeva il pagamento e la
 			// ricarica NON partiva per un'azione negata.* La SEDE non cambia: si annota e a scrivere e'
@@ -1585,6 +1610,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 			if (!Fallback.bProducesEffects)
 			{
+				// `#4034`, [D-600] (2): bersaglio non valido o fuori portata, e l'azione non avviene: esce barrata fra gli attacchi.
+				Ctx.DeferredActivations.Add({ Unit, i, Instance.Def.Priority, Instance.Def.ActionId, Instance.Def.BaseActionId,
+					Units.IsValidIndex(Instance.TargetUnitId) && Units[Instance.TargetUnitId] ? Units[Instance.TargetUnitId]->StableUnitId : 0,
+					Instance.TargetCell, ERTAbilityShape::Single, FreezeVerdictFor(FRTLogSubject::Unit(Unit)),
+					static_cast<int32>(Reason), /*bAttack*/ true });
 				continue; // Cancel (e cio' che vi degrada): l'azione non avviene
 			}
 			Instance = Fallback.Instance; // AttackCell: si perde il bersaglio, resta la cella
@@ -2036,10 +2066,18 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return CuraAnnullata(Curatore, Def.ActionId);
 	});
 	// L'attivazione si toglie per la CURA annullata, non per l'unita': fra le rimandate sta anche `ModifyArc`.
-	Ctx.DeferredActivations.RemoveAll([&CuraAnnullata](const FRTBlastContext::FRTDeferredActivation& Attivazione)
+	// `#4034`: la cura annullata non si toglie dalla coda, si MARCA: esce barrata, col motivo `Interrupted`, nel posto che la
+	// sua attivazione avrebbe avuto. L'interruzione vince sulla linea di tiro, come nella voce del TurnLog (`#4046`).
+	for (FRTBlastContext::FRTDeferredActivation& Attivazione : Ctx.DeferredActivations)
 	{
-		return CuraAnnullata(Attivazione.Source, Attivazione.ActionId);
-	});
+		// ⚠️ Arriva qui solo una cura che si attivava o che la linea di tiro fermava: la stordita e la fuori portata escono prima
+		// di `QueuedHeals`, quindi nessun Interrupt le colpisce e il loro motivo resta (misurato per mutazione il 2026-11-16: una
+		// guardia sul motivo qui non cambiava nessun esito).
+		if (CuraAnnullata(Attivazione.Source, Attivazione.ActionId))
+		{
+			Attivazione.BlockedReason = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}
+	}
 	for (FRTBlastContext::FRTDeferredHealEntry& Rinviata : Ctx.DeferredHealEntries)
 	{
 		if (CuraAnnullata(Rinviata.Healer, Rinviata.Entry.ActionId)) { continue; }
