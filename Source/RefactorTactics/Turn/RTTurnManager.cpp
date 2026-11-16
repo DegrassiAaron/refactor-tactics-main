@@ -420,7 +420,7 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
 	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape,
-	const FRTKnowledgeVerdict* FrozenSourceVerdict)
+	const FRTKnowledgeVerdict* FrozenSourceVerdict, ERTResolvedEventType InType, int32 InAmount)
 {
 	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
 	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
@@ -441,7 +441,8 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 
 	FRTResolvedEvent Ev;
 	Ev.Phase = InPhase;
-	Ev.Type = ERTResolvedEventType::AbilityActivated;
+	Ev.Type = InType; // `AbilityActivated`, o `ActionBlocked` col motivo in `Amount` (`#4034`)
+	Ev.Amount = InAmount;
 	Ev.SourceStableUnitId = Source->StableUnitId;
 	Ev.TargetStableUnitId = TargetStableUnitId;
 	Ev.ActionId = ActionId;
@@ -7836,9 +7837,9 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		{
 			return; // impatto di carica: attivato nel Dash, con lo stesso `Def` dello scatto
 		}
-		if (Ctx.InterruptedIntents.Contains(k) || !Ctx.IntentDefs.IsValidIndex(k))
+		if (!Ctx.IntentDefs.IsValidIndex(k))
 		{
-			return; // cancellato da un Interrupt efficace: l'azione e' annullata, non attivata
+			return;
 		}
 		const FRTHexAttackIntent& Intent = Ctx.Intents[k];
 		ARTUnit* const Attaccante = Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr;
@@ -7846,6 +7847,17 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		{
 			return; // morto in Prep o nel Dash: la stessa guardia di `ApplyInterrupts` (`IsAlive()` sull'attaccante)
 		}
+		// `#4034`, [D-622] (2): un intento che non avviene esce BARRATO, al posto della sua attivazione. L'interrotto (un
+		// Interrupt efficace l'ha annullato), e il colpo che la linea di tiro o un altro piano fermano: oggi si attivavano
+		// prima del controllo e gridavano. L'interruzione vince sugli altri due, come nella voce del TurnLog (`#4046`).
+		// 🔑 **Linea di tiro e piano fermano il COLPO, non l'azione**: cio' che un colpo non e' — l'ordine a una porta di
+		// `Action.Interact`, il danno a una struttura — prosegue ([D-509]). Per questo il barrato vale solo per un'azione che
+		// e' un colpo (`bCountsAsAttack`): l'interazione con la porta che la porta stessa «blocca» avviene, e non si barra.
+		const bool bColpo = Ctx.IntentDefs[k].bCountsAsAttack;
+		ERTActionInvalidReason Blocco = ERTActionInvalidReason::None;
+		if (Ctx.InterruptedIntents.Contains(k)) { Blocco = ERTActionInvalidReason::Interrupted; }
+		else if (bColpo && Ctx.Plan.BlockedIntents.Contains(k)) { Blocco = ERTActionInvalidReason::NoLineOfSight; }
+		else if (bColpo && Ctx.Plan.OtherLayerIntents.Contains(k)) { Blocco = ERTActionInvalidReason::OtherLayer; }
 		const ARTUnit* const Bersaglio = (Intent.TargetId != INDEX_NONE && Ctx.Units.IsValidIndex(Intent.TargetId))
 			? Ctx.Units[Intent.TargetId] : nullptr;
 		const FRTActionDef& Def = Ctx.IntentDefs[k];
@@ -7869,6 +7881,12 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		// congelata al lock-in, la stessa da cui parte il colpo. ⌫ *Fino alla code review di #3230 qui c'era
 		// `Bersaglio->Cell`, cioe' la cella viva: dopo un Dash l'attivazione dichiarava una mira che il colpo
 		// non usava.* Pinnata da `Combat.Aim.PlannedAimDoesNotFollowTheTarget`.
+		if (Blocco != ERTActionInvalidReason::None)
+		{
+			EmitActionBlocked(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
+				Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape, Blocco);
+			return;
+		}
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
 			Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape);
 	}

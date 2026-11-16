@@ -371,11 +371,12 @@ void ARTUnit::ShowHealToken(int32 Amount)
 	}
 }
 
-void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt)
+void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt, bool bBlocked)
 {
 	// #4025: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e'. Il nome lo da' il kit
 	// di QUESTA unita'; il giudizio sul ripiego e sul testo sta nella funzione pura.
 	LastSkillCallout = URTHudViewModel::BuildSkillCallout(KitDisplayNameFor(ActionId), ActionId, StableUnitId, StartAt);
+	LastSkillCallout.bBlocked = bBlocked; // `#4034`: lo stesso nome, col taglio sopra
 	if (LastSkillCallout.bFromFallback)
 	{
 		// R3: il kit non nomina questa skill e il fumetto mostra l'ultimo segmento dell'id, una parola tecnica. A schermo

@@ -845,6 +845,7 @@ namespace
 		switch (Type)
 		{
 		case ERTResolvedEventType::AbilityActivated: return 0;
+		case ERTResolvedEventType::ActionBlocked:    return 0; // `#4034`: al posto dell'attivazione, in testa al suo atto
 		case ERTResolvedEventType::AttackFootprint:  return 1;
 		case ERTResolvedEventType::StructureHit:     return 2;
 		case ERTResolvedEventType::Attack:           return 3;
@@ -919,7 +920,7 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		// prendeva la chiave dalla prima apparizione: con uno `StructureHit` (emesso PRIMA di tutte le attivazioni)
 		// finiva davanti a ogni atto visibile, senza muro in coda. L'ordine degli atti nascosti si ribaltava con la
 		// presenza di un muro.*
-		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated);
+		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated || Ev.Type == ERTResolvedEventType::ActionBlocked);
 		// ➕ `#3551`, [D-500]: e non vi entra la traccia di un `Line`/`Cone` il cui attaccante chi guarda non vedeva — la
 		// sua geometria contiene l'origine. Stessa sorte delle attivazioni nascoste: fuori dalla sequenza, quindi anche
 		// dal suo ritmo, e il gruppo resta quello dei colpi che chi guarda vede arrivare sulle vittime.

@@ -54,4 +54,11 @@ struct FRTSkillCalloutView
 	/** `ARTTurnManager::SkillCalloutClock` al momento della comparsa: l'origine del tempo di vita del fumetto. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float StartAt = 0.f;
+
+	/**
+	 * Il fumetto di un'azione BLOCCATA (`#4034`, [D-600] (2), [D-622]): lo stesso nome, col taglio sopra. Lo accende
+	 * l'evento `ActionBlocked`; l'overlay mostra il tratto (`SkillCalloutSlash`) solo quando e' vero.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bBlocked = false;
 };

@@ -442,7 +442,9 @@ bool FRTActivationLinePlaybackHiddenSourceTest::RunTest(const FString&)
 		URTHexCoverLibrary::AddCover(Map, FRTCellId(0, 0), static_cast<ERTHexDirection>(Bordo), ERTHexCoverType::High, 100);
 
 		Nemico->SetPlannedMainAction(RigaAttIndice(Nemico, RigaAttPulseShot));
-		Nemico->DeclareAttackOnUnit(Riktor);
+		// `#4034`, [D-622] (2): un colpo fermato dal muro esce barrato e non ha piu' una riga d'attivazione. L'Ivrin spara
+		// quindi a una cella libera dalla parte opposta: il tiro si attiva, e il muro continua a nasconderlo alla squadra 0.
+		Nemico->DeclareAttackOnCell(FRTCellId(-2, 0));
 		Nemico->SetPlannedCell(Nemico->Cell);
 		if (!TestTrue(TEXT("⛔ premessa: l'Ivrin pianifica PulseShot"), Nemico->GetPlan().PlannedAbilityIndex() != INDEX_NONE)
 			|| !RigaAttPianificaCopertura(*this, Riktor, HeroRiktor, FRTCellId(4, 0)))

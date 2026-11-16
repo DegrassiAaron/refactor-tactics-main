@@ -806,6 +806,10 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		});
 		if (!TestTrue(TEXT("⛔ premessa: l'azione e' stata CANCELLATA, non degradata"), bCancellato)) { return false; }
 		TestEqual(TEXT("🔴 l'interrotto non si attiva"), AttivazioniDi(TM, Attaccante), 0);
+		// `#4034`: e al suo posto esce un evento di blocco, col motivo `Interrupted`.
+		TestTrue(TEXT("🔑 l'interrotto esce barrato, col motivo Interrupted"), TM->ResolvedTimelineForTest().ContainsByPredicate(
+			[Attaccante](const FRTResolvedEvent& Ev) { return Ev.Type == ERTResolvedEventType::ActionBlocked
+				&& Ev.SourceStableUnitId == Attaccante->StableUnitId && Ev.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted); }));
 		TestEqual(TEXT("✅ l'interruttore si'"), AttivazioniDi(TM, Interruttore), 1);
 	}
 
@@ -839,7 +843,16 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 			if (Ev.Type == ERTResolvedEventType::Attack && Ev.SourceStableUnitId == Tiratore->StableUnitId) { ++Colpi; }
 		}
 		if (!TestEqual(TEXT("⛔ premessa: il muro ha fermato il colpo"), Colpi, 0)) { return false; }
-		TestEqual(TEXT("🔑 bloccato dalla linea di tiro: SI attiva"), AttivazioniDi(TM, Tiratore), 1);
+		// `#4034`, [D-622] (2): il colpo fermato dalla linea di tiro non grida piu', esce BARRATO col suo motivo.
+		// ⌫ Fino a `#4034` qui si asseriva «bloccato dalla linea di tiro: SI attiva».
+		TestEqual(TEXT("🔑 bloccato dalla linea di tiro: non si attiva"), AttivazioniDi(TM, Tiratore), 0);
+		const FRTResolvedEvent* Barrato = TM->ResolvedTimelineForTest().FindByPredicate([Tiratore](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Tiratore->StableUnitId; });
+		if (TestNotNull(TEXT("🔑 esce barrato"), Barrato))
+		{
+			TestEqual(TEXT("col motivo NoLineOfSight"), Barrato->Amount, static_cast<int32>(ERTActionInvalidReason::NoLineOfSight));
+			TestEqual(TEXT("e il nome dell'azione"), Barrato->ActionId, FName(TEXT("Hero.Ivrin.PulseShot")));
+		}
 	}
 
 	// --- 3. Morto prima del Blast: il piano gli resta addosso, la guardia no ----------------------------

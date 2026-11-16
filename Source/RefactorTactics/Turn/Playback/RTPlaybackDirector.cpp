@@ -289,8 +289,9 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		{
 			PlaybackDefeated.Add(Ev);
 		}
-		else if (Ev.Type == ERTResolvedEventType::AbilityActivated)
+		else if (Ev.Type == ERTResolvedEventType::AbilityActivated || Ev.Type == ERTResolvedEventType::ActionBlocked)
 		{
+			// `#4034`: un'azione bloccata di Prep o del Dash va nella stessa coda, col suo posto e la stessa regola di visibilita'.
 			// 🔴 D6, spec §2.5: il predicato e' quello delle RIGHE DI LOG, non quello del `Move` qui sopra. Un
 			// `ObservedPrefixLength` su un'attivazione — nessuna rotta, nessuna cella — leggerebbe il vuoto come
 			// fail-closed e nasconderebbe ogni attivazione, comprese quelle di chi guarda.
@@ -366,6 +367,7 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		case ERTResolvedEventType::AttackFootprint:  ++NumImpronte; break;
 		case ERTResolvedEventType::StructureHit:     ++NumMuri; break;
 		case ERTResolvedEventType::AbilityActivated: ++NumAttivazioniBlast; break;
+		case ERTResolvedEventType::ActionBlocked:    ++NumAttivazioniBlast; break; // `#4034`: un gesto mancato apre la fase
 		// #4059: una reazione e' un gesto come un'attivazione, e apre la fase anche da sola — un atto a se', senza un
 		// colpo sul reattore (R4). Di solito sta nell'atto di un colpo, che la fase l'ha gia' aperta.
 		case ERTResolvedEventType::ReactionResolved: ++NumAttivazioniBlast; break;
@@ -541,6 +543,12 @@ void FRTPlaybackDirector::PausePlaybackAtActBoundary()
 
 void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 {
+	// `#4034`: un'azione bloccata arriva dalle stesse code e dalla stessa sequenza dell'attivazione, al suo posto.
+	if (Ev.Type == ERTResolvedEventType::ActionBlocked)
+	{
+		ShowBlocked(Ev);
+		return;
+	}
 	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
 	Host->AddLogEvent(FString::Printf(TEXT("Attiva: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
 		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
@@ -593,6 +601,19 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 			Src->SetSkillCalloutClock(SkillCalloutClock);
 			SkillCalloutUnits.AddUnique(Src);
 		}
+	}
+}
+
+void FRTPlaybackDirector::ShowBlocked(const FRTResolvedEvent& Ev)
+{
+	// `#4034`, [D-622]: il nome barrato sopra chi e' bloccato, e NIENT'ALTRO. Nessuna clip Cast e nessun suono ([D-622] (3)):
+	// l'azione non e' avvenuta. La riga del Registro e' di `#4043`, e qui non nasce.
+	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
+	if (Src && URTHudViewModel::ActionShouts(Ev.ActionId))
+	{
+		Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock, /*bBlocked*/ true);
+		Src->SetSkillCalloutClock(SkillCalloutClock);
+		SkillCalloutUnits.AddUnique(Src);
 	}
 }
 
@@ -829,6 +850,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		switch (Ev.Type)
 		{
 		case ERTResolvedEventType::AbilityActivated:
+		case ERTResolvedEventType::ActionBlocked: // `#4034`: `ShowActivation` lo smista su `ShowBlocked`
 			ShowActivation(Ev);
 			break;
 		case ERTResolvedEventType::ReactionResolved:
@@ -2160,7 +2182,8 @@ int32 FRTPlaybackDirector::PlaybackActivationsQueuedForTest() const
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
 		if (Timeline().IsValidIndex(E.TimelineIndex)
-			&& Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated)
+			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ActionBlocked)) // `#4034`, come le code di Prep e Dash
 		{
 			++N;
 		}
