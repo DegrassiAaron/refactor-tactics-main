@@ -2639,6 +2639,8 @@ namespace
 		int32 Storditi = 0;    // `Stunned`
 		int32 Neutralizzate = 0; // `Neutralised`, di chiunque
 		int32 Attivazioni = 0; // `AbilityActivated` della cura
+		int32 Barrata = INDEX_NONE; // `#4034`: il motivo dell'unico `ActionBlocked` della cura, o `INDEX_NONE`
+		int32 Barrati = 0;
 		int32 Ricarica = 0;
 	};
 
@@ -2729,6 +2731,11 @@ namespace
 			{
 				++Out.Attivazioni;
 			}
+			if (E.Type == ERTResolvedEventType::ActionBlocked && E.ActionId == Azione && E.SourceStableUnitId == Curatore->StableUnitId)
+			{
+				++Out.Barrati;
+				Out.Barrata = E.Amount;
+			}
 		}
 		Out.Ricarica = Curatore->GetAbilityCooldown(Cura);
 		DestroyHexBlastWorld(World);
@@ -2754,6 +2761,10 @@ bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
 	TestEqual(TEXT("una voce Interrupted"), Annullata.Interrotte, 1);
 	TestEqual(TEXT("e nessun'altra voce della cura"), Annullata.Voci, 1);
 	TestEqual(TEXT("la cura non si attiva"), Annullata.Attivazioni, 0);
+	// `#4034`: esce barrata, una volta, col motivo Interrupted. Controllo: la cura riuscita non e' barrata.
+	TestEqual(TEXT("ed esce barrata una volta"), Annullata.Barrati, 1);
+	TestEqual(TEXT("col motivo Interrupted"), Annullata.Barrata, static_cast<int32>(ERTActionInvalidReason::Interrupted));
+	TestEqual(TEXT("controllo: la cura riuscita non e' barrata"), Riuscita.Barrati, 0);
 	TestTrue(TEXT("controllo: la cura riuscita va in ricarica"), Riuscita.Ricarica > 0);
 	TestEqual(TEXT("e quella interrotta paga uguale"), Annullata.Ricarica, Riuscita.Ricarica);
 	// Lo stordito non arriva in coda: il rifiuto viene prima ([D-416]), e un'azione ha un motivo, `Stunned`.
@@ -2765,6 +2776,9 @@ bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
 	TestEqual(TEXT("e nessuna Interrupted"), Rifiutata.Interrotte, 0);
 	TestEqual(TEXT("e nessun'altra voce della cura"), Rifiutata.Voci, 1);
 	TestEqual(TEXT("e non cura"), Rifiutata.SaluteDopo, 100);
+	// `#4034`: barrata col SUO motivo, Stunned: l'Interrupt non lo sovrascrive.
+	TestEqual(TEXT("barrata una volta"), Rifiutata.Barrati, 1);
+	TestEqual(TEXT("col motivo Stunned"), Rifiutata.Barrata, static_cast<int32>(ERTActionInvalidReason::Stunned));
 	return true;
 }
 

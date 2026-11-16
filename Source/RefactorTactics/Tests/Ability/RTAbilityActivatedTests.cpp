@@ -777,6 +777,17 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		}
 		return N;
 	};
+	// `#4034`: gli eventi di blocco di quell'unita', con quel motivo.
+	auto BarratiDi = [](const ARTTurnManager* TM, const ARTUnit* U, ERTActionInvalidReason Motivo)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == U->StableUnitId
+				&& Ev.Amount == static_cast<int32>(Motivo)) { ++N; }
+		}
+		return N;
+	};
 
 	// --- 1. Interrotto (montaggio dei test di Interrupt in `RTControlActionTests.cpp`, distanze di UNA cella) ----------
 	{
@@ -877,6 +888,9 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 
 		TM->LockInAndResolve();
 		TestEqual(TEXT("🔴 chi e' morto prima del Blast non si attiva"), AttivazioniDi(TM, Morto), 0);
+		// `#4034`: e non esce nemmeno barrato. Un morto non grida, nemmeno un nome barrato.
+		TestFalse(TEXT("🔴 e non esce barrato"), TM->ResolvedTimelineForTest().ContainsByPredicate([Morto](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Morto->StableUnitId; }));
 	}
 
 	// --- 4. Fuori portata: `Fallback Cancelled` PRIMA di entrare nel Blast (decisione (6), IMPLEMENTATION DRIFT)
@@ -916,6 +930,28 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 			return false;
 		}
 		TestEqual(TEXT("🔴 fuori portata: nessuna attivazione"), AttivazioniDi(TM, Lontano), 0);
+		// `#4034`, [D-600] (2): e al suo posto un evento di blocco, col motivo OutOfRange.
+		TestEqual(TEXT("🔑 fuori portata: esce barrato, col motivo OutOfRange"), BarratiDi(TM, Lontano, ERTActionInvalidReason::OutOfRange), 1);
+	}
+
+	// --- `#4034`: lo stordito, nel Blast, esce barrato col motivo Stunned ----------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World, 6);
+		ARTUnit* Stordito  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Stordito || !Bersaglio) { return false; }
+		Stordito->SetPlannedMainAction(IndiceAbilitaAttivazione(Stordito, TEXT("Hero.Riktor.ImpactShot")));
+		Stordito->DeclareAttackOnUnit(Bersaglio);
+		Stordito->SetPlannedCell(Stordito->Cell);
+		Stordito->ApplyStatus(TAG_Status_Stunned, 2);
+
+		TM->LockInAndResolve();
+		TestEqual(TEXT("🔴 lo stordito non si attiva"), AttivazioniDi(TM, Stordito), 0);
+		TestEqual(TEXT("🔑 ed esce barrato, col motivo Stunned"), BarratiDi(TM, Stordito, ERTActionInvalidReason::Stunned), 1);
 	}
 	return true;
 }

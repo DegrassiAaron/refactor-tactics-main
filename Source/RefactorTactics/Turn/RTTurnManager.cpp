@@ -2861,6 +2861,8 @@ namespace
 		 *  PRIMA della priorita': i supporti si raccontano dopo tutti i colpi. */
 		int32 Tipo = 0;
 		int32 Indice = 0;
+		/** L'atto viene da `DeferredActivations` e non da `Intents` (`#4034`): NON entra nel confronto, dice solo dove leggere. */
+		bool bRimandata = false;
 	};
 
 	/**
@@ -6705,16 +6707,23 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (int32 d = 0; d < Ctx.DeferredActivations.Num(); ++d)
 	{
 		const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[d];
-		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ 1, d });
+		// `#4034`: un attacco bloccato senza intento si racconta fra gli attacchi (tipo 0), una cura o un arco fra i supporti.
+		Atti.Add({ R.Priority, R.ActionId, R.UnitIndex, /*Tipo=*/ R.bAttack ? 0 : 1, d, /*bRimandata=*/ true });
 	}
 	// ⛔ `StableSort` su un confronto TOTALE (tipo e indice chiudono ogni pari): nessuna dipendenza dall'algoritmo.
 	Atti.StableSort([](const FRTChiaveDelBlast& A, const FRTChiaveDelBlast& B) { return ChiavePrecede(A, B); });
 	TSet<int32> ImpronteEmesse;
 	for (const FRTChiaveDelBlast& Atto : Atti)
 	{
-		if (Atto.Tipo == 1)
+		if (Atto.bRimandata)
 		{
 			const FRTBlastContext::FRTDeferredActivation& R = Ctx.DeferredActivations[Atto.Indice];
+			if (R.BlockedReason != 0) // `#4034`: l'azione non avviene, ed esce barrata al suo posto
+			{
+				EmitActionBlocked(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
+					R.AimCell, R.Shape, static_cast<ERTActionInvalidReason>(R.BlockedReason), &R.SourceVerdict);
+				continue;
+			}
 			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
 				R.AimCell, R.Shape, &R.SourceVerdict);
 			continue;
