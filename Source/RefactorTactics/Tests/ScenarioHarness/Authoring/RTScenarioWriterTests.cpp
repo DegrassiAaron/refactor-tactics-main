@@ -272,6 +272,7 @@ namespace
 
 		if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
 			if (A.Loadout != B.Loadout) { return Fail(FString::Printf(TEXT("units[%d].loadout"), I)); }
+			if (A.Grant != B.Grant) { return Fail(FString::Printf(TEXT("units[%d].grant"), I)); } // `#4001`
 			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("units[%d] note"), I), OutDiff)) { return false; }
 		}
 

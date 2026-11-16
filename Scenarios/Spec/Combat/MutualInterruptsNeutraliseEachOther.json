@@ -1,0 +1,40 @@
+{
+  "scenarioId": "Spec.Combat.MutualInterruptsNeutraliseEachOther",
+  "tags": ["combat", "interrupt", "esito", "spec", "ivrin", "riktor"],
+  "version": 10,
+  "seed": 0,
+  "mapRadius": 4,
+  "repeatCount": 3,
+
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `Neutralised`. A1 e B2 si interrompono a vicenda: un ciclo non ha radice, e [D-202] lascia inefficaci tutti e due gli Interrupt.",
+  "_nota_grant": "Oggi nessun eroe, gadget o azione generica porta `Action.Interrupt` ([D-604] (g)): in partita questo caso non si produce. A1 e B2 lo ricevono da `grant`, la chiave della v10 che l'autore ha scelto il 2026-11-16 per costruire a mano i casi di `Interrupted` e `Neutralised`.",
+  "_oracolo": "Due voci `Fallback`/`Cancelled` col motivo `Neutralised` (13 in `ERTActionInvalidReason`), una per unita'. Qui il soggetto e' chi ha SPESO l'Interrupt, e l'azione e' `Action.Interrupt`: e' il verso opposto della voce `Interrupted`, dove il soggetto e' la vittima. Nessuna voce `Interrupted`: nessuno dei due e' riuscito a fermare l'altro.",
+  "_nota_vista": "A1 guarda a SE, cioe' B2 in (0,1); B2 guarda a NW, cioe' A1. Senza, un bersaglio ignoto darebbe un altro motivo, e `LogEventAmount` lo direbbe.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Ivrin",  "team": 0, "cell": [0, 0, 0], "facing": "SE", "grant": ["Action.Interrupt"] },
+    { "id": "B2", "hero": "Hero.Riktor", "team": 1, "cell": [0, 1, 0], "facing": "NW", "grant": ["Action.Interrupt"] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1: ognuno interrompe l'altro.",
+      "intents": [
+        { "unit": "A1", "ability": "Action.Interrupt", "target": "B2" },
+        { "unit": "B2", "ability": "Action.Interrupt", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Action.Interrupt", "value": 2,
+      "_assertion": "Due voci, una per Interrupt speso." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "A1", "value": 13,
+      "_assertion": "L'Interrupt di A1 e' `Neutralised` (13), e il soggetto e' A1." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "B2", "value": 13,
+      "_assertion": "E quello di B2, col soggetto B2." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 2,
+      "_assertion": "Nient'altro e' annullato: nessuna voce `Interrupted`." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

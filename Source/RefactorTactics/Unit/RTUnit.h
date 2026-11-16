@@ -1038,6 +1038,17 @@ public:
 	 */
 	void EquipLoadout(const TArray<FName>& PieceIds);
 
+	/**
+	 * Accoda al kit le azioni CORE `ActionIds` (`Action.Interrupt`), oltre a cio' che eroe ed equipaggiamento
+	 * danno, e risincronizza le ricariche. Un id che il catalogo non conosce viene saltato.
+	 *
+	 * ⛔ **La partita non la chiama: e' la porta dello scenario (`grant`, `#4001`).** Oggi nessun eroe, gadget
+	 * o generica porta `Action.Interrupt` ([D-604] (g)), quindi `Interrupted` e `Neutralised` non hanno un
+	 * produttore in partita; l'autore ha scelto il 2026-11-16 che lo scenario conceda l'azione invece di
+	 * escludere i due casi. E' l'unico punto in cui l'harness e' piu' capace del gioco, e lo dice.
+	 */
+	void GrantCoreActions(const TArray<FName>& ActionIds);
+
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTActionData* GetAbility(int32 Index) const;
 

@@ -1409,6 +1409,30 @@ namespace
 
 			}
 
+			// `grant` opzionale (`#4001`): azioni core oltre al kit. Qui si legge; che esistano lo verifica la
+			// validazione piu' sotto, come per il loadout.
+			const TArray<TSharedPtr<FJsonValue>>* GrantArr = nullptr;
+			if (Obj->TryGetArrayField(TEXT("grant"), GrantArr))
+			{
+				if (OutScenario.Version < 10)
+				{
+					OutError = FString::Printf(TEXT("unita' '%s': `grant` chiede la versione 10 (dichiarata %d)"),
+						*Unit.Id, OutScenario.Version);
+					return false;
+				}
+				for (const TSharedPtr<FJsonValue>& Granted : *GrantArr)
+				{
+					FString ActionText;
+					if (!ElementoStringa(Granted, ActionText) || ActionText.IsEmpty())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': grant deve essere una lista di ActionId core"), *Unit.Id);
+						return false;
+					}
+					Unit.Grant.Add(FName(*ActionText));
+				}
+			}
+
 			// GLI STATUS INIZIALI — `#1629`. Assente = nessuno status, che e' lo stato naturale: qui NON
 			// serve distinguere «non dichiarato» da «dichiarato vuoto» come per il loadout, perche' un'unita'
 			// senza status non ne riceve di default.
@@ -2347,6 +2371,14 @@ namespace
 					{
 						return false;
 					}
+					// `unit` opzionale (`#4001`): il soggetto della voce. Assente = nessun filtro. Chiede la versione 10.
+					if (Obj->HasField(TEXT("unit")) && OutScenario.Version < 10)
+					{
+						OutError = FString::Printf(TEXT("expect LogEventCount: il filtro `unit` chiede la versione 10 (dichiarata %d)"),
+							OutScenario.Version);
+						return false;
+					}
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect LogEventCount"), OutError)) { return false; }
 					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
 					{
 						return false;
@@ -2402,6 +2434,14 @@ namespace
 					{
 						return false;
 					}
+					// `unit` opzionale (`#4001`), come in `LogEventCount`, e con la stessa versione.
+					if (Obj->HasField(TEXT("unit")) && OutScenario.Version < 10)
+					{
+						OutError = FString::Printf(TEXT("expect LogEventAmount: il filtro `unit` chiede la versione 10 (dichiarata %d)"),
+							OutScenario.Version);
+						return false;
+					}
+					if (!OpzionaleStringa(*Obj, TEXT("unit"), Exp.UnitId, TEXT("expect LogEventAmount"), OutError)) { return false; }
 					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
 					{
 						return false;
@@ -3579,6 +3619,26 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		if (LoadoutErrors.Num() > 0)
 		{
 			OutError = FString::Printf(TEXT("unita' '%s': loadout illegale — %s"), *Unit.Id, *LoadoutErrors[0]);
+			return false;
+		}
+	}
+
+	// `grant` (`#4001`): ogni id dev'essere un'azione CORE del catalogo, una volta sola. Un id sconosciuto lascerebbe
+	// l'unita' senza l'azione, e l'intent che la dichiara fallirebbe al turno invece che qui, col suo motivo.
+	TSet<FName> Concesse;
+	for (const FName& ActionId : Unit.Grant)
+	{
+		if (URTCatalogLibrary::FindCoreAction(ActionId).ActionId.IsNone())
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': grant '%s' non e' un'azione core del catalogo"),
+				*Unit.Id, *ActionId.ToString());
+			return false;
+		}
+		bool bGiaConcessa = false;
+		Concesse.Add(ActionId, &bGiaConcessa);
+		if (bGiaConcessa)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': grant '%s' ripetuto"), *Unit.Id, *ActionId.ToString());
 			return false;
 		}
 	}

@@ -1,0 +1,52 @@
+{
+  "scenarioId": "Spec.Combat.InterruptCancelsTheShot",
+  "tags": ["combat", "interrupt", "esito", "spec", "ivrin", "riktor"],
+  "version": 10,
+  "seed": 0,
+  "mapRadius": 4,
+  "repeatCount": 3,
+
+  "_nota": "#4001, la scheda dei casi di `esito` (G17): il motivo `Interrupted`. Un `Action.Interrupt` coglie il tiro di A1 prima del Blast, e il tiro non parte.",
+  "_nota_grant": "Oggi nessun eroe, gadget o azione generica porta `Action.Interrupt` ([D-604] (g)): in partita questo caso non si produce. B2 lo riceve da `grant`, la chiave della v10 che l'autore ha scelto il 2026-11-16 per costruire a mano i casi di `Interrupted` e `Neutralised` invece di toglierli dalla scheda.",
+  "_oracolo": "Turno 1: B2, adiacente ad A1, la interrompe; il `Hero.Ivrin.PulseShot` di A1 lascia una sola voce `Fallback`/`Cancelled` col motivo `Interrupted` (11 in `ERTActionInvalidReason`), e il soggetto e' A1, la vittima. Turno 2: B2 ridichiara l'Interrupt, che ha ricarica 2 ed e' ancora in ricarica: il lock-in svuota il suo piano con `OnCooldown` (10), soggetto B2, e lo stesso tiro di A1 colpisce B1. Il colpo del turno 2 e' il controllo che rende lo zero del turno 1 una misura; la voce di B2 dice che l'azione concessa paga la ricarica come ogni altra, ed e' il controllo del filtro `unit`: senza filtro, il valore letto per B2 sarebbe l'11 di A1.",
+  "_nota_vista": "Gli orientamenti sono dichiarati perche' la vista e' direzionale: A1 guarda a E e vede sia B1 in (3,0) sia B2 in (0,1), a SE; B2 guarda a NW, cioe' A1. Senza, un bersaglio ignoto darebbe `TargetUnknown` invece di `Interrupted`, e `LogEventAmount` lo direbbe.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Ivrin",  "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0], "facing": "W" },
+    { "id": "B2", "hero": "Hero.Riktor", "team": 1, "cell": [0, 1, 0], "facing": "NW", "grant": ["Action.Interrupt"] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1: B2 interrompe A1, che tira su B1.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Ivrin.PulseShot", "target": "B1" },
+        { "unit": "B2", "ability": "Action.Interrupt", "target": "A1" }
+      ]
+    },
+    {
+      "_turno": "T2: l'Interrupt di B2 e' in ricarica, il tiro di A1 colpisce.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Ivrin.PulseShot", "target": "B1" },
+        { "unit": "B2", "ability": "Action.Interrupt", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 2,
+      "_assertion": "Due annullamenti nei due turni: il tiro di A1 al turno 1 e il piano di B2 al turno 2." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "actionId": "Hero.Ivrin.PulseShot", "unit": "A1", "value": 1,
+      "_assertion": "La voce racconta l'azione della vittima: soggetto A1, azione il suo tiro." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "A1", "value": 11,
+      "_assertion": "Il motivo e' `Interrupted` (11 in `ERTActionInvalidReason`)." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "unit": "B2", "value": 1,
+      "_assertion": "Una sola voce di B2: al turno 1 il suo Interrupt e' efficace e non si annulla." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "B2", "value": 10,
+      "_assertion": "Al turno 2 l'azione concessa e' in ricarica: `OnCooldown` (10). Senza il filtro si leggerebbe l'11 di A1." },
+    { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "actionId": "Hero.Ivrin.PulseShot", "value": 1,
+      "_assertion": "Colpisce solo al turno 2: il controllo dello zero del turno 1." },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

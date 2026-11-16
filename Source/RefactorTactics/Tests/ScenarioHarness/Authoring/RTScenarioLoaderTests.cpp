@@ -2950,4 +2950,83 @@ bool FRTScenarioLoaderScalarTypesTest::RunTest(const FString&)
 	return true;
 }
 
+// ── #4001: `grant` e il filtro `unit` sui conteggi del TurnLog (formato v10) ────────────────────────────────────────
+namespace
+{
+	FString ScenarioV10(int32 Versione, const TCHAR* CampoUnita, const TCHAR* Assertion)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Grant.Prova", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0]%s },
+		             { "id": "B1", "hero": "Hero.Ivrin", "team": 1, "cell": [2, 0, 0] } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ %s ]
+		}
+		)JSON"), Versione, CampoUnita, Assertion);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioGrantIsReadAndCheckedTest,
+	"RefactorTactics.Scenario.GrantIsReadAndChecked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioGrantIsReadAndCheckedTest::RunTest(const FString&)
+{
+	const TCHAR* Turni = TEXT(R"({ "type": "TurnsCompleted", "value": 1 })");
+	FRTTestScenario S;
+	FString Errore;
+	TestTrue(*FString::Printf(TEXT("v10: si carica (%s)"), *Errore), URTScenarioLoader::LoadFromString(
+		ScenarioV10(10, TEXT(R"(, "grant": ["Action.Interrupt"])"), Turni), S, Errore));
+	if (TestEqual(TEXT("due unita'"), S.Units.Num(), 2))
+	{
+		TestTrue(TEXT("A1 riceve l'Interrupt"), S.Units[0].Grant == TArray<FName>{ FName(TEXT("Action.Interrupt")) });
+		TestEqual(TEXT("B1 nulla"), S.Units[1].Grant.Num(), 0);
+	}
+
+	// I tre rifiuti, ognuno col suo motivo.
+	auto Rifiuta = [this, Turni](int32 Versione, const TCHAR* Campo, const TCHAR* Parola, const TCHAR* Caso)
+	{
+		FRTTestScenario X;
+		FString E;
+		const bool bLetto = URTScenarioLoader::LoadFromString(ScenarioV10(Versione, Campo, Turni), X, E);
+		TestFalse(*FString::Printf(TEXT("%s: rifiutato"), Caso), bLetto);
+		TestTrue(*FString::Printf(TEXT("%s: il motivo nomina '%s' (%s)"), Caso, Parola, *E), E.Contains(Parola));
+	};
+	Rifiuta(9, TEXT(R"(, "grant": ["Action.Interrupt"])"), TEXT("versione 10"), TEXT("v9"));
+	Rifiuta(10, TEXT(R"(, "grant": ["Action.NonEsiste"])"), TEXT("Action.NonEsiste"), TEXT("id sconosciuto"));
+	Rifiuta(10, TEXT(R"(, "grant": ["Hero.Riktor.ImpactShot"])"), TEXT("azione core"), TEXT("azione d'eroe"));
+	Rifiuta(10, TEXT(R"(, "grant": ["Action.Interrupt", "Action.Interrupt"])"), TEXT("ripetuto"), TEXT("ripetuto"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogCountFiltersBySubjectTest,
+	"RefactorTactics.Scenario.LogCountFiltersBySubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogCountFiltersBySubjectTest::RunTest(const FString&)
+{
+	FRTTestScenario S;
+	FString Errore;
+	TestTrue(*FString::Printf(TEXT("v10: si carica (%s)"), *Errore), URTScenarioLoader::LoadFromString(ScenarioV10(10, TEXT(""), TEXT(R"(
+		{ "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "unit": "A1", "value": 0 },
+		{ "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "B1", "value": 11 },
+		{ "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 0 })")), S, Errore));
+	if (TestEqual(TEXT("tre assertion"), S.Expect.Num(), 3))
+	{
+		TestEqual(TEXT("il conteggio filtra A1"), S.Expect[0].UnitId, FString(TEXT("A1")));
+		TestEqual(TEXT("il valore filtra B1"), S.Expect[1].UnitId, FString(TEXT("B1")));
+		TestTrue(TEXT("senza unit nessun filtro"), S.Expect[2].UnitId.IsEmpty());
+	}
+	for (const TCHAR* Tipo : { TEXT("LogEventCount"), TEXT("LogEventAmount") })
+	{
+		FRTTestScenario X;
+		FString E;
+		const FString Assertion = FString::Printf(
+			TEXT(R"({ "type": "%s", "category": "Fallback", "outcome": "Cancelled", "unit": "A1", "value": 0 })"), Tipo);
+		TestFalse(*FString::Printf(TEXT("%s con unit a v9: rifiutato"), Tipo),
+			URTScenarioLoader::LoadFromString(ScenarioV10(9, TEXT(""), *Assertion), X, E));
+		TestTrue(*FString::Printf(TEXT("%s: il motivo nomina la versione (%s)"), Tipo, *E), E.Contains(TEXT("versione 10")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

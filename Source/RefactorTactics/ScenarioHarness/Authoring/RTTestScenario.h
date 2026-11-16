@@ -587,6 +587,21 @@ struct FRTScenarioUnit
 	bool bLoadoutDeclared = false;
 
 	/**
+	 * Azioni CORE concesse all'unita' oltre al kit e al loadout (`#4001`): `ActionId` del catalogo, per esempio
+	 * `Action.Interrupt`. Si dichiarano poi negli intent come ogni altra abilita'.
+	 *
+	 * ⛔ **Qui l'harness e' piu' capace del gioco, al contrario di `loadout`.** Nessun eroe, gadget o generica
+	 * porta `Action.Interrupt` ([D-604] (g)), e senza questa chiave `Interrupted` e `Neutralised` non avrebbero
+	 * uno scenario. L'autore l'ha scelto il 2026-11-16, invece di escludere i due casi dalla scheda di `esito`.
+	 * Uno scenario che la usa descrive un caso che oggi solo uno scenario produce, e deve dirlo nella `_nota`.
+	 *
+	 * Il loader rifiuta un id che il catalogo core non conosce e un id ripetuto. Ad applicarla e'
+	 * `ARTUnit::GrantCoreActions`, dopo `EquipLoadout`.
+	 */
+	UPROPERTY()
+	TArray<FName> Grant;
+
+	/**
 	 * GLI STATUS ATTIVI ALL'AVVIO, con la loro durata — `#1629`.
 	 *
 	 * 🔑 **Uno status non e' un nome: e' un nome E una durata.** `ARTUnit::ApplyStatus` prende
@@ -1055,7 +1070,11 @@ struct FRTTestExpectation
 	UPROPERTY()
 	ERTAssertionKind Kind = ERTAssertionKind::UnitAtCell;
 
-	/** Unita' coinvolta (`UnitAtCell`). */
+	/**
+	 * Unita' coinvolta (`UnitAtCell` e le altre sull'unita'). Su `LogEventCount` e `LogEventAmount` e' un filtro
+	 * OPZIONALE (`#4001`): conta solo le voci il cui `UnitId` e' lo `StableUnitId` di quell'unita', cioe' il
+	 * SOGGETTO della voce. Vuoto = nessun filtro, come prima.
+	 */
 	UPROPERTY()
 	FString UnitId;
 

@@ -700,7 +700,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderReadsTheActionListTest,
 bool FRTScenarioLoaderReadsTheActionListTest::RunTest(const FString&)
 {
 	// Criterio 15: il loader legge `actions` nel suo ordine, e il formato dichiara la versione nuova.
-	TestEqual(TEXT("il formato e' alla versione 9"), URTScenarioLoader::SupportedVersion, 9);
+	TestTrue(TEXT("il formato e' almeno alla versione 9"), URTScenarioLoader::SupportedVersion >= 9);
 	FRTTestScenario S;
 	FString Errore;
 	const bool bLetto = URTScenarioLoader::LoadFromString(ScenarioConAzioni(9, TEXT(R"({ "unit": "B1", "actions": [

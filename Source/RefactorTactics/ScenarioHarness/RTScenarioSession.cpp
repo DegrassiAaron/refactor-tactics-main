@@ -1028,6 +1028,8 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 			? Spec.Loadout
 			: URTCatalogLibrary::DefaultLoadoutFor(Spec.HeroId);
 		Unit->EquipLoadout(Pezzi);
+		// Le azioni core concesse dallo scenario (`#4001`), DOPO il loadout: si accodano a cio' che il gioco monta.
+		Unit->GrantCoreActions(Spec.Grant);
 
 		UnitsById.Add(Spec.Id, Unit);
 	}
@@ -2503,6 +2505,25 @@ FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectat
 	FRTAssertionResult A;
 	A.Kind = Exp.Kind;
 	A.Turn = Result.TurnsPlayed;
+	// `#4001`: il soggetto di `LogEventCount`/`LogEventAmount`. Vuoto = nessun filtro (`OutId` resta `INDEX_NONE`).
+	// Un'unita' dichiarata e assente fallisce con quel motivo, come `OriginalTargetEquals`: contare zero voci di
+	// un'unita' che non c'e' farebbe passare un `value: 0` per la ragione sbagliata. Il ponte fra i due spazi di id e'
+	// `UnitsById`, come in `EventMatchesSelector`.
+	const auto ResolveLogSubject = [this](const FRTTestExpectation& E, FRTAssertionResult& R, int32& OutId) -> bool
+	{
+		if (E.UnitId.IsEmpty()) { return true; }
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(E.UnitId);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		R.Description += FString::Printf(TEXT(" di %s"), *E.UnitId);
+		if (!Unit)
+		{
+			R.Actual = TEXT("unita' del filtro assente (abbattuta o mai creata)");
+			R.bPassed = false;
+			return false;
+		}
+		OutId = Unit->StableUnitId;
+		return true;
+	};
 
 	switch (Exp.Kind)
 	{
@@ -2666,11 +2687,15 @@ FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectat
 		A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
 		A.Expected = FString::FromInt(Exp.Value);
 
+		int32 SubjectId = INDEX_NONE;
+		if (!ResolveLogSubject(Exp, A, SubjectId)) { break; }
+
 		int32 Found = 0;
 		for (const FRTTurnLogEntry& Entry : ScenarioLog)
 		{
 			if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
-				Exp.bHasLogPhase, Exp.LogPhase)) { ++Found; }
+				Exp.bHasLogPhase, Exp.LogPhase)
+				&& (SubjectId == INDEX_NONE || Entry.UnitId == SubjectId)) { ++Found; }
 		}
 		A.Actual = FString::FromInt(Found);
 		A.bPassed = (Found == Exp.Value);
@@ -2683,10 +2708,18 @@ FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectat
 		A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
 		A.Expected = FString::FromInt(Exp.Value);
 
+		int32 SubjectId = INDEX_NONE;
+		if (!ResolveLogSubject(Exp, A, SubjectId)) { break; }
+
 		// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
-		// una decisione non e' la somma dei residui.
-		const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
-			Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		// una decisione non e' la somma dei residui. Col soggetto (`#4001`), la prima di quell'unita'.
+		int32 At = INDEX_NONE;
+		for (int32 I = 0; I < ScenarioLog.Num(); ++I)
+		{
+			if (MatchesScenarioLogEvent(ScenarioLog[I], Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
+				Exp.bHasLogPhase, Exp.LogPhase)
+				&& (SubjectId == INDEX_NONE || ScenarioLog[I].UnitId == SubjectId)) { At = I; break; }
+		}
 		if (At == INDEX_NONE)
 		{
 			// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il

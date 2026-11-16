@@ -109,6 +109,15 @@ sapere cosa ciascuno prova:
 
 - `id` dell'unità è **locale allo scenario** (`A1`), non l'ID di gioco: lo usano intent e assertion.
 - `hero` è lo Stable ID del catalogo: `Hero.Gadget`, `Hero.Muiren`, `Hero.Riktor`, `Hero.Ivrin`.
+- `grant` (opzionale, [#4001](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4001)) è una lista di azioni **core** del catalogo che l'unità riceve oltre
+  al kit e al loadout, per esempio `["Action.Interrupt"]`; negli intent si dichiarano come ogni altra abilità.
+  - ⛔ **Qui l'harness è più capace del gioco, al contrario di `loadout`.** Nessun eroe, gadget o azione
+    generica porta `Action.Interrupt` ([D-604](../../decisions/RT_PDR_00_Decision_Log.md) (g)), e senza questa chiave `Interrupted` e
+    `Neutralised` non avrebbero uno scenario. L'autore ha scelto, il 2026-11-16, che lo scenario conceda
+    l'azione, invece di togliere i due casi dalla scheda di `esito`. Uno scenario che usa `grant` descrive un caso che in partita oggi non
+    si produce, e lo scrive nella `_nota`.
+  - Il loader rifiuta un id che non è un'azione core e un id ripetuto. Ad applicarla è
+    `ARTUnit::GrantCoreActions`, dopo `EquipLoadout`.
 - `move` sono i **waypoint**, esattamente come li produrrebbe un giocatore che clicca. Vuoto = unità ferma.
 - `cells` modifica solo le celle che interessano: le altre restano pavimento a costo 1. È ciò che permette di
   scrivere `Movement.Blocked` senza versionare una mappa.
@@ -190,6 +199,15 @@ L'evento si nomina **per nome**, come la direzione di `UnitFacing`:
 { "type": "LogEventOrder", "category": "Combat", "outcome": "Hit",
   "thenCategory": "Move", "thenOutcome": "Moved" }
 { "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 22 }
+```
+
+`LogEventCount` e `LogEventAmount` accettano un filtro `unit` opzionale ([#4001](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4001)): contano, o leggono,
+solo le voci il cui **soggetto** (`UnitId`) è quell'unità. Il ponte fra l'id dello scenario e lo
+`StableUnitId` della voce è lo stesso di `afterEvent`. Un'unità nominata e assente fa fallire l'assertion
+con quel motivo: contare zero voci di chi non c'è farebbe passare un `value: 0` per la ragione sbagliata.
+
+```json
+{ "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "unit": "B1", "value": 11 }
 ```
 
 Per `LogEventCount`, `value` omesso vale **1**, cioè «l'evento c'è». Per `LogEventAmount` `value` è invece
