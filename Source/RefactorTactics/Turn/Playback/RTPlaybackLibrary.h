@@ -146,6 +146,27 @@ struct FRTBlastSequenceElement
 };
 
 /**
+ * ➕ [D-619] (#4136): un salto della scarica a catena, in termini di gioco — chi lancia, da quale colpito parte, su quale
+ * arriva. Le posizioni nel mondo le calcola chi lancia il sistema, dalle unita' e dalla mappa.
+ *
+ * ⚠️ Come `FRTBlastSequenceElement`, **non e' un `USTRUCT`**: vive fra `ChainHopFor` e il playback, non si serializza.
+ */
+struct FRTChainHop
+{
+	bool bValid = false;
+	/** Chi lancia: il primo salto parte dalla sua sfera. */
+	int32 SourceStableUnitId = 0;
+	/** Il colpito da cui parte il salto; `0` = dalla sorgente. */
+	int32 FromTargetStableUnitId = 0;
+	/** Il colpito su cui arriva; `0` = l'arco a vuoto, che finisce su `ToCell`. */
+	int32 ToTargetStableUnitId = 0;
+	/** La cella d'arrivo: l'impatto del colpo, o l'`AimCell` dell'arco a vuoto. */
+	FRTCellId ToCell;
+	FName ActionId;
+	FName BaseActionId;
+};
+
+/**
  * Matematica pura del playback della risoluzione (posizione-nel-tempo + durata).
  * Non tocca Actor ne' World: e' testabile in automation. L'animazione degli Actor la usa
  * per interpolare i cilindri e stimare/limitare la durata del round (invariante #1: presentazione,
@@ -455,7 +476,9 @@ public:
 	 * ordinano per l'indice in timeline della loro ATTIVAZIONE — visibile o no a chi guarda — se ne hanno una,
 	 * altrimenti per prima apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle
 	 * attivazioni — non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione,
-	 * impronte, muri, colpi, ciascuno nell'ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
+	 * impronte, muri, colpi, ciascuno nell'ordine di timeline — salvo i colpi di un atto a linea che chi guarda conosce per
+	 * intero (`IsLineActKnownTo`, [D-619]), che vanno dal piu' vicino al piu' lontano dall'origine dell'impronta, a pari
+	 * distanza in ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
 	 * aggregato, #3281) e' un atto proprio; un gruppo senza attivazione in timeline (impatti di carica,
 	 * contrattacchi, muri anonimi) e' un atto proprio alla sua prima apparizione. Un evento con sorgente `0` e
 	 * azione nominata (non attribuibile, [D-063]) forma il gruppo `(0, azione)`, un atto proprio: non sappiamo a
@@ -476,6 +499,31 @@ public:
 	 */
 	static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
 		const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);
+
+	/**
+	 * ➕ [D-619] (#4136): l'atto `(SourceStableUnitId, ActionId)` del Blast e' un attacco A LINEA che chi guarda conosce
+	 * per intero? Vero se l'atto ha in timeline **una sola** impronta, di forma `Line` e non nascosta a chi guarda
+	 * (`IsFootprintHiddenFrom`), e ogni suo `Attack` ha la geometria risolta, con origine e impatto noti a chi guarda.
+	 * `OutFootprintIndex` e' l'indice di quell'impronta, `INDEX_NONE` se la risposta e' falsa.
+	 *
+	 * ⛔ **Fail-closed**: ordinare i colpi lungo la linea quando un colpito o l'origine sono ignoti direbbe col ritmo dove
+	 * stanno, quindi la risposta e' falsa e l'ordine resta quello di timeline. ⚠️ Con due impronte — la stessa azione due
+	 * volte nello stesso Blast — e' falsa: gli eventi non portano l'intento, e non si sa quale colpo stia su quale linea.
+	 */
+	static bool IsLineActKnownTo(const TArray<FRTResolvedEvent>& Timeline, int32 SourceStableUnitId, FName ActionId,
+		int32 ViewerTeamId, int32& OutFootprintIndex);
+
+	/**
+	 * ➕ [D-619] (#4136): il salto della scarica a catena che porta l'elemento `ElementIndex` della sequenza.
+	 * - Un `Attack` di un atto a linea noto (`IsLineActKnownTo`): parte dal colpito dell'`Attack` che lo precede nello
+	 *   stesso atto, o dalla sorgente se e' il primo, e arriva sul suo colpito. Con la sequenza in ordine di linea
+	 *   (`BuildBlastSequence`) il precedente e' il colpito piu' vicino all'origine.
+	 * - L'impronta di un atto a linea noto e SENZA colpi: dalla sorgente all'`AimCell`, l'arco a vuoto.
+	 * - Ogni altro elemento: nessun salto (`bValid` falso).
+	 * Non legge la tabella delle scariche: se un'azione ne abbia una lo decide chi lancia (`ChainFxFor`).
+	 */
+	static FRTChainHop ChainHopFor(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence, int32 ElementIndex, int32 ViewerTeamId);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'

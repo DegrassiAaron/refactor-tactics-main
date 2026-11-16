@@ -140,6 +140,21 @@ struct FRTPresentationBinding
 };
 
 /**
+ * ➕ [D-619] (#4136): la scarica a catena di un'azione — il sistema Niagara e il socket da cui parte il primo salto.
+ *
+ * 🔑 **Il contratto con l'asset sono due parametri utente**, `BeamStart` e `BeamEnd`, di tipo *Position* e in spazio
+ * mondo: il playback li scrive prima di attivare il sistema. Un asset che non li espone si vede, ma non fra i due punti.
+ * ⚠️ Non e' un `USTRUCT`: e' una riga di dati dichiarativi accanto al profilo FX (D-278), non si serializza.
+ */
+struct FRTChainFxBinding
+{
+	/** Il sistema Niagara, uno per salto. Deve finire da solo (Loop Behavior *Once*). */
+	FSoftObjectPath System;
+	/** Il socket della skeletal di chi lancia da cui parte il primo salto; vuoto o assente = il centro della mesh. */
+	FName SourceSocket;
+};
+
+/**
  * Il contratto evento risolto -> presentazione, e il suo gate di esaustivita' (`D-278`, `#1801`).
  *
  * 🔴 **Il difetto che questa libreria esiste per rendere IMPOSSIBILE.** `ERTResolvedEventType` puo' crescere
@@ -292,4 +307,13 @@ public:
 
 	/** `FxProfileForIn` sulla tabella vera. */
 	static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
+
+	/**
+	 * ➕ [D-619] (#4136): le azioni che hanno una scarica a catena, in ordine. ⛔ Nessun default per forma: un'azione
+	 * senza riga non lancia niente, e lo zigzag del profilo resta il solo disegno del colpo.
+	 */
+	static const TArray<TPair<FName, FRTChainFxBinding>>& DeclaredChainFxRows();
+
+	/** La scarica di `ActionId`, altrimenti di `BaseActionId`, altrimenti `nullptr` (lo stesso ripiego di `FxProfileForIn`). */
+	static const FRTChainFxBinding* ChainFxFor(FName ActionId, FName BaseActionId);
 };

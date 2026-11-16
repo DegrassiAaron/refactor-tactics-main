@@ -13,6 +13,9 @@
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: oggi arriva dalla PCH condivisa, ma il file non deve dipenderne
+#include "NiagaraComponent.h"       // [D-619]: la scarica a catena, i due parametri utente
+#include "NiagaraFunctionLibrary.h" // [D-619]: `SpawnSystemAtLocation`
+#include "NiagaraSystem.h"
 
 /*
  * I corpi qui sotto sono quelli che vivevano in `RTTurnManager.cpp`, spostati con le loro note (#4057). Cambia solo il
@@ -845,6 +848,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 			// `URTHexLibrary::StableLess`, e riordinarle o filtrarle qui sarebbe la seconda risposta a una domanda che
 			// il resolver ha gia' chiuso.
 			if (MapActor) { MapActor->AddPlaybackFootprint(Ev.HitCells); }
+			SpawnChainArc(Elemento); // [D-619]: l'arco a vuoto, se l'atto non ha colpito nessuno
 			break;
 		case ERTResolvedEventType::StructureHit:
 			// ⛔ **Il bordo che l'evento PORTA, e nient'altro** (#2828): non si chiama `FirstCoveredEdge`, non si
@@ -868,6 +872,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		case ERTResolvedEventType::Attack:
 			// L'ordinale serve solo alla traccia dei test: in produzione non si scorre la sequenza a ogni lancio.
 			LaunchPlaybackAttack(Ev, Tuning().bRecordAttackBeatsForTest ? BlastAttackOrdinal(Elemento) : 0);
+			SpawnChainArc(Elemento); // [D-619]: il salto della scarica parte col colpo, insieme alla clip dello sparo
 			// ⚠️ Nessun confine qui: quello di un colpo cade all'arrivo, ed e' il battito che segue.
 			continue;
 		default:
@@ -904,6 +909,87 @@ void FRTPlaybackDirector::LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int3
 		AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack, Atk.ActionId, Atk.BaseActionId);
 	}
 	if (Tuning().bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("L%d"), AttackOrdinal)); }
+}
+
+void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
+{
+	const FRTChainHop Hop = URTPlaybackLibrary::ChainHopFor(Timeline(), PlaybackBlastSequence, Elemento, PlaybackViewerTeamId);
+	const FRTChainFxBinding* const Fx = Hop.bValid
+		? URTPresentationBindingLibrary::ChainFxFor(Hop.ActionId, Hop.BaseActionId) : nullptr;
+	if (!Fx)
+	{
+		return;
+	}
+	if (Tuning().bRecordAttackBeatsForTest)
+	{
+		ChainHopTrace.Add(FString::Printf(TEXT("%d>%d"), Hop.FromTargetStableUnitId, Hop.ToTargetStableUnitId));
+	}
+
+	// ⛔ Come `DisegnaLineaAnteprima`, niente sul server dedicato: e' un effetto per chi guarda.
+	UWorld* const World = Host->GetPlaybackWorld();
+	const ARTUnit* const Sorgente = Host->UnitByStableId(Hop.SourceStableUnitId);
+	if (!World || World->GetNetMode() == NM_DedicatedServer || !Sorgente)
+	{
+		return;
+	}
+
+	// Gli estremi: la sfera di chi lancia per il primo salto, il centro del colpito per gli altri, e la cella mirata per
+	// l'arco a vuoto. Si leggono dalle unita' ADESSO: nel Blast non si muove nessuno prima che i colpi siano mostrati.
+	FVector Inizio;
+	if (Hop.FromTargetStableUnitId == 0)
+	{
+		Inizio = Sorgente->ChainFxAnchor(Fx->SourceSocket);
+	}
+	else if (const ARTUnit* const Da = Host->UnitByStableId(Hop.FromTargetStableUnitId))
+	{
+		Inizio = Da->ChainFxAnchor(NAME_None);
+	}
+	else
+	{
+		return;
+	}
+	FVector Fine;
+	if (Hop.ToTargetStableUnitId != 0)
+	{
+		const ARTUnit* const A = Host->UnitByStableId(Hop.ToTargetStableUnitId);
+		if (!A)
+		{
+			return;
+		}
+		Fine = A->ChainFxAnchor(NAME_None);
+	}
+	else
+	{
+		FVector Origin;
+		float HexSize = 0.f;
+		float LayerHeight = 0.f;
+		if (!Host->GetHexContext(Origin, HexSize, LayerHeight))
+		{
+			return;
+		}
+		Fine = URTHexLibrary::AxialToWorld(Hop.ToCell, Origin, HexSize, LayerHeight);
+	}
+
+	// ⚠️ `LOAD_NoWarn | LOAD_Quiet`: l'asset vive sotto `Content/`, che git ignora, e su un clone che non lo ha il salto
+	// semplicemente non parte. Un warning a ogni colpo sarebbe rumore, non un difetto.
+	UNiagaraSystem* const Sistema = LoadObject<UNiagaraSystem>(nullptr, *Fx->System.ToString(), nullptr,
+		LOAD_NoWarn | LOAD_Quiet);
+	if (!Sistema)
+	{
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *Fx->System.ToString());
+		return;
+	}
+	// 🔑 Spento alla nascita e acceso DOPO i due parametri: attivato subito, il primo fotogramma avrebbe gli estremi
+	// del template.
+	UNiagaraComponent* const Arco = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Sistema, Inizio,
+		FRotator::ZeroRotator, FVector(1.f), /*bAutoDestroy=*/ true, /*bAutoActivate=*/ false, ENCPoolMethod::None,
+		/*bPreCullCheck=*/ false);
+	if (Arco)
+	{
+		Arco->SetVariablePosition(FName(TEXT("BeamStart")), Inizio);
+		Arco->SetVariablePosition(FName(TEXT("BeamEnd")), Fine);
+		Arco->Activate(true);
+	}
 }
 
 void FRTPlaybackDirector::ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)
@@ -1014,6 +1100,7 @@ void FRTPlaybackDirector::EnterPlaybackPhase()
 	PlaybackPhaseElapsed = 0.f;
 	ActivationsShown = 0;
 	AttackBeatTrace.Reset();
+	ChainHopTrace.Reset();
 	// ⚠️ Il cursore dei battiti si azzera a ogni FASE come i contatori che sostituisce, e il ramo `bPreserveClock`
 	// salta questa funzione: e' cio' che rende `BlastElementsShown()` il prefisso congelato di D-355, e cio' che
 	// impedisce all'estensione di rigiocare lanci e arrivi (`#2454`, `Reactions.Brace.ExtendedBlastDoesNotReplayHits`).
