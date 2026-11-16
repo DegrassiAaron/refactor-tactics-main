@@ -737,4 +737,48 @@ bool FRTInterceptNotAcrossLayersTest::RunTest(const FString&)
 	return true;
 }
 
+// ── E38 CP 38.15, [D-619] (a): l'interposizione spende la PROPRIA attivazione, non quella dell'unita' ───────────────────
+namespace
+{
+	/** L'intercettore arma Intercept e Counter; una delle due risulta gia' scattata nel turno. Quante interposizioni scattano? */
+	int32 InterposizioniConUnaGiaScattata(FAutomationTestBase& Test, bool bGiaScattataLInterposizione)
+	{
+		UWorld* World = MakeItcWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return INDEX_NONE; }
+		SpawnItcMap(World);
+		ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(4, 0));
+		if (Attacker) { Attacker->Facing = ERTHexDirection::W; }
+		ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Attacker || !Victim || !Saver || !TM) { DestroyItcWorld(World); return INDEX_NONE; }
+
+		const int32 Intercetta = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
+		const int32 Contrattacco = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Counter"), 2);
+		Saver->ClearPlannedMainAction();
+		Saver->AddPlannedReaction(Intercetta);
+		Saver->AddPlannedReaction(Contrattacco);
+		// Lo stato di un'unita' che ha gia' attivato una reazione in questo turno.
+		Saver->MarkReactionActivated(bGiaScattataLInterposizione ? Intercetta : Contrattacco);
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Victim);
+		RunItcTurn(TM);
+		const int32 Attivate = CountInterceptOutcome(TM, ERTReactionOutcome::Activated);
+		DestroyItcWorld(World);
+		return Attivate;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptSpendsItsOwnActivationTest,
+	"RefactorTactics.Reactions.InterceptSpendsItsOwnActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterceptSpendsItsOwnActivationTest::RunTest(const FString&)
+{
+	// [D-619] (a): con un'altra reazione dell'unita' gia' scattata, l'interposizione scatta lo stesso. Prima di D-619 il
+	// contatore per unita' la bloccava. Controllo: se a essere gia' scattata e' l'interposizione, non scatta di nuovo.
+	TestEqual(TEXT("un'altra reazione gia' scattata non blocca l'interposizione"), InterposizioniConUnaGiaScattata(*this, false), 1);
+	TestEqual(TEXT("controllo: l'interposizione gia' scattata non scatta due volte"), InterposizioniConUnaGiaScattata(*this, true), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
