@@ -530,8 +530,9 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 	Reactor->SetPlannedReaction(RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3));
 	Reactor->ClearPlannedMainAction();
 
-	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.
-	Reactor->ReactionActivationsThisTurn = 1;
+	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno con QUESTA reazione gia'
+	// scattata: da [D-619] il limite e' per reazione, non per unita'.
+	Reactor->MarkReactionActivated(Reactor->GetPlan().PlannedReactionAbility());
 
 	Attacker->SetPlannedMainAction(0); // stesso colpo diretto della premessa
 	Attacker->DeclareAttackOnUnit(Reactor);
@@ -546,6 +547,64 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 		CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
 
 	DestroyReactionWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// E38 CP 38.15, [D-619] — due reazioni DIVERSE della stessa unita' scattano sullo stesso colpo, nell'ordine del motore.
+//
+// Due reazioni dello stesso trigger (`HitByDirectAttack`) sulla stessa unita': la seconda ha un `ActionId` suo e una
+// priorita' piu' bassa, quindi viene prima. Si dichiarano nei due ordini: l'ordine di valutazione, e l'esito, non
+// cambiano ([D-615] (5)). Controllo: con il limite per UNITA' di prima, la seconda sarebbe uscita `Unavailable`.
+// =====================================================================================================
+namespace
+{
+	struct FDueReazioni { int32 Attivate = 0; int32 NonDisponibili = 0; TArray<FName> Ordine; };
+
+	bool GiocaDueReazioni(FAutomationTestBase& Test, bool bDichiaraPrimaLaB, FDueReazioni& Out)
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+		const int32 A = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
+		const int32 B = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 2);
+		if (A == INDEX_NONE || B == INDEX_NONE) { DestroyReactionWorld(World); return false; }
+		URTActionData* SecondaAzione = Reactor->GetAbility(B);
+		SecondaAzione->Def.ActionId = FName(TEXT("Test.Counter.Prima"));
+		SecondaAzione->Def.Priority = Reactor->GetAbility(A)->Def.Priority - 1;
+		Reactor->ClearPlannedMainAction();
+		Test.TestTrue(TEXT("la prima reazione si arma"), Reactor->AddPlannedReaction(bDichiaraPrimaLaB ? B : A));
+		Test.TestTrue(TEXT("e la seconda si accoda"), Reactor->AddPlannedReaction(bDichiaraPrimaLaB ? A : B));
+		for (const int32 Idx : Reactor->ArmedReactionsInCanonicalOrder()) { Out.Ordine.Add(Reactor->GetAbility(Idx)->Def.ActionId); }
+
+		Attacker->SetPlannedMainAction(0);
+		Attacker->DeclareAttackOnUnit(Reactor);
+		RunReactionTurn(TM);
+		Out.Attivate = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated);
+		Out.NonDisponibili = CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable);
+		DestroyReactionWorld(World);
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionsTwoReactionsOfOneUnitFireInEngineOrderTest,
+	"RefactorTactics.Reactions.TwoReactionsOfOneUnitFireInEngineOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionsTwoReactionsOfOneUnitFireInEngineOrderTest::RunTest(const FString&)
+{
+	FDueReazioni InOrdine, Rovesciate;
+	if (!GiocaDueReazioni(*this, false, InOrdine) || !GiocaDueReazioni(*this, true, Rovesciate)) { return false; }
+	TestEqual(TEXT("tutte e due scattano sullo stesso colpo"), InOrdine.Attivate, 2);
+	TestEqual(TEXT("e nessuna esce Unavailable: il limite e' per reazione"), InOrdine.NonDisponibili, 0);
+	const TArray<FName> Atteso = { FName(TEXT("Test.Counter.Prima")), FName(TEXT("Action.Counter")) };
+	TestTrue(TEXT("l'ordine e' quello del motore: prima la priorita' piu' bassa"), InOrdine.Ordine == Atteso);
+	TestTrue(TEXT("e non cambia invertendo la dichiarazione"), Rovesciate.Ordine == Atteso);
+	TestEqual(TEXT("come l'esito"), Rovesciate.Attivate, 2);
 	return true;
 }
 

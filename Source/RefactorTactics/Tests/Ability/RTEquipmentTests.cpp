@@ -273,10 +273,10 @@ bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
 		const FString Id = M->EquipmentId.ToString();
 		TestTrue(*FString::Printf(TEXT("%s: slot reazione"), *Id), M->Slot == ERTEquipmentSlot::ReactionModule);
 
-		// «Una attivazione per turno» e' garantita dal resolver sul percorso E5, non da un cooldown
-		// dell'oggetto: un cooldown qui sarebbe un SECONDO limite, non dichiarato dal catalogo §3, e i due
-		// potrebbero divergere senza che nessuno se ne accorga.
-		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica propria"), *Id), M->CooldownTurns, 0);
+		// E38 CP 38.15: ricarica 1, «1 a tutti, per ora» ([D-615] (7)). Una copia per piano, e di nuovo disponibile ogni turno.
+		// ⌫ Fino a CP 38.15 qui si asseriva 0, «nessuna ricarica propria»: il limite era «una attivazione per turno» dell'UNITA',
+		// che [D-619] ha portato alla singola reazione.
+		TestEqual(*FString::Printf(TEXT("%s: ricarica 1"), *Id), M->CooldownTurns, 1);
 
 		// Il vincolo che rende il modulo una reazione vera.
 		URTActionData* Action = URTCatalogLibrary::MakeEquipmentAction(M, nullptr);
@@ -288,6 +288,8 @@ bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
 			Action->Def.ReactionTrigger != ERTReactionTrigger::None);
 		TestEqual(*FString::Printf(TEXT("%s: nel TurnLog si legge il modulo"), *Id),
 			Action->Def.ActionId, M->EquipmentId);
+		TestEqual(*FString::Printf(TEXT("%s: e l'azione concessa porta la ricarica, nel Def e nello specchio"), *Id),
+			Action->Def.CooldownTurns * 10 + Action->CooldownTurns, 11);
 	}
 	return true;
 }
