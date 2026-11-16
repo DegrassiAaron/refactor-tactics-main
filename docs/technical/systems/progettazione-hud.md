@@ -17,17 +17,20 @@
 > fase (§8) o una reazione sola (§11) restano il comportamento in vigore finché E38 non consegna il resolver a lista, e rimandano a §19-bis; il
 > costo nello slot (§7.1, §19-bis.2) si può costruire subito, perché `FRTActionDef::ActionPointCost` esiste già.
 >
-> 📄 **Input dichiarato dal 2026-11-16** ([D-620](../../decisions/RT_PDR_00_Decision_Log.md)): il documento «Architettura UI/UX nei Giochi Tattici a Turni»
-> dell'autore ([`research/handoff/uiux-giochi-tattici-input-2026-11-16.md`](../../research/handoff/uiux-giochi-tattici-input-2026-11-16.md)) porta idee di
-> interfaccia che sono **proposte, non requisiti**: reset di una sola fase (§6.8), allerte sulle celle pericolose del percorso (§9, §15), aggancio
-> alla copertura migliore (sulla `CoverSelection` di D-302), minaccia nemica al passaggio del mouse (§18, §24), laser di quota (§20), barra degli AP
-> colorata per fase e prezzo di uno svantaggio mostrato prima del click (§19, §19-bis), icone in bianco e nero per famiglia di stato (§38), incastro
-> dell'azione con quelle delle compagne sulla timeline in hover (§8.3), ping sullo spicchio (§23). Il lucchetto sulla destinazione già scelta da una
-> compagna chiede prima una decisione di regola, perché toglie un piano oggi legale. La tabella completa con le sedi è nel
-> [referto](../../roadmap/plans/uiux-giochi-tattici-spec-panel-2026-11-16.md) §6. Due idee, prese alla lettera, violano la privacy e qui valgono solo
-> così: il **suono** di un nemico si mostra da eventi risolti, mai dal suo piano (§26), e le righe avversarie di una timeline si riempiono solo
-> dopo la risoluzione (§8, §17). **Non entrano**: il Combo Risk Meter, il Combo Snap, il Syntax Ring a tre segmenti, i cinque archetipi di HUD e i
-> moduli di debito universali dell'Overclock (D-620 (3)(4)).
+> 📄 **Input dal 2026-11-16** ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (8a), lettura dell'assistente): il documento «Architettura UI/UX nei
+> Giochi Tattici a Turni» dell'autore ([`research/handoff/uiux-giochi-tattici-input-2026-11-16.md`](../../research/handoff/uiux-giochi-tattici-input-2026-11-16.md))
+> porta idee di interfaccia che sono **proposte, non requisiti**: reset di una sola fase (§6.8), allerte sulle celle pericolose del percorso (§9, §15),
+> aggancio alla copertura migliore contro i nemici visti (sulla `CoverSelection` di D-302), minaccia nemica al passaggio del mouse (§18, §24), laser di
+> quota (§20), barra degli AP colorata per fase e prezzo di uno svantaggio mostrato prima del click (§19, §19-bis), icone in bianco e nero per famiglia
+> di stato (§38), incastro dell'azione con quelle delle compagne sulla timeline in hover (§8.3), ping sullo spicchio (§23), testi ridimensionabili
+> (§47-bis). La tabella completa con le sedi è nel [referto](../../roadmap/plans/uiux-giochi-tattici-spec-panel-2026-11-16.md) §6.
+> ⛔ **Tre idee valgono solo nella forma che rispetta la privacy** (`CLAUDE.md` §7): la minaccia in hover si calcola dalle **capacità note** del
+> nemico (portata, kit), mai dal suo intento; il **suono** di un nemico si mostra da eventi risolti, mai dal suo piano (§26); le righe avversarie di
+> una timeline si riempiono solo dopo la risoluzione (§8, §17).
+> ✅ **Deciso, non proposta**: due compagne non possono scegliere la stessa cella finale, e il click è rifiutato con un motivo nuovo
+> ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (5), [#4138](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4138)); il lucchetto del documento è il
+> modo di mostrarlo. **Non entrano**: il Combo Risk Meter (per ora), il Combo Snap, il Syntax Ring a tre segmenti, il Codex, il Combo Lab, i cinque
+> archetipi di HUD e i moduli di debito universali dell'Overclock (D-620 (3)(4)).
 
 ---
 

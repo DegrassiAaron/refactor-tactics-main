@@ -3,16 +3,19 @@
 > `RESEARCH` · **Materiale NON autorevole.** Documento consegnato dall'autore il 2026-11-16 incollato nella sessione, con la
 > richiesta *«abbiamo creato un documento, ci sono alcune inesattezze: le fasi (sono corrette 5, prep,dash,blast,move,clean), gli
 > elementi (sono ancora da definire, inizieremo con queli base e tier 2 combinata), risk meter (non so se tenerlo, non l'ho capito).
-> Ecco il doc, analizzalo e integra nella nostra documentazione.»* Il testo è arrivato **senza a capo**: titoli, paragrafi, elenchi e
-> tabelle sono ricostruiti dall'assistente; le parole sono quelle dell'autore.
+> Ecco il doc, analizzalo e integra nella nostra documentazione. se hai dubbi (info contrastanti, utilita' o overengineering)
+> fermati,spiegati e chiedi»*. Il testo è arrivato **senza a capo**: titoli, paragrafi, elenchi e tabelle sono ricostruiti
+> dall'assistente; le parole sono quelle dell'autore.
 >
-> ⚠️ **Le regole di Refactor Tactics che il documento cita sono quelle del «Master Game Design Document» dell'8 novembre** (quattro fasi,
-> nove elementi su tre tier, «Flux», Overclock a +2 AP, Flanking al +50%, copertura in percentuale, dodici spicchi come posizione), che
-> l'autore ha già misurato e deciso con [D-583](../../decisions/RT_PDR_00_Decision_Log.md)…[D-599](../../decisions/RT_PDR_00_Decision_Log.md).
-> Dove diverge dal contratto, **non governa**, tranne tre punti che l'autore ha riaperto: lo stabilisce [D-620](../../decisions/RT_PDR_00_Decision_Log.md),
-> e le divergenze sono elencate nel referto. Le tre correzioni dell'autore in testa alla richiesta valgono su tutto il testo: **le fasi
-> sono cinque** (Prep, Dash, Blast, Move, Cleanup), **gli elementi restano i dodici di D-588** e il primo giro di contenuto è sulle coppie
-> dei sei base, **il Combo Risk Meter non c'è** (D-620 (2)(3)). L'autorità resta quella di [`docs/README.md`](../../README.md)
+> ⚠️ **Le regole di Refactor Tactics che il documento cita sono in gran parte quelle del «Master Game Design Document» dell'8 novembre**
+> (quattro fasi, nove elementi su tre tier, «Flux», Overclock a +2 AP, Flanking al +50%, copertura in percentuale, dodici spicchi come
+> posizione), che l'autore ha già deciso con [D-583](../../decisions/RT_PDR_00_Decision_Log.md)…[D-599](../../decisions/RT_PDR_00_Decision_Log.md).
+> **Dove diverge dal contratto non governa**: l'autore, interrogato punto per punto, ha riaperto cinque divergenze come voci aperte
+> (`UXR-1`…`UXR-5`) e ha tenuto il contratto sulle altre che gli sono state mostrate ([D-620](../../decisions/RT_PDR_00_Decision_Log.md)); l'elenco è nel referto.
+> La correzione dell'autore in testa alla richiesta vale su tutto il testo: **le fasi sono cinque** (Prep, Dash, Blast, Move, Cleanup).
+> Le due frasi che seguono nella richiesta sono state decise con lui: **gli elementi restano i dodici di D-588** e il primo giro di
+> contenuto è sulle coppie dei sei base (D-620 (2)); **il Combo Risk Meter per ora non c'è** (D-620 (3)). L'autorità resta quella di
+> [`docs/README.md`](../../README.md)
 > §«Gerarchia delle fonti»: Decision Log, ADR, spec owner, cataloghi. Questo file non risolve alcun conflitto.
 >
 > 🔎 **La misura contro il contratto corrente è nel referto del panel**:
