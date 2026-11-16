@@ -450,7 +450,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEnemyBehindHighCoverTest,
 bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 {
 	int32 RigheBarrate = 0; // `#4043`: le righe barrate del tiratore nel Registro, per chi guarda
-	auto GiraIlTurno = [this, &RigheBarrate](int32 SquadraDelViewer, int32& OutCue, bool& OutVisibile) -> bool
+	int32 RigheAllIstante = INDEX_NONE; // `#4043`: le stesse, nel tick in cui il fumetto barrato compare (playback in corso)
+	auto GiraIlTurno = [this, &RigheBarrate, &RigheAllIstante](int32 SquadraDelViewer, int32& OutCue, bool& OutVisibile) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -495,6 +496,19 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		// spinta), e la premessa qui sotto misura che il muro nega ancora la vista a fine turno: un muro non si
 		// ricostruisce dentro il turno, quindi con le stesse posizioni la negava anche all'emissione.
 		OutVisibile = TM->KnowledgeForTeamPublic(0).VisibleCells.Contains(Tiratore->Cell);
+		// `#4043`, [D-601] (2): la riga nasce nell'istante del fumetto, non dal recupero di fine playback. Si avanza finche' il
+		// fumetto barrato compare, a playback ancora in corso, e li' si contano le righe.
+		RigheAllIstante = INDEX_NONE;
+		for (int32 Tick = 0; Tick < 2000 && TM->IsResolving(); ++Tick)
+		{
+			if (Tiratore->LastSkillCalloutForTest().bBlocked)
+			{
+				RigheAllIstante = TM->GetActivationLines().FilterByPredicate([Tiratore](const FRTActivationLine& R)
+					{ return R.bBlocked && R.SourceStableUnitId == Tiratore->StableUnitId; }).Num();
+				break;
+			}
+			TM->Tick(0.05f);
+		}
 		FinoAllaFineDelPlayback(TM);
 		// `#4034`: il tiro fermato dal muro non suona ([D-622] (3)), e il suo beat e' il fumetto barrato.
 		TestEqual(TEXT("il tiro bloccato non suona la cue Cast"), Tiratore->CastCuesPlayedForTest(), 0);
@@ -517,6 +531,7 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 	if (!GiraIlTurno(/*Viewer*/ 1, Cue, bVisibile)) { return false; }
 	TestEqual(TEXT("✅ visto dalla squadra della sorgente: il fumetto barrato c'e'"), Cue, 1);
 	TestEqual(TEXT("✅ e la sua riga barrata nel Registro (#4043)"), RigheBarrate, 1);
+	TestEqual(TEXT("✅ gia' nel tick in cui il fumetto compare, a playback in corso (#4043, D-601 (2))"), RigheAllIstante, 1);
 	return true;
 }
 
