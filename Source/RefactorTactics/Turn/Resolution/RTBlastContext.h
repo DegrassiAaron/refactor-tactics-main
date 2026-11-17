@@ -351,8 +351,8 @@ struct FRTBlastContext
 	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.
 	 */
 	TSet<int32> InterruptedIntents;
-	/** `#4043`: per un intento interrotto, chi l'ha interrotto e il verdetto su di lui, come nella sua voce del TurnLog. */
-	TMap<int32, TPair<int32, FRTKnowledgeVerdict>> InterrupterOfIntent;
+	/** `#4043`, [D-624]: per un intento interrotto, chi l'ha interrotto, in ordine canonico e coi verdetti, come nella sua voce del TurnLog. */
+	TMap<int32, FRTInterrupters> InterrupterOfIntent;
 
 	/** Operazioni sugli archi raccolte nella fase, applicate a fase CONCLUSA come i colpi e il danno alle strutture. */
 	TArray<FRTPendingArcOp> PendingArcOps;
@@ -533,9 +533,8 @@ struct FRTBlastContext
 		int32 BlockedReason = 0;
 		/** `#4034`: un ATTACCO bloccato, che si racconta fra gli attacchi (tipo `0` nella chiave del Blast) e non fra i supporti. */
 		bool bAttack = false;
-		/** `#4043`: per una cura interrotta, chi l'ha interrotta e il verdetto su di lui, come nella sua voce del TurnLog. */
-		int32 InterruptedByStableUnitId = INDEX_NONE;
-		FRTKnowledgeVerdict InterruptedByVerdict;
+		/** `#4043`, [D-624]: per una cura interrotta, chi l'ha interrotta, coi verdetti, come nella sua voce del TurnLog. */
+		FRTInterrupters InterruptedBy;
 	};
 
 	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. Da `#4034`

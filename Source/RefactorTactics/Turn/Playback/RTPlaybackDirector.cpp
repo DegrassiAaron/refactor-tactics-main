@@ -672,11 +672,13 @@ void FRTPlaybackDirector::AddActivationLine(const FRTResolvedEvent& Ev, const AR
 		// `#4043`, [D-623]: la riga di un'azione barrata, col motivo sotto in parole.
 		Riga.bBlocked = true;
 		Riga.BlockedReason = Ev.Amount;
-		// [D-623] (4): chi ha interrotto, solo se la squadra che guarda lo vedeva. Altrimenti la riga dice soltanto «interrotto».
+		// [D-623] (4), [D-624] (2): il primo interruttore che la squadra che guarda vedeva, anche se prima di lui ce n'era uno
+		// nascosto. Se non ne vedeva nessuno, la riga dice soltanto «interrotto».
 		FString Interruttore;
-		if (Ev.InterruptedByStableUnitId != INDEX_NONE && Ev.InterruptedByVerdict.AllowsTeam(PlaybackViewerTeamId))
+		const int32 Visto = RTInterrupters::FirstSeenBy(Ev.InterruptedByStableUnitIds, Ev.InterruptedByVerdicts, PlaybackViewerTeamId);
+		if (Visto != INDEX_NONE)
 		{
-			if (const ARTUnit* Chi = Host->UnitByStableId(Ev.InterruptedByStableUnitId))
+			if (const ARTUnit* Chi = Host->UnitByStableId(Visto))
 			{
 				Interruttore = ARTUnit::DisplayLabel(Chi->HeroDisplayName, Chi->HeroId, Chi->GetName());
 			}

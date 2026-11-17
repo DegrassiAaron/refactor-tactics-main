@@ -1395,38 +1395,80 @@ struct FRTTurnLogEntry
 	int32 DeclaringTeamId = INDEX_NONE;
 
 	/**
-	 * **Chi ha interrotto** (`#4000`, [D-582] (4)): lo `StableUnitId` dell'unita' il cui `Action.Interrupt` ha annullato
-	 * l'azione, sulla voce `Fallback`/`Cancelled` col motivo `Interrupted`, per un attacco come per una cura (`#4042`).
-	 * `INDEX_NONE` su ogni altra voce e nelle tracce scritte prima della v15. E' l'altro capo della voce, sul modello di
-	 * `OriginalTargetUnitId`: `UnitId` e' la vittima.
+	 * **Chi ha interrotto** (`#4000`, [D-582] (4), [D-624] (1)): gli `StableUnitId` di TUTTE le unita' il cui `Action.Interrupt`
+	 * efficace ha annullato l'azione, sulla voce `Fallback`/`Cancelled` col motivo `Interrupted`, per un attacco come per una
+	 * cura (`#4042`). Vuota su ogni altra voce e nelle tracce scritte prima della v15; una traccia v15 ne porta al piu' uno.
+	 * E' l'altro capo della voce, sul modello di `OriginalTargetUnitId`: `UnitId` e' la vittima.
 	 *
-	 * ⚠️ **Uno solo**, anche con due interruttori efficaci sulla stessa azione: il primo nell'ordine in cui
-	 * `ApplyInterrupts` li scopre, cioe' l'ordine dei colpi del Blast (`Plan.Hits`, per indice d'unita' canonico). Una voce
-	 * per interruttore cambierebbe gli hash, e l'autore l'ha scartata.
+	 * 🔑 **In ordine canonico, e un'unita' una volta sola**: l'ordine in cui `ApplyInterrupts` scopre gli Interrupt efficaci,
+	 * cioe' quello dei colpi del Blast (`Plan.Hits`, per indice d'unita' canonico). Si scrive con `AddInterrupter`.
+	 * ⌫ *Fino a [D-624] il campo era uno solo, `InterruptedByUnitId` (v15), e nominava il primo: il secondo non era nella traccia,
+	 * e il replay non poteva ricavarlo, perche' un Interrupt efficace non lascia voci (misurato in `#4134`).*
 	 *
-	 * ⚠️ **NON entra nell'hash**, per decisione d'autore ([D-582] (4), «Un campo, fuori dall'hash»): due tracce che
-	 * differissero solo per chi e' nominato hanno lo stesso hash. Sta in coda a `EntryLess`, dove decide solo fra voci
-	 * uguali in tutto il resto: serve ai byte, non al gioco.
+	 * ⚠️ **NON entra nell'hash**, per decisione d'autore ([D-582] (4), «Un campo, fuori dall'hash», confermata da [D-624]
+	 * (1)): due tracce che differissero solo per chi e' nominato hanno lo stesso hash. Sta in coda a `EntryLess`, dove decide
+	 * solo fra voci uguali in tutto il resto: serve ai byte, non al gioco.
 	 *
-	 * 🔒 **Pubblico, ma per osservatore**: `URTReplayPrivacyLibrary::FilterEntriesForObserver` lo porta a `INDEX_NONE`
-	 * quando l'interruttore non era visibile alla squadra che guarda, col verdetto congelato su di lui
-	 * (`InterruptedByVerdict`): un'unita' che il giocatore non vede non viene nominata.
+	 * 🔒 **Pubblico, ma per osservatore** ([D-624] (2)): `URTReplayPrivacyLibrary::FilterEntriesForObserver` toglie ogni
+	 * interruttore che la squadra che guarda non vedeva, col verdetto congelato su di lui (`InterruptedByVerdicts`), e lascia
+	 * gli altri nell'ordine. Un'unita' che il giocatore non vede non viene nominata; una che vedeva si', anche se prima di lei
+	 * ce n'era una nascosta.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
-	int32 InterruptedByUnitId = INDEX_NONE;
+	TArray<int32> InterruptedByUnitIds;
 
 	/**
-	 * Chi puo' leggere `InterruptedByUnitId`: il verdetto congelato sull'INTERRUTTORE quando la voce e' nata ([D-223]),
-	 * non sulla vittima come `Verdict`. Il default nasconde.
+	 * Chi puo' leggere ciascun elemento di `InterruptedByUnitIds`, allo stesso indice: il verdetto congelato
+	 * sull'INTERRUTTORE quando la voce e' nata ([D-223]), non sulla vittima come `Verdict`. Un elemento senza verdetto
+	 * nasconde, come il default.
 	 *
 	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, in `EntryLess` ne' nell'hash. Serve solo alla traccia per
 	 * osservatore, che si scrive alla registrazione, dove la voce viva lo porta ancora.
 	 */
 	UPROPERTY(Transient)
-	FRTKnowledgeVerdict InterruptedByVerdict;
+	TArray<FRTKnowledgeVerdict> InterruptedByVerdicts;
+
+	/** Aggiunge un interruttore in coda, col suo verdetto, tenendo allineate le due liste. Un'unita' gia' nominata non si ripete. */
+	void AddInterrupter(int32 StableUnitId, const FRTKnowledgeVerdict& InVerdict)
+	{
+		if (StableUnitId == INDEX_NONE || InterruptedByUnitIds.Contains(StableUnitId)) { return; }
+		InterruptedByUnitIds.Add(StableUnitId);
+		InterruptedByVerdicts.SetNum(InterruptedByUnitIds.Num() - 1);
+		InterruptedByVerdicts.Add(InVerdict);
+	}
 
 	FRTTurnLogEntry() = default;
 };
+
+/**
+ * Chi ha interrotto un'azione, per la presentazione (`#4043`, [D-624]): gli stessi `StableUnitId` della voce del TurnLog, in
+ * ordine canonico, e allo stesso indice i verdetti congelati su ciascuno. Non e' una `USTRUCT`: vive solo nel contesto del
+ * Blast, fra la voce e l'evento di blocco che la riga del Registro legge.
+ */
+struct FRTInterrupters
+{
+	TArray<int32> StableUnitIds;
+	TArray<FRTKnowledgeVerdict> Verdicts;
+
+	static FRTInterrupters Of(const FRTTurnLogEntry& Voce) { return { Voce.InterruptedByUnitIds, Voce.InterruptedByVerdicts }; }
+};
+
+namespace RTInterrupters
+{
+	/**
+	 * [D-624] (2): il primo interruttore, nell'ordine della lista, che la squadra vedeva; `INDEX_NONE` se nessuno. Un elemento
+	 * senza verdetto allo stesso indice non si vede. La usa la riga del Registro (`#4043`), che come la traccia per
+	 * osservatore nomina chi la squadra vedeva.
+	 */
+	inline int32 FirstSeenBy(const TArray<int32>& StableUnitIds, const TArray<FRTKnowledgeVerdict>& Verdicts, int32 TeamId)
+	{
+		for (int32 i = 0; i < StableUnitIds.Num(); ++i)
+		{
+			if (Verdicts.IsValidIndex(i) && Verdicts[i].AllowsTeam(TeamId)) { return StableUnitIds[i]; }
+		}
+		return INDEX_NONE;
+	}
+}
 
 /**
  * Versione del formato di serializzazione binaria del TurnLog. Ogni formato serializzato e' versionato
@@ -1672,7 +1714,18 @@ enum class ERTTurnLogFormatVersion : uint16
 	 *
 	 * ⚠️ Il numero 15 e' stato verificato su tutti i ref locali e remoti il 2026-11-15, come chiede [D-070].
 	 */
-	WithInterruptedBy = 15
+	WithInterruptedBy = 15,
+	/**
+	 * Chi ha interrotto diventa una LISTA (`#4000`, [D-624] (1)): al posto dei quattro byte della v15, un `uint16` di
+	 * conteggio e un `int32` per interruttore, in coda alla voce. Una traccia v15 si legge come una lista di al piu' un
+	 * elemento (il suo `INDEX_NONE` e' la lista vuota), una v14 come la lista vuota.
+	 *
+	 * ⚠️ **Gli hash golden NON cambiano**: la lista e' fuori dall'hash, come il campo che sostituisce. Cambiano i BYTE del
+	 * corpus (due in meno per voce senza interruttori), e si rigenera nello stesso commit (vedi qui sotto).
+	 *
+	 * ⚠️ Il numero 16 e' stato verificato su tutti i ref locali e remoti il 2026-11-17, come chiede [D-070].
+	 */
+	WithInterrupterList = 16
 };
 
 /**

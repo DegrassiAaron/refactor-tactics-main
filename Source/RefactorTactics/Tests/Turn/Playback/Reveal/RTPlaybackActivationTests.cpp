@@ -543,14 +543,15 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
  * La scena: Ivrin (squadra 1) spara a Riktor; Gadget (squadra 0) la interrompe da TRE celle alle sue spalle, fuori dall'arco
  * frontale e oltre le 2 celle della consapevolezza a 360°. Guarda la squadra 1: vede Ivrin, non Gadget.
  * ⛔ Controllo positivo: Gadget a DUE celle, dentro la consapevolezza, e la riga lo nomina.
+ * [D-624] (2): Gadget nascosto e in piu' Riktor, che Ivrin vede, la interrompe anch'esso: la riga nomina Riktor.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHiddenInterrupterIsNotNamedTest,
 	"RefactorTactics.Playback.HiddenInterrupterIsNotNamed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
 {
-	struct FEsito { FString Riga; FString Nome; bool bVerdettoAmmette = true; int32 Nominato = INDEX_NONE; int32 Righe = 0; };
-	auto GiraIlTurno = [this](int32 DistanzaDietro, FEsito& Out) -> bool
+	struct FEsito { FString Riga; FString Nome; FString NomeRiktor; bool bVerdettoAmmette = true; int32 Nominato = INDEX_NONE; int32 Righe = 0; TArray<int32> Lista; TArray<int32> Attesa; };
+	auto GiraIlTurno = [this](int32 DistanzaDietro, bool bAncheRiktor, FEsito& Out) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -578,6 +579,17 @@ bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
 		Interruttore->SetPlannedMainAction(Interrupt);
 		Interruttore->DeclareAttackOnUnit(Tiratore);
 		Interruttore->SetPlannedCell(Interruttore->Cell);
+		// [D-624] (2): con `bAncheRiktor` interrompe anche il bersaglio, che Ivrin ha davanti e la squadra 1 vede. Viene DOPO
+		// Gadget nell'ordine canonico (la cella con la `X` minore prima), quindi e' il secondo della lista.
+		if (bAncheRiktor)
+		{
+			const int32 SuoInterrupt = RTAbilityFixtures::AddCoreAbility(Bersaglio, TEXT("Action.Interrupt"));
+			URTActionData* Suo = Bersaglio->GetAbility(SuoInterrupt);
+			Suo->Def.RangeCells = 4;
+			Suo->RangeCells = 4;
+			Bersaglio->SetPlannedMainAction(SuoInterrupt);
+			Bersaglio->DeclareAttackOnUnit(Tiratore);
+		}
 		Tiratore->SetPlannedMainAction(BeatIndiceAbilita(Tiratore, TEXT("Hero.Ivrin.PulseShot")));
 		Tiratore->DeclareAttackOnUnit(Bersaglio);
 		Tiratore->SetPlannedCell(Tiratore->Cell);
@@ -592,9 +604,13 @@ bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
 			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Tiratore->StableUnitId; });
 		if (!TestNotNull(TEXT("⛔ premessa: il colpo di Ivrin esce barrato"), Barrato)) { return false; }
 		TestEqual(TEXT("⛔ premessa: interrotto"), Barrato->Amount, static_cast<int32>(ERTActionInvalidReason::Interrupted));
-		Out.Nominato = Barrato->InterruptedByStableUnitId == Interruttore->StableUnitId ? 1 : 0;
-		Out.bVerdettoAmmette = Barrato->InterruptedByVerdict.AllowsTeam(1);
+		Out.Lista = Barrato->InterruptedByStableUnitIds;
+		// Gli `StableUnitId` si leggono dopo il turno: li assegna la risoluzione.
+		Out.Attesa = bAncheRiktor ? TArray<int32>({ Interruttore->StableUnitId, Bersaglio->StableUnitId }) : TArray<int32>({ Interruttore->StableUnitId });
+		Out.Nominato = Barrato->InterruptedByStableUnitIds.Num() > 0 && Barrato->InterruptedByStableUnitIds[0] == Interruttore->StableUnitId ? 1 : 0;
+		Out.bVerdettoAmmette = Barrato->InterruptedByVerdicts.Num() > 0 && Barrato->InterruptedByVerdicts[0].AllowsTeam(1);
 		Out.Nome = ARTUnit::DisplayLabel(Interruttore->HeroDisplayName, Interruttore->HeroId, Interruttore->GetName());
+		Out.NomeRiktor = ARTUnit::DisplayLabel(Bersaglio->HeroDisplayName, Bersaglio->HeroId, Bersaglio->GetName());
 		for (const FRTActivationLine& Riga : TM->GetActivationLines())
 		{
 			if (Riga.bBlocked && Riga.SourceStableUnitId == Tiratore->StableUnitId && Riga.ViewerTeamId == 1)
@@ -606,8 +622,8 @@ bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
 		return true;
 	};
 
-	FEsito Nascosto, Visto;
-	if (!GiraIlTurno(3, Nascosto) || !GiraIlTurno(2, Visto)) { return false; }
+	FEsito Nascosto, Visto, NascostoEVisto;
+	if (!GiraIlTurno(3, false, Nascosto) || !GiraIlTurno(2, false, Visto) || !GiraIlTurno(3, true, NascostoEVisto)) { return false; }
 	TestEqual(TEXT("⛔ premessa: l'evento porta comunque chi ha interrotto"), Nascosto.Nominato, 1);
 	if (!TestFalse(TEXT("⛔ premessa: il verdetto su Gadget a tre celle alle spalle esclude la squadra 1"), Nascosto.bVerdettoAmmette)) { return false; }
 	if (TestEqual(TEXT("la squadra 1 ha la riga barrata di Ivrin"), Nascosto.Righe, 1))
@@ -619,6 +635,18 @@ bool FRTPlaybackHiddenInterrupterIsNotNamedTest::RunTest(const FString&)
 	if (TestEqual(TEXT("controllo: la riga barrata c'e'"), Visto.Righe, 1))
 	{
 		TestTrue(TEXT("✅ e nomina chi ha interrotto"), Visto.Riga.EndsWith(FString(TEXT("\ninterrotto da ")) + Visto.Nome));
+	}
+	// [D-624]: due interruttori, Gadget nascosto e poi Riktor visto. L'evento li porta entrambi, nell'ordine; la riga della
+	// squadra 1 nomina Riktor, il primo che vedeva, e non Gadget.
+	auto Elenco = [](const TArray<int32>& L) { return FString::JoinBy(L, TEXT(","), [](int32 V) { return FString::FromInt(V); }); };
+	TestEqual(*FString::Printf(TEXT("⛔ premessa: l'evento porta entrambi, Gadget prima (letto %s, atteso %s)"),
+		*Elenco(NascostoEVisto.Lista), *Elenco(NascostoEVisto.Attesa)), NascostoEVisto.Lista, NascostoEVisto.Attesa);
+	TestFalse(TEXT("⛔ premessa: Gadget resta nascosto alla squadra 1"), NascostoEVisto.bVerdettoAmmette);
+	if (TestEqual(TEXT("con due interruttori, una riga barrata"), NascostoEVisto.Righe, 1))
+	{
+		TestTrue(TEXT("🔴 che nomina Riktor, il primo che la squadra vedeva"),
+			NascostoEVisto.Riga.EndsWith(FString(TEXT("\ninterrotto da ")) + NascostoEVisto.NomeRiktor));
+		TestFalse(TEXT("e non Gadget"), NascostoEVisto.Riga.Contains(NascostoEVisto.Nome));
 	}
 	return true;
 }

@@ -6753,7 +6753,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			{
 				EmitActionBlockedBy(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
 					R.AimCell, R.Shape, static_cast<ERTActionInvalidReason>(R.BlockedReason), &R.SourceVerdict,
-					R.InterruptedByStableUnitId, R.InterruptedByVerdict); // `#4043`: chi ha interrotto la cura, se c'e'
+					R.InterruptedBy); // `#4043`: chi ha interrotto la cura, se c'e'
 				continue;
 			}
 			EmitAbilityActivated(R.Source, ERTMatchPhase::Blast, R.ActionId, R.BaseActionId, R.TargetStableUnitId,
@@ -7924,12 +7924,12 @@ void ARTTurnManager::EmitAttackIntentActivation(const FRTBlastContext& Ctx, int3
 		// non usava.* Pinnata da `Combat.Aim.PlannedAimDoesNotFollowTheTarget`.
 		if (Blocco != ERTActionInvalidReason::None)
 		{
-			// `#4043`: per l'interrotto, chi l'ha interrotto e il verdetto su di lui, come nella sua voce del TurnLog.
-			const TPair<int32, FRTKnowledgeVerdict>* Interruttore = Blocco == ERTActionInvalidReason::Interrupted
+			// `#4043`, [D-624]: per l'interrotto, chi l'ha interrotto e i verdetti, come nella sua voce del TurnLog.
+			const FRTInterrupters* Interruttori = Blocco == ERTActionInvalidReason::Interrupted
 				? Ctx.InterrupterOfIntent.Find(k) : nullptr;
 			EmitActionBlockedBy(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
 				Bersaglio ? Bersaglio->StableUnitId : 0, Intent.TargetCell, Intent.Shape, Blocco, nullptr,
-				Interruttore ? Interruttore->Key : INDEX_NONE, Interruttore ? Interruttore->Value : FRTKnowledgeVerdict());
+				Interruttori ? *Interruttori : FRTInterrupters());
 			return;
 		}
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,

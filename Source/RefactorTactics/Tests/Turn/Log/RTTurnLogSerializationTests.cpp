@@ -1499,7 +1499,7 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 		+ 4   // v12 (`#1880`): il micro-step
 		+ 12  // v13 (`#2534`): `SightBlockerCell`, tre int32
 		+ 4   // v14 (E38 CP 38.13): `DeclarationIndex`
-		+ 4;  // v15 (`#4000`): `InterruptedByUnitId`
+		+ 2;  // v16 ([D-624]): il conteggio degli interruttori, zero (la v16 sostituisce i quattro byte della v15)
 	Bytes.RemoveAt(Bytes.Num() - 4 - BytesAfterV9, BytesAfterV9);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
@@ -1712,9 +1712,9 @@ bool FRTTurnLogLegacyVersionWithoutDeclarationIndexIsReadableTest::RunTest(const
 	}
 	TestEqual(TEXT("e porta l'ordine di dichiarazione"), Letta[0].DeclarationIndex, 2);
 
-	// La stessa voce alla v13: tolti gli 8 byte della v14 e della v15 (`DeclarationIndex`, `InterruptedByUnitId`, in coda
-	// alla voce in quest'ordine), versione 13, checksum ricalcolato.
-	Bytes.RemoveAt(Bytes.Num() - 4 - 8, 8);
+	// La stessa voce alla v13: tolti i 6 byte della v14 e della v16 (`DeclarationIndex` e il conteggio vuoto degli
+	// interruttori, in coda alla voce in quest'ordine), versione 13, checksum ricalcolato.
+	Bytes.RemoveAt(Bytes.Num() - 4 - 6, 6);
 	Bytes[4] = 13;
 	Bytes[5] = 0;
 	uint32 H = 2166136261u;
@@ -1761,18 +1761,18 @@ bool FRTTurnLogDeclarationIndexBreaksTiesBetweenCopiesTest::RunTest(const FStrin
 	return true;
 }
 
-// ── #4000: chi ha interrotto, nella v15 ─────────────────────────────────────────────────────────────────────────────
+// ── #4000: chi ha interrotto, nella v15 e come lista nella v16 ([D-624]) ─────────────────────────────────────────────
 namespace
 {
 	/** Una voce `Cancelled`/`Interrupted` come quella che `ApplyInterrupts` scrive, con chi ha interrotto. */
-	FRTTurnLogEntry MakeInterruptedSerEntry(int32 InterruptedBy)
+	FRTTurnLogEntry MakeInterruptedSerEntry(const TArray<int32>& InterruptedBy)
 	{
 		FRTTurnLogEntry Voce = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Fallback,
 			static_cast<uint8>(ERTFallbackOutcome::Cancelled), FRTCellId(0, 0), FRTCellId(1, 0),
 			static_cast<int32>(ERTActionInvalidReason::Interrupted));
 		Voce.ActionId = FName(TEXT("Action.BasicAttack"));
 		Voce.UnitId = 3;
-		Voce.InterruptedByUnitId = InterruptedBy;
+		Voce.InterruptedByUnitIds = InterruptedBy;
 		return Voce;
 	}
 
@@ -1792,30 +1792,85 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyVersionWithoutInterruptedByIsRe
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnLogLegacyVersionWithoutInterruptedByIsReadableTest::RunTest(const FString&)
 {
-	// `#4000`: la v15 porta chi ha interrotto; una traccia v14 resta leggibile, col campo a `INDEX_NONE`.
-	FRTTurnLogEntry Voce = MakeInterruptedSerEntry(/*InterruptedBy*/ 7);
+	// `#4000`, [D-624] (1): la v16 porta la lista di chi ha interrotto. Una traccia v15 (uno solo, quattro byte) si legge come
+	// una lista di al piu' un elemento, e una v14 come la lista vuota.
+	const TArray<int32> Entrambi = { 7, 9 };
+	const TArray<int32> Sette = { 7 };
+	const TArray<int32> Nessuno;
+	FRTTurnLogEntry Voce = MakeInterruptedSerEntry(Entrambi);
 	Voce.DeclarationIndex = 1;
 	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ Voce });
-	TestEqual(TEXT("il writer scrive la v15"), static_cast<int32>(Bytes[4] | (Bytes[5] << 8)),
-		static_cast<int32>(ERTTurnLogFormatVersion::WithInterruptedBy));
+	TestEqual(TEXT("il writer scrive la v16"), static_cast<int32>(Bytes[4] | (Bytes[5] << 8)),
+		static_cast<int32>(ERTTurnLogFormatVersion::WithInterrupterList));
 	TArray<FRTTurnLogEntry> Letta;
-	if (!TestTrue(TEXT("la v15 si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
+	if (!TestTrue(TEXT("la v16 si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta)) || !TestEqual(TEXT("una voce"), Letta.Num(), 1))
 	{
 		return false;
 	}
-	TestEqual(TEXT("e nomina chi ha interrotto"), Letta[0].InterruptedByUnitId, 7);
+	TestEqual(TEXT("e nomina entrambi, nell'ordine"), Letta[0].InterruptedByUnitIds, Entrambi);
 
-	// La stessa voce alla v14: tolti i 4 byte del campo, che sta in coda alla voce, versione 14, checksum ricalcolato.
-	Bytes.RemoveAt(Bytes.Num() - 4 - 4, 4);
+	// La v15, scritta come la scriveva una build di prima: un solo `int32` in coda alla voce. Dalla v16 di una voce con un
+	// solo interruttore si tolgono i due byte del conteggio, e restano i quattro dell'interruttore.
+	TArray<uint8> V15 = URTTurnLogLibrary::SerializeTurnLog({ MakeInterruptedSerEntry(Sette) });
+	V15.RemoveAt(V15.Num() - 4 - 6, 2);
+	V15[4] = static_cast<uint8>(ERTTurnLogFormatVersion::WithInterruptedBy);
+	V15[5] = 0;
+	RicalcolaChecksum(V15);
+	TArray<FRTTurnLogEntry> Quindici;
+	TestTrue(TEXT("una traccia v15 resta leggibile"), URTTurnLogLibrary::DeserializeTurnLog(V15, Quindici));
+	if (TestEqual(TEXT("una voce letta"), Quindici.Num(), 1))
+	{
+		TestEqual(TEXT("come una lista di uno"), Quindici[0].InterruptedByUnitIds, Sette);
+	}
+	// Una v15 senza interruttore porta `INDEX_NONE`, che e' la lista vuota e non un interruttore di nome -1.
+	TArray<uint8> V15Vuota = URTTurnLogLibrary::SerializeTurnLog({ MakeInterruptedSerEntry(Nessuno) });
+	V15Vuota.RemoveAt(V15Vuota.Num() - 4 - 2, 2);
+	V15Vuota.Insert({ 0xFF, 0xFF, 0xFF, 0xFF }, V15Vuota.Num() - 4);
+	V15Vuota[4] = static_cast<uint8>(ERTTurnLogFormatVersion::WithInterruptedBy);
+	V15Vuota[5] = 0;
+	RicalcolaChecksum(V15Vuota);
+	TArray<FRTTurnLogEntry> QuindiciVuota;
+	if (TestTrue(TEXT("una v15 senza interruttore si legge"), URTTurnLogLibrary::DeserializeTurnLog(V15Vuota, QuindiciVuota))
+		&& TestEqual(TEXT("una voce"), QuindiciVuota.Num(), 1))
+	{
+		TestEqual(TEXT("e la lista e' vuota"), QuindiciVuota[0].InterruptedByUnitIds, Nessuno);
+	}
+
+	// La stessa voce alla v14: tolta l'intera coda della v16 (due byte di conteggio e otto dei due interruttori), versione
+	// 14, checksum ricalcolato.
+	Bytes.RemoveAt(Bytes.Num() - 4 - 10, 10);
 	Bytes[4] = static_cast<uint8>(ERTTurnLogFormatVersion::WithDeclarationIndex);
 	Bytes[5] = 0;
 	RicalcolaChecksum(Bytes);
 	TArray<FRTTurnLogEntry> Vecchia;
 	TestTrue(TEXT("una traccia v14 resta leggibile"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Vecchia));
 	if (!TestEqual(TEXT("una voce letta"), Vecchia.Num(), 1)) { return false; }
-	TestEqual(TEXT("senza il campo, nessuno nominato"), Vecchia[0].InterruptedByUnitId, (int32)INDEX_NONE);
+	TestEqual(TEXT("senza il campo, nessuno nominato"), Vecchia[0].InterruptedByUnitIds, Nessuno);
 	TestEqual(TEXT("e il campo prima, l'ordine di dichiarazione, e' intatto"), Vecchia[0].DeclarationIndex, 1);
 	TestEqual(TEXT("come il resto della voce"), Vecchia[0].Amount, static_cast<int32>(ERTActionInvalidReason::Interrupted));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogInterrupterCountBeyondTheBytesIsRejectedTest,
+	"RefactorTactics.TurnLog.InterrupterCountBeyondTheBytesIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogInterrupterCountBeyondTheBytesIsRejectedTest::RunTest(const FString&)
+{
+	// `#4000`, [D-624]: un conteggio di interruttori che i byte rimasti non reggono e' un file corrotto, e il lettore lo
+	// rifiuta invece di leggere una lista corta. Controllo: lo stesso file col conteggio giusto si legge.
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ MakeInterruptedSerEntry({ 7 }) });
+	TArray<FRTTurnLogEntry> Letta;
+	TestTrue(TEXT("controllo: col conteggio giusto si legge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta));
+	const int32 Conteggio = Bytes.Num() - 4 - 6; // il conteggio sta prima dei quattro byte dell'unico interruttore
+	TestEqual(TEXT("premessa: il conteggio e' 1"), static_cast<int32>(Bytes[Conteggio] | (Bytes[Conteggio + 1] << 8)), 1);
+	Bytes[Conteggio] = 2;
+	RicalcolaChecksum(Bytes);
+	TestFalse(TEXT("con un interruttore in piu' dei byte, si rifiuta"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta));
+	TestEqual(TEXT("e non lascia voci a meta'"), Letta.Num(), 0);
+	Bytes[Conteggio + 1] = 0x7F; // un conteggio enorme: si rifiuta prima di riservare la memoria
+	RicalcolaChecksum(Bytes);
+	TestFalse(TEXT("con un conteggio enorme, si rifiuta"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Letta));
+	TestEqual(TEXT("e neanche qui lascia voci"), Letta.Num(), 0);
 	return true;
 }
 
@@ -1826,8 +1881,8 @@ bool FRTTurnLogInterruptedByStaysOutOfTheHashTest::RunTest(const FString&)
 {
 	// `#4000`, [D-582] (4), «Un campo, fuori dall'hash»: due voci che differiscono solo per chi ha interrotto hanno lo
 	// stesso hash, e byte diversi. I byte non dipendono dall'ordine d'inserimento, perche' il campo chiude `EntryLess`.
-	const FRTTurnLogEntry DaSette = MakeInterruptedSerEntry(7);
-	const FRTTurnLogEntry DaNove = MakeInterruptedSerEntry(9);
+	const FRTTurnLogEntry DaSette = MakeInterruptedSerEntry({ 7 });
+	const FRTTurnLogEntry DaNove = MakeInterruptedSerEntry({ 9 });
 	TestEqual(TEXT("stesso hash"),
 		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaSette })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaNove })));
 	TestEqual(TEXT("anche per l'hash che non guarda l'ordine"),
@@ -1836,6 +1891,17 @@ bool FRTTurnLogInterruptedByStaysOutOfTheHashTest::RunTest(const FString&)
 		URTTurnLogLibrary::SerializeTurnLog({ DaSette }) == URTTurnLogLibrary::SerializeTurnLog({ DaNove }));
 	TestTrue(TEXT("e non dipendono dall'ordine d'inserimento"),
 		URTTurnLogLibrary::SerializeTurnLog({ DaSette, DaNove }) == URTTurnLogLibrary::SerializeTurnLog({ DaNove, DaSette }));
+	// [D-624] (1): anche la lista. Due interruttori o uno, in un ordine o nell'altro: lo stesso hash, byte diversi.
+	const FRTTurnLogEntry SetteNove = MakeInterruptedSerEntry({ 7, 9 });
+	const FRTTurnLogEntry NoveSette = MakeInterruptedSerEntry({ 9, 7 });
+	TestEqual(TEXT("due interruttori o uno, stesso hash"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ SetteNove })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ DaSette })));
+	TestEqual(TEXT("e in un ordine o nell'altro"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ SetteNove })), static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ NoveSette })));
+	TestFalse(TEXT("controllo: i byte li distinguono"),
+		URTTurnLogLibrary::SerializeTurnLog({ SetteNove }) == URTTurnLogLibrary::SerializeTurnLog({ NoveSette }));
+	TestTrue(TEXT("e non dipendono dall'ordine d'inserimento delle voci"),
+		URTTurnLogLibrary::SerializeTurnLog({ SetteNove, NoveSette, DaSette }) == URTTurnLogLibrary::SerializeTurnLog({ DaSette, NoveSette, SetteNove }));
 	// Controllo positivo dell'hash: un campo che l'hash mescola, l'esito, lo cambia.
 	FRTTurnLogEntry Altro = DaSette;
 	Altro.Amount = static_cast<int32>(ERTActionInvalidReason::Neutralised);

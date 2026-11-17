@@ -100,9 +100,21 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	{
 		return A.DeclarationIndex < B.DeclarationIndex;
 	}
-	// `#4000`: chi ha interrotto, per ultimo. Una vittima ha una voce `Interrupted` per azione, quindi non decide mai fra
-	// due voci di oggi: chiude l'ordine perche' il campo e' nei byte.
-	return A.InterruptedByUnitId < B.InterruptedByUnitId;
+	// `#4000`, [D-624] (1): chi ha interrotto, per ultimo, come lista (prima la lunghezza, poi elemento per elemento). Una
+	// vittima ha una voce `Interrupted` per azione, quindi non decide mai fra due voci di oggi: chiude l'ordine perche' la
+	// lista e' nei byte.
+	if (A.InterruptedByUnitIds.Num() != B.InterruptedByUnitIds.Num())
+	{
+		return A.InterruptedByUnitIds.Num() < B.InterruptedByUnitIds.Num();
+	}
+	for (int32 i = 0; i < A.InterruptedByUnitIds.Num(); ++i)
+	{
+		if (A.InterruptedByUnitIds[i] != B.InterruptedByUnitIds[i])
+		{
+			return A.InterruptedByUnitIds[i] < B.InterruptedByUnitIds[i];
+		}
+	}
+	return false;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -1619,18 +1631,18 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 
 	TArray<uint8> Out;
 	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 12 per i tre interi della v6.
-	// 91 byte e' la voce v15 MINIMA (83 della v13 + 4 di `DeclarationIndex` + 4 di `InterruptedByUnitId`) — la stessa aritmetica di
+	// 89 byte e' la voce v16 MINIMA (83 della v13 + 4 di `DeclarationIndex` + 2 del conteggio degli interruttori) — la stessa aritmetica di
 	// `MinEntryBytes` nel lettore, e va tenuta con quella. Era ferma a `47`, cioe' alla v6: da allora la voce ha guadagnato `Priority`, la terna della
 	// v8, `OriginalTargetUnitId`, `ReactionResponse`, il micro-step e ora `SightBlockerCell`, e un turno da
 	// undici voci riservava 531 byte per oltre 1100 di output, facendo ricrescere il buffer piu' volte
 	// dentro il ciclo. E' una stima per difetto, non un limite: le stringhe la superano e va bene cosi'.
-	Out.Reserve(14 + Canonical.Num() * 91);
+	Out.Reserve(14 + Canonical.Num() * 89);
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithInterruptedBy));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithInterrupterList));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -1692,8 +1704,14 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.SightBlockerCell.Layer);
 		// v14 (E38 CP 38.13): l'ordine di dichiarazione della voce del piano, in coda come ogni estensione.
 		AppendI32LE(Out, E.DeclarationIndex);
-		// v15 (`#4000`): chi ha interrotto, in coda.
-		AppendI32LE(Out, E.InterruptedByUnitId);
+		// v16 (`#4000`, [D-624] (1)): chi ha interrotto, in coda, come lista: il conteggio e poi gli `StableUnitId`.
+		const int32 Interruttori = FMath::Min(E.InterruptedByUnitIds.Num(), static_cast<int32>(MAX_uint16));
+		ensureMsgf(Interruttori == E.InterruptedByUnitIds.Num(), TEXT("Piu' di %d interruttori su una voce: la coda si tronca"), MAX_uint16);
+		AppendU16LE(Out, static_cast<uint16>(Interruttori));
+		for (int32 i = 0; i < Interruttori; ++i)
+		{
+			AppendI32LE(Out, E.InterruptedByUnitIds[i]);
+		}
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -1795,10 +1813,14 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// v13 (`#2534`): la voce `NoLineOfSight` porta la cella che ha fermato il tiro. Sta in cima perche' e'
 	// la piu' recente; da qui in giu' la catena e' invariata.
 	// v14 (E38 CP 38.13): l'ordine di dichiarazione della voce del piano.
-	// v15 (`#4000`): chi ha interrotto. In cima, perche' e' la piu' recente.
+	// v15 (`#4000`): chi ha interrotto, uno solo.
+	// v16 ([D-624] (1)): chi ha interrotto, come lista. In cima, perche' e' la piu' recente. ⚠️ **Non implica la v15**: la
+	// lista prende il posto dei quattro byte della v15, non si aggiunge. Le due implicano entrambe la v14.
+	const bool bHasInterrupterList =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithInterrupterList));
 	const bool bHasInterruptedBy =
 		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithInterruptedBy));
-	const bool bHasDeclarationIndex = bHasInterruptedBy
+	const bool bHasDeclarationIndex = bHasInterrupterList || bHasInterruptedBy
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithDeclarationIndex));
 	const bool bHasSightBlocker = bHasDeclarationIndex
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithSightBlocker));
@@ -1875,7 +1897,7 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0)
 		+ (bHasRedirectOrigin ? 4 : 0) + (bHasReactionResponse ? 2 : 0)
 		+ (bHasMicroStep ? 4 : 0) + (bHasSightBlocker ? 12 : 0) + (bHasDeclarationIndex ? 4 : 0)
-		+ (bHasInterruptedBy ? 4 : 0);
+		+ (bHasInterruptedBy ? 4 : 0) + (bHasInterrupterList ? 2 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -2015,13 +2037,38 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 				return false;
 			}
 		}
-		// v15 (`#4000`): sotto la v15 resta `INDEX_NONE`, il default: nessuna voce nominava l'interruttore.
+		// v15 (`#4000`): un interruttore solo, e `INDEX_NONE` e' la lista vuota. Sotto la v15 la lista resta vuota, il
+		// default: nessuna voce nominava l'interruttore.
 		if (bHasInterruptedBy)
 		{
-			if (!ReadI32LE(Bytes, Pos, E.InterruptedByUnitId))
+			int32 Interruttore = INDEX_NONE;
+			if (!ReadI32LE(Bytes, Pos, Interruttore))
 			{
 				OutEntries.Reset();
 				return false;
+			}
+			if (Interruttore != INDEX_NONE) { E.InterruptedByUnitIds.Add(Interruttore); }
+		}
+		// v16 ([D-624] (1)): la lista. Un conteggio che i byte rimasti, checksum esclusa, non reggono e' un file corrotto, non
+		// una lista corta: si rifiuta prima di riservare la memoria.
+		if (bHasInterrupterList)
+		{
+			uint16 Interruttori = 0;
+			if (!ReadU16LE(Bytes, Pos, Interruttori) || static_cast<int32>(Interruttori) > (Bytes.Num() - Pos - 4) / 4)
+			{
+				OutEntries.Reset();
+				return false;
+			}
+			E.InterruptedByUnitIds.Reserve(Interruttori);
+			for (int32 n = 0; n < Interruttori; ++n)
+			{
+				int32 Chi = INDEX_NONE;
+				if (!ReadI32LE(Bytes, Pos, Chi))
+				{
+					OutEntries.Reset();
+					return false;
+				}
+				E.InterruptedByUnitIds.Add(Chi);
 			}
 		}
 		// 🔴 **Sotto la v11 la voce si MIGRA, e fino a ieri si lasciava com'era.** La riga che stava qui
@@ -2268,7 +2315,7 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 		return true;
 	}
 	// L'azione cancellata da un `Action.Interrupt`: `UnitId` porta chi l'ha SUBITA, non chi ha interrotto
-	// — chi ha interrotto sta in `InterruptedByUnitId` da `#4000`, non in `UnitId` (`#1437`, [D-196]). Senza questo caso, chi conta le
+	// — chi ha interrotto sta in `InterruptedByUnitIds` da `#4000`, non in `UnitId` (`#1437`, [D-196]). Senza questo caso, chi conta le
 	// azioni compiute da un'unita' le accrediterebbe una cancellazione che ha solo subito.
 	return Entry.Category == ERTLogCategory::Fallback
 		&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
