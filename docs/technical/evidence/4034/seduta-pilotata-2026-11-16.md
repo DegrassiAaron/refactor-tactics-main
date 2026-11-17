@@ -36,3 +36,7 @@ un verdetto indipendente né il giudizio dell'autore.
 * Il giudizio sulla resa del taglio: spessore, colore e inclinazione sono una prima stesura dell'assistente (capsula rossa di 6 px con
   bordo scuro di 1,5 px, inclinata di 12°, larga il nome più il 12%). ➕ L'autore l'ha giudicata il 2026-11-17 sulla tavola A, alla
   domanda «il taglio ti va bene così (spessore, rosso, inclinazione)?»: «si va bene».
+
+➕ **2026-11-17**: la voce è ✅ **per deroga dell'autore** («deroga»), che accetta questa misura al posto di una seduta giocata da una
+persona. La deroga non cambia ciò che questa pagina misura: chi misura resta chi ha scritto il codice, e l'elenco qui sopra resta
+`NOT RUN`.
