@@ -293,7 +293,7 @@ protected:
 	 * come immagine nel widget»). Visibile solo quando il fumetto e' barrato (`FRTSkillCalloutView::bBlocked`).
 	 *
 	 * ⚠️ **Opzionale**: senza l'immagine nell'asset il fumetto barrato mostra il nome e basta, e la differenza col fumetto
-	 * normale resta solo nel dato. L'immagine si aggiunge nell'Editor dal clone principale.
+	 * normale resta solo nel dato. Nell'asset c'e' dal 2026-11-16: una capsula rossa inclinata, dentro l'Overlay `SkillCalloutStack`.
 	 */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> SkillCalloutSlash;
