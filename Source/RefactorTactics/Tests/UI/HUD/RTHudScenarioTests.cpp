@@ -982,7 +982,7 @@ bool FRTHudTenantsFitTheirBandsTest::RunTest(const FString&)
 					Scheda->GetLineWidgets().Num(), Scheda->MaxRighe);
 			}
 			if (URTPlanCommitWidget* Conferma = Cast<URTPlanCommitWidget>(W)) { Conferma->RefreshButtons(); }
-			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W)) { Dock->RefreshMovementReadout(); }
+			if (URTActionDockWidget* Dock = Cast<URTActionDockWidget>(W)) { Dock->RefreshMovementReadout(); Dock->RefreshActionPoints(); } // #4150: i pip AP stanno nella stessa riga
 		}
 
 		Radice->SlatePrepass(1.f); // la misura desiderata in unita' Slate

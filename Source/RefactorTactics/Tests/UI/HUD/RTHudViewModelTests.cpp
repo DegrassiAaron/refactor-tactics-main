@@ -31,6 +31,9 @@
 #include "UI/HUD/RTUIPalette.h"        // i colori dei pip si confrontano coi token, non con valori scritti qui
 #include "Components/Border.h"         // un pip e' un UBorder
 #include "Components/PanelWidget.h"    // la fila dei pip
+#include "Turn/Resolution/RTHexSim.h"  // FRTHexSimUnit: l'oracolo del budget e' `ValidatePlan`, non una seconda somma
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason::OverBudget
+#include "Turn/Actions/RTIntentPrivacyLibrary.h"  // FRTIntentView: la vista degli intenti, per la privacy degli AP
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -3659,7 +3662,14 @@ bool FRTHudVmActionPointsTest::RunTest(const FString&)
 		return false;
 	}
 
-	auto Somma = [Unit]() { return URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)); };
+	// L'oracolo del validatore: il piano sta in `Budget` AP se e solo se `ValidatePlan` non lo rifiuta per `OverBudget`. Non rifa' la somma:
+	// chiede il confine a chi lo applica al lock-in.
+	auto RifiutatoPerBudget = [Unit](int32 Budget)
+	{
+		FRTHexSimUnit Sim;
+		Sim.ActionPointBudget = Budget;
+		return URTPlanValidationLibrary::ValidatePlan(Sim, URTPlanValidationLibrary::MakePlanFor(Unit)).Reason == ERTActionInvalidReason::OverBudget;
+	};
 
 	// --- 1. piano vuoto ------------------------------------------------------------------------------------------
 	{
@@ -3681,7 +3691,8 @@ bool FRTHudVmActionPointsTest::RunTest(const FString&)
 
 		const FRTActionPointView V = URTHudViewModel::BuildActionPoints(Unit);
 		TestEqual(TEXT("2: Committed 4, Move 2 + attacco base 2"), V.Committed, 4);
-		TestEqual(TEXT("2: ed e' la somma che il validatore legge"), V.Committed, Somma());
+		TestFalse(TEXT("2: con un budget pari a Committed il validatore non rifiuta per budget"), RifiutatoPerBudget(V.Committed));
+		TestTrue(TEXT("2: con un AP in meno lo rifiuta: Committed e' la somma che il validatore applica"), RifiutatoPerBudget(V.Committed - 1));
 		TestEqual(TEXT("2: Residual 2"), V.Residual, 2);
 
 		// --- 3. il budget del turno cambia: il tratto «modificato», e il residuo lo segue ----------------------------
@@ -3703,7 +3714,7 @@ bool FRTHudVmActionPointsTest::RunTest(const FString&)
 		Unit->SetActionPointBudget(7);
 		const FRTActionPointView Vuoto7 = URTHudViewModel::BuildActionPoints(Unit);
 		TestEqual(TEXT("3: a piano vuoto, Residual 7"), Vuoto7.Residual, 7);
-		TestEqual(TEXT("3: e Committed 0"), Vuoto7.Committed, Somma());
+		TestEqual(TEXT("3: e Committed 0"), Vuoto7.Committed, 0);
 	}
 
 	DestroyHudVmWorld(World);
@@ -3781,7 +3792,11 @@ bool FRTActionPointsPrivacyTest::RunTest(const FString&)
 			Ha(FRTActionPointView::StaticStruct(), Campo));
 	}
 
-	const UScriptStruct* Osservate[] = { FRTUnitCardView::StaticStruct(), FRTGlanceView::StaticStruct(), FRTInspectView::StaticStruct() };
+	// Le viste che servono anche a un'unita' non comandata: la carta e l'overlay, lo sguardo e la scheda, la barra pubblica
+	// (`BuildPublicBar` rende `FRTAbilityCooldownView`) e gli intenti, filtrati per squadra (§19-bis.5).
+	const UScriptStruct* Osservate[] = {
+		FRTUnitCardView::StaticStruct(), FRTUnitOverlayView::StaticStruct(), FRTGlanceView::StaticStruct(),
+		FRTInspectView::StaticStruct(), FRTAbilityCooldownView::StaticStruct(), FRTIntentView::StaticStruct() };
 	for (const UScriptStruct* Tipo : Osservate)
 	{
 		for (const TCHAR* Campo : Campi)

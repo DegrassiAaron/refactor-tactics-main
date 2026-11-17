@@ -50,6 +50,7 @@
 #include "Misc/OutputDeviceRedirector.h" // `#3748`: GLog, per contare le righe con cui un click rifiutato dice perche'
 #include "Misc/ScopeLock.h"
 #include "Tests/Shared/RTUnitPlanTestAccess.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h" // #4150: la premessa che il piano del nemico fissato spenda AP
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -7063,6 +7064,7 @@ bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo positivo: la barra e' quella dell'unita' propria"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(OwnExpected));
 	TestEqual(TEXT("controllo positivo: l'azione armata e' quella dell'unita' propria"), Dock->GetArmedActionIndex(), Attack);
 	TestTrue(TEXT("controllo positivo: il movimento e' autorizzato"), Dock->GetMovementReadout().bAuthorized);
+	TestTrue(TEXT("controllo positivo: gli AP sono autorizzati (#4150)"), Dock->GetActionPoints().bAuthorized);
 	TestTrue(TEXT("controllo positivo: le righe portano il tasto"), bOwnHotkey);
 	TestTrue(TEXT("controllo positivo: il rifiuto sotto il puntatore e' stampato sull'azione armata"),
 		OwnActions.IsValidIndex(Attack) && OwnActions[Attack].bTargetRefused);
@@ -7105,6 +7107,12 @@ bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
 	TestEqual(TEXT("nessuna azione armata sulla barra del nemico"), Dock->GetArmedActionIndex(), (int32)INDEX_NONE);
 	TestEqual(TEXT("...e quella di chi comanda non si e' persa"), B.Mine->SelectedAbilityIndex, Attack);
 	TestFalse(TEXT("nessun movimento: e' un piano"), Dock->GetMovementReadout().bAuthorized);
+	// #4150, §19-bis.5: la somma spesa e' un pezzo del piano. Il nemico fissato ha un piano che spende (sopra), quindi una dock che leggesse
+	// il soggetto della sola lettura darebbe qui un `Committed` diverso da zero.
+	TestTrue(TEXT("premessa: il piano del nemico spende AP"),
+		URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Enemy)) > 0);
+	TestFalse(TEXT("nessun AP: la somma spesa e' un piano"), Dock->GetActionPoints().bAuthorized);
+	TestEqual(TEXT("...e la somma del piano del nemico non esce"), Dock->GetActionPoints().Committed, 0);
 
 	// --- CHIUSA la fissazione: tutto com'era ------------------------------------------------------------------------------------
 	B.PC->PinInspectionForTest(nullptr);
@@ -7116,6 +7124,7 @@ bool FRTDockShowsReadOnlyBarTest::RunTest(const FString&)
 	TestEqual(TEXT("chiusa: la barra e' di nuovo quella dell'unita' propria"), DockRoDescribe(Dock->GetActionsInReadingOrder()), DockRoDescribe(OwnExpected));
 	TestEqual(TEXT("chiusa: l'azione armata c'e' ancora"), Dock->GetArmedActionIndex(), Attack);
 	TestTrue(TEXT("chiusa: il movimento e' di nuovo autorizzato"), Dock->GetMovementReadout().bAuthorized);
+	TestTrue(TEXT("chiusa: gli AP sono di nuovo autorizzati"), Dock->GetActionPoints().bAuthorized);
 	const TArray<FRTAbilityCooldownView> Reopened = Dock->GetActions();
 	TestTrue(TEXT("chiusa: il rifiuto sotto il puntatore e' di nuovo sull'azione armata"), Reopened.IsValidIndex(Attack) && Reopened[Attack].bTargetRefused);
 

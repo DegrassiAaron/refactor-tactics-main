@@ -820,7 +820,9 @@ void URTActionDockWidget::EnsureActionPointPips()
 
 	// Dove posarli: nel pannello della lettura del movimento, come l'indicatore del piano.
 	UPanelWidget* Pannello = MovementReadout ? MovementReadout->GetParent() : nullptr;
-	if (Pannello == nullptr)
+	// ⚠️ Su una dock senza quel pannello l'indicatore del piano diventa la radice (`EnsureLayerIndicator`), ed e' una riga: appesi a lei,
+	// gli AP sparirebbero col suo `Collapsed` su una mappa a un piano solo. Non e' il pannello di nessuno (revisione di #4150).
+	if (Pannello == nullptr && WidgetTree->RootWidget != LayerIndicator)
 	{
 		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
 	}
@@ -908,6 +910,7 @@ void URTActionDockWidget::RefreshActionPoints()
 			: Stati[i] == ERTActionPointPip::Over ? T::Red
 			: T::Frame_Off;
 		UBorder* Pip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		Pip->SetVisibility(ESlateVisibility::HitTestInvisible); // si legge, non si clicca: non ruba il puntatore alla barra
 		Pip->SetBrushColor(URTUIPalette::ColorFor(Colore));
 		Pip->SetPadding(FMargin(5.f, 7.f)); // un segmento 10×14 senza contenuto: la misura e' il padding del bordo
 
