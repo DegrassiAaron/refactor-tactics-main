@@ -1531,6 +1531,7 @@ pianificare, e un piano validato non cambia.
 ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (1)): al lock-in il server rifiuta il Ready di un piano `OverBudget`,
 `OnCooldown` o con una seconda copia vietata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), e il piano si svuota. È l'autorità che fa del
 budget una regola; come l'HUD lo mostri resta di `HUD-AP-1`. ⏳ Non implementata: entra con E38.
+➕ **2026-11-17 — [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3)**: `HUD-AP-1` è decisa contro la proposta qui sopra. Un'abilità che il piano non può pagare **non si arma**: lo slot della dock si spegne come in cooldown, col motivo `OverBudget` nel tooltip, e si riaccende quando il residuo basta. D-459 resta intera: non c'è un terzo caso di `Invalid`, e la domanda su quale motivo vinca col bersaglio rifiutato non si pone. Il criterio di 19-bis.3 in 19-bis.8 cambia di conseguenza. ⏳ Non implementata.
 
 ## 19-bis.4 Il costo del movimento
 
@@ -1542,6 +1543,7 @@ D-613 (2), confermata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), ren
 D-425 deriva dalla distanza. ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (5)): l'ordine di dichiarazione non decide mai
 la risoluzione. Lettura dell'assistente in D-615, non decisione: due Move separati della stessa unità non avrebbero più un ordine fra loro, e
 questo pesa sulla scelta fra un secondo Move e l'estensione del primo senza deciderla; la scelta resta aperta in `HUD-AP-1`.
+➕ **2026-11-17 — [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (1) (2)**: il percorso resta uno. Il primo tratto prende la banda di D-425 dalla distanza (Move, poi Sprint fino al suo tetto); oltre il tetto dello Sprint nasce un tratto concatenato, e ogni tratto oltre il primo costa altri 2 AP, nell'ordine della catena delle celle. Una cella raggiungibile in MP che il residuo non paga resta visibile col colore di rifiuto e il motivo `OverBudget` all'hover, e il click non pianifica. Lettura dell'assistente in D-625 (f): all'hover su una cella che allunga un percorso già pianificato i pip mostrano 0 finché la cella sta nel tratto pagato, −2 quando ne apre uno nuovo. ⏳ Non implementata.
 
 ## 19-bis.5 Privacy
 
@@ -1594,7 +1596,7 @@ Tutti `NOT RUN`: sono criteri, non esiti.
 | 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel` |
 | 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation |
 | 19-bis.2 | Per ogni voce di Riktor e per le generiche il badge mostra `ActionPointCost`; `Wait` non ha badge | subito | Automation sul catalogo |
-| 19-bis.3 | Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano; con un piano Move + attacco base (4), armare la reazione (2) non accende niente | quando `HUD-AP-1` è decisa | Automation |
+| 19-bis.3 | ~~Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano~~; con un piano Move + attacco base (4), armare la reazione (2) non accende niente. ➕ Da [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3): con un piano da 6 AP su un budget di 6, ogni slot che costa almeno 1 (`Guard` compreso) è spento e non si arma, col motivo `OverBudget` nel tooltip, e `Wait` (0) resta armabile; nessuno slot già pianificato cambia stato. La parte barrata era la proposta che D-625 scarta | `HUD-AP-1` decisa da D-625 | Automation |
 | 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE |
 | 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation |
 | 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
