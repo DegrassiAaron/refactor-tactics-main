@@ -1979,17 +1979,20 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// soltanto degradato resta efficace e continua a togliere ai propri bersagli. Per questo la lettura di
 	// `Stato[]` qui sopra e' invariata: la distinzione nasce **dopo** che l'efficacia e' decisa.
 	TSet<int32>& InterruptedIntents = Ctx.InterruptedIntents; // cancellati: il colpo sparisce, l'azione e' annullata
-	// `#4000`, [D-582] (4): per ogni azione annullata, il PRIMO Interrupt efficace che la raggiunge, nell'ordine in cui il
+	// `#4000`, [D-624] (1): per ogni azione annullata, TUTTI gli Interrupt efficaci che la raggiungono, nell'ordine in cui il
 	// grafo li ha scoperti (`Plan.Hits`, per indice d'unita' canonico). Solo ricerca, mai iterata.
-	TMap<int32, int32> PrimoInterruttore;
-	auto NominaInterruttore = [this, &Units, &Intents, &Interruttori](FRTTurnLogEntry& Voce, int32 i)
+	// ⌫ *Fino a [D-624] qui c'era `PrimoInterruttore`, uno per azione: il secondo non entrava nella voce.*
+	TMap<int32, TArray<int32>> InterruttoriDi;
+	auto NominaInterruttori = [this, &Units, &Intents, &Interruttori](FRTTurnLogEntry& Voce, const TArray<int32>& Quali)
 	{
-		const int32 k = Interruttori.IsValidIndex(i) ? Interruttori[i] : INDEX_NONE;
-		ARTUnit* Chi = (Intents.IsValidIndex(k) && Units.IsValidIndex(Intents[k].AttackerId)) ? Units[Intents[k].AttackerId] : nullptr;
-		if (!Chi) { return; }
-		Voce.InterruptedByUnitId = Chi->StableUnitId;
-		// Il verdetto e' quello dell'interruttore, congelato ora ([D-223]): la vittima puo' vedersi mentre lui no.
-		Voce.InterruptedByVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Chi));
+		for (const int32 i : Quali)
+		{
+			const int32 k = Interruttori.IsValidIndex(i) ? Interruttori[i] : INDEX_NONE;
+			ARTUnit* Chi = (Intents.IsValidIndex(k) && Units.IsValidIndex(Intents[k].AttackerId)) ? Units[Intents[k].AttackerId] : nullptr;
+			if (!Chi) { continue; }
+			// Il verdetto e' quello di ciascun interruttore, congelato ora ([D-223]): la vittima puo' vedersi mentre lui no.
+			Voce.AddInterrupter(Chi->StableUnitId, FreezeVerdictFor(FRTLogSubject::Unit(Chi)));
+		}
 	};
 	TSet<int32> DegradedIntents;      // degradati: il colpo resta, cadono gli effetti oltre il primo
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
@@ -1997,7 +2000,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (Stato[i] != EStato::Efficace) { continue; }
 		for (int32 Bersaglio : Cancellerebbe[i])
 		{
-			if (!PrimoInterruttore.Contains(Bersaglio)) { PrimoInterruttore.Add(Bersaglio, i); }
+			InterruttoriDi.FindOrAdd(Bersaglio).AddUnique(i);
 			// La policy la dichiara la VITTIMA, come ogni altra proprieta' di interrompibilita': un
 			// `Action.Interrupt` non porta con se' alcun flag.
 			const bool bDegrada = IntentDefs.IsValidIndex(Bersaglio)
@@ -2015,7 +2018,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// pagata ([D-571] (1)); la voce e' `Fallback`/`Cancelled` col motivo `Interrupted`, come per gli attacchi, dalla cella
 	// del curatore al centro della cura.
 	TSet<ARTUnit*> CuratoriColpiti;
-	TMap<ARTUnit*, int32> PrimoSulCuratore; // `#4000`: il primo Interrupt efficace sul curatore; solo ricerca
+	TMap<ARTUnit*, TArray<int32>> InterruttoriDelCuratore; // `#4000`, [D-624]: gli Interrupt efficaci sul curatore; solo ricerca
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{
 		if (Stato[i] != EStato::Efficace) { continue; }
@@ -2024,7 +2027,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			for (ARTUnit* Curatore : *Curatori)
 			{
 				CuratoriColpiti.Add(Curatore);
-				if (!PrimoSulCuratore.Contains(Curatore)) { PrimoSulCuratore.Add(Curatore, i); } // `#4000`
+				InterruttoriDelCuratore.FindOrAdd(Curatore).AddUnique(i); // `#4000`
 			}
 		}
 	}
@@ -2043,7 +2046,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 				return H.Healer == Curatore && H.Def.ActionId == ActionId && Annullabile(H.Def);
 			});
 	};
-	TMap<const ARTUnit*, TPair<int32, FRTKnowledgeVerdict>> InterruttoreDellaCura; // `#4043`: per l'evento di blocco della cura
+	TMap<const ARTUnit*, FRTInterrupters> InterruttoriDellaCura; // `#4043`: per l'evento di blocco della cura
 	for (const FRTBlastContext::FRTQueuedHeal& Cura : Ctx.QueuedHeals)
 	{
 		if (!CuratoriColpiti.Contains(Cura.Healer) || !Annullabile(Cura.Def)) { continue; }
@@ -2059,8 +2062,8 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.Priority = Cura.Def.Priority;
 		Interrotta.DeclarationIndex = Cura.DeclarationIndex;
 		Interrotta.DeclaringTeamId = Cura.DeclaringTeamId;
-		if (const int32* Primo = PrimoSulCuratore.Find(Cura.Healer)) { NominaInterruttore(Interrotta, *Primo); }
-		InterruttoreDellaCura.Add(Cura.Healer, { Interrotta.InterruptedByUnitId, Interrotta.InterruptedByVerdict });
+		if (const TArray<int32>* Quali = InterruttoriDelCuratore.Find(Cura.Healer)) { NominaInterruttori(Interrotta, *Quali); }
+		InterruttoriDellaCura.Add(Cura.Healer, FRTInterrupters::Of(Interrotta));
 		AppendLogEntry(Interrotta, Cura.Healer);
 	}
 	Ctx.RemoveHealsWhere([&CuraAnnullata](const ARTUnit* Curatore, const FRTActionDef& Def)
@@ -2078,10 +2081,9 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (CuraAnnullata(Attivazione.Source, Attivazione.ActionId))
 		{
 			Attivazione.BlockedReason = static_cast<int32>(ERTActionInvalidReason::Interrupted);
-			if (const TPair<int32, FRTKnowledgeVerdict>* Chi = InterruttoreDellaCura.Find(Attivazione.Source))
+			if (const FRTInterrupters* Chi = InterruttoriDellaCura.Find(Attivazione.Source))
 			{
-				Attivazione.InterruptedByStableUnitId = Chi->Key;
-				Attivazione.InterruptedByVerdict = Chi->Value;
+				Attivazione.InterruptedBy = *Chi;
 			}
 		}
 	}
@@ -2155,8 +2157,8 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
 		// falso, e il campo entra nell'hash.
 		//
-		// ⚠️ **Chi ha interrotto non sta in `UnitId`**: e' uno solo e lo prende il soggetto, la vittima. Da `#4000` lo porta
-		// `InterruptedByUnitId`, fuori dall'hash e col verdetto suo ([D-582] (4)).
+		// ⚠️ **Chi ha interrotto non sta in `UnitId`**: e' uno solo e lo prende il soggetto, la vittima. Da `#4000` li porta
+		// tutti `InterruptedByUnitIds`, fuori dall'hash e ciascuno col verdetto suo ([D-582] (4), [D-624] (1)).
 		// ⌫ *Fino a #4000 chi ha interrotto non entrava nella voce, stesso costo di `#1430` per `RearHitBypassedGuard`.*
 		//
 		// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
@@ -2177,8 +2179,8 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		Interrotta.ActionId = IntentDefs[k].ActionId;
 		Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
 		Interrotta.Priority = IntentDefs[k].Priority;
-		if (const int32* Primo = PrimoInterruttore.Find(k)) { NominaInterruttore(Interrotta, *Primo); }
-		Ctx.InterrupterOfIntent.Add(k, { Interrotta.InterruptedByUnitId, Interrotta.InterruptedByVerdict }); // `#4043`
+		if (const TArray<int32>* Quali = InterruttoriDi.Find(k)) { NominaInterruttori(Interrotta, *Quali); }
+		Ctx.InterrupterOfIntent.Add(k, FRTInterrupters::Of(Interrotta)); // `#4043`
 		AppendLogEntry(Interrotta, Vittima);
 
 		// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che

@@ -2866,17 +2866,17 @@ protected:
 			ERTResolvedEventType::ActionBlocked, static_cast<int32>(Reason));
 	}
 
-	/** `#4043`: come sopra, e in piu' chi ha interrotto, col suo verdetto, sull'evento appena emesso. */
+	/** `#4043`, [D-624]: come sopra, e in piu' chi ha interrotto, coi verdetti, sull'evento appena emesso. */
 	void EmitActionBlockedBy(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
 		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape, ERTActionInvalidReason Reason,
-		const FRTKnowledgeVerdict* FrozenSourceVerdict, int32 InterruptedBy, const FRTKnowledgeVerdict& InterruptedByVerdict)
+		const FRTKnowledgeVerdict* FrozenSourceVerdict, const FRTInterrupters& InterruptedBy)
 	{
 		const int32 Prima = ResolvedTimeline.Num();
 		EmitActionBlocked(Source, InPhase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape, Reason, FrozenSourceVerdict);
 		if (ResolvedTimeline.Num() > Prima)
 		{
-			ResolvedTimeline.Last().InterruptedByStableUnitId = InterruptedBy;
-			ResolvedTimeline.Last().InterruptedByVerdict = InterruptedByVerdict;
+			ResolvedTimeline.Last().InterruptedByStableUnitIds = InterruptedBy.StableUnitIds;
+			ResolvedTimeline.Last().InterruptedByVerdicts = InterruptedBy.Verdicts;
 		}
 	}
 

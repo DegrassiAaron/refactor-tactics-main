@@ -826,12 +826,16 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted); });
 		if (TestNotNull(TEXT("l'evento di blocco"), Barrato) && TestNotNull(TEXT("e la voce del TurnLog"), Voce))
 		{
-			TestEqual(TEXT("🔑 l'evento nomina l'interruttore"), Barrato->InterruptedByStableUnitId, Interruttore->StableUnitId);
-			TestEqual(TEXT("come la voce"), Barrato->InterruptedByStableUnitId, Voce->InterruptedByUnitId);
-			for (int32 Squadra = 0; Squadra < 2; ++Squadra)
+			TestEqual(TEXT("🔑 l'evento nomina l'interruttore"), Barrato->InterruptedByStableUnitIds, TArray<int32>({ Interruttore->StableUnitId }));
+			TestEqual(TEXT("come la voce"), Barrato->InterruptedByStableUnitIds, Voce->InterruptedByUnitIds);
+			if (TestEqual(TEXT("un verdetto per interruttore"), Barrato->InterruptedByVerdicts.Num(), Voce->InterruptedByVerdicts.Num())
+				&& TestEqual(TEXT("premessa: uno"), Barrato->InterruptedByVerdicts.Num(), 1))
 			{
-				TestEqual(*FString::Printf(TEXT("e col verdetto della voce, squadra %d"), Squadra),
-					Barrato->InterruptedByVerdict.AllowsTeam(Squadra), Voce->InterruptedByVerdict.AllowsTeam(Squadra));
+				for (int32 Squadra = 0; Squadra < 2; ++Squadra)
+				{
+					TestEqual(*FString::Printf(TEXT("e col verdetto della voce, squadra %d"), Squadra),
+						Barrato->InterruptedByVerdicts[0].AllowsTeam(Squadra), Voce->InterruptedByVerdicts[0].AllowsTeam(Squadra));
+				}
 			}
 		}
 		// `#4034`: e al suo posto esce un evento di blocco, col motivo `Interrupted`.
