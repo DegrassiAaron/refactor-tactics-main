@@ -796,6 +796,143 @@ void URTActionDockWidget::RefreshLayerIndicator()
 	}
 }
 
+FRTActionPointView URTActionDockWidget::GetActionPoints() const
+{
+	// La stessa sorgente di `GetMovementReadout()`: la barra comanda, non ispeziona, e in sola lettura non e' la barra di
+	// chi comanda (#3748). Il default non autorizzato e' la sola risposta che non dice quanto e' grande il piano.
+	if (IsDockReadOnly())
+	{
+		return FRTActionPointView();
+	}
+	return URTHudViewModel::BuildActionPoints(GetSelectedUnit());
+}
+
+void URTActionDockWidget::EnsureActionPointPips()
+{
+	if (ActionPoints)
+	{
+		return; // dichiarato dall'asset, o gia' costruito
+	}
+	if (WidgetTree == nullptr)
+	{
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+
+	// Dove posarli: nel pannello della lettura del movimento, come l'indicatore del piano.
+	UPanelWidget* Pannello = MovementReadout ? MovementReadout->GetParent() : nullptr;
+	// ⚠️ Su una dock senza quel pannello l'indicatore del piano diventa la radice (`EnsureLayerIndicator`), ed e' una riga: appesi a lei,
+	// gli AP sparirebbero col suo `Collapsed` su una mappa a un piano solo. Non e' il pannello di nessuno (revisione di #4150).
+	if (Pannello == nullptr && WidgetTree->RootWidget != LayerIndicator)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr && WidgetTree->RootWidget != nullptr)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Dock: nessun pannello per gli Action Point (la radice e' un %s): non montati"),
+			*WidgetTree->RootWidget->GetClass()->GetName());
+		return;
+	}
+
+	UHorizontalBox* Riga = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionPoints"));
+	UTextBlock* Etichetta = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ActionPointsLabel"));
+	UHorizontalBox* Pips = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionPointPips"));
+
+	// Il carattere della lettura del movimento, che gli sta accanto, come l'indicatore del piano.
+	FSlateFontInfo Carattere = MovementReadoutText ? MovementReadoutText->GetFont() : Etichetta->GetFont();
+	if (MovementReadoutText == nullptr)
+	{
+		Carattere.Size = 16;
+	}
+	Etichetta->SetFont(Carattere);
+	Etichetta->SetText(FText::FromString(TEXT("AP")));
+
+	if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Etichetta))
+	{
+		Posto->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Pips))
+	{
+		Posto->SetVerticalAlignment(VAlign_Center);
+		Posto->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
+	}
+
+	if (Pannello)
+	{
+		UPanelSlot* Posto = Pannello->AddChild(Riga);
+		if (Posto == nullptr)
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Dock: %s non accetta gli Action Point: non montati"),
+				*Pannello->GetClass()->GetName());
+			return;
+		}
+		if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
+		{
+			Orizzontale->SetVerticalAlignment(VAlign_Center);
+			Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
+		}
+	}
+	else
+	{
+		WidgetTree->RootWidget = Riga;
+	}
+
+	ActionPoints = Riga;
+	ActionPointsLabel = Etichetta;
+	ActionPointPips = Pips;
+	PaintedActionPointPips.Reset();
+}
+
+void URTActionDockWidget::RefreshActionPoints()
+{
+	const FRTActionPointView Vista = GetActionPoints();
+	if (ActionPoints)
+	{
+		ActionPoints->SetVisibility(Vista.bAuthorized ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (ActionPointsLabel)
+	{
+		using T = ERTUIToken;
+		ActionPointsLabel->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(Vista.bModified ? T::Cyan : T::Text_Secondary)));
+	}
+
+	const TArray<ERTActionPointPip> Stati = URTHudViewModel::ActionPointPips(Vista);
+	if (ActionPointPips == nullptr || (Stati == PaintedActionPointPips && ActionPointPips->GetChildrenCount() == Stati.Num()))
+	{
+		return; // niente e' cambiato: la fila resta quella dipinta
+	}
+
+	ActionPointPips->ClearChildren();
+	UHorizontalBox* Fila = Cast<UHorizontalBox>(ActionPointPips);
+	for (int32 i = 0; i < Stati.Num(); ++i)
+	{
+		using T = ERTUIToken;
+		const T Colore = Stati[i] == ERTActionPointPip::Committed ? T::Amber
+			: Stati[i] == ERTActionPointPip::Over ? T::Red
+			: T::Frame_Off;
+		UBorder* Pip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		Pip->SetVisibility(ESlateVisibility::HitTestInvisible); // si legge, non si clicca: non ruba il puntatore alla barra
+		Pip->SetBrushColor(URTUIPalette::ColorFor(Colore));
+		Pip->SetPadding(FMargin(5.f, 7.f)); // un segmento 10×14 senza contenuto: la misura e' il padding del bordo
+
+		// Il primo AP sforato si stacca dalla fila: sta «fuori dalla cornice» (§19-bis.1).
+		const bool bPrimoOltre = Stati[i] == ERTActionPointPip::Over && (i == 0 || Stati[i - 1] != ERTActionPointPip::Over);
+		const float Sinistra = i == 0 ? 0.f : (bPrimoOltre ? 8.f : 2.f);
+		if (Fila)
+		{
+			if (UHorizontalBoxSlot* Posto = Fila->AddChildToHorizontalBox(Pip))
+			{
+				Posto->SetVerticalAlignment(VAlign_Center);
+				Posto->SetPadding(FMargin(Sinistra, 0.f, 0.f, 0.f));
+			}
+		}
+		else
+		{
+			ActionPointPips->AddChild(Pip);
+		}
+	}
+	PaintedActionPointPips = Stati;
+}
+
 // =====================================================================================================
 // Conferma e Annulla
 // =====================================================================================================
@@ -1248,6 +1385,7 @@ void URTActionDockWidget::NativeOnInitialized()
 	// Qui e non in `NativeConstruct`: l'albero si completa prima che Slate costruisca il dock, quindi l'indicatore
 	// entra nello Slate con il resto, al suo posto (#3680).
 	EnsureLayerIndicator();
+	EnsureActionPointPips();
 }
 
 void URTActionDockWidget::NativeConstruct()
@@ -1261,6 +1399,7 @@ void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	RefreshMovementReadout();
 	RefreshLayerIndicator();
+	RefreshActionPoints();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const

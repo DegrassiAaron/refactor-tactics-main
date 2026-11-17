@@ -1195,6 +1195,44 @@ FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit
 	return View;
 }
 
+FRTActionPointView URTHudViewModel::BuildActionPoints(const ARTUnit* Unit)
+{
+	FRTActionPointView View;
+	if (!Unit)
+	{
+		return View;
+	}
+
+	View.bAuthorized = true;
+	View.Budget = Unit->GetActionPointBudget();
+	// Il piano di `MakePlanFor` e la somma di `ActionPointsSpent`: le stesse due chiamate che portano al validatore.
+	View.Committed = URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
+	View.Residual = View.Budget - View.Committed;
+	View.bModified = View.Budget != RTActionPoints::DefaultBudget;
+	return View;
+}
+
+TArray<ERTActionPointPip> URTHudViewModel::ActionPointPips(const FRTActionPointView& View)
+{
+	TArray<ERTActionPointPip> Pips;
+	if (!View.bAuthorized)
+	{
+		return Pips;
+	}
+
+	const int32 Budget = FMath::Max(0, View.Budget);
+	const int32 Committed = FMath::Max(0, View.Committed);
+	for (int32 i = 0; i < Budget; ++i)
+	{
+		Pips.Add(i < Committed ? ERTActionPointPip::Committed : ERTActionPointPip::Free);
+	}
+	for (int32 i = Budget; i < Committed; ++i)
+	{
+		Pips.Add(ERTActionPointPip::Over);
+	}
+	return Pips;
+}
+
 FText URTHudViewModel::MovementReadoutLabel(FName ProfileId)
 {
 	using Lib = URTMovementProfileLibrary;

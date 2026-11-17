@@ -1492,7 +1492,7 @@ Serve soprattutto per evitare errori di commit.
 > ➕ **2026-11-13 — [D-613](../../decisions/RT_PDR_00_Decision_Log.md) e [D-612](../../decisions/RT_PDR_00_Decision_Log.md)**: i requisiti dell'HUD per il
 > pool di Action Point di [ADR-0011](../../decisions/adr-0011-action-point.md) ([D-584](../../decisions/RT_PDR_00_Decision_Log.md),
 > [D-592](../../decisions/RT_PDR_00_Decision_Log.md), [D-594](../../decisions/RT_PDR_00_Decision_Log.md)), con Riktor come eroe di prova. Motivazioni,
-> rilievi del panel e casi limite stanno nel [referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md) §4. ⏳ **Nulla di questa sezione è
+> rilievi del panel e casi limite stanno nel [referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md) §4. ✅ **2026-11-17, [#4150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4150)**: budget, spesa e residuo dell'unità comandata, i pip e la privacy sul tipo sono implementati (19-bis.1 senza `Preview`, 19-bis.5); il resto no. ⌫ *Fino ad allora:* ⏳ **Nulla di questa sezione è
 > implementato**: il codice HUD non legge nessun AP (`git grep -i -E "ActionPoint|OverBudget"` in `Source/RefactorTactics/UI` e
 > `Source/RefactorTactics/Player` → 0, su `9560053a2`). Come nella colonna «Quando» di 19-bis.8: si possono costruire **subito** la somma e il
 > residuo sul budget di oggi (19-bis.1, con `Budget` = 6), il costo nello slot (19-bis.2), l'anteprima del primo Move (19-bis.4) e la privacy
@@ -1593,12 +1593,12 @@ Tutti `NOT RUN`: sono criteri, non esiti.
 
 | Requisito | Criterio | Quando | Prova |
 |---|---|---|---|
-| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel` |
-| 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation |
+| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel`. ✅ `HudViewModel.ActionPointsReadTheValidatorSum` (#4150) |
+| 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation. ✅ `HudViewModel.ActionPointPipsFollowTheView` e `ScreenHud.DockShowsActionPointPips` (#4150): il tratto è l'etichetta «AP» in `Cyan`; la causa nel tooltip no, nessun dato la porta |
 | 19-bis.2 | Per ogni voce di Riktor e per le generiche il badge mostra `ActionPointCost`; `Wait` non ha badge | subito | Automation sul catalogo |
 | 19-bis.3 | ~~Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano~~; con un piano Move + attacco base (4), armare la reazione (2) non accende niente. ➕ Da [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3): con un piano da 6 AP su un budget di 6, ogni slot che costa almeno 1 (`Guard` compreso) è spento e non si arma, col motivo `OverBudget` nel tooltip, e `Wait` (0) resta armabile; nessuno slot già pianificato cambia stato. La parte barrata era la proposta che D-625 scarta | `HUD-AP-1` decisa da D-625 | Automation |
 | 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE |
-| 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation |
+| 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation. ✅ `Privacy.ActionPointsLiveOnlyInTheCommandedView` (#4150), su `FRTUnitCardView`, `FRTGlanceView` e `FRTInspectView` |
 | 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
 | 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080 |
 
