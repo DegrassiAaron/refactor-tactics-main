@@ -3112,6 +3112,16 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **[D-625] (3) (#4153): un'azione che il piano non puo' pagare non si arma**, come una in ricarica, e per tutti i canali che
+	// passano di qui. La spesa e' quella DOPO il gesto (`ActionPointsAfterArming`), quindi riarmare la principale pianificata, o
+	// cambiare uno scatto con uno che costa uguale, passa anche a residuo zero. Il rifiuto lascia il modello com'era (#2986).
+	if (!Unit->CanAffordArming(Index))
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s rifiutata: con %s il piano spenderebbe %d AP su %d, nulla e' stato armato"),
+			*Richiesta, *Ability->DisplayName.ToString(), Unit->ActionPointsAfterArming(Index), Unit->GetActionPointBudget());
+		return;
+	}
+
 	Unit->SelectAbility(Index);
 
 	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione — e ora non mente.** Se compare,

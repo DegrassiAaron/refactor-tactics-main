@@ -801,6 +801,16 @@ struct FRTAbilityCooldownView
 	bool bPlanInvalid = false;
 
 	/**
+	 * Il piano non paga quest'azione: armarla lo porterebbe oltre il budget del turno (`ARTUnit::CanAffordArming`, #4153,
+	 * [D-625] (3)). Stato `Unavailable`, «si spegne come in ricarica», col motivo `OverBudget` nel tooltip; non e' un terzo
+	 * caso di `Invalid`, e D-459 resta intera.
+	 * ⛔ Lo scrive solo `BuildAbilityCooldowns`, per l'unita' comandata: la spesa e' un pezzo del piano, e la barra pubblica
+	 * dell'osservato lascia il default.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bOverBudget = false;
+
+	/**
 	 * L'azione e' pianificata su un bersaglio che, misurato dall'ORIGINE DEL BLAST (`BlastOriginCell`: la cella
 	 * dello scatto, se si applica) e allo stato NOTO all'osservatore, il click rifiuterebbe: in risoluzione
 	 * prenderebbe il ripiego. Lettura B di [D-459], stato `Warning`. ⛔ Un bersaglio ignoto (`Nothing`) non

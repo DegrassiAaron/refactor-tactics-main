@@ -10,6 +10,7 @@
 #include "Turn/Resolution/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
 #include "Ability/RTActionData.h"
 #include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h" // #4153: la spesa del piano dopo un armo e' la somma del validatore
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
@@ -2247,6 +2248,52 @@ bool ARTUnit::CanBeAnExtraPrepAction(const URTActionData* Ability)
 		&& URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) == ERTMatchPhase::Prep
 		&& Ability->Def.StructureOp == ERTStructureOp::None
 		&& Ability->Def.PredictiveTargeting == ERTPredictiveTargeting::None;
+}
+
+int32 ARTUnit::ActionPointsAfterArming(int32 KitIndex, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const URTActionData* Ability = GetAbility(KitIndex);
+	if (!Ability)
+	{
+		return Spesa;
+	}
+	// Lo stesso costo che `MakePlanFor` mette nella voce: il `Def` dell'abilita' del kit.
+	const auto CostoDi = [this](int32 Indice)
+	{
+		const URTActionData* A = GetAbility(Indice);
+		return A ? FMath::Max(0, A->Def.ActionPointCost) : 0;
+	};
+
+	// La voce che il gesto sostituisce, nell'ordine dei rami di `SelectAbilityForCurrent`: reazione, scatto, principale.
+	int32 Sostituita = INDEX_NONE;
+	if (Ability->Def.Slot == ERTActionSlot::Reaction)
+	{
+		Sostituita = Plan.PlannedReactionAbility();
+	}
+	else if (URTCatalogLibrary::IsFastMovement(Ability->Def))
+	{
+		Sostituita = Plan.PlannedDashAbility();
+	}
+	else
+	{
+		const int32 Principale = Plan.PlannedAbilityIndex();
+		const bool bSiAggiunge = Ability->bSelfTarget && Principale != INDEX_NONE && Principale != KitIndex
+			&& CanBeAnExtraPrepAction(Ability);
+		Sostituita = bSiAggiunge ? INDEX_NONE : Principale;
+	}
+	return Spesa - CostoDi(Sostituita) + CostoDi(KitIndex);
+}
+
+bool ARTUnit::CanAffordArming(int32 KitIndex, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Dopo = ActionPointsAfterArming(KitIndex, Spesa);
+	return Dopo <= GetActionPointBudget() || Dopo <= Spesa; // il secondo termine: a piano gia' sforato, un gesto che non peggiora
 }
 
 bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)

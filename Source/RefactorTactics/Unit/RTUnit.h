@@ -494,6 +494,34 @@ public:
 	 */
 	bool DeclarePlannedAction(int32 AbilityIndex);
 
+	/**
+	 * Quanti AP spenderebbe il piano dopo che il giocatore arma e conferma `KitIndex` (#4153, [D-625] (3)).
+	 *
+	 * 🔑 **Il gesto SOSTITUISCE la voce della propria classe**, e la spesa toglie quella voce prima di aggiungere il costo: la
+	 * reazione sostituisce la prima reazione (`ArmPlannedReaction`), lo scatto lo scatto (`SetPlannedDash`), il resto la
+	 * principale (`DeclarePlannedMainAction`). L'eccezione e' quella di `SelectAbilityForCurrent`: un'azione di Prep su se
+	 * stessi, con la principale presa da un'altra, si AGGIUNGE come voce di Prep. Riarmare la principale pianificata costa 0
+	 * in piu'. ⚠️ Se il gesto cambia forma, questa funzione cambia con lui: e' la stessa domanda, letta da due parti.
+	 *
+	 * `SpentNow` e' `ActionPointsSpent(MakePlanFor(this))`, passato da chi interroga piu' righe dello stesso piano; con
+	 * `INDEX_NONE` lo si calcola qui.
+	 *
+	 * ⚠️ **Sovrastima l'Overwatch in un caso stretto**: armarlo tronca i waypoint al `Withdraw` ([D-070]), e se il troncamento
+	 * li toglie tutti la voce Move (2 AP) sparisce. Qui la voce Move resta contata, quindi a residuo zero un Overwatch che
+	 * libererebbe AP puo' risultare non pagabile. Non misurato quando succede (revisione di #4153).
+	 */
+	int32 ActionPointsAfterArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Il piano paga `KitIndex`: la spesa dopo il gesto sta nel budget del turno ([D-625] (3): «si riaccende quando il residuo
+	 * basta»). La leggono la guardia dell'armo (`SelectAbilityForCurrent`) e la dock (`FRTAbilityCooldownView::bOverBudget`).
+	 *
+	 * ➕ **Un piano gia' oltre il budget** (un percorso o uno scatto non passano da questa guardia) non blocca i gesti che non
+	 * peggiorano la spesa: riarmare la principale per cambiarle bersaglio, o `Wait` a costo 0. Senza, il giocatore non potrebbe
+	 * piu' toccare la principale finche' non accorcia il percorso [LETTURA, revisione di #4153].
+	 */
+	bool CanAffordArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
+
 	/** Le voci `Prep` sono risolte: escono dal piano, la principale e il suo bersaglio restano (E38 CP 38.13). */
 	void ClearPlannedPrepEntries() { Plan.RemovePrepEntries(); }
 

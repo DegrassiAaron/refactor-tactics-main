@@ -758,6 +758,13 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Cooldown;
 	}
 
+	// [D-625] (3) (#4153): il piano non la paga, e «si spegne come in ricarica». Dopo la ricarica, che e' un numero che passa
+	// da solo; dopo `Planned`, perche' un impegno preso resta tale. Non e' `Invalid`: D-459 resta intera.
+	if (Action.bOverBudget)
+	{
+		return ERTActionSlotState::Unavailable;
+	}
+
 	// ⚠️ Da [D-324] `bUsableNow` coincide con `TurnsRemaining == 0`, quindi questo ramo oggi non si
 	// raggiunge da una vista costruita dal simulatore. Resta perche' la vista e' una struct e un chiamante
 	// puo' comporla cosi' — ed e' la stessa ragione per cui `AbilityLineShowsCooldownOnly` prova quel caso.
@@ -886,6 +893,12 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipCoolingDown", "In ricarica: ancora {0}"),
 			TooltipCount(Action.TurnsRemaining, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni")));
 	}
+	else if (Action.bOverBudget)
+	{
+		// [D-625] (3): il motivo e' `OverBudget`, nelle parole che il TurnLog gli da' gia'.
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipOverBudget", "Non si arma: {0}"),
+			FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget)));
+	}
 	return Out;
 }
 
@@ -991,6 +1004,12 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		return Cooldowns;
 	}
 
+	// #4153, [D-625] (3): la spesa del piano, una volta per tutte le righe. Ogni riga chiede quanto spenderebbe DOPO il proprio
+	// gesto (`ARTUnit::CanAffordArming`), la stessa domanda della guardia dell'armo.
+	// Il piano si compone UNA volta: lo leggono la spesa qui e il verdetto del validatore piu' sotto (revisione di #4153).
+	const TArray<FRTPlannedAction> PianoComposto = URTPlanValidationLibrary::MakePlanFor(Unit);
+	const int32 Spesa = URTPlanValidationLibrary::ActionPointsSpent(PianoComposto);
+
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
@@ -1043,6 +1062,18 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// Usabile ADESSO: da `D-324` guarda la sola ricarica.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
+		// Il piano non la paga ([D-625] (3)): si spegne come in ricarica. Un costo 0 (`Wait`) non sfora mai: a piano legale sta nel
+		// budget, e a piano gia' sforato non peggiora la spesa (`CanAffordArming`).
+		// ⚠️ Non per un'azione che e' GIA' nel piano, in una voce qualunque, ne' per quella armata: la sua spesa e' gia' contata, e
+		// chiederle quanto costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153: Guard
+		// aggiunta come voce di Prep che porta il piano a residuo zero). `bPlanned` guarda solo la prima voce di ogni classe.
+		bool bNelPiano = Index == Unit->SelectedAbilityIndex;
+		for (const FRTPlanEntry& Voce : Unit->GetPlan().GetEntries())
+		{
+			bNelPiano |= Voce.AbilityIndex == Index;
+		}
+		View.bOverBudget = !bNelPiano && !Unit->CanAffordArming(Index, Spesa);
+
 		Cooldowns.Add(View);
 	}
 
@@ -1054,7 +1085,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore legge il budget dell'unita' ([D-613] (1), E38
 	//    CP 38.11): l'unita' arriva dallo stesso costruttore del lock-in, cosi' dock e lock-in danno lo stesso verdetto.
 	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
-		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), URTPlanValidationLibrary::MakePlanFor(Unit));
+		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), PianoComposto);
 	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
 	{
 		for (FRTAbilityCooldownView& V : Cooldowns)
