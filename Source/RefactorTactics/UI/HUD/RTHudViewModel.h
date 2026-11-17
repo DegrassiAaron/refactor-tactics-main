@@ -403,6 +403,64 @@ struct FRTMovementReadoutView
 };
 
 /**
+ * Gli Action Point dell'unita' COMANDATA: il budget del turno, quanto il piano ne spende, quanti ne restano (#4150,
+ * `progettazione-hud.md` §19-bis.1).
+ *
+ * 🔑 **Il widget non somma mai: legge.** `Committed` viene da `URTPlanValidationLibrary::ActionPointsSpent` sul piano di
+ * `MakePlanFor`, lo stesso compositore che il validatore e il lock-in leggono: una somma rifatta qui potrebbe dire un
+ * residuo con cui il piano non si valida.
+ *
+ * ⛔ **Privacy** (§19-bis.5): si costruisce solo per l'unita' comandata. La somma spesa rivelerebbe quanto e' grande il
+ * piano, e il default — `bAuthorized == false`, tutto a zero — e' la sola risposta che non racconta niente. Per questo i
+ * numeri stanno qui e non in `FRTUnitCardView`, che serve anche all'osservato: la prova si fa sul tipo.
+ */
+USTRUCT(BlueprintType)
+struct FRTActionPointView
+{
+	GENERATED_BODY()
+
+	/**
+	 * Falso senza soggetto: tutto il resto e' allora a zero.
+	 * ⚠️ **Non garantisce da solo la privacy**: `BuildActionPoints` autorizza qualunque unita' non nulla, come
+	 * `BuildMovementReadout`. A decidere e' il CHIAMANTE, e la dock passa soltanto l'unita' comandata.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bAuthorized = false;
+
+	/** Il budget dell'unita' per il turno, `ARTUnit::GetActionPointBudget` ([D-613] (1), E38 CP 38.11). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Budget = 0;
+
+	/** La somma dei costi del piano: `ActionPointsSpent(MakePlanFor(Unit))`. Puo' superare `Budget`: il piano e' allora illegale. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Committed = 0;
+
+	/** `Budget - Committed`, negativo quando il piano sfora: il widget non sottrae. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Residual = 0;
+
+	/**
+	 * Il budget del turno non e' quello di base (`RTActionPoints::DefaultBudget`): i pip portano il tratto «modificato».
+	 * ⏳ La CAUSA nel tooltip (§19-bis.1, «+1: Magnetic Bastion») non c'e': nessun dato la porta oggi, e l'unica fonte di
+	 * un budget diverso da 6 e' `actionPointBudget` negli scenari (#4150, fuori scope).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bModified = false;
+};
+
+/** Lo stato di un pip degli Action Point (§19-bis.1). L'anteprima del gesto in corso entra con HUD-AP.3. */
+UENUM(BlueprintType)
+enum class ERTActionPointPip : uint8
+{
+	/** Speso dal piano, entro il budget. */
+	Committed,
+	/** Ancora disponibile. */
+	Free,
+	/** Speso oltre il budget: il piano non si valida, e il pip sta fuori dalla cornice. */
+	Over,
+};
+
+/**
  * Uno stato temporaneo da mostrare sopra un'unita': quale, con che icona, per quanto ancora (`#2274`).
  *
  * 🔑 **Porta l'`IconId` e non lascia che sia chi disegna a comporlo.** La chiave si deriva dal tag con
@@ -1741,6 +1799,19 @@ public:
 	 * ispezionato — e con `nullptr` torna il default non autorizzato.
 	 */
 	static FRTMovementReadoutView BuildMovementReadout(const ARTUnit* Unit);
+
+	/**
+	 * Gli Action Point dell'unita' COMANDATA (#4150, §19-bis.1). `Committed` e' `ActionPointsSpent(MakePlanFor(Unit))`:
+	 * nessuna seconda somma. ⛔ Come `BuildMovementReadout`, il chiamante passa solo l'unita' comandata, e con `nullptr`
+	 * torna il default non autorizzato.
+	 */
+	static FRTActionPointView BuildActionPoints(const ARTUnit* Unit);
+
+	/**
+	 * I pip, da sinistra: uno per AP del budget, impegnati prima e liberi poi, e dopo il budget uno per ogni AP speso oltre.
+	 * Vuoto per una vista non autorizzata. La regola sta qui e non nel widget, che dipinge soltanto.
+	 */
+	static TArray<ERTActionPointPip> ActionPointPips(const FRTActionPointView& View);
 
 	/**
 	 * Nome e moltiplicatore di un profilo: `Move ×1`, `Sprint ×2`, `Sneak ×0,5`, `Withdraw ×0,25`, e `Still`
