@@ -6947,6 +6947,7 @@ namespace
 			Test.TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Dove), Row.ChargeFraction, 1.f);
 			Test.TestEqual(*FString::Printf(TEXT("%s: nessun totale di ricarica"), *Dove), Row.TotalTurns, 0);
 			Test.TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), Row.bPlanInvalid);
+			Test.TestFalse(*FString::Printf(TEXT("%s: nessuno sforamento del budget, che e' un pezzo del piano (#4153)"), *Dove), Row.bOverBudget);
 			Test.TestFalse(*FString::Printf(TEXT("%s: nessun piano degradato"), *Dove), Row.bPlanDegraded);
 			Test.TestFalse(*FString::Printf(TEXT("%s: nessun rifiuto sotto il puntatore"), *Dove), Row.bTargetRefused);
 			Test.TestEqual(*FString::Printf(TEXT("%s: usabile = nessuno stato, solo per una riga con un'azione"), *Dove),

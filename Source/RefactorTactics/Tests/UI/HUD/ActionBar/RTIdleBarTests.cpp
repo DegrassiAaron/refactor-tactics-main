@@ -186,7 +186,7 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: nessun totale di ricarica"), *Nome), V.TotalTurns, 0);
 		TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Nome), V.ChargeFraction, 1.f);
 		TestFalse(*FString::Printf(TEXT("%s: nessuno stato di D-459"), *Nome),
-			V.bPlanInvalid || V.bPlanDegraded || V.bTargetRefused);
+			V.bPlanInvalid || V.bPlanDegraded || V.bTargetRefused || V.bOverBudget); // #4153: lo sforamento e' del piano
 	}
 
 	RTWorldFixtures::DestroyWorld(World);
@@ -375,6 +375,7 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		const FRTAbilityCooldownView& R = PubblicaIllegale[i];
 		const FString Dove = FString::Printf(TEXT("piano illegale, posizione %d"), i);
 		TestFalse(*FString::Printf(TEXT("%s: nessun piano illegale"), *Dove), R.bPlanInvalid);
+		TestFalse(*FString::Printf(TEXT("%s: nessuno sforamento del budget (#4153)"), *Dove), R.bOverBudget);
 		TestTrue(*FString::Printf(TEXT("%s: nessun motivo del validatore"), *Dove),
 			R.PlanInvalidReason == ERTActionInvalidReason::None);
 		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);

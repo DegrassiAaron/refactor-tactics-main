@@ -3776,12 +3776,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionPointsPrivacyTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionPointsPrivacyTest::RunTest(const FString&)
 {
+	// I NUMERI del budget, per nome esatto (§19-bis.5: `Budget`, `Committed`, `Preview`, `Residual`; `Preview` entra con HUD-AP.3).
+	// ⚠️ Nome esatto e non sottostringa (#4153): `FRTAbilityCooldownView::bOverBudget` e' un flag di riga della barra condivisa, come
+	// `bPlanned` e `bPlanInvalid` che la stessa struct porta gia', e la sua privacy si prova per VALORE: la barra pubblica lo lascia al
+	// default (`HudViewModel.UnaffordableActionIsUnavailableWithItsReason`, criterio 4; `DockShowsTheBarOfAReadOnlySubject`; `IdleBar`).
 	const TCHAR* Campi[] = { TEXT("Budget"), TEXT("Committed"), TEXT("Residual") };
 	auto Ha = [](const UScriptStruct* Tipo, const FString& Nome)
 	{
 		for (TFieldIterator<FProperty> It(Tipo); It; ++It)
 		{
-			if (It->GetName().Contains(Nome)) { return true; }
+			if (It->GetName() == Nome) { return true; }
 		}
 		return false;
 	};
@@ -3803,7 +3807,9 @@ bool FRTActionPointsPrivacyTest::RunTest(const FString&)
 		{
 			TestFalse(*FString::Printf(TEXT("%s non ha %s"), *Tipo->GetName(), Campo), Ha(Tipo, Campo));
 		}
-		TestFalse(*FString::Printf(TEXT("%s non ha niente che si chiami ActionPoint"), *Tipo->GetName()), Ha(Tipo, TEXT("ActionPoint")));
+		bool bActionPoint = false;
+		for (TFieldIterator<FProperty> It(Tipo); It; ++It) { bActionPoint |= It->GetName().Contains(TEXT("ActionPoint")); }
+		TestFalse(*FString::Printf(TEXT("%s non ha niente che si chiami ActionPoint"), *Tipo->GetName()), bActionPoint);
 	}
 
 	// La dock: un soggetto ISPEZIONATO non da' nessun numero, anche se il suo piano ne spende.
@@ -3910,6 +3916,80 @@ bool FRTDockActionPointPipsTest::RunTest(const FString&)
 		Dock->RefreshActionPoints();
 		TestEqual(TEXT("ispezionato: nascosti"), static_cast<int32>(Dock->ActionPoints->GetVisibility()), static_cast<int32>(ESlateVisibility::Collapsed));
 		TestEqual(TEXT("ispezionato: nessun pip"), Dock->ActionPointPips->GetChildrenCount(), 0);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * #4153, [D-625] (3) — LO SLOT CHE IL PIANO NON PAGA SI SPEGNE COME IN RICARICA, COL MOTIVO; LA BARRA PUBBLICA NON LO DICE (criteri 3, 4).
+ *
+ * 🔑 Il controllo positivo e' lo stesso piano con un budget che paga: la stessa riga torna `Available`. Senza, un `bOverBudget` sempre vero
+ * passerebbe il primo blocco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmUnaffordableSlotTest,
+	"RefactorTactics.HudViewModel.UnaffordableActionIsUnavailableWithItsReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmUnaffordableSlotTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	const int32 Attacco = HudVmBasicAttackIndexOf(Unit);
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestTrue(TEXT("premessa: l'attacco base e' nel kit"), Attacco != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// Move + attacco base = 4, su un budget di 4: residuo zero.
+	HudVmPlanOneStep(Unit);
+	Unit->SetPlannedMainAction(Attacco);
+	Unit->SetActionPointBudget(4);
+	const FString Motivo = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget);
+
+	// La riga sotto prova: una che costa, non pianificata, pronta. Il piano sostituirebbe la principale solo per un'altra principale,
+	// quindi si cerca una riga che il gesto AGGIUNGA o che costi piu' dell'attacco base: la spesa dopo il gesto la dice la funzione
+	// dell'unita', e la premessa e' che superi il budget.
+	const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	int32 Sotto = INDEX_NONE;
+	for (const FRTAbilityCooldownView& R : Righe)
+	{
+		if (!R.ActionId.IsNone() && !R.bPlanned && R.TurnsRemaining == 0 && Unit->ActionPointsAfterArming(R.AbilityIndex) > 4)
+		{
+			Sotto = R.AbilityIndex;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: c'e' una riga che il residuo zero non paga"), Righe.IsValidIndex(Sotto)))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- 3. spenta, col motivo; la principale pianificata resta Planned ------------------------------------------------
+	TestTrue(TEXT("3: la riga non pagata porta bOverBudget"), Righe[Sotto].bOverBudget);
+	TestEqual(TEXT("3: ed e' Unavailable"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Righe[Sotto], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Unavailable));
+	TestTrue(TEXT("3: il tooltip nomina il budget"),
+		URTHudViewModel::BuildActionTooltip(Righe[Sotto], /*bArmed=*/ false).Reason.ToString().Contains(Motivo));
+	TestFalse(TEXT("3: non e' un piano illegale: D-459 resta intera"), Righe[Sotto].bPlanInvalid);
+	TestEqual(TEXT("3: la principale pianificata resta Planned"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Righe[Attacco], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Planned));
+
+	// --- controllo positivo: con un budget che la paga, la stessa riga si riaccende -----------------------------------
+	Unit->SetActionPointBudget(Unit->ActionPointsAfterArming(Sotto));
+	const TArray<FRTAbilityCooldownView> Pagate = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	TestFalse(TEXT("controllo positivo: col residuo che basta non sfora"), Pagate[Sotto].bOverBudget);
+	TestEqual(TEXT("controllo positivo: ed e' Available"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Pagate[Sotto], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Available));
+
+	// --- 4. la barra pubblica non dice niente del budget ---------------------------------------------------------------
+	Unit->SetActionPointBudget(4);
+	for (const FRTAbilityCooldownView& R : URTHudViewModel::BuildPublicBar(Unit))
+	{
+		TestFalse(*FString::Printf(TEXT("4: la barra pubblica, posizione %d, non porta bOverBudget"), R.AbilityIndex), R.bOverBudget);
 	}
 
 	DestroyHudVmWorld(World);

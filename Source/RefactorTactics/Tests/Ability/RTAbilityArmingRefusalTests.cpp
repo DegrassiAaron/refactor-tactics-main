@@ -23,6 +23,7 @@
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h" // #4153: la spesa del piano, letta dal validatore
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -406,6 +407,122 @@ bool FRTCooldownActionIsNotArmedTest::RunTest(const FString&)
 	}
 	PC->SelectAbilityForCurrentForTest(Attiva);
 	TestEqual(TEXT("D: finita la ricarica, il tasto la arma di nuovo"), Unit->SelectedAbilityIndex, Attiva);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** L'attacco base del kit (`Action.BasicAttack`, o una riga che lo varia). Nome proprio: la unity build condivide la TU. */
+	int32 ArmoBudgetAttaccoBase(const ARTUnit* Unit)
+	{
+		const FName Base(TEXT("Action.BasicAttack"));
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && (A->Def.ActionId == Base || A->Def.BaseActionId == Base)) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
+	/** Le ultime due posizioni del kit diverse da `Escluso`, per posare le azioni del test senza toccare l'attacco base. */
+	bool ArmoBudgetDuePosizioni(const ARTUnit* Unit, int32 Escluso, int32& OutA, int32& OutB)
+	{
+		OutA = OutB = INDEX_NONE;
+		for (int32 i = Unit->NumAbilities() - 1; i >= 0; --i)
+		{
+			if (i == Escluso) { continue; }
+			if (OutA == INDEX_NONE) { OutA = i; }
+			else { OutB = i; return true; }
+		}
+		return false;
+	}
+}
+
+/**
+ * #4153, [D-625] (3) — UN'AZIONE CHE IL PIANO NON PUO' PAGARE NON SI ARMA, E LA SPESA E' QUELLA DOPO IL GESTO (criteri 1, 2).
+ *
+ * 🔑 **L'oracolo e' lo stato, come in tutto il file**: `SelectedAbilityIndex` e il piano dopo la richiesta. E ogni rifiuto ha
+ * il suo controllo positivo nello stesso stato del piano: un'azione da 1 AP che si arma, e la principale gia' pianificata che si
+ * riarma a residuo zero. I numeri di `ActionPointsAfterArming` sono scritti a mano dai costi di [D-594].
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnaffordableActionDoesNotArmTest,
+	"RefactorTactics.PlayerInput.UnaffordableActionDoesNotArm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTUnaffordableActionDoesNotArmTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	ARTUnit* Unit = SpawnUnitConKit(World);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!Unit || !PC)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita' e controller esistono"), false);
+	}
+	PC->SelectActorForTest(Unit);
+
+	const int32 Attacco = ArmoBudgetAttaccoBase(Unit);
+	int32 PosReazione = INDEX_NONE;
+	int32 PosGuardia = INDEX_NONE;
+	if (!TestTrue(TEXT("premessa: l'attacco base e' nel kit"), Attacco != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: due posizioni libere dall'attacco base"), ArmoBudgetDuePosizioni(Unit, Attacco, PosReazione, PosGuardia)))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Counter"), PosReazione);
+	const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), PosGuardia);
+	if (!TestTrue(TEXT("premessa: reazione e Guard nel kit"), Reazione != INDEX_NONE && Guardia != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("premessa: la reazione costa 2"), Unit->GetAbility(Reazione)->Def.ActionPointCost, 2);
+	TestEqual(TEXT("premessa: Guard costa 1"), Unit->GetAbility(Guardia)->Def.ActionPointCost, 1);
+	TestEqual(TEXT("premessa: l'attacco base costa 2"), Unit->GetAbility(Attacco)->Def.ActionPointCost, 2);
+
+	// Il piano: un Move di un passo e l'attacco base, 4 AP.
+	Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+	Unit->SetPlannedCell(FRTCellId(1, 0, 0));
+	Unit->DeclarePlannedMainAction(Attacco);
+	if (!TestEqual(TEXT("premessa: il piano spende 4"),
+			URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 4))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- La spesa dopo il gesto, a mano -----------------------------------------------------------------------------
+	TestEqual(TEXT("dopo la reazione: 4 + 2"), Unit->ActionPointsAfterArming(Reazione), 6);
+	TestEqual(TEXT("dopo Guard, che si AGGIUNGE come voce di Prep: 4 + 1"), Unit->ActionPointsAfterArming(Guardia), 5);
+	TestEqual(TEXT("dopo la principale gia' pianificata, che SOSTITUISCE se stessa: 4"), Unit->ActionPointsAfterArming(Attacco), 4);
+
+	// --- 1. Budget 5: la reazione non si arma, Guard si' --------------------------------------------------------------
+	Unit->SetActionPointBudget(5);
+	PC->SelectAbilityForCurrentForTest(Reazione);
+	TestEqual(TEXT("1: la reazione da 2 non si arma su un residuo di 1"), Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("1: e il piano non la porta"), Unit->GetPlan().PlannedReactionAbility(), (int32)INDEX_NONE);
+
+	PC->SelectAbilityForCurrentForTest(Guardia);
+	TestEqual(TEXT("1: controllo positivo, Guard da 1 si arma"), Unit->SelectedAbilityIndex, Guardia);
+	TestEqual(TEXT("1: e il piano ora spende 5"),
+		URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 5);
+
+	// --- 2. Residuo zero: la principale pianificata si riarma -----------------------------------------------------------
+	PC->SelectAbilityForCurrentForTest(Attacco);
+	TestEqual(TEXT("2: a residuo 0 la principale pianificata si riarma"), Unit->SelectedAbilityIndex, Attacco);
+
+	// --- 1, controllo positivo: con un budget che la paga, la stessa reazione si arma -------------------------------
+	Unit->SetActionPointBudget(7);
+	PC->SelectAbilityForCurrentForTest(Reazione);
+	TestEqual(TEXT("1: con budget 7 la reazione si arma"), Unit->SelectedAbilityIndex, Reazione);
+	TestEqual(TEXT("1: e il piano la porta"), Unit->GetPlan().PlannedReactionAbility(), Reazione);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

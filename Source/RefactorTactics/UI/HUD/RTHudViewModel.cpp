@@ -758,6 +758,13 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Cooldown;
 	}
 
+	// [D-625] (3) (#4153): il piano non la paga, e «si spegne come in ricarica». Dopo la ricarica, che e' un numero che passa
+	// da solo; dopo `Planned`, perche' un impegno preso resta tale. Non e' `Invalid`: D-459 resta intera.
+	if (Action.bOverBudget)
+	{
+		return ERTActionSlotState::Unavailable;
+	}
+
 	// ⚠️ Da [D-324] `bUsableNow` coincide con `TurnsRemaining == 0`, quindi questo ramo oggi non si
 	// raggiunge da una vista costruita dal simulatore. Resta perche' la vista e' una struct e un chiamante
 	// puo' comporla cosi' — ed e' la stessa ragione per cui `AbilityLineShowsCooldownOnly` prova quel caso.
@@ -886,6 +893,12 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipCoolingDown", "In ricarica: ancora {0}"),
 			TooltipCount(Action.TurnsRemaining, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni")));
 	}
+	else if (Action.bOverBudget && !Action.bPlanned)
+	{
+		// [D-625] (3): il motivo e' `OverBudget`, nelle parole che il TurnLog gli da' gia'.
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipOverBudget", "Non si arma: {0}"),
+			FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget)));
+	}
 	return Out;
 }
 
@@ -991,6 +1004,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		return Cooldowns;
 	}
 
+	// #4153, [D-625] (3): la spesa del piano, una volta per tutte le righe. Ogni riga chiede quanto spenderebbe DOPO il proprio
+	// gesto (`ARTUnit::CanAffordArming`), la stessa domanda della guardia dell'armo.
+	const int32 Spesa = URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
+
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
@@ -1042,6 +1059,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 
 		// Usabile ADESSO: da `D-324` guarda la sola ricarica.
 		View.bUsableNow = Unit->CanUseAbility(Index);
+
+		// Il piano non la paga ([D-625] (3)): si spegne come in ricarica. Un costo 0 (`Wait`) non sfora mai un piano legale.
+		View.bOverBudget = !Unit->CanAffordArming(Index, Spesa);
 
 		Cooldowns.Add(View);
 	}
