@@ -34,4 +34,5 @@ un verdetto indipendente né il giudizio dell'autore.
   headless, non lo schermo.
 * L'interruttore nascosto a chi guarda: lo copre `RefactorTactics.Playback.HiddenInterrupterIsNotNamed`, non lo schermo.
 * Il giudizio sulla resa del taglio: spessore, colore e inclinazione sono una prima stesura dell'assistente (capsula rossa di 6 px con
-  bordo scuro di 1,5 px, inclinata di 12°, larga il nome più il 12%).
+  bordo scuro di 1,5 px, inclinata di 12°, larga il nome più il 12%). ➕ L'autore l'ha giudicata il 2026-11-17 sulla tavola A, alla
+  domanda «il taglio ti va bene così (spessore, rosso, inclinazione)?»: «si va bene».
