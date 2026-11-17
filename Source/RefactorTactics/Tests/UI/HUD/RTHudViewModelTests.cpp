@@ -34,6 +34,7 @@
 #include "Turn/Resolution/RTHexSim.h"  // FRTHexSimUnit: l'oracolo del budget e' `ValidatePlan`, non una seconda somma
 #include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason::OverBudget
 #include "Turn/Actions/RTIntentPrivacyLibrary.h"  // FRTIntentView: la vista degli intenti, per la privacy degli AP
+#include "Tests/Shared/RTAbilityFixtures.h"       // AddCoreAbilityInSlot: Guard nel kit, per la voce di Prep (#4153)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -3776,16 +3777,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionPointsPrivacyTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionPointsPrivacyTest::RunTest(const FString&)
 {
-	// I NUMERI del budget, per nome esatto (§19-bis.5: `Budget`, `Committed`, `Preview`, `Residual`; `Preview` entra con HUD-AP.3).
-	// ⚠️ Nome esatto e non sottostringa (#4153): `FRTAbilityCooldownView::bOverBudget` e' un flag di riga della barra condivisa, come
-	// `bPlanned` e `bPlanInvalid` che la stessa struct porta gia', e la sua privacy si prova per VALORE: la barra pubblica lo lascia al
-	// default (`HudViewModel.UnaffordableActionIsUnavailableWithItsReason`, criterio 4; `DockShowsTheBarOfAReadOnlySubject`; `IdleBar`).
+	// Per SOTTOSTRINGA: un campo futuro come `RemainingBudget` o `ActionPointBudget` cade qui (revisione di #4153).
+	// ⚠️ **Un'eccezione sola, nominata**: `FRTAbilityCooldownView::bOverBudget` e' un flag di riga della barra condivisa fra la barra
+	// propria e quella pubblica, come `bPlanned` e `bPlanInvalid`, e la sua privacy si prova per VALORE: la barra pubblica lo lascia
+	// al default (`HudViewModel.UnaffordableActionIsUnavailableWithItsReason`, criterio 4; `DockShowsTheBarOfAReadOnlySubject`; `IdleBar`).
+	const UScriptStruct* const TipoEccezione = FRTAbilityCooldownView::StaticStruct();
+	const FName CampoEccezione(TEXT("bOverBudget"));
+	TestNotNull(TEXT("l'eccezione esiste ancora: se il campo cambia nome, l'eccezione va riletta"), TipoEccezione->FindPropertyByName(CampoEccezione));
 	const TCHAR* Campi[] = { TEXT("Budget"), TEXT("Committed"), TEXT("Residual") };
-	auto Ha = [](const UScriptStruct* Tipo, const FString& Nome)
+	auto Ha = [TipoEccezione, CampoEccezione](const UScriptStruct* Tipo, const FString& Nome)
 	{
 		for (TFieldIterator<FProperty> It(Tipo); It; ++It)
 		{
-			if (It->GetName() == Nome) { return true; }
+			if (Tipo == TipoEccezione && It->GetFName() == CampoEccezione) { continue; }
+			if (It->GetName().Contains(Nome)) { return true; }
 		}
 		return false;
 	};
@@ -3947,6 +3952,11 @@ bool FRTHudVmUnaffordableSlotTest::RunTest(const FString&)
 	HudVmPlanOneStep(Unit);
 	Unit->SetPlannedMainAction(Attacco);
 	Unit->SetActionPointBudget(4);
+	if (!TestEqual(TEXT("premessa: il piano spende 4"), URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 4))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
 	const FString Motivo = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget);
 
 	// La riga sotto prova: una che costa, non pianificata, pronta. Il piano sostituirebbe la principale solo per un'altra principale,
@@ -3984,6 +3994,28 @@ bool FRTHudVmUnaffordableSlotTest::RunTest(const FString&)
 	TestFalse(TEXT("controllo positivo: col residuo che basta non sfora"), Pagate[Sotto].bOverBudget);
 	TestEqual(TEXT("controllo positivo: ed e' Available"),
 		static_cast<int32>(URTHudViewModel::ResolveSlotState(Pagate[Sotto], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Available));
+
+	// --- un'azione GIA' nel piano non sfora, anche quando una seconda copia sforerebbe (revisione di #4153) ------------------
+	// Guard su se stessi, con la principale presa, entra come voce di Prep e porta il piano a 5 su 5. `bPlanned` non la vede, perche'
+	// guarda la prima voce di ogni classe: la riga non deve leggersi «non si arma» mentre e' pianificata.
+	{
+		int32 PosGuardia = INDEX_NONE;
+		for (int32 i = Unit->NumAbilities() - 1; i >= 0 && PosGuardia == INDEX_NONE; --i) { if (i != Attacco) { PosGuardia = i; } }
+		const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), PosGuardia);
+		Unit->SetActionPointBudget(5);
+		if (TestTrue(TEXT("premessa: Guard nel kit"), Guardia != INDEX_NONE)
+			&& TestTrue(TEXT("premessa: Guard entra come voce di Prep"), Unit->DeclarePlannedAction(Guardia)))
+		{
+			TestEqual(TEXT("premessa: il piano spende 5 su 5"),
+				URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 5);
+			const TArray<FRTAbilityCooldownView> ConGuardia = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			TestFalse(TEXT("Guard pianificata non porta bOverBudget"), ConGuardia[Guardia].bOverBudget);
+			TestNotEqual(TEXT("e non e' Unavailable"),
+				static_cast<int32>(URTHudViewModel::ResolveSlotState(ConGuardia[Guardia], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Unavailable));
+			TestFalse(TEXT("e il tooltip non dice «non si arma»"),
+				URTHudViewModel::BuildActionTooltip(ConGuardia[Guardia], /*bArmed=*/ true).Reason.ToString().Contains(Motivo));
+		}
+	}
 
 	// --- 4. la barra pubblica non dice niente del budget ---------------------------------------------------------------
 	Unit->SetActionPointBudget(4);

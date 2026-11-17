@@ -2287,6 +2287,15 @@ int32 ARTUnit::ActionPointsAfterArming(int32 KitIndex, int32 SpentNow) const
 	return Spesa - CostoDi(Sostituita) + CostoDi(KitIndex);
 }
 
+bool ARTUnit::CanAffordArming(int32 KitIndex, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Dopo = ActionPointsAfterArming(KitIndex, Spesa);
+	return Dopo <= GetActionPointBudget() || Dopo <= Spesa; // il secondo termine: a piano gia' sforato, un gesto che non peggiora
+}
+
 bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)
 {
 	const URTActionData* Ability = GetAbility(AbilityIndex);

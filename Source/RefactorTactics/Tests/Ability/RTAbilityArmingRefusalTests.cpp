@@ -24,6 +24,7 @@
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
 #include "Turn/Actions/RTPlanValidationLibrary.h" // #4153: la spesa del piano, letta dal validatore
+#include "Ability/Catalog/RTCatalogLibrary.h"   // IsFastMovement: la premessa che lo scatto del test sia uno scatto
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -426,17 +427,15 @@ namespace
 		return INDEX_NONE;
 	}
 
-	/** Le ultime due posizioni del kit diverse da `Escluso`, per posare le azioni del test senza toccare l'attacco base. */
-	bool ArmoBudgetDuePosizioni(const ARTUnit* Unit, int32 Escluso, int32& OutA, int32& OutB)
+	/** Le ultime `N` posizioni del kit diverse da `Escluso`, per posare le azioni del test senza toccare l'attacco base. */
+	TArray<int32> ArmoBudgetPosizioni(const ARTUnit* Unit, int32 Escluso, int32 N)
 	{
-		OutA = OutB = INDEX_NONE;
-		for (int32 i = Unit->NumAbilities() - 1; i >= 0; --i)
+		TArray<int32> Out;
+		for (int32 i = Unit->NumAbilities() - 1; i >= 0 && Out.Num() < N; --i)
 		{
-			if (i == Escluso) { continue; }
-			if (OutA == INDEX_NONE) { OutA = i; }
-			else { OutB = i; return true; }
+			if (i != Escluso) { Out.Add(i); }
 		}
-		return false;
+		return Out;
 	}
 }
 
@@ -468,17 +467,17 @@ bool FRTUnaffordableActionDoesNotArmTest::RunTest(const FString&)
 	PC->SelectActorForTest(Unit);
 
 	const int32 Attacco = ArmoBudgetAttaccoBase(Unit);
-	int32 PosReazione = INDEX_NONE;
-	int32 PosGuardia = INDEX_NONE;
+	const TArray<int32> Posizioni = ArmoBudgetPosizioni(Unit, Attacco, 3);
 	if (!TestTrue(TEXT("premessa: l'attacco base e' nel kit"), Attacco != INDEX_NONE)
-		|| !TestTrue(TEXT("premessa: due posizioni libere dall'attacco base"), ArmoBudgetDuePosizioni(Unit, Attacco, PosReazione, PosGuardia)))
+		|| !TestEqual(TEXT("premessa: tre posizioni libere dall'attacco base"), Posizioni.Num(), 3))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
-	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Counter"), PosReazione);
-	const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), PosGuardia);
-	if (!TestTrue(TEXT("premessa: reazione e Guard nel kit"), Reazione != INDEX_NONE && Guardia != INDEX_NONE))
+	const int32 Reazione = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Counter"), Posizioni[0]);
+	const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), Posizioni[1]);
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Dodge"), Posizioni[2]);
+	if (!TestTrue(TEXT("premessa: reazione, Guard e scatto nel kit"), Reazione != INDEX_NONE && Guardia != INDEX_NONE && Scatto != INDEX_NONE))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
@@ -486,6 +485,8 @@ bool FRTUnaffordableActionDoesNotArmTest::RunTest(const FString&)
 	TestEqual(TEXT("premessa: la reazione costa 2"), Unit->GetAbility(Reazione)->Def.ActionPointCost, 2);
 	TestEqual(TEXT("premessa: Guard costa 1"), Unit->GetAbility(Guardia)->Def.ActionPointCost, 1);
 	TestEqual(TEXT("premessa: l'attacco base costa 2"), Unit->GetAbility(Attacco)->Def.ActionPointCost, 2);
+	TestEqual(TEXT("premessa: lo scatto costa 2"), Unit->GetAbility(Scatto)->Def.ActionPointCost, 2);
+	TestTrue(TEXT("premessa: e' uno scatto"), URTCatalogLibrary::IsFastMovement(Unit->GetAbility(Scatto)->Def));
 
 	// Il piano: un Move di un passo e l'attacco base, 4 AP.
 	Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
@@ -523,6 +524,19 @@ bool FRTUnaffordableActionDoesNotArmTest::RunTest(const FString&)
 	PC->SelectAbilityForCurrentForTest(Reazione);
 	TestEqual(TEXT("1: con budget 7 la reazione si arma"), Unit->SelectedAbilityIndex, Reazione);
 	TestEqual(TEXT("1: e il piano la porta"), Unit->GetPlan().PlannedReactionAbility(), Reazione);
+
+	// --- Le sostituzioni degli altri due rami, a mano: la reazione sostituisce la prima reazione, lo scatto lo scatto ------
+	TestEqual(TEXT("premessa: il piano spende 7"), URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 7);
+	TestEqual(TEXT("dopo la reazione gia' pianificata, che sostituisce se stessa: 7"), Unit->ActionPointsAfterArming(Reazione), 7);
+	TestEqual(TEXT("dopo uno scatto, senza scatto nel piano: 7 + 2"), Unit->ActionPointsAfterArming(Scatto), 9);
+	Unit->SetPlannedDash(Scatto, FRTCellId(0, 1, 0));
+	TestEqual(TEXT("premessa: con lo scatto il piano spende 9"), URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 9);
+	TestEqual(TEXT("dopo lo scatto gia' pianificato, che sostituisce se stesso: 9"), Unit->ActionPointsAfterArming(Scatto), 9);
+
+	// --- Un piano GIA' oltre il budget (lo scatto non passa dalla guardia): i gesti che non peggiorano passano -----------
+	Unit->SetActionPointBudget(7);
+	PC->SelectAbilityForCurrentForTest(Attacco);
+	TestEqual(TEXT("sforato: la principale pianificata si riarma, per cambiare bersaglio"), Unit->SelectedAbilityIndex, Attacco);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
