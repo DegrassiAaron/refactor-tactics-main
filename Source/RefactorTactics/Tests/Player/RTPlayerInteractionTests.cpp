@@ -755,10 +755,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashThenMoveStartsFromTheArrivalTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 {
-	// Due ordini dei click: lo scatto e poi il waypoint, e il waypoint e poi lo scatto ([D-628] (4): i waypoint si ricompongono).
-	for (const bool bScattoPrima : { true, false })
+	// Due ordini dei click: lo scatto e poi il waypoint, e il waypoint e poi lo scatto ([D-628] (4): i waypoint si ricompongono). E due
+	// scatti: Ram, una carica, che si ferma dove dice la sua corsa, e `Action.Dodge`, uno scatto che arriva sulla cella cliccata. Sono
+	// i due rami di `ARTUnit::PlannedMoveStartCell`, e una mutazione ha mostrato che col solo Ram il secondo non lo copriva nessuno.
+	for (const int32 Caso : { 0, 1, 2, 3 })
 	{
-		const TCHAR* Ordine = bScattoPrima ? TEXT("scatto, poi waypoint") : TEXT("waypoint, poi scatto");
+		const bool bScattoPrima = (Caso % 2) == 0;
+		const bool bCarica = Caso < 2;
+		const FString Ordine = FString::Printf(TEXT("%s, %s"), bCarica ? TEXT("Ram") : TEXT("Dodge"),
+			bScattoPrima ? TEXT("scatto, poi waypoint") : TEXT("waypoint, poi scatto"));
 		UWorld* World = MakeInteractionWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
@@ -778,8 +783,15 @@ bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 		}
 		PC->SelectActorForTest(U);
 
-		const int32 DashIdx = U->FindDashAbilityIndex();
+		const int32 DashIdx = bCarica ? U->FindDashAbilityIndex() : RTAbilityFixtures::AddCoreAbility(U, TEXT("Action.Dodge"));
 		if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		const URTActionData* Scelto = U->GetAbility(DashIdx);
+		if (!TestTrue(TEXT("premessa: carica o scatto, come chiede il caso"), Scelto
+				&& (Scelto->Def.MovementStyle == ERTMovementStyle::LinearCharge) == bCarica))
 		{
 			DestroyInteractionWorld(World);
 			return false;
@@ -792,16 +804,16 @@ bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 		if (bScattoPrima) { Scatta(); Cammina(); } else { Cammina(); Scatta(); }
 
 		const TArray<FRTCellId>& Percorso = U->GetPlan().PlannedPath();
-		if (!TestEqual(*FString::Printf(TEXT("%s, premessa: lo scatto e' pianificato"), Ordine), U->GetPlan().PlannedDashCell(), DashTo)
-			|| !TestTrue(*FString::Printf(TEXT("%s, premessa: il percorso c'e'"), Ordine), Percorso.Num() >= 2))
+		if (!TestEqual(*FString::Printf(TEXT("%s, premessa: lo scatto e' pianificato"), *Ordine), U->GetPlan().PlannedDashCell(), DashTo)
+			|| !TestTrue(*FString::Printf(TEXT("%s, premessa: il percorso c'e'"), *Ordine), Percorso.Num() >= 2))
 		{
 			DestroyInteractionWorld(World);
 			return false;
 		}
-		TestEqual(*FString::Printf(TEXT("%s: il percorso parte dalla cella d'arrivo dello scatto"), Ordine), Percorso[0], DashTo);
-		TestEqual(*FString::Printf(TEXT("%s: e arriva alla cella cliccata"), Ordine), U->GetPlan().PlannedCell, MoveTo);
-		TestEqual(*FString::Printf(TEXT("%s: il waypoint resta"), Ordine), U->GetPlan().PlannedWaypoints().Num(), 1);
-		TestTrue(*FString::Printf(TEXT("%s: il piano e' legale"), Ordine),
+		TestEqual(*FString::Printf(TEXT("%s: il percorso parte dalla cella d'arrivo dello scatto"), *Ordine), Percorso[0], DashTo);
+		TestEqual(*FString::Printf(TEXT("%s: e arriva alla cella cliccata"), *Ordine), U->GetPlan().PlannedCell, MoveTo);
+		TestEqual(*FString::Printf(TEXT("%s: il waypoint resta"), *Ordine), U->GetPlan().PlannedWaypoints().Num(), 1);
+		TestTrue(*FString::Printf(TEXT("%s: il piano e' legale"), *Ordine),
 			URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(0, U->Cell, 10, true),
 				URTPlanValidationLibrary::MakePlanFor(U)).bLegal);
 
@@ -817,7 +829,7 @@ bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 			}
 			return N;
 		};
-		TestEqual(*FString::Printf(TEXT("%s: nessuna voce di scarto"), Ordine), Conta(ERTMoveOutcome::SupersededByDash), 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna voce di scarto"), *Ordine), Conta(ERTMoveOutcome::SupersededByDash), 0);
 		// La voce `Moved` della fase Move: anche lo scatto ne scrive una, nella fase Dash.
 		int32 MossoNelMove = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
@@ -825,8 +837,8 @@ bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 			MossoNelMove += (E.UnitId == U->StableUnitId && E.Phase == ERTMatchPhase::Move && E.Category == ERTLogCategory::Move
 				&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::Moved)) ? 1 : 0;
 		}
-		TestEqual(*FString::Printf(TEXT("%s: il Move e' avvenuto"), Ordine), MossoNelMove, 1);
-		TestEqual(*FString::Printf(TEXT("%s: l'unita' e' dove l'ha portata il Move, dopo lo scatto"), Ordine), U->Cell, MoveTo);
+		TestEqual(*FString::Printf(TEXT("%s: il Move e' avvenuto"), *Ordine), MossoNelMove, 1);
+		TestEqual(*FString::Printf(TEXT("%s: l'unita' e' dove l'ha portata il Move, dopo lo scatto"), *Ordine), U->Cell, MoveTo);
 		DestroyInteractionWorld(World);
 	}
 	return true;
@@ -6538,6 +6550,52 @@ bool FRTResolutionDeclarationPermutationChangesOnlyTheOrderFieldTest::RunTest(co
 	{
 		for (int32 i = 0; i < VA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("voce %d, senza l'ordine"), i), DescriviVoce(VA[i]), DescriviVoce(VB[i])); }
 	}
+	// E38 CP 38.16 (#4117, criterio 1): lo stesso con scatto + Move. Ram verso (2,0) e un Move da (2,0) a (2,1), dichiarati nei due
+	// ordini: stesso stato e stesse voci di TurnLog senza il campo d'ordine; scatto e Move portano ciascuno il proprio indice, e
+	// l'hash di traccia cambia ([D-615] (2) e (5)). Lo scatto risolve prima perche' e' della macro-fase Dash, non perche' e' dichiarato
+	// prima.
+	struct FEsitoScatto { uint32 Stato = 0; FRTCellId Cella; TArray<FRTTurnLogEntry> Voci; int32 IndiceDelMove = -99; };
+	auto GiocaScatto = [this](bool bScattoPrima, FEsitoScatto& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		auto Scatta = [&B]() { B.Riktor->SetPlannedDash(B.Ram, FRTCellId(2, 0)); };
+		auto Cammina = [&B]() { B.Riktor->SetPlannedMove({ FRTCellId(2, 1) }, { FRTCellId(2, 0), FRTCellId(2, 1) }); };
+		if (bScattoPrima) { Scatta(); Cammina(); } else { Cammina(); Scatta(); }
+		if (!TestTrue(TEXT("premessa: scatto + Move, 2 + 2 = 4, e' legale"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		ResolveOneTurn(B.TM);
+		const URTHexMapAsset* Mappa = nullptr;
+		for (TActorIterator<ARTHexMapActor> It(B.World); It; ++It) { Mappa = It->MapAsset; }
+		Out.Stato = URTMatchStateHashLibrary::HashMatchState(Mappa, URTMatchStateHashLibrary::BuildUnitDigests({ B.Riktor, B.Gadget }), {});
+		Out.Cella = B.Riktor->Cell;
+		Out.Voci = B.TM->GetTurnLog();
+		for (const FRTTurnLogEntry& E : Out.Voci)
+		{
+			if (E.UnitId == B.Riktor->StableUnitId && E.Phase == ERTMatchPhase::Move && E.Category == ERTLogCategory::Move) { Out.IndiceDelMove = E.DeclarationIndex; }
+		}
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	FEsitoScatto SA, SB;
+	if (!GiocaScatto(true, SA) || !GiocaScatto(false, SB)) { return false; }
+	TestEqual(TEXT("scatto + Move: Riktor finisce dopo lo scatto e il Move"), SA.Cella, FRTCellId(2, 1));
+	TestEqual(TEXT("scatto + Move: stessa cella nei due ordini"), SA.Cella, SB.Cella);
+	TestEqual(TEXT("scatto + Move: stesso stato finale"), SA.Stato, SB.Stato);
+	TestEqual(TEXT("scatto + Move: il Move porta 1 dichiarato dopo lo scatto"), SA.IndiceDelMove, 1);
+	TestEqual(TEXT("e 0 dichiarato prima"), SB.IndiceDelMove, 0);
+	TestNotEqual(TEXT("scatto + Move, controllo positivo: gli hash di traccia sono diversi"),
+		URTTurnLogLibrary::HashTurnLog(SA.Voci), URTTurnLogLibrary::HashTurnLog(SB.Voci));
+	TestEqual(TEXT("scatto + Move: e coincidono portando il campo a INDEX_NONE"),
+		URTTurnLogLibrary::HashTurnLog(SenzaOrdine(SA.Voci)), URTTurnLogLibrary::HashTurnLog(SenzaOrdine(SB.Voci)));
+	{
+		const TArray<FRTTurnLogEntry> XA = SenzaOrdine(SA.Voci);
+		const TArray<FRTTurnLogEntry> XB = SenzaOrdine(SB.Voci);
+		if (TestEqual(TEXT("scatto + Move: stesse voci di TurnLog"), XA.Num(), XB.Num()))
+		{
+			for (int32 i = 0; i < XA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("scatto + Move, voce %d, senza l'ordine"), i), DescriviVoce(XA[i]), DescriviVoce(XB[i])); }
+		}
+	}
+
 	// E38 CP 38.15 (#4116, criterio 6): lo stesso con un piano di DUE reazioni, che scattano entrambe sullo stesso colpo di
 	// Gadget ([D-619]). Dichiarate nei due ordini, danno lo stesso stato, gli stessi eventi di gioco nello stesso ordine e le
 	// stesse voci; cambiano gli indici delle voci delle reazioni ([D-615] (2) e (5)), e con loro l'hash di traccia.
