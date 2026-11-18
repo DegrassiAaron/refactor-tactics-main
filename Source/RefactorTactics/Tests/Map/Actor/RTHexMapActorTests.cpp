@@ -3158,6 +3158,8 @@ namespace
 		switch (Meaning)
 		{
 		case ERTOverlayMeaning::Movement:        Actor->SetPreviewReachableCells({ A, B }); break;
+		// #4155: lo stesso ventaglio, quando il residuo di Action Point non paga il Move.
+		case ERTOverlayMeaning::MovementOverBudget: Actor->SetPreviewReachableCells({ A, B }, /*bOverBudget=*/ true); break;
 		case ERTOverlayMeaning::PathTrace:       Actor->SetPreviewPath({ A, B }); break;
 		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
 		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;
@@ -3266,6 +3268,9 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 	for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
 	{
 		if (Meaning == ERTOverlayMeaning::Hover) { continue; }
+		// #4155: il ventaglio e' UN'area con due significati in alternativa, `Movement` o `MovementOverBudget`, e non si accendono
+		// insieme. Qui e' acceso come `Movement`; l'altro ha il suo giro dopo il reset.
+		if (Meaning == ERTOverlayMeaning::MovementOverBudget) { continue; }
 		TestTrue(*FString::Printf(TEXT("controllo: %s e' acceso prima del reset"), *HexMapActorMeaningName(Meaning)),
 			Actor->NumPlanningPreviewCells(Meaning) > 0);
 	}
@@ -3284,6 +3289,14 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("dopo il reset %s e' spento"), *HexMapActorMeaningName(Meaning)),
 			Actor->NumPlanningPreviewCells(Meaning), 0);
 	}
+	// #4155: lo stesso ventaglio nel suo altro significato, acceso e spento da solo.
+	Actor->SetPreviewReachableCells({ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) }, /*bOverBudget=*/ true);
+	TestTrue(TEXT("controllo: il ventaglio che il residuo non paga e' acceso"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::MovementOverBudget) > 0);
+	Actor->ClearPlanningPreview();
+	TestEqual(TEXT("dopo il reset il ventaglio che il residuo non paga e' spento"),
+		Actor->NumPlanningPreviewCells(ERTOverlayMeaning::MovementOverBudget), 0);
+
 	TestEqual(TEXT("dopo il reset l'area normale del fuoco e' spenta"), Actor->GetPreviewFocusNormalCells().Num(), 0);
 	TestEqual(TEXT("e quella raggiunta solo correndo"), Actor->GetPreviewFocusRunOnlyCells().Num(), 0);
 	TestTrue(TEXT("dopo il reset anche la portata in hover e' spenta, nei suoi tre stati (#3750, fetta D)"),

@@ -3784,7 +3784,8 @@ bool FRTActionPointsPrivacyTest::RunTest(const FString&)
 	const UScriptStruct* const TipoEccezione = FRTAbilityCooldownView::StaticStruct();
 	const FName CampoEccezione(TEXT("bOverBudget"));
 	TestNotNull(TEXT("l'eccezione esiste ancora: se il campo cambia nome, l'eccezione va riletta"), TipoEccezione->FindPropertyByName(CampoEccezione));
-	const TCHAR* Campi[] = { TEXT("Budget"), TEXT("Committed"), TEXT("Residual") };
+	// ➕ #4155: `Preview`, il costo del gesto in corso, e' un campo del piano come gli altri tre (§19-bis.5).
+	const TCHAR* Campi[] = { TEXT("Budget"), TEXT("Committed"), TEXT("Preview"), TEXT("Residual") };
 	auto Ha = [TipoEccezione, CampoEccezione](const UScriptStruct* Tipo, const FString& Nome)
 	{
 		for (TFieldIterator<FProperty> It(Tipo); It; ++It)

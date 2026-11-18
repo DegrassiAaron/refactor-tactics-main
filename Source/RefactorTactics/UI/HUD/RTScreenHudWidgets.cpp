@@ -804,7 +804,10 @@ FRTActionPointView URTActionDockWidget::GetActionPoints() const
 	{
 		return FRTActionPointView();
 	}
-	return URTHudViewModel::BuildActionPoints(GetSelectedUnit());
+	// Il gesto in corso lo dichiara il controller, che sa dov'e' il cursore (#4155): senza controller nessun gesto.
+	const ARTUnit* Unit = GetSelectedUnit();
+	const ARTPlayerController* PC = ResolveCommandController();
+	return URTHudViewModel::BuildActionPoints(Unit, PC ? PC->ActionPointsAfterGestureNow(Unit) : INDEX_NONE);
 }
 
 void URTActionDockWidget::EnsureActionPointPips()
@@ -906,8 +909,10 @@ void URTActionDockWidget::RefreshActionPoints()
 	for (int32 i = 0; i < Stati.Num(); ++i)
 	{
 		using T = ERTUIToken;
+		// L'anteprima del gesto (#4155) in bianco, accanto all'ambra dell'impegnato [LETTURA, da giudicare in PIE].
 		const T Colore = Stati[i] == ERTActionPointPip::Committed ? T::Amber
 			: Stati[i] == ERTActionPointPip::Over ? T::Red
+			: Stati[i] == ERTActionPointPip::Preview ? T::White
 			: T::Frame_Off;
 		UBorder* Pip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
 		Pip->SetVisibility(ESlateVisibility::HitTestInvisible); // si legge, non si clicca: non ruba il puntatore alla barra

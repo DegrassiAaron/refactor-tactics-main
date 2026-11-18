@@ -3477,6 +3477,9 @@ bool FRTPlanningOverlayEveryExitTurnsEveryMeaningOffTest::RunTest(const FString&
 		for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
 		{
 			if (Meaning == ERTOverlayMeaning::Hover) { continue; }
+			// #4155: il ventaglio e' UN'area con due significati in alternativa, e qui e' acceso come `Movement`. Che il reset spenga
+			// anche `MovementOverBudget` lo prova `HexMapActor.ClearPlanningPreviewTurnsEveryMeaningOff`: e' la stessa area.
+			if (Meaning == ERTOverlayMeaning::MovementOverBudget) { continue; }
 			TestTrue(*FString::Printf(TEXT("[%s] controllo: %s e' acceso prima dell'uscita"),
 				*Uscita, *PlanOverlayMeaningName(Meaning)), B.HexMap->NumPlanningPreviewCells(Meaning) > 0);
 		}

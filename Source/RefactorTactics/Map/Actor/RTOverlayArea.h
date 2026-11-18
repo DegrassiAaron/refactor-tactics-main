@@ -89,7 +89,17 @@ enum class ERTOverlayMeaning : uint8
 	 * il tiro passa. Ambra, [D-561]. Si disegna tratteggiata, e il tratteggio e' il canale non cromatico che resta (sotto
 	 * daltonismo il rosa del bloccato e l'ambra si avvicinano).
 	 */
-	AbilityRangeUnverdicted
+	AbilityRangeUnverdicted,
+
+	/**
+	 * Il ventaglio di movimento quando il residuo di Action Point non paga il Move (#4155, [D-625] (2)): le celle restano visibili,
+	 * col colore di rifiuto, e il click non pianifica. Rosso cupo, [D-627].
+	 *
+	 * 🔑 **Un significato a se' e non `Movement` piu' tenue**: [D-625] chiede il «colore di rifiuto», e il colore appartiene al
+	 * significato (`Certainty` muove solo l'opacita'). ⛔ Non e' `AbilityRangeBlocked` (qui non si puo' TIRARE) ne' il marcatore di
+	 * blocco (qui non si puo' ENTRARE): la cella si raggiunge, e' il piano che non la paga.
+	 */
+	MovementOverBudget
 };
 
 /**

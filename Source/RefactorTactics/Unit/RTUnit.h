@@ -522,6 +522,37 @@ public:
 	 */
 	bool CanAffordArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
 
+	/**
+	 * Quanti AP spenderebbe il piano dopo un waypoint di movimento normale (#4155, [D-625] (2)).
+	 *
+	 * 🔑 **Il percorso e' uno, e la sua voce Move costa lo stesso in ogni banda** di [D-425] (Move, Sprint, Withdraw sono tutte
+	 * di macro-fase Move, `DefaultActionPointCost`): senza un movimento nel piano il waypoint aggiunge la voce, con un percorso
+	 * gia' pianificato lo allunga e costa 0 (la lettura (f) di [D-625], sul tratto pagato). ⏳ Il tratto concatenato oltre il
+	 * tetto dello Sprint, che costa altri 2, entra con CP 38.16 (#4117): finche' non c'e', nessun waypoint lo apre, perche' il
+	 * percorso oltre quel tetto e' rifiutato dal budget di movimento.
+	 *
+	 * `SpentNow` come in `ActionPointsAfterArming`.
+	 */
+	int32 ActionPointsAfterMoving(int32 SpentNow = INDEX_NONE) const;
+
+	/** Il piano paga un waypoint di movimento normale: la stessa regola di `CanAffordArming`, sulla spesa di `ActionPointsAfterMoving`. */
+	bool CanAffordMoving(int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Un click su una cella della mappa porterebbe a un waypoint di movimento normale (#4155): il verso dichiarato non chiude il movimento,
+	 * e l'azione armata non e' uno scatto, per cui la cella e' la meta. Sono le due uscite di `ARTPlayerController::HandleClickOnCell` prima
+	 * del ramo del movimento che non dipendono dalla cella: dove sono vere, l'anteprima del costo e il rifiuto per budget direbbero un Move
+	 * che il click non fa (revisione di #4155). ⚠️ Se il click cambia quelle uscite, questa funzione cambia con lui.
+	 */
+	bool WaypointClickIsOpen() const;
+
+	/**
+	 * `KitIndex` e' gia' nel piano, in una voce qualunque, o e' l'azione armata: la sua spesa e' gia' contata. Chiederle quanto
+	 * costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153). La leggono `bOverBudget`
+	 * della dock e l'anteprima dello slot sotto il cursore (#4155).
+	 */
+	bool IsAbilityInPlan(int32 KitIndex) const;
+
 	/** Le voci `Prep` sono risolte: escono dal piano, la principale e il suo bersaglio restano (E38 CP 38.13). */
 	void ClearPlannedPrepEntries() { Plan.RemovePrepEntries(); }
 

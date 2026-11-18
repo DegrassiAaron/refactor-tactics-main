@@ -25,6 +25,7 @@
 #include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Turn/Resolution/RTMovementActionLibrary.h"
 #include "Turn/Actions/RTIntentPrivacyLibrary.h" // FRTIntentView: cio' che il click sul nemico pianificherebbe, per l'hover ([D-528])
+#include "Turn/Actions/RTPlanValidationLibrary.h" // ActionPointsSpent, MakePlanFor, ERTActionInvalidReason: il gesto sotto il cursore (#4155)
 #include "Combat/RTCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/Actor/RTSightLines.h"
@@ -2462,6 +2463,16 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		return;
 	}
 
+	// [D-625] (2), #4155: una cella che il residuo non paga non si pianifica. Il motivo si mostra gia' all'hover
+	// (`HoveredMoveRefusal`); qui si esce e basta, e il rifiuto non entra nel TurnLog, come quello dell'armo.
+	if (!SelectedUnit->CanAffordMoving())
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) rifiutata per %s: con il movimento il piano spenderebbe %d AP su %d"),
+			Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName(), SelectedUnit->ActionPointsAfterMoving(),
+			SelectedUnit->GetActionPointBudget());
+		return;
+	}
+
 	// Movimento normale: il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
 	SelectedUnit->AddPlannedWaypoint(Cell);
 	const FRTHexPathResult Composite =
@@ -2871,6 +2882,69 @@ bool ARTPlayerController::IsDockReadOnly() const
 		&& Subject != nullptr
 		&& Subject->IsAlive()
 		&& !IsUnitCommandedByThisPlayer(Subject);
+}
+
+int32 ARTPlayerController::ActionPointsAfterGestureNow(const ARTUnit* Unit) const
+{
+	if (!Unit || Unit != GetSelectedUnit() || IsDockReadOnly() || IsPlanningInputInert())
+	{
+		return INDEX_NONE;
+	}
+	// I contesti in cui un click o un tasto scrivono il piano, quelli di `FRTPlanningOverlayInputs::ShowsAreas`.
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing
+		&& Context != ERTPointerContext::Targeting && Context != ERTPointerContext::Facing)
+	{
+		return INDEX_NONE;
+	}
+	// La spesa si compone solo quando c'e' un gesto: la dock chiede a ogni tick, e senza gesto la risposta e' `INDEX_NONE`.
+	if (Overlay.GetSkillHoverUnit() == Unit && Overlay.GetSkillHoverIndex() != INDEX_NONE)
+	{
+		const int32 Indice = Overlay.GetSkillHoverIndex();
+		if (Unit->IsAbilityInPlan(Indice))
+		{
+			// Gia' contata: riarmarla non spende niente di nuovo.
+			return URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
+		}
+		return Unit->CanUseAbility(Indice) ? Unit->ActionPointsAfterArming(Indice) : INDEX_NONE;
+	}
+	return IsMoveCellUnderCursor(Unit) ? Unit->ActionPointsAfterMoving() : INDEX_NONE;
+}
+
+ERTActionInvalidReason ARTPlayerController::HoveredMoveRefusal() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit || IsDockReadOnly() || IsPlanningInputInert() || !IsMoveCellUnderCursor(Unit))
+	{
+		return ERTActionInvalidReason::None;
+	}
+	return Unit->CanAffordMoving() ? ERTActionInvalidReason::None : ERTActionInvalidReason::OverBudget;
+}
+
+bool ARTPlayerController::IsMoveCellUnderCursor(const ARTUnit* Unit) const
+{
+	if (!Unit || Unit != GetSelectedUnit())
+	{
+		return false;
+	}
+	const ERTPointerContext Context = GetPointerContext();
+	if ((Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing) || !Unit->WaypointClickIsOpen())
+	{
+		return false;
+	}
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !HexMap->IsHoveredCellValid())
+	{
+		return false;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	// Come `HandleClickOnCell`: la cella finale apre il selettore del verso, e il nemico della carica pianificata si ispeziona.
+	if (Cell == FacingCellFor(Unit) || PlannedChargeTargetAt(Unit, Cell))
+	{
+		return false;
+	}
+	return HexMap->IsPreviewReachableCell(Cell);
 }
 
 const ARTUnit* ARTPlayerController::GetDockUnit() const

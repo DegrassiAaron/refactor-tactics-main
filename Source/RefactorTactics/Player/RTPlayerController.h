@@ -13,6 +13,7 @@
 #include "RTPlayerController.generated.h"
 
 enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
+enum class ERTActionInvalidReason : uint8; // HoveredMoveRefusal (#4155): il tipo vive in Turn/Actions/RTActionFallbackLibrary.h
 
 class UInputMappingContext;
 class UInputAction;
@@ -996,6 +997,34 @@ public:
 	 * il piano, e li' un falso positivo di un fotogramma costa un click ignorato con la sua riga, mai un piano scritto per un'altra unita'.
 	 */
 	bool IsDockReadOnly() const;
+
+	/**
+	 * La spesa del piano di `Unit` dopo il gesto sotto il cursore, `INDEX_NONE` senza un gesto (#4155, §19-bis.1). La dock la passa a
+	 * `URTHudViewModel::BuildActionPoints`, che ne fa il `Preview` dei pip.
+	 *
+	 * I gesti sono due, e la spesa la dice l'unita', non questa funzione:
+	 *  - lo slot della barra sotto il cursore (`SetSkillHover`): `ActionPointsAfterArming`, oppure la spesa di adesso per un'azione gia'
+	 *    nel piano (`IsAbilityInPlan`); nessun gesto per uno slot che non si usa per un'altra ragione (`CanUseAbility`);
+	 *  - una cella del ventaglio sotto il cursore (`IsMoveCellUnderCursor`): `ActionPointsAfterMoving`.
+	 * Lo slot viene prima: col cursore sulla barra, la cella sotto la barra non e' il gesto.
+	 *
+	 * ⛔ Solo per l'unita' comandata, a barra scrivibile e in un contesto di pianificazione: per ogni altra `INDEX_NONE`.
+	 */
+	int32 ActionPointsAfterGestureNow(const class ARTUnit* Unit) const;
+
+	/**
+	 * Il motivo per cui la cella del ventaglio sotto il cursore non si pianifica, `None` se si pianifica o se il cursore non e' su una
+	 * cella del ventaglio (#4155, [D-625] (2)). Oggi l'unico motivo e' `OverBudget`, la stessa domanda del click (`CanAffordMoving`).
+	 */
+	ERTActionInvalidReason HoveredMoveRefusal() const;
+
+	/**
+	 * Il cursore e' su una cella del ventaglio di `Unit` che un click pianificherebbe come waypoint (#4155): contesto `Planning` o
+	 * `Pathing`, cella del ventaglio (`ARTHexMapActor::IsPreviewReachableCell`), e non la cella finale (apre il verso) ne' il nemico su cui
+	 * la carica e' gia' pianificata (lo ispeziona), e con `ARTUnit::WaypointClickIsOpen` (ne' uno scatto armato ne' il verso dichiarato). Il
+	 * ventaglio e' quello dell'unita' selezionata: per un'altra unita' e' falso.
+	 */
+	bool IsMoveCellUnderCursor(const class ARTUnit* Unit) const;
 
 	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.

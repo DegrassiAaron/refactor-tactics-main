@@ -87,6 +87,13 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** Sale a ogni richiesta esplicita di ricalcolo: il piano cambia senza che nessun altro campo lo dica. */
 	int32 PlanRevision = 0;
 
+	/**
+	 * Il residuo di Action Point non paga il Move (#4155, [D-625] (2)): il ventaglio prende `MovementOverBudget`. ⚠️ Entra qui perche'
+	 * la pagabilita' cambia con gesti che `PlanRevision` non conta sempre (armare una reazione, il budget del turno): senza questo
+	 * campo il ventaglio resterebbe del colore di un piano di prima. Livello del piano.
+	 */
+	bool bMovementOverBudget = false;
+
 	/** Il turno: un turno nuovo riparte da capo anche se tutto il resto e' uguale. */
 	int32 TurnIndex = 0;
 

@@ -2296,6 +2296,49 @@ bool ARTUnit::CanAffordArming(int32 KitIndex, int32 SpentNow) const
 	return Dopo <= GetActionPointBudget() || Dopo <= Spesa; // il secondo termine: a piano gia' sforato, un gesto che non peggiora
 }
 
+int32 ARTUnit::ActionPointsAfterMoving(int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	if (HasPlannedNormalMove())
+	{
+		return Spesa; // il waypoint allunga il percorso che il piano paga gia'
+	}
+	// `static const`, come in `MakePlanFor`: `FindCoreAction` costruisce il catalogo a ogni chiamata, e la dock chiede a ogni tick.
+	static const int32 CostoDelMove = FMath::Max(0, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).ActionPointCost);
+	return Spesa + CostoDelMove;
+}
+
+bool ARTUnit::IsAbilityInPlan(int32 KitIndex) const
+{
+	bool bNelPiano = KitIndex == SelectedAbilityIndex;
+	for (const FRTPlanEntry& Voce : Plan.GetEntries())
+	{
+		bNelPiano |= Voce.AbilityIndex == KitIndex;
+	}
+	return bNelPiano;
+}
+
+bool ARTUnit::WaypointClickIsOpen() const
+{
+	if (Plan.bDeclaresPlannedFacing)
+	{
+		return false; // il verso chiude il movimento ([D-367], [D-462])
+	}
+	const URTActionData* Armata = GetAbility(SelectedAbilityIndex);
+	return !(Armata && URTCatalogLibrary::IsFastMovement(Armata->Def)); // con uno scatto armato la cella e' la sua meta
+}
+
+bool ARTUnit::CanAffordMoving(int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Dopo = ActionPointsAfterMoving(Spesa);
+	return Dopo <= GetActionPointBudget() || Dopo <= Spesa;
+}
+
 bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)
 {
 	const URTActionData* Ability = GetAbility(AbilityIndex);

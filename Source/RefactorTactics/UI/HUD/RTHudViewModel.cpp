@@ -1067,12 +1067,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// ⚠️ Non per un'azione che e' GIA' nel piano, in una voce qualunque, ne' per quella armata: la sua spesa e' gia' contata, e
 		// chiederle quanto costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153: Guard
 		// aggiunta come voce di Prep che porta il piano a residuo zero). `bPlanned` guarda solo la prima voce di ogni classe.
-		bool bNelPiano = Index == Unit->SelectedAbilityIndex;
-		for (const FRTPlanEntry& Voce : Unit->GetPlan().GetEntries())
-		{
-			bNelPiano |= Voce.AbilityIndex == Index;
-		}
-		View.bOverBudget = !bNelPiano && !Unit->CanAffordArming(Index, Spesa);
+		View.bOverBudget = !Unit->IsAbilityInPlan(Index) && !Unit->CanAffordArming(Index, Spesa);
 
 		Cooldowns.Add(View);
 	}
@@ -1226,7 +1221,7 @@ FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit
 	return View;
 }
 
-FRTActionPointView URTHudViewModel::BuildActionPoints(const ARTUnit* Unit)
+FRTActionPointView URTHudViewModel::BuildActionPoints(const ARTUnit* Unit, int32 SpentAfterGesture)
 {
 	FRTActionPointView View;
 	if (!Unit)
@@ -1238,7 +1233,9 @@ FRTActionPointView URTHudViewModel::BuildActionPoints(const ARTUnit* Unit)
 	View.Budget = Unit->GetActionPointBudget();
 	// Il piano di `MakePlanFor` e la somma di `ActionPointsSpent`: le stesse due chiamate che portano al validatore.
 	View.Committed = URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
-	View.Residual = View.Budget - View.Committed;
+	// Il gesto lo misura l'unita' (#4155): qui si legge la differenza, non si ricalcola il costo.
+	View.Preview = SpentAfterGesture != INDEX_NONE ? SpentAfterGesture - View.Committed : 0;
+	View.Residual = View.Budget - View.Committed - View.Preview;
 	View.bModified = View.Budget != RTActionPoints::DefaultBudget;
 	return View;
 }
@@ -1251,15 +1248,18 @@ TArray<ERTActionPointPip> URTHudViewModel::ActionPointPips(const FRTActionPointV
 		return Pips;
 	}
 
+	// Lo stato DOPO il gesto (#4155): restano impegnati i primi `Fermi`, il gesto ne aggiunge fino a `Dopo`, e oltre il budget
+	// ogni AP speso e' `Over`, che sia del piano o del gesto. Senza un gesto `Fermi == Dopo == Committed`, la fila di #4150.
 	const int32 Budget = FMath::Max(0, View.Budget);
 	const int32 Committed = FMath::Max(0, View.Committed);
-	for (int32 i = 0; i < Budget; ++i)
+	const int32 Dopo = FMath::Max(0, Committed + View.Preview);
+	const int32 Fermi = FMath::Min(Committed, Dopo);
+	for (int32 i = 0; i < FMath::Max(Budget, Dopo); ++i)
 	{
-		Pips.Add(i < Committed ? ERTActionPointPip::Committed : ERTActionPointPip::Free);
-	}
-	for (int32 i = Budget; i < Committed; ++i)
-	{
-		Pips.Add(ERTActionPointPip::Over);
+		Pips.Add(i >= Budget ? ERTActionPointPip::Over
+			: i < Fermi ? ERTActionPointPip::Committed
+			: i < Dopo ? ERTActionPointPip::Preview
+			: ERTActionPointPip::Free);
 	}
 	return Pips;
 }

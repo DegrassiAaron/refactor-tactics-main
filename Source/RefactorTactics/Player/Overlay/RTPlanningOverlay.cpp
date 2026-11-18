@@ -12,6 +12,7 @@ bool FRTPlanningOverlayInputs::SamePlanLevel(const FRTPlanningOverlayInputs& Oth
 		&& ArmedAbilityIndex == Other.ArmedAbilityIndex
 		&& ArmedTargetKind == Other.ArmedTargetKind
 		&& PlanRevision == Other.PlanRevision
+		&& bMovementOverBudget == Other.bMovementOverBudget
 		&& TurnIndex == Other.TurnIndex
 		&& bMatchEnded == Other.bMatchEnded
 		// Il fuoco cambia COSA si calcola, non dove sta il cursore: e' livello del piano. 🔑 La sorgente entra insieme ai
