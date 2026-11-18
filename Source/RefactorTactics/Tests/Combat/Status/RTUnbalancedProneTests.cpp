@@ -1069,6 +1069,73 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 }
 
 /**
+ * E38 CP 38.16, [D-626] (2) — **con la corsa negata il secondo tratto nasce oltre il raggio di Move, e un percorso pagato a tratti Move
+ * non e' una corsa negata.**
+ *
+ * Chi e' sbilanciato e porta nel piano il costo di un percorso oltre il suo raggio (tre celle in piu') lo paga con due tratti Move,
+ * arriva, e non lascia la voce `Unbalanced`: la banda letta senza il divieto direbbe Sprint, ma il piano non ha chiesto una corsa
+ * (revisione di CP 38.16b). Il gemello, sbilanciato anche lui, dichiara la sola destinazione, senza costo: un tratto solo, e la voce
+ * c'e', come in `Status.SprintRefusedWhileUnbalanced`. E' il controllo che la voce non sia sparita per tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPaidMoveLegsAreNotADeniedRunTest,
+	"RefactorTactics.Status.PaidMoveLegsAreNotADeniedRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPaidMoveLegsAreNotADeniedRunTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFallWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnFallMap(World, /*Radius=*/ 14);
+
+	ARTUnit* Runner = SpawnFallUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Gemello = SpawnFallUnit(World, 0, FRTCellId(0, 3));
+	ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(-6, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Gemello || !Foe) { DestroyFallWorld(World); return false; }
+
+	const int32 Base = Runner->GetEffectiveMoveRange();
+	const int32 Oltre = Base + 3;
+	if (!TestTrue(TEXT("premessa: la destinazione e' DENTRO la mappa"), Base > 0 && Oltre <= 14))
+	{
+		DestroyFallWorld(World);
+		return false;
+	}
+	for (ARTUnit* U : { Runner, Gemello })
+	{
+		U->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		U->ClearPlannedMainAction();
+	}
+	// Il percorso del piano, in linea retta sulla mappa piana: una cella costa 1, quindi il costo e' la distanza.
+	TArray<FRTCellId> Percorso;
+	for (int32 k = 0; k <= Oltre; ++k)
+	{
+		Percorso.Add(FRTCellId(k, 0));
+	}
+	Runner->SetPlannedRoute(Percorso, /*PathCost=*/ Oltre);
+	Gemello->SetPlannedCell(FRTCellId(Oltre, 3));
+	TestEqual(TEXT("premessa: sbilanciato, il percorso si paga con due tratti Move"), Runner->PlannedMoveLegs(), 2);
+	NeutralizeAllIntents(Foe);
+
+	RunFallTurn(TM);
+
+	const auto RifiutiDi = [TM](const ARTUnit* U)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			N += E.Category == ERTLogCategory::Fallback && E.UnitId == U->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced);
+		}
+		return N;
+	};
+	TestEqual(TEXT("i due tratti pagati portano a destinazione"), Runner->Cell, FRTCellId(Oltre, 0));
+	TestEqual(TEXT("e non c'e' una voce di corsa negata"), RifiutiDi(Runner), 0);
+	TestEqual(TEXT("controllo: il gemello a sola destinazione la riceve"), RifiutiDi(Gemello), 1);
+
+	DestroyFallWorld(World);
+	return true;
+}
+
+/**
  * Chi scivola mentre e' gia' `Unbalanced` percorre DUE celle invece di una: `FRTTerrainDef::SlideCells`
  * smette di essere letto come un booleano.
  *

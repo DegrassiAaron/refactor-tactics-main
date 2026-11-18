@@ -509,6 +509,8 @@ public:
 	 * ⚠️ **Sovrastima l'Overwatch in un caso stretto**: armarlo tronca i waypoint al `Withdraw` ([D-070]), e se il troncamento
 	 * li toglie tutti la voce Move (2 AP) sparisce. Qui la voce Move resta contata, quindi a residuo zero un Overwatch che
 	 * libererebbe AP puo' risultare non pagabile. Non misurato quando succede (revisione di #4153).
+	 * ➕ E38 CP 38.16: i tratti oltre il primo invece non si contano, perche' sotto il tetto riservato non nascono ([D-626] (1)): un
+	 * percorso a tre tratti non impedisce di armare l'Overwatch che lo riporta a uno.
 	 */
 	int32 ActionPointsAfterArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
 

@@ -5547,6 +5547,13 @@ void ARTTurnManager::ResolveDash()
 		{
 			continue; // camminare, sgusciare e ripiegare non sono corse: [D-319] non li tocca
 		}
+		// ➕ E38 CP 38.16, [D-626] (2): con la corsa negata il secondo tratto nasce oltre il raggio di Move, a 2 AP. Un percorso che il
+		// piano ha pagato a tratti Move non e' una corsa negata, anche se la banda senza divieto lo leggerebbe Sprint: l'unita' lo
+		// percorre per intero (`MakeSimUnit`), e una voce qui dichiarerebbe una cancellazione che non avviene (revisione di CP 38.16b).
+		if (Unit->PlannedMoveMeasure() <= Unit->MoveBudgetForLegs(Unit->PlannedMoveLegs()))
+		{
+			continue;
+		}
 
 		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Intended.Id);
 		FRTTurnLogEntry Rifiutata;

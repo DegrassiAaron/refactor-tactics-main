@@ -2299,7 +2299,15 @@ int32 ARTUnit::ActionPointsAfterArming(int32 KitIndex, int32 SpentNow) const
 			&& CanBeAnExtraPrepAction(Ability);
 		Sostituita = bSiAggiunge ? INDEX_NONE : Principale;
 	}
-	return Spesa - CostoDi(Sostituita) + CostoDi(KitIndex);
+	// E38 CP 38.16, [D-626] (1): un'azione che riserva un tetto al movimento (l'Overwatch, il `Withdraw`) lo fa valere sull'intero
+	// percorso, e i tratti oltre il primo spariscono con il troncamento: la spesa dopo il gesto non li conta (revisione di CP 38.16b).
+	int32 TrattiCheSpariscono = 0;
+	if (!Ability->Def.ReservesMovementProfileId.IsNone())
+	{
+		static const int32 CostoDelTratto = FMath::Max(0, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).ActionPointCost);
+		TrattiCheSpariscono = FMath::Max(0, PlannedMoveLegs() - 1) * CostoDelTratto;
+	}
+	return Spesa - CostoDi(Sostituita) + CostoDi(KitIndex) - TrattiCheSpariscono;
 }
 
 bool ARTUnit::CanAffordArming(int32 KitIndex, int32 SpentNow) const

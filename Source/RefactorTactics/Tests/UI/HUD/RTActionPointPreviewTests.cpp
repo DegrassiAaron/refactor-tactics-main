@@ -588,19 +588,31 @@ bool FRTAWaypointBeyondTheSprintCapOpensALegTest::RunTest(const FString&)
 			DestroyApPreviewBench(B);
 			return false;
 		}
-		B.Unit->SetActionPointBudget(3);
+		// Budget 6 e non un budget basso: a budget 6 il turno pagherebbe tre tratti a piano vuoto, quindi la pianificazione compone il
+		// percorso fino a 20 MP e il rifiuto qui sotto lo da' il RESIDUO, non il tetto di pianificazione. ⏱️ *La prima stesura usava budget
+		// 3*, dove il tetto di pianificazione e' gia' un tratto solo: il click era rifiutato dal pathfinding, e la mutazione che toglie il
+		// controllo degli AP del click sopravviveva (M45 della 38.16b).
+		B.Unit->SetActionPointBudget(6);
+		B.Unit->DeclarePlannedMainAction(B.Attacco);
+		B.PC->SelectAbilityForCurrentForTest(B.Reazione);
+		B.Unit->SelectAbility(INDEX_NONE);
+		if (!TestEqual(TEXT("premessa: attacco base e reazione spendono 4, il residuo paga un tratto"), B.Spent(), 4))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
 		B.PC->HandleClickOnCellForTest(FRTCellId(12, 0, 0));
-		TestEqual(TEXT("a budget 3 il waypoint a 12 celle non si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
-		TestEqual(TEXT("e il piano non spende"), B.Spent(), 0);
+		TestEqual(TEXT("a residuo 2 il waypoint a 12 celle non si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
+		TestEqual(TEXT("e il piano spende ancora 4"), B.Spent(), 4);
 
 		B.PC->HandleClickOnCellForTest(FRTCellId(10, 0, 0));
 		TestEqual(TEXT("controllo: quello a 10, sul tetto, si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
-		TestEqual(TEXT("controllo: e il piano spende 2"), B.Spent(), 2);
+		TestEqual(TEXT("controllo: e il piano spende 6"), B.Spent(), 6);
 
-		// Allungare di una cella oltre il tetto apre il secondo tratto, che a budget 3 non si paga.
+		// Allungare di una cella oltre il tetto apre il secondo tratto, che il residuo 0 non paga.
 		B.PC->HandleClickOnCellForTest(FRTCellId(11, 0, 0));
 		TestEqual(TEXT("il waypoint che apre il secondo tratto non si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
-		TestEqual(TEXT("e il piano spende ancora 2"), B.Spent(), 2);
+		TestEqual(TEXT("e il piano spende ancora 6"), B.Spent(), 6);
 		DestroyApPreviewBench(B);
 	}
 	return true;
