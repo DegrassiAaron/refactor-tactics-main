@@ -131,6 +131,15 @@ namespace
 	}
 
 	/** I pip uno a uno: `TestEqual` non confronta due `TArray` di enum. */
+	/**
+	 * Il significato con cui il ventaglio disegna `Cella`: da E38 CP 38.16 il ventaglio ha due aree, il pagato (`Movement`) e il tratto che
+	 * il residuo non paga (`MovementOverBudget`, [D-628] (3)), e il colore e' della cella, non dell'insieme.
+	 */
+	ERTOverlayMeaning ApPreviewMeaningOf(const ARTHexMapActor* Map, const FRTCellId& Cella)
+	{
+		return Map->IsPreviewOverBudgetCell(Cella) ? ERTOverlayMeaning::MovementOverBudget : ERTOverlayMeaning::Movement;
+	}
+
 	void ApPipsEqual(FAutomationTestBase& Test, const TCHAR* Caso, const TArray<ERTActionPointPip>& Avuti, const TArray<ERTActionPointPip>& Attesi)
 	{
 		if (!Test.TestEqual(*FString::Printf(TEXT("%s: quanti pip"), Caso), Avuti.Num(), Attesi.Num()))
@@ -353,7 +362,7 @@ bool FRTDockShowsTheGestureCostTest::RunTest(const FString&)
 	ApPipsEqual(*this, TEXT("2: i pip mostrano due Preview"), URTHudViewModel::ActionPointPips(ConCella),
 		TArray<P>({ P::Committed, P::Committed, P::Preview, P::Preview, P::Free, P::Free }));
 	TestEqual(TEXT("2: nessun motivo di rifiuto"), static_cast<int32>(B.PC->HoveredMoveRefusal()), static_cast<int32>(ERTActionInvalidReason::None));
-	TestEqual(TEXT("2: il ventaglio e' Movement"), static_cast<int32>(B.Map->GetPreviewReachableMeaning()), static_cast<int32>(ERTOverlayMeaning::Movement));
+	TestEqual(TEXT("2: il ventaglio e' Movement"), static_cast<int32>(ApPreviewMeaningOf(B.Map, Cella)), static_cast<int32>(ERTOverlayMeaning::Movement));
 
 	Dock->EnsureActionPointPips();
 	Dock->RefreshActionPoints();
@@ -401,7 +410,7 @@ bool FRTDockShowsTheGestureCostTest::RunTest(const FString&)
 	// L'aggiornamento di ogni fotogramma, non il ricalcolo forzato: la pagabilita' e' un ingresso dell'arbitro.
 	B.PC->UpdatePlanningOverlay(B.Map);
 	TestEqual(TEXT("4: il ventaglio prende MovementOverBudget senza un ricalcolo forzato"),
-		static_cast<int32>(B.Map->GetPreviewReachableMeaning()), static_cast<int32>(ERTOverlayMeaning::MovementOverBudget));
+		static_cast<int32>(ApPreviewMeaningOf(B.Map, Cella)), static_cast<int32>(ERTOverlayMeaning::MovementOverBudget));
 	TestTrue(TEXT("4: e le sue celle restano visibili"), B.Map->IsPreviewReachableCell(Cella));
 	TestEqual(TEXT("4: nessuna cella conta come Movement"), B.Map->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 0);
 	TestTrue(TEXT("4: tutte contano come MovementOverBudget"), B.Map->NumPlanningPreviewCells(ERTOverlayMeaning::MovementOverBudget) > 0);
@@ -419,7 +428,7 @@ bool FRTDockShowsTheGestureCostTest::RunTest(const FString&)
 	B.Unit->SetActionPointBudget(7);
 	B.PC->UpdatePlanningOverlay(B.Map);
 	TestEqual(TEXT("4: controllo positivo, il ventaglio torna Movement"),
-		static_cast<int32>(B.Map->GetPreviewReachableMeaning()), static_cast<int32>(ERTOverlayMeaning::Movement));
+		static_cast<int32>(ApPreviewMeaningOf(B.Map, Cella)), static_cast<int32>(ERTOverlayMeaning::Movement));
 	TestEqual(TEXT("4: e il motivo sparisce"), static_cast<int32>(B.PC->HoveredMoveRefusal()), static_cast<int32>(ERTActionInvalidReason::None));
 
 	DestroyApPreviewBench(B);
@@ -460,7 +469,7 @@ bool FRTNoMovePreviewWhereTheClickDoesNotMoveTest::RunTest(const FString&)
 	B.PC->RefreshPlanningOverlay(B.Unit);
 	B.Map->SetHoveredCell(Cella, /*bValid=*/ true);
 	const auto Rifiuto = [&B]() { return static_cast<int32>(B.PC->HoveredMoveRefusal()); };
-	const auto Ventaglio = [&B]() { return static_cast<int32>(B.Map->GetPreviewReachableMeaning()); };
+	const auto Ventaglio = [&B, &Cella]() { return static_cast<int32>(ApPreviewMeaningOf(B.Map, Cella)); };
 	const int32 Nessuno = static_cast<int32>(ERTActionInvalidReason::None);
 	const int32 OverBudget = static_cast<int32>(ERTActionInvalidReason::OverBudget);
 
@@ -507,6 +516,200 @@ bool FRTNoMovePreviewWhereTheClickDoesNotMoveTest::RunTest(const FString&)
 	B.PC->UpdatePlanningOverlay(B.Map);
 	TestEqual(TEXT("ritirato il verso il rifiuto torna"), Rifiuto(), OverBudget);
 
+	DestroyApPreviewBench(B);
+	return true;
+}
+
+/**
+ * E38 CP 38.16, [D-625] (1), [D-628] (2) — **un waypoint oltre il tetto dello Sprint apre un tratto, e il tratto e' una voce Move da 2.**
+ *
+ * Gadget ha movimento base 5: il tetto nudo e' 10 MP, il secondo tratto arriva a 15. Il banco e' piano, quindi una cella costa 1 e il
+ * costo e' la distanza. Il click a 12 celle si posa a budget 6 e il piano spende 4; la stessa cella a budget 3 non si posa, e una a 10
+ * si' (controllo positivo): il confine e' il tetto in MP, non la distanza del raggio. Il budget del resolver e' quello dei due tratti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAWaypointBeyondTheSprintCapOpensALegTest,
+	"RefactorTactics.PlayerInput.AWaypointBeyondTheSprintCapOpensALeg",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAWaypointBeyondTheSprintCapOpensALegTest::RunTest(const FString&)
+{
+	const auto VociDiMovimento = [](const TArray<FRTPlannedAction>& Piano)
+	{
+		TArray<FRTPlannedAction> Voci;
+		for (const FRTPlannedAction& E : Piano)
+		{
+			if (!E.Def.MovementProfileId.IsNone()) { Voci.Add(E); }
+		}
+		return Voci;
+	};
+
+	// --- Il tratto pagato --------------------------------------------------------------------------------------------
+	{
+		FApPreviewBench B = MakeApPreviewBench();
+		if (!TestTrue(TEXT("il banco esiste"), B.IsValid())
+			|| !TestEqual(TEXT("premessa: Gadget ha movimento base 5"), B.Unit->GetEffectiveMoveRange(), 5))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		B.Unit->SetActionPointBudget(6);
+		B.PC->HandleClickOnCellForTest(FRTCellId(12, 0, 0));
+		TestEqual(TEXT("il waypoint a 12 celle si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
+		TestEqual(TEXT("il piano porta il costo del percorso"), B.Unit->GetPlan().PlannedPathCost(), 12);
+		TestEqual(TEXT("due tratti"), B.Unit->PlannedMoveLegs(), 2);
+
+		const TArray<FRTPlannedAction> Voci = VociDiMovimento(URTPlanValidationLibrary::MakePlanFor(B.Unit));
+		if (TestEqual(TEXT("due voci di movimento"), Voci.Num(), 2))
+		{
+			TestEqual(TEXT("la prima e' la banda, letta dalla distanza: Sprint"), Voci[0].Def.MovementProfileId,
+				URTMovementProfileLibrary::ProfileSprint);
+			TestEqual(TEXT("la seconda e' un Move"), Voci[1].Def.ActionId, FName(TEXT("Action.Move")));
+			TestEqual(TEXT("di profilo Move"), Voci[1].Def.MovementProfileId, URTMovementProfileLibrary::ProfileMove);
+			TestEqual(TEXT("con la dichiarazione del percorso"), Voci[1].DeclarationIndex, Voci[0].DeclarationIndex);
+		}
+		TestEqual(TEXT("il piano spende 4"), B.Spent(), 4);
+		TestTrue(TEXT("ed e' legale"), URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Unit),
+			URTPlanValidationLibrary::MakePlanFor(B.Unit)).bLegal);
+		TestEqual(TEXT("il resolver esegue col budget dei due tratti: 10 + 5"),
+			ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Unit).MoveBudget, 15);
+
+		// Controllo positivo del budget: lo stesso percorso senza il costo dichiarato e' il budget della banda, e un tratto solo.
+		const TArray<FRTCellId> Percorso = B.Unit->GetPlan().PlannedPath();
+		B.Unit->SetPlannedRoute(Percorso);
+		TestEqual(TEXT("controllo: senza costo un tratto"), B.Unit->PlannedMoveLegs(), 1);
+		TestEqual(TEXT("controllo: e il budget della banda Sprint"), ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Unit).MoveBudget, 10);
+		DestroyApPreviewBench(B);
+	}
+
+	// --- Il tratto che il residuo non paga -----------------------------------------------------------------------------
+	{
+		FApPreviewBench B = MakeApPreviewBench();
+		if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		B.Unit->SetActionPointBudget(3);
+		B.PC->HandleClickOnCellForTest(FRTCellId(12, 0, 0));
+		TestEqual(TEXT("a budget 3 il waypoint a 12 celle non si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
+		TestEqual(TEXT("e il piano non spende"), B.Spent(), 0);
+
+		B.PC->HandleClickOnCellForTest(FRTCellId(10, 0, 0));
+		TestEqual(TEXT("controllo: quello a 10, sul tetto, si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
+		TestEqual(TEXT("controllo: e il piano spende 2"), B.Spent(), 2);
+
+		// Allungare di una cella oltre il tetto apre il secondo tratto, che a budget 3 non si paga.
+		B.PC->HandleClickOnCellForTest(FRTCellId(11, 0, 0));
+		TestEqual(TEXT("il waypoint che apre il secondo tratto non si posa"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
+		TestEqual(TEXT("e il piano spende ancora 2"), B.Spent(), 2);
+		DestroyApPreviewBench(B);
+	}
+	return true;
+}
+
+/**
+ * E38 CP 38.16, [D-628] (3) e la lettura (f) di [D-625] — **il ventaglio e' verde nei tratti che il residuo paga e rosso cupo nel
+ * successivo, e oltre niente; l'hover costa 0 nel tratto pagato e 2 per il tratto che apre.**
+ *
+ * Gadget, tetto 10, tratto 5. A budget 2 il residuo paga un tratto: 10 e' verde, 11 rosso cupo. A budget 0 non paga neppure il primo:
+ * 10 e' rosso cupo e 11 e' fuori dal ventaglio. A budget 4 ne paga due. Con un waypoint a 3 gia' pianificato, una cella a 8 sta nel
+ * primo tratto (costo 8) e non costa niente, una a 11 lo supera (costo 11) e costa 2.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFanPaysTheLegsTheResidualCoversTest,
+	"RefactorTactics.ScreenHud.FanPaysTheLegsTheResidualCovers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFanPaysTheLegsTheResidualCoversTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid())
+		|| !TestEqual(TEXT("premessa: Gadget ha movimento base 5"), B.Unit->GetEffectiveMoveRange(), 5))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	const auto Verde = [&B](const FRTCellId& C) { return B.Map->IsPreviewReachableCell(C) && !B.Map->IsPreviewOverBudgetCell(C); };
+	const auto Rossa = [&B](const FRTCellId& C) { return B.Map->IsPreviewOverBudgetCell(C); };
+	const auto Fuori = [&B](const FRTCellId& C) { return !B.Map->IsPreviewReachableCell(C); };
+	const auto Anteprima = [&B](const FRTCellId& C)
+	{
+		B.Map->SetHoveredCell(C, /*bValid=*/ true);
+		const int32 Dopo = B.PC->ActionPointsAfterGestureNow(B.Unit);
+		return Dopo == INDEX_NONE ? INDEX_NONE : Dopo - B.Spent();
+	};
+	const FRTCellId Dieci(10, 0, 0);
+	const FRTCellId Undici(11, 0, 0);
+
+	// --- Budget 2: un tratto pagato ---------------------------------------------------------------------------------------
+	B.Unit->SetActionPointBudget(2);
+	B.PC->RefreshPlanningOverlay(B.Unit);
+	TestTrue(TEXT("budget 2: la cella a 10 e' verde"), Verde(Dieci));
+	TestTrue(TEXT("budget 2: quella a 11 e' rosso cupo"), Rossa(Undici));
+	TestEqual(TEXT("budget 2: il ventaglio sa il costo fino a 11"), B.Map->GetPreviewMoveCost(Undici), 11);
+	TestEqual(TEXT("budget 2: l'hover su una cella del primo tratto costa 2"), Anteprima(FRTCellId(5, 0, 0)), 2);
+	TestEqual(TEXT("budget 2: e non ha un rifiuto"), static_cast<int32>(B.PC->HoveredMoveRefusal()),
+		static_cast<int32>(ERTActionInvalidReason::None));
+	TestEqual(TEXT("budget 2: l'hover sul tratto successivo costa 4"), Anteprima(Undici), 4);
+	TestEqual(TEXT("budget 2: e il rifiuto e' OverBudget"), static_cast<int32>(B.PC->HoveredMoveRefusal()),
+		static_cast<int32>(ERTActionInvalidReason::OverBudget));
+
+	// --- Budget 0: nessun tratto pagato; il ventaglio arriva al primo e si ferma -------------------------------------------
+	B.Unit->SetActionPointBudget(0);
+	B.PC->UpdatePlanningOverlay(B.Map); // la pagabilita' e' un ingresso dell'arbitro: nessun ricalcolo forzato
+	TestTrue(TEXT("budget 0: la cella a 10 e' rosso cupo"), Rossa(Dieci));
+	TestTrue(TEXT("budget 0: quella a 11 e' fuori dal ventaglio"), Fuori(Undici));
+	TestEqual(TEXT("budget 0: nessuna cella verde"), B.Map->NumPlanningPreviewCells(ERTOverlayMeaning::Movement), 0);
+
+	// --- Budget 4: due tratti pagati ------------------------------------------------------------------------------------------
+	B.Unit->SetActionPointBudget(4);
+	B.PC->UpdatePlanningOverlay(B.Map);
+	TestTrue(TEXT("budget 4: la cella a 11 e' verde"), Verde(Undici));
+	TestEqual(TEXT("budget 4: e l'hover costa i due tratti"), Anteprima(Undici), 4);
+
+	// --- Un percorso gia' pianificato: 0 nel tratto pagato, 2 per il tratto che apre -------------------------------------------
+	B.PC->HandleClickOnCellForTest(FRTCellId(3, 0, 0));
+	if (TestEqual(TEXT("premessa: il waypoint a 3 si posa e spende 2"), B.Spent(), 2))
+	{
+		TestEqual(TEXT("una cella a 8 resta nel primo tratto: costa 0"), Anteprima(FRTCellId(8, 0, 0)), 0);
+		TestEqual(TEXT("una cella a 11 apre il secondo: costa 2"), Anteprima(Undici), 2);
+		TestEqual(TEXT("il ventaglio somma il percorso posato"), B.Map->GetPreviewMoveCost(Undici), 11);
+	}
+	DestroyApPreviewBench(B);
+	return true;
+}
+
+/**
+ * E38 CP 38.16, [D-626] (1) — **sotto `Sneak` il tetto vale sull'intero movimento: il ventaglio non ha un tratto successivo.**
+ *
+ * Gadget sguscia a 2 (50% di 5, per difetto). A budget 6 il ventaglio arriva a 2 e non ha celle rosso cupo; a budget 0 la cella a 2 e'
+ * rosso cupo e quella a 3 fuori. Il controllo positivo e' lo stesso budget 0 senza `Sneak`: la cella a 3 e' nel ventaglio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakFanHasNoNextLegTest,
+	"RefactorTactics.ScreenHud.SneakFanHasNoNextLeg",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSneakFanHasNoNextLegTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	const FRTCellId Due(2, 0, 0);
+	const FRTCellId Tre(3, 0, 0);
+	B.Unit->SetPlannedMovementProfile(URTMovementProfileLibrary::ProfileSneak);
+	B.Unit->SetActionPointBudget(6);
+	B.PC->RefreshPlanningOverlay(B.Unit);
+	TestTrue(TEXT("Sneak, budget 6: la cella a 2 e' nel ventaglio"), B.Map->IsPreviewReachableCell(Due));
+	TestFalse(TEXT("Sneak, budget 6: quella a 3 no"), B.Map->IsPreviewReachableCell(Tre));
+	TestEqual(TEXT("Sneak, budget 6: nessuna cella rosso cupo"), B.Map->GetPreviewOverBudgetCells().Num(), 0);
+
+	B.Unit->SetActionPointBudget(0);
+	B.PC->UpdatePlanningOverlay(B.Map);
+	TestTrue(TEXT("Sneak, budget 0: la cella a 2 e' rosso cupo"), B.Map->IsPreviewOverBudgetCell(Due));
+	TestFalse(TEXT("Sneak, budget 0: quella a 3 e' fuori"), B.Map->IsPreviewReachableCell(Tre));
+
+	B.Unit->SetPlannedMovementProfile(NAME_None);
+	B.PC->RefreshPlanningOverlay(B.Unit);
+	TestTrue(TEXT("controllo: senza Sneak la cella a 3 e' nel ventaglio"), B.Map->IsPreviewOverBudgetCell(Tre));
 	DestroyApPreviewBench(B);
 	return true;
 }

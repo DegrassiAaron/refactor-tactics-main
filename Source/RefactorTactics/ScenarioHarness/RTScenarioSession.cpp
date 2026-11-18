@@ -1789,11 +1789,21 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			}
 		}
 		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
+		// E38 CP 38.16, [D-625] (1): il percorso si compone fino al tetto di chi pianifica, come nel controller (`RTPlanningSnapshot::For`),
+		// cioe' fino ai tratti che il budget del turno pagherebbe. Se il piano non si paga lo dice il lock-in, come per ogni altra voce.
+		// ⏱️ *Fino a CP 38.16 qui restava il budget della banda del piano di adesso*, `1×` per un piano senza movimento: uno scenario non
+		// poteva pianificare uno Sprint, e nessuno del corpus lo faceva.
+		if (Snapshot.Units.IsValidIndex(UnitId))
+		{
+			const int32 Tratti = Unit->MaxMoveLegs();
+			Snapshot.Units[UnitId].MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+			Snapshot.Units[UnitId].StepBudget = Unit->StepBudgetForLegs(Tratti);
+		}
 
 		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);
 		if (Path.Path.Num() >= 2)
 		{
-			Unit->SetPlannedMove(Intent.Move, Path.Path);
+			Unit->SetPlannedMove(Intent.Move, Path.Path, Path.TotalCost); // E38 CP 38.16: il costo dice i tratti
 			// #79, caso C: un piano valido cancella un rifiuto precedente. Vale qui per la stessa ragione per
 			// cui vale nel controller — l'esito da spiegare e' quello del piano FINALE, non di un tentativo
 			// intermedio — e uno scenario a piu' turni e' esattamente il posto in cui un residuo di turno

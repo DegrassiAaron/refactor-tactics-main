@@ -150,6 +150,8 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	int32 UnitId = INDEX_NONE;
 	TArray<ARTUnit*> Units;
 	TArray<FRTCellId> Reachable;
+	TArray<FRTCellId> OltreIlResiduo;
+	TMap<FRTCellId, int32> CostiDelPercorso;
 	bool bHasSnapshot = false;
 	if (RTPlanningSnapshot::For(World, Unit, Snapshot, UnitId, &Units))
 	{
@@ -158,10 +160,31 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 		// copia: lo snapshot serve piu' sotto anche alla mira, che legge la posizione di adesso.
 		FRTHexSnapshot DalMove = Snapshot;
 		RTPlanningSnapshot::StartMovementFromPlannedDash(DalMove, UnitId, Unit);
-		for (const FRTHexReachableCell& R :
-			URTHexSimLibrary::ReachableCellsAfterPlan(DalMove, UnitId, Unit->GetPlan().PlannedWaypoints()))
+		// E38 CP 38.16, [D-628] (3): in verde le celle dei tratti che il residuo paga, in rosso cupo quelle del tratto successivo, e oltre
+		// niente. Il ventaglio si calcola fino al tratto successivo, e ogni cella si divide sul costo del percorso che il click comporrebbe:
+		// i waypoint gia' posati piu' il passo fino a lei, la stessa somma che il click paga (`ARTUnit::CanAffordMoving`). Dove il click
+		// non posa un waypoint (scatto armato, verso dichiarato) il rosso mentirebbe: il ventaglio e' quello dei tratti pianificati.
+		const bool bClickMuove = Unit->WaypointClickIsOpen();
+		const int32 Pagati = bClickMuove ? Unit->AffordableMoveLegs() : FMath::Max(1, Unit->PlannedMoveLegs());
+		const int32 BudgetPagato = Pagati > 0 ? Unit->MoveBudgetForLegs(Pagati) : INDEX_NONE;
+		const int32 Tratti = bClickMuove ? Pagati + 1 : Pagati;
+		if (DalMove.Units.IsValidIndex(UnitId))
 		{
-			Reachable.Add(R.Cell);
+			DalMove.Units[UnitId].MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+			DalMove.Units[UnitId].StepBudget = Unit->StepBudgetForLegs(Tratti);
+		}
+		const TArray<FRTCellId>& Waypoints = Unit->GetPlan().PlannedWaypoints();
+		int32 CostoDeiWaypoint = 0;
+		if (Waypoints.Num() > 0)
+		{
+			const FRTHexPathResult Posati = URTHexSimLibrary::BuildCompositeHexPath(DalMove, UnitId, Waypoints);
+			CostoDeiWaypoint = Posati.Status == ERTHexPathStatus::Success ? Posati.TotalCost : 0;
+		}
+		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCellsAfterPlan(DalMove, UnitId, Waypoints))
+		{
+			const int32 Costo = CostoDeiWaypoint + R.Cost;
+			(Costo <= BudgetPagato ? Reachable : OltreIlResiduo).Add(R.Cell);
+			CostiDelPercorso.Add(R.Cell, Costo);
 		}
 	}
 
@@ -183,10 +206,10 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 				Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
 		}
 	}
-	// [D-625] (2), #4155: il ventaglio che il residuo di Action Point non paga resta visibile, nel colore di rifiuto. Solo dove il click
-	// poserebbe un waypoint (`WaypointClickIsOpen`): con uno scatto armato o il verso dichiarato il click non e' un Move, e il rosso mentirebbe.
-	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable,
-		Unit->WaypointClickIsOpen() && !Unit->CanAffordMoving());
+	// [D-625] (2), #4155: le celle che il residuo di Action Point non paga restano visibili, nel colore di rifiuto ([D-627]); da CP 38.16
+	// sono quelle del tratto successivo ([D-628] (3)), divise piu' sopra. Con i costi, che dicono all'hover quanti tratti la cella apre.
+	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable, bMira ? TArray<FRTCellId>() : OltreIlResiduo,
+		bMira ? TMap<FRTCellId, int32>() : CostiDelPercorso);
 	HexMap->SetPreviewRangeCells(Portata);
 
 	// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'

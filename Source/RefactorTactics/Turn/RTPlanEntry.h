@@ -100,6 +100,14 @@ struct REFACTORTACTICS_API FRTPlanEntry
 	TArray<FRTCellId> Waypoints;
 	UPROPERTY()
 	FName MovementProfileId;
+	/**
+	 * Il costo in Movement Point del percorso, letto sulla mappa di chi pianifica quando il percorso si compone (E38 CP 38.16, [D-628]
+	 * (2) e la sua lettura (b)). Da qui il piano conta i tratti concatenati, e il resolver il budget con cui eseguirlo. ⛔ Non si rilegge
+	 * sulla mappa vera: direbbe al giocatore il costo di un terreno che la sua squadra non vede. 0 = nessun costo dichiarato (il bot, i
+	 * test che scrivono il percorso a mano), cioe' nessun tratto oltre il primo.
+	 */
+	UPROPERTY()
+	int32 PathCost = 0;
 
 	/** Vero se ogni campo e' al suo default: una voce cosi' non dichiara niente, e il piano non la tiene. */
 	bool IsEmpty() const
@@ -107,6 +115,6 @@ struct REFACTORTACTICS_API FRTPlanEntry
 		return AbilityIndex == INDEX_NONE && AttackTarget == nullptr && AttackCell == FRTCellId() && !bAttackTargetsCell
 			&& CoverEdge == ERTHexDirection::E && !bHasCoverEdge && DashCell == FRTCellId()
 			&& !ReactionCondition.IsDeclared() && ReactionCondition.Param == 0
-			&& Path.IsEmpty() && Waypoints.IsEmpty() && MovementProfileId.IsNone();
+			&& Path.IsEmpty() && Waypoints.IsEmpty() && MovementProfileId.IsNone() && PathCost == 0;
 	}
 };

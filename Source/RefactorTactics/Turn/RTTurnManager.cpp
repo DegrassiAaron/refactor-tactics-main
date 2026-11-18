@@ -8041,6 +8041,15 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit)
 	// separare i due valori sara' la funzione di costo di [#666]. Qui si separano i CAMPI, che e' il
 	// prerequisito che questo checkpoint consegna.
 	SimUnit.StepBudget = Profile.ResolveStepBudget(UnitMoveRange);
+	// E38 CP 38.16, [D-625] (1): un percorso oltre il tetto nudo si e' pagato a tratti, e il budget e' quello dei tratti pagati, il tetto
+	// piu' un `Move` per tratto. La banda resta quella letta dalla distanza ([D-628] lettura (a)), e senza tratti in piu' il budget e'
+	// quello di sempre: il corpus non si muove. Se il terreno vero costa piu' di quanto il piano ha visto, il troncamento qui sotto morde
+	// come oggi ([D-628] lettura (b)).
+	if (const int32 Tratti = Unit->PlannedMoveLegs(); Tratti > 1)
+	{
+		SimUnit.MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+		SimUnit.StepBudget = Unit->StepBudgetForLegs(Tratti);
+	}
 	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
 	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 	// ricordare "quando" e' stato applicato.

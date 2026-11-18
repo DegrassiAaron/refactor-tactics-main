@@ -47,12 +47,11 @@ bool RTPlanningSnapshot::For(const UObject* WorldContext, const ARTUnit* Unit, F
 	// il turno li vede, perche' e' contro la loro occupazione reale che questo percorso va validato.
 	if (OutSnapshot.Units.IsValidIndex(OutUnitId))
 	{
-		const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
-			Unit->GetPlan().PlannedMovementProfileId(),
-			URTMovementProfileLibrary::ReservedProfileForPlan(
-				URTPlanValidationLibrary::MakePlanFor(Unit)),
-			Unit->HasStatus(TAG_Status_Unbalanced));
-		const int32 Base = Unit->GetEffectiveMoveRange();
+		// ➕ **E38 CP 38.16, [D-625] (1): oltre il tetto il percorso si concatena a tratti**, e qui si pianifica fino ai tratti che il
+		// budget del turno pagherebbe (`ARTUnit::MaxMoveLegs`). Il residuo non tronca niente ([D-628] lettura (c)): un gesto che non
+		// paga lo rifiuta chi lo riceve (`ARTUnit::CanAffordMoving`), col motivo. Con `Sneak` o col `Withdraw` riservato il budget resta
+		// il tetto ([D-626] (1)). Sotto, `Base` e' `GetEffectiveMoveRange()`, che `MoveBudgetForLegs` legge.
+		const int32 Tratti = Unit->MaxMoveLegs();
 
 		// 🔴 **Il tetto SOSTITUISCE il budget, non lo alza soltanto.**
 		//
@@ -68,8 +67,8 @@ bool RTPlanningSnapshot::For(const UObject* WorldContext, const ARTUnit* Unit, F
 		// non e' una riduzione di budget ma un costo PER CELLA (`MoveCostModifier`), e questa riga non
 		// lo tocca.
 		FRTHexSimUnit& Planner = OutSnapshot.Units[OutUnitId];
-		Planner.MoveBudget = Ceiling.ResolveMoveBudget(Base);
-		Planner.StepBudget = Ceiling.ResolveStepBudget(Base);
+		Planner.MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+		Planner.StepBudget = Unit->StepBudgetForLegs(Tratti);
 	}
 	if (OutUnits)
 	{

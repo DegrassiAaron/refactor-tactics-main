@@ -1,0 +1,32 @@
+{
+  "scenarioId": "Spec.ActionEconomy.MoveInTwoLegs",
+  "tags": ["action-economy", "spec", "movement", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "E38 CP 38.16 (#4117), [D-625] (1) e [D-628] (2): oltre il tetto dello Sprint il percorso si concatena a tratti, misurati in Movement Point, e ogni tratto oltre il primo costa altri 2 AP. Fino a CP 38.16 questo percorso non si componeva: il tetto della pianificazione era lo Sprint.",
+  "_oracolo": "Riktor ha movimento base 4: il tetto nudo e' lo Sprint, 8 MP, e un tratto in piu' aggiunge un Move, 4 MP. La mappa e' piana, quindi una cella costa 1: da (-5,0,0) a (5,0,0) sono 10 celle e 10 MP, cioe' il primo tratto piu' un secondo. Due voci di movimento, 4 AP su 6: legale. Il gemello che sfora il budget con lo stesso percorso e' `Spec.ActionEconomy.SecondLegOverBudget`.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-5, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 1, "cell": [0, -6, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — B1 traccia 10 celle: due tratti.",
+      "intents": [
+        { "unit": "B1", "move": [[5, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "B1", "cell": [5, 0, 0],
+      "_assertion": "Il secondo tratto e' stato eseguito: il resolver ha il budget dei due tratti, 8 + 4." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 0,
+      "_assertion": "Il piano e' legale: 4 AP su 6, e il lock-in non lo svuota." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

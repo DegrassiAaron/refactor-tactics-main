@@ -1011,7 +1011,8 @@ public:
 	 * I gesti sono due, e la spesa la dice l'unita', non questa funzione:
 	 *  - lo slot della barra sotto il cursore (`SetSkillHover`): `ActionPointsAfterArming`, oppure la spesa di adesso per un'azione gia'
 	 *    nel piano (`IsAbilityInPlan`); nessun gesto per uno slot che non si usa per un'altra ragione (`CanUseAbility`);
-	 *  - una cella del ventaglio sotto il cursore (`IsMoveCellUnderCursor`): `ActionPointsAfterMoving`.
+	 *  - una cella del ventaglio sotto il cursore (`IsMoveCellUnderCursor`): `ActionPointsAfterMoving`, sul costo del percorso fino a lei
+	 *    che il ventaglio ha calcolato (`ARTHexMapActor::GetPreviewMoveCost`, E38 CP 38.16): 0 nel tratto pagato, 2 per ogni tratto aperto.
 	 * Lo slot viene prima: col cursore sulla barra, la cella sotto la barra non e' il gesto.
 	 *
 	 * ⛔ Solo per l'unita' comandata, a barra scrivibile e in un contesto di pianificazione: per ogni altra `INDEX_NONE`.
@@ -1020,7 +1021,8 @@ public:
 
 	/**
 	 * Il motivo per cui la cella del ventaglio sotto il cursore non si pianifica, `None` se si pianifica o se il cursore non e' su una
-	 * cella del ventaglio (#4155, [D-625] (2)). Oggi l'unico motivo e' `OverBudget`, la stessa domanda del click (`CanAffordMoving`).
+	 * cella del ventaglio (#4155, [D-625] (2)). Oggi l'unico motivo e' `OverBudget`, la stessa domanda del click (`CanAffordMoving`), sul
+	 * costo del percorso fino alla cella (E38 CP 38.16): una cella in rosso cupo, quella del tratto che il residuo non paga.
 	 */
 	ERTActionInvalidReason HoveredMoveRefusal() const;
 

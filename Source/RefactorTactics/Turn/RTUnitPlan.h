@@ -178,6 +178,7 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	void AddPlannedWaypoint(const FRTCellId& V) { Edit(ERTPlanEntryClass::Movement).Waypoints.Add(V); Prune(); }
 	void PopPlannedWaypoint() { Edit(ERTPlanEntryClass::Movement).Waypoints.Pop(); Prune(); }
 	void SetPlannedMovementProfileId(FName V) { Edit(ERTPlanEntryClass::Movement).MovementProfileId = V; Prune(); }
+	void SetPlannedPathCost(int32 V) { Edit(ERTPlanEntryClass::Movement).PathCost = V; Prune(); }
 
 	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
 	UPROPERTY()
@@ -242,6 +243,9 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
 	 */
 	const TArray<FRTCellId>& PlannedWaypoints() const { return Of(ERTPlanEntryClass::Movement).Waypoints; }
+
+	/** Il costo in Movement Point di `PlannedPath`, letto quando il percorso si e' composto (E38 CP 38.16): `FRTPlanEntry::PathCost`. */
+	int32 PlannedPathCost() const { return Of(ERTPlanEntryClass::Movement).PathCost; }
 
 	/**
 	 * Il profilo di movimento **DICHIARATO** per questo turno — oggi `MovementProfile.Sneak`, o vuoto

@@ -44,9 +44,9 @@ FRTPlanningOverlayInputs FRTPlanningOverlayArbiter::Gather(const FRTPlanningOver
 	Inputs.FacingSector = FacingHoverSector.IsSet() ? static_cast<int32>(FacingHoverSector.GetValue()) : INDEX_NONE;
 	Inputs.ActiveLayer = Host.GetOverlayActiveLayer();
 	Inputs.PlanRevision = PlanningOverlayRevision;
-	// #4155: la stessa domanda del click, `CanAffordMoving`. Con un'azione a bersaglio armata il ventaglio non c'e', ma il campo
-	// resta onesto: e' un fatto del piano, non della resa.
-	Inputs.bMovementOverBudget = Unit && Unit->WaypointClickIsOpen() && !Unit->CanAffordMoving();
+	// #4155, E38 CP 38.16: la stessa domanda del click e del ventaglio, `AffordableMoveLegs`. Con un'azione a bersaglio armata il ventaglio
+	// non c'e', ma il campo resta onesto: e' un fatto del piano, non della resa.
+	Inputs.PaidMoveLegs = Unit && Unit->WaypointClickIsOpen() ? Unit->AffordableMoveLegs() : INDEX_NONE;
 	// ⚠️ **Costa una ricerca di actor** (`GetActorOfClass` itera il livello), come `GetPointerContext` subito sopra e come
 	// `UpdateGlance` in questo stesso tick: e' il prezzo di leggere turno e fine partita dall'autorita' invece di copiarli.
 	if (const ARTTurnManager* TM = OverlayTurnManager(Host))
