@@ -726,4 +726,47 @@ bool FRTSneakFanHasNoNextLegTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * E38 CP 38.16, [D-626] (1), revisione della 38.16b — **armare l'Overwatch non conta i tratti che il suo `Withdraw` toglie.**
+ *
+ * Budget 4 e un percorso di 12 celle: due tratti, 4 AP, residuo 0. L'Overwatch riserva il `Withdraw`, che vale sull'intero movimento,
+ * quindi armarlo riporta il percorso a un tratto: la spesa dopo il gesto e' quella di un tratto piu' l'Overwatch, e il gesto si paga.
+ * Il controllo e' la reazione del banco, che non riserva niente: con lo stesso piano non si paga. E l'armo vero spende quanto previsto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmingAReserveDropsTheExtraLegsTest,
+	"RefactorTactics.PlayerInput.ArmingAReserveDropsTheExtraLegs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmingAReserveDropsTheExtraLegsTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	const int32 Sentinella = B.IsValid() ? RTAbilityFixtures::AddCoreAbilityInSlot(B.Unit, TEXT("Action.Overwatch"), B.Guardia) : INDEX_NONE;
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid()) || !TestTrue(TEXT("l'Overwatch e' nel kit"), Sentinella != INDEX_NONE))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	B.Unit->SetActionPointBudget(4);
+	B.PC->HandleClickOnCellForTest(FRTCellId(12, 0, 0));
+	if (!TestEqual(TEXT("premessa: due tratti"), B.Unit->PlannedMoveLegs(), 2) || !TestEqual(TEXT("premessa: il piano spende 4"), B.Spent(), 4))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	const int32 CostoSentinella = B.Unit->GetAbility(Sentinella)->Def.ActionPointCost;
+	TestEqual(TEXT("la spesa dopo l'armo e' un tratto piu' l'Overwatch"), B.Unit->ActionPointsAfterArming(Sentinella), 2 + CostoSentinella);
+	TestTrue(TEXT("e l'armo si paga"), B.Unit->CanAffordArming(Sentinella));
+	TestFalse(TEXT("controllo: la reazione, che non riserva niente, non si paga"), B.Unit->CanAffordArming(B.Reazione));
+
+	const int32 Prevista = B.Unit->ActionPointsAfterArming(Sentinella);
+	B.PC->SelectAbilityForCurrentForTest(Sentinella);
+	B.Unit->SelectAbility(INDEX_NONE);
+	if (TestTrue(TEXT("l'Overwatch e' nel piano"), B.Unit->IsAbilityInPlan(Sentinella)))
+	{
+		TestEqual(TEXT("e il piano spende quanto previsto"), B.Spent(), Prevista);
+		TestEqual(TEXT("con un tratto solo"), B.Unit->PlannedMoveLegs(), 1);
+	}
+	DestroyApPreviewBench(B);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
