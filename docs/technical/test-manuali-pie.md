@@ -89,7 +89,9 @@
 
 ## Stato in numeri — 2026-10-18
 
-**295 voci**: ✅ **117 verdi** · 🟡 **38 parziali** · ❌ **8 fallite** · ⏳ **132 aperte**.
+**296 voci**: ✅ **117 verdi** · 🟡 **38 parziali** · ❌ **8 fallite** · ⏳ **133 aperte**.
+
+➕ **Rimisurato il 2026-11-18 ([#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155), `PIE-HUD-AP-PREVIEW` aperta)**: il ricalcolo di `doc-coherence` A1 dava `295 · 117/38/8/132` **prima** (su `feat/4155-hud-ap-3` a `main` `10deba916`) e `296 · 117/38/8/133` **dopo**. Delta: `PIE-HUD-AP-PREVIEW`, nuova, ⏳.
 
 ➕ **Rimisurato il 2026-11-17 ([#4150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4150), `PIE-HUD-AP-PIP` aperta)**: il ricalcolo di `doc-coherence` A1 dava `294 · 117/38/8/131` **prima** (su `feat/4150-hud-ap-1` a `main` `7a41569f0`) e `295 · 117/38/8/132` **dopo**. Delta: `PIE-HUD-AP-PIP`, nuova, ⏳.
 
@@ -1985,6 +1987,7 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-HUD-AP-PIP** | In Pianificazione la dock dell'unità comandata mostra «AP» e un pip per AP del budget, accanto alla lettura del movimento; i pip si accendono man mano che il piano spende, e scompaiono quando si ispeziona un nemico ([#4150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4150); [D-594](../decisions/RT_PDR_00_Decision_Log.md), [D-613](../decisions/RT_PDR_00_Decision_Log.md) (1)) | una partita in Pianificazione con un'unità comandata, a 1920×1080 | **(a)** a piano vuoto sei pip spenti; **(b)** tracciato un Move, due pip ambra; con l'attacco base armato e confermato, quattro; **(c)** cliccando un nemico (ispezione) i pip scompaiono, e tornano riselezionando la propria unità; **(d)** i pip si leggono accanto alla lettura del movimento, senza sovrapporsi all'indicatore del piano | ⏳ Mai eseguita. La meccanica è provata in Test Automation (`ScreenHud.DockShowsActionPointPips`, `HudViewModel.ActionPointsReadTheValidatorSum`), non a schermo |
+| **PIE-HUD-AP-PREVIEW** | In Pianificazione i pip della dock mostrano **il costo del gesto sotto il cursore** prima del click, e una cella di movimento che il residuo non paga **si vede rifiutata** ([#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155); [D-625](../decisions/RT_PDR_00_Decision_Log.md) (2), [D-627](../decisions/RT_PDR_00_Decision_Log.md)) | una partita in Pianificazione con un'unità comandata, a 1920×1080 | **(a)** con il piano vuoto, il cursore su una cella del ventaglio accende due pip bianchi accanto agli spenti, e uscendo dalla cella si spengono; **(b)** con un percorso già tracciato, il cursore su un'altra cella del ventaglio non accende pip bianchi; **(c)** il cursore su uno slot della dock pagabile accende i pip del suo costo, su uno slot già nel piano nessuno; **(d)** con il piano a budget pieno senza movimento (attacco base, una reazione, uno scatto) il ventaglio è rosso cupo, il cursore su una sua cella scrive «Non si muove: …» in basso al centro e due pip rossi fuori dalla cornice, e il click non traccia il percorso; **(e)** il rosso cupo del ventaglio si distingue dal rosso dell'attacco, dal rosa del tiro bloccato e dal marcatore di blocco, e il bianco dei pip dall'ambra dell'impegnato | ⏳ Mai eseguita. La meccanica è provata in Test Automation (`ScreenHud.DockShowsTheGestureCost`, `PlayerInput.UnaffordableMoveDoesNotPlan`, `HudViewModel.ActionPointPipsShowTheGesture`), non a schermo; i colori sono una decisione (D-627) e una lettura (i pip bianchi) da giudicare qui |
 
 ### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
 
