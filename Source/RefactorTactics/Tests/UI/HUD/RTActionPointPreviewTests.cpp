@@ -729,7 +729,7 @@ bool FRTSneakFanHasNoNextLegTest::RunTest(const FString&)
 /**
  * E38 CP 38.16, [D-626] (1), revisione della 38.16b — **armare l'Overwatch non conta i tratti che il suo `Withdraw` toglie.**
  *
- * Budget 4 e un percorso di 12 celle: due tratti, 4 AP, residuo 0. L'Overwatch riserva il `Withdraw`, che vale sull'intero movimento,
+ * Budget 4 e un percorso di 12 celle, con un primo waypoint a una cella: due tratti, 4 AP, residuo 0. L'Overwatch riserva il `Withdraw`, che vale sull'intero movimento,
  * quindi armarlo riporta il percorso a un tratto: la spesa dopo il gesto e' quella di un tratto piu' l'Overwatch, e il gesto si paga.
  * Il controllo e' la reazione del banco, che non riserva niente: con lo stesso piano non si paga. E l'armo vero spende quanto previsto.
  */
@@ -746,6 +746,9 @@ bool FRTArmingAReserveDropsTheExtraLegsTest::RunTest(const FString&)
 		return false;
 	}
 	B.Unit->SetActionPointBudget(4);
+	// Il primo waypoint a una cella: il `Withdraw` di Gadget vale 1 MP (25% di 5), e il taglio e' per waypoint interi ([D-420]). Con il solo
+	// waypoint a 12 il taglio toglierebbe tutto il Move, il «caso stretto» di `ActionPointsAfterArming`, e il conto non sarebbe quello dei tratti.
+	B.PC->HandleClickOnCellForTest(FRTCellId(1, 0, 0));
 	B.PC->HandleClickOnCellForTest(FRTCellId(12, 0, 0));
 	if (!TestEqual(TEXT("premessa: due tratti"), B.Unit->PlannedMoveLegs(), 2) || !TestEqual(TEXT("premessa: il piano spende 4"), B.Spent(), 4))
 	{
@@ -766,6 +769,87 @@ bool FRTArmingAReserveDropsTheExtraLegsTest::RunTest(const FString&)
 		TestEqual(TEXT("con un tratto solo"), B.Unit->PlannedMoveLegs(), 1);
 	}
 	DestroyApPreviewBench(B);
+	return true;
+}
+
+/**
+ * E38 CP 38.16, revisione della 38.16b — **un gesto che ricompone il percorso non lo porta oltre il residuo: i waypoint che non si pagano
+ * cadono dalla fine.** Due gesti: lo scatto pianificato dopo il percorso ([D-628] (4)) e l'annullamento dello `Sneak` che restituisce i
+ * waypoint tagliati ([D-444]).
+ *
+ * Gadget, tetto 10, tratto 5, budget 6. Waypoint a (5,0,0) e (10,0,0): 10 MP, un tratto.
+ *  - Lo scatto: con la reazione (2) e il percorso (2) il piano spende 4; lo scatto (2) a (-1,0,0) sposta la partenza di una cella, e il
+ *    percorso ricomposto costerebbe 11 MP, due tratti, 8 AP. Cade (10,0,0); resta (5,0,0), 6 MP, e il piano spende 6.
+ *  - Lo `Sneak`: con l'attacco base (2) e il percorso, lo `Sneak` lo taglia a zero; armata la reazione (2), annullarlo restituirebbe i due
+ *    waypoint, 10 MP e un tratto: 6 AP, che si pagano, quindi tornano entrambi. Controllo del taglio: col percorso a (12,0,0) al posto di
+ *    (10,0,0) servirebbero due tratti, 8 AP, e (12,0,0) cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRecomposingDropsTheUnpaidWaypointsTest,
+	"RefactorTactics.PlayerInput.RecomposingDropsTheUnpaidWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRecomposingDropsTheUnpaidWaypointsTest::RunTest(const FString&)
+{
+	// --- Lo scatto dopo il percorso ---------------------------------------------------------------------------------
+	{
+		FApPreviewBench B = MakeApPreviewBench();
+		if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		B.Unit->SetActionPointBudget(6);
+		B.PC->SelectAbilityForCurrentForTest(B.Reazione);
+		B.Unit->SelectAbility(INDEX_NONE);
+		B.PC->HandleClickOnCellForTest(FRTCellId(5, 0, 0));
+		B.PC->HandleClickOnCellForTest(FRTCellId(10, 0, 0));
+		if (!TestEqual(TEXT("premessa: due waypoint"), B.Unit->GetPlan().PlannedWaypoints().Num(), 2)
+			|| !TestEqual(TEXT("premessa: reazione e percorso spendono 4"), B.Spent(), 4))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		B.Unit->SelectAbility(B.Scatto);
+		B.PC->HandleClickOnCellForTest(FRTCellId(-1, 0, 0));
+		B.Unit->SelectAbility(INDEX_NONE);
+		if (TestEqual(TEXT("premessa: lo scatto e' pianificato"), B.Unit->GetPlan().PlannedDashCell(), FRTCellId(-1, 0, 0)))
+		{
+			TestEqual(TEXT("scatto: il waypoint che apriva il secondo tratto cade"), B.Unit->GetPlan().PlannedWaypoints().Num(), 1);
+			TestEqual(TEXT("scatto: resta il primo"), B.Unit->GetPlan().PlannedWaypoints().Last(), FRTCellId(5, 0, 0));
+			TestEqual(TEXT("scatto: e il piano spende 6, nel budget"), B.Spent(), 6);
+		}
+		DestroyApPreviewBench(B);
+	}
+
+	// --- Lo Sneak annullato ---------------------------------------------------------------------------------------------
+	for (const int32 Lontano : { 10, 12 })
+	{
+		FApPreviewBench B = MakeApPreviewBench();
+		if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		const bool bSiPaga = Lontano == 10;
+		B.Unit->SetActionPointBudget(6);
+		B.Unit->DeclarePlannedMainAction(B.Attacco);
+		B.Unit->SelectAbility(INDEX_NONE);
+		B.PC->HandleClickOnCellForTest(FRTCellId(5, 0, 0));
+		B.PC->HandleClickOnCellForTest(FRTCellId(Lontano, 0, 0));
+		B.PC->ToggleSneakForTest();
+		TestEqual(*FString::Printf(TEXT("Sneak (%d): il tetto taglia il percorso"), Lontano), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
+		B.PC->SelectAbilityForCurrentForTest(B.Reazione);
+		B.Unit->SelectAbility(INDEX_NONE);
+		if (!TestEqual(*FString::Printf(TEXT("premessa (%d): attacco e reazione spendono 4"), Lontano), B.Spent(), 4))
+		{
+			DestroyApPreviewBench(B);
+			return false;
+		}
+		B.PC->ToggleSneakForTest();
+		TestEqual(*FString::Printf(TEXT("Sneak annullato (%d): tornano i waypoint che si pagano"), Lontano),
+			B.Unit->GetPlan().PlannedWaypoints().Num(), bSiPaga ? 2 : 1);
+		TestEqual(*FString::Printf(TEXT("Sneak annullato (%d): e il piano sta nel budget"), Lontano), B.Spent(), 6);
+		DestroyApPreviewBench(B);
+	}
 	return true;
 }
 

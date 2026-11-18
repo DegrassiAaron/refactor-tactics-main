@@ -2149,6 +2149,32 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 	}
 }
 
+namespace
+{
+	/**
+	 * Toglie dalla fine i waypoint che il residuo di Action Point non paga, e ricompone il percorso (E38 CP 38.16, revisione della 38.16b).
+	 *
+	 * 🔑 **Vale per i soli gesti che RICOMPONGONO un percorso gia' tracciato**: lo scatto pianificato dopo il percorso ([D-628] (4): «quelli
+	 * che non ci stanno piu' cadono dalla fine, come in D-420») e la restituzione dei waypoint che un tetto aveva tolto ([D-444], annullando
+	 * lo `Sneak` o la riserva). Senza, il percorso ricomposto poteva chiedere un tratto in piu' e il piano usciva dal budget senza che
+	 * nessun gesto lo avesse chiesto. ⛔ Il click non passa di qui: un waypoint che il residuo non paga non si posa (`CanAffordMoving`).
+	 * Stessa forma del taglio di D-420, per waypoint interi: si scarta la dichiarazione, non il percorso calcolato.
+	 */
+	int32 TogliIWaypointCheIlResiduoNonPaga(const FRTHexSnapshot& Snapshot, int32 UnitId, const ARTUnit* Unit,
+		TArray<FRTCellId>& Waypoints, FRTHexPathResult& InOutPath)
+	{
+		int32 Tolti = 0;
+		while (Unit && Waypoints.Num() > 0 && InOutPath.Status == ERTHexPathStatus::Success && InOutPath.Path.Num() >= 2
+			&& !Unit->CanAffordMoving(InOutPath.TotalCost))
+		{
+			Waypoints.Pop();
+			++Tolti;
+			InOutPath = Waypoints.Num() > 0 ? URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Waypoints) : FRTHexPathResult();
+		}
+		return Tolti;
+	}
+}
+
 int32 ARTPlayerController::TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
 	TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath)
 {
@@ -3803,7 +3829,9 @@ void ARTPlayerController::RecomposeMoveFromItsStart(ARTUnit* Unit)
 	const FRTHexSimUnit& Chi = Snapshot.Units[UnitId];
 	TArray<FRTCellId> Tenuti = Unit->GetPlan().PlannedWaypoints();
 	FRTHexPathResult Kept;
-	const int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Chi.StepBudget, Chi.MoveBudget, Kept);
+	int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Chi.StepBudget, Chi.MoveBudget, Kept);
+	// E38 CP 38.16: e quelli che il residuo non paga piu', perche' dalla cella d'arrivo il percorso puo' chiedere un tratto in piu' ([D-628] (4)).
+	Dropped += TogliIWaypointCheIlResiduoNonPaga(Snapshot, UnitId, Unit, Tenuti, Kept);
 	Unit->SetPlannedMove(Tenuti, Kept.Path, Kept.TotalCost);
 	if (Dropped > 0)
 	{
@@ -3830,6 +3858,15 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 		Composite = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints());
+		// E38 CP 38.16: i waypoint restituiti da un tetto che si ritira ([D-444]) tornano se il residuo li paga; gli altri cadono dalla fine,
+		// e il log lo dice. Togliere un waypoint (Back) accorcia il percorso, quindi qui non toglie niente.
+		TArray<FRTCellId> Tenuti = Unit->GetPlan().PlannedWaypoints();
+		if (const int32 Tolti = TogliIWaypointCheIlResiduoNonPaga(Snapshot, UnitId, Unit, Tenuti, Composite); Tolti > 0)
+		{
+			Unit->SetPlannedMove(Tenuti, TArray<FRTCellId>());
+			UE_LOG(LogRT, Display, TEXT("[RT] %s: %d waypoint scartati dalla fine, il residuo di Action Point non li paga (ne restano %d)"),
+				*Unit->GetName(), Tolti, Tenuti.Num());
+		}
 	}
 
 	if (Composite.Status == ERTHexPathStatus::Success && Composite.Path.Num() >= 2)
