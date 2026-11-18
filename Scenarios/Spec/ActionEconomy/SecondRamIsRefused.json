@@ -5,10 +5,10 @@
     "spec",
     "riktor"
   ],
-  "version": 9,
+  "version": 10,
   "seed": 0,
   "mapRadius": 4,
-  "_nota": "E38 CP 38.13 (#4114), [D-614]: un secondo scatto con ricarica e' vietato. Due scatti li ammette solo `TR-30`, con CP 38.16 (#4117), quindi il turno chiede `DashListPlanning` ed esce `Blocked`.",
+  "_nota": "E38 CP 38.13 (#4114), [D-614]: un secondo scatto con ricarica e' vietato. ➕ Da CP 38.16 (#4117) `DashListPlanning` e' disponibile: l'harness scrive il secondo scatto e il validatore lo rifiuta al lock-in. Con [D-625] (4) anche due scatti DIVERSI sono vietati (`SecondDash`, 27): nessun eroe ne ha due nel kit, quindi quel caso e' provato in Test Automation (`Plan.SecondDifferentDashIsRefused`). Per la stessa azione vince la copia, che il validatore guarda prima.",
   "_oracolo": "`Hero.Riktor.Ram` (Dash, 2, cooldown 2) verso (2,0,0) e verso (0,2,0): 4 AP, ma `RepeatedWithCooldown` (26); il lock-in svuota il piano e nessuno scatto parte.",
   "units": [
     {

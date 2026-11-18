@@ -183,6 +183,7 @@ namespace RTScenarioStateDiff
 #include "Unit/RTUnit.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
+#include "Player/Planning/RTPlanningSnapshot.h" // StartMovementFromPlannedDash: il Move parte dalla cella d'arrivo dello scatto (CP 38.16)
 #include "UI/Reaction/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
@@ -407,6 +408,10 @@ namespace
 			// E38 CP 38.14 (#4115): una seconda principale del Blast o del Cleanup. Il produttore che non e' l'harness e' lo
 			// stesso gesto della lista, che ora la aggiunge (`ARTUnit::DeclarePlannedAction`).
 			TEXT("MainListPlanning"),
+			// E38 CP 38.16 (#4117): un secondo scatto nello stesso piano. ⚠️ **Non ha un gesto del giocatore, ed e' giusto**: [D-625] (4)
+			// lo vieta, e lo scenario scrive il piano che il validatore deve rifiutare (`SecondDash`, o `RepeatedWithCooldown` per la
+			// stessa azione), come uno scenario scrive un piano oltre il budget. Il produttore che non e' l'harness e' il validatore.
+			TEXT("DashListPlanning"),
 		};
 		return Available;
 	}
@@ -554,10 +559,9 @@ namespace
 			TEXT("NeverAvailable"),           // owner: none
 			// E38 CP 38.13: una seconda voce di una classe che solo l'harness scrive. Entrano fra le disponibili col gesto del
 			// giocatore che la scrive. La reazione e' aperta da CP 38.15 nel piano e nella risoluzione, ma il gesto che AGGIUNGE
-			// una reazione invece di sostituirla e' un seguito di CP 38.15 (dominio 8); lo scatto con CP 38.16 se `TR-30` ammette
-			// due scatti. La principale del Blast e' entrata con CP 38.14.
+			// una reazione invece di sostituirla e' un seguito di CP 38.15 (dominio 8). La principale del Blast e' entrata con
+			// CP 38.14, lo scatto con CP 38.16.
 			TEXT("ReactionListPlanning"),     // owner: #4116
-			TEXT("DashListPlanning"),         // owner: #4117
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
@@ -1623,8 +1627,17 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 						*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
 					break;
 				}
-				bScritta = Unit->GetPlan().PlannedDashAbility() == INDEX_NONE;
-				if (bScritta) { Unit->SetPlannedDash(Indice, Azione.Cell); }
+				// E38 CP 38.16: il secondo scatto si scrive in coda (`DashListPlanning`), e il validatore lo rifiuta al lock-in
+				// ([D-625] (4)): `RepeatedWithCooldown` se e' la stessa azione, `SecondDash` se e' un'altra.
+				if (Unit->GetPlan().PlannedDashAbility() == INDEX_NONE)
+				{
+					Unit->SetPlannedDash(Indice, Azione.Cell);
+					bScritta = true;
+				}
+				else
+				{
+					bScritta = Unit->AddPlannedDash(Indice, Azione.Cell);
+				}
 			}
 			else if (Abilita->Def.Slot == ERTActionSlot::Reaction)
 			{
@@ -1745,12 +1758,15 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		// AUTOREVOLE. Percorso non valido (budget, blocchi, occupanti) -> l'unita' resta ferma e l'assertion
 		// lo mostra: e' il comportamento del gioco, non un caso speciale del test.
 		TArray<ARTUnit*> SnapshotUnits;
-		const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
+		FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
 		const int32 UnitId = SnapshotUnits.IndexOfByKey(Unit);
 		if (UnitId == INDEX_NONE)
 		{
 			continue;
 		}
+		// E38 CP 38.16, [D-628] (4): come nel controller, il Move parte da dove lo scatto pianificato si ferma. Il percorso si compone
+		// qui, dopo ogni voce dell'intent, quindi l'ordine in cui il JSON li elenca non cambia la partenza.
+		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
 
 		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);
 		if (Path.Path.Num() >= 2)

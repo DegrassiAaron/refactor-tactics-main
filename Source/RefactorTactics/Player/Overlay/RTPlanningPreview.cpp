@@ -154,8 +154,12 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	if (RTPlanningSnapshot::For(World, Unit, Snapshot, UnitId, &Units))
 	{
 		bHasSnapshot = true;
+		// E38 CP 38.16, [D-628] (4): il ventaglio parte da dove partira' il Move, la cella d'arrivo di uno scatto pianificato. Su una
+		// copia: lo snapshot serve piu' sotto anche alla mira, che legge la posizione di adesso.
+		FRTHexSnapshot DalMove = Snapshot;
+		RTPlanningSnapshot::StartMovementFromPlannedDash(DalMove, UnitId, Unit);
 		for (const FRTHexReachableCell& R :
-			URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints()))
+			URTHexSimLibrary::ReachableCellsAfterPlan(DalMove, UnitId, Unit->GetPlan().PlannedWaypoints()))
 		{
 			Reachable.Add(R.Cell);
 		}

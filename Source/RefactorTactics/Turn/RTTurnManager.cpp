@@ -3701,29 +3701,30 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			continue;
 		}
 
-		// 🔴 **Entrambe le azioni, mai una sola.** `OffendingActionId` e' l'azione che l'ordine canonico del
-		// validatore incontra per seconda, e per il caso canonico scatto + movimento e' la MOBILITA', che
-		// invece esegue. Nominare lei significa mandare il giocatore a correggere l'azione sbagliata.
-		// Dire che due azioni occupano lo stesso slot e' vero comunque il resolver decida.
+		// 🔴 **Entrambe le azioni, mai una sola**, quando il motivo ha un detentore: la legalita' e' la coppia, e nominarne una
+		// sola manderebbe il giocatore a correggere quella sbagliata.
 		const FString Dettaglio = Verdict.HolderActionId.IsNone()
 			? FString::Printf(TEXT("%s: %s"),
 				*Verdict.OffendingActionId.ToString(),
 				*URTTurnLogLibrary::DescribeInvalidReason(Verdict.Reason))
-			: FString::Printf(TEXT("%s e %s occupano lo stesso slot"),
+			// Da CP 38.16 l'unico motivo con un detentore e' il secondo scatto ([D-625] (4)): si nominano i due, col motivo.
+			: FString::Printf(TEXT("%s e %s: %s"),
 				*Verdict.OffendingActionId.ToString(),
-				*Verdict.HolderActionId.ToString());
+				*Verdict.HolderActionId.ToString(),
+				*URTTurnLogLibrary::DescribeInvalidReason(Verdict.Reason));
 
 		// 🔒 **La riga racconta un piano, quindi e' della squadra che lo ha composto** ([D-349]; E38 CP 38.10): nomina
 		// le azioni del piano e il motivo, anche una reazione mai armata. Col verdetto di conoscenza la leggeva ogni
-		// squadra che vede l'unita'. Vale per ogni motivo, `SlotOccupied` compreso.
+		// squadra che vede l'unita'. Vale per ogni motivo.
 		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s)"),
 			*Unit->GetName(), *Dettaglio),
 			FRTLogSubject::UnitWithVerdict(Unit,
 				URTTeamKnowledgeLibrary::FreezePlanVerdict(ERTPlanVerdict::OwnerTeam, Unit->TeamId)));
 
-		// 🔴 **Budget, ricarica e copia vietata: il piano non si risolve** ([D-615] (1), che emenda [D-194] per questi
-		// motivi; [D-617] per le voci nel TurnLog; la copia da E38 CP 38.13). `SlotOccupied` resta registrato e non
-		// bloccato fino a CP 38.16: lo scatto non e' ancora annullabile, e il resolver decide come oggi (`SupersededByDash`).
+		// 🔴 **Budget, ricarica, copia vietata e secondo scatto: il piano non si risolve** ([D-615] (1), che emenda [D-194] per
+		// questi motivi; [D-617] per le voci nel TurnLog; la copia da E38 CP 38.13; il secondo scatto da [D-625] (4), CP 38.16).
+		// ⏱️ *Fino a CP 38.16 qui passava `SlotOccupied`, registrato e non bloccato*: da CP 38.16 non ha produttori, e ogni motivo
+		// che `ValidatePlan` produce svuota il piano. La guardia resta per un motivo futuro che si registri soltanto.
 		if (!URTPlanValidationLibrary::EmptiesPlanAtLockIn(Verdict.Reason))
 		{
 			continue;
@@ -5849,8 +5850,7 @@ void ARTTurnManager::ResolveDash()
 				Rifiutata.Amount = static_cast<int32>(Motivo);
 				AppendLogEntry(Rifiutata, Unit);
 
-				// ⛔ **Niente `AddLogEvent` qui**, per la stessa ragione scritta sul `SlotOccupied` piu'
-				// sotto: la riga arriva al combat log attraverso `ConcludeTurn`, che deriva l'intero log dal
+				// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che deriva l'intero log dal
 				// TurnLog (`DescribeTurnLog`) — come ogni altra voce.
 				//
 				// ⌫ **Una prima stesura ne aggiungeva uno, e produceva DUE righe per un rifiuto solo** —
@@ -6114,59 +6114,19 @@ void ARTTurnManager::ResolveDash()
 		// `PreDashCell` e non `Unit->Cell`: la riga qui sopra l'ha gia' riscritta con la cella d'arrivo, e
 		// `ApplyOnEnter` ha bisogno della PARTENZA per orientare il primo passo attraversato (`#2885`).
 		ApplyOnEnter(Snapshot.Map, Unit, PreDashCell, Resolved[i].Entered, ERTMatchPhase::Dash);
-		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
-		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
-		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
+		// 🔑 **Scatto e Move stanno nello stesso piano** ([D-584] (1): «solo il budget conta»; E38 CP 38.16, #4117): il Move parte
+		// dalla cella d'arrivo dello scatto, e il percorso pianificato resta. Il controller lo compone gia' da li' ([D-628] (4)); se lo
+		// scatto si e' fermato altrove, la fase Move ricostruisce il percorso verso `PlannedCell` da dov'e' l'unita', come per ogni
+		// percorso non ancorato (`BeginMovementResolution`).
+		// ⏱️ *Fino a CP 38.16 lo scatto scartava il Move e lo diceva con una voce `SupersededByDash`*: era il vincolo di slot di
+		// [D-191], e il valore resta nell'enum senza produttore, perche' le tracce gia' scritte lo portano.
 		//
-		// 🔴 **E se c'era davvero un percorso, lo si DICE** (CP 38.2): fino al 2026-08-26 questo scarto era
-		// muto, e un giocatore che aveva composto scatto + movimento vedeva la propria rotta sparire senza
-		// che niente la nominasse. La voce si scrive QUI e non al lock-in perche' qui si sa **che cosa** viene
-		// scartato: al commit il piano si contraddice e basta, e indovinare il perdente dall'ordine canonico
-		// del validatore darebbe la risposta sbagliata.
-		//
-		// ⚠️ **Solo per chi e' ancora vivo**: `ApplyTerrainOnEnterEffects` qui sopra puo' aver ucciso l'unita'
-		// sulla cella d'arrivo, e una traccia che adjudica il piano di un morto nella stessa fase in cui c'e'
-		// la sua eliminazione dice due cose sullo stesso attore. Stesso filtro che `MakeCurrentSnapshot`
-		// applica ovunque.
-		if (bHadNormalMove && Unit->IsAlive())
+		// ⚠️ **Senza un Move pianificato la destinazione DIVENTA la cella d'arrivo**: il bot parte da `PlannedCell = Cell`, e senza il
+		// rebase la fase Move vedrebbe una `PlannedCell` diversa dalla posizione nuova e riporterebbe l'unita' indietro.
+		if (!bHadNormalMove)
 		{
-			FRTTurnLogEntry Superseded;
-			Superseded.Phase = ERTMatchPhase::Dash;
-			Superseded.Category = ERTLogCategory::Move;
-			Superseded.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
-			// L'identita' dell'azione viene dal CATALOGO, come in `ResolveMovement`: `Priority` non e' un
-			// campo decorativo, e' una chiave dell'ordine canonico (`EntryLess`) ed e' serializzata in v7.
-			// Lasciata a `0` mentre l'altro produttore di `Action.Move` legge `50` dal catalogo, due voci
-			// con lo stesso `ActionId` si ordinerebbero come se venissero da azioni diverse.
-			//
-			// `static const`: `FindCoreAction` COSTRUISCE il catalogo a ogni invocazione, e questo blocco sta
-			// dentro il loop delle unita' che scattano. Stessa correzione gia' applicata in
-			// `RTPlanValidationLibrary.cpp` dopo una misura in code review.
-			static const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
-			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
-			Superseded.Priority = MoveDef.Priority;
-			// 🔴 **`SrcCell` e' la cella di PARTENZA**, non quella d'arrivo: `BuildMoveLog` la dichiara
-			// «chiave stabile dell'unita' nel turno», e `FilterTracesByEmitter` ci filtra sopra con
-			// `ExcludedSources.Contains(Entry.SrcCell)` per confrontare le varianti a informazione nascosta.
-			// Con la cella d'arrivo la traccia di una variante sopravvive al filtro e manda rosso un
-			// confronto PERCHE' la variante ha funzionato. E la coppia (SrcCell, TgtCell) qui descrive una
-			// ROTTA: quella che non si e' percorsa.
-			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
-			Superseded.TgtCell = Unit->GetPlan().PlannedCell; // la destinazione dichiarata e mai raggiunta
-			// `Amount` conta le celle del percorso RISOLTO SCARTATO — le stesse tre parole di `RTTurnLog.h`
-			// e `spec-turnlog.md`, e «scartato» non e' decorativo: quelle celle NON sono state percorse, e'
-			// il percorso che il pathfinder aveva espanso dai waypoint e che lo scatto ha annullato. Due
-			// formulazioni per lo stesso campo sono la premessa di un difetto gia' pagato: un'asserzione che
-			// confrontava `Amount` con i CLICK invece che col percorso passava solo perche' in quello
-			// scenario i due numeri coincidevano. Un piano che dichiara solo una destinazione — il bot, che
-			// «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione resta
-			// leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
-			// percorso, in un formato che finisce nell'hash del replay.
-			Superseded.Amount = FMath::Max(0, Unit->GetPlan().PlannedPath().Num() - 1);
-			AppendLogEntry(Superseded, Unit);
+			Unit->RebasePlannedMove(Final);
 		}
-
-		Unit->RebasePlannedMove(Final);
 
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
@@ -6187,61 +6147,10 @@ void ARTTurnManager::ResolveDash()
 			ReactionBlockedThisTurn.Add(Unit);
 		}
 
-		// SLOT consumati: lo dice il catalogo, non l'ActionId. Il movimento e' gia' speso qui sopra per OGNI
-		// mobilita' rapida (D-028); resta da spendere la principale per chi dichiara `MovementAndMain`.
-		//
-		// Dopo D-028 nessuna azione di serie usa quello slot — `Action.Sprint`, che era l'unica, e' passata a
-		// `Movement`. Il ramo resta perche' e' il meccanismo con cui un kit dichiara l'eccezione: «questa
-		// mobilita' costa tutto il turno» si esprime in DATI, senza un `if` sull'ActionId qui dentro. E resta
-		// verificato — `Actions.KitCanDeclareAMobilityThatCostsBothSlots` costruisce proprio quel caso, perche'
-		// un ramo che nessun dato attraversa e' un ramo che nessun test difende.
-		//
-		// ⚠️ **Da [D-567] una stordita VIVA non arriva qui**: la guardia in cima al ciclo nega la mobilita' che prende la
-		// principale, quindi `DashAbilityIdx` resta `INDEX_NONE` per lei e la sua principale pianificata non e' un affare
-		// di questo ramo. Il ramo e' di chi lo scatto lo compie.
-		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
-		{
-			// 🔴 **Anche questo scarto si DICHIARA.** Fino ad ora la principale spariva in silenzio: stessa
-			// forma del movimento scartato qui sopra, stessa ragione. Famiglia `Fallback`/`Cancelled` e non
-			// `Move`/`SupersededByDash` perche' qui l'azione non avviene AFFATTO — mentre il movimento, dopo
-			// lo scatto, l'unita' l'ha comunque compiuto. Il motivo viaggia in `Amount`, come per ogni voce
-			// di Fallback (`RTTurnManager_Blast.cpp`).
-			// E38 CP 38.14: con piu' principali nel piano lo scatto le spende tutte, una alla volta, ognuna con la sua voce.
-			for (const FRTMainTurn& Turno : MainTurnsOf({ Unit }))
-			{
-				const ARTUnit::FMainFocus Fuoco(*Unit, Turno.EntryId);
-				if (Unit->GetPlan().PlannedAbilityIndex() != INDEX_NONE && Unit->IsAlive())
-				{
-					const URTActionData* Dropped = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
-					if (Dropped)
-					{
-						FRTTurnLogEntry Discarded;
-						Discarded.Phase = ERTMatchPhase::Dash;
-						Discarded.Category = ERTLogCategory::Fallback;
-						Discarded.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-						Discarded.ActionId = Dropped->Def.ActionId;
-						Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
-						Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
-						Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
-						// L'identita' COMPLETA dell'azione scartata: `ActionId` c'era gia', gli altri due no ([D-196]).
-						//
-						// ⚠️ Fino al 2026-08-26 qui c'era scritto che «nessun produttore `Fallback` imposta
-						// `Priority` dal catalogo». Da [D-196] la impostano tutti quelli del Blast, e lasciarla a
-						// zero qui avrebbe fatto ordinare la stessa famiglia su due chiavi diverse a seconda di
-						// chi ha scritto la voce — `Priority` e' un discriminante di `EntryLess`.
-						Discarded.BaseActionId = Dropped->Def.BaseActionId;
-						Discarded.Priority = Dropped->Def.Priority;
-						Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
-						AppendLogEntry(Discarded, Unit);
-						// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
-						// deriva l'intero log dal TurnLog (`DescribeTurnLog`) — come ogni altra voce.
-					}
-				}
-
-				Unit->ClearPlannedMainAction(); // lo slot principale e' speso
-				Unit->ClearPlannedAttack();
-			}
-		}
+		// ⏱️ *Fino a CP 38.16 qui c'era il ramo `MovementAndMain`*: una mobilita' che prendeva anche lo slot principale ne cancellava la
+		// principale con una voce `Fallback`/`Cancelled` e motivo `SlotOccupied` ([D-194] (3)). Gli slot non decidono piu' ([D-584] (1)),
+		// e una mobilita' che «costa tutto il turno» si esprime col suo costo in AP, che il validatore rifiuta prima del turno ([D-628] (1),
+		// che emenda D-194 (3)). Nessuna riga del catalogo dichiarava quello slot.
 
 		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
 		// L'orchestratore non sa quale stato sia ne' perche': aggiungerne un altro non lo tocca.

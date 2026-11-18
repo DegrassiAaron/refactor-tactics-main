@@ -449,6 +449,8 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::OverBudget:     return TEXT("il piano supera il budget di Action Point");
 	// [D-614] (E38 CP 38.13): nomina la causa, la ricarica, e non lo slot. Senza questo caso cadeva in «non eseguibile».
 	case ERTActionInvalidReason::RepeatedWithCooldown: return TEXT("l'azione ha una ricarica ed e' gia' nel piano");
+	// [D-625] (4) (E38 CP 38.16): nomina la regola, uno scatto per piano, e non lo slot.
+	case ERTActionInvalidReason::SecondDash:     return TEXT("c'e' gia' uno scatto nel piano");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
 	//

@@ -886,6 +886,12 @@ private:
 	void RebuildPlannedPath();
 
 	/**
+	 * Dopo che lo scatto pianificato e' cambiato, ricompone il percorso dai waypoint che ci sono, dalla cella d'arrivo dello scatto
+	 * (E38 CP 38.16, [D-628] (4)): i waypoint restano, e quelli che non ci stanno piu' cadono dalla fine come in [D-420], col log.
+	 */
+	void RecomposeMoveFromItsStart(class ARTUnit* Unit);
+
+	/**
 	 * Il punto comune di ogni richiesta di armamento: i dieci tasti, le cinque generiche e la porta del dock.
 	 *
 	 * 🔴 **Nessuna uscita e' muta, e l'ORDINE dei rami e' il contratto** (`#2986`). La riga che dichiara
