@@ -143,6 +143,11 @@ public:
 	 * ⛔ **Una distanza oltre il tetto piu' alto non ripiega su `Move`**: si legge `Sprint`, la banda piu'
 	 * larga. Non dovrebbe accadere — il troncamento lo previene — ma se accadesse, dire «cammino» di un
 	 * percorso che nessun tetto copre nasconderebbe il difetto invece di mostrarlo.
+	 *
+	 * ➕ **[D-629] (E38 CP 38.16): `PlannedSteps` e' la MISURA del piano, il costo in Movement Point quando il piano lo porta**
+	 * (`ARTUnit::PlannedMoveMeasure`), e i passi solo per chi non dichiara un costo. ⏱️ *Fino a D-629 erano sempre i passi*: [D-425] (10)
+	 * aveva scartato la lettura sui MP perche' inerte finche' ogni cella costava 1, e il sovrapprezzo di occupazione li ha separati. Le
+	 * percentuali di passi e MP dei profili sono le stesse ([D-412]), quindi il confronto qui sotto vale per entrambe le misure.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
 	static FRTMovementProfile ProfileForPlannedSteps(int32 PlannedSteps, int32 UnitMoveRange,

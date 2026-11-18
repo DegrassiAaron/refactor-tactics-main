@@ -529,6 +529,13 @@ public:
 	int32 PlannedMoveLegs() const;
 
 	/**
+	 * La misura da cui si legge la banda di [D-425] (`URTMovementProfileLibrary::ProfileForPlannedSteps`): il costo in Movement Point
+	 * del percorso quando il piano lo porta ([D-629], E38 CP 38.16), altrimenti i passi, del percorso o della distanza (il bot dichiara
+	 * la sola cella d'arrivo, e chi scrive il percorso a mano non dichiara un costo). Sulla mappa piana le due misure coincidono.
+	 */
+	int32 PlannedMoveMeasure() const;
+
+	/**
 	 * I tratti che chiederebbe un percorso di quel costo in Movement Point, almeno 1 ([D-628] (2)): il primo arriva al tetto nudo, ogni
 	 * altro aggiunge un `Move`; con `Sneak` o col `Withdraw` riservato resta 1 ([D-626] (1)). Il tetto si legge dal piano di adesso.
 	 */

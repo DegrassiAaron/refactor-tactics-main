@@ -2329,6 +2329,15 @@ int32 ARTUnit::MoveLegsForCost(int32 PathCost) const
 		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(this)), HasStatus(TAG_Status_Unbalanced));
 }
 
+int32 ARTUnit::PlannedMoveMeasure() const
+{
+	if (Plan.PlannedPathCost() > 0)
+	{
+		return Plan.PlannedPathCost(); // [D-629]: banda, tetto e tratti si misurano tutti in Movement Point
+	}
+	return Plan.PlannedPath().Num() >= 2 ? Plan.PlannedPath().Num() - 1 : URTHexLibrary::HexDistance(Cell, Plan.PlannedCell);
+}
+
 int32 ARTUnit::PlannedMoveLegs() const
 {
 	return HasPlannedNormalMove() ? MoveLegsForCost(Plan.PlannedPathCost()) : 0;

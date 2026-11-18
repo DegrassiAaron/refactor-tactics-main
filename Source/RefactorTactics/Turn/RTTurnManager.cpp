@@ -5537,9 +5537,7 @@ void ARTTurnManager::ResolveDash()
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
 		const FRTMovementProfile Intended = URTMovementProfileLibrary::ProfileForPlannedSteps(
-			Unit->GetPlan().PlannedPath().Num() >= 2
-				? Unit->GetPlan().PlannedPath().Num() - 1
-				: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell),
+			Unit->PlannedMoveMeasure(), // la misura della banda in `MakePlanFor` ([D-629])
 			Unit->GetEffectiveMoveRange(),
 			Unit->GetPlan().PlannedMovementProfileId(),
 			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),

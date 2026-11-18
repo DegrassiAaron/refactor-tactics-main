@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Spec.Map.FreeCellFitsTheSprint",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "pathfinding",
+    "gadget"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Il controllo di `Spec.Map.ConstrainedCellCostsMore` (#619, E38 CP 38.16): la stessa partita senza il sovrapprezzo di occupazione su (0,0,0). E' cio' che rende quel rifiuto un effetto della cella stretta, e non del piano o del percorso.",
+
+  "_nota_aritmetica": "Dieci celle a 1 MP: 10 MP, esattamente il tetto dello Sprint di Gadget (5 punti movimento, 200%). Un tratto solo, 2 AP; con ArcPulse (Blast, 2) e ReactiveCapacitor (reazione, 2) il piano costa 6 su 6, legale, e A1 arriva in (5,0,0). La banda e' lo Sprint, perche' 10 MP superano i 5 del Move ([D-629]). B1 sta accanto ad A1 e fuori dal percorso, perche' il colpo sia in portata dalla cella di partenza (il Blast risolve prima del Move): un colpo fuori portata lascerebbe la sua `Fallback`/`Cancelled`, e il conto qui sotto non direbbe piu' il lock-in. Nessuna asserzione sul `Combat` ne' sulla reazione: il soggetto e' il movimento.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-5, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-4, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "reaction": "Hero.Gadget.ReactiveCapacitor",
+          "move": [[5, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [5, 0, 0],
+      "_assertion": "Senza la cella stretta il percorso sta nel primo tratto, il piano e' legale e A1 arriva." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 0,
+      "_assertion": "Il lock-in non svuota niente." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

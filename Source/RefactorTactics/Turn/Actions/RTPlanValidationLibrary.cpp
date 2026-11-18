@@ -160,9 +160,11 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
 		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
 		// alto per nessuno, non verso il piu' basso per qualcuno.
-		const int32 PlannedSteps = Unit->GetPlan().PlannedPath().Num() >= 2
-			? Unit->GetPlan().PlannedPath().Num() - 1
-			: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell);
+		//
+		// ➕ **[D-629] (E38 CP 38.16): quando il piano porta il costo del percorso, la banda si legge da lui**, in Movement Point come il
+		// tetto e i tratti di [D-628] (2): un percorso corto e caro e' uno Sprint. I passi restano la misura di chi non dichiara un costo
+		// (il bot, che dichiara la sola cella d'arrivo), e la distanza quella di chi non ha un percorso: `ARTUnit::PlannedMoveMeasure`.
+		const int32 PlannedSteps = Unit->PlannedMoveMeasure();
 
 		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
 		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
