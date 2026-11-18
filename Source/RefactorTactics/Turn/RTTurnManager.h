@@ -3426,19 +3426,18 @@ protected:
 	 * che la DoD chiede *«un punto solo che risponde LEGALE / ILLEGALE + reason code prima del commit»*,
 	 * e questo e' il commit.
 	 *
-	 * 🔴 **Budget e ricarica BLOCCANO, lo slot occupato registra soltanto** ([D-615] (1), che emenda [D-194] per i
-	 * primi due; E38 CP 38.10, #4111). Con `OnCooldown`, `RepeatedWithCooldown` (la copia vietata da [D-614], E38 CP
-	 * 38.13) o `OverBudget` il piano **si svuota**
+	 * 🔴 **Budget, ricarica, copia e secondo scatto BLOCCANO** ([D-615] (1), che emenda [D-194] per i primi due; E38 CP 38.10,
+	 * #4111). Con `OnCooldown`, `RepeatedWithCooldown` (la copia vietata da [D-614], E38 CP 38.13), `OverBudget` o `SecondDash`
+	 * (un secondo scatto, [D-625] (4), E38 CP 38.16) il piano **si svuota**
 	 * (`ARTUnit::EmptyPlanAtLockIn`) e ogni sua voce lascia nel TurnLog una `Fallback`/`Cancelled` col motivo in
 	 * `Amount` e la fase della voce ([D-617]), col verdetto `OwnerTeam`: il server non risolve un piano oltre il
 	 * budget, e il replay dice perche' l'unita' non ha agito. Per il giocatore c'e' sempre un'uscita: un'azione in
 	 * ricarica non si arma, e un piano oltre il budget si accorcia col Back.
 	 *
-	 * ⚠️ **`SlotOccupied` resta registrato e non bloccato fino a CP 38.16**, per la ragione che [D-194] aveva per
-	 * tutto: un piano illegale per slot nasce quasi sempre da uno scatto piu' un movimento, e uno scatto pianificato
-	 * **non e' annullabile** — `ERTPointerBackStep` elenca waypoint, targeting, inspector e focus, non il dash.
-	 * Rifiutarlo chiuderebbe il giocatore in un turno senza uscita; il resolver decide come oggi
-	 * (`SupersededByDash`).
+	 * ⏱️ *Fino a E38 CP 38.16 `SlotOccupied` restava registrato e non bloccato*: un piano illegale per slot nasceva quasi sempre
+	 * da uno scatto piu' un movimento, e uno scatto pianificato non era annullabile. Da CP 38.16 gli slot non decidono, scatto +
+	 * movimento e' legale, e `SlotOccupied` non ha produttori. ⚠️ Il secondo scatto, che svuota, nessun gesto del giocatore lo
+	 * compone: lo scrivono solo l'harness e i test, quindi il giocatore non resta chiuso in un turno senza uscita.
 	 *
 	 * La riga di COMBAT LOG resta per ogni motivo, col verdetto `OwnerTeam` ([D-349]): racconta un piano.
 	 */
@@ -3446,7 +3445,7 @@ protected:
 
 	/**
 	 * Vero se il piano dell'unita' sarebbe svuotato al lock-in, cioe' se il validatore lo giudica `OnCooldown`,
-	 * `RepeatedWithCooldown` o `OverBudget` (E38 CP 38.10, CP 38.13; `URTPlanValidationLibrary::EmptiesPlanAtLockIn`). `UnitIndex` e' la posizione dell'unita' in `CollectLivingUnits`, come per
+	 * `RepeatedWithCooldown`, `OverBudget` o `SecondDash` (E38 CP 38.10, CP 38.13, CP 38.16; `URTPlanValidationLibrary::EmptiesPlanAtLockIn`). `UnitIndex` e' la posizione dell'unita' in `CollectLivingUnits`, come per
 	 * `MakeSimUnit`. Lo leggono il lock-in e il Ready del giocatore, che si rifiuta sulla stessa domanda.
 	 */
 	bool IsPlanRefusedAtLockIn(int32 UnitIndex, const ARTUnit* Unit, FRTPlanValidation& OutVerdict) const;

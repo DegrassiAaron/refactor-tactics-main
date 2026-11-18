@@ -1265,12 +1265,14 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashConsumesMovementTest,
-	"RefactorTactics.Actions.Dash.ConsumesTheMovement",
+	"RefactorTactics.Actions.Dash.LeavesRoomForTheMove",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDashConsumesMovementTest::RunTest(const FString&)
 {
-	// L'altra meta': schivato, il movimento e' speso. Un Move pianificato oltre lo scatto NON avviene.
-	// Prima di D-028 avveniva, ed era la decisione «dash + move» di spec-dash.md — ora superata.
+	// E38 CP 38.16 (#4117): dopo lo scatto il Move pianificato avviene, e parte dalla cella d'arrivo ([D-584] (1), [D-628] (4)).
+	// ⏱️ *Da D-028 a CP 38.16 lo scatto spendeva il movimento, e questo test si chiamava `Actions.Dash.ConsumesTheMovement`: un Move
+	// pianificato oltre lo scatto non avveniva.* Il piano qui dichiara la sola cella d'arrivo, come il bot: la fase Move ricostruisce il
+	// percorso da dove lo scatto ha portato l'unita'.
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
@@ -1291,7 +1293,7 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("si finisce dove ha portato lo scatto, non oltre"), Runner->Cell == FRTCellId(3, 0));
+	TestTrue(TEXT("dopo lo scatto il Move avviene, fino alla cella pianificata"), Runner->Cell == FRTCellId(5, 0));
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -1299,15 +1301,12 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 
 
 // =====================================================================================================
-// L'ECCEZIONE dichiarata da un kit, non dalla regola generale (D-028).
+// L'ECCEZIONE dichiarata da un kit: una mobilita' che «costa tutto il turno».
 //
-// Dopo la migrazione degli slot nessuna azione di serie usa `MovementAndMain`, e il ramo del resolver che
-// lo gestisce sarebbe diventato codice che nessun dato attraversa. Questo test costruisce il dato: una
-// mobilita' che dichiara di costare ENTRAMBI gli slot, come farebbe il kit di un eroe.
-//
-// Non e' un RED — il meccanismo esisteva gia' ed era cio' che rendeva `Action.Sprint` speciale prima di
-// D-028. E' la copertura di un ramo rimasto scoperto dalla migrazione: senza, la prossima persona che lo
-// trova morto lo cancella, e con lui il modo di esprimere l'eccezione senza un `if` sull'ActionId.
+// ⏱️ *Fino a E38 CP 38.16 la si esprimeva con lo slot `MovementAndMain`, e il ramo omonimo di `ResolveDash` cancellava la principale
+// con `SlotOccupied` ([D-194] (3)).* [D-628] (1) ha tolto il ramo: gli slot non decidono piu' ([D-584] (1)), e la stessa eccezione si
+// esprime col COSTO in AP. Una mobilita' da 6 AP piu' una principale da 2 sfora il budget, e il lock-in svuota il piano: non parte
+// ne' lo scatto ne' il colpo. Lo slot resta nei dati del test per mostrare che non decide piu' niente.
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKitDeclaredBothSlotsTest,
@@ -1335,12 +1334,13 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: dalla cella d'arrivo il bersaglio E' a portata"),
 		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
 
-	// Uno scatto identico ad `Action.Dodge` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	// Uno scatto identico ad `Action.Dodge` TRANNE il costo: e' il kit a dichiarare che costa tutto il turno, coi suoi AP.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
 	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
 	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
 	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
+	Costly->Def.ActionPointCost = Runner->GetActionPointBudget();
 	Runner->Abilities.Add(Costly);
 
 	const int32 FoeBefore = Foe->Health + Foe->Shield;
@@ -1352,10 +1352,10 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(DashTo, 0));
-	// La differenza con `Action.Dodge`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
-	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
-		Foe->Health + Foe->Shield, FoeBefore);
+	// Il piano sfora il budget: il lock-in lo svuota ([D-615] (1)), e non parte niente. Il gemello `NormalDashDoesNotDiscardTheMainSlot`
+	// e' il controllo positivo: lo stesso scatto a 2 AP lascia partire il colpo.
+	TestTrue(TEXT("lo scatto non e' avvenuto"), Runner->Cell == FRTCellId(0, 0));
+	TestEqual(TEXT("e il colpo non e' partito"), Foe->Health + Foe->Shield, FoeBefore);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -1440,6 +1440,8 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	// L'altra meta' di «cio' che il turno scarta lo dichiara chi lo scarta». Il gemello
 	// `KitCanDeclareAMobilityThatCostsBothSlots` prova che il colpo NON parte; qui si prova che il turno lo
 	// DICE, invece di far sparire l'azione principale in silenzio.
+	// ⏱️ *Fino a E38 CP 38.16 lo diceva `ResolveDash`, con una voce `SlotOccupied` per la sola principale.* Da [D-628] (1) lo dice il
+	// lock-in, con una voce `OverBudget` per ogni voce del piano ([D-617]).
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
@@ -1459,9 +1461,10 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
 	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
+	Costly->Def.ActionPointCost = Runner->GetActionPointBudget();
 	Runner->Abilities.Add(Costly);
 
-	// Catturate PRIMA della risoluzione: il resolver azzera il piano e sposta l'unita'.
+	// Catturate PRIMA della risoluzione: il lock-in azzera il piano.
 	const FRTCellId CellaDiPartenza = Runner->Cell;
 	const URTActionData* Principale = Runner->GetAbility(0);
 	if (!TestNotNull(TEXT("premessa: l'unita' ha un'azione principale"), Principale))
@@ -1484,7 +1487,8 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	{
 		if (Entry.Category == ERTLogCategory::Fallback
 			&& static_cast<ERTFallbackOutcome>(Entry.Outcome) == ERTFallbackOutcome::Cancelled
-			&& static_cast<ERTActionInvalidReason>(Entry.Amount) == ERTActionInvalidReason::SlotOccupied)
+			&& static_cast<ERTActionInvalidReason>(Entry.Amount) == ERTActionInvalidReason::OverBudget
+			&& Entry.ActionId == IdDellaPrincipale)
 		{
 			++Cancellate;
 			Found = Entry;
@@ -1496,19 +1500,26 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 		DestroyHexMoveWorld(World);
 		return false;
 	}
-	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
+	TestEqual(TEXT("la voce sta nella fase della principale"), Found.Phase,
+		URTCatalogLibrary::MapResolutionPhase(Principale->Def.ResolutionPhase));
 	TestEqual(TEXT("nomina l'azione che NON si esegue"), Found.ActionId, IdDellaPrincipale);
 	TestEqual(TEXT("porta il BaseActionId (D-033): la traccia si spiega da sola"),
 		Found.BaseActionId, Principale->Def.BaseActionId);
 	TestEqual(TEXT("SrcCell e' la cella di partenza"), Found.SrcCell, CellaDiPartenza);
-	TestEqual(TEXT("TgtCell = SrcCell quando non applicabile"), Found.TgtCell, Found.SrcCell);
 
 	// E il rendering dice il motivo invece di «non eseguibile».
 	TestTrue(TEXT("il motivo si legge in italiano"),
-		URTTurnLogLibrary::DescribeEntry(Found).Contains(TEXT("slot")));
+		URTTurnLogLibrary::DescribeEntry(Found).Contains(TEXT("budget")));
 
-	// E lo scatto e' avvenuto davvero: senza, la voce descriverebbe un turno che non c'e' stato.
-	TestEqual(TEXT("premessa: lo scatto ha spostato l'unita'"), Runner->Cell, FRTCellId(DashTo, 0));
+	// Anche lo scatto ha la sua voce: il piano si svuota tutto, e lo scatto non avviene.
+	int32 ScattiCancellati = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		ScattiCancellati += (Entry.Category == ERTLogCategory::Fallback && Entry.ActionId == FName(TEXT("Hero.CostlyDash"))
+			&& static_cast<ERTActionInvalidReason>(Entry.Amount) == ERTActionInvalidReason::OverBudget) ? 1 : 0;
+	}
+	TestEqual(TEXT("e una voce dichiara lo scatto scartato"), ScattiCancellati, 1);
+	TestEqual(TEXT("lo scatto non ha spostato l'unita'"), Runner->Cell, CellaDiPartenza);
 
 	DestroyHexMoveWorld(World);
 	return true;

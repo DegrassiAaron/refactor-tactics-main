@@ -48,7 +48,8 @@ bool URTPlanValidationLibrary::EmptiesPlanAtLockIn(ERTActionInvalidReason Reason
 {
 	return Reason == ERTActionInvalidReason::OnCooldown
 		|| Reason == ERTActionInvalidReason::RepeatedWithCooldown
-		|| Reason == ERTActionInvalidReason::OverBudget;
+		|| Reason == ERTActionInvalidReason::OverBudget
+		|| Reason == ERTActionInvalidReason::SecondDash; // [D-625] (4): come la copia vietata (lettura (c))
 }
 
 int32 URTPlanValidationLibrary::SlotWidth(ERTActionSlot Slot)
@@ -289,45 +290,22 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		}
 	}
 
-	// 4. Combinazione: l'occupazione degli slot. `None` non toglie niente (`Action.Wait`).
-	//
-	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
-	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
-	const FRTPlannedAction* MovementHolder = nullptr;
-	const FRTPlannedAction* MainHolder = nullptr;
-	for (const FRTPlannedAction& Entry : Ordered)
+	// 4. [D-625] (4) (E38 CP 38.16): uno scatto per piano. Gli slot non decidono piu' la legalita' ([D-584] (1)), e `SlotOccupied` non ha
+	// piu' produttori: scatto + Move, due principali, una mobilita' che costa tutto il turno passano o cadono sul budget qui sopra. Resta
+	// la sola regola di classe che D-625 tiene oltre al budget: due scatti DIVERSI (la copia dello stesso scatto e' gia' caduta al passo 2).
+	// Si accusa il secondo nell'ordine di dichiarazione, col primo come detentore, come per la copia: la legalita' e' la coppia.
+	const FRTPlannedAction* PrimoScatto = nullptr;
+	for (const FRTPlannedAction& Entry : Dichiarate)
 	{
-		// E38 CP 38.13: il Prep e' aperto, e una sua voce non prende slot ([D-584] (1): «due azioni di Prep sono legali
-		// se gli AP bastano»). Le fasi chiuse restano sotto il vincolo fino al loro checkpoint (CP 38.14–38.16).
-		if (URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase) == ERTMatchPhase::Prep)
+		if (!URTCatalogLibrary::IsFastMovement(Entry.Def))
 		{
 			continue;
 		}
-		const bool bWantsMovement = Entry.Def.Slot == ERTActionSlot::Movement
-			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
-		const bool bWantsMain = Entry.Def.Slot == ERTActionSlot::Main
-			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
-
-		if (bWantsMovement && MovementHolder)
+		if (PrimoScatto)
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MovementHolder);
+			return Reject(ERTActionInvalidReason::SecondDash, Entry, PrimoScatto);
 		}
-		// E38 CP 38.14: anche il Blast e il Cleanup sono aperti. Due principali dello slot principale, di quelle fasi, stanno
-		// insieme; resta il conflitto con una mobilita' che prende anche la principale (`MovementAndMain`), che `ResolveDash`
-		// scarta prima del Blast, fino a CP 38.16.
-		const ERTMatchPhase FaseVoce = URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase);
-		const bool bPrincipaleAperta = Entry.Def.Slot == ERTActionSlot::Main
-			&& (FaseVoce == ERTMatchPhase::Blast || FaseVoce == ERTMatchPhase::Cleanup);
-		const bool bDetentoreAperto = MainHolder && MainHolder->Def.Slot == ERTActionSlot::Main;
-		if (bWantsMain && MainHolder && !(bPrincipaleAperta && bDetentoreAperto))
-		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MainHolder);
-		}
-		// E38 CP 38.15: la reazione e' aperta ([D-592]). Due reazioni distinte stanno insieme, e una copia con ricarica e' gia'
-		// `RepeatedWithCooldown` per la regola della copia qui sopra ([D-614]); lo slot reazione non ha piu' un detentore.
-
-		if (bWantsMovement) { MovementHolder = &Entry; }
-		if (bWantsMain && !MainHolder) { MainHolder = &Entry; } // il primo detentore, quello che un `MovementAndMain` accusa
+		PrimoScatto = &Entry;
 	}
 
 	return FRTPlanValidation();

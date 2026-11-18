@@ -54,8 +54,9 @@ bool FRTPlanMovementMainAndReactionAreLegal::RunTest(const FString&)
 
 /**
  * Due principali del Blast si sommano entro il budget ([D-584] (1); E38 CP 38.14): fino a CP 38.14 la legalita' era
- * strutturale (D-028, D-114) e questo test le rifiutava. Resta il soggetto che lo slot ha ancora: una mobilita' che prende
- * anche la principale (`MovementAndMain`) non lascia posto a un'altra principale, fino a CP 38.16.
+ * strutturale (D-028, D-114) e questo test le rifiutava. ➕ Da CP 38.16 neppure una mobilita' che prende anche la principale
+ * (`MovementAndMain`) toglie posto: gli slot non decidono, e una mobilita' che «costa tutto il turno» lo dice col suo costo
+ * ([D-628] (1)). Il nome e' storico: lo citano il piano dei checkpoint e le evidenze.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSecondMainIsRejected,
 	"RefactorTactics.Plan.SecondMainIsRejected",
@@ -73,19 +74,29 @@ bool FRTPlanSecondMainIsRejected::RunTest(const FString&)
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
 		PlanEntry(TEXT("Action.Interact"), ERTActionSlot::Main),
 	};
-	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(8), ConUnaCarica);
-	TestFalse(TEXT("una mobilita' che prende la principale non lascia posto"), Result.bLegal);
-	TestEqual(TEXT("il motivo e' lo slot occupato"), Result.Reason, ERTActionInvalidReason::SlotOccupied);
-	TestEqual(TEXT("e la detentrice e' la mobilita'"), Result.HolderActionId, FName(TEXT("Test.Charge")));
+	TestTrue(TEXT("CP 38.16: senza costi, una mobilita' MovementAndMain e due principali stanno insieme"),
+		URTPlanValidationLibrary::ValidatePlan(PlanUnit(8), ConUnaCarica).bLegal);
+
+	// Controllo positivo: con i costi, a decidere e' il budget. La mobilita' che «costa tutto il turno» lo dice coi suoi AP.
+	TArray<FRTPlannedAction> ConICosti = ConUnaCarica;
+	ConICosti[0].Def.ActionPointCost = 6;
+	ConICosti[1].Def.ActionPointCost = 2;
+	ConICosti[2].Def.ActionPointCost = 2;
+	for (int32 i = 0; i < ConICosti.Num(); ++i) { ConICosti[i].DeclarationIndex = i; }
+	FRTHexSimUnit Unita = PlanUnit(8);
+	Unita.ActionPointBudget = 6;
+	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(Unita, ConICosti);
+	TestFalse(TEXT("con un costo di 6 la mobilita' non lascia AP alla principale"), Result.bLegal);
+	TestEqual(TEXT("il motivo e' il budget, non lo slot"), Result.Reason, ERTActionInvalidReason::OverBudget);
+	TestEqual(TEXT("e si accusa la prima voce che sfora"), Result.OffendingActionId, FName(TEXT("Action.BasicAttack")));
 	return true;
 }
 
 /**
- * `Sprint` occupa ENTRAMBI gli slot, quindi nessuna principale le sta accanto.
+ * Uno `Sprint` che dichiarasse ENTRAMBI gli slot (`MovementAndMain`, sintetico: nessuna riga del catalogo lo fa) e una principale.
  *
- * E' anche la forma corretta del vincolo che il kit d'autore proponeva come regola a se'
- * (`OverwatchDisallowsVoluntaryDash`): D-070 dichiara che quel divieto non serve — chi riserva lo slot
- * movimento non VIETA lo scatto, semplicemente non ha piu' lo slot. Il motivo dice «slot occupato».
+ * ⏱️ *Fino a CP 38.16 il piano era illegale con `SlotOccupied`, e il colpevole era l'attacco.* Da CP 38.16 gli slot non decidono
+ * ([D-584] (1)), e `SlotOccupied` non ha piu' produttori: il piano e' legale finche' il budget lo paga. Il nome e' storico.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSprintLeavesNoRoomForMain,
 	"RefactorTactics.Plan.SprintLeavesNoRoomForMain",
@@ -99,10 +110,8 @@ bool FRTPlanSprintLeavesNoRoomForMain::RunTest(const FString&)
 
 	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(8), Plan);
 
-	TestFalse(TEXT("Sprint + principale non e' legale"), Result.bLegal);
-	TestEqual(TEXT("il motivo e' lo slot occupato"), Result.Reason, ERTActionInvalidReason::SlotOccupied);
-	TestEqual(TEXT("l'azione respinta e' l'attacco"), Result.OffendingActionId,
-		FName(TEXT("Action.BasicAttack")));
+	TestTrue(TEXT("CP 38.16: Sprint + principale e' legale"), Result.bLegal);
+	TestEqual(TEXT("e nessun motivo"), Result.Reason, ERTActionInvalidReason::None);
 	return true;
 }
 
@@ -240,32 +249,37 @@ bool FRTPlanVerdictIgnoresMoveBudget::RunTest(const FString&)
 }
 
 /**
- * Invarianza per permutazione quando a decidere sono gli SLOT, non il cooldown.
+ * Invarianza per permutazione quando a decidere e' la regola dello scatto, non il cooldown (E38 CP 38.16).
  *
- * Serve un test proprio: nella prova precedente l'illegalita' la decide il cooldown, che si trova
- * scorrendo l'array in qualunque ordine — quindi quel test resta verde anche togliendo l'ordine canonico,
- * e non dimostra nulla sugli slot. Qui invece l'ordine conta davvero: composto come
- * `Sprint, attacco, Move` il rifiutato e' l'attacco, composto come `attacco, Move, Sprint` sarebbe lo
- * `Sprint` — due colpevoli diversi per lo stesso piano.
+ * ⏱️ *Fino a CP 38.16 a decidere erano gli slot*: `Sprint, attacco, Move` era `SlotOccupied` con colpevole l'attacco. Gli slot non
+ * decidono piu', e la regola di classe che resta e' quella dello scatto ([D-625] (4)). Due scatti diversi, dichiarati in un ordine
+ * fisso: in qualunque ordine dell'array il motivo e' `SecondDash`, il colpevole il secondo dichiarato e il detentore il primo.
+ * Il nome e' storico.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSlotVerdictIsPermutationInvariant,
 	"RefactorTactics.Plan.SlotVerdictIsPermutationInvariant",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlanSlotVerdictIsPermutationInvariant::RunTest(const FString&)
 {
+	auto Scatto = [](const TCHAR* Id)
+	{
+		FRTPlannedAction Entry = PlanEntry(Id, ERTActionSlot::Movement);
+		Entry.Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+		return Entry;
+	};
 	TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Sprint"), ERTActionSlot::MovementAndMain),
+		Scatto(TEXT("Action.Leap")),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
+		Scatto(TEXT("Action.Dodge")),
 		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
 	};
 	for (int32 i = 0; i < Plan.Num(); ++i) { Plan[i].DeclarationIndex = i; } // E38 CP 38.12: indici fissi
 
 	const FRTPlanValidation Reference = URTPlanValidationLibrary::ValidatePlan(PlanUnit(10), Plan);
-	TestFalse(TEXT("Sprint non lascia spazio ad altro"), Reference.bLegal);
-	TestEqual(TEXT("il motivo e' lo slot occupato"), Reference.Reason,
-		ERTActionInvalidReason::SlotOccupied);
-	TestEqual(TEXT("il colpevole e' l'attacco, non lo Sprint"), Reference.OffendingActionId,
-		FName(TEXT("Action.BasicAttack")));
+	TestFalse(TEXT("due scatti diversi sono vietati"), Reference.bLegal);
+	TestEqual(TEXT("il motivo e' il secondo scatto"), Reference.Reason, ERTActionInvalidReason::SecondDash);
+	TestEqual(TEXT("il colpevole e' il secondo dichiarato"), Reference.OffendingActionId, FName(TEXT("Action.Dodge")));
+	TestEqual(TEXT("e il detentore il primo"), Reference.HolderActionId, FName(TEXT("Action.Leap")));
 
 	for (int32 I = 0; I < Plan.Num(); ++I)
 	{
@@ -286,6 +300,50 @@ bool FRTPlanSlotVerdictIsPermutationInvariant::RunTest(const FString&)
 			TestEqual(TEXT("ne' il detentore e la sua occorrenza"), Other.HolderDeclarationIndex, Reference.HolderDeclarationIndex);
 		}
 	}
+	return true;
+}
+
+/**
+ * **[D-625] (4) — uno scatto per piano** (E38 CP 38.16): due scatti DIVERSI sono vietati anche quando il budget li paga; la stessa
+ * azione due volte resta la copia vietata, che il validatore guarda prima; scatto + Move restano legali (la lettura (e)).
+ *
+ * Nessun eroe porta due scatti nel kit, quindi lo scenario `Spec.ActionEconomy.SecondRamIsRefused` prova solo la copia: il caso
+ * delle due azioni diverse vive qui. Ogni rifiuto ha il suo controllo positivo nello stesso budget.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSecondDifferentDashIsRefused,
+	"RefactorTactics.Plan.SecondDifferentDashIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanSecondDifferentDashIsRefused::RunTest(const FString&)
+{
+	auto Voce = [](const TCHAR* Id, bool bScatto, int32 Costo, int32 CooldownDiRiga, int32 Dichiarata)
+	{
+		FRTPlannedAction Entry = PlanEntry(Id, bScatto ? ERTActionSlot::Movement : ERTActionSlot::Main);
+		if (bScatto) { Entry.Def.ResolutionPhase = ERTResolutionPhase::FastMovement; }
+		Entry.Def.ActionPointCost = Costo;
+		Entry.CatalogCooldownTurns = CooldownDiRiga;
+		Entry.DeclarationIndex = Dichiarata;
+		return Entry;
+	};
+	FRTHexSimUnit Unita = PlanUnit(10);
+	Unita.ActionPointBudget = 6;
+
+	const FRTPlanValidation Due = URTPlanValidationLibrary::ValidatePlan(Unita,
+		{ Voce(TEXT("Action.Leap"), true, 2, 2, 0), Voce(TEXT("Action.Dodge"), true, 2, 2, 1) });
+	TestFalse(TEXT("due scatti diversi da 4 AP su 6: vietati"), Due.bLegal);
+	TestEqual(TEXT("col motivo SecondDash"), Due.Reason, ERTActionInvalidReason::SecondDash);
+	TestTrue(TEXT("e il motivo svuota il piano al lock-in"), URTPlanValidationLibrary::EmptiesPlanAtLockIn(Due.Reason));
+
+	const FRTPlanValidation Copia = URTPlanValidationLibrary::ValidatePlan(Unita,
+		{ Voce(TEXT("Action.Leap"), true, 2, 2, 0), Voce(TEXT("Action.Leap"), true, 2, 2, 1) });
+	TestEqual(TEXT("la stessa azione due volte resta la copia vietata"), Copia.Reason, ERTActionInvalidReason::RepeatedWithCooldown);
+
+	const FRTPlanValidation ConMove = URTPlanValidationLibrary::ValidatePlan(Unita,
+		{ Voce(TEXT("Action.Leap"), true, 2, 2, 0), Voce(TEXT("Action.Move"), false, 2, 0, 1),
+		  Voce(TEXT("Action.BasicAttack"), false, 2, 0, 2) });
+	TestTrue(TEXT("controllo positivo: scatto + Move + attacco, 6 su 6, legale"), ConMove.bLegal);
+
+	const FRTPlanValidation Uno = URTPlanValidationLibrary::ValidatePlan(Unita, { Voce(TEXT("Action.Leap"), true, 2, 2, 0) });
+	TestTrue(TEXT("controllo positivo: uno scatto solo e' legale"), Uno.bLegal);
 	return true;
 }
 

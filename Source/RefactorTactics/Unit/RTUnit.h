@@ -590,6 +590,13 @@ public:
 	bool AddPlannedReaction(int32 AbilityIndex);
 
 	/**
+	 * Uno scatto IN PIU' in coda al piano (E38 CP 38.16): la voce che `SetPlannedDash` sostituirebbe. Rifiuta, e lascia il piano com'era,
+	 * un'azione che non e' una mobilita' rapida. ⛔ Nessun gesto del giocatore la chiama: un secondo scatto e' vietato ([D-625] (4)), e
+	 * questa strada serve all'harness degli scenari, che scrive il piano che il validatore deve rifiutare (`SecondDash`).
+	 */
+	bool AddPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell);
+
+	/**
 	 * Le reazioni armate, ognuna una volta, nell'ordine del motore: priorita', poi `ActionId`, poi l'indice nel kit; mai
 	 * la dichiarazione ([D-615] (5)). E' l'ordine in cui i pass le valutano, quindi quello delle loro voci e dei loro effetti.
 	 */
@@ -1306,6 +1313,14 @@ public:
 	 * perche' ciascuno ha una voce sua nel TurnLog.
 	 */
 	bool PlannedDashMoves() const;
+
+	/**
+	 * La cella da cui partira' il Move del piano (E38 CP 38.16, [D-628] (4)): la posizione di adesso, o con uno scatto che sposta
+	 * (`PlannedDashMoves`) la cella dove lo scatto si ferma, cioe' `PlannedDashCell` o, per una carica, l'ultima cella che percorre
+	 * davanti all'impatto (`GetPlannedChargeRun`, sulla retta di `URTMovementActionLibrary::MovementLine`). Una carica senza una
+	 * lettura della corsa resta sulla posizione di adesso: il resolver ricostruisce il percorso da dove l'unita' arriva.
+	 */
+	FRTCellId PlannedMoveStartCell() const;
 
 	/**
 	 * Da dove mira quest'unita' un'azione della fase `Phase`, col piano di scatto che ha adesso ([D-464]).

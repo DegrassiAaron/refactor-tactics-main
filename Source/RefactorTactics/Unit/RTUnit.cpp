@@ -2182,6 +2182,20 @@ void ARTUnit::ClearReactionPlan()
 	WaypointsAllaReazione = INDEX_NONE;
 }
 
+bool ARTUnit::AddPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
+{
+	const URTActionData* Azione = GetAbility(AbilityIndex);
+	if (Azione == nullptr || !URTCatalogLibrary::IsFastMovement(Azione->Def))
+	{
+		return false;
+	}
+	FRTPlanEntry Voce;
+	Voce.Class = ERTPlanEntryClass::Dash;
+	Voce.AbilityIndex = AbilityIndex;
+	Voce.DashCell = DashCell;
+	return Plan.AddEntry(Voce);
+}
+
 bool ARTUnit::AddPlannedReaction(int32 AbilityIndex)
 {
 	const URTActionData* Azione = GetAbility(AbilityIndex);
@@ -2516,6 +2530,26 @@ bool ARTUnit::PlannedNormalMoveDeniedByStun() const
 bool ARTUnit::PlannedDashMoves() const
 {
 	return PlannedDashApplies() && !PlannedDashDeniedByStatus() && !PlannedDashDeniedByStun();
+}
+
+FRTCellId ARTUnit::PlannedMoveStartCell() const
+{
+	if (!PlannedDashMoves())
+	{
+		return Cell;
+	}
+	if (!PlannedDashIsCharge())
+	{
+		return Plan.PlannedDashCell();
+	}
+	FRTChargeRun Corsa;
+	TArray<FRTCellId> Retta;
+	if (GetPlannedChargeRun(Corsa) && URTMovementActionLibrary::MovementLine(Corsa.From, Corsa.Target, Retta)
+		&& Retta.IsValidIndex(Corsa.RunCells))
+	{
+		return Retta[Corsa.RunCells]; // `RunCells` celle percorse, la partenza esclusa: la cella su cui la carica si ferma
+	}
+	return Cell;
 }
 
 FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const

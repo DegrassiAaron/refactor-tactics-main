@@ -5,6 +5,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Planning/RTFacingDeclaration.h" // CellFor: la cella del verso con scatto + Move (CP 38.16)
 #include "Player/Input/RTInputKeys.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/Log/RTTurnLog.h"
@@ -738,127 +739,112 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 
 
 // =====================================================================================================
-// CP 38.2 — lo scarto del movimento si DICE, e lo dice chi lo esegue.
+// E38 CP 38.16 (#4117) — scatto e Move nello stesso piano: il Move parte dalla cella d'arrivo dello scatto.
 //
-// Il giocatore puo' comporre scatto + movimento normale: due voci per lo slot movimento. `ResolveDash` fa
-// vincere lo scatto e azzera il percorso — fino al 2026-08-26 in silenzio, quindi una rotta disegnata sulla
-// mappa spariva senza che niente la nominasse.
+// ⏱️ *Fino a CP 38.16 (CP 38.2) il giocatore poteva comporre scatto + movimento normale, due voci per lo slot movimento, e
+// `ResolveDash` faceva vincere lo scatto: azzerava il percorso e lo diceva con una voce `Move/SupersededByDash`.* Questo test
+// pinnava quella voce col nome `DashSupersedesTheNormalMove`. Con [D-584] (1) gli slot non decidono piu': il piano e' legale,
+// il percorso si compone dalla cella d'arrivo dello scatto ([D-628] (4)) e il Move avviene. `SupersededByDash` resta nell'enum
+// senza produttore.
 //
-// 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in**, ed e' la lezione della code review: al commit il
-// piano si contraddice e basta, ma CHI verra' scartato lo decide il resolver. L'ordine canonico di
-// `ValidatePlan` — per larghezza di slot, poi per `ActionId` — davanti a `Action.Move` e
-// `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
-// l'azione sbagliata.
-//
-// I tre test vanno tenuti INSIEME, e il portante e' il TERZO. Il secondo — piano legale senza scatto —
-// non attraversa il blocco: `ResolveDash` esce a `DasherCount == 0` prima di arrivarci, quindi un
-// `AppendLogEntry` incondizionato lo passerebbe. E' `NoSupersededEntryOnADashWithoutAPlannedMove` a
-// coprire quel caso, ed e' il test che il 2026-08-26 ha misurato il falso positivo su ogni scatto.
+// I due test che seguono restano veri e restano utili: nessuna voce di scarto su un piano senza scatto, ne' su uno scatto senza
+// Move.
 // =====================================================================================================
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashSupersedesNormalMoveTest,
-	"RefactorTactics.PlayerInteraction.DashSupersedesTheNormalMove",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashThenMoveStartsFromTheArrivalTest,
+	"RefactorTactics.PlayerInteraction.DashThenMoveStartsFromTheArrival",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
+bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 {
-	UWorld* World = MakeInteractionWorld();
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	// Due ordini dei click: lo scatto e poi il waypoint, e il waypoint e poi lo scatto ([D-628] (4): i waypoint si ricompongono). E due
+	// scatti: Ram, una carica, che si ferma dove dice la sua corsa, e `Action.Dodge`, uno scatto che arriva sulla cella cliccata. Sono
+	// i due rami di `ARTUnit::PlannedMoveStartCell`, e una mutazione ha mostrato che col solo Ram il secondo non lo copriva nessuno.
+	for (const int32 Caso : { 0, 1, 2, 3 })
 	{
-		DestroyInteractionWorld(World);
-		return false;
-	}
-
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
-		|| !TestNotNull(TEXT("turn manager"), TM))
-	{
-		DestroyInteractionWorld(World);
-		return false;
-	}
-	PC->SelectActorForTest(U);
-
-	const int32 DashIdx = U->FindDashAbilityIndex();
-	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
-	{
-		DestroyInteractionWorld(World);
-		return false;
-	}
-
-	// Il giocatore compone davvero il piano incoerente: scatto, poi stato neutro (D-128), poi waypoint.
-	// MoveTo e' a DISTANZA 2 da Start, non adiacente, ed e' deliberato: un solo click
-	// (`PlannedWaypoints.Num() == 1`) risolve in un percorso di DUE celle (`PlannedPath.Num() - 1 == 2`).
-	// `Superseded.Amount` (RTTurnManager.cpp) viene dal percorso RISOLTO, non dal conteggio dei click — con
-	// una destinazione adiacente le due quantita' avrebbero coinciso, e l'asserzione su `Amount` piu' sotto
-	// non avrebbe morso una regressione che scambiasse la sorgente (rilievo di code review, 2026-08-26).
-	const FRTCellId DashTo(1, 2);
-	const FRTCellId MoveTo(3, 1);
-	U->SelectAbility(DashIdx);
-	PC->HandleClickOnCell(DashTo);
-	U->SelectAbility(INDEX_NONE);
-	PC->HandleClickOnCell(MoveTo);
-	// La sorgente VERA di `Amount`: il percorso risolto, non i click posati (vedi il commento sopra).
-	const int32 CelleAttese = FMath::Max(0, U->GetPlan().PlannedPath().Num() - 1);
-
-	// Le premesse: senza, il turno non conterrebbe il caso in esame.
-	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->GetPlan().PlannedDashAbility(), static_cast<int32>(INDEX_NONE))
-		|| !TestTrue(TEXT("premessa: il waypoint si posa — l'input non viene rifiutato"),
-			U->GetPlan().PlannedWaypoints().Num() > 0)
-		|| !TestEqual(TEXT("premessa: la destinazione del movimento e' quella cliccata"), U->GetPlan().PlannedCell, MoveTo)
-		|| !TestNotEqual(TEXT("premessa: un click non e' una cella di percorso — le due sorgenti di Amount divergono qui"),
-			U->GetPlan().PlannedWaypoints().Num(), CelleAttese))
-	{
-		DestroyInteractionWorld(World);
-		return false;
-	}
-
-	TM->LockInAndResolve();
-	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
-
-	// La voce, e i suoi CAMPI: un conteggio da solo non si accorgerebbe di una destinazione sbagliata o di
-	// un esito che nomina l'azione che invece esegue.
-	int32 Superseded = 0;
-	FRTTurnLogEntry Found;
-	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
-	{
-		if (Entry.Category == ERTLogCategory::Move
-			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		const bool bScattoPrima = (Caso % 2) == 0;
+		const bool bCarica = Caso < 2;
+		const FString Ordine = FString::Printf(TEXT("%s, %s"), bCarica ? TEXT("Ram") : TEXT("Dodge"),
+			bScattoPrima ? TEXT("scatto, poi waypoint") : TEXT("waypoint, poi scatto"));
+		UWorld* World = MakeInteractionWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
 		{
-			++Superseded;
-			Found = Entry;
+			DestroyInteractionWorld(World);
+			return false;
 		}
-	}
 
-	if (!TestEqual(TEXT("una voce dichiara il movimento scartato"), Superseded, 1))
-	{
+		ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+			|| !TestNotNull(TEXT("turn manager"), TM))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		PC->SelectActorForTest(U);
+
+		const int32 DashIdx = bCarica ? U->FindDashAbilityIndex() : RTAbilityFixtures::AddCoreAbility(U, TEXT("Action.Dodge"));
+		if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		const URTActionData* Scelto = U->GetAbility(DashIdx);
+		if (!TestTrue(TEXT("premessa: carica o scatto, come chiede il caso"), Scelto
+				&& (Scelto->Def.MovementStyle == ERTMovementStyle::LinearCharge) == bCarica))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+
+		const FRTCellId DashTo(1, 2);
+		const FRTCellId MoveTo(3, 1);
+		auto Scatta = [&]() { U->SelectAbility(DashIdx); PC->HandleClickOnCell(DashTo); U->SelectAbility(INDEX_NONE); };
+		auto Cammina = [&]() { PC->HandleClickOnCell(MoveTo); };
+		if (bScattoPrima) { Scatta(); Cammina(); } else { Cammina(); Scatta(); }
+
+		const TArray<FRTCellId>& Percorso = U->GetPlan().PlannedPath();
+		if (!TestEqual(*FString::Printf(TEXT("%s, premessa: lo scatto e' pianificato"), *Ordine), U->GetPlan().PlannedDashCell(), DashTo)
+			|| !TestTrue(*FString::Printf(TEXT("%s, premessa: il percorso c'e'"), *Ordine), Percorso.Num() >= 2))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("%s: il percorso parte dalla cella d'arrivo dello scatto"), *Ordine), Percorso[0], DashTo);
+		TestEqual(*FString::Printf(TEXT("%s: e arriva alla cella cliccata"), *Ordine), U->GetPlan().PlannedCell, MoveTo);
+		TestEqual(*FString::Printf(TEXT("%s: il waypoint resta"), *Ordine), U->GetPlan().PlannedWaypoints().Num(), 1);
+		// Il verso si dichiara da dove l'unita' finira': la fine del Move, che risolve dopo lo scatto (revisione di CP 38.16a). Fino a
+		// CP 38.16 lo scatto sostituiva il movimento, e il selettore si apriva sulla sua cella.
+		TestEqual(*FString::Printf(TEXT("%s: il verso si dichiara dalla fine del Move"), *Ordine), FRTFacingDeclaration::CellFor(U), MoveTo);
+		TestTrue(*FString::Printf(TEXT("%s: il piano e' legale"), *Ordine),
+			URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(0, U->Cell, 10, true),
+				URTPlanValidationLibrary::MakePlanFor(U)).bLegal);
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		auto Conta = [TM, U](ERTMoveOutcome Esito)
+		{
+			int32 N = 0;
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+			{
+				N += (E.UnitId == U->StableUnitId && E.Category == ERTLogCategory::Move && E.Outcome == static_cast<uint8>(Esito)) ? 1 : 0;
+			}
+			return N;
+		};
+		TestEqual(*FString::Printf(TEXT("%s: nessuna voce di scarto"), *Ordine), Conta(ERTMoveOutcome::SupersededByDash), 0);
+		// La voce `Moved` della fase Move: anche lo scatto ne scrive una, nella fase Dash.
+		int32 MossoNelMove = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			MossoNelMove += (E.UnitId == U->StableUnitId && E.Phase == ERTMatchPhase::Move && E.Category == ERTLogCategory::Move
+				&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::Moved)) ? 1 : 0;
+		}
+		TestEqual(*FString::Printf(TEXT("%s: il Move e' avvenuto"), *Ordine), MossoNelMove, 1);
+		TestEqual(*FString::Printf(TEXT("%s: l'unita' e' dove l'ha portata il Move, dopo lo scatto"), *Ordine), U->Cell, MoveTo);
 		DestroyInteractionWorld(World);
-		return false;
 	}
-	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
-	TestEqual(TEXT("nomina il MOVIMENTO, non lo scatto che invece esegue"),
-		Found.ActionId, FName(TEXT("Action.Move")));
-	TestEqual(TEXT("SrcCell e' da dove il movimento sarebbe partito — chiave stabile dell'unita' nel turno"),
-		Found.SrcCell, FRTCellId(1, 1));
-	TestEqual(TEXT("TgtCell e' la destinazione dichiarata e mai raggiunta"), Found.TgtCell, MoveTo);
-	// I due campi che entrano nell'ORDINE CANONICO e nel formato serializzato. Senza queste asserzioni,
-	// mettere `Priority` a zero o `Amount` a un numero qualsiasi lascia la suite verde — ed e' esattamente
-	// il difetto che la correzione del 2026-08-26 ha chiuso, non difeso da nessuno.
-	//
-	// `Amount` si confronta con `CelleAttese`, catturata da `PlannedPath.Num() - 1` (il percorso RISOLTO),
-	// non da `PlannedWaypoints.Num()` (i CLICK del giocatore): sono due sorgenti diverse. `MoveTo` e' a
-	// distanza 2 da Start non per caso, ma perche' a distanza 1 le due quantita' avrebbero coinciso — un
-	// click, un passo — e questa asserzione non avrebbe morso una regressione che scambiasse la sorgente
-	// (rilievo di code review, 2026-08-26).
-	TestEqual(TEXT("Priority viene dal catalogo, non da uno zero implicito"),
-		Found.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
-	TestEqual(TEXT("Amount conta le celle del PERCORSO risolto, non i click posati"), Found.Amount, CelleAttese);
-
-	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.
-	TestEqual(TEXT("l'unita' e' sulla cella dello scatto"), U->Cell, DashTo);
-
-	DestroyInteractionWorld(World);
 	return true;
 }
 
@@ -1042,11 +1028,18 @@ bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Il piano incoerente: scatto, stato neutro (D-128), waypoint. Due azioni sullo slot Movimento.
+	// Il piano incoerente: due scatti diversi.
 	U->SelectAbility(DashIdx);
 	PC->HandleClickOnCell(FRTCellId(1, 2));
 	U->SelectAbility(INDEX_NONE);
-	PC->HandleClickOnCell(FRTCellId(2, 1));
+	// E38 CP 38.16: scatto + Move e' legale ([D-584] (1)); l'unico piano con un detentore che resta e' un secondo scatto, diverso
+	// ([D-625] (4)). Nessun gesto lo compone: lo si scrive con la strada dell'harness. ⏱️ *Fino a CP 38.16 qui c'era un waypoint.*
+	const int32 SecondoScatto = RTAbilityFixtures::AddCoreAbility(U, TEXT("Action.Dodge"));
+	if (!TestTrue(TEXT("premessa: il secondo scatto entra nel piano"), SecondoScatto != INDEX_NONE && U->AddPlannedDash(SecondoScatto, FRTCellId(2, 1))))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	TM->LockInAndResolve();
 	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
@@ -1057,6 +1050,20 @@ bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
 		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { ++Righe; }
 	}
 	TestEqual(TEXT("il lock-in dichiara la contraddizione nel combat log"), Righe, 1);
+
+	// E ogni scatto lascia la propria voce `Fallback`/`Cancelled`, con la PROPRIA cella (revisione di CP 38.16a): leggere
+	// `PlannedDashCell()` dava a entrambe la cella del primo.
+	const FName IdDelPrimo = U->GetAbility(DashIdx) ? U->GetAbility(DashIdx)->Def.ActionId : NAME_None;
+	FRTCellId CellaDelPrimo(0, 0, INDEX_NONE);
+	FRTCellId CellaDelSecondo(0, 0, INDEX_NONE);
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback || E.Amount != static_cast<int32>(ERTActionInvalidReason::SecondDash)) { continue; }
+		if (E.ActionId == IdDelPrimo) { CellaDelPrimo = E.TgtCell; }
+		if (E.ActionId == FName(TEXT("Action.Dodge"))) { CellaDelSecondo = E.TgtCell; }
+	}
+	TestEqual(TEXT("la voce del primo scatto porta la sua cella"), CellaDelPrimo, FRTCellId(1, 2));
+	TestEqual(TEXT("e quella del secondo la sua"), CellaDelSecondo, FRTCellId(2, 1));
 
 	DestroyInteractionWorld(World);
 	return true;
@@ -1111,10 +1118,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInNamesBothActionsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 {
-	// 🔴 Il messaggio NON deve nominare un solo colpevole. `ValidatePlan` ordina per larghezza di slot e poi
-	// per `ActionId`: `Action.Move` precede `Hero.Riktor.Ram` alfabeticamente, quindi Move prende lo slot e
-	// Ram risulta «l'offender» — ma e' Ram che ESEGUE, ed e' Move che il resolver scarta. Nominare una sola
-	// azione qui significa accusare quella sbagliata; nominarle entrambe e' vero comunque vada.
+	// 🔴 Il messaggio NON deve nominare un solo colpevole: la legalita' e' la coppia, e nominarne una sola manderebbe il giocatore a
+	// correggere quella sbagliata. ⏱️ *Fino a CP 38.16 la coppia era scatto + Move, sullo slot movimento*; ora e' l'unica regola di
+	// classe che resta, due scatti diversi ([D-625] (4)).
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
@@ -1143,7 +1149,14 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 	U->SelectAbility(DashIdx);
 	PC->HandleClickOnCell(FRTCellId(1, 2));
 	U->SelectAbility(INDEX_NONE);
-	PC->HandleClickOnCell(FRTCellId(2, 1));
+	// E38 CP 38.16: scatto + Move e' legale ([D-584] (1)); l'unico piano con un detentore che resta e' un secondo scatto, diverso
+	// ([D-625] (4)). Nessun gesto lo compone: lo si scrive con la strada dell'harness. ⏱️ *Fino a CP 38.16 qui c'era un waypoint.*
+	const int32 SecondoScatto = RTAbilityFixtures::AddCoreAbility(U, TEXT("Action.Dodge"));
+	if (!TestTrue(TEXT("premessa: il secondo scatto entra nel piano"), SecondoScatto != INDEX_NONE && U->AddPlannedDash(SecondoScatto, FRTCellId(2, 1))))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	const FName DashId = U->GetAbility(DashIdx) ? U->GetAbility(DashIdx)->Def.ActionId : NAME_None;
 	if (!TestFalse(TEXT("premessa: la mobilita' ha un ActionId"), DashId.IsNone()))
@@ -1166,10 +1179,10 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestTrue(TEXT("nomina il movimento"), Riga.Contains(TEXT("Action.Move")));
-	TestTrue(TEXT("e nomina anche la mobilita'"), Riga.Contains(*DashId.ToString()));
-	TestTrue(TEXT("dice il motivo in italiano"), Riga.Contains(TEXT("slot")));
-	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("SlotOccupied")));
+	TestTrue(TEXT("nomina il secondo scatto"), Riga.Contains(TEXT("Action.Dodge")));
+	TestTrue(TEXT("e nomina anche il primo"), Riga.Contains(*DashId.ToString()));
+	TestTrue(TEXT("dice il motivo in italiano"), Riga.Contains(TEXT("scatto nel piano")));
+	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("SecondDash")));
 
 	DestroyInteractionWorld(World);
 	return true;
@@ -1310,7 +1323,7 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Un piano illegale su ENTRAMBE: scatto piu' movimento, due azioni sullo slot Movimento.
+	// Un piano illegale su ENTRAMBE: due scatti diversi ([D-625] (4)). ⏱️ *Fino a CP 38.16 era scatto piu' movimento, sullo slot.*
 	for (ARTUnit* U : { Tardi, Prima })
 	{
 		const int32 DashIdx = U->FindDashAbilityIndex();
@@ -1320,7 +1333,13 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 			return false;
 		}
 		U->SetPlannedDash(DashIdx, FRTCellId(U->Cell.X, U->Cell.Y + 1));
-		U->SetPlannedCell(FRTCellId(U->Cell.X, U->Cell.Y + 2)); // il movimento normale che rende il piano illegale
+		const int32 SecondoScatto = RTAbilityFixtures::AddCoreAbility(U, TEXT("Action.Dodge"));
+		if (!TestTrue(TEXT("premessa: il secondo scatto entra nel piano"),
+				SecondoScatto != INDEX_NONE && U->AddPlannedDash(SecondoScatto, FRTCellId(U->Cell.X + 1, U->Cell.Y))))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
 	}
 
 	TM->LockInAndResolve();
@@ -5483,14 +5502,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLeavesASlotConflictToTheResolverTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLockInLeavesASlotConflictToTheResolverTest::RunTest(const FString&)
 {
-	// Criterio 3: scatto + Move e' `SlotOccupied`, e resta registrato e non bloccato fino a CP 38.16 ([D-615] (1)).
+	// ⏱️ *Fino a CP 38.16 (criterio 3 di CP 38.10): scatto + Move era `SlotOccupied`, registrato e non bloccato, e il resolver scartava il
+	// Move con `SupersededByDash`.* Da CP 38.16 il piano e' legale ([D-584] (1)), il lock-in non lo tocca, e il Move parte dalla cella
+	// d'arrivo dello scatto. Il percorso qui parte dalla cella di prima, come lo scriveva un piano del vecchio modello: il resolver lo
+	// ricostruisce verso `PlannedCell` da dove lo scatto ha portato l'unita'. Il nome del test e' storico.
 	FLockInBench B;
 	if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
 	B.Riktor->SetPlannedDash(B.Ram, FRTCellId(2, 0));
 	B.Riktor->SetPlannedMove({ FRTCellId(0, 2) }, { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2) });
 	const FRTPlanValidation Verdetto = LockInVerdictOf(B.Riktor);
-	if (!TestTrue(TEXT("premessa: il piano e' SlotOccupied"),
-			!Verdetto.bLegal && Verdetto.Reason == ERTActionInvalidReason::SlotOccupied))
+	if (!TestTrue(TEXT("premessa: scatto + Move e' legale"), Verdetto.bLegal))
 	{
 		DestroyInteractionWorld(B.World); return false;
 	}
@@ -5509,11 +5530,12 @@ bool FRTLockInLeavesASlotConflictToTheResolverTest::RunTest(const FString&)
 			++FallbackDelLockIn;
 		}
 	}
-	TestEqual(TEXT("il lock-in non svuota un piano SlotOccupied"), FallbackDelLockIn, 0);
-	TestEqual(TEXT("il resolver scarta il Move come oggi (SupersededByDash)"),
-		CountUnitEntries(B.TM->GetTurnLog(), Id, ERTLogCategory::Move, static_cast<uint8>(ERTMoveOutcome::SupersededByDash)), 1);
-	TestEqual(TEXT("la riga di combat log resta anche per lo slot"),
-		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("piano non valido al lock-in")), 1);
+	TestEqual(TEXT("il lock-in non svuota un piano legale"), FallbackDelLockIn, 0);
+	TestEqual(TEXT("il resolver non scarta il Move"),
+		CountUnitEntries(B.TM->GetTurnLog(), Id, ERTLogCategory::Move, static_cast<uint8>(ERTMoveOutcome::SupersededByDash)), 0);
+	TestEqual(TEXT("nessuna riga di piano non valido"),
+		CountLinesWith(B.TM->GetRecentEventsForTeam(0), TEXT("piano non valido al lock-in")), 0);
+	TestEqual(TEXT("e Riktor finisce dove il Move lo porta, dopo lo scatto"), B.Riktor->Cell, FRTCellId(0, 2));
 
 	DestroyInteractionWorld(B.World);
 	return true;
@@ -5851,20 +5873,30 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("premessa: una voce per classe"), P.GetEntries().Num(), 4)) { DestroyInteractionWorld(B.World); return false; }
 	const TArray<FRTPlanEntry> Prima = P.GetEntries();
 
-	// E38 CP 38.14 e CP 38.15: principale e reazione sono aperte; restano chiuse scatto e movimento.
-	for (const ERTPlanEntryClass Classe : { ERTPlanEntryClass::Dash, ERTPlanEntryClass::Movement })
+	// E38 CP 38.14, CP 38.15 e CP 38.16: principale, reazione e scatto sono aperte; resta chiuso il movimento, che e' uno (il percorso a
+	// tratti di [D-625] (1) resta una voce). Un secondo scatto entra nel piano e lo rifiuta il validatore (`SecondDash`, [D-625] (4)).
 	{
 		FRTPlanEntry Seconda;
-		Seconda.Class = Classe;
+		Seconda.Class = ERTPlanEntryClass::Movement;
 		Seconda.AbilityIndex = B.Mortar;
 		Seconda.Waypoints = { FRTCellId(1, 0) };
-		TestFalse(*FString::Printf(TEXT("una seconda voce di classe %d si rifiuta"), static_cast<int32>(Classe)), B.Riktor->AddPlanEntry(Seconda));
+		TestFalse(TEXT("una seconda voce di movimento si rifiuta"), B.Riktor->AddPlanEntry(Seconda));
 	}
 	TestEqual(TEXT("e il piano resta com'era: quante voci"), P.GetEntries().Num(), Prima.Num());
 	for (int32 i = 0; i < Prima.Num(); ++i)
 	{
 		TestEqual(*FString::Printf(TEXT("voce %d: stessa classe"), i), P.GetEntries()[i].Class, Prima[i].Class);
 		TestEqual(*FString::Printf(TEXT("voce %d: stessa abilita'"), i), P.GetEntries()[i].AbilityIndex, Prima[i].AbilityIndex);
+	}
+
+	// E38 CP 38.16: un secondo scatto entra, in coda, e si toglie per tornare al piano di prima.
+	{
+		FRTPlanEntry SecondoScatto;
+		SecondoScatto.Class = ERTPlanEntryClass::Dash;
+		SecondoScatto.AbilityIndex = B.Ram;
+		SecondoScatto.DashCell = FRTCellId(0, 2);
+		TestTrue(TEXT("un secondo scatto entra"), B.Riktor->AddPlanEntry(SecondoScatto));
+		TestTrue(TEXT("e si toglie"), B.Riktor->RemovePlanEntry(P.GetEntries().Num() - 1));
 	}
 
 	// Controllo: una voce di una classe che manca entra, in coda.
@@ -5900,11 +5932,12 @@ bool FRTPlanMutatorsKeepOneEntryPerClassTest::RunTest(const FString&)
 	B.Riktor->ClearPlannedPrepEntries();
 	TestEqual(TEXT("tolte le voci Prep, le altre restano"), P.GetEntries().Num(), 4);
 
-	// Scatto + Move stanno in due classi e si scrivono come oggi: il validatore li registra SlotOccupied.
+	// E38 CP 38.16: scatto e Move stanno nello stesso piano ([D-584] (1)). ⏱️ *Fino a CP 38.16 il validatore li registrava
+	// `SlotOccupied`.* Il piano qui puo' sforare il budget per le altre voci, ma il motivo non e' piu' mai lo slot.
 	const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Riktor),
 		URTPlanValidationLibrary::MakePlanFor(B.Riktor));
-	TestTrue(TEXT("scatto e Move nello stesso piano: rifiuto di slot o di budget, come oggi"),
-		V.Reason == ERTActionInvalidReason::SlotOccupied || V.Reason == ERTActionInvalidReason::OverBudget);
+	TestTrue(TEXT("scatto e Move nello stesso piano: legale, o oltre il budget, mai slot"),
+		V.bLegal || V.Reason == ERTActionInvalidReason::OverBudget);
 	DestroyInteractionWorld(B.World);
 	return true;
 }
@@ -6535,6 +6568,52 @@ bool FRTResolutionDeclarationPermutationChangesOnlyTheOrderFieldTest::RunTest(co
 	{
 		for (int32 i = 0; i < VA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("voce %d, senza l'ordine"), i), DescriviVoce(VA[i]), DescriviVoce(VB[i])); }
 	}
+	// E38 CP 38.16 (#4117, criterio 1): lo stesso con scatto + Move. Ram verso (2,0) e un Move da (2,0) a (2,1), dichiarati nei due
+	// ordini: stesso stato e stesse voci di TurnLog senza il campo d'ordine; scatto e Move portano ciascuno il proprio indice, e
+	// l'hash di traccia cambia ([D-615] (2) e (5)). Lo scatto risolve prima perche' e' della macro-fase Dash, non perche' e' dichiarato
+	// prima.
+	struct FEsitoScatto { uint32 Stato = 0; FRTCellId Cella; TArray<FRTTurnLogEntry> Voci; int32 IndiceDelMove = -99; };
+	auto GiocaScatto = [this](bool bScattoPrima, FEsitoScatto& Out)
+	{
+		FLockInBench B;
+		if (!MakeLockInBench(*this, B)) { DestroyInteractionWorld(B.World); return false; }
+		auto Scatta = [&B]() { B.Riktor->SetPlannedDash(B.Ram, FRTCellId(2, 0)); };
+		auto Cammina = [&B]() { B.Riktor->SetPlannedMove({ FRTCellId(2, 1) }, { FRTCellId(2, 0), FRTCellId(2, 1) }); };
+		if (bScattoPrima) { Scatta(); Cammina(); } else { Cammina(); Scatta(); }
+		if (!TestTrue(TEXT("premessa: scatto + Move, 2 + 2 = 4, e' legale"), LockInVerdictOf(B.Riktor).bLegal)) { DestroyInteractionWorld(B.World); return false; }
+		ResolveOneTurn(B.TM);
+		const URTHexMapAsset* Mappa = nullptr;
+		for (TActorIterator<ARTHexMapActor> It(B.World); It; ++It) { Mappa = It->MapAsset; }
+		Out.Stato = URTMatchStateHashLibrary::HashMatchState(Mappa, URTMatchStateHashLibrary::BuildUnitDigests({ B.Riktor, B.Gadget }), {});
+		Out.Cella = B.Riktor->Cell;
+		Out.Voci = B.TM->GetTurnLog();
+		for (const FRTTurnLogEntry& E : Out.Voci)
+		{
+			if (E.UnitId == B.Riktor->StableUnitId && E.Phase == ERTMatchPhase::Move && E.Category == ERTLogCategory::Move) { Out.IndiceDelMove = E.DeclarationIndex; }
+		}
+		DestroyInteractionWorld(B.World);
+		return true;
+	};
+	FEsitoScatto SA, SB;
+	if (!GiocaScatto(true, SA) || !GiocaScatto(false, SB)) { return false; }
+	TestEqual(TEXT("scatto + Move: Riktor finisce dopo lo scatto e il Move"), SA.Cella, FRTCellId(2, 1));
+	TestEqual(TEXT("scatto + Move: stessa cella nei due ordini"), SA.Cella, SB.Cella);
+	TestEqual(TEXT("scatto + Move: stesso stato finale"), SA.Stato, SB.Stato);
+	TestEqual(TEXT("scatto + Move: il Move porta 1 dichiarato dopo lo scatto"), SA.IndiceDelMove, 1);
+	TestEqual(TEXT("e 0 dichiarato prima"), SB.IndiceDelMove, 0);
+	TestNotEqual(TEXT("scatto + Move, controllo positivo: gli hash di traccia sono diversi"),
+		URTTurnLogLibrary::HashTurnLog(SA.Voci), URTTurnLogLibrary::HashTurnLog(SB.Voci));
+	TestEqual(TEXT("scatto + Move: e coincidono portando il campo a INDEX_NONE"),
+		URTTurnLogLibrary::HashTurnLog(SenzaOrdine(SA.Voci)), URTTurnLogLibrary::HashTurnLog(SenzaOrdine(SB.Voci)));
+	{
+		const TArray<FRTTurnLogEntry> XA = SenzaOrdine(SA.Voci);
+		const TArray<FRTTurnLogEntry> XB = SenzaOrdine(SB.Voci);
+		if (TestEqual(TEXT("scatto + Move: stesse voci di TurnLog"), XA.Num(), XB.Num()))
+		{
+			for (int32 i = 0; i < XA.Num(); ++i) { TestEqual(*FString::Printf(TEXT("scatto + Move, voce %d, senza l'ordine"), i), DescriviVoce(XA[i]), DescriviVoce(XB[i])); }
+		}
+	}
+
 	// E38 CP 38.15 (#4116, criterio 6): lo stesso con un piano di DUE reazioni, che scattano entrambe sullo stesso colpo di
 	// Gadget ([D-619]). Dichiarate nei due ordini, danno lo stesso stato, gli stessi eventi di gioco nello stesso ordine e le
 	// stesse voci; cambiano gli indici delle voci delle reazioni ([D-615] (2) e (5)), e con loro l'hash di traccia.

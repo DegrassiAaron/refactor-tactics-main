@@ -564,6 +564,9 @@ enum class ERTMoveOutcome : uint8
 	 * dato che rende la voce utile invece che una nota.
 	 * `Amount` porta le celle del percorso RISOLTO scartato — `0` per un piano che dichiarava solo una
 	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
+	 *
+	 * ⛔ **Da E38 CP 38.16 non ha produttori** ([D-584] (1)): scatto e Move stanno nello stesso piano, e il Move parte dalla cella
+	 * d'arrivo dello scatto. Il valore resta perche' le tracce gia' scritte lo portano, e il testo che lo descrive serve a rileggerle.
 	 */
 	SupersededByDash,
 	/**

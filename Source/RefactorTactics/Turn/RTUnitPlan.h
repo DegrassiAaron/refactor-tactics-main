@@ -111,8 +111,10 @@ struct REFACTORTACTICS_API FRTUnitPlan
 		// (`ARTUnit::DeclarePlannedAction`), che conosce la fase dell'azione; qui si tiene solo la forma.
 		// E38 CP 38.15: e anche la reazione ([D-592]). Che due reazioni stiano insieme lo dice il validatore (una copia con
 		// ricarica e' `RepeatedWithCooldown`, [D-614]); quante ne scattano, [D-619].
+		// E38 CP 38.16: anche lo scatto ([D-584] (1)). Due scatti sono vietati dal validatore ([D-625] (4), `SecondDash`), non dalla forma
+		// del piano: un piano che li porta si svuota al lock-in, come uno oltre il budget. Resta chiuso il solo movimento, che e' uno.
 		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main
-			|| Entry.Class == ERTPlanEntryClass::Reaction;
+			|| Entry.Class == ERTPlanEntryClass::Reaction || Entry.Class == ERTPlanEntryClass::Dash;
 		if (Entry.IsEmpty() || (!bAperta && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;

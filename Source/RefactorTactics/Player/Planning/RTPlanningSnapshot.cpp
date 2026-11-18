@@ -81,3 +81,28 @@ bool RTPlanningSnapshot::For(const UObject* WorldContext, const ARTUnit* Unit, F
 	}
 	return OutUnitId != INDEX_NONE;
 }
+
+void RTPlanningSnapshot::StartMovementFromPlannedDash(FRTHexSnapshot& Snapshot, int32 UnitId, const ARTUnit* Unit)
+{
+	if (!Unit || !Snapshot.Units.IsValidIndex(UnitId))
+	{
+		return;
+	}
+	const FRTCellId Partenza = Unit->PlannedMoveStartCell();
+	FRTHexSimUnit& Chi = Snapshot.Units[UnitId];
+	if (Partenza == Chi.Cell)
+	{
+		return; // nessuno scatto che sposti: lo snapshot e' gia' quello del Move
+	}
+	// L'occupazione segue la cella: senza, il percorso partirebbe da una cella che lo snapshot dice libera, e la cella lasciata
+	// resterebbe un ostacolo per il percorso stesso. Un'altra unita' sulla cella d'arrivo non c'e': il click dello scatto la rifiuta.
+	if (const int32* Occupante = Snapshot.Occupancy.Find(Chi.Cell); Occupante && *Occupante == UnitId)
+	{
+		Snapshot.Occupancy.Remove(Chi.Cell);
+	}
+	if (!Snapshot.Occupancy.Contains(Partenza))
+	{
+		Snapshot.Occupancy.Add(Partenza, UnitId);
+	}
+	Chi.Cell = Partenza;
+}

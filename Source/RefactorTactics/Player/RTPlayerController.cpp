@@ -2420,6 +2420,9 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			{
 				SelectedUnit->NotePlannedChargeRun(Verdetto.Run);
 			}
+			// E38 CP 38.16, [D-628] (4): un percorso gia' tracciato riparte dalla cella d'arrivo dello scatto. Dopo la corsa della carica,
+			// che dice dove si ferma.
+			RecomposeMoveFromItsStart(SelectedUnit);
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto")
@@ -2457,6 +2460,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return;
 		}
 		SelectedUnit->SetPlannedDash(SelIdx, Cell);
+		RecomposeMoveFromItsStart(SelectedUnit); // E38 CP 38.16, [D-628] (4)
 		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
 			*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer, DashPath.TotalCost);
 		RecordDestinationOrder(this);
@@ -2472,6 +2476,9 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			SelectedUnit->GetActionPointBudget());
 		return;
 	}
+
+	// E38 CP 38.16, [D-628] (4): il Move parte da dove lo scatto pianificato si ferma. Da qui lo snapshot serve solo al movimento.
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, SelectedUnit);
 
 	// Movimento normale: il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
 	SelectedUnit->AddPlannedWaypoint(Cell);
@@ -3293,6 +3300,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			int32 UnitId = INDEX_NONE;
 			if (RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId))
 			{
+				RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 				FRTHexPathResult Kept;
 				// Il taglio lavora su una copia, e il piano si scrive dal mutatore (#4068).
 				TArray<FRTCellId> Tenuti = PrimaDelTaglio;
@@ -3688,6 +3696,7 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	{
 		return;
 	}
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 
 	const FRTHexPathResult Composite =
 		URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints());
@@ -3759,6 +3768,35 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	RefreshPlanningOverlay(Unit);
 }
 
+void ARTPlayerController::RecomposeMoveFromItsStart(ARTUnit* Unit)
+{
+	if (!Unit || Unit->GetPlan().PlannedWaypoints().Num() == 0)
+	{
+		return; // nessun percorso tracciato: il Move, se verra', si traccia gia' dalla cella d'arrivo
+	}
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	if (!RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId) || !Snapshot.Units.IsValidIndex(UnitId))
+	{
+		return;
+	}
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
+	// I budget del tetto, quelli con cui il click ha accettato i waypoint: il taglio e' per waypoint interi, dalla fine ([D-420] (3)).
+	const FRTHexSimUnit& Chi = Snapshot.Units[UnitId];
+	TArray<FRTCellId> Tenuti = Unit->GetPlan().PlannedWaypoints();
+	FRTHexPathResult Kept;
+	const int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Chi.StepBudget, Chi.MoveBudget, Kept);
+	Unit->SetPlannedMove(Tenuti, Kept.Path);
+	if (Dropped > 0)
+	{
+		Unit->ClearMovePlanRejection();
+		FRTFacingDeclaration::CancelDeclared(*this, Unit, TEXT("lo scatto ha accorciato il percorso"));
+	}
+	// [D-420] (4): il taglio va detto.
+	UE_LOG(LogRT, Display, TEXT("[RT] %s: il percorso riparte dalla cella d'arrivo dello scatto (%d,%d,L%d) — %d waypoint scartati, ne restano %d"),
+		*Unit->GetName(), Chi.Cell.X, Chi.Cell.Y, Chi.Cell.Layer, Dropped, Tenuti.Num());
+}
+
 void ARTPlayerController::RebuildPlannedPath()
 {
 	ARTUnit* Unit = GetSelectedUnit();
@@ -3772,6 +3810,7 @@ void ARTPlayerController::RebuildPlannedPath()
 	FRTHexPathResult Composite;
 	if (Unit->GetPlan().PlannedWaypoints().Num() > 0 && RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId))
 	{
+		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 		Composite = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints());
 	}
 

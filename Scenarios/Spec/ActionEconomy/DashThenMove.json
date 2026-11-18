@@ -1,0 +1,90 @@
+{
+  "scenarioId": "Spec.ActionEconomy.DashThenMove",
+  "tags": [
+    "action-economy",
+    "spec",
+    "dash",
+    "movement",
+    "riktor"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "E38 CP 38.16 (#4117), [D-584] (1) e [D-628] (4): scatto e Move stanno nello stesso piano, e il Move parte dalla cella d'arrivo dello scatto. Le celle sono quelle di `Spec.Movement.DashDiscardsPlannedMove`.",
+  "_oracolo": "`Hero.Riktor.Ram` (Dash, 2 AP) verso (2,0,0), poi un Move da (2,0,0) a (2,1,0) (2 AP): 4 AP su 6, legale. Riktor finisce in (2,1,0), e nessuna voce `Move/SupersededByDash` si scrive.",
+  "units": [
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 0,
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "hero": "Hero.Gadget",
+      "team": 1,
+      "cell": [
+        -3,
+        0,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "_turno": "T1 — lo scatto e poi un passo dalla sua cella d'arrivo.",
+      "intents": [
+        {
+          "unit": "B1",
+          "dash": "Hero.Riktor.Ram",
+          "dashTo": [
+            2,
+            0,
+            0
+          ],
+          "move": [
+            [
+              2,
+              1,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "UnitAtCell",
+      "unit": "B1",
+      "cell": [
+        2,
+        1,
+        0
+      ],
+      "_assertion": "Lo scatto e il Move sono avvenuti entrambi."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Move",
+      "outcome": "SupersededByDash",
+      "value": 0,
+      "_assertion": "Nessuno scarto: `SupersededByDash` non ha piu' produttori."
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Move",
+      "outcome": "Moved",
+      "value": 2,
+      "_assertion": "Due voci `Moved` di B1: quella dello scatto, in fase Dash, e quella del Move, in fase Move. Senza il Move sarebbe una sola: e' il controllo positivo che il Move sia avvenuto. ⚠️ Non discrimina DA DOVE sia partito: se il percorso partisse dalla cella di prima, il resolver lo ricostruirebbe dalla cella d'arrivo verso la stessa destinazione. La partenza la prova `PlayerInteraction.DashThenMoveStartsFromTheArrival`, sulla prima cella del percorso."
+    },
+    {
+      "type": "TurnsCompleted",
+      "value": 1
+    }
+  ]
+}
