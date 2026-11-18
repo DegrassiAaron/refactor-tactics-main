@@ -1021,7 +1021,8 @@ public:
 	/**
 	 * Il cursore e' su una cella del ventaglio di `Unit` che un click pianificherebbe come waypoint (#4155): contesto `Planning` o
 	 * `Pathing`, cella del ventaglio (`ARTHexMapActor::IsPreviewReachableCell`), e non la cella finale (apre il verso) ne' il nemico su cui
-	 * la carica e' gia' pianificata (lo ispeziona). Il ventaglio e' quello dell'unita' selezionata: per un'altra unita' e' falso.
+	 * la carica e' gia' pianificata (lo ispeziona), e con `ARTUnit::WaypointClickIsOpen` (ne' uno scatto armato ne' il verso dichiarato). Il
+	 * ventaglio e' quello dell'unita' selezionata: per un'altra unita' e' falso.
 	 */
 	bool IsMoveCellUnderCursor(const class ARTUnit* Unit) const;
 

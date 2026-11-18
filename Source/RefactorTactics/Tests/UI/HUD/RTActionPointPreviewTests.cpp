@@ -9,6 +9,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPointerInteraction.h" // ERTPointerContext
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTHeroData.h"
@@ -420,6 +421,91 @@ bool FRTDockShowsTheGestureCostTest::RunTest(const FString&)
 	TestEqual(TEXT("4: controllo positivo, il ventaglio torna Movement"),
 		static_cast<int32>(B.Map->GetPreviewReachableMeaning()), static_cast<int32>(ERTOverlayMeaning::Movement));
 	TestEqual(TEXT("4: e il motivo sparisce"), static_cast<int32>(B.PC->HoveredMoveRefusal()), static_cast<int32>(ERTActionInvalidReason::None));
+
+	DestroyApPreviewBench(B);
+	return true;
+}
+
+/**
+ * #4155, revisione — **niente anteprima e niente rifiuto dove il click non posa un waypoint**: con uno scatto armato la cella e' la sua
+ * meta, con il verso dichiarato il movimento e' chiuso (`ARTUnit::WaypointClickIsOpen`).
+ *
+ * In entrambi i casi il piano non paga il Move, quindi senza la regola l'hover direbbe «Non si muove» e il ventaglio sarebbe rosso cupo.
+ * Il controllo positivo e' lo stesso piano senza quella condizione: il rifiuto torna. E il click vero, accanto, mostra che la regola
+ * dice cio' che il click fa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoMovePreviewWhereTheClickDoesNotMoveTest,
+	"RefactorTactics.ScreenHud.NoMovePreviewWhereTheClickDoesNotMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoMovePreviewWhereTheClickDoesNotMoveTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	const FRTCellId Cella(1, 0, 0);
+	const FRTCellId MetaDelloScatto(0, 1, 0);
+	B.Unit->DeclarePlannedMainAction(B.Attacco);
+	B.PC->SelectAbilityForCurrentForTest(B.Reazione);
+	B.Unit->SetPlannedDash(B.Scatto, MetaDelloScatto);
+	B.Unit->SelectAbility(INDEX_NONE);
+	B.Unit->SetActionPointBudget(6);
+	if (!TestEqual(TEXT("premessa: attacco base, reazione e scatto spendono 6 su 6"), B.Spent(), 6))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	B.PC->RefreshPlanningOverlay(B.Unit);
+	B.Map->SetHoveredCell(Cella, /*bValid=*/ true);
+	const auto Rifiuto = [&B]() { return static_cast<int32>(B.PC->HoveredMoveRefusal()); };
+	const auto Ventaglio = [&B]() { return static_cast<int32>(B.Map->GetPreviewReachableMeaning()); };
+	const int32 Nessuno = static_cast<int32>(ERTActionInvalidReason::None);
+	const int32 OverBudget = static_cast<int32>(ERTActionInvalidReason::OverBudget);
+
+	// Controllo positivo: senza scatto armato e senza verso, il Move non si paga e l'hover lo dice.
+	if (!TestTrue(TEXT("premessa: la cella e' nel ventaglio"), B.Map->IsPreviewReachableCell(Cella)))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	TestEqual(TEXT("controllo: il rifiuto c'e'"), Rifiuto(), OverBudget);
+	TestEqual(TEXT("controllo: il ventaglio e' rosso cupo"), Ventaglio(), static_cast<int32>(ERTOverlayMeaning::MovementOverBudget));
+	TestTrue(TEXT("controllo: e c'e' un'anteprima"), B.PC->ActionPointsAfterGestureNow(B.Unit) != INDEX_NONE);
+
+	// --- Lo scatto pianificato, riarmato: il click sulla cella e' la sua meta ------------------------------------------
+	B.Unit->SelectAbility(B.Scatto);
+	B.PC->UpdatePlanningOverlay(B.Map);
+	TestEqual(TEXT("premessa: con lo scatto armato il contesto e' Planning"),
+		static_cast<int32>(B.PC->GetPointerContext()), static_cast<int32>(ERTPointerContext::Planning));
+	TestFalse(TEXT("scatto armato: il click non posa un waypoint"), B.Unit->WaypointClickIsOpen());
+	TestEqual(TEXT("scatto armato: nessun rifiuto all'hover"), Rifiuto(), Nessuno);
+	TestEqual(TEXT("scatto armato: nessuna anteprima"), B.PC->ActionPointsAfterGestureNow(B.Unit), (int32)INDEX_NONE);
+	TestEqual(TEXT("scatto armato: il ventaglio non e' rosso cupo"), Ventaglio(), static_cast<int32>(ERTOverlayMeaning::Movement));
+	B.PC->HandleClickOnCellForTest(Cella);
+	TestEqual(TEXT("scatto armato: il click non posa un waypoint"), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
+	TestEqual(TEXT("scatto armato: il click sposta la meta dello scatto"), B.Unit->GetPlan().PlannedDashCell(), Cella);
+	// La meta torna dov'era: sulla cella d'arrivo il click apre il verso, e il resto del test la vuole una cella di movimento.
+	B.Unit->SetPlannedDash(B.Scatto, MetaDelloScatto);
+	B.Unit->SelectAbility(INDEX_NONE);
+
+	// --- Il verso dichiarato: il movimento e' chiuso ---------------------------------------------------------------------
+	B.Unit->DeclarePlannedFacing(ERTHexDirection::E);
+	B.PC->UpdatePlanningOverlay(B.Map);
+	TestFalse(TEXT("verso dichiarato: il click non posa un waypoint"), B.Unit->WaypointClickIsOpen());
+	TestEqual(TEXT("verso dichiarato: nessun rifiuto all'hover"), Rifiuto(), Nessuno);
+	TestEqual(TEXT("verso dichiarato: nessuna anteprima"), B.PC->ActionPointsAfterGestureNow(B.Unit), (int32)INDEX_NONE);
+	TestEqual(TEXT("verso dichiarato: il ventaglio non e' rosso cupo"), Ventaglio(), static_cast<int32>(ERTOverlayMeaning::Movement));
+	B.Unit->SetActionPointBudget(8); // il budget non c'entra: il verso chiude il movimento anche quando il Move si paga
+	B.PC->HandleClickOnCellForTest(Cella);
+	TestEqual(TEXT("verso dichiarato: il click non posa un waypoint"), B.Unit->GetPlan().PlannedWaypoints().Num(), 0);
+
+	// Ritirato il verso, a budget 6, il rifiuto torna: e' la condizione, non lo stato del banco, che lo spegneva.
+	B.Unit->RetractPlannedFacing();
+	B.Unit->SetActionPointBudget(6);
+	B.PC->UpdatePlanningOverlay(B.Map);
+	TestEqual(TEXT("ritirato il verso il rifiuto torna"), Rifiuto(), OverBudget);
 
 	DestroyApPreviewBench(B);
 	return true;

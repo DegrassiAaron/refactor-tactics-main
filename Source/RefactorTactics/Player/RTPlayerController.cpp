@@ -2897,18 +2897,18 @@ int32 ARTPlayerController::ActionPointsAfterGestureNow(const ARTUnit* Unit) cons
 	{
 		return INDEX_NONE;
 	}
-	const int32 Spesa = URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
-
+	// La spesa si compone solo quando c'e' un gesto: la dock chiede a ogni tick, e senza gesto la risposta e' `INDEX_NONE`.
 	if (Overlay.GetSkillHoverUnit() == Unit && Overlay.GetSkillHoverIndex() != INDEX_NONE)
 	{
 		const int32 Indice = Overlay.GetSkillHoverIndex();
 		if (Unit->IsAbilityInPlan(Indice))
 		{
-			return Spesa; // gia' contata: riarmarla non spende niente di nuovo
+			// Gia' contata: riarmarla non spende niente di nuovo.
+			return URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
 		}
-		return Unit->CanUseAbility(Indice) ? Unit->ActionPointsAfterArming(Indice, Spesa) : INDEX_NONE;
+		return Unit->CanUseAbility(Indice) ? Unit->ActionPointsAfterArming(Indice) : INDEX_NONE;
 	}
-	return IsMoveCellUnderCursor(Unit) ? Unit->ActionPointsAfterMoving(Spesa) : INDEX_NONE;
+	return IsMoveCellUnderCursor(Unit) ? Unit->ActionPointsAfterMoving() : INDEX_NONE;
 }
 
 ERTActionInvalidReason ARTPlayerController::HoveredMoveRefusal() const
@@ -2928,7 +2928,7 @@ bool ARTPlayerController::IsMoveCellUnderCursor(const ARTUnit* Unit) const
 		return false;
 	}
 	const ERTPointerContext Context = GetPointerContext();
-	if (Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing)
+	if ((Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing) || !Unit->WaypointClickIsOpen())
 	{
 		return false;
 	}

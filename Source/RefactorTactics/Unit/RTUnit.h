@@ -539,6 +539,14 @@ public:
 	bool CanAffordMoving(int32 SpentNow = INDEX_NONE) const;
 
 	/**
+	 * Un click su una cella della mappa porterebbe a un waypoint di movimento normale (#4155): il verso dichiarato non chiude il movimento,
+	 * e l'azione armata non e' uno scatto, per cui la cella e' la meta. Sono le due uscite di `ARTPlayerController::HandleClickOnCell` prima
+	 * del ramo del movimento che non dipendono dalla cella: dove sono vere, l'anteprima del costo e il rifiuto per budget direbbero un Move
+	 * che il click non fa (revisione di #4155). ⚠️ Se il click cambia quelle uscite, questa funzione cambia con lui.
+	 */
+	bool WaypointClickIsOpen() const;
+
+	/**
 	 * `KitIndex` e' gia' nel piano, in una voce qualunque, o e' l'azione armata: la sua spesa e' gia' contata. Chiederle quanto
 	 * costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153). La leggono `bOverBudget`
 	 * della dock e l'anteprima dello slot sotto il cursore (#4155).

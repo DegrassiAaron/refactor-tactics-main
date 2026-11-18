@@ -179,8 +179,10 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 				Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
 		}
 	}
-	// [D-625] (2), #4155: il ventaglio che il residuo di Action Point non paga resta visibile, nel colore di rifiuto.
-	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable, !Unit->CanAffordMoving());
+	// [D-625] (2), #4155: il ventaglio che il residuo di Action Point non paga resta visibile, nel colore di rifiuto. Solo dove il click
+	// poserebbe un waypoint (`WaypointClickIsOpen`): con uno scatto armato o il verso dichiarato il click non e' un Move, e il rosso mentirebbe.
+	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable,
+		Unit->WaypointClickIsOpen() && !Unit->CanAffordMoving());
 	HexMap->SetPreviewRangeCells(Portata);
 
 	// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'

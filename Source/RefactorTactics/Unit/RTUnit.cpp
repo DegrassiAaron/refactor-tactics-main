@@ -2320,6 +2320,16 @@ bool ARTUnit::IsAbilityInPlan(int32 KitIndex) const
 	return bNelPiano;
 }
 
+bool ARTUnit::WaypointClickIsOpen() const
+{
+	if (Plan.bDeclaresPlannedFacing)
+	{
+		return false; // il verso chiude il movimento ([D-367], [D-462])
+	}
+	const URTActionData* Armata = GetAbility(SelectedAbilityIndex);
+	return !(Armata && URTCatalogLibrary::IsFastMovement(Armata->Def)); // con uno scatto armato la cella e' la sua meta
+}
+
 bool ARTUnit::CanAffordMoving(int32 SpentNow) const
 {
 	const int32 Spesa = SpentNow != INDEX_NONE
