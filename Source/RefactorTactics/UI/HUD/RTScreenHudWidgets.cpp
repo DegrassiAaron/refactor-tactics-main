@@ -38,6 +38,7 @@
 #include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
 #include "Components/PanelWidget.h"       // #3636: roster e pannello costruiscono carte e voci dentro un pannello
 #include "Components/CanvasPanelSlot.h"   // #3661: le zone si posano dal dato delle fasce
+#include "Components/OverlaySlot.h"       // HUD-AP.5a (#4159): il contatore del piano in alto a destra dello slot
 #include "UI/HUD/RTHudLayout.h"               // #3661: il dato delle fasce (D-497)
 #include "UI/HUD/RTHudZoneWidget.h"           // #3661: le zone si riconoscono per classe e ZoneId
 #include "UI/HUD/RTGameViewportClient.h"      // #3661: l'HUD montato chiede il rettangolo della scena
@@ -1701,6 +1702,57 @@ FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
 	return NAME_None;
 }
 
+void URTActionSlotWidget::EnsurePlannedCountText()
+{
+	if (PlannedCountText)
+	{
+		return; // dichiarato dall'asset, o gia' costruito
+	}
+	if (WidgetTree == nullptr)
+	{
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+	UPanelWidget* Pannello = PlannedCorner ? PlannedCorner->GetParent() : nullptr;
+	if (Pannello == nullptr && HotkeyText)
+	{
+		Pannello = HotkeyText->GetParent();
+	}
+	if (Pannello == nullptr)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr)
+	{
+		if (WidgetTree->RootWidget != nullptr)
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Slot: nessun pannello per il contatore del piano (la radice e' un %s): non montato"),
+				*WidgetTree->RootWidget->GetClass()->GetName());
+		}
+		return;
+	}
+	PlannedCountText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlannedCountText"));
+	FSlateFontInfo Carattere = HotkeyText ? HotkeyText->GetFont() : PlannedCountText->GetFont();
+	if (HotkeyText == nullptr)
+	{
+		Carattere.Size = 12;
+	}
+	PlannedCountText->SetFont(Carattere);
+	PlannedCountText->SetVisibility(ESlateVisibility::Collapsed);
+	UPanelSlot* Posto = Pannello->AddChild(PlannedCountText);
+	// In alto a destra, accanto all'angolo di `Planned`, in qualunque pannello lo ospiti.
+	if (UOverlaySlot* InOverlay = Cast<UOverlaySlot>(Posto))
+	{
+		InOverlay->SetHorizontalAlignment(HAlign_Right);
+		InOverlay->SetVerticalAlignment(VAlign_Top);
+	}
+	else if (UCanvasPanelSlot* InCanvas = Cast<UCanvasPanelSlot>(Posto))
+	{
+		InCanvas->SetAnchors(FAnchors(1.f, 0.f));
+		InCanvas->SetAlignment(FVector2D(1.f, 0.f));
+		InCanvas->SetAutoSize(true);
+	}
+}
+
 void URTActionSlotWidget::RefreshLook()
 {
 	const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
@@ -1794,6 +1846,21 @@ void URTActionSlotWidget::RefreshLook()
 	{
 		GroupDivider->SetVisibility(Action.bGroupBreakBefore
 			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+
+	// HUD-AP.5a (#4159): il contatore delle copie nel piano, da 2 in su, in qualunque stato (una seconda copia vietata e' `Invalid`, e il
+	// numero dice quale e' la seconda). Ambra come il bordo di `Planned`.
+	EnsurePlannedCountText();
+	if (PlannedCountText)
+	{
+		const bool bConta = Action.PlannedCount >= 2;
+		PlannedCountText->SetText(bConta
+			? FText::Format(NSLOCTEXT("RTHud", "PlannedCount", "\u00d7{0}"), FText::AsNumber(Action.PlannedCount)) : FText::GetEmpty());
+		PlannedCountText->SetVisibility(bConta ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (const FLinearColor* Ambra = FrameColors.Find(ERTActionSlotState::Planned))
+		{
+			PlannedCountText->SetColorAndOpacity(FSlateColor(*Ambra));
+		}
 	}
 
 	// Un indicatore per stato, acceso solo nel proprio. `CooldownText` non e' qui: ha gia' il suo binding.

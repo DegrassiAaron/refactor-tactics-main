@@ -731,6 +731,17 @@ struct FRTAbilityCooldownView
 	bool bPlanned = false;
 
 	/**
+	 * Quante voci del piano portano questa posizione del kit, in ogni classe: principale, Prep, scatto, reazione (HUD-AP.5a, #4159;
+	 * `progettazione-hud.md` §19-bis.7, «lo stato `Planned` diventa un contatore»). `bPlanned` e' `PlannedCount > 0`. Lo slot mostra il
+	 * numero da 2 in su (`URTActionSlotWidget`).
+	 *
+	 * ⏱️ *Fino a HUD-AP.5a `bPlanned` guardava la prima voce di tre classi*, e una Guard aggiunta come voce di Prep, o una seconda
+	 * reazione, non risultavano pianificate.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlannedCount = 0;
+
+	/**
 	 * Quale slot del turno consuma questa azione.
 	 *
 	 * ⌫ **Questo commento diceva *«il pannello raggruppa per slot, non per ordine nel kit»*, e non era
@@ -892,6 +903,13 @@ struct FRTAbilityCooldownView
 
 	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
 	ERTActionInvalidReason PlanInvalidReason{};
+
+	/**
+	 * Quale copia il validatore accusa, contata da 1 nell'ordine di dichiarazione fra le voci con lo stesso `ActionId`; 0 quando il
+	 * piano ne porta una sola (HUD-AP.5a, #4159: «il rifiuto nomina l'occorrenza»). Viene da `FRTPlanValidation::OffendingDeclarationIndex`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlanInvalidOccurrence = 0;
 
 	/**
 	 * Il rifiuto che accende `bPlanDegraded`, dalla stessa domanda (`RefusalForKnownTarget`). ⛔ Un bersaglio
