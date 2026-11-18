@@ -5537,9 +5537,7 @@ void ARTTurnManager::ResolveDash()
 		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
 		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
 		const FRTMovementProfile Intended = URTMovementProfileLibrary::ProfileForPlannedSteps(
-			Unit->GetPlan().PlannedPath().Num() >= 2
-				? Unit->GetPlan().PlannedPath().Num() - 1
-				: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell),
+			Unit->PlannedMoveMeasure(), // la misura della banda in `MakePlanFor` ([D-629])
 			Unit->GetEffectiveMoveRange(),
 			Unit->GetPlan().PlannedMovementProfileId(),
 			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
@@ -5548,6 +5546,13 @@ void ARTTurnManager::ResolveDash()
 		if (!Intended.bIsRun)
 		{
 			continue; // camminare, sgusciare e ripiegare non sono corse: [D-319] non li tocca
+		}
+		// ➕ E38 CP 38.16, [D-626] (2): con la corsa negata il secondo tratto nasce oltre il raggio di Move, a 2 AP. Un percorso che il
+		// piano ha pagato a tratti Move non e' una corsa negata, anche se la banda senza divieto lo leggerebbe Sprint: l'unita' lo
+		// percorre per intero (`MakeSimUnit`), e una voce qui dichiarerebbe una cancellazione che non avviene (revisione di CP 38.16b).
+		if (Unit->PlannedMoveMeasure() <= Unit->MoveBudgetForLegs(Unit->PlannedMoveLegs()))
+		{
+			continue;
 		}
 
 		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Intended.Id);
@@ -8041,6 +8046,15 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit)
 	// separare i due valori sara' la funzione di costo di [#666]. Qui si separano i CAMPI, che e' il
 	// prerequisito che questo checkpoint consegna.
 	SimUnit.StepBudget = Profile.ResolveStepBudget(UnitMoveRange);
+	// E38 CP 38.16, [D-625] (1): un percorso oltre il tetto nudo si e' pagato a tratti, e il budget e' quello dei tratti pagati, il tetto
+	// piu' un `Move` per tratto. La banda resta quella letta dalla distanza ([D-628] lettura (a)), e senza tratti in piu' il budget e'
+	// quello di sempre: il corpus non si muove. Se il terreno vero costa piu' di quanto il piano ha visto, il troncamento qui sotto morde
+	// come oggi ([D-628] lettura (b)).
+	if (const int32 Tratti = Unit->PlannedMoveLegs(); Tratti > 1)
+	{
+		SimUnit.MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+		SimUnit.StepBudget = Unit->StepBudgetForLegs(Tratti);
+	}
 	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
 	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 	// ricordare "quando" e' stato applicato.

@@ -3256,7 +3256,7 @@ namespace
 	{
 		const FRTCellId Origine = B.Mine->Cell;
 		const FRTCellId Vicino = URTHexLibrary::Neighbors(Origine)[0];
-		B.HexMap->SetPreviewReachableCells({ Origine, Vicino });
+		B.HexMap->SetPreviewReachableCells({ Origine }, { Vicino }); // E38 CP 38.16: il pagato e il tratto dopo, due aree
 		B.HexMap->SetPreviewPath({ Origine, Vicino });
 		B.HexMap->SetPreviewHitCells({ Vicino }, { Origine });
 		B.HexMap->SetPreviewRangeCells({ Vicino });
@@ -3477,9 +3477,6 @@ bool FRTPlanningOverlayEveryExitTurnsEveryMeaningOffTest::RunTest(const FString&
 		for (const ERTOverlayMeaning Meaning : URTOverlayPalette::AllMeanings())
 		{
 			if (Meaning == ERTOverlayMeaning::Hover) { continue; }
-			// #4155: il ventaglio e' UN'area con due significati in alternativa, e qui e' acceso come `Movement`. Che il reset spenga
-			// anche `MovementOverBudget` lo prova `HexMapActor.ClearPlanningPreviewTurnsEveryMeaningOff`: e' la stessa area.
-			if (Meaning == ERTOverlayMeaning::MovementOverBudget) { continue; }
 			TestTrue(*FString::Printf(TEXT("[%s] controllo: %s e' acceso prima dell'uscita"),
 				*Uscita, *PlanOverlayMeaningName(Meaning)), B.HexMap->NumPlanningPreviewCells(Meaning) > 0);
 		}

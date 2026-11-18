@@ -160,9 +160,11 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
 		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
 		// alto per nessuno, non verso il piu' basso per qualcuno.
-		const int32 PlannedSteps = Unit->GetPlan().PlannedPath().Num() >= 2
-			? Unit->GetPlan().PlannedPath().Num() - 1
-			: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell);
+		//
+		// ➕ **[D-629] (E38 CP 38.16): quando il piano porta il costo del percorso, la banda si legge da lui**, in Movement Point come il
+		// tetto e i tratti di [D-628] (2): un percorso corto e caro e' uno Sprint. I passi restano la misura di chi non dichiara un costo
+		// (il bot, che dichiara la sola cella d'arrivo), e la distanza quella di chi non ha un percorso: `ARTUnit::PlannedMoveMeasure`.
+		const int32 PlannedSteps = Unit->PlannedMoveMeasure();
 
 		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
 		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
@@ -172,11 +174,12 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// l'array si compone per classe, non per ordine di dichiarazione, quindi un Move dichiarato prima dell'Overwatch
 		// riceve la stessa riserva `Withdraw`. Percorrere la lista in ordine di dichiarazione la perderebbe, e la
 		// dichiarazione deciderebbe la risoluzione. Lo pinna `Plan.MovementBandIgnoresTheDeclaredSequence`.
+		const FName Riservato = URTMovementProfileLibrary::ReservedProfileForPlan(Plan);
 		const FRTMovementProfile Band = URTMovementProfileLibrary::ProfileForPlannedSteps(
 			PlannedSteps,
 			Unit->GetEffectiveMoveRange(),
 			Unit->GetPlan().PlannedMovementProfileId(),
-			URTMovementProfileLibrary::ReservedProfileForPlan(Plan),
+			Riservato,
 			Unit->HasStatus(TAG_Status_Unbalanced));
 
 		// L'azione che porta la banda, quando ce n'e' una: `Action.Sprint` e `Action.Withdraw` la nominano,
@@ -206,6 +209,32 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 			const int32 Dichiarato = Piano.DeclarationIndexOf(ERTPlanEntryClass::Movement);
 			Entry.DeclarationIndex = Dichiarato != INDEX_NONE ? Dichiarato : Piano.GetEntries().Num();
 			Plan.Add(Entry);
+
+			// E38 CP 38.16, [D-625] (1): oltre il tetto nudo il percorso si paga a tratti, e ogni tratto in piu' e' una voce `Action.Move`
+			// di profilo `Move` (2 AP; la ripetizione che [D-614] ammette, perche' il Move non ha ricarica). Quanti, lo dice il costo del
+			// percorso in Movement Point che il piano porta, letto quando si e' composto sulla mappa di chi pianifica ([D-628] (2) e la sua
+			// lettura (b)): ⛔ qui non si rilegge, per la stessa ragione per cui qui non si ricostruisce il percorso.
+			// ⚠️ La stessa dichiarazione della voce di movimento: e' lo stesso percorso, e l'ordine dei tratti e' la catena delle celle,
+			// mai la dichiarazione ([D-615] (5)).
+			const int32 TrattiInPiu = URTMovementProfileLibrary::ExtraMoveLegsForCost(Unit->GetPlan().PlannedPathCost(),
+				Unit->GetEffectiveMoveRange(), Unit->GetPlan().PlannedMovementProfileId(), Riservato,
+				Unit->HasStatus(TAG_Status_Unbalanced));
+			if (TrattiInPiu > 0)
+			{
+				static const FRTActionDef Tratto = []()
+				{
+					FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+					Def.MovementProfileId = URTMovementProfileLibrary::ProfileMove;
+					return Def;
+				}();
+				for (int32 k = 0; k < TrattiInPiu; ++k)
+				{
+					FRTPlannedAction Voce;
+					Voce.Def = Tratto;
+					Voce.DeclarationIndex = Entry.DeclarationIndex;
+					Plan.Add(Voce);
+				}
+			}
 		}
 	}
 

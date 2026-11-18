@@ -2473,8 +2473,11 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	// cella «fuori portata» e' finita DENTRO il tetto, e la premessa del test e' diventata falsa — la
 	// stessa trappola che il commento qui sopra descrive, scattata una seconda volta per un confine
 	// che si e' spostato invece che per un eroe ribilanciato.
-	const int32 Budget = URTMovementProfileLibrary::CeilingProfile(
-		Chi->GetPlan().PlannedMovementProfileId(), NAME_None).ResolveStepBudget(Chi->GetEffectiveMoveRange());
+	// ➕ E38 CP 38.16 ([D-625] (1)): oltre il tetto dello Sprint il percorso si concatena a tratti, e si pianifica fino ai tratti che il
+	// budget del turno pagherebbe (`MaxMoveLegs`). A budget 2 il turno paga un tratto solo, e il tetto torna quello dello Sprint: la cella
+	// qui sotto resta oltre il tetto di MOVIMENTO, che e' il soggetto del test, e non oltre un residuo di AP (un altro rifiuto, `OverBudget`).
+	Chi->SetActionPointBudget(2);
+	const int32 Budget = Chi->StepBudgetForLegs(Chi->MaxMoveLegs());
 	if (!TestTrue(TEXT("premessa: l'eroe ha un tetto di movimento"), Budget > 0))
 	{
 		DestroyInteractionWorld(World);

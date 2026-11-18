@@ -315,6 +315,65 @@ FRTMovementProfile URTMovementProfileLibrary::ProfileForPlannedSteps(int32 Plann
 }
 
 
+namespace
+{
+	/**
+	 * Il primo tratto e il passo di quelli che seguono, in una delle due misure ([D-628] (2) e la sua lettura (a)): il primo e' il tetto
+	 * di `CeilingProfile`, il passo il budget di un `Move`. Sotto un tetto dichiarato o imposto il passo e' 0: il tetto e' l'intero
+	 * movimento ([D-626] (1)).
+	 */
+	void TrattiDi(bool bPassi, int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId, bool bRunDenied,
+		int32& OutPrimo, int32& OutPasso)
+	{
+		const FRTMovementProfile Ceiling =
+			URTMovementProfileLibrary::CeilingProfile(DeclaredProfileId, ReservedProfileId, bRunDenied);
+		const bool bTettoNominato = DeclaredOrImposedCeiling(DeclaredProfileId, ReservedProfileId, bRunDenied).IsValid();
+		const FRTMovementProfile Walk = URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileMove);
+		OutPrimo = bPassi ? Ceiling.ResolveStepBudget(UnitMoveRange) : Ceiling.ResolveMoveBudget(UnitMoveRange);
+		OutPasso = bTettoNominato ? 0 : (bPassi ? Walk.ResolveStepBudget(UnitMoveRange) : Walk.ResolveMoveBudget(UnitMoveRange));
+	}
+
+	int32 BudgetPerTratti(bool bPassi, int32 Legs, int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId,
+		bool bRunDenied)
+	{
+		if (Legs <= 0)
+		{
+			return 0;
+		}
+		int32 Primo = 0;
+		int32 Passo = 0;
+		TrattiDi(bPassi, UnitMoveRange, DeclaredProfileId, ReservedProfileId, bRunDenied, Primo, Passo);
+		return Primo + (Legs - 1) * Passo;
+	}
+}
+
+int32 URTMovementProfileLibrary::ExtraMoveLegsForCost(int32 PathCost, int32 UnitMoveRange, FName DeclaredProfileId,
+	FName ReservedProfileId, bool bRunDenied)
+{
+	int32 Primo = 0;
+	int32 Passo = 0;
+	TrattiDi(/*bPassi=*/ false, UnitMoveRange, DeclaredProfileId, ReservedProfileId, bRunDenied, Primo, Passo);
+	if (Passo <= 0 || PathCost <= Primo)
+	{
+		return 0;
+	}
+	// Per eccesso: un tratto si paga intero anche se il percorso ne usa una cella sola ([D-625] (1), «ogni tratto oltre il primo costa
+	// altri 2 AP»).
+	return (PathCost - Primo + Passo - 1) / Passo;
+}
+
+int32 URTMovementProfileLibrary::MoveBudgetForLegs(int32 Legs, int32 UnitMoveRange, FName DeclaredProfileId,
+	FName ReservedProfileId, bool bRunDenied)
+{
+	return BudgetPerTratti(/*bPassi=*/ false, Legs, UnitMoveRange, DeclaredProfileId, ReservedProfileId, bRunDenied);
+}
+
+int32 URTMovementProfileLibrary::StepBudgetForLegs(int32 Legs, int32 UnitMoveRange, FName DeclaredProfileId,
+	FName ReservedProfileId, bool bRunDenied)
+{
+	return BudgetPerTratti(/*bPassi=*/ true, Legs, UnitMoveRange, DeclaredProfileId, ReservedProfileId, bRunDenied);
+}
+
 FName URTMovementProfileLibrary::ReservedProfileForPlan(const TArray<FRTPlannedAction>& Plan)
 {
 	for (const FRTPlannedAction& Planned : Plan)

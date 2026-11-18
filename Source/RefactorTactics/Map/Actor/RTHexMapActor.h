@@ -950,9 +950,13 @@ public:
 	/**
 	 * Celle raggiungibili dall'unita' selezionata col budget corrente (vuoto = nessuna anteprima).
 	 * Vengono da `URTHexSimLibrary::ReachableCells`: budget, blocchi, occupanti e archi sono gia' applicati.
-	 * ➕ `bOverBudget` (#4155, [D-625] (2)): il residuo di Action Point non paga il Move, e il ventaglio prende `MovementOverBudget`.
+	 * ➕ `OverBudgetCells` (#4155, [D-625] (2); E38 CP 38.16, [D-628] (3)): le celle del tratto che il residuo di Action Point non paga,
+	 * nel significato `MovementOverBudget`; le due liste non si sovrappongono. `PathCosts` e' il costo in Movement Point del percorso
+	 * che un click sulla cella comporrebbe (`GetPreviewMoveCost`); vuota se chi chiama non lo sa.
 	 */
-	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells, bool bOverBudget = false);
+	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells,
+		const TArray<FRTCellId>& OverBudgetCells = TArray<FRTCellId>(),
+		const TMap<FRTCellId, int32>& PathCosts = TMap<FRTCellId, int32>());
 
 	/**
 	 * Le celle entro la portata dell'azione armata, significato `AbilityRange` (vuoto = nessuna anteprima) — `#3507`.
@@ -1135,7 +1139,8 @@ public:
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitArea.Cells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitArea.Cells.Num(); }
-	int32 NumPreviewReachableCells() const { return PreviewReachableArea.Cells.Num(); }
+	/** Le celle del ventaglio, pagate e no (E38 CP 38.16). */
+	int32 NumPreviewReachableCells() const { return PreviewReachableArea.Cells.Num() + PreviewOverBudgetArea.Cells.Num(); }
 	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
 	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
 
@@ -1177,9 +1182,23 @@ public:
 	 * Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente, nell'uno o nell'altro significato del ventaglio. La
 	 * leggono i test e il gesto del movimento sotto il cursore (`ARTPlayerController::ActionPointsAfterGestureNow`, #4155).
 	 */
-	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachableArea.Cells.Contains(Cell); }
-	/** Il significato del ventaglio: `Movement`, o `MovementOverBudget` quando il residuo non paga il Move (test, #4155). */
-	ERTOverlayMeaning GetPreviewReachableMeaning() const { return PreviewReachableArea.Meaning; }
+	bool IsPreviewReachableCell(const FRTCellId& Cell) const
+	{
+		return PreviewReachableArea.Cells.Contains(Cell) || PreviewOverBudgetArea.Cells.Contains(Cell);
+	}
+	/** Vero se la cella e' nel ventaglio del tratto che il residuo non paga, `MovementOverBudget` (#4155, E38 CP 38.16). */
+	bool IsPreviewOverBudgetCell(const FRTCellId& Cell) const { return PreviewOverBudgetArea.Cells.Contains(Cell); }
+	/** Le celle del tratto che il residuo non paga (test). */
+	const TArray<FRTCellId>& GetPreviewOverBudgetCells() const { return PreviewOverBudgetArea.Cells; }
+	/**
+	 * Il costo in Movement Point del percorso che un click sulla cella comporrebbe, come il ventaglio l'ha calcolato; `INDEX_NONE` per una
+	 * cella fuori dal ventaglio o senza costo (E38 CP 38.16). Lo legge il gesto sotto il cursore: quanti tratti la cella apre.
+	 */
+	int32 GetPreviewMoveCost(const FRTCellId& Cell) const
+	{
+		const int32* Costo = PreviewMoveCosts.Find(Cell);
+		return Costo ? *Costo : INDEX_NONE;
+	}
 	/** Vero se la cella e' nell'impronta di playback corrente (test). */
 	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
 
@@ -1358,6 +1377,10 @@ protected:
 	/** Sottoinsieme di `PreviewHitArea` occupato da alleati: fuoco amico. */
 	FRTOverlayArea PreviewAllyHitArea;
 	FRTOverlayArea PreviewReachableArea;
+	/** Il tratto del ventaglio che il residuo non paga, `MovementOverBudget` (#4155, E38 CP 38.16): accanto a `PreviewReachableArea`. */
+	FRTOverlayArea PreviewOverBudgetArea;
+	/** Il costo del percorso fino a ogni cella del ventaglio (`GetPreviewMoveCost`). Non si disegna. */
+	TMap<FRTCellId, int32> PreviewMoveCosts;
 	/** La portata dell'azione armata (`#3507`): in targeting prende il posto di `PreviewReachableArea`. */
 	FRTOverlayArea PreviewRangeArea;
 	/**

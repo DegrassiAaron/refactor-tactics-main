@@ -509,6 +509,8 @@ public:
 	 * ⚠️ **Sovrastima l'Overwatch in un caso stretto**: armarlo tronca i waypoint al `Withdraw` ([D-070]), e se il troncamento
 	 * li toglie tutti la voce Move (2 AP) sparisce. Qui la voce Move resta contata, quindi a residuo zero un Overwatch che
 	 * libererebbe AP puo' risultare non pagabile. Non misurato quando succede (revisione di #4153).
+	 * ➕ E38 CP 38.16: i tratti oltre il primo invece non si contano, perche' sotto il tetto riservato non nascono ([D-626] (1)): un
+	 * percorso a tre tratti non impedisce di armare l'Overwatch che lo riporta a uno.
 	 */
 	int32 ActionPointsAfterArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
 
@@ -523,20 +525,58 @@ public:
 	bool CanAffordArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
 
 	/**
-	 * Quanti AP spenderebbe il piano dopo un waypoint di movimento normale (#4155, [D-625] (2)).
+	 * I tratti del movimento normale pianificato (E38 CP 38.16, [D-625] (1)): 0 senza un Move, altrimenti il primo piu' quelli
+	 * concatenati che il costo del percorso chiede (`MoveLegsForCost`). E' il numero di voci Move che `MakePlanFor` compone.
+	 */
+	int32 PlannedMoveLegs() const;
+
+	/**
+	 * La misura da cui si legge la banda di [D-425] (`URTMovementProfileLibrary::ProfileForPlannedSteps`): il costo in Movement Point
+	 * del percorso quando il piano lo porta ([D-629], E38 CP 38.16), altrimenti i passi, del percorso o della distanza (il bot dichiara
+	 * la sola cella d'arrivo, e chi scrive il percorso a mano non dichiara un costo). Sulla mappa piana le due misure coincidono.
+	 */
+	int32 PlannedMoveMeasure() const;
+
+	/**
+	 * I tratti che chiederebbe un percorso di quel costo in Movement Point, almeno 1 ([D-628] (2)): il primo arriva al tetto nudo, ogni
+	 * altro aggiunge un `Move`; con `Sneak` o col `Withdraw` riservato resta 1 ([D-626] (1)). Il tetto si legge dal piano di adesso.
+	 */
+	int32 MoveLegsForCost(int32 PathCost) const;
+
+	/** Il budget di Movement Point che `Legs` tratti concedono a questa unita', col tetto del suo piano (`URTMovementProfileLibrary`). */
+	int32 MoveBudgetForLegs(int32 Legs) const;
+
+	/** Il gemello in passi di `MoveBudgetForLegs`. */
+	int32 StepBudgetForLegs(int32 Legs) const;
+
+	/**
+	 * I tratti che il budget del turno pagherebbe a un piano senza altre azioni, almeno 1: il tetto di cio' che si pianifica (E38 CP
+	 * 38.16). E' il budget dello snapshot di pianificazione e del taglio di [D-420]: un percorso si tronca al tetto dichiarato o imposto,
+	 * mai per gli AP del residuo ([D-628] lettura (c)), e oltre questi tratti nessun residuo arriva.
+	 */
+	int32 MaxMoveLegs() const;
+
+	/**
+	 * Quanti tratti il piano paga col resto del piano com'e' (#4155, E38 CP 38.16): il massimo che `CanAffordMoving` accetta, e mai
+	 * meno di quelli gia' pianificati (un piano gia' oltre il budget non perde il percorso che ha). 0 se il residuo non paga neppure il
+	 * primo. Il ventaglio mostra in verde le celle di questi tratti, e in rosso cupo quelle del successivo ([D-628] (3)).
+	 */
+	int32 AffordableMoveLegs(int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Quanti AP spenderebbe il piano se il suo percorso costasse `PathCost` Movement Point (#4155, [D-625] (2); E38 CP 38.16, [D-625] (1)).
 	 *
-	 * 🔑 **Il percorso e' uno, e la sua voce Move costa lo stesso in ogni banda** di [D-425] (Move, Sprint, Withdraw sono tutte
-	 * di macro-fase Move, `DefaultActionPointCost`): senza un movimento nel piano il waypoint aggiunge la voce, con un percorso
-	 * gia' pianificato lo allunga e costa 0 (la lettura (f) di [D-625], sul tratto pagato). ⏳ Il tratto concatenato oltre il
-	 * tetto dello Sprint, che costa altri 2, entra con CP 38.16 (#4117): finche' non c'e', nessun waypoint lo apre, perche' il
-	 * percorso oltre quel tetto e' rifiutato dal budget di movimento.
+	 * 🔑 **Il percorso e' uno, e ognuno dei suoi tratti costa una voce Move**, lo stesso in ogni banda di [D-425] (Move, Sprint, Withdraw
+	 * sono tutte di macro-fase Move, `DefaultActionPointCost`): senza un movimento nel piano il gesto aggiunge i tratti del percorso nuovo;
+	 * con un percorso gia' pianificato costa la differenza fra i tratti di dopo e quelli di prima, cioe' 0 finche' la cella sta nel tratto
+	 * pagato e 2 per ogni tratto che apre (la lettura (f) di [D-625]). `PathCost` = `INDEX_NONE` e' un waypoint che non apre un tratto.
 	 *
 	 * `SpentNow` come in `ActionPointsAfterArming`.
 	 */
-	int32 ActionPointsAfterMoving(int32 SpentNow = INDEX_NONE) const;
+	int32 ActionPointsAfterMoving(int32 PathCost = INDEX_NONE, int32 SpentNow = INDEX_NONE) const;
 
-	/** Il piano paga un waypoint di movimento normale: la stessa regola di `CanAffordArming`, sulla spesa di `ActionPointsAfterMoving`. */
-	bool CanAffordMoving(int32 SpentNow = INDEX_NONE) const;
+	/** Il piano paga un percorso di quel costo: la stessa regola di `CanAffordArming`, sulla spesa di `ActionPointsAfterMoving`. */
+	bool CanAffordMoving(int32 PathCost = INDEX_NONE, int32 SpentNow = INDEX_NONE) const;
 
 	/**
 	 * Un click su una cella della mappa porterebbe a un waypoint di movimento normale (#4155): il verso dichiarato non chiude il movimento,
@@ -605,18 +645,23 @@ public:
 	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.AddPlannedWaypoint(Waypoint); }
 	void PopPlannedWaypoint() { Plan.PopPlannedWaypoint(); }
 
-	/** Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. */
-	void SetPlannedRoute(const TArray<FRTCellId>& Route)
+	/**
+	 * Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. `PathCost` e' il
+	 * costo in Movement Point che il compositore ha letto sulla mappa di chi pianifica (`FRTHexPathResult::TotalCost`, E38 CP 38.16): da
+	 * li' il piano conta i tratti. 0 per chi non lo dichiara, cioe' nessun tratto oltre il primo.
+	 */
+	void SetPlannedRoute(const TArray<FRTCellId>& Route, int32 PathCost = 0)
 	{
 		Plan.SetPlannedPath(Route);
+		Plan.SetPlannedPathCost(Route.Num() > 1 ? FMath::Max(0, PathCost) : 0);
 		Plan.PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
 	}
 
-	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. */
-	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route)
+	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. `PathCost` come in `SetPlannedRoute`. */
+	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route, int32 PathCost = 0)
 	{
 		Plan.SetPlannedWaypoints(Waypoints);
-		SetPlannedRoute(Route);
+		SetPlannedRoute(Route, PathCost);
 	}
 
 	/** Il piano del bot: una DESTINAZIONE, che non si ricava dal percorso (il bot non pianifica a waypoint). */
@@ -624,6 +669,7 @@ public:
 	{
 		Plan.PlannedCell = Destination;
 		Plan.SetPlannedPath(Route);
+		Plan.SetPlannedPathCost(0); // il bot non concatena tratti: il suo percorso sta nella banda (E38 CP 38.16)
 		Plan.SetPlannedWaypoints(Waypoints);
 	}
 
@@ -631,6 +677,7 @@ public:
 	void ClearPlannedRoute()
 	{
 		Plan.SetPlannedPath({});
+		Plan.SetPlannedPathCost(0);
 		Plan.SetPlannedWaypoints({});
 	}
 
