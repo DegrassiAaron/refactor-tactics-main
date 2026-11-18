@@ -179,7 +179,8 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 				Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
 		}
 	}
-	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable);
+	// [D-625] (2), #4155: il ventaglio che il residuo di Action Point non paga resta visibile, nel colore di rifiuto.
+	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable, !Unit->CanAffordMoving());
 	HexMap->SetPreviewRangeCells(Portata);
 
 	// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'

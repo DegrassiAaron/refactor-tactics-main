@@ -12,6 +12,8 @@
 #include "Turn/Resolution/RTTurnRules.h" // ERTMatchPhase: i cancelli di fase (#2184)
 #include "RTHUD.generated.h"
 
+enum class ERTActionInvalidReason : uint8; // MoveRefusalText (#4155): il tipo vive in Turn/Actions/RTActionFallbackLibrary.h
+
 /**
  * I due tratti con cui un tiro rifiutato per copertura si mostra a schermo — `#3085`.
  *
@@ -563,6 +565,18 @@ public:
 	 * sul solo campo non vedrebbe.
 	 */
 	FString CurrentRefusalText() const;
+
+	/**
+	 * Il motivo per cui la cella del ventaglio sotto il cursore non si pianifica (#4155, [D-625] (2)), nelle parole che il TurnLog gli da'
+	 * gia' (`DescribeInvalidReason`). Vuoto con `None`. Statica e pura, come `RefusalText`.
+	 */
+	static FString MoveRefusalText(ERTActionInvalidReason Reason);
+
+	/**
+	 * Il testo di adesso, dal controller (`ARTPlayerController::HoveredMoveRefusal`). E' la sorgente che `DrawHUD` usa, come
+	 * `CurrentRefusalText`: dove l'HUD scrive il rifiuto di un bersaglio, e al suo posto finche' il cursore e' su quella cella.
+	 */
+	FString CurrentMoveRefusalText() const;
 
 	/**
 	 * Il TRATTO RIFIUTATO che l'osservatore puo' vedere, composto dallo stato corrente — `#3064`.

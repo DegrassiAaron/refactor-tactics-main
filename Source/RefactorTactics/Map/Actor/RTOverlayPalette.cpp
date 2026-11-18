@@ -21,6 +21,8 @@ FColor URTOverlayPalette::ColorFor(const ERTOverlayMeaning Meaning)
 	// marcatore di blocco) ed e' lo stesso rosa per chi guarda.
 	case ERTOverlayMeaning::AbilityRangeBlocked:     return FColor(255, 20, 91);   // #FF145B [D-561]
 	case ERTOverlayMeaning::AbilityRangeUnverdicted: return FColor(201, 138, 43);  // #C98A2B [D-561]; 65 dalla superficie Fire
+	// [D-627]: scelto dall'autore fra tre candidati che passano `PaletteIsDistinguishable`; dista 74 dal piu' vicino (`Rough`).
+	case ERTOverlayMeaning::MovementOverBudget:      return FColor(139, 30, 63);   // #8B1E3F [D-627]
 	}
 	// Nessun default nello switch: cosi' un significato nuovo rompe la COMPILAZIONE invece di cadere in
 	// silenzio su un colore di ripiego che a schermo sembra una scelta.
@@ -64,6 +66,8 @@ case ERTOverlayMeaning::Vision:       return 20;
 	// Le tre classi della portata in hover non condividono mai una cella: stesso livello.
 	case ERTOverlayMeaning::AbilityRangeBlocked:     return 15;
 	case ERTOverlayMeaning::AbilityRangeUnverdicted: return 15;
+	// Prende il posto del ventaglio, e il ventaglio e' uno: stesso livello di `Movement`.
+	case ERTOverlayMeaning::MovementOverBudget:      return 10;
 	}
 	checkNoEntry();
 	return 0;
@@ -84,6 +88,8 @@ case ERTOverlayMeaning::Vision:       return 0.72f;
 	// [D-561]: STESSA scala dei tre stati. La differenza fra libero e bloccato la porta il colore, non la dimensione.
 	case ERTOverlayMeaning::AbilityRangeBlocked:     return 0.60f;
 	case ERTOverlayMeaning::AbilityRangeUnverdicted: return 0.60f;
+	// La scala del ventaglio: la differenza la porta il colore, come per i tre stati della portata ([D-561]).
+	case ERTOverlayMeaning::MovementOverBudget:      return 0.52f;
 	}
 	checkNoEntry();
 	return 1.f;
@@ -103,6 +109,7 @@ case ERTOverlayMeaning::Vision:       return false;
 	case ERTOverlayMeaning::AbilityRange:    return true;
 	case ERTOverlayMeaning::AbilityRangeBlocked:     return true;
 	case ERTOverlayMeaning::AbilityRangeUnverdicted: return true;
+	case ERTOverlayMeaning::MovementOverBudget:      return false;
 	}
 	checkNoEntry();
 	return false;
@@ -123,7 +130,8 @@ TArray<ERTOverlayMeaning> URTOverlayPalette::AllMeanings()
 		ERTOverlayMeaning::Vision,
 		ERTOverlayMeaning::AbilityRange,
 		ERTOverlayMeaning::AbilityRangeBlocked,
-		ERTOverlayMeaning::AbilityRangeUnverdicted
+		ERTOverlayMeaning::AbilityRangeUnverdicted,
+		ERTOverlayMeaning::MovementOverBudget
 	};
 }
 

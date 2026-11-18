@@ -435,7 +435,17 @@ struct FRTActionPointView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Committed = 0;
 
-	/** `Budget - Committed`, negativo quando il piano sfora: il widget non sottrae. */
+	/**
+	 * Il costo del gesto in corso (#4155, §19-bis.1): quanto la spesa cambierebbe col waypoint o lo slot sotto il cursore. 0 senza
+	 * un gesto. Puo' essere negativo, quando il gesto sostituisce una voce che costa di piu' [LETTURA].
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Preview = 0;
+
+	/**
+	 * Il residuo DOPO il gesto, `Budget - Committed - Preview` (il «risorsa dopo» del Cost Preview di §19), negativo quando il piano
+	 * sfora: il widget non sottrae. Senza un gesto e' `Budget - Committed`.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Residual = 0;
 
@@ -448,7 +458,7 @@ struct FRTActionPointView
 	bool bModified = false;
 };
 
-/** Lo stato di un pip degli Action Point (§19-bis.1). L'anteprima del gesto in corso entra con HUD-AP.3. */
+/** Lo stato di un pip degli Action Point (§19-bis.1). */
 UENUM(BlueprintType)
 enum class ERTActionPointPip : uint8
 {
@@ -458,6 +468,8 @@ enum class ERTActionPointPip : uint8
 	Free,
 	/** Speso oltre il budget: il piano non si valida, e il pip sta fuori dalla cornice. */
 	Over,
+	/** Lo spenderebbe il gesto in corso, entro il budget (#4155). Oltre il budget e' `Over`. In coda: l'indice e' il dato. */
+	Preview,
 };
 
 /**
@@ -1814,12 +1826,18 @@ public:
 	 * Gli Action Point dell'unita' COMANDATA (#4150, §19-bis.1). `Committed` e' `ActionPointsSpent(MakePlanFor(Unit))`:
 	 * nessuna seconda somma. ⛔ Come `BuildMovementReadout`, il chiamante passa solo l'unita' comandata, e con `nullptr`
 	 * torna il default non autorizzato.
+	 *
+	 * `SpentAfterGesture` e' la spesa del piano dopo il gesto in corso, come la dice l'unita' (`ActionPointsAfterMoving`,
+	 * `ActionPointsAfterArming`), e `INDEX_NONE` senza un gesto: `Preview` ne e' la differenza da `Committed` (#4155).
 	 */
-	static FRTActionPointView BuildActionPoints(const ARTUnit* Unit);
+	static FRTActionPointView BuildActionPoints(const ARTUnit* Unit, int32 SpentAfterGesture = INDEX_NONE);
 
 	/**
 	 * I pip, da sinistra: uno per AP del budget, impegnati prima e liberi poi, e dopo il budget uno per ogni AP speso oltre.
 	 * Vuoto per una vista non autorizzata. La regola sta qui e non nel widget, che dipinge soltanto.
+	 *
+	 * ➕ Con un gesto in corso (#4155) i pip dicono lo stato DOPO il gesto: i suoi AP sono `Preview` fra gli impegnati e i liberi,
+	 * e `Over` oltre il budget; un `Preview` negativo libera gli ultimi impegnati, che appaiono liberi [LETTURA].
 	 */
 	static TArray<ERTActionPointPip> ActionPointPips(const FRTActionPointView& View);
 

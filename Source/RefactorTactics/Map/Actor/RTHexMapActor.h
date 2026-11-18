@@ -950,8 +950,9 @@ public:
 	/**
 	 * Celle raggiungibili dall'unita' selezionata col budget corrente (vuoto = nessuna anteprima).
 	 * Vengono da `URTHexSimLibrary::ReachableCells`: budget, blocchi, occupanti e archi sono gia' applicati.
+	 * ➕ `bOverBudget` (#4155, [D-625] (2)): il residuo di Action Point non paga il Move, e il ventaglio prende `MovementOverBudget`.
 	 */
-	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
+	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells, bool bOverBudget = false);
 
 	/**
 	 * Le celle entro la portata dell'azione armata, significato `AbilityRange` (vuoto = nessuna anteprima) — `#3507`.
@@ -1172,8 +1173,13 @@ public:
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle colpite **e** occupata da un alleato (test del fuoco amico). */
 	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitArea.Cells.Contains(Cell); }
-	/** Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente (test). */
+	/**
+	 * Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente, nell'uno o nell'altro significato del ventaglio. La
+	 * leggono i test e il gesto del movimento sotto il cursore (`ARTPlayerController::ActionPointsAfterGestureNow`, #4155).
+	 */
 	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachableArea.Cells.Contains(Cell); }
+	/** Il significato del ventaglio: `Movement`, o `MovementOverBudget` quando il residuo non paga il Move (test, #4155). */
+	ERTOverlayMeaning GetPreviewReachableMeaning() const { return PreviewReachableArea.Meaning; }
 	/** Vero se la cella e' nell'impronta di playback corrente (test). */
 	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
 

@@ -3158,6 +3158,8 @@ namespace
 		switch (Meaning)
 		{
 		case ERTOverlayMeaning::Movement:        Actor->SetPreviewReachableCells({ A, B }); break;
+		// #4155: lo stesso ventaglio, quando il residuo di Action Point non paga il Move.
+		case ERTOverlayMeaning::MovementOverBudget: Actor->SetPreviewReachableCells({ A, B }, /*bOverBudget=*/ true); break;
 		case ERTOverlayMeaning::PathTrace:       Actor->SetPreviewPath({ A, B }); break;
 		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
 		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;

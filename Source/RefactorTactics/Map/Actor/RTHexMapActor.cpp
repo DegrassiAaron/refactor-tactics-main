@@ -1226,10 +1226,10 @@ void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells)
+void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells, bool bOverBudget)
 {
 	PreviewReachableArea.Cells = ReachableCells;
-	PreviewReachableArea.Meaning = ERTOverlayMeaning::Movement;
+	PreviewReachableArea.Meaning = bOverBudget ? ERTOverlayMeaning::MovementOverBudget : ERTOverlayMeaning::Movement;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1317,8 +1317,12 @@ int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
 	{
 	// Il ventaglio E le due aree del fuoco (#3750): hanno lo stesso significato, e un'area di fuoco rimasta accesa dopo
 	// un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta.
-	case ERTOverlayMeaning::Movement:        return PreviewReachableArea.Cells.Num()
-		+ PreviewFocusNormalArea.Cells.Num() + PreviewFocusRunArea.Cells.Num();
+	case ERTOverlayMeaning::Movement:
+		return (PreviewReachableArea.Meaning == ERTOverlayMeaning::Movement ? PreviewReachableArea.Cells.Num() : 0)
+			+ PreviewFocusNormalArea.Cells.Num() + PreviewFocusRunArea.Cells.Num();
+	// Il ventaglio che il residuo non paga (#4155): lo stesso insieme, contato nel suo significato.
+	case ERTOverlayMeaning::MovementOverBudget:
+		return PreviewReachableArea.Meaning == ERTOverlayMeaning::MovementOverBudget ? PreviewReachableArea.Cells.Num() : 0;
 	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
 	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
 	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
@@ -2074,9 +2078,10 @@ void ARTHexMapActor::DrawPlanningPreview() const
 
 	// Celle raggiungibili: contorno piccolo e tenue. Fa vedere il budget mordere (il fango accorcia il raggio)
 	// senza coprire il resto: e' contesto, non una decisione presa.
+	// ➕ #4155: il significato lo porta l'area, `MovementOverBudget` quando il residuo non paga il Move ([D-625] (2)).
 	for (const FRTCellId& Cell : PreviewReachableArea.Cells)
 	{
-		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
+		DrawMeaning(Cell, PreviewReachableArea.Meaning);
 	}
 
 	// Le due aree di movimento di chi e' a FUOCO (`#3750`, D-552), nello stile `Predicted`: e' il massimo che il nemico puo'
