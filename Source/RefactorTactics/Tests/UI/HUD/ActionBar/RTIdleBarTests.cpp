@@ -379,6 +379,8 @@ bool FRTPublicBarCarriesNoMatchTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("%s: nessun motivo del validatore"), *Dove),
 			R.PlanInvalidReason == ERTActionInvalidReason::None);
 		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Dove), R.bPlanned);
+		TestEqual(*FString::Printf(TEXT("%s: nessun contatore del piano (#4159)"), *Dove), R.PlannedCount, 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessuna occorrenza accusata (#4159)"), *Dove), R.PlanInvalidOccurrence, 0);
 		if (!R.ActionId.IsNone())
 		{
 			TestEqual(*FString::Printf(TEXT("%s: lo slot si legge Available"), *Dove),

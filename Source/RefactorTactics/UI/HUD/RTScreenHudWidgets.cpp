@@ -1704,9 +1704,9 @@ FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
 
 void URTActionSlotWidget::EnsurePlannedCountText()
 {
-	if (PlannedCountText)
+	if (PlannedCountText || bPlannedCountMountFailed)
 	{
-		return; // dichiarato dall'asset, o gia' costruito
+		return; // dichiarato dall'asset, gia' costruito, o senza un posto (detto una volta)
 	}
 	if (WidgetTree == nullptr)
 	{
@@ -1723,6 +1723,7 @@ void URTActionSlotWidget::EnsurePlannedCountText()
 	}
 	if (Pannello == nullptr)
 	{
+		bPlannedCountMountFailed = true;
 		if (WidgetTree->RootWidget != nullptr)
 		{
 			UE_LOG(LogRT, Warning, TEXT("[RT] Slot: nessun pannello per il contatore del piano (la radice e' un %s): non montato"),
@@ -1730,25 +1731,38 @@ void URTActionSlotWidget::EnsurePlannedCountText()
 		}
 		return;
 	}
-	PlannedCountText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlannedCountText"));
-	FSlateFontInfo Carattere = HotkeyText ? HotkeyText->GetFont() : PlannedCountText->GetFont();
+	UTextBlock* Contatore = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlannedCountText"));
+	FSlateFontInfo Carattere = HotkeyText ? HotkeyText->GetFont() : Contatore->GetFont();
 	if (HotkeyText == nullptr)
 	{
 		Carattere.Size = 12;
 	}
-	PlannedCountText->SetFont(Carattere);
-	PlannedCountText->SetVisibility(ESlateVisibility::Collapsed);
-	UPanelSlot* Posto = Pannello->AddChild(PlannedCountText);
-	// In alto a destra, accanto all'angolo di `Planned`, in qualunque pannello lo ospiti.
+	Contatore->SetFont(Carattere);
+	Contatore->SetVisibility(ESlateVisibility::Collapsed);
+	UPanelSlot* Posto = Pannello->AddChild(Contatore);
+	// ⚠️ Un pannello a un figlio solo (un `Border`, un `SizeBox`) gia' pieno rifiuta il secondo: senza il posto il contatore sarebbe un
+	// orfano mai disegnato, con la visibilita' scritta a ogni `SetAction` (revisione di #4159).
+	if (Posto == nullptr)
+	{
+		bPlannedCountMountFailed = true;
+		UE_LOG(LogRT, Warning, TEXT("[RT] Slot: il pannello %s non accetta il contatore del piano: non montato"),
+			*Pannello->GetClass()->GetName());
+		return;
+	}
+	PlannedCountText = Contatore;
+	// In alto a destra, ma A SINISTRA dell'angolo di `Planned` (18 px nell'asset) e delle marche di `Invalid` e `Warning`, che stanno
+	// nello stesso angolo: sopra di loro il numero si confonderebbe con il segno dello stato (revisione di #4159).
 	if (UOverlaySlot* InOverlay = Cast<UOverlaySlot>(Posto))
 	{
 		InOverlay->SetHorizontalAlignment(HAlign_Right);
 		InOverlay->SetVerticalAlignment(VAlign_Top);
+		InOverlay->SetPadding(FMargin(0.f, 0.f, PlannedCountRightInset, 0.f));
 	}
 	else if (UCanvasPanelSlot* InCanvas = Cast<UCanvasPanelSlot>(Posto))
 	{
 		InCanvas->SetAnchors(FAnchors(1.f, 0.f));
 		InCanvas->SetAlignment(FVector2D(1.f, 0.f));
+		InCanvas->SetPosition(FVector2D(-PlannedCountRightInset, 0.f));
 		InCanvas->SetAutoSize(true);
 	}
 }

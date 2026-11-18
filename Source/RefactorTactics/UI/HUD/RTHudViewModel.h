@@ -722,10 +722,9 @@ struct FRTAbilityCooldownView
 	 * il turno risolvera'. `progettazione-hud.md` §7 li elenca come due stati separati di uno slot
 	 * (`Selected` e `Planned`) e fino a qui uno dei due non arrivava a chi disegna.
 	 *
-	 * ⚠️ **Guarda tutti e TRE i campi**, e non il solo `PlannedAbilityIndex`: una reazione vive in un campo
-	 * suo — `#601` lo dichiara, *«una reazione selezionata finiva nello slot PRINCIPALE»* — e uno scatto in
-	 * un terzo. Leggerne uno solo direbbe «non pianificata» di una reazione che il pass delle reazioni
-	 * eseguira'.
+	 * 🔑 **E' `PlannedCount > 0`, sulle voci del piano di ogni classe** (HUD-AP.5a, #4159). ⏱️ *Fino a HUD-AP.5a guardava i tre campi
+	 * della prima voce* (la principale, la reazione, lo scatto), perche' leggerne uno solo avrebbe detto «non pianificata» di una
+	 * reazione (`#601`); da E38 il piano e' una lista, e la prima voce non basta piu'.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bPlanned = false;

@@ -902,6 +902,7 @@ bool FRTPlannedCountsEveryCopyTest::RunTest(const FString&)
 	Slot->SetAction(Righe[B.Guardia], /*bInArmed=*/ false);
 	if (TestNotNull(TEXT("lo slot ha il contatore"), Slot->PlannedCountText.Get()))
 	{
+		TestNotNull(TEXT("ed e' montato nella radice"), Slot->PlannedCountText->GetParent());
 		TestEqual(TEXT("e dice x2"), Slot->PlannedCountText->GetText().ToString(), FString(TEXT("\u00d72")));
 		TestEqual(TEXT("acceso"), Slot->PlannedCountText->GetVisibility(), ESlateVisibility::HitTestInvisible);
 		Slot->SetAction(Righe[B.Attacco], /*bInArmed=*/ false);
@@ -929,7 +930,10 @@ bool FRTRefusalNamesTheOccurrenceTest::RunTest(const FString&)
 		DestroyApPreviewBench(B);
 		return false;
 	}
-	B.Unit->SetActionPointBudget(8);
+	// La principale per prima, in posizione 0: le copie della reazione stanno in 1 e 2, e il numero atteso (2) non coincide con la loro
+	// posizione nella lista (revisione di #4159). Budget 10: la principale e tre copie stanno nel budget, e il motivo resta la copia.
+	B.Unit->SetActionPointBudget(10);
+	B.Unit->DeclarePlannedMainAction(B.Attacco);
 	B.PC->SelectAbilityForCurrentForTest(B.Reazione);
 	B.Unit->SelectAbility(INDEX_NONE);
 	const auto Righe = [&B]() { return URTHudViewModel::BuildAbilityCooldowns(B.Unit); };
@@ -951,6 +955,11 @@ bool FRTRefusalNamesTheOccurrenceTest::RunTest(const FString&)
 	TestEqual(TEXT("l'occorrenza colpevole e' la seconda"), Riga.PlanInvalidOccurrence, 2);
 	const FString Tooltip = URTHudViewModel::BuildActionTooltip(Riga, /*bArmed=*/ false).Reason.ToString();
 	TestTrue(*FString::Printf(TEXT("il tooltip nomina la seconda copia: %s"), *Tooltip), Tooltip.Contains(TEXT("2\u00aa copia")));
+
+	// Una terza copia: il validatore accusa ancora la seconda, e il numero non e' il conto delle copie.
+	TestTrue(TEXT("premessa: la terza copia entra nel piano"), B.Unit->AddPlannedReaction(B.Reazione));
+	TestEqual(TEXT("con tre copie l'occorrenza colpevole resta la seconda"), Righe()[B.Reazione].PlanInvalidOccurrence, 2);
+	TestEqual(TEXT("e il contatore dice tre"), Righe()[B.Reazione].PlannedCount, 3);
 
 	const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(B.Unit, { B.Unit });
 	const FRTPlanWarningView* Critico = Avvisi.FindByPredicate([](const FRTPlanWarningView& A) { return A.Level == ERTPlanWarningLevel::Critical; });
