@@ -132,9 +132,10 @@ public:
 	 *   3. `OverBudget` — proprieta' QUANTITATIVA del piano ([D-594]: la somma dei costi AP supera il budget dell'unita');
 	 *      nomina la prima voce, nell'ORDINE DI DICHIARAZIONE, che fa sforare la somma (E38 CP 38.12): le voci dichiarate
 	 *      prima di lei stanno tutte nel budget. E' resa, non regola: la legalita' e' la somma intera;
-	 *   4. `SlotOccupied` — proprieta' STRUTTURALE della combinazione, quindi per ultima. ➕ **Non vale per le voci di
-	 *      macro-fase Prep** (E38 CP 38.13): il Prep e' la prima fase che accetta piu' azioni della stessa unita'
-	 *      ([D-584] (1)). Le altre fasi restano sotto il vincolo finche' il loro checkpoint (CP 38.14–38.16) non le apre.
+	 *   4. `SecondDash` — un secondo scatto, diverso ([D-625] (4); E38 CP 38.16): la sola regola di classe che resta oltre al
+	 *      budget; accusa il secondo nell'ordine di dichiarazione, col primo come detentore. ⏱️ *Fino a CP 38.16 il passo 4 era
+	 *      `SlotOccupied`, la proprieta' strutturale della combinazione*: gli slot non decidono piu' ([D-584] (1)), e quel motivo
+	 *      non ha produttori.
 	 *
 	 * ⏳ **Il budget precede lo slot ed e' voluto** (E38 CP 38.6, #4012): ADR-0011 sostituira' gli slot con il
 	 * solo budget, quindi il motivo che sopravvivera' va letto per primo. Finche' il resolver accetta una azione
@@ -196,9 +197,9 @@ public:
 	 * una regola che solo i test possono invocare — e un validatore che nessuno chiama non e' una regola.
 	 *
 	 * Lo slot di ogni voce lo dichiara il **catalogo** (`FRTActionDef::Slot`), non il campo in cui l'azione
-	 * e' scritta. E' la stessa disciplina di `ARTTurnManager::ResolveDash`, che spende la principale se
-	 * l'azione dichiara `MovementAndMain`: un kit puo' dichiarare *«questa mobilita' costa tutto il turno»*
-	 * senza che questo adattatore sappia di lei.
+	 * e' scritta. ⏱️ *Fino a E38 CP 38.16 `ARTTurnManager::ResolveDash` spendeva la principale se l'azione dichiarava
+	 * `MovementAndMain`*; da [D-628] (1) un kit dice *«questa mobilita' costa tutto il turno»* col costo in AP, che questa
+	 * funzione porta nella voce senza sapere di lei.
 	 *
 	 * ⚠️ Il movimento NORMALE non e' un'abilita' del kit e non ha un `URTActionData`: e' una destinazione
 	 * (`PlannedCell`) o un percorso (`PlannedPath`). La sua voce viene da `Action.Move` nel catalogo core,

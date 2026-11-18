@@ -184,6 +184,7 @@ namespace RTScenarioStateDiff
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
 #include "Player/Planning/RTPlanningSnapshot.h" // StartMovementFromPlannedDash: il Move parte dalla cella d'arrivo dello scatto (CP 38.16)
+#include "Turn/Resolution/RTMovementActionLibrary.h" // JudgeLinearDashClick: la corsa della carica, come al click (CP 38.16)
 #include "UI/Reaction/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
@@ -1684,7 +1685,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			if (!bScritta)
 			{
 				ErroredBy = FString::Printf(
-					TEXT("'%s': actions[%d], '%s', e' una seconda voce della classe %s, che e' chiusa: non si scrive (turno %d)"),
+					TEXT("'%s': actions[%d], '%s', e' una voce della classe %s che il piano non accetta: non si scrive (turno %d)"),
 					*Intent.UnitId, k, *Azione.Ability.ToString(), Classe, TurnIndex + 1);
 			}
 		}
@@ -1766,6 +1767,27 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		}
 		// E38 CP 38.16, [D-628] (4): come nel controller, il Move parte da dove lo scatto pianificato si ferma. Il percorso si compone
 		// qui, dopo ogni voce dell'intent, quindi l'ordine in cui il JSON li elenca non cambia la partenza.
+		// ⚠️ **Per una carica la cella d'arrivo la dice la sua corsa**, che il controller scrive al click (`NotePlannedChargeRun`, [D-528]):
+		// senza, `PlannedMoveStartCell` ricadrebbe sulla cella di adesso e il Move dello scenario partirebbe da prima dello scatto
+		// (revisione di CP 38.16a). Si giudica con la stessa funzione del click, sullo snapshot di questo intent.
+		if (Unit->PlannedDashMoves() && Unit->PlannedDashIsCharge() && Snapshot.Map)
+		{
+			FRTChargeRun Corsa;
+			const int32 Scatto = Unit->GetPlan().PlannedDashAbility();
+			const URTActionData* Carica = Unit->GetAbility(Scatto);
+			if (Carica && !Unit->GetPlannedChargeRun(Corsa))
+			{
+				TSet<int32> Ostili;
+				for (int32 i = 0; i < SnapshotUnits.Num(); ++i)
+				{
+					const ARTUnit* Altro = SnapshotUnits[i];
+					if (Altro && Altro->IsAlive() && Altro->TeamId != Unit->TeamId) { Ostili.Add(i); }
+				}
+				const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(Snapshot.MapForPlanning(), Unit->Cell,
+					Unit->GetPlan().PlannedDashCell(), Unit->EffectiveDashRangeOf(Scatto), Carica->Def.MovementStyle, Snapshot.Occupancy, Ostili);
+				Unit->NotePlannedChargeRun(Verdetto.Run);
+			}
+		}
 		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
 
 		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);

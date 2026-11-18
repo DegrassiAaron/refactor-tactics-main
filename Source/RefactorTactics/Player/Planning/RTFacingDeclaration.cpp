@@ -200,17 +200,19 @@ FRTCellId FRTFacingDeclaration::CellFor(const ARTUnit* Unit)
 	{
 		return FRTCellId();
 	}
-	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashMoves`, e non il
-	// solo indice: uno scatto sulla propria cella non e' uno scatto, e uno che lo stato nega lascia l'unita' dov'e'
-	// ([D-471]).
-	if (Unit->PlannedDashMoves())
-	{
-		return Unit->GetPlan().PlannedDashCell();
-	}
-	// [D-569]: un Move che lo stordimento nega non sposta l'unita', e il verso si dichiara da dove restera' — come per lo scatto.
+	// 🔑 **Il Move finisce per ultimo** (E38 CP 38.16, [D-584] (1)): scatto e Move stanno nello stesso piano, e il Move risolve nella
+	// macro-fase Move, dopo il Dash, partendo dalla cella d'arrivo dello scatto ([D-628] (4)). La sua ultima cella e' quella in cui
+	// l'unita' finira'. ⏱️ *Fino a CP 38.16 lo scatto sostituiva il movimento, e il suo ramo veniva prima.*
+	// [D-569]: un Move che lo stordimento nega non sposta l'unita', e il verso si dichiara da dove restera'.
 	if (Unit->GetPlan().PlannedPath().Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
 	{
 		return Unit->GetPlan().PlannedPath().Last();
+	}
+	// Senza un Move, la cella dello scatto. `PlannedDashMoves`, e non il solo indice: uno scatto sulla propria cella non e' uno
+	// scatto, e uno che lo stato nega lascia l'unita' dov'e' ([D-471]).
+	if (Unit->PlannedDashMoves())
+	{
+		return Unit->GetPlan().PlannedDashCell();
 	}
 	return Unit->Cell;
 }
@@ -222,6 +224,16 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 	OutPath.Reset();
 	if (!Unit)
 	{
+		return;
+	}
+
+	// E38 CP 38.16: con un Move nel piano l'ultimo passo e' del Move, che risolve dopo lo scatto e ne parte dalla cella d'arrivo, e il
+	// resolver giudica il verso sul Move (`MovementStyleThisTurn` = `Budget`). Come in `CellFor`, il suo ramo viene prima.
+	// [D-569]: un Move negato dallo stordimento non percorre niente, e il resolver giudica il verso di chi resta fermo (sei direzioni).
+	if (Unit->GetPlan().PlannedPath().Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
+	{
+		OutStyle = ERTMovementStyle::Budget;
+		OutPath = Unit->GetPlan().PlannedPath();
 		return;
 	}
 
@@ -277,13 +289,6 @@ void FRTFacingDeclaration::PlannedMovement(const FRTFacingHost& Host, const ARTU
 			}
 			return;
 		}
-	}
-
-	// [D-569]: un Move negato dallo stordimento non percorre niente, e il resolver giudica il verso di chi resta fermo (sei direzioni).
-	if (Unit->GetPlan().PlannedPath().Num() > 1 && !Unit->PlannedNormalMoveDeniedByStun())
-	{
-		OutStyle = ERTMovementStyle::Budget;
-		OutPath = Unit->GetPlan().PlannedPath();
 	}
 }
 

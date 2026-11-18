@@ -80,7 +80,7 @@
       "category": "Move",
       "outcome": "Moved",
       "value": 2,
-      "_assertion": "Due voci `Moved` di B1: quella dello scatto, in fase Dash, e quella del Move, in fase Move. Senza il Move sarebbe una sola: e' il controllo positivo che il percorso sia partito dalla cella dello scatto."
+      "_assertion": "Due voci `Moved` di B1: quella dello scatto, in fase Dash, e quella del Move, in fase Move. Senza il Move sarebbe una sola: e' il controllo positivo che il Move sia avvenuto. ⚠️ Non discrimina DA DOVE sia partito: se il percorso partisse dalla cella di prima, il resolver lo ricostruirebbe dalla cella d'arrivo verso la stessa destinazione. La partenza la prova `PlayerInteraction.DashThenMoveStartsFromTheArrival`, sulla prima cella del percorso."
     },
     {
       "type": "TurnsCompleted",

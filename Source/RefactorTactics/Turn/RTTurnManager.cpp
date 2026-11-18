@@ -3755,7 +3755,11 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			}
 			else if (FaseDellaVoce == ERTMatchPhase::Dash && Unit->GetPlan().PlannedDashAbility() != INDEX_NONE)
 			{
-				Bersaglio = Unit->GetPlan().PlannedDashCell();
+				// E38 CP 38.16: la cella della VOCE, come per la principale qui sopra: con due scatti nel piano (`SecondDash`) ognuno ha la
+				// sua, e `PlannedDashCell()` legge solo la prima (revisione di CP 38.16a).
+				const TArray<FRTPlanEntry>& Voci = Unit->GetPlan().GetEntries();
+				Bersaglio = Voci.IsValidIndex(Voce.DeclarationIndex) && Voci[Voce.DeclarationIndex].Class == ERTPlanEntryClass::Dash
+					? Voci[Voce.DeclarationIndex].DashCell : Unit->GetPlan().PlannedDashCell();
 			}
 			else if (FaseDellaVoce == ERTMatchPhase::Move)
 			{
@@ -6009,8 +6013,9 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
-	// Applica le posizioni e consuma l'abilita'. Lo scatto SPENDE il movimento del turno (D-028): chi ha
-	// scattato non prosegue col Move, e questo e' il punto in cui la regola diventa vera — nel resolver, che
+	// Applica le posizioni e consuma l'abilita'. ➕ **Da E38 CP 38.16 lo scatto NON spende piu' il movimento** ([D-584] (1)): chi ha
+	// scattato prosegue col Move pianificato, che parte dalla cella d'arrivo (piu' sotto, al posto del vecchio scarto). ⏱️ *Da D-028
+	// a CP 38.16 lo scatto spendeva il movimento del turno, e questo era il punto in cui la regola diventava vera* — nel resolver, che
 	// e' cio' che decide l'esito (invariante #1), non in un controllo di pianificazione che il bot potrebbe
 	// aggirare. Prima di D-028 il move normale sopravviveva allo scatto: era il «movimento doppio» di
 	// `docs/gameplay/spec-dash.md`, vigente e implementato, ora superato.

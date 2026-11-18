@@ -5,6 +5,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
+#include "Player/Planning/RTFacingDeclaration.h" // CellFor: la cella del verso con scatto + Move (CP 38.16)
 #include "Player/Input/RTInputKeys.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/Log/RTTurnLog.h"
@@ -813,6 +814,9 @@ bool FRTDashThenMoveStartsFromTheArrivalTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: il percorso parte dalla cella d'arrivo dello scatto"), *Ordine), Percorso[0], DashTo);
 		TestEqual(*FString::Printf(TEXT("%s: e arriva alla cella cliccata"), *Ordine), U->GetPlan().PlannedCell, MoveTo);
 		TestEqual(*FString::Printf(TEXT("%s: il waypoint resta"), *Ordine), U->GetPlan().PlannedWaypoints().Num(), 1);
+		// Il verso si dichiara da dove l'unita' finira': la fine del Move, che risolve dopo lo scatto (revisione di CP 38.16a). Fino a
+		// CP 38.16 lo scatto sostituiva il movimento, e il selettore si apriva sulla sua cella.
+		TestEqual(*FString::Printf(TEXT("%s: il verso si dichiara dalla fine del Move"), *Ordine), FRTFacingDeclaration::CellFor(U), MoveTo);
 		TestTrue(*FString::Printf(TEXT("%s: il piano e' legale"), *Ordine),
 			URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(0, U->Cell, 10, true),
 				URTPlanValidationLibrary::MakePlanFor(U)).bLegal);
@@ -1046,6 +1050,20 @@ bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
 		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { ++Righe; }
 	}
 	TestEqual(TEXT("il lock-in dichiara la contraddizione nel combat log"), Righe, 1);
+
+	// E ogni scatto lascia la propria voce `Fallback`/`Cancelled`, con la PROPRIA cella (revisione di CP 38.16a): leggere
+	// `PlannedDashCell()` dava a entrambe la cella del primo.
+	const FName IdDelPrimo = U->GetAbility(DashIdx) ? U->GetAbility(DashIdx)->Def.ActionId : NAME_None;
+	FRTCellId CellaDelPrimo(0, 0, INDEX_NONE);
+	FRTCellId CellaDelSecondo(0, 0, INDEX_NONE);
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Fallback || E.Amount != static_cast<int32>(ERTActionInvalidReason::SecondDash)) { continue; }
+		if (E.ActionId == IdDelPrimo) { CellaDelPrimo = E.TgtCell; }
+		if (E.ActionId == FName(TEXT("Action.Dodge"))) { CellaDelSecondo = E.TgtCell; }
+	}
+	TestEqual(TEXT("la voce del primo scatto porta la sua cella"), CellaDelPrimo, FRTCellId(1, 2));
+	TestEqual(TEXT("e quella del secondo la sua"), CellaDelSecondo, FRTCellId(2, 1));
 
 	DestroyInteractionWorld(World);
 	return true;
