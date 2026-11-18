@@ -361,7 +361,8 @@ bool FRTInvalidReasonValuesAreAppendOnlyTest::RunTest(const FString&)
 		TEXT("OtherLayer"), TEXT("DashEdgeBlocked"), TEXT("OverBudget"), // OverBudget: D-594, E38 CP 38.6
 		TEXT("TooClose"), // TooClose: D-610, #4091 — il colpo predittivo sotto la distanza minima
 		TEXT("OffMap"), // OffMap: #4099 — la cella di un colpo predittivo che la mappa non contiene
-		TEXT("RepeatedWithCooldown") }; // RepeatedWithCooldown: D-614, E38 CP 38.13 — la seconda copia con ricarica
+		TEXT("RepeatedWithCooldown"), // RepeatedWithCooldown: D-614, E38 CP 38.13 — la seconda copia con ricarica
+		TEXT("SecondDash") }; // SecondDash: D-625 (4), E38 CP 38.16 — un secondo scatto, diverso
 
 	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
 	if (!TestNotNull(TEXT("l'enum dei motivi e' riflesso"), Motivi)) { return false; }

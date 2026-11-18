@@ -484,22 +484,29 @@ bool FRTPlanVerdictNamesTheOccurrence::RunTest(const FString&)
 	// Criterio 4: con due voci dello stesso `ActionId` il verdetto nomina l'indice dell'occorrenza. Voci sintetiche:
 	// in questo CP i mutatori non scrivono due voci della stessa classe.
 	{
-		// Slot: due movimenti, la classe che resta chiusa fino a CP 38.16 (la principale e' aperta da CP 38.14, la reazione da
-		// CP 38.15). Tiene lo slot la prima dichiarata, la seconda e' la colpevole.
+		// La regola di classe che resta: lo scatto ([D-625] (4); E38 CP 38.16). ⏱️ *Fino a CP 38.16 qui c'erano due movimenti e
+		// `SlotOccupied`*: gli slot non decidono piu'. Due copie dello stesso scatto senza ricarica di riga (sintetico: ogni scatto
+		// del catalogo ne ha una) arrivano alla regola dello scatto; tiene il posto la prima dichiarata, la seconda e' la colpevole.
+		auto Scatto = [](int32 Costo)
+		{
+			FRTPlannedAction Voce = ApEntry(TEXT("Test.Scatto"), ERTActionSlot::Movement, Costo);
+			Voce.Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+			return Voce;
+		};
 		const TArray<FRTPlannedAction> Plan = Dichiarate({
-			ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 1),
+			Scatto(1),
 			ApEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction, 1),
-			ApEntry(TEXT("Action.Move"), ERTActionSlot::Movement, 1) });
+			Scatto(1) });
 		TArray<FRTPlannedAction> Rovesciato = Plan;
 		Algo::Reverse(Rovesciato);
 		const TArray<FRTPlannedAction>* const Due[] = { &Plan, &Rovesciato };
 		for (const TArray<FRTPlannedAction>* P : Due)
 		{
 			const FRTPlanValidation V = URTPlanValidationLibrary::ValidatePlan(ApUnit(), *P);
-			TestEqual(TEXT("due movimenti: SlotOccupied"), V.Reason, ERTActionInvalidReason::SlotOccupied);
+			TestEqual(TEXT("due scatti: SecondDash"), V.Reason, ERTActionInvalidReason::SecondDash);
 			TestEqual(TEXT("la colpevole e' la seconda occorrenza"), V.OffendingDeclarationIndex, 2);
 			TestEqual(TEXT("e la detentrice la prima"), V.HolderDeclarationIndex, 0);
-			TestEqual(TEXT("tutte e due Move"), V.HolderActionId, V.OffendingActionId);
+			TestEqual(TEXT("tutte e due lo stesso scatto"), V.HolderActionId, V.OffendingActionId);
 		}
 	}
 	{
@@ -630,10 +637,15 @@ bool FRTPlanCopiesWithoutCooldownAreLegalTest::RunTest(const FString&)
 	// [D-619], una volta per reazione. Voci sintetiche: la riga di catalogo di una reazione ha una ricarica.
 	TestTrue(TEXT("due reazioni senza ricarica sono legali"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
 		ApRepeated(TEXT("Test.Reazione"), ERTActionSlot::Reaction, 2, 2)).bLegal);
-	// Controllo: la classe ancora chiusa, il movimento, resta sotto il vincolo di slot fino a CP 38.16.
-	const FRTPlanValidation DueMovimenti = URTPlanValidationLibrary::ValidatePlan(ApUnit(),
-		ApRepeated(TEXT("Test.Movimento"), ERTActionSlot::Movement, 1, 2));
-	TestEqual(TEXT("controllo: due movimenti senza ricarica restano SlotOccupied"), DueMovimenti.Reason, ERTActionInvalidReason::SlotOccupied);
+	// E38 CP 38.16: anche il movimento. Due voci di movimento senza ricarica sono legali: e' la forma dei tratti concatenati di
+	// [D-625] (1), un Move in piu' per tratto. ⏱️ *Fino a CP 38.16 qui erano `SlotOccupied`.*
+	TestTrue(TEXT("due movimenti senza ricarica sono legali"), URTPlanValidationLibrary::ValidatePlan(ApUnit(),
+		ApRepeated(TEXT("Test.Movimento"), ERTActionSlot::Movement, 1, 2)).bLegal);
+	// Controllo: la sola regola di classe che resta, lo scatto ([D-625] (4)), vieta due scatti anche senza ricarica.
+	TArray<FRTPlannedAction> DueScatti = ApRepeated(TEXT("Test.Scatto"), ERTActionSlot::Movement, 1, 2);
+	for (FRTPlannedAction& Voce : DueScatti) { Voce.Def.ResolutionPhase = ERTResolutionPhase::FastMovement; }
+	TestEqual(TEXT("controllo: due scatti senza ricarica sono SecondDash"),
+		URTPlanValidationLibrary::ValidatePlan(ApUnit(), DueScatti).Reason, ERTActionInvalidReason::SecondDash);
 	return true;
 }
 

@@ -79,8 +79,8 @@
       "type": "LogEventCount",
       "category": "Move",
       "outcome": "Moved",
-      "value": 1,
-      "_assertion": "Il Move di B1 e' una voce `Moved`: controllo positivo che il percorso sia partito dalla cella dello scatto."
+      "value": 2,
+      "_assertion": "Due voci `Moved` di B1: quella dello scatto, in fase Dash, e quella del Move, in fase Move. Senza il Move sarebbe una sola: e' il controllo positivo che il percorso sia partito dalla cella dello scatto."
     },
     {
       "type": "TurnsCompleted",
