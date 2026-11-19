@@ -30,6 +30,9 @@
 #include "UI/HUD/RTUIPalette.h"
 #include "Components/Border.h"
 #include "Components/PanelWidget.h"
+#include "Components/Overlay.h"      // HUD-AP.5a: la radice del banco dello slot
+#include "Components/TextBlock.h"
+#include "Blueprint/WidgetTree.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
@@ -850,6 +853,122 @@ bool FRTRecomposingDropsTheUnpaidWaypointsTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("Sneak annullato (%d): e il piano sta nel budget"), Lontano), B.Spent(), 6);
 		DestroyApPreviewBench(B);
 	}
+	return true;
+}
+
+/**
+ * HUD-AP.5a (#4159), criterio 1 — **lo stato `Planned` conta le copie nel piano, in ogni classe, e lo slot mostra il numero da 2 in su.**
+ *
+ * L'attacco base e' la principale, Guard sta due volte fra le azioni di Prep in piu' (cooldown 0, quindi legale). Fino a HUD-AP.5a lo
+ * stato guardava la prima voce di tre classi, e Guard come voce di Prep non risultava pianificata: e' il controllo di cio' che cambia.
+ * Lo slot si monta su una radice `Overlay`, come quella dell'asset: il contatore lo costruisce il C++ quando l'asset non lo dichiara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedCountsEveryCopyTest,
+	"RefactorTactics.HudViewModel.PlannedCountsEveryCopy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedCountsEveryCopyTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	B.Unit->DeclarePlannedMainAction(B.Attacco);
+	FRTPlanEntry Guardia;
+	Guardia.Class = ERTPlanEntryClass::Prep;
+	Guardia.AbilityIndex = B.Guardia;
+	TestTrue(TEXT("premessa: la prima Guard entra"), B.Unit->AddPlanEntry(Guardia));
+	TestTrue(TEXT("premessa: la seconda Guard entra"), B.Unit->AddPlanEntry(Guardia));
+
+	const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(B.Unit);
+	if (!TestTrue(TEXT("le righe del kit"), Righe.IsValidIndex(B.Guardia) && Righe.IsValidIndex(B.Attacco) && Righe.IsValidIndex(B.Reazione)))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	TestEqual(TEXT("Guard: due copie"), Righe[B.Guardia].PlannedCount, 2);
+	TestTrue(TEXT("Guard: pianificata, anche come voce di Prep"), Righe[B.Guardia].bPlanned);
+	TestEqual(TEXT("l'attacco base: una copia"), Righe[B.Attacco].PlannedCount, 1);
+	TestEqual(TEXT("la reazione: nessuna"), Righe[B.Reazione].PlannedCount, 0);
+	TestFalse(TEXT("la reazione non e' pianificata"), Righe[B.Reazione].bPlanned);
+	TestEqual(TEXT("Guard e' Planned"), static_cast<int32>(URTHudViewModel::ResolveSlotState(Righe[B.Guardia], /*bArmed=*/ false)),
+		static_cast<int32>(ERTActionSlotState::Planned));
+
+	// Lo slot: il contatore, costruito nella radice `Overlay`.
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>(B.World);
+	Slot->WidgetTree = NewObject<UWidgetTree>(Slot, TEXT("WidgetTree"), RF_Transient);
+	Slot->WidgetTree->RootWidget = Slot->WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("Radice"));
+	Slot->SetAction(Righe[B.Guardia], /*bInArmed=*/ false);
+	if (TestNotNull(TEXT("lo slot ha il contatore"), Slot->PlannedCountText.Get()))
+	{
+		TestNotNull(TEXT("ed e' montato nella radice"), Slot->PlannedCountText->GetParent());
+		TestEqual(TEXT("e dice x2"), Slot->PlannedCountText->GetText().ToString(), FString(TEXT("\u00d72")));
+		TestEqual(TEXT("acceso"), Slot->PlannedCountText->GetVisibility(), ESlateVisibility::HitTestInvisible);
+		Slot->SetAction(Righe[B.Attacco], /*bInArmed=*/ false);
+		TestEqual(TEXT("con una copia sola e' spento"), Slot->PlannedCountText->GetVisibility(), ESlateVisibility::Collapsed);
+	}
+	DestroyApPreviewBench(B);
+	return true;
+}
+
+/**
+ * HUD-AP.5a (#4159), criterio 2 — **un piano illegale per la regola della copia nomina l'occorrenza colpevole**, nell'avviso `Critical` e
+ * nel tooltip dello slot.
+ *
+ * Counter ha una ricarica: due copie sono `RepeatedWithCooldown` ([D-614]), e il validatore accusa la seconda nell'ordine di dichiarazione
+ * (`Plan.VerdictNamesTheOccurrence`). Il controllo e' lo stesso piano con una copia sola: legale, e nessun numero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalNamesTheOccurrenceTest,
+	"RefactorTactics.HudViewModel.RefusalNamesTheOccurrence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalNamesTheOccurrenceTest::RunTest(const FString&)
+{
+	FApPreviewBench B = MakeApPreviewBench();
+	if (!TestTrue(TEXT("il banco esiste"), B.IsValid()))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+	// La principale per prima, in posizione 0: le copie della reazione stanno in 1 e 2, e il numero atteso (2) non coincide con la loro
+	// posizione nella lista (revisione di #4159). Budget 10: la principale e tre copie stanno nel budget, e il motivo resta la copia.
+	B.Unit->SetActionPointBudget(10);
+	B.Unit->DeclarePlannedMainAction(B.Attacco);
+	B.PC->SelectAbilityForCurrentForTest(B.Reazione);
+	B.Unit->SelectAbility(INDEX_NONE);
+	const auto Righe = [&B]() { return URTHudViewModel::BuildAbilityCooldowns(B.Unit); };
+	TestEqual(TEXT("controllo: una copia sola, nessuna occorrenza"), Righe()[B.Reazione].PlanInvalidOccurrence, 0);
+
+	TestTrue(TEXT("premessa: la seconda copia entra nel piano"), B.Unit->AddPlannedReaction(B.Reazione));
+	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(ARTTurnManager::MakeSimUnit(INDEX_NONE, B.Unit),
+		URTPlanValidationLibrary::MakePlanFor(B.Unit));
+	if (!TestEqual(TEXT("premessa: la copia vietata"), static_cast<int32>(Verdetto.Reason),
+		static_cast<int32>(ERTActionInvalidReason::RepeatedWithCooldown)))
+	{
+		DestroyApPreviewBench(B);
+		return false;
+	}
+
+	const FRTAbilityCooldownView Riga = Righe()[B.Reazione];
+	TestEqual(TEXT("la riga ha due copie"), Riga.PlannedCount, 2);
+	TestTrue(TEXT("ed e' Invalid"), Riga.bPlanInvalid);
+	TestEqual(TEXT("l'occorrenza colpevole e' la seconda"), Riga.PlanInvalidOccurrence, 2);
+	const FString Tooltip = URTHudViewModel::BuildActionTooltip(Riga, /*bArmed=*/ false).Reason.ToString();
+	TestTrue(*FString::Printf(TEXT("il tooltip nomina la seconda copia: %s"), *Tooltip), Tooltip.Contains(TEXT("2\u00aa copia")));
+
+	// Una terza copia: il validatore accusa ancora la seconda, e il numero non e' il conto delle copie.
+	TestTrue(TEXT("premessa: la terza copia entra nel piano"), B.Unit->AddPlannedReaction(B.Reazione));
+	TestEqual(TEXT("con tre copie l'occorrenza colpevole resta la seconda"), Righe()[B.Reazione].PlanInvalidOccurrence, 2);
+	TestEqual(TEXT("e il contatore dice tre"), Righe()[B.Reazione].PlannedCount, 3);
+
+	const TArray<FRTPlanWarningView> Avvisi = URTHudViewModel::BuildPlanWarnings(B.Unit, { B.Unit });
+	const FRTPlanWarningView* Critico = Avvisi.FindByPredicate([](const FRTPlanWarningView& A) { return A.Level == ERTPlanWarningLevel::Critical; });
+	if (TestNotNull(TEXT("l'avviso Critical"), Critico))
+	{
+		TestTrue(*FString::Printf(TEXT("l'avviso nomina la seconda copia: %s"), *Critico->What.ToString()),
+			Critico->What.ToString().Contains(TEXT("2\u00aa copia")));
+	}
+	DestroyApPreviewBench(B);
 	return true;
 }
 

@@ -1694,6 +1694,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
 	TObjectPtr<class UWidget> PlannedCorner;
 
+	/**
+	 * Il contatore delle copie nel piano, «×2», acceso da 2 in su (HUD-AP.5a, #4159; §19-bis.7). ⚠️ Se l'asset non lo dichiara lo
+	 * costruisce `EnsurePlannedCountText`, nel pannello dell'angolo `PlannedCorner`: e' la strada di `EnsureActionPointPips` (#4150),
+	 * perche' l'asset si modifica solo nell'Editor.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> PlannedCountText;
+
+	/** Quanto il contatore costruito sta a sinistra del bordo destro: l'angolo di `Planned` e' di 18 px nell'asset, piu' un margine. */
+	static constexpr float PlannedCountRightInset = 22.f;
+
 	/** Secondo canale di `Unavailable`: il tratteggio diagonale. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
 	TObjectPtr<class UWidget> UnavailableHatch;
@@ -1838,6 +1849,15 @@ public:
 
 	/** Applica stato, fase e padding ai widget collegati. La chiama `SetAction`, prima di `OnActionChanged`. */
 	void RefreshLook();
+
+	/**
+	 * Costruisce `PlannedCountText` quando l'asset non lo dichiara: nel pannello che contiene `PlannedCorner`, o in quello di
+	 * `HotkeyText`, o nella radice se e' un pannello. Senza nessuno dei tre non monta niente e lo dice nel log.
+	 */
+	void EnsurePlannedCountText();
+
+	/** `EnsurePlannedCountText` non ha trovato dove montare il contatore: lo dice una volta, non a ogni `SetAction` (revisione di #4159). */
+	bool bPlannedCountMountFailed = false;
 
 	explicit URTActionSlotWidget(const FObjectInitializer& ObjectInitializer);
 

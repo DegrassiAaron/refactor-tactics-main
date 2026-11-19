@@ -1582,6 +1582,10 @@ d'equipaggiamento (E48).
 - **Azioni ripetute** (~~D-613 (2), come la legge l'assistente~~ [D-614](../../decisions/RT_PDR_00_Decision_Log.md)): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
   `Wait`) ~~si ripetono, con la riserva dell'autore sulle abilità ripetibili ancora da definire (`MSP-1.r`)~~ si ripetono finché il budget lo consente. Lo stato `Planned` diventa un
   contatore, e il rifiuto nomina l'occorrenza.
+  ✅ **2026-11-18 — HUD-AP.5a ([#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159))**: `FRTAbilityCooldownView::PlannedCount` conta le voci del piano che portano la
+  posizione del kit, in ogni classe, e lo slot mostra «×N» da 2 in su; il rifiuto del validatore nomina la copia colpevole («2ª copia»)
+  nell'avviso `Critical` e nel tooltip (`PlanInvalidOccurrence`, da `OffendingDeclarationIndex`). Il contatore lo costruisce il C++ quando
+  l'asset dello slot non lo dichiara. ⏳ A schermo: `PIE-HUD-AP-PLAN-COUNT`. Le pile e il prompt restano per HUD-AP.5b e HUD-AP.5c.
   ➕ **2026-11-14**: la riserva di `MSP-1.r` è chiusa da D-614 (con cooldown una copia per piano, senza cooldown ripetibile finché il budget lo
   consente). Con [D-615](../../decisions/RT_PDR_00_Decision_Log.md) (4) `Action.Overwatch` prende cooldown 1: una per piano, e ancora in ogni turno.
   Con la (7) i sette moduli di reazione di oggi prendono cooldown 1, e un valore più alto entra con la skill che lo chiede. Con la (6) per la
@@ -1602,7 +1606,8 @@ Tutti `NOT RUN`: sono criteri, non esiti.
 | 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE. ✅ [#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155): `ScreenHud.DockShowsTheGestureCost` (hover sulla cella e sullo slot, ventaglio `MovementOverBudget`, motivo all'hover), `HudViewModel.MovePreviewIsTheComposedPlanSpend` (la spesa prevista è quella del piano dopo il click, bande Move e Sprint), `HudViewModel.ActionPointPipsShowTheGesture`, `PlayerInput.UnaffordableMoveDoesNotPlan` (D-625 (2)). Il −2 del tratto nuovo aspetta CP 38.16; PIE ⏳ `PIE-HUD-AP-PREVIEW` |
 | 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation. ✅ `Privacy.ActionPointsLiveOnlyInTheCommandedView` (#4150), su `FRTUnitCardView`, `FRTGlanceView` e `FRTInspectView` |
 | 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
-| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080 |
+| 19-bis.7 | Una voce del kit due volte nel piano: lo slot ne mostra il numero; un rifiuto della regola della copia nomina la copia colpevole | dopo E38 | Automation. ✅ [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) (HUD-AP.5a): `HudViewModel.PlannedCountsEveryCopy`, `HudViewModel.RefusalNamesTheOccurrence`; PIE ⏳ `PIE-HUD-AP-PLAN-COUNT` |
+| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080. ⏳ HUD-AP.5b e HUD-AP.5c di [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) |
 
 ---
 

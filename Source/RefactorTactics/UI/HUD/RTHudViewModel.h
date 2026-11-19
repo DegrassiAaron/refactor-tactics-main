@@ -722,13 +722,23 @@ struct FRTAbilityCooldownView
 	 * il turno risolvera'. `progettazione-hud.md` §7 li elenca come due stati separati di uno slot
 	 * (`Selected` e `Planned`) e fino a qui uno dei due non arrivava a chi disegna.
 	 *
-	 * ⚠️ **Guarda tutti e TRE i campi**, e non il solo `PlannedAbilityIndex`: una reazione vive in un campo
-	 * suo — `#601` lo dichiara, *«una reazione selezionata finiva nello slot PRINCIPALE»* — e uno scatto in
-	 * un terzo. Leggerne uno solo direbbe «non pianificata» di una reazione che il pass delle reazioni
-	 * eseguira'.
+	 * 🔑 **E' `PlannedCount > 0`, sulle voci del piano di ogni classe** (HUD-AP.5a, #4159). ⏱️ *Fino a HUD-AP.5a guardava i tre campi
+	 * della prima voce* (la principale, la reazione, lo scatto), perche' leggerne uno solo avrebbe detto «non pianificata» di una
+	 * reazione (`#601`); da E38 il piano e' una lista, e la prima voce non basta piu'.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bPlanned = false;
+
+	/**
+	 * Quante voci del piano portano questa posizione del kit, in ogni classe: principale, Prep, scatto, reazione (HUD-AP.5a, #4159;
+	 * `progettazione-hud.md` §19-bis.7, «lo stato `Planned` diventa un contatore»). `bPlanned` e' `PlannedCount > 0`. Lo slot mostra il
+	 * numero da 2 in su (`URTActionSlotWidget`).
+	 *
+	 * ⏱️ *Fino a HUD-AP.5a `bPlanned` guardava la prima voce di tre classi*, e una Guard aggiunta come voce di Prep, o una seconda
+	 * reazione, non risultavano pianificate.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlannedCount = 0;
 
 	/**
 	 * Quale slot del turno consuma questa azione.
@@ -892,6 +902,13 @@ struct FRTAbilityCooldownView
 
 	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
 	ERTActionInvalidReason PlanInvalidReason{};
+
+	/**
+	 * Quale copia il validatore accusa, contata da 1 nell'ordine di dichiarazione fra le voci con lo stesso `ActionId`; 0 quando il
+	 * piano ne porta una sola (HUD-AP.5a, #4159: «il rifiuto nomina l'occorrenza»). Viene da `FRTPlanValidation::OffendingDeclarationIndex`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlanInvalidOccurrence = 0;
 
 	/**
 	 * Il rifiuto che accende `bPlanDegraded`, dalla stessa domanda (`RefusalForKnownTarget`). ⛔ Un bersaglio

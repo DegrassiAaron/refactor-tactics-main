@@ -26,6 +26,30 @@
 #include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
 #include "UI/HUD/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
 
+/**
+ * Quale copia di `ActionId` porta `DeclarationIndex`, contata da 1 nell'ordine di dichiarazione fra le voci del piano con quell'`ActionId`;
+ * 0 quando il piano ne porta una sola, o la dichiarazione non c'e' (HUD-AP.5a, #4159). I tratti del movimento condividono la dichiarazione
+ * del percorso (E38 CP 38.16), quindi per loro la risposta e' quella della prima voce: il percorso e' uno.
+ */
+static int32 RTHudViewModel_OccurrenceOf(const TArray<FRTPlannedAction>& Piano, const FName& ActionId, int32 DeclarationIndex)
+{
+	TArray<int32> Dichiarazioni;
+	for (const FRTPlannedAction& Voce : Piano)
+	{
+		if (Voce.Def.ActionId == ActionId)
+		{
+			Dichiarazioni.AddUnique(Voce.DeclarationIndex);
+		}
+	}
+	if (Dichiarazioni.Num() < 2)
+	{
+		return 0;
+	}
+	Dichiarazioni.Sort();
+	const int32 Posto = Dichiarazioni.IndexOfByKey(DeclarationIndex);
+	return Posto == INDEX_NONE ? 0 : Posto + 1;
+}
+
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
 	FRTMatchHeaderView View;
@@ -377,15 +401,23 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		Critico.Level = ERTPlanWarningLevel::Critical;
 		Critico.SourceActionId = Verdetto.OffendingActionId;
 		Critico.What = NomeDi(Verdetto.OffendingActionId);
-		// Le due azioni di un conflitto di slot, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola
-		// manderebbe a correggere quella sbagliata.
+		// HUD-AP.5a (#4159): con piu' copie della stessa azione nel piano, quale. Il numero e' l'ordine di dichiarazione fra le copie.
+		if (const int32 Occorrenza = RTHudViewModel_OccurrenceOf(Piano, Verdetto.OffendingActionId, Verdetto.OffendingDeclarationIndex);
+			Occorrenza > 0)
+		{
+			Critico.What = FText::Format(NSLOCTEXT("RTPlanWarning", "Occurrence", "{0} ({1}ª copia)"), Critico.What,
+				FText::AsNumber(Occorrenza));
+		}
+		// Le due azioni di un motivo con un detentore, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola manderebbe a
+		// correggere quella sbagliata. Da E38 CP 38.16 l'unico e' il secondo scatto ([D-625] (4)). ⏱️ *Fino a HUD-AP.5a il testo diceva
+		// «occupano lo stesso slot»*: era il conflitto di slot, che da CP 38.16 non ha produttori.
 		Critico.Why = Verdetto.HolderActionId.IsNone()
 			? FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason))
-			: FText::Format(NSLOCTEXT("RTPlanWarning", "SlotConflict", "{0} e {1} occupano lo stesso slot"),
-				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
-		// ⚠️ Il costo e' cio' che si sa, non una previsione. Per budget e ricarica il lock-in svuota il piano e il
-		// Ready si rifiuta ([D-615] (1), E38 CP 38.10); per uno slot occupato il lock-in registra soltanto, e cio' che
-		// il turno scarta lo decide il resolver, fino a CP 38.16.
+			: FText::Format(NSLOCTEXT("RTPlanWarning", "WithHolder", "{0} e {1}: {2}"),
+				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId),
+				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason)));
+		// ⚠️ Il costo e' cio' che si sa, non una previsione: ogni motivo del validatore svuota il piano al lock-in, e il Ready si
+		// rifiuta ([D-615] (1), E38 CP 38.10; da CP 38.16 anche il secondo scatto).
 		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
 		Avvisi.Add(Critico);
 	}
@@ -881,6 +913,12 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 			? NSLOCTEXT("RTHud", "TooltipPlanInvalid", "Piano illegale")
 			: FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidBecause", "Piano illegale: {0}"),
 				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Action.PlanInvalidReason)));
+		// HUD-AP.5a (#4159): con piu' copie nel piano, il rifiuto nomina quale.
+		if (Action.PlanInvalidOccurrence > 0)
+		{
+			Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidOccurrence", "{0} ({1}ª copia)"),
+				Out.Reason, FText::AsNumber(Action.PlanInvalidOccurrence));
+		}
 	}
 	else if (Action.bPlanDegraded && Action.PlanDegradedRefusal != ERTTargetRefusal::None
 		&& Action.PlanDegradedRefusal != ERTTargetRefusal::Nothing)
@@ -1045,10 +1083,13 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Unit->ActiveVariantId);
 		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`).
 		View.HotkeyLabel = RTInputKeys::HotkeyLabelFor(Action->Def.ActionId, Index);
-		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione e lo scatto.
-		View.bPlanned = (Unit->GetPlan().PlannedAbilityIndex() == Index)
-			|| (Unit->GetPlan().PlannedReactionAbility() == Index)
-			|| (Unit->GetPlan().PlannedDashAbility() == Index);
+		// 🔑 **Ogni voce del piano, in ogni classe** (HUD-AP.5a, #4159): il piano e' una lista da E38, e lo stato `Planned` ne conta le
+		// copie. ⏱️ *Fino a HUD-AP.5a guardava i tre campi della prima voce* (`#2988`: la principale, la reazione e lo scatto).
+		for (const FRTPlanEntry& Voce : Unit->GetPlan().GetEntries())
+		{
+			View.PlannedCount += Voce.AbilityIndex == Index ? 1 : 0;
+		}
+		View.bPlanned = View.PlannedCount > 0;
 
 		// Il numero si LEGGE dal simulatore, mai negativo (contratto della vista).
 		View.TurnsRemaining = FMath::Max(0, Unit->GetAbilityCooldown(Index));
@@ -1066,7 +1107,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// budget, e a piano gia' sforato non peggiora la spesa (`CanAffordArming`).
 		// ⚠️ Non per un'azione che e' GIA' nel piano, in una voce qualunque, ne' per quella armata: la sua spesa e' gia' contata, e
 		// chiederle quanto costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153: Guard
-		// aggiunta come voce di Prep che porta il piano a residuo zero). `bPlanned` guarda solo la prima voce di ogni classe.
+		// aggiunta come voce di Prep che porta il piano a residuo zero). `IsAbilityInPlan` conta anche l'azione armata.
 		View.bOverBudget = !Unit->IsAbilityInPlan(Index) && !Unit->CanAffordArming(Index, Spesa);
 
 		Cooldowns.Add(View);
@@ -1083,12 +1124,14 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), PianoComposto);
 	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
 	{
+		const int32 Occorrenza = RTHudViewModel_OccurrenceOf(PianoComposto, Verdetto.OffendingActionId, Verdetto.OffendingDeclarationIndex);
 		for (FRTAbilityCooldownView& V : Cooldowns)
 		{
 			if (V.ActionId == Verdetto.OffendingActionId)
 			{
 				V.bPlanInvalid = true;
 				V.PlanInvalidReason = Verdetto.Reason; // `#3499`: il perche', per il tooltip
+				V.PlanInvalidOccurrence = Occorrenza; // HUD-AP.5a: quale copia
 			}
 		}
 	}
