@@ -1860,62 +1860,43 @@ bool ARTGameMode::StepLabScenario(int32 Step, FString& OutError)
 {
 	OutError.Reset();
 
-	FName Prossima;
+	// La scena la costruisce il Lab, come quando la sceglie il pannello: nessun secondo costruttore. Costruirla, compreso il numero di
+	// bersagli che passa dalla scena in corso (`#4136`), e' della libreria e si prova senza ricaricare il livello; qui resta la coda.
+	FRTTestScenario Scenario;
 	int32 Posizione = 0;
 	int32 Totale = 0;
-	if (!URTAbilityLabLibrary::PlanLabStep(ResolveScenarioToRun(), Step, Prossima, Posizione, Totale))
+	if (!URTAbilityLabLibrary::BuildLabStepScene(ResolveScenarioToRun(), Step, Scenario, Posizione, Totale, OutError))
 	{
 		// Fuori dal banco i due tasti non fanno niente, e non e' un errore: `OutError` resta vuoto.
 		return false;
 	}
 
-	// 🔑 Il numero di bersagli della scena in corso passa alla successiva (`#4136`): chi ha scelto 3 bersagli con `U` e cambia
-	// azione con `,` o `.` si aspetta di trovarne 3 anche li'. Si rilegge dal file, perche' la scena e' un file e il GameMode non
-	// ha la spec che l'ha prodotta; senza file (o con una scena scritta prima del tag) vale 1, il default della spec.
-	FRTAbilityLabFixtureSpec Spec;
-	FRTTestScenario Corrente;
-	if (URTAbilityLabLibrary::ReadLabScene(ResolveScenarioToRun(), Corrente))
-	{
-		Spec.TargetCount = URTAbilityLabLibrary::RequestedTargetsOf(Corrente);
-	}
-
-	// La scena la costruisce e la scrive il Lab, come quando la sceglie il pannello: nessun secondo costruttore.
-	FRTTestScenario Scenario;
-	if (!URTAbilityLabLibrary::BuildFixture(Prossima, Spec, Scenario, OutError)
-		|| !RelaunchLabScene(Scenario, OutError))
-	{
-		return false;
-	}
-	UE_LOG(LogRT, Display, TEXT("[RT-Test] banco: passo a %s (%d/%d)"), *Prossima.ToString(), Posizione, Totale);
-	return true;
+	// ⚠️ La riga del log e' quella che il manuale PIE (`PIE-LAB-PASSO`) cita come osservazione attesa: non si riformula.
+	const FString Riga = FString::Printf(TEXT("[RT-Test] banco: passo a %s (%d/%d), la scena riparte"),
+		*URTAbilityLabLibrary::LabAbilityIdOf(Scenario.ScenarioId).ToString(), Posizione, Totale);
+	return RelaunchLabScene(Scenario, Riga, OutError);
 }
 
 bool ARTGameMode::CycleLabTargets(FString& OutError)
 {
 	OutError.Reset();
 
-	FName Azione;
-	int32 Prossimo = 1;
-	if (!URTAbilityLabLibrary::PlanLabTargets(ResolveScenarioToRun(), Azione, Prossimo))
+	// Stessa azione, un altro numero di bersagli: la scena la costruisce il Lab (e la libreria si prova senza ricaricare il livello),
+	// come per il passo; qui resta la coda.
+	FRTTestScenario Scenario;
+	if (!URTAbilityLabLibrary::BuildLabTargetsScene(ResolveScenarioToRun(), Scenario, OutError))
 	{
 		// Fuori dal banco `U` non fa niente, e non e' un errore: `OutError` resta vuoto. Niente ricarica.
 		return false;
 	}
 
-	// Stessa azione, un altro numero di bersagli: la scena la costruisce e la scrive il Lab, come per il passo.
-	FRTAbilityLabFixtureSpec Spec;
-	Spec.TargetCount = Prossimo;
-	FRTTestScenario Scenario;
-	if (!URTAbilityLabLibrary::BuildFixture(Azione, Spec, Scenario, OutError)
-		|| !RelaunchLabScene(Scenario, OutError))
-	{
-		return false;
-	}
-	UE_LOG(LogRT, Display, TEXT("[RT-Test] banco: %s a %d bersagli"), *Azione.ToString(), Prossimo);
-	return true;
+	// Un'unica riga per ricarica, nella forma di quella del passo.
+	const FString Riga = FString::Printf(TEXT("[RT-Test] banco: bersagli %d su %s, la scena riparte"),
+		URTAbilityLabLibrary::RequestedTargetsOf(Scenario), *URTAbilityLabLibrary::LabAbilityIdOf(Scenario.ScenarioId).ToString());
+	return RelaunchLabScene(Scenario, Riga, OutError);
 }
 
-bool ARTGameMode::RelaunchLabScene(const FRTTestScenario& Scene, FString& OutError)
+bool ARTGameMode::RelaunchLabScene(const FRTTestScenario& Scene, const FString& LogLine, FString& OutError)
 {
 	if (!URTAbilityLabLibrary::WriteLabScenario(Scene, OutError))
 	{
@@ -1937,7 +1918,9 @@ bool ARTGameMode::RelaunchLabScene(const FRTTestScenario& Scene, FString& OutErr
 		return false;
 	}
 
-	UE_LOG(LogRT, Display, TEXT("[RT-Test] banco: la scena %s riparte"), *Scene.ScenarioId);
+	// La riga la dice il chiamante (passo o bersagli), e si scrive qui, dopo che la variabile ha preso e subito prima del
+	// ricaricamento: una ricarica che non parte non l'ha annunciata.
+	UE_LOG(LogRT, Display, TEXT("%s"), *LogLine);
 	// Lo stesso ricaricamento del riavvio a partita conclusa (`OnRestart`): il livello riparte e `BeginPlay`
 	// rilegge `rt.Test.Scenario`.
 	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString=*/ true)));

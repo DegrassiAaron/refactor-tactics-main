@@ -2248,6 +2248,36 @@ namespace RTAbilityLabTargetKeyTestsInternal
 	{
 		Scenario.Tags.RemoveAll([](const FString& Tag) { return Tag.StartsWith(TEXT("lab-targets-")); });
 	}
+
+	/**
+	 * L'azione a `Step` posizioni da `AbilityId` nel suo kit, come la propone il passo del banco: le voci di `ListHeroKit` che
+	 * `BuildFixture` costruisce, nell'ordine del kit. La calcola il test con il catalogo, non la chiede alla funzione che prova.
+	 * `NAME_None` se l'azione non e' di un eroe o non e' nel ciclo.
+	 */
+	FName KitNeighbour(const FName& AbilityId, int32 Step, int32& OutPosition, int32& OutCount)
+	{
+		FRTAbilityLabEntry Voce;
+		if (!URTAbilityLabLibrary::FindAbility(AbilityId, Voce) || Voce.OwnerHeroId.IsNone()) { return NAME_None; }
+
+		TArray<FName> Ciclo;
+		for (const FRTAbilityLabEntry& Entry : URTHeroLabLibrary::ListHeroKit(Voce.OwnerHeroId))
+		{
+			FRTTestScenario Scartata;
+			FString Errore;
+			if (URTAbilityLabLibrary::BuildFixture(Entry.AbilityId, FRTAbilityLabFixtureSpec(), Scartata, Errore))
+			{
+				Ciclo.Add(Entry.AbilityId);
+			}
+		}
+		const int32 Qui = Ciclo.IndexOfByKey(AbilityId);
+		if (Qui == INDEX_NONE) { return NAME_None; }
+
+		const int32 N = Ciclo.Num();
+		const int32 Li = ((Qui + Step) % N + N) % N;
+		OutPosition = Li + 1;
+		OutCount = N;
+		return Ciclo[Li];
+	}
 }
 
 /**
@@ -2416,6 +2446,190 @@ bool FRTAbilityLabStepHintNamesTheTargetCountTest::RunTest(const FString&)
 	// Fuori dal banco la riga resta vuota: il pezzo dei bersagli non la rende non vuota.
 	TestTrue(TEXT("uno scenario che non e' del banco non ha la riga"),
 		URTAbilityLabLibrary::DescribeLabStep(TEXT("Movement.Basic")).IsEmpty());
+	return true;
+}
+
+/**
+ * **Il passo del banco porta con se' il numero di bersagli** (`#4136`): `,` e `.` passano alla scena successiva i bersagli della
+ * scena in corso. La scena la costruisce `BuildLabStepScene`, senza ricaricare il livello, e quindi si prova qui: se il numero non
+ * passasse, chi ha scelto 3 bersagli con `U` e cambia azione ne ritroverebbe 1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepSceneCarriesTheTargetCountTest,
+	"RefactorTactics.AbilityLab.StepSceneCarriesTheTargetCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepSceneCarriesTheTargetCountTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTargetKeyTestsInternal;
+
+	const FString IdScarica = SceneIdDi(Scarica);
+	const FString Root = RTScenarioTestSupport::ApriRadiceDiProva(TEXT("RTLabTargets"), TEXT("PassoScena"));
+	ON_SCOPE_EXIT{ RTScenarioTestSupport::ChiudiRadiceDiProva(Root); };
+
+	// Fuori dal banco: `false`, errore VUOTO (la sentinella prova che e' la funzione a svuotarlo), uscite intatte.
+	for (const TCHAR* Id : { TEXT("Movement.Basic"), TEXT("AbilityLab."), TEXT("") })
+	{
+		FRTTestScenario Scena;
+		Scena.ScenarioId = TEXT("Segnaposto");
+		int32 Posizione = -7;
+		int32 Totale = -7;
+		FString Errore = TEXT("sentinella");
+		TestFalse(FString::Printf(TEXT("'%s': nessun passo"), Id),
+			URTAbilityLabLibrary::BuildLabStepScene(Id, +1, Scena, Posizione, Totale, Errore));
+		TestTrue(FString::Printf(TEXT("'%s': nessun errore (%s)"), Id, *Errore), Errore.IsEmpty());
+		TestEqual(FString::Printf(TEXT("'%s': la scena non e' toccata"), Id), Scena.ScenarioId, FString(TEXT("Segnaposto")));
+		TestEqual(FString::Printf(TEXT("'%s': la posizione non e' toccata"), Id), Posizione, -7);
+		TestEqual(FString::Printf(TEXT("'%s': il totale non e' toccato"), Id), Totale, -7);
+	}
+
+	// L'azione dopo e prima, calcolate dal catalogo. Servono almeno due voci perche' il passo cambi azione.
+	int32 PosAvanti = 0;
+	int32 TotAvanti = 0;
+	int32 PosIndietro = 0;
+	int32 TotIndietro = 0;
+	const FName Avanti = KitNeighbour(FName(Scarica), +1, PosAvanti, TotAvanti);
+	const FName Indietro = KitNeighbour(FName(Scarica), -1, PosIndietro, TotIndietro);
+	if (!TestTrue(TEXT("premessa: nel kit di LinearDischarge c'e' un'altra azione, dopo e prima"),
+		!Avanti.IsNone() && !Indietro.IsNone() && Avanti != FName(Scarica) && Indietro != FName(Scarica)))
+	{
+		return false;
+	}
+
+	// La scena in corso chiede 3 bersagli: la successiva, avanti e indietro, ne chiede 3.
+	FRTAbilityLabFixtureSpec TreBersagli;
+	TreBersagli.TargetCount = 3;
+	FRTTestScenario Corrente;
+	if (BuildAndWrite(*this, TreBersagli, Corrente))
+	{
+		for (const TPair<int32, FName>& Passo : { TPair<int32, FName>(+1, Avanti), TPair<int32, FName>(-1, Indietro) })
+		{
+			FRTTestScenario Scena;
+			int32 Posizione = 0;
+			int32 Totale = 0;
+			FString Errore;
+			const bool bCostruita = URTAbilityLabLibrary::BuildLabStepScene(IdScarica, Passo.Key, Scena, Posizione, Totale, Errore);
+			if (!TestTrue(FString::Printf(TEXT("passo %+d: la scena si costruisce (%s)"), Passo.Key, *Errore), bCostruita))
+			{
+				continue;
+			}
+			TestEqual(FString::Printf(TEXT("passo %+d: e' la scena dell'azione successiva"), Passo.Key),
+				Scena.ScenarioId, SceneIdDi(*Passo.Value.ToString()));
+			TestEqual(FString::Printf(TEXT("passo %+d: l'azione, letta dalla scena"), Passo.Key),
+				URTAbilityLabLibrary::LabAbilityIdOf(Scena.ScenarioId), Passo.Value);
+			TestEqual(FString::Printf(TEXT("🔴 passo %+d: i bersagli della scena in corso passano alla nuova"), Passo.Key),
+				URTAbilityLabLibrary::RequestedTargetsOf(Scena), 3);
+			TestEqual(FString::Printf(TEXT("passo %+d: la posizione, da 1"), Passo.Key),
+				Posizione, Passo.Key > 0 ? PosAvanti : PosIndietro);
+			TestEqual(FString::Printf(TEXT("passo %+d: quante sono"), Passo.Key),
+				Totale, Passo.Key > 0 ? TotAvanti : TotIndietro);
+		}
+	}
+
+	// Controllo positivo, con un altro numero: a 2 bersagli la nuova ne chiede 2. Un passo che li portasse sempre a 3 (o a 1)
+	// sarebbe verde sul solo caso di sopra.
+	FRTAbilityLabFixtureSpec DueBersagli;
+	DueBersagli.TargetCount = 2;
+	FRTTestScenario Due;
+	if (BuildAndWrite(*this, DueBersagli, Due))
+	{
+		FRTTestScenario Scena;
+		int32 Posizione = 0;
+		int32 Totale = 0;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildLabStepScene(IdScarica, +1, Scena, Posizione, Totale, Errore);
+		if (TestTrue(FString::Printf(TEXT("da 2 bersagli la scena si costruisce (%s)"), *Errore), bCostruita))
+		{
+			TestEqual(TEXT("da 2 bersagli la nuova ne chiede 2"), URTAbilityLabLibrary::RequestedTargetsOf(Scena), 2);
+		}
+	}
+
+	// Senza file la scena in corso vale 1, e la nuova ne chiede 1: e' il default, non un errore.
+	IFileManager::Get().Delete(*URTAbilityLabLibrary::LabScenarioPath(IdScarica));
+	{
+		FRTTestScenario Scena;
+		int32 Posizione = 0;
+		int32 Totale = 0;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildLabStepScene(IdScarica, +1, Scena, Posizione, Totale, Errore);
+		if (TestTrue(FString::Printf(TEXT("senza file la scena si costruisce (%s)"), *Errore), bCostruita))
+		{
+			TestEqual(TEXT("senza file la nuova ne chiede 1"), URTAbilityLabLibrary::RequestedTargetsOf(Scena), 1);
+		}
+	}
+	TestTrue(TEXT("fuori dal banco non c'e' un'azione da leggere"),
+		URTAbilityLabLibrary::LabAbilityIdOf(TEXT("Movement.Basic")).IsNone());
+	return true;
+}
+
+/**
+ * **`U` costruisce la stessa azione col numero di bersagli successivo** (`#4136`). La scena la costruisce `BuildLabTargetsScene`,
+ * senza ricaricare il livello, e quindi si prova qui: se il numero non venisse portato avanti, `U` ricostruirebbe sempre a 1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabTargetsSceneCyclesTheTargetCountTest,
+	"RefactorTactics.AbilityLab.TargetsSceneCyclesTheTargetCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabTargetsSceneCyclesTheTargetCountTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTargetKeyTestsInternal;
+
+	const FString IdScarica = SceneIdDi(Scarica);
+	const FString Root = RTScenarioTestSupport::ApriRadiceDiProva(TEXT("RTLabTargets"), TEXT("TastoScena"));
+	ON_SCOPE_EXIT{ RTScenarioTestSupport::ChiudiRadiceDiProva(Root); };
+
+	// Fuori dal banco: `false`, errore VUOTO (la sentinella prova che e' la funzione a svuotarlo), scena intatta.
+	for (const TCHAR* Id : { TEXT("Movement.Basic"), TEXT("AbilityLab."), TEXT(""), TEXT("AbilityLab.Azione.Inesistente") })
+	{
+		FRTTestScenario Scena;
+		Scena.ScenarioId = TEXT("Segnaposto");
+		FString Errore = TEXT("sentinella");
+		TestFalse(FString::Printf(TEXT("'%s': nessun cambio di bersagli"), Id),
+			URTAbilityLabLibrary::BuildLabTargetsScene(Id, Scena, Errore));
+		TestTrue(FString::Printf(TEXT("'%s': nessun errore (%s)"), Id, *Errore), Errore.IsEmpty());
+		TestEqual(FString::Printf(TEXT("'%s': la scena non e' toccata"), Id), Scena.ScenarioId, FString(TEXT("Segnaposto")));
+	}
+
+	// Da N bersagli a N+1, e da 3 a 1. La scena nuova e' la stessa azione, e i bersagli posati sono quelli che la mappa regge.
+	for (const TPair<int32, int32>& Coppia : { TPair<int32, int32>(3, 1), TPair<int32, int32>(1, 2), TPair<int32, int32>(2, 3) })
+	{
+		FRTAbilityLabFixtureSpec Spec;
+		Spec.TargetCount = Coppia.Key;
+		FRTTestScenario Corrente;
+		if (!BuildAndWrite(*this, Spec, Corrente)) { continue; }
+
+		FRTTestScenario Scena;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildLabTargetsScene(IdScarica, Scena, Errore);
+		if (!TestTrue(FString::Printf(TEXT("da %d bersagli la scena si costruisce (%s)"), Coppia.Key, *Errore), bCostruita))
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("da %d bersagli: e' la stessa azione"), Coppia.Key), Scena.ScenarioId, IdScarica);
+		TestEqual(FString::Printf(TEXT("🔴 da %d bersagli la nuova ne chiede %d"), Coppia.Key, Coppia.Value),
+			URTAbilityLabLibrary::RequestedTargetsOf(Scena), Coppia.Value);
+		// Sulla mappa di default la linea regge fino a 3 bersagli: quelli chiesti sono quelli posati.
+		TestEqual(FString::Printf(TEXT("da %d bersagli la nuova ne posa %d"), Coppia.Key, Coppia.Value),
+			URTAbilityLabLibrary::PlacedTargetsOf(Scena), Coppia.Value);
+	}
+
+	// Una scena scritta prima del tag chiede 1, e `U` la porta a 2 (Review Focus 1).
+	FRTAbilityLabFixtureSpec TreBersagli;
+	TreBersagli.TargetCount = 3;
+	FRTTestScenario Vecchia;
+	if (BuildAndWrite(*this, TreBersagli, Vecchia))
+	{
+		StripTargetTags(Vecchia);
+		FString ErroreScrittura;
+		const bool bRiscritta = URTAbilityLabLibrary::WriteLabScenario(Vecchia, ErroreScrittura);
+		if (TestTrue(FString::Printf(TEXT("la scena senza tag si riscrive (%s)"), *ErroreScrittura), bRiscritta))
+		{
+			FRTTestScenario Scena;
+			FString Errore;
+			const bool bCostruita = URTAbilityLabLibrary::BuildLabTargetsScene(IdScarica, Scena, Errore);
+			if (TestTrue(FString::Printf(TEXT("senza tag la scena si costruisce (%s)"), *Errore), bCostruita))
+			{
+				TestEqual(TEXT("senza il tag la nuova ne chiede 2"), URTAbilityLabLibrary::RequestedTargetsOf(Scena), 2);
+			}
+		}
+	}
 	return true;
 }
 

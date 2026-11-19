@@ -406,11 +406,37 @@ public:
 	static bool PlanLabTargets(const FString& CurrentScenarioId, FName& OutAbilityId, int32& OutNextCount);
 
 	/**
+	 * La scena del PASSO del banco (`,` e `.`), costruita e non ancora scritta (`#3774`, `#4136`): l'azione a `Step` posizioni da
+	 * quella della scena in corso (`PlanLabStep`), con i bersagli che la scena in corso chiede (`RequestedTargetsOf`, letta con
+	 * `ReadLabScene`; senza file 1) e non quelli di default. E' il carry-over che il GameMode non deve poter perdere in silenzio, e per
+	 * questo sta qui e non in `ARTGameMode::StepLabScenario`: la libreria si prova senza ricaricare il livello.
+	 *
+	 * `false` con `OutError` VUOTO fuori da una scena del banco (le altre uscite restano com'erano); `false` con `OutError`
+	 * valorizzato se la fixture non si costruisce. `OutPosition` e `OutCount` come in `PlanLabStep`.
+	 */
+	static bool BuildLabStepScene(const FString& CurrentScenarioId, int32 Step, FRTTestScenario& OutScene,
+		int32& OutPosition, int32& OutCount, FString& OutError);
+
+	/**
+	 * La scena del tasto `U`, costruita e non ancora scritta (`#4136`): la stessa azione della scena in corso, con il numero di
+	 * bersagli successivo (`PlanLabTargets`). Come `BuildLabStepScene`, sta qui perche' si provi senza ricaricare il livello, e ha lo
+	 * stesso contratto: `false` con `OutError` VUOTO fuori dal banco, valorizzato se la fixture non si costruisce.
+	 */
+	static bool BuildLabTargetsScene(const FString& CurrentScenarioId, FRTTestScenario& OutScene, FString& OutError);
+
+	/**
 	 * Vero se `ScenarioId` e' una scena del banco: `AbilityLab.<AbilityId>`, la forma che `BuildFixture` scrive (`#4071`).
 	 * E' la domanda che il GameMode fa per la velocita' del banco ([D-607] (1)); `false` per ogni altro Id, compreso
 	 * un `AbilityLab.` senza niente dopo.
 	 */
 	static bool IsLabScenarioId(const FString& ScenarioId);
+
+	/**
+	 * L'azione di una scena del banco: `Hero.Gadget.LinearDischarge` da `AbilityLab.Hero.Gadget.LinearDischarge`, o `NAME_None` per ogni altro
+	 * Id (`#4136`). La stessa lettura di `IsLabScenarioId`, una sede sola per il prefisso: la usa il log del GameMode, che dice
+	 * l'azione e non l'Id della scena.
+	 */
+	static FName LabAbilityIdOf(const FString& ScenarioId);
 
 	/**
 	 * L'id dell'unita' che lancia in ogni scena del banco: `BuildFixture` la posa con questo id, e la camera del banco

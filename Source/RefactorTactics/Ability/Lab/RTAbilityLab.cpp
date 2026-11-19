@@ -1272,11 +1272,78 @@ bool URTAbilityLabLibrary::PlanLabTargets(const FString& CurrentScenarioId, FNam
 	return true;
 }
 
+bool URTAbilityLabLibrary::BuildLabStepScene(const FString& CurrentScenarioId, int32 Step, FRTTestScenario& OutScene,
+	int32& OutPosition, int32& OutCount, FString& OutError)
+{
+	OutError.Reset();
+
+	FName Prossima;
+	int32 Posizione = 0;
+	int32 Totale = 0;
+	if (!PlanLabStep(CurrentScenarioId, Step, Prossima, Posizione, Totale))
+	{
+		// Fuori dal banco i due tasti non fanno niente, e non e' un errore: `OutError` resta vuoto, le altre uscite intatte.
+		return false;
+	}
+
+	// 🔑 Il numero di bersagli della scena in corso passa alla successiva (`#4136`): chi ha scelto 3 bersagli con `U` e cambia azione
+	// con `,` o `.` si aspetta di trovarne 3 anche li'. Si rilegge dal file, perche' la scena e' un file e chi cambia azione non ha la
+	// spec che l'ha prodotta; senza file (o con una scena scritta prima del tag) vale 1, il default della spec.
+	FRTAbilityLabFixtureSpec Spec;
+	FRTTestScenario Corrente;
+	if (ReadLabScene(CurrentScenarioId, Corrente))
+	{
+		Spec.TargetCount = RequestedTargetsOf(Corrente);
+	}
+
+	// La scena la costruisce il Lab, come quando la sceglie il pannello: nessun secondo costruttore. Le uscite si scrivono solo a
+	// costruzione riuscita.
+	FRTTestScenario Costruita;
+	if (!BuildFixture(Prossima, Spec, Costruita, OutError))
+	{
+		return false;
+	}
+	OutScene = MoveTemp(Costruita);
+	OutPosition = Posizione;
+	OutCount = Totale;
+	return true;
+}
+
+bool URTAbilityLabLibrary::BuildLabTargetsScene(const FString& CurrentScenarioId, FRTTestScenario& OutScene, FString& OutError)
+{
+	OutError.Reset();
+
+	FName Azione;
+	int32 Prossimo = 1;
+	if (!PlanLabTargets(CurrentScenarioId, Azione, Prossimo))
+	{
+		// Fuori dal banco `U` non fa niente, e non e' un errore: `OutError` resta vuoto, la scena intatta.
+		return false;
+	}
+
+	// Stessa azione, un altro numero di bersagli: la scena la costruisce il Lab, come per il passo.
+	FRTAbilityLabFixtureSpec Spec;
+	Spec.TargetCount = Prossimo;
+	FRTTestScenario Costruita;
+	if (!BuildFixture(Azione, Spec, Costruita, OutError))
+	{
+		return false;
+	}
+	OutScene = MoveTemp(Costruita);
+	return true;
+}
+
 bool URTAbilityLabLibrary::IsLabScenarioId(const FString& ScenarioId)
 {
 	// La stessa lettura del passo del banco: una sola risposta a «e' una scena del Lab?».
 	FName Ignorata;
 	return RTAbilityLabInternal::ParseLabScenarioId(ScenarioId, Ignorata);
+}
+
+FName URTAbilityLabLibrary::LabAbilityIdOf(const FString& ScenarioId)
+{
+	FName Azione;
+	return RTAbilityLabInternal::ParseLabScenarioId(ScenarioId, Azione) ? Azione : NAME_None;
 }
 
 bool URTAbilityLabLibrary::WriteLabScenario(const FRTTestScenario& Scenario, FString& OutError)

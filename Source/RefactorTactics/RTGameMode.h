@@ -439,7 +439,7 @@ public:
 	 *
 	 * Lo stesso contratto di `StepLabScenario`: `false` con `OutError` VUOTO fuori da una scena del banco (il tasto e' inerte, e non
 	 * e' un errore), `false` con `OutError` valorizzato se la scena non si costruisce, non si scrive o la variabile non prende. La
-	 * scena la costruisce `URTAbilityLabLibrary::BuildFixture` con `TargetCount` portato avanti, e la rilancia `RelaunchLabScene`.
+	 * scena la costruisce `URTAbilityLabLibrary::BuildLabTargetsScene` con `TargetCount` portato avanti, e la rilancia `RelaunchLabScene`.
 	 */
 	bool CycleLabTargets(FString& OutError);
 
@@ -540,10 +540,13 @@ private:
 	 * (`WriteLabScenario`), porta `rt.Test.Scenario` su di lei alla sua priorita' corrente, la rilegge, e ricarica il livello.
 	 * `false` con `OutError` valorizzato se non scrive o se la variabile non prende: in quel caso il livello NON si ricarica.
 	 *
-	 * Privata: la scena la costruiscono `StepLabScenario` e `CycleLabTargets`, ognuna con la sua domanda, e nessun altro ha
-	 * una scena del banco da rilanciare.
+	 * `LogLine` e' l'UNICA riga di log della ricarica (`Display`), e la dice il chiamante: si scrive dopo che la variabile ha preso e
+	 * subito prima di `OpenLevel`. Quella del passo e' la stessa che il manuale PIE cita come osservazione attesa.
+	 *
+	 * Privata: la scena la costruiscono `URTAbilityLabLibrary::BuildLabStepScene` e `BuildLabTargetsScene`, e `StepLabScenario` e
+	 * `CycleLabTargets` le chiamano; nessun altro ha una scena del banco da rilanciare.
 	 */
-	bool RelaunchLabScene(const FRTTestScenario& Scene, FString& OutError);
+	bool RelaunchLabScene(const FRTTestScenario& Scene, const FString& LogLine, FString& OutError);
 
 protected:
 	virtual void BeginPlay() override;
