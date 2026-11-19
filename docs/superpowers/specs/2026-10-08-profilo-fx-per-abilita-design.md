@@ -663,7 +663,8 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    seconda geometria del colpo. Per LinearDischarge a 3 bersagli il `TARGET` passa in (3,0) e gli altri due stanno in (1,0)
    e (2,0). Una cella sola, una reazione, uno scatto, un bordo o un'azione su se stessi restano a un bersaglio. La banda
    dice `«U» bersagli N`, più ` (qui ne stanno K)` se K < N. Test: `AbilityLab.LineTargetsGrowAlongTheLine`,
-   `AbilityLab.AreaTargetsStayInsideTheArea`, `AbilityLab.SingleTargetActionsStayAtOne`,
+   `AbilityLab.AreaTargetsStayInsideTheArea`, `AbilityLab.EveryKitLineAreaAndConeHoldThreeTargets`,
+   `AbilityLab.SingleTargetActionsStayAtOne`,
    `AbilityLab.TargetCountTravelsInTheSceneTag`, `AbilityLab.TargetKeyCyclesAndIsInertOutside`,
    `AbilityLab.StepHintNamesTheTargetCount`, `AbilityLab.StepSceneCarriesTheTargetCount`,
    `AbilityLab.TargetsSceneCyclesTheTargetCount`, `PlayerInput.LabTargetsKeyIsU` e `Scenario.LabTargetsAreInertOutsideTheLab`.

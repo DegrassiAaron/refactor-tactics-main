@@ -1207,8 +1207,8 @@ capabilities:
       - "🔴 implementation=partial per DUE assenze misurate nell'enum stesso: #2828 (nessun
          valore per la struttura) e #2505 (`HazardDamage` arriva e nessuna fase lo riproduce).
          L'enum e' il vocabolario della presentazione: cio' che non ha un valore non ha un momento."
-      - "`RTPresentationBinding.h:51` dichiarava (misura di #3578, corretta da #4136) che `Content/` non contenesse
-         UN SOLO asset Niagara; resta che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
+      - "`RTPresentationBinding.h:51` dichiarava (misura della passata del 2026-09-10, gia' dichiarata storica da #3578, corretta
+         da #4136) che `Content/` non contenesse UN SOLO asset Niagara; resta che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
 
   - id: RT-CAP-PLAYBACK
     name: Resolution Playback (pacing, pause, step, speed)
