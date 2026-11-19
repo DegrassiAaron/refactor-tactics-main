@@ -31,3 +31,21 @@ public:
 	UPROPERTY()
 	TObjectPtr<USplineComponent> Spline;
 };
+
+/**
+ * La stessa sonda, ma con `bReplicates` acceso nel CDO: fa le veci di un Blueprint di terzi che replica — [D-621], #4136.
+ *
+ * 🔴 `BP_Gadget_LinearDischarge_Arc` sta fuori da git, e chi l'ha costruito puo' averlo lasciato replicato. Con questa sonda
+ * un test misura che `URTPlaybackLibrary::SpawnChainArcActor` lo spenga comunque: l'arco e' un effetto di chi guarda.
+ */
+UCLASS(NotBlueprintable, NotPlaceable, HideDropdown)
+class ARTChainArcReplicatingProbeForTest : public ARTChainArcProbeForTest
+{
+	GENERATED_BODY()
+
+public:
+	ARTChainArcReplicatingProbeForTest()
+	{
+		bReplicates = true;
+	}
+};

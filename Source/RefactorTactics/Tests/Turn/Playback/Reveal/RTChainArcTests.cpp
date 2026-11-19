@@ -480,6 +480,73 @@ bool FRTPlaybackChainArcActorWritesWorldPointsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ L'arco non si replica, anche se la sua classe replica — [D-621], #4136.
+ *
+ * 🔴 La classe e' un Blueprint di terzi, fuori da git: su un listen server un arco replicato arriverebbe ai client, e sarebbe
+ * un arco verso un colpito che chi guarda non conosce — proprio cio' che `ChainHopFor` esiste per non disegnare. Qui la
+ * sonda replica nel CDO, e `SpawnChainArcActor` deve spegnerlo comunque.
+ * 🔑 La premessa sul CDO e' il controllo positivo: senza, «non si replica» sarebbe vero anche per una sonda che non replicava mai.
+ * ✅ Validato per mutazione: togliere `SetReplicates(false)` da `SpawnChainArcActor` fa cadere l'asserto sull'attore, non la premessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcActorStaysLocalTest,
+	"RefactorTactics.Playback.ChainArcActorDoesNotReplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcActorStaysLocalTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	if (!TestTrue(TEXT("⛔ premessa: la sonda replica di suo, nel CDO"),
+		GetDefault<ARTChainArcReplicatingProbeForTest>()->GetIsReplicated())) { return false; }
+
+	AActor* const Arco = URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcReplicatingProbeForTest::StaticClass(),
+		FVector(0, 0, 0), FVector(1000, 0, 0), 1.5f);
+	if (!TestNotNull(TEXT("⛔ premessa: l'attore e' nato"), Arco)) { return false; }
+	ON_SCOPE_EXIT{ if (IsValid(Arco)) { Arco->Destroy(); } };
+
+	TestFalse(TEXT("🔴 l'arco non si replica"), Arco->GetIsReplicated());
+	TestTrue(TEXT("e non ha un lato remoto"), Arco->GetRemoteRole() == ROLE_None);
+	return true;
+}
+
+/**
+ * ⛔ Un arco ha sempre una vita: `LifeSeconds` non positivo vale il default della riga, non «per sempre» — [D-621], #4136.
+ *
+ * 🔴 `SetLifeSpan(0)` toglie il timer di distruzione: l'attore resterebbe nel mondo per sempre. `SpawnChainArcActor` e'
+ * pubblica, e un chiamante che passi 0 (o un valore negativo) non deve lasciare un arco immortale.
+ * 🔑 Il controllo positivo e' `ChainArcActorWritesTheWorldPoints`, che con 2,25 misura la vita chiesta: qui conta che lo 0 e il
+ * negativo NON arrivino al timer, e valgano `FRTChainFxBinding().LifeSeconds`.
+ * ✅ Validato per mutazione: passare `LifeSeconds` cosi' com'e' a `SetLifeSpan` lascia `GetLifeSpan()` a zero e cade l'asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcActorNeverLivesForeverTest,
+	"RefactorTactics.Playback.ChainArcActorNeverLivesForever",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcActorNeverLivesForeverTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	const float VitaDellaRiga = FRTChainFxBinding().LifeSeconds;
+	if (!TestTrue(TEXT("⛔ premessa: il default della riga e' una vita positiva"), VitaDellaRiga > 0.f)) { return false; }
+
+	for (const float Vita : { 0.f, -3.f })
+	{
+		AActor* const Arco = URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcProbeForTest::StaticClass(),
+			FVector(0, 0, 0), FVector(1000, 0, 0), Vita);
+		if (!TestNotNull(*FString::Printf(TEXT("⛔ premessa (%.1f): l'attore e' nato"), Vita), Arco)) { continue; }
+		ON_SCOPE_EXIT{ if (IsValid(Arco)) { Arco->Destroy(); } };
+
+		TestTrue(*FString::Printf(TEXT("🔴 con LifeSeconds %.1f l'attore ha comunque una vita positiva (e' %.2f)"), Vita, Arco->GetLifeSpan()),
+			Arco->GetLifeSpan() > 0.f);
+		TestTrue(*FString::Printf(TEXT("🔴 con LifeSeconds %.1f la vita e' quella della riga (%.2f, e' %.2f)"), Vita, VitaDellaRiga, Arco->GetLifeSpan()),
+			FMath::IsNearlyEqual(Arco->GetLifeSpan(), VitaDellaRiga, 0.01f));
+	}
+	return true;
+}
+
 namespace
 {
 	ARTUnit* SpawnCatenaUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)

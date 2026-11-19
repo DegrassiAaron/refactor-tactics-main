@@ -555,6 +555,10 @@ public:
 	 * i punti sulla sua `USplineComponent` e gli da' `LifeSeconds` di vita. Restituisce l'attore.
 	 * ⛔ Un attore senza spline non serve a niente e non resta nel mondo: si distrugge, si scrive a `Verbose` — un
 	 * Blueprint copiato male non e' un difetto di chi gioca — e il risultato e' `nullptr`.
+	 * 🔴 L'attore **non si replica**, qualunque cosa dica la sua classe (`SetReplicates(false)`): e' un effetto di chi
+	 * guarda, e su un listen server un arco replicato ai client direbbe dove sta un colpito che non conoscono.
+	 * ⚠️ `LifeSeconds` non positivo (o NaN) vale il default della riga, `FRTChainFxBinding::LifeSeconds`: `SetLifeSpan(0)`
+	 * toglie il timer e l'attore resterebbe nel mondo per sempre.
 	 */
 	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
 		float LifeSeconds);

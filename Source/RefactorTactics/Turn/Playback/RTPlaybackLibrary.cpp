@@ -1194,6 +1194,11 @@ AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, 
 	{
 		return nullptr;
 	}
+	// 🔴 **Un arco non si replica, qualunque cosa dica la classe** (#4136, [D-621]). La classe e' un Blueprint di terzi, fuori
+	// da git, e se il suo CDO porta `bReplicates` su un listen server l'arco arriverebbe ai client: un arco verso un colpito
+	// che chi guarda non conosce, che e' proprio quello che `ChainHopFor` esiste per non disegnare. L'arco nasce dalla
+	// conoscenza di chi lo spawna, e resta li'. `SetReplicates(false)` ferma la replica anche di un attore gia' inizializzato.
+	Arco->SetReplicates(false);
 	Arco->SetActorEnableCollision(false);
 
 	USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
@@ -1208,6 +1213,8 @@ AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, 
 	// 🔑 I punti si scrivono DOPO la nascita: il data interface `Spline` rilegge al cambio di versione, quindi il primo
 	// fotogramma segue gia' i tre punti e non quelli del template.
 	SetChainArcPoints(*Spline, Start, End);
-	Arco->SetLifeSpan(LifeSeconds);
+	// ⛔ `SetLifeSpan(0)` non da' una vita nulla: toglie il timer, e l'attore resta nel mondo per sempre. La funzione e' pubblica,
+	// quindi un valore non positivo (o NaN, per cui `> 0` e' falso) torna al default della riga, `FRTChainFxBinding::LifeSeconds`.
+	Arco->SetLifeSpan(LifeSeconds > 0.f ? LifeSeconds : FRTChainFxBinding().LifeSeconds);
 	return Arco;
 }
