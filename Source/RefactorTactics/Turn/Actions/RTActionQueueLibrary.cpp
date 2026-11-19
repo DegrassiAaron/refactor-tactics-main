@@ -131,6 +131,17 @@ TArray<FRTActionInstance> URTActionQueueLibrary::InstancesForPhase(const TArray<
 	return Out;
 }
 
+bool URTActionQueueLibrary::MainVisitLess(const FRTMainVisitKey& A, const FRTMainVisitKey& B)
+{
+	if (A.MacroPhase != B.MacroPhase) { return A.MacroPhase < B.MacroPhase; }
+	if (A.Priority != B.Priority) { return A.Priority < B.Priority; }
+	if (A.ActionId != B.ActionId) { return A.ActionId.LexicalLess(B.ActionId); }
+	if (A.TargetStableUnitId != B.TargetStableUnitId) { return A.TargetStableUnitId < B.TargetStableUnitId; }
+	if (!(A.AimCell == B.AimCell)) { return URTHexLibrary::StableLess(A.AimCell, B.AimCell); }
+	if (A.CoverEdge != B.CoverEdge) { return A.CoverEdge < B.CoverEdge; }
+	return A.DeclarationIndex < B.DeclarationIndex; // copie identiche in tutto il contenuto: decide solo un'etichetta
+}
+
 // --- Ordine delle UNITA' (#2922) ------------------------------------------------------------------------
 
 bool URTActionQueueLibrary::UnitOrderLess(const FRTUnitOrderKey& A, const FRTUnitOrderKey& B)

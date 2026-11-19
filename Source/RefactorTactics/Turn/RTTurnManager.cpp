@@ -3141,7 +3141,9 @@ TArray<ARTTurnManager::FRTMainTurn> ARTTurnManager::MainTurnsOf(const TArray<ART
 	{
 		const ARTUnit* Unit = Units[u];
 		if (!Unit) { continue; }
-		struct FChiave { int32 Id; int32 Posizione; const URTActionData* Azione; int32 Bersaglio; FRTCellId Cella; uint8 Bordo; };
+		// HUD-AP.5b: la regola sta in `URTActionQueueLibrary::MainVisitLess`, che la timeline del piano condivide; qui si
+		// riempiono le chiavi.
+		struct FChiave { int32 Id; FRTMainVisitKey Visita; };
 		TArray<FChiave> DellUnita;
 		const TArray<FRTPlanEntry>& Voci = Unit->GetPlan().GetEntries();
 		for (int32 p = 0; p < Voci.Num(); ++p)
@@ -3150,27 +3152,24 @@ TArray<ARTTurnManager::FRTMainTurn> ARTTurnManager::MainTurnsOf(const TArray<ART
 			if (V.Class != ERTPlanEntryClass::Main) { continue; }
 			const ARTUnit* Bersaglio = V.AttackTarget.Get();
 			const FRTPlanEntry* Copia = Unit->GetLockedPlan().Plan.EntryWithId(V.Id);
-			const FRTCellId Mira = V.bAttackTargetsCell ? V.AttackCell
+			FRTMainVisitKey Visita;
+			if (const URTActionData* Azione = Unit->GetAbility(V.AbilityIndex))
+			{
+				Visita.MacroPhase = static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(Azione->Def.ResolutionPhase));
+				Visita.Priority = Azione->Def.Priority;
+				Visita.ActionId = Azione->Def.ActionId;
+			}
+			Visita.TargetStableUnitId = Bersaglio ? Bersaglio->StableUnitId : INDEX_NONE;
+			Visita.AimCell = V.bAttackTargetsCell ? V.AttackCell
 				: (Copia && Copia->bHasFrozenAim) ? Copia->FrozenAimCell
 				: Bersaglio ? Bersaglio->Cell : Unit->Cell;
-			DellUnita.Add({ V.Id, p, Unit->GetAbility(V.AbilityIndex), Bersaglio ? Bersaglio->StableUnitId : INDEX_NONE, Mira,
-				static_cast<uint8>(V.bHasCoverEdge ? static_cast<uint8>(V.CoverEdge) + 1 : 0) });
+			Visita.CoverEdge = static_cast<uint8>(V.bHasCoverEdge ? static_cast<uint8>(V.CoverEdge) + 1 : 0);
+			Visita.DeclarationIndex = p;
+			DellUnita.Add({ V.Id, Visita });
 		}
 		DellUnita.StableSort([](const FChiave& A, const FChiave& B)
 		{
-			const int32 FaseA = A.Azione ? static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(A.Azione->Def.ResolutionPhase)) : -1;
-			const int32 FaseB = B.Azione ? static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(B.Azione->Def.ResolutionPhase)) : -1;
-			if (FaseA != FaseB) { return FaseA < FaseB; }
-			const int32 PrioA = A.Azione ? A.Azione->Def.Priority : 0;
-			const int32 PrioB = B.Azione ? B.Azione->Def.Priority : 0;
-			if (PrioA != PrioB) { return PrioA < PrioB; }
-			const FName IdA = A.Azione ? A.Azione->Def.ActionId : NAME_None;
-			const FName IdB = B.Azione ? B.Azione->Def.ActionId : NAME_None;
-			if (IdA != IdB) { return IdA.LexicalLess(IdB); }
-			if (A.Bersaglio != B.Bersaglio) { return A.Bersaglio < B.Bersaglio; }
-			if (!(A.Cella == B.Cella)) { return URTHexLibrary::StableLess(A.Cella, B.Cella); }
-			if (A.Bordo != B.Bordo) { return A.Bordo < B.Bordo; }
-			return A.Posizione < B.Posizione; // copie identiche in tutto il contenuto: decide solo un'etichetta
+			return URTActionQueueLibrary::MainVisitLess(A.Visita, B.Visita);
 		});
 		for (const FChiave& K : DellUnita) { Out.Add({ u, K.Id }); }
 	}

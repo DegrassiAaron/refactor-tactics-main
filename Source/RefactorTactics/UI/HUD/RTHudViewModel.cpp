@@ -570,13 +570,20 @@ void URTHudViewModel::AddPlanWarningCounts(const TArray<FRTPlanWarningView>& War
 FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId,
 	const TArray<ARTUnit*>& Units)
 {
+	// La voce che gli accessori della principale leggono: quella a fuoco, o la prima.
+	return MakeBlastPreviewPlanForEntry(Unit, UnitId, Units, Unit.GetPlan().EntryWithId(Unit.GetPlan().CurrentMainId()));
+}
+
+FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlanForEntry(const ARTUnit& Unit, int32 UnitId,
+	const TArray<ARTUnit*>& Units, const FRTPlanEntry* MainEntry)
+{
 	FRTBlastPreviewPlan Plan;
 	Plan.AttackerId = UnitId;
 	Plan.bDashResolves = Unit.PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
 	Plan.PlannedDashCell = Unit.GetPlan().PlannedDashCell();
 	Plan.bDashIsCharge = Unit.PlannedDashIsCharge();
 
-	const URTActionData* Ability = Unit.GetAbility(Unit.GetPlan().PlannedAbilityIndex());
+	const URTActionData* Ability = MainEntry ? Unit.GetAbility(MainEntry->AbilityIndex) : nullptr;
 	if (!Ability)
 	{
 		return Plan; // solo scatto: un'origine da mostrare e nessuna area
@@ -594,16 +601,16 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
 	// [D-610] (3): la predittiva segna la cella, non chi ci sta sopra.
 	Plan.bPredictive = Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
-	if (Unit.GetPlan().bAttackTargetsCell())
+	if (MainEntry->bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;
-		Plan.TargetCell = Unit.GetPlan().PlannedAttackCell();
+		Plan.TargetCell = MainEntry->AttackCell;
 	}
 	else
 	{
 		// Un bersaglio che non e' in `Units` diventa `INDEX_NONE`, cioe' «nessuna area»; uno caduto ha `bAlive`
 		// falso in `MakeHexCombatUnits`, e l'anteprima lo scarta allo stesso modo.
-		Plan.TargetId = Units.IndexOfByKey(Unit.GetPlan().PlannedAttackTarget().Get());
+		Plan.TargetId = Units.IndexOfByKey(MainEntry->AttackTarget.Get());
 	}
 	return Plan;
 }

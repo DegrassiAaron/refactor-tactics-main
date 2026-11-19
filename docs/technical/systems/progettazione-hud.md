@@ -1577,6 +1577,14 @@ d'equipaggiamento (E48).
   azioni della stessa unità (D-615 (3)). Lettura dell'assistente in D-615: la timeline mostra ancora l'ordine del comparatore, ma spostare una voce
   non cambia l'esito, e se offrire lo spostamento resta dell'owner dell'HUD; due copie della stessa azione si ordinano per bersaglio e cella, mai
   per dichiarazione. Le parti barrate seguivano D-613 (3), che D-615 (5) ribalta.
+  ✅ **2026-11-19 — HUD-AP.5b ([#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159))**: la timeline del piano
+  (`FRTPlanPreview`, CP 11.5 [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172)) porta ogni voce principale e ogni voce di
+  Prep, non più la sola principale a fuoco, e `FRTPhasePreviewEntry::StackIndex` dà il posto nella pila della macro-fase, da 1. L'ordine è quello
+  del resolver: nel Prep `NumberInstancesByContent`, come `ResolvePrep`; nel Blast e nel Cleanup `URTActionQueueLibrary::MainVisitLess`, la regola
+  che `ARTTurnManager::MainTurnsOf` usava al suo interno e che ora è una funzione sola per entrambi. Il movimento resta una voce, con tutti i tratti.
+  Area e linea di mira sulla mappa restano della principale a fuoco. ⚠️ **L'indice non ha ancora una vista che lo disegni**: la HUD non ha un widget
+  della timeline, e sulla mappa i ghost delle voci si posano uno per voce e si impilano per cella, non per colonna. Le reazioni restano una sola
+  in `FRTReactionPreview`: la lista arriva con HUD-AP.5c. ⏳ A schermo: `PIE-HUD-AP-STACKS`.
 - **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. Due reazioni sullo stesso micro-step stanno
   in un solo prompt, una riga ciascuna, con HOLD per ultimo.
 - **Azioni ripetute** (~~D-613 (2), come la legge l'assistente~~ [D-614](../../decisions/RT_PDR_00_Decision_Log.md)): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
@@ -1586,6 +1594,7 @@ d'equipaggiamento (E48).
   posizione del kit, in ogni classe, e lo slot mostra «×N» da 2 in su; il rifiuto del validatore nomina la copia colpevole («2ª copia»)
   nell'avviso `Critical` e nel tooltip (`PlanInvalidOccurrence`, da `OffendingDeclarationIndex`). Il contatore lo costruisce il C++ quando
   l'asset dello slot non lo dichiara. ⏳ A schermo: `PIE-HUD-AP-PLAN-COUNT`. Le pile e il prompt restano per HUD-AP.5b e HUD-AP.5c.
+  ➕ *2026-11-19*: le pile sono implementate da HUD-AP.5b, nella nota della Ghost Timeline qui sopra.
   ➕ **2026-11-14**: la riserva di `MSP-1.r` è chiusa da D-614 (con cooldown una copia per piano, senza cooldown ripetibile finché il budget lo
   consente). Con [D-615](../../decisions/RT_PDR_00_Decision_Log.md) (4) `Action.Overwatch` prende cooldown 1: una per piano, e ancora in ogni turno.
   Con la (7) i sette moduli di reazione di oggi prendono cooldown 1, e un valore più alto entra con la skill che lo chiede. Con la (6) per la
@@ -1607,7 +1616,8 @@ Tutti `NOT RUN`: sono criteri, non esiti.
 | 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation. ✅ `Privacy.ActionPointsLiveOnlyInTheCommandedView` (#4150), su `FRTUnitCardView`, `FRTGlanceView` e `FRTInspectView` |
 | 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
 | 19-bis.7 | Una voce del kit due volte nel piano: lo slot ne mostra il numero; un rifiuto della regola della copia nomina la copia colpevole | dopo E38 | Automation. ✅ [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) (HUD-AP.5a): `HudViewModel.PlannedCountsEveryCopy`, `HudViewModel.RefusalNamesTheOccurrence`; PIE ⏳ `PIE-HUD-AP-PLAN-COUNT` |
-| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080. ⏳ HUD-AP.5b e HUD-AP.5c di [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) |
+| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N, nell'ordine del resolver; permutare la dichiarazione non cambia la pila | dopo E38 | Automation; PIE a 1920×1080. ✅ [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) (HUD-AP.5b): `Preview.StackFollowsTheResolverNotTheDeclaration`; PIE ⏳ `PIE-HUD-AP-STACKS`. L'indice è nel view model, e nessuna vista lo disegna ancora |
+| 19-bis.7 | Due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080. ⏳ HUD-AP.5c di [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) |
 
 ---
 
