@@ -358,9 +358,52 @@ public:
 
 	/**
 	 * La riga della banda che, in una scena del Lab, dice dove si e' nell'elenco e quali tasti premere
-	 * (`#3774`). Vuota per ogni altro Id.
+	 * (`#3774`), e in fondo quanti bersagli la scena chiede (`DescribeLabTargets`, `#4136`). Vuota per ogni altro Id.
+	 *
+	 * ⚠️ **Legge la scena dal file** (`ReadLabScene`), per sapere quanti bersagli chiede e quanti ne posa: senza file, o senza
+	 * radice del Lab, la scena vale 1/1. Compone ogni volta che la chiami, e costa: chi la chiama a ogni fotogramma la ricorda
+	 * per scena (`ARTGameMode::GetLabStepText`).
 	 */
 	static FString DescribeLabStep(const FString& ScenarioId);
+
+	/**
+	 * Il numero di bersagli che `U` propone dopo `Current` (`#4136`): 1 → 2 → 3 → 1. Un valore fuori scala (0, un negativo, uno
+	 * oltre `MaxLabTargets()`) riparte da 1.
+	 */
+	static int32 NextLabTargetCount(int32 Current);
+
+	/**
+	 * Il pezzo della banda che dice i bersagli: `«U» bersagli N`, e ` (qui ne stanno K)` se `Placed < Requested`: la scena ne
+	 * chiede N, e la mappa o l'azione ne reggono meno (`#4136`). I tasti fra virgolette basse, come nel resto della riga.
+	 */
+	static FString DescribeLabTargets(int32 Requested, int32 Placed);
+
+	/**
+	 * Dove sta il file di una scena del banco: `<LabScenariosRoot>/<ScenarioId>.json`, reso assoluto (`#4136`). Lo scrive
+	 * `WriteLabScenario` e lo rilegge `ReadLabScene`: una sede sola per il percorso.
+	 *
+	 * 🔴 **Stringa VUOTA se la radice del Lab e' vuota** (sotto automation senza override). Mai una radice vuota combinata con un
+	 * nome relativo: sarebbe un percorso dentro la cartella corrente, e chi lo legge o lo scrive sporcherebbe il progetto.
+	 */
+	static FString LabScenarioPath(const FString& ScenarioId);
+
+	/**
+	 * Rilegge dal disco la scena del banco `ScenarioId` (`#4136`). `false` per un Id che non e' del banco, senza radice del Lab,
+	 * senza file, o se il file non si interpreta; `OutScene` resta com'era.
+	 *
+	 * Controlla `FPaths::FileExists` prima del loader: un file assente non passa dal loader, che scriverebbe un errore nel log di
+	 * un test che ha solo chiesto «e' gia' stata scritta?».
+	 */
+	static bool ReadLabScene(const FString& ScenarioId, FRTTestScenario& OutScene);
+
+	/**
+	 * Cosa fa `U` in una scena del banco (`#4136`): la stessa azione, col numero di bersagli successivo (`NextLabTargetCount`) a
+	 * quello che la scena in corso chiede. Una scena senza file, o scritta prima del tag `lab-targets-N`, chiede 1.
+	 *
+	 * `false`, senza toccare le uscite, per un Id che non e' una scena del banco o la cui azione non e' canonica: e' cio' che tiene
+	 * inerte il tasto fuori dal banco, come `PlanLabStep` per `,` e `.`.
+	 */
+	static bool PlanLabTargets(const FString& CurrentScenarioId, FName& OutAbilityId, int32& OutNextCount);
 
 	/**
 	 * Vero se `ScenarioId` e' una scena del banco: `AbilityLab.<AbilityId>`, la forma che `BuildFixture` scrive (`#4071`).

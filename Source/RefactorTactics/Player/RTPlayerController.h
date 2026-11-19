@@ -401,6 +401,16 @@ protected:
 	TObjectPtr<UInputAction> LabStepNextAction;
 
 	/**
+	 * `U`: nelle scene del banco porta i bersagli da 1 a 3 e ricomincia, e la scena riparte (`#4136`). «U» sta per «unita'
+	 * colpite». A tenerlo libero e' `PlayerInput.HotkeysDoNotCollide`, che legge il mapping context vero.
+	 *
+	 * ⛔ **Inerte fuori dal banco**, per la stessa ragione di `,` e `.`: la regola e' di `ARTGameMode::CycleLabTargets`, che sa quale
+	 * scena gira, e una guardia anche qui sarebbe la sua seconda sede.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LabTargetsAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -831,6 +841,9 @@ private:
 	void OnLabStepPrevious(const FInputActionValue& Value);
 	void OnLabStepNext(const FInputActionValue& Value);
 	void StepLab(int32 Step);
+
+	/** `U` — i bersagli del banco, da 1 a 3 (`#4136`). */
+	void OnLabTargets(const FInputActionValue& Value);
 
 	void OnRecenter(const FInputActionValue& Value);
 

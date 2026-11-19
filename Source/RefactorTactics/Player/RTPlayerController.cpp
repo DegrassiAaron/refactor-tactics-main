@@ -209,6 +209,9 @@ void ARTPlayerController::BuildInputMappings()
 	LabStepPreviousAction->ValueType = EInputActionValueType::Boolean;
 	LabStepNextAction = NewObject<UInputAction>(this, TEXT("IA_LabStepNext"));
 	LabStepNextAction->ValueType = EInputActionValueType::Boolean;
+	// `#4136`: i bersagli del banco, come i due tasti qui sopra: nasce sempre, ed e' inerte fuori dal banco per decisione del GameMode.
+	LabTargetsAction = NewObject<UInputAction>(this, TEXT("IA_LabTargets"));
+	LabTargetsAction->ValueType = EInputActionValueType::Boolean;
 
 	// CP 46.6 (#941): il menu di pausa.
 	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
@@ -359,6 +362,9 @@ void ARTPlayerController::BuildInputMappings()
 	// `PlayerInput.HotkeysDoNotCollide` sull'intero mapping context.
 	MappingContext->MapKey(LabStepPreviousAction, EKeys::Comma);
 	MappingContext->MapKey(LabStepNextAction, EKeys::Period);
+	// `#4136` — `U`: i bersagli del banco, da 1 a 3 («U» come «unita' colpite»). Libero: a tenerlo tale e'
+	// `PlayerInput.HotkeysDoNotCollide`, che legge l'intero mapping context e non una lista scritta a mano.
+	MappingContext->MapKey(LabTargetsAction, EKeys::U);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -535,6 +541,7 @@ void ARTPlayerController::BindInputActions(UEnhancedInputComponent& Component)
 	EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
 	EIC->BindAction(LabStepPreviousAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepPrevious);
 	EIC->BindAction(LabStepNextAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabStepNext);
+	EIC->BindAction(LabTargetsAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLabTargets);
 	EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 	EIC->BindAction(UnitFramingAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFrameUnit);
 	EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
@@ -3832,6 +3839,26 @@ void ARTPlayerController::StepLab(int32 Step)
 	if (!GameMode->StepLabScenario(Step, Errore) && !Errore.IsEmpty())
 	{
 		UE_LOG(LogRT, Warning, TEXT("[RT-Test] banco: il passo non riesce: %s"), *Errore);
+	}
+}
+
+void ARTPlayerController::OnLabTargets(const FInputActionValue& Value)
+{
+	// Stessa guardia e stessa lettura di `StepLab`: una schermata bloccante copre la partita, e fuori dal banco il GameMode
+	// risponde `false` con un errore vuoto, e qui non si dice niente.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+	ARTGameMode* GameMode = Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	if (!GameMode)
+	{
+		return;
+	}
+	FString Errore;
+	if (!GameMode->CycleLabTargets(Errore) && !Errore.IsEmpty())
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] banco: i bersagli non cambiano: %s"), *Errore);
 	}
 }
 

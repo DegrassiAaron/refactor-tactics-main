@@ -26,6 +26,7 @@ class ARTTurnManager; // `#3267`: `ApplyPlaybackControlCVars` lo prende, e l'hea
 class URTFrontendNavigator;
 class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
+struct FRTTestScenario; // `#4136`: `RelaunchLabScene` la prende per riferimento
 
 /**
  * GameMode: imposta camera e controller di default e, all'avvio, allestisce la partita sulla mappa
@@ -425,12 +426,22 @@ public:
 	 *
 	 * La nuova scena la costruisce `URTAbilityLabLibrary::BuildFixture` e la scrive `WriteLabScenario`, le stesse
 	 * del pannello; `rt.Test.Scenario` si riscrive alla sua priorita' corrente (mai sotto `Code`), cosi' il
-	 * ripristino del lanciatore a fine PIE (`FRTLabPieLauncher`) la rimette comunque com'era.
+	 * ripristino del lanciatore a fine PIE (`FRTLabPieLauncher`) la rimette comunque com'era. Il numero di bersagli della scena in
+	 * corso (`U`, `#4136`) passa alla nuova.
 	 *
 	 * `false` con `OutError` VUOTO fuori da una scena del banco — i due tasti sono inerti, e non e' un errore;
 	 * `false` con `OutError` valorizzato se la scena non si costruisce, non si scrive o la variabile non prende.
 	 */
 	bool StepLabScenario(int32 Step, FString& OutError);
+
+	/**
+	 * `U` nel banco (`#4136`): la stessa azione col numero di bersagli successivo (1 → 2 → 3 → 1), e la scena riparte.
+	 *
+	 * Lo stesso contratto di `StepLabScenario`: `false` con `OutError` VUOTO fuori da una scena del banco (il tasto e' inerte, e non
+	 * e' un errore), `false` con `OutError` valorizzato se la scena non si costruisce, non si scrive o la variabile non prende. La
+	 * scena la costruisce `URTAbilityLabLibrary::BuildFixture` con `TargetCount` portato avanti, e la rilancia `RelaunchLabScene`.
+	 */
+	bool CycleLabTargets(FString& OutError);
 
 	/**
 	 * Chi lancia nella scena del banco in corso (`URTAbilityLabLibrary::CasterUnitId`), o `nullptr` fuori dal banco o
@@ -523,6 +534,16 @@ private:
 	 * alla prima partizione che vede unita e si spegne in `SetupHexMatch`, che ne porta di nuove.
 	 */
 	bool bUnitControlGroupsAssigned = false;
+
+	/**
+	 * La coda comune del passo del banco e del tasto dei bersagli (`#4136`): scrive `Scene` come scena del Lab
+	 * (`WriteLabScenario`), porta `rt.Test.Scenario` su di lei alla sua priorita' corrente, la rilegge, e ricarica il livello.
+	 * `false` con `OutError` valorizzato se non scrive o se la variabile non prende: in quel caso il livello NON si ricarica.
+	 *
+	 * Privata: la scena la costruiscono `StepLabScenario` e `CycleLabTargets`, ognuna con la sua domanda, e nessun altro ha
+	 * una scena del banco da rilanciare.
+	 */
+	bool RelaunchLabScene(const FRTTestScenario& Scene, FString& OutError);
 
 protected:
 	virtual void BeginPlay() override;

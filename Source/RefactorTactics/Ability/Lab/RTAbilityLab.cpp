@@ -1172,8 +1172,104 @@ FString URTAbilityLabLibrary::DescribeLabStep(const FString& ScenarioId)
 	{
 		return FString();
 	}
+
+	// I bersagli che la scena chiede e quelli che posa si leggono dal file: la scena e' un file, e chi la mostra non ha la spec che
+	// l'ha prodotta. Senza file (o senza radice del Lab) la scena vale 1/1: e' una scena che non porta ancora il tag.
+	int32 Chiesti = 1;
+	int32 Posati = 1;
+	FRTTestScenario Scena;
+	if (ReadLabScene(ScenarioId, Scena))
+	{
+		Chiesti = RequestedTargetsOf(Scena);
+		Posati = PlacedTargetsOf(Scena);
+	}
+
 	// I tasti fra virgolette basse: una virgola e un punto nudi in mezzo a una frase non si leggono come tasti.
-	return FString::Printf(TEXT("BANCO %d/%d  ·  «,» precedente  ·  «.» successiva"), Qui + 1, Ciclo.Num());
+	return FString::Printf(TEXT("BANCO %d/%d  ·  «,» precedente  ·  «.» successiva  ·  %s"),
+		Qui + 1, Ciclo.Num(), *DescribeLabTargets(Chiesti, Posati));
+}
+
+int32 URTAbilityLabLibrary::NextLabTargetCount(int32 Current)
+{
+	// 1 → 2 → 3 → 1. Fuori da 1..Max (0, un negativo, un numero oltre il tetto) non c'e' un «successivo» da cui partire: si riparte
+	// da 1, il valore di una scena senza tag.
+	return (Current >= 1 && Current < MaxLabTargets()) ? Current + 1 : 1;
+}
+
+FString URTAbilityLabLibrary::DescribeLabTargets(int32 Requested, int32 Placed)
+{
+	// Il tasto fra virgolette basse, come i due della riga: una «U» nuda in mezzo a una frase non si legge come un tasto.
+	FString Testo = FString::Printf(TEXT("«U» bersagli %d"), Requested);
+	if (Placed < Requested)
+	{
+		// La scena ne chiede piu' di quanti la mappa o l'azione ne reggano: lo dice, o chi guarda cerca il bersaglio mancante.
+		Testo += FString::Printf(TEXT(" (qui ne stanno %d)"), Placed);
+	}
+	return Testo;
+}
+
+FString URTAbilityLabLibrary::LabScenarioPath(const FString& ScenarioId)
+{
+	// 🔴 Radice vuota = sotto automation senza override: la radice non esiste, e un nome relativo combinato con una radice vuota
+	// sarebbe un percorso nella cartella corrente. Nessun percorso, e chi lo chiede lo sa.
+	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	if (Root.IsEmpty())
+	{
+		return FString();
+	}
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, ScenarioId + TEXT(".json")));
+}
+
+bool URTAbilityLabLibrary::ReadLabScene(const FString& ScenarioId, FRTTestScenario& OutScene)
+{
+	FName Ignorata;
+	if (!RTAbilityLabInternal::ParseLabScenarioId(ScenarioId, Ignorata))
+	{
+		return false;
+	}
+	const FString Percorso = LabScenarioPath(ScenarioId);
+	// `FileExists` prima del loader: un file assente non lo attraversa, e il suo errore non finisce nel log di chi chiedeva solo
+	// se la scena e' gia' stata scritta.
+	if (Percorso.IsEmpty() || !FPaths::FileExists(Percorso))
+	{
+		return false;
+	}
+	// Si legge in una scena locale e si sposta in `OutScene` a lettura riuscita: un file che non si interpreta non la lascia a meta'.
+	FRTTestScenario Letta;
+	FString Errore;
+	if (!URTScenarioLoader::LoadFromFile(Percorso, Letta, Errore))
+	{
+		return false;
+	}
+	OutScene = MoveTemp(Letta);
+	return true;
+}
+
+bool URTAbilityLabLibrary::PlanLabTargets(const FString& CurrentScenarioId, FName& OutAbilityId, int32& OutNextCount)
+{
+	FName Corrente;
+	if (!RTAbilityLabInternal::ParseLabScenarioId(CurrentScenarioId, Corrente))
+	{
+		return false;
+	}
+	// Come `PlanLabStep`: un `AbilityLab.<x>` la cui azione non e' canonica non e' una scena che il banco abbia scritto, e `U`
+	// non ha niente da rilanciare. Inerte, senza un errore a schermo.
+	FRTAbilityLabEntry Voce;
+	if (!FindAbility(Corrente, Voce))
+	{
+		return false;
+	}
+
+	// 🔑 Senza file, o con una scena scritta prima del tag, la scena chiede 1: `U` la porta a 2.
+	int32 Attuali = 1;
+	FRTTestScenario Scena;
+	if (ReadLabScene(CurrentScenarioId, Scena))
+	{
+		Attuali = RequestedTargetsOf(Scena);
+	}
+	OutAbilityId = Corrente;
+	OutNextCount = NextLabTargetCount(Attuali);
+	return true;
 }
 
 bool URTAbilityLabLibrary::IsLabScenarioId(const FString& ScenarioId)
@@ -1196,8 +1292,8 @@ bool URTAbilityLabLibrary::WriteLabScenario(const FRTTestScenario& Scenario, FSt
 		return false;
 	}
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
-	const FString Percorso = FPaths::ConvertRelativePathToFull(
-		FPaths::Combine(Root, Scenario.ScenarioId + TEXT(".json")));
+	// Lo stesso percorso che `ReadLabScene` rilegge (`#4136`): una sede sola. La radice non e' vuota, quindi nemmeno il percorso.
+	const FString Percorso = LabScenarioPath(Scenario.ScenarioId);
 
 	// `SaveToFile` valida prima di toccare il disco: una fixture invalida non lascia un file a meta'.
 	if (!URTScenarioLoader::SaveToFile(Scenario, Percorso, OutError))

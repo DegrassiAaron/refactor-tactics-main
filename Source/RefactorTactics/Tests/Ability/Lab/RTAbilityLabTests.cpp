@@ -33,6 +33,9 @@
 #include "Map/RTHexLibrary.h"                  // la distanza della cella bloccata da una predittiva (#4088)
 #include "Combat/RTHexCombatLibrary.h"         // le celle che l'azione colpisce: dove il banco posa i bersagli in piu' (#4136)
 #include "ScenarioHarness/Authoring/RTScenarioLoader.h" // il tag dei bersagli attraversa il file della scena (#4136)
+#include "HAL/FileManager.h"                   // il file della scena si toglie, per provare la banda senza file (#4136)
+#include "Misc/ScopeExit.h"                    // la radice di prova del Lab si azzera sempre (#4136)
+#include "Tests/Shared/RTScenarioTestSupport.h" // la radice di prova del Lab (#4136)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2206,6 +2209,213 @@ bool FRTAbilityLabTargetCountTravelsInTheSceneTagTest::RunTest(const FString&)
 				URTAbilityLabLibrary::RequestedTargetsOf(Scena), Coppia.Value);
 		}
 	}
+	return true;
+}
+
+// =====================================================================================================
+// `#4136` — il tasto `U` e la riga della banda. Il tasto fa girare il numero di bersagli della scena in corso (1 → 2 → 3 → 1) e
+// la scena riparte; la riga dice quanti se ne chiedono e, se la mappa non li regge, quanti ne stanno.
+//
+// 🔑 Le scene che questi test leggono stanno nella radice di PROVA del Lab: mai in `Saved/RTLab`, che e' dell'Editor.
+// =====================================================================================================
+
+namespace RTAbilityLabTargetKeyTestsInternal
+{
+	/** L'azione la cui linea si allunga: l'unica con cui un bersaglio in piu' ha un posto da cercare. */
+	const TCHAR* const Scarica = TEXT("Hero.Gadget.LinearDischarge");
+
+	FString SceneIdDi(const TCHAR* AbilityId)
+	{
+		return FString::Printf(TEXT("AbilityLab.%s"), AbilityId);
+	}
+
+	/** Costruisce la scena della spec e la scrive nella radice del Lab; se non si scrive lo dice come test, col motivo. */
+	bool BuildAndWrite(FAutomationTestBase& Test, const FRTAbilityLabFixtureSpec& Spec, FRTTestScenario& OutScenario)
+	{
+		// Il booleano prima del messaggio: l'ordine di valutazione degli argomenti non e' definito, e `Errore` si legge dopo.
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(Scarica), Spec, OutScenario, Errore);
+		if (!Test.TestTrue(FString::Printf(TEXT("la scena si costruisce (%s)"), *Errore), bCostruita))
+		{
+			return false;
+		}
+		const bool bScritta = URTAbilityLabLibrary::WriteLabScenario(OutScenario, Errore);
+		return Test.TestTrue(FString::Printf(TEXT("la scena si scrive (%s)"), *Errore), bScritta);
+	}
+
+	/** Toglie dalla scena i tag `lab-targets-N`: com'era una scena scritta prima di questo lavoro (Review Focus 1). */
+	void StripTargetTags(FRTTestScenario& Scenario)
+	{
+		Scenario.Tags.RemoveAll([](const FString& Tag) { return Tag.StartsWith(TEXT("lab-targets-")); });
+	}
+}
+
+/**
+ * **`U` gira fra 1, 2 e 3, e fuori dal banco non fa niente** (`#4136`). La parte che decide vive nella libreria: quale numero viene
+ * dopo, e per quale azione. Il GameMode scrive la scena e ricarica il livello, e questo si giudica in PIE.
+ *
+ * 🔴 Review Focus 1: una scena scritta prima di questo lavoro non porta il tag, si legge come 1, e `U` la porta a 2. Review Focus 5:
+ * fuori dal banco `PlanLabTargets` risponde `false` senza toccare le uscite, e quello e' cio' che tiene inerte il tasto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabTargetKeyCyclesAndIsInertOutsideTest,
+	"RefactorTactics.AbilityLab.TargetKeyCyclesAndIsInertOutside",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabTargetKeyCyclesAndIsInertOutsideTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTargetKeyTestsInternal;
+
+	// Il giro: 1 → 2 → 3 → 1, e un valore fuori scala riparte da 1.
+	TestEqual(TEXT("da 1 si va a 2"), URTAbilityLabLibrary::NextLabTargetCount(1), 2);
+	TestEqual(TEXT("da 2 si va a 3"), URTAbilityLabLibrary::NextLabTargetCount(2), 3);
+	TestEqual(TEXT("da 3 si torna a 1"), URTAbilityLabLibrary::NextLabTargetCount(3), 1);
+	TestEqual(TEXT("0 e' fuori scala: va a 1"), URTAbilityLabLibrary::NextLabTargetCount(0), 1);
+	TestEqual(TEXT("7 e' fuori scala: va a 1"), URTAbilityLabLibrary::NextLabTargetCount(7), 1);
+	TestEqual(TEXT("-2 e' fuori scala: va a 1"), URTAbilityLabLibrary::NextLabTargetCount(-2), 1);
+
+	// Fuori dal banco (Review Focus 5): niente da pianificare, e le uscite restano com'erano. Il segnaposto e' un valore che la
+	// funzione non scriverebbe mai per caso.
+	for (const TCHAR* Id : { TEXT("Movement.Basic"), TEXT("AbilityLab."), TEXT(""), TEXT("abilitylab.Hero.Gadget.LinearDischarge"),
+		TEXT("AbilityLab.Azione.Inesistente") })
+	{
+		FName Azione(TEXT("Segnaposto"));
+		int32 Prossimo = -7;
+		TestFalse(FString::Printf(TEXT("'%s': nessun cambio di bersagli"), Id),
+			URTAbilityLabLibrary::PlanLabTargets(Id, Azione, Prossimo));
+		TestEqual(FString::Printf(TEXT("'%s': l'azione non e' toccata"), Id), Azione, FName(TEXT("Segnaposto")));
+		TestEqual(FString::Printf(TEXT("'%s': il numero non e' toccato"), Id), Prossimo, -7);
+	}
+
+	// Sotto automation senza override la radice del Lab e' vuota: il percorso e' vuoto e la scena non si legge, senza combinare una
+	// radice vuota con un nome relativo.
+	const FString IdScarica = SceneIdDi(Scarica);
+	TestTrue(TEXT("senza radice del Lab il percorso della scena e' vuoto"),
+		URTAbilityLabLibrary::LabScenarioPath(IdScarica).IsEmpty());
+	FRTTestScenario Letta;
+	TestFalse(TEXT("senza radice del Lab la scena non si legge"), URTAbilityLabLibrary::ReadLabScene(IdScarica, Letta));
+	{
+		FName Azione;
+		int32 Prossimo = 0;
+		TestTrue(TEXT("senza radice del Lab `U` pianifica comunque: la scena vale 1 bersaglio"),
+			URTAbilityLabLibrary::PlanLabTargets(IdScarica, Azione, Prossimo));
+		TestEqual(TEXT("senza radice del Lab da 1 si va a 2"), Prossimo, 2);
+		TestEqual(TEXT("e l'azione e' quella della scena"), Azione, FName(Scarica));
+	}
+
+	// Con una radice di prova: la scena scritta a 3 bersagli porta `U` a 1, e senza il tag a 2.
+	const FString Root = RTScenarioTestSupport::ApriRadiceDiProva(TEXT("RTLabTargets"), TEXT("Giro"));
+	ON_SCOPE_EXIT{ RTScenarioTestSupport::ChiudiRadiceDiProva(Root); };
+
+	TestFalse(TEXT("nella radice di prova, senza file, la scena non si legge"),
+		URTAbilityLabLibrary::ReadLabScene(IdScarica, Letta));
+	{
+		FName Azione;
+		int32 Prossimo = 0;
+		TestTrue(TEXT("senza file `U` pianifica: la scena vale 1 bersaglio"),
+			URTAbilityLabLibrary::PlanLabTargets(IdScarica, Azione, Prossimo));
+		TestEqual(TEXT("senza file da 1 si va a 2"), Prossimo, 2);
+	}
+
+	// Per ogni numero chiesto, `U` va al successivo: il controllo positivo che il tag e' davvero letto dal file.
+	for (const TPair<int32, int32>& Coppia : { TPair<int32, int32>(1, 2), TPair<int32, int32>(2, 3), TPair<int32, int32>(3, 1) })
+	{
+		FRTAbilityLabFixtureSpec Spec;
+		Spec.TargetCount = Coppia.Key;
+		FRTTestScenario Scena;
+		if (!BuildAndWrite(*this, Spec, Scena)) { continue; }
+
+		FName Azione;
+		int32 Prossimo = 0;
+		if (TestTrue(FString::Printf(TEXT("a %d bersagli `U` pianifica"), Coppia.Key),
+			URTAbilityLabLibrary::PlanLabTargets(IdScarica, Azione, Prossimo)))
+		{
+			TestEqual(FString::Printf(TEXT("a %d bersagli `U` va a %d"), Coppia.Key, Coppia.Value), Prossimo, Coppia.Value);
+			TestEqual(FString::Printf(TEXT("a %d bersagli l'azione e' LinearDischarge"), Coppia.Key), Azione, FName(Scarica));
+		}
+	}
+
+	// Review Focus 1: la stessa scena a 3 bersagli, salvata senza il tag, si legge come 1 e `U` la porta a 2 (non a 1).
+	FRTAbilityLabFixtureSpec TreBersagli;
+	TreBersagli.TargetCount = 3;
+	FRTTestScenario Vecchia;
+	if (BuildAndWrite(*this, TreBersagli, Vecchia))
+	{
+		TestEqual(TEXT("premessa: la scena nuova chiede 3 bersagli"), URTAbilityLabLibrary::RequestedTargetsOf(Vecchia), 3);
+		StripTargetTags(Vecchia);
+		TestEqual(TEXT("senza tag la scena chiede 1 bersaglio"), URTAbilityLabLibrary::RequestedTargetsOf(Vecchia), 1);
+		FString Errore;
+		const bool bRiscritta = URTAbilityLabLibrary::WriteLabScenario(Vecchia, Errore);
+		if (TestTrue(FString::Printf(TEXT("la scena senza tag si riscrive (%s)"), *Errore), bRiscritta))
+		{
+			FName Azione;
+			int32 Prossimo = 0;
+			TestTrue(TEXT("senza tag `U` pianifica"), URTAbilityLabLibrary::PlanLabTargets(IdScarica, Azione, Prossimo));
+			TestEqual(TEXT("senza il tag `U` porta la scena a 2"), Prossimo, 2);
+			TestEqual(TEXT("e l'azione e' LinearDischarge"), Azione, FName(Scarica));
+		}
+	}
+	return true;
+}
+
+/**
+ * **La banda dice quanti bersagli la scena chiede, e quanti ne stanno** (`#4136`). `DescribeLabTargets` e' la frase, e
+ * `DescribeLabStep` la porta in fondo alla riga, leggendo la scena dal file; senza file la scena vale 1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStepHintNamesTheTargetCountTest,
+	"RefactorTactics.AbilityLab.StepHintNamesTheTargetCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStepHintNamesTheTargetCountTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTargetKeyTestsInternal;
+
+	TestEqual(TEXT("2 chiesti, 2 posati"), URTAbilityLabLibrary::DescribeLabTargets(2, 2), FString(TEXT("«U» bersagli 2")));
+	TestEqual(TEXT("1 chiesto, 1 posato"), URTAbilityLabLibrary::DescribeLabTargets(1, 1), FString(TEXT("«U» bersagli 1")));
+	TestEqual(TEXT("3 chiesti, 1 posato"), URTAbilityLabLibrary::DescribeLabTargets(3, 1),
+		FString(TEXT("«U» bersagli 3 (qui ne stanno 1)")));
+	TestEqual(TEXT("3 chiesti, 2 posati"), URTAbilityLabLibrary::DescribeLabTargets(3, 2),
+		FString(TEXT("«U» bersagli 3 (qui ne stanno 2)")));
+
+	const FString IdScarica = SceneIdDi(Scarica);
+	const FString RootDiProva = RTScenarioTestSupport::ApriRadiceDiProva(TEXT("RTLabTargets"), TEXT("Banda"));
+	ON_SCOPE_EXIT{ RTScenarioTestSupport::ChiudiRadiceDiProva(RootDiProva); };
+
+	// I tasti di prima restano nella riga: la banda li dice ancora, e quella dei bersagli e' un pezzo in piu'.
+	FRTAbilityLabFixtureSpec TreBersagli;
+	TreBersagli.TargetCount = 3;
+	FRTTestScenario Larga;
+	if (BuildAndWrite(*this, TreBersagli, Larga))
+	{
+		TestEqual(TEXT("premessa: sulla mappa di default ne stanno 3"), URTAbilityLabLibrary::PlacedTargetsOf(Larga), 3);
+		const FString Riga = URTAbilityLabLibrary::DescribeLabStep(IdScarica);
+		TestTrue(FString::Printf(TEXT("una scena a 3 bersagli lo dice (%s)"), *Riga), Riga.Contains(TEXT("«U» bersagli 3")));
+		TestFalse(TEXT("e se ne stanno 3, non dice altro"), Riga.Contains(TEXT("qui ne stanno")));
+		TestTrue(TEXT("i due tasti di prima restano nella riga"), Riga.Contains(TEXT("«,»")) && Riga.Contains(TEXT("«.»")));
+	}
+
+	// Una mappa che non regge i bersagli voluti: la linea non puo' allungarsi, se ne posa uno solo e la riga lo dice.
+	FRTAbilityLabFixtureSpec Stretta;
+	Stretta.MapRadius = 1;
+	Stretta.TargetCell = FRTCellId(1, 0);
+	Stretta.TargetCount = 3;
+	FRTTestScenario Corta;
+	if (BuildAndWrite(*this, Stretta, Corta))
+	{
+		TestEqual(TEXT("premessa: sulla mappa di raggio 1 ne sta uno"), URTAbilityLabLibrary::PlacedTargetsOf(Corta), 1);
+		const FString Riga = URTAbilityLabLibrary::DescribeLabStep(IdScarica);
+		TestTrue(FString::Printf(TEXT("una mappa stretta dice quanti ne stanno (%s)"), *Riga),
+			Riga.Contains(TEXT("(qui ne stanno 1)")));
+		TestTrue(TEXT("e quanti se ne chiedono"), Riga.Contains(TEXT("«U» bersagli 3")));
+	}
+
+	// Senza file la scena vale 1, e la riga non e' vuota: e' ancora una scena del banco.
+	IFileManager::Get().Delete(*URTAbilityLabLibrary::LabScenarioPath(IdScarica));
+	const FString SenzaFile = URTAbilityLabLibrary::DescribeLabStep(IdScarica);
+	TestTrue(FString::Printf(TEXT("senza file la riga dice 1 bersaglio (%s)"), *SenzaFile),
+		SenzaFile.Contains(TEXT("«U» bersagli 1")));
+	TestFalse(TEXT("e non dice quanti ne stanno"), SenzaFile.Contains(TEXT("qui ne stanno")));
+
+	// Fuori dal banco la riga resta vuota: il pezzo dei bersagli non la rende non vuota.
+	TestTrue(TEXT("uno scenario che non e' del banco non ha la riga"),
+		URTAbilityLabLibrary::DescribeLabStep(TEXT("Movement.Basic")).IsEmpty());
 	return true;
 }
 
