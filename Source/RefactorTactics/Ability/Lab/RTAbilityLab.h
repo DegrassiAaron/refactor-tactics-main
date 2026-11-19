@@ -164,6 +164,20 @@ struct FRTAbilityLabFixtureSpec
 	/** Il bersaglio della scena: `Auto` lo deduce dall'azione, gli altri valori lo forzano ([D-607] (2), `#4072`). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	ERTAbilityLabTarget Target = ERTAbilityLabTarget::Auto;
+
+	/**
+	 * Quanti bersagli la scena vuole, da 1 a `URTAbilityLabLibrary::MaxLabTargets()` (`#4136`): oltre il `TARGET` il banco posa
+	 * `TARGET2` e `TARGET3`, nelle celle che l'azione colpisce (`URTHexCombatLibrary::HexHitCells`). Un valore fuori scala si
+	 * porta fra 1 e il massimo.
+	 *
+	 * ⚠️ **E' una POSA dello strumento, non una regola di gioco**: il banco sceglie le celle dove stare, ma chi viene colpito
+	 * lo decide comunque il resolver. Un'azione che colpisce una cella sola (`Single`), uno scatto e una reazione restano a un
+	 * bersaglio; e se le celle o gli eroi finiscono, se ne posano quanti ce ne stanno. Il numero CHIESTO sta nel tag della scena
+	 * (`lab-targets-N`, `URTAbilityLabLibrary::RequestedTargetsOf`); quelli POSATI si contano dalle unita'
+	 * (`URTAbilityLabLibrary::PlacedTargetsOf`).
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
+	int32 TargetCount = 1;
 };
 
 /**
@@ -251,6 +265,10 @@ public:
 	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
 	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una. Una predittiva blocca la
 	 * cella di `ChooseTarget` e il `TARGET` ci entra (`#4088`); il suo bersaglio si forza solo a «cella», e il banco rifiuta gli altri.
+	 *
+	 * `Spec.TargetCount` chiede fino a `MaxLabTargets()` bersagli (`#4136`): gli altri sono `TARGET2` e `TARGET3`, nelle celle che
+	 * `URTHexCombatLibrary::HexHitCells` dice colpite dall'azione, e per una linea mirata a un'unita' il `TARGET` si sposta in
+	 * fuori finche' la linea ha le celle che servono. Il numero chiesto sta sempre nel tag `lab-targets-N`.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -340,9 +358,71 @@ public:
 
 	/**
 	 * La riga della banda che, in una scena del Lab, dice dove si e' nell'elenco e quali tasti premere
-	 * (`#3774`). Vuota per ogni altro Id.
+	 * (`#3774`), e in fondo quanti bersagli la scena chiede (`DescribeLabTargets`, `#4136`). Vuota per ogni altro Id.
+	 *
+	 * ⚠️ **Legge la scena dal file** (`ReadLabScene`), per sapere quanti bersagli chiede e quanti ne posa: senza file, o senza
+	 * radice del Lab, la scena vale 1/1. Compone ogni volta che la chiami, e costa: chi la chiama a ogni fotogramma la ricorda
+	 * per scena (`ARTGameMode::GetLabStepText`).
 	 */
 	static FString DescribeLabStep(const FString& ScenarioId);
+
+	/**
+	 * Il numero di bersagli che `U` propone dopo `Current` (`#4136`): 1 → 2 → 3 → 1. Un valore fuori scala (0, un negativo, uno
+	 * oltre `MaxLabTargets()`) riparte da 1.
+	 */
+	static int32 NextLabTargetCount(int32 Current);
+
+	/**
+	 * Il pezzo della banda che dice i bersagli: `«U» bersagli N`, e ` (qui ne stanno K)` se `Placed < Requested`: la scena ne
+	 * chiede N, e la mappa o l'azione ne reggono meno (`#4136`). I tasti fra virgolette basse, come nel resto della riga.
+	 */
+	static FString DescribeLabTargets(int32 Requested, int32 Placed);
+
+	/**
+	 * Dove sta il file di una scena del banco: `<LabScenariosRoot>/<ScenarioId>.json`, reso assoluto (`#4136`). Lo scrive
+	 * `WriteLabScenario` e lo rilegge `ReadLabScene`: una sede sola per il percorso.
+	 *
+	 * 🔴 **Stringa VUOTA se la radice del Lab e' vuota** (sotto automation senza override). Mai una radice vuota combinata con un
+	 * nome relativo: sarebbe un percorso dentro la cartella corrente, e chi lo legge o lo scrive sporcherebbe il progetto.
+	 */
+	static FString LabScenarioPath(const FString& ScenarioId);
+
+	/**
+	 * Rilegge dal disco la scena del banco `ScenarioId` (`#4136`). `false` per un Id che non e' del banco, senza radice del Lab,
+	 * senza file, o se il file non si interpreta; `OutScene` resta com'era.
+	 *
+	 * Controlla `FPaths::FileExists` prima del loader: un file assente non passa dal loader, che scriverebbe un errore nel log di
+	 * un test che ha solo chiesto «e' gia' stata scritta?».
+	 */
+	static bool ReadLabScene(const FString& ScenarioId, FRTTestScenario& OutScene);
+
+	/**
+	 * Cosa fa `U` in una scena del banco (`#4136`): la stessa azione, col numero di bersagli successivo (`NextLabTargetCount`) a
+	 * quello che la scena in corso chiede. Una scena senza file, o scritta prima del tag `lab-targets-N`, chiede 1.
+	 *
+	 * `false`, senza toccare le uscite, per un Id che non e' una scena del banco o la cui azione non e' canonica: e' cio' che tiene
+	 * inerte il tasto fuori dal banco, come `PlanLabStep` per `,` e `.`.
+	 */
+	static bool PlanLabTargets(const FString& CurrentScenarioId, FName& OutAbilityId, int32& OutNextCount);
+
+	/**
+	 * La scena del PASSO del banco (`,` e `.`), costruita e non ancora scritta (`#3774`, `#4136`): l'azione a `Step` posizioni da
+	 * quella della scena in corso (`PlanLabStep`), con i bersagli che la scena in corso chiede (`RequestedTargetsOf`, letta con
+	 * `ReadLabScene`; senza file 1) e non quelli di default. E' il carry-over che il GameMode non deve poter perdere in silenzio, e per
+	 * questo sta qui e non in `ARTGameMode::StepLabScenario`: la libreria si prova senza ricaricare il livello.
+	 *
+	 * `false` con `OutError` VUOTO fuori da una scena del banco (le altre uscite restano com'erano); `false` con `OutError`
+	 * valorizzato se la fixture non si costruisce. `OutPosition` e `OutCount` come in `PlanLabStep`.
+	 */
+	static bool BuildLabStepScene(const FString& CurrentScenarioId, int32 Step, FRTTestScenario& OutScene,
+		int32& OutPosition, int32& OutCount, FString& OutError);
+
+	/**
+	 * La scena del tasto `U`, costruita e non ancora scritta (`#4136`): la stessa azione della scena in corso, con il numero di
+	 * bersagli successivo (`PlanLabTargets`). Come `BuildLabStepScene`, sta qui perche' si provi senza ricaricare il livello, e ha lo
+	 * stesso contratto: `false` con `OutError` VUOTO fuori dal banco, valorizzato se la fixture non si costruisce.
+	 */
+	static bool BuildLabTargetsScene(const FString& CurrentScenarioId, FRTTestScenario& OutScene, FString& OutError);
 
 	/**
 	 * Vero se `ScenarioId` e' una scena del banco: `AbilityLab.<AbilityId>`, la forma che `BuildFixture` scrive (`#4071`).
@@ -352,11 +432,39 @@ public:
 	static bool IsLabScenarioId(const FString& ScenarioId);
 
 	/**
+	 * L'azione di una scena del banco: `Hero.Gadget.LinearDischarge` da `AbilityLab.Hero.Gadget.LinearDischarge`, o `NAME_None` per ogni altro
+	 * Id (`#4136`). La stessa lettura di `IsLabScenarioId`, una sede sola per il prefisso: la usa il log del GameMode, che dice
+	 * l'azione e non l'Id della scena.
+	 */
+	static FName LabAbilityIdOf(const FString& ScenarioId);
+
+	/**
 	 * L'id dell'unita' che lancia in ogni scena del banco: `BuildFixture` la posa con questo id, e la camera del banco
 	 * la cerca con lo stesso (`ARTGameMode::FindLabCaster`, `#4121`, D-618). Una sede sola, perche' due letterali
 	 * uguali in due file divergono al primo rename.
 	 */
 	static const TCHAR* CasterUnitId() { return TEXT("CASTER"); }
+
+	/**
+	 * Il massimo di bersagli che una scena del banco posa (`#4136`): `TARGET`, `TARGET2` e `TARGET3`. Una sede sola per il tetto,
+	 * che lo scrive `BuildFixture`, lo legge `RequestedTargetsOf` e lo mostra la banda del banco.
+	 */
+	static constexpr int32 MaxLabTargets() { return 3; }
+
+	/**
+	 * Quanti bersagli CHIEDE una scena del banco: il numero del tag `lab-targets-N` che `BuildFixture` scrive sempre (`#4136`).
+	 *
+	 * Un tag fuori scala si porta fra 1 e `MaxLabTargets()`; un tag che non e' un numero (`lab-targets-x`, o senza numero) vale 1,
+	 * come una scena scritta prima di questo tag, che non lo porta. Si legge dal tag e non dalla spec perche' la scena e' un
+	 * file: chi la rilegge non ha la spec che l'ha prodotta.
+	 */
+	static int32 RequestedTargetsOf(const FRTTestScenario& Scene);
+
+	/**
+	 * Quanti bersagli POSA una scena del banco: le unita' `TARGET`, `TARGET2` e `TARGET3` (`#4136`). Puo' valere meno di
+	 * `RequestedTargetsOf`: un'azione che colpisce una cella sola, la fine della mappa o del roster ne posano meno di quelli chiesti.
+	 */
+	static int32 PlacedTargetsOf(const FRTTestScenario& Scene);
 
 	/**
 	 * La velocita' del playback del banco, x0,5 ([D-607] (1), `#4071`): l'autore guarda una skill alla volta e da' il suo

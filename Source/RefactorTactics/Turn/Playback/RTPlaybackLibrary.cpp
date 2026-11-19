@@ -2,6 +2,9 @@
 
 #include "Turn/Playback/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
 #include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
+#include "Map/RTHexLibrary.h" // [D-621]: `HexDistance`, l'ordine dei colpi lungo la linea
+#include "Components/SplineComponent.h" // [D-621]: la scarica a catena e' un attore con una spline, di cui si scrivono i punti
+#include "Engine/World.h"               // [D-621]: `SpawnActor` del salto
 
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
@@ -1007,12 +1010,36 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 
 	for (FRTAttoInCostruzione& A : Atti)
 	{
-		// Ordine TOTALE (rango, poi indice): nessuna dipendenza dalla stabilita' dell'algoritmo.
-		A.Indici.StableSort([&Timeline](int32 X, int32 Y)
+		// ➕ [D-621] (#4136): i colpi di un atto a linea che chi guarda conosce per intero vanno dal piu' vicino al piu'
+		// lontano dall'origine. Il resolver li emette in ordine di `TargetId` (`Plan.Hits`), cioe' d'indice d'unita', e il
+		// roster si ordina per squadra e cella (`MatchRosterLess`): verso Est l'ordine coincide con la linea, verso Ovest e'
+		// rovesciato. La scarica a catena salterebbe avanti e indietro, e il numero comparirebbe su un nemico mentre l'arco
+		// arriva su un altro. ⛔ Solo il RITMO del playback: timeline, TurnLog ed esito non cambiano, e le celle dell'impronta restano
+		// come arrivano ([D-301]).
+		int32 Impronta = INDEX_NONE;
+		const bool bLungoLaLinea = IsLineActKnownTo(Timeline, A.Source, A.ActionId, ViewerTeamId, Impronta);
+		const FRTCellId Origine = bLungoLaLinea ? Timeline[Impronta].Origin : FRTCellId();
+
+		// Ordine TOTALE (rango, distanza per i colpi di un atto a linea, poi indice): nessuna dipendenza dalla
+		// stabilita' dell'algoritmo.
+		A.Indici.StableSort([&Timeline, bLungoLaLinea, &Origine](int32 X, int32 Y)
 		{
 			const int32 RX = RTRangoNellAtto(Timeline[X].Type);
 			const int32 RY = RTRangoNellAtto(Timeline[Y].Type);
-			return (RX != RY) ? (RX < RY) : (X < Y);
+			if (RX != RY)
+			{
+				return RX < RY;
+			}
+			if (bLungoLaLinea && Timeline[X].Type == ERTResolvedEventType::Attack)
+			{
+				const int32 DX = URTHexLibrary::HexDistance(Origine, Timeline[X].HitGeometry.Impact);
+				const int32 DY = URTHexLibrary::HexDistance(Origine, Timeline[Y].HitGeometry.Impact);
+				if (DX != DY)
+				{
+					return DX < DY;
+				}
+			}
+			return X < Y;
 		});
 		for (const int32 Indice : A.Indici)
 		{
@@ -1046,4 +1073,148 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		}
 	}
 	return Out;
+}
+
+bool URTPlaybackLibrary::IsLineActKnownTo(const TArray<FRTResolvedEvent>& Timeline, int32 SourceStableUnitId,
+	FName ActionId, int32 ViewerTeamId, int32& OutFootprintIndex)
+{
+	OutFootprintIndex = INDEX_NONE;
+	if (ActionId.IsNone())
+	{
+		return false; // senza identita' l'evento e' un atto proprio (#3281): non ha una linea da seguire
+	}
+	int32 Impronta = INDEX_NONE;
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.Phase != ERTMatchPhase::Blast || Ev.SourceStableUnitId != SourceStableUnitId || Ev.ActionId != ActionId)
+		{
+			continue;
+		}
+		if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			// ⚠️ Una seconda impronta chiude la domanda: gli eventi non portano l'intento, e i colpi delle due linee si
+			// mescolerebbero.
+			if (Impronta != INDEX_NONE || Ev.Shape != ERTAbilityShape::Line || IsFootprintHiddenFrom(Ev, ViewerTeamId))
+			{
+				return false;
+			}
+			Impronta = i;
+		}
+		else if (Ev.Type == ERTResolvedEventType::Attack
+			&& !(Ev.HitGeometry.bResolved
+				&& Ev.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId)
+				&& Ev.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId)))
+		{
+			return false; // ⛔ un colpito che chi guarda non conosce: l'ordine lungo la linea direbbe dove sta
+		}
+	}
+	OutFootprintIndex = Impronta;
+	return Impronta != INDEX_NONE;
+}
+
+FRTChainHop URTPlaybackLibrary::ChainHopFor(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, int32 ElementIndex, int32 ViewerTeamId)
+{
+	if (!Sequence.IsValidIndex(ElementIndex) || !Timeline.IsValidIndex(Sequence[ElementIndex].TimelineIndex))
+	{
+		return FRTChainHop();
+	}
+	const FRTResolvedEvent& Ev = Timeline[Sequence[ElementIndex].TimelineIndex];
+	int32 Impronta = INDEX_NONE;
+	if ((Ev.Type != ERTResolvedEventType::Attack && Ev.Type != ERTResolvedEventType::AttackFootprint)
+		|| !IsLineActKnownTo(Timeline, Ev.SourceStableUnitId, Ev.ActionId, ViewerTeamId, Impronta))
+	{
+		return FRTChainHop();
+	}
+
+	FRTChainHop Hop;
+	Hop.SourceStableUnitId = Ev.SourceStableUnitId;
+	Hop.ActionId = Ev.ActionId;
+	Hop.BaseActionId = Ev.BaseActionId;
+
+	if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+	{
+		// L'arco a vuoto: solo per un atto che non ha colpito nessuno. Con dei colpi, i salti li portano loro.
+		const bool bHaColpi = Timeline.ContainsByPredicate([&Ev](const FRTResolvedEvent& C)
+		{
+			return C.Type == ERTResolvedEventType::Attack && C.Phase == ERTMatchPhase::Blast
+				&& C.SourceStableUnitId == Ev.SourceStableUnitId && C.ActionId == Ev.ActionId;
+		});
+		if (bHaColpi)
+		{
+			return FRTChainHop();
+		}
+		Hop.ToCell = Ev.AimCell;
+		Hop.bValid = true;
+		return Hop;
+	}
+
+	// 🔑 Il precedente nella SEQUENZA, non nella timeline: e' la sequenza a mettere i colpi in ordine di linea. Il
+	// prefisso congelato ne fa parte, quindi un atto interrotto a meta' riprende dal colpito gia' mostrato.
+	for (int32 K = ElementIndex - 1; K >= 0; --K)
+	{
+		const FRTBlastSequenceElement& P = Sequence[K];
+		if (P.SourceStableUnitId == Ev.SourceStableUnitId && P.ActionId == Ev.ActionId
+			&& Timeline.IsValidIndex(P.TimelineIndex)
+			&& Timeline[P.TimelineIndex].Type == ERTResolvedEventType::Attack)
+		{
+			Hop.FromTargetStableUnitId = Timeline[P.TimelineIndex].TargetStableUnitId;
+			break;
+		}
+	}
+	Hop.ToTargetStableUnitId = Ev.TargetStableUnitId;
+	Hop.ToCell = Ev.HitGeometry.Impact;
+	Hop.bValid = true;
+	return Hop;
+}
+
+FVector URTPlaybackLibrary::ChainArcMidpoint(const FVector& Start, const FVector& End)
+{
+	// ⚠️ Nessuna normalizzazione: con `Start == End` la lunghezza e' zero e l'alzata si annulla da sola, senza un NaN.
+	const double Lunghezza = FVector::Dist(Start, End);
+	return (Start + End) * 0.5 + FVector::UpVector * (Lunghezza * ChainArcLiftFraction);
+}
+
+void URTPlaybackLibrary::SetChainArcPoints(USplineComponent& Spline, const FVector& Start, const FVector& End)
+{
+	// 🔑 `SetSplinePoints` azzera e riscrive: la spline di un salto riscritto resta di tre punti, non ne accoda altri tre.
+	const TArray<FVector> Punti = { Start, ChainArcMidpoint(Start, End), End };
+	Spline.SetSplinePoints(Punti, ESplineCoordinateSpace::World, /*bUpdateSpline=*/ true);
+}
+
+AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
+	float LifeSeconds)
+{
+	FActorSpawnParameters Params;
+	// ⚠️ `AlwaysSpawn`: un salto che nasce dentro la geometria di un'unita' resta un effetto, non una collisione.
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* const Arco = World.SpawnActor<AActor>(&ArcClass, FTransform(Start), Params);
+	if (!Arco)
+	{
+		return nullptr;
+	}
+	// 🔴 **Un arco non si replica, qualunque cosa dica la classe** (#4136, [D-621]). La classe e' un Blueprint di terzi, fuori
+	// da git, e se il suo CDO porta `bReplicates` su un listen server l'arco arriverebbe ai client: un arco verso un colpito
+	// che chi guarda non conosce, che e' proprio quello che `ChainHopFor` esiste per non disegnare. L'arco nasce dalla
+	// conoscenza di chi lo spawna, e resta li'. `SetReplicates(false)` ferma la replica anche di un attore gia' inizializzato.
+	Arco->SetReplicates(false);
+	Arco->SetActorEnableCollision(false);
+
+	USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
+	if (!Spline)
+	{
+		// ⛔ Senza spline il Niagara dell'attore non ha un percorso da seguire: fermo e invisibile per `LifeSeconds` a
+		// ogni salto, e nessuno se ne accorgerebbe. Si distrugge subito. Verbose, non Warning: l'asset sta fuori da git.
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s non ha una USplineComponent, nessun salto"), *ArcClass.GetPathName());
+		Arco->Destroy();
+		return nullptr;
+	}
+	// 🔑 I punti si scrivono DOPO la nascita: il data interface `Spline` rilegge al cambio di versione, quindi il primo
+	// fotogramma segue gia' i tre punti e non quelli del template.
+	SetChainArcPoints(*Spline, Start, End);
+	// ⛔ `SetLifeSpan(0)` non da' una vita nulla: toglie il timer, e l'attore resta nel mondo per sempre. La funzione e' pubblica,
+	// quindi un valore non positivo (o NaN, per cui `> 0` e' falso) torna al default della riga, `FRTChainFxBinding::LifeSeconds`.
+	Arco->SetLifeSpan(LifeSeconds > 0.f ? LifeSeconds : FRTChainFxBinding().LifeSeconds);
+	return Arco;
 }

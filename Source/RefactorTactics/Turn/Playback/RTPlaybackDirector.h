@@ -90,6 +90,7 @@ public:
 
 	// --- Solo test: le letture che i ganci `*ForTest` del TurnManager inoltrano ----------------------------------
 	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
+	const TArray<FString>& ChainHopTraceForTest() const { return ChainHopTrace; }
 	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
 	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
 	float PlaybackSkillCalloutClockForTest() const { return SkillCalloutClock; }
@@ -156,6 +157,17 @@ private:
 
 	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. `AttackOrdinal` serve solo alla traccia. */
 	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
+
+	/**
+	 * ➕ [D-621] (#4136): il salto della scarica a catena che porta l'elemento `Elemento` della sequenza — al lancio di un
+	 * colpo, o all'impronta di un atto che non ha colpito nessuno. Parte solo per un'azione con una riga in
+	 * `DeclaredChainFxRows` e quando chi guarda conosce tutti gli estremi (`URTPlaybackLibrary::ChainHopFor`).
+	 * Lancia un attore per salto (`URTPlaybackLibrary::SpawnChainArcActor`): la classe e' quella della riga, e il suo
+	 * Niagara segue la spline su cui il playback scrive i tre punti.
+	 * ⛔ Presentazione e basta: una classe assente o senza spline, un mondo senza mappa o un server dedicato non lanciano
+	 * niente, e il playback prosegue uguale.
+	 */
+	void SpawnChainArc(int32 Elemento);
 
 	/**
 	 * L'ARRIVO di un colpo (`#2454`): la riga `Colpo:`, `Hit`, numero e `OnAttackResolved`.
@@ -532,6 +544,12 @@ private:
 	int32 PlaybackViewerTeamId = 0;
 	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
 	TArray<FString> AttackBeatTrace;
+	/**
+	 * ➕ [D-621] (#4136): traccia dei salti della scarica per i test (`bRecordAttackBeatsForTest`): `<da>><a>` in
+	 * `StableUnitId`, `0` = la sorgente da una parte o l'arco a vuoto dall'altra. Si scrive PRIMA di caricare l'asset:
+	 * registra la decisione, che un clone senza `Content/` deve poter misurare.
+	 */
+	TArray<FString> ChainHopTrace;
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.

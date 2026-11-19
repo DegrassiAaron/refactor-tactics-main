@@ -9,6 +9,10 @@
 #include "Turn/Resolution/RTResolvedEvent.h"
 #include "RTPlaybackLibrary.generated.h"
 
+class AActor;
+class UWorld;
+class USplineComponent; // [D-621] (#4136): la scarica a catena scrive i suoi tre punti su una spline
+
 /**
  * Il confine su cui un predicato di pausa **una tantum** deve fermare il playback (`#2855`).
  *
@@ -143,6 +147,27 @@ struct FRTBlastSequenceElement
 	{
 		return TimelineIndex == Other.TimelineIndex;
 	}
+};
+
+/**
+ * ➕ [D-621] (#4136): un salto della scarica a catena, in termini di gioco — chi lancia, da quale colpito parte, su quale
+ * arriva. Le posizioni nel mondo le calcola chi lancia il sistema, dalle unita' e dalla mappa.
+ *
+ * ⚠️ Come `FRTBlastSequenceElement`, **non e' un `USTRUCT`**: vive fra `ChainHopFor` e il playback, non si serializza.
+ */
+struct FRTChainHop
+{
+	bool bValid = false;
+	/** Chi lancia: il primo salto parte dalla sua sfera. */
+	int32 SourceStableUnitId = 0;
+	/** Il colpito da cui parte il salto; `0` = dalla sorgente. */
+	int32 FromTargetStableUnitId = 0;
+	/** Il colpito su cui arriva; `0` = l'arco a vuoto, che finisce su `ToCell`. */
+	int32 ToTargetStableUnitId = 0;
+	/** La cella d'arrivo: l'impatto del colpo, o l'`AimCell` dell'arco a vuoto. */
+	FRTCellId ToCell;
+	FName ActionId;
+	FName BaseActionId;
 };
 
 /**
@@ -455,7 +480,9 @@ public:
 	 * ordinano per l'indice in timeline della loro ATTIVAZIONE — visibile o no a chi guarda — se ne hanno una,
 	 * altrimenti per prima apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle
 	 * attivazioni — non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione,
-	 * impronte, muri, colpi, ciascuno nell'ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
+	 * impronte, muri, colpi, ciascuno nell'ordine di timeline — salvo i colpi di un atto a linea che chi guarda conosce per
+	 * intero (`IsLineActKnownTo`, [D-621]), che vanno dal piu' vicino al piu' lontano dall'origine dell'impronta, a pari
+	 * distanza in ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
 	 * aggregato, #3281) e' un atto proprio; un gruppo senza attivazione in timeline (impatti di carica,
 	 * contrattacchi, muri anonimi) e' un atto proprio alla sua prima apparizione. Un evento con sorgente `0` e
 	 * azione nominata (non attribuibile, [D-063]) forma il gruppo `(0, azione)`, un atto proprio: non sappiamo a
@@ -476,6 +503,65 @@ public:
 	 */
 	static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
 		const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);
+
+	/**
+	 * ➕ [D-621] (#4136): l'atto `(SourceStableUnitId, ActionId)` del Blast e' un attacco A LINEA che chi guarda conosce
+	 * per intero? Vero se l'atto ha in timeline **una sola** impronta, di forma `Line` e non nascosta a chi guarda
+	 * (`IsFootprintHiddenFrom`), e ogni suo `Attack` ha la geometria risolta, con origine e impatto noti a chi guarda.
+	 * `OutFootprintIndex` e' l'indice di quell'impronta, `INDEX_NONE` se la risposta e' falsa.
+	 *
+	 * ⛔ **Fail-closed**: ordinare i colpi lungo la linea quando un colpito o l'origine sono ignoti direbbe col ritmo dove
+	 * stanno, quindi la risposta e' falsa e l'ordine resta quello di timeline. ⚠️ Con due impronte — la stessa azione due
+	 * volte nello stesso Blast — e' falsa: gli eventi non portano l'intento, e non si sa quale colpo stia su quale linea.
+	 */
+	static bool IsLineActKnownTo(const TArray<FRTResolvedEvent>& Timeline, int32 SourceStableUnitId, FName ActionId,
+		int32 ViewerTeamId, int32& OutFootprintIndex);
+
+	/**
+	 * ➕ [D-621] (#4136): il salto della scarica a catena che porta l'elemento `ElementIndex` della sequenza.
+	 * - Un `Attack` di un atto a linea noto (`IsLineActKnownTo`): parte dal colpito dell'`Attack` che lo precede nello
+	 *   stesso atto, o dalla sorgente se e' il primo, e arriva sul suo colpito. Con la sequenza in ordine di linea
+	 *   (`BuildBlastSequence`) il precedente e' il colpito piu' vicino all'origine.
+	 * - L'impronta di un atto a linea noto e SENZA colpi: dalla sorgente all'`AimCell`, l'arco a vuoto.
+	 * - Ogni altro elemento: nessun salto (`bValid` falso).
+	 * Non legge la tabella delle scariche: se un'azione ne abbia una lo decide chi lancia (`ChainFxFor`).
+	 */
+	static FRTChainHop ChainHopFor(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence, int32 ElementIndex, int32 ViewerTeamId);
+
+	/**
+	 * ➕ [D-621] (#4136): di quanto il centro di un salto della scarica si alza sopra il tratto, in frazione della sua
+	 * lunghezza. Proporzionale e non fisso: un salto corto e uno lungo hanno la stessa curvatura.
+	 */
+	static constexpr float ChainArcLiftFraction = 0.2f;
+
+	/**
+	 * ➕ [D-621] (#4136): il punto di mezzo della spline di un salto — il centro del tratto `Start`–`End`, alzato in Z di
+	 * `ChainArcLiftFraction` × la sua lunghezza.
+	 * 🔑 Una spline a due punti e' una retta: e' il terzo punto, sopra, a farne un arco.
+	 * ⚠️ Con `Start == End` la lunghezza e' zero e il risultato e' `Start`: nessuna normalizzazione, quindi nessun NaN.
+	 */
+	static FVector ChainArcMidpoint(const FVector& Start, const FVector& End);
+
+	/**
+	 * ➕ [D-621] (#4136): scrive sulla spline i tre punti di un salto, in spazio mondo — `Start`, `ChainArcMidpoint`, `End`.
+	 * 🔑 SOSTITUISCE i punti che c'erano (`SetSplinePoints`), non li accoda: il data interface `Spline` del Niagara li
+	 * rilegge al cambio di versione, e una spline riscritta resta di tre punti.
+	 */
+	static void SetChainArcPoints(USplineComponent& Spline, const FVector& Start, const FVector& End);
+
+	/**
+	 * ➕ [D-621] (#4136): crea l'attore di un salto della scarica in `Start` — `AlwaysSpawn`, collisione spenta — scrive
+	 * i punti sulla sua `USplineComponent` e gli da' `LifeSeconds` di vita. Restituisce l'attore.
+	 * ⛔ Un attore senza spline non serve a niente e non resta nel mondo: si distrugge, si scrive a `Verbose` — un
+	 * Blueprint copiato male non e' un difetto di chi gioca — e il risultato e' `nullptr`.
+	 * 🔴 L'attore **non si replica**, qualunque cosa dica la sua classe (`SetReplicates(false)`): e' un effetto di chi
+	 * guarda, e su un listen server un arco replicato ai client direbbe dove sta un colpito che non conoscono.
+	 * ⚠️ `LifeSeconds` non positivo (o NaN) vale il default della riga, `FRTChainFxBinding::LifeSeconds`: `SetLifeSpan(0)`
+	 * toglie il timer e l'attore resterebbe nel mondo per sempre.
+	 */
+	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
+		float LifeSeconds);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'

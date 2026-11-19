@@ -1138,6 +1138,23 @@ USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
 	return nullptr;
 }
 
+FVector ARTUnit::ChainFxAnchor(FName Socket) const
+{
+	if (const USkeletalMeshComponent* const Skeletal = FindHeroSkeletal())
+	{
+		// `DoesSocketExist` risponde anche per le ossa: un nome d'osso va bene quanto un socket.
+		if (!Socket.IsNone() && Skeletal->DoesSocketExist(Socket))
+		{
+			return Skeletal->GetSocketLocation(Socket);
+		}
+		if (Skeletal->GetSkeletalMeshAsset() != nullptr)
+		{
+			return Skeletal->Bounds.Origin;
+		}
+	}
+	return GetActorLocation();
+}
+
 float ARTUnit::GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn)
 {
 	const int32 Age = CurrentTurn - ContactTurn;

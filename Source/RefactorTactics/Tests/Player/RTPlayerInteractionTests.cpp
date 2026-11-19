@@ -1644,6 +1644,41 @@ bool FRTPlayerInputLabStepKeysTest::RunTest(const FString&)
 	return bOk;
 }
 
+/**
+ * `U` porta i bersagli del banco da 1 a 3 e ricomincia (`#4136`): «U» come «unita' colpite».
+ *
+ * Che non collida con niente lo dice `HotkeysDoNotCollide`, che interroga lo stesso contesto; questo test dice che ci E', e su quale
+ * azione. «Zero collisioni» e' vero anche di zero tasti nuovi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputLabTargetsKeyTest,
+	"RefactorTactics.PlayerInput.LabTargetsKeyIsU",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputLabTargetsKeyTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	const UInputMappingContext* Imc = bOk ? PC->BuildAndGetMappingContextForTest() : nullptr;
+	bOk = bOk && TestNotNull(TEXT("mapping context costruito"), Imc);
+	if (bOk)
+	{
+		FString SuU;
+		for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+		{
+			if (M.Action && M.Key == EKeys::U) { SuU = M.Action->GetName(); }
+		}
+		TestEqual(TEXT("`U` cambia il numero di bersagli del banco"), SuU, FString(TEXT("IA_LabTargets")));
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
 // --- #3749 · il modificatore della camera e' `Ctrl`, su entrambi i lati ------------------------------
 
 /**

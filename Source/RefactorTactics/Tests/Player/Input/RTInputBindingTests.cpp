@@ -70,7 +70,7 @@ namespace
 			TEXT("IA_LayerUp:Started"), TEXT("IA_LayerDown:Started"),
 			TEXT("IA_CyclePlaybackSpeed:Started"), TEXT("IA_PausePrepWindow:Started"), TEXT("IA_DeclareSneak:Started"),
 			TEXT("IA_TogglePlaybackPause:Started"), TEXT("IA_StepPlaybackMicroStep:Started"),
-			TEXT("IA_LabStepPrevious:Started"), TEXT("IA_LabStepNext:Started"),
+			TEXT("IA_LabStepPrevious:Started"), TEXT("IA_LabStepNext:Started"), TEXT("IA_LabTargets:Started"),
 			TEXT("IA_Pause:Started"),
 		};
 		for (int32 I = 0; I < RTInputKeys::AbilityHotkeys().Num(); ++I)

@@ -37,12 +37,15 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// default di un'azione con un id, il disegno dall'override) e solo se chi guarda conosceva entrambi gli estremi.
 	// #3578: `SetPlaybackCues` — il `Marker` all'arrivo di ogni colpo e, sul primo colpo dell'atto, la cue d'impronta
 	// (`AreaPulse`, `ConeSweep`): `AttackFootprint` non ha una cue propria, la consegna il colpo che la consuma.
+	// ➕ [D-621] (#4136): `SpawnChainArc` — il salto della scarica a catena, al lancio, per le azioni che ne hanno una
+	// (`DeclaredChainFxRows`). Che sia chiamata lo dice `Playback.ChainArcHopsFollowTheLine`.
 	// ⚠️ Il gate conta i nomi, non le chiamate: che le cue siano chiamate lo dicono
 	// `Playback.TracerIsInFlightBetweenLaunchAndArrival` e `Playback.ImpactCueComesAtTheArrival`.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")),
 		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")),
-		  FName(TEXT("SetPlaybackTracers")), FName(TEXT("SetPlaybackCues")) }));
+		  FName(TEXT("SetPlaybackTracers")), FName(TEXT("SetPlaybackCues")),
+		  FName(TEXT("SpawnChainArc")) }));
 
 	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2505`. Era `NoPresentation` dal 2026-08-31.
 	//
@@ -141,8 +144,9 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⛔ `AddPlaybackFootprint` riceve `HitCells` COSI' COME ARRIVANO: nessun ricalcolo di `HexHitCells`
 	// nella presentazione, che e' cio' che [D-301] punto (1) esclude a monte.
+	// ➕ [D-621] (#4136): `SpawnChainArc` — l'arco a vuoto di una scarica a catena che non ha colpito nessuno.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AttackFootprint,
-		{ FName(TEXT("AddPlaybackFootprint")) }));
+		{ FName(TEXT("AddPlaybackFootprint")), FName(TEXT("SpawnChainArc")) }));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
@@ -565,4 +569,44 @@ FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileForIn(const TMap<FNa
 FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape)
 {
 	return FxProfileForIn(DeclaredFxOverrides(), ActionId, BaseActionId, Shape);
+}
+
+const TArray<TPair<FName, FRTChainFxBinding>>& URTPresentationBindingLibrary::DeclaredChainFxRows()
+{
+	// [D-621], decisa dall'autore il 2026-11-16: la scarica rimbalza a catena lungo la linea, sopra lo zigzag del profilo.
+	// L'asset e' la copia, nel progetto, del Blueprint del pack su spline (guida `docs/technical/runbooks/guida-vfx-skill.md`,
+	// che sta sul ramo `docs/guida-vfx-skill` e non ancora su `main`):
+	// l'autore ha scelto «una spline per salto e scegli tu il socket», quindi un attore per salto con la sua spline.
+	// Il socket e' `canister_main`, la sfera sulla spalla: e' quello che anima `LMB_Fire_B_Slow_V1`, la clip dello sparo.
+	// ⚠️ L'asset vive sotto `Content/`, che git ignora salvo eccezioni: su un clone che non lo ha il salto non si lancia.
+	static const TArray<TPair<FName, FRTChainFxBinding>> Righe = []()
+	{
+		TArray<TPair<FName, FRTChainFxBinding>> R;
+		FRTChainFxBinding Scarica;
+		Scarica.ArcClass = FSoftClassPath(TEXT("/Game/RT/Characters/Gadget/FX/BP_Gadget_LinearDischarge_Arc.BP_Gadget_LinearDischarge_Arc_C"));
+		Scarica.SourceSocket = FName(TEXT("canister_main"));
+		// `LifeSeconds` resta al default di `FRTChainFxBinding`.
+		R.Emplace(FName(TEXT("Hero.Gadget.LinearDischarge")), Scarica);
+		return R;
+	}();
+	return Righe;
+}
+
+const FRTChainFxBinding* URTPresentationBindingLibrary::ChainFxFor(FName ActionId, FName BaseActionId)
+{
+	for (const FName Id : { ActionId, BaseActionId })
+	{
+		if (Id.IsNone())
+		{
+			continue;
+		}
+		for (const TPair<FName, FRTChainFxBinding>& Riga : DeclaredChainFxRows())
+		{
+			if (Riga.Key == Id)
+			{
+				return &Riga.Value;
+			}
+		}
+	}
+	return nullptr;
 }

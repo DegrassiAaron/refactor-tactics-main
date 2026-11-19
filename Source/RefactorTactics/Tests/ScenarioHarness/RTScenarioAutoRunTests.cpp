@@ -434,4 +434,35 @@ bool FRTAutoRunBannerShowsTheLabStepTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `U` fuori dal banco e' inerte: niente ricarica e niente riga d'errore (`#4136`, Review Focus 5).
+ *
+ * `false` con `OutError` VUOTO e' il contratto di `StepLabScenario`, e `CycleLabTargets` lo ripete: e' cio' che il controller
+ * legge per non scrivere un `Warning` quando il tasto non c'entra. La sentinella nell'errore prova che e' la funzione a svuotarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunLabTargetsAreInertOutsideTheLabTest,
+	"RefactorTactics.Scenario.LabTargetsAreInertOutsideTheLab",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunLabTargetsAreInertOutsideTheLabTest::RunTest(const FString&)
+{
+	FScopedScenarioCVar Guard;
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+	GameMode->ScenarioToRun.Reset();
+
+	// Uno scenario del corpus, e nessuna scena: due modi di non essere nel banco.
+	for (const TCHAR* Id : { TEXT("Movement.Basic"), TEXT("") })
+	{
+		Guard.Set(Id);
+		FString Errore = TEXT("sentinella");
+		TestFalse(FString::Printf(TEXT("'%s': `U` non fa niente"), Id), GameMode->CycleLabTargets(Errore));
+		TestTrue(FString::Printf(TEXT("'%s': e non scrive un errore (%s)"), Id, *Errore), Errore.IsEmpty());
+	}
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

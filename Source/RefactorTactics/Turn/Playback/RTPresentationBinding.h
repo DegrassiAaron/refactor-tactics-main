@@ -55,7 +55,8 @@ enum class ERTPresentationKind : uint8
  *
  * 🔑 **Dichiarativo si oppone a BRANCHING, non a "compilato".** Questa tabella e' C++ e non un Data Asset
  * perche' in v0.1 le cue le tocca chi scrive codice: `D-124` tiene *«Niagara dedicato a ogni abilita'»* fuori
- * dal perimetro e `Content/` non contiene un solo asset Niagara. Il giorno in cui un artista dovra'
+ * dal perimetro. Gli asset VFX che esistono (Niagara compresi) stanno sotto `Content/`, che git ignora, e il C++ li
+ * conosce solo per classe (`FRTChainFxBinding`). Il giorno in cui un artista dovra'
  * riassegnarle senza ricompilare, cambia il **supporto** — non il gate, che interroga una funzione pura.
  *
  * ⛔ **Blueprint ESEGUE la presentazione; non possiede il branching delle regole del simulatore.** I nomi qui
@@ -137,6 +138,27 @@ struct FRTPresentationBinding
 		B.PendingOwner = InPendingOwner;
 		return B;
 	}
+};
+
+/**
+ * ➕ [D-621] (#4136): la scarica a catena di un'azione — la classe dell'attore che la disegna, il socket da cui parte il
+ * primo salto e quanto vive ogni salto.
+ *
+ * 🔑 **Il contratto con l'asset e' un attore con una `USplineComponent`**, che il suo Niagara percorre: il playback lo
+ * crea in `Start` e scrive sulla spline tre punti in spazio mondo — partenza, punto di mezzo alzato, arrivo
+ * (`URTPlaybackLibrary::SetChainArcPoints`). Il data interface `Spline` li rilegge al cambio di versione
+ * (`PerInstanceTick`, Engine 5.8), quindi l'effetto segue i punti scritti DOPO la nascita. Un attore senza spline non
+ * serve: `SpawnChainArcActor` lo distrugge invece di lasciarlo fermo nel mondo.
+ * ⚠️ Non e' un `USTRUCT`: e' una riga di dati dichiarativi accanto al profilo FX (D-278), non si serializza.
+ */
+struct FRTChainFxBinding
+{
+	/** La classe dell'attore, uno per salto (un Blueprint). Si carica al lancio: l'asset sta sotto `Content/`, ignorato da git. */
+	FSoftClassPath ArcClass;
+	/** Il socket della skeletal di chi lancia da cui parte il primo salto; vuoto o assente = il centro della mesh. */
+	FName SourceSocket;
+	/** Quanto vive l'attore, in secondi: dopo, il mondo lo distrugge da solo (`SetLifeSpan`). */
+	float LifeSeconds = 1.5f;
 };
 
 /**
@@ -292,4 +314,13 @@ public:
 
 	/** `FxProfileForIn` sulla tabella vera. */
 	static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
+
+	/**
+	 * ➕ [D-621] (#4136): le azioni che hanno una scarica a catena, in ordine. ⛔ Nessun default per forma: un'azione
+	 * senza riga non lancia niente, e lo zigzag del profilo resta il solo disegno del colpo.
+	 */
+	static const TArray<TPair<FName, FRTChainFxBinding>>& DeclaredChainFxRows();
+
+	/** La scarica di `ActionId`, altrimenti di `BaseActionId`, altrimenti `nullptr` (lo stesso ripiego di `FxProfileForIn`). */
+	static const FRTChainFxBinding* ChainFxFor(FName ActionId, FName BaseActionId);
 };

@@ -1207,8 +1207,8 @@ capabilities:
       - "🔴 implementation=partial per DUE assenze misurate nell'enum stesso: #2828 (nessun
          valore per la struttura) e #2505 (`HazardDamage` arriva e nessuna fase lo riproduce).
          L'enum e' il vocabolario della presentazione: cio' che non ha un valore non ha un momento."
-      - "`RTPresentationBinding.h:51` dichiara che `Content/` non contiene UN SOLO asset Niagara
-         e che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
+      - "`RTPresentationBinding.h:51` dichiarava (misura della passata del 2026-09-10, gia' dichiarata storica da #3578, corretta
+         da #4136) che `Content/` non contenesse UN SOLO asset Niagara; resta che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
 
   - id: RT-CAP-PLAYBACK
     name: Resolution Playback (pacing, pause, step, speed)
@@ -1731,7 +1731,7 @@ capabilities:
          repository e `TSoftObjectPtr` e' la conseguenza dichiarata."
 
   - id: RT-CAP-VFX
-    name: VFX (line batcher in v0.1; Niagara fuori, D-124)
+    name: VFX (line batcher in v0.1; attore con spline per la scarica di LinearDischarge, D-621)
     area: presentation
     status: { implementation: partial, validation: partial, presentation: partial }   # presentation: partial dal 2026-10-08, seduta U71 — PIE-V01-TRACER e PIE-FX-ABILITA verdi; Niagara resta fuori (D-124)
     owner:
@@ -1739,12 +1739,12 @@ capabilities:
       spec: null
       adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-124 (fuori perimetro v0.1), D-278
       capability_view: CR-PRESENT
-    implementation: { files: [Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp] }
-    issues: { open: [288, 2453, 2454, 3578], closed: [] }
+    implementation: { files: [Source/RefactorTactics/Turn/Playback/RTPlaybackTracer.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.h, Source/RefactorTactics/Turn/Playback/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/Playback/RTPlaybackLibrary.cpp, Source/RefactorTactics/Turn/Playback/RTPlaybackDirector.cpp, Source/RefactorTactics/Unit/RTUnit.cpp, Source/RefactorTactics/Map/Actor/RTHexMapActor.cpp] }
+    issues: { open: [288, 2453, 2454, 3578, 4136], closed: [] }
     consumers: []
     dependencies: [RT-CAP-RESOLVED-TIMELINE]
     tests: { automation: ["RefactorTactics.Fx.*", "RefactorTactics.Playback.*", "RefactorTactics.Privacy.*", "RefactorTactics.HexMapActor.*", "RefactorTactics.Preview.*", "RefactorTactics.Presentation.*", "RefactorTactics.Determinism.*"], scenarios: ["Visual.Ability.FxProfile"], mutation: [] }
-    verification: { pie: [PIE-V01-TRACER, PIE-FX-ABILITA], packaged: [] }
+    verification: { pie: [PIE-V01-TRACER, PIE-FX-ABILITA, PIE-FX-CHAIN], packaged: [] }
     risks:
       - "OWNER GAP: nessuna epic possiede i VFX. #288 (CP E21.2) e #2453 (Combat Feedback) li
          sfiorano dal lato animazione e cue."
@@ -1761,6 +1761,7 @@ capabilities:
          il CONTENUTO e il legame dichiarativo, non l'attacco: chi apre questa capability non deve
          progettare un canale, deve riempirne uno che c'e'."
       - "#3578: il profilo FX per abilita' (attivazione, colpo, impronta) e' la prima implementazione, col line batcher (D-467); Niagara resta fuori (D-124). La misura di Niagara qui sopra e' storica."
+      - "#4136, [D-621]: la scarica a catena di `Hero.Gadget.LinearDischarge` e' un attore con spline per salto, sopra lo zigzag (`FRTPlaybackDirector::SpawnChainArc`, tabella `DeclaredChainFxRows`: la classe `BP_Gadget_LinearDischarge_Arc` e il socket `canister_main`). Il C++ non dipende dal modulo Niagara: scrive tre punti nella spline dell'attore, che e' la copia di un Blueprint del pack Free Spline VFX (`docs/technical/asset-licenze.md`). Per le altre azioni Niagara resta fuori (D-124). La classe sta sotto `Content/`, che git ignora: un clone senza la classe non lancia niente, e lo scrive solo nel log a `Verbose`. Il banco Ability Lab posa da 1 a 3 bersagli col tasto `U`, per guardare la scarica su 1, 2 e 3 colpiti (`PIE-FX-CHAIN`, `PIE-LAB-BERSAGLI`)."
 
   - id: RT-CAP-AUDIO
     name: Audio Feedback
