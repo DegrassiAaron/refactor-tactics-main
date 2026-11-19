@@ -1,15 +1,15 @@
 {
   "scenarioId": "Spec.Movement.DashDiscardsPlannedMove",
   "tags": ["spec", "movement", "dash", "planning", "riktor"],
-  "version": 1,
+  "version": 2,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di cosa succede quando un piano dichiara SCATTO e WAYPOINT nello stesso turno (#924). La regola sta in `ResolveDash` (RTTurnManager.cpp:2708-2711), che scarta il percorso pianificato e porta `PlannedCell` sulla cella d'arrivo dello scatto: chi scatta non si muove anche nella fase Move. Era scritta nel codice e in nessun test — questo file la rende osservabile.",
+  "_nota": "SPECIFICA ESEGUIBILE di cosa succede quando un piano dichiara SCATTO e WAYPOINT nello stesso turno (#924). ➕ Da E38 CP 38.16 (#4117) il soggetto e' cambiato e il nome e' storico: lo scatto NON scarta piu' il Move ([D-584] (1), «solo il budget conta»). Il Move parte dalla cella d'arrivo dello scatto ([D-628] (4)), i waypoint si compongono da li', e nessuna voce `Move/SupersededByDash` si scrive. ⏱️ *Fino a CP 38.16 `ResolveDash` scartava il percorso e portava `PlannedCell` sulla cella d'arrivo: l'unita' finiva sulla cella dello scatto.* Il nome resta perche' documenti storici lo citano per percorso.",
 
   "_nota_perche_esiste": "Lo stato combinato non era coperto da NESSUNO scenario: su sei intent con `dash` in tutto il corpus, nessuno dichiarava anche `move`. Il comportamento era quindi dedotto dalla lettura del resolver, e #924 nasce proprio dalla correzione di una deduzione sbagliata sullo stesso codice. Un test che lo esegue vale piu' di una riga di prosa che lo afferma.",
 
-  "_nota_geometria": "B1 scatta da (0,0,0) a (2,0,0) — linea retta, portata 3 da `Action.Charge`, nessun nemico sulla traiettoria, quindi `LinearCharge` arriva sulla cella richiesta. I waypoint puntano ALTROVE, verso (0,2,0): due destinazioni che non possono essere entrambe vere. E' la loro incompatibilita' a rendere l'esito leggibile — se l'unita' finisse a (0,2,0) il movimento avrebbe vinto, se finisse a (2,0,0) ha vinto lo scatto.",
+  "_nota_geometria": "B1 scatta da (0,0,0) a (2,0,0) — linea retta, portata 3 da `Action.Charge`, nessun nemico sulla traiettoria, quindi `LinearCharge` arriva sulla cella richiesta. Da li' il Move passa per (0,1,0) e arriva a (0,2,0): tre passi. ⏱️ *Prima di CP 38.16 le due destinazioni erano incompatibili, e l'esito diceva quale vinceva.* Ora sono una catena: se l'unita' finisce a (0,2,0) lo scatto e il Move sono avvenuti entrambi, se finisse a (2,0,0) il Move sarebbe stato scartato come prima.",
 
   "_nota_avversario": "F1 sta a (-3,0,0), fermo e lontano: serve solo a dare un secondo team alla partita. Non e' sulla traiettoria dello scatto (che va nel verso opposto) e non interferisce con i waypoint.",
 
@@ -22,17 +22,18 @@
 
   "turns": [
     {
-      "_turno": "T1 — B1 dichiara ENTRAMBI: uno scatto verso (2,0,0) e un movimento a waypoint verso (0,2,0). Il harness li scrive in due blocchi indipendenti (RTScenarioSession.cpp:715-716 per lo scatto, :865 per i waypoint), esattamente come il controller li lascia coesistere in pianificazione. Le due destinazioni sono incompatibili: l'esito dice quale ha vinto.",
+      "_turno": "T1 — B1 dichiara ENTRAMBI: uno scatto verso (2,0,0) e un movimento a waypoint verso (0,2,0). Il harness li scrive in due blocchi indipendenti (RTScenarioSession.cpp:715-716 per lo scatto, :865 per i waypoint), esattamente come il controller li lascia coesistere in pianificazione. ➕ Da CP 38.16 il percorso si compone dalla cella d'arrivo dello scatto, e le due destinazioni sono una catena.",
       "intents": [
         { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [2, 0, 0], "move": [[0, 1, 0], [0, 2, 0]] }
       ]
     }
   ],
 
-  "_nota_misura": "Esito MISURATO il 2026-08-15, non previsto: con l'assertion puntata sulla destinazione dei waypoint il corpus risponde «UnitAtCell(B1) — atteso (q=0,r=2,L=0), ottenuto (q=2,r=0,L=0)». L'unita' finisce sulla cella dello SCATTO. La prova che l'assertion discrimina e' quella riga: 3/4 con la cella sbagliata, 4/4 con questa. E il `move` non era stato ignorato dal harness — nel log non compare nessun «percorso rifiutato per B1», che e' cio' che il harness scrive quando `BuildCompositeHexPath` fallisce.",
+  "_nota_misura": "⏱️ STORIA, fino a CP 38.16. Esito MISURATO il 2026-08-15, non previsto: con l'assertion puntata sulla destinazione dei waypoint il corpus risponde «UnitAtCell(B1) — atteso (q=0,r=2,L=0), ottenuto (q=2,r=0,L=0)». L'unita' finisce sulla cella dello SCATTO. La prova che l'assertion discrimina e' quella riga: 3/4 con la cella sbagliata, 4/4 con questa. E il `move` non era stato ignorato dal harness — nel log non compare nessun «percorso rifiutato per B1», che e' cio' che il harness scrive quando `BuildCompositeHexPath` fallisce.",
 
   "expect": [
-    { "type": "UnitAtCell",     "unit": "B1", "cell": [2, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [0, 2, 0], "_assertion": "CP 38.16: lo scatto e il Move, in catena." },
+    { "type": "LogEventCount",  "category": "Move", "outcome": "SupersededByDash", "value": 0, "_assertion": "CP 38.16: nessuno scarto." },
     { "type": "UnitAtCell",     "unit": "F1", "cell": [-3, 0, 0] },
     { "type": "UnitAlive",      "unit": "B1", "value": true },
     { "type": "TurnsCompleted", "value": 1 }

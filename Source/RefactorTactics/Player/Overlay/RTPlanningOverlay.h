@@ -87,6 +87,14 @@ struct REFACTORTACTICS_API FRTPlanningOverlayInputs
 	/** Sale a ogni richiesta esplicita di ricalcolo: il piano cambia senza che nessun altro campo lo dica. */
 	int32 PlanRevision = 0;
 
+	/**
+	 * I tratti di movimento che il residuo di Action Point paga (`ARTUnit::AffordableMoveLegs`), `INDEX_NONE` dove il click non posa un
+	 * waypoint (#4155, [D-625] (2); E38 CP 38.16, [D-628] (3)): il ventaglio e' verde fin li', e in `MovementOverBudget` il tratto dopo.
+	 * ⚠️ Entra qui perche' la pagabilita' cambia con gesti che `PlanRevision` non conta sempre (armare una reazione, il budget del turno):
+	 * senza questo campo il ventaglio resterebbe diviso come per un piano di prima. Livello del piano.
+	 */
+	int32 PaidMoveLegs = INDEX_NONE;
+
 	/** Il turno: un turno nuovo riparte da capo anche se tutto il resto e' uguale. */
 	int32 TurnIndex = 0;
 

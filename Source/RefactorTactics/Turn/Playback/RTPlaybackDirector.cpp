@@ -289,8 +289,9 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		{
 			PlaybackDefeated.Add(Ev);
 		}
-		else if (Ev.Type == ERTResolvedEventType::AbilityActivated)
+		else if (Ev.Type == ERTResolvedEventType::AbilityActivated || Ev.Type == ERTResolvedEventType::ActionBlocked)
 		{
+			// `#4034`: un'azione bloccata di Prep o del Dash va nella stessa coda, col suo posto e la stessa regola di visibilita'.
 			// 🔴 D6, spec §2.5: il predicato e' quello delle RIGHE DI LOG, non quello del `Move` qui sopra. Un
 			// `ObservedPrefixLength` su un'attivazione — nessuna rotta, nessuna cella — leggerebbe il vuoto come
 			// fail-closed e nasconderebbe ogni attivazione, comprese quelle di chi guarda.
@@ -366,6 +367,7 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		case ERTResolvedEventType::AttackFootprint:  ++NumImpronte; break;
 		case ERTResolvedEventType::StructureHit:     ++NumMuri; break;
 		case ERTResolvedEventType::AbilityActivated: ++NumAttivazioniBlast; break;
+		case ERTResolvedEventType::ActionBlocked:    ++NumAttivazioniBlast; break; // `#4034`: un gesto mancato apre la fase
 		// #4059: una reazione e' un gesto come un'attivazione, e apre la fase anche da sola — un atto a se', senza un
 		// colpo sul reattore (R4). Di solito sta nell'atto di un colpo, che la fase l'ha gia' aperta.
 		case ERTResolvedEventType::ReactionResolved: ++NumAttivazioniBlast; break;
@@ -541,6 +543,12 @@ void FRTPlaybackDirector::PausePlaybackAtActBoundary()
 
 void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 {
+	// `#4034`: un'azione bloccata arriva dalle stesse code e dalla stessa sequenza dell'attivazione, al suo posto.
+	if (Ev.Type == ERTResolvedEventType::ActionBlocked)
+	{
+		ShowBlocked(Ev);
+		return;
+	}
 	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
 	Host->AddLogEvent(FString::Printf(TEXT("Attiva: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
 		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
@@ -596,6 +604,20 @@ void FRTPlaybackDirector::ShowActivation(const FRTResolvedEvent& Ev)
 	}
 }
 
+void FRTPlaybackDirector::ShowBlocked(const FRTResolvedEvent& Ev)
+{
+	// `#4034`, [D-622]: il nome barrato sopra chi e' bloccato, e NIENT'ALTRO. Nessuna clip Cast e nessun suono ([D-622] (3)):
+	// l'azione non e' avvenuta. La riga del Registro e' di `#4043`, e qui non nasce.
+	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
+	AddActivationLine(Ev, Src); // `#4043`, [D-623]: la sua riga nel Registro, nello stesso istante del fumetto
+	if (Src && URTHudViewModel::ActionShouts(Ev.ActionId))
+	{
+		Src->ShowSkillCallout(Ev.ActionId, SkillCalloutClock, /*bBlocked*/ true);
+		Src->SetSkillCalloutClock(SkillCalloutClock);
+		SkillCalloutUnits.AddUnique(Src);
+	}
+}
+
 void FRTPlaybackDirector::ShowReaction(const FRTResolvedEvent& Ev)
 {
 	ARTUnit* const Src = Host->UnitByStableId(Ev.SourceStableUnitId);
@@ -645,6 +667,27 @@ void FRTPlaybackDirector::AddActivationLine(const FRTResolvedEvent& Ev, const AR
 	Riga.Phase = Ev.Phase;
 	Riga.ViewerTeamId = PlaybackViewerTeamId; // R7b: la chiave del pubblico, non un verdetto di conoscenza
 	Riga.TurnNumber = Host->GetPlaybackTurnNumber(); // lo stesso delle voci di TurnLog del turno: `ConcludeTurn` lo avanza DOPO il playback
+	if (Ev.Type == ERTResolvedEventType::ActionBlocked)
+	{
+		// `#4043`, [D-623]: la riga di un'azione barrata, col motivo sotto in parole.
+		Riga.bBlocked = true;
+		Riga.BlockedReason = Ev.Amount;
+		// [D-623] (4), [D-624] (2): il primo interruttore che la squadra che guarda vedeva, anche se prima di lui ce n'era uno
+		// nascosto. Se non ne vedeva nessuno, la riga dice soltanto «interrotto».
+		FString Interruttore;
+		const int32 Visto = RTInterrupters::FirstSeenBy(Ev.InterruptedByStableUnitIds, Ev.InterruptedByVerdicts, PlaybackViewerTeamId);
+		if (Visto != INDEX_NONE)
+		{
+			if (const ARTUnit* Chi = Host->UnitByStableId(Visto))
+			{
+				Interruttore = ARTUnit::DisplayLabel(Chi->HeroDisplayName, Chi->HeroId, Chi->GetName());
+			}
+		}
+		Riga.Text = URTHudViewModel::ComposeBlockedLineText(
+			ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
+			Ev.ActionId, Ev.Amount, Interruttore);
+		return;
+	}
 	Riga.Text = URTHudViewModel::ComposeActivationLineText(
 		ARTUnit::DisplayLabel(Src->HeroDisplayName, Src->HeroId, Src->GetName()), Src->KitDisplayNameFor(Ev.ActionId),
 		Ev.ActionId);
@@ -829,6 +872,7 @@ bool FRTPlaybackDirector::AdvanceBlastSequence(int32 BeatsTarget)
 		switch (Ev.Type)
 		{
 		case ERTResolvedEventType::AbilityActivated:
+		case ERTResolvedEventType::ActionBlocked: // `#4034`: `ShowActivation` lo smista su `ShowBlocked`
 			ShowActivation(Ev);
 			break;
 		case ERTResolvedEventType::ReactionResolved:
@@ -1945,6 +1989,7 @@ void FRTPlaybackDirector::FinishPlayback()
 		// #4059 (R9): anche le reazioni della sequenza, gia' filtrate per chi guarda da `BuildBlastSequence`.
 		if (Timeline().IsValidIndex(E.TimelineIndex)
 			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ActionBlocked // `#4043`: anche le righe barrate
 				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ReactionResolved))
 		{
 			const FRTResolvedEvent& Ev = Timeline()[E.TimelineIndex];
@@ -2243,7 +2288,8 @@ int32 FRTPlaybackDirector::PlaybackActivationsQueuedForTest() const
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
 		if (Timeline().IsValidIndex(E.TimelineIndex)
-			&& Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated)
+			&& (Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::AbilityActivated
+				|| Timeline()[E.TimelineIndex].Type == ERTResolvedEventType::ActionBlocked)) // `#4034`, come le code di Prep e Dash
 		{
 			++N;
 		}

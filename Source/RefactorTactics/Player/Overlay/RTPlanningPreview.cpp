@@ -150,14 +150,41 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	int32 UnitId = INDEX_NONE;
 	TArray<ARTUnit*> Units;
 	TArray<FRTCellId> Reachable;
+	TArray<FRTCellId> OltreIlResiduo;
+	TMap<FRTCellId, int32> CostiDelPercorso;
 	bool bHasSnapshot = false;
 	if (RTPlanningSnapshot::For(World, Unit, Snapshot, UnitId, &Units))
 	{
 		bHasSnapshot = true;
-		for (const FRTHexReachableCell& R :
-			URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints()))
+		// E38 CP 38.16, [D-628] (4): il ventaglio parte da dove partira' il Move, la cella d'arrivo di uno scatto pianificato. Su una
+		// copia: lo snapshot serve piu' sotto anche alla mira, che legge la posizione di adesso.
+		FRTHexSnapshot DalMove = Snapshot;
+		RTPlanningSnapshot::StartMovementFromPlannedDash(DalMove, UnitId, Unit);
+		// E38 CP 38.16, [D-628] (3): in verde le celle dei tratti che il residuo paga, in rosso cupo quelle del tratto successivo, e oltre
+		// niente. Il ventaglio si calcola fino al tratto successivo, e ogni cella si divide sul costo del percorso che il click comporrebbe:
+		// i waypoint gia' posati piu' il passo fino a lei, la stessa somma che il click paga (`ARTUnit::CanAffordMoving`). Dove il click
+		// non posa un waypoint (scatto armato, verso dichiarato) il rosso mentirebbe: il ventaglio e' quello dei tratti pianificati.
+		const bool bClickMuove = Unit->WaypointClickIsOpen();
+		const int32 Pagati = bClickMuove ? Unit->AffordableMoveLegs() : FMath::Max(1, Unit->PlannedMoveLegs());
+		const int32 BudgetPagato = Pagati > 0 ? Unit->MoveBudgetForLegs(Pagati) : INDEX_NONE;
+		const int32 Tratti = bClickMuove ? Pagati + 1 : Pagati;
+		if (DalMove.Units.IsValidIndex(UnitId))
 		{
-			Reachable.Add(R.Cell);
+			DalMove.Units[UnitId].MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+			DalMove.Units[UnitId].StepBudget = Unit->StepBudgetForLegs(Tratti);
+		}
+		const TArray<FRTCellId>& Waypoints = Unit->GetPlan().PlannedWaypoints();
+		int32 CostoDeiWaypoint = 0;
+		if (Waypoints.Num() > 0)
+		{
+			const FRTHexPathResult Posati = URTHexSimLibrary::BuildCompositeHexPath(DalMove, UnitId, Waypoints);
+			CostoDeiWaypoint = Posati.Status == ERTHexPathStatus::Success ? Posati.TotalCost : 0;
+		}
+		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCellsAfterPlan(DalMove, UnitId, Waypoints))
+		{
+			const int32 Costo = CostoDeiWaypoint + R.Cost;
+			(Costo <= BudgetPagato ? Reachable : OltreIlResiduo).Add(R.Cell);
+			CostiDelPercorso.Add(R.Cell, Costo);
 		}
 	}
 
@@ -179,7 +206,10 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 				Armata->Def.LineOfSightPolicy, Armata->Def.MinRangeCells);
 		}
 	}
-	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable);
+	// [D-625] (2), #4155: le celle che il residuo di Action Point non paga restano visibili, nel colore di rifiuto ([D-627]); da CP 38.16
+	// sono quelle del tratto successivo ([D-628] (3)), divise piu' sopra. Con i costi, che dicono all'hover quanti tratti la cella apre.
+	HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable, bMira ? TArray<FRTCellId>() : OltreIlResiduo,
+		bMira ? TMap<FRTCellId, int32>() : CostiDelPercorso);
 	HexMap->SetPreviewRangeCells(Portata);
 
 	// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'
@@ -198,9 +228,9 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 	// unita' dell'HUD, cosi' anteprima e overlay non possono piu' dire due cose diverse sullo stesso piano.
 	const FRTBlastPreviewPlan PreviewPlan = URTHudViewModel::MakeBlastPreviewPlan(*Unit, UnitId, Units);
 	const TArray<FRTHexCombatUnit> HexUnits = URTHudViewModel::MakeHexCombatUnits(Units);
-	// L'azione principale serve ancora piu' sotto, alla timeline delle fasi: e' la stessa che il piano ha tradotto.
-	const URTActionData* Ability = Unit->GetAbility(Unit->GetPlan().PlannedAbilityIndex());
 
+	// 🔑 **L'area e la linea di mira sulla mappa sono della sola principale a fuoco** (HUD-AP.5b, #4159): la timeline qui
+	// sotto porta ogni principale con la sua area, ma disegnarle tutte sulla mappa la sommergerebbe.
 	const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
 	HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
 
@@ -212,7 +242,7 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 		: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
 	HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
 
-	// ➕ **LA TIMELINE DEL PIANO, una voce per fase** (`CP 11.5`, `#172`).
+	// ➕ **LA TIMELINE DEL PIANO, una pila per fase** (`CP 11.5`, `#172`; le pile da HUD-AP.5b, #4159).
 	//
 	// 🔑 **Si TRADUCE il piano, non si decide niente.** Tutto ciò che segue riempie una struct di
 	// ingresso; l'origine, l'area, il percorso e il facing li deriva `MakePlanPreview`, che è pura e
@@ -265,41 +295,66 @@ void RTPlanningPreview::Refresh(const UWorld* World, const ARTUnit* Unit, ARTHex
 			Timeline.DashRange = Unit->EffectiveDashRangeOf(Unit->GetPlan().PlannedDashAbility());
 		}
 
-		Timeline.Blast = PreviewPlan;
 		Timeline.PlannedWaypoints = Unit->GetPlan().PlannedWaypoints();
 		Timeline.bMoveResolves = !Unit->PlannedNormalMoveDeniedByStun(); // [D-569]: la domanda del resolver, non un secondo giudizio
 		// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
 		// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
 		// su quattro vuote, un consumatore non poteva distinguere le due cose.
 		Timeline.MoveActionId = TEXT("Action.Move");
-		if (Ability)
-		{
-			Timeline.BlastActionId = Ability->Def.ActionId;
-		}
 
 		// ➕ **Il motivo del rifiuto, calcolato sul bersaglio DEL PIANO** (`#172`).
 		//
-		// ⌫ **Una prima stesura trasportava `ARTHUD::LastRefusal`, ed era sbagliato.** Quel campo e'
-		// dichiarato *«nasce da un click e muore col click seguente»*: e' legato all'ULTIMO CLICK, non al
-		// bersaglio corrente del piano. Pianificando un attacco valido su A e poi cliccando B fuori
-		// portata, ogni refresh successivo che non fosse un click — un waypoint annullato, la fine del
-		// playback — rileggeva `Range` e declassava a `Uncertain` un piano che non aveva niente che non
-		// andasse. E preso da `GetFirstPlayerController()` sarebbe stato, in split-screen, il rifiuto di
-		// un ALTRO osservatore: proprio la lettura incrociata che [D-225] vieta.
-		//
-		// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
-		// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
-		// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
-		if (Ability && !Unit->GetPlan().bAttackTargetsCell())
+		// ⌫ **Una prima stes		// ➕ **Ogni voce principale e ogni voce di Prep del piano, non solo la prima** (HUD-AP.5b, #4159). L'ordine in cui le si
+		// passa non conta: la pila la ordina `MakePlanPreview`, come il resolver. Qui si traducono le voci e le loro chiavi.
+		const TArray<FRTPlanEntry>& Voci = Unit->GetPlan().GetEntries();
+		for (int32 Posizione = 0; Posizione < Voci.Num(); ++Posizione)
 		{
-			if (const ARTUnit* Bersaglio = Unit->GetPlan().PlannedAttackTarget().Get())
+			const FRTPlanEntry& Voce = Voci[Posizione];
+			const URTActionData* Azione = Unit->GetAbility(Voce.AbilityIndex);
+			if (!Azione) { continue; }
+			if (Voce.Class == ERTPlanEntryClass::Prep)
+			{
+				// `ResolvePrep` salta una voce di Prep la cui azione non e' di Prep: la timeline non la mostra nella sua pila.
+				if (URTCatalogLibrary::MapResolutionPhase(Azione->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
+				FRTPrepPreviewInput& Prep = Timeline.PrepEntries.AddDefaulted_GetRef();
+				Prep.ActionId = Azione->Def.ActionId;
+				Prep.Priority = Azione->Def.Priority;
+				Prep.DeclarationIndex = Posizione;
+				continue;
+			}
+			if (Voce.Class != ERTPlanEntryClass::Main) { continue; }
+
+			FRTMainPreviewInput& Principale = Timeline.Mains.AddDefaulted_GetRef();
+			Principale.Blast = URTHudViewModel::MakeBlastPreviewPlanForEntry(*Unit, UnitId, Units, &Voce);
+			Principale.ActionId = Azione->Def.ActionId;
+			// Le chiavi che `ARTTurnManager::MainTurnsOf` legge dalla stessa voce: `MainVisitLess` le confronta per entrambi.
+			Principale.Priority = Azione->Def.Priority;
+			const ARTUnit* Bersaglio = Voce.AttackTarget.Get();
+			Principale.TargetStableUnitId = Bersaglio ? Bersaglio->StableUnitId : INDEX_NONE;
+			Principale.CoverEdge = static_cast<uint8>(Voce.bHasCoverEdge ? static_cast<uint8>(Voce.CoverEdge) + 1 : 0);
+			Principale.DeclarationIndex = Posizione;
+
+			// ➕ **Il motivo del rifiuto, calcolato sul bersaglio DEL PIANO** (`#172`), per ogni voce.
+			//
+			// ⌫ **Una prima stesura trasportava `ARTHUD::LastRefusal`, ed era sbagliato.** Quel campo e'
+			// dichiarato *«nasce da un click e muore col click seguente»*: e' legato all'ULTIMO CLICK, non al
+			// bersaglio corrente del piano. Pianificando un attacco valido su A e poi cliccando B fuori
+			// portata, ogni refresh successivo che non fosse un click — un waypoint annullato, la fine del
+			// playback — rileggeva `Range` e declassava a `Uncertain` un piano che non aveva niente che non
+			// andasse. E preso da `GetFirstPlayerController()` sarebbe stato, in split-screen, il rifiuto di
+			// un ALTRO osservatore: proprio la lettura incrociata che [D-225] vieta.
+			//
+			// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
+			// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
+			// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
+			if (!Voce.bAttackTargetsCell && Bersaglio)
 			{
 				// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
 				// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
-				Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
-					Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Bersaglio->Cell, Ability->RangeCells,
-					Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(), Ability->Def.MinRangeCells,
-					URTCombatLibrary::CrossLayerAimFor(Ability->Def));
+				Principale.TargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
+					Map, Unit->AimOriginFor(Azione->Def.ResolutionPhase), Bersaglio->Cell, Azione->RangeCells,
+					Azione->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver(), Azione->Def.MinRangeCells,
+					URTCombatLibrary::CrossLayerAimFor(Azione->Def));
 			}
 		}
 

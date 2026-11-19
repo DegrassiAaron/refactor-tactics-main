@@ -13,6 +13,7 @@
 // asseriva la propria premessa. Vedi il controllo di non-vacuità nel probe.
 
 #include "Misc/AutomationTest.h"
+#include "Tests/Shared/RTAbilityFixtures.h" // E38 CP 38.16: il secondo scatto del piano illegale
 #include "Map/RTHexMapAsset.h"
 #include "Map/Actor/RTHexMapActor.h"
 #include "Map/RTHexCellData.h"
@@ -474,12 +475,13 @@ bool FRTLockInValidatesBotPlansTooTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Il piano incoerente: scatto piu' movimento normale, due azioni sullo slot Movimento. Le due celle
-	// sono DIVERSE di proposito: con la stessa cella, dopo lo scatto `Cell == PlannedCell` e il movimento
-	// normale diventa un no-op, quindi il turno non distinguerebbe piu' quale delle due azioni ha vinto.
+	// Il piano incoerente: due scatti diversi ([D-625] (4); E38 CP 38.16). ⏱️ *Fino a CP 38.16 era scatto piu' movimento normale,
+	// due azioni sullo slot movimento*: gli slot non decidono piu', e quel piano e' legale. Nessun bot compone due scatti; il piano
+	// si scrive con la strada dell'harness, e cio' che il test misura e' che il validatore del lock-in lo legga anche per il bot.
+	const int32 SecondoScatto = RTAbilityFixtures::AddCoreAbility(Bot, TEXT("Action.Dodge"));
 	Bot->SetPlannedDash(DashIdx, CellaScatto);
-	Bot->SetPlannedCell(CellaMovimento);
-	if (!TestTrue(TEXT("premessa: il piano dichiara un movimento normale"), Bot->HasPlannedNormalMove())
+	if (!TestTrue(TEXT("premessa: il secondo scatto entra nel piano"),
+			SecondoScatto != INDEX_NONE && Bot->AddPlannedDash(SecondoScatto, CellaMovimento))
 		|| !TestTrue(TEXT("premessa: il piano non e' vuoto, quindi il validatore non lo salta"),
 			URTPlanValidationLibrary::MakePlanFor(Bot).Num() > 0))
 	{

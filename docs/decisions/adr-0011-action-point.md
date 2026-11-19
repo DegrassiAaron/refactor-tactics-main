@@ -38,6 +38,7 @@
 > moduli di reazione di oggi prendono cooldown 1 (D-615 (4), (7)), e per la regola della copia conta il cooldown della riga di catalogo,
 > prima della variante d'arma (D-615 (6)). ⏳ Non implementata: entra coi checkpoint di E38 descritti in
 > [`../roadmap/plans/e38-checkpoint-d613-2026-11-14.md`](../roadmap/plans/e38-checkpoint-d613-2026-11-14.md).
+> ➕ **Emendamento 2026-11-17 — [D-625](RT_PDR_00_Decision_Log.md)**: **uno scatto per piano**. Due scatti diversi sono rifiutati anche quando il budget li paga: è un limite di classe oltre al budget, contro la conseguenza 2 (il testo dell'opzione scelta) e, lettura dell'assistente, contro la Decisione 1 per il solo scatto. Il movimento resta un percorso, e oltre il tetto dello Sprint un tratto concatenato costa altri 2 AP. ⏳ Non implementata: entra con CP 38.16.
 
 ## Contesto
 

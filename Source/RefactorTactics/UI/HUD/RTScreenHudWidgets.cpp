@@ -38,6 +38,7 @@
 #include "Components/ProgressBar.h"       // #3634: la barra del countdown della finestra di reazione
 #include "Components/PanelWidget.h"       // #3636: roster e pannello costruiscono carte e voci dentro un pannello
 #include "Components/CanvasPanelSlot.h"   // #3661: le zone si posano dal dato delle fasce
+#include "Components/OverlaySlot.h"       // HUD-AP.5a (#4159): il contatore del piano in alto a destra dello slot
 #include "UI/HUD/RTHudLayout.h"               // #3661: il dato delle fasce (D-497)
 #include "UI/HUD/RTHudZoneWidget.h"           // #3661: le zone si riconoscono per classe e ZoneId
 #include "UI/HUD/RTGameViewportClient.h"      // #3661: l'HUD montato chiede il rettangolo della scena
@@ -796,6 +797,148 @@ void URTActionDockWidget::RefreshLayerIndicator()
 	}
 }
 
+FRTActionPointView URTActionDockWidget::GetActionPoints() const
+{
+	// La stessa sorgente di `GetMovementReadout()`: la barra comanda, non ispeziona, e in sola lettura non e' la barra di
+	// chi comanda (#3748). Il default non autorizzato e' la sola risposta che non dice quanto e' grande il piano.
+	if (IsDockReadOnly())
+	{
+		return FRTActionPointView();
+	}
+	// Il gesto in corso lo dichiara il controller, che sa dov'e' il cursore (#4155): senza controller nessun gesto.
+	const ARTUnit* Unit = GetSelectedUnit();
+	const ARTPlayerController* PC = ResolveCommandController();
+	return URTHudViewModel::BuildActionPoints(Unit, PC ? PC->ActionPointsAfterGestureNow(Unit) : INDEX_NONE);
+}
+
+void URTActionDockWidget::EnsureActionPointPips()
+{
+	if (ActionPoints)
+	{
+		return; // dichiarato dall'asset, o gia' costruito
+	}
+	if (WidgetTree == nullptr)
+	{
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+
+	// Dove posarli: nel pannello della lettura del movimento, come l'indicatore del piano.
+	UPanelWidget* Pannello = MovementReadout ? MovementReadout->GetParent() : nullptr;
+	// ⚠️ Su una dock senza quel pannello l'indicatore del piano diventa la radice (`EnsureLayerIndicator`), ed e' una riga: appesi a lei,
+	// gli AP sparirebbero col suo `Collapsed` su una mappa a un piano solo. Non e' il pannello di nessuno (revisione di #4150).
+	if (Pannello == nullptr && WidgetTree->RootWidget != LayerIndicator)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr && WidgetTree->RootWidget != nullptr)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Dock: nessun pannello per gli Action Point (la radice e' un %s): non montati"),
+			*WidgetTree->RootWidget->GetClass()->GetName());
+		return;
+	}
+
+	UHorizontalBox* Riga = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionPoints"));
+	UTextBlock* Etichetta = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ActionPointsLabel"));
+	UHorizontalBox* Pips = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionPointPips"));
+
+	// Il carattere della lettura del movimento, che gli sta accanto, come l'indicatore del piano.
+	FSlateFontInfo Carattere = MovementReadoutText ? MovementReadoutText->GetFont() : Etichetta->GetFont();
+	if (MovementReadoutText == nullptr)
+	{
+		Carattere.Size = 16;
+	}
+	Etichetta->SetFont(Carattere);
+	Etichetta->SetText(FText::FromString(TEXT("AP")));
+
+	if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Etichetta))
+	{
+		Posto->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UHorizontalBoxSlot* Posto = Riga->AddChildToHorizontalBox(Pips))
+	{
+		Posto->SetVerticalAlignment(VAlign_Center);
+		Posto->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
+	}
+
+	if (Pannello)
+	{
+		UPanelSlot* Posto = Pannello->AddChild(Riga);
+		if (Posto == nullptr)
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Dock: %s non accetta gli Action Point: non montati"),
+				*Pannello->GetClass()->GetName());
+			return;
+		}
+		if (UHorizontalBoxSlot* Orizzontale = Cast<UHorizontalBoxSlot>(Posto))
+		{
+			Orizzontale->SetVerticalAlignment(VAlign_Center);
+			Orizzontale->SetPadding(FMargin(22.f, 0.f, 0.f, 0.f)); // il separatore dei gruppi della barra (`GroupGap`)
+		}
+	}
+	else
+	{
+		WidgetTree->RootWidget = Riga;
+	}
+
+	ActionPoints = Riga;
+	ActionPointsLabel = Etichetta;
+	ActionPointPips = Pips;
+	PaintedActionPointPips.Reset();
+}
+
+void URTActionDockWidget::RefreshActionPoints()
+{
+	const FRTActionPointView Vista = GetActionPoints();
+	if (ActionPoints)
+	{
+		ActionPoints->SetVisibility(Vista.bAuthorized ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (ActionPointsLabel)
+	{
+		using T = ERTUIToken;
+		ActionPointsLabel->SetColorAndOpacity(FSlateColor(URTUIPalette::ColorFor(Vista.bModified ? T::Cyan : T::Text_Secondary)));
+	}
+
+	const TArray<ERTActionPointPip> Stati = URTHudViewModel::ActionPointPips(Vista);
+	if (ActionPointPips == nullptr || (Stati == PaintedActionPointPips && ActionPointPips->GetChildrenCount() == Stati.Num()))
+	{
+		return; // niente e' cambiato: la fila resta quella dipinta
+	}
+
+	ActionPointPips->ClearChildren();
+	UHorizontalBox* Fila = Cast<UHorizontalBox>(ActionPointPips);
+	for (int32 i = 0; i < Stati.Num(); ++i)
+	{
+		using T = ERTUIToken;
+		// L'anteprima del gesto (#4155) in bianco, accanto all'ambra dell'impegnato [LETTURA, da giudicare in PIE].
+		const T Colore = Stati[i] == ERTActionPointPip::Committed ? T::Amber
+			: Stati[i] == ERTActionPointPip::Over ? T::Red
+			: Stati[i] == ERTActionPointPip::Preview ? T::White
+			: T::Frame_Off;
+		UBorder* Pip = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+		Pip->SetVisibility(ESlateVisibility::HitTestInvisible); // si legge, non si clicca: non ruba il puntatore alla barra
+		Pip->SetBrushColor(URTUIPalette::ColorFor(Colore));
+		Pip->SetPadding(FMargin(5.f, 7.f)); // un segmento 10×14 senza contenuto: la misura e' il padding del bordo
+
+		// Il primo AP sforato si stacca dalla fila: sta «fuori dalla cornice» (§19-bis.1).
+		const bool bPrimoOltre = Stati[i] == ERTActionPointPip::Over && (i == 0 || Stati[i - 1] != ERTActionPointPip::Over);
+		const float Sinistra = i == 0 ? 0.f : (bPrimoOltre ? 8.f : 2.f);
+		if (Fila)
+		{
+			if (UHorizontalBoxSlot* Posto = Fila->AddChildToHorizontalBox(Pip))
+			{
+				Posto->SetVerticalAlignment(VAlign_Center);
+				Posto->SetPadding(FMargin(Sinistra, 0.f, 0.f, 0.f));
+			}
+		}
+		else
+		{
+			ActionPointPips->AddChild(Pip);
+		}
+	}
+	PaintedActionPointPips = Stati;
+}
+
 // =====================================================================================================
 // Conferma e Annulla
 // =====================================================================================================
@@ -1248,6 +1391,7 @@ void URTActionDockWidget::NativeOnInitialized()
 	// Qui e non in `NativeConstruct`: l'albero si completa prima che Slate costruisca il dock, quindi l'indicatore
 	// entra nello Slate con il resto, al suo posto (#3680).
 	EnsureLayerIndicator();
+	EnsureActionPointPips();
 }
 
 void URTActionDockWidget::NativeConstruct()
@@ -1261,6 +1405,7 @@ void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	RefreshMovementReadout();
 	RefreshLayerIndicator();
+	RefreshActionPoints();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
@@ -1557,6 +1702,71 @@ FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
 	return NAME_None;
 }
 
+void URTActionSlotWidget::EnsurePlannedCountText()
+{
+	if (PlannedCountText || bPlannedCountMountFailed)
+	{
+		return; // dichiarato dall'asset, gia' costruito, o senza un posto (detto una volta)
+	}
+	if (WidgetTree == nullptr)
+	{
+		WidgetTree = NewObject<UWidgetTree>(this, TEXT("WidgetTree"), RF_Transient);
+	}
+	UPanelWidget* Pannello = PlannedCorner ? PlannedCorner->GetParent() : nullptr;
+	if (Pannello == nullptr && HotkeyText)
+	{
+		Pannello = HotkeyText->GetParent();
+	}
+	if (Pannello == nullptr)
+	{
+		Pannello = Cast<UPanelWidget>(WidgetTree->RootWidget);
+	}
+	if (Pannello == nullptr)
+	{
+		bPlannedCountMountFailed = true;
+		if (WidgetTree->RootWidget != nullptr)
+		{
+			UE_LOG(LogRT, Warning, TEXT("[RT] Slot: nessun pannello per il contatore del piano (la radice e' un %s): non montato"),
+				*WidgetTree->RootWidget->GetClass()->GetName());
+		}
+		return;
+	}
+	UTextBlock* Contatore = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PlannedCountText"));
+	FSlateFontInfo Carattere = HotkeyText ? HotkeyText->GetFont() : Contatore->GetFont();
+	if (HotkeyText == nullptr)
+	{
+		Carattere.Size = 12;
+	}
+	Contatore->SetFont(Carattere);
+	Contatore->SetVisibility(ESlateVisibility::Collapsed);
+	UPanelSlot* Posto = Pannello->AddChild(Contatore);
+	// ⚠️ Un pannello a un figlio solo (un `Border`, un `SizeBox`) gia' pieno rifiuta il secondo: senza il posto il contatore sarebbe un
+	// orfano mai disegnato, con la visibilita' scritta a ogni `SetAction` (revisione di #4159).
+	if (Posto == nullptr)
+	{
+		bPlannedCountMountFailed = true;
+		UE_LOG(LogRT, Warning, TEXT("[RT] Slot: il pannello %s non accetta il contatore del piano: non montato"),
+			*Pannello->GetClass()->GetName());
+		return;
+	}
+	PlannedCountText = Contatore;
+	// In alto a destra, ma A SINISTRA dell'angolo di `Planned` (18 px nell'asset) e delle marche di `Invalid` e `Warning`, che stanno
+	// nello stesso angolo: sopra di loro il numero si confonderebbe con il segno dello stato (revisione di #4159).
+	if (UOverlaySlot* InOverlay = Cast<UOverlaySlot>(Posto))
+	{
+		InOverlay->SetHorizontalAlignment(HAlign_Right);
+		InOverlay->SetVerticalAlignment(VAlign_Top);
+		InOverlay->SetPadding(FMargin(0.f, 0.f, PlannedCountRightInset, 0.f));
+	}
+	else if (UCanvasPanelSlot* InCanvas = Cast<UCanvasPanelSlot>(Posto))
+	{
+		InCanvas->SetAnchors(FAnchors(1.f, 0.f));
+		InCanvas->SetAlignment(FVector2D(1.f, 0.f));
+		InCanvas->SetPosition(FVector2D(-PlannedCountRightInset, 0.f));
+		InCanvas->SetAutoSize(true);
+	}
+}
+
 void URTActionSlotWidget::RefreshLook()
 {
 	const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
@@ -1650,6 +1860,21 @@ void URTActionSlotWidget::RefreshLook()
 	{
 		GroupDivider->SetVisibility(Action.bGroupBreakBefore
 			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+
+	// HUD-AP.5a (#4159): il contatore delle copie nel piano, da 2 in su, in qualunque stato (una seconda copia vietata e' `Invalid`, e il
+	// numero dice quale e' la seconda). Ambra come il bordo di `Planned`.
+	EnsurePlannedCountText();
+	if (PlannedCountText)
+	{
+		const bool bConta = Action.PlannedCount >= 2;
+		PlannedCountText->SetText(bConta
+			? FText::Format(NSLOCTEXT("RTHud", "PlannedCount", "\u00d7{0}"), FText::AsNumber(Action.PlannedCount)) : FText::GetEmpty());
+		PlannedCountText->SetVisibility(bConta ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (const FLinearColor* Ambra = FrameColors.Find(ERTActionSlotState::Planned))
+		{
+			PlannedCountText->SetColorAndOpacity(FSlateColor(*Ambra));
+		}
 	}
 
 	// Un indicatore per stato, acceso solo nel proprio. `CooldownText` non e' qui: ha gia' il suo binding.

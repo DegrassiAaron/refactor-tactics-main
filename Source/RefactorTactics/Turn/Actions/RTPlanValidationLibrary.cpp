@@ -48,7 +48,8 @@ bool URTPlanValidationLibrary::EmptiesPlanAtLockIn(ERTActionInvalidReason Reason
 {
 	return Reason == ERTActionInvalidReason::OnCooldown
 		|| Reason == ERTActionInvalidReason::RepeatedWithCooldown
-		|| Reason == ERTActionInvalidReason::OverBudget;
+		|| Reason == ERTActionInvalidReason::OverBudget
+		|| Reason == ERTActionInvalidReason::SecondDash; // [D-625] (4): come la copia vietata (lettura (c))
 }
 
 int32 URTPlanValidationLibrary::SlotWidth(ERTActionSlot Slot)
@@ -159,9 +160,11 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
 		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
 		// alto per nessuno, non verso il piu' basso per qualcuno.
-		const int32 PlannedSteps = Unit->GetPlan().PlannedPath().Num() >= 2
-			? Unit->GetPlan().PlannedPath().Num() - 1
-			: URTHexLibrary::HexDistance(Unit->Cell, Unit->GetPlan().PlannedCell);
+		//
+		// ➕ **[D-629] (E38 CP 38.16): quando il piano porta il costo del percorso, la banda si legge da lui**, in Movement Point come il
+		// tetto e i tratti di [D-628] (2): un percorso corto e caro e' uno Sprint. I passi restano la misura di chi non dichiara un costo
+		// (il bot, che dichiara la sola cella d'arrivo), e la distanza quella di chi non ha un percorso: `ARTUnit::PlannedMoveMeasure`.
+		const int32 PlannedSteps = Unit->PlannedMoveMeasure();
 
 		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
 		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
@@ -171,11 +174,12 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// l'array si compone per classe, non per ordine di dichiarazione, quindi un Move dichiarato prima dell'Overwatch
 		// riceve la stessa riserva `Withdraw`. Percorrere la lista in ordine di dichiarazione la perderebbe, e la
 		// dichiarazione deciderebbe la risoluzione. Lo pinna `Plan.MovementBandIgnoresTheDeclaredSequence`.
+		const FName Riservato = URTMovementProfileLibrary::ReservedProfileForPlan(Plan);
 		const FRTMovementProfile Band = URTMovementProfileLibrary::ProfileForPlannedSteps(
 			PlannedSteps,
 			Unit->GetEffectiveMoveRange(),
 			Unit->GetPlan().PlannedMovementProfileId(),
-			URTMovementProfileLibrary::ReservedProfileForPlan(Plan),
+			Riservato,
 			Unit->HasStatus(TAG_Status_Unbalanced));
 
 		// L'azione che porta la banda, quando ce n'e' una: `Action.Sprint` e `Action.Withdraw` la nominano,
@@ -205,6 +209,32 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 			const int32 Dichiarato = Piano.DeclarationIndexOf(ERTPlanEntryClass::Movement);
 			Entry.DeclarationIndex = Dichiarato != INDEX_NONE ? Dichiarato : Piano.GetEntries().Num();
 			Plan.Add(Entry);
+
+			// E38 CP 38.16, [D-625] (1): oltre il tetto nudo il percorso si paga a tratti, e ogni tratto in piu' e' una voce `Action.Move`
+			// di profilo `Move` (2 AP; la ripetizione che [D-614] ammette, perche' il Move non ha ricarica). Quanti, lo dice il costo del
+			// percorso in Movement Point che il piano porta, letto quando si e' composto sulla mappa di chi pianifica ([D-628] (2) e la sua
+			// lettura (b)): ⛔ qui non si rilegge, per la stessa ragione per cui qui non si ricostruisce il percorso.
+			// ⚠️ La stessa dichiarazione della voce di movimento: e' lo stesso percorso, e l'ordine dei tratti e' la catena delle celle,
+			// mai la dichiarazione ([D-615] (5)).
+			const int32 TrattiInPiu = URTMovementProfileLibrary::ExtraMoveLegsForCost(Unit->GetPlan().PlannedPathCost(),
+				Unit->GetEffectiveMoveRange(), Unit->GetPlan().PlannedMovementProfileId(), Riservato,
+				Unit->HasStatus(TAG_Status_Unbalanced));
+			if (TrattiInPiu > 0)
+			{
+				static const FRTActionDef Tratto = []()
+				{
+					FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+					Def.MovementProfileId = URTMovementProfileLibrary::ProfileMove;
+					return Def;
+				}();
+				for (int32 k = 0; k < TrattiInPiu; ++k)
+				{
+					FRTPlannedAction Voce;
+					Voce.Def = Tratto;
+					Voce.DeclarationIndex = Entry.DeclarationIndex;
+					Plan.Add(Voce);
+				}
+			}
 		}
 	}
 
@@ -289,45 +319,22 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& Un
 		}
 	}
 
-	// 4. Combinazione: l'occupazione degli slot. `None` non toglie niente (`Action.Wait`).
-	//
-	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
-	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
-	const FRTPlannedAction* MovementHolder = nullptr;
-	const FRTPlannedAction* MainHolder = nullptr;
-	for (const FRTPlannedAction& Entry : Ordered)
+	// 4. [D-625] (4) (E38 CP 38.16): uno scatto per piano. Gli slot non decidono piu' la legalita' ([D-584] (1)), e `SlotOccupied` non ha
+	// piu' produttori: scatto + Move, due principali, una mobilita' che costa tutto il turno passano o cadono sul budget qui sopra. Resta
+	// la sola regola di classe che D-625 tiene oltre al budget: due scatti DIVERSI (la copia dello stesso scatto e' gia' caduta al passo 2).
+	// Si accusa il secondo nell'ordine di dichiarazione, col primo come detentore, come per la copia: la legalita' e' la coppia.
+	const FRTPlannedAction* PrimoScatto = nullptr;
+	for (const FRTPlannedAction& Entry : Dichiarate)
 	{
-		// E38 CP 38.13: il Prep e' aperto, e una sua voce non prende slot ([D-584] (1): «due azioni di Prep sono legali
-		// se gli AP bastano»). Le fasi chiuse restano sotto il vincolo fino al loro checkpoint (CP 38.14–38.16).
-		if (URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase) == ERTMatchPhase::Prep)
+		if (!URTCatalogLibrary::IsFastMovement(Entry.Def))
 		{
 			continue;
 		}
-		const bool bWantsMovement = Entry.Def.Slot == ERTActionSlot::Movement
-			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
-		const bool bWantsMain = Entry.Def.Slot == ERTActionSlot::Main
-			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
-
-		if (bWantsMovement && MovementHolder)
+		if (PrimoScatto)
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MovementHolder);
+			return Reject(ERTActionInvalidReason::SecondDash, Entry, PrimoScatto);
 		}
-		// E38 CP 38.14: anche il Blast e il Cleanup sono aperti. Due principali dello slot principale, di quelle fasi, stanno
-		// insieme; resta il conflitto con una mobilita' che prende anche la principale (`MovementAndMain`), che `ResolveDash`
-		// scarta prima del Blast, fino a CP 38.16.
-		const ERTMatchPhase FaseVoce = URTCatalogLibrary::MapResolutionPhase(Entry.Def.ResolutionPhase);
-		const bool bPrincipaleAperta = Entry.Def.Slot == ERTActionSlot::Main
-			&& (FaseVoce == ERTMatchPhase::Blast || FaseVoce == ERTMatchPhase::Cleanup);
-		const bool bDetentoreAperto = MainHolder && MainHolder->Def.Slot == ERTActionSlot::Main;
-		if (bWantsMain && MainHolder && !(bPrincipaleAperta && bDetentoreAperto))
-		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry, MainHolder);
-		}
-		// E38 CP 38.15: la reazione e' aperta ([D-592]). Due reazioni distinte stanno insieme, e una copia con ricarica e' gia'
-		// `RepeatedWithCooldown` per la regola della copia qui sopra ([D-614]); lo slot reazione non ha piu' un detentore.
-
-		if (bWantsMovement) { MovementHolder = &Entry; }
-		if (bWantsMain && !MainHolder) { MainHolder = &Entry; } // il primo detentore, quello che un `MovementAndMain` accusa
+		PrimoScatto = &Entry;
 	}
 
 	return FRTPlanValidation();

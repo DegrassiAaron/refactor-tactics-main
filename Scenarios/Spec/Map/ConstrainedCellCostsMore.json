@@ -7,38 +7,44 @@
     "pathfinding",
     "gadget"
   ],
-  "version": 1,
+  "version": 2,
   "seed": 0,
-  "mapRadius": 3,
+  "mapRadius": 5,
 
   "_nota": "SPECIFICA ESEGUIBILE di #619: una cella STRETTA costa di piu', e si vede in partita. Il sovrapprezzo di occupazione (`occupancySurcharge`) e' cio' che rende `Constrained` distinguibile da `Free` per un consumatore vero — senza, sarebbe un campo che nessuno legge.",
 
-  "_nota_perche_questo_percorso": "Fra due celle sulla STESSA riga assiale il percorso piu' breve e' UNICO: da (-2,0,0) a (3,0,0) l'unica mossa che avvicina e' E, quindi non esiste una deviazione che aggiri la cella stretta. Se il percorso fosse ambiguo, un costo diverso sarebbe indistinguibile da una deviazione.",
+  "_nota_perche_questo_percorso": "Fra due celle sulla STESSA riga assiale il percorso piu' breve e' UNICO: da (-5,0,0) a (5,0,0) l'unica mossa che avvicina e' E, quindi non esiste una deviazione che aggiri la cella stretta. Se il percorso fosse ambiguo, un costo diverso sarebbe indistinguibile da una deviazione.",
 
-  "_nota_aritmetica": "Gadget ha 5 punti movimento. Costo di ingresso cella per cella: (-1,0)=1, (0,0)=1+1 di sovrapprezzo=2, (1,0)=1, (2,0)=1, (3,0)=1, per un totale di 6. SENZA il sovrapprezzo il totale sarebbe 5, cioe' esattamente il budget, e l'unita' arriverebbe a (3,0,0).",
+  "_nota_aritmetica": "Gadget ha 5 punti movimento: il tetto dello Sprint e' 10 MP, e un tratto in piu' aggiunge un Move, 5 MP ([D-625] (1), [D-628] (2)). Dieci celle, ognuna a 1, piu' 1 di sovrapprezzo su (0,0,0): 11 MP, quindi due tratti, 4 AP. Con ArcPulse (Blast, 2) e ReactiveCapacitor (reazione, 2) il piano costa 8 su 6: `OverBudget` (23), e il lock-in lo svuota. SENZA il sovrapprezzo il percorso costa 10, un tratto solo, e lo stesso piano costa 6: e' il gemello `Spec.Map.FreeCellFitsTheSprint`, dove A1 arriva.",
 
-  "_nota_cosa_dimostra_davvero": "Non «l'unita' si ferma prima», ma che il piano viene RIFIUTATO in pianificazione: superato il budget il gioco non tronca il percorso, applica il fallback Stop e l'unita' resta dov'e' — la stessa semantica di `Movement.Blocked`, dove pero' la causa era l'assenza di percorso. Qui il percorso esiste: e' il COSTO a non starci, e il costo in eccesso viene tutto dal sovrapprezzo di geometria. Verificato per controllo il 2026-08-12: tolto `occupancySurcharge`, la stessa identica partita porta A1 a (3,0,0).",
+  "_nota_cosa_dimostra_davvero": "⏱️ *Fino a E38 CP 38.16 (v1) qui il percorso di 6 MP superava i 5 del budget e l'harness lo RIFIUTAVA in pianificazione*: componeva col budget della banda del piano di adesso, mentre il giocatore pianifica fino al tetto. Da CP 38.16 l'harness compone come il controller, e [D-629] legge la banda dal costo: un percorso cosi' sarebbe uno Sprint e arriverebbe. Il sovrapprezzo si vede allora dove i tratti lo fanno pesare, nel prezzo in AP: la cella stretta aggiunge il tratto che fa sforare il piano.",
 
   "cells": [
     { "cell": [0, 0, 0], "occupancySurcharge": 1 }
   ],
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-5, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-4, -1, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "move": [[3, 0, 0]] }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "reaction": "Hero.Gadget.ReactiveCapacitor",
+          "move": [[5, 0, 0]] }
       ]
     }
   ],
 
   "expect": [
-    { "type": "UnitAtCell", "unit": "A1", "cell": [-2, 0, 0] },
-    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 3, 0] },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-5, 0, 0],
+      "_assertion": "Il piano e' svuotato: A1 non si muove." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 4,
+      "_assertion": "Il colpo, la reazione e i due tratti: una voce per ognuna delle voci del validatore." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "value": 23,
+      "_assertion": "Il motivo e' `OverBudget` (23 in `ERTActionInvalidReason`)." },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-4, -1, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

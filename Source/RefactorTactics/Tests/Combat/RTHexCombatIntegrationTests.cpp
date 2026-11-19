@@ -2639,6 +2639,8 @@ namespace
 		int32 Storditi = 0;    // `Stunned`
 		int32 Neutralizzate = 0; // `Neutralised`, di chiunque
 		int32 Attivazioni = 0; // `AbilityActivated` della cura
+		int32 Barrata = INDEX_NONE; // `#4034`: il motivo dell'unico `ActionBlocked` della cura, o `INDEX_NONE`
+		int32 Barrati = 0;
 		int32 Ricarica = 0;
 	};
 
@@ -2729,6 +2731,11 @@ namespace
 			{
 				++Out.Attivazioni;
 			}
+			if (E.Type == ERTResolvedEventType::ActionBlocked && E.ActionId == Azione && E.SourceStableUnitId == Curatore->StableUnitId)
+			{
+				++Out.Barrati;
+				Out.Barrata = E.Amount;
+			}
 		}
 		Out.Ricarica = Curatore->GetAbilityCooldown(Cura);
 		DestroyHexBlastWorld(World);
@@ -2754,6 +2761,10 @@ bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
 	TestEqual(TEXT("una voce Interrupted"), Annullata.Interrotte, 1);
 	TestEqual(TEXT("e nessun'altra voce della cura"), Annullata.Voci, 1);
 	TestEqual(TEXT("la cura non si attiva"), Annullata.Attivazioni, 0);
+	// `#4034`: esce barrata, una volta, col motivo Interrupted. Controllo: la cura riuscita non e' barrata.
+	TestEqual(TEXT("ed esce barrata una volta"), Annullata.Barrati, 1);
+	TestEqual(TEXT("col motivo Interrupted"), Annullata.Barrata, static_cast<int32>(ERTActionInvalidReason::Interrupted));
+	TestEqual(TEXT("controllo: la cura riuscita non e' barrata"), Riuscita.Barrati, 0);
 	TestTrue(TEXT("controllo: la cura riuscita va in ricarica"), Riuscita.Ricarica > 0);
 	TestEqual(TEXT("e quella interrotta paga uguale"), Annullata.Ricarica, Riuscita.Ricarica);
 	// Lo stordito non arriva in coda: il rifiuto viene prima ([D-416]), e un'azione ha un motivo, `Stunned`.
@@ -2765,6 +2776,9 @@ bool FRTHexBlastInterruptedHealDoesNotHealTest::RunTest(const FString&)
 	TestEqual(TEXT("e nessuna Interrupted"), Rifiutata.Interrotte, 0);
 	TestEqual(TEXT("e nessun'altra voce della cura"), Rifiutata.Voci, 1);
 	TestEqual(TEXT("e non cura"), Rifiutata.SaluteDopo, 100);
+	// `#4034`: barrata col SUO motivo, Stunned: l'Interrupt non lo sovrascrive.
+	TestEqual(TEXT("barrata una volta"), Rifiutata.Barrati, 1);
+	TestEqual(TEXT("col motivo Stunned"), Rifiutata.Barrata, static_cast<int32>(ERTActionInvalidReason::Stunned));
 	return true;
 }
 
@@ -2848,7 +2862,7 @@ namespace
 {
 	struct FInterruzioneNominata
 	{
-		int32 Nominato = -99;        // `InterruptedByUnitId` della voce `Interrupted`
+		TArray<int32> Nominati = { -99 }; // `InterruptedByUnitIds` della voce `Interrupted`
 		int32 VociInterrotte = 0;
 		int32 AltreNominate = 0;      // voci che nominano qualcuno senza essere la voce interrotta
 		int32 Primo = 0;             // lo `StableUnitId` dell'interruttore nella cella che viene prima
@@ -2895,8 +2909,8 @@ namespace
 		{
 			const bool bInterrotta = E.Category == ERTLogCategory::Fallback
 				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
-			if (bInterrotta) { ++Out.VociInterrotte; Out.Nominato = E.InterruptedByUnitId; }
-			else if (E.InterruptedByUnitId != INDEX_NONE) { ++Out.AltreNominate; }
+			if (bInterrotta) { ++Out.VociInterrotte; Out.Nominati = E.InterruptedByUnitIds; }
+			else if (E.InterruptedByUnitIds.Num() > 0) { ++Out.AltreNominate; }
 			if (E.ActionId == Interrupt)
 			{
 				++Out.VociInterrupt;
@@ -2921,19 +2935,20 @@ bool FRTHexBlastInterruptedEntryNamesTheInterrupterTest::RunTest(const FString&)
 	{
 		const TCHAR* Nome = Caso == &Attacco ? TEXT("attacco") : TEXT("cura");
 		if (!TestEqual(*FString::Printf(TEXT("%s: premessa: una voce interrotta"), Nome), Caso->VociInterrotte, 1)) { continue; }
-		TestEqual(*FString::Printf(TEXT("%s: nomina l'interruttore"), Nome), Caso->Nominato, Caso->Primo);
+		TestEqual(*FString::Printf(TEXT("%s: nomina l'interruttore"), Nome), Caso->Nominati, TArray<int32>({ Caso->Primo }));
 		TestEqual(*FString::Printf(TEXT("%s: e nessun'altra voce nomina qualcuno"), Nome), Caso->AltreNominate, 0);
 	}
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastTwoInterruptersNameTheFirstTest,
-	"RefactorTactics.HexBlast.TwoInterruptersNameTheFirst",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBlastTwoInterruptersAreBothNamedTest,
+	"RefactorTactics.HexBlast.TwoInterruptersAreBothNamed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexBlastTwoInterruptersNameTheFirstTest::RunTest(const FString&)
+bool FRTHexBlastTwoInterruptersAreBothNamedTest::RunTest(const FString&)
 {
-	// `#4000`, [D-582] (4): con due interruttori efficaci la voce ne nomina UNO, il primo nell'ordine canonico delle unita'
-	// (la cella, `StableLess`), anche quando l'altro e' stato creato prima.
+	// `#4000`, [D-624] (1): con due interruttori efficaci la voce li nomina ENTRAMBI, nell'ordine canonico delle unita' (la
+	// cella, `StableLess`), anche quando il secondo e' stato creato prima.
+	// ⌫ *Fino a [D-624] questo test si chiamava `TwoInterruptersNameTheFirst` e pinnava un nome solo, il primo.*
 	FInterruzioneNominata Due;
 	if (!GiocaInterruzioneNominata(*this, true, false, Due)) { return false; }
 	if (!TestEqual(TEXT("premessa: una voce interrotta, non due"), Due.VociInterrotte, 1)
@@ -2941,12 +2956,12 @@ bool FRTHexBlastTwoInterruptersNameTheFirstTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	TestEqual(TEXT("nomina l'interruttore nella cella che viene prima"), Due.Nominato, Due.Primo);
-	// 🔴 **La seconda domanda della DoD, misurata il 2026-11-15**: il replay puo' ricavare l'altro interruttore dalle voci
-	// `Action.Interrupt` dello stesso turno? No: un Interrupt efficace non lascia voci nel TurnLog (il suo colpo esce da
-	// `Plan.Hits`, e il TurnLog non porta le attivazioni). Il limite e' pinnato, non risolto: «vedere entrambe, in replay»
-	// ([D-582] (4)) con un campo solo non si ottiene, e la scelta e' dell'autore.
-	TestEqual(TEXT("limite misurato: nessuna voce Action.Interrupt nel turno"), Due.VociInterrupt, 0);
+	TestEqual(TEXT("🔴 nomina entrambi, prima quello nella cella che viene prima"), Due.Nominati, TArray<int32>({ Due.Primo, Due.Secondo }));
+	// La seconda domanda della DoD, misurata il 2026-11-15: un Interrupt efficace non lascia voci nel TurnLog (il suo colpo
+	// esce da `Plan.Hits`, e il TurnLog non porta le attivazioni). E' la ragione per cui il secondo interruttore sta nella
+	// lista della voce interrotta ([D-624] (1)) e non si ricava d'altrove: se un giorno quelle voci nascessero, la lista
+	// direbbe la stessa cosa due volte.
+	TestEqual(TEXT("premessa della lista: nessuna voce Action.Interrupt nel turno"), Due.VociInterrupt, 0);
 	TestEqual(TEXT("quindi nessuna del secondo interruttore"), Due.VociDelSecondo, 0);
 	return true;
 }

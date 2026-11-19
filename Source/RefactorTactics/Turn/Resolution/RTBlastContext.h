@@ -351,6 +351,8 @@ struct FRTBlastContext
 	 * ⚠️ Solo `Contains`: l'ordine di un `TSet` non decide niente.
 	 */
 	TSet<int32> InterruptedIntents;
+	/** `#4043`, [D-624]: per un intento interrotto, chi l'ha interrotto, in ordine canonico e coi verdetti, come nella sua voce del TurnLog. */
+	TMap<int32, FRTInterrupters> InterrupterOfIntent;
 
 	/** Operazioni sugli archi raccolte nella fase, applicate a fase CONCLUSA come i colpi e il danno alle strutture. */
 	TArray<FRTPendingArcOp> PendingArcOps;
@@ -524,9 +526,19 @@ struct FRTBlastContext
 		 * dipendere da cio' che il Blast fa dopo.
 		 */
 		FRTKnowledgeVerdict SourceVerdict;
+		/**
+		 * `#4034`, [D-622]: il motivo per cui questa azione NON avviene, come `ERTActionInvalidReason`; `0` (`None`) e' un'attivazione.
+		 * Un'azione bloccata esce come `ActionBlocked` nel posto che la sua attivazione avrebbe avuto.
+		 */
+		int32 BlockedReason = 0;
+		/** `#4034`: un ATTACCO bloccato, che si racconta fra gli attacchi (tipo `0` nella chiave del Blast) e non fra i supporti. */
+		bool bAttack = false;
+		/** `#4043`, [D-624]: per una cura interrotta, chi l'ha interrotta, coi verdetti, come nella sua voce del TurnLog. */
+		FRTInterrupters InterruptedBy;
 	};
 
-	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. */
+	/** Le attivazioni di supporto accettate, nell'ordine dei pass: le ordina e le emette `ResolveCombatPasses`. Da `#4034`
+	 *  anche le azioni del Blast che non avvengono (`BlockedReason`), che non hanno un intento da cui uscire. */
 	TArray<FRTDeferredActivation> DeferredActivations;
 
 	// --- Stati applicati dai colpi, a bersagli sopravvissuti --------------------------------------

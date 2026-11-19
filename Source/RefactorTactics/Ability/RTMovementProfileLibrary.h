@@ -143,10 +143,45 @@ public:
 	 * ⛔ **Una distanza oltre il tetto piu' alto non ripiega su `Move`**: si legge `Sprint`, la banda piu'
 	 * larga. Non dovrebbe accadere — il troncamento lo previene — ma se accadesse, dire «cammino» di un
 	 * percorso che nessun tetto copre nasconderebbe il difetto invece di mostrarlo.
+	 *
+	 * ➕ **[D-629] (E38 CP 38.16): `PlannedSteps` e' la MISURA del piano, il costo in Movement Point quando il piano lo porta**
+	 * (`ARTUnit::PlannedMoveMeasure`), e i passi solo per chi non dichiara un costo. ⏱️ *Fino a D-629 erano sempre i passi*: [D-425] (10)
+	 * aveva scartato la lettura sui MP perche' inerte finche' ogni cella costava 1, e il sovrapprezzo di occupazione li ha separati. Le
+	 * percentuali di passi e MP dei profili sono le stesse ([D-412]), quindi il confronto qui sotto vale per entrambe le misure.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
 	static FRTMovementProfile ProfileForPlannedSteps(int32 PlannedSteps, int32 UnitMoveRange,
 		FName DeclaredProfileId, FName ReservedProfileId, bool bRunDenied = false);
+
+	/**
+	 * I tratti concatenati OLTRE IL PRIMO che un percorso di quel costo chiede ([D-625] (1), [D-626], [D-628] (2); E38 CP 38.16).
+	 *
+	 * 🔑 **Si misurano in Movement Point, sul costo del terreno** ([D-628] (2)): il primo tratto arriva al tetto nudo di
+	 * `CeilingProfile` (lo `Sprint`, o `Move` con la corsa negata, [D-626] (2)), e ogni tratto in piu' aggiunge il budget di un `Move`.
+	 * Nel fango un percorso corto puo' gia' costare un tratto in piu'. La banda del primo tratto resta letta dalla distanza
+	 * (`ProfileForPlannedSteps`, lettura (a) di [D-628]): questa funzione conta i tratti, non sceglie l'andatura.
+	 *
+	 * ⛔ **Sotto un tetto dichiarato o imposto nessun tratto nasce** ([D-626] (1)): con `Sneak` o col `Withdraw` dell'Overwatch il
+	 * tetto vale sull'intero movimento, e la risposta e' 0 qualunque sia il costo. Zero anche per un costo che il primo tratto copre,
+	 * e per un'unita' senza movimento base, che con un tratto in piu' non avanzerebbe di una cella.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static int32 ExtraMoveLegsForCost(int32 PathCost, int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId,
+		bool bRunDenied = false);
+
+	/**
+	 * Il budget di Movement Point che `Legs` tratti concedono: 0 per nessun tratto, il tetto nudo per il primo, piu' un `Move` per
+	 * ognuno dei successivi; sotto un tetto dichiarato o imposto il tetto, per qualunque `Legs` da 1 in su ([D-626] (1)). E' l'inversa
+	 * di `ExtraMoveLegsForCost`: un costo sta sempre in `MoveBudgetForLegs(1 + ExtraMoveLegsForCost(costo))`, salvo sotto quel tetto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static int32 MoveBudgetForLegs(int32 Legs, int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId,
+		bool bRunDenied = false);
+
+	/** Il gemello in passi di `MoveBudgetForLegs` ([D-117] voce 1): stesse percentuali dei profili, sul budget dei passi. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static int32 StepBudgetForLegs(int32 Legs, int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId,
+		bool bRunDenied = false);
 
 	/**
 	 * Il profilo a cui il PIANO riserva lo slot movimento, o `NAME_None` se nessuna voce lo fa

@@ -1195,6 +1195,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewPathArea.Cells.Num() > 0
 		|| PreviewHitArea.Cells.Num() > 0
 		|| PreviewReachableArea.Cells.Num() > 0
+		|| PreviewOverBudgetArea.Cells.Num() > 0
 		|| PreviewRangeArea.Cells.Num() > 0
 		|| PreviewFocusNormalArea.Cells.Num() > 0
 		|| PreviewFocusRunArea.Cells.Num() > 0
@@ -1226,10 +1227,14 @@ void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
-void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells)
+void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells, const TArray<FRTCellId>& OverBudgetCells,
+	const TMap<FRTCellId, int32>& PathCosts)
 {
 	PreviewReachableArea.Cells = ReachableCells;
 	PreviewReachableArea.Meaning = ERTOverlayMeaning::Movement;
+	PreviewOverBudgetArea.Cells = OverBudgetCells;
+	PreviewOverBudgetArea.Meaning = ERTOverlayMeaning::MovementOverBudget;
+	PreviewMoveCosts = PathCosts;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1317,8 +1322,11 @@ int32 ARTHexMapActor::NumPlanningPreviewCells(ERTOverlayMeaning Meaning) const
 	{
 	// Il ventaglio E le due aree del fuoco (#3750): hanno lo stesso significato, e un'area di fuoco rimasta accesa dopo
 	// un'uscita deve vedersi nel conto di chi verifica che l'anteprima sia spenta.
-	case ERTOverlayMeaning::Movement:        return PreviewReachableArea.Cells.Num()
-		+ PreviewFocusNormalArea.Cells.Num() + PreviewFocusRunArea.Cells.Num();
+	case ERTOverlayMeaning::Movement:
+		return PreviewReachableArea.Cells.Num() + PreviewFocusNormalArea.Cells.Num() + PreviewFocusRunArea.Cells.Num();
+	// Il tratto del ventaglio che il residuo non paga (#4155, E38 CP 38.16): un'area accanto a quella pagata.
+	case ERTOverlayMeaning::MovementOverBudget:
+		return PreviewOverBudgetArea.Cells.Num();
 	case ERTOverlayMeaning::PathTrace:       return PreviewPathArea.Cells.Num();
 	case ERTOverlayMeaning::Attack:          return PreviewHitArea.Cells.Num();
 	case ERTOverlayMeaning::FriendlyFire:    return PreviewAllyHitArea.Cells.Num();
@@ -2074,9 +2082,14 @@ void ARTHexMapActor::DrawPlanningPreview() const
 
 	// Celle raggiungibili: contorno piccolo e tenue. Fa vedere il budget mordere (il fango accorcia il raggio)
 	// senza coprire il resto: e' contesto, non una decisione presa.
+	// ➕ #4155, E38 CP 38.16: accanto, il tratto che il residuo non paga, nel suo significato ([D-625] (2), [D-628] (3)).
 	for (const FRTCellId& Cell : PreviewReachableArea.Cells)
 	{
-		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
+		DrawMeaning(Cell, PreviewReachableArea.Meaning);
+	}
+	for (const FRTCellId& Cell : PreviewOverBudgetArea.Cells)
+	{
+		DrawMeaning(Cell, PreviewOverBudgetArea.Meaning);
 	}
 
 	// Le due aree di movimento di chi e' a FUOCO (`#3750`, D-552), nello stile `Predicted`: e' il massimo che il nemico puo'

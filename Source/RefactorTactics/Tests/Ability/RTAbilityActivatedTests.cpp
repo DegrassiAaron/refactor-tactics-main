@@ -777,6 +777,17 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		}
 		return N;
 	};
+	// `#4034`: gli eventi di blocco di quell'unita', con quel motivo.
+	auto BarratiDi = [](const ARTTurnManager* TM, const ARTUnit* U, ERTActionInvalidReason Motivo)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == U->StableUnitId
+				&& Ev.Amount == static_cast<int32>(Motivo)) { ++N; }
+		}
+		return N;
+	};
 
 	// --- 1. Interrotto (montaggio dei test di Interrupt in `RTControlActionTests.cpp`, distanze di UNA cella) ----------
 	{
@@ -806,6 +817,31 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		});
 		if (!TestTrue(TEXT("⛔ premessa: l'azione e' stata CANCELLATA, non degradata"), bCancellato)) { return false; }
 		TestEqual(TEXT("🔴 l'interrotto non si attiva"), AttivazioniDi(TM, Attaccante), 0);
+		// `#4043`, [D-623] (4): l'evento di blocco porta chi ha interrotto, con lo STESSO nome e lo stesso verdetto della voce del
+		// TurnLog: la riga del Registro lo nomina con la stessa regola di privacy di `#4000`.
+		const FRTResolvedEvent* Barrato = TM->ResolvedTimelineForTest().FindByPredicate([Attaccante](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Attaccante->StableUnitId; });
+		const FRTTurnLogEntry* Voce = TM->GetTurnLog().FindByPredicate([Attaccante](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Fallback && E.UnitId == Attaccante->StableUnitId
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted); });
+		if (TestNotNull(TEXT("l'evento di blocco"), Barrato) && TestNotNull(TEXT("e la voce del TurnLog"), Voce))
+		{
+			TestEqual(TEXT("🔑 l'evento nomina l'interruttore"), Barrato->InterruptedByStableUnitIds, TArray<int32>({ Interruttore->StableUnitId }));
+			TestEqual(TEXT("come la voce"), Barrato->InterruptedByStableUnitIds, Voce->InterruptedByUnitIds);
+			if (TestEqual(TEXT("un verdetto per interruttore"), Barrato->InterruptedByVerdicts.Num(), Voce->InterruptedByVerdicts.Num())
+				&& TestEqual(TEXT("premessa: uno"), Barrato->InterruptedByVerdicts.Num(), 1))
+			{
+				for (int32 Squadra = 0; Squadra < 2; ++Squadra)
+				{
+					TestEqual(*FString::Printf(TEXT("e col verdetto della voce, squadra %d"), Squadra),
+						Barrato->InterruptedByVerdicts[0].AllowsTeam(Squadra), Voce->InterruptedByVerdicts[0].AllowsTeam(Squadra));
+				}
+			}
+		}
+		// `#4034`: e al suo posto esce un evento di blocco, col motivo `Interrupted`.
+		TestTrue(TEXT("🔑 l'interrotto esce barrato, col motivo Interrupted"), TM->ResolvedTimelineForTest().ContainsByPredicate(
+			[Attaccante](const FRTResolvedEvent& Ev) { return Ev.Type == ERTResolvedEventType::ActionBlocked
+				&& Ev.SourceStableUnitId == Attaccante->StableUnitId && Ev.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted); }));
 		TestEqual(TEXT("✅ l'interruttore si'"), AttivazioniDi(TM, Interruttore), 1);
 	}
 
@@ -839,7 +875,16 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 			if (Ev.Type == ERTResolvedEventType::Attack && Ev.SourceStableUnitId == Tiratore->StableUnitId) { ++Colpi; }
 		}
 		if (!TestEqual(TEXT("⛔ premessa: il muro ha fermato il colpo"), Colpi, 0)) { return false; }
-		TestEqual(TEXT("🔑 bloccato dalla linea di tiro: SI attiva"), AttivazioniDi(TM, Tiratore), 1);
+		// `#4034`, [D-622] (2): il colpo fermato dalla linea di tiro non grida piu', esce BARRATO col suo motivo.
+		// ⌫ Fino a `#4034` qui si asseriva «bloccato dalla linea di tiro: SI attiva».
+		TestEqual(TEXT("🔑 bloccato dalla linea di tiro: non si attiva"), AttivazioniDi(TM, Tiratore), 0);
+		const FRTResolvedEvent* Barrato = TM->ResolvedTimelineForTest().FindByPredicate([Tiratore](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Tiratore->StableUnitId; });
+		if (TestNotNull(TEXT("🔑 esce barrato"), Barrato))
+		{
+			TestEqual(TEXT("col motivo NoLineOfSight"), Barrato->Amount, static_cast<int32>(ERTActionInvalidReason::NoLineOfSight));
+			TestEqual(TEXT("e il nome dell'azione"), Barrato->ActionId, FName(TEXT("Hero.Ivrin.PulseShot")));
+		}
 	}
 
 	// --- 3. Morto prima del Blast: il piano gli resta addosso, la guardia no ----------------------------
@@ -864,6 +909,9 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 
 		TM->LockInAndResolve();
 		TestEqual(TEXT("🔴 chi e' morto prima del Blast non si attiva"), AttivazioniDi(TM, Morto), 0);
+		// `#4034`: e non esce nemmeno barrato. Un morto non grida, nemmeno un nome barrato.
+		TestFalse(TEXT("🔴 e non esce barrato"), TM->ResolvedTimelineForTest().ContainsByPredicate([Morto](const FRTResolvedEvent& Ev)
+			{ return Ev.Type == ERTResolvedEventType::ActionBlocked && Ev.SourceStableUnitId == Morto->StableUnitId; }));
 	}
 
 	// --- 4. Fuori portata: `Fallback Cancelled` PRIMA di entrare nel Blast (decisione (6), IMPLEMENTATION DRIFT)
@@ -903,6 +951,28 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 			return false;
 		}
 		TestEqual(TEXT("🔴 fuori portata: nessuna attivazione"), AttivazioniDi(TM, Lontano), 0);
+		// `#4034`, [D-600] (2): e al suo posto un evento di blocco, col motivo OutOfRange.
+		TestEqual(TEXT("🔑 fuori portata: esce barrato, col motivo OutOfRange"), BarratiDi(TM, Lontano, ERTActionInvalidReason::OutOfRange), 1);
+	}
+
+	// --- `#4034`: lo stordito, nel Blast, esce barrato col motivo Stunned ----------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World, 6);
+		ARTUnit* Stordito  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Stordito || !Bersaglio) { return false; }
+		Stordito->SetPlannedMainAction(IndiceAbilitaAttivazione(Stordito, TEXT("Hero.Riktor.ImpactShot")));
+		Stordito->DeclareAttackOnUnit(Bersaglio);
+		Stordito->SetPlannedCell(Stordito->Cell);
+		Stordito->ApplyStatus(TAG_Status_Stunned, 2);
+
+		TM->LockInAndResolve();
+		TestEqual(TEXT("🔴 lo stordito non si attiva"), AttivazioniDi(TM, Stordito), 0);
+		TestEqual(TEXT("🔑 ed esce barrato, col motivo Stunned"), BarratiDi(TM, Stordito, ERTActionInvalidReason::Stunned), 1);
 	}
 	return true;
 }
@@ -1342,6 +1412,71 @@ bool FRTTurnHealIsToldAfterAHigherPriorityBlowTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("🔴 il colpo (80) si racconta prima della cura (70): colpo %d, cura %d"),
 			AttivazioneColpo, AttivazioneCura),
 		AttivazioneColpo < AttivazioneCura);
+	return true;
+}
+
+/**
+ * `#4034`, [D-622] (1): in Prep e nel Dash lo stordito esce BARRATO col motivo `Stunned`, al posto della sua attivazione.
+ * Controllo: senza stordimento le stesse unita' si attivano, e non c'e' nessun evento di blocco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnStunnedPrepAndDashComeOutStruckTest,
+	"RefactorTactics.Turn.StunnedPrepAndDashComeOutStruck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnStunnedPrepAndDashComeOutStruckTest::RunTest(const FString&)
+{
+	struct FEsito { int32 AttivatePrep = 0; int32 BarratePrep = 0; int32 AttivateDash = 0; int32 BarrateDash = 0; bool bCellaDellUnita = true; };
+	auto Gira = [this](bool bStordito, FEsito& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World);
+		ARTUnit* Scudo = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(3, 0));
+		ARTUnit* Corridore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Scudo || !Corridore) { return false; }
+		Scudo->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbility(Scudo, TEXT("Action.Shield")));
+		Scudo->SetPlannedCell(Scudo->Cell);
+		const int32 Scia = IndiceAbilitaAttivazione(Corridore, TEXT("Hero.Muiren.FluidTrail"));
+		if (!TestTrue(TEXT("premessa: Muiren ha FluidTrail"), Scia != INDEX_NONE)) { return false; }
+		Corridore->SetPlannedDash(Scia, FRTCellId(1, 0));
+		Corridore->SetPlannedCell(Corridore->Cell);
+		if (bStordito)
+		{
+			Scudo->ApplyStatus(TAG_Status_Stunned, 2);
+			Corridore->ApplyStatus(TAG_Status_Stunned, 2);
+		}
+		TM->LockInAndResolve();
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			const bool bBarrato = Ev.Type == ERTResolvedEventType::ActionBlocked
+				&& Ev.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned);
+			const bool bAttivato = Ev.Type == ERTResolvedEventType::AbilityActivated;
+			if (Ev.SourceStableUnitId == Scudo->StableUnitId && Ev.Phase == ERTMatchPhase::Prep)
+			{
+				Out.AttivatePrep += bAttivato ? 1 : 0;
+				Out.BarratePrep += bBarrato ? 1 : 0;
+			}
+			if (Ev.SourceStableUnitId == Corridore->StableUnitId && Ev.Phase == ERTMatchPhase::Dash)
+			{
+				Out.AttivateDash += bAttivato ? 1 : 0;
+				Out.BarrateDash += bBarrato ? 1 : 0;
+				// ⛔ Privacy: lo scatto non e' avvenuto, e la sua cella d'arrivo pianificata non viaggia. La cella e' quella dell'unita'.
+				if (bBarrato && Ev.AimCell != Corridore->Cell) { Out.bCellaDellUnita = false; }
+			}
+		}
+		return true;
+	};
+	FEsito Liberi, Storditi;
+	if (!Gira(false, Liberi) || !Gira(true, Storditi)) { return false; }
+	TestEqual(TEXT("controllo: senza stordimento la Prep si attiva"), Liberi.AttivatePrep, 1);
+	TestEqual(TEXT("controllo: e lo scatto pure"), Liberi.AttivateDash, 1);
+	TestEqual(TEXT("controllo: e niente e' barrato"), Liberi.BarratePrep + Liberi.BarrateDash, 0);
+	TestEqual(TEXT("stordito: la Prep non si attiva"), Storditi.AttivatePrep, 0);
+	TestEqual(TEXT("ed esce barrata, col motivo Stunned"), Storditi.BarratePrep, 1);
+	TestEqual(TEXT("stordito: lo scatto non si attiva"), Storditi.AttivateDash, 0);
+	TestEqual(TEXT("ed esce barrato, col motivo Stunned"), Storditi.BarrateDash, 1);
+	TestTrue(TEXT("e il blocco porta la cella dell'unita', non l'arrivo pianificato"), Storditi.bCellaDellUnita);
 	return true;
 }
 

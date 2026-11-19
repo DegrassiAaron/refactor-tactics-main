@@ -1492,7 +1492,7 @@ Serve soprattutto per evitare errori di commit.
 > ➕ **2026-11-13 — [D-613](../../decisions/RT_PDR_00_Decision_Log.md) e [D-612](../../decisions/RT_PDR_00_Decision_Log.md)**: i requisiti dell'HUD per il
 > pool di Action Point di [ADR-0011](../../decisions/adr-0011-action-point.md) ([D-584](../../decisions/RT_PDR_00_Decision_Log.md),
 > [D-592](../../decisions/RT_PDR_00_Decision_Log.md), [D-594](../../decisions/RT_PDR_00_Decision_Log.md)), con Riktor come eroe di prova. Motivazioni,
-> rilievi del panel e casi limite stanno nel [referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md) §4. ⏳ **Nulla di questa sezione è
+> rilievi del panel e casi limite stanno nel [referto](../../roadmap/plans/riktor-hud-ap-spec-panel-2026-11-13.md) §4. ✅ **2026-11-17, [#4150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4150)**: budget, spesa e residuo dell'unità comandata, i pip e la privacy sul tipo sono implementati (19-bis.1 senza `Preview`, 19-bis.5); con [#4153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4153) anche il rifiuto per budget della dock (19-bis.3, [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3)); con [#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155) l'anteprima del costo, `Preview` di 19-bis.1, e il costo del movimento di 19-bis.4 con la cella che il residuo non paga ([D-625](../../decisions/RT_PDR_00_Decision_Log.md) (2), colore [D-627](../../decisions/RT_PDR_00_Decision_Log.md)), per il percorso a un tratto di oggi; il resto no. ⌫ *Fino ad allora:* ⏳ **Nulla di questa sezione è
 > implementato**: il codice HUD non legge nessun AP (`git grep -i -E "ActionPoint|OverBudget"` in `Source/RefactorTactics/UI` e
 > `Source/RefactorTactics/Player` → 0, su `9560053a2`). Come nella colonna «Quando» di 19-bis.8: si possono costruire **subito** la somma e il
 > residuo sul budget di oggi (19-bis.1, con `Budget` = 6), il costo nello slot (19-bis.2), l'anteprima del primo Move (19-bis.4) e la privacy
@@ -1531,6 +1531,7 @@ pianificare, e un piano validato non cambia.
 ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (1)): al lock-in il server rifiuta il Ready di un piano `OverBudget`,
 `OnCooldown` o con una seconda copia vietata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), e il piano si svuota. È l'autorità che fa del
 budget una regola; come l'HUD lo mostri resta di `HUD-AP-1`. ⏳ Non implementata: entra con E38.
+➕ **2026-11-17 — [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3)**: `HUD-AP-1` è decisa contro la proposta qui sopra. Un'abilità che il piano non può pagare **non si arma**: lo slot della dock si spegne come in cooldown, col motivo `OverBudget` nel tooltip, e si riaccende quando il residuo basta. D-459 resta intera: non c'è un terzo caso di `Invalid`, e la domanda su quale motivo vinca col bersaglio rifiutato non si pone. Il criterio di 19-bis.3 in 19-bis.8 cambia di conseguenza. ⏳ Non implementata.
 
 ## 19-bis.4 Il costo del movimento
 
@@ -1542,6 +1543,10 @@ D-613 (2), confermata da [D-614](../../decisions/RT_PDR_00_Decision_Log.md), ren
 D-425 deriva dalla distanza. ➕ **2026-11-14** ([D-615](../../decisions/RT_PDR_00_Decision_Log.md) (5)): l'ordine di dichiarazione non decide mai
 la risoluzione. Lettura dell'assistente in D-615, non decisione: due Move separati della stessa unità non avrebbero più un ordine fra loro, e
 questo pesa sulla scelta fra un secondo Move e l'estensione del primo senza deciderla; la scelta resta aperta in `HUD-AP-1`.
+➕ **2026-11-17 — [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (1) (2)**: il percorso resta uno. Il primo tratto prende la banda di D-425 dalla distanza (Move, poi Sprint fino al suo tetto); oltre il tetto dello Sprint nasce un tratto concatenato, e ogni tratto oltre il primo costa altri 2 AP, nell'ordine della catena delle celle. Una cella raggiungibile in MP che il residuo non paga resta visibile col colore di rifiuto e il motivo `OverBudget` all'hover, e il click non pianifica. Lettura dell'assistente in D-625 (f): all'hover su una cella che allunga un percorso già pianificato i pip mostrano 0 finché la cella sta nel tratto pagato, −2 quando ne apre uno nuovo. ⌫ *Fino al 2026-11-18:* ⏳ Non implementata.
+✅ **2026-11-18 — [#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155)**, per il percorso a un tratto di oggi: all'hover su una cella del ventaglio, senza un movimento nel piano, i pip mostrano il costo della voce Move (2) in `Preview`, e `Residual` è il residuo dopo il gesto; con un percorso già pianificato il waypoint lo allunga a costo 0. Il −2 di un tratto nuovo entra con CP 38.16 ([#4117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4117)), perché oggi nessun waypoint lo apre. Quando il residuo non paga il Move, il ventaglio prende `MovementOverBudget` in rosso cupo `#8B1E3F` ([D-627](../../decisions/RT_PDR_00_Decision_Log.md)), l'hover su una sua cella scrive «Non si muove: …» dove l'HUD scrive il rifiuto di un bersaglio, e il click non posa il waypoint (`ARTUnit::CanAffordMoving`). Anche l'hover su uno slot della dock dà il suo `Preview`, il delta di `ActionPointsAfterArming`. Il gesto in corso lo dichiara il controller (`ARTPlayerController::ActionPointsAfterGestureNow`). ⏳ A schermo non giudicata: `PIE-HUD-AP-PREVIEW`.
+✅ **2026-11-18 — fetta 38.16b di [#4117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4117)**, i tratti ([D-625](../../decisions/RT_PDR_00_Decision_Log.md) (1), [D-628](../../decisions/RT_PDR_00_Decision_Log.md) (2) (3)): il ventaglio è verde fino ai tratti che il residuo paga e rosso cupo nel tratto successivo, e oltre non c'è niente; ogni cella sa il costo in Movement Point del percorso fino a lei. All'hover i pip mostrano 0 finché la cella sta nel tratto pagato e −2 per ogni tratto che apre (la lettura (f) di D-625), e una cella rosso cupo dà «Non si muove: …» come prima. Sotto `Sneak` o col `Withdraw` riservato il ventaglio si ferma al tetto, senza un tratto successivo ([D-626](../../decisions/RT_PDR_00_Decision_Log.md) (1)). ⏳ A schermo non giudicata: `PIE-HUD-AP-PREVIEW`, che da qui comprende i tratti.
+➕ **2026-11-19 — [D-631](../../decisions/RT_PDR_00_Decision_Log.md)**, dopo la seduta pilotata di `PIE-HUD-AP-PREVIEW` ([evidenza](../evidence/4159/seduta-pilotata-2026-11-19.md)): «Non si muove: …» e i pip rossi sono la lettura del gesto del movimento, e compaiono solo quando nessuna azione è armata. In un piano pieno un'azione è sempre armata (con lei il contesto è `Targeting`, con uno scatto armato il waypoint è chiuso), e lì bastano il ventaglio rosso cupo e il click che non pianifica. Restringe D-625 (2). A schermo: `PIE-HUD-AP-PREVIEW` 🟡, giudicata sulle tavole.
 
 ## 19-bis.5 Privacy
 
@@ -1573,11 +1578,30 @@ d'equipaggiamento (E48).
   azioni della stessa unità (D-615 (3)). Lettura dell'assistente in D-615: la timeline mostra ancora l'ordine del comparatore, ma spostare una voce
   non cambia l'esito, e se offrire lo spostamento resta dell'owner dell'HUD; due copie della stessa azione si ordinano per bersaglio e cella, mai
   per dichiarazione. Le parti barrate seguivano D-613 (3), che D-615 (5) ribalta.
-- **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. Due reazioni sullo stesso micro-step stanno
-  in un solo prompt, una riga ciascuna, con HOLD per ultimo.
+  ✅ **2026-11-19 — HUD-AP.5b ([#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159))**: la timeline del piano
+  (`FRTPlanPreview`, CP 11.5 [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172)) porta ogni voce principale e ogni voce di
+  Prep, non più la sola principale a fuoco, e `FRTPhasePreviewEntry::StackIndex` dà il posto nella pila della macro-fase, da 1. L'ordine è quello
+  del resolver: nel Prep `NumberInstancesByContent`, come `ResolvePrep`; nel Blast e nel Cleanup `URTActionQueueLibrary::MainVisitLess`, la regola
+  che `ARTTurnManager::MainTurnsOf` usava al suo interno e che ora è una funzione sola per entrambi. Il movimento resta una voce, con tutti i tratti.
+  Area e linea di mira sulla mappa restano della principale a fuoco. ⚠️ **L'indice non ha ancora una vista che lo disegni**: la HUD non ha un widget
+  della timeline, e sulla mappa i ghost delle voci si posano uno per voce e si impilano per cella, non per colonna. Le reazioni restano una sola
+  in `FRTReactionPreview`: la lista nella timeline è un seguito di CP 38.15 ([#4116](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4116)). ⏳ A schermo: `PIE-HUD-AP-STACKS`.
+- **Reazioni come lista** (§11, D-592): N diramazioni, ciascuna con nome, trigger, condizione e costo. ~~Due reazioni sullo stesso micro-step stanno
+  in un solo prompt, una riga ciascuna, con HOLD per ultimo.~~
+  ➕ **2026-11-19** ([D-630](../../decisions/RT_PDR_00_Decision_Log.md)): la frase barrata non era una decisione, e contraddiceva
+  [D-167](../../decisions/RT_PDR_00_Decision_Log.md). Le finestre di più unità dello stesso giocatore nello stesso micro-step restano **in serie**.
+  Per una sola unità il caso oggi non ha produttore: il prompt nasce solo per l'Overwatch, uno per piano, e per il `Brace` nel Blast, mentre
+  le reazioni di slot scattano senza chiedere. Più bersagli della stessa reazione sono già un prompt solo (§11.2). Il criterio si riapre
+  quando una reazione aprirà una finestra nel Move.
 - **Azioni ripetute** (~~D-613 (2), come la legge l'assistente~~ [D-614](../../decisions/RT_PDR_00_Decision_Log.md)): un'azione con cooldown compare al più una volta, quelle senza (attacco base, Move,
   `Wait`) ~~si ripetono, con la riserva dell'autore sulle abilità ripetibili ancora da definire (`MSP-1.r`)~~ si ripetono finché il budget lo consente. Lo stato `Planned` diventa un
   contatore, e il rifiuto nomina l'occorrenza.
+  ✅ **2026-11-18 — HUD-AP.5a ([#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159))**: `FRTAbilityCooldownView::PlannedCount` conta le voci del piano che portano la
+  posizione del kit, in ogni classe, e lo slot mostra «×N» da 2 in su; il rifiuto del validatore nomina la copia colpevole («2ª copia»)
+  nell'avviso `Critical` e nel tooltip (`PlanInvalidOccurrence`, da `OffendingDeclarationIndex`). Il contatore lo costruisce il C++ quando
+  l'asset dello slot non lo dichiara. ⏳ A schermo: `PIE-HUD-AP-PLAN-COUNT`. Le pile e il prompt restano per HUD-AP.5b e HUD-AP.5c.
+  ➕ *2026-11-19*: le pile sono implementate da HUD-AP.5b, nella nota della Ghost Timeline qui sopra; il prompt di HUD-AP.5c è rinviato da
+  [D-630](../../decisions/RT_PDR_00_Decision_Log.md), nella nota delle reazioni come lista qui sopra.
   ➕ **2026-11-14**: la riserva di `MSP-1.r` è chiusa da D-614 (con cooldown una copia per piano, senza cooldown ripetibile finché il budget lo
   consente). Con [D-615](../../decisions/RT_PDR_00_Decision_Log.md) (4) `Action.Overwatch` prende cooldown 1: una per piano, e ancora in ogni turno.
   Con la (7) i sette moduli di reazione di oggi prendono cooldown 1, e un valore più alto entra con la skill che lo chiede. Con la (6) per la
@@ -1591,14 +1615,16 @@ Tutti `NOT RUN`: sono criteri, non esiti.
 
 | Requisito | Criterio | Quando | Prova |
 |---|---|---|---|
-| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel` |
-| 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation |
+| 19-bis.1 | Piano vuoto: `Budget` 6, `Committed` 0, `Residual` 6. Move + attacco base: `Committed` 4, `Residual` 2, e `Committed` è il valore di `ActionPointsSpent` | subito | Automation su `URTHudViewModel`. ✅ `HudViewModel.ActionPointsReadTheValidatorSum` (#4150) |
+| 19-bis.1 | Un budget del turno a 7 mostra sette pip col tratto «modificato» | dopo E38 | Automation. ✅ `HudViewModel.ActionPointPipsFollowTheView` e `ScreenHud.DockShowsActionPointPips` (#4150): il tratto è l'etichetta «AP» in `Cyan`; la causa nel tooltip no, nessun dato la porta |
 | 19-bis.2 | Per ogni voce di Riktor e per le generiche il badge mostra `ActionPointCost`; `Wait` non ha badge | subito | Automation sul catalogo |
-| 19-bis.3 | Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano; con un piano Move + attacco base (4), armare la reazione (2) non accende niente | quando `HUD-AP-1` è decisa | Automation |
-| 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE |
-| 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation |
+| 19-bis.3 | ~~Con un piano Move + attacco base + una reazione (6 AP), armare `Guard` (1) dà allo slot armato `Invalid` col reason `OverBudget` e gli altri slot non cambiano~~; con un piano Move + attacco base (4), armare la reazione (2) non accende niente. ➕ Da [D-625](../../decisions/RT_PDR_00_Decision_Log.md) (3): con un piano da 6 AP su un budget di 6, ogni slot che costa almeno 1 (`Guard` compreso) è spento e non si arma, col motivo `OverBudget` nel tooltip, e `Wait` (0) resta armabile; nessuno slot già pianificato cambia stato. La parte barrata era la proposta che D-625 scarta | `HUD-AP-1` decisa da D-625 | Automation. ✅ [#4153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4153): `PlayerInput.UnaffordableActionDoesNotArm` e `HudViewModel.UnaffordableActionIsUnavailableWithItsReason`. «Il residuo basta» è letto come la spesa DOPO il gesto: la voce che il gesto sostituisce si libera (`ARTUnit::ActionPointsAfterArming`) |
+| 19-bis.4 | All'hover su una cella raggiungibile i pip mostrano −2 senza click | subito | Automation sulla vista del percorso; PIE. ✅ [#4155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4155): `ScreenHud.DockShowsTheGestureCost` (hover sulla cella e sullo slot, ventaglio `MovementOverBudget`, motivo all'hover), `HudViewModel.MovePreviewIsTheComposedPlanSpend` (la spesa prevista è quella del piano dopo il click, bande Move e Sprint), `HudViewModel.ActionPointPipsShowTheGesture`, `PlayerInput.UnaffordableMoveDoesNotPlan` (D-625 (2)). Il −2 del tratto nuovo aspetta CP 38.16; PIE ⏳ `PIE-HUD-AP-PREVIEW` |
+| 19-bis.5 | Il tipo della vista dell'osservato non ha campi del piano o del budget; la vista dell'unità comandata li ha | subito | Automation. ✅ `Privacy.ActionPointsLiveOnlyInTheCommandedView` (#4150), su `FRTUnitCardView`, `FRTGlanceView` e `FRTInspectView` |
 | 19-bis.6 | La dock di Riktor ha i posti di D-612 (4), ognuno con un tasto | con il kit tradotto | Automation, accanto a `PlayerInput.EveryKitEntryIsReachable` |
-| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N; due reazioni sullo stesso micro-step danno un prompt solo | dopo E38 | Automation; PIE a 1920×1080 |
+| 19-bis.7 | Una voce del kit due volte nel piano: lo slot ne mostra il numero; un rifiuto della regola della copia nomina la copia colpevole | dopo E38 | Automation. ✅ [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) (HUD-AP.5a): `HudViewModel.PlannedCountsEveryCopy`, `HudViewModel.RefusalNamesTheOccurrence`; PIE ⏳ `PIE-HUD-AP-PLAN-COUNT` |
+| 19-bis.7 | Due o più azioni nella stessa fase stanno in una pila con indici 1…N, nell'ordine del resolver; permutare la dichiarazione non cambia la pila | dopo E38 | Automation; PIE a 1920×1080. ✅ [#4159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4159) (HUD-AP.5b): `Preview.StackFollowsTheResolverNotTheDeclaration`; PIE ⏳ `PIE-HUD-AP-STACKS`. L'indice è nel view model, e nessuna vista lo disegna ancora |
+| 19-bis.7 | ~~Due reazioni sullo stesso micro-step danno un prompt solo~~ | rinviato | ⛔ Rinviato da [D-630](../../decisions/RT_PDR_00_Decision_Log.md): le finestre di più unità restano in serie ([D-167](../../decisions/RT_PDR_00_Decision_Log.md)), e per una sola unità il caso non ha produttore. Si riapre quando una reazione aprirà una finestra nel Move |
 
 ---
 

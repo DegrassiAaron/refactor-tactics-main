@@ -1,0 +1,35 @@
+{
+  "scenarioId": "Spec.ActionEconomy.SecondLegOverBudget",
+  "tags": ["action-economy", "spec", "movement", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "E38 CP 38.16 (#4117), [D-625] (1) e [D-615] (1): il tratto concatenato e' una voce Move da 2 AP del piano, e il validatore la conta come le altre. Le celle e il percorso sono quelli di `Spec.ActionEconomy.MoveInTwoLegs`, dove lo stesso Move si risolve.",
+  "_oracolo": "ImpactShot su F1 (Blast, 2) + Interposition (reazione, 2) + il percorso di 10 celle, due tratti (2 + 2) = 8 > 6: verdetto `OverBudget` (23), e il lock-in svuota il piano. Ogni voce lascia la sua `Fallback`/`Cancelled`: il colpo, la reazione e le due voci di movimento, quindi quattro. B1 resta dove era. Nessuna asserzione sul `Combat`: il colpo non parte.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-5, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 1, "cell": [0, -6, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — B1 dichiara un colpo, una reazione e 10 celle: 8 AP su 6.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1", "reaction": "Hero.Riktor.Interposition",
+          "move": [[5, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-5, 0, 0],
+      "_assertion": "Il piano e' svuotato: B1 non si muove." },
+    { "type": "LogEventCount", "category": "Fallback", "outcome": "Cancelled", "value": 4,
+      "_assertion": "Una voce per ognuna delle quattro voci del validatore: il colpo, la reazione e i due tratti." },
+    { "type": "LogEventAmount", "category": "Fallback", "outcome": "Cancelled", "value": 23,
+      "_assertion": "Il motivo e' `OverBudget` (23 in `ERTActionInvalidReason`)." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

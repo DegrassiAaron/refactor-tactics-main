@@ -5,6 +5,7 @@
 #include "Turn/Resolution/RTFacingLibrary.h"  // FacingFromPath: la derivazione pura, senza TurnLog
 #include "Ability/Catalog/RTCatalogLibrary.h" // MapResolutionPhase: la fase dell'azione decide il posto della voce ([D-470])
 #include "Turn/Resolution/RTMovementActionLibrary.h" // ResolveLinearMove: la rotta di uno scatto lineare e' quella del resolver ([D-524])
+#include "Turn/Actions/RTActionQueueLibrary.h"        // NumberInstancesByContent, MainVisitLess: l'ordine delle pile e' quello del resolver (HUD-AP.5b)
 
 namespace
 {
@@ -65,7 +66,7 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 
 	// ── L'AZIONE PRINCIPALE: una voce, nella SUA fase e nel SUO posto ([D-470]) ───────────────────────────
 	//
-	// La fase la dichiara il catalogo (`Plan.Blast.Phase`), e la macro-fase in cui risolve decide dove sta la
+	// La fase la dichiara il catalogo (`FRTMainPreviewInput::Blast.Phase`), e la macro-fase in cui risolve decide dove sta la
 	// voce: una `Preparation` prima dello scatto, una `Control` o un `Attack` fra lo scatto e il Move, una
 	// `Environment` dopo il Move. ⏱️ *Fino a [D-470] la voce si chiamava sempre `Attack` e stava sempre fra lo
 	// scatto e il Move*, contro le due promesse dell'header: la fase canonica, e l'ordine di risoluzione.
@@ -73,13 +74,50 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// ⛔ L'origine e l'area NON si ricalcolano qui: le produce `MakeBlastPreview`, che a sua volta chiama
 	// `HexHitCells` — la forma canonica del combat. Una seconda derivazione sarebbe la seconda autorita' che
 	// questo checkpoint vieta espressamente.
-	const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(Plan.Blast, CombatUnits);
-	const ERTMatchPhase MacroFaseAzione = URTCatalogLibrary::MapResolutionPhase(Plan.Blast.Phase);
-	const bool bAzioneNelPrep = Plan.Blast.bHasAction && MacroFaseAzione == ERTMatchPhase::Prep;
-	const bool bAzioneNelCleanup = Plan.Blast.bHasAction && MacroFaseAzione == ERTMatchPhase::Cleanup;
+	//
+	// ➕ **Le principali sono una lista** (E38 CP 38.14; HUD-AP.5b, #4159), e ognuna va nella colonna della sua fase.
 	// ⚠️ Il Blast prende anche le fasi che un'azione principale non ha — `Snapshot` e i due movimenti: lo scatto ha
 	// il suo slot e il percorso e' il Move. E' il posto in cui la voce stava per tutte prima di [D-470].
-	const bool bAzioneNelBlast = Plan.Blast.bHasAction && !bAzioneNelPrep && !bAzioneNelCleanup;
+	TArray<const FRTMainPreviewInput*> PrincipaliNelPrep;
+	TArray<const FRTMainPreviewInput*> PrincipaliNelBlast;
+	TArray<const FRTMainPreviewInput*> PrincipaliNelCleanup;
+	for (const FRTMainPreviewInput& Principale : Plan.Mains)
+	{
+		if (!Principale.Blast.bHasAction) { continue; }
+		switch (URTCatalogLibrary::MapResolutionPhase(Principale.Blast.Phase))
+		{
+		case ERTMatchPhase::Prep:    PrincipaliNelPrep.Add(&Principale); break;
+		case ERTMatchPhase::Cleanup: PrincipaliNelCleanup.Add(&Principale); break;
+		default:                     PrincipaliNelBlast.Add(&Principale); break;
+		}
+	}
+
+	// 🔑 **Dentro la colonna, l'ordine in cui il resolver le visita** (HUD-AP.5b, #4159): `MainVisitLess`, la regola di
+	// `ARTTurnManager::MainTurnsOf`, mai l'ordine dell'ingresso ([D-615] (5)). Le chiavi che `Blast` porta si leggono da
+	// li', come `MainTurnsOf` le legge dalla voce: la cella di mira e' quella dichiarata o quella del bersaglio.
+	const auto ChiaveDiVisita = [&CombatUnits, &CellaCorrente](const FRTMainPreviewInput& Principale)
+	{
+		FRTMainVisitKey Chiave;
+		Chiave.MacroPhase = static_cast<int32>(URTCatalogLibrary::MapResolutionPhase(Principale.Blast.Phase));
+		Chiave.Priority = Principale.Priority;
+		Chiave.ActionId = Principale.ActionId;
+		Chiave.TargetStableUnitId = Principale.TargetStableUnitId;
+		Chiave.AimCell = Principale.Blast.bTargetsCell ? Principale.Blast.TargetCell
+			: CombatUnits.IsValidIndex(Principale.Blast.TargetId) ? CombatUnits[Principale.Blast.TargetId].Cell
+			: CellaCorrente;
+		Chiave.CoverEdge = Principale.CoverEdge;
+		Chiave.DeclarationIndex = Principale.DeclarationIndex;
+		return Chiave;
+	};
+	const auto OrdinaLeVisite = [&ChiaveDiVisita](TArray<const FRTMainPreviewInput*>& Principali)
+	{
+		Principali.StableSort([&ChiaveDiVisita](const FRTMainPreviewInput& A, const FRTMainPreviewInput& B)
+		{
+			return URTActionQueueLibrary::MainVisitLess(ChiaveDiVisita(A), ChiaveDiVisita(B));
+		});
+	};
+	OrdinaLeVisite(PrincipaliNelBlast);
+	OrdinaLeVisite(PrincipaliNelCleanup);
 
 	/**
 	 * La voce dell'azione principale, una sola costruzione per i tre posti in cui puo' stare.
@@ -87,21 +125,25 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	 * `DoveSara` e' la cella in cui l'unita' si trova quando l'azione risolve, cioe' dove va il ghost; `FacingPrima`
 	 * e `FontePrima` sono l'orientamento che la fase riceve. `bRuotaVersoIlBersaglio` e' vero nel solo Blast: e' li'
 	 * che `CollectAttackIntents` gira chi agisce, mentre `ResolvePrep` e `ResolveEnvironment` non lo girano.
+	 * ⚠️ Nel Blast il ghost sta sull'origine di mira della voce, che conosce solo `MakeBlastPreview`: il chiamante passa
+	 * una cella qualunque e copia l'origine nella destinazione dopo.
 	 */
-	const auto VoceAzionePrincipale = [&Plan, &Blast, &CombatUnits](const FRTCellId& DoveSara,
+	const auto VoceAzionePrincipale = [&Plan, &CombatUnits](const FRTMainPreviewInput& Principale, const FRTCellId& DoveSara,
 		ERTHexDirection FacingPrima, ERTPreviewFacingSource FontePrima, bool bRuotaVersoIlBersaglio)
 	{
+		// ⛔ L'origine e l'area NON si ricalcolano qui: le produce `MakeBlastPreview`, una per voce.
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(Principale.Blast, CombatUnits);
 		FRTPhasePreviewEntry Colpo;
-		Colpo.Phase = Plan.Blast.Phase;
+		Colpo.Phase = Principale.Blast.Phase;
 		Colpo.UnitId = Plan.UnitId;
-		Colpo.ActionId = Plan.BlastActionId;
+		Colpo.ActionId = Principale.ActionId;
 		// L'origine e' quella di MIRA ([D-464]); la destinazione e' dove sara' l'unita'. Coincidono salvo per
 		// un'azione del Cleanup dopo un movimento: mira da dove e' stata pianificata, e risolve dopo il Move.
 		Colpo.PreviewOrigin = Blast.Origin;
 		Colpo.PreviewDestination = DoveSara;
 		Colpo.AffectedCells = Blast.HitCells;
 		Colpo.AllyCells = Blast.AllyCells;
-		Colpo.TargetRefusal = Plan.BlastTargetRefusal;
+		Colpo.TargetRefusal = Principale.TargetRefusal;
 
 		// Cio' che il piano DICHIARA di bersagliare, distinto da cio' che l'azione toccherebbe.
 		//
@@ -113,14 +155,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		FRTCellId CellaMira;
 		bool bMiraSuUnitaViva = false;
 		bool bMiraNota = false;
-		if (Plan.Blast.bTargetsCell)
+		if (Principale.Blast.bTargetsCell)
 		{
-			CellaMira = Plan.Blast.TargetCell;
+			CellaMira = Principale.Blast.TargetCell;
 			bMiraNota = true;
 		}
-		else if (CombatUnits.IsValidIndex(Plan.Blast.TargetId) && CombatUnits[Plan.Blast.TargetId].bAlive)
+		else if (CombatUnits.IsValidIndex(Principale.Blast.TargetId) && CombatUnits[Principale.Blast.TargetId].bAlive)
 		{
-			CellaMira = CombatUnits[Plan.Blast.TargetId].Cell;
+			CellaMira = CombatUnits[Principale.Blast.TargetId].Cell;
 			bMiraNota = true;
 			bMiraSuUnitaViva = true;
 		}
@@ -155,7 +197,7 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		//  - origine che viene da uno scatto: dipende da un movimento, e «muoversi basta» → `Uncertain`;
 		//  - altrimenti: c'e' un bersaglio e l'unita' non si sposta → `Predicted`.
 		const bool bBersaglioUtile =
-			Plan.BlastTargetRefusal == ERTTargetRefusal::None && Blast.HitCells.Num() > 0;
+			Principale.TargetRefusal == ERTTargetRefusal::None && Blast.HitCells.Num() > 0;
 		Colpo.Certainty = (!bBersaglioUtile || Blast.bOriginFromPlannedDash)
 			? ERTIntentCertainty::Uncertain
 			: ERTIntentCertainty::Predicted;
@@ -180,12 +222,84 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Out.Phases.Add(Prep);
 	}
 
-	// La principale di `Preparation` risolve qui, prima dello scatto ([D-470]): `ResolvePrep` la arma da dove
-	// l'unita' e' adesso, e col facing di adesso — le azioni di Prep agiscono su chi le usa, e non lo girano.
-	if (bAzioneNelPrep)
+	// ➕ **Le voci di Prep aggiunte (E38 CP 38.13) e la principale di `Preparation`, nell'ordine di `ResolvePrep`**
+	// (HUD-AP.5b, #4159). Il resolver ne fa un'istanza per voce — chi agisce e' anche il bersaglio, la cella e' quella
+	// dell'unita' o quella dichiarata — e le percorre nell'ordine di `NumberInstancesByContent`: qui si costruiscono le
+	// stesse istanze e si chiede a lei. ⛔ Mai l'ordine dell'ingresso ([D-615] (5)).
+	//
+	// ⚠️ La voce qui sopra, la reazione armata, non entra fra le istanze: `ResolvePrep` non la ordina con le altre, e il suo
+	// posto e' il primo della pila come prima di HUD-AP.5b. Le reazioni in una lista nella timeline sono un seguito di CP 38.15 (#4116).
+	struct FVoceDelPrep { const FRTPrepPreviewInput* Prep = nullptr; const FRTMainPreviewInput* Principale = nullptr; };
+	TArray<FVoceDelPrep> VociDelPrep;
+	TArray<FRTActionInstance> IstanzeDelPrep;
+	const auto IstanzaDelPrep = [&Plan, &CellaCorrente](FName ActionId, int32 Priorita, ERTResolutionPhase Fase,
+		const FRTCellId& Cella, int32 Posizione)
 	{
-		Out.Phases.Add(VoceAzionePrincipale(CellaCorrenteDiFase, FacingCorrenteDiFase,
-			ERTPreviewFacingSource::Authoritative, /*bRuotaVersoIlBersaglio=*/ false));
+		FRTActionInstance Istanza;
+		Istanza.Def.ActionId = ActionId;
+		Istanza.Def.Priority = Priorita;
+		Istanza.Def.ResolutionPhase = Fase;
+		Istanza.SourceUnitId = Plan.UnitId;
+		Istanza.TargetUnitId = Plan.UnitId;
+		Istanza.TargetCell = Cella;
+		Istanza.DeclarationIndex = Posizione;
+		return Istanza;
+	};
+	for (const FRTPrepPreviewInput& VoceDiPrep : Plan.PrepEntries)
+	{
+		VociDelPrep.Add({ &VoceDiPrep, nullptr });
+		IstanzeDelPrep.Add(IstanzaDelPrep(VoceDiPrep.ActionId, VoceDiPrep.Priority, ERTResolutionPhase::Preparation,
+			CellaCorrente, VoceDiPrep.DeclarationIndex));
+	}
+	for (const FRTMainPreviewInput* Principale : PrincipaliNelPrep)
+	{
+		VociDelPrep.Add({ nullptr, Principale });
+		IstanzeDelPrep.Add(IstanzaDelPrep(Principale->ActionId, Principale->Priority, Principale->Blast.Phase,
+			Principale->Blast.bTargetsCell ? Principale->Blast.TargetCell : CellaCorrente, Principale->DeclarationIndex));
+	}
+	// Le istanze si ordinano in place, quindi ognuna si riporta alla sua voce: la prima non ancora presa con le stesse chiavi.
+	// Due voci con le stesse chiavi sono copie uguali nel contenuto, e quale delle due vada prima non si vede.
+	TArray<FRTActionInstance> InOrdine = IstanzeDelPrep;
+	int32 Spareggio = 0;
+	URTActionQueueLibrary::NumberInstancesByContent(InOrdine, Spareggio);
+	TArray<bool> Presa;
+	Presa.Init(false, IstanzeDelPrep.Num());
+	for (const FRTActionInstance& Istanza : InOrdine)
+	{
+		int32 Voce = INDEX_NONE;
+		for (int32 I = 0; I < IstanzeDelPrep.Num() && Voce == INDEX_NONE; ++I)
+		{
+			const FRTActionInstance& Candidata = IstanzeDelPrep[I];
+			if (!Presa[I] && Candidata.Def.ActionId == Istanza.Def.ActionId && Candidata.Def.Priority == Istanza.Def.Priority
+				&& Candidata.Def.ResolutionPhase == Istanza.Def.ResolutionPhase && Candidata.TargetCell == Istanza.TargetCell
+				&& Candidata.DeclarationIndex == Istanza.DeclarationIndex)
+			{
+				Voce = I;
+			}
+		}
+		if (Voce == INDEX_NONE) { continue; } // non succede: `NumberInstancesByContent` ordina, non crea istanze
+		Presa[Voce] = true;
+		if (const FRTPrepPreviewInput* VoceDiPrep = VociDelPrep[Voce].Prep)
+		{
+			// Non sposta e non bersaglia: e' certa come la voce della reazione qui sopra.
+			FRTPhasePreviewEntry Prep;
+			Prep.Phase = ERTResolutionPhase::Preparation;
+			Prep.UnitId = Plan.UnitId;
+			Prep.ActionId = VoceDiPrep->ActionId;
+			Prep.PreviewOrigin = CellaCorrenteDiFase;
+			Prep.PreviewDestination = CellaCorrenteDiFase;
+			Prep.Facing = FacingCorrenteDiFase;
+			Prep.FacingSource = ERTPreviewFacingSource::Authoritative;
+			Prep.Certainty = ERTIntentCertainty::Confirmed;
+			Out.Phases.Add(Prep);
+		}
+		else
+		{
+			// La principale di `Preparation` risolve qui, prima dello scatto ([D-470]): `ResolvePrep` la arma da dove
+			// l'unita' e' adesso, e col facing di adesso — le azioni di Prep agiscono su chi le usa, e non lo girano.
+			Out.Phases.Add(VoceAzionePrincipale(*VociDelPrep[Voce].Principale, CellaCorrenteDiFase, FacingCorrenteDiFase,
+				ERTPreviewFacingSource::Authoritative, /*bRuotaVersoIlBersaglio=*/ false));
+		}
 	}
 
 	// ⚠️ **Lo scatto si applica solo se e' stato pianificato E risolve.** I due flag sono indipendenti
@@ -302,13 +416,20 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// nessun orientamento»* (`ResolveMovement`). ⏱️ *Fino a #3566 la voce Move senza percorso prendeva il facing
 	// dopo lo scatto*, cioe' di prima del Blast, e mostrava l'unita' girata dove non sarebbe stata.
 	ERTHexDirection FacingPrimaDelMove = FacingDopoScatto;
-	if (bAzioneNelBlast)
+	ERTPreviewFacingSource FontePrimaDelColpo = bScattoEffettivo
+		? ERTPreviewFacingSource::InheritedFromPreviousPhase
+		: ERTPreviewFacingSource::Authoritative;
+	for (const FRTMainPreviewInput* Principale : PrincipaliNelBlast)
 	{
-		const FRTPhasePreviewEntry Colpo = VoceAzionePrincipale(Blast.Origin, FacingDopoScatto,
-			bScattoEffettivo ? ERTPreviewFacingSource::InheritedFromPreviousPhase : ERTPreviewFacingSource::Authoritative,
+		// Il ghost sta sull'origine di mira della voce ([D-464]), che `VoceAzionePrincipale` legge da `MakeBlastPreview`.
+		FRTPhasePreviewEntry Colpo = VoceAzionePrincipale(*Principale, FRTCellId(), FacingPrimaDelMove, FontePrimaDelColpo,
 			/*bRuotaVersoIlBersaglio=*/ true);
+		Colpo.PreviewDestination = Colpo.PreviewOrigin;
 		Out.Phases.Add(Colpo);
+		// ➕ Con piu' principali nel Blast ognuna riceve il facing che la precedente le lascia: il resolver le visita una
+		// alla volta, e ognuna gira chi agisce verso il proprio bersaglio (HUD-AP.5b).
 		FacingPrimaDelMove = Colpo.Facing;
+		FontePrimaDelColpo = ERTPreviewFacingSource::InheritedFromPreviousPhase;
 	}
 
 	// ── MOVE ────────────────────────────────────────────────────────────────────────────────────────────
@@ -398,9 +519,9 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// La principale di `Environment` risolve dopo il Move ([D-470]), in `ResolveEnvironment`. Il ghost va dove
 	// l'unita' sara' allora, cioe' dopo il Move; l'origine resta quella di mira, la cella da cui e' stata
 	// pianificata ([D-464]). `ResolveEnvironment` non gira chi agisce: il facing e' quello che il Move le lascia.
-	if (bAzioneNelCleanup)
+	for (const FRTMainPreviewInput* Principale : PrincipaliNelCleanup)
 	{
-		Out.Phases.Add(VoceAzionePrincipale(CellaDopoIlMove, FacingDopoIlMove, FonteDopoIlMove,
+		Out.Phases.Add(VoceAzionePrincipale(*Principale, CellaDopoIlMove, FacingDopoIlMove, FonteDopoIlMove,
 			/*bRuotaVersoIlBersaglio=*/ false));
 	}
 
@@ -423,6 +544,16 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Out.Reaction.WatchOrigin = CellaDopoScatto;
 		Out.Reaction.Facing = FacingDopoScatto;
 		Out.Reaction.Certainty = ERTIntentCertainty::Uncertain;
+	}
+
+	// ── LE PILE (HUD-AP.5b, #4159) ──────────────────────────────────────────────────────────────────────────
+	//
+	// La colonna e' la macro-fase, e le voci di una colonna stanno qui sopra una dopo l'altra, gia' nell'ordine del
+	// resolver: il posto nella pila e' il loro conto. La mappa serve solo a cercare, e non si itera.
+	TMap<ERTMatchPhase, int32> VociNellaColonna;
+	for (FRTPhasePreviewEntry& Voce : Out.Phases)
+	{
+		Voce.StackIndex = ++VociNellaColonna.FindOrAdd(URTCatalogLibrary::MapResolutionPhase(Voce.Phase));
 	}
 
 	return Out;

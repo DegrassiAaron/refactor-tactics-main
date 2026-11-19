@@ -403,6 +403,76 @@ struct FRTMovementReadoutView
 };
 
 /**
+ * Gli Action Point dell'unita' COMANDATA: il budget del turno, quanto il piano ne spende, quanti ne restano (#4150,
+ * `progettazione-hud.md` §19-bis.1).
+ *
+ * 🔑 **Il widget non somma mai: legge.** `Committed` viene da `URTPlanValidationLibrary::ActionPointsSpent` sul piano di
+ * `MakePlanFor`, lo stesso compositore che il validatore e il lock-in leggono: una somma rifatta qui potrebbe dire un
+ * residuo con cui il piano non si valida.
+ *
+ * ⛔ **Privacy** (§19-bis.5): si costruisce solo per l'unita' comandata. La somma spesa rivelerebbe quanto e' grande il
+ * piano, e il default — `bAuthorized == false`, tutto a zero — e' la sola risposta che non racconta niente. Per questo i
+ * numeri stanno qui e non in `FRTUnitCardView`, che serve anche all'osservato: la prova si fa sul tipo.
+ */
+USTRUCT(BlueprintType)
+struct FRTActionPointView
+{
+	GENERATED_BODY()
+
+	/**
+	 * Falso senza soggetto: tutto il resto e' allora a zero.
+	 * ⚠️ **Non garantisce da solo la privacy**: `BuildActionPoints` autorizza qualunque unita' non nulla, come
+	 * `BuildMovementReadout`. A decidere e' il CHIAMANTE, e la dock passa soltanto l'unita' comandata.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bAuthorized = false;
+
+	/** Il budget dell'unita' per il turno, `ARTUnit::GetActionPointBudget` ([D-613] (1), E38 CP 38.11). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Budget = 0;
+
+	/** La somma dei costi del piano: `ActionPointsSpent(MakePlanFor(Unit))`. Puo' superare `Budget`: il piano e' allora illegale. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Committed = 0;
+
+	/**
+	 * Il costo del gesto in corso (#4155, §19-bis.1): quanto la spesa cambierebbe col waypoint o lo slot sotto il cursore. 0 senza
+	 * un gesto. Puo' essere negativo, quando il gesto sostituisce una voce che costa di piu' [LETTURA].
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Preview = 0;
+
+	/**
+	 * Il residuo DOPO il gesto, `Budget - Committed - Preview` (il «risorsa dopo» del Cost Preview di §19), negativo quando il piano
+	 * sfora: il widget non sottrae. Senza un gesto e' `Budget - Committed`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Residual = 0;
+
+	/**
+	 * Il budget del turno non e' quello di base (`RTActionPoints::DefaultBudget`): i pip portano il tratto «modificato».
+	 * ⏳ La CAUSA nel tooltip (§19-bis.1, «+1: Magnetic Bastion») non c'e': nessun dato la porta oggi, e l'unica fonte di
+	 * un budget diverso da 6 e' `actionPointBudget` negli scenari (#4150, fuori scope).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bModified = false;
+};
+
+/** Lo stato di un pip degli Action Point (§19-bis.1). */
+UENUM(BlueprintType)
+enum class ERTActionPointPip : uint8
+{
+	/** Speso dal piano, entro il budget. */
+	Committed,
+	/** Ancora disponibile. */
+	Free,
+	/** Speso oltre il budget: il piano non si valida, e il pip sta fuori dalla cornice. */
+	Over,
+	/** Lo spenderebbe il gesto in corso, entro il budget (#4155). Oltre il budget e' `Over`. In coda: l'indice e' il dato. */
+	Preview,
+};
+
+/**
  * Uno stato temporaneo da mostrare sopra un'unita': quale, con che icona, per quanto ancora (`#2274`).
  *
  * 🔑 **Porta l'`IconId` e non lascia che sia chi disegna a comporlo.** La chiave si deriva dal tag con
@@ -652,13 +722,23 @@ struct FRTAbilityCooldownView
 	 * il turno risolvera'. `progettazione-hud.md` §7 li elenca come due stati separati di uno slot
 	 * (`Selected` e `Planned`) e fino a qui uno dei due non arrivava a chi disegna.
 	 *
-	 * ⚠️ **Guarda tutti e TRE i campi**, e non il solo `PlannedAbilityIndex`: una reazione vive in un campo
-	 * suo — `#601` lo dichiara, *«una reazione selezionata finiva nello slot PRINCIPALE»* — e uno scatto in
-	 * un terzo. Leggerne uno solo direbbe «non pianificata» di una reazione che il pass delle reazioni
-	 * eseguira'.
+	 * 🔑 **E' `PlannedCount > 0`, sulle voci del piano di ogni classe** (HUD-AP.5a, #4159). ⏱️ *Fino a HUD-AP.5a guardava i tre campi
+	 * della prima voce* (la principale, la reazione, lo scatto), perche' leggerne uno solo avrebbe detto «non pianificata» di una
+	 * reazione (`#601`); da E38 il piano e' una lista, e la prima voce non basta piu'.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bPlanned = false;
+
+	/**
+	 * Quante voci del piano portano questa posizione del kit, in ogni classe: principale, Prep, scatto, reazione (HUD-AP.5a, #4159;
+	 * `progettazione-hud.md` §19-bis.7, «lo stato `Planned` diventa un contatore»). `bPlanned` e' `PlannedCount > 0`. Lo slot mostra il
+	 * numero da 2 in su (`URTActionSlotWidget`).
+	 *
+	 * ⏱️ *Fino a HUD-AP.5a `bPlanned` guardava la prima voce di tre classi*, e una Guard aggiunta come voce di Prep, o una seconda
+	 * reazione, non risultavano pianificate.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlannedCount = 0;
 
 	/**
 	 * Quale slot del turno consuma questa azione.
@@ -743,6 +823,16 @@ struct FRTAbilityCooldownView
 	bool bPlanInvalid = false;
 
 	/**
+	 * Il piano non paga quest'azione: armarla lo porterebbe oltre il budget del turno (`ARTUnit::CanAffordArming`, #4153,
+	 * [D-625] (3)). Stato `Unavailable`, «si spegne come in ricarica», col motivo `OverBudget` nel tooltip; non e' un terzo
+	 * caso di `Invalid`, e D-459 resta intera.
+	 * ⛔ Lo scrive solo `BuildAbilityCooldowns`, per l'unita' comandata: la spesa e' un pezzo del piano, e la barra pubblica
+	 * dell'osservato lascia il default.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bOverBudget = false;
+
+	/**
 	 * L'azione e' pianificata su un bersaglio che, misurato dall'ORIGINE DEL BLAST (`BlastOriginCell`: la cella
 	 * dello scatto, se si applica) e allo stato NOTO all'osservatore, il click rifiuterebbe: in risoluzione
 	 * prenderebbe il ripiego. Lettura B di [D-459], stato `Warning`. ⛔ Un bersaglio ignoto (`Nothing`) non
@@ -812,6 +902,13 @@ struct FRTAbilityCooldownView
 
 	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
 	ERTActionInvalidReason PlanInvalidReason{};
+
+	/**
+	 * Quale copia il validatore accusa, contata da 1 nell'ordine di dichiarazione fra le voci con lo stesso `ActionId`; 0 quando il
+	 * piano ne porta una sola (HUD-AP.5a, #4159: «il rifiuto nomina l'occorrenza»). Viene da `FRTPlanValidation::OffendingDeclarationIndex`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PlanInvalidOccurrence = 0;
 
 	/**
 	 * Il rifiuto che accende `bPlanDegraded`, dalla stessa domanda (`RefusalForKnownTarget`). ⛔ Un bersaglio
@@ -1539,6 +1636,16 @@ public:
 	static FText ComposeActivationLineText(const FString& UnitLabel, const FText& KitName, FName ActionId);
 
 	/**
+	 * La riga di un'azione BLOCCATA (`#4043`, [D-623] (3)): «Eroe: Azione bloccato» e, sotto, il motivo in parole, senza prefisso.
+	 * L'azione col ripiego di `ComposeActivationLineText`. Il motivo e' quello di `BlockedReasonWords`.
+	 */
+	static FText ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason,
+		const FString& InterrupterLabel = FString());
+
+	/** Il motivo di un blocco in parole, per il Registro (`#4043`): una parola o due, mai vuoto. */
+	static FText BlockedReasonWords(int32 Reason);
+
+	/**
 	 * Fonde le righe d'attivazione nelle righe d'esito del feed (#4033, R6 e R7b). Pura: non legge il mondo.
 	 *
 	 * 🔑 **Le righe d'esito restano intere, nel loro ordine e con il loro numero**: sono gia' tagliate come oggi, e
@@ -1720,6 +1827,14 @@ public:
 	 */
 	static FRTBlastPreviewPlan MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units);
 
+	/**
+	 * La stessa traduzione per UNA voce principale del piano (E38 CP 38.14; HUD-AP.5b, #4159): l'azione e la mira sono
+	 * quelle di `MainEntry`, lo scatto e' dell'unita'. `nullptr` = nessuna principale, solo lo scatto. `MakeBlastPreviewPlan`
+	 * la chiama con la principale a fuoco; la timeline del piano con ognuna, senza aprire un fuoco su un'unita' `const`.
+	 */
+	static FRTBlastPreviewPlan MakeBlastPreviewPlanForEntry(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units,
+		const struct FRTPlanEntry* MainEntry);
+
 	/** Le unita' nella forma che il Blast riceve, con `UnitId` uguale all'indice in `Units`. Vedi `MakeBlastPreviewPlan`. */
 	static TArray<FRTHexCombatUnit> MakeHexCombatUnits(const TArray<ARTUnit*>& Units);
 
@@ -1731,6 +1846,25 @@ public:
 	 * ispezionato — e con `nullptr` torna il default non autorizzato.
 	 */
 	static FRTMovementReadoutView BuildMovementReadout(const ARTUnit* Unit);
+
+	/**
+	 * Gli Action Point dell'unita' COMANDATA (#4150, §19-bis.1). `Committed` e' `ActionPointsSpent(MakePlanFor(Unit))`:
+	 * nessuna seconda somma. ⛔ Come `BuildMovementReadout`, il chiamante passa solo l'unita' comandata, e con `nullptr`
+	 * torna il default non autorizzato.
+	 *
+	 * `SpentAfterGesture` e' la spesa del piano dopo il gesto in corso, come la dice l'unita' (`ActionPointsAfterMoving`,
+	 * `ActionPointsAfterArming`), e `INDEX_NONE` senza un gesto: `Preview` ne e' la differenza da `Committed` (#4155).
+	 */
+	static FRTActionPointView BuildActionPoints(const ARTUnit* Unit, int32 SpentAfterGesture = INDEX_NONE);
+
+	/**
+	 * I pip, da sinistra: uno per AP del budget, impegnati prima e liberi poi, e dopo il budget uno per ogni AP speso oltre.
+	 * Vuoto per una vista non autorizzata. La regola sta qui e non nel widget, che dipinge soltanto.
+	 *
+	 * ➕ Con un gesto in corso (#4155) i pip dicono lo stato DOPO il gesto: i suoi AP sono `Preview` fra gli impegnati e i liberi,
+	 * e `Over` oltre il budget; un `Preview` negativo libera gli ultimi impegnati, che appaiono liberi [LETTURA].
+	 */
+	static TArray<ERTActionPointPip> ActionPointPips(const FRTActionPointView& View);
 
 	/**
 	 * Nome e moltiplicatore di un profilo: `Move ×1`, `Sprint ×2`, `Sneak ×0,5`, `Withdraw ×0,25`, e `Still`

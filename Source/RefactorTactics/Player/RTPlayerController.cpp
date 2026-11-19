@@ -25,6 +25,7 @@
 #include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Turn/Resolution/RTMovementActionLibrary.h"
 #include "Turn/Actions/RTIntentPrivacyLibrary.h" // FRTIntentView: cio' che il click sul nemico pianificherebbe, per l'hover ([D-528])
+#include "Turn/Actions/RTPlanValidationLibrary.h" // ActionPointsSpent, MakePlanFor, ERTActionInvalidReason: il gesto sotto il cursore (#4155)
 #include "Combat/RTCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/Actor/RTSightLines.h"
@@ -2155,6 +2156,32 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 	}
 }
 
+namespace
+{
+	/**
+	 * Toglie dalla fine i waypoint che il residuo di Action Point non paga, e ricompone il percorso (E38 CP 38.16, revisione della 38.16b).
+	 *
+	 * 🔑 **Vale per i soli gesti che RICOMPONGONO un percorso gia' tracciato**: lo scatto pianificato dopo il percorso ([D-628] (4): «quelli
+	 * che non ci stanno piu' cadono dalla fine, come in D-420») e la restituzione dei waypoint che un tetto aveva tolto ([D-444], annullando
+	 * lo `Sneak` o la riserva). Senza, il percorso ricomposto poteva chiedere un tratto in piu' e il piano usciva dal budget senza che
+	 * nessun gesto lo avesse chiesto. ⛔ Il click non passa di qui: un waypoint che il residuo non paga non si posa (`CanAffordMoving`).
+	 * Stessa forma del taglio di D-420, per waypoint interi: si scarta la dichiarazione, non il percorso calcolato.
+	 */
+	int32 TogliIWaypointCheIlResiduoNonPaga(const FRTHexSnapshot& Snapshot, int32 UnitId, const ARTUnit* Unit,
+		TArray<FRTCellId>& Waypoints, FRTHexPathResult& InOutPath)
+	{
+		int32 Tolti = 0;
+		while (Unit && Waypoints.Num() > 0 && InOutPath.Status == ERTHexPathStatus::Success && InOutPath.Path.Num() >= 2
+			&& !Unit->CanAffordMoving(InOutPath.TotalCost))
+		{
+			Waypoints.Pop();
+			++Tolti;
+			InOutPath = Waypoints.Num() > 0 ? URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Waypoints) : FRTHexPathResult();
+		}
+		return Tolti;
+	}
+}
+
 int32 ARTPlayerController::TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
 	TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath)
 {
@@ -2426,6 +2453,9 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			{
 				SelectedUnit->NotePlannedChargeRun(Verdetto.Run);
 			}
+			// E38 CP 38.16, [D-628] (4): un percorso gia' tracciato riparte dalla cella d'arrivo dello scatto. Dopo la corsa della carica,
+			// che dice dove si ferma.
+			RecomposeMoveFromItsStart(SelectedUnit);
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
 				*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer,
 				bCharges ? TEXT(" con impatto")
@@ -2463,11 +2493,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			return;
 		}
 		SelectedUnit->SetPlannedDash(SelIdx, Cell);
+		RecomposeMoveFromItsStart(SelectedUnit); // E38 CP 38.16, [D-628] (4)
 		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
 			*SelectedUnit->GetName(), Cell.X, Cell.Y, Cell.Layer, DashPath.TotalCost);
 		RecordDestinationOrder(this);
 		return;
 	}
+
+	// E38 CP 38.16, [D-628] (4): il Move parte da dove lo scatto pianificato si ferma. Da qui lo snapshot serve solo al movimento.
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, SelectedUnit);
 
 	// Movimento normale: il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
 	SelectedUnit->AddPlannedWaypoint(Cell);
@@ -2497,7 +2531,19 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		return;
 	}
 
-	SelectedUnit->SetPlannedRoute(Composite.Path);
+	// [D-625] (2), #4155: una cella che il residuo non paga non si pianifica. ➕ E38 CP 38.16: la domanda si fa sul percorso COMPOSTO,
+	// perche' e' il suo costo in Movement Point a dire quanti tratti il piano pagherebbe ([D-628] (2)). Il motivo si mostra gia' all'hover
+	// (`HoveredMoveRefusal`); qui si torna al piano di prima e basta, e il rifiuto non entra nel TurnLog, come quello dell'armo.
+	if (!SelectedUnit->CanAffordMoving(Composite.TotalCost))
+	{
+		SelectedUnit->PopPlannedWaypoint();
+		UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) rifiutata per %s: col percorso (costo %d) il piano spenderebbe %d AP su %d"),
+			Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName(), Composite.TotalCost,
+			SelectedUnit->ActionPointsAfterMoving(Composite.TotalCost), SelectedUnit->GetActionPointBudget());
+		return;
+	}
+
+	SelectedUnit->SetPlannedRoute(Composite.Path, Composite.TotalCost);
 	// #79, caso C: un piano VALIDO cancella il rifiuto precedente. Il soggetto della voce di TurnLog e' il
 	// piano finale, non la sequenza dei tentativi: chi prova un varco occupato e poi trova una strada si
 	// muove, e non deve portarsi dietro un «fermo: cella occupata» che il replay racconterebbe come esito.
@@ -2880,6 +2926,84 @@ bool ARTPlayerController::IsDockReadOnly() const
 		&& !IsUnitCommandedByThisPlayer(Subject);
 }
 
+namespace
+{
+	/**
+	 * Il costo in Movement Point del percorso che un click sulla cella sotto il cursore comporrebbe, come il ventaglio l'ha calcolato
+	 * (`ARTHexMapActor::GetPreviewMoveCost`, E38 CP 38.16); `INDEX_NONE` se il ventaglio non lo sa.
+	 */
+	int32 CostoDelPercorsoSottoIlCursore(const UWorld* World)
+	{
+		FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+		const ARTHexMapActor* HexMap = HexMapWithContext(World, Origin, HexSize, LayerH, Map);
+		return HexMap && HexMap->IsHoveredCellValid() ? HexMap->GetPreviewMoveCost(HexMap->GetHoveredCell()) : INDEX_NONE;
+	}
+}
+
+int32 ARTPlayerController::ActionPointsAfterGestureNow(const ARTUnit* Unit) const
+{
+	if (!Unit || Unit != GetSelectedUnit() || IsDockReadOnly() || IsPlanningInputInert())
+	{
+		return INDEX_NONE;
+	}
+	// I contesti in cui un click o un tasto scrivono il piano, quelli di `FRTPlanningOverlayInputs::ShowsAreas`.
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing
+		&& Context != ERTPointerContext::Targeting && Context != ERTPointerContext::Facing)
+	{
+		return INDEX_NONE;
+	}
+	// La spesa si compone solo quando c'e' un gesto: la dock chiede a ogni tick, e senza gesto la risposta e' `INDEX_NONE`.
+	if (Overlay.GetSkillHoverUnit() == Unit && Overlay.GetSkillHoverIndex() != INDEX_NONE)
+	{
+		const int32 Indice = Overlay.GetSkillHoverIndex();
+		if (Unit->IsAbilityInPlan(Indice))
+		{
+			// Gia' contata: riarmarla non spende niente di nuovo.
+			return URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
+		}
+		return Unit->CanUseAbility(Indice) ? Unit->ActionPointsAfterArming(Indice) : INDEX_NONE;
+	}
+	return IsMoveCellUnderCursor(Unit) ? Unit->ActionPointsAfterMoving(CostoDelPercorsoSottoIlCursore(GetWorld())) : INDEX_NONE;
+}
+
+ERTActionInvalidReason ARTPlayerController::HoveredMoveRefusal() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit || IsDockReadOnly() || IsPlanningInputInert() || !IsMoveCellUnderCursor(Unit))
+	{
+		return ERTActionInvalidReason::None;
+	}
+	return Unit->CanAffordMoving(CostoDelPercorsoSottoIlCursore(GetWorld()))
+		? ERTActionInvalidReason::None : ERTActionInvalidReason::OverBudget;
+}
+
+bool ARTPlayerController::IsMoveCellUnderCursor(const ARTUnit* Unit) const
+{
+	if (!Unit || Unit != GetSelectedUnit())
+	{
+		return false;
+	}
+	const ERTPointerContext Context = GetPointerContext();
+	if ((Context != ERTPointerContext::Planning && Context != ERTPointerContext::Pathing) || !Unit->WaypointClickIsOpen())
+	{
+		return false;
+	}
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !HexMap->IsHoveredCellValid())
+	{
+		return false;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	// Come `HandleClickOnCell`: la cella finale apre il selettore del verso, e il nemico della carica pianificata si ispeziona.
+	if (Cell == FacingCellFor(Unit) || PlannedChargeTargetAt(Unit, Cell))
+	{
+		return false;
+	}
+	return HexMap->IsPreviewReachableCell(Cell);
+}
+
 const ARTUnit* ARTPlayerController::GetDockUnit() const
 {
 	return IsDockReadOnly() ? InspectedUnit.Get() : GetSelectedUnit();
@@ -3119,6 +3243,16 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **[D-625] (3) (#4153): un'azione che il piano non puo' pagare non si arma**, come una in ricarica, e per tutti i canali che
+	// passano di qui. La spesa e' quella DOPO il gesto (`ActionPointsAfterArming`), quindi riarmare la principale pianificata, o
+	// cambiare uno scatto con uno che costa uguale, passa anche a residuo zero. Il rifiuto lascia il modello com'era (#2986).
+	if (!Unit->CanAffordArming(Index))
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s rifiutata: con %s il piano spenderebbe %d AP su %d, nulla e' stato armato"),
+			*Richiesta, *Ability->DisplayName.ToString(), Unit->ActionPointsAfterArming(Index), Unit->GetActionPointBudget());
+		return;
+	}
+
 	Unit->SelectAbility(Index);
 
 	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione — e ora non mente.** Se compare,
@@ -3216,11 +3350,12 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			int32 UnitId = INDEX_NONE;
 			if (RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId))
 			{
+				RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 				FRTHexPathResult Kept;
 				// Il taglio lavora su una copia, e il piano si scrive dal mutatore (#4068).
 				TArray<FRTCellId> Tenuti = PrimaDelTaglio;
 				Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Steps, Cost, Kept);
-				Unit->SetPlannedMove(Tenuti, Kept.Path);
+				Unit->SetPlannedMove(Tenuti, Kept.Path, Kept.TotalCost);
 			}
 			else
 			{
@@ -3593,9 +3728,10 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
 		Unit->GetPlan().PlannedMovementProfileId(), /*ReservedProfileId*/ NAME_None,
 		Unit->HasStatus(TAG_Status_Unbalanced));
-	const int32 UnitRange = Unit->GetEffectiveMoveRange();
-	const int32 NewSteps = Ceiling.ResolveStepBudget(UnitRange);
-	const int32 NewCost = Ceiling.ResolveMoveBudget(UnitRange);
+	// ➕ E38 CP 38.16: il budget e' quello dello snapshot di pianificazione, i tratti che il turno pagherebbe (`ARTUnit::MaxMoveLegs`);
+	// sotto `Sneak` e' il tetto, che vale sull'intero movimento ([D-626] (1)). `Ceiling` resta il nome del tetto, per il log.
+	const int32 NewSteps = Unit->StepBudgetForLegs(Unit->MaxMoveLegs());
+	const int32 NewCost = Unit->MoveBudgetForLegs(Unit->MaxMoveLegs());
 
 	if (Unit->GetPlan().PlannedWaypoints().Num() == 0)
 	{
@@ -3611,6 +3747,7 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	{
 		return;
 	}
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 
 	const FRTHexPathResult Composite =
 		URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints());
@@ -3654,7 +3791,7 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	TArray<FRTCellId> Tenuti = PrimaDelTaglio;
 	const int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, NewSteps, NewCost, Kept);
 	// Il piano tagliato si scrive PRIMA del ricordo: `RicordaTroncamentoDelTetto` legge quanti waypoint sono rimasti.
-	Unit->SetPlannedMove(Tenuti, Kept.Path);
+	Unit->SetPlannedMove(Tenuti, Kept.Path, Kept.TotalCost);
 	// 🔑 Chiavata su `ProfileSneak` e non su `Ceiling.Id`: cio' che e' reversibile e' il GESTO del
 	// giocatore, e `CeilingProfile` puo' rispondere un altro profilo quando l'unita' e' `Unbalanced`.
 	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
@@ -3682,6 +3819,37 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	RefreshPlanningOverlay(Unit);
 }
 
+void ARTPlayerController::RecomposeMoveFromItsStart(ARTUnit* Unit)
+{
+	if (!Unit || Unit->GetPlan().PlannedWaypoints().Num() == 0)
+	{
+		return; // nessun percorso tracciato: il Move, se verra', si traccia gia' dalla cella d'arrivo
+	}
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	if (!RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId) || !Snapshot.Units.IsValidIndex(UnitId))
+	{
+		return;
+	}
+	RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
+	// I budget del tetto, quelli con cui il click ha accettato i waypoint: il taglio e' per waypoint interi, dalla fine ([D-420] (3)).
+	const FRTHexSimUnit& Chi = Snapshot.Units[UnitId];
+	TArray<FRTCellId> Tenuti = Unit->GetPlan().PlannedWaypoints();
+	FRTHexPathResult Kept;
+	int32 Dropped = TruncateWaypointsToBudget(Snapshot, UnitId, Tenuti, Chi.StepBudget, Chi.MoveBudget, Kept);
+	// E38 CP 38.16: e quelli che il residuo non paga piu', perche' dalla cella d'arrivo il percorso puo' chiedere un tratto in piu' ([D-628] (4)).
+	Dropped += TogliIWaypointCheIlResiduoNonPaga(Snapshot, UnitId, Unit, Tenuti, Kept);
+	Unit->SetPlannedMove(Tenuti, Kept.Path, Kept.TotalCost);
+	if (Dropped > 0)
+	{
+		Unit->ClearMovePlanRejection();
+		FRTFacingDeclaration::CancelDeclared(*this, Unit, TEXT("lo scatto ha accorciato il percorso"));
+	}
+	// [D-420] (4): il taglio va detto.
+	UE_LOG(LogRT, Display, TEXT("[RT] %s: il percorso riparte dalla cella d'arrivo dello scatto (%d,%d,L%d) — %d waypoint scartati, ne restano %d"),
+		*Unit->GetName(), Chi.Cell.X, Chi.Cell.Y, Chi.Cell.Layer, Dropped, Tenuti.Num());
+}
+
 void ARTPlayerController::RebuildPlannedPath()
 {
 	ARTUnit* Unit = GetSelectedUnit();
@@ -3695,12 +3863,22 @@ void ARTPlayerController::RebuildPlannedPath()
 	FRTHexPathResult Composite;
 	if (Unit->GetPlan().PlannedWaypoints().Num() > 0 && RTPlanningSnapshot::For(this, Unit, Snapshot, UnitId))
 	{
+		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit); // CP 38.16: dalla cella d'arrivo dello scatto
 		Composite = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->GetPlan().PlannedWaypoints());
+		// E38 CP 38.16: i waypoint restituiti da un tetto che si ritira ([D-444]) tornano se il residuo li paga; gli altri cadono dalla fine,
+		// e il log lo dice. Togliere un waypoint (Back) accorcia il percorso, quindi qui non toglie niente.
+		TArray<FRTCellId> Tenuti = Unit->GetPlan().PlannedWaypoints();
+		if (const int32 Tolti = TogliIWaypointCheIlResiduoNonPaga(Snapshot, UnitId, Unit, Tenuti, Composite); Tolti > 0)
+		{
+			Unit->SetPlannedMove(Tenuti, TArray<FRTCellId>());
+			UE_LOG(LogRT, Display, TEXT("[RT] %s: %d waypoint scartati dalla fine, il residuo di Action Point non li paga (ne restano %d)"),
+				*Unit->GetName(), Tolti, Tenuti.Num());
+		}
 	}
 
 	if (Composite.Status == ERTHexPathStatus::Success && Composite.Path.Num() >= 2)
 	{
-		Unit->SetPlannedRoute(Composite.Path);
+		Unit->SetPlannedRoute(Composite.Path, Composite.TotalCost);
 	}
 	else
 	{

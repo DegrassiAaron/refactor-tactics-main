@@ -9,6 +9,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/Feed/RTActivationLine.h"
 #include "UI/HUD/RTHudViewModel.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h" // `#4043`: i motivi del blocco
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -455,6 +456,74 @@ bool FRTActivationLineTextTest::RunTest(const FString&)
 		URTHudViewModel::ComposeActivationLineText(
 			TEXT("Kallari"), FText::GetEmpty(), FName(TEXT("shadowBlade"))).ToString(),
 		FString(TEXT("Kallari — shadowBlade")));
+	return true;
+}
+
+// ── `#4043`, [D-623]: la riga di un'azione barrata ──────────────────────────────────────────────────────────────────────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineBlockedLineNamesTheReasonBelowTest,
+	"RefactorTactics.ActivationLine.BlockedLineNamesTheReasonBelow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineBlockedLineNamesTheReasonBelowTest::RunTest(const FString&)
+{
+	// [D-623] (3): «Eroe: Azione bloccato» e, sotto, il motivo in parole, senza prefisso.
+	TestEqual(TEXT("la forma dell'opzione scelta"),
+		URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")), FName(TEXT("Hero.Riktor.ImpactShot")),
+			static_cast<int32>(ERTActionInvalidReason::Interrupted)).ToString(),
+		FString(TEXT("Riktor: Colpo d'impatto bloccato\ninterrotto")));
+	TestEqual(TEXT("senza un nome del kit, l'ultimo segmento dell'id"),
+		URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::GetEmpty(), FName(TEXT("Hero.Riktor.ImpactShot")),
+			static_cast<int32>(ERTActionInvalidReason::Stunned)).ToString(),
+		FString(TEXT("Riktor: ImpactShot bloccato\nstordito")));
+	// Una parola per ogni motivo che esce barrato, mai vuota; i motivi di bersaglio dicono la stessa.
+	const UEnum* Motivi = StaticEnum<ERTActionInvalidReason>();
+	for (int32 i = 0; i < Motivi->NumEnums() - 1; ++i)
+	{
+		TestFalse(*FString::Printf(TEXT("%s: una parola"), *Motivi->GetNameStringByIndex(i)),
+			URTHudViewModel::BlockedReasonWords(static_cast<int32>(Motivi->GetValueByIndex(i))).IsEmptyOrWhitespace());
+	}
+	const FString Bersaglio = URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::TargetDead)).ToString();
+	TestEqual(TEXT("bersaglio non valido"), Bersaglio, FString(TEXT("bersaglio non valido")));
+	TestEqual(TEXT("anche per l'alleato"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::TargetFriendly)).ToString(), Bersaglio);
+	TestEqual(TEXT("fuori portata"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::OutOfRange)).ToString(), FString(TEXT("fuori portata")));
+	TestEqual(TEXT("nessuna linea di tiro"), URTHudViewModel::BlockedReasonWords(static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)).ToString(), FString(TEXT("nessuna linea di tiro")));
+	// [D-623] (4): chi ha interrotto, quando chi chiama lo passa (cioe' quando chi guarda lo vedeva); il nome conta solo per l'interruzione.
+	const int32 Interrotto = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	TestEqual(TEXT("interrotto da chi"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, Interrotto, TEXT("Gadget")).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\ninterrotto da Gadget")));
+	TestEqual(TEXT("senza il nome, solo interrotto"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, Interrotto).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\ninterrotto")));
+	TestEqual(TEXT("per un altro motivo il nome non conta"), URTHudViewModel::ComposeBlockedLineText(TEXT("Riktor"), FText::FromString(TEXT("Colpo d'impatto")),
+		NAME_None, static_cast<int32>(ERTActionInvalidReason::Stunned), TEXT("Gadget")).ToString(), FString(TEXT("Riktor: Colpo d'impatto bloccato\nstordito")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActivationLineBlockedLineReplacesNoLineOfSightTest,
+	"RefactorTactics.ActivationLine.BlockedLineReplacesNoLineOfSight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActivationLineBlockedLineReplacesNoLineOfSightTest::RunTest(const FString&)
+{
+	// [D-623] (1): la riga barrata per linea di tiro prende il posto di «Nessuna linea di tiro» della stessa unita', e ne
+	// eredita la cella del muro. Controllo: con un altro motivo la riga d'esito resta.
+	FRTPlayerEventLineView NessunaLinea = RigaAttEsitoInFase(7, TEXT("Nessuna linea di tiro"), 1, ERTMatchPhase::Blast);
+	NessunaLinea.bHasBlocker = true;
+	NessunaLinea.BlockerCell = FRTCellId(2, 1);
+	auto Barrata = [](int32 Motivo)
+	{
+		FRTActivationLine A = RigaAttAttivazione(7, TEXT("Riktor: Colpo d'impatto bloccato\nnessuna linea di tiro"), 0, ERTMatchPhase::Blast);
+		A.bBlocked = true;
+		A.BlockedReason = Motivo;
+		return A;
+	};
+	const TArray<FRTPlayerEventLineView> Unite = URTHudViewModel::MergeActivationLines({ NessunaLinea },
+		{ Barrata(static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)) }, { 0 }, 12);
+	if (TestEqual(TEXT("una riga sola"), Unite.Num(), 1))
+	{
+		TestTrue(TEXT("ed e' quella barrata"), Unite[0].Text.ToString().Contains(TEXT("bloccato")));
+		TestTrue(TEXT("con la cella del muro"), Unite[0].bHasBlocker && Unite[0].BlockerCell == FRTCellId(2, 1));
+	}
+	const TArray<FRTPlayerEventLineView> Controllo = URTHudViewModel::MergeActivationLines({ NessunaLinea },
+		{ Barrata(static_cast<int32>(ERTActionInvalidReason::Interrupted)) }, { 0 }, 12);
+	TestEqual(TEXT("controllo: con un altro motivo la riga d'esito resta"), Controllo.Num(), 2);
 	return true;
 }
 

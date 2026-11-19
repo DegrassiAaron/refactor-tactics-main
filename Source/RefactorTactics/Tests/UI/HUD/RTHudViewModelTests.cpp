@@ -26,6 +26,15 @@
 #include "UI/HUD/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 #include "Turn/Actions/RTPlanValidationLibrary.h" // MakePlanFor: da dove viene una voce del piano (#3629)
 #include "Tests/Shared/RTUnitPlanTestAccess.h"
+#include "UI/Inspect/RTGlance.h"       // FRTGlanceView: una vista dell'osservato, per la privacy degli AP (#4150)
+#include "UI/Inspect/RTInspect.h"      // FRTInspectView: idem
+#include "UI/HUD/RTUIPalette.h"        // i colori dei pip si confrontano coi token, non con valori scritti qui
+#include "Components/Border.h"         // un pip e' un UBorder
+#include "Components/PanelWidget.h"    // la fila dei pip
+#include "Turn/Resolution/RTHexSim.h"  // FRTHexSimUnit: l'oracolo del budget e' `ValidatePlan`, non una seconda somma
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason::OverBudget
+#include "Turn/Actions/RTIntentPrivacyLibrary.h"  // FRTIntentView: la vista degli intenti, per la privacy degli AP
+#include "Tests/Shared/RTAbilityFixtures.h"       // AddCoreAbilityInSlot: Guard nel kit, per la voce di Prep (#4153)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -3597,6 +3606,426 @@ bool FRTHudVmEveryMatchKitActionHasANameTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("la voce di movimento `%s` e' fra quelle ricavate dal catalogo dei profili"),
 			*Visto.ToString()), AzioniDiMovimento.Contains(Visto));
 	}
+	return true;
+}
+
+namespace
+{
+	/** L'attacco base del kit: la riga il cui `ActionId` o `BaseActionId` e' `Action.BasicAttack`. */
+	int32 HudVmBasicAttackIndexOf(const ARTUnit* Unit)
+	{
+		const FName Base(TEXT("Action.BasicAttack"));
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && (A->Def.ActionId == Base || A->Def.BaseActionId == Base)) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
+	/** Un Move di un passo, dichiarato come lo dichiara il giocatore: waypoint e cella. */
+	void HudVmPlanOneStep(ARTUnit* Unit)
+	{
+		Unit->AddPlannedWaypoint(FRTCellId(1, 0, 0));
+		Unit->SetPlannedCell(FRTCellId(1, 0, 0));
+	}
+}
+
+/**
+ * #4150 — GLI AP DELLA DOCK SONO QUELLI DEL VALIDATORE, E IL WIDGET NON SOMMA (criteri 1–4, §19-bis.1).
+ *
+ * 🔑 **Due oracoli che non sono la funzione di produzione**: i numeri scritti a mano dai costi di [D-594] (Move 2,
+ * attacco base 2, con la premessa che il catalogo li dica), e `ActionPointsSpent(MakePlanFor(Unit))`, cioe' cio' che il
+ * validatore legge. Un `Committed` sommato altrove passerebbe il primo e non il secondo il giorno che le due somme divergono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionPointsTest,
+	"RefactorTactics.HudViewModel.ActionPointsReadTheValidatorSum",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionPointsTest::RunTest(const FString&)
+{
+	// --- 4. senza unita': il default non autorizzato ---------------------------------------------------------------
+	{
+		const FRTActionPointView Vuota = URTHudViewModel::BuildActionPoints(nullptr);
+		TestFalse(TEXT("4: senza unita' la vista non e' autorizzata"), Vuota.bAuthorized);
+		TestEqual(TEXT("4: Budget 0"), Vuota.Budget, 0);
+		TestEqual(TEXT("4: Committed 0"), Vuota.Committed, 0);
+		TestEqual(TEXT("4: Residual 0"), Vuota.Residual, 0);
+		TestFalse(TEXT("4: non modificato"), Vuota.bModified);
+		TestEqual(TEXT("4: e nessun pip"), URTHudViewModel::ActionPointPips(Vuota).Num(), 0);
+	}
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// L'oracolo del validatore: il piano sta in `Budget` AP se e solo se `ValidatePlan` non lo rifiuta per `OverBudget`. Non rifa' la somma:
+	// chiede il confine a chi lo applica al lock-in.
+	auto RifiutatoPerBudget = [Unit](int32 Budget)
+	{
+		FRTHexSimUnit Sim;
+		Sim.ActionPointBudget = Budget;
+		return URTPlanValidationLibrary::ValidatePlan(Sim, URTPlanValidationLibrary::MakePlanFor(Unit)).Reason == ERTActionInvalidReason::OverBudget;
+	};
+
+	// --- 1. piano vuoto ------------------------------------------------------------------------------------------
+	{
+		const FRTActionPointView V = URTHudViewModel::BuildActionPoints(Unit);
+		TestTrue(TEXT("1: autorizzata"), V.bAuthorized);
+		TestEqual(TEXT("1: Budget 6"), V.Budget, 6);
+		TestEqual(TEXT("1: Committed 0"), V.Committed, 0);
+		TestEqual(TEXT("1: Residual 6"), V.Residual, 6);
+		TestFalse(TEXT("1: il budget di base non e' modificato"), V.bModified);
+	}
+
+	// --- 2. Move + attacco base ------------------------------------------------------------------------------------
+	const int32 Attacco = HudVmBasicAttackIndexOf(Unit);
+	if (TestTrue(TEXT("2: premessa — l'attacco base e' nel kit"), Attacco != INDEX_NONE))
+	{
+		TestEqual(TEXT("2: premessa — l'attacco base costa 2 ([D-594])"), Unit->GetAbility(Attacco)->Def.ActionPointCost, 2);
+		HudVmPlanOneStep(Unit);
+		Unit->SetPlannedMainAction(Attacco);
+
+		const FRTActionPointView V = URTHudViewModel::BuildActionPoints(Unit);
+		TestEqual(TEXT("2: Committed 4, Move 2 + attacco base 2"), V.Committed, 4);
+		TestFalse(TEXT("2: con un budget pari a Committed il validatore non rifiuta per budget"), RifiutatoPerBudget(V.Committed));
+		TestTrue(TEXT("2: con un AP in meno lo rifiuta: Committed e' la somma che il validatore applica"), RifiutatoPerBudget(V.Committed - 1));
+		TestEqual(TEXT("2: Residual 2"), V.Residual, 2);
+
+		// --- 3. il budget del turno cambia: il tratto «modificato», e il residuo lo segue ----------------------------
+		Unit->SetActionPointBudget(7);
+		const FRTActionPointView Sette = URTHudViewModel::BuildActionPoints(Unit);
+		TestEqual(TEXT("3: Budget 7"), Sette.Budget, 7);
+		TestTrue(TEXT("3: 7 e' un budget modificato"), Sette.bModified);
+		TestEqual(TEXT("3: Residual 3 con lo stesso piano"), Sette.Residual, 3);
+
+		// Lo sforamento: il piano spende 4 su un budget di 3. Il residuo e' negativo e la vista non lo nasconde.
+		Unit->SetActionPointBudget(3);
+		const FRTActionPointView Tre = URTHudViewModel::BuildActionPoints(Unit);
+		TestEqual(TEXT("3: Committed resta 4 anche oltre il budget"), Tre.Committed, 4);
+		TestEqual(TEXT("3: Residual -1"), Tre.Residual, -1);
+
+		Unit->ClearPlannedMainAction();
+		FRTUnitPlanTestAccess::ResetWaypoints(*Unit);
+		Unit->SetPlannedCell(Unit->Cell);
+		Unit->SetActionPointBudget(7);
+		const FRTActionPointView Vuoto7 = URTHudViewModel::BuildActionPoints(Unit);
+		TestEqual(TEXT("3: a piano vuoto, Residual 7"), Vuoto7.Residual, 7);
+		TestEqual(TEXT("3: e Committed 0"), Vuoto7.Committed, 0);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * #4150 — I PIP: UNO PER AP DEL BUDGET, IMPEGNATI PRIMA E LIBERI POI, E GLI SFORATI DOPO IL BUDGET.
+ *
+ * 🔑 L'oracolo e' la sequenza scritta a mano per ogni caso, non un ciclo che rifa' la regola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionPointPipsTest,
+	"RefactorTactics.HudViewModel.ActionPointPipsFollowTheView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionPointPipsTest::RunTest(const FString&)
+{
+	using P = ERTActionPointPip;
+	auto Vista = [](int32 Budget, int32 Committed)
+	{
+		FRTActionPointView V;
+		V.bAuthorized = true;
+		V.Budget = Budget;
+		V.Committed = Committed;
+		V.Residual = Budget - Committed;
+		return V;
+	};
+	auto Uguale = [this](const TCHAR* Caso, const TArray<P>& Avuti, const TArray<P>& Attesi)
+	{
+		if (!TestEqual(*FString::Printf(TEXT("%s: quanti pip"), Caso), Avuti.Num(), Attesi.Num())) { return; }
+		for (int32 i = 0; i < Attesi.Num(); ++i)
+		{
+			TestEqual(*FString::Printf(TEXT("%s: pip %d"), Caso, i), static_cast<int32>(Avuti[i]), static_cast<int32>(Attesi[i]));
+		}
+	};
+
+	Uguale(TEXT("vuoto"), URTHudViewModel::ActionPointPips(Vista(6, 0)), { P::Free, P::Free, P::Free, P::Free, P::Free, P::Free });
+	Uguale(TEXT("4 su 6"), URTHudViewModel::ActionPointPips(Vista(6, 4)), { P::Committed, P::Committed, P::Committed, P::Committed, P::Free, P::Free });
+	Uguale(TEXT("6 su 6"), URTHudViewModel::ActionPointPips(Vista(6, 6)),
+		{ P::Committed, P::Committed, P::Committed, P::Committed, P::Committed, P::Committed });
+	Uguale(TEXT("4 su 3"), URTHudViewModel::ActionPointPips(Vista(3, 4)), { P::Committed, P::Committed, P::Committed, P::Over });
+	Uguale(TEXT("budget 7"), URTHudViewModel::ActionPointPips(Vista(7, 2)),
+		{ P::Committed, P::Committed, P::Free, P::Free, P::Free, P::Free, P::Free });
+
+	FRTActionPointView Negata = Vista(6, 4);
+	Negata.bAuthorized = false;
+	TestEqual(TEXT("una vista non autorizzata non ha pip, anche con i numeri"), URTHudViewModel::ActionPointPips(Negata).Num(), 0);
+	return true;
+}
+
+/**
+ * #4150 — GLI AP STANNO SOLO NELLA VISTA DELL'UNITA' COMANDATA (criterio 5, §19-bis.5).
+ *
+ * 🔑 **La prova e' sul TIPO**: le viste che servono anche all'osservato non hanno nessuna proprieta' del budget, quindi
+ * nessun widget puo' mostrarla per sbaglio. Il controllo positivo e' `FRTActionPointView`, che le ha: senza, un nome
+ * cambiato farebbe passare il test per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionPointsPrivacyTest,
+	"RefactorTactics.Privacy.ActionPointsLiveOnlyInTheCommandedView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionPointsPrivacyTest::RunTest(const FString&)
+{
+	// Per SOTTOSTRINGA: un campo futuro come `RemainingBudget` o `ActionPointBudget` cade qui (revisione di #4153).
+	// ⚠️ **Un'eccezione sola, nominata**: `FRTAbilityCooldownView::bOverBudget` e' un flag di riga della barra condivisa fra la barra
+	// propria e quella pubblica, come `bPlanned` e `bPlanInvalid`, e la sua privacy si prova per VALORE: la barra pubblica lo lascia
+	// al default (`HudViewModel.UnaffordableActionIsUnavailableWithItsReason`, criterio 4; `DockShowsTheBarOfAReadOnlySubject`; `IdleBar`).
+	const UScriptStruct* const TipoEccezione = FRTAbilityCooldownView::StaticStruct();
+	const FName CampoEccezione(TEXT("bOverBudget"));
+	TestNotNull(TEXT("l'eccezione esiste ancora: se il campo cambia nome, l'eccezione va riletta"), TipoEccezione->FindPropertyByName(CampoEccezione));
+	// ➕ #4155: `Preview`, il costo del gesto in corso, e' un campo del piano come gli altri tre (§19-bis.5).
+	const TCHAR* Campi[] = { TEXT("Budget"), TEXT("Committed"), TEXT("Preview"), TEXT("Residual") };
+	auto Ha = [TipoEccezione, CampoEccezione](const UScriptStruct* Tipo, const FString& Nome)
+	{
+		for (TFieldIterator<FProperty> It(Tipo); It; ++It)
+		{
+			if (Tipo == TipoEccezione && It->GetFName() == CampoEccezione) { continue; }
+			if (It->GetName().Contains(Nome)) { return true; }
+		}
+		return false;
+	};
+
+	for (const TCHAR* Campo : Campi)
+	{
+		TestTrue(*FString::Printf(TEXT("controllo positivo: FRTActionPointView ha %s"), Campo),
+			Ha(FRTActionPointView::StaticStruct(), Campo));
+	}
+
+	// Le viste che servono anche a un'unita' non comandata: la carta e l'overlay, lo sguardo e la scheda, la barra pubblica
+	// (`BuildPublicBar` rende `FRTAbilityCooldownView`) e gli intenti, filtrati per squadra (§19-bis.5).
+	const UScriptStruct* Osservate[] = {
+		FRTUnitCardView::StaticStruct(), FRTUnitOverlayView::StaticStruct(), FRTGlanceView::StaticStruct(),
+		FRTInspectView::StaticStruct(), FRTAbilityCooldownView::StaticStruct(), FRTIntentView::StaticStruct() };
+	for (const UScriptStruct* Tipo : Osservate)
+	{
+		for (const TCHAR* Campo : Campi)
+		{
+			TestFalse(*FString::Printf(TEXT("%s non ha %s"), *Tipo->GetName(), Campo), Ha(Tipo, Campo));
+		}
+		bool bActionPoint = false;
+		for (TFieldIterator<FProperty> It(Tipo); It; ++It) { bActionPoint |= It->GetName().Contains(TEXT("ActionPoint")); }
+		TestFalse(*FString::Printf(TEXT("%s non ha niente che si chiami ActionPoint"), *Tipo->GetName()), bActionPoint);
+	}
+
+	// La dock: un soggetto ISPEZIONATO non da' nessun numero, anche se il suo piano ne spende.
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTUnit* Nemico = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 1);
+	URTActionDockWidget* Spia = NewObject<URTActionDockWidget>(World);
+	if (TestNotNull(TEXT("nemico"), Nemico) && TestNotNull(TEXT("dock"), Spia))
+	{
+		HudVmPlanOneStep(Nemico);
+		TestTrue(TEXT("premessa: il piano del nemico spende"),
+			URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Nemico)) > 0);
+		Spia->SetInspectedUnitForTest(Nemico);
+		const FRTActionPointView V = Spia->GetActionPoints();
+		TestFalse(TEXT("il soggetto ispezionato non autorizza gli AP"), V.bAuthorized);
+		TestEqual(TEXT("e la somma del suo piano non esce"), V.Committed, 0);
+	}
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * #4150 — LA DOCK MOSTRA UN PIP PER AP, COI COLORI DEI TOKEN, E LI NASCONDE QUANDO NON COMANDA (criterio 6).
+ *
+ * ⚠️ **Si prova il widget costruito dal C++** (`EnsureActionPointPips`), cioe' cio' che il dock monta quando l'asset non
+ * dichiara le porte: e' il caso di `WBP_RT_ActionDock` oggi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDockActionPointPipsTest,
+	"RefactorTactics.ScreenHud.DockShowsActionPointPips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDockActionPointPipsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("dock"), Dock))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	Dock->EnsureActionPointPips();
+	if (!TestNotNull(TEXT("le porte sono costruite"), Dock->ActionPoints.Get())
+		|| !TestNotNull(TEXT("la fila dei pip"), Dock->ActionPointPips.Get()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+	UWidget* GiaCostruito = Dock->ActionPoints;
+	Dock->EnsureActionPointPips();
+	TestTrue(TEXT("idempotente: la seconda chiamata non costruisce di nuovo"), Dock->ActionPoints == GiaCostruito);
+
+	// Senza selezione: nascosti, nessun pip.
+	Dock->RefreshActionPoints();
+	TestEqual(TEXT("senza selezione: nascosti"), static_cast<int32>(Dock->ActionPoints->GetVisibility()), static_cast<int32>(ESlateVisibility::Collapsed));
+	TestEqual(TEXT("senza selezione: nessun pip"), Dock->ActionPointPips->GetChildrenCount(), 0);
+
+	// Comandata, Move + attacco base: sei pip, quattro ambra e due spenti.
+	Dock->SetSelectedUnitForTest(Unit);
+	const int32 Attacco = HudVmBasicAttackIndexOf(Unit);
+	if (TestTrue(TEXT("premessa — l'attacco base e' nel kit"), Attacco != INDEX_NONE))
+	{
+		HudVmPlanOneStep(Unit);
+		Unit->SetPlannedMainAction(Attacco);
+	}
+	Dock->RefreshActionPoints();
+	TestEqual(TEXT("comandata: visibili"), static_cast<int32>(Dock->ActionPoints->GetVisibility()), static_cast<int32>(ESlateVisibility::SelfHitTestInvisible));
+	if (TestEqual(TEXT("comandata: un pip per AP del budget"), Dock->ActionPointPips->GetChildrenCount(), 6))
+	{
+		const FLinearColor Ambra = URTUIPalette::ColorFor(ERTUIToken::Amber);
+		const FLinearColor Spento = URTUIPalette::ColorFor(ERTUIToken::Frame_Off);
+		for (int32 i = 0; i < 6; ++i)
+		{
+			const UBorder* Pip = Cast<UBorder>(Dock->ActionPointPips->GetChildAt(i));
+			if (TestNotNull(*FString::Printf(TEXT("pip %d e' un bordo"), i), Pip))
+			{
+				TestEqual(*FString::Printf(TEXT("pip %d: %s"), i, i < 4 ? TEXT("impegnato") : TEXT("libero")),
+					Pip->GetBrushColor(), i < 4 ? Ambra : Spento);
+			}
+		}
+	}
+	TestEqual(TEXT("budget di base: l'etichetta e' secondaria"),
+		Dock->ActionPointsLabel->GetColorAndOpacity().GetSpecifiedColor(), URTUIPalette::ColorFor(ERTUIToken::Text_Secondary));
+
+	// Lo sforamento: budget 3, il quarto pip e' rosso. E il budget modificato colora l'etichetta.
+	Unit->SetActionPointBudget(3);
+	Dock->RefreshActionPoints();
+	if (TestEqual(TEXT("sforato: tre del budget e uno oltre"), Dock->ActionPointPips->GetChildrenCount(), 4))
+	{
+		const UBorder* Oltre = Cast<UBorder>(Dock->ActionPointPips->GetChildAt(3));
+		TestTrue(TEXT("sforato: il pip oltre il budget e' rosso"),
+			Oltre && Oltre->GetBrushColor() == URTUIPalette::ColorFor(ERTUIToken::Red));
+	}
+	TestEqual(TEXT("budget modificato: l'etichetta e' Cyan"),
+		Dock->ActionPointsLabel->GetColorAndOpacity().GetSpecifiedColor(), URTUIPalette::ColorFor(ERTUIToken::Cyan));
+
+	// Un soggetto ispezionato, sulla stessa dock: nascosti, e la fila si svuota.
+	ARTUnit* Nemico = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 1);
+	if (TestNotNull(TEXT("nemico"), Nemico))
+	{
+		Dock->SetSelectedUnitForTest(nullptr);
+		Dock->SetInspectedUnitForTest(Nemico);
+		Dock->RefreshActionPoints();
+		TestEqual(TEXT("ispezionato: nascosti"), static_cast<int32>(Dock->ActionPoints->GetVisibility()), static_cast<int32>(ESlateVisibility::Collapsed));
+		TestEqual(TEXT("ispezionato: nessun pip"), Dock->ActionPointPips->GetChildrenCount(), 0);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * #4153, [D-625] (3) — LO SLOT CHE IL PIANO NON PAGA SI SPEGNE COME IN RICARICA, COL MOTIVO; LA BARRA PUBBLICA NON LO DICE (criteri 3, 4).
+ *
+ * 🔑 Il controllo positivo e' lo stesso piano con un budget che paga: la stessa riga torna `Available`. Senza, un `bOverBudget` sempre vero
+ * passerebbe il primo blocco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmUnaffordableSlotTest,
+	"RefactorTactics.HudViewModel.UnaffordableActionIsUnavailableWithItsReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmUnaffordableSlotTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	const int32 Attacco = HudVmBasicAttackIndexOf(Unit);
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestTrue(TEXT("premessa: l'attacco base e' nel kit"), Attacco != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// Move + attacco base = 4, su un budget di 4: residuo zero.
+	HudVmPlanOneStep(Unit);
+	Unit->SetPlannedMainAction(Attacco);
+	Unit->SetActionPointBudget(4);
+	if (!TestEqual(TEXT("premessa: il piano spende 4"), URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 4))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+	const FString Motivo = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget);
+
+	// La riga sotto prova: una che costa, non pianificata, pronta. Il piano sostituirebbe la principale solo per un'altra principale,
+	// quindi si cerca una riga che il gesto AGGIUNGA o che costi piu' dell'attacco base: la spesa dopo il gesto la dice la funzione
+	// dell'unita', e la premessa e' che superi il budget.
+	const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	int32 Sotto = INDEX_NONE;
+	for (const FRTAbilityCooldownView& R : Righe)
+	{
+		if (!R.ActionId.IsNone() && !R.bPlanned && R.TurnsRemaining == 0 && Unit->ActionPointsAfterArming(R.AbilityIndex) > 4)
+		{
+			Sotto = R.AbilityIndex;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: c'e' una riga che il residuo zero non paga"), Righe.IsValidIndex(Sotto)))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- 3. spenta, col motivo; la principale pianificata resta Planned ------------------------------------------------
+	TestTrue(TEXT("3: la riga non pagata porta bOverBudget"), Righe[Sotto].bOverBudget);
+	TestEqual(TEXT("3: ed e' Unavailable"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Righe[Sotto], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Unavailable));
+	TestTrue(TEXT("3: il tooltip nomina il budget"),
+		URTHudViewModel::BuildActionTooltip(Righe[Sotto], /*bArmed=*/ false).Reason.ToString().Contains(Motivo));
+	TestFalse(TEXT("3: non e' un piano illegale: D-459 resta intera"), Righe[Sotto].bPlanInvalid);
+	TestEqual(TEXT("3: la principale pianificata resta Planned"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Righe[Attacco], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Planned));
+
+	// --- controllo positivo: con un budget che la paga, la stessa riga si riaccende -----------------------------------
+	Unit->SetActionPointBudget(Unit->ActionPointsAfterArming(Sotto));
+	const TArray<FRTAbilityCooldownView> Pagate = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	TestFalse(TEXT("controllo positivo: col residuo che basta non sfora"), Pagate[Sotto].bOverBudget);
+	TestEqual(TEXT("controllo positivo: ed e' Available"),
+		static_cast<int32>(URTHudViewModel::ResolveSlotState(Pagate[Sotto], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Available));
+
+	// --- un'azione GIA' nel piano non sfora, anche quando una seconda copia sforerebbe (revisione di #4153) ------------------
+	// Guard su se stessi, con la principale presa, entra come voce di Prep e porta il piano a 5 su 5. `bPlanned` non la vede, perche'
+	// guarda la prima voce di ogni classe: la riga non deve leggersi «non si arma» mentre e' pianificata.
+	{
+		int32 PosGuardia = INDEX_NONE;
+		for (int32 i = Unit->NumAbilities() - 1; i >= 0 && PosGuardia == INDEX_NONE; --i) { if (i != Attacco) { PosGuardia = i; } }
+		const int32 Guardia = RTAbilityFixtures::AddCoreAbilityInSlot(Unit, TEXT("Action.Guard"), PosGuardia);
+		Unit->SetActionPointBudget(5);
+		if (TestTrue(TEXT("premessa: Guard nel kit"), Guardia != INDEX_NONE)
+			&& TestTrue(TEXT("premessa: Guard entra come voce di Prep"), Unit->DeclarePlannedAction(Guardia)))
+		{
+			TestEqual(TEXT("premessa: il piano spende 5 su 5"),
+				URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit)), 5);
+			const TArray<FRTAbilityCooldownView> ConGuardia = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			TestFalse(TEXT("Guard pianificata non porta bOverBudget"), ConGuardia[Guardia].bOverBudget);
+			TestNotEqual(TEXT("e non e' Unavailable"),
+				static_cast<int32>(URTHudViewModel::ResolveSlotState(ConGuardia[Guardia], /*bArmed=*/ false)), static_cast<int32>(ERTActionSlotState::Unavailable));
+			TestFalse(TEXT("e il tooltip non dice «non si arma»"),
+				URTHudViewModel::BuildActionTooltip(ConGuardia[Guardia], /*bArmed=*/ true).Reason.ToString().Contains(Motivo));
+		}
+	}
+
+	// --- 4. la barra pubblica non dice niente del budget ---------------------------------------------------------------
+	Unit->SetActionPointBudget(4);
+	for (const FRTAbilityCooldownView& R : URTHudViewModel::BuildPublicBar(Unit))
+	{
+		TestFalse(*FString::Printf(TEXT("4: la barra pubblica, posizione %d, non porta bOverBudget"), R.AbilityIndex), R.bOverBudget);
+	}
+
+	DestroyHudVmWorld(World);
 	return true;
 }
 

@@ -3158,6 +3158,8 @@ namespace
 		switch (Meaning)
 		{
 		case ERTOverlayMeaning::Movement:        Actor->SetPreviewReachableCells({ A, B }); break;
+		// #4155, E38 CP 38.16: il tratto del ventaglio che il residuo di Action Point non paga, un'area accanto a quella pagata.
+		case ERTOverlayMeaning::MovementOverBudget: Actor->SetPreviewReachableCells({}, { A, B }); break;
 		case ERTOverlayMeaning::PathTrace:       Actor->SetPreviewPath({ A, B }); break;
 		case ERTOverlayMeaning::Attack:          Actor->SetPreviewHitCells({ A }, {}); break;
 		case ERTOverlayMeaning::FriendlyFire:    Actor->SetPreviewHitCells({}, { B }); break;
@@ -3177,7 +3179,7 @@ namespace
 	{
 		const FRTCellId A(0, 0, 0);
 		const FRTCellId B(1, 0, 0);
-		Actor->SetPreviewReachableCells({ A, B });
+		Actor->SetPreviewReachableCells({ A }, { B }); // E38 CP 38.16: il pagato e il tratto dopo, due aree
 		Actor->SetPreviewPath({ A, B });
 		Actor->SetPreviewHitCells({ A }, { B });
 		Actor->SetPreviewRangeCells({ A });
@@ -3284,6 +3286,7 @@ bool FRTHexMapActorClearPlanningPreviewTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("dopo il reset %s e' spento"), *HexMapActorMeaningName(Meaning)),
 			Actor->NumPlanningPreviewCells(Meaning), 0);
 	}
+
 	TestEqual(TEXT("dopo il reset l'area normale del fuoco e' spenta"), Actor->GetPreviewFocusNormalCells().Num(), 0);
 	TestEqual(TEXT("e quella raggiunta solo correndo"), Actor->GetPreviewFocusRunOnlyCells().Num(), 0);
 	TestTrue(TEXT("dopo il reset anche la portata in hover e' spenta, nei suoi tre stati (#3750, fetta D)"),

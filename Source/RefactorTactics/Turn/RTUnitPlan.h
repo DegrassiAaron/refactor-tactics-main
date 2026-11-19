@@ -111,8 +111,10 @@ struct REFACTORTACTICS_API FRTUnitPlan
 		// (`ARTUnit::DeclarePlannedAction`), che conosce la fase dell'azione; qui si tiene solo la forma.
 		// E38 CP 38.15: e anche la reazione ([D-592]). Che due reazioni stiano insieme lo dice il validatore (una copia con
 		// ricarica e' `RepeatedWithCooldown`, [D-614]); quante ne scattano, [D-619].
+		// E38 CP 38.16: anche lo scatto ([D-584] (1)). Due scatti sono vietati dal validatore ([D-625] (4), `SecondDash`), non dalla forma
+		// del piano: un piano che li porta si svuota al lock-in, come uno oltre il budget. Resta chiuso il solo movimento, che e' uno.
 		const bool bAperta = Entry.Class == ERTPlanEntryClass::Prep || Entry.Class == ERTPlanEntryClass::Main
-			|| Entry.Class == ERTPlanEntryClass::Reaction;
+			|| Entry.Class == ERTPlanEntryClass::Reaction || Entry.Class == ERTPlanEntryClass::Dash;
 		if (Entry.IsEmpty() || (!bAperta && DeclarationIndexOf(Entry.Class) != INDEX_NONE))
 		{
 			return false;
@@ -176,6 +178,7 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	void AddPlannedWaypoint(const FRTCellId& V) { Edit(ERTPlanEntryClass::Movement).Waypoints.Add(V); Prune(); }
 	void PopPlannedWaypoint() { Edit(ERTPlanEntryClass::Movement).Waypoints.Pop(); Prune(); }
 	void SetPlannedMovementProfileId(FName V) { Edit(ERTPlanEntryClass::Movement).MovementProfileId = V; Prune(); }
+	void SetPlannedPathCost(int32 V) { Edit(ERTPlanEntryClass::Movement).PathCost = V; Prune(); }
 
 	/** Cella di destinazione pianificata per il turno corrente (default = cella attuale). */
 	UPROPERTY()
@@ -240,6 +243,9 @@ struct REFACTORTACTICS_API FRTUnitPlan
 	 * Vive sull'unita' cosi' la riselezione ne preserva l'editing (aggiungi/annulla step).
 	 */
 	const TArray<FRTCellId>& PlannedWaypoints() const { return Of(ERTPlanEntryClass::Movement).Waypoints; }
+
+	/** Il costo in Movement Point di `PlannedPath`, letto quando il percorso si e' composto (E38 CP 38.16): `FRTPlanEntry::PathCost`. */
+	int32 PlannedPathCost() const { return Of(ERTPlanEntryClass::Movement).PathCost; }
 
 	/**
 	 * Il profilo di movimento **DICHIARATO** per questo turno — oggi `MovementProfile.Sneak`, o vuoto

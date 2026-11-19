@@ -663,11 +663,21 @@ bool FRTPlanWarningsSourcesTest::RunTest(const FString&)
 		return false;
 	}
 	B.Mine->SetPlannedDash(Scatto, FRTCellId(-1, 1, 0));
-	// Il movimento nel piano lo dice `HasPlannedNormalMove()`: la cella pianificata, non i waypoint.
-	B.Mine->SetPlannedCell(FRTCellId(0, -1, 0));
+	// E38 CP 38.16: scatto + movimento e' legale ([D-584] (1)); il conflitto con due azioni che resta e' un secondo scatto, diverso
+	// ([D-625] (4)). ⏱️ *Fino a CP 38.16 qui c'era un movimento normale, e il motivo era lo slot.* Nessun gesto lo compone: lo si
+	// scrive con la strada dell'harness.
+	const FName IdDelPrimo = B.Mine->GetAbility(Scatto)->Def.ActionId;
+	const int32 Secondo = RTAbilityFixtures::AddCoreAbility(B.Mine,
+		IdDelPrimo == FName(TEXT("Action.Leap")) ? TEXT("Action.Dodge") : TEXT("Action.Leap"));
+	if (!TestTrue(TEXT("premessa: il secondo scatto entra nel piano"),
+			Secondo != INDEX_NONE && B.Mine->AddPlannedDash(Secondo, FRTCellId(0, -1, 0))))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
 	const FRTPlanValidation Conflitto = URTPlanValidationLibrary::ValidatePlan(
 		FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(B.Mine));
-	if (!TestFalse(TEXT("premessa: scatto + movimento e' illegale"), Conflitto.bLegal)
+	if (!TestFalse(TEXT("premessa: due scatti diversi sono illegali"), Conflitto.bLegal)
 		|| !TestFalse(TEXT("premessa: e il validatore nomina le due azioni"), Conflitto.HolderActionId.IsNone()))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);

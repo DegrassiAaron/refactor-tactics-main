@@ -183,6 +183,8 @@ namespace RTScenarioStateDiff
 #include "Unit/RTUnit.h"
 #include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
+#include "Player/Planning/RTPlanningSnapshot.h" // StartMovementFromPlannedDash: il Move parte dalla cella d'arrivo dello scatto (CP 38.16)
+#include "Turn/Resolution/RTMovementActionLibrary.h" // JudgeLinearDashClick: la corsa della carica, come al click (CP 38.16)
 #include "UI/Reaction/RTReactionWindowViewModel.h" // `playerReactionWindows`: la finestra al giocatore (#3634)
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
@@ -407,6 +409,10 @@ namespace
 			// E38 CP 38.14 (#4115): una seconda principale del Blast o del Cleanup. Il produttore che non e' l'harness e' lo
 			// stesso gesto della lista, che ora la aggiunge (`ARTUnit::DeclarePlannedAction`).
 			TEXT("MainListPlanning"),
+			// E38 CP 38.16 (#4117): un secondo scatto nello stesso piano. ⚠️ **Non ha un gesto del giocatore, ed e' giusto**: [D-625] (4)
+			// lo vieta, e lo scenario scrive il piano che il validatore deve rifiutare (`SecondDash`, o `RepeatedWithCooldown` per la
+			// stessa azione), come uno scenario scrive un piano oltre il budget. Il produttore che non e' l'harness e' il validatore.
+			TEXT("DashListPlanning"),
 		};
 		return Available;
 	}
@@ -554,10 +560,9 @@ namespace
 			TEXT("NeverAvailable"),           // owner: none
 			// E38 CP 38.13: una seconda voce di una classe che solo l'harness scrive. Entrano fra le disponibili col gesto del
 			// giocatore che la scrive. La reazione e' aperta da CP 38.15 nel piano e nella risoluzione, ma il gesto che AGGIUNGE
-			// una reazione invece di sostituirla e' un seguito di CP 38.15 (dominio 8); lo scatto con CP 38.16 se `TR-30` ammette
-			// due scatti. La principale del Blast e' entrata con CP 38.14.
+			// una reazione invece di sostituirla e' un seguito di CP 38.15 (dominio 8). La principale del Blast e' entrata con
+			// CP 38.14, lo scatto con CP 38.16.
 			TEXT("ReactionListPlanning"),     // owner: #4116
-			TEXT("DashListPlanning"),         // owner: #4117
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
@@ -1623,8 +1628,17 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 						*Intent.UnitId, *Azione.Ability.ToString(), k, TurnIndex + 1);
 					break;
 				}
-				bScritta = Unit->GetPlan().PlannedDashAbility() == INDEX_NONE;
-				if (bScritta) { Unit->SetPlannedDash(Indice, Azione.Cell); }
+				// E38 CP 38.16: il secondo scatto si scrive in coda (`DashListPlanning`), e il validatore lo rifiuta al lock-in
+				// ([D-625] (4)): `RepeatedWithCooldown` se e' la stessa azione, `SecondDash` se e' un'altra.
+				if (Unit->GetPlan().PlannedDashAbility() == INDEX_NONE)
+				{
+					Unit->SetPlannedDash(Indice, Azione.Cell);
+					bScritta = true;
+				}
+				else
+				{
+					bScritta = Unit->AddPlannedDash(Indice, Azione.Cell);
+				}
 			}
 			else if (Abilita->Def.Slot == ERTActionSlot::Reaction)
 			{
@@ -1671,7 +1685,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			if (!bScritta)
 			{
 				ErroredBy = FString::Printf(
-					TEXT("'%s': actions[%d], '%s', e' una seconda voce della classe %s, che e' chiusa: non si scrive (turno %d)"),
+					TEXT("'%s': actions[%d], '%s', e' una voce della classe %s che il piano non accetta: non si scrive (turno %d)"),
 					*Intent.UnitId, k, *Azione.Ability.ToString(), Classe, TurnIndex + 1);
 			}
 		}
@@ -1745,17 +1759,51 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		// AUTOREVOLE. Percorso non valido (budget, blocchi, occupanti) -> l'unita' resta ferma e l'assertion
 		// lo mostra: e' il comportamento del gioco, non un caso speciale del test.
 		TArray<ARTUnit*> SnapshotUnits;
-		const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
+		FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
 		const int32 UnitId = SnapshotUnits.IndexOfByKey(Unit);
 		if (UnitId == INDEX_NONE)
 		{
 			continue;
 		}
+		// E38 CP 38.16, [D-628] (4): come nel controller, il Move parte da dove lo scatto pianificato si ferma. Il percorso si compone
+		// qui, dopo ogni voce dell'intent, quindi l'ordine in cui il JSON li elenca non cambia la partenza.
+		// ⚠️ **Per una carica la cella d'arrivo la dice la sua corsa**, che il controller scrive al click (`NotePlannedChargeRun`, [D-528]):
+		// senza, `PlannedMoveStartCell` ricadrebbe sulla cella di adesso e il Move dello scenario partirebbe da prima dello scatto
+		// (revisione di CP 38.16a). Si giudica con la stessa funzione del click, sullo snapshot di questo intent.
+		if (Unit->PlannedDashMoves() && Unit->PlannedDashIsCharge() && Snapshot.Map)
+		{
+			FRTChargeRun Corsa;
+			const int32 Scatto = Unit->GetPlan().PlannedDashAbility();
+			const URTActionData* Carica = Unit->GetAbility(Scatto);
+			if (Carica && !Unit->GetPlannedChargeRun(Corsa))
+			{
+				TSet<int32> Ostili;
+				for (int32 i = 0; i < SnapshotUnits.Num(); ++i)
+				{
+					const ARTUnit* Altro = SnapshotUnits[i];
+					if (Altro && Altro->IsAlive() && Altro->TeamId != Unit->TeamId) { Ostili.Add(i); }
+				}
+				const FRTLinearDashVerdict Verdetto = URTMovementActionLibrary::JudgeLinearDashClick(Snapshot.MapForPlanning(), Unit->Cell,
+					Unit->GetPlan().PlannedDashCell(), Unit->EffectiveDashRangeOf(Scatto), Carica->Def.MovementStyle, Snapshot.Occupancy, Ostili);
+				Unit->NotePlannedChargeRun(Verdetto.Run);
+			}
+		}
+		RTPlanningSnapshot::StartMovementFromPlannedDash(Snapshot, UnitId, Unit);
+		// E38 CP 38.16, [D-625] (1): il percorso si compone fino al tetto di chi pianifica, come nel controller (`RTPlanningSnapshot::For`),
+		// cioe' fino ai tratti che il budget del turno pagherebbe. Se il piano non si paga lo dice il lock-in, come per ogni altra voce.
+		// ⏱️ *Fino a CP 38.16 qui restava il budget della banda del piano di adesso*, `1×` per un piano senza movimento: uno scenario non
+		// poteva pianificare uno Sprint, e nessuno del corpus lo faceva.
+		if (Snapshot.Units.IsValidIndex(UnitId))
+		{
+			const int32 Tratti = Unit->MaxMoveLegs();
+			Snapshot.Units[UnitId].MoveBudget = Unit->MoveBudgetForLegs(Tratti);
+			Snapshot.Units[UnitId].StepBudget = Unit->StepBudgetForLegs(Tratti);
+		}
 
 		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Intent.Move);
 		if (Path.Path.Num() >= 2)
 		{
-			Unit->SetPlannedMove(Intent.Move, Path.Path);
+			Unit->SetPlannedMove(Intent.Move, Path.Path, Path.TotalCost); // E38 CP 38.16: il costo dice i tratti
 			// #79, caso C: un piano valido cancella un rifiuto precedente. Vale qui per la stessa ragione per
 			// cui vale nel controller — l'esito da spiegare e' quello del piano FINALE, non di un tentativo
 			// intermedio — e uno scenario a piu' turni e' esattamente il posto in cui un residuo di turno

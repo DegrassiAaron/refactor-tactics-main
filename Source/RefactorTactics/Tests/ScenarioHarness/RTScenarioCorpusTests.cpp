@@ -753,14 +753,14 @@ bool FRTScenarioASecondEntryOfAClosedClassFailsTheTurnTest::RunTest(const FStrin
 		DestroyCorpusWorld(World);
 		return R;
 	};
-	// E38 CP 38.14 e CP 38.15: principale e reazione sono aperte, quindi la classe chiusa del test e' lo scatto (fino a
-	// CP 38.16). L'harness scrive l'errore anche nel log, e qui e' l'esito atteso.
-	AddExpectedError(TEXT("seconda voce della classe scatto"), EAutomationExpectedErrorFlags::Contains, 1);
+	// E38 CP 38.16: anche lo scatto e' aperto nel piano, e l'elenco `actions` non ha piu' una classe chiusa (il movimento e' uno, e si
+	// dichiara con `move`). Due scatti si SCRIVONO e il turno si gioca: e' il validatore a rifiutarli al lock-in ([D-625] (4)), e lo
+	// scenario `Spec.ActionEconomy.SecondRamIsRefused` ne misura l'esito. ⏱️ *Fino a CP 38.16 qui il turno falliva con l'errore
+	// «seconda voce della classe scatto»*, che era il soggetto di questo test: il nome e' storico.
 	const FRTTestResult DueScatti = Gioca(TEXT(R"({ "unit": "B1", "actions": [
 		{ "ability": "Hero.Riktor.Ram", "cell": [1, 0, 0] }, { "ability": "Hero.Riktor.Ram", "cell": [2, 0, 0] } ] })"));
-	TestEqual(TEXT("due scatti: il turno fallisce"), DueScatti.Outcome, ERTTestOutcome::Error);
-	TestTrue(*FString::Printf(TEXT("e l'errore nomina la voce e la classe (%s)"), *DueScatti.ErrorMessage),
-		DueScatti.ErrorMessage.Contains(TEXT("Hero.Riktor.Ram")) && DueScatti.ErrorMessage.Contains(TEXT("scatto")));
+	TestEqual(*FString::Printf(TEXT("due scatti si scrivono e il turno si gioca (%s)"), *DueScatti.ErrorMessage),
+		DueScatti.Outcome, ERTTestOutcome::Pass);
 	// E due reazioni distinte si scrivono e si giocano (criterio 1 di CP 38.15): l'Interposition del kit e il modulo
 	// `Reaction.Cleanse` dell'equipaggiamento di default di Riktor.
 	const FRTTestResult DueReazioni = Gioca(TEXT(R"({ "unit": "B1", "actions": [

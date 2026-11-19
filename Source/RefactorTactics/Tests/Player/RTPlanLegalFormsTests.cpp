@@ -102,16 +102,18 @@ bool FRTPlanLegalTodayStaysLegal::RunTest(const FString&)
 			ERTActionInvalidReason::None);
 	}
 
-	// --- 2. controllo: `BB` (due principali del Blast) e' legale da E38 CP 38.14 ([D-584] (1)); `DM` (scatto e camminata
-	// nello stesso turno) resta rifiutata con `SlotOccupied` fino a CP 38.16, e quel giorno questo controllo va riscritto.
+	// --- 2. controllo: `BB` (due principali del Blast) e' legale da E38 CP 38.14 ([D-584] (1)); `DM` (scatto e camminata nello stesso
+	// turno) da E38 CP 38.16. ⏱️ *Fino a CP 38.16 `DM` era rifiutata con `SlotOccupied`*, che non ha piu' produttori.
 	TestTrue(TEXT("controllo BB: legale da CP 38.14"), URTPlanValidationLibrary::ValidatePlan(FormUnit(), PlanForForm(TEXT("BB"))).bLegal);
-	for (const TCHAR* Form : { TEXT("DM") })
-	{
-		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(FormUnit(), PlanForForm(Form));
-		TestFalse(*FString::Printf(TEXT("controllo %s: oggi illegale"), Form), Verdict.bLegal);
-		TestEqual(*FString::Printf(TEXT("controllo %s: il motivo e' lo slot occupato"), Form), Verdict.Reason,
-			ERTActionInvalidReason::SlotOccupied);
-	}
+	TestTrue(TEXT("controllo DM: legale da CP 38.16"), URTPlanValidationLibrary::ValidatePlan(FormUnit(), PlanForForm(TEXT("DM"))).bLegal);
+
+	// --- 3. controllo negativo: la regola di classe che resta ([D-625] (4)). Due scatti DIVERSI, con la fase di uno scatto: le voci
+	// rappresentative di questo file non la portano, e senza la fase il validatore non saprebbe che sono scatti.
+	TArray<FRTPlannedAction> DueScatti = { FormEntry(TEXT("Action.Dodge"), ERTActionSlot::Movement), FormEntry(TEXT("Action.Leap"), ERTActionSlot::Movement) };
+	for (FRTPlannedAction& Voce : DueScatti) { Voce.Def.ResolutionPhase = ERTResolutionPhase::FastMovement; }
+	const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(FormUnit(), DueScatti);
+	TestFalse(TEXT("controllo DD: due scatti diversi restano illegali"), Verdict.bLegal);
+	TestEqual(TEXT("controllo DD: col motivo SecondDash"), Verdict.Reason, ERTActionInvalidReason::SecondDash);
 	return true;
 }
 

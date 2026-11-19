@@ -494,6 +494,105 @@ public:
 	 */
 	bool DeclarePlannedAction(int32 AbilityIndex);
 
+	/**
+	 * Quanti AP spenderebbe il piano dopo che il giocatore arma e conferma `KitIndex` (#4153, [D-625] (3)).
+	 *
+	 * 🔑 **Il gesto SOSTITUISCE la voce della propria classe**, e la spesa toglie quella voce prima di aggiungere il costo: la
+	 * reazione sostituisce la prima reazione (`ArmPlannedReaction`), lo scatto lo scatto (`SetPlannedDash`), il resto la
+	 * principale (`DeclarePlannedMainAction`). L'eccezione e' quella di `SelectAbilityForCurrent`: un'azione di Prep su se
+	 * stessi, con la principale presa da un'altra, si AGGIUNGE come voce di Prep. Riarmare la principale pianificata costa 0
+	 * in piu'. ⚠️ Se il gesto cambia forma, questa funzione cambia con lui: e' la stessa domanda, letta da due parti.
+	 *
+	 * `SpentNow` e' `ActionPointsSpent(MakePlanFor(this))`, passato da chi interroga piu' righe dello stesso piano; con
+	 * `INDEX_NONE` lo si calcola qui.
+	 *
+	 * ⚠️ **Sovrastima l'Overwatch in un caso stretto**: armarlo tronca i waypoint al `Withdraw` ([D-070]), e se il troncamento
+	 * li toglie tutti la voce Move (2 AP) sparisce. Qui la voce Move resta contata, quindi a residuo zero un Overwatch che
+	 * libererebbe AP puo' risultare non pagabile. Non misurato quando succede (revisione di #4153).
+	 * ➕ E38 CP 38.16: i tratti oltre il primo invece non si contano, perche' sotto il tetto riservato non nascono ([D-626] (1)): un
+	 * percorso a tre tratti non impedisce di armare l'Overwatch che lo riporta a uno.
+	 */
+	int32 ActionPointsAfterArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Il piano paga `KitIndex`: la spesa dopo il gesto sta nel budget del turno ([D-625] (3): «si riaccende quando il residuo
+	 * basta»). La leggono la guardia dell'armo (`SelectAbilityForCurrent`) e la dock (`FRTAbilityCooldownView::bOverBudget`).
+	 *
+	 * ➕ **Un piano gia' oltre il budget** (un percorso o uno scatto non passano da questa guardia) non blocca i gesti che non
+	 * peggiorano la spesa: riarmare la principale per cambiarle bersaglio, o `Wait` a costo 0. Senza, il giocatore non potrebbe
+	 * piu' toccare la principale finche' non accorcia il percorso [LETTURA, revisione di #4153].
+	 */
+	bool CanAffordArming(int32 KitIndex, int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * I tratti del movimento normale pianificato (E38 CP 38.16, [D-625] (1)): 0 senza un Move, altrimenti il primo piu' quelli
+	 * concatenati che il costo del percorso chiede (`MoveLegsForCost`). E' il numero di voci Move che `MakePlanFor` compone.
+	 */
+	int32 PlannedMoveLegs() const;
+
+	/**
+	 * La misura da cui si legge la banda di [D-425] (`URTMovementProfileLibrary::ProfileForPlannedSteps`): il costo in Movement Point
+	 * del percorso quando il piano lo porta ([D-629], E38 CP 38.16), altrimenti i passi, del percorso o della distanza (il bot dichiara
+	 * la sola cella d'arrivo, e chi scrive il percorso a mano non dichiara un costo). Sulla mappa piana le due misure coincidono.
+	 */
+	int32 PlannedMoveMeasure() const;
+
+	/**
+	 * I tratti che chiederebbe un percorso di quel costo in Movement Point, almeno 1 ([D-628] (2)): il primo arriva al tetto nudo, ogni
+	 * altro aggiunge un `Move`; con `Sneak` o col `Withdraw` riservato resta 1 ([D-626] (1)). Il tetto si legge dal piano di adesso.
+	 */
+	int32 MoveLegsForCost(int32 PathCost) const;
+
+	/** Il budget di Movement Point che `Legs` tratti concedono a questa unita', col tetto del suo piano (`URTMovementProfileLibrary`). */
+	int32 MoveBudgetForLegs(int32 Legs) const;
+
+	/** Il gemello in passi di `MoveBudgetForLegs`. */
+	int32 StepBudgetForLegs(int32 Legs) const;
+
+	/**
+	 * I tratti che il budget del turno pagherebbe a un piano senza altre azioni, almeno 1: il tetto di cio' che si pianifica (E38 CP
+	 * 38.16). E' il budget dello snapshot di pianificazione e del taglio di [D-420]: un percorso si tronca al tetto dichiarato o imposto,
+	 * mai per gli AP del residuo ([D-628] lettura (c)), e oltre questi tratti nessun residuo arriva.
+	 */
+	int32 MaxMoveLegs() const;
+
+	/**
+	 * Quanti tratti il piano paga col resto del piano com'e' (#4155, E38 CP 38.16): il massimo che `CanAffordMoving` accetta, e mai
+	 * meno di quelli gia' pianificati (un piano gia' oltre il budget non perde il percorso che ha). 0 se il residuo non paga neppure il
+	 * primo. Il ventaglio mostra in verde le celle di questi tratti, e in rosso cupo quelle del successivo ([D-628] (3)).
+	 */
+	int32 AffordableMoveLegs(int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Quanti AP spenderebbe il piano se il suo percorso costasse `PathCost` Movement Point (#4155, [D-625] (2); E38 CP 38.16, [D-625] (1)).
+	 *
+	 * 🔑 **Il percorso e' uno, e ognuno dei suoi tratti costa una voce Move**, lo stesso in ogni banda di [D-425] (Move, Sprint, Withdraw
+	 * sono tutte di macro-fase Move, `DefaultActionPointCost`): senza un movimento nel piano il gesto aggiunge i tratti del percorso nuovo;
+	 * con un percorso gia' pianificato costa la differenza fra i tratti di dopo e quelli di prima, cioe' 0 finche' la cella sta nel tratto
+	 * pagato e 2 per ogni tratto che apre (la lettura (f) di [D-625]). `PathCost` = `INDEX_NONE` e' un waypoint che non apre un tratto.
+	 *
+	 * `SpentNow` come in `ActionPointsAfterArming`.
+	 */
+	int32 ActionPointsAfterMoving(int32 PathCost = INDEX_NONE, int32 SpentNow = INDEX_NONE) const;
+
+	/** Il piano paga un percorso di quel costo: la stessa regola di `CanAffordArming`, sulla spesa di `ActionPointsAfterMoving`. */
+	bool CanAffordMoving(int32 PathCost = INDEX_NONE, int32 SpentNow = INDEX_NONE) const;
+
+	/**
+	 * Un click su una cella della mappa porterebbe a un waypoint di movimento normale (#4155): il verso dichiarato non chiude il movimento,
+	 * e l'azione armata non e' uno scatto, per cui la cella e' la meta. Sono le due uscite di `ARTPlayerController::HandleClickOnCell` prima
+	 * del ramo del movimento che non dipendono dalla cella: dove sono vere, l'anteprima del costo e il rifiuto per budget direbbero un Move
+	 * che il click non fa (revisione di #4155). ⚠️ Se il click cambia quelle uscite, questa funzione cambia con lui.
+	 */
+	bool WaypointClickIsOpen() const;
+
+	/**
+	 * `KitIndex` e' gia' nel piano, in una voce qualunque, o e' l'azione armata: la sua spesa e' gia' contata. Chiederle quanto
+	 * costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153). La leggono `bOverBudget`
+	 * della dock e l'anteprima dello slot sotto il cursore (#4155).
+	 */
+	bool IsAbilityInPlan(int32 KitIndex) const;
+
 	/** Le voci `Prep` sono risolte: escono dal piano, la principale e il suo bersaglio restano (E38 CP 38.13). */
 	void ClearPlannedPrepEntries() { Plan.RemovePrepEntries(); }
 
@@ -531,6 +630,13 @@ public:
 	bool AddPlannedReaction(int32 AbilityIndex);
 
 	/**
+	 * Uno scatto IN PIU' in coda al piano (E38 CP 38.16): la voce che `SetPlannedDash` sostituirebbe. Rifiuta, e lascia il piano com'era,
+	 * un'azione che non e' una mobilita' rapida. ⛔ Nessun gesto del giocatore la chiama: un secondo scatto e' vietato ([D-625] (4)), e
+	 * questa strada serve all'harness degli scenari, che scrive il piano che il validatore deve rifiutare (`SecondDash`).
+	 */
+	bool AddPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell);
+
+	/**
 	 * Le reazioni armate, ognuna una volta, nell'ordine del motore: priorita', poi `ActionId`, poi l'indice nel kit; mai
 	 * la dichiarazione ([D-615] (5)). E' l'ordine in cui i pass le valutano, quindi quello delle loro voci e dei loro effetti.
 	 */
@@ -539,18 +645,23 @@ public:
 	void AddPlannedWaypoint(const FRTCellId& Waypoint) { Plan.AddPlannedWaypoint(Waypoint); }
 	void PopPlannedWaypoint() { Plan.PopPlannedWaypoint(); }
 
-	/** Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. */
-	void SetPlannedRoute(const TArray<FRTCellId>& Route)
+	/**
+	 * Il percorso del piano e la sua cella d'arrivo: l'ultima del percorso, o quella su cui l'unita' sta se e' vuoto. `PathCost` e' il
+	 * costo in Movement Point che il compositore ha letto sulla mappa di chi pianifica (`FRTHexPathResult::TotalCost`, E38 CP 38.16): da
+	 * li' il piano conta i tratti. 0 per chi non lo dichiara, cioe' nessun tratto oltre il primo.
+	 */
+	void SetPlannedRoute(const TArray<FRTCellId>& Route, int32 PathCost = 0)
 	{
 		Plan.SetPlannedPath(Route);
+		Plan.SetPlannedPathCost(Route.Num() > 1 ? FMath::Max(0, PathCost) : 0);
 		Plan.PlannedCell = Route.Num() > 0 ? Route.Last() : Cell;
 	}
 
-	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. */
-	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route)
+	/** Waypoint e percorso insieme (l'harness degli scenari): la cella d'arrivo segue il percorso. `PathCost` come in `SetPlannedRoute`. */
+	void SetPlannedMove(const TArray<FRTCellId>& Waypoints, const TArray<FRTCellId>& Route, int32 PathCost = 0)
 	{
 		Plan.SetPlannedWaypoints(Waypoints);
-		SetPlannedRoute(Route);
+		SetPlannedRoute(Route, PathCost);
 	}
 
 	/** Il piano del bot: una DESTINAZIONE, che non si ricava dal percorso (il bot non pianifica a waypoint). */
@@ -558,6 +669,7 @@ public:
 	{
 		Plan.PlannedCell = Destination;
 		Plan.SetPlannedPath(Route);
+		Plan.SetPlannedPathCost(0); // il bot non concatena tratti: il suo percorso sta nella banda (E38 CP 38.16)
 		Plan.SetPlannedWaypoints(Waypoints);
 	}
 
@@ -565,6 +677,7 @@ public:
 	void ClearPlannedRoute()
 	{
 		Plan.SetPlannedPath({});
+		Plan.SetPlannedPathCost(0);
 		Plan.SetPlannedWaypoints({});
 	}
 
@@ -1247,6 +1360,14 @@ public:
 	 * perche' ciascuno ha una voce sua nel TurnLog.
 	 */
 	bool PlannedDashMoves() const;
+
+	/**
+	 * La cella da cui partira' il Move del piano (E38 CP 38.16, [D-628] (4)): la posizione di adesso, o con uno scatto che sposta
+	 * (`PlannedDashMoves`) la cella dove lo scatto si ferma, cioe' `PlannedDashCell` o, per una carica, l'ultima cella che percorre
+	 * davanti all'impatto (`GetPlannedChargeRun`, sulla retta di `URTMovementActionLibrary::MovementLine`). Una carica senza una
+	 * lettura della corsa resta sulla posizione di adesso: il resolver ricostruisce il percorso da dove l'unita' arriva.
+	 */
+	FRTCellId PlannedMoveStartCell() const;
 
 	/**
 	 * Da dove mira quest'unita' un'azione della fase `Phase`, col piano di scatto che ha adesso ([D-464]).
@@ -2389,7 +2510,7 @@ public:
 	 * ⚠️ **Un ripiego si dichiara nel log** (R3): se il kit non ha un nome per la skill, il fumetto mostra l'ultimo
 	 * segmento dell'id e qui esce un `Warning` che nomina l'id. La funzione pura resta pura: il log lo scrive chi la chiama.
 	 */
-	void ShowSkillCallout(const FName& ActionId, float StartAt);
+	void ShowSkillCallout(const FName& ActionId, float StartAt, bool bBlocked = false);
 
 	/**
 	 * Porta al fumetto il tempo del playback (`ARTTurnManager::SkillCalloutClock`), e ne registra l'ultimo valore.

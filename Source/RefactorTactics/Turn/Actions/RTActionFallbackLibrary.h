@@ -60,6 +60,10 @@ enum class ERTActionInvalidReason : uint8
 	 * (`OverwatchDisallowsVoluntaryDash`): D-070 dichiara che quel divieto non serve, perche' chi riserva
 	 * lo slot movimento non VIETA lo scatto — semplicemente non ha piu' lo slot. Un motivo solo copre
 	 * `Sprint`+principale, due principali e scatto+movimento, invece di una regola per combinazione.
+	 *
+	 * ⛔ **Da E38 CP 38.16 (#4117) non ha produttori** ([D-584] (1): «solo il budget conta»; [D-615] (1): «fino a CP 38.16»): gli
+	 * slot non decidono piu' la legalita', e l'ultimo produttore del resolver, il ramo `MovementAndMain` di `ResolveDash`, e' uscito con
+	 * [D-628] (1). Resta nell'enum perche' viaggia come intero in `FRTTurnLogEntry::Amount`, come `InsufficientMovementPoints`.
 	 */
 	SlotOccupied,
 
@@ -345,7 +349,20 @@ enum class ERTActionInvalidReason : uint8
 	 *
 	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
 	 */
-	RepeatedWithCooldown
+	RepeatedWithCooldown,
+
+	/**
+	 * Un secondo scatto nello stesso piano ([D-625] (4); E38 CP 38.16, #4117): due voci di mobilita' rapida
+	 * (`URTCatalogLibrary::IsFastMovement`) sono vietate anche quando il budget le paga. Lo scatto e' la sola classe con un limite
+	 * oltre al budget (la lettura (d) di D-625). Al lock-in svuota il piano, come la copia vietata (la lettura (c)).
+	 *
+	 * ⛔ **Non e' `RepeatedWithCooldown`**: due copie dello stesso scatto con ricarica restano quel motivo, che il validatore
+	 * guarda prima; questo e' per due scatti DIVERSI. **E non e' `SlotOccupied`**, che non ha piu' produttori: il rimedio e'
+	 * togliere uno scatto, e uno scatto + Move resta legale (la lettura (e)).
+	 *
+	 * ⚠️ **In coda**, come ogni valore prima: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`.
+	 */
+	SecondDash
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

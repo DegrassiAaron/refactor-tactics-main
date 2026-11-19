@@ -10,6 +10,8 @@
 #include "Turn/Resolution/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
 #include "Ability/RTActionData.h"
 #include "Ability/Catalog/RTCatalogLibrary.h"
+#include "Turn/Actions/RTPlanValidationLibrary.h" // #4153: la spesa del piano dopo un armo e' la somma del validatore
+#include "Ability/RTMovementProfileLibrary.h" // E38 CP 38.16: i tratti del percorso ([D-625] (1), [D-628] (2))
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
@@ -371,11 +373,12 @@ void ARTUnit::ShowHealToken(int32 Amount)
 	}
 }
 
-void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt)
+void ARTUnit::ShowSkillCallout(const FName& ActionId, float StartAt, bool bBlocked)
 {
 	// #4025: la stessa strada di `ShowDamageToken` — il campo SEMPRE, il widget se c'e'. Il nome lo da' il kit
 	// di QUESTA unita'; il giudizio sul ripiego e sul testo sta nella funzione pura.
 	LastSkillCallout = URTHudViewModel::BuildSkillCallout(KitDisplayNameFor(ActionId), ActionId, StableUnitId, StartAt);
+	LastSkillCallout.bBlocked = bBlocked; // `#4034`: lo stesso nome, col taglio sopra
 	if (LastSkillCallout.bFromFallback)
 	{
 		// R3: il kit non nomina questa skill e il fumetto mostra l'ultimo segmento dell'id, una parola tecnica. A schermo
@@ -2197,6 +2200,20 @@ void ARTUnit::ClearReactionPlan()
 	WaypointsAllaReazione = INDEX_NONE;
 }
 
+bool ARTUnit::AddPlannedDash(int32 AbilityIndex, const FRTCellId& DashCell)
+{
+	const URTActionData* Azione = GetAbility(AbilityIndex);
+	if (Azione == nullptr || !URTCatalogLibrary::IsFastMovement(Azione->Def))
+	{
+		return false;
+	}
+	FRTPlanEntry Voce;
+	Voce.Class = ERTPlanEntryClass::Dash;
+	Voce.AbilityIndex = AbilityIndex;
+	Voce.DashCell = DashCell;
+	return Plan.AddEntry(Voce);
+}
+
 bool ARTUnit::AddPlannedReaction(int32 AbilityIndex)
 {
 	const URTActionData* Azione = GetAbility(AbilityIndex);
@@ -2263,6 +2280,166 @@ bool ARTUnit::CanBeAnExtraPrepAction(const URTActionData* Ability)
 		&& URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) == ERTMatchPhase::Prep
 		&& Ability->Def.StructureOp == ERTStructureOp::None
 		&& Ability->Def.PredictiveTargeting == ERTPredictiveTargeting::None;
+}
+
+int32 ARTUnit::ActionPointsAfterArming(int32 KitIndex, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const URTActionData* Ability = GetAbility(KitIndex);
+	if (!Ability)
+	{
+		return Spesa;
+	}
+	// Lo stesso costo che `MakePlanFor` mette nella voce: il `Def` dell'abilita' del kit.
+	const auto CostoDi = [this](int32 Indice)
+	{
+		const URTActionData* A = GetAbility(Indice);
+		return A ? FMath::Max(0, A->Def.ActionPointCost) : 0;
+	};
+
+	// La voce che il gesto sostituisce, nell'ordine dei rami di `SelectAbilityForCurrent`: reazione, scatto, principale.
+	int32 Sostituita = INDEX_NONE;
+	if (Ability->Def.Slot == ERTActionSlot::Reaction)
+	{
+		Sostituita = Plan.PlannedReactionAbility();
+	}
+	else if (URTCatalogLibrary::IsFastMovement(Ability->Def))
+	{
+		Sostituita = Plan.PlannedDashAbility();
+	}
+	else
+	{
+		const int32 Principale = Plan.PlannedAbilityIndex();
+		const bool bSiAggiunge = Ability->bSelfTarget && Principale != INDEX_NONE && Principale != KitIndex
+			&& CanBeAnExtraPrepAction(Ability);
+		Sostituita = bSiAggiunge ? INDEX_NONE : Principale;
+	}
+	// E38 CP 38.16, [D-626] (1): un'azione che riserva un tetto al movimento (l'Overwatch, il `Withdraw`) lo fa valere sull'intero
+	// percorso, e i tratti oltre il primo spariscono con il troncamento: la spesa dopo il gesto non li conta (revisione di CP 38.16b).
+	int32 TrattiCheSpariscono = 0;
+	if (!Ability->Def.ReservesMovementProfileId.IsNone())
+	{
+		static const int32 CostoDelTratto = FMath::Max(0, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).ActionPointCost);
+		TrattiCheSpariscono = FMath::Max(0, PlannedMoveLegs() - 1) * CostoDelTratto;
+	}
+	return Spesa - CostoDi(Sostituita) + CostoDi(KitIndex) - TrattiCheSpariscono;
+}
+
+bool ARTUnit::CanAffordArming(int32 KitIndex, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Dopo = ActionPointsAfterArming(KitIndex, Spesa);
+	return Dopo <= GetActionPointBudget() || Dopo <= Spesa; // il secondo termine: a piano gia' sforato, un gesto che non peggiora
+}
+
+namespace
+{
+	/** Il costo di un tratto: la voce `Action.Move`, la stessa che `MakePlanFor` compone per ognuno (E38 CP 38.16). */
+	int32 CostoDiUnTratto()
+	{
+		// `static const`, come in `MakePlanFor`: `FindCoreAction` costruisce il catalogo a ogni chiamata, e la dock chiede a ogni tick.
+		static const int32 Costo = FMath::Max(0, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).ActionPointCost);
+		return Costo;
+	}
+}
+
+int32 ARTUnit::MoveLegsForCost(int32 PathCost) const
+{
+	// Gli stessi ingressi della banda in `MakePlanFor`: il tetto dichiarato, la riserva del piano e la corsa negata ([D-626]).
+	return 1 + URTMovementProfileLibrary::ExtraMoveLegsForCost(PathCost, GetEffectiveMoveRange(), Plan.PlannedMovementProfileId(),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(this)), HasStatus(TAG_Status_Unbalanced));
+}
+
+int32 ARTUnit::PlannedMoveMeasure() const
+{
+	if (Plan.PlannedPathCost() > 0)
+	{
+		return Plan.PlannedPathCost(); // [D-629]: banda, tetto e tratti si misurano tutti in Movement Point
+	}
+	return Plan.PlannedPath().Num() >= 2 ? Plan.PlannedPath().Num() - 1 : URTHexLibrary::HexDistance(Cell, Plan.PlannedCell);
+}
+
+int32 ARTUnit::PlannedMoveLegs() const
+{
+	return HasPlannedNormalMove() ? MoveLegsForCost(Plan.PlannedPathCost()) : 0;
+}
+
+int32 ARTUnit::MoveBudgetForLegs(int32 Legs) const
+{
+	return URTMovementProfileLibrary::MoveBudgetForLegs(Legs, GetEffectiveMoveRange(), Plan.PlannedMovementProfileId(),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(this)), HasStatus(TAG_Status_Unbalanced));
+}
+
+int32 ARTUnit::StepBudgetForLegs(int32 Legs) const
+{
+	return URTMovementProfileLibrary::StepBudgetForLegs(Legs, GetEffectiveMoveRange(), Plan.PlannedMovementProfileId(),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(this)), HasStatus(TAG_Status_Unbalanced));
+}
+
+int32 ARTUnit::MaxMoveLegs() const
+{
+	const int32 Costo = CostoDiUnTratto();
+	return Costo > 0 ? FMath::Max(1, GetActionPointBudget() / Costo) : 1;
+}
+
+int32 ARTUnit::AffordableMoveLegs(int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Prima = PlannedMoveLegs();
+	const int32 Costo = CostoDiUnTratto();
+	if (Costo <= 0)
+	{
+		return FMath::Max(Prima, MaxMoveLegs()); // tratti gratis: il tetto e' quello dello snapshot di pianificazione
+	}
+	// Cio' che il turno lascia al movimento: il budget meno il resto del piano, cioe' meno la spesa senza i tratti di adesso.
+	const int32 PerIlMovimento = GetActionPointBudget() - (Spesa - Prima * Costo);
+	return FMath::Max(Prima, PerIlMovimento >= 0 ? PerIlMovimento / Costo : 0);
+}
+
+int32 ARTUnit::ActionPointsAfterMoving(int32 PathCost, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Prima = PlannedMoveLegs();
+	// Senza un costo il waypoint resta nei tratti di adesso; senza un Move nel piano ne apre uno.
+	const int32 Dopo = PathCost == INDEX_NONE ? FMath::Max(1, Prima) : MoveLegsForCost(PathCost);
+	return Spesa + (Dopo - Prima) * CostoDiUnTratto();
+}
+
+bool ARTUnit::IsAbilityInPlan(int32 KitIndex) const
+{
+	bool bNelPiano = KitIndex == SelectedAbilityIndex;
+	for (const FRTPlanEntry& Voce : Plan.GetEntries())
+	{
+		bNelPiano |= Voce.AbilityIndex == KitIndex;
+	}
+	return bNelPiano;
+}
+
+bool ARTUnit::WaypointClickIsOpen() const
+{
+	if (Plan.bDeclaresPlannedFacing)
+	{
+		return false; // il verso chiude il movimento ([D-367], [D-462])
+	}
+	const URTActionData* Armata = GetAbility(SelectedAbilityIndex);
+	return !(Armata && URTCatalogLibrary::IsFastMovement(Armata->Def)); // con uno scatto armato la cella e' la sua meta
+}
+
+bool ARTUnit::CanAffordMoving(int32 PathCost, int32 SpentNow) const
+{
+	const int32 Spesa = SpentNow != INDEX_NONE
+		? SpentNow
+		: URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(this));
+	const int32 Dopo = ActionPointsAfterMoving(PathCost, Spesa);
+	return Dopo <= GetActionPointBudget() || Dopo <= Spesa;
 }
 
 bool ARTUnit::DeclarePlannedAction(int32 AbilityIndex)
@@ -2442,6 +2619,26 @@ bool ARTUnit::PlannedNormalMoveDeniedByStun() const
 bool ARTUnit::PlannedDashMoves() const
 {
 	return PlannedDashApplies() && !PlannedDashDeniedByStatus() && !PlannedDashDeniedByStun();
+}
+
+FRTCellId ARTUnit::PlannedMoveStartCell() const
+{
+	if (!PlannedDashMoves())
+	{
+		return Cell;
+	}
+	if (!PlannedDashIsCharge())
+	{
+		return Plan.PlannedDashCell();
+	}
+	FRTChargeRun Corsa;
+	TArray<FRTCellId> Retta;
+	if (GetPlannedChargeRun(Corsa) && URTMovementActionLibrary::MovementLine(Corsa.From, Corsa.Target, Retta)
+		&& Retta.IsValidIndex(Corsa.RunCells))
+	{
+		return Retta[Corsa.RunCells]; // `RunCells` celle percorse, la partenza esclusa: la cella su cui la carica si ferma
+	}
+	return Cell;
 }
 
 FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const

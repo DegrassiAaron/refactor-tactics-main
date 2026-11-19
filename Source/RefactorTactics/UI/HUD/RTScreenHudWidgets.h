@@ -1235,6 +1235,41 @@ public:
 	/** Riempie l'indicatore dalla vista. La chiama `NativeTick`, quindi segue il piano comunque cambi; i test a mano. */
 	void RefreshLayerIndicator();
 
+	// ------------------------------------------------------------------------------------------------
+	// Gli Action Point dell'unita' comandata (#4150, `progettazione-hud.md` §19-bis.1): un pip per AP.
+	//
+	// 🔑 Stesso disegno dell'indicatore del piano: porte con un nome, che il C++ COSTRUISCE quando l'asset non le
+	// dichiara, accanto a `MovementReadout`. I pip si rifanno solo quando cambiano.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il contenitore: `Collapsed` quando la vista non e' autorizzata (nessuna selezione, soggetto ispezionato, sola lettura). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UWidget> ActionPoints;
+
+	/** «AP»: in `Cyan` quando il budget del turno e' modificato (`FRTActionPointView::bModified`), altrimenti secondario. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UTextBlock> ActionPointsLabel;
+
+	/** La fila dei pip, uno per voce di `URTHudViewModel::ActionPointPips`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UPanelWidget> ActionPointPips;
+
+	/**
+	 * Gli AP dell'unita' comandata. ⛔ **Dall'unita' comandata soltanto**, come `GetMovementReadout`: con la barra in sola
+	 * lettura, o senza selezione, il default non autorizzato. La somma spesa e' un pezzo del piano (§19-bis.5).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTActionPointView GetActionPoints() const;
+
+	/** Costruisce le porte degli AP se l'asset non le dichiara, accanto a `MovementReadout`. Idempotente; `NativeOnInitialized` e i test. */
+	void EnsureActionPointPips();
+
+	/** Riempie gli AP dalla vista. La chiama `NativeTick`; i test a mano. */
+	void RefreshActionPoints();
+
+	/** Gli stati dei pip dipinti per ultimi: `RefreshActionPoints` rifa' la fila solo quando cambiano. */
+	TArray<ERTActionPointPip> PaintedActionPointPips;
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
@@ -1659,6 +1694,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
 	TObjectPtr<class UWidget> PlannedCorner;
 
+	/**
+	 * Il contatore delle copie nel piano, «×2», acceso da 2 in su (HUD-AP.5a, #4159; §19-bis.7). ⚠️ Se l'asset non lo dichiara lo
+	 * costruisce `EnsurePlannedCountText`, nel pannello dell'angolo `PlannedCorner`: e' la strada di `EnsureActionPointPips` (#4150),
+	 * perche' l'asset si modifica solo nell'Editor.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> PlannedCountText;
+
+	/** Quanto il contatore costruito sta a sinistra del bordo destro: l'angolo di `Planned` e' di 18 px nell'asset, piu' un margine. */
+	static constexpr float PlannedCountRightInset = 22.f;
+
 	/** Secondo canale di `Unavailable`: il tratteggio diagonale. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
 	TObjectPtr<class UWidget> UnavailableHatch;
@@ -1803,6 +1849,15 @@ public:
 
 	/** Applica stato, fase e padding ai widget collegati. La chiama `SetAction`, prima di `OnActionChanged`. */
 	void RefreshLook();
+
+	/**
+	 * Costruisce `PlannedCountText` quando l'asset non lo dichiara: nel pannello che contiene `PlannedCorner`, o in quello di
+	 * `HotkeyText`, o nella radice se e' un pannello. Senza nessuno dei tre non monta niente e lo dice nel log.
+	 */
+	void EnsurePlannedCountText();
+
+	/** `EnsurePlannedCountText` non ha trovato dove montare il contatore: lo dice una volta, non a ogni `SetAction` (revisione di #4159). */
+	bool bPlannedCountMountFailed = false;
 
 	explicit URTActionSlotWidget(const FObjectInitializer& ObjectInitializer);
 

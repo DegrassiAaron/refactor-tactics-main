@@ -15,6 +15,8 @@
 #include "Player/RTPlayerController.h" // #3115: GetSelectedUnit — quale piano si sta scrivendo adesso
 #include "Camera/RTCameraPawn.h" // D-495: la vista strategica di chi guarda, consegnata alle unita' col velo
 #include "Turn/RTTurnManager.h"
+#include "Turn/Actions/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo della cella del ventaglio (#4155)
+#include "Turn/Log/RTTurnLogLibrary.h"            // DescribeInvalidReason: il testo del motivo ha gia' un owner
 #include "Turn/Resolution/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/Playback/RTPlaybackLibrary.h"
 #include "Turn/Resolution/RTTurnRules.h"
@@ -173,6 +175,21 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange)
 FString ARTHUD::CurrentRefusalText() const
 {
 	return RefusalText(LastRefusal, LastRefusalRange);
+}
+
+FString ARTHUD::MoveRefusalText(ERTActionInvalidReason Reason)
+{
+	if (Reason == ERTActionInvalidReason::None)
+	{
+		return FString();
+	}
+	return FString::Printf(TEXT("Non si muove: %s"), *URTTurnLogLibrary::DescribeInvalidReason(Reason));
+}
+
+FString ARTHUD::CurrentMoveRefusalText() const
+{
+	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayerController());
+	return PC ? MoveRefusalText(PC->HoveredMoveRefusal()) : FString();
 }
 
 FRTRefusedShotLine ARTHUD::CurrentRefusedShotLine() const
@@ -1672,7 +1689,10 @@ void ARTHUD::DrawHUD()
 	// ⛔ **Il testo puo' essere vuoto, ed e' un esito, non un caso degenere**: `Nothing` copre insieme la
 	// cella vuota e il nemico che l'osservatore non conosce, e le due non devono distinguersi nemmeno per
 	// la PRESENZA di un messaggio. Qui non si disegna niente, e va bene cosi'.
-	if (const FString Testo = CurrentRefusalText(); !Testo.IsEmpty())
+	// ➕ #4155: il motivo della cella del ventaglio sotto il cursore ([D-625] (2)) prende lo stesso posto, finche' il cursore ci resta.
+	// E' il gesto di adesso, e un rifiuto di bersaglio lasciato dal click di prima non lo copre.
+	const FString TestoMovimento = CurrentMoveRefusalText();
+	if (const FString Testo = TestoMovimento.IsEmpty() ? CurrentRefusalText() : TestoMovimento; !Testo.IsEmpty())
 	{
 		float RW = 0.f, RH = 0.f;
 		GetTextSize(Testo, RW, RH, nullptr, 1.0f);

@@ -162,6 +162,19 @@ struct FRTPhasePreviewEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	ERTTargetRefusal TargetRefusal = ERTTargetRefusal::None;
 
+	/**
+	 * **Il posto della voce nella pila della sua colonna**, da 1 a N (HUD-AP.5b, #4159; `progettazione-hud.md` §19-bis.7).
+	 * La colonna e' la macro-fase, `URTCatalogLibrary::MapResolutionPhase(Phase)`: una `Control` e un `Attack` stanno
+	 * nella stessa pila, quella del Blast.
+	 *
+	 * 🔑 **L'ordine e' quello del resolver, mai quello di dichiarazione** ([D-615] (5)): permutare le voci del piano non
+	 * cambia la pila. Lo decidono `URTActionQueueLibrary::NumberInstancesByContent` nella colonna del Prep e
+	 * `URTActionQueueLibrary::MainVisitLess` in quelle del Blast e del Cleanup, le stesse funzioni che il resolver usa.
+	 * `0` = voce costruita a mano, che nessuna timeline ha numerato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
+	int32 StackIndex = 0;
+
 	FRTPhasePreviewEntry() = default;
 };
 
@@ -220,9 +233,13 @@ struct FRTPlanPreview
 	GENERATED_BODY()
 
 	/**
-	 * Le fasi che il piano riempie, **in ordine di risoluzione**. Una fase che il piano non usa non compare:
+	 * Le voci che il piano riempie, **in ordine di risoluzione**. Una fase che il piano non usa non compare:
 	 * una voce vuota costringerebbe chi disegna a distinguere «non pianificata» da «pianificata a vuoto»
 	 * guardando dentro i campi.
+	 *
+	 * ➕ **Piu' voci nella stessa fase stanno una dopo l'altra, nell'ordine della loro pila** (HUD-AP.5b, #4159): due azioni
+	 * di Prep, due principali del Blast. Il posto nella pila lo dice `FRTPhasePreviewEntry::StackIndex`. Il movimento resta
+	 * una voce sola, con tutti i suoi tratti.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	TArray<FRTPhasePreviewEntry> Phases;
@@ -232,6 +249,79 @@ struct FRTPlanPreview
 	FRTReactionPreview Reaction;
 
 	FRTPlanPreview() = default;
+};
+
+/**
+ * UNA voce di Prep del piano in ingresso (E38 CP 38.13; HUD-AP.5b, #4159): un'azione di preparazione aggiunta, come una
+ * Guard. Non sposta e non bersaglia, quindi non porta che cio' che serve a nominarla e a ordinarla.
+ */
+USTRUCT(BlueprintType)
+struct FRTPrepPreviewInput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	FName ActionId;
+
+	/** `FRTActionDef::Priority`: la seconda chiave di `InstanceLess`, dopo la fase. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 Priority = 0;
+
+	/** La posizione della voce nel piano. Decide solo fra copie uguali anche nel contenuto, dove l'ordine non si vede. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 DeclarationIndex = INDEX_NONE;
+
+	FRTPrepPreviewInput() = default;
+};
+
+/**
+ * UNA voce principale del piano in ingresso (E38 CP 38.14; HUD-AP.5b, #4159). Ognuna ha la sua mira, quindi la sua area e
+ * la sua origine.
+ */
+USTRUCT(BlueprintType)
+struct FRTMainPreviewInput
+{
+	GENERATED_BODY()
+
+	/**
+	 * Il piano della voce, nella forma che `MakeBlastPreview` gia' consuma. La sua `Phase` decide anche l'etichetta e la
+	 * colonna della voce nella timeline ([D-470]).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	FRTBlastPreviewPlan Blast;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	FName ActionId;
+
+	/**
+	 * Il rifiuto gia' tradotto in cio' che il giocatore puo' sapere. Vedi
+	 * `FRTPhasePreviewEntry::TargetRefusal`: la traduzione da `ERTHexTargetReason` avviene **a monte**, dove
+	 * si sa cosa l'osservatore osserva, e non qui.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	ERTTargetRefusal TargetRefusal = ERTTargetRefusal::None;
+
+	// ── Le chiavi d'ordine che `Blast` non porta (`FRTMainVisitKey`) ───────────────────────────────────────────────
+	// La macro-fase, l'azione e la cella di mira `MakePlanPreview` le ricava da `Blast` e da `ActionId`: due copie degli
+	// stessi dati potrebbero contraddirsi.
+
+	/** `FRTActionDef::Priority`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 Priority = 0;
+
+	/** Il bersaglio-unita' per identita' di partita ([D-063]), come lo confronta il resolver; `INDEX_NONE` senza. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 TargetStableUnitId = INDEX_NONE;
+
+	/** Il bordo di copertura dichiarato, nella forma di `FRTMainVisitKey::CoverEdge`: `0` nessuno, la direzione piu' uno. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	uint8 CoverEdge = 0;
+
+	/** La posizione della voce nel piano: l'ultimo spareggio, fra copie identiche in tutto il contenuto. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	int32 DeclarationIndex = INDEX_NONE;
+
+	FRTMainPreviewInput() = default;
 };
 
 /**
@@ -261,6 +351,13 @@ struct FRTPlanPreviewInput
 	/** L'azione di preparazione dichiarata, se c'e' (stance, trappola). `NAME_None` = nessuna. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FName PrepActionId;
+
+	/**
+	 * Le voci di Prep del piano (E38 CP 38.13), in qualunque ordine: la pila le ordina come `ResolvePrep`, insieme a una
+	 * principale di `Preparation` (HUD-AP.5b, #4159).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
+	TArray<FRTPrepPreviewInput> PrepEntries;
 
 	// ── Dash ────────────────────────────────────────────────────────────────────────────────────────────
 	/** Vero se il piano dichiara uno scatto. */
@@ -302,24 +399,17 @@ struct FRTPlanPreviewInput
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FName DashActionId;
 
-	// ── Blast ───────────────────────────────────────────────────────────────────────────────────────────
+	// ── Le principali ─────────────────────────────────────────────────────────────────────────────────────
 	/**
-	 * Il piano dell'azione principale, nella forma che `MakeBlastPreview` gia' consuma. La sua `Phase` decide
-	 * anche l'etichetta e il posto della voce nella timeline ([D-470]).
+	 * Le voci principali del piano (E38 CP 38.14), in qualunque ordine. Ognuna va nella colonna della sua fase ([D-470]) e,
+	 * dentro la colonna, al posto che le da' l'ordine del resolver (HUD-AP.5b, #4159). Una voce senza azione
+	 * (`Blast.bHasAction` falso) non compare.
+	 *
+	 * ⏱️ *Fino a HUD-AP.5b l'ingresso aveva una principale sola* (`Blast`, `BlastActionId`, `BlastTargetRefusal`): il
+	 * produttore ci metteva quella a fuoco, e le altre non si vedevano.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
-	FRTBlastPreviewPlan Blast;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
-	FName BlastActionId;
-
-	/**
-	 * Il rifiuto gia' tradotto in cio' che il giocatore puo' sapere. Vedi
-	 * `FRTPhasePreviewEntry::TargetRefusal`: la traduzione da `ERTHexTargetReason` avviene **a monte**, dove
-	 * si sa cosa l'osservatore osserva, e non qui.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
-	ERTTargetRefusal BlastTargetRefusal = ERTTargetRefusal::None;
+	TArray<FRTMainPreviewInput> Mains;
 
 	// ── Move ────────────────────────────────────────────────────────────────────────────────────────────
 	/** I waypoint dichiarati. Il percorso lo ricava `BuildCompositeHexPath`, non il chiamante. */

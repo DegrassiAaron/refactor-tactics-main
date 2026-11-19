@@ -277,6 +277,11 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Healed,
 		{ FName(TEXT("ShowHealToken")), FName(TEXT("PulseHealthBar")) }));
 
+	// `#4034`, [D-622] — L'AZIONE BLOCCATA: il fumetto col nome barrato sopra chi e' bloccato, e nessun suono ([D-622] (3)).
+	// La cue e' la stessa del fumetto d'attivazione, `ARTUnit::ShowSkillCallout`, con il fumetto marcato come barrato.
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::ActionBlocked,
+		{ FName(TEXT("ShowSkillCallout")) }));
+
 	return Out;
 }
 

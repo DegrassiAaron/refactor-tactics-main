@@ -794,4 +794,62 @@ bool FRTMovementProfileCadenceCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * E38 CP 38.16, [D-625] (1), [D-626], [D-628] (2) — **i tratti concatenati si contano in Movement Point, oltre il tetto nudo.**
+ *
+ * Un'unita' da 4: il tetto nudo e' lo `Sprint`, 8 MP, e ogni tratto in piu' e' un `Move`, 4 MP. I numeri sono scritti qui e non
+ * ricavati dalla funzione: 200% di 4 e 100% di 4 ([D-412]). Il caso del fango e' un costo alto su pochi passi: la funzione non conosce i
+ * passi, ed e' il punto di [D-628] (2). Sotto `Sneak` e col `Withdraw` riservato nessun tratto nasce ([D-626] (1)); con la corsa negata
+ * il tetto e' un `Move` e il secondo tratto nasce oltre quello ([D-626] (2)).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTExtraLegsAreMeasuredInMovementPointsTest,
+	"RefactorTactics.MovementProfile.ExtraLegsAreMeasuredInMovementPoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTExtraLegsAreMeasuredInMovementPointsTest::RunTest(const FString&)
+{
+	using L = URTMovementProfileLibrary;
+	const FName Nessuno = NAME_None;
+	const auto Tratti = [&](int32 Costo, FName Dichiarato, FName Riservato, bool bNegata)
+	{
+		return L::ExtraMoveLegsForCost(Costo, /*UnitMoveRange=*/ 4, Dichiarato, Riservato, bNegata);
+	};
+
+	// Il tetto nudo: lo Sprint, 8 MP.
+	TestEqual(TEXT("un costo entro il tetto non apre tratti"), Tratti(8, Nessuno, Nessuno, false), 0);
+	TestEqual(TEXT("un MP oltre il tetto apre un tratto intero"), Tratti(9, Nessuno, Nessuno, false), 1);
+	TestEqual(TEXT("il secondo tratto finisce a 12"), Tratti(12, Nessuno, Nessuno, false), 1);
+	TestEqual(TEXT("e il terzo comincia a 13"), Tratti(13, Nessuno, Nessuno, false), 2);
+	TestEqual(TEXT("nessun costo, nessun tratto"), Tratti(0, Nessuno, Nessuno, false), 0);
+
+	// [D-626] (1): un tetto dichiarato o imposto vale sull'intero movimento.
+	TestEqual(TEXT("sotto Sneak nessun tratto, anche a costo alto"), Tratti(20, L::ProfileSneak, Nessuno, false), 0);
+	TestEqual(TEXT("col Withdraw riservato nessun tratto"), Tratti(20, Nessuno, L::ProfileWithdraw, false), 0);
+
+	// [D-626] (2): con la corsa negata il tetto e' un Move, 4 MP.
+	TestEqual(TEXT("corsa negata: 4 resta nel primo tratto"), Tratti(4, Nessuno, Nessuno, true), 0);
+	TestEqual(TEXT("corsa negata: 5 apre il secondo"), Tratti(5, Nessuno, Nessuno, true), 1);
+	TestEqual(TEXT("corsa negata: 9 apre il terzo"), Tratti(9, Nessuno, Nessuno, true), 2);
+
+	// Un'unita' senza movimento base: un tratto in piu' non avanzerebbe di una cella.
+	TestEqual(TEXT("movimento base 0: nessun tratto"), L::ExtraMoveLegsForCost(3, 0, Nessuno, Nessuno, false), 0);
+
+	// Il budget dei tratti, nelle due misure, e la sua coerenza col conto.
+	TestEqual(TEXT("zero tratti, zero MP"), L::MoveBudgetForLegs(0, 4, Nessuno, Nessuno, false), 0);
+	TestEqual(TEXT("un tratto e' il tetto nudo"), L::MoveBudgetForLegs(1, 4, Nessuno, Nessuno, false), 8);
+	TestEqual(TEXT("due tratti, tetto piu' un Move"), L::MoveBudgetForLegs(2, 4, Nessuno, Nessuno, false), 12);
+	TestEqual(TEXT("i passi seguono le stesse percentuali"), L::StepBudgetForLegs(3, 4, Nessuno, Nessuno, false), 16);
+	TestEqual(TEXT("sotto Sneak il budget e' il tetto per qualunque numero di tratti"),
+		L::MoveBudgetForLegs(3, 4, L::ProfileSneak, Nessuno, false), 2);
+	TestEqual(TEXT("corsa negata: due tratti sono due Move"), L::MoveBudgetForLegs(2, 4, Nessuno, Nessuno, true), 8);
+	for (int32 Costo = 1; Costo <= 30; ++Costo)
+	{
+		const int32 Necessari = 1 + Tratti(Costo, Nessuno, Nessuno, false);
+		TestTrue(*FString::Printf(TEXT("costo %d: sta nel budget dei suoi tratti"), Costo),
+			Costo <= L::MoveBudgetForLegs(Necessari, 4, Nessuno, Nessuno, false));
+		TestTrue(*FString::Printf(TEXT("costo %d: e non in quello di un tratto in meno"), Costo),
+			Necessari == 1 || Costo > L::MoveBudgetForLegs(Necessari - 1, 4, Nessuno, Nessuno, false));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

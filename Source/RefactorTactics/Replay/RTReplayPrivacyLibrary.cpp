@@ -65,7 +65,7 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, OriginalTargetUnitId), ERTReplayFieldVisibility::Public },
 			// `#4000`: chi ha interrotto e' un fatto risolto, come il bersaglio di `SelectedTargetUnitId`. Pubblico, ma
 			// sanificato per osservatore in `FilterEntriesForObserver`: il suo verdetto e' quello dell'interruttore.
-			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByUnitId),  ERTReplayFieldVisibility::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByUnitIds), ERTReplayFieldVisibility::Public },
 
 			// --- Audit: COME si e' deciso --------------------------------------------------------------
 			//
@@ -93,7 +93,7 @@ namespace
 			// E38 CP 38.13: l'indice grezzo dice quante voci precedono nel piano, e la squadra dichiarante serve a sanificarlo.
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclarationIndex),     ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, DeclaringTeamId),      ERTReplayFieldVisibility::AuditOnly },
-			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByVerdict), ERTReplayFieldVisibility::AuditOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, InterruptedByVerdicts), ERTReplayFieldVisibility::AuditOnly },
 		};
 		return Rows;
 	}
@@ -235,11 +235,23 @@ TArray<FRTTurnLogEntry> URTReplayPrivacyLibrary::FilterEntriesForObserver(
 		if (Entry.Verdict.AllowsTeam(ObserverTeamId))
 		{
 			FRTTurnLogEntry& Vista = Out.Add_GetRef(Entry);
-			// `#4000`: la voce si legge col verdetto della vittima, il nome di chi ha interrotto col suo. Un'unita' che
-			// la squadra non vedeva non viene nominata, anche quando la vittima si vede.
-			if (Vista.InterruptedByUnitId != INDEX_NONE && !Vista.InterruptedByVerdict.AllowsTeam(ObserverTeamId))
+			// `#4000`, [D-624] (2): la voce si legge col verdetto della vittima, ogni interruttore col suo. Chi la squadra non
+			// vedeva esce dalla lista, anche quando la vittima si vede; chi vedeva resta, nell'ordine, anche se prima di lui
+			// ce n'era uno nascosto.
+			if (Vista.InterruptedByUnitIds.Num() > 0)
 			{
-				Vista.InterruptedByUnitId = INDEX_NONE;
+				TArray<int32> Visti;
+				TArray<FRTKnowledgeVerdict> Verdetti;
+				for (int32 i = 0; i < Vista.InterruptedByUnitIds.Num(); ++i)
+				{
+					if (Vista.InterruptedByVerdicts.IsValidIndex(i) && Vista.InterruptedByVerdicts[i].AllowsTeam(ObserverTeamId))
+					{
+						Visti.Add(Vista.InterruptedByUnitIds[i]);
+						Verdetti.Add(Vista.InterruptedByVerdicts[i]);
+					}
+				}
+				Vista.InterruptedByUnitIds = MoveTemp(Visti);
+				Vista.InterruptedByVerdicts = MoveTemp(Verdetti);
 			}
 		}
 	}

@@ -26,6 +26,30 @@
 #include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
 #include "UI/HUD/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
 
+/**
+ * Quale copia di `ActionId` porta `DeclarationIndex`, contata da 1 nell'ordine di dichiarazione fra le voci del piano con quell'`ActionId`;
+ * 0 quando il piano ne porta una sola, o la dichiarazione non c'e' (HUD-AP.5a, #4159). I tratti del movimento condividono la dichiarazione
+ * del percorso (E38 CP 38.16), quindi per loro la risposta e' quella della prima voce: il percorso e' uno.
+ */
+static int32 RTHudViewModel_OccurrenceOf(const TArray<FRTPlannedAction>& Piano, const FName& ActionId, int32 DeclarationIndex)
+{
+	TArray<int32> Dichiarazioni;
+	for (const FRTPlannedAction& Voce : Piano)
+	{
+		if (Voce.Def.ActionId == ActionId)
+		{
+			Dichiarazioni.AddUnique(Voce.DeclarationIndex);
+		}
+	}
+	if (Dichiarazioni.Num() < 2)
+	{
+		return 0;
+	}
+	Dichiarazioni.Sort();
+	const int32 Posto = Dichiarazioni.IndexOfByKey(DeclarationIndex);
+	return Posto == INDEX_NONE ? 0 : Posto + 1;
+}
+
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
 	FRTMatchHeaderView View;
@@ -377,15 +401,23 @@ TArray<FRTPlanWarningView> URTHudViewModel::BuildPlanWarnings(const ARTUnit* Uni
 		Critico.Level = ERTPlanWarningLevel::Critical;
 		Critico.SourceActionId = Verdetto.OffendingActionId;
 		Critico.What = NomeDi(Verdetto.OffendingActionId);
-		// Le due azioni di un conflitto di slot, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola
-		// manderebbe a correggere quella sbagliata.
+		// HUD-AP.5a (#4159): con piu' copie della stessa azione nel piano, quale. Il numero e' l'ordine di dichiarazione fra le copie.
+		if (const int32 Occorrenza = RTHudViewModel_OccurrenceOf(Piano, Verdetto.OffendingActionId, Verdetto.OffendingDeclarationIndex);
+			Occorrenza > 0)
+		{
+			Critico.What = FText::Format(NSLOCTEXT("RTPlanWarning", "Occurrence", "{0} ({1}ª copia)"), Critico.What,
+				FText::AsNumber(Occorrenza));
+		}
+		// Le due azioni di un motivo con un detentore, come il log di lock-in (`RTTurnManager.cpp`): nominarne una sola manderebbe a
+		// correggere quella sbagliata. Da E38 CP 38.16 l'unico e' il secondo scatto ([D-625] (4)). ⏱️ *Fino a HUD-AP.5a il testo diceva
+		// «occupano lo stesso slot»*: era il conflitto di slot, che da CP 38.16 non ha produttori.
 		Critico.Why = Verdetto.HolderActionId.IsNone()
 			? FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason))
-			: FText::Format(NSLOCTEXT("RTPlanWarning", "SlotConflict", "{0} e {1} occupano lo stesso slot"),
-				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId));
-		// ⚠️ Il costo e' cio' che si sa, non una previsione. Per budget e ricarica il lock-in svuota il piano e il
-		// Ready si rifiuta ([D-615] (1), E38 CP 38.10); per uno slot occupato il lock-in registra soltanto, e cio' che
-		// il turno scarta lo decide il resolver, fino a CP 38.16.
+			: FText::Format(NSLOCTEXT("RTPlanWarning", "WithHolder", "{0} e {1}: {2}"),
+				NomeDi(Verdetto.OffendingActionId), NomeDi(Verdetto.HolderActionId),
+				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Verdetto.Reason)));
+		// ⚠️ Il costo e' cio' che si sa, non una previsione: ogni motivo del validatore svuota il piano al lock-in, e il Ready si
+		// rifiuta ([D-615] (1), E38 CP 38.10; da CP 38.16 anche il secondo scatto).
 		Critico.Cost = NSLOCTEXT("RTPlanWarning", "IllegalCost", "Il validatore lo giudica illegale: correggilo prima di confermare");
 		Avvisi.Add(Critico);
 	}
@@ -538,13 +570,20 @@ void URTHudViewModel::AddPlanWarningCounts(const TArray<FRTPlanWarningView>& War
 FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId,
 	const TArray<ARTUnit*>& Units)
 {
+	// La voce che gli accessori della principale leggono: quella a fuoco, o la prima.
+	return MakeBlastPreviewPlanForEntry(Unit, UnitId, Units, Unit.GetPlan().EntryWithId(Unit.GetPlan().CurrentMainId()));
+}
+
+FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlanForEntry(const ARTUnit& Unit, int32 UnitId,
+	const TArray<ARTUnit*>& Units, const FRTPlanEntry* MainEntry)
+{
 	FRTBlastPreviewPlan Plan;
 	Plan.AttackerId = UnitId;
 	Plan.bDashResolves = Unit.PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
 	Plan.PlannedDashCell = Unit.GetPlan().PlannedDashCell();
 	Plan.bDashIsCharge = Unit.PlannedDashIsCharge();
 
-	const URTActionData* Ability = Unit.GetAbility(Unit.GetPlan().PlannedAbilityIndex());
+	const URTActionData* Ability = MainEntry ? Unit.GetAbility(MainEntry->AbilityIndex) : nullptr;
 	if (!Ability)
 	{
 		return Plan; // solo scatto: un'origine da mostrare e nessuna area
@@ -562,16 +601,16 @@ FRTBlastPreviewPlan URTHudViewModel::MakeBlastPreviewPlan(const ARTUnit& Unit, i
 	Plan.bCountsAsAttack = Ability->Def.bCountsAsAttack; // [D-540]: il colpo fra piani non parte, e l'anteprima non lo disegna
 	// [D-610] (3): la predittiva segna la cella, non chi ci sta sopra.
 	Plan.bPredictive = Ability->Def.PredictiveTargeting != ERTPredictiveTargeting::None;
-	if (Unit.GetPlan().bAttackTargetsCell())
+	if (MainEntry->bAttackTargetsCell)
 	{
 		Plan.bTargetsCell = true;
-		Plan.TargetCell = Unit.GetPlan().PlannedAttackCell();
+		Plan.TargetCell = MainEntry->AttackCell;
 	}
 	else
 	{
 		// Un bersaglio che non e' in `Units` diventa `INDEX_NONE`, cioe' «nessuna area»; uno caduto ha `bAlive`
 		// falso in `MakeHexCombatUnits`, e l'anteprima lo scarta allo stesso modo.
-		Plan.TargetId = Units.IndexOfByKey(Unit.GetPlan().PlannedAttackTarget().Get());
+		Plan.TargetId = Units.IndexOfByKey(MainEntry->AttackTarget.Get());
 	}
 	return Plan;
 }
@@ -758,6 +797,13 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Cooldown;
 	}
 
+	// [D-625] (3) (#4153): il piano non la paga, e «si spegne come in ricarica». Dopo la ricarica, che e' un numero che passa
+	// da solo; dopo `Planned`, perche' un impegno preso resta tale. Non e' `Invalid`: D-459 resta intera.
+	if (Action.bOverBudget)
+	{
+		return ERTActionSlotState::Unavailable;
+	}
+
 	// ⚠️ Da [D-324] `bUsableNow` coincide con `TurnsRemaining == 0`, quindi questo ramo oggi non si
 	// raggiunge da una vista costruita dal simulatore. Resta perche' la vista e' una struct e un chiamante
 	// puo' comporla cosi' — ed e' la stessa ragione per cui `AbilityLineShowsCooldownOnly` prova quel caso.
@@ -874,6 +920,12 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 			? NSLOCTEXT("RTHud", "TooltipPlanInvalid", "Piano illegale")
 			: FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidBecause", "Piano illegale: {0}"),
 				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Action.PlanInvalidReason)));
+		// HUD-AP.5a (#4159): con piu' copie nel piano, il rifiuto nomina quale.
+		if (Action.PlanInvalidOccurrence > 0)
+		{
+			Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidOccurrence", "{0} ({1}ª copia)"),
+				Out.Reason, FText::AsNumber(Action.PlanInvalidOccurrence));
+		}
 	}
 	else if (Action.bPlanDegraded && Action.PlanDegradedRefusal != ERTTargetRefusal::None
 		&& Action.PlanDegradedRefusal != ERTTargetRefusal::Nothing)
@@ -885,6 +937,12 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 	{
 		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipCoolingDown", "In ricarica: ancora {0}"),
 			TooltipCount(Action.TurnsRemaining, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni")));
+	}
+	else if (Action.bOverBudget)
+	{
+		// [D-625] (3): il motivo e' `OverBudget`, nelle parole che il TurnLog gli da' gia'.
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipOverBudget", "Non si arma: {0}"),
+			FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::OverBudget)));
 	}
 	return Out;
 }
@@ -991,6 +1049,12 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		return Cooldowns;
 	}
 
+	// #4153, [D-625] (3): la spesa del piano, una volta per tutte le righe. Ogni riga chiede quanto spenderebbe DOPO il proprio
+	// gesto (`ARTUnit::CanAffordArming`), la stessa domanda della guardia dell'armo.
+	// Il piano si compone UNA volta: lo leggono la spesa qui e il verdetto del validatore piu' sotto (revisione di #4153).
+	const TArray<FRTPlannedAction> PianoComposto = URTPlanValidationLibrary::MakePlanFor(Unit);
+	const int32 Spesa = URTPlanValidationLibrary::ActionPointsSpent(PianoComposto);
+
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
@@ -1026,10 +1090,13 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		FRTAbilityCooldownView View = BuildCatalogActionRow(Action, Index, Unit->ActiveVariantId);
 		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`).
 		View.HotkeyLabel = RTInputKeys::HotkeyLabelFor(Action->Def.ActionId, Index);
-		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione e lo scatto.
-		View.bPlanned = (Unit->GetPlan().PlannedAbilityIndex() == Index)
-			|| (Unit->GetPlan().PlannedReactionAbility() == Index)
-			|| (Unit->GetPlan().PlannedDashAbility() == Index);
+		// 🔑 **Ogni voce del piano, in ogni classe** (HUD-AP.5a, #4159): il piano e' una lista da E38, e lo stato `Planned` ne conta le
+		// copie. ⏱️ *Fino a HUD-AP.5a guardava i tre campi della prima voce* (`#2988`: la principale, la reazione e lo scatto).
+		for (const FRTPlanEntry& Voce : Unit->GetPlan().GetEntries())
+		{
+			View.PlannedCount += Voce.AbilityIndex == Index ? 1 : 0;
+		}
+		View.bPlanned = View.PlannedCount > 0;
 
 		// Il numero si LEGGE dal simulatore, mai negativo (contratto della vista).
 		View.TurnsRemaining = FMath::Max(0, Unit->GetAbilityCooldown(Index));
@@ -1043,6 +1110,13 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// Usabile ADESSO: da `D-324` guarda la sola ricarica.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
+		// Il piano non la paga ([D-625] (3)): si spegne come in ricarica. Un costo 0 (`Wait`) non sfora mai: a piano legale sta nel
+		// budget, e a piano gia' sforato non peggiora la spesa (`CanAffordArming`).
+		// ⚠️ Non per un'azione che e' GIA' nel piano, in una voce qualunque, ne' per quella armata: la sua spesa e' gia' contata, e
+		// chiederle quanto costerebbe una seconda copia la direbbe «non si arma» mentre e' pianificata (revisione di #4153: Guard
+		// aggiunta come voce di Prep che porta il piano a residuo zero). `IsAbilityInPlan` conta anche l'azione armata.
+		View.bOverBudget = !Unit->IsAbilityInPlan(Index) && !Unit->CanAffordArming(Index, Spesa);
+
 		Cooldowns.Add(View);
 	}
 
@@ -1054,15 +1128,17 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore legge il budget dell'unita' ([D-613] (1), E38
 	//    CP 38.11): l'unita' arriva dallo stesso costruttore del lock-in, cosi' dock e lock-in danno lo stesso verdetto.
 	const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
-		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), URTPlanValidationLibrary::MakePlanFor(Unit));
+		ARTTurnManager::MakeSimUnit(INDEX_NONE, Unit), PianoComposto);
 	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
 	{
+		const int32 Occorrenza = RTHudViewModel_OccurrenceOf(PianoComposto, Verdetto.OffendingActionId, Verdetto.OffendingDeclarationIndex);
 		for (FRTAbilityCooldownView& V : Cooldowns)
 		{
 			if (V.ActionId == Verdetto.OffendingActionId)
 			{
 				V.bPlanInvalid = true;
 				V.PlanInvalidReason = Verdetto.Reason; // `#3499`: il perche', per il tooltip
+				V.PlanInvalidOccurrence = Occorrenza; // HUD-AP.5a: quale copia
 			}
 		}
 	}
@@ -1193,6 +1269,49 @@ FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit
 	View.bSneakDeclared = Unit->GetPlan().PlannedMovementProfileId() == URTMovementProfileLibrary::ProfileSneak;
 	View.SneakKeyLabel = RTInputKeys::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
 	return View;
+}
+
+FRTActionPointView URTHudViewModel::BuildActionPoints(const ARTUnit* Unit, int32 SpentAfterGesture)
+{
+	FRTActionPointView View;
+	if (!Unit)
+	{
+		return View;
+	}
+
+	View.bAuthorized = true;
+	View.Budget = Unit->GetActionPointBudget();
+	// Il piano di `MakePlanFor` e la somma di `ActionPointsSpent`: le stesse due chiamate che portano al validatore.
+	View.Committed = URTPlanValidationLibrary::ActionPointsSpent(URTPlanValidationLibrary::MakePlanFor(Unit));
+	// Il gesto lo misura l'unita' (#4155): qui si legge la differenza, non si ricalcola il costo.
+	View.Preview = SpentAfterGesture != INDEX_NONE ? SpentAfterGesture - View.Committed : 0;
+	View.Residual = View.Budget - View.Committed - View.Preview;
+	View.bModified = View.Budget != RTActionPoints::DefaultBudget;
+	return View;
+}
+
+TArray<ERTActionPointPip> URTHudViewModel::ActionPointPips(const FRTActionPointView& View)
+{
+	TArray<ERTActionPointPip> Pips;
+	if (!View.bAuthorized)
+	{
+		return Pips;
+	}
+
+	// Lo stato DOPO il gesto (#4155): restano impegnati i primi `Fermi`, il gesto ne aggiunge fino a `Dopo`, e oltre il budget
+	// ogni AP speso e' `Over`, che sia del piano o del gesto. Senza un gesto `Fermi == Dopo == Committed`, la fila di #4150.
+	const int32 Budget = FMath::Max(0, View.Budget);
+	const int32 Committed = FMath::Max(0, View.Committed);
+	const int32 Dopo = FMath::Max(0, Committed + View.Preview);
+	const int32 Fermi = FMath::Min(Committed, Dopo);
+	for (int32 i = 0; i < FMath::Max(Budget, Dopo); ++i)
+	{
+		Pips.Add(i >= Budget ? ERTActionPointPip::Over
+			: i < Fermi ? ERTActionPointPip::Committed
+			: i < Dopo ? ERTActionPointPip::Preview
+			: ERTActionPointPip::Free);
+	}
+	return Pips;
 }
 
 FText URTHudViewModel::MovementReadoutLabel(FName ProfileId)
@@ -1870,6 +1989,42 @@ FText URTHudViewModel::ComposeActivationLineText(const FString& UnitLabel, const
 	return FText::Format(LOCTEXT("ActivationLine", "{0} — {1}"), FText::FromString(UnitLabel), Azione);
 }
 
+FText URTHudViewModel::BlockedReasonWords(int32 Reason)
+{
+	// `#4043`, [D-623] (3): le parole dell'opzione scelta. I motivi di bersaglio dicono tutti «bersaglio non valido».
+	switch (static_cast<ERTActionInvalidReason>(Reason))
+	{
+	case ERTActionInvalidReason::Interrupted:    return LOCTEXT("BlockedInterrupted", "interrotto");
+	case ERTActionInvalidReason::Stunned:        return LOCTEXT("BlockedStunned", "stordito");
+	case ERTActionInvalidReason::OutOfRange:     return LOCTEXT("BlockedOutOfRange", "fuori portata");
+	case ERTActionInvalidReason::NoLineOfSight:  return LOCTEXT("BlockedNoLineOfSight", "nessuna linea di tiro");
+	case ERTActionInvalidReason::OtherLayer:     return LOCTEXT("BlockedOtherLayer", "altro piano");
+	case ERTActionInvalidReason::TargetGone:
+	case ERTActionInvalidReason::TargetDead:
+	case ERTActionInvalidReason::TargetFriendly:
+	case ERTActionInvalidReason::TargetUnknown:
+		return LOCTEXT("BlockedTarget", "bersaglio non valido");
+	default:                                     return LOCTEXT("BlockedOther", "bloccato");
+	}
+}
+
+FText URTHudViewModel::ComposeBlockedLineText(const FString& UnitLabel, const FText& KitName, FName ActionId, int32 Reason,
+	const FString& InterrupterLabel)
+{
+	FText Azione = KitName;
+	if (KitName.IsEmptyOrWhitespace())
+	{
+		const FString Id = ActionId.ToString();
+		int32 UltimoPunto = INDEX_NONE;
+		Azione = FText::FromString(Id.FindLastChar(TEXT('.'), UltimoPunto) ? Id.Mid(UltimoPunto + 1) : Id);
+	}
+	// `#4043`, [D-623] (4): chi ha interrotto, se chi guarda lo vedeva; chi chiama ha gia' deciso, e passa vuoto altrimenti.
+	const FText Motivo = (Reason == static_cast<int32>(ERTActionInvalidReason::Interrupted) && !InterrupterLabel.IsEmpty())
+		? FText::Format(LOCTEXT("BlockedInterruptedBy", "interrotto da {0}"), FText::FromString(InterrupterLabel))
+		: BlockedReasonWords(Reason);
+	return FText::Format(LOCTEXT("BlockedLine", "{0}: {1} bloccato\n{2}"), FText::FromString(UnitLabel), Azione, Motivo);
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArray<FRTPlayerEventLineView>& ResultLines,
 	const TArray<FRTActivationLine>& Activations, const TArray<int32>& ObserverTeamIds, int32 MaxLines)
 {
@@ -1899,7 +2054,25 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 	// Il feed e' di un turno solo e il widget ne legge il numero dalla PRIMA riga (`FeedTurn`): ogni riga d'attivazione porta
 	// il PROPRIO turno, scritto quando e' nata. Copiarlo dalla prima riga d'esito darebbe 0 a un turno di sole attivazioni,
 	// e un'intestazione «senza righe».
-	const auto FaRiga = [](const FRTActivationLine& Attivazione)
+	// `#4043`, [D-623] (1): la riga barrata per linea di tiro SOSTITUISCE la riga d'esito «Nessuna linea di tiro» della stessa
+	// unita' (l'unica con `bHasBlocker`), ed eredita la cella del muro che la mappa segna ([D-623] lettura (b)).
+	TMap<const FRTActivationLine*, int32> MuroDi;
+	TSet<int32> RigheSostituite;
+	for (const FRTActivationLine* Attivazione : Tenute)
+	{
+		if (!Attivazione->bBlocked || Attivazione->BlockedReason != static_cast<int32>(ERTActionInvalidReason::NoLineOfSight)) { continue; }
+		for (int32 i = 0; i < ResultLines.Num(); ++i)
+		{
+			if (!RigheSostituite.Contains(i) && ResultLines[i].bHasBlocker && ResultLines[i].PrimaryStableUnitId == Attivazione->SourceStableUnitId)
+			{
+				RigheSostituite.Add(i);
+				MuroDi.Add(Attivazione, i);
+				break;
+			}
+		}
+	}
+
+	const auto FaRiga = [&MuroDi, &ResultLines](const FRTActivationLine& Attivazione)
 	{
 		FRTPlayerEventLineView Riga;
 		Riga.Text = Attivazione.Text;
@@ -1909,6 +2082,11 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 		Riga.bHasBlocker = false;
 		Riga.bReaction = false;
 		Riga.TurnNumber = Attivazione.TurnNumber;
+		if (const int32* Muro = MuroDi.Find(&Attivazione))
+		{
+			Riga.bHasBlocker = true;
+			Riga.BlockerCell = ResultLines[*Muro].BlockerCell;
+		}
 		return Riga;
 	};
 
@@ -1970,7 +2148,7 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::MergeActivationLines(const TArra
 				}
 			}
 		}
-		Unite.Add(Esito);
+		if (!RigheSostituite.Contains(i)) { Unite.Add(Esito); } // `#4043`: la riga barrata ha preso il suo posto
 		for (const FRTActivationLine* Attivazione : DopoLEsito[i])
 		{
 			Unite.Add(FaRiga(*Attivazione));

@@ -195,7 +195,22 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
 	 */
-	Healed
+	Healed,
+
+	/**
+	 * Un'azione pianificata che NON avviene perche' bloccata (`#4034`, [D-600] (2), [D-601] (2), [D-622]): il momento del
+	 * fumetto barrato. Stessi campi di `AbilityActivated` — chi (`SourceStableUnitId`), cosa (`ActionId`), la mira — e il
+	 * MOTIVO in `Amount`, come `ERTActionInvalidReason`, lo stesso intero della voce `Fallback` del TurnLog.
+	 *
+	 * 🔑 **Sostituisce l'attivazione, non si aggiunge**: un'azione bloccata non grida il suo nome, lo mostra barrato. Ne
+	 * escono una per azione bloccata, nel posto canonico che l'attivazione avrebbe avuto.
+	 *
+	 * 🔑 `SourceVerdict` e' il verdetto di chi e' bloccato, congelato all'emissione ([D-223]; [D-601] (3)): il blocco di un
+	 * nemico visto si mostra, quello di uno nascosto no.
+	 *
+	 * ⚠️ **In CODA**, come ogni valore sopra. Fuori dagli hash, come tutta la timeline (`Determinism.FxFieldsStayOutOfHashes`).
+	 */
+	ActionBlocked
 };
 
 /**
@@ -315,6 +330,19 @@ struct FRTResolvedEvent
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 ReactionRouteCellIndex = INDEX_NONE;
+
+	/**
+	 * Solo `ActionBlocked` col motivo `Interrupted` (`#4043`, [D-623] (4), [D-624]): chi ha interrotto, come `StableUnitId` in
+	 * ordine canonico, e allo stesso indice di `InterruptedByVerdicts` il verdetto congelato su ciascuno. Sono gli stessi della
+	 * voce del TurnLog (`FRTTurnLogEntry::InterruptedByUnitIds`, `#4000`): la riga del Registro nomina il primo che la squadra
+	 * che guarda vedeva (`RTInterrupters::FirstSeenBy`). Vuota = nessuno.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	TArray<int32> InterruptedByStableUnitIds;
+
+	/** I verdetti su chi ha interrotto, congelati quando l'Interrupt e' stato giudicato (`#4043`). `UPROPERTY()` nudo come `CellVerdicts`. */
+	UPROPERTY()
+	TArray<FRTKnowledgeVerdict> InterruptedByVerdicts;
 
 	/** Per Move: la rotta in celle (start incluso + celle attraversate, in ordine). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")

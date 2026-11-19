@@ -53,7 +53,7 @@ namespace
 		E.ReactionInstanceId = 11;
 		E.SelectedTargetUnitId = 43;
 		E.OriginalTargetUnitId = 44;
-		E.InterruptedByUnitId = 45; // `#4000`, v15
+		E.InterruptedByUnitIds = { 45, 46 }; // `#4000`, v16 ([D-624])
 		E.ReactionResponse = TEXT("FIRE");
 		// `SightBlockerCell` (`#2534`, v13): il muro che ferma il tiro. Va **diverso dal default**
 		// `NoSightBlocker()` — `Layer = INDEX_NONE` — o il campo resterebbe al proprio default e
@@ -790,6 +790,22 @@ bool FRTReplayPrivacyDeclarationIndexStaysWithItsTeamTest::RunTest(const FString
 	return true;
 }
 
+namespace
+{
+	/** `#4000`: chi ha interrotto, nell'unica voce di un file di traccia registrato; `{ -99 }` se il file non si rilegge. */
+	TArray<int32> NominatiNelFile(const FString& Root, const FRTReplayManifest& Manifest, const FString& Nome)
+	{
+		TArray<uint8> Bytes;
+		TArray<FRTTurnLogEntry> Out;
+		if (!FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(URTReplayRecorderLibrary::MatchDirectory(Root, Manifest.MatchId), Nome))
+			|| !URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out) || Out.Num() != 1)
+		{
+			return { -99 };
+		}
+		return Out[0].InterruptedByUnitIds;
+	}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest,
 	"RefactorTactics.Replay.Privacy.InterrupterIsNamedOnlyToWhoSawIt",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -798,10 +814,11 @@ bool FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest::RunTest(const FString
 	// `#4000`: la voce interrotta si legge col verdetto della vittima, il nome di chi ha interrotto col verdetto
 	// dell'interruttore. La squadra che non vedeva l'interruttore legge la voce e non il nome; quella che lo vedeva, si';
 	// il neutrale riceve tutto. La forma pubblica porta il campo come la traccia filtrata.
+	const TArray<int32> Nessuno;
+	const TArray<int32> Sette = { 7 };
 	FRTTurnLogEntry Interrotta = VoceConVerdetto(10, FRTKnowledgeVerdict::Everyone());
 	Interrotta.Category = ERTLogCategory::Fallback;
-	Interrotta.InterruptedByUnitId = 7;
-	Interrotta.InterruptedByVerdict = SoloSquadra(1);
+	Interrotta.AddInterrupter(7, SoloSquadra(1));
 	const TArray<FRTTurnLogEntry> Voci = { Interrotta };
 
 	const TArray<FRTTurnLogEntry> PerLaZero = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, 0);
@@ -812,16 +829,16 @@ bool FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest::RunTest(const FString
 	{
 		return false;
 	}
-	TestEqual(TEXT("ma la squadra 0, che non lo vedeva, non legge chi ha interrotto"), PerLaZero[0].InterruptedByUnitId, (int32)INDEX_NONE);
-	TestEqual(TEXT("la squadra 1, che lo vedeva, si'"), PerLaUno[0].InterruptedByUnitId, 7);
-	TestEqual(TEXT("il neutrale riceve la traccia intera"), Neutrale[0].InterruptedByUnitId, 7);
+	TestEqual(TEXT("ma la squadra 0, che non lo vedeva, non legge chi ha interrotto"), PerLaZero[0].InterruptedByUnitIds, Nessuno);
+	TestEqual(TEXT("la squadra 1, che lo vedeva, si'"), PerLaUno[0].InterruptedByUnitIds, Sette);
+	TestEqual(TEXT("il neutrale riceve la traccia intera"), Neutrale[0].InterruptedByUnitIds, Sette);
 	TestEqual(TEXT("controllo: la voce stessa e' intatta per la squadra 0"), PerLaZero[0].Amount, 10);
 	const TArray<FRTPublicReplayEntry> Pubblica = URTReplayPrivacyLibrary::ToPublicTrace(PerLaUno);
 	if (TestEqual(TEXT("la forma pubblica ha la voce"), Pubblica.Num(), 1))
 	{
-		TestEqual(TEXT("e porta chi ha interrotto"), Pubblica[0].InterruptedByUnitId, 7);
+		TestEqual(TEXT("e porta chi ha interrotto"), Pubblica[0].InterruptedByUnitIds, Sette);
 	}
-	TestEqual(TEXT("e per la squadra 0 non lo porta"), URTReplayPrivacyLibrary::ToPublicTrace(PerLaZero)[0].InterruptedByUnitId, (int32)INDEX_NONE);
+	TestEqual(TEXT("e per la squadra 0 non lo porta"), URTReplayPrivacyLibrary::ToPublicTrace(PerLaZero)[0].InterruptedByUnitIds, Nessuno);
 
 	// Alla registrazione: la traccia della squadra 0 non nomina l'interruttore, quella della squadra 1 e la canonica si'.
 	const FString Root = RTReplayFixtures::TransientRoot(TEXT("InterruptedByTeam"));
@@ -832,20 +849,58 @@ bool FRTReplayPrivacyInterrupterIsNamedOnlyToWhoSawItTest::RunTest(const FString
 	Manifest.bHexTopology = true;
 	Manifest.ObserverTeamIds = { 0, 1 };
 	if (!TestTrue(TEXT("si registra"), URTReplayRecorderLibrary::RecordTurn(Root, Manifest, 1, Voci))) { return false; }
-	auto Nominato = [&](const FString& Nome) -> int32
-	{
-		TArray<uint8> Bytes;
-		TArray<FRTTurnLogEntry> Out;
-		if (!FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(URTReplayRecorderLibrary::MatchDirectory(Root, Manifest.MatchId), Nome))
-			|| !URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out) || Out.Num() != 1)
-		{
-			return -99;
-		}
-		return Out[0].InterruptedByUnitId;
-	};
-	TestEqual(TEXT("la canonica nomina l'interruttore"), Nominato(URTReplayRecorderLibrary::TurnFileName(1)), 7);
-	TestEqual(TEXT("la traccia della squadra 1 anche"), Nominato(URTReplayRecorderLibrary::TurnFileNameForObserver(1, 1)), 7);
-	TestEqual(TEXT("quella della squadra 0 no"), Nominato(URTReplayRecorderLibrary::TurnFileNameForObserver(1, 0)), (int32)INDEX_NONE);
+	TestEqual(TEXT("la canonica nomina l'interruttore"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileName(1)), Sette);
+	TestEqual(TEXT("la traccia della squadra 1 anche"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileNameForObserver(1, 1)), Sette);
+	TestEqual(TEXT("quella della squadra 0 no"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileNameForObserver(1, 0)), Nessuno);
+	RTReplayFixtures::Pulisci(Root);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyFirstSeenInterrupterIsNamedTest,
+	"RefactorTactics.Replay.Privacy.FirstSeenInterrupterIsNamed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyFirstSeenInterrupterIsNamedTest::RunTest(const FString&)
+{
+	// `#4000`, [D-624]: due interruttori, il 7 visto solo dalla squadra 1 e il 9 visto da tutti. (1) La traccia canonica e il
+	// neutrale li portano entrambi, nell'ordine. (2) La squadra 0, che non vedeva il primo, legge il secondo: il nascosto
+	// esce dalla lista, il visto resta. La squadra 1 li legge entrambi.
+	const TArray<int32> Entrambi = { 7, 9 };
+	const TArray<int32> SoloIlNove = { 9 };
+	FRTTurnLogEntry Interrotta = VoceConVerdetto(10, FRTKnowledgeVerdict::Everyone());
+	Interrotta.Category = ERTLogCategory::Fallback;
+	Interrotta.AddInterrupter(7, SoloSquadra(1));
+	Interrotta.AddInterrupter(9, FRTKnowledgeVerdict::Everyone());
+	Interrotta.AddInterrupter(7, FRTKnowledgeVerdict::Everyone()); // la stessa unita' non si ripete, ne' cambia verdetto
+	const TArray<FRTTurnLogEntry> Voci = { Interrotta };
+	TestEqual(TEXT("premessa: la voce li porta entrambi, nell'ordine, una volta"), Interrotta.InterruptedByUnitIds, Entrambi);
+
+	const TArray<FRTTurnLogEntry> PerLaZero = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, 0);
+	const TArray<FRTTurnLogEntry> PerLaUno = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, 1);
+	const TArray<FRTTurnLogEntry> Neutrale = URTReplayPrivacyLibrary::FilterEntriesForObserver(Voci, INDEX_NONE);
+	if (!TestEqual(TEXT("ogni osservatore legge la voce"), PerLaZero.Num() + PerLaUno.Num() + Neutrale.Num(), 3)) { return false; }
+	TestEqual(TEXT("🔴 la squadra 0 legge il secondo, che vedeva"), PerLaZero[0].InterruptedByUnitIds, SoloIlNove);
+	TestEqual(TEXT("e la riga del Registro della squadra 0 nomina lui"),
+		RTInterrupters::FirstSeenBy(Interrotta.InterruptedByUnitIds, Interrotta.InterruptedByVerdicts, 0), 9);
+	TestEqual(TEXT("la squadra 1 li legge entrambi"), PerLaUno[0].InterruptedByUnitIds, Entrambi);
+	TestEqual(TEXT("e la sua riga nomina il primo"),
+		RTInterrupters::FirstSeenBy(Interrotta.InterruptedByUnitIds, Interrotta.InterruptedByVerdicts, 1), 7);
+	TestEqual(TEXT("il neutrale li legge entrambi"), Neutrale[0].InterruptedByUnitIds, Entrambi);
+	TestEqual(TEXT("controllo: chi non vede nessuno dei due non ha nome"),
+		RTInterrupters::FirstSeenBy({ 7 }, { SoloSquadra(1) }, 0), (int32)INDEX_NONE);
+	TestEqual(TEXT("e un elemento senza verdetto non si vede"), RTInterrupters::FirstSeenBy({ 7 }, {}, 1), (int32)INDEX_NONE);
+
+	// Alla registrazione, dove la voce viva porta ancora i verdetti.
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("FirstSeenInterrupter"));
+	RTReplayFixtures::Pulisci(Root);
+	FRTReplayManifest Manifest;
+	Manifest.MatchId = FGuid::NewGuid();
+	Manifest.FormatId = FName(TEXT("Format.Skirmish2v2"));
+	Manifest.bHexTopology = true;
+	Manifest.ObserverTeamIds = { 0, 1 };
+	if (!TestTrue(TEXT("si registra"), URTReplayRecorderLibrary::RecordTurn(Root, Manifest, 1, Voci))) { return false; }
+	TestEqual(TEXT("la canonica li nomina entrambi"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileName(1)), Entrambi);
+	TestEqual(TEXT("la traccia della squadra 1 anche"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileNameForObserver(1, 1)), Entrambi);
+	TestEqual(TEXT("quella della squadra 0 solo il secondo"), NominatiNelFile(Root, Manifest, URTReplayRecorderLibrary::TurnFileNameForObserver(1, 0)), SoloIlNove);
 	RTReplayFixtures::Pulisci(Root);
 	return true;
 }
