@@ -2005,19 +2005,23 @@ bool FRTAbilityLabSingleTargetActionsStayAtOneTest::RunTest(const FString&)
 	using namespace RTAbilityLabTestsInternal;
 	using namespace RTAbilityLabTargetsTestsInternal;
 
-	auto StaAUno = [this](const TCHAR* AbilityId, const FRTAbilityLabFixtureSpec& Spec)
+	auto StaAUno = [this](const TCHAR* AbilityId, const FRTAbilityLabFixtureSpec& Spec, const TCHAR* Come = TEXT(""))
 	{
 		FRTTestScenario Scenario;
 		if (!BuildSceneWith(*this, AbilityId, Spec, Scenario)) { return; }
-		TestEqual(FString::Printf(TEXT("%s a %d bersagli: se ne chiedono %d"), AbilityId, Spec.TargetCount, FMath::Clamp(Spec.TargetCount, 1, 3)),
+		TestEqual(FString::Printf(TEXT("%s a %d bersagli%s: se ne chiedono %d"), AbilityId, Spec.TargetCount, Come, FMath::Clamp(Spec.TargetCount, 1, 3)),
 			URTAbilityLabLibrary::RequestedTargetsOf(Scenario), FMath::Clamp(Spec.TargetCount, 1, 3));
-		TestEqual(FString::Printf(TEXT("%s a %d bersagli: se ne posa uno"), AbilityId, Spec.TargetCount),
+		TestEqual(FString::Printf(TEXT("%s a %d bersagli%s: se ne posa uno"), AbilityId, Spec.TargetCount, Come),
 			URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 1);
-		TestNull(FString::Printf(TEXT("%s a %d bersagli: nessun TARGET2"), AbilityId, Spec.TargetCount), UnitById(Scenario, TargetIds[1]));
-		TestNull(FString::Printf(TEXT("%s a %d bersagli: nessun TARGET3"), AbilityId, Spec.TargetCount), UnitById(Scenario, TargetIds[2]));
+		TestNull(FString::Printf(TEXT("%s a %d bersagli%s: nessun TARGET2"), AbilityId, Spec.TargetCount, Come), UnitById(Scenario, TargetIds[1]));
+		TestNull(FString::Printf(TEXT("%s a %d bersagli%s: nessun TARGET3"), AbilityId, Spec.TargetCount, Come), UnitById(Scenario, TargetIds[2]));
 	};
 	FRTAbilityLabFixtureSpec TreBersagli;
 	TreBersagli.TargetCount = 3;
+	// Un colpo `Single` forzato su una cella: la cella mirata e' vuota, e metterci un bersaglio toglierebbe al `TARGET` il posto
+	// dell'unica cella colpita. Non se ne posa un secondo.
+	FRTAbilityLabFixtureSpec AUnaCella = TreBersagli;
+	AUnaCella.Target = ERTAbilityLabTarget::Cell;
 
 	// La prima abilita' d'eroe `Single` che mira un'unita': non una reazione, non uno scatto, e senza provocazione.
 	FName PrimaSingola = NAME_None;
@@ -2041,11 +2045,33 @@ bool FRTAbilityLabSingleTargetActionsStayAtOneTest::RunTest(const FString&)
 	if (TestFalse(TEXT("premessa: il roster ha un'abilita' `Single` che mira un'unita'"), PrimaSingola.IsNone()))
 	{
 		StaAUno(*PrimaSingola.ToString(), TreBersagli);
+		StaAUno(*PrimaSingola.ToString(), AUnaCella, TEXT(" (forzato su una cella)"));
 	}
 
 	// Una reazione e uno scatto: non sono scene a piu' bersagli, anche se la loro forma ha piu' celle.
 	StaAUno(TEXT("Hero.Ivrin.Deflection"), TreBersagli);
 	StaAUno(TEXT("Hero.Ivrin.PassingBlade"), TreBersagli);
+
+	// E tutte le altre dello stesso genere, dal catalogo e non per nome: ogni azione di forma `Single`, e ogni scatto, reazione,
+	// azione con una provocazione o su chi la usa. Il banco non ha niente da dividere per loro, qualunque sia la forma.
+	// 🔴 Un filtro che non ne riconoscesse nessuna assolverebbe il banco: `Controllate` lo dice.
+	int32 Controllate = 0;
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		FRTActionDef Def;
+		ERTAbilityShape Shape = ERTAbilityShape::Single;
+		if (!FindKitAction(Entry.AbilityId, Def, Shape) && !FindGenericAction(Entry.AbilityId, Def, Shape)) { continue; }
+		const bool bUnSolo = Shape == ERTAbilityShape::Single || Def.Slot == ERTActionSlot::Reaction || Def.bSelfTarget
+			|| URTAbilityLabLibrary::ProvocationFor(Def) != ERTAbilityLabProvocation::None
+			|| URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash;
+		FRTTestScenario Scena;
+		FString Errore;
+		if (!bUnSolo || !URTAbilityLabLibrary::BuildFixture(Entry.AbilityId, TreBersagli, Scena, Errore)) { continue; }
+		++Controllate;
+		TestEqual(FString::Printf(TEXT("%s a 3 bersagli: se ne posa uno"), *Entry.AbilityId.ToString()),
+			URTAbilityLabLibrary::PlacedTargetsOf(Scena), 1);
+	}
+	TestTrue(FString::Printf(TEXT("il banco riconosce azioni che restano a un bersaglio (%d)"), Controllate), Controllate > 0);
 
 	// Review Focus 3, una linea che non puo' allungarsi: mappa di raggio 1, il `TARGET` in (1,0). La cella oltre e' fuori
 	// dalla mappa, il `TARGET` resta dov'e', e se ne posa uno solo.
