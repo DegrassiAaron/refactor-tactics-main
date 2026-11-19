@@ -2035,6 +2035,91 @@ bool FRTAbilityLabAreaTargetsStayInsideTheAreaTest::RunTest(const FString&)
 }
 
 /**
+ * **Ogni linea, area e cono del kit regge tre bersagli** (`#4136`): `,` e `.` portano il numero di bersagli scelto con `U` a OGNI
+ * abilita' del kit, non solo a `LinearDischarge`, `Overload` e `CircularTide` che i test sopra provano per nome. Qui il giro e'
+ * sul catalogo: per ogni voce di kit di forma `Line`, `Area` o `Cone`, costruita con `TargetCount = 3`, la run gira senza ERROR,
+ * le unita' stanno su celle distinte e nella mappa, e i bersagli in piu' (`TARGET2`, `TARGET3`) stanno fra le celle che
+ * `URTHexCombatLibrary::HexHitCells` da' per la loro mira.
+ *
+ * ⚠️ **La mira si legge dalla scena, non si ricalcola**: la cella dell'intento per un'area mirata a una cella, il `TARGET` per
+ * un'unita' (che una linea sposta in fuori, quindi la sua cella e' quella FINALE). Due elenchi diversi sarebbero il banco che
+ * riscrive la geometria del colpo.
+ * 🔴 Due controlli positivi reggono il giro: che le voci controllate siano almeno una, e che almeno una posi davvero un `TARGET2`.
+ * Senza, un filtro che non riconoscesse nessuna forma, o un banco che non posasse mai niente, darebbero un test verde sul vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEveryKitShapeHoldsThreeTargetsTest,
+	"RefactorTactics.AbilityLab.EveryKitLineAreaAndConeHoldThreeTargets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEveryKitShapeHoldsThreeTargetsTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	using namespace RTAbilityLabTargetsTestsInternal;
+
+	int32 Controllate = 0;
+	int32 ConSecondo = 0;
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		const bool bForma = Entry.Shape == ERTAbilityShape::Line || Entry.Shape == ERTAbilityShape::Area
+			|| Entry.Shape == ERTAbilityShape::Cone;
+		if (Entry.bIsCoreAction || !bForma) { continue; }
+		const FString Id = Entry.AbilityId.ToString();
+
+		FRTAbilityLabFixtureSpec Spec = SpecWithinRange(Entry);
+		Spec.TargetCount = 3;
+		FRTTestScenario Scenario;
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(Entry.AbilityId, Spec, Scenario, Errore);
+		if (!TestTrue(FString::Printf(TEXT("%s a 3 bersagli: la scena si costruisce (%s)"), *Id, *Errore), bCostruita)) { continue; }
+		++Controllate;
+
+		TestEqual(FString::Printf(TEXT("%s a 3 bersagli: se ne chiedono 3"), *Id), URTAbilityLabLibrary::RequestedTargetsOf(Scenario), 3);
+		TestTrue(FString::Printf(TEXT("%s a 3 bersagli: nessuna coppia di unita' sulla stessa cella"), *Id), AllUnitsOnDistinctCells(Scenario));
+		for (const FRTScenarioUnit& Unit : Scenario.Units)
+		{
+			TestTrue(FString::Printf(TEXT("%s a 3 bersagli: %s e' nella mappa (e' in %s)"), *Id, *Unit.Id, *Unit.Cell.ToString()),
+				URTHexLibrary::HexDistance(FRTCellId(0, 0), Unit.Cell) <= Scenario.MapRadius);
+		}
+
+		// I bersagli in piu' stanno nelle celle che l'azione colpisce per la sua mira: l'intento, non la spec.
+		const FRTScenarioUnit* Caster = UnitById(Scenario, URTAbilityLabLibrary::CasterUnitId());
+		const FRTScenarioIntent* Intent = Scenario.Turns.Num() > 0 && Scenario.Turns[0].Intents.Num() > 0
+			? &Scenario.Turns[0].Intents[0] : nullptr;
+		FRTCellId Mira;
+		bool bHaMira = false;
+		if (Intent && Intent->bTargetsCell)
+		{
+			Mira = Intent->TargetCell;
+			bHaMira = true;
+		}
+		else if (const FRTScenarioUnit* Mirato = Intent ? UnitById(Scenario, Intent->Target) : nullptr)
+		{
+			Mira = Mirato->Cell;
+			bHaMira = true;
+		}
+		for (int32 I = 1; I < 3; ++I)
+		{
+			const FRTScenarioUnit* Extra = UnitById(Scenario, TargetIds[I]);
+			if (!Extra) { continue; }
+			ConSecondo += I == 1 ? 1 : 0;
+			if (!TestTrue(FString::Printf(TEXT("%s a 3 bersagli: %s ha una mira da cui le celle si calcolano"), *Id, TargetIds[I]),
+				bHaMira && Caster != nullptr)) { continue; }
+			const TArray<FRTCellId> Colpite = URTHexCombatLibrary::HexHitCells(Entry.Shape, Caster->Cell, Mira, Entry.RangeCells, Entry.AreaRadius);
+			TestTrue(FString::Printf(TEXT("%s a 3 bersagli: %s e' fra le celle colpite dalla mira %s (e' in %s)"), *Id, TargetIds[I],
+				*Mira.ToString(), *Extra->Cell.ToString()), Colpite.Contains(Extra->Cell));
+		}
+
+		const FRTTestResult Result = RunFixture(*this, Scenario);
+		TestFalse(FString::Printf(TEXT("%s a 3 bersagli: nessun ERROR (%s)"), *Id, *Result.ErrorMessage),
+			Result.Outcome == ERTTestOutcome::Error);
+	}
+
+	// 🔴 Senza questi due, il giro sarebbe verde su un catalogo senza forme da provare o su un banco che non posa mai.
+	TestTrue(FString::Printf(TEXT("il kit offre linee, aree o coni da provare (%d)"), Controllate), Controllate > 0);
+	TestTrue(FString::Printf(TEXT("almeno una di queste posa davvero un TARGET2 (%d)"), ConSecondo), ConSecondo > 0);
+	return true;
+}
+
+/**
  * **Un'azione che colpisce una cella sola resta a un bersaglio** (`#4136`): un colpo `Single` non ha celle in piu' da
  * riempire, e uno scatto o una reazione non sono una scena a piu' bersagli. Se la linea non puo' allungarsi (la mappa finisce),
  * si posa quello che ci sta. In ogni caso il tag dice quanti se ne sono CHIESTI: i posati si contano dalle unita'.
