@@ -16,6 +16,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/SplineComponent.h" // [D-621]: la scarica e' un attore con una spline, e i punti si leggono da li'
 #include "Tests/Shared/RTWorldFixtures.h"
+#include "Tests/Turn/Playback/Reveal/RTChainArcProbeForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -430,6 +431,52 @@ bool FRTPlaybackChainArcActorNeedsASplineTest::RunTest(const FString&)
 	TestEqual(TEXT("⛔ premessa: l'attore e' stato creato"), Nati, 1);
 	TestNull(TEXT("🔴 un attore senza spline non restituisce niente"), Arco);
 	TestEqual(TEXT("🔴 e non resta vivo: gli attori sono quelli di prima"), ContaAttoriViviCatena(World), Prima);
+	return true;
+}
+
+/**
+ * Il ramo felice: un attore CON spline nasce in `Start`, riceve i tre punti IN SPAZIO MONDO e una vita — [D-621].
+ *
+ * 🔴 **Il contratto "spazio mondo" si misura qui, e non in `ChainArcPointsGoOnTheSpline`.** Quella prova lavora su una
+ * componente non registrata, con la trasformata identita': li' `Local` e `World` coincidono, e scambiarli non farebbe
+ * cadere niente. Qui l'attore nasce lontano dall'origine e la spline e' la sua radice: con punti locali l'intero arco
+ * slitterebbe di `Start` rispetto al bersaglio.
+ * ✅ Validato per mutazione: `ESplineCoordinateSpace::World` -> `Local` in `SetChainArcPoints` fa cadere i tre punti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcActorWritesWorldPointsTest,
+	"RefactorTactics.Playback.ChainArcActorWritesTheWorldPoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcActorWritesWorldPointsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	const float Tol = UE_KINDA_SMALL_NUMBER;
+	const FVector Partenza(1000, 500, 100); // lontano dall'origine: e' cio' che separa `World` da `Local`
+	const FVector Arrivo(1600, 500, 100);
+	const float Vita = 2.25f;               // diversa dal default di `FRTChainFxBinding`: un default non la indovina per caso
+
+	AActor* const Arco = URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcProbeForTest::StaticClass(),
+		Partenza, Arrivo, Vita);
+	if (!TestNotNull(TEXT("🔴 un attore con spline torna dalla funzione"), Arco)) { return false; }
+	ON_SCOPE_EXIT{ if (IsValid(Arco)) { Arco->Destroy(); } };
+
+	TestEqual(TEXT("⛔ premessa: l'attore e' nato in Start, e cosi' la sua spline"), Arco->GetActorLocation(), Partenza, Tol);
+	const USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
+	if (!TestNotNull(TEXT("⛔ premessa: l'attore ha la sua spline"), Spline)) { return false; }
+	if (!TestEqual(TEXT("🔴 tre punti sulla spline"), Spline->GetNumberOfSplinePoints(), 3)) { return false; }
+
+	TestEqual(TEXT("🔴 il primo punto e' Start, in spazio mondo"),
+		Spline->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World), Partenza, Tol);
+	TestEqual(TEXT("🔴 il secondo e' il punto di mezzo alzato, in spazio mondo"),
+		Spline->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World),
+		URTPlaybackLibrary::ChainArcMidpoint(Partenza, Arrivo), Tol);
+	TestEqual(TEXT("🔴 il terzo e' End, in spazio mondo"),
+		Spline->GetLocationAtSplinePoint(2, ESplineCoordinateSpace::World), Arrivo, Tol);
+
+	TestTrue(TEXT("🔴 l'attore ha la vita chiesta"), FMath::IsNearlyEqual(Arco->GetLifeSpan(), Vita, 0.01f));
+	TestTrue(TEXT("e non e' in distruzione"), !Arco->IsActorBeingDestroyed());
 	return true;
 }
 
