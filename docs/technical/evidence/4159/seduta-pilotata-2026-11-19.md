@@ -33,7 +33,7 @@ Il metodo è quello della [seduta del 2026-11-13](../4091/seduta-pilotata-2026-1
 
 Quattro tavole, una per voce: `T1_pip.jpg`, `T2_preview.jpg`, `T3_plan_count.jpg`, `T4_stacks.jpg`. Ognuna porta sotto le sue domande e cosa non mostra.
 
-La risposta, alla lettera: «ok a tutte le tavole». È **una risposta sola per quattro tavole**, letta come nessuna obiezione a ciascuna delle domande scritte sotto di esse (elencate qui sotto per voce). Non decide il rilievo su PREVIEW (d), che la tavola 2 presentava come un fatto e non come una domanda: resta un FAIL del criterio scritto, in attesa della decisione dell'autore su come trattarlo.
+La risposta, alla lettera: «ok a tutte le tavole». È **una risposta sola per quattro tavole**, letta come nessuna obiezione a ciascuna delle domande scritte sotto di esse (elencate qui sotto per voce). Non decide il rilievo su PREVIEW (d), che la tavola 2 presentava come un fatto e non come una domanda: resta un FAIL del criterio scritto, in attesa della decisione dell'autore su come trattarlo. ➕ **Deciso lo stesso giorno, [D-631](../../../decisions/RT_PDR_00_Decision_Log.md)**: alla domanda «apro una issue, con l'evidenza, per la lettura del rifiuto che non compare col piano pieno? In alternativa si corregge il criterio, se per te il rifiuto al solo click basta» l'autore ha risposto «correggi il criterio». Col criterio corretto (d) è PASS, e la voce è 🟡 per (f).
 
 ## Esiti
 
