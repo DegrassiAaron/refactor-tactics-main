@@ -5,6 +5,7 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/Lab/RTHeroLab.h"
 #include "Ability/RTEquipmentData.h"
+#include "Combat/RTHexCombatLibrary.h" // le celle che l'azione colpisce: dove stanno i bersagli in piu' (`#4136`)
 #include "Core/RTGameplayTags.h"   // `Status.Braced`: cio' che fa del Brace una reazione (`#4073`)
 #include "HAL/FileManager.h"
 #include "Map/RTHexLibrary.h"
@@ -25,6 +26,22 @@ namespace RTAbilityLabInternal
 	 * stessa stringa divergono al primo rename.
 	 */
 	static const TCHAR* const LabScenarioPrefix = TEXT("AbilityLab.");
+
+	/**
+	 * Il prefisso del tag che porta il numero di bersagli CHIESTI: `lab-targets-N` (`#4136`). In un posto solo, perche' lo scrive chi
+	 * costruisce la scena (`BuildFixture`) e lo legge chi la rilegge (`RequestedTargetsOf`): due copie della stessa stringa
+	 * divergono al primo rename, e il numero smette di viaggiare senza che nessuno se ne accorga.
+	 */
+	static const TCHAR* const LabTargetsTagPrefix = TEXT("lab-targets-");
+
+	/**
+	 * Gli Id dei bersagli di una scena, nell'ordine in cui il banco li posa: il `TARGET` e i due in piu' (`#4136`). In un posto
+	 * solo, perche' li scrive `BuildFixture` e li conta `PlacedTargetsOf`. Il tetto e' `MaxLabTargets()`, e questa lista non ne
+	 * ha di piu'.
+	 */
+	static const TCHAR* const LabTargetIds[] = { TEXT("TARGET"), TEXT("TARGET2"), TEXT("TARGET3") };
+	static_assert(UE_ARRAY_COUNT(LabTargetIds) == URTAbilityLabLibrary::MaxLabTargets(),
+		"un Id per ogni bersaglio che il banco puo' posare: MaxLabTargets() e LabTargetIds vanno tenuti insieme");
 
 	/**
 	 * L'azione canonica di `AbilityId`, cercata prima nei kit d'eroe e poi nel catalogo core.
@@ -93,11 +110,11 @@ namespace RTAbilityLabInternal
 	}
 
 	/**
-	 * La FORMA dell'azione che un'unita' impugna davvero (`#4072`): `FRTActionDef` non la porta, la porta l'istanza.
-	 * Per un'azione di kit e' quella del kit; per una generica quella di `MakeGenericActions`; `Single` altrimenti, come
-	 * per ogni core che non ha un'istanza da cui leggerla.
+	 * L'istanza che un'unita' impugna davvero per `AbilityId`: quella del kit, poi la generica di `MakeGenericActions`; `nullptr`
+	 * per ogni core che non ha un'istanza. E' la sola che porta la forma e il raggio dell'area, che `FRTActionDef` non porta
+	 * (`#4072`, `#4136`). Chi la usa legge i campi SUBITO: le generiche nascono nel pacchetto transiente a ogni chiamata.
 	 */
-	static ERTAbilityShape ShapeOf(const FName& AbilityId)
+	static const URTActionData* WieldedActionOf(const FName& AbilityId)
 	{
 		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 		{
@@ -105,11 +122,31 @@ namespace RTAbilityLabInternal
 			for (const TObjectPtr<URTActionData>& ActionPtr : Hero->Actions)
 			{
 				const URTActionData* Action = ActionPtr.Get();
-				if (Action && Action->Def.ActionId == AbilityId) { return Action->Shape; }
+				if (Action && Action->Def.ActionId == AbilityId) { return Action; }
 			}
 		}
-		const URTActionData* Generica = FindGenericInstance(AbilityId);
-		return Generica ? Generica->Shape : ERTAbilityShape::Single;
+		return FindGenericInstance(AbilityId);
+	}
+
+	/**
+	 * La FORMA dell'azione che un'unita' impugna davvero (`#4072`): `FRTActionDef` non la porta, la porta l'istanza.
+	 * Per un'azione di kit e' quella del kit; per una generica quella di `MakeGenericActions`; `Single` altrimenti, come
+	 * per ogni core che non ha un'istanza da cui leggerla.
+	 */
+	static ERTAbilityShape ShapeOf(const FName& AbilityId)
+	{
+		const URTActionData* Action = WieldedActionOf(AbilityId);
+		return Action ? Action->Shape : ERTAbilityShape::Single;
+	}
+
+	/**
+	 * Il raggio dell'area dell'azione che un'unita' impugna (`#4136`), come lo legge il resolver (`Ability->AreaRadius`):
+	 * `FRTActionDef` non lo porta, lo porta l'istanza. 0 per ogni core che non ha un'istanza.
+	 */
+	static int32 AreaRadiusOf(const FName& AbilityId)
+	{
+		const URTActionData* Action = WieldedActionOf(AbilityId);
+		return Action ? FMath::Max(0, Action->AreaRadius) : 0;
 	}
 
 	/** La vita massima di un eroe del roster, o `INDEX_NONE` se non c'e'. */
@@ -270,6 +307,85 @@ namespace RTAbilityLabInternal
 			if (HeroId != A && HeroId != B) { return HeroId; }
 		}
 		return NAME_None;
+	}
+
+	/** Il primo eroe del roster, nell'ordine di `GetHeroIds`, che non e' fra `InScena`. `NAME_None` se sono finiti (`#4136`). */
+	static FName FirstHeroNotIn(const TArray<FName>& InScena)
+	{
+		for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+		{
+			if (!InScena.Contains(HeroId)) { return HeroId; }
+		}
+		return NAME_None;
+	}
+
+	/**
+	 * La vita con cui un alleato entra nella scena di una cura: meta' della sua massima, o la cura non si vedrebbe. `INDEX_NONE`
+	 * se l'azione non cura o l'eroe non ha una massima a cui togliere (`FRTScenarioUnit::Health` lascia allora il default).
+	 * ⚠️ E' posa, non bilanciamento.
+	 */
+	static int32 WoundedHealthFor(const FRTActionDef& Def, const FName& HeroId)
+	{
+		bool bCura = false;
+		for (const FRTActionEffectSpec& Effect : Def.Effects) { bCura |= Effect.Effect == ERTActionEffect::Heal; }
+		const int32 Massima = MaxHealthOf(HeroId);
+		return (bCura && Massima > 1) ? Massima / 2 : INDEX_NONE;
+	}
+
+	/**
+	 * Le celle dei bersagli IN PIU' (`#4136`), al massimo `Wanted - 1`: quelle che l'azione colpisce secondo
+	 * `URTHexCombatLibrary::HexHitCells`, la funzione che il gioco usa. Il banco non scrive una seconda geometria del colpo.
+	 *
+	 * - **Nessuna** per `Wanted <= 1`, per un'azione che colpisce una cella sola (`Single`: non c'e' niente da dividere con
+	 *   il `TARGET`) e per un bersaglio che non e' un'unita' o una cella (un bordo, nessuno).
+	 * - **Mira**: la cella del `TARGET` per un'unita' (`Enemy`, `Ally`), la cella dell'intento per una `Cell`.
+	 * - **Una linea mirata a un'unita'** si allunga: finche' `HexHitCells` ne da' meno di `Wanted`, il `TARGET` si sposta di una
+	 *   cella in fuori, sulla stessa direzione (`InOutTargetCell`, che il chiamante posa). Si ferma alla mappa, alla portata o a
+	 *   una cella occupata: allora se ne posano quanti ce ne stanno.
+	 * - Fra le celle colpite si tolgono quelle occupate, quella del `TARGET` e quelle fuori mappa; le prime `Wanted - 1`, dalla piu'
+	 *   vicina a chi lancia, e a pari distanza nell'ordine stabile della mappa. L'ordine non dipende dall'iterazione di niente.
+	 *
+	 * ⚠️ **Dove stanno e' una posa, chi viene colpito lo decide il resolver.** `AreaRadius` e' un parametro perche' `FRTActionDef`
+	 * non lo porta, come la forma: lo porta l'istanza impugnata (`AreaRadiusOf`).
+	 */
+	static TArray<FRTCellId> ExtraTargetCells(const FRTActionDef& Def, ERTAbilityShape Shape, int32 AreaRadius,
+		const FRTAbilityLabFixtureSpec& Spec, const FRTAbilityLabTargetChoice& Choice, int32 Wanted,
+		const TArray<FRTCellId>& Occupied, FRTCellId& InOutTargetCell)
+	{
+		TArray<FRTCellId> Out;
+		const bool bAimsAtUnit = Choice.Kind == ERTAbilityLabTarget::Enemy || Choice.Kind == ERTAbilityLabTarget::Ally;
+		if (Wanted <= 1 || Shape == ERTAbilityShape::Single || (!bAimsAtUnit && Choice.Kind != ERTAbilityLabTarget::Cell))
+		{
+			return Out;
+		}
+
+		FRTCellId Aim = bAimsAtUnit ? InOutTargetCell : Choice.Cell;
+		ERTHexDirection Outward = ERTHexDirection::E;
+		if (Shape == ERTAbilityShape::Line && bAimsAtUnit && URTHexLibrary::DirectionTowards(Spec.CasterCell, InOutTargetCell, Outward))
+		{
+			// La direzione e' una sola, calcolata una volta: ogni passo esce dalla mappa o dalla portata prima o poi, e il giro finisce.
+			while (URTHexCombatLibrary::HexHitCells(Shape, Spec.CasterCell, InOutTargetCell, Def.RangeCells, AreaRadius).Num() < Wanted)
+			{
+				const FRTCellId Next = URTHexLibrary::Neighbor(InOutTargetCell, Outward);
+				if (!InLabMap(Next, Spec.MapRadius) || !WithinRange(Def, Spec.CasterCell, Next) || Occupied.Contains(Next)) { break; }
+				InOutTargetCell = Next;
+			}
+			Aim = InOutTargetCell;
+		}
+
+		Out = URTHexCombatLibrary::HexHitCells(Shape, Spec.CasterCell, Aim, Def.RangeCells, AreaRadius);
+		Out.RemoveAll([&](const FRTCellId& Cell)
+		{
+			return Occupied.Contains(Cell) || Cell == InOutTargetCell || !InLabMap(Cell, Spec.MapRadius);
+		});
+		Out.Sort([&](const FRTCellId& A, const FRTCellId& B)
+		{
+			const int32 DistanzaA = URTHexLibrary::HexDistance(Spec.CasterCell, A);
+			const int32 DistanzaB = URTHexLibrary::HexDistance(Spec.CasterCell, B);
+			return DistanzaA != DistanzaB ? DistanzaA < DistanzaB : URTHexLibrary::StableLess(A, B);
+		});
+		if (Out.Num() > Wanted - 1) { Out.SetNum(Wanted - 1); }
+		return Out;
 	}
 }
 
@@ -651,6 +767,10 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Scenario.Seed = Spec.Seed;
 	Scenario.MapRadius = Spec.MapRadius;
 	Scenario.Tags.Add(TEXT("ability-lab"));
+	// Il numero di bersagli CHIESTI viaggia nella scena, sempre scritto e portato fra 1 e il massimo (`#4136`): la scena e' un
+	// file, e chi la rilegge non ha la spec che l'ha prodotta. Quanti se ne POSANO lo dicono le unita' (`PlacedTargetsOf`).
+	const int32 Wanted = FMath::Clamp(Spec.TargetCount, 1, MaxLabTargets());
+	Scenario.Tags.Add(FString::Printf(TEXT("%s%d"), RTAbilityLabInternal::LabTargetsTagPrefix, Wanted));
 
 	FRTScenarioUnit Caster;
 	Caster.Id = CasterUnitId();
@@ -666,7 +786,8 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 
 	// Il bersaglio adatto (`#4072`, [D-607] (2)). Uno scatto non ne ha uno: si dichiara con la sua cella d'arrivo.
 	const bool bIsDash = URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash;
-	const FRTAbilityLabTargetChoice Choice = ChooseTarget(Def, RTAbilityLabInternal::ShapeOf(AbilityId), Spec);
+	const ERTAbilityShape Shape = RTAbilityLabInternal::ShapeOf(AbilityId);
+	const FRTAbilityLabTargetChoice Choice = ChooseTarget(Def, Shape, Spec);
 	const bool bAlleato = !bIsDash && Choice.bSecondHeroIsAlly;
 
 	// ⛔ «Nessuno» forzato su un'azione che chiede un bersaglio: l'harness la rifiuterebbe alla run (*«bersaglio '' non
@@ -690,18 +811,31 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		return false;
 	}
 
+	// I bersagli IN PIU' (`#4136`): celle che l'azione colpisce, dette da `HexHitCells`. Non per uno scatto (si dichiara con la
+	// cella d'arrivo), non per una reazione ne' per una provocazione (la scena e' il `TARGET` che provoca, uno solo), non per
+	// un'azione su chi la usa. Per una linea mirata a un'unita' il `TARGET` si sposta in fuori, e prende la cella spostata.
+	// ⚠️ `Occupied`: chi lancia e, con l'alleato, l'`OPPONENT`, che si posa comunque dove `OpponentCellFor` lo mette.
+	FRTCellId TargetCell = Spec.TargetCell;
+	TArray<FRTCellId> ExtraCells;
+	if (!bIsDash && Def.Slot != ERTActionSlot::Reaction && Provocazione == ERTAbilityLabProvocation::None && !Def.bSelfTarget)
+	{
+		TArray<FRTCellId> Occupied;
+		Occupied.Add(Spec.CasterCell);
+		if (bAlleato) { Occupied.Add(RTAbilityLabInternal::OpponentCellFor(Spec)); }
+		ExtraCells = RTAbilityLabInternal::ExtraTargetCells(Def, Shape, RTAbilityLabInternal::AreaRadiusOf(AbilityId), Spec, Choice,
+			Wanted, Occupied, TargetCell);
+	}
+
 	FRTScenarioUnit Target;
-	Target.Id = TEXT("TARGET");
+	Target.Id = RTAbilityLabInternal::LabTargetIds[0];
 	Target.HeroId = TargetHeroId;
 	Target.TeamId = bAlleato ? 0 : 1;
-	Target.Cell = Spec.TargetCell;
+	Target.Cell = TargetCell;
 	// Un alleato da curare e' ferito, o la cura non si vedrebbe: meta' della sua vita. ⚠️ E' posa, non bilanciamento.
 	if (bAlleato)
 	{
-		bool bCura = false;
-		for (const FRTActionEffectSpec& Effect : Def.Effects) { bCura |= Effect.Effect == ERTActionEffect::Heal; }
-		const int32 Massima = RTAbilityLabInternal::MaxHealthOf(TargetHeroId);
-		if (bCura && Massima > 1) { Target.Health = Massima / 2; }
+		const int32 Ferito = RTAbilityLabInternal::WoundedHealthFor(Def, TargetHeroId);
+		if (Ferito != INDEX_NONE) { Target.Health = Ferito; }
 	}
 	Scenario.Units.Add(Target);
 
@@ -722,6 +856,29 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		Opponent.TeamId = 1;
 		Opponent.Cell = RTAbilityLabInternal::OpponentCellFor(Spec);
 		Scenario.Units.Add(Opponent);
+	}
+
+	// I bersagli in piu', dopo l'`OPPONENT`: con un bersaglio solo l'ordine delle unita' resta quello di prima. Squadra e vita sono
+	// quelle del `TARGET`, e l'eroe viene dal roster, in ordine, saltando quelli gia' in scena. Se gli eroi finiscono, se ne
+	// posano quanti ce ne stanno (`#4136`).
+	TArray<FName> EroiInScena;
+	for (const FRTScenarioUnit& InScena : Scenario.Units) { EroiInScena.Add(InScena.HeroId); }
+	for (int32 I = 0; I < ExtraCells.Num(); ++I)
+	{
+		const FName ExtraHeroId = RTAbilityLabInternal::FirstHeroNotIn(EroiInScena);
+		if (ExtraHeroId.IsNone()) { break; }
+		FRTScenarioUnit Extra;
+		Extra.Id = RTAbilityLabInternal::LabTargetIds[I + 1];
+		Extra.HeroId = ExtraHeroId;
+		Extra.TeamId = Target.TeamId;
+		Extra.Cell = ExtraCells[I];
+		if (bAlleato)
+		{
+			const int32 Ferito = RTAbilityLabInternal::WoundedHealthFor(Def, ExtraHeroId);
+			if (Ferito != INDEX_NONE) { Extra.Health = Ferito; }
+		}
+		Scenario.Units.Add(Extra);
+		EroiInScena.Add(ExtraHeroId);
 	}
 
 	if (!bIsDash && Choice.bPlacesDoor)
@@ -779,7 +936,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		case ERTAbilityLabTarget::Ally:
 		case ERTAbilityLabTarget::Auto: // non succede: `ChooseTarget` lo risolve sempre
 		default:
-			Intent.Target = TEXT("TARGET");
+			Intent.Target = RTAbilityLabInternal::LabTargetIds[0];
 			break;
 		}
 	}
@@ -791,7 +948,7 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	if (Provocazione != ERTAbilityLabProvocation::None)
 	{
 		FRTScenarioIntent Provoca;
-		Provoca.UnitId = TEXT("TARGET");
+		Provoca.UnitId = RTAbilityLabInternal::LabTargetIds[0];
 		switch (Provocazione)
 		{
 		case ERTAbilityLabProvocation::DirectHit:
@@ -853,6 +1010,47 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	// Senza, la scena girerebbe senza mostrare la skill. Se l'azione puo' farlo, lo giudica comunque il gioco.
 	OutScenario = Scenario;
 	return true;
+}
+
+int32 URTAbilityLabLibrary::RequestedTargetsOf(const FRTTestScenario& Scene)
+{
+	const FString Prefisso = RTAbilityLabInternal::LabTargetsTagPrefix;
+	for (const FString& Tag : Scene.Tags)
+	{
+		if (!Tag.StartsWith(Prefisso, ESearchCase::CaseSensitive)) { continue; }
+
+		// Decide il PRIMO tag del numero. Solo cifre: `lab-targets-x`, `lab-targets-` e `lab-targets--2` non sono un numero
+		// valido e valgono 1, come una scena senza tag. Un numero enorme si ferma a un tetto prima di trabordare, e il `Clamp` lo
+		// porta al massimo.
+		const FString Cifre = Tag.RightChop(Prefisso.Len());
+		if (Cifre.IsEmpty()) { return 1; }
+		int32 Valore = 0;
+		for (const TCHAR C : Cifre)
+		{
+			if (!FChar::IsDigit(C)) { return 1; }
+			Valore = FMath::Min(Valore * 10 + (C - TEXT('0')), 1000);
+		}
+		return FMath::Clamp(Valore, 1, MaxLabTargets());
+	}
+	// Una scena scritta prima del tag: un bersaglio, com'era.
+	return 1;
+}
+
+int32 URTAbilityLabLibrary::PlacedTargetsOf(const FRTTestScenario& Scene)
+{
+	int32 Posati = 0;
+	for (const FRTScenarioUnit& Unit : Scene.Units)
+	{
+		for (const TCHAR* const Id : RTAbilityLabInternal::LabTargetIds)
+		{
+			if (Unit.Id == Id)
+			{
+				++Posati;
+				break;
+			}
+		}
+	}
+	return Posati;
 }
 
 TArray<FString> URTAbilityLabLibrary::DescribeRunTurnLog(const FRTTestResult& Result)

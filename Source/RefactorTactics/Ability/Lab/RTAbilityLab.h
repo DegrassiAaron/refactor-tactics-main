@@ -164,6 +164,20 @@ struct FRTAbilityLabFixtureSpec
 	/** Il bersaglio della scena: `Auto` lo deduce dall'azione, gli altri valori lo forzano ([D-607] (2), `#4072`). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
 	ERTAbilityLabTarget Target = ERTAbilityLabTarget::Auto;
+
+	/**
+	 * Quanti bersagli la scena vuole, da 1 a `URTAbilityLabLibrary::MaxLabTargets()` (`#4136`): oltre il `TARGET` il banco posa
+	 * `TARGET2` e `TARGET3`, nelle celle che l'azione colpisce (`URTHexCombatLibrary::HexHitCells`). Un valore fuori scala si
+	 * porta fra 1 e il massimo.
+	 *
+	 * ⚠️ **E' una POSA dello strumento, non una regola di gioco**: il banco sceglie le celle dove stare, ma chi viene colpito
+	 * lo decide comunque il resolver. Un'azione che colpisce una cella sola (`Single`), uno scatto e una reazione restano a un
+	 * bersaglio; e se le celle o gli eroi finiscono, se ne posano quanti ce ne stanno. Il numero CHIESTO sta nel tag della scena
+	 * (`lab-targets-N`, `URTAbilityLabLibrary::RequestedTargetsOf`); quelli POSATI si contano dalle unita'
+	 * (`URTAbilityLabLibrary::PlacedTargetsOf`).
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
+	int32 TargetCount = 1;
 };
 
 /**
@@ -251,6 +265,10 @@ public:
 	 * `#4073`); il suo bersaglio non si forza. Ogni altra azione mira il bersaglio di `ChooseTarget` (`#4072`): nessuno,
 	 * un nemico, un alleato, una cella o un bordo, con la porta per un'azione che ne cambia una. Una predittiva blocca la
 	 * cella di `ChooseTarget` e il `TARGET` ci entra (`#4088`); il suo bersaglio si forza solo a «cella», e il banco rifiuta gli altri.
+	 *
+	 * `Spec.TargetCount` chiede fino a `MaxLabTargets()` bersagli (`#4136`): gli altri sono `TARGET2` e `TARGET3`, nelle celle che
+	 * `URTHexCombatLibrary::HexHitCells` dice colpite dall'azione, e per una linea mirata a un'unita' il `TARGET` si sposta in
+	 * fuori finche' la linea ha le celle che servono. Il numero chiesto sta sempre nel tag `lab-targets-N`.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
@@ -357,6 +375,27 @@ public:
 	 * uguali in due file divergono al primo rename.
 	 */
 	static const TCHAR* CasterUnitId() { return TEXT("CASTER"); }
+
+	/**
+	 * Il massimo di bersagli che una scena del banco posa (`#4136`): `TARGET`, `TARGET2` e `TARGET3`. Una sede sola per il tetto,
+	 * che lo scrive `BuildFixture`, lo legge `RequestedTargetsOf` e lo mostra la banda del banco.
+	 */
+	static constexpr int32 MaxLabTargets() { return 3; }
+
+	/**
+	 * Quanti bersagli CHIEDE una scena del banco: il numero del tag `lab-targets-N` che `BuildFixture` scrive sempre (`#4136`).
+	 *
+	 * Un tag fuori scala si porta fra 1 e `MaxLabTargets()`; un tag che non e' un numero (`lab-targets-x`, o senza numero) vale 1,
+	 * come una scena scritta prima di questo tag, che non lo porta. Si legge dal tag e non dalla spec perche' la scena e' un
+	 * file: chi la rilegge non ha la spec che l'ha prodotta.
+	 */
+	static int32 RequestedTargetsOf(const FRTTestScenario& Scene);
+
+	/**
+	 * Quanti bersagli POSA una scena del banco: le unita' `TARGET`, `TARGET2` e `TARGET3` (`#4136`). Puo' valere meno di
+	 * `RequestedTargetsOf`: un'azione che colpisce una cella sola, la fine della mappa o del roster ne posano meno di quelli chiesti.
+	 */
+	static int32 PlacedTargetsOf(const FRTTestScenario& Scene);
 
 	/**
 	 * La velocita' del playback del banco, x0,5 ([D-607] (1), `#4071`): l'autore guarda una skill alla volta e da' il suo

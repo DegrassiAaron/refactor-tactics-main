@@ -31,6 +31,8 @@
 #include "Unit/RTUnit.h"                      // tipo completo: l'header del controller assegna `TWeakObjectPtr<ARTUnit>`
 #include "Player/RTPlayerController.h"        // la finestra di reazione si apre al controller (#4073)
 #include "Map/RTHexLibrary.h"                  // la distanza della cella bloccata da una predittiva (#4088)
+#include "Combat/RTHexCombatLibrary.h"         // le celle che l'azione colpisce: dove il banco posa i bersagli in piu' (#4136)
+#include "ScenarioHarness/Authoring/RTScenarioLoader.h" // il tag dei bersagli attraversa il file della scena (#4136)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1725,6 +1727,420 @@ bool FRTAbilityLabStepReachesTheKitReactionsTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(FString::Printf(TEXT("i kit hanno reazioni da raggiungere (%d)"), Controllate), Controllate > 0);
+	return true;
+}
+
+// =====================================================================================================
+// `#4136` — il banco posa 1, 2 o 3 bersagli. Il numero e' una POSA dello strumento: dove stanno i bersagli in piu' lo dice
+// `URTHexCombatLibrary::HexHitCells`, la funzione che il gioco usa per le celle colpite, e chi viene colpito davvero lo
+// decide il resolver. La posa e' quella di default del banco: chi lancia in (0,0), il bersaglio in (2,0), mappa di raggio 3.
+// =====================================================================================================
+
+namespace RTAbilityLabTargetsTestsInternal
+{
+	/** Gli Id dei bersagli, in ordine. Scritti qui e non letti dal banco: sono l'oracolo di cio' che il banco scrive. */
+	const TCHAR* const TargetIds[] = { TEXT("TARGET"), TEXT("TARGET2"), TEXT("TARGET3") };
+
+	/** L'unita' di scena con quell'Id, o `nullptr`. */
+	const FRTScenarioUnit* UnitById(const FRTTestScenario& Scenario, const FString& UnitId)
+	{
+		return Scenario.Units.FindByPredicate([&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; });
+	}
+
+	/** Costruisce la scena della spec; se non si costruisce lo dice come test, con il motivo del rifiuto. */
+	bool BuildSceneWith(FAutomationTestBase& Test, const TCHAR* AbilityId, const FRTAbilityLabFixtureSpec& Spec,
+		FRTTestScenario& OutScenario)
+	{
+		FString Errore;
+		const bool bCostruita = URTAbilityLabLibrary::BuildFixture(FName(AbilityId), Spec, OutScenario, Errore);
+		return Test.TestTrue(FString::Printf(TEXT("%s: la scena si costruisce (%s)"), AbilityId, *Errore), bCostruita);
+	}
+
+	/** La scena di default del banco con `TargetCount` bersagli. */
+	bool BuildScene(FAutomationTestBase& Test, const TCHAR* AbilityId, int32 TargetCount, FRTTestScenario& OutScenario)
+	{
+		FRTAbilityLabFixtureSpec Spec;
+		Spec.TargetCount = TargetCount;
+		return BuildSceneWith(Test, AbilityId, Spec, OutScenario);
+	}
+
+	/** Nessuna coppia di unita' sulla stessa cella: la posa non ne impila due. */
+	bool AllUnitsOnDistinctCells(const FRTTestScenario& Scenario)
+	{
+		for (int32 A = 0; A < Scenario.Units.Num(); ++A)
+		{
+			for (int32 B = A + 1; B < Scenario.Units.Num(); ++B)
+			{
+				if (Scenario.Units[A].Cell == Scenario.Units[B].Cell) { return false; }
+			}
+		}
+		return true;
+	}
+
+	/** Quanti bersagli chiede una scena che porta solo questi tag. */
+	int32 RequestedByTags(const TArray<FString>& Tags)
+	{
+		FRTTestScenario Scena;
+		Scena.Tags = Tags;
+		return URTAbilityLabLibrary::RequestedTargetsOf(Scena);
+	}
+}
+
+/**
+ * **Una linea si allunga** (`#4136`): `Hero.Gadget.LinearDischarge` mira un'unita' lungo una linea, e a 2 o 3 bersagli la linea
+ * deve contenerne 2 o 3. Il `TARGET` si sposta in fuori sulla stessa direzione finche' la linea ha le celle che servono, e
+ * gli altri stanno nelle celle che la linea attraversa, dal piu' vicino a chi lancia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabLineTargetsGrowAlongTheLineTest,
+	"RefactorTactics.AbilityLab.LineTargetsGrowAlongTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabLineTargetsGrowAlongTheLineTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	using namespace RTAbilityLabTargetsTestsInternal;
+
+	const TCHAR* const Scarica = TEXT("Hero.Gadget.LinearDischarge");
+	FRTActionDef Def;
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+	if (!TestTrue(TEXT("premessa: LinearDischarge e' una linea del kit"),
+		FindKitAction(Scarica, Def, Shape) && Shape == ERTAbilityShape::Line))
+	{
+		return false;
+	}
+
+	// Le celle di ogni numero di bersagli, per Id: dal `TARGET` in poi. A 3 il `TARGET` e' in (3,0), e gli altri due nelle
+	// celle di prima, dal piu' vicino a chi lancia.
+	const TArray<FRTCellId> Attese[3] = {
+		{ FRTCellId(2, 0) },
+		{ FRTCellId(2, 0), FRTCellId(1, 0) },
+		{ FRTCellId(3, 0), FRTCellId(1, 0), FRTCellId(2, 0) },
+	};
+
+	for (int32 N = 1; N <= 3; ++N)
+	{
+		FRTTestScenario Scenario;
+		if (!BuildScene(*this, Scarica, N, Scenario)) { continue; }
+
+		TestTrue(FString::Printf(TEXT("%d bersagli: il tag lab-targets-%d"), N, N),
+			Scenario.Tags.Contains(FString::Printf(TEXT("lab-targets-%d"), N)));
+		TestEqual(FString::Printf(TEXT("%d bersagli: chi lancia e i bersagli, nessun altro"), N), Scenario.Units.Num(), 1 + N);
+		for (int32 I = 0; I < 3; ++I)
+		{
+			const FRTScenarioUnit* Unit = UnitById(Scenario, TargetIds[I]);
+			if (I >= N)
+			{
+				TestNull(FString::Printf(TEXT("%d bersagli: nessun %s"), N, TargetIds[I]), Unit);
+			}
+			else if (TestNotNull(FString::Printf(TEXT("%d bersagli: c'e' %s"), N, TargetIds[I]), Unit))
+			{
+				TestTrue(FString::Printf(TEXT("%d bersagli: %s in %s (e' %s)"), N, TargetIds[I], *Attese[N - 1][I].ToString(),
+					*Unit->Cell.ToString()), Unit->Cell == Attese[N - 1][I]);
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%d bersagli: nessuna coppia di unita' sulla stessa cella"), N), AllUnitsOnDistinctCells(Scenario));
+		TestEqual(FString::Printf(TEXT("%d bersagli: se ne chiedono %d"), N, N), URTAbilityLabLibrary::RequestedTargetsOf(Scenario), N);
+		TestEqual(FString::Printf(TEXT("%d bersagli: se ne posano %d"), N, N), URTAbilityLabLibrary::PlacedTargetsOf(Scenario), N);
+	}
+
+	// A 3: tutti nella squadra del `TARGET`, eroi diversi fra loro e da chi lancia, e la run li colpisce tutti e tre.
+	FRTTestScenario Tre;
+	if (BuildScene(*this, Scarica, 3, Tre))
+	{
+		const FRTScenarioUnit* Caster = UnitById(Tre, URTAbilityLabLibrary::CasterUnitId());
+		const FRTScenarioUnit* Bersaglio = UnitById(Tre, TargetIds[0]);
+		if (TestNotNull(TEXT("3 bersagli: c'e' chi lancia"), Caster) && TestNotNull(TEXT("3 bersagli: c'e' il TARGET"), Bersaglio))
+		{
+			TestNotEqual(TEXT("3 bersagli: il TARGET e' nell'altra squadra"), Bersaglio->TeamId, Caster->TeamId);
+			TSet<FName> Eroi;
+			Eroi.Add(Caster->HeroId);
+			for (const TCHAR* Id : TargetIds)
+			{
+				const FRTScenarioUnit* Unit = UnitById(Tre, Id);
+				if (!TestNotNull(FString::Printf(TEXT("3 bersagli: c'e' %s"), Id), Unit)) { continue; }
+				TestEqual(FString::Printf(TEXT("3 bersagli: %s e' nella squadra del TARGET"), Id), Unit->TeamId, Bersaglio->TeamId);
+				TestFalse(FString::Printf(TEXT("3 bersagli: %s ha un eroe diverso dagli altri e da chi lancia (%s)"), Id,
+					*Unit->HeroId.ToString()), Eroi.Contains(Unit->HeroId));
+				Eroi.Add(Unit->HeroId);
+			}
+		}
+
+		const FRTTestResult Result = RunFixture(*this, Tre);
+		TestFalse(FString::Printf(TEXT("3 bersagli: nessun ERROR (%s)"), *Result.ErrorMessage), Result.Outcome == ERTTestOutcome::Error);
+		TestEqual(TEXT("3 bersagli: un turno giocato"), Result.TurnsPlayed, 1);
+		for (const TCHAR* Id : TargetIds)
+		{
+			int32 Prima = 0;
+			int32 Dopo = 0;
+			TestTrue(FString::Printf(TEXT("3 bersagli: la vita di %s scende"), Id),
+				FieldBeforeAfter(Result, Id, TEXT("Health"), Prima, Dopo) && Dopo < Prima);
+		}
+	}
+	return true;
+}
+
+/**
+ * **Un'area li tiene dentro** (`#4136`): i bersagli in piu' di `Hero.Gadget.Overload` stanno nelle celle che l'area colpisce,
+ * per la cella che l'intento mira, e la run li colpisce tutti. Con l'alleato (`Hero.Muiren.CircularTide`, che cura) gli altri
+ * vanno nella squadra di chi lancia, nessuno sulla cella dell'`OPPONENT`, e l'`OPPONENT` resta nell'altra squadra.
+ *
+ * ⚠️ **Le celle colpite si chiedono a `HexHitCells`, qui come nel banco**: due elenchi diversi sarebbero il banco che
+ * ricalcola la geometria del colpo, e un test che li confrontasse fra loro non direbbe quale dei due sbaglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabAreaTargetsStayInsideTheAreaTest,
+	"RefactorTactics.AbilityLab.AreaTargetsStayInsideTheArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabAreaTargetsStayInsideTheAreaTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	using namespace RTAbilityLabTargetsTestsInternal;
+
+	// Un'area che fa danno: i tre bersagli stanno nell'area, e la run li colpisce.
+	{
+		const TCHAR* const Sovraccarico = TEXT("Hero.Gadget.Overload");
+		// Portata e raggio come li legge il resolver: dall'azione che l'eroe impugna, non da `FRTActionDef` che il raggio non lo porta.
+		FRTAbilityLabEntry Voce;
+		FRTTestScenario Scenario;
+		if (TestTrue(TEXT("premessa: Overload e' un'area del kit"),
+				URTAbilityLabLibrary::FindAbility(Sovraccarico, Voce) && Voce.Shape == ERTAbilityShape::Area)
+			&& BuildScene(*this, Sovraccarico, 3, Scenario))
+		{
+			const FRTScenarioUnit* Caster = UnitById(Scenario, URTAbilityLabLibrary::CasterUnitId());
+			const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+			TestTrue(TEXT("Overload a 3 bersagli: l'intento mira una cella"), Intent.bTargetsCell);
+			if (TestNotNull(TEXT("Overload a 3 bersagli: c'e' chi lancia"), Caster))
+			{
+				const TArray<FRTCellId> Colpite = URTHexCombatLibrary::HexHitCells(ERTAbilityShape::Area, Caster->Cell,
+					Intent.TargetCell, Voce.RangeCells, Voce.AreaRadius);
+				TestEqual(TEXT("Overload a 3 bersagli: se ne posano 3"), URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 3);
+				for (const TCHAR* Id : TargetIds)
+				{
+					const FRTScenarioUnit* Unit = UnitById(Scenario, Id);
+					if (!TestNotNull(FString::Printf(TEXT("Overload a 3 bersagli: c'e' %s"), Id), Unit)) { continue; }
+					TestTrue(FString::Printf(TEXT("Overload a 3 bersagli: %s e' nell'area, centrata in %s (e' in %s)"), Id,
+						*Intent.TargetCell.ToString(), *Unit->Cell.ToString()), Colpite.Contains(Unit->Cell));
+					TestTrue(FString::Printf(TEXT("Overload a 3 bersagli: %s e' nella mappa"), Id),
+						URTHexLibrary::HexDistance(FRTCellId(0, 0), Unit->Cell) <= Scenario.MapRadius);
+					TestTrue(FString::Printf(TEXT("Overload a 3 bersagli: %s non e' su chi lancia"), Id), Unit->Cell != Caster->Cell);
+				}
+				TestTrue(TEXT("Overload a 3 bersagli: nessuna coppia di unita' sulla stessa cella"), AllUnitsOnDistinctCells(Scenario));
+			}
+
+			const FRTTestResult Result = RunFixture(*this, Scenario);
+			TestFalse(FString::Printf(TEXT("Overload a 3 bersagli: nessun ERROR (%s)"), *Result.ErrorMessage),
+				Result.Outcome == ERTTestOutcome::Error);
+			TestEqual(TEXT("Overload a 3 bersagli: un turno giocato"), Result.TurnsPlayed, 1);
+			for (const TCHAR* Id : TargetIds)
+			{
+				int32 Prima = 0;
+				int32 Dopo = 0;
+				TestTrue(FString::Printf(TEXT("Overload a 3 bersagli: la vita di %s scende"), Id),
+					FieldBeforeAfter(Result, Id, TEXT("Health"), Prima, Dopo) && Dopo < Prima);
+			}
+		}
+	}
+
+	// Una cura ad area, con l'alleato (Review Focus 4): i bersagli in piu' sono alleati di chi lancia, e l'`OPPONENT` --
+	// la seconda squadra della scena, che ne impedisce la fine al primo Cleanup -- non perde ne' la squadra ne' la cella.
+	{
+		const TCHAR* const Marea = TEXT("Hero.Muiren.CircularTide");
+		FRTAbilityLabEntry Voce;
+		FRTTestScenario Scenario;
+		if (TestTrue(TEXT("premessa: CircularTide e' un'area del kit"),
+				URTAbilityLabLibrary::FindAbility(Marea, Voce) && Voce.Shape == ERTAbilityShape::Area)
+			&& BuildScene(*this, Marea, 3, Scenario))
+		{
+			const FRTScenarioUnit* Caster = UnitById(Scenario, URTAbilityLabLibrary::CasterUnitId());
+			const FRTScenarioUnit* Bersaglio = UnitById(Scenario, TargetIds[0]);
+			const FRTScenarioUnit* Avversario = UnitById(Scenario, TEXT("OPPONENT"));
+			const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+			if (TestNotNull(TEXT("CircularTide a 3 bersagli: c'e' chi lancia"), Caster)
+				&& TestNotNull(TEXT("CircularTide a 3 bersagli: c'e' il TARGET"), Bersaglio)
+				&& TestNotNull(TEXT("CircularTide a 3 bersagli: c'e' l'OPPONENT"), Avversario))
+			{
+				TestEqual(TEXT("CircularTide a 3 bersagli: il TARGET e' nella squadra di chi lancia"), Bersaglio->TeamId, Caster->TeamId);
+				TestNotEqual(TEXT("CircularTide a 3 bersagli: l'OPPONENT resta nell'altra squadra"), Avversario->TeamId, Caster->TeamId);
+				TestEqual(TEXT("CircularTide a 3 bersagli: l'OPPONENT e' in squadra 1"), Avversario->TeamId, 1);
+
+				const TArray<FRTCellId> Colpite = URTHexCombatLibrary::HexHitCells(ERTAbilityShape::Area, Caster->Cell,
+					Intent.TargetCell, Voce.RangeCells, Voce.AreaRadius);
+				int32 InPiu = 0;
+				for (const TCHAR* Id : { TargetIds[1], TargetIds[2] })
+				{
+					const FRTScenarioUnit* Unit = UnitById(Scenario, Id);
+					if (!Unit) { continue; }
+					++InPiu;
+					TestEqual(FString::Printf(TEXT("CircularTide a 3 bersagli: %s e' nella squadra di chi lancia"), Id), Unit->TeamId, Caster->TeamId);
+					TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: %s non e' sulla cella dell'OPPONENT"), Id), Unit->Cell != Avversario->Cell);
+					TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: %s e' nell'area (e' in %s)"), Id, *Unit->Cell.ToString()),
+						Colpite.Contains(Unit->Cell));
+					TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: %s e' ferito, o la cura non si vedrebbe"), Id), Unit->Health > 0);
+				}
+				// Il roster ha quattro eroi: chi lancia, il `TARGET` e l'`OPPONENT` ne prendono tre, e ne resta uno. Se i bersagli
+				// finiscono, se ne posano quanti ce ne stanno -- ma almeno uno ci sta.
+				TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: almeno un bersaglio in piu' (%d)"), InPiu), InPiu >= 1);
+				TestEqual(TEXT("CircularTide a 3 bersagli: i bersagli posati sono quelli contati"),
+					URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 1 + InPiu);
+				TestTrue(TEXT("CircularTide a 3 bersagli: nessuna coppia di unita' sulla stessa cella"), AllUnitsOnDistinctCells(Scenario));
+			}
+
+			const FRTTestResult Result = RunFixture(*this, Scenario);
+			TestFalse(FString::Printf(TEXT("CircularTide a 3 bersagli: nessun ERROR (%s)"), *Result.ErrorMessage),
+				Result.Outcome == ERTTestOutcome::Error);
+			TestEqual(TEXT("CircularTide a 3 bersagli: un turno giocato"), Result.TurnsPlayed, 1);
+		}
+	}
+	return true;
+}
+
+/**
+ * **Un'azione che colpisce una cella sola resta a un bersaglio** (`#4136`): un colpo `Single` non ha celle in piu' da
+ * riempire, e uno scatto o una reazione non sono una scena a piu' bersagli. Se la linea non puo' allungarsi (la mappa finisce),
+ * si posa quello che ci sta. In ogni caso il tag dice quanti se ne sono CHIESTI: i posati si contano dalle unita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabSingleTargetActionsStayAtOneTest,
+	"RefactorTactics.AbilityLab.SingleTargetActionsStayAtOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabSingleTargetActionsStayAtOneTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTestsInternal;
+	using namespace RTAbilityLabTargetsTestsInternal;
+
+	auto StaAUno = [this](const TCHAR* AbilityId, const FRTAbilityLabFixtureSpec& Spec)
+	{
+		FRTTestScenario Scenario;
+		if (!BuildSceneWith(*this, AbilityId, Spec, Scenario)) { return; }
+		TestEqual(FString::Printf(TEXT("%s a %d bersagli: se ne chiedono %d"), AbilityId, Spec.TargetCount, FMath::Clamp(Spec.TargetCount, 1, 3)),
+			URTAbilityLabLibrary::RequestedTargetsOf(Scenario), FMath::Clamp(Spec.TargetCount, 1, 3));
+		TestEqual(FString::Printf(TEXT("%s a %d bersagli: se ne posa uno"), AbilityId, Spec.TargetCount),
+			URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 1);
+		TestNull(FString::Printf(TEXT("%s a %d bersagli: nessun TARGET2"), AbilityId, Spec.TargetCount), UnitById(Scenario, TargetIds[1]));
+		TestNull(FString::Printf(TEXT("%s a %d bersagli: nessun TARGET3"), AbilityId, Spec.TargetCount), UnitById(Scenario, TargetIds[2]));
+	};
+	FRTAbilityLabFixtureSpec TreBersagli;
+	TreBersagli.TargetCount = 3;
+
+	// La prima abilita' d'eroe `Single` che mira un'unita': non una reazione, non uno scatto, e senza provocazione.
+	FName PrimaSingola = NAME_None;
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		FRTActionDef Def;
+		ERTAbilityShape Shape = ERTAbilityShape::Single;
+		if (Entry.bIsCoreAction || Entry.Shape != ERTAbilityShape::Single || !FindKitAction(Entry.AbilityId, Def, Shape)) { continue; }
+		if (Def.Slot == ERTActionSlot::Reaction || URTAbilityLabLibrary::ProvocationFor(Def) != ERTAbilityLabProvocation::None
+			|| URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Dash)
+		{
+			continue;
+		}
+		const ERTAbilityLabTarget Kind = URTAbilityLabLibrary::ChooseTarget(Def, Shape, FRTAbilityLabFixtureSpec()).Kind;
+		if (Kind == ERTAbilityLabTarget::Enemy || Kind == ERTAbilityLabTarget::Ally)
+		{
+			PrimaSingola = Entry.AbilityId;
+			break;
+		}
+	}
+	if (TestFalse(TEXT("premessa: il roster ha un'abilita' `Single` che mira un'unita'"), PrimaSingola.IsNone()))
+	{
+		StaAUno(*PrimaSingola.ToString(), TreBersagli);
+	}
+
+	// Una reazione e uno scatto: non sono scene a piu' bersagli, anche se la loro forma ha piu' celle.
+	StaAUno(TEXT("Hero.Ivrin.Deflection"), TreBersagli);
+	StaAUno(TEXT("Hero.Ivrin.PassingBlade"), TreBersagli);
+
+	// Review Focus 3, una linea che non puo' allungarsi: mappa di raggio 1, il `TARGET` in (1,0). La cella oltre e' fuori
+	// dalla mappa, il `TARGET` resta dov'e', e se ne posa uno solo.
+	FRTAbilityLabFixtureSpec Stretta;
+	Stretta.MapRadius = 1;
+	Stretta.TargetCell = FRTCellId(1, 0);
+	Stretta.TargetCount = 3;
+	FRTTestScenario Scenario;
+	if (BuildSceneWith(*this, TEXT("Hero.Gadget.LinearDischarge"), Stretta, Scenario))
+	{
+		const FRTScenarioUnit* Bersaglio = UnitById(Scenario, TargetIds[0]);
+		if (TestNotNull(TEXT("mappa di raggio 1: c'e' il TARGET"), Bersaglio))
+		{
+			TestTrue(FString::Printf(TEXT("mappa di raggio 1: il TARGET resta in (1,0) (e' in %s)"), *Bersaglio->Cell.ToString()),
+				Bersaglio->Cell == FRTCellId(1, 0));
+		}
+		TestEqual(TEXT("mappa di raggio 1: se ne chiedono 3"), URTAbilityLabLibrary::RequestedTargetsOf(Scenario), 3);
+		TestEqual(TEXT("mappa di raggio 1: se ne posa uno solo"), URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 1);
+		TestEqual(TEXT("mappa di raggio 1: chi lancia e il TARGET, nessun altro"), Scenario.Units.Num(), 2);
+	}
+	return true;
+}
+
+/**
+ * **Il numero di bersagli viaggia nel tag della scena** (`#4136`): la scena e' un file, e chi la rilegge (il passo del banco, il
+ * tasto che cambia il numero) non ha la spec che l'ha prodotta. Il tag e' scritto sempre, ed e' deterministico; un tag illeggibile
+ * o fuori scala si legge come un numero valido (Review Focus 2).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabTargetCountTravelsInTheSceneTagTest,
+	"RefactorTactics.AbilityLab.TargetCountTravelsInTheSceneTag",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabTargetCountTravelsInTheSceneTagTest::RunTest(const FString&)
+{
+	using namespace RTAbilityLabTargetsTestsInternal;
+
+	const TCHAR* const Scarica = TEXT("Hero.Gadget.LinearDischarge");
+	TestEqual(TEXT("il banco posa al piu' 3 bersagli"), URTAbilityLabLibrary::MaxLabTargets(), 3);
+	TestEqual(TEXT("il default della spec e' un bersaglio"), FRTAbilityLabFixtureSpec().TargetCount, 1);
+
+	// Due costruzioni della stessa spec danno lo stesso testo: nessun caso, nessun ordine di iterazione.
+	FRTAbilityLabFixtureSpec Spec;
+	Spec.TargetCount = 3;
+	FRTTestScenario Prima;
+	FRTTestScenario Seconda;
+	if (BuildSceneWith(*this, Scarica, Spec, Prima) && BuildSceneWith(*this, Scarica, Spec, Seconda))
+	{
+		FString TestoPrima;
+		FString TestoSeconda;
+		FString Errore;
+		const bool bPrima = URTScenarioLoader::SaveToString(Prima, TestoPrima, Errore);
+		TestTrue(FString::Printf(TEXT("la scena a 3 bersagli si scrive (%s)"), *Errore), bPrima);
+		Errore.Reset();
+		const bool bSeconda = URTScenarioLoader::SaveToString(Seconda, TestoSeconda, Errore);
+		TestTrue(FString::Printf(TEXT("e anche la seconda (%s)"), *Errore), bSeconda);
+		TestEqual(TEXT("due costruzioni della stessa spec danno lo stesso testo"), TestoPrima, TestoSeconda);
+
+		// E il numero sopravvive al giro: e' scritto nel file, non nella spec.
+		FRTTestScenario Riletta;
+		Errore.Reset();
+		const bool bRiletta = bPrima && URTScenarioLoader::LoadFromString(TestoPrima, Riletta, Errore);
+		TestTrue(FString::Printf(TEXT("e si rilegge (%s)"), *Errore), bRiletta);
+		if (bRiletta)
+		{
+			TestEqual(TEXT("riletta: se ne chiedono ancora 3"), URTAbilityLabLibrary::RequestedTargetsOf(Riletta), 3);
+			TestEqual(TEXT("riletta: se ne posano ancora 3"), URTAbilityLabLibrary::PlacedTargetsOf(Riletta), 3);
+		}
+	}
+
+	// Un tag illeggibile o fuori scala (Review Focus 2): portato fra 1 e 3, o 1 se non e' un numero. Senza tag, 1: e' una
+	// scena scritta prima di questo lavoro.
+	TestEqual(TEXT("lab-targets-7 si legge 3"), RequestedByTags({ TEXT("lab-targets-7") }), 3);
+	TestEqual(TEXT("lab-targets-0 si legge 1"), RequestedByTags({ TEXT("lab-targets-0") }), 1);
+	TestEqual(TEXT("lab-targets-x si legge 1"), RequestedByTags({ TEXT("lab-targets-x") }), 1);
+	TestEqual(TEXT("lab-targets- (senza numero) si legge 1"), RequestedByTags({ TEXT("lab-targets-") }), 1);
+	TestEqual(TEXT("lab-targets--2 (negativo) si legge 1"), RequestedByTags({ TEXT("lab-targets--2") }), 1);
+	TestEqual(TEXT("lab-targets-99999999999999 (enorme) si legge 3"), RequestedByTags({ TEXT("lab-targets-99999999999999") }), 3);
+	TestEqual(TEXT("senza tag si legge 1"), RequestedByTags({}), 1);
+	TestEqual(TEXT("solo ability-lab si legge 1"), RequestedByTags({ TEXT("ability-lab") }), 1);
+	TestEqual(TEXT("lab-targets-2 fra gli altri tag si legge 2"), RequestedByTags({ TEXT("ability-lab"), TEXT("lab-targets-2") }), 2);
+
+	// Un numero fuori scala nella SPEC si scrive portato fra 1 e 3.
+	for (const TPair<int32, int32>& Coppia : { TPair<int32, int32>(9, 3), TPair<int32, int32>(0, 1), TPair<int32, int32>(-4, 1),
+		TPair<int32, int32>(2, 2) })
+	{
+		FRTAbilityLabFixtureSpec Fuori;
+		Fuori.TargetCount = Coppia.Key;
+		FRTTestScenario Scena;
+		if (BuildSceneWith(*this, Scarica, Fuori, Scena))
+		{
+			TestTrue(FString::Printf(TEXT("TargetCount %d si scrive lab-targets-%d"), Coppia.Key, Coppia.Value),
+				Scena.Tags.Contains(FString::Printf(TEXT("lab-targets-%d"), Coppia.Value)));
+			TestEqual(FString::Printf(TEXT("TargetCount %d: se ne chiedono %d"), Coppia.Key, Coppia.Value),
+				URTAbilityLabLibrary::RequestedTargetsOf(Scena), Coppia.Value);
+		}
+	}
 	return true;
 }
 
