@@ -645,4 +645,186 @@ bool FRTPlaybackChainArcHopsFollowTheLineTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** La traccia dei salti del Blast, come la lascia l'ultimo tick nella fase: si azzera a ogni fase, quindi si tiene l'ultima vista. */
+	TArray<FString> CatenaTracciaDelBlast(ARTTurnManager* TM, bool* OutLanciato = nullptr)
+	{
+		TArray<FString> Salti;
+		for (int32 I = 0; I < 2000 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.02f);
+			if (OutLanciato) { *OutLanciato |= TM->AttackBeatTraceForTest().Contains(TEXT("L0")); }
+			if (TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Blast)
+			{
+				Salti = TM->ChainHopTraceForTest();
+			}
+		}
+		return Salti;
+	}
+
+	/** Gli eventi di fase Blast di `Tipo` emessi da `Sorgente`. */
+	int32 CatenaContaEventi(const TArray<FRTResolvedEvent>& Timeline, ERTResolvedEventType Tipo, int32 Sorgente)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : Timeline)
+		{
+			N += (Ev.Type == Tipo && Ev.SourceStableUnitId == Sorgente) ? 1 : 0;
+		}
+		return N;
+	}
+
+	/**
+	 * Gadget in (5,2) a Ovest, squadra 0 — quella di chi guarda in un mondo senza player controller — mira una cella VUOTA a
+	 * portata, (2,2). Un nemico sta fuori dalla linea: tiene viva la seconda squadra, e la scarica non lo tocca.
+	 */
+	ARTTurnManager* SetUpCatenaAVuoto(UWorld* World, ARTUnit*& OutGadget)
+	{
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+		OutGadget = SpawnCatenaUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(5, 2));
+		ARTUnit* const Fuori = SpawnCatenaUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 5));
+		ARTTurnManager* const TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !OutGadget || !Fuori) { return nullptr; }
+		OutGadget->Facing = ERTHexDirection::W;
+		OutGadget->SetPlannedMainAction(IndiceCatenaAzione(OutGadget, TEXT("Hero.Gadget.LinearDischarge")));
+		OutGadget->DeclareAttackOnCell(FRTCellId(2, 2));
+		OutGadget->SetPlannedCell(OutGadget->Cell);
+		TM->bRecordAttackBeatsForTest = true;
+		return TM;
+	}
+
+	/**
+	 * Gadget in (7,0) a Ovest scarica su tre Ivrin in fila, in (4,0), (3,0) e (2,0), che guardano a Ovest: la sfera sta alle loro
+	 * spalle, a 3 celle dal piu' vicino, fuori dalla consapevolezza ravvicinata e dall'arco frontale. `TeamGadget` decide chi guarda:
+	 * lo spettatore di un mondo di prova e' la squadra 0, quindi con `0` guarda chi spara, con `1` guarda chi e' colpito.
+	 */
+	ARTTurnManager* SetUpCatenaAlleSpalle(UWorld* World, int32 TeamGadget, ARTUnit*& OutGadget)
+	{
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+		const int32 TeamColpiti = 1 - TeamGadget;
+		ARTUnit* const Lontano = SpawnCatenaUnit(World, TeamColpiti, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+		ARTUnit* const Mezzo   = SpawnCatenaUnit(World, TeamColpiti, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0));
+		ARTUnit* const Vicino  = SpawnCatenaUnit(World, TeamColpiti, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 0));
+		OutGadget = SpawnCatenaUnit(World, TeamGadget, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(7, 0));
+		ARTTurnManager* const TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Lontano || !Mezzo || !Vicino || !OutGadget) { return nullptr; }
+		for (ARTUnit* const Colpito : { Lontano, Mezzo, Vicino }) { Colpito->Facing = ERTHexDirection::W; }
+		OutGadget->Facing = ERTHexDirection::W;
+		OutGadget->SetPlannedMainAction(IndiceCatenaAzione(OutGadget, TEXT("Hero.Gadget.LinearDischarge")));
+		OutGadget->DeclareAttackOnUnit(Lontano);
+		OutGadget->SetPlannedCell(OutGadget->Cell);
+		TM->bRecordAttackBeatsForTest = true;
+		return TM;
+	}
+}
+
+/**
+ * Nel playback vero: una scarica che non colpisce nessuno apre UN arco, dalla sfera alla cella mirata — [D-621] (3), #4136.
+ *
+ * 🔴 `ChainArcHopsFollowTheLine` esercita solo il ramo `Attack` del director. L'arco a vuoto passa da un'altra chiamata, nel ramo
+ * `AttackFootprint`, e fino a qui toglierla non faceva cadere niente: la funzione pura `ChainHopFor` era provata, il suo uso no.
+ * La traccia `0>0` dice «dalla sorgente, verso nessun colpito»: `0` non e' mai un'unita'.
+ * 🔑 Come `ChainArcHopsFollowTheLine`, la traccia si scrive PRIMA di caricare l'asset: misura la decisione anche su un clone senza
+ * `Content/`. La premessa sulla timeline e' il controllo positivo: un'impronta SENZA colpi, altrimenti `0>0` non direbbe l'arco a vuoto.
+ * ✅ Validato per mutazione: togliere `SpawnChainArc(Elemento)` dal ramo `AttackFootprint` di `AdvanceBlastSequence` svuota la traccia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcMissOpensOneHopTest,
+	"RefactorTactics.Playback.ChainArcMissOpensOneHopToTheAimCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcMissOpensOneHopTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTUnit* Gadget = nullptr;
+	ARTTurnManager* const TM = SetUpCatenaAVuoto(World, Gadget);
+	if (!TestTrue(TEXT("⛔ premessa: il turno si costruisce"), TM != nullptr && Gadget != nullptr)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: Gadget ha LinearDischarge pianificata"), Gadget->GetPlan().PlannedAbilityIndex() != INDEX_NONE)) { return false; }
+
+	TM->LockInAndResolve();
+
+	// ⛔ Premessa: l'atto c'e' (un'impronta) e non ha colpito nessuno. Senza, `0>0` non direbbe l'arco a vuoto.
+	const TArray<FRTResolvedEvent>& Timeline = TM->ResolvedTimelineForTest();
+	if (!TestEqual(TEXT("⛔ premessa: una sola impronta della scarica"),
+		CatenaContaEventi(Timeline, ERTResolvedEventType::AttackFootprint, Gadget->StableUnitId), 1)) { return false; }
+	if (!TestEqual(TEXT("⛔ premessa: nessun colpito"),
+		CatenaContaEventi(Timeline, ERTResolvedEventType::Attack, Gadget->StableUnitId), 0)) { return false; }
+
+	const TArray<FString> Salti = CatenaTracciaDelBlast(TM);
+	TestEqual(TEXT("🔴 un solo arco, dalla sfera (0) alla cella mirata, senza colpito"),
+		FString::Join(Salti, TEXT(",")), FString(TEXT("0>0")));
+	return true;
+}
+
+/**
+ * Nel playback vero: chi guarda non vede la linea, e la scarica non salta — [D-621] (3), #4136.
+ *
+ * ⛔ Fail-closed passando dal director: lo stesso tiro con tre colpiti, guardato dalla squadra colpita, che non conosce l'origine
+ * del colpo (la sfera sta alle sue spalle, a 3 celle). `ChainHopFor` e' gia' provata da sola; qui si misura che il director le dia
+ * la squadra di chi guarda (`PlaybackViewerTeamId`) e non quella di chi lancia: un arco sulla linea direbbe dove sta il tiratore.
+ * 🔴 **Il controllo positivo regge il test**: lo stesso tiro, con le squadre nell'altro verso, deve dare i tre salti — senza, una
+ * traccia vuota sarebbe vera anche per una scarica mai lanciata. La premessa `L0` dice che il colpo e' partito, quindi `SpawnChainArc`
+ * e' stata chiesta e non ha prodotto niente.
+ * ⚠️ Lo spettatore del mondo di prova e' la squadra 0 (`TeamIdOf(nullptr)`): sono le squadre a scambiarsi, come in
+ * `Privacy.UnseenAttackerTracerIsNotDelivered`. Qui l'estremo che chi guarda non conosce e' l'ORIGINE (la sfera), non un colpito: i
+ * colpiti sono unita' sue, e un colpito ignoto richiederebbe di cambiare chi guarda, che da qui non si puo'.
+ * ✅ Validato per mutazione: passare a `ChainHopFor`, nel director, la squadra di chi lancia al posto di `PlaybackViewerTeamId`
+ * fa comparire i tre salti a chi non vedeva, e cade il caso `colpito`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcClosedToTheBlindViewerTest,
+	"RefactorTactics.Playback.ChainArcStaysClosedWhenTheViewerCannotSeeTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcClosedToTheBlindViewerTest::RunTest(const FString&)
+{
+	for (const bool bSpettatoreEColpito : { false, true })
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		ARTUnit* Gadget = nullptr;
+		ARTTurnManager* const TM = SetUpCatenaAlleSpalle(World, /*TeamGadget=*/ bSpettatoreEColpito ? 1 : 0, Gadget);
+		if (!TestTrue(TEXT("⛔ premessa: il turno si costruisce"), TM != nullptr && Gadget != nullptr)) { return false; }
+		if (!TestTrue(TEXT("⛔ premessa: Gadget ha LinearDischarge pianificata"), Gadget->GetPlan().PlannedAbilityIndex() != INDEX_NONE)) { return false; }
+
+		TM->LockInAndResolve();
+
+		// ⛔ Premessa: tre colpiti, e (con lo spettatore colpito) almeno un estremo che la squadra 0 non conosce.
+		const TArray<FRTResolvedEvent>& Timeline = TM->ResolvedTimelineForTest();
+		if (!TestEqual(TEXT("⛔ premessa: tre colpiti"),
+			CatenaContaEventi(Timeline, ERTResolvedEventType::Attack, Gadget->StableUnitId), 3)) { return false; }
+		int32 ColpitiNonNoti = 0;
+		for (const FRTResolvedEvent& Ev : Timeline)
+		{
+			if (Ev.Type == ERTResolvedEventType::Attack && Ev.SourceStableUnitId == Gadget->StableUnitId
+				&& !(Ev.HitGeometry.bResolved && Ev.HitGeometry.FromVerdict.AllowsTeam(0) && Ev.HitGeometry.ImpactVerdict.AllowsTeam(0)))
+			{
+				++ColpitiNonNoti;
+			}
+		}
+		if (bSpettatoreEColpito)
+		{
+			if (!TestTrue(TEXT("⛔ premessa (colpito): la squadra 0 non conosce un estremo di almeno un colpo"), ColpitiNonNoti > 0)) { return false; }
+		}
+		else if (!TestEqual(TEXT("⛔ premessa (controllo): la squadra 0 conosce gli estremi di tutti i colpi"), ColpitiNonNoti, 0)) { return false; }
+
+		bool bLanciato = false;
+		const TArray<FString> Salti = CatenaTracciaDelBlast(TM, &bLanciato);
+		if (!TestTrue(TEXT("⛔ premessa: il colpo e' partito, quindi `SpawnChainArc` e' stata chiesta"), bLanciato)) { return false; }
+
+		if (bSpettatoreEColpito)
+		{
+			TestEqual(TEXT("🔴 chi non vede la linea non riceve nessun salto"), FString::Join(Salti, TEXT(",")), FString());
+		}
+		else
+		{
+			TestEqual(TEXT("controllo positivo: chi spara riceve i tre salti dello stesso tiro"), Salti.Num(), 3);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
