@@ -1842,6 +1842,38 @@ bool FRTAbilityLabLineTargetsGrowAlongTheLineTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%d bersagli: se ne posano %d"), N, N), URTAbilityLabLibrary::PlacedTargetsOf(Scenario), N);
 	}
 
+	// Verso Ovest (-X): l'ordine canonico di `HexHitCells` e' per X crescente, cioe' dalla cella piu' LONTANA da chi lancia, e i
+	// bersagli in piu' si posano dalla piu' VICINA. Verso Est le due cose coincidono, e un ordinamento tolto non si vedrebbe: qui
+	// senza l'ordinamento per distanza `TARGET2` finirebbe in (-2,0) invece che in (-1,0).
+	{
+		FRTAbilityLabFixtureSpec VersoOvest;
+		VersoOvest.TargetCell = FRTCellId(-2, 0);
+		VersoOvest.TargetCount = 3;
+		const TArray<FRTCellId> Canoniche = URTHexCombatLibrary::HexHitCells(ERTAbilityShape::Line, VersoOvest.CasterCell,
+			FRTCellId(-3, 0), Def.RangeCells, 0);
+		TestTrue(TEXT("premessa: verso Ovest l'ordine canonico delle celle non e' dalla piu' vicina a chi lancia"),
+			Canoniche.Num() == 3
+			&& URTHexLibrary::HexDistance(VersoOvest.CasterCell, Canoniche[0]) > URTHexLibrary::HexDistance(VersoOvest.CasterCell, Canoniche[2]));
+
+		const TArray<FRTCellId> AtteseOvest = { FRTCellId(-3, 0), FRTCellId(-1, 0), FRTCellId(-2, 0) };
+		FRTTestScenario Ovest;
+		if (BuildSceneWith(*this, Scarica, VersoOvest, Ovest))
+		{
+			TestEqual(TEXT("verso Ovest, 3 bersagli: chi lancia e i bersagli, nessun altro"), Ovest.Units.Num(), 1 + AtteseOvest.Num());
+			for (int32 I = 0; I < AtteseOvest.Num(); ++I)
+			{
+				const FRTScenarioUnit* Unit = UnitById(Ovest, TargetIds[I]);
+				if (TestNotNull(FString::Printf(TEXT("verso Ovest, 3 bersagli: c'e' %s"), TargetIds[I]), Unit))
+				{
+					TestTrue(FString::Printf(TEXT("verso Ovest, 3 bersagli: %s in %s (e' %s)"), TargetIds[I], *AtteseOvest[I].ToString(),
+						*Unit->Cell.ToString()), Unit->Cell == AtteseOvest[I]);
+				}
+			}
+			TestTrue(TEXT("verso Ovest, 3 bersagli: nessuna coppia di unita' sulla stessa cella"), AllUnitsOnDistinctCells(Ovest));
+			TestEqual(TEXT("verso Ovest, 3 bersagli: se ne posano 3"), URTAbilityLabLibrary::PlacedTargetsOf(Ovest), 3);
+		}
+	}
+
 	// A 3: tutti nella squadra del `TARGET`, eroi diversi fra loro e da chi lancia, e la run li colpisce tutti e tre.
 	FRTTestScenario Tre;
 	if (BuildScene(*this, Scarica, 3, Tre))
@@ -1975,8 +2007,15 @@ bool FRTAbilityLabAreaTargetsStayInsideTheAreaTest::RunTest(const FString&)
 						Colpite.Contains(Unit->Cell));
 					TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: %s e' ferito, o la cura non si vedrebbe"), Id), Unit->Health > 0);
 				}
-				// Il roster ha quattro eroi: chi lancia, il `TARGET` e l'`OPPONENT` ne prendono tre, e ne resta uno. Se i bersagli
-				// finiscono, se ne posano quanti ce ne stanno -- ma almeno uno ci sta.
+				// Chi lancia, il `TARGET` e l'`OPPONENT` prendono ciascuno un eroe del roster, e i bersagli in piu' ne prendono altri: se gli
+				// eroi finiscono, se ne posano quanti ce ne stanno. Che ce ne sia almeno uno libero e' la PREMESSA di questo caso, e si
+				// asserisce invece di darla per buona: senza, `InPiu >= 1` direbbe un difetto del banco dove manca un eroe nel roster.
+				int32 EroiLiberi = 0;
+				for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+				{
+					EroiLiberi += (HeroId != Caster->HeroId && HeroId != Bersaglio->HeroId && HeroId != Avversario->HeroId) ? 1 : 0;
+				}
+				TestTrue(TEXT("premessa: il roster ha almeno un eroe oltre a chi lancia, al TARGET e all'OPPONENT"), EroiLiberi >= 1);
 				TestTrue(FString::Printf(TEXT("CircularTide a 3 bersagli: almeno un bersaglio in piu' (%d)"), InPiu), InPiu >= 1);
 				TestEqual(TEXT("CircularTide a 3 bersagli: i bersagli posati sono quelli contati"),
 					URTAbilityLabLibrary::PlacedTargetsOf(Scenario), 1 + InPiu);
