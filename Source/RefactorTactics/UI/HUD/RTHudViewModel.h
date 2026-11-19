@@ -1827,6 +1827,14 @@ public:
 	 */
 	static FRTBlastPreviewPlan MakeBlastPreviewPlan(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units);
 
+	/**
+	 * La stessa traduzione per UNA voce principale del piano (E38 CP 38.14; HUD-AP.5b, #4159): l'azione e la mira sono
+	 * quelle di `MainEntry`, lo scatto e' dell'unita'. `nullptr` = nessuna principale, solo lo scatto. `MakeBlastPreviewPlan`
+	 * la chiama con la principale a fuoco; la timeline del piano con ognuna, senza aprire un fuoco su un'unita' `const`.
+	 */
+	static FRTBlastPreviewPlan MakeBlastPreviewPlanForEntry(const ARTUnit& Unit, int32 UnitId, const TArray<ARTUnit*>& Units,
+		const struct FRTPlanEntry* MainEntry);
+
 	/** Le unita' nella forma che il Blast riceve, con `UnitId` uguale all'indice in `Units`. Vedi `MakeBlastPreviewPlan`. */
 	static TArray<FRTHexCombatUnit> MakeHexCombatUnits(const TArray<ARTUnit*>& Units);
 

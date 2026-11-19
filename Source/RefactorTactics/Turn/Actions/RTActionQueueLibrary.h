@@ -69,6 +69,39 @@ struct FRTUnitOrderKey
 };
 
 /**
+ * Le chiavi con cui UNA VOCE PRINCIPALE di un'unita' entra nell'ordine delle visite del Blast e del Cleanup (E38 CP 38.14,
+ * #4115; la struct da HUD-AP.5b, #4159).
+ *
+ * 🔑 **Una struct senza Actor**, come `FRTUnitOrderKey`: la riempie `ARTTurnManager::MainTurnsOf` in risoluzione e la
+ * riempie il produttore della timeline del piano (`RTPlanningPreview`) in pianificazione, e la regola che le confronta
+ * e' una sola, `URTActionQueueLibrary::MainVisitLess`. ⏱️ *Fino a HUD-AP.5b il confronto stava dentro `MainTurnsOf`*, che
+ * e' protetta e legge gli Actor: la timeline non poteva chiedergli l'ordine.
+ */
+struct FRTMainVisitKey
+{
+	/** La macro-fase dell'azione (`URTCatalogLibrary::MapResolutionPhase`) come intero; `-1` per una voce senza azione. */
+	int32 MacroPhase = -1;
+
+	/** `FRTActionDef::Priority`; `0` per una voce senza azione. */
+	int32 Priority = 0;
+
+	/** `FRTActionDef::ActionId`; `NAME_None` per una voce senza azione. */
+	FName ActionId;
+
+	/** Il bersaglio-unita' per identita' di partita ([D-063]); `INDEX_NONE` senza un bersaglio-unita'. */
+	int32 TargetStableUnitId = INDEX_NONE;
+
+	/** La cella di mira: quella dichiarata, la mira congelata ([D-415]) o la cella del bersaglio. */
+	FRTCellId AimCell;
+
+	/** Il bordo di copertura dichiarato: `0` nessuno, altrimenti la direzione piu' uno. */
+	uint8 CoverEdge = 0;
+
+	/** La posizione della voce nel piano: l'ultimo spareggio, fra copie identiche in tutto il contenuto. */
+	int32 DeclarationIndex = INDEX_NONE;
+};
+
+/**
  * Ordine di risoluzione di un turno: quello delle **azioni** e quello delle **unita'**, deterministici
  * entrambi.
  *
@@ -152,6 +185,20 @@ public:
 	 */
 	static TArray<FRTActionInstance> InstancesForPhase(const TArray<FRTActionInstance>& Instances,
 		ERTMatchPhase Phase);
+
+	/**
+	 * **L'ordine delle visite fra le voci principali di UNA unita'** (E38 CP 38.14): vero se A si visita prima di B.
+	 *
+	 * Chiavi, in ordine: macro-fase -> `Priority` -> `ActionId` -> bersaglio-unita' -> cella di mira (`StableLess`) -> bordo
+	 * -> posizione nel piano. L'ultima decide solo fra copie identiche in tutto il contenuto, dove l'ordine non e'
+	 * osservabile: mai per dichiarazione dove il contenuto differisce ([D-615] (5)).
+	 *
+	 * ⚠️ **Non e' `InstanceLess`**, e non va riscritta come tale: confronta il bersaglio per `StableUnitId`, non per indice
+	 * nello snapshot, e conta il bordo, che `FRTActionInstance` non porta. La usano `ARTTurnManager::MainTurnsOf` e la
+	 * timeline del piano (`URTPlanPreviewLibrary::MakePlanPreview`, HUD-AP.5b), che deve impilare le principali come il
+	 * resolver le visita.
+	 */
+	static bool MainVisitLess(const FRTMainVisitKey& A, const FRTMainVisitKey& B);
 
 	// --- Ordine delle UNITA' (#2922) --------------------------------------------------------------------
 

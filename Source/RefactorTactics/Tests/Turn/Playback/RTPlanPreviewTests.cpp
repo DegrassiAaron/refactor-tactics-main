@@ -266,12 +266,13 @@ bool FRTPlanPreviewAimFacingIsTheFirstStepTest::RunTest(const FString&)
 
 	FRTPlanPreviewInput Plan;
 	Plan.UnitId = 0;
-	Plan.Blast.AttackerId = 0;
-	Plan.Blast.bHasAction = true;
-	Plan.Blast.Shape = ERTAbilityShape::Single;
-	Plan.Blast.RangeCells = 4;
-	Plan.Blast.TargetId = 1;
-	Plan.BlastActionId = TEXT("Action.Shoot");
+	FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+	Principale.Blast.AttackerId = 0;
+	Principale.Blast.bHasAction = true;
+	Principale.Blast.Shape = ERTAbilityShape::Single;
+	Principale.Blast.RangeCells = 4;
+	Principale.Blast.TargetId = 1;
+	Principale.ActionId = TEXT("Action.Shoot");
 
 	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
 	const FRTPhasePreviewEntry* Colpo = PhaseOf(Preview, ERTResolutionPhase::Attack);
@@ -465,14 +466,15 @@ bool FRTPlanPreviewPhasesChainTest::RunTest(const FString&)
 	Plan.bDashResolves = true;
 	Plan.PlannedDashCell = DopoScatto;
 	Plan.DashActionId = TEXT("Action.Dash");
-	Plan.Blast.AttackerId = 0;
-	Plan.Blast.bDashResolves = true;
-	Plan.Blast.PlannedDashCell = DopoScatto;
-	Plan.Blast.bHasAction = true;
-	Plan.Blast.Shape = ERTAbilityShape::Single;
-	Plan.Blast.RangeCells = 4;
-	Plan.Blast.TargetId = 1;
-	Plan.BlastActionId = TEXT("Action.Shoot");
+	FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+	Principale.Blast.AttackerId = 0;
+	Principale.Blast.bDashResolves = true;
+	Principale.Blast.PlannedDashCell = DopoScatto;
+	Principale.Blast.bHasAction = true;
+	Principale.Blast.Shape = ERTAbilityShape::Single;
+	Principale.Blast.RangeCells = 4;
+	Principale.Blast.TargetId = 1;
+	Principale.ActionId = TEXT("Action.Shoot");
 
 	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
 
@@ -591,14 +593,15 @@ bool FRTPlanPreviewRefusalIsSpeakableTest::RunTest(const FString&)
 
 	FRTPlanPreviewInput Plan;
 	Plan.UnitId = 0;
-	Plan.Blast.AttackerId = 0;
-	Plan.Blast.bHasAction = true;
-	Plan.Blast.Shape = ERTAbilityShape::Single;
-	Plan.Blast.RangeCells = 4;
-	Plan.Blast.bTargetsCell = true;
-	Plan.Blast.TargetCell = Mira;
-	Plan.BlastActionId = TEXT("Action.Shoot");
-	Plan.BlastTargetRefusal = ERTTargetRefusal::Cover;
+	FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+	Principale.Blast.AttackerId = 0;
+	Principale.Blast.bHasAction = true;
+	Principale.Blast.Shape = ERTAbilityShape::Single;
+	Principale.Blast.RangeCells = 4;
+	Principale.Blast.bTargetsCell = true;
+	Principale.Blast.TargetCell = Mira;
+	Principale.ActionId = TEXT("Action.Shoot");
+	Principale.TargetRefusal = ERTTargetRefusal::Cover;
 
 	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
 	const FRTPhasePreviewEntry* Blast = PhaseOf(Preview, ERTResolutionPhase::Attack);
@@ -613,7 +616,7 @@ bool FRTPlanPreviewRefusalIsSpeakableTest::RunTest(const FString&)
 
 	// Il controllo NEGATIVO, che e' quello che rende il test utile: senza rifiuto, lo stesso piano sale.
 	FRTPlanPreviewInput Accettato = Plan;
-	Accettato.BlastTargetRefusal = ERTTargetRefusal::None;
+	Accettato.Mains[0].TargetRefusal = ERTTargetRefusal::None;
 	const FRTPlanPreview Buono = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Accettato, CombatUnits);
 	const FRTPhasePreviewEntry* BlastBuono = PhaseOf(Buono, ERTResolutionPhase::Attack);
 	if (TestNotNull(TEXT("anche senza rifiuto il Blast c'e'"), BlastBuono))
@@ -668,12 +671,13 @@ bool FRTPlanPreviewNoEnemyIntentTest::RunTest(const FString&)
 	Plan.UnitId = 0;
 	Plan.PlannedWaypoints = { FRTCellId(0, 0, 0) };
 	Plan.MoveActionId = TEXT("Action.Move");
-	Plan.Blast.AttackerId = 0;
-	Plan.Blast.bHasAction = true;
-	Plan.Blast.Shape = ERTAbilityShape::Single;
-	Plan.Blast.RangeCells = 5;
-	Plan.Blast.TargetId = 1;
-	Plan.BlastActionId = TEXT("Action.Shoot");
+	FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+	Principale.Blast.AttackerId = 0;
+	Principale.Blast.bHasAction = true;
+	Principale.Blast.Shape = ERTAbilityShape::Single;
+	Principale.Blast.RangeCells = 5;
+	Principale.Blast.TargetId = 1;
+	Principale.ActionId = TEXT("Action.Shoot");
 
 	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
 
@@ -844,15 +848,16 @@ namespace
 		Plan.bDashResolves = true;
 		Plan.PlannedDashCell = GD470DopoScatto;
 		Plan.DashActionId = TEXT("Action.Dodge");
-		Plan.Blast.AttackerId = 0;
-		Plan.Blast.bDashResolves = true;
-		Plan.Blast.PlannedDashCell = GD470DopoScatto;
-		Plan.Blast.Phase = Fase;
-		Plan.Blast.bHasAction = true;
-		Plan.Blast.Shape = ERTAbilityShape::Single;
-		Plan.Blast.RangeCells = 6;
-		Plan.Blast.TargetId = 1;
-		Plan.BlastActionId = ActionId;
+		FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+		Principale.Blast.AttackerId = 0;
+		Principale.Blast.bDashResolves = true;
+		Principale.Blast.PlannedDashCell = GD470DopoScatto;
+		Principale.Blast.Phase = Fase;
+		Principale.Blast.bHasAction = true;
+		Principale.Blast.Shape = ERTAbilityShape::Single;
+		Principale.Blast.RangeCells = 6;
+		Principale.Blast.TargetId = 1;
+		Principale.ActionId = ActionId;
 		if (bConMove)
 		{
 			Plan.PlannedWaypoints = { GD470DopoIlMove };
@@ -1154,12 +1159,13 @@ bool FRTPlanPreviewMoveWithoutAPathKeepsTheBlastFacingTest::RunTest(const FStrin
 	{
 		FRTPlanPreviewInput Plan;
 		Plan.UnitId = 0;
-		Plan.Blast.AttackerId = 0;
-		Plan.Blast.bHasAction = true;
-		Plan.Blast.Shape = ERTAbilityShape::Single;
-		Plan.Blast.RangeCells = 6;
-		Plan.Blast.TargetId = 1;
-		Plan.BlastActionId = TEXT("Action.Strike");
+		FRTMainPreviewInput& Principale = Plan.Mains.AddDefaulted_GetRef();
+		Principale.Blast.AttackerId = 0;
+		Principale.Blast.bHasAction = true;
+		Principale.Blast.Shape = ERTAbilityShape::Single;
+		Principale.Blast.RangeCells = 6;
+		Principale.Blast.TargetId = 1;
+		Principale.ActionId = TEXT("Action.Strike");
 		Plan.PlannedWaypoints = { Waypoint };
 		Plan.MoveActionId = TEXT("Action.Move");
 		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
@@ -1256,6 +1262,145 @@ bool FRTPlanPreviewDashThatDoesNotMoveIsConfirmedTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la rotta e' rifiutata, e l'unita' resta"),
 		Rotta->PreviewPath.Num() == 0 && Rotta->PreviewDestination == Partenza);
 	TestEqual(TEXT("la rotta rifiutata e' certa"), Rotta->Certainty, ERTIntentCertainty::Confirmed);
+	return true;
+}
+
+// =========================================================================================================
+// Le pile della timeline: l'ordine del resolver, non quello di dichiarazione (HUD-AP.5b, #4159)
+// =========================================================================================================
+
+namespace
+{
+	/** Una voce principale d'ingresso su un bersaglio-unita'. */
+	FRTMainPreviewInput MakeStackMain(const TCHAR* ActionId, ERTResolutionPhase Fase, int32 Priorita, int32 BersaglioId,
+		int32 BersaglioStabile, int32 Posizione)
+	{
+		FRTMainPreviewInput Principale;
+		Principale.Blast.AttackerId = 0;
+		Principale.Blast.bHasAction = true;
+		Principale.Blast.Phase = Fase;
+		Principale.Blast.Shape = ERTAbilityShape::Single;
+		Principale.Blast.RangeCells = 4;
+		Principale.Blast.TargetId = BersaglioId;
+		Principale.ActionId = ActionId;
+		Principale.Priority = Priorita;
+		Principale.TargetStableUnitId = BersaglioStabile;
+		Principale.DeclarationIndex = Posizione;
+		return Principale;
+	}
+
+	FRTPrepPreviewInput MakeStackPrep(const TCHAR* ActionId, int32 Priorita, int32 Posizione)
+	{
+		FRTPrepPreviewInput Prep;
+		Prep.ActionId = ActionId;
+		Prep.Priority = Priorita;
+		Prep.DeclarationIndex = Posizione;
+		return Prep;
+	}
+}
+
+/**
+ * **Due o piu' azioni nella stessa fase stanno in una pila con indici 1…N, nell'ordine del resolver; permutare la
+ * dichiarazione non cambia la pila** (#4159, criterio 3; `progettazione-hud.md` §19-bis.7; [D-615] (5)).
+ *
+ * Il piano porta due voci di Prep, tre principali del Blast — due copie della stessa azione su bersagli diversi e una di
+ * `Control` — una principale di `Environment` e un movimento a due tratti. Lo stesso piano si dichiara in due ordini.
+ *
+ * 🔑 **L'ordine atteso e' scritto a mano, dalle chiavi**, e non ricavato dalla funzione: priorita' crescente nel Prep
+ * (`InstanceLess`), e nel Blast `Control` a priorita' 30 prima delle due `Shoot` a 40, e fra le due copie il bersaglio con
+ * lo `StableUnitId` minore (`MainVisitLess`). ⚠️ Nella prima dichiarazione ogni pila e' nell'ordine OPPOSTO a quello
+ * atteso: una timeline che seguisse la dichiarazione cadrebbe gia' su quella, prima del confronto fra le due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewStackFollowsTheResolverTest,
+	"RefactorTactics.Preview.StackFollowsTheResolverNotTheDeclaration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewStackFollowsTheResolverTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(0, 0, 0);
+	const FRTCellId Vicino(2, 0, 0);  // StableUnitId 7
+	const FRTCellId Lontano(0, 2, 0); // StableUnitId 3
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit U(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8);
+	U.Facing = ERTHexDirection::E;
+	Units.Add(U);
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, Vicino, /*MoveBudget=*/ 0));
+	Units.Add(FRTHexSimUnit(/*UnitId=*/ 2, Lontano, /*MoveBudget=*/ 0));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+	const TArray<FRTHexCombatUnit> CombatUnits = { MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza),
+		MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, Vicino), MakePlanPreviewCombatUnit(2, /*TeamId=*/ 1, Lontano) };
+
+	FRTMainPreviewInput Ambientale = MakeStackMain(TEXT("Action.Electrify"), ERTResolutionPhase::Environment, 50,
+		/*BersaglioId=*/ INDEX_NONE, INDEX_NONE, /*Posizione=*/ 5);
+	Ambientale.Blast.bTargetsCell = true;
+	Ambientale.Blast.TargetCell = FRTCellId(1, 0, 0);
+
+	// La prima dichiarazione: ogni pila al contrario dell'ordine atteso.
+	FRTPlanPreviewInput Prima;
+	Prima.UnitId = 0;
+	Prima.PrepEntries = { MakeStackPrep(TEXT("Action.Guard"), 20, 0), MakeStackPrep(TEXT("Action.Focus"), 10, 1) };
+	Prima.Mains = {
+		MakeStackMain(TEXT("Action.Shoot"), ERTResolutionPhase::Attack, 40, /*BersaglioId=*/ 1, /*Stabile=*/ 7, 2),
+		MakeStackMain(TEXT("Action.Shoot"), ERTResolutionPhase::Attack, 40, /*BersaglioId=*/ 2, /*Stabile=*/ 3, 3),
+		MakeStackMain(TEXT("Action.Stun"), ERTResolutionPhase::Control, 30, /*BersaglioId=*/ 1, /*Stabile=*/ 7, 4),
+		Ambientale };
+	Prima.PlannedWaypoints = { FRTCellId(-1, 0, 0), FRTCellId(-2, 0, 0) };
+	Prima.MoveActionId = TEXT("Action.Move");
+
+	// La stessa scelta dichiarata in un altro ordine: le posizioni seguono la nuova dichiarazione.
+	FRTPlanPreviewInput Seconda = Prima;
+	Seconda.PrepEntries = { MakeStackPrep(TEXT("Action.Focus"), 10, 5), MakeStackPrep(TEXT("Action.Guard"), 20, 4) };
+	Ambientale.DeclarationIndex = 0;
+	Seconda.Mains = { Ambientale,
+		MakeStackMain(TEXT("Action.Stun"), ERTResolutionPhase::Control, 30, /*BersaglioId=*/ 1, /*Stabile=*/ 7, 1),
+		MakeStackMain(TEXT("Action.Shoot"), ERTResolutionPhase::Attack, 40, /*BersaglioId=*/ 2, /*Stabile=*/ 3, 2),
+		MakeStackMain(TEXT("Action.Shoot"), ERTResolutionPhase::Attack, 40, /*BersaglioId=*/ 1, /*Stabile=*/ 7, 3) };
+
+	struct FAttesa { ERTResolutionPhase Fase; const TCHAR* Azione; int32 Pila; bool bHaMira; FRTCellId Mira; };
+	const TArray<FAttesa> Attese = {
+		{ ERTResolutionPhase::Preparation,    TEXT("Action.Focus"),     1, false, FRTCellId() },
+		{ ERTResolutionPhase::Preparation,    TEXT("Action.Guard"),     2, false, FRTCellId() },
+		{ ERTResolutionPhase::Control,        TEXT("Action.Stun"),      1, true,  Vicino },
+		{ ERTResolutionPhase::Attack,         TEXT("Action.Shoot"),     2, true,  Lontano },
+		{ ERTResolutionPhase::Attack,         TEXT("Action.Shoot"),     3, true,  Vicino },
+		{ ERTResolutionPhase::NormalMovement, TEXT("Action.Move"),      1, false, FRTCellId() },
+		{ ERTResolutionPhase::Environment,    TEXT("Action.Electrify"), 1, true,  FRTCellId(1, 0, 0) },
+	};
+
+	const auto Confronta = [this, &Attese](const TCHAR* Quale, const FRTPlanPreview& Preview)
+	{
+		if (!TestEqual(FString::Printf(TEXT("%s: una voce per azione, il movimento una sola con i suoi due tratti"), Quale),
+			Preview.Phases.Num(), Attese.Num()))
+		{
+			return;
+		}
+		for (int32 I = 0; I < Attese.Num(); ++I)
+		{
+			const FRTPhasePreviewEntry& Voce = Preview.Phases[I];
+			const FAttesa& Attesa = Attese[I];
+			TestEqual(FString::Printf(TEXT("%s, voce %d: la fase"), Quale, I), Voce.Phase, Attesa.Fase);
+			TestEqual(FString::Printf(TEXT("%s, voce %d: l'azione"), Quale, I), Voce.ActionId, FName(Attesa.Azione));
+			TestEqual(FString::Printf(TEXT("%s, voce %d: il posto nella pila"), Quale, I), Voce.StackIndex, Attesa.Pila);
+			if (Attesa.bHaMira && TestEqual(FString::Printf(TEXT("%s, voce %d: un bersaglio dichiarato"), Quale, I),
+				Voce.TargetCells.Num(), 1))
+			{
+				TestTrue(FString::Printf(TEXT("%s, voce %d: il suo bersaglio"), Quale, I), Voce.TargetCells[0] == Attesa.Mira);
+			}
+		}
+	};
+
+	const FRTPlanPreview DallaPrima = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Prima, CombatUnits);
+	const FRTPlanPreview DallaSeconda = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Seconda, CombatUnits);
+	Confronta(TEXT("prima dichiarazione"), DallaPrima);
+	Confronta(TEXT("seconda dichiarazione"), DallaSeconda);
+
+	// Il movimento a due tratti e' una voce, col percorso intero: arriva all'ultimo waypoint.
+	if (const FRTPhasePreviewEntry* Move = PhaseOf(DallaPrima, ERTResolutionPhase::NormalMovement))
+	{
+		TestTrue(TEXT("il movimento attraversa entrambi i tratti"),
+			Move->PreviewPath.Num() >= 3 && Move->PreviewDestination == FRTCellId(-2, 0, 0));
+	}
 	return true;
 }
 
