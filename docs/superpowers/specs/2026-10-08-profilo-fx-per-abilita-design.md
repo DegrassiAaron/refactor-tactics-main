@@ -605,10 +605,10 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 > Le decisioni (a)–(d) sono dell'autore, nel testo di D-621; il resto di questa sezione è dell'assistente ed è ribaltabile.
 > Misurato su `main` = `014de8507`.
 >
-> ➕ **Dal 2026-11-19 il salto è un attore con spline, non più un sistema Niagara**
-> ([disegno](2026-11-16-scarica-a-spline-e-bersagli-del-banco-design.md), approvato dall'autore il 2026-11-19): i punti 4 e 6
-> sono riscritti e il 7 è nuovo. Le decisioni (e) e (f) di D-621 sono dell'autore; il socket, il punto alzato e la vita
-> dell'attore sono dell'assistente.
+> ➕ **Il salto è un attore con spline, non un sistema Niagara**
+> ([disegno](2026-11-16-scarica-a-spline-e-bersagli-del-banco-design.md), approvato dall'autore il 2026-11-19): i punti 4, 6 e 7
+> ne discendono. Le decisioni (e) e (f) di D-621 sono dell'autore; il socket, il punto alzato e la vita dell'attore sono
+> dell'assistente. Una tappa del ramo, prima del merge, lanciava un sistema Niagara: su `main` non è mai esistita.
 
 1. **L'ordine dei colpi di un atto a linea.** `URTPlaybackLibrary::BuildBlastSequence` ordina gli `Attack` di un atto
    con un'impronta `Line` per `HexDistance` dall'`Origin` dell'impronta all'`Impact` del colpo, a pari distanza in ordine
@@ -634,24 +634,27 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    `AlwaysSpawn` e senza collisione, scrive sulla sua `USplineComponent` tre punti in spazio mondo (la partenza, il centro
    del tratto alzato di `ChainArcLiftFraction` = 0,2 della sua lunghezza, l'arrivo: `URTPlaybackLibrary::ChainArcMidpoint`,
    funzione pura, e `SetChainArcPoints`) e gli dà `LifeSeconds` di vita, così si toglie da solo (`SpawnChainArcActor`).
-   **Il contratto con l'asset è la classe con la spline**, non più i parametri utente `BeamStart` e `BeamEnd`: la classe è
+   **Il contratto con l'asset è la classe con la spline**: la classe è
    `/Game/RT/Characters/Gadget/FX/BP_Gadget_LinearDischarge_Arc.BP_Gadget_LinearDischarge_Arc_C`, la copia di `BP_SplineVFX_ElectricLightning` del pack Free Spline VFX, che porta già la
    spline, il Niagara che la percorre e la crescita dell'effetto. Un attore senza spline si distrugge e lo scrive solo nel
    log a `Verbose`. Classe assente (`LoadClass` con `LOAD_NoWarn | LOAD_Quiet`), mappa assente o server dedicato: nessun
    lancio. **Il socket è `canister_main`, l'osso della sfera, e non è provvisorio**: `LMB_Fire_B_Slow_V1`, l'animazione
    dello sparo, anima proprio quello, quindi l'arco parte da dove la sfera è in quel momento; l'autore ha lasciato la scelta
    («scegli tu il socket»), e `FX_canister_socket_L` e `FX_canister_socket_R` sono nello scheletro ma l'animazione dello
-   sparo non li nomina. Il C++ non dipende più dal modulo Niagara: il modulo e la voce del plugin non stanno più in
-   `RefactorTactics.Build.cs` e nel `.uproject`. Lo zigzag del profilo resta sotto (D-621 (c)).
+   sparo non li nomina. Il C++ non dipende dal modulo Niagara: né `RefactorTactics.Build.cs` né il `.uproject`
+   lo nominano. Lo zigzag del profilo resta sotto (D-621 (c)).
 5. **D-278.** `SpawnChainArc` entra fra le cue di `Attack` e di `AttackFootprint`.
 6. **Test**: `Playback.LineActHitsAreShownAlongTheLine`, `Playback.LineActKeepsTimelineOrderWhenNotFullyKnown`,
    `Playback.NonLineActKeepsTimelineOrder`, `Playback.LineActOrderKeepsTheFrozenPrefixVerbatim`,
    `Playback.ChainHopGoesFromTheSourceThenVictimToVictim`, `Playback.ChainHopWithoutVictimsArcsToTheAimCell`,
    `Playback.ChainHopNeedsEveryEndKnownToTheViewer`, `Presentation.ChainFxIsDeclaredOnlyForLinearDischarge` (che ora dice
    la classe e il socket) e, nel playback vero, `Playback.ChainArcHopsFollowTheLine`. Del salto su spline:
-   `Playback.ChainArcMidpointLiftsTheMiddle`, `Playback.ChainArcPointsGoOnTheSpline`, `Playback.ChainArcActorNeedsASpline`
-   e `Playback.ChainArcActorWritesTheWorldPoints`, con la sonda
-   `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTChainArcProbeForTest.h`. Voce PIE: `PIE-FX-CHAIN`.
+   `Playback.ChainArcMidpointLiftsTheMiddle`, `Playback.ChainArcPointsGoOnTheSpline`, `Playback.ChainArcActorNeedsASpline`,
+   `Playback.ChainArcActorWritesTheWorldPoints`, `Playback.ChainArcActorDoesNotReplicate` (l'arco non si replica nemmeno se la
+   classe replica) e `Playback.ChainArcActorNeverLivesForever` (una vita non positiva vale il default della riga), con le sonde
+   `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTChainArcProbeForTest.h`. Nel playback vero, accanto a
+   `Playback.ChainArcHopsFollowTheLine`: `Playback.ChainArcMissOpensOneHopToTheAimCell` (l'arco a vuoto, traccia `0>0`) e
+   `Playback.ChainArcStaysClosedWhenTheViewerCannotSeeTheLine` (chi non vede la linea non riceve salti). Voce PIE: `PIE-FX-CHAIN`.
 7. **I bersagli del banco** ([disegno §5.2](2026-11-16-scarica-a-spline-e-bersagli-del-banco-design.md)). Perché la
    catena si veda su 1, 2 e 3 colpiti, il banco Ability / Hero Lab posa da 1 a 3 bersagli (`FRTAbilityLabFixtureSpec::TargetCount`,
    con 1 di default, scritto nel tag `lab-targets-N` della scena: `R` ricarica lo stesso file e lo conserva, `,` e `.` lo

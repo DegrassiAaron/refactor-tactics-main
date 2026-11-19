@@ -1207,8 +1207,8 @@ capabilities:
       - "🔴 implementation=partial per DUE assenze misurate nell'enum stesso: #2828 (nessun
          valore per la struttura) e #2505 (`HazardDamage` arriva e nessuna fase lo riproduce).
          L'enum e' il vocabolario della presentazione: cio' che non ha un valore non ha un momento."
-      - "`RTPresentationBinding.h:51` dichiara che `Content/` non contiene UN SOLO asset Niagara
-         e che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
+      - "`RTPresentationBinding.h:51` dichiarava (misura di #3578, corretta da #4136) che `Content/` non contenesse
+         UN SOLO asset Niagara; resta che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
 
   - id: RT-CAP-PLAYBACK
     name: Resolution Playback (pacing, pause, step, speed)
@@ -1761,7 +1761,7 @@ capabilities:
          il CONTENUTO e il legame dichiarativo, non l'attacco: chi apre questa capability non deve
          progettare un canale, deve riempirne uno che c'e'."
       - "#3578: il profilo FX per abilita' (attivazione, colpo, impronta) e' la prima implementazione, col line batcher (D-467); Niagara resta fuori (D-124). La misura di Niagara qui sopra e' storica."
-      - "#4136, [D-621]: la scarica a catena di `Hero.Gadget.LinearDischarge` e' un attore con spline per salto, sopra lo zigzag (`FRTPlaybackDirector::SpawnChainArc`, tabella `DeclaredChainFxRows`: la classe `BP_Gadget_LinearDischarge_Arc` e il socket `canister_main`). Il C++ non dipende piu' dal modulo Niagara: scrive tre punti nella spline dell'attore, che e' la copia di un Blueprint del pack Free Spline VFX (`docs/technical/asset-licenze.md`). Per le altre azioni Niagara resta fuori (D-124). La classe sta sotto `Content/`, che git ignora: un clone senza la classe non lancia niente, e lo scrive solo nel log a `Verbose`. Il banco Ability Lab posa da 1 a 3 bersagli col tasto `U`, per guardare la scarica su 1, 2 e 3 colpiti (`PIE-FX-CHAIN`, `PIE-LAB-BERSAGLI`)."
+      - "#4136, [D-621]: la scarica a catena di `Hero.Gadget.LinearDischarge` e' un attore con spline per salto, sopra lo zigzag (`FRTPlaybackDirector::SpawnChainArc`, tabella `DeclaredChainFxRows`: la classe `BP_Gadget_LinearDischarge_Arc` e il socket `canister_main`). Il C++ non dipende dal modulo Niagara: scrive tre punti nella spline dell'attore, che e' la copia di un Blueprint del pack Free Spline VFX (`docs/technical/asset-licenze.md`). Per le altre azioni Niagara resta fuori (D-124). La classe sta sotto `Content/`, che git ignora: un clone senza la classe non lancia niente, e lo scrive solo nel log a `Verbose`. Il banco Ability Lab posa da 1 a 3 bersagli col tasto `U`, per guardare la scarica su 1, 2 e 3 colpiti (`PIE-FX-CHAIN`, `PIE-LAB-BERSAGLI`)."
 
   - id: RT-CAP-AUDIO
     name: Audio Feedback

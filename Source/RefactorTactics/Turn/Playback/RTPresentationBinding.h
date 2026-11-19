@@ -55,7 +55,8 @@ enum class ERTPresentationKind : uint8
  *
  * 🔑 **Dichiarativo si oppone a BRANCHING, non a "compilato".** Questa tabella e' C++ e non un Data Asset
  * perche' in v0.1 le cue le tocca chi scrive codice: `D-124` tiene *«Niagara dedicato a ogni abilita'»* fuori
- * dal perimetro e `Content/` non contiene un solo asset Niagara. Il giorno in cui un artista dovra'
+ * dal perimetro. Gli asset VFX che esistono (Niagara compresi) stanno sotto `Content/`, che git ignora, e il C++ li
+ * conosce solo per classe (`FRTChainFxBinding`). Il giorno in cui un artista dovra'
  * riassegnarle senza ricompilare, cambia il **supporto** — non il gate, che interroga una funzione pura.
  *
  * ⛔ **Blueprint ESEGUE la presentazione; non possiede il branching delle regole del simulatore.** I nomi qui

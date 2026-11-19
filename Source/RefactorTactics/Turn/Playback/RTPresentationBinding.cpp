@@ -574,7 +574,8 @@ FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileFor(FName ActionId, 
 const TArray<TPair<FName, FRTChainFxBinding>>& URTPresentationBindingLibrary::DeclaredChainFxRows()
 {
 	// [D-621], decisa dall'autore il 2026-11-16: la scarica rimbalza a catena lungo la linea, sopra lo zigzag del profilo.
-	// L'asset e' la copia, nel progetto, del Blueprint del pack su spline (guida `docs/technical/runbooks/guida-vfx-skill.md`):
+	// L'asset e' la copia, nel progetto, del Blueprint del pack su spline (guida `docs/technical/runbooks/guida-vfx-skill.md`,
+	// che sta sul ramo `docs/guida-vfx-skill` e non ancora su `main`):
 	// l'autore ha scelto «una spline per salto e scegli tu il socket», quindi un attore per salto con la sua spline.
 	// Il socket e' `canister_main`, la sfera sulla spalla: e' quello che anima `LMB_Fire_B_Slow_V1`, la clip dello sparo.
 	// ⚠️ L'asset vive sotto `Content/`, che git ignora salvo eccezioni: su un clone che non lo ha il salto non si lancia.
