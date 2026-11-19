@@ -228,7 +228,7 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// stesse istanze e si chiede a lei. ⛔ Mai l'ordine dell'ingresso ([D-615] (5)).
 	//
 	// ⚠️ La voce qui sopra, la reazione armata, non entra fra le istanze: `ResolvePrep` non la ordina con le altre, e il suo
-	// posto e' il primo della pila come prima di HUD-AP.5b. Le reazioni in una lista sono HUD-AP.5c.
+	// posto e' il primo della pila come prima di HUD-AP.5b. Le reazioni in una lista nella timeline sono un seguito di CP 38.15 (#4116).
 	struct FVoceDelPrep { const FRTPrepPreviewInput* Prep = nullptr; const FRTMainPreviewInput* Principale = nullptr; };
 	TArray<FVoceDelPrep> VociDelPrep;
 	TArray<FRTActionInstance> IstanzeDelPrep;
