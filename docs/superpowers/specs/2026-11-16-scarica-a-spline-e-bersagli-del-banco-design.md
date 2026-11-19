@@ -1,7 +1,7 @@
 # Scarica a spline e bersagli del banco — disegno
 
 > **Data**: 2026-11-16. **Stato**: approvato dall'autore il 2026-11-19 («va bene»). **Issue**: [#4136](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4136)
-> per la scarica, e una issue nuova per il banco, da aprire. **Decisione**: [`D-621`](../../decisions/RT_PDR_00_Decision_Log.md),
+> per la scarica, e [#4164](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4164) per il banco. **Decisione**: [`D-621`](../../decisions/RT_PDR_00_Decision_Log.md),
 > che questo disegno estende. Il disegno della catena resta quello di
 > [§2.10 del profilo FX](2026-10-08-profilo-fx-per-abilita-design.md): qui cambia l'asset di ogni salto, e il banco impara a posare più bersagli.
 

@@ -240,7 +240,7 @@
 
 ### Task 5: chiusura
 
-- [ ] **Step 1: La issue del banco.** Aprila con `GH_TOKEN="$(gh auth token --user DegrassiAaron)" gh issue create`, sotto lo stesso Epic di #4136, col corpo scritto in un file nello scratchpad e passato con `--body-file`. Poi aggiorna titolo e corpo di #4136 da D-620 a D-621 e dal raggio alla spline, con `gh issue edit` e lo stesso `GH_TOKEN`.
+- [ ] **Step 1: La issue del banco** (aperta: [#4164](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4164)). Aprila con `GH_TOKEN="$(gh auth token --user DegrassiAaron)" gh issue create`, sotto lo stesso Epic di #4136, col corpo scritto in un file nello scratchpad e passato con `--body-file`. Poi aggiorna titolo e corpo di #4136 da D-620 a D-621 e dal raggio alla spline, con `gh issue edit` e lo stesso `GH_TOKEN`.
 - [ ] **Step 2: La guida.** Il passo d'Editor dell'autore va nella guida: duplicare `BP_SplineVFX_ElectricLightning` in `Content/RT/Characters/Gadget/FX/` come `BP_Gadget_LinearDischarge_Arc`, controllare che la timeline non resti in loop oltre la vita dell'attore, e aggiungere il pack alla propria libreria Fab.
   - La guida sta sul ramo `docs/guida-vfx-skill`, che oggi non è aperto in nessun checkout. Crea un worktree temporaneo con `git worktree add <percorso> docs/guida-vfx-skill`, committa e rimuovi il worktree.
   - Nel Registro, D-620 diventa D-621.
