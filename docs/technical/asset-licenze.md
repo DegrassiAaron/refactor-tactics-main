@@ -100,7 +100,7 @@ acquisizioni qui elencate ha attraversato un cambio di major.
 | Paragon: Yin | `/Game/FabAsset/Paragon/ParagonYin/` | Fab · Epic Games — listing n/d | Fab Standard License | listing n/d | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 | Paragon: Zinx | `/Game/FabAsset/Paragon/ParagonZinx/` | [Fab · Epic Games](https://www.fab.com/listings/15e6593c-3696-4f87-99ef-fcec9e3138fd) | Fab Standard License | listing `15e6593c` | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 | Free Spells — effetti Niagara | `/Game/FabAsset/UrtanoVFX/Free_Spells/` | [Fab · UrtanoVFX](https://www.fab.com/listings/967b7892-d46c-4d75-8121-33418a6899ce) | Fab Standard License, tier *Personal* (gratuito; da confermare nella libreria Fab) | listing `967b7892` | 2026-11-12 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
-| Free Spline VFX | `/Game/FabAsset/_SplineVFX/` | [Fab · Dr.Game](https://www.fab.com/listings/2b923e61-b02d-4cc9-bd0b-b067c9e6056e) | Fab Standard License, gratuito; la copia sul disco viene dalla libreria di un amico dell'autore, da aggiungere a quella dell'autore | listing `2b923e61` | 2026-11-13 | 5.8 | nessuna — ⛔ NoAI §5 | `BP_Gadget_LinearDischarge_Arc` |
+| Free Spline VFX | `/Game/FabAsset/_SplineVFX/` | [Fab · Dr.Game](https://www.fab.com/listings/2b923e61-b02d-4cc9-bd0b-b067c9e6056e) | Fab Standard License (gratuito; la pagina del listing dice "License terms: -", letta il 2026-11-19; da confermare nella libreria Fab dell'autore); la copia sul disco viene dalla libreria di un amico dell'autore, da aggiungere a quella dell'autore | listing `2b923e61` | 2026-11-13 | 5.8 | nessuna — ⛔ NoAI §5 | `BP_Gadget_LinearDischarge_Arc` (da creare, #4136) |
 
 <!-- registro:fine -->
 

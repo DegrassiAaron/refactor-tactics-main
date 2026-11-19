@@ -635,13 +635,13 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    del tratto alzato di `ChainArcLiftFraction` = 0,2 della sua lunghezza, l'arrivo: `URTPlaybackLibrary::ChainArcMidpoint`,
    funzione pura, e `SetChainArcPoints`) e gli dà `LifeSeconds` di vita, così si toglie da solo (`SpawnChainArcActor`).
    **Il contratto con l'asset è la classe con la spline**, non più i parametri utente `BeamStart` e `BeamEnd`: la classe è
-   `BP_Gadget_LinearDischarge_Arc`, la copia di `BP_SplineVFX_ElectricLightning` del pack Free Spline VFX, che porta già la
+   `/Game/RT/Characters/Gadget/FX/BP_Gadget_LinearDischarge_Arc.BP_Gadget_LinearDischarge_Arc_C`, la copia di `BP_SplineVFX_ElectricLightning` del pack Free Spline VFX, che porta già la
    spline, il Niagara che la percorre e la crescita dell'effetto. Un attore senza spline si distrugge e lo scrive solo nel
    log a `Verbose`. Classe assente (`LoadClass` con `LOAD_NoWarn | LOAD_Quiet`), mappa assente o server dedicato: nessun
    lancio. **Il socket è `canister_main`, l'osso della sfera, e non è provvisorio**: `LMB_Fire_B_Slow_V1`, l'animazione
    dello sparo, anima proprio quello, quindi l'arco parte da dove la sfera è in quel momento; l'autore ha lasciato la scelta
    («scegli tu il socket»), e `FX_canister_socket_L` e `FX_canister_socket_R` sono nello scheletro ma l'animazione dello
-   sparo non li nomina. Il codice non chiama più Niagara: il modulo e la voce del plugin non stanno più in
+   sparo non li nomina. Il C++ non dipende più dal modulo Niagara: il modulo e la voce del plugin non stanno più in
    `RefactorTactics.Build.cs` e nel `.uproject`. Lo zigzag del profilo resta sotto (D-621 (c)).
 5. **D-278.** `SpawnChainArc` entra fra le cue di `Attack` e di `AttackFootprint`.
 6. **Test**: `Playback.LineActHitsAreShownAlongTheLine`, `Playback.LineActKeepsTimelineOrderWhenNotFullyKnown`,
@@ -676,7 +676,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
   dalla sequenza del Blast.
 - Suono: `RT-CAP-AUDIO` non ha implementazione.
 - Asset Niagara o Cascade (D-124), materiali, decal, mesh: nessun `.uasset`, nessun authoring nel clone principale.
-  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge: un attore con spline per salto, copia di un Blueprint del pack, scritto nel clone principale, [D-621](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
+  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge; dal 2026-11-19 un attore con spline per salto, copia di un Blueprint del pack, scritto nel clone principale, [D-621](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
 - I profili come dati esterni (DataAsset, JSON): la migrazione di D-278 resta possibile e non si fa.
 - Un `CastShowSeconds` o una durata per abilità: le durate sono ritmo (R2).
 - Le varianti di tracer sugli attacchi base (D5).
