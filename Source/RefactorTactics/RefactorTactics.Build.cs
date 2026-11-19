@@ -42,10 +42,6 @@ public class RefactorTactics : ModuleRules
 		// `RTUnitAnimInstance` non linka, e l'errore parla di simboli, non di moduli.
 		PrivateDependencyModuleNames.Add("AnimGraphRuntime");
 
-		// [D-621] (#4136): la scarica a catena di LinearDischarge e' il primo sistema Niagara che il C++ lancia
-		// (`FRTPlaybackDirector::SpawnChainArc`). Il plugin e' dichiarato anche nel `.uproject`.
-		PrivateDependencyModuleNames.Add("Niagara");
-
 		// Json/JsonUtilities: scenari di test e report machine-readable dello Scenario Harness
 		// (Test/RTScenarioLoader, Test/RTTestReportWriter). Sono moduli engine standard, disponibili anche
 		// in build packaged: il harness deve poter girare headless da riga di comando, non solo in Editor.

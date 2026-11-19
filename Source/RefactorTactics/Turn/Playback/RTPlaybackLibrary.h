@@ -9,6 +9,10 @@
 #include "Turn/Resolution/RTResolvedEvent.h"
 #include "RTPlaybackLibrary.generated.h"
 
+class AActor;
+class UWorld;
+class USplineComponent; // [D-621] (#4136): la scarica a catena scrive i suoi tre punti su una spline
+
 /**
  * Il confine su cui un predicato di pausa **una tantum** deve fermare il playback (`#2855`).
  *
@@ -524,6 +528,36 @@ public:
 	 */
 	static FRTChainHop ChainHopFor(const TArray<FRTResolvedEvent>& Timeline,
 		const TArray<FRTBlastSequenceElement>& Sequence, int32 ElementIndex, int32 ViewerTeamId);
+
+	/**
+	 * ➕ [D-621] (#4136): di quanto il centro di un salto della scarica si alza sopra il tratto, in frazione della sua
+	 * lunghezza. Proporzionale e non fisso: un salto corto e uno lungo hanno la stessa curvatura.
+	 */
+	static constexpr float ChainArcLiftFraction = 0.2f;
+
+	/**
+	 * ➕ [D-621] (#4136): il punto di mezzo della spline di un salto — il centro del tratto `Start`–`End`, alzato in Z di
+	 * `ChainArcLiftFraction` × la sua lunghezza.
+	 * 🔑 Una spline a due punti e' una retta: e' il terzo punto, sopra, a farne un arco.
+	 * ⚠️ Con `Start == End` la lunghezza e' zero e il risultato e' `Start`: nessuna normalizzazione, quindi nessun NaN.
+	 */
+	static FVector ChainArcMidpoint(const FVector& Start, const FVector& End);
+
+	/**
+	 * ➕ [D-621] (#4136): scrive sulla spline i tre punti di un salto, in spazio mondo — `Start`, `ChainArcMidpoint`, `End`.
+	 * 🔑 SOSTITUISCE i punti che c'erano (`SetSplinePoints`), non li accoda: il data interface `Spline` del Niagara li
+	 * rilegge al cambio di versione, e una spline riscritta resta di tre punti.
+	 */
+	static void SetChainArcPoints(USplineComponent& Spline, const FVector& Start, const FVector& End);
+
+	/**
+	 * ➕ [D-621] (#4136): crea l'attore di un salto della scarica in `Start` — `AlwaysSpawn`, collisione spenta — scrive
+	 * i punti sulla sua `USplineComponent` e gli da' `LifeSeconds` di vita. Restituisce l'attore.
+	 * ⛔ Un attore senza spline non serve a niente e non resta nel mondo: si distrugge, si scrive a `Verbose` — un
+	 * Blueprint copiato male non e' un difetto di chi gioca — e il risultato e' `nullptr`.
+	 */
+	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
+		float LifeSeconds);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'

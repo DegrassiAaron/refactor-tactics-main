@@ -140,18 +140,24 @@ struct FRTPresentationBinding
 };
 
 /**
- * ➕ [D-621] (#4136): la scarica a catena di un'azione — il sistema Niagara e il socket da cui parte il primo salto.
+ * ➕ [D-621] (#4136): la scarica a catena di un'azione — la classe dell'attore che la disegna, il socket da cui parte il
+ * primo salto e quanto vive ogni salto.
  *
- * 🔑 **Il contratto con l'asset sono due parametri utente**, `BeamStart` e `BeamEnd`, di tipo *Position* e in spazio
- * mondo: il playback li scrive prima di attivare il sistema. Un asset che non li espone si vede, ma non fra i due punti.
+ * 🔑 **Il contratto con l'asset e' un attore con una `USplineComponent`**, che il suo Niagara percorre: il playback lo
+ * crea in `Start` e scrive sulla spline tre punti in spazio mondo — partenza, punto di mezzo alzato, arrivo
+ * (`URTPlaybackLibrary::SetChainArcPoints`). Il data interface `Spline` li rilegge al cambio di versione
+ * (`PerInstanceTick`, Engine 5.8), quindi l'effetto segue i punti scritti DOPO la nascita. Un attore senza spline non
+ * serve: `SpawnChainArcActor` lo distrugge invece di lasciarlo fermo nel mondo.
  * ⚠️ Non e' un `USTRUCT`: e' una riga di dati dichiarativi accanto al profilo FX (D-278), non si serializza.
  */
 struct FRTChainFxBinding
 {
-	/** Il sistema Niagara, uno per salto. Deve finire da solo (Loop Behavior *Once*). */
-	FSoftObjectPath System;
+	/** La classe dell'attore, uno per salto (un Blueprint). Si carica al lancio: l'asset sta sotto `Content/`, ignorato da git. */
+	FSoftClassPath ArcClass;
 	/** Il socket della skeletal di chi lancia da cui parte il primo salto; vuoto o assente = il centro della mesh. */
 	FName SourceSocket;
+	/** Quanto vive l'attore, in secondi: dopo, il mondo lo distrugge da solo (`SetLifeSpan`). */
+	float LifeSeconds = 1.5f;
 };
 
 /**

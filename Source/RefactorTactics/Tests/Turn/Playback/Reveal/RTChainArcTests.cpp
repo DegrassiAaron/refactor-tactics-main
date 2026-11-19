@@ -14,6 +14,7 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/SplineComponent.h" // [D-621]: la scarica e' un attore con una spline, e i punti si leggono da li'
 #include "Tests/Shared/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -301,14 +302,134 @@ bool FRTPresentationChainFxDeclaredTest::RunTest(const FString&)
 		return false;
 	}
 	TestTrue(TEXT("ed e' a linea: la catena segue la linea"), Azione->Shape == ERTAbilityShape::Line);
-	TestEqual(TEXT("il sistema e' l'_Arc della guida"), Righe[0].Value.System.ToString(),
-		FString(TEXT("/Game/RT/Characters/Gadget/FX/NS_Gadget_LinearDischarge_Arc.NS_Gadget_LinearDischarge_Arc")));
-	TestFalse(TEXT("il primo salto parte da un socket nominato"), Righe[0].Value.SourceSocket.IsNone());
+	TestEqual(TEXT("la classe e' la copia del Blueprint del pack"), Righe[0].Value.ArcClass.ToString(),
+		FString(TEXT("/Game/RT/Characters/Gadget/FX/BP_Gadget_LinearDischarge_Arc.BP_Gadget_LinearDischarge_Arc_C")));
+	TestEqual(TEXT("il primo salto parte dalla sfera"), Righe[0].Value.SourceSocket, FName(TEXT("canister_main")));
+	TestTrue(TEXT("l'attore ha una vita"), Righe[0].Value.LifeSeconds > 0.f);
 
 	TestNotNull(TEXT("ChainFxFor trova la riga dall'ActionId"), URTPresentationBindingLibrary::ChainFxFor(Righe[0].Key, NAME_None));
 	TestNotNull(TEXT("e dal BaseActionId"), URTPresentationBindingLibrary::ChainFxFor(NAME_None, Righe[0].Key));
 	TestNull(TEXT("un'azione senza riga non ha scarica"),
 		URTPresentationBindingLibrary::ChainFxFor(FName(TEXT("Hero.Muiren.PressureJet")), NAME_None));
+	return true;
+}
+
+/**
+ * Il punto di mezzo della scarica sta SOPRA il tratto, di una frazione fissa della sua lunghezza — [D-621].
+ *
+ * 🔑 Una spline a due punti e' una retta, e l'arco non si vedrebbe: il terzo punto la piega. Alzarlo in proporzione alla
+ * lunghezza fa si' che un salto corto e uno lungo abbiano la stessa curvatura, invece di un salto lungo piatto.
+ * ⚠️ `Start == End` e' il caso limite: la lunghezza e' zero, il punto di mezzo e' `Start`, e nessuna divisione la
+ * normalizza — un NaN qui sposterebbe la spline, e con lei l'effetto, dove nessuno lo cerca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcMidpointTest,
+	"RefactorTactics.Playback.ChainArcMidpointLiftsTheMiddle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcMidpointTest::RunTest(const FString&)
+{
+	const float Tol = UE_KINDA_SMALL_NUMBER;
+	TestEqual(TEXT("🔴 un tratto di 1000 si alza di 200 al centro"),
+		URTPlaybackLibrary::ChainArcMidpoint(FVector(0, 0, 0), FVector(1000, 0, 0)), FVector(500, 0, 200), Tol);
+	TestEqual(TEXT("🔴 l'alzata si somma alla quota del tratto, non la sostituisce: 100 + 120"),
+		URTPlaybackLibrary::ChainArcMidpoint(FVector(0, 0, 100), FVector(0, 600, 100)), FVector(0, 300, 220), Tol);
+
+	const FVector Fermo(120, -40, 75);
+	const FVector Medio = URTPlaybackLibrary::ChainArcMidpoint(Fermo, Fermo);
+	TestFalse(TEXT("⛔ con Start == End nessuna componente e' NaN"), Medio.ContainsNaN());
+	TestEqual(TEXT("e il centro e' proprio Start"), Medio, Fermo, Tol);
+	return true;
+}
+
+/**
+ * I tre punti della scarica vanno sulla spline dell'attore, in spazio mondo, e la riscrittura SOSTITUISCE — [D-621].
+ *
+ * 🔑 Il data interface `Spline` del Niagara rilegge i punti al cambio di versione: la spline va riscritta, non
+ * allungata. Un'`AddSplinePoint` al posto di `SetSplinePoints` accoderebbe tre punti a ogni chiamata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcPointsTest,
+	"RefactorTactics.Playback.ChainArcPointsGoOnTheSpline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcPointsTest::RunTest(const FString&)
+{
+	USplineComponent* Spline = NewObject<USplineComponent>(GetTransientPackage());
+	if (!TestNotNull(TEXT("⛔ premessa: la spline di prova"), Spline)) { return false; }
+
+	const float Tol = UE_KINDA_SMALL_NUMBER;
+	const FVector Partenza(0, 0, 0);
+	const FVector Arrivo(1000, 0, 0);
+	URTPlaybackLibrary::SetChainArcPoints(*Spline, Partenza, Arrivo);
+	if (!TestEqual(TEXT("🔴 tre punti: partenza, mezzo, arrivo"), Spline->GetNumberOfSplinePoints(), 3)) { return false; }
+	TestEqual(TEXT("il primo punto e' la partenza"),
+		Spline->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World), Partenza, Tol);
+	TestEqual(TEXT("il secondo e' il punto di mezzo, alzato"),
+		Spline->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World),
+		URTPlaybackLibrary::ChainArcMidpoint(Partenza, Arrivo), Tol);
+	TestEqual(TEXT("il terzo e' l'arrivo"),
+		Spline->GetLocationAtSplinePoint(2, ESplineCoordinateSpace::World), Arrivo, Tol);
+
+	// Una seconda scrittura con altri estremi: i punti restano tre, e sono quelli nuovi.
+	const FVector Partenza2(-300, 200, 50);
+	const FVector Arrivo2(100, 800, 50);
+	URTPlaybackLibrary::SetChainArcPoints(*Spline, Partenza2, Arrivo2);
+	if (!TestEqual(TEXT("🔴 riscrivere sostituisce, non accoda: ancora tre punti"),
+		Spline->GetNumberOfSplinePoints(), 3)) { return false; }
+	TestEqual(TEXT("la nuova partenza"),
+		Spline->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World), Partenza2, Tol);
+	TestEqual(TEXT("il nuovo mezzo"),
+		Spline->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World),
+		URTPlaybackLibrary::ChainArcMidpoint(Partenza2, Arrivo2), Tol);
+	TestEqual(TEXT("il nuovo arrivo"),
+		Spline->GetLocationAtSplinePoint(2, ESplineCoordinateSpace::World), Arrivo2, Tol);
+	return true;
+}
+
+namespace
+{
+	/** Gli attori vivi del mondo: validi e non in distruzione. Un attore appena distrutto non conta. */
+	int32 ContaAttoriViviCatena(UWorld* World)
+	{
+		int32 N = 0;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (IsValid(*It) && !It->IsActorBeingDestroyed())
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+}
+
+/**
+ * ⛔ Un asset senza spline non lascia un attore a mezz'aria: nasce, si vede che non serve, e si distrugge — [D-621].
+ *
+ * 🔑 Il contratto con l'asset e' una `USplineComponent` sull'attore. Un Blueprint copiato male senza spline
+ * non deve restare vivo per `LifeSeconds` nel mondo, fermo e invisibile, a ogni salto della catena.
+ * ✅ Validato per mutazione: togliere `Destroy()` da `SpawnChainArcActor` lascia un attore in piu' nel mondo, e cade
+ * l'asserto sul conteggio — non quello sulla nascita, che fa da controllo positivo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcActorNeedsASplineTest,
+	"RefactorTactics.Playback.ChainArcActorNeedsASpline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcActorNeedsASplineTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	// 🔑 Controllo positivo: senza sapere che l'attore e' NATO, «non resta vivo» sarebbe vero anche se lo spawn fallisse.
+	int32 Nati = 0;
+	const FDelegateHandle Ascolto = World->AddOnActorSpawnedHandler(
+		FOnActorSpawned::FDelegate::CreateLambda([&Nati](AActor*) { ++Nati; }));
+
+	const int32 Prima = ContaAttoriViviCatena(World);
+	AActor* const Arco = URTPlaybackLibrary::SpawnChainArcActor(*World, *AActor::StaticClass(),
+		FVector(0, 0, 0), FVector(1000, 0, 0), 1.5f);
+	World->RemoveOnActorSpawnedHandler(Ascolto);
+
+	TestEqual(TEXT("⛔ premessa: l'attore e' stato creato"), Nati, 1);
+	TestNull(TEXT("🔴 un attore senza spline non restituisce niente"), Arco);
+	TestEqual(TEXT("🔴 e non resta vivo: gli attori sono quelli di prima"), ContaAttoriViviCatena(World), Prima);
 	return true;
 }
 

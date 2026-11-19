@@ -162,8 +162,10 @@ private:
 	 * ➕ [D-621] (#4136): il salto della scarica a catena che porta l'elemento `Elemento` della sequenza — al lancio di un
 	 * colpo, o all'impronta di un atto che non ha colpito nessuno. Parte solo per un'azione con una riga in
 	 * `DeclaredChainFxRows` e quando chi guarda conosce tutti gli estremi (`URTPlaybackLibrary::ChainHopFor`).
-	 * ⛔ Presentazione e basta: un asset assente, un mondo senza mappa o un server dedicato non lanciano niente, e il
-	 * playback prosegue uguale.
+	 * Lancia un attore per salto (`URTPlaybackLibrary::SpawnChainArcActor`): la classe e' quella della riga, e il suo
+	 * Niagara segue la spline su cui il playback scrive i tre punti.
+	 * ⛔ Presentazione e basta: una classe assente o senza spline, un mondo senza mappa o un server dedicato non lanciano
+	 * niente, e il playback prosegue uguale.
 	 */
 	void SpawnChainArc(int32 Elemento);
 

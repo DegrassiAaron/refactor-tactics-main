@@ -13,9 +13,6 @@
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: oggi arriva dalla PCH condivisa, ma il file non deve dipenderne
-#include "NiagaraComponent.h"       // [D-621]: la scarica a catena, i due parametri utente
-#include "NiagaraFunctionLibrary.h" // [D-621]: `SpawnSystemAtLocation`
-#include "NiagaraSystem.h"
 
 /*
  * I corpi qui sotto sono quelli che vivevano in `RTTurnManager.cpp`, spostati con le loro note (#4057). Cambia solo il
@@ -981,24 +978,14 @@ void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
 
 	// ⚠️ `LOAD_NoWarn | LOAD_Quiet`: l'asset vive sotto `Content/`, che git ignora, e su un clone che non lo ha il salto
 	// semplicemente non parte. Un warning a ogni colpo sarebbe rumore, non un difetto.
-	UNiagaraSystem* const Sistema = LoadObject<UNiagaraSystem>(nullptr, *Fx->System.ToString(), nullptr,
-		LOAD_NoWarn | LOAD_Quiet);
-	if (!Sistema)
+	UClass* const Classe = LoadClass<AActor>(nullptr, *Fx->ArcClass.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!Classe)
 	{
-		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *Fx->System.ToString());
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *Fx->ArcClass.ToString());
 		return;
 	}
-	// 🔑 Spento alla nascita e acceso DOPO i due parametri: attivato subito, il primo fotogramma avrebbe gli estremi
-	// del template.
-	UNiagaraComponent* const Arco = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Sistema, Inizio,
-		FRotator::ZeroRotator, FVector(1.f), /*bAutoDestroy=*/ true, /*bAutoActivate=*/ false, ENCPoolMethod::None,
-		/*bPreCullCheck=*/ false);
-	if (Arco)
-	{
-		Arco->SetVariablePosition(FName(TEXT("BeamStart")), Inizio);
-		Arco->SetVariablePosition(FName(TEXT("BeamEnd")), Fine);
-		Arco->Activate(true);
-	}
+	// 🔑 Un attore per salto: la spline e il Niagara che la percorre stanno nell'asset, qui si scrivono solo i tre punti.
+	URTPlaybackLibrary::SpawnChainArcActor(*World, *Classe, Inizio, Fine, Fx->LifeSeconds);
 }
 
 void FRTPlaybackDirector::ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)

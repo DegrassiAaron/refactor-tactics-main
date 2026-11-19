@@ -3,6 +3,8 @@
 #include "Turn/Playback/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
 #include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
 #include "Map/RTHexLibrary.h" // [D-621]: `HexDistance`, l'ordine dei colpi lungo la linea
+#include "Components/SplineComponent.h" // [D-621]: la scarica a catena e' un attore con una spline, di cui si scrivono i punti
+#include "Engine/World.h"               // [D-621]: `SpawnActor` del salto
 
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
@@ -1164,4 +1166,47 @@ FRTChainHop URTPlaybackLibrary::ChainHopFor(const TArray<FRTResolvedEvent>& Time
 	Hop.ToCell = Ev.HitGeometry.Impact;
 	Hop.bValid = true;
 	return Hop;
+}
+
+FVector URTPlaybackLibrary::ChainArcMidpoint(const FVector& Start, const FVector& End)
+{
+	// ⚠️ Nessuna normalizzazione: con `Start == End` la lunghezza e' zero e l'alzata si annulla da sola, senza un NaN.
+	const double Lunghezza = FVector::Dist(Start, End);
+	return (Start + End) * 0.5 + FVector::UpVector * (Lunghezza * ChainArcLiftFraction);
+}
+
+void URTPlaybackLibrary::SetChainArcPoints(USplineComponent& Spline, const FVector& Start, const FVector& End)
+{
+	// 🔑 `SetSplinePoints` azzera e riscrive: la spline di un salto riscritto resta di tre punti, non ne accoda altri tre.
+	const TArray<FVector> Punti = { Start, ChainArcMidpoint(Start, End), End };
+	Spline.SetSplinePoints(Punti, ESplineCoordinateSpace::World, /*bUpdateSpline=*/ true);
+}
+
+AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
+	float LifeSeconds)
+{
+	FActorSpawnParameters Params;
+	// ⚠️ `AlwaysSpawn`: un salto che nasce dentro la geometria di un'unita' resta un effetto, non una collisione.
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* const Arco = World.SpawnActor<AActor>(&ArcClass, FTransform(Start), Params);
+	if (!Arco)
+	{
+		return nullptr;
+	}
+	Arco->SetActorEnableCollision(false);
+
+	USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
+	if (!Spline)
+	{
+		// ⛔ Senza spline il Niagara dell'attore non ha un percorso da seguire: fermo e invisibile per `LifeSeconds` a
+		// ogni salto, e nessuno se ne accorgerebbe. Si distrugge subito. Verbose, non Warning: l'asset sta fuori da git.
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s non ha una USplineComponent, nessun salto"), *ArcClass.GetPathName());
+		Arco->Destroy();
+		return nullptr;
+	}
+	// 🔑 I punti si scrivono DOPO la nascita: il data interface `Spline` rilegge al cambio di versione, quindi il primo
+	// fotogramma segue gia' i tre punti e non quelli del template.
+	SetChainArcPoints(*Spline, Start, End);
+	Arco->SetLifeSpan(LifeSeconds);
+	return Arco;
 }
