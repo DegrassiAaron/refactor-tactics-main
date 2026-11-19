@@ -604,6 +604,11 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 > ➕ **Aggiunta dopo l'implementazione di questa spec**, con [#4136](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4136).
 > Le decisioni (a)–(d) sono dell'autore, nel testo di D-621; il resto di questa sezione è dell'assistente ed è ribaltabile.
 > Misurato su `main` = `014de8507`.
+>
+> ➕ **Dal 2026-11-19 il salto è un attore con spline, non più un sistema Niagara**
+> ([disegno](2026-11-16-scarica-a-spline-e-bersagli-del-banco-design.md), approvato dall'autore il 2026-11-19): i punti 4 e 6
+> sono riscritti e il 7 è nuovo. Le decisioni (e) e (f) di D-621 sono dell'autore; il socket, il punto alzato e la vita
+> dell'attore sono dell'assistente.
 
 1. **L'ordine dei colpi di un atto a linea.** `URTPlaybackLibrary::BuildBlastSequence` ordina gli `Attack` di un atto
    con un'impronta `Line` per `HexDistance` dall'`Origin` dell'impronta all'`Impact` del colpo, a pari distanza in ordine
@@ -624,15 +629,42 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    `LaunchPlaybackAttack`; l'arco a vuoto parte al battito dell'impronta. Lo lancia solo un'azione con una riga in
    `URTPresentationBindingLibrary::DeclaredChainFxRows`, e la tabella non ha default per forma. Gli estremi vengono da
    `ARTUnit::ChainFxAnchor`: il socket della riga per chi lancia, il centro dei limiti della mesh per i colpiti, e
-   `AxialToWorld` dell'`AimCell` per l'arco a vuoto. Il sistema nasce spento, riceve `BeamStart` e `BeamEnd` (parametri
-   utente *Position*, spazio mondo) e poi si accende. Asset assente (`LOAD_NoWarn`), mappa assente o server dedicato:
-   nessun lancio. Lo zigzag del profilo resta sotto (D-621 (c)).
+   `AxialToWorld` dell'`AimCell` per l'arco a vuoto. La riga è `FRTChainFxBinding { ArcClass, SourceSocket, LifeSeconds }`
+   e dice la **classe** di un attore, non un sistema Niagara. Per ogni salto il director crea quell'attore in `Start`,
+   `AlwaysSpawn` e senza collisione, scrive sulla sua `USplineComponent` tre punti in spazio mondo (la partenza, il centro
+   del tratto alzato di `ChainArcLiftFraction` = 0,2 della sua lunghezza, l'arrivo: `URTPlaybackLibrary::ChainArcMidpoint`,
+   funzione pura, e `SetChainArcPoints`) e gli dà `LifeSeconds` di vita, così si toglie da solo (`SpawnChainArcActor`).
+   **Il contratto con l'asset è la classe con la spline**, non più i parametri utente `BeamStart` e `BeamEnd`: la classe è
+   `BP_Gadget_LinearDischarge_Arc`, la copia di `BP_SplineVFX_ElectricLightning` del pack Free Spline VFX, che porta già la
+   spline, il Niagara che la percorre e la crescita dell'effetto. Un attore senza spline si distrugge e lo scrive solo nel
+   log a `Verbose`. Classe assente (`LoadClass` con `LOAD_NoWarn | LOAD_Quiet`), mappa assente o server dedicato: nessun
+   lancio. **Il socket è `canister_main`, l'osso della sfera, e non è provvisorio**: `LMB_Fire_B_Slow_V1`, l'animazione
+   dello sparo, anima proprio quello, quindi l'arco parte da dove la sfera è in quel momento; l'autore ha lasciato la scelta
+   («scegli tu il socket»), e `FX_canister_socket_L` e `FX_canister_socket_R` sono nello scheletro ma l'animazione dello
+   sparo non li nomina. Il codice non chiama più Niagara: il modulo e la voce del plugin non stanno più in
+   `RefactorTactics.Build.cs` e nel `.uproject`. Lo zigzag del profilo resta sotto (D-621 (c)).
 5. **D-278.** `SpawnChainArc` entra fra le cue di `Attack` e di `AttackFootprint`.
 6. **Test**: `Playback.LineActHitsAreShownAlongTheLine`, `Playback.LineActKeepsTimelineOrderWhenNotFullyKnown`,
    `Playback.NonLineActKeepsTimelineOrder`, `Playback.LineActOrderKeepsTheFrozenPrefixVerbatim`,
    `Playback.ChainHopGoesFromTheSourceThenVictimToVictim`, `Playback.ChainHopWithoutVictimsArcsToTheAimCell`,
-   `Playback.ChainHopNeedsEveryEndKnownToTheViewer`, `Presentation.ChainFxIsDeclaredOnlyForLinearDischarge` e, nel
-   playback vero, `Playback.ChainArcHopsFollowTheLine`. Voce PIE: `PIE-FX-CHAIN`.
+   `Playback.ChainHopNeedsEveryEndKnownToTheViewer`, `Presentation.ChainFxIsDeclaredOnlyForLinearDischarge` (che ora dice
+   la classe e il socket) e, nel playback vero, `Playback.ChainArcHopsFollowTheLine`. Del salto su spline:
+   `Playback.ChainArcMidpointLiftsTheMiddle`, `Playback.ChainArcPointsGoOnTheSpline`, `Playback.ChainArcActorNeedsASpline`
+   e `Playback.ChainArcActorWritesTheWorldPoints`, con la sonda
+   `Source/RefactorTactics/Tests/Turn/Playback/Reveal/RTChainArcProbeForTest.h`. Voce PIE: `PIE-FX-CHAIN`.
+7. **I bersagli del banco** ([disegno §5.2](2026-11-16-scarica-a-spline-e-bersagli-del-banco-design.md)). Perché la
+   catena si veda su 1, 2 e 3 colpiti, il banco Ability / Hero Lab posa da 1 a 3 bersagli (`FRTAbilityLabFixtureSpec::TargetCount`,
+   con 1 di default, scritto nel tag `lab-targets-N` della scena: `R` ricarica lo stesso file e lo conserva, `,` e `.` lo
+   passano alla scena successiva). Il tasto `U` (`IA_LabTargets`), solo in una scena `AbilityLab.*`, lo porta 1→2→3→1,
+   ricostruisce la scena e la fa ripartire. Le celle le dà `URTHexCombatLibrary::HexHitCells`: il banco non scrive una
+   seconda geometria del colpo. Per LinearDischarge a 3 bersagli il `TARGET` passa in (3,0) e gli altri due stanno in (1,0)
+   e (2,0). Una cella sola, una reazione, uno scatto, un bordo o un'azione su se stessi restano a un bersaglio. La banda
+   dice `«U» bersagli N`, più ` (qui ne stanno K)` se K < N. Test: `AbilityLab.LineTargetsGrowAlongTheLine`,
+   `AbilityLab.AreaTargetsStayInsideTheArea`, `AbilityLab.SingleTargetActionsStayAtOne`,
+   `AbilityLab.TargetCountTravelsInTheSceneTag`, `AbilityLab.TargetKeyCyclesAndIsInertOutside`,
+   `AbilityLab.StepHintNamesTheTargetCount`, `AbilityLab.StepSceneCarriesTheTargetCount`,
+   `AbilityLab.TargetsSceneCyclesTheTargetCount`, `PlayerInput.LabTargetsKeyIsU` e `Scenario.LabTargetsAreInertOutsideTheLab`.
+   Voce PIE: `PIE-LAB-BERSAGLI`.
 
 ---
 
@@ -644,7 +676,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
   dalla sequenza del Blast.
 - Suono: `RT-CAP-AUDIO` non ha implementazione.
 - Asset Niagara o Cascade (D-124), materiali, decal, mesh: nessun `.uasset`, nessun authoring nel clone principale.
-  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge: un sistema Niagara per salto, [D-621](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
+  ➕ *Dal 2026-11-16 non più per la scarica di LinearDischarge: un attore con spline per salto, copia di un Blueprint del pack, scritto nel clone principale, [D-621](../../decisions/RT_PDR_00_Decision_Log.md) e §2.10.*
 - I profili come dati esterni (DataAsset, JSON): la migrazione di D-278 resta possibile e non si fa.
 - Un `CastShowSeconds` o una durata per abilità: le durate sono ritmo (R2).
 - Le varianti di tracer sugli attacchi base (D5).

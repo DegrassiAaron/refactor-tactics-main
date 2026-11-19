@@ -50,7 +50,9 @@ di acquisizione (2026-09-04). Per i 26 pack personaggio la data d'acquisizione *
 registrata da nessuna parte**: il valore è il `mtime` della cartella root, misurato il 2026-09-05. È una
 misura del filesystem, non un atto — e i 26 valori identici al 2026-08-06 sono coerenti con l'unica
 importazione in blocco che le fonti descrivono, ma non ne sono la prova. Per il contenuto versionato la
-data è quella del primo commit che lo introduce.
+data è quella del primo commit che lo introduce. Per Free Spline VFX (`_SplineVFX`) la data è il `mtime` della
+cartella root, misurato il 2026-11-19: come per i pack personaggio è una misura del filesystem e non un atto, e dice
+quando la cartella è stata scritta su questo disco, non quando il pack è arrivato all'autore dalla libreria dell'amico.
 
 🔴 **La colonna `UE` dice `5.8`**, che è ciò che `RefactorTactics.uproject` dichiara come
 `EngineAssociation` **da sempre** — dal 2026-08-01, mai cambiato. `CLAUDE.md` pinna la patch `5.8.1`;
@@ -98,6 +100,7 @@ acquisizioni qui elencate ha attraversato un cambio di major.
 | Paragon: Yin | `/Game/FabAsset/Paragon/ParagonYin/` | Fab · Epic Games — listing n/d | Fab Standard License | listing n/d | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 | Paragon: Zinx | `/Game/FabAsset/Paragon/ParagonZinx/` | [Fab · Epic Games](https://www.fab.com/listings/15e6593c-3696-4f87-99ef-fcec9e3138fd) | Fab Standard License | listing `15e6593c` | 2026-08-06 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
 | Free Spells — effetti Niagara | `/Game/FabAsset/UrtanoVFX/Free_Spells/` | [Fab · UrtanoVFX](https://www.fab.com/listings/967b7892-d46c-4d75-8121-33418a6899ce) | Fab Standard License, tier *Personal* (gratuito; da confermare nella libreria Fab) | listing `967b7892` | 2026-11-12 | 5.8 | nessuna — ⛔ NoAI §5 | nessuno — presente, non cotto |
+| Free Spline VFX | `/Game/FabAsset/_SplineVFX/` | [Fab · Dr.Game](https://www.fab.com/listings/2b923e61-b02d-4cc9-bd0b-b067c9e6056e) | Fab Standard License, gratuito; la copia sul disco viene dalla libreria di un amico dell'autore, da aggiungere a quella dell'autore | listing `2b923e61` | 2026-11-13 | 5.8 | nessuna — ⛔ NoAI §5 | `BP_Gadget_LinearDischarge_Arc` |
 
 <!-- registro:fine -->
 
@@ -126,7 +129,8 @@ node tools/asset-provenance/check.ts
 
 **Quali pack.** I listing Fab dei pack Paragon dichiarano `allows_usage_with_ai: false`. Quello di
 Free Spells (UrtanoVFX) dice *Allows usage with AI: No*, `isAiForbidden: true` nel JSON della pagina
-(letto il 2026-11-13). Per un pack nuovo si guarda la stessa riga della sua pagina.
+(letto il 2026-11-13). Free Spline VFX (Dr.Game) dice *Allows usage with AI: No* (letta il 2026-11-19). Per un pack
+nuovo si guarda la stessa riga della sua pagina.
 
 **Che cosa dice la licenza.** La Fab EULA (testo del 2024-10-01, §6 punto vii e §16(l)(i), letta il
 2026-11-13 su <https://www.fab.com/i/eula/fab_eula>) vieta di usare i contenuti marcati così
