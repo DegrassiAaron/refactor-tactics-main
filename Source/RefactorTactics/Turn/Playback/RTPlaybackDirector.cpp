@@ -136,12 +136,16 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 	}
 
 	// ➕ #4166: nel banco le unita' rallentano con i battiti. `BenchPlaybackSpeed` scala solo l'orologio del playback
-	// (`Dt = DeltaSeconds * EffectivePlaybackSpeed`): le clip delle unita' e il Niagara attaccato a loro girano a velocita' piena, e il
-	// banco mostra pause che non ci sono. La dilatazione e' per attore, `CustomTimeDilation`, e non del mondo: `SetGlobalTimeDilation`
-	// e `SetPause` sono vietate (CP 46.6, #941). Fuori dal banco la velocita' e' zero e la dilatazione vale 1: una partita normale non cambia.
+	// (`Dt = DeltaSeconds * EffectivePlaybackSpeed`): le clip delle unita' girano a velocita' piena, e il banco mostra pause che non
+	// ci sono. La dilatazione e' per attore, `CustomTimeDilation`, e non del mondo: `SetGlobalTimeDilation` e `SetPause` sono vietate
+	// (CP 46.6, #941). Fuori dal banco la velocita' e' zero e la dilatazione vale 1: una partita normale non cambia.
 	// 🔑 **Solo quando RICOMINCIA, mai quando ESTENDE**, come la politica di `bStartPlaybackPaused` qui sopra: `BeginPlayback(true)` e'
 	// la ripresa di un playback in corso dopo una finestra di reazione, e cio' che l'avvio ha scritto resta. Prima di qualunque
 	// battito: nessuna clip e' partita, quindi nessuna parte a velocita' piena.
+	// ⚠️ **Limite dichiarato: il Niagara delle unita' NON e' coperto.** Niagara in modo batched (il default) tica col delta del
+	// mondo e non segue `CustomTimeDilation` dell'attore; per l'arco `SpawnChainArcActor` forza il modo solo sui componenti che
+	// l'attore ha gia' alla nascita. Il Niagara che le notify delle clip attaccano alle unita' nasce DOPO, dal montage, e da
+	// qui non si raggiunge: non si prova a forzarlo, e puo' restare a velocita' piena.
 	if (!bPreserveClock)
 	{
 		const float Dilatazione = URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed);
@@ -1043,10 +1047,12 @@ void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
 
 	// ⚠️ `LOAD_NoWarn | LOAD_Quiet`: l'asset vive sotto `Content/`, che git ignora, e su un clone che non lo ha il salto
 	// semplicemente non parte. Un warning a ogni colpo sarebbe rumore, non un difetto.
-	UClass* const Classe = LoadClass<AActor>(nullptr, *Fx->ArcClass.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// ➕ #4166: la classe passa da `ChainArcClassFor`, l'unico punto che la ricava: un test la punta sulla sonda (`SetChainArcClassOverrideForTest`).
+	const FString PercorsoArco = URTPresentationBindingLibrary::ChainArcClassFor(*Fx).ToString();
+	UClass* const Classe = LoadClass<AActor>(nullptr, *PercorsoArco, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (!Classe)
 	{
-		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *Fx->ArcClass.ToString());
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *PercorsoArco);
 		return;
 	}
 	// 🔑 Un attore per salto: la spline e il Niagara che la percorre stanno nell'asset, qui si scrivono solo i tre punti.

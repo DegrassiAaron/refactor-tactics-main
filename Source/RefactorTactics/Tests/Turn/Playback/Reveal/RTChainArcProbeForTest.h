@@ -49,3 +49,45 @@ public:
 		bReplicates = true;
 	}
 };
+
+/**
+ * La stessa sonda, con DUE componenti Niagara creati per classe a runtime — #4166.
+ *
+ * 🔑 Il modulo Niagara non e' una dipendenza del C++ ([D-621]), quindi il tipo non si puo' nominare: la classe si cerca per nome
+ * (`/Script/Niagara.NiagaraComponent`) e i componenti nascono in `OnConstruction`, che gira durante lo spawn — cioe' PRIMA che
+ * `SpawnChainArcActor` ritorni, come i componenti di un Blueprint. Non nel costruttore: il CDO si costruisce al caricamento del
+ * modulo, quando Niagara puo' non esserci ancora. Non in `PostInitializeComponents`: nei mondi di prova, che non sono
+ * inizializzati per il gioco, non viene chiamata (misurato: l'attore nasceva con zero componenti).
+ * Due e non uno, perche' la regola e' «ogni componente Niagara dell'attore». Senza il plugin non se ne crea nessuno, e un test
+ * che li conta lo dice.
+ */
+UCLASS(NotBlueprintable, NotPlaceable, HideDropdown)
+class ARTChainArcNiagaraProbeForTest : public ARTChainArcProbeForTest
+{
+	GENERATED_BODY()
+
+public:
+	virtual void OnConstruction(const FTransform& Transform) override
+	{
+		Super::OnConstruction(Transform);
+		UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
+		if (!NiagaraClass || bNiagaraCreato)
+		{
+			return;
+		}
+		bNiagaraCreato = true;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			UActorComponent* const Componente = NewObject<UActorComponent>(this, NiagaraClass, *FString::Printf(TEXT("NiagaraProbe%d"), I));
+			if (USceneComponent* const Scena = Cast<USceneComponent>(Componente))
+			{
+				Scena->SetupAttachment(GetRootComponent());
+			}
+			Componente->RegisterComponent();
+		}
+	}
+
+private:
+	/** `OnConstruction` puo' rigirare (`RerunConstructionScripts`): i componenti si creano una volta sola. */
+	bool bNiagaraCreato = false;
+};

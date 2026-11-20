@@ -940,9 +940,11 @@ namespace
 /**
  * Nel playback vero, ogni unita' del mondo prende la dilatazione del banco — #4166, Review Focus 1.
  *
- * 🔴 `BenchPlaybackSpeed` scala solo l'orologio del playback: le clip delle unita' e il Niagara attaccato a loro girano a velocita'
- * piena e il banco mostra pause che non ci sono. `SetGlobalTimeDilation` non e' una strada (#941): resta `CustomTimeDilation` per
- * attore, che ARTUnit non ha motivo di contraddire perche' non ha tick proprio.
+ * 🔴 `BenchPlaybackSpeed` scala solo l'orologio del playback: le clip delle unita' girano a velocita' piena e il banco mostra
+ * pause che non ci sono. `SetGlobalTimeDilation` non e' una strada (#941): resta `CustomTimeDilation` per attore, che ARTUnit non
+ * ha motivo di contraddire perche' non ha tick proprio.
+ * ⚠️ Il Niagara che le notify delle clip attaccano alle unita' NON e' coperto: nasce dopo, dal montage, e in modo batched non segue la
+ * dilatazione dell'attore. Questo test misura la proprieta' dell'attore, non cio' che il Niagara ne fa.
  * 🔑 Due mondi: nel banco (x0,5) ogni unita' va a 0,5; fuori dal banco (0) ogni unita' va a 1 — cioe' una partita normale non cambia.
  * ⚠️ Il secondo mondo parte da una dilatazione SENTINELLA (0,3) e non da 1: «tutte a 1» dopo il turno sarebbe vero anche se il
  * director non scrivesse niente, e non direbbe che l'assegnazione c'e' ed e' il valore giusto. La premessa `IsResolving` dice che il
@@ -1068,6 +1070,163 @@ bool FRTPlaybackBenchSlowdownSurvivesResumeTest::RunTest(const FString&)
 
 	TestEqual(TEXT("🔴 la ripresa non riscrive la dilatazione: la sentinella di Bracer resta"), Bracer->CustomTimeDilation, 0.37f);
 	TestEqual(TEXT("🔴 e Pusher resta a x0,5 per tutta la ripresa"), Pusher->CustomTimeDilation, 0.5f);
+	return true;
+}
+
+namespace
+{
+	/** I componenti Niagara di `Attore`. Il tipo non si nomina (il modulo non e' una dipendenza del C++, [D-621]): si cerca la classe per nome. */
+	TArray<UActorComponent*> ComponentiNiagaraDelBanco(const AActor* Attore)
+	{
+		TArray<UActorComponent*> Out;
+		const UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
+		if (Attore && NiagaraClass)
+		{
+			for (UActorComponent* const C : Attore->GetComponents())
+			{
+				if (C && C->IsA(NiagaraClass)) { Out.Add(C); }
+			}
+		}
+		return Out;
+	}
+
+	/** Chiama per riflessione una `UFUNCTION` senza argomenti che ritorna `T` (`bool` o `float`). Falso se la firma non e' quella. */
+	template <typename T>
+	bool BancoLeggiPerRiflessione(UObject* Oggetto, const TCHAR* Funzione, T& OutValore)
+	{
+		UFunction* const F = Oggetto ? Oggetto->FindFunction(Funzione) : nullptr;
+		if (!F || F->ParmsSize != sizeof(T)) { return false; }
+		T Ritorno{};
+		Oggetto->ProcessEvent(F, &Ritorno);
+		OutValore = Ritorno;
+		return true;
+	}
+}
+
+/**
+ * Nel banco il Niagara dell'arco e' in modo solo FORZATO, con la dilatazione del componente a 1 — #4166.
+ *
+ * 🔴 Niagara NON segue `AActor::CustomTimeDilation` nel modo di default: in batched il world manager lo tica col delta del mondo. In modo
+ * solo il tick del componente riceve il delta gia' moltiplicato per la dilatazione dell'attore, e Niagara lo moltiplica ancora per la
+ * propria: per avere esattamente 0,5 il solo si FORZA (`SetForceSolo`) e la dilatazione del componente resta 1 — impostarla a 0,5 darebbe
+ * 0,25. Si misura per riflessione (`GetForceSolo`, `GetCustomTimeDilation`): il modulo Niagara non e' una dipendenza del C++.
+ * 🔑 La sonda `ARTChainArcNiagaraProbeForTest` ha DUE componenti Niagara creati per classe; il controllo positivo e' che ci siano, e che
+ * il caso senza dilatazione li lasci batched: senza, «forzato» sarebbe vero per un componente che lo e' sempre.
+ * ✅ Validato per mutazione: togliere la chiamata a `ForceNiagaraSoloOnChainArc` da `SpawnChainArcActor` fa cadere il caso del banco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcNiagaraForcedSoloTest,
+	"RefactorTactics.Playback.ChainArcNiagaraIsForcedSoloInTheBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcNiagaraForcedSoloTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	struct FCasoNiagara
+	{
+		const TCHAR* Nome;
+		bool bPassaLaDilatazione;
+		float Dilatazione;
+		bool bSoloForzatoAtteso;
+	};
+	const FCasoNiagara Casi[] = {
+		{ TEXT("banco x0,5"),                     true,  0.5f, true  },
+		{ TEXT("controllo positivo: senza argomento"), false, 0.f,  false },
+		{ TEXT("dilatazione 2 e' fuori scala"),   true,  2.f,  false },
+		{ TEXT("dilatazione 0 e' fuori dal banco"), true, 0.f,  false },
+	};
+
+	for (const FCasoNiagara& Caso : Casi)
+	{
+		AActor* const Arco = Caso.bPassaLaDilatazione
+			? URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcNiagaraProbeForTest::StaticClass(),
+				FVector(0, 0, 0), FVector(1000, 0, 0), 1.5f, Caso.Dilatazione)
+			: URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcNiagaraProbeForTest::StaticClass(),
+				FVector(0, 0, 0), FVector(1000, 0, 0), 1.5f);
+		if (!TestNotNull(*FString::Printf(TEXT("⛔ premessa (%s): l'attore e' nato"), Caso.Nome), Arco)) { continue; }
+		ON_SCOPE_EXIT{ if (IsValid(Arco)) { Arco->Destroy(); } };
+
+		const TArray<UActorComponent*> Niagara = ComponentiNiagaraDelBanco(Arco);
+		if (!TestEqual(*FString::Printf(TEXT("⛔ premessa (%s): l'attore ha i due componenti Niagara (il plugin e' attivo)"), Caso.Nome),
+			Niagara.Num(), 2)) { continue; }
+
+		for (UActorComponent* const C : Niagara)
+		{
+			bool bSolo = !Caso.bSoloForzatoAtteso;
+			float DilatazioneDelComponente = 0.f;
+			if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): GetForceSolo e GetCustomTimeDilation si chiamano per riflessione"), Caso.Nome),
+				BancoLeggiPerRiflessione<bool>(C, TEXT("GetForceSolo"), bSolo)
+				&& BancoLeggiPerRiflessione<float>(C, TEXT("GetCustomTimeDilation"), DilatazioneDelComponente))) { continue; }
+
+			TestEqual(*FString::Printf(TEXT("🔴 (%s) modo solo forzato"), Caso.Nome), bSolo, Caso.bSoloForzatoAtteso);
+			TestEqual(*FString::Printf(TEXT("🔴 (%s) la dilatazione del componente resta 1: il totale e' quello dell'attore, non il suo quadrato"), Caso.Nome),
+				DilatazioneDelComponente, 1.f);
+		}
+	}
+	return true;
+}
+
+/**
+ * Nel playback vero, il director passa all'arco la dilatazione del banco: dilatazione dell'attore e vita divisa — #4166.
+ *
+ * 🔴 Il passaggio sta dopo il `LoadClass` di un asset che git ignora (`BP_Gadget_LinearDischarge_Arc`): su un clone senza `Content/`
+ * il director non spawna niente, e togliere il sesto argomento di `SpawnChainArcActor` lasciava verdi tutti i test. Qui la classe
+ * dell'arco e' la sonda del modulo (`SetChainArcClassOverrideForTest`, SOLO per i test, azzerata con `ON_SCOPE_EXIT`), quindi il
+ * ramo che segue il `LoadClass` gira per davvero.
+ * 🔑 Il controllo positivo e' che gli archi esistano e siano tanti quanti i salti della traccia: senza, «tutti a 0,5» sarebbe vero a
+ * vuoto. Il secondo mondo (`BenchPlaybackSpeed = 0`) li vuole a 1 e con la vita della riga: una partita normale non cambia.
+ * ✅ Validato per mutazione: togliere l'ultimo argomento della chiamata a `SpawnChainArcActor` in `SpawnChainArc` lascia gli archi del
+ * banco a 1 e con la vita della riga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBenchDirectorPassesTheDilationToTheArcTest,
+	"RefactorTactics.Playback.ChainArcSpawnedByTheDirectorFollowsTheBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBenchDirectorPassesTheDilationToTheArcTest::RunTest(const FString&)
+{
+	const TArray<TPair<FName, FRTChainFxBinding>>& Righe = URTPresentationBindingLibrary::DeclaredChainFxRows();
+	if (!TestTrue(TEXT("⛔ premessa: la tabella delle scariche ha una riga"), Righe.Num() > 0)) { return false; }
+	const float VitaDellaRiga = Righe[0].Value.LifeSeconds;
+	if (!TestTrue(TEXT("⛔ premessa: la vita della riga e' positiva"), VitaDellaRiga > 0.f)) { return false; }
+
+	URTPresentationBindingLibrary::SetChainArcClassOverrideForTest(FSoftClassPath(ARTChainArcProbeForTest::StaticClass()->GetPathName()));
+	ON_SCOPE_EXIT{ URTPresentationBindingLibrary::SetChainArcClassOverrideForTest(FSoftClassPath()); };
+
+	for (const float Banco : { 0.5f, 0.f })
+	{
+		const float DilatazioneAttesa = Banco > 0.f ? Banco : 1.f;
+		const FString Mondo = Banco > 0.f ? TEXT("banco x0,5") : TEXT("fuori dal banco");
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(*FString::Printf(TEXT("mondo di prova (%s)"), *Mondo), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		TArray<ARTUnit*> Unita;
+		ARTTurnManager* const TM = SetUpBancoInFila(World, Unita);
+		if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): il turno si costruisce"), *Mondo), TM != nullptr && Unita.Num() == 4)) { return false; }
+		TM->bRecordAttackBeatsForTest = true;
+		TM->BenchPlaybackSpeed = Banco;
+
+		TM->LockInAndResolve();
+		const TArray<FString> Salti = CatenaTracciaDelBlast(TM);
+		if (!TestEqual(*FString::Printf(TEXT("⛔ premessa (%s): la scarica ha fatto tre salti"), *Mondo), Salti.Num(), 3)) { return false; }
+
+		TArray<ARTChainArcProbeForTest*> Archi;
+		for (TActorIterator<ARTChainArcProbeForTest> It(World); It; ++It)
+		{
+			if (IsValid(*It) && !It->IsActorBeingDestroyed()) { Archi.Add(*It); }
+		}
+		if (!TestEqual(*FString::Printf(TEXT("⛔ controllo positivo (%s): un arco per salto, spawnato dal director"), *Mondo),
+			Archi.Num(), Salti.Num())) { return false; }
+
+		for (const ARTChainArcProbeForTest* const Arco : Archi)
+		{
+			TestEqual(*FString::Printf(TEXT("🔴 (%s) la dilatazione dell'arco"), *Mondo), Arco->CustomTimeDilation, DilatazioneAttesa);
+			const float VitaAttesa = VitaDellaRiga / DilatazioneAttesa;
+			TestTrue(*FString::Printf(TEXT("🔴 (%s) la vita dell'arco e' %.2f (e' %.2f)"), *Mondo, VitaAttesa, Arco->GetLifeSpan()),
+				FMath::IsNearlyEqual(Arco->GetLifeSpan(), VitaAttesa, 0.01f));
+		}
+	}
 	return true;
 }
 

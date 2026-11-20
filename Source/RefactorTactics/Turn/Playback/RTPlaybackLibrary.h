@@ -560,9 +560,13 @@ public:
 	 * ⚠️ `LifeSeconds` non positivo (o NaN) vale il default della riga, `FRTChainFxBinding::LifeSeconds`: `SetLifeSpan(0)`
 	 * toglie il timer e l'attore resterebbe nel mondo per sempre.
 	 * ➕ #4166: `TimeDilation` e' la velocita' del banco (`FRTPlaybackTuning::BenchPlaybackSpeed`, `1` = partita normale) e passa
-	 * da `PresentationTimeDilation`. Diventa la `CustomTimeDilation` dell'attore — la spline, il Niagara e la Timeline del Blueprint
-	 * ne seguono il tempo — e la vita si DIVIDE per essa: il timer di `SetLifeSpan` e' del mondo e non segue la dilatazione
+	 * da `PresentationTimeDilation`. Diventa la `CustomTimeDilation` dell'attore, che i componenti ordinari — la Timeline del
+	 * Blueprint — seguono, e la vita si DIVIDE per essa: il timer di `SetLifeSpan` e' del mondo e non segue la dilatazione
 	 * dell'attore, quindi a x0,5 l'arco morirebbe a meta' della sua animazione.
+	 * 🔴 **Il Niagara NON segue la dilatazione dell'attore** nel suo modo di default (batched: tica col delta del mondo). Con
+	 * `TimeDilation < 1` ogni componente Niagara dell'attore si mette in modo solo FORZATO (`SetForceSolo`, per riflessione: il modulo
+	 * non e' una dipendenza del C++, [D-621]) lasciando a 1 la dilatazione del componente, cosi' il totale e' esattamente quello
+	 * dell'attore e non il suo quadrato. Senza il plugin non si fa niente. Raggiunge solo i componenti che l'attore ha alla nascita.
 	 */
 	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
 		float LifeSeconds, float TimeDilation = 1.f);
