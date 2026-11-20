@@ -592,6 +592,22 @@ const TArray<TPair<FName, FRTChainFxBinding>>& URTPresentationBindingLibrary::De
 	return Righe;
 }
 
+namespace
+{
+	/** ➕ #4166: l'override di test della classe dell'arco. Vuoto in produzione. */
+	FSoftClassPath GChainArcClassOverrideForTest;
+}
+
+FSoftClassPath URTPresentationBindingLibrary::ChainArcClassFor(const FRTChainFxBinding& Fx)
+{
+	return GChainArcClassOverrideForTest.IsNull() ? Fx.ArcClass : GChainArcClassOverrideForTest;
+}
+
+void URTPresentationBindingLibrary::SetChainArcClassOverrideForTest(const FSoftClassPath& Class)
+{
+	GChainArcClassOverrideForTest = Class;
+}
+
 const FRTChainFxBinding* URTPresentationBindingLibrary::ChainFxFor(FName ActionId, FName BaseActionId)
 {
 	for (const FName Id : { ActionId, BaseActionId })

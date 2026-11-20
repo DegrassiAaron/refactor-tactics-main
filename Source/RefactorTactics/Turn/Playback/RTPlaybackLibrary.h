@@ -559,9 +559,53 @@ public:
 	 * guarda, e su un listen server un arco replicato ai client direbbe dove sta un colpito che non conoscono.
 	 * ⚠️ `LifeSeconds` non positivo (o NaN) vale il default della riga, `FRTChainFxBinding::LifeSeconds`: `SetLifeSpan(0)`
 	 * toglie il timer e l'attore resterebbe nel mondo per sempre.
+	 * ➕ #4166: `TimeDilation` e' la velocita' del banco (`FRTPlaybackTuning::BenchPlaybackSpeed`, `1` = partita normale) e passa
+	 * da `PresentationTimeDilation`. Diventa la `CustomTimeDilation` dell'attore, che i componenti ordinari — la Timeline del
+	 * Blueprint — seguono, e la vita si DIVIDE per essa: il timer di `SetLifeSpan` e' del mondo e non segue la dilatazione
+	 * dell'attore, quindi a x0,5 l'arco morirebbe a meta' della sua animazione.
+	 * 🔴 **Il Niagara NON segue la dilatazione dell'attore** nel suo modo di default (batched: tica col delta del mondo). Con
+	 * `TimeDilation < 1` ogni componente Niagara dell'attore si mette in modo solo FORZATO (`ForceNiagaraSoloOn`) e il totale e'
+	 * quello dell'attore, non il suo quadrato. Senza il plugin non si fa niente. Raggiunge i componenti che l'attore ha alla nascita
+	 * (quelli del Blueprint): quelli nati dopo li raggiunge il tick del playback, solo per le unita'.
 	 */
 	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
-		float LifeSeconds);
+		float LifeSeconds, float TimeDilation = 1.f);
+
+	/**
+	 * ➕ #4166: la `CustomTimeDilation` di presentazione per una velocita' del banco — `BenchPlaybackSpeed` se e' in `(0, 1]`,
+	 * altrimenti `1`.
+	 * 🔑 `0` e' «fuori dal banco» (il default di `ARTTurnManager::BenchPlaybackSpeed`), e nessun banco e' piu' veloce della
+	 * partita: un valore negativo, sopra `1` o NaN non deve produrre un attore fermo, al rovescio o accelerato. NaN cade nel `1`
+	 * perche' `> 0` con NaN e' falso.
+	 * ⛔ Non e' `SetGlobalTimeDilation` ne' `SetPause` (CP 46.6, #941): la dilatazione e' per attore, mai del mondo.
+	 */
+	static float PresentationTimeDilation(float BenchPlaybackSpeed);
+
+	/**
+	 * ➕ #4166 [D-632]: mette in modo solo FORZATO ogni componente Niagara di `Actor` (`UNiagaraComponent::SetForceSolo(true)`),
+	 * senza toccare la `CustomTimeDilation` del componente. Idempotente: `SetForceSolo` esce se il valore non cambia, quindi si puo'
+	 * richiamare a ogni tick senza costo e senza effetti ripetuti. Con il plugin spento la classe non c'e' e non si fa niente.
+	 *
+	 * 🔴 **Niagara non segue `AActor::CustomTimeDilation` nel suo modo di default.** In modo batched il world manager tica il
+	 * sistema col delta del MONDO (`NiagaraComponent.cpp`, `TickComponent`: «should only be executed when in solo mode»), e la
+	 * dilatazione dell'attore non arriva. In modo solo il tick del componente riceve il delta gia' moltiplicato per quella del
+	 * proprietario (`Actor.h`, `ConditionalTick`) e Niagara lo moltiplica ancora per la propria `CustomTimeDilation`
+	 * (`ManualTick(DeltaSeconds * CustomTimeDilation)`).
+	 * ⛔ **Si forza il solo, non si imposta la dilatazione del componente**: impostarla a 0,5 darebbe il solo (`RequiresSoloMode`) ma
+	 * moltiplicherebbe due volte (0,25). La dilatazione del componente resta quella dell'ASSET — 1 nei pack di oggi — e questa
+	 * funzione non la scrive: un pack con una dilatazione propria diversa da 1 darebbe un totale diverso da quello dell'attore, ed e'
+	 * un caso che oggi non esiste.
+	 *
+	 * ⛔ **Il modulo Niagara non e' una dipendenza del C++** ([D-621]): la classe si cerca per nome a runtime e `SetForceSolo` — una
+	 * `UFUNCTION(BlueprintCallable)` — si chiama per riflessione, solo se la firma e' `(bool)` senza ritorno: altrimenti `ProcessEvent`
+	 * scriverebbe fuori dal blocco, e si lascia il componente com'e'.
+	 * ⚠️ Raggiunge i componenti che `Actor` possiede **in questo momento**: chi la chiama per un attore che ne riceve di nuovi (il Niagara
+	 * che una notify attacca a un'unita' nasce dal montage) deve richiamarla, ed e' per questo che e' idempotente. Un componente nato
+	 * fra due chiamate perde al piu' un fotogramma in batch.
+	 * ⚠️ **Limite**: il Niagara che una notify NON attacca (`Attach` spento: `SpawnSystemAtLocation`) ha per proprietario le `WorldSettings`,
+	 * non l'unita', e da qui non si raggiunge.
+	 */
+	static void ForceNiagaraSoloOn(AActor& Actor);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'

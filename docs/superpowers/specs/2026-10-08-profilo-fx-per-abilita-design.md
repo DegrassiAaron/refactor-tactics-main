@@ -643,6 +643,10 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    («scegli tu il socket»), e `FX_canister_socket_L` e `FX_canister_socket_R` sono nello scheletro ma l'animazione dello
    sparo non li nomina. Il C++ non dipende dal modulo Niagara: né `RefactorTactics.Build.cs` né il `.uproject`
    lo nominano. Lo zigzag del profilo resta sotto (D-621 (c)).
+   ➕ **2026-11-20, nota sulla vita** (il testo qui sopra non si riscrive): nel banco `LifeSeconds` non è più la vita
+   dell'arco. Con [D-632](../../decisions/RT_PDR_00_Decision_Log.md) l'arco nasce con la dilatazione del banco e vive
+   `LifeSeconds` diviso la dilatazione, cioè il doppio a x0,5, perché il timer di `SetLifeSpan` è del mondo. Fuori dal
+   banco la vita resta `LifeSeconds`.
 5. **D-278.** `SpawnChainArc` entra fra le cue di `Attack` e di `AttackFootprint`.
 6. **Test**: `Playback.LineActHitsAreShownAlongTheLine`, `Playback.LineActKeepsTimelineOrderWhenNotFullyKnown`,
    `Playback.NonLineActKeepsTimelineOrder`, `Playback.LineActOrderKeepsTheFrozenPrefixVerbatim`,
@@ -669,6 +673,11 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    `AbilityLab.StepHintNamesTheTargetCount`, `AbilityLab.StepSceneCarriesTheTargetCount`,
    `AbilityLab.TargetsSceneCyclesTheTargetCount`, `PlayerInput.LabTargetsKeyIsU` e `Scenario.LabTargetsAreInertOutsideTheLab`.
    Voce PIE: `PIE-LAB-BERSAGLI`.
+   ➕ **2026-11-20, nota su `R`** (il testo qui sopra non si riscrive): «`R` ricarica lo stesso file e lo conserva» era vero
+   solo a partita finita, perché `ARTPlayerController::OnRestart` ricaricava il livello solo con la fase `MatchEnded`, e una
+   scena del banco finisce senza che la partita finisca. Oggi vale grazie a [D-632](../../decisions/RT_PDR_00_Decision_Log.md)
+   ([#4166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4166)): nel banco `R` rifà la scena in qualsiasi
+   momento, con lo stesso file e quindi lo stesso tag `lab-targets-N`, e scrive `[RT-Test] banco: la scena riparte`.
 
 ---
 

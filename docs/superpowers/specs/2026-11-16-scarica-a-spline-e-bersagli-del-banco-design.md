@@ -107,6 +107,11 @@ dell'autore «il replay della singola action dal tool che abbiamo creato».
   Se le celle o gli eroi non bastano, se ne posano quanti ce ne stanno.
 - **Il numero voluto viaggia con la scena**, in un'etichetta dei suoi `Tags`. Così `R`, che ricarica lo stesso file, lo conserva. E
   `,` e `.` lo passano alla scena successiva.
+  ➕ **2026-11-20, nota su `R`** (il testo approvato qui sopra non si riscrive): «`R`, che ricarica lo stesso file» era vero solo a
+  partita finita, perché `ARTPlayerController::OnRestart` ricaricava il livello solo con la fase `MatchEnded`, e una scena del
+  banco finisce senza che la partita finisca. Oggi vale grazie a [D-632](../../decisions/RT_PDR_00_Decision_Log.md)
+  ([#4166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4166)): nel banco `R` rifà la scena in qualsiasi
+  momento, con lo stesso file e quindi lo stesso tag `lab-targets-N`, e scrive `[RT-Test] banco: la scena riparte`.
 - **Il tasto `U`**, da «unità colpite», nel PIE e solo in una scena del banco: porta il numero voluto da 1 a 2, a 3 e di nuovo a 1,
   ricostruisce la scena con lo stesso costruttore del pannello e la fa ripartire. `U` è libero fra i tasti che il gioco lega, e lo tiene
   libero `PlayerInput.HotkeysDoNotCollide`.

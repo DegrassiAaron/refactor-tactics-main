@@ -135,6 +135,31 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		PlaybackStepTargetElapsed = -1.f;
 	}
 
+	// ➕ #4166: nel banco le unita' rallentano con i battiti. `BenchPlaybackSpeed` scala solo l'orologio del playback
+	// (`Dt = DeltaSeconds * EffectivePlaybackSpeed`): le clip delle unita' girano a velocita' piena, e il banco mostra pause che non
+	// ci sono. La dilatazione e' per attore, `CustomTimeDilation`, e non del mondo: `SetGlobalTimeDilation` e `SetPause` sono vietate
+	// (CP 46.6, #941). Fuori dal banco la velocita' e' zero e la dilatazione vale 1: una partita normale non cambia.
+	// 🔑 **Solo quando RICOMINCIA, mai quando ESTENDE**, come la politica di `bStartPlaybackPaused` qui sopra: `BeginPlayback(true)` e'
+	// la ripresa di un playback in corso dopo una finestra di reazione, e cio' che l'avvio ha scritto resta. Prima di qualunque
+	// battito: nessuna clip e' partita, quindi nessuna parte a velocita' piena.
+	// ⚠️ **Il Niagara delle unita' non lo copre questa assegnazione, lo copre il tick** (`TickPlayback`). Niagara in modo batched (il
+	// default) tica col delta del mondo e non segue `CustomTimeDilation` dell'attore, e il Niagara che le notify delle clip attaccano
+	// alle unita' nasce DOPO, dal montage: qui non esiste ancora. Lo raggiunge `TickPlayback`, che a ogni giro forza il modo solo
+	// (`URTPlaybackLibrary::ForceNiagaraSoloOn`) sui componenti delle unita' mentre la dilatazione e' sotto 1.
+	if (!bPreserveClock)
+	{
+		const float Dilatazione = URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed);
+		TArray<AActor*> UnitaDelMondo;
+		UGameplayStatics::GetAllActorsOfClass(Host->GetPlaybackWorld(), ARTUnit::StaticClass(), UnitaDelMondo);
+		for (AActor* const Unita : UnitaDelMondo)
+		{
+			if (Unita)
+			{
+				Unita->CustomTimeDilation = Dilatazione;
+			}
+		}
+	}
+
 	const float ClockElapsedTotal = PlaybackElapsedTotal;
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
@@ -1022,14 +1047,18 @@ void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
 
 	// ⚠️ `LOAD_NoWarn | LOAD_Quiet`: l'asset vive sotto `Content/`, che git ignora, e su un clone che non lo ha il salto
 	// semplicemente non parte. Un warning a ogni colpo sarebbe rumore, non un difetto.
-	UClass* const Classe = LoadClass<AActor>(nullptr, *Fx->ArcClass.ToString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// ➕ #4166: la classe passa da `ChainArcClassFor`, l'unico punto che la ricava: un test la punta sulla sonda (`SetChainArcClassOverrideForTest`).
+	const FString PercorsoArco = URTPresentationBindingLibrary::ChainArcClassFor(*Fx).ToString();
+	UClass* const Classe = LoadClass<AActor>(nullptr, *PercorsoArco, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (!Classe)
 	{
-		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *Fx->ArcClass.ToString());
+		UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s assente, nessun salto"), *PercorsoArco);
 		return;
 	}
 	// 🔑 Un attore per salto: la spline e il Niagara che la percorre stanno nell'asset, qui si scrivono solo i tre punti.
-	URTPlaybackLibrary::SpawnChainArcActor(*World, *Classe, Inizio, Fine, Fx->LifeSeconds);
+	// ➕ #4166: nel banco l'arco rallenta con i battiti, e la sua vita con lui (vedi `SpawnChainArcActor`).
+	URTPlaybackLibrary::SpawnChainArcActor(*World, *Classe, Inizio, Fine, Fx->LifeSeconds,
+		URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed));
 }
 
 void FRTPlaybackDirector::ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)
@@ -1370,6 +1399,27 @@ void FRTPlaybackDirector::TickPlayback(float DeltaSeconds)
 	// **il** modo in cui la durata target finiva per decidere la velocita' visuale della locomozione. Il
 	// budget agisce ora sulla DURATA della fase (`DurationForPlaybackPhase`, attese comprimibili), non
 	// sulla velocita' con cui la si attraversa.
+	//
+	// ➕ #4166 [D-632]: nel banco il Niagara che una notify attacca a un'unita' a meta' playback va in modo solo FORZATO, o resta a
+	// x1 (batched: tica col delta del mondo). Si forza qui, a ogni tick, sulle unita' del mondo del playback: `SetForceSolo` esce se
+	// il valore non cambia, quindi e' idempotente, e un componente nato fra due tick perde al piu' un fotogramma in batch.
+	// 🔑 **Sta PRIMA dei `return` di pausa e di finestra, non dopo**: il montage di un'unita' non si ferma con l'orologio del playback,
+	// e un Niagara che nasce a playback in pausa o trattenuto da una finestra di reazione non deve aspettare la ripresa per
+	// rallentare. La ricerca delle unita' e' una per tick, non una per componente.
+	// ⛔ Fuori dal banco (`PresentationTimeDilation == 1`) non si fa niente: una partita normale non cambia, Niagara compreso.
+	if (URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed) < 1.f)
+	{
+		TArray<AActor*> UnitaDelMondo;
+		UGameplayStatics::GetAllActorsOfClass(Host->GetPlaybackWorld(), ARTUnit::StaticClass(), UnitaDelMondo);
+		for (AActor* const Unita : UnitaDelMondo)
+		{
+			if (Unita)
+			{
+				URTPlaybackLibrary::ForceNiagaraSoloOn(*Unita);
+			}
+		}
+	}
+
 	// 🔴 **In pausa l'orologio non avanza, e il tick esce prima di toccare qualunque cosa** (`#1879`).
 	// Non `Dt = 0`: un tick che prosegue con passo nullo rivelerebbe comunque i colpi del Blast, perche'
 	// `AttacksToShow` legge `PlaybackPhaseElapsed` e non il passo. Fermarsi significa non guardare.

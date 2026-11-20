@@ -1587,6 +1587,8 @@ public:
 	 * La velocita' del BANCO Ability Lab ([D-607] (1), `#4071`), `0` fuori dal banco. La scrive
 	 * `ARTGameMode::ApplyPlaybackControlCVars` quando una scena del banco parte a x0,5, e `UpdateReactionSlowMotion` la
 	 * rimette alla chiusura di una finestra di reazione al posto di `1.f`: nel banco la scena si guarda tutta a x0,5.
+	 * ➕ #4166: la legge anche il playback, da `GetPlaybackTuning`, e ne ricava la dilatazione di unita', archi e Niagara delle notify
+	 * (`URTPlaybackLibrary::PresentationTimeDilation`).
 	 * ⛔ Presentazione, come `ViewerPlaybackSpeed`: non entra nel TurnLog e non tocca l'hash.
 	 */
 	float BenchPlaybackSpeed = 0.f;

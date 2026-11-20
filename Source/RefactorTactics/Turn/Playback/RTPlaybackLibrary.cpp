@@ -1183,8 +1183,46 @@ void URTPlaybackLibrary::SetChainArcPoints(USplineComponent& Spline, const FVect
 	Spline.SetSplinePoints(Punti, ESplineCoordinateSpace::World, /*bUpdateSpline=*/ true);
 }
 
+float URTPlaybackLibrary::PresentationTimeDilation(float BenchPlaybackSpeed)
+{
+	// 🔑 `> 0 && <= 1`: con NaN entrambi i confronti sono falsi, quindi NaN vale 1 senza un ramo suo.
+	return (BenchPlaybackSpeed > 0.f && BenchPlaybackSpeed <= 1.f) ? BenchPlaybackSpeed : 1.f;
+}
+
+void URTPlaybackLibrary::ForceNiagaraSoloOn(AActor& Actor)
+{
+	const UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
+	if (!NiagaraClass)
+	{
+		return;
+	}
+	for (UActorComponent* const Componente : Actor.GetComponents())
+	{
+		if (!Componente || !Componente->IsA(NiagaraClass))
+		{
+			continue;
+		}
+		UFunction* const SetForceSolo = Componente->FindFunction(TEXT("SetForceSolo"));
+		// ⚠️ **Un solo parametro `bool`, nessun ritorno**: se la firma cambiasse in un'altra versione del motore, `ProcessEvent`
+		// scriverebbe fuori dal blocco. Meglio non forzare (e vedere il Niagara a velocita' piena) che corrompere. `ParmsSize`
+		// da solo non basta: un parametro `uint8` o un ritorno `bool` pesano lo stesso, e il primo parametro e' il suo tipo.
+		const bool bFirmaAttesa = SetForceSolo
+			&& SetForceSolo->NumParms == 1
+			&& SetForceSolo->ParmsSize == sizeof(bool)
+			&& CastField<FBoolProperty>(SetForceSolo->PropertyLink) != nullptr
+			&& !SetForceSolo->GetReturnProperty();
+		if (!bFirmaAttesa)
+		{
+			UE_LOG(LogRT, Verbose, TEXT("[RT] Banco: %s non ha un SetForceSolo(bool) utilizzabile"), *Componente->GetPathName());
+			continue;
+		}
+		bool bForzaSolo = true;
+		Componente->ProcessEvent(SetForceSolo, &bForzaSolo);
+	}
+}
+
 AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
-	float LifeSeconds)
+	float LifeSeconds, float TimeDilation)
 {
 	FActorSpawnParameters Params;
 	// ⚠️ `AlwaysSpawn`: un salto che nasce dentro la geometria di un'unita' resta un effetto, non una collisione.
@@ -1200,6 +1238,16 @@ AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, 
 	// conoscenza di chi lo spawna, e resta li'. `SetReplicates(false)` ferma la replica anche di un attore gia' inizializzato.
 	Arco->SetReplicates(false);
 	Arco->SetActorEnableCollision(false);
+	// ➕ #4166: nel banco l'arco segue il tempo dei battiti (x0,5). Per attore e non per mondo: la dilatazione globale e' vietata
+	// (CP 46.6, #941). I componenti ordinari (la Timeline del Blueprint) ricevono il delta gia' moltiplicato per la dilatazione
+	// dell'attore. **Il Niagara no**, nel suo modo di default: si forza il modo solo (vedi `ForceNiagaraSoloOn`). Fuori
+	// dal banco `TimeDilation` e' 1 e non cambia niente, Niagara compreso: resta batched.
+	const float Dilatazione = PresentationTimeDilation(TimeDilation);
+	Arco->CustomTimeDilation = Dilatazione;
+	if (Dilatazione < 1.f)
+	{
+		ForceNiagaraSoloOn(*Arco);
+	}
 
 	USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
 	if (!Spline)
@@ -1215,6 +1263,10 @@ AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, 
 	SetChainArcPoints(*Spline, Start, End);
 	// ⛔ `SetLifeSpan(0)` non da' una vita nulla: toglie il timer, e l'attore resta nel mondo per sempre. La funzione e' pubblica,
 	// quindi un valore non positivo (o NaN, per cui `> 0` e' falso) torna al default della riga, `FRTChainFxBinding::LifeSeconds`.
-	Arco->SetLifeSpan(LifeSeconds > 0.f ? LifeSeconds : FRTChainFxBinding().LifeSeconds);
+	// 🔴 **La vita si DIVIDE per la dilatazione** (#4166): il timer di `SetLifeSpan` e' del mondo e non segue `CustomTimeDilation`
+	// dell'attore. A x0,5 l'effetto dura il doppio, e con la vita di sempre l'arco sparirebbe a meta' della sua animazione: 1,5 s
+	// del suo tempo sono 3 s di orologio. `Dilatazione` e' in `(0, 1]`, quindi la divisione non ha uno zero da temere.
+	const float Vita = LifeSeconds > 0.f ? LifeSeconds : FRTChainFxBinding().LifeSeconds;
+	Arco->SetLifeSpan(Vita / Dilatazione);
 	return Arco;
 }

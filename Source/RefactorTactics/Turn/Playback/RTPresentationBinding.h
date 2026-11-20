@@ -323,4 +323,20 @@ public:
 
 	/** La scarica di `ActionId`, altrimenti di `BaseActionId`, altrimenti `nullptr` (lo stesso ripiego di `FxProfileForIn`). */
 	static const FRTChainFxBinding* ChainFxFor(FName ActionId, FName BaseActionId);
+
+	/**
+	 * ➕ #4166: la classe dell'arco che il director carica per la riga `Fx` — l'override di `SetChainArcClassOverrideForTest` se
+	 * non e' vuoto, altrimenti `Fx.ArcClass`. E' l'UNICO punto da cui il director ricava la classe.
+	 */
+	static FSoftClassPath ChainArcClassFor(const FRTChainFxBinding& Fx);
+
+	/**
+	 * ➕ #4166: SOLO PER I TEST. Sostituisce la classe dell'arco di ogni riga con `Class`; vuota = nessun override.
+	 * 🔑 L'asset vero sta sotto `Content/`, che git ignora: su un clone che non lo ha il director non spawna niente, e cio' che
+	 * passa dopo il `LoadClass` (la dilatazione e la vita dell'arco) non si puo' misurare. Un test la punta sulla sonda
+	 * `ARTChainArcProbeForTest`, che sta nel modulo.
+	 * ⚠️ Chi la imposta la azzera con `ON_SCOPE_EXIT`, come `URTScenarioLoader::SetLabScenariosRootOverrideForTest`: e' stato
+	 * globale, e un override dimenticato farebbe lanciare la sonda a ogni test dopo.
+	 */
+	static void SetChainArcClassOverrideForTest(const FSoftClassPath& Class);
 };
