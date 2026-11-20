@@ -2887,13 +2887,42 @@ void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 		return;
 	}
 
-	// Riavvia la partita solo quando è conclusa: ricarica il livello corrente.
+	// 🔑 **La regola «solo a partita finita» vale fuori dal banco** ([D-632], `#4166`): li' `R` ricarica il livello corrente
+	// solo quando la partita e' conclusa. Una scena del banco gioca un turno e si ferma senza `MatchEnded`, quindi con la regola
+	// di sempre `R` non faceva niente: nel banco `R` rifa' la scena in qualsiasi momento. La scelta e' `RestartChoiceFor`.
+	//
+	// ⚠️ **La guardia sta qui sopra e viene prima**: una schermata bloccante copre la partita e a lei `R` non arriva, ne' per
+	// ricaricare ne' per rifare la scena.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
+	const bool bMatchEnded = TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded;
+	// `GetActorOfClass`, come `StepLab`: e' il GameMode che sa quale scena gira, e decide lui se e' del banco.
+	ARTGameMode* GameMode = Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	const bool bLabScene = GameMode && GameMode->IsRunningLabScene();
+
+	switch (RestartChoiceFor(bMatchEnded, bLabScene))
 	{
+	case ERTRestartChoice::ReloadMatch:
+		// Anche nel banco a partita finita: si ricarica una volta, come prima di `#4166`.
 		UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, true)));
+		break;
+	case ERTRestartChoice::RestartLabScene:
+		// `bLabScene` e' vero solo se il GameMode c'e': il puntatore non e' nullo.
+		GameMode->RestartLabScene();
+		break;
+	case ERTRestartChoice::Nothing:
+		break;
 	}
+}
+
+ERTRestartChoice ARTPlayerController::RestartChoiceFor(bool bMatchEnded, bool bLabScene)
+{
+	// La partita finita viene prima: nel banco ricarica una volta sola, e rifare la scena in piu' sarebbe la seconda.
+	if (bMatchEnded)
+	{
+		return ERTRestartChoice::ReloadMatch;
+	}
+	return bLabScene ? ERTRestartChoice::RestartLabScene : ERTRestartChoice::Nothing;
 }
 
 ARTUnit* ARTPlayerController::GetSelectedUnit() const

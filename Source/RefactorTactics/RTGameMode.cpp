@@ -1927,6 +1927,27 @@ bool ARTGameMode::RelaunchLabScene(const FRTTestScenario& Scene, const FString& 
 	return true;
 }
 
+bool ARTGameMode::IsRunningLabScene() const
+{
+	return URTAbilityLabLibrary::IsLabScenarioId(ResolveScenarioToRun());
+}
+
+void ARTGameMode::RestartLabScene()
+{
+	// Fuori dal banco `R` non e' di questo GameMode: a partita in corso non fa niente, e a partita finita ricarica il controller.
+	if (!IsRunningLabScene())
+	{
+		return;
+	}
+
+	// ⚠️ La riga e' quella che il disegno di `#4166` fissa, e chi guarda il log in PIE la cerca cosi': non si riformula. Si scrive
+	// subito prima del ricaricamento, come quella del passo.
+	UE_LOG(LogRT, Display, TEXT("[RT-Test] banco: la scena riparte"));
+	// Lo stesso ricaricamento di `RelaunchLabScene` e del riavvio a partita conclusa, ma SENZA riscrivere la scena ne'
+	// `rt.Test.Scenario`: `BeginPlay` rilegge lo stesso file, e il numero di bersagli scelto con `U` resta com'era.
+	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString=*/ true)));
+}
+
 ARTUnit* ARTGameMode::FindLabCaster() const
 {
 	// Fuori dal banco non c'e' un «chi lancia»: uno scenario qualunque puo' avere un'unita' che si chiama `CASTER`, e

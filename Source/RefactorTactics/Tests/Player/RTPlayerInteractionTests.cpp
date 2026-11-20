@@ -1679,6 +1679,45 @@ bool FRTPlayerInputLabTargetsKeyTest::RunTest(const FString&)
 	return bOk;
 }
 
+/**
+ * `R` sceglie fra tre uscite, e la scelta si prova senza premere un tasto e senza un mondo (`#4166`, [D-632]).
+ *
+ * 🔑 **Le quattro combinazioni, e la prima e' il Review Focus 4**: a partita finita `R` ricarica come oggi **anche nel banco**, e
+ * rifare la scena in piu' ricaricherebbe due volte. La seconda dice che fuori dal banco la regola «solo a partita finita» e'
+ * rimasta com'era; la quarta, che `R` a partita in corso fuori dal banco non fa niente.
+ *
+ * ⚠️ Cio' che il test NON vede: la guardia `IsGameplayInputBlocked`, che sta in testa a `OnRestart` e viene prima della scelta, e
+ * la ricarica vera del livello, che un mondo di prova non fa. Per quelle c'e' la lettura del codice e il PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputRestartChoiceFollowsMatchAndBenchTest,
+	"RefactorTactics.PlayerInput.RestartChoiceFollowsMatchAndBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputRestartChoiceFollowsMatchAndBenchTest::RunTest(const FString&)
+{
+	// I nomi nel messaggio: un enum stampato come intero non dice quale uscita e' cambiata.
+	const auto Nome = [](ERTRestartChoice Scelta) -> const TCHAR*
+	{
+		switch (Scelta)
+		{
+		case ERTRestartChoice::Nothing:         return TEXT("Nothing");
+		case ERTRestartChoice::ReloadMatch:     return TEXT("ReloadMatch");
+		case ERTRestartChoice::RestartLabScene: return TEXT("RestartLabScene");
+		}
+		return TEXT("?");
+	};
+	const auto Verifica = [this, &Nome](const TCHAR* Caso, bool bMatchEnded, bool bLabScene, ERTRestartChoice Atteso)
+	{
+		const ERTRestartChoice Scelta = ARTPlayerController::RestartChoiceFor(bMatchEnded, bLabScene);
+		TestTrue(*FString::Printf(TEXT("%s: attesa %s, scelta %s"), Caso, Nome(Atteso), Nome(Scelta)), Scelta == Atteso);
+	};
+
+	Verifica(TEXT("finita, nel banco"),         /*bMatchEnded=*/ true,  /*bLabScene=*/ true,  ERTRestartChoice::ReloadMatch);
+	Verifica(TEXT("finita, fuori dal banco"),   /*bMatchEnded=*/ true,  /*bLabScene=*/ false, ERTRestartChoice::ReloadMatch);
+	Verifica(TEXT("in corso, nel banco"),       /*bMatchEnded=*/ false, /*bLabScene=*/ true,  ERTRestartChoice::RestartLabScene);
+	Verifica(TEXT("in corso, fuori dal banco"), /*bMatchEnded=*/ false, /*bLabScene=*/ false, ERTRestartChoice::Nothing);
+	return true;
+}
+
 // --- #3749 · il modificatore della camera e' `Ctrl`, su entrambi i lati ------------------------------
 
 /**

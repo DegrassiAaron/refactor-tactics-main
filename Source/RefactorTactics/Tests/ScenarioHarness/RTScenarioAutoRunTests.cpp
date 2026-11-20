@@ -435,6 +435,47 @@ bool FRTAutoRunBannerShowsTheLabStepTest::RunTest(const FString&)
 }
 
 /**
+ * `R` sa se la scena in corso e' del banco (`#4166`, [D-632]): e' la risposta che `OnRestart` chiede al GameMode per scegliere fra
+ * ricaricare la partita, rifare la scena e non fare niente.
+ *
+ * `IsRunningLabScene` legge la stessa sorgente della banda e del passo (`ResolveScenarioToRun`), quindi qui si prova che una scena
+ * `AbilityLab.*` e' del banco, uno scenario del corpus no, e nessuna scena no. `RestartLabScene` ricarica il livello e un mondo di
+ * prova non ne ha uno da ricaricare: la sua coda si guarda in PIE (`PIE-LAB-BERSAGLI`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunRestartKnowsTheLabSceneTest,
+	"RefactorTactics.Scenario.RestartKnowsTheLabScene",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunRestartKnowsTheLabSceneTest::RunTest(const FString&)
+{
+	FName Prima;
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (!Entry.bIsCoreAction) { Prima = Entry.AbilityId; break; }
+	}
+	if (!TestFalse(TEXT("premessa: il catalogo ha una voce di kit"), Prima.IsNone())) { return false; }
+	const FString LabId = FString::Printf(TEXT("AbilityLab.%s"), *Prima.ToString());
+
+	FScopedScenarioCVar Guard;
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+	GameMode->ScenarioToRun.Reset();
+
+	Guard.Set(*LabId);
+	TestTrue(TEXT("una scena AbilityLab.* e' del banco"), GameMode->IsRunningLabScene());
+
+	Guard.Set(TEXT("Movement.Basic"));
+	TestFalse(TEXT("uno scenario del corpus non e' del banco"), GameMode->IsRunningLabScene());
+
+	Guard.Set(TEXT(""));
+	TestFalse(TEXT("nessuna scena non e' del banco"), GameMode->IsRunningLabScene());
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
+/**
  * `U` fuori dal banco e' inerte: niente ricarica e niente riga d'errore (`#4136`, Review Focus 5).
  *
  * `false` con `OutError` VUOTO e' il contratto di `StepLabScenario`, e `CycleLabTargets` lo ripete: e' cio' che il controller

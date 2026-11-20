@@ -444,6 +444,31 @@ public:
 	bool CycleLabTargets(FString& OutError);
 
 	/**
+	 * La scena in corso e' del banco Ability Lab? (`#4166`, [D-632].) Vera se `rt.Test.Scenario` (o la proprieta', o il flag) porta
+	 * un `AbilityLab.*`: la stessa sorgente della banda, del passo e di `FindLabCaster` (`ResolveScenarioToRun`).
+	 *
+	 * La chiede `ARTPlayerController::OnRestart`, che con questa e con la fase del `TurnManager` sceglie cosa fa `R`. Sta qui e non nel
+	 * controller perche' e' il GameMode che sa quale scena gira, come per `,`, `.` e `U`: una seconda sede della regola sarebbe una
+	 * seconda risposta da tenere allineata.
+	 */
+	bool IsRunningLabScene() const;
+
+	/**
+	 * `R` nel banco (`#4166`, [D-632]): la scena riparte, quella stessa, in qualsiasi momento.
+	 *
+	 * ⛔ **Inerte fuori dal banco**: non scrive la riga di log e non ricarica niente. La scelta di chiamarla spetta a `OnRestart`, ma
+	 * la regola e' qui, come per `,`, `.` e `U`.
+	 *
+	 * 🔑 **Non riscrive ne' la scena ne' `rt.Test.Scenario`**, e per questo non passa da `RelaunchLabScene`: ricaricare il livello fa
+	 * rileggere lo stesso file, quindi il tag del numero di bersagli (`lab-targets-N`, `U`) resta com'e'. Riscriverlo qui vorrebbe dire
+	 * ricostruire la scena, cioe' un secondo costruttore accanto a `BuildLabStepScene` e `BuildLabTargetsScene`. La riga di log
+	 * (`Display`) e' l'unica della ricarica, e si scrive subito prima di `OpenLevel`.
+	 *
+	 * ⚠️ Una ricarica vera di livello: un mondo di prova non ne ha uno, e la coda si guarda in PIE.
+	 */
+	void RestartLabScene();
+
+	/**
 	 * Chi lancia nella scena del banco in corso (`URTAbilityLabLibrary::CasterUnitId`), o `nullptr` fuori dal banco o
 	 * senza sessione (`#4121`, D-618). La scena e' quella di `ResolveScenarioToRun`, la stessa che legge il passo.
 	 */

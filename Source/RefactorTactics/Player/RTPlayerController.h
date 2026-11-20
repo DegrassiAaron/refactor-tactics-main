@@ -49,6 +49,18 @@ enum class ERTAbilityRequestSource : uint8
 };
 
 /**
+ * Cosa fa `R` (`#4166`, [D-632]): una delle tre uscite, scelta da `ARTPlayerController::RestartChoiceFor`.
+ *
+ * Non `UENUM`: non attraversa nessun confine di serializzazione ne' di Blueprint, e vive solo fra `OnRestart` e il suo test.
+ */
+enum class ERTRestartChoice : uint8
+{
+	Nothing,         // fuori dal banco e a partita in corso: il tasto e' inerte, come sempre
+	ReloadMatch,     // a partita finita, anche nel banco: si ricarica il livello, una volta sola
+	RestartLabScene  // nel banco a partita in corso: la scena riparte, col suo stesso file
+};
+
+/**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
@@ -680,9 +692,27 @@ public:
 	 */
 	static bool PlayerCommandsAnyLiveUnit(int32 PlayerTeamId, const TArray<ARTUnit*>& Units);
 
+	/**
+	 * Cosa fa `R`, dato che la partita sia finita e che la scena in corso sia del banco (`#4166`, [D-632]).
+	 *
+	 * 🔑 **Funzione pura, perche' la scelta si provi senza premere un tasto**: `OnRestart` raccoglie i due fatti (la fase del
+	 * `TurnManager`, la scena del GameMode) e la inoltra, e fa solo cio' che risponde. Le quattro combinazioni sono nel test
+	 * `RestartChoiceFollowsMatchAndBench`.
+	 *
+	 * ⚠️ **A partita finita il banco ricarica come oggi, e basta** (`ReloadMatch`): rifare la scena in piu' ricaricherebbe due volte.
+	 * Fuori dal banco la regola «`R` solo a partita finita» e' quella di sempre; nel banco la scena e' una seduta di osservazione che
+	 * non conclude una partita, e `R` la rifa' in qualsiasi momento.
+	 */
+	static ERTRestartChoice RestartChoiceFor(bool bMatchEnded, bool bLabScene);
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
+
+	/**
+	 * `R` — a partita finita ricarica il livello; nel banco, a partita in corso, rifa' la scena (`#4166`, [D-632]).
+	 * La scelta e' `RestartChoiceFor`; qui si raccolgono i due fatti e si esegue l'uscita.
+	 */
 	void OnRestart(const FInputActionValue& Value);
 
 	/**
