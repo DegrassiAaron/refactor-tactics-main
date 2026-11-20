@@ -4,6 +4,20 @@
 > (numero libero su `main` = `4bef64516` e sui rami remoti il 2026-11-20; si rimisura quando si scrive la riga).
 > Emenda [`D-607`](../../decisions/RT_PDR_00_Decision_Log.md) (1), la velocità del banco, e corregge un'affermazione
 > di [`D-621`](../../decisions/RT_PDR_00_Decision_Log.md) su `R`.
+>
+> ➕ **2026-11-20, nota dopo l'implementazione: una premessa di questo disegno era sbagliata** (il testo approvato non si
+> riscrive). Il disegno dà per scontato che i Niagara di unità e arco seguano `CustomTimeDilation` (§2, «effetti attaccati
+> alle unità»; §3, «stesso risultato a schermo»; §4, «Le unità» e «L'arco»). Letto nel sorgente di Engine 5.8, nel modo di
+> default non è così: in modalità batch Niagara ignora la dilatazione dell'attore. Vale invece:
+>
+> - **L'arco** rallenta davvero. Con dilatazione minore di 1 ogni suo componente Niagara è forzato in modalità «solo»
+>   (`SetForceSolo(true)`, chiamata per riflessione: il C++ resta senza il modulo Niagara) con la propria dilatazione a 1, e il
+>   totale è la dilatazione dell'attore. Lo prova `Playback.ChainArcNiagaraIsForcedSoloInTheBench`.
+> - **I Niagara che le notify delle clip attaccano alle unità** (per esempio il rilascio `NS_Gadget_LinearDischarge_Release`)
+>   nascono a metà animazione e non sono raggiunti: nel banco restano a velocità normale. È un limite dichiarato in
+>   [`D-632`](../../decisions/RT_PDR_00_Decision_Log.md) e un seguito candidato, non lavoro di questo disegno.
+>
+> Le clip delle unità e i componenti ordinari dell'arco, come la sua Timeline, seguono la dilatazione come previsto.
 
 ## 1. Perché
 

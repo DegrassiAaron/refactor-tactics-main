@@ -669,6 +669,11 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
    `AbilityLab.StepHintNamesTheTargetCount`, `AbilityLab.StepSceneCarriesTheTargetCount`,
    `AbilityLab.TargetsSceneCyclesTheTargetCount`, `PlayerInput.LabTargetsKeyIsU` e `Scenario.LabTargetsAreInertOutsideTheLab`.
    Voce PIE: `PIE-LAB-BERSAGLI`.
+   ➕ **2026-11-20, nota su `R`** (il testo qui sopra non si riscrive): «`R` ricarica lo stesso file e lo conserva» era vero
+   solo a partita finita, perché `ARTPlayerController::OnRestart` ricaricava il livello solo con la fase `MatchEnded`, e una
+   scena del banco finisce senza che la partita finisca. Oggi vale grazie a [D-632](../../decisions/RT_PDR_00_Decision_Log.md)
+   ([#4166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4166)): nel banco `R` rifà la scena in qualsiasi
+   momento, con lo stesso file e quindi lo stesso tag `lab-targets-N`, e scrive `[RT-Test] banco: la scena riparte`.
 
 ---
 
