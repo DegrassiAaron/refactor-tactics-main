@@ -1505,7 +1505,7 @@ public:
 	 *
 	 * 🔴 **Perche' non e' una seconda causa dentro `IsGameplayInputBlocked`**, che sarebbe stata una riga
 	 * sola e copriva sei punti d'ingresso per costruzione: quel funnel include `OnRestart`, che agisce
-	 * **solo a `MatchEnded`**. Bloccarlo toglierebbe allo spettatore l'unico modo di rilanciare la demo
+	 * **solo a `MatchEnded`, fuori dal banco** ([D-632]). Bloccarlo toglierebbe allo spettatore l'unico modo di rilanciare la demo
 	 * finita — un input che non produce nessun piano e non tocca nessuna simulazione in corso. Le due
 	 * cause hanno insiemi diversi, quindi restano due predicati.
 	 *

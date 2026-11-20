@@ -476,6 +476,55 @@ bool FRTAutoRunRestartKnowsTheLabSceneTest::RunTest(const FString&)
 }
 
 /**
+ * `R` fuori dal banco e' inerte per il GameMode: niente ricarica e `rt.Test.Scenario` com'era (`#4166`, [D-632]).
+ *
+ * La regola sta in `ARTGameMode::RestartLabScene`, come quella di `,`, `.` e `U`: il controller sceglie quando chiamarla, ma e' il
+ * GameMode che sa se la scena e' del banco, e una chiamata fuori dal banco non deve fare niente. Qui si chiama direttamente, con uno
+ * scenario del corpus e con nessuna scena.
+ *
+ * 🔑 **La ricarica si legge dal mondo di prova, senza provocarla**: `OpenLevel` scrive `TravelURL` nel `FWorldContext` del mondo, e il
+ * motore lo consuma al tick dopo; il test lo guarda e distrugge il contesto prima. Una `RestartLabScene` che ricaricasse fuori dal banco
+ * lascerebbe li' un indirizzo. La guardia sta in `RestartLabScene`: toglierla fa cadere questo test.
+ *
+ * ⚠️ Cio' che il test NON vede: la ricarica vera nel banco e la riga di log, che si guardano in PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutoRunRestartIsInertOutsideTheLabTest,
+	"RefactorTactics.Scenario.RestartIsInertOutsideTheLab",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutoRunRestartIsInertOutsideTheLabTest::RunTest(const FString&)
+{
+	FScopedScenarioCVar Guard;
+	UWorld* World = MakeAutoRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { DestroyAutoRunWorld(World); return false; }
+	GameMode->ScenarioToRun.Reset();
+	// Premessa: senza il contesto del mondo non c'e' dove leggere una ricarica, e i controlli sotto sarebbero veri di niente.
+	FWorldContext* Contesto = GEngine ? GEngine->GetWorldContextFromWorld(World) : nullptr;
+	if (!TestNotNull(TEXT("premessa: il mondo di prova ha un contesto"), Contesto)) { DestroyAutoRunWorld(World); return false; }
+
+	// Uno scenario del corpus, e nessuna scena: due modi di non essere nel banco.
+	for (const TCHAR* Id : { TEXT("Movement.Basic"), TEXT("") })
+	{
+		Guard.Set(Id);
+		// Ogni caso parte da un indirizzo vuoto: se il primo ricaricasse, il secondo non deve ereditarne il verdetto.
+		Contesto->TravelURL.Reset();
+
+		GameMode->RestartLabScene();
+
+		TestEqual(FString::Printf(TEXT("'%s': `R` non riscrive rt.Test.Scenario"), Id),
+			CVarRTTestScenario.AsVariable()->GetString(), FString(Id));
+		TestTrue(FString::Printf(TEXT("'%s': `R` non ricarica il livello (indirizzo di viaggio '%s')"), Id, *Contesto->TravelURL),
+			Contesto->TravelURL.IsEmpty());
+		TestTrue(FString::Printf(TEXT("'%s': il GameMode e' ancora valido"), Id), IsValid(GameMode));
+		TestTrue(FString::Printf(TEXT("'%s': e il mondo e' lo stesso"), Id), GameMode->GetWorld() == World);
+	}
+
+	DestroyAutoRunWorld(World);
+	return true;
+}
+
+/**
  * `U` fuori dal banco e' inerte: niente ricarica e niente riga d'errore (`#4136`, Review Focus 5).
  *
  * `false` con `OutError` VUOTO e' il contratto di `StepLabScenario`, e `CycleLabTargets` lo ripete: e' cio' che il controller

@@ -538,7 +538,7 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
  *
  * 🔴 **La seconda meta' di questo test pinna una DECISIONE DI DISEGNO, non un comportamento**:
  * `IsGameplayInputBlocked()` resta **falso** mentre la sessione e' non presidiata. Sono due predicati e non
- * uno perche' quel funnel include `OnRestart`, che agisce solo a `MatchEnded`: fonderli — la
+ * uno perche' quel funnel include `OnRestart`, che agisce solo a `MatchEnded`, fuori dal banco ([D-632]): fonderli — la
  * semplificazione ovvia, una riga invece di otto — toglierebbe allo spettatore l'unico modo di rilanciare
  * la demo finita. Chi la tentasse fa cadere questa riga.
  */

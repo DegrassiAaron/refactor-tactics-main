@@ -263,7 +263,7 @@ void ARTPlayerController::BuildInputMappings()
 	// Lock-in (Boolean): barra spaziatrice.
 	MappingContext->MapKey(LockInAction, EKeys::SpaceBar);
 
-	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso).
+	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso, fuori dal banco; nel banco rifa' la scena, [D-632]).
 	MappingContext->MapKey(RestartAction, EKeys::R);
 
 	// Selezione abilita' (Boolean): `1`..`9` e `0` -> indici 0-9 dell'elenco dell'unita' selezionata.
