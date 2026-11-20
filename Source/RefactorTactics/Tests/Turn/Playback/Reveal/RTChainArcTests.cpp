@@ -17,6 +17,8 @@
 #include "Components/SplineComponent.h" // [D-621]: la scarica e' un attore con una spline, e i punti si leggono da li'
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Tests/Turn/Playback/Reveal/RTChainArcProbeForTest.h"
+#include "Tests/Shared/RTReactionWindowFixtures.h" // #4166: la ripresa dopo una finestra e' l'estensione del playback (`BeginPlayback(true)`)
+#include "Tests/Shared/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -824,6 +826,248 @@ bool FRTPlaybackChainArcClosedToTheBlindViewerTest::RunTest(const FString&)
 			TestEqual(TEXT("controllo positivo: chi spara riceve i tre salti dello stesso tiro"), Salti.Num(), 3);
 		}
 	}
+	return true;
+}
+
+// --- #4166: nel banco le unita' e gli archi rallentano con i battiti ----------------------------------------------------
+
+/**
+ * La dilatazione di presentazione e' la velocita' del banco, e un valore fuori scala non la sposta — #4166, Review Focus 2.
+ *
+ * 🔑 Vale la velocita' solo in `(0, 1]`: `0` e' «fuori dal banco» (`ARTTurnManager::BenchPlaybackSpeed` e' zero di default), e
+ * sopra `1` non esiste un banco piu' veloce della partita. NaN passa da `> 0`, che e' falso, quindi cade nel ramo del `1`.
+ * ✅ Validato per mutazione: togliere il limite superiore (`<= 1`) fa dare `2` per `2`, e cade il caso `2`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPresentationTimeDilationTest,
+	"RefactorTactics.Playback.PresentationTimeDilationFollowsTheBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPresentationTimeDilationTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("🔴 il banco a x0,5 dilata a 0,5"), URTPlaybackLibrary::PresentationTimeDilation(0.5f), 0.5f);
+	TestEqual(TEXT("un altro valore del banco passa com'e': 0,25"), URTPlaybackLibrary::PresentationTimeDilation(0.25f), 0.25f);
+	TestEqual(TEXT("x1 vale 1: il bordo e' dentro"), URTPlaybackLibrary::PresentationTimeDilation(1.f), 1.f);
+	TestEqual(TEXT("🔴 fuori dal banco (0) vale 1"), URTPlaybackLibrary::PresentationTimeDilation(0.f), 1.f);
+	TestEqual(TEXT("🔴 un negativo vale 1"), URTPlaybackLibrary::PresentationTimeDilation(-1.f), 1.f);
+	TestEqual(TEXT("🔴 sopra 1 vale 1, non 2"), URTPlaybackLibrary::PresentationTimeDilation(2.f), 1.f);
+	TestEqual(TEXT("🔴 NaN vale 1"), URTPlaybackLibrary::PresentationTimeDilation(std::numeric_limits<float>::quiet_NaN()), 1.f);
+	return true;
+}
+
+/**
+ * L'arco rallenta col banco: dilatazione dell'attore e vita DIVISA per essa — #4166.
+ *
+ * 🔴 `SetLifeSpan` arma un timer del mondo, e il timer non segue `CustomTimeDilation` dell'attore: a x0,5 l'effetto dura il
+ * doppio, e con la vita di sempre l'attore sparirebbe a meta' della sua animazione. Per questo la vita si divide: l'arco di
+ * 1,5 s a x0,5 vive 3 s di orologio, che sono 1,5 s del suo tempo.
+ * 🔑 Il controllo positivo e' il caso senza l'ultimo argomento, che e' quello di una partita normale: dilatazione 1 e vita
+ * invariata. Con LifeSeconds non positivo vale la vita della riga, e anche quella si divide.
+ * ✅ Validato per mutazione: togliere la divisione dalla vita fa cadere la vita del primo caso (1,5 al posto di 3).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcSlowsWithTheBenchTest,
+	"RefactorTactics.Playback.ChainArcSlowsWithTheBench",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChainArcSlowsWithTheBenchTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	const float VitaDellaRiga = FRTChainFxBinding().LifeSeconds;
+	if (!TestTrue(TEXT("⛔ premessa: il default della riga e' una vita positiva"), VitaDellaRiga > 0.f)) { return false; }
+
+	struct FCasoArco
+	{
+		const TCHAR* Nome;
+		float LifeSeconds;
+		bool bPassaLaDilatazione; // falso = la chiamata di sempre, senza l'ultimo argomento
+		float Dilatazione;
+		float DilatazioneAttesa;
+		float VitaAttesa;
+	};
+	const FCasoArco Casi[] = {
+		{ TEXT("banco x0,5, vita 1,5"),         1.5f, true,  0.5f, 0.5f, 3.f },
+		{ TEXT("controllo positivo: senza argomento"), 1.5f, false, 0.f, 1.f, 1.5f },
+		{ TEXT("banco x0,5, vita zero = la riga"), 0.f, true,  0.5f, 0.5f, VitaDellaRiga / 0.5f },
+		{ TEXT("dilatazione 2 e' fuori scala"), 1.5f, true,  2.f,  1.f,  1.5f },
+		{ TEXT("dilatazione 0 e' fuori dal banco"), 1.5f, true, 0.f, 1.f,  1.5f },
+		{ TEXT("dilatazione NaN e' fuori scala"), 1.5f, true, std::numeric_limits<float>::quiet_NaN(), 1.f, 1.5f },
+	};
+
+	for (const FCasoArco& Caso : Casi)
+	{
+		AActor* const Arco = Caso.bPassaLaDilatazione
+			? URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcProbeForTest::StaticClass(),
+				FVector(0, 0, 0), FVector(1000, 0, 0), Caso.LifeSeconds, Caso.Dilatazione)
+			: URTPlaybackLibrary::SpawnChainArcActor(*World, *ARTChainArcProbeForTest::StaticClass(),
+				FVector(0, 0, 0), FVector(1000, 0, 0), Caso.LifeSeconds);
+		if (!TestNotNull(*FString::Printf(TEXT("⛔ premessa (%s): l'attore e' nato"), Caso.Nome), Arco)) { continue; }
+		ON_SCOPE_EXIT{ if (IsValid(Arco)) { Arco->Destroy(); } };
+
+		TestEqual(*FString::Printf(TEXT("🔴 (%s) la dilatazione dell'attore"), Caso.Nome),
+			Arco->CustomTimeDilation, Caso.DilatazioneAttesa);
+		TestTrue(*FString::Printf(TEXT("🔴 (%s) la vita e' %.2f (e' %.2f)"), Caso.Nome, Caso.VitaAttesa, Arco->GetLifeSpan()),
+			FMath::IsNearlyEqual(Arco->GetLifeSpan(), Caso.VitaAttesa, 0.01f));
+	}
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Il montaggio di `ChainArcHopsFollowTheLine` — Gadget a (5,2) e tre Ivrin in fila a Ovest — senza il tiro dei salti:
+	 * serve un playback VERO con quattro unita', non la scarica. `OutUnita` le restituisce tutte.
+	 */
+	ARTTurnManager* SetUpBancoInFila(UWorld* World, TArray<ARTUnit*>& OutUnita)
+	{
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+		ARTUnit* const Lontano = SpawnCatenaUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 2));
+		ARTUnit* const Mezzo   = SpawnCatenaUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 2));
+		ARTUnit* const Vicino  = SpawnCatenaUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+		ARTUnit* const Gadget  = SpawnCatenaUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(5, 2));
+		ARTTurnManager* const TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Lontano || !Mezzo || !Vicino || !Gadget) { return nullptr; }
+		Gadget->Facing = ERTHexDirection::W;
+		Gadget->SetPlannedMainAction(IndiceCatenaAzione(Gadget, TEXT("Hero.Gadget.LinearDischarge")));
+		Gadget->DeclareAttackOnUnit(Lontano);
+		Gadget->SetPlannedCell(Gadget->Cell);
+		if (Gadget->GetPlan().PlannedAbilityIndex() == INDEX_NONE) { return nullptr; }
+		OutUnita = { Lontano, Mezzo, Vicino, Gadget };
+		return TM;
+	}
+}
+
+/**
+ * Nel playback vero, ogni unita' del mondo prende la dilatazione del banco — #4166, Review Focus 1.
+ *
+ * 🔴 `BenchPlaybackSpeed` scala solo l'orologio del playback: le clip delle unita' e il Niagara attaccato a loro girano a velocita'
+ * piena e il banco mostra pause che non ci sono. `SetGlobalTimeDilation` non e' una strada (#941): resta `CustomTimeDilation` per
+ * attore, che ARTUnit non ha motivo di contraddire perche' non ha tick proprio.
+ * 🔑 Due mondi: nel banco (x0,5) ogni unita' va a 0,5; fuori dal banco (0) ogni unita' va a 1 — cioe' una partita normale non cambia.
+ * ⚠️ Il secondo mondo parte da una dilatazione SENTINELLA (0,3) e non da 1: «tutte a 1» dopo il turno sarebbe vero anche se il
+ * director non scrivesse niente, e non direbbe che l'assegnazione c'e' ed e' il valore giusto. La premessa `IsResolving` dice che il
+ * playback e' partito, altrimenti nessuno dei due mondi misurerebbe il director.
+ * ✅ Validato per mutazione: togliere dal ramo `!bPreserveClock` di `BeginPlayback` l'assegnazione di `CustomTimeDilation` lascia le
+ * unita' del primo mondo a 1 e quelle del secondo a 0,3: cadono entrambi i mondi, non le premesse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBenchSlowsEveryUnitTest,
+	"RefactorTactics.Playback.BenchSlowsEveryUnitOfThePlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBenchSlowsEveryUnitTest::RunTest(const FString&)
+{
+	const auto TuttePariA = [this](const TArray<ARTUnit*>& Unita, float Attesa, const TCHAR* Quando)
+	{
+		for (const ARTUnit* const U : Unita)
+		{
+			TestEqual(FString::Printf(TEXT("%s: %s"), Quando, *U->GetName()), U->CustomTimeDilation, Attesa);
+		}
+	};
+
+	// (a) il banco, x0,5
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova (banco)"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		TArray<ARTUnit*> Unita;
+		ARTTurnManager* const TM = SetUpBancoInFila(World, Unita);
+		if (!TestTrue(TEXT("⛔ premessa (banco): il turno si costruisce, con quattro unita'"), TM != nullptr && Unita.Num() == 4)) { return false; }
+		// 🔑 Controllo positivo: prima del turno le unita' partono da 1, quindi lo 0,5 di dopo l'ha scritto il playback.
+		TuttePariA(Unita, 1.f, TEXT("⛔ premessa (banco): prima del turno"));
+
+		TM->BenchPlaybackSpeed = 0.5f;
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ premessa (banco): il playback e' partito"), TM->IsResolving())) { return false; }
+		TM->Tick(0.02f);
+		TuttePariA(Unita, 0.5f, TEXT("🔴 nel banco ogni unita' va a 0,5"));
+	}
+
+	// (b) fuori dal banco: una partita normale
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova (fuori dal banco)"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		TArray<ARTUnit*> Unita;
+		ARTTurnManager* const TM = SetUpBancoInFila(World, Unita);
+		if (!TestTrue(TEXT("⛔ premessa (fuori): il turno si costruisce, con quattro unita'"), TM != nullptr && Unita.Num() == 4)) { return false; }
+		for (ARTUnit* const U : Unita) { U->CustomTimeDilation = 0.3f; }
+		TuttePariA(Unita, 0.3f, TEXT("⛔ premessa (fuori): la sentinella c'e'"));
+
+		TM->BenchPlaybackSpeed = 0.f;
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ premessa (fuori): il playback e' partito"), TM->IsResolving())) { return false; }
+		TM->Tick(0.02f);
+		TuttePariA(Unita, 1.f, TEXT("🔴 fuori dal banco ogni unita' torna a 1"));
+	}
+	return true;
+}
+
+/**
+ * Il playback che RIPRENDE dopo una finestra di reazione non riscrive la dilatazione dell'avvio — #4166, Review Focus 3.
+ *
+ * 🔑 L'estensione (`BeginPlayback(true)`) e' la ripresa di un playback in corso, non un playback nuovo: cio' che l'avvio ha scritto
+ * resta. Il montaggio e' quello di `Playback.ActivationPrefixSurvivesASuspendedBlast`: un `Brace` con `Profile.Sidestep` contro un
+ * `Push` apre la finestra, il playback parte sulla timeline parziale e `ExpireReactionWindow` lo estende.
+ * ⚠️ **Due misure, perche' lo 0,5 da solo non distingue.** Riscrivere il valore alla ripresa darebbe ancora 0,5, quindi `Pusher`
+ * (comportamento: resta a x0,5 per tutta la ripresa) non basta a tenere il ramo fuori dalla ripresa. `Bracer` e' la seconda misura:
+ * porta una sentinella (0,37) messa DOPO l'avvio, e `BeginPlayback(true)` non deve toccarla — se la riscrivesse sarebbe 0,5.
+ * ✅ Validato per mutazione: portare l'assegnazione fuori dal ramo `!bPreserveClock` di `BeginPlayback` fa cadere `Bracer`, non le
+ * premesse, e mostra che la ripresa e' passata davvero da li'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBenchSlowdownSurvivesResumeTest,
+	"RefactorTactics.Playback.BenchSlowdownSurvivesAResumedPlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBenchSlowdownSurvivesResumeTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 6);
+	ARTUnit* const Bracer = SpawnCatenaUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* const Pusher = SpawnCatenaUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
+	ARTTurnManager* const TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bracer || !Pusher) { return false; }
+
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3));
+	Bracer->SetPlannedCell(Bracer->Cell);
+	Pusher->SetPlannedMainAction(RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3));
+	Pusher->DeclareAttackOnUnit(Bracer);
+	Pusher->SetPlannedCell(Pusher->Cell);
+
+	int32 FinestreAperte = 0;
+	TM->OnReactionWindowOpened.BindLambda([&FinestreAperte](const FRTReactionWindowView&, int32) { ++FinestreAperte; });
+	ON_SCOPE_EXIT{ TM->OnReactionWindowOpened.Unbind(); };
+
+	TM->BenchPlaybackSpeed = 0.5f;
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+	RTReactionWindowFixtures::PompaFinoAllaPresentazione(TM);
+	if (!TestTrue(TEXT("⛔ premessa: la resolution e' sospesa sulla finestra del Brace"), TM->IsResolutionSuspended())
+		|| !TestEqual(TEXT("⛔ premessa: la sospensione e' la finestra del Brace, aperta una volta"), FinestreAperte, 1)
+		|| !TestTrue(TEXT("⛔ premessa: il playback e' in corso sulla timeline parziale"), TM->IsResolving()))
+	{
+		return false;
+	}
+	// 🔑 L'avvio del playback parziale (`BeginPlayback(false)`) ha gia' scritto la dilatazione del banco.
+	TestEqual(TEXT("⛔ premessa: all'avvio Bracer e' a 0,5"), Bracer->CustomTimeDilation, 0.5f);
+	TestEqual(TEXT("⛔ premessa: all'avvio Pusher e' a 0,5"), Pusher->CustomTimeDilation, 0.5f);
+
+	// La sentinella DOPO l'avvio: se la ripresa riscrive, la porta a 0,5.
+	Bracer->CustomTimeDilation = 0.37f;
+
+	for (int32 Scadenze = 0; Scadenze < 8 && TM->IsResolutionSuspended(); ++Scadenze)
+	{
+		TM->ExpireReactionWindow();
+	}
+	if (!TestFalse(TEXT("⛔ premessa: la finestra e' chiusa e il turno ripreso"), TM->IsResolutionSuspended())) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: dopo la ripresa c'e' un playback residuo (`BeginPlayback(true)`)"), TM->IsResolving())) { return false; }
+
+	TestEqual(TEXT("🔴 la ripresa non riscrive la dilatazione: la sentinella di Bracer resta"), Bracer->CustomTimeDilation, 0.37f);
+	TestEqual(TEXT("🔴 e Pusher resta a x0,5 per tutta la ripresa"), Pusher->CustomTimeDilation, 0.5f);
 	return true;
 }
 

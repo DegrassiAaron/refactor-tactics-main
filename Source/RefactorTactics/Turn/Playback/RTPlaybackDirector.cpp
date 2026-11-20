@@ -135,6 +135,27 @@ void FRTPlaybackDirector::BeginPlayback(bool bPreserveClock)
 		PlaybackStepTargetElapsed = -1.f;
 	}
 
+	// ➕ #4166: nel banco le unita' rallentano con i battiti. `BenchPlaybackSpeed` scala solo l'orologio del playback
+	// (`Dt = DeltaSeconds * EffectivePlaybackSpeed`): le clip delle unita' e il Niagara attaccato a loro girano a velocita' piena, e il
+	// banco mostra pause che non ci sono. La dilatazione e' per attore, `CustomTimeDilation`, e non del mondo: `SetGlobalTimeDilation`
+	// e `SetPause` sono vietate (CP 46.6, #941). Fuori dal banco la velocita' e' zero e la dilatazione vale 1: una partita normale non cambia.
+	// 🔑 **Solo quando RICOMINCIA, mai quando ESTENDE**, come la politica di `bStartPlaybackPaused` qui sopra: `BeginPlayback(true)` e'
+	// la ripresa di un playback in corso dopo una finestra di reazione, e cio' che l'avvio ha scritto resta. Prima di qualunque
+	// battito: nessuna clip e' partita, quindi nessuna parte a velocita' piena.
+	if (!bPreserveClock)
+	{
+		const float Dilatazione = URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed);
+		TArray<AActor*> UnitaDelMondo;
+		UGameplayStatics::GetAllActorsOfClass(Host->GetPlaybackWorld(), ARTUnit::StaticClass(), UnitaDelMondo);
+		for (AActor* const Unita : UnitaDelMondo)
+		{
+			if (Unita)
+			{
+				Unita->CustomTimeDilation = Dilatazione;
+			}
+		}
+	}
+
 	const float ClockElapsedTotal = PlaybackElapsedTotal;
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
@@ -1029,7 +1050,9 @@ void FRTPlaybackDirector::SpawnChainArc(int32 Elemento)
 		return;
 	}
 	// 🔑 Un attore per salto: la spline e il Niagara che la percorre stanno nell'asset, qui si scrivono solo i tre punti.
-	URTPlaybackLibrary::SpawnChainArcActor(*World, *Classe, Inizio, Fine, Fx->LifeSeconds);
+	// ➕ #4166: nel banco l'arco rallenta con i battiti, e la sua vita con lui (vedi `SpawnChainArcActor`).
+	URTPlaybackLibrary::SpawnChainArcActor(*World, *Classe, Inizio, Fine, Fx->LifeSeconds,
+		URTPlaybackLibrary::PresentationTimeDilation(Tuning().BenchPlaybackSpeed));
 }
 
 void FRTPlaybackDirector::ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)

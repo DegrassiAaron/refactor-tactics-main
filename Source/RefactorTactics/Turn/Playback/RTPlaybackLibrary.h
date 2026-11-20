@@ -559,9 +559,23 @@ public:
 	 * guarda, e su un listen server un arco replicato ai client direbbe dove sta un colpito che non conoscono.
 	 * ⚠️ `LifeSeconds` non positivo (o NaN) vale il default della riga, `FRTChainFxBinding::LifeSeconds`: `SetLifeSpan(0)`
 	 * toglie il timer e l'attore resterebbe nel mondo per sempre.
+	 * ➕ #4166: `TimeDilation` e' la velocita' del banco (`FRTPlaybackTuning::BenchPlaybackSpeed`, `1` = partita normale) e passa
+	 * da `PresentationTimeDilation`. Diventa la `CustomTimeDilation` dell'attore — la spline, il Niagara e la Timeline del Blueprint
+	 * ne seguono il tempo — e la vita si DIVIDE per essa: il timer di `SetLifeSpan` e' del mondo e non segue la dilatazione
+	 * dell'attore, quindi a x0,5 l'arco morirebbe a meta' della sua animazione.
 	 */
 	static AActor* SpawnChainArcActor(UWorld& World, UClass& ArcClass, const FVector& Start, const FVector& End,
-		float LifeSeconds);
+		float LifeSeconds, float TimeDilation = 1.f);
+
+	/**
+	 * ➕ #4166: la `CustomTimeDilation` di presentazione per una velocita' del banco — `BenchPlaybackSpeed` se e' in `(0, 1]`,
+	 * altrimenti `1`.
+	 * 🔑 `0` e' «fuori dal banco» (il default di `ARTTurnManager::BenchPlaybackSpeed`), e nessun banco e' piu' veloce della
+	 * partita: un valore negativo, sopra `1` o NaN non deve produrre un attore fermo, al rovescio o accelerato. NaN cade nel `1`
+	 * perche' `> 0` con NaN e' falso.
+	 * ⛔ Non e' `SetGlobalTimeDilation` ne' `SetPause` (CP 46.6, #941): la dilatazione e' per attore, mai del mondo.
+	 */
+	static float PresentationTimeDilation(float BenchPlaybackSpeed);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'

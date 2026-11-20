@@ -31,6 +31,8 @@ struct FRTPlaybackTuning
 	float DefeatBeatSeconds = 0.f;
 	float MaxPlaybackSeconds = 0.f;
 	float ViewerPlaybackSpeed = 0.f;
+	/** ➕ #4166: la velocita' del banco Ability Lab, `0` fuori dal banco. Il director ne ricava la dilatazione delle unita' e degli archi. */
+	float BenchPlaybackSpeed = 0.f;
 	bool bRecordAttackBeatsForTest = false;
 	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 };

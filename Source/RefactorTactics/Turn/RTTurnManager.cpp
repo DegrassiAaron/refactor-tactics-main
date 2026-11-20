@@ -9197,6 +9197,7 @@ FRTPlaybackTuning ARTTurnManager::GetPlaybackTuning() const
 	T.DefeatBeatSeconds = DefeatBeatSeconds;
 	T.MaxPlaybackSeconds = MaxPlaybackSeconds;
 	T.ViewerPlaybackSpeed = ViewerPlaybackSpeed;
+	T.BenchPlaybackSpeed = BenchPlaybackSpeed; // ➕ #4166: nel banco unita' e archi rallentano con i battiti
 	T.bRecordAttackBeatsForTest = bRecordAttackBeatsForTest;
 	T.bRevealActivationsOnlyAtPhaseEndForTest = bRevealActivationsOnlyAtPhaseEndForTest;
 	return T;
