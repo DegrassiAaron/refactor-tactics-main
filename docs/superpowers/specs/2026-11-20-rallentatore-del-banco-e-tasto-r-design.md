@@ -1,6 +1,6 @@
 # Il rallentatore del banco vale per tutto, e R rifà la scena — disegno
 
-> **Data**: 2026-11-20. **Stato**: proposta, da approvare dall'autore. **Issue**: da aprire. **Decisione**: `D-632`
+> **Data**: 2026-11-20. **Stato**: approvato dall'autore il 2026-11-20 («si»). **Issue**: [#4166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4166). **Decisione**: `D-632`
 > (numero libero su `main` = `4bef64516` e sui rami remoti il 2026-11-20; si rimisura quando si scrive la riga).
 > Emenda [`D-607`](../../decisions/RT_PDR_00_Decision_Log.md) (1), la velocità del banco, e corregge un'affermazione
 > di [`D-621`](../../decisions/RT_PDR_00_Decision_Log.md) su `R`.
