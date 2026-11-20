@@ -943,8 +943,8 @@ namespace
  * 🔴 `BenchPlaybackSpeed` scala solo l'orologio del playback: le clip delle unita' girano a velocita' piena e il banco mostra
  * pause che non ci sono. `SetGlobalTimeDilation` non e' una strada (#941): resta `CustomTimeDilation` per attore, che ARTUnit non
  * ha motivo di contraddire perche' non ha tick proprio.
- * ⚠️ Il Niagara che le notify delle clip attaccano alle unita' NON e' coperto: nasce dopo, dal montage, e in modo batched non segue la
- * dilatazione dell'attore. Questo test misura la proprieta' dell'attore, non cio' che il Niagara ne fa.
+ * ⚠️ Questo test misura la proprieta' dell'attore, non cio' che il Niagara ne fa: il Niagara che le notify delle clip attaccano alle
+ * unita' nasce dopo, dal montage, e lo copre il tick del playback (`BenchForcesSoloOnTheNiagaraBornOnAUnit`).
  * 🔑 Due mondi: nel banco (x0,5) ogni unita' va a 0,5; fuori dal banco (0) ogni unita' va a 1 — cioe' una partita normale non cambia.
  * ⚠️ Il secondo mondo parte da una dilatazione SENTINELLA (0,3) e non da 1: «tutte a 1» dopo il turno sarebbe vero anche se il
  * director non scrivesse niente, e non direbbe che l'assegnazione c'e' ed e' il valore giusto. La premessa `IsResolving` dice che il
@@ -1108,11 +1108,12 @@ namespace
  *
  * 🔴 Niagara NON segue `AActor::CustomTimeDilation` nel modo di default: in batched il world manager lo tica col delta del mondo. In modo
  * solo il tick del componente riceve il delta gia' moltiplicato per la dilatazione dell'attore, e Niagara lo moltiplica ancora per la
- * propria: per avere esattamente 0,5 il solo si FORZA (`SetForceSolo`) e la dilatazione del componente resta 1 — impostarla a 0,5 darebbe
- * 0,25. Si misura per riflessione (`GetForceSolo`, `GetCustomTimeDilation`): il modulo Niagara non e' una dipendenza del C++.
+ * propria: per avere esattamente 0,5 il solo si FORZA (`SetForceSolo`) e la dilatazione del componente resta quella dell'asset — 1 nei
+ * pack di oggi, e il test lo misura — impostarla a 0,5 darebbe 0,25. Si misura per riflessione (`GetForceSolo`, `GetCustomTimeDilation`):
+ * il modulo Niagara non e' una dipendenza del C++.
  * 🔑 La sonda `ARTChainArcNiagaraProbeForTest` ha DUE componenti Niagara creati per classe; il controllo positivo e' che ci siano, e che
  * il caso senza dilatazione li lasci batched: senza, «forzato» sarebbe vero per un componente che lo e' sempre.
- * ✅ Validato per mutazione: togliere la chiamata a `ForceNiagaraSoloOnChainArc` da `SpawnChainArcActor` fa cadere il caso del banco.
+ * ✅ Validato per mutazione: togliere la chiamata a `ForceNiagaraSoloOn` da `SpawnChainArcActor` fa cadere il caso del banco.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChainArcNiagaraForcedSoloTest,
 	"RefactorTactics.Playback.ChainArcNiagaraIsForcedSoloInTheBench",
@@ -1161,6 +1162,103 @@ bool FRTPlaybackChainArcNiagaraForcedSoloTest::RunTest(const FString&)
 
 			TestEqual(*FString::Printf(TEXT("🔴 (%s) modo solo forzato"), Caso.Nome), bSolo, Caso.bSoloForzatoAtteso);
 			TestEqual(*FString::Printf(TEXT("🔴 (%s) la dilatazione del componente resta 1: il totale e' quello dell'attore, non il suo quadrato"), Caso.Nome),
+				DilatazioneDelComponente, 1.f);
+		}
+	}
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Aggiunge a `Attore` un componente Niagara creato per classe a runtime, come fa una notify di una clip a meta' playback
+	 * (`SpawnSystemAttached`: il componente nasce DOPO l'avvio, con l'attore come proprietario). Il tipo non si nomina, il modulo non e'
+	 * una dipendenza del C++ ([D-621]). `nullptr` senza il plugin: il test che lo chiama lo dichiara come premessa.
+	 */
+	UActorComponent* AggiungiNiagaraComeUnaNotify(AActor& Attore, const TCHAR* Nome)
+	{
+		UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
+		if (!NiagaraClass)
+		{
+			return nullptr;
+		}
+		UActorComponent* const Componente = NewObject<UActorComponent>(&Attore, NiagaraClass, Nome);
+		if (USceneComponent* const Scena = Cast<USceneComponent>(Componente))
+		{
+			Scena->SetupAttachment(Attore.GetRootComponent());
+		}
+		Componente->RegisterComponent();
+		return Componente;
+	}
+}
+
+/**
+ * Nel banco il Niagara che una notify attacca a un'unita' a meta' playback va in modo solo FORZATO, con la dilatazione a 1 — #4166.
+ *
+ * 🔴 Il disegno approvato promette che rallentano «le animazioni e i Niagara attaccati all'unita'». Il Niagara di una notify nasce
+ * DOPO l'avvio del playback, in modo batched, e li' non segue `CustomTimeDilation` dell'attore: l'assegnazione di `BeginPlayback` non
+ * lo raggiunge mai. Lo raggiunge il tick del playback, che a ogni giro forza il solo su ogni componente Niagara di ogni unita'
+ * (idempotente: `SetForceSolo` esce se il valore non cambia). Un Niagara nato fra due tick perde al piu' un fotogramma in batch.
+ * 🔑 Due mondi: nel banco (x0,5) il componente nato a meta' playback e' forzato; fuori dal banco (0) lo stesso componente, aggiunto
+ * allo stesso modo, NON lo e' — una partita normale non cambia, Niagara compreso.
+ * ⚠️ Il controllo positivo e' che il componente, appena nato e prima del tick, sia batched in entrambi i mondi: senza, «forzato dopo il
+ * tick» sarebbe vero per un componente che lo e' sempre, e non direbbe chi l'ha forzato. Un'unita' per componente, tutte e quattro:
+ * «ogni unita'» e' la regola, non la prima.
+ * ✅ Validato per mutazione: togliere dal tick del playback la chiamata a `ForceNiagaraSoloOn` lascia i componenti del banco batched
+ * (cade il caso del banco); togliere la condizione `< 1` li forza anche fuori dal banco (cade il caso fuori dal banco).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBenchForcesSoloOnNiagaraOfUnitsTest,
+	"RefactorTactics.Playback.BenchForcesSoloOnTheNiagaraBornOnAUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBenchForcesSoloOnNiagaraOfUnitsTest::RunTest(const FString&)
+{
+	for (const bool bBanco : { true, false })
+	{
+		const FString Mondo = bBanco ? TEXT("banco x0,5") : TEXT("fuori dal banco");
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(*FString::Printf(TEXT("mondo di prova (%s)"), *Mondo), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		TArray<ARTUnit*> Unita;
+		ARTTurnManager* const TM = SetUpBancoInFila(World, Unita);
+		if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): il turno si costruisce, con quattro unita'"), *Mondo), TM != nullptr && Unita.Num() == 4)) { return false; }
+
+		TM->BenchPlaybackSpeed = bBanco ? 0.5f : 0.f;
+		TM->LockInAndResolve();
+		if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): il playback e' partito"), *Mondo), TM->IsResolving())) { return false; }
+		TM->Tick(0.02f);
+
+		// 🔑 A playback avviato: e' cio' che fa una notify, e l'assegnazione di `BeginPlayback` e' gia' passata.
+		TArray<UActorComponent*> Nati;
+		for (int32 I = 0; I < Unita.Num(); ++I)
+		{
+			UActorComponent* const Componente = AggiungiNiagaraComeUnaNotify(*Unita[I], *FString::Printf(TEXT("NiagaraDiUnaNotify%d"), I));
+			if (!TestNotNull(*FString::Printf(TEXT("⛔ premessa (%s): il componente Niagara nasce (il plugin e' attivo)"), *Mondo), Componente)) { return false; }
+			Nati.Add(Componente);
+		}
+		if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): il playback e' ancora in corso, quindi il tick arriva al director"), *Mondo), TM->IsResolving())) { return false; }
+
+		for (UActorComponent* const C : Nati)
+		{
+			bool bSolo = true;
+			if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): GetForceSolo si chiama per riflessione"), *Mondo),
+				BancoLeggiPerRiflessione<bool>(C, TEXT("GetForceSolo"), bSolo))) { return false; }
+			TestFalse(*FString::Printf(TEXT("⛔ controllo positivo (%s): appena nato il componente e' batched"), *Mondo), bSolo);
+		}
+
+		TM->Tick(0.02f);
+
+		for (UActorComponent* const C : Nati)
+		{
+			bool bSolo = !bBanco;
+			float DilatazioneDelComponente = 0.f;
+			if (!TestTrue(*FString::Printf(TEXT("⛔ premessa (%s): GetForceSolo e GetCustomTimeDilation si chiamano per riflessione"), *Mondo),
+				BancoLeggiPerRiflessione<bool>(C, TEXT("GetForceSolo"), bSolo)
+				&& BancoLeggiPerRiflessione<float>(C, TEXT("GetCustomTimeDilation"), DilatazioneDelComponente))) { return false; }
+
+			TestEqual(*FString::Printf(TEXT("🔴 (%s) %s: modo solo forzato dopo il tick"), *Mondo, *C->GetOwner()->GetName()), bSolo, bBanco);
+			TestEqual(*FString::Printf(TEXT("🔴 (%s) %s: la dilatazione del componente resta 1, il totale e' quello dell'attore"), *Mondo, *C->GetOwner()->GetName()),
 				DilatazioneDelComponente, 1.f);
 		}
 	}

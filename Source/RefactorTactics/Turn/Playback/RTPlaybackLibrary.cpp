@@ -1189,48 +1189,35 @@ float URTPlaybackLibrary::PresentationTimeDilation(float BenchPlaybackSpeed)
 	return (BenchPlaybackSpeed > 0.f && BenchPlaybackSpeed <= 1.f) ? BenchPlaybackSpeed : 1.f;
 }
 
-namespace
+void URTPlaybackLibrary::ForceNiagaraSoloOn(AActor& Actor)
 {
-	/**
-	 * ➕ #4166: mette in modo solo FORZATO ogni componente Niagara di `Arco`, lasciando a 1 la `CustomTimeDilation` del componente.
-	 *
-	 * 🔴 **Niagara non segue `AActor::CustomTimeDilation` nel suo modo di default.** In modo batched il world manager tica il
-	 * sistema col delta del MONDO (`NiagaraComponent.cpp`, `TickComponent`: «should only be executed when in solo mode»), e la
-	 * dilatazione dell'attore non arriva. In modo solo il tick del componente riceve il delta gia' moltiplicato per quella del
-	 * proprietario (`Actor.h`, `ConditionalTick`) e Niagara lo moltiplica ancora per la propria `CustomTimeDilation`
-	 * (`ManualTick(DeltaSeconds * CustomTimeDilation)`). Con la propria a 1 il totale e' esattamente quello dell'attore: 0,5, non 0,25.
-	 * ⛔ **Si forza il solo, non si imposta la dilatazione del componente**: impostarla a 0,5 darebbe il solo (`RequiresSoloMode`) ma
-	 * moltiplicherebbe due volte.
-	 *
-	 * ⛔ **Il modulo Niagara non e' una dipendenza del C++** ([D-621]): la classe si cerca per nome a runtime e `SetForceSolo` — una
-	 * `UFUNCTION(BlueprintCallable)` — si chiama per riflessione. Con il plugin spento la classe non c'e' e non si fa niente.
-	 * ⚠️ Raggiunge i componenti che l'attore ha alla nascita (quelli del Blueprint). Il Niagara che nasce dopo — le notify delle clip
-	 * delle unita' — non si raggiunge da qui.
-	 */
-	void ForceNiagaraSoloOnChainArc(AActor& Arco)
+	const UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
+	if (!NiagaraClass)
 	{
-		const UClass* const NiagaraClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraComponent"));
-		if (!NiagaraClass)
+		return;
+	}
+	for (UActorComponent* const Componente : Actor.GetComponents())
+	{
+		if (!Componente || !Componente->IsA(NiagaraClass))
 		{
-			return;
+			continue;
 		}
-		for (UActorComponent* const Componente : Arco.GetComponents())
+		UFunction* const SetForceSolo = Componente->FindFunction(TEXT("SetForceSolo"));
+		// ⚠️ **Un solo parametro `bool`, nessun ritorno**: se la firma cambiasse in un'altra versione del motore, `ProcessEvent`
+		// scriverebbe fuori dal blocco. Meglio non forzare (e vedere il Niagara a velocita' piena) che corrompere. `ParmsSize`
+		// da solo non basta: un parametro `uint8` o un ritorno `bool` pesano lo stesso, e il primo parametro e' il suo tipo.
+		const bool bFirmaAttesa = SetForceSolo
+			&& SetForceSolo->NumParms == 1
+			&& SetForceSolo->ParmsSize == sizeof(bool)
+			&& CastField<FBoolProperty>(SetForceSolo->PropertyLink) != nullptr
+			&& !SetForceSolo->GetReturnProperty();
+		if (!bFirmaAttesa)
 		{
-			if (!Componente || !Componente->IsA(NiagaraClass))
-			{
-				continue;
-			}
-			UFunction* const SetForceSolo = Componente->FindFunction(TEXT("SetForceSolo"));
-			// ⚠️ Un solo parametro `bool`, nessun ritorno: se la firma cambiasse in un'altra versione del motore, ProcessEvent
-			// scriverebbe fuori dal blocco. Meglio non forzare (e vedere l'arco a velocita' piena) che corrompere.
-			if (!SetForceSolo || SetForceSolo->ParmsSize != sizeof(bool))
-			{
-				UE_LOG(LogRT, Verbose, TEXT("[RT] Scarica a catena: %s non ha un SetForceSolo(bool) utilizzabile"), *Componente->GetPathName());
-				continue;
-			}
-			bool bForzaSolo = true;
-			Componente->ProcessEvent(SetForceSolo, &bForzaSolo);
+			UE_LOG(LogRT, Verbose, TEXT("[RT] Banco: %s non ha un SetForceSolo(bool) utilizzabile"), *Componente->GetPathName());
+			continue;
 		}
+		bool bForzaSolo = true;
+		Componente->ProcessEvent(SetForceSolo, &bForzaSolo);
 	}
 }
 
@@ -1253,13 +1240,13 @@ AActor* URTPlaybackLibrary::SpawnChainArcActor(UWorld& World, UClass& ArcClass, 
 	Arco->SetActorEnableCollision(false);
 	// ➕ #4166: nel banco l'arco segue il tempo dei battiti (x0,5). Per attore e non per mondo: la dilatazione globale e' vietata
 	// (CP 46.6, #941). I componenti ordinari (la Timeline del Blueprint) ricevono il delta gia' moltiplicato per la dilatazione
-	// dell'attore. **Il Niagara no**, nel suo modo di default: si forza il modo solo (vedi `ForceNiagaraSoloOnChainArc`). Fuori
+	// dell'attore. **Il Niagara no**, nel suo modo di default: si forza il modo solo (vedi `ForceNiagaraSoloOn`). Fuori
 	// dal banco `TimeDilation` e' 1 e non cambia niente, Niagara compreso: resta batched.
 	const float Dilatazione = PresentationTimeDilation(TimeDilation);
 	Arco->CustomTimeDilation = Dilatazione;
 	if (Dilatazione < 1.f)
 	{
-		ForceNiagaraSoloOnChainArc(*Arco);
+		ForceNiagaraSoloOn(*Arco);
 	}
 
 	USplineComponent* const Spline = Arco->FindComponentByClass<USplineComponent>();
