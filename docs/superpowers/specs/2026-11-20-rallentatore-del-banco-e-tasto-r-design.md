@@ -11,13 +11,20 @@
 > default non è così: in modalità batch Niagara ignora la dilatazione dell'attore. Vale invece:
 >
 > - **L'arco**: con dilatazione minore di 1 i componenti Niagara che l'arco ha alla nascita sono forzati in modalità «solo»
->   (`SetForceSolo(true)`, chiamata per riflessione: il C++ resta senza il modulo Niagara) con la propria dilatazione a 1, e
->   secondo il sorgente di Engine 5.8 il totale è la dilatazione dell'attore. `Playback.ChainArcNiagaraIsForcedSoloInTheBench`
+>   (`SetForceSolo(true)`, chiamata per riflessione: il C++ resta senza il modulo Niagara), la dilatazione del componente resta
+>   quella dell'asset (1 nei pack di oggi, e non si scrive), e secondo il sorgente di Engine 5.8 il totale è la dilatazione dell'attore. `Playback.ChainArcNiagaraIsForcedSoloInTheBench`
 >   misura lo stato (modalità «solo» forzata, dilatazione del componente a 1), non l'effetto a schermo: quello lo giudica
 >   `PIE-LAB-BERSAGLI` (7).
 > - **I Niagara che le notify delle clip attaccano alle unità** (per esempio il rilascio `NS_Gadget_LinearDischarge_Release`)
->   nascono a metà animazione e non sono raggiunti: nel banco restano a velocità normale. È un limite dichiarato in
->   [`D-632`](../../decisions/RT_PDR_00_Decision_Log.md) e un seguito candidato, non lavoro di questo disegno.
+>   nascono a metà animazione, in modalità batch, e `BeginPlayback` non li vede ancora. ➕ **2026-11-20, dopo la revisione
+>   dell'intero ramo: ora sono coperti.** Li raggiunge il tick del playback: `FRTPlaybackDirector::TickPlayback` chiama
+>   `URTPlaybackLibrary::ForceNiagaraSoloOn` su ogni unità del mondo a ogni tick, finché la dilatazione è sotto 1. È
+>   idempotente, e un componente nato fra due tick perde al più un fotogramma in batch.
+>   `Playback.BenchForcesSoloOnTheNiagaraBornOnAUnit` misura lo stato, non l'effetto a schermo, come per l'arco. Prima
+>   questa nota li dichiarava non raggiunti: valeva fino a quella revisione.
+> - **Restano a velocità normale**, e sono limiti da confermare dall'autore, non una decisione
+>   ([`D-632`](../../decisions/RT_PDR_00_Decision_Log.md)): l'overlay delle unità (token di danno e di cura, barra: delta
+>   di Slate), l'audio delle notify, e il Niagara che una notify non attacca all'unità.
 >
 > Le clip delle unità e i componenti ordinari dell'arco, come la sua Timeline, seguono la dilatazione come previsto.
 
