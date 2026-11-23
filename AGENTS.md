@@ -45,7 +45,9 @@ Il Move normale resta l'ultima fase volontaria.
 
 Azioni universali:
 
-`Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`
+`Wait · Move · BasicAttack · Guard · Brace · Interact`
+
+L'Overwatch non è più fra queste: è una reazione del kit dell'eroe, e chi non l'ha nel kit non può fare overwatch ([D-633](docs/decisions/RT_PDR_00_Decision_Log.md) (6)). ⏳ Non implementato: in codice `Action.Overwatch` è ancora universale.
 
 ## 2. Fonti da leggere
 
@@ -156,7 +158,7 @@ L'owner gameplay corrente stabilisce quali azioni appartengono alla famiglia.
 
 - Sprint = profilo Move.
 - Sprint ≠ Dash.
-- Overwatch è universale.
+- Overwatch è una reazione del kit, non universale ([D-633](docs/decisions/RT_PDR_00_Decision_Log.md) (6); ⏳ in codice ancora universale).
 - Overwatch compete con l'azione offensiva principale.
 - Delayed/Predictive Action viene scelta nel Planning.
 - Fast Action continua una propria azione.
