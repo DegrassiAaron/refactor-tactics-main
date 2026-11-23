@@ -907,5 +907,22 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bIsUltimate = false;
 
+	/**
+	 * L'**elemento** del colpo dell'azione ([D-634] (4), #4189): uno di quelli di `URTHeroCatalogLibrary::ElementIds()`,
+	 * oppure `NAME_None` per un colpo senza elemento, cioe' `Direct`. D-634 lo dice della skill («danno dell'elemento
+	 * della skill»), quindi sta sulla riga e non sull'eroe: lo stesso eroe puo' avere un attacco diretto e un'abilita'
+	 * elettrica. `ValidateActions` rifiuta un identificatore fuori lista: un refuso darebbe al colpo un elemento che non
+	 * esiste, e per cui nessun eroe puo' dichiarare una RES (`ValidateHeroes` rifiuta la chiave).
+	 *
+	 * Viaggia sull'intento e sul colpo del Blast (`FRTHexAttackIntent::ElementId`, `FRTHexAttackHit::ElementId`), copiato
+	 * dove l'intento nasce: `CollectAttackIntents` e l'impatto di una carica (`AppendChargeImpactIntents`).
+	 *
+	 * ⚠️ **Nessuna riga di oggi lo dichiara, e nessun numero ne dipende ancora**: finche' la RES non entra nel colpo, un
+	 * colpo elementale si mitiga con la DEF come uno diretto. Come `bIsUltimate`, non entra in nessun hash, perche' il
+	 * catalogo non ci entra ([D-083]), e il TurnLog non lo porta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName ElementId;
+
 	FRTActionDef() = default;
 };

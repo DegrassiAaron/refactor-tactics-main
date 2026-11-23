@@ -243,7 +243,8 @@ public:
 	 * Errori strutturali di un catalogo di azioni (vuoto = catalogo valido). Rifiuta:
 	 * ID assente o duplicato · priorita' negativa · portata/costo/cooldown negativi · azione che dichiara di
 	 * risolvere nello Snapshot (fase di congelamento: nessuna azione risolve li') · azione di movimento con
-	 * fallback diverso da `Stop` (regola del vertical slice: ci si ferma nell'ultima cella valida).
+	 * fallback diverso da `Stop` (regola del vertical slice: ci si ferma nell'ultima cella valida) · elemento
+	 * (`ElementId`) che non e' `NAME_None` ne' uno di quelli di `URTHeroCatalogLibrary::ElementIds()` ([D-634] (4)).
 	 *
 	 * Ogni messaggio nomina l'azione colpevole: un errore che non dice QUALE riga e' rotta costringe a
 	 * ricontrollare tutto il catalogo a mano.

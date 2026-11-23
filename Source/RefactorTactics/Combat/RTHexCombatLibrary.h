@@ -49,8 +49,9 @@ struct FRTHexCombatUnit
 	 * si sottrae dentro `CollectHexAttacks`: D-589 vuole la difesa prima e le riduzioni piatte dopo, quindi la
 	 * difesa deve essere in mano a chi calcola il colpo. I valori sono nel catalogo dal CP 53.3c ([D-595] (3):
 	 * Gadget 15, Muiren 25, Riktor 45, Ivrin 15); con `0` la formula e' l'identita'
-	 * (`Combat.Formula.ZeroDefenseIsIdentity`). La RES per elemento NON e' qui: il colpo non porta ancora un
-	 * elemento, e senza quello non c'e' niente da applicare.
+	 * (`Combat.Formula.ZeroDefenseIsIdentity`). La RES per elemento NON e' qui: il colpo porta gia' l'elemento
+	 * dell'azione (`FRTHexAttackHit::ElementId`, #4189), ma nessuna RES lo mitiga ancora, e un colpo elementale si
+	 * mitiga con questa DEF come uno diretto.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 Defense = 0;
@@ -230,6 +231,17 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
 
+	/**
+	 * L'elemento del colpo ([D-634] (4), #4189), `NAME_None` per un colpo senza elemento (`Direct`). Si COPIA da
+	 * `FRTActionDef::ElementId`, accanto a `LineOfSightPolicy` e per la stessa ragione: la sede della decisione e' il
+	 * catalogo, qui c'e' il parametro dell'intento. `CollectHexAttacks` lo passa a ogni colpo dell'intento.
+	 *
+	 * ⚠️ **Nasce `NAME_None`**: un intento costruito senza dichiararlo — un test, un percorso che non legge il `Def` —
+	 * resta un colpo diretto, cioe' il comportamento di prima del campo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FName ElementId;
+
 	FRTHexAttackIntent() = default;
 };
 
@@ -333,6 +345,14 @@ struct FRTHexAttackHit
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 ModPercentApplied = 100;
+
+	/**
+	 * L'elemento del colpo, dall'intento che l'ha prodotto (`FRTHexAttackIntent::ElementId`, #4189); `NAME_None` =
+	 * `Direct`. Lo scrive `CollectHexAttacks`; `RedirectHitTo` lo conserva, perche' l'elemento e' dell'azione e non del
+	 * bersaglio. ⚠️ Non cambia ancora nessun numero: oggi nessuna RES lo legge.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	FName ElementId;
 };
 
 /**

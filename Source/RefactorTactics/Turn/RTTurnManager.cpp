@@ -6535,6 +6535,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
+	if (bRecordBlastPlanForTest)
+	{
+		RecordedBlastIntents = Ctx.Intents;
+		RecordedBlastHits = Ctx.Plan.Hits;
+	}
 
 	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'
 	// fermato, o una carica riuscita) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe

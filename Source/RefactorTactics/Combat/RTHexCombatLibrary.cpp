@@ -821,6 +821,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				Hit.MitigatedPower = Mitigated;
 				Hit.RearBonusApplied = RearApplied;
 				Hit.DefenseApplied = Other.Defense;
+				Hit.ElementId = Intent.ElementId; // #4189: l'elemento e' dell'azione, ogni colpo dell'intento lo porta
 				Plan.Hits.Add(MoveTemp(Hit));
 			}
 		}

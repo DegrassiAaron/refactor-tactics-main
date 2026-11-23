@@ -53,8 +53,9 @@ public:
 	 * I dodici identificatori degli elementi ([D-588], [D-593]): `Element.Warp`, `Fire`, `Water`, `Earth`,
 	 * `Electric`, `Frost`, `Decay`, `Life`, `Arcane`, `Aegis`, `Air`, `Disintegration`. Nessun ordine ciclico
 	 * (D-588 (3)): l'ordine dell'array e' quello del catalogo delle coppie, una convenzione di scrittura.
-	 * E' vocabolario di design: nessun effetto di gioco nasce da qui, e il solo lettore oggi e' il validator
-	 * delle chiavi di `URTHeroData::ElementResistance` (E53 CP 53.2b).
+	 * E' vocabolario di design: nessun effetto di gioco nasce da qui, e oggi lo leggono soltanto i validator: quello
+	 * delle chiavi di `URTHeroData::ElementResistance` (E53 CP 53.2b) e quello di `FRTActionDef::ElementId` in
+	 * `URTCatalogLibrary::ValidateActions` (#4189).
 	 */
 	static const TArray<FName>& ElementIds();
 

@@ -1674,6 +1674,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Quarta volta lo stesso rimedio (`#3093`): senza questa riga l'intento nascerebbe a `0`, il planning
 		// rifiuterebbe `TooClose` e la risoluzione lo accetterebbe — la regola permissiva sul lato sbagliato.
 		Intent.MinRangeCells = Instance.Def.MinRangeCells;
+		// Quinta volta lo stesso rimedio (#4189, [D-634] (4)): l'elemento del colpo. Senza questa riga ogni intento
+		// nascerebbe `Direct`, e un'azione che il catalogo dichiara elementale arriverebbe al resolver senza elemento.
+		Intent.ElementId = Instance.Def.ElementId;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1775,6 +1778,8 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		// ciclo dei piani -- quindi la propagazione va ripetuta, o gli impatti smetterebbero di colpire mentre
 		// tutto il resto funziona.
 		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
+		// E l'elemento (#4189), per la stessa ragione: la carica ha il suo `Def`, e il colpo dell'impatto e' suo.
+		Intent.ElementId = Impact.Def.ElementId;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);

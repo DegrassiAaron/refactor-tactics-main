@@ -1,5 +1,6 @@
 #include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/Catalog/RTActionDescriptions.h" // `#3499`: la frase d'autore di ogni azione
+#include "Ability/Catalog/RTHeroCatalogLibrary.h" // `IsKnownElementId`: il vocabolario degli elementi e' uno (#4189)
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
@@ -331,6 +332,15 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		if (bIsMovement && Action.Fallback != ERTActionFallback::Stop)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: azione di movimento con fallback diverso da Stop"), *Where));
+		}
+
+		// [D-634] (4), #4189: l'elemento e' uno di quelli di `ElementIds()`, oppure nessuno (`Direct`). Fuori lista e' un
+		// refuso o un elemento che non esiste, e nessun eroe potrebbe dichiarare una RES contro di lui: e' l'altra meta'
+		// della regola per cui `ValidateHeroes` rifiuta una chiave sconosciuta di `ElementResistance`.
+		if (!Action.ElementId.IsNone() && !URTHeroCatalogLibrary::IsKnownElementId(Action.ElementId))
+		{
+			Errors.Add(FString::Printf(TEXT("%s: elemento sconosciuto (%s), non e' fra quelli di ElementIds()"), *Where,
+				*Action.ElementId.ToString()));
 		}
 	}
 
