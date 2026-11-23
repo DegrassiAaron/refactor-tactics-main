@@ -81,8 +81,9 @@ public:
 	 * dipende da `Status.Wet` **sul bersaglio**, non da chi ha bagnato: acqua e superfici conduttive sono il
 	 * *setup*, la scarica e' il *payoff*. L'ownership e' decisa da D-029 e ADR-0006 — qualunque sorgente di
 	 * `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno) abilita lo stesso payoff, e
-	 * Muiren non e' un requisito. Il bonus non vive negli `Effects`: passa da `EffectiveAttackPower` +
-	 * `URTCombatLibrary::GadgetWetDischargeBonus`, ed e' misurato da `Heroes.Gadget.WetBonus`.
+	 * Muiren non e' un requisito. Il bonus non vive negli `Effects`: `URTCombatLibrary::GadgetWetDischargeBonus` entra
+	 * nel Base del colpo, prima della difesa ([D-634] (35), #4189), ed e' misurato da `Heroes.Gadget.WetBonus` e da
+	 * `Damage.BaseBonus.WetEntersTheBaseInATurn`.
 	 *
 	 * Limite dichiarato che resta: `Overload` non ha un modello di "dispositivo interrompibile", quindi
 	 * l'`Interrupt` sui dispositivi non e' rappresentabile. L'azione esiste comunque come DATO, con la sua

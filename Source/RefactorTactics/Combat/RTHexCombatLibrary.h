@@ -335,6 +335,10 @@ struct FRTHexAttackHit
 	 * ⚠️ `NominalPower` e' il potere dell'intent, cioe' il valore **dopo** i bonus di cella e
 	 * condizionali che vivono nel Blast (stadi 2 e 3): non e' il numero di catalogo. Quei due stadi non
 	 * sono registrati da questa slice, ed e' dichiarato invece che dedotto.
+	 *
+	 * Dal #4189 e' il BASE della formula anche per il marchio e il +80 contro `Wet` ([D-634] (35)):
+	 * `URTHexCombatLibrary::AddBonusToHitBase` ve li somma sul piano, dopo la raccolta. Letto dopo quel pass e'
+	 * quindi l'intento PIU' i bonus del colpo, e la voce `Catalog` del breakdown li comprende.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 NominalPower = 0;
@@ -379,8 +383,9 @@ struct FRTHexAttackHit
 
 	/**
 	 * Il `Mod` di [D-589] (3) applicato a questo colpo, in centesimi: `100` = nessun moltiplicatore. Oggi l'unico valore
-	 * diverso e' `URTCombatLibrary::ExposedModPercent` (120) sul primo colpo diretto che fa danno a un bersaglio `Exposed`
-	 * ([D-595] (2); E53 CP 53.3b), scritto da `ApplyExposedToFirstHit` DOPO la raccolta: «primo» si decide sui colpi gia'
+	 * diverso e' `URTCombatLibrary::ExposedModPercent` (120) sul primo colpo che fa danno a un bersaglio `Exposed`, con o
+	 * senza elemento ([D-595] (2); E53 CP 53.3b; la lettura su «diretto» e' del controller, Ruling 3 del #4189,
+	 * ribaltabile), scritto da `ApplyExposedToFirstHit` DOPO la raccolta: «primo» si decide sui colpi gia'
 	 * raccolti e gia' redirezionati (`Intercept`), nell'ordine canonico del Blast, e la raccolta non puo' saperlo.
 	 * `ToAttacks` lo legge per la voce `Mod` del breakdown.
 	 */
@@ -945,10 +950,12 @@ public:
 	 * stessa scelta in `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
 	 *
 	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
-	 * sul PRIMO colpo diretto, e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
-	 * Blast — lo applica `ApplyExposedToFirstHit` ricalcolando questa stessa formula con `ModPercent` 120. `Marked`
-	 * resta un delta piatto a valle (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore. Con DEF e
-	 * bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha tenuto il corpus golden byte-identico in CP 53.2c.
+	 * sul PRIMO colpo che fa danno, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto» di
+	 * [D-595] (2), ribaltabile), e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
+	 * Blast — lo applica `ApplyExposedToFirstHit` ricalcolando questa stessa formula con `ModPercent` 120. Per la stessa
+	 * ragione il marchio e il +80 contro `Wet` entrano nel Base DOPO la raccolta, con `AddBonusToHitBase` ([D-634] (35)):
+	 * chi li prende si decide sul piano. Con DEF e bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha
+	 * tenuto il corpus golden byte-identico in CP 53.2c.
 	 *
 	 * @param ElementId            l'elemento del colpo (`FRTHexAttackIntent::ElementId`); `NAME_None` = `Direct`, la DEF.
 	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
@@ -958,8 +965,10 @@ public:
 		int32& OutRearBonusApplied);
 
 	/**
-	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto di ciascun bersaglio ([D-595] (2); E53
-	 * CP 53.3b). Per ogni bersaglio con `bExposedByTarget[TargetId]` vero, il primo colpo di `HitOrder` che gli FA danno
+	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo che fa danno a ciascun bersaglio, con o senza
+	 * elemento ([D-595] (2); E53 CP 53.3b; Ruling 3 del #4189: «diretto» in [D-595] (2) distingue il colpo d'attacco dal
+	 * danno ambientale, non il `Direct` dall'elementale — lettura del controller, ribaltabile). Per ogni bersaglio con
+	 * `bExposedByTarget[TargetId]` vero, il primo colpo di `HitOrder` che gli FA danno
 	 * (`Power > 0`, lo stesso predicato del marchio) e che porta un nominale viene ricalcolato con la formula di [D-589]:
 	 * `M' = MitigateDirectDamage(NominalPower, RearBonusApplied, ExposedModPercent, DefenseApplied)`, `Power += M' − M`,
 	 * `MitigatedPower = M'`, `ModPercentApplied = 120`. Gli altri colpi non cambiano. Lo stato NON si consuma qui.
@@ -984,6 +993,32 @@ public:
 	 */
 	static TArray<int32> ApplyExposedToFirstHit(TArray<FRTHexAttackHit>& Hits, const TArray<int32>& HitOrder,
 		const TArray<bool>& bExposedByTarget);
+
+	/**
+	 * Un bonus piatto che entra nel BASE del colpo, prima della difesa ([D-634] (35), #4189): il marchio (+60,
+	 * `URTCombatLibrary::MarkedFirstHitBonus`) e il +80 di `Hero.Gadget.LinearDischarge` contro un bersaglio `Wet`
+	 * (`URTCombatLibrary::GadgetWetDischargeBonus`). Il colpo si ricalcola con la formula di [D-589], come fa
+	 * `ApplyExposedToFirstHit` per il `Mod`: `M' = MitigateDirectDamage(NominalPower + Bonus, RearBonusApplied,
+	 * ModPercentApplied, DefenseApplied)`, poi `Power = max(0, M' − Copertura)`, `MitigatedPower = M'`,
+	 * `NominalPower += Bonus`. Un solo arrotondamento ([D-595] (1)), con la difesa che il colpo ha registrato (la RES per
+	 * un colpo elementale) e il `Mod` che porta gia' (`Exposed` 120 moltiplica anche il bonus).
+	 *
+	 * 🔑 **`NominalPower` cresce del bonus, ed e' cio' che rende i bonus componibili.** Marchio e +80 sulla stessa
+	 * LinearDischarge danno `M(Base + 60 + 80)`, un solo floor; due delta calcolati entrambi dal nominale dell'intento
+	 * sommerebbero due floor (`Damage.BaseBonus.RecomputesTheCollectedHit`). Il campo era gia' dichiarato come «il valore
+	 * dopo i bonus condizionali del Blast»: ora li porta.
+	 *
+	 * Copertura: su un colpo che fa danno si somma la differenza `M' − M` a `Power`, per la ragione di
+	 * `ApplyExposedToFirstHit` (`CoverReduction` di un colpo redirezionato e' stantio, `#4037`) — la copertura non ha
+	 * azzerato niente, quindi e' esattamente `max(0, M' − Copertura)`. Su un colpo che la copertura ha AZZERATO (il +80
+	 * non ha la guardia del marchio, Ruling 4 del #4189) la copertura si legge da `CoverReduction`, che e' esatta per ogni
+	 * colpo non redirezionato; ⚠️ per uno redirezionato da un `Intercept` e azzerato e' quella della vittima originale,
+	 * cioe' lo stesso difetto di `#4037`, e si corregge con lui.
+	 *
+	 * Chi prende il bonus lo decide il chiamante (`RTTurnManager.cpp`, `MarkSpentOn` e il pass della LinearDischarge):
+	 * questa funzione ne decide solo il PUNTO nella formula.
+	 */
+	static void AddBonusToHitBase(FRTHexAttackHit& Hit, int32 Bonus);
 
 	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo

@@ -103,8 +103,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetWetBonusTest,
 bool FRTGadgetWetBonusTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. Il bonus NON e' nella lista Effects (e' condizionale al bersaglio, non un
-	// danno fisso): passa da `EffectiveAttackPower`, la stessa funzione del bonus di cella, riusata per un
-	// bonus di STATO invece che di terreno.
+	// danno fisso). Qui si pinna il numero e il Base che ne esce, 240 + 80: dal #4189 e' il Base che entra nella
+	// formula PRIMA della difesa ([D-634] (35), `URTHexCombatLibrary::AddBonusToHitBase`), non piu' una somma al colpo
+	// mitigato via `EffectiveAttackPower`. Con DEF 0 i due numeri coincidono, ed e' il caso di questo test; con una DEF lo
+	// misura `Damage.BaseBonus.WetEntersTheBaseInATurn`.
 	const int32 BaseDamage = GadgetDeclaredDamage(URTHeroCatalogLibrary::MakeGadget()->Actions[1]);
 	if (!TestEqual(TEXT("il danno base dichiarato e' 240"), BaseDamage, 240)) { return false; }
 

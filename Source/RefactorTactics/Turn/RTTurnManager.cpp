@@ -6786,11 +6786,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		return PrecedeNelBlast(IntentDefs, HA.IntentIndex, HA.AttackerId, HB.IntentIndex, HB.AttackerId);
 	});
 
-	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto che fa danno a chi
-	// ha scattato allo scoperto, PRIMA della DEF e della copertura — cioe' ricalcolando il colpo del piano, dove spalle,
-	// DEF e nominale sono ancora noti. Viene PRIMA del marchio e del bonus condizionale, che sommano delta piatti a
-	// `Power` e non devono entrare nel prodotto. Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come
-	// per il marchio, e NON si consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
+	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo che fa danno a chi ha
+	// scattato allo scoperto, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto», ribaltabile),
+	// PRIMA della difesa e della copertura — cioe' ricalcolando il colpo del piano, dove spalle, difesa e nominale sono
+	// ancora noti. Viene PRIMA del marchio e del bonus condizionale, ma dal #4189 l'ordine non cambia il numero: i due
+	// bonus entrano nel Base ricalcolando con il `Mod` che il colpo porta, quindi il 120 li moltiplica comunque
+	// ([D-634] (35)). Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come per il marchio, e NON si
+	// consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
 	//
 	// ⏱️ *Fino al 2026-11-10 era un `+5` (poi `+50`) piatto sommato DOPO la copertura da `ApplyFirstHitDelta`, con il
 	// totale per bersaglio indipendente da quale colpo lo prendesse. Con un moltiplicatore il totale DIPENDE da quale
@@ -6824,7 +6826,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				? IntentDefs[Hit.IntentIndex].Priority : MAX_int32;
 			if (HitPriority <= IncomingMarkPriority[Hit.TargetId]) { continue; }
 		}
-		Hit.Power += URTCombatLibrary::MarkedFirstHitBonus;
+		// [D-634] (35), #4189: il +60 entra nel Base, PRIMA della difesa — `max(0, M(Base + 60, Spalle, Mod, difesa) −
+		// Copertura)` — e non piu' sul colpo gia' mitigato. Chi lo prende non cambia (Ruling 4): il primo colpo alleato
+		// che fa danno, giudicato PRIMA del bonus dalla guardia `Power <= 0` qui sopra.
+		URTHexCombatLibrary::AddBonusToHitBase(Hit, URTCombatLibrary::MarkedFirstHitBonus);
 		MarkSpentOn.Add(Hit.TargetId);
 	}
 	// Consumo dopo il pass, non dentro: durante il pass `HasStatus` deve rispondere sullo stato congelato.
@@ -6846,9 +6851,9 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
-	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
-	// solo sul primo, quindi non passa dai delta qui sotto.
+	// `Gadget.LinearDischarge` +80 contro bersaglio `Status.Wet` (catalogo eroi §1), nel Base del colpo ([D-634] (35)).
+	// Non e' nella lista `Effects` perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio
+	// e' bagnato — non solo sul primo, quindi non passa dai delta qui sotto.
 	//
 	// Due sorgenti di bagnato, e contano entrambe:
 	//   - GIA' bagnato quando il Blast comincia (acqua bassa attraversata nel Dash, o turno precedente):
@@ -6877,7 +6882,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
+			// [D-634] (35), #4189: il +80 entra nel Base, PRIMA della difesa, come il marchio — e dopo di lui, sullo stesso
+			// Base: marchio e +80 sulla stessa scarica fanno `M(Base + 60 + 80)`, un solo arrotondamento. ⏱️ *Fino al #4189
+			// era `EffectiveAttackPower(Power, 80)`, sommato al colpo gia' mitigato.* Nessuna guardia `Power <= 0`, come
+			// prima (Ruling 4): un colpo che la copertura aveva azzerato prende il bonus, ma la copertura la paga una volta.
+			URTHexCombatLibrary::AddBonusToHitBase(Hit, URTCombatLibrary::GadgetWetDischargeBonus);
 		}
 	}
 

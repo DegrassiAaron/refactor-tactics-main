@@ -56,7 +56,8 @@ enum class ERTDamageStage : uint8
 	 * Delta di primo colpo per bersaglio. Vale una volta. ⏱️ *Era la sede di `Status.Exposed` (`+5`, poi `+50`) fino al 2026-11-10:
 	 * da E53 CP 53.3b `Exposed` e' un moltiplicatore nello stadio `Mod` ([D-595] (2)) e NESSUN delta di primo colpo esiste piu' in
 	 * produzione; lo stadio resta perche' l'enum e' append-only e `ApplyFirstHitDelta` resta nel contratto.* ⚠️ `Status.Marked` NON passa da qui: ha un pass proprio nel Blast
-	 * (`RTTurnManager.cpp`, `MarkSpentOn`) che somma `+6` al `Power` del primo colpo qualificato nell'ordine canonico.
+	 * (`RTTurnManager.cpp`, `MarkSpentOn`) che mette il `+60` nel Base del primo colpo qualificato nell'ordine canonico, prima
+	 * della difesa ([D-634] (35), #4189: `URTHexCombatLibrary::AddBonusToHitBase`).
 	 * ⛔ **`Action.Deflect` NON e' piu' qui**: da [D-309] e' un pool e produce `AbsorptionPool`. La riga lo
 	 * nominava, e questo enum e' cio' che etichetta lo stadio nel breakdown di danno — cioe' l'unico posto
 	 * in cui un lettore del TurnLog scopre da dove viene un numero.
@@ -102,10 +103,11 @@ enum class ERTDamageStage : uint8
 	Defense,
 	/**
 	 * Il `Mod` di [D-589] (3): il prodotto dei moltiplicatori di stato, in centesimi. Oggi UNO solo, `Status.Exposed` = 120
-	 * sul primo colpo diretto che fa danno ([D-595] (2); E53 CP 53.3b), scritto da `URTHexCombatLibrary::ApplyExposedToFirstHit`
+	 * sul primo colpo che fa danno, con o senza elemento ([D-595] (2); E53 CP 53.3b; Ruling 3 del #4189, lettura del controller,
+	 * ribaltabile), scritto da `URTHexCombatLibrary::ApplyExposedToFirstHit`
 	 * sul colpo del piano e letto da `ToAttacks`. Operazione `Multiply`; nella traccia sta fra `RearBonus` e `Defense`, come nella
-	 * formula (in coda all'enum per la stessa ragione di quei due). `Status.Marked` NON e' qui: resta un delta piatto
-	 * (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore.
+	 * formula (in coda all'enum per la stessa ragione di quei due). `Status.Marked` NON e' qui: e' un bonus piatto nel Base
+	 * ([D-634] (35), #4189), che la voce `Catalog` comprende e che questo `Mod` moltiplica.
 	 *
 	 * ⚠️ L'arrotondamento della formula e' UNO, in fondo ([D-595] (1)): `After` di questa voce e' l'intermedio
 	 * `floor(Before × Mod/100)`, e la voce `Defense` che segue atterra sul valore reale (`MitigatedPower`). Nei rari casi in

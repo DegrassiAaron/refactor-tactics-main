@@ -422,9 +422,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 
 	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
 	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
-	// Effects: e' condizionale al bersaglio, non un danno fisso, e passa da `EffectiveAttackPower` +
-	// `URTCombatLibrary::GadgetWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
-	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
+	// Effects: e' condizionale al bersaglio, non un danno fisso: `URTCombatLibrary::GadgetWetDischargeBonus` entra nel
+	// Base del colpo, prima della difesa (`URTHexCombatLibrary::AddBonusToHitBase`, [D-634] (35), #4189; vedi
+	// `Heroes.Gadget.WetBonus` e `Damage.BaseBonus.WetEntersTheBaseInATurn`) — un chiamante che applica
+	// SOLO Effects vede 240, corretto finche' non controlla anche lo status del bersaglio.
 	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 240) }, ERTAbilityShape::Line));

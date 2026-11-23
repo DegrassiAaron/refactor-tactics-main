@@ -394,6 +394,45 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	return Out;
 }
 
+namespace
+{
+	/**
+	 * Il ricalcolo di un colpo del piano con un'altra Base o un altro `Mod` ([D-589] (3)): lo stesso per `Exposed` (il `Mod`)
+	 * e per il marchio e il +80 contro `Wet` (la Base, [D-634] (35); #4189). Si ricalcola da capo invece di correggere
+	 * `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)). La difesa e' quella che la raccolta
+	 * ha scelto e registrato in `DefenseApplied` — la RES dell'elemento per un colpo elementale, la DEF altrimenti — e le
+	 * spalle quelle che ha applicato: qui non si sceglie niente di nuovo.
+	 *
+	 * Copertura: su un colpo che fa danno si somma la differenza a `Power`, perche' `CoverReduction` di un colpo
+	 * redirezionato e' stantio (`#4037`) e la copertura non ha azzerato niente, quindi `Power + (M' − M)` e' esattamente
+	 * `max(0, M' − Copertura)`. Su un colpo azzerato la differenza non basta — la copertura ha mangiato anche una parte di
+	 * cio' che ora si aggiunge — e la copertura si legge da `CoverReduction`, almeno `M` perche' il colpo e' a zero.
+	 */
+	void RecomputeHitFromBase(FRTHexAttackHit& Hit, int32 NewBase, int32 NewModPercent)
+	{
+		const int32 Before = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
+			Hit.ModPercentApplied, Hit.DefenseApplied);
+		const int32 After = URTCombatLibrary::MitigateDirectDamage(NewBase, Hit.RearBonusApplied, NewModPercent,
+			Hit.DefenseApplied);
+		if (Hit.Power > 0)
+		{
+			Hit.Power += After - Before;
+		}
+		else
+		{
+			Hit.Power = FMath::Max(0, After - FMath::Max(Before, Hit.CoverReduction));
+		}
+		Hit.NominalPower = NewBase;
+		Hit.MitigatedPower = After;
+		Hit.ModPercentApplied = NewModPercent;
+	}
+}
+
+void URTHexCombatLibrary::AddBonusToHitBase(FRTHexAttackHit& Hit, int32 Bonus)
+{
+	RecomputeHitFromBase(Hit, Hit.NominalPower + Bonus, Hit.ModPercentApplied);
+}
+
 TArray<int32> URTHexCombatLibrary::ApplyExposedToFirstHit(TArray<FRTHexAttackHit>& Hits, const TArray<int32>& HitOrder,
 	const TArray<bool>& bExposedByTarget)
 {
@@ -417,16 +456,10 @@ TArray<int32> URTHexCombatLibrary::ApplyExposedToFirstHit(TArray<FRTHexAttackHit
 			continue;
 		}
 
-		// La stessa formula della raccolta con il solo `Mod` diverso: si ricalcola da capo invece di moltiplicare
-		// `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)). La difesa e' quella che la
-		// raccolta ha scelto e registrato: la RES dell'elemento per un colpo elementale, la DEF altrimenti (#4189).
-		const int32 Before = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
-			/*ModPercent*/ 100, Hit.DefenseApplied);
-		const int32 After = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
-			URTCombatLibrary::ExposedModPercent, Hit.DefenseApplied);
-		Hit.Power += After - Before;
-		Hit.MitigatedPower = After;
-		Hit.ModPercentApplied = URTCombatLibrary::ExposedModPercent;
+		// La stessa formula della raccolta con il solo `Mod` diverso, ricalcolata da capo con la difesa che la raccolta ha
+		// registrato (`RecomputeHitFromBase`, lo stesso ricalcolo dei bonus nel Base del #4189). Qui `Power > 0` per la
+		// guardia sopra, quindi si somma la sola differenza e la copertura resta sottratta.
+		RecomputeHitFromBase(Hit, Hit.NominalPower, URTCombatLibrary::ExposedModPercent);
 		bSpent[Hit.TargetId] = true;
 		Boosted.Add(h);
 	}

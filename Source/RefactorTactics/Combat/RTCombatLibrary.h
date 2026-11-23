@@ -230,10 +230,12 @@ class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * `Status.Exposed`: moltiplicatore **1,2** in `Mod` sul PRIMO colpo diretto che fa danno nel Blast ([D-595] (2);
-	 * E53 CP 53.3b), in centesimi come il `ModPercent` di `MitigateDirectDamage`. Lo applica
-	 * `URTHexCombatLibrary::ApplyExposedToFirstHit` al colpo del piano, PRIMA della DEF e della copertura:
-	 * `floor((Base + Spalle) × 120/100 × 100/(100 + DEF))`.
+	 * `Status.Exposed`: moltiplicatore **1,2** in `Mod` sul PRIMO colpo che fa danno nel Blast, con o senza elemento
+	 * ([D-595] (2); E53 CP 53.3b; Ruling 3 del #4189: «diretto» e' letto dal controller come «colpo d'attacco», non come
+	 * `Direct` — ribaltabile), in centesimi come il `ModPercent` di `MitigateDirectDamage`. Lo applica
+	 * `URTHexCombatLibrary::ApplyExposedToFirstHit` al colpo del piano, PRIMA della difesa e della copertura:
+	 * `floor((Base + Spalle) × 120/100 × 100/(100 + difesa))`, con la DEF o la RES dell'elemento. Moltiplica anche il marchio
+	 * e il +80 contro `Wet`, che stanno nel Base ([D-634] (35)).
 	 *
 	 * ⏱️ *Fino al 2026-11-10 era `ExposedFirstHitBonus`, un `+5` piatto (poi `+50` con la scala ×10) sommato DOPO la
 	 * copertura da `ApplyFirstHitDelta`. [D-595] (2) l'ha scelto come moltiplicatore perche' conserva il caso medio
@@ -448,13 +450,18 @@ public:
 	static const FName ExposedModSource;
 
 	/**
-	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
+	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +60 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
-	 * NON passa da `ApplyFirstHitDelta`: ha un pass proprio nel Blast (`RTTurnManager.cpp`, `MarkSpentOn`), che somma il bonus al `Power` del
+	 * 🔑 **Entra nel Base, PRIMA della difesa** ([D-634] (35), #4189): `max(0, floor((Base + 60 + Spalle) × Mod × 100/(100 +
+	 * difesa)) − Copertura)`, cosi' la DEF (o la RES) lo riduce e `Exposed` lo moltiplica. Lo mette li'
+	 * `URTHexCombatLibrary::AddBonusToHitBase`. ⏱️ *Fino al #4189 si sommava al `Power` gia' mitigato: contro DEF 45 un colpo
+	 * da 240 marchiato faceva 165 + 60 = 225, ora `floor(300 × 100/145)` = 206.*
+	 *
+	 * NON passa da `ApplyFirstHitDelta`: ha un pass proprio nel Blast (`RTTurnManager.cpp`, `MarkSpentOn`), che sceglie il
 	 * PRIMO colpo qualificato contro quel bersaglio nell'ordine canonico (priorita', `ActionId`, `AttackerId`, `IntentIndex`) e poi consuma il
 	 * marchio: "consumato una volta sola" e' una proprieta' dell'ORDINE, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
-	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
+	 * colpi d'attacco: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
 	 */
 	static constexpr int32 MarkedFirstHitBonus = 60;
 
@@ -520,9 +527,12 @@ public:
 	 * `Gadget.LinearDischarge` (catalogo eroi v0.1 §1): +80 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed` (un moltiplicatore sul SOLO primo colpo, `ApplyExposedToFirstHit`) — e come `Marked` e la Guardia, che hanno una sede propria — il bonus non si consuma
-	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
-	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
+	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`). E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
+	 *
+	 * 🔑 **Entra nel Base, PRIMA della difesa** ([D-634] (35), #4189), come il marchio e con lo stesso ricalcolo
+	 * (`URTHexCombatLibrary::AddBonusToHitBase`): contro DEF 45 la scarica da 240 su un bersaglio bagnato fa
+	 * `floor(320 × 100/145)` = 220. ⏱️ *Fino al #4189 riusava `EffectiveAttackPower` sul colpo gia' mitigato: 165 + 80 = 245.*
 	 */
 	static constexpr int32 GadgetWetDischargeBonus = 80;
 

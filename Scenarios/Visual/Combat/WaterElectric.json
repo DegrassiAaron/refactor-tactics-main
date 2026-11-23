@@ -27,7 +27,7 @@
 
   "expect": [
     { "type": "UnitAtCell",    "unit": "V1", "cell": [0, 0, 0] },
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 662 },
+    { "_assertion": "[D-634] (35), #4189: il +80 contro `Wet` entra nel Base, PRIMA della DEF 15 di Ivrin. La scarica vale floor((240 + 80) x 100/115) = 278, e Ivrin 900 - (278 - 50 di scudo base) = 672. Fino al #4189 il bonus si sommava al colpo gia' mitigato: floor(240 x 100/115) + 80 = 288.", "type": "UnitHpEquals",  "unit": "V1", "value": 672 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

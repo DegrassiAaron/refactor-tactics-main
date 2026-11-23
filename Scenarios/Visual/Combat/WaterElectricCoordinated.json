@@ -34,7 +34,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 419 },
+    { "_assertion": "[D-634] (35), #4189: il +80 contro `Wet` entra nel Base, PRIMA della DEF 15 di Ivrin. La scarica, che trova Ivrin gia' bagnato dal getto, vale floor((240 + 80) x 100/115) = 278; fino al #4189 il bonus si sommava al colpo gia' mitigato, floor(240 x 100/115) + 80 = 288. Il getto non cambia: la differenza di questo turno e' tutta della scarica.", "type": "UnitHpEquals",  "unit": "V1", "value": 429 },
     { "type": "UnitAlive",     "unit": "V1", "value": true },
     { "type": "TurnsCompleted", "value": 1 }
   ]
