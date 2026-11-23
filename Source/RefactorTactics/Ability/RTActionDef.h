@@ -917,9 +917,12 @@ struct FRTActionDef
 	 * Viaggia sull'intento e sul colpo del Blast (`FRTHexAttackIntent::ElementId`, `FRTHexAttackHit::ElementId`), copiato
 	 * dove l'intento nasce: `CollectAttackIntents` e l'impatto di una carica (`AppendChargeImpactIntents`).
 	 *
-	 * ⚠️ **Nessuna riga di oggi lo dichiara, e nessun numero ne dipende ancora**: finche' la RES non entra nel colpo, un
-	 * colpo elementale si mitiga con la DEF come uno diretto. Come `bIsUltimate`, non entra in nessun hash, perche' il
-	 * catalogo non ci entra ([D-083]), e il TurnLog non lo porta.
+	 * Decide la difesa del colpo: un colpo elementale si mitiga con la RES di quell'elemento, uno senza con la DEF
+	 * (`FRTHexCombatUnit::DefenseAgainst`, `URTHexCombatLibrary::MitigatedHitPower`).
+	 *
+	 * ⚠️ **Nessuna riga di oggi lo dichiara**, quindi nessun numero di oggi cambia. Come `bIsUltimate`, non entra in
+	 * nessun hash, perche' il catalogo non ci entra ([D-083]), e il TurnLog non lo porta: lo si legge solo nella
+	 * provenienza della voce `Defense` del breakdown (`URTCombatLibrary::ResistanceSource`).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ElementId;

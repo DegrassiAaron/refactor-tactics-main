@@ -631,6 +631,9 @@ TArray<FRTHexCombatUnit> URTHudViewModel::MakeHexCombatUnits(const TArray<ARTUni
 		// questa funzione): finche' resta cosi', la preview non puo' sapere se un colpo arriva alle spalle.
 		HU.Defense = Units[i] ? Units[i]->Defense : 0;
 		HU.RearBonus = Units[i] ? Units[i]->RearBonus : 0;
+		// #4189: e la stessa RES, perche' un colpo elementale si mitiga con lei e non con la DEF ([D-634] (4)).
+		HU.ResistanceDefault = Units[i] ? Units[i]->ResistanceDefault : 0;
+		if (Units[i]) { HU.ElementResistance = Units[i]->ElementResistance; }
 		HexUnits.Add(HU);
 	}
 	return HexUnits;

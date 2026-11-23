@@ -319,7 +319,8 @@ FRTCellId URTHexCombatLibrary::ImpactOriginOf(ERTAbilityShape Shape, const FRTCe
 }
 
 int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
-	ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied)
+	ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId,
+	int32& OutRearBonusApplied)
 {
 	// «Alle spalle» = fuori dall'arco frontale del BERSAGLIO, giudicato dall'origine d'impatto ([D-587] (1), D-126):
 	// la stessa relazione a sei lati che toglie copertura e Guardia. `IsInFrontalArc` risponde `true` sulla stessa
@@ -336,8 +337,10 @@ int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, c
 	}
 	const bool bRear = !IsInFrontalArc(Target.Cell, Target.Facing, ImpactOriginOf(Shape, Attacker.Cell, AimCell));
 	OutRearBonusApplied = bRear ? FMath::Max(0, Attacker.RearBonus) : 0;
+	// [D-634] (4), #4189: la DEF per il colpo senza elemento, la RES dell'elemento per quello elementale. La formula e'
+	// la stessa; la scelta e' una sola, in `DefenseAgainst`, e il chiamante registra la stessa in `DefenseApplied`.
 	return URTCombatLibrary::MitigateDirectDamage(BasePower, OutRearBonusApplied, /*ModPercent*/ 100,
-		FMath::Max(0, Target.Defense));
+		FMath::Max(0, Target.DefenseAgainst(ElementId)));
 }
 
 FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
@@ -363,7 +366,9 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 
 	// [D-589] (CP 53.2c): anche DEF e spalle sono TARGET-DEPENDENT, per la stessa ragione della copertura qui
 	// sopra — la DEF e' dell'intercettore, e l'arco frontale da cui le spalle si giudicano e' il suo. Si
-	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione.
+	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione. Per un colpo elementale la difesa e' la RES
+	// dell'intercettore per l'elemento del COLPO (`Out.ElementId`, copiato da `Hit`; #4189): l'elemento e' dell'azione
+	// e resta, la statistica che lo mitiga cambia con chi lo incassa.
 	//
 	// ⚠️ **`CoverReduction` resta DELIBERATAMENTE quello del bersaglio originale**, ed e' un difetto latente
 	// che questo passo nomina e NON corregge. Il campo e' stantio dal giorno in cui e' nato (`#1951`): la
@@ -375,12 +380,12 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	// dichiarata nella sua PR: vedi il FOLLOW-UP nella PR di CP 53.2c su #4013.
 	int32 RearApplied = 0;
 	const int32 Mitigated = MitigatedHitPower(Attacker, NewTarget, Intent.Shape, Intent.TargetCell, Intent.Power,
-		RearApplied);
+		Out.ElementId, RearApplied);
 	Out.Power = FMath::Max(0, Mitigated - Reduction);
 	Out.NominalPower = Intent.Power;
 	Out.MitigatedPower = Mitigated;
 	Out.RearBonusApplied = RearApplied;
-	Out.DefenseApplied = NewTarget.Defense;
+	Out.DefenseApplied = NewTarget.DefenseAgainst(Out.ElementId);
 	// La redirezione cambia il BERSAGLIO, quindi cambia anche la geometria della copertura: ricalcolare il
 	// danno e lasciare la vecchia attribuzione direzionale darebbe una traccia che parla della vittima
 	// precedente.
@@ -413,7 +418,8 @@ TArray<int32> URTHexCombatLibrary::ApplyExposedToFirstHit(TArray<FRTHexAttackHit
 		}
 
 		// La stessa formula della raccolta con il solo `Mod` diverso: si ricalcola da capo invece di moltiplicare
-		// `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)).
+		// `MitigatedPower`, perche' l'arrotondamento e' UNO, dopo il prodotto ([D-595] (1)). La difesa e' quella che la
+		// raccolta ha scelto e registrato: la RES dell'elemento per un colpo elementale, la DEF altrimenti (#4189).
 		const int32 Before = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
 			/*ModPercent*/ 100, Hit.DefenseApplied);
 		const int32 After = URTCombatLibrary::MitigateDirectDamage(Hit.NominalPower, Hit.RearBonusApplied,
@@ -811,16 +817,18 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// [D-589] (E53 CP 53.2c): spalle e DEF PRIMA della copertura, che resta piatta e si sottrae dopo. Con
 				// DEF e bonus a zero `Mitigated == Intent.Power` (`Combat.ZeroDefenseAndRearLeaveHitsUntouched`); dal
 				// CP 53.3c il catalogo porta i valori di D-595 (3) e D-599, e i golden li incorporano
-				// (`Simulation.GoldenCorpusMatches`, rigenerati e dichiarati nella PR di quel passo).
+				// (`Simulation.GoldenCorpusMatches`, rigenerati e dichiarati nella PR di quel passo). Dal #4189 la difesa e'
+				// quella dell'elemento dell'intento ([D-634] (4)): la DEF senza elemento, la RES dell'elemento altrimenti.
 				int32 RearApplied = 0;
-				const int32 Mitigated = MitigatedHitPower(Attacker, Other, Intent.Shape, AimCell, Intent.Power, RearApplied);
+				const int32 Mitigated = MitigatedHitPower(Attacker, Other, Intent.Shape, AimCell, Intent.Power,
+					Intent.ElementId, RearApplied);
 				FRTHexAttackHit Hit(Intent.AttackerId, u,
 					FMath::Max(0, Mitigated - Reduction), IntentIdx,
 					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction),
 					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction);
 				Hit.MitigatedPower = Mitigated;
 				Hit.RearBonusApplied = RearApplied;
-				Hit.DefenseApplied = Other.Defense;
+				Hit.DefenseApplied = Other.DefenseAgainst(Intent.ElementId);
 				Hit.ElementId = Intent.ElementId; // #4189: l'elemento e' dell'azione, ogni colpo dell'intento lo porta
 				Plan.Hits.Add(MoveTemp(Hit));
 			}
@@ -999,7 +1007,11 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 		}
 		if (Hit.DefenseApplied > 0 && Hit.MitigatedPower != Running)
 		{
-			Attack.Breakdown.Emplace(ERTDamageStage::Defense, URTCombatLibrary::DefenseSource,
+			// #4189: lo stadio e' lo stesso, la statistica no. Per un colpo elementale l'operando e' la RES dell'elemento,
+			// e la provenienza lo dice: un registro che scrivesse «DEF» accanto alla RES descriverebbe un colpo diverso.
+			const FName DefenseStageSource = Hit.ElementId.IsNone()
+				? URTCombatLibrary::DefenseSource : URTCombatLibrary::ResistanceSource;
+			Attack.Breakdown.Emplace(ERTDamageStage::Defense, DefenseStageSource,
 				ERTDamageOp::Mitigate, Hit.DefenseApplied, Running, Hit.MitigatedPower);
 			Running = Hit.MitigatedPower;
 		}

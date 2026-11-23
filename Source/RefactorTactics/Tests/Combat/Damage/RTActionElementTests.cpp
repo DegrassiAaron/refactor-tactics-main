@@ -21,8 +21,8 @@
  *
  * Un'azione dichiara il proprio elemento (`FRTActionDef::ElementId`, `NAME_None` = `Direct`), il validatore del catalogo
  * rifiuta un identificatore fuori da `URTHeroCatalogLibrary::ElementIds()`, e l'intento e il colpo del Blast
- * lo portano. Qui nessun numero cambia: la RES non entra ancora nel colpo, e un colpo elementale si mitiga con la DEF
- * come uno diretto. Questi test fissano solo il TRAGITTO del dato, che e' la premessa di quella regola.
+ * lo portano. Questi test fissano solo il TRAGITTO del dato, che e' la premessa della regola; che cosa il colpo ne fa
+ * (la RES dell'elemento al posto della DEF) lo provano i test di `RTElementResistanceTests.cpp`.
  *
  * ⚠️ **Perche' un turno vero, e non soltanto `CollectHexAttacks`**: l'intento nasce in due punti del `TurnManager`
  * (`CollectAttackIntents` e l'impatto di una carica), e ogni campo dell'intento che viene dal `Def` e' stato

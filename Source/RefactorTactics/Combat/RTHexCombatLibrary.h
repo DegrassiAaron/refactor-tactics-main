@@ -49,12 +49,49 @@ struct FRTHexCombatUnit
 	 * si sottrae dentro `CollectHexAttacks`: D-589 vuole la difesa prima e le riduzioni piatte dopo, quindi la
 	 * difesa deve essere in mano a chi calcola il colpo. I valori sono nel catalogo dal CP 53.3c ([D-595] (3):
 	 * Gadget 15, Muiren 25, Riktor 45, Ivrin 15); con `0` la formula e' l'identita'
-	 * (`Combat.Formula.ZeroDefenseIsIdentity`). La RES per elemento NON e' qui: il colpo porta gia' l'elemento
-	 * dell'azione (`FRTHexAttackHit::ElementId`, #4189), ma nessuna RES lo mitiga ancora, e un colpo elementale si
-	 * mitiga con questa DEF come uno diretto.
+	 * (`Combat.Formula.ZeroDefenseIsIdentity`). Vale per il colpo SENZA elemento: uno elementale si mitiga con la RES
+	 * qui sotto ([D-634] (4), #4189), e la scelta la fa `DefenseAgainst`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 Defense = 0;
+
+	/**
+	 * La RES del bersaglio ([D-589] (1), [D-634] (4) e (6); #4189): mitiga il colpo ELEMENTALE con la stessa forma della
+	 * DEF. `ResistanceDefault` vale per ogni elemento che `ElementResistance` non nomina; e' la RES del catalogo
+	 * (Gadget 35, Muiren 40, Riktor 35, Ivrin 20), e `ElementResistance` oggi e' vuota per tutti. Copie di
+	 * `ARTUnit::ResistanceDefault` e `ARTUnit::ElementResistance` nello snapshot del Blast, accanto alla DEF e per la
+	 * stessa ragione: la difesa deve essere in mano a chi calcola il colpo.
+	 *
+	 * ⚠️ **Chi riempie un `FRTHexCombatUnit` con la DEF la riempia anche con la RES**: un'unita' che porta la DEF e lascia
+	 * la RES a `0` mitiga il colpo diretto e non quello elementale, che passerebbe intero senza un errore.
+	 *
+	 * 🔑 `ElementResistance` e' una `TMap` e si legge SOLO per chiave (`DefenseAgainst`): mai iterata, quindi il suo
+	 * ordine non entra in nessun esito (CLAUDE.md §7).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 ResistanceDefault = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	TMap<FName, int32> ElementResistance;
+
+	/**
+	 * La difesa contro un colpo dell'elemento `ElementId` ([D-634] (4), #4189): la DEF per `NAME_None` (il colpo
+	 * `Direct`), altrimenti la RES di quell'elemento, cioe' la sua voce in `ElementResistance` o, se manca,
+	 * `ResistanceDefault` — la stessa regola di `ARTUnit::ResistanceAgainst`. E' l'unico punto in cui si sceglie fra DEF
+	 * e RES: `MitigatedHitPower` la chiama, e il colpo ne registra l'esito in `FRTHexAttackHit::DefenseApplied`.
+	 */
+	int32 DefenseAgainst(const FName& ElementId) const
+	{
+		if (ElementId.IsNone())
+		{
+			return Defense;
+		}
+		if (const int32* Specific = ElementResistance.Find(ElementId))
+		{
+			return *Specific;
+		}
+		return ResistanceDefault;
+	}
 
 	/**
 	 * Il bonus alle spalle dell'**attaccante** ([D-587], valori iniziali in [D-599]): si somma alla Base quando il
@@ -332,7 +369,11 @@ struct FRTHexAttackHit
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 RearBonusApplied = 0;
 
-	/** La DEF del bersaglio letta per questo colpo ([D-589]). */
+	/**
+	 * La difesa del bersaglio letta per questo colpo ([D-589]): la DEF per un colpo senza elemento, la RES dell'elemento
+	 * per uno elementale ([D-634] (4), #4189), cioe' `FRTHexCombatUnit::DefenseAgainst(ElementId)`. `ApplyExposedToFirstHit`
+	 * ricalcola il colpo da qui, e `ToAttacks` la scrive come operando della voce `Defense`.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 DefenseApplied = 0;
 
@@ -349,7 +390,8 @@ struct FRTHexAttackHit
 	/**
 	 * L'elemento del colpo, dall'intento che l'ha prodotto (`FRTHexAttackIntent::ElementId`, #4189); `NAME_None` =
 	 * `Direct`. Lo scrive `CollectHexAttacks`; `RedirectHitTo` lo conserva, perche' l'elemento e' dell'azione e non del
-	 * bersaglio. ⚠️ Non cambia ancora nessun numero: oggi nessuna RES lo legge.
+	 * bersaglio. Decide la difesa che il colpo legge (`DefenseApplied`): la DEF senza elemento, la RES dell'elemento
+	 * altrimenti ([D-634] (4)). Nessuna azione di oggi dichiara un elemento, quindi nessun numero di oggi cambia.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	FName ElementId;
@@ -894,9 +936,13 @@ public:
 	static FRTCellId ImpactOriginOf(ERTAbilityShape Shape, const FRTCellId& AttackerCell, const FRTCellId& AimCell);
 
 	/**
-	 * Spalle e DEF di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
-	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.Defense)`, dove «alle spalle» e'
-	 * «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
+	 * Spalle e difesa di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
+	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.DefenseAgainst(ElementId))`, dove «alle
+	 * spalle» e' «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
+	 *
+	 * La difesa e' la DEF per un colpo senza elemento e la RES dell'elemento per uno elementale ([D-634] (4), #4189): la
+	 * stessa formula, con un solo arrotondamento ([D-595] (1)), cambia solo la statistica. Il chiamante registra la
+	 * stessa scelta in `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
 	 *
 	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
 	 * sul PRIMO colpo diretto, e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
@@ -904,10 +950,12 @@ public:
 	 * resta un delta piatto a valle (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore. Con DEF e
 	 * bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha tenuto il corpus golden byte-identico in CP 53.2c.
 	 *
+	 * @param ElementId            l'elemento del colpo (`FRTHexAttackIntent::ElementId`); `NAME_None` = `Direct`, la DEF.
 	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
 	 */
 	static int32 MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
-		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied);
+		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId,
+		int32& OutRearBonusApplied);
 
 	/**
 	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto di ciascun bersaglio ([D-595] (2); E53
@@ -915,6 +963,10 @@ public:
 	 * (`Power > 0`, lo stesso predicato del marchio) e che porta un nominale viene ricalcolato con la formula di [D-589]:
 	 * `M' = MitigateDirectDamage(NominalPower, RearBonusApplied, ExposedModPercent, DefenseApplied)`, `Power += M' − M`,
 	 * `MitigatedPower = M'`, `ModPercentApplied = 120`. Gli altri colpi non cambiano. Lo stato NON si consuma qui.
+	 *
+	 * ⚠️ **La difesa e' quella che il colpo ha registrato, `DefenseApplied`, non una che si rilegge qui**: per un colpo
+	 * elementale e' la RES dell'elemento (#4189), e ricalcolarlo con la DEF lo ridurrebbe della statistica sbagliata
+	 * proprio sul colpo moltiplicato (`Damage.Element.ExposedRecomputesWithTheResistance`).
 	 *
 	 * 🔑 **«Primo» e' l'ordine canonico del Blast (`HitOrder`: priorita', poi ActionId → AttackerId → IntentIndex,
 	 * ADR-0003 §3), lo stesso che spende il marchio — e qui conta davvero.** Con un delta piatto il totale per bersaglio

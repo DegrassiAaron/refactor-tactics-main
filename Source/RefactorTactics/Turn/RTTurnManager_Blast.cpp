@@ -514,9 +514,14 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 		HexUnit.Facing = Unit->Facing; // CP 16.2: da che lato e' scoperta
 		// [D-589] (E53 CP 53.2c): la DEF mitiga PRIMA della copertura, che si sottrae in `CollectHexAttacks`, quindi
 		// viaggia nello snapshot come il facing; il bonus alle spalle e' dell'ATTACCANTE ([D-587]) e lo legge il
-		// colpo che parte da lui. Oggi entrambi sono a zero su tutto il roster: cambia la plumbing, non un numero.
+		// colpo che parte da lui. I valori vengono dal catalogo dal CP 53.3c.
 		HexUnit.Defense = Unit->Defense;
 		HexUnit.RearBonus = Unit->RearBonus;
+		// [D-634] (4) e (6), #4189: la RES mitiga il colpo ELEMENTALE come la DEF quello diretto, nello stesso punto, quindi
+		// viaggia con lei. ⚠️ Senza queste due righe un colpo elementale troverebbe la RES a 0 e passerebbe intero, senza
+		// errore (`Damage.Element.TodaysActionKeepsTheDefenseInATurn`). La mappa si copia intera e si legge solo per chiave.
+		HexUnit.ResistanceDefault = Unit->ResistanceDefault;
+		HexUnit.ElementResistance = Unit->ElementResistance;
 		Ctx.HexUnits.Add(HexUnit);
 	}
 }

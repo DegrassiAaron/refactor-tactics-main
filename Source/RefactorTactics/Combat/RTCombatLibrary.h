@@ -438,6 +438,12 @@ public:
 	 */
 	static const FName RearBonusSource;
 	static const FName DefenseSource;
+	/**
+	 * La provenienza dello stadio `Defense` quando il colpo e' ELEMENTALE (#4189): la difesa letta e' la RES
+	 * dell'elemento ([D-634] (4)), con la forma che [D-589] (1) le da'. Accanto a `DefenseSource` e non al suo posto:
+	 * lo stadio e' lo stesso, cambia la statistica che lo governa, e il registro deve dire quale.
+	 */
+	static const FName ResistanceSource;
 	/** La provenienza dello stadio `Mod` ([D-589] (3)): oggi il solo `Exposed` 120 ([D-595] (2), CP 53.3b). */
 	static const FName ExposedModSource;
 
@@ -877,7 +883,8 @@ public:
 	 *   e ambientale (D-589 (1)): stessa forma, stessa funzione.
 	 *
 	 * La chiama `URTHexCombatLibrary::MitigatedHitPower` nel punto in cui il colpo nasce (CP 53.2c), con la DEF
-	 * del bersaglio e il bonus dell'attaccante copiati dal catalogo (valori dal CP 53.3c); il pass di `Exposed`
+	 * del bersaglio (o la sua RES per l'elemento del colpo, #4189) e il bonus dell'attaccante copiati dal catalogo
+	 * (valori dal CP 53.3c); il pass di `Exposed`
 	 * la richiama con `ModPercent` 120 (CP 53.3b). Con `Defense = 0` e `ModPercent = 100` e' l'identita'.
 	 *
 	 * Valori negativi: `Base`, `RearBonus` e `ModPercent` sotto zero valgono zero; `Defense` sotto zero
