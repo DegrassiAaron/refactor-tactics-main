@@ -227,12 +227,29 @@ public:
 	 * guardare il risultato: `GetHeroRoster()` gira all'avvio, e un dereferenziamento nullo li' non e' un
 	 * fail-closed, e' un crash.
 	 *
-	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti** — e nient'altro. Restano fuori
-	 * lo `Slot` e tutti i campi di comportamento: `MovementStyle`, `StructureOp`, `PropagationLimit`,
-	 * `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`, `InterruptPolicy`, `bSelfTarget`,
-	 * `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e' lungo apposta:
-	 * un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea niente.
+	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti**, e dei campi di comportamento solo
+	 * quelli che una riga ciascuno copia dopo la costruzione: `bSelfTarget` (con lo specchio, #2283),
+	 * `LineOfSightPolicy` (#2890), `MinRangeCells` (#3093) ed `ElementId` (#4189). Restano fuori lo `Slot` e gli
+	 * altri: `MovementStyle`, `StructureOp`, `PropagationLimit`, `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`,
+	 * `InterruptPolicy`, `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e'
+	 * lungo apposta: un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea
+	 * niente. ⌫ *Fino a #4189 questa riga diceva «e nient'altro» e metteva `bSelfTarget` fra gli esclusi.*
 	 */
 	static URTActionData* MakeHeroActionFromCore(const FName& HeroActionId, const FName& CoreActionId,
 		int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0);
+
+	/**
+	 * `MakeHeroActionFromCore` su un catalogo DATO invece che sul catalogo core: la derivazione resta una lettura
+	 * per **ID**, cambia solo da dove si legge. `MakeHeroActionFromCore` e' questa funzione su
+	 * `URTCatalogLibrary::GetCoreActionCatalog()`.
+	 *
+	 * Esiste per i test (#4189): nessuna riga core dichiara oggi un elemento, quindi senza un catalogo iniettato la
+	 * copia di `ElementId` non si puo' far fallire. ⛔ I kit passano da `MakeHeroActionFromCore`: un kit che
+	 * derivasse da un catalogo suo avrebbe una seconda sede dei numeri core.
+	 *
+	 * Restituisce `nullptr` se `CoreActionId` e' vuoto o non e' in `Catalog`, come la gemella.
+	 */
+	static URTActionData* MakeHeroActionFromCatalog(const FName& HeroActionId, const TArray<FRTActionDef>& Catalog,
+		const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single,
+		int32 AreaRadius = 0);
 };

@@ -775,4 +775,134 @@ bool FRTHeroBasicAttacksTakeTheCorePolicyTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// #4189 — l'elemento sta sulle righe dei KIT, e il validatore delle azioni deve raggiungerle
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Ogni riga del kit di ogni eroe del roster passa `URTCatalogLibrary::ValidateActions`**, un eroe alla volta.
+ *
+ * 🔴 **Senza questo gate il controllo dell'elemento non raggiungeva le righe dove [D-634] scrivera' gli elementi.**
+ * `ValidateActions` non ha chiamanti di produzione, i test lo chiamavano sul solo catalogo core o su righe
+ * sintetiche, e `ValidateHeroes` non guarda le righe del kit: un `Element.Lightning` su una riga `Hero.Gadget.*`
+ * sarebbe arrivato in partita senza che niente diventasse rosso. Lo stesso vuoto valeva per l'Ultimate a un costo
+ * diverso da 3 e per ogni altra regola del validatore: il gate li prende tutti, perche' esegue il validatore intero.
+ *
+ * Un eroe alla volta perche' il messaggio nomini l'eroe; gli ID d'eroe portano il prefisso dell'eroe, quindi il
+ * duplicato che conta e' dentro un kit. ⛔ **Il controllo positivo passa dalla STESSA funzione del gate**:
+ * un `Element.Lightning` piantato su una riga di un Gadget fresco deve dare un errore che nomina eroe, riga ed
+ * elemento. Senza, il gate sarebbe verde anche per una funzione che non chiama il validatore.
+ *
+ * Verifica di mutazione (#4189, misurata): `Element.Lightning` scritto su `Hero.Gadget.LinearDischarge` in
+ * `MakeGadget` rende rosso il gate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroEveryKitRowPassesTheActionValidatorTest,
+	"RefactorTactics.HeroCatalog.EveryKitRowPassesTheActionValidator",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroEveryKitRowPassesTheActionValidatorTest::RunTest(const FString&)
+{
+	// Gli errori di `ValidateActions` sulle righe del kit di un eroe, ciascuno preceduto dall'eroe.
+	const auto ErroriDelKit = [](const URTHeroData* Hero, int32& OutRighe) -> TArray<FString>
+	{
+		TArray<FRTActionDef> Righe;
+		for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+		{
+			if (const URTActionData* Action = Ptr.Get()) { Righe.Add(Action->Def); }
+		}
+		OutRighe = Righe.Num();
+		TArray<FString> Out;
+		for (const FString& Errore : URTCatalogLibrary::ValidateActions(Righe))
+		{
+			Out.Add(FString::Printf(TEXT("%s: %s"), *Hero->HeroId.ToString(), *Errore));
+		}
+		return Out;
+	};
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("premessa: il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 RigheEsaminate = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("eroe del roster"), Hero)) { continue; }
+		int32 Righe = 0;
+		const TArray<FString> Errori = ErroriDelKit(Hero, Righe);
+		RigheEsaminate += Righe;
+		TestEqual(FString::Printf(TEXT("%s: le righe del kit passano ValidateActions [%s]"),
+			*Hero->HeroId.ToString(), *FString::Join(Errori, TEXT(" | "))), Errori.Num(), 0);
+	}
+	// Anti-vacuita': `ValidateHeroes` vuole almeno cinque righe per eroe; meno vorrebbe dire un gate che guarda poco.
+	TestTrue(FString::Printf(TEXT("il gate ha esaminato almeno cinque righe per eroe (%d su %d eroi)"),
+		RigheEsaminate, Roster.Num()), RigheEsaminate >= Roster.Num() * 5);
+
+	// Controllo positivo: la stessa funzione, su un Gadget fresco con un elemento che non esiste.
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	if (!TestNotNull(TEXT("premessa: Gadget"), Gadget) || !TestTrue(TEXT("premessa: Gadget ha un kit"),
+		Gadget->Actions.Num() > 1 && Gadget->Actions[1] != nullptr))
+	{
+		return false;
+	}
+	const FString Riga = Gadget->Actions[1]->Def.ActionId.ToString();
+	int32 Ignorate = 0;
+	const int32 ErroriPrima = ErroriDelKit(Gadget, Ignorate).Num();
+	Gadget->Actions[1]->Def.ElementId = FName(TEXT("Element.Lightning"));
+	const TArray<FString> Piantato = ErroriDelKit(Gadget, Ignorate);
+	if (TestEqual(TEXT("controllo: un elemento che non esiste aggiunge un errore"), Piantato.Num(), ErroriPrima + 1))
+	{
+		const FString& Ultimo = Piantato.Last();
+		TestTrue(TEXT("che nomina l'eroe"), Ultimo.Contains(TEXT("Hero.Gadget")));
+		TestTrue(TEXT("la riga"), Ultimo.Contains(Riga));
+		TestTrue(TEXT("e l'elemento"), Ultimo.Contains(TEXT("Element.Lightning")));
+	}
+	return true;
+}
+
+/**
+ * **Un'azione d'eroe derivata da una riga core ne eredita l'elemento** (#4189).
+ *
+ * `MakeHeroActionFromCore` ricostruisce il `Def` campo per campo, e ogni campo di comportamento che copia e' stato
+ * aggiunto dopo il proprio difetto (`bSelfTarget` #2283, `LineOfSightPolicy` #2890, `MinRangeCells` #3093). Ne
+ * passano `Hero.Riktor.Ram` (da `Action.Charge`) e `Hero.Riktor.MortarShot` (da `Action.Mortar`).
+ *
+ * ⚠️ **Nessuna riga core dichiara oggi un elemento**, quindi un confronto sul roster sarebbe vero a vuoto: si deriva
+ * da un catalogo dato (`MakeHeroActionFromCatalog`, la stessa funzione su cui `MakeHeroActionFromCore` e' costruita),
+ * copia del core con `Action.Charge` elettrica. Il controllo e' la derivazione dal catalogo vero, senza elemento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedFromCoreKeepsTheElementTest,
+	"RefactorTactics.HeroCatalog.DerivedFromCoreKeepsTheElement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroDerivedFromCoreKeepsTheElementTest::RunTest(const FString&)
+{
+	const FName Carica(TEXT("Action.Charge"));
+	const FName Elettrico(TEXT("Element.Electric"));
+
+	TArray<FRTActionDef> Catalogo = URTCatalogLibrary::GetCoreActionCatalog();
+	FRTActionDef* Riga = Catalogo.FindByPredicate([&Carica](const FRTActionDef& D) { return D.ActionId == Carica; });
+	if (!TestNotNull(TEXT("premessa: Action.Charge e' nel catalogo core"), Riga)) { return false; }
+	if (!TestEqual(TEXT("premessa: il core non dichiara un elemento"), Riga->ElementId, FName(NAME_None))) { return false; }
+	Riga->ElementId = Elettrico;
+
+	const URTActionData* Derivata = URTHeroCatalogLibrary::MakeHeroActionFromCatalog(
+		TEXT("Hero.Test.Elettrica"), Catalogo, Carica, /*Cooldown*/ 2);
+	if (TestNotNull(TEXT("la derivazione dal catalogo dato produce l'abilita'"), Derivata))
+	{
+		TestEqual(TEXT("e ne eredita l'elemento"), Derivata->Def.ElementId, Elettrico);
+		TestEqual(TEXT("dichiarando la sua origine"), Derivata->Def.DerivedFromActionId, Carica);
+	}
+
+	// Controllo: dal catalogo core vero, senza elemento, l'abilita' nasce `Direct`.
+	const URTActionData* DalCore = URTHeroCatalogLibrary::MakeHeroActionFromCore(TEXT("Hero.Test.Diretta"), Carica, 2);
+	if (TestNotNull(TEXT("controllo: la derivazione dal core produce l'abilita'"), DalCore))
+	{
+		TestEqual(TEXT("e resta senza elemento"), DalCore->Def.ElementId, FName(NAME_None));
+	}
+
+	// Fail-closed anche sul catalogo dato, come la gemella.
+	TestNull(TEXT("un ID che il catalogo dato non ha non produce un'abilita'"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCatalog(TEXT("Hero.Test.Nessuna"), Catalogo, TEXT("Action.NonEsiste"), 1));
+	TestNull(TEXT("un ID vuoto neppure"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCatalog(TEXT("Hero.Test.Vuota"), Catalogo, NAME_None, 1));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

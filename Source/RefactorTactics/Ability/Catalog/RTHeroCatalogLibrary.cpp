@@ -1165,7 +1165,20 @@ TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId,
 	const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape, int32 AreaRadius)
 {
-	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(CoreActionId);
+	return MakeHeroActionFromCatalog(HeroActionId, URTCatalogLibrary::GetCoreActionCatalog(), CoreActionId, Cooldown,
+		Shape, AreaRadius);
+}
+
+URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCatalog(const FName& HeroActionId,
+	const TArray<FRTActionDef>& Catalog, const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape,
+	int32 AreaRadius)
+{
+	// La stessa lettura di `URTCatalogLibrary::FindCoreAction` (la prima riga con quell'ID), sul catalogo dato.
+	FRTActionDef Core;
+	for (const FRTActionDef& Def : Catalog)
+	{
+		if (Def.ActionId == CoreActionId) { Core = Def; break; }
+	}
 	// ⚠️ `IsNone()` PRIMA del confronto, e non e' ridondanza: con `CoreActionId` vuoto il confronto
 	// `Core.ActionId != CoreActionId` mette a paragone `NAME_None` con `NAME_None`, e' falso, e la guardia
 	// lascia passare esattamente l'abilita' coi default che il docstring promette di impedire. E' la forma
@@ -1206,6 +1219,10 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// valore che il catalogo core dichiara e nessun eroe porta in partita. `0` e' il default di ogni core
 	// tranne `Action.Mortar`, quindi per le altre azioni copiarlo e' un'identita'.
 	Action->Def.MinRangeCells = Core.MinRangeCells;
+	// ➕ **E l'elemento** (#4189, [D-634] (4)): una riga core elementale darebbe senza questa riga un'azione d'eroe
+	// `Direct`. Oggi nessun core ne dichiara uno, quindi per tutte copiarlo e' un'identita'; un kit che vuole un altro
+	// elemento lo scrive dopo la derivazione, come `MistVeil` fa con la linea di tiro.
+	Action->Def.ElementId = Core.ElementId;
 	return Action;
 }
 
