@@ -106,3 +106,345 @@ Gli stessi comandi con `-- Source/RefactorTactics/Tests` contano i file di test,
 - [DOMANDA → TG-4] **`Profile.Grounding`.** È il profilo di reazione che il `Brace` di Gadget arma [DECISO D-132 (1); codice: `RTHeroCatalogLibrary.cpp:413-415`], con la risposta `GROUND` dichiarata e senza effetti, perché «Charge del `Grounding`» è ancora aperta [codice: `RTCatalogLibrary.cpp:25-32`]: oggi il resolver non la offre [codice: `BraceExecutableResponses`, `RTTurnManager_Blast.cpp:3658-3663`]. Nessuna voce del catalogo lo nomina [CATALOGO]. Con il kit nuovo il profilo resta, cambia (con una risposta Flux, per esempio) o esce, e Gadget resta senza finestra sul `Brace` come Riktor oggi [codice: `RTCatalogLibrary.h:142-148`]?
 - [DOMANDA → TG-5] **Affinità e debolezza.** `Affinity.Electricity` e `Affinity.Water` [codice: `RTHeroCatalogLibrary.cpp:409`, `:412`] sono un vocabolario diverso dagli `Element.*`. Il validatore rifiuta un eroe senza l'una o l'altra [codice: `RTHeroCatalogLibrary.cpp:325-334`]; le leggono il profilo dell'eroe nella HUD e il banco [codice: `RTHeroProfileLibrary.cpp:18-19`, `RTHeroLab.cpp:22-23`], e nessuna regola di combattimento [codice: `git grep -n -w Affinity -- Source/RefactorTactics/Combat Source/RefactorTactics/Turn` → exit 1, e lo stesso con `-w Weakness`, su `f012ed660`]. Il catalogo dà tre affinità fra i nove elementi, Flux primaria, e nessuna debolezza [CATALOGO §3]. L'affinità diventa l'elemento primario del catalogo, `Element.Warp` [LETTURA D-633 (11b) per l'identificatore], una lista di elementi, o resta il campo di oggi? E la debolezza acqua, che il catalogo non dà?
 - Restano, e si trattano nelle loro schede e fra le domande: `LinearDischarge` con le varianti `Concentrated` e `Branched` [codice: `RTHeroCatalogLibrary.cpp:503-521`], e l'equipaggiamento di default, `Gadget.Insulator` e `Reaction.ReactiveShield` [codice: `RTCatalogLibrary.cpp:823`, `:841`; PROPOSTA: domande, design §6].
+
+---
+
+## 1. Attacchi base
+
+Gruppo del catalogo: «Attacco Base (🔴 Blast Phase | 2 AP | 0 CD)» [CATALOGO].
+
+**Bersaglio degli esempi** (gruppi 1–3). Dove l'esempio non dice altro, il nemico R ha HP 1750, DEF 45 e RES 35, la riga di Riktor nel §2 del catalogo [CATALOGO §2], ed è colpito di fronte, con la convenzione della testa. La RES è quella unica del catalogo; se sia per elemento è `TG-1`. Ogni colpo energetico si conta due volte: con la RES, lettura elementale, e con la DEF, lettura diretta [DOMANDA → TG-7].
+
+**Scelte comuni.** Fase Blast [CATALOGO «Blast Phase»; DECISO D-583 (1)], segmento `Attack` (40), priorità 50 e ripiego `Cancel`, cioè i dati di `Action.BasicAttack` [PROPOSTA; codice: `RTCatalogLibrary.cpp:1276-1279`]. Si costruiscono con `MakeHeroBasicAttack`, che copia dal core la mira al buio con traiettoria diretta, `BlindAimDirect` [DECISO D-490; codice: `RTHeroCatalogLibrary.cpp:167-179`, `RTCatalogLibrary.cpp:1295`]. 2 AP [CATALOGO; coincide con la classe Blast, DECISO D-594 (1)]. Cooldown 0 [CATALOGO], quindi ognuno si ripete nel piano finché il budget lo consente [DECISO D-614]: con 6 AP fanno tre colpi, anche di tre attacchi base diversi, se la dock li offre tutti; la dock è `KIT-1` e `KIT-2`, aperte [PROPOSTA: conto; DECISO D-633 (9)]. Portata 6 per tutti e tre [CATALOGO per Spark Bolt; CSV GAD_BAS_02 e CSV GAD_BAS_03 per gli altri due]. Il danno è scelto a mano, 170, 130 e 120, contro i 200 della fascia «lungo» [codice: `RTCatalogLibrary.cpp:1949-1958`]: è il conflitto della tabella a fasce [DOMANDA → TG-10].
+
+**Un solo Blast.** Il danno del Blast è simultaneo, anche fra due azioni della stessa unità [DECISO D-615 (3)]: un effetto di un colpo, come la rotazione di Phase Dart, non cambia gli altri colpi dello stesso Blast, a meno di una regola nuova (`TG-12`).
+
+### Spark Bolt — `Hero.Gadget.SparkBolt`
+
+> «Opzione 1 (Core) — Spark Bolt [⚡ Fulmine]: Dardo energetico a lungo raggio (6 esagoni) da 170 Danno Energetico; agisce da catalizzatore a distanza su esagoni già caricati.»
+
+Nel `.csv` (`GAD_BAS_01`): `Range_Hex` 6, `Base_Damage_or_Shield` 170, `Status_or_Effect` «Remote Catalyst», `Ignores_Armor` e `Modifies_Walls` «No».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | attacco base, «Opzione 1 (Core)» [CATALOGO], una voce del kit come le altre due [DECISO D-633 (9), «Tutte nel kit, come Riktor»]. Occupante di default del posto base della dock [PROPOSTA: è l'opzione «Core» e il danno base per AP più alto del gruppo, 85 contro 65 e 60]; chi lo occupi resta `KIT-2` [DECISO D-633 (9)] |
+| Fase | Blast · `Attack` (40) [CATALOGO «Blast Phase»; PROPOSTA: come `Action.BasicAttack`, codice: `RTCatalogLibrary.cpp:1276`] |
+| Costo AP | 2 [CATALOGO «2 AP»; classe Blast, DECISO D-594 (1)] |
+| Cooldown | 0 [CATALOGO «0 CD»]; si ripete finché il budget lo consente [DECISO D-614] |
+| Priorità | 50 [PROPOSTA: quella di `Action.BasicAttack` e degli attacchi base d'eroe di oggi, codice: `RTCatalogLibrary.cpp:1276`, `RTHeroCatalogLibrary.cpp:571`, `:842`, `:1038`]. A pari priorità decide l'id dell'azione, mai la dichiarazione [DECISO D-615 (5)] |
+| Portata e linea di vista | 6 [CATALOGO «a lungo raggio (6 esagoni)»], nessuna portata minima [PROPOSTA: il catalogo non ne dà]. Mira al buio con traiettoria diretta: si dichiara anche su una cella che non si vede, e il primo ostacolo sul percorso ferma il colpo [DECISO D-490; codice: `BlindAimDirect`, `RTCatalogLibrary.cpp:1295`]. La mira non insegue il bersaglio [DECISO D-415 (3)] |
+| Forma | `Single`: una cella [CATALOGO «Dardo»; PROPOSTA] |
+| Bersaglio | un'unità nemica, o la cella dichiarata al buio [PROPOSTA; DECISO D-490] |
+| Elemento | `Element.Electric` [CATALOGO «⚡ Fulmine»; DECISO D-593 (1)], che resta fra i nove [LETTURA D-633 (11b)] |
+| Tipo di danno | elementale Electric, mitigato dalla RES [PROPOSTA: «Danno Energetico»; DOMANDA → TG-7] |
+| Danno base | 170 [CATALOGO]; la fascia «lungo» darebbe 200 [codice: `RTCatalogLibrary.cpp:1949-1958`; DOMANDA → TG-10]. Il colpo vale `max(0, (Base + Spalle) × Mod × 100/(100+RES) − Copertura − Guard)` [DECISO D-589 (1) per la RES, DECISO D-589 (3) per la formula], con le spalle di Gadget a 60 [DECISO D-599; codice: `RTHeroCatalogLibrary.cpp:403`] |
+| Movimento | nessuno [CATALOGO] |
+| Stati | nessuno [CATALOGO] |
+| Oggetti persistenti | nessuno [CATALOGO] |
+| Catalizzatore | «agisce da catalizzatore a distanza su esagoni già caricati» [CATALOGO]. [PROPOSTA] il colpo porta Fulmine sulla cella colpita; se la cella ha già la carica di un altro elemento, l'esito è quello della riga della coppia nel [catalogo delle coppie](../../balance/RT_ElementPairCatalog_v0.1.md), e c'è solo se la riga ne ha uno, perché crea un comportamento «solo un `ReactionId` stabile con dati di effetto espliciti» [DECISO D-275 (2)]. Spark Bolt non ha un effetto suo: «status/surface/event/geometry appartengono al relativo sistema» [DECISO D-029] [DOMANDA → TG-11] |
+| Fallback | `Cancel` [PROPOSTA: il ripiego di `Action.BasicAttack`, codice: `RTCatalogLibrary.cpp:1277`] |
+| Sistemi che mancano | le cariche di cella [codice: `git grep -n -i -e ElementCharge -e ElementalCharge -e CellCharge -e ChargeTier -e Status.Charged -- Source` → exit 1 su `f012ed660`; controllo, lo stesso stile di pattern su uno stato che c'è: `git grep -n -e Status.Electrified -- Source/RefactorTactics/Core` → exit 0]; il campo elemento dell'azione e il percorso di danno elementale [codice: vedi «Come leggere la traduzione»] |
+
+**Esempio.** *Given* Gadget in (0,0,0), budget 6; R a distanza 6. *When* Gadget pianifica Spark Bolt su R (2 AP, ne restano 4) e il Blast risolve. *Then* lettura elementale: `floor(170 × 100/135)` = 125, R 1750 → 1625; lettura diretta: `floor(170 × 100/145)` = 117, R → 1633. Tre Spark Bolt nello stesso piano (6 AP) sono tre colpi da 125, ciascuno arrotondato per conto suo [DECISO D-595 (1)]: R → 1375. Con R dietro una copertura bassa sul lato da cui arriva il colpo: 125 − 60 = 65 [DECISO D-633 (7)]. Alle spalle di R: `floor((170 + 60) × 100/135)` = 170. Con R a distanza 7: rifiutato per portata. Il catalizzatore non ha esempio: dipende da `TG-11` e da un sistema che manca.
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-11] **Catalizzatore di Spark Bolt.** «Agisce da catalizzatore a distanza su esagoni già caricati»: il colpo porta Fulmine sulla cella e l'esito è della riga della coppia (la proposta), o Spark Bolt ha un effetto suo? E su una cella d'acqua o su un bersaglio `Wet`, l'unica coppia con Fulmine che oggi ha un `ReactionId`, `Reaction.ElectricPropagatesThroughWater` ([catalogo delle coppie](../../balance/RT_ElementPairCatalog_v0.1.md), riga 69), si attiva? È la domanda di Riktor `TR-8` per Shock Whip («Un colpo Electric su un bersaglio Wet o in acqua attiva anche la reazione della coppia, o la catena la sostituisce?»): una risposta vale per entrambi.
+
+**Domande della scheda.** `TG-7` (tipo di danno), `TG-10` (fascia dell'attacco base), `TG-11` (catalizzatore); `TG-1` per la RES degli esempi.
+
+### Phase Dart — `Hero.Gadget.PhaseDart`
+
+> «Opzione 2 (Controllo Facing) — Phase Dart [🌌 Flux]: Proiettile di distorsione da 130 Danno Energetico che ruota forzatamente il Facing del bersaglio di 60° (2 spicchi), esponendolo al Flanking.»
+
+Nel `.csv` (`GAD_BAS_02`): `Range_Hex` 6, `Status_or_Effect` «Force Rotate 60°».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | attacco base, «Opzione 2 (Controllo Facing)» [CATALOGO]; voce del kit [DECISO D-633 (9)] |
+| Fase | Blast · `Attack` (40) [CATALOGO «Blast Phase»; PROPOSTA: come gli altri attacchi base] |
+| Costo AP | 2 [CATALOGO; classe Blast, DECISO D-594 (1)] |
+| Cooldown | 0 [CATALOGO]; si ripete [DECISO D-614]: due Phase Dart sullo stesso bersaglio fanno due passi, 120° [PROPOSTA: le rotazioni si sommano; DOMANDA → TG-12] |
+| Priorità | 50 [PROPOSTA]; il danno del Blast è simultaneo, e la priorità ne ordina solo il racconto [DECISO D-615 (3)] |
+| Portata e linea di vista | 6 [CSV GAD_BAS_02; il testo non la dà, CATALOGO]; `BlindAimDirect` [DECISO D-490; codice: `RTCatalogLibrary.cpp:1295`] |
+| Forma | `Single`: una cella [CATALOGO «Proiettile»; PROPOSTA] |
+| Bersaglio | un'unità nemica [PROPOSTA]; la rotazione vale solo se il colpo arriva, e un colpo fermato da un ostacolo non arriva [PROPOSTA; DECISO D-490] |
+| Elemento | `Element.Warp` [CATALOGO «🌌 Flux»; DECISO D-593 (5) per l'identificatore; LETTURA D-633 (11b), Flux è Warp] |
+| Tipo di danno | elementale Warp [PROPOSTA: «Danno Energetico»; DOMANDA → TG-7] |
+| Danno base | 130 [CATALOGO]; la fascia «lungo» darebbe 200 [codice: `RTCatalogLibrary.cpp:1949-1958`; DOMANDA → TG-10] |
+| Movimento | nessuno [CATALOGO] |
+| Stati | nessuno stato: la rotazione cambia il facing, che è un campo dell'unità [codice: `ARTUnit::Facing`, `RTUnit.h:185`; PROPOSTA] |
+| Rotazione | «di 60° (2 spicchi)»: qui lo spicchio è di 30°, e 60° sono un passo fra le sei direzioni della cella [LETTURA D-633 (11c); codice: `ERTHexDirection`, `RTCellId.h:11-19`]. Il «Flanking» che espone è il bonus alle spalle di oggi [DECISO D-633 (2)]. Il verso, a sinistra o a destra, lo dichiara Gadget nel planning [PROPOSTA: con un verso fisso la voce esporrebbe sempre lo stesso fianco]. Vale dopo i colpi del Blast, che leggono il facing di prima [PROPOSTA; DECISO D-615 (3)]. Il facing del bersaglio cambia ancora alla fine del suo movimento e poi con la rotazione che ha dichiarato, l'ultimo passo del Move [codice: `RTTurnManager_Movement.cpp:1935`, `:2000-2036`], e nel Blast chi attacca si gira verso il proprio bersaglio prima dei colpi [codice: `RTTurnManager_Blast.cpp:1390-1410`]: così letta, la rotazione porta a un colpo alle spalle solo se il bersaglio, nel turno N, non si muove e non dichiara un facing, e nel Blast di N+1 non attacca [PROPOSTA: conto di questa pagina; DOMANDA → TG-12] |
+| Oggetti persistenti | nessuno [CATALOGO] |
+| Fallback | `Cancel` [PROPOSTA: come `Action.BasicAttack`, codice: `RTCatalogLibrary.cpp:1277`] |
+| Sistemi che mancano | una rotazione imposta da un'azione [codice: `git grep -n -i -e ForceFacing -e ForcedFacing -e RotateFacing -e ForcedRotation -e ForceRotat -- Source` → exit 1 su `f012ed660`; `ERTActionEffect` non ha un valore di rotazione, `RTActionEvent.h:17-162`]. L'unico facing che oggi un'altra unità impone è quello di chi subisce uno spostamento forzato, girato verso la sorgente [codice: `ERTFacingOutcome::TurnedToDisplacementSource`, `RTTurnLog.h:174`, scritto in `RTTurnManager.cpp:2396`; controllo: `git grep -n -e TurnedToDisplacementSource -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'` → exit 0]; il TurnLog vorrà un motivo nuovo in coda a `ERTFacingOutcome` [PROPOSTA]. Il campo elemento e il percorso elementale [codice: vedi «Come leggere la traduzione»] |
+
+**Esempio.** *Given* Gadget in (3,−4,0), a distanza 4 da R sulla direzione NW di R; R in (3,0,0) con facing W: il colpo arriva dalla direzione NW, che sta nell'arco frontale di R, il cono di 120° verso il facing che decide il bonus alle spalle [codice: `URTHexCombatLibrary::IsInFrontalArc`, `RTHexCombatLibrary.cpp:213`, letto in `MitigatedHitPower`, `:337`]. *When* nel turno N Gadget pianifica Phase Dart su R con il verso «a sinistra», W → SW [PROPOSTA]. *Then* nel Blast di N R prende il colpo di fronte, `floor(130 × 100/135)` = 96 (lettura elementale) o `floor(130 × 100/145)` = 89 (diretta), perché i colpi dello stesso Blast leggono il facing di prima [DECISO D-615 (3)]; poi R passa a SW, e la direzione NW esce dal suo arco frontale. Se R, nel turno N, resta fermo e non dichiara un facing, e nel Blast di N+1 non attacca, uno Spark Bolt di Gadget dallo stesso punto nel turno N+1 è alle spalle: `floor((170 + 60) × 100/135)` = 170 invece di 125. Se R si muove o dichiara un facing, la rotazione si perde alla fine del Move di N.
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-12] **Rotazione di Phase Dart.** Il verso lo sceglie Gadget (la proposta) o è fisso? Vale dopo i colpi del Blast, come vuole il danno simultaneo, o prima, con una regola nuova del resolver? Questa parte è il nodo dell'ultima domanda di Riktor `TR-25` (lo Stun di Skewer prima degli attacchi dello stesso Blast): una risposta sul principio vale per entrambi. Quanto dura: fino al prossimo facing derivato o dichiarato, che la rende quasi sempre inerte, o blocca il facing del bersaglio fino al turno dopo? Due rotazioni sullo stesso bersaglio si sommano?
+
+**Domande della scheda.** `TG-7`, `TG-10`, `TG-12`.
+
+### Static Arc — `Hero.Gadget.StaticArc`
+
+> «Opzione 3 (Rimbalzo) — Static Arc [⚡ Fulmine]: Dardo da 120 Danno Energetico che si propaga automaticamente su 1 esagono adiacente se entrambi contengono già una carica elementale.»
+
+Nel `.csv` (`GAD_BAS_03`): `Range_Hex` 6, `Status_or_Effect` «Bounce on Charged Hex».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | attacco base, «Opzione 3 (Rimbalzo)» [CATALOGO]; voce del kit [DECISO D-633 (9)] |
+| Fase | Blast · `Attack` (40) [CATALOGO «Blast Phase»; PROPOSTA] |
+| Costo AP | 2 [CATALOGO; classe Blast, DECISO D-594 (1)] |
+| Cooldown | 0 [CATALOGO]; si ripete [DECISO D-614] |
+| Priorità | 50 [PROPOSTA]; danno simultaneo [DECISO D-615 (3)] |
+| Portata e linea di vista | 6 [CSV GAD_BAS_03; il testo non la dà, CATALOGO]; `BlindAimDirect` [DECISO D-490]. Il rimbalzo parte dal bersaglio e non chiede vista [PROPOSTA: va a una cella adiacente al bersaglio, non a una cella mirata da Gadget] |
+| Forma | `Single` sul bersaglio, una cella; con la condizione vera, un secondo colpo su una delle sei celle adiacenti, un salto solo [CATALOGO «su 1 esagono adiacente»; PROPOSTA]. Con più adiacenti che la soddisfano, quella col `FRTCellId` minore, per X, poi Y, poi `Layer` [PROPOSTA: un ordine esplicito e stabile, come chiede il determinismo; DOMANDA → TG-14] |
+| Bersaglio | un'unità nemica; il secondo colpo prende l'unità della cella adiacente, se c'è, anche un alleato, col fuoco amico di default [PROPOSTA; codice: `bFriendlyFire = true`, `RTActionDef.h:810`; DOMANDA → TG-13] |
+| Elemento | `Element.Electric` [CATALOGO «⚡ Fulmine»; DECISO D-593 (1); LETTURA D-633 (11b)] |
+| Tipo di danno | elementale Electric [PROPOSTA; DOMANDA → TG-7] |
+| Danno base | 120 al bersaglio [CATALOGO]; 120 al secondo [PROPOSTA: il catalogo non dichiara una riduzione; DOMANDA → TG-14]. La fascia «lungo» darebbe 200 [codice: `RTCatalogLibrary.cpp:1949-1958`; DOMANDA → TG-10] |
+| Condizione | la cella del bersaglio e la cella adiacente portano entrambe «già una carica elementale» [CATALOGO], lette sullo snapshot del colpo [PROPOSTA]. Le cariche non esistono: oggi la condizione non è mai vera, e la voce è un colpo singolo da 120 [codice: vedi Spark Bolt, «Sistemi che mancano»] |
+| Movimento | nessuno [CATALOGO] |
+| Stati | nessuno [CATALOGO] |
+| Oggetti persistenti | nessuno [CATALOGO] |
+| Fallback | `Cancel` [PROPOSTA: come `Action.BasicAttack`] |
+| Sistemi che mancano | le cariche di cella, come per Spark Bolt [codice: lo stesso comando, exit 1 su `f012ed660`]; un secondo bersaglio scelto dallo stato della mappa: per la variante `Branched` di `LinearDischarge` «QUALE secondo nemico venga colpito e' targeting non ancora cablato» [codice: `RTHeroCatalogLibrary.cpp:509-512`], e un rimbalzo non c'è [codice: `git grep -n -i -w -e bounce -e bounces -e ricochet -- Source` → exit 1 su `f012ed660`; controllo dello stile: `git grep -n -i -w -e chain -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'` → exit 0]; il campo elemento e il percorso elementale [codice: vedi «Come leggere la traduzione»] |
+
+**Esempio.** *Given* R in (3,0,0) e un secondo nemico S, con gli stessi numeri, in (4,0,0); la cella di R e quella di S portano già una carica elementale, che è il sistema che manca. *When* Gadget pianifica Static Arc su R. *Then* R prende `floor(120 × 100/135)` = 88 (lettura elementale; 82 con la DEF), R → 1662; il rimbalzo colpisce S con altri 88 [PROPOSTA: danno pieno]. Con le cariche che oggi non esistono, Static Arc è un colpo singolo da 120: R → 1662, S intatto.
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-13] **Fuoco amico.** Il rimbalzo di Static Arc e l'area del Cryo-Drone toccano anche gli alleati, e Gadget? È la domanda di Riktor `TR-12` («Gli alleati nell'area sono colpiti?»): una risposta vale per entrambi.
+- [DOMANDA → TG-14] **Rimbalzo di Static Arc.** Con più celle adiacenti cariche, quale riceve il rimbalzo (la proposta: il `FRTCellId` minore)? Quale carica conta, una qualunque o solo una che con Fulmine fa una coppia? Il secondo colpo fa 120 pieni o meno? Per il danno è la domanda di Riktor `TR-7` sulla catena di Shock Whip («Il secondario fa 160 pieni o un danno ridotto?»): una risposta vale per entrambi.
+
+**Domande della scheda.** `TG-7`, `TG-10`, `TG-13`, `TG-14`.
+
+---
+
+## 2. Prep
+
+Gruppo del catalogo: «Prep Phase (🔵 Prep Phase | 1 AP | CD 1)» [CATALOGO].
+
+**Scelte comuni.** Fase `Preparation` (10), la macro-fase Prep [CATALOGO «Prep Phase»; DECISO D-583 (1); codice: `RTActionDef.h:25-26`]. 1 AP [CATALOGO; coincide con la classe Prep, DECISO D-594 (1)]. Cooldown 1 [CATALOGO «CD 1»], letto come in «Come leggere la traduzione»: una volta per piano, ma ancora in ogni turno [PROPOSTA; DOMANDA → TG-6]. Le tre voci cambiano la mappa; lo stato di mappa che ne nasce è pubblico dalla risoluzione del Prep, come una copertura eretta, e l'intento resta privato fino ad allora [PROPOSTA; AGENTS.md §4].
+
+**Lati e bordi.** Il catalogo dice «lato» e «segmento di muro». Un lato dell'esagono è un bordo fra due celle, non una cella: in codice si indirizza dalla cella con una delle sei direzioni, come le coperture e le porte [codice: `FRTHexCover::Edge`, `RTHexCellData.h:58-64`; `FRTHexDoor`, `:252-258`], e un passo lo attraversa quando va da una cella a quella adiacente sul suo lato [DECISO D-524 (5)]. Un bordo non ha occupancy e conta 0 celle. Speed Gate e Holo-Barricade si traducono su un bordo, Structure Shift anche, con l'alternativa della cella nella sua scheda [PROPOSTA].
+
+**Priorità** [PROPOSTA]: Speed Gate 41, perché si arma soltanto e il suo effetto si decide nel Dash; Structure Shift 74 e Holo-Barricade 75, accanto a `Action.CreateCover` (75) [codice: `RTCatalogLibrary.cpp:1921-1922`], perché le strutture di bordo del Prep si raccolgono e si applicano a fase conclusa [codice: `RTTurnManager.h:2736-2737`], e la priorità decide solo fra due operazioni sullo stesso bordo, dove vince quella raccolta per prima [codice: `RTTurnManager.h:2745`]. Le priorità di Prep di oggi sono 30 (`Action.SuppressiveLine`, `Action.Brace`, `Hero.Ivrin.InterceptShot`), 35 (`Action.Shield`), 36 (`Hero.Muiren.FlowReaction`), 40 (`Action.Guard`), 45 (`Action.Overwatch`), 75 (`Action.CreateCover`) e 76 (`Hero.Riktor.Reconfigure`) [codice: `RTCatalogLibrary.cpp:1309`, `:1405`, `:1578`, `:1721`, `:1732`, `:1921-1922`; `RTHeroCatalogLibrary.cpp:736`, `:881-882`, `:1054-1055`]: 41 e 74 sono libere. Holo-Barricade a 75 pareggia con `Action.CreateCover`, che un equipaggiamento può dare a ogni eroe [codice: `RTCatalogLibrary.cpp:376`], e il pareggio si scioglie per id [DECISO D-615 (5)].
+
+**Oggetti persistenti.** Il varco, il bordo Wireframe e la parete sono stato di partita con una scadenza, come `DynamicSurfaces`, `DynamicArcs` e `DynamicCovers` [codice: `RTTurnManager.h:2664-2733`]. ⚠️ L'hash di fine partita copre il valore corrente di terreni e strutture, non la loro scadenza [codice: `RTMatchStateHash.h:121-126`]: un varco che non sta nella mappa resterebbe del tutto fuori dall'hash, e va aggiunto con lo snapshot e il replay [PROPOSTA; CLAUDE.md §7].
+
+### Structure Shift — `Hero.Gadget.StructureShift`
+
+> «Opzione 1 (Core) — Structure Shift [🌌 Flux]: Smaterializza un segmento di muro solido per 1 turno trasformandolo in Wireframe (trasparente a LoS e proiettili, blocco fisico attivo) o innescando la reazione Flux del muro.»
+
+Nel `.csv` (`GAD_PRP_01`): `Range_Hex` «3-4 (Wall)», `Base_Damage_or_Shield` 0, `Modifies_Walls` «Yes», `Status_or_Effect` «Wireframe Wall 1T».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Prep, «Opzione 1 (Core)» [CATALOGO]; voce del kit [DECISO D-633 (9)]. È la «riscrittura della mappa via Flux» che il catalogo mette nel Prep [CATALOGO §1.1] |
+| Fase | `Preparation` (10) [CATALOGO; DECISO D-583 (1)], applicata a fase conclusa con le strutture di bordo [PROPOSTA; codice: `RTTurnManager.h:2736-2737`] |
+| Costo AP | 1 [CATALOGO; classe Prep, DECISO D-594 (1)] |
+| Cooldown | 1 [CATALOGO «CD 1»; PROPOSTA, la semantica di «Come leggere la traduzione»; DOMANDA → TG-6] |
+| Priorità | 74 [PROPOSTA: vedi «Priorità» del gruppo] |
+| Portata e linea di vista | 4 [CSV GAD_PRP_01 «3-4 (Wall)»; PROPOSTA: la cifra alta della forbice; DOMANDA → TG-15]; vista sulla cella da cui si indirizza il bordo, con la policy di default [PROPOSTA; codice: `Required`, `RTActionDef.h:212-218`] |
+| Forma | un bordo, 0 celle [PROPOSTA]: il «segmento di muro» è il lato di una cella con copertura alta, `ERTHexCoverType::High`, che «NEGA l'attraversamento del bordo a vista, passo e proiettili» [codice: `RTHexCellData.h:46`]. L'altra lettura di «muro» è una cella che blocca passo e vista [codice: `bBlocksMovement`, `bBlocksLineOfSight`, `RTHexCellData.h:400`, `:423`; DOMANDA → TG-16] |
+| Bersaglio | un bordo con copertura alta entro la portata, di chiunque [PROPOSTA: un bordo non ha squadra, codice: `git grep -n -w TeamId -- Source/RefactorTactics/Map/RTHexCellData.h` → una sola riga, un commento, `:435`] |
+| Elemento | `Element.Warp` [CATALOGO «🌌 Flux»; DECISO D-593 (5); LETTURA D-633 (11b)] |
+| Tipo di danno | nessuno [CATALOGO] |
+| Danno base | 0 [CSV GAD_PRP_01] |
+| Movimento | nessuno [CATALOGO] |
+| Stati | nessuno [CATALOGO] |
+| Oggetti persistenti | il bordo Wireframe, che nega il passo e lascia passare vista e proiettili [CATALOGO «trasparente a LoS e proiettili, blocco fisico attivo»], per il turno del lancio, dal Prep al Cleanup [PROPOSTA: «per 1 turno», col conto alla rovescia del Cleanup delle coperture erette nel Prep, codice: `RTTurnManager.h:2707-2712`]; poi il bordo torna com'era [PROPOSTA: il tipo d'origine si conserva come l'`Original` di una superficie dinamica, codice: `RTTurnManager.h:2672-2677`]. L'integrità del muro non cambia [PROPOSTA] |
+| Reazione Flux del muro | «o innescando la reazione Flux del muro» [CATALOGO]: non si traduce. Le righe di `Element.Warp` del [catalogo delle coppie](../../balance/RT_ElementPairCatalog_v0.1.md) sono tutte `OPEN` (righe 47–57 su `f012ed660`), e una voce `OPEN` «non deve ricevere effetti o numeri inventati» [DECISO D-275 (1)]; le combo Flux della matrice di Gadget sono candidate per quelle righe, non regole dell'eroe [LETTURA D-633 (11e)] [DOMANDA → TG-16] |
+| Fallback | `Cancel` [PROPOSTA: come `Action.CreateCover`, codice: `RTCatalogLibrary.cpp:1921-1922`]: se il bordo non è più un muro quando l'operazione si applica, non succede niente |
+| Sistemi che mancano | un bordo che neghi il passo e non la vista: i tipi sono `None`, `Low` e `High` [codice: `ERTHexCoverType`, `RTHexCellData.h:42-47`; `git grep -n -i wireframe -- Source` → exit 1 su `f012ed660`]; un'operazione che in partita cambi il tipo di un bordo e poi lo rimetta: `ERTStructureOp` erige, sposta, apre e chiude porte [codice: `RTActionDef.h:354-373`], e fuori dai test il solo sito che riscrive il tipo è la cottura della geometria [codice: `git grep -n -E -e "\.Type = ERTHexCoverType" -e "->Type = ERTHexCoverType" -- Source/RefactorTactics ':!Source/RefactorTactics/Tests'` → una riga, `Map/Structure/RTGeometryBake.cpp:470`]; la scadenza nell'hash [codice: `RTMatchStateHash.h:121-126`] |
+
+**Esempio.** *Given* Gadget in (0,0,0); R in (3,0,0); una copertura alta sul bordo fra (1,0,0) e (2,0,0). *When* nel Prep di N Gadget usa Structure Shift su quel bordo (1 AP) e nel Blast di N Spark Bolt su R (2 AP). *Then* senza Structure Shift lo Spark Bolt si ferma sul muro [DECISO D-490] e R resta a 1750; con Structure Shift arriva, R → 1625 (lettura elementale). Se R, nel Move di N, prova a passare da (2,0,0) a (1,0,0), il bordo nega il passo come prima. Nel Cleanup di N il bordo torna copertura alta, e uno Spark Bolt nel turno N+1 si ferma di nuovo [PROPOSTA: «per 1 turno» è il turno del lancio].
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-15] **Fonti che divergono, `.md` e `.csv`.** Nei gruppi 1–3 i due file non dicono la stessa cosa: Seeker Bot avanza «di 3 esagoni» nel testo e ha `Range_Hex` «3-6 (Line)»; il Cryo-Drone ha 80 danni solo nel `.csv`; il «al primo nemico incontrato» di Seeker Bot c'è solo nel `.md`. Quando divergono quale vale, e le forbici del `.csv` («3-4 (Wall)», «3-6 (Line)») sono una portata minima e una massima o due misure diverse?
+- [DOMANDA → TG-16] **Structure Shift.** Il «segmento di muro solido» è un bordo con copertura alta (la proposta), una cella che blocca passo e vista, o entrambi? Il Wireframe dura il turno del lancio (la proposta) o anche il successivo? Che cos'è «la reazione Flux del muro», che oggi non ha una riga di coppia che la descriva?
+
+**Domande della scheda.** `TG-6`, `TG-15`, `TG-16`.
+
+### Speed Gate — `Hero.Gadget.SpeedGate`
+
+> «Opzione 2 (Mobilità) — Speed Gate [💨 Aria]: Proietta un varco di accelerazione su un lato dell'esagono; gli alleati che lo attraversano in Dash Phase ottengono +2 esagoni di movimento per 2 turni.»
+
+Nel `.csv` (`GAD_PRP_02`): `Range_Hex` «3 (Edge)», `Base_Damage_or_Shield` 0, `Modifies_Walls` «Yes», `Status_or_Effect` «+2 Move Hex Allies (2T)».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Prep, «Opzione 2 (Mobilità)» [CATALOGO]; voce del kit [DECISO D-633 (9)] |
+| Fase | `Preparation` (10) [CATALOGO; DECISO D-583 (1)]: il varco si arma nel Prep e agisce nel Dash dello stesso turno [PROPOSTA: il catalogo lo fa attraversare «in Dash Phase»] |
+| Costo AP | 1 [CATALOGO; classe Prep, DECISO D-594 (1)] |
+| Cooldown | 1 [CATALOGO «CD 1»; PROPOSTA; DOMANDA → TG-6] |
+| Priorità | 41 [PROPOSTA: si arma soltanto; vedi «Priorità» del gruppo] |
+| Portata e linea di vista | 3 [CSV GAD_PRP_02 «3 (Edge)»; il testo non la dà, CATALOGO]; vista sulla cella da cui si indirizza il bordo, con la policy di default [PROPOSTA; codice: `RTActionDef.h:212-218`] |
+| Forma | un bordo, 0 celle [CATALOGO «su un lato dell'esagono»; PROPOSTA: il lato è un bordo fra due celle, come quello di una copertura, codice: `FRTHexCover::Edge`, `RTHexCellData.h:58-64`]. Il varco non nega niente: non è una copertura e non cambia il grafo [PROPOSTA] |
+| Bersaglio | un bordo entro la portata [PROPOSTA]; agisce sugli alleati di Gadget, lei esclusa [CATALOGO «gli alleati»; PROPOSTA per Gadget; DOMANDA → TG-17] |
+| Elemento | `Element.Air` [CATALOGO «💨 Aria»; DECISO D-593 (5); LETTURA D-633 (11b)] |
+| Tipo di danno | nessuno [CATALOGO] |
+| Danno base | 0 [CSV GAD_PRP_02] |
+| Movimento | nessuno per Gadget [CATALOGO]. Un alleato attraversa il varco quando un passo del suo scatto va da una cella all'altra attraverso quel bordo [PROPOSTA; DECISO D-524 (5)]: negli scatti `LinearDash`, `LinearCharge` e `LinearPass`. Il salto `LinearLeap`, che «scavalca le celle intermedie e guarda solo dove atterra» [DECISO D-524 (5)], non lo attraversa [PROPOSTA; DOMANDA → TG-17] |
+| Stati | +2 MP sul budget del Move [CATALOGO «+2 esagoni di movimento»; PROPOSTA: gli scatti non hanno un costo per cella da cambiare, codice: commento di `Action.Slow`, `RTCatalogLibrary.cpp:1786-1790`]. Per 2 turni, il Move di N+1 e quello di N+2, con la scadenza nel Cleanup di N+2 [CATALOGO «per 2 turni»; PROPOSTA: il Move di N è pianificato e validato prima del Dash, e un piano validato non si allunga a risoluzione, come per il budget di AP, DECISO D-613 (1); DOMANDA → TG-17]. Stato nuovo, nome di lavoro `Status.Hasted` [PROPOSTA], letto da `ARTUnit::GetEffectiveMoveRange`, il punto unico che alimenta lo snapshot del Move e la validazione del piano [codice: `RTUnit.cpp:1931-1941`] |
+| Oggetti persistenti | il varco sul bordo, dal Prep al Cleanup del turno del lancio [PROPOSTA: il catalogo dà la durata del bonus, non quella del varco; DOMANDA → TG-17]; stato di partita con la sua scadenza, fuori dall'hash di oggi [codice: `RTMatchStateHash.h:121-126`] |
+| Fallback | `Cancel` [PROPOSTA] |
+| Sistemi che mancano | un fatto «attraversa un bordo» che fa scattare un effetto [PROPOSTA: AGENTS.md §5 elenca «attraversamento bordo» fra i fatti di un Traversal]: `SpatialTrigger` («tripwire che scatta attraversando un bordo») è fra le capacità dello Scenario Harness senza un produttore in partita [codice: `RTScenarioSession.cpp:503-511`, owner #704; `git grep -n SpatialTrigger -- Source/RefactorTactics ':!Source/RefactorTactics/Tests' ':!Source/RefactorTactics/ScenarioHarness'` → exit 1 su `f012ed660`, e lo stesso comando sullo Scenario Harness → exit 0]; uno stato che aumenti i MP [codice: `git grep -n -i -e "Status\.Haste" -e "Status\.Hasted" -e "Status\.Speed" -e "Status\.Accelerat" -- Source` → exit 1 su `f012ed660`; controllo: `git grep -n -e "Status\.Slow" -- Source/RefactorTactics/Core` → exit 0]; un oggetto di bordo che non sia copertura, porta o parapetto [codice: `Covers`, `Doors`, `Guards`, `RTHexCellData.h:447`, `:453`, `:460`] |
+
+**Esempio.** *Given* un alleato B in (0,0,0), con 4 MP, che nel turno N pianifica `Action.Dodge` verso (3,0,0) e poi un Move di 4 celle, legale perché uno scatto e un Move nello stesso piano restano legali [LETTURA D-625 (e)]; Gadget, nel Prep di N, mette Speed Gate sul bordo fra (1,0,0) e (2,0,0). *When* il Dash di N risolve. *Then* B attraversa il varco e prende +2 MP [PROPOSTA]: il Move di N resta di 4 celle, quello pianificato, e nel planning di N+1 e di N+2 B cammina con 6 MP; nel Cleanup di N+2 il bonus scade. Un nemico che attraversa lo stesso bordo non prende niente [CATALOGO «gli alleati»]; B che lo attraversa nel Move invece che nel Dash non prende niente [CATALOGO «in Dash Phase»]; con `Action.Leap`, che non attraversa i bordi, nemmeno [PROPOSTA].
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-17] **Speed Gate.** Conta solo l'attraversamento in uno scatto (la lettera) o anche nel Move, e il salto che scavalca il bordo? Una spinta o una trazione attraverso il varco valgono? Per queste è la domanda uniforme di Riktor `TR-18` («Una spinta o una trazione nel Dash attraverso le celle di Anchor e di Spikes le fa scattare?»): una risposta vale per entrambi. I +2 valgono sul Move (la proposta) o anche sulla portata degli scatti? I «2 turni» partono dal turno dopo, perché il Move del turno è già validato (la proposta), o il validatore deve contare il varco della propria squadra nello stesso turno? Gadget è fra gli «alleati»? Quanto dura il varco?
+
+**Domande della scheda.** `TG-6`, `TG-17`.
+
+### Holo-Barricade — `Hero.Gadget.HoloBarricade`
+
+> «Opzione 3 (Copertura) — Holo-Barricade [🛡️ Scudo]: Materializza una parete olografica leggera (150 HP) su un lato vuoto bloccando la Linea di Vista nemica per 1 turno.»
+
+Nel `.csv` (`GAD_PRP_03`): `Range_Hex` «3 (Edge)», `Base_Damage_or_Shield` 150, `Modifies_Walls` «Yes», `Status_or_Effect` «Holo Wall 150 HP (1T)».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Prep, «Opzione 3 (Copertura)» [CATALOGO]; voce del kit [DECISO D-633 (9)]. Il precedente più vicino è `Action.CreateCover`, che erige una copertura bassa su un bordo per 2 turni [codice: `RTCatalogLibrary.cpp:1907-1924`] |
+| Fase | `Preparation` (10) [CATALOGO; DECISO D-583 (1)], applicata a fase conclusa con le strutture di bordo [PROPOSTA; codice: `RTTurnManager.h:2736-2737`]: c'è già nel Dash e nel Blast del turno, come la copertura di `Action.CreateCover` [codice: `RTTurnManager.h:2707-2712`] |
+| Costo AP | 1 [CATALOGO; classe Prep, DECISO D-594 (1)] |
+| Cooldown | 1 [CATALOGO «CD 1»; PROPOSTA; DOMANDA → TG-6] |
+| Priorità | 75 [PROPOSTA: come `Action.CreateCover`, codice: `RTCatalogLibrary.cpp:1921-1922`; il pareggio con lei si scioglie per id, DECISO D-615 (5)] |
+| Portata e linea di vista | 3 [CSV GAD_PRP_03 «3 (Edge)»; coincide con `Action.CreateCover`, codice: `RTCatalogLibrary.cpp:1922`]; vista sulla cella da cui si indirizza il bordo, con la policy di default [PROPOSTA; codice: `RTActionDef.h:212-218`] |
+| Forma | un bordo, 0 celle [CATALOGO «su un lato vuoto»; PROPOSTA]. «Vuoto» vuol dire senza copertura né porta, perché un bordo ne porta al più una di ciascuna [PROPOSTA; codice: `RTHexCellData.h:442-453`] |
+| Bersaglio | un bordo vuoto entro la portata [CATALOGO; PROPOSTA] |
+| Elemento | `Element.Aegis` [CATALOGO «🛡️ Scudo»; DECISO D-593 (4); LETTURA D-633 (11b)] |
+| Tipo di danno | nessuno [CATALOGO] |
+| Danno base | 0; 150 è l'integrità della parete [CATALOGO «(150 HP)»; CSV GAD_PRP_03 `Base_Damage_or_Shield` 150] |
+| Movimento | nessuno [CATALOGO] |
+| Stati | nessuno [CATALOGO] |
+| Oggetti persistenti | una parete sul bordo, eretta come una copertura di `Action.CreateCover` [PROPOSTA; codice: `ERTStructureOp::CreateCover`, `RTActionDef.h:358-359`], ma alta: la sola copertura che nega la vista è `High`, e nega anche passo e proiettili [codice: `RTHexCellData.h:45-46`; PROPOSTA; DOMANDA → TG-18]. Integrità 150 [CATALOGO], contro i 30 di una copertura bassa e i 50 di una alta [codice: `FRTHexCover::DefaultIntegrity`, `RTHexCellData.h:123-126`], e oggi un colpo la consuma solo se l'azione dichiara `DamageStructure` [codice: `RTActionEvent.h:52-66`; `RTCatalogLibrary.cpp:1283-1285`; DOMANDA → TG-18]. Dura il turno del lancio: nasce nel Prep e scade nel Cleanup dello stesso turno [CATALOGO «per 1 turno»; PROPOSTA: `TurnsRemaining` 1, che il Cleanup di N porta a 0, codice: `RTTurnManager.h:2707-2733`] |
+| Fallback | `Cancel` [PROPOSTA: come `Action.CreateCover`]; se due operazioni cercano lo stesso bordo, vince quella raccolta per prima [codice: `RTTurnManager.h:2745`] |
+| Sistemi che mancano | un'erezione di copertura alta in partita: `CreateCover` «Erige una copertura bassa temporanea» [codice: `RTActionDef.h:358`], e fuori dall'allestimento delle arene il turno nomina solo il tipo basso [codice: `git grep -n -e "ERTHexCoverType::High" -- Source/RefactorTactics/Turn ':!Source/RefactorTactics/Turn/Format'` → exit 1 su `f012ed660`; controllo: lo stesso comando con `ERTHexCoverType::Low` → exit 0, `RTTurnManager.cpp:4794`]; una vista negata a una sola squadra, «la Linea di Vista nemica» [CATALOGO]: bordi e celle non hanno squadra [codice: `git grep -n -w TeamId -- Source/RefactorTactics/Map/RTHexCellData.h` → una sola riga, un commento, `:435`; controllo: lo stesso pattern su `Source/RefactorTactics/Turn/Resolution/RTHexSim.h` → exit 0]; la scadenza nell'hash [codice: `RTMatchStateHash.h:121-126`] |
+
+**Esempio.** *Given* un alleato A in (0,0,0); R in (3,0,0), che vede A e nel turno N pianifica un attacco base su A. *When* nel Prep di N Gadget mette Holo-Barricade sul bordo fra (0,0,0) e (1,0,0). *Then* dal Prep al Cleanup di N la vista di R su A è negata [PROPOSTA]; l'attacco di R, dichiarato quando la parete non c'era, parte e si ferma sulla parete [DECISO D-490], e A non prende danno. La parete non perde integrità, perché l'attacco base non dichiara `DamageStructure` [codice: `RTCatalogLibrary.cpp:1283-1285`]; con la lettura «150 punti che ogni colpo consuma» di `TG-18`, scenderebbe a 150 meno il danno del colpo. Nel Cleanup di N la parete scompare.
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-18] **Holo-Barricade.** I 150 HP sono un'integrità sulla scala delle strutture (30 e 50 oggi, consumata solo da `DamageStructure`) o punti che ogni colpo consuma, sulla scala dei danni? La parete nega solo la vista (un bordo che oggi non esiste) o anche passo e proiettili, come la copertura alta della proposta? «La Linea di Vista nemica» vuol dire che la squadra di Gadget vede attraverso?
+
+**Domande della scheda.** `TG-6`, `TG-18`.
+
+---
+
+## 3. Dash
+
+Gruppo del catalogo: «Dash Phase (🟡 Dash Phase | 2 AP | CD 2)» [CATALOGO].
+
+**Scelte comuni.** Macro-fase Dash, `FastMovement` (20) [CATALOGO «Dash Phase»; DECISO D-583 (1); codice: `RTActionDef.h:27-28`]. 2 AP [CATALOGO; coincide con la classe Dash, DECISO D-594 (1)]. Cooldown 2 [CATALOGO «CD 2»]: una volta per piano, e salta il turno dopo [PROPOSTA: la semantica di «Come leggere la traduzione»; DOMANDA → TG-6]. Ripiego `Stop` per tutte e tre [PROPOSTA: è la regola che il validatore del catalogo dà a ogni azione di movimento, «azione di movimento con fallback diverso da Stop», perché «un movimento bloccato si ferma nell'ultima cella valida», codice: `URTCatalogLibrary::ValidateActions`, `RTCatalogLibrary.cpp:327-334`; la segue anche `Hero.Ivrin.PassingBlade`, `RTHeroCatalogLibrary.cpp:1085`].
+
+**Uno scatto per piano.** Due scatti diversi sono rifiutati anche quando il budget li paga [DECISO D-625 (4); codice: `SecondDash`, `RTPlanValidationLibrary.cpp:322-337`], e uno scatto è ogni azione che risolve nella macro-fase Dash [LETTURA D-625 (i); codice: `URTCatalogLibrary::IsFastMovement`, `RTCatalogLibrary.cpp:189-192`]. Le tre voci, quindi, si escludono a vicenda nello stesso piano, anche Seeker Bot, che non sposta Gadget, finché resta nel Dash (`TG-21`) [PROPOSTA: conseguenza]. Uno scatto e un Move nello stesso piano restano legali [LETTURA D-625 (e)].
+
+**Priorità** [PROPOSTA]: Flux Blink 25, come `Action.Leap`; Cryo-Drone 40, come `Action.Reposition`; Seeker Bot 45, dopo ogni scatto di oggi, perché il drone legga le posizioni dove gli scatti sono finiti. Le priorità del Dash di oggi sono 25 (`Action.Leap`), 30 (`Action.Dodge`, `Hero.Ivrin.PassingBlade`), 35 (`Action.Charge`) e 40 (`Action.Reposition`) [codice: `RTCatalogLibrary.cpp:1436`, `:1452`, `:1466`, `:1473`; `RTHeroCatalogLibrary.cpp:1084-1085`]. Con uno scatto per piano, un pareggio è solo fra unità diverse, e lo scioglie l'id dell'azione, poi l'unità [DECISO D-615 (5); codice: `RTActionQueueLibrary.cpp:6-30`].
+
+### Seeker Bot — `Hero.Gadget.SeekerBot`
+
+> «Opzione 1 (Core) — Seeker Bot [⚡ Fulmine]: Rilascia un drone che avanza di 3 esagoni lungo le macro-direttrici infliggendo 150 Danno Energetico, applicando Slow (+1 AP al movimento) e drenando -1 AP al primo nemico incontrato (Sintonizzazione Liv. 5: variante Fuoco).»
+
+Nel `.csv` (`GAD_DSH_01`): `Range_Hex` «3-6 (Line)», `Base_Damage_or_Shield` 150, `Status_or_Effect` «Slow + -1 AP Drain»; la descrizione del `.csv` non dice «al primo nemico incontrato» e non ha la nota «Sintonizzazione».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Dash, «Opzione 1 (Core)» [CATALOGO]; voce del kit [DECISO D-633 (9)]. La nota «Sintonizzazione Liv. 5: variante Fuoco» si toglie: «Le note «Liv. 3–10» del catalogo si tolgono» [DECISO D-633 (3); DECISO D-598] |
+| Fase | Dash, `FastMovement` (20), con l'impatto applicato nel Blast come quello di `Action.Charge` [CATALOGO «Dash Phase»; PROPOSTA; codice: `RTCatalogLibrary.cpp:1440-1442`, «Gli effetti sono dichiarati qui, ma si applicano nel Blast»]; l'alternativa è un colpo del Blast con la cornice del Dash [DOMANDA → TG-21] |
+| Costo AP | 2 [CATALOGO; classe Dash, DECISO D-594 (1)] |
+| Cooldown | 2 [CATALOGO «CD 2»; PROPOSTA; DOMANDA → TG-6] |
+| Priorità | 45 [PROPOSTA: vedi «Priorità» del gruppo] |
+| Portata e linea di vista | 3 celle lungo la linea [CATALOGO «avanza di 3 esagoni»]; il `.csv` dice «3-6 (Line)» [CSV GAD_DSH_01; DOMANDA → TG-15]. Il drone va dritto e il primo ostacolo lo ferma, come la traiettoria diretta dell'attacco base [PROPOSTA; DECISO D-490 per l'attacco base] |
+| Forma | una linea di 3 celle su una delle sei direzioni [CATALOGO «lungo le macro-direttrici»; PROPOSTA: gli attacchi lineari restano sulle sei direzioni, DECISO D-524 (1)], risolta come `Action.LineAttack`, «al PRIMO bersaglio valido su una delle sei direzioni», e non come la `Shape::Line`, che colpisce tutti quelli attraversati [codice: `RTCatalogLibrary.cpp:1505-1507`, `:1514-1518`; `ERTLineResolution::StopAtFirstTarget`, `RTActionDef.h:262-274`]. Un alleato non la ferma [codice: `RTActionDef.h:271-272`]: tocca un'unità sola, sulla prima delle 3 celle che ne ha una nemica [PROPOSTA] |
+| Bersaglio | una direzione [PROPOSTA]; il primo nemico sulla linea [CATALOGO «al primo nemico incontrato»] |
+| Elemento | `Element.Electric` [CATALOGO «⚡ Fulmine»; DECISO D-593 (1); LETTURA D-633 (11b)] |
+| Tipo di danno | elementale Electric [PROPOSTA: «Danno Energetico»; DOMANDA → TG-7] |
+| Danno base | 150 [CATALOGO] |
+| Movimento | nessuno per Gadget [CATALOGO «Rilascia un drone»]; il drone non è un'unità e non occupa celle [PROPOSTA; DECISO D-583 (4)] |
+| Stati | `Status.Slow` per 1 turno [CATALOGO «Slow»; PROPOSTA: la durata di `Action.Slow`, codice: `RTCatalogLibrary.cpp:1791-1793`]: oggi +1 al costo di ogni cella del Move, letto già sul Move dello stesso turno [codice: `RTTurnManager.cpp:8057-8060`]. Il catalogo dice «+1 AP al movimento» [CATALOGO], che è un'altra regola [DOMANDA → TG-19]. Drenaggio: −1 al budget di AP del bersaglio nel turno dopo, perché «Un piano già validato non cambia mai» [CATALOGO «drenando -1 AP»; DECISO D-613 (1); DOMANDA → TG-20] |
+| Oggetti persistenti | nessuno [PROPOSTA: il drone vive dentro l'azione e sparisce con lei] |
+| Fallback | `Stop`: il drone si ferma nell'ultima cella valida [PROPOSTA: la regola del catalogo per le azioni di movimento, codice: `RTCatalogLibrary.cpp:327-334`] |
+| Sistemi che mancano | un effetto che cambi in partita il budget di AP di un'unità: fuori da test e Scenario Harness `SetActionPointBudget(` compare solo nella sua definizione [codice: `git grep -n "SetActionPointBudget(" -- Source/RefactorTactics ':!Source/RefactorTactics/Tests' ':!Source/RefactorTactics/ScenarioHarness'` → una riga, `RTUnit.h:1392`, su `f012ed660`; lo dice anche la cella Stato di D-613: «nessun effetto lo cambia ancora in partita»]; un'azione del Dash che non sposti chi la usa: `Action.Dodge`, `Action.Charge`, `Action.Leap`, `Action.Reposition` e `Hero.Ivrin.PassingBlade` hanno tutte uno stile di movimento [codice: `git grep -n "ERTResolutionPhase::FastMovement" -- Source/RefactorTactics/Ability/Catalog` → `RTCatalogLibrary.cpp:1436`, `:1452`, `:1466`, `:1473`, `RTHeroCatalogLibrary.cpp:1084`, con lo stile in `RTCatalogLibrary.cpp:1438`, `:1455`, `:1468`, `:1475`, `RTHeroCatalogLibrary.cpp:1092`]; il campo elemento e il percorso elementale [codice: vedi «Come leggere la traduzione»] |
+
+⚠️ **Commento stantio.** La dichiarazione di `TAG_Status_Slow` dice ancora «range di movimento dimezzato» [codice: `RTGameplayTags.h:7`], contro i lettori, che sommano 1 al costo di ogni cella [codice: `RTTurnManager.cpp:8057-8060`, `RTFocusArea.cpp:46`], e contro il commento di `Action.Slow`, «non dimezza il raggio» [codice: `RTCatalogLibrary.cpp:1786`]. Per questa pagina valgono i lettori.
+
+**Esempio.** *Given* Gadget in (0,0,0) con facing E; un alleato A in (1,0,0), un nemico X in (2,0,0) e un nemico Y in (3,0,0), X e Y con i numeri di R, X con 3 MP su terreno piano. *When* nel turno N Gadget pianifica Seeker Bot verso E (2 AP). *Then* il drone passa A, che non lo ferma [codice: `RTActionDef.h:271-272`], e si ferma su X: X prende `floor(150 × 100/135)` = 111 (lettura elementale; 103 con la DEF) e `Status.Slow`, e il suo budget del turno N+1 è 5, perché il piano di N è già validato [DECISO D-613 (1): «Un piano già validato non cambia mai»]; Y è intatto. Con lo `Status.Slow` di oggi, X nel Move di N paga 2 MP per cella e arriva a una cella invece che a tre; con la lettura «+1 AP» di `TG-19` il Move di N non cambia, e quello di N+1 costa 3 AP. Se X, nel Dash di N, esce dalla linea con uno scatto di priorità minore di 45, il drone prende Y [PROPOSTA]. Seeker Bot e Flux Blink nello stesso piano danno `SecondDash` [DECISO D-625 (4)].
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-19] **«+1 AP al movimento».** Lo Slow di Seeker Bot e il Freddo del Cryo-Drone sono lo `Status.Slow` di oggi (+1 MP per cella, già sul Move del turno, la proposta) o un sovrapprezzo di 1 AP sul Move, che per D-613 (1) può valere solo dal planning del turno dopo? Il Freddo è lo stesso stato o uno nuovo, e quanto dura?
+- [DOMANDA → TG-20] **Drenaggio di AP.** Il −1 di Seeker Bot colpisce il budget del turno dopo, come vuole D-613 (1); due drenaggi si sommano, e con quale budget minimo? È la stessa domanda che Riktor `TR-16` pone per Necrotic Anchor («Due Anchor sommano (−2), con quale tetto e quale budget minimo?»), voce che D-633 (5) toglie dal kit di Riktor ma che vale per il modello: una risposta vale per entrambi.
+- [DOMANDA → TG-21] **Seeker Bot nel Dash o nel Blast.** Il drone parte nel Dash e l'impatto si applica nel Blast, come la carica (la proposta, che ne fa uno scatto per D-625 (4) e lo esclude dal piano di Flux Blink e del Cryo-Drone), o è un colpo del Blast con la cornice del Dash, che non conta come scatto? E danno, Slow e drenaggio sono tutti al primo nemico incontrato, come dice solo il `.md`?
+
+**Domande della scheda.** `TG-6`, `TG-7`, `TG-15`, `TG-19`, `TG-20`, `TG-21`.
+
+### Flux Blink — `Hero.Gadget.FluxBlink`
+
+> «Opzione 2 (Disimpegno) — Flux Blink [🌌 Flux]: Teletrasporto istantaneo di 2 esagoni che ignora i muri solidi (senza attivare Overwatch) lasciando carica Flux sull'esagono di partenza.»
+
+Nel `.csv` (`GAD_DSH_02`): `Range_Hex` 2, `Base_Damage_or_Shield` 0, `Status_or_Effect` «Teleport / No Overwatch».
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Dash, «Opzione 2 (Disimpegno)» [CATALOGO]; voce del kit [DECISO D-633 (9)] |
+| Fase | `FastMovement` (20) [CATALOGO «Dash Phase»; DECISO D-583 (1)] |
+| Costo AP | 2 [CATALOGO; classe Dash, DECISO D-594 (1)] |
+| Cooldown | 2 [CATALOGO «CD 2»; PROPOSTA; DOMANDA → TG-6] |
+| Priorità | 25 [PROPOSTA: come `Action.Leap`, lo stesso stile, codice: `RTCatalogLibrary.cpp:1466`] |
+| Portata e linea di vista | fino a 2 [CATALOGO «di 2 esagoni»; PROPOSTA «fino a»: come ogni mobilità lineare, che oltre la portata non parte e dentro va dove si è mirato, codice: `RTMovementActionLibrary.cpp:127-131`]; nessuna linea di vista [PROPOSTA: un teletrasporto «ignora i muri solidi», CATALOGO] |
+| Forma | l'atterraggio, una cella, scelta fra le celle a distanza 1 o 2 sullo stesso `Layer`, 18 [PROPOSTA: `3R(R+1)` con R = 2, il conto che D-524 (1) scrive per gli stili lineari, «Le celle a distanza ≤ R passano da 6R (le sei direzioni) a 3R(R+1)»; DECISO D-524 (1) per la retta libera di tutti e quattro gli stili]; il salto non cambia `Layer` [codice: `RTMovementActionLibrary.cpp:95`] |
+| Bersaglio | una cella percorribile e libera [PROPOSTA; codice: `RTMovementActionLibrary.cpp:136-152`] |
+| Elemento | `Element.Warp` [CATALOGO «🌌 Flux»; DECISO D-593 (5); LETTURA D-633 (11b)] |
+| Tipo di danno | nessuno [CATALOGO] |
+| Danno base | 0 [CSV GAD_DSH_02] |
+| Movimento | stile `LinearLeap` con portata 2 [PROPOSTA]: il salto di oggi «scavalca le celle intermedie e guarda solo dove atterra» [DECISO D-524 (5)], ignora unità, celle in mezzo e bordi, e vuole un atterraggio percorribile e libero [codice: `RTMovementActionLibrary.cpp:136-152`]: ignora già i muri solidi [CATALOGO «ignora i muri solidi»]. È il «Transfer» di AGENTS.md §5, che «Cambia posizione senza percorrere celle intermedie», e quali azioni vi appartengano lo stabilisce l'owner gameplay [PROPOSTA; AGENTS.md §5]. Facing: l'ultimo passo della retta [DECISO D-524 (4)], con 2 passi di rotazione a fine scatto [codice: `DashEndPivotMaxSteps`, `RTHeroCatalogLibrary.cpp:408`] |
+| Stati | nessuno [CATALOGO] |
+| Overwatch | «senza attivare Overwatch» [CATALOGO]: il salto non apre un'opportunità di Overwatch, né alla partenza né all'atterraggio [PROPOSTA: la lettera]. Oggi un salto entra nella sola cella d'atterraggio [codice: `RTMovementActionLibrary.cpp:149`], ed è quella che un Overwatch potrebbe vedere entrare; l'Overwatch è una reazione del kit [DECISO D-633 (6)] |
+| Oggetti persistenti | una carica Flux sulla cella di partenza [CATALOGO «lasciando carica Flux sull'esagono di partenza»]: un sistema che manca, e senza le cariche il ramo non fa niente [PROPOSTA] |
+| Fallback | `Stop`: con l'atterraggio occupato o non percorribile Gadget resta dov'è [codice: `RTMovementActionLibrary.cpp:140`, `:145`; PROPOSTA: la regola del catalogo per le azioni di movimento, `RTCatalogLibrary.cpp:327-334`] |
+| Sistemi che mancano | un'azione esente dall'Overwatch [codice: `git grep -n -i -e IgnoresOverwatch -e NoOverwatch -e TriggersOverwatch -e ProvokesOverwatch -e EvadesOverwatch -- Source` → exit 1 su `f012ed660`; controllo: `git grep -n -e BuildOverwatchTriggers -- Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp` → exit 0]; un teletrasporto come stile proprio, se l'owner non lo vuole un salto: fuori da test e Scenario Harness non c'è [codice: `git grep -n -i -e teleport -e blink -- Source/RefactorTactics ':!Source/RefactorTactics/Tests' ':!Source/RefactorTactics/ScenarioHarness'` → exit 1 su `f012ed660`; controllo: lo stesso comando con `-e LinearLeap` → exit 0], e `Teleport` è fra le capacità dello Scenario Harness senza un produttore in partita [codice: `RTScenarioSession.cpp:503-513`]; le cariche di cella [codice: vedi Spark Bolt] |
+
+**Esempio.** *Given* Gadget in (0,0,0); una copertura alta sul bordo fra (0,0,0) e (1,0,0); (2,0,0) libera e percorribile; un nemico in Overwatch la cui zona comprende (2,0,0). *When* nel Dash di N Gadget pianifica Flux Blink su (2,0,0) (2 AP). *Then* Gadget atterra in (2,0,0): il muro e la cella in mezzo non contano [DECISO D-524 (5)]; l'Overwatch non scatta [CATALOGO; PROPOSTA: nemmeno sull'atterraggio]; (0,0,0) riceverebbe una carica Flux, che oggi non esiste. Il facing è E, l'ultimo passo della retta [DECISO D-524 (4)]. Con (2,0,0) occupata Gadget resta in (0,0,0) (`BlockedByUnit`); con (3,0,0) come bersaglio il piano è rifiutato per portata; Flux Blink e Cryo-Drone nello stesso piano danno `SecondDash` [DECISO D-625 (4)].
+
+**Domande della scheda.** `TG-6`. La carica Flux è il sistema delle cariche di cella che manca (vedi Spark Bolt), e nessuna domanda nuova nasce qui.
+
+### Cryo-Drone — `Hero.Gadget.CryoDrone`
+
+> «Opzione 3 (Zoning) — Cryo-Drone [❄️ Freddo]: Arretra di 1 esagono rilasciando un micro-drone stazionario sulla cella d'origine che applica Freddo (+1 AP al movimento) entro 1 esagono.»
+
+Nel `.csv` (`GAD_DSH_03`): `Range_Hex` «1 (Back)», `Base_Damage_or_Shield` 80, `Status_or_Effect` «Stationary Slow Drone»; gli 80 non sono nel testo del `.md`.
+
+| Campo | Valore |
+|---|---|
+| Ruolo | Dash, «Opzione 3 (Zoning)» [CATALOGO]; voce del kit [DECISO D-633 (9)] |
+| Fase | `FastMovement` (20) [CATALOGO «Dash Phase»; DECISO D-583 (1)] |
+| Costo AP | 2 [CATALOGO; classe Dash, DECISO D-594 (1)] |
+| Cooldown | 2 [CATALOGO «CD 2»; PROPOSTA; DOMANDA → TG-6] |
+| Priorità | 40 [PROPOSTA: come `Action.Reposition`, lo scatto corto, codice: `RTCatalogLibrary.cpp:1473`] |
+| Portata e linea di vista | 1 [CATALOGO «Arretra di 1 esagono»; CSV GAD_DSH_03 «1 (Back)»] |
+| Forma | lo scatto: una cella, quella dietro Gadget, opposta al facing [CATALOGO «Arretra»; PROPOSTA; codice: `ERTRelativeDirection::Rear`, `RTFacingLibrary.h:64`]. L'area del drone: la cella d'origine e le sei adiacenti, un esagono di raggio 1, 7 celle [CATALOGO «entro 1 esagono»; PROPOSTA: `3r(r+1)+1` con r = 1] |
+| Bersaglio | nessuno da scegliere [PROPOSTA: la direzione la dà il facing]; il drone agisce sui nemici nell'area [PROPOSTA: dopo lo scatto Gadget è adiacente al drone, e col fuoco amico la voce rallenterebbe lei; DOMANDA → TG-13] |
+| Elemento | `Element.Frost` [CATALOGO «❄️ Freddo»; DECISO D-593 (2); LETTURA D-633 (11b)] |
+| Tipo di danno | elementale Frost, se il danno c'è [PROPOSTA; DOMANDA → TG-7] |
+| Danno base | 80, solo nel `.csv` [CSV GAD_DSH_03]; il testo del `.md` non ne dà [CATALOGO]. A chi e quando [DOMANDA → TG-15; DOMANDA → TG-22] |
+| Movimento | Gadget arretra di 1: uno scatto `LinearDash` di portata 1, come `Action.Reposition` con una cella sola [PROPOSTA; codice: `RTCatalogLibrary.cpp:1473-1475`], che si ferma prima di un muro, di un bordo che nega il passo o di un'unità [codice: `RTMovementActionLibrary.h:283-285`]. Il facing a fine scatto è l'ultimo passo [DECISO D-524 (4)], cioè le spalle verso la direzione di prima; con 2 passi di rotazione a fine scatto [codice: `RTHeroCatalogLibrary.cpp:408`] Gadget può riportare quella direzione nell'arco frontale, il cono di 120° verso il facing, ma non di fronte [PROPOSTA: conto sulle sei direzioni; codice: `URTHexCombatLibrary::IsInFrontalArc`, `RTHexCombatLibrary.cpp:213`] |
+| Stati | `Status.Slow` per 1 turno a ogni nemico che, alla fine del Dash, sta nell'area [CATALOGO «applica Freddo (+1 AP al movimento)»; PROPOSTA: lo stesso stato di Seeker Bot, perché uno stato del Freddo non esiste e il catalogo gli dà la stessa regola]; letto già sul Move dello stesso turno [codice: `RTTurnManager.cpp:8057-8060`]. «+1 AP al movimento» [DOMANDA → TG-19] |
+| Oggetti persistenti | il micro-drone sulla cella d'origine, che non la occupa [PROPOSTA; DECISO D-583 (4)]. Come superficie sostituirebbe quella della cella, che ne ha una sola [codice: `ERTHexSurface Surface`, `RTHexCellData.h:366`], quindi è un oggetto nuovo, stato di partita con una scadenza come `DynamicSurfaces` [codice: `RTTurnManager.h:2664-2677`]. Il precedente più vicino di un effetto legato a un'area di celle è il fumo di raggio 1, che applica `Status.Obscured` all'ingresso [codice: `Action.CreateSmoke`, `RTCatalogLibrary.cpp:1878`, `:1881-1885`; `FRTTerrainDef::OnEnterEffects`, `RTTerrainData.h:101-103`]. Durata: il turno del lancio [PROPOSTA: il catalogo non la dà; DOMANDA → TG-22] |
+| Fallback | `Stop`: con la cella dietro occupata o chiusa Gadget resta dov'è [PROPOSTA: la regola del catalogo per le azioni di movimento, codice: `RTCatalogLibrary.cpp:327-334`]; dove nasca allora il drone è [DOMANDA → TG-22] |
+| Sistemi che mancano | un oggetto di cella che non sia superficie, copertura o porta, con un effetto d'area [codice: `git grep -n -i -w -e drone -e drones -e summon -e deployable -e turret -e torretta -- Source` → exit 1 su `f012ed660`, e `git grep -n -i -w -e aura -e auras -- Source` → exit 1; controllo dello stile: `git grep -n -i -w -e trap -e trappola -- Source` → exit 0]; uno stato del Freddo [codice: `git grep -n -i -e "Status\.Frost" -e "Status\.Chill" -e "Status\.Cold" -e "Status\.Frozen" -e "Status\.Freez" -- Source` → exit 1 su `f012ed660`; controllo: `git grep -n -e "Status\.Slow" -- Source/RefactorTactics/Core` → exit 0]; le cariche di cella, se il Freddo è anche una carica [codice: vedi Spark Bolt; DOMANDA → TG-22]; il campo elemento e il percorso elementale [codice: vedi «Come leggere la traduzione»] |
+
+**Esempio.** *Given* Gadget in (0,0,0) con facing E; (−1,0,0) libera; un nemico Z in (1,0,0), adiacente, con 3 MP su terreno piano e i numeri di R. *When* nel Dash di N Gadget usa Cryo-Drone (2 AP). *Then* Gadget arretra in (−1,0,0), la cella opposta al facing [PROPOSTA]; il drone resta in (0,0,0) e la sua area è (0,0,0) e le sei adiacenti, 7 celle, fra cui (−1,0,0). Z, nell'area alla fine del Dash, prende `Status.Slow` e nel Move di N arriva a una cella invece che a tre [PROPOSTA]; se gli 80 del `.csv` sono un danno all'area, Z prende anche `floor(80 × 100/135)` = 59 (lettura elementale; 55 con la DEF). Gadget, in (−1,0,0), resta fuori dallo stato, perché la proposta lo dà ai soli nemici. Il facing di Gadget a fine scatto è W; con 2 passi di rotazione arriva al più a NE o a SE, che hanno E nell'arco frontale. Con (−1,0,0) occupata Gadget resta in (0,0,0).
+
+**Domande che nascono qui.**
+
+- [DOMANDA → TG-22] **Cryo-Drone.** Quanto dura il drone (la proposta: il turno del lancio)? Il Freddo è uno stato dei nemici (la proposta) o anche una carica sulle celle dell'area, nel sistema delle cariche che manca? Lo applica a chi sta nell'area alla fine del Dash (la proposta), a chi vi entra, o in ogni fase? Gli 80 danni del `.csv` sono un colpo all'area, a chi e quando? «Arretra» vuol dire la cella opposta al facing (la proposta)? Se Gadget non può arretrare, il drone nasce lo stesso sulla sua cella? Il drone si può distruggere?
+
+**Domande della scheda.** `TG-6`, `TG-7`, `TG-13`, `TG-15`, `TG-19`, `TG-22`.
