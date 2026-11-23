@@ -1,6 +1,6 @@
 # Modello del danno: elemento, RES, scudo base, bonus nel Base, perforante, costo delle reazioni — design
 
-> `RECORD` · **Da approvare** (2026-11-23, issue [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189),
+> `RECORD` · **Approvato dall'autore il 2026-11-23** (issue [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189),
 > fetta 1 dell'epic [#4188](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4188)).
 > Le regole stanno in [`D-634`](../../decisions/RT_PDR_00_Decision_Log.md) e vincono su questo testo.
 
