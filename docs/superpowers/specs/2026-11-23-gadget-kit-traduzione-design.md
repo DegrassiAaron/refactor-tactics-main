@@ -1,6 +1,6 @@
 # Kit di Gadget: traduzione del catalogo del 2026-11-20 — design
 
-> `RECORD` · **Da approvare** (sessione `/sc:brainstorm` del 2026-11-23, issue
+> `RECORD` · **Approvato dall'autore il 2026-11-23** (sessione `/sc:brainstorm`, issue
 > [#4170](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4170)).
 > Questo file conserva il **perché** e la forma del lavoro. Le regole stanno nel
 > [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) e vincono su questo testo.
