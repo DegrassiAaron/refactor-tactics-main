@@ -1516,7 +1516,7 @@ public:
 	/**
 	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
 	 *
-	 * Il catalogo promette "+6 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
+	 * Il catalogo promette "+60 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
 	 * sarebbe una vulnerabilita' generica di cui approfitterebbe anche la squadra del bersaglio.
 	 */
 	void ApplyMarkedBy(int32 MarkerTeamId, int32 Turns);

@@ -86,7 +86,7 @@ public:
 	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
 	 *
 	 * Default: **Gadget + Phase** contro **Riktor + Ivrin**. Le due coppie non sono casuali — Phase bagna e
-	 * Gadget fulmina (`+8` su `Status.Wet`), Riktor costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
+	 * Gadget fulmina (`+80` su `Status.Wet`), Riktor costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
 	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
 	 *
 	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando

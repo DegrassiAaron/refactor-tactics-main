@@ -77,7 +77,7 @@ public:
 	 * grafo conduttivo — acqua e superfici `Conductive` — e non lo crea. Portata e propagazione vengono dal
 	 * core, quindi `Range 0` non e' piu' un segnaposto in attesa di un numero.
 	 *
-	 * 🔑 **La combo `Wet` e' una sinergia SISTEMICA, e `LinearDischarge` resta un'abilita' elettrica.** Il `+8`
+	 * 🔑 **La combo `Wet` e' una sinergia SISTEMICA, e `LinearDischarge` resta un'abilita' elettrica.** Il `+80`
 	 * dipende da `Status.Wet` **sul bersaglio**, non da chi ha bagnato: acqua e superfici conduttive sono il
 	 * *setup*, la scarica e' il *payoff*. L'ownership e' decisa da D-029 e ADR-0006 — qualunque sorgente di
 	 * `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno) abilita lo stesso payoff, e

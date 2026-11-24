@@ -420,8 +420,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Gadget.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
-	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
-	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
+	// Indice 1 — LinearDischarge. 240 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
+	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+80 su bersaglio Wet" NON e' nella lista
 	// Effects: e' condizionale al bersaglio, non un danno fisso: `URTCombatLibrary::GadgetWetDischargeBonus` entra nel
 	// Base del colpo, prima della difesa (`URTHexCombatLibrary::AddBonusToHitBase`, [D-634] (35), #4189; vedi
 	// `Heroes.Gadget.WetBonus` e `Damage.BaseBonus.WetEntersTheBaseInATurn`) — un chiamante che applica
@@ -499,7 +499,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// giorno in cui qualcuno leggesse `Action.Electrify`, e prometteva un lavoro gia' fatto.
 	//
 	// 🔑 Ed e' il verso corretto della combo firma: `Status.Wet` e le superfici conduttive sono il **setup
-	// sistemico**, la scarica e' il **payoff**. Il `+8` di LinearDischarge dipende dallo STATO del bersaglio,
+	// sistemico**, la scarica e' il **payoff**. Il `+80` di LinearDischarge dipende dallo STATO del bersaglio,
 	// non da chi l'ha bagnato (D-029, ADR-0006) — resta un'abilita' elettrica, non una skill d'acqua.
 	FRTAbilityVariant Concentrated;
 	Concentrated.VariantId = TEXT("Hero.Gadget.LinearDischarge.Concentrated");
@@ -586,7 +586,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
 	//
 	// ⚠️ Costo accettato con l'opzione C di #1006: questo `Wet` ad area era il preparatore della combo con
-	// Gadget (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
+	// Gadget (`LinearDischarge` fa +80 su bersaglio `Wet`). La combo passa ora solo per la linea di
 	// `PressureJet`, che copre meno bersagli.
 	//
 	// Il limite dichiarato di prima — la spinta di `Impact` ai nemici nella stessa area, senza resolver (R3) —

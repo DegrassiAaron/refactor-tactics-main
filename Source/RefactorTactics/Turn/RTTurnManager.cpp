@@ -7677,8 +7677,12 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	//
 	// ⚠️ **Dal #4189 la somma ha due parti** — la base ferma solo il `Direct`, non l'elementale ([D-634] (5)) — e la
 	// regola qui sotto NON le distingue: la quota resta proporzionale a `Power`, con o senza elemento. Su un bersaglio
-	// misto il colpo elementale riceve quindi una parte dell'assorbimento della base che non ha subito. La somma resta il
-	// netto, che e' la proprieta' che [D-438] protegge; la ripartizione per parte sarebbe un'altra regola, non scelta qui.
+	// misto la quota quindi non segue le parti, e puo' essere piu' alta o piu' bassa di cio' che la parte del colpo ha
+	// perso. Senza scudo temporaneo e' piu' bassa per l'elementale, che riceve una parte dell'assorbimento della base che
+	// non ha subito. Con un temporaneo, che si spende prima sull'elementale, il verso si inverte: in
+	// `Damage.BaseShield.MixedTargetInATurn` il temporaneo assorbe per intero i 162 elementali, eppure quel colpo riceve
+	// circa la meta' dei 63 HP persi. La somma resta il netto, che e' la proprieta' che [D-438] protegge; la ripartizione
+	// per parte sarebbe un'altra regola, non scelta qui.
 	//
 	// **Proporzionale a `Power`, troncata, col resto ai colpi di indice minore.** Due proprieta' la
 	// scelgono. La **somma delle quote e' il netto**: chi somma il feed ottiene cio' che gli HP hanno

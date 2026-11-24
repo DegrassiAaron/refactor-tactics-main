@@ -759,7 +759,7 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 	// quindi il marchio non raggiungeva mai un bersaglio distante. Corretto al CP 8.2.
 	//
 	// L'osservabile non e' il tag a fine turno (durata 1: scade nel Cleanup dello stesso turno) ma il suo
-	// EFFETTO: il +6 sul colpo dell'alleato, che arriva solo se il marchio e' stato davvero applicato.
+	// EFFETTO: il +60 sul colpo dell'alleato, che arriva solo se il marchio e' stato davvero applicato.
 	UWorld* World = MakeHexBlastWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
@@ -800,8 +800,9 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 
 	RunBlastTurn(TM);
 
-	// 24 del colpo + 6 del marchio: il marchio e' arrivato a 3 celle, e il pass a priorita' lo ha speso.
-	TestEqual(TEXT("il marchio ha raggiunto il bersaglio distante e ha dato il suo +6"),
+	// 240 del colpo + 60 del marchio: il marchio e' arrivato a 3 celle, e il pass a priorita' lo ha speso. Dal #4189 il
+	// +60 entra nel Base, prima della difesa ([D-634] (35)); con la DEF 0 del banco coincide con la somma al colpo.
+	TestEqual(TEXT("il marchio ha raggiunto il bersaglio distante e ha dato il suo +60"),
 		FoeStart - Foe->Health, Shot->Power + URTCombatLibrary::MarkedFirstHitBonus);
 
 	DestroyHexBlastWorld(World);

@@ -1497,7 +1497,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// --- Azioni OFFENSIVE (catalogo §3) ----------------------------------------------------------------
 	// Tutte nel Blast tranne la soppressione, che si PREPARA. La priorita' e' cio' che le distingue davvero:
 	// dentro la stessa macro-fase risolvono nell'ordine 40 (marchio) → 55 (linea) → 60 (precisione) →
-	// 65 (area) → 80 (pesante). Il marchio arriva per primo perche' il suo +6 deve poter valere sui colpi
+	// 65 (area) → 80 (pesante). Il marchio arriva per primo perche' il suo +60 deve poter valere sui colpi
 	// dello stesso turno; il pesante per ultimo perche' e' cio' che il catalogo compra con i suoi 35 danni.
 
 	// `PrecisionAttack` — 24 danni fissi, portata dell'arma +1 (la mette MakePrecisionAttack: qui, come per
@@ -1602,7 +1602,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
-	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
+	// alleato contro quel bersaglio infligge +60 e consuma il marchio; dal #4189 il +60 entra nel Base del colpo, prima
+	// della difesa ([D-634] (35)). Priorita' 40, la piu' bassa delle
 	// offensive, perche' un marchio che arrivasse dopo i colpi non servirebbe a nulla.
 	// `Range 0` = **portata del portatore**, come `Action.PrecisionAttack` («range dell'arma +1», catalogo §3):
 	// non e' un'azione a portata nulla. La traduzione la fa `ARTTurnManager` sull'istanza (CP 8.2), che prima
