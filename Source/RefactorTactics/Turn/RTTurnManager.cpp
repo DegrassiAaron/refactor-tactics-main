@@ -6342,6 +6342,10 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 						// autore entrano insieme o non entrano. Sei `Add` in fila erano sei occasioni di
 						// scriverne cinque, e un `continue` infilato in mezzo avrebbe attribuito il
 						// contrattacco all'unita' sbagliata senza che niente diventasse rosso.
+						//
+						// ⛔ `FRTAttack` senza elemento (#4189): il colpo di ritorno e' `Direct` qualunque elemento o
+						// perforante dichiari la reazione, perche' non nasce da un intento del Blast. Per questo
+						// `ValidateActions` li rifiuta su ogni riga di slot `Reaction`.
 						Out.CounterAttacks.Add(FRTCounterAttack{
 							FRTAttack(Event.TargetUnitId, Event.Amount),
 							Unit->Cell,
@@ -8419,9 +8423,11 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 				}
 			}
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo senza elemento. ⚠️ Un
-			// elemento sulla riga predittiva oggi non arriva fin qui (#4189): `Armed` non lo porta, e il colpo resterebbe
-			// `Direct` anche dove [D-634] (5) lo farebbe passare. Nessuna riga di oggi ne ha uno.
+			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo senza elemento. ⛔ Elemento
+			// e perforante della riga predittiva non arrivano fin qui (#4189): `Armed` non li porta, e il colpo resterebbe
+			// `Direct` e riducibile anche dove [D-634] (5) e (47) lo vorrebbero altrimenti. Per questo `ValidateActions` li
+			// rifiuta su una riga di Prep: chi li vuole su una predittiva li porta prima in `FRTArmedPrediction`, e poi toglie
+			// il rifiuto.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 				Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
@@ -8968,8 +8974,10 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		}
 	}
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra, e lo stesso limite: l'elemento della riga
-	// non arriva fin qui (#4189).
+	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra, e lo stesso limite (#4189): elemento e
+	// perforante non arrivano fin qui. `ValidateActions` li rifiuta sulla riga `Action.Overwatch`, che e' di Prep. ⚠️ Non
+	// sull'arma: `Armed.Damage` e' il danno dell'attacco base dell'eroe, copiato all'armamento, e quella riga e' del Blast,
+	// quindi passa. Un attacco base elementale o perforante sparerebbe qui `Direct` e riducibile; nessuno di oggi lo e'.
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 		Target->Shield, Target->GetTemporaryShield(), Target->Health);
 	Target->ApplyCombatState(Result.Health, Result.Shield);

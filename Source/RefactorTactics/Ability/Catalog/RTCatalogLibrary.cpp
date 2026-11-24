@@ -247,6 +247,50 @@ int32 URTCatalogLibrary::DefaultActionPointCost(const FRTActionDef& Def)
 	}
 }
 
+namespace
+{
+	/**
+	 * Che riga e' quella il cui danno NON nasce da un intento del Blast (#4189), per il messaggio; `nullptr` se nasce da li'.
+	 *
+	 * Il danno di una riga diventa un intento del Blast in due punti soli, ed e' li' che l'intento copia `ElementId` e
+	 * `bPiercing` dal `Def`: `CollectAttackIntents`, per la principale che risolve nel Blast (`Control`, `Attack`), e
+	 * `AppendChargeImpactIntents`, per l'impatto di uno scatto del Dash. Ogni altra sede applica il danno senza leggerli:
+	 *   - lo slot `Reaction`, in QUALUNQUE fase (le reazioni core sono `Control`, cioe' Blast): il pass delle reazioni ne
+	 *     accoda il danno come `FRTCounterAttack`, un `FRTAttack` senza elemento e senza intento;
+	 *   - il Prep: la predittiva spara al boundary del Move (`ResolvePredictiveBoundary`) e l'Overwatch nel Move
+	 *     (`ApplyReactionDecision`), entrambi con `ApplyDamage(Direct)` meno la copertura del boundary; ogni altra riga di
+	 *     Prep non applica danno (`ResolvePrep`);
+	 *   - il Move, che non risolve danno di azioni, e il Cleanup, dove l'ambientale scarica come `Environmental`.
+	 *
+	 * ⚠️ **Il confine e' lo slot e la fase, non `PredictiveTargeting` ne' `ReactionTrigger`.** Il Prep arma solo le righe della
+	 * sua fase e `CollectAttackIntents` non guarda `PredictiveTargeting`: una predittiva che risolvesse nell'`Attack`
+	 * passerebbe dal Blast come ogni altra. E il trigger lo legge solo il pass delle reazioni, sulle righe di slot `Reaction`.
+	 *
+	 * ⛔ **Non vede l'arma che l'Overwatch prende in prestito**: il colpo dell'Overwatch ha il danno dell'attacco base dell'eroe
+	 * (`BaseActionId == Action.BasicAttack`), che e' una riga del Blast e qui passa. Un attacco base elementale o perforante
+	 * sparerebbe l'Overwatch `Direct` e riducibile: la domanda e' fra le righe di un kit, non su una riga sola.
+	 */
+	const TCHAR* DamageSkipsTheBlastIntent(const FRTActionDef& Def)
+	{
+		if (Def.Slot == ERTActionSlot::Reaction)
+		{
+			return TEXT("una reazione");
+		}
+		// Funzione TOTALE sull'enum, come `MapResolutionPhase`: una fase nuova va classificata qui.
+		switch (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase))
+		{
+		case ERTMatchPhase::Blast:      return nullptr;
+		case ERTMatchPhase::Dash:       return nullptr;
+		case ERTMatchPhase::Prep:       return TEXT("una riga di Prep");
+		case ERTMatchPhase::Move:       return TEXT("una riga del Move");
+		case ERTMatchPhase::Cleanup:    return TEXT("una riga del Cleanup");
+		case ERTMatchPhase::Planning:   return TEXT("una riga dello Snapshot");
+		case ERTMatchPhase::MatchEnded: return TEXT("una riga senza fase d'azione");
+		}
+		return TEXT("una riga senza fase d'azione");
+	}
+}
+
 TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& Actions)
 {
 	TArray<FString> Errors;
@@ -351,6 +395,23 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		{
 			Errors.Add(FString::Printf(TEXT("%s: elemento sconosciuto (%s), non e' fra quelli di ElementIds()"), *Where,
 				*Action.ElementId.ToString()));
+		}
+
+		// #4189, [D-634] (4) e (47): elemento e perforante li onora SOLO un colpo che nasce da un intento del Blast
+		// (`CollectAttackIntents`, `AppendChargeImpactIntents`), dove l'intento li copia dal `Def`. Ogni altro danno li
+		// ignorerebbe in silenzio, quindi qui si rifiutano: sono le righe che `DamageSkipsTheBlastIntent` riconosce.
+		if (const TCHAR* const Sede = DamageSkipsTheBlastIntent(Action))
+		{
+			if (!Action.ElementId.IsNone())
+			{
+				Errors.Add(FString::Printf(TEXT("%s: elemento (%s) su %s, il cui danno non nasce da un intento del Blast: ")
+					TEXT("il colpo lo ignorerebbe (#4189)"), *Where, *Action.ElementId.ToString(), Sede));
+			}
+			if (Action.bPiercing)
+			{
+				Errors.Add(FString::Printf(TEXT("%s: perforante su %s, il cui danno non nasce da un intento del Blast: ")
+					TEXT("il colpo lo ignorerebbe (#4189)"), *Where, Sede));
+			}
 		}
 	}
 

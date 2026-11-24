@@ -9,6 +9,7 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapAsset.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Shared/RTDamagePathFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -141,6 +142,60 @@ bool FRTDamageElementValidatorAcceptsOnlyKnownElementsTest::RunTest(const FStrin
 		if (!TestEqual(FString::Printf(TEXT("%s: un errore"), Unknown), Errori.Num(), 1)) { continue; }
 		TestTrue(FString::Printf(TEXT("%s: l'errore nomina l'azione"), Unknown), Errori[0].Contains(TEXT("Test.Unknown")));
 		TestTrue(FString::Printf(TEXT("%s: e l'elemento"), Unknown), Errori[0].Contains(Unknown));
+	}
+	return true;
+}
+
+/**
+ * L'elemento lo onora solo un colpo che nasce da un intento del Blast (#4189), e il validatore lo rifiuta su ogni altra riga.
+ *
+ * Fuori dal Blast il danno lo applica chi non legge `ElementId`: `ApplyDamage(Direct)` al boundary della predittiva e nel
+ * Move dell'Overwatch, `FRTCounterAttack` per una reazione, la scarica `Environmental` nel Cleanup; il Prep non lo applica
+ * affatto. Un elemento su quelle righe sarebbe un dato che il colpo ignora in silenzio, e la fetta 2 ne mette su una
+ * predittiva e su due reazioni di Gadget: deve trovarlo rifiutato finche' quei percorsi non lo portano.
+ *
+ * Le righe sono quelle di `RTDamagePathFixtures`: vere, con l'elemento come sola differenza dal catalogo. Il controllo e'
+ * doppio: ogni riga senza elemento e' valida, e le righe che passano dal Blast restano valide con l'elemento — fra loro due
+ * sintetiche che un predicato piu' largo (`PredictiveTargeting`, `ReactionTrigger`) rifiuterebbe per sbaglio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageElementRefusedWhereTheDamageSkipsTheBlastTest,
+	"RefactorTactics.Damage.Element.RefusedWhereTheDamageSkipsTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageElementRefusedWhereTheDamageSkipsTheBlastTest::RunTest(const FString&)
+{
+	const FRTActionDef Counter = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+	TestTrue(TEXT("premessa: Action.Counter e' una reazione"), Counter.Slot == ERTActionSlot::Reaction);
+	TestTrue(TEXT("premessa: e per fase sta nel Blast, quindi la fase da sola non basta"),
+		URTCatalogLibrary::MapResolutionPhase(Counter.ResolutionPhase) == ERTMatchPhase::Blast);
+
+	for (RTDamagePathFixtures::FRow& Riga : RTDamagePathFixtures::OffTheBlast())
+	{
+		if (!TestFalse(FString::Printf(TEXT("%s: premessa, la riga esiste"), *Riga.Name), Riga.Def.ActionId.IsNone()))
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("%s: premessa, senza elemento e' valida"), *Riga.Name),
+			URTCatalogLibrary::ValidateActions({ Riga.Def }).Num(), 0);
+
+		Riga.Def.ElementId = ElemElectric();
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Riga.Def });
+		if (!TestEqual(FString::Printf(TEXT("%s: con un elemento, un errore"), *Riga.Name), Errori.Num(), 1)) { continue; }
+		TestTrue(FString::Printf(TEXT("%s: l'errore nomina la riga"), *Riga.Name),
+			Errori[0].Contains(Riga.Def.ActionId.ToString()));
+		TestTrue(FString::Printf(TEXT("%s: e l'elemento"), *Riga.Name), Errori[0].Contains(TEXT("Element.Electric")));
+		TestTrue(FString::Printf(TEXT("%s: e la issue"), *Riga.Name), Errori[0].Contains(TEXT("#4189")));
+	}
+
+	for (RTDamagePathFixtures::FRow& Riga : RTDamagePathFixtures::ThroughTheBlast())
+	{
+		if (!TestFalse(FString::Printf(TEXT("%s: premessa, la riga esiste"), *Riga.Name), Riga.Def.ActionId.IsNone()))
+		{
+			continue;
+		}
+		Riga.Def.ElementId = ElemElectric();
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Riga.Def });
+		for (const FString& Errore : Errori) { AddInfo(FString::Printf(TEXT("%s: %s"), *Riga.Name, *Errore)); }
+		TestEqual(FString::Printf(TEXT("%s: con un elemento resta valida"), *Riga.Name), Errori.Num(), 0);
 	}
 	return true;
 }

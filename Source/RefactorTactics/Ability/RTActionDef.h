@@ -918,6 +918,13 @@ struct FRTActionDef
 	 * Viaggia sull'intento e sul colpo del Blast (`FRTHexAttackIntent::ElementId`, `FRTHexAttackHit::ElementId`), copiato
 	 * dove l'intento nasce: `CollectAttackIntents` e l'impatto di una carica (`AppendChargeImpactIntents`).
 	 *
+	 * ⛔ **Solo li'**: il colpo di previsione, quello di Overwatch e il contrattacco di una reazione restano `Direct`, e
+	 * l'ambientale del Cleanup scarica come `Environmental`. Per questo `ValidateActions` rifiuta un elemento su una riga di
+	 * slot `Reaction` o che non risolve nel Blast ne' nel Dash (#4189): un elemento li' sarebbe un dato che il colpo ignora.
+	 * Chi lo vuole su una di quelle righe deve prima portarlo nel suo percorso, e poi togliere il rifiuto. ⚠️ Resta scoperto
+	 * l'Overwatch, che spara col danno dell'attacco base dell'eroe: quella riga e' del Blast e passa, e il suo elemento il
+	 * colpo di Overwatch non lo vede.
+	 *
 	 * Decide la difesa del colpo: un colpo elementale si mitiga con la RES di quell'elemento, uno senza con la DEF
 	 * (`FRTHexCombatUnit::DefenseAgainst`, `URTHexCombatLibrary::MitigatedHitPower`).
 	 *
@@ -961,7 +968,9 @@ struct FRTActionDef
 	 * suo danno perforante ha bisogno di un cablaggio suo. Come `ElementId`, non entra in nessun hash e il
 	 * TurnLog non lo porta: lo si legge solo nell'assenza delle voci `Defense` e `Cover` del breakdown del colpo.
 	 * ⛔ Lo onorano i soli colpi che nascono da un intento del Blast: una riga di previsione, di Overwatch o di reazione
-	 * con questo flag lo ignorerebbe, e `ValidateActions` non lo rifiuta ancora.
+	 * con questo flag lo ignorerebbe, e `ValidateActions` lo rifiuta su ogni riga di slot `Reaction` o che non risolve nel
+	 * Blast ne' nel Dash (#4189), come l'elemento. Resta scoperto, come per l'elemento, l'attacco base che l'Overwatch prende
+	 * in prestito.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bPiercing = false;

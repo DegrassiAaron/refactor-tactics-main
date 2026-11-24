@@ -246,6 +246,8 @@ public:
 	 * risolvere nello Snapshot (fase di congelamento: nessuna azione risolve li') · azione di movimento con
 	 * fallback diverso da `Stop` (regola del vertical slice: ci si ferma nell'ultima cella valida) · elemento
 	 * (`ElementId`) che non e' `NAME_None` ne' uno di quelli di `URTHeroCatalogLibrary::ElementIds()` ([D-634] (4)) ·
+	 * elemento o perforante (`bPiercing`) su una riga il cui danno non nasce da un intento del Blast — una reazione, o una
+	 * riga che non risolve nel Blast ne' nel Dash — perche' li' il colpo li ignorerebbe (#4189) ·
 	 * Ultimate che non costa 3 ([D-613] (4)) · riga con `Slot == Reaction` che costa meno della classe reazione, 2
 	 * ([D-634] (29)): la classe e' il default di `DefaultActionPointCost` e, per la reazione, anche il pavimento.
 	 *

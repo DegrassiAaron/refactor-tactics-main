@@ -15,6 +15,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Misc/ScopeExit.h"
 #include "Tests/Shared/RTAbilityFixtures.h"
+#include "Tests/Shared/RTDamagePathFixtures.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -795,6 +796,57 @@ bool FRTDamagePiercingHeroDerivedFromCoreKeepsTheFlagTest::RunTest(const FString
 	{
 		TestFalse(TEXT("e non e' perforante"), DalCore->Def.bPiercing);
 	}
+	return true;
+}
+
+/**
+ * Il perforante lo onora solo un colpo che nasce da un intento del Blast (#4189), e il validatore lo rifiuta su ogni altra
+ * riga: e' il gemello di `Damage.Element.RefusedWhereTheDamageSkipsTheBlast`, sullo stesso confine e con le stesse righe
+ * (`RTDamagePathFixtures`). Fuori dal Blast la difesa e la copertura le toglie chi non legge `bPiercing` — la copertura del
+ * boundary per la predittiva e l'Overwatch (`BoundaryCoverReduction`) — o non le toglie nessuno, e un flag li' sarebbe un
+ * dato che il colpo ignora in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamagePiercingRefusedWhereTheDamageSkipsTheBlastTest,
+	"RefactorTactics.Damage.Piercing.RefusedWhereTheDamageSkipsTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamagePiercingRefusedWhereTheDamageSkipsTheBlastTest::RunTest(const FString&)
+{
+	for (RTDamagePathFixtures::FRow& Riga : RTDamagePathFixtures::OffTheBlast())
+	{
+		if (!TestFalse(FString::Printf(TEXT("%s: premessa, la riga esiste"), *Riga.Name), Riga.Def.ActionId.IsNone()))
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("%s: premessa, senza il flag e' valida"), *Riga.Name),
+			URTCatalogLibrary::ValidateActions({ Riga.Def }).Num(), 0);
+
+		Riga.Def.bPiercing = true;
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Riga.Def });
+		if (!TestEqual(FString::Printf(TEXT("%s: perforante, un errore"), *Riga.Name), Errori.Num(), 1)) { continue; }
+		TestTrue(FString::Printf(TEXT("%s: l'errore nomina la riga"), *Riga.Name),
+			Errori[0].Contains(Riga.Def.ActionId.ToString()));
+		TestTrue(FString::Printf(TEXT("%s: e dice perforante"), *Riga.Name), Errori[0].Contains(TEXT("perforante")));
+		TestTrue(FString::Printf(TEXT("%s: e la issue"), *Riga.Name), Errori[0].Contains(TEXT("#4189")));
+	}
+
+	for (RTDamagePathFixtures::FRow& Riga : RTDamagePathFixtures::ThroughTheBlast())
+	{
+		if (!TestFalse(FString::Printf(TEXT("%s: premessa, la riga esiste"), *Riga.Name), Riga.Def.ActionId.IsNone()))
+		{
+			continue;
+		}
+		Riga.Def.bPiercing = true;
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Riga.Def });
+		for (const FString& Errore : Errori) { AddInfo(FString::Printf(TEXT("%s: %s"), *Riga.Name, *Errore)); }
+		TestEqual(FString::Printf(TEXT("%s: perforante resta valida"), *Riga.Name), Errori.Num(), 0);
+	}
+
+	// Elemento e perforante insieme fuori dal Blast: un errore per campo, perche' sono due dati che il colpo ignorerebbe.
+	FRTActionDef Counter = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+	Counter.ElementId = FName(TEXT("Element.Electric"));
+	Counter.bPiercing = true;
+	TestEqual(TEXT("reazione elementale e perforante: due errori, uno per campo"),
+		URTCatalogLibrary::ValidateActions({ Counter }).Num(), 2);
 	return true;
 }
 
