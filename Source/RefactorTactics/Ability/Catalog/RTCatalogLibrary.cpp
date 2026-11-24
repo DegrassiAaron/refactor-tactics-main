@@ -296,6 +296,16 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 			Errors.Add(FString::Printf(TEXT("%s: Ultimate con costo %d, deve costare %d in qualunque fase (D-613 (4))"),
 				*Where, Action.ActionPointCost, ActionPointCostUltimate));
 		}
+		// [D-634] (29), #4189: una reazione costa almeno la sua classe. Ogni riga dichiara il proprio costo ([D-594] (3)), e
+		// per la reazione la classe, che era il default, e' anche il pavimento: sotto, la riga arma una reazione piu' a buon
+		// mercato di quanto le regole ammettano. Il confine e' lo SLOT: `Action.Overwatch` si arma nel Prep (`Slot == Main`)
+		// e resta a 1. E' un pavimento e non un'uguaglianza (una reazione a 3 e' legale) e sta sotto l'Ultimate: una reazione
+		// marcata Ultimate costa 3, e i due controlli rispondono ciascuno per se' (a 1 sbagliano entrambi, ed e' vero).
+		if (Action.Slot == ERTActionSlot::Reaction && Action.ActionPointCost < ActionPointCostReaction)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: reazione con costo %d, deve costare almeno %d, la sua classe (D-634 (29))"),
+				*Where, Action.ActionPointCost, ActionPointCostReaction));
+		}
 		if (Action.CooldownTurns < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Action.CooldownTurns));

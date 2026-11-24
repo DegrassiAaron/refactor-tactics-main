@@ -611,8 +611,9 @@ struct FRTActionDef
 	 * turno. Ogni riga lo DICHIARA, e il default e' la classe di fase — Prep 1 · Dash 2 · Blast 2 · Move 2 ·
 	 * reazione 2 · ambientali del Cleanup 2 (`URTCatalogLibrary::DefaultActionPointCost`); una riga marcata
 	 * Ultimate (`bIsUltimate`) costa 3 in qualunque fase ([D-613] (4), che emenda il «+1» di D-594 (3)), e
-	 * `ValidateActions` rifiuta un'Ultimate che dichiari un altro costo. `0` vale solo per `Action.Wait`:
-	 * su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
+	 * `ValidateActions` rifiuta un'Ultimate che dichiari un altro costo e una riga con `Slot == Reaction` che
+	 * costi meno della classe reazione, 2 ([D-634] (29)): per la reazione la classe e' anche un pavimento. `0` vale
+	 * solo per `Action.Wait`: su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
 	 *
 	 * ⚠️ **Non e' `CostMP`**: quello e' il modificatore per cella del terreno ([D-117], [D-190]). Due assi, come
 	 * D-584 (2) decide: gli AP dicono SE agisci e con che profilo, i Movement Point fin dove.
