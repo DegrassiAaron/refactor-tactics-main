@@ -396,7 +396,9 @@ struct FRTHexAttackHit
 	 * L'elemento del colpo, dall'intento che l'ha prodotto (`FRTHexAttackIntent::ElementId`, #4189); `NAME_None` =
 	 * `Direct`. Lo scrive `CollectHexAttacks`; `RedirectHitTo` lo conserva, perche' l'elemento e' dell'azione e non del
 	 * bersaglio. Decide la difesa che il colpo legge (`DefenseApplied`): la DEF senza elemento, la RES dell'elemento
-	 * altrimenti ([D-634] (4)). Nessuna azione di oggi dichiara un elemento, quindi nessun numero di oggi cambia.
+	 * altrimenti ([D-634] (4)). `ToAttacks` lo copia su `FRTAttack::ElementId`, perche' decide anche se lo scudo base ferma
+	 * il colpo: solo senza elemento ([D-634] (5)). Nessuna azione di oggi dichiara un elemento, quindi nessun numero di oggi
+	 * cambia.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	FName ElementId;
@@ -1068,7 +1070,7 @@ public:
 	static FRTHexBlastPlan CollectHexAttacks(const TArray<FRTHexCombatUnit>& Units,
 		const TArray<FRTHexAttackIntent>& Intents, const URTHexMapAsset* Map);
 
-	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio + danno). */
+	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio, danno ed elemento). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
 

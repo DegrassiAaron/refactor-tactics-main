@@ -7675,6 +7675,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// sul totale — invariante #3, che lo stadio `ERTDamageStage::TargetSum` del breakdown nomina. Non c'e'
 	// un valore da leggere: c'e' una regola da dichiarare, ed e' questa.
 	//
+	// ⚠️ **Dal #4189 la somma ha due parti** — la base ferma solo il `Direct`, non l'elementale ([D-634] (5)) — e la
+	// regola qui sotto NON le distingue: la quota resta proporzionale a `Power`, con o senza elemento. Su un bersaglio
+	// misto il colpo elementale riceve quindi una parte dell'assorbimento della base che non ha subito. La somma resta il
+	// netto, che e' la proprieta' che [D-438] protegge; la ripartizione per parte sarebbe un'altra regola, non scelta qui.
+	//
 	// **Proporzionale a `Power`, troncata, col resto ai colpi di indice minore.** Due proprieta' la
 	// scelgono. La **somma delle quote e' il netto**: chi somma il feed ottiene cio' che gli HP hanno
 	// davvero perso, che e' l'invariante che il difetto di `#3271` rompeva — due righe da `37` per `37` di
@@ -8410,7 +8415,9 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 				}
 			}
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
+			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo senza elemento. ⚠️ Un
+			// elemento sulla riga predittiva oggi non arriva fin qui (#4189): `Armed` non lo porta, e il colpo resterebbe
+			// `Direct` anche dove [D-634] (5) lo farebbe passare. Nessuna riga di oggi ne ha uno.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 				Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
@@ -8957,7 +8964,8 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		}
 	}
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
+	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra, e lo stesso limite: l'elemento della riga
+	// non arriva fin qui (#4189).
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 		Target->Shield, Target->GetTemporaryShield(), Target->Health);
 	Target->ApplyCombatState(Result.Health, Result.Shield);

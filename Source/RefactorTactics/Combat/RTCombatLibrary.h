@@ -165,18 +165,26 @@ struct FRTCellTargetRefusal
  * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere.
  * Qui la domanda e' una sola e binaria: la base partecipa?
  *
+ * 🔑 **Dal #4189 l'altra domanda ha una risposta, e non e' un valore di questo enum.** Il tipo di danno e' l'ELEMENTO
+ * del colpo (`FRTHexAttackHit::ElementId`, `FRTAttack::ElementId`; `NAME_None` = nessun elemento): sceglie la RES da
+ * leggere ([D-634] (4)) e risponde anche alla domanda di qui, perche' un colpo elementale attraversa lo scudo base come
+ * un hazard ([D-634] (5), «Solo il Direct, come oggi»). Il resolver del Blast quindi non passa una `Source` per
+ * bersaglio: somma i colpi in due parti e chiama `URTCombatLibrary::ApplyDamageParts`. Questo enum resta la domanda dei
+ * chiamanti che hanno una sorgente sola: caduta, terreno, `Burning`, propagazione, colpo predittivo, Overwatch.
+ *
  * ⚠️ **`DamageType` non ha un'epic, e il numero che questo commento citava era di un altro.**
  * Diceva *«arriva con E49»*, ma `E49` e' l'epic della **Tactical Camera** (`#1769`, 2026-08-30): chi
  * seguiva il puntatore per capire dove nascera' `DamageType` atterrava sulla camera, e nulla lo
  * avvertiva. Un link a vuoto si nota, un link a un'altra cosa no. L'owner reale e' **`D-238`**, che
  * decide di non congelare la formula e dichiara che *«E49 resta una proposta e nessuna issue e' stata
  * creata»*; il materiale di studio sta in `docs/research/prd/prd-damage-model-armor-shield.md`, che
- * e' livello 8 e **non e' normativo**. Corretto da `#1898`.
+ * e' livello 8 e **non e' normativo**. Corretto da `#1898`. ⏱️ *Fino al #4189 questo paragrafo era la sola notizia
+ * sul tipo di danno, che non era modellato: dal #4189 lo e', come elemento del colpo e senza un enum `DamageType`.*
  */
 UENUM(BlueprintType)
 enum class ERTDamageSource : uint8
 {
-	Direct,         // colpi: Blast, decision boundary, Overwatch
+	Direct,         // colpi senza elemento: Blast, decision boundary, Overwatch
 	Environmental   // Burning, danno da terreno, propagazione elettrica
 };
 
@@ -547,9 +555,38 @@ public:
 	 * ⚠️ Nessun overload con la firma vecchia, di proposito: lascerebbe un chiamante a saltare la regola
 	 * della sorgente senza accorgersene, e un errore di compilazione e' preferibile a un danno che ignora
 	 * lo scudo base in silenzio.
+	 *
+	 * 🔑 **Dal #4189 il calcolo sta in `ApplyDamageParts`**, e questa funzione e' il suo caso a una parte sola: `Direct`
+	 * e' tutta parte `Direct`, `Environmental` tutta l'altra. Con una parte a zero l'ordine in cui il temporaneo consuma
+	 * le due parti non conta, quindi ogni chiamante a una sorgente sola ha lo stesso esito di prima, numero per numero
+	 * (`Damage.BaseShield.SingleSourceKeepsTodaysArithmetic` lo confronta con la formula di prima).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
+		int32 TemporaryShield, int32 Health);
+
+	/**
+	 * Applica a un bersaglio un danno IN DUE PARTI ([D-634] (5), #4189): la parte `Direct`, che lo scudo base ferma, e
+	 * l'altra, che lo attraversa — un colpo elementale nel Blast, o il danno ambientale ([D-224]) quando arriva da
+	 * `ApplyDamage`. Nessun valore scende sotto 0; una parte negativa vale 0.
+	 *
+	 * L'ordine (design del #4189, §5 punto 4):
+	 *   1. il TEMPORANEO assorbe per primo, da qualunque parte, come in `ApplyDamage`: sta per scadere comunque;
+	 *   2. delle due parti consuma PRIMA quella che la base non ferma, poi il `Direct`;
+	 *   3. lo scudo BASE assorbe solo cio' che resta della parte `Direct`;
+	 *   4. gli HP prendono il resto delle due.
+	 *
+	 * 🔑 **Il punto 2 e' la scelta, e cambia l'esito solo quando lo stesso bersaglio prende tutte e due le parti con un
+	 * temporaneo attivo.** Speso sul `Direct`, il temporaneo lascerebbe la base senza niente da fermare e l'elementale
+	 * intero agli HP: base 50, temporaneo 30, 40 elementali e 60 `Direct` farebbero 40 di HP invece di 20. Prima
+	 * l'altra parte, la base vale sul `Direct` in ogni caso. E' una proposta del design, ribaltabile: lo pinna
+	 * `Damage.BaseShield.TemporaryTakesTheElementalPartFirst`.
+	 *
+	 * ⚠️ Le due parti si sommano PRIMA, per bersaglio, dal chiamante: chiamarla una volta per colpo renderebbe l'esito
+	 * dipendente dall'ordine dei colpi (invariante #3).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTDamageResult ApplyDamageParts(int32 DirectDamage, int32 NonDirectDamage, int32 Shield,
 		int32 TemporaryShield, int32 Health);
 
 	/**

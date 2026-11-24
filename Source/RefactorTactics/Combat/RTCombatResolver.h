@@ -18,7 +18,7 @@ struct FRTUnitCombatState
 
 	/**
 	 * Quota di `Shield` che scade nel Cleanup ([D-224]). Serve al resolver per sapere quanta protezione e'
-	 * BASE, cioe' quanta ne deve saltare quando il danno viene dall'ambiente.
+	 * BASE, cioe' quanta ne deve saltare quando il danno viene dall'ambiente o e' elementale ([D-634] (5)).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	int32 TemporaryShield = 0;
@@ -86,7 +86,10 @@ enum class ERTDamageStage : uint8
 	AbsorptionPool,
 	/** Somma per bersaglio sullo stato iniziale (invariante #3). */
 	TargetSum,
-	/** Temporaneo → base → HP: la base ferma SOLO il danno diretto (`D-224`). */
+	/**
+	 * Temporaneo → base → HP: la base ferma SOLO il danno diretto (`D-224`), e dal #4189 non la parte elementale della somma
+	 * ([D-634] (5)); il temporaneo consuma prima quella (`URTCombatLibrary::ApplyDamageParts`).
+	 */
 	ShieldAbsorption,
 	/**
 	 * Il bonus alle spalle dell'attaccante ([D-587]; E53 CP 53.2c): `Add` alla Base, PRIMA della DEF e della copertura.
@@ -228,6 +231,20 @@ struct FRTAttack
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	int32 AttackerIndex = INDEX_NONE;
+
+	/**
+	 * L'elemento del colpo ([D-634] (4), #4189), `NAME_None` per un colpo senza elemento (`Direct`). Lo copia `ToAttacks`
+	 * da `FRTHexAttackHit::ElementId`; i delta del resolver lo conservano, perche' copiano il colpo intero.
+	 *
+	 * 🔑 **Qui serve allo scudo BASE, non alla difesa**: la RES l'ha gia' letta la raccolta, sul piano. Nel resolver
+	 * decide in quale parte della somma per bersaglio il colpo entra, perche' lo scudo base ferma solo la parte `Direct`
+	 * ([D-634] (5); `URTCombatLibrary::ApplyDamageParts`).
+	 *
+	 * ⚠️ **Nasce `NAME_None`**: un colpo costruito senza dichiararlo (un contrattacco, un test) resta `Direct`, cioe' il
+	 * comportamento di prima del campo. Come il resto di `FRTAttack` non entra in nessun hash ne' in un replay.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
+	FName ElementId;
 
 	/**
 	 * GLI STADI che hanno trasformato QUESTO colpo, in ordine di applicazione — `#1951`.

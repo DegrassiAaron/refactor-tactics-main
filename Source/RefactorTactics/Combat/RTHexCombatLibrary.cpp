@@ -1007,6 +1007,9 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 		// `AttackerId` non si scarta piu' ([D-212]): senza, una mitigazione direzionale per-colpo non e'
 		// esprimibile dentro il resolver, che vede solo bersaglio e potenza.
 		FRTAttack Attack(Hit.TargetId, Hit.Power, Hit.AttackerId);
+		// L'elemento passa al resolver (#4189): la RES l'ha gia' letta la raccolta, ma lo scudo base lo legge la somma per
+		// bersaglio, che ferma solo la parte `Direct` ([D-634] (5)).
+		Attack.ElementId = Hit.ElementId;
 
 		// IL BREAKDOWN COMINCIA QUI, dove il colpo entra nella catena — `#1951`.
 		//

@@ -106,7 +106,18 @@ const FName URTCombatLibrary::ExposedModSource = FName(TEXT("D-595 · Exposed"))
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)
 {
-	const int32 SafeDamage = FMath::Max(0, Damage);
+	// Una sorgente sola e' una scomposizione con una parte a zero: il calcolo ha una casa sola (#4189), e l'esito di ogni
+	// chiamante a una sorgente e' quello di prima (`Damage.BaseShield.SingleSourceKeepsTodaysArithmetic`).
+	return (Source == ERTDamageSource::Direct)
+		? ApplyDamageParts(Damage, 0, Shield, TemporaryShield, Health)
+		: ApplyDamageParts(0, Damage, Shield, TemporaryShield, Health);
+}
+
+FRTDamageResult URTCombatLibrary::ApplyDamageParts(int32 DirectDamage, int32 NonDirectDamage, int32 Shield,
+	int32 TemporaryShield, int32 Health)
+{
+	const int32 SafeDirect = FMath::Max(0, DirectDamage);
+	const int32 SafeNonDirect = FMath::Max(0, NonDirectDamage);
 	const int32 SafeShield = FMath::Max(0, Shield);
 	// `Clamp` e non `Max`: un temporaneo maggiore del totale renderebbe la base NEGATIVA, e da li' in poi
 	// l'aritmetica direbbe cose false in silenzio invece di rompersi.
@@ -115,19 +126,23 @@ FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Sour
 
 	// 1 — il temporaneo assorbe per primo, qualunque sia la sorgente: sta per scadere comunque, e consumare
 	// prima la base significherebbe buttare via protezione destinata a sparire.
-	const int32 AbsorbedByTemp = FMath::Min(SafeDamage, SafeTemp);
-	int32 Remaining = SafeDamage - AbsorbedByTemp;
-	const int32 NewTemp = SafeTemp - AbsorbedByTemp;
+	//
+	// 🔑 Delle due parti consuma PRIMA quella che la base non ferma (design del #4189, §5 punto 4): cosi' cio' che
+	// resta del `Direct` trova la base, e la base vale sul `Direct` in ogni caso. Speso sul `Direct`, il temporaneo
+	// lascerebbe la base senza niente da fermare e l'elementale intero agli HP.
+	const int32 TempOnNonDirect = FMath::Min(SafeNonDirect, SafeTemp);
+	const int32 TempOnDirect = FMath::Min(SafeDirect, SafeTemp - TempOnNonDirect);
+	const int32 NewTemp = SafeTemp - TempOnNonDirect - TempOnDirect;
+	const int32 NonDirectLeft = SafeNonDirect - TempOnNonDirect;
+	int32 DirectLeft = SafeDirect - TempOnDirect;
 
-	// 2 — la base assorbe SOLO il danno diretto ([D-224]): `Burning`, danno da terreno e propagazione
-	// elettrica la attraversano interi.
-	const int32 AbsorbedByBase = (Source == ERTDamageSource::Direct)
-		? FMath::Min(Remaining, SafeBase)
-		: 0;
-	Remaining -= AbsorbedByBase;
+	// 2 — la base assorbe SOLO il danno diretto ([D-224], [D-634] (5)): `Burning`, danno da terreno, propagazione
+	// elettrica e il colpo elementale la attraversano interi.
+	const int32 AbsorbedByBase = FMath::Min(DirectLeft, SafeBase);
+	DirectLeft -= AbsorbedByBase;
 	const int32 NewBase = SafeBase - AbsorbedByBase;
 
-	const int32 NewHealth = FMath::Max(0, Health - Remaining);
+	const int32 NewHealth = FMath::Max(0, Health - DirectLeft - NonDirectLeft);
 
 	return FRTDamageResult(NewHealth, NewBase + NewTemp, NewTemp);
 }
