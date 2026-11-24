@@ -6,11 +6,11 @@
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Root);   // non puo' muoversi
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Slow);   // range di movimento dimezzato
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Reveal); // intento visibile agli avversari (invariante #6)
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Exposed); // scoperta: ×1,2 al PRIMO danno diretto di ogni Blast (D-595 (2)); 2 turni (D-116)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Exposed); // scoperta: ×1,2 al PRIMO colpo che fa danno in ogni Blast, con o senza elemento (D-595 (2); Ruling 3 del #4189, ribaltabile); 2 turni (D-116)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Guarded); // guardia: riduzione per colpo sull'arco frontale ([D-408] + [D-206]), valore dell'eroe, resiste a una spinta di 1
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +6 al PROSSIMO attacco alleato, che lo consuma
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +60 nel Base del PROSSIMO attacco alleato, prima della difesa (D-634 (35)), che lo consuma
 // Bagnato: UNA sola dichiarazione per DUE sorgenti che il catalogo vuole convergenti — l'acqua bassa
-// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Gadget.LinearDischarge finche' attivo, conduce elettricita'
+// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +80 nel Base di Gadget.LinearDischarge finche' attivo (D-634 (35)), conduce elettricita'
 // (CP 8.3) e rimuove Burning (CP 8.4).
 //
 // La durata "finche' sulla cella" e' VIVA, e passa da tre pezzi: il terreno la dichiara con

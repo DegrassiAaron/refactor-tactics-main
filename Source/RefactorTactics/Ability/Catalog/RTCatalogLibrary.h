@@ -131,7 +131,8 @@ public:
 	 *
 	 * ⚠️ E' il DEFAULT, non la regola: `ShippedAction` e `MakeHeroAction` lo scrivono nella colonna al momento
 	 * della costruzione, e da li' in poi chi legge il costo legge la colonna. Chi marca una riga Ultimate dopo la
-	 * costruzione ne riscrive il costo con questa funzione; `ValidateActions` rifiuta un'Ultimate che non costi 3.
+	 * costruzione ne riscrive il costo con questa funzione; `ValidateActions` rifiuta un'Ultimate che non costi 3 e una
+	 * reazione che costi meno della sua classe ([D-634] (29), #4189: per la reazione la classe e' anche un pavimento).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static int32 DefaultActionPointCost(const FRTActionDef& Def);
@@ -243,7 +244,12 @@ public:
 	 * Errori strutturali di un catalogo di azioni (vuoto = catalogo valido). Rifiuta:
 	 * ID assente o duplicato · priorita' negativa · portata/costo/cooldown negativi · azione che dichiara di
 	 * risolvere nello Snapshot (fase di congelamento: nessuna azione risolve li') · azione di movimento con
-	 * fallback diverso da `Stop` (regola del vertical slice: ci si ferma nell'ultima cella valida).
+	 * fallback diverso da `Stop` (regola del vertical slice: ci si ferma nell'ultima cella valida) · elemento
+	 * (`ElementId`) che non e' `NAME_None` ne' uno di quelli di `URTHeroCatalogLibrary::ElementIds()` ([D-634] (4)) ·
+	 * elemento o perforante (`bPiercing`) su una riga il cui danno non nasce da un intento del Blast — una reazione, o una
+	 * riga che non risolve nel Blast ne' nel Dash — perche' li' il colpo li ignorerebbe (#4189) ·
+	 * Ultimate che non costa 3 ([D-613] (4)) · riga con `Slot == Reaction` che costa meno della classe reazione, 2
+	 * ([D-634] (29)): la classe e' il default di `DefaultActionPointCost` e, per la reazione, anche il pavimento.
 	 *
 	 * Ogni messaggio nomina l'azione colpevole: un errore che non dice QUALE riga e' rotta costringe a
 	 * ricontrollare tutto il catalogo a mano.

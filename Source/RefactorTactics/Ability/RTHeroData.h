@@ -119,8 +119,9 @@ public:
 	 * RES di default per i dodici elementi ([D-593]): la mitigazione del danno ELEMENTALE e AMBIENTALE con la
 	 * stessa forma della DEF ([D-589] (1)). `ElementResistance` la sostituisce per il singolo elemento che vi
 	 * compare; per gli altri vale questo numero ([D-595] (3): «la RES unica come default per i dodici»).
-	 * Valori dal CP 53.3c: Gadget 35, Muiren 40, Riktor 35, Ivrin 20 (la RES del GDD dello slot). ⚠️ Nessun colpo
-	 * porta ancora un elemento, quindi nessun chiamante la legge: e' un dato del catalogo in attesa del suo lettore.
+	 * Valori dal CP 53.3c: Gadget 35, Muiren 40, Riktor 35, Ivrin 20 (la RES del GDD dello slot). La legge il Blast per
+	 * un colpo elementale ([D-634] (4) e (6), #4189: `FRTHexCombatUnit::DefenseAgainst`); ⚠️ nessuna azione di oggi
+	 * dichiara un elemento, quindi in partita non morde ancora.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 ResistanceDefault = 0;

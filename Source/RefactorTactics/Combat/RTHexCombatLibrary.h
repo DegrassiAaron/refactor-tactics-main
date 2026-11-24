@@ -49,11 +49,60 @@ struct FRTHexCombatUnit
 	 * si sottrae dentro `CollectHexAttacks`: D-589 vuole la difesa prima e le riduzioni piatte dopo, quindi la
 	 * difesa deve essere in mano a chi calcola il colpo. I valori sono nel catalogo dal CP 53.3c ([D-595] (3):
 	 * Gadget 15, Muiren 25, Riktor 45, Ivrin 15); con `0` la formula e' l'identita'
-	 * (`Combat.Formula.ZeroDefenseIsIdentity`). La RES per elemento NON e' qui: il colpo non porta ancora un
-	 * elemento, e senza quello non c'e' niente da applicare.
+	 * (`Combat.Formula.ZeroDefenseIsIdentity`). Vale per il colpo SENZA elemento: uno elementale si mitiga con la RES
+	 * qui sotto ([D-634] (4), #4189), e la scelta la fa `DefenseAgainst`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	int32 Defense = 0;
+
+	/**
+	 * La RES del bersaglio ([D-589] (1), [D-634] (4) e (6); #4189): mitiga il colpo ELEMENTALE con la stessa forma della
+	 * DEF. `ResistanceDefault` vale per ogni elemento che `ElementResistance` non nomina; e' la RES del catalogo
+	 * (Gadget 35, Muiren 40, Riktor 35, Ivrin 20), e `ElementResistance` oggi e' vuota per tutti. Copie di
+	 * `ARTUnit::ResistanceDefault` e `ARTUnit::ElementResistance` nello snapshot del Blast, accanto alla DEF e per la
+	 * stessa ragione: la difesa deve essere in mano a chi calcola il colpo.
+	 *
+	 * ⚠️ **Chi riempie un `FRTHexCombatUnit` con la DEF la riempia anche con la RES**: un'unita' che porta la DEF e lascia
+	 * la RES a `0` mitiga il colpo diretto e non quello elementale, che passerebbe intero senza un errore.
+	 *
+	 * 🔑 `ElementResistance` e' una `TMap` e si legge SOLO per chiave (`DefenseAgainst`): mai iterata, quindi il suo
+	 * ordine non entra in nessun esito (CLAUDE.md §7).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 ResistanceDefault = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	TMap<FName, int32> ElementResistance;
+
+	/**
+	 * La difesa contro un colpo dell'elemento `ElementId` ([D-634] (4), #4189): la DEF per `NAME_None` (il colpo
+	 * `Direct`), altrimenti la RES di quell'elemento, cioe' la sua voce in `ElementResistance` o, se manca,
+	 * `ResistanceDefault` — la stessa regola di `ARTUnit::ResistanceAgainst`. E' l'unico punto in cui si sceglie fra DEF
+	 * e RES: `MitigatedHitPower` la chiama, e il colpo ne registra l'esito in `FRTHexAttackHit::DefenseApplied`.
+	 *
+	 * Un colpo PERFORANTE ([D-634] (47), #4189, `bPiercing`) non legge nessuna delle due: la difesa e' `0`. La scelta sta qui
+	 * e non in chi chiama, cosi' `MitigatedHitPower` e `DefenseApplied` non possono divergere, e ogni ricalcolo che parte da
+	 * `DefenseApplied` (`Exposed`, marchio, +80 contro `Wet`) eredita lo zero senza un ramo suo. ⚠️ **`bPiercing` non ha un
+	 * default, ed e' voluto**: con un default, un chiamante che ha un intento in mano e dimentica di passarlo mitiga un
+	 * perforante con la DEF senza un errore, e il colpo nasce incoerente con la sua copertura. Chi non ha un colpo — i test
+	 * della RES — passa `false` e lo dice.
+	 */
+	int32 DefenseAgainst(const FName& ElementId, bool bPiercing) const
+	{
+		if (bPiercing)
+		{
+			return 0;
+		}
+		if (ElementId.IsNone())
+		{
+			return Defense;
+		}
+		if (const int32* Specific = ElementResistance.Find(ElementId))
+		{
+			return *Specific;
+		}
+		return ResistanceDefault;
+	}
 
 	/**
 	 * Il bonus alle spalle dell'**attaccante** ([D-587], valori iniziali in [D-599]): si somma alla Base quando il
@@ -230,6 +279,30 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
 
+	/**
+	 * L'elemento del colpo ([D-634] (4), #4189), `NAME_None` per un colpo senza elemento (`Direct`). Si COPIA da
+	 * `FRTActionDef::ElementId`, accanto a `LineOfSightPolicy` e per la stessa ragione: la sede della decisione e' il
+	 * catalogo, qui c'e' il parametro dell'intento. `CollectHexAttacks` lo passa a ogni colpo dell'intento.
+	 *
+	 * ⚠️ **Nasce `NAME_None`**: un intento costruito senza dichiararlo — un test, un percorso che non legge il `Def` —
+	 * resta un colpo diretto, cioe' il comportamento di prima del campo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FName ElementId;
+
+	/**
+	 * Il colpo e' PERFORANTE ([D-634] (47), #4189): difesa 0 e nessuna copertura bassa da sottrarre; Guard e scudo restano.
+	 * Si COPIA da `FRTActionDef::bPiercing`, accanto a `ElementId` e per la stessa ragione: la sede della decisione e' il
+	 * catalogo, qui c'e' il parametro dell'intento. `CollectHexAttacks` e `RedirectHitTo` lo leggono dall'intento, e il colpo
+	 * che ne esce porta `DefenseApplied` 0 e `CoverReduction` 0 — non ha un campo suo, perche' nessun consumatore del colpo
+	 * deve sapere PERCHE' la difesa e' zero.
+	 *
+	 * ⚠️ **Nasce `false`**: un intento costruito senza dichiararlo — un test, un percorso che non legge il `Def` — resta un
+	 * colpo che la difesa e la copertura riducono, cioe' il comportamento di prima del campo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bPiercing = false;
+
 	FRTHexAttackIntent() = default;
 };
 
@@ -286,6 +359,10 @@ struct FRTHexAttackHit
 	 * ⚠️ `NominalPower` e' il potere dell'intent, cioe' il valore **dopo** i bonus di cella e
 	 * condizionali che vivono nel Blast (stadi 2 e 3): non e' il numero di catalogo. Quei due stadi non
 	 * sono registrati da questa slice, ed e' dichiarato invece che dedotto.
+	 *
+	 * Dal #4189 e' il BASE della formula anche per il marchio e il +80 contro `Wet` ([D-634] (35)):
+	 * `URTHexCombatLibrary::AddBonusToHitBase` ve li somma sul piano, dopo la raccolta. Letto dopo quel pass e'
+	 * quindi l'intento PIU' i bonus del colpo, e la voce `Catalog` del breakdown li comprende.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 NominalPower = 0;
@@ -320,19 +397,38 @@ struct FRTHexAttackHit
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 RearBonusApplied = 0;
 
-	/** La DEF del bersaglio letta per questo colpo ([D-589]). */
+	/**
+	 * La difesa del bersaglio letta per questo colpo ([D-589]): la DEF per un colpo senza elemento, la RES dell'elemento
+	 * per uno elementale ([D-634] (4), #4189), cioe' `FRTHexCombatUnit::DefenseAgainst(ElementId, bPiercing)`. `ApplyExposedToFirstHit`
+	 * ricalcola il colpo da qui, e `ToAttacks` la scrive come operando della voce `Defense`.
+	 *
+	 * Per un colpo PERFORANTE ([D-634] (47)) e' `0`, e con `CoverReduction` `0` e' cio' che tiene coerente ogni ricalcolo: il
+	 * colpo non porta un flag, porta una difesa e una copertura che sono gia' zero (`FRTHexAttackIntent::bPiercing`).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 DefenseApplied = 0;
 
 	/**
 	 * Il `Mod` di [D-589] (3) applicato a questo colpo, in centesimi: `100` = nessun moltiplicatore. Oggi l'unico valore
-	 * diverso e' `URTCombatLibrary::ExposedModPercent` (120) sul primo colpo diretto che fa danno a un bersaglio `Exposed`
-	 * ([D-595] (2); E53 CP 53.3b), scritto da `ApplyExposedToFirstHit` DOPO la raccolta: «primo» si decide sui colpi gia'
+	 * diverso e' `URTCombatLibrary::ExposedModPercent` (120) sul primo colpo che fa danno a un bersaglio `Exposed`, con o
+	 * senza elemento ([D-595] (2); E53 CP 53.3b; la lettura su «diretto» e' del controller, Ruling 3 del #4189,
+	 * ribaltabile), scritto da `ApplyExposedToFirstHit` DOPO la raccolta: «primo» si decide sui colpi gia'
 	 * raccolti e gia' redirezionati (`Intercept`), nell'ordine canonico del Blast, e la raccolta non puo' saperlo.
 	 * `ToAttacks` lo legge per la voce `Mod` del breakdown.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 ModPercentApplied = 100;
+
+	/**
+	 * L'elemento del colpo, dall'intento che l'ha prodotto (`FRTHexAttackIntent::ElementId`, #4189); `NAME_None` =
+	 * `Direct`. Lo scrive `CollectHexAttacks`; `RedirectHitTo` lo conserva, perche' l'elemento e' dell'azione e non del
+	 * bersaglio. Decide la difesa che il colpo legge (`DefenseApplied`): la DEF senza elemento, la RES dell'elemento
+	 * altrimenti ([D-634] (4)). `ToAttacks` lo copia su `FRTAttack::ElementId`, perche' decide anche se lo scudo base ferma
+	 * il colpo: solo senza elemento ([D-634] (5)). Nessuna azione di oggi dichiara un elemento, quindi nessun numero di oggi
+	 * cambia.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	FName ElementId;
 };
 
 /**
@@ -874,27 +970,46 @@ public:
 	static FRTCellId ImpactOriginOf(ERTAbilityShape Shape, const FRTCellId& AttackerCell, const FRTCellId& AimCell);
 
 	/**
-	 * Spalle e DEF di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
-	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.Defense)`, dove «alle spalle» e'
-	 * «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
+	 * Spalle e difesa di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
+	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.DefenseAgainst(ElementId, bPiercing))`, dove «alle
+	 * spalle» e' «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
+	 *
+	 * La difesa e' la DEF per un colpo senza elemento e la RES dell'elemento per uno elementale ([D-634] (4), #4189): la
+	 * stessa formula, con un solo arrotondamento ([D-595] (1)), cambia solo la statistica. Per un colpo PERFORANTE e'
+	 * `0` ([D-634] (47)): il Base e le spalle restano, la difesa no. ⚠️ **«Le spalle restano» e' il Ruling 6 del #4189:
+	 * lettura del controller, da confermare dall'autore, ribaltabile** — [D-634] (47) dice «contro chiunque fa 420 meno
+	 * l'eventuale Guard», che si legge anche come 420 piatto, e qui e' letto come «qualunque sia la difesa». Per rovesciarla,
+	 * il punto e' questa funzione: bonus alle spalle a 0 se `bPiercing` (vedi `FRTActionDef::bPiercing`). Il chiamante
+	 * registra la stessa scelta in `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
 	 *
 	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
-	 * sul PRIMO colpo diretto, e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
-	 * Blast — lo applica `ApplyExposedToFirstHit` ricalcolando questa stessa formula con `ModPercent` 120. `Marked`
-	 * resta un delta piatto a valle (`MarkSpentOn`) finche' una decisione non gli da' un moltiplicatore. Con DEF e
-	 * bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha tenuto il corpus golden byte-identico in CP 53.2c.
+	 * sul PRIMO colpo che fa danno, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto» di
+	 * [D-595] (2), ribaltabile), e «primo» si decide sui colpi gia' raccolti e redirezionati, nell'ordine canonico del
+	 * Blast — lo applica `ApplyExposedToFirstHit` ricalcolando questa stessa formula con `ModPercent` 120. Per la stessa
+	 * ragione il marchio e il +80 contro `Wet` entrano nel Base DOPO la raccolta, con `AddBonusToHitBase` ([D-634] (35)):
+	 * chi li prende si decide sul piano. Con DEF e bonus a zero rende `BasePower` invariato, ed e' l'invariante che ha
+	 * tenuto il corpus golden byte-identico in CP 53.2c.
 	 *
+	 * @param ElementId            l'elemento del colpo (`FRTHexAttackIntent::ElementId`); `NAME_None` = `Direct`, la DEF.
+	 * @param bPiercing            il colpo e' perforante (`FRTHexAttackIntent::bPiercing`): difesa 0, qualunque sia l'elemento.
 	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
 	 */
 	static int32 MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
-		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, int32& OutRearBonusApplied);
+		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId, bool bPiercing,
+		int32& OutRearBonusApplied);
 
 	/**
-	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto di ciascun bersaglio ([D-595] (2); E53
-	 * CP 53.3b). Per ogni bersaglio con `bExposedByTarget[TargetId]` vero, il primo colpo di `HitOrder` che gli FA danno
+	 * `Status.Exposed` come moltiplicatore 1,2 in `Mod` sul PRIMO colpo che fa danno a ciascun bersaglio, con o senza
+	 * elemento ([D-595] (2); E53 CP 53.3b; Ruling 3 del #4189: «diretto» in [D-595] (2) distingue il colpo d'attacco dal
+	 * danno ambientale, non il `Direct` dall'elementale — lettura del controller, ribaltabile). Per ogni bersaglio con
+	 * `bExposedByTarget[TargetId]` vero, il primo colpo di `HitOrder` che gli FA danno
 	 * (`Power > 0`, lo stesso predicato del marchio) e che porta un nominale viene ricalcolato con la formula di [D-589]:
 	 * `M' = MitigateDirectDamage(NominalPower, RearBonusApplied, ExposedModPercent, DefenseApplied)`, `Power += M' − M`,
 	 * `MitigatedPower = M'`, `ModPercentApplied = 120`. Gli altri colpi non cambiano. Lo stato NON si consuma qui.
+	 *
+	 * ⚠️ **La difesa e' quella che il colpo ha registrato, `DefenseApplied`, non una che si rilegge qui**: per un colpo
+	 * elementale e' la RES dell'elemento (#4189), e ricalcolarlo con la DEF lo ridurrebbe della statistica sbagliata
+	 * proprio sul colpo moltiplicato (`Damage.Element.ExposedRecomputesWithTheResistance`).
 	 *
 	 * 🔑 **«Primo» e' l'ordine canonico del Blast (`HitOrder`: priorita', poi ActionId → AttackerId → IntentIndex,
 	 * ADR-0003 §3), lo stesso che spende il marchio — e qui conta davvero.** Con un delta piatto il totale per bersaglio
@@ -912,6 +1027,36 @@ public:
 	 */
 	static TArray<int32> ApplyExposedToFirstHit(TArray<FRTHexAttackHit>& Hits, const TArray<int32>& HitOrder,
 		const TArray<bool>& bExposedByTarget);
+
+	/**
+	 * Un bonus piatto che entra nel BASE del colpo, prima della difesa ([D-634] (35), #4189): il marchio (+60,
+	 * `URTCombatLibrary::MarkedFirstHitBonus`) e il +80 di `Hero.Gadget.LinearDischarge` contro un bersaglio `Wet`
+	 * (`URTCombatLibrary::GadgetWetDischargeBonus`). Il colpo si ricalcola con la formula di [D-589], come fa
+	 * `ApplyExposedToFirstHit` per il `Mod`: `M' = MitigateDirectDamage(NominalPower + Bonus, RearBonusApplied,
+	 * ModPercentApplied, DefenseApplied)`, poi `Power = max(0, M' − Copertura)`, `MitigatedPower = M'`,
+	 * `NominalPower += Bonus`. Un solo arrotondamento ([D-595] (1)), con la difesa che il colpo ha registrato (la RES per
+	 * un colpo elementale) e il `Mod` che porta gia' (`Exposed` 120 moltiplica anche il bonus).
+	 *
+	 * 🔑 **`NominalPower` cresce del bonus, ed e' cio' che rende i bonus componibili.** Marchio e +80 sulla stessa
+	 * LinearDischarge danno `M(Base + 60 + 80)`, un solo floor; due delta calcolati entrambi dal nominale dell'intento
+	 * sommerebbero due floor (`Damage.BaseBonus.RecomputesTheCollectedHit`). Il campo era gia' dichiarato come «il valore
+	 * dopo i bonus condizionali del Blast»: ora li porta.
+	 *
+	 * Copertura: su un colpo che fa danno si somma la differenza `M' − M` a `Power`, per la ragione di
+	 * `ApplyExposedToFirstHit` (`CoverReduction` di un colpo redirezionato e' stantio, `#4037`) — la copertura non ha
+	 * azzerato niente, quindi e' esattamente `max(0, M' − Copertura)`. Su un colpo che la copertura ha AZZERATO (il +80
+	 * non ha la guardia del marchio, Ruling 4 del #4189) la copertura si legge da `CoverReduction`, che e' esatta per ogni
+	 * colpo non redirezionato; ⚠️ per uno redirezionato da un `Intercept` e azzerato e' quella della vittima originale,
+	 * cioe' lo stesso difetto di `#4037`, e si corregge con lui.
+	 *
+	 * Chi prende il bonus lo decide il chiamante (`RTTurnManager.cpp`, `MarkSpentOn` e il pass della LinearDischarge):
+	 * questa funzione ne decide solo il PUNTO nella formula.
+	 *
+	 * @param Bonus  un bonus, quindi `>= 0` per contratto: i due chiamanti passano costanti positive. Un valore negativo
+	 *               non rompe niente — la formula tratta una Base sotto 0 come 0 e `Power` resta `>= 0` — ma non e' un
+	 *               uso previsto: una riduzione piatta sta dopo la difesa (copertura, Guard, Brace), non nel Base.
+	 */
+	static void AddBonusToHitBase(FRTHexAttackHit& Hit, int32 Bonus);
 
 	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
@@ -957,7 +1102,7 @@ public:
 	static FRTHexBlastPlan CollectHexAttacks(const TArray<FRTHexCombatUnit>& Units,
 		const TArray<FRTHexAttackIntent>& Intents, const URTHexMapAsset* Map);
 
-	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio + danno). */
+	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio, danno ed elemento). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
 

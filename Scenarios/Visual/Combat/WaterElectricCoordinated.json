@@ -1,22 +1,18 @@
 {
-  "_numeri_letti": {
-    "_nota":
-      "32 e' un ADDENDO di danno dentro il calcolo 90 - (16 + 32 - 5) = 47, non un totale: l'attesa e' il 47 in fondo alla stessa riga."
-  },
   "scenarioId": "Visual.Combat.WaterElectricCoordinated",
   "tags": ["animation", "combat", "core", "gadget", "phase", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Muiren.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Ivrin 90 - (16 + 32 - 5 di scudo base, [D-224]) = 47.",
+  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Muiren.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Ivrin (DEF 15) guarda verso est e prende i due colpi alle spalle, +60 ciascuno ([D-587]): il getto vale floor((160 + 60) x 100/115) = 191, la scarica floor((240 + 60 + 80) x 100/115) = 330, perche' il +80 contro `Wet` entra nel Base prima della DEF ([D-634] (35), #4189). Ivrin 900 - (191 + 330 - 50 di scudo base, [D-224]) = 429. La scarica e' una linea, e attraversa anche Muiren, alleata, a (-2,0,0): nessuna attesa di questo file misura quel colpo.",
 
   "_nota_perche_esiste": "Fino al 2026-08-08 questo turno dava **60**, non 52: il bonus leggeva `HasStatus(Wet)` mentre i colpi venivano preparati, cioe' prima che il getto di Phase atterrasse. La combo era documentata nella showcase, aveva un test verde sull'aritmetica (`Heroes.Gadget.WetBonus`, che non passa dal TurnManager) ed era **ineseguibile in partita**. Corretto in #242 estendendo a `Wet` la disciplina che `Status.Marked` aveva gia': cio' che nasce dentro il Blast vale per i colpi a priorita' piu' alta.",
 
   "_nota_arena": "Arena liscia di proposito: il bagnato deve venire da RIVA. La variante che lo prende dal TERRENO e' `Visual.Combat.WaterElectric`, e le due vanno tenute entrambe — coprono le due sorgenti di `Wet`, e solo la prima dimostra la coordinazione fra due eroi.",
 
   "_nota_ownership": "La regola resta sistemica (D-029): il bonus legge `Status.Wet`, non l'identita' di Phase. Chiunque bagni con priorita' piu' bassa abilita la scarica — e il terreno lo fa senza bisogno di nessuno.",
-  "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
+  "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 50` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 50 danni `Direct` per turno prima degli HP, e ogni nota scritta prima di [D-224] sbagliava dello scudo base per bersaglio colpito. Dal #4189 la base ferma il solo `Direct`, non l'elementale ([D-634] (5)): i due colpi di questo file sono `Direct`, quindi il conto non cambia. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3, 0, 0] },
@@ -34,7 +30,7 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals",  "unit": "V1", "value": 419 },
+    { "_assertion": "[D-634] (35), #4189: il +80 contro `Wet` entra nel Base, PRIMA della DEF 15 di Ivrin. La scarica, che trova Ivrin gia' bagnato dal getto e lo colpisce alle spalle (+60, [D-587]), vale floor((240 + 60 + 80) x 100/115) = 330; fino al #4189 il bonus si sommava al colpo gia' mitigato, floor((240 + 60) x 100/115) + 80 = 340. Il getto non cambia, floor((160 + 60) x 100/115) = 191: Ivrin 900 - (191 + 330 - 50 di scudo base) = 429, e la differenza di questo turno e' tutta della scarica.", "type": "UnitHpEquals",  "unit": "V1", "value": 429 },
     { "type": "UnitAlive",     "unit": "V1", "value": true },
     { "type": "TurnsCompleted", "value": 1 }
   ]

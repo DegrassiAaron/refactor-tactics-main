@@ -165,18 +165,26 @@ struct FRTCellTargetRefusal
  * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere.
  * Qui la domanda e' una sola e binaria: la base partecipa?
  *
+ * 🔑 **Dal #4189 l'altra domanda ha una risposta, e non e' un valore di questo enum.** Il tipo di danno e' l'ELEMENTO
+ * del colpo (`FRTHexAttackHit::ElementId`, `FRTAttack::ElementId`; `NAME_None` = nessun elemento): sceglie la RES da
+ * leggere ([D-634] (4)) e risponde anche alla domanda di qui, perche' un colpo elementale attraversa lo scudo base come
+ * un hazard ([D-634] (5), «Solo il Direct, come oggi»). Il resolver del Blast quindi non passa una `Source` per
+ * bersaglio: somma i colpi in due parti e chiama `URTCombatLibrary::ApplyDamageParts`. Questo enum resta la domanda dei
+ * chiamanti che hanno una sorgente sola: caduta, terreno, `Burning`, propagazione, colpo predittivo, Overwatch.
+ *
  * ⚠️ **`DamageType` non ha un'epic, e il numero che questo commento citava era di un altro.**
  * Diceva *«arriva con E49»*, ma `E49` e' l'epic della **Tactical Camera** (`#1769`, 2026-08-30): chi
  * seguiva il puntatore per capire dove nascera' `DamageType` atterrava sulla camera, e nulla lo
  * avvertiva. Un link a vuoto si nota, un link a un'altra cosa no. L'owner reale e' **`D-238`**, che
  * decide di non congelare la formula e dichiara che *«E49 resta una proposta e nessuna issue e' stata
  * creata»*; il materiale di studio sta in `docs/research/prd/prd-damage-model-armor-shield.md`, che
- * e' livello 8 e **non e' normativo**. Corretto da `#1898`.
+ * e' livello 8 e **non e' normativo**. Corretto da `#1898`. ⏱️ *Fino al #4189 questo paragrafo era la sola notizia
+ * sul tipo di danno, che non era modellato: dal #4189 lo e', come elemento del colpo e senza un enum `DamageType`.*
  */
 UENUM(BlueprintType)
 enum class ERTDamageSource : uint8
 {
-	Direct,         // colpi: Blast, decision boundary, Overwatch
+	Direct,         // colpi senza elemento: Blast, decision boundary, Overwatch
 	Environmental   // Burning, danno da terreno, propagazione elettrica
 };
 
@@ -230,10 +238,12 @@ class REFACTORTACTICS_API URTCombatLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * `Status.Exposed`: moltiplicatore **1,2** in `Mod` sul PRIMO colpo diretto che fa danno nel Blast ([D-595] (2);
-	 * E53 CP 53.3b), in centesimi come il `ModPercent` di `MitigateDirectDamage`. Lo applica
-	 * `URTHexCombatLibrary::ApplyExposedToFirstHit` al colpo del piano, PRIMA della DEF e della copertura:
-	 * `floor((Base + Spalle) × 120/100 × 100/(100 + DEF))`.
+	 * `Status.Exposed`: moltiplicatore **1,2** in `Mod` sul PRIMO colpo che fa danno nel Blast, con o senza elemento
+	 * ([D-595] (2); E53 CP 53.3b; Ruling 3 del #4189: «diretto» e' letto dal controller come «colpo d'attacco», non come
+	 * `Direct` — ribaltabile), in centesimi come il `ModPercent` di `MitigateDirectDamage`. Lo applica
+	 * `URTHexCombatLibrary::ApplyExposedToFirstHit` al colpo del piano, PRIMA della difesa e della copertura:
+	 * `floor((Base + Spalle) × 120/100 × 100/(100 + difesa))`, con la DEF o la RES dell'elemento. Moltiplica anche il marchio
+	 * e il +80 contro `Wet`, che stanno nel Base ([D-634] (35)).
 	 *
 	 * ⏱️ *Fino al 2026-11-10 era `ExposedFirstHitBonus`, un `+5` piatto (poi `+50` con la scala ×10) sommato DOPO la
 	 * copertura da `ApplyFirstHitDelta`. [D-595] (2) l'ha scelto come moltiplicatore perche' conserva il caso medio
@@ -438,17 +448,28 @@ public:
 	 */
 	static const FName RearBonusSource;
 	static const FName DefenseSource;
+	/**
+	 * La provenienza dello stadio `Defense` quando il colpo e' ELEMENTALE (#4189): la difesa letta e' la RES
+	 * dell'elemento ([D-634] (4)), con la forma che [D-589] (1) le da'. Accanto a `DefenseSource` e non al suo posto:
+	 * lo stadio e' lo stesso, cambia la statistica che lo governa, e il registro deve dire quale.
+	 */
+	static const FName ResistanceSource;
 	/** La provenienza dello stadio `Mod` ([D-589] (3)): oggi il solo `Exposed` 120 ([D-595] (2), CP 53.3b). */
 	static const FName ExposedModSource;
 
 	/**
-	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
+	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +60 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
-	 * NON passa da `ApplyFirstHitDelta`: ha un pass proprio nel Blast (`RTTurnManager.cpp`, `MarkSpentOn`), che somma il bonus al `Power` del
+	 * 🔑 **Entra nel Base, PRIMA della difesa** ([D-634] (35), #4189): `max(0, floor((Base + 60 + Spalle) × Mod × 100/(100 +
+	 * difesa)) − Copertura)`, cosi' la DEF (o la RES) lo riduce e `Exposed` lo moltiplica. Lo mette li'
+	 * `URTHexCombatLibrary::AddBonusToHitBase`. ⏱️ *Fino al #4189 si sommava al `Power` gia' mitigato: contro DEF 45 un colpo
+	 * da 240 marchiato faceva 165 + 60 = 225, ora `floor(300 × 100/145)` = 206.*
+	 *
+	 * NON passa da `ApplyFirstHitDelta`: ha un pass proprio nel Blast (`RTTurnManager.cpp`, `MarkSpentOn`), che sceglie il
 	 * PRIMO colpo qualificato contro quel bersaglio nell'ordine canonico (priorita', `ActionId`, `AttackerId`, `IntentIndex`) e poi consuma il
 	 * marchio: "consumato una volta sola" e' una proprieta' dell'ORDINE, non una corsa fra gli attaccanti a chi colpisce per primo. Vale solo sui
-	 * colpi DIRETTI: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
+	 * colpi d'attacco: il danno ambientale non passa di li' (catalogo: «non aumenta il danno ambientale»).
 	 */
 	static constexpr int32 MarkedFirstHitBonus = 60;
 
@@ -514,9 +535,12 @@ public:
 	 * `Gadget.LinearDischarge` (catalogo eroi v0.1 §1): +80 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed` (un moltiplicatore sul SOLO primo colpo, `ApplyExposedToFirstHit`) — e come `Marked` e la Guardia, che hanno una sede propria — il bonus non si consuma
-	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
-	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
+	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`). E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
+	 *
+	 * 🔑 **Entra nel Base, PRIMA della difesa** ([D-634] (35), #4189), come il marchio e con lo stesso ricalcolo
+	 * (`URTHexCombatLibrary::AddBonusToHitBase`): contro DEF 45 la scarica da 240 su un bersaglio bagnato fa
+	 * `floor(320 × 100/145)` = 220. ⏱️ *Fino al #4189 riusava `EffectiveAttackPower` sul colpo gia' mitigato: 165 + 80 = 245.*
 	 */
 	static constexpr int32 GadgetWetDischargeBonus = 80;
 
@@ -531,9 +555,38 @@ public:
 	 * ⚠️ Nessun overload con la firma vecchia, di proposito: lascerebbe un chiamante a saltare la regola
 	 * della sorgente senza accorgersene, e un errore di compilazione e' preferibile a un danno che ignora
 	 * lo scudo base in silenzio.
+	 *
+	 * 🔑 **Dal #4189 il calcolo sta in `ApplyDamageParts`**, e questa funzione e' il suo caso a una parte sola: `Direct`
+	 * e' tutta parte `Direct`, `Environmental` tutta l'altra. Con una parte a zero l'ordine in cui il temporaneo consuma
+	 * le due parti non conta, quindi ogni chiamante a una sorgente sola ha lo stesso esito di prima, numero per numero
+	 * (`Damage.BaseShield.SingleSourceKeepsTodaysArithmetic` lo confronta con la formula di prima).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static FRTDamageResult ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
+		int32 TemporaryShield, int32 Health);
+
+	/**
+	 * Applica a un bersaglio un danno IN DUE PARTI ([D-634] (5), #4189): la parte `Direct`, che lo scudo base ferma, e
+	 * l'altra, che lo attraversa — un colpo elementale nel Blast, o il danno ambientale ([D-224]) quando arriva da
+	 * `ApplyDamage`. Nessun valore scende sotto 0; una parte negativa vale 0.
+	 *
+	 * L'ordine (design del #4189, §5 punto 4):
+	 *   1. il TEMPORANEO assorbe per primo, da qualunque parte, come in `ApplyDamage`: sta per scadere comunque;
+	 *   2. delle due parti consuma PRIMA quella che la base non ferma, poi il `Direct`;
+	 *   3. lo scudo BASE assorbe solo cio' che resta della parte `Direct`;
+	 *   4. gli HP prendono il resto delle due.
+	 *
+	 * 🔑 **Il punto 2 e' la scelta, e cambia l'esito solo quando lo stesso bersaglio prende tutte e due le parti con un
+	 * temporaneo attivo.** Speso sul `Direct`, il temporaneo lascerebbe la base senza niente da fermare e l'elementale
+	 * intero agli HP: base 50, temporaneo 30, 40 elementali e 60 `Direct` farebbero 40 di HP invece di 20. Prima
+	 * l'altra parte, la base vale sul `Direct` in ogni caso. E' una proposta del design, ribaltabile: lo pinna
+	 * `Damage.BaseShield.TemporaryTakesTheElementalPartFirst`.
+	 *
+	 * ⚠️ Le due parti si sommano PRIMA, per bersaglio, dal chiamante: chiamarla una volta per colpo renderebbe l'esito
+	 * dipendente dall'ordine dei colpi (invariante #3).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTDamageResult ApplyDamageParts(int32 DirectDamage, int32 NonDirectDamage, int32 Shield,
 		int32 TemporaryShield, int32 Health);
 
 	/**
@@ -877,7 +930,8 @@ public:
 	 *   e ambientale (D-589 (1)): stessa forma, stessa funzione.
 	 *
 	 * La chiama `URTHexCombatLibrary::MitigatedHitPower` nel punto in cui il colpo nasce (CP 53.2c), con la DEF
-	 * del bersaglio e il bonus dell'attaccante copiati dal catalogo (valori dal CP 53.3c); il pass di `Exposed`
+	 * del bersaglio (o la sua RES per l'elemento del colpo, #4189) e il bonus dell'attaccante copiati dal catalogo
+	 * (valori dal CP 53.3c); il pass di `Exposed`
 	 * la richiama con `ModPercent` 120 (CP 53.3b). Con `Defense = 0` e `ModPercent = 100` e' l'identita'.
 	 *
 	 * Valori negativi: `Base`, `RearBonus` e `ModPercent` sotto zero valgono zero; `Defense` sotto zero

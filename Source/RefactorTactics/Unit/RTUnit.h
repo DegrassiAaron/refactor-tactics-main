@@ -140,7 +140,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 RearBonus = 0;
 
-	/** La RES verso un elemento: quella dichiarata per `ElementId`, altrimenti il default (D-595 (3)). */
+	/**
+	 * La RES verso un elemento: quella dichiarata per `ElementId`, altrimenti il default (D-595 (3)). ⚠️ Il Blast non la
+	 * chiama: legge la copia nello snapshot con `FRTHexCombatUnit::DefenseAgainst` (#4189), che per un elemento applica
+	 * questa stessa regola. Chi cambia l'una cambi l'altra (`Damage.Element.PreviewUnitsCarryTheResistance` le confronta).
+	 */
 	int32 ResistanceAgainst(const FName& ElementId) const
 	{
 		if (const int32* Specific = ElementResistance.Find(ElementId))
@@ -1512,7 +1516,7 @@ public:
 	/**
 	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
 	 *
-	 * Il catalogo promette "+6 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
+	 * Il catalogo promette "+60 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio
 	 * sarebbe una vulnerabilita' generica di cui approfitterebbe anche la squadra del bersaglio.
 	 */
 	void ApplyMarkedBy(int32 MarkerTeamId, int32 Turns);

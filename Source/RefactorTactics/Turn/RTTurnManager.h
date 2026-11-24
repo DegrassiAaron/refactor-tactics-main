@@ -707,6 +707,19 @@ public:
 	bool bRecordAttackBeatsForTest = false;
 
 	/**
+	 * Copia gli intenti e i colpi che `CollectHexAttacks` raccoglie nel Blast del turno, prima che Interrupt e Intercept
+	 * riscrivano il piano, in `RecordedBlastIntentsForTest` e `RecordedBlastHitsForTest` (#4189). Solo test.
+	 *
+	 * Esiste perche' l'elemento dell'azione (`FRTActionDef::ElementId`) viaggia sull'intento e sul colpo e non entra nel
+	 * TurnLog: senza questa copia il tragitto dal `Def` al colpo, attraverso i due punti in cui l'intento nasce, non si
+	 * vede da un turno vero. Membro C++ nudo, non `UPROPERTY` (F20). Il registro e' dell'ultimo Blast: acceso lo riscrive,
+	 * anche vuoto; spento lo svuota, e un Blast non registrato non lascia leggere il piano di quello prima.
+	 */
+	bool bRecordBlastPlanForTest = false;
+	const TArray<FRTHexAttackIntent>& RecordedBlastIntentsForTest() const { return RecordedBlastIntents; }
+	const TArray<FRTHexAttackHit>& RecordedBlastHitsForTest() const { return RecordedBlastHits; }
+
+	/**
 	 * Le attivazioni di Prep e Dash le rivela SOLO la rete di fine fase (review della PR #3561). Solo test.
 	 * 🔑 La rete e' senza casi per aritmetica — `PhaseTime` dimensiona la fase su `N x AttackShowSeconds` e il ramo
 	 * per tick legge lo stesso valore nello stesso tick — quindi senza questo flag il suo comportamento in pausa non
@@ -3758,6 +3771,10 @@ private:
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */
 	TArray<FRTResolvedEvent> ResolvedTimeline;
+
+	/** Il piano dell'ultimo Blast con `bRecordBlastPlanForTest` acceso, vuoto se era spento (#4189). Nessun lettore di produzione. */
+	TArray<FRTHexAttackIntent> RecordedBlastIntents;
+	TArray<FRTHexAttackHit> RecordedBlastHits;
 
 	// Lo stato del turno che il playback scrive o legge, ma che appartiene all'orchestratore: il resto del playback
 	// vive in `Playback` (#4057).

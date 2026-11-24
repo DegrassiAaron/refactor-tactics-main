@@ -6342,6 +6342,10 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 						// autore entrano insieme o non entrano. Sei `Add` in fila erano sei occasioni di
 						// scriverne cinque, e un `continue` infilato in mezzo avrebbe attribuito il
 						// contrattacco all'unita' sbagliata senza che niente diventasse rosso.
+						//
+						// ⛔ `FRTAttack` senza elemento (#4189): il colpo di ritorno e' `Direct` qualunque elemento o
+						// perforante dichiari la reazione, perche' non nasce da un intento del Blast. Per questo
+						// `ValidateActions` li rifiuta su ogni riga di slot `Reaction`.
 						Out.CounterAttacks.Add(FRTCounterAttack{
 							FRTAttack(Event.TargetUnitId, Event.Amount),
 							Unit->Cell,
@@ -6535,6 +6539,18 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
+	// Il registro di prova e' il piano di QUESTO Blast e di nessun altro (#4189): acceso, l'assegnazione lo riscrive anche
+	// con un piano vuoto; spento, si svuota, cosi' chi spegne il flag e rilegge non trova il piano di un turno precedente.
+	if (bRecordBlastPlanForTest)
+	{
+		RecordedBlastIntents = Ctx.Intents;
+		RecordedBlastHits = Ctx.Plan.Hits;
+	}
+	else
+	{
+		RecordedBlastIntents.Reset();
+		RecordedBlastHits.Reset();
+	}
 
 	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'
 	// fermato, o una carica riuscita) si pagano — quelli che il click della squadra, dall'origine e con la conoscenza con cui ha giudicato, avrebbe
@@ -6781,11 +6797,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		return PrecedeNelBlast(IntentDefs, HA.IntentIndex, HA.AttackerId, HB.IntentIndex, HB.AttackerId);
 	});
 
-	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo diretto che fa danno a chi
-	// ha scattato allo scoperto, PRIMA della DEF e della copertura — cioe' ricalcolando il colpo del piano, dove spalle,
-	// DEF e nominale sono ancora noti. Viene PRIMA del marchio e del bonus condizionale, che sommano delta piatti a
-	// `Power` e non devono entrare nel prodotto. Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come
-	// per il marchio, e NON si consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
+	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo che fa danno a chi ha
+	// scattato allo scoperto, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto», ribaltabile),
+	// PRIMA della difesa e della copertura — cioe' ricalcolando il colpo del piano, dove spalle, difesa e nominale sono
+	// ancora noti. Viene PRIMA del marchio e del bonus condizionale, e dal #4189 l'ordine non cambia il numero **sullo
+	// stesso colpo**: i due bonus entrano nel Base ricalcolando con il `Mod` che il colpo porta, quindi il 120 li
+	// moltiplica comunque ([D-634] (35)). ⚠️ Cambia invece CHI e' idoneo: `Exposed` e il marchio scelgono il loro colpo
+	// prima del +80, quindi una LinearDischarge che la copertura aveva azzerato e che il +80 riporta sopra zero non e'
+	// mai stata vista da nessuno dei due. Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come per il marchio, e NON si
+	// consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
 	//
 	// ⏱️ *Fino al 2026-11-10 era un `+5` (poi `+50`) piatto sommato DOPO la copertura da `ApplyFirstHitDelta`, con il
 	// totale per bersaglio indipendente da quale colpo lo prendesse. Con un moltiplicatore il totale DIPENDE da quale
@@ -6819,7 +6839,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				? IntentDefs[Hit.IntentIndex].Priority : MAX_int32;
 			if (HitPriority <= IncomingMarkPriority[Hit.TargetId]) { continue; }
 		}
-		Hit.Power += URTCombatLibrary::MarkedFirstHitBonus;
+		// [D-634] (35), #4189: il +60 entra nel Base, PRIMA della difesa — `max(0, M(Base + 60, Spalle, Mod, difesa) −
+		// Copertura)` — e non piu' sul colpo gia' mitigato. Chi lo prende non cambia (Ruling 4): il primo colpo alleato
+		// che fa danno, giudicato PRIMA del bonus dalla guardia `Power <= 0` qui sopra.
+		URTHexCombatLibrary::AddBonusToHitBase(Hit, URTCombatLibrary::MarkedFirstHitBonus);
 		MarkSpentOn.Add(Hit.TargetId);
 	}
 	// Consumo dopo il pass, non dentro: durante il pass `HasStatus` deve rispondere sullo stato congelato.
@@ -6841,9 +6864,9 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
-	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
-	// solo sul primo, quindi non passa dai delta qui sotto.
+	// `Gadget.LinearDischarge` +80 contro bersaglio `Status.Wet` (catalogo eroi §1), nel Base del colpo ([D-634] (35)).
+	// Non e' nella lista `Effects` perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio
+	// e' bagnato — non solo sul primo, quindi non passa dai delta qui sotto.
 	//
 	// Due sorgenti di bagnato, e contano entrambe:
 	//   - GIA' bagnato quando il Blast comincia (acqua bassa attraversata nel Dash, o turno precedente):
@@ -6872,7 +6895,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
+			// [D-634] (35), #4189: il +80 entra nel Base, PRIMA della difesa, come il marchio — e dopo di lui, sullo stesso
+			// Base: marchio e +80 sulla stessa scarica fanno `M(Base + 60 + 80)`, un solo arrotondamento. ⏱️ *Fino al #4189
+			// era `EffectiveAttackPower(Power, 80)`, sommato al colpo gia' mitigato.* Nessuna guardia `Power <= 0`, come
+			// prima (Ruling 4): un colpo che la copertura aveva azzerato prende il bonus, ma la copertura la paga una volta.
+			URTHexCombatLibrary::AddBonusToHitBase(Hit, URTCombatLibrary::GadgetWetDischargeBonus);
 		}
 	}
 
@@ -7119,10 +7146,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// La riduzione della Guardia viene per ULTIMA, dopo i modificatori del danno: si clampa a 0 (una riduzione non cura),
-	// quindi applicata prima dei delta che AGGIUNGONO (`Status.Marked`, il bonus condizionale, e fino al 2026-11-10
-	// `Status.Exposed`) ne perderebbe l'avanzo — 100 meno 150 fa 0 e il +60 che segue lo riporta a 60, mentre 100 piu'
-	// 60 meno 150 fa 10. `Exposed` oggi moltiplica la Base PRIMA della DEF e della copertura (CP 53.3b), ancora piu' a monte.
-	// ⏱️ *Fino al 2026-09-20 la ragione era quella del pool ([D-292]): coprire cio' che resta, non il danno nominale.*
+	// quindi applicata prima di un modificatore che AGGIUNGE ne perderebbe l'avanzo. Oggi nessuno sta a valle: `Exposed`
+	// moltiplica la Base PRIMA della difesa e della copertura (CP 53.3b), e dal #4189 il marchio e il +80 contro `Wet`
+	// stanno nel Base, prima della difesa, moltiplicati dal `Mod` ([D-634] (35)) — tutti a monte, sul piano.
+	// ⏱️ *Fino al #4189 il marchio e il bonus condizionale erano delta che AGGIUNGEVANO a `Power` gia' mitigato (e fino al
+	// 2026-11-10 anche `Status.Exposed`), ed era il caso che questo ordine proteggeva: 100 meno 150 fa 0 e il +60 che
+	// segue lo riporta a 60, mentre 100 piu' 60 meno 150 fa 10. Fino al 2026-09-20 la ragione era quella del pool
+	// ([D-292]): coprire cio' che resta, non il danno nominale.*
 	//
 	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
 	// scrivere le chiamate. Le due maschere sono parzialmente sovrapposte (`Guard` e' un sottoinsieme di
@@ -7655,6 +7685,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// somma i colpi PER BERSAGLIO (`DamageByTarget += Attack.Power`) e applica lo scudo **una volta sola**
 	// sul totale — invariante #3, che lo stadio `ERTDamageStage::TargetSum` del breakdown nomina. Non c'e'
 	// un valore da leggere: c'e' una regola da dichiarare, ed e' questa.
+	//
+	// ⚠️ **Dal #4189 la somma ha due parti** — la base ferma solo il `Direct`, non l'elementale ([D-634] (5)) — e la
+	// regola qui sotto NON le distingue: la quota resta proporzionale a `Power`, con o senza elemento. Su un bersaglio
+	// misto la quota quindi non segue le parti, e puo' essere piu' alta o piu' bassa di cio' che la parte del colpo ha
+	// perso. Senza scudo temporaneo e' piu' bassa per l'elementale, che riceve una parte dell'assorbimento della base che
+	// non ha subito. Con un temporaneo, che si spende prima sull'elementale, il verso si inverte: in
+	// `Damage.BaseShield.MixedTargetInATurn` il temporaneo assorbe per intero i 162 elementali, eppure quel colpo riceve
+	// circa la meta' dei 63 HP persi. La somma resta il netto, che e' la proprieta' che [D-438] protegge; la ripartizione
+	// per parte sarebbe un'altra regola, non scelta qui.
 	//
 	// **Proporzionale a `Power`, troncata, col resto ai colpi di indice minore.** Due proprieta' la
 	// scelgono. La **somma delle quote e' il netto**: chi somma il feed ottiene cio' che gli HP hanno
@@ -8391,7 +8430,11 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 				}
 			}
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
+			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo senza elemento. ⛔ Elemento
+			// e perforante della riga predittiva non arrivano fin qui (#4189): `Armed` non li porta, e il colpo resterebbe
+			// `Direct` e riducibile anche dove [D-634] (5) e (47) lo vorrebbero altrimenti. Per questo `ValidateActions` li
+			// rifiuta su una riga di Prep: chi li vuole su una predittiva li porta prima in `FRTArmedPrediction`, e poi toglie
+			// il rifiuto.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 				Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
@@ -8938,7 +8981,10 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		}
 	}
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
+	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra, e lo stesso limite (#4189): elemento e
+	// perforante non arrivano fin qui. `ValidateActions` li rifiuta sulla riga `Action.Overwatch`, che e' di Prep. ⚠️ Non
+	// sull'arma: `Armed.Damage` e' il danno dell'attacco base dell'eroe, copiato all'armamento, e quella riga e' del Blast,
+	// quindi passa. Un attacco base elementale o perforante sparerebbe qui `Direct` e riducibile; nessuno di oggi lo e'.
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
 		Target->Shield, Target->GetTemporaryShield(), Target->Health);
 	Target->ApplyCombatState(Result.Health, Result.Shield);

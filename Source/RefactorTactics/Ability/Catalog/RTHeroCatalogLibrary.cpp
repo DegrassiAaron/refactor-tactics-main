@@ -420,11 +420,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Gadget.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
-	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
-	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
-	// Effects: e' condizionale al bersaglio, non un danno fisso, e passa da `EffectiveAttackPower` +
-	// `URTCombatLibrary::GadgetWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
-	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
+	// Indice 1 — LinearDischarge. 240 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
+	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+80 su bersaglio Wet" NON e' nella lista
+	// Effects: e' condizionale al bersaglio, non un danno fisso: `URTCombatLibrary::GadgetWetDischargeBonus` entra nel
+	// Base del colpo, prima della difesa (`URTHexCombatLibrary::AddBonusToHitBase`, [D-634] (35), #4189; vedi
+	// `Heroes.Gadget.WetBonus` e `Damage.BaseBonus.WetEntersTheBaseInATurn`) — un chiamante che applica
+	// SOLO Effects vede 240, corretto finche' non controlla anche lo status del bersaglio.
 	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 240) }, ERTAbilityShape::Line));
@@ -498,7 +499,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// giorno in cui qualcuno leggesse `Action.Electrify`, e prometteva un lavoro gia' fatto.
 	//
 	// 🔑 Ed e' il verso corretto della combo firma: `Status.Wet` e le superfici conduttive sono il **setup
-	// sistemico**, la scarica e' il **payoff**. Il `+8` di LinearDischarge dipende dallo STATO del bersaglio,
+	// sistemico**, la scarica e' il **payoff**. Il `+80` di LinearDischarge dipende dallo STATO del bersaglio,
 	// non da chi l'ha bagnato (D-029, ADR-0006) — resta un'abilita' elettrica, non una skill d'acqua.
 	FRTAbilityVariant Concentrated;
 	Concentrated.VariantId = TEXT("Hero.Gadget.LinearDischarge.Concentrated");
@@ -585,7 +586,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
 	//
 	// ⚠️ Costo accettato con l'opzione C di #1006: questo `Wet` ad area era il preparatore della combo con
-	// Gadget (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
+	// Gadget (`LinearDischarge` fa +80 su bersaglio `Wet`). La combo passa ora solo per la linea di
 	// `PressureJet`, che copre meno bersagli.
 	//
 	// Il limite dichiarato di prima — la spinta di `Impact` ai nemici nella stessa area, senza resolver (R3) —
@@ -1165,7 +1166,20 @@ TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId,
 	const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape, int32 AreaRadius)
 {
-	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(CoreActionId);
+	return MakeHeroActionFromCatalog(HeroActionId, URTCatalogLibrary::GetCoreActionCatalog(), CoreActionId, Cooldown,
+		Shape, AreaRadius);
+}
+
+URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCatalog(const FName& HeroActionId,
+	const TArray<FRTActionDef>& Catalog, const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape,
+	int32 AreaRadius)
+{
+	// La stessa lettura di `URTCatalogLibrary::FindCoreAction` (la prima riga con quell'ID), sul catalogo dato.
+	FRTActionDef Core;
+	for (const FRTActionDef& Def : Catalog)
+	{
+		if (Def.ActionId == CoreActionId) { Core = Def; break; }
+	}
 	// ⚠️ `IsNone()` PRIMA del confronto, e non e' ridondanza: con `CoreActionId` vuoto il confronto
 	// `Core.ActionId != CoreActionId` mette a paragone `NAME_None` con `NAME_None`, e' falso, e la guardia
 	// lascia passare esattamente l'abilita' coi default che il docstring promette di impedire. E' la forma
@@ -1206,6 +1220,13 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// valore che il catalogo core dichiara e nessun eroe porta in partita. `0` e' il default di ogni core
 	// tranne `Action.Mortar`, quindi per le altre azioni copiarlo e' un'identita'.
 	Action->Def.MinRangeCells = Core.MinRangeCells;
+	// ➕ **E l'elemento** (#4189, [D-634] (4)): una riga core elementale darebbe senza questa riga un'azione d'eroe
+	// `Direct`. Oggi nessun core ne dichiara uno, quindi per tutte copiarlo e' un'identita'; un kit che vuole un altro
+	// elemento lo scrive dopo la derivazione, come `MistVeil` fa con la linea di tiro.
+	Action->Def.ElementId = Core.ElementId;
+	// ➕ **E il perforante** (#4189, [D-634] (47)), per la stessa ragione dell'elemento: una riga core perforante darebbe
+	// senza questa riga un'azione d'eroe che paga DEF e copertura. Oggi nessun core lo dichiara, quindi copiarlo e' un'identita'.
+	Action->Def.bPiercing = Core.bPiercing;
 	return Action;
 }
 

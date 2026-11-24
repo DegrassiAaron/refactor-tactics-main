@@ -53,8 +53,9 @@ public:
 	 * I dodici identificatori degli elementi ([D-588], [D-593]): `Element.Warp`, `Fire`, `Water`, `Earth`,
 	 * `Electric`, `Frost`, `Decay`, `Life`, `Arcane`, `Aegis`, `Air`, `Disintegration`. Nessun ordine ciclico
 	 * (D-588 (3)): l'ordine dell'array e' quello del catalogo delle coppie, una convenzione di scrittura.
-	 * E' vocabolario di design: nessun effetto di gioco nasce da qui, e il solo lettore oggi e' il validator
-	 * delle chiavi di `URTHeroData::ElementResistance` (E53 CP 53.2b).
+	 * E' vocabolario di design: nessun effetto di gioco nasce da qui, e oggi lo leggono soltanto i validator: quello
+	 * delle chiavi di `URTHeroData::ElementResistance` (E53 CP 53.2b) e quello di `FRTActionDef::ElementId` in
+	 * `URTCatalogLibrary::ValidateActions` (#4189).
 	 */
 	static const TArray<FName>& ElementIds();
 
@@ -76,12 +77,13 @@ public:
 	 * grafo conduttivo — acqua e superfici `Conductive` — e non lo crea. Portata e propagazione vengono dal
 	 * core, quindi `Range 0` non e' piu' un segnaposto in attesa di un numero.
 	 *
-	 * 🔑 **La combo `Wet` e' una sinergia SISTEMICA, e `LinearDischarge` resta un'abilita' elettrica.** Il `+8`
+	 * 🔑 **La combo `Wet` e' una sinergia SISTEMICA, e `LinearDischarge` resta un'abilita' elettrica.** Il `+80`
 	 * dipende da `Status.Wet` **sul bersaglio**, non da chi ha bagnato: acqua e superfici conduttive sono il
 	 * *setup*, la scarica e' il *payoff*. L'ownership e' decisa da D-029 e ADR-0006 — qualunque sorgente di
 	 * `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno) abilita lo stesso payoff, e
-	 * Muiren non e' un requisito. Il bonus non vive negli `Effects`: passa da `EffectiveAttackPower` +
-	 * `URTCombatLibrary::GadgetWetDischargeBonus`, ed e' misurato da `Heroes.Gadget.WetBonus`.
+	 * Muiren non e' un requisito. Il bonus non vive negli `Effects`: `URTCombatLibrary::GadgetWetDischargeBonus` entra
+	 * nel Base del colpo, prima della difesa ([D-634] (35), #4189), ed e' misurato da `Heroes.Gadget.WetBonus` e da
+	 * `Damage.BaseBonus.WetEntersTheBaseInATurn`.
 	 *
 	 * Limite dichiarato che resta: `Overload` non ha un modello di "dispositivo interrompibile", quindi
 	 * l'`Interrupt` sui dispositivi non e' rappresentabile. L'azione esiste comunque come DATO, con la sua
@@ -226,12 +228,29 @@ public:
 	 * guardare il risultato: `GetHeroRoster()` gira all'avvio, e un dereferenziamento nullo li' non e' un
 	 * fail-closed, e' un crash.
 	 *
-	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti** — e nient'altro. Restano fuori
-	 * lo `Slot` e tutti i campi di comportamento: `MovementStyle`, `StructureOp`, `PropagationLimit`,
-	 * `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`, `InterruptPolicy`, `bSelfTarget`,
-	 * `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e' lungo apposta:
-	 * un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea niente.
+	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti**, e dei campi di comportamento solo
+	 * quelli che una riga ciascuno copia dopo la costruzione: `bSelfTarget` (con lo specchio, #2283),
+	 * `LineOfSightPolicy` (#2890), `MinRangeCells` (#3093), `ElementId` e `bPiercing` (#4189). Restano fuori lo `Slot` e gli
+	 * altri: `MovementStyle`, `StructureOp`, `PropagationLimit`, `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`,
+	 * `InterruptPolicy`, `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e'
+	 * lungo apposta: un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea
+	 * niente. ⌫ *Fino a #4189 questa riga diceva «e nient'altro» e metteva `bSelfTarget` fra gli esclusi.*
 	 */
 	static URTActionData* MakeHeroActionFromCore(const FName& HeroActionId, const FName& CoreActionId,
 		int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0);
+
+	/**
+	 * `MakeHeroActionFromCore` su un catalogo DATO invece che sul catalogo core: la derivazione resta una lettura
+	 * per **ID**, cambia solo da dove si legge. `MakeHeroActionFromCore` e' questa funzione su
+	 * `URTCatalogLibrary::GetCoreActionCatalog()`.
+	 *
+	 * Esiste per i test (#4189): nessuna riga core dichiara oggi un elemento, quindi senza un catalogo iniettato la
+	 * copia di `ElementId` non si puo' far fallire. ⛔ I kit passano da `MakeHeroActionFromCore`: un kit che
+	 * derivasse da un catalogo suo avrebbe una seconda sede dei numeri core.
+	 *
+	 * Restituisce `nullptr` se `CoreActionId` e' vuoto o non e' in `Catalog`, come la gemella.
+	 */
+	static URTActionData* MakeHeroActionFromCatalog(const FName& HeroActionId, const TArray<FRTActionDef>& Catalog,
+		const FName& CoreActionId, int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single,
+		int32 AreaRadius = 0);
 };

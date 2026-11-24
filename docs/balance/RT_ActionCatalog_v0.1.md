@@ -462,7 +462,11 @@ cella controllata»: 160 danni, interruzione del movimento, **una sola attivazio
 appena raggiunta.
 
 **Mark Target** — applica `Status.Marked` per un turno: il prossimo attacco alleato contro il bersaglio infligge
-**+6** danni e consuma il marchio. Non aumenta il danno ambientale.
+**+60** danni e consuma il marchio. Non aumenta il danno ambientale. Il +60 entra nel Base del colpo, **prima** della
+difesa ([D-634](../decisions/RT_PDR_00_Decision_Log.md) (35), [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)):
+la DEF lo riduce come il resto del colpo, e contro DEF 45 un colpo da 240 marchiato fa `floor(300 × 100/145)` = 206.
+⏱️ *Fino al #4189 si sommava al colpo già mitigato: 165 + 60 = 225. E fino alla passata ×10 il valore scritto qui era
++6, la scala di allora.*
 
 ---
 

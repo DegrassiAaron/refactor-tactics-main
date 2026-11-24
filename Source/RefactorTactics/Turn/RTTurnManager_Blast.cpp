@@ -514,9 +514,14 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 		HexUnit.Facing = Unit->Facing; // CP 16.2: da che lato e' scoperta
 		// [D-589] (E53 CP 53.2c): la DEF mitiga PRIMA della copertura, che si sottrae in `CollectHexAttacks`, quindi
 		// viaggia nello snapshot come il facing; il bonus alle spalle e' dell'ATTACCANTE ([D-587]) e lo legge il
-		// colpo che parte da lui. Oggi entrambi sono a zero su tutto il roster: cambia la plumbing, non un numero.
+		// colpo che parte da lui. I valori vengono dal catalogo dal CP 53.3c.
 		HexUnit.Defense = Unit->Defense;
 		HexUnit.RearBonus = Unit->RearBonus;
+		// [D-634] (4) e (6), #4189: la RES mitiga il colpo ELEMENTALE come la DEF quello diretto, nello stesso punto, quindi
+		// viaggia con lei. ⚠️ Senza queste due righe un colpo elementale troverebbe la RES a 0 e passerebbe intero, senza
+		// errore (`Damage.Element.TodaysActionKeepsTheDefenseInATurn`). La mappa si copia intera e si legge solo per chiave.
+		HexUnit.ResistanceDefault = Unit->ResistanceDefault;
+		HexUnit.ElementResistance = Unit->ElementResistance;
 		Ctx.HexUnits.Add(HexUnit);
 	}
 }
@@ -1674,6 +1679,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Quarta volta lo stesso rimedio (`#3093`): senza questa riga l'intento nascerebbe a `0`, il planning
 		// rifiuterebbe `TooClose` e la risoluzione lo accetterebbe — la regola permissiva sul lato sbagliato.
 		Intent.MinRangeCells = Instance.Def.MinRangeCells;
+		// Quinta volta lo stesso rimedio (#4189, [D-634] (4)): l'elemento del colpo. Senza questa riga ogni intento
+		// nascerebbe `Direct`, e un'azione che il catalogo dichiara elementale arriverebbe al resolver senza elemento.
+		Intent.ElementId = Instance.Def.ElementId;
+		// Sesta volta (#4189, [D-634] (47)): il perforante. Senza questa riga ogni intento nascerebbe riducibile, e un'azione che il
+		// catalogo dichiara perforante pagherebbe la DEF e il muretto come ogni altra.
+		Intent.bPiercing = Instance.Def.bPiercing;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1775,6 +1786,10 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		// ciclo dei piani -- quindi la propagazione va ripetuta, o gli impatti smetterebbero di colpire mentre
 		// tutto il resto funziona.
 		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
+		// E l'elemento (#4189), per la stessa ragione: la carica ha il suo `Def`, e il colpo dell'impatto e' suo.
+		Intent.ElementId = Impact.Def.ElementId;
+		// E il perforante (#4189), per la stessa ragione: l'impatto di una carica perforante non paga DEF ne' copertura bassa.
+		Intent.bPiercing = Impact.Def.bPiercing;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);

@@ -389,6 +389,131 @@ bool FRTCatalogUltimateWithAnotherCostIsRejected::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #4189, [D-634] (29) — una riga con `Slot == Reaction` costa **almeno** la classe reazione, 2.
+ *
+ * Il costo e' dichiarato dalla riga ([D-594] (3)): la classe era il DEFAULT che `ShippedAction` e `MakeHeroAction`
+ * scrivono nella colonna, e per la reazione diventa anche un PAVIMENTO che `ValidateActions` fa rispettare. Il pavimento
+ * non e' un valore esatto: una reazione a 3 e' legale, una a 1 o a 0 no.
+ *
+ * ⚠️ **Il confine e' lo slot, non il nome**: `Action.Overwatch` si arma nel Prep (`Slot == Main`, costo 1) e RESTA a 1
+ * anche se `ArmsReaction` la riconosce. Il controllo positivo la legge dal catalogo vero.
+ *
+ * ⚠️ Una reazione marcata Ultimate costa 3 (`DefaultActionPointCost` guarda l'Ultimate prima dello slot) e il validatore
+ * la pretende a 3 ([D-613] (4)): il pavimento di 2 sta sotto, quindi i due controlli non si contraddicono. A 2 la rifiuta
+ * il solo controllo dell'Ultimate; a 1 li rifiutano entrambi, ed e' vero per tutti e due.
+ *
+ * Verifica di mutazione (#4189, misurata): tolto il controllo da `ValidateActions`, il test diventa rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogReactionBelowItsClassIsRejected,
+	"RefactorTactics.Catalog.ReactionBelowItsClassIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogReactionBelowItsClassIsRejected::RunTest(const FString&)
+{
+	TestEqual(TEXT("premessa: la classe reazione costa 2"), URTCatalogLibrary::ActionPointCostReaction, 2);
+
+	// Una reazione vera del catalogo, valida in ogni altro campo: cambia solo il costo.
+	FRTActionDef Riga = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+	if (!TestTrue(TEXT("premessa: Action.Counter e' una reazione"), Riga.Slot == ERTActionSlot::Reaction)) { return false; }
+	TestEqual(TEXT("premessa: la riga vera costa la sua classe"), Riga.ActionPointCost, URTCatalogLibrary::ActionPointCostReaction);
+	TestEqual(TEXT("controllo positivo: a 2 la reazione e' valida"), URTCatalogLibrary::ValidateActions({ Riga }).Num(), 0);
+
+	// 1. Sotto la classe: 1 e 0 sono rifiutati, con UN errore che nomina riga, costo trovato, pavimento e decisione.
+	for (const int32 Costo : { 1, 0 })
+	{
+		Riga.ActionPointCost = Costo;
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Riga });
+		if (!TestEqual(*FString::Printf(TEXT("reazione a %d: un errore"), Costo), Errori.Num(), 1)) { continue; }
+		TestTrue(*FString::Printf(TEXT("reazione a %d: l'errore nomina la riga"), Costo), Errori[0].Contains(TEXT("Action.Counter")));
+		TestTrue(*FString::Printf(TEXT("reazione a %d: e il costo trovato"), Costo),
+			Errori[0].Contains(FString::Printf(TEXT("costo %d"), Costo)));
+		TestTrue(*FString::Printf(TEXT("reazione a %d: e il pavimento"), Costo),
+			Errori[0].Contains(FString::Printf(TEXT("almeno %d"), URTCatalogLibrary::ActionPointCostReaction)));
+		TestTrue(*FString::Printf(TEXT("reazione a %d: e la decisione"), Costo), Errori[0].Contains(TEXT("D-634 (29)")));
+	}
+
+	// 2. E' un pavimento, non un valore esatto: sopra la classe resta valida.
+	Riga.ActionPointCost = URTCatalogLibrary::ActionPointCostReaction + 1;
+	TestEqual(TEXT("reazione a 3: valida, il pavimento non e' un'uguaglianza"), URTCatalogLibrary::ValidateActions({ Riga }).Num(), 0);
+
+	// 3. Il confine e' lo slot. La stessa riga fuori dallo slot Reaction a 1 e' valida (una riga puo' dichiarare un costo
+	//    proprio), e `Action.Overwatch` — che `ArmsReaction` riconosce, ma che si arma nel Prep — resta a 1 e passa.
+	{
+		FRTActionDef Prep = Riga;
+		Prep.Slot = ERTActionSlot::Main;
+		Prep.ActionPointCost = 1;
+		TestEqual(TEXT("la stessa riga in slot Main a 1: valida"), URTCatalogLibrary::ValidateActions({ Prep }).Num(), 0);
+
+		const FRTActionDef Overwatch = URTCatalogLibrary::FindCoreAction(TEXT("Action.Overwatch"));
+		TestTrue(TEXT("premessa: Action.Overwatch e' nel catalogo"), Overwatch.ActionId == FName(TEXT("Action.Overwatch")));
+		TestTrue(TEXT("premessa: Action.Overwatch non e' nello slot Reaction"), Overwatch.Slot != ERTActionSlot::Reaction);
+		TestTrue(TEXT("premessa: ma ArmsReaction la riconosce"), URTCatalogLibrary::ArmsReaction(Overwatch));
+		TestEqual(TEXT("Action.Overwatch costa 1"), Overwatch.ActionPointCost, 1);
+		TestEqual(TEXT("e passa il validatore"), URTCatalogLibrary::ValidateActions({ Overwatch }).Num(), 0);
+	}
+
+	// 4. Una reazione marcata Ultimate: 3 e' legale; a 2 la rifiuta il solo controllo dell'Ultimate (D-613 (4)), a 1 tutti e due.
+	{
+		FRTActionDef Ultimate = URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter"));
+		Ultimate.bIsUltimate = true;
+		Ultimate.ActionPointCost = URTCatalogLibrary::DefaultActionPointCost(Ultimate);
+		TestEqual(TEXT("premessa: una reazione marcata Ultimate costa 3"), Ultimate.ActionPointCost, URTCatalogLibrary::ActionPointCostUltimate);
+		TestEqual(TEXT("reazione Ultimate a 3: valida"), URTCatalogLibrary::ValidateActions({ Ultimate }).Num(), 0);
+
+		Ultimate.ActionPointCost = URTCatalogLibrary::ActionPointCostReaction;
+		const TArray<FString> ADue = URTCatalogLibrary::ValidateActions({ Ultimate });
+		TestEqual(TEXT("reazione Ultimate a 2: il solo errore dell'Ultimate"), ADue.Num(), 1);
+		TestTrue(TEXT("e nomina D-613 (4), non D-634 (29)"),
+			ADue.Num() == 1 && ADue[0].Contains(TEXT("D-613 (4)")) && !ADue[0].Contains(TEXT("D-634 (29)")));
+
+		Ultimate.ActionPointCost = 1;
+		TestEqual(TEXT("reazione Ultimate a 1: due errori, uno per regola"), URTCatalogLibrary::ValidateActions({ Ultimate }).Num(), 2);
+	}
+
+	// 5. Le righe vere: ogni reazione del catalogo core e dei kit d'eroe passa a costo di classe, e nessuna riga vera sta
+	//    sotto (la regola non cambia nessun numero). Poi la stessa riga portata a 1 e' rifiutata: la regola raggiunge le
+	//    righe vere, non solo quella sintetica. Anti-vacuita': le reazioni lette sono contate, e ce n'e' una per fonte.
+	{
+		int32 ReazioniCore = 0;
+		int32 ReazioniEroe = 0;
+		int32 RigheLette = 0;
+		const auto Esamina = [this, &RigheLette](const FRTActionDef& Def, const FString& Fonte)
+		{
+			++RigheLette;
+			TestEqual(*FString::Printf(TEXT("%s: la riga vera passa il validatore"), *Fonte), URTCatalogLibrary::ValidateActions({ Def }).Num(), 0);
+			if (Def.Slot != ERTActionSlot::Reaction) { return false; }
+			TestTrue(*FString::Printf(TEXT("%s: la reazione vera non sta sotto la sua classe"), *Fonte),
+				Def.ActionPointCost >= URTCatalogLibrary::ActionPointCostReaction);
+			FRTActionDef Ridotta = Def;
+			Ridotta.ActionPointCost = 1;
+			// «Rifiutata dal pavimento»: una reazione marcata Ultimate avrebbe anche l'errore dell'Ultimate, quindi si cerca la
+			// decisione fra gli errori invece di contarli.
+			const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Ridotta });
+			TestTrue(*FString::Printf(TEXT("%s: portata a 1 e' rifiutata da D-634 (29)"), *Fonte),
+				Errori.ContainsByPredicate([](const FString& E) { return E.Contains(TEXT("D-634 (29)")); }));
+			return true;
+		};
+
+		for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+		{
+			if (Esamina(Def, FString::Printf(TEXT("core %s"), *Def.ActionId.ToString()))) { ++ReazioniCore; }
+		}
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (!TestNotNull(TEXT("eroe del roster"), Hero)) { continue; }
+			for (const URTActionData* Action : Hero->Actions)
+			{
+				if (!Action) { continue; }
+				if (Esamina(Action->Def, FString::Printf(TEXT("eroe %s"), *Action->Def.ActionId.ToString()))) { ++ReazioniEroe; }
+			}
+		}
+		TestTrue(TEXT("anti-vacuita': il catalogo core ha almeno una reazione"), ReazioniCore > 0);
+		TestTrue(TEXT("anti-vacuita': i kit d'eroe hanno almeno una reazione"), ReazioniEroe > 0);
+		TestTrue(TEXT("anti-vacuita': le righe sono state lette"), RigheLette > ReazioniCore + ReazioniEroe);
+	}
+	return true;
+}
+
 // E38 CP 38.11 (#4112) — il budget del turno e' un numero dell'unita' ([D-613] (1)), e `ValidatePlan` legge quello.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanBudgetIsReadFromTheUnit,
 	"RefactorTactics.Plan.BudgetIsReadFromTheUnit",

@@ -573,6 +573,9 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	// Nome vincolante della DoD. Il marchio vale per UN colpo: il secondo attacco alleato dello stesso turno
 	// arriva intero. Qui il marchio e' modellato come un delta di `ApplyFirstHitDelta` (in produzione ha un pass proprio nel Blast, `MarkSpentOn`), quindi "consumato" resta
 	// ordine-indipendente invece di diventare una corsa fra attaccanti.
+	// ⚠️ Il MODELLO di questo test somma il +60 a `Power`; in produzione, dal #4189, il pass lo mette nel Base del colpo,
+	// PRIMA della difesa ([D-634] (35), `URTHexCombatLibrary::AddBonusToHitBase`). Con DEF 0, come qui, i due numeri
+	// coincidono; con una DEF il punto lo pinnano `Damage.BaseBonus.MarkEntersTheBaseInATurn` e il resto della famiglia.
 	TestEqual(TEXT("il marchio vale +60"), URTCombatLibrary::MarkedFirstHitBonus, 60);
 
 	TArray<int32> Delta;

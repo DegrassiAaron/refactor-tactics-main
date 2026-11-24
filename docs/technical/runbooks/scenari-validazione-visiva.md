@@ -202,7 +202,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
-| `Visual.Combat.WaterElectric` | r5 | Wraith scatta nella spina d'acqua in fase **Dash**, il terreno lo bagna, e la scarica di Gadget nel Blast trova un bersaglio già bagnato: **due regole in un colpo** — la combo firma e l'ordine fra le fasi. `90 − (32 − 5 di BaseShield) = 63`. ⚠️ Phase **non** è in questo scenario: la variante coordinata fra due eroi è `Visual.Combat.WaterElectricCoordinated`, nella tabella delle sorgenti del bagnato | scritto |
+| `Visual.Combat.WaterElectric` | r5 | Wraith scatta nella spina d'acqua in fase **Dash**, il terreno lo bagna, e la scarica di Gadget nel Blast trova un bersaglio già bagnato: **due regole in un colpo** — la combo firma e l'ordine fra le fasi. `900 − (278 − 50 di BaseShield) = 672`, col +80 contro `Wet` nel Base prima della DEF 15: `floor((240 + 80) × 100/115)` = 278 (D-634 (35), [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)). ⚠️ Phase **non** è in questo scenario: la variante coordinata fra due eroi è `Visual.Combat.WaterElectricCoordinated`, nella tabella delle sorgenti del bagnato | scritto |
 | `Visual.Combat.FallbackTargetMoved` | r5 | Riktor lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | già nel corpus |
 | `Visual.Core.PhaseOrder` | r4 | tre azioni in tre fasi separate — carica, colpo, camminata: `Dash → Blast → Move` deve **vedersi** | scritto |
 | `Visual.Combat.PushResistance` | r4 | la stessa spinta su Riktor (assorbita, PushResist 1) e su Wraith (subìta): una statistica invisibile diventa visibile | scritto |
@@ -471,8 +471,8 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
-| `Visual.Combat.WaterElectricCoordinated` | `Hero.Muiren.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
-| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `90 − (32 − 5 di BaseShield) = 63` — Wraith ha 90 HP, non 100 |
+| `Visual.Combat.WaterElectricCoordinated` | `Hero.Muiren.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `900 − (191 + 330 − 50 di BaseShield) = 429`: i due colpi arrivano alle spalle (+60), e il +80 della scarica entra nel Base prima della DEF (D-634 (35), [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)) — Wraith ha 900 HP, non 1000 |
+| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `900 − (278 − 50 di BaseShield) = 672` — Wraith ha 900 HP, non 1000 |
 
 ### Lacune dichiarate
 

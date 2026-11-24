@@ -20,8 +20,13 @@ TArray<FRTUnitCombatState> URTCombatResolver::ResolveAttacksWithBreakdown(
 	// stati e' indifferente — ognuno si risolve dal proprio stato iniziale — ma il registro degli stadi
 	// raccolto nell'ordine di una mappa cambierebbe fra due esecuzioni, e un elenco che cambia ordine non
 	// e' verificabile (`#1951`).
+	//
+	// 🔑 **Dal #4189 la somma ha due parti** ([D-634] (5)): lo scudo base ferma solo il `Direct`, e un colpo elementale lo
+	// attraversa. `DamageByTarget` resta il totale (lo stadio `TargetSum`), `ElementalByTarget` ne e' la parte con
+	// elemento; le mappe si leggono per chiave, l'ordine resta `Order`.
 	TArray<int32> Order;
 	TMap<int32, int32> DamageByTarget;
+	TMap<int32, int32> ElementalByTarget;
 	for (const FRTAttack& Attack : Attacks)
 	{
 		if (Units.IsValidIndex(Attack.TargetIndex))
@@ -31,6 +36,10 @@ TArray<FRTUnitCombatState> URTCombatResolver::ResolveAttacksWithBreakdown(
 				Order.Add(Attack.TargetIndex);
 			}
 			DamageByTarget.FindOrAdd(Attack.TargetIndex) += Attack.Power;
+			if (!Attack.ElementId.IsNone())
+			{
+				ElementalByTarget.FindOrAdd(Attack.TargetIndex) += Attack.Power;
+			}
 			OutByTarget.FindOrAdd(Attack.TargetIndex).Stages.Append(Attack.Breakdown);
 		}
 	}
@@ -39,11 +48,15 @@ TArray<FRTUnitCombatState> URTCombatResolver::ResolveAttacksWithBreakdown(
 	for (const int32 TargetIndex : Order)
 	{
 		const int32 Total = DamageByTarget[TargetIndex];
+		const int32 Elemental = ElementalByTarget.FindRef(TargetIndex);
 		const FRTUnitCombatState& Initial = Units[TargetIndex];
-		// `Direct` come costante e non come campo di `FRTAttack`: ogni colpo che attraversa questo resolver
-		// viene dal Blast, e un campo che avrebbe sempre lo stesso valore sarebbe speculazione. Il danno
-		// ambientale non passa di qui — chiama `ApplyDamage` direttamente dal TurnManager.
-		const FRTDamageResult Damaged = URTCombatLibrary::ApplyDamage(Total, ERTDamageSource::Direct,
+		// Le due parti in una chiamata sola, sulla somma per bersaglio: il temporaneo consuma prima l'elementale, la base
+		// assorbe solo cio' che resta del `Direct` (`ApplyDamageParts`). Senza colpi elementali la parte elementale e' 0, e
+		// l'esito e' quello di `ApplyDamage(Total, Direct)` di prima del #4189. Il danno ambientale non passa di qui — chiama
+		// `ApplyDamage` direttamente dal TurnManager.
+		// ⏱️ *Fino al #4189 qui c'era `ApplyDamage(Total, ERTDamageSource::Direct, ...)`, con `Direct` come costante: un campo
+		// su `FRTAttack` che avrebbe avuto sempre lo stesso valore sarebbe stato speculazione. Con l'elemento non lo e' piu'.*
+		const FRTDamageResult Damaged = URTCombatLibrary::ApplyDamageParts(Total - Elemental, Elemental,
 			Initial.Shield, Initial.TemporaryShield, Initial.Health);
 		Result[TargetIndex] = FRTUnitCombatState(Damaged.Health, Damaged.Shield, Damaged.TemporaryShield);
 
@@ -64,7 +77,8 @@ TArray<FRTUnitCombatState> URTCombatResolver::ResolveAttacksWithBreakdown(
 
 		// STADIO 9 — temporaneo → base → HP. `After` e' cio' che gli HP hanno DAVVERO perso, cioe'
 		// l'`Amount` che il TurnLog registra: e' il punto in cui il breakdown smette di essere una somma di
-		// intenzioni e diventa la stessa cosa che il registro della partita dichiara.
+		// intenzioni e diventa la stessa cosa che il registro della partita dichiara. `Operand` e' cio' che temporaneo e base
+		// hanno assorbito insieme sulle due parti: per un colpo elementale da solo la base non vi contribuisce (#4189).
 		const int32 HpLost = Initial.Health - Damaged.Health;
 		Breakdown.Stages.Emplace(ERTDamageStage::ShieldAbsorption, FName(TEXT("D-224 · scudo base")),
 			ERTDamageOp::TwoLayerAbsorb, Total - HpLost, Total, HpLost);

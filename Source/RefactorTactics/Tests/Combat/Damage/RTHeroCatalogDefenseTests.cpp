@@ -33,7 +33,10 @@ namespace
 		return URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 	}
 
-	/** Unita' del piano costruita DAL CATALOGO: DEF e bonus alle spalle sono quelli di `URTHeroData`, non un numero scelto qui. */
+	/**
+	 * Unita' del piano costruita DAL CATALOGO: DEF, RES e bonus alle spalle sono quelli di `URTHeroData`, non un numero
+	 * scelto qui. La RES la copia come lo snapshot del Blast (#4189), anche se i colpi di questo file sono senza elemento.
+	 */
 	FRTHexCombatUnit CatDefUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell, ERTHexDirection Facing, const URTHeroData* Hero)
 	{
 		FRTHexCombatUnit U;
@@ -43,6 +46,8 @@ namespace
 		U.bAlive = true;
 		U.Facing = Facing;
 		U.Defense = Hero ? Hero->Defense : 0;
+		U.ResistanceDefault = Hero ? Hero->ResistanceDefault : 0;
+		if (Hero) { U.ElementResistance = Hero->ElementResistance; }
 		U.RearBonus = Hero ? Hero->RearBonus : 0;
 		return U;
 	}

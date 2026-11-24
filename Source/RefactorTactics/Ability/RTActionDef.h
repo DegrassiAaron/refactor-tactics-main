@@ -611,8 +611,9 @@ struct FRTActionDef
 	 * turno. Ogni riga lo DICHIARA, e il default e' la classe di fase — Prep 1 · Dash 2 · Blast 2 · Move 2 ·
 	 * reazione 2 · ambientali del Cleanup 2 (`URTCatalogLibrary::DefaultActionPointCost`); una riga marcata
 	 * Ultimate (`bIsUltimate`) costa 3 in qualunque fase ([D-613] (4), che emenda il «+1» di D-594 (3)), e
-	 * `ValidateActions` rifiuta un'Ultimate che dichiari un altro costo. `0` vale solo per `Action.Wait`:
-	 * su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
+	 * `ValidateActions` rifiuta un'Ultimate che dichiari un altro costo e una riga con `Slot == Reaction` che
+	 * costi meno della classe reazione, 2 ([D-634] (29)): per la reazione la classe e' anche un pavimento. `0` vale
+	 * solo per `Action.Wait`: su ogni altra riga e' un costo mancante, e `Catalog.EveryActionDeclaresACost` lo rifiuta.
 	 *
 	 * ⚠️ **Non e' `CostMP`**: quello e' il modificatore per cella del terreno ([D-117], [D-190]). Due assi, come
 	 * D-584 (2) decide: gli AP dicono SE agisci e con che profilo, i Movement Point fin dove.
@@ -906,6 +907,73 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	bool bIsUltimate = false;
+
+	/**
+	 * L'**elemento** del colpo dell'azione ([D-634] (4), #4189): uno di quelli di `URTHeroCatalogLibrary::ElementIds()`,
+	 * oppure `NAME_None` per un colpo senza elemento, cioe' `Direct`. D-634 lo dice della skill («danno dell'elemento
+	 * della skill»), quindi sta sulla riga e non sull'eroe: lo stesso eroe puo' avere un attacco diretto e un'abilita'
+	 * elettrica. `ValidateActions` rifiuta un identificatore fuori lista: un refuso darebbe al colpo un elemento che non
+	 * esiste, e per cui nessun eroe puo' dichiarare una RES (`ValidateHeroes` rifiuta la chiave).
+	 *
+	 * Viaggia sull'intento e sul colpo del Blast (`FRTHexAttackIntent::ElementId`, `FRTHexAttackHit::ElementId`), copiato
+	 * dove l'intento nasce: `CollectAttackIntents` e l'impatto di una carica (`AppendChargeImpactIntents`).
+	 *
+	 * ⛔ **Solo li'**: il colpo di previsione, quello di Overwatch e il contrattacco di una reazione restano `Direct`, e
+	 * l'ambientale del Cleanup scarica come `Environmental`. Per questo `ValidateActions` rifiuta un elemento su una riga di
+	 * slot `Reaction` o che non risolve nel Blast ne' nel Dash (#4189): un elemento li' sarebbe un dato che il colpo ignora.
+	 * Chi lo vuole su una di quelle righe deve prima portarlo nel suo percorso, e poi togliere il rifiuto. ⚠️ Resta scoperto
+	 * l'Overwatch, che spara col danno dell'attacco base dell'eroe: quella riga e' del Blast e passa, e il suo elemento il
+	 * colpo di Overwatch non lo vede.
+	 *
+	 * Decide la difesa del colpo: un colpo elementale si mitiga con la RES di quell'elemento, uno senza con la DEF
+	 * (`FRTHexCombatUnit::DefenseAgainst`, `URTHexCombatLibrary::MitigatedHitPower`).
+	 *
+	 * ⚠️ **Nessuna riga di oggi lo dichiara**, quindi nessun numero di oggi cambia. Come `bIsUltimate`, non entra in
+	 * nessun hash, perche' il catalogo non ci entra ([D-083]), e il TurnLog non lo porta: lo si legge solo nella
+	 * provenienza della voce `Defense` del breakdown (`URTCombatLibrary::ResistanceSource`).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName ElementId;
+
+	/**
+	 * Il colpo dell'azione e' **perforante** ([D-634] (47), #4189): la mitigazione usa difesa 0 — ne' la DEF ne' la RES
+	 * dell'elemento — e la copertura bassa non si sottrae. La **Guard**, il **Brace**, il **Deflect** e lo **scudo**
+	 * restano: il perforante salta cio' che il bersaglio ha come statistica e come riparo di cella, non cio' che ha fatto
+	 * o speso per proteggersi. Guard e scudo sono provati da un turno vero (`Damage.Piercing.*`); Brace e Deflect restano
+	 * per costruzione, perche' stanno dopo la mitigazione (`RTCombatResolver`) e per loro un colpo perforante e' un colpo
+	 * come gli altri. La copertura ALTA continua a fermare la linea di tiro, perche' un colpo perforante non attraversa un
+	 * muro.
+	 *
+	 * 🔑 **Ruling 6 del #4189 — lettura del controller, da confermare dall'autore, ribaltabile.** [D-634] (47) dice
+	 * «contro chiunque fa 420 meno l'eventuale Guard», che si legge anche come 420 piatto. Qui «contro chiunque» e' letto
+	 * come «qualunque sia la difesa del bersaglio»: restano nel Base e nel `Mod` il **bonus alle spalle**, il **`Mod` di
+	 * `Exposed`** (x1,2), il **marchio** (+60) e il **+80 contro `Wet`**, come per ogni colpo; un perforante da 420 alle
+	 * spalle con bonus 30 fa 450, e 540 se il bersaglio e' `Exposed` ((420 + 30) x 120/100: il bonus resta nel Base e il `Mod`
+	 * lo moltiplica). Se la lettura voluta e' quella piatta, il punto da rovesciare e'
+	 * `URTHexCombatLibrary::MitigatedHitPower` (bonus alle spalle a 0 se `bPiercing`), e i casi da invertire sono quello alle spalle
+	 * di `Damage.Piercing.CollectsDefenseAndCoverAtZero` e quello di `Damage.Piercing.RedirectedHitStaysPiercing`; per
+	 * `Exposed`, marchio e +80 sono i passi di `ResolveCombatPasses` che li applicano (`ApplyExposedToFirstHit`,
+	 * `AddBonusToHitBase`) a dover saltare il colpo, con `MarkAndExposedKeepDefenseAndCoverAtZero` e
+	 * `RecomputesKeepZeroOnTheHit` da riscrivere.
+	 *
+	 * Viaggia sull'intento (`FRTHexAttackIntent::bPiercing`), copiato dove l'intento nasce: `CollectAttackIntents` e
+	 * l'impatto di una carica (`AppendChargeImpactIntents`). `CollectHexAttacks` e `RedirectHitTo` ne fanno un colpo con
+	 * `DefenseApplied` 0 e `CoverReduction` 0, e da li' ogni ricalcolo (`Exposed`, marchio, +80) resta coerente senza un
+	 * ramo suo.
+	 *
+	 * ⚠️ **Non e' il «perforante» di [D-386]**, il perforare i bersagli lungo una linea (`LineResolution`): qui si
+	 * attraversa una difesa, non una fila di unita'. ⚠️ **Nessuna riga di oggi lo dichiara**, quindi nessun numero di oggi
+	 * cambia. Questo meccanismo serve un attacco del Blast (lo Skewer, [D-634] (47)); ⛔ **non serve la Sticky Bomb**, che
+	 * ([D-634] (48)) si attacca nel Blast ma detona nel Cleanup sulle sette celle attorno: non e' un intento del Blast, e il
+	 * suo danno perforante ha bisogno di un cablaggio suo. Come `ElementId`, non entra in nessun hash e il
+	 * TurnLog non lo porta: lo si legge solo nell'assenza delle voci `Defense` e `Cover` del breakdown del colpo.
+	 * ⛔ Lo onorano i soli colpi che nascono da un intento del Blast: una riga di previsione, di Overwatch o di reazione
+	 * con questo flag lo ignorerebbe, e `ValidateActions` lo rifiuta su ogni riga di slot `Reaction` o che non risolve nel
+	 * Blast ne' nel Dash (#4189), come l'elemento. Resta scoperto, come per l'elemento, l'attacco base che l'Overwatch prende
+	 * in prestito.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bPiercing = false;
 
 	FRTActionDef() = default;
 };

@@ -126,7 +126,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
  * sola capability elementale — e il catalogo ne dichiarava tre. Resta `PressureJet`.
  *
  * ⚠️ **Costo di gameplay dichiarato**: quel `Wet` ad area era il preparatore della combo con Gadget
- * (`LinearDischarge` fa **+8 su bersaglio `Wet`**). Dopo questa modifica la combo passa solo per la linea
+ * (`LinearDischarge` fa **+80 su bersaglio `Wet`**). Dopo questa modifica la combo passa solo per la linea
  * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseTideHealsWithoutWettingTest,

@@ -1,5 +1,6 @@
 #include "Ability/Catalog/RTCatalogLibrary.h"
 #include "Ability/Catalog/RTActionDescriptions.h" // `#3499`: la frase d'autore di ogni azione
+#include "Ability/Catalog/RTHeroCatalogLibrary.h" // `IsKnownElementId`: il vocabolario degli elementi e' uno (#4189)
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
@@ -246,6 +247,50 @@ int32 URTCatalogLibrary::DefaultActionPointCost(const FRTActionDef& Def)
 	}
 }
 
+namespace
+{
+	/**
+	 * Che riga e' quella il cui danno NON nasce da un intento del Blast (#4189), per il messaggio; `nullptr` se nasce da li'.
+	 *
+	 * Il danno di una riga diventa un intento del Blast in due punti soli, ed e' li' che l'intento copia `ElementId` e
+	 * `bPiercing` dal `Def`: `CollectAttackIntents`, per la principale che risolve nel Blast (`Control`, `Attack`), e
+	 * `AppendChargeImpactIntents`, per l'impatto di uno scatto del Dash. Ogni altra sede applica il danno senza leggerli:
+	 *   - lo slot `Reaction`, in QUALUNQUE fase (le reazioni core sono `Control`, cioe' Blast): il pass delle reazioni ne
+	 *     accoda il danno come `FRTCounterAttack`, un `FRTAttack` senza elemento e senza intento;
+	 *   - il Prep: la predittiva spara al boundary del Move (`ResolvePredictiveBoundary`) e l'Overwatch nel Move
+	 *     (`ApplyReactionDecision`), entrambi con `ApplyDamage(Direct)` meno la copertura del boundary; ogni altra riga di
+	 *     Prep non applica danno (`ResolvePrep`);
+	 *   - il Move, che non risolve danno di azioni, e il Cleanup, dove l'ambientale scarica come `Environmental`.
+	 *
+	 * ⚠️ **Il confine e' lo slot e la fase, non `PredictiveTargeting` ne' `ReactionTrigger`.** Il Prep arma solo le righe della
+	 * sua fase e `CollectAttackIntents` non guarda `PredictiveTargeting`: una predittiva che risolvesse nell'`Attack`
+	 * passerebbe dal Blast come ogni altra. E il trigger lo legge solo il pass delle reazioni, sulle righe di slot `Reaction`.
+	 *
+	 * ⛔ **Non vede l'arma che l'Overwatch prende in prestito**: il colpo dell'Overwatch ha il danno dell'attacco base dell'eroe
+	 * (`BaseActionId == Action.BasicAttack`), che e' una riga del Blast e qui passa. Un attacco base elementale o perforante
+	 * sparerebbe l'Overwatch `Direct` e riducibile: la domanda e' fra le righe di un kit, non su una riga sola.
+	 */
+	const TCHAR* DamageSkipsTheBlastIntent(const FRTActionDef& Def)
+	{
+		if (Def.Slot == ERTActionSlot::Reaction)
+		{
+			return TEXT("una reazione");
+		}
+		// Funzione TOTALE sull'enum, come `MapResolutionPhase`: una fase nuova va classificata qui.
+		switch (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase))
+		{
+		case ERTMatchPhase::Blast:      return nullptr;
+		case ERTMatchPhase::Dash:       return nullptr;
+		case ERTMatchPhase::Prep:       return TEXT("una riga di Prep");
+		case ERTMatchPhase::Move:       return TEXT("una riga del Move");
+		case ERTMatchPhase::Cleanup:    return TEXT("una riga del Cleanup");
+		case ERTMatchPhase::Planning:   return TEXT("una riga dello Snapshot");
+		case ERTMatchPhase::MatchEnded: return TEXT("una riga senza fase d'azione");
+		}
+		return TEXT("una riga senza fase d'azione");
+	}
+}
+
 TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& Actions)
 {
 	TArray<FString> Errors;
@@ -295,6 +340,16 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 			Errors.Add(FString::Printf(TEXT("%s: Ultimate con costo %d, deve costare %d in qualunque fase (D-613 (4))"),
 				*Where, Action.ActionPointCost, ActionPointCostUltimate));
 		}
+		// [D-634] (29), #4189: una reazione costa almeno la sua classe. Ogni riga dichiara il proprio costo ([D-594] (3)), e
+		// per la reazione la classe, che era il default, e' anche il pavimento: sotto, la riga arma una reazione piu' a buon
+		// mercato di quanto le regole ammettano. Il confine e' lo SLOT: `Action.Overwatch` si arma nel Prep (`Slot == Main`)
+		// e resta a 1. E' un pavimento e non un'uguaglianza (una reazione a 3 e' legale) e sta sotto l'Ultimate: una reazione
+		// marcata Ultimate costa 3, e i due controlli rispondono ciascuno per se' (a 1 sbagliano entrambi, ed e' vero).
+		if (Action.Slot == ERTActionSlot::Reaction && Action.ActionPointCost < ActionPointCostReaction)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: reazione con costo %d, deve costare almeno %d, la sua classe (D-634 (29))"),
+				*Where, Action.ActionPointCost, ActionPointCostReaction));
+		}
 		if (Action.CooldownTurns < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: cooldown negativo (%d)"), *Where, Action.CooldownTurns));
@@ -331,6 +386,32 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		if (bIsMovement && Action.Fallback != ERTActionFallback::Stop)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: azione di movimento con fallback diverso da Stop"), *Where));
+		}
+
+		// [D-634] (4), #4189: l'elemento e' uno di quelli di `ElementIds()`, oppure nessuno (`Direct`). Fuori lista e' un
+		// refuso o un elemento che non esiste, e nessun eroe potrebbe dichiarare una RES contro di lui: e' l'altra meta'
+		// della regola per cui `ValidateHeroes` rifiuta una chiave sconosciuta di `ElementResistance`.
+		if (!Action.ElementId.IsNone() && !URTHeroCatalogLibrary::IsKnownElementId(Action.ElementId))
+		{
+			Errors.Add(FString::Printf(TEXT("%s: elemento sconosciuto (%s), non e' fra quelli di ElementIds()"), *Where,
+				*Action.ElementId.ToString()));
+		}
+
+		// #4189, [D-634] (4) e (47): elemento e perforante li onora SOLO un colpo che nasce da un intento del Blast
+		// (`CollectAttackIntents`, `AppendChargeImpactIntents`), dove l'intento li copia dal `Def`. Ogni altro danno li
+		// ignorerebbe in silenzio, quindi qui si rifiutano: sono le righe che `DamageSkipsTheBlastIntent` riconosce.
+		if (const TCHAR* const Sede = DamageSkipsTheBlastIntent(Action))
+		{
+			if (!Action.ElementId.IsNone())
+			{
+				Errors.Add(FString::Printf(TEXT("%s: elemento (%s) su %s, il cui danno non nasce da un intento del Blast: ")
+					TEXT("il colpo lo ignorerebbe (#4189)"), *Where, *Action.ElementId.ToString(), Sede));
+			}
+			if (Action.bPiercing)
+			{
+				Errors.Add(FString::Printf(TEXT("%s: perforante su %s, il cui danno non nasce da un intento del Blast: ")
+					TEXT("il colpo lo ignorerebbe (#4189)"), *Where, Sede));
+			}
 		}
 	}
 
@@ -1477,7 +1558,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// --- Azioni OFFENSIVE (catalogo §3) ----------------------------------------------------------------
 	// Tutte nel Blast tranne la soppressione, che si PREPARA. La priorita' e' cio' che le distingue davvero:
 	// dentro la stessa macro-fase risolvono nell'ordine 40 (marchio) → 55 (linea) → 60 (precisione) →
-	// 65 (area) → 80 (pesante). Il marchio arriva per primo perche' il suo +6 deve poter valere sui colpi
+	// 65 (area) → 80 (pesante). Il marchio arriva per primo perche' il suo +60 deve poter valere sui colpi
 	// dello stesso turno; il pesante per ultimo perche' e' cio' che il catalogo compra con i suoi 35 danni.
 
 	// `PrecisionAttack` — 24 danni fissi, portata dell'arma +1 (la mette MakePrecisionAttack: qui, come per
@@ -1582,7 +1663,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
-	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
+	// alleato contro quel bersaglio infligge +60 e consuma il marchio; dal #4189 il +60 entra nel Base del colpo, prima
+	// della difesa ([D-634] (35)). Priorita' 40, la piu' bassa delle
 	// offensive, perche' un marchio che arrivasse dopo i colpi non servirebbe a nulla.
 	// `Range 0` = **portata del portatore**, come `Action.PrecisionAttack` («range dell'arma +1», catalogo §3):
 	// non e' un'azione a portata nulla. La traduzione la fa `ARTTurnManager` sull'istanza (CP 8.2), che prima
