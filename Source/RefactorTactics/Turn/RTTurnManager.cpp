@@ -6539,10 +6539,17 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 	// La geometria decide quali intenti diventano colpi: portata, linea di tiro e celle raggiunte dall'area.
 	Ctx.Plan = URTHexCombatLibrary::CollectHexAttacks(Ctx.HexUnits, Ctx.Intents, Ctx.Map);
+	// Il registro di prova e' il piano di QUESTO Blast e di nessun altro (#4189): acceso, l'assegnazione lo riscrive anche
+	// con un piano vuoto; spento, si svuota, cosi' chi spegne il flag e rilegge non trova il piano di un turno precedente.
 	if (bRecordBlastPlanForTest)
 	{
 		RecordedBlastIntents = Ctx.Intents;
 		RecordedBlastHits = Ctx.Plan.Hits;
+	}
+	else
+	{
+		RecordedBlastIntents.Reset();
+		RecordedBlastHits.Reset();
 	}
 
 	// `R7` e `R9` per riflesso dello scatto fermato: quali tiri a cella che la portata ha fermato (il Fumo, o uno scatto che si e'

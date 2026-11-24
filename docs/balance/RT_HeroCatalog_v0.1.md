@@ -275,8 +275,8 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 > La formula è `URTCombatLibrary::MitigateDirectDamage`; la tabella di controllo di CP 53.1 si misura sul catalogo
 > reale in `RefactorTactics.Heroes.ControlTableHoldsOnTheRealCatalog`.
 >
-> 🧮 **Dal #4189 ([D-634](../decisions/RT_PDR_00_Decision_Log.md)) la formula ha quattro regole in più**, nel codice
-> ([#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)):
+> 🧮 **Dal #4189 la formula ha in più le regole (4), (5), (6), (35) e (47) di [D-634](../decisions/RT_PDR_00_Decision_Log.md)**,
+> nel codice ([#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)):
 > - un'azione può dichiarare un elemento, e il suo colpo si riduce con la `RES` di quell'elemento invece che con la `DEF`,
 >   con la stessa forma `100/(100+RES)` ((4)); la colonna `RES` qui sopra è la resistenza di partenza per gli elementi,
 >   accanto alla resistenza per elemento ((6));
@@ -284,8 +284,8 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 > - il marchio (+60) e il +80 di `LinearDischarge` contro `Wet` entrano nel Base, **prima** della difesa ((35));
 > - un'azione perforante usa difesa 0 e non sottrae la copertura bassa; Guard e scudo restano ((47)).
 >
-> Nessuna azione del kit di oggi dichiara un elemento o è perforante, quindi dei quattro solo il punto dei due bonus
-> cambia un numero in partita.
+> Nessuna azione del kit di oggi dichiara un elemento o è perforante, quindi di queste regole solo il punto del marchio
+> e del +80 contro `Wet` ((35)) cambia un numero in partita.
 >
 > 🔢 **Copertura, Guard e Brace sono tarate con la DEF in mano** ([D-602](../decisions/RT_PDR_00_Decision_Log.md),
 > stesso passo): copertura bassa **60**, Guard **100**, Brace **60**. Con i valori della passata ×10 (100 · 150 · 100)

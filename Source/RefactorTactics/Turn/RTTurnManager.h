@@ -712,7 +712,8 @@ public:
 	 *
 	 * Esiste perche' l'elemento dell'azione (`FRTActionDef::ElementId`) viaggia sull'intento e sul colpo e non entra nel
 	 * TurnLog: senza questa copia il tragitto dal `Def` al colpo, attraverso i due punti in cui l'intento nasce, non si
-	 * vede da un turno vero. Membro C++ nudo, non `UPROPERTY` (F20); spento, non copia niente.
+	 * vede da un turno vero. Membro C++ nudo, non `UPROPERTY` (F20). Il registro e' dell'ultimo Blast: acceso lo riscrive,
+	 * anche vuoto; spento lo svuota, e un Blast non registrato non lascia leggere il piano di quello prima.
 	 */
 	bool bRecordBlastPlanForTest = false;
 	const TArray<FRTHexAttackIntent>& RecordedBlastIntentsForTest() const { return RecordedBlastIntents; }
@@ -3771,7 +3772,7 @@ private:
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */
 	TArray<FRTResolvedEvent> ResolvedTimeline;
 
-	/** Il piano dell'ultimo Blast, copiato solo con `bRecordBlastPlanForTest` (#4189). Nessun lettore di produzione. */
+	/** Il piano dell'ultimo Blast con `bRecordBlastPlanForTest` acceso, vuoto se era spento (#4189). Nessun lettore di produzione. */
 	TArray<FRTHexAttackIntent> RecordedBlastIntents;
 	TArray<FRTHexAttackHit> RecordedBlastHits;
 
