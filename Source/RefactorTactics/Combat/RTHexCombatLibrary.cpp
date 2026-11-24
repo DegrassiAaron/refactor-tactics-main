@@ -338,8 +338,10 @@ int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, c
 	const bool bRear = !IsInFrontalArc(Target.Cell, Target.Facing, ImpactOriginOf(Shape, Attacker.Cell, AimCell));
 	OutRearBonusApplied = bRear ? FMath::Max(0, Attacker.RearBonus) : 0;
 	// [D-634] (4), #4189: la DEF per il colpo senza elemento, la RES dell'elemento per quello elementale, e `0` per un colpo
-	// perforante ([D-634] (47)): le spalle e il Base restano, la difesa no. La formula e' la stessa; la scelta e' una sola, in
-	// `DefenseAgainst`, e il chiamante registra la stessa in `DefenseApplied`.
+	// perforante ([D-634] (47)): il Base e le spalle restano, la difesa no. ⚠️ «Le spalle restano» e' il Ruling 6 del #4189,
+	// lettura del controller da confermare dall'autore e ribaltabile: se [D-634] (47) vuole il 420 piatto, e' qui che il
+	// bonus alle spalle va a 0 per un perforante (`OutRearBonusApplied` compreso). La formula e' la stessa; la scelta della
+	// difesa e' una sola, in `DefenseAgainst`, e il chiamante registra la stessa in `DefenseApplied`.
 	return URTCombatLibrary::MitigateDirectDamage(BasePower, OutRearBonusApplied, /*ModPercent*/ 100,
 		FMath::Max(0, Target.DefenseAgainst(ElementId, bPiercing)));
 }

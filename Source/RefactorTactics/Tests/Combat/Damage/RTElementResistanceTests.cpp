@@ -139,9 +139,9 @@ bool FRTDamageElementResistanceMitigatesTheElementalHitTest::RunTest(const FStri
 	// La scelta da sola: DEF per il colpo diretto, la voce dell'elemento se c'e', altrimenti la RES di default.
 	{
 		const FRTHexCombatUnit T = ResTarget(1, 1, FRTCellId(0, 0, 0), ERTHexDirection::W);
-		TestEqual(TEXT("DefenseAgainst(None) = la DEF"), T.DefenseAgainst(NAME_None), ResTargetDefense);
-		TestEqual(TEXT("DefenseAgainst(Electric) = la RES di default"), T.DefenseAgainst(ResElectric()), ResTargetResistance);
-		TestEqual(TEXT("DefenseAgainst(Fire) = la RES del fuoco"), T.DefenseAgainst(ResFire()), ResTargetFireResistance);
+		TestEqual(TEXT("DefenseAgainst(None) = la DEF"), T.DefenseAgainst(NAME_None, /*bPiercing*/ false), ResTargetDefense);
+		TestEqual(TEXT("DefenseAgainst(Electric) = la RES di default"), T.DefenseAgainst(ResElectric(), /*bPiercing*/ false), ResTargetResistance);
+		TestEqual(TEXT("DefenseAgainst(Fire) = la RES del fuoco"), T.DefenseAgainst(ResFire(), /*bPiercing*/ false), ResTargetFireResistance);
 	}
 
 	// Il colpo: attaccante a ovest, bersaglio che lo guarda (frontale: nessun bonus alle spalle), arena piena (nessuna
@@ -425,8 +425,8 @@ bool FRTDamageElementPreviewUnitsCarryTheResistanceTest::RunTest(const FString&)
 	const FRTHexCombatUnit& U = HexUnits[0];
 	TestEqual(TEXT("la DEF"), U.Defense, Riktor->Defense);
 	TestEqual(TEXT("la RES di default"), U.ResistanceDefault, Riktor->ResistanceDefault);
-	TestEqual(TEXT("contro il fuoco, la RES del fuoco"), U.DefenseAgainst(ResFire()), Riktor->ResistanceAgainst(ResFire()));
-	TestEqual(TEXT("contro il fulmine, la RES di default"), U.DefenseAgainst(ResElectric()), Riktor->ResistanceAgainst(ResElectric()));
+	TestEqual(TEXT("contro il fuoco, la RES del fuoco"), U.DefenseAgainst(ResFire(), /*bPiercing*/ false), Riktor->ResistanceAgainst(ResFire()));
+	TestEqual(TEXT("contro il fulmine, la RES di default"), U.DefenseAgainst(ResElectric(), /*bPiercing*/ false), Riktor->ResistanceAgainst(ResElectric()));
 	TestEqual(TEXT("premessa: il fuoco ha davvero una voce sua"), Riktor->ResistanceAgainst(ResFire()), ResTargetFireResistance);
 	return true;
 }

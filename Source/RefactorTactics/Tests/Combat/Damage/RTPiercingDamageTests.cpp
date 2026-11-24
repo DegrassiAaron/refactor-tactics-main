@@ -27,6 +27,14 @@
  * la RES dell'elemento) e non sottrae la copertura bassa; la Guard e lo scudo restano. Il bonus alle spalle, il marchio e il
  * +80 contro `Wet` entrano nel Base come per ogni colpo, e la copertura ALTA continua a fermare la linea di tiro.
  *
+ * ⚠️ **Ruling 6 del #4189 - lettura del controller, da confermare dall'autore, ribaltabile.** «Il bonus alle spalle, il
+ * `Mod` di `Exposed`, il marchio e il +80 restano» e' una lettura di [D-634] (47) («contro chiunque fa 420 meno l'eventuale
+ * Guard»), che si legge anche come 420 piatto: qui «contro chiunque» vale «qualunque sia la difesa del bersaglio». Se
+ * l'autore vuole il 420 piatto, i test che lo fissano sono `MarkAndExposedKeepDefenseAndCoverAtZero`,
+ * `RecomputesKeepZeroOnTheHit` e il caso alle spalle di `CollectsDefenseAndCoverAtZero`; il punto del codice e' descritto in
+ * `FRTActionDef::bPiercing`. Guard e scudo, invece, sono scritti nella decisione e non sono una lettura. Brace e Deflect
+ * restano per costruzione (stanno dopo la mitigazione) e non hanno un controllo di turno qui.
+ *
  * Il banco e' quello del piano: un colpo da 420 contro Riktor (DEF 45, RES 35, Guard 100, scudo base 50 nel catalogo), in
  * copertura bassa frontale (60, [D-602]).
  *   - senza il flag    floor(420 x 100/145) - 60 = 289 - 60 = 229;
@@ -338,7 +346,10 @@ bool FRTDamagePiercingMarkAndExposedKeepDefenseAndCoverAtZeroTest::RunTest(const
  * Tre colpi da 240 contro DEF 45 in copertura bassa frontale, uno per ricalcolo: marchio, `Exposed`, tutti e due.
  *   - A: +60, floor(300 x 100/100) = 300 (senza il flag: floor(300 x 100/145) - 60 = 146);
  *   - B: `Exposed`, floor(240 x 120/100) = 288 (senza il flag: floor(240 x 120 x 100/(100 x 145)) - 60 = 198 - 60 = 138);
- *   - C: `Exposed` poi +60, floor(300 x 120/100) = 360.
+ *   - C: `Exposed` poi +60, floor(300 x 120/100) = 360 (senza il flag: floor(300 x 120 x 100/(100 x 145)) - 60 = 248 - 60 = 188).
+ * I valori senza il flag sono i controlli, e sono asseriti: provano che la DEF e il muretto mordono nel banco, quindi che i
+ * valori perforanti non sono tali per caso. ⚠️ Che `Exposed` e il marchio moltiplichino e sommino a un perforante e' il
+ * Ruling 6 del #4189 (lettura del controller, da confermare dall'autore, ribaltabile: vedi `FRTActionDef::bPiercing`).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamagePiercingRecomputesKeepZeroOnTheHitTest,
 	"RefactorTactics.Damage.Piercing.RecomputesKeepZeroOnTheHit",
@@ -351,61 +362,80 @@ bool FRTDamagePiercingRecomputesKeepZeroOnTheHitTest::RunTest(const FString&)
 	PcSetLowCover(Map, DifB, ERTHexDirection::W);
 	PcSetLowCover(Map, DifC, ERTHexDirection::W);
 
-	TArray<FRTHexCombatUnit> Units;
-	Units.Add(PcUnit(0, 0, FRTCellId(-1, 0, 0), ERTHexDirection::E));
-	Units.Add(PcUnit(1, 1, DifA, ERTHexDirection::W, PcDefense));
-	Units.Add(PcUnit(2, 0, FRTCellId(-1, 3, 0), ERTHexDirection::E));
-	Units.Add(PcUnit(3, 1, DifB, ERTHexDirection::W, PcDefense));
-	Units.Add(PcUnit(4, 0, FRTCellId(-1, -3, 0), ERTHexDirection::E));
-	Units.Add(PcUnit(5, 1, DifC, ERTHexDirection::W, PcDefense));
-	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(PcIntent(DifA, /*Attacker*/ 0, /*Target*/ 1, 240, /*bPiercing*/ true));
-	Intents.Add(PcIntent(DifB, /*Attacker*/ 2, /*Target*/ 3, 240, /*bPiercing*/ true));
-	Intents.Add(PcIntent(DifC, /*Attacker*/ 4, /*Target*/ 5, 240, /*bPiercing*/ true));
+	// Lo stesso piano due volte: perforante, e il controllo senza il flag, che dice che DEF e copertura mordono nel banco.
+	for (const bool bPiercing : { true, false })
+	{
+		const TCHAR* Etichetta = bPiercing ? TEXT("perforante") : TEXT("senza il flag");
+		const int32 Collected = bPiercing ? 240 : 105;       // 240, oppure floor(240 x 100/145) - 60
+		const int32 ExpectA = bPiercing ? 300 : 146;
+		const int32 ExpectB = bPiercing ? 288 : 138;
+		const int32 ExpectC = bPiercing ? 360 : 188;          // senza il flag: floor(300 x 120 x 100/(100 x 145)) - 60
+		const int32 ExpectDefense = bPiercing ? 0 : PcDefense;
+		const int32 ExpectCover = bPiercing ? 0 : URTCombatLibrary::LowCoverDamageReduction;
+		const auto L = [Etichetta](const TCHAR* Text) { return FString::Printf(TEXT("%s, %s"), Etichetta, Text); };
 
-	FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
-	if (!TestEqual(TEXT("tre colpi raccolti"), Plan.Hits.Num(), 3)) { return false; }
-	FRTHexAttackHit* A = PcHitFrom(Plan, 0);
-	FRTHexAttackHit* B = PcHitFrom(Plan, 2);
-	FRTHexAttackHit* C = PcHitFrom(Plan, 4);
-	if (!TestNotNull(TEXT("colpo A"), A) || !TestNotNull(TEXT("colpo B"), B) || !TestNotNull(TEXT("colpo C"), C))
-	{
-		return false;
-	}
-	for (const FRTHexAttackHit* Hit : { A, B, C })
-	{
-		if (!TestEqual(TEXT("premessa: raccolto a 240, senza DEF e senza copertura"), Hit->Power, 240)
-			|| !TestEqual(TEXT("premessa: DefenseApplied 0"), Hit->DefenseApplied, 0)
-			|| !TestEqual(TEXT("premessa: CoverReduction 0"), Hit->CoverReduction, 0))
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(PcUnit(0, 0, FRTCellId(-1, 0, 0), ERTHexDirection::E));
+		Units.Add(PcUnit(1, 1, DifA, ERTHexDirection::W, PcDefense));
+		Units.Add(PcUnit(2, 0, FRTCellId(-1, 3, 0), ERTHexDirection::E));
+		Units.Add(PcUnit(3, 1, DifB, ERTHexDirection::W, PcDefense));
+		Units.Add(PcUnit(4, 0, FRTCellId(-1, -3, 0), ERTHexDirection::E));
+		Units.Add(PcUnit(5, 1, DifC, ERTHexDirection::W, PcDefense));
+		TArray<FRTHexAttackIntent> Intents;
+		Intents.Add(PcIntent(DifA, /*Attacker*/ 0, /*Target*/ 1, 240, bPiercing));
+		Intents.Add(PcIntent(DifB, /*Attacker*/ 2, /*Target*/ 3, 240, bPiercing));
+		Intents.Add(PcIntent(DifC, /*Attacker*/ 4, /*Target*/ 5, 240, bPiercing));
+
+		FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+		if (!TestEqual(*L(TEXT("tre colpi raccolti")), Plan.Hits.Num(), 3)) { return false; }
+		FRTHexAttackHit* A = PcHitFrom(Plan, 0);
+		FRTHexAttackHit* B = PcHitFrom(Plan, 2);
+		FRTHexAttackHit* C = PcHitFrom(Plan, 4);
+		if (!TestNotNull(*L(TEXT("colpo A")), A) || !TestNotNull(*L(TEXT("colpo B")), B) || !TestNotNull(*L(TEXT("colpo C")), C))
 		{
 			return false;
 		}
+		for (const FRTHexAttackHit* Hit : { A, B, C })
+		{
+			if (!TestEqual(*L(TEXT("premessa: potenza raccolta")), Hit->Power, Collected)
+				|| !TestEqual(*L(TEXT("premessa: DefenseApplied")), Hit->DefenseApplied, ExpectDefense)
+				|| !TestEqual(*L(TEXT("premessa: CoverReduction")), Hit->CoverReduction, ExpectCover))
+			{
+				return false;
+			}
+		}
+
+		// A: il marchio.
+		URTHexCombatLibrary::AddBonusToHitBase(*A, URTCombatLibrary::MarkedFirstHitBonus);
+		TestEqual(*L(TEXT("A con il marchio: 300 perforante (240 + 60), 146 senza il flag")), A->Power, ExpectA);
+		TestEqual(*L(TEXT("A: DefenseApplied resta com'era")), A->DefenseApplied, ExpectDefense);
+		TestEqual(*L(TEXT("A: CoverReduction resta com'era")), A->CoverReduction, ExpectCover);
+		if (bPiercing)
+		{
+			TestEqual(TEXT("A: il mitigato e' il ricalcolato, senza difesa"), A->MitigatedPower, 300);
+		}
+
+		// B, C: Exposed sul piano (B e C esposti), poi il marchio su C.
+		TArray<bool> bExposed;
+		bExposed.Init(false, Units.Num());
+		bExposed[3] = true;
+		bExposed[5] = true;
+		TArray<int32> Order;
+		for (int32 h = 0; h < Plan.Hits.Num(); ++h) { Order.Add(h); }
+		const TArray<int32> Boosted = URTHexCombatLibrary::ApplyExposedToFirstHit(Plan.Hits, Order, bExposed);
+		TestEqual(*L(TEXT("premessa: Exposed ha moltiplicato due colpi")), Boosted.Num(), 2);
+		TestEqual(*L(TEXT("B esposto: 288 perforante (floor(240 x 120/100)), 138 senza il flag")), B->Power, ExpectB);
+		TestEqual(*L(TEXT("B: DefenseApplied resta com'era")), B->DefenseApplied, ExpectDefense);
+		TestEqual(*L(TEXT("B: CoverReduction resta com'era")), B->CoverReduction, ExpectCover);
+		URTHexCombatLibrary::AddBonusToHitBase(*C, URTCombatLibrary::MarkedFirstHitBonus);
+		TestEqual(*L(TEXT("C esposto e marchiato: 360 perforante (floor(300 x 120/100)), 188 senza il flag")), C->Power, ExpectC);
+		TestEqual(*L(TEXT("C: DefenseApplied resta com'era")), C->DefenseApplied, ExpectDefense);
+		TestEqual(*L(TEXT("C: CoverReduction resta com'era")), C->CoverReduction, ExpectCover);
+		if (bPiercing)
+		{
+			TestEqual(TEXT("C: il mitigato e' il ricalcolato, senza difesa"), C->MitigatedPower, 360);
+		}
 	}
-
-	// A: il marchio.
-	URTHexCombatLibrary::AddBonusToHitBase(*A, URTCombatLibrary::MarkedFirstHitBonus);
-	TestEqual(TEXT("A con il marchio: 240 + 60 = 300, senza DEF e senza il muretto"), A->Power, 300);
-	TestEqual(TEXT("A: il mitigato e' il ricalcolato, senza difesa"), A->MitigatedPower, 300);
-	TestEqual(TEXT("A: DefenseApplied resta 0"), A->DefenseApplied, 0);
-	TestEqual(TEXT("A: CoverReduction resta 0"), A->CoverReduction, 0);
-
-	// B, C: Exposed sul piano (B e C esposti), poi il marchio su C.
-	TArray<bool> bExposed;
-	bExposed.Init(false, Units.Num());
-	bExposed[3] = true;
-	bExposed[5] = true;
-	TArray<int32> Order;
-	for (int32 h = 0; h < Plan.Hits.Num(); ++h) { Order.Add(h); }
-	const TArray<int32> Boosted = URTHexCombatLibrary::ApplyExposedToFirstHit(Plan.Hits, Order, bExposed);
-	TestEqual(TEXT("premessa: Exposed ha moltiplicato due colpi"), Boosted.Num(), 2);
-	TestEqual(TEXT("B esposto: floor(240 x 120/100) = 288, senza DEF e senza il muretto"), B->Power, 288);
-	TestEqual(TEXT("B: DefenseApplied resta 0"), B->DefenseApplied, 0);
-	TestEqual(TEXT("B: CoverReduction resta 0"), B->CoverReduction, 0);
-	URTHexCombatLibrary::AddBonusToHitBase(*C, URTCombatLibrary::MarkedFirstHitBonus);
-	TestEqual(TEXT("C esposto e marchiato: floor(300 x 120/100) = 360"), C->Power, 360);
-	TestEqual(TEXT("C: il mitigato e' il ricalcolato"), C->MitigatedPower, 360);
-	TestEqual(TEXT("C: DefenseApplied resta 0"), C->DefenseApplied, 0);
-	TestEqual(TEXT("C: CoverReduction resta 0"), C->CoverReduction, 0);
 	return true;
 }
 
@@ -414,8 +444,9 @@ bool FRTDamagePiercingRecomputesKeepZeroOnTheHitTest::RunTest(const FString&)
  *   - frontale in copertura bassa: Power 420, `MitigatedPower` 420, `DefenseApplied` 0, `CoverReduction` 0, nessun facing
  *     letto (senza il flag: 229, 289, 45, 60);
  *   - alle SPALLE in copertura bassa, con il bonus alle spalle di 30: Power 450, `CoverBypassedByFacing` 0 — una copertura
- *     che non si sottrae non e' una copertura scavalcata dalla direzione, e il bonus alle spalle resta nel Base (senza il
- *     flag: floor(450 x 100/145) = 310, `CoverBypassedByFacing` 60);
+ *     che non si sottrae non e' una copertura scavalcata dalla direzione, e il bonus alle spalle resta nel Base - Ruling 6
+ *     del #4189, lettura del controller da confermare dall'autore e ribaltabile; se D-634 (47) vuole il 420 piatto questo
+ *     caso si inverte, 420 e non 450 (senza il flag: floor(450 x 100/145) = 310, `CoverBypassedByFacing` 60);
  *   - elementale (`Element.Electric`, RES 35): `DefenseApplied` 0 anche contro la RES, Power 420.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamagePiercingCollectsDefenseAndCoverAtZeroTest,
@@ -468,8 +499,10 @@ bool FRTDamagePiercingCollectsDefenseAndCoverAtZeroTest::RunTest(const FString&)
 			TestFalse(F + TEXT("il facing non e' stato letto: la copertura non si e' valutata"),
 				URTHexCombatLibrary::CoverReadTargetFacing(*Frontale));
 
-			TestEqual(S + TEXT("420 + 30 di spalle, senza DEF"), Spalle->Power, PcPower + PcRearBonus);
-			TestEqual(S + TEXT("il bonus alle spalle resta nel Base"), Spalle->RearBonusApplied, PcRearBonus);
+			TestEqual(S + TEXT("420 + 30 di spalle, senza DEF (Ruling 6 del #4189: lettura del controller, ribaltabile)"),
+				Spalle->Power, PcPower + PcRearBonus);
+			TestEqual(S + TEXT("il bonus alle spalle resta nel Base (Ruling 6 del #4189: lettura del controller, ribaltabile)"),
+				Spalle->RearBonusApplied, PcRearBonus);
 			TestEqual(S + TEXT("DefenseApplied 0"), Spalle->DefenseApplied, 0);
 			TestEqual(S + TEXT("nessuna copertura scavalcata dalla direzione: non c'era niente da sottrarre"),
 				Spalle->CoverBypassedByFacing, 0);

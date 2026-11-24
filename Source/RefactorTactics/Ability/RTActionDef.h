@@ -929,10 +929,22 @@ struct FRTActionDef
 
 	/**
 	 * Il colpo dell'azione e' **perforante** ([D-634] (47), #4189): la mitigazione usa difesa 0 — ne' la DEF ne' la RES
-	 * dell'elemento — e la copertura bassa non si sottrae. La **Guard** e lo **scudo** restano: il perforante salta cio'
-	 * che il bersaglio ha come statistica e come riparo di cella, non cio' che ha fatto o speso per proteggersi. Il
-	 * bonus alle spalle, il marchio e il +80 contro `Wet` entrano nel Base come per ogni colpo; la copertura ALTA continua
-	 * a fermare la linea di tiro, perche' un colpo perforante non attraversa un muro.
+	 * dell'elemento — e la copertura bassa non si sottrae. La **Guard**, il **Brace**, il **Deflect** e lo **scudo**
+	 * restano: il perforante salta cio' che il bersaglio ha come statistica e come riparo di cella, non cio' che ha fatto
+	 * o speso per proteggersi. Guard e scudo sono provati da un turno vero (`Damage.Piercing.*`); Brace e Deflect restano
+	 * per costruzione, perche' stanno dopo la mitigazione (`RTCombatResolver`) e per loro un colpo perforante e' un colpo
+	 * come gli altri. La copertura ALTA continua a fermare la linea di tiro, perche' un colpo perforante non attraversa un
+	 * muro.
+	 *
+	 * 🔑 **Ruling 6 del #4189 — lettura del controller, da confermare dall'autore, ribaltabile.** [D-634] (47) dice
+	 * «contro chiunque fa 420 meno l'eventuale Guard», che si legge anche come 420 piatto. Qui «contro chiunque» e' letto
+	 * come «qualunque sia la difesa del bersaglio»: restano nel Base e nel `Mod` il **bonus alle spalle**, il **`Mod` di
+	 * `Exposed`** (x1,2), il **marchio** (+60) e il **+80 contro `Wet`**, come per ogni colpo; un perforante da 420 alle
+	 * spalle con bonus 30 fa 450, e 504 se il bersaglio e' `Exposed`. Se la lettura voluta e' quella piatta, il punto da
+	 * rovesciare e' `URTHexCombatLibrary::MitigatedHitPower` (bonus alle spalle a 0 se `bPiercing`), con il caso alle spalle
+	 * di `Damage.Piercing.CollectsDefenseAndCoverAtZero` da invertire; per `Exposed`, marchio e +80 sono i passi di
+	 * `ResolveCombatPasses` che li applicano (`ApplyExposedToFirstHit`, `AddBonusToHitBase`) a dover saltare il colpo, con
+	 * `MarkAndExposedKeepDefenseAndCoverAtZero` e `RecomputesKeepZeroOnTheHit` da riscrivere.
 	 *
 	 * Viaggia sull'intento (`FRTHexAttackIntent::bPiercing`), copiato dove l'intento nasce: `CollectAttackIntents` e
 	 * l'impatto di una carica (`AppendChargeImpactIntents`). `CollectHexAttacks` e `RedirectHitTo` ne fanno un colpo con
@@ -941,7 +953,9 @@ struct FRTActionDef
 	 *
 	 * ⚠️ **Non e' il «perforante» di [D-386]**, il perforare i bersagli lungo una linea (`LineResolution`): qui si
 	 * attraversa una difesa, non una fila di unita'. ⚠️ **Nessuna riga di oggi lo dichiara**, quindi nessun numero di oggi
-	 * cambia; la prima sara' la Sticky Bomb, in una fetta successiva. Come `ElementId`, non entra in nessun hash e il
+	 * cambia. Questo meccanismo serve un attacco del Blast (lo Skewer, [D-634] (47)); ⛔ **non serve la Sticky Bomb**, che
+	 * ([D-634] (48)) si attacca nel Blast ma detona nel Cleanup sulle sette celle attorno: non e' un intento del Blast, e il
+	 * suo danno perforante ha bisogno di un cablaggio suo. Come `ElementId`, non entra in nessun hash e il
 	 * TurnLog non lo porta: lo si legge solo nell'assenza delle voci `Defense` e `Cover` del breakdown del colpo.
 	 * ⛔ Lo onorano i soli colpi che nascono da un intento del Blast: una riga di previsione, di Overwatch o di reazione
 	 * con questo flag lo ignorerebbe, e `ValidateActions` non lo rifiuta ancora.

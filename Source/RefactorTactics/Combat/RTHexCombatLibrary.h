@@ -82,10 +82,12 @@ struct FRTHexCombatUnit
 	 *
 	 * Un colpo PERFORANTE ([D-634] (47), #4189, `bPiercing`) non legge nessuna delle due: la difesa e' `0`. La scelta sta qui
 	 * e non in chi chiama, cosi' `MitigatedHitPower` e `DefenseApplied` non possono divergere, e ogni ricalcolo che parte da
-	 * `DefenseApplied` (`Exposed`, marchio, +80 contro `Wet`) eredita lo zero senza un ramo suo. ⚠️ `bPiercing` ha un default
-	 * a `false` per i chiamanti che non hanno un colpo in mano (i test della RES): chi ha un intento lo passa sempre.
+	 * `DefenseApplied` (`Exposed`, marchio, +80 contro `Wet`) eredita lo zero senza un ramo suo. ⚠️ **`bPiercing` non ha un
+	 * default, ed e' voluto**: con un default, un chiamante che ha un intento in mano e dimentica di passarlo mitiga un
+	 * perforante con la DEF senza un errore, e il colpo nasce incoerente con la sua copertura. Chi non ha un colpo — i test
+	 * della RES — passa `false` e lo dice.
 	 */
-	int32 DefenseAgainst(const FName& ElementId, bool bPiercing = false) const
+	int32 DefenseAgainst(const FName& ElementId, bool bPiercing) const
 	{
 		if (bPiercing)
 		{
@@ -969,13 +971,16 @@ public:
 
 	/**
 	 * Spalle e difesa di UN colpo ([D-589], [D-587]; E53 CP 53.2c):
-	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.DefenseAgainst(ElementId))`, dove «alle
+	 * `MitigateDirectDamage(Base, bRear ? Attacker.RearBonus : 0, Mod 100, Target.DefenseAgainst(ElementId, bPiercing))`, dove «alle
 	 * spalle» e' «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
 	 *
 	 * La difesa e' la DEF per un colpo senza elemento e la RES dell'elemento per uno elementale ([D-634] (4), #4189): la
 	 * stessa formula, con un solo arrotondamento ([D-595] (1)), cambia solo la statistica. Per un colpo PERFORANTE e'
-	 * `0` ([D-634] (47)): le spalle e il Base restano, la difesa no. Il chiamante registra la stessa scelta in
-	 * `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
+	 * `0` ([D-634] (47)): il Base e le spalle restano, la difesa no. ⚠️ **«Le spalle restano» e' il Ruling 6 del #4189:
+	 * lettura del controller, da confermare dall'autore, ribaltabile** — [D-634] (47) dice «contro chiunque fa 420 meno
+	 * l'eventuale Guard», che si legge anche come 420 piatto, e qui e' letto come «qualunque sia la difesa». Per rovesciarla,
+	 * il punto e' questa funzione: bonus alle spalle a 0 se `bPiercing` (vedi `FRTActionDef::bPiercing`). Il chiamante
+	 * registra la stessa scelta in `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
 	 *
 	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
 	 * sul PRIMO colpo che fa danno, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto» di
